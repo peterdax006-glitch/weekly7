@@ -98,9 +98,16 @@ PLAIN = {"ear": "strong earnings reaction", "ins_buyers30": "insiders buying", "
          "vol_spread": "options: calls pricier than puts", "cp_volume": "options: call-heavy volume"}
 
 
+MARKET_PLAIN = {"m_vix": "market fear (VIX level)", "m_vix_chg5": "market fear rising (VIX 5-day change)",
+                "m_vix_term": "market stress (short vs 3-month VIX)", "m_spy_ma50": "market vs its 50-day average",
+                "m_spy_ma200": "market vs its 200-day average", "m_spy_r5": "market's last week",
+                "m_breadth": "market breadth (share of stocks above 50-day avg)",
+                "m_dispersion": "how differently stocks are moving (dispersion)"}
+
+
 def plain(k):
     if k.startswith("m_"):
-        return "market conditions"
+        return MARKET_PLAIN.get(k, "market conditions")
     return PLAIN.get(k, k.replace("_", " "))
 
 

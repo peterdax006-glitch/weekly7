@@ -32,6 +32,8 @@ DIRECTIVES = [
      "continue working while you wait on that"),
     ("C12", "2026-09-28", "Make testing very fast before bulk testing",
      "ensure you get testing to go very fast so you can run tests very fast, learn how you can speed up testing before you start bulk testing to speed up the progress"),
+    ("C13", "2026-09-28", "Pattern explorer across all indicators",
+     "make sure there is a way you can view the exact patterns of stocks that got us closer to our goal looking for patters in all the dozens of different trends and indicators and quantity of everything"),
 ]
 
 def sha(t): return hashlib.sha256(t.encode("utf-8")).hexdigest()

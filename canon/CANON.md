@@ -77,3 +77,9 @@ continue working while you wait on that
 > ensure you get testing to go very fast so you can run tests very fast, learn how you can speed up testing before you start bulk testing to speed up the progress
 
 `sha256: abcffa5d132e16f0883e31a7c20d340d15b21f71d003d9c7a63d48de050274e3`
+
+## C13 — Pattern explorer across all indicators (2026-09-28)
+
+> make sure there is a way you can view the exact patterns of stocks that got us closer to our goal looking for patters in all the dozens of different trends and indicators and quantity of everything
+
+`sha256: ee82cf0343eab17ef2568ed960d458c7ede1be180fe92d91050552b36b60ee80`

@@ -23,7 +23,9 @@ class SealedYear:
     def __init__(self, run_id):
         self.path = DIR / f"sealed_{run_id}.json"
         if not self.path.exists():
-            y = FIRST_YEAR + secrets.randbelow(LAST_YEAR - FIRST_YEAR + 1)
+            used = {json.loads(f.read_text())["year"] for f in DIR.glob("sealed_*.json")}
+            pool = [y for y in range(FIRST_YEAR, LAST_YEAR + 1) if y not in used] or list(range(FIRST_YEAR, LAST_YEAR + 1))
+            y = pool[secrets.randbelow(len(pool))]              # no repeats until every year has been played
             weeks = 8000 + secrets.randbelow(3000)            # 2100s-2150s, a multiple of 7 days keeps weekdays
             self.path.write_text(json.dumps({"year": y, "shift_days": 7 * weeks}))
 
