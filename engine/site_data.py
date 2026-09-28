@@ -35,7 +35,10 @@ def write_site(broker, prices):
                          "why": m.get("why", []), "p_target": m.get("p_target")})
     preds = sorted(PRED_DIR.glob("*.parquet"))
     lastP = pd.read_parquet(preds[-1]) if preds else None
+    from .live import PLAIN
+    spaced = {k.replace("_", " "): v for k, v in PLAIN.items()}
     for h in holdings:
+        h["why"] = [spaced.get(w, w) for w in h["why"]]       # older records stored raw feature names
         if not h["why"] and lastP is not None and "why" in lastP and h["ticker"] in lastP.index and lastP.loc[h["ticker"], "why"]:
             h["why"] = lastP.loc[h["ticker"], "why"].split(" | ")
         if h["p_target"] is None and lastP is not None and h["ticker"] in lastP.index:
