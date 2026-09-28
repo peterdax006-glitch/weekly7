@@ -38,6 +38,7 @@ jobs:
         env:
           ALPACA_KEY: ${{ secrets.ALPACA_KEY }}
           ALPACA_SECRET: ${{ secrets.ALPACA_SECRET }}
+          SEC_CONTACT: ${{ secrets.SEC_CONTACT }}
         run: python -m engine.tick ${{ github.event.inputs.job }}
       - name: Save market-data cache (after decide / close / weekly)
         if: always()

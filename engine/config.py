@@ -10,7 +10,9 @@ SITE = ROOT / "docs"
 for p in (DATA, CACHE, STATE, SITE):
     p.mkdir(parents=True, exist_ok=True)
 
-SEC_UA = "Weekly7 research peterdax006-glitch@users.noreply.github.com"  # SEC requires a contact User-Agent
+import os
+# SEC rejects anonymous / no-reply contacts; the real address lives in a secret, never in this public repo.
+SEC_UA = "Weekly7 research " + os.environ.get("SEC_CONTACT", "contact-not-set@example.com")
 
 START_CASH = 1000.0
 WEEKLY_TARGET = 0.07

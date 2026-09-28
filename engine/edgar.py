@@ -291,3 +291,58 @@ def backfill_form4(start: date, universe: pd.DataFrame, end: date = None):
         ins = ins[ins["value"] > 0].drop_duplicates(["acc", "owner_cik", "tdate", "shares"])
         ins.to_parquet(ip)
     return len(rows)
+
+
+# ---------- 13D attribution fix ----------
+def _subject_cik(cik, acc):
+    """Read the filing header; return the SUBJECT COMPANY's CIK (13D filings list the filer too)."""
+    nodash = acc.replace("-", "")
+    r = _get(f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{nodash}/{acc}-index-headers.html")
+    if r is None:
+        return None
+    m = re.search(r"SUBJECT COMPANY:.*?CENTRAL INDEX KEY:\s*(\d+)", r.text, re.S)
+    return int(m.group(1)) if m else None
+
+
+def fix_activist(universe: pd.DataFrame, since="2011-06-01"):
+    """Keep ACTIVIST / ACTIVIST_AMEND events only for the company that is the 13D's subject."""
+    evp = CACHE / "events.parquet"
+    ev = pd.read_parquet(evp)
+    act = ev[ev["kind"].isin(["ACTIVIST", "ACTIVIST_AMEND"])]
+    tick2cik = dict(zip(universe["ticker"], universe["cik"].astype(int)))
+    tickers = sorted(set(act["ticker"]))
+    print(f"  13D fix: {len(act)} events across {len(tickers)} companies", flush=True)
+
+    def one(t):
+        cik = tick2cik.get(t)
+        if cik is None:
+            return []
+        r = _get(f"https://data.sec.gov/submissions/CIK{cik:010d}.json")
+        if r is None:
+            return []
+        d = r.json()
+        blocks = [d["filings"]["recent"]]
+        for f in d["filings"].get("files", []):
+            if f["filingTo"] >= since:
+                r2 = _get("https://data.sec.gov/submissions/" + f["name"])
+                if r2 is not None:
+                    blocks.append(r2.json())
+        keep = []
+        for b in blocks:
+            for i, form in enumerate(b["form"]):
+                if form in ("SC 13D", "SCHEDULE 13D", "SC 13D/A", "SCHEDULE 13D/A") and b["filingDate"][i] >= since:
+                    subj = _subject_cik(cik, b["accessionNumber"][i])
+                    if subj == cik:
+                        keep.append(b["acceptanceDateTime"][i])
+        return [(t, a) for a in keep]
+    ok = []
+    with ThreadPoolExecutor(8) as ex:
+        for i, rows in enumerate(ex.map(one, tickers)):
+            ok += rows
+            if i % 100 == 0:
+                print(f"  13D fix {i}/{len(tickers)}", flush=True)
+    okset = {(t, pd.Timestamp(a).tz_convert("UTC") if pd.Timestamp(a).tzinfo else pd.Timestamp(a, tz="UTC")) for t, a in ok}
+    is_act = ev["kind"].isin(["ACTIVIST", "ACTIVIST_AMEND"])
+    keep_mask = ~is_act | pd.Series([(t, a) in okset for t, a in zip(ev["ticker"], ev["accepted"])], index=ev.index)
+    print(f"  13D fix: kept {int((is_act & keep_mask).sum())} of {int(is_act.sum())} activist events", flush=True)
+    ev[keep_mask].to_parquet(evp)
