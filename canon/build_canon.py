@@ -25,6 +25,13 @@ DIRECTIVES = [
      "on the past one i want you to run it on your system, picking a random year being sure not to cheat and doing every week in a year, updating the portfolio however often you want, but it should only trade durring trading days, and it should treat the past as if its live, but time is just moving way way way faster so the system is working very fast"),
     ("C10", "2026-09-28", "Loop random years until 7%/week average",
      "do that in random years until you average 7% a week, adjusting the system as neccessarry, being sure to pick a random year over the last 50 years everytime"),
+    ("C11", "2026-09-28", "Blind live-clock simulation of a random hidden year; no crypto",
+     "no sorry i dont want you to test every year, i want you to test a random year between 1962-today, where not even your system knows the year its playing with, and the system speed runs through the entire year it runs through a live simulation where there is actually a clock going very fast and your system picks stocks live based on your system, and then at the end you examine things that made your stocks not as high and see what can be adjusted, then run the simulation again, continue that process until you hit 7% a week\n"
+     "the clock should be ticking as fast as where your system can just keep up at a live pase to make sure we dont have it be a second slower than possible\n"
+     "also crypto is off limits\n"
+     "continue working while you wait on that"),
+    ("C12", "2026-09-28", "Make testing very fast before bulk testing",
+     "ensure you get testing to go very fast so you can run tests very fast, learn how you can speed up testing before you start bulk testing to speed up the progress"),
 ]
 
 def sha(t): return hashlib.sha256(t.encode("utf-8")).hexdigest()

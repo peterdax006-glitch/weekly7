@@ -7,6 +7,11 @@ from .config import DATA, SEC_UA
 
 NASDAQ_URL = "https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqtraded.txt"
 SEC_TICKERS_URL = "https://www.sec.gov/files/company_tickers_exchange.json"
+# Canon C11: crypto is off limits - crypto funds/trusts and companies whose business is crypto.
+CRYPTO_NAME = re.compile(r"bitcoin|crypto|blockchain|ethereum|\bether\b|digital asset|\bcoin\b|\bbtc\b|solana|\bxrp\b", re.I)
+CRYPTO_TICKERS = {"COIN", "MSTR", "RIOT", "MARA", "HUT", "CLSK", "BITF", "HIVE", "CIFR", "IREN", "WULF", "BTBT",
+                  "CORZ", "BTDR", "GBTC", "ETHE", "BITO", "IBIT", "FBTC", "ARKB", "BITB", "HODL", "BRRR", "EZBC",
+                  "GLXY", "HOOD_CRYPTO", "SMLR", "BKKT", "APLD", "CAN", "SDIG", "GREE", "ARBK", "BTCS", "SOS"}
 EXCLUDE = re.compile(r"warrant|\bunits?\b|\brights?\b|preferred|depositary|notes due|debenture|"
                      r"trust pref|%|acquisition corp|\bspac\b|beneficial interest|limited partnership",
                      re.I)
@@ -24,6 +29,7 @@ def load_universe() -> pd.DataFrame:
     df = df[(df["ETF"] == "N") & (df["Test Issue"] == "N") & (df["NextShares"] != "Y")]
     df = df[df["Listing Exchange"].isin(["N", "Q", "A", "P"])]           # NYSE, Nasdaq, AMEX, Arca
     df = df[~df["Security Name"].str.contains(EXCLUDE, na=False)]
+    df = df[~df["Security Name"].str.contains(CRYPTO_NAME, na=False) & ~df["Symbol"].isin(CRYPTO_TICKERS)]
     df = df[df["Symbol"].str.fullmatch(r"[A-Z]{1,5}")]                   # drops class/when-issued suffixes
     sec = json.loads((DATA / "company_tickers_exchange.json").read_text())
     sec = pd.DataFrame(sec["data"], columns=sec["fields"])

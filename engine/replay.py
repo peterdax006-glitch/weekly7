@@ -103,7 +103,7 @@ def prepare_year(Y, log=print):
 
 
 def _eligible(p, cfg):
-    ok = ~((p["ev_red_flag"] > 0) | ((p["ev_offering"] > 0) & (p["log_dv"].rank(pct=True) < 0.5)))
+    ok = policy.not_crypto(p.index) & ~((p["ev_red_flag"] > 0) | ((p["ev_offering"] > 0) & (p["log_dv"].rank(pct=True) < 0.5)))
     if cfg["vol_filter"]:
         ok &= ~((p["vol20"].rank(pct=True) > 0.9) | (p["max20"].rank(pct=True) > 0.9))
     ok &= p["log_dv"].rank(pct=True) >= cfg["liq_q"]

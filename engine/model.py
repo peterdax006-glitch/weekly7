@@ -51,12 +51,15 @@ def _mono(cols):
     return [MONOTONE.get(c, 0) for c in cols]
 
 
-def fit_models(R, y_bar, fwd):
+def fit_models(R, y_bar, fwd, fast=False):
+    """fast=True (simulations): only the expected-return regressor, which is all the policy uses."""
     cols = list(R.columns)
     # the LambdaRank ranker scored backwards out of sample (IC -0.0095, t=-2.8): retired, see registry
     ranker = None
-    clf = lgb.LGBMClassifier(objective="multiclass", monotone_constraints=_mono(cols), **_params(11))
-    clf.fit(R, (y_bar + 1).astype(int))             # classes 0=stop, 1=neither, 2=target
+    clf = None
+    if not fast:
+        clf = lgb.LGBMClassifier(objective="multiclass", monotone_constraints=_mono(cols), **_params(11))
+        clf.fit(R, (y_bar + 1).astype(int))         # classes 0=stop, 1=neither, 2=target
     reg = lgb.LGBMRegressor(objective="huber", alpha=0.05, monotone_constraints=_mono(cols), **_params(13))
     ex = fwd - fwd.groupby(level=0).transform("mean")      # market-relative: that's how the score uses it
     reg.fit(R, ex.clip(-0.4, 0.4))

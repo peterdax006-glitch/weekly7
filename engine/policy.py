@@ -31,9 +31,19 @@ def score(P: pd.DataFrame, w_model=None) -> pd.Series:
     return (w * mr + (1 - w) * P["evidence"]).rename("score")
 
 
+def not_crypto(index) -> pd.Series:
+    """Canon C11: crypto is off limits, everywhere a stock can be picked."""
+    from .universe import CRYPTO_TICKERS, CRYPTO_NAME
+    global _CRYPTO
+    if "_CRYPTO" not in globals():
+        u = pd.read_csv(K.CACHE / "universe.csv")
+        _CRYPTO = set(CRYPTO_TICKERS) | set(u.loc[u["name"].str.contains(CRYPTO_NAME, na=False), "ticker"])
+    return pd.Series([t not in _CRYPTO for t in index], index=index)
+
+
 def eligible(xr: pd.DataFrame, params=None) -> pd.Series:
     p = {**PARAMS, **(params or {})}
-    ok = ~((xr["ev_red_flag"] > 0) | ((xr["ev_offering"] > 0) & (xr["log_dv"] < np.log1p(5e7))))
+    ok = not_crypto(xr.index) & ~((xr["ev_red_flag"] > 0) | ((xr["ev_offering"] > 0) & (xr["log_dv"] < np.log1p(5e7))))
     if p["vol_filter"]:
         ok &= ~((xr["vol20"].rank(pct=True) > 0.9) | (xr["max20"].rank(pct=True) > 0.9))
     if p["min_dv"]:
