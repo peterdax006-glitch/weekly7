@@ -469,3 +469,5 @@ Measured on 5,247 US stocks, 2013–2026, with walk-forward out-of-sample predic
 **Decision:** the live champion is the simple top-4 constructor (`policy.topk_targets`), rebalanced at the week's last close, with the −8% weekly brake. The scenario optimiser, per-stock stops and the +7% bank rule stay in the code as **challengers**. They return only if they beat the champion in the Part M tests. Top-3 is logged as a challenger that would first need the owner to relax the 25% cap.
 
 **Expectation for the live month, from the backtest distribution:** a +7% week is roughly a 1-in-25 event; the median week is about +0.5%. The dashboard reports the real outcome against this.
+
+**28 Sep 2026, v1.2 sector cap.** The 40% cap (1 name per SIC division at k=4) cut the backtest to $6,458. Two per division (50%) raised it to $13,198 (4.5% of weeks ≥ +7%, drawdown −47%). The cap is now **50% (2 of 4 names)**. Found because the first live portfolio was 75% financials.

@@ -149,7 +149,9 @@ def decide():
     braked = mode == "brake" or week_ret <= -policy.TOPK["brake"]
     if week_end or not held:
         ok = policy.eligible(xr.reindex(P.index), params).fillna(False)
-        target = policy.topk_targets(P.loc[ok[ok].index, "score"], held)
+        divs = {t: policy.sic_division(c) for t, c in zip(sic["ticker"], sic["sic"])}
+        target = policy.topk_targets(P.loc[ok[ok].index, "score"], held, sectors=divs,
+                                     max_per_sector=policy.TOPK["max_per_sector"])
         if braked and not week_end:
             target = target * policy.TOPK["brake_exposure"]
         mode = "rebalance" if week_end else "initial build"

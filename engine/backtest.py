@@ -186,7 +186,7 @@ def _weekly_pick(s, C, k, start, name):
 
 def run_topk(score, X, stocks, start=None, end=None, k=4, exit_q=0.8, bank=None, brake=None,
              bank_exposure=0.4, brake_exposure=1 / 3, params=None, cost_liquid=K.COST_BPS_LIQUID,
-             cost_illiquid=K.COST_BPS_ILLIQUID, name="topk"):
+             cost_illiquid=K.COST_BPS_ILLIQUID, name="topk", sectors=None, max_per_sector=None):
     """Daily simulation of the champion constructor. Rebalance at each week's last close;
     optional intra-week bank (+x%: cut to bank_exposure) and brake (-y%: cut to brake_exposure),
     checked at each close. Returns (equity Series, stats)."""
@@ -215,7 +215,7 @@ def run_topk(score, X, stocks, start=None, end=None, k=4, exit_q=0.8, bank=None,
             xr = X.xs(d, level=0)
             s = score.xs(d, level=0).dropna()
             ok = policy.eligible(xr.reindex(s.index), params).fillna(False)
-            target = policy.topk_targets(s[ok], list(pos), k, exit_q)
+            target = policy.topk_targets(s[ok], list(pos), k, exit_q, sectors, max_per_sector)
         elif not capped and bank is not None and wr >= bank:
             stats["banks"] += 1; capped = True
             target = pd.Series({t: q * px[t] / val for t, q in pos.items()}) * bank_exposure

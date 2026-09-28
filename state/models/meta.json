@@ -1,7 +1,7 @@
 {
- "version": "1.1",
+ "version": "1.2",
  "w_model": 0.5,
  "w_options": 0.15,
  "trained_through": "2026-09-25",
- "champion": "topk k=4 exit_q=0.80, weekly, -8% brake; score = 0.5 mu + 0.5 evidence"
+ "champion": "topk k=4 exit_q=0.80, weekly, -8% brake; score = 0.5 mu + 0.5 evidence; max 2 names per SIC division"
 }

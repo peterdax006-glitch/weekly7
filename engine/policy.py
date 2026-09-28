@@ -73,7 +73,10 @@ def plan(xr, pr, s, held, gross, need, horizon, beta, sec_map, fac_hist, rng=Non
 # ---------------- champion constructor (v1.1): concentrated top-k with hysteresis ----------------
 # Champion v1.1 (registry: topk_rules, 28 Sep 2026): top-4 equal weight, keep while in top 20%, weekly,
 # -8% weekly brake to 1/3 exposure; no bank rule (cost ~$850 in backtest); no per-stock stops (destroyed value).
-TOPK = {"k": 4, "exit_q": 0.80, "bank": None, "brake": 0.08, "bank_exposure": 0.4, "brake_exposure": 1 / 3}
+# v1.2 (registry: sector_cap, 28 Sep 2026): at most 2 of the 4 names per SIC division (50% sector cap):
+# $13,198 vs $9,815 uncapped vs $6,458 with 1-per-sector.
+TOPK = {"k": 4, "exit_q": 0.80, "bank": None, "brake": 0.08, "bank_exposure": 0.4, "brake_exposure": 1 / 3,
+        "max_per_sector": 2}
 
 NYSE_HOLIDAYS = {"2026-11-26", "2026-12-25", "2027-01-01", "2027-01-18", "2027-02-15", "2027-03-26",
                  "2027-05-31", "2027-06-18", "2027-07-05", "2027-09-06", "2027-11-25", "2027-12-24"}
@@ -89,13 +92,37 @@ def last_session_of_week(day) -> bool:
     return True
 
 
-def topk_targets(s_ok: pd.Series, held, k=None, exit_q=None) -> pd.Series:
+def sic_division(sic) -> str:
+    """SIC division letter (A-J): the 'sector' used for the blueprint's 40% sector cap."""
+    try:
+        c = int(str(sic)[:2])
+    except ValueError:
+        return "?"
+    for hi, div in ((9, "A"), (14, "B"), (17, "C"), (39, "D"), (49, "E"), (51, "F"), (59, "G"), (67, "H"), (89, "I")):
+        if c <= hi:
+            return div
+    return "J"
+
+
+def topk_targets(s_ok: pd.Series, held, k=None, exit_q=None, sectors=None, max_per_sector=None) -> pd.Series:
     """Equal-weight k names: keep holdings still in the top (1-exit_q) of eligible names, fill the
     rest from the top of the ranking. Shared by backtest and live (what is tested is what trades)."""
     k = k or TOPK["k"]
     exit_q = TOPK["exit_q"] if exit_q is None else exit_q
     q = s_ok.rank(pct=True)
     keep = [t for t in held if t in q.index and q[t] >= exit_q][:k]
-    fill = [t for t in s_ok.sort_values(ascending=False).index if t not in keep][: k - len(keep)]
+    if sectors is None or not max_per_sector:
+        fill = [t for t in s_ok.sort_values(ascending=False).index if t not in keep][: k - len(keep)]
+    else:
+        count, fill = {}, []
+        for t in keep:
+            count[sectors.get(t, "?")] = count.get(sectors.get(t, "?"), 0) + 1
+        for t in s_ok.sort_values(ascending=False).index:
+            if len(keep) + len(fill) >= k:
+                break
+            sec = sectors.get(t, "?")
+            if t in keep or count.get(sec, 0) >= max_per_sector:
+                continue
+            fill.append(t); count[sec] = count.get(sec, 0) + 1
     names = keep + fill
     return pd.Series(1.0 / len(names), index=names) if names else pd.Series(dtype=float)
