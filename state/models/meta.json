@@ -1,9 +1,9 @@
 {
- "version": "1.3",
+ "version": "1.2.1",
  "w_model": 0.5,
  "w_options": 0.15,
  "trained_through": "2026-09-25",
- "champion": "top-5% by score -> 3 most volatile, keep while top 10%, weekly, -8% brake, $50M liquidity (tuning lab r1)",
- "vol_filter": false,
- "min_dv": 50000000.0
+ "champion": "top-4 equal weight, keep while top 20%, weekly, -8% brake, max 2 per sector (v1.2; v1.3 rolled back)",
+ "vol_filter": true,
+ "min_dv": 20000000.0
 }

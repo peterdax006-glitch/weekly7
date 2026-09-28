@@ -60,14 +60,25 @@ for n in names:
                 "p5_month": d["month"].quantile(0.05), "beat_spy": (d["month"] > d["spy"]).mean(),
                 "weeks_ge7_per_month": d["weeks_ge7"].mean(), "any_7pct_week": (d["weeks_ge7"] > 0).mean(),
                 "worst_week_avg": d["worst_week"].mean(), "all_4_weeks_ge7": (d["weeks_ge7"] == 4).mean()}
-    res[n] = {"tune": summ(a), "lock": summ(b), "_lock_weeks7": b["weeks_ge7"].values.astype(float)}
+    def dd(years):
+        worst = 0.0
+        for y in years:
+            e = eqs[n][eqs[n].index.year == y]
+            if len(e) > 5:
+                worst = min(worst, float((e / e.cummax() - 1).min()))
+        return worst
+    ta, tb = summ(a), summ(b)
+    ta.update({"spy_mean_month": a["spy"].mean(), "max_dd_in_year": dd(TUNE)})
+    tb.update({"spy_mean_month": b["spy"].mean(), "max_dd_in_year": dd(LOCK)})
+    res[n] = {"tune": ta, "lock": tb, "_lock_weeks7": b["weeks_ge7"].values.astype(float)}
 
 def objective(s):
-    """Canon C8: the target is +7% WEEKS. Primary = expected number of +7% weeks per month.
-    Guards so it can't win by gambling: a losing average month is heavily penalised, and so is a
-    5th-percentile month worse than -25%."""
-    return (s["weeks_ge7_per_month"] - 10 * max(0.0, -s["mean_month"])
-            - 2 * max(0.0, -(s["p5_month"] + 0.25)))
+    """Canon C8: primary = expected +7% weeks per month. Hard guards (round-1 lesson: single-month
+    guards let a -73% drawdown through): mean month >= S&P's mean month on the same episodes, and the
+    worst within-year drawdown on these years no worse than -50%."""
+    if s["mean_month"] < s["spy_mean_month"] or s["max_dd_in_year"] < -0.50:
+        return -1.0 + s["weeks_ge7_per_month"] / 100          # fails the guards: ranked below every passer
+    return s["weeks_ge7_per_month"]
 
 # cheating detector: the clairvoyant control must be far ahead; if any real config is close, we leak
 cheat = [n for n in names if n.startswith("CHEAT")]

@@ -81,15 +81,39 @@ def todays_features(stocks, market):
     return X.xs(X.index.get_level_values(0).max(), level=0, drop_level=False), sic
 
 
-def explain(contrib_row, evid_row, top=3):
-    names = {"ear": "strong earnings reaction", "ins_buyers30": "insider buying cluster",
-             "ins_officer30": "officers buying", "dist_52wh": "near 52-week high", "ind_mom60": "strong industry",
-             "frog": "steady (not spiky) uptrend", "ev_activist": "activist stake filed", "overnight20": "overnight strength",
-             "r5_nonews": "no-news pullback (tends to revert)", "mom_12_1": "12-month momentum",
-             "vol_surge5": "rising volume", "rel_ind60": "beating its industry", "max20": "no lottery spike",
-             "vol_spread": "options: calls pricier than puts", "cp_volume": "options: call-heavy volume"}
-    s = contrib_row.sort_values(ascending=False).head(top)
-    return [names.get(k, k.replace("_", " ")) for k in s.index if s[k] > 0]
+PLAIN = {"ear": "strong earnings reaction", "ins_buyers30": "insiders buying", "ins_value30": "large insider purchases",
+         "ins_officer30": "officers buying", "ins_opportunistic30": "insider buying cluster",
+         "dist_52wh": "near its 52-week high", "ind_mom60": "strong industry (3 months)", "ind_mom20": "strong industry (1 month)",
+         "frog": "steady, not spiky, uptrend", "ev_activist": "activist stake filed", "overnight20": "overnight strength",
+         "intraday20": "intraday strength", "r5_nonews": "quiet pullback likely to revert", "r5_news": "news-driven move",
+         "mom_12_1": "12-month momentum", "vol_surge5": "rising volume", "vol_surge1": "volume spike today",
+         "rel_ind60": "beating its industry", "rel_ind20": "beating its industry (1 month)", "max20": "no lottery-style spike",
+         "atr_pct": "volatility profile", "vol20": "volatility profile", "vol_ratio": "volatility trend",
+         "r1": "yesterday's move", "r5": "last week's move", "r20": "last month's move", "r60": "3-month trend",
+         "r120": "6-month trend", "dist_ma50": "above its 50-day average", "dist_ma200": "above its 200-day average",
+         "skew60": "return shape", "log_dv": "liquidity", "close_loc": "closed near the day's high",
+         "range_compress": "tight trading range", "gap_today": "today's opening gap", "days_since_earn": "earnings timing",
+         "days_to_earn": "earnings coming up", "earn_in_week": "earnings this week", "news5": "recent filings",
+         "ev_offering": "no share offering", "ev_red_flag": "no red-flag filings", "min20": "no recent crash day",
+         "vol_spread": "options: calls pricier than puts", "cp_volume": "options: call-heavy volume"}
+
+
+def plain(k):
+    if k.startswith("m_"):
+        return "market conditions"
+    return PLAIN.get(k, k.replace("_", " "))
+
+
+def explain(contrib_row, evid_row=None, top=3):
+    s = contrib_row.sort_values(ascending=False)
+    out = []
+    for k in s.index:
+        if s[k] <= 0 or len(out) >= top:
+            break
+        w = plain(k)
+        if w not in out:
+            out.append(w)
+    return out
 
 
 # ---------------- week state ----------------
@@ -137,7 +161,9 @@ def decide():
     comp = R.loc[P.index, keep].add_prefix("f_")
     raw = xr.loc[P.index, ["r20", "vol_surge5", "vol20", "atr_pct"]].add_prefix("x_")
     o = opt.add_prefix("o_") if not opt.empty else pd.DataFrame(index=P.index)
-    P.join(comp).join(raw).join(o).assign(tilt=tilt, date=str(d.date())).to_parquet(PRED_DIR / f"{d.date()}.parquet")
+    why = pd.Series({t: " | ".join(explain(contrib.loc[t])) for t in P["score"].nlargest(80).index if t in contrib.index})
+    P.join(comp).join(raw).join(o).assign(tilt=tilt, why=why.reindex(P.index).fillna(""),
+                                          date=str(d.date())).to_parquet(PRED_DIR / f"{d.date()}.parquet")
 
     prices = stocks["Close"].iloc[-1].to_dict()
     acct = broker.account(prices)

@@ -167,8 +167,8 @@ function lineChart(el, series, { h = 280, fmt = usd, zero = null } = {}) {
     g.push(`<line x1="${m.l}" x2="${W - m.r}" y1="${Y(v)}" y2="${Y(v)}" stroke="${css("--grid")}" stroke-width="1"/>`,
            `<text x="${m.l - 8}" y="${Y(v) + 4}" text-anchor="end" font-size="11" fill="${css("--muted")}">${fmt(v)}</text>`); }
   if (zero != null) g.push(`<line x1="${m.l}" x2="${W - m.r}" y1="${Y(zero)}" y2="${Y(zero)}" stroke="${css("--axis")}" stroke-width="1"/>`);
-  [xs[0], xs[Math.floor(xs.length / 2)], xs[xs.length - 1]].forEach((x, i) =>
-    g.push(`<text x="${X(x)}" y="${H - 6}" text-anchor="${["start", "middle", "end"][i]}" font-size="11" fill="${css("--muted")}">${x}</text>`));
+  [...new Set([xs[0], xs[Math.floor(xs.length / 2)], xs[xs.length - 1]])].forEach((x, i, arr) =>
+    g.push(`<text x="${X(x)}" y="${H - 6}" text-anchor="${arr.length === 1 ? "middle" : ["start", "middle", "end"][i]}" font-size="11" fill="${css("--muted")}">${x}</text>`));
   const paths = series.map(s => { const d = s.pts.map((p, i) => (i ? "L" : "M") + X(p.x).toFixed(1) + "," + Y(p.y).toFixed(1)).join("");
     return `<path d="${d}" fill="none" stroke="${css(s.color)}" stroke-width="${s.bold ? 2.5 : 2}" stroke-linejoin="round" stroke-linecap="round"/>`; });
   el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="line chart">${g.join("")}${paths.join("")}
@@ -210,12 +210,13 @@ function render(D) {
   const wk = D.weekly.length ? D.weekly[D.weekly.length - 1] : null;
   const eqh = D.equity_history, total = D.equity / D.start_cash - 1;
   const dec = D.last_decision || {};
+  const L = D.live || {};
   const hit = D.weekly.filter(w => w.ret >= D.target).length;
   $("#tiles").innerHTML = [
     ["Portfolio", usd(D.equity), `started at ${usd(D.start_cash)}`],
     ["All-time", `<span class="${total >= 0 ? "up" : "down"}">${pct(total)}</span>`, `${eqh.length} trading days`],
-    ["This week", `<span class="${(dec.week_ret ?? 0) >= 0 ? "up" : "down"}">${pct(dec.week_ret)}</span>`, `target +7% · needs ${pct(dec.need)} more`],
-    ["Chance of +7% this week", dec.p_target_week == null ? "—" : Math.round(dec.p_target_week * 100) + "%", "from 20,000 simulated weeks"],
+    ["This week", `<span class="${(L.week_ret ?? 0) >= 0 ? "up" : "down"}">${pct(L.week_ret)}</span>`, `target +7% · needs ${pct(L.need)} more · ${L.days_left ?? "—"} sessions left`],
+    ["Chance of +7% this week", L.p_week7 == null ? "—" : Math.round(L.p_week7 * 100) + "%", "20,000 simulated weeks of the current holdings"],
     ["Weeks at +7%", `${hit} / ${D.weekly.length}`, "weeks that hit the target"],
     ["Market regime", `<span class="badge">${esc(dec.regime ?? "—")}</span>`, `invested ${pct(dec.gross, 0).replace("+", "")} · mode ${esc(dec.mode ?? "—")}`],
   ].map(([k, v, d]) => `<div class="tile"><div class="k">${k}</div><div class="v">${v}</div><div class="d">${d}</div></div>`).join("");

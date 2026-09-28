@@ -33,6 +33,13 @@ def write_site(broker, prices):
                          "value": p["qty"] * px, "weight": p["qty"] * px / acct["equity"],
                          "pnl": px / p["avg"] - 1, "stop": m.get("stop"), "opened": m.get("opened"),
                          "why": m.get("why", []), "p_target": m.get("p_target")})
+    preds = sorted(PRED_DIR.glob("*.parquet"))
+    lastP = pd.read_parquet(preds[-1]) if preds else None
+    for h in holdings:
+        if not h["why"] and lastP is not None and "why" in lastP and h["ticker"] in lastP.index and lastP.loc[h["ticker"], "why"]:
+            h["why"] = lastP.loc[h["ticker"], "why"].split(" | ")
+        if h["p_target"] is None and lastP is not None and h["ticker"] in lastP.index:
+            h["p_target"] = float(lastP.loc[h["ticker"], "p_target"])
     eq = _j(EQUITY, [])
     weekly = []
     if eq:
@@ -57,7 +64,12 @@ def write_site(broker, prices):
     orders = _j(K.STATE / "ledger.json", {}).get("orders", []) + _jsonl(K.STATE / "orders.jsonl")
     dec = _jsonl(DECISIONS, 1)
     reports = sorted((K.STATE / "reports").glob("*.md")) if (K.STATE / "reports").exists() else []
+    from .live import week_state
+    wr, days_left, _ = week_state(acct["equity"])
+    live = {"week_ret": wr, "need": (1 + K.WEEKLY_TARGET) / (1 + wr) - 1, "days_left": days_left,
+            "p_week7": week_probability(holdings, lastP, acct["equity"], wr, days_left)}
     out = {
+        "live": live,
         "updated": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "broker": broker.name, "start_cash": K.START_CASH, "target": K.WEEKLY_TARGET,
         "equity": acct["equity"], "cash": acct["cash"],
@@ -71,6 +83,7 @@ def write_site(broker, prices):
         "engine_version": _j(K.STATE / "models" / "meta.json", {}).get("version", "1.0"),
         "latest_report": reports[-1].read_text(encoding="utf-8") if reports else None,
         "research": _j(K.STATE / "research" / "backtest_summary.json", None),
+        "tuning": _j(K.STATE / "research" / "tuning_summary.json", None),
     }
     (K.SITE / "data.json").write_text(json.dumps(_clean(out), default=float, allow_nan=False))
 
@@ -91,3 +104,23 @@ def _clean(o):
     except (TypeError, ValueError):
         pass
     return o
+
+
+def week_probability(holdings, P, equity, week_ret, days_left, n=20000):
+    """P(week ends >= +7%) for the book as it stands: each holding's expected return (model, shrunk)
+    and volatility, one-factor correlation, Student-t tails; remaining sessions this week."""
+    import numpy as np
+    if not holdings or P is None:
+        return None
+    sessions = days_left if days_left > 0 else 5
+    need = (1 + K.WEEKLY_TARGET) / (1 + (week_ret if days_left > 0 else 0)) - 1
+    w = np.array([h["weight"] for h in holdings])
+    mu = np.array([0.5 * float(P.loc[h["ticker"], "mu_raw"]) * sessions / 5 if h["ticker"] in P.index else 0.0 for h in holdings])
+    sd = np.array([float(P.loc[h["ticker"], "x_vol20"]) if h["ticker"] in P.index else 0.02 for h in holdings]) * np.sqrt(sessions)
+    rng = np.random.default_rng(0)
+    rho = 0.35
+    mkt = rng.standard_normal((n, 1))
+    t = rng.standard_t(4, (n, len(w))) * np.sqrt(0.5)
+    r = mu + sd * (np.sqrt(rho) * mkt + np.sqrt(1 - rho) * t)
+    port = np.expm1(r) @ w
+    return float((port >= need).mean())
