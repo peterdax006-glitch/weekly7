@@ -17,6 +17,10 @@ DIRECTIVES = [
      "it should have an advanced learning process like any ai of figuring out what isnt working and how to improve the system to fix that thing that wasnt working until we land the perfect system add this to memory files and a canon to work on"),
     ("C6", "2026-09-28", "Regular trading hours only",
      "also it should onl y trade durring daytime trading hours(continue working on what you were doing just keep that in mind"),
+    ("C7", "2026-09-28", "Hundreds of historical simulations",
+     "i want you to run simulations using past data where it finds the perfect stock from a random year from a random decade using the system, and then you anaylize how it did, they you adjust, you should run hundreds of tests to get it perfect."),
+    ("C8", "2026-09-28", "No cheating in tests; keep the weekly 7% focus",
+     "it should not cheat though when finding random years from random decades, it should be fully oblivious to what will happen to the stock so it doesnt just choose the best ones, and it should still focus on 7% over a weekly basis even in the tests"),
 ]
 
 def sha(t): return hashlib.sha256(t.encode("utf-8")).hexdigest()

@@ -1,0 +1,1 @@
+{"k": 6, "exit_q": 0.9, "brake": 0.05, "max_per_sector": null, "w_model": 0.5, "min_dv": 20000000.0, "vol_filter": true, "pick": "hivol", "pool_q": 0.98, "name": "cfg_6_0.9_0.05_None_0.5_20000000.0_True_hivol_0.98", "stats": {"turnover": 560.7133797726378, "cost": 934.9264748161505, "banks": 0, "brakes": 39}, "secs": 12}

@@ -186,7 +186,10 @@ def _weekly_pick(s, C, k, start, name):
 
 def run_topk(score, X, stocks, start=None, end=None, k=4, exit_q=0.8, bank=None, brake=None,
              bank_exposure=0.4, brake_exposure=1 / 3, params=None, cost_liquid=K.COST_BPS_LIQUID,
-             cost_illiquid=K.COST_BPS_ILLIQUID, name="topk", sectors=None, max_per_sector=None):
+             cost_illiquid=K.COST_BPS_ILLIQUID, name="topk", sectors=None, max_per_sector=None,
+             pick="top", pool_q=0.95, peek=None):
+    """peek: CHEATING CONTROL ONLY - a Series of future returns used to prove the harness can tell
+    a clairvoyant picker from ours. Never set in real tests."""
     """Daily simulation of the champion constructor. Rebalance at each week's last close;
     optional intra-week bank (+x%: cut to bank_exposure) and brake (-y%: cut to brake_exposure),
     checked at each close. Returns (equity Series, stats)."""
@@ -215,7 +218,11 @@ def run_topk(score, X, stocks, start=None, end=None, k=4, exit_q=0.8, bank=None,
             xr = X.xs(d, level=0)
             s = score.xs(d, level=0).dropna()
             ok = policy.eligible(xr.reindex(s.index), params).fillna(False)
-            target = policy.topk_targets(s[ok], list(pos), k, exit_q, sectors, max_per_sector)
+            sc = s[ok]
+            if peek is not None:
+                sc = peek.xs(d, level=0).reindex(sc.index).fillna(-1)
+            target = policy.topk_targets(sc, list(pos), k, exit_q, sectors, max_per_sector,
+                                         pick=pick, vol=xr["vol20"], pool_q=pool_q)
         elif not capped and bank is not None and wr >= bank:
             stats["banks"] += 1; capped = True
             target = pd.Series({t: q * px[t] / val for t, q in pos.items()}) * bank_exposure

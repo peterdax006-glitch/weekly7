@@ -156,8 +156,11 @@ def decide():
     if week_end or not held or underinvested:
         ok = policy.eligible(xr.reindex(P.index), params).fillna(False)
         divs = {t: policy.sic_division(c) for t, c in zip(sic["ticker"], sic["sic"])}
-        target = policy.topk_targets(P.loc[ok[ok].index, "score"], held, sectors=divs,
-                                     max_per_sector=policy.TOPK["max_per_sector"])
+        T = policy.TOPK
+        target = policy.topk_targets(P.loc[ok[ok].index, "score"], held, k=T["k"], exit_q=T["exit_q"],
+                                     sectors=divs if T["max_per_sector"] else None,
+                                     max_per_sector=T["max_per_sector"], pick=T["pick"],
+                                     vol=xr["vol20"], pool_q=T["pool_q"])
         if braked and not week_end:
             target = target * policy.TOPK["brake_exposure"]
         mode = "rebalance" if week_end else ("initial build" if not held else "top-up")

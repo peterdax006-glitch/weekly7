@@ -1,0 +1,1 @@
+{"k": 4, "exit_q": 0.8, "brake": 0.08, "max_per_sector": 2, "w_model": 0.5, "min_dv": 20000000.0, "vol_filter": true, "pick": "top", "pool_q": 0.95, "name": "CHEAT_CONTROL_sees_future", "stats": {"turnover": 910.7391377965299, "cost": 5.766592954005701e+42, "banks": 0, "brakes": 0}, "secs": 11}

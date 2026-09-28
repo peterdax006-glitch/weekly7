@@ -73,10 +73,12 @@ def plan(xr, pr, s, held, gross, need, horizon, beta, sec_map, fac_hist, rng=Non
 # ---------------- champion constructor (v1.1): concentrated top-k with hysteresis ----------------
 # Champion v1.1 (registry: topk_rules, 28 Sep 2026): top-4 equal weight, keep while in top 20%, weekly,
 # -8% weekly brake to 1/3 exposure; no bank rule (cost ~$850 in backtest); no per-stock stops (destroyed value).
-# v1.2 (registry: sector_cap, 28 Sep 2026): at most 2 of the 4 names per SIC division (50% sector cap):
-# $13,198 vs $9,815 uncapped vs $6,458 with 1-per-sector.
-TOPK = {"k": 4, "exit_q": 0.80, "bank": None, "brake": 0.08, "bank_exposure": 0.4, "brake_exposure": 1 / 3,
-        "max_per_sector": 2}
+# v1.3 (registry: tuning_lab round 1, 28 Sep 2026; canon C7/C8): 120 configs x 400 random months, odd years
+# tuned, even years locked. Winner: 3 names, the most volatile of the top 5% by score, keep while in top 10%,
+# -8% brake, no sector cap, $50M/day liquidity, no vol filter. Locked years: +7% weeks/month 0.39 vs 0.30
+# (z 3.37 >= 3.34 Bonferroni); trade-off: mean month +0.9% vs +3.5%, p5 month -19.5% vs -10.8%.
+TOPK = {"k": 3, "exit_q": 0.90, "bank": None, "brake": 0.08, "bank_exposure": 0.4, "brake_exposure": 1 / 3,
+        "max_per_sector": None, "pick": "hivol", "pool_q": 0.95}
 
 NYSE_HOLIDAYS = {"2026-11-26", "2026-12-25", "2027-01-01", "2027-01-18", "2027-02-15", "2027-03-26",
                  "2027-05-31", "2027-06-18", "2027-07-05", "2027-09-06", "2027-11-25", "2027-12-24"}
@@ -104,13 +106,18 @@ def sic_division(sic) -> str:
     return "J"
 
 
-def topk_targets(s_ok: pd.Series, held, k=None, exit_q=None, sectors=None, max_per_sector=None) -> pd.Series:
+def topk_targets(s_ok: pd.Series, held, k=None, exit_q=None, sectors=None, max_per_sector=None,
+                 pick="top", vol=None, pool_q=0.95) -> pd.Series:
     """Equal-weight k names: keep holdings still in the top (1-exit_q) of eligible names, fill the
     rest from the top of the ranking. Shared by backtest and live (what is tested is what trades)."""
     k = k or TOPK["k"]
     exit_q = TOPK["exit_q"] if exit_q is None else exit_q
     q = s_ok.rank(pct=True)
     keep = [t for t in held if t in q.index and q[t] >= exit_q][:k]
+    if pick == "hivol" and vol is not None:
+        # among the top (1-pool_q) by score, rank by volatility: more +7% weeks, still only names with an edge
+        pool = q[q >= pool_q].index
+        s_ok = vol.reindex(pool).fillna(0).rename(None)
     if sectors is None or not max_per_sector:
         fill = [t for t in s_ok.sort_values(ascending=False).index if t not in keep][: k - len(keep)]
     else:

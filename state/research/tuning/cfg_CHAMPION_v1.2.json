@@ -1,0 +1,1 @@
+{"k": 4, "exit_q": 0.8, "brake": 0.08, "max_per_sector": 2, "w_model": 0.5, "min_dv": 20000000.0, "vol_filter": true, "pick": "top", "pool_q": 0.95, "name": "CHAMPION_v1.2", "stats": {"turnover": 333.053738226445, "cost": 1911.1385985289512, "banks": 0, "brakes": 8}, "secs": 11}

@@ -1,0 +1,1 @@
+{"k": 6, "exit_q": 0.7, "brake": 0.12, "max_per_sector": 3, "w_model": 0.7, "min_dv": 50000000.0, "vol_filter": true, "pick": "top", "pool_q": 0.95, "name": "cfg_6_0.7_0.12_3_0.7_50000000.0_True_top_0.95", "stats": {"turnover": 338.4352824992743, "cost": 414.720927428879, "banks": 0, "brakes": 2}, "secs": 11}
