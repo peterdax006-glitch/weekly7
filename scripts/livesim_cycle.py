@@ -11,9 +11,9 @@ from engine.improve import log_experiment
 
 DIR = livesim.DIR
 STATE = DIR / "cycles.json"
-MAX = int(sys.argv[1]) if len(sys.argv) > 1 else 10
+MAX = int(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1].isdigit() else 10
 TARGET = 0.07
-SPACE = {"k": [2, 3, 4, 5, 6, 8], "exit_q": [0.6, 0.7, 0.8, 0.9], "brake": [None, 0.05, 0.08, 0.12],
+SPACE = {"k": [2, 3, 4, 5, 6, 8, 12], "exit_q": [0.5, 0.6, 0.7, 0.8, 0.9], "rebalance_weeks": [1, 2, 4], "brake": [None, 0.05, 0.08, 0.12],
          "max_per_sector": [None, 2], "w_model": [0.3, 0.5, 0.7], "pick": ["top", "hivol"],
          "pool_q": [0.9, 0.95, 0.98], "liq_q": [0.3, 0.5, 0.7], "vol_filter": [True, False]}
 START_CFG = {"k": 4, "exit_q": 0.8, "brake": 0.08, "max_per_sector": 2, "w_model": 0.5, "pick": "top",
@@ -26,13 +26,13 @@ def replay_variant(cfg, snaps, closes, cost_bps, divs):
     """Re-trade a finished hidden year from its decision snapshots under another config (no new information)."""
     sessions = closes.index
     dec = {pd.Timestamp(k): v for k, v in snaps.items()}
-    cash, pos, week_start, capped, weeks, eq = K.START_CASH, {}, K.START_CASH, False, [], []
+    cash, pos, week_start, capped, weeks, eq, wk = K.START_CASH, {}, K.START_CASH, False, [], [], 0
     for i, d in enumerate(sessions):
         px = closes.loc[d]
         val = cash + sum(q * px[t] for t, q in pos.items() if np.isfinite(px.get(t, np.nan)))
         week_end = i + 1 >= len(sessions) or sessions[i + 1].isocalendar().week != d.isocalendar().week
         target = None
-        if d in dec:
+        if d in dec and (wk % cfg.get("rebalance_weeks", 1) == 0 or not pos):     # same rule as BlindTrader
             p = dec[d]
             s = policy.score(p, cfg["w_model"])
             ok = ~((p["ev_red_flag"] > 0) | ((p["ev_offering"] > 0) & (p["log_dv"].rank(pct=True) < 0.5)))
@@ -45,7 +45,7 @@ def replay_variant(cfg, snaps, closes, cost_bps, divs):
             target = pd.Series({t: q * px[t] / val for t, q in pos.items()}) * policy.TOPK["brake_exposure"]
             capped = True
         if target is not None:
-            for t in set(pos) | set(target.index):
+            for t in sorted(set(pos) | set(target.index), key=lambda c: target.get(c, 0.0)):   # same order as SimBroker
                 pr = px.get(t, np.nan)
                 if not np.isfinite(pr):
                     continue
@@ -53,11 +53,14 @@ def replay_variant(cfg, snaps, closes, cost_bps, divs):
                 if abs(dv) >= 1:
                     cash -= dv + abs(dv) * cost_bps / 1e4
                     pos[t] = pos.get(t, 0.0) + dv / pr
+                    if abs(pos[t]) * pr < 0.5:                  # a sold name is no longer 'held' (SimBroker does the same)
+                        pos.pop(t)
             val = cash + sum(q * px[t] for t, q in pos.items() if np.isfinite(px.get(t, np.nan)))
         eq.append(val)
         if week_end:
             weeks.append(val / week_start - 1)
             week_start, capped = val, False
+            wk += 1
     e = pd.Series(eq)
     return {"mean_week": float(np.mean(weeks)), "weeks_ge_7": int(sum(w >= 0.07 for w in weeks)),
             "year_return": float(e.iloc[-1] / K.START_CASH - 1), "max_dd": float((e / e.cummax() - 1).min())}
@@ -151,6 +154,15 @@ while len(st["cycles"]) < MAX:
         print(f"       held vs top-20 vs top-20-high-vol (avg week): {json.dumps({k: round(v, 4) for k, v in d['held_vs_top20_vs_hivol_week'].items()})}"
               f" | losing positions {d['share_of_positions_losing']:.0%}", flush=True)
         st["cycles"].append({**res, "config_version": st["version"]})
+    if not done:
+        print("  no worker finished this round - see the traces above; stopping", flush=True)
+        break
+    # gate: the re-tester must reproduce every live run, or adjustments would be judged on a different system
+    chk = subprocess.run([sys.executable, "scripts/check_retester.py"], capture_output=True, text=True)
+    print("  re-tester check:", " | ".join(l for l in chk.stdout.splitlines() if l.strip()), flush=True)
+    if chk.returncode != 0:
+        print("  RE-TESTER MISMATCH - stopping before any adjustment", flush=True)
+        break
     # ---- adjust across EVERY hidden year played so far ----
     years = []
     for c in st["cycles"]:

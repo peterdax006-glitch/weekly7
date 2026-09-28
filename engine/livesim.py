@@ -175,7 +175,7 @@ class BlindTrader:
         self.feed, self.cfg, self.fast = feed, cfg, fast
         self.broker = SimBroker(feed)
         self.m = None
-        self.week_start, self.capped = K.START_CASH, False
+        self.week_start, self.capped, self.week_count = K.START_CASH, False, 0
         self.days, self.weeks, self.picks, self.snaps = [], [], [], {}
         self.t_model = self.t_features = 0.0
 
@@ -235,7 +235,8 @@ class BlindTrader:
         val = b.equity()
         wr = val / self.week_start - 1
         week_end = self.feed.next_session_is_new_week()
-        if week_end or not b.pos:
+        rebalance_week = week_end and self.week_count % self.cfg.get("rebalance_weeks", 1) == 0
+        if rebalance_week or not b.pos:
             target, snap = self.decide()
             val = b.equity()
             for code in sorted(set(b.pos) | set(target.index), key=lambda c: target.get(c, 0.0)):
@@ -253,6 +254,7 @@ class BlindTrader:
             self.weeks.append({"week_end": str(self.feed.now.date()), "ret": val / self.week_start - 1,
                                "brake": self.capped, "holdings": sorted(b.pos)})
             self.week_start, self.capped = val, False
+            self.week_count += 1
 
 
 def parity_test(feed, n_days=2, seed=None):
