@@ -28,8 +28,8 @@ META_DEFAULT = {
     # k is the volatility lever (C21); pool_q slight. Everything else measured as noise.
     "adaptive_knobs": ["w_model", "liq_q", "k", "pool_q"],
 }
-STEPS = {"k": [2, 3, 4, 6, 8, 12, 16], "exit_q": [0.5, 0.6, 0.7, 0.8, 0.9, 0.95], "w_model": [0.0, 0.2, 0.3, 0.5, 0.7, 0.85, 1.0],
-         "pool_q": [0.8, 0.9, 0.95, 0.98, 0.99], "liq_q": [0.0, 0.2, 0.3, 0.5, 0.7, 0.85],
+STEPS = {"k": [1, 2, 3, 4, 6, 8, 12, 16], "exit_q": [0.5, 0.6, 0.7, 0.8, 0.9, 0.95], "w_model": [0.0, 0.2, 0.3, 0.5, 0.7, 0.85, 1.0],
+         "pool_q": [0.3, 0.5, 0.7, 0.8, 0.9, 0.95, 0.98, 0.99], "liq_q": [0.0, 0.2, 0.3, 0.5, 0.7, 0.85],
          "stress_thr": [None, 0.9, 0.95, 1.0, 1.05, 1.1], "brake": [None, 0.03, 0.05, 0.08, 0.12, 0.2],
          "rebalance_weeks": [1, 2, 3, 4]}
 

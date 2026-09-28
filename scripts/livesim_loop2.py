@@ -15,9 +15,11 @@ STATE = DIR / "loop2.json"
 MAXW = int(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1].isdigit() else 60
 PAR, SCREEN_N, N_CAND = 3, 10, 24
 
-CFG_SPACE = {"k": [1, 2, 3, 4, 6, 8], "exit_q": [0.5, 0.7, 0.8, 0.9], "rebalance_weeks": [1, 2], "brake": [None, 0.08, 0.15],
-             "max_per_sector": [None, 2], "w_model": [0.85, 1.0, 1.0], "pick": ["top", "hivol"], "pool_q": [0.9, 0.95, 0.98, 0.99],
-             "liq_q": [0.0, 0.2, 0.2, 0.3], "vol_filter": [False, True], "stress_thr": [None, 1.0, 1.05], "stress_k": [2, 3, 4],
+# C22: the owner wants +/-200% years -> weekly swings near 15%. Aggressive settings dominate the search.
+VOL_TARGET = 0.15
+CFG_SPACE = {"k": [1, 1, 2, 2, 3, 4], "exit_q": [0.5, 0.7, 0.8, 0.9], "rebalance_weeks": [1, 1, 2], "brake": [None, None, 0.15],
+             "max_per_sector": [None, 2], "w_model": [0.85, 1.0, 1.0], "pick": ["hivol", "hivol", "top"], "pool_q": [0.3, 0.5, 0.7, 0.9, 0.95],
+             "liq_q": [0.0, 0.0, 0.2], "vol_filter": [False, False, True], "stress_thr": [None, 1.0, 1.05], "stress_k": [2, 3, 4],
              "trend_filter": [None, -0.05], "trend_gross": [0.0, 0.5]}
 META_SPACE = {"half_life": [3, 6, 12], "prior_weeks": [4, 8, 16], "switch_z": [1.5, 2.0, 3.0], "min_weeks": [3, 6],
               "cooldown": [2, 4], "revert_drop": [0.02, 0.04, 0.08], "ic_beta": [0.0, 0.5, 1.0, 2.0],
@@ -26,8 +28,8 @@ META_SPACE = {"half_life": [3, 6, 12], "prior_weeks": [4, 8, 16], "switch_z": [1
 st = json.loads(STATE.read_text()) if STATE.exists() else {
     "windows": [], "version": 1,
     # starting defaults from the sensitivity study: model only (+0.32%/wk, t=3.8), lower liquidity floor
-    "cfg": {"k": 8, "exit_q": 0.8, "rebalance_weeks": 2, "brake": 0.08, "max_per_sector": 2, "w_model": 1.0,
-            "pick": "hivol", "pool_q": 0.98, "liq_q": 0.2, "vol_filter": False, "stress_thr": 1.05, "stress_k": 4,
+    "cfg": {"k": 2, "exit_q": 0.8, "rebalance_weeks": 1, "brake": None, "max_per_sector": None, "w_model": 1.0,
+            "pick": "hivol", "pool_q": 0.7, "liq_q": 0.0, "vol_filter": False, "stress_thr": None, "stress_k": 2,
             "trend_filter": None, "trend_gross": 0.0},
     "meta": dict(A.META_DEFAULT), "phase": "volatility"}
 save = lambda: STATE.write_text(json.dumps(st, indent=1, default=str))
@@ -54,11 +56,11 @@ def objective(rows, phase):
     mw = float(np.mean([r["mean_week"] for r in rows]))
     sd = float(np.mean([r["sd_week"] for r in rows]))
     worst = min(r["max_dd"] for r in rows)
-    if worst < -0.80:                                       # catastrophe floor (C21 keeps this)
+    if worst < -0.99:                                       # only floor left (C22): not a total wipe-out
         return -9.0, mw, sd, worst
-    if phase == "volatility":                               # C21: swing toward +/-5% a week first, don't give up the mean
-        return -abs(sd - 0.05) * 10 + mw * 20, mw, sd, worst
-    return mw + (-5.0 if sd < 0.03 else 0.0), mw, sd, worst  # direction phase: raise the mean, keep the swings
+    if phase == "volatility":                               # C21/C22: weekly swings toward ~15% (+/-200% a year), keep the mean
+        return -abs(sd - VOL_TARGET) * 10 + mw * 20, mw, sd, worst
+    return mw + (-5.0 if sd < 0.10 else 0.0), mw, sd, worst  # direction phase: raise the mean, keep the big swings
 
 
 def worker(run_id, cfg, meta):

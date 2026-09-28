@@ -131,3 +131,9 @@ continue working while you wait on that
 > also if you stay below 1% then just make the changes to make it more volatile to get closer to that 5% negative or positive and then figure out consistent positives later
 
 `sha256: 6077e1857498327f44bad7a7656458a34a2bc2baa601881ac172517d00aaa929`
+
+## C22 — Much more volatile: +/-200% a year (2026-09-28)
+
+> this result is not nearly volatile enough we want to be seeing 200%-200% returns over a year
+
+`sha256: e596610ef9e6dbf655aa620b225a6c0f2ac6f1851b6ea188a71d9c73df23e7e2`

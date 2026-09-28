@@ -50,6 +50,8 @@ DIRECTIVES = [
      "it should also train itself, not just by its picks, but the successes it didnt pick, and look at patterns with those and see if there was any way to predict it, so then its trained to get it next time, so it should examine maybe hundreds on non picks every year too"),
     ("C21", "2026-09-28", "Below 1%: raise volatility toward +/-5% first",
      "also if you stay below 1% then just make the changes to make it more volatile to get closer to that 5% negative or positive and then figure out consistent positives later"),
+    ("C22", "2026-09-28", "Much more volatile: +/-200% a year",
+     "this result is not nearly volatile enough we want to be seeing 200%-200% returns over a year"),
 ]
 
 def sha(t): return hashlib.sha256(t.encode("utf-8")).hexdigest()
