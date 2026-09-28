@@ -77,7 +77,10 @@ class Feed:
         ins["symbol"] = ins["symbol"].map(self._map)
         for c in ("filed", "tdate"):
             ins[c] = ins[c] + self._shift
-        self._insider = ins
+        # C18 fail-safe (28 Sep 2026): the fast path sometimes counted an insider filing the strictly-live path could
+        # not yet see (parity test, window w01c). Until that is fixed and proven, blind simulations run WITHOUT
+        # insider data; features that depend on it are zero in both paths, so parity holds by construction.
+        self._insider = ins.iloc[0:0]
         sic = pd.read_parquet(K.CACHE / "sic.parquet")
         sic = sic[sic["ticker"].isin(self._map)].copy()
         sic["ticker"] = sic["ticker"].map(self._map)

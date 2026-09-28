@@ -137,3 +137,9 @@ continue working while you wait on that
 > this result is not nearly volatile enough we want to be seeing 200%-200% returns over a year
 
 `sha256: e596610ef9e6dbf655aa620b225a6c0f2ac6f1851b6ea188a71d9c73df23e7e2`
+
+## C23 — Weekly 10 movers: 95% then direction, exit, stop; +10% 8x as often as -10% (2026-09-28)
+
+> okay what we want to do seperately while also doing all this, is every week we want it to find 10 stocks that it thinks will move 10% up or down from its current position in the next week, it should give a percentage of how often its correct, you should adjust it until its correct 95% of the time, once that happens it should look for patterns to tell which ones are going to go up or down, exaclty when to sell, and exactly where to have a stop loss, the goal is to get postive 10% 8 times more than a negative 10% and you should play with it until you can consistently achieve that no matter the year, without cheating, make sure to do everything in the order i said and dont skip steps
+
+`sha256: e96332b1c4f56f24baa271b4579fcf6d352c1116fe8d551240d695d212e18991`

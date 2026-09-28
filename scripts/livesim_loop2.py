@@ -64,6 +64,9 @@ def objective(rows, phase):
 
 
 def worker(run_id, cfg, meta):
+    stale = DIR / run_id / "result2.json"
+    if stale.exists():
+        stale.unlink()                                       # never let an older run's result stand in for this one
     feed, trader, sealed, wall = livesim.run(cfg, run_id, log=lambda *a: print(f"[{run_id}]", *a, flush=True),
                                              adaptive=True, meta=meta)
     a = DIR / run_id
@@ -95,8 +98,11 @@ while len(st["windows"]) < MAXW:
     print(f"\n=== round {rnd} ({st['phase']} phase): {PAR} sealed 12-month windows, basis v{st['version']} ===", flush=True)
     t0 = time.perf_counter()
     procs = [subprocess.Popen([sys.executable, "-u", __file__, "--worker", r, json.dumps(st["cfg"]), json.dumps(st["meta"])]) for r in ids]
-    [p.wait() for p in procs]
-    done = [r for r in ids if (DIR / r / "result2.json").exists()]
+    codes = [p.wait() for p in procs]
+    done = [r for r, c in zip(ids, codes) if c == 0 and (DIR / r / "result2.json").exists()]
+    for r, c in zip(ids, codes):
+        if c != 0:
+            print(f"  [{r}] worker FAILED (exit {c}) - window excluded, see trace above", flush=True)
     if not done:
         print("  no window finished - stopping", flush=True); break
     # ---- anti-cheat gates (C18) ----

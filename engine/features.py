@@ -177,9 +177,12 @@ def _insider_features(ins, dates, tickers, dv20):
     d["day"] = d["filed"].dt.normalize() + pd.Timedelta(days=1)       # filing time unknown -> next day
     # Cohen-Malloy-Pomorski: routine = same calendar month in each of the prior 3 years
     d["ym"] = d["tdate"].dt.year * 12 + d["tdate"].dt.month
-    hist = set(zip(d["owner_cik"], d["tdate"].dt.year, d["tdate"].dt.month))
+    # point-in-time: a past trade only counts once its OWN filing was public (late filings exist). Without
+    # this, the routine check could see a report filed after the decision day - the leak the parity test caught.
+    first_public = d.groupby([d["owner_cik"], d["tdate"].dt.year, d["tdate"].dt.month])["day"].min().to_dict()
     y, mth = d["tdate"].dt.year.values, d["tdate"].dt.month.values
-    d["routine"] = [all((o, yy - k, mm) in hist for k in (1, 2, 3)) for o, yy, mm in zip(d["owner_cik"], y, mth)]
+    d["routine"] = [all(first_public.get((o, yy - k, mm), pd.Timestamp.max) <= day for k in (1, 2, 3))
+                    for o, yy, mm, day in zip(d["owner_cik"], y, mth, d["day"])]
     rel = d["relation"].fillna("").str.lower() + " " + d["title"].fillna("").str.lower()
     d["officer"] = rel.str.contains("officer|ceo|cfo|chief|president").astype("float32")
     d["i"] = dates.searchsorted(d["day"].values)
