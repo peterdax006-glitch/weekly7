@@ -13,7 +13,7 @@ from engine.improve import log_experiment
 DIR = livesim.DIR
 STATE = DIR / "loop2.json"
 MAXW = int(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1].isdigit() else 60
-PAR, SCREEN_N, N_CAND = 3, 12, 40
+PAR, SCREEN_N, N_CAND = 3, 10, 24
 
 CFG_SPACE = {"k": [1, 2, 3, 4, 6, 8], "exit_q": [0.5, 0.7, 0.8, 0.9], "rebalance_weeks": [1, 2], "brake": [None, 0.08, 0.15],
              "max_per_sector": [None, 2], "w_model": [0.85, 1.0, 1.0], "pick": ["top", "hivol"], "pool_q": [0.9, 0.95, 0.98, 0.99],

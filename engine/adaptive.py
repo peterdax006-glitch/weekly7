@@ -369,7 +369,7 @@ def replay(default_cfg, snaps, closes, cost_bps, divs, adaptive=False, meta=None
     scramble_after: anti-cheat test - replace every price after this date with noise; decisions up to that
     date must not change (if they do, something looked into the future)."""
     if scramble_after is not None:
-        closes = closes.copy()
+        closes = closes.astype("float64").copy()
         rng = np.random.default_rng(seed)
         m = closes.index > pd.Timestamp(scramble_after)
         closes.loc[m] = closes.loc[m].values * np.exp(rng.normal(0, 0.2, closes.loc[m].shape))
