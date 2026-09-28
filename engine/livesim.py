@@ -20,20 +20,31 @@ FIRST_YEAR, LAST_YEAR = 1965, 2025
 
 
 class SealedYear:
+    """Seals a random 12-month window (canon C19): a start month from Jan 1965 to Sep 2025, then 12 consecutive
+    months. Older seals from the calendar-year design ({"year": Y}) are read as a January start."""
+
     def __init__(self, run_id):
         self.path = DIR / f"sealed_{run_id}.json"
         if not self.path.exists():
-            used = {json.loads(f.read_text())["year"] for f in DIR.glob("sealed_*.json")}
-            pool = [y for y in range(FIRST_YEAR, LAST_YEAR + 1) if y not in used] or list(range(FIRST_YEAR, LAST_YEAR + 1))
-            y = pool[secrets.randbelow(len(pool))]              # no repeats until every year has been played
+            used = [self.start_of(json.loads(f.read_text())) for f in DIR.glob("sealed_*.json")]
+            months = pd.date_range(f"{FIRST_YEAR}-01-01", "2025-09-01", freq="MS")
+            # prefer windows that overlap no played window by more than half (keeps coverage spread out)
+            fresh = [m for m in months if all(abs((m - u).days) > 183 for u in used)] or list(months)
+            start = fresh[secrets.randbelow(len(fresh))]
             weeks = 8000 + secrets.randbelow(3000)            # 2100s-2150s, a multiple of 7 days keeps weekdays
-            self.path.write_text(json.dumps({"year": y, "shift_days": 7 * weeks}))
+            self.path.write_text(json.dumps({"start": str(start.date()), "shift_days": 7 * weeks}))
+
+    @staticmethod
+    def start_of(d):
+        return pd.Timestamp(d["start"]) if "start" in d else pd.Timestamp(f"{d['year']}-01-01")
 
     def _read(self):
         return json.loads(self.path.read_text())
 
     def reveal(self):
-        return self._read()["year"]
+        st = self.start_of(self._read())
+        end = st + pd.DateOffset(months=12) - pd.Timedelta(days=1)
+        return f"{st:%b %Y} - {end:%b %Y}"
 
 
 class Feed:
@@ -41,13 +52,14 @@ class Feed:
 
     def __init__(self, sealed: SealedYear, warmup_years=6):
         s = sealed._read()                                     # the feed may know; the trader never does
-        Y, self._shift = s["year"], pd.Timedelta(days=s["shift_days"])
+        start, self._shift = SealedYear.start_of(s), pd.Timedelta(days=s["shift_days"])
+        Y = start.year
         from .replay import _all_prices
         stocks, market = _all_prices()
-        w = min(warmup_years, Y - 1962)
-        lo, hi = pd.Timestamp(f"{Y - w}-01-01"), pd.Timestamp(f"{Y}-12-31")
+        w = min(warmup_years, (start - pd.Timestamp("1962-01-01")).days // 365)
+        lo, hi = start - pd.DateOffset(years=w), start + pd.DateOffset(months=12) - pd.Timedelta(days=1)
         C = stocks["Close"].loc[lo:hi]
-        live_cols = C.columns[C.loc[f"{Y}"].notna().any()]      # names that trade in the hidden year
+        live_cols = C.columns[C.loc[start:hi].notna().any()]    # names that trade in the hidden window
         rng = np.random.default_rng(secrets.randbits(64))
         codes = [f"S{n:04d}" for n in rng.permutation(len(live_cols))]
         self._map = dict(zip(live_cols, codes))
@@ -72,7 +84,7 @@ class Feed:
         self.sic = sic[["ticker", "sic"]]                        # industry codes are timeless
         days = self._stocks["Close"].index
         self.sessions = days
-        self.first_live = days[days.searchsorted(pd.Timestamp(f"{Y}-01-01") + self._shift)]
+        self.first_live = days[days.searchsorted(start + self._shift)]
         self.i = days.get_loc(self.first_live) - 1               # clock starts at the end of the warm-up
         self.cost_bps = 40 if Y < 1997 else 20 if Y < 2001 else 10
         self._q_tick, self._q_ack = queue.Queue(1), queue.Queue(1)
@@ -173,89 +185,98 @@ class SimBroker:
 
 
 class BlindTrader:
-    def __init__(self, feed, cfg, fast=True):
-        self.feed, self.cfg, self.fast = feed, cfg, fast
-        self.broker = SimBroker(feed)
-        self.m = None
-        self.week_start, self.capped, self.week_count = K.START_CASH, False, 0
-        self.days, self.weeks, self.picks, self.snaps = [], [], [], {}
-        self.t_model = self.t_features = 0.0
+    """The live system inside the blind feed. All trading logic lives in adaptive.Session (shared with the
+    re-tester); this class only turns what the feed shows today into a snapshot and hands it over."""
 
-    def train(self):
-        t = time.perf_counter()
-        stocks, market = self.feed.history()
-        if self.fast:
-            X, atr = self.feed.features_until_now()
-        else:
-            ev, ins = self.feed.filings()
-            X, atr = features.build(stocks, market, ev, ins, self.feed.sic, start=str(stocks["Close"].index[0].date()), relative=True)
+    def __init__(self, feed, cfg, fast=True, adaptive=False, meta=None):
+        from . import adaptive as A
+        self.A = A
+        self.feed, self.cfg, self.fast, self.adaptive, self.meta = feed, dict(cfg), fast, adaptive, meta
+        self.m = None
+        self.snaps, self.warm_snaps = {}, {}
+        self.t_model = self.t_features = 0.0
+        self.divs = {t: policy.sic_division(c) for t, c in zip(feed.sic["ticker"], feed.sic["sic"])}
+        self.session = None
+        self.preseason = None
+
+    def _fit(self, X, stocks, atr, until_idx):
         yb, fw = features.labels(stocks, atr)
         d = X.index.get_level_values(0)
         ud = pd.DatetimeIndex(sorted(d.unique()))
-        tr = ud[: max(1, len(ud) - model.EMBARGO)][::2]        # labels of the last warm-up days would need the future
+        ud = ud[ud <= until_idx]
+        tr = ud[: max(1, len(ud) - model.EMBARGO)][::2]        # labels of the last days would need the future
         Xt = X[d.isin(tr)]
         y = yb.stack(future_stack=True).reindex(Xt.index)
         f = fw.stack(future_stack=True).reindex(Xt.index)
         ok = y.notna().values & f.notna().values
-        self.m = model.fit_models(model.normalise(Xt)[ok], y[ok], f[ok], fast=self.fast)
-        self.train_rows = int(ok.sum())
+        return model.fit_models(model.normalise(Xt)[ok], y[ok], f[ok], fast=True), int(ok.sum())
+
+    def snapshot_from(self, m, X, day):
+        Xd = X.xs(day, level=0, drop_level=False)
+        if Xd.empty:
+            return None
+        xr = Xd.xs(day, level=0)
+        R = model.normalise(Xd).xs(day, level=0).reindex(columns=m["cols"])
+        p = pd.DataFrame({"mu_raw": m["reg"].predict(R)}, index=R.index)
+        for c in policy.EVIDENCE_FEATS:
+            if c in R:
+                p[f"e_{c}"] = R[c].values
+        p["evidence"] = policy.evidence_from(p, policy.default_evidence_weights())
+        return p.join(xr[["vol20", "max20", "log_dv", "ev_red_flag", "ev_offering", "r5"] +
+                         [c for c in xr.columns if c.startswith("m_")]])
+
+    def train(self):
+        t = time.perf_counter()
+        stocks, market = self.feed.history()
+        X, atr = self.feed.features_until_now()
+        now = self.feed.now
+        self.m, self.train_rows = self._fit(X, stocks, atr, now)
+        # pre-season study (C17): a second model that stops 18 months earlier, so the last 18 warm-up months
+        # are out-of-sample for it; candidate settings are judged there, quarter by quarter
+        if self.adaptive:
+            cut = now - pd.DateOffset(months=18)
+            m2, _ = self._fit(X, stocks, atr, cut)
+            closes = stocks["Close"]
+            wdays = closes.loc[cut:now].index
+            for i, d in enumerate(wdays[:-1]):
+                if wdays[i + 1].isocalendar().week != d.isocalendar().week:
+                    sn = self.snapshot_from(m2, X, d)
+                    if sn is not None:
+                        self.warm_snaps[str(d.date())] = sn
+            wclose = closes.loc[cut:now]
+            cands = [{**self.cfg, k: v} for k, v in self.A.neighbours(self.cfg, self.A.META_DEFAULT["adaptive_knobs"])]
+            run = lambda cfg, sn, cl, bps, dv: self.A.replay(cfg, sn, cl, bps, dv).result()
+            chosen, info = self.A.choose_default(self.warm_snaps, wclose, self.divs, self.cfg, self.feed.cost_bps, run, cands)
+            self.preseason = {"prior": self.cfg, "chosen": chosen, **info}
+            self.cfg = chosen
+        self.session = self.A.Session(self.cfg, self.divs, self.feed.cost_bps, adaptive=self.adaptive, meta=self.meta)
         self.t_model = time.perf_counter() - t
 
-    def decide(self):
-        t = time.perf_counter()
-        if self.fast:
-            X = self.feed.features_today()
-        else:
-            stocks, market = self.feed.history()
-            ev, ins = self.feed.filings()
-            X, _ = features.build(stocks, market, ev, ins, self.feed.sic, start=str(self.feed.now.date()), relative=True)
-        self.t_features += time.perf_counter() - t
-        if X.empty:
-            return pd.Series(dtype=float), None
-        xr = X.xs(X.index.get_level_values(0).max(), level=0)
-        R = model.normalise(X).xs(X.index.get_level_values(0).max(), level=0).reindex(columns=self.m["cols"])
-        ew = {k: v for k, v in model.EVIDENCE.items() if k != "ev_activist"}
-        p = pd.DataFrame({"mu_raw": self.m["reg"].predict(R), "evidence": model.evidence_score(R, ew)}, index=R.index)
-        s = policy.score(p, self.cfg["w_model"])
-        ok = ~((xr["ev_red_flag"] > 0) | ((xr["ev_offering"] > 0) & (xr["log_dv"].rank(pct=True) < 0.5)))
-        if self.cfg["vol_filter"]:
-            ok &= ~((xr["vol20"].rank(pct=True) > 0.9) | (xr["max20"].rank(pct=True) > 0.9))
-        ok &= xr["log_dv"].rank(pct=True) >= self.cfg["liq_q"]
-        divs = {t: policy.sic_division(c) for t, c in zip(self.feed.sic["ticker"], self.feed.sic["sic"])}
-        mkt = {c: float(xr[c].iloc[0]) for c in xr.columns if c.startswith("m_")}
-        target = policy.regime_targets(s[ok.reindex(s.index).fillna(False)], list(self.broker.pos), self.cfg,
-                                       xr["vol20"], divs, mkt)
-        snap = pd.DataFrame({"mu_raw": p["mu_raw"], "evidence": p["evidence"]}).join(
-            xr[["vol20", "max20", "log_dv", "ev_red_flag", "ev_offering", "r5"] + [c for c in xr.columns if c.startswith("m_")]])
-        snap["score"] = s
-        self.snaps[str(self.feed.now.date())] = snap
-        return target, snap
-
     def on_tick(self):
-        b = self.broker
-        val = b.equity()
-        wr = val / self.week_start - 1
+        S, now = self.session, self.feed.now
         week_end = self.feed.next_session_is_new_week()
-        rebalance_week = week_end and self.week_count % self.cfg.get("rebalance_weeks", 1) == 0
-        if rebalance_week or not b.pos:
-            target, snap = self.decide()
-            val = b.equity()
-            for code in sorted(set(b.pos) | set(target.index), key=lambda c: target.get(c, 0.0)):
-                b.order_to(code, target.get(code, 0.0) * 0.985 * val, "rebalance" if b.pos else "initial build")
+        snap = None
+        if week_end or not S.pos:                          # archive a snapshot every week (and on the first day)
+            t = time.perf_counter()
+            snap = self.snapshot_from(self.m, self.feed.features_today(), now)
+            self.t_features += time.perf_counter() - t
             if snap is not None:
-                self.picks.append({"session": str(self.feed.now.date()), "names": list(target.index),
-                                   "scores": snap.loc[list(target.index), "score"].round(4).tolist()})
-        elif not self.capped and self.cfg["brake"] and wr <= -self.cfg["brake"]:
-            for code, q in list(b.pos.items()):
-                b.order_to(code, q * self.feed.price(code) * policy.TOPK["brake_exposure"], f"weekly brake ({wr:.1%})")
-            self.capped = True
-        val = b.equity()
-        self.days.append({"session": str(self.feed.now.date()), "equity": val, "holdings": sorted(b.pos)})
-        if week_end:
-            self.weeks.append({"week_end": str(self.feed.now.date()), "ret": val / self.week_start - 1,
-                               "brake": self.capped, "holdings": sorted(b.pos)})
-            self.week_start, self.capped = val, False
-            self.week_count += 1
+                self.snaps[str(now.date())] = snap
+        closes_to_now = self.feed.history()[0]["Close"]
+        S.on_day(now, self.feed.prices(), closes_to_now, week_end, snap if S.needs_snapshot(week_end) else None)
+
+    # views for the diagnosis code
+    @property
+    def days(self):
+        return [{"session": d, "equity": v} for d, v in self.session.days]
+
+    @property
+    def weeks(self):
+        return self.session.week_rows
+
+    @property
+    def picks(self):
+        return [{"session": d, "names": n} for d, n in self.session.decisions]
 
 
 def parity_test(feed, n_days=2, seed=None):
@@ -282,7 +303,7 @@ def parity_test(feed, n_days=2, seed=None):
     return worst
 
 
-def run(cfg, run_id, log=print, check_parity=True):
+def run(cfg, run_id, log=print, check_parity=True, adaptive=False, meta=None):
     sealed = SealedYear(run_id)
     feed = Feed(sealed)
     t = time.perf_counter()
@@ -292,7 +313,7 @@ def run(cfg, run_id, log=print, check_parity=True):
         t = time.perf_counter()
         w = parity_test(feed)
         log(f"  parity test passed (fast path == live path on random days, max diff {w:.1e}) in {time.perf_counter() - t:.0f}s")
-    trader = BlindTrader(feed, cfg)
+    trader = BlindTrader(feed, cfg, adaptive=adaptive, meta=meta)
     log(f"  warm-up: {len(feed.sessions)} sessions visible, {feed.i + 1} of them before the hidden year; training ...")
     trader.train()
     log(f"  model ready ({trader.train_rows:,} rows, {trader.t_model:.0f}s). Clock starts at {feed.now.date()} (disguised).")

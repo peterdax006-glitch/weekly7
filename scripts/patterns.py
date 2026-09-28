@@ -69,8 +69,9 @@ for c in revealed:
                 R[col] = X[col]                                # market levels and yes/no flags stay as they are
         R["fwd"] = fwd.values
         R["held"] = X.index.isin(held.get(sdate, set()))
-        R["year"] = year
-        R["era"] = f"{year // 10 * 10}s"
+        R["year"] = str(year)                                   # "1987" or "Mar 1987 - Feb 1988"
+        y0 = int(str(year)[-4:]) if str(year)[:4].isdigit() is False else int(str(year)[:4])
+        R["era"] = f"{y0 // 10 * 10}s"
         rows.append(R.dropna(subset=["fwd"]))
     print(f"{rid} ({year}): {sum(len(r) for r in rows if r['year'].iloc[0] == year):,} stock-decisions", flush=True)
 
@@ -146,7 +147,7 @@ if len(H) > 20:
     prof.sort(key=lambda r: -abs(r["gap_sd"]))
 
 top = sorted(deciles.items(), key=lambda kv: -abs(kv[1]["spread_hit7"]))
-out = {"generated_from": {"hidden_years": sorted(int(y) for y in D["year"].unique()), "stock_decisions": int(len(D)),
+out = {"generated_from": {"hidden_years": sorted(str(y) for y in D["year"].unique()), "stock_decisions": int(len(D)),
                           "held_positions": int(D["held"].sum())},
        "baseline": {"hit7": base_hit, "ret": base_ret},
        "indicators_ranked": [{"feature": f, **v} for f, v in top],

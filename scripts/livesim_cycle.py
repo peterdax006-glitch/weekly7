@@ -36,6 +36,8 @@ def replay_variant(cfg, snaps, closes, cost_bps, divs):
         target = None
         if d in dec and (wk % cfg.get("rebalance_weeks", 1) == 0 or not pos):     # same rule as BlindTrader
             p = dec[d]
+            if cfg.get("ew"):
+                p = p.assign(evidence=policy.evidence_from(p, cfg["ew"]))
             s = policy.score(p, cfg["w_model"])
             ok = ~((p["ev_red_flag"] > 0) | ((p["ev_offering"] > 0) & (p["log_dv"].rank(pct=True) < 0.5)))
             if cfg["vol_filter"]:
@@ -86,8 +88,8 @@ def examine(feed, trader):
             for n, v in r.items():
                 contrib.append({"week_end": b["week_end"], "code": n, "ret": float(v)})
     C = pd.DataFrame(contrib)
-    costs = sum(abs(t["dollars"]) for t in trader.broker.log) * feed.cost_bps / 1e4
-    turnover = sum(abs(t["dollars"]) for t in trader.broker.log) / K.START_CASH
+    costs = sum(abs(o[2]) for o in trader.session.orders) * feed.cost_bps / 1e4
+    turnover = sum(abs(o[2]) for o in trader.session.orders) / K.START_CASH
     # opportunity check: how did the top-ranked names the system SKIPPED do (eligibility filters, k)?
     missed = []
     for sdate, snap in trader.snaps.items():
@@ -143,6 +145,8 @@ while len(st["cycles"]) < MAX:
     ids = [f"r{rnd:02d}{x}" for x in "abc"[:PAR]]
     print(f"\n=== round {rnd}: {PAR} sealed hidden years in parallel, config v{st['version']} ===", flush=True)
     t0 = time.perf_counter()
+    for r in ids:                  # seal one at a time here: parallel workers can't see each other's draw
+        livesim.SealedYear(r)
     procs = [subprocess.Popen([sys.executable, "-u", __file__, "--worker", r, json.dumps(st["config"])]) for r in ids]
     codes = [p.wait() for p in procs]
     print(f"  round wall time {time.perf_counter() - t0:.0f}s", flush=True)

@@ -38,7 +38,11 @@ def normalise(X: pd.DataFrame) -> pd.DataFrame:
 def evidence_score(R: pd.DataFrame, weights=None) -> pd.Series:
     weights = weights or EVIDENCE
     s = sum(w * R[c].fillna(0) for c, w in weights.items() if c in R)
-    return s.groupby(level=0).rank(pct=True).rename("evidence")
+    if isinstance(s.index, pd.MultiIndex):
+        return s.groupby(level=0).rank(pct=True).rename("evidence")
+    # a single day's table: rank across the stocks (grouping by level 0 here would rank each stock against
+    # itself and return 1.0 for everyone - the bug found on 28 Sep 2026 by the equivalence check)
+    return s.rank(pct=True).rename("evidence")
 
 
 def _params(seed=7):

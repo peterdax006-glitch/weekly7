@@ -1,0 +1,166 @@
+"""Outer loop v2 (canon C11, C15-C21): blind 12-month windows played by the SELF-ADJUSTING system; between
+rounds the loop trains the training basis (starting defaults + adaptation meta-parameters). No manual
+changes mid-test (C16). Anti-cheat gates every round (C18). Volatility-first while below 1%/week (C21).
+
+usage: livesim_loop2.py [max_windows]"""
+import json, sys, time, subprocess, glob
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+import numpy as np, pandas as pd
+from engine import config as K, livesim, policy, adaptive as A
+from engine.improve import log_experiment
+
+DIR = livesim.DIR
+STATE = DIR / "loop2.json"
+MAXW = int(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1].isdigit() else 60
+PAR, SCREEN_N, N_CAND = 3, 12, 40
+
+CFG_SPACE = {"k": [1, 2, 3, 4, 6, 8], "exit_q": [0.5, 0.7, 0.8, 0.9], "rebalance_weeks": [1, 2], "brake": [None, 0.08, 0.15],
+             "max_per_sector": [None, 2], "w_model": [0.85, 1.0, 1.0], "pick": ["top", "hivol"], "pool_q": [0.9, 0.95, 0.98, 0.99],
+             "liq_q": [0.0, 0.2, 0.2, 0.3], "vol_filter": [False, True], "stress_thr": [None, 1.0, 1.05], "stress_k": [2, 3, 4],
+             "trend_filter": [None, -0.05], "trend_gross": [0.0, 0.5]}
+META_SPACE = {"half_life": [3, 6, 12], "prior_weeks": [4, 8, 16], "switch_z": [1.5, 2.0, 3.0], "min_weeks": [3, 6],
+              "cooldown": [2, 4], "revert_drop": [0.02, 0.04, 0.08], "ic_beta": [0.0, 0.5, 1.0, 2.0],
+              "det_max": [0.0, 0.25, 0.5], "det_min_weeks": [4, 8]}
+
+st = json.loads(STATE.read_text()) if STATE.exists() else {
+    "windows": [], "version": 1,
+    # starting defaults from the sensitivity study: model only (+0.32%/wk, t=3.8), lower liquidity floor
+    "cfg": {"k": 8, "exit_q": 0.8, "rebalance_weeks": 2, "brake": 0.08, "max_per_sector": 2, "w_model": 1.0,
+            "pick": "hivol", "pool_q": 0.98, "liq_q": 0.2, "vol_filter": False, "stress_thr": 1.05, "stress_k": 4,
+            "trend_filter": None, "trend_gross": 0.0},
+    "meta": dict(A.META_DEFAULT), "phase": "volatility"}
+save = lambda: STATE.write_text(json.dumps(st, indent=1, default=str))
+
+
+def load_window(a):
+    a = Path(a)
+    ws = {f.stem[6:]: pd.read_parquet(f) for f in sorted(a.glob("wsnap_*.parquet"))}
+    closes = pd.read_parquet(a / ("closes_v2.parquet" if (a / "closes_v2.parquet").exists() else "closes.parquet"))
+    sc = pd.read_parquet(a / "sic.parquet")
+    return {"id": a.name, "snaps": ws, "closes": closes, "bps": json.loads((a / "meta.json").read_text())["cost_bps"],
+            "divs": {t: policy.sic_division(x) for t, x in zip(sc["ticker"], sc["sic"])}}
+
+
+def run_window(w, cfg, meta):
+    S = A.replay(cfg, w["snaps"], w["closes"], w["bps"], w["divs"], adaptive=True, meta=meta)
+    r = S.result()
+    wk = np.array(S.weeks)
+    r["sd_week"] = float(wk.std()) if len(wk) > 1 else 0.0
+    return r
+
+
+def objective(rows, phase):
+    mw = float(np.mean([r["mean_week"] for r in rows]))
+    sd = float(np.mean([r["sd_week"] for r in rows]))
+    worst = min(r["max_dd"] for r in rows)
+    if worst < -0.80:                                       # catastrophe floor (C21 keeps this)
+        return -9.0, mw, sd, worst
+    if phase == "volatility":                               # C21: swing toward +/-5% a week first, don't give up the mean
+        return -abs(sd - 0.05) * 10 + mw * 20, mw, sd, worst
+    return mw + (-5.0 if sd < 0.03 else 0.0), mw, sd, worst  # direction phase: raise the mean, keep the swings
+
+
+def worker(run_id, cfg, meta):
+    feed, trader, sealed, wall = livesim.run(cfg, run_id, log=lambda *a: print(f"[{run_id}]", *a, flush=True),
+                                             adaptive=True, meta=meta)
+    a = DIR / run_id
+    a.mkdir(exist_ok=True)
+    feed._stocks["Close"].loc[feed.first_live:].to_parquet(a / "closes_v2.parquet")
+    for k, v in trader.snaps.items():
+        v.to_parquet(a / f"wsnap_{k}.parquet")
+    for k, v in trader.warm_snaps.items():
+        v.to_parquet(a / f"warm_{k}.parquet")
+    (a / "meta.json").write_text(json.dumps({"cost_bps": feed.cost_bps}))
+    feed.sic.to_parquet(a / "sic.parquet")
+    r = trader.session.result()
+    wk = np.array(trader.session.weeks)
+    r["sd_week"] = float(wk.std()) if len(wk) > 1 else 0.0
+    r.update({"run_id": run_id, "prior_cfg": cfg, "meta": meta, "preseason": trader.preseason, "clock_s": wall,
+              "ms_per_day": 1000 * wall / max(1, len(trader.session.days)), "used_cfg": trader.cfg})
+    (a / "result2.json").write_text(json.dumps(r, default=str))
+
+
+if len(sys.argv) > 2 and sys.argv[1] == "--worker":
+    worker(sys.argv[2], json.loads(sys.argv[3]), json.loads(sys.argv[4]))
+    sys.exit(0)
+
+rnd = len(st["windows"]) // PAR + 1
+while len(st["windows"]) < MAXW:
+    ids = [f"w{rnd:02d}{x}" for x in "abc"[:PAR]]
+    for r in ids:
+        livesim.SealedYear(r)                                # sealed one at a time: no duplicate draws
+    print(f"\n=== round {rnd} ({st['phase']} phase): {PAR} sealed 12-month windows, basis v{st['version']} ===", flush=True)
+    t0 = time.perf_counter()
+    procs = [subprocess.Popen([sys.executable, "-u", __file__, "--worker", r, json.dumps(st["cfg"]), json.dumps(st["meta"])]) for r in ids]
+    [p.wait() for p in procs]
+    done = [r for r in ids if (DIR / r / "result2.json").exists()]
+    if not done:
+        print("  no window finished - stopping", flush=True); break
+    # ---- anti-cheat gates (C18) ----
+    gate_ok = True
+    for r in done:
+        res = json.loads((DIR / r / "result2.json").read_text())
+        w = load_window(DIR / r)
+        re = run_window(w, res["used_cfg"], res["meta"])
+        rep = abs(re["year_return"] - res["year_return"]) < 0.005
+        S1 = A.replay(res["used_cfg"], w["snaps"], w["closes"], w["bps"], w["divs"], adaptive=True, meta=res["meta"])
+        cut = w["closes"].index[len(w["closes"]) // 2]
+        S2 = A.replay(res["used_cfg"], w["snaps"], w["closes"], w["bps"], w["divs"], adaptive=True, meta=res["meta"],
+                      scramble_after=cut, seed=len(r))
+        before = lambda S: [d for d in S.decisions if pd.Timestamp(d[0]) <= cut]
+        scram = before(S1) == before(S2)
+        print(f"  [{r}] avg week {res['mean_week']:+.2%} | swing (sd) {res['sd_week']:.2%} | {res['weeks_ge_7']} weeks >= +7% | "
+              f"window {res['year_return']:+.1%} | max DD {res['max_dd']:.0%} | {len(res['adaptations'])} self-adjustments | "
+              f"missed winners studied {sum(m['winners'] for m in res['missed_winners'])} | clock {res['ms_per_day']:.0f} ms/day", flush=True)
+        print(f"       gates: re-tester {'OK' if rep else 'MISMATCH'} | future-scramble {'OK' if scram else 'LEAK'}", flush=True)
+        gate_ok &= rep and scram
+        st["windows"].append({**{k: v for k, v in res.items() if k not in ("missed_winners",)},
+                              "missed_summary": {"winners": sum(m["winners"] for m in res["missed_winners"]),
+                                                 "caught": sum(m["caught"] for m in res["missed_winners"]),
+                                                 "detector_final_weight": (res["missed_winners"][-1]["detector_weight"]
+                                                                           if res["missed_winners"] else 0)},
+                              "basis_version": st["version"], "phase": st["phase"]})
+    if not gate_ok:
+        save(); print("  ANTI-CHEAT GATE FAILED - stopping before any retraining", flush=True); break
+    # ---- train the training basis on every window with weekly snapshots ----
+    wins = [load_window(a) for a in sorted(glob.glob(str(DIR / "*"))) if Path(a).is_dir() and list(Path(a).glob("wsnap_*"))]
+    rng = np.random.default_rng()
+    screen = [wins[i] for i in rng.choice(len(wins), size=min(SCREEN_N, len(wins)), replace=False)]
+    t1 = time.perf_counter()
+    base = objective([run_window(w, st["cfg"], st["meta"]) for w in screen], st["phase"])
+    cands = []
+    for _ in range(N_CAND):
+        c = {k: v[rng.integers(len(v))] for k, v in CFG_SPACE.items()}
+        m = {**st["meta"], **{k: v[rng.integers(len(v))] for k, v in META_SPACE.items()}}
+        cands.append((objective([run_window(w, c, m) for w in screen], st["phase"]), c, m))
+    cands.sort(key=lambda x: -x[0][0])
+    full_base = objective([run_window(w, st["cfg"], st["meta"]) for w in wins], st["phase"])
+    best = (full_base, st["cfg"], st["meta"])
+    for o, c, m in cands[:3]:                                  # confirm the screen's top 3 on every window
+        fo = objective([run_window(w, c, m) for w in wins], st["phase"])
+        if fo[0] > best[0][0]:
+            best = (fo, c, m)
+    adopted = best[1] is not st["cfg"]
+    print(f"  training basis: {N_CAND} candidates screened on {len(screen)} windows, top 3 confirmed on all {len(wins)} "
+          f"({time.perf_counter() - t1:.0f}s)", flush=True)
+    if adopted:
+        st["version"] += 1
+        st["cfg"], st["meta"] = best[1], best[2]
+        print(f"  NEW BASIS v{st['version']}: avg week {full_base[1]:+.2%} -> {best[0][1]:+.2%}, swing {full_base[2]:.2%} -> "
+              f"{best[0][2]:.2%}, worst DD {best[0][3]:.0%}\n     defaults {best[1]}\n     adaptation {best[2]}", flush=True)
+    else:
+        print(f"  kept basis v{st['version']} (avg week {full_base[1]:+.2%}, swing {full_base[2]:.2%})", flush=True)
+    fresh = [w["mean_week"] for w in st["windows"]]
+    if st["phase"] == "volatility" and np.mean(fresh[-6:]) >= 0.01:
+        st["phase"] = "direction"
+    for w in st["windows"][-len(done):]:
+        w["revealed"] = livesim.SealedYear(w["run_id"]).reveal()
+    print("  revealed:", {w["run_id"]: w["revealed"] for w in st["windows"][-len(done):]}, flush=True)
+    print(f"  running average over {len(fresh)} fresh windows: {np.mean(fresh):+.2%}/week (target +7.00%)", flush=True)
+    log_experiment({"event": "loop2_round", "round": rnd, "basis": st["version"], "phase": st["phase"],
+                    "fresh_avg": float(np.mean(fresh)), "windows": [w["run_id"] for w in st["windows"][-len(done):]]})
+    save()
+    if any(w["mean_week"] >= 0.07 for w in st["windows"][-len(done):]):
+        print("TARGET REACHED", flush=True); break
+    rnd += 1

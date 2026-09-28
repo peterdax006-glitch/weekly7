@@ -161,3 +161,21 @@ def regime_targets(s_ok, held, cfg, vol, divs, mkt):
     if not stress and tf is not None and ma is not None and ma == ma and ma < tf:
         t = t * cfg.get("trend_gross", 0.5)
     return t
+
+
+EVIDENCE_FEATS = ["ear", "ins_buyers30", "ins_officer30", "dist_52wh", "ind_mom60", "frog", "mom_12_1",
+                  "r5_nonews", "max20", "ev_offering", "ev_shelf", "ev_red_flag", "skew60"]
+
+
+def default_evidence_weights():
+    from .model import EVIDENCE
+    return {k: v for k, v in EVIDENCE.items() if k != "ev_activist"}
+
+
+def evidence_from(p, ew=None):
+    """Evidence score for one decision day from its per-indicator ranks (columns e_<feature>).
+    Identical to model.evidence_score on that day's ranks; shared by the trader and the re-tester."""
+    if ew is None:
+        return p["evidence"]
+    s = sum(w * p[f"e_{c}"].fillna(0) for c, w in ew.items() if f"e_{c}" in p)
+    return s.rank(pct=True) if hasattr(s, "rank") else p["evidence"]

@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Weekly7 Sensitivity</title>
+<meta name="description" content="What moves the weekly average, how much, and how consistently - measured on blind hidden years.">
+<style>
+:root { color-scheme: light; --page:#f9f9f7; --surface:#fcfcfb; --ink:#0b0b0b; --ink-2:#52514e; --muted:#898781;
+  --grid:#e1e0d9; --axis:#c3c2b7; --ring:rgba(11,11,11,.10); --good:#0ca30c; --bad:#d03b3b; --s1:#2a78d6; --wash:#e9f2fd; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { color-scheme: dark; --page:#0d0d0d; --surface:#1a1a19;
+  --ink:#fff; --ink-2:#c3c2b7; --grid:#2c2c2a; --axis:#383835; --ring:rgba(255,255,255,.10); --bad:#e66767; --s1:#3987e5; --wash:#16263a; } }
+:root[data-theme="dark"] { color-scheme: dark; --page:#0d0d0d; --surface:#1a1a19; --ink:#fff; --ink-2:#c3c2b7; --grid:#2c2c2a;
+  --axis:#383835; --ring:rgba(255,255,255,.10); --bad:#e66767; --s1:#3987e5; --wash:#16263a; }
+* { box-sizing: border-box; }
+body { margin:0; background:var(--page); color:var(--ink); font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; }
+main { max-width:1120px; margin:0 auto; padding:24px 16px 64px; }
+a { color:var(--s1); }
+h1 { font-size:26px; margin:0; } h2 { font-size:16px; margin:0 0 2px; }
+.sub { color:var(--ink-2); font-size:13px; }
+.grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:14px; margin-top:16px; }
+.card { background:var(--surface); border:1px solid var(--ring); border-radius:12px; padding:14px; }
+.badge { display:inline-block; border-radius:6px; padding:1px 7px; font-size:12px; background:var(--wash); margin-left:6px; }
+.sig { font-weight:600; }
+svg { display:block; width:100%; height:auto; }
+.tip { position:fixed; pointer-events:none; background:var(--surface); border:1px solid var(--ring); border-radius:8px; padding:8px 10px;
+  font-size:12px; box-shadow:0 4px 16px rgba(0,0,0,.12); display:none; z-index:10; }
+.note { font-size:12px; color:var(--muted); margin-top:18px; }
+</style>
+</head>
+<body>
+<main>
+  <div class="sub"><a href="./">← Weekly7 dashboard</a> · <a href="patterns.html">Pattern Explorer</a></div>
+  <h1>What actually moves the result</h1>
+  <div class="sub" id="lede">Loading…</div>
+  <div class="grid" id="grid"></div>
+  <p class="note">Each bar is one setting value, changed on its own from the current system, replayed through every archived blind window with the re-tester (which reproduces the live runs exactly). Bar = change in the average week versus the current system. Green/red = better/worse. "Significant" = at least 0.05%/week with t ≥ 2 across years; "consistent" = at least 65% of years move the same way. Hover a bar for the full numbers.</p>
+</main>
+<div class="tip" id="tip"></div>
+<script>
+const $ = s => document.querySelector(s);
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const tip = $("#tip");
+const show = (e, h) => { tip.innerHTML = h; tip.style.display = "block"; tip.style.left = Math.min(e.clientX + 14, innerWidth - tip.offsetWidth - 8) + "px"; tip.style.top = e.clientY + 14 + "px"; };
+const hide = () => tip.style.display = "none";
+const NAMES = { k: "Number of stocks held", exit_q: "When to sell (keep while in top …)", rebalance_weeks: "Rebalance every N weeks",
+  brake: "Weekly loss brake", max_per_sector: "Max stocks per sector", w_model: "Model vs evidence blend (1 = model only)",
+  pick: "Pick the top scores or the most volatile top scores", pool_q: "Size of the top pool for volatile picks",
+  liq_q: "Liquidity floor (share of stocks excluded)", vol_filter: "Exclude the most volatile / spiky stocks",
+  stress_thr: "Rebound mode trigger (market stress)", stress_k: "Stocks held in rebound mode", trend_filter: "Downtrend cash filter",
+  trend_gross: "Invested share in a downtrend", "evidence score (bug fix)": "Evidence score switched off (as the early runs traded)" };
+fetch("sensitivity.json?v=" + Date.now()).then(r => r.json()).then(D => {
+  $("#lede").textContent = `${D.hidden_years} blind hidden windows. Current system averages ${(D.champion_mean_week * 100).toFixed(2)}% a week. Settings are ordered by how much they can move that.`;
+  const groups = {};
+  D.variants.forEach(v => (groups[v.group + "|" + v.knob] = groups[v.group + "|" + v.knob] || []).push(v));
+  const order = D.by_knob.map(k => k.group + "|" + k.knob);
+  Object.keys(groups).forEach(k => { if (!order.includes(k)) order.unshift(k); });
+  $("#grid").innerHTML = order.map((key, gi) => {
+    const rows = groups[key]; if (!rows) return "";
+    const [g, k] = key.split("|");
+    const cls = rows.some(r => r.size === "significant") ? "significant" : rows.some(r => r.size === "slight") ? "slight" : "noise";
+    const name = g === "indicator" ? `Indicator weight: ${k}` : (NAMES[k] || k);
+    return `<div class="card"><h2 class="${cls === "significant" ? "sig" : ""}">${esc(name)}<span class="badge">${cls}</span></h2><div id="c${gi}"></div></div>`;
+  }).join("");
+  order.forEach((key, gi) => {
+    const rows = groups[key]; if (!rows) return;
+    const el = $("#c" + gi), W = el.clientWidth || 320, H = 130, m = { l: 40, r: 6, t: 8, b: 22 };
+    const vals = rows.map(r => r.d_mean_week), mx = Math.max(0.0005, ...vals.map(Math.abs));
+    const Y = v => m.t + (1 - (v + mx) / (2 * mx)) * (H - m.t - m.b), bw = (W - m.l - m.r) / rows.length;
+    let g = `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(0)}" y2="${Y(0)}" stroke="${css("--axis")}"/>`;
+    [mx, -mx].forEach(v => g += `<text x="${m.l - 4}" y="${Y(v) + 4}" text-anchor="end" font-size="10" fill="${css("--muted")}">${(v * 100).toFixed(2)}%</text>`);
+    rows.forEach((r, i) => {
+      const x = m.l + i * bw + 2, y = Math.min(Y(0), Y(r.d_mean_week)), h = Math.max(2, Math.abs(Y(r.d_mean_week) - Y(0)));
+      const op = r.size === "significant" ? 1 : r.size === "slight" ? 0.6 : 0.3;
+      g += `<rect data-i="${i}" x="${x}" y="${y}" width="${Math.max(2, bw - 4)}" height="${h}" rx="3" fill="${css(r.d_mean_week >= 0 ? "--good" : "--bad")}" opacity="${op}"/>`;
+      g += `<text x="${x + (bw - 4) / 2}" y="${H - 6}" text-anchor="middle" font-size="10" fill="${css("--muted")}">${esc(String(r.value))}</text>`;
+    });
+    el.innerHTML = `<svg viewBox="0 0 ${W} ${H}">${g}</svg>`;
+    el.querySelectorAll("rect[data-i]").forEach(b => { const r = rows[+b.dataset.i];
+      b.onmousemove = e => show(e, `<b>${esc(String(r.value))}</b><br>average week ${(r.d_mean_week * 100 >= 0 ? "+" : "")}${(r.d_mean_week * 100).toFixed(3)}% (t = ${r.t.toFixed(1)})<br>same direction in ${Math.round(r.share_years_same_way * 100)}% of years<br>+7% weeks per year ${r.d_weeks_ge7_per_year >= 0 ? "+" : ""}${r.d_weeks_ge7_per_year.toFixed(2)}<br>worst drawdown ${(r.d_worst_dd * 100 >= 0 ? "+" : "")}${(r.d_worst_dd * 100).toFixed(1)} pts<br>${r.size} · ${r.consistency}`);
+      b.onmouseleave = hide; });
+  });
+}).catch(() => $("#lede").textContent = "No sensitivity data yet.");
+</script>
+</body>
+</html>

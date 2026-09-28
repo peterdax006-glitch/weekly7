@@ -83,3 +83,51 @@ continue working while you wait on that
 > make sure there is a way you can view the exact patterns of stocks that got us closer to our goal looking for patters in all the dozens of different trends and indicators and quantity of everything
 
 `sha256: ee82cf0343eab17ef2568ed960d458c7ede1be180fe92d91050552b36b60ee80`
+
+## C14 — Sensitivity: what moves the outcome, how much, how consistently (2026-09-28)
+
+> figure out what things adjust the outcome significantly and what things adjust it slightly, and what things are more consistent and what are less consistent, and how much to adjust different indicators and any other trackers you use and play with it to see in a real scenario how much it actually effects anything so then for the next loop you know what to adjust to hopefully make the weekly average significantly higher consistently
+
+`sha256: 71338f3b61fdfeb8d88ddd491fb2461e4a2e4086894dd8b0d4a2e39152d87e2e`
+
+## C15 — Self-adjusting system within a year (2026-09-28)
+
+> also have a way for the system to automatically adjust itself, so if this year... is working better then slightly motify the system within a test, but also keep in mind that a major drop off in that trend could happen randomly depending on... depending on the indicator
+
+`sha256: 4324c884e34bf7451fdfefbb6f664067b848111e147ade6ab28a81e5fea28183`
+
+## C16 — No manual adjustment mid-test; train the training basis each loop (2026-09-28)
+
+> so as you run a test you shouldn't adjust things, but design it for a self training system inside of a year, adjusting on a weekly basis based on whats working, but everytime we run a loop you will need to train the traing basis better, especially for things like making sure it works well enough and compensates for coincidents, or things you wouldnt normally expect, or not enough data to go on ect
+
+`sha256: 26db02341fec6e0b65cc4a4de111fbe0eeb20b1f324c56c21eb3cd31d5396bd3`
+
+## C17 — Pre-season self-training of defaults (2026-09-28)
+
+> also at the begining of a year when you run a test it should research and use tools to figure train itself what the default should be at the start of the year then have it motify itself as the year progresses
+
+`sha256: 3170f20c536147cac42b229095310345fea29bf4dc40cebba15ae791b0ad54a9`
+
+## C18 — No way to cheat in the self-adjusting design (2026-09-28)
+
+> be very cautious the system doesnt have a way to cheat as you design this though
+
+`sha256: 7bdeaacf6489dde7858bb75821bd7a9895b7e957c85085c45eeaf174ebb8074c`
+
+## C19 — Random start month, 12 consecutive months (2026-09-28)
+
+> also it should not be set up so you go from the start of the year to the end of it, testing should pick a random month over the last however many years, and have it run for the next 12 consecutive months
+
+`sha256: 3e995cdafe425722bdaa5266a15efbab5fc5baf5d50e50a112c9615d081e239e`
+
+## C20 — Learn from the winners it did not pick (2026-09-28)
+
+> it should also train itself, not just by its picks, but the successes it didnt pick, and look at patterns with those and see if there was any way to predict it, so then its trained to get it next time, so it should examine maybe hundreds on non picks every year too
+
+`sha256: 905225eb85d2a6fdd0ddc83702a3988c57da2f50fa8fa192c7ae3285e5d90116`
+
+## C21 — Below 1%: raise volatility toward +/-5% first (2026-09-28)
+
+> also if you stay below 1% then just make the changes to make it more volatile to get closer to that 5% negative or positive and then figure out consistent positives later
+
+`sha256: 6077e1857498327f44bad7a7656458a34a2bc2baa601881ac172517d00aaa929`

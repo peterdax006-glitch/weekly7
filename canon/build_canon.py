@@ -34,6 +34,22 @@ DIRECTIVES = [
      "ensure you get testing to go very fast so you can run tests very fast, learn how you can speed up testing before you start bulk testing to speed up the progress"),
     ("C13", "2026-09-28", "Pattern explorer across all indicators",
      "make sure there is a way you can view the exact patterns of stocks that got us closer to our goal looking for patters in all the dozens of different trends and indicators and quantity of everything"),
+    ("C14", "2026-09-28", "Sensitivity: what moves the outcome, how much, how consistently",
+     "figure out what things adjust the outcome significantly and what things adjust it slightly, and what things are more consistent and what are less consistent, and how much to adjust different indicators and any other trackers you use and play with it to see in a real scenario how much it actually effects anything so then for the next loop you know what to adjust to hopefully make the weekly average significantly higher consistently"),
+    ("C15", "2026-09-28", "Self-adjusting system within a year",
+     "also have a way for the system to automatically adjust itself, so if this year... is working better then slightly motify the system within a test, but also keep in mind that a major drop off in that trend could happen randomly depending on... depending on the indicator"),
+    ("C16", "2026-09-28", "No manual adjustment mid-test; train the training basis each loop",
+     "so as you run a test you shouldn't adjust things, but design it for a self training system inside of a year, adjusting on a weekly basis based on whats working, but everytime we run a loop you will need to train the traing basis better, especially for things like making sure it works well enough and compensates for coincidents, or things you wouldnt normally expect, or not enough data to go on ect"),
+    ("C17", "2026-09-28", "Pre-season self-training of defaults",
+     "also at the begining of a year when you run a test it should research and use tools to figure train itself what the default should be at the start of the year then have it motify itself as the year progresses"),
+    ("C18", "2026-09-28", "No way to cheat in the self-adjusting design",
+     "be very cautious the system doesnt have a way to cheat as you design this though"),
+    ("C19", "2026-09-28", "Random start month, 12 consecutive months",
+     "also it should not be set up so you go from the start of the year to the end of it, testing should pick a random month over the last however many years, and have it run for the next 12 consecutive months"),
+    ("C20", "2026-09-28", "Learn from the winners it did not pick",
+     "it should also train itself, not just by its picks, but the successes it didnt pick, and look at patterns with those and see if there was any way to predict it, so then its trained to get it next time, so it should examine maybe hundreds on non picks every year too"),
+    ("C21", "2026-09-28", "Below 1%: raise volatility toward +/-5% first",
+     "also if you stay below 1% then just make the changes to make it more volatile to get closer to that 5% negative or positive and then figure out consistent positives later"),
 ]
 
 def sha(t): return hashlib.sha256(t.encode("utf-8")).hexdigest()
