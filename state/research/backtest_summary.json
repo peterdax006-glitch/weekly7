@@ -1,14 +1,5 @@
 {
  "weekly7": {
-  "final": 3578.9856250098524,
-  "mean_week": 0.003988566811252675,
-  "pct_ge_7": 0.07692307692307693,
-  "pct_le_m7": 0.0670611439842209,
-  "win_weeks": 0.5502958579881657,
-  "worst_week": -0.2250017962746722,
-  "max_dd": -0.7347767102316682
- },
- "evidence_only": {
   "final": 13198.188311453918,
   "mean_week": 0.0059355512126057644,
   "pct_ge_7": 0.045364891518737675,
@@ -16,6 +7,15 @@
   "win_weeks": 0.5739644970414202,
   "worst_week": -0.21052809763592073,
   "max_dd": -0.4654428968118469
+ },
+ "evidence_only": {
+  "final": 3129.45703125,
+  "mean_week": 0.0026529128663241863,
+  "pct_ge_7": 0.009881422924901186,
+  "pct_le_m7": 0.009881422924901186,
+  "win_weeks": 0.5810276679841897,
+  "worst_week": -0.1790543794631958,
+  "max_dd": -0.38573187589645386
  },
  "trend_chaser": {
   "final": 141.83299255371094,
@@ -44,5 +44,5 @@
   "worst_week": -0.1454574465751648,
   "max_dd": -0.33717262744903564
  },
- "note": "weekly7 = live v1.3; the 'Evidence-Only' row shows v1.2 (top-4, sector cap) for comparison"
+ "note": "weekly7 = live champion v1.2; evidence_only = top-8 by the literature prior, weekly"
 }
