@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Weekly7 Patterns</title>
+<meta name="description" content="Which indicator patterns preceded +7% weeks across the blind hidden-year simulations.">
+<style>
+:root {
+  color-scheme: light;
+  --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
+  --grid: #e1e0d9; --axis: #c3c2b7; --ring: rgba(11,11,11,0.10);
+  --s1: #2a78d6; --s2: #eb6834; --good: #006300; --bad: #d03b3b; --wash: #e9f2fd;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark; --page: #0d0d0d; --surface: #1a1a19; --ink: #fff; --ink-2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,0.10); --s1: #3987e5; --s2: #d95926;
+    --good: #0ca30c; --bad: #e66767; --wash: #16263a;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark; --page: #0d0d0d; --surface: #1a1a19; --ink: #fff; --ink-2: #c3c2b7; --muted: #898781;
+  --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,0.10); --s1: #3987e5; --s2: #d95926;
+  --good: #0ca30c; --bad: #e66767; --wash: #16263a;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--page); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 1120px; margin: 0 auto; padding: 24px 16px 64px; }
+a { color: var(--s1); }
+h1 { font-size: 26px; margin: 0; letter-spacing: -0.02em; }
+h2 { font-size: 17px; margin: 0 0 4px; }
+.sub { color: var(--ink-2); font-size: 13px; }
+.card { background: var(--surface); border: 1px solid var(--ring); border-radius: 12px; padding: 18px; margin-bottom: 16px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin: 16px 0; }
+.tile { background: var(--surface); border: 1px solid var(--ring); border-radius: 12px; padding: 12px 14px; }
+.tile .k { color: var(--ink-2); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+.tile .v { font-size: 22px; font-weight: 650; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; color: var(--muted); font-weight: 500; padding: 6px 8px; border-bottom: 1px solid var(--grid); cursor: pointer; white-space: nowrap; }
+td { padding: 7px 8px; border-bottom: 1px solid var(--grid); vertical-align: top; font-variant-numeric: tabular-nums; }
+.scroll { overflow-x: auto; }
+.badge { display: inline-block; border-radius: 6px; padding: 1px 7px; font-size: 12px; background: var(--wash); white-space: nowrap; }
+.weak { opacity: .55; }
+.controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin: 10px 0; font-size: 13px; }
+select, input[type=search] { font: inherit; font-size: 13px; padding: 5px 8px; border-radius: 8px; border: 1px solid var(--ring); background: var(--surface); color: var(--ink); }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 760px) { .two { grid-template-columns: 1fr; } }
+svg { display: block; width: 100%; height: auto; overflow: visible; }
+.tip { position: fixed; pointer-events: none; background: var(--surface); border: 1px solid var(--ring); border-radius: 8px; padding: 8px 10px; font-size: 12px; box-shadow: 0 4px 16px rgba(0,0,0,.12); display: none; z-index: 10; }
+.list { max-height: 420px; overflow-y: auto; border: 1px solid var(--grid); border-radius: 8px; }
+.list div { padding: 6px 10px; border-bottom: 1px solid var(--grid); cursor: pointer; font-size: 13px; display: flex; justify-content: space-between; gap: 8px; }
+.list div.on { background: var(--wash); }
+.note { font-size: 12px; color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <div class="sub"><a href="./">← Weekly7 dashboard</a></div>
+  <h1>Pattern Explorer</h1>
+  <div class="sub" id="lede">Loading…</div>
+  <section class="tiles" id="tiles"></section>
+
+  <section class="card">
+    <h2>Combined patterns</h2>
+    <div class="sub">Each row is a rule found by a shallow decision tree over every indicator. "+7% rate" = share of stocks matching the rule that rose 7% or more the following week. <b>Years confirmed</b> counts the separate hidden years in which the rule beat that year's normal rate. One-year rules are usually a single event (like a crash rebound), not a repeatable pattern.</div>
+    <div class="controls"><label><input type="checkbox" id="multi" checked> Only patterns confirmed in 2+ years</label></div>
+    <div class="scroll"><table id="rules"></table></div>
+  </section>
+
+  <section class="card">
+    <h2>Every indicator, in ten buckets</h2>
+    <div class="sub">Pick an indicator. Bars show how often stocks in each tenth (lowest → highest that day) had a +7% week; the dashed line is the normal rate. The second chart shows their average next-week return, because a higher +7% rate is only useful if the average doesn't fall with it.</div>
+    <div class="controls"><input type="search" id="q" placeholder="Search indicators…"> <span class="note">sorted by how much the top and bottom buckets differ</span></div>
+    <div class="two">
+      <div class="list" id="ilist"></div>
+      <div>
+        <div id="ititle" style="font-weight:600;margin-bottom:6px"></div>
+        <div id="hitchart"></div>
+        <div id="retchart" style="margin-top:14px"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>What separated the system's winners from its losers</h2>
+    <div class="sub">For every position the system actually held: the average rank of each indicator in positions that went up the next week versus those that fell, in standard deviations. Bars to the right = winners had more of it.</div>
+    <div id="gap"></div>
+  </section>
+  <p class="note" id="note"></p>
+</main>
+<div class="tip" id="tip"></div>
+<script>
+const $ = s => document.querySelector(s);
+const pct = (x, d = 1) => x == null || isNaN(x) ? "—" : (100 * x).toFixed(d) + "%";
+const spct = (x, d = 2) => x == null || isNaN(x) ? "—" : (x >= 0 ? "+" : "") + (100 * x).toFixed(d) + "%";
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const tip = $("#tip");
+const show = (e, h) => { tip.innerHTML = h; tip.style.display = "block"; tip.style.left = Math.min(e.clientX + 14, innerWidth - tip.offsetWidth - 8) + "px"; tip.style.top = e.clientY + 14 + "px"; };
+const hide = () => tip.style.display = "none";
+
+function bars(el, vals, labels, { base = null, fmt = pct, color = "--s1", signed = false } = {}) {
+  const W = el.clientWidth || 520, H = 170, m = { l: 44, r: 8, t: 10, b: 22 };
+  let lo = Math.min(0, ...vals, base ?? 0), hi = Math.max(0, ...vals, base ?? 0);
+  const pad = (hi - lo) * 0.1 || 0.01; hi += pad; if (lo < 0) lo -= pad;
+  const Y = v => m.t + (1 - (v - lo) / (hi - lo)) * (H - m.t - m.b);
+  const bw = (W - m.l - m.r) / vals.length;
+  let g = `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(0)}" y2="${Y(0)}" stroke="${css("--axis")}"/>`;
+  [lo, hi].forEach(v => g += `<text x="${m.l - 6}" y="${Y(v) + 4}" text-anchor="end" font-size="10" fill="${css("--muted")}">${fmt(v)}</text>`);
+  vals.forEach((v, i) => {
+    const x = m.l + i * bw + 2, y = Math.min(Y(0), Y(v)), h = Math.max(2, Math.abs(Y(v) - Y(0)));
+    const c = signed ? (v >= 0 ? "--good" : "--bad") : color;
+    g += `<rect class="b" data-i="${i}" x="${x}" y="${y}" width="${Math.max(2, bw - 4)}" height="${h}" rx="3" fill="${css(c)}"/>`;
+    g += `<text x="${x + (bw - 4) / 2}" y="${H - 6}" text-anchor="middle" font-size="10" fill="${css("--muted")}">${esc(labels[i])}</text>`;
+  });
+  if (base != null) g += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(base)}" y2="${Y(base)}" stroke="${css("--ink-2")}" stroke-dasharray="4 4"/>`;
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}">${g}</svg>`;
+  return el.querySelectorAll(".b");
+}
+
+function hbars(el, rows) {
+  const W = el.clientWidth || 900, rh = 22, H = rows.length * rh + 10, lw = Math.min(300, W * 0.42), m = 8;
+  const mx = Math.max(...rows.map(r => Math.abs(r.gap_sd)), 0.01);
+  const X0 = lw + (W - lw - m) / 2, S = (W - lw - m) / 2 / mx;
+  let g = `<line x1="${X0}" x2="${X0}" y1="0" y2="${H}" stroke="${css("--axis")}"/>`;
+  rows.forEach((r, i) => {
+    const y = i * rh + 4, w = Math.abs(r.gap_sd) * S, x = r.gap_sd >= 0 ? X0 : X0 - w;
+    g += `<text x="${lw - 8}" y="${y + 13}" text-anchor="end" font-size="12" fill="${css("--ink-2")}">${esc(r.name)}</text>`;
+    g += `<rect class="h" data-i="${i}" x="${x}" y="${y}" width="${Math.max(2, w)}" height="${rh - 8}" rx="3" fill="${css(r.gap_sd >= 0 ? "--good" : "--bad")}"/>`;
+  });
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}">${g}</svg>`;
+  el.querySelectorAll(".h").forEach(b => { const r = rows[+b.dataset.i];
+    b.onmousemove = e => show(e, `<b>${esc(r.name)}</b><br>winners avg rank ${pct(r.winners, 0)} · losers ${pct(r.losers, 0)}<br>gap ${r.gap_sd.toFixed(2)} sd`);
+    b.onmouseleave = hide; });
+}
+
+fetch("patterns.json?v=" + Date.now()).then(r => r.json()).then(D => {
+  const G = D.generated_from;
+  $("#lede").textContent = `Built from ${G.stock_decisions.toLocaleString()} stock-decisions in ${G.hidden_years.length} revealed hidden years (${G.hidden_years.join(", ")}). Every row is exactly what the blind system saw on a decision day, and what that stock did the next week.`;
+  $("#tiles").innerHTML = [["Normal +7% rate", pct(D.baseline.hit7)], ["Normal next-week return", spct(D.baseline.ret)],
+    ["Positions the system held", G.held_positions.toLocaleString()], ["Indicators examined", D.indicators_ranked.length]]
+    .map(([k, v]) => `<div class="tile"><div class="k">${k}</div><div class="v">${v}</div></div>`).join("");
+  $("#note").textContent = D.note;
+
+  const drawRules = () => {
+    const multi = $("#multi").checked;
+    const rs = D.rules.filter(r => !multi || r.years_beating_base >= 2);
+    $("#rules").innerHTML = "<tr><th>Pattern</th><th>+7% rate</th><th>vs normal</th><th>Avg next week</th><th>Stocks</th><th>Years confirmed</th></tr>" +
+      (rs.map(r => `<tr class="${r.years_beating_base < 2 ? "weak" : ""}"><td>${r.rule.map(esc).join("<br>")}</td><td><b>${pct(r.hit7)}</b></td>
+        <td>${r.lift ? r.lift.toFixed(1) + "×" : "—"}</td><td class="${r.ret >= 0 ? "" : ""}">${spct(r.ret)}</td><td>${r.n.toLocaleString()}</td>
+        <td><span class="badge">${r.years_beating_base} of ${r.years_seen}</span></td></tr>`).join("") || '<tr><td colspan="6" class="note">No pattern is confirmed in 2+ years yet — untick the box to see single-year ones.</td></tr>');
+  };
+  $("#multi").onchange = drawRules; drawRules();
+
+  let cur = null;
+  const drawList = () => {
+    const q = $("#q").value.toLowerCase();
+    const items = D.indicators_ranked.filter(x => (x.name + " " + x.feature).toLowerCase().includes(q));
+    $("#ilist").innerHTML = items.map(x => `<div data-f="${esc(x.feature)}" class="${cur === x.feature ? "on" : ""}"><span>${esc(x.name)}${x.market_wide ? ' <span class="badge">market</span>' : ""}</span><span class="note">${x.spread_hit7 >= 0 ? "+" : ""}${(100 * x.spread_hit7).toFixed(1)} pts</span></div>`).join("");
+    $("#ilist").querySelectorAll("div[data-f]").forEach(d => d.onclick = () => { cur = d.dataset.f; drawList(); drawInd(); });
+  };
+  const drawInd = () => {
+    const x = D.indicators_ranked.find(i => i.feature === cur); if (!x) return;
+    const labels = x.flag ? ["no", "yes"] : x.buckets.map(b => (x.market_wide ? "" : "") + (b.b + 1));
+    $("#ititle").innerHTML = `${esc(x.name)} <span class="note">(${esc(x.feature)}${x.market_wide ? ", market-wide level" : x.flag ? ", yes/no" : ", tenths lowest → highest"})</span>`;
+    const hb = bars($("#hitchart"), x.buckets.map(b => b.hit7), labels, { base: D.baseline.hit7 });
+    hb.forEach(b => { const k = x.buckets[+b.dataset.i]; b.onmousemove = e => show(e, `Bucket ${labels[+b.dataset.i]}<br>+7% rate <b>${pct(k.hit7)}</b> (normal ${pct(D.baseline.hit7)})<br>avg next week ${spct(k.ret)}<br>${k.n.toLocaleString()} stock-decisions<br>beat its year's normal in ${pct(k.years_beating_base, 0)} of years`); b.onmouseleave = hide; });
+    const rb = bars($("#retchart"), x.buckets.map(b => b.ret), labels, { fmt: v => spct(v, 1), signed: true });
+    rb.forEach(b => { const k = x.buckets[+b.dataset.i]; b.onmousemove = e => show(e, `Bucket ${labels[+b.dataset.i]}<br>avg next-week return <b>${spct(k.ret)}</b>`); b.onmouseleave = hide; });
+  };
+  $("#q").oninput = drawList;
+  cur = D.indicators_ranked[0]?.feature; drawList(); drawInd();
+  hbars($("#gap"), D.held_winners_vs_losers.slice(0, 20));
+}).catch(() => { $("#lede").textContent = "No pattern data yet."; });
+</script>
+</body>
+</html>
