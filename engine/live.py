@@ -151,14 +151,16 @@ def decide():
     info = {}
     week_end = policy.last_session_of_week(datetime.now(ET).date())
     braked = mode == "brake" or week_ret <= -policy.TOPK["brake"]
-    if week_end or not held:
+    invested = sum(p["qty"] * prices.get(t, p["avg"]) for t, p in broker.positions().items()) / acct["equity"]
+    underinvested = invested < 0.85 * (policy.TOPK["brake_exposure"] if braked else 1.0)
+    if week_end or not held or underinvested:
         ok = policy.eligible(xr.reindex(P.index), params).fillna(False)
         divs = {t: policy.sic_division(c) for t, c in zip(sic["ticker"], sic["sic"])}
         target = policy.topk_targets(P.loc[ok[ok].index, "score"], held, sectors=divs,
                                      max_per_sector=policy.TOPK["max_per_sector"])
         if braked and not week_end:
             target = target * policy.TOPK["brake_exposure"]
-        mode = "rebalance" if week_end else "initial build"
+        mode = "rebalance" if week_end else ("initial build" if not held else "top-up")
         execute(broker, target, prices, xr, acct["equity"], mode, contrib, P)
         gross = float(target.sum())
     else:
@@ -177,6 +179,7 @@ def decide():
 def execute(broker, target, prices, xr, equity, mode, contrib, P):
     pos = broker.positions()
     meta = jload(META, {})
+    target = target * 0.985          # cash buffer: limit orders reserve price x 1.003 of buying power
     cur_w = {t: p["qty"] * prices.get(t, p["avg"]) / equity for t, p in pos.items()}
     # sells first (free cash), then buys
     plan = []
