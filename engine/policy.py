@@ -141,3 +141,23 @@ def topk_targets(s_ok: pd.Series, held, k=None, exit_q=None, sectors=None, max_p
             fill.append(t); count[sec] = count.get(sec, 0) + 1
     names = keep + fill
     return pd.Series(1.0 / len(names), index=names) if names else pd.Series(dtype=float)
+
+
+def regime_targets(s_ok, held, cfg, vol, divs, mkt):
+    """Regime-aware selection shared by the blind trader and the re-tester (never diverge).
+    mkt: dict of market-wide readings for today (m_vix_term, m_spy_ma200, ...).
+    - stress-rebound mode: short-term fear above long-term fear -> concentrated high-volatility picks;
+    - downtrend cash filter: market below its 200-day average (and no rebound signal) -> invest only part."""
+    k, pick = cfg["k"], cfg["pick"]
+    thr = cfg.get("stress_thr")
+    stress = thr is not None and mkt.get("m_vix_term") is not None and mkt["m_vix_term"] == mkt["m_vix_term"] \
+        and mkt["m_vix_term"] > thr
+    if stress:
+        k, pick = cfg.get("stress_k", 3), "hivol"
+    t = topk_targets(s_ok, held, k, cfg["exit_q"], divs if cfg["max_per_sector"] else None, cfg["max_per_sector"],
+                     pick=pick, vol=vol, pool_q=cfg["pool_q"])
+    tf = cfg.get("trend_filter")
+    ma = mkt.get("m_spy_ma200")
+    if not stress and tf is not None and ma is not None and ma == ma and ma < tf:
+        t = t * cfg.get("trend_gross", 0.5)
+    return t

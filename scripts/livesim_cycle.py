@@ -15,7 +15,9 @@ MAX = int(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1].isdigit() else 10
 TARGET = 0.07
 SPACE = {"k": [2, 3, 4, 5, 6, 8, 12], "exit_q": [0.5, 0.6, 0.7, 0.8, 0.9], "rebalance_weeks": [1, 2, 4], "brake": [None, 0.05, 0.08, 0.12],
          "max_per_sector": [None, 2], "w_model": [0.3, 0.5, 0.7], "pick": ["top", "hivol"],
-         "pool_q": [0.9, 0.95, 0.98], "liq_q": [0.3, 0.5, 0.7], "vol_filter": [True, False]}
+         "pool_q": [0.9, 0.95, 0.98], "liq_q": [0.3, 0.5, 0.7], "vol_filter": [True, False],
+         "stress_thr": [None, None, 0.95, 1.0, 1.05], "stress_k": [2, 3, 4],
+         "trend_filter": [None, None, -0.05, 0.0], "trend_gross": [0.0, 0.5]}
 START_CFG = {"k": 4, "exit_q": 0.8, "brake": 0.08, "max_per_sector": 2, "w_model": 0.5, "pick": "top",
              "pool_q": 0.95, "liq_q": 0.5, "vol_filter": True}
 st = json.loads(STATE.read_text()) if STATE.exists() else {"cycles": [], "config": START_CFG, "version": 1}
@@ -39,8 +41,8 @@ def replay_variant(cfg, snaps, closes, cost_bps, divs):
             if cfg["vol_filter"]:
                 ok &= ~((p["vol20"].rank(pct=True) > 0.9) | (p["max20"].rank(pct=True) > 0.9))
             ok &= p["log_dv"].rank(pct=True) >= cfg["liq_q"]
-            target = policy.topk_targets(s[ok], list(pos), cfg["k"], cfg["exit_q"], divs if cfg["max_per_sector"] else None,
-                                         cfg["max_per_sector"], pick=cfg["pick"], vol=p["vol20"], pool_q=cfg["pool_q"])
+            mkt = {c: float(p[c].iloc[0]) for c in p.columns if c.startswith("m_")}
+            target = policy.regime_targets(s[ok], list(pos), cfg, p["vol20"], divs, mkt)
         elif not capped and cfg["brake"] and val / week_start - 1 <= -cfg["brake"]:
             target = pd.Series({t: q * px[t] / val for t, q in pos.items()}) * policy.TOPK["brake_exposure"]
             capped = True
@@ -182,7 +184,7 @@ while len(st["cycles"]) < MAX:
     base = score_cfg(st["config"])
     rng = np.random.default_rng()
     best = (base[0], st["config"], base)
-    for _ in range(60):
+    for _ in range(120):
         c = {k: v[rng.integers(len(v))] for k, v in SPACE.items()}
         sc_ = score_cfg(c)
         if sc_[0] > best[0]:

@@ -33,8 +33,8 @@ def holdings_path(cfg, snaps, closes, divs):
             if cfg["vol_filter"]:
                 ok &= ~((p["vol20"].rank(pct=True) > 0.9) | (p["max20"].rank(pct=True) > 0.9))
             ok &= p["log_dv"].rank(pct=True) >= cfg["liq_q"]
-            held = list(policy.topk_targets(s[ok], held, cfg["k"], cfg["exit_q"], divs if cfg["max_per_sector"] else None,
-                                            cfg["max_per_sector"], pick=cfg["pick"], vol=p["vol20"], pool_q=cfg["pool_q"]).index)
+            mkt = {c_: float(p[c_].iloc[0]) for c_ in p.columns if c_.startswith("m_")}
+            held = list(policy.regime_targets(s[ok], held, cfg, p["vol20"], divs, mkt).index)
             out[str(d.date())] = set(held)
         if i + 1 >= len(sessions) or sessions[i + 1].isocalendar().week != d.isocalendar().week:
             wk += 1

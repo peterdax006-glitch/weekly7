@@ -222,12 +222,11 @@ class BlindTrader:
             ok &= ~((xr["vol20"].rank(pct=True) > 0.9) | (xr["max20"].rank(pct=True) > 0.9))
         ok &= xr["log_dv"].rank(pct=True) >= self.cfg["liq_q"]
         divs = {t: policy.sic_division(c) for t, c in zip(self.feed.sic["ticker"], self.feed.sic["sic"])}
-        target = policy.topk_targets(s[ok.reindex(s.index).fillna(False)], list(self.broker.pos), self.cfg["k"],
-                                     self.cfg["exit_q"], divs if self.cfg["max_per_sector"] else None,
-                                     self.cfg["max_per_sector"], pick=self.cfg["pick"], vol=xr["vol20"],
-                                     pool_q=self.cfg["pool_q"])
+        mkt = {c: float(xr[c].iloc[0]) for c in xr.columns if c.startswith("m_")}
+        target = policy.regime_targets(s[ok.reindex(s.index).fillna(False)], list(self.broker.pos), self.cfg,
+                                       xr["vol20"], divs, mkt)
         snap = pd.DataFrame({"mu_raw": p["mu_raw"], "evidence": p["evidence"]}).join(
-            xr[["vol20", "max20", "log_dv", "ev_red_flag", "ev_offering", "r5"]])
+            xr[["vol20", "max20", "log_dv", "ev_red_flag", "ev_offering", "r5"] + [c for c in xr.columns if c.startswith("m_")]])
         snap["score"] = s
         self.snaps[str(self.feed.now.date())] = snap
         return target, snap
