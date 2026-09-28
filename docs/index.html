@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Weekly7</title>
+<meta name="description" content="A $1,000 stock-picking simulation aiming for +7% a week, measured against honest baselines.">
+<style>
+:root {
+  color-scheme: light;
+  --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
+  --grid: #e1e0d9; --axis: #c3c2b7; --ring: rgba(11,11,11,0.10);
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4;
+  --good: #006300; --bad: #d03b3b; --good-mark: #0ca30c;
+  --accent-wash: #e9f2fd;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,0.10);
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181;
+    --good: #0ca30c; --bad: #e66767; --accent-wash: #16263a;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
+  --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,0.10);
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181;
+  --good: #0ca30c; --bad: #e66767; --accent-wash: #16263a;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--page); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 1120px; margin: 0 auto; padding: 24px 16px 64px; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 20px; }
+h1 { font-size: 28px; margin: 0; letter-spacing: -0.02em; }
+h1 span { color: var(--s1); }
+h2 { font-size: 17px; margin: 0 0 4px; }
+.sub { color: var(--ink-2); font-size: 13px; }
+.card { background: var(--surface); border: 1px solid var(--ring); border-radius: 12px; padding: 18px; margin-bottom: 16px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.tile { background: var(--surface); border: 1px solid var(--ring); border-radius: 12px; padding: 14px 16px; }
+.tile .k { color: var(--ink-2); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+.tile .v { font-size: 26px; font-weight: 650; margin-top: 2px; }
+.tile .d { font-size: 12px; color: var(--muted); }
+.up { color: var(--good); } .down { color: var(--bad); }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 760px) { .grid2 { grid-template-columns: 1fr; } }
+svg { display: block; width: 100%; height: auto; overflow: visible; }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 13px; color: var(--ink-2); margin: 8px 0 4px; }
+.legend i { display: inline-block; width: 12px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; color: var(--muted); font-weight: 500; padding: 6px 8px; border-bottom: 1px solid var(--grid); }
+td { padding: 7px 8px; border-bottom: 1px solid var(--grid); font-variant-numeric: tabular-nums; vertical-align: top; }
+.scroll { overflow-x: auto; }
+.pos { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.pcard { border: 1px solid var(--ring); border-radius: 10px; padding: 12px 14px; }
+.pcard b { font-size: 18px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.chip { background: var(--accent-wash); color: var(--ink); border-radius: 999px; padding: 2px 9px; font-size: 12px; }
+.tip { position: fixed; pointer-events: none; background: var(--surface); border: 1px solid var(--ring); border-radius: 8px;
+       padding: 8px 10px; font-size: 12px; box-shadow: 0 4px 16px rgba(0,0,0,.12); display: none; z-index: 10; }
+.empty { color: var(--muted); font-size: 13px; padding: 18px 0; }
+.badge { display: inline-block; border-radius: 6px; padding: 1px 8px; font-size: 12px; background: var(--accent-wash); }
+details summary { cursor: pointer; color: var(--ink-2); font-size: 13px; }
+pre { white-space: pre-wrap; font-size: 12px; color: var(--ink-2); }
+.toggle { border: 1px solid var(--ring); background: var(--surface); color: var(--ink); border-radius: 8px; padding: 4px 10px; cursor: pointer; font: inherit; font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <h1>Weekly<span>7</span></h1>
+      <div class="sub">A $1,000 simulated portfolio aiming for <b>+7% a week</b> — and honest about whether it's skill or luck.</div>
+    </div>
+    <div class="sub"><span id="updated">loading…</span> · <button class="toggle" id="theme">Theme</button></div>
+  </header>
+
+  <section class="tiles" id="tiles"></section>
+
+  <section class="card">
+    <h2>This week against the 7% line</h2>
+    <div class="sub">Each bar is one Monday-to-Friday week of the whole portfolio. The dashed line is the +7% target.</div>
+    <div id="weekly"></div>
+  </section>
+
+  <section class="card">
+    <h2>Weekly7 vs the baselines</h2>
+    <div class="sub">Every portfolio starts at $1,000. Beating <b>Random-Vol</b> means skill, not just risk. Beating <b>Trend-Chaser</b> means it's not just following trends.</div>
+    <div class="legend" id="eqlegend"></div>
+    <div id="equity"></div>
+  </section>
+
+  <section class="card">
+    <h2>Holdings — and why each was picked</h2>
+    <div class="sub" id="decision"></div>
+    <div class="pos" id="holdings" style="margin-top:12px"></div>
+  </section>
+
+  <div class="grid2">
+    <section class="card">
+      <h2>Is the engine actually forecasting?</h2>
+      <div class="sub">Rank correlation between each day's scores for ~2,500 stocks and their next-5-day returns. Above zero = real skill. This is the statistically meaningful test.</div>
+      <div class="legend" id="iclegend"></div>
+      <div id="ic"></div>
+    </section>
+    <section class="card">
+      <h2>Tomorrow's watchlist</h2>
+      <div class="sub">Top 20 by blended score. P(+7%) = calibrated chance of touching +7% within 5 sessions.</div>
+      <div class="scroll"><table id="watch"></table></div>
+    </section>
+  </div>
+
+  <section class="card">
+    <h2>Learning loop</h2>
+    <div class="sub">What isn't working, what the engine is testing to fix it, and what it promoted. Changes are only promoted on statistically significant live evidence — never on one good week.</div>
+    <div id="learning" style="margin-top:10px"></div>
+  </section>
+
+  <section class="card">
+    <h2>Trade ledger</h2>
+    <div class="scroll"><table id="orders"></table></div>
+  </section>
+
+  <section class="card">
+    <h2>Backtest (2017 – 2026, out-of-sample)</h2>
+    <div class="sub">How the same engine would have done historically, after costs, next to the baselines.</div>
+    <div class="scroll"><table id="research"></table></div>
+  </section>
+</main>
+<div class="tip" id="tip"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const pct = (x, d = 1) => x == null || isNaN(x) ? "—" : (x >= 0 ? "+" : "") + (100 * x).toFixed(d) + "%";
+const usd = x => x == null ? "—" : "$" + x.toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 });
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const tip = $("#tip");
+function showTip(e, html) { tip.innerHTML = html; tip.style.display = "block";
+  const x = Math.min(e.clientX + 14, innerWidth - tip.offsetWidth - 8); tip.style.left = x + "px"; tip.style.top = (e.clientY + 14) + "px"; }
+function hideTip() { tip.style.display = "none"; }
+
+// theme toggle (per-viewer convenience only)
+(() => { try { const t = localStorage.getItem("w7theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {} })();
+$("#theme").onclick = () => {
+  const cur = document.documentElement.dataset.theme || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+  const nxt = cur === "dark" ? "light" : "dark"; document.documentElement.dataset.theme = nxt;
+  try { localStorage.setItem("w7theme", nxt); } catch (e) {}
+  if (window.__D) render(window.__D);
+};
+
+function lineChart(el, series, { h = 280, fmt = usd, zero = null } = {}) {
+  const W = el.clientWidth || 800, H = h, m = { l: 56, r: 16, t: 10, b: 26 };
+  const all = series.flatMap(s => s.pts);
+  if (!all.length) { el.innerHTML = '<div class="empty">No data yet — the first points appear after the first trading day.</div>'; return; }
+  const xs = [...new Set(all.map(p => p.x))].sort();
+  let lo = Math.min(...all.map(p => p.y)), hi = Math.max(...all.map(p => p.y));
+  if (zero != null) { lo = Math.min(lo, zero); hi = Math.max(hi, zero); }
+  const pad = (hi - lo) * 0.08 || 1; lo -= pad; hi += pad;
+  const X = x => m.l + (xs.length === 1 ? 0.5 : xs.indexOf(x) / (xs.length - 1)) * (W - m.l - m.r);
+  const Y = y => m.t + (1 - (y - lo) / (hi - lo)) * (H - m.t - m.b);
+  const ticks = 4, g = [];
+  for (let i = 0; i <= ticks; i++) { const v = lo + (hi - lo) * i / ticks;
+    g.push(`<line x1="${m.l}" x2="${W - m.r}" y1="${Y(v)}" y2="${Y(v)}" stroke="${css("--grid")}" stroke-width="1"/>`,
+           `<text x="${m.l - 8}" y="${Y(v) + 4}" text-anchor="end" font-size="11" fill="${css("--muted")}">${fmt(v)}</text>`); }
+  if (zero != null) g.push(`<line x1="${m.l}" x2="${W - m.r}" y1="${Y(zero)}" y2="${Y(zero)}" stroke="${css("--axis")}" stroke-width="1"/>`);
+  [xs[0], xs[Math.floor(xs.length / 2)], xs[xs.length - 1]].forEach((x, i) =>
+    g.push(`<text x="${X(x)}" y="${H - 6}" text-anchor="${["start", "middle", "end"][i]}" font-size="11" fill="${css("--muted")}">${x}</text>`));
+  const paths = series.map(s => { const d = s.pts.map((p, i) => (i ? "L" : "M") + X(p.x).toFixed(1) + "," + Y(p.y).toFixed(1)).join("");
+    return `<path d="${d}" fill="none" stroke="${css(s.color)}" stroke-width="${s.bold ? 2.5 : 2}" stroke-linejoin="round" stroke-linecap="round"/>`; });
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="line chart">${g.join("")}${paths.join("")}
+    <line id="xh" y1="${m.t}" y2="${H - m.b}" stroke="${css("--axis")}" stroke-width="1" style="display:none"/>
+    <rect x="${m.l}" y="${m.t}" width="${W - m.l - m.r}" height="${H - m.t - m.b}" fill="transparent"/></svg>`;
+  const svg = el.querySelector("svg"), xh = svg.querySelector("#xh");
+  svg.onmousemove = e => { const r = svg.getBoundingClientRect(), px = (e.clientX - r.left) * W / r.width;
+    const i = Math.max(0, Math.min(xs.length - 1, Math.round((px - m.l) / (W - m.l - m.r) * (xs.length - 1)))); const x = xs[i];
+    xh.setAttribute("x1", X(x)); xh.setAttribute("x2", X(x)); xh.style.display = "";
+    showTip(e, `<b>${x}</b><br>` + series.map(s => { const p = s.pts.find(p => p.x === x);
+      return p ? `<span style="color:${css(s.color)}">■</span> ${esc(s.name)}: <b>${fmt(p.y)}</b>` : ""; }).filter(Boolean).join("<br>")); };
+  svg.onmouseleave = () => { xh.style.display = "none"; hideTip(); };
+}
+
+function weeklyBars(el, weeks, target) {
+  const W = el.clientWidth || 800, H = 240, m = { l: 48, r: 16, t: 14, b: 26 };
+  if (!weeks.length) { el.innerHTML = '<div class="empty">The first weekly bar appears after the first Friday close.</div>'; return; }
+  const vals = weeks.map(w => w.ret); let lo = Math.min(0, ...vals, -0.02), hi = Math.max(target * 1.3, ...vals);
+  const Y = y => m.t + (1 - (y - lo) / (hi - lo)) * (H - m.t - m.b);
+  const bw = Math.min(64, (W - m.l - m.r) / weeks.length - 8);
+  const g = [];
+  [lo, 0, target, hi].forEach(v => g.push(`<text x="${m.l - 8}" y="${Y(v) + 4}" text-anchor="end" font-size="11" fill="${css("--muted")}">${pct(v, 0)}</text>`));
+  g.push(`<line x1="${m.l}" x2="${W - m.r}" y1="${Y(0)}" y2="${Y(0)}" stroke="${css("--axis")}"/>`);
+  weeks.forEach((w, i) => { const cx = m.l + (i + 0.5) * (W - m.l - m.r) / weeks.length, y0 = Y(0), y1 = Y(w.ret);
+    const top = Math.min(y0, y1), hgt = Math.max(2, Math.abs(y1 - y0));
+    g.push(`<rect class="bar" data-i="${i}" x="${cx - bw / 2}" y="${top}" width="${bw}" height="${hgt}" rx="4" fill="${css(w.ret >= target ? "--good-mark" : "--s1")}"/>`,
+           `<text x="${cx}" y="${w.ret >= 0 ? top - 4 : top + hgt + 12}" text-anchor="middle" font-size="11" fill="${css("--ink-2")}">${pct(w.ret)}</text>`,
+           `<text x="${cx}" y="${H - 6}" text-anchor="middle" font-size="11" fill="${css("--muted")}">${w.week_end.slice(5)}</text>`); });
+  g.push(`<line x1="${m.l}" x2="${W - m.r}" y1="${Y(target)}" y2="${Y(target)}" stroke="${css("--good")}" stroke-dasharray="5 4" stroke-width="1.5"/>`,
+         `<text x="${W - m.r}" y="${Y(target) - 5}" text-anchor="end" font-size="11" fill="${css("--good")}">+7% target</text>`);
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="weekly returns">${g.join("")}</svg>`;
+  el.querySelectorAll(".bar").forEach(b => { const w = weeks[+b.dataset.i];
+    b.onmousemove = e => showTip(e, `Week ending <b>${w.week_end}</b><br>Return <b>${pct(w.ret, 2)}</b><br>${w.ret >= target ? "✓ hit the target" : "short of the target by " + pct(target - w.ret)}`);
+    b.onmouseleave = hideTip; });
+}
+
+function render(D) {
+  $("#updated").textContent = "Updated " + new Date(D.updated).toLocaleString() + " · engine v" + D.engine_version + " · " + D.broker;
+  const wk = D.weekly.length ? D.weekly[D.weekly.length - 1] : null;
+  const eqh = D.equity_history, total = D.equity / D.start_cash - 1;
+  const dec = D.last_decision || {};
+  const hit = D.weekly.filter(w => w.ret >= D.target).length;
+  $("#tiles").innerHTML = [
+    ["Portfolio", usd(D.equity), `started at ${usd(D.start_cash)}`],
+    ["All-time", `<span class="${total >= 0 ? "up" : "down"}">${pct(total)}</span>`, `${eqh.length} trading days`],
+    ["This week", `<span class="${(dec.week_ret ?? 0) >= 0 ? "up" : "down"}">${pct(dec.week_ret)}</span>`, `target +7% · needs ${pct(dec.need)} more`],
+    ["Chance of +7% this week", dec.p_target_week == null ? "—" : Math.round(dec.p_target_week * 100) + "%", "from 20,000 simulated weeks"],
+    ["Weeks at +7%", `${hit} / ${D.weekly.length}`, "weeks that hit the target"],
+    ["Market regime", `<span class="badge">${esc(dec.regime ?? "—")}</span>`, `invested ${pct(dec.gross, 0).replace("+", "")} · mode ${esc(dec.mode ?? "—")}`],
+  ].map(([k, v, d]) => `<div class="tile"><div class="k">${k}</div><div class="v">${v}</div><div class="d">${d}</div></div>`).join("");
+
+  weeklyBars($("#weekly"), D.weekly, D.target);
+
+  const S = [{ name: "Weekly7", color: "--s1", bold: true, pts: eqh.map(e => ({ x: e.date, y: e.equity })) }];
+  const names = { spy: ["S&P 500 (SPY)", "--s2"], random_vol: ["Random-Vol", "--s3"], trend_chaser: ["Trend-Chaser", "--s4"], evidence_only: ["Evidence-Only", "--s5"] };
+  for (const [k, [n, c]] of Object.entries(names)) S.push({ name: n, color: c, pts: (D.shadows[k] || []).map(e => ({ x: e.date, y: e.equity })) });
+  $("#eqlegend").innerHTML = S.map(s => `<span><i style="background:${css(s.color)}"></i>${s.name}</span>`).join("");
+  lineChart($("#equity"), S, { zero: D.start_cash });
+
+  $("#decision").innerHTML = dec.date ? `Last decision ${esc(dec.date)}: ${Object.keys(dec.weights || {}).length} positions, ${pct(dec.gross, 0).replace("+", "")} invested, worst-5% week estimate ${pct(dec.cvar)}.` : "";
+  $("#holdings").innerHTML = D.holdings.length ? D.holdings.map(h => `<div class="pcard">
+      <div style="display:flex;justify-content:space-between;align-items:baseline"><b>${esc(h.ticker)}</b><span class="${h.pnl >= 0 ? "up" : "down"}">${pct(h.pnl)}</span></div>
+      <div class="sub">${pct(h.weight, 0).replace("+", "")} of portfolio · ${usd(h.value)} · stop ${h.stop ? usd(h.stop) : "—"}</div>
+      <div class="sub">P(+7% in 5 days) ${h.p_target == null ? "—" : Math.round(h.p_target * 100) + "%"} · since ${esc(h.opened ?? "—")}</div>
+      <div class="chips">${(h.why || []).map(w => `<span class="chip">${esc(w)}</span>`).join("")}</div></div>`).join("")
+    : '<div class="empty">No positions yet (or all cash — the engine holds cash when no stock has a real edge).</div>';
+
+  const icS = [["score_ic", "Blended score", "--s1"], ["evidence_ic", "Evidence prior", "--s5"], ["model_ic", "ML model", "--s3"]]
+    .map(([k, n, c]) => ({ name: n, color: c, pts: D.signal_health.filter(r => r[k] != null).map(r => ({ x: r.date, y: r[k] })) }));
+  $("#iclegend").innerHTML = icS.map(s => `<span><i style="background:${css(s.color)}"></i>${s.name}</span>`).join("");
+  lineChart($("#ic"), icS, { h: 220, fmt: v => v.toFixed(2), zero: 0 });
+
+  $("#watch").innerHTML = "<tr><th>#</th><th>Ticker</th><th>Score</th><th>P(+7%)</th></tr>" +
+    (D.watchlist.map((w, i) => `<tr><td>${i + 1}</td><td><b>${esc(w.ticker)}</b></td><td>${w.score.toFixed(3)}</td><td>${Math.round(w.p_target * 100)}%</td></tr>`).join("")
+     || '<tr><td colspan="4" class="empty">Appears after the first decision run.</td></tr>');
+
+  const fnd = Object.entries(D.findings || {});
+  $("#learning").innerHTML =
+    `<div class="scroll"><table><tr><th>What isn't working</th><th>Status</th><th>Detail</th></tr>${fnd.map(([k, f]) =>
+      `<tr><td>${esc(f.tag)} · ${esc(f.what)}</td><td>${esc(f.status)} (${f.weeks.length} wk)</td><td>${esc(f.last_detail)}</td></tr>`).join("") ||
+      '<tr><td colspan="3" class="empty">Nothing flagged yet — findings need at least a week of scored predictions.</td></tr>'}</table></div>
+     <div class="scroll" style="margin-top:12px"><table><tr><th>Challenger</th><th>Fix being tested</th><th>Status</th><th>Live evidence</th></tr>${(D.challengers || []).map(c =>
+      `<tr><td>${esc(c.id)}</td><td>${esc(c.desc)}</td><td>${esc(c.status)}</td><td>${c.live ? `${c.live.days} days, IC gain ${c.live.ic_gain.toFixed(4)}, z ${c.live.z.toFixed(2)} (needs ${c.live.z_needed.toFixed(2)})` : "collecting"}</td></tr>`).join("") ||
+      '<tr><td colspan="4" class="empty">No challengers yet.</td></tr>'}</table></div>
+     ${D.latest_report ? `<details style="margin-top:12px"><summary>Latest weekly improvement report</summary><pre>${esc(D.latest_report)}</pre></details>` : ""}
+     <details style="margin-top:8px"><summary>Experiment registry (${D.experiments.length})</summary><pre>${esc(D.experiments.map(e => JSON.stringify(e)).join("\n"))}</pre></details>`;
+
+  $("#orders").innerHTML = "<tr><th>Time</th><th>Ticker</th><th>Qty</th><th>Price</th><th>Reason</th></tr>" +
+    (D.orders.map(o => `<tr><td>${esc((o.t || "").replace("T", " ").slice(0, 16))}</td><td>${esc(o.ticker)}</td><td class="${o.qty >= 0 ? "up" : "down"}">${(+o.qty).toFixed(3)}</td><td>${usd(o.fill ?? o.limit)}</td><td>${esc(o.reason)}</td></tr>`).join("")
+     || '<tr><td colspan="5" class="empty">No trades yet.</td></tr>');
+
+  const R = D.research;
+  if (R) {
+    const rows = [["weekly7", "Weekly7"], ["evidence_only", "Evidence-Only"], ["trend_chaser", "Trend-Chaser"], ["random_vol", "Random-Vol"], ["spy", "S&P 500"]];
+    $("#research").innerHTML = "<tr><th>Portfolio</th><th>$1,000 became</th><th>Avg week</th><th>Weeks ≥ +7%</th><th>Weeks ≤ −7%</th><th>Winning weeks</th><th>Worst week</th><th>Max drawdown</th></tr>" +
+      rows.filter(([k]) => R[k]).map(([k, n]) => { const r = R[k]; return `<tr><td><b>${n}</b></td><td>${usd(r.final)}</td><td>${pct(r.mean_week, 2)}</td><td>${pct(r.pct_ge_7).replace("+", "")}</td><td>${pct(r.pct_le_m7).replace("+", "")}</td><td>${pct(r.win_weeks, 0).replace("+", "")}</td><td>${pct(r.worst_week)}</td><td>${pct(r.max_dd, 0)}</td></tr>`; }).join("");
+  } else $("#research").innerHTML = '<tr><td class="empty">Backtest pending.</td></tr>';
+}
+
+fetch("data.json?v=" + Date.now()).then(r => r.json()).then(D => { window.__D = D; render(D); })
+  .catch(() => { $("#updated").textContent = "No data yet — the engine hasn't run."; });
+let rt; addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(() => window.__D && render(window.__D), 150); });
+</script>
+</body>
+</html>

@@ -1,0 +1,74 @@
+{
+ "k4_plain": {
+  "final": 9580,
+  "cagr": 0.2608,
+  "mean_week": 0.00537,
+  "pct_ge_7": 0.0394,
+  "pct_le_m7": 0.0217,
+  "max_dd": -0.495,
+  "turnover": 325.6,
+  "cost": 1606.04,
+  "banks": 0.0,
+  "brakes": 0.0
+ },
+ "k4_bank7": {
+  "final": 8724,
+  "cagr": 0.2488,
+  "mean_week": 0.00508,
+  "pct_ge_7": 0.0414,
+  "pct_le_m7": 0.0217,
+  "max_dd": -0.495,
+  "turnover": 335.43,
+  "cost": 1482.54,
+  "banks": 16.0,
+  "brakes": 0.0
+ },
+ "k4_brake8": {
+  "final": 9815,
+  "cagr": 0.264,
+  "mean_week": 0.00539,
+  "pct_ge_7": 0.0394,
+  "pct_le_m7": 0.0237,
+  "max_dd": -0.451,
+  "turnover": 330.02,
+  "cost": 1659.68,
+  "banks": 0.0,
+  "brakes": 8.0
+ },
+ "k4_bank7_brake8": {
+  "final": 8939,
+  "cagr": 0.2519,
+  "mean_week": 0.0051,
+  "pct_ge_7": 0.0414,
+  "pct_le_m7": 0.0237,
+  "max_dd": -0.451,
+  "turnover": 339.85,
+  "cost": 1531.37,
+  "banks": 16.0,
+  "brakes": 8.0
+ },
+ "k3_plain": {
+  "final": 12797,
+  "cagr": 0.2988,
+  "mean_week": 0.00598,
+  "pct_ge_7": 0.0473,
+  "pct_le_m7": 0.0237,
+  "max_dd": -0.423,
+  "turnover": 326.43,
+  "cost": 2025.13,
+  "banks": 0.0,
+  "brakes": 0.0
+ },
+ "k5_plain": {
+  "final": 5973,
+  "cagr": 0.2012,
+  "mean_week": 0.00441,
+  "pct_ge_7": 0.0434,
+  "pct_le_m7": 0.0217,
+  "max_dd": -0.511,
+  "turnover": 329.38,
+  "cost": 1259.95,
+  "banks": 0.0,
+  "brakes": 0.0
+ }
+}

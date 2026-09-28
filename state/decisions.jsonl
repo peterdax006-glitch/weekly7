@@ -1,0 +1,1 @@
+{"t": "2026-09-28T15:27:02-04:00", "date": "2026-09-28", "regime": "calm", "mode": "initial build", "gross": 1.0, "week_ret": 0.0, "need": 0.07000000000000006, "horizon": 4, "p_target_week": null, "cvar": null, "weights": {"BEN": 0.25, "TRU": 0.25, "GS": 0.25, "BNY": 0.25}, "broker": "local"}

@@ -1,0 +1,50 @@
+{
+ "BEN": {
+  "entry": 32.45000076293945,
+  "stop": 30.89428495776464,
+  "took": false,
+  "opened": "2026-09-28",
+  "why": [
+   "atr pct",
+   "ins opportunistic30",
+   "activist stake filed"
+  ],
+  "p_target": 0.12621775626493476
+ },
+ "BNY": {
+  "entry": 147.88499450683594,
+  "stop": 141.49213981851227,
+  "took": false,
+  "opened": "2026-09-28",
+  "why": [
+   "atr pct",
+   "activist stake filed",
+   "12-month momentum"
+  ],
+  "p_target": 0.09878667031577848
+ },
+ "GS": {
+  "entry": 916.219970703125,
+  "stop": 860.4913948094954,
+  "took": false,
+  "opened": "2026-09-28",
+  "why": [
+   "atr pct",
+   "r1",
+   "12-month momentum"
+  ],
+  "p_target": 0.2076022005121882
+ },
+ "TRU": {
+  "entry": 66.19999694824219,
+  "stop": 61.52428333558214,
+  "took": false,
+  "opened": "2026-09-28",
+  "why": [
+   "overnight strength",
+   "atr pct",
+   "r1"
+  ],
+  "p_target": 0.21507848226424423
+ }
+}

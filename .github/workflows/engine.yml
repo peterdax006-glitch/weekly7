@@ -1,0 +1,57 @@
+name: engine
+
+on:
+  schedule:
+    - cron: "7,37 12-21 * * 1-5"   # weekdays; engine.tick decides what is due in New York time
+    - cron: "17 15 * * 6"          # Saturday: retrain + learning loop
+  workflow_dispatch:
+    inputs:
+      job:
+        description: "force a job (risk / decide / close / weekly), blank = auto"
+        required: false
+
+concurrency:
+  group: engine
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Restore market-data cache
+        run: |
+          mkdir -p data/cache
+          gh release download data-cache --dir data/cache --clobber || echo "no cache release yet"
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - name: Run engine
+        env:
+          ALPACA_KEY: ${{ secrets.ALPACA_KEY }}
+          ALPACA_SECRET: ${{ secrets.ALPACA_SECRET }}
+        run: python -m engine.tick ${{ github.event.inputs.job }}
+      - name: Save market-data cache (after decide / close / weekly)
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if grep -q '"decide"\|"close"\|"weekly"' state/heartbeat.json 2>/dev/null; then
+            gh release upload data-cache data/cache/*.parquet data/cache/universe.csv --clobber || true
+          fi
+      - name: Commit state and dashboard
+        if: always()
+        run: |
+          git config user.name "weekly7-engine"
+          git config user.email "weekly7-engine@users.noreply.github.com"
+          git add state docs/data.json
+          git diff --cached --quiet || git commit -m "engine: $(date -u +%FT%TZ)"
+          git pull --rebase --autostash && git push
