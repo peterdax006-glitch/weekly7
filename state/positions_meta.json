@@ -1,0 +1,14 @@
+{
+ "VRSN": {
+  "entry": 281.30999755859375,
+  "stop": 266.56571295793856,
+  "took": false,
+  "opened": "2026-09-28",
+  "why": [
+   "atr pct",
+   "r1",
+   "ins opportunistic30"
+  ],
+  "p_target": 0.13026493714629134
+ }
+}

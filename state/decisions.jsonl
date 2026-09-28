@@ -1,0 +1,1 @@
+{"t": "2026-09-28T15:44:15-04:00", "date": "2026-09-28", "regime": "calm", "mode": "top-up", "gross": 1.0, "week_ret": -0.00021999999999999797, "need": 0.07023545179939594, "horizon": 4, "p_target_week": null, "cvar": null, "weights": {"BNY": 0.25, "GS": 0.25, "TEVA": 0.25, "VRSN": 0.25}, "broker": "alpaca-paper"}
