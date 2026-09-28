@@ -3,3 +3,6 @@ __pycache__/
 data/
 *.pyc
 state/research/backtest_decisions.csv
+state/livesim/
+state/replays/
+state/research/tuning/
