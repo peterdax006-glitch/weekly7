@@ -1,0 +1,6711 @@
+{
+ "summary": {
+  "year": 2024,
+  "start": 1000.0,
+  "end": 1423.33,
+  "year_return": 0.42333,
+  "spy_year_return": 0.24886465072631836,
+  "weeks": 53,
+  "weeks_ge_7": 3,
+  "weeks_positive": 26,
+  "weeks_le_m7": 0,
+  "best_week": 0.12396491551069944,
+  "worst_week": -0.05916681946812741,
+  "mean_week": 0.007292648276659908,
+  "max_drawdown": -0.11846664269604157,
+  "trades": 314,
+  "brakes": 0,
+  "model_trained_through": "2023-12-14",
+  "labels_end": "2023-12-21",
+  "runtime_seconds": 91
+ },
+ "weeks": [
+  {
+   "week_end": "2024-01-05",
+   "ret": -0.02331718972291419,
+   "spy": -0.015547633171081543,
+   "equity": 976.68,
+   "holdings": [
+    "CDNS",
+    "CMG",
+    "GPOR",
+    "UBER"
+   ],
+   "brake": false
+  },
+  {
+   "week_end": "2024-01-12",
+   "ret": 0.04641648685021593,
+   "spy": 0.01872110366821289,
+   "equity": 1022.02,
+   "holdings": [
+    "CDNS",
+    "GPOR",
+    "HCC",
+    "UBER"
+   ],
+   "brake": false
+  },
+  {
+   "week_end": "2024-01-19",
+   "ret": 0.0526574567577518,
+   "spy": 0.012062668800354004,
+   "equity": 1075.83,
+   "holdings": [
+    "ED",
+    "FDX",
+    "HUM",
+    "MOH"
+   ],
+   "brake": false
+  },
+  {
+   "week_end": "2024-01-26",
+   "ret": -0.02782050222886223,
+   "spy": 0.01032257080078125,
+   "equity": 1045.9,
+   "holdings": [
+    "FDX",
+    "MOH",
+    "T",
+    "TRV"
+   ],
+   "brake": false
+  },
+  {
+   "week_end": "2024-02-02",
+   "ret": 0.00326945196703754,
+   "spy": 0.014238595962524414,
+   "equity": 1049.32,
+   "holdings": [
+    "BDX",
+    "FDX",
+    "T",
+    "TRV"
+   ],
+   "brake": false
+  },
+  {
+   "week_end": "2024-02-09",
+   "ret": -0.0072232920028013625,
+   "spy": 0.01385653018951416,
+   "equity": 1041.74,
+   "holdings": [
+    "FDX",
+    "MKL",
+    "T",
+    "TRV"
+   ],
+   "brake": false
+  },
+  {
+   "week_end": "2024-02-16",
+   "ret": 0.005143592793976026,
+   "spy": -0.0033718347549438477,
+   "equity": 1047.1,
+   "holdings": [
+    "ADBE",
+    "MKL",
+    "MU",
+    "NOW"
+   ],
+   "brake": false
+  },
+  {
+   "week_end": "2024-02-23",
+   "ret": 0.02454137166711945,
+   "spy": 0.01669633388519287,
+   "equity": 1072.8,
+   "holdings": [
+    "APA",
+    "NJR",
+    "OGS",
+    "SLB"
+   ],
+   "brake": false
+  },
+  {
+   "week_end": "2024-03-01",
+   "ret": 0.006477383059755981,
+   "spy": 0.009845376014709473,
+   "equity": 1079.75,
+   "holdings": [
+    "GOOG",
+    "GOOGL",
+    "MATX",
+    "OGS"
+   ],
+   "brake": false
+  },
+  {
+   "week_end": "2024-03-08",
+   "ret": -0.002019236396510582,
+   "spy": -0.00220334529876709,
+   "equity": 1077.57,
+   "holdings": [
+    "MATX",
+    "MLM",
+    "SPOT",
+    "VMC"
+   ],
+   "brake": false
+  },
+  {
+   "week_end": "2024-03-15",
+   "ret": -0.007526192486176919,
+   "spy": -0.0005978941917419434,
+   "equity": 1069.46,
+   "holdings": [
+    "IDCC",
+    "MLM",
+    "SPOT",
+    "VMC"
+   ],
+   "brake": false
+  },
+  {
+   "week_end": "2024-03-22",
+   "ret": 0.026196319913505572,
+   "spy": 0.022321343421936035,
+   "equity": 1097.47,
+   "holdings": [
+    "IDCC",
+    "MLM",
+    "RIO",
+    "VICI"
+   ],
+   "brake": false
+  },
+  {
+   "week_end": "2024-03-28",
+   "ret": 0.017600976846768424,
+   "spy": 0.003568410873413086,
+   "equity": 1116.79,
+   "holdings": [
+    "IDCC",
+    "MLM",
+    "RIO",
+    "VICI"
+   ],
+   "brake": false
+  },
+  {
+   "week_end": "2024-04-05",
+   "ret": -0.029345250968131675,
+   "spy": -0.008870601654052734,
+   "equity": 1084.02,
+   "holdings": [
+    "BCE",
+    "IDCC",
+    "RIO",
+    "VICI"
+   ],
+   "brake": false
+  },
+  {
+   "week_end": "2024-04-12",
+   "ret": -0.004857965271111264,
+   "spy": -0.014621138572692871,
+   "equity": 1078.75,
+   "holdings": [
+    "CAT",
+    "ESTC",
+    "GDDY",
+    "PSX"
+   ],
+   "brake": false
+  },
+  {
+   "week_end": "2024-04-19",
+   "ret": -0.027845931561312987,
+   "spy": -0.03071349859237671,
+   "equity": 1048.71,
+   "holdings": [
+    "CAT",
+    "EME",
+    "PSX",
+    "TOL"
+   ],
+   "brake": false
+  },
+  {
+   "week_end": "2024-04-26",
+   "ret": 0.02274312224976116,
+   "spy": 0.026455998420715332,
+   "equity": 1072.56,
+   "holdings": [
+    "CL",
+    "PSX",
+    "RIO",
+    "TTE"
+   ],
+   "brake": false
+  },
+  {
+   "week_end": "2024-05-03",
+   "ret": -0.015288259759409617,
+   "spy": 0.0059615373611450195,
+   "equity": 1056.17,
+   "holdings": [
+    "CASY",
+    "HSIC",
+    "PSX",
+    "TTE"
+   ],
+   "brake": false
+  },
+  {
+   "week_end": "2024-05-10",
+   "ret": 0.04731355819690353,
+   "spy": 0.01867842674255371,
+   "equity": 1106.14,
+   "holdings": [
+    "EPR",
+    "HDB",
+    "TM",
+    "TU"
+   ],
+   "brake": false
+  },
+  {
+   "week_end": "2024-05-17",
+   "ret": 0.018551173791774067,
+   "spy": 0.016530990600585938,
+   "equity": 1126.66,
+   "holdings": [
+    "AKAM",
+    "ELF",
+    "FTAI",
+    "XPO"
+   ],
+   "brake": false
+  },
+  {
+   "week_end": "2024-05-24",
+   "ret": 0.06267283180777272,
+   "spy": -1.901388168334961e-05,
+   "equity": 1197.27,
+   "holdings": [
+    "AKAM",
+    "ED",
+    "GGG",
+    "MDU"
+   ],
+   "brake": false
+  },
+  {
+   "week_end": "2024-05-31",
+   "ret": -0.007175405438253568,
+   "spy": -0.003909766674041748,
+   "equity": 1188.68,
+   "holdings": [
+    "AKAM",
+    "MDU",
+    "NFLX",
+    "ODFL"
+   ],
+   "brake": false
+  },
+  {
+   "week_end": "2024-06-07",
+   "ret": -0.02627840113386848,
+   "spy": 0.012590885162353516,
+   "equity": 1157.44,
+   "holdings": [
+    "AKAM",
+    "ASPN",
+    "NFLX",
+    "ODFL"
+   ],
+   "brake": false
+  },
+  {
+   "week_end": "2024-06-14",
+   "ret": 0.012877555093784965,
+   "spy": 0.01642298698425293,
+   "equity": 1172.35,
+   "holdings": [
+    "CSGP",
+    "FBIN",
+    "HXL",
+    "WTFC"
+   ],
+   "brake": false
+  },
+  {
+   "week_end": "2024-06-21",
+   "ret": 0.014683113864108366,
+   "spy": 0.006423592567443848,
+   "equity": 1189.56,
+   "holdings": [
+    "FBIN",
+    "JBHT",
+    "UPS",
+    "WTFC"
+   ],
+   "brake": false
+  },
+  {
+   "week_end": "2024-06-28",
+   "ret": 0.010432049782415076,
+   "spy": -0.000532686710357666,
+   "equity": 1201.97,
+   "holdings": [
+    "FBIN",
+    "JBHT",
+    "UPS",
+    "WTFC"
+   ],
+   "brake": false
+  },
+  {
+   "week_end": "2024-07-05",
+   "ret": -0.01866153194544784,
+   "spy": 0.01914680004119873,
+   "equity": 1179.54,
+   "holdings": [
+    "JBHT",
+    "LVS",
+    "LYV",
+    "UPS"
+   ],
+   "brake": false
+  },
+  {
+   "week_end": "2024-07-12",
+   "ret": 0.033315434803623534,
+   "spy": 0.009645700454711914,
+   "equity": 1218.84,
+   "holdings": [
+    "CLF",
+    "LVS",
+    "LYV",
+    "UPS"
+   ],
+   "brake": false
+  },
+  {
+   "week_end": "2024-07-19",
+   "ret": -0.029802305123542094,
+   "spy": -0.019643306732177734,
+   "equity": 1182.51,
+   "holdings": [
+    "ADMA",
+    "BGC",
+    "NVO",
+    "VERX"
+   ],
+   "brake": false
+  },
+  {
+   "week_end": "2024-07-26",
+   "ret": -0.009945584092696969,
+   "spy": -0.00828784704208374,
+   "equity": 1170.75,
+   "holdings": [
+    "ADMA",
+    "BGC",
+    "DKS",
+    "NVO"
+   ],
+   "brake": false
+  },
+  {
+   "week_end": "2024-08-02",
+   "ret": -0.05916681946812741,
+   "spy": -0.021196186542510986,
+   "equity": 1101.48,
+   "holdings": [
+    "ADMA",
+    "BGC",
+    "DKS",
+    "NVO"
+   ],
+   "brake": false
+  },
+  {
+   "week_end": "2024-08-09",
+   "ret": 0.12396491551069944,
+   "spy": 0.0001690387725830078,
+   "equity": 1238.03,
+   "holdings": [
+    "BBWI",
+    "BGC",
+    "GEO",
+    "SIG"
+   ],
+   "brake": false
+  },
+  {
+   "week_end": "2024-08-16",
+   "ret": 0.05072834164341189,
+   "spy": 0.0400007963180542,
+   "equity": 1300.83,
+   "holdings": [
+    "BGC",
+    "CSL",
+    "DK",
+    "FANG"
+   ],
+   "brake": false
+  },
+  {
+   "week_end": "2024-08-23",
+   "ret": 0.010702544753001586,
+   "spy": 0.014107584953308105,
+   "equity": 1314.75,
+   "holdings": [
+    "BGC",
+    "BJ",
+    "GWRE",
+    "WMT"
+   ],
+   "brake": false
+  },
+  {
+   "week_end": "2024-08-30",
+   "ret": 0.004185240247688071,
+   "spy": 0.002757430076599121,
+   "equity": 1320.25,
+   "holdings": [
+    "EW",
+    "GWRE",
+    "IMO",
+    "MCO"
+   ],
+   "brake": false
+  },
+  {
+   "week_end": "2024-09-06",
+   "ret": -0.02009370518748954,
+   "spy": -0.041370928287506104,
+   "equity": 1293.72,
+   "holdings": [
+    "DY",
+    "MCO",
+    "SPXC",
+    "THC"
+   ],
+   "brake": false
+  },
+  {
+   "week_end": "2024-09-13",
+   "ret": 0.05325845573606336,
+   "spy": 0.040065884590148926,
+   "equity": 1362.63,
+   "holdings": [
+    "DY",
+    "FICO",
+    "MCO",
+    "WELL"
+   ],
+   "brake": false
+  },
+  {
+   "week_end": "2024-09-20",
+   "ret": 0.02392314907873594,
+   "spy": 0.014204263687133789,
+   "equity": 1395.22,
+   "holdings": [
+    "DY",
+    "FICO",
+    "MCO",
+    "WELL"
+   ],
+   "brake": false
+  },
+  {
+   "week_end": "2024-09-27",
+   "ret": -0.012270684244193752,
+   "spy": 0.005666375160217285,
+   "equity": 1378.1,
+   "holdings": [
+    "DY",
+    "FICO",
+    "MCO",
+    "WELL"
+   ],
+   "brake": false
+  },
+  {
+   "week_end": "2024-10-04",
+   "ret": -0.013219224984126421,
+   "spy": 0.002642393112182617,
+   "equity": 1359.89,
+   "holdings": [
+    "DY",
+    "FICO",
+    "MCO",
+    "WELL"
+   ],
+   "brake": false
+  },
+  {
+   "week_end": "2024-10-11",
+   "ret": 0.019510720998251685,
+   "spy": 0.01151895523071289,
+   "equity": 1386.42,
+   "holdings": [
+    "CNQ",
+    "DY",
+    "FICO",
+    "MCO"
+   ],
+   "brake": false
+  },
+  {
+   "week_end": "2024-10-18",
+   "ret": -0.0021878474837867534,
+   "spy": 0.00864410400390625,
+   "equity": 1383.39,
+   "holdings": [
+    "DY",
+    "FICO",
+    "HCC",
+    "MCO"
+   ],
+   "brake": false
+  },
+  {
+   "week_end": "2024-10-25",
+   "ret": -0.026587328771832675,
+   "spy": -0.00949406623840332,
+   "equity": 1346.61,
+   "holdings": [
+    "DOCS",
+    "DY",
+    "FICO",
+    "OWL"
+   ],
+   "brake": false
+  },
+  {
+   "week_end": "2024-11-01",
+   "ret": -0.03426491773768936,
+   "spy": -0.01381593942642212,
+   "equity": 1300.46,
+   "holdings": [
+    "DY",
+    "FICO",
+    "OWL",
+    "SLM"
+   ],
+   "brake": false
+  },
+  {
+   "week_end": "2024-11-08",
+   "ret": 0.09641107648693037,
+   "spy": 0.04754495620727539,
+   "equity": 1425.84,
+   "holdings": [
+    "AEO",
+    "DEO",
+    "DOW",
+    "RCI"
+   ],
+   "brake": false
+  },
+  {
+   "week_end": "2024-11-15",
+   "ret": -0.02812032560302946,
+   "spy": -0.020796239376068115,
+   "equity": 1385.75,
+   "holdings": [
+    "AGX",
+    "BFAM",
+    "GLNG",
+    "IQV"
+   ],
+   "brake": false
+  },
+  {
+   "week_end": "2024-11-22",
+   "ret": 0.0929845304885435,
+   "spy": 0.01666247844696045,
+   "equity": 1514.6,
+   "holdings": [
+    "BFAM",
+    "GLNG",
+    "HCA",
+    "KEX"
+   ],
+   "brake": false
+  },
+  {
+   "week_end": "2024-11-29",
+   "ret": 0.02045458574779846,
+   "spy": 0.011821746826171875,
+   "equity": 1545.58,
+   "holdings": [
+    "BFAM",
+    "COKE",
+    "HCA",
+    "KEX"
+   ],
+   "brake": false
+  },
+  {
+   "week_end": "2024-12-06",
+   "ret": -0.02525992742187322,
+   "spy": 0.008729696273803711,
+   "equity": 1506.54,
+   "holdings": [
+    "COKE",
+    "FSK",
+    "MSFT",
+    "TTWO"
+   ],
+   "brake": false
+  },
+  {
+   "week_end": "2024-12-13",
+   "ret": -0.010335203759650247,
+   "spy": -0.005923092365264893,
+   "equity": 1490.97,
+   "holdings": [
+    "AVY",
+    "EHC",
+    "MCK",
+    "NSC"
+   ],
+   "brake": false
+  },
+  {
+   "week_end": "2024-12-20",
+   "ret": -0.028873568016180018,
+   "spy": -0.018321990966796875,
+   "equity": 1447.92,
+   "holdings": [
+    "AVY",
+    "EHC",
+    "MCK",
+    "NSC"
+   ],
+   "brake": false
+  },
+  {
+   "week_end": "2024-12-27",
+   "ret": -0.0023981069067643412,
+   "spy": 0.006529688835144043,
+   "equity": 1444.45,
+   "holdings": [
+    "AYI",
+    "COST",
+    "EHC",
+    "NSC"
+   ],
+   "brake": false
+  },
+  {
+   "week_end": "2024-12-31",
+   "ret": -0.014620373758640337,
+   "spy": -0.015008151531219482,
+   "equity": 1423.33,
+   "holdings": [
+    "AYI",
+    "COST",
+    "EHC",
+    "NSC"
+   ],
+   "brake": false
+  }
+ ],
+ "trades": [
+  {
+   "date": "2024-01-02",
+   "ticker": "CMG",
+   "side": "BUY",
+   "dollars": 246.25,
+   "price": 44.9,
+   "reason": "initial build",
+   "why": [
+    "12-month momentum",
+    "volatility profile",
+    "yesterday's move"
+   ]
+  },
+  {
+   "date": "2024-01-02",
+   "ticker": "LRCX",
+   "side": "BUY",
+   "dollars": 246.25,
+   "price": 73.28,
+   "reason": "initial build",
+   "why": [
+    "12-month momentum",
+    "volatility profile",
+    "yesterday's move"
+   ]
+  },
+  {
+   "date": "2024-01-02",
+   "ticker": "CDNS",
+   "side": "BUY",
+   "dollars": 246.25,
+   "price": 262.9,
+   "reason": "initial build",
+   "why": [
+    "12-month momentum",
+    "volatility profile",
+    "yesterday's move"
+   ]
+  },
+  {
+   "date": "2024-01-02",
+   "ticker": "UBER",
+   "side": "BUY",
+   "dollars": 246.25,
+   "price": 58.38,
+   "reason": "initial build",
+   "why": [
+    "12-month momentum",
+    "volatility profile",
+    "quiet pullback likely to revert"
+   ]
+  },
+  {
+   "date": "2024-01-05",
+   "ticker": "LRCX",
+   "side": "SELL",
+   "dollars": -240.7,
+   "price": 71.63,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-01-05",
+   "ticker": "CDNS",
+   "side": "BUY",
+   "dollars": 4.01,
+   "price": 252.71,
+   "reason": "rebalance",
+   "why": [
+    "12-month momentum",
+    "volatility profile",
+    "yesterday's move"
+   ]
+  },
+  {
+   "date": "2024-01-05",
+   "ticker": "GPOR",
+   "side": "BUY",
+   "dollars": 240.72,
+   "price": 125.34,
+   "reason": "rebalance",
+   "why": [
+    "12-month momentum",
+    "strong industry (3 months)",
+    "yesterday's move"
+   ]
+  },
+  {
+   "date": "2024-01-05",
+   "ticker": "CMG",
+   "side": "SELL",
+   "dollars": -2.03,
+   "price": 44.26,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-01-05",
+   "ticker": "UBER",
+   "side": "SELL",
+   "dollars": -2.16,
+   "price": 57.58,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-01-12",
+   "ticker": "CMG",
+   "side": "SELL",
+   "dollars": -247.15,
+   "price": 45.44,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-01-12",
+   "ticker": "HCC",
+   "side": "BUY",
+   "dollars": 251.9,
+   "price": 62.12,
+   "reason": "rebalance",
+   "why": [
+    "12-month momentum",
+    "volatility profile",
+    "strong industry (1 month)"
+   ]
+  },
+  {
+   "date": "2024-01-12",
+   "ticker": "CDNS",
+   "side": "SELL",
+   "dollars": -3.86,
+   "price": 268.5,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-01-12",
+   "ticker": "GPOR",
+   "side": "BUY",
+   "dollars": 9.89,
+   "price": 126.01,
+   "reason": "rebalance",
+   "why": [
+    "12-month momentum",
+    "strong industry (3 months)",
+    "yesterday's move"
+   ]
+  },
+  {
+   "date": "2024-01-12",
+   "ticker": "UBER",
+   "side": "SELL",
+   "dollars": -12.31,
+   "price": 63.2,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-01-19",
+   "ticker": "HCC",
+   "side": "SELL",
+   "dollars": -277.43,
+   "price": 68.42,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-01-19",
+   "ticker": "CDNS",
+   "side": "SELL",
+   "dollars": -274.08,
+   "price": 292.14,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-01-19",
+   "ticker": "GPOR",
+   "side": "SELL",
+   "dollars": -252.78,
+   "price": 126.45,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-01-19",
+   "ticker": "UBER",
+   "side": "SELL",
+   "dollars": -259.51,
+   "price": 65.11,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-01-19",
+   "ticker": "MOH",
+   "side": "BUY",
+   "dollars": 265.51,
+   "price": 365.51,
+   "reason": "rebalance",
+   "why": [
+    "volatility profile",
+    "yesterday's move",
+    "ev agreement"
+   ]
+  },
+  {
+   "date": "2024-01-19",
+   "ticker": "HUM",
+   "side": "BUY",
+   "dollars": 265.51,
+   "price": 388.67,
+   "reason": "rebalance",
+   "why": [
+    "ev agreement",
+    "yesterday's move",
+    "volatility profile"
+   ]
+  },
+  {
+   "date": "2024-01-19",
+   "ticker": "FDX",
+   "side": "BUY",
+   "dollars": 265.51,
+   "price": 187.95,
+   "reason": "rebalance",
+   "why": [
+    "ear volsurge",
+    "volatility profile",
+    "near its 52-week high"
+   ]
+  },
+  {
+   "date": "2024-01-19",
+   "ticker": "ED",
+   "side": "BUY",
+   "dollars": 265.51,
+   "price": 81.89,
+   "reason": "rebalance",
+   "why": [
+    "volatility profile",
+    "market conditions",
+    "strong industry (3 months)"
+   ]
+  },
+  {
+   "date": "2024-01-26",
+   "ticker": "HUM",
+   "side": "SELL",
+   "dollars": -238.86,
+   "price": 349.66,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-01-26",
+   "ticker": "ED",
+   "side": "SELL",
+   "dollars": -265.99,
+   "price": 82.03,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-01-26",
+   "ticker": "T",
+   "side": "BUY",
+   "dollars": 257.68,
+   "price": 15.29,
+   "reason": "rebalance",
+   "why": [
+    "volatility profile",
+    "ev agreement",
+    "strong industry (1 month)"
+   ]
+  },
+  {
+   "date": "2024-01-26",
+   "ticker": "TRV",
+   "side": "BUY",
+   "dollars": 257.68,
+   "price": 202.04,
+   "reason": "rebalance",
+   "why": [
+    "steady, not spiky, uptrend",
+    "strong industry (1 month)",
+    "volatility profile"
+   ]
+  },
+  {
+   "date": "2024-01-26",
+   "ticker": "FDX",
+   "side": "SELL",
+   "dollars": -13.24,
+   "price": 191.77,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-02-02",
+   "ticker": "MOH",
+   "side": "SELL",
+   "dollars": -257.79,
+   "price": 354.88,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-02-02",
+   "ticker": "T",
+   "side": "SELL",
+   "dollars": -7.27,
+   "price": 15.76,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-02-02",
+   "ticker": "BDX",
+   "side": "BUY",
+   "dollars": 258.46,
+   "price": 176.05,
+   "reason": "rebalance",
+   "why": [
+    "market conditions",
+    "volatility profile",
+    "activist stake filed"
+   ]
+  },
+  {
+   "date": "2024-02-02",
+   "ticker": "TRV",
+   "side": "SELL",
+   "dollars": -3.35,
+   "price": 205.28,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-02-02",
+   "ticker": "FDX",
+   "side": "BUY",
+   "dollars": 10.19,
+   "price": 184.77,
+   "reason": "rebalance",
+   "why": [
+    "ear volsurge",
+    "volatility profile",
+    "near its 52-week high"
+   ]
+  },
+  {
+   "date": "2024-02-09",
+   "ticker": "BDX",
+   "side": "SELL",
+   "dollars": -265.61,
+   "price": 180.92,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-02-09",
+   "ticker": "T",
+   "side": "BUY",
+   "dollars": 12.48,
+   "price": 14.89,
+   "reason": "rebalance",
+   "why": [
+    "volatility profile",
+    "ev agreement",
+    "strong industry (1 month)"
+   ]
+  },
+  {
+   "date": "2024-02-09",
+   "ticker": "MKL",
+   "side": "BUY",
+   "dollars": 256.6,
+   "price": 1428.94,
+   "reason": "rebalance",
+   "why": [
+    "volatility profile",
+    "insider buying cluster",
+    "insiders buying"
+   ]
+  },
+  {
+   "date": "2024-02-09",
+   "ticker": "TRV",
+   "side": "SELL",
+   "dollars": -1.48,
+   "price": 204.97,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-02-09",
+   "ticker": "FDX",
+   "side": "SELL",
+   "dollars": -2.14,
+   "price": 184.96,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-02-16",
+   "ticker": "T",
+   "side": "SELL",
+   "dollars": -258.58,
+   "price": 15.0,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-02-16",
+   "ticker": "TRV",
+   "side": "SELL",
+   "dollars": -260.22,
+   "price": 207.87,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-02-16",
+   "ticker": "FDX",
+   "side": "SELL",
+   "dollars": -251.28,
+   "price": 181.13,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-02-16",
+   "ticker": "MKL",
+   "side": "SELL",
+   "dollars": -4.4,
+   "price": 1461.5,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-02-16",
+   "ticker": "ADBE",
+   "side": "BUY",
+   "dollars": 258.04,
+   "price": 546.66,
+   "reason": "rebalance",
+   "why": [
+    "yesterday's move",
+    "volatility profile",
+    "quiet pullback likely to revert"
+   ]
+  },
+  {
+   "date": "2024-02-16",
+   "ticker": "NOW",
+   "side": "BUY",
+   "dollars": 258.04,
+   "price": 153.0,
+   "reason": "rebalance",
+   "why": [
+    "volatility profile",
+    "quiet pullback likely to revert",
+    "market conditions"
+   ]
+  },
+  {
+   "date": "2024-02-16",
+   "ticker": "MU",
+   "side": "BUY",
+   "dollars": 258.04,
+   "price": 78.86,
+   "reason": "rebalance",
+   "why": [
+    "volatility profile",
+    "yesterday's move",
+    "quiet pullback likely to revert"
+   ]
+  },
+  {
+   "date": "2024-02-23",
+   "ticker": "MKL",
+   "side": "SELL",
+   "dollars": -259.81,
+   "price": 1471.52,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-02-23",
+   "ticker": "ADBE",
+   "side": "SELL",
+   "dollars": -261.24,
+   "price": 553.44,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-02-23",
+   "ticker": "NOW",
+   "side": "SELL",
+   "dollars": -260.05,
+   "price": 154.19,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-02-23",
+   "ticker": "MU",
+   "side": "SELL",
+   "dollars": -279.14,
+   "price": 85.31,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-02-23",
+   "ticker": "APA",
+   "side": "BUY",
+   "dollars": 264.76,
+   "price": 27.17,
+   "reason": "rebalance",
+   "why": [
+    "strong industry (3 months)",
+    "market conditions",
+    "yesterday's move"
+   ]
+  },
+  {
+   "date": "2024-02-23",
+   "ticker": "NJR",
+   "side": "BUY",
+   "dollars": 264.76,
+   "price": 37.27,
+   "reason": "rebalance",
+   "why": [
+    "strong industry (3 months)",
+    "yesterday's move",
+    "volatility profile"
+   ]
+  },
+  {
+   "date": "2024-02-23",
+   "ticker": "SLB",
+   "side": "BUY",
+   "dollars": 264.76,
+   "price": 45.67,
+   "reason": "rebalance",
+   "why": [
+    "yesterday's move",
+    "strong industry (3 months)",
+    "volatility profile"
+   ]
+  },
+  {
+   "date": "2024-02-23",
+   "ticker": "OGS",
+   "side": "BUY",
+   "dollars": 264.76,
+   "price": 54.3,
+   "reason": "rebalance",
+   "why": [
+    "yesterday's move",
+    "strong industry (3 months)",
+    "market conditions"
+   ]
+  },
+  {
+   "date": "2024-03-01",
+   "ticker": "APA",
+   "side": "SELL",
+   "dollars": -268.11,
+   "price": 27.51,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-03-01",
+   "ticker": "NJR",
+   "side": "SELL",
+   "dollars": -267.0,
+   "price": 37.59,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-03-01",
+   "ticker": "SLB",
+   "side": "SELL",
+   "dollars": -267.64,
+   "price": 46.17,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-03-01",
+   "ticker": "MATX",
+   "side": "BUY",
+   "dollars": 266.41,
+   "price": 107.38,
+   "reason": "rebalance",
+   "why": [
+    "12-month momentum",
+    "no share offering",
+    "yesterday's move"
+   ]
+  },
+  {
+   "date": "2024-03-01",
+   "ticker": "GOOGL",
+   "side": "BUY",
+   "dollars": 266.41,
+   "price": 135.85,
+   "reason": "rebalance",
+   "why": [
+    "no share offering",
+    "yesterday's move",
+    "volatility profile"
+   ]
+  },
+  {
+   "date": "2024-03-01",
+   "ticker": "GOOG",
+   "side": "BUY",
+   "dollars": 266.41,
+   "price": 136.78,
+   "reason": "rebalance",
+   "why": [
+    "no share offering",
+    "yesterday's move",
+    "volatility profile"
+   ]
+  },
+  {
+   "date": "2024-03-01",
+   "ticker": "OGS",
+   "side": "BUY",
+   "dollars": 1.03,
+   "price": 54.43,
+   "reason": "rebalance",
+   "why": [
+    "yesterday's move",
+    "strong industry (3 months)",
+    "market conditions"
+   ]
+  },
+  {
+   "date": "2024-03-08",
+   "ticker": "GOOGL",
+   "side": "SELL",
+   "dollars": -263.05,
+   "price": 134.13,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-03-08",
+   "ticker": "GOOG",
+   "side": "SELL",
+   "dollars": -262.96,
+   "price": 135.01,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-03-08",
+   "ticker": "OGS",
+   "side": "SELL",
+   "dollars": -282.76,
+   "price": 57.77,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-03-08",
+   "ticker": "VMC",
+   "side": "BUY",
+   "dollars": 265.73,
+   "price": 261.81,
+   "reason": "rebalance",
+   "why": [
+    "strong industry (3 months)",
+    "ev activist amend",
+    "yesterday's move"
+   ]
+  },
+  {
+   "date": "2024-03-08",
+   "ticker": "MATX",
+   "side": "BUY",
+   "dollars": 9.49,
+   "price": 103.28,
+   "reason": "rebalance",
+   "why": [
+    "12-month momentum",
+    "no share offering",
+    "yesterday's move"
+   ]
+  },
+  {
+   "date": "2024-03-08",
+   "ticker": "MLM",
+   "side": "BUY",
+   "dollars": 265.73,
+   "price": 588.48,
+   "reason": "rebalance",
+   "why": [
+    "strong industry (3 months)",
+    "ev activist amend",
+    "yesterday's move"
+   ]
+  },
+  {
+   "date": "2024-03-08",
+   "ticker": "SPOT",
+   "side": "BUY",
+   "dollars": 265.73,
+   "price": 259.4,
+   "reason": "rebalance",
+   "why": [
+    "strong industry (3 months)",
+    "yesterday's move",
+    "no share offering"
+   ]
+  },
+  {
+   "date": "2024-03-15",
+   "ticker": "MATX",
+   "side": "SELL",
+   "dollars": -263.93,
+   "price": 102.58,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-03-15",
+   "ticker": "VMC",
+   "side": "SELL",
+   "dollars": -2.14,
+   "price": 261.97,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-03-15",
+   "ticker": "IDCC",
+   "side": "BUY",
+   "dollars": 263.74,
+   "price": 99.77,
+   "reason": "rebalance",
+   "why": [
+    "ev activist amend",
+    "strong industry (3 months)",
+    "yesterday's move"
+   ]
+  },
+  {
+   "date": "2024-03-15",
+   "ticker": "MLM",
+   "side": "SELL",
+   "dollars": -1.73,
+   "price": 587.9,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-03-15",
+   "ticker": "SPOT",
+   "side": "BUY",
+   "dollars": 2.63,
+   "price": 254.89,
+   "reason": "rebalance",
+   "why": [
+    "strong industry (3 months)",
+    "yesterday's move",
+    "no share offering"
+   ]
+  },
+  {
+   "date": "2024-03-22",
+   "ticker": "VMC",
+   "side": "SELL",
+   "dollars": -271.16,
+   "price": 269.33,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-03-22",
+   "ticker": "SPOT",
+   "side": "SELL",
+   "dollars": -274.15,
+   "price": 264.95,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-03-22",
+   "ticker": "VICI",
+   "side": "BUY",
+   "dollars": 270.39,
+   "price": 24.79,
+   "reason": "rebalance",
+   "why": [
+    "volatility profile",
+    "no red-flag filings",
+    "ev activist amend"
+   ]
+  },
+  {
+   "date": "2024-03-22",
+   "ticker": "MLM",
+   "side": "BUY",
+   "dollars": 1.84,
+   "price": 598.6,
+   "reason": "rebalance",
+   "why": [
+    "strong industry (3 months)",
+    "ev activist amend",
+    "yesterday's move"
+   ]
+  },
+  {
+   "date": "2024-03-22",
+   "ticker": "RIO",
+   "side": "BUY",
+   "dollars": 270.39,
+   "price": 54.9,
+   "reason": "rebalance",
+   "why": [
+    "ev activist amend",
+    "volatility profile",
+    "strong industry (3 months)"
+   ]
+  },
+  {
+   "date": "2024-03-28",
+   "ticker": "VICI",
+   "side": "SELL",
+   "dollars": -4.48,
+   "price": 25.63,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-03-28",
+   "ticker": "IDCC",
+   "side": "BUY",
+   "dollars": 1.32,
+   "price": 103.54,
+   "reason": "rebalance",
+   "why": [
+    "ev activist amend",
+    "strong industry (3 months)",
+    "yesterday's move"
+   ]
+  },
+  {
+   "date": "2024-03-28",
+   "ticker": "MLM",
+   "side": "BUY",
+   "dollars": 1.59,
+   "price": 605.33,
+   "reason": "rebalance",
+   "why": [
+    "strong industry (3 months)",
+    "ev activist amend",
+    "yesterday's move"
+   ]
+  },
+  {
+   "date": "2024-03-28",
+   "ticker": "RIO",
+   "side": "BUY",
+   "dollars": 1.45,
+   "price": 55.54,
+   "reason": "rebalance",
+   "why": [
+    "ev activist amend",
+    "volatility profile",
+    "strong industry (3 months)"
+   ]
+  },
+  {
+   "date": "2024-04-05",
+   "ticker": "MLM",
+   "side": "SELL",
+   "dollars": -277.46,
+   "price": 610.72,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-04-05",
+   "ticker": "VICI",
+   "side": "SELL",
+   "dollars": -3.65,
+   "price": 25.22,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-04-05",
+   "ticker": "BCE",
+   "side": "BUY",
+   "dollars": 267.02,
+   "price": 27.52,
+   "reason": "rebalance",
+   "why": [
+    "ev activist amend",
+    "no red-flag filings",
+    "yesterday's move"
+   ]
+  },
+  {
+   "date": "2024-04-05",
+   "ticker": "IDCC",
+   "side": "BUY",
+   "dollars": 19.37,
+   "price": 93.24,
+   "reason": "rebalance",
+   "why": [
+    "ev activist amend",
+    "strong industry (3 months)",
+    "yesterday's move"
+   ]
+  },
+  {
+   "date": "2024-04-05",
+   "ticker": "RIO",
+   "side": "SELL",
+   "dollars": -4.8,
+   "price": 54.9,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-04-12",
+   "ticker": "VICI",
+   "side": "SELL",
+   "dollars": -254.45,
+   "price": 24.04,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-04-12",
+   "ticker": "BCE",
+   "side": "SELL",
+   "dollars": -260.37,
+   "price": 26.84,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-04-12",
+   "ticker": "IDCC",
+   "side": "SELL",
+   "dollars": -270.04,
+   "price": 94.29,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-04-12",
+   "ticker": "RIO",
+   "side": "SELL",
+   "dollars": -279.69,
+   "price": 57.5,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-04-12",
+   "ticker": "CAT",
+   "side": "BUY",
+   "dollars": 266.07,
+   "price": 353.98,
+   "reason": "rebalance",
+   "why": [
+    "no red-flag filings",
+    "volatility profile",
+    "steady, not spiky, uptrend"
+   ]
+  },
+  {
+   "date": "2024-04-12",
+   "ticker": "ESTC",
+   "side": "BUY",
+   "dollars": 266.07,
+   "price": 97.24,
+   "reason": "rebalance",
+   "why": [
+    "no red-flag filings",
+    "volatility profile",
+    "strong industry (1 month)"
+   ]
+  },
+  {
+   "date": "2024-04-12",
+   "ticker": "PSX",
+   "side": "BUY",
+   "dollars": 266.07,
+   "price": 149.61,
+   "reason": "rebalance",
+   "why": [
+    "no red-flag filings",
+    "volatility profile",
+    "market conditions"
+   ]
+  },
+  {
+   "date": "2024-04-12",
+   "ticker": "GDDY",
+   "side": "BUY",
+   "dollars": 266.07,
+   "price": 123.3,
+   "reason": "rebalance",
+   "why": [
+    "no red-flag filings",
+    "volatility profile",
+    "near its 52-week high"
+   ]
+  },
+  {
+   "date": "2024-04-19",
+   "ticker": "ESTC",
+   "side": "SELL",
+   "dollars": -263.2,
+   "price": 96.19,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-04-19",
+   "ticker": "GDDY",
+   "side": "SELL",
+   "dollars": -259.21,
+   "price": 120.12,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-04-19",
+   "ticker": "PSX",
+   "side": "BUY",
+   "dollars": 5.04,
+   "price": 142.45,
+   "reason": "rebalance",
+   "why": [
+    "no red-flag filings",
+    "volatility profile",
+    "market conditions"
+   ]
+  },
+  {
+   "date": "2024-04-19",
+   "ticker": "EME",
+   "side": "BUY",
+   "dollars": 258.37,
+   "price": 327.06,
+   "reason": "rebalance",
+   "why": [
+    "no red-flag filings",
+    "12-month momentum",
+    "volatility profile"
+   ]
+  },
+  {
+   "date": "2024-04-19",
+   "ticker": "TOL",
+   "side": "BUY",
+   "dollars": 258.37,
+   "price": 110.26,
+   "reason": "rebalance",
+   "why": [
+    "no red-flag filings",
+    "market conditions",
+    "12-month momentum"
+   ]
+  },
+  {
+   "date": "2024-04-26",
+   "ticker": "CAT",
+   "side": "SELL",
+   "dollars": -250.79,
+   "price": 333.65,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-04-26",
+   "ticker": "EME",
+   "side": "SELL",
+   "dollars": -278.34,
+   "price": 352.32,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-04-26",
+   "ticker": "TOL",
+   "side": "SELL",
+   "dollars": -276.82,
+   "price": 118.13,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-04-26",
+   "ticker": "RIO",
+   "side": "BUY",
+   "dollars": 264.32,
+   "price": 59.46,
+   "reason": "rebalance",
+   "why": [
+    "no red-flag filings",
+    "market conditions",
+    "volatility profile"
+   ]
+  },
+  {
+   "date": "2024-04-26",
+   "ticker": "PSX",
+   "side": "BUY",
+   "dollars": 11.45,
+   "price": 139.41,
+   "reason": "rebalance",
+   "why": [
+    "no red-flag filings",
+    "volatility profile",
+    "market conditions"
+   ]
+  },
+  {
+   "date": "2024-04-26",
+   "ticker": "CL",
+   "side": "BUY",
+   "dollars": 264.32,
+   "price": 86.4,
+   "reason": "rebalance",
+   "why": [
+    "no red-flag filings",
+    "volatility profile",
+    "market conditions"
+   ]
+  },
+  {
+   "date": "2024-04-26",
+   "ticker": "TTE",
+   "side": "BUY",
+   "dollars": 264.32,
+   "price": 66.64,
+   "reason": "rebalance",
+   "why": [
+    "no red-flag filings",
+    "volatility profile",
+    "market conditions"
+   ]
+  },
+  {
+   "date": "2024-05-03",
+   "ticker": "CL",
+   "side": "SELL",
+   "dollars": -269.75,
+   "price": 88.18,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-05-03",
+   "ticker": "RIO",
+   "side": "SELL",
+   "dollars": -267.03,
+   "price": 60.07,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-05-03",
+   "ticker": "PSX",
+   "side": "BUY",
+   "dollars": 9.51,
+   "price": 132.23,
+   "reason": "rebalance",
+   "why": [
+    "no red-flag filings",
+    "volatility profile",
+    "market conditions"
+   ]
+  },
+  {
+   "date": "2024-05-03",
+   "ticker": "HSIC",
+   "side": "BUY",
+   "dollars": 260.21,
+   "price": 67.78,
+   "reason": "rebalance",
+   "why": [
+    "no red-flag filings",
+    "recent filings",
+    "yesterday's move"
+   ]
+  },
+  {
+   "date": "2024-05-03",
+   "ticker": "CASY",
+   "side": "BUY",
+   "dollars": 260.21,
+   "price": 310.98,
+   "reason": "rebalance",
+   "why": [
+    "recent filings",
+    "no red-flag filings",
+    "volatility profile"
+   ]
+  },
+  {
+   "date": "2024-05-03",
+   "ticker": "TTE",
+   "side": "BUY",
+   "dollars": 6.28,
+   "price": 64.03,
+   "reason": "rebalance",
+   "why": [
+    "no red-flag filings",
+    "volatility profile",
+    "market conditions"
+   ]
+  },
+  {
+   "date": "2024-05-10",
+   "ticker": "PSX",
+   "side": "SELL",
+   "dollars": -263.82,
+   "price": 134.06,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-05-10",
+   "ticker": "HSIC",
+   "side": "SELL",
+   "dollars": -281.44,
+   "price": 73.31,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-05-10",
+   "ticker": "CASY",
+   "side": "SELL",
+   "dollars": -279.85,
+   "price": 334.45,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-05-10",
+   "ticker": "TTE",
+   "side": "SELL",
+   "dollars": -268.17,
+   "price": 65.98,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-05-10",
+   "ticker": "EPR",
+   "side": "BUY",
+   "dollars": 272.99,
+   "price": 35.38,
+   "reason": "rebalance",
+   "why": [
+    "volatility profile",
+    "no red-flag filings",
+    "recent filings"
+   ]
+  },
+  {
+   "date": "2024-05-10",
+   "ticker": "HDB",
+   "side": "BUY",
+   "dollars": 272.99,
+   "price": 27.09,
+   "reason": "rebalance",
+   "why": [
+    "volatility profile",
+    "no red-flag filings",
+    "recent filings"
+   ]
+  },
+  {
+   "date": "2024-05-10",
+   "ticker": "TU",
+   "side": "BUY",
+   "dollars": 272.99,
+   "price": 13.85,
+   "reason": "rebalance",
+   "why": [
+    "volatility profile",
+    "no red-flag filings",
+    "recent filings"
+   ]
+  },
+  {
+   "date": "2024-05-10",
+   "ticker": "TM",
+   "side": "BUY",
+   "dollars": 272.99,
+   "price": 211.5,
+   "reason": "rebalance",
+   "why": [
+    "volatility profile",
+    "no red-flag filings",
+    "recent filings"
+   ]
+  },
+  {
+   "date": "2024-05-17",
+   "ticker": "EPR",
+   "side": "SELL",
+   "dollars": -279.69,
+   "price": 36.24,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-05-17",
+   "ticker": "HDB",
+   "side": "SELL",
+   "dollars": -279.29,
+   "price": 27.72,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-05-17",
+   "ticker": "TM",
+   "side": "SELL",
+   "dollars": -274.21,
+   "price": 212.45,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-05-17",
+   "ticker": "TU",
+   "side": "SELL",
+   "dollars": -281.81,
+   "price": 14.3,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-05-17",
+   "ticker": "XPO",
+   "side": "BUY",
+   "dollars": 278.06,
+   "price": 110.2,
+   "reason": "rebalance",
+   "why": [
+    "strong industry (3 months)",
+    "12-month momentum",
+    "no share offering"
+   ]
+  },
+  {
+   "date": "2024-05-17",
+   "ticker": "FTAI",
+   "side": "BUY",
+   "dollars": 278.06,
+   "price": 76.68,
+   "reason": "rebalance",
+   "why": [
+    "strong industry (3 months)",
+    "12-month momentum",
+    "no red-flag filings"
+   ]
+  },
+  {
+   "date": "2024-05-17",
+   "ticker": "ELF",
+   "side": "BUY",
+   "dollars": 278.06,
+   "price": 158.45,
+   "reason": "rebalance",
+   "why": [
+    "no red-flag filings",
+    "12-month momentum",
+    "yesterday's move"
+   ]
+  },
+  {
+   "date": "2024-05-17",
+   "ticker": "AKAM",
+   "side": "BUY",
+   "dollars": 278.06,
+   "price": 95.21,
+   "reason": "rebalance",
+   "why": [
+    "strong industry (3 months)",
+    "no share offering",
+    "volatility profile"
+   ]
+  },
+  {
+   "date": "2024-05-24",
+   "ticker": "XPO",
+   "side": "SELL",
+   "dollars": -273.44,
+   "price": 108.37,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-05-24",
+   "ticker": "FTAI",
+   "side": "SELL",
+   "dollars": -300.2,
+   "price": 82.78,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-05-24",
+   "ticker": "ELF",
+   "side": "SELL",
+   "dollars": -335.92,
+   "price": 191.42,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-05-24",
+   "ticker": "MDU",
+   "side": "BUY",
+   "dollars": 295.23,
+   "price": 13.04,
+   "reason": "rebalance",
+   "why": [
+    "no red-flag filings",
+    "volatility profile",
+    "activist stake filed"
+   ]
+  },
+  {
+   "date": "2024-05-24",
+   "ticker": "GGG",
+   "side": "BUY",
+   "dollars": 295.23,
+   "price": 79.07,
+   "reason": "rebalance",
+   "why": [
+    "no red-flag filings",
+    "volatility profile",
+    "near its 52-week high"
+   ]
+  },
+  {
+   "date": "2024-05-24",
+   "ticker": "AKAM",
+   "side": "BUY",
+   "dollars": 20.3,
+   "price": 94.14,
+   "reason": "rebalance",
+   "why": [
+    "strong industry (3 months)",
+    "no share offering",
+    "volatility profile"
+   ]
+  },
+  {
+   "date": "2024-05-24",
+   "ticker": "ED",
+   "side": "BUY",
+   "dollars": 295.23,
+   "price": 87.6,
+   "reason": "rebalance",
+   "why": [
+    "no red-flag filings",
+    "volatility profile",
+    "activist stake filed"
+   ]
+  },
+  {
+   "date": "2024-05-31",
+   "ticker": "GGG",
+   "side": "SELL",
+   "dollars": -292.59,
+   "price": 78.36,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-05-31",
+   "ticker": "ED",
+   "side": "SELL",
+   "dollars": -295.61,
+   "price": 87.71,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-05-31",
+   "ticker": "MDU",
+   "side": "SELL",
+   "dollars": -2.61,
+   "price": 13.05,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-05-31",
+   "ticker": "AKAM",
+   "side": "BUY",
+   "dollars": 3.58,
+   "price": 92.24,
+   "reason": "rebalance",
+   "why": [
+    "strong industry (3 months)",
+    "no share offering",
+    "volatility profile"
+   ]
+  },
+  {
+   "date": "2024-05-31",
+   "ticker": "ODFL",
+   "side": "BUY",
+   "dollars": 292.86,
+   "price": 172.57,
+   "reason": "rebalance",
+   "why": [
+    "strong industry (3 months)",
+    "volatility profile",
+    "near its 52-week high"
+   ]
+  },
+  {
+   "date": "2024-05-31",
+   "ticker": "NFLX",
+   "side": "BUY",
+   "dollars": 292.86,
+   "price": 64.16,
+   "reason": "rebalance",
+   "why": [
+    "strong industry (3 months)",
+    "volatility profile",
+    "yesterday's move"
+   ]
+  },
+  {
+   "date": "2024-06-07",
+   "ticker": "MDU",
+   "side": "SELL",
+   "dollars": -283.92,
+   "price": 12.65,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-06-07",
+   "ticker": "AKAM",
+   "side": "BUY",
+   "dollars": 2.3,
+   "price": 89.18,
+   "reason": "rebalance",
+   "why": [
+    "strong industry (3 months)",
+    "no share offering",
+    "volatility profile"
+   ]
+  },
+  {
+   "date": "2024-06-07",
+   "ticker": "ASPN",
+   "side": "BUY",
+   "dollars": 285.44,
+   "price": 30.21,
+   "reason": "rebalance",
+   "why": [
+    "ear volsurge",
+    "12-month momentum",
+    "near its 52-week high"
+   ]
+  },
+  {
+   "date": "2024-06-07",
+   "ticker": "ODFL",
+   "side": "BUY",
+   "dollars": 3.39,
+   "price": 166.2,
+   "reason": "rebalance",
+   "why": [
+    "strong industry (3 months)",
+    "volatility profile",
+    "near its 52-week high"
+   ]
+  },
+  {
+   "date": "2024-06-07",
+   "ticker": "NFLX",
+   "side": "SELL",
+   "dollars": -7.35,
+   "price": 64.15,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-06-14",
+   "ticker": "AKAM",
+   "side": "SELL",
+   "dollars": -285.15,
+   "price": 89.09,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-06-14",
+   "ticker": "ASPN",
+   "side": "SELL",
+   "dollars": -284.4,
+   "price": 30.1,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-06-14",
+   "ticker": "ODFL",
+   "side": "SELL",
+   "dollars": -292.57,
+   "price": 170.35,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-06-14",
+   "ticker": "NFLX",
+   "side": "SELL",
+   "dollars": -297.86,
+   "price": 66.94,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-06-14",
+   "ticker": "FBIN",
+   "side": "BUY",
+   "dollars": 289.51,
+   "price": 64.51,
+   "reason": "rebalance",
+   "why": [
+    "volatility profile",
+    "yesterday's move",
+    "market conditions"
+   ]
+  },
+  {
+   "date": "2024-06-14",
+   "ticker": "WTFC",
+   "side": "BUY",
+   "dollars": 289.51,
+   "price": 88.8,
+   "reason": "rebalance",
+   "why": [
+    "volatility profile",
+    "activist stake filed",
+    "market conditions"
+   ]
+  },
+  {
+   "date": "2024-06-14",
+   "ticker": "HXL",
+   "side": "BUY",
+   "dollars": 289.51,
+   "price": 60.9,
+   "reason": "rebalance",
+   "why": [
+    "volatility profile",
+    "market conditions",
+    "near its 52-week high"
+   ]
+  },
+  {
+   "date": "2024-06-14",
+   "ticker": "CSGP",
+   "side": "BUY",
+   "dollars": 289.51,
+   "price": 73.93,
+   "reason": "rebalance",
+   "why": [
+    "volatility profile",
+    "market conditions",
+    "near its 52-week high"
+   ]
+  },
+  {
+   "date": "2024-06-21",
+   "ticker": "HXL",
+   "side": "SELL",
+   "dollars": -302.53,
+   "price": 63.63,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-06-21",
+   "ticker": "CSGP",
+   "side": "SELL",
+   "dollars": -289.55,
+   "price": 73.94,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-06-21",
+   "ticker": "FBIN",
+   "side": "BUY",
+   "dollars": 4.7,
+   "price": 64.3,
+   "reason": "rebalance",
+   "why": [
+    "volatility profile",
+    "yesterday's move",
+    "market conditions"
+   ]
+  },
+  {
+   "date": "2024-06-21",
+   "ticker": "JBHT",
+   "side": "BUY",
+   "dollars": 293.26,
+   "price": 152.79,
+   "reason": "rebalance",
+   "why": [
+    "strong industry (3 months)",
+    "strong industry (1 month)",
+    "volatility profile"
+   ]
+  },
+  {
+   "date": "2024-06-21",
+   "ticker": "UPS",
+   "side": "BUY",
+   "dollars": 293.26,
+   "price": 119.02,
+   "reason": "rebalance",
+   "why": [
+    "strong industry (3 months)",
+    "strong industry (1 month)",
+    "volatility profile"
+   ]
+  },
+  {
+   "date": "2024-06-21",
+   "ticker": "WTFC",
+   "side": "SELL",
+   "dollars": -2.7,
+   "price": 90.78,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-06-28",
+   "ticker": "FBIN",
+   "side": "BUY",
+   "dollars": 12.22,
+   "price": 62.22,
+   "reason": "rebalance",
+   "why": [
+    "volatility profile",
+    "yesterday's move",
+    "market conditions"
+   ]
+  },
+  {
+   "date": "2024-06-28",
+   "ticker": "JBHT",
+   "side": "SELL",
+   "dollars": -4.44,
+   "price": 156.53,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-06-28",
+   "ticker": "UPS",
+   "side": "BUY",
+   "dollars": 2.2,
+   "price": 119.24,
+   "reason": "rebalance",
+   "why": [
+    "strong industry (3 months)",
+    "strong industry (1 month)",
+    "volatility profile"
+   ]
+  },
+  {
+   "date": "2024-06-28",
+   "ticker": "WTFC",
+   "side": "SELL",
+   "dollars": -11.49,
+   "price": 95.18,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-07-05",
+   "ticker": "FBIN",
+   "side": "SELL",
+   "dollars": -285.51,
+   "price": 60.02,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-07-05",
+   "ticker": "WTFC",
+   "side": "SELL",
+   "dollars": -289.6,
+   "price": 93.13,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-07-05",
+   "ticker": "JBHT",
+   "side": "SELL",
+   "dollars": -2.05,
+   "price": 154.86,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-07-05",
+   "ticker": "UPS",
+   "side": "SELL",
+   "dollars": -4.13,
+   "price": 118.8,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-07-05",
+   "ticker": "LVS",
+   "side": "BUY",
+   "dollars": 290.78,
+   "price": 40.13,
+   "reason": "rebalance",
+   "why": [
+    "volatility profile",
+    "market conditions",
+    "near its 52-week high"
+   ]
+  },
+  {
+   "date": "2024-07-05",
+   "ticker": "LYV",
+   "side": "BUY",
+   "dollars": 290.78,
+   "price": 95.34,
+   "reason": "rebalance",
+   "why": [
+    "volatility profile",
+    "market conditions",
+    "near its 52-week high"
+   ]
+  },
+  {
+   "date": "2024-07-12",
+   "ticker": "JBHT",
+   "side": "SELL",
+   "dollars": -305.24,
+   "price": 162.55,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-07-12",
+   "ticker": "UPS",
+   "side": "SELL",
+   "dollars": -3.36,
+   "price": 124.03,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-07-12",
+   "ticker": "LVS",
+   "side": "BUY",
+   "dollars": 5.01,
+   "price": 40.74,
+   "reason": "rebalance",
+   "why": [
+    "volatility profile",
+    "market conditions",
+    "near its 52-week high"
+   ]
+  },
+  {
+   "date": "2024-07-12",
+   "ticker": "LYV",
+   "side": "BUY",
+   "dollars": 1.5,
+   "price": 97.94,
+   "reason": "rebalance",
+   "why": [
+    "volatility profile",
+    "market conditions",
+    "near its 52-week high"
+   ]
+  },
+  {
+   "date": "2024-07-12",
+   "ticker": "CLF",
+   "side": "BUY",
+   "dollars": 300.21,
+   "price": 16.17,
+   "reason": "rebalance",
+   "why": [
+    "activist stake filed",
+    "volatility profile",
+    "insider buying cluster"
+   ]
+  },
+  {
+   "date": "2024-07-19",
+   "ticker": "UPS",
+   "side": "SELL",
+   "dollars": -306.18,
+   "price": 126.5,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-07-19",
+   "ticker": "LVS",
+   "side": "SELL",
+   "dollars": -288.55,
+   "price": 39.15,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-07-19",
+   "ticker": "LYV",
+   "side": "SELL",
+   "dollars": -291.51,
+   "price": 95.1,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-07-19",
+   "ticker": "CLF",
+   "side": "SELL",
+   "dollars": -281.65,
+   "price": 15.17,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-07-19",
+   "ticker": "ADMA",
+   "side": "BUY",
+   "dollars": 292.02,
+   "price": 13.36,
+   "reason": "rebalance",
+   "why": [
+    "market conditions",
+    "12-month momentum",
+    "steady, not spiky, uptrend"
+   ]
+  },
+  {
+   "date": "2024-07-19",
+   "ticker": "VERX",
+   "side": "BUY",
+   "dollars": 292.02,
+   "price": 37.92,
+   "reason": "rebalance",
+   "why": [
+    "market conditions",
+    "12-month momentum",
+    "volatility profile"
+   ]
+  },
+  {
+   "date": "2024-07-19",
+   "ticker": "NVO",
+   "side": "BUY",
+   "dollars": 292.02,
+   "price": 121.47,
+   "reason": "rebalance",
+   "why": [
+    "market conditions",
+    "12-month momentum",
+    "volatility profile"
+   ]
+  },
+  {
+   "date": "2024-07-19",
+   "ticker": "BGC",
+   "side": "BUY",
+   "dollars": 292.02,
+   "price": 9.38,
+   "reason": "rebalance",
+   "why": [
+    "market conditions",
+    "12-month momentum",
+    "volatility profile"
+   ]
+  },
+  {
+   "date": "2024-07-26",
+   "ticker": "VERX",
+   "side": "SELL",
+   "dollars": -299.41,
+   "price": 38.88,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-07-26",
+   "ticker": "NVO",
+   "side": "BUY",
+   "dollars": 7.21,
+   "price": 117.03,
+   "reason": "rebalance",
+   "why": [
+    "market conditions",
+    "12-month momentum",
+    "volatility profile"
+   ]
+  },
+  {
+   "date": "2024-07-26",
+   "ticker": "DKS",
+   "side": "BUY",
+   "dollars": 288.55,
+   "price": 197.75,
+   "reason": "rebalance",
+   "why": [
+    "volatility profile",
+    "quiet pullback likely to revert",
+    "insiders buying"
+   ]
+  },
+  {
+   "date": "2024-08-02",
+   "ticker": "ADMA",
+   "side": "BUY",
+   "dollars": 15.74,
+   "price": 11.69,
+   "reason": "rebalance",
+   "why": [
+    "market conditions",
+    "12-month momentum",
+    "steady, not spiky, uptrend"
+   ]
+  },
+  {
+   "date": "2024-08-02",
+   "ticker": "NVO",
+   "side": "SELL",
+   "dollars": -19.03,
+   "price": 117.73,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-08-02",
+   "ticker": "DKS",
+   "side": "SELL",
+   "dollars": -3.58,
+   "price": 188.35,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-08-02",
+   "ticker": "BGC",
+   "side": "BUY",
+   "dollars": 7.37,
+   "price": 8.47,
+   "reason": "rebalance",
+   "why": [
+    "market conditions",
+    "12-month momentum",
+    "volatility profile"
+   ]
+  },
+  {
+   "date": "2024-08-09",
+   "ticker": "ADMA",
+   "side": "SELL",
+   "dollars": -370.34,
+   "price": 15.96,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-08-09",
+   "ticker": "NVO",
+   "side": "SELL",
+   "dollars": -283.98,
+   "price": 123.25,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-08-09",
+   "ticker": "DKS",
+   "side": "SELL",
+   "dollars": -282.34,
+   "price": 196.05,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-08-09",
+   "ticker": "SIG",
+   "side": "BUY",
+   "dollars": 305.29,
+   "price": 71.96,
+   "reason": "rebalance",
+   "why": [
+    "yesterday's move",
+    "quiet pullback likely to revert",
+    "recent filings"
+   ]
+  },
+  {
+   "date": "2024-08-09",
+   "ticker": "GEO",
+   "side": "BUY",
+   "dollars": 305.29,
+   "price": 12.22,
+   "reason": "rebalance",
+   "why": [
+    "12-month momentum",
+    "yesterday's move",
+    "quiet pullback likely to revert"
+   ]
+  },
+  {
+   "date": "2024-08-09",
+   "ticker": "BBWI",
+   "side": "BUY",
+   "dollars": 305.29,
+   "price": 29.19,
+   "reason": "rebalance",
+   "why": [
+    "yesterday's move",
+    "quiet pullback likely to revert",
+    "volatility profile"
+   ]
+  },
+  {
+   "date": "2024-08-09",
+   "ticker": "BGC",
+   "side": "BUY",
+   "dollars": 18.63,
+   "price": 8.95,
+   "reason": "rebalance",
+   "why": [
+    "market conditions",
+    "12-month momentum",
+    "volatility profile"
+   ]
+  },
+  {
+   "date": "2024-08-16",
+   "ticker": "SIG",
+   "side": "SELL",
+   "dollars": -320.98,
+   "price": 75.66,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-08-16",
+   "ticker": "GEO",
+   "side": "SELL",
+   "dollars": -325.28,
+   "price": 13.02,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-08-16",
+   "ticker": "BBWI",
+   "side": "SELL",
+   "dollars": -327.34,
+   "price": 31.3,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-08-16",
+   "ticker": "DK",
+   "side": "BUY",
+   "dollars": 320.97,
+   "price": 20.06,
+   "reason": "rebalance",
+   "why": [
+    "strong industry (3 months)",
+    "yesterday's move",
+    "market conditions"
+   ]
+  },
+  {
+   "date": "2024-08-16",
+   "ticker": "FANG",
+   "side": "BUY",
+   "dollars": 320.97,
+   "price": 185.34,
+   "reason": "rebalance",
+   "why": [
+    "market conditions",
+    "yesterday's move",
+    "volatility profile"
+   ]
+  },
+  {
+   "date": "2024-08-16",
+   "ticker": "BGC",
+   "side": "BUY",
+   "dollars": 7.98,
+   "price": 9.18,
+   "reason": "rebalance",
+   "why": [
+    "market conditions",
+    "12-month momentum",
+    "volatility profile"
+   ]
+  },
+  {
+   "date": "2024-08-16",
+   "ticker": "CSL",
+   "side": "BUY",
+   "dollars": 320.97,
+   "price": 393.17,
+   "reason": "rebalance",
+   "why": [
+    "market conditions",
+    "strong industry (3 months)",
+    "yesterday's move"
+   ]
+  },
+  {
+   "date": "2024-08-23",
+   "ticker": "DK",
+   "side": "SELL",
+   "dollars": -307.1,
+   "price": 19.19,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-08-23",
+   "ticker": "FANG",
+   "side": "SELL",
+   "dollars": -321.63,
+   "price": 185.72,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-08-23",
+   "ticker": "CSL",
+   "side": "SELL",
+   "dollars": -337.14,
+   "price": 412.98,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-08-23",
+   "ticker": "GWRE",
+   "side": "BUY",
+   "dollars": 324.19,
+   "price": 145.82,
+   "reason": "rebalance",
+   "why": [
+    "volatility profile",
+    "earnings this week",
+    "12-month momentum"
+   ]
+  },
+  {
+   "date": "2024-08-23",
+   "ticker": "WMT",
+   "side": "BUY",
+   "dollars": 324.19,
+   "price": 74.34,
+   "reason": "rebalance",
+   "why": [
+    "strong industry (3 months)",
+    "earnings this week",
+    "volatility profile"
+   ]
+  },
+  {
+   "date": "2024-08-23",
+   "ticker": "BJ",
+   "side": "BUY",
+   "dollars": 324.19,
+   "price": 82.77,
+   "reason": "rebalance",
+   "why": [
+    "strong industry (3 months)",
+    "earnings this week",
+    "volatility profile"
+   ]
+  },
+  {
+   "date": "2024-08-23",
+   "ticker": "BGC",
+   "side": "SELL",
+   "dollars": -9.51,
+   "price": 9.54,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-08-30",
+   "ticker": "WMT",
+   "side": "SELL",
+   "dollars": -330.74,
+   "price": 75.85,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-08-30",
+   "ticker": "BJ",
+   "side": "SELL",
+   "dollars": -313.19,
+   "price": 79.96,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-08-30",
+   "ticker": "BGC",
+   "side": "SELL",
+   "dollars": -330.21,
+   "price": 9.72,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-08-30",
+   "ticker": "GWRE",
+   "side": "SELL",
+   "dollars": -4.99,
+   "price": 148.77,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-08-30",
+   "ticker": "MCO",
+   "side": "BUY",
+   "dollars": 325.76,
+   "price": 479.98,
+   "reason": "rebalance",
+   "why": [
+    "volatility profile",
+    "steady, not spiky, uptrend",
+    "near its 52-week high"
+   ]
+  },
+  {
+   "date": "2024-08-30",
+   "ticker": "EW",
+   "side": "BUY",
+   "dollars": 325.76,
+   "price": 69.96,
+   "reason": "rebalance",
+   "why": [
+    "ear volsurge",
+    "volatility profile",
+    "yesterday's move"
+   ]
+  },
+  {
+   "date": "2024-08-30",
+   "ticker": "IMO",
+   "side": "BUY",
+   "dollars": 325.76,
+   "price": 71.32,
+   "reason": "rebalance",
+   "why": [
+    "volatility profile",
+    "yesterday's move",
+    "near its 52-week high"
+   ]
+  },
+  {
+   "date": "2024-09-06",
+   "ticker": "GWRE",
+   "side": "SELL",
+   "dollars": -354.11,
+   "price": 161.72,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-09-06",
+   "ticker": "EW",
+   "side": "SELL",
+   "dollars": -311.09,
+   "price": 66.81,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-09-06",
+   "ticker": "IMO",
+   "side": "SELL",
+   "dollars": -296.25,
+   "price": 64.87,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-09-06",
+   "ticker": "THC",
+   "side": "BUY",
+   "dollars": 319.2,
+   "price": 153.4,
+   "reason": "rebalance",
+   "why": [
+    "12-month momentum",
+    "market conditions",
+    "volatility profile"
+   ]
+  },
+  {
+   "date": "2024-09-06",
+   "ticker": "SPXC",
+   "side": "BUY",
+   "dollars": 319.2,
+   "price": 140.85,
+   "reason": "rebalance",
+   "why": [
+    "12-month momentum",
+    "market conditions",
+    "volatility profile"
+   ]
+  },
+  {
+   "date": "2024-09-06",
+   "ticker": "DY",
+   "side": "BUY",
+   "dollars": 319.2,
+   "price": 170.0,
+   "reason": "rebalance",
+   "why": [
+    "12-month momentum",
+    "market conditions",
+    "near its 52-week high"
+   ]
+  },
+  {
+   "date": "2024-09-06",
+   "ticker": "MCO",
+   "side": "BUY",
+   "dollars": 1.65,
+   "price": 467.88,
+   "reason": "rebalance",
+   "why": [
+    "volatility profile",
+    "steady, not spiky, uptrend",
+    "near its 52-week high"
+   ]
+  },
+  {
+   "date": "2024-09-13",
+   "ticker": "THC",
+   "side": "SELL",
+   "dollars": -337.94,
+   "price": 162.41,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-09-13",
+   "ticker": "SPXC",
+   "side": "SELL",
+   "dollars": -342.2,
+   "price": 151.0,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-09-13",
+   "ticker": "FICO",
+   "side": "BUY",
+   "dollars": 335.93,
+   "price": 1868.96,
+   "reason": "rebalance",
+   "why": [
+    "market conditions",
+    "near its 52-week high",
+    "volatility profile"
+   ]
+  },
+  {
+   "date": "2024-09-13",
+   "ticker": "DY",
+   "side": "SELL",
+   "dollars": -10.94,
+   "price": 184.74,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-09-13",
+   "ticker": "WELL",
+   "side": "BUY",
+   "dollars": 335.93,
+   "price": 125.53,
+   "reason": "rebalance",
+   "why": [
+    "market conditions",
+    "near its 52-week high",
+    "volatility profile"
+   ]
+  },
+  {
+   "date": "2024-09-13",
+   "ticker": "MCO",
+   "side": "BUY",
+   "dollars": 15.71,
+   "price": 469.38,
+   "reason": "rebalance",
+   "why": [
+    "volatility profile",
+    "steady, not spiky, uptrend",
+    "near its 52-week high"
+   ]
+  },
+  {
+   "date": "2024-09-20",
+   "ticker": "FICO",
+   "side": "SELL",
+   "dollars": -4.15,
+   "price": 1934.63,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-09-20",
+   "ticker": "DY",
+   "side": "SELL",
+   "dollars": -12.3,
+   "price": 195.71,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-09-20",
+   "ticker": "WELL",
+   "side": "BUY",
+   "dollars": 19.25,
+   "price": 121.2,
+   "reason": "rebalance",
+   "why": [
+    "market conditions",
+    "near its 52-week high",
+    "volatility profile"
+   ]
+  },
+  {
+   "date": "2024-09-20",
+   "ticker": "MCO",
+   "side": "SELL",
+   "dollars": -4.81,
+   "price": 486.79,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-09-27",
+   "ticker": "FICO",
+   "side": "SELL",
+   "dollars": -1.56,
+   "price": 1919.65,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-09-27",
+   "ticker": "WELL",
+   "side": "SELL",
+   "dollars": -9.51,
+   "price": 123.06,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-09-27",
+   "ticker": "MCO",
+   "side": "BUY",
+   "dollars": 10.49,
+   "price": 465.96,
+   "reason": "rebalance",
+   "why": [
+    "volatility profile",
+    "steady, not spiky, uptrend",
+    "near its 52-week high"
+   ]
+  },
+  {
+   "date": "2024-10-04",
+   "ticker": "FICO",
+   "side": "SELL",
+   "dollars": -3.38,
+   "price": 1913.38,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-10-04",
+   "ticker": "MCO",
+   "side": "BUY",
+   "dollars": 4.8,
+   "price": 453.21,
+   "reason": "rebalance",
+   "why": [
+    "volatility profile",
+    "steady, not spiky, uptrend",
+    "near its 52-week high"
+   ]
+  },
+  {
+   "date": "2024-10-11",
+   "ticker": "WELL",
+   "side": "SELL",
+   "dollars": -333.97,
+   "price": 121.11,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-10-11",
+   "ticker": "FICO",
+   "side": "SELL",
+   "dollars": -13.96,
+   "price": 2031.0,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-10-11",
+   "ticker": "DY",
+   "side": "BUY",
+   "dollars": 9.66,
+   "price": 189.02,
+   "reason": "rebalance",
+   "why": [
+    "12-month momentum",
+    "market conditions",
+    "near its 52-week high"
+   ]
+  },
+  {
+   "date": "2024-10-11",
+   "ticker": "MCO",
+   "side": "SELL",
+   "dollars": -3.98,
+   "price": 467.55,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-10-11",
+   "ticker": "CNQ",
+   "side": "BUY",
+   "dollars": 341.5,
+   "price": 35.14,
+   "reason": "rebalance",
+   "why": [
+    "strong industry (3 months)",
+    "strong industry (1 month)",
+    "volatility profile"
+   ]
+  },
+  {
+   "date": "2024-10-18",
+   "ticker": "CNQ",
+   "side": "SELL",
+   "dollars": -322.97,
+   "price": 33.24,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-10-18",
+   "ticker": "FICO",
+   "side": "BUY",
+   "dollars": 9.14,
+   "price": 1973.46,
+   "reason": "rebalance",
+   "why": [
+    "market conditions",
+    "near its 52-week high",
+    "volatility profile"
+   ]
+  },
+  {
+   "date": "2024-10-18",
+   "ticker": "HCC",
+   "side": "BUY",
+   "dollars": 340.97,
+   "price": 61.95,
+   "reason": "rebalance",
+   "why": [
+    "strong industry (1 month)",
+    "strong industry (3 months)",
+    "yesterday's move"
+   ]
+  },
+  {
+   "date": "2024-10-18",
+   "ticker": "DY",
+   "side": "SELL",
+   "dollars": -17.35,
+   "price": 198.33,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-10-18",
+   "ticker": "MCO",
+   "side": "SELL",
+   "dollars": -10.13,
+   "price": 480.69,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-10-25",
+   "ticker": "HCC",
+   "side": "SELL",
+   "dollars": -329.79,
+   "price": 59.92,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-10-25",
+   "ticker": "MCO",
+   "side": "SELL",
+   "dollars": -323.05,
+   "price": 455.44,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-10-25",
+   "ticker": "FICO",
+   "side": "SELL",
+   "dollars": -13.58,
+   "price": 1999.97,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-10-25",
+   "ticker": "DY",
+   "side": "BUY",
+   "dollars": 1.78,
+   "price": 192.06,
+   "reason": "rebalance",
+   "why": [
+    "12-month momentum",
+    "market conditions",
+    "near its 52-week high"
+   ]
+  },
+  {
+   "date": "2024-10-25",
+   "ticker": "DOCS",
+   "side": "BUY",
+   "dollars": 331.97,
+   "price": 41.25,
+   "reason": "rebalance",
+   "why": [
+    "volatility profile",
+    "near its 52-week high",
+    "quiet pullback likely to revert"
+   ]
+  },
+  {
+   "date": "2024-10-25",
+   "ticker": "OWL",
+   "side": "BUY",
+   "dollars": 331.97,
+   "price": 20.48,
+   "reason": "rebalance",
+   "why": [
+    "volatility profile",
+    "yesterday's move",
+    "near its 52-week high"
+   ]
+  },
+  {
+   "date": "2024-11-01",
+   "ticker": "DOCS",
+   "side": "SELL",
+   "dollars": -340.82,
+   "price": 42.35,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-11-01",
+   "ticker": "SLM",
+   "side": "BUY",
+   "dollars": 320.74,
+   "price": 20.86,
+   "reason": "rebalance",
+   "why": [
+    "recent filings",
+    "volatility profile",
+    "yesterday's move"
+   ]
+  },
+  {
+   "date": "2024-11-01",
+   "ticker": "FICO",
+   "side": "SELL",
+   "dollars": -9.39,
+   "price": 1988.91,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-11-01",
+   "ticker": "DY",
+   "side": "BUY",
+   "dollars": 17.92,
+   "price": 175.2,
+   "reason": "rebalance",
+   "why": [
+    "12-month momentum",
+    "market conditions",
+    "near its 52-week high"
+   ]
+  },
+  {
+   "date": "2024-11-01",
+   "ticker": "OWL",
+   "side": "BUY",
+   "dollars": 10.74,
+   "price": 19.13,
+   "reason": "rebalance",
+   "why": [
+    "volatility profile",
+    "yesterday's move",
+    "near its 52-week high"
+   ]
+  },
+  {
+   "date": "2024-11-08",
+   "ticker": "SLM",
+   "side": "SELL",
+   "dollars": -343.06,
+   "price": 22.31,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-11-08",
+   "ticker": "FICO",
+   "side": "SELL",
+   "dollars": -376.12,
+   "price": 2332.29,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-11-08",
+   "ticker": "DY",
+   "side": "SELL",
+   "dollars": -347.16,
+   "price": 189.63,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-11-08",
+   "ticker": "OWL",
+   "side": "SELL",
+   "dollars": -345.16,
+   "price": 20.58,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-11-08",
+   "ticker": "AEO",
+   "side": "BUY",
+   "dollars": 351.89,
+   "price": 17.66,
+   "reason": "rebalance",
+   "why": [
+    "market conditions",
+    "recent filings",
+    "quiet pullback likely to revert"
+   ]
+  },
+  {
+   "date": "2024-11-08",
+   "ticker": "DEO",
+   "side": "BUY",
+   "dollars": 351.89,
+   "price": 114.45,
+   "reason": "rebalance",
+   "why": [
+    "market conditions",
+    "recent filings",
+    "quiet pullback likely to revert"
+   ]
+  },
+  {
+   "date": "2024-11-08",
+   "ticker": "RCI",
+   "side": "BUY",
+   "dollars": 351.89,
+   "price": 33.71,
+   "reason": "rebalance",
+   "why": [
+    "market conditions",
+    "recent filings",
+    "yesterday's move"
+   ]
+  },
+  {
+   "date": "2024-11-08",
+   "ticker": "DOW",
+   "side": "BUY",
+   "dollars": 351.89,
+   "price": 41.18,
+   "reason": "rebalance",
+   "why": [
+    "market conditions",
+    "recent filings",
+    "quiet pullback likely to revert"
+   ]
+  },
+  {
+   "date": "2024-11-15",
+   "ticker": "DEO",
+   "side": "SELL",
+   "dollars": -345.26,
+   "price": 112.29,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-11-15",
+   "ticker": "AEO",
+   "side": "SELL",
+   "dollars": -346.44,
+   "price": 17.39,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-11-15",
+   "ticker": "RCI",
+   "side": "SELL",
+   "dollars": -346.37,
+   "price": 33.18,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-11-15",
+   "ticker": "DOW",
+   "side": "SELL",
+   "dollars": -333.34,
+   "price": 39.01,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-11-15",
+   "ticker": "BFAM",
+   "side": "BUY",
+   "dollars": 342.21,
+   "price": 104.0,
+   "reason": "rebalance",
+   "why": [
+    "strong industry (3 months)",
+    "ev activist amend",
+    "yesterday's move"
+   ]
+  },
+  {
+   "date": "2024-11-15",
+   "ticker": "IQV",
+   "side": "BUY",
+   "dollars": 342.21,
+   "price": 192.68,
+   "reason": "rebalance",
+   "why": [
+    "ev activist amend",
+    "yesterday's move",
+    "strong industry (3 months)"
+   ]
+  },
+  {
+   "date": "2024-11-15",
+   "ticker": "GLNG",
+   "side": "BUY",
+   "dollars": 342.21,
+   "price": 32.4,
+   "reason": "rebalance",
+   "why": [
+    "ev activist amend",
+    "yesterday's move",
+    "volatility profile"
+   ]
+  },
+  {
+   "date": "2024-11-15",
+   "ticker": "AGX",
+   "side": "BUY",
+   "dollars": 342.21,
+   "price": 135.07,
+   "reason": "rebalance",
+   "why": [
+    "yesterday's move",
+    "12-month momentum",
+    "quiet pullback likely to revert"
+   ]
+  },
+  {
+   "date": "2024-11-22",
+   "ticker": "IQV",
+   "side": "SELL",
+   "dollars": -358.45,
+   "price": 201.82,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-11-22",
+   "ticker": "AGX",
+   "side": "SELL",
+   "dollars": -397.32,
+   "price": 156.81,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-11-22",
+   "ticker": "BFAM",
+   "side": "BUY",
+   "dollars": 1.31,
+   "price": 113.08,
+   "reason": "rebalance",
+   "why": [
+    "strong industry (3 months)",
+    "ev activist amend",
+    "yesterday's move"
+   ]
+  },
+  {
+   "date": "2024-11-22",
+   "ticker": "HCA",
+   "side": "BUY",
+   "dollars": 373.4,
+   "price": 320.12,
+   "reason": "rebalance",
+   "why": [
+    "ev activist amend",
+    "strong industry (3 months)",
+    "volatility profile"
+   ]
+  },
+  {
+   "date": "2024-11-22",
+   "ticker": "KEX",
+   "side": "BUY",
+   "dollars": 373.4,
+   "price": 128.3,
+   "reason": "rebalance",
+   "why": [
+    "ev activist amend",
+    "strong industry (3 months)",
+    "volatility profile"
+   ]
+  },
+  {
+   "date": "2024-11-22",
+   "ticker": "GLNG",
+   "side": "BUY",
+   "dollars": 1.8,
+   "price": 35.18,
+   "reason": "rebalance",
+   "why": [
+    "ev activist amend",
+    "yesterday's move",
+    "volatility profile"
+   ]
+  },
+  {
+   "date": "2024-11-29",
+   "ticker": "GLNG",
+   "side": "SELL",
+   "dollars": -400.9,
+   "price": 37.77,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-11-29",
+   "ticker": "HCA",
+   "side": "BUY",
+   "dollars": 5.15,
+   "price": 322.37,
+   "reason": "rebalance",
+   "why": [
+    "ev activist amend",
+    "strong industry (3 months)",
+    "volatility profile"
+   ]
+  },
+  {
+   "date": "2024-11-29",
+   "ticker": "KEX",
+   "side": "BUY",
+   "dollars": 12.99,
+   "price": 126.51,
+   "reason": "rebalance",
+   "why": [
+    "ev activist amend",
+    "strong industry (3 months)",
+    "volatility profile"
+   ]
+  },
+  {
+   "date": "2024-11-29",
+   "ticker": "COKE",
+   "side": "BUY",
+   "dollars": 381.18,
+   "price": 128.84,
+   "reason": "rebalance",
+   "why": [
+    "ev activist amend",
+    "yesterday's move",
+    "strong industry (3 months)"
+   ]
+  },
+  {
+   "date": "2024-12-06",
+   "ticker": "BFAM",
+   "side": "SELL",
+   "dollars": -380.1,
+   "price": 115.11,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-12-06",
+   "ticker": "HCA",
+   "side": "SELL",
+   "dollars": -372.48,
+   "price": 315.01,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-12-06",
+   "ticker": "KEX",
+   "side": "SELL",
+   "dollars": -358.58,
+   "price": 119.01,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-12-06",
+   "ticker": "MSFT",
+   "side": "BUY",
+   "dollars": 371.49,
+   "price": 437.55,
+   "reason": "rebalance",
+   "why": [
+    "market conditions",
+    "volatility profile",
+    "near its 52-week high"
+   ]
+  },
+  {
+   "date": "2024-12-06",
+   "ticker": "TTWO",
+   "side": "BUY",
+   "dollars": 371.49,
+   "price": 189.71,
+   "reason": "rebalance",
+   "why": [
+    "market conditions",
+    "volatility profile",
+    "near its 52-week high"
+   ]
+  },
+  {
+   "date": "2024-12-06",
+   "ticker": "COKE",
+   "side": "SELL",
+   "dollars": -5.72,
+   "price": 127.5,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-12-06",
+   "ticker": "FSK",
+   "side": "BUY",
+   "dollars": 371.49,
+   "price": 16.28,
+   "reason": "rebalance",
+   "why": [
+    "market conditions",
+    "volatility profile",
+    "near its 52-week high"
+   ]
+  },
+  {
+   "date": "2024-12-13",
+   "ticker": "MSFT",
+   "side": "SELL",
+   "dollars": -374.59,
+   "price": 441.2,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-12-13",
+   "ticker": "TTWO",
+   "side": "SELL",
+   "dollars": -363.21,
+   "price": 185.48,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-12-13",
+   "ticker": "COKE",
+   "side": "SELL",
+   "dollars": -365.45,
+   "price": 125.43,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-12-13",
+   "ticker": "FSK",
+   "side": "SELL",
+   "dollars": -370.46,
+   "price": 16.23,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-12-13",
+   "ticker": "EHC",
+   "side": "BUY",
+   "dollars": 367.97,
+   "price": 97.01,
+   "reason": "rebalance",
+   "why": [
+    "market conditions",
+    "volatility profile",
+    "strong industry (3 months)"
+   ]
+  },
+  {
+   "date": "2024-12-13",
+   "ticker": "AVY",
+   "side": "BUY",
+   "dollars": 367.97,
+   "price": 187.81,
+   "reason": "rebalance",
+   "why": [
+    "market conditions",
+    "volatility profile",
+    "near its 52-week high"
+   ]
+  },
+  {
+   "date": "2024-12-13",
+   "ticker": "NSC",
+   "side": "BUY",
+   "dollars": 367.97,
+   "price": 238.03,
+   "reason": "rebalance",
+   "why": [
+    "market conditions",
+    "volatility profile",
+    "near its 52-week high"
+   ]
+  },
+  {
+   "date": "2024-12-13",
+   "ticker": "MCK",
+   "side": "BUY",
+   "dollars": 367.97,
+   "price": 572.09,
+   "reason": "rebalance",
+   "why": [
+    "market conditions",
+    "volatility profile",
+    "near its 52-week high"
+   ]
+  },
+  {
+   "date": "2024-12-20",
+   "ticker": "EHC",
+   "side": "BUY",
+   "dollars": 2.6,
+   "price": 93.32,
+   "reason": "rebalance",
+   "why": [
+    "market conditions",
+    "volatility profile",
+    "strong industry (3 months)"
+   ]
+  },
+  {
+   "date": "2024-12-20",
+   "ticker": "AVY",
+   "side": "BUY",
+   "dollars": 1.8,
+   "price": 181.06,
+   "reason": "rebalance",
+   "why": [
+    "market conditions",
+    "volatility profile",
+    "near its 52-week high"
+   ]
+  },
+  {
+   "date": "2024-12-20",
+   "ticker": "NSC",
+   "side": "BUY",
+   "dollars": 6.62,
+   "price": 226.36,
+   "reason": "rebalance",
+   "why": [
+    "market conditions",
+    "volatility profile",
+    "near its 52-week high"
+   ]
+  },
+  {
+   "date": "2024-12-20",
+   "ticker": "MCK",
+   "side": "SELL",
+   "dollars": -13.65,
+   "price": 575.57,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-12-27",
+   "ticker": "AVY",
+   "side": "SELL",
+   "dollars": -357.27,
+   "price": 181.43,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-12-27",
+   "ticker": "MCK",
+   "side": "SELL",
+   "dollars": -354.65,
+   "price": 572.49,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-12-27",
+   "ticker": "EHC",
+   "side": "BUY",
+   "dollars": 2.56,
+   "price": 92.47,
+   "reason": "rebalance",
+   "why": [
+    "market conditions",
+    "volatility profile",
+    "strong industry (3 months)"
+   ]
+  },
+  {
+   "date": "2024-12-27",
+   "ticker": "AYI",
+   "side": "BUY",
+   "dollars": 355.87,
+   "price": 296.47,
+   "reason": "rebalance",
+   "why": [
+    "volatility profile",
+    "yesterday's move",
+    "near its 52-week high"
+   ]
+  },
+  {
+   "date": "2024-12-27",
+   "ticker": "COST",
+   "side": "BUY",
+   "dollars": 355.87,
+   "price": 930.71,
+   "reason": "rebalance",
+   "why": [
+    "volatility profile",
+    "market conditions",
+    "near its 52-week high"
+   ]
+  },
+  {
+   "date": "2024-12-27",
+   "ticker": "NSC",
+   "side": "SELL",
+   "dollars": -2.36,
+   "price": 227.42,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-12-31",
+   "ticker": "AYI",
+   "side": "BUY",
+   "dollars": 1.32,
+   "price": 290.89,
+   "reason": "rebalance",
+   "why": [
+    "volatility profile",
+    "yesterday's move",
+    "near its 52-week high"
+   ]
+  },
+  {
+   "date": "2024-12-31",
+   "ticker": "NSC",
+   "side": "SELL",
+   "dollars": -4.54,
+   "price": 226.89,
+   "reason": "rebalance",
+   "why": []
+  },
+  {
+   "date": "2024-12-31",
+   "ticker": "COST",
+   "side": "BUY",
+   "dollars": 3.5,
+   "price": 907.51,
+   "reason": "rebalance",
+   "why": [
+    "volatility profile",
+    "market conditions",
+    "near its 52-week high"
+   ]
+  }
+ ],
+ "days": [
+  {
+   "date": "2024-01-02",
+   "equity": 999.51,
+   "holdings": [
+    "CDNS",
+    "CMG",
+    "LRCX",
+    "UBER"
+   ]
+  },
+  {
+   "date": "2024-01-03",
+   "equity": 988.41,
+   "holdings": [
+    "CDNS",
+    "CMG",
+    "LRCX",
+    "UBER"
+   ]
+  },
+  {
+   "date": "2024-01-04",
+   "equity": 981.87,
+   "holdings": [
+    "CDNS",
+    "CMG",
+    "LRCX",
+    "UBER"
+   ]
+  },
+  {
+   "date": "2024-01-05",
+   "equity": 976.68,
+   "holdings": [
+    "CDNS",
+    "CMG",
+    "GPOR",
+    "UBER"
+   ]
+  },
+  {
+   "date": "2024-01-08",
+   "equity": 994.99,
+   "holdings": [
+    "CDNS",
+    "CMG",
+    "GPOR",
+    "UBER"
+   ]
+  },
+  {
+   "date": "2024-01-09",
+   "equity": 1001.6,
+   "holdings": [
+    "CDNS",
+    "CMG",
+    "GPOR",
+    "UBER"
+   ]
+  },
+  {
+   "date": "2024-01-10",
+   "equity": 1011.62,
+   "holdings": [
+    "CDNS",
+    "CMG",
+    "GPOR",
+    "UBER"
+   ]
+  },
+  {
+   "date": "2024-01-11",
+   "equity": 1019.2,
+   "holdings": [
+    "CDNS",
+    "CMG",
+    "GPOR",
+    "UBER"
+   ]
+  },
+  {
+   "date": "2024-01-12",
+   "equity": 1022.02,
+   "holdings": [
+    "CDNS",
+    "GPOR",
+    "HCC",
+    "UBER"
+   ]
+  },
+  {
+   "date": "2024-01-16",
+   "equity": 1016.89,
+   "holdings": [
+    "CDNS",
+    "GPOR",
+    "HCC",
+    "UBER"
+   ]
+  },
+  {
+   "date": "2024-01-17",
+   "equity": 1020.88,
+   "holdings": [
+    "CDNS",
+    "GPOR",
+    "HCC",
+    "UBER"
+   ]
+  },
+  {
+   "date": "2024-01-18",
+   "equity": 1055.0,
+   "holdings": [
+    "CDNS",
+    "GPOR",
+    "HCC",
+    "UBER"
+   ]
+  },
+  {
+   "date": "2024-01-19",
+   "equity": 1075.83,
+   "holdings": [
+    "ED",
+    "FDX",
+    "HUM",
+    "MOH"
+   ]
+  },
+  {
+   "date": "2024-01-22",
+   "equity": 1085.69,
+   "holdings": [
+    "ED",
+    "FDX",
+    "HUM",
+    "MOH"
+   ]
+  },
+  {
+   "date": "2024-01-23",
+   "equity": 1084.04,
+   "holdings": [
+    "ED",
+    "FDX",
+    "HUM",
+    "MOH"
+   ]
+  },
+  {
+   "date": "2024-01-24",
+   "equity": 1075.92,
+   "holdings": [
+    "ED",
+    "FDX",
+    "HUM",
+    "MOH"
+   ]
+  },
+  {
+   "date": "2024-01-25",
+   "equity": 1040.63,
+   "holdings": [
+    "ED",
+    "FDX",
+    "HUM",
+    "MOH"
+   ]
+  },
+  {
+   "date": "2024-01-26",
+   "equity": 1045.9,
+   "holdings": [
+    "FDX",
+    "MOH",
+    "T",
+    "TRV"
+   ]
+  },
+  {
+   "date": "2024-01-29",
+   "equity": 1042.1,
+   "holdings": [
+    "FDX",
+    "MOH",
+    "T",
+    "TRV"
+   ]
+  },
+  {
+   "date": "2024-01-30",
+   "equity": 1045.24,
+   "holdings": [
+    "FDX",
+    "MOH",
+    "T",
+    "TRV"
+   ]
+  },
+  {
+   "date": "2024-01-31",
+   "equity": 1043.33,
+   "holdings": [
+    "FDX",
+    "MOH",
+    "T",
+    "TRV"
+   ]
+  },
+  {
+   "date": "2024-02-01",
+   "equity": 1049.13,
+   "holdings": [
+    "FDX",
+    "MOH",
+    "T",
+    "TRV"
+   ]
+  },
+  {
+   "date": "2024-02-02",
+   "equity": 1049.32,
+   "holdings": [
+    "BDX",
+    "FDX",
+    "T",
+    "TRV"
+   ]
+  },
+  {
+   "date": "2024-02-05",
+   "equity": 1039.15,
+   "holdings": [
+    "BDX",
+    "FDX",
+    "T",
+    "TRV"
+   ]
+  },
+  {
+   "date": "2024-02-06",
+   "equity": 1044.47,
+   "holdings": [
+    "BDX",
+    "FDX",
+    "T",
+    "TRV"
+   ]
+  },
+  {
+   "date": "2024-02-07",
+   "equity": 1043.6,
+   "holdings": [
+    "BDX",
+    "FDX",
+    "T",
+    "TRV"
+   ]
+  },
+  {
+   "date": "2024-02-08",
+   "equity": 1036.65,
+   "holdings": [
+    "BDX",
+    "FDX",
+    "T",
+    "TRV"
+   ]
+  },
+  {
+   "date": "2024-02-09",
+   "equity": 1041.74,
+   "holdings": [
+    "FDX",
+    "MKL",
+    "T",
+    "TRV"
+   ]
+  },
+  {
+   "date": "2024-02-12",
+   "equity": 1049.34,
+   "holdings": [
+    "FDX",
+    "MKL",
+    "T",
+    "TRV"
+   ]
+  },
+  {
+   "date": "2024-02-13",
+   "equity": 1039.96,
+   "holdings": [
+    "FDX",
+    "MKL",
+    "T",
+    "TRV"
+   ]
+  },
+  {
+   "date": "2024-02-14",
+   "equity": 1046.41,
+   "holdings": [
+    "FDX",
+    "MKL",
+    "T",
+    "TRV"
+   ]
+  },
+  {
+   "date": "2024-02-15",
+   "equity": 1051.82,
+   "holdings": [
+    "FDX",
+    "MKL",
+    "T",
+    "TRV"
+   ]
+  },
+  {
+   "date": "2024-02-16",
+   "equity": 1047.1,
+   "holdings": [
+    "ADBE",
+    "MKL",
+    "MU",
+    "NOW"
+   ]
+  },
+  {
+   "date": "2024-02-20",
+   "equity": 1043.21,
+   "holdings": [
+    "ADBE",
+    "MKL",
+    "MU",
+    "NOW"
+   ]
+  },
+  {
+   "date": "2024-02-21",
+   "equity": 1044.2,
+   "holdings": [
+    "ADBE",
+    "MKL",
+    "MU",
+    "NOW"
+   ]
+  },
+  {
+   "date": "2024-02-22",
+   "equity": 1067.34,
+   "holdings": [
+    "ADBE",
+    "MKL",
+    "MU",
+    "NOW"
+   ]
+  },
+  {
+   "date": "2024-02-23",
+   "equity": 1072.8,
+   "holdings": [
+    "APA",
+    "NJR",
+    "OGS",
+    "SLB"
+   ]
+  },
+  {
+   "date": "2024-02-26",
+   "equity": 1059.88,
+   "holdings": [
+    "APA",
+    "NJR",
+    "OGS",
+    "SLB"
+   ]
+  },
+  {
+   "date": "2024-02-27",
+   "equity": 1070.51,
+   "holdings": [
+    "APA",
+    "NJR",
+    "OGS",
+    "SLB"
+   ]
+  },
+  {
+   "date": "2024-02-28",
+   "equity": 1068.49,
+   "holdings": [
+    "APA",
+    "NJR",
+    "OGS",
+    "SLB"
+   ]
+  },
+  {
+   "date": "2024-02-29",
+   "equity": 1070.4,
+   "holdings": [
+    "APA",
+    "NJR",
+    "OGS",
+    "SLB"
+   ]
+  },
+  {
+   "date": "2024-03-01",
+   "equity": 1079.75,
+   "holdings": [
+    "GOOG",
+    "GOOGL",
+    "MATX",
+    "OGS"
+   ]
+  },
+  {
+   "date": "2024-03-04",
+   "equity": 1065.26,
+   "holdings": [
+    "GOOG",
+    "GOOGL",
+    "MATX",
+    "OGS"
+   ]
+  },
+  {
+   "date": "2024-03-05",
+   "equity": 1060.64,
+   "holdings": [
+    "GOOG",
+    "GOOGL",
+    "MATX",
+    "OGS"
+   ]
+  },
+  {
+   "date": "2024-03-06",
+   "equity": 1061.99,
+   "holdings": [
+    "GOOG",
+    "GOOGL",
+    "MATX",
+    "OGS"
+   ]
+  },
+  {
+   "date": "2024-03-07",
+   "equity": 1077.0,
+   "holdings": [
+    "GOOG",
+    "GOOGL",
+    "MATX",
+    "OGS"
+   ]
+  },
+  {
+   "date": "2024-03-08",
+   "equity": 1077.57,
+   "holdings": [
+    "MATX",
+    "MLM",
+    "SPOT",
+    "VMC"
+   ]
+  },
+  {
+   "date": "2024-03-11",
+   "equity": 1076.51,
+   "holdings": [
+    "MATX",
+    "MLM",
+    "SPOT",
+    "VMC"
+   ]
+  },
+  {
+   "date": "2024-03-12",
+   "equity": 1090.1,
+   "holdings": [
+    "MATX",
+    "MLM",
+    "SPOT",
+    "VMC"
+   ]
+  },
+  {
+   "date": "2024-03-13",
+   "equity": 1083.41,
+   "holdings": [
+    "MATX",
+    "MLM",
+    "SPOT",
+    "VMC"
+   ]
+  },
+  {
+   "date": "2024-03-14",
+   "equity": 1082.37,
+   "holdings": [
+    "MATX",
+    "MLM",
+    "SPOT",
+    "VMC"
+   ]
+  },
+  {
+   "date": "2024-03-15",
+   "equity": 1069.46,
+   "holdings": [
+    "IDCC",
+    "MLM",
+    "SPOT",
+    "VMC"
+   ]
+  },
+  {
+   "date": "2024-03-18",
+   "equity": 1074.63,
+   "holdings": [
+    "IDCC",
+    "MLM",
+    "SPOT",
+    "VMC"
+   ]
+  },
+  {
+   "date": "2024-03-19",
+   "equity": 1074.22,
+   "holdings": [
+    "IDCC",
+    "MLM",
+    "SPOT",
+    "VMC"
+   ]
+  },
+  {
+   "date": "2024-03-20",
+   "equity": 1088.62,
+   "holdings": [
+    "IDCC",
+    "MLM",
+    "SPOT",
+    "VMC"
+   ]
+  },
+  {
+   "date": "2024-03-21",
+   "equity": 1097.09,
+   "holdings": [
+    "IDCC",
+    "MLM",
+    "SPOT",
+    "VMC"
+   ]
+  },
+  {
+   "date": "2024-03-22",
+   "equity": 1097.47,
+   "holdings": [
+    "IDCC",
+    "MLM",
+    "RIO",
+    "VICI"
+   ]
+  },
+  {
+   "date": "2024-03-25",
+   "equity": 1097.25,
+   "holdings": [
+    "IDCC",
+    "MLM",
+    "RIO",
+    "VICI"
+   ]
+  },
+  {
+   "date": "2024-03-26",
+   "equity": 1100.26,
+   "holdings": [
+    "IDCC",
+    "MLM",
+    "RIO",
+    "VICI"
+   ]
+  },
+  {
+   "date": "2024-03-27",
+   "equity": 1112.88,
+   "holdings": [
+    "IDCC",
+    "MLM",
+    "RIO",
+    "VICI"
+   ]
+  },
+  {
+   "date": "2024-03-28",
+   "equity": 1116.79,
+   "holdings": [
+    "IDCC",
+    "MLM",
+    "RIO",
+    "VICI"
+   ]
+  },
+  {
+   "date": "2024-04-01",
+   "equity": 1089.14,
+   "holdings": [
+    "IDCC",
+    "MLM",
+    "RIO",
+    "VICI"
+   ]
+  },
+  {
+   "date": "2024-04-02",
+   "equity": 1088.77,
+   "holdings": [
+    "IDCC",
+    "MLM",
+    "RIO",
+    "VICI"
+   ]
+  },
+  {
+   "date": "2024-04-03",
+   "equity": 1087.5,
+   "holdings": [
+    "IDCC",
+    "MLM",
+    "RIO",
+    "VICI"
+   ]
+  },
+  {
+   "date": "2024-04-04",
+   "equity": 1078.0,
+   "holdings": [
+    "IDCC",
+    "MLM",
+    "RIO",
+    "VICI"
+   ]
+  },
+  {
+   "date": "2024-04-05",
+   "equity": 1084.02,
+   "holdings": [
+    "BCE",
+    "IDCC",
+    "RIO",
+    "VICI"
+   ]
+  },
+  {
+   "date": "2024-04-08",
+   "equity": 1099.35,
+   "holdings": [
+    "BCE",
+    "IDCC",
+    "RIO",
+    "VICI"
+   ]
+  },
+  {
+   "date": "2024-04-09",
+   "equity": 1113.81,
+   "holdings": [
+    "BCE",
+    "IDCC",
+    "RIO",
+    "VICI"
+   ]
+  },
+  {
+   "date": "2024-04-10",
+   "equity": 1089.15,
+   "holdings": [
+    "BCE",
+    "IDCC",
+    "RIO",
+    "VICI"
+   ]
+  },
+  {
+   "date": "2024-04-11",
+   "equity": 1092.61,
+   "holdings": [
+    "BCE",
+    "IDCC",
+    "RIO",
+    "VICI"
+   ]
+  },
+  {
+   "date": "2024-04-12",
+   "equity": 1078.75,
+   "holdings": [
+    "CAT",
+    "ESTC",
+    "GDDY",
+    "PSX"
+   ]
+  },
+  {
+   "date": "2024-04-15",
+   "equity": 1064.17,
+   "holdings": [
+    "CAT",
+    "ESTC",
+    "GDDY",
+    "PSX"
+   ]
+  },
+  {
+   "date": "2024-04-16",
+   "equity": 1061.27,
+   "holdings": [
+    "CAT",
+    "ESTC",
+    "GDDY",
+    "PSX"
+   ]
+  },
+  {
+   "date": "2024-04-17",
+   "equity": 1055.63,
+   "holdings": [
+    "CAT",
+    "ESTC",
+    "GDDY",
+    "PSX"
+   ]
+  },
+  {
+   "date": "2024-04-18",
+   "equity": 1048.63,
+   "holdings": [
+    "CAT",
+    "ESTC",
+    "GDDY",
+    "PSX"
+   ]
+  },
+  {
+   "date": "2024-04-19",
+   "equity": 1048.71,
+   "holdings": [
+    "CAT",
+    "EME",
+    "PSX",
+    "TOL"
+   ]
+  },
+  {
+   "date": "2024-04-22",
+   "equity": 1061.57,
+   "holdings": [
+    "CAT",
+    "EME",
+    "PSX",
+    "TOL"
+   ]
+  },
+  {
+   "date": "2024-04-23",
+   "equity": 1086.15,
+   "holdings": [
+    "CAT",
+    "EME",
+    "PSX",
+    "TOL"
+   ]
+  },
+  {
+   "date": "2024-04-24",
+   "equity": 1083.34,
+   "holdings": [
+    "CAT",
+    "EME",
+    "PSX",
+    "TOL"
+   ]
+  },
+  {
+   "date": "2024-04-25",
+   "equity": 1068.92,
+   "holdings": [
+    "CAT",
+    "EME",
+    "PSX",
+    "TOL"
+   ]
+  },
+  {
+   "date": "2024-04-26",
+   "equity": 1072.56,
+   "holdings": [
+    "CL",
+    "PSX",
+    "RIO",
+    "TTE"
+   ]
+  },
+  {
+   "date": "2024-04-29",
+   "equity": 1073.98,
+   "holdings": [
+    "CL",
+    "PSX",
+    "RIO",
+    "TTE"
+   ]
+  },
+  {
+   "date": "2024-04-30",
+   "equity": 1051.89,
+   "holdings": [
+    "CL",
+    "PSX",
+    "RIO",
+    "TTE"
+   ]
+  },
+  {
+   "date": "2024-05-01",
+   "equity": 1042.52,
+   "holdings": [
+    "CL",
+    "PSX",
+    "RIO",
+    "TTE"
+   ]
+  },
+  {
+   "date": "2024-05-02",
+   "equity": 1053.87,
+   "holdings": [
+    "CL",
+    "PSX",
+    "RIO",
+    "TTE"
+   ]
+  },
+  {
+   "date": "2024-05-03",
+   "equity": 1056.17,
+   "holdings": [
+    "CASY",
+    "HSIC",
+    "PSX",
+    "TTE"
+   ]
+  },
+  {
+   "date": "2024-05-06",
+   "equity": 1070.93,
+   "holdings": [
+    "CASY",
+    "HSIC",
+    "PSX",
+    "TTE"
+   ]
+  },
+  {
+   "date": "2024-05-07",
+   "equity": 1086.53,
+   "holdings": [
+    "CASY",
+    "HSIC",
+    "PSX",
+    "TTE"
+   ]
+  },
+  {
+   "date": "2024-05-08",
+   "equity": 1094.8,
+   "holdings": [
+    "CASY",
+    "HSIC",
+    "PSX",
+    "TTE"
+   ]
+  },
+  {
+   "date": "2024-05-09",
+   "equity": 1108.64,
+   "holdings": [
+    "CASY",
+    "HSIC",
+    "PSX",
+    "TTE"
+   ]
+  },
+  {
+   "date": "2024-05-10",
+   "equity": 1106.14,
+   "holdings": [
+    "EPR",
+    "HDB",
+    "TM",
+    "TU"
+   ]
+  },
+  {
+   "date": "2024-05-13",
+   "equity": 1111.8,
+   "holdings": [
+    "EPR",
+    "HDB",
+    "TM",
+    "TU"
+   ]
+  },
+  {
+   "date": "2024-05-14",
+   "equity": 1123.21,
+   "holdings": [
+    "EPR",
+    "HDB",
+    "TM",
+    "TU"
+   ]
+  },
+  {
+   "date": "2024-05-15",
+   "equity": 1126.07,
+   "holdings": [
+    "EPR",
+    "HDB",
+    "TM",
+    "TU"
+   ]
+  },
+  {
+   "date": "2024-05-16",
+   "equity": 1119.18,
+   "holdings": [
+    "EPR",
+    "HDB",
+    "TM",
+    "TU"
+   ]
+  },
+  {
+   "date": "2024-05-17",
+   "equity": 1126.66,
+   "holdings": [
+    "AKAM",
+    "ELF",
+    "FTAI",
+    "XPO"
+   ]
+  },
+  {
+   "date": "2024-05-20",
+   "equity": 1124.81,
+   "holdings": [
+    "AKAM",
+    "ELF",
+    "FTAI",
+    "XPO"
+   ]
+  },
+  {
+   "date": "2024-05-21",
+   "equity": 1134.12,
+   "holdings": [
+    "AKAM",
+    "ELF",
+    "FTAI",
+    "XPO"
+   ]
+  },
+  {
+   "date": "2024-05-22",
+   "equity": 1123.08,
+   "holdings": [
+    "AKAM",
+    "ELF",
+    "FTAI",
+    "XPO"
+   ]
+  },
+  {
+   "date": "2024-05-23",
+   "equity": 1165.29,
+   "holdings": [
+    "AKAM",
+    "ELF",
+    "FTAI",
+    "XPO"
+   ]
+  },
+  {
+   "date": "2024-05-24",
+   "equity": 1197.27,
+   "holdings": [
+    "AKAM",
+    "ED",
+    "GGG",
+    "MDU"
+   ]
+  },
+  {
+   "date": "2024-05-28",
+   "equity": 1181.68,
+   "holdings": [
+    "AKAM",
+    "ED",
+    "GGG",
+    "MDU"
+   ]
+  },
+  {
+   "date": "2024-05-29",
+   "equity": 1163.56,
+   "holdings": [
+    "AKAM",
+    "ED",
+    "GGG",
+    "MDU"
+   ]
+  },
+  {
+   "date": "2024-05-30",
+   "equity": 1170.21,
+   "holdings": [
+    "AKAM",
+    "ED",
+    "GGG",
+    "MDU"
+   ]
+  },
+  {
+   "date": "2024-05-31",
+   "equity": 1188.68,
+   "holdings": [
+    "AKAM",
+    "MDU",
+    "NFLX",
+    "ODFL"
+   ]
+  },
+  {
+   "date": "2024-06-03",
+   "equity": 1167.71,
+   "holdings": [
+    "AKAM",
+    "MDU",
+    "NFLX",
+    "ODFL"
+   ]
+  },
+  {
+   "date": "2024-06-04",
+   "equity": 1163.57,
+   "holdings": [
+    "AKAM",
+    "MDU",
+    "NFLX",
+    "ODFL"
+   ]
+  },
+  {
+   "date": "2024-06-05",
+   "equity": 1180.01,
+   "holdings": [
+    "AKAM",
+    "MDU",
+    "NFLX",
+    "ODFL"
+   ]
+  },
+  {
+   "date": "2024-06-06",
+   "equity": 1166.3,
+   "holdings": [
+    "AKAM",
+    "MDU",
+    "NFLX",
+    "ODFL"
+   ]
+  },
+  {
+   "date": "2024-06-07",
+   "equity": 1157.44,
+   "holdings": [
+    "AKAM",
+    "ASPN",
+    "NFLX",
+    "ODFL"
+   ]
+  },
+  {
+   "date": "2024-06-10",
+   "equity": 1177.66,
+   "holdings": [
+    "AKAM",
+    "ASPN",
+    "NFLX",
+    "ODFL"
+   ]
+  },
+  {
+   "date": "2024-06-11",
+   "equity": 1162.14,
+   "holdings": [
+    "AKAM",
+    "ASPN",
+    "NFLX",
+    "ODFL"
+   ]
+  },
+  {
+   "date": "2024-06-12",
+   "equity": 1171.54,
+   "holdings": [
+    "AKAM",
+    "ASPN",
+    "NFLX",
+    "ODFL"
+   ]
+  },
+  {
+   "date": "2024-06-13",
+   "equity": 1171.8,
+   "holdings": [
+    "AKAM",
+    "ASPN",
+    "NFLX",
+    "ODFL"
+   ]
+  },
+  {
+   "date": "2024-06-14",
+   "equity": 1172.35,
+   "holdings": [
+    "CSGP",
+    "FBIN",
+    "HXL",
+    "WTFC"
+   ]
+  },
+  {
+   "date": "2024-06-17",
+   "equity": 1180.66,
+   "holdings": [
+    "CSGP",
+    "FBIN",
+    "HXL",
+    "WTFC"
+   ]
+  },
+  {
+   "date": "2024-06-18",
+   "equity": 1178.54,
+   "holdings": [
+    "CSGP",
+    "FBIN",
+    "HXL",
+    "WTFC"
+   ]
+  },
+  {
+   "date": "2024-06-20",
+   "equity": 1186.23,
+   "holdings": [
+    "CSGP",
+    "FBIN",
+    "HXL",
+    "WTFC"
+   ]
+  },
+  {
+   "date": "2024-06-21",
+   "equity": 1189.56,
+   "holdings": [
+    "FBIN",
+    "JBHT",
+    "UPS",
+    "WTFC"
+   ]
+  },
+  {
+   "date": "2024-06-24",
+   "equity": 1205.4,
+   "holdings": [
+    "FBIN",
+    "JBHT",
+    "UPS",
+    "WTFC"
+   ]
+  },
+  {
+   "date": "2024-06-25",
+   "equity": 1177.04,
+   "holdings": [
+    "FBIN",
+    "JBHT",
+    "UPS",
+    "WTFC"
+   ]
+  },
+  {
+   "date": "2024-06-26",
+   "equity": 1190.56,
+   "holdings": [
+    "FBIN",
+    "JBHT",
+    "UPS",
+    "WTFC"
+   ]
+  },
+  {
+   "date": "2024-06-27",
+   "equity": 1187.81,
+   "holdings": [
+    "FBIN",
+    "JBHT",
+    "UPS",
+    "WTFC"
+   ]
+  },
+  {
+   "date": "2024-06-28",
+   "equity": 1201.97,
+   "holdings": [
+    "FBIN",
+    "JBHT",
+    "UPS",
+    "WTFC"
+   ]
+  },
+  {
+   "date": "2024-07-01",
+   "equity": 1193.48,
+   "holdings": [
+    "FBIN",
+    "JBHT",
+    "UPS",
+    "WTFC"
+   ]
+  },
+  {
+   "date": "2024-07-02",
+   "equity": 1194.31,
+   "holdings": [
+    "FBIN",
+    "JBHT",
+    "UPS",
+    "WTFC"
+   ]
+  },
+  {
+   "date": "2024-07-03",
+   "equity": 1187.82,
+   "holdings": [
+    "FBIN",
+    "JBHT",
+    "UPS",
+    "WTFC"
+   ]
+  },
+  {
+   "date": "2024-07-05",
+   "equity": 1179.54,
+   "holdings": [
+    "JBHT",
+    "LVS",
+    "LYV",
+    "UPS"
+   ]
+  },
+  {
+   "date": "2024-07-08",
+   "equity": 1170.26,
+   "holdings": [
+    "JBHT",
+    "LVS",
+    "LYV",
+    "UPS"
+   ]
+  },
+  {
+   "date": "2024-07-09",
+   "equity": 1166.15,
+   "holdings": [
+    "JBHT",
+    "LVS",
+    "LYV",
+    "UPS"
+   ]
+  },
+  {
+   "date": "2024-07-10",
+   "equity": 1173.45,
+   "holdings": [
+    "JBHT",
+    "LVS",
+    "LYV",
+    "UPS"
+   ]
+  },
+  {
+   "date": "2024-07-11",
+   "equity": 1196.03,
+   "holdings": [
+    "JBHT",
+    "LVS",
+    "LYV",
+    "UPS"
+   ]
+  },
+  {
+   "date": "2024-07-12",
+   "equity": 1218.84,
+   "holdings": [
+    "CLF",
+    "LVS",
+    "LYV",
+    "UPS"
+   ]
+  },
+  {
+   "date": "2024-07-15",
+   "equity": 1221.35,
+   "holdings": [
+    "CLF",
+    "LVS",
+    "LYV",
+    "UPS"
+   ]
+  },
+  {
+   "date": "2024-07-16",
+   "equity": 1223.72,
+   "holdings": [
+    "CLF",
+    "LVS",
+    "LYV",
+    "UPS"
+   ]
+  },
+  {
+   "date": "2024-07-17",
+   "equity": 1210.52,
+   "holdings": [
+    "CLF",
+    "LVS",
+    "LYV",
+    "UPS"
+   ]
+  },
+  {
+   "date": "2024-07-18",
+   "equity": 1191.3,
+   "holdings": [
+    "CLF",
+    "LVS",
+    "LYV",
+    "UPS"
+   ]
+  },
+  {
+   "date": "2024-07-19",
+   "equity": 1182.51,
+   "holdings": [
+    "ADMA",
+    "BGC",
+    "NVO",
+    "VERX"
+   ]
+  },
+  {
+   "date": "2024-07-22",
+   "equity": 1203.49,
+   "holdings": [
+    "ADMA",
+    "BGC",
+    "NVO",
+    "VERX"
+   ]
+  },
+  {
+   "date": "2024-07-23",
+   "equity": 1216.41,
+   "holdings": [
+    "ADMA",
+    "BGC",
+    "NVO",
+    "VERX"
+   ]
+  },
+  {
+   "date": "2024-07-24",
+   "equity": 1184.77,
+   "holdings": [
+    "ADMA",
+    "BGC",
+    "NVO",
+    "VERX"
+   ]
+  },
+  {
+   "date": "2024-07-25",
+   "equity": 1160.71,
+   "holdings": [
+    "ADMA",
+    "BGC",
+    "NVO",
+    "VERX"
+   ]
+  },
+  {
+   "date": "2024-07-26",
+   "equity": 1170.75,
+   "holdings": [
+    "ADMA",
+    "BGC",
+    "DKS",
+    "NVO"
+   ]
+  },
+  {
+   "date": "2024-07-29",
+   "equity": 1149.79,
+   "holdings": [
+    "ADMA",
+    "BGC",
+    "DKS",
+    "NVO"
+   ]
+  },
+  {
+   "date": "2024-07-30",
+   "equity": 1140.28,
+   "holdings": [
+    "ADMA",
+    "BGC",
+    "DKS",
+    "NVO"
+   ]
+  },
+  {
+   "date": "2024-07-31",
+   "equity": 1167.86,
+   "holdings": [
+    "ADMA",
+    "BGC",
+    "DKS",
+    "NVO"
+   ]
+  },
+  {
+   "date": "2024-08-01",
+   "equity": 1143.44,
+   "holdings": [
+    "ADMA",
+    "BGC",
+    "DKS",
+    "NVO"
+   ]
+  },
+  {
+   "date": "2024-08-02",
+   "equity": 1101.48,
+   "holdings": [
+    "ADMA",
+    "BGC",
+    "DKS",
+    "NVO"
+   ]
+  },
+  {
+   "date": "2024-08-05",
+   "equity": 1080.23,
+   "holdings": [
+    "ADMA",
+    "BGC",
+    "DKS",
+    "NVO"
+   ]
+  },
+  {
+   "date": "2024-08-06",
+   "equity": 1114.14,
+   "holdings": [
+    "ADMA",
+    "BGC",
+    "DKS",
+    "NVO"
+   ]
+  },
+  {
+   "date": "2024-08-07",
+   "equity": 1078.75,
+   "holdings": [
+    "ADMA",
+    "BGC",
+    "DKS",
+    "NVO"
+   ]
+  },
+  {
+   "date": "2024-08-08",
+   "equity": 1131.77,
+   "holdings": [
+    "ADMA",
+    "BGC",
+    "DKS",
+    "NVO"
+   ]
+  },
+  {
+   "date": "2024-08-09",
+   "equity": 1238.03,
+   "holdings": [
+    "BBWI",
+    "BGC",
+    "GEO",
+    "SIG"
+   ]
+  },
+  {
+   "date": "2024-08-12",
+   "equity": 1242.3,
+   "holdings": [
+    "BBWI",
+    "BGC",
+    "GEO",
+    "SIG"
+   ]
+  },
+  {
+   "date": "2024-08-13",
+   "equity": 1250.78,
+   "holdings": [
+    "BBWI",
+    "BGC",
+    "GEO",
+    "SIG"
+   ]
+  },
+  {
+   "date": "2024-08-14",
+   "equity": 1267.5,
+   "holdings": [
+    "BBWI",
+    "BGC",
+    "GEO",
+    "SIG"
+   ]
+  },
+  {
+   "date": "2024-08-15",
+   "equity": 1301.45,
+   "holdings": [
+    "BBWI",
+    "BGC",
+    "GEO",
+    "SIG"
+   ]
+  },
+  {
+   "date": "2024-08-16",
+   "equity": 1300.83,
+   "holdings": [
+    "BGC",
+    "CSL",
+    "DK",
+    "FANG"
+   ]
+  },
+  {
+   "date": "2024-08-19",
+   "equity": 1311.42,
+   "holdings": [
+    "BGC",
+    "CSL",
+    "DK",
+    "FANG"
+   ]
+  },
+  {
+   "date": "2024-08-20",
+   "equity": 1273.65,
+   "holdings": [
+    "BGC",
+    "CSL",
+    "DK",
+    "FANG"
+   ]
+  },
+  {
+   "date": "2024-08-21",
+   "equity": 1284.73,
+   "holdings": [
+    "BGC",
+    "CSL",
+    "DK",
+    "FANG"
+   ]
+  },
+  {
+   "date": "2024-08-22",
+   "equity": 1284.61,
+   "holdings": [
+    "BGC",
+    "CSL",
+    "DK",
+    "FANG"
+   ]
+  },
+  {
+   "date": "2024-08-23",
+   "equity": 1314.75,
+   "holdings": [
+    "BGC",
+    "BJ",
+    "GWRE",
+    "WMT"
+   ]
+  },
+  {
+   "date": "2024-08-26",
+   "equity": 1325.76,
+   "holdings": [
+    "BGC",
+    "BJ",
+    "GWRE",
+    "WMT"
+   ]
+  },
+  {
+   "date": "2024-08-27",
+   "equity": 1324.33,
+   "holdings": [
+    "BGC",
+    "BJ",
+    "GWRE",
+    "WMT"
+   ]
+  },
+  {
+   "date": "2024-08-28",
+   "equity": 1321.77,
+   "holdings": [
+    "BGC",
+    "BJ",
+    "GWRE",
+    "WMT"
+   ]
+  },
+  {
+   "date": "2024-08-29",
+   "equity": 1309.24,
+   "holdings": [
+    "BGC",
+    "BJ",
+    "GWRE",
+    "WMT"
+   ]
+  },
+  {
+   "date": "2024-08-30",
+   "equity": 1320.25,
+   "holdings": [
+    "EW",
+    "GWRE",
+    "IMO",
+    "MCO"
+   ]
+  },
+  {
+   "date": "2024-09-03",
+   "equity": 1294.35,
+   "holdings": [
+    "EW",
+    "GWRE",
+    "IMO",
+    "MCO"
+   ]
+  },
+  {
+   "date": "2024-09-04",
+   "equity": 1293.2,
+   "holdings": [
+    "EW",
+    "GWRE",
+    "IMO",
+    "MCO"
+   ]
+  },
+  {
+   "date": "2024-09-05",
+   "equity": 1267.05,
+   "holdings": [
+    "EW",
+    "GWRE",
+    "IMO",
+    "MCO"
+   ]
+  },
+  {
+   "date": "2024-09-06",
+   "equity": 1293.72,
+   "holdings": [
+    "DY",
+    "MCO",
+    "SPXC",
+    "THC"
+   ]
+  },
+  {
+   "date": "2024-09-09",
+   "equity": 1316.22,
+   "holdings": [
+    "DY",
+    "MCO",
+    "SPXC",
+    "THC"
+   ]
+  },
+  {
+   "date": "2024-09-10",
+   "equity": 1321.82,
+   "holdings": [
+    "DY",
+    "MCO",
+    "SPXC",
+    "THC"
+   ]
+  },
+  {
+   "date": "2024-09-11",
+   "equity": 1341.28,
+   "holdings": [
+    "DY",
+    "MCO",
+    "SPXC",
+    "THC"
+   ]
+  },
+  {
+   "date": "2024-09-12",
+   "equity": 1350.53,
+   "holdings": [
+    "DY",
+    "MCO",
+    "SPXC",
+    "THC"
+   ]
+  },
+  {
+   "date": "2024-09-13",
+   "equity": 1362.63,
+   "holdings": [
+    "DY",
+    "FICO",
+    "MCO",
+    "WELL"
+   ]
+  },
+  {
+   "date": "2024-09-16",
+   "equity": 1372.74,
+   "holdings": [
+    "DY",
+    "FICO",
+    "MCO",
+    "WELL"
+   ]
+  },
+  {
+   "date": "2024-09-17",
+   "equity": 1369.91,
+   "holdings": [
+    "DY",
+    "FICO",
+    "MCO",
+    "WELL"
+   ]
+  },
+  {
+   "date": "2024-09-18",
+   "equity": 1377.87,
+   "holdings": [
+    "DY",
+    "FICO",
+    "MCO",
+    "WELL"
+   ]
+  },
+  {
+   "date": "2024-09-19",
+   "equity": 1391.3,
+   "holdings": [
+    "DY",
+    "FICO",
+    "MCO",
+    "WELL"
+   ]
+  },
+  {
+   "date": "2024-09-20",
+   "equity": 1395.22,
+   "holdings": [
+    "DY",
+    "FICO",
+    "MCO",
+    "WELL"
+   ]
+  },
+  {
+   "date": "2024-09-23",
+   "equity": 1398.37,
+   "holdings": [
+    "DY",
+    "FICO",
+    "MCO",
+    "WELL"
+   ]
+  },
+  {
+   "date": "2024-09-24",
+   "equity": 1388.43,
+   "holdings": [
+    "DY",
+    "FICO",
+    "MCO",
+    "WELL"
+   ]
+  },
+  {
+   "date": "2024-09-25",
+   "equity": 1389.28,
+   "holdings": [
+    "DY",
+    "FICO",
+    "MCO",
+    "WELL"
+   ]
+  },
+  {
+   "date": "2024-09-26",
+   "equity": 1375.15,
+   "holdings": [
+    "DY",
+    "FICO",
+    "MCO",
+    "WELL"
+   ]
+  },
+  {
+   "date": "2024-09-27",
+   "equity": 1378.1,
+   "holdings": [
+    "DY",
+    "FICO",
+    "MCO",
+    "WELL"
+   ]
+  },
+  {
+   "date": "2024-09-30",
+   "equity": 1392.81,
+   "holdings": [
+    "DY",
+    "FICO",
+    "MCO",
+    "WELL"
+   ]
+  },
+  {
+   "date": "2024-10-01",
+   "equity": 1375.66,
+   "holdings": [
+    "DY",
+    "FICO",
+    "MCO",
+    "WELL"
+   ]
+  },
+  {
+   "date": "2024-10-02",
+   "equity": 1378.79,
+   "holdings": [
+    "DY",
+    "FICO",
+    "MCO",
+    "WELL"
+   ]
+  },
+  {
+   "date": "2024-10-03",
+   "equity": 1364.07,
+   "holdings": [
+    "DY",
+    "FICO",
+    "MCO",
+    "WELL"
+   ]
+  },
+  {
+   "date": "2024-10-04",
+   "equity": 1359.89,
+   "holdings": [
+    "DY",
+    "FICO",
+    "MCO",
+    "WELL"
+   ]
+  },
+  {
+   "date": "2024-10-07",
+   "equity": 1361.42,
+   "holdings": [
+    "DY",
+    "FICO",
+    "MCO",
+    "WELL"
+   ]
+  },
+  {
+   "date": "2024-10-08",
+   "equity": 1377.41,
+   "holdings": [
+    "DY",
+    "FICO",
+    "MCO",
+    "WELL"
+   ]
+  },
+  {
+   "date": "2024-10-09",
+   "equity": 1384.09,
+   "holdings": [
+    "DY",
+    "FICO",
+    "MCO",
+    "WELL"
+   ]
+  },
+  {
+   "date": "2024-10-10",
+   "equity": 1365.04,
+   "holdings": [
+    "DY",
+    "FICO",
+    "MCO",
+    "WELL"
+   ]
+  },
+  {
+   "date": "2024-10-11",
+   "equity": 1386.42,
+   "holdings": [
+    "CNQ",
+    "DY",
+    "FICO",
+    "MCO"
+   ]
+  },
+  {
+   "date": "2024-10-14",
+   "equity": 1390.24,
+   "holdings": [
+    "CNQ",
+    "DY",
+    "FICO",
+    "MCO"
+   ]
+  },
+  {
+   "date": "2024-10-15",
+   "equity": 1377.94,
+   "holdings": [
+    "CNQ",
+    "DY",
+    "FICO",
+    "MCO"
+   ]
+  },
+  {
+   "date": "2024-10-16",
+   "equity": 1397.57,
+   "holdings": [
+    "CNQ",
+    "DY",
+    "FICO",
+    "MCO"
+   ]
+  },
+  {
+   "date": "2024-10-17",
+   "equity": 1391.56,
+   "holdings": [
+    "CNQ",
+    "DY",
+    "FICO",
+    "MCO"
+   ]
+  },
+  {
+   "date": "2024-10-18",
+   "equity": 1383.39,
+   "holdings": [
+    "DY",
+    "FICO",
+    "HCC",
+    "MCO"
+   ]
+  },
+  {
+   "date": "2024-10-21",
+   "equity": 1386.0,
+   "holdings": [
+    "DY",
+    "FICO",
+    "HCC",
+    "MCO"
+   ]
+  },
+  {
+   "date": "2024-10-22",
+   "equity": 1367.04,
+   "holdings": [
+    "DY",
+    "FICO",
+    "HCC",
+    "MCO"
+   ]
+  },
+  {
+   "date": "2024-10-23",
+   "equity": 1347.55,
+   "holdings": [
+    "DY",
+    "FICO",
+    "HCC",
+    "MCO"
+   ]
+  },
+  {
+   "date": "2024-10-24",
+   "equity": 1352.69,
+   "holdings": [
+    "DY",
+    "FICO",
+    "HCC",
+    "MCO"
+   ]
+  },
+  {
+   "date": "2024-10-25",
+   "equity": 1346.61,
+   "holdings": [
+    "DOCS",
+    "DY",
+    "FICO",
+    "OWL"
+   ]
+  },
+  {
+   "date": "2024-10-28",
+   "equity": 1342.09,
+   "holdings": [
+    "DOCS",
+    "DY",
+    "FICO",
+    "OWL"
+   ]
+  },
+  {
+   "date": "2024-10-29",
+   "equity": 1337.49,
+   "holdings": [
+    "DOCS",
+    "DY",
+    "FICO",
+    "OWL"
+   ]
+  },
+  {
+   "date": "2024-10-30",
+   "equity": 1322.4,
+   "holdings": [
+    "DOCS",
+    "DY",
+    "FICO",
+    "OWL"
+   ]
+  },
+  {
+   "date": "2024-10-31",
+   "equity": 1309.95,
+   "holdings": [
+    "DOCS",
+    "DY",
+    "FICO",
+    "OWL"
+   ]
+  },
+  {
+   "date": "2024-11-01",
+   "equity": 1300.46,
+   "holdings": [
+    "DY",
+    "FICO",
+    "OWL",
+    "SLM"
+   ]
+  },
+  {
+   "date": "2024-11-04",
+   "equity": 1290.09,
+   "holdings": [
+    "DY",
+    "FICO",
+    "OWL",
+    "SLM"
+   ]
+  },
+  {
+   "date": "2024-11-05",
+   "equity": 1321.07,
+   "holdings": [
+    "DY",
+    "FICO",
+    "OWL",
+    "SLM"
+   ]
+  },
+  {
+   "date": "2024-11-06",
+   "equity": 1394.57,
+   "holdings": [
+    "DY",
+    "FICO",
+    "OWL",
+    "SLM"
+   ]
+  },
+  {
+   "date": "2024-11-07",
+   "equity": 1384.39,
+   "holdings": [
+    "DY",
+    "FICO",
+    "OWL",
+    "SLM"
+   ]
+  },
+  {
+   "date": "2024-11-08",
+   "equity": 1425.84,
+   "holdings": [
+    "AEO",
+    "DEO",
+    "DOW",
+    "RCI"
+   ]
+  },
+  {
+   "date": "2024-11-11",
+   "equity": 1410.23,
+   "holdings": [
+    "AEO",
+    "DEO",
+    "DOW",
+    "RCI"
+   ]
+  },
+  {
+   "date": "2024-11-12",
+   "equity": 1392.7,
+   "holdings": [
+    "AEO",
+    "DEO",
+    "DOW",
+    "RCI"
+   ]
+  },
+  {
+   "date": "2024-11-13",
+   "equity": 1399.75,
+   "holdings": [
+    "AEO",
+    "DEO",
+    "DOW",
+    "RCI"
+   ]
+  },
+  {
+   "date": "2024-11-14",
+   "equity": 1397.97,
+   "holdings": [
+    "AEO",
+    "DEO",
+    "DOW",
+    "RCI"
+   ]
+  },
+  {
+   "date": "2024-11-15",
+   "equity": 1385.75,
+   "holdings": [
+    "AGX",
+    "BFAM",
+    "GLNG",
+    "IQV"
+   ]
+  },
+  {
+   "date": "2024-11-18",
+   "equity": 1407.97,
+   "holdings": [
+    "AGX",
+    "BFAM",
+    "GLNG",
+    "IQV"
+   ]
+  },
+  {
+   "date": "2024-11-19",
+   "equity": 1439.64,
+   "holdings": [
+    "AGX",
+    "BFAM",
+    "GLNG",
+    "IQV"
+   ]
+  },
+  {
+   "date": "2024-11-20",
+   "equity": 1448.69,
+   "holdings": [
+    "AGX",
+    "BFAM",
+    "GLNG",
+    "IQV"
+   ]
+  },
+  {
+   "date": "2024-11-21",
+   "equity": 1490.18,
+   "holdings": [
+    "AGX",
+    "BFAM",
+    "GLNG",
+    "IQV"
+   ]
+  },
+  {
+   "date": "2024-11-22",
+   "equity": 1514.6,
+   "holdings": [
+    "BFAM",
+    "GLNG",
+    "HCA",
+    "KEX"
+   ]
+  },
+  {
+   "date": "2024-11-25",
+   "equity": 1573.33,
+   "holdings": [
+    "BFAM",
+    "GLNG",
+    "HCA",
+    "KEX"
+   ]
+  },
+  {
+   "date": "2024-11-26",
+   "equity": 1559.15,
+   "holdings": [
+    "BFAM",
+    "GLNG",
+    "HCA",
+    "KEX"
+   ]
+  },
+  {
+   "date": "2024-11-27",
+   "equity": 1543.42,
+   "holdings": [
+    "BFAM",
+    "GLNG",
+    "HCA",
+    "KEX"
+   ]
+  },
+  {
+   "date": "2024-11-29",
+   "equity": 1545.58,
+   "holdings": [
+    "BFAM",
+    "COKE",
+    "HCA",
+    "KEX"
+   ]
+  },
+  {
+   "date": "2024-12-02",
+   "equity": 1541.9,
+   "holdings": [
+    "BFAM",
+    "COKE",
+    "HCA",
+    "KEX"
+   ]
+  },
+  {
+   "date": "2024-12-03",
+   "equity": 1535.86,
+   "holdings": [
+    "BFAM",
+    "COKE",
+    "HCA",
+    "KEX"
+   ]
+  },
+  {
+   "date": "2024-12-04",
+   "equity": 1529.67,
+   "holdings": [
+    "BFAM",
+    "COKE",
+    "HCA",
+    "KEX"
+   ]
+  },
+  {
+   "date": "2024-12-05",
+   "equity": 1533.87,
+   "holdings": [
+    "BFAM",
+    "COKE",
+    "HCA",
+    "KEX"
+   ]
+  },
+  {
+   "date": "2024-12-06",
+   "equity": 1506.54,
+   "holdings": [
+    "COKE",
+    "FSK",
+    "MSFT",
+    "TTWO"
+   ]
+  },
+  {
+   "date": "2024-12-09",
+   "equity": 1499.39,
+   "holdings": [
+    "COKE",
+    "FSK",
+    "MSFT",
+    "TTWO"
+   ]
+  },
+  {
+   "date": "2024-12-10",
+   "equity": 1491.73,
+   "holdings": [
+    "COKE",
+    "FSK",
+    "MSFT",
+    "TTWO"
+   ]
+  },
+  {
+   "date": "2024-12-11",
+   "equity": 1503.35,
+   "holdings": [
+    "COKE",
+    "FSK",
+    "MSFT",
+    "TTWO"
+   ]
+  },
+  {
+   "date": "2024-12-12",
+   "equity": 1505.26,
+   "holdings": [
+    "COKE",
+    "FSK",
+    "MSFT",
+    "TTWO"
+   ]
+  },
+  {
+   "date": "2024-12-13",
+   "equity": 1490.97,
+   "holdings": [
+    "AVY",
+    "EHC",
+    "MCK",
+    "NSC"
+   ]
+  },
+  {
+   "date": "2024-12-16",
+   "equity": 1476.27,
+   "holdings": [
+    "AVY",
+    "EHC",
+    "MCK",
+    "NSC"
+   ]
+  },
+  {
+   "date": "2024-12-17",
+   "equity": 1465.15,
+   "holdings": [
+    "AVY",
+    "EHC",
+    "MCK",
+    "NSC"
+   ]
+  },
+  {
+   "date": "2024-12-18",
+   "equity": 1444.86,
+   "holdings": [
+    "AVY",
+    "EHC",
+    "MCK",
+    "NSC"
+   ]
+  },
+  {
+   "date": "2024-12-19",
+   "equity": 1436.45,
+   "holdings": [
+    "AVY",
+    "EHC",
+    "MCK",
+    "NSC"
+   ]
+  },
+  {
+   "date": "2024-12-20",
+   "equity": 1447.92,
+   "holdings": [
+    "AVY",
+    "EHC",
+    "MCK",
+    "NSC"
+   ]
+  },
+  {
+   "date": "2024-12-23",
+   "equity": 1448.43,
+   "holdings": [
+    "AVY",
+    "EHC",
+    "MCK",
+    "NSC"
+   ]
+  },
+  {
+   "date": "2024-12-24",
+   "equity": 1454.6,
+   "holdings": [
+    "AVY",
+    "EHC",
+    "MCK",
+    "NSC"
+   ]
+  },
+  {
+   "date": "2024-12-26",
+   "equity": 1453.63,
+   "holdings": [
+    "AVY",
+    "EHC",
+    "MCK",
+    "NSC"
+   ]
+  },
+  {
+   "date": "2024-12-27",
+   "equity": 1444.45,
+   "holdings": [
+    "AYI",
+    "COST",
+    "EHC",
+    "NSC"
+   ]
+  },
+  {
+   "date": "2024-12-30",
+   "equity": 1426.46,
+   "holdings": [
+    "AYI",
+    "COST",
+    "EHC",
+    "NSC"
+   ]
+  },
+  {
+   "date": "2024-12-31",
+   "equity": 1423.33,
+   "holdings": [
+    "AYI",
+    "COST",
+    "EHC",
+    "NSC"
+   ]
+  }
+ ]
+}
