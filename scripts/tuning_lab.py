@@ -14,14 +14,24 @@ from engine import config as K, data, backtest, policy
 
 shard, n_shards, n_configs = int(sys.argv[1]), int(sys.argv[2]), int(sys.argv[3])
 seed = int(sys.argv[4]) if len(sys.argv) > 4 else 42
-OUT = K.STATE / "research" / "tuning"
+import os
+SUFFIX = os.environ.get("W7_SUFFIX", "")
+OUT = K.STATE / "research" / f"tuning{SUFFIX}"
 OUT.mkdir(parents=True, exist_ok=True)
 
 rng = np.random.default_rng(seed)
-SPACE = {"k": [3, 4, 5, 6], "exit_q": [0.6, 0.7, 0.8, 0.9], "brake": [None, 0.05, 0.08, 0.12],
-         "max_per_sector": [None, 2, 3], "w_model": [0.3, 0.5, 0.7], "min_dv": [1e7, 2e7, 5e7],
-         "vol_filter": [True, False], "pick": ["top", "hivol"], "pool_q": [0.9, 0.95, 0.98]}
-configs = [{"k": 4, "exit_q": 0.8, "brake": 0.08, "max_per_sector": 2, "w_model": 0.5, "min_dv": 2e7,
+ROUND = os.environ.get("W7_ROUND", "1")
+if ROUND == "1":
+    SPACE = {"k": [3, 4, 5, 6], "exit_q": [0.6, 0.7, 0.8, 0.9], "brake": [None, 0.05, 0.08, 0.12],
+             "max_per_sector": [None, 2, 3], "w_model": [0.3, 0.5, 0.7], "min_dv": [1e7, 2e7, 5e7],
+             "vol_filter": [True, False], "pick": ["top", "hivol"], "pool_q": [0.9, 0.95, 0.98]}
+else:   # round 2: refine around the round-1 winner region (hivol, few names)
+    SPACE = {"k": [2, 3, 4], "exit_q": [0.8, 0.85, 0.9, 0.95], "brake": [None, 0.05, 0.08, 0.1],
+             "max_per_sector": [None, 2], "w_model": [0.3, 0.5, 0.7], "min_dv": [2e7, 5e7, 1e8],
+             "vol_filter": [True, False], "pick": ["hivol", "top"], "pool_q": [0.9, 0.95, 0.97, 0.99]}
+configs = [{"k": 3, "exit_q": 0.9, "brake": 0.08, "max_per_sector": None, "w_model": 0.5, "min_dv": 5e7,
+            "vol_filter": False, "pick": "hivol", "pool_q": 0.95, "name": "CHAMPION_v1.3"},
+           {"k": 4, "exit_q": 0.8, "brake": 0.08, "max_per_sector": 2, "w_model": 0.5, "min_dv": 2e7,
             "vol_filter": True, "pick": "top", "pool_q": 0.95, "name": "CHAMPION_v1.2"}]
 while len(configs) < n_configs:
     c = {k: v[rng.integers(len(v))] for k, v in SPACE.items()}
@@ -31,8 +41,8 @@ while len(configs) < n_configs:
 mine = configs[shard::n_shards]
 
 stocks = {"Close": data.load("stocks")["Close"]}
-X = pd.read_parquet(K.CACHE / "panel.parquet", columns=["vol20", "max20", "log_dv", "ev_red_flag", "ev_offering"])
-P = pd.read_parquet(K.CACHE / "oos_preds.parquet", columns=["mu_raw", "evidence"])
+X = pd.read_parquet(K.CACHE / f"panel{SUFFIX}.parquet", columns=["vol20", "max20", "log_dv", "ev_red_flag", "ev_offering"])
+P = pd.read_parquet(K.CACHE / f"oos_preds{SUFFIX}.parquet", columns=["mu_raw", "evidence"])
 sic = pd.read_parquet(K.CACHE / "sic.parquet")
 divs = {t: policy.sic_division(c) for t, c in zip(sic["ticker"], sic["sic"])}
 spy = data.load("market")["Close"]["SPY"]

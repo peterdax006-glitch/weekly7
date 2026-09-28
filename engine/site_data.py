@@ -72,4 +72,22 @@ def write_site(broker, prices):
         "latest_report": reports[-1].read_text(encoding="utf-8") if reports else None,
         "research": _j(K.STATE / "research" / "backtest_summary.json", None),
     }
-    (K.SITE / "data.json").write_text(json.dumps(out, default=float))
+    (K.SITE / "data.json").write_text(json.dumps(_clean(out), default=float, allow_nan=False))
+
+
+def _clean(o):
+    """Browsers reject NaN/Infinity in JSON; a single one would blank the dashboard."""
+    import math
+    if isinstance(o, dict):
+        return {k: _clean(v) for k, v in o.items()}
+    if isinstance(o, (list, tuple)):
+        return [_clean(v) for v in o]
+    if isinstance(o, (bool, str)) or o is None:
+        return o
+    try:
+        f = float(o)
+        if isinstance(o, (int, float)) or hasattr(o, "dtype"):
+            return None if (math.isnan(f) or math.isinf(f)) else (int(o) if isinstance(o, int) else f)
+    except (TypeError, ValueError):
+        pass
+    return o

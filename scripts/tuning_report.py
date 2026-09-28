@@ -9,7 +9,10 @@ from statistics import NormalDist
 from engine import config as K, data
 from engine.improve import log_experiment
 
-DIR = K.STATE / "research" / "tuning"
+import os
+SUFFIX = os.environ.get("W7_SUFFIX", "")
+DIR = K.STATE / "research" / f"tuning{SUFFIX}"
+PRIOR_TRIALS = int(os.environ.get("W7_PRIOR_TRIALS", "0"))      # configs tried in earlier rounds (Bonferroni)
 N_EPISODES = int(sys.argv[1]) if len(sys.argv) > 1 else 400
 rng = np.random.default_rng(7)
 spy = data.load("market")["Close"]["SPY"]
@@ -41,8 +44,13 @@ def month_stats(e, starts):
     return pd.DataFrame(rows)
 
 years = sorted(set(days.year))
-TUNE = [y for y in years if y % 2 == 1]
-LOCK = [y for y in years if y % 2 == 0]
+if os.environ.get("W7_LOCK_YEARS"):            # e.g. "2008-2016": an era no earlier round has seen
+    a, b = map(int, os.environ["W7_LOCK_YEARS"].split("-"))
+    LOCK = [y for y in years if a <= y <= b]
+    TUNE = [y for y in years if y not in LOCK]
+else:
+    TUNE = [y for y in years if y % 2 == 1]
+    LOCK = [y for y in years if y % 2 == 0]
 st_tune, st_lock = episodes(TUNE), episodes(LOCK)
 res = {}
 for n in names:
@@ -70,19 +78,19 @@ if cheat:
     print(f"cheat control: clairvoyant {c_obj:.3f} +7%-weeks/month vs best real {real_best:.3f} -> "
           f"{'NO LEAK' if leak_ok else 'POSSIBLE LEAK - results invalid'}")
     names = [n for n in names if not n.startswith("CHEAT")]
-champ = "CHAMPION_v1.2"
+champ = os.environ.get("W7_CHAMPION", "CHAMPION_v1.2")
 ranked = sorted(names, key=lambda n: -objective(res[n]["tune"]))
 best = ranked[0] if ranked[0] != champ else ranked[1]
 diff = res[best]["_lock_weeks7"] - res[champ]["_lock_weeks7"]     # same episodes: paired
 boots = [rng.choice(diff, len(diff)).mean() for _ in range(2000)]
 z = diff.mean() / (np.std(boots) + 1e-12)
-z_need = NormalDist().inv_cdf(1 - 0.05 / len(names))
+z_need = NormalDist().inv_cdf(1 - 0.05 / (len(names) + PRIOR_TRIALS))
 verdict = "PROMOTE" if (z >= z_need and objective(res[best]["lock"]) > objective(res[champ]["lock"])) else "KEEP CHAMPION"
 summary = {"configs": len(names), "episodes_per_split": N_EPISODES, "tune_years": TUNE, "locked_years": LOCK,
            "champion": {k: res[champ][k] for k in ("tune", "lock")},
            "best_on_tune": best, "best": {k: res[best][k] for k in ("tune", "lock")},
            "locked_gain_weeks7_per_month": float(diff.mean()), "z": float(z), "z_needed": float(z_need), "verdict": verdict,
            "top10_tune": [(n, round(objective(res[n]["tune"]), 4), round(objective(res[n]["lock"]), 4)) for n in ranked[:10]]}
-(K.STATE / "research" / "tuning_summary.json").write_text(json.dumps(summary, indent=1, default=float))
+(K.STATE / "research" / f"tuning_summary{SUFFIX}.json").write_text(json.dumps(summary, indent=1, default=float))
 log_experiment({"event": "tuning_lab", **{k: v for k, v in summary.items() if k != "top10_tune"}})
 print(json.dumps(summary, indent=1, default=lambda x: round(float(x), 4)))
