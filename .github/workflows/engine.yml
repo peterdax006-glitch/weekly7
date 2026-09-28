@@ -9,6 +9,9 @@ on:
       job:
         description: "force a job (risk / decide / close / weekly), blank = auto"
         required: false
+      fast:
+        description: "set to 1 to reuse cached prices and filings (manual catch-up runs)"
+        required: false
 
 concurrency:
   group: engine
@@ -39,6 +42,8 @@ jobs:
           ALPACA_KEY: ${{ secrets.ALPACA_KEY }}
           ALPACA_SECRET: ${{ secrets.ALPACA_SECRET }}
           SEC_CONTACT: ${{ secrets.SEC_CONTACT }}
+          W7_SKIP_PRICE_UPDATE: ${{ github.event.inputs.fast }}
+          W7_SKIP_FILINGS: ${{ github.event.inputs.fast }}
         run: python -m engine.tick ${{ github.event.inputs.job }}
       - name: Save market-data cache (after decide / close / weekly)
         if: always()

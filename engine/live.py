@@ -60,10 +60,14 @@ def predict_live(m, R):
 
 # ---------------- data ----------------
 def fresh_frames(lookback_days=420):
-    data.KEEP_PARTIAL = True          # decide runs ~15:40 ET: today's bar so far ~= the close we trade at
-    stocks = data.update("stocks")
-    market = data.update("market")
-    data.KEEP_PARTIAL = False
+    import os
+    if os.environ.get("W7_SKIP_PRICE_UPDATE"):      # manual runs only: reuse the bars already cached today
+        stocks, market = data.load("stocks"), data.load("market")
+    else:
+        data.KEEP_PARTIAL = True      # decide runs ~15:40 ET: today's bar so far ~= the close we trade at
+        stocks = data.update("stocks")
+        market = data.update("market")
+        data.KEEP_PARTIAL = False
     cut = stocks["Close"].index[-1] - pd.Timedelta(days=lookback_days)
     return {k: v.loc[cut:] for k, v in stocks.items()}, {k: v.loc[cut:] for k, v in market.items()}
 
