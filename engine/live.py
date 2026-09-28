@@ -225,7 +225,9 @@ def close():
     from .scoring import score_predictions
     from .site_data import write_site
     broker = get_broker()
-    stocks = data.load("stocks")
+    data.KEEP_PARTIAL = False
+    stocks = data.update("stocks")        # final closing prices (replaces the 15:40 snapshot bar)
+    data.update("market")
     prices = stocks["Close"].iloc[-1].to_dict()
     acct = broker.account(prices)
     today = datetime.now(ET).strftime("%Y-%m-%d")
