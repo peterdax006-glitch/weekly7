@@ -17,7 +17,8 @@ PREEXISTING = {
     "0": ["engine/provenance.py", "tests/test_provenance.py", "engine/improve.py", "scripts/foundation_status.py"],
     "1": ["engine/fill_audit.py", "tests/test_fill_audit.py"],
     "3": ["engine/patterns.py", "tests/test_planted_patterns.py"],
-    "25": ["scripts/planted_calibration.py"],
+    "25": ["scripts/planted_calibration.py", "engine/planted.py", "tests/test_planted_library.py"],
+    "A7": ["engine/miner_tuning.py", "tests/test_miner_tuning.py", "scripts/miner_tune_real.py"],
     "8": ["engine/analogs.py", "scripts/analog_test.py"],
     "A1": ["engine/candles.py", "tests/test_candles.py"],
 }
@@ -68,8 +69,35 @@ def run_tests(files):
     return ("PASS " if r.returncode == 0 else "FAIL ") + last[0]
 
 
+# files builders created or took over beyond their task file's "You own:" list (from their reports)
+EXTRA = {
+    "B01_pit_firewall": ["scripts/pit_audit_real.py"],
+    "B02_parity": ["engine/parity_suite.py", "scripts/run_parity.py", "tests/test_parity_suite.py"],
+    "B03_lifecycle_bank": ["scripts/run_pattern_bank.py"],
+    "B04_heavy_algo": ["scripts/heavy_algo_real.py"],
+    "B05_analogs_ext": ["scripts/run_analogs_ext.py"],
+    "B06_lessons": ["scripts/lessons_real.py"],
+    "B07_trust_direction": ["engine/direction_calib.py", "engine/direction_ablate.py", "engine/trust_store.py",
+                            "scripts/direction_study.py", "tests/test_direction_calib.py", "tests/test_direction_ablate.py",
+                            "tests/test_direction_study.py", "tests/test_trust_store.py"],
+    "B08_exits_stops": ["engine/gaprisk.py", "tests/test_gaprisk.py", "scripts/run_exits_stops.py", "scripts/run_gaprisk.py",
+                        "scripts/run_pattern_fail.py"],
+    "B09_timeline_basis": ["scripts/timeline_basis_report.py", "scripts/basis_offline.py", "scripts/dial_offline.py",
+                           "scripts/livesim_loop2.py", "tests/test_livesim_loop2.py"],
+    "B10_blind_gates": ["scripts/blind_gates_real.py", "engine/livesim.py", "scripts/check_retester.py",
+                        "scripts/livesim_cycle.py", "tests/test_livesim_gates.py"],
+    "B11_antioverfit": ["scripts/antioverfit_real.py"],
+    "B12_control_reports": ["engine/baseline.py", "engine/experiment_memory.py", "scripts/audit_registry.py",
+                            "tests/test_baseline.py", "tests/test_experiment_memory.py", "tests/test_audit_registry.py"],
+    "B13_data_live_safety": ["scripts/data_live_audit.py", "scripts/fetch_delisted.py"],
+    "B14_miner_hardening": ["engine/patterns.py", "tests/test_patterns_integration.py"],
+    "B15_memory_adapter": ["scripts/run_b15_memory_adapter.py", "tests/test_memory.py", "tests/test_session.py"],
+    "B17_quality_pyramid": ["tests/integration/"],
+}
+
+
 def units():
-    out = [(tid, phases, sorted(set(sum((expand(f) for f in files), []))))
+    out = [(tid, phases, sorted(set(sum((expand(f) for f in files + EXTRA.get(tid, [])), []))))
            for tid, (phases, files) in task_files().items()]
     claimed = {f for _, _, fs in out for f in fs}
     for ph, files in PREEXISTING.items():
