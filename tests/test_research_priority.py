@@ -668,3 +668,166 @@ def test_learned_difficulty_is_wired_into_ledger_and_too_hard_flags_reach_priori
         healthy.record(base, 0.3, Q.Outcome(200, 0.2, 0.001, decision_changed=True), "SUCCESS", f"2026-10-{1 + i:02d}", "2026-11-01")
     assert Q.too_hard_flags(healthy, "2026-11-01") == []                                    # decided answers are never flagged
     assert Q.too_hard_flags(Q.QuestionOutcomeBook(), "2026-11-01") == []
+
+
+# ------------------------------------------------------------------ wave-2d: conjunctions in run_day, tracker, atom budget, persistence, theme merge
+def _wide_world(seed, n_feat=10, n=250):
+    rng = np.random.default_rng(seed)
+    rows = []
+    for _ in range(n):
+        f = {f"f{i}": float(rng.uniform(0, 1)) for i in range(n_feat)}
+        hot = f["f2"] > 0.6 and f["f3"] < 0.4
+        rows.append(T.PredictionRow("p", not (rng.random() < (0.92 if hot else 0.10)), f))
+    return rows
+
+
+def test_atom_budget_bounds_the_search_and_still_finds_planted_pair():
+    rows = _wide_world(1)
+    full, small = {}, {}
+    T.find_conjunctions(rows, max_atoms=None, stats=full)
+    found = T.find_conjunctions(rows, max_atoms=20, stats=small)
+    assert full["atoms_all"] == 100 and small["atoms_kept"] <= 20 and small["screened"] == 100
+    assert small["evaluated"] < full["evaluated"] * 0.5
+    assert found and {"f2", "f3"} <= set(found[0].features) and found[0].rate_in > 0.7
+    tight = {}
+    T.find_conjunctions(rows, max_atoms=20, max_evals=30, stats=tight)
+    assert tight["evaluated"] <= 30 and tight["cut_by_budget"]                             # the hard stop holds
+    fifty = {}
+    r50 = T.find_conjunctions(_wide_world(2, n_feat=5), max_atoms=None, stats=fifty)         # exactly 50 atoms, unscreened
+    assert fifty["atoms_all"] == 50 and r50 and {"f2", "f3"} <= set(r50[0].features)
+    null = [T.PredictionRow("p", bool(np.random.default_rng(i).random() < 0.9), {f"f{j}": float((i * 7 + j * 13) % 10) / 10 for j in range(10)}) for i in range(200)]
+    assert T.find_conjunctions(null, max_atoms=20) == []                                     # budgeting adds no false discoveries here
+
+
+def test_run_day_generates_tests_and_tracks_conjunctions():
+    rows = _wide_world(3, n_feat=4, n=300)
+    hist = _wide_world(4, n_feat=4, n=600)
+    day = T.DayInput("2003-05-01", predictions=rows, pattern_history=hist)
+    led = T.TargetLedger()
+    rep = T.run_day(day, "2003-05-02", led)
+    conj_targets = [t for t in list(rep.targets) if t.conjunction is not None]
+    verdicts = [r for r in led.rows if "and" in r["text"]]
+    assert verdicts and any(r["status"] == "PROMOTED" for r in verdicts)                      # the planted pair replicated out of sample
+    tr = T.OpenConditionTracker()
+    fake = T.conjunction_target("p", T.find_conjunctions(rows)[0], "2003-05-01")
+    tc = tr.open(fake, "2003-05-01", "2003-05-02")
+    assert tc is not None and tr.open(fake, "2003-05-01", "2003-05-02") is tc                # the same frozen region is one tracker
+
+
+def _conj_rows(cond, true_effect, seed, n_days=60):
+    rng = np.random.default_rng(seed)
+    out = []
+    for d in range(n_days):
+        dd = f"2003-{6 + d // 28:02d}-{1 + d % 28:02d}"
+        for _ in range(8):
+            f = {"f2": float(rng.uniform(0, 1)), "f3": float(rng.uniform(0, 1))}
+            hot = cond.holds(f)
+            fail = rng.random() < ((0.9 if hot else 0.10) if true_effect else 0.30)
+            out.append(T.DatedRow(dd, T.PredictionRow("p", not fail, f)))
+    return out
+
+
+def test_conjunction_tracker_confirms_true_region_never_confirms_null_and_roundtrips():
+    conj = T.find_conjunctions(_wide_world(1, n_feat=4))[0]
+    tgt = T.conjunction_target("p", conj, "2003-05-01")
+    tr = T.OpenConditionTracker()
+    tc = tr.open(tgt, "2003-05-01", "2003-05-02")
+    tr.update(_conj_rows(conj, True, 1), "2004-01-01")
+    assert tc.state == T.TrackState.CONFIRMED
+    for seed in range(3):
+        t2 = T.OpenConditionTracker()
+        c2 = t2.open(tgt, "2003-05-01", "2003-05-02")
+        t2.update(_conj_rows(conj, False, seed), "2004-01-01")
+        assert c2.state != T.TrackState.CONFIRMED
+    back = T.OpenConditionTracker.from_json(tr.to_json())
+    assert back.summary() == tr.summary() and isinstance(list(back.items.values())[0].cond, T.Conjunction)
+    t3 = T.OpenConditionTracker()
+    t3.open(tgt, "2003-05-01", "2003-05-02")
+    with pytest.raises(FirewallBreach):
+        t3.update([T.DatedRow("2004-01-01", T.PredictionRow("p", True, {"f2": 0.5, "f3": 0.5}))], "2004-01-01")
+    missing = [T.DatedRow("2003-06-01", T.PredictionRow("p", False, {"f2": 0.9}))]              # a row lacking a feature is not classified
+    t3.update(missing, "2004-01-01")
+    assert list(t3.items.values())[0].n_in + list(t3.items.values())[0].n_out == 0
+
+
+def test_question_state_persistence_survives_restart_and_detects_damage(tmp_path):
+    ledger = Q.QuestionLedger()
+    dm = Q.attach_difficulty_model(ledger)
+    ev = _ev("loss", "persist_me", loss_share=0.3)
+    qo = Q.generate([ev], "2026-09-29", ledger).questions[0]
+    book = Q.QuestionOutcomeBook()
+    for i in range(6):
+        Q.answer_learn(qo, Q.Outcome(n=3, lift=0.0, p_value=1.0), ev, book, ledger, f"2026-10-{1 + i:02d}", "2026-11-01", actual_minutes=80.0)
+    flags = Q.too_hard_flags(book, "2026-11-01")
+    assert flags
+    p = tmp_path / "qstate.json"
+    Q.save_question_state(p, dm, flags, "2026-11-01")
+    ledger2 = Q.QuestionLedger()
+    st = P.new_state()
+    info = Q.restore_state(ledger2, p, st, [qo])
+    assert ledger2.difficulty_model.difficulty("loss", 0.3) == pytest.approx(dm.difficulty("loss", 0.3))
+    assert info["flags"] == len(flags) and st.external_multipliers["r_" + qo.qid] <= 0.5
+    p.write_text(p.read_text().replace('"multiplier"', '"multiplierx"', 1), encoding="utf-8")
+    with pytest.raises(Q.StateIntegrityError):
+        Q.load_question_state(p)
+    p.write_text("garbage", encoding="utf-8")
+    with pytest.raises(Q.StateIntegrityError):
+        Q.load_question_state(p)
+    fresh = Q.restore_state(Q.QuestionLedger(), tmp_path / "none.json")                        # no file: start fresh
+    assert fresh["flags"] == 0
+    bad = Q.HardnessFlag("source", "loss", 0.9, 5, "DEPRIORITISE", 1.7, "raises priority")
+    with pytest.raises(Q.StateIntegrityError):
+        Q.save_question_state(tmp_path / "x.json", dm, [bad], "2026-11-01")
+
+
+def _themed(src, subj, feat, fam_hint=None):
+    ev = Q.QuestionEvent(src, subj, "2026-09-20", 0.6, problem=Problem.LOSS_AVOIDANCE, contexts={feat: "high"}, loss_share=0.3)
+    return ev
+
+
+def test_themes_that_repeatedly_yield_the_same_answer_merge_into_one_tree():
+    e1, e2, e3 = _themed("loss", "alpha_x", "dispersion"), _themed("pattern_break", "beta_y", "liquidity"), _themed("loss", "gamma_z", "breadth")
+    objs = Q.generate([e1, e2, e3], "2026-09-29").questions
+    by = {o.subject: o for o in objs}
+    st = [Q.structure_of(by["alpha_x"], e1), Q.structure_of(by["beta_y"], e2), Q.structure_of(by["gamma_z"], e3)]
+    sa, sb, sc = (Q.signature(s) for s in st)
+    assert len({sa, sb, sc}) == 3
+    learner = Q.ThemeMergeLearner()
+    for i in range(4):
+        learner.observe(sa, "regime", f"2026-10-0{i + 1}", "2026-12-01")
+        learner.observe(sb, "regime", f"2026-10-0{i + 1}", "2026-12-01")                       # same answer under a different name
+        learner.observe(sc, "context", f"2026-10-0{i + 1}", "2026-12-01")                      # a different answer
+    assert learner.agreement(sa, sb, "2026-12-01")["merge"] and not learner.agreement(sa, sc, "2026-12-01")["merge"]
+    out = Q.merge_themes_into_trees(st, objs, learner, "2026-12-01", "2026-12-01")
+    merged = [tid for tid in out["trees"] if tid.startswith("tm_")]
+    assert len(merged) == 1 and len(out["members"][merged[0]]) == 2 and len(out["trees"]) == 2       # 3 questions -> 2 trees
+    assert out["trees"][merged[0]].validate() == []
+    hids = {h.nid for h in out["trees"][merged[0]].hypotheses()}
+    assert set(h.hid for o in (by["alpha_x"], by["beta_y"]) for h in o.hypotheses) - {"h_unknown"} <= hids     # union of both members' explanations
+    assert Q.merge_themes_into_trees(st, objs, learner, "2026-12-01", "2026-12-01")["trees"].keys() == out["trees"].keys()   # deterministic ids
+
+
+def test_theme_merge_needs_evidence_stops_when_answers_diverge_and_ignores_nothing_found():
+    lr = Q.ThemeMergeLearner()
+    for i in range(2):
+        lr.observe("a", "regime", f"2026-10-0{i + 1}", "2026-12-01")
+        lr.observe("b", "regime", f"2026-10-0{i + 1}", "2026-12-01")
+    assert not lr.agreement("a", "b", "2026-12-01")["merge"]                                  # only 2 answers each
+    for i in range(3, 6):
+        lr.observe("a", "regime", f"2026-10-0{i}", "2026-12-01")
+        lr.observe("b", "regime", f"2026-10-0{i}", "2026-12-01")
+    assert lr.agreement("a", "b", "2026-12-01")["merge"] and lr.agreement("a", "b", "2026-10-03")["merge"] is False   # invisible before matured
+    for i in range(6):
+        lr.observe("b", "decay", f"2026-11-0{i + 1}", "2026-12-01")                            # b's answers change: no longer mergeable
+    assert not lr.agreement("a", "b", "2026-12-01")["merge"]
+    nothing = Q.ThemeMergeLearner()
+    for i in range(4):
+        nothing.observe("c", "unknown", f"2026-10-0{i + 1}", "2026-12-01")
+        nothing.observe("d", "unknown", f"2026-10-0{i + 1}", "2026-12-01")
+    assert not nothing.agreement("c", "d", "2026-12-01")["merge"]                              # agreeing on 'found nothing' is not a shared cause
+    assert Q.ThemeMergeLearner().merge_groups([], "2026-12-01") == []
+    with pytest.raises(FirewallBreach):
+        lr.observe("a", "regime", "2026-12-01", "2026-12-01")
+    with pytest.raises(Q.StateIntegrityError):
+        Q.ThemeMergeLearner.from_json(lr.to_json().replace('"regime"', '"regimex"', 1))
+    assert Q.ThemeMergeLearner.from_json(lr.to_json()).agreement("a", "b", "2026-12-01") == lr.agreement("a", "b", "2026-12-01")

@@ -1298,3 +1298,234 @@ def apply_hardness(state: PRI.PriorityState, flags: Sequence[HardnessFlag], objs
     mult = hardness_multipliers(flags, objs)
     state.external_multipliers.update(mult)
     return mult
+
+
+# ---------------------------------------------------------------------------------------------------------- persistence of learned question state
+
+class StateIntegrityError(RuntimeError):
+    """A saved question-state file failed its integrity check. Raised, never repaired silently."""
+
+
+def difficulty_to_dict(dm: "DifficultyModel") -> dict:
+    return {s: [[float(r), bool(u)] for r, u in rows] for s, rows in sorted(dm.rows.items())}
+
+
+def difficulty_from_dict(d: Mapping) -> "DifficultyModel":
+    dm = DifficultyModel()
+    for s, rows in d.items():
+        if s not in SOURCES:
+            raise StateIntegrityError(f"difficulty rows for unknown source {s!r}")
+        dm.rows[s] = [(float(r), bool(u)) for r, u in rows]
+    return dm
+
+
+def flag_to_dict(f: HardnessFlag) -> dict:
+    return {"scope": f.scope, "key": f.key, "undecided_share": f.undecided_share, "n": f.n, "action": f.action, "multiplier": f.multiplier, "reason": f.reason}
+
+
+def flag_from_dict(d: Mapping) -> HardnessFlag:
+    f = HardnessFlag(str(d["scope"]), str(d["key"]), float(d["undecided_share"]), int(d["n"]), str(d["action"]), float(d["multiplier"]), str(d["reason"]))
+    errs = validate_flag(f)
+    if errs:
+        raise StateIntegrityError("invalid flag: " + "; ".join(errs))
+    return f
+
+
+def validate_flag(f: HardnessFlag) -> list:
+    errs = []
+    if f.scope not in ("source", "question"):
+        errs.append(f"scope {f.scope!r}")
+    if f.scope == "source" and f.key not in SOURCES:
+        errs.append(f"unknown source {f.key!r}")
+    if f.action not in ("DEPRIORITISE", "REDESIGN"):
+        errs.append(f"action {f.action!r}")
+    if not (0.0 < f.multiplier <= 1.0):
+        errs.append(f"multiplier {f.multiplier!r} must be in (0, 1]: a flag may only lower priority")
+    if not (0.0 <= f.undecided_share <= 1.0) or f.n < 0:
+        errs.append("undecided_share/n out of range")
+    return errs
+
+
+def save_question_state(path, dm: "DifficultyModel", flags: Sequence[HardnessFlag], now) -> str:
+    """Atomically write the difficulty model and the current too-hard flags with a checksum. Refuses invalid flags. Returns the checksum."""
+    import os
+    from pathlib import Path
+    for f in flags:
+        errs = validate_flag(f)
+        if errs:
+            raise StateIntegrityError("refusing to save an invalid flag: " + "; ".join(errs))
+    body = {"difficulty": difficulty_to_dict(dm), "flags": [flag_to_dict(f) for f in flags], "saved_for": str(now)}
+    payload = {"version": 1, "checksum": stable_hash(body, 24), "body": body}
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    tmp = p.with_suffix(p.suffix + ".tmp")
+    tmp.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
+    os.replace(tmp, p)
+    return payload["checksum"]
+
+
+def load_question_state(path) -> tuple:
+    """(DifficultyModel, [HardnessFlag], saved_for). FileNotFoundError when there is no file (the caller decides to start fresh);
+    StateIntegrityError for unreadable JSON, a wrong version, a checksum mismatch or any invalid content."""
+    from pathlib import Path
+    raw = Path(path).read_text(encoding="utf-8")
+    try:
+        payload = json.loads(raw)
+        body = payload["body"]
+        ok_version = payload.get("version") == 1
+        checksum = payload["checksum"]
+    except (KeyError, ValueError, TypeError) as e:
+        raise StateIntegrityError(f"unreadable question state: {e}") from e
+    if not ok_version:
+        raise StateIntegrityError(f"unknown format version {payload.get('version')!r}")
+    if checksum != stable_hash(body, 24):
+        raise StateIntegrityError("checksum mismatch: the file was altered or partly written")
+    try:
+        return difficulty_from_dict(body["difficulty"]), [flag_from_dict(d) for d in body["flags"]], body["saved_for"]
+    except (KeyError, ValueError, TypeError) as e:
+        raise StateIntegrityError(f"invalid content: {e}") from e
+
+
+def restore_state(ledger: QuestionLedger, path, priority_state: PRI.PriorityState | None = None, objs: Sequence[QuestionObject] = ()) -> dict:
+    """Resume after a loop restart: reattach the saved difficulty model to the ledger and re-install the too-hard multipliers on the
+    priority state. A missing file starts fresh (empty model, no flags); a damaged file raises."""
+    try:
+        dm, flags, saved = load_question_state(path)
+    except FileNotFoundError:
+        dm, flags, saved = DifficultyModel(), [], ""
+    ledger.difficulty_model = dm
+    installed = apply_hardness(priority_state, flags, objs) if priority_state is not None else {}
+    return {"flags": len(flags), "installed": installed, "saved_for": saved, "sources_with_history": sorted(dm.rows)}
+
+
+# ---------------------------------------------------------------------------------------------------------- learned merge of themes into trees
+
+def signature(s: Structure) -> str:
+    """A theme's identity independent of any single question: its structure minus the qid and the explanation family (the family is
+    what the answers are compared on)."""
+    return f"{s.group}|{s.problem}|{','.join(sorted(s.features))}"
+
+
+@dataclass
+class ThemeMergeLearner:
+    """Learns which themes are really one direction. For each answered question we record (theme signature, the family of the
+    answer that won). Two signatures whose answers repeatedly agree - the same dominant answer family, distributions within a small
+    total variation - are merged into ONE tree from then on, so the research stops asking the same thing under two names. Until both
+    have `min_n` answers nothing is merged, and merging stops the moment their answers disagree again (it is recomputed, not sticky)."""
+    min_n: int = 3
+    max_tv: float = 0.25
+    min_dominance: float = 0.6
+    rows: list = field(default_factory=list)         # (at, signature, answer_family)
+
+    def observe(self, sig: str, answer_family: str, at, now) -> None:
+        require_past(at, now, f"answer for theme {sig}")
+        if not answer_family:
+            raise QuestionError("an answer needs a family (use 'unknown' or 'chance' when that is what was found)")
+        self.rows.append((str(at), sig, answer_family))
+
+    def _dist(self, sig: str, now) -> dict:
+        rows = [r for r in self.rows if r[1] == sig and to_ts(r[0]) < to_ts(now)]
+        n = len(rows)
+        d: dict = {}
+        for _, _, fam in rows:
+            d[fam] = d.get(fam, 0) + 1
+        return {k: v / n for k, v in d.items()} if n else {}
+
+    def n(self, sig: str, now) -> int:
+        return sum(1 for r in self.rows if r[1] == sig and to_ts(r[0]) < to_ts(now))
+
+    def agreement(self, a: str, b: str, now) -> dict:
+        da, db = self._dist(a, now), self._dist(b, now)
+        if not da or not db:
+            return {"n_a": self.n(a, now), "n_b": self.n(b, now), "tv": 1.0, "same_dominant": False, "merge": False, "reason": "no answers yet"}
+        tv = 0.5 * sum(abs(da.get(k, 0.0) - db.get(k, 0.0)) for k in set(da) | set(db))
+        ka, kb = max(da, key=da.get), max(db, key=db.get)
+        na, nb = self.n(a, now), self.n(b, now)
+        same = ka == kb and da[ka] >= self.min_dominance and db[kb] >= self.min_dominance
+        if na < self.min_n or nb < self.min_n:
+            return {"n_a": na, "n_b": nb, "tv": tv, "same_dominant": same, "merge": False, "reason": f"needs {self.min_n} answers each"}
+        if ka in ("unknown", "chance") and kb == ka:
+            return {"n_a": na, "n_b": nb, "tv": tv, "same_dominant": same, "merge": False, "reason": "agreeing on 'nothing found' is not a shared explanation"}
+        ok = same and tv <= self.max_tv
+        return {"n_a": na, "n_b": nb, "tv": tv, "same_dominant": same, "merge": ok, "reason": "answers agree" if ok else "answers differ"}
+
+    def merge_groups(self, sigs: Sequence[str], now) -> list:
+        """Union-find over signatures whose answers agree. Returns tuples of signatures, largest first (singletons included)."""
+        sigs = sorted(set(sigs))
+        parent = {s: s for s in sigs}
+
+        def find(x):
+            while parent[x] != x:
+                parent[x] = parent[parent[x]]
+                x = parent[x]
+            return x
+        for i, a in enumerate(sigs):
+            for b in sigs[i + 1:]:
+                if self.agreement(a, b, now)["merge"]:
+                    ra, rb = find(a), find(b)
+                    if ra != rb:
+                        parent[max(ra, rb)] = min(ra, rb)
+        groups: dict = {}
+        for s in sigs:
+            groups.setdefault(find(s), []).append(s)
+        return sorted((tuple(v) for v in groups.values()), key=lambda t: (-len(t), t))
+
+    def to_json(self) -> str:
+        body = {"min_n": self.min_n, "max_tv": self.max_tv, "min_dominance": self.min_dominance, "rows": self.rows}
+        return json.dumps({"checksum": stable_hash(body, 16), "body": body}, sort_keys=True)
+
+    @classmethod
+    def from_json(cls, text: str) -> "ThemeMergeLearner":
+        try:
+            d = json.loads(text)
+            body = d["body"]
+        except (KeyError, ValueError, TypeError) as e:
+            raise StateIntegrityError(f"unreadable theme memory: {e}") from e
+        if d.get("checksum") != stable_hash(body, 16):
+            raise StateIntegrityError("theme memory checksum mismatch")
+        return cls(body["min_n"], body["max_tv"], body["min_dominance"], [tuple(r) for r in body["rows"]])
+
+
+def union_hypotheses(objs: Sequence[QuestionObject]) -> tuple:
+    """The union of the members' hypotheses by id, priors averaged over the members that held them and renormalised; a chance
+    hypothesis is guaranteed. This is the hypothesis set of the merged tree."""
+    acc: dict = {}
+    for o in objs:
+        for h in o.hypotheses:
+            acc.setdefault(h.hid, []).append(h)
+    merged = [replace(hs[0], prior=float(np.mean([h.prior for h in hs]))) for _, hs in sorted(acc.items())]
+    if not any(h.kind == "noise" for h in merged):
+        merged.append(Hypothesis("h_chance", "the observations are chance", 0.15, kind="noise"))
+    tot = sum(h.prior for h in merged)
+    return tuple(replace(h, prior=h.prior / tot) for h in merged)
+
+
+def merge_themes_into_trees(structs: Sequence[Structure], objs: Sequence[QuestionObject], learner: ThemeMergeLearner, now, created_real: str,
+                            build=None) -> dict:
+    """One tree per merged group of themes and one per remaining question. Returns {"trees": {tree_id: HypothesisTree},
+    "members": {tree_id: [qid, ...]}, "merged_groups": [...]}. A merged tree is built from the union of its members' hypotheses and the
+    shared discriminating experiment of the highest-priority member, and is named after the group so the same group always maps to the
+    same tree id. `build` is injectable for tests."""
+    build = build or build_tree
+    st = {s.qid: s for s in structs}
+    by = {o.qid: o for o in objs}
+    groups = learner.merge_groups([signature(s) for s in structs], now)
+    trees: dict = {}
+    members: dict = {}
+    merged_groups = []
+    for grp in groups:
+        qids = sorted(q for q, s in st.items() if signature(s) in grp and q in by)
+        if not qids:
+            continue
+        lead = max((by[q] for q in qids), key=lambda o: (o.priority, o.qid))
+        if len(grp) > 1 and len(qids) > 1:
+            tid = "tm_" + stable_hash(list(grp), 8)
+            hyps = union_hypotheses([by[q] for q in qids])
+            trees[tid] = build(tid, lead.question.text, created_real, hyps, [], None, lead.question.problem.value)
+            members[tid] = qids
+            merged_groups.append(tuple(grp))
+        else:
+            for q in qids:
+                trees["t_" + q] = by[q].to_tree(created_real)
+                members["t_" + q] = [q]
+    return {"trees": trees, "members": members, "merged_groups": merged_groups}
