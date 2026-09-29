@@ -1578,11 +1578,16 @@ def compute_verdicts(parts: dict, facts: dict, proofs: dict, state_check: dict |
     if not V:                       # 1: absent (delisted) names cannot be recovered offline; measured => QUARANTINED with the size reported
         out["1"] = unmeasured("survivorship")
     else:
-        reg = V.get("registry_rows_with_last_close", 0)
-        share = V.get("dead_names_with_recovered_prices", 0) / reg if reg else 0.0
-        out["1"] = Verdict(CLEAN if share >= 0.95 else QUARANTINED,
-                           {"share_of_registered_dead_names_with_price_history": share, "dead_names_injected_in_default_path": facts.get("livesim_injects_dead_names")},
-                           () if share >= 0.95 else ("delisted names' price history is missing, so the universe is survivors: size measured, not removed",))
+        alive, exits = sum((V.get("alive_by_year") or {}).values()), sum((V.get("exits_by_year") or {}).values())
+        floor = (V.get("hazard_bands") or {}).get("literature_low", 0.03)
+        rate = exits / alive if alive else None                    # observed share of name-years that end in an exit
+        checks = {"observed_annual_exit_rate_in_panel": rate, "literature_low_annual_delisting_hazard": floor,
+                  "dead_names_injected_in_default_path": facts.get("livesim_injects_dead_names")}
+        if rate is None:
+            out["1"] = Verdict(UNMEASURED, checks, ("no name-years in the survivorship part",))
+        else:
+            out["1"] = Verdict(CLEAN if rate >= floor else QUARANTINED, checks, () if rate >= floor else (
+                "the panel is survivors: its observed exit rate is far below the literature delisting hazard, so delisted names are absent (size measured, not removed)",))
     out["2"] = verdict_adjusted_prices(facts, proofs, J or None)
     if not M:
         out["3"] = unmeasured("metadata")

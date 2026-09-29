@@ -1,34 +1,29 @@
 {
  "counts": {
-  "LEAK": 3,
+  "LEAK": 1,
   "CLEAN": 5,
-  "FIXED": 0,
+  "FIXED": 2,
   "QUARANTINED": 4
  },
  "open_leaks": [
-  "2",
-  "4",
-  "8c"
+  "6"
  ],
  "provenance": {
-  "code_hash": "9cd4a5754346e615",
+  "code_hash": "a13281a3c0a9b60b",
   "code_files": [
    "engine/__init__.py",
    "engine/config.py",
    "engine/leak_audit.py",
-   "engine/policy.py",
-   "engine/portfolio.py",
    "engine/provenance.py",
-   "engine/universe.py",
    "scripts/leak_audit.py"
   ],
   "code_mixed": [],
-  "git_commit": "a4e2c135fd886977d01c0f76b3260612a93bfae7+dirty",
-  "canon_sha": "00bf97d3ae2dcdc2",
+  "git_commit": "10c1f8d047e0af4f0ed20a1a7edd7637bf36cd3f+dirty",
+  "canon_sha": "5dad4adabf35706b",
   "bible_sha": "a97ea91862cee371",
   "blueprint_version": "4.0",
-  "config_hash": "a3553e123539defb",
-  "data_snapshot": "5f94924cad053ffd",
+  "config_hash": "b4cbc070ebc23765",
+  "data_snapshot": "171ba8ba728ee713",
   "seed": 20260928
  },
  "channels": {
@@ -37,6 +32,17 @@
    "name": "Survivorship (universe = today's listings; dead names absent)",
    "status": "QUARANTINED",
    "evidence": {
+    "computed_verdict": {
+     "computed_status": "QUARANTINED",
+     "checks": {
+      "observed_annual_exit_rate_in_panel": 1.007627742006993e-05,
+      "literature_low_annual_delisting_hazard": 0.03,
+      "dead_names_injected_in_default_path": false
+     },
+     "why_not_better": [
+      "the panel is survivors: its observed exit rate is far below the literature delisting hazard, so delisted names are absent (size measured, not removed)"
+     ]
+    },
     "panel": {
      "rows": 16292,
      "cols": 5247,
@@ -135,8 +141,23 @@
   "2": {
    "key": "2",
    "name": "Split/dividend back-adjusted prices (levels encode later corporate actions)",
-   "status": "LEAK",
+   "status": "FIXED",
    "evidence": {
+    "computed_verdict": {
+     "computed_status": "FIXED",
+     "checks": {
+      "feed_default_is_split_invariant": true,
+      "precompute_passes_feed_rule": true,
+      "parity_passes_feed_rule": true,
+      "features_branch_calls_split_invariant_tradable": true,
+      "hardened_feed_does_not_override_rule": true,
+      "worker_reaches_feed_through_livesim_run": true,
+      "planted_split_neutralised": true,
+      "planted_split_moves_the_live_rule": true,
+      "swap_effect_measured_on_real_caches": true
+     },
+     "why_not_better": []
+    },
     "median_close_first5y_vs_last5y": 0.01922734987202727,
     "median_close_by_year_sample": {
      "1965": 0.42120009660720825,
@@ -233,7 +254,7 @@
    },
    "test": "test_level_rule_disagreement_catches_split_and_is_zero_when_unadjusted; test_split_invariant_tradable_ignores_a_later_split_but_price_rank_does_not; test_price_level_drift_detects_back_adjustment",
    "fix": "engine.leak_audit.split_invariant_tradable ranks 20-day dollar volume only (split-invariant); reconstruct_as_traded + level_rule_disagreement size the effect",
-   "hook": "engine/features.py build(): in relative mode replace `tradable = (C.rank(axis=1, pct=True) >= rel_q[0]) & (dv20.rank(...) >= rel_q[1]) & C.notna()` with `tradable = leak_audit.split_invariant_tradable(C, V, rel_q[1])`; the non-relative branch (MIN_PRICE=3) is not on the blind path. Every other feature is a ratio and split-invariant; log_dv is rank-normalised in model.normalise.",
+   "hook": "IMPLEMENTED on the default path: livesim.Feed defaults to tradable_rule='split_invariant' and features.build routes it to leak_audit.split_invariant_tradable (price-rank clause removed on the Test path; the Live rule keeps it). The non-relative branch is not on the blind path.",
    "measured_on": "real caches + Yahoo split sample"
   },
   "3": {
@@ -241,6 +262,17 @@
    "name": "Today's metadata (names, SIC, crypto filter, exchange listing)",
    "status": "QUARANTINED",
    "evidence": {
+    "computed_verdict": {
+     "computed_status": "QUARANTINED",
+     "checks": {
+      "crypto_tickers_in_panel": 24,
+      "filter_inert_on_blind_codes": true,
+      "sic_is_todays_classification": true
+     },
+     "why_not_better": [
+      "the panel holds today's listings, crypto-named names and today's SIC codes; the trader never sees a name"
+     ]
+    },
     "crypto_matches_in_panel": [
      {
       "ticker": "MSTR",
@@ -441,22 +473,96 @@
   "4": {
    "key": "4",
    "name": "Learned state from the future (basis cfg/meta trained on later or same windows; sensitivity-derived defaults)",
-   "status": "LEAK",
+   "status": "QUARANTINED",
    "evidence": {
-    "loop2_train_basis_calls": [
+    "computed_verdict": {
+     "computed_status": "QUARANTINED",
+     "checks": {
+      "main_plans_each_round_from_lineage": true,
+      "unseen_start_falls_back_to_neutral_cfg": true,
+      "every_play_call_carries_a_per_window_basis": true,
+      "global_basis_reaches_no_play_call": true,
+      "registered_training_set_equals_trained_set": true,
+      "start_cfg_is_data_free": true,
+      "legacy_windows_excluded_from_headline": true,
+      "gated_basis_never_trained_on_unended_window": true,
+      "naive_latest_basis_is_touched_control": true,
+      "no_trained_play_uses_a_basis_with_unended_training_window": true,
+      "untrained_plays_used_exactly_the_neutral_cfg": true,
+      "untrained_plays_used_the_default_meta": true,
+      "every_played_window_has_a_basis_record": true,
+      "trained_plays_all_resolvable": true,
+      "lineage_monotone_each_version_contains_the_previous": true,
+      "state_file_read": true,
+      "train_basis_calls": [
+       {
+        "line": 419,
+        "kwargs": [
+         "seed"
+        ],
+        "passes_as_of": false,
+        "training_set": "wins"
+       }
+      ],
+      "train_basis_passes_as_of": false,
+      "meta_default_tuned_on_real_outcomes": true
+     },
+     "why_not_better": [
+      "META_DEFAULT (used by every untrained play) was set from the sensitivity study on real outcomes: a data-tuned starting point with no data-free replacement; results must carry this label"
+     ]
+    },
+    "train_basis_calls_in_main(source)": [
      {
-      "line": 327,
+      "line": 419,
       "kwargs": [
        "seed"
       ],
-      "passes_as_of": false
+      "passes_as_of": false,
+      "training_set": "wins"
      }
     ],
-    "loop2_trains_on_all_archived_windows": true,
-    "simulated_share_of_basis_training_windows_that_end_after_the_played_window_starts": 0.4951945018438894,
-    "simulated_share_of_played_windows_whose_basis_touched_such_a_window": 0.962719298245614,
-    "share_of_windows_that_would_fall_back_to_untrained_defaults_under_BasisLineage": 0.7625000000000001,
-    "defaults_tuned_on_calendar_years": [
+    "register_basis_calls_in_main(source)": [
+     {
+      "line": 426,
+      "trained_on": "wins"
+     }
+    ],
+    "training_still_uses_every_archived_window": true,
+    "play_calls_missing_a_per_window_basis": [],
+    "global_basis_reaching_a_play_call": [],
+    "real_state_file": {
+     "file": "state\\livesim\\loop2.json",
+     "modified": "2026-09-29T15:06:49.257852793",
+     "windows": 24,
+     "legacy_windows_(pre-lineage, excluded from headline)": [
+      "w01a",
+      "w01b",
+      "w01c",
+      "w02a",
+      "w02b",
+      "w02c"
+     ],
+     "untrained_plays": 18,
+     "trained_plays": 0,
+     "violations": [],
+     "unresolved": [],
+     "lineage_versions": [],
+     "untrained_cfg_mismatch": [],
+     "untrained_meta_mismatch": []
+    },
+    "control_if_the_loop_handed_every_window_the_newest_basis(seeded replay of the draw process)": 0.9551282051282051,
+    "gated_replay": {
+     "gated_plays_checked": 168,
+     "gated_violations": 0,
+     "gated_share_of_plays_on_untrained_neutral_basis": 0.8214285714285714
+    },
+    "measured_before_the_fix_(static part, old loop design)": {
+     "share_of_played_windows_whose_basis_touched_a_later_window": 0.962719298245614,
+     "mean_future_share_of_training_set": 0.4951945018438894
+    },
+    "starting_cfg": "NEUTRAL_CFG = neutral_default_cfg(CFG_SPACE): the middle grid value of every knob, no outcome used",
+    "starting_meta_META_DEFAULT_is_tuned_on_real_outcomes": true,
+    "sensitivity_defaults_calendar_years": [
      1967,
      1968,
      1969,
@@ -495,22 +601,29 @@
      2023,
      2025
     ],
-    "share_of_possible_windows_in_sample_for_their_defaults": 0.8010973936899863,
-    "memory_bank": "filtered real_end < start in Feed.long_term_memory and re-checked by BG.check_memory_bank_causality: CLEAN",
+    "share_of_possible_windows_in_sample_for_those_tuned_defaults": 0.8010973936899863,
+    "memory_bank": "filtered real_end < start in Feed.long_term_memory and re-checked by BG.check_memory_bank_causality",
     "memory_bank_planted_late_row_caught": true,
     "pattern_bank_lessons_analogs_reachable_from_blind_path": [],
-    "same_window_rerun": "a rerun of a real window is trained on its own first run's archive (C54 wants learning across reruns, C56 forbids it): BasisLineage(allow_same_window=False) is the strict default"
+    "same_window_rerun": "BasisLineage(allow_same_window=False) is the strict default: a rerun of a real window never plays a basis trained on its own first run (C56 over C54)"
    },
-   "test": "test_current_loop_design_trains_on_windows_from_the_future; test_basis_for_picks_newest_version_trained_only_on_the_past; test_violations_flags_planted_future_training; test_lineage_filter_removes_the_measured_leak; test_defaults_contamination_counts_windows_touching_tuned_years",
-   "fix": "engine.leak_audit.BasisLineage (referee-side registry: basis_for(real_start) returns only bases trained on windows that ended before), strict_training_windows, neutral_default_cfg (data-free start)",
-   "hook": "scripts/livesim_loop2.py main(): (a) keep a BasisLineage; after each train_basis() call `lineage.register(version, res.cfg, res.meta, [TrainedOn(id, real_start, real_end) for the windows in wins])` (real dates from SealedYear.start_of(sealed._read()) - referee side only); (b) before run_workers, choose per window `rec = lineage.basis_for(real_start)` and pass rec['cfg'], rec['meta'] (or `neutral_default_cfg(CFG_SPACE)` + META_DEFAULT when None) instead of st['cfg'], st['meta'] - one worker call per distinct basis; (c) replace `st['cfg']` initial defaults with `neutral_default_cfg(CFG_SPACE)`. Owner decision: C54 (learn across reruns) vs C56 for reruns of the same window.",
-   "measured_on": "loop2 source + seeded simulation of its draw process (state/livesim not read)"
+   "test": "test_channel4_verdict_flips_when_the_loop_passes_the_global_basis; test_channel4_verdict_flips_when_the_registered_set_differs_from_the_trained_set; test_lineage_state_check_flags_a_planted_future_trained_play; test_current_loop_design_trains_on_windows_from_the_future; test_violations_flags_planted_future_training; test_lineage_filter_removes_the_measured_leak",
+   "fix": "scripts/livesim_loop2.py: plan_round (BasisLineage.basis_for(real start), else NEUTRAL_CFG + META_DEFAULT), register_basis (every trained-on window with real dates), run_workers/classify_round per_id; engine.leak_audit.BasisLineage",
+   "hook": "Remaining open item: META_DEFAULT (adaptation meta-parameters, used by every untrained play) was set from the sensitivity study (39 windows of real outcomes) and has no data-free replacement; every result must carry that label. `train_basis` still takes no `as_of` by design - the gate between training and play is what is proven here. Owner decision: C54 (learn across reruns) vs C56 for reruns of the same window.",
+   "measured_on": "loop2 + livesim source (AST), the loop's own state file (referee side; no sealed window opened), seeded replay of its draw process"
   },
   "5": {
    "key": "5",
    "name": "Macro revisions (FRED current vintage vs first release)",
    "status": "CLEAN",
    "evidence": {
+    "computed_verdict": {
+     "computed_status": "CLEAN",
+     "checks": {
+      "revision_prone_consumers_reachable_from_blind_path": []
+     },
+     "why_not_better": []
+    },
     "analogs_or_parity_reachable_from_blind_path": false,
     "consumers": "engine/analogs.py and engine/parity.py only (neither is on the blind path)",
     "revised_series_in_macro_parquet": [
@@ -546,8 +659,35 @@
   "6": {
    "key": "6",
    "name": "Year fingerprints (C55): could the exposed feed identify the real year?",
-   "status": "QUARANTINED",
+   "status": "LEAK",
    "evidence": {
+    "computed_verdict": {
+     "computed_status": "LEAK",
+     "checks": {
+      "identifiable_groups_exposed_window": [
+       "calendar",
+       "levels_after_hardening",
+       "levels_raw",
+       "levels_scrubbed",
+       "scrubbed_all",
+       "trader_inputs"
+      ],
+      "identifiable_groups_hidden_only": [
+       "calendar",
+       "levels_after_hardening",
+       "levels_raw",
+       "trader_inputs"
+      ],
+      "trader_inputs_identifiable_in": [
+       "exposed",
+       "hidden"
+      ],
+      "shuffled_label_control_near_zero": true
+     },
+     "why_not_better": [
+      "the trader's own inputs identify the year in the ['exposed', 'hidden'] view"
+     ]
+    },
     "exposed_window(6y warm-up + 12 months; upper bound, neighbouring windows share warm-up data)": {
      "calendar": {
       "skill": 0.7925403361906301,
@@ -725,7 +865,7 @@
    },
    "test": "test_probe_identifies_year_from_a_planted_level_channel_and_not_after_scrub; test_probe_split_never_overlaps_train_and_test_windows; test_calendar_features_see_a_midweek_closure_and_the_regular_grid_removes_it; test_hardened_feed_closes_the_three_exposures",
    "fix": "HardenedFeed removes the absolute SPY/market volume level and real column order (levels_after_hardening barely moves: universe size, price and dollar-volume levels and data artefacts stay identifiable); regular_grid_index removes closure signatures but only cuts the calendar probe from 0.79 to 0.54 skill (the session COUNT survives) and changes what a 'week' is: opt-in, not wired",
-   "hook": "Level and calendar fingerprints are identifiable in the exposed frames but the trader consumes only ranks, ratios and the m_* context (probe group trader_inputs). Learned state is the only place a year fingerprint can act (the code has no recall of years): with BasisLineage (channel 4) a window's state contains nothing from its own year, so a fingerprint has nothing to look up. Level scrubs beyond HardenedFeed (universe size cap, price/volume rebasing) cost real information and are owner decisions.",
+   "hook": "Computed from the fingerprint part: the trader's OWN inputs (ranks, ratios and the m_* market context) identify the real period on their own - the m_* columns carry most of it (single-feature skill exposed/hidden-only: m_dispersion 0.74/0.56, m_vix_chg5 0.52/0.33, m_breadth 0.51/0.00). Market state is live information by design, but it is also a date. A fingerprint can only act where something can be looked up by it: (a) learned state - closed by BasisLineage (no basis contains the played window's year); (b) the memory bank, which recalls by exactly these m_* columns - closed by the real_end < start filter (BG.check_memory_bank_causality); (c) the model itself, which fits its own warm-up. So the status stays LEAK until the owner rules that identifiable-but-unusable market context is acceptable (then QUARANTINED) or coarsens the m_* inputs. Not resolved here.",
    "measured_on": "real caches, 729 window starts 1965-2025"
   },
   "7": {
@@ -733,9 +873,18 @@
    "name": "Network (blind worker must have none)",
    "status": "CLEAN",
    "evidence": {
+    "computed_verdict": {
+     "computed_status": "CLEAN",
+     "checks": {
+      "blocked_attempts_in_a_full_window": 0,
+      "worker_installs_guard": true,
+      "guard_blocks_planted_lookup": true
+     },
+     "why_not_better": []
+    },
     "full_adaptive_window_under_guard": {
      "sessions": 262,
-     "wall_s": 30.65762495994568,
+     "wall_s": 20.237038612365723,
      "blocked_network_attempts": [],
      "data_cache_files_opened": [
       "data/cache/universe.csv"
@@ -766,8 +915,8 @@
       "call:update@276"
      ],
      "features": [
-      "call:update@159",
-      "call:update@184"
+      "call:update@169",
+      "call:update@194"
      ],
      "improve": [
       "call:update@192",
@@ -779,6 +928,17 @@
      "isolation": [
       "call:update@471"
      ],
+     "leak_audit": [
+      "import:socket@26",
+      "call:update@250",
+      "call:update@254",
+      "call:update@862",
+      "call:update@868",
+      "call:update@879",
+      "call:update@882",
+      "call:update@1334",
+      "call:update@1348"
+     ],
      "live": [
       "call:update@68",
       "call:update@69",
@@ -789,8 +949,8 @@
       "call:update@236"
      ],
      "livesim_loop2": [
-      "call:update@59",
-      "call:update@201"
+      "call:update@78",
+      "call:update@282"
      ],
      "missed_winners": [
       "call:update@448"
@@ -813,8 +973,8 @@
       "call:update@994"
      ],
      "provenance": [
-      "call:update@95",
-      "call:update@96"
+      "call:update@104",
+      "call:update@105"
      ],
      "replay": [
       "call:update@173"
@@ -844,6 +1004,13 @@
    "name": "Text, news, speeches, headlines in served data",
    "status": "CLEAN",
    "evidence": {
+    "computed_verdict": {
+     "computed_status": "CLEAN",
+     "checks": {
+      "free_text_columns": null
+     },
+     "why_not_better": []
+    },
     "free_text_columns_found": {
      "events": [],
      "insider": [],
@@ -872,14 +1039,14 @@
      "PERIODIC": 241138,
      "EARN": 214962,
      "AGREEMENT": 98878,
-     "ACTIVIST_AMEND": 41939,
      "OFFERING": 38228,
+     "ACTIVIST_AMEND": 24913,
      "UNREG_SALE": 19530,
      "SHELF": 18527,
-     "ACTIVIST": 11926,
      "ACQ_DONE": 11818,
      "LATE_FILING": 8193,
      "DELIST_NOTICE": 7510,
+     "ACTIVIST": 6504,
      "AUDITOR_CHANGE": 5195,
      "RESTATEMENT": 1716,
      "BANKRUPTCY": 157
@@ -896,13 +1063,22 @@
    "name": "Feature look-ahead (fast path vs truncated data) and label embargo",
    "status": "CLEAN",
    "evidence": {
+    "computed_verdict": {
+     "computed_status": "CLEAN",
+     "checks": {
+      "leaky_features": [],
+      "n_features": 53,
+      "embargo_covers_label_reach": true
+     },
+     "why_not_better": []
+    },
     "truncation_invariance_real_sample": {
      "n_tickers": 60,
      "n_cuts": 3,
      "n_features": 53,
      "clean": true,
      "leaky_features": {},
-     "n_events": 1235,
+     "n_events": 1177,
      "n_insider": 312
     },
     "model_embargo_sessions": 10,
@@ -917,8 +1093,22 @@
   "8c": {
    "key": "8c",
    "name": "What the feed shows: real alphabetical column order, columns for future IPOs, absolute SPY level",
-   "status": "LEAK",
+   "status": "FIXED",
    "evidence": {
+    "computed_verdict": {
+     "computed_status": "FIXED",
+     "checks": {
+      "blind_feed_hardened_by_default": true,
+      "blind_feed_class_returns_hardened": true,
+      "run_uses_blind_feed_class": true,
+      "run_never_builds_plain_feed": true,
+      "worker_does_not_opt_out": true,
+      "hardened_feed_shows_none_of_the_three_exposures_on_real_windows": true,
+      "plain_feed_shows_them_control": true,
+      "n_real_windows": 3
+     },
+     "why_not_better": []
+    },
     "plain_feed": {
      "1975-03-01": {
       "spy_first_level": 6.145759105682373,
@@ -930,17 +1120,17 @@
      },
      "1995-06-01": {
       "spy_first_level": 20.11333656311035,
-      "column_order_vs_real_alpha_rho": 0.9843861032010874,
+      "column_order_vs_real_alpha_rho": 0.9843960255197602,
       "columns_shown_before_listing": 91,
-      "n_columns": 1246,
+      "n_columns": 1245,
       "cost_bps": 40,
       "warmup_sessions_before_window": 1518
      },
      "2018-03-01": {
       "spy_first_level": 106.73981475830078,
-      "column_order_vs_real_alpha_rho": 0.4851467507920429,
-      "columns_shown_before_listing": 161,
-      "n_columns": 3347,
+      "column_order_vs_real_alpha_rho": 0.4870674347025603,
+      "columns_shown_before_listing": 158,
+      "n_columns": 3333,
       "cost_bps": 10,
       "warmup_sessions_before_window": 1510
      }
@@ -956,17 +1146,17 @@
      },
      "1995-06-01": {
       "spy_first_level": 100.0,
-      "column_order_vs_real_alpha_rho": -0.021085783509074436,
+      "column_order_vs_real_alpha_rho": -0.020975470010600374,
       "columns_shown_before_listing": 0,
-      "n_columns": 1246,
+      "n_columns": 1245,
       "cost_bps": 40,
       "warmup_sessions_before_window": 1518
      },
      "2018-03-01": {
       "spy_first_level": 100.0,
-      "column_order_vs_real_alpha_rho": -0.007468139537587451,
+      "column_order_vs_real_alpha_rho": -0.009690895678079637,
       "columns_shown_before_listing": 0,
-      "n_columns": 3347,
+      "n_columns": 3333,
       "cost_bps": 10,
       "warmup_sessions_before_window": 1510
      }
@@ -994,14 +1184,14 @@
        "share_reidentified_by_column_position": 1.0,
        "share_reidentified_by_return_correlation": 1.0,
        "same_shown_dates": false,
-       "same_code_names": 0.0032102728731942215
+       "same_code_names": 0.0008032128514056225
       },
       "hardened": {
        "n_names": 400,
-       "share_reidentified_by_column_position": 0.0075,
+       "share_reidentified_by_column_position": 0.0,
        "share_reidentified_by_return_correlation": 1.0,
        "same_shown_dates": false,
-       "same_code_names": 0.0032102728731942215
+       "same_code_names": 0.0008032128514056225
       }
      },
      "2018-03-01": {
@@ -1025,7 +1215,7 @@
    },
    "test": "test_plain_feed_shows_real_alphabetical_order_future_ipo_and_absolute_spy; test_hardened_feed_closes_the_three_exposures; test_hardened_feed_changes_no_decision_on_clean_data",
    "fix": "leak_audit.hardened_feed_class() (columns sorted by code, market prices rebased to 100, names hidden until first price); clean-data decisions bit-identical",
-   "hook": "scripts/livesim_loop2.py: `livesim.Feed = leak_audit.hardened_feed_class()` before livesim.run (or call leak_audit.hardened_run)",
+   "hook": "IMPLEMENTED on the default path: livesim.run(hardened=True) builds the feed through blind_feed_class -> leak_audit.hardened_feed_class; the worker passes no opt-out. Residual (data, not shape): the same real window re-identifies by return correlation across reruns - see channel 6 and channel 4.",
    "measured_on": "three real windows (1975, 1995, 2018)"
   },
   "8d": {
@@ -1033,6 +1223,19 @@
    "name": "Files the trader side reads at run time / reachable modules",
    "status": "QUARANTINED",
    "evidence": {
+    "computed_verdict": {
+     "computed_status": "QUARANTINED",
+     "checks": {
+      "research_only_modules_reachable": [],
+      "sealed_state_files_opened_in_a_window": [],
+      "cache_files_opened_in_a_window": [
+       "data/cache/universe.csv"
+      ]
+     },
+     "why_not_better": [
+      "the trader side reads today's universe.csv (inert on code names)"
+     ]
+    },
     "files_actually_opened_during_a_full_blind_window": {
      "data_cache_files_opened": [
       "data/cache/universe.csv"
@@ -1072,7 +1275,7 @@
       "decide: open(DECISIONS, 'a')"
      ],
      "policy": [
-      "not_crypto: pd.read_csv(K.CACHE / 'universe.csv')"
+      "crypto_set: pd.read_csv(K.CACHE / 'universe.csv')"
      ],
      "scoring": [
       "score_predictions: json.loads(l)",
@@ -1133,12 +1336,13 @@
      "direction",
      "direction_ablate",
      "direction_calib",
+     "direction_features",
      "exits",
      "experiment_memory",
      "fv_pipeline",
      "gaprisk",
      "heavy_tests",
-     "leak_audit",
+     "learners",
      "learning_delta",
      "lessons",
      "memory_diagnostics",
@@ -1148,7 +1352,10 @@
      "pattern_bank",
      "pattern_identity",
      "pattern_lifecycle",
+     "pattern_memory",
+     "pattern_memory_eval",
      "pattern_movers",
+     "pattern_reliability",
      "pattern_stats",
      "patterns",
      "planted",
@@ -1174,6 +1381,16 @@
    "name": "Universe filters / labels using future volume, ordering by future info, analog fingerprints with full-sample stats",
    "status": "CLEAN",
    "evidence": {
+    "computed_verdict": {
+     "computed_status": "CLEAN",
+     "checks": {
+      "derived_from": "8b",
+      "leaky_features": [],
+      "n_features": 53,
+      "embargo_covers_label_reach": true
+     },
+     "why_not_better": []
+    },
     "tradable": "per-date cross-sectional ranks of price (channel 2) and of trailing 20-day dollar volume (8b: identical when the future is cut off)",
     "ever_column_selection": "features.build keeps tickers tradable at any time in the window; rows exist only on dates they were tradable (8b covers it)",
     "analogs_full_sample_stats": "analog_weighting.pit_moments uses expanding moments; analogs is not on the blind path",

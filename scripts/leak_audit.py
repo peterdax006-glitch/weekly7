@@ -685,7 +685,13 @@ def assemble(args):
         "warmup": "starts before 1968 get a shorter warm-up"},
         test="test_probe_identifies_year_from_a_planted_level_channel_and_not_after_scrub; test_probe_split_never_overlaps_train_and_test_windows; test_calendar_features_see_a_midweek_closure_and_the_regular_grid_removes_it; test_hardened_feed_closes_the_three_exposures",
         fix="HardenedFeed removes the absolute SPY/market volume level and real column order (levels_after_hardening barely moves: universe size, price and dollar-volume levels and data artefacts stay identifiable); regular_grid_index removes closure signatures but only cuts the calendar probe from 0.79 to 0.54 skill (the session COUNT survives) and changes what a 'week' is: opt-in, not wired",
-        hook="Level and calendar fingerprints are identifiable in the exposed frames but the trader consumes only ranks, ratios and the m_* context (probe group trader_inputs). Learned state is the only place a year fingerprint can act (the code has no recall of years): with BasisLineage (channel 4) a window's state contains nothing from its own year, so a fingerprint has nothing to look up. Level scrubs beyond HardenedFeed (universe size cap, price/volume rebasing) cost real information and are owner decisions.",
+        hook=("Computed from the fingerprint part: the trader's OWN inputs (ranks, ratios and the m_* market context) identify the real period on their own - the m_* columns carry most of it "
+              "(single-feature skill exposed/hidden-only: m_dispersion 0.74/0.56, m_vix_chg5 0.52/0.33, m_breadth 0.51/0.00). Market state is live information by design, but it is also a date. "
+              "A fingerprint can only act where something can be looked up by it: (a) learned state - closed by BasisLineage (no basis contains the played window's year); (b) the memory bank, which "
+              "recalls by exactly these m_* columns - closed by the real_end < start filter (BG.check_memory_bank_causality); (c) the model itself, which fits its own warm-up. So the status stays LEAK "
+              "until the owner rules that identifiable-but-unusable market context is acceptable (then QUARANTINED) or coarsens the m_* inputs. Not resolved here.") if VD["6"].status == L.LEAK else
+             ("Level and calendar fingerprints are identifiable in the exposed frames but the trader consumes only ranks, ratios and the m_* context, which the probe finds not identifiable. "
+              "Learned state is the only place a year fingerprint can act; with BasisLineage a window's state contains nothing from its own year."),
         measured_on="real caches, 729 window starts 1965-2025"))
 
     # 7 network

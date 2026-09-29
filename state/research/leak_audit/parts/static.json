@@ -15,6 +15,7 @@
   "health",
   "improve",
   "isolation",
+  "leak_audit",
   "live",
   "livesim",
   "livesim_loop2",
@@ -52,12 +53,13 @@
   "direction",
   "direction_ablate",
   "direction_calib",
+  "direction_features",
   "exits",
   "experiment_memory",
   "fv_pipeline",
   "gaprisk",
   "heavy_tests",
-  "leak_audit",
+  "learners",
   "learning_delta",
   "lessons",
   "memory_diagnostics",
@@ -67,7 +69,10 @@
   "pattern_bank",
   "pattern_identity",
   "pattern_lifecycle",
+  "pattern_memory",
+  "pattern_memory_eval",
   "pattern_movers",
+  "pattern_reliability",
   "pattern_stats",
   "patterns",
   "planted",
@@ -153,12 +158,12 @@
   ],
   "features": [
    {
-    "line": 159,
+    "line": 169,
     "kind": "call",
     "what": "update"
    },
    {
-    "line": 184,
+    "line": 194,
     "kind": "call",
     "what": "update"
    }
@@ -193,6 +198,53 @@
   "isolation": [
    {
     "line": 471,
+    "kind": "call",
+    "what": "update"
+   }
+  ],
+  "leak_audit": [
+   {
+    "line": 26,
+    "kind": "import",
+    "what": "socket"
+   },
+   {
+    "line": 250,
+    "kind": "call",
+    "what": "update"
+   },
+   {
+    "line": 254,
+    "kind": "call",
+    "what": "update"
+   },
+   {
+    "line": 862,
+    "kind": "call",
+    "what": "update"
+   },
+   {
+    "line": 868,
+    "kind": "call",
+    "what": "update"
+   },
+   {
+    "line": 879,
+    "kind": "call",
+    "what": "update"
+   },
+   {
+    "line": 882,
+    "kind": "call",
+    "what": "update"
+   },
+   {
+    "line": 1334,
+    "kind": "call",
+    "what": "update"
+   },
+   {
+    "line": 1348,
     "kind": "call",
     "what": "update"
    }
@@ -236,12 +288,12 @@
   ],
   "livesim_loop2": [
    {
-    "line": 59,
+    "line": 78,
     "kind": "call",
     "what": "update"
    },
    {
-    "line": 201,
+    "line": 282,
     "kind": "call",
     "what": "update"
    }
@@ -324,12 +376,12 @@
   ],
   "provenance": [
    {
-    "line": 95,
+    "line": 104,
     "kind": "call",
     "what": "update"
    },
    {
-    "line": 96,
+    "line": 105,
     "kind": "call",
     "what": "update"
    }
@@ -498,7 +550,7 @@
   "policy": [
    {
     "line": 39,
-    "function": "not_crypto",
+    "function": "crypto_set",
     "call": "pd.read_csv(K.CACHE / 'universe.csv')"
    }
   ],
@@ -662,7 +714,7 @@
  },
  "loop2_train_basis_calls": [
   {
-   "line": 327,
+   "line": 419,
    "kwargs": [
     "seed"
    ],
@@ -670,7 +722,7 @@
   }
  ],
  "loop2_trains_on_all_archived_windows": true,
- "loop2_hands_worker_the_global_basis": true,
+ "loop2_hands_worker_the_global_basis": false,
  "basis_future_share_by_seed": [
   {
    "n_played": 57,
@@ -808,14 +860,14 @@
   "PERIODIC": 241138,
   "EARN": 214962,
   "AGREEMENT": 98878,
-  "ACTIVIST_AMEND": 41939,
   "OFFERING": 38228,
+  "ACTIVIST_AMEND": 24913,
   "UNREG_SALE": 19530,
   "SHELF": 18527,
-  "ACTIVIST": 11926,
   "ACQ_DONE": 11818,
   "LATE_FILING": 8193,
   "DELIST_NOTICE": 7510,
+  "ACTIVIST": 6504,
   "AUDITOR_CHANGE": 5195,
   "RESTATEMENT": 1716,
   "BANKRUPTCY": 157

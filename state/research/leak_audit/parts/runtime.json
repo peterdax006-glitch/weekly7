@@ -1,5 +1,5 @@
 {
- "wall_s": 30.65762495994568,
+ "wall_s": 20.237038612365723,
  "sessions": 262,
  "blocked_network_attempts": [],
  "blind_gate_fails": [],
@@ -11,5 +11,5 @@
  "other_files_opened": [],
  "livesim_state_files_opened": [],
  "weeks_traded": 53,
- "year_return": -0.35498443330384044
+ "year_return": -0.12063755117568142
 }

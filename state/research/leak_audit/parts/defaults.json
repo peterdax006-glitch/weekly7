@@ -1,0 +1,227 @@
+{
+ "facts": {
+  "sources_parsed": {
+   "livesim": true,
+   "loop2": true,
+   "features": true,
+   "adaptive": true,
+   "leak_audit": true
+  },
+  "feed_tradable_rule_default": "split_invariant",
+  "precompute_passes_feed_rule": true,
+  "parity_passes_feed_rule": true,
+  "blind_feed_hardened_default": true,
+  "blind_feed_returns_hardened_class": true,
+  "run_hardened_default": true,
+  "run_builds_feed_via_blind_feed_class": true,
+  "run_builds_plain_feed_directly": false,
+  "livesim_injects_dead_names": false,
+  "features_split_branch_uses_split_invariant_tradable": true,
+  "hardened_class_overrides_tradable_rule": false,
+  "meta_default_literal": {
+   "half_life": 6,
+   "prior_weeks": 8,
+   "switch_z": 2.0,
+   "min_weeks": 4,
+   "cooldown": 3,
+   "revert_drop": 0.03,
+   "ic_beta": 0.5,
+   "ic_clip": 1.0,
+   "adaptive_knobs": [
+    "w_model",
+    "liq_q",
+    "k",
+    "pool_q",
+    "w_move",
+    "w_mom"
+   ],
+   "min_improve": 0.0,
+   "knob_cooldown": 0,
+   "max_switches": null,
+   "revert_lockout": 0,
+   "revert_fast": null,
+   "mem_score_errors": true,
+   "mem_use_dates": false,
+   "det_max": 0.5,
+   "det_min_weeks": 6,
+   "dial_on": false
+  },
+  "meta_default_data_tuned": true,
+  "loop2_cfg_space": {
+   "k": [
+    1,
+    1,
+    2,
+    2,
+    3,
+    4
+   ],
+   "exit_q": [
+    0.5,
+    0.7,
+    0.8,
+    0.9
+   ],
+   "rebalance_weeks": [
+    1,
+    1,
+    2
+   ],
+   "brake": [
+    null,
+    null,
+    0.15
+   ],
+   "max_per_sector": [
+    null,
+    2
+   ],
+   "w_model": [
+    0.85,
+    1.0,
+    1.0
+   ],
+   "pick": [
+    "hivol",
+    "hivol",
+    "top"
+   ],
+   "pool_q": [
+    0.3,
+    0.5,
+    0.7,
+    0.9,
+    0.95
+   ],
+   "liq_q": [
+    0.0,
+    0.0,
+    0.2
+   ],
+   "vol_filter": [
+    false,
+    false,
+    true
+   ],
+   "stress_thr": [
+    null,
+    1.0,
+    1.05
+   ],
+   "stress_k": [
+    2,
+    3,
+    4
+   ],
+   "trend_filter": [
+    null,
+    -0.05
+   ],
+   "trend_gross": [
+    0.0,
+    0.5
+   ],
+   "w_move": [
+    0.0,
+    0.3,
+    0.5,
+    0.7
+   ],
+   "w_mom": [
+    0.0,
+    0.2,
+    0.4
+   ]
+  },
+  "loop2_neutral_cfg_from_neutral_default_cfg": true,
+  "loop2_fresh_state_starts_neutral": true,
+  "loop2_plan_round_uses_lineage_basis_for": true,
+  "loop2_plan_round_falls_back_to_neutral": true,
+  "loop2_main_plans_each_round": true,
+  "loop2_worker_installs_network_guard": true,
+  "loop2_play_calls_without_per_id": [],
+  "loop2_n_run_workers_calls": 2,
+  "loop2_global_basis_reaches_a_play_call": [],
+  "loop2_train_basis_calls": [
+   {
+    "line": 419,
+    "kwargs": [
+     "seed"
+    ],
+    "passes_as_of": false,
+    "training_set": "wins"
+   }
+  ],
+  "loop2_register_basis_calls": [
+   {
+    "line": 426,
+    "trained_on": "wins"
+   }
+  ],
+  "loop2_registers_exactly_the_training_set": true,
+  "loop2_headline_excludes_legacy": true,
+  "loop2_worker_runs_livesim_run": true,
+  "loop2_worker_passes_hardened": true
+ },
+ "proofs": {
+  "split_invariance": {
+   "split_invariant_cells_changed_by_planted_split": 0,
+   "price_rank_cells_changed_by_planted_split": 1270,
+   "mechanism_neutralises_planted_leak": true,
+   "planted_leak_is_real": true
+  },
+  "lineage_gate": {
+   "naive_share_of_plays_touched_by_future_training": 0.9551282051282051,
+   "gated_plays_checked": 168,
+   "gated_violations": 0,
+   "gated_share_of_plays_on_untrained_neutral_basis": 0.8214285714285714,
+   "mechanism_holds": true,
+   "planted_leak_is_real": true
+  },
+  "network_guard": {
+   "planted_lookup_blocked": true,
+   "guard_recorded_attempt": true
+  }
+ },
+ "state_check": {
+  "n_windows": 24,
+  "legacy": [
+   "w01a",
+   "w01b",
+   "w01c",
+   "w02a",
+   "w02b",
+   "w02c"
+  ],
+  "untrained": [
+   "w03a",
+   "w03b",
+   "w03c",
+   "w04a",
+   "w04b",
+   "w04c",
+   "w05a",
+   "w05b",
+   "w05c",
+   "w06a",
+   "w06b",
+   "w06c",
+   "w07a",
+   "w07b",
+   "w07c",
+   "w08a",
+   "w08b",
+   "w08c"
+  ],
+  "trained": [],
+  "unresolved": [],
+  "violations": [],
+  "untrained_cfg_mismatch": [],
+  "untrained_meta_mismatch": [],
+  "no_basis_record": [],
+  "versions": [],
+  "lineage_is_monotone": true
+ },
+ "state_file": "state\\livesim\\loop2.json",
+ "state_file_mtime": "2026-09-29T15:06:49.257852793"
+}

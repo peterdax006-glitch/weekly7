@@ -220,7 +220,7 @@ def parts_ok():
             "fingerprint": {"exposed_6y_warmup_plus_window": {"trader_inputs": {"verdict": "not identifiable"}, "levels_raw": {"verdict": "identifiable"}},
                             "hidden_12_months_only": {"trader_inputs": {"verdict": "not identifiable"}},
                             "exposed_6y_warmup_plus_window__shuffled_control": {"levels_raw": {"skill": 0.01}}},
-            "survivorship": {"registry_rows_with_last_close": 244, "dead_names_with_recovered_prices": 77},
+            "survivorship": {"exits_by_year": {"2010": 1}, "alive_by_year": {"2010": 3000}, "hazard_bands": {"literature_low": 0.03}},
             "metadata": {"crypto_matches_in_panel": [{"ticker": "MSTR"}], "not_crypto_on_blind_codes_filters_nothing": True}}
 
 
@@ -253,8 +253,11 @@ def test_planted_measurement_defects_flip_each_channel():
     assert verdicts(p)["8d"].status == L.LEAK
     p = parts_ok(); p["static"]["research_only_modules_reachable"] = ["lessons"]
     assert verdicts(p)["8d"].status == L.LEAK
-    p = parts_ok(); p["survivorship"]["dead_names_with_recovered_prices"] = 244
+    p = parts_ok(); p["survivorship"]["exits_by_year"] = {"2010": 150}
     assert verdicts(p)["1"].status == L.CLEAN
+    assert verdicts(parts_ok())["1"].status == L.QUARANTINED
+    p = parts_ok(); p["survivorship"] = {"exits_by_year": {}, "alive_by_year": {}}
+    assert verdicts(p)["1"].status == L.UNMEASURED
     p = parts_ok(); p["metadata"] = {"crypto_matches_in_panel": [], "hard_listed_crypto_tickers_traded_before_2018": []}
     assert verdicts(p)["3"].status == L.CLEAN
 

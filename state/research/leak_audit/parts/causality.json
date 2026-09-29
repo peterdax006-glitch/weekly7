@@ -4,9 +4,9 @@
   "n_cuts": 3,
   "leaky_features": {},
   "clean": true,
-  "seconds": 1.788170337677002,
+  "seconds": 1.4667870998382568,
   "n_tickers": 60,
-  "n_events": 1235,
+  "n_events": 1177,
   "n_insider": 312
  },
  "feed_exposure_real_windows": {
@@ -45,9 +45,9 @@
   "1995-06-01": {
    "plain": {
     "spy_first_level": 20.11333656311035,
-    "column_order_vs_real_alpha_rho": 0.9843861032010874,
+    "column_order_vs_real_alpha_rho": 0.9843960255197602,
     "columns_shown_before_listing": 91,
-    "n_columns": 1246,
+    "n_columns": 1245,
     "cost_bps": 40,
     "warmup_sessions_before_window": 1518
    },
@@ -56,30 +56,30 @@
     "share_reidentified_by_column_position": 1.0,
     "share_reidentified_by_return_correlation": 1.0,
     "same_shown_dates": false,
-    "same_code_names": 0.0032102728731942215
+    "same_code_names": 0.0008032128514056225
    },
    "hardened": {
     "spy_first_level": 100.0,
-    "column_order_vs_real_alpha_rho": -0.021085783509074436,
+    "column_order_vs_real_alpha_rho": -0.020975470010600374,
     "columns_shown_before_listing": 0,
-    "n_columns": 1246,
+    "n_columns": 1245,
     "cost_bps": 40,
     "warmup_sessions_before_window": 1518
    },
    "hardened_rerun_linkability": {
     "n_names": 400,
-    "share_reidentified_by_column_position": 0.0075,
+    "share_reidentified_by_column_position": 0.0,
     "share_reidentified_by_return_correlation": 1.0,
     "same_shown_dates": false,
-    "same_code_names": 0.0032102728731942215
+    "same_code_names": 0.0008032128514056225
    }
   },
   "2018-03-01": {
    "plain": {
     "spy_first_level": 106.73981475830078,
-    "column_order_vs_real_alpha_rho": 0.4851467507920429,
-    "columns_shown_before_listing": 161,
-    "n_columns": 3347,
+    "column_order_vs_real_alpha_rho": 0.4870674347025603,
+    "columns_shown_before_listing": 158,
+    "n_columns": 3333,
     "cost_bps": 10,
     "warmup_sessions_before_window": 1510
    },
@@ -92,9 +92,9 @@
    },
    "hardened": {
     "spy_first_level": 100.0,
-    "column_order_vs_real_alpha_rho": -0.007468139537587451,
+    "column_order_vs_real_alpha_rho": -0.009690895678079637,
     "columns_shown_before_listing": 0,
-    "n_columns": 3347,
+    "n_columns": 3333,
     "cost_bps": 10,
     "warmup_sessions_before_window": 1510
    },
