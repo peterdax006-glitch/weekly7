@@ -83,7 +83,14 @@ def retrain_guarded(holdout=60):
         rec["decision"] = "swapped"
     else:
         rec["decision"] = "kept old"
-    log_experiment(rec)
+    # Phase 0.2: the champion's training record carries its exact model parameters, seed, ranges and decision
+    log_experiment(rec, cfg=model._params(), seed=7,
+                   train_range=f"..{pd.Timestamp(cut).date()}", validation_range=f"{pd.Timestamp(ho[0]).date()}..{pd.Timestamp(ho[-1]).date()}",
+                   test_range="live (forward)", window_ids=["live"],
+                   metrics={"new_holdout_ic": float(new_ic), "old_holdout_ic": float(old_ic)},
+                   gates={"holdout_ic_within_0.01": bool(new_ic >= old_ic - 0.01)},
+                   outcome="adopt" if rec["decision"] == "swapped" else "reject",
+                   reason=f"holdout IC {new_ic:+.4f} vs champion {old_ic:+.4f} (tolerance 0.01; champion saw the holdout)")
     return f"Retrain: new holdout IC {new_ic:+.4f} vs current {old_ic:+.4f} -> {rec['decision']}."
 
 
