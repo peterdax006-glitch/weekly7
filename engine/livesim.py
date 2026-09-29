@@ -118,6 +118,19 @@ class Feed:
         """Warm-up training data: rows up to the current session only."""
         return self._X[self._X.index.get_level_values(0) <= self.now], self._atr.loc[:self.now]
 
+    # ---- long-term memory (C34): only lessons from windows that ENDED before this one began ----
+    def long_term_memory(self):
+        bank = DIR / "memory_bank.parquet"
+        if not bank.exists():
+            return None
+        b = pd.read_parquet(bank)
+        start = self.first_live - self._shift                    # real start date, known only to the feed
+        b = b[pd.to_datetime(b["real_end"]) < start]
+        return b[["arm", "ctx", "outcome"]].reset_index(drop=True) if len(b) else None
+
+    def real_end(self):
+        return str((self.sessions[-1] - self._shift).date())
+
     # ---- what the trader may see ----
     @property
     def now(self):
@@ -291,7 +304,9 @@ class BlindTrader:
             chosen, info = self.A.choose_default(self.warm_snaps, wclose, self.divs, self.cfg, self.feed.cost_bps, run, cands)
             self.preseason = {"prior": self.cfg, "chosen": chosen, **info}
             self.cfg = chosen
-        self.session = self.A.Session(self.cfg, self.divs, self.feed.cost_bps, adaptive=self.adaptive, meta=self.meta)
+        self.long_term = self.feed.long_term_memory() if self.adaptive else None
+        self.session = self.A.Session(self.cfg, self.divs, self.feed.cost_bps, adaptive=self.adaptive, meta=self.meta,
+                                      long_term=self.long_term)
         self.t_model = time.perf_counter() - t
 
     def on_tick(self):

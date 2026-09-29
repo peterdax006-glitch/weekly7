@@ -204,3 +204,9 @@ i want youto be utilizing all the memory all the time
 > ensure there is both no  cheating and never any after market trading or weekend trading
 
 `sha256: 748e85df2983dd79c654a4b4da5caab2aca6b4f4c27966654fdfccf27ccc5782`
+
+## C34 — Advanced self-learning with advanced, factor-weighted memory (2026-09-28)
+
+> we need a algorithm for advanced self learning system, but we also need the algorithm to have advanced memory knowing how prevelant to make memory based on a variety of factors
+
+`sha256: ec4a6616645bb73d1364d4a16bfeda359657cdbc24d6650362e69703807e35c0`

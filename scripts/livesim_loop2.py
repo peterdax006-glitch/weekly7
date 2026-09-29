@@ -24,7 +24,10 @@ CFG_SPACE = {"k": [1, 1, 2, 2, 3, 4], "exit_q": [0.5, 0.7, 0.8, 0.9], "rebalance
              "w_move": [0.0, 0.3, 0.5, 0.7], "w_mom": [0.0, 0.2, 0.4]}
 META_SPACE = {"half_life": [3, 6, 12], "prior_weeks": [4, 8, 16], "switch_z": [1.5, 2.0, 3.0], "min_weeks": [3, 6],
               "cooldown": [2, 4], "revert_drop": [0.02, 0.04, 0.08], "ic_beta": [0.0, 0.5, 1.0, 2.0],
-              "det_max": [0.0, 0.25, 0.5], "det_min_weeks": [4, 8]}
+              "det_max": [0.0, 0.25, 0.5], "det_min_weeks": [4, 8],
+              # C34 memory factors: fade speed, market-similarity width, weight of earlier windows, shrinkage, shock
+              "mem_half_life": [4, 8, 16, 32], "mem_bandwidth": [0.75, 1.5, 3.0], "mem_prior_scale": [0.0, 0.1, 0.3, 0.6],
+              "mem_shrink": [2, 6, 12], "mem_shock_k": [1.5, 2.5, 4.0], "mem_shock_cut": [0.1, 0.25, 0.5]}
 
 st = json.loads(STATE.read_text()) if STATE.exists() else {
     "windows": [], "version": 1,
@@ -41,13 +44,15 @@ def load_window(a):
     ws = {f.stem[6:]: pd.read_parquet(f) for f in sorted(a.glob("wsnap_*.parquet"))}
     closes = pd.read_parquet(a / ("closes_v2.parquet" if (a / "closes_v2.parquet").exists() else "closes.parquet"))
     opens = pd.read_parquet(a / "opens_v2.parquet") if (a / "opens_v2.parquet").exists() else None
+    ltm = pd.read_parquet(a / "ltm.parquet") if (a / "ltm.parquet").exists() else None
     sc = pd.read_parquet(a / "sic.parquet")
-    return {"id": a.name, "snaps": ws, "closes": closes, "opens": opens, "bps": json.loads((a / "meta.json").read_text())["cost_bps"],
+    return {"id": a.name, "snaps": ws, "closes": closes, "opens": opens, "ltm": ltm, "bps": json.loads((a / "meta.json").read_text())["cost_bps"],
             "divs": {t: policy.sic_division(x) for t, x in zip(sc["ticker"], sc["sic"])}}
 
 
 def run_window(w, cfg, meta):
-    S = A.replay(cfg, w["snaps"], w["closes"], w["bps"], w["divs"], adaptive=True, meta=meta, opens=w["opens"])
+    S = A.replay(cfg, w["snaps"], w["closes"], w["bps"], w["divs"], adaptive=True, meta=meta, opens=w["opens"],
+                 long_term=w["ltm"])
     r = S.result()
     wk = np.array(S.weeks)
     r["sd_week"] = float(wk.std()) if len(wk) > 1 else 0.0
@@ -76,6 +81,14 @@ def worker(run_id, cfg, meta):
     a.mkdir(exist_ok=True)
     feed._stocks["Close"].loc[feed.first_live:].to_parquet(a / "closes_v2.parquet")
     feed._stocks["Open"].loc[feed.first_live:].to_parquet(a / "opens_v2.parquet")
+    if trader.long_term is not None:
+        trader.long_term.to_parquet(a / "ltm.parquet")
+    ep = trader.session.adapter.mem.export()
+    if len(ep):                                           # add this window's lessons to the long-term bank
+        ep["real_end"] = feed.real_end()
+        ep["window"] = run_id
+        bank = DIR / "memory_bank.parquet"
+        (pd.concat([pd.read_parquet(bank), ep]) if bank.exists() else ep).to_parquet(bank)
     for k, v in trader.snaps.items():
         v.to_parquet(a / f"wsnap_{k}.parquet")
     for k, v in trader.warm_snaps.items():
@@ -116,10 +129,11 @@ while len(st["windows"]) < MAXW:
         w = load_window(DIR / r)
         re = run_window(w, res["used_cfg"], res["meta"])
         rep = abs(re["year_return"] - res["year_return"]) < 0.005
-        S1 = A.replay(res["used_cfg"], w["snaps"], w["closes"], w["bps"], w["divs"], adaptive=True, meta=res["meta"], opens=w["opens"])
+        S1 = A.replay(res["used_cfg"], w["snaps"], w["closes"], w["bps"], w["divs"], adaptive=True, meta=res["meta"],
+                      opens=w["opens"], long_term=w["ltm"])
         cut = w["closes"].index[len(w["closes"]) // 2]
         S2 = A.replay(res["used_cfg"], w["snaps"], w["closes"], w["bps"], w["divs"], adaptive=True, meta=res["meta"],
-                      scramble_after=cut, seed=len(r), opens=w["opens"])
+                      scramble_after=cut, seed=len(r), opens=w["opens"], long_term=w["ltm"])
         before = lambda S: [d for d in S.decisions if pd.Timestamp(d[0]) <= cut]
         scram = before(S1) == before(S2)
         print(f"  [{r}] avg week {res['mean_week']:+.2%} | swing (sd) {res['sd_week']:.2%} | {res['weeks_ge_7']} weeks >= +7% | "

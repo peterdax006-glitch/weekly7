@@ -75,6 +75,8 @@ DIRECTIVES = [
      "treat this as a checkoff list and feel free to motify anything or look at anything in a new way or download any free tools to achieve the ultimate objective but tread this as a checkoff list and utilize all the RAM and dont stop until the list is done"),
     ("C33", "2026-09-28", "No cheating; never after-market or weekend trading",
      "ensure there is both no  cheating and never any after market trading or weekend trading"),
+    ("C34", "2026-09-28", "Advanced self-learning with advanced, factor-weighted memory",
+     "we need a algorithm for advanced self learning system, but we also need the algorithm to have advanced memory knowing how prevelant to make memory based on a variety of factors"),
 ]
 
 def sha(t): return hashlib.sha256(t.encode("utf-8")).hexdigest()

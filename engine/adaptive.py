@@ -79,8 +79,10 @@ def neighbours(cfg, knobs):
 
 
 class Adapter:
-    def __init__(self, default_cfg, meta=None):
-        self.meta = {**META_DEFAULT, **(meta or {})}
+    def __init__(self, default_cfg, meta=None, long_term=None):
+        from .memory import Memory, MEM_DEFAULT
+        self.meta = {**META_DEFAULT, **MEM_DEFAULT, **(meta or {})}
+        self.mem = Memory({k: self.meta[k] for k in MEM_DEFAULT}, long_term=long_term)   # C34
         self.default = dict(default_cfg)
         self.cfg = dict(default_cfg)
         self.cfg.setdefault("ew", policy.default_evidence_weights())
@@ -103,7 +105,8 @@ class Adapter:
         if closes_to_now.index.max() > pd.Timestamp(today):
             raise TimeFence(f"adapter was handed prices after {today}")
         if self.prev is not None:
-            self._learn(self.prev[0], self.prev[1], today, closes_to_now, divs, held)
+            from .memory import context_of
+            self._learn(self.prev[0], self.prev[1], today, closes_to_now, divs, held, ctx_now=context_of(snap))
         self.prev = (today, snap)
         self.weeks += 1
         return dict(self.cfg)
@@ -116,8 +119,11 @@ class Adapter:
             return 0.0
         return float((seg.iloc[-1] / seg.iloc[0] - 1).mean())
 
-    def _learn(self, d0, p0, d1, closes, divs, held):
+    def _learn(self, d0, p0, d1, closes, divs, held, ctx_now=None):
+        from .memory import context_of
         m, dec = self.meta, self._decay()
+        ctx0 = context_of(p0)                          # the market the lesson was learned in
+        ctx_now = ctx0 if ctx_now is None else ctx_now
         cur_names = list(pick(p0, self.cfg, held, divs).index)
         base_r = self._period_return(cur_names, d0, d1, closes)
         def_names = list(pick(p0, self.default, held, divs).index)
@@ -126,9 +132,8 @@ class Adapter:
         for k, v in neighbours(self.cfg, m["adaptive_knobs"]):
             alt = {**self.cfg, k: v}
             r = self._period_return(list(pick(p0, alt, held, divs).index), d0, d1, closes)
-            s = self.stats.setdefault((k, v), [0.0, 0.0, 0.0])
             x = r - base_r
-            s[0], s[1], s[2] = s[0] * dec + x, s[1] * dec + 1, s[2] * dec + x * x
+            self.mem.record(("knob", k, self.cfg.get(k), v), self.weeks, ctx0, x)   # keyed by the base it was measured from
         # 2) indicator ICs on the closed period (whole eligible universe, not just holdings)
         fwd = (closes.loc[d1] / closes.loc[d0] - 1).reindex(p0.index)
         for c in list(self.cfg["ew"]):
@@ -139,9 +144,8 @@ class Adapter:
             if ok.sum() < 30 or p0.loc[ok, col].nunique() < 3:
                 continue
             ic = float(p0.loc[ok, col].rank().corr(fwd[ok].rank()))
-            e = self.ic.setdefault(c, [0.0, 0.0, 0])
-            e[0], e[1], e[2] = e[0] * dec + ic, e[1] * dec + 1, e[2] + 1
-        self._reweight()
+            self.mem.record(("ic", c), self.weeks, ctx0, ic)
+        self._reweight(ctx_now)
         # 2b) canon C20: study every winner of the closed period, picked or not
         self.det.learn(p0, fwd)
         self.cfg["det_w"] = self.det.weight()
@@ -160,39 +164,35 @@ class Adapter:
                 self.log.append({"date": str(d1), "action": "revert", "why": f"deviation lost {sum(self.recent):.1%} vs default"})
                 ew = self.cfg["ew"]
                 self.cfg = {**self.default, "ew": ew}
-                self.stats, self.recent, self.since_switch = {}, [], 0
+                self.recent, self.since_switch = [], 0
                 return
         # 4) switch one step if a neighbour leads convincingly (shrunk toward zero by the prior)
         self.since_switch += 1
         if self.weeks < m["min_weeks"] or self.since_switch < m["cooldown"]:
             return
         best, best_z = None, m["switch_z"]
-        for arm, (sx, w, sxx) in self.stats.items():
-            if arm[0] not in m["adaptive_knobs"] or self.cfg.get(arm[0]) == arm[1]:
+        for k, v in neighbours(self.cfg, m["adaptive_knobs"]):
+            mean, se, n_eff = self.mem.estimate(("knob", k, self.cfg.get(k), v), self.weeks, ctx_now)
+            if n_eff < m["min_weeks"] or not np.isfinite(se):
                 continue
-            mean = sx / (w + m["prior_weeks"])                     # shrinkage: thin evidence counts for little
-            var = max(sxx / max(w, 1e-9) - (sx / max(w, 1e-9)) ** 2, 1e-8)
-            se = np.sqrt(var / max(w, 1.0))
             z = mean / se
             if z > best_z:
-                best, best_z = arm, z
+                best, best_z = (k, v), z
         if best:
             self.log.append({"date": str(d1), "action": "switch", "knob": best[0], "from": self.cfg.get(best[0]),
                              "to": best[1], "z": round(float(best_z), 2)})
             self.cfg[best[0]] = best[1]
-            self.stats = {a: s for a, s in self.stats.items() if a[0] != best[0]}
             self.since_switch, self.recent = 0, []
 
-    def _reweight(self):
+    def _reweight(self, ctx_now=None):
         m = self.meta
         ew = {}
         for c, w0 in self.default["ew"].items():
-            e = self.ic.get(c)
-            if not e or e[1] <= 0:
+            mean_ic, se, n_eff = self.mem.estimate(("ic", c), self.weeks, ctx_now if ctx_now is not None else np.zeros(7))
+            if n_eff <= 0 or not np.isfinite(se):
                 ew[c] = w0
                 continue
-            mean_ic = e[0] / (e[1] + m["prior_weeks"])              # shrink toward 0 with thin data
-            z = mean_ic * np.sqrt(max(e[2], 1)) / 0.1               # ~0.1 = typical weekly IC noise
+            z = mean_ic / max(se, 1e-6)
             factor = 1 + np.clip(m["ic_beta"] * np.sign(w0) * z / 3, -m["ic_clip"], m["ic_clip"])
             ew[c] = w0 * float(factor)                              # never flips sign; can fade to zero
         self.cfg["ew"] = ew
@@ -304,13 +304,13 @@ class Session:
     """The whole daily trading loop, shared verbatim by the blind live trader and the re-tester.
     Each day: on_day(date, prices_today, closes_to_now, next_is_new_week, snapshot_fn)."""
 
-    def __init__(self, default_cfg, divs, cost_bps, start_cash=1000.0, adaptive=False, meta=None):
+    def __init__(self, default_cfg, divs, cost_bps, start_cash=1000.0, adaptive=False, meta=None, long_term=None):
         from . import policy as _p
         self.P = _p
         self.cfg = dict(default_cfg)
         self.cfg.setdefault("ew", _p.default_evidence_weights())
         self.divs, self.bps, self.adaptive = divs, cost_bps, adaptive
-        self.adapter = Adapter(self.cfg, meta) if adaptive else None
+        self.adapter = Adapter(self.cfg, meta, long_term=long_term) if adaptive else None
         self.cash, self.pos = start_cash, {}
         self.week_start, self.capped, self.wk = start_cash, False, 0
         self.days, self.weeks, self.decisions, self.orders, self.week_rows = [], [], [], [], []
@@ -383,7 +383,8 @@ class Session:
                 "adaptations": self.adapter.log if self.adapter else [], "missed_winners": self.adapter.missed if self.adapter else []}
 
 
-def replay(default_cfg, snaps, closes, cost_bps, divs, adaptive=False, meta=None, scramble_after=None, seed=0, opens=None):
+def replay(default_cfg, snaps, closes, cost_bps, divs, adaptive=False, meta=None, scramble_after=None, seed=0, opens=None,
+           long_term=None):
     """Re-tester: drives the SAME Session through an archived window.
     scramble_after: anti-cheat test - replace every price after this date with noise; decisions up to that
     date must not change (if they do, something looked into the future)."""
@@ -396,7 +397,7 @@ def replay(default_cfg, snaps, closes, cost_bps, divs, adaptive=False, meta=None
         if opens is not None:
             opens = opens.astype("float64").copy()
             opens.loc[m] = opens.loc[m].values * noise
-    S = Session(default_cfg, divs, cost_bps, adaptive=adaptive, meta=meta)
+    S = Session(default_cfg, divs, cost_bps, adaptive=adaptive, meta=meta, long_term=long_term)
     dec = {pd.Timestamp(k): v for k, v in snaps.items()}
     sessions = closes.index
     for i, d in enumerate(sessions):
