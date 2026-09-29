@@ -1,42 +1,83 @@
-"""A13 measurement: over many seeds, how often does the miner recover each planted effect, how many false patterns
-does it admit, and is P(real) calibrated (patterns called ~80% real should be real ~80% of the time)?"""
-import json, sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import numpy as np, pandas as pd
-from engine import config as K
-from engine.patterns import PatternMiner
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tests"))
-from test_planted_patterns import make
+"""Bible Phase 25 runner: every calibration scenario x many seeds, in parallel, through the FULL PatternMiner.
+Writes state/research/algorithm/planted/{summary.json, report.md} and logs a registry record with the verdict.
 
-SEEDS = int(sys.argv[1]) if len(sys.argv) > 1 else 8
-REAL = {"f0 q4": "strong +1.2%", "f1 q4": "weak +0.4%", "f2 q4": "negative -0.8%", "f3 q4": "regime-only +1.0%"}
-rows, calib = [], []
-for seed in range(SEEDS):
-    X, y = make(seed=100 + seed)
-    M = PatternMiner({"max_pairs": 400, "max_unless": 80, "null_reps": 2, "min_n": 200, "half_life_years": 50}).fit(
-        X, y, now=X.index.get_level_values(0).max())
-    P = M.patterns
-    act = P[P["status"].isin(["active", "rescoped"])]
-    found = {k: bool((act["key_named"] == k).any()) for k in REAL}
-    # a pattern is "truly real" if it involves a planted feature/quintile in its conditions
-    def truly(n):
-        return any(tok in n for tok in ("f0 q4", "f1 q4", "f2 q4", "f3 q4"))
-    false_active = [n for n in act["key_named"] if not truly(n)]
-    rows.append({"seed": seed, **found, "false_active": len(false_active), "active": len(act)})
-    for n, pr in zip(P["key_named"], P["p_real"]):
-        calib.append((float(pr), truly(n)))
-    print(seed, found, "false active:", len(false_active), "of", len(act), flush=True)
-R = pd.DataFrame(rows)
-C = pd.DataFrame(calib, columns=["p_real", "truly"])
-C["bin"] = pd.cut(C["p_real"], [-0.01, 0.2, 0.5, 0.8, 0.9, 1.0])
-cal = C.groupby("bin", observed=True)["truly"].agg(["mean", "size"])
-out = {"seeds": SEEDS, "recovery": {REAL[k]: float(R[k].mean()) for k in REAL},
-       "false_active_per_run": float(R["false_active"].mean()), "active_per_run": float(R["active"].mean()),
-       "false_share_of_active": float(R["false_active"].sum() / max(R["active"].sum(), 1)),
-       "calibration": {str(b): {"share_truly_real": float(r["mean"]), "n": int(r["size"])} for b, r in cal.iterrows()}}
-print(json.dumps(out, indent=1))
-(K.STATE / "research" / "algorithm").mkdir(parents=True, exist_ok=True)
-(K.STATE / "research" / "algorithm" / "planted_calibration.json").write_text(json.dumps(out, indent=1))
-from engine.improve import log_experiment
-log_experiment({"event": "planted_calibration", **out}, seed=100)
+Usage: python scripts/planted_calibration.py [seeds=8] [workers=4] [--quick]"""
+import json, sys, time
+from concurrent.futures import ProcessPoolExecutor
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from engine import config as K
+from engine import planted as PL
+
+MINER = {"max_pairs": 400, "max_unless": 80, "null_reps": 2, "min_n": 200, "half_life_years": 50}
+
+
+def one(job):
+    sc_name, seed = job
+    from engine.patterns import PatternMiner
+    sc = next(s for s in PL.scenarios() if s.name == sc_name)
+    X, y, _ = PL.generate(sc, seed=seed)
+    M = PatternMiner(MINER).fit(X, y, now=X.index.get_level_values(0).max())
+    r = PL.score_run(M.patterns, sc)
+    r["seed"] = seed
+    return r
+
+
+def report_md(summary, verdict, secs):
+    L = ["# Planted-pattern calibration (Bible Phase 25)", "",
+         f"**Verdict: {'VALIDATED' if verdict['validated'] else 'NOT VALIDATED'}** ({summary['n_runs']} runs, {secs:.0f}s)", "",
+         "| criterion | value | rule | pass |", "|---|---|---|---|"]
+    for k, v in verdict["criteria"].items():
+        val = "n/a" if v["value"] is None else f"{v['value']:.3f}"
+        L.append(f"| {k} | {val} | {v['rule']} | {'yes' if v['pass'] else 'NO'} |")
+    for scn, s in summary["by_scenario"].items():
+        L += ["", f"## {scn} ({s['runs']} runs)", "",
+              f"active/run {s['active_per_run']:.1f}, false active/run {s['false_active_per_run']:.2f}, "
+              f"FDR {s['false_discovery_rate']:.1%}, P(real) Brier {s['calibration']['brier']}, ECE {s['calibration']['ece']}", "",
+              "| plant | kind | should admit | rate | via child | effect ratio | sign ok | statuses |", "|---|---|---|---|---|---|---|---|"]
+        for name, p in s["plants"].items():
+            rate = p.get("detection_rate", p.get("false_admission_rate"))
+            L.append(f"| {name} | {p['kind']} | {p['should_admit']} | {rate:.2f} | {p['admitted_via_child_rate']:.2f} | "
+                     f"{p['median_effect_ratio'] if p['median_effect_ratio'] is None else round(p['median_effect_ratio'], 2)} | "
+                     f"{p['sign_accuracy']} | {p['status_counts']} |")
+        L += ["", "P(real) reliability:", ""]
+        for b, v in s["calibration"]["bins"].items():
+            L.append(f"- {b}: mean P {v['mean_p']:.2f} -> truly real {v['share_truly_real']:.0%} (n={v['n']})")
+    return "\n".join(L) + "\n"
+
+
+def main():
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    seeds = int(args[0]) if args else 8
+    workers = int(args[1]) if len(args) > 1 else 4
+    names = [s.name for s in PL.scenarios()]
+    if "--quick" in sys.argv:
+        names = ["standard", "noise_only"]
+    jobs = [(n, 100 + i) for n in names for i in range(seeds)]
+    t0 = time.perf_counter()
+    runs = []
+    with ProcessPoolExecutor(max_workers=workers) as ex:
+        for r in ex.map(one, jobs):
+            runs.append(r)
+            print(f"{r['scenario']:>14s} seed {r['seed']}: active {r['n_active']}, false {r['n_false_active']}", flush=True)
+    summary = PL.summarise(runs)
+    v = PL.verdict(summary)
+    secs = time.perf_counter() - t0
+    out = K.STATE / "research" / "algorithm" / "planted"
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "summary.json").write_text(json.dumps({"summary": summary, "verdict": v, "miner": MINER}, indent=1, default=str))
+    (out / "report.md").write_text(report_md(summary, v, secs), encoding="utf-8")
+    print(report_md(summary, v, secs))
+    from engine.improve import log_experiment
+    log_experiment({"event": "planted_calibration"}, cfg=MINER, seed=100,
+                   window_ids=[f"{n}:{s}" for n, s in jobs], metrics={k: c["value"] for k, c in v["criteria"].items()},
+                   gates={k: c["pass"] for k, c in v["criteria"].items()},
+                   outcome="adopt" if v["validated"] else "continue_testing",
+                   reason="Phase 25 verdict: " + ("validated" if v["validated"] else
+                          "NOT validated: " + ", ".join(k for k, c in v["criteria"].items() if not c["pass"])),
+                   train_range="synthetic", validation_range="synthetic", test_range="synthetic")
+
+
+if __name__ == "__main__":
+    main()
