@@ -923,14 +923,17 @@ class FeatureIC:
         return len(self._rows)
 
     @staticmethod
-    def _rank_ic(x: pd.Series, y: pd.Series) -> float | None:
-        ok = x.notna() & y.notna()
+    def _rank_ic(x: np.ndarray, y: np.ndarray) -> float | None:
+        """Spearman correlation of two aligned arrays over their jointly finite entries (None if < 3 or a constant side)."""
+        from scipy.stats import rankdata
+        ok = np.isfinite(x) & np.isfinite(y)
         if ok.sum() < 3:
             return None
-        rx, ry = x[ok].rank(), y[ok].rank()
-        if rx.std() <= 0 or ry.std() <= 0:
+        rx, ry = rankdata(x[ok]), rankdata(y[ok])
+        sx, sy = rx.std(), ry.std()
+        if sx <= 0 or sy <= 0:
             return None
-        return float(np.corrcoef(rx, ry)[0, 1])
+        return float(((rx - rx.mean()) * (ry - ry.mean())).mean() / (sx * sy))
 
     def add(self, day, feats: pd.DataFrame, fwd: pd.Series, matured_at, now) -> int:
         require_past(matured_at, now, "feature outcome")
@@ -940,16 +943,17 @@ class FeatureIC:
         if len(common) < self.min_names:
             return 0
         f, y = feats.loc[common], fwd.loc[common].astype("float64")
+        yv, ya = y.to_numpy(), y.abs().to_numpy()
         d = as_date(day)
         n = 0
         for c in f.columns:
-            x = f[c].astype("float64")
-            if x.notna().sum() < self.min_names:
+            x = f[c].to_numpy(dtype="float64")
+            if np.isfinite(x).sum() < self.min_names:
                 continue
-            s, a = self._rank_ic(x, y), self._rank_ic(x, y.abs())
+            s, a = self._rank_ic(x, yv), self._rank_ic(x, ya)
             if s is None and a is None:
                 continue
-            self._rows.append((d.isoformat(), c, s, a, int(x.notna().sum()), as_date(matured_at).isoformat(), d.year))
+            self._rows.append((d.isoformat(), c, s, a, int(np.isfinite(x).sum()), as_date(matured_at).isoformat(), d.year))
             n += 1
         return n
 

@@ -259,3 +259,224 @@ def test_all_sources_fire_and_understudied_detected():
                 "research_failure", "unknown_area", "new_combination", "understudied_sector", "understudied_condition"):
         assert rep.by_source.get(src, 0) >= 1, src
     assert T.source_coverage([rep])["silent"]                            # predictions-based sources did not fire on this input
+
+
+# ------------------------------------------------------------------ wave-2 increment: questions
+def test_numeric_criteria_are_executable_and_undecided_is_not_failure():
+    e = Q.QuestionEvent("loss", "regime_a", "2026-09-20", 0.6, loss_share=0.3, problem=Problem.LOSS_AVOIDANCE)
+    c = Q.numeric_criteria(e)
+    assert Q.judge(c, Q.Outcome(n=5, lift=0.5, p_value=0.0001, loss_avoided=0.5)) == "UNDECIDED"
+    assert Q.judge(c, Q.Outcome(n=500, lift=0.2, p_value=0.001, loss_avoided=0.5)) == "SUCCESS"
+    assert Q.judge(c, Q.Outcome(n=500, lift=0.2, p_value=0.001, loss_avoided=0.05)) == "FAILURE"      # lift alone is not loss avoided
+    d = Q.numeric_criteria(Q.QuestionEvent("new_discovery", "d", "2026-09-20", 0.6))
+    assert Q.judge(d, Q.Outcome(n=500, lift=0.2, p_value=0.001, periods_replicated=1)) == "FAILURE"    # one period is not replication
+
+
+def test_planted_split_is_caught_and_null_split_is_not():
+    rng = np.random.default_rng(1)
+    flag = rng.random(400) < 0.3
+    y = rng.normal(0, 1, 400) + 0.6 * flag
+    assert Q.outcome_from_split(y, flag, 1).decision_changed
+    assert not Q.outcome_from_split(rng.normal(0, 1, 400), flag, 1).decision_changed
+    rep = Q.outcome_from_replication([0.3, 0.28, 0.31], [0.1, 0.1, 0.1])
+    assert rep.periods_replicated == 3 and rep.size_ratio > 0.85
+    assert Q.outcome_from_replication([0.3, -0.3], [0.1, 0.1]).periods_replicated <= 1
+    with pytest.raises(Q.QuestionError):
+        Q.outcome_from_replication([], [])
+
+
+def test_event_builders_filter_noise():
+    assert Q.event_from_surprise("s", 1.5, "2026-09-20") is None and Q.event_from_surprise("s", 4.0, "2026-09-20")
+    assert Q.event_from_contradiction("a", "b", 10, 20, 11, 20, "2026-09-20") is None            # 50% vs 55% is noise
+    assert Q.event_from_contradiction("a", "b", 18, 20, 4, 20, "2026-09-20")
+    assert Q.event_from_break("p", 0.7, 0.68, 100, "2026-09-20") is None and Q.event_from_break("p", 0.7, 0.4, 100, "2026-09-20")
+    assert Q.event_from_break("p", 0.7, 0.4, 5, "2026-09-20") is None
+
+
+def test_question_quality_learning_promotes_paying_source_and_calibrates():
+    book = Q.QuestionOutcomeBook()
+    qo = Q.generate([_ev("loss", "x1", loss_share=0.3)], "2026-09-29").questions[0]
+    qo2 = Q.generate([_ev("surprise", "x2")], "2026-09-29").questions[0]
+    for i in range(20):
+        book.record(qo, 0.3, Q.Outcome(100, 0.1, 0.01, decision_changed=True, information_bits=1.0), "SUCCESS", f"2026-10-{1 + i % 20:02d}", "2027-01-01")
+        book.record(qo2, 0.3, Q.Outcome(100, 0.0, 0.5, decision_changed=False, information_bits=0.05), "FAILURE", f"2026-10-{1 + i % 20:02d}", "2027-01-01")
+    assert book.multiplier("loss", "2027-01-01") > 1.3 > 0.8 > book.multiplier("surprise", "2027-01-01")
+    assert book.multiplier("loss", "2026-09-30") == 1.0                                          # invisible before it matured
+    assert book.calibration("surprise", "2027-01-01")["verdict"] == "overclaims"
+    with pytest.raises(FirewallBreach):
+        book.record(qo, 0.3, Q.Outcome(1, 0, 1), "FAILURE", "2027-01-01", "2027-01-01")
+    assert Q.QuestionOutcomeBook.from_json(book.to_json()).table("2027-01-01") == book.table("2027-01-01")
+
+
+def test_memory_dedup_blocks_tested_question_and_answer_lineage():
+    from engine.learning.experiment_memory import ExperimentLedger
+    qo = Q.generate([_ev("loss", "dup_a", loss_share=0.3)], "2026-09-29").questions[0]
+
+    class Seen:
+        def already_tested(self, q, d, now, reason=""):
+            from types import SimpleNamespace
+            return SimpleNamespace(blocking=True, tested_before=True, message="ran already")
+    assert Q.check_against_memory(qo, Seen(), "2026-10-01").status == "BLOCKED"
+    assert Q.check_against_memory(qo, ExperimentLedger(), "2026-10-01").status == "NOVEL"
+    kept, blocked = Q.filter_novel([qo], Seen(), "2026-10-01")
+    assert not kept and blocked
+    ev = _ev("loss", "dup_a", loss_share=0.3)
+    verdict, fups = Q.answer(qo, Q.Outcome(500, 0.2, 0.001, loss_avoided=0.4, decision_changed=True), ev, None, 0.3, "2026-10-01", "2026-10-02")
+    assert verdict == "SUCCESS" and fups and fups[0].source == "new_discovery"
+    v2, f2 = Q.answer(qo, Q.Outcome(3, 0.2, 0.001), ev, None, 0.3, "2026-10-01", "2026-10-02")
+    assert v2 == "UNDECIDED" and f2[0].source == "loss"
+
+
+def test_slots_guarantee_diversity_and_specific_hypotheses_have_chance():
+    objs = Q.generate([_ev("loss", f"l{i}", loss_share=0.5, magnitude=0.9, problem=Problem.LOSS_AVOIDANCE) for i in range(6)] + [_ev("surprise", "s1", magnitude=0.1)],
+                      "2026-09-29").questions
+    got = Q.allocate_slots(objs, 4)
+    assert "surprise" in {q.source for q in got} and sum(1 for q in got if q.source == "loss") <= 2
+    for src in ("new_discovery", "pattern_break", "regime_change", "missed_winner"):
+        hs = Q.specific_hypotheses(_ev(src))
+        assert any(h.kind == "noise" for h in hs) or src == "regime_change"
+        assert abs(sum(h.prior for h in hs) - 1) < 1e-9
+    assert Q.ledger_integrity(Q.QuestionLedger()) == []
+
+
+# ------------------------------------------------------------------ wave-2 increment: targets
+def test_scorers_route_every_source_and_reject_unknown():
+    rows = {"surprise": {"z": 4}, "loss": {"loss_share": 0.3}, "win": {"n": 20, "wins": 18}, "missed_winner": {"gain_share": 0.3}, "missed_loser": {"loss_share": 0.3},
+            "volatility_cluster": {"size": 12, "base_size": 3}, "pattern_break": {"drop": 0.3, "n_after": 40}, "contradiction": {"strength": 0.4},
+            "new_regime": {"shift": 0.5}, "data_anomaly": {"severity": 0.7}, "research_failure": {"barren_streak": 5},
+            "new_combination": {"lift_a": 0.02, "lift_b": 0.02, "lift_joint": 0.1}, "unknown_area": {"size": 0.4}}
+    for s, r in rows.items():
+        sc = T.score_row(s, r)
+        assert sc.source == s and 0 < sc.magnitude <= 1, s
+    assert T.score_row("win", {"n": 2, "wins": 2}).magnitude == 0.0                   # too few to study
+    assert T.score_row("volatility_cluster", {"size": 3, "base_size": 3}).confidence < T.score_row("volatility_cluster", {"size": 12, "base_size": 3}).confidence
+    with pytest.raises(T.TargetError):
+        T.score_row("astrology", {})
+
+
+def test_source_yield_learns_and_keeps_floor():
+    sy = T.SourceYield()
+    for i in range(30):
+        sy.observe("pattern_break", True, "2026-01-01", "2026-02-01")
+        sy.observe("surprise", False, "2026-01-01", "2026-02-01")
+    assert sy.multiplier("pattern_break") > 1.3 and 0.5 <= sy.multiplier("surprise") < 0.8
+    with pytest.raises(FirewallBreach):
+        sy.observe("loss", True, "2026-02-01", "2026-02-01")
+
+
+def test_coverage_model_finds_understudied_and_decays_old_studies():
+    m = T.CoverageModel("sector", half_life_days=100)
+    m.register(["tech", "energy", "utilities", "rare"])
+    for i in range(30):
+        m.study("tech", f"2026-0{1 + i % 5}-{1 + i % 27:02d}", "2027-01-01")
+        m.study("energy", f"2026-0{1 + i % 5}-{1 + i % 27:02d}", "2027-01-01")
+    m.study("utilities", "2026-03-01", "2027-01-01")
+    need = m.need("2026-09-01")
+    assert need["rare"] == 1.0 and need["tech"] < 0.2
+    assert [b for b, _ in m.understudied("2026-09-01")][0] == "rare"
+    assert m.gini("2026-09-01") > 0.2
+    old = m.decayed_counts("2026-09-01")["tech"]
+    assert m.decayed_counts("2028-09-01")["tech"] < 0.05 * old                           # studies age out
+    assert T.CoverageModel.from_json(m.to_json()).need("2026-09-01") == need
+    assert T.CoverageModel("sector").understudied("2026-09-01") == []                    # empty model
+    tg = T.coverage_targets(m, "2026-09-02", "2026-09-01")
+    assert tg and tg[0].source == "understudied_sector"
+
+
+def _track_rows(cond, true_effect, seed, n_days=60):
+    rng = np.random.default_rng(seed)
+    out = []
+    for d in range(n_days):
+        dd = f"2003-{6 + d // 28:02d}-{1 + d % 28:02d}"
+        for _ in range(6):
+            disp = float(rng.uniform(0.3, 2.4))
+            fail = rng.random() < ((0.85 if disp > cond.threshold else 0.10) if true_effect else 0.30)
+            out.append(T.DatedRow(dd, T.PredictionRow("pattern_x", not fail, {"dispersion": disp})))
+    return out
+
+
+def test_tracker_follows_true_condition_to_confirmation_and_never_confirms_a_null():
+    day = T.dispersion_example(0)
+    cond = T.find_failure_conditions(day.predictions)[0]
+    tgt = T.condition_target("pattern_x", cond, "2003-05-01")
+    tr = T.OpenConditionTracker()
+    tc = tr.open(tgt, "2003-05-01", "2003-05-02")
+    tr.update(_track_rows(cond, True, 3), "2004-01-01")
+    assert tc.state == T.TrackState.CONFIRMED and tc.closed
+    for seed in range(4):
+        tr2 = T.OpenConditionTracker()
+        tc2 = tr2.open(tgt, "2003-05-01", "2003-05-02")
+        tr2.update(_track_rows(cond, False, seed), "2004-01-01")
+        assert tc2.state != T.TrackState.CONFIRMED
+    assert T.OpenConditionTracker.from_json(tr.to_json()).summary() == tr.summary()
+    tr.update([], "2004-01-01")                                                           # empty update is harmless
+    tr3 = T.OpenConditionTracker()
+    tr3.open(tgt, "2003-05-01", "2003-05-02")
+    with pytest.raises(FirewallBreach):
+        tr3.update([T.DatedRow("2004-01-01", T.PredictionRow("pattern_x", True, {"dispersion": 1.0}))], "2004-01-01")
+    assert T.expected_days_to_confirm(cond, 3.0) < 60
+    assert T.expected_days_to_confirm(T.Condition("f", ">", 1, 5, 1, 5, 2, 0.1), 3.0) == float("inf")
+
+
+def test_autopsy_maps_to_sources_and_day_book_is_append_only():
+    ents = [T.AutopsyEntry("2003-05-01", "FALSE_NEGATIVE", "sit_a", 0.2, knowable_before=0.8),
+            T.AutopsyEntry("2003-05-01", "LOSER", "sit_b", -0.3, knowable_before=0.6),
+            T.AutopsyEntry("2003-05-01", "UNPREDICTABLE_MOVER", "sit_c", 0.3, sd=0.05)]
+    ents += [T.AutopsyEntry("2003-05-01", "WINNER", f"w{i}", 0.05, "pattern_x", {"dispersion": 0.5 + 0.05 * i}, True, True) for i in range(8)]
+    di = T.day_input_from_autopsy(ents, "2003-05-02")
+    assert len(di.missed_winners) == 1 and len(di.missed_losers) == 1 and len(di.surprises) == 1 and len(di.predictions) == 8
+    led, tr, book = T.TargetLedger(), T.OpenConditionTracker(), T.DayTargetBook()
+    rep = T.run_autopsy_day(ents, "2003-05-02", led, tr, book)
+    assert {"missed_winner", "missed_loser", "surprise"} <= set(rep.by_source)
+    assert book.days["2003-05-01"]["counts"]["WINNER"] == 8
+    tid = rep.targets[0].target_id
+    book.link(tid, question_id="Q1", verdict="PROMOTED")
+    assert book.trace(tid)["question_id"] == "Q1" and book.yield_by_source()
+    with pytest.raises(T.TargetError):
+        book.record_day("2003-05-01", {}, rep)
+    with pytest.raises(T.TargetError):
+        T.day_input_from_autopsy([], "2003-05-02")
+    with pytest.raises(FirewallBreach):
+        T.day_input_from_autopsy(ents, "2003-05-01")
+    assert T.DayTargetBook.from_json(book.to_json()).days == book.days
+
+
+# ------------------------------------------------------------------ wave-2 increment: forest persistence
+def test_forest_save_load_resume_and_tamper_detection(tmp_path):
+    f = H.TreeForest()
+    f.add(_tree())
+    H.simulate_investigation(f.trees["T"], "h_wrong_context", np.random.default_rng(2), max_steps=3)
+    assert H.verify_forest(f) == []
+    p = tmp_path / "forest.json"
+    cs = H.save_forest(f, p)
+    assert H.forest_checksum(H.load_forest(p)) == cs
+    p.write_text(p.read_text().replace('"against"', '"againstx"', 1), encoding="utf-8")            # corrupt the file
+    with pytest.raises(H.ForestIntegrityError):
+        H.load_forest(p)
+    p.write_text("not json", encoding="utf-8")
+    with pytest.raises(H.ForestIntegrityError):
+        H.load_forest(p)
+    q = tmp_path / "new.json"
+    forest, out = H.resume(q, [], "2026-10-01")                                                 # no file: start empty, save
+    assert len(forest) == 0 and q.exists()
+    with pytest.raises(FileNotFoundError):
+        H.load_forest(tmp_path / "missing.json")
+
+
+def test_resume_replaying_overlapping_results_is_safe_and_broken_forest_not_saved(tmp_path):
+    import dataclasses
+    f = H.TreeForest()
+    f.add(_tree())
+    p = tmp_path / "f.json"
+    H.save_forest(f, p)
+    t = f.trees["T"]
+    act = t.next_action()
+    out = t.get(act.nid).outcomes()[0] if t.get(act.nid).kind == H.NodeKind.TEST else "not_found"
+    res = [H.TestResult("T", act.nid, out, "2026-10-01")]
+    forest, s1 = H.resume(p, res, "2026-10-03")
+    forest2, s2 = H.resume(p, res, "2026-10-04")                                                 # same log again after a "crash"
+    assert s1.rejected == () and len(s2.rejected) == 1 and H.verify_forest(forest2) == []
+    tr = forest2.trees["T"]
+    tr.nodes[H.UNKNOWN_HID] = dataclasses.replace(tr.nodes[H.UNKNOWN_HID], status=H.NodeStatus.FAILED)
+    with pytest.raises(H.ForestIntegrityError):
+        H.save_forest(forest2, tmp_path / "bad.json")

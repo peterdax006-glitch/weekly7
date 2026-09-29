@@ -698,6 +698,94 @@ def f_regime(w: Wide, inp: SourceInputs, cfg: SourceConfig) -> dict:
             "m_regime_state": state, "m_regime_age": age.where(state.notna()), "m_regime_switches_63": switches}
 
 
+def _last_true_value(flag: pd.DataFrame, values: pd.DataFrame) -> pd.DataFrame:
+    """`values` as of the most recent session where `flag` was True (forward-filled), NaN before the first. Point-in-time as long as
+    `values` on a flagged session is itself known on that session."""
+    return values.where(flag).ffill()
+
+
+def f_movers(w: Wide, inp: SourceInputs, cfg: SourceConfig) -> dict:
+    """Mover-episode context (canon C67): where a stock stands relative to its last 5%+ move - how long ago, which way, how the market
+    treated it the next day (known only once that next day has closed), whether it has since consolidated. Everything is evaluated on the
+    close of the signal day, using sessions up to and including it."""
+    r, c, h, l, v = w.ret, w.close, w.high, w.low, w.volume
+    big = (r.abs() >= 0.05) & r.notna()
+    huge = (r.abs() >= 0.10) & r.notna()
+    idx = pd.DataFrame(np.arange(w.n, dtype=float)[:, None].repeat(len(w.tickers), axis=1), index=r.index, columns=r.columns)
+    last_pos = idx.where(big).ffill()
+    rng = (h - l) / c.shift(1)
+    move_rng = _last_true_value(big, rng)
+    move_vol = _last_true_value(big, v / v.rolling(20, min_periods=15).mean().shift(1))
+    day_after_big = big.shift(1, fill_value=False)
+    follow = _last_true_value(day_after_big, r)           # return on the session after the most recent big move: known from that session on
+    since = idx - last_pos
+    post = rng.rolling(3, min_periods=2).mean() / move_rng.where(move_rng > 0)
+    return {"days_since_big": since.clip(upper=250.0), "days_since_huge": (idx - idx.where(huge).ffill()).clip(upper=250.0),
+            "big_moves_63": big.astype(float).where(r.notna()).rolling(63, min_periods=40).sum(),
+            "big_up_share_63": ((r >= 0.05).astype(float).where(r.notna()).rolling(63, min_periods=40).sum()
+                                / big.astype(float).where(r.notna()).rolling(63, min_periods=40).sum().where(lambda x: x > 0)),
+            "last_big_sign": _last_true_value(big, np.sign(r)), "last_big_size": _last_true_value(big, r.abs()),
+            "last_big_range_mult": move_rng, "last_big_volume_mult": move_vol,
+            "last_big_close_loc": _last_true_value(big, ((c - l) / (h - l).where(h > l)).where(c.notna())),
+            "follow_through_last": follow, "consolidation_ratio": post.where(since >= 2), "ret_since_big": c / _last_true_value(big, c) - 1.0,
+            "big_streak_5": big.astype(float).where(r.notna()).rolling(5, min_periods=3).sum()}
+
+
+def f_candles(w: Wide, inp: SourceInputs, cfg: SourceConfig) -> dict:
+    o, h, l, c = w.open, w.high, w.low, w.close
+    body, span = (c - o).abs(), (h - l).where(h > l)
+    upper, lower = h - np.maximum(o, c), np.minimum(o, c) - l
+    prev_body_top, prev_body_bot = np.maximum(o, c).shift(1), np.minimum(o, c).shift(1)
+    doji = (body / span) < 0.1
+    hammer = (lower / span > 0.6) & (body / span < 0.3)
+    star = (upper / span > 0.6) & (body / span < 0.3)
+    bull_engulf = (c > o) & (c.shift(1) < o.shift(1)) & (c >= prev_body_top) & (o <= prev_body_bot)
+    bear_engulf = (c < o) & (c.shift(1) > o.shift(1)) & (o >= prev_body_top) & (c <= prev_body_bot)
+    soldiers = (c > o) & (c.shift(1) > o.shift(1)) & (c.shift(2) > o.shift(2)) & (c > c.shift(1)) & (c.shift(1) > c.shift(2))
+    ok = c.notna() & span.notna()
+    fl = lambda x: x.astype(float).where(ok)
+    return {"doji": fl(doji), "hammer": fl(hammer), "shooting_star": fl(star), "bull_engulf": fl(bull_engulf), "bear_engulf": fl(bear_engulf),
+            "three_soldiers": fl(soldiers), "body_frac": (body / span).where(ok), "upper_wick_frac": (upper / span).where(ok),
+            "lower_wick_frac": (lower / span).where(ok), "doji_count_10": fl(doji).rolling(10, min_periods=7).sum()}
+
+
+def f_drawdown(w: Wide, inp: SourceInputs, cfg: SourceConfig) -> dict:
+    c = w.close
+    peak = c.rolling(252, min_periods=126).max()
+    dd = c / peak - 1.0
+    idx = pd.DataFrame(np.arange(w.n, dtype=float)[:, None].repeat(len(w.tickers), axis=1), index=c.index, columns=c.columns)
+    at_peak = (c >= peak) & peak.notna()
+    since_peak = idx - idx.where(at_peak).ffill()
+    trough = dd.rolling(63, min_periods=40).min()
+    return {"drawdown_252": dd, "days_since_peak": since_peak.clip(upper=252.0).where(peak.notna()), "max_drawdown_63": trough,
+            "recovery_frac": ((dd - trough) / (-trough).where(trough < -0.02)).clip(0.0, 1.5), "underwater_share_63": (dd < -0.05).astype(float)
+            .where(dd.notna()).rolling(63, min_periods=40).mean()}
+
+
+def f_leadlag(w: Wide, inp: SourceInputs, cfg: SourceConfig) -> dict:
+    """Lead-lag: what the group and the market did on the previous sessions, and how a stock did relative to its group. Uses the
+    sector map when given, else the equal-weight market as the group."""
+    sec = dict(inp.sectors or {})
+    r = w.ret
+    grp = _group_mean(r, sec) if sec else pd.DataFrame(np.repeat(w.mkt_ret.to_numpy()[:, None], len(w.tickers), axis=1), index=r.index, columns=r.columns)
+    rel = r - grp
+    return {"group_ret_1": grp, "group_ret_5": grp.rolling(5, min_periods=4).sum(), "rel_to_group_1": rel,
+            "rel_to_group_5": rel.rolling(5, min_periods=4).sum(), "group_lag1_x_rel": grp.shift(1) * rel,
+            "rel_to_group_reversal": -(rel.rolling(5, min_periods=4).sum()) * (rel.abs() > rel.abs().rolling(21, min_periods=15).mean()).astype(float)}
+
+
+def f_volprice(w: Wide, inp: SourceInputs, cfg: SourceConfig) -> dict:
+    c, v, r = w.close, w.volume, w.ret
+    pv = (c * v)
+    vwap21 = pv.rolling(21, min_periods=15).sum() / v.rolling(21, min_periods=15).sum().where(lambda x: x > 0)
+    vwap5 = pv.rolling(5, min_periods=4).sum() / v.rolling(5, min_periods=4).sum().where(lambda x: x > 0)
+    hi_vol_day = v >= v.rolling(63, min_periods=40).quantile(0.9)
+    return {"dist_vwap_21": c / vwap21 - 1.0, "dist_vwap_5": c / vwap5 - 1.0,
+            "vol_weighted_ret_21": (r * v).rolling(21, min_periods=15).sum() / v.rolling(21, min_periods=15).sum().where(lambda x: x > 0),
+            "ret_on_high_volume": _last_true_value(hi_vol_day.fillna(False), r), "price_volume_corr_21": r.abs().rolling(21, min_periods=15).corr(v),
+            "volume_price_divergence": np.sign(r.rolling(5, min_periods=4).sum()) * -np.sign(v.rolling(5, min_periods=4).mean() / v.rolling(21, min_periods=15).mean() - 1.0)}
+
+
 # ------------------------------------------------------------------------------------------------------- the registry
 @dataclasses.dataclass(frozen=True)
 class FamilySpec:
@@ -742,6 +830,11 @@ FAMILIES: dict[str, FamilySpec] = {s.name: s for s in (
     FamilySpec("dispersion", f_dispersion, (), _A.KNOWN_BEFORE_EVENT, "cross-sectional return dispersion and skew"),
     FamilySpec("liquidity", f_liquidity, (), _A.KNOWN_BEFORE_EVENT, "dollar volume, Amihud, high-low spread, zero-volume days"),
     FamilySpec("regime", f_regime, (), _A.KNOWN_BEFORE_EVENT, "market trend / volatility state, drawdown, regime age"),
+    FamilySpec("movers", f_movers, (), _A.KNOWN_BEFORE_EVENT, "time since, size, direction and aftermath of the last 5%+ move (C67)"),
+    FamilySpec("candles", f_candles, (), _A.KNOWN_BEFORE_EVENT, "single- and multi-bar candle shapes"),
+    FamilySpec("drawdown", f_drawdown, (), _A.KNOWN_BEFORE_EVENT, "depth, age and recovery of the drawdown from the 252-day peak"),
+    FamilySpec("leadlag", f_leadlag, (), _A.KNOWN_BEFORE_EVENT, "group and market returns of prior sessions and the stock's relative move"),
+    FamilySpec("volprice", f_volprice, (), _A.KNOWN_BEFORE_EVENT, "VWAP distance, volume-weighted momentum, price-volume divergence"),
 )}
 DERIVED_FAMILIES = ("learned",)                   # built from other families' columns, never from raw inputs
 ALL_FAMILY_NAMES = tuple(FAMILIES) + DERIVED_FAMILIES
@@ -931,6 +1024,48 @@ def forward_labels(bars: pd.DataFrame, horizon: int, now=None) -> tuple[pd.Serie
     if now is not None:
         cut = pd.Timestamp(as_date(now))
         ok = (matured < cut).to_numpy()
+        y, matured = y[ok], matured[ok]
+    return y.sort_index(), matured.sort_index()
+
+
+TARGETS = ("excess", "abs_move", "range_exp", "continuation")
+
+
+def target_labels(bars: pd.DataFrame, kind: str, horizon: int, now=None) -> tuple[pd.Series, pd.Series]:
+    """Outcome to explain, always fill-at-next-open and measured over `horizon` sessions, then minus the same signal date's universe mean
+    (so a market-wide day cannot masquerade as a pattern):
+      excess        return open(t+1) -> close(t+h)               direction and size of the move
+      abs_move      |that return|                                 how far it goes either way (volatility, objective 1)
+      range_exp     (max high - min low over t+1..t+h) / close(t)  path range: stocks that expand vs stocks that go quiet
+      continuation  that return times the sign of day t's own return   follow-through (+) vs reversal (-) after a move
+    Returns (y, matured_at); with `now`, only rows whose exit session is strictly before it."""
+    if kind not in TARGETS:
+        raise SourceError(f"unknown target {kind!r}; known: {TARGETS}")
+    if kind == "excess":
+        return forward_labels(bars, horizon, now)
+    if horizon < 1:
+        raise SourceError("horizon must be >= 1 session")
+    b = bars.copy()
+    b["date"] = pd.to_datetime(b["date"])
+    b["ticker"] = b["ticker"].astype(str)
+    piv = {k: b.pivot(index="date", columns="ticker", values=k).sort_index().astype(float) for k in ("open", "high", "low", "close")}
+    op, hi, lo, cl = piv["open"], piv["high"], piv["low"], piv["close"]
+    raw = cl.shift(-horizon) / op.shift(-1) - 1.0
+    if kind == "abs_move":
+        val = raw.abs()
+    elif kind == "continuation":
+        val = raw * np.sign(cl.pct_change(fill_method=None))
+    else:
+        fmax = hi.shift(-1)[::-1].rolling(horizon, min_periods=horizon).max()[::-1]
+        fmin = lo.shift(-1)[::-1].rolling(horizon, min_periods=horizon).min()[::-1]
+        val = (fmax - fmin) / cl
+    val = val.where(raw.notna())
+    y = val.sub(val.mean(axis=1), axis=0).stack().dropna().rename("y")
+    y.index.names = ["date", "ticker"]
+    exit_date = pd.Series(cl.index, index=cl.index).shift(-horizon)
+    matured = pd.Series(exit_date.reindex(y.index.get_level_values(0)).to_numpy(), index=y.index, name="matured_at")
+    if now is not None:
+        ok = (matured < pd.Timestamp(as_date(now))).to_numpy()
         y, matured = y[ok], matured[ok]
     return y.sort_index(), matured.sort_index()
 

@@ -1167,3 +1167,153 @@ def informational_rate(b: Bridge) -> float | None:
     """Share of routed discoveries that change nothing. Near 1.0 for a lab means it is producing knowledge without consequence."""
     n = len(b.entries())
     return (sum(e.disposition == Disposition.INFORMATIONAL for e in b.entries()) / n) if n else None
+
+
+# ====================================================================================================== robustness and budgets
+
+def sensitivity(b: Bridge, shrink: float = 0.5) -> list[tuple[str, int, str]]:
+    """Routing robustness: shrink every measurement's lower bound and sample by `shrink` and report the claims whose disposition would
+    fall (discovery id, claim index, new disposition). A DECISION_CHANGING claim that flips at 50% is riding on its margin."""
+    out = []
+    for e in b.live_entries():
+        d = b.discovery(e.discovery_id)
+        for v in e.verdicts:
+            if v.status != Disposition.DECISION_CHANGING:
+                continue
+            c = d.claims[v.index]
+            m = c.measurement
+            thin = dataclasses.replace(c, measurement=dataclasses.replace(
+                m, lower=(m.lower or 0.0) * shrink, n=int(m.n * shrink), windows=max(0, int(m.windows * shrink))))
+            nv = triage_claim(v.index, thin, b.cfg)
+            if nv.status != Disposition.DECISION_CHANGING:
+                out.append((e.discovery_id, v.index, nv.status.value))
+    return sorted(out)
+
+
+def target_budget(b: Bridge, cap: float = 1.0) -> list[tuple[str, str, float]]:
+    """(effect, target, total requested nudge) where the summed magnitude of live claims on one knob and target exceeds `cap`. The
+    contract's limiters will clip the result, but a pile-up this large means several labs are pushing one knob and nobody owns it."""
+    tot: dict[tuple[str, str], float] = defaultdict(float)
+    for e in b.live_entries():
+        d = b.discovery(e.discovery_id)
+        for v in e.verdicts:
+            if v.status in (Disposition.DECISION_CHANGING, Disposition.SHADOW_ONLY):
+                c = d.claims[v.index]
+                tot[(c.effect.value, c.target)] += c.magnitude
+    return sorted((k[0], k[1], round(x, 6)) for k, x in tot.items() if x > cap)
+
+
+def expected_value(b: Bridge, now) -> dict[str, float]:
+    """Calibration-discounted expected improvement per decision metric over the live decision-changing and shadow claims. Each claim's
+    expected delta is scaled by how well its output's past claims held up (`discounted_expected`); unmeasured outputs get the
+    prior ratio, so an untested lab is never taken at its word. This is a forecast, never credit: only `value_ledger` credits."""
+    out: dict[str, float] = defaultdict(float)
+    for e in b.live_entries():
+        d = b.discovery(e.discovery_id)
+        for v in e.verdicts:
+            if v.status in (Disposition.DECISION_CHANGING, Disposition.SHADOW_ONLY):
+                c = d.claims[v.index]
+                x = b.discounted_expected(c, now)
+                if x is not None:
+                    out[c.metric] += x * (1.0 if v.status == Disposition.DECISION_CHANGING else 0.5)
+    return {k: round(v, 8) for k, v in sorted(out.items())}
+
+
+def resolve_conflict(b: Bridge, id_a: str, id_b: str, now) -> dict[str, Any]:
+    """Which of two conflicting discoveries the evidence favours, and why. Compares the lower bound of the measured improvement, the
+    sample and the source's earned trust. Refuses to choose (winner None) when one is unmeasured or the two are within noise."""
+    ca = [c for c in b.discovery(id_a).claims if c.measurement]
+    cb = [c for c in b.discovery(id_b).claims if c.measurement]
+    if not ca or not cb:
+        return {"winner": None, "why": "at least one side has no measurement"}
+    la, lb = max(c.measurement.lower or 0.0 for c in ca), max(c.measurement.lower or 0.0 for c in cb)
+    ta, tb = b.trust(b.discovery(id_a).source, now), b.trust(b.discovery(id_b).source, now)
+    sa, sb = la * ta, lb * tb
+    if abs(sa - sb) <= 0.25 * max(sa, sb, 1e-12):
+        return {"winner": None, "why": "the two are within 25% of each other after weighting by source trust", "scores": (sa, sb)}
+    return {"winner": id_a if sa > sb else id_b, "why": "larger trust-weighted lower bound", "scores": (sa, sb)}
+
+
+# ====================================================================================================== reading the register
+
+def explain_entry(b: Bridge, entry_id: str) -> str:
+    """One entry in words: what was claimed on which knob, how it was judged, what is missing, and the concrete effect asked for."""
+    e = next(x for x in b.entries() if x.entry_id == entry_id)
+    d = b.discovery(e.discovery_id)
+    lines = [f"{e.discovery_id} [{e.source}] -> {e.disposition.value} (ceiling {e.ceiling or 'none'}): {d.statement}"]
+    for v in e.verdicts:
+        c = d.claims[v.index]
+        knob = dc.BINDINGS[c.effect].knob
+        lines.append(f"  claim {v.index}: {c.output.value} on {c.target or 'the whole decision'} via {knob}, "
+                     f"{'up' if c.direction > 0 else 'down'} {c.magnitude:g} -> {v.status.value}" + (f" ({'; '.join(v.reasons)})" if v.reasons else ""))
+    if e.readiness:
+        lines.append("  production would still need: " + "; ".join(dict.fromkeys(m for _, ms in e.readiness for m in ms)))
+    return "\n".join(lines)
+
+
+def source_output_matrix(b: Bridge):
+    """Sources x outputs of live claims that changed a decision or a priority: who is steering which knob."""
+    import pandas as pd
+    cnt: dict[tuple[str, str], int] = defaultdict(int)
+    for e in b.live_entries():
+        for v in e.verdicts:
+            if v.status not in (Disposition.REFUSED, Disposition.INFORMATIONAL):
+                cnt[(e.source, v.output.value)] += 1
+    srcs = sorted({k[0] for k in cnt})
+    return pd.DataFrame([[cnt.get((s, o.value), 0) for o in Output] for s in srcs], index=srcs, columns=[o.value for o in Output])
+
+
+def age_report(b: Bridge, now) -> dict[str, dict[str, int]]:
+    """Live entries by disposition and age band (<=30d, <=90d, older): a pile of old shadow-only claims means measurement is not being run."""
+    bands: dict[str, Counter] = defaultdict(Counter)
+    for e in b.live_entries():
+        age = (as_date(now) - as_date(e.recorded_at)).days
+        bands[e.disposition.value]["<=30d" if age <= 30 else "<=90d" if age <= 90 else ">90d"] += 1
+    return {k: dict(sorted(v.items())) for k, v in sorted(bands.items())}
+
+
+def claims_for(b: Bridge, target: str) -> list[tuple[str, int, str, str]]:
+    """Every live claim that touches one target: (discovery id, claim index, output, disposition). The answer to 'what has been said
+    about this pattern's effect on decisions?'"""
+    out = []
+    for e in b.live_entries():
+        d = b.discovery(e.discovery_id)
+        for v in e.verdicts:
+            if d.claims[v.index].target == target:
+                out.append((e.discovery_id, v.index, v.output.value, v.status.value))
+    return sorted(out)
+
+
+def summary(b: Bridge, now) -> dict[str, Any]:
+    """One dictionary for the research loop's log: dispositions, informational rate, coverage, conflicts, duplicates, the honest ledger,
+    and how many claims are waiting on a measurement."""
+    led = b.value_ledger(now)
+    return {"routed": led.submitted, "by_disposition": dict(led.by_disposition), "informational_rate": informational_rate(b),
+            "coverage": decision_coverage(b)["share_covered"], "conflicts": len(b.conflicts()), "duplicates": len(b.duplicates()),
+            "realised_by_metric": dict(led.realised_by_metric), "waiting_on_measurement": len(upgrade_queue(b, now)),
+            "audit_errors": len(b.audit(now))}
+
+
+def merge_registers(a: Bridge, b: Bridge) -> tuple[Bridge, list[str]]:
+    """Combine two registers built by parallel workers by re-routing every distinct discovery on its original date into a fresh
+    register (so the chain is rebuilt, not spliced). A discovery id with different content on the two sides is a conflict: it is
+    reported and the first side's version kept. Realised outcomes carry over for entries that survive."""
+    out = Bridge(a.cfg)
+    conflicts: list[str] = []
+    seen: dict[str, Discovery] = {}
+    for src in (a, b):
+        for e in src.entries():
+            d = src.discovery(e.discovery_id)
+            if d.discovery_id in seen:
+                if seen[d.discovery_id] != d:
+                    conflicts.append(f"{d.discovery_id}: different content in the two registers")
+                continue
+            seen[d.discovery_id] = d
+            try:
+                out.submit(d, e.recorded_at)
+            except (FirewallBreach, BridgeError) as err:
+                conflicts.append(f"{d.discovery_id}: {err}")
+    ids = {e.entry_id for e in out.entries()}
+    for src in (a, b):
+        out._realised += [r for r in src._realised if r.entry_id in ids and r not in out._realised]
+    return out, sorted(set(conflicts))

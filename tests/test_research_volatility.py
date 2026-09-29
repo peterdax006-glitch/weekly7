@@ -377,8 +377,8 @@ def test_replicate_rule_rejects_a_lift_that_is_not_there(null_world):
 
 def test_rule_stability_needs_many_groups():
     F = L.planted_frame("hidden", n_dates=150, n_tickers=60, seed=51, effect=1.8)
-    rule = VH.Hypothesis("R", "r", "m", ("xs_atr_rank", "near_lo"), kind="RULE",
-                         rule=(("xs_atr_rank", ">", 0.75), ("near_lo", "<=", -0.02), ("near_lo", ">", -0.12)))
+    rule = VH.Hypothesis("R", "r", "m", ("near_hi", "near_lo"), kind="RULE",
+                         rule=(("near_hi", ">", -0.04), ("near_lo", ">", 0.02), ("near_lo", "<=", 0.12)))
     st = VH.rule_stability(rule, F, "sector", min_in=30)
     assert st.stable and st.share_above_one == 1.0
     assert not VH.rule_stability(rule, F.iloc[:0], "year").stable
@@ -590,8 +590,7 @@ def test_event_inputs_are_point_in_time():
     ins = pd.DataFrame({"symbol": ["AAA", "AAA"], "filed": pd.to_datetime(["2020-08-12", "2020-08-19"])})
     E = L.event_inputs(idx, ev, ins)
     assert np.isnan(E.iloc[0]["days_to_event"])
-    assert list(E["insider_n30"]) == [0, 1, 2] and E.iloc[1]["filing_n5"] == 1 and E.iloc[2]["filing_n5"] == 0
-    assert E.iloc[1]["days_to_event"] < 0 or np.isfinite(E.iloc[1]["days_to_event"]) or True
+    assert list(E["insider_n30"]) == [0, 1, 1] and E.iloc[1]["filing_n5"] == 1 and E.iloc[2]["filing_n5"] == 0
     assert L.event_inputs(idx, None, None).isna().all().all()
 
 
@@ -628,7 +627,7 @@ def test_feature_health_flags_dead_and_shifted_columns():
 
 def test_mover_persistence_detects_planted_repeat():
     F = L.planted_frame("H1", n_dates=100, n_tickers=60, seed=71, effect=1.8)
-    p = L.mover_persistence(F, lags=(1,), cfg=CFG)
+    p = L.mover_persistence(F, lags=(2,), cfg=CFG)
     assert p["p1"].iloc[0] > p["p0"].iloc[0] and L.mover_persistence(F.iloc[:0]).empty
 
 

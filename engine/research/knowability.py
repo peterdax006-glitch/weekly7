@@ -2773,3 +2773,535 @@ def regime_knowability_prior(ledger: KnowabilityLedger, now, replaying_years: It
         prior[g]["n_bucket"] = 10 ** int(math.log10(len(items)))
     return {"prior": prior, "withheld_groups": sum(1 for v in groups.values() if len(v) < min_n), "immature": immature,
             "replayed_year_excluded": replayed}
+
+
+# ==================================================================================================================
+# real-data availability adapters: one per source family in data/cache. Each maps the file's OWN columns to InfoItems and says,
+# per row, which clock is trustworthy. Frames are passed in (never read here), so tests use small synthetic frames of the same shape.
+# ==================================================================================================================
+SOURCE_FAMILIES = ("edgar_events", "insider", "macro", "prices", "delisted")
+CLOSE_TIME = "16:00:00"
+
+
+def _win(window: tuple[str, str]) -> tuple[pd.Timestamp, pd.Timestamp]:
+    lo, hi = pd.Timestamp(window[0]), pd.Timestamp(window[1])
+    if hi < lo:
+        raise KnowabilityError("window ends before it starts")
+    return lo, hi
+
+
+def edgar_events_items(events: pd.DataFrame, ticker: str, window: tuple[str, str]) -> list[InfoItem]:
+    """data/cache/events.parquet: columns ticker, form, accepted (UTC), kind. `accepted` is the SEC acceptance stamp, so
+    publication is INTRADAY-precision and recorded. Acceptance after 17:30 ET is dated the next business day by the SEC, which
+    only makes it later, never earlier, so using the stamp as published_at is conservative. Delegates to items_from_edgar_events
+    (the single implementation) after checking the frame shape and the timezone."""
+    if events is None or len(events) == 0:
+        return []
+    if "accepted" in events and getattr(events["accepted"].dtype, "tz", None) is None:
+        raise KnowabilityError("events.accepted must be tz-aware UTC; a naive stamp cannot be ordered against the close")
+    return items_from_edgar_events(events, ticker, window)
+
+
+def insider_items(ins: pd.DataFrame, ticker: str, window: tuple[str, str]) -> list[InfoItem]:
+    """data/cache/insider.parquet: columns acc, filed (date), tdate (transaction date), symbol, shares, price. `filed` carries no
+    time of day, so publication is DATE precision and a same-day filing is SIMULTANEOUS at best. Strength grows with the dollar
+    size of the purchase (log-scaled, capped) because a token purchase is not a signal. A row filed BEFORE its trade date is
+    impossible and is emitted with no publication time and unknown provenance (UNCERTAIN) rather than trusted."""
+    if ins is None or len(ins) == 0:
+        return []
+    need = {"filed", "tdate", "symbol"}
+    if not need <= set(ins.columns):
+        raise KnowabilityError(f"insider frame lacks {sorted(need - set(ins.columns))}")
+    lo, hi = _win(window)
+    out = []
+    sub = ins[ins["symbol"] == ticker]
+    for i, r in enumerate(sub.itertuples(index=False)):
+        rec = r._asdict()
+        f = pd.Timestamp(rec["filed"])
+        t = pd.Timestamp(rec["tdate"]) if pd.notna(rec["tdate"]) else None
+        if not lo <= f.normalize() <= hi:
+            continue
+        dollars = float(rec.get("shares") or 0.0) * float(rec.get("price") or 0.0)
+        strength = float(min(0.6, max(0.05, (math.log10(dollars) - 3.0) / 5.0))) if dollars > 0 else 0.05
+        impossible = t is not None and f.normalize() < t.normalize()
+        acc = str(rec.get("acc", i))
+        out.append(InfoItem(f"INS-{ticker}-{acc}-{i}", InfoKind.INSIDER, ticker, None if t is None else str(t.date()),
+                            None if impossible else str(f.date()), "insider", PROV_UNKNOWN if impossible else PROV_RECORDED, True,
+                            False, strength, 1, "open-market purchase" + (" (filed before trade date)" if impossible else "")))
+    return out
+
+
+def macro_items(macro: pd.DataFrame, window: tuple[str, str], lag_days: Mapping[str, int] | None = None, market_priced_lag: int = 1) -> list[InfoItem]:
+    """data/cache/macro.parquet: wide frame, index = OBSERVATION date, one column per FRED series. There is no publication
+    column, so publication is INFERRED: observation date plus the series' calendar-day publication lag (engine.leak_audit
+    MACRO_LAG_DAYS), one day for market-priced series, 45 days for unknown ones. Revised series (MACRO_REVISED) get provenance
+    'reconstructed': the stored VALUE is the current vintage, not what was first published, so timing is usable but the level is
+    hindsight. Each item's detail carries the series and the change from the prior observation (a level is not an event)."""
+    from engine import leak_audit as LA
+    if macro is None or len(macro) == 0:
+        return []
+    lo, hi = _win(window)
+    lags = dict(LA.MACRO_LAG_DAYS)
+    lags.update(lag_days or {})
+    out = []
+    for col in macro.columns:
+        s = macro[col].dropna()
+        if s.empty:
+            continue
+        lag = lags.get(col, market_priced_lag if col in LA.MACRO_UNREVISED else 45)
+        revised = col in LA.MACRO_REVISED or col not in LA.MACRO_UNREVISED
+        chg = s.diff()
+        sd = float(chg.std()) if len(chg) > 2 and float(chg.std()) > 0 else 0.0
+        for obs, v in s.items():
+            pub = (pd.Timestamp(obs) + pd.Timedelta(days=int(lag))).normalize()
+            if not lo <= pub <= hi:
+                continue
+            z = float(chg.loc[obs] / sd) if sd and pd.notna(chg.loc[obs]) else 0.0
+            out.append(InfoItem(f"MACRO-{col}-{pd.Timestamp(obs):%Y%m%d}", InfoKind.MACRO, "MARKET", str(pd.Timestamp(obs).date()),
+                                str(pub.date()), col, PROV_RECONSTRUCTED if revised else PROV_INFERRED, True, False,
+                                float(min(0.6, abs(z) / 6.0)), int(np.sign(z)), f"{col} change z={z:+.2f}"))
+    return out
+
+
+def price_bar_items(bars: pd.DataFrame, ticker: str, window: tuple[str, str]) -> list[InfoItem]:
+    """Daily OHLCV (stocks_*, market_*, index_hist_*, delisted_prices): a bar for date D is public at D 16:00 New York, not at
+    D 00:00 (a naive join on the date would let the close be 'known' at the open). Bars with a non-positive close are skipped; a
+    zero-volume bar gets unknown provenance because vendors fill missing prints with the last close. Strength is the bar's size in
+    units of its trailing 20-day mean absolute return."""
+    if bars is None or len(bars) == 0:
+        return []
+    need = {"close", "volume"}
+    if not need <= set(bars.columns):
+        raise KnowabilityError(f"bars lack {sorted(need - set(bars.columns))}")
+    lo, hi = _win(window)
+    b = bars.sort_index()
+    ret = b["close"].pct_change()
+    rng = ret.abs().rolling(20, min_periods=10).mean().shift(1)
+    out = []
+    for ts in b.index[(b.index >= lo) & (b.index <= hi)]:
+        c = float(b["close"].loc[ts])
+        if not c > 0:
+            continue
+        r, base = ret.loc[ts], rng.loc[ts]
+        z = float(r / base) if pd.notna(r) and pd.notna(base) and base > 0 else 0.0
+        stale = float(b["volume"].loc[ts]) <= 0
+        out.append(InfoItem(f"PX-{ticker}-{ts:%Y%m%d}", InfoKind.PRICE, ticker, str(ts.date()), f"{ts:%Y-%m-%d} {CLOSE_TIME}", "prices",
+                            PROV_UNKNOWN if stale else PROV_RECORDED, True, False, float(min(1.0, abs(z) / 8.0)), int(np.sign(z)),
+                            f"bar z={z:+.2f}" + (" zero volume" if stale else "")))
+    return out
+
+
+def delisting_items(delist: pd.DataFrame, cik: int, ticker: str, window: tuple[str, str]) -> list[InfoItem]:
+    """data/cache/delisted_events.parquet: cik, f25_date, f15_date, announced, delist_date, status, terminal. The earliest
+    available announcement stamp (announced, Form 25, Form 15) is the publication time; `delist_date` is the last trading day and
+    is EFFECTIVE, not a publication time. With no stamp at all the item has no publication time (UNCERTAIN). Terminal delistings
+    (bankruptcy, liquidation) are strong and point down."""
+    if delist is None or len(delist) == 0:
+        return []
+    lo, hi = _win(window)
+    out = []
+    for r in delist[delist["cik"] == cik].itertuples(index=False):
+        rec = r._asdict()
+        eff = rec.get("delist_date")
+        stamps = [pd.Timestamp(rec[k]) for k in ("announced", "f25_date", "f15_date") if k in rec and pd.notna(rec[k])]
+        pub = min(stamps) if stamps else None
+        if eff is None or pd.isna(eff) or not lo <= pd.Timestamp(eff) <= hi:
+            continue
+        terminal = bool(rec.get("terminal", False))
+        out.append(InfoItem(f"DELIST-{ticker}-{pd.Timestamp(eff):%Y%m%d}", InfoKind.CORPORATE_ACTION, ticker, str(pd.Timestamp(eff).date()),
+                            None if pub is None else str(pub.date()), "delisted", PROV_RECORDED if pub is not None else PROV_UNKNOWN,
+                            True, pub is not None, 0.95 if terminal else 0.6, -1 if terminal else 0,
+                            f"delisting {rec.get('status', '')}".strip()))
+    return out
+
+
+ADAPTERS: dict[str, Callable[..., list[InfoItem]]] = {"edgar_events": edgar_events_items, "insider": insider_items, "macro": macro_items,
+                                                     "prices": price_bar_items, "delisted": delisting_items}
+
+
+def gather_items(ticker: str, window: tuple[str, str], *, events=None, insider=None, macro=None, bars=None, delisted=None, cik: int | None = None,
+                 lag_days: Mapping[str, int] | None = None) -> list[InfoItem]:
+    """All sources for one name and window, merged (the same fact from two sources collapses to the earliest publication) and sorted.
+    Pass only the frames you have; a missing family contributes nothing."""
+    items: list[InfoItem] = []
+    items += edgar_events_items(events, ticker, window) if events is not None else []
+    items += insider_items(insider, ticker, window) if insider is not None else []
+    items += macro_items(macro, window, lag_days) if macro is not None else []
+    items += price_bar_items(bars, ticker, window) if bars is not None else []
+    if delisted is not None:
+        if cik is None:
+            raise KnowabilityError("delisting events are keyed by cik; pass cik=")
+        items += delisting_items(delisted, cik, ticker, window)
+    return merge_duplicate_items(items)
+
+
+# ==================================================================================================================
+# hindsight-side audits: what was UNCERTAIN and why; can any KNOWN_BEFORE tag be trusted; how risky is each source's revision
+# ==================================================================================================================
+FILING_DATE_SOURCES = {"insider", "delisted", "earnings_calendar", "splits"}          # sources whose date fields carry no time of day
+
+
+@dataclasses.dataclass(frozen=True)
+class UncertainEntry:
+    item_id: str
+    source: str
+    kind: str
+    reason: str
+    minutes_from_cutoff: float | None
+
+
+def uncertain_report(items: Sequence[InfoItem], b: DecisionBoundary, calendar: Calendar | None = None, lag: LagPolicy = LagPolicy()) -> pd.DataFrame:
+    """Every item whose availability was UNCERTAIN, with source and the judge's reason, sorted by source then reason. Summary rows
+    at the end (item_id 'TOTAL:<source>') give each source's UNCERTAIN share of all its items."""
+    cols = ["item_id", "source", "kind", "reason", "minutes_from_cutoff"]
+    judg = judge_all(items, b, calendar, lag)
+    rows = [dataclasses.asdict(UncertainEntry(i.item_id, i.source, i.kind.value, judg[i.item_id].reason, judg[i.item_id].margin_minutes))
+            for i in items if judg[i.item_id].availability == Availability.UNCERTAIN]
+    df = pd.DataFrame(rows, columns=cols).sort_values(["source", "reason", "item_id"]).reset_index(drop=True) if rows else pd.DataFrame(columns=cols)
+    tot: dict[str, list[int]] = {}
+    for i in items:
+        t = tot.setdefault(i.source, [0, 0])
+        t[1] += 1
+        t[0] += int(judg[i.item_id].availability == Availability.UNCERTAIN)
+    summ = pd.DataFrame([{"item_id": f"TOTAL:{s}", "source": s, "kind": "", "reason": f"{u}/{n} uncertain ({u / n:.0%})",
+                          "minutes_from_cutoff": None} for s, (u, n) in sorted(tot.items())], columns=cols)
+    return pd.concat([df, summ], ignore_index=True) if len(summ) else df
+
+
+def uncertain_by_source(items: Sequence[InfoItem], b: DecisionBoundary, calendar: Calendar | None = None, lag: LagPolicy = LagPolicy()) -> dict[str, dict[str, int]]:
+    """source -> {reason: count} for UNCERTAIN items."""
+    judg = judge_all(items, b, calendar, lag)
+    out: dict[str, dict[str, int]] = {}
+    for i in items:
+        if judg[i.item_id].availability == Availability.UNCERTAIN:
+            d = out.setdefault(i.source, {})
+            d[judg[i.item_id].reason] = d.get(judg[i.item_id].reason, 0) + 1
+    return out
+
+
+@dataclasses.dataclass(frozen=True)
+class GuaranteeFinding:
+    item_id: str
+    source: str
+    problem: str
+
+
+def audit_known_before(items: Sequence[InfoItem], b: DecisionBoundary, calendar: Calendar | None = None, lag: LagPolicy = LagPolicy(),
+                       guaranteed: Mapping[str, str] | None = None) -> list[GuaranteeFinding]:
+    """No KNOWN_BEFORE tag may rest on a timestamp its source cannot guarantee. Findings:
+    * KNOWN_BEFORE with unknown provenance;
+    * KNOWN_BEFORE whose level is a current-vintage reconstruction (timing usable, value is hindsight);
+    * KNOWN_BEFORE with an INFERRED publication (lag estimate, not a record) from a source that does not guarantee a stamp, or that
+      lands within the lag margin of the cutoff;
+    * KNOWN_BEFORE from a DATE-precision stamp on or after the decision date;
+    * publication equal to the effective date for a date-only source without a guarantee (the two clocks were probably collapsed:
+      the classic effective-date look-ahead).
+    `guaranteed` maps source -> why its recorded stamp is trustworthy (default: edgar acceptance stamp, price session close)."""
+    g = dict(guaranteed or {"edgar": "SEC acceptance timestamp", "prices": "session close"})
+    judg = judge_all(items, b, calendar, lag)
+    bad = []
+    cut = pd.Timestamp(b.decision_date)
+    for it in items:
+        j = judg[it.item_id]
+        if j.availability != Availability.KNOWN_BEFORE_EVENT:
+            continue
+        pub, prec = to_ny(it.published_at)
+        eff, _ = to_ny(it.effective_at)
+        if it.provenance == PROV_UNKNOWN:
+            bad.append(GuaranteeFinding(it.item_id, it.source, "KNOWN_BEFORE with unknown provenance"))
+        if it.provenance == PROV_RECONSTRUCTED:
+            bad.append(GuaranteeFinding(it.item_id, it.source, "timing usable but value is a current-vintage reconstruction"))
+        if j.inferred:
+            if it.source not in g:
+                bad.append(GuaranteeFinding(it.item_id, it.source, "publication inferred from an effective date; source does not guarantee a stamp"))
+            else:
+                near = eff is not None and abs(_sessions_between(cut, eff, calendar)) < lag.margin_sessions + lag.lag_for(it.source)
+                if near:
+                    bad.append(GuaranteeFinding(it.item_id, it.source, "inferred publication within the lag margin of the cutoff"))
+        if prec == PREC_DATE and pub is not None and pub.normalize() >= cut:
+            bad.append(GuaranteeFinding(it.item_id, it.source, "date-only stamp on or after the decision date tagged KNOWN_BEFORE"))
+        if it.source in FILING_DATE_SOURCES and pub is not None and eff is not None and pub.normalize() == eff.normalize() and it.source not in g:
+            bad.append(GuaranteeFinding(it.item_id, it.source, "publication equals effective date: the two clocks were probably collapsed"))
+    return sorted(bad, key=lambda f: (f.source, f.item_id, f.problem))
+
+
+def guarantee_summary(findings: Sequence[GuaranteeFinding]) -> dict[str, dict[str, int]]:
+    """source -> {problem: count}."""
+    out: dict[str, dict[str, int]] = {}
+    for f in findings:
+        d = out.setdefault(f.source, {})
+        d[f.problem] = d.get(f.problem, 0) + 1
+    return out
+
+
+REVISION_RISK_DEFAULTS = {"edgar": (0.05, "filings are amended by later 8-K/A and 10-K/A; the original stamp stays"),
+                          "insider": (0.15, "Form 4/A amendments restate size and date; our table keeps the latest"),
+                          "prices": (0.10, "vendors restate bars for splits and corrections; adjusted history is rewritten"),
+                          "delisted": (0.20, "delisting dates are reconstructed from Form 25 and successor records"),
+                          "earnings_calendar": (0.30, "scheduled dates move; the announcement date is the only stable field"),
+                          "splits": (0.05, "ex-dates are fixed once announced"),
+                          "calendar": (0.25, "scheduled events are re-dated")}
+
+
+def source_revision_risk(items: Sequence[InfoItem], macro_columns: Iterable[str] = ()) -> pd.DataFrame:
+    """Per source: revision-risk score in [0,1], reason, item count and how many items carry a reconstructed level. Macro series
+    come from engine.leak_audit.macro_revision_risk (revised 0.8, market-priced 0.0, unknown 0.8). A source with no profile
+    scores 0.5 and says so: unknown is not safe."""
+    from engine.leak_audit import macro_revision_risk
+    by_src: dict[str, list[InfoItem]] = {}
+    for i in items:
+        by_src.setdefault(i.source, []).append(i)
+    cols = list(macro_columns)
+    macro = macro_revision_risk(cols).set_index("series") if cols else None
+    rows = []
+    for s, its in sorted(by_src.items()):
+        if macro is not None and s in macro.index:
+            risk, why = (0.8 if bool(macro.loc[s, "revised"]) else 0.0), str(macro.loc[s, "reason"])
+        elif s in REVISION_RISK_DEFAULTS:
+            risk, why = REVISION_RISK_DEFAULTS[s]
+        else:
+            risk, why = 0.5, "no revision profile for this source; treated as risky"
+        rows.append({"source": s, "n": len(its), "risk": float(risk), "reason": why,
+                     "reconstructed": sum(1 for i in its if i.provenance == PROV_RECONSTRUCTED)})
+    return pd.DataFrame(rows, columns=["source", "n", "risk", "reason", "reconstructed"])
+
+
+def revision_adjusted_confidence(a: KnowabilityAssessment, risk: pd.DataFrame, items: Sequence[InfoItem]) -> float:
+    """Confidence discounted by the revision risk of the sources behind the KNOWN_BEFORE information. Only ever lowers it."""
+    if risk.empty or not a.information_that_would_have_been_available:
+        return a.confidence_in_classification
+    src = {i.item_id: i.source for i in items}
+    r = risk.set_index("source")["risk"]
+    used = [float(r.get(src[i], 0.5)) for i in a.information_that_would_have_been_available if i in src]
+    if not used:
+        return a.confidence_in_classification
+    return float(a.confidence_in_classification * (1.0 - 0.5 * float(np.mean(used))))
+
+
+# ==================================================================================================================
+# calibration hooks: record stated confidence per class now, join it to later-confirmed outcomes, measure calibration in wave 3
+# ==================================================================================================================
+@dataclasses.dataclass(frozen=True)
+class CalibrationRecord:
+    """One prediction the classifier made about itself. `confirmed_class` stays None until an independent later check (planted
+    truth, replicated finding, manual review) confirms or corrects it. Records are never edited: a confirmation is a NEW record
+    with the same move_id and a strictly later `confirmed_at`."""
+    move_id: str
+    predicted_class: str
+    confidence: float
+    config_hash: str
+    matured_at: str
+    regime: str = ""
+    confirmed_class: str | None = None
+    confirmed_at: str | None = None
+    confirmed_by: str = ""
+
+    def check(self) -> list[str]:
+        errs = []
+        classes = {k.value for k in Knowability}
+        if not 0.0 <= self.confidence <= 1.0:
+            errs.append("confidence outside [0,1]")
+        if self.predicted_class not in classes:
+            errs.append(f"unknown class {self.predicted_class!r}")
+        if self.confirmed_class is not None:
+            if self.confirmed_class not in classes:
+                errs.append(f"unknown confirmed class {self.confirmed_class!r}")
+            if not self.confirmed_at or as_date(self.confirmed_at) <= as_date(self.matured_at):
+                errs.append("a confirmation must come strictly after the outcome matured")
+            if not self.confirmed_by:
+                errs.append("a confirmation needs a source")
+        return errs
+
+
+class CalibrationBook:
+    """Append-only. `latest()` returns the newest record per move (a confirmation supersedes the unconfirmed prediction)."""
+
+    def __init__(self):
+        self._rows: list[CalibrationRecord] = []
+
+    def __len__(self) -> int:
+        return len(self._rows)
+
+    def record(self, a: KnowabilityAssessment) -> CalibrationRecord:
+        old = next((r for r in self._rows if r.move_id == a.move_id), None)
+        if old is not None:
+            return old
+        rec = CalibrationRecord(a.move_id, a.classification.value, a.confidence_in_classification, a.config_hash, a.matured_at, a.regime)
+        errs = rec.check()
+        if errs:
+            raise KnowabilityError("; ".join(errs))
+        self._rows.append(rec)
+        return rec
+
+    def confirm(self, move_id: str, confirmed_class: str, confirmed_at, confirmed_by: str) -> CalibrationRecord:
+        base = next((r for r in reversed(self._rows) if r.move_id == move_id), None)
+        if base is None:
+            raise KnowabilityError(f"{move_id} has no recorded prediction to confirm")
+        new = dataclasses.replace(base, confirmed_class=confirmed_class, confirmed_at=str(as_date(confirmed_at)), confirmed_by=confirmed_by)
+        errs = new.check()
+        if errs:
+            raise KnowabilityError("; ".join(errs))
+        self._rows.append(new)
+        return new
+
+    def latest(self) -> list[CalibrationRecord]:
+        cur: dict[str, CalibrationRecord] = {}
+        for r in self._rows:
+            cur[r.move_id] = r
+        return list(cur.values())
+
+    def confirmed(self) -> list[CalibrationRecord]:
+        return [r for r in self.latest() if r.confirmed_class is not None]
+
+    def rows(self) -> list[CalibrationRecord]:
+        return list(self._rows)
+
+
+def calibration_table(book: CalibrationBook, bins: int = 5, by_class: bool = True) -> pd.DataFrame:
+    """Reliability table over CONFIRMED records: per (class, confidence bin) mean stated confidence, accuracy against the
+    confirmed class, and n. Empty when nothing is confirmed (calibration is unmeasured, not perfect)."""
+    cols = ["class", "lo", "hi", "n", "confidence", "accuracy", "gap"]
+    rs = book.confirmed()
+    if not rs:
+        return pd.DataFrame(columns=cols)
+    edges = np.linspace(0.0, 1.0, bins + 1)
+    groups = sorted({r.predicted_class for r in rs}) if by_class else ["ALL"]
+    rows = []
+    for g in groups:
+        sub = [r for r in rs if not by_class or r.predicted_class == g]
+        conf = np.array([r.confidence for r in sub])
+        ok = np.array([r.predicted_class == r.confirmed_class for r in sub], dtype=float)
+        for lo, hi in zip(edges[:-1], edges[1:]):
+            m = (conf >= lo) & ((conf < hi) if hi < 1.0 else (conf <= hi))
+            if m.any():
+                rows.append({"class": g, "lo": float(lo), "hi": float(hi), "n": int(m.sum()), "confidence": float(conf[m].mean()),
+                             "accuracy": float(ok[m].mean()), "gap": float(conf[m].mean() - ok[m].mean())})
+    return pd.DataFrame(rows, columns=cols)
+
+
+def calibration_summary(book: CalibrationBook, bins: int = 5) -> dict[str, Any]:
+    """Expected calibration error, Brier score, overconfidence share and the predicted-vs-confirmed confusion."""
+    rs = book.confirmed()
+    if not rs:
+        return {"n_confirmed": 0, "n_recorded": len(book.latest()), "ece": float("nan"), "brier": float("nan"), "overconfident": float("nan"), "confusion": {}}
+    conf = np.array([r.confidence for r in rs])
+    ok = np.array([r.predicted_class == r.confirmed_class for r in rs], dtype=float)
+    t = calibration_table(book, bins, by_class=False)
+    ece = float((t["n"] * t["gap"].abs()).sum() / t["n"].sum()) if len(t) else float("nan")
+    conf_mat: dict[str, dict[str, int]] = {}
+    for r in rs:
+        d = conf_mat.setdefault(r.predicted_class, {})
+        d[r.confirmed_class] = d.get(r.confirmed_class, 0) + 1
+    return {"n_confirmed": len(rs), "n_recorded": len(book.latest()), "ece": ece, "brier": float(np.mean((conf - ok) ** 2)),
+            "overconfident": float(np.mean(conf > ok)), "confusion": conf_mat}
+
+
+def calibration_by_config(book: CalibrationBook) -> pd.DataFrame:
+    """Accuracy of confirmed predictions per config hash, so a threshold change that hurts calibration shows up as a row."""
+    rows: dict[str, list[float]] = {}
+    for r in book.confirmed():
+        rows.setdefault(r.config_hash, []).append(float(r.predicted_class == r.confirmed_class))
+    return pd.DataFrame([{"config_hash": k, "n": len(v), "accuracy": float(np.mean(v))} for k, v in sorted(rows.items())],
+                        columns=["config_hash", "n", "accuracy"])
+
+
+def confirm_from_truth(book: CalibrationBook, truth: Mapping[str, Knowability], confirmed_at, source: str = "planted_truth") -> int:
+    """Attach known truth (planted worlds, later replicated findings) to recorded, unconfirmed predictions; returns the count."""
+    n = 0
+    open_ids = {r.move_id for r in book.latest() if r.confirmed_class is None}
+    for mid, cls_ in sorted(truth.items()):
+        if mid in open_ids:
+            book.confirm(mid, cls_.value, confirmed_at, source)
+            n += 1
+    return n
+
+
+def record_ledger(book: CalibrationBook, ledger: KnowabilityLedger) -> int:
+    """Register every assessment in a ledger; returns how many were new."""
+    before = len(book)
+    for a in ledger.rows():
+        book.record(a)
+    return len(book) - before
+
+
+# ==================================================================================================================
+# from cache-shaped frames to an audited move: coverage registry, precursor probes, classification, in one call
+# ==================================================================================================================
+def registry_from_frames(events=None, insider=None, macro=None, bars=None, delisted=None) -> SourceRegistry:
+    """Coverage windows read off the frames themselves (first and last stamp), so a probe's silence outside that span is
+    UNCERTAIN, not evidence. A family that was not supplied is not registered and therefore never 'covers' anything."""
+    specs = []
+    if events is not None and len(events):
+        acc = pd.to_datetime(events["accepted"], utc=True).dt.tz_convert("America/New_York").dt.tz_localize(None)
+        specs.append(SourceSpec("edgar", str(acc.min().date()), str(acc.max().date()), PREC_INTRADAY))
+    if insider is not None and len(insider):
+        specs.append(SourceSpec("insider", str(pd.Timestamp(insider["filed"].min()).date()), str(pd.Timestamp(insider["filed"].max()).date()), PREC_DATE))
+    if macro is not None and len(macro):
+        specs.append(SourceSpec("macro", str(pd.Timestamp(macro.index.min()).date()), str(pd.Timestamp(macro.index.max()).date()), PREC_DATE))
+    if bars is not None and len(bars):
+        specs.append(SourceSpec("prices", str(pd.Timestamp(bars.index.min()).date()), str(pd.Timestamp(bars.index.max()).date()), PREC_INTRADAY))
+    if delisted is not None and len(delisted):
+        specs.append(SourceSpec("delisted", str(pd.Timestamp(delisted["delist_date"].min()).date()),
+                                str(pd.Timestamp(delisted["delist_date"].max()).date()), PREC_DATE))
+    return SourceRegistry(specs)
+
+
+def audit_move_from_frames(move: MoveEvent, bars: pd.DataFrame, *, events=None, insider=None, macro=None, delisted=None, cik: int | None = None,
+                           market: pd.Series | None = None, sector: pd.Series | None = None, pattern_hits: Sequence[Mapping[str, Any]] = (),
+                           memory_hits: Sequence[Mapping[str, Any]] = (), cross: Mapping[str, float] | None = None, lookback_days: int = 400,
+                           cfg: KnowabilityConfig = KnowabilityConfig(), calendar: Calendar | None = None,
+                           lag: LagPolicy = LagPolicy()) -> KnowabilityAssessment:
+    """Assemble everything the auditor is allowed to know from cache-shaped frames and classify. Items are gathered over
+    [decision - lookback, end + 10 days] (the tail past the move is hindsight and is tagged as such by the judge); precursor probes are
+    attached from the coverage the frames themselves demonstrate. PRICE items are dropped from the cause candidates: the move's own
+    bars are the outcome, not its explanation."""
+    lo = str((pd.Timestamp(move.decision_date) - pd.Timedelta(days=lookback_days)).date())
+    hi = str((pd.Timestamp(move.end_date) + pd.Timedelta(days=10)).date())
+    items = [i for i in gather_items(move.ticker, (lo, hi), events=events, insider=insider, macro=macro, delisted=delisted, cik=cik)]
+    inp = MoveInputs(move, bars, market, sector, items, {}, dict(cross or {}), list(pattern_hits), list(memory_hits))
+    reg = registry_from_frames(events, insider, macro, bars, delisted)
+    inp = attach_probes(inp, reg, calendar=calendar, lag=lag)
+    return classify_move(inp, cfg, calendar, lag)
+
+
+def frame_shape_errors(family: str, frame: pd.DataFrame) -> list[str]:
+    """Does a frame have the columns and dtypes the adapter for `family` needs? Cheap guard for the wave-2 loader."""
+    need = {"edgar_events": {"ticker": "any", "kind": "any", "form": "any", "accepted": "datetimetz"},
+            "insider": {"symbol": "any", "filed": "datetime", "tdate": "datetime", "shares": "number", "price": "number"},
+            "macro": {},
+            "prices": {"close": "number", "volume": "number"},
+            "delisted": {"cik": "number", "delist_date": "datetime"}}
+    if family not in need:
+        return [f"unknown family {family!r}; choose from {SOURCE_FAMILIES}"]
+    errs = []
+    for col, kind in need[family].items():
+        if col not in frame.columns:
+            errs.append(f"{family}: missing {col}")
+        elif kind == "datetimetz" and getattr(frame[col].dtype, "tz", None) is None:
+            errs.append(f"{family}.{col} must be tz-aware")
+        elif kind == "datetime" and not pd.api.types.is_datetime64_any_dtype(frame[col]):
+            errs.append(f"{family}.{col} must be datetime")
+        elif kind == "number" and not pd.api.types.is_numeric_dtype(frame[col]):
+            errs.append(f"{family}.{col} must be numeric")
+    if family == "macro" and not isinstance(frame.index, pd.DatetimeIndex):
+        errs.append("macro must be indexed by observation date")
+    if family == "prices" and not isinstance(frame.index, pd.DatetimeIndex):
+        errs.append("prices must be indexed by session date")
+    return errs
+
+
+def source_staleness(items: Sequence[InfoItem], b: DecisionBoundary, calendar: Calendar | None = None, lag: LagPolicy = LagPolicy()) -> dict[str, int | None]:
+    """Per source: sessions between its newest KNOWN_BEFORE item and the decision date (None = it had nothing before the cutoff).
+    A source whose latest information was weeks old at the decision could not have anticipated a move, whatever it holds later."""
+    judg = judge_all(items, b, calendar, lag)
+    newest: dict[str, pd.Timestamp] = {}
+    for it in items:
+        pub, _ = to_ny(it.published_at)
+        if pub is None:
+            eff, _ = to_ny(it.effective_at)
+            pub = None if eff is None else pd.Timestamp((calendar or Calendar()).shift([eff], lag.lag_for(it.source))[0])
+        if pub is not None and judg[it.item_id].availability == Availability.KNOWN_BEFORE_EVENT:
+            newest[it.source] = max(newest.get(it.source, pub), pub)
+    out: dict[str, int | None] = {s: None for s in {i.source for i in items}}
+    out.update({s: _sessions_between(t, pd.Timestamp(b.decision_date), calendar) for s, t in newest.items()})
+    return dict(sorted(out.items()))

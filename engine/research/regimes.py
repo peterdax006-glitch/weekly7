@@ -429,15 +429,20 @@ class DiscoveredRegimes:
         center = np.median(X, axis=0)
         scale = np.array([robust_scale(X[:, j]) or float(X[:, j].std()) or 1.0 for j in range(X.shape[1])])
         Z = (X - center) / scale
-        best = None
+        cands: list = []
         for k in range(2, self.cfg.k_max + 1):
-            lab, cent, _ = kmeans(Z, k, self.seed, n_init=3)
+            lab, cent, _ = kmeans(Z, k, self.seed, n_init=8)
             sizes = np.bincount(lab, minlength=k)
             if sizes.min() < self.cfg.min_cluster_share * len(Z):
                 continue
             sil = silhouette(Z, lab, seed=self.seed)
-            if sil is not None and (best is None or sil > best[0]):
-                best = (sil, k, lab, cent)
+            if sil is not None:
+                cands.append((sil, k, lab, cent))
+        # parsimony: the smallest k whose silhouette is within 10% of the best (extra clusters that add little are noise-splitting)
+        best = None
+        if cands:
+            top = max(c[0] for c in cands)
+            best = min((c for c in cands if c[0] >= 0.9 * top), key=lambda c: c[1])
         if best is None or best[0] < self.cfg.min_silhouette:
             fit = DiscoveryFit(d0, 1, "NO_STRUCTURE", None if best is None else best[0], None, (len(Z),), ())
             self.centroids, self.ids = None, ()
@@ -637,8 +642,8 @@ class PatternRegimeBook:
             verdict = Verdict.REGIME_REVERSING
         elif bound:
             verdict = Verdict.REGIME_BOUND
-        elif not overall.established(t_bar) and not any(e.established(t_bar) for e in by_state):
-            verdict = Verdict.NOT_ESTABLISHED
+        elif not overall.established(t_bar):
+            verdict = Verdict.NOT_ESTABLISHED             # a lone significant state with no significant contrast is not regime evidence
         elif n_meas_axes >= 2 and overall.established(t_bar):
             verdict = Verdict.UNIVERSAL
         else:

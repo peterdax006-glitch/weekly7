@@ -1051,6 +1051,163 @@ def area_table(ctrl: DiversityController, now) -> list:
     return rows
 
 
+# ------------------------------------------------------------------------------------------------ baselines and directive merging
+
+def _baseline_shares(kind: str, ctrl: DiversityController, rng: np.random.Generator) -> dict:
+    lo = {a.value: ctrl.specs[a].floor for a in AREAS}
+    hi = {a.value: min(ctrl.specs[a].cap, ctrl.cfg.max_share) for a in AREAS}
+    if kind == "uniform":
+        raw = {a.value: 1.0 for a in AREAS}
+    elif kind == "prior":
+        raw = {a.value: ctrl.specs[a].prior_share for a in AREAS}
+    elif kind == "greedy":                          # exploit the current best empirical rate, no exploration bonus
+        raw = {a.value: math.exp(20 * (ctrl.stats[a].useful + 1) / (ctrl.stats[a].trials + 2)) for a in AREAS}
+    elif kind == "random":
+        raw = {a.value: float(rng.random()) + 0.05 for a in AREAS}
+    else:
+        raise ValueError(f"unknown baseline {kind!r}")
+    return RP.project_box_simplex(raw, lo, hi)
+
+
+def compare_with_baselines(true_yield: Mapping[Area, float], rounds: int, budget_minutes: float, seeds: Sequence[int],
+                           cfg: DiversityConfig | None = None, job_minutes: float = 10.0) -> dict:
+    """Does the adaptive controller earn more useful results than simple policies in a world with known yields? Each policy
+    runs the same rounds on the same seeds; the controller's own evidence drives it, the baselines never learn (greedy learns
+    but never explores). Reports mean expected useful rate over the last fifth of rounds, per policy. A planted-world check."""
+    late = max(1, rounds // 5)
+    res: dict = {"controller": [], "uniform": [], "prior": [], "greedy": [], "random": []}
+    for sd in seeds:
+        run = simulate_learning(true_yield, rounds, budget_minutes, sd, cfg, job_minutes=job_minutes)
+        res["controller"].append(run["late_rate"])
+        rng = np.random.default_rng(sd)
+        for kind in ("uniform", "prior", "greedy", "random"):
+            ctrl = DiversityController(cfg)
+            vals = []
+            for r in range(rounds):
+                sh = _baseline_shares(kind, ctrl, rng)
+                vals.append(sum(sh[a.value] * true_yield[a] for a in AREAS))
+                day = _iso(as_date("2021-01-04").toordinal() + 7 * r)
+                ctrl.advance(day)
+                for a in AREAS:
+                    jobs = int(round(sh[a.value] * budget_minutes / job_minutes))
+                    for j in range(jobs):
+                        ok = bool(rng.random() < true_yield[a])
+                        ctrl.observe(_synthetic_outcome(r * 100000 + len(ctrl.seen_ids), _iso(as_date(day).toordinal() - 1), a,
+                                                        job_minutes, ok, 0.3, False, f"{a.value[:3]}_{j % 3}"), day)
+            res[kind].append(float(np.mean(vals[-late:])))
+    means = {k: float(np.mean(v)) for k, v in res.items()}
+    return {"mean_late_rate": means, "best_baseline": max((k for k in means if k != "controller"), key=means.get),
+            "controller_beats_all": all(means["controller"] >= v for k, v in means.items() if k != "controller")}
+
+
+def merge_directives(a: Directives, b: Directives) -> Directives:
+    """Combine two directive sets conservatively: multipliers multiply, family caps take the tighter cap, the exploration floor
+    takes the larger, question and starved-area lists are unioned in order. Lets brain health and another supervisor (for
+    example the waste manager) both steer the allocator without either overriding the other."""
+    mult = dict(a.area_multiplier)
+    for k, v in b.area_multiplier.items():
+        mult[k] = mult.get(k, 1.0) * v
+    caps = dict(a.family_caps)
+    for k, v in b.family_caps.items():
+        caps[k] = min(caps.get(k, 1.0), v)
+    return Directives(mult, caps, tuple(dict.fromkeys(a.reopen_questions + b.reopen_questions)),
+                      max(a.min_explore_share, b.min_explore_share), tuple(dict.fromkeys(a.starved_areas + b.starved_areas)),
+                      a.reasons + b.reasons)
+
+
+def novelty_of_questions(ctrl: DiversityController, questions: Sequence[Any]) -> dict:
+    """How much of the proposed work is in areas the controller has seen little of? Share of questions filed under areas whose
+    effective trial count is below the median, plus the entropy of the area mix of the proposals. A question generator that
+    only proposes more of the same shows up as low entropy and low novelty share."""
+    if not questions:
+        return {"n": 0, "novel_share": None, "area_entropy": 0.0}
+    areas = [classify_question(q.source, getattr(q, "problem", None)) for q in questions]
+    med = float(np.median([ctrl.stats[a].trials for a in AREAS]))
+    counts = [sum(1 for x in areas if x is a) for a in AREAS]
+    return {"n": len(areas), "novel_share": sum(1 for x in areas if ctrl.stats[x].trials <= med) / len(areas),
+            "area_entropy": normalised_entropy(counts, len(AREAS)), "by_area": {a.value: c for a, c in zip(AREAS, counts) if c}}
+
+
+def sensitivity_to_caps(ctrl: DiversityController, now, budget_minutes: float, seed: int, max_shares: Sequence[float] = (0.3, 0.45, 0.6)) -> dict:
+    """How much does the plan depend on the per-area ceiling? Plans the same evidence under each `max_share` (uncommitted) and
+    returns the resulting exploit share and largest area share. If the ceiling alone decides the split, the data have not."""
+    out = {}
+    for ms in max_shares:
+        probe = controller_from_dict(controller_to_dict(ctrl))
+        probe.cfg = dataclasses.replace(probe.cfg, max_share=ms)
+        try:
+            p = probe.allocate(now, budget_minutes, seed, commit=False)
+            out[ms] = {"max_area_share": max(p.shares.values()), "exploit_share": p.exploit_share}
+        except ValueError as e:
+            out[ms] = {"error": str(e)}
+    return out
+
+
+def diversity_history(ctrl: DiversityController) -> list:
+    """Normalised entropy and exploit share of every stored plan, oldest first: the plan-level diversity curve. A curve that
+    only ever falls is the controller converging on a monoculture even though each single plan passed its floors."""
+    return [{"now": n, **{k: v for k, v in balance_report(s).items() if k in ("normalised_entropy", "exploit_share", "max_share")}}
+            for n, s in ctrl.plans]
+
+
+def diversity_trend(ctrl: DiversityController, last: int = 8) -> dict:
+    """FALLING when the entropy slope over the last plans is negative beyond noise (>0.01 per plan); INSUFFICIENT under 4 plans."""
+    h = [r["normalised_entropy"] for r in diversity_history(ctrl)][-last:]
+    if len(h) < 4:
+        return {"verdict": "INSUFFICIENT", "n": len(h)}
+    slope = float(np.polyfit(np.arange(len(h)), h, 1)[0])
+    return {"verdict": "FALLING" if slope < -0.01 else "RISING" if slope > 0.01 else "STEADY", "slope": slope, "n": len(h)}
+
+
+def plan_vs_realised(plan: DiversityPlan, outcomes: Sequence[Outcome]) -> dict:
+    """Did the loop follow the plan? Per-area planned share against the share of minutes actually spent, and the total-variation
+    gap. Above `adherence_alarm` the plan was advice the loop ignored; the areas furthest off are named."""
+    got = realised_shares(outcomes)
+    gap = total_variation(plan.shares, got)
+    worst = sorted(AREAS, key=lambda a: -abs(plan.shares[a.value] - got[a.value]))[:3]
+    return {"tv": gap, "ignored": gap > DiversityConfig().adherence_alarm,
+            "worst": [(a.value, plan.shares[a.value], got[a.value]) for a in worst]}
+
+
+def adapted_specs(ctrl: DiversityController, blend: float = 0.5) -> dict:
+    """Section 38: 'the percentages should be adaptive'. Re-derive the prior shares from what has been learned: each area's
+    posterior useful-rate per minute, blended with its current prior by `blend`, then projected into the floors and caps so the
+    result is again a valid specification. Use it to re-seed a fresh controller after a long run; the live one adapts already."""
+    if not 0.0 <= blend <= 1.0:
+        raise ValueError("blend must be in [0, 1]")
+    rates = {}
+    for a in AREAS:
+        st = ctrl.stats[a]
+        a0, b0 = ctrl.prior()                       # unobserved areas fall back to the pooled rate, not to an optimistic 1/cost
+        p_hat = (st.useful + 2.0 * a0 / (a0 + b0)) / (st.trials + 2.0)
+        per_min = p_hat / ((st.minutes + 2.0 * ctrl.cfg.cost_prior_minutes) / (st.trials + 2.0))
+        rates[a.value] = per_min
+    tot = sum(rates.values())
+    raw = {a.value: (1 - blend) * ctrl.specs[a].prior_share + blend * rates[a.value] / tot for a in AREAS}
+    shares = RP.project_box_simplex(raw, {a.value: ctrl.specs[a].floor for a in AREAS}, {a.value: ctrl.specs[a].cap for a in AREAS})
+    new = {a: dataclasses.replace(ctrl.specs[a], prior_share=shares[a.value]) for a in AREAS}
+    errs = validate_specs(new, ctrl.cfg)
+    if errs:
+        raise ValueError("adapted specs invalid: " + "; ".join(errs))
+    return new
+
+
+def explore_exploit_audit(plan: DiversityPlan, outcomes: Sequence[Outcome]) -> dict:
+    """Planned versus realised exploit share, and the exploratory fraction actually run in each area. Exploration that is
+    planned but never executed (exploratory flags all False) is exploration in name only."""
+    got = realised_shares(outcomes)
+    realised_exploit = sum(got[a.value] for a in EXPLOIT_AREAS)
+    per_area = {}
+    for a in AREAS:
+        os_ = [o for o in outcomes if o.area == a.value]
+        per_area[a.value] = {"planned": plan.exploratory_fraction[a.value],
+                             "realised": (sum(1 for o in os_ if o.exploratory) / len(os_)) if os_ else None}
+    hollow = [a for a, v in per_area.items() if v["realised"] is not None and v["planned"] >= 0.2 and v["realised"] == 0.0
+              and sum(1 for o in outcomes if o.area == a) >= 10]
+    return {"planned_exploit": plan.exploit_share, "realised_exploit": realised_exploit,
+            "exploit_overrun": realised_exploit - plan.exploit_share, "per_area": per_area, "hollow_exploration": hollow}
+
+
 # ------------------------------------------------------------------------------------------------ persistence
 
 def controller_to_dict(ctrl: DiversityController) -> dict:

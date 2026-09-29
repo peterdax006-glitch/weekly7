@@ -502,3 +502,181 @@ def test_frames_and_extremes():
     e = U.unknown_share_of_extremes(R, v)
     assert e["n_extreme"] >= 25 and 0.0 <= e["extreme"] <= 1.0
     assert U.unknown_share_of_extremes([], [])["n_extreme"] == 0
+
+
+# ================================================================== real-data adapters, audits, calibration (synthetic, cache-shaped)
+def _events():
+    return pd.DataFrame({"ticker": ["T", "T", "X"], "form": ["8-K", "8-K", "8-K"],
+                         "accepted": pd.to_datetime(["2019-06-10 13:00", "2019-06-11 14:00", "2019-06-10 13:00"], utc=True),
+                         "kind": ["EARN", "AGREEMENT", "EARN"]})
+
+
+def _insider():
+    return pd.DataFrame({"acc": ["a", "b", "c"], "filed": pd.to_datetime(["2019-06-07", "2019-06-10", "2019-06-03"]),
+                         "tdate": pd.to_datetime(["2019-06-05", "2019-06-06", "2019-06-05"]), "symbol": ["T", "T", "T"],
+                         "shares": [50000.0, 1000.0, 20000.0], "price": [20.0, 5.0, 10.0]})
+
+
+def _macro():
+    idx = pd.date_range("2019-03-01", periods=120, freq="D")
+    rng = np.random.default_rng(0)
+    return pd.DataFrame({"DGS10": rng.normal(2, 0.1, 120), "UNRATE": rng.normal(4, 0.2, 120), "MYSTERY": rng.normal(0, 1, 120)}, index=idx)
+
+
+def test_edgar_adapter_intraday_and_tz_guard():
+    items = K.edgar_events_items(_events(), "T", ("2019-06-01", "2019-06-30"))
+    assert len(items) == 2
+    j = K.judge_all(items, B)
+    av = {i.detail.split()[-1]: j[i.item_id].availability for i in items}
+    assert av["EARN"] == Availability.KNOWN_BEFORE_EVENT          # 13:00 UTC = 09:00 New York on the decision day
+    assert av["AGREEMENT"] == Availability.KNOWN_ONLY_AFTER_EVENT  # 10:00 New York on the fill day
+    naive = _events().assign(accepted=lambda d: d["accepted"].dt.tz_localize(None))
+    with pytest.raises(K.KnowabilityError):
+        K.edgar_events_items(naive, "T", ("2019-06-01", "2019-06-30"))
+    assert K.edgar_events_items(pd.DataFrame(), "T", ("2019-06-01", "2019-06-30")) == []
+
+
+def test_insider_adapter_date_precision_and_impossible_row():
+    items = K.insider_items(_insider(), "T", ("2019-06-01", "2019-06-30"))
+    j = K.judge_all(items, B)
+    by = {i.item_id.split("-")[2]: j[i.item_id].availability for i in items}
+    assert by["a"] == Availability.KNOWN_BEFORE_EVENT             # filed 06-07
+    assert by["b"] == Availability.SIMULTANEOUS                   # filed on the decision date: no time of day
+    bad = _insider().assign(filed=pd.to_datetime(["2019-06-01"] * 3))                 # filed before the trade date
+    bi = K.insider_items(bad, "T", ("2019-06-01", "2019-06-30"))
+    imp = [i for i in bi if "before trade" in i.detail]
+    assert imp and all(i.published_at is None for i in imp)
+    assert all(K.judge_item(i, B).availability == Availability.UNCERTAIN for i in imp)
+    with pytest.raises(K.KnowabilityError):
+        K.insider_items(_insider().drop(columns=["tdate"]), "T", ("2019-06-01", "2019-06-30"))
+    assert max(i.strength for i in items) > min(i.strength for i in items)
+
+
+def test_macro_adapter_lags_and_revision_provenance():
+    items = K.macro_items(_macro(), ("2019-04-15", "2019-06-30"))
+    prov = {i.source: i.provenance for i in items}
+    assert prov["DGS10"] == K.PROV_INFERRED and prov["UNRATE"] == K.PROV_RECONSTRUCTED and prov["MYSTERY"] == K.PROV_RECONSTRUCTED
+    un = next(i for i in items if i.source == "UNRATE")
+    assert (pd.Timestamp(un.published_at) - pd.Timestamp(un.effective_at)).days == 35          # engine.leak_audit lag
+    dg = next(i for i in items if i.source == "DGS10")
+    assert (pd.Timestamp(dg.published_at) - pd.Timestamp(dg.effective_at)).days == 1
+    assert K.macro_items(pd.DataFrame(), ("2019-01-01", "2019-12-31")) == []
+    with pytest.raises(K.KnowabilityError):
+        K.macro_items(_macro(), ("2019-06-30", "2019-01-01"))
+
+
+def test_price_bar_adapter_close_time():
+    idx = pd.bdate_range("2019-05-01", periods=40)
+    bars = pd.DataFrame({"close": np.linspace(10, 12, 40), "volume": np.r_[np.full(39, 1e6), 0.0]}, index=idx)
+    items = K.price_bar_items(bars, "T", ("2019-06-01", "2019-06-28"))
+    d = next(i for i in items if i.item_id.endswith("20190610"))
+    assert d.published_at.endswith("16:00:00")
+    assert K.judge_item(d, B).availability == Availability.SIMULTANEOUS                # the decision-day close is at the cutoff
+    prior = next(i for i in items if i.item_id.endswith("20190607"))
+    assert K.judge_item(prior, B).availability == Availability.KNOWN_BEFORE_EVENT
+    last = next((i for i in items if i.item_id.endswith(f"{idx[-1]:%Y%m%d}")), None)
+    assert last is not None and last.provenance == K.PROV_UNKNOWN                      # zero-volume bar
+    with pytest.raises(K.KnowabilityError):
+        K.price_bar_items(bars.drop(columns=["volume"]), "T", ("2019-06-01", "2019-06-28"))
+
+
+def test_delisting_adapter_earliest_stamp():
+    d = pd.DataFrame({"cik": [7, 7], "company": ["a", "b"], "f25_date": pd.to_datetime(["2019-06-05", None]),
+                      "f15_date": pd.to_datetime([None, None]), "announced": pd.to_datetime(["2019-05-20", None]),
+                      "delist_date": pd.to_datetime(["2019-06-12", "2019-06-20"]), "status": ["bankrupt", "x"], "terminal": [True, False]})
+    items = K.delisting_items(d, 7, "T", ("2019-06-01", "2019-06-30"))
+    assert len(items) == 2 and items[0].published_at == "2019-05-20" and items[1].published_at is None
+    assert K.judge_item(items[0], B).availability == Availability.KNOWN_BEFORE_EVENT
+    assert K.judge_item(items[1], B).availability == Availability.UNCERTAIN
+    with pytest.raises(K.KnowabilityError):
+        K.gather_items("T", ("2019-06-01", "2019-06-30"), delisted=d)
+
+
+def test_gather_frame_shape_and_end_to_end():
+    items = K.gather_items("T", ("2019-06-01", "2019-06-30"), events=_events(), insider=_insider(), macro=_macro())
+    assert {i.source for i in items} >= {"edgar", "insider", "DGS10"}
+    assert K.frame_shape_errors("events", pd.DataFrame()) != [] and K.frame_shape_errors("edgar_events", _events()) == []
+    assert K.frame_shape_errors("insider", _insider()) == [] and K.frame_shape_errors("macro", _macro()) == []
+    assert K.frame_shape_errors("edgar_events", _events().drop(columns=["accepted"]))
+    inp = K.planted_inputs("UNKNOWN", 0)
+    ev = _events().assign(ticker="TKR")
+    a = K.audit_move_from_frames(inp.move, inp.bars, events=ev, market=inp.market, sector=inp.sector)
+    assert a.check() == [] and "edgar" in K.registry_from_frames(events=_events()).names()
+    reg = K.registry_from_frames(events=_events(), insider=_insider(), macro=_macro(), bars=inp.bars)
+    assert reg.covers("edgar", "2019-06-10", "2019-06-10") and not reg.covers("insider", "2019-01-01", "2019-06-10")
+
+
+def test_uncertain_report_by_source_with_reasons():
+    its = [item(None, eff=None, prov=K.PROV_INFERRED, i="U1"), item("2019-06-01", prov=K.PROV_UNKNOWN, i="U2"), item("2019-06-01", eff="2019-06-01", i="OK")]
+    its = [dataclasses.replace(x, source="s2" if x.item_id == "U2" else "s1") for x in its]
+    rep = K.uncertain_report(its, B)
+    body = rep[~rep["item_id"].str.startswith("TOTAL")]
+    assert set(body["item_id"]) == {"U1", "U2"} and set(body["source"]) == {"s1", "s2"}
+    assert "no publication timestamp" in set(body["reason"]) and "provenance unknown" in " ".join(body["reason"])
+    assert rep[rep["item_id"] == "TOTAL:s1"]["reason"].iloc[0].startswith("1/2")
+    assert K.uncertain_by_source(its, B)["s2"] and K.uncertain_report([], B).empty
+
+
+def test_known_before_audit_catches_untrustworthy_stamps():
+    good = K.InfoItem("G", K.InfoKind.FILING, "T", "2019-06-05 10:00", "2019-06-05 10:00", "edgar")
+    unk = K.InfoItem("U", K.InfoKind.EVENT, "T", "2019-06-05", "2019-06-05", "x", K.PROV_UNKNOWN)
+    infer = K.InfoItem("I", K.InfoKind.MACRO, "MARKET", "2019-05-01", None, "cpi", K.PROV_INFERRED)
+    recon = K.InfoItem("R", K.InfoKind.MACRO, "MARKET", "2019-05-01", "2019-05-02", "UNRATE", K.PROV_RECONSTRUCTED)
+    collapsed = K.InfoItem("C", K.InfoKind.INSIDER, "T", "2019-06-05", "2019-06-05", "insider")
+    F = K.audit_known_before([good, unk, infer, recon, collapsed], B)
+    by = {f.item_id: f.problem for f in F}
+    assert "G" not in by and "U" not in by                          # U is judged UNCERTAIN, so it can never be a KNOWN_BEFORE finding
+    assert "does not guarantee" in by["I"] and "reconstruction" in by["R"] and "collapsed" in by["C"]
+    assert K.guarantee_summary(F)["insider"]
+    assert K.audit_known_before([], B) == []
+
+
+def test_revision_risk_per_source():
+    base = item("2019-06-01")
+    its = [dataclasses.replace(base, item_id="a"), dataclasses.replace(base, item_id="b", source="UNRATE"),
+           dataclasses.replace(base, item_id="c", source="DGS10"), dataclasses.replace(base, item_id="d", source="mystery")]
+    r = K.source_revision_risk(its, ["UNRATE", "DGS10"]).set_index("source")
+    assert r.loc["UNRATE", "risk"] == 0.8 and r.loc["DGS10", "risk"] == 0.0 and r.loc["mystery", "risk"] == 0.5
+    a = cls("PREDICTABLE")
+    itm = [dataclasses.replace(base, item_id=i, source="UNRATE") for i in a.information_that_would_have_been_available]
+    assert K.revision_adjusted_confidence(a, K.source_revision_risk(itm, ["UNRATE"]), itm) < a.confidence_in_classification
+    assert K.revision_adjusted_confidence(a, pd.DataFrame(), itm) == a.confidence_in_classification
+
+
+def test_source_staleness():
+    base = item("2019-06-01")
+    its = [dataclasses.replace(base, item_id="old", source="a", published_at="2019-05-01", effective_at="2019-05-01"),
+           dataclasses.replace(base, item_id="new", source="b", published_at="2019-06-07", effective_at="2019-06-07"),
+           dataclasses.replace(base, item_id="late", source="c", published_at="2019-06-13", effective_at="2019-06-13")]
+    st = K.source_staleness(its, B)
+    assert st["a"] > st["b"] and st["c"] is None
+
+
+def test_calibration_hooks_record_confirm_measure():
+    st = K.KnowabilityState()
+    kinds = ["PREDICTABLE", "UNKNOWN", "EXTERNALLY_CAUSED", "INFORMATIONALLY_UNAVAILABLE"]
+    K.step(st, "2030-01-01", [K.planted_inputs(k, s) for k in kinds for s in range(3)])
+    book = K.CalibrationBook()
+    assert K.record_ledger(book, st.ledger) == 12 and K.record_ledger(book, st.ledger) == 0
+    assert K.calibration_summary(book)["n_confirmed"] == 0 and K.calibration_table(book).empty
+    truth = {a.move_id: K.PLANTED_TRUTH[k] for a in st.ledger.rows() for k in kinds if a.move_id.startswith(f"M-{k[:4]}")}
+    assert K.confirm_from_truth(book, truth, "2031-01-01") == 12
+    s = K.calibration_summary(book)
+    assert s["n_confirmed"] == 12 and s["ece"] < 0.5 and s["overconfident"] < 0.5
+    assert not K.calibration_table(book).empty and K.calibration_by_config(book)["accuracy"].iloc[0] > 0.9
+    with pytest.raises(K.KnowabilityError):
+        book.confirm("nope", "UNKNOWN", "2031-01-01", "x")
+    with pytest.raises(K.KnowabilityError):
+        book.confirm(st.ledger.rows()[0].move_id, "UNKNOWN", "2019-01-01", "x")            # confirmation before maturity
+    assert len(book.rows()) == 24 and len(book.latest()) == 12
+
+
+def test_calibration_detects_planted_overconfidence():
+    book = K.CalibrationBook()
+    a = cls("PREDICTABLE")
+    for i in range(20):
+        book.record(dataclasses.replace(a, move_id=f"m{i}", confidence_in_classification=0.95))
+    for i in range(20):
+        book.confirm(f"m{i}", "PREDICTABLE" if i < 8 else "UNKNOWN", "2031-01-01", "review")
+    s = K.calibration_summary(book)
+    assert s["ece"] > 0.4 and s["overconfident"] == pytest.approx(0.6)

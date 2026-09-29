@@ -658,13 +658,23 @@ class TransferRecord:
         return errs
 
 
-def transfer_verdict(src: ScaleEffect, tgt: ScaleEffect, t_bar: float = T_BAR) -> TransferVerdict:
+MIN_PER_SESSION_RATIO = 0.25                  # a longer-horizon return CONTAINS the short one; the effect must not merely be carried along
+
+
+def transfer_verdict(src: ScaleEffect, tgt: ScaleEffect, t_bar: float = T_BAR, min_ratio: float = MIN_PER_SESSION_RATIO) -> TransferVerdict:
+    """Cumulative forward returns nest (a 21-session return contains the first session), so significance at the target is not
+    enough: a 1-day blip stays 'significant' in a month-long return while being diluted 21-fold. TRANSFERS therefore also needs the
+    per-session effect at the target to be at least min_ratio of the source's (the effect is not just carried along); a diluted
+    same-sign effect is NOT_TRANSFERRED. An opposite-sign established effect is REVERSES whatever its size."""
     if same_length(src.horizon, tgt.horizon):
         return TransferVerdict.EQUIVALENT
     if src.status != "OK" or tgt.status != "OK" or not src.established(t_bar):
         return TransferVerdict.UNTESTED
     if tgt.established(t_bar):
-        return TransferVerdict.TRANSFERS if tgt.sign == src.sign else TransferVerdict.REVERSES
+        if tgt.sign != src.sign:
+            return TransferVerdict.REVERSES
+        ratio = abs(tgt.per_session) / abs(src.per_session) if src.per_session else 0.0
+        return TransferVerdict.TRANSFERS if ratio >= min_ratio else TransferVerdict.NOT_TRANSFERRED
     return TransferVerdict.NOT_TRANSFERRED
 
 

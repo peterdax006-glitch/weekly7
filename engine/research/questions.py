@@ -359,7 +359,7 @@ def build_question(e: QuestionEvent, now, ledger: QuestionLedger | None = None, 
     require_past(e.evidence_through, now, f"event {e.source}/{e.subject}")
     text = question_wording(e)
     succ, fail = criteria_for(e)
-    hyps = hypotheses_for(e)
+    hyps = all_hypotheses(e)
     exp = outcome_table(e, hyps)
     plan = plan_for(e)
     bits = information_bits(hyps, exp)
@@ -508,3 +508,487 @@ def from_signal_rows(rows: Iterable[Mapping], now) -> list:
                                  contexts=dict(r.get("contexts", {})), profile=dict(r.get("profile", {})), n_obs=int(r.get("n_obs", 0)),
                                  loss_share=float(r.get("loss_share", 0.0))))
     return out
+
+
+# ---------------------------------------------------------------------------------------------------------- numeric criteria per source
+
+@dataclass(frozen=True)
+class Criteria:
+    """Numeric success/failure conditions written BEFORE the test. Every field is used by `judge`, so the criteria are executable,
+    not decoration. `min_lift` is the out-of-sample improvement over the shuffled control that counts as success; `min_n` the
+    sample below which the answer is UNDECIDED (neither success nor failure); `alpha` the multiplicity-adjusted level."""
+    min_lift: float
+    min_n: int
+    alpha: float
+    loss_avoided_min: float = 0.0
+    replicate_periods: int = 1
+    min_size_ratio: float = 0.5
+    max_hit_cost: float = 1.0
+
+    def text(self, source: str) -> tuple:
+        succ, fail = _CRITERIA[source]
+        extra = f" (lift >= {self.min_lift:.2f} over control, n >= {self.min_n}, alpha {self.alpha:.3f}"
+        if self.loss_avoided_min:
+            extra += f", loss avoided >= {self.loss_avoided_min:.0%}"
+        if self.replicate_periods > 1:
+            extra += f", replicated in {self.replicate_periods} periods at >= {self.min_size_ratio:.0%} of the size"
+        return succ + extra + ")", fail + f" (or n < {self.min_n}: recorded UNDECIDED, not failed)"
+
+
+def numeric_criteria(e: QuestionEvent) -> Criteria:
+    """Per-source thresholds. The required sample grows as the expected effect shrinks (n ~ 1/effect^2, capped), and alpha is
+    tightened for sources that search many candidates."""
+    eff = max(0.05, 0.5 * e.magnitude)
+    n = int(min(400, max(30, 8.0 / (eff * eff))))
+    base = {
+        "surprise": Criteria(0.05, n, 0.01), "contradiction": Criteria(0.05, n, 0.02), "loss": Criteria(0.05, max(n, 50), 0.02, loss_avoided_min=0.20),
+        "false_positive": Criteria(0.05, max(n, 50), 0.02, loss_avoided_min=0.10, max_hit_cost=0.2), "missed_winner": Criteria(0.05, max(n, 80), 0.005),
+        "pattern_break": Criteria(0.05, max(30, n // 2), 0.02), "regime_change": Criteria(0.03, 30, 0.05),
+        "new_discovery": Criteria(0.03, max(n, 100), 0.01, replicate_periods=2, min_size_ratio=0.5), "data_anomaly": Criteria(0.0, 10, 0.05),
+        "coverage_gap": Criteria(0.05, max(n, 100), 0.005), "research_failure": Criteria(0.05, max(n, 60), 0.01)}
+    return base[e.source]
+
+
+@dataclass(frozen=True)
+class Outcome:
+    """What a finished test measured, in the terms the criteria speak."""
+    n: int
+    lift: float
+    p_value: float
+    loss_avoided: float = 0.0
+    periods_replicated: int = 0
+    size_ratio: float = 1.0
+    hit_cost: float = 0.0
+    decision_changed: bool = False
+    information_bits: float = 0.0
+
+
+def judge(c: Criteria, o: Outcome) -> str:
+    """SUCCESS / FAILURE / UNDECIDED against the criteria. UNDECIDED (too little data) is never converted to a failure or a success."""
+    if o.n < c.min_n:
+        return "UNDECIDED"
+    ok = o.lift >= c.min_lift and o.p_value <= c.alpha
+    if c.loss_avoided_min:
+        ok = ok and o.loss_avoided >= c.loss_avoided_min
+    if c.replicate_periods > 1:
+        ok = ok and o.periods_replicated >= c.replicate_periods and o.size_ratio >= c.min_size_ratio
+    ok = ok and o.hit_cost <= c.max_hit_cost
+    return "SUCCESS" if ok else "FAILURE"
+
+
+def with_numeric_criteria(qo: QuestionObject, e: QuestionEvent) -> QuestionObject:
+    """Attach the executable criteria text to a built question (success and failure text now carry the numbers)."""
+    c = numeric_criteria(e)
+    succ, fail = c.text(e.source)
+    q = replace(qo.question, success_criterion=succ, failure_criterion=fail)
+    return replace(qo, question=q, plan=replace(qo.plan, min_n=c.min_n))
+
+
+# ---------------------------------------------------------------------------------------------------------- per-source event builders
+
+def event_from_surprise(subject: str, z: float, when: str, sd_floor: float = 2.5, **kw) -> QuestionEvent | None:
+    """A move that the volatility signals rated weak: only |z| above the floor is a question (smaller is what noise does daily)."""
+    if abs(z) < sd_floor:
+        return None
+    return QuestionEvent("surprise", subject, when, 1.0 - math.exp(-abs(z) / 3.0), stake=min(1.0, abs(z) / 6.0), **kw)
+
+
+def event_from_contradiction(a: str, b: str, agree_a: int, n_a: int, agree_b: int, n_b: int, when: str, **kw) -> QuestionEvent | None:
+    """Two setups with the same recorded features but different hit rates. Strength = the gap, confidence from a two-proportion z;
+    a gap the sample cannot distinguish from noise makes no question."""
+    if min(n_a, n_b) < 8:
+        return None
+    pa, pb = agree_a / n_a, agree_b / n_b
+    pool = (agree_a + agree_b) / (n_a + n_b)
+    se = math.sqrt(max(pool * (1 - pool) * (1 / n_a + 1 / n_b), 1e-12))
+    z = abs(pa - pb) / se
+    if z < 2.0:
+        return None
+    return QuestionEvent("contradiction", a, when, min(1.0, abs(pa - pb)), stake=min(1.0, z / 5.0), counterpart=b, n_obs=n_a + n_b, **kw)
+
+
+def event_from_loss(subject: str, loss_share: float, when: str, confidence: float = 0.5, **kw) -> QuestionEvent:
+    """A loss. Confidence (how sure the model was) raises the stake: a high-confidence loss says the model's self-knowledge is wrong."""
+    return QuestionEvent("loss", subject, when, min(1.0, 2.0 * loss_share), stake=min(1.0, 0.4 + 0.6 * confidence), problem=Problem.LOSS_AVOIDANCE,
+                         loss_share=min(1.0, loss_share), **kw)
+
+
+def event_from_missed_winner(subject: str, gain_share: float, knowable_before: float, when: str, **kw) -> QuestionEvent:
+    """A winner not taken. `knowable_before` in [0,1] is the availability estimate from the could-I-have-known test; a winner that
+    could not have been known gets a small magnitude (it is a data question, not a model question)."""
+    return QuestionEvent("missed_winner", subject, when, min(1.0, gain_share) * (0.2 + 0.8 * knowable_before), stake=0.3 + 0.5 * knowable_before, **kw)
+
+
+def event_from_break(subject: str, reliability_before: float, reliability_after: float, n_after: int, when: str, **kw) -> QuestionEvent | None:
+    """A pattern whose out-of-sample reliability dropped. Needs a real sample after the drop; a drop measured on five cases is noise."""
+    drop = reliability_before - reliability_after
+    if drop <= 0.1 or n_after < 15:
+        return None
+    return QuestionEvent("pattern_break", subject, when, min(1.0, drop / max(reliability_before, 0.1)), stake=min(1.0, 0.5 + drop), n_obs=n_after,
+                         problem=Problem.LOSS_AVOIDANCE, **kw)
+
+
+def event_from_regime(subject: str, shift_sd: float, when: str, n_items_exposed: int = 1, **kw) -> QuestionEvent | None:
+    if shift_sd < 1.0:
+        return None
+    return QuestionEvent("regime_change", subject, when, min(1.0, shift_sd / 4.0), stake=min(1.0, 0.3 + 0.1 * n_items_exposed), n_obs=n_items_exposed, **kw)
+
+
+def event_from_discovery(subject: str, t_stat: float, n_periods_seen: int, when: str, **kw) -> QuestionEvent | None:
+    """A new pattern. Every discovery gets the generalisation question, sized by how strong and how narrowly-seen it is."""
+    if t_stat < 2.0:
+        return None
+    return QuestionEvent("new_discovery", subject, when, min(1.0, t_stat / 6.0), stake=0.7 if n_periods_seen <= 2 else 0.5, n_obs=n_periods_seen, **kw)
+
+
+# ---------------------------------------------------------------------------------------------------------- learning which questions pay
+
+@dataclass
+class QuestionOutcomeBook:
+    """Question-quality learning. For every finished question: did it change a decision (or knowledge state), how many bits did it
+    teach, what did it cost. Beta posteriors per source give the probability that a NEW question of that kind is decision-changing;
+    the priority engine multiplies by it. Dated by the day the answer matured; invisible earlier."""
+    rows: list = field(default_factory=list)
+    prior_a: float = 1.0
+    prior_b: float = 2.0                            # start pessimistic: most questions change nothing
+    namespace: Namespace = Namespace.MATURED_RESEARCH
+
+    def record(self, qo: QuestionObject, difficulty: float, outcome: Outcome, verdict: str, at, now) -> None:
+        require_past(at, now, f"answer of {qo.qid}")
+        if verdict not in ("SUCCESS", "FAILURE", "UNDECIDED"):
+            raise QuestionError(f"unknown verdict {verdict!r}")
+        self.rows.append({"qid": qo.qid, "source": qo.source, "difficulty": float(difficulty), "decision_changed": bool(outcome.decision_changed),
+                          "bits": float(outcome.information_bits), "cost": float(qo.plan.cost_minutes), "verdict": verdict, "at": str(at),
+                          "predicted_bits": float(qo.value.information_gain or 0.0)})
+
+    def _visible(self, now) -> list:
+        return [r for r in self.rows if to_ts(r["at"]) < to_ts(now)]
+
+    def p_decision_change(self, source: str, now, difficulty: float | None = None) -> tuple:
+        """(posterior mean, n). UNDECIDED answers are excluded (they neither changed a decision nor showed none would), so a hard
+        source is not punished for being slow; `undecided_share` reports them."""
+        rows = [r for r in self._visible(now) if r["source"] == source and r["verdict"] != "UNDECIDED"]
+        if difficulty is not None:
+            rows = [r for r in rows if abs(r["difficulty"] - difficulty) <= 0.25]
+        k = sum(1 for r in rows if r["decision_changed"])
+        return (self.prior_a + k) / (self.prior_a + self.prior_b + len(rows)), len(rows)
+
+    def undecided_share(self, source: str, now) -> float:
+        rows = [r for r in self._visible(now) if r["source"] == source]
+        return sum(1 for r in rows if r["verdict"] == "UNDECIDED") / len(rows) if rows else 0.0
+
+    def bits_per_minute(self, source: str, now) -> float:
+        rows = [r for r in self._visible(now) if r["source"] == source]
+        cost = sum(r["cost"] for r in rows)
+        return sum(r["bits"] for r in rows) / cost if cost > 0 else 0.0
+
+    def overall(self, now) -> float:
+        rows = [r for r in self._visible(now) if r["verdict"] != "UNDECIDED"]
+        k = sum(1 for r in rows if r["decision_changed"])
+        return (self.prior_a + k) / (self.prior_a + self.prior_b + len(rows))
+
+    def multiplier(self, source: str, now, difficulty: float | None = None) -> float:
+        """Priority multiplier: this source's decision-change probability relative to the all-source average, shrunk to 1 with few
+        observations and bounded to [0.4, 2.5] so one lucky source cannot own the queue."""
+        p, n = self.p_decision_change(source, now, difficulty)
+        w = n / (n + 10.0)
+        return float(min(2.5, max(0.4, (1 - w) + w * p / max(self.overall(now), 1e-6))))
+
+    def table(self, now) -> dict:
+        out = {}
+        for s in SOURCES:
+            p, n = self.p_decision_change(s, now)
+            out[s] = {"p_decision_change": p, "n": n, "undecided_share": self.undecided_share(s, now), "bits_per_minute": self.bits_per_minute(s, now),
+                      "multiplier": self.multiplier(s, now)}
+        return out
+
+    def calibration(self, source: str, now) -> dict:
+        """Per-source calibration: does predicted information track realised information? Ratio of realised to predicted bits with a
+        ridge toward 1 (5 pseudo-observations) and a rank correlation when there is data. 'overclaims' means this source's value
+        estimates are inflated and its questions should be discounted."""
+        rows = [r for r in self._visible(now) if r["source"] == source and r["verdict"] != "UNDECIDED"]
+        if len(rows) < 3:
+            return {"source": source, "n": len(rows), "verdict": "INSUFFICIENT"}
+        pred = np.array([r["predicted_bits"] for r in rows])
+        real = np.array([r["bits"] for r in rows])
+        scale = (real.sum() + 5.0) / (pred.sum() + 5.0)
+        rho = 0.0
+        if len(rows) >= 8 and pred.std() > 0 and real.std() > 0:
+            rho = float(np.corrcoef(np.argsort(np.argsort(pred)), np.argsort(np.argsort(real)))[0, 1])
+        return {"source": source, "n": len(rows), "scale": float(scale), "rank_corr": rho,
+                "verdict": "overclaims" if scale < 0.7 else "underclaims" if scale > 1.5 else "roughly calibrated"}
+
+    def calibrated_bits(self, source: str, bits: float, now) -> float:
+        return bits * self.calibration(source, now).get("scale", 1.0)
+
+    def to_json(self) -> str:
+        return json.dumps({"rows": self.rows, "a": self.prior_a, "b": self.prior_b}, sort_keys=True)
+
+    @classmethod
+    def from_json(cls, text: str) -> "QuestionOutcomeBook":
+        d = json.loads(text)
+        return cls(rows=d["rows"], prior_a=d["a"], prior_b=d["b"])
+
+
+def reprioritise(objs: Sequence[QuestionObject], book: QuestionOutcomeBook, now) -> list:
+    """Multiply each question's priority by its source's learned decision-change multiplier and re-sort: sources that keep
+    producing decision-changing answers rise; a source that only produces unused knowledge falls."""
+    out = [replace(o, priority=o.priority * book.multiplier(o.source, now)) for o in objs]
+    return sorted(out, key=lambda q: (-q.priority, q.qid))
+
+
+def source_starvation(ledger: QuestionLedger, book: QuestionOutcomeBook, now, min_share: float = 0.03) -> list:
+    """Sources with almost no questions although they are known to pay (multiplier >= 1): opportunity being missed."""
+    mix = source_mix(ledger)
+    return sorted(s for s in SOURCES if mix.get(s, 0.0) < min_share and book.multiplier(s, now) >= 1.0 and len(ledger.rows) >= 20)
+
+
+# ---------------------------------------------------------------------------------------------------------- against experiment memory
+
+@dataclass(frozen=True)
+class MemoryCheck:
+    qid: str
+    status: str                                     # NOVEL / SEEN / BLOCKED
+    message: str
+    similar_open: str = ""
+
+
+def check_against_memory(qo: QuestionObject, experiments, now, ledger: QuestionLedger | None = None, allow_repeat_reason: str = "") -> MemoryCheck:
+    """De-duplicate against experiment memory (engine.learning.experiment_memory.ExperimentLedger, duck-typed by `already_tested`)
+    and against our own open questions. A question whose experiment was already run is BLOCKED unless a repeat reason (new
+    evidence) is given; a merely similar one is SEEN and lets the caller decide."""
+    sim = ledger.similar_open(qo.question.text) if ledger is not None else None
+    if sim and sim != qo.qid:
+        return MemoryCheck(qo.qid, "BLOCKED", f"an equivalent question is already open ({sim})", sim)
+    if experiments is None:
+        return MemoryCheck(qo.qid, "NOVEL", "no experiment memory supplied")
+    v = experiments.already_tested(qo.question.text, None, now, allow_repeat_reason)
+    if getattr(v, "blocking", False):
+        return MemoryCheck(qo.qid, "BLOCKED", getattr(v, "message", "already tested"))
+    if getattr(v, "tested_before", False):
+        return MemoryCheck(qo.qid, "SEEN", getattr(v, "message", "similar experiment exists"))
+    return MemoryCheck(qo.qid, "NOVEL", "not seen in experiment memory")
+
+
+def filter_novel(objs: Sequence[QuestionObject], experiments, now, ledger: QuestionLedger | None = None) -> tuple:
+    """(kept, blocked): blocked questions are returned with their reason, never silently dropped."""
+    keep, blocked = [], []
+    for o in objs:
+        c = check_against_memory(o, experiments, now, ledger)
+        if c.status == "BLOCKED":
+            blocked.append((o, c))
+        else:
+            keep.append(o)
+    return keep, blocked
+
+
+def generate_full(events: Sequence[QuestionEvent], now, ledger: QuestionLedger | None = None, experiments=None,
+                  book: QuestionOutcomeBook | None = None, priority_state: PRI.PriorityState | None = None) -> dict:
+    """Everything in order: build, merge and skip via the ledger, attach numeric criteria, de-duplicate against experiment memory,
+    re-rank by learned source quality. Returns the report and the stages so a caller can audit each one."""
+    ledger = ledger if ledger is not None else QuestionLedger()
+    rep = generate(events, now, ledger, priority_state)
+    by_event = {(e.source, e.subject): e for e in events}
+    objs = [with_numeric_criteria(o, by_event[(o.source, o.subject)]) if (o.source, o.subject) in by_event else o for o in rep.questions]
+    kept, blocked = filter_novel(objs, experiments, now, None)
+    if book is not None:
+        kept = reprioritise(kept, book, now)
+    return {"report": rep, "questions": kept, "blocked": blocked}
+
+
+# ---------------------------------------------------------------------------------------------------------- source-specific hypotheses
+
+def _mk_h(rows: Sequence[tuple], subject: str) -> tuple:
+    """(hid, statement, kind, weight) rows -> normalised Hypothesis tuple that always contains a chance hypothesis."""
+    tot = sum(r[3] for r in rows)
+    return tuple(Hypothesis(h, f"{txt} ({subject})", w / tot, kind=k, mechanism_tags=(h.replace("h_", ""),)) for h, txt, k, w in rows)
+
+
+def specific_hypotheses(e: QuestionEvent) -> tuple | None:
+    """Explanations written for the section-40 examples, sharper than the generic sets. Returns None to fall back to the shared
+    sets. Every set has a chance hypothesis and an unknown-cause residual."""
+    s = e.subject
+    if e.source == "new_discovery":
+        return _mk_h([("h_general", "the effect holds in unseen periods and groups", "explanation", 0.25),
+                      ("h_period_bound", "the effect belongs to the period it was found in", "explanation", 0.20),
+                      ("h_group_bound", "the effect belongs to the group of names it was found in", "explanation", 0.15),
+                      ("h_selection", "the effect is a product of searching many candidates", "noise", 0.25),
+                      ("h_proxy", "the effect is a proxy for volatility or liquidity", "explanation", 0.10),
+                      ("h_unknown", "none of these", "explanation", 0.05)], s)
+    if e.source == "pattern_break":
+        return _mk_h([("h_regime", "a regime change preceded the break", "explanation", 0.22),
+                      ("h_crowding", "the effect was arbitraged away", "explanation", 0.14), ("h_data", "an input feed changed meaning", "measurement", 0.10),
+                      ("h_context", "the pattern only ever worked inside a narrower context", "explanation", 0.20),
+                      ("h_chance", "the drop is within ordinary variation", "noise", 0.28), ("h_unknown", "none of these", "explanation", 0.06)], s)
+    if e.source == "regime_change":
+        return _mk_h([("h_survives", "the item is regime independent", "explanation", 0.25), ("h_inverts", "the item inverts in the new regime", "explanation", 0.15),
+                      ("h_weakens", "the item weakens but keeps its sign", "explanation", 0.25), ("h_untestable", "there is not enough regime data to say", "measurement", 0.20),
+                      ("h_chance", "any difference is sampling noise", "noise", 0.15)], s)
+    if e.source == "missed_winner":
+        return _mk_h([("h_unknowable", "nothing available beforehand distinguished it", "noise", 0.35), ("h_signal", "a feature we already compute flagged it", "explanation", 0.15),
+                      ("h_filter", "one of our own filters removed it", "explanation", 0.20), ("h_late", "the information existed but arrived too late to trade", "explanation", 0.15),
+                      ("h_missing", "a data source we do not use held the signal", "measurement", 0.10), ("h_unknown", "none of these", "explanation", 0.05)], s)
+    return None
+
+
+def all_hypotheses(e: QuestionEvent) -> tuple:
+    """Specific set when one exists, else the shared learning-side set (chance hypothesis guaranteed)."""
+    return specific_hypotheses(e) or hypotheses_for(e)
+
+
+# ---------------------------------------------------------------------------------------------------------- executable tests
+
+def permutation_lift(y: Sequence[float], flag: Sequence[bool], seed: int = 0, n_perm: int = 500) -> tuple:
+    """Lift of mean(y | flag) over mean(y | not flag) with a one-sided permutation p-value against shuffled flags. This is the
+    'lift over the shuffled control' the criteria speak of. Returns (lift, p, n)."""
+    y = np.asarray(y, float)
+    f = np.asarray(flag, bool)
+    if y.size != f.size:
+        raise QuestionError("y and flag differ in length")
+    if f.sum() < 2 or (~f).sum() < 2:
+        return 0.0, 1.0, int(y.size)
+    obs = y[f].mean() - y[~f].mean()
+    rng = np.random.default_rng(seed)
+    k = int(f.sum())
+    cnt = 0
+    for _ in range(n_perm):
+        idx = rng.permutation(y.size)
+        cnt += int(y[idx[:k]].mean() - y[idx[k:]].mean() >= obs - 1e-12)
+    return float(obs), (cnt + 1) / (n_perm + 1), int(y.size)
+
+
+def outcome_from_split(y: Sequence[float], flag: Sequence[bool], seed: int = 0, decision_threshold: float = 0.05) -> Outcome:
+    """Run the standard split test and express it as an Outcome. It counts as decision-changing when the lift is large enough that a
+    gate on the flag would change what is traded (`decision_threshold`)."""
+    lift, p, n = permutation_lift(y, flag, seed)
+    bits = max(0.0, math.log2(1.0 / max(p, 1e-6))) if lift > 0 else 0.0
+    return Outcome(n=n, lift=lift, p_value=p, decision_changed=lift >= decision_threshold and p <= 0.05, information_bits=min(bits, 8.0))
+
+
+def outcome_from_avoidance(loss: Sequence[float], excluded: Sequence[bool], hits: Sequence[float] | None = None, seed: int = 0) -> Outcome:
+    """Loss-type test: how much of the total loss would excluding the flagged cases have avoided, at what cost in gains (hits lost)?"""
+    loss = np.abs(np.asarray(loss, float))
+    ex = np.asarray(excluded, bool)
+    tot = loss.sum()
+    avoided = float(loss[ex].sum() / tot) if tot > 0 else 0.0
+    lift, p, n = permutation_lift(loss, ex, seed)
+    cost = 0.0
+    if hits is not None:
+        h = np.asarray(hits, float)
+        cost = float(h[ex].sum() / h.sum()) if h.sum() > 0 else 0.0
+    return Outcome(n=n, lift=max(lift, 0.0), p_value=p, loss_avoided=avoided, hit_cost=cost, decision_changed=avoided >= 0.2 and p <= 0.05,
+                   information_bits=min(8.0, max(0.0, math.log2(1.0 / max(p, 1e-6)))))
+
+
+def outcome_from_replication(effects: Sequence[float], ses: Sequence[float]) -> Outcome:
+    """New-discovery test: effect estimates from independent periods/groups. Replicated periods = those with the same sign and a
+    z above 1.64; size ratio = smallest replicated effect over the largest (1 = same size everywhere); p from the fixed-effect z."""
+    e = np.asarray(effects, float)
+    s = np.asarray(ses, float)
+    if e.size == 0 or e.size != s.size or np.any(s <= 0):
+        raise QuestionError("replication needs matching effects and positive standard errors")
+    w = 1.0 / s ** 2
+    pooled = float((w * e).sum() / w.sum())
+    z = pooled * math.sqrt(w.sum())
+    from math import erf
+    p = 0.5 * (1.0 - erf(z / math.sqrt(2.0)))
+    ok = (np.sign(e) == np.sign(pooled)) & (np.abs(e / s) > 1.64)
+    ratio = float(np.abs(e[ok]).min() / np.abs(e[ok]).max()) if ok.sum() else 0.0
+    return Outcome(n=int(e.size * 50), lift=abs(pooled), p_value=float(p), periods_replicated=int(ok.sum()), size_ratio=ratio,
+                   decision_changed=bool(ok.sum() >= 2), information_bits=min(8.0, max(0.0, math.log2(1.0 / max(p, 1e-6)))))
+
+
+# ---------------------------------------------------------------------------------------------------------- lineage: what an answer asks next
+
+def follow_up_events(qo: QuestionObject, verdict: str, outcome: Outcome, when: str) -> list:
+    """An answer is never the end of the tree (section 41). SUCCESS on anything but a discovery question asks whether the found
+    structure generalises; SUCCESS on a discovery question asks whether it is a proxy; FAILURE on a loss question raises the chance
+    the loss is an unknown cause (routed to the unknown-cause system, not dropped); UNDECIDED asks for more data on the same
+    question with a larger sample. Returns events, all dated `when` (the day the answer matured)."""
+    subj = qo.subject or "item"
+    out = []
+    if verdict == "SUCCESS":
+        src = "new_discovery" if qo.source != "new_discovery" else "coverage_gap"
+        out.append(QuestionEvent(src, f"{subj}_finding", when, min(1.0, 0.4 + outcome.lift), stake=0.6, problem=qo.question.problem, n_obs=outcome.n))
+    elif verdict == "FAILURE" and qo.source in ("loss", "false_positive", "pattern_break"):
+        out.append(QuestionEvent("research_failure", f"{subj}_unexplained", when, 0.5, stake=0.5, problem=Problem.RESEARCH_PROCESS, n_obs=outcome.n))
+    elif verdict == "UNDECIDED":
+        out.append(QuestionEvent(qo.source, subj, when, min(1.0, (qo.value.decision_value or 0.3) + 0.1), stake=0.5, problem=qo.question.problem,
+                                 detail="more data needed", n_obs=outcome.n))
+    return out
+
+
+def answer(qo: QuestionObject, outcome: Outcome, event: QuestionEvent, book: QuestionOutcomeBook | None, difficulty: float, at, now,
+           ledger: QuestionLedger | None = None) -> tuple:
+    """Close a question: judge it against its numeric criteria, record it for quality learning, update the ledger fate, and return
+    (verdict, follow-up events). UNDECIDED leaves the question OPEN; SUCCESS/FAILURE mark it ANSWERED."""
+    verdict = judge(numeric_criteria(event), outcome)
+    if book is not None:
+        book.record(qo, difficulty, outcome, verdict, at, now)
+    if ledger is not None:
+        ledger.set_fate(qo.qid, "OPEN" if verdict == "UNDECIDED" else "ANSWERED", now)
+    return verdict, follow_up_events(qo, verdict, outcome, str(at))
+
+
+# ---------------------------------------------------------------------------------------------------------- portfolio of questions
+
+def allocate_slots(objs: Sequence[QuestionObject], slots: int, min_per_source: int = 1, cap_share: float = 0.5) -> list:
+    """Pick `slots` questions by priority but guarantee every source that has a question at least `min_per_source` and cap any one
+    source at `cap_share` of the slots (a queue of only surprises, or only losses, is a monoculture)."""
+    ranked = sorted(objs, key=lambda q: (-q.priority, q.qid))
+    chosen: list = []
+    per: dict = {}
+    for s in sorted({q.source for q in ranked}):
+        for q in [q for q in ranked if q.source == s][:min_per_source]:
+            if len(chosen) < slots:
+                chosen.append(q)
+                per[s] = per.get(s, 0) + 1
+    cap = max(1, int(cap_share * slots))
+    for q in ranked:
+        if len(chosen) >= slots:
+            break
+        if q in chosen or per.get(q.source, 0) >= cap:
+            continue
+        chosen.append(q)
+        per[q.source] = per.get(q.source, 0) + 1
+    return sorted(chosen, key=lambda q: (-q.priority, q.qid))
+
+
+def themes(objs: Sequence[QuestionObject], threshold: float = 0.45) -> list:
+    """Group questions whose wording overlaps into themes (single-link on question similarity). A theme with many questions and no
+    answer is one research direction seen from many sides; it should get ONE tree, not many."""
+    groups: list = []
+    for q in sorted(objs, key=lambda q: q.qid):
+        for g in groups:
+            if any(question_similarity(q.question.text, m.question.text) >= threshold for m in g):
+                g.append(q)
+                break
+        else:
+            groups.append([q])
+    return sorted((tuple(m.qid for m in g) for g in groups), key=lambda t: (-len(t), t))
+
+
+def age_priority(qo: QuestionObject, now, half_life_days: float = 90.0, floor: float = 0.3) -> QuestionObject:
+    """Evidence goes stale: priority halves every `half_life_days` since the newest evidence, bounded below so nothing vanishes."""
+    age = max(0.0, (to_ts(now) - to_ts(qo.question.evidence_through)).total_seconds() / 86400.0)
+    return replace(qo, priority=qo.priority * max(floor, 0.5 ** (age / half_life_days)))
+
+
+def ledger_integrity(ledger: QuestionLedger) -> list:
+    """Problems in a ledger: fate rows for unknown questions, answered questions with no ask row, asks before their evidence."""
+    errs = []
+    asked = {r["qid"] for r in ledger.rows if r["fate"] == "OPEN" and r["at"] == r["asked_at"]}
+    for r in ledger.rows:
+        if r["qid"] not in asked and r["fate"] != "OPEN":
+            errs.append(f"{r['qid']}: fate {r['fate']} without an ask row")
+        if to_ts(r["asked_at"]) <= to_ts(r["evidence_through"]):
+            errs.append(f"{r['qid']}: asked at/before its evidence date")
+    return errs
+
+
+def coverage_of_sources(objs: Sequence[QuestionObject]) -> dict:
+    """Which section-40 sources produced a question in this batch, and which were silent."""
+    seen = {s: 0 for s in SOURCES}
+    for o in objs:
+        seen[o.source] = seen.get(o.source, 0) + 1
+    return {"per_source": seen, "silent": sorted(s for s, n in seen.items() if n == 0)}

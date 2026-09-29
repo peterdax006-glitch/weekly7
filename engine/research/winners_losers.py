@@ -26,6 +26,7 @@ strictly before `now`. Status: IMPLEMENTED - NOT VALIDATED."""
 from __future__ import annotations
 
 import dataclasses
+import functools
 import math
 from dataclasses import dataclass, field
 from typing import Any, Iterable, Mapping, Sequence
@@ -44,6 +45,12 @@ from engine.pattern_stats import bh_qvalues, week_codes
 from engine.research.core import Availability, MaturedRecord, Namespace
 
 NL = chr(10)
+
+
+@functools.lru_cache(maxsize=1)
+def cached_code_hash() -> str:
+    """engine.provenance walks every loaded module (~0.3 s); the code cannot change inside one run, so it is computed once."""
+    return current_code_hash()
 
 
 # ==================================================================================================================
@@ -1053,7 +1060,7 @@ def to_matured(finding: Any, code_hash: str | None = None, run_id: str = "", see
         if str(k).lower() in FORBIDDEN_KEYS:
             raise FirewallBreach(f"finding {finding.rid} carries identity key {k!r}")
     prov = Provenance(created_real=created_real or finding.learned_at, learned_at=finding.learned_at,
-                      code_hash=code_hash or current_code_hash(), run_id=run_id, seed=seed,
+                      code_hash=code_hash or cached_code_hash(), run_id=run_id, seed=seed,
                       outcomes_seen_through=finding.learned_at)
     return MaturedRecord(record_id=f"WL-{finding.rid}", matured_at=finding.learned_at, payload=payload, provenance=prov,
                          namespace=Namespace.MATURED_RESEARCH)
@@ -1134,7 +1141,8 @@ def step(state: WinnerState, records: Iterable[MoveRecord], now, identities: Ite
     for m in new:
         state.findings[m.rid] = wr.study(m)
     fresh = [state.findings[m.rid] for m in new]
-    matured = tuple(to_matured(f, seed=state.seed, identities=identities) for f in fresh)
+    code = cached_code_hash() if fresh else ""
+    matured = tuple(to_matured(f, code, seed=state.seed, identities=identities) for f in fresh)
     controls = sum(1 for m in known if is_control(m, state.params))
     return WinnerReport(str(as_date(now)), tuple(fresh), tuple(wr.signal_stats), wr.magnitude, wr.timing, wr.rank, controls, pending,
                         matured, state.params.hash())
@@ -1261,7 +1269,7 @@ def manifest(params: ResearchParams, records: Iterable[MoveRecord], findings: It
     recs = sorted(m.rid for m in records)
     fnd = sorted(f.rid for f in findings)
     return {"params": params.hash(), "records": stable_hash(recs), "findings": stable_hash(fnd), "n_records": len(recs),
-            "n_findings": len(fnd), "code": current_code_hash(), "seed": seed, "now": str(as_date(now))}
+            "n_findings": len(fnd), "code": cached_code_hash(), "seed": seed, "now": str(as_date(now))}
 
 
 # ==================================================================================================================

@@ -1649,15 +1649,17 @@
    "section": "Winner/loser research",
    "minimum_lines": 2500,
    "upper_lines": 4000,
-   "actual_lines": 3888,
+   "actual_lines": 6128,
    "code_paths": [
+    "engine/learning/credit.py",
     "engine/learning/failure.py",
     "engine/learning/postmortem.py",
     "engine/learning/separation.py",
-    "engine/learning/credit.py"
+    "engine/research/loss_pipeline.py",
+    "engine/research/winners_losers.py"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "[mapping 2026-09-29, read-only audit] [partial] 3888/2500 meaningful lines genuinely doing this job. failure 1110 + postmortem 813 + separation 707 + credit 1258. The loss classifier asks exactly the C66 section-5 questions (selection/direction/timing/exit/risk/regime/data/external/pattern/unknown) but only for the system's OWN resolved trades. Market-wide winners/losers it did not hold are never studied; winner research is credit assignment only."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C66 wave 1, R05): 2,240 new extending learning/failure 1,110 + postmortem 813; 8 winner questions, dedicated loss pipeline over 10 causes (UNKNOWN never forced), loss-risk bank separate from opportunity bank, symmetry and loss-priority tests. 70 tests. | earlier: [mapping 2026-09-29, read-only audit] [partial] 3888/2500 meaningful lines genuinely doing this job. failure 1110 + postmortem 813 + separation 707 + credit 1258. The loss classifier asks exactly the C66 section-5 questions (selection/direction/timing/exit/risk/regime/data/external/pattern/unknown) but only for the system's OWN resolved trades. Market-wide winners/losers it did not hold are never studied; winner research is credit assignment only."
   },
   {
    "section": "Missed opportunity engine",
@@ -1676,15 +1678,16 @@
    "section": "Knowability/external-factor engine",
    "minimum_lines": 2500,
    "upper_lines": 4000,
-   "actual_lines": 0,
+   "actual_lines": 5252,
    "code_paths": [
-    "engine/pit.py",
     "engine/edgar.py",
     "engine/learning/future_firewall.py",
-    "engine/learning/unknowns.py"
+    "engine/learning/unknowns.py",
+    "engine/pit.py",
+    "engine/research/knowability.py"
    ],
-   "status": "NOT_STARTED",
-   "notes": "[mapping 2026-09-29, read-only audit] [missing] 0/2500 meaningful lines genuinely doing this job. No PREDICTABLE..DATA_FAILURE classifier and no known-before/after/simultaneous/uncertain/unavailable labelling. Building blocks (credited elsewhere): pit.py availability dates and publication lags, edgar accepted timestamps, future_firewall input dating, unknowns.py."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C66 wave 1, R02 pass 2): 2,508; availability adapters per cache source family, hindsight audits (uncertain report, audit_known_before, revision risk), CalibrationBook. 72 tests. | earlier: [mapping 2026-09-29, read-only audit] [missing] 0/2500 meaningful lines genuinely doing this job. No PREDICTABLE..DATA_FAILURE classifier and no known-before/after/simultaneous/uncertain/unavailable labelling. Building blocks (credited elsewhere): pit.py availability dates and publication lags, edgar accepted timestamps, future_firewall input dating, unknowns.py."
   },
   {
    "section": "Counterfactual knowledge reconstruction",
@@ -1703,15 +1706,17 @@
    "section": "Volatility research laboratory",
    "minimum_lines": 3000,
    "upper_lines": 4500,
-   "actual_lines": 1188,
+   "actual_lines": 3849,
    "code_paths": [
+    "engine/direction_features.py::mover_walk_forward,select_picks,weekly_labels",
     "engine/fv_pipeline.py::MoverStage,Panel,build_panel,certify_threshold,mover_report",
     "engine/pattern_movers.py",
-    "engine/direction_features.py::mover_walk_forward,select_picks,weekly_labels",
+    "engine/research/vol_hypotheses.py",
+    "engine/research/volatility_lab.py",
     "scripts/movers.py"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "[mapping 2026-09-29, read-only audit] [duplicated-risk] 1188/3000 meaningful lines genuinely doing this job. fv_pipeline mover defs 298 + pattern_movers 618 (excl. interaction_table) + direction_features mover defs 64 + scripts/movers.py 208. FOUR mover models exist (fv_pipeline.MoverStage, pattern_movers.MoverModel/PatternMoverModel, direction_features.mover_walk_forward, scripts/movers.py). No competing-hypothesis program (H1-H9+), no per-sector/stock transfer. The lab must pick ONE champion mover model and make the rest challengers."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C66 wave 1, R07): 3,005; H1-H9 + open H10+ registry vs own-vol baseline, all 18 section-9 questions walk-forward with shuffled controls and joint correction, calibrated P(move)/magnitude/day, vol-without-direction flags, C67 next-day path study P01, resumable sweep. 86 tests. | earlier: [mapping 2026-09-29, read-only audit] [duplicated-risk] 1188/3000 meaningful lines genuinely doing this job. fv_pipeline mover defs 298 + pattern_movers 618 (excl. interaction_table) + direction_features mover defs 64 + scripts/movers.py 208. FOUR mover models exist (fv_pipeline.MoverStage, pattern_movers.MoverModel/PatternMoverModel, direction_features.mover_walk_forward, scripts/movers.py). No competing-hypothesis program (H1-H9+), no per-sector/stock transfer. The lab must pick ONE champion mover model and make the rest challengers."
   },
   {
    "section": "Direction research laboratory",
@@ -2002,12 +2007,13 @@
    "section": "Unknown-cause system",
    "minimum_lines": 1000,
    "upper_lines": 1800,
-   "actual_lines": 409,
+   "actual_lines": 1421,
    "code_paths": [
-    "engine/learning/unknowns.py"
+    "engine/learning/unknowns.py",
+    "engine/research/unknown_cause.py"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "[mapping 2026-09-29, read-only audit] [partial] 409/1000 meaningful lines genuinely doing this job. UNKNOWN as a non-numeric first-class state with actions. Missing: UNKNOWN_CAUSE rate by regime/volatility/sector/confidence and the check that a falling unknown rate is not forced labelling. pattern_reliability UNKNOWN_CAUSE verdict is separate vocabulary."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C66 wave 1, R02): 1,012; cause needs Holm-corrected permutation null + replication; forced-vs-genuine diagnosis. | earlier: [mapping 2026-09-29, read-only audit] [partial] 409/1000 meaningful lines genuinely doing this job. UNKNOWN as a non-numeric first-class state with actions. Missing: UNKNOWN_CAUSE rate by regime/volatility/sector/confidence and the check that a falling unknown rate is not forced labelling. pattern_reliability UNKNOWN_CAUSE verdict is separate vocabulary."
   },
   {
    "section": "Self-improvement scorecard",
@@ -2026,24 +2032,26 @@
    "section": "Research-brain health",
    "minimum_lines": 1200,
    "upper_lines": 2000,
-   "actual_lines": 92,
+   "actual_lines": 1211,
    "code_paths": [
+    "engine/learning/research_policy.py::audit_spend,allocation_entropy,policy_health",
     "engine/learning/research_priority.py::queue_health",
-    "engine/learning/research_policy.py::audit_spend,allocation_entropy,policy_health"
+    "engine/research/brain_health.py"
    ],
-   "status": "NOT_STARTED",
-   "notes": "[mapping 2026-09-29, read-only audit] [missing] 92/1200 meaningful lines genuinely doing this job. 18 + 74. Spend concentration and allocation entropy only. Missing: duplicate rate, false discovery rate, replication/transfer rate of the researcher, easy-question bias, abandonment of hard questions."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C66 wave 1, R20): 1,211; monopoly/easy-bias/abandonment/volume-without-knowledge detectors; empty -> UNKNOWN. 58 tests. | earlier: [mapping 2026-09-29, read-only audit] [missing] 92/1200 meaningful lines genuinely doing this job. 18 + 74. Spend concentration and allocation entropy only. Missing: duplicate rate, false discovery rate, replication/transfer rate of the researcher, easy-question bias, abandonment of hard questions."
   },
   {
    "section": "Research diversity controller",
    "minimum_lines": 1000,
    "upper_lines": 1800,
-   "actual_lines": 340,
+   "actual_lines": 1001,
    "code_paths": [
-    "engine/learning/research_policy.py::TargetAllocator,DiscountedAllocator,project_box_simplex,apply_family_caps,greedy_diverse_batch,starving_targets"
+    "engine/learning/research_policy.py::TargetAllocator,DiscountedAllocator,project_box_simplex,apply_family_caps,greedy_diverse_batch,starving_targets",
+    "engine/research/diversity.py"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "[mapping 2026-09-29, read-only audit] [partial] 340/1000 meaningful lines genuinely doing this job. Adaptive box-simplex allocation with floors/caps and exploration. ResearchTarget lacks VOLATILITY, DIRECTION, RISK/LOSS and PATTERN_BREAK targets that C66 section 38 names."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C66 wave 1, R20): 1,001; adaptive allocation with floors, walk-forward replay, farmed successes not paid. | earlier: [mapping 2026-09-29, read-only audit] [partial] 340/1000 meaningful lines genuinely doing this job. Adaptive box-simplex allocation with floors/caps and exploration. ResearchTarget lacks VOLATILITY, DIRECTION, RISK/LOSS and PATTERN_BREAK targets that C66 section 38 names."
   },
   {
    "section": "Scientific long-term memory integration",

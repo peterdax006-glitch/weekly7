@@ -1255,3 +1255,98 @@ def killed_hypothesis_table(forest: TreeForest) -> list:
 def prune_cancelled(tree: HypothesisTree) -> int:
     """Number of pending items still under a dead branch (should be zero after any result). A non-zero count is a bug signal."""
     return sum(1 for n in tree.pending() if tree._owner_dead(n))
+
+
+# ------------------------------------------------------------------------------------------------------ persistence, resumption, integrity
+
+class ForestIntegrityError(RuntimeError):
+    """A saved forest failed its integrity check. Raised, never repaired silently: research state that cannot be trusted must not be resumed."""
+
+
+def forest_checksum(forest: TreeForest) -> str:
+    """Content hash over every tree's structural state (nodes, statuses, results, belief) - independent of dict order and of float noise."""
+    return stable_hash([(tid, t.state_hash(), t.state.value, len(t.events)) for tid, t in sorted(forest.trees.items())], 24)
+
+
+def verify_forest(forest: TreeForest) -> list:
+    """Every invariant the trees promise, over the whole forest: per-tree validate(), state consistent with node statuses, event
+    sequence numbers contiguous, result events matching DONE nodes, no pending item under a dead branch."""
+    errs = []
+    for tid, t in sorted(forest.trees.items()):
+        errs += [f"{tid}: {e}" for e in t.validate()]
+        if [e.seq for e in t.events] != list(range(len(t.events))):
+            errs.append(f"{tid}: event sequence is not contiguous")
+        done = {n.nid for n in t.nodes.values() if n.status == NodeStatus.DONE and n.kind in (NodeKind.TEST, NodeKind.COUNTEREXAMPLE, NodeKind.SEARCH)}
+        logged = {e.nid for e in t.events if e.kind in ("result", "orphan", "duplicate")}
+        for nid in sorted(done - logged):
+            errs.append(f"{tid}: node {nid} is DONE with no result event")
+        if t.state == TreeState.RESOLVED and not any(n.status == NodeStatus.SUPPORTED for n in t.nodes.values()):
+            errs.append(f"{tid}: RESOLVED with no supported hypothesis")
+        if prune_cancelled(t):
+            errs.append(f"{tid}: pending items remain under a failed branch")
+    return errs
+
+
+def save_forest(forest: TreeForest, path) -> str:
+    """Write the forest atomically (temp file then rename) with a checksum and format version. Refuses to save a forest that fails
+    verify_forest. Returns the checksum."""
+    import os
+    from pathlib import Path
+    errs = verify_forest(forest)
+    if errs:
+        raise ForestIntegrityError("refusing to save an inconsistent forest: " + "; ".join(errs[:5]))
+    payload = {"version": 1, "checksum": forest_checksum(forest), "forest": json.loads(forest.to_json())}
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    tmp = p.with_suffix(p.suffix + ".tmp")
+    tmp.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
+    os.replace(tmp, p)
+    return payload["checksum"]
+
+
+def load_forest(path) -> TreeForest:
+    """Load and verify. A missing file is a FileNotFoundError (the caller decides whether that means 'start fresh'); a corrupt file,
+    a version mismatch, a checksum mismatch or a failed invariant raises ForestIntegrityError."""
+    from pathlib import Path
+    raw = Path(path).read_text(encoding="utf-8")
+    try:
+        payload = json.loads(raw)
+        forest = TreeForest.from_json(json.dumps(payload["forest"]))
+    except (KeyError, ValueError, TypeError, StopIteration) as e:
+        raise ForestIntegrityError(f"unreadable forest file: {e}") from e
+    if payload.get("version") != 1:
+        raise ForestIntegrityError(f"unknown forest format version {payload.get('version')!r}")
+    if payload.get("checksum") != forest_checksum(forest):
+        raise ForestIntegrityError("forest checksum mismatch: the file was altered or partly written")
+    errs = verify_forest(forest)
+    if errs:
+        raise ForestIntegrityError("loaded forest violates invariants: " + "; ".join(errs[:5]))
+    return forest
+
+
+def resume(path, results: Sequence[TestResult], now, k: int = 5) -> tuple:
+    """Load the saved forest (or start empty when there is none), apply results that arrived while the process was down, save again.
+    Results already applied are skipped harmlessly (a done node rejects a second result), so replaying an overlapping results log
+    after a crash is safe. Returns (forest, ForestStep)."""
+    try:
+        forest = load_forest(path)
+    except FileNotFoundError:
+        forest = TreeForest()
+    out = step(forest, results, now, k)
+    save_forest(forest, path)
+    return forest, out
+
+
+def replay_check(forest: TreeForest, template_forest_factory) -> dict:
+    """Rebuild each tree from `template_forest_factory(tree_id)` (an empty tree with the same nodes) and replay its recorded results in
+    order; the belief must equal the saved belief. This proves the log is sufficient to reproduce the state: the forest can be
+    audited from its event history alone. Returns {tree_id: max abs belief difference}."""
+    out = {}
+    for tid, t in sorted(forest.trees.items()):
+        fresh = template_forest_factory(tid)
+        for n in sorted((n for n in t.nodes.values() if n.status == NodeStatus.DONE and n.kind in (NodeKind.TEST, NodeKind.COUNTEREXAMPLE)),
+                        key=lambda n: (n.result_at, n.nid)):
+            fresh.record_result(n.nid, n.result, n.result_at, n.evidence_through, verified=False)
+        b1, b2 = t.belief(), fresh.belief()
+        out[tid] = max((abs(b1.get(k, 0.0) - b2.get(k, 0.0)) for k in set(b1) | set(b2)), default=0.0)
+    return out

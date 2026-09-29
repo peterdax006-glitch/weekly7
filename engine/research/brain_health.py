@@ -1254,6 +1254,107 @@ def metric_definitions() -> dict:
     }
 
 
+# ------------------------------------------------------------------------------------------------ per-area health and walk-forward series
+
+def area_health(rows: Sequence[Outcome], cfg: HealthConfig) -> dict:
+    """Health of each section-38 area on its own: success interval, whether the area has produced anything at all, whether its
+    success series has shifted (CUSUM from research_policy), and how long since it last paid. A brain can look healthy overall
+    while one area has silently died; this is where that shows."""
+    by: dict = defaultdict(list)
+    for o in rows:
+        by[o.area].append(o)
+    out = {}
+    for a in AREAS:
+        os_ = by.get(a.value, [])
+        n, k = len(os_), sum(1 for o in os_ if o.success)
+        lo, hi = wilson(k, n)
+        shift = RP.cusum_shift([1.0 if o.success else 0.0 for o in os_])
+        last_ok = next((o.when for o in reversed(os_) if o.success), None)
+        if n < cfg.min_n // 2:
+            level, why = Level.UNKNOWN, f"{n} trials"
+        elif hi < cfg.success_floor * 5:
+            level, why = Level.ALARM, "no useful result in this area"
+        elif shift["verdict"] == "SHIFT" and shift["direction"] == "down":
+            level, why = Level.WATCH, "success rate shifted down"
+        else:
+            level, why = Level.OK, ""
+        out[a.value] = {"n": n, "successes": k, "lo": lo, "hi": hi, "level": level, "why": why, "last_success": last_ok,
+                        "shift": shift["verdict"]}
+    return out
+
+
+def rolling_metric(rows: Sequence[Outcome], name: str, cfg: HealthConfig, checkpoints: Sequence, events: Sequence[KnowledgeEvent] = ()) -> list:
+    """One metric evaluated walk-forward at each checkpoint on what was visible then: the series a trend or drift check needs.
+    Unknown values are kept as None so a gap is visible rather than interpolated."""
+    out = []
+    for cp in sorted(checkpoints, key=as_date):
+        seen = [o for o in rows if as_date(o.when) < as_date(cp)]
+        ev = [e for e in events if as_date(e.when) < as_date(cp)]
+        m = next((m for m in compute_metrics(visible(seen, cp), ev, cp, cfg) if m.name == name), None)
+        if m is None:
+            raise KeyError(f"unknown metric {name!r}")
+        out.append((str(cp), m.value, m.level))
+    return out
+
+
+def compare_reports(a: BrainHealthReport, b: BrainHealthReport) -> dict:
+    """Which metrics improved, worsened or stayed within a level between two reports (a = earlier). 'Better' is by level rank,
+    never by raw value, because for some metrics higher is good and for others bad."""
+    better, worse, same = [], [], []
+    for m in b.metrics:
+        p = a.metric(m.name)
+        if p is None or Level.UNKNOWN in (p.level, m.level):
+            continue
+        d = _LEVEL_RANK[m.level] - _LEVEL_RANK[p.level]
+        (worse if d > 0 else better if d < 0 else same).append(m.name)
+    return {"better": sorted(better), "worse": sorted(worse), "same": sorted(same),
+            "new_findings": sorted(set(b.kinds) - set(a.kinds)), "cleared_findings": sorted(set(a.kinds) - set(b.kinds))}
+
+
+def family_lifecycle(rows: Sequence[Outcome], cfg: HealthConfig) -> dict:
+    """Where each hypothesis family is in its life: EMERGING (few trials), PRODUCTIVE (recent gain per minute at least half the
+    family's own best window), STAGNANT (marginal return has stopped, research_policy verdict) or EXHAUSTED (stagnant AND a
+    large sunk cost with nothing verified). The waste manager retires EXHAUSTED families; STAGNANT ones are starved first."""
+    by: dict = defaultdict(list)
+    for o in rows:
+        by[o.family or "(none)"].append(o)
+    out = {}
+    for fam, os_ in by.items():
+        minutes = sum(o.cost_minutes for o in os_)
+        if len(os_) < cfg.min_hard_attempts + 2:
+            out[fam] = {"state": "EMERGING", "n": len(os_), "minutes": minutes}
+            continue
+        mean_cost = float(np.mean([o.cost_minutes for o in os_]))
+        verdict = RP.marginal_return_verdict([o.gain_bits for o in os_], k=4, eps=cfg.negligible_bits_per_min * max(mean_cost, EPS))
+        half = len(os_) // 2
+        best = max(bits_per_minute(os_[i:i + half]) or 0.0 for i in range(0, len(os_) - half + 1, max(1, half // 2)))
+        recent = bits_per_minute(os_[-half:]) or 0.0
+        verified = sum(1 for o in os_ if o.verified)
+        if verdict["verdict"] == "STOP":
+            state = "EXHAUSTED" if (verified == 0 and minutes >= 10 * cfg.window * 0.5) else "STAGNANT"
+        else:
+            state = "PRODUCTIVE" if recent >= 0.5 * best else "STAGNANT"
+        out[fam] = {"state": state, "n": len(os_), "minutes": minutes, "recent_bpm": recent, "best_bpm": best, "verified": verified}
+    return out
+
+
+def claim_calibration(rows: Sequence[Outcome], bins: int = 4) -> list:
+    """Are claimed p-values honest? Per p-value bin, the share of JUDGED claims that proved false. A researcher whose 'p < 0.01'
+    claims fail as often as its 'p < 0.05' ones is not producing calibrated evidence, whatever the nominal p-values say."""
+    judged = [o for o in rows if o.claimed_discovery and o.p_value is not None and o.false_discovery is not None]
+    if len(judged) < bins * 3:
+        return []
+    ps = np.array([o.p_value for o in judged])
+    edges = np.quantile(ps, np.linspace(0, 1, bins + 1))
+    out = []
+    for i in range(bins):
+        sel = [o for o in judged if edges[i] <= o.p_value <= edges[i + 1] and (i == bins - 1 or o.p_value < edges[i + 1])]
+        if sel:
+            out.append({"p_lo": float(edges[i]), "p_hi": float(edges[i + 1]), "n": len(sel),
+                        "false_rate": sum(1 for o in sel if o.false_discovery) / len(sel)})
+    return out
+
+
 # ------------------------------------------------------------------------------------------------ breakdowns
 
 def breakdown(rows: Sequence[Outcome], key, min_n: int = 5) -> dict:

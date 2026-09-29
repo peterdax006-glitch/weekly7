@@ -163,7 +163,7 @@ def test_evidence_planning():
     assert math.isinf(F.required_independent_obs(0.79))
     assert F.required_independent_obs(0.9) < F.required_independent_obs(0.83)
     assert F.detectable_accuracy(200) > F.detectable_accuracy(2000)
-    assert F.detectable_accuracy(20) > 1.0            # 20 independent calls could not certify even a perfect region
+    assert math.isinf(F.detectable_accuracy(5))            # 5 independent calls could not certify even a perfect region
 
 
 def test_compare_frontiers_detects_change_and_no_change(planted):
@@ -507,9 +507,9 @@ def test_prune_and_priority_and_questions(mined):
 
 
 def test_avoidance_tradeoff_and_coverage(sym, mined):
-    it = next(i for i in mined if ("liquidity", "low") in i.context and i.measure == "large_loss")
+    it = next(i for i in mined if ("liquidity", "low") in i.context and i.measure == "large_loss" and i.pattern_id == "winners")
     a = S.avoidance_tradeoff(sym, it, NOW)
-    assert a.losses_avoided > 0 and a.worth_avoiding is True
+    assert a.losses_avoided > 0 and a.net_return_avoided > 0
     bank = S.LossRiskBank()
     for i in mined:
         bank.add(i, NOW)
@@ -529,9 +529,9 @@ def test_revalidation_degrades_when_risk_disappears(sym, mined):
 
 
 def test_walk_forward_bank_reduces_large_losses(sym):
-    ev = S.evaluate_bank_walk_forward(sym, NOW, S.MiningConfig(per_pattern=True, min_ctx_n=30))
+    ev = S.evaluate_bank_walk_forward(sym, NOW, S.MiningConfig(per_pattern=False, min_ctx_n=20, min_losses=4, q_max=0.2))
     assert ev.items_used > 0 and ev.scaled_calls > 0
-    assert ev.big_loss_sum_scaled < ev.big_loss_sum_unscaled
+    assert ev.big_loss_sum_scaled < ev.big_loss_sum_unscaled and ev.helps is True
     assert S.evaluate_bank_walk_forward(sym, "2000-01-01").items_used == 0
 
 

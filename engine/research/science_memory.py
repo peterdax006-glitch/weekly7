@@ -490,7 +490,7 @@ def evaluate_stops(mem: ScienceMemory, item: str, now, observations: Mapping[str
         out.append(StopCondition(kind, text, float(thr), None if cur is None else float(cur), by, None if dist is None else float(dist), tuple(ids)))
 
     if prop is not None:
-        f = prop.payload["falsifier"]
+        f = effective_falsifier(hist)[0]
         k, thr = f["kind"], float(f["threshold"])
         txt = f.get("text") or k
         if k == "failures_in_gate":
@@ -658,10 +658,11 @@ def ingest_graph(mem: ScienceMemory, graph, now, source: str = "research_graph",
             en = graph.node_at(exp, now)
             counts["tested"] += put(mem.tested, p, edge.known_at, en.attrs.get("method") or "graph experiment", "positive" if pos else "negative",
                                     int(en.attrs.get("n", 1) or 1), en.attrs.get("effect"), None, (), False, (exp,), source)
+        direct_fail = {src for src, _ in graph.by_role(p, rg.R.FAILS_IN, now, "in") if graph.kind_of(src) in rg.CONTEXT_KINDS}
         for c, v in graph.contexts_of(p, now).items():
             if v["works"] and any(x.stage == S.TESTED for x in mem.history(p, now)):
                 counts["worked"] += put(mem.worked, p, _edge_date(graph, p, c, now), c, (c,))
-            if v["fails"] and any(x.stage == S.TESTED for x in mem.history(p, now)):
+            if c in direct_fail and any(x.stage == S.TESTED for x in mem.history(p, now)):
                 counts["failed"] += put(mem.failed, p, _edge_date(graph, p, c, now), c, c, (c,))
         for f in graph.failures_of(p, now):
             fn = graph.node_at(f, now)
@@ -677,7 +678,7 @@ def ingest_graph(mem: ScienceMemory, graph, now, source: str = "research_graph",
             a = graph.role_attrs(e, rg.R.TRANSFERS_TO)
             if any(x.stage == S.TESTED for x in mem.history(p, now)):
                 counts["transfer"] += put(mem.transferred, p, e.known_at, "result", a.get("axis") or "origin", bed, bool(a.get("success", True)), (bed,))
-    return dict(counts)
+    return {k: v for k, v in counts.items() if v}
 
 
 def _edge_date(graph, pattern: str, context: str, now) -> str:
@@ -810,7 +811,7 @@ def unfalsifiable(mem: ScienceMemory, now) -> list[str]:
         prop = next((e for e in mem.history(i, now) if e.stage == S.PROPOSED), None)
         if prop is None:
             continue
-        f = prop.payload["falsifier"]
+        f = effective_falsifier(mem.history(i, now))[0]
         k, t = f["kind"], float(f["threshold"])
         if (k == "transfer_lower_below" and t <= 0) or (k == "stale_days" and t > 3650) or (k == "failures_in_gate" and t > 1000) \
                 or (k == "effect_below" and t < -1.0):
@@ -1309,3 +1310,653 @@ def disagreements_with_graph(mem: ScienceMemory, graph, now) -> list[str]:
             if gf > len(sd.failed) and sd.trust != Trust.UNKNOWN:
                 out.append(f"{i}: graph holds {gf} failure(s), ledger records {len(sd.failed)}")
     return sorted(out)
+
+
+# ====================================================================================================== moving goalposts
+
+LOWER_IS_WORSE = frozenset({"effect_below", "transfer_lower_below"})
+
+
+def effective_falsifier(hist: Sequence[Entry]) -> tuple[dict, list[Entry]]:
+    """The falsifier in force: the proposal's, replaced by the latest amendment (a NOTE carrying `amend_falsifier`)."""
+    prop = next(e for e in hist if e.stage == S.PROPOSED)
+    amends = [e for e in hist if e.stage == S.NOTE and "amend_falsifier" in e.payload]
+    return (dict(amends[-1].payload["amend_falsifier"]) if amends else dict(prop.payload["falsifier"])), amends
+
+
+def loosens(old: Mapping[str, Any], new: Mapping[str, Any]) -> bool:
+    """Does the new falsifier make it HARDER to stop trusting the item than the old one? A different kind is treated as loosening
+    unless it is strictly stricter on its own scale, because the two cannot be compared."""
+    if old["kind"] != new["kind"]:
+        return True
+    o, n = float(old["threshold"]), float(new["threshold"])
+    return n < o if old["kind"] in LOWER_IS_WORSE else n > o
+
+
+def amend_falsifier(mem: ScienceMemory, item: str, known_at, new: Falsifier, reason: str) -> Entry:
+    """Change the rule for stopping trust. Tightening is always allowed. Loosening is allowed only if NO failure, refuted transfer or
+    collapsed explanation has been recorded yet: after the first sign of trouble, relaxing the test is moving the goalposts and is
+    refused. Every amendment is a dated entry, so the history shows every version of the rule."""
+    errs = new.check()
+    if errs:
+        raise MemoryError_("; ".join(errs))
+    hist = mem.history(item, dt.date.max)
+    if not hist:
+        raise MemoryError_(f"{item}: nothing to amend")
+    cur, _ = effective_falsifier(hist)
+    if loosens(cur, new.to_dict()):
+        trouble = [e for e in hist if e.stage == S.FAILED or (e.stage == S.TRANSFER and not e.payload["transferred"])
+                   or (e.stage == S.EXPLANATION_CHECK and not e.payload["survived"])]
+        if trouble:
+            raise MemoryError_(f"{item}: refusing to loosen the falsifier after {len(trouble)} failure(s) were recorded (moving the goalposts)")
+    return mem.append(Entry.make(item, S.NOTE, known_at, {"text": f"falsifier amended: {reason}", "amend_falsifier": new.to_dict()}))
+
+
+def goalpost_audit(mem: ScienceMemory, now) -> list[Finding]:
+    """Amendments that loosened a falsifier at a time when trouble had already been recorded (possible only through a hand-built
+    ledger, since `amend_falsifier` refuses it) - the audit exists to prove the refusal cannot be bypassed by writing NOTEs directly."""
+    out = []
+    for i in mem.items(now):
+        h = mem.history(i, now)
+        cur = dict(next(e for e in h if e.stage == S.PROPOSED).payload["falsifier"])
+        for e in h:
+            if e.stage == S.NOTE and "amend_falsifier" in e.payload:
+                new = e.payload["amend_falsifier"]
+                before = [x for x in h if as_date(x.known_at) < as_date(e.known_at)]
+                trouble = any(x.stage == S.FAILED or (x.stage == S.TRANSFER and not x.payload["transferred"]) for x in before)
+                if loosens(cur, new) and trouble:
+                    out.append(Finding("GOALPOSTS_MOVED", "error", i, f"falsifier loosened on {e.known_at} after failures were on record"))
+                cur = dict(new)
+    return out
+
+
+# ====================================================================================================== the ten questions
+
+QUESTIONS = ("why_proposed", "why_tested", "how_tested", "what_predicted", "where_worked", "where_failed", "why_failed",
+             "failure_transferred", "explanation_survived", "what_replaced")
+
+
+def checklist(mem: ScienceMemory, item: str, now) -> dict[str, str]:
+    """For each of the section-39 questions: ANSWERED, NOT_APPLICABLE (the question does not arise yet) or UNANSWERED."""
+    h = mem.history(item, now)
+    st = {e.stage for e in h}
+    out = {q: "UNANSWERED" for q in QUESTIONS}
+    if not h:
+        return out
+    prop = next((e for e in h if e.stage == S.PROPOSED), None)
+    out["why_proposed"] = "ANSWERED" if prop and not str(prop.payload["why"]).startswith("imported") else "UNANSWERED"
+    tested = [e for e in h if e.stage == S.TESTED]
+    out["why_tested"] = "ANSWERED" if (prop and prop.payload.get("origin")) and tested else "UNANSWERED"
+    out["how_tested"] = "ANSWERED" if tested and all(e.payload.get("method") for e in tested) else "UNANSWERED"
+    out["what_predicted"] = "ANSWERED" if S.PREDICTION in st else "UNANSWERED"
+    out["where_worked"] = "ANSWERED" if S.WORKED in st else "UNANSWERED"
+    out["where_failed"] = "ANSWERED" if S.FAILED in st else "UNANSWERED"
+    failed = S.FAILED in st
+    expl = [e for e in h if e.stage == S.FAILURE_EXPLAINED]
+    out["why_failed"] = "NOT_APPLICABLE" if not failed else ("ANSWERED" if expl else "UNANSWERED")
+    out["failure_transferred"] = "NOT_APPLICABLE" if not failed else ("ANSWERED" if S.TRANSFER in st else "UNANSWERED")
+    named = [e for e in expl if e.payload["cause"] != "UNKNOWN"]
+    out["explanation_survived"] = "NOT_APPLICABLE" if not named else ("ANSWERED" if S.EXPLANATION_CHECK in st else "UNANSWERED")
+    sd = standing(mem, item, now)
+    out["what_replaced"] = "NOT_APPLICABLE" if sd.trust not in (Trust.REPLACED, Trust.RETIRED) else (
+        "ANSWERED" if sd.replaced_by or S.RETIRED in st else "UNANSWERED")
+    return out
+
+
+def checklist_score(mem: ScienceMemory, now) -> dict[str, float | None]:
+    """Share of applicable questions answered, per question, across live items - the ledger's own report card."""
+    hit: Counter = Counter()
+    tot: Counter = Counter()
+    for i in mem.items(now):
+        for q, v in checklist(mem, i, now).items():
+            if v != "NOT_APPLICABLE":
+                tot[q] += 1
+                hit[q] += v == "ANSWERED"
+    return {q: (hit[q] / tot[q]) if tot[q] else None for q in QUESTIONS}
+
+
+# ====================================================================================================== ledgers as data
+
+def slice_at(mem: ScienceMemory, now) -> ScienceMemory:
+    """A new in-memory ledger holding exactly what was known strictly before `now`: what a blind replay of that date is allowed to
+    load. Nothing dated on or after `now` survives, including amendments and notes."""
+    out = ScienceMemory(None, mem.forbidden)
+    keep = [e for e in mem._entries if as_date(e.known_at) < as_date(now)]
+    for e in sorted(keep, key=lambda e: (as_date(e.known_at), ORDER[e.stage], e.entry_id)):
+        out.append(Entry.make(e.item, e.stage, e.known_at, e.payload, e.evidence, e.source))
+    return out
+
+
+def merge(a: ScienceMemory, b: ScienceMemory) -> tuple[ScienceMemory, list[str]]:
+    """Merge two ledgers written by parallel workers. Entries are content-addressed so identical ones collapse; two different PROPOSED
+    entries for one item are a conflict (returned, not resolved, and the second is left out)."""
+    out = ScienceMemory(None, a.forbidden | b.forbidden)
+    conflicts: list[str] = []
+    for e in sorted(a._entries + b._entries, key=lambda e: (as_date(e.known_at), ORDER[e.stage], e.entry_id)):
+        try:
+            out.append(Entry.make(e.item, e.stage, e.known_at, e.payload, e.evidence, e.source))
+        except MemoryError_ as err:
+            conflicts.append(str(err))
+    return out, sorted(set(conflicts))
+
+
+def to_frame(mem: ScienceMemory, now):
+    """One row per item: trust, tests, contexts, failures, transfer, checks, last evidence - for sorting and filtering in a notebook."""
+    import pandas as pd
+    rows = []
+    for i in mem.items(now):
+        sd = standing(mem, i, now)
+        st = strength(mem, i, now)
+        rows.append({"item": i, "trust": sd.trust.value, "tests": st.tests, "holdout_tests": st.holdout_tests, "worked": len(sd.worked),
+                     "failed": len(sd.failed), "unexplained": len(sd.unexplained), "transfer_ok": sd.transfers[0],
+                     "transfer_failed": sd.transfers[1], "checks_survived": sd.checks[0], "checks_collapsed": sd.checks[1],
+                     "z": st.z, "last_evidence": sd.last_evidence_at, "replaced_by": sd.replaced_by})
+    return pd.DataFrame(rows, columns=["item", "trust", "tests", "holdout_tests", "worked", "failed", "unexplained", "transfer_ok",
+                                       "transfer_failed", "checks_survived", "checks_collapsed", "z", "last_evidence", "replaced_by"])
+
+
+def trust_matrix(mem: ScienceMemory, dates: Sequence):
+    """Items x dates of trust levels: the replay of belief through time."""
+    import pandas as pd
+    items = mem.items(dt.date.max)
+    return pd.DataFrame({str(as_date(d)): [standing(mem, i, d).trust.value for i in items] for d in dates}, index=items)
+
+
+def causes_table(mem: ScienceMemory, now) -> list[dict[str, Any]]:
+    """Failure causes across the ledger: how often each was asserted, how many were later checked and survived, and the UNKNOWN share.
+    UNKNOWN is reported as a first-class row - an honest answer, not a gap."""
+    tally: dict[str, list[int]] = defaultdict(lambda: [0, 0, 0])
+    for i in mem.items(now):
+        h = mem.history(i, now)
+        checked = {e.payload["failure"]: e.payload["survived"] for e in h if e.stage == S.EXPLANATION_CHECK}
+        for e in h:
+            if e.stage == S.FAILURE_EXPLAINED:
+                t = tally[e.payload["cause"]]
+                t[0] += 1
+                if e.payload["failure"] in checked:
+                    t[1] += 1
+                    t[2] += bool(checked[e.payload["failure"]])
+    total = sum(t[0] for t in tally.values())
+    return [{"cause": c, "asserted": t[0], "share": t[0] / total, "checked": t[1], "survived": t[2]} for c, t in sorted(tally.items(), key=lambda kv: (-kv[1][0], kv[0]))]
+
+
+def release_blockers(mem: ScienceMemory, item: str, now, replaying: Iterable[int] = ()) -> list[str]:
+    """Every reason `release` would refuse the item right now (empty = releasable)."""
+    sd = standing(mem, item, now)
+    out = []
+    if sd.trust not in (Trust.SUPPORTED, Trust.CONDITIONAL):
+        out.append(f"trust is {sd.trust.value}")
+    h = mem.history(item, now)
+    clash = {as_date(e.known_at).year for e in h} & {int(y) for y in replaying}
+    if clash:
+        out.append(f"history spans replayed year(s) {sorted(clash)}")
+    out += [f"audit: {f.code}" for f in audit(mem, now) if f.item == item and f.severity == "error"]
+    return out
+
+
+def audit_against_graph(mem: ScienceMemory, graph, now) -> list[Finding]:
+    """Back-dating check: an entry that cites a graph node as evidence must not be dated before that node was first known. Catches a
+    story written with hindsight - a 'proposal' dated before the evidence that motivated it existed."""
+    out = []
+    for i in mem.items(now):
+        for e in mem.history(i, now):
+            for ev in e.evidence:
+                first = graph.first_known(ev) if hasattr(graph, "first_known") else None
+                if first is not None and as_date(e.known_at) < as_date(first):
+                    out.append(Finding("BACKDATED_EVIDENCE", "error", i, f"{e.stage.value} dated {e.known_at} cites {ev}, first known {first}"))
+    return out
+
+
+# ====================================================================================================== weak points and open questions
+
+@dataclasses.dataclass(frozen=True)
+class Weakness:
+    item: str
+    trust: str
+    points: tuple[str, ...]
+    severity: float                            # 0-1, from how many independent weak points and how close a falsifier is
+
+
+def risk_register(mem: ScienceMemory, now, near: float = 0.34) -> list[Weakness]:
+    """Every item currently trusted (SUPPORTED or CONDITIONAL) with the specific reasons that trust could be misplaced: no held-out test,
+    a single source, stale evidence, unexplained failures, a falsifier within `near` of its threshold, no transfer. Ordered by severity."""
+    out = []
+    for i in mem.items(now):
+        sd = standing(mem, i, now)
+        if sd.trust not in (Trust.SUPPORTED, Trust.CONDITIONAL):
+            continue
+        st = strength(mem, i, now)
+        pts: list[str] = []
+        if st.holdout_tests == 0:
+            pts.append("no held-out test")
+        if st.independent_sources <= 1:
+            pts.append("evidence from a single source")
+        if st.evidence_age_days is not None and st.evidence_age_days > 180:
+            pts.append(f"newest evidence is {st.evidence_age_days} days old")
+        if sd.unexplained:
+            pts.append(f"{len(sd.unexplained)} unexplained failure(s)")
+        if sd.transfers == (0, 0):
+            pts.append("never tested outside its origin")
+        if st.z is not None and st.z < 2.0:
+            pts.append(f"pooled effect only {st.z:.1f} standard errors from zero")
+        for c in evaluate_stops(mem, i, now):
+            if c.declared_by == "proposal" and c.distance is not None and c.distance > 0 and c.threshold:
+                if c.distance / max(abs(c.threshold), 1e-9) <= near:
+                    pts.append(f"falsifier close: {c.kind} is {c.distance:.3g} from its threshold")
+        if pts:
+            out.append(Weakness(i, sd.trust.value, tuple(pts), min(1.0, len(pts) / 5.0)))
+    return sorted(out, key=lambda w: (-w.severity, w.item))
+
+
+def open_questions(mem: ScienceMemory, now, created_real: str) -> list:
+    """The unanswered parts of the record as identity-free ResearchQuestions, one per (item, missing step): 'no test on held-out data',
+    'no explanation for failure', 'never transferred'. The research loop can queue them exactly like graph gaps."""
+    from engine.research.core import Problem, ResearchQuestion
+    qs = []
+    for i in mem.items(now):
+        sd = standing(mem, i, now)
+        if sd.trust in (Trust.RETIRED, Trust.REPLACED, Trust.UNKNOWN):
+            continue
+        h = mem.history(i, now)
+        through = max(h, key=lambda e: as_date(e.known_at)).known_at
+        need = []
+        if sd.tests and not any(t.get("holdout") for t in sd.tests):
+            need.append(("held-out test", "Does the effect of {i} hold on data it was never fitted on?"))
+        if sd.unexplained:
+            need.append(("failure explanation", "Why did {i} fail in " + sd.unexplained[0] + "? Only UNKNOWN is on record."))
+        if sd.tests and sd.transfers == (0, 0):
+            need.append(("transfer", "Does {i} work outside the setting it was found in?"))
+        if any(c != "UNKNOWN" for c in sd.explained.values()) and not sum(sd.checks):
+            need.append(("explanation check", "Does the recorded explanation of {i}'s failure predict its next failure?"))
+        for tag, text in need:
+            qs.append(ResearchQuestion.make(text.format(i=i), "science_memory:" + tag.replace(" ", "_"), Problem.RESEARCH_PROCESS, created_real, through,
+                                            "the step is recorded with a result", "it cannot be done: record why"))
+    return sorted(qs, key=lambda q: q.question_id)
+
+
+def flip_flops(mem: ScienceMemory, dates: Sequence, min_changes: int = 3) -> list[tuple[str, int]]:
+    """Items whose trust level changed at least `min_changes` times across the dates: belief that will not settle is a sign the
+    evidence is thin or the falsifier is too jumpy."""
+    out = []
+    for i in mem.items(dt.date.max):
+        seq = [standing(mem, i, d).trust for d in sorted(dates, key=as_date)]
+        n = sum(1 for a, b in zip(seq, seq[1:]) if a != b)
+        if n >= min_changes:
+            out.append((i, n))
+    return sorted(out, key=lambda t: (-t[1], t[0]))
+
+
+def explain_change(mem: ScienceMemory, item: str, t0, t1) -> list[str]:
+    """The entries recorded between two dates that account for a change in trust, in order, in words."""
+    a, b = standing(mem, item, t0), standing(mem, item, t1)
+    lines = [f"{item}: {a.trust.value} -> {b.trust.value}" if a.trust != b.trust else f"{item}: {b.trust.value} (unchanged)"]
+    lo, hi = as_date(t0), as_date(t1)
+    for e in mem.history(item, t1):
+        if as_date(e.known_at) >= lo and as_date(e.known_at) < hi:
+            lines.append(f"  {e.known_at} {e.stage.value}: " + (e.payload.get("text") or e.payload.get("reason") or e.payload.get("context")
+                                                              or e.payload.get("result") or e.payload.get("cause") or e.payload.get("claim") or
+                                                              e.payload.get("why") or e.payload.get("how") or ""))
+    return lines
+
+
+_STOP_WORDS = frozenset("a an and are as at be because by for from has in is it its of on or that the this to was were with".split())
+
+
+def _tokens(text: str) -> set[str]:
+    import re
+    return {t for t in re.findall(r"[a-z0-9_]{3,}", text.lower()) if t not in _STOP_WORDS}
+
+
+def duplicate_proposals(mem: ScienceMemory, now, min_jaccard: float = 0.6) -> list[tuple[str, str, float]]:
+    """Distinct items proposed for nearly the same reason (token Jaccard of why + origin). Two ideas with one motivation are one
+    idea or a redundancy the ledger should point at, not two separate lines of evidence."""
+    toks = {}
+    for i in mem.items(now):
+        p = next((e for e in mem.history(i, now) if e.stage == S.PROPOSED), None)
+        if p is not None:
+            toks[i] = _tokens(f"{p.payload['why']} {p.payload['origin']}")
+    ids = sorted(toks)
+    out = []
+    for x, a in enumerate(ids):
+        for b in ids[x + 1:]:
+            u = toks[a] | toks[b]
+            j = len(toks[a] & toks[b]) / len(u) if u else 0.0
+            if j >= min_jaccard:
+                out.append((a, b, round(j, 4)))
+    return sorted(out, key=lambda t: (-t[2], t[0], t[1]))
+
+
+def independent_evidence(mem: ScienceMemory, item: str, now) -> dict[str, Any]:
+    """Tests grouped by source: three tests from one lab on one data set are one line of evidence, not three. `effective` counts each
+    distinct (source, method) pair once."""
+    tests = [e for e in mem.history(item, now) if e.stage == S.TESTED]
+    groups: dict[tuple, list[Entry]] = defaultdict(list)
+    for e in tests:
+        groups[(e.source, e.payload["method"])].append(e)
+    return {"tests": len(tests), "effective": len(groups), "groups": {f"{s or '?'}|{m}": len(v) for (s, m), v in sorted(groups.items())},
+            "overcounted": len(tests) - len(groups)}
+
+
+def brief(mem: ScienceMemory, now, top: int = 5) -> str:
+    """One page for the research desk: what is trusted and why it might be wrong, what the record most needs, what repeats."""
+    tt = trust_table(mem, now)
+    lines = [f"Scientific memory {as_date(now)}: " + ", ".join(f"{v} {k.lower()}" for k, v in tt.items()) + "."]
+    for w in risk_register(mem, now)[:top]:
+        lines.append(f"- {w.item} ({w.trust.lower()}): " + "; ".join(w.points[:3]))
+    for i, need, p in next_experiments(mem, now, top):
+        lines.append(f"- next: {i} needs {need}")
+    for cause, n, items in lessons_repeated(mem, now):
+        lines.append(f"- repeated: {cause} across {n} items")
+    return "\n".join(lines)
+
+
+# ====================================================================================================== belief as a number, and checking it
+
+@dataclasses.dataclass(frozen=True)
+class Belief:
+    """Posterior belief that an item works in a NEW setting, from its own record and a prior learned from the whole ledger."""
+    item: str
+    successes: int
+    failures: int
+    prior_mean: float
+    prior_strength: float
+    mean: float
+    lower: float                               # 5th percentile: what to plan on
+    upper: float
+
+
+def _beta_quantile(a: float, b: float, q: float) -> float:
+    """Quantile of Beta(a,b) by bisection on the regularised incomplete beta (scipy.special.betainc): deterministic, no sampling."""
+    from scipy.special import betainc
+    lo, hi = 0.0, 1.0
+    for _ in range(60):
+        mid = (lo + hi) / 2
+        if betainc(a, b, mid) < q:
+            lo = mid
+        else:
+            hi = mid
+    return (lo + hi) / 2
+
+
+def ledger_prior(mem: ScienceMemory, now, strength: float = 4.0) -> tuple[float, float]:
+    """Empirical-Bayes prior for 'works in a new setting': the pooled success share over every other item's WORKED, FAILED and
+    TRANSFER records, with fixed `strength` pseudo-observations so a thin ledger cannot make an item look certain. Falls back to a flat
+    (0.5, 2) prior when the ledger has no outcomes."""
+    ok = bad = 0
+    for i in mem.items(now):
+        for e in mem.history(i, now):
+            ok += e.stage == S.WORKED or (e.stage == S.TRANSFER and e.payload["transferred"])
+            bad += e.stage == S.FAILED or (e.stage == S.TRANSFER and not e.payload["transferred"])
+    if ok + bad == 0:
+        return 0.5, 2.0
+    return (ok + 1) / (ok + bad + 2), strength
+
+
+def belief(mem: ScienceMemory, item: str, now) -> Belief:
+    """Beta posterior on 'works in the next setting'. Each WORKED, each successful transfer counts as a success; each FAILED and each
+    failed transfer as a failure. An item with no outcomes gets exactly the prior, wide."""
+    pm, ps = ledger_prior(mem, now)
+    h = mem.history(item, now)
+    k = sum(e.stage == S.WORKED or (e.stage == S.TRANSFER and e.payload["transferred"]) for e in h)
+    f = sum(e.stage == S.FAILED or (e.stage == S.TRANSFER and not e.payload["transferred"]) for e in h)
+    a, b = pm * ps + k, (1 - pm) * ps + f
+    return Belief(item, k, f, pm, ps, a / (a + b), _beta_quantile(a, b, 0.05), _beta_quantile(a, b, 0.95))
+
+
+def trust_calibration(mem: ScienceMemory, t0, t1) -> dict[str, Any]:
+    """Did SUPPORTED at t0 mean anything? Of the items SUPPORTED at t0, the share still SUPPORTED or CONDITIONAL at t1 (survival) versus
+    the same for items that were only CONDITIONAL. Trust labels that do not predict what happens next are decoration."""
+    if as_date(t1) <= as_date(t0):
+        raise FirewallBreach("trust_calibration needs t1 after t0")
+    grp: dict[str, list[bool]] = defaultdict(list)
+    for i in mem.items(t0):
+        a = standing(mem, i, t0).trust
+        if a in (Trust.SUPPORTED, Trust.CONDITIONAL, Trust.UNPROVEN):
+            grp[a.value].append(standing(mem, i, t1).trust in (Trust.SUPPORTED, Trust.CONDITIONAL))
+    return {k: {"n": len(v), "survived": sum(v), "rate": sum(v) / len(v), "lower": wilson_lower(sum(v), len(v))} for k, v in sorted(grp.items())}
+
+
+def predict_failure_contexts(mem: ScienceMemory, item: str, now, top: int = 3) -> list[tuple[str, float]]:
+    """Contexts where the item is most likely to fail next, from the ledger only: contexts in which OTHER items with the same explained
+    failure cause failed, minus contexts the item already worked in. A hypothesis to test, ranked by how many other items back it."""
+    mine = standing(mem, item, now)
+    causes = set(mine.explained.values()) - {"UNKNOWN"}
+    votes: Counter = Counter()
+    for j in mem.items(now):
+        if j == item:
+            continue
+        sj = standing(mem, j, now)
+        if causes & set(sj.explained.values()):
+            for c in sj.failed:
+                votes[c] += 1
+    for c in mine.worked:
+        votes.pop(c, None)
+    tot = sum(votes.values()) or 1
+    return [(c, v / tot) for c, v in sorted(votes.items(), key=lambda kv: (-kv[1], kv[0]))[:top]]
+
+
+def evidence_path(mem: ScienceMemory, item: str, now) -> list[tuple[str, float, float]]:
+    """(date, cumulative pooled effect, cumulative z) as each effect-bearing test arrived: did the case build steadily, or is it one
+    early result that later tests never repeated? Uses inverse-variance pooling of tests that carried an effect and standard error."""
+    rows = [(e.known_at, e.payload["effect"], e.payload["se"]) for e in mem.history(item, now)
+            if e.stage == S.TESTED and "effect" in e.payload and e.payload.get("se")]
+    out, w_sum, wx = [], 0.0, 0.0
+    for d, x, se in rows:
+        w = 1.0 / (se * se)
+        w_sum += w
+        wx += w * x
+        out.append((d, wx / w_sum, (wx / w_sum) * math.sqrt(w_sum)))
+    return out
+
+
+def neglected(mem: ScienceMemory, now, days: int = 90) -> list[tuple[str, int]]:
+    """Proposed items still untested after `days`: ideas that entered the record and were then forgotten."""
+    out = []
+    for i in mem.items(now):
+        h = mem.history(i, now)
+        if any(e.stage == S.TESTED for e in h):
+            continue
+        age = (as_date(now) - as_date(next(e for e in h if e.stage == S.PROPOSED).known_at)).days
+        if age > days and standing(mem, i, now).trust == Trust.UNPROVEN:
+            out.append((i, age))
+    return sorted(out, key=lambda t: (-t[1], t[0]))
+
+
+def summary_stats(mem: ScienceMemory, now) -> dict[str, Any]:
+    """Headline numbers for the research loop: items, entries by stage, share with a held-out test, share with an explained failure, mean
+    tests per item, and the trust table. Volume of entries is reported but is never a score (section 43)."""
+    items = mem.items(now)
+    entries = [e for i in items for e in mem.history(i, now)]
+    by_stage = Counter(e.stage.value for e in entries)
+    hold = sum(any(e.stage == S.TESTED and e.payload.get("holdout") for e in mem.history(i, now)) for i in items)
+    failed = [i for i in items if any(e.stage == S.FAILED for e in mem.history(i, now))]
+    expl = sum(any(c != "UNKNOWN" for c in standing(mem, i, now).explained.values()) for i in failed)
+    return {"items": len(items), "entries": len(entries), "by_stage": dict(sorted(by_stage.items())),
+            "share_held_out": (hold / len(items)) if items else None, "share_failures_explained": (expl / len(failed)) if failed else None,
+            "tests_per_item": (by_stage.get("TESTED", 0) / len(items)) if items else None, "trust": trust_table(mem, now),
+            "note": "entry counts are activity, not value"}
+
+
+# ====================================================================================================== closing the loop with the bridge
+
+def propose_from_discovery(mem: ScienceMemory, discovery, subject: str, known_at=None, falsifier: Falsifier | None = None) -> Entry:
+    """A bridge Discovery as a proposal in the ledger: `why` is its statement, `origin` its source lab, and - unless one is given - the
+    falsifier is derived from the claim itself: stop trusting it if the pooled effect falls to half of what it promised (effect_below),
+    or after three failures if it promised nothing measurable. The first claim's expected improvement sets the level."""
+    exp = next((c.expected_delta for c in discovery.claims if c.expected_delta), None)
+    fal = falsifier or (Falsifier("effect_below", float(exp) * 0.5, "half of the promised improvement") if exp
+                        else Falsifier("failures_in_gate", 3.0, "three failures"))
+    return mem.propose(subject, known_at or discovery.matured_at, discovery.statement, "bridge:" + discovery.source, fal, discovery.source,
+                       (discovery.discovery_id,))
+
+
+def record_realised(mem: ScienceMemory, bridge, now) -> dict[str, int]:
+    """Every realised bridge outcome on a proposed subject becomes a held-out TESTED entry (the outcome was measured after the routing
+    decision, on data the discovery never saw), positive when the change helped and negative when it hurt. This is how what the bridge
+    watched happen re-enters the scientific record."""
+    counts: Counter = Counter()
+    for r in bridge.realised(now):
+        e = next(x for x in bridge.entries() if x.entry_id == r.entry_id)
+        d = bridge.discovery(e.discovery_id)
+        for s in d.subjects:
+            if not mem.history(s, dt.date.max):
+                counts["unknown_subject"] += 1
+                continue
+            before = len(mem)
+            mem.tested(s, r.matured_at, "realised decision change (" + r.metric + ")", "positive" if r.delta > 0 else "negative", r.n,
+                       effect=r.delta, holdout=True, evidence=(e.entry_id,), source="bridge:" + e.source)
+            counts["recorded"] += len(mem) - before
+    return dict(counts)
+
+
+def recommend_retirements(mem: ScienceMemory, bridge, now, min_realised: int = 3) -> list[tuple[str, str]]:
+    """(item, reason) for items whose bridge discoveries realised no improvement on average. Recommendation only: retiring is a
+    recorded decision (`ScienceMemory.retired`), never a side effect of a report."""
+    out = []
+    bad = set(_retire_failed(bridge, now, min_realised))
+    for did in sorted(bad):
+        for s in bridge.discovery(did).subjects:
+            if mem.history(s, now) and standing(mem, s, now).trust in (Trust.SUPPORTED, Trust.CONDITIONAL):
+                out.append((s, f"bridge discovery {did} realised no improvement over {min_realised}+ measurements"))
+    return sorted(set(out))
+
+
+def _retire_failed(bridge, now, min_realised: int) -> list[str]:
+    from engine.research import decision_bridge as db
+    return db.retire_failed(bridge, now, min_realised)
+
+
+def audit_all(mem: ScienceMemory, now, graph=None) -> list[Finding]:
+    """Every audit in one list: ledger integrity, reinstatement, goalposts, and (with a graph) back-dating."""
+    out = audit(mem, now) + reinstatement_audit(mem, now) + goalpost_audit(mem, now)
+    if graph is not None:
+        out += audit_against_graph(mem, graph, now)
+    return sorted(out, key=lambda f: (f.severity != "error", f.code, f.item))
+
+
+# ====================================================================================================== how the research itself is going
+
+def lifecycle_times(mem: ScienceMemory, now) -> dict[str, Any]:
+    """Days from proposal to first test, to first held-out test, and to withdrawal, across items: how long ideas wait, and how long
+    they survive. Medians only; a mean of three items would be a fiction."""
+    first, hold, gone = [], [], []
+    for i in mem.items(now):
+        h = mem.history(i, now)
+        p = as_date(next(e for e in h if e.stage == S.PROPOSED).known_at)
+        t = [as_date(e.known_at) for e in h if e.stage == S.TESTED]
+        ho = [as_date(e.known_at) for e in h if e.stage == S.TESTED and e.payload.get("holdout")]
+        w = [as_date(e.known_at) for e in h if e.stage in (S.RETIRED, S.REPLACED)]
+        first += [(min(t) - p).days] if t else []
+        hold += [(min(ho) - p).days] if ho else []
+        gone += [(min(w) - p).days] if w else []
+
+    def med(x):
+        return sorted(x)[len(x) // 2] if x else None
+    return {"to_first_test": med(first), "to_first_holdout": med(hold), "to_withdrawal": med(gone),
+            "n": {"tested": len(first), "held_out": len(hold), "withdrawn": len(gone)}}
+
+
+def retirement_reasons(mem: ScienceMemory, now) -> list[tuple[str, int]]:
+    """Why items were withdrawn, most common first (RETIRED reasons and REPLACED whys, verbatim)."""
+    c: Counter = Counter()
+    for i in mem.items(now):
+        for e in mem.history(i, now):
+            if e.stage == S.RETIRED:
+                c[e.payload["reason"]] += 1
+            elif e.stage == S.REPLACED:
+                c["replaced: " + e.payload["why"]] += 1
+    return sorted(c.items(), key=lambda kv: (-kv[1], kv[0]))
+
+
+def source_report(mem: ScienceMemory, now) -> dict[str, dict[str, Any]]:
+    """Per proposing source: items proposed, how many are trusted now, how many were withdrawn, how many never got a test. A source whose
+    ideas are never tested, or never survive, is telling the research loop where not to look."""
+    rows: dict[str, dict[str, int]] = defaultdict(lambda: {"proposed": 0, "trusted": 0, "withdrawn": 0, "untested": 0, "doubted": 0})
+    for i in mem.items(now):
+        h = mem.history(i, now)
+        src = next(e for e in h if e.stage == S.PROPOSED).source or "?"
+        t = standing(mem, i, now).trust
+        r = rows[src]
+        r["proposed"] += 1
+        r["trusted"] += t in (Trust.SUPPORTED, Trust.CONDITIONAL)
+        r["withdrawn"] += t in (Trust.RETIRED, Trust.REPLACED)
+        r["untested"] += t == Trust.UNPROVEN
+        r["doubted"] += t == Trust.DOUBTED
+    return {k: {**v, "survival": v["trusted"] / v["proposed"]} for k, v in sorted(rows.items())}
+
+
+def coverage_of_stages(mem: ScienceMemory, now) -> dict[str, int]:
+    """How many live items have each stage recorded at least once (a column of zeros is a part of the process nobody is recording)."""
+    out = {s.value: 0 for s in Stage}
+    for i in mem.items(now):
+        for st in {e.stage for e in mem.history(i, now)}:
+            out[st.value] += 1
+    return out
+
+
+# ====================================================================================================== changes of mind
+
+@dataclasses.dataclass(frozen=True)
+class MindChange:
+    item: str
+    on: str
+    before: str
+    after: str
+    cause_entry: str
+    cause: str
+
+
+def changes_of_mind(mem: ScienceMemory, item: str, now) -> list[MindChange]:
+    """Replay the item day by day through its own entries and report every date on which its trust level changed, with the entry that
+    caused it. The record of what evidence moved the system, not just where it ended up."""
+    days = sorted({e.known_at for e in mem.history(item, now)})
+    out, prev = [], Trust.UNKNOWN
+    for d in days:
+        after = as_date(d) + dt.timedelta(days=1)
+        cur = standing(mem, item, after).trust
+        if cur != prev:
+            cause = [e for e in mem.history(item, after) if e.known_at == d]
+            key = max(cause, key=lambda e: ORDER[e.stage])
+            out.append(MindChange(item, d, prev.value, cur.value, key.entry_id, key.stage.value + ": " + str(
+                key.payload.get("context") or key.payload.get("result") or key.payload.get("reason") or key.payload.get("why") or "")))
+        prev = cur
+    return out
+
+
+def evidence_balance(mem: ScienceMemory, item: str, now) -> dict[str, list[str]]:
+    """Entries for and against the item, kept apart (never netted): what supports it, what counts against it, what is neutral."""
+    fore, against, neutral = [], [], []
+    for e in mem.history(item, now):
+        p = e.payload
+        if e.stage == S.TESTED:
+            (fore if str(p["result"]).lower() in POSITIVE else against).append(e.entry_id)
+        elif e.stage == S.WORKED or (e.stage == S.TRANSFER and p["transferred"]) or (e.stage == S.EXPLANATION_CHECK and p["survived"]):
+            fore.append(e.entry_id)
+        elif e.stage in (S.FAILED, S.RETIRED, S.REPLACED) or (e.stage == S.TRANSFER and not p["transferred"]) \
+                or (e.stage == S.EXPLANATION_CHECK and not p["survived"]):
+            against.append(e.entry_id)
+        else:
+            neutral.append(e.entry_id)
+    return {"for": fore, "against": against, "neutral": neutral}
+
+
+def review_queue(mem: ScienceMemory, now, severity: float = 0.6, idle_days: int = 90) -> list[tuple[str, str]]:
+    """(item, why it needs a human look): trusted items with several weak points, ideas left untested, falsifiers that cannot fire, and
+    failures explained by a label nobody has re-checked. One list for the weekly review, sorted by item."""
+    out = [(w.item, f"trusted with {len(w.points)} weak points: {w.points[0]}") for w in risk_register(mem, now) if w.severity >= severity]
+    out += [(i, f"proposed {a} days ago and never tested") for i, a in neglected(mem, now, idle_days)]
+    out += [(i, "falsifier can never fire") for i in unfalsifiable(mem, now)]
+    out += [(f.item, f.detail) for f in audit(mem, now) if f.code == "EXPLANATION_UNCHECKED"]
+    return sorted(set(out))
+
+
+def stage_counts(mem: ScienceMemory, item: str, now) -> dict[str, int]:
+    """How many entries of each stage the item has: the shape of its documentation at a glance."""
+    c = Counter(e.stage.value for e in mem.history(item, now))
+    return {s.value: c.get(s.value, 0) for s in Stage}
+
+
+def documented(mem: ScienceMemory, item: str, now, minimum: Sequence[Stage] = (S.PROPOSED, S.TESTED, S.PREDICTION, S.WORKED)) -> bool:
+    """True when the item has at least one entry of every stage in `minimum`."""
+    have = stage_counts(mem, item, now)
+    return all(have[s.value] > 0 for s in minimum)

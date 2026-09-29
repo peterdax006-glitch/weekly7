@@ -2315,7 +2315,9 @@ def evaluate_bank_walk_forward(sf: SymFrame, now, mc: MiningConfig | None = None
     bl_u, bl_s = float(-r[big].sum()), float(-rs[big].sum())
     red = (bl_u - bl_s) / bl_u if bl_u > 0 else nan
     gain = float(r[r > 0].sum() - rs[r > 0].sum())
-    helps = None if not (size < 1).any() else bool(math.isfinite(red) and red > 0 and gain < bl_u - bl_s + abs(rs.sum() - r.sum()) and p < 0.10)
+    per_unit = float(rs.sum() / size.sum())                    # return per unit of capital actually deployed
+    helps = None if not (size < 1).any() else bool(math.isfinite(red) and red > 0 and np.sort(rs / size)[:k].mean() >= np.sort(r)[:k].mean() - 1e-12
+                                                   and per_unit >= float(r.mean()) - 0.005 and p < 0.10)
     return BankEvaluation(len(early), len(late), len(items), len(e), int((size < 1).sum()), float(r.mean()), float(rs.mean()), float(np.sort(r)[:k].mean()),
                           float(np.sort(rs)[:k].mean()), bl_u, bl_s, red, gain, p, helps)
 

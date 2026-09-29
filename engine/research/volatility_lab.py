@@ -177,7 +177,7 @@ TRUTHS = ("null", "H1", "H2", "H3", "H5", "H6", "H7", "hidden")
 def planted_frame(truth: str = "null", n_dates: int = 120, n_tickers: int = 80, seed: int = 0, effect: float = 1.1, base_logit: float = -2.1,
                   dir_signal: float = 0.0, first: str = "2012-01-06", n_sectors: int = 5, with_events: bool = True) -> pd.DataFrame:
     """A synthetic market with a KNOWN volatility mechanism. truth: 'null' (movers are unpredictable), H1/H2/H3/H5/H6/H7 (the mechanism
-    of that hypothesis drives the mover logit), 'hidden' (a conjunction of xs_atr_rank and near_lo that no seeded hypothesis names).
+    of that hypothesis drives the mover logit), 'hidden' (a conjunction of near_hi and near_lo that no seeded hypothesis names).
     Direction is independent of everything unless dir_signal > 0. Weekly dates; outcomes mature 8 calendar days later."""
     if truth not in TRUTHS:
         raise ValueError(f"truth must be one of {TRUTHS}")
@@ -228,7 +228,7 @@ def planted_frame(truth: str = "null", n_dates: int = 120, n_tickers: int = 80, 
     elif truth == "H7":
         logit += effect * (0.9 * z("surge_x_move") + 0.3 * z("lvol_surge"))
     elif truth == "hidden":
-        hid = (D["xs_atr_rank"].to_numpy(float) > 0.75) & (D["near_lo"].to_numpy(float) < -0.02) & (D["near_lo"].to_numpy(float) > -0.12)
+        hid = (D["near_hi"].to_numpy(float) > -0.04) & (D["near_lo"].to_numpy(float) > 0.02) & (D["near_lo"].to_numpy(float) < 0.12)
         logit += effect * 2.2 * hid
     p = 1 / (1 + np.exp(-logit))
     touch = (rng.random(n) < p).astype(float)
@@ -962,6 +962,8 @@ def oriented_scan(F: pd.DataFrame, feats: Sequence[str], now, cfg: LabConfig) ->
     for f in feats:
         oos[f"p_{f}"] = cols[f]
     oos = oos[oos["fold"] >= 0]
+    if len(oos) == 0:
+        return pd.DataFrame({"feature": list(feats), "n_dates": 0, "auc": np.nan, "lo": np.nan, "hi": np.nan, "p": np.nan, "sign": np.nan, "q": np.nan})
     t = per_date_table(oos, [f"p_{f}" for f in feats], cfg.top_frac)
     rows = []
     for f in feats:
@@ -1821,7 +1823,7 @@ def feature_health(F: pd.DataFrame, cols: Sequence[str] | None = None, psi_limit
 # ---------------------------------------------------------------------------------------------------------------
 # model-free evidence for H1 and friends: do extreme movers repeat?
 # ---------------------------------------------------------------------------------------------------------------
-def mover_persistence(F: pd.DataFrame, lags: Sequence[int] = (1, 2, 4), cfg: LabConfig = LabConfig(), max_gap_days: int = 10) -> pd.DataFrame:
+def mover_persistence(F: pd.DataFrame, lags: Sequence[int] = (2, 4, 8), cfg: LabConfig = LabConfig(), max_gap_days: int = 10) -> pd.DataFrame:
     """P(mover now | mover `lag` decisions ago) against P(mover now | not), per lag, with the same contrast inside each own-volatility
     tercile (so 'volatile names move again' is separated from 'names that just moved move again'). A lagged outcome is used only if it had
     ENDED before the current decision date (otherwise it is NaN, never peeked). Weekly frames only: rows whose lag is more than
@@ -2448,7 +2450,7 @@ def run_path_study(ep: pd.DataFrame, now, cfg: LabConfig = LabConfig(), fit_cfg:
     probs, sc = path_walk_forward(ep, now, cfg, fit_cfg)
     if sc.verdict == StudyVerdict.UNKNOWN or not np.isfinite(sc.skill):
         return _unknown(spec, sc.reason, n=sc.n)
-    perm = shuffle_sources(normalise_paths(ep), [f for f in PATH_FEATURES if f in ep.columns and f not in ("m_vol",)][:12], "row", cfg.seed + 5)
+    perm = shuffle_sources(normalise_paths(ep), [c for c in VH.required_columns([f for f in PATH_FEATURES if not VH.missing_columns((f,), ep.columns)]) if not c.startswith("m_")], "row", cfg.seed + 5)
     _, ctl = path_walk_forward(perm, now, cfg, fit_cfg)
     verdict = sc.verdict
     cav = [f"per-class AUC {({k: round(v, 3) for k, v in sc.per_class_auc.items()})}"]
@@ -2523,7 +2525,7 @@ def sweep(loader: Callable[[int, int], pd.DataFrame], years: Sequence[int], stat
     resumption exact. max_passes=None never ends (the wave-2 loop pulls from it as compute allows). A frame that fails validation is
     skipped with the reason, not fatal: one bad year must not stop a sweep that is meant to run for weeks."""
     ck = SweepCheckpoint.load(checkpoint_path, state.cfg.fingerprint()) if checkpoint_path else SweepCheckpoint(cfg_hash=state.cfg.fingerprint())
-    p = ck.passes
+    p = 0
     while max_passes is None or p < max_passes:
         for y in years:
             seed = name_seed + p
@@ -2551,8 +2553,9 @@ def sweep(loader: Callable[[int, int], pd.DataFrame], years: Sequence[int], stat
             if checkpoint_path:
                 ck.save(checkpoint_path)
             yield SweepUnit(p, y, seed, ran, 0 if F is None else int(len(F)), reason, str(checkpoint_path or ""))
+        if all(ck.is_done(p, y, name_seed + p) for y in years):
+            ck.passes = max(ck.passes, p + 1)
         p += 1
-        ck.passes = p
         if checkpoint_path:
             ck.save(checkpoint_path)
 
@@ -2834,3 +2837,16 @@ def candle_study(F: pd.DataFrame, now, cfg: LabConfig = LabConfig(), fit_cfg: VH
     v, cav = _verdict_from_increment(r["inc"], r["null"], cfg, cfg.min_dates_auc * 2)
     return StudyResult(spec.qid, spec.section, v, r["inc"].diff, r["inc"].lo, r["inc"].hi, r["inc"].p, float("nan"), r["inc"].n_dates,
                        r["null"].diff if r["null"] else float("nan"), {"features": list(feats), "hypothesis": "H6"}, tuple(cav))
+
+
+def hypothesis_table(rep: LabReport) -> pd.DataFrame:
+    """One row per hypothesis joining score, increment over B0, decay, regime dependence, direction flag and epistemic status."""
+    by = {i.a: i for i in rep.increments}
+    rows = []
+    for h in rep.hids:
+        c, i, a = rep.scorecards.get(h), by.get(h), rep.assessments.get(h)
+        rows.append({"hid": h, "auc": c.auc if c else np.nan, "inc": i.diff if i else np.nan, "inc_lo": i.lo if i else np.nan, "q": i.q if i else np.nan,
+                     "decay": rep.decay[h].status if h in rep.decay else None, "regime_dependent": rep.regimes[h].regime_dependent if h in rep.regimes else None,
+                     "direction": str(rep.directions[h].flag) if h in rep.directions else None, "status": str(a.status) if a else None,
+                     "untested": ",".join(a.untested) if a else ""})
+    return pd.DataFrame(rows)

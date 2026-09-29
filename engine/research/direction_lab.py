@@ -28,6 +28,7 @@ engine.direction_calib (compare_gates), engine.learning.calibration (change_scan
 Public entry: step(state, now, inputs) -> (state, LabReport); DirectionLab.run(inputs, now) for one-shot use."""
 from __future__ import annotations
 
+import copy
 import dataclasses
 import math
 from typing import Any, Callable, Mapping, Sequence
@@ -826,6 +827,9 @@ def make_extra_hooks(pool: pd.DataFrame, fams: Mapping[str, FamilyMatrix], Xp: p
         hooks[TAG_SIMPLE] = _simple_baseline_hook(S, yv)
     if existing_p is not None:
         hooks[TAG_EXISTING] = _existing_hook(existing_p.reindex(pool.index).to_numpy(dtype=float))
+    fam_r = fams.get("market_regime")
+    if fam_r is not None and fam_r.testable and "market_regime" in names and len(np.unique(pool["reg"])) >= 2:
+        hooks["regime_switch:market_regime"] = regime_switch_hook(Fc, pool["reg"].to_numpy(), yv, cfg.seed)
     for h in names:
         spec, fam = specs.get(h), fams.get(h)
         if spec is None or fam is None or not fam.testable or spec.prior_sign == 0:
@@ -2090,6 +2094,17 @@ class LabReport:
     mechanisms: dict[str, list] = dataclasses.field(default_factory=dict)
     wrong_calls: dict[str, float] = dataclasses.field(default_factory=dict)
     gates: pd.DataFrame = dataclasses.field(default_factory=pd.DataFrame)
+    dossiers: dict[str, dict] = dataclasses.field(default_factory=dict)
+    stability: pd.DataFrame = dataclasses.field(default_factory=pd.DataFrame)
+    profiles: dict[str, dict] = dataclasses.field(default_factory=dict)
+    placebo: dict[str, float] = dataclasses.field(default_factory=dict)
+    baselines: pd.DataFrame = dataclasses.field(default_factory=pd.DataFrame)
+    disclosures: dict[str, Any] = dataclasses.field(default_factory=dict)
+    adequacy: pd.DataFrame = dataclasses.field(default_factory=pd.DataFrame)
+    blend: dict[str, Any] = dataclasses.field(default_factory=dict)
+    vol_buckets: pd.DataFrame = dataclasses.field(default_factory=pd.DataFrame)
+    return_rank: dict[str, float] = dataclasses.field(default_factory=dict)
+    truncation: dict[str, Any] = dataclasses.field(default_factory=dict)
 
     @property
     def protocol_ok(self) -> bool:
@@ -2185,6 +2200,9 @@ class DirectionLab:
             report.results = {n: HypothesisResult(n, s.topic, Outcome.INSUFFICIENT_DATA, ResearchState.DORMANT, Stage.CHEAP_SCREEN,
                                                   reasons=["empty pool"]) for n, s in self.specs.items()}
             return report
+        audit = audit_pool(pool)
+        if not audit["ok"]:
+            raise FirewallBreach("direction pool failed its structural audit: " + "; ".join(audit["violations"]))
         years = self._years(pool)
         lc = dataclasses.replace(cfg, test_years=years)
         report.years = years
@@ -2222,7 +2240,9 @@ class DirectionLab:
         pred_final, W_final, cells_final = wf1.pred, W1, cells1
         final_info, wf2 = info, None
         if survivors:
-            wf2 = run_walk_forward(pool, fams, Xd, lc, survivors, lc.models, Stage.STRONGER_TESTS, inputs.existing_p)
+            hooks2 = make_extra_hooks(pool, fams, Xd, lc, [n for n in survivors if fams[n].testable], inputs.existing_p, self.specs)
+            hooks2.update(miner_extra(inputs, pool, lc))
+            wf2 = run_walk_forward(pool, fams, Xd, lc, survivors, lc.models, Stage.STRONGER_TESTS, inputs.existing_p, hooks2)
             report.stages_run.append(Stage.STRONGER_TESTS)
             W2 = wide(wf2.pred)
             common = W1.index.intersection(W2.index)
@@ -2279,11 +2299,38 @@ class DirectionLab:
         self._frontier(report, pred_final, cells_final, names, lc)
         report.statement = honest_statement(report.eighty, report.power, lc.gate)
         leads = [r for r in report.results.values() if r.stage is not Stage.CHEAP_SCREEN and r.best_tag]
+        self._robustness(report, pred_final, W_final, final_info, pool, Xd, fams, lc)
+        extras_for_report(report, inputs, pool, Xd, pred_final, W_final, final_info, lc)
         if leads:
             top = max(leads, key=lambda r: r.skill)
             report.gates = gate_alternatives(pred_final, top.best_tag, lc.gate)
             report.wrong_calls = wrong_call_anatomy(pred_final, pool, top.best_tag)[1]
         return report
+
+    def _robustness(self, report: LabReport, pred: pd.DataFrame, W: pd.DataFrame, info: pd.DataFrame, pool: pd.DataFrame, Xd: pd.DataFrame,
+                    fams: Mapping[str, FamilyMatrix], cfg: LabConfig) -> None:
+        """Second-opinion checks on every hypothesis that reached stage 2 and is not already a null: dossier extras, the
+        robust_verdict (a CANDIDATE that fails it is demoted to WEAK_UNREPLICATED with the failed checks named), the lead-lag
+        profile of its strongest input, and the win-share stability of the winning cell among all cells."""
+        report.stability = selection_stability(W, info, min(cfg.n_boot, 200), cfg.seed)
+        for n, r in report.results.items():
+            if r.stage is Stage.CHEAP_SCREEN or not r.best_tag or r.outcome not in (Outcome.CANDIDATE, Outcome.WEAK_UNREPLICATED):
+                continue
+            dz = evidence_dossier(report, n, pred, pool)
+            rv = robust_verdict(dz)
+            dz["robust"] = rv
+            report.dossiers[n] = dz
+            fam = fams[n]
+            if fam.columns:
+                ranked = report.ic[report.ic["column"].isin(fam.columns)] if len(report.ic) else report.ic
+                col = str(ranked["column"].iloc[0]) if len(ranked) else fam.columns[0]
+                report.profiles[n] = profile_verdict(lead_lag_profile(Xd[[col]], pool, col))
+            if r.outcome is Outcome.CANDIDATE and not rv["robust"]:
+                r.outcome, r.state = Outcome.WEAK_UNREPLICATED, state_for(Outcome.WEAK_UNREPLICATED, True)
+                r.reasons = ["robustness failed: " + ",".join(rv["failed"])] + r.reasons
+            if report.profiles.get(n, {}).get("kind") == "contaminated" and r.outcome is not Outcome.LEAK_SUSPECT:
+                r.outcome, r.state = Outcome.LEAK_SUSPECT, ResearchState.CANCELLED
+                r.reasons = ["lead-lag profile: the feature predicts outcomes that were already known: " + report.profiles[n]["detail"]] + r.reasons
 
     def _deep(self, report: LabReport, Xd: pd.DataFrame, pool: pd.DataFrame, fams: Mapping[str, FamilyMatrix], cfg: LabConfig) -> None:
         """Model-free diagnostics that need no walk-forward: single-feature IC tables (pooled and by year), the volatility model's
@@ -2352,6 +2399,7 @@ class LabState:
     runs: int = 0
     history: list[dict[str, Any]] = dataclasses.field(default_factory=list)
     seen_keys: set = dataclasses.field(default_factory=set)
+    ledger: "EvidenceLedger | None" = None
     info_prev: int = 0
     last_alpha: float = 0.0
     alpha_spent: float = 0.0
@@ -2420,8 +2468,10 @@ def step(state: LabState | None, now, inputs: LabInputs, cfg: LabConfig | None =
     alpha = max(spending.increment(state.info_prev, max(weeks, state.info_prev)), 1e-4) if fresh else state.last_alpha
     lab = DirectionLab(dataclasses.replace(base, alpha=min(alpha, 0.49)), gate)
     report = lab.run(inputs, now, ignore_gate=ignore_gate)
-    new = LabState(dict(state.states), state.null_streak, state.runs + 1, list(state.history), set(state.seen_keys), state.info_prev,
+    ledger = copy.deepcopy(state.ledger) if state.ledger is not None else EvidenceLedger(base.alpha)
+    new = LabState(dict(state.states), state.null_streak, state.runs + 1, list(state.history), set(state.seen_keys), ledger, state.info_prev,
                    state.last_alpha, state.alpha_spent)
+    feed_ledger(new.ledger, report)
     for name, r in report.results.items():
         new.states[name] = r.state
     powered = report.power.get("mde_edge", 1.0) <= 0.03
@@ -2744,6 +2794,17 @@ def format_report(report: LabReport, top: int = 15) -> str:
     if report.market:
         m = report.market
         L.append(f"market vs stock: week explains {m.get('icc', float('nan')):.1%} of direction variance (excess dispersion {m.get('excess_dispersion', float('nan')):.2f}x)")
+    d = report.disclosures
+    if d:
+        s = d["survivorship"]
+        L.append(f"survivorship: {s['tickers']} tickers, {s['ended_early']} ended early -> "
+                 + ("SURVIVOR-ONLY SUSPECTED; " + s["note"] if s["survivor_only_suspected"] else "delistings present"))
+        L.append(f"chance of a lead: expected {d['false_lead_arithmetic']['expected_weak']:.2f} unadjusted leads among {len(HYPOTHESES)} hypotheses by luck alone")
+    if len(report.baselines):
+        b = report.baselines.sort_values("edge", ascending=False).iloc[0]
+        L.append(f"best fixed rule: {b['rule']} accuracy {b['acc']:.3f} (majority {b['majority']:.3f}, edge {b['edge']:+.3f})")
+    if report.truncation:
+        L.append(f"future-read test: {'PASS' if report.truncation['ok'] else 'FAIL'} ({report.truncation['columns']} derived columns, {report.truncation['rows']} rows)")
     if report.warnings:
         L += ["", "warnings:"] + ["  " + w for w in report.warnings]
     return "\n".join(L)
@@ -2768,3 +2829,1072 @@ def save_report(report: LabReport, out_dir, extra: Mapping[str, Any] | None = No
         report.ic.to_csv(out / "ic.csv", index=False)
     (out / "report.txt").write_text(format_report(report), encoding="utf-8")
     return out
+
+
+# ---------------------------------------------------------------------------------------------- placebo and timing controls
+def lead_lag_profile(M: pd.DataFrame, pool: pd.DataFrame, column: str, lags: Sequence[int] = (-3, -2, -1, 0, 1, 2, 3), min_rows: int = 300) -> pd.DataFrame:
+    """Mean weekly IC of one feature against the outcome of the SAME ticker `lag` weeks later (lag 0 = the real target, lag < 0 = an
+    outcome that was already known when the feature was formed, lag > 0 = a later week). A genuine one-week-ahead predictor peaks at
+    0 and is near zero elsewhere; a column that predicts outcomes of weeks before it existed is contaminated, and a column that
+    predicts every lag equally is a slow-moving trait of the stock, not a weekly forecast. Rows are matched by (ticker, date order)."""
+    cols = ["lag", "n", "mean_ic", "t"]
+    if column not in M.columns or len(pool) < min_rows:
+        return pd.DataFrame(columns=cols)
+    df = pd.DataFrame({"x": M[column].to_numpy(dtype=float), "up": pool["up"].to_numpy(dtype=float), "ticker": pool["ticker"].to_numpy(),
+                       "date": pool["date"].to_numpy()}).sort_values(["ticker", "date"], kind="stable").reset_index(drop=True)
+    rows = []
+    for lag in lags:
+        shifted = df.groupby("ticker")["up"].shift(-lag)
+        sub = pd.DataFrame({"x": df["x"]}, index=df.index)
+        tmp = pd.DataFrame({"date": pd.DatetimeIndex(df["date"]), "up": shifted.to_numpy()})
+        ok = np.isfinite(shifted.to_numpy()) & np.isfinite(df["x"].to_numpy())
+        if ok.sum() < min_rows:
+            rows.append(dict(lag=lag, n=int(ok.sum()), mean_ic=float("nan"), t=float("nan")))
+            continue
+        t = feature_ic_table(sub[ok].reset_index(drop=True), tmp[ok].reset_index(drop=True), "up", min_rows=10)
+        rows.append(dict(lag=lag, n=int(ok.sum()), mean_ic=float(t["mean_ic"].iloc[0]) if len(t) else float("nan"),
+                         t=float(t["t"].iloc[0]) if len(t) else float("nan")))
+    return pd.DataFrame(rows, columns=cols)
+
+
+def profile_verdict(profile: pd.DataFrame, t_crit: float = 2.0) -> dict[str, Any]:
+    """Reads a lead_lag_profile: 'forecast' when lag 0 is significant and no negative lag is, 'contaminated' when a negative lag is
+    significant with the same sign (the feature knows the past outcome), 'trait' when every lag carries the same sign and size,
+    'none' when nothing is significant."""
+    if profile.empty or 0 not in set(profile["lag"]):
+        return dict(kind="unknown", detail="no lag-0 estimate")
+    p = profile.set_index("lag")
+    t0 = p.loc[0, "t"]
+    neg = [l for l in p.index if l < 0 and np.isfinite(p.loc[l, "t"]) and abs(p.loc[l, "t"]) > t_crit]
+    pos = [l for l in p.index if l > 0 and np.isfinite(p.loc[l, "t"]) and abs(p.loc[l, "t"]) > t_crit]
+    if not np.isfinite(t0) or abs(t0) <= t_crit:
+        return dict(kind="none" if not neg else "contaminated", detail=f"lag-0 t {t0:.2f}", lags=neg)
+    if neg and all(np.sign(p.loc[l, "mean_ic"]) == np.sign(p.loc[0, "mean_ic"]) for l in neg):
+        return dict(kind="contaminated", detail=f"significant at negative lags {neg}", lags=neg)
+    if len(pos) >= 2 and all(np.sign(p.loc[l, "mean_ic"]) == np.sign(p.loc[0, "mean_ic"]) for l in pos):
+        return dict(kind="trait", detail=f"persists at lags {pos}: a stock characteristic, not a weekly forecast", lags=pos)
+    return dict(kind="forecast", detail=f"lag-0 t {t0:.2f}, clean elsewhere", lags=[])
+
+
+def time_shuffle_control(M: pd.DataFrame, pool: pd.DataFrame, seed: int = 0, n_rep: int = 5) -> dict[str, float]:
+    """Placebo: permute each feature's cross-sections across WEEKS (the week's whole feature vector is given to another week,
+    cross-sectional structure preserved, link to that week's outcome destroyed) and recompute the IC table. The largest |t| over
+    all columns and repetitions is what the IC screen reports for features that cannot possibly predict; it calibrates the
+    threshold that real columns must beat and shows the screen's size."""
+    rng = np.random.default_rng(seed)
+    dates = pd.DatetimeIndex(pool["date"])
+    uniq = np.array(sorted(dates.unique()))
+    if len(uniq) < 20 or M.shape[1] == 0:
+        return dict(max_abs_t=float("nan"), share_significant=float("nan"), n_tests=0)
+    pos = {d: np.flatnonzero(dates == d) for d in uniq}
+    maxt, sig, tot = [], 0, 0
+    for _ in range(n_rep):
+        perm = rng.permutation(len(uniq))
+        idx = np.arange(len(pool))
+        for a, b in zip(uniq, uniq[perm]):
+            ra, rb = pos[a], pos[b]
+            k = min(len(ra), len(rb))
+            idx[ra[:k]] = rb[:k]
+        t = feature_ic_table(M.iloc[idx].reset_index(drop=True), pool.reset_index(drop=True), "up")
+        if len(t):
+            maxt.append(float(t["t"].abs().max()))
+            sig += int((t["p_two"] < 0.05).sum())
+            tot += len(t)
+    return dict(max_abs_t=float(np.max(maxt)) if maxt else float("nan"), share_significant=sig / tot if tot else float("nan"), n_tests=tot)
+
+
+def placebo_date_shift(pred: pd.DataFrame, model: str, shift: int = 1, seed: int = 0, n_boot: int = 200) -> dict[str, float]:
+    """Predictions from week w scored against the outcomes of week w+shift (same row order inside the week). A model that has
+    learned the week's drift, or one whose outcomes are contaminated by a persistent stock trait, keeps its skill; a model that
+    forecasts THIS week's direction loses it. Returns skill at shift 0 and at `shift`, with the bootstrap interval of the drop."""
+    d = pred[pred["model"] == model].sort_values(["date", "row"])
+    if len(d) < 200 or d["date"].nunique() < shift + 5:
+        return dict(skill_true=float("nan"), skill_placebo=float("nan"), drop=float("nan"), lo=float("nan"), hi=float("nan"))
+    wk = pd.factorize(d["date"], sort=True)[0]
+    p, up, p0 = d["p"].to_numpy(), d["up"].to_numpy(), d["p0"].to_numpy()
+    starts = np.r_[0, np.flatnonzero(np.diff(wk)) + 1]
+    ends = np.r_[starts[1:], len(wk)]
+    plc = np.full(len(d), np.nan)
+    for i, (a, b) in enumerate(zip(starts, ends)):
+        if i + shift < len(starts):
+            a2, b2 = starts[i + shift], ends[i + shift]
+            k = min(b - a, b2 - a2)
+            plc[a:a + k] = up[a2:a2 + k]
+    ok = np.isfinite(plc)
+    if ok.sum() < 100:
+        return dict(skill_true=float("nan"), skill_placebo=float("nan"), drop=float("nan"), lo=float("nan"), hi=float("nan"))
+    gain_true = (p0[ok] - up[ok]) ** 2 - (p[ok] - up[ok]) ** 2
+    gain_pl = (p0[ok] - plc[ok]) ** 2 - (p[ok] - plc[ok]) ** 2
+    diff = pd.Series(gain_true - gain_pl, index=pd.MultiIndex.from_arrays([pd.DatetimeIndex(d["date"].to_numpy()[ok]), np.arange(ok.sum())]))
+    bs = DA.week_bootstrap(diff, n_boot, seed)
+    return dict(skill_true=brier_skill(p[ok], up[ok], p0[ok]), skill_placebo=brier_skill(p[ok], plc[ok], p0[ok]), drop=bs["mean"], lo=bs["lo"], hi=bs["hi"])
+
+
+# ---------------------------------------------------------------------------------------------- pooling across years
+def random_effects(effects: Sequence[float], variances: Sequence[float]) -> dict[str, float]:
+    """DerSimonian-Laird random-effects pooling of per-year effects. Reports the pooled effect and its interval, tau^2 (real
+    between-year variation), I^2 (share of variation that is heterogeneity) and a 95% PREDICTION interval for the effect in a new
+    year: for a trading rule the question is not the average of the past but whether next year's effect can be negative."""
+    e, v = np.asarray(effects, float), np.asarray(variances, float)
+    ok = np.isfinite(e) & np.isfinite(v) & (v > 0)
+    e, v = e[ok], v[ok]
+    k = len(e)
+    if k < 2:
+        return dict(k=k, pooled=float(e[0]) if k else float("nan"), lo=float("nan"), hi=float("nan"), tau2=float("nan"), i2=float("nan"),
+                    pred_lo=float("nan"), pred_hi=float("nan"), p_negative_year=float("nan"))
+    w = 1 / v
+    fixed = float((w * e).sum() / w.sum())
+    q = float((w * (e - fixed) ** 2).sum())
+    c = w.sum() - (w ** 2).sum() / w.sum()
+    tau2 = max((q - (k - 1)) / c, 0.0) if c > 0 else 0.0
+    ws = 1 / (v + tau2)
+    mu = float((ws * e).sum() / ws.sum())
+    se = float(math.sqrt(1 / ws.sum()))
+    i2 = max((q - (k - 1)) / q, 0.0) if q > 0 else 0.0
+    tcrit = stats.t.ppf(0.975, max(k - 2, 1))
+    psd = math.sqrt(tau2 + se ** 2)
+    return dict(k=k, pooled=mu, lo=mu - 1.96 * se, hi=mu + 1.96 * se, tau2=float(tau2), i2=float(i2), pred_lo=float(mu - tcrit * psd),
+                pred_hi=float(mu + tcrit * psd), p_negative_year=float(stats.norm.cdf(-mu / psd)) if psd > 0 else float(mu < 0))
+
+
+def yearly_skill_effects(pred: pd.DataFrame, model: str) -> tuple[np.ndarray, np.ndarray]:
+    """Per-year mean Brier gain over the base rate and the variance of that mean (week-cluster aware: the variance is taken over
+    weekly means), the inputs of random_effects."""
+    d = pred[pred["model"] == model]
+    eff, var = [], []
+    for y, g in d.groupby("year"):
+        gain = (g["p0"] - g["up"]) ** 2 - (g["p"] - g["up"]) ** 2
+        wk = gain.groupby(g["date"]).mean()
+        if len(wk) >= 8:
+            eff.append(float(wk.mean()))
+            var.append(float(wk.var(ddof=1) / len(wk)))
+    return np.asarray(eff), np.asarray(var)
+
+
+def beta_posterior(k: float, n: float, prior: tuple[float, float] = (1.0, 1.0)) -> dict[str, float]:
+    """Beta posterior of a hit rate with a flat prior: mean and 90% credible interval. Unlike a bare percentage it says how little a
+    handful of bets can tell (5 for 5 has a 90% lower bound near 0.6, not 1.0)."""
+    a, b = prior[0] + k, prior[1] + max(n - k, 0)
+    return dict(mean=float(a / (a + b)), lo=float(stats.beta.ppf(0.05, a, b)), hi=float(stats.beta.ppf(0.95, a, b)), n=float(n))
+
+
+def prob_accuracy_above(k: float, n: float, threshold: float = EIGHTY, prior: tuple[float, float] = (1.0, 1.0)) -> float:
+    """Posterior probability that the true hit rate exceeds `threshold`. For the 80% question this is the honest single number for one
+    cell; the multiplicity price is applied on top by the lab (family-wise tests), not hidden here."""
+    return float(stats.beta.sf(threshold, prior[0] + k, prior[1] + max(n - k, 0)))
+
+
+def breakeven_cost_bp(pred: pd.DataFrame, pool: pd.DataFrame, model: str, coverage: float = 1.0) -> dict[str, float]:
+    """Round-trip cost at which the calls' mean net return crosses zero, and the mean gross edge. A directional edge smaller than the
+    cost of acting on it is not an edge; this puts the two on one scale (basis points per bet)."""
+    d = pred[(pred["model"] == model) & (pred["q"] <= coverage + 1e-12)]
+    if len(d) < 50:
+        return dict(gross_bp=float("nan"), breakeven_round_trip_bp=float("nan"), n=len(d))
+    fwd = pool["fwd"].to_numpy(float)[d["row"].to_numpy()]
+    ok = np.isfinite(fwd)
+    fwd, side = fwd[ok], np.where(d["p"].to_numpy()[ok] >= 0.5, 1.0, -1.0)
+    gross = float((side * fwd).mean() * 1e4)
+    return dict(gross_bp=gross, breakeven_round_trip_bp=gross, n=int(len(fwd)))
+
+
+def label_noise_attenuation(skill: float, flip: float) -> float:
+    """Skill left after a fraction `flip` of labels is wrong: probabilities move (1 - 2*flip) of the way, and Brier gain scales with
+    the square of that. Says how much of an observed null could be the label rather than the market (barrier labels on ambiguous
+    same-session touches, for instance)."""
+    if not 0 <= flip < 0.5:
+        raise ValueError("flip must lie in [0, 0.5)")
+    return float(skill * (1 - 2 * flip) ** 2)
+
+
+# ---------------------------------------------------------------------------------------------- anytime-valid evidence
+class EvidenceLedger:
+    """Sequential evidence per hypothesis that stays valid however often the lab is re-run. Each fresh look contributes a p-value;
+    it is turned into an e-value with the calibrator e(p) = kappa * p^(kappa-1) (kappa = 0.5) and e-values MULTIPLY across looks
+    (a test supermartingale under the null). Ville's inequality then gives a rule that never exceeds level alpha in total, even with
+    optional stopping: reject when the running product exceeds 1/alpha. Looks that are the same data again (same key) are ignored,
+    because repeating a test on identical data is not new evidence."""
+
+    def __init__(self, alpha: float = 0.05, kappa: float = 0.5):
+        if not 0 < kappa < 1 or not 0 < alpha < 0.5:
+            raise ValueError("EvidenceLedger: kappa in (0,1), alpha in (0, 0.5)")
+        self.alpha, self.kappa = alpha, kappa
+        self.log_e: dict[str, float] = {}
+        self.looks: dict[str, int] = {}
+        self.seen: set = set()
+
+    def e_value(self, p: float) -> float:
+        p = min(max(float(p), 1e-12), 1.0)
+        return float(self.kappa * p ** (self.kappa - 1))
+
+    def update(self, hypothesis: str, p: float, key: str) -> float:
+        """Fold one look in; returns the running e-value. A repeated key is a no-op."""
+        tag = (hypothesis, key)
+        if tag in self.seen:
+            return self.value(hypothesis)
+        self.seen.add(tag)
+        self.log_e[hypothesis] = self.log_e.get(hypothesis, 0.0) + math.log(self.e_value(p))
+        self.looks[hypothesis] = self.looks.get(hypothesis, 0) + 1
+        return self.value(hypothesis)
+
+    def value(self, hypothesis: str) -> float:
+        return float(math.exp(min(self.log_e.get(hypothesis, 0.0), 700.0)))
+
+    def rejects(self, hypothesis: str) -> bool:
+        return self.value(hypothesis) >= 1 / self.alpha
+
+    def family_rejects(self) -> list[str]:
+        """Hypotheses rejected with the family's alpha split evenly (Bonferroni over the hypotheses seen so far), still anytime-valid."""
+        m = max(len(self.log_e), 1)
+        return sorted(h for h in self.log_e if self.value(h) >= m / self.alpha)
+
+    def table(self) -> pd.DataFrame:
+        return pd.DataFrame([dict(hypothesis=h, looks=self.looks[h], e_value=self.value(h), rejects=self.rejects(h))
+                             for h in sorted(self.log_e)], columns=["hypothesis", "looks", "e_value", "rejects"])
+
+
+def feed_ledger(ledger: EvidenceLedger, report: LabReport) -> EvidenceLedger:
+    """One report into the ledger, keyed by the report's own content so a rerun is not double counted. Hypotheses that were not
+    tested (unavailable, gate closed, insufficient data) contribute nothing rather than a p of 1."""
+    for name, r in report.results.items():
+        if r.outcome in (Outcome.UNAVAILABLE_INPUT, Outcome.VOLATILITY_GATE_CLOSED, Outcome.INSUFFICIENT_DATA, Outcome.CONTROL_FAILURE, Outcome.LEAK_SUSPECT):
+            continue
+        ledger.update(name, r.p_maxT if np.isfinite(r.p_maxT) else 1.0, stable_hash([report.now, report.latest_label_end, report.config_hash, name], 12))
+    return ledger
+
+
+def weeks_needed(target_edge: float, base_rate: float = 0.5, picks_per_week: int = 15, design_effect: float = 1.0, alpha: float = 0.05,
+                 power: float = 0.8) -> int:
+    """Decision weeks required before an accuracy edge of `target_edge` over the majority-class rate could be detected: the planning
+    number that turns 'underpowered' into a date. Uses the normal approximation on effective independent bets."""
+    if target_edge <= 0:
+        raise ValueError("target_edge must be positive")
+    sd = math.sqrt(max(base_rate * (1 - base_rate), 1e-9))
+    n_eff = ((stats.norm.ppf(1 - alpha) + stats.norm.ppf(power)) * sd / target_edge) ** 2
+    return int(math.ceil(n_eff * design_effect / max(picks_per_week, 1)))
+
+
+# ---------------------------------------------------------------------------------------------- robustness of a lead
+def jackknife_weeks(pred: pd.DataFrame, model: str, drop_best: Sequence[int] = (1, 3, 10)) -> pd.DataFrame:
+    """Skill after removing the k BEST weeks (by weekly Brier gain) and after removing the k best tickers' rows. An edge that
+    disappears without its three luckiest weeks is a few events, not a rule; a healthy edge loses only a little. Returns one row
+    per k with the remaining skill and the share of the original skill kept."""
+    d = pred[pred["model"] == model]
+    cols = ["k", "weeks_left", "skill_left", "share_kept"]
+    if len(d) < 200:
+        return pd.DataFrame(columns=cols)
+    d = d.assign(gain=(d["p0"] - d["up"]) ** 2 - (d["p"] - d["up"]) ** 2)
+    wk = d.groupby("date")["gain"].sum().sort_values(ascending=False)
+    full = brier_skill(d["p"].to_numpy(), d["up"].to_numpy(), d["p0"].to_numpy())
+    rows = []
+    for k in drop_best:
+        keep = ~d["date"].isin(wk.index[:k])
+        g = d[keep]
+        s = brier_skill(g["p"].to_numpy(), g["up"].to_numpy(), g["p0"].to_numpy()) if len(g) > 50 else float("nan")
+        rows.append(dict(k=int(k), weeks_left=int(g["date"].nunique()), skill_left=s, share_kept=s / full if full and np.isfinite(s) else float("nan")))
+    return pd.DataFrame(rows, columns=cols)
+
+
+def pick_overlap(pool: pd.DataFrame) -> dict[str, float]:
+    """Week-to-week persistence of the picks (share of this week's picks that were also picks last week) and the concentration of
+    pick-weeks in the most frequent tickers. High persistence means successive weeks are not independent draws, so week-cluster
+    intervals are still optimistic and the ticker-transfer probe matters more."""
+    pk = pool[pool["pick"]]
+    if pk["date"].nunique() < 3:
+        return dict(overlap=float("nan"), top10_share=float("nan"), tickers=int(pk["ticker"].nunique()))
+    by = {d: set(g["ticker"]) for d, g in pk.groupby("date")}
+    ds = sorted(by)
+    ov = [len(by[b] & by[a]) / max(len(by[b]), 1) for a, b in zip(ds[:-1], ds[1:])]
+    cnt = pk["ticker"].value_counts()
+    return dict(overlap=float(np.mean(ov)), top10_share=float(cnt.head(10).sum() / cnt.sum()), tickers=int(len(cnt)))
+
+
+def column_ablation(pool: pd.DataFrame, M: np.ndarray, names: Sequence[str], cfg: LabConfig, top: int = 6, kind: str = "linear") -> pd.DataFrame:
+    """Which INPUTS of a lead carry it? Refits the walk-forward for the full input set and for each single-input drop, and pairs
+    the Brier differences over weeks (the direction_ablate week bootstrap). An input whose removal does not hurt is passenger; a
+    lead whose skill lives in one input is that input's hypothesis, not the family's."""
+    cols = ["column", "delta_brier", "lo", "hi", "verdict", "n"]
+    if M.shape[1] < 2 or not cfg.test_years:
+        return pd.DataFrame(columns=cols)
+    F = {"full": M}
+    keep = list(range(M.shape[1]))[:top]
+    for j in keep:
+        F[f"drop:{names[j]}"] = np.delete(M, j, axis=1)
+    pred, _ = DF.walk_forward(pool, F, "up", cfg.test_years, models=(kind,), extra=None, seg_cols=(), embargo_days=cfg.embargo_days,
+                              min_train=cfg.min_train, min_calib=cfg.min_calib, seed=cfg.seed, controls=False)
+    if pred.empty:
+        return pd.DataFrame(columns=cols)
+    rows = []
+    for j in keep:
+        t = paired_test(pred, f"full:{kind}", f"drop:{names[j]}:{kind}", cfg.n_boot, cfg.alpha, cfg.seed)
+        if t["n"] == 0:
+            continue
+        verdict = "carries" if t["hi"] < 0 else "harms" if t["lo"] > 0 else "passenger"
+        rows.append(dict(column=names[j], delta_brier=t["mean_diff"], lo=t["lo"], hi=t["hi"], verdict=verdict, n=t["n"]))
+    return pd.DataFrame(rows, columns=cols)
+
+
+def segment_ic_matrix(M: pd.DataFrame, pool: pd.DataFrame, segcol: str = "seg", min_rows: int = 300) -> pd.DataFrame:
+    """Mean weekly IC of each column inside each segment value (event type, regime or sector), with BH adjustment over the whole
+    matrix. The interaction question 'does this signal work only somewhere?' asked with a multiplicity price attached."""
+    rows = []
+    for v in sorted(pool[segcol].dropna().unique()):
+        m = (pool[segcol] == v).to_numpy()
+        if m.sum() < min_rows:
+            continue
+        t = feature_ic_table(M[m].reset_index(drop=True), pool[m].reset_index(drop=True), "up", min_rows=10)
+        for r in t.itertuples():
+            rows.append(dict(segment=str(v), column=r.column, weeks=r.weeks, mean_ic=r.mean_ic, t=r.t, p_two=r.p_two))
+    out = pd.DataFrame(rows, columns=["segment", "column", "weeks", "mean_ic", "t", "p_two"])
+    out["p_bh"] = benjamini_hochberg(out["p_two"].to_numpy()) if len(out) else []
+    return out
+
+
+def rolling_ic(x: np.ndarray, up: np.ndarray, dates: Sequence, window: int = 26) -> pd.DataFrame:
+    """Weekly IC of one feature and its rolling mean: does the signal come and go? Returns week, ic, rolling mean and the lag-1
+    autocorrelation of the weekly IC (slow-moving regimes give positive autocorrelation, which also inflates naive t statistics)."""
+    x, up = np.asarray(x, float), np.asarray(up, float)
+    codes, uniq = pd.factorize(pd.DatetimeIndex(dates), sort=True)
+    ic = np.full(len(uniq), np.nan)
+    for w in range(len(uniq)):
+        m = (codes == w) & np.isfinite(x) & np.isfinite(up)
+        if m.sum() >= 10 and np.ptp(x[m]) > 0 and np.ptp(up[m]) > 0:
+            ic[w] = stats.spearmanr(x[m], up[m])[0]
+    s = pd.Series(ic, index=uniq)
+    out = pd.DataFrame({"week": uniq, "ic": ic, "rolling": s.rolling(window, min_periods=max(window // 2, 4)).mean().to_numpy()})
+    v = s.dropna()
+    out.attrs["ic_autocorr"] = float(v.autocorr(1)) if len(v) > 8 else float("nan")
+    return out
+
+
+def evidence_dossier(report: LabReport, name: str, pred: pd.DataFrame | None = None, pool: pd.DataFrame | None = None) -> dict[str, Any]:
+    """One hypothesis, everything known, in a plain dict ready for a report or a research question: the verdict and its reasons,
+    each comparator's paired difference, stability numbers, payoff and calibration. With `pred`/`pool` it adds the robustness
+    extras (random-effects pooling over years, jackknife, placebo shift, breakeven cost)."""
+    r = report.results[name]
+    d: dict[str, Any] = dict(hypothesis=name, topic=r.topic, outcome=str(r.outcome), state=str(r.state), stage=str(r.stage), reasons=list(r.reasons),
+                             skill=r.skill, posterior_skill=r.posterior_skill, p_raw=r.p_raw, p_family=r.p_maxT, p_holm=r.p_holm, p_bh=r.p_bh,
+                             comparators={c.value: dict(against=x.against, source=x.source, mean_diff=x.mean_diff, hi=x.hi, passed=x.passed)
+                                          for c, x in r.comparators.items()}, era=r.era, regime=r.regime, event=r.event, sector=r.sector,
+                             transfer=r.transfer, decay=r.decay, payoff=r.payoff_full, mechanism=r.mechanism, dropped=r.dropped)
+    if pred is not None and r.best_tag:
+        eff, var = yearly_skill_effects(pred, r.best_tag)
+        d["random_effects"] = random_effects(eff, var)
+        d["jackknife"] = jackknife_weeks(pred, r.best_tag).to_dict("records")
+        d["placebo_shift"] = placebo_date_shift(pred, r.best_tag)
+        if pool is not None:
+            d["breakeven"] = breakeven_cost_bp(pred, pool, r.best_tag)
+    return d
+
+
+# ---------------------------------------------------------------------------------------------- open hypothesis registry
+class HypothesisRegistry:
+    """The catalogue is open (contract: 'H10+ open'): new hypotheses can be added by the research loop, but each one is validated,
+    given a stable id, checked for redundancy with what exists (a new spec that shares most of its inputs with an old one is the
+    same hypothesis under another name, and would silently inflate the multiplicity count while adding no information), and can be
+    retired without deletion. The family size used for the multiplicity price is `active_count`, not len(HYPOTHESES)."""
+
+    def __init__(self, base: Mapping[str, HypothesisSpec] | None = None, max_jaccard: float = 0.6):
+        if not 0 < max_jaccard <= 1:
+            raise ValueError("max_jaccard must lie in (0, 1]")
+        self.max_jaccard = max_jaccard
+        self.specs: dict[str, HypothesisSpec] = {}
+        self.retired: dict[str, str] = {}
+        self.log: list[dict[str, Any]] = []
+        for s in (base or HYPOTHESES).values():
+            self.specs[s.name] = s.validate()
+
+    @staticmethod
+    def jaccard(a: HypothesisSpec, b: HypothesisSpec) -> float:
+        x, y = set(a.columns), set(b.columns)
+        return len(x & y) / len(x | y) if x | y else 0.0
+
+    def redundant_with(self, spec: HypothesisSpec) -> list[tuple[str, float]]:
+        out = [(n, self.jaccard(spec, s)) for n, s in self.specs.items() if n not in self.retired]
+        return sorted([(n, j) for n, j in out if j >= self.max_jaccard], key=lambda t: -t[1])
+
+    def add(self, spec: HypothesisSpec, reason: str = "") -> str:
+        """Register a new hypothesis; returns its id. Refuses duplicates by name and by near-identical input sets."""
+        spec.validate()
+        if spec.name in self.specs:
+            raise ValueError(f"hypothesis {spec.name!r} already registered")
+        if not reason:
+            raise ValueError("a new hypothesis needs a stated reason (which question or surprise motivated it)")
+        dup = self.redundant_with(spec)
+        if dup:
+            raise ValueError(f"hypothesis {spec.name!r} is redundant with {dup[0][0]} (Jaccard {dup[0][1]:.2f}); extend that one instead")
+        self.specs[spec.name] = spec
+        hid = "H" + stable_hash([spec.name, spec.columns, spec.prior_sign], 8)
+        self.log.append(dict(action="add", name=spec.name, id=hid, reason=reason))
+        return hid
+
+    def retire(self, name: str, why: str) -> None:
+        if name not in self.specs:
+            raise KeyError(name)
+        self.retired[name] = why
+        self.log.append(dict(action="retire", name=name, reason=why))
+
+    def active(self) -> dict[str, HypothesisSpec]:
+        return {n: s for n, s in self.specs.items() if n not in self.retired}
+
+    @property
+    def active_count(self) -> int:
+        return len(self.active())
+
+    def coverage_gaps(self, available: Sequence[str]) -> list[str]:
+        """Active hypotheses that cannot be tested with the panel's columns: what to build next."""
+        return [n for n, s in self.active().items() if not resolve_columns(available, s)]
+
+
+# ---------------------------------------------------------------------------------------------- pre-registration
+@dataclasses.dataclass(frozen=True)
+class PreRegistration:
+    """A success criterion fixed BEFORE the confirming data are looked at. The hash covers the hypothesis, the model tag, the
+    comparators, the alpha, the minimum edge and the period, so a replication cannot quietly move its own goalposts after seeing the
+    result: verify() recomputes the hash and refuses a mismatch."""
+    hypothesis: str
+    best_tag: str
+    comparators: tuple[str, ...]
+    alpha: float
+    min_skill: float
+    fresh_after: str
+    min_weeks: int
+    registered_real: str
+    digest: str = ""
+
+    @staticmethod
+    def make(hypothesis: str, best_tag: str, alpha: float, min_skill: float, fresh_after, min_weeks: int, registered_real,
+             comparators: Sequence[Comparator] = ALL_COMPARATORS) -> "PreRegistration":
+        if not (0 < alpha < 0.5 and min_skill >= 0 and min_weeks >= 8):
+            raise ValueError("PreRegistration: alpha in (0, 0.5), min_skill >= 0, min_weeks >= 8")
+        if as_date(fresh_after) >= as_date(registered_real):
+            raise ValueError("fresh_after must precede the registration date so the period is genuinely after the lead's data")
+        body = dict(h=hypothesis, t=best_tag, c=sorted(str(c) for c in comparators), a=alpha, m=min_skill, f=str(as_date(fresh_after)),
+                    w=min_weeks, r=str(as_date(registered_real)))
+        return PreRegistration(hypothesis, best_tag, tuple(sorted(str(c) for c in comparators)), alpha, min_skill, str(as_date(fresh_after)),
+                               min_weeks, str(as_date(registered_real)), stable_hash(body, 16))
+
+    def verify(self) -> bool:
+        body = dict(h=self.hypothesis, t=self.best_tag, c=list(self.comparators), a=self.alpha, m=self.min_skill, f=self.fresh_after,
+                    w=self.min_weeks, r=self.registered_real)
+        return self.digest == stable_hash(body, 16)
+
+    def evaluate(self, result: HypothesisResult, weeks_seen: int, latest_data_start: str) -> dict[str, Any]:
+        """Judge a replication result against the frozen criterion. The data must start on/after `fresh_after`, cover min_weeks, be
+        the same model, clear the alpha and skill floor, and beat every registered comparator."""
+        if not self.verify():
+            raise FirewallBreach("pre-registration digest mismatch: the criterion was edited after registration")
+        why = []
+        if as_date(latest_data_start) < as_date(self.fresh_after):
+            why.append("replication data start before the fresh period: not independent of the lead")
+        if weeks_seen < self.min_weeks:
+            why.append(f"{weeks_seen} weeks < {self.min_weeks}")
+        if result.best_tag != self.best_tag:
+            why.append("a different model was evaluated than the one registered")
+        if not result.p_raw < self.alpha:
+            why.append(f"p {result.p_raw:.3f} >= {self.alpha}")
+        if not result.skill >= self.min_skill:
+            why.append(f"skill {result.skill:+.4f} < {self.min_skill}")
+        lost = [c for c in self.comparators if c not in {k.value for k, v in result.comparators.items() if v.passed}]
+        if lost:
+            why.append("comparators not beaten: " + ",".join(lost))
+        return dict(replicated=not why, reasons=why, digest=self.digest)
+
+
+def plan_replication(report: LabReport, name: str, registered_real) -> PreRegistration | None:
+    """For a WEAK_UNREPLICATED or CANDIDATE hypothesis: the pre-registered replication on data after the current sample. None for
+    anything else (a null needs no replication; it needs more power, which the question generator asks for)."""
+    r = report.results[name]
+    if r.outcome not in (Outcome.WEAK_UNREPLICATED, Outcome.CANDIDATE) or not r.best_tag or not report.latest_label_end:
+        return None
+    need = max(int(report.power.get("weeks", 0)) // 2, 26)
+    return PreRegistration.make(name, r.best_tag, 0.05, max(0.5 * r.skill, 0.002), report.latest_label_end, need, registered_real)
+
+
+# ---------------------------------------------------------------------------------------------- payoff-relevant tests
+def return_rank_test(pred: pd.DataFrame, pool: pd.DataFrame, model: str, n_boot: int = 300, seed: int = 0) -> dict[str, float]:
+    """Does the model's probability rank the forward RETURN, not just the sign? Weekly Spearman of P(up) with the forward return
+    among the week's picks, its t across weeks, and the top-minus-bottom-third return spread in basis points. A model can be
+    right about the sign on the small moves and wrong on the large ones; rank IC against the return is the payoff-weighted view."""
+    d = pred[pred["model"] == model]
+    if len(d) < 200:
+        return dict(ic=float("nan"), t=float("nan"), spread_bp=float("nan"), lo_bp=float("nan"), hi_bp=float("nan"), weeks=0)
+    fwd = pool["fwd"].to_numpy(float)[d["row"].to_numpy()]
+    df = pd.DataFrame({"w": d["date"].to_numpy(), "p": d["p"].to_numpy(), "r": fwd}).dropna()
+    ics, top, bot = [], [], []
+    for _, g in df.groupby("w"):
+        if len(g) < 12 or g["p"].nunique() < 3:
+            continue
+        ics.append(float(stats.spearmanr(g["p"], g["r"])[0]))
+        rk = g["p"].rank(pct=True, method="first")
+        top.append(float(g.loc[rk > 2 / 3, "r"].mean()))
+        bot.append(float(g.loc[rk <= 1 / 3, "r"].mean()))
+    if len(ics) < 8:
+        return dict(ic=float("nan"), t=float("nan"), spread_bp=float("nan"), lo_bp=float("nan"), hi_bp=float("nan"), weeks=len(ics))
+    ics, sp = np.asarray(ics), (np.asarray(top) - np.asarray(bot)) * 1e4
+    rng = np.random.default_rng(seed)
+    bs = sp[rng.integers(0, len(sp), size=(n_boot, len(sp)))].mean(axis=1)
+    sd = ics.std(ddof=1)
+    return dict(ic=float(ics.mean()), t=float(ics.mean() / (sd / math.sqrt(len(ics)))) if sd > 0 else 0.0, spread_bp=float(sp.mean()),
+                lo_bp=float(np.quantile(bs, 0.05)), hi_bp=float(np.quantile(bs, 0.95)), weeks=len(ics))
+
+
+def selection_stability(W: pd.DataFrame, info: pd.DataFrame, n_boot: int = 200, seed: int = 0) -> pd.DataFrame:
+    """How often is each candidate the best when the weeks are resampled? W is rows x candidate probabilities on shared rows. With no
+    real winner the crown is spread thinly over many cells; a real one wins most resamples. The best-looking cell's win share is
+    the cheapest guard against reporting a lucky leader. Also gives each cell's mean rank."""
+    if W.empty or W.shape[1] < 2:
+        return pd.DataFrame(columns=["cell", "win_share", "mean_rank"])
+    y = info["up"].to_numpy(float)
+    wk, uniq = pd.factorize(info["date"].to_numpy())
+    loss = (W.to_numpy(float) - y[:, None]) ** 2
+    S = np.zeros((len(uniq), W.shape[1]))
+    np.add.at(S, wk, loss)
+    N = np.bincount(wk, minlength=len(uniq)).astype(float)
+    rng = np.random.default_rng(seed)
+    wins, ranks = np.zeros(W.shape[1]), np.zeros(W.shape[1])
+    for _ in range(n_boot):
+        idx = rng.integers(0, len(uniq), len(uniq))
+        m = S[idx].sum(0) / N[idx].sum()
+        wins[np.argmin(m)] += 1
+        ranks += stats.rankdata(m)
+    return pd.DataFrame({"cell": W.columns, "win_share": wins / n_boot, "mean_rank": ranks / n_boot}).sort_values("win_share", ascending=False).reset_index(drop=True)
+
+
+def frontier_monotone_check(ft: pd.DataFrame, model: str, min_n: int = 30) -> dict[str, Any]:
+    """A usable frontier has accuracy that does not fall as coverage shrinks. Reads the overall (segment-free) cells for one model
+    and reports the coverage-accuracy Spearman, the largest violation, and whether the tightest cell is the most accurate. A
+    frontier that rises and falls at random is noise; one that is flat at the base rate says confidence carries nothing."""
+    d = ft[(ft["model"] == model) & ft["segcol"].isna() & (ft["n"] >= min_n)].sort_values("cov_target")
+    if len(d) < 3:
+        return dict(rho=float("nan"), worst_violation=float("nan"), tightest_is_best=False, cells=len(d), flat=True)
+    rho = float(stats.spearmanr(d["cov_target"], d["acc"])[0]) if d["acc"].nunique() > 1 else 0.0
+    acc = d["acc"].to_numpy()
+    viol = float(max(np.max(acc[1:] - acc[:-1]) if len(acc) > 1 else 0.0, 0.0))
+    return dict(rho=rho, worst_violation=viol, tightest_is_best=bool(acc[0] >= acc.max() - 1e-12), cells=len(d),
+                flat=bool(np.ptp(acc) < 0.02))
+
+
+def compare_reports(a: LabReport, b: LabReport) -> pd.DataFrame:
+    """Outcome drift between two looks (earlier a, later b): which hypotheses changed class, and by how much their skill and family
+    p moved. Flips from lead to null on more data are the normal fate of a false lead and are recorded as such."""
+    rows = []
+    for h in sorted(set(a.results) | set(b.results)):
+        x, y = a.results.get(h), b.results.get(h)
+        rows.append(dict(hypothesis=h, before=str(x.outcome) if x else "absent", after=str(y.outcome) if y else "absent",
+                         d_skill=(y.skill - x.skill) if x and y else float("nan"), d_p_family=(y.p_maxT - x.p_maxT) if x and y else float("nan"),
+                         lead_lost=bool(x and y and x.outcome is Outcome.WEAK_UNREPLICATED and y.outcome is Outcome.NO_RELIABLE_SIGNAL),
+                         lead_gained=bool(x and y and x.outcome is Outcome.NO_RELIABLE_SIGNAL and y.outcome in (Outcome.WEAK_UNREPLICATED, Outcome.CANDIDATE))))
+    return pd.DataFrame(rows)
+
+
+def miner_extra(inputs: LabInputs, pool: pd.DataFrame, cfg: LabConfig) -> dict[str, Callable]:
+    """The pattern miner as a direction model for the pattern_combinations hypothesis: a signed, past-only score from
+    direction_features.miner_hook (fit on the TRAIN rows of each block with `now` = the day before calibration). Only built when
+    cfg.use_miner is set, because it is the slowest model in the lab; returns {} otherwise."""
+    if not cfg.use_miner:
+        return {}
+    Xm = inputs.X.reindex(pool.index)
+    ydir = np.where(np.isfinite(pool["up"].to_numpy(float)), np.where(pool["up"].to_numpy(float) > 0.5, 1.0, -1.0), np.nan)
+    return {"miner:pattern": DF.miner_hook(Xm, ydir, pd.DatetimeIndex(pool["date"]).to_numpy())}
+
+
+def robust_verdict(dossier: Mapping[str, Any], min_kept: float = 0.5) -> dict[str, Any]:
+    """Second opinion on a lead from the robustness extras in evidence_dossier: the random-effects prediction interval must not
+    include a negative next-year effect with high probability, the jackknife must keep at least half the skill, the placebo shift
+    must cost skill, and the mechanism checks must not contradict. Returns per-check pass/fail and an overall 'robust'."""
+    re_ = dossier.get("random_effects", {})
+    jk = dossier.get("jackknife", [])
+    pl = dossier.get("placebo_shift", {})
+    mech = dossier.get("mechanism", {})
+    checks = {
+        "next_year_positive": bool(re_) and np.isfinite(re_.get("p_negative_year", np.nan)) and re_["p_negative_year"] < 0.2,
+        "survives_dropping_best_weeks": bool(jk) and all(np.isfinite(r["share_kept"]) and r["share_kept"] >= min_kept for r in jk),
+        "placebo_shift_costs_skill": bool(pl) and np.isfinite(pl.get("lo", np.nan)) and pl["lo"] > 0,
+        "mechanism_not_contradicted": not mech or mech.get("inconsistent", 0) <= mech.get("consistent", 0),
+    }
+    return dict(checks=checks, robust=all(checks.values()), failed=[k for k, v in checks.items() if not v])
+
+
+# ---------------------------------------------------------------------------------------------- point-in-time audit of the lab's own features
+def truncation_test(inputs: LabInputs, cfg: LabConfig, now, cut, tol: float = 1e-6) -> dict[str, Any]:
+    """The strongest leak test a feature pipeline can take: build the derived features from data truncated at `cut` and from the
+    full panel, and compare every value dated before `cut`. If a feature at a past date changes when later rows are removed, it
+    read the future (a cross-sectional rank across dates, a rolling window centred on the row, a leave-one-out that spans weeks).
+    Returns the offending columns with the largest absolute change; an empty list is the only passing answer."""
+    cut_ts = pd.Timestamp(as_date(cut))
+    uni = ConditionalUniverse(cfg).build(inputs, now)
+    pool = uni.pool
+    if pool.empty:
+        return dict(ok=True, offenders=[], rows=0, columns=0)
+    dates = pd.DatetimeIndex(pool["date"])
+    early = (dates < cut_ts)
+    X_full = inputs.X.reindex(pool.index)
+    full = derive_features(X_full, pool, inputs.pattern_score)
+    p_cut = pool[early]
+    part = derive_features(inputs.X.reindex(p_cut.index), p_cut, inputs.pattern_score)
+    common = [c for c in part.columns if c in full.columns]
+    a, b = full.loc[p_cut.index, common].to_numpy(float), part[common].to_numpy(float)
+    both = np.isfinite(a) & np.isfinite(b)
+    delta = np.where(both, np.abs(a - b), 0.0)
+    nan_mismatch = (np.isfinite(a) != np.isfinite(b)).sum(axis=0)
+    worst = delta.max(axis=0) if len(delta) else np.zeros(len(common))
+    off = [dict(column=c, max_abs_change=float(w), nan_mismatch=int(m)) for c, w, m in zip(common, worst, nan_mismatch) if w > tol or m > 0]
+    return dict(ok=not off, offenders=sorted(off, key=lambda r: -r["max_abs_change"]), rows=int(early.sum()), columns=len(common))
+
+
+def audit_pool(pool: pd.DataFrame) -> dict[str, Any]:
+    """Structural audit of the direction pool: unique (date, ticker), entry strictly after the decision, outcome window closed
+    before use, picks a subset of the pool, at most one pick-set per week and consistent ranks."""
+    bad = []
+    if pool.empty:
+        return dict(ok=True, violations=[], rows=0)
+    key = pd.MultiIndex.from_arrays([pool["date"], pool["ticker"]])
+    if key.has_duplicates:
+        bad.append("duplicated (date, ticker) rows")
+    lab = pool.dropna(subset=["entry_date"])
+    if len(lab) and not (pd.DatetimeIndex(lab["entry_date"]) > pd.DatetimeIndex(lab["date"])).all():
+        bad.append("an entry session is not after its decision date")
+    if len(lab) and not (pd.DatetimeIndex(lab["end_date"]) > pd.DatetimeIndex(lab["entry_date"])).all():
+        bad.append("an outcome window ends before it begins")
+    if (pool["pick"] & ~pool["pool"]).any():
+        bad.append("a pick outside the pool")
+    g = pool.groupby("date")
+    if (g["rank"].min() != 1).any():
+        bad.append("a week whose best rank is not 1")
+    if (g["pick"].sum() > g["pool"].sum()).any():
+        bad.append("more picks than pool rows in a week")
+    unl = pool["up"].isna() & pool["end_date"].notna()
+    if unl.any():
+        bad.append(f"{int(unl.sum())} rows have a closed window but no label")
+    return dict(ok=not bad, violations=bad, rows=len(pool))
+
+
+def sector_neutralize(M: pd.DataFrame, pool: pd.DataFrame, min_group: int = 3) -> pd.DataFrame:
+    """Demean each column within (week, sector) among the pool rows (groups smaller than `min_group`, and the 'na' sector, are
+    demeaned against the whole week). Separates 'this name beats its industry' from 'its industry moved', which the raw
+    hypotheses mix; a signal that vanishes here was a sector bet."""
+    d = pd.DataFrame({"d": pool["date"].to_numpy(), "s": pool["sector"].to_numpy()}, index=M.index)
+    out = M.copy()
+    grp = d.groupby(["d", "s"])["s"].transform("size")
+    for c in M.columns:
+        x = M[c].astype(float)
+        by_grp = x - x.groupby([d["d"], d["s"]]).transform("mean")
+        by_wk = x - x.groupby(d["d"]).transform("mean")
+        use = (grp >= min_group) & (d["s"] != "na")
+        out[c] = np.where(use, by_grp, by_wk)
+    return out
+
+
+def regime_switch_hook(M: np.ndarray, reg: np.ndarray, yv: np.ndarray, seed: int = 0, min_rows: int = 400) -> Callable:
+    """A regime-conditional model for walk_forward's `extra`: one linear model per market regime (bull/bear) fitted on the TRAIN rows
+    of that regime only; rows of a regime with too little training data fall back to the pooled model. It is the direct test of
+    'the sign of the effect depends on the regime', a claim the pooled models cannot express."""
+    def fn(tr, ca, te):
+        pooled = DF.DirModel("linear", seed).fit(M[tr], yv[tr])
+        models = {}
+        for v in np.unique(reg[tr]):
+            m = tr[reg[tr] == v]
+            if len(m) >= min_rows and len(np.unique(yv[m])) == 2:
+                models[v] = DF.DirModel("linear", seed).fit(M[m], yv[m])
+
+        def score(rows):
+            out = pooled.prob(M[rows])
+            for v, mdl in models.items():
+                sel = reg[rows] == v
+                if sel.any():
+                    out[sel] = mdl.prob(M[rows[sel]])
+            return out
+        return score(ca), score(te), True
+    return fn
+
+
+def honest_blend(W: pd.DataFrame, info: pd.DataFrame, cells: Sequence[str] | None = None) -> dict[str, Any]:
+    """Would combining the leaders help? Non-negative weights are fitted on the FIRST half of the rows (by date) by projected least
+    squares on the Brier loss and judged on the SECOND half only, against the equal-weight blend and the best single cell chosen on
+    the first half. A blend that only wins in-sample is over-fitting the winner's curse."""
+    cells = list(cells or W.columns)
+    if len(cells) < 2:
+        return dict(ok=False, reason="need at least two cells")
+    order = np.argsort(pd.DatetimeIndex(info["date"]).to_numpy(), kind="stable")
+    P, y = W[cells].to_numpy(float)[order], info["up"].to_numpy(float)[order]
+    h = len(y) // 2
+    A, b = P[:h], y[:h]
+    w = np.full(len(cells), 1 / len(cells))
+    lr = 1.0 / max(np.linalg.norm(A, 2) ** 2 / len(A), 1e-9)
+    for _ in range(500):
+        w = np.clip(w - lr * (A.T @ (A @ w - b)) / len(A), 0, None)
+        s = w.sum()
+        w = w / s if s > 0 else np.full(len(cells), 1 / len(cells))
+    best = int(np.argmin(((A - b[:, None]) ** 2).mean(axis=0)))
+    te_y, te_P = y[h:], P[h:]
+    loss = lambda p: float(np.mean((p - te_y) ** 2))
+    base = float(np.mean((np.full(len(te_y), b.mean()) - te_y) ** 2))
+    fitted, equal, single = loss(te_P @ w), loss(te_P.mean(axis=1)), loss(te_P[:, best])
+    return dict(ok=True, weights=dict(zip(cells, np.round(w, 4))), loss_fitted=fitted, loss_equal=equal, loss_best_single=single, loss_base=base,
+                skill_fitted=1 - fitted / base, skill_equal=1 - equal / base, skill_single=1 - single / base, best_single=cells[best],
+                fitted_beats_equal=bool(fitted < equal), rows_test=int(len(te_y)))
+
+
+# ---------------------------------------------------------------------------------------------- persistence and health
+def report_to_dict(report: LabReport) -> dict[str, Any]:
+    """Plain, JSON-safe summary of a run (no frames): enough to compare looks later (compare_summaries) and to rebuild the outcome
+    table. Numbers stay numbers; enums become their string values."""
+    def num(x):
+        return None if x is None or (isinstance(x, float) and not np.isfinite(x)) else x
+    return dict(now=report.now, config_hash=report.config_hash, code_hash=report.code_hash, gate_open=report.gate.is_open,
+                gate_reasons=list(report.gate.reasons), protocol_ok=report.protocol_ok, n_cells=report.n_cells, years=list(report.years),
+                latest_label_end=report.latest_label_end, statement=report.statement, headline=report.headline(),
+                power={k: num(float(v)) for k, v in report.power.items()},
+                hypotheses={n: dict(outcome=str(r.outcome), state=str(r.state), stage=str(r.stage), best=r.best_tag, skill=num(r.skill),
+                                    p_raw=num(r.p_raw), p_family=num(r.p_maxT), beat=r.comparators_passed, reasons=list(r.reasons))
+                            for n, r in report.results.items()})
+
+
+def compare_summaries(old: Mapping[str, Any], new: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """The same drift question as compare_reports but from stored summaries, so a look from last month can be compared with today's
+    without keeping its frames."""
+    out = []
+    for h in sorted(set(old.get("hypotheses", {})) | set(new.get("hypotheses", {}))):
+        a, b = old.get("hypotheses", {}).get(h), new.get("hypotheses", {}).get(h)
+        out.append(dict(hypothesis=h, before=a["outcome"] if a else "absent", after=b["outcome"] if b else "absent",
+                        changed=bool(a and b and a["outcome"] != b["outcome"]),
+                        d_skill=(b["skill"] - a["skill"]) if a and b and a["skill"] is not None and b["skill"] is not None else None))
+    return out
+
+
+def lab_health(report: LabReport, cfg: LabConfig | None = None) -> dict[str, Any]:
+    """The lab's own vital signs for the research-brain health system (contract 37): did its controls pass, was it powered, did it
+    leave any hypothesis untestable, how many cells did it price, and did the honest negative statement get produced. A lab that
+    is unhealthy must not have its nulls counted as evidence of anything."""
+    n = max(len(report.results), 1)
+    untestable = sum(1 for r in report.results.values() if r.outcome in (Outcome.UNAVAILABLE_INPUT, Outcome.INSUFFICIENT_DATA))
+    powered = report.power.get("mde_edge", 1.0) <= 0.03 if report.power else False
+    flags = dict(gate_open=report.gate.is_open, controls_pass=report.protocol_ok, powered=bool(powered), untestable_share=untestable / n,
+                 leak_suspects=sum(1 for r in report.results.values() if r.outcome is Outcome.LEAK_SUSPECT), cells_priced=report.n_cells,
+                 statement_present=bool(report.statement), comparators_full=all(len(r.comparators) == len(ALL_COMPARATORS)
+                                                                                 for r in report.results.values() if r.stage is not Stage.CHEAP_SCREEN and r.comparators))
+    ok = flags["gate_open"] and flags["controls_pass"] and flags["untestable_share"] <= 0.5 and flags["statement_present"]
+    flags["healthy"] = bool(ok)
+    flags["nulls_count_as_evidence"] = bool(ok and powered)
+    return flags
+
+
+# ---------------------------------------------------------------------------------------------- baselines and false-lead arithmetic
+def baseline_table(Xp: pd.DataFrame, pool: pd.DataFrame, years: Sequence[int], rules: Sequence[tuple[str, int]] = SIMPLE_RULES) -> pd.DataFrame:
+    """Every fixed one-line rule of the literature scored on the same test-year picks as the lab: accuracy of 'sign * feature above its
+    week median => up', its Wilson interval, the majority-class rate, and its edge. This is the bar a fitted model has to clear
+    (the SIMPLE_BASELINE comparator picks the best of these on the calibration block; this table shows all of them on the test block).
+    No parameter is fitted, so there is nothing to over-fit and the multiplicity is just the number of rules."""
+    cols = ["rule", "sign", "n", "acc", "wilson_lo", "wilson_hi", "majority", "edge", "years"]
+    te = pool["pick"].to_numpy(bool) & pool["year"].isin(list(years)).to_numpy() & pool["up"].notna().to_numpy()
+    if not te.any():
+        return pd.DataFrame(columns=cols)
+    up = pool["up"].to_numpy(float)
+    rows = []
+    for c, s in rules:
+        if c not in Xp.columns:
+            continue
+        x = pd.Series(s * Xp[c].to_numpy(float))
+        med = x.groupby(pool["date"].to_numpy()).transform("median").to_numpy()
+        ok = te & np.isfinite(x.to_numpy()) & np.isfinite(med)
+        if ok.sum() < 100:
+            continue
+        call = (x.to_numpy()[ok] > med[ok]).astype(float)
+        hits = float((call == up[ok]).sum())
+        lo, hi = LC.wilson(hits, int(ok.sum()), z=1.96)
+        maj = float(max(up[ok].mean(), 1 - up[ok].mean()))
+        rows.append(dict(rule=c, sign=s, n=int(ok.sum()), acc=hits / ok.sum(), wilson_lo=lo, wilson_hi=hi, majority=maj, edge=hits / ok.sum() - maj,
+                         years=int(pool.loc[ok, "year"].nunique())))
+    return pd.DataFrame(rows, columns=cols)
+
+
+def expected_false_leads(n_hypotheses: int, screen_p: float, alpha: float) -> dict[str, float]:
+    """Arithmetic of the two-stage funnel under the null: a hypothesis survives the screen with probability `screen_p`, and then
+    shows an unadjusted lead with probability `alpha`; the family-wise rule cuts the second stage to alpha / m at worst. Gives the
+    expected number of WEAK leads and the chance of at least one, so a reader knows one lead in fifteen is roughly what luck
+    delivers and is not a discovery by itself."""
+    if n_hypotheses < 1 or not 0 < screen_p <= 1 or not 0 < alpha < 1:
+        raise ValueError("expected_false_leads: need n >= 1, screen_p in (0,1], alpha in (0,1)")
+    p_lead = screen_p * alpha
+    p_cand = screen_p * alpha / n_hypotheses
+    return dict(expected_weak=n_hypotheses * p_lead, p_any_weak=1 - (1 - p_lead) ** n_hypotheses, expected_candidate=n_hypotheses * p_cand,
+                p_any_candidate=1 - (1 - p_cand) ** n_hypotheses)
+
+
+def accuracy_by_vol_bucket(pred: pd.DataFrame, pool: pd.DataFrame, model: str, n_bins: int = 3) -> pd.DataFrame:
+    """Direction accuracy inside terciles of the volatility score. If direction is easier where the volatility model is most
+    confident (bigger, cleaner moves) the two stages interact and the gate should weight direction bets by P(vol); if it is
+    flat, the stages are independent and can be tuned separately (section 35: two prediction problems, one pipeline)."""
+    d = pred[pred["model"] == model]
+    cols = ["bucket", "n", "acc", "wilson_lo", "wilson_hi", "up_rate", "mean_abs_return_bp"]
+    if len(d) < n_bins * 60:
+        return pd.DataFrame(columns=cols)
+    sc = pool["score"].to_numpy(float)[d["row"].to_numpy()]
+    fwd = pool["fwd"].to_numpy(float)[d["row"].to_numpy()]
+    rk = pd.Series(sc).groupby(d["date"].to_numpy()).rank(pct=True, method="first").to_numpy()
+    b = np.minimum((np.nan_to_num(rk, nan=0.0) * n_bins).astype(int), n_bins - 1)
+    ok = ((d["p"].to_numpy() >= 0.5) == (d["up"].to_numpy() > 0.5))
+    rows = []
+    for k in range(n_bins):
+        m = b == k
+        if not m.any():
+            continue
+        lo, hi = LC.wilson(float(ok[m].sum()), int(m.sum()), z=1.96)
+        rows.append(dict(bucket=k, n=int(m.sum()), acc=float(ok[m].mean()), wilson_lo=lo, wilson_hi=hi, up_rate=float(d["up"].to_numpy()[m].mean()),
+                         mean_abs_return_bp=float(np.nanmean(np.abs(fwd[m])) * 1e4)))
+    return pd.DataFrame(rows, columns=cols)
+
+
+# ---------------------------------------------------------------------------------------------- what to do next
+STAGE_MINUTES = {Stage.CHEAP_SCREEN: 2.0, Stage.STRONGER_TESTS: 15.0, Stage.CROSS_YEAR: 30.0, Stage.FRESH_HOLDOUT: 45.0, Stage.INTEGRATION: 90.0}
+
+
+def next_experiments(report: LabReport, state: LabState | None = None) -> list[dict[str, Any]]:
+    """The lab's own suggestions to the priority engine, ranked by direction value per compute minute. A closed gate suggests only
+    the volatility experiment that would reopen it; leads suggest a pre-registered replication; unavailable inputs suggest building
+    them; powered nulls suggest moving on; underpowered ones suggest waiting a stated number of weeks."""
+    out: list[dict[str, Any]] = []
+    if not report.gate.is_open:
+        return [dict(action="improve_volatility_evidence", target=None, why="; ".join(report.gate.reasons), value=1.0 * report.gate.priority_multiplier(),
+                     minutes=STAGE_MINUTES[Stage.STRONGER_TESTS], stage=str(Stage.STRONGER_TESTS))]
+    ledger = state.ledger if state is not None else None
+    for n, r in report.results.items():
+        ev = experiment_value(report, n)
+        if r.outcome is Outcome.CANDIDATE:
+            act, nxt = "fresh_holdout", Stage.FRESH_HOLDOUT
+        elif r.outcome is Outcome.WEAK_UNREPLICATED:
+            act, nxt = "preregistered_replication", Stage.CROSS_YEAR
+        elif r.outcome is Outcome.UNAVAILABLE_INPUT:
+            act, nxt = "build_point_in_time_input", Stage.CHEAP_SCREEN
+        elif r.outcome is Outcome.LEAK_SUSPECT:
+            act, nxt = "find_the_leak", Stage.CHEAP_SCREEN
+        elif r.outcome is Outcome.NO_RELIABLE_SIGNAL and r.state is ResearchState.DORMANT:
+            act, nxt = "wait_for_power", Stage.CHEAP_SCREEN
+        else:
+            continue
+        val = float(ev.direction_value or 0.0) + (0.1 if act == "build_point_in_time_input" else 0.0)
+        if ledger is not None and ledger.looks.get(n, 0) > 0:
+            val += 0.2 * min(math.log10(max(ledger.value(n), 1.0)), 2.0)
+        out.append(dict(action=act, target=n, why=(r.reasons[0] if r.reasons else ""), value=val, minutes=STAGE_MINUTES[nxt], stage=str(nxt),
+                        per_minute=val / STAGE_MINUTES[nxt]))
+    return sorted(out, key=lambda r: -r["per_minute"])
+
+
+def format_dossier(d: Mapping[str, Any]) -> str:
+    """One hypothesis as readable text: verdict first, then the evidence for and against."""
+    L = [f"{d['hypothesis']} ({d['topic']}): {d['outcome']} [{d['state']}] stage {d['stage']}",
+         f"  skill {d['skill']:+.4f} (shrunk {d['posterior_skill']:+.4f}); p raw {d['p_raw']:.3f}, family {d['p_family']:.3f}, Holm {d['p_holm']:.3f}, BH {d['p_bh']:.3f}"]
+    L += ["  because: " + r for r in d.get("reasons", [])[:5]]
+    for c, v in d.get("comparators", {}).items():
+        L.append(f"  vs {c:16s} {'BEAT' if v['passed'] else 'not beaten'}  (against {v['against']}, {v['source']}, mean diff {v['mean_diff']:+.4f})")
+    if d.get("random_effects"):
+        re_ = d["random_effects"]
+        L.append(f"  years: pooled {re_['pooled']:+.4f} [{re_['lo']:+.4f}, {re_['hi']:+.4f}], tau2 {re_['tau2']:.2e}, I2 {re_['i2']:.0%}, "
+                 f"P(a new year is negative) {re_['p_negative_year']:.0%}")
+    if d.get("robust"):
+        L.append("  robustness: " + ("PASS" if d["robust"]["robust"] else "FAIL " + ",".join(d["robust"]["failed"])))
+    if d.get("dropped"):
+        L.append("  dropped inputs: " + "; ".join(f"{k} ({v})" for k, v in list(d["dropped"].items())[:4]))
+    return "\n".join(L)
+
+
+# ---------------------------------------------------------------------------------------------- honest limits of the sample
+def survivorship_disclosure(pool: pd.DataFrame, labels: pd.DataFrame | None = None) -> dict[str, Any]:
+    """The price panel is survivor-only (memory: all backtests are survivorship-biased until delisted history exists). A panel built
+    from survivors shows no ticker disappearing mid-sample, so this counts tickers whose last pool row is well before the sample
+    end. Zero disappearing names over many years is itself the warning: real universes lose several percent of names a year."""
+    if pool.empty:
+        return dict(tickers=0, ended_early=0, ended_early_share=float("nan"), years=0, survivor_only_suspected=True)
+    last = pool.groupby("ticker")["date"].max()
+    first = pool.groupby("ticker")["date"].min()
+    end = pool["date"].max()
+    span_years = max((end - pool["date"].min()).days / 365.25, 0.0)
+    ended = int((last < end - pd.Timedelta(days=90)).sum())
+    late = int((first > pool["date"].min() + pd.Timedelta(days=365)).sum())
+    share = ended / max(len(last), 1)
+    return dict(tickers=int(len(last)), ended_early=ended, ended_early_share=float(share), started_late=late, years=float(span_years),
+                survivor_only_suspected=bool(span_years >= 3 and share < 0.01),
+                note="direction skill on a survivor-only panel is biased upward for long calls; treat every lead as conditional on this")
+
+
+def label_ambiguity_report(labels: pd.DataFrame) -> dict[str, float]:
+    """How much of the label is defined? Share of decision rows that are movers, same-session double touches (direction undefined),
+    windows with missing bars, and the up-rate among the defined movers. A high ambiguous share means `up_first` is being decided
+    on the rows where the market did the most, which biases every direction number in one direction."""
+    if labels.empty:
+        return dict(rows=0, mover_rate=float("nan"), ambiguous_share=float("nan"), undefined_share=float("nan"), up_rate_movers=float("nan"))
+    mover = labels["mover"].astype(bool)
+    amb = labels["amb"].astype(bool) if "amb" in labels else pd.Series(False, index=labels.index)
+    defined = labels["up_first"].notna() if "up_first" in labels else pd.Series(False, index=labels.index)
+    return dict(rows=int(len(labels)), mover_rate=float(mover.mean()), ambiguous_share=float(amb.sum() / max(mover.sum(), 1)),
+                undefined_share=float((mover & ~defined).sum() / max(mover.sum(), 1)),
+                up_rate_movers=float(labels.loc[defined, "up_first"].mean()) if defined.any() else float("nan"))
+
+
+def segment_adequacy(pool: pd.DataFrame, target_edge: float = 0.05, picks_per_week: int = 15) -> pd.DataFrame:
+    """Which segments (event type, regime, sector) are large enough for the lab to say anything? For each segment: rows, weeks,
+    the minimum detectable accuracy edge on that many effective bets and the weeks still needed for `target_edge`. Small segments
+    are where 80% pockets get 'found'; this table shows in advance that no negative or positive claim can be made there."""
+    rows = []
+    for col in ("seg", "reg", "sector"):
+        if col not in pool:
+            continue
+        for v, g in pool[pool["pick"] & pool["up"].notna()].groupby(col):
+            n = len(g)
+            base = float(g["up"].mean())
+            deff = week_design_effect(g["up"].to_numpy(), pd.factorize(g["date"].to_numpy())[0]) if n > 20 else 1.0
+            mde = LC.minimum_detectable_gap(int(max(n / deff, 2)), max(base, 1 - base)) if n >= 4 else float("inf")
+            rows.append(dict(factor=col, level=str(v), rows=n, weeks=int(g["date"].nunique()), mde_edge=float(mde), design_effect=float(deff),
+                             weeks_needed=weeks_needed(target_edge, max(base, 1 - base), picks_per_week, deff), adequate=bool(mde <= target_edge)))
+    return pd.DataFrame(rows, columns=["factor", "level", "rows", "weeks", "mde_edge", "design_effect", "weeks_needed", "adequate"])
+
+
+def extras_for_report(report: LabReport, inputs: LabInputs, pool: pd.DataFrame, Xd: pd.DataFrame, pred: pd.DataFrame, W: pd.DataFrame,
+                      info: pd.DataFrame, cfg: LabConfig) -> None:
+    """The remaining descriptive blocks of a run, attached to the report: baselines, survivorship and label disclosures, segment
+    adequacy, the honest blend of the leading cells, volatility-bucket accuracy and payoff-rank of the best lead, and the
+    truncation (future-read) test of the derived features."""
+    report.baselines = baseline_table(Xd, pool, cfg.test_years)
+    report.disclosures = dict(survivorship=survivorship_disclosure(pool), labels=label_ambiguity_report(inputs.labels),
+                              false_lead_arithmetic=expected_false_leads(len(HYPOTHESES), cfg.screen_p, cfg.alpha))
+    report.adequacy = segment_adequacy(pool)
+    lead = [r for r in report.results.values() if r.best_tag and r.stage is not Stage.CHEAP_SCREEN]
+    if len(lead) >= 2 and not W.empty:
+        top = [r.best_tag for r in sorted(lead, key=lambda r: -r.skill)[:4] if r.best_tag in W.columns]
+        report.blend = honest_blend(W, info, top) if len(top) >= 2 else {}
+    if lead:
+        best = max(lead, key=lambda r: r.skill)
+        report.vol_buckets = accuracy_by_vol_bucket(pred, pool, best.best_tag)
+        report.return_rank = return_rank_test(pred, pool, best.best_tag, min(cfg.n_boot, 300), cfg.seed)
+    cut = pd.Timestamp(pool["date"].quantile(0.6, interpolation="nearest")) if len(pool) else None
+    report.truncation = truncation_test(inputs, cfg, report.now, cut) if cut is not None else {}
+    if report.truncation and not report.truncation["ok"]:
+        report.warnings.append("truncation test: derived features at past dates change when later rows are removed: "
+                               + ",".join(o["column"] for o in report.truncation["offenders"][:5]))
+
+
+# ---------------------------------------------------------------------------------------------- multiplicity price and the final answer
+def multiplicity_price(n_cells: int, alpha: float = 0.05) -> dict[str, float]:
+    """What having looked at n_cells cells costs: the Bonferroni per-cell alpha, the critical z it implies, the expected largest null
+    z among n_cells (sqrt(2 ln n)) and the chance that at least one null cell clears an unadjusted 5%. The 80% frontier is read
+    against these numbers, not against a single-cell interval."""
+    if n_cells < 1 or not 0 < alpha < 1:
+        raise ValueError("multiplicity_price: n_cells >= 1 and alpha in (0, 1)")
+    a = alpha / n_cells
+    return dict(n_cells=n_cells, alpha_per_cell=a, z_crit=float(stats.norm.isf(a)), expected_null_max_z=float(math.sqrt(2 * math.log(max(n_cells, 2)))),
+                p_any_unadjusted=float(1 - (1 - alpha) ** n_cells))
+
+
+def cell_evidence(hits: int, n: int, design_effect: float = 1.0, gate: float = EIGHTY, n_cells: int = 1) -> dict[str, float]:
+    """One frontier cell judged five ways: raw rate, Wilson lower bound, Wilson bound on the design-effect-deflated sample (weeks are
+    not independent), the multiplicity-adjusted lower bound (Wilson at alpha/n_cells on the deflated sample), and the posterior
+    probability that the true rate exceeds the gate. Only the adjusted bound may be called a reach of the gate."""
+    if n <= 0 or hits < 0 or hits > n:
+        raise ValueError("cell_evidence: need 0 <= hits <= n and n > 0")
+    n_eff = max(n / max(design_effect, 1.0), 1.0)
+    k_eff = hits * n_eff / n
+    z_adj = float(stats.norm.isf(0.05 / max(n_cells, 1) / 2))
+    return dict(rate=hits / n, wilson_lo=LC.wilson(hits, n, 1.96)[0], deflated_lo=LC.wilson(k_eff, n_eff, 1.96)[0],
+                adjusted_lo=LC.wilson(k_eff, n_eff, z_adj)[0], p_above_gate=prob_accuracy_above(k_eff, n_eff, gate), n_eff=float(n_eff),
+                reaches_gate=bool(LC.wilson(k_eff, n_eff, z_adj)[0] >= gate))
+
+
+class Recommendation(_StrEnum):
+    NOT_USABLE = "NOT_USABLE"                  # nothing to use; the direction stage should abstain
+    RESEARCH_ONLY = "RESEARCH_ONLY"            # leads exist but none may influence a decision
+    NEEDS_HOLDOUT = "NEEDS_HOLDOUT"            # a candidate passed every gate; a fresh holdout is the next step
+    VOID = "VOID"                              # the run's own controls or gate failed; say nothing about direction
+
+
+def recommendation(report: LabReport) -> tuple[Recommendation, str]:
+    """The lab's single answer to 'may direction influence a decision?'. There is deliberately no 'USE' value: a candidate becomes
+    usable only after the fresh-holdout stage (pre-registered replication) and the promotion gate, neither of which this module
+    can grant."""
+    if not report.gate.is_open:
+        return Recommendation.VOID, "volatility stage lacks out-of-sample evidence: " + "; ".join(report.gate.reasons)
+    if not report.protocol_ok:
+        return Recommendation.VOID, "controls failed: " + "; ".join(report.controls.failures() if report.controls else ["no controls ran"])
+    if report.candidates():
+        return Recommendation.NEEDS_HOLDOUT, f"candidate(s) {report.candidates()} passed every gate; a fresh, pre-registered holdout is required"
+    if report.found_anything():
+        return Recommendation.RESEARCH_ONLY, "weak, unreplicated leads only"
+    return Recommendation.NOT_USABLE, report.statement or "no reliable direction signal"
+
+
+def blind_summary(report: LabReport) -> dict[str, Any]:
+    """The only thing about a run that may leave the research side without a matured-record gate: counts and a recommendation, with
+    no dates, years, tickers or hypothesis-level numbers. Passed through the blind-side scan before it is returned, so a future
+    edit that adds an identifying field fails here instead of in a live replay."""
+    rec, _ = recommendation(report)
+    out = dict(recommendation=str(rec), hypotheses=len(report.results), candidates=len(report.candidates()),
+               leads=sum(1 for r in report.results.values() if r.outcome is Outcome.WEAK_UNREPLICATED),
+               gate_open=bool(report.gate.is_open), controls_pass=bool(report.protocol_ok))
+    TV.assert_trader_safe(out, what="direction blind summary")
+    return out
+
+
+def state_to_dict(state: LabState) -> dict[str, Any]:
+    """JSON-safe LabState (the ledger's e-values are stored as logs so the running product survives a round trip exactly)."""
+    return dict(states={k: str(v) for k, v in state.states.items()}, null_streak=state.null_streak, runs=state.runs, history=state.history,
+                seen_keys=sorted(state.seen_keys, key=str), info_prev=state.info_prev, last_alpha=state.last_alpha, alpha_spent=state.alpha_spent,
+                ledger=None if state.ledger is None else dict(alpha=state.ledger.alpha, kappa=state.ledger.kappa, log_e=state.ledger.log_e,
+                                                              looks=state.ledger.looks, seen=sorted([list(t) for t in state.ledger.seen])))
+
+
+def state_from_dict(d: Mapping[str, Any]) -> LabState:
+    """Inverse of state_to_dict; the result is validated, and an inconsistent record raises instead of steering the queue."""
+    led = None
+    if d.get("ledger"):
+        L = d["ledger"]
+        led = EvidenceLedger(L["alpha"], L["kappa"])
+        led.log_e, led.looks, led.seen = dict(L["log_e"]), dict(L["looks"]), {tuple(t) for t in L["seen"]}
+    st = LabState({k: ResearchState(v) for k, v in d["states"].items()}, int(d["null_streak"]), int(d["runs"]), list(d["history"]),
+                  set(d["seen_keys"]), led, int(d["info_prev"]), float(d["last_alpha"]), float(d["alpha_spent"]))
+    bad = st.validate()
+    if bad:
+        raise ValueError("stored LabState is inconsistent: " + "; ".join(bad))
+    return st
+
+
+OPEN_SPECS: tuple[HypothesisSpec, ...] = (
+    _spec("overnight_drift", "overnight versus intraday returns", ["overnight20", "intraday20", "gap_today", "close_loc"],
+          "Overnight returns carry the informed order flow and intraday returns the noise; their difference may sign the next week.", 0),
+    _spec("earnings_proximity", "earnings proximity", ["days_to_earn", "earn_in_week", "days_since_earn", "ear_volsurge"],
+          "The days around a release change both the size and the sign asymmetry of the coming move.", 0, min_columns=2),
+    _spec("insider_conviction", "insider conviction", ["ins_value30", "ins_officer30", "ins_opportunistic30"],
+          "Large officer purchases, not the count of buyers, are the literature's informative subset.", 1, ["ins_officer30"], min_columns=2),
+    _spec("breadth_dispersion", "breadth and dispersion", ["m_breadth", "m_dispersion", "m_vix_term", "m_spy_r5"],
+          "When few names carry the index, single-name direction depends on the leaders rather than the market.", 0, min_columns=2),
+    _spec("trend_quality", "trend quality", ["dist_ma50", "dist_ma200", "r20", "r60", "atr_pct"],
+          "Trends with low volatility relative to their slope persist; the same slope with high volatility does not.", 1, ["dist_ma50"], min_columns=3),
+)
+
+
+def load_open_specs(registry: HypothesisRegistry, available: Sequence[str]) -> dict[str, str]:
+    """Offers each open spec to the registry: added when its inputs exist and it is not redundant, otherwise the reason is returned.
+    New hypotheses therefore enter through the same validation and multiplicity accounting as the original fifteen."""
+    out = {}
+    for s in OPEN_SPECS:
+        if not resolve_columns(available, s):
+            out[s.name] = "inputs not in the panel"
+            continue
+        try:
+            out[s.name] = registry.add(s, "open hypothesis: " + s.mechanism[:60])
+        except ValueError as e:
+            out[s.name] = str(e)
+    return out
+
+
+def by_outcome(report: LabReport) -> dict[str, list[str]]:
+    """Hypothesis names grouped by outcome, in catalogue order (what a reader scans first)."""
+    out: dict[str, list[str]] = {}
+    for n, r in report.results.items():
+        out.setdefault(str(r.outcome), []).append(n)
+    return out
+
+
+def summary_line(report: LabReport) -> str:
+    """One line for logs: recommendation, gate, controls, counts by outcome and the number of cells priced."""
+    rec, _ = recommendation(report)
+    counts = ", ".join(f"{k}={len(v)}" for k, v in by_outcome(report).items())
+    return f"direction_lab {report.now}: {rec} | gate={'open' if report.gate.is_open else 'closed'} controls={'ok' if report.protocol_ok else 'FAIL'} | {counts} | cells={report.n_cells}"

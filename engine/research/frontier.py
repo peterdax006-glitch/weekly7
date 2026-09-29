@@ -1582,7 +1582,7 @@ def synthetic_predictions(seed: int = 0, n_weeks: int = 80, per_week: int = 60, 
         in_region[top] = True
         correct[top] = True
     predicted_up = np.where(correct, truth_up, ~truth_up)
-    conf = np.where(in_region, rng.uniform(0.85, 0.99, n), rng.uniform(0.50, 0.70, n))
+    conf = np.where(in_region, rng.uniform(0.86, 0.94, n), rng.uniform(0.50, 0.70, n))
     if kind == "null":
         conf = rng.uniform(0.5, 0.99, n)
     p = np.where(predicted_up, conf, 1.0 - conf)
@@ -1812,13 +1812,15 @@ def required_independent_obs(true_acc: float, gate: float = 0.80, level: float =
 
 def detectable_accuracy(n_eff: float, gate: float = 0.80, level: float = 0.95, power: float = 0.80) -> float:
     """Smallest true accuracy a region with n_eff independent calls could show as >= gate with the given power (the reverse question).
-    Above 1.0 means even a perfect region could not be certified with this much evidence."""
+    Infinity means even a perfect region could not be certified with this much evidence."""
     if n_eff < 2:
         return math.inf
-    lo, hi = gate, 1.5
+    if required_independent_obs(1.0 - 1e-9, gate, level, power) > n_eff:
+        return math.inf                                   # even a perfect region could not be certified
+    lo, hi = gate, 1.0
     for _ in range(60):
         mid = (lo + hi) / 2
-        if mid >= 1.0 or required_independent_obs(mid, gate, level, power) > n_eff:
+        if required_independent_obs(mid, gate, level, power) > n_eff:
             lo = mid
         else:
             hi = mid

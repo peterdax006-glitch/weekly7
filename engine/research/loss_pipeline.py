@@ -46,7 +46,7 @@ from engine.learning.separation import Attribution, SeparationParams, attribute,
 from engine.learning.trader_view import find_violations
 from engine.pattern_stats import bh_qvalues
 from engine.research.core import Availability, ExperimentValue, Knowability, MaturedRecord, Problem, ResearchQuestion
-from engine.research.winners_losers import (AucResult, MoveDriver, MoveExplanation, MoveRecord, ResearchParams, SignalStat,
+from engine.research.winners_losers import (AucResult, cached_code_hash, MoveDriver, MoveExplanation, MoveRecord, ResearchParams, SignalStat,
                                             SignalVerdict, _fin, explain_move, is_control, matured_only, move_from_trade,
                                             move_surprise, stratified_auc, study_signals, to_matured, to_trade_record, verdict_map,
                                             week_of)
@@ -898,7 +898,8 @@ class LossPipeline:
 
     def __init__(self, params: ResearchParams | None = None, cause_params: CauseParams | None = None,
                  weights: Mapping[str, float] | None = None, seed: int = 0, classifier: LossClassifier | None = None,
-                 store: PostmortemStore | None = None, sep: SeparationParams | None = None):
+                 store: PostmortemStore | None = None, sep: SeparationParams | None = None,
+                 code_hash: str | None = None):
         self.p = params or ResearchParams()
         self.cp = cause_params or CauseParams()
         errs = self.p.validate() + self.cp.validate()
@@ -908,10 +909,10 @@ class LossPipeline:
         self.seed = seed
         self.clf = classifier or LossClassifier()
         self.sep = sep or SeparationParams()
-        self.builder = PostmortemBuilder(self.clf, self.sep)
+        self.code_hash = code_hash or cached_code_hash()
+        self.builder = PostmortemBuilder(self.clf, self.sep, code_hash=self.code_hash)
         self.store = store
         self.cohort: LossCohortFacts | None = None
-        self.code_hash = current_code_hash()
 
     def fit(self, records: Sequence[MoveRecord], now) -> LossCohortFacts:
         ok, _ = matured_only(records, now, strict=True)

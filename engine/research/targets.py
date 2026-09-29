@@ -209,7 +209,7 @@ def find_failure_conditions(rows: Sequence[PredictionRow], min_fail: int = 3, al
                 base = max(fail_out / n_out, 1.0 / (n_out + 2.0))          # never a zero null rate
                 p = float(binom.sf(fail_in - 1, n_in, base))
                 if p * tried <= alpha and fail_in / n_in > fail_out / n_out:
-                    out.append(Condition(f, op, float(thr), n_in, fail_in, n_out, fail_out, min(1.0, p * tried)))
+                    out.append(Condition(f, op, float(thr), int(n_in), int(fail_in), int(n_out), int(fail_out), float(min(1.0, p * tried))))
     return sorted(out, key=lambda c: (c.p_value, -c.rate_in, c.feature, c.op, c.threshold))
 
 
@@ -560,3 +560,629 @@ def dispersion_example(seed: int = 0, n_correct: int = 12, n_wrong: int = 5, cut
     for _ in range(12):
         hist += make(int(rng.integers(8, 14)), int(rng.integers(3, 6)))
     return DayInput("2003-05-01", predictions=make(n_correct, n_wrong), pattern_history=hist)
+
+
+# ---------------------------------------------------------------------------------------------------------- per-source scoring
+
+@dataclass(frozen=True)
+class SourceScore:
+    """How big and how valuable a raw row from one section-22 source is, on the source's OWN scale. Each source has its own
+    normalisation because a 'magnitude' means different things: a z-score, a loss share, a Poisson excess."""
+    source: str
+    magnitude: float                                # [0,1] how strong the event is
+    stake: float                                    # [0,1] decision value riding on the answer
+    bits: float                                     # expected information of the standard test
+    cost: float                                     # cpu-minutes of the standard test
+    problem: Problem
+    confidence: float                               # [0,1] how sure we are the event is not noise
+    reasons: tuple = ()
+
+
+def _sat(x: float, scale: float) -> float:
+    return 1.0 - math.exp(-max(x, 0.0) / scale)
+
+
+def _pois_tail_conf(size: float, base: float) -> float:
+    """1 - P(Poisson(base) >= size): how surprising a cluster of `size` is when `base` was expected."""
+    from scipy.stats import poisson
+    if base <= 0:
+        return 1.0 if size > 0 else 0.0
+    return float(1.0 - poisson.sf(max(size - 1, 0), base))
+
+
+def score_surprise(row: Mapping) -> SourceScore:
+    z = abs(float(row["z"]))
+    conf = 1.0 - 2.0 * (1.0 - _norm_cdf(z))                   # two-sided tail: how unlikely under the null
+    return SourceScore("surprise", _sat(z, 3.0), float(row.get("stake", min(1.0, z / 6.0))), 0.9, 25.0, Problem.VOLATILITY, max(0.0, conf),
+                       (f"z={z:.1f}",))
+
+
+def score_loss(row: Mapping) -> SourceScore:
+    share = float(row.get("loss_share", 0.0))
+    conf = float(row.get("model_confidence", 0.5))
+    return SourceScore("loss", min(1.0, 2 * share), min(1.0, 0.4 + 0.6 * conf), 0.8, 20.0, Problem.LOSS_AVOIDANCE, min(1.0, 0.3 + share),
+                       (f"loss share {share:.0%}", f"model confidence {conf:.0%}"))
+
+
+def score_win(row: Mapping) -> SourceScore:
+    """A win is worth studying when the win RATE is high relative to base and the sample is real, not when a single trade did well."""
+    n, k = int(row.get("n", 0)), int(row.get("wins", 0))
+    base = float(row.get("base_rate", 0.5))
+    if n < 5:
+        return SourceScore("win", 0.0, 0.2, 0.3, 15.0, Problem.VOLATILITY, 0.0, ("too few to study",))
+    from scipy.stats import binom
+    p = float(binom.sf(k - 1, n, base))
+    return SourceScore("win", min(1.0, max(0.0, k / n - base) * 2), 0.4, 0.6, 20.0, Problem.VOLATILITY, 1.0 - p, (f"{k}/{n} vs base {base:.2f}",))
+
+
+def score_missed_winner(row: Mapping) -> SourceScore:
+    gain = float(row.get("gain_share", 0.0))
+    know = float(row.get("knowable_before", 0.5))
+    return SourceScore("missed_winner", min(1.0, gain) * (0.2 + 0.8 * know), 0.3 + 0.5 * know, 1.0, 45.0, Problem.VOLATILITY, know,
+                       (f"gain share {gain:.0%}", f"knowable {know:.0%}"))
+
+
+def score_missed_loser(row: Mapping) -> SourceScore:
+    loss = float(row.get("loss_share", 0.0))
+    know = float(row.get("knowable_before", 0.5))
+    return SourceScore("missed_loser", min(1.0, 2 * loss) * (0.2 + 0.8 * know), 0.5 + 0.4 * know, 1.0, 35.0, Problem.LOSS_AVOIDANCE, know,
+                       (f"loss share {loss:.0%}", f"knowable {know:.0%}"))
+
+
+def score_cluster(row: Mapping) -> SourceScore:
+    size, base = float(row.get("size", 0)), float(row.get("base_size", 1.0))
+    conf = _pois_tail_conf(size, base)
+    return SourceScore("volatility_cluster", min(1.0, (size - base) / max(size, 1.0)), 0.6, 0.9, 40.0, Problem.VOLATILITY, conf, (f"{size:.0f} movers vs {base:.1f} expected",))
+
+
+def score_break(row: Mapping) -> SourceScore:
+    drop, before, n = float(row.get("drop", 0.0)), float(row.get("before", 0.6)), int(row.get("n_after", 0))
+    conf = min(1.0, n / 40.0) * min(1.0, drop / 0.2)
+    return SourceScore("pattern_break", min(1.0, drop / max(before, 0.1)), min(1.0, 0.5 + drop), 1.0, 25.0, Problem.LOSS_AVOIDANCE, conf,
+                       (f"reliability fell {drop:.2f}", f"n after {n}"))
+
+
+def score_contradiction(row: Mapping) -> SourceScore:
+    s = float(row.get("strength", 0.0))
+    n = int(row.get("n", 20))
+    return SourceScore("contradiction", min(1.0, s), 0.5, 1.0, 30.0, Problem.VOLATILITY, min(1.0, n / 40.0) * min(1.0, s / 0.2), (f"disagreement {s:.2f}",))
+
+
+def score_regime(row: Mapping) -> SourceScore:
+    sh = float(row.get("shift", 0.0))
+    exposed = int(row.get("n_items", 1))
+    return SourceScore("new_regime", min(1.0, sh), min(1.0, 0.3 + 0.1 * exposed), 1.1, 30.0, Problem.CONSISTENCY, min(1.0, sh * 1.5), (f"shift {sh:.2f}", f"{exposed} items exposed"))
+
+
+def score_anomaly(row: Mapping) -> SourceScore:
+    sev = float(row.get("severity", 0.0))
+    return SourceScore("data_anomaly", sev, 0.8, 0.8, 10.0, Problem.DATA_QUALITY, min(1.0, 0.5 + sev / 2), (f"severity {sev:.2f}",))
+
+
+def score_research_failure(row: Mapping) -> SourceScore:
+    streak = int(row.get("barren_streak", 0))
+    return SourceScore("research_failure", _sat(streak, 4.0), 0.5, 1.0, 60.0, Problem.RESEARCH_PROCESS, min(1.0, streak / 6.0), (f"{streak} barren results",))
+
+
+def score_combination(row: Mapping) -> SourceScore:
+    a, b, j = float(row["lift_a"]), float(row["lift_b"]), float(row["lift_joint"])
+    best = max(a, b)
+    if j - best >= 0.02:
+        mag, why = min(1.0, (j - best) / max(best, 0.05)), "super-additive"
+    elif a + b - j >= 0.04:
+        mag, why = min(1.0, (a + b - j) / max(a + b, 0.05)), "redundant"
+    else:
+        mag, why = 0.0, "additive"
+    return SourceScore("new_combination", mag, 0.5, 0.9, 40.0, Problem.VOLATILITY, 0.5 if mag else 0.0, (why,))
+
+
+def score_understudied(kind: str, n: float, median: float) -> SourceScore:
+    gap = 1.0 - n / max(median, 1.0)
+    return SourceScore(f"understudied_{kind}", max(0.0, gap), 0.4, 0.8, 45.0, Problem.COVERAGE, min(1.0, median / 20.0), (f"{n:.0f} studies vs median {median:.0f}",))
+
+
+def score_unknown(row: Mapping) -> SourceScore:
+    size = float(row.get("size", 0.0))
+    return SourceScore("unknown_area", min(1.0, size), 0.4, 1.0, 60.0, Problem.COVERAGE, 0.3, (str(row.get("gap", "unresolved gap")),))
+
+
+def _norm_cdf(z: float) -> float:
+    return 0.5 * (1.0 + math.erf(z / math.sqrt(2.0)))
+
+
+SCORERS = {"surprise": score_surprise, "loss": score_loss, "win": score_win, "missed_winner": score_missed_winner, "missed_loser": score_missed_loser,
+           "volatility_cluster": score_cluster, "pattern_break": score_break, "contradiction": score_contradiction, "new_regime": score_regime,
+           "data_anomaly": score_anomaly, "research_failure": score_research_failure, "new_combination": score_combination, "unknown_area": score_unknown}
+
+
+def score_row(source: str, row: Mapping) -> SourceScore:
+    """Route a raw row to its source's scorer. A source with no scorer (failure_condition, understudied_*) is scored where it is made."""
+    if source not in SCORERS:
+        raise TargetError(f"no row scorer for source {source!r}")
+    sc = SCORERS[source](row)
+    for name in ("magnitude", "stake", "confidence"):
+        v = getattr(sc, name)
+        if not (0.0 <= v <= 1.0) or math.isnan(v):
+            raise TargetError(f"{source}: score {name}={v!r} outside [0,1]")
+    return sc
+
+
+def target_from_score(sc: SourceScore, subject: str, text: str, hypothesis: str, test: str, evidence_through: str) -> Target:
+    """Turn a scored row into a Target, with confidence discounting the magnitude: an event we are unsure is real is worth less."""
+    return _mk(sc.source, subject, text, hypothesis, test, sc.problem, evidence_through, sc.magnitude * (0.4 + 0.6 * sc.confidence), sc.stake, sc.cost, sc.bits)
+
+
+# ---------------------------------------------------------------------------------------------------------- learning which sources pay
+
+@dataclass
+class SourceYield:
+    """Per-source yield learning: of the targets a source produced, how many led to promoted knowledge or a decision change? Beta
+    posteriors with a pessimistic prior; the multiplier is bounded so the section-22 breadth is kept (every source keeps a floor)."""
+    ok: dict = field(default_factory=dict)
+    tried: dict = field(default_factory=dict)
+    log: list = field(default_factory=list)          # (at, source, useful)
+    prior_a: float = 1.0
+    prior_b: float = 3.0
+
+    def observe(self, source: str, useful: bool, at, now) -> None:
+        if source not in TARGET_SOURCES:
+            raise TargetError(f"unknown source {source!r}")
+        require_past(at, now, f"yield of {source}")
+        self.tried[source] = self.tried.get(source, 0) + 1
+        self.ok[source] = self.ok.get(source, 0) + int(useful)
+        self.log.append((str(at), source, bool(useful)))
+
+    def rate(self, source: str) -> float:
+        return (self.prior_a + self.ok.get(source, 0)) / (self.prior_a + self.prior_b + self.tried.get(source, 0))
+
+    def mean_rate(self) -> float:
+        return float(np.mean([self.rate(s) for s in TARGET_SOURCES]))
+
+    def multiplier(self, source: str, floor: float = 0.5, cap: float = 2.0) -> float:
+        n = self.tried.get(source, 0)
+        w = n / (n + 8.0)
+        return float(min(cap, max(floor, (1 - w) + w * self.rate(source) / self.mean_rate())))
+
+    def report(self) -> dict:
+        return {s: {"tried": self.tried.get(s, 0), "useful": self.ok.get(s, 0), "rate": self.rate(s), "multiplier": self.multiplier(s)} for s in TARGET_SOURCES}
+
+    def to_json(self) -> str:
+        return json.dumps({"ok": self.ok, "tried": self.tried, "log": self.log}, sort_keys=True)
+
+    @classmethod
+    def from_json(cls, text: str) -> "SourceYield":
+        d = json.loads(text)
+        return cls(ok=d["ok"], tried=d["tried"], log=[tuple(x) for x in d["log"]])
+
+
+def apply_source_yield(targets: Sequence[Target], sy: SourceYield) -> list:
+    """Scale each target's priority by its source's learned yield and re-sort."""
+    out = [replace(t, priority=t.priority * sy.multiplier(t.source)) for t in targets]
+    return sorted(out, key=lambda t: (-t.priority, t.target_id))
+
+
+# ---------------------------------------------------------------------------------------------------------- coverage models
+
+def condition_bucket(features: Mapping, edges: Mapping) -> str:
+    """Name a market condition from numeric features and per-feature quantile edges {feature: (lo_edge, hi_edge)}: e.g.
+    'dispersion=high|breadth=low'. Identity free, so it can be stored and queried."""
+    parts = []
+    for f in sorted(edges):
+        if f not in features:
+            continue
+        lo, hi = edges[f]
+        v = features[f]
+        parts.append(f"{f}={'low' if v < lo else 'high' if v > hi else 'mid'}")
+    return "|".join(parts) or "unconditioned"
+
+
+def quantile_edges(history: Sequence[Mapping], features: Sequence[str], q: tuple = (1 / 3, 2 / 3)) -> dict:
+    """Terciles of each feature from PAST rows only (the caller passes rows matured before now)."""
+    out = {}
+    for f in features:
+        v = np.array([h[f] for h in history if f in h], float)
+        if v.size >= 9:
+            out[f] = (float(np.quantile(v, q[0])), float(np.quantile(v, q[1])))
+    return out
+
+
+@dataclass
+class CoverageModel:
+    """What has been studied. Each study is a (date, bucket) event; counts decay with `half_life_days` so a bucket studied years ago
+    counts as partly unstudied again. A bucket's need = how far its decayed count is below the fair share, and unseen buckets are
+    always needy. This replaces the flat median rule with a model that knows about age, unequal opportunity (`exposure`) and total
+    effort (`gini`)."""
+    kind: str
+    half_life_days: float = 365.0
+    studies: list = field(default_factory=list)       # (date, bucket, weight)
+    exposure: dict = field(default_factory=dict)      # bucket -> how often it occurs in the market (share); missing = equal
+    known: set = field(default_factory=set)
+
+    def register(self, buckets: Iterable[str], exposure: Mapping | None = None) -> None:
+        for b in buckets:
+            if identity_leak(b):
+                raise FirewallBreach(f"coverage bucket {b!r} carries an identity")
+            self.known.add(b)
+        if exposure:
+            self.exposure.update({k: float(v) for k, v in exposure.items()})
+
+    def study(self, bucket: str, when, now, weight: float = 1.0) -> None:
+        require_past(when, now, f"study of {bucket}")
+        self.register([bucket])
+        self.studies.append((str(when), bucket, float(weight)))
+
+    def decayed_counts(self, now) -> dict:
+        out = {b: 0.0 for b in self.known}
+        for d, b, w in self.studies:
+            age = (to_ts(now) - to_ts(d)).total_seconds() / 86400.0
+            if age < 0:
+                continue
+            out[b] += w * 0.5 ** (age / self.half_life_days)
+        return out
+
+    def fair_share(self) -> dict:
+        tot = sum(self.exposure.get(b, 1.0) for b in self.known) or 1.0
+        return {b: self.exposure.get(b, 1.0) / tot for b in self.known}
+
+    def need(self, now) -> dict:
+        """Per bucket, in [0,1]: 1 = completely unstudied for its fair share, 0 = at or above it."""
+        c = self.decayed_counts(now)
+        tot = sum(c.values())
+        fair = self.fair_share()
+        if tot <= 0:
+            return {b: 1.0 for b in self.known}
+        return {b: max(0.0, 1.0 - (c[b] / tot) / max(fair[b], 1e-9)) for b in sorted(self.known)}
+
+    def understudied(self, now, min_need: float = 0.6) -> list:
+        n = self.need(now)
+        return sorted(((b, v) for b, v in n.items() if v >= min_need), key=lambda kv: (-kv[1], kv[0]))
+
+    def gini(self, now) -> float:
+        c = np.sort(np.array(list(self.decayed_counts(now).values())))
+        if c.size == 0 or c.sum() <= 0:
+            return 0.0
+        n = c.size
+        return float((2 * np.sum((np.arange(1, n + 1)) * c) / (n * c.sum())) - (n + 1) / n)
+
+    def to_json(self) -> str:
+        return json.dumps({"kind": self.kind, "hl": self.half_life_days, "studies": self.studies, "exposure": self.exposure, "known": sorted(self.known)}, sort_keys=True)
+
+    @classmethod
+    def from_json(cls, text: str) -> "CoverageModel":
+        d = json.loads(text)
+        return cls(d["kind"], d["hl"], [tuple(x) for x in d["studies"]], d["exposure"], set(d["known"]))
+
+
+def coverage_targets(model: CoverageModel, now, evidence_through: str, min_need: float = 0.6) -> list:
+    """Targets for the needy buckets. Source name follows the model's kind (sector / condition)."""
+    require_past(evidence_through, now, "coverage")
+    src = f"understudied_{model.kind}"
+    if src not in TARGET_SOURCES:
+        raise TargetError(f"coverage kind {model.kind!r} has no target source")
+    out = []
+    for b, need in model.understudied(now, min_need):
+        sc = SourceScore(src, need, 0.4, 0.8, 45.0, Problem.COVERAGE, min(1.0, len(model.studies) / 20.0), (f"need {need:.2f}",))
+        out.append(target_from_score(sc, b, f"What is known about {model.kind} {b}, which is under-studied for its share of the market?",
+                                     f"{model.kind} {b} holds structure the studied buckets do not", "run the standard probe there with controls", evidence_through))
+    return out
+
+
+# ---------------------------------------------------------------------------------------------------------- multi-day tracking
+
+@dataclass(frozen=True)
+class DatedRow:
+    """A prediction row with the day its outcome matured (the tracker needs it to use each day once and never early)."""
+    day: str
+    row: PredictionRow
+
+
+class TrackState:
+    TRACKING = "TRACKING"
+    CONFIRMED = "CONFIRMED"
+    REFUTED = "REFUTED"
+    EXPIRED = "EXPIRED"
+
+
+@dataclass
+class TrackedCondition:
+    """A condition seen on day 1 and followed as evidence accumulates. The threshold is FROZEN at discovery. Evidence is a sequential
+    probability ratio test on the failures INSIDE the region: H1 = failure rate stays at the (shrunk) discovery rate, H0 = it is the
+    outside rate. Confirming needs the log-likelihood ratio above ln((1-beta)/alpha); refuting needs it below ln(beta/(1-alpha));
+    otherwise it keeps waiting until `max_days`, then EXPIRES as undecided (which is not a failure)."""
+    tid: str
+    pattern: str
+    cond: Condition
+    opened: str
+    p1: float
+    max_days: int = 120
+    alpha: float = 0.05
+    beta: float = 0.20
+    n_in: int = 0
+    fail_in: int = 0
+    n_out: int = 0
+    fail_out: int = 0
+    llr: float = 0.0
+    days_seen: set = field(default_factory=set)
+    state: str = TrackState.TRACKING
+    closed: str = ""
+    history: list = field(default_factory=list)      # (day, llr, n_in)
+
+    min_out: int = 10
+
+    def p0(self) -> float:
+        """Null failure rate: the outside rate measured DURING tracking, with the discovery day's outside counts as a weak prior
+        (weight 0.2: the discovery sample was chosen because it looked extreme, so it is not trusted at face value)."""
+        k = self.fail_out + 0.2 * self.cond.fail_out + 1.0
+        n = self.n_out + 0.2 * self.cond.n_out + 2.0
+        return min(max(k / n, 0.02), 0.98)
+
+    def _bounds(self) -> tuple:
+        return math.log((1 - self.beta) / self.alpha), math.log(self.beta / (1 - self.alpha))
+
+    def recompute(self) -> float:
+        """LLR of H1 (inside failure rate = p1) against H0 (= current outside rate), from the running counts. Recomputed from counts
+        each day so an early, poorly-estimated null rate cannot leave a permanent mark on the evidence."""
+        p0, p1 = self.p0(), min(max(self.p1, 0.02), 0.98)
+        k, n = self.fail_in, self.n_in
+        return k * math.log(p1 / p0) + (n - k) * math.log((1 - p1) / (1 - p0))
+
+    def add_day(self, day: str, rows: Sequence[PredictionRow]) -> None:
+        if self.state != TrackState.TRACKING or day in self.days_seen:
+            return
+        self.days_seen.add(day)
+        for r in rows:
+            if r.pattern != self.pattern or self.cond.feature not in r.features:
+                continue
+            fail = not r.correct
+            if self.cond.holds(r.features):
+                self.n_in += 1
+                self.fail_in += int(fail)
+            else:
+                self.n_out += 1
+                self.fail_out += int(fail)
+        self.llr = self.recompute()
+        self.history.append((day, self.llr, self.n_in))
+        hi, lo = self._bounds()
+        decidable = self.n_out >= self.min_out and self.p1 > self.p0()
+        if decidable and self.llr >= hi:
+            self.state, self.closed = TrackState.CONFIRMED, day
+        elif self.n_out >= self.min_out and self.llr <= lo:
+            self.state, self.closed = TrackState.REFUTED, day
+        elif (to_ts(day) - to_ts(self.opened)).days >= self.max_days:
+            self.state, self.closed = TrackState.EXPIRED, day
+
+    def progress(self) -> float:
+        """How far the LLR is toward confirmation (0 at start, 1 at the upper bound, negative toward refutation)."""
+        hi, _ = self._bounds()
+        return self.llr / hi
+
+
+class OpenConditionTracker:
+    """Follows every open failure-condition across days. `update(day_rows, now)` feeds each new matured day to every tracked
+    condition exactly once; conditions close on evidence, never by the calendar alone (expiry is UNDECIDED)."""
+
+    def __init__(self, max_days: int = 120):
+        self.max_days = max_days
+        self.items: dict = {}
+        self.events: list = []                       # (day, tid, event)
+
+    def open(self, t: Target, day: str, now) -> TrackedCondition | None:
+        if t.condition is None or not t.pattern:
+            return None
+        require_past(day, now, "tracked condition")
+        tid = "tc_" + stable_hash([t.pattern, t.condition.feature, t.condition.op, round(t.condition.threshold, 6)], 10)
+        if tid in self.items:
+            return self.items[tid]
+        c = t.condition
+        p1 = 0.5 * (c.rate_in + max(c.rate_out, 0.0)) if c.rate_in > c.rate_out else c.rate_in
+        tc = TrackedCondition(tid, t.pattern, c, str(day), p1, self.max_days)
+        self.items[tid] = tc
+        self.events.append((str(day), tid, "opened"))
+        return tc
+
+    def update(self, rows_by_day: Sequence[DatedRow], now) -> list:
+        """Feed matured days to every open condition. Rows dated on/after `now` or on/before the condition's opening day are refused
+        for that condition (the opening day was the discovery sample: reusing it would be circular)."""
+        by_day: dict = {}
+        for dr in rows_by_day:
+            require_past(dr.day, now, "tracked row")
+            by_day.setdefault(dr.day, []).append(dr.row)
+        changed = []
+        for tid, tc in sorted(self.items.items()):
+            if tc.state != TrackState.TRACKING:
+                continue
+            for day in sorted(by_day):
+                if to_ts(day) <= to_ts(tc.opened):
+                    continue
+                before = tc.state
+                tc.add_day(day, by_day[day])
+                if tc.state != before:
+                    self.events.append((day, tid, tc.state))
+                    changed.append(tid)
+                    break
+        return changed
+
+    def by_state(self, state: str) -> list:
+        return sorted(t.tid for t in self.items.values() if t.state == state)
+
+    def summary(self) -> dict:
+        return {s: len(self.by_state(s)) for s in (TrackState.TRACKING, TrackState.CONFIRMED, TrackState.REFUTED, TrackState.EXPIRED)}
+
+    def stale(self, now, days: int = 60) -> list:
+        """Tracked conditions with no new inside observation for `days` days: waiting on data that is not arriving."""
+        out = []
+        for tc in self.items.values():
+            if tc.state == TrackState.TRACKING:
+                last = tc.history[-1][0] if tc.history else tc.opened
+                if (to_ts(now) - to_ts(last)).days >= days:
+                    out.append(tc.tid)
+        return sorted(out)
+
+    def to_json(self) -> str:
+        rows = []
+        for tid, t in sorted(self.items.items()):
+            d = {k: getattr(t, k) for k in ("tid", "pattern", "opened", "p1", "max_days", "alpha", "beta", "n_in", "fail_in", "n_out", "fail_out", "llr",
+                                           "state", "closed", "history")}
+            d["cond"] = [t.cond.feature, t.cond.op, t.cond.threshold, t.cond.n_in, t.cond.fail_in, t.cond.n_out, t.cond.fail_out, t.cond.p_value]
+            d["days_seen"] = sorted(t.days_seen)
+            rows.append(d)
+        return json.dumps({"max_days": self.max_days, "items": rows, "events": self.events}, sort_keys=True)
+
+    @classmethod
+    def from_json(cls, text: str) -> "OpenConditionTracker":
+        d = json.loads(text)
+        tr = cls(d["max_days"])
+        for r in d["items"]:
+            cond = Condition(*r["cond"])
+            tc = TrackedCondition(r["tid"], r["pattern"], cond, r["opened"], r["p1"], r["max_days"], r["alpha"], r["beta"], r["n_in"], r["fail_in"],
+                                  r["n_out"], r["fail_out"], r["llr"], set(r["days_seen"]), r["state"], r["closed"], [tuple(h) for h in r["history"]])
+            tr.items[tc.tid] = tc
+        tr.events = [tuple(e) for e in d["events"]]
+        return tr
+
+
+def expected_days_to_confirm(cond: Condition, inside_per_day: float, alpha: float = 0.05, beta: float = 0.20) -> float:
+    """Planning number: expected days until the SPRT confirms a TRUE condition, from the expected LLR drift per inside observation
+    (Kullback-Leibler between the discovery-rate and the outside-rate Bernoulli). infinity when there is no drift."""
+    p0 = min(max(cond.rate_out, 0.02), 0.98)
+    p1 = min(max(0.5 * (cond.rate_in + cond.rate_out), 0.02), 0.98)
+    if p1 <= p0 or inside_per_day <= 0:
+        return math.inf
+    kl = p1 * math.log(p1 / p0) + (1 - p1) * math.log((1 - p1) / (1 - p0))
+    return math.log((1 - beta) / alpha) / (kl * inside_per_day)
+
+
+# ---------------------------------------------------------------------------------------------------------- autopsy record (R04 feed)
+
+@dataclass(frozen=True)
+class AutopsyEntry:
+    """One line of the daily market autopsy. `category` is the section-4 MoveCategory; `subject` an identity-free situation key."""
+    day: str
+    category: str
+    subject: str
+    move: float
+    pattern: str = ""
+    features: Mapping = field(default_factory=dict)
+    predicted: bool = False
+    correct: bool = False
+    sd: float = 0.0                                  # expected move sd, for the surprise z
+    knowable_before: float = 0.5
+    group: str = ""
+
+    def check(self) -> list:
+        errs = []
+        from engine.research.core import MoveCategory
+        try:
+            MoveCategory(self.category)
+        except ValueError:
+            errs.append(f"unknown category {self.category!r}")
+        leak = identity_leak(self.subject + " " + self.pattern)
+        if leak:
+            errs.append(f"{leak} in subject/pattern")
+        return errs
+
+
+def day_input_from_autopsy(entries: Sequence[AutopsyEntry], now, history: Sequence[PredictionRow] = (), coverage: Mapping | None = None,
+                           z_min: float = 2.5) -> DayInput:
+    """Map the autopsy's categories onto the section-22 sources. Held-and-wrong (FALSE_POSITIVE, or LOSER we predicted) become failed
+    predictions; predicted winners become correct ones; FALSE_NEGATIVE with a positive move is a missed winner (gain share among all
+    missed winners); a negative-move entry we did not avoid is a missed loser; UNPREDICTABLE_MOVER with an sd gives a surprise z;
+    NEAR_MISS entries are counted but make no target (nothing failed). All entries must be strictly before `now`."""
+    entries = list(entries)
+    if not entries:
+        raise TargetError("an autopsy with no entries is not a day")
+    days = {e.day for e in entries}
+    for e in entries:
+        errs = e.check()
+        if errs:
+            raise TargetError("; ".join(errs))
+        require_past(e.day, now, f"autopsy entry {e.subject}")
+    through = max(days)
+    preds, surprises, mw, ml = [], [], [], []
+    mw_total = sum(max(e.move, 0.0) for e in entries if e.category == "FALSE_NEGATIVE") or 1.0
+    ml_total = sum(abs(min(e.move, 0.0)) for e in entries if e.category in ("LOSER", "EXTREME_DOWN") and not e.predicted) or 1.0
+    for e in entries:
+        if e.predicted and e.pattern:
+            preds.append(PredictionRow(e.pattern, e.correct and e.category != "FALSE_POSITIVE", dict(e.features), e.group, e.move))
+        if e.category == "FALSE_NEGATIVE" and e.move > 0:
+            mw.append({"subject": e.subject, "gain_share": e.move / mw_total, "knowable_before": e.knowable_before})
+        if e.category in ("LOSER", "EXTREME_DOWN") and not e.predicted and e.move < 0:
+            ml.append({"subject": e.subject, "loss_share": abs(e.move) / ml_total, "knowable_before": e.knowable_before})
+        if e.category == "UNPREDICTABLE_MOVER" and e.sd > 0 and abs(e.move) / e.sd >= z_min:
+            surprises.append({"subject": e.subject, "z": abs(e.move) / e.sd})
+    return DayInput(through, predictions=preds, surprises=surprises, missed_winners=mw, missed_losers=ml, coverage=dict(coverage or {}),
+                    pattern_history=list(history))
+
+
+def autopsy_counts(entries: Sequence[AutopsyEntry]) -> dict:
+    """Entries per section-4 category, for the day-to-target record."""
+    out: dict = {}
+    for e in entries:
+        out[e.category] = out.get(e.category, 0) + 1
+    return dict(sorted(out.items()))
+
+
+@dataclass
+class DayTargetBook:
+    """The day-to-target record: for every day, what the autopsy contained, which targets it produced, what became of each, and the
+    lineage target -> question -> experiment -> verdict so any finding can be traced to the day that raised it. Append-only."""
+    days: dict = field(default_factory=dict)         # day -> {"counts": {...}, "targets": [ids], "sources": {...}}
+    lineage: dict = field(default_factory=dict)      # target_id -> {"day", "source", "text", "question_id", "experiment_id", "verdict"}
+
+    def record_day(self, day: str, counts: Mapping, report: DayReport) -> None:
+        if day in self.days:
+            raise TargetError(f"day {day} already recorded: the record is append-only")
+        ids = [t.target_id for t in report.targets] + [i for i, _ in report.promoted] + [i for i, _ in report.failed]
+        self.days[day] = {"counts": dict(counts), "targets": ids, "sources": dict(report.by_source), "promoted": [i for i, _ in report.promoted],
+                          "failed": [i for i, _ in report.failed], "blocked": len(report.blocked)}
+        for t in report.targets:
+            self.lineage[t.target_id] = {"day": day, "source": t.source, "text": t.text, "question_id": "", "experiment_id": "", "verdict": "OPEN"}
+
+    def link(self, target_id: str, question_id: str = "", experiment_id: str = "", verdict: str = "") -> None:
+        if target_id not in self.lineage:
+            raise TargetError(f"unknown target {target_id}")
+        row = self.lineage[target_id]
+        for k, v in (("question_id", question_id), ("experiment_id", experiment_id), ("verdict", verdict)):
+            if v:
+                row[k] = v
+
+    def trace(self, target_id: str) -> dict:
+        return dict(self.lineage.get(target_id, {}))
+
+    def open_targets(self) -> list:
+        return sorted(t for t, r in self.lineage.items() if r["verdict"] == "OPEN")
+
+    def yield_by_source(self) -> dict:
+        out: dict = {}
+        for r in self.lineage.values():
+            d = out.setdefault(r["source"], {"n": 0, "useful": 0})
+            d["n"] += 1
+            d["useful"] += int(r["verdict"] in ("PROMOTED", "SUCCESS"))
+        return out
+
+    def to_json(self) -> str:
+        return json.dumps({"days": self.days, "lineage": self.lineage}, sort_keys=True)
+
+    @classmethod
+    def from_json(cls, text: str) -> "DayTargetBook":
+        d = json.loads(text)
+        return cls(d["days"], d["lineage"])
+
+
+def run_autopsy_day(entries: Sequence[AutopsyEntry], now, ledger: TargetLedger, tracker: OpenConditionTracker, book: DayTargetBook,
+                    history: Sequence[DatedRow] = (), state: PRI.PriorityState | None = None, seed: int = 0) -> DayReport:
+    """One full day: autopsy -> day input -> targets (out-of-sample tested against history) -> open trackers for undecided conditions ->
+    advance every open tracker with the history rows -> write the day-to-target record. Returns the DayReport."""
+    day_rows = [dr.row for dr in history if to_ts(dr.day) < to_ts(now)]
+    day = day_input_from_autopsy(entries, now, history=day_rows)
+    rep = run_day(day, now, ledger, state, seed)
+    through = day.matured_through
+    for t in rep.targets:
+        if t.condition is not None:
+            tracker.open(t, through, now)
+    tracker.update([dr for dr in history], now)
+    for tid in tracker.by_state(TrackState.CONFIRMED):
+        ledger.rows.append({"target_id": tid, "key": tid, "source": "failure_condition", "text": "tracked condition", "status": "PROMOTED",
+                            "at": str(now), "evidence_through": through, "detail": "sequential test confirmed", "n_obs": 0})
+    book.record_day(through, autopsy_counts(entries), rep)
+    return rep

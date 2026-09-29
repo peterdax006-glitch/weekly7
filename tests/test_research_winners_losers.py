@@ -607,7 +607,7 @@ def test_bank_is_versioned_gated_and_disjoint_from_opportunities():
 
 def test_condition_that_stops_working_is_contradicted():
     recs = loss_world(seed=35, n_weeks=100)
-    cut = "2020-06-01"
+    cut = "2019-12-01"
     out = []
     for m in recs:
         if m.is_loser(P) and m.decided_at > cut:
@@ -616,7 +616,7 @@ def test_condition_that_stops_working_is_contradicted():
     los = [m for m in out if m.is_loser(P)]
     ctl = [m for m in out if W.is_control(m, P)]
     cohort = L.fit_cohort(out, P, None, 1)
-    ents = {e.signal: e for e in L.mine_risk_conditions(los, ctl, list(cohort.signal_stats), P, L.CauseParams(bank_val_frac=0.4))}
+    ents = {e.signal: e for e in L.mine_risk_conditions(los, ctl, list(cohort.signal_stats), P, L.CauseParams(bank_val_frac=0.3))}
     if "dn" in ents:
         assert ents["dn"].state is not Epistemic.SUPPORTED
 

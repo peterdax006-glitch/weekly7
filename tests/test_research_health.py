@@ -337,7 +337,7 @@ def test_stale_repeat_in_failed_area_earns_nothing_and_new_hypothesis_reopens():
     ob = c.observe(b, "2020-03-01")
     assert ob.stale_repeat and not ob.useful
     assert not D.propose_hypothesis(c, "FAILED_NEW_HYPOTHESIS", "h", "c1")
-    for i in range(35):
+    for i in range(45):
         c.observe(dataclasses.replace(mk(10 + i, "FAILED_NEW_HYPOTHESIS", "g", day=2 + i), config_hash=f"z{i}"), "2020-04-01")
     assert c.is_dead(Area.FAILED_NEW_HYPOTHESIS)
     assert D.propose_hypothesis(c, "FAILED_NEW_HYPOTHESIS", "g", "brand-new") and not c.is_dead(Area.FAILED_NEW_HYPOTHESIS)
@@ -480,3 +480,99 @@ def test_reports_written(tmp_path):
     assert path.exists() and D.area_table(c, "2021-01-04") and D.explain_shift(None, p)
     assert D.hard_quota(B.Directives()) < D.hard_quota(B.Directives(reopen_questions=("q",)))
     assert "Diversity plan" in p.render() and set(D.target_pressure(p)) <= {t.value for t in D.RP.ResearchTarget}
+
+
+def test_area_health_finds_a_dead_area_and_null_is_quiet():
+    rows = [mk(i, "DIRECTION", "d", day=i) for i in range(40)] + [mk(100 + i, "RISK", "r", ok=i % 3 == 0, day=i) for i in range(40)]
+    ah = B.area_health(rows, B.HealthConfig())
+    assert ah["DIRECTION"]["level"] is Level.ALARM and ah["RISK"]["level"] is Level.OK
+    assert ah["REGIME"]["level"] is Level.UNKNOWN
+
+
+def test_rolling_metric_and_compare_reports():
+    rows = sim("monopoly", n=400)
+    cps = [B.dt_iso(iso(d)) for d in (80, 140, 200)]
+    ser = B.rolling_metric(rows, "research_concentration", B.HealthConfig(), cps)
+    assert [c for c, _, _ in ser] == cps and ser[-1][1] > ser[0][1]
+    with pytest.raises(KeyError):
+        B.rolling_metric(rows, "nope", B.HealthConfig(), cps)
+    a, b = B.step(sim("healthy", n=400), "2021-06-01"), B.step(rows, after(rows))
+    cmp = B.compare_reports(a, b)
+    assert "research_concentration" in cmp["worse"] and "FAMILY_MONOPOLY" in cmp["new_findings"]
+
+
+def test_merge_directives_is_conservative():
+    m = D.merge_directives(B.Directives({"RISK": 2.0}, {"f": 0.5}, ("q1",), 0.2), B.Directives({"RISK": 1.5}, {"f": 0.3}, ("q1", "q2"), 0.4))
+    assert m.area_multiplier["RISK"] == pytest.approx(3.0) and m.family_caps["f"] == 0.3
+    assert m.reopen_questions == ("q1", "q2") and m.min_explore_share == 0.4
+
+
+def test_controller_beats_naive_baselines_in_planted_world():
+    truth = {a: 0.05 for a in D.AREAS}
+    truth[Area.DIRECTION] = 0.45
+    r = D.compare_with_baselines(truth, 25, 400.0, [0, 1])
+    m = r["mean_late_rate"]
+    assert m["controller"] > 1.8 * max(m["uniform"], m["prior"], m["random"]), r
+    assert m["controller"] >= 0.9 * m["greedy"], r          # greedy is near-optimal here; the controller must not lag it badly
+    with pytest.raises(ValueError):
+        D._baseline_shares("bogus", D.DiversityController(), np.random.default_rng(0))
+
+
+def test_novelty_and_cap_sensitivity():
+    c = D.DiversityController()
+    for i in range(30):
+        c.observe(mk(i, "RISK", "r", day=i), "2020-03-01")
+    Q = type("Q", (), {})
+    qs = []
+    for i, src in enumerate(["loss", "regime", "regime"]):
+        q = Q()
+        q.question_id, q.source, q.problem = f"q{i}", src, None
+        qs.append(q)
+    n = D.novelty_of_questions(c, qs)
+    assert n["novel_share"] == pytest.approx(2 / 3)
+    assert D.novelty_of_questions(c, [])["n"] == 0
+    sens = D.sensitivity_to_caps(c, "2020-03-01", 600.0, 0)
+    assert set(sens) == {0.3, 0.45, 0.6} and sens[0.3].get("max_area_share", 0) <= 0.3 + 1e-9
+
+
+def test_family_lifecycle_and_claim_calibration():
+    rows = [mk(i, "RISK", "dead", day=i) for i in range(40)] + [mk(100 + i, "RISK", "live", ok=True, day=i, ) for i in range(40)]
+    rows = [dataclasses.replace(o, gain_bits=(0.5 if o.family == "live" else 0.0)) for o in rows]
+    fl = B.family_lifecycle(rows, B.HealthConfig())
+    assert fl["dead"]["state"] in ("STAGNANT", "EXHAUSTED") and fl["live"]["state"] == "PRODUCTIVE"
+    assert B.family_lifecycle([mk(0)], B.HealthConfig())["f"]["state"] == "EMERGING"
+    rng = np.random.default_rng(0)
+    cl = [mk(i, ok=True, claimed_discovery=True, p_value=float(rng.random() * 0.05), false_discovery=bool(rng.random() < 0.3)) for i in range(60)]
+    cal = B.claim_calibration(cl)
+    assert len(cal) == 4 and B.claim_calibration([]) == []
+
+
+def test_diversity_history_trend_and_adherence():
+    c = D.DiversityController()
+    for r in range(6):
+        D.step(c, B.dt_iso(iso(7 * r)), [], 600.0, r)
+    assert len(D.diversity_history(c)) == 6 and D.diversity_trend(c)["verdict"] in ("STEADY", "RISING", "FALLING")
+    assert D.diversity_trend(D.DiversityController())["verdict"] == "INSUFFICIENT"
+    p = D.step(D.DiversityController(), "2021-01-04", [], 600.0, 0)
+    only_one = [mk(i, "RISK", day=i) for i in range(10)]
+    assert D.plan_vs_realised(p, only_one)["ignored"]
+
+
+def test_adapted_specs_shift_toward_the_paying_area_and_stay_valid():
+    c = D.DiversityController()
+    for i in range(60):
+        c.observe(mk(i, "VOLATILITY", "v", ok=i % 2 == 0, day=i), "2020-04-01")
+        c.observe(mk(100 + i, "DATA_QUALITY", "q", day=i), "2020-04-01")
+    new = D.adapted_specs(c)
+    assert not D.validate_specs(new)
+    assert new[Area.VOLATILITY].prior_share > c.specs[Area.VOLATILITY].prior_share
+    assert new[Area.DATA_QUALITY].prior_share <= c.specs[Area.DATA_QUALITY].prior_share
+    with pytest.raises(ValueError):
+        D.adapted_specs(c, 1.5)
+
+
+def test_explore_exploit_audit_flags_hollow_exploration():
+    p = D.step(D.DiversityController(), "2021-01-04", [], 600.0, 0)
+    rows = [mk(i, "RISK", day=i) for i in range(20)]
+    a = D.explore_exploit_audit(p, rows)
+    assert "RISK" in a["hollow_exploration"] and a["exploit_overrun"] < 0
