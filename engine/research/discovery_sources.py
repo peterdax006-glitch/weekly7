@@ -852,6 +852,56 @@ def f_persistence(w: Wide, inp: SourceInputs, cfg: SourceConfig) -> dict:
             "m_rank_persistence": rho, "m_rank_persistence_21": rho.rolling(21, min_periods=15).mean()}
 
 
+def f_volprofile(w: Wide, inp: SourceInputs, cfg: SourceConfig) -> dict:
+    """How concentrated a stock's recent volume is, and how unusual today's is against its own history (z-scores use only the past)."""
+    v, c = w.volume, w.close
+    lv = np.log1p(v)
+    mu, sd = lv.rolling(63, min_periods=40).mean().shift(1), lv.rolling(63, min_periods=40).std().shift(1)
+    maxshare = v.rolling(21, min_periods=15).max() / v.rolling(21, min_periods=15).sum().where(lambda x: x > 0)
+    dv = c * v
+    return {"volume_z": (lv - mu) / sd.where(sd > 0), "volume_max_share_21": maxshare, "volume_max_10_over_avg": v.rolling(10, min_periods=7).max() / v.rolling(63, min_periods=40).mean(),
+            "dollar_volume_rank_change_21": dv.rank(axis=1, pct=True) - dv.rank(axis=1, pct=True).shift(21),
+            "volume_cv_21": v.rolling(21, min_periods=15).std() / v.rolling(21, min_periods=15).mean().where(lambda x: x > 0)}
+
+
+def f_compression(w: Wide, inp: SourceInputs, cfg: SourceConfig) -> dict:
+    """Contraction and expansion of range: Bollinger width against its own history, consecutive narrow days, the first wide day after a squeeze."""
+    c, h, l = w.close, w.high, w.low
+    width = 4.0 * c.rolling(20, min_periods=15).std() / c.rolling(20, min_periods=15).mean()
+    wpct = width.rolling(126, min_periods=80).rank(pct=True)
+    rng = (h - l) / c
+    narrow = rng <= rng.rolling(20, min_periods=15).quantile(0.25).shift(1)
+    squeeze = wpct <= 0.1
+    return {"bb_width": width, "bb_width_pct_126": wpct, "narrow_streak": _consecutive(narrow), "squeeze_days": _consecutive(squeeze),
+            "expansion_after_squeeze": (squeeze.shift(1, fill_value=False) & ~squeeze).astype(float).where(width.notna()),
+            "range_ratio_3_20": rng.rolling(3, min_periods=3).mean() / rng.rolling(20, min_periods=15).mean()}
+
+
+def f_shortpath(w: Wide, inp: SourceInputs, cfg: SourceConfig) -> dict:
+    """Two- and three-day shapes: reversal of the last three days, gap-and-go, thrust days, and closes that fail to follow through."""
+    o, c, r = w.open, w.close, w.ret
+    r2, r3 = c.pct_change(2, fill_method=None), c.pct_change(3, fill_method=None)
+    rv = r.rolling(63, min_periods=40).std().shift(3)
+    gap = o / c.shift(1) - 1.0
+    return {"ret_2": r2, "ret_3": r3, "ret_3_z": r3 / (rv * math.sqrt(3.0)).where(rv > 0), "reversal_3": -(r3) * (np.sign(r) != np.sign(r3)).astype(float),
+            "gap_and_go": ((gap > 0.01) & (c > o)).astype(float).where(gap.notna()), "gap_and_fade": ((gap > 0.01) & (c < o)).astype(float).where(gap.notna()),
+            "follow_through_1": r * np.sign(r.shift(1)), "thrust_day": ((r.abs() > 2 * rv) & (r.abs() > 0.03)).astype(float).where(rv.notna())}
+
+
+def f_tails(w: Wide, inp: SourceInputs, cfg: SourceConfig) -> dict:
+    """Downside structure and asymmetry: expected shortfall, worst day, share of days beyond two sd, up- versus down-market beta."""
+    r, m = w.ret, w.mkt_ret
+    sd = r.rolling(63, min_periods=40).std()
+    q05 = r.rolling(63, min_periods=40).quantile(0.05)
+    es = r.where(r <= q05).rolling(63, min_periods=40).mean()
+    up, dn = m > 0, m < 0
+    beta_up = (r.where(up).rolling(126, min_periods=40).cov(m.where(up)) / m.where(up).rolling(126, min_periods=40).var())
+    beta_dn = (r.where(dn).rolling(126, min_periods=40).cov(m.where(dn)) / m.where(dn).rolling(126, min_periods=40).var())
+    return {"expected_shortfall_63": es, "worst_day_63": r.rolling(63, min_periods=40).min(), "best_day_63": r.rolling(63, min_periods=40).max(),
+            "tail_share_63": ((r.abs() > 2 * sd).astype(float).where(sd.notna())).rolling(63, min_periods=40).mean(),
+            "beta_up": beta_up, "beta_down": beta_dn, "beta_asymmetry": beta_up - beta_dn}
+
+
 # ------------------------------------------------------------------------------------------------------- the registry
 @dataclasses.dataclass(frozen=True)
 class FamilySpec:
@@ -904,6 +954,10 @@ FAMILIES: dict[str, FamilySpec] = {s.name: s for s in (
     FamilySpec("seasonality", f_seasonality, (), _A.KNOWN_BEFORE_EVENT, "the stock's own weekday and month habits, from the past only"),
     FamilySpec("extremes", f_extremes, (), _A.KNOWN_BEFORE_EVENT, "position in the 10/20/60-day range, new highs and lows, failed breakouts"),
     FamilySpec("persistence", f_persistence, (), _A.KNOWN_BEFORE_EVENT, "cross-sectional rank stability and rank change"),
+    FamilySpec("volprofile", f_volprofile, (), _A.KNOWN_BEFORE_EVENT, "concentration and unusualness of volume against the stock's own past"),
+    FamilySpec("compression", f_compression, (), _A.KNOWN_BEFORE_EVENT, "range squeeze, narrow-day streaks and the first expansion after them"),
+    FamilySpec("shortpath", f_shortpath, (), _A.KNOWN_BEFORE_EVENT, "two- and three-day shapes: reversals, gap-and-go, thrust days"),
+    FamilySpec("tails", f_tails, (), _A.KNOWN_BEFORE_EVENT, "expected shortfall, worst day, tail share, up- versus down-market beta"),
     FamilySpec("volprice", f_volprice, (), _A.KNOWN_BEFORE_EVENT, "VWAP distance, volume-weighted momentum, price-volume divergence"),
 )}
 DERIVED_FAMILIES = ("learned",)                   # built from other families' columns, never from raw inputs

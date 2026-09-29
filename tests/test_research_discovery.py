@@ -243,7 +243,7 @@ def test_ledger_detects_tampering_roundtrip_and_bad_input():
     back = D.TrialLedger.from_dict(led.to_dict())
     assert back.total_trials == 2 and back.verify() == []
     d = led.to_dict()
-    d["runs"][0]["n_trials"] = 99
+    d["log"][0]["n_trials"] = 99
     with pytest.raises(D.DiscoveryError):
         D.TrialLedger.from_dict(d)
     with pytest.raises(D.DiscoveryError):
@@ -1052,3 +1052,47 @@ def test_there_is_one_ledger_discovery_extends_the_interactions_one():
     plain = IL.TrialLedger()
     plain.register("k", [D._TrialRef("z")])
     assert D.TrialLedger.from_dict(plain.to_dict()).m_total("k") == 1                           # a base-format dict loads too
+
+
+# ================================================================== fresh holdout and the last families
+def test_last_families_pass_the_pit_audit(planted):
+    assert DS.audit_pit(planted, ["volprofile", "compression", "shortpath", "tails"], SCFG) == []
+    fb = DS.build_features(planted, ["volprofile", "compression", "shortpath", "tails"], SCFG)
+    assert {"volprofile", "compression", "shortpath", "tails"} <= set(fb.families()) and len(DS.FAMILIES) >= 30
+
+
+def test_fresh_holdout_opens_once_refuses_overlap_and_confirms_a_real_effect(tmp_path):
+    w = world(n_t=30, n_d=760, seed=11, plant=0.02, extras=False)          # ~3 years: discover on the first, hold out the last
+    st = D.DiscoveryState()
+    e = engine()
+    e.step(st, "2020-01-01", w, families=["relvol", "price"])
+    surviving = [pid for pid, d in st.dossiers.items() if d.verdict == GateVerdict.NEEDS_MORE_EVIDENCE]
+    assert surviving
+    vault = D.restore_vault(st)
+    load = slice_loader(w)
+    with pytest.raises(D.DiscoveryError):
+        D.fresh_holdout_test(st, vault, "w", load, [], CFG)
+    early = D.fresh_holdout_test(st, vault, "overlap", load, [2019], CFG, SCFG)          # inside what discovery saw: not fresh
+    assert early["opened"] == 0 and early["skipped_overlap"] == len(surviving)
+    out = D.fresh_holdout_test(st, vault, "fresh2021", load, [2021], CFG, SCFG, now="2022-06-01")
+    assert out["opened"] == len(surviving) and out["confirmed"] + out["reversed"] + out["inconclusive"] == out["opened"]
+    assert out["confirmed"] >= 1 and all(st.holdout[p]["window"] == "fresh2021" for p in surviving)
+    again = D.fresh_holdout_test(st, vault, "fresh2021", load, [2021], CFG, SCFG, now="2022-06-01")
+    assert again["opened"] == 0                                                        # the window is spent for these patterns
+    rebuilt = D.restore_vault(st)
+    assert rebuilt.count("fresh2021") == len(surviving) and rebuilt.was_opened("fresh2021", surviving[0])
+    with pytest.raises(Exception):
+        rebuilt.open("fresh2021", surviving[:1])                                        # HoldoutSpent
+    assert any(st.dossiers[p].confirmations > 0 for p in surviving) and D.audit_state(st) == []
+    st.save(tmp_path / "ck")
+    assert D.DiscoveryState.load(tmp_path / "ck").holdout == st.holdout
+
+
+def test_fresh_holdout_does_not_confirm_a_null_pattern():
+    nullw = world(n_t=30, n_d=760, seed=12, plant=0.0, extras=False)
+    st = D.DiscoveryState()
+    engine().step(st, "2020-01-01", nullw, families=["relvol", "price"])
+    if not any(d.verdict == GateVerdict.NEEDS_MORE_EVIDENCE for d in st.dossiers.values()):
+        return                                              # nothing survived discovery in the null draw: the desired outcome
+    out = D.fresh_holdout_test(st, D.restore_vault(st), "fresh2021", slice_loader(nullw), [2021], CFG, SCFG, now="2022-06-01")
+    assert out["opened"] > 0 and out["confirmed"] <= max(1, out["opened"] // 4)

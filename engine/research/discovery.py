@@ -1557,6 +1557,7 @@ class DiscoveryState:
     dossiers: dict[str, Dossier] = dataclasses.field(default_factory=dict)
     families: dict[str, FamilyRecord] = dataclasses.field(default_factory=dict)
     pit: dict[str, list[str]] = dataclasses.field(default_factory=dict)         # family|fingerprint -> audit findings
+    holdout: dict[str, dict[str, Any]] = dataclasses.field(default_factory=dict)         # pattern -> its one fresh-window result
     unit_evidence: dict[str, dict[str, list[float]]] = dataclasses.field(default_factory=dict)   # pattern -> unit -> [val mean, se, dir, t_disc]
     steps: int = 0
     history: list[StepReport] = dataclasses.field(default_factory=list)
@@ -1572,6 +1573,7 @@ class DiscoveryState:
             "ledger.json": self.ledger.to_dict(),
             "dossiers.json": {k: KN.encode(v) for k, v in self.dossiers.items()},
             "units.json": self.unit_evidence,
+            "holdout.json": self.holdout,
             "meta.json": {"steps": self.steps, "wealth": [self.wealth.wealth, self.wealth.payout, self.wealth.spend_frac, self.wealth.floor],
                           "families": {k: dataclasses.asdict(v) for k, v in self.families.items()}, "pit": self.pit},
         }
@@ -1586,6 +1588,8 @@ class DiscoveryState:
         s = cls()
         s.store = KN.KnowledgeStore.load(d / "knowledge.jsonl")
         s.ledger = TrialLedger.from_dict(json.loads((d / "ledger.json").read_bytes()))
+        if (d / "holdout.json").exists():
+            s.holdout = json.loads((d / "holdout.json").read_bytes())
         if (d / "units.json").exists():
             s.unit_evidence = json.loads((d / "units.json").read_bytes())
         s.dossiers = {k: KN.decode(Dossier, v) for k, v in json.loads((d / "dossiers.json").read_bytes()).items()}
@@ -3209,3 +3213,73 @@ def insiders_table(df: pd.DataFrame, filed_col: str = "filed_at", value_col: str
     if insider_col and insider_col in df.columns:
         out["insider"] = df[insider_col].astype(str)
     return out.dropna(subset=["filed_at", "value"]).reset_index(drop=True)
+
+
+# ======================================================================================================================
+# Fresh one-shot holdout (contract section 48: unseen time is required, same-year improvement is only interesting)
+# ======================================================================================================================
+def restore_vault(state: DiscoveryState) -> "_IL.HoldoutVault":
+    """Rebuild the shared one-shot vault (engine.research.interactions.HoldoutVault) from what the state has already opened, so a restart
+    can never hand a spent window to the same pattern twice."""
+    vault = _IL.HoldoutVault()
+    by_window: dict[str, list[str]] = {}
+    for pid, rec in state.holdout.items():
+        by_window.setdefault(rec["window"], []).append(pid)
+    for key, ids in by_window.items():
+        vault.open(key, ids)
+    return vault
+
+
+def fresh_holdout_test(state: DiscoveryState, vault: "_IL.HoldoutVault", window_key: str, loader: Callable[[pd.Timestamp, pd.Timestamp], DS.SourceInputs],
+                       years: Sequence[int], cfg: DiscoveryConfig, source_cfg: DS.SourceConfig = DS.DEFAULT_SOURCE_CONFIG, now=None,
+                       q_max: float = 0.10, max_patterns: int = 200) -> dict[str, int]:
+    """Open a fresh window ONCE for every surviving pattern that has not seen it. Refused (FirewallBreach) for a pattern whose discovery
+    outcomes reach into the window - a window that overlaps what the pattern was fitted on is not fresh. The batch is judged with BH over
+    every id the vault has ever opened for this window, so opening the same window for more and more patterns gets harder, not easier.
+    A confirmation is filed on the dossier and in the family record; a reversal is filed as a failure."""
+    if not years:
+        raise DiscoveryError("a holdout needs at least one year")
+    start = pd.Timestamp(year=min(years), month=1, day=1)
+    todo, skipped_overlap = [], 0
+    for pid, d in sorted(state.dossiers.items()):
+        if d.verdict != GateVerdict.NEEDS_MORE_EVIDENCE or vault.was_opened(window_key, pid):
+            continue
+        if pd.Timestamp(d.outcomes_seen_through) >= start:
+            skipped_overlap += 1
+            continue
+        try:
+            todo.append((pid, Cand(PI.Expression.parse(d.text), "holdout", d.families)))
+        except PI.IdentityError:
+            continue
+        if len(todo) >= max_patterns:
+            break
+    out = {"opened": 0, "confirmed": 0, "reversed": 0, "inconclusive": 0, "skipped_overlap": skipped_overlap}
+    if not todo:
+        return out
+    n_total = vault.open(window_key, [pid for pid, _ in todo])
+    need = sorted({f.split("__")[0].removeprefix("m_") for _, c in todo for f in c.expr.features})
+    ss, _ = stream_screen(loader, years, [c for _, c in todo], cfg.horizon, need, source_cfg, now)
+    st = ss.stats(lags=cfg.lags, min_weeks=cfg.context_min_weeks)
+    z = np.array([st["t"][i] * state.dossiers[pid].direction for i, (pid, _) in enumerate(todo)])
+    p1 = np.where(st["n_weeks"] >= cfg.context_min_weeks, sps.norm.sf(z), 1.0)
+    order = np.argsort(p1, kind="mergesort")
+    q = np.ones(len(todo))
+    run = 1.0
+    for rank in range(len(todo), 0, -1):
+        run = min(run, p1[order[rank - 1]] * n_total / rank)
+        q[order[rank - 1]] = min(run, 1.0)
+    for i, (pid, _) in enumerate(todo):
+        d = state.dossiers[pid]
+        fam = d.families[0] if d.families else "?"
+        verdict = "confirmed" if (q[i] <= q_max and z[i] > 0) else "reversed" if z[i] <= -cfg.z_val and st["n_weeks"][i] >= cfg.context_min_weeks else "inconclusive"
+        state.holdout[pid] = {"window": window_key, "t": float(st["t"][i]), "mean": float(st["mean"][i]), "se": float(st["se"][i]) if math.isfinite(st["se"][i]) else None,
+                              "n_weeks": int(st["n_weeks"][i]), "q": float(q[i]), "verdict": verdict, "opened_for_window": int(n_total)}
+        out["opened"] += 1
+        out[verdict] += 1
+        if verdict == "confirmed":
+            state.dossiers[pid] = dataclasses.replace(d, confirmations=d.confirmations + 1)
+            state.ledger.confirm(fam, True)
+        elif verdict == "reversed":
+            state.ledger.confirm(fam, False)
+            state.dossiers[pid] = dataclasses.replace(d, reasons=d.reasons + (f"reversed on fresh holdout {window_key}",))
+    return out
