@@ -90,22 +90,28 @@
    "phase": "A FOUNDATION",
    "description": "Define situation representation.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
-    "engine/memory.py::context_of",
+    "engine/learning/context.py",
+    "engine/learning/retrieval.py",
+    "engine/learning/similarity.py",
+    "engine/learning/situation.py",
+    "engine/learning_delta.py::snapshot_key",
     "engine/lessons.py::_situation",
-    "engine/learning_delta.py::snapshot_key"
+    "engine/memory.py::context_of"
    ],
    "tests": [
+    "tests/test_learning_retrieval.py",
+    "tests/test_learning_situation.py",
     "tests/test_memory.py"
    ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[under-depth] 7 market-context columns and a 4-field lesson situation; no identity-free situation type."
+   "last_run": "2026-09-29T09:43:59",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S04). identity-free situations from decision-time data; 10-component explained similarity; retrieval ranked on 10 factors with explanations; ABSTAIN unless walk-forward skill PROVEN (old episodic retrieval skill was -0.16). | earlier: [under-depth] 7 market-context columns and a 4-field lesson situation; no identity-free situation type."
   },
   {
    "id": "A05",
@@ -757,21 +763,27 @@
    "phase": "C LEARNING",
    "description": "Implement situation description.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
-    "engine/memory.py::context_of",
-    "engine/lessons.py::_situation"
+    "engine/learning/context.py",
+    "engine/learning/retrieval.py",
+    "engine/learning/similarity.py",
+    "engine/learning/situation.py",
+    "engine/lessons.py::_situation",
+    "engine/memory.py::context_of"
    ],
    "tests": [
+    "tests/test_learning_retrieval.py",
+    "tests/test_learning_situation.py",
     "tests/test_memory.py"
    ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[under-depth] See A04."
+   "last_run": "2026-09-29T09:43:59",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S04). identity-free situations from decision-time data; 10-component explained similarity; retrieval ranked on 10 factors with explanations; ABSTAIN unless walk-forward skill PROVEN (old episodic retrieval skill was -0.16). | earlier: [under-depth] See A04."
   },
   {
    "id": "C03",
@@ -780,14 +792,20 @@
    "owner": "Claude",
    "status": "FAILED",
    "code_paths": [
+    "engine/analogs*.py",
+    "engine/learning/context.py",
+    "engine/learning/retrieval.py",
+    "engine/learning/similarity.py",
+    "engine/learning/situation.py",
     "engine/memory.py::Memory",
-    "engine/pattern_memory.py::PatternMemory.view",
-    "engine/analogs*.py"
+    "engine/pattern_memory.py::PatternMemory.view"
    ],
    "tests": [
+    "tests/test_analogs_ext.py",
+    "tests/test_learning_retrieval.py",
+    "tests/test_learning_situation.py",
     "tests/test_memory.py",
-    "tests/test_memory_ext.py",
-    "tests/test_analogs_ext.py"
+    "tests/test_memory_ext.py"
    ],
    "evidence": [
     "state/research/memory_adapter/results.json"
@@ -795,9 +813,9 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "IMPLEMENTED — FAILED VALIDATION. Retrieval exists; real walk-forward skill -0.16 (CI -0.20..-0.12), IC -0.029 (memory_adapter/results.json)."
+   "last_run": "2026-09-29T09:43:59",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S04). identity-free situations from decision-time data; 10-component explained similarity; retrieval ranked on 10 factors with explanations; ABSTAIN unless walk-forward skill PROVEN (old episodic retrieval skill was -0.16). | earlier: IMPLEMENTED — FAILED VALIDATION. Retrieval exists; real walk-forward skill -0.16 (CI -0.20..-0.12), IC -0.029 (memory_adapter/results.json)."
   },
   {
    "id": "C04",
@@ -4605,15 +4623,16 @@
   {
    "section": "Context modeling",
    "minimum_lines": 1200,
-   "actual_lines": 169,
+   "actual_lines": 1203,
    "code_paths": [
+    "engine/learning/context.py",
     "engine/memory.py::context_of,era_of,era_gap (19)",
     "engine/pattern_memory.py::_ctx_sim (8)",
-    "engine/pattern_stats.py::context_similarity,context_now,relevance,recency_weight,era_weight,era_of (62)",
-    "engine/pattern_reliability.py::_publication_lag,expanding_percentile,build_context,meta_wide,build_examples,feature_columns (80)"
+    "engine/pattern_reliability.py::_publication_lag,expanding_percentile,build_context,meta_wide,build_examples,feature_columns (80)",
+    "engine/pattern_stats.py::context_similarity,context_now,relevance,recency_weight,era_weight,era_of (62)"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "UNDER by 1031 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: context vectors (7 m_* columns), kernel similarity and pattern_reliability's P(hold | context) features. No P(outcome | pattern, NOT context), no sector/stock-type/liquidity/correlation/position context dims, no hierarchical pooling of context buckets. pattern_reliability is being live-edited by builders."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S04). | earlier: UNDER by 1031 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: context vectors (7 m_* columns), kernel similarity and pattern_reliability's P(hold | context) features. No P(outcome | pattern, NOT context), no sector/stock-type/liquidity/correlation/position context dims, no hierarchical pooling of context buckets. pattern_reliability is being live-edited by builders."
   },
   {
    "section": "Failure learning",
@@ -4685,38 +4704,41 @@
   {
    "section": "Situation representation",
    "minimum_lines": 1000,
-   "actual_lines": 67,
+   "actual_lines": 1010,
    "code_paths": [
+    "engine/learning/situation.py",
+    "engine/learning_delta.py::snapshot_key (4)",
     "engine/lessons.py::identity_proxy_columns,usable_features,_check_no_identity,_situation (42)",
-    "engine/memory.py::sanitize_features,coarse_date (21)",
-    "engine/learning_delta.py::snapshot_key (4)"
+    "engine/memory.py::sanitize_features,coarse_date (21)"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "UNDER by 933 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). under-depth: identity scrubbing and a 4-field lesson situation exist; no identity-independent situation object built from decision-time data, no ticker/date/year/sector scramble tests of a situation encoder."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S04). | earlier: UNDER by 933 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). under-depth: identity scrubbing and a 4-field lesson situation exist; no identity-independent situation object built from decision-time data, no ticker/date/year/sector scramble tests of a situation encoder."
   },
   {
    "section": "Situation similarity",
    "minimum_lines": 900,
-   "actual_lines": 1101,
+   "actual_lines": 904,
    "code_paths": [
     "engine/analog_weighting.py (687)",
     "engine/analogs.py (99)",
     "engine/analogs_sector.py (151)",
-    "engine/analogs_stock.py (164)"
+    "engine/analogs_stock.py (164)",
+    "engine/learning/similarity.py"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "MET (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: analog engines + feature weighting compute ONE distance. Contract needs 10 stored component scores (structural, market, vol, liquidity, pattern, regime, sector, stock-type, recent-history, failure-risk). Analogs showed no edge in foundation research."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S04). | earlier: MET (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: analog engines + feature weighting compute ONE distance. Contract needs 10 stored component scores (structural, market, vol, liquidity, pattern, regime, sector, stock-type, recent-history, failure-risk). Analogs showed no edge in foundation research."
   },
   {
    "section": "Knowledge retrieval",
    "minimum_lines": 1100,
-   "actual_lines": 416,
+   "actual_lines": 1106,
    "code_paths": [
+    "engine/learning/retrieval.py",
     "engine/memory.py::Memory (345)",
     "engine/memory_diagnostics.py::episode_table,concentration,factor_attribution,explain,_shrunk (71)"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "UNDER by 684 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: factor-weighted episodic retrieval with per-factor attribution (6 factors); explainable. Missing reliability/transfer/contradiction/redundancy terms. Real walk-forward skill -0.16 (CI -0.20..-0.12): FAILED."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S04). | earlier: UNDER by 684 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: factor-weighted episodic retrieval with per-factor attribution (6 factors); explainable. Missing reliability/transfer/contradiction/redundancy terms. Real walk-forward skill -0.16 (CI -0.20..-0.12): FAILED."
   },
   {
    "section": "Contradiction graph",
