@@ -1508,3 +1508,452 @@ def replay_schedule(policy: LadderPolicy, truth: Mapping[str, float], seed: int,
             out["null_funded_past_rung2"].append(n)
     out["problems"] = audit_ladder(st, policy) + conservation_errors(st)
     return out
+
+
+# ------------------------------------------------------------------------------------------------ evidence builders
+def pooled_evidence(stage: Stage, per_unit: Mapping[str, tuple[float, float, int]], data_through: str, cost_cpu_min: float,
+                    fresh: bool = False, replications: int = 0, n_tests: int = 1, n_positive: int | None = None,
+                    complexity_added: float = 0.0) -> StageEvidence:
+    """Build a StageEvidence from per-unit results {unit: (effect, se, n_obs)} (units = contexts at rung 2, years at rung 3).
+    The pooled effect is the inverse-variance random-effects mean (DerSimonian-Laird), so a heterogeneous family of contexts widens
+    the standard error instead of hiding disagreement; units_positive counts contexts agreeing in sign with the pooled effect."""
+    items = [(float(e), float(s), int(n)) for e, s, n in per_unit.values() if math.isfinite(e) and math.isfinite(s) and s > 0]
+    if not items:
+        return StageEvidence(stage, 0, 0.0, 0.0, n_tests, n_positive or 0, 1, 0, replications, fresh, data_through, cost_cpu_min,
+                             complexity_added=complexity_added)
+    e = np.array([i[0] for i in items])
+    w = 1.0 / np.array([i[1] ** 2 for i in items])
+    fixed = float((w * e).sum() / w.sum())
+    q = float((w * (e - fixed) ** 2).sum())
+    k = len(items)
+    c = float(w.sum() - (w ** 2).sum() / w.sum())
+    tau2 = max(0.0, (q - (k - 1)) / c) if k > 1 and c > 0 else 0.0
+    wr = 1.0 / (1.0 / w + tau2)
+    pooled = float((wr * e).sum() / wr.sum())
+    se = float(math.sqrt(1.0 / wr.sum()))
+    agree = int(np.sum(np.sign(e) == (1.0 if pooled >= 0 else -1.0)))
+    n_tot = sum(i[2] for i in items)
+    return StageEvidence(stage, n_tot, pooled, se, n_tests, n_positive if n_positive is not None else agree, k, agree, replications,
+                         fresh, data_through, cost_cpu_min, complexity_added=complexity_added)
+
+
+def evidence_from_screen(stage_scores: Sequence[float], se_each: float, n_obs_each: int, data_through: str, cost_cpu_min: float) -> StageEvidence:
+    """Rung-1 evidence from many cheap tests of the SAME hypothesis (different seeds/cuts): the mean effect over tests, its
+    standard error from the tests' own spread (not from the nominal se, which the tests share), and the sign agreement count."""
+    x = np.asarray(stage_scores, dtype=float)
+    x = x[np.isfinite(x)]
+    n = len(x)
+    if n == 0:
+        return StageEvidence(Stage.CHEAP_SCREEN, 0, 0.0, 0.0, 1, 0, 1, 0, 0, False, data_through, cost_cpu_min)
+    spread = float(x.std(ddof=1) / math.sqrt(n)) if n > 1 else se_each
+    se = max(spread, se_each / math.sqrt(n))
+    return StageEvidence(Stage.CHEAP_SCREEN, n * n_obs_each, float(x.mean()), se, n, int(np.sum(x > 0)), 1, 0, 0, False, data_through, cost_cpu_min)
+
+
+# ------------------------------------------------------------------------------------------------ dispatch
+def dispatch_jobs(state: ManagerState, sel: Selection, out_root: str | Path, spec_dir: str | Path, ledger_path: str | Path,
+                  now, seed: int = 0, python: str | None = None) -> list:
+    """resources.Job objects for a Selection, ready for engine.resources.JobQueue: each runs one ExperimentSpec in its own process
+    (engine.learning.compute.job_for). Nothing is launched here; ordering is by rung then branch id, so cheap work is queued first."""
+    jobs = []
+    for a in sorted(sel.allocations, key=lambda a: (stage_index(a.stage), a.branch_id)):
+        spec = to_spec(state, a, now, seed)
+        jobs.append(C.job_for(spec, spec_dir, out_root, ledger_path, python))
+    return jobs
+
+
+def machine_budget(cpu_minutes: float, real_data_slots: int = 1, free_gb: float | None = None) -> ComputeBudget:
+    """A round's ComputeBudget from the machine's actual free memory (CONTEXT rule 10: nothing starts under the RAM floor)."""
+    free = free_gb if free_gb is not None else (R.memory_gb()[0] or 0.0)
+    return ComputeBudget(cpu_minutes, free, safety_ram_gb=C.MIN_FREE_GB, real_data_slots=real_data_slots)
+
+
+def family_fairness(state: ManagerState, max_share: float = 0.5) -> dict:
+    """Share of all compute spent per family; a family above `max_share` is over-served and is listed, so one productive-looking
+    line of work cannot crowd out the rest (research diversity, section 38)."""
+    tot = sum(b.total_spent for b in state.branches.values())
+    per: dict[str, float] = {}
+    for b in state.branches.values():
+        per[b.family] = per.get(b.family, 0.0) + b.total_spent
+    shares = {f: (v / tot if tot > 0 else 0.0) for f, v in sorted(per.items())}
+    return {"shares": shares, "over": {f: s for f, s in shares.items() if s > max_share}, "total_cpu_min": tot}
+
+
+def diversify(alloc: Sequence[Allocation], state: ManagerState, max_share: float = 0.5) -> tuple[list[Allocation], list[tuple[str, str]]]:
+    """Drop allocations of an over-served family until its share of THIS round falls to `max_share` (lowest-scored first).
+    Returns (kept, dropped-with-reason); with a single family nothing is dropped (there is nothing to diversify toward)."""
+    fams = {a.branch_id: state.branches[a.branch_id].family for a in alloc}
+    if len(set(fams.values())) < 2:
+        return list(alloc), []
+    kept = sorted(alloc, key=lambda a: (-a.score, a.branch_id))
+    dropped: list[tuple[str, str]] = []
+    while True:
+        tot = sum(a.cpu_min for a in kept)
+        by: dict[str, float] = {}
+        for a in kept:
+            by[fams[a.branch_id]] = by.get(fams[a.branch_id], 0.0) + a.cpu_min
+        worst = max(by, key=lambda f: (by[f], f))
+        if tot <= 0 or by[worst] / tot <= max_share or len([a for a in kept if fams[a.branch_id] == worst]) <= 1:
+            break
+        victim = [a for a in kept if fams[a.branch_id] == worst][-1]
+        kept.remove(victim)
+        dropped.append((victim.branch_id, f"family {worst} would take {by[worst] / tot:.0%} of the round"))
+    return kept, dropped
+
+
+# ------------------------------------------------------------------------------------------------ history and what-if
+def state_at(state: ManagerState, as_of) -> dict[str, str]:
+    """Each branch's state as of a date (from the hash-chained log): only transitions strictly before `as_of` count."""
+    out: dict[str, str] = {}
+    cut = as_date(as_of)
+    for bid in state.branches:
+        if as_date(state.branches[bid].created) < cut:
+            out[bid] = ResearchState.QUEUED.value
+    for t in state.log:
+        if as_date(t.at) < cut:
+            out[t.branch_id] = t.to_state
+    return out
+
+
+def time_in_state(state: ManagerState, branch_id: str, now) -> dict[str, int]:
+    """Days a branch spent in each state up to `now` (the last state runs to `now`)."""
+    b = state.branches[branch_id]
+    marks = [(as_date(b.created), ResearchState.QUEUED.value)] + [(as_date(t.at), t.to_state) for t in state.log if t.branch_id == branch_id]
+    out: dict[str, int] = {}
+    for (d0, s), (d1, _) in zip(marks, marks[1:] + [(as_date(now), "")]):
+        out[s] = out.get(s, 0) + max(0, (d1 - d0).days)
+    return out
+
+
+def what_if(evidence: Sequence[StageEvidence], policies: Mapping[str, LadderPolicy], looks: int = 1) -> dict[str, list[str]]:
+    """Run the same sequence of first-look evidence through different policies and show each policy's action per item. Answers
+    'would a laxer/stricter rung have changed what was funded?' without spending anything. Deterministic; reads no state."""
+    out: dict[str, list[str]] = {}
+    for name, pol in sorted(policies.items()):
+        acts = []
+        for e in evidence:
+            a = assess(e, pol, looks)
+            acts.append(decide(e, a, pol, 0).action.value)
+        out[name] = acts
+    return out
+
+
+def cost_overrun_report(state: ManagerState) -> dict[str, dict[str, float]]:
+    """Learned overrun multiplier per rung (CostModel): >1 means jobs cost more than planned. A rung whose multiplier is far from 1
+    is mis-planned and its budget shares in `plan_period` are wrong by the same factor."""
+    cm = state.cost_model
+    return {s.value: {"n": float(cm.n.get(s.value, 0)), "multiplier": cm.multiplier(s.value), "spread": cm.spread(s.value)} for s in LADDER}
+
+
+def queue_age_report(state: ManagerState, now) -> dict:
+    """Waiting-time statistics of QUEUED branches (days since creation): the median and the worst, per problem."""
+    ages: dict[str, list[int]] = {}
+    for b in state.branches.values():
+        if b.state is ResearchState.QUEUED:
+            ages.setdefault(b.problem.value, []).append((as_date(now) - as_date(b.created)).days)
+    return {p: {"n": len(v), "median": float(np.median(v)), "max": max(v)} for p, v in sorted(ages.items())}
+
+
+def rung_yield(state: ManagerState) -> dict[str, dict[str, float]]:
+    """Per rung: CPU-minutes spent, branches that passed it, and CPU-minutes per pass. The price of one validated step, so a rung
+    that is expensive per pass can be compared against the value the accountant credits at that rung."""
+    out = {}
+    for s in LADDER:
+        passes = sum(1 for b in state.branches.values() if s.value in b.passed)
+        cpu = state.stats.cost[s.value]
+        out[s.value] = {"cpu_min": cpu, "passes": float(passes), "cpu_min_per_pass": (cpu / passes) if passes else math.inf}
+    return out
+
+
+def merge_states(a: ManagerState, b: ManagerState) -> ManagerState:
+    """Combine two managers' states deterministically (for a crash where two ticks each wrote a partial file). A branch present in
+    both keeps the one with more recorded runs (ties: the one updated later); logs are NOT merged, because a hash chain cannot be
+    interleaved, so the merged log is the longer, intact one and any branch missing from it is reported by `audit_ladder`."""
+    out = ManagerState()
+    for bid in sorted(set(a.branches) | set(b.branches)):
+        ba, bb = a.branches.get(bid), b.branches.get(bid)
+        if ba is None or bb is None:
+            out.branches[bid] = ba or bb
+        else:
+            out.branches[bid] = ba if (len(ba.runs), ba.updated) >= (len(bb.runs), bb.updated) else bb
+    src = a if (len(a.log), a.period_start) >= (len(b.log), b.period_start) else b
+    out.log = list(src.log)
+    out.stats, out.cost_model = src.stats, src.cost_model
+    out.period_start, out.period_spent = src.period_start, dict(src.period_spent)
+    out.questions_seen = set(a.questions_seen) | set(b.questions_seen)
+    return out
+
+
+# ------------------------------------------------------------------------------------------------ intake and structural checks
+@dataclasses.dataclass(frozen=True)
+class IntakeResult:
+    created: tuple[str, ...]
+    duplicates: tuple[str, ...]
+    rejected: tuple[tuple[str, str], ...]
+
+
+def intake(state: ManagerState, questions: Iterable[tuple[ResearchQuestion, str]], now, policy: LadderPolicy | None = None,
+           max_new: int | None = None) -> IntakeResult:
+    """Register a batch of (question, family) pairs as branches. Each inherits the family's recent multiplicity (`family_looks`), so
+    the hundredth idea of a family faces a higher cheap-screen bar than the first. Questions that name a ticker-like token or a
+    real date are refused (section 29: questions handed onward must be identity-free), duplicates are reported, and `max_new`
+    caps the intake so a burst of questions cannot outrun the compute that would test them. Order-independent: sorted by id."""
+    import re
+    created, dup, rej = [], [], []
+    ident = re.compile(r"\b(?:19|20)\d{2}-\d{2}-\d{2}\b|\b[A-Z]{2,5}\b(?=\s+(?:stock|shares|ticker))")
+    for q, fam in sorted(questions, key=lambda t: t[0].question_id):
+        if ident.search(q.text):
+            rej.append((q.question_id, "question text carries a real date or a ticker"))
+            continue
+        if max_new is not None and len(created) >= max_new:
+            rej.append((q.question_id, "intake cap reached this tick"))
+            continue
+        b = make_branch(state, q, now, fam, family_looks(state, fam, now))
+        (created if b is not None else dup).append(b.branch_id if b is not None else q.question_id)
+    return IntakeResult(tuple(created), tuple(dup), tuple(rej))
+
+
+def validate_state(state: ManagerState, policy: LadderPolicy) -> list[str]:
+    """Structural invariants beyond the ladder audit (empty = clean): the frontier agrees with the rungs passed, rung records exist
+    only for rungs before the frontier, repeats never exceed the allowance, and timestamps are ISO dates."""
+    errs = []
+    for bid, b in sorted(state.branches.items()):
+        top = b.highest_passed()
+        if b.state in ACTIVE_STATES and stage_index(b.frontier) > top + 1:
+            errs.append(f"{bid}: frontier {b.frontier.value} is beyond the first unpassed rung")
+        for s in b.passed:
+            if stage_index(s) > stage_index(b.frontier) and b.state is not ResearchState.RETIRED:
+                errs.append(f"{bid}: rung {s} recorded as passed beyond the frontier")
+        for s, n in b.repeats.items():
+            if n > policy.rule(s).max_repeats + 1:
+                errs.append(f"{bid}: {n} repeats at {s} exceeds allowance {policy.rule(s).max_repeats}")
+        for d in (b.created, b.updated, b.last_progress):
+            if d:
+                try:
+                    as_date(d)
+                except ValueError:
+                    errs.append(f"{bid}: bad date {d!r}")
+        if not 0.0 < b.waste_factor <= 1.0:
+            errs.append(f"{bid}: waste_factor {b.waste_factor} outside (0,1]")
+    return errs
+
+
+# ------------------------------------------------------------------------------------------------ budget governor
+@dataclasses.dataclass(frozen=True)
+class BudgetAdvice:
+    period_cpu_min: float
+    reason: str
+    backlog_ratio: float
+    deferred_share: float
+
+
+def budget_governor(state: ManagerState, policy: LadderPolicy, base_cpu_min: float, last_selection: Selection | None = None,
+                    lo: float = 0.5, hi: float = 2.0) -> BudgetAdvice:
+    """Suggest the next period's compute from what the ladder is asking for. ADVICE bounded to [lo, hi] x base: a growing backlog
+    raises the ask a little (never past hi), an idle ladder lowers it so compute goes back to the shared machine. The operator, not
+    this function, sets the real budget."""
+    fc = forecast_funnel(state, policy)
+    ratio = fc.expected_cpu_min / base_cpu_min if base_cpu_min > 0 else math.inf
+    deferred = 0.0
+    if last_selection is not None and (last_selection.allocations or last_selection.deferred):
+        deferred = len(last_selection.deferred) / (len(last_selection.deferred) + len(last_selection.allocations))
+    if fc.branches_considered == 0:
+        return BudgetAdvice(base_cpu_min * lo, "no active branches: release compute", ratio, deferred)
+    scale = min(hi, max(lo, 0.5 + 0.5 * min(ratio, 3.0) + 0.5 * deferred))
+    why = f"backlog {ratio:.1f}x period, {deferred:.0%} of candidates deferred"
+    return BudgetAdvice(base_cpu_min * scale, why, ratio, deferred)
+
+
+def escalation_preview(state: ManagerState, policy: LadderPolicy) -> list[dict]:
+    """For each active branch: the ladder ahead of it with the chance of getting to each rung and the expected cost, from the pass
+    rates learned so far. It shows the price of hope: a weak branch with three rungs to go is visibly cheap only while it keeps
+    failing early."""
+    rows = []
+    for bid, b in sorted(state.branches.items()):
+        if b.state not in ACTIVE_STATES:
+            continue
+        p, ahead = 1.0, []
+        for i in range(stage_index(b.frontier), len(LADDER)):
+            s = LADDER[i]
+            c = (state.stats.mean_cost(s) or policy.rule(s).base_cpu_min) * state.cost_model.multiplier(s.value)
+            ahead.append({"stage": s.value, "p_reach": p, "expected_cost": p * c})
+            p *= state.stats.pass_rate(s)
+        rows.append({"branch": bid, "p_finish": p, "expected_total_cpu_min": sum(a["expected_cost"] for a in ahead), "ahead": ahead})
+    return rows
+
+
+def gate_table(policy: LadderPolicy) -> list[dict]:
+    """The ladder's thresholds as plain rows (for the daily research report and for review of what each rung demands)."""
+    return [{"stage": r.stage.value, "tests": r.planned_tests, "cpu_min": r.base_cpu_min, "cap_cpu_min": r.max_cpu_min, "ram_gb": r.ram_gb,
+             "real_data": r.real_data, "pass_t": r.pass_t, "min_power": r.min_power, "consistency": r.min_consistency,
+             "units": r.min_units, "fresh": r.needs_fresh, "replication": r.needs_replication, "max_repeats": r.max_repeats}
+            for r in policy.rules]
+
+
+def recover_orphans(state: ManagerState, ledger: "C.ExperimentLedger", now) -> list[str]:
+    """Jobs the manager believes are in flight but the compute ledger has never heard of (a crash between launch and submit, or a
+    ledger restored from an older backup). The branch is freed and the event is recorded so `stalled_branches` can see repeats."""
+    led = ledger.load()
+    freed = []
+    for b in state.branches.values():
+        if b.in_flight and b.in_flight not in led:
+            b.runs.append({"stage": b.frontier.value, "at": as_date(now).isoformat(), "action": "JOB_LOST", "job": b.in_flight, "why": "orphan"})
+            b.in_flight = ""
+            freed.append(b.branch_id)
+    return sorted(freed)
+
+
+def settle_finished(state: ManagerState, ledger: "C.ExperimentLedger", evidence_by_job: Mapping[str, StageEvidence], now,
+                    policy: LadderPolicy | None = None) -> list[tuple[str, EscalationDecision]]:
+    """Apply results for jobs the compute ledger marks DONE. `evidence_by_job` maps job key -> evidence (produced by the job's own
+    output, read by the caller). A DONE job with no evidence is left in flight and reported by `orphan` checks, never guessed."""
+    policy = policy or LadderPolicy()
+    led = ledger.load()
+    out = []
+    for bid, b in sorted(state.branches.items()):
+        if not b.in_flight or led.get(b.in_flight, {}).get("state") != C.DONE:
+            continue
+        ev = evidence_by_job.get(b.in_flight)
+        if ev is None:
+            continue
+        out.append((bid, record_result(state, bid, ev, now, policy)))
+    return out
+
+
+def audit_report(state: ManagerState, policy: LadderPolicy, now) -> dict:
+    """Everything a reviewer needs in one dict: audits, warnings, starvation, stalls, conservation, fairness."""
+    return {"ladder_audit": audit_ladder(state, policy), "structure": validate_state(state, policy), "conservation": conservation_errors(state),
+            "funnel_warnings": funnel_warnings(state), "starving": starving(state, now), "stalled": stalled_branches(state, now),
+            "fairness": family_fairness(state), "queue_age": queue_age_report(state, now)}
+
+
+# ------------------------------------------------------------------------------------------------ rounds and backlog
+@dataclasses.dataclass(frozen=True)
+class RoundRecord:
+    day: str
+    launched: int
+    deferred: int
+    cpu_min_planned: float
+    results_applied: int
+    parked: int
+    active: int
+
+
+class RoundLog:
+    """Append-only per-tick summary (one JSON line per round) so the research report can show throughput over time and a crash
+    can be traced to the last completed round. `summary` gives the trend that matters: are rounds still launching work?"""
+
+    def __init__(self, path: str | Path):
+        self.path = Path(path)
+
+    def append(self, state: ManagerState, res: StepResult, now) -> RoundRecord:
+        rec = RoundRecord(as_date(now).isoformat(), len(res.launched), len(res.selection.deferred), float(sum(a.cpu_min for a in res.selection.allocations)),
+                          len(res.decisions), sum(1 for _, d in res.decisions if d.action is Act.PARK),
+                          sum(1 for b in state.branches.values() if b.state in ACTIVE_STATES))
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        with open(self.path, "a", encoding="utf-8", newline="\n") as f:
+            f.write(json.dumps(dataclasses.asdict(rec), sort_keys=True) + "\n")
+        return rec
+
+    def read(self) -> list[RoundRecord]:
+        if not self.path.exists():
+            return []
+        out = []
+        for line in self.path.read_text(encoding="utf-8").splitlines():
+            try:
+                out.append(RoundRecord(**json.loads(line)))
+            except (ValueError, TypeError):
+                continue                                   # a torn last line from a crash is skipped, never fatal
+        return out
+
+    def summary(self, last: int = 14) -> dict:
+        rs = self.read()[-last:]
+        if not rs:
+            return {"rounds": 0}
+        idle = sum(1 for r in rs if r.launched == 0 and r.active > 0)
+        return {"rounds": len(rs), "launched": sum(r.launched for r in rs), "deferred": sum(r.deferred for r in rs),
+                "idle_rounds_with_work_waiting": idle, "cpu_min_planned": sum(r.cpu_min_planned for r in rs),
+                "stuck": idle >= max(3, len(rs) // 2)}
+
+
+def hypothesis_tree_report(state: ManagerState) -> list[str]:
+    """Indented tree of branches by parent question (section 41 link), each with state and spend. Roots are branches whose parents
+    are not themselves branches here."""
+    by_q = {b.question_id: bid for bid, b in state.branches.items()}
+    kids: dict[str, list[str]] = {}
+    roots = []
+    for bid, b in sorted(state.branches.items()):
+        parents = [by_q[p] for p in b.parents if p in by_q]
+        if parents:
+            for p in parents:
+                kids.setdefault(p, []).append(bid)
+        else:
+            roots.append(bid)
+    lines: list[str] = []
+
+    def walk(bid: str, depth: int, seen: frozenset) -> None:
+        b = state.branches[bid]
+        lines.append(f"{'  ' * depth}{bid} {b.state.value} {b.frontier.value} spent={b.total_spent:.1f} {b.text[:40]}")
+        for c in kids.get(bid, []):
+            if c not in seen:
+                walk(c, depth + 1, seen | {bid})
+    for r in roots:
+        walk(r, 0, frozenset())
+    return lines
+
+
+def simulate_backlog(policy: LadderPolicy, n_branches: int, period_cpu_min: float, periods: int, seed: int,
+                     p_real: float = 0.2, effect: float = 0.006, sd: float = 0.05) -> dict:
+    """How long does a backlog of ideas take to clear at a given weekly compute, and how many real effects does it find? Runs the
+    full step/record loop on synthetic hypotheses (known truth) with a fixed period budget, so budget advice can be checked against
+    behaviour. Deterministic in `seed`."""
+    truth = {f"f{i % 4}:h{i}": (effect if (i * 7919 + seed) % 100 < p_real * 100 else 0.0) for i in range(n_branches)}
+    r = replay_schedule(policy, truth, seed, periods * 7, period_cpu_min, sd)
+    found = [n for n in r["reached_end"] if truth[n] > 0]
+    n_real = sum(1 for v in truth.values() if v > 0)
+    return {"n_real": n_real, "found": len(found), "recall": len(found) / n_real if n_real else None,
+            "false_positives": [n for n in r["reached_end"] if truth[n] == 0], "total_cpu_min": float(sum(r["spend"].values())),
+            "cpu_min_per_find": (sum(r["spend"].values()) / len(found)) if found else None, "problems": r["problems"]}
+
+
+# ------------------------------------------------------------------------------------------------ hand-off to the quality gate
+@dataclasses.dataclass(frozen=True)
+class GateDossier:
+    """What the section-42 quality gate receives when a branch completes the ladder: the evidence at every rung, the total price paid
+    and the flags that make the result harder to believe. The manager never promotes anything itself."""
+    branch_id: str
+    question_id: str
+    family: str
+    problem: str
+    rungs: Mapping[str, Mapping[str, float]]
+    total_cpu_min: float
+    repeats: int
+    audit_cleared: tuple[str, ...]
+    looks: int
+    flags: tuple[str, ...]
+
+
+def dossier(state: ManagerState, branch_id: str) -> GateDossier:
+    """Assemble the gate dossier for a branch that passed the integration rung. Raises LadderError for any other branch, so an
+    unfinished hypothesis cannot be handed to the gate by mistake."""
+    b = state.branches[branch_id]
+    if Stage.INTEGRATION.value not in b.passed:
+        raise LadderError(f"{branch_id} has not passed {Stage.INTEGRATION.value}; nothing to hand to the quality gate")
+    flags = []
+    if b.audit_cleared:
+        flags.append("an implausibly strong result was audited and cleared: reproduce it independently")
+    reps = sum(b.repeats.values())
+    if reps >= 2:
+        flags.append(f"needed {reps} repeats: the effect is near the detection limit")
+    if b.looks > 20:
+        flags.append(f"screened among {b.looks} similar ideas: multiplicity applied at rung 1 only")
+    effects = [float(p["effect"]) for p in b.passed.values()]
+    if len(effects) >= 2 and effects[-1] < 0.5 * effects[0]:
+        flags.append("effect shrank by more than half between the first and last rung")
+    return GateDossier(b.branch_id, b.question_id, b.family, b.problem.value, {k: dict(v) for k, v in sorted(b.passed.items())},
+                       b.total_spent, reps, tuple(b.audit_cleared), b.looks, tuple(flags))
+
+
+def completed_branches(state: ManagerState) -> list[str]:
+    """Branches that finished the whole ladder, in id order (the input of the quality gate)."""
+    return sorted(bid for bid, b in state.branches.items() if Stage.INTEGRATION.value in b.passed)

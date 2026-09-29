@@ -1266,8 +1266,8 @@ def synthetic_day(n: int = 600, seed: int = 0, day: int = 0, p: ObserverParams |
     import datetime as _dt
     p = p or ObserverParams()
     plant = plant or Plant(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
-    if plant.total() + p.k_med + 5 > n:
-        raise ValueError("universe too small for the planted groups plus the medium-priority band")
+    if plant.total() + 5 > n:
+        raise ValueError("universe too small for the planted groups")
     rng = np.random.default_rng([seed, day])
     d0 = as_date(start) + _dt.timedelta(days=int(day))
     tk = np.array([f"S{i:05d}" for i in range(n)], dtype=object)
@@ -1804,3 +1804,147 @@ def explain_day(rec: DayRecord, p: ObserverParams | None = None) -> str:
     if dropped:
         lines.append("rows sampled (counts are exact): " + ", ".join(f"{k} -{v}" for k, v in sorted(dropped.items())))
     return "\n".join(lines)
+
+
+# ==================================================================================================================
+# C67 day-shape of the band movers: how they closed and what drove the move (input to the next-day path research)
+# ==================================================================================================================
+SHAPES = ("closed_at_high", "closed_near_high", "closed_mid", "closed_near_low", "closed_at_low")
+DRIVERS = ("gap_driven", "intraday_driven", "mixed")
+
+
+def shape_of(close_loc: np.ndarray) -> np.ndarray:
+    """Where the day closed in its own range, as one of five shapes; NaN location (no range) is 'closed_mid'."""
+    loc = np.where(np.isfinite(close_loc), close_loc, 0.5)
+    return np.select([loc >= 0.9, loc >= 0.65, loc >= 0.35, loc >= 0.1], list(SHAPES[:4]), default=SHAPES[4]).astype(object)
+
+
+def driver_of(gap: np.ndarray, o2c: np.ndarray, thr: float = 0.6) -> np.ndarray:
+    """gap_driven if the overnight gap is >= thr of the close-to-close path (in absolute terms), intraday_driven if it is <= 1-thr."""
+    share = gap_share(gap, o2c)
+    return np.where(~np.isfinite(share), "mixed", np.where(share >= thr, "gap_driven", np.where(share <= 1 - thr, "intraday_driven", "mixed")))
+
+
+def band_shapes(rec: DayRecord, p: ObserverParams | None = None) -> pd.DataFrame:
+    """Band movers cross-tabulated by band x closing shape and by band x driver. `closed_at_low` after a big gap up is a very
+    different setup from `closed_at_high`: this is the table the episode research splits on before it looks at tomorrow."""
+    rf = rec.rows
+    if rf.empty:
+        return pd.DataFrame()
+    b = rf[rf["band"] != 0]
+    if b.empty:
+        return pd.DataFrame()
+    thr = (p or ObserverParams()).gap_share_thr
+    shape = shape_of(b["close_loc"].to_numpy(dtype=float))
+    drive = driver_of(b["gap"].to_numpy(dtype=float), b["o2c"].to_numpy(dtype=float), thr)
+    s = pd.crosstab(b["band"].map(BAND_NAMES), pd.Series(shape, index=b.index)).reindex(columns=list(SHAPES), fill_value=0)
+    d = pd.crosstab(b["band"].map(BAND_NAMES), pd.Series(drive, index=b.index)).reindex(columns=list(DRIVERS), fill_value=0)
+    return pd.concat([s, d], axis=1)
+
+
+def band_shapes_ledger(ledger: ObserverLedger, p: ObserverParams | None = None, now=None) -> pd.DataFrame:
+    """band_shapes summed over days."""
+    recs = ledger._recs if now is None else ledger.known(now)
+    tabs = [band_shapes(r, p or ledger.params) for r in recs]
+    tabs = [t for t in tabs if not t.empty]
+    return sum((t.reindex(index=list(BAND_NAMES.values()), fill_value=0).fillna(0) for t in tabs), start=0) if tabs else pd.DataFrame()
+
+
+def volume_by_band(rec: DayRecord) -> dict[str, float]:
+    """Median session-volume ratio of each band's movers against the universe median: do 5-10% moves come on volume?"""
+    rf = rec.rows
+    uni = rec.market.get("median_volume_ratio", float("nan"))
+    if rf.empty:
+        return {}
+    out = {}
+    for code, name in BAND_NAMES.items():
+        v = rf.loc[rf["band"] == code, "volume_ratio"].astype(float)
+        v = v[np.isfinite(v)]
+        out[name] = float(np.median(v) / uni) if len(v) and uni == uni and uni > 0 else float("nan")
+    return out
+
+
+def stale_or_thin(rec: DayRecord, min_share: float = 0.5, min_scored: int = 20) -> list[str]:
+    """Reasons a day's record should not be trusted for research: too few scored names, most features missing or constant, or a
+    sudden universe collapse. The autopsy still runs, but its questions carry the warning."""
+    out = []
+    if rec.n_universe and rec.n_scored / rec.n_universe < min_share:
+        out.append("fewer than half the names were scored")
+    if rec.n_scored < min_scored and not rec.empty:
+        out.append("too few scored names for stable ranks")
+    health = rec.market.get("data_health", {})
+    bad = [k for k, v in health.items() if v.get("missing", 0) > 0.5 or v.get("constant", 0)]
+    if bad:
+        out.append("features missing or constant: " + ", ".join(sorted(bad)))
+    return out
+
+
+def band_transitions(ledger: ObserverLedger, now=None) -> pd.DataFrame:
+    """For every band mover of day t that is also present in day t+1's rows: which band it was in on t+1 (0 = not a band mover
+    that day, or not persisted as a row). Rows: today's band; columns: next recorded day's band. A name absent from tomorrow's rows
+    is counted as band 0 only when tomorrow's record kept every band mover (always true) and it was not otherwise an exception,
+    so the 0 column is exact for band membership. Research side (uses tickers)."""
+    recs = [r for r in (ledger._recs if now is None else ledger.known(now)) if not r.empty]
+    codes = [-2, -1, 0, 1, 2]
+    tab = pd.DataFrame(0, index=[c for c in codes if c], columns=codes)
+    for a, b in zip(recs[:-1], recs[1:]):
+        if as_date(b.decided_at) <= as_date(a.decided_at):
+            continue
+        ta = a.rows.loc[a.rows["band"] != 0, ["ticker", "band"]]
+        nb = b.rows.loc[b.rows["band"] != 0].set_index("ticker")["band"]
+        nxt = ta["ticker"].map(nb).fillna(0).astype(int)
+        for code, nx in zip(ta["band"].astype(int), nxt):
+            tab.at[code, nx] += 1
+    return tab
+
+
+def band_run_lengths(ledger: ObserverLedger, now=None, max_len: int = 10) -> dict[int, int]:
+    """Distribution of consecutive-day band-mover runs per name (1 = a one-day mover). Long runs are momentum or a broken feed."""
+    recs = [r for r in (ledger._recs if now is None else ledger.known(now)) if not r.empty]
+    active: dict[str, int] = {}
+    runs: dict[int, int] = {}
+    for r in recs:
+        today = set(r.rows.loc[r.rows["band"] != 0, "ticker"]) if not r.rows.empty else set()
+        for t in list(active):
+            if t not in today:
+                n = min(active.pop(t), max_len)
+                runs[n] = runs.get(n, 0) + 1
+        for t in today:
+            active[t] = active.get(t, 0) + 1
+    for t, n in active.items():
+        runs[min(n, max_len)] = runs.get(min(n, max_len), 0) + 1
+    return dict(sorted(runs.items()))
+
+
+def category_outcomes(ledger: ObserverLedger, now=None, mover_thr: float | None = None) -> pd.DataFrame:
+    """What actually happened to the names in each category, from the exception rows: count of rows, mover share (best excursion
+    from the decision close at or above mover_thr), mean and median absolute excursion. Abstentions, low-confidence names and
+    near misses are only worth revisiting if they move more than the rest; this is the table that says so. Rows are capped per
+    category, but the cap keeps the highest-score names outright and samples the rest, so read the shares as descriptive."""
+    thr = ledger.params.mover_thr if mover_thr is None else mover_thr
+    rf = ledger.rows_frame(now)
+    cols = ["rows", "mover_share", "mean_abs_exc", "median_abs_exc"]
+    if rf.empty:
+        return pd.DataFrame(columns=cols)
+    exc = rf["exc_pc"].astype(float).to_numpy()
+    ok = np.isfinite(exc)
+    out = {}
+    for c in CATEGORIES:
+        m = has(rf["flags"].to_numpy(), c) & ok
+        if m.any():
+            out[c.value] = {"rows": int(m.sum()), "mover_share": float((exc[m] >= thr).mean()), "mean_abs_exc": float(exc[m].mean()),
+                            "median_abs_exc": float(np.median(exc[m]))}
+    return pd.DataFrame(out).T.reindex(columns=cols)
+
+
+def pick_vs_universe(ledger: ObserverLedger, now=None) -> dict[str, float]:
+    """Mean fill-to-horizon return of the picks against the universe mean, per day and pooled, with a day-level sign count. The
+    universe mean comes from each day's exact market summary (not the capped rows)."""
+    recs = [r for r in (ledger._recs if now is None else ledger.known(now)) if not r.empty]
+    d = [(r.model.get("pick_mean_ret"), r.model.get("universe_mean_ret")) for r in recs]
+    d = [(a, b) for a, b in d if a is not None and b is not None and a == a and b == b]
+    if not d:
+        return {"days": 0.0}
+    diff = np.array([a - b for a, b in d])
+    return {"days": float(len(d)), "pick_mean": float(np.mean([a for a, _ in d])), "universe_mean": float(np.mean([b for _, b in d])),
+            "mean_edge": float(diff.mean()), "days_ahead": float((diff > 0).mean())}

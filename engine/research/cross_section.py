@@ -685,7 +685,8 @@ class ScopeOutcomes:
     """Research-world table of matured (scope, next-h outcome) rows. Rows are added only once their outcome is strictly behind
     `now`; reads drop records whose evidence year is being replayed in disguise (rule 27). No ticker is stored."""
 
-    COLS = ("date", "scope", "sign", "fwd", "sessions", "matured_at", "year")
+    COLS = ("date", "scope", "sign", "fwd", "sessions", "matured_at", "year", "band")
+    BANDS = ((0.10, ">10%"), (0.05, "5-10%"), (0.0, "<5%"))      # canon C67 mover bands on |ret|
 
     def __init__(self, sessions: int = 5):
         self.sessions = int(sessions)
@@ -707,7 +708,8 @@ class ScopeOutcomes:
             f, r, s = fwd[tkr], ret[tkr], scope[tkr]
             if s in (MoveScope.UNKNOWN.value, MoveScope.NO_MOVE.value) or not (np.isfinite(f) and np.isfinite(r)) or r == 0:
                 continue
-            self._rows.append((d.isoformat(), s, 1 if r > 0 else -1, float(f), self.sessions, as_date(matured_at).isoformat(), d.year))
+            self._rows.append((d.isoformat(), s, 1 if r > 0 else -1, float(f), self.sessions, as_date(matured_at).isoformat(), d.year,
+                               next(name for lo, name in self.BANDS if abs(r) >= lo)))
             n += 1
         return n
 
@@ -717,11 +719,14 @@ class ScopeOutcomes:
         return pd.DataFrame(rows, columns=list(self.COLS))
 
     def effects(self, now, replay_years: Iterable[int] = (), min_dates: int = 30, min_per_date: int = 3,
-                t_bar: float = 2.0, q_bar: float = 0.1) -> list[ScopeEffect]:
+                t_bar: float = 2.0, q_bar: float = 0.1, by_band: bool = False) -> list[ScopeEffect]:
+        """Established-or-not effect per scope (and per mover band when by_band: scope keys read 'SCOPE@band')."""
         df = self.frame(now, replay_years)
         out: list[ScopeEffect] = []
         if df.empty:
             return out
+        if by_band:
+            df["scope"] = df["scope"] + "@" + df["band"]
         df["cont"] = df["fwd"] * df["sign"]
         df["absf"] = df["fwd"].abs()
         for metric, col in (("continuation", "cont"), ("abs_fwd", "absf")):

@@ -20,7 +20,7 @@ Governing documents: `canon/CANON.md` (owner directives, verbatim) > `BIBLE.md` 
 | `basis_search` | 318 | 2 | Outer training-basis search (Bible PHASE 19; canon C11, C15-C21, C34, C39). |
 | `blind_gates` | 643 | 6 | Bible Phases 21 and 22 (canons C11, C19, C33): blind-simulator hardening gates and the blind clock. |
 | `broker` | 124 | 3 | Execution (Blueprint Part F). Two interchangeable brokers: |
-| `candidates` | 567 | 2 | Bible Phase 3.1 - candidate generation for the pattern miner (canons C35, C37, C43). |
+| `candidates` | 567 | 3 | Bible Phase 3.1 - candidate generation for the pattern miner (canons C35, C37, C43). |
 | `candles` | 50 | 3 | Multi-timeframe candle features (canon C35): daily, weekly (5 sessions) and monthly (21 sessions) candles and small-print signals - momentary reversals, inside days, engulfing, str |
 | `champion` | 437 | 1 | Bible Phase 0.4 (immutable baseline snapshot) and Phase 35 (champion / challenger). |
 | `checkpoint` | 184 | 3 | Bible Phase 0.3: checkpoint bundle for every major run. |
@@ -60,15 +60,15 @@ Governing documents: `canon/CANON.md` (owner directives, verbatim) > `BIBLE.md` 
 | `parity` | 496 | 2 | Bible Phase 2: feature/parity firewall (canon: no look-ahead; the fast path must reproduce the strict live path). |
 | `parity_suite` | 422 | 1 | Bible Phase 2 (parity firewall), all feature families. `engine.parity` is the harness; this module points it at every place a model input is made, each through the REAL production  |
 | `pattern_bank` | 495 | 2 | Bible Phase 5 - long-term pattern bank (canon C43; "no pattern is trusted forever, none deleted for one bad regime"). |
-| `pattern_identity` | 588 | 3 | Bible Phase 3.2 - pattern identity (canons C35, C37, C43). |
+| `pattern_identity` | 588 | 4 | Bible Phase 3.2 - pattern identity (canons C35, C37, C43). |
 | `pattern_lifecycle` | 582 | 4 | Bible Phase 4 - pattern lifecycle state machine (canon C43: never hold a failed pattern). |
 | `pattern_memory` | 789 | 5 | Bible phases 4, 5, 9 - TIMELINE PATTERN MEMORY (canon C55, C56, C57, C58, C59, C60). |
 | `pattern_memory_eval` | 341 | 1 | Bible phases 4, 5, 9 - walk-forward evaluation helpers for the timeline pattern memory (canon C57-C60). |
 | `pattern_movers` | 842 | 2 | Bible Phase 6 (pattern -> Find volatility integration) and Phase 34 (required ablation framework). |
 | `pattern_reliability` | 1966 | 2 | Bible phases 3, 4 (lifecycle / rescoping), 9, 10 - PATTERN RELIABILITY: learn WHEN a pattern works (canon C60, C61; C56-C59). |
-| `pattern_stats` | 748 | 2 | Bible Phase 3.3 + 3.4 - statistical validation library and relevance weighting (canons C35, C37). |
+| `pattern_stats` | 748 | 3 | Bible Phase 3.3 + 3.4 - statistical validation library and relevance weighting (canons C35, C37). |
 | `patterns` | 533 | 10 | Self-learning pattern miner with relevance-weighted memory (canon C35), on the Phase 3 hardening libraries. |
-| `pit` | 1348 | 1 | Bible PHASE 1 - point-in-time data firewall (canon: no look-ahead; decide at a close, fill at the NEXT open; a fence violation is an exception, never a warning; anything that chang |
+| `pit` | 1348 | 2 | Bible PHASE 1 - point-in-time data firewall (canon: no look-ahead; decide at a close, fill at the NEXT open; a fence violation is an exception, never a warning; anything that chang |
 | `planted` | 353 | 2 | Bible Phase 25 (mandatory): planted-pattern calibration. Build synthetic markets whose true patterns are KNOWN, run the full discovery pipeline on them, and measure whether it can  |
 | `policy` | 202 | 5 | The trading policy, shared by the backtest and live trading so that what is tested is what trades. |
 | `portfolio` | 135 | 0 | Portfolio layer (Blueprint Part D + E). |
@@ -401,7 +401,7 @@ Bible Phase 3.1 - candidate generation for the pattern miner (canons C35, C37, C
 - `def empty_levels(qm, min_rows)` - (feature, level) pairs that hold fewer than `min_rows` rows. Flags and sparse counts (an event indicator is 0 for nearly every stock) collapse to two occupied q
 - `def prune_unoccupied(cset, empty)` - Split a candidate set into (kept, dropped) by whether any BASE term sits in an empty level. A dropped candidate would have been discarded by the miner's min_n g
 
-Tests: `tests/test_candidates.py`, `tests/test_patterns_integration.py`
+Tests: `tests/test_candidates.py`, `tests/test_patterns_integration.py`, `tests/test_research_discovery.py`
 
 ## engine.candles
 
@@ -1325,7 +1325,7 @@ Bible Phase 3.2 - pattern identity (canons C35, C37, C43).
 - `def records_to_prior(records)` - The `prior` table PatternMiner.fit(prior=...) re-tests: only usable patterns with a miner-shaped key.
 - `class PatternBook [get(self, pid), add(self, rec), by_state(self, *states), find_expression(self, text, transform, target), counts(self), to_json(self), from_json(s), digest(self), ...]` - Records keyed by id. Adding an identity that already exists merges (newer record wins, history is preserved and the two audit trails are unioned in date order) 
 
-Tests: `tests/test_candidates.py`, `tests/test_pattern_identity.py`, `tests/test_patterns_integration.py`
+Tests: `tests/test_candidates.py`, `tests/test_pattern_identity.py`, `tests/test_patterns_integration.py`, `tests/test_research_discovery.py`
 
 ## engine.pattern_lifecycle
 
@@ -1553,7 +1553,7 @@ Bible Phase 3.3 + 3.4 - statistical validation library and relevance weighting (
 - `def evidence_order(names, t_disc, t_conf)` - The miner's ordering for redundancy pruning: simpler expressions first (single < pair < unless), then by combined |t| of discovery and confirmation - NOT by raw
 - `def validation_gain_gate(order, masks, effects, y_conf, conf_mask, min_gain)` - Bible 3.7. Add patterns greedily; keep one only if the correlation of the running score with the outcome on the UNSEEN confirmation rows rises by more than `min
 
-Tests: `tests/test_learning_calibration.py`, `tests/test_pattern_stats.py`
+Tests: `tests/test_learning_calibration.py`, `tests/test_pattern_stats.py`, `tests/test_research_discovery.py`
 
 ## engine.patterns
 
@@ -1606,7 +1606,7 @@ Bible PHASE 1 - point-in-time data firewall (canon: no look-ahead; decide at a c
 - `def entry_gap_profile(opens, closes, by_year)` - A label that enters at close t credits the holder with nothing between close t and open t+1, but a decision made at close t can only fill at open t+1. The overn
 - `def full_check(store, as_of, pipeline, seed)` - One call for the Bible's Phase-1 gate on a store: integrity + fence tripwires + scramble. Returns a Report.
 
-Tests: `tests/test_pit.py`
+Tests: `tests/test_pit.py`, `tests/test_research_counterfactual.py`
 
 ## engine.planted
 

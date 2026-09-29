@@ -943,3 +943,21 @@ def assess_hypothesis(ev: HypothesisEvidence, alpha: float = 0.10) -> Hypothesis
     if ev.direction in ("DIRECTION_BLIND", "LOSS_SKEWED"):
         why.append(f"finds volatility but is {ev.direction}")
     return HypothesisAssessment(ev.hid, Epistemic.CONDITIONAL, tuple(why) or ("significant gain; some evidence still missing",), tuple(untested))
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# candle-structure features (engine.candles output, attached to a lab frame by candle_inputs in volatility_lab)
+# ---------------------------------------------------------------------------------------------------------------
+CANDLE_COLUMNS = ("cd_upwick", "cd_lowwick", "cd_pos", "cd_body", "cw_pos", "cm_range", "cw_range", "inside_day", "outside_day", "streak",
+                  "reversal_vs_week", "gap_filled")
+EXTRA_DERIVED: dict[str, tuple[tuple[str, ...], Callable[[pd.DataFrame], pd.Series]]] = {
+    "wick_total": (("cd_upwick", "cd_lowwick"), lambda F: F["cd_upwick"] + F["cd_lowwick"]),
+    "wick_skew": (("cd_upwick", "cd_lowwick"), lambda F: F["cd_upwick"] - F["cd_lowwick"]),
+    "close_extreme": (("cd_pos",), lambda F: (F["cd_pos"] - 0.5).abs()),
+    "week_range_ratio": (("cw_range", "cm_range"), lambda F: _ratio(F["cw_range"], F["cm_range"])),
+    "inside_outside": (("inside_day", "outside_day"), lambda F: F["outside_day"] - F["inside_day"]),
+    "streak_len": (("streak",), lambda F: F["streak"].abs()),
+    "counter_week": (("reversal_vs_week",), lambda F: F["reversal_vs_week"]),
+    "gap_open": (("gap_filled", "gap"), lambda F: (1 - F["gap_filled"]) * F["gap"].abs()),
+}
+DERIVED.update(EXTRA_DERIVED)

@@ -34,7 +34,8 @@ from typing import Any, Mapping, Sequence
 import numpy as np
 
 from engine.learning import promotion as PR
-from engine.learning.core import (FirewallBreach, Provenance, _StrEnum, as_date, canonical_json, require_past, stable_hash)
+from engine.learning.archive import ChainFile
+from engine.learning.core import (FailureCause, FirewallBreach, Provenance, _StrEnum, as_date, canonical_json, require_past, stable_hash)
 from engine.research.core import MaturedRecord, Namespace
 
 SECTION = "C66 section 32"
@@ -728,41 +729,36 @@ def plan_next(d: Discovery, runs: Sequence[ReplicationRun], pools: Pools, now, p
 
 
 # ------------------------------------------------------------------------------------------------ ledger
-class ChainLog:
-    """Append-only, hash-chained JSON-lines file (history is immutable). Rows are {prev, kind, body, chain}; verify() re-derives every
-    link. Shared by the replication ledger, the quarantine store and the scorecard log so there is one chain implementation."""
+class ResearchLane:
+    """A typed lane of the archive's hash chain (engine.learning.archive.ChainFile on engine.pattern_memory's chain.jsonl): no chain
+    implementation of its own. `root` is a directory (share the pattern-memory root to share ONE chain) or None for an in-memory
+    chain. Rows are {kind, body}; each subclass owns one lane kind, so lanes never disturb each other."""
+    LANE = "research"
 
-    def __init__(self, path):
-        self.path = Path(path)
+    def __init__(self, root=None):
+        self.root = root
+        self._cf = ChainFile(root, self.LANE)
+        self._cache: list[dict] = []
 
     def rows(self) -> list[dict]:
-        if not self.path.exists():
-            return []
-        return [json.loads(ln) for ln in self.path.read_bytes().decode("utf-8").split("\n") if ln.strip()]
+        self._cf.sync()
+        self._cache += [{"kind": r["body"]["k"], "body": r["body"]["b"]} for r in self._cf.take_new()]
+        return list(self._cache)
 
     def append(self, kind: str, body: Mapping) -> dict:
-        rows = self.rows()
-        prev = rows[-1]["chain"] if rows else "GENESIS"
-        row = {"prev": prev, "kind": kind, "body": json.loads(canonical_json(dict(body)))}
-        row["chain"] = stable_hash([prev, kind, row["body"]], 32)
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        with open(self.path, "ab") as fh:                           # binary: text mode adds CRLF on Windows
-            fh.write((json.dumps(row, sort_keys=True) + "\n").encode("utf-8"))
-        return row
+        self.rows()                                             # absorb other writers first
+        self._cf.append_many([{"k": kind, "b": json.loads(canonical_json(dict(body)))}])
+        return self.rows()[-1]
 
     def verify(self) -> list[str]:
-        errs, prev = [], "GENESIS"
-        for i, r in enumerate(self.rows()):
-            if r["prev"] != prev:
-                errs.append(f"row {i}: broken chain link")
-            if r["chain"] != stable_hash([r["prev"], r["kind"], r["body"]], 32):
-                errs.append(f"row {i}: chain hash mismatch (row edited)")
-            prev = r["chain"]
-        return errs
+        v = self._cf.verify()
+        return [] if v["ok"] else [f"chain broken at record {v['first_bad_seq']}"]
 
 
-class ReplicationLedger(ChainLog):
-    """Discoveries, runs and assessments on a ChainLog. Reads are as-of: `runs_for(id, now)` returns only runs matured strictly
+class ReplicationLedger(ResearchLane):
+    LANE = "repl"
+
+    """Discoveries, runs and assessments on an archive lane. Reads are as-of: `runs_for(id, now)` returns only runs matured strictly
     before `now`."""
 
     def add_discovery(self, d: Discovery) -> None:
@@ -1250,3 +1246,239 @@ def simulate_replication_rates(policy: ReplicationPolicy = DEFAULT_POLICY, n_sim
                 out[kind] += 1
     return {"false_replication_rate": out["null"] / n_sim, "replication_power": out["real"] / n_sim, "n_sim": n_sim, "n_tests": n_tests,
             "policy": policy.digest()}
+
+
+# ------------------------------------------------------------------------------------------------ why did a run not count?
+@dataclass(frozen=True)
+class AxisDiagnosis:
+    axis: str
+    earned: bool
+    why: str                                 # plain-English reason the axis was or was not earned
+    fix: str                                 # what a better replication would change (empty when earned)
+    measure: float | None = None
+    threshold: float | None = None
+
+
+@dataclass(frozen=True)
+class RunDiagnosis:
+    run_id: str
+    counts: bool                             # would this run count toward REPLICATED at all?
+    outcome: str
+    axes: tuple[AxisDiagnosis, ...]
+    blockers: tuple[str, ...]                # reasons it cannot count (no fresh data, invalid, duplicate group, unpowered ...)
+    fresh_axes: tuple[str, ...]
+
+    def summary(self) -> str:
+        head = f"{self.run_id}: {'COUNTS' if self.counts else 'DOES NOT COUNT'} ({self.outcome})"
+        return head + ("; " + "; ".join(self.blockers) if self.blockers else "")
+
+
+def explain_run(d: Discovery, r: ReplicationRun, policy: ReplicationPolicy = DEFAULT_POLICY, others: Sequence[ReplicationRun] = (), now=None) -> RunDiagnosis:
+    """Per-axis freshness diagnostics: WHY a replication did or did not count, with the number and the threshold behind every axis and
+    the change that would fix it. `others` are the discovery's other runs (seeds already used, independence). Deterministic."""
+    res = judge_run(d, r, policy, now, prior_runs=[o for o in others if o.run_id != r.run_id])
+    ov = window_overlap(d.window, r.window, pad_days=d.horizon_days)
+    so = stock_overlap(r.stocks, d.stocks)
+    used = set(d.seeds) | {o.seed for o in others if o.run_id != r.run_id}
+    fix = {
+        Axis.PERIOD: f"use a window that starts more than {d.horizon_days} days after the original ends ({d.window[1]}) or ends before it starts",
+        Axis.STOCKS: f"draw names from outside the original {len(d.stocks)}; at most {policy.max_stock_overlap:.0%} may overlap",
+        Axis.SEED: "use a seed not in " + str(sorted(used))[:60],
+        Axis.REGIME: f"pick a regime other than {sorted(d.regimes)}",
+        Axis.CONTROL: f"supply control_effects for the same {max(policy.min_periods, len(r.effects))}+ periods",
+        Axis.CODE: "re-implement the idea independently (different code hash and implementation label)",
+    }
+    measure = {Axis.PERIOD: ov, Axis.STOCKS: so, Axis.SEED: float(r.seed in used), Axis.REGIME: None, Axis.CONTROL: float(len(r.effects)), Axis.CODE: None}
+    thr = {Axis.PERIOD: 0.0, Axis.STOCKS: policy.max_stock_overlap, Axis.SEED: 0.0, Axis.REGIME: None, Axis.CONTROL: float(policy.min_periods), Axis.CODE: None}
+    axes = tuple(AxisDiagnosis(a.axis.value, a.earned, a.detail, "" if a.earned else fix[a.axis], measure[a.axis], thr[a.axis]) for a in res.axes)
+    blockers = list(res.reasons) if res.outcome == Outcome.INVALID else []
+    if not res.fresh_data:
+        blockers.append("earns none of fresh period / fresh stocks / fresh regime: it re-measures evidence the discovery already saw")
+    if res.outcome == Outcome.INCONCLUSIVE:
+        blockers.append(f"inconclusive: {res.n} periods against {res.required_n:.0f} needed for {policy.power:.0%} power" if not res.powered else "powered but not decisive")
+    if res.outcome == Outcome.REFUTES:
+        blockers.append("it refutes the discovery; it counts against it, not for it")
+    if res.outcome == Outcome.SUPPORTS and res.beats_control is None and policy.require_control:
+        blockers.append("supports it but has no matched control: requirement 'control_beaten' needs another run")
+    for g in independence_groups([r] + [o for o in others if o.run_id != r.run_id], policy):
+        if r.run_id in g and len(g) > 1:
+            blockers.append(f"same experiment as {sorted(set(g) - {r.run_id})}: counts once")
+    counts = res.outcome == Outcome.SUPPORTS and res.fresh_data and not any("counts once" in b for b in blockers)
+    return RunDiagnosis(r.run_id, counts, res.outcome.value, axes, tuple(blockers), tuple(x.value for x in res.earned_axes() if x in FRESH_DATA_AXES))
+
+
+def explain_all(d: Discovery, runs: Sequence[ReplicationRun], now, policy: ReplicationPolicy = DEFAULT_POLICY) -> list[RunDiagnosis]:
+    """explain_run for every run of the discovery, in run-id order. Runs that had not matured by `now` are a FirewallBreach."""
+    mine = sorted((r for r in runs if r.discovery_id == d.discovery_id), key=lambda r: r.run_id)
+    for r in mine:
+        require_past(r.matured_at, now, f"replication run {r.run_id}")
+    return [explain_run(d, r, policy, mine, now) for r in mine]
+
+
+def unmet_requirements(a: ReplicationAssessment, policy: ReplicationPolicy = DEFAULT_POLICY) -> list[str]:
+    """Each unmet requirement of an assessment with the concrete gap: how many more independent fresh runs, which axis is missing."""
+    out = []
+    if not a.requirements["enough_independent_replications"]:
+        out.append(f"{policy.min_independent - a.n_supporting} more independent supporting run(s) needed (has {a.n_supporting})")
+    if not a.requirements["period_is_fresh"]:
+        out.append("no supporting run used a fresh period (mandatory)")
+    if not a.requirements["enough_fresh_axes"]:
+        out.append(f"covers {len(a.axes_covered)} fresh-data axes, needs {policy.min_fresh_axes}; missing {', '.join(a.axes_missing)}")
+    if not a.requirements["control_beaten"]:
+        out.append("no supporting run beat a matched control")
+    if not a.requirements["success_share_ok"]:
+        out.append(f"success share {a.success_share:.0%} is under {policy.min_success_share:.0%}: retrying until one works is not replication")
+    if not a.requirements["pooled_positive"]:
+        out.append("the pooled fresh effect's lower bound is not above zero")
+    if not a.requirements["heterogeneity_ok"]:
+        out.append(f"heterogeneity I2={a.pooled.get('i2', 0):.0%} exceeds {policy.max_i2:.0%}: the runs disagree")
+    if not a.requirements["no_powered_refutation"]:
+        out.append(f"{a.n_refuting} powered independent run(s) refute it")
+    return out
+
+
+# ------------------------------------------------------------------------------------------------ the disguised-rerun schedule
+def replayed_years_from_weeks(schedules: Sequence[Sequence]) -> list[int]:
+    """Real calendar years being replayed in disguise, from same_year-style schedules: each schedule is a list of
+    (disguised date, real date) pairs (engine.learning.same_year.RunPanel.weeks). Only the REAL date counts: the disguised date is
+    what the blind trader sees and is deliberately wrong. Empty schedules give no years, never a wildcard."""
+    years: set[int] = set()
+    for sched in schedules:
+        for pair in sched:
+            if len(pair) != 2:
+                raise ValueError(f"schedule entry {pair!r} is not a (disguised, real) pair")
+            years.add(as_date(pair[1]).year)
+    return sorted(years)
+
+
+def replayed_years_from_panels(panels: Sequence[Any]) -> list[int]:
+    """The same from objects with a `.weeks` list (RunPanel), duck-typed so this module never imports the harness."""
+    scheds = []
+    for p in panels:
+        if not hasattr(p, "weeks"):
+            raise TypeError(f"{type(p).__name__} has no .weeks: not a disguised-rerun panel")
+        scheds.append(p.weeks)
+    return replayed_years_from_weeks(scheds)
+
+
+def check_disguise_separation(schedules: Sequence[Sequence]) -> list[str]:
+    """A disguise is only useful if the trader-visible dates differ from the real ones and no two reruns look alike. Findings: a
+    week whose disguised date equals its real date, or two schedules sharing a disguised date set (the trader could match them)."""
+    out, seen = [], {}
+    for i, sched in enumerate(schedules):
+        same = sum(1 for d, r in sched if as_date(d) == as_date(r))
+        if same:
+            out.append(f"schedule {i}: {same} week(s) show their real date to the trader")
+        key = tuple(sorted(str(as_date(d)) for d, _ in sched))
+        if key in seen and key:
+            out.append(f"schedules {seen[key]} and {i} use identical disguised dates")
+        seen.setdefault(key, i)
+    return out
+
+
+def release_blockers(d: Discovery, runs: Sequence[ReplicationRun], schedules: Sequence[Sequence]) -> list[str]:
+    """Reasons research on this discovery may not be released now: its evidence years intersect the years being replayed in disguise."""
+    clash = same_year_conflict(d, runs, replayed_years_from_weeks(schedules))
+    return [f"evidence year {y} is being replayed in disguise (same-year rerun leak)" for y in clash]
+
+
+def authorize_with_schedule(change_id: str, discoveries: Mapping[str, Discovery], runs: Sequence[ReplicationRun], now, schedules: Sequence[Sequence],
+                            policy: ReplicationPolicy = DEFAULT_POLICY) -> ChangeAuthorization:
+    """authorize_system_change with replayed years read straight from the disguised-rerun schedule format."""
+    return authorize_system_change(change_id, discoveries, runs, now, policy, replayed_years_from_weeks(schedules))
+
+
+# ------------------------------------------------------------------------------------------------ the false-replication rate, with its interval
+def wilson_interval(k: int, n: int, z: float = 1.96) -> tuple[float, float]:
+    """Wilson score interval for a rate k/n (well-behaved at 0 and n, where the normal interval collapses)."""
+    if n <= 0:
+        return (float("nan"), float("nan"))
+    p = k / n
+    den = 1 + z * z / n
+    centre = (p + z * z / (2 * n)) / den
+    half = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / den
+    return (max(0.0, centre - half), min(1.0, centre + half))
+
+
+@dataclass(frozen=True)
+class RateEstimate:
+    kind: str
+    hits: int
+    n: int
+    rate: float
+    lo: float
+    hi: float
+
+    def exceeds(self, limit: float) -> bool:
+        """True only when even the LOWER bound is above the limit: the policy provably lets too much through."""
+        return self.lo > limit
+
+
+def _one_discovery(rng: np.random.Generator, kind: str, i: int, eff: float, sd: float, n_tests: int, n_runs: int, run_len: int,
+                   base_n: int) -> tuple[Discovery, list[ReplicationRun]]:
+    """One synthetic discovery and its fresh runs. The null case is the best of n_tests noise draws (winner's curse really present)."""
+    stocks = frozenset(f"S{j}" for j in range(30))
+    draws = [rng.normal(eff, sd, base_n) for _ in range(n_tests if eff == 0.0 else 1)]
+    best = max(draws, key=lambda x: x.mean() / max(x.std(ddof=1), 1e-12))
+    d = Discovery(f"{kind}{i}", float(best.mean()), float(best.std(ddof=1)), base_n, ("2015-01-05", "2015-12-28"), 10, stocks, (1,), frozenset({"calm"}),
+                  "c", "d", "2016-01-15", n_tests if eff == 0.0 else 1)
+    regimes = ("calm", "stress", "boom", "bear", "chop")
+    runs = []
+    for k in range(n_runs):
+        yr = 2017 + k
+        runs.append(ReplicationRun(f"{kind}{i}r{k}", d.discovery_id, (f"{yr}-01-02", f"{yr}-12-29"), frozenset(f"T{k}_{j}" for j in range(30)), 10 + k,
+                                   regimes[k % len(regimes)], tuple(float(v) for v in rng.normal(eff, sd, run_len)),
+                                   tuple(float(v) for v in rng.normal(0.0, sd, run_len)), "c", "d", f"{yr + 1}-01-15", "alt" if k else "primary"))
+    return d, runs
+
+
+def estimate_rates(policy: ReplicationPolicy = DEFAULT_POLICY, n_sim: int = 200, true_effect: float = 0.006, sd: float = 0.02, n_tests: int = 20,
+                   n_runs: int = 3, run_len: int = 50, base_n: int = 60, seed: int = 0, z: float = 1.96) -> dict:
+    """False-replication rate (a discovery with NO effect reaching REPLICATED) and replication power (one with a real effect doing so),
+    each with a Wilson interval, at whatever scale the caller can afford. The unit test runs it small; a real-scale run is n_sim in the
+    thousands. Deterministic given `seed`; every simulated discovery draws from its own child generator, so results do not depend on
+    n_sim ordering."""
+    pol = dataclasses.replace(policy, bootstrap_n=min(policy.bootstrap_n, 100))
+    seeds = np.random.SeedSequence(seed).spawn(2 * n_sim)
+    hits = {"null": 0, "real": 0}
+    stat_counts: dict[str, dict[str, int]] = {"null": {}, "real": {}}
+    for idx, kind in enumerate(("null", "real")):
+        eff = 0.0 if kind == "null" else true_effect
+        for i in range(n_sim):
+            rng = np.random.default_rng(seeds[idx * n_sim + i])
+            d, runs = _one_discovery(rng, kind, i, eff, sd, n_tests, n_runs, run_len, base_n)
+            st = assess(d, runs, "2021-01-01", pol).status.value
+            stat_counts[kind][st] = stat_counts[kind].get(st, 0) + 1
+            hits[kind] += st == Status.REPLICATED.value
+    fr = RateEstimate("false_replication", hits["null"], n_sim, hits["null"] / n_sim, *wilson_interval(hits["null"], n_sim, z))
+    pw = RateEstimate("power", hits["real"], n_sim, hits["real"] / n_sim, *wilson_interval(hits["real"], n_sim, z))
+    return {"false_replication": fr, "power": pw, "statuses": stat_counts, "n_sim": n_sim, "n_tests": n_tests, "policy": policy.digest(),
+            "params": {"true_effect": true_effect, "sd": sd, "n_runs": n_runs, "run_len": run_len, "base_n": base_n}}
+
+
+def check_rates(est: dict, max_false: float = 0.05, min_power: float = 0.5) -> list[str]:
+    """Verdict on a rate estimate: the policy is FLAWED only when the false-replication rate's lower bound exceeds the ceiling or the
+    power's upper bound is under the floor (an interval that includes the target is 'not shown to be wrong', not 'right')."""
+    out = []
+    fr, pw = est["false_replication"], est["power"]
+    if fr.exceeds(max_false):
+        out.append(f"false-replication rate {fr.rate:.3f} (CI {fr.lo:.3f}-{fr.hi:.3f}) is provably above {max_false}")
+    if pw.hi < min_power:
+        out.append(f"replication power {pw.rate:.3f} (CI up to {pw.hi:.3f}) is provably below {min_power}: the policy rejects real effects")
+    return out
+
+
+def rank_policies(candidates: Sequence[ReplicationPolicy], n_sim: int = 100, seed: int = 0, max_false: float = 0.05) -> list[dict]:
+    """Rank candidate policies by measured behaviour (never by P&L): keep those whose false rate is not provably too high, ordered by
+    power. Reports every candidate, including rejected ones with the reason, so a threshold cannot be chosen by hiding the alternatives."""
+    rows = []
+    for pol in candidates:
+        errs = pol.validate()
+        if errs:
+            rows.append({"policy": pol.digest(), "ok": False, "reasons": errs})
+            continue
+        est = estimate_rates(pol, n_sim=n_sim, seed=seed)
+        bad = check_rates(est, max_false)
+        rows.append({"policy": pol.digest(), "ok": not bad, "reasons": bad, "false": est["false_replication"].rate, "power": est["power"].rate,
+                     "false_hi": est["false_replication"].hi})
+    return sorted(rows, key=lambda r: (not r["ok"], -r.get("power", 0.0)))

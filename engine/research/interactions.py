@@ -1171,10 +1171,12 @@ def describe(tr: Trial, surface: Mapping[str, Any]) -> str:
             f"(high-high minus mixed minus low-low contrast {contrast:+.4f}).")
 
 
-def redundancy_clusters(series: Mapping[str, TrialSeries], threshold: float = 0.6) -> dict:
+def redundancy_clusters(series: Mapping[str, TrialSeries], threshold: float = 0.6,
+                        same_pair: Mapping[str, Any] | None = None) -> dict:
     """Group survivors that are the same effect seen through different forms (a product, its high-high corner, its high-low
     corner). Each trial's per-date contribution (the coefficient, or slope-deviation times covariate) is correlated on shared
-    dates; components of the |corr| > threshold graph are one cluster. n_effective is the participation ratio of the
+    dates; components of the |corr| > threshold graph are one cluster, and trials that share an atom pair (`same_pair` maps a
+    trial id to its pair) are joined regardless of correlation, since forms of one pair are one hypothesis. n_effective is the participation ratio of the
     correlation matrix: how many INDEPENDENT effects the survivors amount to."""
     ids = list(series)
     if not ids:
@@ -1191,6 +1193,12 @@ def redundancy_clusters(series: Mapping[str, TrialSeries], threshold: float = 0.
             parent[x] = parent[parent[x]]
             x = parent[x]
         return x
+    if same_pair:
+        first: dict[Any, str] = {}
+        for k in ids:
+            if k in same_pair:
+                other = first.setdefault(same_pair[k], k)
+                parent[find(k)] = find(other)
     if len(frame) >= 10 and len(ids) > 1:
         corr = frame.corr().to_numpy()
         for i in range(len(ids)):
@@ -1433,7 +1441,7 @@ def atom_health(P: Panel) -> pd.DataFrame:
     for name, v in P.date_atoms.items():
         a = P.meta[name]
         rows.append({"atom": name, "role": a.role, "level": "date", "kind": a.kind, "coverage": float(np.mean(v != 0)),
-                     "tie_share": 0.0, "stale_share": float(np.mean(v[1:] == v[:-1])) if len(v) > 1 else 1.0})
+                     "tie_share": 0.0, "stale_share": float(np.mean(v[1:] == v[:-1])) if len(v) > 1 and a.kind == "cont" else 0.0})
     df = pd.DataFrame(rows, columns=["atom", "role", "level", "kind", "coverage", "tie_share", "stale_share"])
     df["healthy"] = (df["coverage"] > 0.02) & (df["tie_share"] < 0.5) & (df["stale_share"] < 0.9)
     return df
@@ -1936,7 +1944,8 @@ def step(state: InteractionState, inputs: InteractionInputs, now, cfg: SearchCon
     if lottery["validated"] == 0 and lottery["verdict"] == "SIGNAL":
         lottery["verdict"] = "SIGNAL_NOT_VALIDATED"
     findings = tuple(w.freeze() for w in works)
-    clus = redundancy_clusters({k: v for k, v in entered.items() if len(v)}) if entered else {"clusters": [], "n_effective": 0.0}
+    pair_of = {w.trial.trial_id: frozenset((w.trial.a, w.trial.b)) for w in works}
+    clus = redundancy_clusters({k: v for k, v in entered.items() if len(v)}, same_pair=pair_of) if entered else {"clusters": [], "n_effective": 0.0}
     shrunk = {k: v for k, v in shrink_effects(works).items()
               if any(f.trial.trial_id == k and passed_correction(f) for f in findings)}
     fam_rows = family_table(findings, cfg.alpha_raw).to_dict("records")

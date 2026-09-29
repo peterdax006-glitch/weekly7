@@ -256,9 +256,10 @@ def test_representation_failures_planted_and_unknown():
 
 def test_dataset_burden_and_search_width_effect():
     rows = [run(f"w{i}", dataset="wide", n_tests=200, false_discovery=(i % 2 == 0)) for i in range(20)] + \
-           [run(f"n{i}", dataset="narrow", n_tests=1, false_discovery=False) for i in range(20)]
+           [run(f"n{i}", dataset="narrow", n_tests=1, false_discovery=True) for i in range(20)]
     b = {x.dataset: x for x in mr.dataset_burden(rows)}
-    assert b["wide"].excess > 0 and b["narrow"].excess < 0 and b["wide"].expected_false == pytest.approx(200.0)
+    assert b["narrow"].excess > 15 and b["wide"].excess < 0                     # chance explains wide's flags, not narrow's
+    assert b["wide"].expected_false == pytest.approx(20 * (1 - 0.95 ** 200)) and b["narrow"].expected_false == pytest.approx(1.0)
     rng = np.random.default_rng(1)
     planted = [run(f"p{i}", n_tests=int(np.exp(rng.uniform(0, 6))) + 1) for i in range(150)]
     planted = [dataclasses.replace(o, false_discovery=bool(rng.random() < min(0.9, math.log(o.n_tests) / 7))) for o in planted]
@@ -418,9 +419,10 @@ def test_question_ablation_names_the_helpful_questions(visible):
     ab = mr.question_ablation(visible, NOW, 0, CFG)
     qs = ab["questions"]
     assert qs[Q16.ERA_SURVIVAL.value]["consumed_by_schedule"] is False
-    helpful = [k for k, v in qs.items() if v["consumed_by_schedule"] and v["contribution"] is not None and v["contribution"] > 0]
-    assert helpful
-    assert qs[Q16.DURABLE_EXPERIMENTS.value]["lift_without"] < ab["full_lift"] + 1e-9 or qs[Q16.OVERFIT_TYPES.value]["contribution"] > 0
+    contrib = {k: v["contribution"] for k, v in qs.items() if v["consumed_by_schedule"]}
+    assert any(abs(c) > 0 for c in contrib.values())              # ablation is sensitive: removing a question changes the lift
+    # the replay target is durability; a question about a different outcome (decision changes) must not be credited with helping it
+    assert contrib[Q16.DECISION_QUESTIONS.value] == 0 and contrib[Q16.FALSE_DISCOVERY_DATASETS.value] == 0
 
 
 # ------------------------------------------------------------------------------------------------ the advice
@@ -511,7 +513,8 @@ def test_schedule_decision_block_throttle_and_direction():
                              usable_questions=tuple(q.value for q in Q16), oos_label=ValidationLabel.VALIDATED.value)
     assert mr.schedule_decision({"exp_type": "dead", "family": "f", "representation": "r"}, adv).action == "BLOCK"
     assert mr.schedule_decision({"exp_type": "x", "family": "f", "representation": "fourier"}, adv).multiplier == 0.0
-    assert mr.schedule_decision({"exp_type": "slow", "family": "f", "representation": "r"}, adv).action == "RUN"
+    thr = mr.schedule_decision({"exp_type": "slow", "family": "f", "representation": "r"}, adv)
+    assert thr.action == "THROTTLE" and thr.multiplier < 1.0
     g = mr.schedule_decision({"exp_type": "good"}, adv).multiplier
     b = mr.schedule_decision({"exp_type": "bad"}, adv).multiplier
     assert g > 1 > b and 0.05 <= b and g <= 2.0
@@ -793,3 +796,15 @@ def test_self_check_recovers_truth_and_blocks_poison():
     r = mr.self_check(0)
     assert r["guard_refuses_eval_output"] and "fourier_bands" in r["blocked"]
     assert all(v is None or v > 0.5 for v in r["recovery"].values()) and r["label"] == mr.LABEL
+
+
+def test_objective_filters_which_factors_steer():
+    adv = mr.SchedulerAdvice("2003-01-01", 800, source_decision={"hot": 0.9}, exp_type_overfit={"e": 0.8},
+                             pooled={Q16.DECISION_QUESTIONS.value: 0.4, Q16.OVERFIT_TYPES.value: 0.3},
+                             usable_questions=tuple(q.value for q in Q16), oos_label=ValidationLabel.VALIDATED.value)
+    d = {"question_source": "hot", "exp_type": "e"}
+    assert mr.schedule_decision(d, adv, objective="durable").multiplier < 1.0          # only overfit counts
+    assert mr.schedule_decision(d, adv, objective="decisions").multiplier > 1.0        # only the decision source counts
+    assert mr.schedule_decision({}, adv, objective="durable").multiplier == 1.0
+    with pytest.raises(ValueError):
+        mr.schedule_decision(d, adv, objective="profit")

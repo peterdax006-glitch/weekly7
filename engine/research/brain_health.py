@@ -34,6 +34,14 @@ from engine.research.core import Problem
 
 LABEL = ValidationLabel.NOT_VALIDATED.value
 EPS = 1e-9
+_CODE_HASH: list = []
+
+
+def code_hash() -> str:
+    """Code hash stamped on reports; computed once per process because hashing the loaded modules costs ~0.2 s."""
+    if not _CODE_HASH:
+        _CODE_HASH.append(current_code_hash())
+    return _CODE_HASH[0]
 
 
 # ------------------------------------------------------------------------------------------------ shared vocabulary
@@ -440,7 +448,7 @@ def bits_per_minute(rows: Sequence[Outcome]) -> float | None:
 def metric_efficiency(rows: Sequence[Outcome], cfg: HealthConfig) -> Metric:
     """Information per CPU-minute, recent window against the one before it, plus the share of minutes spent on repeats, memorised
     results or claims that proved false (honest negative results are not waste)."""
-    recent, prior = recent_and_prior(rows, cfg.window)
+    recent, prior = recent_and_prior(rows, cfg.window, prior_windows=3)
     if len(recent) < cfg.min_n:
         return _unknown("compute_efficiency", len(recent), cfg.min_n)
     r = bits_per_minute(recent)
@@ -457,10 +465,15 @@ def metric_efficiency(rows: Sequence[Outcome], cfg: HealthConfig) -> Metric:
     ratio = None
     if r is not None and p is not None and p > EPS:
         ratio = r / p
-        notes.append(f"{ratio:.2f}x the previous window")
-        if ratio < cfg.efficiency_ratio_alarm:
+        notes.append(f"{ratio:.2f}x the previous windows")
+        # gains are heavy-tailed, so a low ratio alone is noise: it must also be a significant drop in per-job gain (Welch z)
+        g_r = np.array([o.gain_bits for o in recent], float)
+        g_p = np.array([o.gain_bits for o in prior], float)
+        se = math.sqrt(g_r.var(ddof=1) / len(g_r) + g_p.var(ddof=1) / len(g_p)) if len(g_r) > 1 and len(g_p) > 1 else 0.0
+        z = (g_r.mean() - g_p.mean()) / se if se > 0 else 0.0
+        if ratio < cfg.efficiency_ratio_alarm and z < -2.5:
             level = Level.ALARM
-        elif ratio < cfg.efficiency_ratio_warn and level is Level.OK:
+        elif ratio < cfg.efficiency_ratio_warn and z < -1.645 and level is Level.OK:
             level = Level.WATCH
     return Metric("compute_efficiency", r, len(recent), None, None, level, "; ".join(notes))
 
@@ -716,7 +729,7 @@ def detect_wrong_metric(rows: Sequence[Outcome], now, cfg: HealthConfig) -> Find
     v1 = float(np.mean([sum(1 for o in b if o.verified) for b in base]))
     g1 = float(np.mean([sum(o.gain_bits for o in b) for b in base]))
     v0, g0 = sum(1 for o in b0 if o.verified), sum(o.gain_bits for o in b0)
-    if n1 < max(4, cfg.min_n // 2) or len(b0) < 1.5 * n1 or v0 > v1 or g0 > g1:
+    if n1 < max(4, cfg.min_n // 2) or len(b0) < 1.5 * n1 or v0 > v1 or g0 > 0.5 * g1 * len(b0) / n1:
         return None
     level = Level.ALARM if (len(b0) >= 2 * n1 and v1 > 0 and v0 <= 0.5 * v1) else Level.WATCH
     return Finding("VOLUME_NOT_KNOWLEDGE", level, f"experiments {n1:.0f} -> {len(b0)} per month but verified discoveries "
@@ -952,7 +965,7 @@ def step(outcomes: Iterable[Outcome], now, cfg: HealthConfig | None = None, even
             findings = findings + (Finding("FALSE_DISCOVERIES", m.level, f"{m.value:.0%} of judged claims were not real",
                                            {"rate": m.value, "n": m.n}),)
     rep = BrainHealthReport(str(now), len(rows), metrics, findings, overall_level(metrics, findings),
-                            derive_directives(findings, rows, cfg), current_code_hash(), config_hash(cfg))
+                            derive_directives(findings, rows, cfg), code_hash(), config_hash(cfg))
     if ledger is not None:
         ledger.append(rep, cfg)
     return rep
@@ -1341,7 +1354,8 @@ def success_collapse_sprt(rows: Sequence[Outcome], p_healthy: float, p_broken: f
     verdict with fewer outcomes than a fixed-window comparison, and says INCONCLUSIVE rather than guessing."""
     if not 0 < p_broken < p_healthy < 1:
         raise ValueError("need 0 < p_broken < p_healthy < 1")
-    st = RP.sprt_bernoulli([1 if o.success else 0 for o in rows], p_healthy, p_broken)
+    # run the test on FAILURES so that the 'broken' hypothesis is the higher-rate one research_policy's SPRT expects
+    st = RP.sprt_bernoulli([0 if o.success else 1 for o in rows], 1.0 - p_healthy, 1.0 - p_broken)
     return {"decision": getattr(st, "decision", None), "n": len(rows), "llr": getattr(st, "llr", None)}
 
 

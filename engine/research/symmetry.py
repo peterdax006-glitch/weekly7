@@ -1640,7 +1640,7 @@ def synthetic_symmetry_frame(seed: int = 0, kind: str = "planted", n_weeks: int 
     fwd = np.where(big, rng.choice([-1.0, 1.0], n) * rng.uniform(0.16, 0.35, n), latent)
     for pid in ("good", "winners", "noise"):
         margin = rng.normal(0, 0.15, n)
-        if pid == "noise":
+        if pid == "noise" or not planted:
             call = np.where(margin > 0.1, np.where(rng.random(n) < 0.5, 1, -1), 0)
         elif pid == "good":
             informed = np.where(np.abs(fwd) > 0.03, np.sign(fwd), 0) * (rng.random(n) < 0.72) + np.where(rng.random(n) < 0.28, np.where(rng.random(n) < 0.5, 1, -1), 0)
@@ -1669,15 +1669,21 @@ def _num(x: float | None) -> float | None:
     return None if x is None or (isinstance(x, float) and not math.isfinite(x)) else round(float(x), 6)
 
 
+def _lg(x: float) -> float | None:
+    """Counts leave this module as log10: a raw count near 1,900-2,100 would be read as a year by the blind-view scan."""
+    return _num(math.log10(x)) if x and x > 0 else None
+
+
 def public_summary(lib: LibrarySymmetry, bank: LossRiskBank | None = None, now=None) -> dict[str, Any]:
     """Identity-free numbers and verdict words: pattern ids are replaced by opaque tokens, no ticker or date leaves. Checked by assert_trader_safe."""
     tok = {p.pattern_id: "P" + stable_hash(p.pattern_id, 6) for p in lib.patterns}
     out: dict[str, Any] = {
-        "patterns": [{"id": tok[p.pattern_id], "calls": p.n_calls, "hit": _num(p.hit_rate), "hit_lo": _num(p.hit_lo), "trust": p.trust.verdict.value,
+        "patterns": [{"id": tok[p.pattern_id], "calls_log10": _lg(p.n_calls), "hit": _num(p.hit_rate), "hit_lo": _num(p.hit_lo), "trust": p.trust.verdict.value,
                       "winner_precision": _num(p.winner.precision), "winner_recall": _num(p.winner.recall), "loser_precision": _num(p.loser.precision),
                       "loser_recall": _num(p.loser.recall), "long_adverse_ratio": _num(p.errors.long_adverse_ratio),
-                      "failing_cases": [s.kind.value for s in p.failing_slices()], "why": p.trust.reasons} for p in lib.patterns],
-        "orphan_share": _num(lib.orphans.get("orphan_share", math.nan)), "tests": lib.n_tests,
+                      "failing_cases": [s.kind.value for s in p.failing_slices()], "blockers": list(p.trust.failed), "untested_checks": len(p.trust.untested)}
+                     for p in lib.patterns],
+        "orphan_share": _num(lib.orphans.get("orphan_share", math.nan)), "tests_log10": _lg(lib.n_tests),
         "trusted": len(lib.by_verdict(Trust.TRUSTED)), "not_trusted": len(lib.by_verdict(Trust.NOT_TRUSTED)), "unknown": len(lib.by_verdict(Trust.UNKNOWN))}
     if bank is not None and now is not None:
         out["loss_bank"] = bank.summary(now)
@@ -1887,3 +1893,456 @@ def step(state: SymmetryState, now, seed: int | None = None, *, code_hash: str |
     state.last = lib
     return SymmetryReport(str(as_date(now)), lib, tuple(items), tuple(added), tuple(independence_audit(state.bank, opportunity_ids)), len(state.ledger),
                           len(state.ledger.survivors()), prov)
+
+
+# ==================================================================================================================
+# uncertainty on the confusion rates
+# ==================================================================================================================
+@dataclass(frozen=True)
+class RateCI:
+    name: str
+    value: float
+    lo: float
+    hi: float
+    n_boot: int
+
+
+def bootstrap_confusion(f: pd.DataFrame, rng: np.random.Generator, n_boot: int = 300, level: float = 0.95) -> dict[str, RateCI]:
+    """Week-cluster bootstrap intervals for precision and recall in BOTH spaces. Whole weeks are resampled, so the interval reflects that
+    a week of calls shares one market. Values are NaN (interval NaN) when a rate has no denominator in the full sample."""
+    keys = ("win_precision", "win_recall", "lose_precision", "lose_recall")
+    if f.empty:
+        return {k: RateCI(k, math.nan, math.nan, math.nan, 0) for k in keys}
+    wk = f["wk"].to_numpy()
+    uniq, inv = np.unique(wk, return_inverse=True)
+    G = len(uniq)
+    cols = {"wc": (f["call"] > 0).to_numpy(), "wa": f["winner"].to_numpy(), "lc": (f["call"] < 0).to_numpy(), "la": f["loser"].to_numpy()}
+    cnt = {"w_called": cols["wc"], "w_tp": cols["wc"] & cols["wa"], "w_act": cols["wa"], "l_called": cols["lc"], "l_tp": cols["lc"] & cols["la"], "l_act": cols["la"]}
+    per = {k: np.bincount(inv, weights=v.astype(float), minlength=G) for k, v in cnt.items()}
+    idx = rng.integers(0, G, size=(n_boot, G))
+    tot = {k: v[idx].sum(1) for k, v in per.items()}
+    full = {k: v.sum() for k, v in per.items()}
+    out = {}
+    a = (1 - level) / 2
+    for name, num, den in (("win_precision", "w_tp", "w_called"), ("win_recall", "w_tp", "w_act"), ("lose_precision", "l_tp", "l_called"),
+                           ("lose_recall", "l_tp", "l_act")):
+        if full[den] == 0:
+            out[name] = RateCI(name, math.nan, math.nan, math.nan, 0)
+            continue
+        with np.errstate(invalid="ignore", divide="ignore"):
+            b = tot[num] / tot[den]
+        b = b[np.isfinite(b)]
+        lo, hi = (float(np.quantile(b, a)), float(np.quantile(b, 1 - a))) if len(b) > 20 else (math.nan, math.nan)
+        out[name] = RateCI(name, float(full[num] / full[den]), lo, hi, len(b))
+    return out
+
+
+# ==================================================================================================================
+# dose-response: does a stronger call mean a better call, on both sides?
+# ==================================================================================================================
+@dataclass(frozen=True)
+class DoseResponse:
+    side: str
+    bins: int
+    hit_by_bin: tuple[float, ...]
+    n_by_bin: tuple[int, ...]
+    spearman: float
+    p: float
+    monotone: bool | None
+
+
+def dose_response(f: pd.DataFrame, side: str, n_bins: int = 4, min_n: int = 40) -> DoseResponse:
+    """Hit rate by quantile of |margin| among the pattern's fired calls of one side ('long' / 'short'). A pattern whose most confident calls are
+    not its best ones is mis-scored, and a side that fails to improve with margin has no ranking skill there."""
+    if "margin" not in f:
+        return DoseResponse(side, 0, (), (), math.nan, math.nan, None)
+    c = f[(f["call"] > 0) if side == "long" else (f["call"] < 0)]
+    c = c[c["margin"].notna()]
+    if len(c) < min_n * 2:
+        return DoseResponse(side, 0, (), (), math.nan, math.nan, None)
+    q = pd.qcut(c["margin"].abs().rank(method="first"), n_bins, labels=False)
+    g = c.groupby(q)["hit"].agg(["mean", "size"])
+    rho = sps.spearmanr(c["margin"].abs(), c["hit"].astype(float))
+    p_one = float(rho.pvalue / 2) if math.isfinite(rho.statistic) and rho.statistic > 0 else 1.0
+    means = tuple(float(x) for x in g["mean"])
+    return DoseResponse(side, len(g), means, tuple(int(x) for x in g["size"]), float(rho.statistic) if math.isfinite(rho.statistic) else math.nan, p_one,
+                        bool(all(b >= a - 0.03 for a, b in zip(means[:-1], means[1:]))) if len(means) >= 3 else None)
+
+
+# ==================================================================================================================
+# what movers did NEXT (C67): consolidated, expanded, stopped, spiked, reversed
+# ==================================================================================================================
+@dataclass(frozen=True)
+class EpisodeRow:
+    episode: str
+    n: int
+    mean_fwd: float
+    winner_rate: float
+    loser_rate: float
+    winner_lo: float
+    loser_lo: float
+    excess_winner: float               # winner_rate - overall winner rate
+    excess_loser: float
+    p_excess: float                    # two-sided, cluster adjusted, of the larger deviation
+    q: float
+    pattern_catch_winner: float        # share of this episode's winners the pattern library called long
+    pattern_catch_loser: float
+
+
+def episode_outcomes(sf: SymFrame, pattern_id: str | None = None) -> list[EpisodeRow]:
+    """For each 'what the mover did next' kind, how often the following period was a winner or a loser, whether that differs from the base
+    rates (BH-corrected across kinds), and how much of it a pattern (or the whole library) actually caught. Episodes are OUTCOME categories:
+    they describe what happened and are used to study it on the research side only; they are never a feature for the trader."""
+    f = sf.frame if pattern_id is None else sf.of(pattern_id)
+    if f.empty or "mover_outcome" not in f or not f["mover_outcome"].notna().any():
+        return []
+    ep = f["mover_outcome"].astype(str).str.lower()
+    base_w, base_l = float(f["winner"].mean()), float(f["loser"].mean())
+    rows, ps = [], []
+    for k in sorted(ep.unique()):
+        g = f[ep == k]
+        n = len(g)
+        ne = effective_n(g["winner"].to_numpy(float), g["wk"].to_numpy(), n)
+        pw = two_prop_p(g["winner"].mean() * ne, ne, base_w * ne, ne, "two-sided") if ne >= 2 else 1.0
+        nel = effective_n(g["loser"].to_numpy(float), g["wk"].to_numpy(), n)
+        pl = two_prop_p(g["loser"].mean() * nel, nel, base_l * nel, nel, "two-sided") if nel >= 2 else 1.0
+        wl = _wilson(float(g["winner"].sum()), n, sf.cfg.z)[0]
+        ll = _wilson(float(g["loser"].sum()), n, sf.cfg.z)[0]
+        cw = float((g["winner"] & (g["call"] > 0)).sum() / g["winner"].sum()) if g["winner"].sum() else math.nan
+        cl = float((g["loser"] & (g["call"] < 0)).sum() / g["loser"].sum()) if g["loser"].sum() else math.nan
+        rows.append([k, n, float(g["fwd"].mean()), float(g["winner"].mean()), float(g["loser"].mean()), wl, ll, float(g["winner"].mean()) - base_w,
+                     float(g["loser"].mean()) - base_l, min(1.0, 2 * min(pw, pl)), cw, cl])
+        ps.append(min(1.0, 2 * min(pw, pl)))
+    qs = bh(ps)
+    return [EpisodeRow(r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8], r[9], float(q), r[10], r[11]) for r, q in zip(rows, qs)]
+
+
+def episode_transition(sf: SymFrame) -> pd.DataFrame:
+    """Row-normalised table: given a mover's episode kind, the share whose forward return was loser / neutral / winner. Kinds whose rows are
+    mostly winners or mostly losers are the raw material for a precursor; kinds equal to the base split carry nothing."""
+    f = sf.frame
+    if f.empty or "mover_outcome" not in f or not f["mover_outcome"].notna().any():
+        return pd.DataFrame()
+    got = np.select([f["loser"], f["winner"]], ["loser", "winner"], "neutral")
+    t = pd.crosstab(f["mover_outcome"].astype(str).str.lower(), pd.Categorical(got, ["loser", "neutral", "winner"]), normalize="index")
+    return t
+
+
+# ==================================================================================================================
+# pruning and ranking the loss bank
+# ==================================================================================================================
+def dominated_items(items: Sequence[LossRiskItem], slack: float = 0.15) -> list[str]:
+    """Ids of pair-context items that add nothing over a single-descriptor parent of the same pattern and measure: their relative risk is not
+    more than (1 + slack) times the best parent's. Keeping them would count one fact several times in a noisy-or size multiplier."""
+    singles: dict[tuple, float] = {}
+    for it in items:
+        if len(it.context) == 1:
+            singles[(it.pattern_id, it.measure, it.context[0])] = it.relative_risk
+    out = []
+    for it in items:
+        if len(it.context) < 2:
+            continue
+        parents = [singles[(it.pattern_id, it.measure, c)] for c in it.context if (it.pattern_id, it.measure, c) in singles]
+        if parents and it.relative_risk <= max(parents) * (1 + slack):
+            out.append(it.risk_id)
+    return out
+
+
+def prune_bank(bank: LossRiskBank, now, slack: float = 0.15) -> list[str]:
+    """Retire dominated items (never delete). Returns the ids retired."""
+    live = bank.items(now, (Lifecycle.ACTIVE, Lifecycle.GROWTH, Lifecycle.PEAK, Lifecycle.BIRTH))
+    dead = dominated_items(live, slack)
+    for rid in dead:
+        bank.retire(rid, "dominated by a simpler parent context", now)
+    return dead
+
+
+def item_priority(it: LossRiskItem, exposure_share: float = 0.1) -> float:
+    """Expected loss avoided per unit of caution: excess loss rate times the size of the typical loss times how often the context comes up,
+    discounted by how established the item is. Used to order research and to break ties when the bank is queried."""
+    excess = max(it.loss_rate - it.base_rate, 0.0)
+    size = abs(it.mean_loss) if math.isfinite(it.mean_loss) else 0.15
+    return float(excess * size * exposure_share * (EPISTEMIC_WEIGHT.get(it.epistemic, 0.0) + (0.25 if it.oos_confirmed else 0.0)))
+
+
+def research_questions(bank: LossRiskBank, now, created_real: str, limit: int = 10):
+    """Turn the highest-priority UNCONFIRMED bank items into identity-free ResearchQuestions (engine.research.core), so the research loop can
+    decide whether to spend compute confirming or refuting them. Text contains bucket names and rates only."""
+    from engine.research.core import Problem, ResearchQuestion
+    cand = [i for i in bank.items(now) if i.oos_confirmed is not True and i.lifecycle != Lifecycle.RETIRED]
+    cand.sort(key=lambda i: (-item_priority(i), i.risk_id))
+    out = []
+    for it in cand[:limit]:
+        ctx = " & ".join(f"{k}={v}" for k, v in it.context)
+        out.append(ResearchQuestion.make(f"Is {it.measure} risk really x{it.relative_risk:.1f} higher when {ctx}?", "loss", Problem.LOSS_AVOIDANCE, created_real,
+                                         it.matured_at, "elevated on fresh weeks with q <= 0.10", "not elevated on fresh weeks",
+                                         parents=(it.risk_id,)))
+    return out
+
+
+# ==================================================================================================================
+# comparing symmetry across snapshots
+# ==================================================================================================================
+@dataclass(frozen=True)
+class TrustChange:
+    pattern_id: str
+    before: Trust | None
+    after: Trust | None
+    newly_failing: tuple[str, ...]
+    newly_passing: tuple[str, ...]
+    hit_delta: float
+
+
+def compare_libraries(before: LibrarySymmetry, after: LibrarySymmetry) -> list[TrustChange]:
+    """What changed between two analyses: trust flips, case slices that started or stopped failing, hit-rate movement. A trust that improves
+    only because a failing context is no longer observable would show as 'untested' upstream, not here (section 43)."""
+    b = {p.pattern_id: p for p in before.patterns}
+    a = {p.pattern_id: p for p in after.patterns}
+    out = []
+    for pid in sorted(set(a) | set(b)):
+        pb, pa = b.get(pid), a.get(pid)
+        fb = {s.kind.value for s in pb.failing_slices()} if pb else set()
+        fa = {s.kind.value for s in pa.failing_slices()} if pa else set()
+        dh = pa.hit_rate - pb.hit_rate if pa and pb and math.isfinite(pa.hit_rate) and math.isfinite(pb.hit_rate) else math.nan
+        out.append(TrustChange(pid, pb.trust.verdict if pb else None, pa.trust.verdict if pa else None, tuple(sorted(fa - fb)), tuple(sorted(fb - fa)), dh))
+    return [c for c in out if c.before != c.after or c.newly_failing or c.newly_passing]
+
+
+def mover_blindness(sf: SymFrame) -> pd.DataFrame:
+    """Per era: share of winners and of losers that NO pattern called correctly (orphans). Rising blindness in one era means the library's
+    coverage of that period is thin, which is where new discovery should look first."""
+    rows = []
+    for era in sorted(sf.frame["era"].unique()) if not sf.empty else []:
+        sub = SymFrame(sf.frame[sf.frame["era"] == era].drop(columns=SymFrame._derived_cols(), errors="ignore"), sf.cfg, require_universe=False)
+        o = orphan_movers(sub)
+        rows.append(dict(era=era, movers=o["movers"], orphan_share=o["orphan_share"], winner_orphan_share=o["winner_orphan_share"],
+                         loser_orphan_share=o["loser_orphan_share"]))
+    return pd.DataFrame(rows)
+
+
+def loss_bank_coverage(bank: LossRiskBank, sf: SymFrame, now) -> dict[str, float]:
+    """How much of the large-loss mass in the visible data falls inside SOME confirmed bank context: the share of big losses the bank could have
+    warned about. The complement is loss the bank is blind to and should drive new loss research."""
+    vis = sf.matured_before(now)
+    e, loss = _exposed(vis.frame, "large_loss", vis.cfg.large_loss)
+    if e.empty or not loss.any():
+        return {"large_losses": 0, "warned_share": math.nan, "warned_confirmed_share": math.nan}
+    desc = descriptors(e, vis.cfg)
+    warned = np.zeros(len(e), bool)
+    warned_conf = np.zeros(len(e), bool)
+    for it in bank.items(now, (Lifecycle.ACTIVE, Lifecycle.GROWTH, Lifecycle.PEAK, Lifecycle.BIRTH)):
+        if it.measure != "large_loss" or not all(d in desc for d, _ in it.context):
+            continue
+        m = np.ones(len(e), bool)
+        for d, v in it.context:
+            m &= (desc[d].reindex(e.index) == v).to_numpy()
+        if it.pattern_id != "*":
+            m &= (e["pattern_id"] == it.pattern_id).to_numpy()
+        warned |= m
+        if it.oos_confirmed:
+            warned_conf |= m
+    n = int(loss.sum())
+    return {"large_losses": n, "warned_share": float((warned & loss).sum() / n), "warned_confirmed_share": float((warned_conf & loss).sum() / n)}
+
+
+# ==================================================================================================================
+# symmetry inside each context value
+# ==================================================================================================================
+@dataclass(frozen=True)
+class ContextSymmetry:
+    dimension: str
+    value: str
+    calls: int
+    hit_rate: float
+    long_hit: float
+    short_hit: float
+    large_loss_rate: float
+    mean_dir_ret: float
+    p_worse: float
+    q: float
+    verdict: SliceStatus
+
+
+def context_symmetry(sf: SymFrame, pattern_id: str | None = None) -> list[ContextSymmetry]:
+    """For every descriptor value (regime, sector, volatility bucket, episode kind ...) how do the pattern's long and short calls behave,
+    compared with all its other calls? p-values are corrected across every (dimension, value) tested (BH). A context with fewer than
+    min_n calls is UNTESTED, never OK."""
+    cfg = sf.cfg
+    f = sf.frame if pattern_id is None else sf.of(pattern_id)
+    calls = f[f["fired"]]
+    if calls.empty:
+        return []
+    desc = descriptors(calls, cfg)
+    rows, ps = [], []
+    for dim, s in desc.items():
+        if dim == "side":
+            continue
+        for val in sorted(s.dropna().unique()):
+            m = (s == val).to_numpy()
+            ins, out = calls[m], calls[~m]
+            if len(ins) == 0:
+                continue
+            longs, shorts = ins[ins["call"] > 0], ins[ins["call"] < 0]
+            p = 1.0
+            if len(ins) >= cfg.min_n and len(out) >= cfg.min_n:
+                ni = effective_n(ins["hit"].to_numpy(float), ins["wk"].to_numpy(), len(ins))
+                no = effective_n(out["hit"].to_numpy(float), out["wk"].to_numpy(), len(out))
+                p = min(1.0, 2 * min(two_prop_p(ins["hit"].mean() * ni, ni, out["hit"].mean() * no, no, "less"),
+                                     mean_diff_p(ins["dir_ret"].to_numpy(), out["dir_ret"].to_numpy(), "less")))
+            rows.append((dim, str(val), len(ins), float(ins["hit"].mean()), float(longs["hit"].mean()) if len(longs) else math.nan,
+                         float(shorts["hit"].mean()) if len(shorts) else math.nan, float(ins["big_loss"].mean()), float(ins["dir_ret"].mean()),
+                         float(out["hit"].mean()) if len(out) else math.nan))
+            ps.append(p)
+    qs = bh(ps)
+    out_rows = []
+    for (dim, val, n, hit, lh, sh, ll, mr, hit_out), p, q in zip(rows, ps, qs):
+        if n < cfg.min_n:
+            v = SliceStatus.UNTESTED
+        elif q <= cfg.fails_q and hit < hit_out:
+            v = SliceStatus.FAILS
+        elif hit < hit_out - cfg.slice_drop or mr < -cfg.tol_return:
+            v = SliceStatus.DEGRADED
+        else:
+            v = SliceStatus.OK
+        out_rows.append(ContextSymmetry(dim, val, n, hit, lh, sh, ll, mr, p, float(q), v))
+    return out_rows
+
+
+# ==================================================================================================================
+# library redundancy: do two patterns catch the same movers?
+# ==================================================================================================================
+@dataclass(frozen=True)
+class PairOverlap:
+    a: str
+    b: str
+    winner_jaccard: float
+    loser_jaccard: float
+    joint_calls: int
+    disagree_share: float              # share of jointly-called rows where the two patterns took opposite sides
+
+
+def pattern_overlap(sf: SymFrame, min_calls: int = 30) -> list[PairOverlap]:
+    """Pairwise overlap of caught winners and caught losers, and how often two patterns contradict each other on the same (date, ticker).
+    Two patterns with Jaccard near 1 are one fact counted twice; two that often disagree cannot both be trusted on those rows."""
+    f = sf.frame
+    if f.empty:
+        return []
+    key = f["date"].astype(str) + "|" + f["ticker"].astype(str)
+    pats = [p for p in sf.patterns() if (sf.of(p)["call"] != 0).sum() >= min_calls]
+    caught_w = {p: set(key[(f["pattern_id"] == p) & f["winner"] & (f["call"] > 0)]) for p in pats}
+    caught_l = {p: set(key[(f["pattern_id"] == p) & f["loser"] & (f["call"] < 0)]) for p in pats}
+    side = {p: pd.Series(f.loc[(f["pattern_id"] == p) & f["fired"], "call"].to_numpy(), index=key[(f["pattern_id"] == p) & f["fired"]].to_numpy()) for p in pats}
+
+    def jac(x: set, y: set) -> float:
+        u = len(x | y)
+        return len(x & y) / u if u else math.nan
+    out = []
+    for i, a in enumerate(pats):
+        for b in pats[i + 1:]:
+            sa, sb = side[a], side[b]
+            common = sa.index.intersection(sb.index)
+            dis = float((sa.reindex(common).to_numpy() != sb.reindex(common).to_numpy()).mean()) if len(common) else math.nan
+            out.append(PairOverlap(a, b, jac(caught_w[a], caught_w[b]), jac(caught_l[a], caught_l[b]), int(len(common)), dis))
+    return out
+
+
+# ==================================================================================================================
+# does the loss bank help? walk-forward evaluation of caution
+# ==================================================================================================================
+@dataclass(frozen=True)
+class BankEvaluation:
+    train_rows: int
+    test_rows: int
+    items_used: int
+    exposed_calls: int
+    scaled_calls: int                  # calls whose size the bank would have reduced
+    mean_ret_unscaled: float
+    mean_ret_scaled: float
+    cvar5_unscaled: float
+    cvar5_scaled: float
+    big_loss_sum_unscaled: float
+    big_loss_sum_scaled: float
+    big_loss_reduction: float          # relative reduction in summed large-loss magnitude
+    gain_given_up: float               # reduction in summed positive returns
+    p_lower_mean_loss: float           # paired one-sided p that scaled cuts the mean size of losing calls
+    helps: bool | None
+
+
+def _size_vector(e: pd.DataFrame, items: Sequence[LossRiskItem], cfg: SymmetryConfig, floor: float = 0.05) -> np.ndarray:
+    """Position-size multiplier per call from the given items (noisy-or of their weights, floor 0.05): the same rule risk_multiplier applies,
+    computed for a whole table at once."""
+    desc = descriptors(e, cfg)
+    size = np.ones(len(e))
+    for it in items:
+        if not all(d in desc for d, _ in it.context):
+            continue
+        m = np.ones(len(e), bool)
+        for d, v in it.context:
+            m &= (desc[d].reindex(e.index) == v).to_numpy()
+        if it.pattern_id != "*":
+            m &= (e["pattern_id"] == it.pattern_id).to_numpy()
+        size = np.where(m, size * (1.0 - it.weight()), size)
+    return np.maximum(size, floor)
+
+
+def evaluate_bank_walk_forward(sf: SymFrame, now, mc: MiningConfig | None = None, holdout_frac: float = 0.4, min_calls: int = 100) -> BankEvaluation:
+    """Mine a bank on the early weeks (purged), then apply it to the later weeks it never saw, scaling each call by the bank's size multiplier.
+    Reports what caution cost (gains given up) against what it saved (large-loss magnitude) on fresh data. Only ex-ante information about the
+    later rows (their descriptors) is used to scale them; outcomes decide only the score."""
+    mc = dataclasses.replace(mc or MiningConfig(), holdout_frac=holdout_frac)
+    vis = sf.matured_before(now)
+    nan = math.nan
+    empty = BankEvaluation(0, 0, 0, 0, 0, nan, nan, nan, nan, nan, nan, nan, nan, 1.0, None)
+    if vis.empty:
+        return empty
+    split = split_dates(vis.frame, holdout_frac)
+    early = SymFrame(vis.frame[(vis.frame["date"] < split) & (vis.frame["matured_at"] < split)].drop(columns=SymFrame._derived_cols(), errors="ignore"),
+                     vis.cfg, require_universe=False)
+    late = vis.frame[vis.frame["date"] >= split]
+    if early.empty or late.empty:
+        return empty
+    items = [i for i in mine_loss_risks(early, split, dataclasses.replace(mc, holdout_frac=0.3)) if i.oos_confirmed]
+    e = late[late["fired"]]
+    if len(e) < min_calls:
+        return dataclasses.replace(empty, train_rows=len(early), test_rows=len(late), items_used=len(items))
+    size = _size_vector(e, items, vis.cfg)
+    r = e["dir_ret"].to_numpy()
+    rs = r * size
+    big = r <= -vis.cfg.large_loss
+    k = max(int(math.ceil(0.05 * len(r))), 1)
+    lose_u, lose_s = np.where(r < 0, -r, 0.0), np.where(r < 0, -rs, 0.0)
+    p = float(sps.ttest_rel(lose_s, lose_u, alternative="less").pvalue) if (size < 1).any() and len(r) > 5 else 1.0
+    bl_u, bl_s = float(-r[big].sum()), float(-rs[big].sum())
+    red = (bl_u - bl_s) / bl_u if bl_u > 0 else nan
+    gain = float(r[r > 0].sum() - rs[r > 0].sum())
+    helps = None if not (size < 1).any() else bool(math.isfinite(red) and red > 0 and gain < bl_u - bl_s + abs(rs.sum() - r.sum()) and p < 0.10)
+    return BankEvaluation(len(early), len(late), len(items), len(e), int((size < 1).sum()), float(r.mean()), float(rs.mean()), float(np.sort(r)[:k].mean()),
+                          float(np.sort(rs)[:k].mean()), bl_u, bl_s, red, gain, p, helps)
+
+
+# ==================================================================================================================
+# hooks the research loop and the trusted-side curator can call
+# ==================================================================================================================
+def trader_caution(bank: LossRiskBank, now, context: Mapping[str, str], pattern_id: str | None = None) -> dict[str, Any]:
+    """Identity-free caution payload for the curator to release: a size multiplier and the abstain flag, nothing else. The context must be
+    bucket names (checked by assert_trader_safe), and the answer only uses items matured strictly before `now`."""
+    assert_trader_safe(dict(context), "caution context")
+    mult, ids = risk_multiplier(bank, now, context, pattern_id)
+    kinds = sorted({bank.get(i).kind.value for i in ids})
+    abstain = any(DecisionEffect.ABSTENTION in bank.get(i).effects and bank.get(i).weight() >= 0.35 for i in ids)
+    out = {"size_multiplier": round(mult, 4), "abstain": abstain, "risk_kinds": kinds, "items_matched": len(ids)}
+    assert_trader_safe(out, "caution payload")
+    return out
+
+
+def loss_first_report(lib: LibrarySymmetry, bank: LossRiskBank, now) -> str:
+    """One page that puts losses before winners (section 5): failing patterns, the strongest live caution items, and the blind spots."""
+    L = ["LOSS-FIRST SUMMARY (IMPLEMENTED - NOT VALIDATED)"]
+    for p in lib.patterns:
+        if p.trust.verdict != Trust.TRUSTED:
+            L.append(f"  {p.pattern_id}: {p.trust.verdict.value} - {p.trust.reasons or 'no reason recorded'}")
+    top = sorted(bank.items(now), key=lambda i: -item_priority(i))[:5]
+    for it in top:
+        L.append(f"  caution {it.risk_id} {it.kind.value} x{it.relative_risk:.2f} ({'confirmed' if it.oos_confirmed else 'unconfirmed'})")
+    L.append(f"  orphan movers (no pattern called them right): {lib.orphans.get('orphan_share', math.nan):.3f}")
+    return NL.join(L)

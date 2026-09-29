@@ -44,7 +44,7 @@ from engine.learning import calibration as LC
 from engine.learning import trader_view as TV
 from engine.learning.core import (FirewallBreach, Provenance, _StrEnum, as_date, current_code_hash, require_past,
                                   stable_hash)
-from engine.research.core import (Availability, ExperimentValue, GateVerdict, MaturedRecord, Namespace, Problem,
+from engine.research.core import (Availability, DecisionEffect, ExperimentValue, GateVerdict, MaturedRecord, Namespace, Problem,
                                   ResearchQuestion, ResearchState, Stage)
 
 EIGHTY = 0.80                          # the section 10/11 target; fv_pipeline.FVConfig.gate must agree (see shared_target)
@@ -318,9 +318,9 @@ def assess_volatility_evidence(score: pd.Series, mover: pd.Series, n_pick: int =
     if df.empty:
         return VolatilityEvidence(0, 0, float("nan"), float("nan"), float("nan"), float("nan"), float("nan"), float("nan"), "empty")
     df["m"] = df["m"].astype(float)
-    df["date"] = df.index.get_level_values(0)
+    df["wk"] = df.index.get_level_values(0)
     aucs, hits, picks, movers, uni = [], [], [], [], []
-    for _, g in df.groupby("date", sort=True):
+    for _, g in df.groupby("wk", sort=True):
         a = _weekly_auc(g["s"].to_numpy(), g["m"].to_numpy())
         if not np.isfinite(a):
             continue
@@ -444,6 +444,7 @@ class ConditionalUniverse:
             return Universe(pd.DataFrame(), pd.DataFrame(), dropped, warn + ["no scored rows before now"])
         picks = DF.select_picks(sc, cfg.n_pick, cfg.n_pool)
         pool = picks[picks["pool"]].copy()
+        pool.index = pool.index.set_names([None, None])     # avoid index-level/column ambiguity with the date column
         pool["score"] = sc.reindex(pool.index).to_numpy()
         L = lab.reindex(pool.index)
         pool["fwd"] = L["fwd"].to_numpy(dtype=float)
@@ -1313,8 +1314,7 @@ def decide_outcome(res: HypothesisResult, cfg: LabConfig, n_dedicated: int) -> t
         why.append(f"net payoff {res.payoff_full.get('mean_net_bp', float('nan')):+.1f}bp <= 0 after costs")
     if not why:
         return Outcome.CANDIDATE, ["passed every gate; still needs a fresh holdout (Stage 4) before it may influence a decision"]
-    partial = res.p_raw < cfg.alpha or (Comparator.BASE_RATE in res.comparators and res.comparators[Comparator.BASE_RATE].passed)
-    if partial and res.skill > 0:
+    if res.p_raw < cfg.alpha and res.skill >= cfg.edge_floor:
         return Outcome.WEAK_UNREPLICATED, why
     return Outcome.NO_RELIABLE_SIGNAL, why
 
@@ -1538,9 +1538,11 @@ def conditional_cells(M: pd.DataFrame, pool: pd.DataFrame, columns: Sequence[str
     out-of-sample cell is compared with the maximum accuracy that many cells produce by pure chance (null_max_accuracy). This is
     how 'an 80% pocket' is manufactured, and this function is what proves whether one is real."""
     d = pd.DatetimeIndex(pool["date"])
-    cut = d[np.argsort(d.values)[len(d) // 2]] if len(d) else None
+    if len(d) < 4:
+        return pd.DataFrame(), dict(cells=0, best_acc=float("nan"), null_q95=float("nan"), beats_null=False, p_any_80=float("nan"), reaching_80=0)
+    cut = d[np.argsort(d.values)[len(d) // 2]]
     up = pool["up"].to_numpy(dtype=float)
-    first, second = (d < cut).to_numpy(), (d >= cut).to_numpy()
+    first, second = np.asarray(d < cut), np.asarray(d >= cut)
     cells = []
     for c in columns:
         x = M[c].to_numpy(dtype=float)
@@ -1585,7 +1587,7 @@ def interaction_scan(M: pd.DataFrame, pool: pd.DataFrame, columns: Sequence[str]
     if len(cols) < 2 or len(d) < 2 * min_rows:
         return pd.DataFrame(columns=["a", "b", "t_first", "t_second", "sign_kept", "replicates"]), dict(pairs=0, selected=0, replicated=0, expected_by_chance=0.0)
     cut = d[np.argsort(d.values)[len(d) // 2]]
-    first = (d < cut).to_numpy()
+    first = np.asarray(d < cut)
     Z = M[cols].to_numpy(dtype=float)
     mu, sd = np.nanmean(Z[first], axis=0), np.nanstd(Z[first], axis=0)
     sd[~(sd > 0)] = 1.0
@@ -2292,7 +2294,7 @@ class DirectionLab:
         if not cols:
             return
         M = Xd[cols]
-        report.ic = feature_ic_table(M, pool, "up", owner)
+        report.ic = feature_ic_table(M, pool, "up", family_of=owner)
         report.ic_years = ic_by_year(M[report.ic["column"].head(30).tolist()] if len(report.ic) else M.iloc[:, :30], pool)
         report.rank_gradient = rank_gradient(pool, seed=cfg.seed)[1]
         report.market = market_component(pool)
@@ -2516,7 +2518,7 @@ def synthetic_inputs(seed: int = 0, n_tickers: int = 150, n_weeks: int = 416, wo
     mag = np.where(mover, 0.10 + np.abs(rng.standard_normal(n)) * 0.05, np.abs(rng.standard_normal(n)) * 0.02)
     fwd = np.where(up, 1.0, -1.0) * mag
     score = pd.Series(v + rng.standard_normal(n) * 0.9, index=idx, name="p_vol")
-    score[dates.year < dates[0].year + 2] = np.nan
+    score[np.repeat(dates.year < dates[0].year + 2, n_tickers)] = np.nan
     ent = pd.DatetimeIndex(np.repeat(dates + pd.Timedelta(days=3), n_tickers))
     end = pd.DatetimeIndex(np.repeat(dates + pd.Timedelta(days=8), n_tickers))
     labels = pd.DataFrame({"entry_date": ent, "end_date": end, "fwd": fwd.astype("float32"), "mover": mover, "amb": False,

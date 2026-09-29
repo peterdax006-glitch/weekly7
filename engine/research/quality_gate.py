@@ -665,7 +665,9 @@ def as_matured_record(d: QualityDecision, matured_at: str, prov: Provenance) -> 
 
 
 # ------------------------------------------------------------------------------------------------ quarantine
-class QuarantineStore(RP.ChainLog):
+class QuarantineStore(RP.ResearchLane):
+    LANE = "qquar"
+
     """Append-only, hash-chained record of quarantines and releases. Quarantine is not deletion (history is immutable): the item stays,
     flagged, and is released only by a later decision that clears every integrity gate on evidence that differs from what
     quarantined it."""
@@ -1015,7 +1017,9 @@ def compare_decisions(a: QualityDecision, b: QualityDecision) -> dict:
             "policy_changed": a.policy_digest != b.policy_digest, "evidence_changed": a.evidence_digest != b.evidence_digest}
 
 
-class DecisionLog(RP.ChainLog):
+class DecisionLog(RP.ResearchLane):
+    LANE = "qdec"
+
     """Append-only, hash-chained log of gate decisions. Verdict flips of one subject over time are visible (a promotion that was once
     QUARANTINED needs an explanation), and a verdict may not be rewritten."""
 

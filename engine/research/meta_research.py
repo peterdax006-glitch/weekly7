@@ -647,7 +647,7 @@ class DatasetBurden:
     dataset: str
     runs: int
     total_tests: int
-    expected_false: float                           # what pure chance would hand out at `alpha`
+    expected_false: float                           # runs a pure-chance hit would flag: sum of 1-(1-alpha)^n_tests
     observed_false: int
     excess: float                                   # observed - expected: >0 means more false findings than chance alone explains
     rate_per_run: float
@@ -656,7 +656,7 @@ class DatasetBurden:
 def dataset_burden(records: Sequence[ResearchOutcome], alpha: float = 0.05) -> list:
     """A dataset can 'create' false discoveries simply by being searched more. Compare the false discoveries it produced with
     the number pure multiple testing would produce at the stated alpha across all the comparisons its runs made."""
-    by: dict = defaultdict(lambda: [0, 0, 0])
+    by: dict = defaultdict(lambda: [0, 0, 0, 0.0])
     for o in records:
         if o.false_discovery is None:
             continue
@@ -664,10 +664,10 @@ def dataset_burden(records: Sequence[ResearchOutcome], alpha: float = 0.05) -> l
         row[0] += 1
         row[1] += o.n_tests
         row[2] += int(o.false_discovery)
+        row[3] += 1.0 - (1.0 - alpha) ** o.n_tests
     out = []
     for ds in sorted(by):
-        runs, tests, fd = by[ds]
-        exp = tests * alpha
+        runs, tests, fd, exp = by[ds]
         out.append(DatasetBurden(ds, runs, tests, exp, fd, fd - exp, fd / runs))
     return out
 
@@ -1298,7 +1298,17 @@ def _ratio(rate: float | None, pooled: float | None, invert: bool = False, cap: 
     return min(cap, max(1.0 / cap, num / den))
 
 
-def schedule_decision(desc: Mapping, adv: SchedulerAdvice, cid: str = "", cfg: MetaResearchConfig | None = None) -> ScheduleDecision:
+# Which questions bear on which objective. A factor about a different outcome must not steer a schedule optimising this one
+# (question_ablation showed that mixing them makes the advice WORSE than a subset).
+OBJECTIVE_FACTORS = {
+    "durable": ("durable", "overfit", "failing representation", "family transfer", "validation recall"),
+    "decisions": ("decision source", "informative failure", "durable"),
+    "safety": ("overfit", "false-discovery dataset", "failing representation"),
+    "all": None}
+
+
+def schedule_decision(desc: Mapping, adv: SchedulerAdvice, cid: str = "", cfg: MetaResearchConfig | None = None,
+                      objective: str = "all") -> ScheduleDecision:
     """Turn advice into a priority multiplier for one candidate. Every factor is a ratio against the pooled rate of its own
     question (so 1.0 = 'no better than average'), the product is blended toward 1 by advice trust, and a candidate whose path
     is on the STOP list, or whose representation repeatedly fails, is blocked outright. No advice means multiplier 1."""
@@ -1319,7 +1329,12 @@ def schedule_decision(desc: Mapping, adv: SchedulerAdvice, cid: str = "", cfg: M
         ("validation recall", adv.validation_recall.get(desc.get("validation_method")), P.get(Q16.VALIDATION_METHODS.value), False),
         ("informative failure", adv.exp_type_informative_failure.get(desc.get("exp_type")), P.get(Q16.INFORMATIVE_FAILURES.value), False),
         ("failing representation", adv.representation_failure.get(desc.get("representation")), P.get(Q16.FAILING_REPRESENTATIONS.value), True))
+    if objective not in OBJECTIVE_FACTORS:
+        raise ValueError(f"unknown objective {objective!r}")
+    allowed = OBJECTIVE_FACTORS[objective]
     for name, rate, pooled, invert in checks:
+        if allowed is not None and name not in allowed:
+            continue
         r = _ratio(rate, pooled, invert)
         if r is not None:
             factors.append(r)
@@ -1384,6 +1399,7 @@ class SchedulerEval:
     label: str
     reason: str
     per_fold: tuple = ()
+    cheapest_first_durable: int = 0                 # reported cost-only baseline (not a gate: cost is independent of value in planted worlds)
 
 
 def _budgeted_pick(order: Sequence[int], costs: np.ndarray, budget: float) -> list:
@@ -1410,7 +1426,7 @@ def evaluate_scheduler(rows: Sequence[ResearchOutcome], now, seed: int, cfg: Met
         return insufficient(f"only {len(lab)} resolved runs")
     rng = np.random.default_rng(seed)
     edges = np.linspace(len(lab) // 2, len(lab), cfg.folds + 1).astype(int)
-    total_adv, n_test, excluded, folds = 0, 0, 0, 0
+    total_adv, total_cheap, n_test, excluded, folds = 0, 0, 0, 0, 0
     rand_totals = np.zeros(cfg.n_draws)
     per_fold = []
     for a, b in zip(edges[:-1], edges[1:]):
@@ -1428,10 +1444,12 @@ def evaluate_scheduler(rows: Sequence[ResearchOutcome], now, seed: int, cfg: Met
             adv = advice_transform(adv)
         costs = np.array([max(1e-6, r.cost_minutes) for r in test])
         budget = cfg.budget_share * float(costs.sum())
-        mult = [schedule_decision(descriptor(r), adv, r.run_id, cfg).multiplier for r in test]
-        order = sorted(range(len(test)), key=lambda i: (-mult[i] / costs[i] ** 0.5, test[i].run_id))
+        mult = [schedule_decision(descriptor(r), adv, r.run_id, cfg, "durable").multiplier for r in test]
+        order = sorted(range(len(test)), key=lambda i: (-mult[i], hash_order(test[i].run_id)))
         picked = _budgeted_pick(order, costs, budget)
         found = sum(1 for i in picked if test[i].durable)
+        cheap = _budgeted_pick(sorted(range(len(test)), key=lambda i: (costs[i], test[i].run_id)), costs, budget)
+        total_cheap += sum(1 for i in cheap if test[i].durable)
         rand_found = np.zeros(cfg.n_draws)
         for d in range(cfg.n_draws):
             rp = _budgeted_pick(list(rng.permutation(len(test))), costs, budget)
@@ -1444,7 +1462,7 @@ def evaluate_scheduler(rows: Sequence[ResearchOutcome], now, seed: int, cfg: Met
     if not folds:
         return insufficient("no fold had enough clean training rows")
     p = float((1 + np.sum(rand_totals >= total_adv)) / (1 + cfg.n_draws))
-    beats = bool(total_adv > rand_totals.mean() and p < 0.05)
+    beats = bool(total_adv > rand_totals.mean() and p < 0.05 )
     if n_test < cfg.min_test:
         label, why = ValidationLabel.INSUFFICIENT_EVIDENCE.value, f"only {n_test} test runs"
     elif not beats:
@@ -1454,7 +1472,7 @@ def evaluate_scheduler(rows: Sequence[ResearchOutcome], now, seed: int, cfg: Met
     else:
         label, why = ValidationLabel.VALIDATED.value, "beats random out of sample on certified real records"
     return SchedulerEval(folds, n_test, excluded, int(total_adv), float(rand_totals.mean()), float(np.quantile(rand_totals, 0.95)),
-                         float(total_adv - rand_totals.mean()), p, beats, label, why, tuple(per_fold))
+                         float(total_adv - rand_totals.mean()), p, beats, label, why, tuple(per_fold), int(total_cheap))
 
 
 def fit_advice_quick(train: Sequence[ResearchOutcome], now, cfg: MetaResearchConfig, seed: int) -> SchedulerAdvice:
@@ -2401,3 +2419,8 @@ def scorecard_numbers(u: ResearchMetaUpdate) -> dict:
             "stop_paths": len(u.advice.stop_paths), "blocked_representations": len(u.advice.blocked_representations),
             "advice_trust": u.advice.trust(), "guard_refused": len(u.guard.refused),
             "compute_waste_share": compute_waste_summary(u.paths)["waste_share"] if u.paths else None}
+
+
+def hash_order(run_id: str) -> str:
+    """Deterministic, value-blind tie-break for the replay: ranking by advice alone must not smuggle in run cost or name order."""
+    return stable_hash(run_id, 8)

@@ -154,11 +154,15 @@ class SourceInputs:
         return sorted(self.bars["ticker"].astype(str).unique())
 
     def fingerprint(self) -> str:
+        if "_fp" in self.__dict__:
+            return self.__dict__["_fp"]
         b = self.bars
-        return stable_hash({"n": len(b), "t": self.tickers(), "d0": str(pd.to_datetime(b["date"]).min().date()),
+        fp = stable_hash({"n": len(b), "t": self.tickers(), "d0": str(pd.to_datetime(b["date"]).min().date()),
                             "d1": str(pd.to_datetime(b["date"]).max().date()),
                             "px": round(float(b["close"].astype(float).sum()), 4),
                             "aux": [None if t is None else len(t) for t in (self.earnings, self.filings, self.insiders, self.macro)]})
+        self.__dict__["_fp"] = fp
+        return fp
 
 
 class Wide:

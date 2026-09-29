@@ -365,7 +365,7 @@ def frontier_finding(made: pd.DataFrame, pol: ScorecardPolicy = DEFAULT_POLICY) 
     for k in range(len(cum), min_n - 1, -1):
         if cum[k - 1] >= pol.frontier_target:
             se = math.sqrt(cum[k - 1] * (1 - cum[k - 1]) / k)
-            if cum[k - 1] - 1.96 * se > 0.5:
+            if cum[k - 1] - 3.0 * se > 0.5:      # z=3: the best prefix of many is picked, so the bar is higher than 1.96
                 best = (k, float(cum[k - 1]))
                 break
     if best is None:
@@ -661,7 +661,9 @@ def claim_violations(text: str, verdict: ClaimVerdict) -> list[str]:
 
 
 # ------------------------------------------------------------------------------------------------ persistence
-class ScorecardLog(RP.ChainLog):
+class ScorecardLog(RP.ResearchLane):
+    LANE = "rscore"
+
     """Append-only, hash-chained log of cycle scorecards: a cycle is written once, history is never overwritten."""
 
     def add(self, card: ResearchScorecard) -> str:
@@ -1083,7 +1085,7 @@ def reproducible(a: Artefacts, now, code_hash: str, pol: ScorecardPolicy = DEFAU
     changes when nothing changed is measuring the random number generator."""
     c1, c2 = build_scorecard(a, now, code_hash, pol), build_scorecard(a, now, code_hash, pol)
     c3 = build_scorecard(a, now, code_hash, dataclasses.replace(pol, seed=pol.seed + 1))
-    same_exact = c1.as_record() == c2.as_record()
+    same_exact = c1.card_id == c2.card_id                # hash compare: NaN != NaN in dict equality
     bad = []
     for (s, n, m1), (_, _, m3) in zip(c1.measured_fields(), c3.measured_fields()):
         if m1.measured != m3.measured:

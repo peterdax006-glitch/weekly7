@@ -792,8 +792,8 @@ class TrainingGate:
                 raise FirewallBreach(f"training labels need a {c!r} column: maturity cannot be shown")
         if frame.empty:
             return frame.copy(), TrainingGateReport(0, 0, 0, 0, str(nowd.date()))
-        rows = pd.to_datetime(frame[self.date_col], errors="coerce").dt.normalize()
-        mat = pd.to_datetime(frame[self.matured_col], errors="coerce").dt.normalize()
+        rows = pd.to_datetime(frame[self.date_col], errors="coerce", format="ISO8601").dt.normalize()
+        mat = pd.to_datetime(frame[self.matured_col], errors="coerce", format="ISO8601").dt.normalize()
         if rows.isna().any() or mat.isna().any():
             raise FirewallBreach(f"{int(rows.isna().sum() + mat.isna().sum())} training rows have unreadable dates (timestamp ambiguity)")
         if (mat < rows).any():
@@ -952,9 +952,17 @@ def shift_object(obj: InfoObject, days: int) -> InfoObject:
 
 
 def shift_replay(replay: ReplayContext, days: int) -> ReplayContext:
-    d = dt.timedelta(days=days)
-    return dataclasses.replace(replay, real_start=(moment(replay.real_start) + d).isoformat(),
-                               real_end=(moment(replay.real_end) + d).isoformat())
+    """The replayed window moved by the nearest whole number of calendar years (a window is filed by real year; a day-exact
+    shift would drift its bounds across a year boundary and invent a same-year overlap that the original never had)."""
+    n = int(round(days / 365.2425))
+
+    def mv(x) -> str:
+        d = moment(x)
+        try:
+            return d.replace(year=d.year + n).isoformat()
+        except ValueError:                                   # 29 February
+            return d.replace(year=d.year + n, day=28).isoformat()
+    return dataclasses.replace(replay, real_start=mv(replay.real_start), real_end=mv(replay.real_end))
 
 
 @dataclasses.dataclass(frozen=True)

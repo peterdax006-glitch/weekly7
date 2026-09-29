@@ -250,8 +250,8 @@ class Panel:
             raise DiscoveryError("on_immature must be 'raise' or 'drop'")
         if not isinstance(X.index, pd.MultiIndex) or X.index.nlevels != 2:
             raise DiscoveryError("X must be indexed by (date, ticker)")
-        if not X.index.equals(y.index) and not y.index.isin(X.index).all():
-            raise DiscoveryError("y must be indexed like X")
+        if not len(X) or not X.index.isin(y.index).any():
+            raise DiscoveryError("y shares no (date, ticker) rows with X")
         if X.index.has_duplicates:
             raise DiscoveryError("duplicate (date, ticker) rows")
         now_ts = pd.Timestamp(as_date(now))
@@ -1577,7 +1577,7 @@ class DiscoveryEngine:
             if why:
                 skipped[name] = why
                 continue
-            key = f"{name}|{stable_hash(DS.FAMILIES[name].fn.__code__.co_code, 8)}|{state.steps // self.audit_every}"
+            key = f"{name}|{stable_hash(DS.FAMILIES[name].fn.__code__.co_code.hex(), 8)}|{state.steps // self.audit_every}"
             if self.audit and key not in state.pit:
                 state.pit[key] = [str(x) for x in DS.audit_pit(inp, [name], self.source_cfg)]
             found = state.pit.get(key, [])
@@ -1639,11 +1639,12 @@ class DiscoveryEngine:
         verdicts: dict[str, int] = {}
         new = retested = 0
         seen_thr = pd.Timestamp(panel.outcomes_seen_through)
+        code_hash = current_code_hash() or "unknown"          # once per step: hashing the loaded modules is slow
         for i in cand_idx:
             d, expr = self._dossier(state, panel, an, res, i, run_id, now_ts, fb, seen_thr)
             verdicts[d.verdict.value] = verdicts.get(d.verdict.value, 0) + 1
             kid = "K-" + d.pattern_id
-            prov = KN.make_provenance(seen_thr, data=inp.fingerprint(), config=dataclasses.asdict(cfg), experiment_id=run_id, run_id=run_id,
+            prov = KN.make_provenance(seen_thr, data=inp.fingerprint(), config=dataclasses.asdict(cfg), experiment_id=run_id, run_id=run_id, code_hash=code_hash,
                                       seed=cfg.seed, outcomes_seen_through=seen_thr)
             k = to_knowledge(d, expr, now_ts, prov, cfg)
             prev = state.store.latest(kid)

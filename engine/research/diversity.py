@@ -34,6 +34,14 @@ from engine.research.brain_health import (AREA_TO_TARGET, AREAS, EXPLOIT_AREAS, 
 
 LABEL = ValidationLabel.NOT_VALIDATED.value
 EPS = 1e-9
+_CODE_HASH: list = []
+
+
+def code_hash() -> str:
+    """Code hash stamped on reports; computed once per process because hashing the loaded modules costs ~0.2 s."""
+    if not _CODE_HASH:
+        _CODE_HASH.append(current_code_hash())
+    return _CODE_HASH[0]
 
 
 # ------------------------------------------------------------------------------------------------ specification
@@ -76,8 +84,8 @@ class DiversityConfig:
     ucb_weight: float = 0.4
     value_prior_bits: float = 0.15
     cost_prior_minutes: float = 8.0
-    dead_min_trials: int = 15
-    dead_rate: float = 0.03
+    dead_min_trials: int = 30
+    dead_rate: float = 0.12
     floor_min: float = 0.01                         # a proven-dead area still keeps this: never zero
     explore_default: float = 0.30
     explore_lo: float = 0.10
@@ -503,7 +511,7 @@ class DiversityController:
             str(now), float(budget_minutes), int(seed), shares, {a: s * budget_minutes for a, s in shares.items()},
             {a.value: lo[a] for a in AREAS}, {a.value: hi[a] for a in AREAS},
             {a.value: self.exploratory_fraction(a, seed + 1 + i) for i, a in enumerate(AREAS)}, explore, 1.0 - explore, fam,
-            directives.reopen_questions, tuple(rationale), prev, 0, 0, (), current_code_hash(), LABEL, hard_quota(directives))
+            directives.reopen_questions, tuple(rationale), prev, 0, 0, (), code_hash(), LABEL, hard_quota(directives))
         if commit:
             self.spent_since_plan = {a.value: 0.0 for a in AREAS}
             self.plans.append((str(now), dict(shares)))

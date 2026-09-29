@@ -65,7 +65,7 @@ PARAMS: dict[str, Any] = {
     "bd": {},                     # overrides for engine.learning.break_detection.PARAMS
     # scheduler
     "max_per_step": 3, "minutes_budget": 30.0, "cool_off_rows": 8, "reopen_rows": 26, "max_attempts": 4,
-    "cpu_min_per_cell": 4e-6, "min_priority": 0.0,
+    "cpu_min_per_cell": 5e-9, "min_priority": 0.0,
     "holdout_min_rows": 26,
 }
 
@@ -1284,7 +1284,7 @@ def test_market_structure(F: AnalysisFrame) -> HypothesisEvidence:
     before/after shift, a stable second half of the after-period, and a break that is still open or long."""
     cause = BreakCause.MARKET_STRUCTURE_CHANGE
     cols = [c for c in F.design.columns(causal=True) if F.design.tags[c].dimension in DIMENSIONS_OF[cause] and c in F.X.columns and "*" not in c]
-    eps = [e for e in F.eps if e.detect < F.m]
+    eps = [e for e in F.bk if e.detect < F.m]
     if not cols or not eps:
         return _ev(cause, None, 0.0, 1.0, 0, "no market column or no break to test")
     W = 26
@@ -1319,7 +1319,7 @@ def test_event_environment(F: AnalysisFrame) -> HypothesisEvidence:
     """Do onsets recur at the same point of the calendar? Rayleigh test on the phase of each onset (day of year when the index is
     dated, position modulo 13 otherwise). Needs at least three onsets to say anything."""
     cause = BreakCause.EVENT_ENVIRONMENT
-    onsets = [e.onset for e in F.eps]
+    onsets = [e.onset for e in F.bk]
     if len(onsets) < 3:
         return _ev(cause, None, 0.0, 1.0, len(onsets), f"only {len(onsets)} onset(s): recurrence cannot be tested")
     idx = F.item.frame.index
@@ -1343,7 +1343,7 @@ def test_pattern_crowding(F: AnalysisFrame) -> HypothesisEvidence:
     cause = BreakCause.PATTERN_CROWDING
     H = 3 * F.P["horizon"]
     zs, slopes = [], []
-    for e in F.eps:
+    for e in F.bk:
         seg = F.v[max(e.onset - H, 0):e.onset + 1]
         seg = seg[np.isfinite(seg)]
         if len(seg) < 12:
@@ -1359,7 +1359,7 @@ def test_pattern_crowding(F: AnalysisFrame) -> HypothesisEvidence:
     rising = 0.0
     if "nb_corr_trail" in F.X.columns:
         c = F.X["nb_corr_trail"].values.astype(float)
-        deltas = [c[max(e.onset - 4, 0):e.onset + 1].mean() - c[max(e.onset - H, 0):max(e.onset - 2 * F.P["horizon"], 1)].mean() for e in F.eps if e.onset > 8]
+        deltas = [c[max(e.onset - 4, 0):e.onset + 1].mean() - c[max(e.onset - H, 0):max(e.onset - 2 * F.P["horizon"], 1)].mean() for e in F.bk if e.onset > 8]
         rising = float(np.mean(deltas)) if deltas else 0.0
     ok = p <= 0.05 and share_neg >= 0.5
     strength = min(0.5 * share_neg + max(rising, 0.0), 1.0) if ok else 0.0
@@ -1431,7 +1431,7 @@ def test_sampling_artifact(F: AnalysisFrame, pops: BD.Populations, seed: int = 0
     base = dimension_support(F, cause, pops, seed)
     if base.supported:
         return base
-    lens = [e.length(F.m) for e in F.eps]
+    lens = [e.length(F.m) for e in F.bk]
     if lens and max(lens) <= 6:
         return _ev(cause, True, 0.4, 0.5, len(lens), f"every break lasted at most {max(lens)} rows: too brief to distinguish from a thin sample")
     return _ev(cause, False if lens else None, 0.0, base.p, base.n, (base.detail + "; ") + (f"breaks last {min(lens)}..{max(lens)} rows" if lens else "no break to measure"))
@@ -1490,10 +1490,10 @@ def test_external_shock(F: AnalysisFrame, shared: Sequence[Mapping] = ()) -> Hyp
     """An outside shock is abrupt, has no observable precursor and often breaks other patterns at the same time. Abrupt =
     the mean outcome steps by at least 2 sd within a few rows of the onset."""
     cause = BreakCause.EXTERNAL_SHOCK
-    if not F.eps:
+    if not F.bk:
         return _ev(cause, None, 0.0, 1.0, 0, "no break")
     steps = []
-    for e in F.eps:
+    for e in F.bk:
         b, a = F.v[max(e.onset - 6, 0):e.onset], F.v[e.onset:e.onset + 6]
         b, a = b[np.isfinite(b)], a[np.isfinite(a)]
         if len(b) < 4 or len(a) < 3:
@@ -1506,7 +1506,7 @@ def test_external_shock(F: AnalysisFrame, shared: Sequence[Mapping] = ()) -> Hyp
     sc = [s for s in shared if any(F.item_key == anon(k) or k == F.item.item_id for k in s["items"])]
     try:
         cols = F.cols[:20]
-        prof = BD.event_study(F.design, F.eps, cols, window=F.P["lead_window"])
+        prof = BD.event_study(F.design, F.bk, cols, window=F.P["lead_window"])
         leaders = [c for c in cols if BD.lead_lag_verdict(prof.loc[c], window=F.P["lead_window"]) == "leads"]
     except (KeyError, ValueError):
         leaders = []
@@ -1523,7 +1523,7 @@ def hypothesis_priors(F: AnalysisFrame, event: BreakEvent, shared: Sequence[Mapp
     if any(s["share"] >= 0.3 for s in shared):
         pr[BreakCause.EXTERNAL_SHOCK] *= 3.0
         pr[BreakCause.REGIME_CHANGE] *= 1.5
-    if len(F.eps) >= 3:
+    if len(F.bk) >= 3:
         pr[BreakCause.EVENT_ENVIRONMENT] *= 3.0
     if event.severity < 1.5:
         pr[BreakCause.RANDOM_VARIATION] *= 2.0
@@ -2315,3 +2315,311 @@ def run_history(items: Mapping[str, BD.ItemSeries], nows: Sequence[Any], cfg=Non
     for k, now in enumerate(nows):
         reports.append(step(state, now, items, peers=peers, cfg=cfg, seed=seed + k))
     return state, reports
+
+
+# ------------------------------------------------------------------------------------------------- multiplicity, stability, sensitivity
+
+def fdr_across_investigations(state: BreakResearchState, q: float = 0.10) -> dict:
+    """Benjamini-Hochberg over the Q1 family-wise p-values of every investigation that asked Q1. Each investigation already paid for
+    its own column search; this pays for the NUMBER OF PATTERNS searched, which a per-item bar cannot see. Returns inv_id -> bool
+    (survives) plus the adjusted p-values."""
+    rows = [(i.inv_id, i.result(QuestionId.PREEXISTING_PREDICTOR)) for i in state.investigations.values()]
+    rows = [(k, r.p) for k, r in rows if r is not None and r.p == r.p]
+    if not rows:
+        return {"survives": {}, "adjusted": {}, "n": 0}
+    rows.sort(key=lambda kv: kv[1])
+    m = len(rows)
+    adj, run = {}, 1.0
+    for rank in range(m, 0, -1):
+        k, p = rows[rank - 1]
+        run = min(run, p * m / rank)
+        adj[k] = run
+    return {"survives": {k: a <= q for k, a in adj.items()}, "adjusted": adj, "n": m}
+
+
+def verdict_stability(item: BD.ItemSeries, as_ofs: Sequence[Any], cfg=None, seed: int = 0) -> dict:
+    """Re-run the ladder at successive `as_of`s (each sees only its own past). An EXPLAINED verdict that flips, or names a different
+    column each time, is not a finding. Returns the verdicts, the columns and the share of as-ofs agreeing with the modal verdict."""
+    P = _cfg(cfg)
+    verdicts, columns = [], []
+    for k, a in enumerate(as_ofs):
+        try:
+            F = build_frame(item, a, P)
+        except BreakResearchError:
+            verdicts.append(Verdict.INSUFFICIENT_EVIDENCE.value)
+            columns.append(None)
+            continue
+        res, rule = run_ladder(F, seed + k, stop_early=True)
+        verdicts.append(adjudicate(res)[0].value)
+        columns.append(rule.column if rule else None)
+    modal = max(set(verdicts), key=verdicts.count) if verdicts else None
+    named = [c for c in columns if c]
+    return {"verdicts": verdicts, "columns": columns, "modal": modal, "agreement": (verdicts.count(modal) / len(verdicts)) if verdicts else float("nan"),
+            "column_agreement": (named.count(max(set(named), key=named.count)) / len(named)) if named else float("nan")}
+
+
+def parameter_sensitivity(item: BD.ItemSeries, as_of, grid: Mapping[str, Sequence[Any]], cfg=None, seed: int = 0) -> pd.DataFrame:
+    """Verdict as each named parameter is varied one at a time (horizon, auc_bar, ...). A verdict that only exists at one setting is a
+    property of the setting. One row per (parameter, value)."""
+    rows = []
+    for name, values in grid.items():
+        for val in values:
+            P = {**(cfg or {}), name: val}
+            try:
+                F = build_frame(item, as_of, P)
+                res, rule = run_ladder(F, seed, stop_early=True)
+                v = adjudicate(res)[0].value
+                rows.append({"param": name, "value": val, "verdict": v, "passed": sum(r.passed for r in res), "column": rule.column if rule else None})
+            except BreakResearchError as err:
+                rows.append({"param": name, "value": val, "verdict": "ERROR", "passed": 0, "column": None, "why": str(err)})
+    return pd.DataFrame(rows)
+
+
+def gate_with_hold(score: np.ndarray, hold: int = 3) -> np.ndarray:
+    """Turn a raw per-row 'withhold' signal into a practical gate: once triggered it stays closed for `hold` rows (a pattern that has
+    just been flagged is not re-armed on the next favourable tick). Causal: row t depends on rows <= t only."""
+    g = np.asarray(score, bool)
+    out = np.zeros(len(g), bool)
+    left = 0
+    for i in range(len(g)):
+        if g[i]:
+            left = hold
+        if left > 0:
+            out[i] = True
+            left -= 1
+    return out
+
+
+def holding_period_check(F: AnalysisFrame, rule: ColumnRule, holds: Sequence[int] = (1, 3, 6)) -> pd.DataFrame:
+    """Does the gate's value survive a realistic hold period? Q4/Q5 statistics on the confirmation rows for each hold length."""
+    rows = F.conf_rows
+    v = F.v[rows]
+    base = rule.mask(F.X)[rows]
+    out = []
+    for h in holds:
+        g = gate_with_hold(base, h)
+        ok = np.isfinite(v)
+        out.append({"hold": h, "coverage": float(g[ok].mean()), "gain": expectancy_gain(v, g), "excess_loss_avoided": excess_loss_avoided(v, g),
+                    "usable": gate_usable(v, g, F.P) == ""})
+    return pd.DataFrame(out)
+
+
+def pooled_predictor(frames: Sequence[AnalysisFrame], column: str) -> dict:
+    """Pooled evidence for one column across patterns: per-frame AUC of the column at separating pre-break rows from working rows on
+    each frame's discovery window, combined by Stouffer's z (weights sqrt(n)). Fixed-effect pooling: it says whether the column
+    is a general precursor, not whether any one pattern's rule transfers."""
+    zs, ws, aucs = [], [], []
+    for F in frames:
+        if column not in F.X.columns:
+            continue
+        pre, pos, neg, _ = training_labels(F, F.n_disc, F.eps)
+        n1, n0 = int(pre.sum()), int(neg.sum())
+        if n1 < F.P["min_pre_rows"] or n0 < F.P["min_ref_rows"]:
+            continue
+        x = F.X[column].values.astype(float)
+        idx = np.r_[np.flatnonzero(pre), np.flatnonzero(neg)]
+        y = np.r_[np.ones(n1, bool), np.zeros(n0, bool)]
+        a = float(fast_auc_columns(x[idx][:, None], y)[0])
+        deff = deff_of(y.astype(float), F.P["max_deff"])
+        z = float(sps.norm.isf(auc_p(max(a, 1 - a), n1, n0, deff)))
+        zs.append((1.0 if a >= 0.5 else -1.0) * z)
+        ws.append(math.sqrt(n1 + n0))
+        aucs.append(a)
+    if not zs:
+        return {"n_frames": 0, "z": float("nan"), "p": 1.0, "consistent_sign": None}
+    w = np.asarray(ws)
+    z = float((np.asarray(zs) * w).sum() / math.sqrt((w ** 2).sum()))
+    signs = np.sign(np.asarray(zs))
+    return {"n_frames": len(zs), "z": z, "p": float(2 * sps.norm.sf(abs(z))), "aucs": aucs,
+            "consistent_sign": bool(len(set(signs[signs != 0])) <= 1)}
+
+
+def dossier(inv: Investigation) -> str:
+    """The plain-text case file of one investigation, with every UNKNOWN reason spelled out."""
+    lines = [f"{inv.label}  [{inv.state.value}/{inv.stage.value}]  verdict {inv.verdict.value if inv.verdict else 'PENDING'}  cause {inv.cause.value}",
+             f"  break: severity {inv.event.severity:.2f} sd, length {inv.event.length} rows, {'open' if inv.event.open else 'recovered'}, source {inv.event.source}",
+             f"  trigger: {inv.trigger.source} weight {inv.trigger.weight:.2f}; priority {inv.priority:.3f}; attempts {inv.attempts}"]
+    for q in QUESTION_ORDER:
+        r = inv.result(q)
+        lines.append(f"  {q.value}: " + ("not asked (an earlier question stopped the ladder)" if r is None else f"{r.outcome.value} - {r.why}"))
+    for h in inv.hypotheses[:4]:
+        tag = "untestable" if h.evidence is None or h.evidence.supported is None else ("supported" if h.evidence.supported else "not supported")
+        lines.append(f"  hypothesis {h.cause.value}: prior {h.prior:.2f} -> {h.posterior:.2f} ({tag})")
+    if inv.rule is not None:
+        lines.append(f"  gate proposal: {inv.rule.describe()} (frozen at row {inv.frozen_row})")
+    if inv.holdout:
+        lines.append("  fresh holdout: " + "; ".join(f"{r.qid.value[:2]} {r.outcome.value}" for r in inv.holdout))
+    return "\n".join(lines)
+
+
+def export_state(state: BreakResearchState) -> dict:
+    """JSON-safe snapshot: the hash-chained ledger plus investigation summaries. The ledger alone rebuilds the history of what was
+    opened, run and concluded; `verify_export` recomputes the chain from it."""
+    return {"label": LABEL, "last_now": state.last_now, "minutes_spent": state.minutes_spent, "ledger": [dict(r) for r in state.ledger],
+            "investigations": {k: {"state": i.state.value, "stage": i.stage.value, "verdict": i.verdict.value if i.verdict else None,
+                                   "cause": i.cause.value, "rows": i.evidence_rows, "attempts": i.attempts, "note": i.note}
+                               for k, i in sorted(state.investigations.items())}}
+
+
+def verify_export(snap: Mapping[str, Any]) -> list:
+    """Recompute the ledger chain of an exported snapshot and cross-check that every investigation in it was logged as opened."""
+    errs, prev = [], "genesis"
+    opened = set()
+    for i, r in enumerate(snap.get("ledger", [])):
+        if r["prev"] != prev or r["chain"] != stable_hash([prev, r["when"], r["kind"], r["payload"]], 20):
+            errs.append(f"ledger row {i}: chain broken")
+        prev = r["chain"]
+        if r["kind"] == "opened":
+            opened.add(r["payload"]["inv"])
+    for k in snap.get("investigations", {}):
+        if k not in opened:
+            errs.append(f"investigation {k} has no 'opened' entry in the ledger")
+    return errs
+
+
+# ------------------------------------------------------------------------------------------------- market-wide breaks, previews, UNKNOWN anatomy
+
+def shared_break_investigation(items: Mapping[str, BD.ItemSeries], now, cfg=None, gap: int = 4, min_items: int = 3, top_cols: int = 5) -> dict:
+    """When several patterns break together the cause is probably common to them, and one pooled investigation has far more
+    power than several small ones. Finds groups of onsets within `gap` rows across items, then asks of every column the items share
+    whether it leads those breaks in the pooled evidence (Stouffer over items, Holm over columns). Returns the groups and the
+    surviving columns; an empty `leaders` list is the honest answer when nothing survives."""
+    P = _cfg(cfg)
+    groups = peer_shared_events(items, now, None, P, gap=gap, min_items=min_items)
+    if not groups:
+        return {"groups": [], "leaders": [], "n_items": len(items), "question": None}
+    frames = []
+    for k, it in sorted(items.items()):
+        try:
+            frames.append(build_frame(it, now, P))
+        except (BreakResearchError, FirewallBreach):
+            continue
+    common = set.intersection(*(set(F.cols) for F in frames)) if frames else set()
+    rows = [(c, pooled_predictor(frames, c)) for c in sorted(common) if c not in P["excluded_sources"]]
+    rows = [(c, r) for c, r in rows if r["n_frames"] >= min_items and r["consistent_sign"]]
+    padj = PR.holm([r["p"] for _, r in rows]) if rows else []
+    leaders = sorted(({"column": c, "z": r["z"], "p_adjusted": float(pa), "n_items": r["n_frames"]} for (c, r), pa in zip(rows, padj) if pa <= P["alpha"]),
+                     key=lambda d: d["p_adjusted"])[:top_cols]
+    text = safe_text(f"{max(g['share'] for g in groups):.0%} of patterns broke within {gap} periods of each other: is there a common precursor?")
+    q = ResearchQuestion.make(text, "break_shared", Problem.LOSS_AVOIDANCE, str(now), str(now)[:10],
+                              "a column leads the shared breaks in the pooled evidence after Holm", "no column survives with enough items")
+    return {"groups": groups, "leaders": leaders, "n_items": len(frames), "n_columns_tested": len(rows), "question": q}
+
+
+def queue_preview(state: BreakResearchState, cfg=None) -> list:
+    """What `step` would run next, without running it: queued investigations in priority order with estimated minutes and whether the
+    budget would defer them. Lets the compute manager plan before spending anything."""
+    P = _cfg(cfg)
+    queue = sorted((i for i in state.investigations.values() if i.state == ResearchState.QUEUED), key=lambda i: (-i.priority, i.inv_id))
+    out, spent, n = [], 0.0, 0
+    for inv in queue:
+        est = inv.value.compute_cost or 0.0
+        defer = n >= P["max_per_step"] or (n > 0 and spent + est > P["minutes_budget"]) or inv.priority < P["min_priority"]
+        out.append({"inv": inv.inv_id, "priority": inv.priority, "est_minutes": est, "deferred": bool(defer)})
+        if not defer:
+            spent += est
+            n += 1
+    return out
+
+
+def unknown_anatomy(inv: Investigation) -> dict:
+    """Why is this investigation UNKNOWN / INSUFFICIENT? Splits the answer into 'the data said no' (an adequately powered failure)
+    and 'the data could not say' (NOT_TESTABLE), and names the blocking question. Tells the scheduler whether more evidence
+    could ever change the answer (only the second kind) or the branch should be retired."""
+    failed = [r for r in inv.results if r.outcome == Outcome.FAILED]
+    blind = [r for r in inv.results if r.outcome == Outcome.NOT_TESTABLE]
+    asked = {r.qid for r in inv.results}
+    unasked = [q.value for q in QUESTION_ORDER if q not in asked]
+    if inv.verdict == Verdict.EXPLAINED:
+        kind = "explained"
+    elif failed:
+        kind = "negative"
+    elif blind:
+        kind = "underpowered"
+    else:
+        kind = "pending"
+    return {"kind": kind, "blocking": (failed or blind)[0].qid.value if (failed or blind) else None, "n_failed": len(failed),
+            "n_not_testable": len(blind), "unasked": unasked, "more_data_could_help": kind in ("underpowered", "pending"),
+            "reason": (failed or blind)[0].why if (failed or blind) else ""}
+
+
+# ------------------------------------------------------------------------------------------------- actionability of a rule
+
+def warning_profile(F: AnalysisFrame, rule: ColumnRule, rows: np.ndarray | None = None, cool: int = 4) -> dict:
+    """How much notice does the frozen rule actually give? For every break onset in `rows`: the number of rows between the gate's
+    first firing in the `2*horizon` rows before it and the onset (0 = no warning, the gate only closed at or after the onset).
+    Also the false-alarm rate: firing episodes (runs of the gate separated by more than `cool` rows) that are not followed by an onset
+    within 2*horizon rows. A gate that warns only after the loss has started is a symptom detector and cannot avoid it."""
+    rows = F.conf_rows if rows is None else np.asarray(rows, int)
+    if not len(rows):
+        return {"n_breaks": 0, "warned": 0, "median_lead": float("nan"), "false_alarm_share": float("nan"), "n_alarms": 0}
+    g = rule.mask(F.X)
+    lo, hi = int(rows.min()), int(rows.max())
+    H = 2 * F.P["horizon"]
+    onsets = [e.onset for e in F.bk if lo <= e.onset <= hi]
+    leads = []
+    for o in onsets:
+        seg = np.flatnonzero(g[max(o - H, 0):o])
+        leads.append(int(o - (max(o - H, 0) + seg[0])) if len(seg) else 0)
+    starts, last_fire = [], -10 ** 9
+    for i in np.flatnonzero(g[lo:hi + 1]) + lo:
+        if i - last_fire > cool:
+            starts.append(int(i))
+        last_fire = i
+    false_alarms = [s for s in starts if not any(0 <= o - s <= H or e.onset <= s < e.end(F.m) for o in onsets for e in F.bk if e.onset == o)]
+    return {"n_breaks": len(onsets), "warned": sum(l > 0 for l in leads), "leads": leads,
+            "median_lead": float(np.median(leads)) if leads else float("nan"), "n_alarms": len(starts),
+            "false_alarm_share": (len(false_alarms) / len(starts)) if starts else float("nan")}
+
+
+def actionable(profile: Mapping[str, Any], min_lead: int = 2, min_warned_share: float = 0.5, max_false_alarm: float = 0.5) -> tuple:
+    """(ok, reasons): warns early enough on enough breaks without crying wolf. Undefined numbers fail closed."""
+    reasons = []
+    if not profile.get("n_breaks"):
+        reasons.append("no break in the evaluation rows")
+    else:
+        if profile["warned"] / profile["n_breaks"] < min_warned_share:
+            reasons.append(f"warned on only {profile['warned']} of {profile['n_breaks']} breaks")
+        if not profile["median_lead"] >= min_lead:
+            reasons.append(f"median notice {profile['median_lead']} rows is below {min_lead}")
+    if not profile.get("false_alarm_share", float("nan")) <= max_false_alarm:
+        reasons.append(f"false-alarm share {profile.get('false_alarm_share')} exceeds {max_false_alarm}")
+    return (not reasons), reasons
+
+
+# ------------------------------------------------------------------------------------------------- hand-off to the research queue
+
+def queue_handoff(state: BreakResearchState, now) -> dict:
+    """The machine-readable output for the research queue (never the trader): one row per investigation with what to do next, and the
+    gate proposals with their replication status. Only investigations updated strictly before `now` are listed."""
+    rows, props = [], []
+    for inv in sorted(state.investigations.values(), key=lambda i: i.inv_id):
+        if inv.updated_at and as_date(inv.updated_at) > as_date(now):
+            raise FirewallBreach(f"investigation {inv.label} was updated at {inv.updated_at}, after now={now}")
+        an = unknown_anatomy(inv)
+        nxt = ("replicate on fresh data" if inv.state == ResearchState.VALIDATING else "collect more evidence" if an["more_data_could_help"]
+               else "retire or try a different predictor family" if an["kind"] == "negative" else "monitor" if an["kind"] == "explained" else "run")
+        rows.append({"inv": inv.inv_id, "item": inv.item_key, "state": inv.state.value, "verdict": inv.verdict.value if inv.verdict else None,
+                     "priority": inv.priority, "next": nxt, "blocking": an["blocking"], "reason": an["reason"]})
+    for p in sorted(state.proposals.values(), key=lambda p: p.proposal_id):
+        props.append({"proposal": p.proposal_id, "inv": p.inv_id, "rule": p.rule.describe(), "status": p.status, "replicated": p.replicated,
+                      "cause": p.cause.value, "effect": p.effect, "errors": p.validate()})
+    return {"label": LABEL, "as_of": str(now), "investigations": rows, "proposals": props,
+            "ready_for_champion_challenger": [p["proposal"] for p in props if p["replicated"] and p["status"] == "REPLICATED" and not p["errors"]]}
+
+
+def failure_cause_of(inv: Investigation) -> FailureCause:
+    """The C62 vocabulary for consumers of engine.learning: only an EXPLAINED investigation names a cause; everything else is UNKNOWN
+    (or INSUFFICIENT_EVIDENCE when the data could not answer), never a best guess."""
+    if inv.verdict == Verdict.EXPLAINED:
+        return FAILURE_CAUSE_OF[inv.cause]
+    return FailureCause.INSUFFICIENT_EVIDENCE if inv.verdict == Verdict.INSUFFICIENT_EVIDENCE else FailureCause.UNKNOWN
+
+
+def unknown_kinds(state: BreakResearchState) -> dict:
+    """Counts of concluded investigations by anatomy (explained / negative / underpowered / pending)."""
+    out: dict = {}
+    for inv in state.investigations.values():
+        k = unknown_anatomy(inv)["kind"]
+        out[k] = out.get(k, 0) + 1
+    return out

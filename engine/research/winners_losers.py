@@ -1388,7 +1388,7 @@ def regime_stability(cases: Sequence[MoveRecord], controls: Sequence[MoveRecord]
                                50, 10 ** 9, seed)
             if r.pairs > 0:
                 per[b] = r.auc
-        held = [b for b, v in per.items() if _side(v - 0.5) == _side(s.auc - 0.5) and abs(v - 0.5) >= p.min_edge / 2]
+        held = [b for b, v in per.items() if _side(v - 0.5) == _side(s.auc - 0.5) and abs(v - 0.5) >= max(p.min_edge, 0.5 * abs(s.auc - 0.5))]
         rows.append({"signal": s.signal, "context": context, "auc_by_tercile": per, "n_terciles": len(per),
                      "regime_bound": bool(len(per) >= 2 and len(held) < len(per)),
                      "flips": bool(any(_side(v - 0.5) == -_side(s.auc - 0.5) for v in per.values()))})

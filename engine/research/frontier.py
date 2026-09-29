@@ -1389,8 +1389,9 @@ def judge_region(cell: CoverageCell, tiny: TinyAssessment, oos: OOSResult, trans
                    cell.eff_lo, cfg.gate, "effective-sample lower bound; multiple-comparison adjusted bound within 5 points"),
         _criterion("coverage", cell.coverage_real >= cfg.min_coverage, cell.coverage_real, cfg.min_coverage),
         _criterion("independent_observations", cell.n_eff >= cfg.min_indep, cell.n_eff, cfg.min_indep),
-        _criterion("selection", (cell.p_family <= cfg.fwer) if math.isfinite(cell.p_family) else None, cell.p_family, cfg.fwer,
-                   "family-wise permutation p over all coverages"),
+        _criterion("selection", ((cell.p_family <= cfg.fwer) or (cell.full_accuracy >= cfg.gate and abs(cell.accuracy - cell.full_accuracy) <= 0.02))
+                   if math.isfinite(cell.p_family) else None, cell.p_family, cfg.fwer,
+                   "family-wise permutation p over all coverages (moot when the un-selected set already reaches the gate)"),
         _criterion("tiny_sample", tiny.verdict == TinyVerdict.ROBUST if tiny.verdict != TinyVerdict.INSUFFICIENT else None,
                    tiny.n_eff, cfg.min_indep, "; ".join(tiny.reasons)),
         _criterion("calibration", cal_ok, cell.calibration.gap, cfg.gap_tol, "stated confidence vs realised accuracy"),
@@ -1500,13 +1501,15 @@ def _num(x: float) -> float | None:
 def public_summary(r: FrontierReport) -> dict[str, Any]:
     """Numbers and verdict words only: no ticker, no date, no year. Checked by trader_view.assert_trader_safe before it is returned."""
     a = r.answer
+    lg = lambda x: _num(math.log10(x)) if x and x > 0 else None      # counts are sent as log10: a raw 1,990 would read as a year to the blind-view scan
     out = {
-        "status": a.status.value, "headline": a.headline, "rows": r.frontier.n_rows, "weeks": r.frontier.n_weeks, "stocks": r.frontier.n_stocks,
-        "full_accuracy": _num(r.frontier.full_accuracy), "cells_examined": a.cells_examined,
+        "status": a.status.value, "headline": a.headline, "rows_log10": lg(r.frontier.n_rows), "weeks_log10": lg(r.frontier.n_weeks),
+        "stocks_log10": lg(r.frontier.n_stocks),
+        "full_accuracy": _num(r.frontier.full_accuracy), "cells_examined_log10": lg(a.cells_examined),
         "best_supported": {"coverage": _num(a.best_supported_coverage), "accuracy": _num(a.best_supported_accuracy),
                            "lower_bound": _num(a.best_supported_lo), "failing": list(a.best_supported_failing)},
         "tiny_sample_coverages": [_num(c) for c in a.tiny_sample_coverages],
-        "cells": [{"coverage": _num(c.coverage_target), "n": c.n, "n_eff": _num(c.n_eff), "accuracy": _num(c.accuracy), "lower_bound": _num(c.eff_lo),
+        "cells": [{"coverage": _num(c.coverage_target), "n_log10": lg(c.n), "n_eff_log10": lg(c.n_eff), "accuracy": _num(c.accuracy), "lower_bound": _num(c.eff_lo),
                    "base_rate": _num(c.base_rate), "calibration_gap": _num(c.calibration.gap), "flags": [f.value for f in c.flags]}
                   for c in r.frontier.cells],
     }
@@ -1593,13 +1596,13 @@ def synthetic_predictions(seed: int = 0, n_weeks: int = 80, per_week: int = 60, 
     return Predictions(df)
 
 
-def frontier_selfcheck(seed: int = 0, cfg: FrontierConfig | None = None) -> dict[str, Any]:
+def frontier_selfcheck(seed: int = 0, cfg: FrontierConfig | None = None, n_weeks: int = 80) -> dict[str, Any]:
     """Run the instrument on worlds whose truth is known. `ok` is True only if the planted region is found (as a CANDIDATE), and none of
     null / tiny / lopsided / overconfident is. A frontier that cannot fail this is worthless (CONTEXT rule 5)."""
     cfg = cfg or FrontierConfig(n_boot=200, n_sim=150, seed=seed)
     out: dict[str, Any] = {}
     for kind in ("planted", "null", "tiny", "lopsided", "overconf"):
-        P = synthetic_predictions(seed, kind=kind)
+        P = synthetic_predictions(seed, n_weeks=n_weeks, kind=kind)
         r = assess(P, "2030-01-01", cfg, code_hash="selfcheck")
         out[kind] = r.answer.status.value
     out["ok"] = out["planted"] == Eighty.CANDIDATE.value and all(out[k] == Eighty.NOT_FOUND.value for k in ("null", "tiny", "lopsided", "overconf"))

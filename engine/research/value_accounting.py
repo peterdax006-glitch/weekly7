@@ -1376,3 +1376,165 @@ def explain_record(rec: ValueRecord) -> str:
     if unmeasured:
         parts.append("  unmeasured (never read as zero): " + ", ".join(unmeasured))
     return "\n".join(parts)
+
+
+# ------------------------------------------------------------------------------------------------ reconciliation and portfolio views
+def reconcile_with_manager(ledger: ValueLedger, branch_spend: Mapping[str, float], tol: float = 1e-6) -> dict:
+    """Compute must be accounted exactly once. Compare the CPU-minutes the value ledger holds per branch with what the compute
+    manager says each branch spent: `unaccounted` = spent but never valued (jobs that escaped the accountant), `overcounted` =
+    valued for more than was spent (a double-counted or inflated job). Both should be empty."""
+    per: dict[str, float] = {}
+    for r in ledger.records():
+        if r.verdict != Verdict.CORRECTION.value:
+            per[r.branch_id] = per.get(r.branch_id, 0.0) + r.cost_cpu_min
+    unacc = {b: c - per.get(b, 0.0) for b, c in sorted(branch_spend.items()) if c - per.get(b, 0.0) > tol * max(1.0, c)}
+    over = {b: per[b] - branch_spend.get(b, 0.0) for b in sorted(per) if per[b] - branch_spend.get(b, 0.0) > tol * max(1.0, per[b])}
+    return {"unaccounted": unacc, "overcounted": over, "ok": not unacc and not over}
+
+
+def value_by_target(ledger: ValueLedger, as_of) -> dict[str, dict[str, float]]:
+    """Net value and compute per research target (section 35 places effort can go), so the target allocator can be compared with
+    what each target actually returned."""
+    out: dict[str, dict[str, float]] = {}
+    for r in ledger.records(as_of):
+        if r.verdict == Verdict.CORRECTION.value:
+            continue
+        d = out.setdefault(r.target, {"jobs": 0.0, "cpu_min": 0.0, "net_value": 0.0, "useful": 0.0})
+        d["jobs"] += 1
+        d["cpu_min"] += r.cost_cpu_min
+        d["net_value"] += r.net_value
+        d["useful"] += float(r.verdict in (Verdict.USEFUL.value, Verdict.PREVENTIVE.value))
+    for d in out.values():
+        d["rate"] = d["net_value"] / d["cpu_min"] if d["cpu_min"] > 0 else 0.0
+    return dict(sorted(out.items()))
+
+
+def bits_per_cpu_min(ledger: ValueLedger, as_of, family: str | None = None) -> float | None:
+    """Information gained per CPU-minute (None when no job measured information). Only measured jobs count in the numerator AND
+    the denominator, so unmeasured jobs cannot dilute or inflate the rate."""
+    bits = cpu = 0.0
+    for r in ledger.records(as_of):
+        if r.verdict == Verdict.CORRECTION.value or (family is not None and r.family != family):
+            continue
+        b = r.value.get("information_gain")
+        if b is not None:
+            bits += float(b)
+            cpu += r.cost_cpu_min
+    return bits / cpu if cpu > 0 else None
+
+
+def stopping_advice(ledger: ValueLedger, family: str, as_of, k: int = 4, eps: float = 0.0005) -> dict:
+    """Should the family's line of work stop? Uses research_policy.marginal_return_verdict on the per-job net value per CPU-minute
+    of the family, and adds the drought length. The waste controller decides; this is the accountant's evidence for it."""
+    from engine.learning.research_policy import marginal_return_verdict
+    rs = [r for r in ledger.records(as_of) if r.family == family and r.verdict != Verdict.CORRECTION.value and r.cost_cpu_min > 0]
+    rates = [max(0.0, r.net_value) / r.cost_cpu_min for r in rs]
+    mv = marginal_return_verdict(rates, k=k, eps=eps)
+    return {"family": family, "jobs": len(rs), "marginal": mv, "drought": ledger.drought(family, as_of),
+            "recommend_stop": mv["verdict"] == "STOP" and ledger.drought(family, as_of) >= k}
+
+
+def concentration(ledger: ValueLedger, as_of, top: int = 3) -> dict:
+    """How concentrated is the value? If a few jobs carry all the net value, the vector is fragile (one refuted claim could erase
+    it). Reports the share of positive value held by the top jobs and by the top family."""
+    rs = [r for r in ledger.records(as_of) if r.net_value > 0]
+    tot = sum(r.net_value for r in rs)
+    if tot <= 0:
+        return {"positive_value": 0.0, "top_jobs_share": 0.0, "top_family_share": 0.0}
+    top_jobs = sum(sorted((r.net_value for r in rs), reverse=True)[:top])
+    fam: dict[str, float] = {}
+    for r in rs:
+        fam[r.family] = fam.get(r.family, 0.0) + r.net_value
+    return {"positive_value": tot, "top_jobs_share": top_jobs / tot, "top_family_share": max(fam.values()) / tot}
+
+
+def job_from_run(run: Mapping[str, Any], branch_id: str, family: str, problem: Problem, stage: Stage, data_through: str,
+                 job_id: str, **measurements) -> JobMeasurement:
+    """Wrap a compute-manager run-log entry (stage, at, cost, ...) as a JobMeasurement, so every ladder run reaches the accountant
+    through one door; measurement arrays are passed by keyword and anything not supplied stays unmeasured."""
+    measurements.setdefault("params_added", int(run.get("complexity", 0) or 0))
+    return JobMeasurement(job_id, branch_id, family, problem, stage, str(run["at"]), data_through, float(run.get("cost", 0.0)), **measurements)
+
+
+# ------------------------------------------------------------------------------------------------ judge operating characteristics
+@dataclasses.dataclass(frozen=True)
+class JudgeCharacteristics:
+    n: int
+    false_useful_rate: float           # share of no-effect jobs judged USEFUL (should be near 0)
+    false_harmful_rate: float          # share of no-effect jobs judged HARMFUL_IF_ADOPTED
+    detection_rate: float              # share of real-effect jobs judged USEFUL
+    inconclusive_rate_real: float
+
+
+def judge_characteristics(seed: int, n: int = 40, periods: int = 200, tail_cap: float = 0.02, policy: ValuePolicy | None = None) -> JudgeCharacteristics:
+    """Measure the accountant itself on planted jobs of known truth: `n` jobs whose 'improved' P&L is the baseline plus pure noise
+    (no effect) and `n` whose improved P&L really clips the loss tail. A judge that calls noise USEFUL is broken however clean its
+    real-data output looks; one that misses the real tail cut is too timid. Deterministic in `seed`."""
+    policy = policy or ValuePolicy(n_boot=200)
+    rng = np.random.default_rng(seed)
+    false_u = false_h = hit = inc = 0
+    for i in range(n):
+        base = rng.normal(0.0, 0.03, periods)
+        led = ValueLedger()
+        null = account_job(led, JobMeasurement(f"n{i}", "B", "f", Problem.VOLATILITY, Stage.CROSS_YEAR, "2010-01-05", "2010-01-04", 5.0,
+                                               pnl_before=base, pnl_after=base + rng.normal(0, 0.002, periods), replications=1), "2010-02-01", policy)
+        real = account_job(led, JobMeasurement(f"r{i}", "B", "f", Problem.VOLATILITY, Stage.CROSS_YEAR, "2010-01-05", "2010-01-04", 5.0,
+                                               pnl_before=base, pnl_after=np.clip(base, -tail_cap, None), replications=1), "2010-02-01", policy)
+        false_u += null.verdict == Verdict.USEFUL.value
+        false_h += null.verdict == Verdict.HARMFUL_IF_ADOPTED.value
+        hit += real.verdict == Verdict.USEFUL.value
+        inc += real.verdict == Verdict.INCONCLUSIVE.value
+    return JudgeCharacteristics(n, false_u / n, false_h / n, hit / n, inc / n)
+
+
+def leave_one_out_value(ledger: ValueLedger, as_of) -> dict[str, float]:
+    """Total net value with each job removed: the drop is that job's marginal contribution. A total that collapses when one job
+    is removed is fragile (see `concentration`)."""
+    rs = [r for r in ledger.records(as_of)]
+    tot = sum(r.net_value for r in rs)
+    return {r.job_id: tot - r.net_value for r in rs}
+
+
+def value_uncertainty(ledger: ValueLedger, as_of, seed: int = 0, n_boot: int = 500) -> Interval:
+    """Bootstrap interval for the ledger's mean net value per CPU-minute (resampling jobs). A wide interval means the portfolio
+    verdict about 'is research paying for itself' is itself unknown."""
+    rs = [r for r in ledger.records(as_of) if r.verdict != Verdict.CORRECTION.value and r.cost_cpu_min > 0]
+    if not rs:
+        return Interval(0.0, 0.0, 0.0, 0)
+    v = np.array([r.net_value for r in rs])
+    c = np.array([r.cost_cpu_min for r in rs])
+    return bootstrap_interval(lambda a, b: a.sum() / max(b.sum(), 1e-9), [v, c], np.random.default_rng(seed), n_boot, 1)
+
+
+# ------------------------------------------------------------------------------------------------ tables
+def verdict_matrix(ledger: ValueLedger, as_of) -> dict[str, dict[str, int]]:
+    """Family x verdict counts (corrections excluded): where each kind of outcome comes from."""
+    out: dict[str, dict[str, int]] = {}
+    for r in ledger.records(as_of):
+        if r.verdict != Verdict.CORRECTION.value:
+            row = out.setdefault(r.family, {})
+            row[r.verdict] = row.get(r.verdict, 0) + 1
+    return {f: dict(sorted(v.items())) for f, v in sorted(out.items())}
+
+
+def top_wasters(ledger: ValueLedger, as_of, n: int = 5) -> list[tuple[str, float, float]]:
+    """(family, cpu_min spent on WORTHLESS/INVALID jobs, share of that family's compute): where waste is concentrated."""
+    waste: dict[str, float] = {}
+    total: dict[str, float] = {}
+    for r in ledger.records(as_of):
+        if r.verdict == Verdict.CORRECTION.value:
+            continue
+        total[r.family] = total.get(r.family, 0.0) + r.cost_cpu_min
+        if r.verdict in (Verdict.WORTHLESS.value, Verdict.INVALID.value):
+            waste[r.family] = waste.get(r.family, 0.0) + r.cost_cpu_min
+    rows = [(f, w, w / total[f]) for f, w in waste.items() if total[f] > 0]
+    return sorted(rows, key=lambda t: (-t[1], t[0]))[:n]
+
+
+def ledger_diff(a: ValueLedger, b: ValueLedger) -> dict:
+    """Jobs valued in one ledger but not the other, and jobs whose verdict differs (the same job judged under two policies or two
+    code versions). Verdict drift under an unchanged policy means the accountant is not deterministic, which is a defect."""
+    ra, rb = {r.job_id: r for r in a.records()}, {r.job_id: r for r in b.records()}
+    changed = {j: (ra[j].verdict, rb[j].verdict) for j in sorted(set(ra) & set(rb)) if ra[j].verdict != rb[j].verdict}
+    return {"only_a": sorted(set(ra) - set(rb)), "only_b": sorted(set(rb) - set(ra)), "changed": changed,
+            "value_delta": sum(r.net_value for r in rb.values()) - sum(r.net_value for r in ra.values())}
