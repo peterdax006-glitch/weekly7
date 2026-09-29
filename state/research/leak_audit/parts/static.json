@@ -1,0 +1,837 @@
+{
+ "closure_modules": [
+  "adaptive",
+  "backtest",
+  "basis_search",
+  "blind_gates",
+  "broker",
+  "checkpoint",
+  "config",
+  "data",
+  "edgar",
+  "explain",
+  "features",
+  "fill_audit",
+  "health",
+  "improve",
+  "isolation",
+  "live",
+  "livesim",
+  "livesim_loop2",
+  "memory",
+  "missed_winners",
+  "model",
+  "objective",
+  "options",
+  "pit",
+  "policy",
+  "portfolio",
+  "provenance",
+  "replay",
+  "scoring",
+  "shadows",
+  "site_data",
+  "timeline",
+  "train",
+  "universe"
+ ],
+ "not_reachable_from_blind_path": [
+  "ablation",
+  "analog_weighting",
+  "analogs",
+  "analogs_sector",
+  "analogs_stock",
+  "antimemo",
+  "antioverfit",
+  "baseline",
+  "candidates",
+  "candles",
+  "champion",
+  "claims",
+  "data_sources",
+  "direction",
+  "direction_ablate",
+  "direction_calib",
+  "exits",
+  "experiment_memory",
+  "fv_pipeline",
+  "gaprisk",
+  "heavy_tests",
+  "leak_audit",
+  "learning_delta",
+  "lessons",
+  "memory_diagnostics",
+  "miner_tuning",
+  "parity",
+  "parity_suite",
+  "pattern_bank",
+  "pattern_identity",
+  "pattern_lifecycle",
+  "pattern_movers",
+  "pattern_stats",
+  "patterns",
+  "planted",
+  "registry",
+  "repro",
+  "resources",
+  "retester",
+  "run_report",
+  "stops",
+  "tick",
+  "trust",
+  "trust_store"
+ ],
+ "research_only_modules_reachable": [],
+ "network_markers": {
+  "broker": [
+   {
+    "line": 79,
+    "kind": "import",
+    "what": "alpaca.trading.client"
+   },
+   {
+    "line": 85,
+    "kind": "import",
+    "what": "alpaca.trading.requests"
+   },
+   {
+    "line": 98,
+    "kind": "import",
+    "what": "alpaca.trading.requests"
+   },
+   {
+    "line": 99,
+    "kind": "import",
+    "what": "alpaca.trading.enums"
+   }
+  ],
+  "checkpoint": [
+   {
+    "line": 28,
+    "kind": "call",
+    "what": "update"
+   }
+  ],
+  "data": [
+   {
+    "line": 8,
+    "kind": "import",
+    "what": "yfinance"
+   },
+   {
+    "line": 39,
+    "kind": "call",
+    "what": "download"
+   },
+   {
+    "line": 61,
+    "kind": "call",
+    "what": "download"
+   },
+   {
+    "line": 94,
+    "kind": "call",
+    "what": "download"
+   }
+  ],
+  "edgar": [
+   {
+    "line": 10,
+    "kind": "import",
+    "what": "requests"
+   },
+   {
+    "line": 244,
+    "kind": "call",
+    "what": "update"
+   },
+   {
+    "line": 276,
+    "kind": "call",
+    "what": "update"
+   }
+  ],
+  "features": [
+   {
+    "line": 159,
+    "kind": "call",
+    "what": "update"
+   },
+   {
+    "line": 184,
+    "kind": "call",
+    "what": "update"
+   }
+  ],
+  "improve": [
+   {
+    "line": 192,
+    "kind": "call",
+    "what": "update"
+   },
+   {
+    "line": 250,
+    "kind": "call",
+    "what": "update"
+   },
+   {
+    "line": 252,
+    "kind": "call",
+    "what": "update"
+   },
+   {
+    "line": 254,
+    "kind": "call",
+    "what": "update"
+   },
+   {
+    "line": 273,
+    "kind": "call",
+    "what": "update"
+   }
+  ],
+  "isolation": [
+   {
+    "line": 471,
+    "kind": "call",
+    "what": "update"
+   }
+  ],
+  "live": [
+   {
+    "line": 68,
+    "kind": "call",
+    "what": "update"
+   },
+   {
+    "line": 69,
+    "kind": "call",
+    "what": "update"
+   },
+   {
+    "line": 198,
+    "kind": "call",
+    "what": "update"
+   },
+   {
+    "line": 214,
+    "kind": "import",
+    "what": "yfinance"
+   },
+   {
+    "line": 215,
+    "kind": "call",
+    "what": "download"
+   },
+   {
+    "line": 235,
+    "kind": "call",
+    "what": "update"
+   },
+   {
+    "line": 236,
+    "kind": "call",
+    "what": "update"
+   }
+  ],
+  "livesim_loop2": [
+   {
+    "line": 59,
+    "kind": "call",
+    "what": "update"
+   },
+   {
+    "line": 201,
+    "kind": "call",
+    "what": "update"
+   }
+  ],
+  "missed_winners": [
+   {
+    "line": 448,
+    "kind": "call",
+    "what": "update"
+   }
+  ],
+  "options": [
+   {
+    "line": 9,
+    "kind": "import",
+    "what": "yfinance"
+   }
+  ],
+  "pit": [
+   {
+    "line": 882,
+    "kind": "call",
+    "what": "update"
+   },
+   {
+    "line": 950,
+    "kind": "call",
+    "what": "update"
+   },
+   {
+    "line": 980,
+    "kind": "call",
+    "what": "update"
+   },
+   {
+    "line": 980,
+    "kind": "call",
+    "what": "update"
+   },
+   {
+    "line": 981,
+    "kind": "call",
+    "what": "update"
+   },
+   {
+    "line": 983,
+    "kind": "call",
+    "what": "update"
+   },
+   {
+    "line": 983,
+    "kind": "call",
+    "what": "update"
+   },
+   {
+    "line": 985,
+    "kind": "call",
+    "what": "update"
+   },
+   {
+    "line": 985,
+    "kind": "call",
+    "what": "update"
+   },
+   {
+    "line": 988,
+    "kind": "call",
+    "what": "update"
+   },
+   {
+    "line": 990,
+    "kind": "call",
+    "what": "update"
+   },
+   {
+    "line": 994,
+    "kind": "call",
+    "what": "update"
+   }
+  ],
+  "provenance": [
+   {
+    "line": 95,
+    "kind": "call",
+    "what": "update"
+   },
+   {
+    "line": 96,
+    "kind": "call",
+    "what": "update"
+   }
+  ],
+  "replay": [
+   {
+    "line": 173,
+    "kind": "call",
+    "what": "update"
+   }
+  ],
+  "shadows": [
+   {
+    "line": 39,
+    "kind": "import",
+    "what": "yfinance"
+   },
+   {
+    "line": 40,
+    "kind": "call",
+    "what": "download"
+   }
+  ],
+  "train": [
+   {
+    "line": 64,
+    "kind": "call",
+    "what": "update"
+   },
+   {
+    "line": 64,
+    "kind": "call",
+    "what": "update"
+   }
+  ],
+  "universe": [
+   {
+    "line": 5,
+    "kind": "import",
+    "what": "requests"
+   }
+  ]
+ },
+ "trader_side_reads": {
+  "broker": [
+   {
+    "line": 40,
+    "function": "__init__",
+    "call": "json.loads(LEDGER.read_text())"
+   },
+   {
+    "line": 40,
+    "function": "__init__",
+    "call": "LEDGER.read_text()"
+   },
+   {
+    "line": 113,
+    "function": "order",
+    "call": "open(self.log, 'a')"
+   }
+  ],
+  "edgar": [
+   {
+    "line": 119,
+    "function": "_read",
+    "call": "z.open(name)"
+   },
+   {
+    "line": 120,
+    "function": "_read",
+    "call": "pd.read_csv(f, sep='\\t', dtype=str, on_bad_lines='skip', low_memory=False)"
+   },
+   {
+    "line": 162,
+    "function": "<module>",
+    "call": "pd.read_csv(CACHE / 'universe.csv')"
+   },
+   {
+    "line": 237,
+    "function": "refresh_recent",
+    "call": "pd.read_parquet(evp)"
+   },
+   {
+    "line": 251,
+    "function": "refresh_recent",
+    "call": "pd.read_parquet(ip)"
+   },
+   {
+    "line": 290,
+    "function": "backfill_form4",
+    "call": "pd.read_parquet(ip)"
+   },
+   {
+    "line": 310,
+    "function": "fix_activist",
+    "call": "pd.read_parquet(evp)"
+   },
+   {
+    "line": 341,
+    "function": "fix_activist",
+    "call": "json.loads(prog_path.read_text())"
+   },
+   {
+    "line": 341,
+    "function": "fix_activist",
+    "call": "prog_path.read_text()"
+   }
+  ],
+  "live": [
+   {
+    "line": 32,
+    "function": "jload",
+    "call": "json.loads(p.read_text())"
+   },
+   {
+    "line": 32,
+    "function": "jload",
+    "call": "p.read_text()"
+   },
+   {
+    "line": 41,
+    "function": "load_models",
+    "call": "json.loads((MODELS / 'cols.json').read_text())"
+   },
+   {
+    "line": 41,
+    "function": "load_models",
+    "call": "(MODELS / 'cols.json').read_text()"
+   },
+   {
+    "line": 44,
+    "function": "load_models",
+    "call": "pickle.loads((MODELS / 'iso.pkl').read_bytes())"
+   },
+   {
+    "line": 44,
+    "function": "load_models",
+    "call": "(MODELS / 'iso.pkl').read_bytes()"
+   },
+   {
+    "line": 76,
+    "function": "todays_features",
+    "call": "pd.read_parquet(K.CACHE / 'events.parquet')"
+   },
+   {
+    "line": 77,
+    "function": "todays_features",
+    "call": "pd.read_parquet(K.CACHE / 'sic.parquet')"
+   },
+   {
+    "line": 78,
+    "function": "todays_features",
+    "call": "pd.read_parquet(K.CACHE / 'insider.parquet')"
+   },
+   {
+    "line": 105,
+    "function": "decide",
+    "call": "pd.read_csv(K.CACHE / 'universe.csv')"
+   },
+   {
+    "line": 171,
+    "function": "decide",
+    "call": "open(DECISIONS, 'a')"
+   }
+  ],
+  "policy": [
+   {
+    "line": 39,
+    "function": "not_crypto",
+    "call": "pd.read_csv(K.CACHE / 'universe.csv')"
+   }
+  ],
+  "scoring": [
+   {
+    "line": 33,
+    "function": "score_predictions",
+    "call": "json.loads(l)"
+   },
+   {
+    "line": 33,
+    "function": "score_predictions",
+    "call": "SCORES.read_text()"
+   },
+   {
+    "line": 38,
+    "function": "score_predictions",
+    "call": "pd.read_parquet(f)"
+   },
+   {
+    "line": 57,
+    "function": "score_predictions",
+    "call": "open(SCORES, 'a')"
+   },
+   {
+    "line": 64,
+    "function": "load_scores",
+    "call": "json.loads(l)"
+   },
+   {
+    "line": 64,
+    "function": "load_scores",
+    "call": "SCORES.read_text()"
+   }
+  ],
+  "shadows": [
+   {
+    "line": 18,
+    "function": "_load",
+    "call": "json.loads(p.read_text())"
+   },
+   {
+    "line": 18,
+    "function": "_load",
+    "call": "p.read_text()"
+   },
+   {
+    "line": 48,
+    "function": "update_shadows",
+    "call": "pd.read_parquet(pf)"
+   }
+  ],
+  "site_data": [
+   {
+    "line": 12,
+    "function": "_j",
+    "call": "json.loads(p.read_text())"
+   },
+   {
+    "line": 12,
+    "function": "_j",
+    "call": "p.read_text()"
+   },
+   {
+    "line": 18,
+    "function": "_jsonl",
+    "call": "json.loads(l)"
+   },
+   {
+    "line": 18,
+    "function": "_jsonl",
+    "call": "p.read_text()"
+   },
+   {
+    "line": 37,
+    "function": "write_site",
+    "call": "pd.read_parquet(preds[-1])"
+   },
+   {
+    "line": 57,
+    "function": "write_site",
+    "call": "pd.read_parquet(preds[-1])"
+   },
+   {
+    "line": 87,
+    "function": "write_site",
+    "call": "reports[-1].read_text(encoding='utf-8')"
+   }
+  ],
+  "timeline": [
+   {
+    "line": 331,
+    "function": "__init__",
+    "call": "__import__('json').loads(self.path.read_text())"
+   },
+   {
+    "line": 331,
+    "function": "__init__",
+    "call": "self.path.read_text()"
+   }
+  ],
+  "train": [
+   {
+    "line": 15,
+    "function": "build_panel",
+    "call": "pd.read_parquet(K.CACHE / 'events.parquet')"
+   },
+   {
+    "line": 16,
+    "function": "build_panel",
+    "call": "pd.read_parquet(K.CACHE / 'sic.parquet')"
+   },
+   {
+    "line": 17,
+    "function": "build_panel",
+    "call": "pd.read_parquet(K.CACHE / 'insider.parquet')"
+   },
+   {
+    "line": 49,
+    "function": "initial_train",
+    "call": "pd.read_parquet(oos)"
+   },
+   {
+    "line": 55,
+    "function": "initial_train",
+    "call": "json.loads(meta_p.read_text())"
+   },
+   {
+    "line": 55,
+    "function": "initial_train",
+    "call": "meta_p.read_text()"
+   },
+   {
+    "line": 75,
+    "function": "retrain_guarded",
+    "call": "json.loads((MODELS / 'cols.json').read_text())"
+   },
+   {
+    "line": 75,
+    "function": "retrain_guarded",
+    "call": "(MODELS / 'cols.json').read_text()"
+   }
+  ],
+  "universe": [
+   {
+    "line": 27,
+    "function": "load_universe",
+    "call": "pd.read_csv(DATA / 'nasdaqtraded.txt', sep='|', dtype=str)"
+   },
+   {
+    "line": 34,
+    "function": "load_universe",
+    "call": "json.loads((DATA / 'company_tickers_exchange.json').read_text())"
+   },
+   {
+    "line": 34,
+    "function": "load_universe",
+    "call": "(DATA / 'company_tickers_exchange.json').read_text()"
+   }
+  ]
+ },
+ "loop2_train_basis_calls": [
+  {
+   "line": 327,
+   "kwargs": [
+    "seed"
+   ],
+   "passes_as_of": false
+  }
+ ],
+ "loop2_trains_on_all_archived_windows": true,
+ "loop2_hands_worker_the_global_basis": true,
+ "basis_future_share_by_seed": [
+  {
+   "n_played": 57,
+   "mean_future_share": 0.5181489815282113,
+   "share_of_windows_touched": 0.9824561403508771,
+   "max_future_share": 1.0
+  },
+  {
+   "n_played": 57,
+   "mean_future_share": 0.5560826686213682,
+   "share_of_windows_touched": 0.9824561403508771,
+   "max_future_share": 1.0
+  },
+  {
+   "n_played": 57,
+   "mean_future_share": 0.48035784634217643,
+   "share_of_windows_touched": 0.9473684210526315,
+   "max_future_share": 1.0
+  },
+  {
+   "n_played": 57,
+   "mean_future_share": 0.4710365739879345,
+   "share_of_windows_touched": 0.9824561403508771,
+   "max_future_share": 1.0
+  },
+  {
+   "n_played": 57,
+   "mean_future_share": 0.5341984824631069,
+   "share_of_windows_touched": 0.9649122807017544,
+   "max_future_share": 1.0
+  },
+  {
+   "n_played": 57,
+   "mean_future_share": 0.44394882959192333,
+   "share_of_windows_touched": 0.9473684210526315,
+   "max_future_share": 1.0
+  },
+  {
+   "n_played": 57,
+   "mean_future_share": 0.4308151705977734,
+   "share_of_windows_touched": 0.9122807017543859,
+   "max_future_share": 1.0
+  },
+  {
+   "n_played": 57,
+   "mean_future_share": 0.5269674616186213,
+   "share_of_windows_touched": 0.9824561403508771,
+   "max_future_share": 1.0
+  }
+ ],
+ "basis_future_share_mean": 0.4951945018438894,
+ "basis_windows_touched_mean": 0.962719298245614,
+ "lineage_fallback_to_defaults_share": 0.7625000000000001,
+ "sensitivity_tuned_years": [
+  1967,
+  1968,
+  1969,
+  1971,
+  1974,
+  1975,
+  1976,
+  1977,
+  1978,
+  1979,
+  1980,
+  1981,
+  1983,
+  1984,
+  1985,
+  1987,
+  1988,
+  1989,
+  1993,
+  1994,
+  1995,
+  1996,
+  1999,
+  2004,
+  2005,
+  2006,
+  2008,
+  2011,
+  2015,
+  2016,
+  2017,
+  2018,
+  2019,
+  2020,
+  2022,
+  2023,
+  2025
+ ],
+ "defaults_contamination": {
+  "n_windows": 729,
+  "contaminated_share": 0.8010973936899863,
+  "n_tuned_years": 37,
+  "clean_starts": [
+   "1965-01-01",
+   "1965-02-01",
+   "1965-03-01",
+   "1965-04-01",
+   "1965-05-01",
+   "1965-06-01",
+   "1965-07-01",
+   "1965-08-01",
+   "1965-09-01",
+   "1965-10-01"
+  ]
+ },
+ "free_text_columns": {
+  "events": [],
+  "insider": [],
+  "sic_served_to_trader(sic)": []
+ },
+ "events_columns": [
+  "ticker",
+  "form",
+  "accepted",
+  "kind"
+ ],
+ "insider_columns": [
+  "acc",
+  "filed",
+  "tdate",
+  "issuer_cik",
+  "symbol",
+  "owner_cik",
+  "relation",
+  "title",
+  "shares",
+  "price",
+  "value"
+ ],
+ "events_kinds": {
+  "PERIODIC": 241138,
+  "EARN": 214962,
+  "AGREEMENT": 98878,
+  "ACTIVIST_AMEND": 41939,
+  "OFFERING": 38228,
+  "UNREG_SALE": 19530,
+  "SHELF": 18527,
+  "ACTIVIST": 11926,
+  "ACQ_DONE": 11818,
+  "LATE_FILING": 8193,
+  "DELIST_NOTICE": 7510,
+  "AUDITOR_CHANGE": 5195,
+  "RESTATEMENT": 1716,
+  "BANKRUPTCY": 157
+ },
+ "model_embargo_sessions": 10,
+ "label_reach_sessions": 6,
+ "cost_bps_by_start_year": {
+  "<1997": 40,
+  "1997-2000": 20,
+  ">=2001": 10
+ },
+ "cost_class_share_of_start_months": {
+  "40bps": 0.5267489711934157,
+  "10bps": 0.4074074074074074,
+  "20bps": 0.06584362139917696
+ },
+ "warmup_shorter_than_6y_for_starts_before": "1968-01-01",
+ "memory_bank_filter_catches_planted_late_row": true
+}

@@ -179,6 +179,34 @@ def test_import_closure_follows_lazy_imports_and_finds_reads(tmp_path):
     assert reads["c"][0]["function"] == "g"
 
 
+def test_file_access_recorder_sees_reads_inside_the_block_only(tmp_path):
+    from engine import config as K
+    inside = K.ROOT / "state" / "_leak_audit_probe.txt"
+    (tmp_path / "outside.txt").write_text("x")
+    with L.FileAccessRecorder() as rec:
+        pd.Series([1]).to_csv(tmp_path / "in_tmp.csv")
+        inside.write_text("y")
+        inside.read_text()
+    inside.unlink()
+    open(tmp_path / "outside.txt").read()                              # after the block: not recorded
+    assert any(p.endswith("_leak_audit_probe.txt") for p in rec.paths)
+    assert not any(p.endswith("outside.txt") for p in rec.paths)
+    pf = rec.project_files()
+    assert "state/_leak_audit_probe.txt" in pf["state"]
+    assert all(not p.startswith("..") for k in pf for p in pf[k])
+
+
+def test_file_access_recorder_catches_a_planted_cache_read():
+    from engine import config as K
+    target = K.CACHE / "sic.parquet"
+    with L.FileAccessRecorder() as rec:
+        pd.read_parquet(target)
+    assert "data/cache/sic.parquet" in rec.project_files()["data_cache"]
+    with L.FileAccessRecorder() as quiet:
+        _ = 1 + 1
+    assert quiet.project_files() == {"code": [], "data_cache": [], "state": [], "other": []}
+
+
 def test_import_closure_empty_entry():
     assert L.import_closure([]) == {}
 
@@ -403,6 +431,31 @@ def test_lineage_filter_removes_the_measured_leak():
     assert sum(p["version"] == 0 for p in played) > 3                # many early-history targets fall back to the defaults
 
 
+def test_defaults_contamination_counts_windows_touching_tuned_years():
+    starts = pd.date_range("1965-01-01", "2025-09-01", freq="MS")
+    r = L.defaults_contamination([1969, 1987, 2016], starts)
+    assert 0.05 < r["contaminated_share"] < 0.12 and r["n_tuned_years"] == 3
+    assert L.defaults_contamination(range(1965, 2026), starts)["contaminated_share"] == 1.0
+    assert L.defaults_contamination([], starts)["contaminated_share"] == 0.0
+    assert L.defaults_contamination([2000], pd.DatetimeIndex([]))["n_windows"] == 0
+    # a window starting 1 Jan 1970 covers only 1970: clean of 1969; one starting Dec 1969 touches it
+    assert L.defaults_contamination([1969], pd.DatetimeIndex(["1970-01-01"]))["contaminated_share"] == 0.0
+    assert L.defaults_contamination([1969], pd.DatetimeIndex(["1969-12-01"]))["contaminated_share"] == 1.0
+
+
+def test_neutral_default_cfg_is_positional_and_ignores_duplicate_weights():
+    space = {"k": [1, 1, 2, 2, 3, 4], "brake": [None, None, 0.15], "pick": ["hivol", "hivol", "top"]}
+    assert L.neutral_default_cfg(space) == {"k": 3, "brake": 0.15, "pick": "top"}
+    assert L.neutral_default_cfg({}) == {}
+
+
+def test_free_text_columns_finds_a_planted_headline_and_ignores_codes():
+    df = pd.DataFrame({"ticker": ["A", "B"], "form": ["8-K", "10-Q"], "kind": ["EARN", "PERIODIC"],
+                       "headline": ["Company X announces record quarterly revenue and raises full-year guidance sharply above consensus"] * 2})
+    assert L.free_text_columns(df) == ["headline"]
+    assert L.free_text_columns(df.drop(columns="headline")) == [] and L.free_text_columns(pd.DataFrame()) == []
+
+
 # --------------------------------------------------------------------------------------------------------------------
 # 5 macro
 # --------------------------------------------------------------------------------------------------------------------
@@ -570,3 +623,29 @@ def test_hardened_feed_changes_no_decision_on_clean_data(home):
     assert len(t0.equity) == len(t1.equity) > 200
     assert t0.equity == t1.equity and t0.broker.log == t1.broker.log
     assert not [x for x in f1.audit() if x.severity == "fail"]
+
+
+def test_hardened_run_closes_the_network_for_the_whole_window_and_reopens_it_after(home):
+    rec = seal_file(home)
+    cfg = {"k": 2, "exit_q": 0.8, "rebalance_weeks": 1, "brake": None, "max_per_sector": None, "w_model": 1.0, "pick": "hivol", "pool_q": 0.7,
+           "liq_q": 0.0, "vol_filter": False, "stress_thr": None, "stress_k": 2, "trend_filter": None, "trend_gross": 0.0}
+    seen = {}
+    real_train = livesim.BlindTrader.train
+
+    def spying_train(self):
+        try:                                                        # a refresh attempted mid-run, as a careless module might do
+            socket.getaddrinfo("query1.finance.yahoo.com", 443)
+            seen["blocked"] = False
+        except L.NetworkBlocked:
+            seen["blocked"] = True
+        return real_train(self)
+    livesim.BlindTrader.train = spying_train
+    try:
+        feed, trader, sealed, wall = L.hardened_run(cfg, "t1", log=lambda *a: None, check_parity=False, data=make_data(rec["start"], n=30))
+    finally:
+        livesim.BlindTrader.train = real_train
+    assert seen["blocked"] is True and len(trader.session.days) > 200
+    assert not [f for f in feed.audit() if f.severity == "fail"]
+    srv = _server()
+    socket.create_connection(("127.0.0.1", srv.getsockname()[1]), timeout=2).close()   # the guard is gone after the run
+    srv.close()

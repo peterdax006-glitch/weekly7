@@ -302,6 +302,57 @@ def data_access(path) -> list[dict]:
     return out
 
 
+class FileAccessRecorder:
+    """Runtime inventory of every file a piece of code OPENS (Python audit hook, event `open`). Static reachability over-
+    approximates (a lazily imported module may never run); this records what actually happened during a run. The hook stays
+    installed for the life of the process but records only inside a `with` block."""
+    _installed = False
+    _active: list["FileAccessRecorder"] = []
+
+    def __init__(self):
+        self.paths: set[str] = set()
+
+    @classmethod
+    def _hook(cls, event, args):
+        if event == "open" and cls._active:
+            p = args[0]
+            if isinstance(p, bytes):
+                p = p.decode(errors="ignore")
+            if isinstance(p, (str, Path)):
+                for r in cls._active:
+                    r.paths.add(str(p))
+
+    def __enter__(self):
+        import sys
+        if not FileAccessRecorder._installed:
+            sys.addaudithook(FileAccessRecorder._hook)
+            FileAccessRecorder._installed = True
+        FileAccessRecorder._active.append(self)
+        return self
+
+    def __exit__(self, *exc):
+        FileAccessRecorder._active.remove(self)
+        return False
+
+    def project_files(self, root=None) -> dict[str, list[str]]:
+        """Opened files under the repo, grouped: code (.py), data/cache, state, other. Interpreter and site-packages files,
+        __pycache__ and the virtualenv are dropped."""
+        root = Path(root or K.ROOT).resolve()
+        out = {"code": [], "data_cache": [], "state": [], "other": []}
+        for p in sorted(self.paths):
+            try:
+                rp = Path(p).resolve()
+                rel = rp.relative_to(root)
+            except (ValueError, OSError):
+                continue
+            parts = rel.parts
+            if parts[0] in (".venv", "venv") or "__pycache__" in parts or "site-packages" in parts:
+                continue
+            key = "code" if rp.suffix == ".py" else "data_cache" if parts[:2] == ("data", "cache") else "state" if parts[0] == "state" else "other"
+            out[key].append(rel.as_posix())
+        return out
+
+
 # modules that own the real data on the FEED side: reading caches there is their job
 FEED_SIDE = {"livesim", "replay", "data", "blind_gates", "health", "provenance", "improve", "config", "registry", "resources",
              "checkpoint", "basis_search", "objective", "isolation", "leak_audit"}
@@ -638,6 +689,46 @@ def strict_training_windows(windows: list[dict], target_start, key="end") -> lis
     return [w for w in windows if pd.Timestamp(w[key]) < ts]
 
 
+def defaults_contamination(tuned_years, starts, months: int = 12) -> dict:
+    """The loop's starting defaults were chosen by a sensitivity study on the outcomes of `tuned_years` (real calendar
+    years of earlier blind cycles). A window whose 12 months touch one of those years is in-sample for its own defaults.
+    Returns the share of possible window starts (`starts`) that are contaminated and per-window flags."""
+    ty = {int(y) for y in tuned_years}
+    st = pd.DatetimeIndex(starts)
+    if not len(st):
+        return {"n_windows": 0, "contaminated_share": float("nan"), "n_tuned_years": len(ty)}
+    ends = st + pd.DateOffset(months=months) - pd.Timedelta(days=1)
+    hit = np.array([any(y in ty for y in range(a.year, b.year + 1)) for a, b in zip(st, ends)])
+    return {"n_windows": int(len(st)), "contaminated_share": float(hit.mean()), "n_tuned_years": len(ty),
+            "clean_starts": [str(x.date()) for x in st[~hit]][:10]}
+
+
+def neutral_default_cfg(space: dict) -> dict:
+    """A data-free starting configuration: the middle grid value of every knob in `space` (lists as in CFG_SPACE; duplicates
+    collapse first so a weighted list does not tilt it). Chosen by position, never by any outcome."""
+    out = {}
+    for k, vals in space.items():
+        uniq = []
+        for v in vals:
+            if v not in uniq:
+                uniq.append(v)
+        out[k] = uniq[len(uniq) // 2]
+    return out
+
+
+def free_text_columns(df: pd.DataFrame, max_len: int = 80) -> list[str]:
+    """Columns of a frame the trader could read as prose (news, headlines, speeches): string columns whose 99th-percentile
+    length is at least `max_len`. Codes, form types and ticker-like fields are far shorter."""
+    out = []
+    for c in df.columns:
+        s = df[c]
+        if s.dtype == object or str(s.dtype) in ("str", "string") or str(s.dtype).startswith("string"):
+            ss = s.dropna().astype(str)
+            if len(ss) and float(ss.str.len().quantile(0.99)) >= max_len:
+                out.append(c)
+    return out
+
+
 # =====================================================================================================================
 # 5. Macro vintages
 # =====================================================================================================================
@@ -938,11 +1029,17 @@ def hardened_feed_class():
             vis = self._first_i <= self.i
             return {f: v.loc[:, vis] for f, v in stocks.items()}, market
 
+        def features_until_now(self):
+            """The ATR frame the trainer pairs with history() must show the same names (labels() aligns them)."""
+            X, atr = super().features_until_now()
+            return X, atr.loc[:, self._first_i <= self.i]
+
     return HardenedFeed
 
 
-def hardened_run(cfg, run_id, log=print, check_parity=True, adaptive=False, meta=None, network_guard=True):
-    """`livesim.run` on the hardened feed, with the network closed for the whole run (channel 7)."""
+def hardened_run(cfg, run_id, log=print, check_parity=True, adaptive=False, meta=None, network_guard=True, data=None):
+    """`livesim.run` on the hardened feed, with the network closed for the whole run (channel 7). `data` replaces the real caches
+    (synthetic windows in tests)."""
     import time
     from . import livesim
     guard = NetworkGuard().install() if network_guard else None
