@@ -1111,6 +1111,535 @@
    },
    "design_metric": "in_band",
    "n": 12
+  },
+  "regime_map": {
+   "aggregate": {
+    "n_pairs": 12,
+    "metrics": {
+     "mean_week": {
+      "same": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 12,
+       "share_pos": 0.0,
+       "p_signflip": 1.0
+      },
+      "noise": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 12,
+       "share_pos": 0.0
+      },
+      "shuffle": {
+       "mean": -0.00024919852347374217,
+       "lo": -0.0008318215481125413,
+       "hi": 0.00019924374652637903,
+       "n": 12,
+       "share_pos": 0.5
+      },
+      "effect": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 12,
+       "share_pos": 0.0,
+       "p_signflip": 1.0
+      },
+      "transfer": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 12,
+       "share_pos": 0.0,
+       "p_signflip": 1.0
+      },
+      "gap": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 12,
+       "share_pos": 0.0
+      },
+      "luck_floor": 0.0004484422700001278,
+      "run1_mean": 0.0033871010478135747,
+      "run2_mean": 0.0033871010478135747
+     },
+     "in_band": {
+      "same": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 12,
+       "share_pos": 0.0,
+       "p_signflip": 1.0
+      },
+      "noise": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 12,
+       "share_pos": 0.0
+      },
+      "shuffle": {
+       "mean": 0.009554910498306724,
+       "lo": -0.0031446540880503138,
+       "hi": 0.025399129172714075,
+       "n": 12,
+       "share_pos": 0.16666666666666666
+      },
+      "effect": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 12,
+       "share_pos": 0.0,
+       "p_signflip": 1.0
+      },
+      "transfer": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 12,
+       "share_pos": 0.0,
+       "p_signflip": 1.0
+      },
+      "gap": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 12,
+       "share_pos": 0.0
+      },
+      "luck_floor": 0.012699564586357038,
+      "run1_mean": 0.20751693275278182,
+      "run2_mean": 0.20751693275278182
+     },
+     "worst5": {
+      "same": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 12,
+       "share_pos": 0.0,
+       "p_signflip": 1.0
+      },
+      "noise": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 12,
+       "share_pos": 0.0
+      },
+      "shuffle": {
+       "mean": -0.0003732149559634631,
+       "lo": -0.0045631775913021365,
+       "hi": 0.004574352414516941,
+       "n": 12,
+       "share_pos": 0.4166666666666667
+      },
+      "effect": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 12,
+       "share_pos": 0.0,
+       "p_signflip": 1.0
+      },
+      "transfer": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 12,
+       "share_pos": 0.0,
+       "p_signflip": 1.0
+      },
+      "gap": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 12,
+       "share_pos": 0.0
+      },
+      "luck_floor": 0.003925053808072046,
+      "run1_mean": -0.08463670998419466,
+      "run2_mean": -0.08463670998419466
+     },
+     "max_dd": {
+      "same": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 12,
+       "share_pos": 0.0,
+       "p_signflip": 1.0
+      },
+      "noise": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 12,
+       "share_pos": 0.0
+      },
+      "shuffle": {
+       "mean": 0.004169837861886331,
+       "lo": -0.01590031571372406,
+       "hi": 0.02936929059946286,
+       "n": 12,
+       "share_pos": 0.25
+      },
+      "effect": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 12,
+       "share_pos": 0.0,
+       "p_signflip": 1.0
+      },
+      "transfer": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 12,
+       "share_pos": 0.0,
+       "p_signflip": 1.0
+      },
+      "gap": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 12,
+       "share_pos": 0.0
+      },
+      "luck_floor": 0.01572950963778223,
+      "run1_mean": -0.33221172326872256,
+      "run2_mean": -0.33221172326872256
+     },
+     "pos_share": {
+      "same": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 12,
+       "share_pos": 0.0,
+       "p_signflip": 1.0
+      },
+      "noise": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 12,
+       "share_pos": 0.0
+      },
+      "shuffle": {
+       "mean": -0.0048076923076923045,
+       "lo": -0.014423076923076913,
+       "hi": 0.0,
+       "n": 12,
+       "share_pos": 0.0
+      },
+      "effect": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 12,
+       "share_pos": 0.0,
+       "p_signflip": 1.0
+      },
+      "transfer": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 12,
+       "share_pos": 0.0,
+       "p_signflip": 1.0
+      },
+      "gap": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 12,
+       "share_pos": 0.0
+      },
+      "luck_floor": 0.0048076923076923045,
+      "run1_mean": 0.5374032414126754,
+      "run2_mean": 0.5374032414126754
+     },
+     "dir_hit": {
+      "same": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 12,
+       "share_pos": 0.0,
+       "p_signflip": 1.0
+      },
+      "noise": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 12,
+       "share_pos": 0.0
+      },
+      "shuffle": {
+       "mean": 0.0007298965632298963,
+       "lo": -0.009052020770770754,
+       "hi": 0.013461378044711375,
+       "n": 12,
+       "share_pos": 0.08333333333333333
+      },
+      "effect": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 12,
+       "share_pos": 0.0,
+       "p_signflip": 1.0
+      },
+      "transfer": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 12,
+       "share_pos": 0.0,
+       "p_signflip": 1.0
+      },
+      "gap": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 12,
+       "share_pos": 0.0
+      },
+      "luck_floor": 0.009300967634300966,
+      "run1_mean": 0.5182259329768908,
+      "run2_mean": 0.5182259329768908
+     },
+     "mover_hit": {
+      "same": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 12,
+       "share_pos": 0.0,
+       "p_signflip": 1.0
+      },
+      "noise": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 12,
+       "share_pos": 0.0
+      },
+      "shuffle": {
+       "mean": 0.005102324546768992,
+       "lo": -0.0021410299188076992,
+       "hi": 0.014789094650205767,
+       "n": 12,
+       "share_pos": 0.16666666666666666
+      },
+      "effect": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 12,
+       "share_pos": 0.0,
+       "p_signflip": 1.0
+      },
+      "transfer": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 12,
+       "share_pos": 0.0,
+       "p_signflip": 1.0
+      },
+      "gap": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 12,
+       "share_pos": 0.0
+      },
+      "luck_floor": 0.007243354465576691,
+      "run1_mean": 0.27086207929119804,
+      "run2_mean": 0.27086207929119804
+     },
+     "year_return": {
+      "same": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 12,
+       "share_pos": 0.0,
+       "p_signflip": 1.0
+      },
+      "noise": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 12,
+       "share_pos": 0.0
+      },
+      "shuffle": {
+       "mean": -0.012288822848196953,
+       "lo": -0.04400396204156057,
+       "hi": 0.017579649912601848,
+       "n": 12,
+       "share_pos": 0.4166666666666667
+      },
+      "effect": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 12,
+       "share_pos": 0.0,
+       "p_signflip": 1.0
+      },
+      "transfer": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 12,
+       "share_pos": 0.0,
+       "p_signflip": 1.0
+      },
+      "gap": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 12,
+       "share_pos": 0.0
+      },
+      "luck_floor": 0.029868472760798997,
+      "run1_mean": 0.14028473006525652,
+      "run2_mean": 0.14028473006525652
+     }
+    },
+    "by_era": {
+     "1997-2000": {
+      "n": 2,
+      "mean_week": 0.0,
+      "in_band": 0.0,
+      "worst5": 0.0,
+      "transfer_mean_week": 0.0
+     },
+     "2001+": {
+      "n": 6,
+      "mean_week": 0.0,
+      "in_band": 0.0,
+      "worst5": 0.0,
+      "transfer_mean_week": 0.0
+     },
+     "pre1997": {
+      "n": 4,
+      "mean_week": 0.0,
+      "in_band": 0.0,
+      "worst5": 0.0,
+      "transfer_mean_week": 0.0
+     }
+    },
+    "noise_max_abs": {
+     "mean_week": 0.0,
+     "in_band": 0.0,
+     "worst5": 0.0,
+     "max_dd": 0.0,
+     "pos_share": 0.0,
+     "dir_hit": 0.0,
+     "mover_hit": 0.0,
+     "year_return": 0.0
+    },
+    "by_bank": {
+     "with_bank": {
+      "n": 12,
+      "mean_week_same": 0.0,
+      "mean_week_transfer": 0.0
+     }
+    },
+    "anachronistic_share": 0.0,
+    "verdict": {
+     "label": "NO_EFFECT",
+     "why": "effect CI +0..+0 and transfer CI contain zero",
+     "notes": [
+      "the learning effect (+0.00000) is smaller than the tie-break luck floor (0.00045) that a random relabel alone produces; any system that reads code-name order can fake a delta of that size"
+     ]
+    },
+    "verdict_in_band": {
+     "label": "NO_EFFECT",
+     "why": "effect CI +0..+0 and transfer CI contain zero",
+     "notes": []
+    },
+    "headline": {
+     "n_with_transfer": 12,
+     "n_past_only": 12,
+     "n_dropped_anachronistic": 0,
+     "metrics": {
+      "mean_week": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 12,
+       "p_signflip": 1.0
+      },
+      "in_band": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 12,
+       "p_signflip": 1.0
+      },
+      "worst5": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 12,
+       "p_signflip": 1.0
+      },
+      "max_dd": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 12,
+       "p_signflip": 1.0
+      },
+      "pos_share": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 12,
+       "p_signflip": 1.0
+      },
+      "dir_hit": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 12,
+       "p_signflip": 1.0
+      },
+      "mover_hit": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 12,
+       "p_signflip": 1.0
+      },
+      "year_return": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 12,
+       "p_signflip": 1.0
+      }
+     },
+     "verdict": {
+      "label": "NO_TRANSFER",
+      "why": "transfer CI +0..+0 contains zero"
+     }
+    }
+   },
+   "design_metric": "in_band",
+   "n": 12
   }
  },
  "provenance": {

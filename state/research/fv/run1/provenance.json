@@ -1,0 +1,1676 @@
+{
+ "config": {
+  "n_picks": 10,
+  "move": 0.1,
+  "mover_label": "touch",
+  "gate": 0.8,
+  "refill": false,
+  "strict_movers": false,
+  "pool": 30,
+  "allow_short": true,
+  "min_train_weeks": 156,
+  "refit_every": 13,
+  "min_price": 3.0,
+  "min_dollar_vol": 2000000.0,
+  "cal_frac": 0.2,
+  "tau_target": 0.95,
+  "tau_min_rows": 40,
+  "mover_min_rows": 2000,
+  "lgb_trees": 150,
+  "lgb_leaves": 15,
+  "lgb_min_child": 80,
+  "lgb_jobs": 1,
+  "dir_split": 0.5,
+  "dir_min_rows": 300,
+  "dir_min_inputs": 1,
+  "dir_horizon_days": 8,
+  "cap": -0.2,
+  "max_cat_hi": 0.05,
+  "cap_tau": 0.03,
+  "cap_min_train": 300,
+  "pool_train_side": "soft",
+  "policy_min_weeks": 26,
+  "policy_min_trades": 80,
+  "policy_min_win": 0.7,
+  "policy_boot": 120,
+  "fee_bps": 2.0,
+  "slip_bps": 5.0,
+  "seed": 7
+ },
+ "config_hash": "6f1a49a07951",
+ "seed": 7,
+ "verdict": {
+  "goal_met": false,
+  "share10_gross": 0.0,
+  "share10_gross_lo": 0.0,
+  "worst_position": 0.0,
+  "why": "share10 lower bound 0.00 < 0.80"
+ },
+ "mover": {
+  "weeks": 716,
+  "hit_touch": 0.579050279329609,
+  "hit_touch_lo": 0.5575418994413408,
+  "hit_touch_hi": 0.6019553072625698,
+  "hit_close10": 0.3,
+  "predicted_mean": 0.5248231733582301,
+  "base_rate_pool": 0.4420391061452514,
+  "base_rate_all": 0.14556120784446405,
+  "target_95_met": false,
+  "weeks_with_10_qualified": 0.0013966480446927375,
+  "mean_qualified": 0.03212290502793296,
+  "tau95_available": 1.0
+ },
+ "policies": {
+  "0": {},
+  "1": {
+   "E": {
+    "hv_hp": "week_end",
+    "hv_lp": "week_end",
+    "lv_hp": "week_end",
+    "POOLED": "week_end"
+   },
+   "S": {
+    "hv_hp": "week_end",
+    "hv_lp": "week_end",
+    "lv_hp": "week_end",
+    "POOLED": "week_end"
+   },
+   "ES": {
+    "hv_hp": "week_end",
+    "hv_lp": "week_end",
+    "lv_hp": "week_end",
+    "POOLED": "week_end"
+   }
+  },
+  "2": {
+   "E": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   },
+   "S": {
+    "hv_hp": "week_end",
+    "hv_lp": "week_end",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "week_end"
+   },
+   "ES": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   }
+  },
+  "3": {
+   "E": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   },
+   "S": {
+    "hv_hp": "week_end",
+    "hv_lp": "week_end",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "week_end"
+   },
+   "ES": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   }
+  },
+  "4": {
+   "E": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   },
+   "S": {
+    "hv_hp": "week_end",
+    "hv_lp": "week_end",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "week_end"
+   },
+   "ES": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   }
+  },
+  "5": {
+   "E": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   },
+   "S": {
+    "hv_hp": "week_end",
+    "hv_lp": "week_end",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "week_end"
+   },
+   "ES": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   }
+  },
+  "6": {
+   "E": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   },
+   "S": {
+    "hv_hp": "week_end",
+    "hv_lp": "week_end",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "week_end"
+   },
+   "ES": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   }
+  },
+  "7": {
+   "E": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   },
+   "S": {
+    "hv_hp": "week_end",
+    "hv_lp": "week_end",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "week_end"
+   },
+   "ES": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   }
+  },
+  "8": {
+   "E": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   },
+   "S": {
+    "hv_hp": "week_end",
+    "hv_lp": "week_end",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "week_end"
+   },
+   "ES": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   }
+  },
+  "9": {
+   "E": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   },
+   "S": {
+    "hv_hp": "fixed_10",
+    "hv_lp": "week_end",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "fixed_10"
+   },
+   "ES": {
+    "hv_hp": "target_10+fixed_10",
+    "hv_lp": "target_10+fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10+fixed_10"
+   }
+  },
+  "10": {
+   "E": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   },
+   "S": {
+    "hv_hp": "fixed_10",
+    "hv_lp": "week_end",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "fixed_10"
+   },
+   "ES": {
+    "hv_hp": "target_10+fixed_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10+fixed_10"
+   }
+  },
+  "11": {
+   "E": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   },
+   "S": {
+    "hv_hp": "fixed_10",
+    "hv_lp": "fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "fixed_10"
+   },
+   "ES": {
+    "hv_hp": "target_10+fixed_10",
+    "hv_lp": "target_10+fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10+fixed_10"
+   }
+  },
+  "12": {
+   "E": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   },
+   "S": {
+    "hv_hp": "fixed_10",
+    "hv_lp": "fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "fixed_10"
+   },
+   "ES": {
+    "hv_hp": "target_10+fixed_10",
+    "hv_lp": "target_10+fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10+fixed_10"
+   }
+  },
+  "13": {
+   "E": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   },
+   "S": {
+    "hv_hp": "fixed_10",
+    "hv_lp": "fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "fixed_10"
+   },
+   "ES": {
+    "hv_hp": "target_10+fixed_10",
+    "hv_lp": "target_10+fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10+fixed_10"
+   }
+  },
+  "14": {
+   "E": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   },
+   "S": {
+    "hv_hp": "fixed_10",
+    "hv_lp": "fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "fixed_10"
+   },
+   "ES": {
+    "hv_hp": "target_10+fixed_10",
+    "hv_lp": "target_10+fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10+fixed_10"
+   }
+  },
+  "15": {
+   "E": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   },
+   "S": {
+    "hv_hp": "fixed_10",
+    "hv_lp": "fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "fixed_10"
+   },
+   "ES": {
+    "hv_hp": "target_10+fixed_10",
+    "hv_lp": "target_10+fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10+fixed_10"
+   }
+  },
+  "16": {
+   "E": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   },
+   "S": {
+    "hv_hp": "fixed_10",
+    "hv_lp": "fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "fixed_10"
+   },
+   "ES": {
+    "hv_hp": "target_10+fixed_10",
+    "hv_lp": "target_10+fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10+fixed_10"
+   }
+  },
+  "17": {
+   "E": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   },
+   "S": {
+    "hv_hp": "fixed_10",
+    "hv_lp": "fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "fixed_10"
+   },
+   "ES": {
+    "hv_hp": "target_10+fixed_10",
+    "hv_lp": "target_10+fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10+fixed_10"
+   }
+  },
+  "18": {
+   "E": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   },
+   "S": {
+    "hv_hp": "fixed_10",
+    "hv_lp": "fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "fixed_10"
+   },
+   "ES": {
+    "hv_hp": "target_10+fixed_10",
+    "hv_lp": "target_10+fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10+fixed_10"
+   }
+  },
+  "19": {
+   "E": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   },
+   "S": {
+    "hv_hp": "fixed_10",
+    "hv_lp": "fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "fixed_10"
+   },
+   "ES": {
+    "hv_hp": "target_10+fixed_10",
+    "hv_lp": "target_10+fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10+fixed_10"
+   }
+  },
+  "20": {
+   "E": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   },
+   "S": {
+    "hv_hp": "fixed_10",
+    "hv_lp": "fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "fixed_10"
+   },
+   "ES": {
+    "hv_hp": "target_10+fixed_10",
+    "hv_lp": "target_10+fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10+fixed_10"
+   }
+  },
+  "21": {
+   "E": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   },
+   "S": {
+    "hv_hp": "fixed_10",
+    "hv_lp": "fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "fixed_10"
+   },
+   "ES": {
+    "hv_hp": "target_10+fixed_10",
+    "hv_lp": "target_10+fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10+fixed_10"
+   }
+  },
+  "22": {
+   "E": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   },
+   "S": {
+    "hv_hp": "fixed_10",
+    "hv_lp": "fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "fixed_10"
+   },
+   "ES": {
+    "hv_hp": "target_10+fixed_10",
+    "hv_lp": "target_10+fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10+fixed_10"
+   }
+  },
+  "23": {
+   "E": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   },
+   "S": {
+    "hv_hp": "fixed_10",
+    "hv_lp": "fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "fixed_10"
+   },
+   "ES": {
+    "hv_hp": "target_10+fixed_10",
+    "hv_lp": "target_10+fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10+fixed_10"
+   }
+  },
+  "24": {
+   "E": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   },
+   "S": {
+    "hv_hp": "fixed_10",
+    "hv_lp": "fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "fixed_10"
+   },
+   "ES": {
+    "hv_hp": "target_10+fixed_10",
+    "hv_lp": "target_10+fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10+fixed_10"
+   }
+  },
+  "25": {
+   "E": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   },
+   "S": {
+    "hv_hp": "fixed_10",
+    "hv_lp": "fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "fixed_10"
+   },
+   "ES": {
+    "hv_hp": "target_10+fixed_10",
+    "hv_lp": "target_10+fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10+fixed_10"
+   }
+  },
+  "26": {
+   "E": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   },
+   "S": {
+    "hv_hp": "fixed_10",
+    "hv_lp": "fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "fixed_10"
+   },
+   "ES": {
+    "hv_hp": "target_10+fixed_10",
+    "hv_lp": "target_10+fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10+fixed_10"
+   }
+  },
+  "27": {
+   "E": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   },
+   "S": {
+    "hv_hp": "fixed_10",
+    "hv_lp": "fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "fixed_10"
+   },
+   "ES": {
+    "hv_hp": "target_10+fixed_10",
+    "hv_lp": "target_10+fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10+fixed_10"
+   }
+  },
+  "28": {
+   "E": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   },
+   "S": {
+    "hv_hp": "fixed_10",
+    "hv_lp": "fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "fixed_10"
+   },
+   "ES": {
+    "hv_hp": "target_10+fixed_10",
+    "hv_lp": "target_10+fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10+fixed_10"
+   }
+  },
+  "29": {
+   "E": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   },
+   "S": {
+    "hv_hp": "fixed_10",
+    "hv_lp": "fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "fixed_10"
+   },
+   "ES": {
+    "hv_hp": "target_10+fixed_10",
+    "hv_lp": "target_10+fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10+fixed_10"
+   }
+  },
+  "30": {
+   "E": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   },
+   "S": {
+    "hv_hp": "fixed_10",
+    "hv_lp": "fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "fixed_10"
+   },
+   "ES": {
+    "hv_hp": "target_10+fixed_10",
+    "hv_lp": "target_10+fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10+fixed_10"
+   }
+  },
+  "31": {
+   "E": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   },
+   "S": {
+    "hv_hp": "fixed_10",
+    "hv_lp": "fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "fixed_10"
+   },
+   "ES": {
+    "hv_hp": "target_10+fixed_10",
+    "hv_lp": "target_10+fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10+fixed_10"
+   }
+  },
+  "32": {
+   "E": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   },
+   "S": {
+    "hv_hp": "fixed_10",
+    "hv_lp": "fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "fixed_10"
+   },
+   "ES": {
+    "hv_hp": "target_10+fixed_10",
+    "hv_lp": "target_10+fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10+fixed_10"
+   }
+  },
+  "33": {
+   "E": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   },
+   "S": {
+    "hv_hp": "fixed_10",
+    "hv_lp": "fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "fixed_10"
+   },
+   "ES": {
+    "hv_hp": "target_10+fixed_10",
+    "hv_lp": "target_10+fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10+fixed_10"
+   }
+  },
+  "34": {
+   "E": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   },
+   "S": {
+    "hv_hp": "fixed_10",
+    "hv_lp": "fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "fixed_10"
+   },
+   "ES": {
+    "hv_hp": "target_10+fixed_10",
+    "hv_lp": "target_10+fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10+fixed_10"
+   }
+  },
+  "35": {
+   "E": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   },
+   "S": {
+    "hv_hp": "fixed_10",
+    "hv_lp": "fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "fixed_10"
+   },
+   "ES": {
+    "hv_hp": "target_10+fixed_10",
+    "hv_lp": "target_10+fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10+fixed_10"
+   }
+  },
+  "36": {
+   "E": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   },
+   "S": {
+    "hv_hp": "fixed_10",
+    "hv_lp": "fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "fixed_10"
+   },
+   "ES": {
+    "hv_hp": "target_10+fixed_10",
+    "hv_lp": "target_10+fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10+fixed_10"
+   }
+  },
+  "37": {
+   "E": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   },
+   "S": {
+    "hv_hp": "fixed_10",
+    "hv_lp": "fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "fixed_10"
+   },
+   "ES": {
+    "hv_hp": "target_10+fixed_10",
+    "hv_lp": "target_10+fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10+fixed_10"
+   }
+  },
+  "38": {
+   "E": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   },
+   "S": {
+    "hv_hp": "fixed_10",
+    "hv_lp": "fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "fixed_10"
+   },
+   "ES": {
+    "hv_hp": "target_10+fixed_10",
+    "hv_lp": "target_10+gap_3",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10+fixed_10"
+   }
+  },
+  "39": {
+   "E": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   },
+   "S": {
+    "hv_hp": "fixed_10",
+    "hv_lp": "fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "fixed_10"
+   },
+   "ES": {
+    "hv_hp": "target_10+fixed_10",
+    "hv_lp": "target_10+gap_3",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10+fixed_10"
+   }
+  },
+  "40": {
+   "E": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   },
+   "S": {
+    "hv_hp": "fixed_10",
+    "hv_lp": "fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "fixed_10"
+   },
+   "ES": {
+    "hv_hp": "target_10+fixed_10",
+    "hv_lp": "target_10+gap_3",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10+fixed_10"
+   }
+  },
+  "41": {
+   "E": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   },
+   "S": {
+    "hv_hp": "fixed_10",
+    "hv_lp": "fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "fixed_10"
+   },
+   "ES": {
+    "hv_hp": "target_10+fixed_10",
+    "hv_lp": "target_10+gap_3",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10+fixed_10"
+   }
+  },
+  "42": {
+   "E": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   },
+   "S": {
+    "hv_hp": "fixed_10",
+    "hv_lp": "fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "fixed_10"
+   },
+   "ES": {
+    "hv_hp": "target_10+fixed_10",
+    "hv_lp": "target_10+gap_3",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10+fixed_10"
+   }
+  },
+  "43": {
+   "E": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   },
+   "S": {
+    "hv_hp": "fixed_10",
+    "hv_lp": "fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "fixed_10"
+   },
+   "ES": {
+    "hv_hp": "target_10+fixed_10",
+    "hv_lp": "target_10+gap_3",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10+fixed_10"
+   }
+  },
+  "44": {
+   "E": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   },
+   "S": {
+    "hv_hp": "fixed_10",
+    "hv_lp": "fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "fixed_10"
+   },
+   "ES": {
+    "hv_hp": "target_10+fixed_10",
+    "hv_lp": "target_10+gap_3",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10+fixed_10"
+   }
+  },
+  "45": {
+   "E": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   },
+   "S": {
+    "hv_hp": "fixed_10",
+    "hv_lp": "fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "fixed_10"
+   },
+   "ES": {
+    "hv_hp": "target_10+fixed_10",
+    "hv_lp": "target_10+gap_3",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10+fixed_10"
+   }
+  },
+  "46": {
+   "E": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   },
+   "S": {
+    "hv_hp": "fixed_10",
+    "hv_lp": "fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "fixed_10"
+   },
+   "ES": {
+    "hv_hp": "target_10+fixed_10",
+    "hv_lp": "target_10+gap_3",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10+fixed_10"
+   }
+  },
+  "47": {
+   "E": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   },
+   "S": {
+    "hv_hp": "fixed_10",
+    "hv_lp": "fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "fixed_10"
+   },
+   "ES": {
+    "hv_hp": "target_10+fixed_10",
+    "hv_lp": "target_10+gap_3",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10+fixed_10"
+   }
+  },
+  "48": {
+   "E": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   },
+   "S": {
+    "hv_hp": "fixed_10",
+    "hv_lp": "fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "fixed_10"
+   },
+   "ES": {
+    "hv_hp": "target_10+fixed_10",
+    "hv_lp": "target_10+gap_3",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10+fixed_10"
+   }
+  },
+  "49": {
+   "E": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   },
+   "S": {
+    "hv_hp": "fixed_10",
+    "hv_lp": "fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "fixed_10"
+   },
+   "ES": {
+    "hv_hp": "target_10+fixed_10",
+    "hv_lp": "target_10+gap_3",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10+fixed_10"
+   }
+  },
+  "50": {
+   "E": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   },
+   "S": {
+    "hv_hp": "fixed_10",
+    "hv_lp": "fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "fixed_10"
+   },
+   "ES": {
+    "hv_hp": "target_10+fixed_10",
+    "hv_lp": "target_10+gap_3",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10+gap_3"
+   }
+  },
+  "51": {
+   "E": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   },
+   "S": {
+    "hv_hp": "fixed_10",
+    "hv_lp": "fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "fixed_10"
+   },
+   "ES": {
+    "hv_hp": "target_10+fixed_10",
+    "hv_lp": "target_10+gap_3",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10+gap_3"
+   }
+  },
+  "52": {
+   "E": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   },
+   "S": {
+    "hv_hp": "fixed_10",
+    "hv_lp": "fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "fixed_10"
+   },
+   "ES": {
+    "hv_hp": "target_10+fixed_10",
+    "hv_lp": "target_10+gap_3",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10+gap_3"
+   }
+  },
+  "53": {
+   "E": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   },
+   "S": {
+    "hv_hp": "fixed_10",
+    "hv_lp": "fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "fixed_10"
+   },
+   "ES": {
+    "hv_hp": "target_10+fixed_10",
+    "hv_lp": "target_10+gap_3",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10+gap_3"
+   }
+  },
+  "54": {
+   "E": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   },
+   "S": {
+    "hv_hp": "fixed_10",
+    "hv_lp": "fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "fixed_10"
+   },
+   "ES": {
+    "hv_hp": "target_10+fixed_10",
+    "hv_lp": "target_10+gap_3",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10+gap_3"
+   }
+  },
+  "55": {
+   "E": {
+    "hv_hp": "target_10",
+    "hv_lp": "target_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10"
+   },
+   "S": {
+    "hv_hp": "fixed_10",
+    "hv_lp": "fixed_10",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "fixed_10"
+   },
+   "ES": {
+    "hv_hp": "target_10+fixed_10",
+    "hv_lp": "target_10+gap_3",
+    "lv_hp": "week_end",
+    "lv_lp": "week_end",
+    "POOLED": "target_10+gap_3"
+   }
+  }
+ },
+ "sample_tickers": [
+  "AAT",
+  "ABCB",
+  "ABCL",
+  "ABSI",
+  "ACH",
+  "ACM",
+  "ACMR",
+  "AEP",
+  "AGEN",
+  "AGO",
+  "AIR",
+  "AKBA",
+  "ALB",
+  "ALNY",
+  "ALXO",
+  "AME",
+  "AMLX",
+  "AMPL",
+  "AMRX",
+  "APLD",
+  "ARES",
+  "ASIX",
+  "ASPS",
+  "ASTL",
+  "ATEN",
+  "ATEX",
+  "ATR",
+  "AVPT",
+  "AXON",
+  "AZO",
+  "BA",
+  "BAH",
+  "BDC",
+  "BEAM",
+  "BILL",
+  "BKH",
+  "BMO",
+  "BNY",
+  "BOOT",
+  "BP",
+  "BRC",
+  "BRZE",
+  "BTT",
+  "CAE",
+  "CAT",
+  "CCJ",
+  "CCL",
+  "CDRE",
+  "CERS",
+  "CGON",
+  "CIEN",
+  "CLBK",
+  "CLS",
+  "CMBT",
+  "CMI",
+  "CMP",
+  "CMS",
+  "CNO",
+  "COR",
+  "CPRI",
+  "CPS",
+  "CR",
+  "CRC",
+  "CRDO",
+  "CRI",
+  "CRSR",
+  "CTRI",
+  "CVBF",
+  "CVSA",
+  "CWH",
+  "CXT",
+  "DG",
+  "DGX",
+  "DIS",
+  "DJP",
+  "DKS",
+  "DSGX",
+  "EGY",
+  "EHTH",
+  "EMBC",
+  "EMR",
+  "ENR",
+  "ENVA",
+  "FA",
+  "FAF",
+  "FAST",
+  "FBNC",
+  "FCEL",
+  "FELE",
+  "FFBC",
+  "FHB",
+  "FLGT",
+  "FLO",
+  "FNF",
+  "FNGD",
+  "FNKO",
+  "FRPT",
+  "FTV",
+  "FWONA",
+  "G",
+  "GDDY",
+  "GLBE",
+  "GLRE",
+  "GNW",
+  "GOOS",
+  "GPC",
+  "GPK",
+  "GPRO",
+  "GTN",
+  "GWRE",
+  "GXO",
+  "HAFC",
+  "HAL",
+  "HAPN",
+  "HAS",
+  "HCAT",
+  "HD",
+  "HE",
+  "HLI",
+  "HLIO",
+  "HMC",
+  "HON",
+  "HPK",
+  "HTLD",
+  "HTO",
+  "HUMA",
+  "HXL",
+  "IART",
+  "IBKR",
+  "ICUI",
+  "IDCC",
+  "IFF",
+  "INGN",
+  "INMD",
+  "INSP",
+  "INTA",
+  "IRTC",
+  "JJSF",
+  "KDP",
+  "KGS",
+  "KMX",
+  "KNX",
+  "KOP",
+  "KRNT",
+  "KROS",
+  "KURA",
+  "KYTX",
+  "LAUR",
+  "LCII",
+  "LEN",
+  "LEVI",
+  "LLYVK",
+  "LMND",
+  "LOPE",
+  "LRCX",
+  "LSCC",
+  "LSTR",
+  "LW",
+  "LXRX",
+  "LXU",
+  "LYV",
+  "MA",
+  "MAN",
+  "MAR",
+  "MCD",
+  "MCFT",
+  "MCK",
+  "MDT",
+  "MDU",
+  "METC",
+  "MFC",
+  "MGPI",
+  "MKL",
+  "MNKD",
+  "MRNA",
+  "MRTN",
+  "MTDR",
+  "MTW",
+  "MXL",
+  "MYGN",
+  "NCNO",
+  "NI",
+  "NMIH",
+  "NOC",
+  "NOV",
+  "NOVT",
+  "NOW",
+  "NRDS",
+  "NTAP",
+  "NUE",
+  "NWS",
+  "OCSL",
+  "OI",
+  "OLLI",
+  "ONIT",
+  "OWL",
+  "OZK",
+  "PACB",
+  "PBR",
+  "PFS",
+  "PHAT",
+  "PI",
+  "PKG",
+  "PLOW",
+  "PLTK",
+  "POST",
+  "POWI",
+  "PRAX",
+  "PRG",
+  "PRGS",
+  "PRLB",
+  "PSNL",
+  "PSO",
+  "PWR",
+  "QCOM",
+  "QLYS",
+  "REGN",
+  "RELY",
+  "RIO",
+  "RJF",
+  "RLAY",
+  "RNR",
+  "ROAD",
+  "ROCK",
+  "ROOT",
+  "RRC",
+  "RYZ",
+  "SAIA",
+  "SBH",
+  "SBLK",
+  "SCCO",
+  "SCOR",
+  "SD",
+  "SEI",
+  "SF",
+  "SLDB",
+  "SN",
+  "SNEX",
+  "SNOW",
+  "SNX",
+  "SPSC",
+  "SR",
+  "SSP",
+  "STLA",
+  "STWD",
+  "SWIM",
+  "SXT",
+  "TECX",
+  "TEL",
+  "TFSL",
+  "TGTX",
+  "THC",
+  "THG",
+  "TILE",
+  "TLN",
+  "TLRY",
+  "TNDM",
+  "TPB",
+  "TPC",
+  "TR",
+  "TRIN",
+  "TRMD",
+  "TROX",
+  "TTD",
+  "TTEK",
+  "TTMI",
+  "TVRD",
+  "TXN",
+  "UI",
+  "UNF",
+  "UNM",
+  "UNP",
+  "URGN",
+  "USPH",
+  "UVE",
+  "UVV",
+  "VAL",
+  "VCTR",
+  "VECO",
+  "VERA",
+  "VIR",
+  "VKTX",
+  "VLTO",
+  "VLY",
+  "VMC",
+  "VNOM",
+  "VRSK",
+  "VRTS",
+  "VTEX",
+  "VTS",
+  "WD",
+  "WHD",
+  "WLY",
+  "WMS",
+  "WPC",
+  "WS",
+  "WTI",
+  "WWD",
+  "WWW",
+  "YELP"
+ ],
+ "eligible_pool": 2369,
+ "fill_timing": {
+  "positions": 21480,
+  "entry_not_after_decision": 0,
+  "max_bars": 5,
+  "weekend_bars": 0,
+  "ok": true
+ },
+ "seconds": 7,
+ "sample_seed": 7,
+ "window": [
+  "2010-01-01",
+  "2026-09-25"
+ ],
+ "scramble_audit": {
+  "identical": true,
+  "n_compared": 195,
+  "max_p_move_diff": 0.0
+ },
+ "stamp": {
+  "code_hash": "db20d93b71b7b967",
+  "code_files": [
+   "engine/__init__.py",
+   "engine/candidates.py",
+   "engine/config.py",
+   "engine/direction.py",
+   "engine/exits.py",
+   "engine/fv_pipeline.py",
+   "engine/gaprisk.py",
+   "engine/pattern_identity.py",
+   "engine/pattern_movers.py",
+   "engine/pattern_stats.py",
+   "engine/patterns.py",
+   "engine/provenance.py",
+   "engine/stops.py",
+   "scripts/fv_eval.py"
+  ],
+  "code_mixed": [],
+  "git_commit": "da1d5296a17a87f10aea2e680c684aa1e5c8c442",
+  "canon_sha": "00bf97d3ae2dcdc2",
+  "bible_sha": "a97ea91862cee371",
+  "blueprint_version": "4.0",
+  "config_hash": "6f1a49a079512105",
+  "data_snapshot": "171ba8ba728ee713",
+  "seed": 7
+ }
+}

@@ -1,0 +1,5 @@
+from,to,d_mean_week,d_mean_week_lo,d_mean_week_hi,d_share10,d_share10_lo,d_share10_hi,verdict
+M,M+D,-0.0034141905141024586,-0.00728345717085611,0.0001603394218519101,-0.15027932960893856,-0.16187150837988828,-0.13966480446927373,not distinguishable
+M+D,M+D+E,0.0,0.0,0.0,0.0,0.0,0.0,not distinguishable
+M+D+E,M+D+S,0.0,0.0,0.0,0.0,0.0,0.0,not distinguishable
+M+D+S,M+D+E+S,0.0,0.0,0.0,0.0,0.0,0.0,not distinguishable
