@@ -71,6 +71,9 @@ DEFAULTS = {
     "network_modules": ["requests", "urllib.request", "urllib3", "http.client", "socket", "yfinance", "httpx", "aiohttp",
                         "alpaca", "ftplib", "smtplib", "websocket", "websockets"],
     "data_tokens": ["data/cache", "livesim", "K.CACHE", "CACHE /"],
+    # the reproducibility probe must set and read the global RNGs to detect code that consumes them, and its tests
+    # plant exactly that defect; nothing else may touch global random state
+    "global_rng_allowed": ["engine/repro.py", "tests/test_repro.py"],
     "test_allowed_data": ["tests/test_quality_gate.py"],   # plants the protected paths as strings to prove the check fires
     "inventory_fail": ["items_untested", "phases_untested", "config_problems"],   # gap kinds that fail the gate
 }
@@ -414,7 +417,7 @@ def check_randomness(ctx: Context) -> list[Finding]:
     for grp, sev in (("engine", "error"), ("tests", "error")):
         srcs = engine_sources(ctx) if grp == "engine" else ctx.group("tests")
         for s in srcs:
-            if s.tree is None:
+            if s.tree is None or s.rel in ctx.cfg["global_rng_allowed"]:
                 continue
             py_random = any(isinstance(n, ast.Import) and any(a.name == "random" for a in n.names) for n in ast.walk(s.tree))
             for n in ast.walk(s.tree):

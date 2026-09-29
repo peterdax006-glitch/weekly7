@@ -40,8 +40,11 @@ CANDIDATES = ["frog", "range_compress", "ins_buyers30"]
 EVAL = partial(ao.wf_evaluate, horizon=1, n_folds=4, min_train_dates=20)      # weekly rows: labels do not overlap
 
 
-def log(msg, t0=[time.time()]):
-    print(f"[{time.time() - t0[0]:6.0f}s] {msg}", flush=True)
+T0 = time.time()
+
+
+def log(msg):
+    print(f"[{time.time() - T0:6.0f}s] {msg}", flush=True)
 
 
 def load_sample(n_tickers, seed):
