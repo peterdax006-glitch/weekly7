@@ -145,6 +145,8 @@ DIRECTIVES = [
      'it should be designed so it looks at hundereds of stocks in a day that were 5-10% volatile, it should also see the ones that were volatile then consolidated or were volatile durring the day and got way more volatile or stopped or spiked the next day or if it reversed the next day, it should look at hundereds of stocks olike that and do ai deep research 24/7 on tons and tons of stocks to find even the smallest patterns it couldve predicted'),
     ("C68", "2026-09-29", 'Master checklist ADDITION: prediction error -> market change -> self-calibration -> adaptive exit intelligence (verbatim in PREDICTION_ERROR_ADDITION.md, sha256 45207d5d6e740c2f); extends C66, replaces nothing',
      'i have an addition to the master checklist: [WEEKLY7 MASTER CHECKLIST ADDITION, stored verbatim in PREDICTION_ERROR_ADDITION.md]'),
+    ("C69", "2026-09-29", '10-hour non-stop master execution checklist: foundation -> working -> intended behaviour -> operation -> failure discovery -> improvement -> perfection -> independent proof (verbatim in TEN_HOUR_EXECUTION_CHECKLIST.md, sha256 4f996ec3abd7c77c)',
+     '(sent without other words) [WEEKLY7 — 10-HOUR NON-STOP MASTER EXECUTION CHECKLIST, stored verbatim in TEN_HOUR_EXECUTION_CHECKLIST.md]'),
 ]
 
 def sha(t): return hashlib.sha256(t.encode("utf-8")).hexdigest()

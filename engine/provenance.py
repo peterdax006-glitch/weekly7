@@ -43,6 +43,15 @@ def verify_integrity():
         got = hashlib.sha256((ROOT / "BIBLE.md").read_text(encoding="utf-8").rstrip("\n").encode("utf-8")).hexdigest()
         if got != want:
             raise IntegrityError("BIBLE.md altered")
+    for lock_name in ("ten_hour_checklist.lock.json",):        # later owner documents saved by scripts/save_owner_doc.py
+        lk = ROOT / "canon" / lock_name
+        if lk.exists():
+            meta = json.loads(lk.read_text(encoding="utf-8"))
+            f = ROOT / meta["file"]
+            if not f.exists():
+                raise IntegrityError(f"{meta['file']} missing while its lock exists")
+            if hashlib.sha256(f.read_text(encoding="utf-8").rstrip("\n").encode("utf-8")).hexdigest() != meta["sha256"]:
+                raise IntegrityError(f"{meta['file']} altered")
     pl = ROOT / "canon" / "prediction_error_addition.lock.json"   # the owner's C68 checklist addition, same rule
     if pl.exists():
         pf = ROOT / "PREDICTION_ERROR_ADDITION.md"
