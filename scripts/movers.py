@@ -15,7 +15,7 @@ from engine import config as K, livesim
 OUT = K.STATE / "movers"
 OUT.mkdir(parents=True, exist_ok=True)
 H, MOVE = 5, 0.10                                   # next 5 sessions, +/-10%
-DROP = ("ins_", "ev_activist")                      # insider data is off in sims (C18 fail-safe)
+DROP = ("ev_activist",)                             # insider leak fixed 28 Sep; 13D attribution still being repaired
 
 
 def labels(stocks):
@@ -56,6 +56,9 @@ def run_window(rid, variant=None, scramble_after=None, save=True):
         tick = X.index.get_level_values(1)
         X = X.assign(sector_div=[float(ord(div.get(t, "?")[0]) - 64) for t in tick],
                      price_level=feed._stocks["Close"].stack(future_stack=True).reindex(X.index).values)
+    if v.get("absfeat"):                               # magnitude signals: a +/-10% mover can go either way
+        X = X.assign(abs_ear=X["ear"].abs(), abs_r5=X["r5"].abs(), abs_r1=X["r1"].abs(),
+                     abs_gap=X["gap_today"].abs(), abs_r20=X["r20"].abs(), range_pct=X["max20"] - X["min20"])
     cols = [c for c in X.columns if not c.startswith(DROP)]
     S = feed._stocks
     up, dn, cl = labels(S)
@@ -65,6 +68,8 @@ def run_window(rid, variant=None, scramble_after=None, save=True):
     # ---- train on warm-up week-ends whose 5-day label window closes before the hidden window ----
     warm = [d for d in week_ends(sessions[sessions < first])]
     cutoff = sessions[max(0, sessions.get_loc(first) - H - 1)]
+    if v.get("all_days"):                               # every session, not only week-ends (~5x the rows)
+        warm = list(sessions[(sessions < first) & (sessions >= sessions[0] + pd.Timedelta(days=300))])
     warm = [d for d in warm if d <= cutoff]
     dates = X.index.get_level_values(0)
     Xt = X[dates.isin(warm)][cols]

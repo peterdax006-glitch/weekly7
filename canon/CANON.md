@@ -192,3 +192,9 @@ i want youto be utilizing all the memory all the time
 > the test should keep adjusting first keeping in mind 7% then second keeping in mind accuracy of success
 
 `sha256: 9ae25a08800dceea899971b8de159bb56cacd202813ba26d8e89d6f40c3ab2cc`
+
+## C32 — Checkoff list; any method or free tool; all RAM; don't stop until done (2026-09-28)
+
+> treat this as a checkoff list and feel free to motify anything or look at anything in a new way or download any free tools to achieve the ultimate objective but tread this as a checkoff list and utilize all the RAM and dont stop until the list is done
+
+`sha256: ee1978a6939bae5c67ceea888d603c7d8dd9c4c237ea6aaa467b03e24914f71f`

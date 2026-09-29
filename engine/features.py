@@ -179,10 +179,12 @@ def _insider_features(ins, dates, tickers, dv20):
     d["ym"] = d["tdate"].dt.year * 12 + d["tdate"].dt.month
     # point-in-time: a past trade only counts once its OWN filing was public (late filings exist). Without
     # this, the routine check could see a report filed after the decision day - the leak the parity test caught.
-    first_public = d.groupby([d["owner_cik"], d["tdate"].dt.year, d["tdate"].dt.month])["day"].min().to_dict()
+    # routine is per insider PER COMPANY (Cohen-Malloy-Pomorski). Keying on the insider alone made the result
+    # depend on which other companies happened to be in the same processing batch (the parity leak, 28 Sep).
+    first_public = d.groupby([d["owner_cik"], d["symbol"], d["tdate"].dt.year, d["tdate"].dt.month])["day"].min().to_dict()
     y, mth = d["tdate"].dt.year.values, d["tdate"].dt.month.values
-    d["routine"] = [all(first_public.get((o, yy - k, mm), pd.Timestamp.max) <= day for k in (1, 2, 3))
-                    for o, yy, mm, day in zip(d["owner_cik"], y, mth, d["day"])]
+    d["routine"] = [all(first_public.get((o, sy, yy - k, mm), pd.Timestamp.max) <= day for k in (1, 2, 3))
+                    for o, sy, yy, mm, day in zip(d["owner_cik"], d["symbol"], y, mth, d["day"])]
     rel = d["relation"].fillna("").str.lower() + " " + d["title"].fillna("").str.lower()
     d["officer"] = rel.str.contains("officer|ceo|cfo|chief|president").astype("float32")
     d["i"] = dates.searchsorted(d["day"].values)

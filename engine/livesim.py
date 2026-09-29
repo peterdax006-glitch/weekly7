@@ -50,7 +50,7 @@ class SealedYear:
 class Feed:
     """The only door between the real past and the trader."""
 
-    def __init__(self, sealed: SealedYear, warmup_years=6):
+    def __init__(self, sealed: SealedYear, warmup_years=6, use_insider=True):
         s = sealed._read()                                     # the feed may know; the trader never does
         start, self._shift = SealedYear.start_of(s), pd.Timedelta(days=s["shift_days"])
         Y = start.year
@@ -77,10 +77,9 @@ class Feed:
         ins["symbol"] = ins["symbol"].map(self._map)
         for c in ("filed", "tdate"):
             ins[c] = ins[c] + self._shift
-        # C18 fail-safe (28 Sep 2026): the fast path sometimes counted an insider filing the strictly-live path could
-        # not yet see (parity test, window w01c). Until that is fixed and proven, blind simulations run WITHOUT
-        # insider data; features that depend on it are zero in both paths, so parity holds by construction.
-        self._insider = ins.iloc[0:0]
+        # Insider data re-enabled 28 Sep 2026: the parity leak was the routine-insider rule keyed per insider instead
+        # of per insider-and-company (fixed in features.py; parity proven on 4 windows x 8 days).
+        self._insider = ins if use_insider else ins.iloc[0:0]
         sic = pd.read_parquet(K.CACHE / "sic.parquet")
         sic = sic[sic["ticker"].isin(self._map)].copy()
         sic["ticker"] = sic["ticker"].map(self._map)
@@ -226,7 +225,7 @@ class BlindTrader:
         ud = ud[ud <= until_idx]
         ud = ud[: max(1, len(ud) - 6)]
         wk = [d for i, d in enumerate(ud[:-1]) if ud[i + 1].isocalendar().week != d.isocalendar().week]
-        cols = [c for c in X.columns if not c.startswith(("ins_", "ev_activist"))]
+        cols = [c for c in X.columns if not c.startswith(("ev_activist",))]
         Xt = X[X.index.get_level_values(0).isin(wk)][cols]
         y = touch.stack(future_stack=True).reindex(Xt.index)
         ok = y.notna().values

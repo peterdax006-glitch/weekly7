@@ -71,6 +71,8 @@ DIRECTIVES = [
      "talking to the testing task: find the pattern in what succeeded that the system picked, what failed that the system picked, and what succeeded that the system didnt pick, and then identify the thing that needs to be motified to get us closer to our goal, feel free to incoperate the find volatility system to find volatile stocks, but that still isnt complete and you still need to find patterns in the indicators, volume, quantity, net worth ect"),
     ("C31", "2026-09-28", "Test objective: first 7%, second accuracy",
      "the test should keep adjusting first keeping in mind 7% then second keeping in mind accuracy of success"),
+    ("C32", "2026-09-28", "Checkoff list; any method or free tool; all RAM; don't stop until done",
+     "treat this as a checkoff list and feel free to motify anything or look at anything in a new way or download any free tools to achieve the ultimate objective but tread this as a checkoff list and utilize all the RAM and dont stop until the list is done"),
 ]
 
 def sha(t): return hashlib.sha256(t.encode("utf-8")).hexdigest()
