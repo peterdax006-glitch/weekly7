@@ -1,0 +1,14 @@
+{
+ "cut": "2017-01-01",
+ "tag": "_v1",
+ "params": {},
+ "weeks": 104,
+ "ic_mean": 0.009954929477332132,
+ "ic_t": 0.5927622268521665,
+ "top_decile_excess_week": 0.00039976558764465153,
+ "tested": 4344,
+ "fdr_pass": 2178,
+ "active": 268,
+ "benched": 0,
+ "rescoped": 0
+}

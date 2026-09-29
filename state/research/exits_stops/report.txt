@@ -1,0 +1,19 @@
+Exit learner, out of sample vs plain week-end exit (tiered objective, not raw return)
+    vhigh_dn: n=2365 weeks=622 verdict=better; mean week -0.75% -> -0.85%; in-band 12% -> 14%; worst-5% week -20.21% -> -19.38%; gain -0.10% [-0.39%, +0.19%]
+    vhigh_up: n=2977 weeks=651 verdict=better; mean week -0.80% -> -0.59%; in-band 11% -> 15%; worst-5% week -17.48% -> -14.25%; gain +0.21% [-0.12%, +0.54%]
+     vlow_dn: n=2949 weeks=638 verdict=better; mean week -0.26% -> -0.20%; in-band 13% -> 14%; worst-5% week -17.05% -> -15.94%; gain +0.05% [-0.15%, +0.25%]
+     vlow_up: n=3066 weeks=634 verdict=worse; mean week +0.06% -> -0.16%; in-band 12% -> 12%; worst-5% week -14.79% -> -14.96%; gain -0.23% [-0.41%, -0.05%]
+     vmid_dn: n=2568 weeks=635 verdict=better; mean week -0.37% -> -0.37%; in-band 14% -> 19%; worst-5% week -16.85% -> -16.79%; gain +0.01% [-0.26%, +0.21%]
+     vmid_up: n=2779 weeks=634 verdict=worse; mean week -0.45% -> -0.42%; in-band 10% -> 11%; worst-5% week -17.46% -> -17.17%; gain +0.03% [-0.08%, +0.13%]
+         ALL: n=16704 weeks=669 verdict=better; mean week -0.29% -> -0.28%; in-band 10% -> 9%; worst-5% week -14.29% -> -12.83%; gain +0.01% [-0.11%, +0.12%]
+latest rules: vhigh_dn=target_7, vhigh_up=t10_trail4, vlow_dn=target_7, vlow_up=volt1_voltrail1.5, vmid_dn=week_end, vmid_up=volt1_voltrail1.5
+
+Stop engine, out of sample vs no stop
+No stop guarantees a maximum loss: positions gap overnight and stops fill at the next open. Read p_loss_gt20 (with its upper bound) and worst_observed, not a promised floor.
+    vhigh_dn: n=2365; P(loss>20%) 4.95% -> 3.68% (upper 4.52%); expected loss -4.76% -> -4.71%; worst -58.9% -> -58.9%; gap freq 6.15%, gap severity 5.9%, stopped 18% of which through a gap 7%
+    vhigh_up: n=2977; P(loss>20%) 4.23% -> 0.64% (upper 0.99%); expected loss -4.67% -> -4.44%; worst -76.1% -> -40.4%; gap freq 6.83%, gap severity 6.1%, stopped 29% of which through a gap 9%
+     vlow_dn: n=2949; P(loss>20%) 3.42% -> 0.41% (upper 0.71%); expected loss -3.82% -> -3.30%; worst -54.5% -> -50.2%; gap freq 4.39%, gap severity 6.0%, stopped 47% of which through a gap 7%
+     vlow_up: n=3066; P(loss>20%) 1.76% -> 1.57% (upper 2.07%); expected loss -3.40% -> -3.38%; worst -73.2% -> -73.2%; gap freq 3.82%, gap severity 5.6%, stopped 7% of which through a gap 5%
+     vmid_dn: n=2568; P(loss>20%) 2.92% -> 0.47% (upper 0.82%); expected loss -4.06% -> -3.54%; worst -57.0% -> -46.2%; gap freq 5.02%, gap severity 5.5%, stopped 38% of which through a gap 6%
+     vmid_up: n=2779; P(loss>20%) 2.55% -> 0.94% (upper 1.37%); expected loss -3.73% -> -3.40%; worst -50.6% -> -49.2%; gap freq 4.63%, gap severity 5.5%, stopped 26% of which through a gap 6%
+         ALL: n=16704; P(loss>20%) 3.26% -> 1.22% (upper 1.40%); expected loss -4.05% -> -3.77%; worst -76.1% -> -73.2%; gap freq 5.11%, gap severity 5.8%, stopped 28% of which through a gap 7%

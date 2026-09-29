@@ -1,0 +1,14 @@
+{
+ "cut": "2020-01-01",
+ "tag": "",
+ "params": {},
+ "weeks": 105,
+ "ic_mean": 0.042171423185394755,
+ "ic_t": 2.7704309541157164,
+ "top_decile_excess_week": 5.414599581854418e-05,
+ "tested": 4373,
+ "fdr_pass": 1934,
+ "active": 561,
+ "benched": 0,
+ "rescoped": 0
+}

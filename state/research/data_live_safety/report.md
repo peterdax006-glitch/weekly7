@@ -1,0 +1,34 @@
+# Data expansion and live safety audit (Phase 27/28)
+
+Seed 7, 7.3 min. Code hash `3c89f697d7785aff`.
+
+## Isolation and paper-only
+- static audit ok: **False**
+- import violations: 2 -> [('parity_suite', 'research_imports_live'), ('parity_suite', 'research_imports_live')]
+- known couplings (research reads engine.live constants): ['improve', 'scoring', 'shadows', 'site_data', 'tick']
+- unreviewed state writes: 0; reviewed: [('improve', 'config_overrides.json')]
+- credential reads outside live side: 0; paper-only clients: {'engine/broker.py': True, 'engine/tick.py': True}
+
+## Trading-hours firewall (engine.broker.regular_hours vs NYSE calendar)
+- half-hours tested: 140256; broker allows while market closed: **1090** ({'holiday': 988, 'half_day': 102}); by year {2019: 135, 2020: 129, 2021: 123, 2022: 123, 2023: 142, 2024: 148, 2025: 148, 2026: 142}; over-blocked 0
+
+## Data
+- stocks cache [6723, 5247] ['2000-01-03', '2026-09-25']; sample 150 tickers
+- unexplained stops (registry candidates): 12 of 5247; {'acquired-like': 12} {'flat_tail': 10, 'no_data': 2}
+- split suspects (sample): {'total': 541, 'volume_supported': 165, 'by_era': {'2020s': 202, '1990s': 129, '2000s': 105, '2010s': 79, 'pre-1990': 26}}
+- stale runs >=10: {'total': 1694, 'by_kind': {'same_close': 1246, 'zero_volume': 448}, 'longest': 1820}
+- sector ETFs: True, first dates {'XLB': '2000-01-03', 'XLC': '2018-06-19', 'XLE': '2000-01-03', 'XLF': '2000-01-03', 'XLI': '2000-01-03', 'XLK': '2000-01-03', 'XLP': '2000-01-03', 'XLRE': '2015-10-08', 'XLU': '2000-01-03', 'XLV': '2000-01-03', 'XLY': '2000-01-03'}
+
+### Defect census per era (raw rows)
+
+```
+     era     rows  weekend  missing_close  non_positive  ohlc_inconsistent  duplicate_key  zero_volume  big_move  defect_rate          cache
+   2000s 146576.0      0.0            0.0           0.0                0.0            0.0       6466.0     113.0     0.000771         stocks
+   2010s 223842.0      0.0            0.0           0.0                0.0            0.0      10835.0      82.0     0.000366         stocks
+   2020s 210895.0      0.0            0.0           0.0                0.0            0.0       1596.0     248.0     0.001176         stocks
+pre-1990 166430.0      0.0            0.0           0.0                0.0            0.0      12356.0      22.0     0.000132 stocks_pre2000
+   1990s 261315.0      0.0            0.0           0.0                0.0            0.0      12357.0     158.0     0.000605 stocks_pre2000
+```
+
+### Incremental information: sector-relative 5d return
+- {'gain': 0.0021651837601493304, 'null_mean': -8.228451358314568e-05, 'null_sd': 0.0001083059574585057, 'p_value': 0.01639344262295082, 'n_dates': 2441, 'adds_value': True, 'rows': 285121, 'assignments': 13715}

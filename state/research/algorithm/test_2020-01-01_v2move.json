@@ -1,0 +1,19 @@
+{
+ "cut": "2020-01-01",
+ "tag": "_v2move",
+ "params": {},
+ "weeks": 105,
+ "ic_mean": 0.38300289877915483,
+ "ic_t": 38.52073928738084,
+ "top_decile_excess_week": 0.05516624078154564,
+ "tested": 4382,
+ "fdr_pass": 3908,
+ "no_gain": 2928,
+ "rejected": 938,
+ "duplicate": 460,
+ "active": 56,
+ "gate_corr_confirm": 0.3503,
+ "null_patterns": 3000,
+ "null_t_95pct": 1.9300934428038616,
+ "real_t_95pct": 42.79809467843739
+}

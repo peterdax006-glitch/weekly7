@@ -1,0 +1,300 @@
+{
+ "windows": 42,
+ "counts": {
+  "other": 1586187,
+  "MISSED_WON": 139609,
+  "PICKED_LOST": 1894,
+  "PICKED_WON": 760
+ },
+ "pick_hit_rate_7": 0.17272727272727273,
+ "pick_win_rate": 0.5156818181818181,
+ "universe_hit_rate_7": 0.0812109115103127,
+ "won_vs_lost": [
+  {
+   "feature": "e_ins_officer30",
+   "name": "officers buying",
+   "gap_sd": -1.0355313838947977
+  },
+  {
+   "feature": "e_ins_buyers30",
+   "name": "insiders buying",
+   "gap_sd": -1.0355313838947977
+  },
+  {
+   "feature": "e_dist_52wh",
+   "name": "near its 52-week high",
+   "gap_sd": -0.3890778234505272
+  },
+  {
+   "feature": "r5",
+   "name": "last week's move",
+   "gap_sd": -0.29252488258942944
+  },
+  {
+   "feature": "e_r5_nonews",
+   "name": "quiet pullback likely to revert",
+   "gap_sd": -0.26554094684547064
+  },
+  {
+   "feature": "e_ear",
+   "name": "strong earnings reaction",
+   "gap_sd": -0.23781660017459869
+  },
+  {
+   "feature": "e_skew60",
+   "name": "return shape",
+   "gap_sd": -0.2287547886308443
+  },
+  {
+   "feature": "evidence",
+   "name": "evidence",
+   "gap_sd": -0.21664878955877928
+  },
+  {
+   "feature": "vol20",
+   "name": "volatility profile",
+   "gap_sd": 0.2074659787075157
+  },
+  {
+   "feature": "e_mom_12_1",
+   "name": "12-month momentum",
+   "gap_sd": -0.2031654763520003
+  },
+  {
+   "feature": "log_dv",
+   "name": "liquidity",
+   "gap_sd": -0.18784464331883263
+  },
+  {
+   "feature": "e_max20",
+   "name": "no lottery-style spike",
+   "gap_sd": 0.15544268321043328
+  },
+  {
+   "feature": "max20",
+   "name": "no lottery-style spike",
+   "gap_sd": 0.15544268321043328
+  },
+  {
+   "feature": "e_frog",
+   "name": "steady, not spiky, uptrend",
+   "gap_sd": 0.11484867809757879
+  },
+  {
+   "feature": "mu_raw",
+   "name": "mu raw",
+   "gap_sd": 0.07835860649480739
+  }
+ ],
+ "missed_vs_won": [
+  {
+   "feature": "e_ins_officer30",
+   "name": "officers buying",
+   "gap_sd": -1.6351793543567223
+  },
+  {
+   "feature": "e_ins_buyers30",
+   "name": "insiders buying",
+   "gap_sd": -1.6351793543567223
+  },
+  {
+   "feature": "mu_raw",
+   "name": "mu raw",
+   "gap_sd": -1.5750717503895852
+  },
+  {
+   "feature": "vol20",
+   "name": "volatility profile",
+   "gap_sd": -0.9722551970490076
+  },
+  {
+   "feature": "r5",
+   "name": "last week's move",
+   "gap_sd": 0.9504630892902783
+  },
+  {
+   "feature": "e_r5_nonews",
+   "name": "quiet pullback likely to revert",
+   "gap_sd": 0.9163792532286859
+  },
+  {
+   "feature": "e_dist_52wh",
+   "name": "near its 52-week high",
+   "gap_sd": 0.7747376940453848
+  },
+  {
+   "feature": "e_max20",
+   "name": "no lottery-style spike",
+   "gap_sd": -0.6588199060680415
+  },
+  {
+   "feature": "max20",
+   "name": "no lottery-style spike",
+   "gap_sd": -0.6588199060680415
+  },
+  {
+   "feature": "e_skew60",
+   "name": "return shape",
+   "gap_sd": 0.433647162201946
+  },
+  {
+   "feature": "evidence",
+   "name": "evidence",
+   "gap_sd": 0.39757726977906027
+  },
+  {
+   "feature": "price_level",
+   "name": "priclevel",
+   "gap_sd": -0.3046656749310884
+  },
+  {
+   "feature": "e_ind_mom60",
+   "name": "strong industry (3 months)",
+   "gap_sd": 0.20052839402653444
+  },
+  {
+   "feature": "e_ear",
+   "name": "strong earnings reaction",
+   "gap_sd": 0.1578735928175448
+  },
+  {
+   "feature": "log_dv",
+   "name": "liquidity",
+   "gap_sd": 0.14648356683983624
+  }
+ ],
+ "profiles": {
+  "mu_raw": {
+   "MISSED_WON": 0.455,
+   "PICKED_LOST": 0.887,
+   "PICKED_WON": 0.91,
+   "other": 0.504
+  },
+  "e_ear": {
+   "MISSED_WON": 0.494,
+   "PICKED_LOST": 0.517,
+   "PICKED_WON": 0.449,
+   "other": 0.501
+  },
+  "e_ins_buyers30": {
+   "MISSED_WON": 0.501,
+   "PICKED_LOST": 0.505,
+   "PICKED_WON": 0.503,
+   "other": 0.501
+  },
+  "e_ins_officer30": {
+   "MISSED_WON": 0.501,
+   "PICKED_LOST": 0.505,
+   "PICKED_WON": 0.503,
+   "other": 0.501
+  },
+  "e_dist_52wh": {
+   "MISSED_WON": 0.379,
+   "PICKED_LOST": 0.268,
+   "PICKED_WON": 0.155,
+   "other": 0.512
+  },
+  "e_ind_mom60": {
+   "MISSED_WON": 0.493,
+   "PICKED_LOST": 0.456,
+   "PICKED_WON": 0.435,
+   "other": 0.501
+  },
+  "e_frog": {
+   "MISSED_WON": 0.509,
+   "PICKED_LOST": 0.503,
+   "PICKED_WON": 0.537,
+   "other": 0.5
+  },
+  "e_mom_12_1": {
+   "MISSED_WON": 0.484,
+   "PICKED_LOST": 0.551,
+   "PICKED_WON": 0.493,
+   "other": 0.502
+  },
+  "e_r5_nonews": {
+   "MISSED_WON": 0.483,
+   "PICKED_LOST": 0.295,
+   "PICKED_WON": 0.219,
+   "other": 0.503
+  },
+  "e_max20": {
+   "MISSED_WON": 0.632,
+   "PICKED_LOST": 0.778,
+   "PICKED_WON": 0.823,
+   "other": 0.489
+  },
+  "e_ev_offering": {
+   "MISSED_WON": 0.5,
+   "PICKED_LOST": 0.503,
+   "PICKED_WON": 0.501,
+   "other": 0.501
+  },
+  "e_ev_shelf": {
+   "MISSED_WON": 0.504,
+   "PICKED_LOST": 0.506,
+   "PICKED_WON": 0.503,
+   "other": 0.5
+  },
+  "e_ev_red_flag": {
+   "MISSED_WON": 0.505,
+   "PICKED_LOST": 0.5,
+   "PICKED_WON": 0.499,
+   "other": 0.5
+  },
+  "e_skew60": {
+   "MISSED_WON": 0.514,
+   "PICKED_LOST": 0.454,
+   "PICKED_WON": 0.388,
+   "other": 0.5
+  },
+  "evidence": {
+   "MISSED_WON": 0.401,
+   "PICKED_LOST": 0.349,
+   "PICKED_WON": 0.286,
+   "other": 0.51
+  },
+  "vol20": {
+   "MISSED_WON": 0.661,
+   "PICKED_LOST": 0.881,
+   "PICKED_WON": 0.941,
+   "other": 0.486
+  },
+  "max20": {
+   "MISSED_WON": 0.632,
+   "PICKED_LOST": 0.778,
+   "PICKED_WON": 0.823,
+   "other": 0.489
+  },
+  "log_dv": {
+   "MISSED_WON": 0.462,
+   "PICKED_LOST": 0.473,
+   "PICKED_WON": 0.419,
+   "other": 0.504
+  },
+  "ev_red_flag": {
+   "MISSED_WON": 0.505,
+   "PICKED_LOST": 0.5,
+   "PICKED_WON": 0.499,
+   "other": 0.5
+  },
+  "ev_offering": {
+   "MISSED_WON": 0.5,
+   "PICKED_LOST": 0.503,
+   "PICKED_WON": 0.501,
+   "other": 0.501
+  },
+  "r5": {
+   "MISSED_WON": 0.481,
+   "PICKED_LOST": 0.292,
+   "PICKED_WON": 0.207,
+   "other": 0.503
+  },
+  "price_level": {
+   "MISSED_WON": 0.463,
+   "PICKED_LOST": 0.548,
+   "PICKED_WON": 0.551,
+   "other": 0.504
+  }
+ }
+}

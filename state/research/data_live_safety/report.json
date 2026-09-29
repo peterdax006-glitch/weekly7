@@ -1,0 +1,417 @@
+{
+ "seed": 7,
+ "stamp": {
+  "code_hash": "3c89f697d7785aff",
+  "code_files": [
+   "engine/__init__.py",
+   "engine/config.py",
+   "engine/data_sources.py",
+   "engine/isolation.py",
+   "engine/provenance.py",
+   "scripts/data_live_audit.py"
+  ],
+  "code_mixed": [],
+  "git_commit": "65e2c9e6ceb157243fcf75daae67b7d29c605aaa+dirty",
+  "canon_sha": "83225f36953ff54a",
+  "bible_sha": "a97ea91862cee371",
+  "blueprint_version": "4.0",
+  "config_hash": "a242323918075f6a",
+  "data_snapshot": "5f94924cad053ffd",
+  "seed": 7
+ },
+ "isolation": {
+  "static": {
+   "ok": false,
+   "import_violations": [
+    {
+     "kind": "research_imports_live",
+     "module": "parity_suite",
+     "line": 257,
+     "detail": "live"
+    },
+    {
+     "kind": "research_imports_live",
+     "module": "parity_suite",
+     "line": 412,
+     "detail": "live"
+    }
+   ],
+   "known_couplings": [
+    {
+     "module": "improve",
+     "line": 212,
+     "imports": "live"
+    },
+    {
+     "module": "improve",
+     "line": 281,
+     "imports": "live"
+    },
+    {
+     "module": "scoring",
+     "line": 30,
+     "imports": "live"
+    },
+    {
+     "module": "shadows",
+     "line": 34,
+     "imports": "live"
+    },
+    {
+     "module": "site_data",
+     "line": 23,
+     "imports": "live"
+    },
+    {
+     "module": "site_data",
+     "line": 38,
+     "imports": "live"
+    },
+    {
+     "module": "site_data",
+     "line": 70,
+     "imports": "live"
+    },
+    {
+     "module": "tick",
+     "line": 51,
+     "imports": "live"
+    }
+   ],
+   "state_write_violations": [],
+   "known_state_writes": [
+    {
+     "module": "improve",
+     "line": 246,
+     "file": "config_overrides.json"
+    }
+   ],
+   "credential_leaks": [],
+   "paper_only": {
+    "engine/broker.py": true,
+    "engine/tick.py": true
+   }
+  },
+  "hours_firewall": {
+   "half_hours_tested": 140256,
+   "unsafe_total": 1090,
+   "unsafe_by_year": {
+    "2019": 135,
+    "2020": 129,
+    "2021": 123,
+    "2022": 123,
+    "2023": 142,
+    "2024": 148,
+    "2025": 148,
+    "2026": 142
+   },
+   "unsafe_by_kind": {
+    "holiday": 988,
+    "half_day": 102
+   },
+   "over_blocked": 0
+  }
+ },
+ "data": {
+  "stocks_shape": [
+   6723,
+   5247
+  ],
+  "stocks_range": [
+   "2000-01-03",
+   "2026-09-25"
+  ],
+  "unexplained_stops": {
+   "count": 12,
+   "of_tickers": 5247,
+   "by_guess": {
+    "acquired-like": 12
+   },
+   "by_kind": {
+    "flat_tail": 10,
+    "no_data": 2
+   },
+   "by_last_year": {
+    "2025": 8,
+    "2026": 4
+   },
+   "sample": [
+    {
+     "ticker": "OST",
+     "kind": "flat_tail",
+     "last_date": "2025-09-12",
+     "last_close": 1.6950000524520874,
+     "lag_sessions": 260,
+     "final_month_return": -0.2399103045463562,
+     "guess": "acquired-like"
+    },
+    {
+     "ticker": "UCFI",
+     "kind": "flat_tail",
+     "last_date": "2025-10-01",
+     "last_close": 5.510000228881836,
+     "lag_sessions": 247,
+     "final_month_return": -0.5110913515090942,
+     "guess": "acquired-like"
+    },
+    {
+     "ticker": "EFTY",
+     "kind": "flat_tail",
+     "last_date": "2025-10-03",
+     "last_close": 15.020000457763672,
+     "lag_sessions": 245,
+     "final_month_return": 1.238450050354004,
+     "guess": "acquired-like"
+    },
+    {
+     "ticker": "PC",
+     "kind": "flat_tail",
+     "last_date": "2025-10-16",
+     "last_close": 9.399999618530273,
+     "lag_sessions": 236,
+     "final_month_return": 0.10263931751251221,
+     "guess": "acquired-like"
+    },
+    {
+     "ticker": "LAWR",
+     "kind": "flat_tail",
+     "last_date": "2025-10-22",
+     "last_close": 3.75,
+     "lag_sessions": 232,
+     "final_month_return": 0.20192313194274902,
+     "guess": "acquired-like"
+    },
+    {
+     "ticker": "MCTA",
+     "kind": "flat_tail",
+     "last_date": "2025-11-11",
+     "last_close": 29.354999542236328,
+     "lag_sessions": 218,
+     "final_month_return": 3.1935715675354004,
+     "guess": "acquired-like"
+    },
+    {
+     "ticker": "MAMK",
+     "kind": "flat_tail",
+     "last_date": "2025-11-14",
+     "last_close": 13.0,
+     "lag_sessions": 215,
+     "final_month_return": 3.609929084777832,
+     "guess": "acquired-like"
+    },
+    {
+     "ticker": "MAGH",
+     "kind": "flat_tail",
+     "last_date": "2025-12-04",
+     "last_close": 6.760000228881836,
+     "lag_sessions": 202,
+     "final_month_return": 3.8285717964172363,
+     "guess": "acquired-like"
+    }
+   ]
+  },
+  "sample_tickers": 150,
+  "validate_stocks": {
+   "source": "stocks",
+   "ok": true,
+   "rows_in": 581313,
+   "rows_out": 581313,
+   "errors": [],
+   "dropped": {},
+   "provenance": {
+    "source": "stocks",
+    "fetched_at": "cache",
+    "as_of": "2026-09-25",
+    "content_hash": "c1bd2c333eb7b4a0",
+    "tickers": 150,
+    "first": "2000-01-03",
+    "last": "2026-09-25"
+   },
+   "n_warnings": 89,
+   "warning_kinds": {
+    "gaps": 45,
+    "moves": 44
+   }
+  },
+  "coverage_stocks": {
+   "tickers": 150,
+   "median_missing_share": 0.0009986045065443795,
+   "p95_missing_share": 0.0014852220406950838,
+   "worst": {
+    "BURU": 0.006,
+    "IMSR": 0.002,
+    "IBG": 0.002
+   }
+  },
+  "validate_stocks_pre2000": {
+   "source": "stocks_pre2000",
+   "ok": true,
+   "rows_in": 427745,
+   "rows_out": 427745,
+   "errors": [],
+   "dropped": {},
+   "provenance": {
+    "source": "stocks_pre2000",
+    "fetched_at": "cache",
+    "as_of": "2026-09-25",
+    "content_hash": "39a21f4c18f99792",
+    "tickers": 150,
+    "first": "1962-01-02",
+    "last": "1999-12-31"
+   },
+   "n_warnings": 18,
+   "warning_kinds": {
+    "moves": 17,
+    "holiday": 1
+   }
+  },
+  "coverage_stocks_pre2000": {
+   "tickers": 150,
+   "median_missing_share": 0.00046479203067994654,
+   "p95_missing_share": 0.0007438871117677451,
+   "worst": {
+    "HPQ": 0.0064,
+    "MO": 0.0064,
+    "BMY": 0.0012
+   }
+  },
+  "defect_census": [
+   {
+    "era": "2000s",
+    "rows": 146576.0,
+    "weekend": 0.0,
+    "missing_close": 0.0,
+    "non_positive": 0.0,
+    "ohlc_inconsistent": 0.0,
+    "duplicate_key": 0.0,
+    "zero_volume": 6466.0,
+    "big_move": 113.0,
+    "defect_rate": 0.0007709311,
+    "cache": "stocks"
+   },
+   {
+    "era": "2010s",
+    "rows": 223842.0,
+    "weekend": 0.0,
+    "missing_close": 0.0,
+    "non_positive": 0.0,
+    "ohlc_inconsistent": 0.0,
+    "duplicate_key": 0.0,
+    "zero_volume": 10835.0,
+    "big_move": 82.0,
+    "defect_rate": 0.0003663298,
+    "cache": "stocks"
+   },
+   {
+    "era": "2020s",
+    "rows": 210895.0,
+    "weekend": 0.0,
+    "missing_close": 0.0,
+    "non_positive": 0.0,
+    "ohlc_inconsistent": 0.0,
+    "duplicate_key": 0.0,
+    "zero_volume": 1596.0,
+    "big_move": 248.0,
+    "defect_rate": 0.0011759406,
+    "cache": "stocks"
+   },
+   {
+    "era": "pre-1990",
+    "rows": 166430.0,
+    "weekend": 0.0,
+    "missing_close": 0.0,
+    "non_positive": 0.0,
+    "ohlc_inconsistent": 0.0,
+    "duplicate_key": 0.0,
+    "zero_volume": 12356.0,
+    "big_move": 22.0,
+    "defect_rate": 0.0001321877,
+    "cache": "stocks_pre2000"
+   },
+   {
+    "era": "1990s",
+    "rows": 261315.0,
+    "weekend": 0.0,
+    "missing_close": 0.0,
+    "non_positive": 0.0,
+    "ohlc_inconsistent": 0.0,
+    "duplicate_key": 0.0,
+    "zero_volume": 12357.0,
+    "big_move": 158.0,
+    "defect_rate": 0.0006046343,
+    "cache": "stocks_pre2000"
+   }
+  ],
+  "split_suspects": {
+   "total": 541,
+   "volume_supported": 165,
+   "by_era": {
+    "2020s": 202,
+    "1990s": 129,
+    "2000s": 105,
+    "2010s": 79,
+    "pre-1990": 26
+   }
+  },
+  "stale_runs": {
+   "total": 1694,
+   "by_kind": {
+    "same_close": 1246,
+    "zero_volume": 448
+   },
+   "longest": 1820
+  },
+  "sector_etf": {
+   "validate": {
+    "source": "sector_etf",
+    "ok": true,
+    "rows_in": 65343,
+    "rows_out": 65343,
+    "errors": [],
+    "dropped": {},
+    "provenance": {
+     "source": "sector_etf",
+     "fetched_at": "cache",
+     "as_of": "2026-09-25",
+     "content_hash": "4c505c59b1410161",
+     "tickers": 11,
+     "first": "2000-01-03",
+     "last": "2026-09-25"
+    }
+   },
+   "warnings": [
+    "XLB: 1 gaps > 6 days (largest 7)",
+    "XLE: 1 gaps > 6 days (largest 7)",
+    "XLF: 1 gaps > 6 days (largest 7)",
+    "XLI: 1 gaps > 6 days (largest 7)",
+    "XLK: 1 gaps > 6 days (largest 7)",
+    "XLP: 1 gaps > 6 days (largest 7)"
+   ],
+   "first_dates": {
+    "XLB": "2000-01-03",
+    "XLC": "2018-06-19",
+    "XLE": "2000-01-03",
+    "XLF": "2000-01-03",
+    "XLI": "2000-01-03",
+    "XLK": "2000-01-03",
+    "XLP": "2000-01-03",
+    "XLRE": "2015-10-08",
+    "XLU": "2000-01-03",
+    "XLV": "2000-01-03",
+    "XLY": "2000-01-03"
+   },
+   "coverage_median_missing": 0.0014852220406950838
+  },
+  "incremental_information": {
+   "gain": 0.0021651837601493304,
+   "null_mean": -8.228451358314568e-05,
+   "null_sd": 0.0001083059574585057,
+   "p_value": 0.01639344262295082,
+   "n_dates": 2441,
+   "adds_value": true,
+   "rows": 285121,
+   "assignments": 13715
+  }
+ },
+ "minutes": 7.348304637273153
+}

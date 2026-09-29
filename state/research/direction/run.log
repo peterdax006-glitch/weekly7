@@ -1,0 +1,16 @@
+sampled 500 tickers (seed 7)
+[mem] bars: 435 MB
+panel: 315706 weekly rows, 67569 movers, 2000-02-04..2026-09-18
+[mem] panel: 318 MB
+[trust] 2001: 0/357 reliable cells
+[trust] 2002: 0/474 reliable cells
+[trust] 2003: 0/579 reliable cells
+[trust] 2004: 0/642 reliable cells
+[trust] 2005: 0/732 reliable cells
+[trust] 2006: 0/768 reliable cells
+[trust] 2007: 2/816 reliable cells
+[trust] 2008: 6/858 reliable cells
+[trust] 2009: 5/885 reliable cells
+[trust] 2010: 4/903 reliable cells
+[trust] 2011: 6/906 reliable cells
+[trust] 2012: 7/909 reliable cells

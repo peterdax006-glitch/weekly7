@@ -6,3 +6,5 @@ state/research/backtest_decisions.csv
 state/livesim/
 state/replays/
 state/research/tuning/
+state/movers/
+state/research/pattern_bank/

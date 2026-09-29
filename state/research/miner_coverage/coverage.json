@@ -1,0 +1,107 @@
+{
+ "provenance": {
+  "code_hash": "1bd7ab02290f9be7",
+  "code_files": [
+   "engine/__init__.py",
+   "engine/candidates.py",
+   "engine/candles.py",
+   "engine/config.py",
+   "engine/pattern_identity.py",
+   "engine/provenance.py",
+   "scripts/miner_coverage.py"
+  ],
+  "code_mixed": [],
+  "git_commit": "5f87b2b9f2b41a196d6adfa0cc76999cca73cf19+dirty",
+  "canon_sha": "83225f36953ff54a",
+  "bible_sha": "a97ea91862cee371",
+  "blueprint_version": "4.0",
+  "config_hash": "59538f982a329f40",
+  "data_snapshot": "5f94924cad053ffd",
+  "seed": 7
+ },
+ "summary": {
+  "universe": {
+   "engine": 46,
+   "context": 8,
+   "candle": 25
+  },
+  "engine_plus_context": 54,
+  "panel_columns": 54,
+  "candle_signals_built": 25,
+  "plan": {
+   "singles": 395,
+   "pairs": 4000,
+   "unless": 600,
+   "bank": 0,
+   "total": 4995,
+   "pair_space": 77025
+  },
+  "blueprint_range": [
+   4300,
+   4400
+  ],
+  "plan_within_blueprint_range": false,
+  "enumerated_seed7": {
+   "n": 4995,
+   "all_single": 395,
+   "random_pair": 2242,
+   "top_pair": 1758,
+   "unless": 600,
+   "digest": "106ebedd050051d8804ad414f1b6d82b5a1c8a4e82f6db287f783c5145cb3c3f"
+  },
+  "miner_today": {
+   "features_panel_only": 46,
+   "singles": 230,
+   "max_total_incl_pairs_unless": 4830,
+   "candle_signals_reached_from_panel_alone": 0,
+   "context_columns_as_candidates": 0,
+   "context_columns_used_only_for_weights_and_scope": [
+    "m_spy_ma200",
+    "m_vix",
+    "m_vix_term",
+    "m_breadth",
+    "m_dispersion"
+   ]
+  },
+  "unreached_by_miner_today_panel_only": [
+   "cd_body",
+   "cd_lowwick",
+   "cd_pos",
+   "cd_range",
+   "cd_upwick",
+   "cm_body",
+   "cm_lowwick",
+   "cm_pos",
+   "cm_range",
+   "cm_upwick",
+   "cw_body",
+   "cw_lowwick",
+   "cw_pos",
+   "cw_range",
+   "cw_upwick",
+   "day_vs_week_body",
+   "engulf",
+   "gap",
+   "gap_filled",
+   "inside_day",
+   "m_breadth",
+   "m_dispersion",
+   "m_spy_ma200",
+   "m_spy_ma50",
+   "m_spy_r5",
+   "m_vix",
+   "m_vix_chg5",
+   "m_vix_term",
+   "outside_day",
+   "reversal_1d",
+   "reversal_vs_week",
+   "streak",
+   "week_vs_month_pos"
+  ],
+  "reach_all_seeds_ok": true,
+  "seeds": 20,
+  "min_pairs_per_feature_over_seeds": 38,
+  "problems": [],
+  "ok": true
+ }
+}

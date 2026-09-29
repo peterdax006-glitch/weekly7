@@ -1,0 +1,79 @@
+{
+ "exit_code": 1,
+ "stats": {
+  "import_boundaries": {
+   "seconds": 1.13,
+   "errors": 8,
+   "warnings": 0
+  }
+ },
+ "findings": [
+  {
+   "check": "import_boundaries",
+   "severity": "error",
+   "path": "engine/parity_suite.py",
+   "line": 257,
+   "msg": "research module 'parity_suite' imports live module 'engine.live' (not in known_live_couplings)"
+  },
+  {
+   "check": "import_boundaries",
+   "severity": "error",
+   "path": "engine/parity_suite.py",
+   "line": 412,
+   "msg": "research module 'parity_suite' imports live module 'engine.live' (not in known_live_couplings)"
+  },
+  {
+   "check": "import_boundaries",
+   "severity": "error",
+   "path": "engine/tick.py",
+   "line": 21,
+   "msg": "alpaca trading SDK imported outside the broker module"
+  },
+  {
+   "check": "import_boundaries",
+   "severity": "error",
+   "path": "engine/tick.py",
+   "line": 22,
+   "msg": "alpaca trading SDK imported outside the broker module"
+  },
+  {
+   "check": "import_boundaries",
+   "severity": "error",
+   "path": "scripts/data_live_audit.py",
+   "line": 37,
+   "msg": "research script 'data_live_audit' imports 'engine.broker' (live path)"
+  },
+  {
+   "check": "import_boundaries",
+   "severity": "error",
+   "path": "scripts/patterns.py",
+   "line": 12,
+   "msg": "research script 'patterns' imports 'engine.live' (live path)"
+  },
+  {
+   "check": "import_boundaries",
+   "severity": "error",
+   "path": "scripts/replay_year.py",
+   "line": 18,
+   "msg": "research script 'replay_year' imports 'engine.live' (live path)"
+  },
+  {
+   "check": "import_boundaries",
+   "severity": "error",
+   "path": "scripts/three_way.py",
+   "line": 16,
+   "msg": "research script 'three_way' imports 'engine.live' (live path)"
+  }
+ ],
+ "failing": [
+  "import_boundaries|engine/parity_suite.py|research module 'parity_suite' imports live module 'engine.live' (not in known_live_couplings)",
+  "import_boundaries|engine/parity_suite.py|research module 'parity_suite' imports live module 'engine.live' (not in known_live_couplings)",
+  "import_boundaries|engine/tick.py|alpaca trading SDK imported outside the broker module",
+  "import_boundaries|engine/tick.py|alpaca trading SDK imported outside the broker module",
+  "import_boundaries|scripts/data_live_audit.py|research script 'data_live_audit' imports 'engine.broker' (live path)",
+  "import_boundaries|scripts/patterns.py|research script 'patterns' imports 'engine.live' (live path)",
+  "import_boundaries|scripts/replay_year.py|research script 'replay_year' imports 'engine.live' (live path)",
+  "import_boundaries|scripts/three_way.py|research script 'three_way' imports 'engine.live' (live path)"
+ ],
+ "stale_baseline": []
+}

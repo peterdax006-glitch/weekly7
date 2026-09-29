@@ -1,0 +1,19 @@
+{
+ "cut": "2022-01-01",
+ "tag": "_v1",
+ "params": {},
+ "weeks": 104,
+ "ic_mean": 0.005533550985102274,
+ "ic_t": 1.1402494750365382,
+ "top_decile_excess_week": 0.00014226789062377065,
+ "tested": 4382,
+ "fdr_pass": 693,
+ "rejected": 4357,
+ "duplicate": 12,
+ "no_gain": 11,
+ "active": 2,
+ "gate_corr_confirm": 0.0165,
+ "null_patterns": 3000,
+ "null_t_95pct": 1.9836547098705786,
+ "real_t_95pct": 3.7773467560103704
+}

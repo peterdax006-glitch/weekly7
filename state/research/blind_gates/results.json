@@ -1,0 +1,772 @@
+{
+ "stamp": {
+  "code_hash": "36da940764d9b64e",
+  "code_files": [
+   "engine/__init__.py",
+   "engine/blind_gates.py",
+   "engine/config.py",
+   "engine/health.py",
+   "engine/provenance.py",
+   "engine/retester.py",
+   "scripts/blind_gates_real.py"
+  ],
+  "code_mixed": [],
+  "git_commit": "d01cad9a2e2965fb7a80608b7dce448141a7756d+dirty",
+  "canon_sha": "83225f36953ff54a",
+  "bible_sha": "a97ea91862cee371",
+  "blueprint_version": "4.0",
+  "config_hash": "d0be3a2eff947d39",
+  "data_snapshot": "5f94924cad053ffd",
+  "seed": 20260928
+ },
+ "seconds": 12.2,
+ "sample": {
+  "shape": [
+   16292,
+   247
+  ],
+  "first": "1962-01-02",
+  "last": "2026-09-25"
+ },
+ "seals": {
+  "n": 40,
+  "seal_fails": 0,
+  "pairwise_overlap_fails": 0,
+  "coverage": {
+   "n": 40,
+   "per_bin": {
+    "1965-1974": 8,
+    "1975-1984": 7,
+    "1985-1994": 5,
+    "1995-2004": 8,
+    "2005-2014": 7,
+    "2015-2025": 5
+   },
+   "per_era": {
+    "pre1997": 22,
+    "2001+": 16,
+    "1997-2000": 2
+   },
+   "empty_bins": [],
+   "max_share": 0.2
+  },
+  "coverage_findings": [],
+  "rows": [
+   {
+    "i": 0,
+    "start": "1977-03-01",
+    "era": "pre1997",
+    "shift_weeks": 9591,
+    "fails": 0
+   },
+   {
+    "i": 1,
+    "start": "1978-10-01",
+    "era": "pre1997",
+    "shift_weeks": 9050,
+    "fails": 0
+   },
+   {
+    "i": 2,
+    "start": "2001-04-01",
+    "era": "2001+",
+    "shift_weeks": 9252,
+    "fails": 0
+   },
+   {
+    "i": 3,
+    "start": "1985-09-01",
+    "era": "pre1997",
+    "shift_weeks": 9272,
+    "fails": 0
+   },
+   {
+    "i": 4,
+    "start": "1996-12-01",
+    "era": "pre1997",
+    "shift_weeks": 10890,
+    "fails": 0
+   },
+   {
+    "i": 5,
+    "start": "1969-11-01",
+    "era": "pre1997",
+    "shift_weeks": 8995,
+    "fails": 0
+   },
+   {
+    "i": 6,
+    "start": "2008-06-01",
+    "era": "2001+",
+    "shift_weeks": 9546,
+    "fails": 0
+   },
+   {
+    "i": 7,
+    "start": "1968-08-01",
+    "era": "pre1997",
+    "shift_weeks": 9261,
+    "fails": 0
+   },
+   {
+    "i": 8,
+    "start": "2017-02-01",
+    "era": "2001+",
+    "shift_weeks": 8644,
+    "fails": 0
+   },
+   {
+    "i": 9,
+    "start": "1982-10-01",
+    "era": "pre1997",
+    "shift_weeks": 8925,
+    "fails": 0
+   },
+   {
+    "i": 10,
+    "start": "1990-01-01",
+    "era": "pre1997",
+    "shift_weeks": 8175,
+    "fails": 0
+   },
+   {
+    "i": 11,
+    "start": "1971-01-01",
+    "era": "pre1997",
+    "shift_weeks": 9086,
+    "fails": 0
+   },
+   {
+    "i": 12,
+    "start": "1973-07-01",
+    "era": "pre1997",
+    "shift_weeks": 9359,
+    "fails": 0
+   },
+   {
+    "i": 13,
+    "start": "1977-10-01",
+    "era": "pre1997",
+    "shift_weeks": 9894,
+    "fails": 0
+   },
+   {
+    "i": 14,
+    "start": "1990-09-01",
+    "era": "pre1997",
+    "shift_weeks": 9353,
+    "fails": 0
+   },
+   {
+    "i": 15,
+    "start": "1997-12-01",
+    "era": "1997-2000",
+    "shift_weeks": 10008,
+    "fails": 0
+   },
+   {
+    "i": 16,
+    "start": "2021-10-01",
+    "era": "2001+",
+    "shift_weeks": 8700,
+    "fails": 0
+   },
+   {
+    "i": 17,
+    "start": "1980-07-01",
+    "era": "pre1997",
+    "shift_weeks": 9649,
+    "fails": 0
+   },
+   {
+    "i": 18,
+    "start": "1974-01-01",
+    "era": "pre1997",
+    "shift_weeks": 10022,
+    "fails": 0
+   },
+   {
+    "i": 19,
+    "start": "2009-03-01",
+    "era": "2001+",
+    "shift_weeks": 10858,
+    "fails": 0
+   },
+   {
+    "i": 20,
+    "start": "2009-09-01",
+    "era": "2001+",
+    "shift_weeks": 9301,
+    "fails": 0
+   },
+   {
+    "i": 21,
+    "start": "2014-12-01",
+    "era": "2001+",
+    "shift_weeks": 9325,
+    "fails": 0
+   },
+   {
+    "i": 22,
+    "start": "1981-08-01",
+    "era": "pre1997",
+    "shift_weeks": 9452,
+    "fails": 0
+   },
+   {
+    "i": 23,
+    "start": "1998-09-01",
+    "era": "1997-2000",
+    "shift_weeks": 10030,
+    "fails": 0
+   },
+   {
+    "i": 24,
+    "start": "2003-05-01",
+    "era": "2001+",
+    "shift_weeks": 9619,
+    "fails": 0
+   },
+   {
+    "i": 25,
+    "start": "2003-12-01",
+    "era": "2001+",
+    "shift_weeks": 10325,
+    "fails": 0
+   },
+   {
+    "i": 26,
+    "start": "2025-06-01",
+    "era": "2001+",
+    "shift_weeks": 8000,
+    "fails": 0
+   },
+   {
+    "i": 27,
+    "start": "1984-11-01",
+    "era": "pre1997",
+    "shift_weeks": 9323,
+    "fails": 0
+   },
+   {
+    "i": 28,
+    "start": "2005-05-01",
+    "era": "2001+",
+    "shift_weeks": 10544,
+    "fails": 0
+   },
+   {
+    "i": 29,
+    "start": "1971-12-01",
+    "era": "pre1997",
+    "shift_weeks": 8875,
+    "fails": 0
+   },
+   {
+    "i": 30,
+    "start": "1995-02-01",
+    "era": "pre1997",
+    "shift_weeks": 9820,
+    "fails": 0
+   },
+   {
+    "i": 31,
+    "start": "2004-09-01",
+    "era": "2001+",
+    "shift_weeks": 8925,
+    "fails": 0
+   },
+   {
+    "i": 32,
+    "start": "2012-07-01",
+    "era": "2001+",
+    "shift_weeks": 10684,
+    "fails": 0
+   },
+   {
+    "i": 33,
+    "start": "1986-10-01",
+    "era": "pre1997",
+    "shift_weeks": 9650,
+    "fails": 0
+   },
+   {
+    "i": 34,
+    "start": "1969-04-01",
+    "era": "pre1997",
+    "shift_weeks": 10347,
+    "fails": 0
+   },
+   {
+    "i": 35,
+    "start": "2018-11-01",
+    "era": "2001+",
+    "shift_weeks": 10659,
+    "fails": 0
+   },
+   {
+    "i": 36,
+    "start": "1967-01-01",
+    "era": "pre1997",
+    "shift_weeks": 9336,
+    "fails": 0
+   },
+   {
+    "i": 37,
+    "start": "1988-11-01",
+    "era": "pre1997",
+    "shift_weeks": 9280,
+    "fails": 0
+   },
+   {
+    "i": 38,
+    "start": "2011-03-01",
+    "era": "2001+",
+    "shift_weeks": 8982,
+    "fails": 0
+   },
+   {
+    "i": 39,
+    "start": "2015-08-01",
+    "era": "2001+",
+    "shift_weeks": 9392,
+    "fails": 0
+   }
+  ]
+ },
+ "disguise": [
+  {
+   "start": "1969-04-01",
+   "era": "pre1997",
+   "n_live": 2,
+   "sessions": 1734,
+   "warmup_years": 6.0,
+   "hard_fails": [],
+   "duplicate_paths": []
+  },
+  {
+   "start": "1969-11-01",
+   "era": "pre1997",
+   "n_live": 2,
+   "sessions": 1735,
+   "warmup_years": 6.0,
+   "hard_fails": [],
+   "duplicate_paths": []
+  },
+  {
+   "start": "1971-12-01",
+   "era": "pre1997",
+   "n_live": 3,
+   "sessions": 1740,
+   "warmup_years": 6.0,
+   "hard_fails": [],
+   "duplicate_paths": []
+  },
+  {
+   "start": "1974-01-01",
+   "era": "pre1997",
+   "n_live": 14,
+   "sessions": 1739,
+   "warmup_years": 6.0,
+   "hard_fails": [],
+   "duplicate_paths": []
+  },
+  {
+   "start": "1980-07-01",
+   "era": "pre1997",
+   "n_live": 33,
+   "sessions": 1769,
+   "warmup_years": 6.0,
+   "hard_fails": [],
+   "duplicate_paths": []
+  },
+  {
+   "start": "1981-08-01",
+   "era": "pre1997",
+   "n_live": 37,
+   "sessions": 1768,
+   "warmup_years": 6.0,
+   "hard_fails": [],
+   "duplicate_paths": []
+  },
+  {
+   "start": "1986-10-01",
+   "era": "pre1997",
+   "n_live": 60,
+   "sessions": 1769,
+   "warmup_years": 6.0,
+   "hard_fails": [],
+   "duplicate_paths": []
+  },
+  {
+   "start": "1990-09-01",
+   "era": "pre1997",
+   "n_live": 73,
+   "sessions": 1768,
+   "warmup_years": 5.99,
+   "hard_fails": [],
+   "duplicate_paths": []
+  },
+  {
+   "start": "1997-12-01",
+   "era": "1997-2000",
+   "n_live": 117,
+   "sessions": 1769,
+   "warmup_years": 6.0,
+   "hard_fails": [],
+   "duplicate_paths": []
+  },
+  {
+   "start": "2009-09-01",
+   "era": "2001+",
+   "n_live": 53,
+   "sessions": 1763,
+   "warmup_years": 6.0,
+   "hard_fails": [],
+   "duplicate_paths": []
+  },
+  {
+   "start": "2015-08-01",
+   "era": "2001+",
+   "n_live": 69,
+   "sessions": 1761,
+   "warmup_years": 5.99,
+   "hard_fails": [],
+   "duplicate_paths": []
+  },
+  {
+   "start": "2018-11-01",
+   "era": "2001+",
+   "n_live": 74,
+   "sessions": 1762,
+   "warmup_years": 6.0,
+   "hard_fails": [],
+   "duplicate_paths": []
+  }
+ ],
+ "probe": [
+  {
+   "now": "1981-06-25",
+   "honest_passes": true,
+   "peeker_caught": true
+  },
+  {
+   "now": "1989-03-20",
+   "honest_passes": true,
+   "peeker_caught": true
+  },
+  {
+   "now": "1996-12-10",
+   "honest_passes": true,
+   "peeker_caught": true
+  },
+  {
+   "now": "2004-09-20",
+   "honest_passes": true,
+   "peeker_caught": true
+  },
+  {
+   "now": "2012-06-22",
+   "honest_passes": true,
+   "peeker_caught": true
+  },
+  {
+   "now": "2020-04-01",
+   "honest_passes": true,
+   "peeker_caught": true
+  }
+ ],
+ "retest": {
+  "faithful": {
+   "status": "PASS",
+   "summary": "PASS: 819 items across 7 components",
+   "compared": {
+    "holdings": 400,
+    "trades": 338,
+    "scores": 40,
+    "weekly_returns": 40,
+    "adaptation_events": 0,
+    "pattern_activation": 0,
+    "memory_state": 1
+   },
+   "worst": {
+    "holdings": [
+     0,
+     0.0
+    ],
+    "trades": [
+     0,
+     0.0
+    ],
+    "scores": [
+     0,
+     0.0
+    ],
+    "weekly_returns": [
+     0,
+     0.0
+    ],
+    "adaptation_events": [
+     0,
+     0.0
+    ],
+    "pattern_activation": [
+     0,
+     0.0
+    ],
+    "memory_state": [
+     0,
+     0.0
+    ]
+   },
+   "noise_floor": 0.0,
+   "first_divergent_week": null,
+   "turnover_archive_vs_replay": [
+    0.4077,
+    0.4077
+   ]
+  },
+  "one_day_leak": {
+   "status": "FAIL",
+   "summary": "FAIL: 570 items across 7 components; 367 unexplained divergence(s), first: holdings/('2012-03-01', 'CLS') present in only archive",
+   "compared": {
+    "holdings": 317,
+    "trades": 172,
+    "scores": 40,
+    "weekly_returns": 40,
+    "adaptation_events": 0,
+    "pattern_activation": 0,
+    "memory_state": 1
+   },
+   "worst": {
+    "holdings": [
+     166,
+     null
+    ],
+    "trades": [
+     163,
+     null
+    ],
+    "scores": [
+     0,
+     0.0
+    ],
+    "weekly_returns": [
+     38,
+     0.81808
+    ],
+    "adaptation_events": [
+     0,
+     0.0
+    ],
+    "pattern_activation": [
+     0,
+     0.0
+    ],
+    "memory_state": [
+     0,
+     0.0
+    ]
+   },
+   "noise_floor": null,
+   "first_divergent_week": "w00",
+   "turnover_archive_vs_replay": [
+    0.4077,
+    0.3974
+   ]
+  },
+  "fill_drift_2pct": {
+   "status": "FAIL",
+   "summary": "FAIL: 819 items across 7 components; 169 unexplained divergence(s), first: trades/2012-03-02/BBGI/buy.price 58.2729 vs 59.4384",
+   "compared": {
+    "holdings": 400,
+    "trades": 338,
+    "scores": 40,
+    "weekly_returns": 40,
+    "adaptation_events": 0,
+    "pattern_activation": 0,
+    "memory_state": 1
+   },
+   "worst": {
+    "holdings": [
+     0,
+     0.0
+    ],
+    "trades": [
+     169,
+     0.01961
+    ],
+    "scores": [
+     0,
+     0.0
+    ],
+    "weekly_returns": [
+     0,
+     0.0
+    ],
+    "adaptation_events": [
+     0,
+     0.0
+    ],
+    "pattern_activation": [
+     0,
+     0.0
+    ],
+    "memory_state": [
+     0,
+     0.0
+    ]
+   },
+   "noise_floor": 0.05,
+   "first_divergent_week": null,
+   "turnover_archive_vs_replay": [
+    0.4077,
+    0.4077
+   ]
+  },
+  "other_code": {
+   "status": "STALE_CODE",
+   "summary": "STALE_CODE: 0 items across 0 components (archive code_hash codeA != replay codeB: stale code, not a parity failure)",
+   "compared": {},
+   "worst": {},
+   "noise_floor": null,
+   "first_divergent_week": null,
+   "turnover_archive_vs_replay": [
+    0.4077,
+    0.4077
+   ]
+  }
+ },
+ "health": {
+  "counts": {
+   "OK": 8,
+   "CRASHED": 1,
+   "OOM": 1,
+   "TIMEOUT": 1,
+   "INVALID": 1,
+   "STALE_CODE": 1
+  },
+  "excluded": [
+   {
+    "worker": "w08",
+    "status": "CRASHED",
+    "why": "return code -11",
+    "peak_mb": 715.2072018243628
+   },
+   {
+    "worker": "w09",
+    "status": "OOM",
+    "why": "rss 7900 MB over limit",
+    "peak_mb": 570.8722087559754
+   },
+   {
+    "worker": "w10",
+    "status": "TIMEOUT",
+    "why": "exceeded wall-clock or heartbeat limit",
+    "peak_mb": 433.87410424198464
+   },
+   {
+    "worker": "w11",
+    "status": "INVALID",
+    "why": "1 non-finite numbers in result",
+    "peak_mb": 899.7858049750351
+   },
+   {
+    "worker": "w12",
+    "status": "STALE_CODE",
+    "why": "worker ran code old, disk has cur",
+    "peak_mb": 381.8558682596205
+   }
+  ],
+  "window_breakdown": {
+   "1969-04-01": {
+    "assigned": 1,
+    "ok": 1
+   },
+   "1969-11-01": {
+    "assigned": 1,
+    "ok": 1
+   },
+   "1971-12-01": {
+    "assigned": 1,
+    "ok": 1
+   },
+   "1974-01-01": {
+    "assigned": 1,
+    "ok": 1
+   },
+   "1980-07-01": {
+    "assigned": 1,
+    "ok": 1
+   },
+   "1981-08-01": {
+    "assigned": 1,
+    "ok": 1
+   },
+   "1986-10-01": {
+    "assigned": 1,
+    "ok": 1
+   },
+   "1990-09-01": {
+    "assigned": 1,
+    "ok": 1
+   },
+   "1997-12-01": {
+    "assigned": 1,
+    "ok": 0
+   },
+   "2009-09-01": {
+    "assigned": 1,
+    "ok": 0
+   },
+   "2015-08-01": {
+    "assigned": 1,
+    "ok": 0
+   },
+   "2018-11-01": {
+    "assigned": 1,
+    "ok": 0
+   },
+   "x": {
+    "assigned": 1,
+    "ok": 0
+   }
+  },
+  "rerun_plan": [
+   {
+    "replaces": "w08",
+    "new_id": "w08_rerun13",
+    "seed": 13,
+    "reason": "CRASHED"
+   },
+   {
+    "replaces": "w09",
+    "new_id": "w09_rerun14",
+    "seed": 14,
+    "reason": "OOM"
+   },
+   {
+    "replaces": "w10",
+    "new_id": "w10_rerun15",
+    "seed": 15,
+    "reason": "TIMEOUT"
+   },
+   {
+    "replaces": "w11",
+    "new_id": "w11_rerun16",
+    "seed": 16,
+    "reason": "INVALID"
+   },
+   {
+    "replaces": "w12",
+    "new_id": "w12_rerun17",
+    "seed": 17,
+    "reason": "STALE_CODE"
+   }
+  ],
+  "aggregate_ready": [
+   true,
+   "8/13 OK; excluded workers stay excluded"
+  ]
+ }
+}

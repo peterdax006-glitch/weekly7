@@ -1,0 +1,90 @@
+{
+ "built_at": "2026-09-29 03:55 UTC",
+ "pages": {
+  "checklist.html": {
+   "bytes": 41686,
+   "sha256": "f80c1c6e9f70d5528ab71abea126549d5aed4d7018af06e3c5aeaf4a24ce3134",
+   "summary": {
+    "counts": {
+     " ": 21,
+     "x": 3,
+     "~": 25
+    },
+    "items": 49,
+    "negatives": 2,
+    "unparsed": 0,
+    "unproven": 46
+   }
+  },
+  "explorer.html": {
+   "bytes": 554612,
+   "sha256": "59e5c42e08912ea5aacdd0bc8a8ed6f0e279e8e651df05159e222d994ea8b1d3",
+   "summary": {
+    "listed": 415,
+    "live": 887,
+    "patterns_listed": 415,
+    "runs": 5,
+    "status_counts": {
+     "active": 887,
+     "duplicate": 472,
+     "no_gain": 2939,
+     "rejected": 17576
+    },
+    "tested": 21874
+   }
+  },
+  "runs.html": {
+   "bytes": 103907,
+   "sha256": "a1c2c333e64a00e657acb9eb075e010c49201d8c413091f3597a81232623970f",
+   "summary": {
+    "events": {
+     "challenger_historical": 1,
+     "frontier": 2,
+     "historical_test": 2,
+     "livesim_cycle": 39,
+     "planted_calibration": 2,
+     "replay_year": 1,
+     "rolled_back": 1,
+     "topk_rules": 1,
+     "tuning_lab": 2,
+     "voided_adjustment": 1,
+     "walk_forward": 1
+    },
+    "hidden_windows_not_shown": 0,
+    "registry_records": 53,
+    "reports": 31,
+    "windows": 39
+   }
+  },
+  "sensitivity2.html": {
+   "bytes": 457446,
+   "sha256": "fd27eae47ca8791cd091ab187463c215830d188d0d1df2b9979b346d2ad8e271",
+   "summary": {
+    "bonferroni_t": 3.4963338674606126,
+    "settings": 28,
+    "survive_correction": 2,
+    "variants": 106,
+    "worse": 70
+   }
+  }
+ },
+ "problems": {},
+ "sources": {
+  "docs\\sensitivity.json": "44963834c919ae00",
+  "state\\CHECKLIST.md": "bf4167da6bfc7662",
+  "state\\experiments.jsonl": "1d6d01bda6cea6e9",
+  "state\\livesim\\cycles.json": "85efbb548c80dfdc",
+  "state\\research\\algorithm\\patterns_2017-01-01_v1.parquet": "00389e9a726ed69e",
+  "state\\research\\algorithm\\patterns_2020-01-01.parquet": "e81722729cfbc4f4",
+  "state\\research\\algorithm\\patterns_2020-01-01_v2.parquet": "d854fa4f97ab5b2c",
+  "state\\research\\algorithm\\patterns_2020-01-01_v2move.parquet": "5424950e86acf82d",
+  "state\\research\\algorithm\\patterns_2022-01-01_v1.parquet": "272d806974a730d6",
+  "state\\research\\algorithm\\planted_calibration.json": "edb244eef2745110",
+  "state\\research\\algorithm\\test_2017-01-01_v1.json": "5061287cbe8bba3a",
+  "state\\research\\algorithm\\test_2020-01-01.json": "3dc7b69e02937746",
+  "state\\research\\algorithm\\test_2020-01-01_v2.json": "fc29e05d7f164275",
+  "state\\research\\algorithm\\test_2020-01-01_v2move.json": "0b67a04b0798390d",
+  "state\\research\\algorithm\\test_2022-01-01_v1.json": "aa1a26bdb398fc54",
+  "state\\research\\sensitivity.json": "44963834c919ae00"
+ }
+}

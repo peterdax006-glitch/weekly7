@@ -1,0 +1,16 @@
+{
+ "cut": "2020-01-01",
+ "tag": "_v2",
+ "params": {},
+ "weeks": 0,
+ "ic_mean": null,
+ "ic_t": null,
+ "top_decile_excess_week": null,
+ "tested": 4393,
+ "fdr_pass": 765,
+ "rejected": 4393,
+ "gate_corr_confirm": 0.0,
+ "null_patterns": 3000,
+ "null_t_95pct": 1.9389231425883846,
+ "real_t_95pct": 3.4978786361517358
+}

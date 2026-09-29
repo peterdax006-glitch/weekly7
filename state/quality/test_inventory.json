@@ -1,0 +1,1874 @@
+{
+ "n_files": 41,
+ "n_tests": 613,
+ "level_counts": {
+  "unit": 391,
+  "integration": 32,
+  "historical": 2,
+  "walk-forward": 50,
+  "blind": 10,
+  "adversarial": 143,
+  "reproducibility": 23
+ },
+ "phases": {
+  "0": {
+   "title": "BASELINE AND CONTROL SYSTEM",
+   "modules": [
+    "baseline",
+    "checkpoint"
+   ],
+   "direct": [
+    "tests/test_provenance.py"
+   ],
+   "module": [
+    "tests/test_baseline.py",
+    "tests/test_checkpoint.py",
+    "tests/test_run_report.py"
+   ],
+   "n_tests": 40,
+   "required_levels": [
+    1,
+    6
+   ],
+   "levels": {
+    "1": 33,
+    "2": 2,
+    "6": 7
+   },
+   "missing_levels": [],
+   "status": "direct"
+  },
+  "1": {
+   "title": "POINT-IN-TIME DATA FIREWALL",
+   "modules": [
+    "pit"
+   ],
+   "direct": [
+    "tests/test_pit.py"
+   ],
+   "module": [],
+   "n_tests": 38,
+   "required_levels": [
+    1,
+    4,
+    6
+   ],
+   "levels": {
+    "1": 18,
+    "4": 10,
+    "6": 15
+   },
+   "missing_levels": [],
+   "status": "direct"
+  },
+  "2": {
+   "title": "FEATURE/PARITY FIREWALL",
+   "modules": [
+    "parity",
+    "parity_suite",
+    "features",
+    "candles"
+   ],
+   "direct": [
+    "tests/test_parity.py",
+    "tests/test_parity_suite.py"
+   ],
+   "module": [
+    "tests/test_candles.py",
+    "tests/test_provenance.py"
+   ],
+   "n_tests": 47,
+   "required_levels": [
+    1,
+    4,
+    6
+   ],
+   "levels": {
+    "1": 29,
+    "2": 8,
+    "4": 8,
+    "6": 8,
+    "7": 1
+   },
+   "missing_levels": [],
+   "status": "direct"
+  },
+  "3": {
+   "title": "PATTERN MINER HARDENING",
+   "modules": [
+    "patterns"
+   ],
+   "direct": [],
+   "module": [
+    "tests/test_pattern_bank.py",
+    "tests/test_pattern_lifecycle.py",
+    "tests/test_pattern_movers.py",
+    "tests/test_planted_patterns.py"
+   ],
+   "n_tests": 65,
+   "required_levels": [
+    1,
+    2,
+    4,
+    6,
+    7
+   ],
+   "levels": {
+    "1": 50,
+    "3": 5,
+    "4": 1,
+    "6": 13,
+    "7": 1
+   },
+   "missing_levels": [
+    2
+   ],
+   "status": "module"
+  },
+  "4": {
+   "title": "PATTERN LIFECYCLE",
+   "modules": [
+    "pattern_lifecycle"
+   ],
+   "direct": [
+    "tests/test_pattern_lifecycle.py"
+   ],
+   "module": [
+    "tests/test_pattern_bank.py"
+   ],
+   "n_tests": 45,
+   "required_levels": [
+    1,
+    6
+   ],
+   "levels": {
+    "1": 37,
+    "4": 1,
+    "6": 6,
+    "7": 1
+   },
+   "missing_levels": [],
+   "status": "direct"
+  },
+  "5": {
+   "title": "LONG-TERM PATTERN BANK",
+   "modules": [
+    "pattern_bank"
+   ],
+   "direct": [
+    "tests/test_pattern_bank.py"
+   ],
+   "module": [],
+   "n_tests": 26,
+   "required_levels": [
+    1,
+    6,
+    7
+   ],
+   "levels": {
+    "1": 23,
+    "6": 2,
+    "7": 1
+   },
+   "missing_levels": [],
+   "status": "direct"
+  },
+  "6": {
+   "title": "PATTERN \u2192 FIND VOLATILITY INTEGRATION",
+   "modules": [
+    "pattern_movers"
+   ],
+   "direct": [
+    "tests/test_pattern_movers.py"
+   ],
+   "module": [
+    "tests/test_heavy_tests.py"
+   ],
+   "n_tests": 35,
+   "required_levels": [
+    1,
+    2,
+    6
+   ],
+   "levels": {
+    "1": 18,
+    "2": 1,
+    "4": 2,
+    "5": 1,
+    "6": 13,
+    "7": 1
+   },
+   "missing_levels": [],
+   "status": "direct"
+  },
+  "7": {
+   "title": "HEAVY ALGORITHM TESTING",
+   "modules": [],
+   "direct": [
+    "tests/test_heavy_tests.py"
+   ],
+   "module": [],
+   "n_tests": 21,
+   "required_levels": [],
+   "levels": {
+    "1": 10,
+    "2": 1,
+    "4": 2,
+    "5": 1,
+    "6": 7,
+    "7": 1
+   },
+   "missing_levels": [],
+   "status": "direct"
+  },
+  "8": {
+   "title": "ANALOG ENGINE",
+   "modules": [
+    "analogs",
+    "analogs_sector",
+    "analogs_stock",
+    "analog_weighting"
+   ],
+   "direct": [
+    "tests/test_analogs_ext.py"
+   ],
+   "module": [
+    "tests/test_parity_suite.py"
+   ],
+   "n_tests": 38,
+   "required_levels": [
+    1,
+    4,
+    6
+   ],
+   "levels": {
+    "1": 17,
+    "2": 7,
+    "3": 1,
+    "4": 9,
+    "6": 8,
+    "7": 3
+   },
+   "missing_levels": [],
+   "status": "direct"
+  },
+  "9": {
+   "title": "MEMORY SYSTEM",
+   "modules": [
+    "memory"
+   ],
+   "direct": [
+    "tests/test_memory.py"
+   ],
+   "module": [
+    "tests/test_basis_search.py"
+   ],
+   "n_tests": 27,
+   "required_levels": [
+    1,
+    4
+   ],
+   "levels": {
+    "1": 16,
+    "2": 5,
+    "4": 1,
+    "6": 5,
+    "7": 2
+   },
+   "missing_levels": [],
+   "status": "direct"
+  },
+  "10": {
+   "title": "LESSON MEMORY / LEARNING FROM MISTAKES",
+   "modules": [
+    "lessons"
+   ],
+   "direct": [
+    "tests/test_lessons.py"
+   ],
+   "module": [
+    "tests/test_antimemo.py"
+   ],
+   "n_tests": 19,
+   "required_levels": [
+    1,
+    6
+   ],
+   "levels": {
+    "1": 10,
+    "4": 1,
+    "5": 4,
+    "6": 4
+   },
+   "missing_levels": [],
+   "status": "direct"
+  },
+  "11": {
+   "title": "RERUN ANTI-MEMORIZATION EXPERIMENT",
+   "modules": [
+    "antimemo"
+   ],
+   "direct": [
+    "tests/test_antimemo.py"
+   ],
+   "module": [
+    "tests/test_lessons.py"
+   ],
+   "n_tests": 19,
+   "required_levels": [
+    1,
+    6
+   ],
+   "levels": {
+    "1": 10,
+    "4": 1,
+    "5": 4,
+    "6": 4
+   },
+   "missing_levels": [],
+   "status": "direct"
+  },
+  "12": {
+   "title": "PER-STOCK-TYPE TRUST TABLES",
+   "modules": [
+    "trust"
+   ],
+   "direct": [
+    "tests/test_trust.py"
+   ],
+   "module": [
+    "tests/test_trust_store.py"
+   ],
+   "n_tests": 14,
+   "required_levels": [
+    1,
+    6
+   ],
+   "levels": {
+    "1": 6,
+    "2": 3,
+    "4": 1,
+    "6": 4,
+    "7": 1
+   },
+   "missing_levels": [],
+   "status": "direct"
+  },
+  "13": {
+   "title": "DIRECTION ENGINE",
+   "modules": [
+    "direction",
+    "direction_calib"
+   ],
+   "direct": [
+    "tests/test_direction.py"
+   ],
+   "module": [
+    "tests/test_direction_ablate.py",
+    "tests/test_direction_calib.py"
+   ],
+   "n_tests": 24,
+   "required_levels": [
+    1,
+    6
+   ],
+   "levels": {
+    "1": 20,
+    "2": 2,
+    "6": 2
+   },
+   "missing_levels": [],
+   "status": "direct"
+  },
+  "14": {
+   "title": "MISSED-WINNER DETECTOR",
+   "modules": [
+    "adaptive"
+   ],
+   "direct": [],
+   "module": [
+    "tests/test_basis_search.py",
+    "tests/test_session.py"
+   ],
+   "n_tests": 25,
+   "required_levels": [
+    1,
+    6
+   ],
+   "levels": {
+    "1": 11,
+    "2": 5,
+    "4": 3,
+    "6": 7,
+    "7": 3
+   },
+   "missing_levels": [],
+   "status": "module"
+  },
+  "15": {
+   "title": "EXIT LEARNER",
+   "modules": [
+    "exits"
+   ],
+   "direct": [
+    "tests/test_exits.py"
+   ],
+   "module": [
+    "tests/test_stops.py"
+   ],
+   "n_tests": 36,
+   "required_levels": [
+    1,
+    6
+   ],
+   "levels": {
+    "1": 22,
+    "2": 1,
+    "3": 1,
+    "4": 4,
+    "6": 8,
+    "7": 2
+   },
+   "missing_levels": [],
+   "status": "direct"
+  },
+  "16": {
+   "title": "STOP / LOSS ENGINE",
+   "modules": [
+    "stops"
+   ],
+   "direct": [
+    "tests/test_stops.py"
+   ],
+   "module": [],
+   "n_tests": 13,
+   "required_levels": [
+    1,
+    6
+   ],
+   "levels": {
+    "1": 9,
+    "2": 1,
+    "3": 1,
+    "4": 1,
+    "6": 2
+   },
+   "missing_levels": [],
+   "status": "direct"
+  },
+  "17": {
+   "title": "TIMELINE DIAL",
+   "modules": [
+    "timeline"
+   ],
+   "direct": [
+    "tests/test_timeline.py"
+   ],
+   "module": [],
+   "n_tests": 21,
+   "required_levels": [
+    1,
+    4,
+    6
+   ],
+   "levels": {
+    "1": 14,
+    "4": 1,
+    "6": 5,
+    "7": 1
+   },
+   "missing_levels": [],
+   "status": "direct"
+  },
+  "18": {
+   "title": "WEEKLY ADAPTER",
+   "modules": [
+    "adaptive"
+   ],
+   "direct": [],
+   "module": [
+    "tests/test_basis_search.py",
+    "tests/test_session.py"
+   ],
+   "n_tests": 25,
+   "required_levels": [
+    1,
+    2,
+    4,
+    7
+   ],
+   "levels": {
+    "1": 11,
+    "2": 5,
+    "3": 1,
+    "4": 3,
+    "6": 7,
+    "7": 3
+   },
+   "missing_levels": [],
+   "status": "module"
+  },
+  "19": {
+   "title": "TRAIN THE TRAINING BASIS",
+   "modules": [
+    "basis_search"
+   ],
+   "direct": [
+    "tests/test_basis_search.py"
+   ],
+   "module": [],
+   "n_tests": 15,
+   "required_levels": [
+    1,
+    6
+   ],
+   "levels": {
+    "1": 5,
+    "2": 5,
+    "3": 1,
+    "4": 1,
+    "6": 4,
+    "7": 2
+   },
+   "missing_levels": [],
+   "status": "direct"
+  },
+  "20": {
+   "title": "TIERED OBJECTIVE FIREWALL",
+   "modules": [
+    "objective"
+   ],
+   "direct": [
+    "tests/test_objective.py"
+   ],
+   "module": [
+    "tests/test_basis_search.py",
+    "tests/test_timeline.py"
+   ],
+   "n_tests": 54,
+   "required_levels": [
+    1,
+    6
+   ],
+   "levels": {
+    "1": 34,
+    "2": 5,
+    "3": 1,
+    "4": 2,
+    "6": 12,
+    "7": 4
+   },
+   "missing_levels": [],
+   "status": "direct"
+  },
+  "21": {
+   "title": "BLIND SIMULATOR HARDENING",
+   "modules": [
+    "blind_gates"
+   ],
+   "direct": [
+    "tests/test_blind_gates.py",
+    "tests/test_session.py"
+   ],
+   "module": [],
+   "n_tests": 43,
+   "required_levels": [
+    1,
+    5,
+    6
+   ],
+   "levels": {
+    "1": 26,
+    "4": 6,
+    "5": 1,
+    "6": 13,
+    "7": 2
+   },
+   "missing_levels": [],
+   "status": "direct"
+  },
+  "22": {
+   "title": "BLIND CLOCK",
+   "modules": [
+    "blind_gates"
+   ],
+   "direct": [
+    "tests/test_blind_gates.py"
+   ],
+   "module": [],
+   "n_tests": 33,
+   "required_levels": [
+    1,
+    5,
+    6
+   ],
+   "levels": {
+    "1": 20,
+    "4": 4,
+    "5": 1,
+    "6": 10,
+    "7": 1
+   },
+   "missing_levels": [],
+   "status": "direct"
+  },
+  "23": {
+   "title": "RE-TESTER",
+   "modules": [
+    "retester"
+   ],
+   "direct": [
+    "tests/test_retester.py",
+    "tests/test_session.py"
+   ],
+   "module": [],
+   "n_tests": 28,
+   "required_levels": [
+    1,
+    6,
+    7
+   ],
+   "levels": {
+    "1": 20,
+    "3": 2,
+    "4": 2,
+    "6": 4,
+    "7": 2
+   },
+   "missing_levels": [],
+   "status": "direct"
+  },
+  "24": {
+   "title": "WORKER HEALTH",
+   "modules": [
+    "health"
+   ],
+   "direct": [
+    "tests/test_health.py"
+   ],
+   "module": [],
+   "n_tests": 20,
+   "required_levels": [
+    1,
+    6
+   ],
+   "levels": {
+    "1": 19,
+    "6": 1
+   },
+   "missing_levels": [],
+   "status": "direct"
+  },
+  "25": {
+   "title": "PLANTED-PATTERN CALIBRATION",
+   "modules": [
+    "patterns"
+   ],
+   "direct": [
+    "tests/test_planted_patterns.py"
+   ],
+   "module": [
+    "tests/test_pattern_bank.py",
+    "tests/test_pattern_lifecycle.py",
+    "tests/test_pattern_movers.py"
+   ],
+   "n_tests": 65,
+   "required_levels": [
+    1,
+    6
+   ],
+   "levels": {
+    "1": 50,
+    "3": 1,
+    "4": 1,
+    "6": 13,
+    "7": 1
+   },
+   "missing_levels": [],
+   "status": "direct"
+  },
+  "26": {
+   "title": "ANTI-OVERFITTING BATTERY",
+   "modules": [
+    "antioverfit"
+   ],
+   "direct": [
+    "tests/test_antioverfit.py"
+   ],
+   "module": [
+    "tests/test_ablation.py"
+   ],
+   "n_tests": 31,
+   "required_levels": [
+    1,
+    6
+   ],
+   "levels": {
+    "1": 14,
+    "2": 1,
+    "4": 6,
+    "5": 1,
+    "6": 12,
+    "7": 2
+   },
+   "missing_levels": [],
+   "status": "direct"
+  },
+  "27": {
+   "title": "DATA EXPANSION",
+   "modules": [
+    "data_sources"
+   ],
+   "direct": [
+    "tests/test_data_sources.py"
+   ],
+   "module": [],
+   "n_tests": 31,
+   "required_levels": [
+    1,
+    6
+   ],
+   "levels": {
+    "1": 17,
+    "4": 4,
+    "6": 10,
+    "7": 1
+   },
+   "missing_levels": [],
+   "status": "direct"
+  },
+  "28": {
+   "title": "LIVE/RESEARCH SEPARATION",
+   "modules": [
+    "isolation",
+    "broker"
+   ],
+   "direct": [
+    "tests/test_isolation.py",
+    "tests/test_live_safety.py"
+   ],
+   "module": [],
+   "n_tests": 32,
+   "required_levels": [
+    1,
+    6
+   ],
+   "levels": {
+    "1": 11,
+    "2": 9,
+    "5": 3,
+    "6": 13
+   },
+   "missing_levels": [],
+   "status": "direct"
+  },
+  "29": {
+   "title": "PUBLIC EXPLANATION SYSTEM",
+   "modules": [
+    "site_data"
+   ],
+   "direct": [],
+   "module": [],
+   "n_tests": 0,
+   "required_levels": [
+    1,
+    6
+   ],
+   "levels": {},
+   "missing_levels": [
+    1,
+    6
+   ],
+   "status": "none"
+  },
+  "30": {
+   "title": "EXPERIMENT MEMORY",
+   "modules": [
+    "experiment_memory",
+    "registry"
+   ],
+   "direct": [],
+   "module": [
+    "tests/test_baseline.py",
+    "tests/test_champion.py",
+    "tests/test_experiment_memory.py",
+    "tests/test_registry.py",
+    "tests/test_run_report.py"
+   ],
+   "n_tests": 64,
+   "required_levels": [
+    1,
+    6
+   ],
+   "levels": {
+    "1": 48,
+    "2": 2,
+    "6": 14,
+    "7": 4
+   },
+   "missing_levels": [],
+   "status": "module"
+  },
+  "31": {
+   "title": "CODE QUALITY FIREWALL",
+   "modules": [],
+   "direct": [],
+   "module": [],
+   "n_tests": 0,
+   "required_levels": [],
+   "levels": {},
+   "missing_levels": [],
+   "status": "process"
+  },
+  "32": {
+   "title": "TEST PYRAMID",
+   "modules": [],
+   "direct": [
+    "tests/test_candles.py",
+    "tests/test_session.py"
+   ],
+   "module": [],
+   "n_tests": 22,
+   "required_levels": [],
+   "levels": {
+    "1": 16,
+    "4": 4,
+    "6": 4,
+    "7": 1
+   },
+   "missing_levels": [],
+   "status": "direct"
+  },
+  "33": {
+   "title": "REQUIRED REPRODUCIBILITY",
+   "modules": [
+    "repro"
+   ],
+   "direct": [
+    "tests/test_repro.py"
+   ],
+   "module": [],
+   "n_tests": 11,
+   "required_levels": [
+    1,
+    7
+   ],
+   "levels": {
+    "1": 10,
+    "7": 1
+   },
+   "missing_levels": [],
+   "status": "direct"
+  },
+  "34": {
+   "title": "REQUIRED ABLATION FRAMEWORK",
+   "modules": [
+    "ablation"
+   ],
+   "direct": [
+    "tests/test_ablation.py",
+    "tests/test_pattern_movers.py"
+   ],
+   "module": [],
+   "n_tests": 27,
+   "required_levels": [
+    1,
+    6
+   ],
+   "levels": {
+    "1": 16,
+    "2": 1,
+    "4": 2,
+    "6": 8,
+    "7": 1
+   },
+   "missing_levels": [],
+   "status": "direct"
+  },
+  "35": {
+   "title": "CHAMPION / CHALLENGER SYSTEM",
+   "modules": [
+    "champion"
+   ],
+   "direct": [],
+   "module": [
+    "tests/test_champion.py"
+   ],
+   "n_tests": 22,
+   "required_levels": [
+    1,
+    6
+   ],
+   "levels": {
+    "1": 16,
+    "6": 6
+   },
+   "missing_levels": [],
+   "status": "module"
+  },
+  "36": {
+   "title": "REQUIRED REPORT AFTER EACH MAJOR RUN",
+   "modules": [
+    "run_report"
+   ],
+   "direct": [],
+   "module": [
+    "tests/test_run_report.py"
+   ],
+   "n_tests": 16,
+   "required_levels": [
+    1,
+    6
+   ],
+   "levels": {
+    "1": 13,
+    "6": 3
+   },
+   "missing_levels": [],
+   "status": "module"
+  },
+  "37": {
+   "title": "CHECKLIST STATE MACHINE",
+   "modules": [],
+   "direct": [],
+   "module": [],
+   "n_tests": 0,
+   "required_levels": [],
+   "levels": {},
+   "missing_levels": [],
+   "status": "process"
+  },
+  "38": {
+   "title": "MASTER CHECKLIST",
+   "modules": [],
+   "direct": [],
+   "module": [],
+   "n_tests": 0,
+   "required_levels": [],
+   "levels": {},
+   "missing_levels": [],
+   "status": "process"
+  },
+  "39": {
+   "title": "DEFINITION OF DONE",
+   "modules": [],
+   "direct": [],
+   "module": [],
+   "n_tests": 0,
+   "required_levels": [],
+   "levels": {},
+   "missing_levels": [],
+   "status": "process"
+  },
+  "40": {
+   "title": "WHAT \"KEEP WORKING\" MEANS",
+   "modules": [],
+   "direct": [],
+   "module": [],
+   "n_tests": 0,
+   "required_levels": [],
+   "levels": {},
+   "missing_levels": [],
+   "status": "process"
+  },
+  "41": {
+   "title": "NEVER SETTLE FOR A COSMETIC IMPLEMENTATION",
+   "modules": [],
+   "direct": [],
+   "module": [],
+   "n_tests": 0,
+   "required_levels": [],
+   "levels": {},
+   "missing_levels": [],
+   "status": "process"
+  },
+  "42": {
+   "title": "THE STANDARD FOR EVERY CLAIM",
+   "modules": [],
+   "direct": [],
+   "module": [],
+   "n_tests": 0,
+   "required_levels": [],
+   "levels": {},
+   "missing_levels": [],
+   "status": "process"
+  },
+  "43": {
+   "title": "PRIORITY WHEN TIME/COMPUTE IS LIMITED",
+   "modules": [],
+   "direct": [],
+   "module": [],
+   "n_tests": 0,
+   "required_levels": [],
+   "levels": {},
+   "missing_levels": [],
+   "status": "process"
+  },
+  "44": {
+   "title": "RESOURCE MANAGEMENT",
+   "modules": [],
+   "direct": [],
+   "module": [],
+   "n_tests": 0,
+   "required_levels": [],
+   "levels": {},
+   "missing_levels": [],
+   "status": "process"
+  },
+  "45": {
+   "title": "CONTINUOUS RESEARCH LOOP",
+   "modules": [],
+   "direct": [],
+   "module": [],
+   "n_tests": 0,
+   "required_levels": [],
+   "levels": {},
+   "missing_levels": [],
+   "status": "process"
+  },
+  "46": {
+   "title": "FINAL REPORT REQUIREMENT",
+   "modules": [],
+   "direct": [],
+   "module": [],
+   "n_tests": 0,
+   "required_levels": [],
+   "levels": {},
+   "missing_levels": [],
+   "status": "process"
+  }
+ },
+ "items": [
+  {
+   "id": "A1",
+   "state": "x/~",
+   "title": "Candles and micro-signals",
+   "section": "ALGORITHM",
+   "phases": [],
+   "modules": [
+    "candles"
+   ],
+   "status": "direct",
+   "tests": [
+    "tests/test_candles.py",
+    "tests/test_provenance.py"
+   ],
+   "n_tests": 22
+  },
+  {
+   "id": "A2",
+   "state": "x/~",
+   "title": "Pattern miner",
+   "section": "ALGORITHM",
+   "phases": [
+    3
+   ],
+   "modules": [
+    "patterns"
+   ],
+   "status": "module",
+   "tests": [
+    "tests/test_pattern_bank.py",
+    "tests/test_pattern_lifecycle.py",
+    "tests/test_pattern_movers.py",
+    "tests/test_planted_patterns.py"
+   ],
+   "n_tests": 65
+  },
+  {
+   "id": "A2b",
+   "state": "x/~",
+   "title": "Week-clustered statistics",
+   "section": "ALGORITHM",
+   "phases": [
+    3
+   ],
+   "modules": [
+    "patterns"
+   ],
+   "status": "module",
+   "tests": [
+    "tests/test_pattern_bank.py",
+    "tests/test_pattern_lifecycle.py",
+    "tests/test_pattern_movers.py",
+    "tests/test_planted_patterns.py"
+   ],
+   "n_tests": 65
+  },
+  {
+   "id": "A3",
+   "state": "",
+   "title": "Heavy tests across eras",
+   "section": "ALGORITHM",
+   "phases": [
+    7
+   ],
+   "modules": [
+    "antioverfit"
+   ],
+   "status": "direct",
+   "tests": [
+    "tests/test_ablation.py",
+    "tests/test_antioverfit.py",
+    "tests/test_heavy_tests.py"
+   ],
+   "n_tests": 52
+  },
+  {
+   "id": "A4",
+   "state": "x/~",
+   "title": "Long-term pattern bank",
+   "section": "ALGORITHM",
+   "phases": [
+    5
+   ],
+   "modules": [
+    "pattern_bank"
+   ],
+   "status": "direct",
+   "tests": [
+    "tests/test_pattern_bank.py"
+   ],
+   "n_tests": 26
+  },
+  {
+   "id": "A5",
+   "state": "",
+   "title": "Pattern scores \u2192 Find Volatility",
+   "section": "ALGORITHM",
+   "phases": [
+    6
+   ],
+   "modules": [
+    "pattern_movers"
+   ],
+   "status": "direct",
+   "tests": [
+    "tests/test_heavy_tests.py",
+    "tests/test_pattern_movers.py"
+   ],
+   "n_tests": 35
+  },
+  {
+   "id": "A6",
+   "state": "x/~",
+   "title": "Minute collector",
+   "section": "ALGORITHM",
+   "phases": [],
+   "modules": [],
+   "status": "none",
+   "tests": [],
+   "n_tests": 0
+  },
+  {
+   "id": "A7",
+   "state": "",
+   "title": "Self-tuning Algorithm",
+   "section": "ALGORITHM",
+   "phases": [
+    19
+   ],
+   "modules": [
+    "adaptive",
+    "basis_search"
+   ],
+   "status": "direct",
+   "tests": [
+    "tests/test_basis_search.py",
+    "tests/test_session.py"
+   ],
+   "n_tests": 25
+  },
+  {
+   "id": "A8",
+   "state": "x/~",
+   "title": "Market analog engine",
+   "section": "ALGORITHM",
+   "phases": [
+    8
+   ],
+   "modules": [
+    "analog_weighting",
+    "analogs",
+    "analogs_sector",
+    "analogs_stock"
+   ],
+   "status": "direct",
+   "tests": [
+    "tests/test_analogs_ext.py",
+    "tests/test_parity_suite.py"
+   ],
+   "n_tests": 38
+  },
+  {
+   "id": "A8b",
+   "state": "",
+   "title": "Sector analog engine",
+   "section": "ALGORITHM",
+   "phases": [],
+   "modules": [
+    "analogs_sector"
+   ],
+   "status": "module",
+   "tests": [
+    "tests/test_analogs_ext.py"
+   ],
+   "n_tests": 24
+  },
+  {
+   "id": "A8c",
+   "state": "",
+   "title": "Stock analog engine",
+   "section": "ALGORITHM",
+   "phases": [],
+   "modules": [
+    "analogs_stock"
+   ],
+   "status": "module",
+   "tests": [
+    "tests/test_analogs_ext.py"
+   ],
+   "n_tests": 24
+  },
+  {
+   "id": "A9",
+   "state": "",
+   "title": "Timeline dial",
+   "section": "ALGORITHM",
+   "phases": [
+    17
+   ],
+   "modules": [
+    "timeline"
+   ],
+   "status": "direct",
+   "tests": [
+    "tests/test_timeline.py"
+   ],
+   "n_tests": 21
+  },
+  {
+   "id": "A10",
+   "state": "",
+   "title": "Lesson memory",
+   "section": "ALGORITHM",
+   "phases": [
+    10
+   ],
+   "modules": [
+    "lessons"
+   ],
+   "status": "direct",
+   "tests": [
+    "tests/test_antimemo.py",
+    "tests/test_lessons.py"
+   ],
+   "n_tests": 19
+  },
+  {
+   "id": "A10b",
+   "state": "",
+   "title": "Rerun anti-memorization test",
+   "section": "ALGORITHM",
+   "phases": [
+    11
+   ],
+   "modules": [
+    "antimemo"
+   ],
+   "status": "direct",
+   "tests": [
+    "tests/test_antimemo.py",
+    "tests/test_lessons.py"
+   ],
+   "n_tests": 19
+  },
+  {
+   "id": "A11",
+   "state": "x/~",
+   "title": "Improve-or-discard lifecycle",
+   "section": "ALGORITHM",
+   "phases": [
+    4
+   ],
+   "modules": [
+    "pattern_lifecycle"
+   ],
+   "status": "direct",
+   "tests": [
+    "tests/test_pattern_bank.py",
+    "tests/test_pattern_lifecycle.py"
+   ],
+   "n_tests": 45
+  },
+  {
+   "id": "A12",
+   "state": "",
+   "title": "Additional data sources",
+   "section": "ALGORITHM",
+   "phases": [
+    27
+   ],
+   "modules": [
+    "data_sources"
+   ],
+   "status": "direct",
+   "tests": [
+    "tests/test_data_sources.py"
+   ],
+   "n_tests": 31
+  },
+  {
+   "id": "A13",
+   "state": "",
+   "title": "Planted-pattern calibration",
+   "section": "ALGORITHM",
+   "phases": [
+    25
+   ],
+   "modules": [
+    "patterns"
+   ],
+   "status": "direct",
+   "tests": [
+    "tests/test_pattern_bank.py",
+    "tests/test_pattern_lifecycle.py",
+    "tests/test_pattern_movers.py",
+    "tests/test_planted_patterns.py"
+   ],
+   "n_tests": 65
+  },
+  {
+   "id": "V1",
+   "state": "",
+   "title": "95% mover target where sufficient candidates exist",
+   "section": "FIND VOLATILITY",
+   "phases": [
+    6
+   ],
+   "modules": [
+    "pattern_movers"
+   ],
+   "status": "direct",
+   "tests": [
+    "tests/test_heavy_tests.py",
+    "tests/test_pattern_movers.py"
+   ],
+   "n_tests": 35
+  },
+  {
+   "id": "V2",
+   "state": "",
+   "title": "Direction \u226580% calibrated confidence",
+   "section": "FIND VOLATILITY",
+   "phases": [
+    13
+   ],
+   "modules": [
+    "direction",
+    "direction_calib"
+   ],
+   "status": "direct",
+   "tests": [
+    "tests/test_direction.py",
+    "tests/test_direction_ablate.py",
+    "tests/test_direction_calib.py"
+   ],
+   "n_tests": 24
+  },
+  {
+   "id": "V2b",
+   "state": "",
+   "title": "Per-stock-type trust tables",
+   "section": "FIND VOLATILITY",
+   "phases": [
+    12
+   ],
+   "modules": [
+    "trust"
+   ],
+   "status": "direct",
+   "tests": [
+    "tests/test_trust.py",
+    "tests/test_trust_store.py"
+   ],
+   "n_tests": 14
+  },
+  {
+   "id": "V3",
+   "state": "",
+   "title": "Exit learner",
+   "section": "FIND VOLATILITY",
+   "phases": [
+    15
+   ],
+   "modules": [
+    "exits"
+   ],
+   "status": "direct",
+   "tests": [
+    "tests/test_exits.py",
+    "tests/test_stops.py"
+   ],
+   "n_tests": 36
+  },
+  {
+   "id": "V4",
+   "state": "",
+   "title": "Stop/risk learner",
+   "section": "FIND VOLATILITY",
+   "phases": [
+    16
+   ],
+   "modules": [
+    "stops"
+   ],
+   "status": "direct",
+   "tests": [
+    "tests/test_stops.py"
+   ],
+   "n_tests": 13
+  },
+  {
+   "id": "V5",
+   "state": "",
+   "title": "8-of-10 +10% objective across blind eras",
+   "section": "FIND VOLATILITY",
+   "phases": [
+    20
+   ],
+   "modules": [
+    "objective"
+   ],
+   "status": "direct",
+   "tests": [
+    "tests/test_basis_search.py",
+    "tests/test_objective.py",
+    "tests/test_timeline.py"
+   ],
+   "n_tests": 54
+  },
+  {
+   "id": "T1",
+   "state": "x/~",
+   "title": "Archive",
+   "section": "TEST",
+   "phases": [],
+   "modules": [
+    "livesim"
+   ],
+   "status": "none",
+   "tests": [],
+   "n_tests": 0
+  },
+  {
+   "id": "T2",
+   "state": "x/~",
+   "title": "Blind loop",
+   "section": "TEST",
+   "phases": [
+    21
+   ],
+   "modules": [
+    "blind_gates"
+   ],
+   "status": "direct",
+   "tests": [
+    "tests/test_blind_gates.py",
+    "tests/test_session.py"
+   ],
+   "n_tests": 43
+  },
+  {
+   "id": "T3",
+   "state": "",
+   "title": "Tiered 7% objective",
+   "section": "TEST",
+   "phases": [
+    20
+   ],
+   "modules": [
+    "objective"
+   ],
+   "status": "direct",
+   "tests": [
+    "tests/test_basis_search.py",
+    "tests/test_objective.py",
+    "tests/test_timeline.py"
+   ],
+   "n_tests": 54
+  },
+  {
+   "id": "T4",
+   "state": "x/~",
+   "title": "Weekly self-adjustment",
+   "section": "TEST",
+   "phases": [
+    18
+   ],
+   "modules": [
+    "adaptive"
+   ],
+   "status": "module",
+   "tests": [
+    "tests/test_basis_search.py",
+    "tests/test_session.py"
+   ],
+   "n_tests": 25
+  },
+  {
+   "id": "T5",
+   "state": "x/~",
+   "title": "Insider leak protection",
+   "section": "TEST",
+   "phases": [
+    1
+   ],
+   "modules": [
+    "pit"
+   ],
+   "status": "direct",
+   "tests": [
+    "tests/test_pit.py"
+   ],
+   "n_tests": 38
+  },
+  {
+   "id": "T6",
+   "state": "x/~",
+   "title": "13D correctness",
+   "section": "TEST",
+   "phases": [
+    1
+   ],
+   "modules": [
+    "pit"
+   ],
+   "status": "direct",
+   "tests": [
+    "tests/test_pit.py"
+   ],
+   "n_tests": 38
+  },
+  {
+   "id": "T7",
+   "state": "",
+   "title": "Explorer",
+   "section": "TEST",
+   "phases": [
+    19
+   ],
+   "modules": [
+    "basis_search"
+   ],
+   "status": "direct",
+   "tests": [
+    "tests/test_basis_search.py"
+   ],
+   "n_tests": 15
+  },
+  {
+   "id": "T8",
+   "state": "",
+   "title": "Sensitivity",
+   "section": "TEST",
+   "phases": [],
+   "modules": [
+    "basis_search"
+   ],
+   "status": "module",
+   "tests": [
+    "tests/test_basis_search.py"
+   ],
+   "n_tests": 15
+  },
+  {
+   "id": "T9",
+   "state": "",
+   "title": "Re-tester parity",
+   "section": "TEST",
+   "phases": [
+    23
+   ],
+   "modules": [
+    "retester"
+   ],
+   "status": "direct",
+   "tests": [
+    "tests/test_provenance.py",
+    "tests/test_retester.py",
+    "tests/test_session.py"
+   ],
+   "n_tests": 38
+  },
+  {
+   "id": "T10",
+   "state": "",
+   "title": "Future scramble",
+   "section": "TEST",
+   "phases": [],
+   "modules": [
+    "adaptive"
+   ],
+   "status": "module",
+   "tests": [
+    "tests/test_basis_search.py",
+    "tests/test_session.py"
+   ],
+   "n_tests": 25
+  },
+  {
+   "id": "T11",
+   "state": "",
+   "title": "Time fence",
+   "section": "TEST",
+   "phases": [],
+   "modules": [
+    "adaptive"
+   ],
+   "status": "direct",
+   "tests": [
+    "tests/test_basis_search.py",
+    "tests/test_session.py"
+   ],
+   "n_tests": 25
+  },
+  {
+   "id": "T12",
+   "state": "",
+   "title": "Worker health",
+   "section": "TEST",
+   "phases": [
+    24
+   ],
+   "modules": [
+    "health"
+   ],
+   "status": "direct",
+   "tests": [
+    "tests/test_health.py"
+   ],
+   "n_tests": 20
+  },
+  {
+   "id": "T13",
+   "state": "",
+   "title": "Reproducibility",
+   "section": "TEST",
+   "phases": [
+    33
+   ],
+   "modules": [
+    "adaptive",
+    "repro"
+   ],
+   "status": "direct",
+   "tests": [
+    "tests/test_basis_search.py",
+    "tests/test_repro.py",
+    "tests/test_session.py"
+   ],
+   "n_tests": 36
+  },
+  {
+   "id": "T14",
+   "state": "",
+   "title": "Label permutation",
+   "section": "TEST",
+   "phases": [
+    26
+   ],
+   "modules": [
+    "antioverfit"
+   ],
+   "status": "direct",
+   "tests": [
+    "tests/test_ablation.py",
+    "tests/test_antioverfit.py"
+   ],
+   "n_tests": 31
+  },
+  {
+   "id": "T15",
+   "state": "",
+   "title": "Feature shuffle",
+   "section": "TEST",
+   "phases": [
+    26
+   ],
+   "modules": [
+    "antioverfit"
+   ],
+   "status": "direct",
+   "tests": [
+    "tests/test_ablation.py",
+    "tests/test_antioverfit.py"
+   ],
+   "n_tests": 31
+  },
+  {
+   "id": "T16",
+   "state": "",
+   "title": "Ticker permutation",
+   "section": "TEST",
+   "phases": [
+    26
+   ],
+   "modules": [
+    "antioverfit"
+   ],
+   "status": "direct",
+   "tests": [
+    "tests/test_ablation.py",
+    "tests/test_antioverfit.py"
+   ],
+   "n_tests": 31
+  },
+  {
+   "id": "T17",
+   "state": "",
+   "title": "Planted-pattern calibration",
+   "section": "TEST",
+   "phases": [
+    25
+   ],
+   "modules": [
+    "patterns"
+   ],
+   "status": "direct",
+   "tests": [
+    "tests/test_pattern_bank.py",
+    "tests/test_pattern_lifecycle.py",
+    "tests/test_pattern_movers.py",
+    "tests/test_planted_patterns.py"
+   ],
+   "n_tests": 65
+  },
+  {
+   "id": "L1",
+   "state": "",
+   "title": "Only consider upgrade after validated research edge",
+   "section": "LIVE",
+   "phases": [
+    35
+   ],
+   "modules": [
+    "champion"
+   ],
+   "status": "module",
+   "tests": [
+    "tests/test_champion.py"
+   ],
+   "n_tests": 22
+  },
+  {
+   "id": "L2",
+   "state": "",
+   "title": "Verify paper-only safeguards",
+   "section": "LIVE",
+   "phases": [
+    28
+   ],
+   "modules": [
+    "broker",
+    "isolation"
+   ],
+   "status": "direct",
+   "tests": [
+    "tests/test_isolation.py",
+    "tests/test_live_safety.py"
+   ],
+   "n_tests": 32
+  },
+  {
+   "id": "L3",
+   "state": "",
+   "title": "Verify trading-hours firewall",
+   "section": "LIVE",
+   "phases": [
+    28
+   ],
+   "modules": [
+    "broker",
+    "isolation"
+   ],
+   "status": "direct",
+   "tests": [
+    "tests/test_isolation.py",
+    "tests/test_live_safety.py"
+   ],
+   "n_tests": 32
+  },
+  {
+   "id": "L4",
+   "state": "",
+   "title": "Verify broker safety",
+   "section": "LIVE",
+   "phases": [
+    28
+   ],
+   "modules": [
+    "broker",
+    "isolation"
+   ],
+   "status": "direct",
+   "tests": [
+    "tests/test_isolation.py",
+    "tests/test_live_safety.py"
+   ],
+   "n_tests": 32
+  },
+  {
+   "id": "L5",
+   "state": "",
+   "title": "Verify research/live isolation",
+   "section": "LIVE",
+   "phases": [
+    28
+   ],
+   "modules": [
+    "broker",
+    "isolation"
+   ],
+   "status": "direct",
+   "tests": [
+    "tests/test_isolation.py",
+    "tests/test_live_safety.py"
+   ],
+   "n_tests": 32
+  }
+ ],
+ "gaps": {
+  "phases_untested": [
+   29
+  ],
+  "items_untested": [
+   "A6",
+   "T1"
+  ],
+  "items_module_only": [
+   "A2",
+   "A2b",
+   "A8b",
+   "A8c",
+   "T4",
+   "T8",
+   "T10",
+   "L1"
+  ],
+  "level_gaps": {
+   "3": [
+    2
+   ],
+   "29": [
+    1,
+    6
+   ]
+  },
+  "orphan_test_files": [
+   "tests/test_audit_registry.py"
+  ],
+  "config_problems": []
+ },
+ "gap_count": 5
+}

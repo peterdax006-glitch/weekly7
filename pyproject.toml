@@ -1,0 +1,13 @@
+# Tool configuration only (the project is not packaged). Owner: B17 quality pyramid (Bible PHASE 31/32).
+[tool.pytest.ini_options]
+testpaths = ["tests"]                  # bare `pytest` must not collect scripts/test_inventory.py
+pythonpath = ["."]                     # tests import `engine`; works without `python -m pytest`
+markers = [
+    "integration: multi-module synthetic end-to-end runs (pyramid level 2)",
+]
+
+[tool.quality_gate]
+# Thresholds for scripts/quality_gate.py; each has its documented reason in DEFAULTS there.
+giant_warn = 120
+giant_error = 300
+test_seconds = 90.0

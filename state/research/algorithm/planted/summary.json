@@ -1,0 +1,669 @@
+{
+ "summary": {
+  "n_runs": 64,
+  "by_scenario": {
+   "heavy_tails": {
+    "runs": 8,
+    "plants": {
+     "strong": {
+      "kind": "strong",
+      "should_admit": true,
+      "detection_rate": 1.0,
+      "admitted_via_child_rate": 0.0,
+      "median_effect_ratio": 0.2571026930976059,
+      "sign_accuracy": 1.0,
+      "status_counts": {
+       "active": 8
+      }
+     },
+     "weak": {
+      "kind": "weak",
+      "should_admit": true,
+      "detection_rate": 1.0,
+      "admitted_via_child_rate": 0.0,
+      "median_effect_ratio": 0.35149484687079213,
+      "sign_accuracy": 1.0,
+      "status_counts": {
+       "active": 8
+      }
+     },
+     "negative": {
+      "kind": "negative",
+      "should_admit": true,
+      "detection_rate": 1.0,
+      "admitted_via_child_rate": 0.0,
+      "median_effect_ratio": 0.2532157058936764,
+      "sign_accuracy": 1.0,
+      "status_counts": {
+       "active": 8
+      }
+     },
+     "regime": {
+      "kind": "regime",
+      "should_admit": true,
+      "detection_rate": 0.25,
+      "admitted_via_child_rate": 0.25,
+      "median_effect_ratio": 0.06070488669905115,
+      "sign_accuracy": 1.0,
+      "status_counts": {
+       "rejected": 6,
+       "active": 2
+      }
+     },
+     "pair": {
+      "kind": "pair",
+      "should_admit": true,
+      "detection_rate": 0.875,
+      "admitted_via_child_rate": 0.0,
+      "median_effect_ratio": 0.29753755998660486,
+      "sign_accuracy": 1.0,
+      "status_counts": {
+       "active": 7,
+       "not_tested": 1
+      }
+     },
+     "unless": {
+      "kind": "unless",
+      "should_admit": true,
+      "detection_rate": 0.125,
+      "admitted_via_child_rate": 0.5,
+      "median_effect_ratio": 0.32784773398741895,
+      "sign_accuracy": 1.0,
+      "status_counts": {
+       "not_tested": 4,
+       "duplicate": 2,
+       "active": 1,
+       "no_gain": 1
+      }
+     },
+     "hallucinated": {
+      "kind": "hallucinated",
+      "should_admit": false,
+      "false_admission_rate": 0.0,
+      "admitted_via_child_rate": 0.375,
+      "median_effect_ratio": 0.11455493605260587,
+      "sign_accuracy": 1.0,
+      "status_counts": {
+       "rejected": 7,
+       "no_gain": 1
+      }
+     },
+     "decaying": {
+      "kind": "decaying",
+      "should_admit": false,
+      "false_admission_rate": 0.0,
+      "admitted_via_child_rate": 0.75,
+      "median_effect_ratio": 0.20561280237628343,
+      "sign_accuracy": 1.0,
+      "status_counts": {
+       "no_gain": 7,
+       "rejected": 1
+      }
+     },
+     "zero": {
+      "kind": "zero",
+      "should_admit": false,
+      "false_admission_rate": 0.0,
+      "admitted_via_child_rate": 0.0,
+      "median_effect_ratio": null,
+      "sign_accuracy": null,
+      "status_counts": {
+       "rejected": 8
+      }
+     }
+    },
+    "active_per_run": 14.875,
+    "false_active_per_run": 1.75,
+    "false_discovery_rate": 0.11764705882352941,
+    "rejection_rate_of_bad_plants": 1.0,
+    "calibration": {
+     "bins": {
+      "(-0.01, 0.2]": {
+       "mean_p": 0.0023496054708048394,
+       "share_truly_real": 0.5018411362440821,
+       "n": 1901
+      },
+      "(0.2, 0.5]": {
+       "mean_p": 0.37504020618556705,
+       "share_truly_real": 0.6804123711340206,
+       "n": 97
+      },
+      "(0.5, 0.8]": {
+       "mean_p": 0.6617007957559682,
+       "share_truly_real": 0.376657824933687,
+       "n": 377
+      },
+      "(0.8, 0.9]": {
+       "mean_p": 0.8539252525252525,
+       "share_truly_real": 0.4444444444444444,
+       "n": 198
+      },
+      "(0.9, 1.0]": {
+       "mean_p": 0.9889420721236406,
+       "share_truly_real": 0.867773325701202,
+       "n": 1747
+      }
+     },
+     "brier": 0.32360029006712965,
+     "ece": 0.31929969907407413,
+     "n": 4320
+    }
+   },
+   "noise_only": {
+    "runs": 8,
+    "plants": {
+     "zero": {
+      "kind": "zero",
+      "should_admit": false,
+      "false_admission_rate": 0.0,
+      "admitted_via_child_rate": 0.125,
+      "median_effect_ratio": null,
+      "sign_accuracy": null,
+      "status_counts": {
+       "rejected": 8
+      }
+     }
+    },
+    "active_per_run": 0.375,
+    "false_active_per_run": 0.375,
+    "false_discovery_rate": 1.0,
+    "rejection_rate_of_bad_plants": 1.0,
+    "calibration": {
+     "bins": {
+      "(-0.01, 0.2]": {
+       "mean_p": 0.00024345562130177514,
+       "share_truly_real": 0.0,
+       "n": 4225
+      },
+      "(0.2, 0.5]": {
+       "mean_p": 0.3475166666666667,
+       "share_truly_real": 0.0,
+       "n": 36
+      },
+      "(0.5, 0.8]": {
+       "mean_p": 0.6387565217391304,
+       "share_truly_real": 0.0,
+       "n": 23
+      },
+      "(0.8, 0.9]": {
+       "mean_p": 0.8455,
+       "share_truly_real": 0.0,
+       "n": 4
+      },
+      "(0.9, 1.0]": {
+       "mean_p": 0.9755,
+       "share_truly_real": 0.0,
+       "n": 1
+      }
+     },
+     "brier": 0.004234469664257402,
+     "ece": 0.007598064816973654,
+     "n": 4289
+    }
+   },
+   "power_0.002": {
+    "runs": 8,
+    "plants": {
+     "strong": {
+      "kind": "strong",
+      "should_admit": true,
+      "detection_rate": 0.375,
+      "admitted_via_child_rate": 0.125,
+      "median_effect_ratio": 0.2790796763246899,
+      "sign_accuracy": 1.0,
+      "status_counts": {
+       "rejected": 5,
+       "active": 3
+      }
+     }
+    },
+    "active_per_run": 1.25,
+    "false_active_per_run": 0.5,
+    "false_discovery_rate": 0.4,
+    "rejection_rate_of_bad_plants": null,
+    "calibration": {
+     "bins": {
+      "(-0.01, 0.2]": {
+       "mean_p": 0.00052495804363462,
+       "share_truly_real": 0.13953488372093023,
+       "n": 4171
+      },
+      "(0.2, 0.5]": {
+       "mean_p": 0.3538983333333333,
+       "share_truly_real": 0.43333333333333335,
+       "n": 60
+      },
+      "(0.5, 0.8]": {
+       "mean_p": 0.6344063829787234,
+       "share_truly_real": 0.5319148936170213,
+       "n": 47
+      },
+      "(0.8, 0.9]": {
+       "mean_p": 0.8556214285714285,
+       "share_truly_real": 0.5,
+       "n": 14
+      },
+      "(0.9, 1.0]": {
+       "mean_p": 0.96875,
+       "share_truly_real": 0.5,
+       "n": 2
+      }
+     },
+     "brier": 0.14361783068933395,
+     "ece": 0.13863758733115975,
+     "n": 4294
+    }
+   },
+   "power_0.004": {
+    "runs": 8,
+    "plants": {
+     "strong": {
+      "kind": "strong",
+      "should_admit": true,
+      "detection_rate": 1.0,
+      "admitted_via_child_rate": 0.0,
+      "median_effect_ratio": 0.2616093533168644,
+      "sign_accuracy": 1.0,
+      "status_counts": {
+       "active": 8
+      }
+     }
+    },
+    "active_per_run": 2.125,
+    "false_active_per_run": 0.125,
+    "false_discovery_rate": 0.058823529411764705,
+    "rejection_rate_of_bad_plants": null,
+    "calibration": {
+     "bins": {
+      "(-0.01, 0.2]": {
+       "mean_p": 0.0011179480519480519,
+       "share_truly_real": 0.14805194805194805,
+       "n": 3850
+      },
+      "(0.2, 0.5]": {
+       "mean_p": 0.3779942528735632,
+       "share_truly_real": 0.8620689655172413,
+       "n": 87
+      },
+      "(0.5, 0.8]": {
+       "mean_p": 0.6610512077294687,
+       "share_truly_real": 0.9323671497584541,
+       "n": 207
+      },
+      "(0.8, 0.9]": {
+       "mean_p": 0.8517737500000001,
+       "share_truly_real": 0.9375,
+       "n": 80
+      },
+      "(0.9, 1.0]": {
+       "mean_p": 0.9525578947368422,
+       "share_truly_real": 0.9868421052631579,
+       "n": 76
+      }
+     },
+     "brier": 0.1466976589046512,
+     "ece": 0.15661313953488373,
+     "n": 4300
+    }
+   },
+   "power_0.006": {
+    "runs": 8,
+    "plants": {
+     "strong": {
+      "kind": "strong",
+      "should_admit": true,
+      "detection_rate": 1.0,
+      "admitted_via_child_rate": 0.0,
+      "median_effect_ratio": 0.25754326443760156,
+      "sign_accuracy": 1.0,
+      "status_counts": {
+       "active": 8
+      }
+     }
+    },
+    "active_per_run": 3.625,
+    "false_active_per_run": 0.125,
+    "false_discovery_rate": 0.034482758620689655,
+    "rejection_rate_of_bad_plants": null,
+    "calibration": {
+     "bins": {
+      "(-0.01, 0.2]": {
+       "mean_p": 0.0009025379229871646,
+       "share_truly_real": 0.06738623103850641,
+       "n": 3428
+      },
+      "(0.2, 0.5]": {
+       "mean_p": 0.366,
+       "share_truly_real": 0.9259259259259259,
+       "n": 54
+      },
+      "(0.5, 0.8]": {
+       "mean_p": 0.6794921658986176,
+       "share_truly_real": 0.9585253456221198,
+       "n": 217
+      },
+      "(0.8, 0.9]": {
+       "mean_p": 0.8535699386503067,
+       "share_truly_real": 0.9815950920245399,
+       "n": 163
+      },
+      "(0.9, 1.0]": {
+       "mean_p": 0.9616259090909092,
+       "share_truly_real": 0.9977272727272727,
+       "n": 440
+      }
+     },
+     "brier": 0.06557612026499303,
+     "ece": 0.08262319851231982,
+     "n": 4302
+    }
+   },
+   "power_0.009": {
+    "runs": 8,
+    "plants": {
+     "strong": {
+      "kind": "strong",
+      "should_admit": true,
+      "detection_rate": 1.0,
+      "admitted_via_child_rate": 0.0,
+      "median_effect_ratio": 0.25483253851809307,
+      "sign_accuracy": 1.0,
+      "status_counts": {
+       "active": 8
+      }
+     }
+    },
+    "active_per_run": 6.0,
+    "false_active_per_run": 0.25,
+    "false_discovery_rate": 0.041666666666666664,
+    "rejection_rate_of_bad_plants": null,
+    "calibration": {
+     "bins": {
+      "(-0.01, 0.2]": {
+       "mean_p": 0.0007943904732058915,
+       "share_truly_real": 0.009088060169225948,
+       "n": 3191
+      },
+      "(0.2, 0.5]": {
+       "mean_p": 0.350951724137931,
+       "share_truly_real": 0.1724137931034483,
+       "n": 29
+      },
+      "(0.5, 0.8]": {
+       "mean_p": 0.6845415094339623,
+       "share_truly_real": 0.660377358490566,
+       "n": 53
+      },
+      "(0.8, 0.9]": {
+       "mean_p": 0.8572597014925373,
+       "share_truly_real": 0.9104477611940298,
+       "n": 67
+      },
+      "(0.9, 1.0]": {
+       "mean_p": 0.9852527835051547,
+       "share_truly_real": 0.9876288659793815,
+       "n": 970
+      }
+     },
+     "brier": 0.014314984593967517,
+     "ece": 0.009000417633410678,
+     "n": 4310
+    }
+   },
+   "power_0.012": {
+    "runs": 8,
+    "plants": {
+     "strong": {
+      "kind": "strong",
+      "should_admit": true,
+      "detection_rate": 1.0,
+      "admitted_via_child_rate": 0.0,
+      "median_effect_ratio": 0.2568581362650547,
+      "sign_accuracy": 1.0,
+      "status_counts": {
+       "active": 8
+      }
+     }
+    },
+    "active_per_run": 1.875,
+    "false_active_per_run": 0.375,
+    "false_discovery_rate": 0.2,
+    "rejection_rate_of_bad_plants": null,
+    "calibration": {
+     "bins": {
+      "(-0.01, 0.2]": {
+       "mean_p": 0.0006443298969072165,
+       "share_truly_real": 0.0006443298969072165,
+       "n": 3104
+      },
+      "(0.2, 0.5]": {
+       "mean_p": 0.38485714285714284,
+       "share_truly_real": 0.10714285714285714,
+       "n": 28
+      },
+      "(0.5, 0.8]": {
+       "mean_p": 0.6469119047619047,
+       "share_truly_real": 0.09523809523809523,
+       "n": 42
+      },
+      "(0.8, 0.9]": {
+       "mean_p": 0.8566392857142857,
+       "share_truly_real": 0.14285714285714285,
+       "n": 28
+      },
+      "(0.9, 1.0]": {
+       "mean_p": 0.9950768953068593,
+       "share_truly_real": 0.970216606498195,
+       "n": 1108
+      }
+     },
+     "brier": 0.016857727828306263,
+     "ece": 0.01820821345707658,
+     "n": 4310
+    }
+   },
+   "standard": {
+    "runs": 8,
+    "plants": {
+     "strong": {
+      "kind": "strong",
+      "should_admit": true,
+      "detection_rate": 1.0,
+      "admitted_via_child_rate": 0.0,
+      "median_effect_ratio": 0.2545151611757006,
+      "sign_accuracy": 1.0,
+      "status_counts": {
+       "active": 8
+      }
+     },
+     "weak": {
+      "kind": "weak",
+      "should_admit": true,
+      "detection_rate": 1.0,
+      "admitted_via_child_rate": 0.0,
+      "median_effect_ratio": 0.3670138440070576,
+      "sign_accuracy": 1.0,
+      "status_counts": {
+       "active": 8
+      }
+     },
+     "negative": {
+      "kind": "negative",
+      "should_admit": true,
+      "detection_rate": 1.0,
+      "admitted_via_child_rate": 0.0,
+      "median_effect_ratio": 0.26276058915868244,
+      "sign_accuracy": 1.0,
+      "status_counts": {
+       "active": 8
+      }
+     },
+     "regime": {
+      "kind": "regime",
+      "should_admit": true,
+      "detection_rate": 0.5,
+      "admitted_via_child_rate": 0.125,
+      "median_effect_ratio": 0.06684945743879253,
+      "sign_accuracy": 1.0,
+      "status_counts": {
+       "rejected": 4,
+       "active": 4
+      }
+     },
+     "pair": {
+      "kind": "pair",
+      "should_admit": true,
+      "detection_rate": 1.0,
+      "admitted_via_child_rate": 0.0,
+      "median_effect_ratio": 0.2814852901013756,
+      "sign_accuracy": 1.0,
+      "status_counts": {
+       "active": 8
+      }
+     },
+     "unless": {
+      "kind": "unless",
+      "should_admit": true,
+      "detection_rate": 0.125,
+      "admitted_via_child_rate": 0.25,
+      "median_effect_ratio": 0.32284158562480453,
+      "sign_accuracy": 1.0,
+      "status_counts": {
+       "not_tested": 6,
+       "active": 1,
+       "duplicate": 1
+      }
+     },
+     "hallucinated": {
+      "kind": "hallucinated",
+      "should_admit": false,
+      "false_admission_rate": 0.0,
+      "admitted_via_child_rate": 0.5,
+      "median_effect_ratio": 0.11407659763932179,
+      "sign_accuracy": 1.0,
+      "status_counts": {
+       "rejected": 7,
+       "no_gain": 1
+      }
+     },
+     "decaying": {
+      "kind": "decaying",
+      "should_admit": false,
+      "false_admission_rate": 0.25,
+      "admitted_via_child_rate": 0.75,
+      "median_effect_ratio": 0.21895970508026275,
+      "sign_accuracy": 1.0,
+      "status_counts": {
+       "active": 2,
+       "no_gain": 6
+      }
+     },
+     "zero": {
+      "kind": "zero",
+      "should_admit": false,
+      "false_admission_rate": 0.0,
+      "admitted_via_child_rate": 0.25,
+      "median_effect_ratio": null,
+      "sign_accuracy": null,
+      "status_counts": {
+       "rejected": 8
+      }
+     }
+    },
+    "active_per_run": 17.25,
+    "false_active_per_run": 2.75,
+    "false_discovery_rate": 0.15942028985507245,
+    "rejection_rate_of_bad_plants": 0.9166666666666666,
+    "calibration": {
+     "bins": {
+      "(-0.01, 0.2]": {
+       "mean_p": 0.0019912975508077123,
+       "share_truly_real": 0.5070349140177176,
+       "n": 1919
+      },
+      "(0.2, 0.5]": {
+       "mean_p": 0.3585974789915966,
+       "share_truly_real": 0.6218487394957983,
+       "n": 119
+      },
+      "(0.5, 0.8]": {
+       "mean_p": 0.6662655279503106,
+       "share_truly_real": 0.4440993788819876,
+       "n": 322
+      },
+      "(0.8, 0.9]": {
+       "mean_p": 0.8538117346938776,
+       "share_truly_real": 0.5561224489795918,
+       "n": 196
+      },
+      "(0.9, 1.0]": {
+       "mean_p": 0.9883046485260771,
+       "share_truly_real": 0.8560090702947846,
+       "n": 1764
+      }
+     },
+     "brier": 0.3259414202314815,
+     "ece": 0.3156850925925926,
+     "n": 4320
+    }
+   }
+  }
+ },
+ "verdict": {
+  "validated": false,
+  "criteria": {
+   "strong_detection": {
+    "value": 1.0,
+    "rule": "detection_rate >= 0.9",
+    "pass": true
+   },
+   "negative_detection": {
+    "value": 1.0,
+    "rule": "detection_rate >= 0.8",
+    "pass": true
+   },
+   "negative_sign": {
+    "value": 1.0,
+    "rule": "sign_accuracy >= 0.95",
+    "pass": true
+   },
+   "hallucinated_rejected": {
+    "value": 0.0,
+    "rule": "false_admission_rate <= 0.2",
+    "pass": true
+   },
+   "decaying_not_held": {
+    "value": 0.25,
+    "rule": "false_admission_rate <= 0.2",
+    "pass": false
+   },
+   "zero_rejected": {
+    "value": 0.0,
+    "rule": "false_admission_rate <= 0.1",
+    "pass": true
+   },
+   "noise_only_quiet": {
+    "value": 0.375,
+    "rule": "active_per_run <= 1.0",
+    "pass": true
+   },
+   "fdr": {
+    "value": 0.15942028985507245,
+    "rule": "false_discovery_rate <= 0.10",
+    "pass": false
+   },
+   "p_real_top_bin": {
+    "value": 0.8560090702947846,
+    "rule": "P(real) in (0.9,1] truly real >= 0.85",
+    "pass": true
+   }
+  }
+ },
+ "miner": {
+  "max_pairs": 400,
+  "max_unless": 80,
+  "null_reps": 2,
+  "min_n": 200,
+  "half_life_years": 50
+ }
+}

@@ -1,0 +1,363 @@
+{
+ "sample": {
+  "rows": 70157,
+  "tickers": 300,
+  "seed": 7
+ },
+ "stamp": {
+  "code_hash": "93bb32d6e90284e2",
+  "code_files": [
+   "engine/__init__.py",
+   "engine/ablation.py",
+   "engine/antioverfit.py",
+   "engine/config.py",
+   "engine/provenance.py",
+   "engine/repro.py",
+   "scripts/antioverfit_real.py"
+  ],
+  "code_mixed": [],
+  "git_commit": "65e2c9e6ceb157243fcf75daae67b7d29c605aaa+dirty",
+  "canon_sha": "83225f36953ff54a",
+  "bible_sha": "a97ea91862cee371",
+  "blueprint_version": "4.0",
+  "config_hash": "a4a8270dfab0ccd7",
+  "data_snapshot": "5f94924cad053ffd",
+  "seed": 7
+ },
+ "eras": {
+  "2013-2016": {
+   "rows": 13092,
+   "overall": "fail",
+   "real_metric": 0.007452151081966636,
+   "real_t": 0.5162795669617971,
+   "status": {
+    "future_scramble": "pass",
+    "label_permutation": "not_significant",
+    "ticker_permutation": "not_significant",
+    "date_disguise": "pass",
+    "randomized_outcomes": "pass",
+    "feature_shuffle": "inconclusive",
+    "dead_feature_injection": "pass",
+    "duplicate_feature_injection": "pass",
+    "regime_split": "fail",
+    "walk_forward": "pass"
+   },
+   "reasons": {
+    "label_permutation": "labels permuted within date: null collapsed, but real 0.0075 does not clear the null 95th percentile 0.0159",
+    "ticker_permutation": "relabel invariant; ticker label histories swapped: null collapsed, but real 0.0075 does not clear the null 95th percentile 0.0133",
+    "feature_shuffle": "real run has no significant positive signal to destroy",
+    "regime_split": "significantly negative in ['m_vix_q1']"
+   }
+  },
+  "2016-2019": {
+   "rows": 14795,
+   "overall": "pass",
+   "real_metric": 0.02189573061200027,
+   "real_t": 1.6597589906142323,
+   "status": {
+    "future_scramble": "pass",
+    "label_permutation": "pass",
+    "ticker_permutation": "pass",
+    "date_disguise": "pass",
+    "randomized_outcomes": "pass",
+    "feature_shuffle": "inconclusive",
+    "dead_feature_injection": "pass",
+    "duplicate_feature_injection": "pass",
+    "regime_split": "pass",
+    "walk_forward": "pass"
+   },
+   "reasons": {
+    "feature_shuffle": "real run has no significant positive signal to destroy"
+   }
+  },
+  "2019-2023": {
+   "rows": 19336,
+   "overall": "fail",
+   "real_metric": -0.005902353050180084,
+   "real_t": -0.44895938852567685,
+   "status": {
+    "future_scramble": "pass",
+    "label_permutation": "not_significant",
+    "ticker_permutation": "not_significant",
+    "date_disguise": "pass",
+    "randomized_outcomes": "pass",
+    "feature_shuffle": "inconclusive",
+    "dead_feature_injection": "pass",
+    "duplicate_feature_injection": "pass",
+    "regime_split": "fail",
+    "walk_forward": "pass"
+   },
+   "reasons": {
+    "label_permutation": "labels permuted within date: null collapsed, but real -0.0059 does not clear the null 95th percentile 0.0131",
+    "ticker_permutation": "relabel invariant; ticker label histories swapped: null collapsed, but real -0.0059 does not clear the null 95th percentile 0.0097",
+    "feature_shuffle": "real run has no significant positive signal to destroy",
+    "regime_split": "significantly negative in ['m_vix_q1']"
+   }
+  },
+  "2023-2026": {
+   "rows": 22934,
+   "overall": "pass",
+   "real_metric": 0.007717273487198069,
+   "real_t": 0.6979333621683462,
+   "status": {
+    "future_scramble": "pass",
+    "label_permutation": "pass",
+    "ticker_permutation": "not_significant",
+    "date_disguise": "pass",
+    "randomized_outcomes": "pass",
+    "feature_shuffle": "inconclusive",
+    "dead_feature_injection": "pass",
+    "duplicate_feature_injection": "pass",
+    "regime_split": "pass",
+    "walk_forward": "pass"
+   },
+   "reasons": {
+    "ticker_permutation": "relabel invariant; ticker label histories swapped: null collapsed, but real 0.0077 does not clear the null 95th percentile 0.0111",
+    "feature_shuffle": "real run has no significant positive signal to destroy"
+   }
+  }
+ },
+ "types": {
+  "quiet": {
+   "rows": 41301,
+   "n_tickers": 77,
+   "overall": "fail",
+   "real_metric": 0.018764393104716993,
+   "real_t": 2.306202832201794,
+   "status": {
+    "label_permutation": "pass",
+    "date_disguise": "pass",
+    "randomized_outcomes": "pass",
+    "feature_shuffle": "fail",
+    "regime_split": "pass",
+    "walk_forward": "pass"
+   },
+   "reasons": {
+    "feature_shuffle": "shuffling the top 3 features kept 80% of the signal - it is carried by something the importance table does not show"
+   }
+  },
+  "middle": {
+   "rows": 23897,
+   "n_tickers": 76,
+   "overall": "pass",
+   "real_metric": 0.0011106659424991066,
+   "real_t": 0.13341233485109374,
+   "status": {
+    "label_permutation": "not_significant",
+    "date_disguise": "pass",
+    "randomized_outcomes": "pass",
+    "feature_shuffle": "inconclusive",
+    "regime_split": "pass",
+    "walk_forward": "pass"
+   },
+   "reasons": {
+    "label_permutation": "labels permuted within date: null collapsed, but real 0.0011 does not clear the null 95th percentile 0.0033",
+    "feature_shuffle": "real run has no significant positive signal to destroy"
+   }
+  },
+  "wild": {
+   "rows": 4959,
+   "n_tickers": 77,
+   "overall": "pass",
+   "real_metric": -0.03376622147476484,
+   "real_t": -1.881353780164961,
+   "status": {
+    "label_permutation": "not_significant",
+    "date_disguise": "pass",
+    "randomized_outcomes": "pass",
+    "feature_shuffle": "inconclusive",
+    "regime_split": "flag",
+    "walk_forward": "pass"
+   },
+   "reasons": {
+    "label_permutation": "labels permuted within date: null collapsed, but real -0.0338 does not clear the null 95th percentile 0.0224",
+    "feature_shuffle": "real run has no significant positive signal to destroy",
+    "regime_split": "0/3 regimes positive"
+   }
+  }
+ },
+ "ablation": {
+  "remove_group": [
+   {
+    "component": "momentum",
+    "verdict": "no_effect",
+    "delta": 0.00011,
+    "lo": -0.00616,
+    "hi": 0.00638,
+    "p_le0": 0.484,
+    "n_periods": 572,
+    "score_with": 0.02089,
+    "score_without": 0.02078
+   },
+   {
+    "component": "volatility",
+    "verdict": "no_effect",
+    "delta": 0.00026,
+    "lo": -0.00352,
+    "hi": 0.00474,
+    "p_le0": 0.514,
+    "n_periods": 572,
+    "score_with": 0.02089,
+    "score_without": 0.02063
+   },
+   {
+    "component": "volume",
+    "verdict": "no_effect",
+    "delta": -0.00015,
+    "lo": -0.00321,
+    "hi": 0.00282,
+    "p_le0": 0.537,
+    "n_periods": 572,
+    "score_with": 0.02089,
+    "score_without": 0.02104
+   },
+   {
+    "component": "intraday",
+    "verdict": "no_effect",
+    "delta": -0.00206,
+    "lo": -0.00732,
+    "hi": 0.00342,
+    "p_le0": 0.754,
+    "n_periods": 572,
+    "score_with": 0.02089,
+    "score_without": 0.02295
+   },
+   {
+    "component": "industry",
+    "verdict": "no_effect",
+    "delta": -0.00022,
+    "lo": -0.00149,
+    "hi": 0.00101,
+    "p_le0": 0.642,
+    "n_periods": 572,
+    "score_with": 0.02089,
+    "score_without": 0.02111
+   },
+   {
+    "component": "earnings",
+    "verdict": "no_effect",
+    "delta": 0.00016,
+    "lo": -0.00293,
+    "hi": 0.00365,
+    "p_le0": 0.501,
+    "n_periods": 572,
+    "score_with": 0.02089,
+    "score_without": 0.02073
+   }
+  ],
+  "reference_ic": 0.02089403354220348,
+  "features": {
+   "frog": {
+    "verdict": "rejected",
+    "arm_means": {
+     "baseline": 0.023409451092959103,
+     "baseline_plus_feature": 0.0228140299801777,
+     "feature_alone": -0.0025976994764203955,
+     "baseline_plus_random": 0.024206778207797715,
+     "baseline_plus_shuffled": 0.022728738160795098,
+     "baseline_plus_future_scrambled": 0.022868557737864916
+    },
+    "reasons": [
+     "baseline+feature does not beat baseline (gain -0.0006, CI lower -0.0017)",
+     "gain is not distinguishable from a random column (CI lower -0.0028)",
+     "gain is not distinguishable from a shuffled feature (CI lower -0.0015)",
+     "the real feature does not beat its own future-scrambled copy in the scrambled zone"
+    ],
+    "notes": [],
+    "incremental": {
+     "mean": -0.0005954211127814023,
+     "lo": -0.0016965266437580847,
+     "hi": 0.0005433933804652267,
+     "p_le0": 0.85875,
+     "n": 572,
+     "block": 8,
+     "insufficient": false
+    }
+   },
+   "range_compress": {
+    "verdict": "rejected",
+    "arm_means": {
+     "baseline": 0.023409451092959103,
+     "baseline_plus_feature": 0.022664218603114097,
+     "feature_alone": 0.005133668213580597,
+     "baseline_plus_random": 0.024206778207797715,
+     "baseline_plus_shuffled": 0.022820705325591696,
+     "baseline_plus_future_scrambled": 0.024310412440464
+    },
+    "reasons": [
+     "baseline+feature does not beat baseline (gain -0.0007, CI lower -0.0024)",
+     "gain is not distinguishable from a random column (CI lower -0.0032)",
+     "gain is not distinguishable from a shuffled feature (CI lower -0.0021)",
+     "the real feature does not beat its own future-scrambled copy in the scrambled zone"
+    ],
+    "notes": [],
+    "incremental": {
+     "mean": -0.0007452324898450074,
+     "lo": -0.00236463930386485,
+     "hi": 0.000916226937911319,
+     "p_le0": 0.80375,
+     "n": 572,
+     "block": 8,
+     "insufficient": false
+    }
+   },
+   "ins_buyers30": {
+    "verdict": "rejected",
+    "arm_means": {
+     "baseline": 0.023409451092959103,
+     "baseline_plus_feature": 0.02329048843324982,
+     "feature_alone": 0.0024315639916712654,
+     "baseline_plus_random": 0.024206778207797715,
+     "baseline_plus_shuffled": 0.02313056476018934,
+     "baseline_plus_future_scrambled": 0.0233733381735212
+    },
+    "reasons": [
+     "baseline+feature does not beat baseline (gain -0.0001, CI lower -0.0017)",
+     "gain is not distinguishable from a random column (CI lower -0.0028)",
+     "gain is not distinguishable from a shuffled feature (CI lower -0.0014)",
+     "the real feature does not beat its own future-scrambled copy in the scrambled zone"
+    ],
+    "notes": [],
+    "incremental": {
+     "mean": -0.000118962659709287,
+     "lo": -0.0016986987409659943,
+     "hi": 0.001601126705868511,
+     "p_le0": 0.57375,
+     "n": 572,
+     "block": 8,
+     "insufficient": false
+    }
+   }
+  }
+ },
+ "repro": {
+  "reference_evaluator": {
+   "reproducible": true,
+   "problems": []
+  },
+  "fresh_process_hashseeds": {
+   "reproducible": true,
+   "differs": []
+  },
+  "pattern_miner": {
+   "reproducible": true,
+   "problems": [],
+   "diagnoses": []
+  }
+ },
+ "miner": {
+  "rows": 11410,
+  "overall": "pass",
+  "real_metric": 0.0,
+  "real_t": 0.0,
+  "status": {
+   "future_scramble": "pass",
+   "label_permutation": "not_significant",
+   "date_disguise": "pass",
+   "randomized_outcomes": "pass"
+  },
+  "reasons": {
+   "label_permutation": "labels permuted within date: null collapsed, but real 0.0000 does not clear the null 95th percentile 0.0000"
+  }
+ }
+}

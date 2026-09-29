@@ -1,0 +1,21 @@
+Weekly7 anti-overfitting / reproducibility / ablation on real cache  (70,157 rows, 300 tickers, seed 7)
+  era 2013-2016  IC +0.0075 t +0.5  FAIL  label_permutation=not_significant ticker_permutation=not_significant feature_shuffle=inconclusive regime_split=fail
+  era 2016-2019  IC +0.0219 t +1.7  PASS  feature_shuffle=inconclusive
+  era 2019-2023  IC -0.0059 t -0.4  FAIL  label_permutation=not_significant ticker_permutation=not_significant feature_shuffle=inconclusive regime_split=fail
+  era 2023-2026  IC +0.0077 t +0.7  PASS  ticker_permutation=not_significant feature_shuffle=inconclusive
+  type quiet   IC +0.0188 t +2.3  FAIL
+  type middle  IC +0.0011 t +0.1  PASS
+  type wild    IC -0.0338 t -1.9  PASS
+  repro reference_evaluator: OK
+  repro fresh_process_hashseeds: OK
+  repro pattern_miner: OK
+  remove momentum    no_effect   dIC +0.0001 [-0.0062,+0.0064]
+  remove volatility  no_effect   dIC +0.0003 [-0.0035,+0.0047]
+  remove volume      no_effect   dIC -0.0001 [-0.0032,+0.0028]
+  remove intraday    no_effect   dIC -0.0021 [-0.0073,+0.0034]
+  remove industry    no_effect   dIC -0.0002 [-0.0015,+0.0010]
+  remove earnings    no_effect   dIC +0.0002 [-0.0029,+0.0037]
+  candidate frog            rejected  gain -0.0006  baseline+feature does not beat baseline (gain -0.0006, CI lower -0.0017); gain is not distinguishable from a random column (CI lower -0.0028); gain is not distinguishable from a shuffled feature (CI lower -0.0015); the real feature does not beat its own future-scrambled copy in the scrambled zone
+  candidate range_compress  rejected  gain -0.0007  baseline+feature does not beat baseline (gain -0.0007, CI lower -0.0024); gain is not distinguishable from a random column (CI lower -0.0032); gain is not distinguishable from a shuffled feature (CI lower -0.0021); the real feature does not beat its own future-scrambled copy in the scrambled zone
+  candidate ins_buyers30    rejected  gain -0.0001  baseline+feature does not beat baseline (gain -0.0001, CI lower -0.0017); gain is not distinguishable from a random column (CI lower -0.0028); gain is not distinguishable from a shuffled feature (CI lower -0.0014); the real feature does not beat its own future-scrambled copy in the scrambled zone
+  miner evaluator: PASS {'future_scramble': 'pass', 'label_permutation': 'not_significant', 'date_disguise': 'pass', 'randomized_outcomes': 'pass'}

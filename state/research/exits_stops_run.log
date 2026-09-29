@@ -1,0 +1,1 @@
+positions=19304 weeks=773 types=['vhigh_dn', 'vhigh_up', 'vlow_dn', 'vlow_up', 'vmid_dn', 'vmid_up'] skipped_holiday_weeks=163 {'rows': 19325, 'dropped_inconsistent_bar': 0, 'dropped_gap_gt60pct': 21}

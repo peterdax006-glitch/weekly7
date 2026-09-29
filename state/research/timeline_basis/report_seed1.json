@@ -1,0 +1,1177 @@
+{
+ "seed": 1,
+ "tickers": 600,
+ "weeks": 1395,
+ "windows": 26,
+ "dropped_weekly_returns_over_300pct": 67,
+ "caveats": [
+  "survivor-biased universe",
+  "close-to-close, no costs",
+  "equal-weight vol basket, no forecasting model"
+ ],
+ "tiers_by_basket": {
+  "k1_pool0.5": {
+   "overall": {
+    "key": [
+     7,
+     0,
+     0
+    ],
+    "in_band": 0.2352,
+    "over_band": 0.1864,
+    "risk": -0.4405,
+    "pos_in_band": 0.4687,
+    "tier1_reached": false,
+    "wiped": false,
+    "n_windows": 26
+   },
+   "by_era": {
+    "2000-2008": {
+     "key": [
+      6,
+      0,
+      0
+     ],
+     "in_band": 0.2115,
+     "over_band": 0.1635,
+     "risk": -0.4233,
+     "pos_in_band": 0.4636,
+     "tier1_reached": false,
+     "wiped": false,
+     "n_windows": 8
+    },
+    "2009-2015": {
+     "key": [
+      7,
+      0,
+      0
+     ],
+     "in_band": 0.239,
+     "over_band": 0.1841,
+     "risk": -0.4356,
+     "pos_in_band": 0.4309,
+     "tier1_reached": false,
+     "wiped": false,
+     "n_windows": 7
+    },
+    "2016-2026": {
+     "key": [
+      7,
+      0,
+      0
+     ],
+     "in_band": 0.25,
+     "over_band": 0.2045,
+     "risk": -0.4179,
+     "pos_in_band": 0.4965,
+     "tier1_reached": false,
+     "wiped": false,
+     "n_windows": 11
+    }
+   },
+   "mean_week": 0.0005697936877696473,
+   "sd_week": 0.1099644072539814
+  },
+  "k1_pool0.9": {
+   "overall": {
+    "key": [
+     5,
+     0,
+     0
+    ],
+    "in_band": 0.2537,
+    "over_band": 0.3114,
+    "risk": -0.5631,
+    "pos_in_band": 0.3992,
+    "tier1_reached": false,
+    "wiped": false,
+    "n_windows": 26
+   },
+   "by_era": {
+    "2000-2008": {
+     "key": [
+      6,
+      0,
+      0
+     ],
+     "in_band": 0.2644,
+     "over_band": 0.2957,
+     "risk": -0.5136,
+     "pos_in_band": 0.3924,
+     "tier1_reached": false,
+     "wiped": false,
+     "n_windows": 8
+    },
+    "2009-2015": {
+     "key": [
+      5,
+      0,
+      0
+     ],
+     "in_band": 0.2445,
+     "over_band": 0.3159,
+     "risk": -0.5721,
+     "pos_in_band": 0.3609,
+     "tier1_reached": false,
+     "wiped": false,
+     "n_windows": 7
+    },
+    "2016-2026": {
+     "key": [
+      5,
+      0,
+      0
+     ],
+     "in_band": 0.2517,
+     "over_band": 0.3199,
+     "risk": -0.5721,
+     "pos_in_band": 0.4286,
+     "tier1_reached": false,
+     "wiped": false,
+     "n_windows": 11
+    }
+   },
+   "mean_week": 0.011560054440822826,
+   "sd_week": 0.19000868908232554
+  },
+  "k2_pool0.5": {
+   "overall": {
+    "key": [
+     9,
+     0,
+     0
+    ],
+    "in_band": 0.2463,
+    "over_band": 0.1257,
+    "risk": -0.3804,
+    "pos_in_band": 0.4721,
+    "tier1_reached": false,
+    "wiped": false,
+    "n_windows": 26
+   },
+   "by_era": {
+    "2000-2008": {
+     "key": [
+      10,
+      0,
+      0
+     ],
+     "in_band": 0.2572,
+     "over_band": 0.1106,
+     "risk": -0.2959,
+     "pos_in_band": 0.5059,
+     "tier1_reached": false,
+     "wiped": false,
+     "n_windows": 8
+    },
+    "2009-2015": {
+     "key": [
+      9,
+      0,
+      0
+     ],
+     "in_band": 0.2418,
+     "over_band": 0.1264,
+     "risk": -0.3887,
+     "pos_in_band": 0.448,
+     "tier1_reached": false,
+     "wiped": false,
+     "n_windows": 7
+    },
+    "2016-2026": {
+     "key": [
+      9,
+      0,
+      0
+     ],
+     "in_band": 0.2413,
+     "over_band": 0.1364,
+     "risk": -0.37,
+     "pos_in_band": 0.4628,
+     "tier1_reached": false,
+     "wiped": false,
+     "n_windows": 11
+    }
+   },
+   "mean_week": 0.0023922427562919593,
+   "sd_week": 0.0866229394714246
+  },
+  "k2_pool0.9": {
+   "overall": {
+    "key": [
+     7,
+     0,
+     0
+    ],
+    "in_band": 0.2803,
+    "over_band": 0.2877,
+    "risk": -0.5051,
+    "pos_in_band": 0.3751,
+    "tier1_reached": false,
+    "wiped": false,
+    "n_windows": 26
+   },
+   "by_era": {
+    "2000-2008": {
+     "key": [
+      7,
+      0,
+      0
+     ],
+     "in_band": 0.2692,
+     "over_band": 0.2692,
+     "risk": -0.4703,
+     "pos_in_band": 0.3462,
+     "tier1_reached": false,
+     "wiped": false,
+     "n_windows": 8
+    },
+    "2009-2015": {
+     "key": [
+      7,
+      0,
+      0
+     ],
+     "in_band": 0.294,
+     "over_band": 0.294,
+     "risk": -0.4753,
+     "pos_in_band": 0.4607,
+     "tier1_reached": false,
+     "wiped": false,
+     "n_windows": 7
+    },
+    "2016-2026": {
+     "key": [
+      6,
+      0,
+      0
+     ],
+     "in_band": 0.2797,
+     "over_band": 0.2972,
+     "risk": -0.5152,
+     "pos_in_band": 0.3417,
+     "tier1_reached": false,
+     "wiped": false,
+     "n_windows": 11
+    }
+   },
+   "mean_week": -0.00013958270380482854,
+   "sd_week": 0.1281463421813144
+  },
+  "k3_pool0.5": {
+   "overall": {
+    "key": [
+     9,
+     0,
+     0
+    ],
+    "in_band": 0.2263,
+    "over_band": 0.1087,
+    "risk": -0.3383,
+    "pos_in_band": 0.458,
+    "tier1_reached": false,
+    "wiped": false,
+    "n_windows": 26
+   },
+   "by_era": {
+    "2000-2008": {
+     "key": [
+      8,
+      0,
+      0
+     ],
+     "in_band": 0.2163,
+     "over_band": 0.0865,
+     "risk": -0.2665,
+     "pos_in_band": 0.5043,
+     "tier1_reached": false,
+     "wiped": false,
+     "n_windows": 8
+    },
+    "2009-2015": {
+     "key": [
+      6,
+      0,
+      0
+     ],
+     "in_band": 0.1923,
+     "over_band": 0.1209,
+     "risk": -0.3436,
+     "pos_in_band": 0.458,
+     "tier1_reached": false,
+     "wiped": false,
+     "n_windows": 7
+    },
+    "2016-2026": {
+     "key": [
+      10,
+      0,
+      0
+     ],
+     "in_band": 0.2552,
+     "over_band": 0.1171,
+     "risk": -0.2629,
+     "pos_in_band": 0.4244,
+     "tier1_reached": false,
+     "wiped": false,
+     "n_windows": 11
+    }
+   },
+   "mean_week": 0.002788097247716422,
+   "sd_week": 0.0642055932566361
+  },
+  "k3_pool0.9": {
+   "overall": {
+    "key": [
+     9,
+     0,
+     0
+    ],
+    "in_band": 0.2899,
+    "over_band": 0.2219,
+    "risk": -0.4237,
+    "pos_in_band": 0.3895,
+    "tier1_reached": false,
+    "wiped": false,
+    "n_windows": 26
+   },
+   "by_era": {
+    "2000-2008": {
+     "key": [
+      9,
+      0,
+      0
+     ],
+     "in_band": 0.2981,
+     "over_band": 0.2139,
+     "risk": -0.3837,
+     "pos_in_band": 0.43,
+     "tier1_reached": false,
+     "wiped": false,
+     "n_windows": 8
+    },
+    "2009-2015": {
+     "key": [
+      7,
+      0,
+      0
+     ],
+     "in_band": 0.2555,
+     "over_band": 0.217,
+     "risk": -0.3905,
+     "pos_in_band": 0.367,
+     "tier1_reached": false,
+     "wiped": false,
+     "n_windows": 7
+    },
+    "2016-2026": {
+     "key": [
+      10,
+      0,
+      0
+     ],
+     "in_band": 0.3059,
+     "over_band": 0.2308,
+     "risk": -0.4426,
+     "pos_in_band": 0.3744,
+     "tier1_reached": false,
+     "wiped": false,
+     "n_windows": 11
+    }
+   },
+   "mean_week": -0.0030073297592786087,
+   "sd_week": 0.10431837446570132
+  },
+  "k5_pool0.5": {
+   "overall": {
+    "key": [
+     10,
+     0,
+     0
+    ],
+    "in_band": 0.2249,
+    "over_band": 0.0725,
+    "risk": -0.2688,
+    "pos_in_band": 0.5126,
+    "tier1_reached": false,
+    "wiped": false,
+    "n_windows": 26
+   },
+   "by_era": {
+    "2000-2008": {
+     "key": [
+      7,
+      0,
+      0
+     ],
+     "in_band": 0.1779,
+     "over_band": 0.0601,
+     "risk": -0.2185,
+     "pos_in_band": 0.5262,
+     "tier1_reached": false,
+     "wiped": false,
+     "n_windows": 8
+    },
+    "2009-2015": {
+     "key": [
+      11,
+      0,
+      0
+     ],
+     "in_band": 0.2473,
+     "over_band": 0.0769,
+     "risk": -0.2721,
+     "pos_in_band": 0.6068,
+     "tier1_reached": false,
+     "wiped": false,
+     "n_windows": 7
+    },
+    "2016-2026": {
+     "key": [
+      11,
+      0,
+      0
+     ],
+     "in_band": 0.2448,
+     "over_band": 0.0787,
+     "risk": -0.2689,
+     "pos_in_band": 0.4427,
+     "tier1_reached": false,
+     "wiped": false,
+     "n_windows": 11
+    }
+   },
+   "mean_week": 0.0020344709117464644,
+   "sd_week": 0.054700761877843555
+  },
+  "k5_pool0.9": {
+   "overall": {
+    "key": [
+     10,
+     0,
+     0
+    ],
+    "in_band": 0.2855,
+    "over_band": 0.1893,
+    "risk": -0.4008,
+    "pos_in_band": 0.3679,
+    "tier1_reached": false,
+    "wiped": false,
+    "n_windows": 26
+   },
+   "by_era": {
+    "2000-2008": {
+     "key": [
+      9,
+      0,
+      0
+     ],
+     "in_band": 0.2788,
+     "over_band": 0.1707,
+     "risk": -0.3207,
+     "pos_in_band": 0.3124,
+     "tier1_reached": false,
+     "wiped": false,
+     "n_windows": 8
+    },
+    "2009-2015": {
+     "key": [
+      9,
+      0,
+      0
+     ],
+     "in_band": 0.2692,
+     "over_band": 0.1896,
+     "risk": -0.3935,
+     "pos_in_band": 0.4018,
+     "tier1_reached": false,
+     "wiped": false,
+     "n_windows": 7
+    },
+    "2016-2026": {
+     "key": [
+      10,
+      0,
+      0
+     ],
+     "in_band": 0.3007,
+     "over_band": 0.2028,
+     "risk": -0.3912,
+     "pos_in_band": 0.3867,
+     "tier1_reached": false,
+     "wiped": false,
+     "n_windows": 11
+    }
+   },
+   "mean_week": -0.0023677279579954586,
+   "sd_week": 0.08256382399603684
+  },
+  "k10_pool0.5": {
+   "overall": {
+    "key": [
+     8,
+     0,
+     0
+    ],
+    "in_band": 0.1967,
+    "over_band": 0.0466,
+    "risk": -0.2601,
+    "pos_in_band": 0.4933,
+    "tier1_reached": false,
+    "wiped": false,
+    "n_windows": 26
+   },
+   "by_era": {
+    "2000-2008": {
+     "key": [
+      7,
+      0,
+      0
+     ],
+     "in_band": 0.1514,
+     "over_band": 0.0385,
+     "risk": -0.1468,
+     "pos_in_band": 0.4532,
+     "tier1_reached": false,
+     "wiped": false,
+     "n_windows": 8
+    },
+    "2009-2015": {
+     "key": [
+      8,
+      0,
+      0
+     ],
+     "in_band": 0.1896,
+     "over_band": 0.0549,
+     "risk": -0.269,
+     "pos_in_band": 0.52,
+     "tier1_reached": false,
+     "wiped": false,
+     "n_windows": 7
+    },
+    "2016-2026": {
+     "key": [
+      10,
+      0,
+      0
+     ],
+     "in_band": 0.2343,
+     "over_band": 0.0472,
+     "risk": -0.2428,
+     "pos_in_band": 0.5054,
+     "tier1_reached": false,
+     "wiped": false,
+     "n_windows": 11
+    }
+   },
+   "mean_week": 0.0018607464860949526,
+   "sd_week": 0.04570111234145569
+  },
+  "k10_pool0.9": {
+   "overall": {
+    "key": [
+     9,
+     0,
+     0
+    ],
+    "in_band": 0.2507,
+    "over_band": 0.1331,
+    "risk": -0.2994,
+    "pos_in_band": 0.456,
+    "tier1_reached": false,
+    "wiped": false,
+    "n_windows": 26
+   },
+   "by_era": {
+    "2000-2008": {
+     "key": [
+      8,
+      0,
+      0
+     ],
+     "in_band": 0.238,
+     "over_band": 0.1298,
+     "risk": -0.2831,
+     "pos_in_band": 0.5438,
+     "tier1_reached": false,
+     "wiped": false,
+     "n_windows": 8
+    },
+    "2009-2015": {
+     "key": [
+      7,
+      0,
+      0
+     ],
+     "in_band": 0.2088,
+     "over_band": 0.1209,
+     "risk": -0.2622,
+     "pos_in_band": 0.4974,
+     "tier1_reached": false,
+     "wiped": false,
+     "n_windows": 7
+    },
+    "2016-2026": {
+     "key": [
+      11,
+      0,
+      0
+     ],
+     "in_band": 0.2867,
+     "over_band": 0.1434,
+     "risk": -0.3111,
+     "pos_in_band": 0.3658,
+     "tier1_reached": false,
+     "wiped": false,
+     "n_windows": 11
+    }
+   },
+   "mean_week": 0.0018785019494704134,
+   "sd_week": 0.066972550854038
+  },
+  "k25_pool0.5": {
+   "overall": {
+    "key": [
+     7,
+     0,
+     0
+    ],
+    "in_band": 0.1464,
+    "over_band": 0.0259,
+    "risk": -0.2305,
+    "pos_in_band": 0.5094,
+    "tier1_reached": false,
+    "wiped": false,
+    "n_windows": 26
+   },
+   "by_era": {
+    "2000-2008": {
+     "key": [
+      6,
+      0,
+      0
+     ],
+     "in_band": 0.1298,
+     "over_band": 0.0168,
+     "risk": -0.1681,
+     "pos_in_band": 0.5495,
+     "tier1_reached": false,
+     "wiped": false,
+     "n_windows": 8
+    },
+    "2009-2015": {
+     "key": [
+      6,
+      0,
+      0
+     ],
+     "in_band": 0.1456,
+     "over_band": 0.0412,
+     "risk": -0.2432,
+     "pos_in_band": 0.4897,
+     "tier1_reached": false,
+     "wiped": false,
+     "n_windows": 7
+    },
+    "2016-2026": {
+     "key": [
+      7,
+      0,
+      0
+     ],
+     "in_band": 0.1591,
+     "over_band": 0.0227,
+     "risk": -0.1798,
+     "pos_in_band": 0.4928,
+     "tier1_reached": false,
+     "wiped": false,
+     "n_windows": 11
+    }
+   },
+   "mean_week": 0.0012971709628633624,
+   "sd_week": 0.0383370804091822
+  },
+  "k25_pool0.9": {
+   "overall": {
+    "key": [
+     11,
+     0,
+     0
+    ],
+    "in_band": 0.2537,
+    "over_band": 0.0754,
+    "risk": -0.2667,
+    "pos_in_band": 0.5206,
+    "tier1_reached": false,
+    "wiped": false,
+    "n_windows": 26
+   },
+   "by_era": {
+    "2000-2008": {
+     "key": [
+      9,
+      0,
+      0
+     ],
+     "in_band": 0.2284,
+     "over_band": 0.101,
+     "risk": -0.2681,
+     "pos_in_band": 0.5899,
+     "tier1_reached": false,
+     "wiped": false,
+     "n_windows": 8
+    },
+    "2009-2015": {
+     "key": [
+      9,
+      0,
+      0
+     ],
+     "in_band": 0.2088,
+     "over_band": 0.0632,
+     "risk": -0.2408,
+     "pos_in_band": 0.5704,
+     "tier1_reached": false,
+     "wiped": false,
+     "n_windows": 7
+    },
+    "2016-2026": {
+     "key": [
+      14,
+      0,
+      0
+     ],
+     "in_band": 0.3007,
+     "over_band": 0.0647,
+     "risk": -0.2698,
+     "pos_in_band": 0.4385,
+     "tier1_reached": false,
+     "wiped": false,
+     "n_windows": 11
+    }
+   },
+   "mean_week": 0.00209122665200025,
+   "sd_week": 0.05480332331989901
+  }
+ },
+ "tier1_tier2_rank_corr": -0.6619975125797373,
+ "dial": {
+  "k1_pool0.9": {
+   "n_train": 15,
+   "n_test": 11,
+   "gate": "FAIL: no reliable improvement (no measurable gain on any tier; bootstrap lower bound +0.000); train gain +0.019 did not carry to test +0.000; not stable across eras (per-era gain [0.0, 0.0, 0.0])",
+   "checks": {
+    "improvement": false,
+    "risk": true,
+    "no_overfit": false,
+    "stable_eras": false
+   },
+   "numbers": {
+    "gain_train": 0.01923076923076922,
+    "gain_test": 0.0,
+    "boot_lo": 0.0,
+    "era_gain": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "base_key": [
+     5,
+     0,
+     0
+    ],
+    "dial_key": [
+     5,
+     0,
+     0
+    ],
+    "params": {
+     "target": 0.07,
+     "trail": 6,
+     "ewma_half": 4.0,
+     "w_vol": 0.3,
+     "w_prog": 0.1,
+     "w_fc": 0.2,
+     "w_reg": 0.15,
+     "gain": 0.75,
+     "deadband": 0.2,
+     "max_step": 0.5,
+     "over_limit": 0.4,
+     "k_bounds": [
+      1,
+      6
+     ],
+     "exposure_bounds": [
+      0.5,
+      1.0
+     ],
+     "pool_bounds": [
+      0.3,
+      0.95
+     ],
+     "brake_dd": 0.2,
+     "brake_release": 3,
+     "brake_exposure": 0.5,
+     "brake_level": 0.15
+    }
+   },
+   "test_base": {
+    "2016-2026": {
+     "key": [
+      5,
+      0,
+      0
+     ],
+     "in_band": 0.2517,
+     "over_band": 0.3199,
+     "risk": -0.5721,
+     "pos_in_band": 0.4286,
+     "tier1_reached": false,
+     "wiped": false,
+     "n_windows": 11
+    }
+   },
+   "test_dial": {
+    "2016-2026": {
+     "key": [
+      5,
+      0,
+      0
+     ],
+     "in_band": 0.1783,
+     "over_band": 0.1329,
+     "risk": -0.3616,
+     "pos_in_band": 0.4411,
+     "tier1_reached": false,
+     "wiped": false,
+     "n_windows": 11
+    }
+   },
+   "test_in_band": [
+    0.2517,
+    0.1783
+   ]
+  },
+  "k3_pool0.9": {
+   "n_train": 15,
+   "n_test": 11,
+   "gate": "FAIL: no reliable improvement (worse on tier1 (weeks in band); bootstrap lower bound -0.052); train gain +0.021 did not carry to test -0.011; not stable across eras (per-era gain [-0.094, 0.067, -0.006])",
+   "checks": {
+    "improvement": false,
+    "risk": true,
+    "no_overfit": false,
+    "stable_eras": false
+   },
+   "numbers": {
+    "gain_train": 0.020512820512820527,
+    "gain_test": -0.011363636363636374,
+    "boot_lo": -0.05244755244755246,
+    "era_gain": [
+     -0.09375000000000003,
+     0.06730769230769232,
+     -0.006410256410256425
+    ],
+    "base_key": [
+     10,
+     0,
+     0
+    ],
+    "dial_key": [
+     9,
+     0,
+     0
+    ],
+    "params": {
+     "target": 0.07,
+     "trail": 6,
+     "ewma_half": 4.0,
+     "w_vol": 0.3,
+     "w_prog": 0.1,
+     "w_fc": 0.2,
+     "w_reg": 0.15,
+     "gain": 0.75,
+     "deadband": 0.2,
+     "max_step": 0.5,
+     "over_limit": 0.4,
+     "k_bounds": [
+      1,
+      6
+     ],
+     "exposure_bounds": [
+      0.5,
+      1.0
+     ],
+     "pool_bounds": [
+      0.3,
+      0.95
+     ],
+     "brake_dd": 0.2,
+     "brake_release": 3,
+     "brake_exposure": 0.5,
+     "brake_level": 0.15
+    }
+   },
+   "test_base": {
+    "2016-2026": {
+     "key": [
+      10,
+      0,
+      0
+     ],
+     "in_band": 0.3059,
+     "over_band": 0.2308,
+     "risk": -0.4426,
+     "pos_in_band": 0.3744,
+     "tier1_reached": false,
+     "wiped": false,
+     "n_windows": 11
+    }
+   },
+   "test_dial": {
+    "2016-2026": {
+     "key": [
+      9,
+      0,
+      0
+     ],
+     "in_band": 0.2168,
+     "over_band": 0.0752,
+     "risk": -0.2838,
+     "pos_in_band": 0.3986,
+     "tier1_reached": false,
+     "wiped": false,
+     "n_windows": 11
+    }
+   },
+   "test_in_band": [
+    0.3059,
+    0.2168
+   ]
+  },
+  "k10_pool0.5": {
+   "n_train": 15,
+   "n_test": 11,
+   "gate": "FAIL: no reliable improvement (worse on tier1 (weeks in band); bootstrap lower bound -0.056); train gain +0.026 did not carry to test -0.032; not stable across eras (per-era gain [-0.046, -0.005, -0.051])",
+   "checks": {
+    "improvement": false,
+    "risk": true,
+    "no_overfit": false,
+    "stable_eras": false
+   },
+   "numbers": {
+    "gain_train": 0.02628205128205128,
+    "gain_test": -0.032342657342657344,
+    "boot_lo": -0.05603146853146854,
+    "era_gain": [
+     -0.04567307692307693,
+     -0.0048076923076923045,
+     -0.05128205128205129
+    ],
+    "base_key": [
+     10,
+     0,
+     0
+    ],
+    "dial_key": [
+     9,
+     0,
+     0
+    ],
+    "params": {
+     "target": 0.07,
+     "trail": 8,
+     "ewma_half": 4.0,
+     "w_vol": 0.3,
+     "w_prog": 0.3,
+     "w_fc": 0.2,
+     "w_reg": 0.15,
+     "gain": 3.0,
+     "deadband": 0.05,
+     "max_step": 0.35,
+     "over_limit": 0.3,
+     "k_bounds": [
+      1,
+      6
+     ],
+     "exposure_bounds": [
+      0.5,
+      1.0
+     ],
+     "pool_bounds": [
+      0.3,
+      0.95
+     ],
+     "brake_dd": 0.2,
+     "brake_release": 3,
+     "brake_exposure": 0.5,
+     "brake_level": 0.15
+    }
+   },
+   "test_base": {
+    "2016-2026": {
+     "key": [
+      10,
+      0,
+      0
+     ],
+     "in_band": 0.2343,
+     "over_band": 0.0472,
+     "risk": -0.2428,
+     "pos_in_band": 0.5054,
+     "tier1_reached": false,
+     "wiped": false,
+     "n_windows": 11
+    }
+   },
+   "test_dial": {
+    "2016-2026": {
+     "key": [
+      9,
+      0,
+      0
+     ],
+     "in_band": 0.1941,
+     "over_band": 0.0315,
+     "risk": -0.1938,
+     "pos_in_band": 0.3684,
+     "tier1_reached": false,
+     "wiped": false,
+     "n_windows": 11
+    }
+   },
+   "test_in_band": [
+    0.2343,
+    0.1941
+   ]
+  }
+ },
+ "basis_search": {
+  "record": {
+   "event": "basis_search",
+   "adopted": true,
+   "reason": "ADOPTED: eligible: better on tier1 (weeks in band)",
+   "n_windows": 12,
+   "n_screen": 10,
+   "n_evals": 158,
+   "incumbent": {
+    "key": [
+     8,
+     0,
+     0
+    ],
+    "t1": 0.16666666666666666,
+    "risk": -0.24388506411960556,
+    "t3": 0.552724358974359
+   },
+   "winner": {
+    "key": [
+     10,
+     0,
+     0
+    ],
+    "t1": 0.24198717948717952,
+    "risk": -0.30575379901167987,
+    "t3": 0.47409394118952947
+   },
+   "changed": [
+    "k",
+    "pool_q"
+   ],
+   "confirmed": [
+    {
+     "cfg": {
+      "k": 25,
+      "pool_q": 0.5
+     },
+     "adjusted": 12.454284205353115,
+     "boot_lo": NaN,
+     "verdict": ""
+    },
+    {
+     "cfg": {
+      "k": 25,
+      "pool_q": 0.7
+     },
+     "adjusted": 16.318214409128537,
+     "boot_lo": -0.000540865384615388,
+     "verdict": "firewall ok but gain not reliable across windows (bootstrap lower bound -0.001)"
+    },
+    {
+     "cfg": {
+      "k": 10,
+      "pool_q": 0.7
+     },
+     "adjusted": 17.445231661571615,
+     "boot_lo": 0.002914663461538459,
+     "verdict": "ADOPTED: eligible: better on tier1 (weeks in band)"
+    },
+    {
+     "cfg": {
+      "k": 25,
+      "pool_q": 0.9
+     },
+     "adjusted": 17.6732069352165,
+     "boot_lo": -0.005078125000000017,
+     "verdict": "firewall ok but gain not reliable across windows (bootstrap lower bound -0.005)"
+    }
+   ]
+  },
+  "adopted_cfg": {
+   "k": 10,
+   "pool_q": 0.7
+  },
+  "windows_used": 12,
+  "windows_out_of_sample": 14,
+  "oos_incumbent": {
+   "key": [
+    6,
+    0,
+    0
+   ],
+   "in_band": 0.1264,
+   "over_band": 0.0179,
+   "risk": -0.172,
+   "pos_in_band": 0.4245,
+   "tier1_reached": false,
+   "wiped": false,
+   "n_windows": 14
+  },
+  "oos_adopted": {
+   "key": [
+    10,
+    0,
+    0
+   ],
+   "in_band": 0.2266,
+   "over_band": 0.0549,
+   "risk": -0.2679,
+   "pos_in_band": 0.5003,
+   "tier1_reached": false,
+   "wiped": false,
+   "n_windows": 14
+  },
+  "note": "meta-parameters are not exercised by this proxy (no adaptation engine in the loop)"
+ },
+ "provenance": {
+  "code_hash": "58a185897fe3a291",
+  "code_files": [
+   "engine/__init__.py",
+   "engine/basis_search.py",
+   "engine/config.py",
+   "engine/objective.py",
+   "engine/provenance.py",
+   "engine/timeline.py",
+   "scripts/timeline_basis_report.py"
+  ],
+  "code_mixed": [],
+  "git_commit": "d01cad9a2e2965fb7a80608b7dce448141a7756d+dirty",
+  "canon_sha": "83225f36953ff54a",
+  "bible_sha": "a97ea91862cee371",
+  "blueprint_version": "4.0",
+  "config_hash": "9abdea7ed3c92d88",
+  "data_snapshot": "5f94924cad053ffd",
+  "seed": 1
+ },
+ "seconds": 17.5
+}
