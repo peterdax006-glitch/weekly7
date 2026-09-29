@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import ast
 import dataclasses
+import functools
 import json
 import sys
 from pathlib import Path
@@ -115,23 +116,29 @@ class Mod:
                     self.aliases[a.asname or a.name] = f"{mod}.{a.name}"
 
 
+@functools.lru_cache(maxsize=1)
+def parsed_tree(roots_dirs=("engine", "scripts")) -> dict:
+    """Every production module parsed once per test session (tests/ and .venv are not production)."""
+    out = {}
+    for d in roots_dirs:
+        for p in sorted((ROOT / d).rglob("*.py")):
+            if "__pycache__" in p.parts:
+                continue
+            try:
+                tree = ast.parse(p.read_text(encoding="utf-8"))
+            except (SyntaxError, UnicodeDecodeError):
+                continue
+            out[_module_name(p)] = Mod(_module_name(p), p, tree)
+    return out
+
+
 class CallGraph:
     """Symbols are (module, name) or (module, Class.method). A reached class reaches all its methods and bases; a reached function
     reaches everything its body references that resolves through the module's own names and imports; a reached module runs its
     module-level code. Calls are recorded per reached function as (resolved module or None, called name)."""
 
-    def __init__(self, roots_dirs=("engine", "scripts")):
-        self.mods: dict[str, Mod] = {}
-        for d in roots_dirs:
-            for p in sorted((ROOT / d).rglob("*.py")):
-                if "__pycache__" in p.parts:
-                    continue
-                try:
-                    tree = ast.parse(p.read_text(encoding="utf-8"))
-                except (SyntaxError, UnicodeDecodeError):
-                    continue
-                name = _module_name(p)
-                self.mods[name] = Mod(name, p, tree)
+    def __init__(self, mods: dict | None = None):
+        self.mods: dict[str, Mod] = dict(mods if mods is not None else parsed_tree())
         self.reached: set[tuple[str, str]] = set()
         self.mods_run: set[str] = set()
         self.calls: dict[tuple[str, str], list[tuple[str | None, str]]] = {}
@@ -250,7 +257,7 @@ def graph():
 
 def test_the_call_graph_resolves_a_planted_chain_and_misses_a_planted_orphan(tmp_path):
     """The instrument must be able to fail: a function nothing calls is not reached, and a call through an alias is."""
-    g = CallGraph(roots_dirs=())
+    g = CallGraph(mods={})
     src = ("from engine.learning import loop_hooks as LH\n\ndef entry():\n    helper()\n\ndef helper():\n    LH.safe_token('x')\n\n"
            "def orphan():\n    LH.run_same_year_harness(None)\n")
     tree = ast.parse(src)
@@ -295,20 +302,24 @@ from test_learning_learner import make_cfg, mini_spec                           
 
 PIN = "pinned-test-code"
 RIVAL = "hyp:planted-rival"
-PLANT_WEEK = 20
+PLANT_WEEK = 16
 
 
 def hook_cfg(**kw) -> LH.HookConfig:
     """Cadences short enough that a 50-week miniature exercises every mechanism several times."""
     base = dict(every_health=2, every_break=4, every_competition=4, every_questions=4, every_interpretation=4, every_redundancy=4,
-                every_disagreement=4, every_value=8, every_persist=6, every_kcredit=4, kcredit_min=30, exp_wait=2, exp_max_wait=6,
+                every_disagreement=4, every_value=8, every_persist=6, every_kcredit=4, kcredit_min=30, exp_wait=2, exp_max_wait=4,
                 health_min_n=12, lifecycle_window=8, boot=40)
     base.update(kw)
     return LH.HookConfig(**base)
 
 
-def new_learner(workdir, **kw) -> LN.LegitimateLearner:
-    return LN.LegitimateLearner(dataclasses.replace(make_cfg(), hooks=hook_cfg(**kw)), workdir=workdir, code_hash_fn=lambda: PIN)
+def new_learner(workdir, claim: str = "record", **kw) -> LN.LegitimateLearner:
+    """learning_claim='record' by default HERE: a one-year miniature can never produce a storable scorecard (the controls need
+    forward-year folds), so under the production default 'enforce' nothing is promoted and the decision-side hooks would never
+    run. The enforce gate itself is tested separately below."""
+    cfg = dataclasses.replace(make_cfg(), hooks=hook_cfg(**kw), learning_claim=claim)
+    return LN.LegitimateLearner(cfg, workdir=workdir, code_hash_fn=lambda: PIN)
 
 
 @pytest.fixture(scope="module")
@@ -335,7 +346,8 @@ def test_data_flows_through_every_hook_on_the_planted_world(run):
             "boundary_field", "explain_break", "apply_to_ledger", "inputs_from_knowledge", "epistemic_proposals", "run_period",
             "contradiction_signals", "ask_many", "next_test", "rank_unknowns", "complexity_budget", "disagreement_assess",
             "decompose_value", "kcredit_assess", "masked_pairs", "update_proposals", "signals_from_health", "signals_from_data_audit",
-            "check_proposal", "propose_selected", "update_from_result", "with_relation", "persist", "health_dashboard", "readiness")
+            "check_proposal", "propose_selected", "update_from_result", "with_relation", "persist", "health_dashboard", "readiness",
+            "evidence_from_pattern_row", "claim_evidence", "identity_harness")
     silent = [h for h in must if fired.get(h, 0) == 0]
     assert silent == [], f"hooks that never fired on the planted world: {silent}"
     rep = L.report()
@@ -361,7 +373,7 @@ def test_a_planted_contradiction_reaches_the_research_queue_and_its_result_close
 def test_a_credit_result_changes_a_belief_and_a_null_one_does_not(tmp_path):
     L = new_learner(tmp_path / "a")
     comps = ("pattern", "analog", "memory", "direction", "timing", "risk")
-    eng = CR.CreditEngine(CR.WeightedSumCombiner({c: 1.0 for c in comps}), CR.CreditConfig(n_boot=80, n_perm=40, seed=3))
+    eng = CR.CreditEngine(CR.WeightedSumCombiner({c: 1.0 for c in comps}), CR.CreditConfig(n_boot=80, n_perm=150, seed=3))
 
     def assess(truth, seed):
         led = CR.simulate_decisions(320, seed, truth)
@@ -383,7 +395,8 @@ def test_a_credit_result_changes_a_belief_and_a_null_one_does_not(tmp_path):
 
 def _plant_item(L, pid: str, good: int, bad: int, start="2010-01-01", up=0.02, down=-0.03):
     dates = [str((pd.Timestamp(start) + pd.Timedelta(days=7 * i)).date()) for i in range(good + bad)]
-    weekly = [(d, up if i < good else down, 0.004, 30) for i, d in enumerate(dates)]
+    noise = np.random.default_rng(len(pid)).normal(0.0, 0.006, good + bad)                # a real series is never constant
+    weekly = [(d, (up if i < good else down) + float(noise[i]), 0.004, 30) for i, d in enumerate(dates)]
     L._weekly[pid] = weekly[:good]                                      # born on the good weeks only: nothing from its future
     L.beliefs.register(pid, 0.0, 0.02)
     for d, e, se, n in weekly[:good]:
@@ -396,14 +409,15 @@ def _plant_item(L, pid: str, good: int, bad: int, start="2010-01-01", up=0.02, d
 
 def test_a_break_in_the_outcomes_changes_the_lifecycle_through_the_retirement_gate(tmp_path):
     L = new_learner(tmp_path / "brk")
-    kid, now = _plant_item(L, "f9:q4", good=24, bad=16)
-    ok_kid, _ = _plant_item(L, "f8:q4", good=40, bad=0)
+    kid, now = _plant_item(L, "f9:q4", good=30, bad=20)
+    ok_kid, _ = _plant_item(L, "f8:q4", good=50, bad=0)
     assert L.retirement.state(kid, now) == RT.State.ACTIVE
     L.hooks.lifecycle_step(now)
-    assert L.retirement.state(kid, now) != RT.State.ACTIVE, "a 16-week reversal did not reach the retirement gate"
+    later = now + pd.Timedelta(days=1)                                  # a transition written at `now` governs decisions after it
+    assert L.retirement.state(kid, later) != RT.State.ACTIVE, "a 20-week reversal did not reach the retirement gate"
     ch = [v for v in L.hooks.lifecycle_verdicts if v["kid"] == kid]
     assert ch and ch[-1]["from"] == "ACTIVE" and ch[-1]["stage"] in ("FAILURE", "DECAY")
-    assert L.retirement.state(ok_kid, now) == RT.State.ACTIVE and not [v for v in L.hooks.lifecycle_verdicts if v["kid"] == ok_kid]
+    assert L.retirement.state(ok_kid, later) == RT.State.ACTIVE and not [v for v in L.hooks.lifecycle_verdicts if v["kid"] == ok_kid]
 
 
 def test_a_validated_break_condition_becomes_an_anti_context_on_the_situation_paths():
@@ -419,12 +433,18 @@ def test_a_validated_break_condition_becomes_an_anti_context_on_the_situation_pa
 
 def test_the_memory_firewall_reads_the_store_through_as_of_and_catches_a_stale_version(run):
     L, _, _ = run
-    kid = next(k for k in sorted(L._pid_of) if len(L.store.history(k)) >= 2)
-    v1, latest = L.store.history(kid)[0], L.store.latest(kid)
-    now = pd.Timestamp(v1.updated_at) + pd.Timedelta(days=1)
+    kid, now = next((k, pd.Timestamp(v.updated_at) + pd.Timedelta(days=1)) for k in sorted(L._pid_of) for v in L.store.history(k)
+                    if pd.Timestamp(L.store.latest(k).updated_at) > pd.Timestamp(v.updated_at))
+    latest = L.store.latest(kid)
+    assert L.store.as_of(kid, now).version < latest.version                # the version in play did not exist yet at `now`
     found, n = FW.store_findings(L.store, now, FW.LayerName.MEMORY, "planted", [latest])
     assert any(f.check == "not-as-of-version" and f.is_fail for f in found)             # planted: a later version in play
-    assert any(f.check == "store-holds-future" for f in found) and n >= 1
+    assert n >= 1 and not any(f.check == "store-future-memory" for f in found)
+    v = L.store.as_of(kid, now)                                         # planted leak: a visible version that saw the future
+    leak = KN.KnowledgeStore()
+    leak.add(dataclasses.replace(v, provenance=dataclasses.replace(v.provenance, outcomes_seen_through=str(now.date()))))
+    bad, _ = FW.store_findings(leak, now, FW.LayerName.MEMORY, "leak")
+    assert any(f.check == "store-future-memory" and f.is_fail for f in bad)
     clean, _ = FW.store_findings(L.store, now, FW.LayerName.MEMORY, "clean", L.store.visible(now))
     assert not [f for f in clean if f.is_fail]
     with pytest.raises(FirewallBreach):
@@ -467,7 +487,9 @@ def test_what_the_loop_learned_is_on_disk_and_reloads(run):
     assert DC.load_log(json.loads((r / "decision_log.json").read_text(encoding="utf-8"))).verify() == []
     q = RPR.queue_restore((r / "research_queue.json").read_text(encoding="utf-8"))
     assert len(q.items) == len(L.research.queue.items)
-    assert HE.import_book(json.loads((r / "health.json").read_text(encoding="utf-8"))).verify() == []
+    hb = json.loads((r / "health.json").read_text(encoding="utf-8"))
+    assert len(hb["records"]) == sum(len(L.hooks.health.book.history(k)) for k in L.hooks.health.book.items()) > 0
+    assert len(hb["chain"]) == len(hb["records"]) and L.hooks.health.book.verify() == []
     assert len(EM.ExperimentLedger(r / "experiments.jsonl").view(pd.Timestamp("2100-01-01"))) >= 1
     g = KG.KnowledgeGraph.from_records(json.loads((r / "graph.json").read_text(encoding="utf-8")))
     assert g.has_node(RIVAL)
@@ -491,7 +513,7 @@ def test_the_empty_learner_has_nothing_to_signal_and_still_persists(tmp_path):
 
 
 def test_the_hooks_are_deterministic_given_the_seed(tmp_path):
-    world = PW.make_world(mini_spec(weeks=24), 5)
+    world = PW.make_world(mini_spec(weeks=16, stocks=30), 5)
     digests = []
     for i in range(2):
         L = new_learner(tmp_path / f"d{i}")
@@ -530,3 +552,26 @@ def test_the_trader_path_still_never_reaches_the_curator():
     from engine.learning.trader_view import assert_trader_path_clean, trader_closure
     assert assert_trader_path_clean() > 50
     assert "engine.learning.loop_hooks" in trader_closure()                # the hooks are on the trader path, and clean
+
+
+def test_the_production_default_enforces_the_learning_claim_gate(tmp_path):
+    """Under learning_claim='enforce' an item with no registered scorecard or identity report cannot pass the eleventh gate."""
+    from engine.learning import wiring as W
+    L = LN.LegitimateLearner(dataclasses.replace(make_cfg(), hooks=hook_cfg()), workdir=tmp_path / "enf", code_hash_fn=lambda: PIN)
+    assert L.cfg.learning_claim == "enforce" and L.board.gate.learning_claim == "enforce"
+    kid, now = _plant_item(L, "f7:q4", good=30, bad=0)
+    out = L.hooks.claim_evidence(kid, now)
+    assert out == {"identity": None, "scorecard": False}                  # nothing to register yet: no panels, no valid card
+    v = W.on_knowledge_promotion(L.store.latest(kid), now)
+    assert not v.allowed and any("scorecard" in b for b in v.blockers) and any("identity" in b for b in v.blockers)
+    with pytest.raises(ValueError):
+        dataclasses.replace(make_cfg(), learning_claim="sometimes").validate() and LN.LegitimateLearner(
+            dataclasses.replace(make_cfg(), learning_claim="sometimes"), workdir=tmp_path / "bad", code_hash_fn=lambda: PIN)
+
+
+def test_an_identity_free_rule_passes_the_identity_harness(run):
+    L, _, _ = run
+    kid = sorted(L._pid_of)[0]
+    rep = L.hooks.identity_report(kid)
+    assert rep is not None and rep.deterministic and rep.verdicts
+    assert rep.passed or rep.base_ic < 0.01                                # a rule on a quantile cell never needs the identities

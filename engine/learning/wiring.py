@@ -388,7 +388,7 @@ def post_mortem_frame(decided: Any, closed: Any, p0: pd.DataFrame, fwd: pd.Serie
     return frame, X
 
 
-@sink("pm_frame")
+@sink("adapter_post_mortem")
 def adapter_week_frame(decided: Any, closed: Any, p0: pd.DataFrame, fwd: pd.Series, picked: Sequence[Any],
                        score: pd.Series | None) -> tuple[pd.DataFrame, pd.DataFrame]:
     """post_mortem_frame with sink semantics, for the adapter: a failure to build the frame is recorded, never raised into a decision."""
@@ -924,7 +924,6 @@ HOOKS: dict[str, Hook] = {
 }
 # Period-level seams are called by the period runner (S17b / the nightly loop), not by an old engine file, so they have no `sites` here;
 # the integration tests prove the data flows. Listed for the report: on_period -> research_step and write_dashboard_inputs.
-CALL_NAME: dict[str, str] = {"adapter_post_mortem": "post_mortem"}     # a HOOKS key whose calls are counted under another sink name
 PERIOD_HOOKS: tuple[str, ...] = ("contradiction_period", "research_step", "dashboard")
 
 
@@ -946,7 +945,7 @@ def unwired_hooks(root: str | Path | None = None, hooks: Mapping[str, Hook] | No
 def hook_report() -> dict[str, Any]:
     """Which hooks fired, what they delivered, and what failed. A hook with calls == 0 in a full run is a wiring gap."""
     return {"calls": dict(HUB.calls), "delivered": dict(HUB.delivered), "errors": [dataclasses.asdict(e) for e in HUB.errors],
-            "silent_hooks": sorted(h for h in HOOKS if HUB.calls[CALL_NAME.get(h, h)] == 0), "hypotheses": len(HUB.hypotheses),
+            "silent_hooks": sorted(h for h in HOOKS if HUB.calls[h] == 0), "hypotheses": len(HUB.hypotheses),
             "failures_classified": len(HUB.failure_ledger), "failure_unknown_rate": HUB.failure_ledger.unknown_rate(),
             "rejections": len(HUB.missed.rows), "graph_edges": len(HUB.graph.edges("2100-01-01")), "decisions": len(HUB.decisions),
             "root": str(HUB.root) if HUB.root is not None else None, "board": HUB.board is not None,

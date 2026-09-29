@@ -246,6 +246,8 @@ def _worker(run_id, cfg, meta):
         hook = None
         if LEARNER == "legit":
             from engine.learning import test_path as TP
+            from engine.learning import wiring as W
+            W.configure_production(run_id)                           # the hub's sinks persist under state/learning/hub/<run_id>/
             hook = TP.hook_factory(TP.PathConfig(store_root=str(CURATOR_ROOT), seed=MODEL_SEED))
         extra = {} if hook is None else {"hook_factory": hook}          # the off path calls livesim.run exactly as before
         feed, trader, sealed, wall = livesim.run(cfg, run_id, log=lambda *x: print(f"[{run_id}]", *x, flush=True),

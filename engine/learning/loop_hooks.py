@@ -56,9 +56,11 @@ from . import experiment_memory as EM
 from . import failed_learners as FLR
 from . import health as HE
 from . import hierarchy as HI
+from . import identity_firewall as IDF
 from . import interpretation as IN
 from . import knowledge as KN
 from . import knowledge_graph as KG
+from . import learning_curve as LCV
 from . import lifecycle as LC
 from . import portfolio_value as PV
 from . import questions as QU
@@ -250,10 +252,10 @@ class LoopHooks:
         self.credit_seen: set[str] = set()
         self.proposals_applied: list[dict] = []
         self.masked: list = []
-        self.redundancy_last = None
+        self.redundancy_last: RD.RedundancyReport | None = None
         self.relations: set[tuple] = set()
         self.contra_monitor = CM.ContradictionMonitor(learner.graph)
-        self.contra_last = None
+        self.contra_last: CM.MonitorReport | None = None
         self.contra_signals: list = []
         self.contra_keys = 0
         self.answers = QU.AnswerLedger()
@@ -264,10 +266,14 @@ class LoopHooks:
         self.unknown_rank: list = []
         self.complexity: dict[str, dict] = {}
         self.conflicts: dict[str, dict] = {}
-        self.disagreement_last = None
-        self.value_last = None
+        self.disagreement_last: DG.DisagreementReport | None = None
+        self.value_last: PV.ValueDecomposition | None = None
         self.scorecards = SC.ScorecardStore(self.root / "scorecards.jsonl") if self.root is not None else None
         self.scorecard_ids: list[str] = []
+        self.valid_card: SC.LearningScorecard | None = None
+        self.staged = BL.BeliefLedger()
+        self.staged_rows: list[dict] = []
+        self.claims: dict[str, dict] = {}
         self.scorecard_refusals: list[dict] = []
         self.gate_warnings: dict[str, str] = {}
         self.failed = FLR.FailedLearnerRegistry(self.root / "failed_learners.jsonl" if self.root is not None else None)
@@ -278,8 +284,8 @@ class LoopHooks:
         self.exp_results: list[dict] = []
         self.readiness_log: list[dict] = []
         self.source_audits: list[dict] = []
-        self.dashboard = None
-        self.persisted: dict[str, int] = {}
+        self.dashboard: dict | None = None
+        self.persisted: dict[str, Any] = {}
         self._pending_signals: list = []
 
     # ------------------------------------------------------------------------------------------------ bookkeeping
@@ -324,7 +330,7 @@ class LoopHooks:
         """lifecycle x calibration x temporal (calibration.combined_influence) for a registered item."""
         prof = self.L.temporal.get(kid, now)
         self._fire("combined_influence")
-        return CB.combined_influence(kid, now, self.L.retirement, self.cal, prof, ctx_now, self.seed, reliability).total
+        return CB.combined_influence(kid, now, self.L.retirement, self.cal, prof, ctx_now, self.seed, reliability).total  # type: ignore[arg-type]  # duck-typed monitor
 
     def _hier_context(self, sit) -> dict:
         b = sit.bins()
@@ -341,7 +347,7 @@ class LoopHooks:
             if len(self._hier_cache) > 4096:
                 self._hier_cache.clear()
             est = self.bank.get(kid).estimate(ctx)
-            self._hier_cache[key] = (float(est.mean), float(est.se or 0.0)) if est.is_known() else None
+            self._hier_cache[key] = (float(est.mean or 0.0), float(est.se or 0.0)) if est.is_known() else None
             self._fire("hierarchy_estimate")
         return self._hier_cache[key]
 
@@ -550,12 +556,18 @@ class LoopHooks:
         if self._due(self.cfg.every_health):
             self.health_step(learned, now)
 
+    def lifecycle_params(self) -> dict:
+        """lifecycle.PARAMS rescaled to the configured window, keeping the default ratios (window 26 gives the defaults exactly)."""
+        w = self.cfg.lifecycle_window
+        return {"window": w, "est_n": w, "birth_n": max(4, w // 2), "recover_n": max(4, w // 2), "dormant_after": w,
+                "hold": max(2, round(8 * w / 26)), "retire_after": 4 * w, "give_up": 4 * w}
+
     def lifecycle_step(self, now) -> None:
         """Push each item's new weekly outcomes through its lifecycle machine; the current stage goes through the retirement or
         recovery gate (lifecycle.apply_to_ledger), with the cause the break engine named when it named one."""
         for kid in self._kids():
             dates, vals = self._signed_weekly(kid)
-            m = self.machines.setdefault(kid, LC.LifecycleMachine({"window": self.cfg.lifecycle_window}))
+            m = self.machines.setdefault(kid, LC.LifecycleMachine(self.lifecycle_params()))
             i0 = self._lc_cursor.get(kid, 0)
             for v in vals[i0:]:
                 m.push(float(v))
@@ -567,7 +579,7 @@ class LoopHooks:
             v = LC.apply_to_ledger(self.L.retirement, kid, m.to_trace(), vals, dates, now, cause, apply=True)
             if v is not None:
                 self._fire("apply_to_ledger")
-                after = self.L.retirement.state(kid, now)
+                after = self.L.retirement.state(kid, pd.Timestamp(as_date(now)) + pd.Timedelta(days=1))   # written at now, in force after
                 if after != before:
                     self.lifecycle_verdicts.append({"kid": kid, "stage": m.state.value, "from": str(before), "to": str(after),
                                                     "cause": cause.value, "at": str(as_date(now))})
@@ -608,7 +620,7 @@ class LoopHooks:
         if not items:
             return
         series = {kid: self._series(kid) for kid in self._kids()}
-        contra = {}
+        contra: dict[str, list] = {}
         for a, b in sorted(L._contradicts):
             w = float(L.index.contradictions(a).get(b, 0.0))
             for k in (a, b):
@@ -667,15 +679,16 @@ class LoopHooks:
             self._relate(a, "contradicting", b, learned, "contradiction triaged by the learner")
         if self._due(self.cfg.every_redundancy):
             self.redundancy_step(learned, now)
-        self.contra_last = self.contra_monitor.run_period(now)
+        report = self.contra_monitor.run_period(now)
+        self.contra_last = report
         self._fire("run_period")
         keys = set(g.contradiction_keys(now))
-        lost = sorted({tuple(t.pair) for t in self.contra_last.items} - keys)
+        lost = sorted({tuple(t.pair) for t in report.items} - keys)
         if lost:
             raise FirewallBreach(f"contradiction monitor tracks pairs the graph never held before {as_date(now)}: {lost[:3]}")
         self.contra_keys = len(keys)
         self.contra_signals = []
-        for q in self.contra_monitor.research_questions(self.contra_last):
+        for q in self.contra_monitor.research_questions(report):
             s = RPR.make_signal(RPR.SignalKind.CONTRADICTION, q["when"], self.token(q["subject"]), q["magnitude"],
                                 counterpart=self.token(q["counterpart"]), stake=q["stake"], n_obs=q["n_obs"], evidence=q["evidence"])
             if s.check():
@@ -731,6 +744,7 @@ class LoopHooks:
         learned = self._learned(ep)
         if self._due(self.cfg.every_questions):
             self.questions_step(now)
+            self.miner_step(now)
         if self._due(self.cfg.every_interpretation):
             self.interpretation_step(learned, now)
         self.unknowns_step(learned, now)
@@ -780,7 +794,7 @@ class LoopHooks:
             rec = IN.interpret(obs, rel, probes, str(as_date(now)), str(self.L._birth_date[kid]), subject=self.token(kid),
                                evidence_through=str(as_date(learned)))
             self.interpretations[kid] = rec
-            nt = IN.next_test(rec.belief)
+            nt = IN.next_test(rec.belief) if rec.belief is not None else None
             if nt is not None:
                 self.next_tests[kid] = nt
             self._fire("next_test")
@@ -863,7 +877,91 @@ class LoopHooks:
             self._fire("scorecard_not_storable")
             return
         self.scorecard_ids.append(self.scorecards.append(card))
+        self.valid_card = card
         self._fire("scorecard_append")
+
+    def miner_rows(self, now) -> list[dict]:
+        """The learner's own cell search written as PatternMiner rows: discovery = the weeks up to the item's birth (in-sample,
+        charged for every cell searched), confirmation = the weeks after it (held out).  One row per stored item."""
+        rows = []
+        for kid in self._kids():
+            s = self._series(kid)
+            s = s[s.index < pd.Timestamp(as_date(now))]
+            birth = pd.Timestamp(self.L._birth_date[kid])
+            disc, conf = s[s.index <= birth], s[s.index > birth]
+            md, sd, td = _t(disc.values)
+            mc, sc, tc = _t(conf.values)
+            rows.append({"key_named": self.token(kid), "effect": float(s.mean()) if len(s) else float("nan"),
+                         "t_disc": td if len(disc) >= 3 else None, "t_conf": tc if len(conf) >= 3 else None,
+                         "end_disc": str(disc.index.max().date()) if len(disc) else None,
+                         "end_conf": str(conf.index.max().date()) if len(conf) else None, "n_disc": len(disc), "n_conf": len(conf)})
+        return rows
+
+    def miner_step(self, now) -> None:
+        """Miner rows -> belief.evidence_from_pattern_row -> a staged BeliefLedger that keeps discovery (in-sample, multiplicity
+        charged) apart from confirmation (out of sample); the learner's own weekly beliefs are not touched (no double counting)."""
+        rows = self.miner_rows(now)
+        for r in rows:
+            ev = BL.evidence_from_pattern_row({k: v for k, v in r.items() if v is not None}, now, n_candidates=self.L._n_candidates(),
+                                              n_disc=r["n_disc"] or None, n_conf=r["n_conf"] or None, source="learner-cells")
+            self._fire("evidence_from_pattern_row")
+            if ev:
+                subject = ev[0].subject
+                if subject not in self.staged.subjects():
+                    self.staged.register(subject, 0.0, self.L.cfg.belief_prior_sd)
+                self.staged.update(subject, ev, now)
+        self.staged_rows = rows
+
+    def claim_evidence(self, kid: str, now) -> dict:
+        """Before a promotion attempt: the identity harness on the item's own rule over the recent panels, and the learner's latest
+        valid scorecard, registered with the wiring hub so PromotionGate's learning-claim gate judges real evidence. Recomputed
+        only when the item has a new version."""
+        from . import wiring as W
+        k = self.L.store.latest(kid)
+        key = f"{kid}@{k.version}"
+        if key in self.claims:
+            return self.claims[key]
+        out = {"identity": None, "scorecard": False}
+        rep = self.identity_report(kid)
+        if rep is not None:
+            W.register_identity(kid, rep)
+            out["identity"] = bool(rep.passed)
+        if self.valid_card is not None:
+            W.register_scorecard(kid, self.valid_card)
+            out["scorecard"] = True
+        self.claims[key] = out
+        self._fire("claim_evidence")
+        return out
+
+    def identity_report(self, kid: str):
+        """identity_firewall.IdentityHarness over the item's rule (sign x membership of its quantile cell, sign fitted on the
+        training half only) on the learner's recent panels: an identity-free rule must survive every identity attack."""
+        rec = self.L._recent
+        if len(rec) < 4:
+            return None
+        pid = self.L._pid_of[kid]
+        feat, lvl = pid.rsplit(":q", 1)
+        X = pd.concat([x[[feat]] for x, _ in rec if feat in x.columns])
+        y = pd.concat([e for x, e in rec if feat in x.columns])
+        dates = sorted(set(X.index.get_level_values(0)))
+        if len(dates) < 4:
+            return None
+        cut = dates[len(dates) // 2]
+        tr = X.index.get_level_values(0) < cut
+        n_q = self.L.cfg.n_quantiles
+
+        def rule(Xt, yt, Xe, seed):
+            def cell(Z):
+                r = Z[feat].groupby(level=0).rank(method="first")
+                n = Z[feat].groupby(level=0).transform("count")
+                return (((r - 1) * n_q) // n).clip(0, n_q - 1) == int(lvl)
+            m = cell(Xt).to_numpy()
+            sign = 1.0 if float(np.nanmean(yt.to_numpy()[m])) >= 0 else -1.0 if m.any() else 0.0
+            return pd.Series(sign * cell(Xe).astype(float).to_numpy(), index=Xe.index)
+
+        h = IDF.IdentityHarness(rule, seed=self.seed, boot=max(50, self.cfg.boot), min_dates=2)
+        self._fire("identity_harness")
+        return h.run(X[tr], y[tr], X[~tr], y[~tr])
 
     # ------------------------------------------------------------------------------------------------ SELECT RESEARCH
     def research_signals(self, learned: str, now) -> list:
@@ -924,6 +1022,8 @@ class LoopHooks:
         bits = {sc.candidate.cid: float(sc.eig_bits) for sc in keep}
         for eid in res["proposed"]:
             rec = self.experiments.get(eid, pd.Timestamp(as_date(now)) + pd.Timedelta(days=1))
+            if rec is None:
+                raise FirewallBreach(f"{eid} was proposed but the ledger cannot show it after {as_date(now)}")
             cid = eid[len("exp-"):] if eid.startswith("exp-") else eid
             cfgd = dict(rec.experiment.config)
             self.open_exps[eid] = OpenExperiment(eid, cid, bits.get(cid, 0.0), rec.created_at, str(cfgd.get("kind", "")),
@@ -991,13 +1091,16 @@ class LoopHooks:
             return None
         last = max([a for a, _ in post] + list(weeks)) if (post or weeks) else str(as_date(now))
         rec = self.experiments.get(ox.experiment_id, pd.Timestamp(as_date(now)) + pd.Timedelta(days=1))
-        probs = {e.outcome: e.probability for e in rec.expected_outcomes if e.hid == max(rec.competing_hypotheses, key=lambda h: h.prior).hid}
+        if rec is None:
+            raise FirewallBreach(f"open experiment {ox.experiment_id} is missing from the ledger")
+        lead = max(rec.competing_hypotheses, key=lambda h: float(h.prior)).hid
+        probs = {e.outcome: float(e.probability) for e in rec.expected_outcomes if e.hid == lead}
         if outcome == "inconclusive":
             kind = EM.ResultKind.MIXED
         elif outcome in ("vanishes_everywhere", "supports_noise"):
             kind = EM.ResultKind.NULL
         else:
-            kind = EM.ResultKind.CONFIRMED if probs and outcome == max(probs, key=probs.get) else EM.ResultKind.REFUTED
+            kind = EM.ResultKind.CONFIRMED if probs and outcome == max(probs, key=lambda o: probs[o]) else EM.ResultKind.REFUTED
         n = len(post)
         note = (f"with n={n} weeks the test could detect a mean of {2.8 * se:.4f} per week" if n and math.isfinite(se)
                 else "no evaluable subject: power undefined")
@@ -1038,7 +1141,7 @@ class LoopHooks:
         if self.root is None:
             return {}
         L, r = self.L, self.root
-        out = {"knowledge": L.store.dump(r / "knowledge.jsonl")}
+        out: dict[str, Any] = {"knowledge": L.store.dump(r / "knowledge.jsonl")}
         tmp = r / "beliefs.jsonl.part"
         L.beliefs.save_jsonl(tmp)
         os.replace(tmp, r / "beliefs.jsonl")
@@ -1051,6 +1154,9 @@ class LoopHooks:
         if self.contra_last is not None:
             _atomic_write(r / "contradiction_monitor.json", self.contra_monitor.dumps(self.contra_last))
         _atomic_write(r / "boundary_knowledge.json", canonical_json({k: v for k, v in sorted(self.boundary_shelf.items())}))
+        tmp = r / "staged_beliefs.jsonl.part"
+        self.staged.save_jsonl(tmp)
+        os.replace(tmp, r / "staged_beliefs.jsonl")
         self.dashboard = self.write_dashboard(now)
         _atomic_write(r / "loop_report.json", canonical_json(self.report()))
         out["files"] = len(list(r.glob("*")))
@@ -1060,10 +1166,12 @@ class LoopHooks:
 
     def write_dashboard(self, now) -> dict:
         """reports.health_dashboard over the artefacts just written, merged with the contradiction monitor's dashboard rows."""
+        if self.root is None:
+            return {}
         rd = self.root / "reports"
         rd.mkdir(parents=True, exist_ok=True)
         self.L.store.dump(rd / RE.ARTEFACTS["knowledge"])
-        rows = []
+        rows: list[dict] = []
         if self.contra_last is not None:
             for t in self.contra_last.items:
                 rows.append({"pair": list(t.pair), "verdict": "OPEN" if t.is_open else t.phase.value, "at": str(as_date(t.evidence_through))})
@@ -1090,6 +1198,7 @@ class LoopHooks:
                 "arenas": {self.token(k): {"leader": v["leader"], "separated": v["separated"]} for k, v in sorted(self.arenas.items())},
                 "boundary_knowledge": len(self.boundary_shelf), "calibration_cache": len(self.cal),
                 "value": None if a is None else {"portfolio_accept": a.portfolio_accept, "n_dates": a.n_dates},
+                "staged_beliefs": len(self.staged.subjects()), "claims": dict(list(self.claims.items())[-5:]),
                 "scorecards": list(self.scorecard_ids[-5:]), "scorecard_refusals": self.scorecard_refusals[-3:], "readiness": self.readiness_log[-5:],
                 "conflict_last": list(self.conflicts.values())[-1] if self.conflicts else None, "persisted": dict(self.persisted)}
 
@@ -1150,12 +1259,12 @@ class RunGuard:
         self.code_hash = code_hash
         self.every = max(1, int(every))
         self.store = CK.CheckpointStore(self.root / "checkpoints", self.run_id)
-        self.plan = None
+        self.plan: CK.ResumePlan | None = None
         self.stale = ""
         self.n = 0
-        self.last = None
-        self.spec = None
-        self.job_obj = None
+        self.last: CK.ExecutionState | None = None
+        self.spec: CO.ExperimentSpec | None = None
+        self.job_obj: Any = None
 
     def start(self, now) -> dict:
         try:
@@ -1181,10 +1290,52 @@ class RunGuard:
                              failures=(CK.FailureNote(str(as_date(now)), "on_tick", "ERROR", why[:200]),), notes={"day": str(self.n)})
         return CK.write_interruption(self.root / "INTERRUPTED.json", CK.InterruptionRecord.from_state(st, why[:200]))
 
+    def run_harness_process(self, params: Mapping[str, Any], seed: int, as_of, timeout_s: float = 900.0, free_fn=None) -> dict:
+        """compute.run_experiment_process: the same-year harness run as a REAL worker process under the compute ledger (the
+        2.5 GB admission rule, its own logs, the ledger settled with whatever happened)."""
+        import time as _time
+        spec = CO.ExperimentSpec("same_year_harness", dict(params), int(seed), str(as_date(as_of)), est_gb=1.0)
+        ledger = CO.ExperimentLedger(self.root / "compute_ledger.json")
+        sub = ledger.submit(spec, _time.time(), self.code_hash)
+        out = CO.run_experiment_process(spec, ledger, self.root / "runs", self.root / "work", _time.time(), timeout_s=timeout_s,
+                                        modules=("engine.learning.loop_hooks",), free_fn=free_fn)
+        return {"submitted": sub.action, **{k: v for k, v in out.items() if k != "result"}}
+
     def job(self, name: str, params: Mapping[str, Any], seed: int, as_of) -> Any:
-        self.spec = CO.ExperimentSpec(name, dict(params), int(seed), str(as_date(as_of)))
-        self.job_obj = CO.job_for(self.spec, self.root / "specs", self.root / "runs", self.root / "compute_ledger.json")
+        spec = CO.ExperimentSpec(name, dict(params), int(seed), str(as_date(as_of)))
+        self.spec = spec
+        self.job_obj = CO.job_for(spec, self.root / "specs", self.root / "runs", self.root / "compute_ledger.json")
         return self.job_obj
+
+
+def append_curve_record(path: str | Path, rec: Mapping[str, Any]) -> list[dict]:
+    """One run's record appended to the lineage's curve file (append-only JSON lines); returns every record so far."""
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    with open(p, "ab") as f:
+        f.write((json.dumps(dict(rec), sort_keys=True, default=str) + "\n").encode("utf-8"))
+    return [json.loads(x) for x in p.read_text(encoding="utf-8").splitlines() if x.strip()]
+
+
+def curve_report(recs: Sequence[Mapping[str, Any]], tag: str = "legit") -> dict:
+    """learning_curve.curve_from_play_records over the runs of one lineage and learning_curve.delta_from_records over any paired
+    reruns among them. A chain of different windows has no same-situation pairs, so the delta says INSUFFICIENT until blind reruns
+    of one year (C54/C55) add run1/run2 records: that is the honest verdict, not a gap."""
+    curve = LCV.curve_from_play_records(list(recs), tag=tag, name=f"test-path:{tag}",
+                                        knowledge_of=lambda r: int(r.get("knowledge", 0)))
+    delta = LCV.delta_from_records(list(recs), min_pairs=3)
+    gains = curve.column("same_year_gain") if len(curve) else np.array([])
+    return {"points": len(curve), "last_same_year_gain": float(gains[-1]) if len(gains) else None, "fingerprint": curve.fingerprint(),
+            "delta_pairs": delta.n_pairs, "delta_states": {k: str(v) for k, v in delta.states().items()}}
+
+
+@CO.register_worker("same_year_harness")
+def _same_year_worker(spec, ctx) -> dict:
+    """The same-year harness as a compute worker (run in its own process by RunGuard.run_harness_process)."""
+    from . import planted_world as PW
+    p = dict(spec.params)
+    world = PW.make_world(PW.standard_spec(int(p.get("weeks", 52)), int(p.get("stocks", 40))), int(p.get("world_seed", spec.seed)))
+    return run_same_year_harness(world, n_runs=int(p.get("n_runs", 3)), seed=spec.seed, modes=tuple(p.get("modes", ("fresh_plain",))))
 
 
 def run_same_year_harness(world, n_runs: int = 6, seed: int = 0, probe: bool = False, modes: Sequence[str] | None = None) -> dict:

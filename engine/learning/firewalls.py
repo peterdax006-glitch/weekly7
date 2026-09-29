@@ -648,13 +648,14 @@ class MemoryFirewall(FirewallLayer):
 
 def store_findings(store, now, layer, subject: str, items: Sequence | None = None) -> tuple[list[Finding], int]:
     """The store read the only legal way: each item as the version that existed strictly before `now` (KnowledgeStore.as_of),
-    and anything the store holds that would be a future-memory leak at `now` (knowledge.audit_future) reported.  Future versions
-    that the caller merely keeps are INFO (the store hides them); an item in play that is not the as_of version is a FAIL."""
+    and every version dated before `now` whose provenance says it could not have been known then (knowledge.audit_future) is a
+    FAIL (a future-memory leak). A later version the store merely keeps is not a finding (as_of hides it), but an item in play
+    that is not the as_of version is a FAIL."""
     from .knowledge import audit_future
     out: list[Finding] = []
     visible = {kid: store.as_of(kid, now) for kid in store.ids()}
     for msg in audit_future(store, now):
-        out.append(info(layer, "store-holds-future", subject, f"hidden by as_of: {msg}"[:200]))
+        out.append(fail(layer, "store-future-memory", subject, msg[:200]))
     for it in items or ():
         kid = str(field_of(it, "knowledge_id", ""))
         seen = visible.get(kid)

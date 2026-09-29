@@ -65,6 +65,7 @@ from . import situation as ST
 from . import surprise as SU
 from . import temporal as TP
 from . import transfer as TR
+from . import wiring as W
 from .core import (Confidence, DecisionEffect, Epistemic, FailureCause, FirewallBreach, Lifecycle, Promotion, Subsystem, TemporalClass,
                    as_date, current_code_hash, require_past, stable_hash)
 
@@ -175,9 +176,12 @@ class LearnerConfig:
     transfer_every: int = 16
     similarity: SM.SimilarityWeights | None = None
     hooks: LH.HookConfig = LH.HookConfig()
+    learning_claim: str = "enforce"           # PromotionGate's learning-claim gate (scorecard + firewalls + identity)
 
     def validate(self) -> list[str]:
         errs = [f"hooks: {e}" for e in self.hooks.validate()]
+        if self.learning_claim not in PR.LEARNING_CLAIM_MODES:
+            errs.append(f"learning_claim must be one of {PR.LEARNING_CLAIM_MODES}")
         if self.horizon_days < 1:
             errs.append("horizon_days < 1")
         if self.top_n < 1:
@@ -354,7 +358,7 @@ class LegitimateLearner:
         self.next_questions: tuple = ()
         # ---- promotion machinery
         pol = c.promotion_policy or PR.PromotionPolicy()
-        self.board = CH.KnowledgeBoard(self.workdir / "board.jsonl", gate=PR.PromotionGate(pol, code_hash=self.code_hash),
+        self.board = CH.KnowledgeBoard(self.workdir / "board.jsonl", gate=PR.PromotionGate(pol, code_hash=self.code_hash, learning_claim=c.learning_claim),
                                        policy=c.board_policy)
         # ---- bookkeeping
         self.trace: list[StageEvent] = []
@@ -1086,6 +1090,7 @@ class LegitimateLearner:
         elif m.role == Promotion.CHALLENGER and len(m.shadow) >= self._min_sessions_for_gate() and self._tick % self.cfg.discover_every == 0:
             k = self.store.get(kid, m.version)                # the board gates the exact version it registered
             self.hooks.readiness(self.store.latest(kid), now)
+            self.hooks.claim_evidence(kid, now)           # identity report + scorecard registered for the learning-claim gate
             res = self.board.attempt_promotion(k, self._promotion_evidence(kid, pid, now, learned), now)
             self._gate_log.append((kid, res["promoted"], tuple(res["decision"].critical_failures)))
             if res["promoted"]:
@@ -1401,6 +1406,9 @@ class LegitimateLearner:
         self.stage_assess(ep)
         self.stage_expectations(ep)
         self.stage_decide(ep)
+        if track:                                         # the hub audits which board members carried weight in this run
+            W.note_use(ep.eid, sorted({self._mid[p[0]] for r in ep.rows for p in r.parts if p[0] in self._mid}))
+            W.end_decision_run(ep.eid)
         if track and not self.frozen:
             self.pending[ep.eid] = ep
         return ep

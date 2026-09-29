@@ -36,7 +36,9 @@ import pandas as pd
 from .core import FirewallBreach, TemporalClass, as_date, stable_hash
 from .curator import Curator, RelevanceConfig
 from .learner import EpisodeSummary, LearnerConfig, LegitimateLearner
-from .loop_hooks import RunGuard, run_same_year_harness, safe_token
+from . import research_policy as RP
+from . import wiring as W
+from .loop_hooks import RunGuard, append_curve_record, curve_report, run_same_year_harness, safe_token
 from .trader_view import (CURATOR_SYMBOLS, STORE_MARKERS, TraderDay, TraderRelease, assert_trader_safe, find_violations, opaque_token,
                           release_year_hits)
 
@@ -69,6 +71,7 @@ class PathConfig:
     check_path: bool = True              # run trader_view.assert_trader_path_clean when a runner is built
     learn_root: str | None = None        # where the learner persists what it learns (None: <store_root>/../loop, or a temp dir)
     checkpoint_every: int = 20           # sessions between progress checkpoints of the run (checkpoints.CheckpointStore)
+    harness_runs: int = 0                # >0: after the window, run the same-year harness this many runs as a REAL worker process
 
     def validate(self) -> list[str]:
         errs = []
@@ -88,8 +91,8 @@ class PathConfig:
             errs.append("no candidate features")
         if not 0.0 < self.min_feature_coverage <= 1.0:
             errs.append("min_feature_coverage outside (0, 1]")
-        if self.checkpoint_every < 1:
-            errs.append("checkpoint_every < 1")
+        if self.checkpoint_every < 1 or self.harness_runs < 0:
+            errs.append("checkpoint_every >= 1 and harness_runs >= 0")
         return errs
 
     def digest(self) -> str:
@@ -419,6 +422,10 @@ class PathRunner:
             self.guard.job("test_path", {"config": self.cfg.digest(), "run": self.run_key}, self.cfg.seed, feed.now)
             self.resume = self.guard.start(feed.now)
         self._finalised = False
+        self.hub_periods = 0
+        self.curve: dict = {}
+        if W.HUB.enabled:                                  # production hub (livesim_loop2 --learner legit): audit on the learner's board
+            W.configure(board=self.learner.board)
         self.trader = PathTrader(self.learner, self.cfg)
         self.book = OutcomeBook(self.cfg.horizon_sessions)
         self.filer = MemoryFiler(self.curator, self.clock, self.cfg)
@@ -536,7 +543,23 @@ class PathRunner:
             self.book.record(now, panel.index)
         if res.learned:
             self.filer.file(self.learner, res.learned, self._states)
+            self._hub_period(now)
         self.results.append(res)
+
+    def _hub_period(self, now: pd.Timestamp) -> None:
+        """The hub's S20 period loop, once per learned period: its contradiction monitor runs over the hub graph, its open
+        contradictions go through research_step into the learner's own research engine (one queue, one ledger), the plan is closed
+        by the loop's proposer, and the dashboard inputs are written beside the learner's store. Inert while the hub is off."""
+        rep = W.on_period(now)
+        if rep is None:
+            return
+        L = self.learner
+        step = W.research_step(rep, L.research, L.experiments, RP.ComputeBudget(cpu_minutes=L.cfg.cpu_minutes, ram_gb_free=8.0), now,
+                               self.cfg.seed)
+        L.hooks.close_research(step, L.last_learned_on or str(now.date()), now)
+        if self.learn_root is not None:
+            W.write_dashboard_inputs(rep, Path(self.learn_root) / "hub_dashboard")
+        self.hub_periods += 1
 
     # ---- audit and report
     def findings(self) -> list:
@@ -575,6 +598,15 @@ class PathRunner:
         if self.guard is not None:
             self.guard.store.save(str(pd.Timestamp(self.feed.now).date()), "test_path", "done: read the report", self.learner.code_hash,
                                   notes={"day": str(self.guard.n), "final": "1"})
+        if self.learn_root is not None:                    # one curve record per run, appended to the lineage's file
+            L = self.learner
+            longs = [s.mean_edge_long for s in L.summaries if s.learned and s.mean_edge_long is not None]
+            recs = append_curve_record(Path(self.learn_root).parent / "curve_records.jsonl",
+                                       {"tag": "legit", "run": self.run_key, "config": self.cfg.digest(), "mean_week": float(np.mean(longs)) if longs else 0.0,
+                                        "weeks": len(longs), "knowledge": len(L._pid_of), "production": len(L.production_ids())})
+            self.curve = curve_report(recs)
+            if self.cfg.harness_runs and self.guard is not None:
+                self.curve["harness"] = self.guard.run_harness_process({"n_runs": self.cfg.harness_runs}, self.cfg.seed, self.feed.now)
         return out
 
     def report(self) -> dict:
@@ -599,6 +631,7 @@ class PathRunner:
                             "hooks": {k: v for k, v in rep["hooks"].items() if k in ("fired", "rows", "open_experiments", "persisted")}},
                 "run": None if self.guard is None else {"key": self.run_key, "resume": self.resume, "job": self.guard.spec.key,
                                                         "checkpoints": len(self.guard.store.sequences())},
+                "hub_periods": self.hub_periods, "curve": dict(self.curve),
                 "findings": [f"{f.severity}:{f.gate}:{f.message}" for f in self.findings()]}
 
 
