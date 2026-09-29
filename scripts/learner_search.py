@@ -65,7 +65,9 @@ def choose_past_pairs(pool, n_pairs, seed, gap_years=3, min_hist=8):
 
 
 def make_book(pool, out):
-    """A Book whose panels are built lazily from the archived windows and cached on disk (panels/<id>.npz)."""
+    """A Book whose panels are built lazily from the archived windows and cached on disk (panels/<id>.npz). The cache is shared by
+    every tag (OUT/_cache): ledgers are keyed by a hash of the evaluator source, so a code edit cannot reuse stale numbers."""
+    out = OUT / "_cache"
     book = LR.Book(cache_dir=out / "ledgers")
     (out / "panels").mkdir(parents=True, exist_ok=True)
 
@@ -109,12 +111,24 @@ def fmt(x):
     return "n/a" if x is None or not np.isfinite(x) else f"{x:+.5f}"
 
 
+def tiered(agg, design):
+    """Canon C39 judgement on the past-only transfer deltas. PASS = the design metric's CI is above zero AND no higher-priority or
+    risk tier is significantly worse (a tier is 'worse' when the whole CI is below zero): tier 1 in_band, tier 2 worst5 and max_dd.
+    Returns {passed, design_ok, harms}."""
+    m = agg["headline"]["metrics"]
+    design_ok = bool(m[design]["lo"] > 0)
+    harms = [k for k in ("in_band", "worst5", "max_dd") if m[k]["n"] > 1 and m[k]["hi"] < 0]
+    return {"design_ok": design_ok, "harms": harms, "passed": bool(design_ok and not harms)}
+
+
 def learner_report(name, recs, agg, design):
     h = agg["headline"]
     L_ = [f"## {name}", ""]
     t = h["metrics"][design]
+    tv = tiered(agg, design)
     L_.append(f"Design metric **{design}**: past-only transfer {fmt(t['mean'])} [{fmt(t['lo'])}, {fmt(t['hi'])}] over {t['n']} pairs -> "
-              f"**{'PASS' if t['lo'] > 0 else 'no pass'}**; headline verdict on weekly mean: {h['verdict']['label']}")
+              f"**{'PASS' if tv['passed'] else 'no pass'}** (design metric {'up' if tv['design_ok'] else 'not shown up'}; tiers significantly "
+              f"worse: {', '.join(tv['harms']) or 'none'}); headline verdict on weekly mean: {h['verdict']['label']}")
     L_ += ["", "| metric | transfer delta (past-only) | same-year delta | gap (memorisation) | noise ctrl |", "|---|---|---|---|---|"]
     for m in L.METRICS:
         r, ht = agg["metrics"][m], h["metrics"][m]
@@ -220,13 +234,14 @@ def main():
              f"{'VALID' if lsc['valid'] else 'INVALID'}; real-window memoriser control "
              f"{'seen' if memo_ok else 'NOT seen' if memo_ok is False else 'not run'}. {'' if valid else 'NO VERDICT BELOW MAY BE USED.'}",
              "", "Pairs (learning window -> later transfer window): " + ", ".join(f"{p['window']}->{p['transfer']}" for p in summary["pairs"]), "",
-             "A learner PASSES only if the past-only transfer delta of its design metric has a 95% CI above zero. Eight metrics x six "
+             "A learner PASSES only if the past-only transfer delta of its design metric has a 95% CI above zero AND no tier (in_band, worst5, max_dd) is significantly worse (C39). Eight metrics x six "
              "learners are looked at, so one lone marginal pass is suggestive, not proof.", ""]
     passed = []
     for name, recs in all_recs.items():
         agg = summary["learners"][name]["aggregate"]
         lines += [learner_report(name, recs, agg, DESIGN_METRIC[name]), ""]
-        if agg["headline"]["metrics"][DESIGN_METRIC[name]]["lo"] > 0:
+        summary["learners"][name]["tiered"] = tiered(agg, DESIGN_METRIC[name])
+        if summary["learners"][name]["tiered"]["passed"]:
             passed.append(name)
     lines += ["## Verdict", "", f"Passing learners: {', '.join(passed) if passed else 'none'}", "",
               "## What this does not prove", "",

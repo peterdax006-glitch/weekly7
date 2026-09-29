@@ -572,6 +572,18 @@ class Scored:
         return self.gate.passed and self.guard_ok and self.gate.shrunk > 0
 
 
+def _harm(d, tol):
+    """A guard trips only on EVIDENCE of harm: the mean per-year change is below the tolerance AND is distinguishable from noise
+    (t <= -1). A point estimate a hair below zero on a noisy metric is not harm; a consistent loss is."""
+    d = np.asarray(d, float)
+    if len(d) == 0 or d.mean() >= tol:
+        return False
+    if len(d) < 3:
+        return True
+    sd = d.std(ddof=1)
+    return bool(sd == 0 or d.mean() / (sd / np.sqrt(len(d))) <= -1.0)
+
+
 def familywise_t(deltas, gp, n_perm=1000, seed=0):
     """Best-of-many correction. Searching M candidates and keeping the best inflates t: with ~50 candidates the best of pure noise
     reaches t ~ 2.5 routinely (seen in the planted flip world, seed 7). The critical t is the (1 - fwer) quantile of the MAXIMUM t over
@@ -604,12 +616,13 @@ def score_candidates(book, ids, base, cands, metric, gp=GateParams(), sub=None):
     for c in cands:
         r = {w: book.returns(w, c) for w in use}
         dm = np.array([series_metric(r[w][masks[w]], metric) for w in use]) - b_m
-        gm = float(np.mean([series_metric(r[w][masks[w]], "mean_week") for w in use] - b_mean))
-        g5 = float(np.mean([series_metric(r[w][masks[w]], "worst5") for w in use] - b_w5))
+        gm = np.array([series_metric(r[w][masks[w]], "mean_week") for w in use]) - b_mean
+        g5 = np.array([series_metric(r[w][masks[w]], "worst5") for w in use]) - b_w5
         rows.append((c, dm, gm, g5))
     crit = familywise_t([r[1] for r in rows], gp)
     gpc = replace(gp, t_min=max(gp.t_min, crit))
-    out = [Scored(c, gate(dm, gpc), gm, g5, gm >= gp.guard_mean_tol and g5 >= gp.guard_worst5_tol, crit) for c, dm, gm, g5 in rows]
+    out = [Scored(c, gate(dm, gpc), float(np.mean(gm)), float(np.mean(g5)),
+                  not (_harm(gm, gp.guard_mean_tol) or _harm(g5, gp.guard_worst5_tol)), crit) for c, dm, gm, g5 in rows]
     out.sort(key=lambda s: -s.gate.shrunk)
     return out
 

@@ -334,3 +334,29 @@ def test_series_metric_and_unknown_metric():
     assert np.isnan(LR.series_metric([], "in_band"))
     with pytest.raises(ValueError):
         LR.series_metric(w, "sharpe")
+
+
+# ------------------------------------------------------------------------------------------------ best-of-many correction and guards
+def test_familywise_threshold_grows_with_the_number_of_candidates():
+    rng = np.random.default_rng(0)
+    few = LR.familywise_t([rng.normal(size=14) for _ in range(2)], LR.GateParams())
+    many = LR.familywise_t([rng.normal(size=14) for _ in range(60)], LR.GateParams())
+    assert many > few > 0 and many > 2.5
+    assert LR.familywise_t([rng.normal(size=14)], LR.GateParams()) == 0.0        # one candidate: no search, no correction
+
+
+def test_best_of_many_noise_is_not_adopted_but_a_real_effect_is():
+    """Planted defect for the gate: 60 noise candidates plus one real one. Best-of-noise alone reaches t ~ 2.5; only the real effect
+    beats the family-wise threshold."""
+    rng = np.random.default_rng(3)
+    noise = [rng.normal(0, 0.02, 14) for _ in range(60)]
+    crit = LR.familywise_t(noise, LR.GateParams())
+    assert max(LR.gate(d).t for d in noise) < crit + 1.0            # the search alone would flirt with t_min
+    real = 0.03 + rng.normal(0, 0.01, 14)
+    assert LR.gate(real, dataclasses.replace(LR.GateParams(), t_min=crit)).passed
+
+
+def test_guard_trips_on_evidence_of_harm_not_on_noise():
+    assert not LR._harm(np.array([-0.001, 0.002, -0.0005, 0.001, 0.0, -0.0004, 0.0012]), -0.0003)   # a wobble is not harm
+    assert LR._harm(np.array([-0.01, -0.012, -0.008, -0.011, -0.009]), -0.0003)                   # a consistent loss is
+    assert not LR._harm(np.array([]), -0.0003)
