@@ -1,0 +1,11 @@
+{
+ "pattern_slope": 0.010907141815666897,
+ "pattern_diff": 0.06933855618300062,
+ "reset_slope": 4.238411650614883e-19,
+ "identity_disguised_slope": -6.886550512917742e-19,
+ "identity_undisguised_slope": 0.0034336402376014354,
+ "pattern_verdict": "SAME_YEAR_LEARNING",
+ "identity_undisguised_verdict": "IDENTITY_LEAK",
+ "leak_gate_caught": true,
+ "valid": true
+}

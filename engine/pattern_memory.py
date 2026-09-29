@@ -448,10 +448,10 @@ class PatternMemory:
 
     def _matured(self, real_now):
         """Observations with mature_date < real_now (strict), de-duplicated to the latest record per (key, obs_date)."""
-        now = _day(real_now)
+        iso = _iso(real_now)                      # ISO dates order lexicographically: no per-record Timestamp parsing
         latest = {}
         for r in self._recs:
-            if r["kind"] == "obs" and pd.Timestamp(r["body"]["mature_date"]) < now:
+            if r["kind"] == "obs" and r["body"]["mature_date"] < iso:
                 latest[(r["body"]["key"], r["body"]["obs_date"])] = r["body"]
         return list(latest.values())
 

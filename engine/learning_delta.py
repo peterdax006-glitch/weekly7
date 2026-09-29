@@ -1496,14 +1496,14 @@ def play_curve(window, player, learner, s0, steps, seed, arm="main", reset=False
 
 def plateau_index(values, win=5, tol=None):
     """First run index from which the smoothed curve (trailing mean of `win`) stays within `tol` of where it was then.
-    None when the series is too short to say, or never settles. tol defaults to the run-to-run sd / sqrt(win): the size of
-    noise in the smoothed line. A flat series plateaus at its first smoothed point."""
+    None when the series is too short to say, or never settles. tol defaults to sd / (2 sqrt(win)); at least `win` smoothed points must remain after it, so a curve still climbing at the
+    end has no plateau. A flat series plateaus at its first smoothed point."""
     v = np.asarray([x for x in values], float)
     if len(v) < 2 * win or not np.isfinite(v).all():
         return None
     sm = np.convolve(v, np.ones(win) / win, mode="valid")
-    tol = float(v.std() / math.sqrt(win)) if tol is None else tol
-    for j in range(len(sm)):
+    tol = float(v.std() / (2 * math.sqrt(win))) if tol is None else tol
+    for j in range(len(sm) - win + 1):                       # a plateau needs at least `win` smoothed points still to come
         if np.abs(sm[j:] - sm[j]).max() <= max(tol, 1e-12):
             return int(j + win - 1)
     return None
@@ -1699,10 +1699,14 @@ def render_curve_report(summary):
          f"**{'VALID' if summary['selfcheck']['valid'] else 'INVALID - no verdict may be used'}**", ""]
     ws = summary["windows"]
     good = [w for w in ws if w["verdict"]["label"] == "SAME_YEAR_LEARNING"]
+    fam = summary.get("n_tests_family", 0)
     L += [f"Windows showing a rising same-year curve: {len(good)} of {len(ws)}. Every run used a fresh disguise (new order-preserving codes and "
-          f"a new date shift); memory was carried forward and never wiped.", "",
-          "| window | era | runs | first-5 mean_week | last-5 | diff [CI] | slope/run [CI] | plateau | reset ctrl slope | identity ctrl slope | verdict |",
-          "|---|---|---|---|---|---|---|---|---|---|---|"]
+          f"a new date shift); memory was carried forward and never wiped, and released to each run only as evidence whose outcome had matured "
+          f"by that simulated moment (C58, checked independently after every run).",
+          f"Multiple-testing bar: {fam} candidate patterns were tried across all runs and windows, so the slope must beat p < {alpha_bar(fam):.2g} "
+          f"(0.05 / {max(fam, 1)}).", "",
+          "| window | era | runs | first-5 mean_week | last-5 | diff [CI] | slope/run [CI] | plateau | reset ctrl slope | identity ctrl slope | perm p | verdict |",
+          "|---|---|---|---|---|---|---|---|---|---|---|---|"]
     f = lambda x: "n/a" if x is None or not np.isfinite(x) else f"{x:+.5f}"
     for w in ws:
         m = w["curve"][PRIMARY]
@@ -1710,7 +1714,7 @@ def render_curve_report(summary):
         ic = w.get("identity_curve", {}).get(PRIMARY, {})
         L.append(f"| {w['window']} | {w['era']} | {m['n']} | {f(m['first'])} | {f(m['last'])} | {f(m['diff'])} [{f(m['diff_lo'])}, {f(m['diff_hi'])}] | "
                  f"{f(m['slope'])} [{f(m['slope_lo'])}, {f(m['slope_hi'])}] | {'run ' + str(m['plateau'] + 1) if m.get('plateau') is not None else 'none'} | "
-                 f"{f(rs.get('slope'))} | {f(ic.get('slope'))} | {w['verdict']['label']} |")
+                 f"{f(rs.get('slope'))} | {f(ic.get('slope'))} | {m.get('perm_p', float('nan')):.2g} | {w['verdict']['label']} |")
     L += ["", "## Other metrics (slope per run, last-5 minus first-5)", "", "| window | " + " | ".join(METRICS) + " |", "|---|" + "---|" * len(METRICS)]
     for w in ws:
         L.append(f"| {w['window']} | " + " | ".join(f"{f(w['curve'][m]['slope'])} / {f(w['curve'][m]['diff'])}" for m in METRICS) + " |")

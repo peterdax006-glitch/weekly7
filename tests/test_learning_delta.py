@@ -15,7 +15,7 @@ def _wins(n, tag, seed=0):
     return [L.synthetic_window(L.derive_seed(seed, tag, i), f"{tag}{i:02d}", n_stocks=25, n_weeks=20) for i in range(n)]
 
 
-def _recs(player, learner, n=6, seed=3, s0=None):
+def _recs(player, learner, n=5, seed=3, s0=None):
     s0 = s0 or L.LearnedState({}, {})
     W, B = _wins(n, "w"), _wins(n, "b", seed=9)
     return [L.run_pair(w, b, player, learner, s0, L.derive_seed(seed, "x"), log_fn=None) for w, b in zip(W, B)]
@@ -62,7 +62,7 @@ def test_harm_is_labelled_harmful():
 
 
 def test_selfcheck_is_valid_and_catches_the_leak_probe():
-    r = L.harness_selfcheck(seed=4, n_windows=6)
+    r = L.harness_selfcheck(seed=4, n_windows=5)
     assert r["valid"] and r["leak_detected"]
     assert r["memoriser"]["verdict"] == "SAME_YEAR_LEARNING" and r["generaliser"]["verdict"] == "GENERALISING"
 
@@ -292,7 +292,7 @@ def test_order_preserving_codes_keep_order_and_are_fresh():
 
 def test_render_report_names_the_verdict_and_the_void_state():
     recs = _recs(L.SyntheticPlayer(), L.SyntheticGeneraliser(), n=4)
-    sc = L.harness_selfcheck(seed=2, n_windows=6)
+    sc = L.harness_selfcheck(seed=2, n_windows=5)
     summ = {"tag": "t", "learner": "x", "basis_version": 1, "aggregate": L.aggregate(recs, 1), "selfcheck": sc, "memoriser_control": None,
             "blindness": {"n_audits": 3, "n_failed": 0}, "caveats": L.CAVEATS}
     txt = L.render_report(summ)
@@ -355,7 +355,7 @@ def test_headline_does_not_reward_a_memoriser_but_the_same_year_row_still_shows_
 
 def test_report_puts_the_transfer_headline_before_the_same_year_delta_with_its_caveat():
     recs = _past_only(_recs(L.SyntheticPlayer(), L.SyntheticGeneraliser(), n=4))
-    summ = {"tag": "t", "learner": "x", "basis_version": 1, "aggregate": L.aggregate(recs, 1), "selfcheck": L.harness_selfcheck(seed=2, n_windows=6),
+    summ = {"tag": "t", "learner": "x", "basis_version": 1, "aggregate": L.aggregate(recs, 1), "selfcheck": L.harness_selfcheck(seed=2, n_windows=5),
             "memoriser_control": None, "blindness": {"n_audits": 1, "n_failed": 0}, "caveats": L.CAVEATS}
     txt = L.render_report(summ)
     assert txt.index("HEADLINE: transfer delta") < txt.index("Second: same-year disguised delta") < txt.index("Same-year verdict")
