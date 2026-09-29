@@ -7,67 +7,67 @@
    "warnings": 0
   },
   "import_boundaries": {
-   "seconds": 2.648,
+   "seconds": 2.623,
    "errors": 0,
    "warnings": 0
   },
   "bare_except": {
-   "seconds": 1.09,
+   "seconds": 1.061,
    "errors": 0,
    "warnings": 9
   },
   "print_debug": {
-   "seconds": 1.212,
+   "seconds": 1.175,
    "errors": 2,
    "warnings": 0
   },
   "network_in_tests": {
-   "seconds": 1.145,
+   "seconds": 1.139,
    "errors": 14,
    "warnings": 0
   },
   "tests_touch_data": {
-   "seconds": 0.592,
+   "seconds": 0.585,
    "errors": 13,
    "warnings": 0
   },
   "randomness": {
-   "seconds": 3.384,
+   "seconds": 3.322,
    "errors": 5,
    "warnings": 0
   },
   "wall_clock": {
-   "seconds": 1.034,
+   "seconds": 1.015,
    "errors": 0,
    "warnings": 9
   },
   "test_hygiene": {
-   "seconds": 1.176,
+   "seconds": 1.129,
    "errors": 0,
    "warnings": 0
   },
   "mutable_defaults": {
-   "seconds": 1.334,
+   "seconds": 1.303,
    "errors": 0,
    "warnings": 0
   },
   "hidden_global_state": {
-   "seconds": 1.084,
+   "seconds": 1.058,
    "errors": 0,
    "warnings": 2
   },
   "giant_functions": {
-   "seconds": 1.329,
+   "seconds": 1.296,
    "errors": 0,
    "warnings": 6
   },
   "duplicates": {
-   "seconds": 9.063,
+   "seconds": 8.946,
    "errors": 0,
    "warnings": 1
   },
   "magic_constants": {
-   "seconds": 2.462,
+   "seconds": 2.501,
    "errors": 0,
    "warnings": 88
   },
@@ -77,9 +77,9 @@
    "warnings": 22
   },
   "inventory": {
-   "seconds": 4.481,
+   "seconds": 4.26,
    "errors": 0,
-   "warnings": 36
+   "warnings": 37
   }
  },
  "findings": [
@@ -178,7 +178,7 @@
    "check": "giant_functions",
    "severity": "warning",
    "path": "scripts/livesim_loop2.py",
-   "line": 365,
+   "line": 367,
    "msg": "main is 146 lines (review above 120)"
   },
   {
@@ -402,6 +402,13 @@
    "check": "inventory",
    "severity": "warning",
    "path": "tests/test_learning_properties.py",
+   "line": 1,
+   "msg": "test file maps to no Bible phase or checklist item"
+  },
+  {
+   "check": "inventory",
+   "severity": "warning",
+   "path": "tests/test_learning_reachability_loop.py",
    "line": 1,
    "msg": "test file maps to no Bible phase or checklist item"
   },
@@ -738,14 +745,14 @@
    "check": "magic_constants",
    "severity": "warning",
    "path": "engine/learning/learner.py",
-   "line": 100,
+   "line": 101,
    "msg": "DECISION_STAGES has no comment saying why it has this value"
   },
   {
    "check": "magic_constants",
    "severity": "warning",
    "path": "engine/learning/learner.py",
-   "line": 101,
+   "line": 102,
    "msg": "LEARNING_STAGES has no comment saying why it has this value"
   },
   {
