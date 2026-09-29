@@ -89,8 +89,26 @@ def test_integrity_fails_closed_on_tampered_bible(tmp_path, monkeypatch):
     for sub in ("canon",):
         shutil.copytree(real / sub, tmp_path / sub)
     shutil.copy(real / "BIBLE.md", tmp_path / "BIBLE.md")
+    shutil.copy(real / "SELF_LEARNING_CONTRACT.md", tmp_path / "SELF_LEARNING_CONTRACT.md")
     monkeypatch.setattr(P, "ROOT", tmp_path)
     assert P.verify_integrity() is True
     (tmp_path / "BIBLE.md").write_text((tmp_path / "BIBLE.md").read_text(encoding="utf-8") + "\nextra rule\n", encoding="utf-8")
+    with pytest.raises(P.IntegrityError):
+        P.verify_integrity()
+
+
+@pytest.mark.parametrize("tamper", ["edit", "delete"])
+def test_integrity_fails_closed_on_tampered_or_missing_contract(tmp_path, monkeypatch, tamper):
+    real = P.ROOT
+    shutil.copytree(real / "canon", tmp_path / "canon")
+    shutil.copy(real / "BIBLE.md", tmp_path / "BIBLE.md")
+    shutil.copy(real / "SELF_LEARNING_CONTRACT.md", tmp_path / "SELF_LEARNING_CONTRACT.md")
+    monkeypatch.setattr(P, "ROOT", tmp_path)
+    assert P.verify_integrity() is True
+    c = tmp_path / "SELF_LEARNING_CONTRACT.md"
+    if tamper == "edit":
+        c.write_text(c.read_text(encoding="utf-8").replace("BEGIN NOW.", "BEGIN LATER."), encoding="utf-8")
+    else:
+        c.unlink()
     with pytest.raises(P.IntegrityError):
         P.verify_integrity()

@@ -46,7 +46,10 @@ def verify_integrity():
     cl = ROOT / "canon" / "contract.lock.json"               # the owner's Self-Learning contract (C62), same rule
     if cl.exists():
         want = json.loads(cl.read_text(encoding="utf-8"))["sha256"]
-        got = hashlib.sha256((ROOT / "SELF_LEARNING_CONTRACT.md").read_text(encoding="utf-8").rstrip("\n").encode("utf-8")).hexdigest()
+        cf = ROOT / "SELF_LEARNING_CONTRACT.md"
+        if not cf.exists():
+            raise IntegrityError("SELF_LEARNING_CONTRACT.md missing while its lock exists")
+        got = hashlib.sha256(cf.read_text(encoding="utf-8").rstrip("\n").encode("utf-8")).hexdigest()
         if got != want:
             raise IntegrityError("SELF_LEARNING_CONTRACT.md altered")
     return True

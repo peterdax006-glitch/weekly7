@@ -16,16 +16,22 @@
    "phase": "A FOUNDATION",
    "description": "Define KnowledgeObject.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/pattern_identity.py::PatternRecord",
+    "engine/lessons.py::Lesson",
+    "engine/memory.py::Lesson"
+   ],
+   "tests": [
+    "tests/test_pattern_identity.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial][duplicated] Typed PatternRecord (validated, hashed) covers patterns only; ~15 of ~60 contract fields. Three other record types hold knowledge (lessons.Lesson, memory.Lesson, pattern_bank dicts). No KnowledgeObject."
   },
   {
    "id": "A02",
@@ -41,215 +47,310 @@
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[missing][contradictory] No epistemic states. Three unrelated vocabularies exist: pattern_lifecycle.STATES, pattern_memory modes (universal/local/disregarded), pattern_reliability.VERDICTS."
   },
   {
    "id": "A03",
    "phase": "A FOUNDATION",
    "description": "Define immutable experience records.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/pattern_memory.py::PatternMemory",
+    "engine/lessons.py::Episode",
+    "engine/retester.py::save_archive"
+   ],
+   "tests": [
+    "tests/test_pattern_memory.py"
+   ],
+   "evidence": [
+    "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial] Pattern observations are append-only and hash-chained; decision episodes (lessons.Episode, memory.Memory episodes) are mutable and memory.py evicts at capacity."
   },
   {
    "id": "A04",
    "phase": "A FOUNDATION",
    "description": "Define situation representation.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/memory.py::context_of",
+    "engine/lessons.py::_situation",
+    "engine/learning_delta.py::snapshot_key"
+   ],
+   "tests": [
+    "tests/test_memory.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[under-depth] 7 market-context columns and a 4-field lesson situation; no identity-free situation type."
   },
   {
    "id": "A05",
    "phase": "A FOUNDATION",
    "description": "Define provenance schema.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/provenance.py::stamp",
+    "engine/registry.py::REQUIRED"
+   ],
+   "tests": [
+    "tests/test_provenance.py",
+    "tests/test_registry.py"
+   ],
+   "evidence": [
+    "state/research/registry_audit.json",
+    "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED. [unsafe] Schema defined, but registry_audit ok=false (51 of 53 records missing git/canon/config/seed fields). test_integrity_fails_closed_on_tampered_bible FAILS now: its fake repo lacks SELF_LEARNING_CONTRACT.md that verify_integrity started requiring with C62."
   },
   {
    "id": "A06",
    "phase": "A FOUNDATION",
    "description": "Define knowledge versioning.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/trust_store.py::TrustStore",
+    "engine/pattern_bank.py::PatternBank",
+    "engine/leak_audit.py::BasisLineage"
+   ],
+   "tests": [
+    "tests/test_trust_store.py",
+    "tests/test_pattern_bank.py"
+   ],
+   "evidence": [
+    "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial] Versioned trust tables, content-addressed bank commits, basis lineage. No knowledge-object versioning."
   },
   {
    "id": "A07",
    "phase": "A FOUNDATION",
    "description": "Define lifecycle states.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/pattern_lifecycle.py::STATES,ALLOWED,Lifecycle"
+   ],
+   "tests": [
+    "tests/test_pattern_lifecycle.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED. [partial] Bible Phase-4 states with enforced transitions; not the contract's ACTIVE/DEGRADED/DORMANT/RETIRED or birth..retirement phases."
   },
   {
    "id": "A08",
    "phase": "A FOUNDATION",
    "description": "Define confidence dimensions.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/pattern_stats.py::p_real",
+    "engine/pattern_reliability.py::MetaModel"
+   ],
+   "tests": [
+    "tests/test_pattern_stats.py"
+   ],
+   "evidence": [
+    "state/research/algorithm/planted/report_final_seeds100.md"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial] truth confidence = P(real) (calibrated on planted truth); current reliability = P(hold). transfer_confidence, context_confidence, failure_risk missing."
   },
   {
    "id": "A09",
    "phase": "A FOUNDATION",
    "description": "Define reliability dimensions.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/pattern_reliability.py::walk_forward,HealthLedger",
+    "engine/trust.py::TrustTable"
+   ],
+   "tests": [
+    "tests/test_trust.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial][under-tested] One reliability dimension; pattern_reliability has no test file and is being live-edited."
   },
   {
    "id": "A10",
    "phase": "A FOUNDATION",
    "description": "Implement serialization/deserialization.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/pattern_identity.py::PatternRecord",
+    "engine/pattern_bank.py",
+    "engine/trust.py::TrustTable"
+   ],
+   "tests": [
+    "tests/test_pattern_identity.py",
+    "tests/test_trust.py::test_json_roundtrip"
+   ],
+   "evidence": [
+    "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial] JSON round-trips exist per store; none for a knowledge object."
   },
   {
    "id": "A11",
    "phase": "A FOUNDATION",
    "description": "Implement schema validation.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/pattern_identity.py::IdentityError",
+    "engine/registry.py::Registry",
+    "engine/claims.py::Claim"
+   ],
+   "tests": [
+    "tests/test_pattern_identity.py",
+    "tests/test_claims.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial] Validation per store; no knowledge schema."
   },
   {
    "id": "A12",
    "phase": "A FOUNDATION",
    "description": "Add deterministic hashing.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "VALIDATED",
+   "code_paths": [
+    "engine/pattern_identity.py::pattern_hash",
+    "engine/pattern_bank.py::canon_hash",
+    "engine/repro.py::artifact_hash",
+    "engine/pit.py::fingerprint"
+   ],
+   "tests": [
+    "tests/test_repro.py",
+    "tests/test_pattern_identity.py",
+    "tests/test_pattern_bank.py::test_canon_hash_is_order_independent"
+   ],
+   "evidence": [
+    "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[already implemented] Order-independent canonical hashing, tested for determinism and tamper detection (those files passed in the audit run). Must be reused, not re-written, by the knowledge layer."
   },
   {
    "id": "A13",
    "phase": "A FOUNDATION",
    "description": "Add code/data/config provenance.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/provenance.py::stamp,code_hash,code_mixed,data_snapshot,config_hash"
+   ],
+   "tests": [
+    "tests/test_provenance.py"
+   ],
+   "evidence": [
+    "state/research/registry_audit.json",
+    "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED. [unsafe] Works where called; not applied to most experiment records; one provenance test failing (see A05)."
   },
   {
    "id": "B01",
    "phase": "B MEMORY",
    "description": "Build raw experience archive.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/pattern_memory.py::PatternMemory",
+    "state/experiments.jsonl"
+   ],
+   "tests": [
+    "tests/test_pattern_memory.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial] No L0 raw-observation layer; sealed livesim archives exist but are the test answers (must not be read)."
   },
   {
    "id": "B02",
    "phase": "B MEMORY",
    "description": "Build episode archive.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/lessons.py::LessonStore,Episode",
+    "engine/memory.py::Memory"
+   ],
+   "tests": [
+    "tests/test_lessons.py",
+    "tests/test_memory_ext.py"
+   ],
+   "evidence": [
+    "state/research/memory_adapter/results.json"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial][contradictory] memory.Memory evicts episodes at capacity (eviction_regret measured) - contract section 49 says never destroy evidence."
   },
   {
    "id": "B03",
@@ -265,39 +366,56 @@
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[missing] No situation archive."
   },
   {
    "id": "B04",
    "phase": "B MEMORY",
    "description": "Build knowledge archive.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/pattern_memory.py::PatternMemory",
+    "engine/pattern_bank.py::PatternBank",
+    "engine/trust_store.py::TrustStore"
+   ],
+   "tests": [
+    "tests/test_pattern_memory.py",
+    "tests/test_pattern_bank.py"
+   ],
+   "evidence": [
+    "state/research/pattern_memory/report.md",
+    "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial][duplicated] Three knowledge stores (timeline memory, pattern bank, trust store). Pick pattern_memory's hash chain as the archive core."
   },
   {
    "id": "B05",
    "phase": "B MEMORY",
    "description": "Build retrieval index.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/memory.py::Memory",
+    "engine/pattern_memory.py::PatternMemory.view"
+   ],
+   "tests": [
+    "tests/test_memory.py"
+   ],
+   "evidence": [
+    "state/research/memory_adapter/results.json"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial] Linear kernel scans, no index; retrieval skill on real data negative (C03)."
   },
   {
    "id": "B06",
@@ -313,23 +431,29 @@
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[missing] Context used only as a kernel weight; no context index."
   },
   {
    "id": "B07",
    "phase": "B MEMORY",
    "description": "Build temporal index.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/pattern_memory.py::PatternMemory.view,Analytics"
+   ],
+   "tests": [
+    "tests/test_pattern_memory.py"
+   ],
+   "evidence": [
+    "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial] mature_date gating and a dated owner-side timeline; no temporal index over knowledge."
   },
   {
    "id": "B08",
@@ -345,23 +469,31 @@
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[missing] pattern_reliability.PredLog holds per-pattern predictions but is not an index."
   },
   {
    "id": "B09",
    "phase": "B MEMORY",
    "description": "Build failure index.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/lessons.py::LessonBook,kind_report",
+    "engine/memory_diagnostics.py::error_profile_by_arm",
+    "engine/pattern_reliability.py::investigate"
+   ],
+   "tests": [
+    "tests/test_lessons.py"
+   ],
+   "evidence": [
+    "state/research/lessons/archive_v2.md"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial] Failures grouped by lesson kind; no index across knowledge."
   },
   {
    "id": "B10",
@@ -377,7 +509,7 @@
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[missing]"
   },
   {
    "id": "B11",
@@ -393,311 +525,460 @@
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[missing] pattern_memory requalifies silently; recoveries are not recorded."
   },
   {
    "id": "B12",
    "phase": "B MEMORY",
    "description": "Implement memory snapshots.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/pattern_memory.py::PatternMemory.view,audit_prefix_invariance",
+    "engine/learning_delta.py::LearnedState",
+    "engine/checkpoint.py"
+   ],
+   "tests": [
+    "tests/test_pattern_memory.py",
+    "tests/test_checkpoint.py"
+   ],
+   "evidence": [
+    "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED. Past-as-of views are prefix-invariant and learner state S0 is snapshotted per pair; the snapshot is not yet part of the reproducibility key (section 56)."
   },
   {
    "id": "B13",
    "phase": "B MEMORY",
    "description": "Implement immutable historical records.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/pattern_memory.py (hash chain, ChainCorrupt)",
+    "engine/pattern_bank.py",
+    "engine/trust_store.py",
+    "engine/checkpoint.py::verify"
+   ],
+   "tests": [
+    "tests/test_pattern_memory.py",
+    "tests/test_pattern_bank.py::test_flipped_byte_is_detected_and_head_falls_back",
+    "tests/test_trust_store.py",
+    "tests/test_checkpoint.py"
+   ],
+   "evidence": [
+    "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED. Tamper detection is tested and passing for these stores; memory.py and lessons stores are mutable, so coverage is partial."
   },
   {
    "id": "B14",
    "phase": "B MEMORY",
    "description": "Implement dynamic influence.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/pattern_memory.py::_pool,PatternMemory.view(gate=)",
+    "engine/memory.py::Memory",
+    "engine/pattern_bank.py::decay"
+   ],
+   "tests": [
+    "tests/test_pattern_memory.py",
+    "tests/test_pattern_bank.py"
+   ],
+   "evidence": [
+    "state/research/pattern_memory/report.md",
+    "state/research/learning_delta/lc1/run.log (running)"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED. Influence changes without deletion (universal/local/disregarded, gate hook); not shown to improve decisions."
   },
   {
    "id": "B15",
    "phase": "B MEMORY",
    "description": "Implement memory audit.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/memory_diagnostics.py::leak_check",
+    "engine/lessons.py::audit_identity",
+    "engine/pattern_memory.py::check_no_future",
+    "engine/blind_gates.py::check_memory_bank_causality"
+   ],
+   "tests": [
+    "tests/test_memory_ext.py",
+    "tests/test_lessons.py",
+    "tests/test_pattern_memory.py",
+    "tests/test_blind_gates.py"
+   ],
+   "evidence": [
+    "state/research/leak_audit/report.md"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED. [unsafe] Per-store audits exist; leak_audit channel 4 (learned state from the future) is LEAK in the default loop."
   },
   {
    "id": "C01",
    "phase": "C LEARNING",
    "description": "Implement observe stage.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/adaptive.py::Session",
+    "engine/livesim.py"
+   ],
+   "tests": [
+    "tests/test_session.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial] Decisions are recorded by the blind session; no OBSERVE stage of a learning loop."
   },
   {
    "id": "C02",
    "phase": "C LEARNING",
    "description": "Implement situation description.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/memory.py::context_of",
+    "engine/lessons.py::_situation"
+   ],
+   "tests": [
+    "tests/test_memory.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[under-depth] See A04."
   },
   {
    "id": "C03",
    "phase": "C LEARNING",
    "description": "Implement retrieval.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "FAILED",
+   "code_paths": [
+    "engine/memory.py::Memory",
+    "engine/pattern_memory.py::PatternMemory.view",
+    "engine/analogs*.py"
+   ],
+   "tests": [
+    "tests/test_memory.py",
+    "tests/test_memory_ext.py",
+    "tests/test_analogs_ext.py"
+   ],
+   "evidence": [
+    "state/research/memory_adapter/results.json"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "IMPLEMENTED — FAILED VALIDATION. Retrieval exists; real walk-forward skill -0.16 (CI -0.20..-0.12), IC -0.029 (memory_adapter/results.json)."
   },
   {
    "id": "C04",
    "phase": "C LEARNING",
    "description": "Implement expectation formation.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/memory.py::classify_error",
+    "engine/direction.py"
+   ],
+   "tests": [
+    "tests/test_memory.py",
+    "tests/test_direction.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial] Expected outcome used only after the fact to classify errors; not recorded before the decision."
   },
   {
    "id": "C05",
    "phase": "C LEARNING",
    "description": "Implement decision capture.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/adaptive.py::Session",
+    "engine/learning_delta.py::Run",
+    "engine/fill_audit.py"
+   ],
+   "tests": [
+    "tests/test_session.py",
+    "tests/test_fill_audit.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial] Picks and fills captured; confidence, prediction, retrieved memories, abstentions, uncertainty and explanation (section 3 BEFORE record) are not."
   },
   {
    "id": "C06",
    "phase": "C LEARNING",
    "description": "Implement outcome capture.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/pattern_memory.py (mature_date)",
+    "engine/lessons.py::post_mortem",
+    "engine/learning_delta.py::run_metrics"
+   ],
+   "tests": [
+    "tests/test_pattern_memory.py",
+    "tests/test_lessons.py"
+   ],
+   "evidence": [
+    "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED. Outcomes captured only after labels mature."
   },
   {
    "id": "C07",
    "phase": "C LEARNING",
    "description": "Implement surprise detection.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/memory.py::classify_error",
+    "engine/run_report.py::memory_shock_events"
+   ],
+   "tests": [
+    "tests/test_run_report.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[under-depth] FP/FN classification and z-score shocks; no surprise magnitude/direction/persistence."
   },
   {
    "id": "C08",
    "phase": "C LEARNING",
    "description": "Implement credit assignment.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/ablation.py",
+    "engine/memory_diagnostics.py::factor_attribution,factor_ablation"
+   ],
+   "tests": [
+    "tests/test_ablation.py",
+    "tests/test_memory_ext.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial] Component ablation, not per-decision credit."
   },
   {
    "id": "C09",
    "phase": "C LEARNING",
    "description": "Implement blame assignment.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/lessons.py::classify_kind,_counterfactual"
+   ],
+   "tests": [
+    "tests/test_lessons.py"
+   ],
+   "evidence": [
+    "state/research/lessons/archive_v2.md"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial] 5 lesson kinds with a counterfactual; learned lessons hurt on the real archive (D15)."
   },
   {
    "id": "C10",
    "phase": "C LEARNING",
    "description": "Implement belief updating.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/pattern_stats.py::eb_shrink",
+    "engine/trust.py::TrustTable"
+   ],
+   "tests": [
+    "tests/test_pattern_stats.py",
+    "tests/test_trust.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial] Shrinkage only; no prior -> evidence-strength -> posterior belief record."
   },
   {
    "id": "C11",
    "phase": "C LEARNING",
    "description": "Implement reliability updating.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/pattern_reliability.py::walk_forward,health_monitor",
+    "engine/trust_store.py::drift"
+   ],
+   "tests": [
+    "tests/test_trust_store.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial][under-tested] pattern_reliability live-edited by builders; no tests yet."
   },
   {
    "id": "C12",
    "phase": "C LEARNING",
    "description": "Implement condition discovery.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/pattern_reliability.py::explain_breaks,confirm_driver",
+    "engine/candidates.py::context_pair_candidates",
+    "engine/pattern_lifecycle.py (rescoped)"
+   ],
+   "tests": [
+    "tests/test_candidates.py",
+    "tests/test_pattern_lifecycle.py"
+   ],
+   "evidence": [
+    "state/research/algorithm/planted/report_final_seeds100.md"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial] Regime-conditional planted pattern admitted only 38-50% (I10)."
   },
   {
    "id": "C13",
    "phase": "C LEARNING",
    "description": "Implement anti-condition discovery.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/candidates.py::unless_candidates",
+    "engine/pattern_reliability.py::explain_breaks"
+   ],
+   "tests": [
+    "tests/test_candidates.py"
+   ],
+   "evidence": [
+    "state/research/algorithm/planted/report_final_seeds100.md"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial] 'unless' patterns admitted directly only 12-25% (I13)."
   },
   {
    "id": "C14",
    "phase": "C LEARNING",
    "description": "Implement transfer evaluation.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "VALIDATED",
+   "code_paths": [
+    "engine/learning_delta.py::headline_transfer,run_pair,harness_selfcheck",
+    "engine/learners.py"
+   ],
+   "tests": [
+    "tests/test_learning_delta.py",
+    "tests/test_learners.py"
+   ],
+   "evidence": [
+    "state/research/learning_delta/ld2_basis/report.md",
+    "state/research/learners/ls3_s11/report.md",
+    "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[already implemented] The EVALUATION is validated (planted generaliser/memoriser/non-learner/leak self-check VALID, past-only pairs). Its result on real data is NO_TRANSFER - that is recorded under E04/I16, not here."
   },
   {
    "id": "C15",
    "phase": "C LEARNING",
    "description": "Implement knowledge storage.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/pattern_memory.py",
+    "engine/pattern_bank.py",
+    "engine/lessons.py::LessonStore",
+    "engine/trust_store.py"
+   ],
+   "tests": [
+    "tests/test_pattern_memory.py",
+    "tests/test_pattern_bank.py"
+   ],
+   "evidence": [
+    "state/research/pattern_memory/report.md"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED. [duplicated] Four stores; see B04."
   },
   {
    "id": "C16",
@@ -713,15 +994,17 @@
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[missing]"
   },
   {
    "id": "C17",
    "phase": "C LEARNING",
    "description": "Implement research-priority update.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/improve.py::diagnose,spawn_challengers"
+   ],
    "tests": [],
    "evidence": [],
    "minimum_lines": null,
@@ -729,111 +1012,156 @@
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial][contradictory] Spawns parameter challengers only - the tuning loop section 35 warns against; untested."
   },
   {
    "id": "D01",
    "phase": "D FAILURE LEARNING",
    "description": "Loss classifier.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/lessons.py::classify_kind,CATEGORIES"
+   ],
+   "tests": [
+    "tests/test_lessons.py"
+   ],
+   "evidence": [
+    "state/research/lessons/archive_v2.md"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial] 5 kinds vs the 14 contract causes (no FALSE_PATTERN/REGIME_CHANGE/MEASUREMENT_ERROR/UNKNOWN...)."
   },
   {
    "id": "D02",
    "phase": "D FAILURE LEARNING",
    "description": "Selection failure detector.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/lessons.py (bad_entry)",
+    "engine/memory.py::classify_error",
+    "engine/missed_winners.py::why_missed"
+   ],
+   "tests": [
+    "tests/test_lessons.py",
+    "tests/test_missed_winners.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial]"
   },
   {
    "id": "D03",
    "phase": "D FAILURE LEARNING",
    "description": "Timing failure detector.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/lessons.py (missed_exit)",
+    "engine/exits.py"
+   ],
+   "tests": [
+    "tests/test_exits.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial] No entry-timing detector."
   },
   {
    "id": "D04",
    "phase": "D FAILURE LEARNING",
    "description": "Direction failure detector.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/direction.py",
+    "engine/learning_delta.py::pick_hits (dir_hit)"
+   ],
+   "tests": [
+    "tests/test_direction.py"
+   ],
+   "evidence": [
+    "state/research/learning_delta/ld1/report.md"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial] Direction hit rate measured; not attributed per loss."
   },
   {
    "id": "D05",
    "phase": "D FAILURE LEARNING",
    "description": "Risk failure detector.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/lessons.py (oversized_loser)",
+    "engine/gaprisk.py",
+    "engine/stops.py"
+   ],
+   "tests": [
+    "tests/test_gaprisk.py",
+    "tests/test_stops.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial]"
   },
   {
    "id": "D06",
    "phase": "D FAILURE LEARNING",
    "description": "Pattern failure detector.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/pattern_lifecycle.py::detect_failure",
+    "engine/patterns.py (death)",
+    "engine/pattern_reliability.py::break_states,find_breaks",
+    "engine/pattern_movers.py"
+   ],
+   "tests": [
+    "tests/test_pattern_lifecycle.py",
+    "tests/test_pattern_movers.py"
+   ],
+   "evidence": [
+    "state/research/algorithm/planted/report_final_seeds100.md",
+    "state/research/pattern_fail/report.txt"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED. Planted decaying patterns are not held (miner level); live break detection (pattern_reliability) is untested."
   },
   {
    "id": "D07",
    "phase": "D FAILURE LEARNING",
    "description": "Context failure detector.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/pattern_reliability.py::driver_table,explain_breaks"
+   ],
    "tests": [],
    "evidence": [],
    "minimum_lines": null,
@@ -841,47 +1169,66 @@
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial][under-tested] Live-edited; no tests."
   },
   {
    "id": "D08",
    "phase": "D FAILURE LEARNING",
    "description": "Regime failure detector.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/lessons.py (regime_misread)",
+    "engine/antioverfit.py::regime_split",
+    "engine/pattern_reliability.py::planted_world('regime')"
+   ],
+   "tests": [
+    "tests/test_antioverfit.py"
+   ],
+   "evidence": [
+    "state/research/antioverfit/real_v1/summary.txt"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial]"
   },
   {
    "id": "D09",
    "phase": "D FAILURE LEARNING",
    "description": "Measurement failure detector.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/pit.py::IntegrityError",
+    "engine/parity.py",
+    "engine/data_sources.py"
+   ],
+   "tests": [
+    "tests/test_pit.py",
+    "tests/test_parity.py"
+   ],
+   "evidence": [
+    "state/research/pit/PIT_AUDIT.md"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial] Data-quality checks exist; not a loss-cause detector."
   },
   {
    "id": "D10",
    "phase": "D FAILURE LEARNING",
    "description": "Unknown failure state.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/pattern_reliability.py::VERDICTS(OPEN),unknown_cause_share"
+   ],
    "tests": [],
    "evidence": [],
    "minimum_lines": null,
@@ -889,15 +1236,17 @@
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial][under-tested] UNKNOWN exists only for pattern breaks."
   },
   {
    "id": "D11",
    "phase": "D FAILURE LEARNING",
    "description": "Pattern-break analysis.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/pattern_reliability.py::explain_breaks,driver_table,onset_shifts,confirm_driver,investigate"
+   ],
    "tests": [],
    "evidence": [],
    "minimum_lines": null,
@@ -905,7 +1254,7 @@
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial][under-tested] Success-vs-failure contrasts on market drivers with a family-wise null; builders live-editing; no test file."
   },
   {
    "id": "D12",
@@ -921,199 +1270,297 @@
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[missing] Recovery happens (pattern_memory requalification) but is never analysed."
   },
   {
    "id": "D13",
    "phase": "D FAILURE LEARNING",
    "description": "Missed-winner analysis.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "FAILED",
+   "code_paths": [
+    "engine/missed_winners.py::MissedWinnerDetector,why_missed,walk_forward,evaluate"
+   ],
+   "tests": [
+    "tests/test_missed_winners.py"
+   ],
+   "evidence": [
+    "state/research/memory_adapter/results.json"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "IMPLEMENTED — FAILED VALIDATION. Real 2017-2026: detector uplift 0 (verdict false, p_vs_control 0.64)."
   },
   {
    "id": "D14",
    "phase": "D FAILURE LEARNING",
    "description": "Counterfactual distinction discovery.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/missed_winners.py::missed_profile",
+    "engine/lessons.py::_counterfactual"
+   ],
+   "tests": [
+    "tests/test_missed_winners.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial] Profiles, no OOS-validated separating distinction."
   },
   {
    "id": "D15",
    "phase": "D FAILURE LEARNING",
    "description": "OOS validation of failure lessons.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "FAILED",
+   "code_paths": [
+    "engine/antimemo.py::archive_experiment",
+    "scripts/lessons_archive.py"
+   ],
+   "tests": [
+    "tests/test_antimemo_archive.py"
+   ],
+   "evidence": [
+    "state/research/lessons/archive_v2.md"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "IMPLEMENTED — FAILED VALIDATION. Lessons from other windows: -0.188%/wk, 90% CI -0.337%..-0.019% (harmful)."
   },
   {
    "id": "E01",
    "phase": "E TRANSFER",
    "description": "Same-year rerun harness.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning_delta.py::run_pair,play_curve",
+    "scripts/learning_delta.py",
+    "scripts/learning_curve.py"
+   ],
+   "tests": [
+    "tests/test_learning_delta.py",
+    "tests/test_learning_curve.py"
+   ],
+   "evidence": [
+    "state/research/learning_delta/ld1/report.md",
+    "state/research/learning_delta/ld2_basis/report.md",
+    "state/research/learning_delta/lc1/run.log (running)"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[implemented-but-unvalidated] run1->run2 works (self-check VALID); the run 1..N curve (C57) is running (lc1) and being edited by builders."
   },
   {
    "id": "E02",
    "phase": "E TRANSFER",
    "description": "Disguised rerun mechanism.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/learning_delta.py::make_presentation,audit_presentation",
+    "engine/antimemo.py::disguise",
+    "engine/blind_gates.py::make_ticker_map"
+   ],
+   "tests": [
+    "tests/test_learning_delta.py",
+    "tests/test_blind_gates.py",
+    "tests/test_tiebreak.py"
+   ],
+   "evidence": [
+    "state/research/learning_delta/ld2_basis/report.md",
+    "state/research/leak_audit/report.md"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED. [contradictory] Codes/dates are disguised and audited, but the same year's numbers are identical, so any numeric memory recognises the rerun (ld2 caveat); year-fingerprint channel 6 QUARANTINED. Section 1.2 forbids 'identifying a disguised rerun as a rerun'."
   },
   {
    "id": "E03",
    "phase": "E TRANSFER",
    "description": "No-learning control.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "VALIDATED",
+   "code_paths": [
+    "engine/learning_delta.py::NullLearner"
+   ],
+   "tests": [
+    "tests/test_learning_delta.py::test_non_learner_shows_zero_delta_everywhere"
+   ],
+   "evidence": [
+    "state/research/learning_delta/ld1/report.md",
+    "state/research/learning_delta/ld2_basis/report.md",
+    "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[already implemented] Noise control = exactly 0 on 12 real pairs; planted non-learner = NO_EFFECT."
   },
   {
    "id": "E04",
    "phase": "E TRANSFER",
    "description": "Legitimate learner.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "FAILED",
+   "code_paths": [
+    "engine/learners.py (6 learners)",
+    "engine/learning_delta.py::MemoryBankLearner,BasisLearner"
+   ],
+   "tests": [
+    "tests/test_learners.py"
+   ],
+   "evidence": [
+    "state/research/learners/ls3_s11/report.md",
+    "state/research/learners/ls2_replicate/report.md",
+    "state/research/learning_delta/ld2_basis/report.md"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "IMPLEMENTED — FAILED VALIDATION. No learner passes past-only transfer; band_cfg lifts in_band but worsens worst5/max_dd."
   },
   {
    "id": "E05",
    "phase": "E TRANSFER",
    "description": "Identity memorizer control.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "VALIDATED",
+   "code_paths": [
+    "engine/learning_delta.py::MemoriserLearner,IdentityRecallLearner"
+   ],
+   "tests": [
+    "tests/test_learning_delta.py::test_memoriser_is_flagged_with_large_same_year_gain_and_zero_transfer"
+   ],
+   "evidence": [
+    "state/research/learning_delta/ld1/report.md",
+    "state/research/learning_delta/ld2_basis/report.md",
+    "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[already implemented] Planted memoriser flagged MEMORISATION (same-year +0.088, transfer 0)."
   },
   {
    "id": "E06",
    "phase": "E TRANSFER",
    "description": "Random learner control.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning_delta.py::aggregate (shuffle ctrl)"
+   ],
+   "tests": [
+    "tests/test_learning_delta.py"
+   ],
+   "evidence": [
+    "state/research/learning_delta/ld1/report.md"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial] A shuffled-outcome control exists; no random learner (control D) with random updates of equal size."
   },
   {
    "id": "E07",
    "phase": "E TRANSFER",
    "description": "Leaky learner control.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "VALIDATED",
+   "code_paths": [
+    "engine/learning_delta.py::LeakyGate,leak_gate_caught,leak_probe"
+   ],
+   "tests": [
+    "tests/test_learning_delta.py::test_selfcheck_is_valid_and_catches_the_leak_probe"
+   ],
+   "evidence": [
+    "state/research/learning_delta/ld1/report.md",
+    "state/research/learning_delta/ld2_basis/report.md",
+    "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[already implemented] Leak probe caught = True in every self-check."
   },
   {
    "id": "E08",
    "phase": "E TRANSFER",
    "description": "Cross-year test.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "VALIDATED",
+   "code_paths": [
+    "engine/learning_delta.py::headline_transfer,choose_pairs,causal_bank",
+    "engine/learners.py"
+   ],
+   "tests": [
+    "tests/test_learning_delta.py",
+    "tests/test_learners.py"
+   ],
+   "evidence": [
+    "state/research/learning_delta/ld2_basis/report.md",
+    "state/research/learners/ls3_s11/report.md",
+    "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[already implemented] The TEST is valid; result NO_TRANSFER (see E04/I18)."
   },
   {
    "id": "E09",
    "phase": "E TRANSFER",
    "description": "Cross-regime test.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning_delta.py::aggregate (by era)",
+    "engine/antioverfit.py::regime_split",
+    "engine/heavy_tests.py::by_regime"
+   ],
+   "tests": [
+    "tests/test_antioverfit.py"
+   ],
+   "evidence": [
+    "state/research/learning_delta/ld1/report.md",
+    "state/research/antioverfit/real_v1/summary.txt"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial] Era breakdowns only; no held-out-regime transfer test."
   },
   {
    "id": "E10",
@@ -1129,7 +1576,7 @@
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[missing] No held-out-stock transfer (ticker permutation tests invariance, not transfer)."
   },
   {
    "id": "E11",
@@ -1145,87 +1592,122 @@
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[missing]"
   },
   {
    "id": "E12",
    "phase": "E TRANSFER",
    "description": "Cross-volatility test.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/antioverfit.py (type quiet/middle/wild)",
+    "engine/learners.py::RegimeMapLearner"
+   ],
+   "tests": [
+    "tests/test_learners.py"
+   ],
+   "evidence": [
+    "state/research/antioverfit/real_v1/summary.txt"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial] Per-volatility-type IC for the miner; no learned-knowledge transfer across volatility states."
   },
   {
    "id": "E13",
    "phase": "E TRANSFER",
    "description": "Transfer ratio.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning_delta.py::aggregate (gap)"
+   ],
+   "tests": [
+    "tests/test_learning_delta.py"
+   ],
+   "evidence": [
+    "state/research/learning_delta/ld1/report.md"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial] Gap computed, ratio not."
   },
   {
    "id": "E14",
    "phase": "E TRANSFER",
    "description": "Memorization gap.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "VALIDATED",
+   "code_paths": [
+    "engine/learning_delta.py::aggregate,verdict (gap)"
+   ],
+   "tests": [
+    "tests/test_learning_delta.py"
+   ],
+   "evidence": [
+    "state/research/learning_delta/ld1/report.md",
+    "state/research/learning_delta/ld2_basis/report.md",
+    "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[already implemented] Measured with bootstrap CI: ld1 gap +0.00259 [+0.00012,+0.00585]; ld2 +0.00095."
   },
   {
    "id": "E15",
    "phase": "E TRANSFER",
    "description": "Identity gap.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/antimemo.py::archive_experiment (b - c)",
+    "engine/learning_delta.py::IdentityRecallLearner"
+   ],
+   "tests": [
+    "tests/test_antimemo_archive.py"
+   ],
+   "evidence": [
+    "state/research/lessons/archive_v2.md"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED. Identity gap b-c = +0.000% on the lessons archive; not yet in the learning scorecard."
   },
   {
    "id": "E16",
    "phase": "E TRANSFER",
    "description": "Transfer stability.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "scripts/learner_search.py (seeds)"
+   ],
+   "tests": [
+    "tests/test_learners.py"
+   ],
+   "evidence": [
+    "state/research/learners/ls2_replicate/report.md",
+    "state/research/learners/ls3_s11/report.md"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial] Replicates by seed exist; ls2 learner self-check INVALID; no stability statistic."
   },
   {
    "id": "F01",
@@ -1241,7 +1723,7 @@
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[missing] No SUPPORTS edges; no knowledge graph exists."
   },
   {
    "id": "F02",
@@ -1257,55 +1739,69 @@
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[missing] No CONTRADICTS edges; no knowledge graph exists."
   },
   {
    "id": "F03",
    "phase": "F KNOWLEDGE GRAPH",
    "description": "Contains edges.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/pattern_stats.py::containment",
+    "engine/pattern_identity.py::Scope"
+   ],
+   "tests": [
+    "tests/test_pattern_stats.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial] Row containment computed for pruning; not stored as an edge."
   },
   {
    "id": "F04",
    "phase": "F KNOWLEDGE GRAPH",
    "description": "Specializes edges.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/trust.py::parent_key",
+    "engine/pattern_lifecycle.py (rescoped)"
+   ],
+   "tests": [
+    "tests/test_trust.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial] Parent/child exists for trust types and rescoped patterns; not edges."
   },
   {
    "id": "F05",
    "phase": "F KNOWLEDGE GRAPH",
    "description": "Generalizes edges.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/trust.py::parent_key"
+   ],
+   "tests": [
+    "tests/test_trust.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial] See F04."
   },
   {
    "id": "F06",
@@ -1321,7 +1817,7 @@
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[missing] No CAUSES_FAILURE_OF edges; no knowledge graph exists."
   },
   {
    "id": "F07",
@@ -1337,23 +1833,30 @@
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[missing] No RECOVERS_WITH edges; no knowledge graph exists."
   },
   {
    "id": "F08",
    "phase": "F KNOWLEDGE GRAPH",
    "description": "Redundant-with edges.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/pattern_stats.py::prune_redundant",
+    "engine/patterns.py (duplicate status)"
+   ],
+   "tests": [
+    "tests/test_pattern_stats.py"
+   ],
+   "evidence": [
+    "state/research/algorithm/planted/report_final_seeds100.md"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial] Redundant patterns are pruned, not linked (the distinction is thrown away)."
   },
   {
    "id": "F09",
@@ -1369,7 +1872,7 @@
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[missing] No COMPLEMENTS edges; no knowledge graph exists."
   },
   {
    "id": "F10",
@@ -1385,7 +1888,7 @@
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[missing] No DEPENDS_ON edges; no knowledge graph exists."
   },
   {
    "id": "F11",
@@ -1401,15 +1904,17 @@
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[missing]"
   },
   {
    "id": "F12",
    "phase": "F KNOWLEDGE GRAPH",
    "description": "Contradiction investigation.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/pattern_reliability.py::explain_breaks"
+   ],
    "tests": [],
    "evidence": [],
    "minimum_lines": null,
@@ -1417,71 +1922,97 @@
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial][under-tested] Explains a pattern's own worked-vs-broke periods; no investigation of disagreement between two knowledge items."
   },
   {
    "id": "F13",
    "phase": "F KNOWLEDGE GRAPH",
    "description": "Parent/child shrinkage.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/trust.py::TrustTable (shrink to parent)",
+    "engine/pattern_stats.py::eb_shrink"
+   ],
+   "tests": [
+    "tests/test_trust.py::test_shrinkage_pulls_thin_cell_toward_parent"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED. Shrinkage to parent works for trust tables; not applied to a knowledge hierarchy."
   },
   {
    "id": "F14",
    "phase": "F KNOWLEDGE GRAPH",
    "description": "Knowledge lineage.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/pattern_bank.py (window history)",
+    "engine/pattern_memory.py (source run id)",
+    "engine/leak_audit.py::BasisLineage"
+   ],
+   "tests": [
+    "tests/test_pattern_bank.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial]"
   },
   {
    "id": "F15",
    "phase": "F KNOWLEDGE GRAPH",
    "description": "Decision lineage.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/adaptive.py::adaptation_report,hold_reasons",
+    "engine/explain.py",
+    "engine/memory_diagnostics.py::explain"
+   ],
+   "tests": [
+    "tests/test_adapter.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial] Explains knob changes and top reasons; no link from a decision to knowledge ids."
   },
   {
    "id": "G01",
    "phase": "G RESEARCH INTELLIGENCE",
    "description": "Experiment registry.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "FAILED",
+   "code_paths": [
+    "engine/improve.py::log_experiment",
+    "engine/registry.py::Registry",
+    "state/experiments.jsonl"
+   ],
+   "tests": [
+    "tests/test_registry.py",
+    "tests/test_audit_registry.py"
+   ],
+   "evidence": [
+    "state/research/registry_audit.json"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "IMPLEMENTED — FAILED VALIDATION. [unsafe] registry_audit ok=false: experiment_id/git/config/seed present on 3.8% of audited records."
   },
   {
    "id": "G02",
@@ -1497,7 +2028,7 @@
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[missing]"
   },
   {
    "id": "G03",
@@ -1513,7 +2044,7 @@
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[missing] P(real)/P(hallucinated)/P(coincidence) is the only hypothesis split, and it is fixed."
   },
   {
    "id": "G04",
@@ -1529,7 +2060,7 @@
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[missing]"
   },
   {
    "id": "G05",
@@ -1545,7 +2076,7 @@
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[missing]"
   },
   {
    "id": "G06",
@@ -1561,55 +2092,74 @@
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[missing] resources.JobQueue can execute a queue; nothing ranks research."
   },
   {
    "id": "G07",
    "phase": "G RESEARCH INTELLIGENCE",
    "description": "Duplicate experiment detection.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/experiment_memory.py::TriedIndex",
+    "engine/registry.py::fingerprint,ExperimentMemory"
+   ],
+   "tests": [
+    "tests/test_experiment_memory.py",
+    "tests/test_registry.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED. [duplicated] Two dedup mechanisms (TriedIndex, registry.ExperimentMemory) - merge."
   },
   {
    "id": "G08",
    "phase": "G RESEARCH INTELLIGENCE",
    "description": "Failed experiment memory.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/experiment_memory.py::worsened,answer_phase30",
+    "state/experiments.jsonl"
+   ],
+   "tests": [
+    "tests/test_experiment_memory.py"
+   ],
+   "evidence": [
+    "state/research/registry_audit.json"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial] Failed experiments are in the log but mostly without the fields to recognise them."
   },
   {
    "id": "G09",
    "phase": "G RESEARCH INTELLIGENCE",
    "description": "Failed learner memory.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "state/research/learners/*/report.md",
+    "engine/learning_delta.py::CAVEATS"
+   ],
    "tests": [],
-   "evidence": [],
+   "evidence": [
+    "state/research/learners/ls2_replicate/report.md",
+    "state/research/learners/ls3_s11/report.md"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial] Failed learners exist only as markdown reports; no structured failed-learner store."
   },
   {
    "id": "G10",
@@ -1625,23 +2175,29 @@
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[missing]"
   },
   {
    "id": "G11",
    "phase": "G RESEARCH INTELLIGENCE",
    "description": "Compute-aware research allocation.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/resources.py::worker_count,wait_for_memory,JobQueue"
+   ],
+   "tests": [
+    "tests/test_resources.py"
+   ],
+   "evidence": [
+    "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial] Compute-aware execution, not research allocation."
   },
   {
    "id": "G12",
@@ -1657,231 +2213,348 @@
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[missing]"
   },
   {
    "id": "H01",
    "phase": "H FIREWALLS",
    "description": "Point-in-time firewall.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/pit.py (PITStore, Guard, purged_training_set)"
+   ],
+   "tests": [
+    "tests/test_pit.py"
+   ],
+   "evidence": [
+    "state/research/pit/PIT_AUDIT.md",
+    "state/research/leak_audit/report.md"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED. [unsafe] Firewall and real-cache audit exist; channels 2 (back-adjusted prices) and 8c (feed shape) are LEAK."
   },
   {
    "id": "H02",
    "phase": "H FIREWALLS",
    "description": "Future-data firewall.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "FAILED",
+   "code_paths": [
+    "engine/leak_audit.py",
+    "engine/pit.py::future_scramble",
+    "engine/parity.py",
+    "engine/antioverfit.py::future_scramble"
+   ],
+   "tests": [
+    "tests/test_leak_audit.py",
+    "tests/test_pit.py",
+    "tests/test_parity.py"
+   ],
+   "evidence": [
+    "state/research/leak_audit/report.md"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "IMPLEMENTED — FAILED VALIDATION. [unsafe] Audit works (planted leaks caught) but 3 of 12 channels are LEAK in the default blind path - not fail-closed."
   },
   {
    "id": "H03",
    "phase": "H FIREWALLS",
    "description": "Memory firewall.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "FAILED",
+   "code_paths": [
+    "engine/pattern_memory.py::check_no_future",
+    "engine/blind_gates.py::check_memory_bank_causality",
+    "engine/learning_delta.py::causal_bank",
+    "engine/leak_audit.py::BasisLineage,strict_training_windows"
+   ],
+   "tests": [
+    "tests/test_pattern_memory.py",
+    "tests/test_leak_audit.py"
+   ],
+   "evidence": [
+    "state/research/leak_audit/report.md"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "IMPLEMENTED — FAILED VALIDATION. [unsafe] Channel 4 LEAK: basis cfg/meta trained on future or same windows in the current loop; the lineage filter exists but is not the default."
   },
   {
    "id": "H04",
    "phase": "H FIREWALLS",
    "description": "Identity firewall.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/blind_gates.py::check_ticker_map,check_disguised_frame",
+    "engine/antioverfit.py::ticker_permutation,date_disguise",
+    "engine/learning_delta.py::audit_presentation"
+   ],
+   "tests": [
+    "tests/test_blind_gates.py",
+    "tests/test_antioverfit.py",
+    "tests/test_tiebreak.py"
+   ],
+   "evidence": [
+    "state/research/lessons/archive_v2.md",
+    "state/research/leak_audit/report.md",
+    "state/research/antioverfit/real_v1/summary.txt"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED. No-lesson results invariant under rename (0 of 45 windows change); year fingerprint QUARANTINED; name-order tie-breaks leaked 3x historically."
   },
   {
    "id": "H05",
    "phase": "H FIREWALLS",
    "description": "Provenance firewall.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/provenance.py::verify_integrity,stale",
+    "engine/claims.py::ClaimBook",
+    "engine/retester.py::compare_provenance"
+   ],
+   "tests": [
+    "tests/test_provenance.py",
+    "tests/test_claims.py"
+   ],
+   "evidence": [
+    "state/research/registry_audit.json",
+    "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED. [unsafe] See A05 (failing test, incomplete registry)."
   },
   {
    "id": "H06",
    "phase": "H FIREWALLS",
    "description": "Code-version firewall.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "VALIDATED",
+   "code_paths": [
+    "engine/provenance.py::code_hash,code_mixed,stale",
+    "engine/health.py::classify"
+   ],
+   "tests": [
+    "tests/test_health.py::test_stale_code_worker",
+    "tests/test_provenance.py::test_record_goes_stale_after_edit"
+   ],
+   "evidence": [
+    "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[already implemented] Section-62 Test 12 equivalent: a code edit makes a worker result stale and it is excluded (tests passed in the audit run)."
   },
   {
    "id": "H07",
    "phase": "H FIREWALLS",
    "description": "Revision-data firewall.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/leak_audit.py::pit_macro,macro_revision_risk",
+    "engine/edgar.py"
+   ],
+   "tests": [
+    "tests/test_leak_audit.py"
+   ],
+   "evidence": [
+    "state/research/leak_audit/report.md"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED. Macro revisions CLEAN (channel 5); split back-adjustment (a revision of history) is channel 2 LEAK."
   },
   {
    "id": "H08",
    "phase": "H FIREWALLS",
    "description": "Survivorship firewall.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/leak_audit.py::inject_dead_names,survivorship_haircut,pit_universe",
+    "engine/pit.py::survivorship_report",
+    "scripts/fetch_delisted.py"
+   ],
+   "tests": [
+    "tests/test_leak_audit.py",
+    "tests/test_pit.py"
+   ],
+   "evidence": [
+    "state/research/leak_audit/report.md"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED. [unsafe] Panel is survivor-only; channel 1 QUARANTINED (measured, not removed)."
   },
   {
    "id": "H09",
    "phase": "H FIREWALLS",
    "description": "Worker-staleness firewall.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "VALIDATED",
+   "code_paths": [
+    "engine/health.py::exclusion_report,classify",
+    "engine/resources.py::stale_report"
+   ],
+   "tests": [
+    "tests/test_health.py::test_stale_code_worker",
+    "tests/test_resources.py::test_stale_report_finds_every_planted_kind_and_only_those"
+   ],
+   "evidence": [
+    "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[already implemented] Planted stale/crashed/OOM workers are excluded; tests passed."
   },
   {
    "id": "H10",
    "phase": "H FIREWALLS",
    "description": "Evaluation contamination firewall.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/blind_gates.py::seal_window,RevealGate,check_seal",
+    "engine/learning_delta.py::revealed_pool,causal_bank"
+   ],
+   "tests": [
+    "tests/test_blind_gates.py",
+    "tests/test_learning_delta.py::test_revealed_pool_never_lists_an_unrevealed_window"
+   ],
+   "evidence": [
+    "state/research/leak_audit/report.md",
+    "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED. [unsafe] Sealing works; the loop's basis learning still trains on evaluation-era windows (channel 4)."
   },
   {
    "id": "H11",
    "phase": "H FIREWALLS",
    "description": "Cache/network firewall.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/leak_audit.py::NetworkGuard,FileAccessRecorder,import_closure",
+    "engine/isolation.py::research_mode"
+   ],
+   "tests": [
+    "tests/test_leak_audit.py",
+    "tests/test_isolation.py"
+   ],
+   "evidence": [
+    "state/research/leak_audit/report.md"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED. Network CLEAN (channel 7); run-time file reads QUARANTINED (channel 8d)."
   },
   {
    "id": "H12",
    "phase": "H FIREWALLS",
    "description": "Fail-closed behavior.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/pit.py::FailClosed",
+    "engine/pattern_memory.py::LeakError",
+    "engine/learning_delta.py::BlindnessError"
+   ],
+   "tests": [
+    "tests/test_pit.py"
+   ],
+   "evidence": [
+    "state/research/leak_audit/report.md"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial][unsafe] Fail-closed exceptions exist per module; open LEAK channels are reported, not blocked."
   },
   {
    "id": "I01",
    "phase": "I VALIDATION",
    "description": "Unit tests.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "tests/*.py (78 files)"
+   ],
+   "tests": [
+    "tests/"
+   ],
+   "evidence": [
+    "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial] Unit tests exist for current modules; pattern_reliability.py (1,543 lines) has none; no knowledge-layer modules to test yet."
   },
   {
    "id": "I02",
    "phase": "I VALIDATION",
    "description": "Integration tests.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "tests/integration/"
+   ],
+   "tests": [
+    "tests/integration/test_session_replay_pipeline.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[under-tested] 4 files, 314 lines; no learning-loop integration test."
   },
   {
    "id": "I03",
@@ -1897,319 +2570,449 @@
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[missing] No property-based tests (no hypothesis library)."
   },
   {
    "id": "I04",
    "phase": "I VALIDATION",
    "description": "Determinism tests.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/repro.py::run_twice,assert_reproducible"
+   ],
+   "tests": [
+    "tests/test_repro.py",
+    "tests/integration/test_replay_reproducibility_blind.py"
+   ],
+   "evidence": [
+    "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED. Determinism tests exist and pass for current modules; none for learning state."
   },
   {
    "id": "I05",
    "phase": "I VALIDATION",
    "description": "Negative tests.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "(planted-defect test per file, CONTEXT rule 5)"
+   ],
+   "tests": [
+    "tests/test_leak_audit.py",
+    "tests/test_learning_delta.py"
+   ],
+   "evidence": [
+    "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED. Negative tests exist per module; not per contract subsystem."
   },
   {
    "id": "I06",
    "phase": "I VALIDATION",
    "description": "Planted strong pattern.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "VALIDATED",
+   "code_paths": [
+    "engine/planted.py",
+    "scripts/planted_calibration.py"
+   ],
+   "tests": [
+    "tests/test_planted_patterns.py",
+    "tests/test_planted_library.py"
+   ],
+   "evidence": [
+    "state/research/algorithm/planted/report_final_seeds100.md"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[already implemented] strong_detection 1.000 (rule >= 0.9). Miner-level; the knowledge layer must be re-run."
   },
   {
    "id": "I07",
    "phase": "I VALIDATION",
    "description": "Planted weak pattern.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "VALIDATED",
+   "code_paths": [
+    "engine/planted.py"
+   ],
+   "tests": [
+    "tests/test_planted_patterns.py"
+   ],
+   "evidence": [
+    "state/research/algorithm/planted/report_final_seeds100.md"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[already implemented] weak admitted 1.00 standard / 0.88 heavy tails, sign 1.0. Not a verdict criterion; miner-level."
   },
   {
    "id": "I08",
    "phase": "I VALIDATION",
    "description": "Planted negative pattern.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "VALIDATED",
+   "code_paths": [
+    "engine/planted.py"
+   ],
+   "tests": [
+    "tests/test_planted_patterns.py"
+   ],
+   "evidence": [
+    "state/research/algorithm/planted/report_final_seeds100.md"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[already implemented] negative_detection 1.000, sign 1.000. Miner-level."
   },
   {
    "id": "I09",
    "phase": "I VALIDATION",
    "description": "Planted pair.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "VALIDATED",
+   "code_paths": [
+    "engine/planted.py"
+   ],
+   "tests": [
+    "tests/test_planted_patterns.py"
+   ],
+   "evidence": [
+    "state/research/algorithm/planted/report_final_seeds100.md"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[already implemented] pair admitted 1.00 in standard and heavy tails. Miner-level."
   },
   {
    "id": "I10",
    "phase": "I VALIDATION",
    "description": "Planted regime pattern.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "FAILED",
+   "code_paths": [
+    "engine/planted.py (regime plant)"
+   ],
+   "tests": [
+    "tests/test_planted_patterns.py"
+   ],
+   "evidence": [
+    "state/research/algorithm/planted/report_final_seeds100.md"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "IMPLEMENTED — FAILED VALIDATION. regime plant admitted 0.38 (standard) / 0.50 (heavy tails), effect ratio ~0.2. Not a verdict criterion, so the overall VALIDATED verdict hides it."
   },
   {
    "id": "I11",
    "phase": "I VALIDATION",
    "description": "Planted decaying pattern.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "VALIDATED",
+   "code_paths": [
+    "engine/planted.py (decaying plant)"
+   ],
+   "tests": [
+    "tests/test_planted_patterns.py"
+   ],
+   "evidence": [
+    "state/research/algorithm/planted/report_final_seeds100.md"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[already implemented] decaying_not_held 0.000 (rule <= 0.2). Detection of decay DURING use (pattern_reliability 'phantom' world) is untested."
   },
   {
    "id": "I12",
    "phase": "I VALIDATION",
    "description": "Planted conditional pattern.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/planted.py",
+    "engine/pattern_reliability.py::planted_world('regime')"
+   ],
    "tests": [],
-   "evidence": [],
+   "evidence": [
+    "state/research/algorithm/planted/report_final_seeds100.md"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[missing plant] No distinct 'conditional' plant; the closest (regime) fails - see I10."
   },
   {
    "id": "I13",
    "phase": "I VALIDATION",
    "description": "Planted unless pattern.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "FAILED",
+   "code_paths": [
+    "engine/planted.py (unless plant)"
+   ],
+   "tests": [
+    "tests/test_planted_patterns.py"
+   ],
+   "evidence": [
+    "state/research/algorithm/planted/report_final_seeds100.md"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "IMPLEMENTED — FAILED VALIDATION. unless admitted directly 0.12-0.25; 0.75-0.88 only via a child/duplicate."
   },
   {
    "id": "I14",
    "phase": "I VALIDATION",
    "description": "Planted noise pattern.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "VALIDATED",
+   "code_paths": [
+    "engine/planted.py (noise_only)"
+   ],
+   "tests": [
+    "tests/test_planted_patterns.py"
+   ],
+   "evidence": [
+    "state/research/algorithm/planted/report_final_seeds100.md"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[already implemented] zero_rejected 0.000, noise_only_quiet 0.25 active/run (rule <= 1.0)."
   },
   {
    "id": "I15",
    "phase": "I VALIDATION",
    "description": "Hallucinated pattern.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "VALIDATED",
+   "code_paths": [
+    "engine/planted.py (hallucinated plant)"
+   ],
+   "tests": [
+    "tests/test_planted_patterns.py"
+   ],
+   "evidence": [
+    "state/research/algorithm/planted/report_final_seeds100.md"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[already implemented] hallucinated_rejected 0.000 false admission (rule <= 0.2)."
   },
   {
    "id": "I16",
    "phase": "I VALIDATION",
    "description": "Real-data validation.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "FAILED",
+   "code_paths": [
+    "scripts/learning_delta.py",
+    "scripts/learner_search.py",
+    "scripts/lessons_archive.py",
+    "scripts/pattern_memory_real.py"
+   ],
    "tests": [],
-   "evidence": [],
+   "evidence": [
+    "state/research/learning_delta/ld1/report.md",
+    "state/research/learning_delta/ld2_basis/report.md",
+    "state/research/learners/ls3_s11/report.md",
+    "state/research/lessons/archive_v2.md",
+    "state/research/memory_adapter/results.json"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "IMPLEMENTED — FAILED VALIDATION. Every real-data learning run so far: MEMORISATION or NO_TRANSFER; lessons harmful; memory skill negative."
   },
   {
    "id": "I17",
    "phase": "I VALIDATION",
    "description": "Fresh holdout seeds.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "scripts/planted_calibration.py",
+    "scripts/learner_search.py (seeds 11,12)"
+   ],
    "tests": [],
-   "evidence": [],
+   "evidence": [
+    "state/research/algorithm/planted/report_final_seeds100.md",
+    "state/research/learners/ls3_s11/report.md"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial] Multi-seed runs; no reserved never-used holdout-seed protocol."
   },
   {
    "id": "I18",
    "phase": "I VALIDATION",
    "description": "Cross-year validation.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "FAILED",
+   "code_paths": [
+    "engine/learning_delta.py::headline_transfer",
+    "engine/learners.py"
+   ],
+   "tests": [
+    "tests/test_learners.py"
+   ],
+   "evidence": [
+    "state/research/learning_delta/ld2_basis/report.md",
+    "state/research/learners/ls3_s11/report.md"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "IMPLEMENTED — FAILED VALIDATION. Cross-year: NO_TRANSFER (ld2 CI -0.00034..+0.00030); no learner passes (ls3)."
   },
   {
    "id": "I19",
    "phase": "I VALIDATION",
    "description": "Memorization control.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "VALIDATED",
+   "code_paths": [
+    "engine/learning_delta.py::MemoriserLearner,IdentityRecallLearner,verdict"
+   ],
+   "tests": [
+    "tests/test_learning_delta.py"
+   ],
+   "evidence": [
+    "state/research/learning_delta/ld1/report.md",
+    "state/research/learning_delta/ld2_basis/report.md",
+    "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[already implemented] The control works: planted memoriser flagged; real memory_bank learner correctly labelled MEMORISATION."
   },
   {
    "id": "I20",
    "phase": "I VALIDATION",
    "description": "Future-leak control.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "VALIDATED",
+   "code_paths": [
+    "engine/learning_delta.py::LeakyGate,leak_probe",
+    "engine/leak_audit.py"
+   ],
+   "tests": [
+    "tests/test_learning_delta.py",
+    "tests/test_leak_audit.py"
+   ],
+   "evidence": [
+    "state/research/learning_delta/ld1/report.md",
+    "state/research/learning_delta/ld2_basis/report.md",
+    "state/research/leak_audit/report.md",
+    "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[already implemented] The control works (planted leaks caught). The leaks it found are open - see H02."
   },
   {
    "id": "J01",
    "phase": "J PRODUCTION INTELLIGENCE",
    "description": "Champion knowledge.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/champion.py::Board"
+   ],
+   "tests": [
+    "tests/test_champion.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial] Champion of configs/models, not knowledge."
   },
   {
    "id": "J02",
    "phase": "J PRODUCTION INTELLIGENCE",
    "description": "Challenger knowledge.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/champion.py::ChallengerQueue",
+    "engine/improve.py::spawn_challengers"
+   ],
+   "tests": [
+    "tests/test_champion.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial][duplicated] Two challenger mechanisms."
   },
   {
    "id": "J03",
    "phase": "J PRODUCTION INTELLIGENCE",
    "description": "Shadow knowledge.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/shadows.py"
+   ],
    "tests": [],
    "evidence": [],
    "minimum_lines": null,
@@ -2217,87 +3020,119 @@
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial][under-tested] Shadow baseline portfolios only (44 lines, no test)."
   },
   {
    "id": "J04",
    "phase": "J PRODUCTION INTELLIGENCE",
    "description": "Promotion gate.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/champion.py::_check_*",
+    "engine/objective.py::firewall"
+   ],
+   "tests": [
+    "tests/test_champion.py",
+    "tests/test_objective.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial] 6 of 10 gates; missing anti-memorisation, future-info audit, cross-context transfer, provenance completeness."
   },
   {
    "id": "J05",
    "phase": "J PRODUCTION INTELLIGENCE",
    "description": "Retirement gate.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/pattern_lifecycle.py",
+    "engine/pattern_bank.py",
+    "engine/pattern_memory.py (disregarded)"
+   ],
+   "tests": [
+    "tests/test_pattern_bank.py::test_discarded_pattern_stays_in_the_bank_and_can_return",
+    "tests/test_pattern_lifecycle.py"
+   ],
+   "evidence": [
+    "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED. Retire-not-delete holds for patterns; no knowledge-level retirement gate."
   },
   {
    "id": "J06",
    "phase": "J PRODUCTION INTELLIGENCE",
    "description": "Recovery gate.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/pattern_memory.py (requalify)",
+    "engine/pattern_bank.py"
+   ],
+   "tests": [
+    "tests/test_pattern_bank.py"
+   ],
+   "evidence": [
+    "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial] Automatic requalification; no explicit evidence threshold for recovery."
   },
   {
    "id": "J07",
    "phase": "J PRODUCTION INTELLIGENCE",
    "description": "Reliability monitoring.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/pattern_reliability.py::health_monitor,HealthLedger",
+    "engine/trust_store.py::drift"
+   ],
+   "tests": [
+    "tests/test_trust_store.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial][under-tested]"
   },
   {
    "id": "J08",
    "phase": "J PRODUCTION INTELLIGENCE",
    "description": "Calibration monitoring.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/pattern_reliability.py::brier,ece,reliability_table",
+    "engine/direction_calib.py"
+   ],
+   "tests": [
+    "tests/test_direction_calib.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial] Calibration measured; no drift monitor or influence reduction."
   },
   {
    "id": "J09",
@@ -2313,7 +3148,7 @@
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[missing]"
   },
   {
    "id": "J10",
@@ -2329,71 +3164,95 @@
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[missing] run_report.memory_shock_events is a shock detector, not a surprise monitor."
   },
   {
    "id": "J11",
    "phase": "J PRODUCTION INTELLIGENCE",
    "description": "Knowledge health.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/pattern_reliability.py::HealthLedger",
+    "engine/memory_diagnostics.py::memory_health"
+   ],
+   "tests": [
+    "tests/test_memory_ext.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial] healthy/suspect/broken only."
   },
   {
    "id": "J12",
    "phase": "J PRODUCTION INTELLIGENCE",
    "description": "Decision impact monitoring.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/pattern_movers.py (ablation)",
+    "engine/adaptive.py::adaptation_value"
+   ],
+   "tests": [
+    "tests/test_pattern_movers.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial]"
   },
   {
    "id": "J13",
    "phase": "J PRODUCTION INTELLIGENCE",
    "description": "Learning curve.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning_delta.py::play_curve,curve_verdict",
+    "scripts/learning_curve.py"
+   ],
+   "tests": [
+    "tests/test_learning_curve.py"
+   ],
+   "evidence": [
+    "state/research/learning_delta/lc1/run.log (running)"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[implemented-but-unvalidated] Builders editing; real run lc1 in flight."
   },
   {
    "id": "J14",
    "phase": "J PRODUCTION INTELLIGENCE",
    "description": "Learning scorecard.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning_delta.py::aggregate,render_report"
+   ],
+   "tests": [
+    "tests/test_learning_delta.py"
+   ],
+   "evidence": [
+    "state/research/learning_delta/ld1/report.md",
+    "state/research/learning_delta/ld2_basis/report.md"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial] 8 metrics + controls; ~10 of 19 scorecard fields."
   },
   {
    "id": "J15",
@@ -2409,103 +3268,140 @@
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[missing]"
   },
   {
    "id": "K01",
    "phase": "K REPORTING",
    "description": "Learning curve report.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning_delta.py::render_curve_report"
+   ],
+   "tests": [
+    "tests/test_learning_curve.py"
+   ],
+   "evidence": [
+    "state/research/learning_delta/lc1/run.log (running)"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial] Report code exists; no report on disk yet."
   },
   {
    "id": "K02",
    "phase": "K REPORTING",
    "description": "Transfer report.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/learning_delta.py::render_report",
+    "scripts/learner_search.py"
+   ],
+   "tests": [
+    "tests/test_learning_delta.py"
+   ],
+   "evidence": [
+    "state/research/learning_delta/ld2_basis/report.md",
+    "state/research/learners/ls3_s11/report.md"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED. Cross-year transfer only; no regime/stock/sector sections."
   },
   {
    "id": "K03",
    "phase": "K REPORTING",
    "description": "Memorization report.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/learning_delta.py::render_report"
+   ],
+   "tests": [
+    "tests/test_learning_delta.py"
+   ],
+   "evidence": [
+    "state/research/learning_delta/ld1/report.md",
+    "state/research/learning_delta/ld2_basis/report.md"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED. "
   },
   {
    "id": "K04",
    "phase": "K REPORTING",
    "description": "Identity-gap report.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/antimemo.py::archive_markdown"
+   ],
+   "tests": [
+    "tests/test_antimemo_archive.py"
+   ],
+   "evidence": [
+    "state/research/lessons/archive_v2.md"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED. Lessons archive only."
   },
   {
    "id": "K05",
    "phase": "K REPORTING",
    "description": "Knowledge health report.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/pattern_reliability.py::render_report",
+    "engine/memory_diagnostics.py::report"
+   ],
    "tests": [],
-   "evidence": [],
+   "evidence": [
+    "state/research/pattern_memory/report.md"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial]"
   },
   {
    "id": "K06",
    "phase": "K REPORTING",
    "description": "Failure report.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "scripts/run_pattern_fail.py",
+    "engine/lessons.py::kind_report"
+   ],
    "tests": [],
-   "evidence": [],
+   "evidence": [
+    "state/research/pattern_fail/report.txt"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial]"
   },
   {
    "id": "K07",
@@ -2521,7 +3417,7 @@
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[missing]"
   },
   {
    "id": "K08",
@@ -2537,39 +3433,53 @@
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[missing]"
   },
   {
    "id": "K09",
    "phase": "K REPORTING",
    "description": "Missed-winner report.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/missed_winners.py::summary_text",
+    "scripts/run_b15_memory_adapter.py"
+   ],
+   "tests": [
+    "tests/test_missed_winners.py"
+   ],
+   "evidence": [
+    "state/research/memory_adapter/results.json"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED. "
   },
   {
    "id": "K10",
    "phase": "K REPORTING",
    "description": "Experiment-memory report.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "scripts/audit_registry.py",
+    "engine/experiment_memory.py::answer_coverage"
+   ],
+   "tests": [
+    "tests/test_audit_registry.py"
+   ],
+   "evidence": [
+    "state/research/registry_audit.json"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial]"
   },
   {
    "id": "K11",
@@ -2585,7 +3495,7 @@
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[missing]"
   },
   {
    "id": "K12",
@@ -2601,39 +3511,56 @@
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[missing]"
   },
   {
    "id": "K13",
    "phase": "K REPORTING",
    "description": "Promotion/rejection report.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/champion.py::Ledger",
+    "engine/improve.py::report"
+   ],
+   "tests": [
+    "tests/test_champion.py"
+   ],
+   "evidence": [
+    "state/research/learners/ls3_s11/report.md"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial]"
   },
   {
    "id": "K14",
    "phase": "K REPORTING",
    "description": "Provenance audit report.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "scripts/audit_registry.py",
+    "scripts/leak_audit.py",
+    "scripts/pit_audit_real.py"
+   ],
+   "tests": [
+    "tests/test_audit_registry.py"
+   ],
+   "evidence": [
+    "state/research/registry_audit.json",
+    "state/research/leak_audit/report.md",
+    "state/research/pit/PIT_AUDIT.md"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED. Reports exist; their verdicts fail (registry ok=false, 3 LEAK channels)."
   },
   {
    "id": "K15",
@@ -2649,23 +3576,28 @@
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[missing] scripts/final_report.py is the Bible Phase-46 trading report, not a learning-system report."
   },
   {
    "id": "L01",
    "phase": "L FINAL SCIENTIFIC VALIDATION",
    "description": "No-learning baseline frozen.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning_delta.py::NullLearner",
+    "engine/baseline.py::freeze_baseline"
+   ],
+   "tests": [
+    "tests/test_baseline.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial] Control exists; not frozen as a hashed learning baseline."
   },
   {
    "id": "L02",
@@ -2675,29 +3607,35 @@
    "status": "NOT_STARTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
+   "evidence": [
+    "state/research/learners/ls3_s11/report.md"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[missing] No learner has passed; nothing to freeze."
   },
   {
    "id": "L03",
    "phase": "L FINAL SCIENTIFIC VALIDATION",
    "description": "Memorizer control frozen.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning_delta.py::MemoriserLearner"
+   ],
+   "tests": [
+    "tests/test_learning_delta.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial] Not frozen."
   },
   {
    "id": "L04",
@@ -2713,71 +3651,90 @@
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[missing] Random learner control does not exist."
   },
   {
    "id": "L05",
    "phase": "L FINAL SCIENTIFIC VALIDATION",
    "description": "Leaky learner control frozen.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning_delta.py::LeakyGate"
+   ],
+   "tests": [
+    "tests/test_learning_delta.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial] Not frozen."
   },
   {
    "id": "L06",
    "phase": "L FINAL SCIENTIFIC VALIDATION",
    "description": "Same-year learning measured.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "scripts/learning_delta.py",
+    "scripts/learning_curve.py"
+   ],
    "tests": [],
-   "evidence": [],
+   "evidence": [
+    "state/research/learning_delta/ld1/report.md",
+    "state/research/learning_delta/ld2_basis/report.md",
+    "state/research/learning_delta/lc1/run.log (running)"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED. run1->run2 measured (MEMORISATION); the run 1..N curve is in flight; must be re-measured on the frozen learner."
   },
   {
    "id": "L07",
    "phase": "L FINAL SCIENTIFIC VALIDATION",
    "description": "Cross-year transfer measured.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "scripts/learning_delta.py",
+    "scripts/learner_search.py"
+   ],
    "tests": [],
-   "evidence": [],
+   "evidence": [
+    "state/research/learning_delta/ld2_basis/report.md",
+    "state/research/learners/ls3_s11/report.md"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED. Measured = NO_TRANSFER for current learners."
   },
   {
    "id": "L08",
    "phase": "L FINAL SCIENTIFIC VALIDATION",
    "description": "Cross-regime transfer measured.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IN_PROGRESS",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
+   "evidence": [
+    "state/research/learning_delta/ld1/report.md"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial] By-era breakdown only."
   },
   {
    "id": "L09",
@@ -2793,7 +3750,7 @@
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[missing]"
   },
   {
    "id": "L10",
@@ -2809,167 +3766,223 @@
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[missing]"
   },
   {
    "id": "L11",
    "phase": "L FINAL SCIENTIFIC VALIDATION",
    "description": "Memorization gap measured.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/learning_delta.py::aggregate"
+   ],
    "tests": [],
-   "evidence": [],
+   "evidence": [
+    "state/research/learning_delta/ld1/report.md",
+    "state/research/learning_delta/ld2_basis/report.md"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED. Measured for memory_bank learners."
   },
   {
    "id": "L12",
    "phase": "L FINAL SCIENTIFIC VALIDATION",
    "description": "Identity gap measured.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/antimemo.py::archive_experiment"
+   ],
    "tests": [],
-   "evidence": [],
+   "evidence": [
+    "state/research/lessons/archive_v2.md"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED. Measured on lessons archive only."
   },
   {
    "id": "L13",
    "phase": "L FINAL SCIENTIFIC VALIDATION",
    "description": "Future-information audit passed.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "FAILED",
+   "code_paths": [
+    "engine/leak_audit.py"
+   ],
+   "tests": [
+    "tests/test_leak_audit.py"
+   ],
+   "evidence": [
+    "state/research/leak_audit/report.md"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "IMPLEMENTED — FAILED VALIDATION. 3 LEAK, 4 QUARANTINED channels."
   },
   {
    "id": "L14",
    "phase": "L FINAL SCIENTIFIC VALIDATION",
    "description": "Provenance audit passed.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "FAILED",
+   "code_paths": [
+    "scripts/audit_registry.py"
+   ],
+   "tests": [
+    "tests/test_audit_registry.py"
+   ],
+   "evidence": [
+    "state/research/registry_audit.json",
+    "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "IMPLEMENTED — FAILED VALIDATION. registry_audit ok=false; provenance test failing."
   },
   {
    "id": "L15",
    "phase": "L FINAL SCIENTIFIC VALIDATION",
    "description": "Reproducibility passed.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/retester.py",
+    "engine/repro.py",
+    "scripts/check_retester.py"
+   ],
+   "tests": [
+    "tests/test_retester.py",
+    "tests/test_repro.py"
+   ],
+   "evidence": [
+    "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial] Re-tester for trading windows; learning experiments not reproduced from the full section-56 key."
   },
   {
    "id": "L16",
    "phase": "L FINAL SCIENTIFIC VALIDATION",
    "description": "Stability passed.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "scripts/learner_search.py"
+   ],
    "tests": [],
-   "evidence": [],
+   "evidence": [
+    "state/research/learners/ls2_replicate/report.md",
+    "state/research/learners/ls3_s11/report.md"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial] Seed replicates disagree in validity (ls2 self-check INVALID)."
   },
   {
    "id": "L17",
    "phase": "L FINAL SCIENTIFIC VALIDATION",
    "description": "Risk impact measured.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/learning_delta.py::run_metrics (worst5, max_dd)"
+   ],
    "tests": [],
-   "evidence": [],
+   "evidence": [
+    "state/research/learning_delta/ld1/report.md",
+    "state/research/learning_delta/ld2_basis/report.md"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED. Measured for current learners only."
   },
   {
    "id": "L18",
    "phase": "L FINAL SCIENTIFIC VALIDATION",
    "description": "Direction impact measured.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/learning_delta.py::pick_hits (dir_hit)"
+   ],
    "tests": [],
-   "evidence": [],
+   "evidence": [
+    "state/research/learning_delta/ld1/report.md",
+    "state/research/learning_delta/ld2_basis/report.md"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED. Measured for current learners only."
   },
   {
    "id": "L19",
    "phase": "L FINAL SCIENTIFIC VALIDATION",
    "description": "Movement impact measured.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/learning_delta.py::pick_hits (mover_hit)"
+   ],
    "tests": [],
-   "evidence": [],
+   "evidence": [
+    "state/research/learning_delta/ld1/report.md",
+    "state/research/learning_delta/ld2_basis/report.md"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED. Measured for current learners only."
   },
   {
    "id": "L20",
    "phase": "L FINAL SCIENTIFIC VALIDATION",
    "description": "Portfolio impact measured.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/learning_delta.py::run_metrics (mean_week, in_band, year_return)"
+   ],
    "tests": [],
-   "evidence": [],
+   "evidence": [
+    "state/research/learning_delta/ld1/report.md",
+    "state/research/learning_delta/ld2_basis/report.md"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED. Measured for current learners only."
   },
   {
    "id": "L21",
@@ -2985,7 +3998,7 @@
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[missing]"
   },
   {
    "id": "L22",
@@ -3001,7 +4014,7 @@
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[missing]"
   },
   {
    "id": "L23",
@@ -3017,23 +4030,27 @@
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[missing] No knowledge promotion gate exists."
   },
   {
    "id": "L24",
    "phase": "L FINAL SCIENTIFIC VALIDATION",
    "description": "All critical failures resolved or explicitly classified as unresolved scientific limitations.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/leak_audit.py (LEAK/QUARANTINED classes)"
+   ],
    "tests": [],
-   "evidence": [],
+   "evidence": [
+    "state/research/leak_audit/report.md"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[partial] Leak channels classified; learning failures (E04, D13, D15, C03) not yet classified as fixed vs scientific limitation."
   },
   {
    "id": "L25",
@@ -3049,7 +4066,7 @@
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[missing] Final state only."
   },
   {
    "id": "L26",
@@ -3065,408 +4082,645 @@
    "validation_result": null,
    "last_run": null,
    "code_hash": null,
-   "notes": ""
+   "notes": "[missing] Final state only. This mapping is a self-audit, not an independent one."
   }
  ],
  "line_budget": [
   {
    "section": "Knowledge objects",
    "minimum_lines": 900,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED"
+   "actual_lines": 444,
+   "code_paths": [
+    "engine/pattern_identity.py (444)"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "UNDER by 456 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: typed, validated, hashed PatternRecord/Expression/Scope/Window exist for PATTERNS only; no KnowledgeObject (no contexts/anti_contexts, 5 confidence dims, relations, decision_effect, promotion state). Parallel record types: lessons.Lesson, memory.Lesson, pattern_bank dict records, pattern_memory observations."
   },
   {
    "section": "Epistemic states",
    "minimum_lines": 450,
-   "actual_lines": null,
+   "actual_lines": 0,
    "code_paths": [],
-   "status": "NOT_STARTED"
+   "status": "NOT_STARTED",
+   "notes": "UNDER by 450 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). missing: no OBSERVED/HYPOTHESIS/SUPPORTED/CONDITIONAL/DEGRADED/CONTRADICTED/GATED/RETIRED/UNKNOWN state. Three other vocabularies exist (pattern_lifecycle.STATES, pattern_memory modes, pattern_reliability.VERDICTS) - contradictory; the new layer must map them, not add a fourth."
   },
   {
    "section": "Observation/interpretation",
    "minimum_lines": 600,
-   "actual_lines": null,
+   "actual_lines": 0,
    "code_paths": [],
-   "status": "NOT_STARTED"
+   "status": "NOT_STARTED",
+   "notes": "UNDER by 600 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). missing: observation, statistical relationship, hypothesis, mechanism and decision usefulness are not stored separately; no competing-explanation set (H1-H6). pattern_stats P(real)/P(hallucinated)/P(coincidence) is the only split and is counted under Real/useful/current."
   },
   {
    "section": "Context modeling",
    "minimum_lines": 1200,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED"
+   "actual_lines": 169,
+   "code_paths": [
+    "engine/memory.py::context_of,era_of,era_gap (19)",
+    "engine/pattern_memory.py::_ctx_sim (8)",
+    "engine/pattern_stats.py::context_similarity,context_now,relevance,recency_weight,era_weight,era_of (62)",
+    "engine/pattern_reliability.py::_publication_lag,expanding_percentile,build_context,meta_wide,build_examples,feature_columns (80)"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "UNDER by 1031 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: context vectors (7 m_* columns), kernel similarity and pattern_reliability's P(hold | context) features. No P(outcome | pattern, NOT context), no sector/stock-type/liquidity/correlation/position context dims, no hierarchical pooling of context buckets. pattern_reliability is being live-edited by builders."
   },
   {
    "section": "Failure learning",
    "minimum_lines": 1100,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED"
+   "actual_lines": 507,
+   "code_paths": [
+    "engine/lessons.py::LessonBook,Lesson,_welch,kind_report (368)",
+    "engine/pattern_reliability.py::investigate,investigation_invariants,unknown_cause_share,verdict_matrix,_onset_zone_bad (139)"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "UNDER by 593 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: LessonBook learns from 5 lesson kinds (not the 14 contract causes); pattern_reliability investigate() gives EXPLAINED_AND_GATED/DISCARDED/PHANTOM/OPEN. Real validation FAILED: lessons from other windows cost -0.188%/wk (state/research/lessons/archive_v2.md)."
   },
   {
    "section": "Pattern-break engine",
    "minimum_lines": 1300,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED"
+   "actual_lines": 296,
+   "code_paths": [
+    "engine/pattern_reliability.py::break_states,_cusum_onset,find_breaks,driver_values,_contrast_parts,_contrast_t,driver_table,onset_shifts,Explanation,_statement,explain_breaks,confirm_driver (255)",
+    "engine/pattern_lifecycle.py::run_tests,detect_failure,wstat (41)"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "UNDER by 1004 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: success-vs-failure context contrasts with family-wise null and OOS confirm_driver exist in pattern_reliability (live-edited, NO test file yet). Compares only market-context drivers - not sector composition, stock type, liquidity, magnitude/duration, missingness or data quality."
   },
   {
    "section": "Dynamic reliability",
    "minimum_lines": 900,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED"
+   "actual_lines": 420,
+   "code_paths": [
+    "engine/pattern_reliability.py::MetaModel,PredLog,walk_forward,_base_own,score_predictions,reliability_table,causality_audit,skill_tests,gate_matrix,gateable_matrix,policy_weights,classify,LiveGate,MemoryGate,timelines_from_memory (420)"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "UNDER by 480 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: one pooled calibrated P(pattern holds) - a single dimension. The contract needs five (truth_confidence, current_reliability, transfer_confidence, context_confidence, failure_risk) updated separately."
   },
   {
    "section": "Pattern lifecycle",
    "minimum_lines": 800,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED"
+   "actual_lines": 401,
+   "code_paths": [
+    "engine/pattern_lifecycle.py::Lifecycle,Panel,new_record,pattern_id,parse_key_named,_p_two_sided (401)"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "UNDER by 399 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: Bible Phase-4 state machine with enforced transitions. Lacks birth/growth/peak/decay phases and classification of deterioration (random/gradual/abrupt/regime-/sector-/vol-/liquidity-linked)."
   },
   {
    "section": "Retirement/recovery",
    "minimum_lines": 450,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED"
+   "actual_lines": 384,
+   "code_paths": [
+    "engine/pattern_bank.py (384)"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "UNDER by 66 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: bank never deletes (discarded kept, decayed prior), pattern_memory requalifies automatically. No ACTIVE/DEGRADED/DORMANT/RETIRED states and no evidence-gated recovery rule."
   },
   {
    "section": "Time-aware memory",
    "minimum_lines": 700,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED"
+   "actual_lines": 132,
+   "code_paths": [
+    "engine/pattern_memory.py::_pool,_summary,periods_of,_period_of (95)",
+    "engine/heavy_tests.py::decay_fit,pattern_lifetimes (25)",
+    "engine/memory_diagnostics.py::detect_lag,eviction_regret (12)"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "UNDER by 568 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: universal/local/disregarded relevance, fixed time kernels (tau_time_years grid), a decay fit in heavy_tests. No learned temporal class (PERSISTENT..SEASONAL), no expected-lifetime estimate with uncertainty."
   },
   {
    "section": "Situation representation",
    "minimum_lines": 1000,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED"
+   "actual_lines": 67,
+   "code_paths": [
+    "engine/lessons.py::identity_proxy_columns,usable_features,_check_no_identity,_situation (42)",
+    "engine/memory.py::sanitize_features,coarse_date (21)",
+    "engine/learning_delta.py::snapshot_key (4)"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "UNDER by 933 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). under-depth: identity scrubbing and a 4-field lesson situation exist; no identity-independent situation object built from decision-time data, no ticker/date/year/sector scramble tests of a situation encoder."
   },
   {
    "section": "Situation similarity",
    "minimum_lines": 900,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED"
+   "actual_lines": 1101,
+   "code_paths": [
+    "engine/analog_weighting.py (687)",
+    "engine/analogs.py (99)",
+    "engine/analogs_sector.py (151)",
+    "engine/analogs_stock.py (164)"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "MET (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: analog engines + feature weighting compute ONE distance. Contract needs 10 stored component scores (structural, market, vol, liquidity, pattern, regime, sector, stock-type, recent-history, failure-risk). Analogs showed no edge in foundation research."
   },
   {
    "section": "Knowledge retrieval",
    "minimum_lines": 1100,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED"
+   "actual_lines": 416,
+   "code_paths": [
+    "engine/memory.py::Memory (345)",
+    "engine/memory_diagnostics.py::episode_table,concentration,factor_attribution,explain,_shrunk (71)"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "UNDER by 684 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: factor-weighted episodic retrieval with per-factor attribution (6 factors); explainable. Missing reliability/transfer/contradiction/redundancy terms. Real walk-forward skill -0.16 (CI -0.20..-0.12): FAILED."
   },
   {
    "section": "Contradiction graph",
    "minimum_lines": 850,
-   "actual_lines": null,
+   "actual_lines": 0,
    "code_paths": [],
-   "status": "NOT_STARTED"
+   "status": "NOT_STARTED",
+   "notes": "UNDER by 850 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). missing: no knowledge edges of any type."
   },
   {
    "section": "Knowledge hierarchy",
    "minimum_lines": 900,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED"
+   "actual_lines": 291,
+   "code_paths": [
+    "engine/trust.py (253)",
+    "engine/pattern_stats.py::shrink_effect,eb_shrink,implied_k (38)"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "UNDER by 609 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: trust tables shrink child type toward parent_key (SIC hierarchy); EB shrinkage of pattern effects. Not the general->market->sector->stock-type->vol->interaction knowledge hierarchy."
   },
   {
    "section": "Credit assignment",
    "minimum_lines": 1200,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED"
+   "actual_lines": 266,
+   "code_paths": [
+    "engine/ablation.py (171)",
+    "engine/direction_ablate.py (69)",
+    "engine/memory_diagnostics.py::factor_ablation (8)",
+    "engine/heavy_tests.py::ablation_across_eras (18)"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "UNDER by 934 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: component/feature ablation with paired block bootstrap. No per-DECISION credit/blame across pattern/analog/memory/direction/timing/risk components, no interaction or stability of credit."
   },
   {
    "section": "Redundancy intelligence",
    "minimum_lines": 600,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED"
+   "actual_lines": 69,
+   "code_paths": [
+    "engine/pattern_stats.py::jaccard,containment,prune_redundant,evidence_order,validation_gain_gate (45)",
+    "engine/antioverfit.py::duplicate_feature_injection (24)"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "UNDER by 531 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: predictive redundancy only (row overlap > 0.8 pruned). No context/mechanistic/operational/risk redundancy; pruning deletes the distinction the contract wants learned."
   },
   {
    "section": "Missed-winner learning",
    "minimum_lines": 1000,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED"
+   "actual_lines": 431,
+   "code_paths": [
+    "engine/missed_winners.py (431)"
+   ],
+   "status": "FAILED",
+   "notes": "UNDER by 569 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). IMPLEMENTED — FAILED VALIDATION: detector + why_missed + walk-forward with controls; real run uplift 0 (memory_adapter/results.json verdict false). Reasons list is shorter than contract's 10; no OOS-validated distinction discovery."
   },
   {
    "section": "Selection/timing/risk separation",
    "minimum_lines": 700,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED"
+   "actual_lines": 34,
+   "code_paths": [
+    "engine/lessons.py::classify_kind,_counterfactual (22)",
+    "engine/memory.py::classify_error (12)"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "UNDER by 666 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). under-depth: lesson kinds split entry/exit/size/regime; no explicit selection vs timing vs direction vs risk vs exit attribution that routes the lesson to one subsystem."
   },
   {
    "section": "Loss postmortems",
    "minimum_lines": 800,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED"
+   "actual_lines": 88,
+   "code_paths": [
+    "engine/lessons.py::post_mortem,Episode (88)"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "UNDER by 712 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). under-depth: post_mortem builds episodes; lacks the 13 required fields (what was believed, why, supporting/contradicting evidence, missing/invalidating condition, confidence in explanation). Lessons feed decisions directly as reweights - contract says a postmortem must first become a hypothesis."
   },
   {
    "section": "Same-year learning harness",
    "minimum_lines": 1300,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED"
+   "actual_lines": 1277,
+   "code_paths": [
+    "engine/learning_delta.py::Window,Presentation,DisguiseRecord,Run,Visible,LearnedState,TimeGate,verify_gate_log,LearnContext,derive_seed,_fresh_codes,_shift_bounds,make_presentation,_relabel_frame,archive_presentation,has_token,_texts,_frame_texts,_all_timestamps,audit_presentation,audit_visible,blindness_summary,ReplayPlayer,MemoryBankLearner,BasisLearner,ChainLearner,NullLearner,MemorisingReplayPlayer,MemoriserLearner,synthetic_window,score_weekly,SyntheticPlayer,SyntheticGeneraliser,SyntheticMemoriserPlayer,_audit_and_play,run_pair,harness_selfcheck,leak_probe,revealed_pool,load_window,IdentityRecallPlayer,IdentityRecallLearner,SyntheticIdentityPlayer,LeakyGate,leak_gate_caught (720)",
+    "engine/antimemo.py (433)",
+    "scripts/learning_delta.py (124)"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "UNDER by 23 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). depth met but IN_PROGRESS: run1->run2 harness with controls A,B,C,E is VALID on planted worlds; real verdict MEMORISATION / NO_TRANSFER. The run-1..N curve (lc1) is running now. Random learner (control D) missing. Builders are live-editing learning_delta.py."
   },
   {
    "section": "Cross-year transfer",
    "minimum_lines": 1100,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED"
+   "actual_lines": 1041,
+   "code_paths": [
+    "engine/learners.py (739)",
+    "scripts/learner_search.py (212)",
+    "engine/learning_delta.py::causal_bank,choose_pairs,pattern_window,PatternPlayer,PatternLearner,trim_history (90)"
+   ],
+   "status": "FAILED",
+   "notes": "UNDER by 59 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). IMPLEMENTED — FAILED VALIDATION: 6 cross-year learners, past-only pairs; none passes (ls3_s11); ls2_replicate learner self-check INVALID. Cross-regime/stock/sector/volatility transfer not built."
   },
   {
    "section": "Transfer scoring",
    "minimum_lines": 400,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED"
+   "actual_lines": 126,
+   "code_paths": [
+    "engine/learning_delta.py::headline_transfer,verdict,aggregate,_col,pair_table,signflip_p,boot_ci (126)"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "UNDER by 274 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: gap = learning effect - transfer with CIs. transfer_ratio (with zero/negative denominator safeguards) and over-specialisation flag are not computed."
   },
   {
    "section": "Memory firewall",
    "minimum_lines": 900,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED"
+   "actual_lines": 196,
+   "code_paths": [
+    "engine/pattern_memory.py::check_no_future,scan_for_dates,validate_key,audit_prefix_invariance (72)",
+    "engine/memory.py::scan_lessons,_scrub_arm (28)",
+    "engine/memory_diagnostics.py::leak_check (2)",
+    "engine/lessons.py::audit_identity (9)",
+    "engine/blind_gates.py::check_memory_bank_causality (10)",
+    "engine/leak_audit.py::TrainedOn,simulate_window_draws,basis_future_share,BasisLineage,strict_training_windows,defaults_contamination (75)"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "UNDER by 704 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial and UNSAFE: guards exist per store, but leak_audit channel 4 (learned state trained on future/same windows) is LEAK in the default loop. No universal 'could this item exist at timestamp T' audit."
   },
   {
    "section": "Identity firewall",
    "minimum_lines": 750,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED"
+   "actual_lines": 236,
+   "code_paths": [
+    "engine/antioverfit.py::_relabel_tickers,_swap_ticker_histories,ticker_permutation,date_disguise (46)",
+    "engine/blind_gates.py::make_ticker_map,check_shift,check_ticker_map,check_disguised_frame,check_disguise_signature,scan_text_for_leaks (78)",
+    "engine/leak_audit.py::FingerprintProbe,fingerprint_verdict,rerun_linkability,feed_exposure,hardened_feed_class (112)"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "UNDER by 514 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: ticker permutation, date disguise, year-fingerprint probe, rerun linkability. Missing stock/sector/episode substitution and sequence scrambling. Channel 6 (year fingerprint) QUARANTINED, 8c LEAK."
   },
   {
    "section": "Future-information firewall",
    "minimum_lines": 1000,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED"
+   "actual_lines": 2116,
+   "code_paths": [
+    "engine/pit.py (1030)",
+    "engine/parity.py (379)",
+    "engine/parity_suite.py (304)",
+    "engine/fill_audit.py (32)",
+    "engine/leak_audit.py::Channel,Audit,NetworkBlocked,NetworkGuard,poison,network_markers,_engine_imports,import_closure,data_access,FileAccessRecorder,trader_side_reads,free_text_columns,macro_revision_risk,pit_macro,truncation_invariance,attrition_profile,delisting_hazard,survivorship_haircut,inject_dead_names,pit_universe,price_level_drift,cum_future_split_factor,reconstruct_as_traded,level_rule_disagreement (371)"
+   ],
+   "status": "FAILED",
+   "notes": "MET (meaningful = non-blank, non-comment, non-docstring lines of the listed code). IMPLEMENTED — FAILED VALIDATION: depth met; real audit 12 channels = 3 LEAK, 4 QUARANTINED (state/research/leak_audit/report.md). Not fail-closed for the three LEAK channels in the default blind path."
   },
   {
    "section": "Experiment memory",
    "minimum_lines": 800,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED"
+   "actual_lines": 541,
+   "code_paths": [
+    "engine/experiment_memory.py (293)",
+    "engine/registry.py (225)",
+    "engine/improve.py::log_experiment,n_trials (23)"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "UNDER by 259 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: what-was-tried index, duplicate fingerprint, Phase-30 questions. Missing QUESTION/BELIEF/COMPETING HYPOTHESES/PREDICTION/EXPECTED OUTCOMES/BELIEF UPDATE fields. registry_audit ok=false (3.8% complete)."
   },
   {
    "section": "Belief updating",
    "minimum_lines": 800,
-   "actual_lines": null,
+   "actual_lines": 0,
    "code_paths": [],
-   "status": "NOT_STARTED"
+   "status": "NOT_STARTED",
+   "notes": "UNDER by 800 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). missing: no prior/likelihood/posterior per belief. Shrinkage (counted under hierarchy) and pattern_memory re-pooling are not evidence-quality-weighted belief updates."
   },
   {
    "section": "Real/useful/current separation",
    "minimum_lines": 600,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED"
+   "actual_lines": 144,
+   "code_paths": [
+    "engine/pattern_stats.py::p_real,local_fdr,local_fdr_monotone,null_t_distribution,permute_within_clusters,corrected_coincidence,confirmation_factor,split_dates,admission_flags,evaluate_masks,calibration_table (144)"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "UNDER by 456 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: 'is it real' is deep (P(real) calibrated on planted truth); 'useful' = validation_gain_gate/no_gain; 'useful now' = pattern_memory weight. They are three systems, never three fields of one object."
   },
   {
    "section": "Portfolio-value learning",
    "minimum_lines": 850,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED"
+   "actual_lines": 829,
+   "code_paths": [
+    "engine/objective.py (193)",
+    "engine/pattern_movers.py (636)"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "UNDER by 21 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: tiered objective and pattern->movers ablation. No per-knowledge breakdown of predictive/ ranking/selection/direction/timing/risk/portfolio value."
   },
   {
    "section": "Exploration/exploitation",
    "minimum_lines": 750,
-   "actual_lines": null,
+   "actual_lines": 0,
    "code_paths": [],
-   "status": "NOT_STARTED"
+   "status": "NOT_STARTED",
+   "notes": "UNDER by 750 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). missing. basis_search/miner_tuning/improve.spawn_challengers are parameter tuning - the thing section 35 says not to spend all compute on."
   },
   {
    "section": "Information-gain research",
    "minimum_lines": 900,
-   "actual_lines": null,
+   "actual_lines": 0,
    "code_paths": [],
-   "status": "NOT_STARTED"
+   "status": "NOT_STARTED",
+   "notes": "UNDER by 900 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). missing: no priority function."
   },
   {
    "section": "Meta-learning",
    "minimum_lines": 1200,
-   "actual_lines": null,
+   "actual_lines": 0,
    "code_paths": [],
-   "status": "NOT_STARTED"
+   "status": "NOT_STARTED",
+   "notes": "UNDER by 1200 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). missing. Raw material exists (planted calibration history, learner reports, experiments.jsonl) but nothing learns from it."
   },
   {
    "section": "Failed-learner memory",
    "minimum_lines": 500,
-   "actual_lines": null,
+   "actual_lines": 0,
    "code_paths": [],
-   "status": "NOT_STARTED"
+   "status": "NOT_STARTED",
+   "notes": "UNDER by 500 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). missing as a store: failed learners are only markdown reports (state/research/learners/*). experiment_memory.TriedIndex is the reuse point."
   },
   {
    "section": "Knowledge competition",
    "minimum_lines": 700,
-   "actual_lines": null,
+   "actual_lines": 0,
    "code_paths": [],
-   "status": "NOT_STARTED"
+   "status": "NOT_STARTED",
+   "notes": "UNDER by 700 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). missing."
   },
   {
    "section": "Complexity control",
    "minimum_lines": 500,
-   "actual_lines": null,
+   "actual_lines": 0,
    "code_paths": [],
-   "status": "NOT_STARTED"
+   "status": "IN_PROGRESS",
+   "notes": "UNDER by 500 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial (0 dedicated lines): Expression.order (pattern_identity, counted under knowledge objects) and 'simpler of near-duplicates' ordering (pattern_stats.evidence_order, counted under redundancy). No incremental-gain-vs-complexity test."
   },
   {
    "section": "Boundary learning",
    "minimum_lines": 700,
-   "actual_lines": null,
+   "actual_lines": 0,
    "code_paths": [],
-   "status": "NOT_STARTED"
+   "status": "IN_PROGRESS",
+   "notes": "UNDER by 700 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: confirm_driver's works_when ranges (counted under pattern-break) are boundaries but are not stored as knowledge."
   },
   {
    "section": "Unknown handling",
    "minimum_lines": 400,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED"
+   "actual_lines": 129,
+   "code_paths": [
+    "engine/direction_calib.py (129)"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "UNDER by 271 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: direction abstention gates; pattern_reliability OPEN verdict. No UNKNOWN/INSUFFICIENT_DATA/CONFLICTED/UNTESTED states with ABSTAIN/COLLECT/RUN EXPERIMENT/USE GENERAL RULE actions."
   },
   {
    "section": "Knowledge→decision contract",
    "minimum_lines": 450,
-   "actual_lines": null,
+   "actual_lines": 0,
    "code_paths": [],
-   "status": "NOT_STARTED"
+   "status": "NOT_STARTED",
+   "notes": "UNDER by 450 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). missing: only pattern_lifecycle.TRADEABLE and the LiveGate multiplier touch decisions; no per-knowledge 'what decision does this change'."
   },
   {
    "section": "Champion/challenger",
    "minimum_lines": 700,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED"
+   "actual_lines": 429,
+   "code_paths": [
+    "engine/champion.py::ChampionError,_atomic_write,_canon,_num,freeze_baseline,load_baseline,vs_baseline,_score,Ledger,Board,default_paths,ChallengerQueue (241)",
+    "engine/improve.py::diagnose,spawn_challengers,evaluate,test_and_promote,_replay_score (144)",
+    "engine/shadows.py (44)"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "UNDER by 271 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial and DUPLICATED: two champion systems (champion.py Board, improve.py test_and_promote) for configs/models; nothing for knowledge objects; no SHADOW knowledge state."
   },
   {
    "section": "Promotion gates",
    "minimum_lines": 700,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED"
+   "actual_lines": 66,
+   "code_paths": [
+    "engine/champion.py::_check_gates,_check_evidence,_check_priority,_check_risk,_check_repro,_check_blind,_check_basis (66)"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "UNDER by 634 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: 6 of 10 contract gates exist for configs (evidence, risk, repro, blind, basis, tier firewall). Missing anti-memorisation, future-information audit, cross-context transfer, provenance completeness as blocking gates."
   },
   {
    "section": "Knowledge health",
    "minimum_lines": 650,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED"
+   "actual_lines": 209,
+   "code_paths": [
+    "engine/pattern_reliability.py::cusum_threshold,HealthLedger,health_monitor,false_alarm_budget (129)",
+    "engine/memory_diagnostics.py::memory_health,capacity_report,shock_report (38)",
+    "engine/trust_store.py::diff,drift (42)"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "UNDER by 441 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: healthy/suspect/broken per pattern (live-edited). Missing contradicted/dormant/recovering/unstable/insufficient/unknown and the 'why / which evidence / which research' dashboard."
   },
   {
    "section": "Learning scorecard",
    "minimum_lines": 700,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED"
+   "actual_lines": 106,
+   "code_paths": [
+    "engine/learning_delta.py::pick_hits,max_drawdown,run_metrics,metric_delta,render_report (106)"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "UNDER by 594 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: 8 metrics with noise/shuffle/transfer controls per learner. Missing cross-regime/stock gains, transfer ratio, calibration, identity gap, future-leak status, stability, compute cost in one versioned card."
   },
   {
    "section": "Learning curve",
    "minimum_lines": 500,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED"
+   "actual_lines": 346,
+   "code_paths": [
+    "engine/learning_delta.py::play_curve,plateau_index,slope_perm_p,alpha_bar,series_stats,perm_budget,curve_stats,persistence,curve_verdict,curve_selfcheck,render_curve_report (194)",
+    "scripts/learning_curve.py (152)"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "UNDER by 154 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). in progress: builders are live-editing; lc1 real run is mid-flight. Tracks gain vs rerun count; not yet knowledge count / validated knowledge / transfer gain / memorisation gap against experience."
   },
   {
    "section": "Knowledge archive",
    "minimum_lines": 1000,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED"
+   "actual_lines": 483,
+   "code_paths": [
+    "engine/pattern_memory.py::PatternMemory,_canon,_hash,_num,PatternWeight,TimelineSummary,PatternView,Analytics (351)",
+    "engine/lessons.py::LessonStore (73)",
+    "engine/trust_store.py::TrustStore,_content_hash (59)"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "UNDER by 517 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: append-only hash-chained pattern timeline (the right core) + two more stores. No L0-L9 layers; memory.py evicts episodes at capacity (contradicts 'never destroy')."
   },
   {
    "section": "Knowledge graph",
    "minimum_lines": 1000,
-   "actual_lines": null,
+   "actual_lines": 0,
    "code_paths": [],
-   "status": "NOT_STARTED"
+   "status": "NOT_STARTED",
+   "notes": "UNDER by 1000 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). missing."
   },
   {
    "section": "Research priority",
    "minimum_lines": 900,
-   "actual_lines": null,
+   "actual_lines": 0,
    "code_paths": [],
-   "status": "NOT_STARTED"
+   "status": "NOT_STARTED",
+   "notes": "UNDER by 900 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). missing. resources.JobQueue and champion.ChallengerQueue are compute/promotion queues, reusable as the execution side only."
   },
   {
    "section": "Surprise engine",
    "minimum_lines": 500,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED"
+   "actual_lines": 28,
+   "code_paths": [
+    "engine/run_report.py::memory_shock_events (28)"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "UNDER by 472 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). under-depth: z-score shock events on a score series; no expected-vs-actual surprise with magnitude/direction/persistence feeding research priority."
   },
   {
    "section": "Disagreement engine",
    "minimum_lines": 650,
-   "actual_lines": null,
+   "actual_lines": 0,
    "code_paths": [],
-   "status": "NOT_STARTED"
+   "status": "NOT_STARTED",
+   "notes": "UNDER by 650 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). missing."
   },
   {
    "section": "Calibration",
    "minimum_lines": 650,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED"
+   "actual_lines": 69,
+   "code_paths": [
+    "engine/pattern_reliability.py::brier,ece,auc (21)",
+    "engine/memory_diagnostics.py::calibration_table,skill_ci (26)",
+    "engine/run_report.py::calibration (11)",
+    "engine/planted.py::calibration_table (11)"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "UNDER by 581 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: Brier/ECE/reliability tables in several places (+ direction_calib, counted under unknown handling). No confidence-drift tracking, no context-specific calibration, no influence reduction when overconfident."
   },
   {
    "section": "Learning firewalls",
    "minimum_lines": 1100,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED"
+   "actual_lines": 666,
+   "code_paths": [
+    "engine/blind_gates.py::Finding,passed,_fail,window_end,overlap_days,seal_digest,seal_window,check_seal,check_no_overlap_across,check_sealed_before_workers,warmup_years_available,check_warmup,RevealGate,check_reveal_order,ClockViolation,BlindClock,scan_information,check_fill_timing,lookahead_probe,_same,truncate,audit_run,save_report,era_of,coverage_report,check_coverage,check_public_release (290)",
+    "engine/isolation.py (376)"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "UNDER by 434 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: blind-window sealing/reveal/clock gates and live/research isolation. The 8 layers are not one promotion-blocking chain; EXPERIMENT and EVALUATION firewalls for learning results do not exist as such."
   },
   {
    "section": "Reproducibility",
    "minimum_lines": 500,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED"
+   "actual_lines": 739,
+   "code_paths": [
+    "engine/repro.py (296)",
+    "engine/provenance.py (92)",
+    "engine/retester.py (351)"
+   ],
+   "status": "IMPLEMENTED",
+   "notes": "MET (meaningful = non-blank, non-comment, non-docstring lines of the listed code). IMPLEMENTED — NOT VALIDATED for learning experiments: hashes of code/config/data/seed exist; memory snapshot and worker configuration are not part of the learning-run key; 51 of 53 audited registry records lack the fields."
   },
   {
    "section": "Compute manager",
    "minimum_lines": 900,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED"
+   "actual_lines": 702,
+   "code_paths": [
+    "engine/resources.py (396)",
+    "engine/health.py (306)"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "UNDER by 198 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: deterministic seeds, memory-aware queue, stale-code/OOM classification, stale-process report. No isolated learning-state snapshot per worker or result reconciliation into shared knowledge."
   },
   {
    "section": "Continuous execution/checkpointing",
    "minimum_lines": 700,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED"
+   "actual_lines": 517,
+   "code_paths": [
+    "engine/checkpoint.py (135)",
+    "scripts/livesim_loop2.py (382)"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "UNDER by 183 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: checkpoint bundles + resumable outer loop; learning_curve checkpoints per window (lc1/ckpt). No SAVE STATE/NEXT ACTION/CURRENT FAILURES checkpoint for the learning engine."
   },
   {
    "section": "Reporting/dashboard/inspection",
    "minimum_lines": 1500,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED"
+   "actual_lines": 1166,
+   "code_paths": [
+    "scripts/dashboard_build.py (395)",
+    "scripts/final_report.py (212)",
+    "engine/run_report.py::tier1,tier2,tier3,build_report,render_text,render_html,write_report,decide,unproven_list (202)",
+    "engine/claims.py (302)",
+    "engine/pattern_reliability.py::render_report (55)"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "UNDER by 334 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial and MISDIRECTED: reporting infra is trading/foundation-facing; of K01-K15 only learning-delta, transfer and memorisation reports exist. site_* pages (~1,250 lines) not counted: public explanation site."
   },
   {
    "section": "Test infrastructure for the above",
    "minimum_lines": 8000,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED"
+   "actual_lines": 8871,
+   "code_paths": [
+    "tests/test_learning_delta.py (278)",
+    "tests/test_learning_curve.py (196)",
+    "tests/test_learners.py (253)",
+    "tests/test_lessons.py (393)",
+    "tests/test_memory.py (79)",
+    "tests/test_memory_ext.py (505)",
+    "tests/test_pattern_memory.py (320)",
+    "tests/test_pattern_memory_eval.py (125)",
+    "tests/test_pattern_lifecycle.py (311)",
+    "tests/test_pattern_bank.py (299)",
+    "tests/test_pattern_identity.py (292)",
+    "tests/test_pattern_stats.py (567)",
+    "tests/test_leak_audit.py (536)",
+    "tests/test_pit.py (514)",
+    "tests/test_antimemo.py (212)",
+    "tests/test_antimemo_archive.py (150)",
+    "tests/test_missed_winners.py (289)",
+    "tests/test_experiment_memory.py (76)",
+    "tests/test_registry.py (75)",
+    "tests/test_champion.py (192)",
+    "tests/test_planted_library.py (121)",
+    "tests/test_planted_patterns.py (63)",
+    "tests/test_trust.py (84)",
+    "tests/test_trust_store.py (90)",
+    "tests/test_ablation.py (117)",
+    "tests/test_antioverfit.py (182)",
+    "tests/test_blind_gates.py (321)",
+    "tests/test_repro.py (117)",
+    "tests/test_retester.py (260)",
+    "tests/test_resources.py (292)",
+    "tests/test_health.py (218)",
+    "tests/test_checkpoint.py (70)",
+    "tests/test_provenance.py (69)",
+    "tests/test_parity.py (153)",
+    "tests/test_parity_suite.py (137)",
+    "tests/test_tiebreak.py (44)",
+    "tests/test_analogs_ext.py (557)",
+    "tests/integration/pipeline_world.py (135)",
+    "tests/integration/test_pipeline_features_miner.py (94)",
+    "tests/integration/test_replay_reproducibility_blind.py (16)",
+    "tests/integration/test_session_replay_pipeline.py (69)"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "MET (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: tests for the existing learning-adjacent modules. pattern_reliability.py (1,543 lines) has NO test file; no property tests (no hypothesis); none of the contract section-62 adversarial tests exist for a knowledge layer because the layer does not exist."
   },
   {
    "section": "Integration/refactoring/type safety",
    "minimum_lines": 4000,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED"
+   "actual_lines": 605,
+   "code_paths": [
+    "engine/adaptive.py (605)"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "UNDER by 3395 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). under-depth: adaptive.Adapter is the only place learned state reaches decisions in the blind path. No engine/learning package, no loop that wires OBSERVE..SELECT NEXT QUESTION, several parallel stores to unify."
   }
  ]
 }
