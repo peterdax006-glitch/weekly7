@@ -298,6 +298,7 @@ class QuestionLedger:
     be measured. Rows are append-only; a fate change is a new row."""
     rows: list = field(default_factory=list)       # dicts: qid, key, source, asked_at, evidence_through, fate, difficulty, at
     namespace: Namespace = Namespace.MATURED_RESEARCH
+    difficulty_model: Any = None                   # DifficultyModel: learned per-source difficulty prior (see attach_difficulty_model)
 
     def keys(self) -> set:
         return {r["key"] for r in self.rows}
@@ -432,7 +433,7 @@ def generate(events: Sequence[QuestionEvent], now, ledger: QuestionLedger | None
         dup = ledger.similar_open(qo.question.text)
         if dup is None or dup == qo.qid:
             if ledger.latest(qo.qid) is None:
-                ledger.ask(qo, now, difficulty_of(_event_stub(qo), qo.plan, PRI_bits(qo)))
+                ledger.ask(qo, now, effective_difficulty(ledger, qo.source, difficulty_of(_event_stub(qo), qo.plan, PRI_bits(qo))))
         else:
             merged += 1
     return GenerationReport(tuple(out), merged, tuple(skipped), tuple(refused), tuple(reopened))
@@ -1124,3 +1125,176 @@ def quality_report(ledger: QuestionLedger, book: QuestionOutcomeBook, now) -> di
             "stale_open": stale_open(ledger, now), "book": book.table(now), "starved_sources": source_starvation(ledger, book, now),
             "calibration": {s: book.calibration(s, now)["verdict"] for s in SOURCES}, "integrity": ledger_integrity(ledger),
             "unbuilt_sources": builders_cover_sources()}
+
+
+# ---------------------------------------------------------------------------------------------------------- themes by structure
+
+SOURCE_GROUP = {"surprise": "unexpected", "missed_winner": "unexpected", "false_positive": "wrong", "loss": "wrong", "contradiction": "conflict",
+                "pattern_break": "change", "regime_change": "change", "new_discovery": "new", "coverage_gap": "new", "data_anomaly": "data",
+                "research_failure": "process"}
+
+
+@dataclass(frozen=True)
+class Structure:
+    """What a question is ABOUT, independent of its words: the kind of source, the problem, the observable features it conditions on,
+    and the family of the leading explanation. Two questions with the same structure are the same research direction."""
+    qid: str
+    group: str
+    problem: str
+    features: frozenset
+    family: str
+
+
+def hypothesis_family(qo: QuestionObject) -> str:
+    """Mechanism tag of the leading non-chance hypothesis (regime, context, decay, ...), the family of the explanation being pursued."""
+    live = [h for h in qo.hypotheses if h.kind != "noise" and h.hid != "h_unknown"]
+    if not live:
+        return "chance"
+    lead = max(live, key=lambda h: (h.prior, h.hid))
+    return (lead.mechanism_tags[0] if lead.mechanism_tags else lead.hid.replace("h_", "")).lower()
+
+
+def structure_of(qo: QuestionObject, event: QuestionEvent | None = None) -> Structure:
+    feats = frozenset(str(k).lower() for k in ((event.contexts if event else {}) or {})) | frozenset(str(k).lower() for k in ((event.profile if event else {}) or {}))
+    return Structure(qo.qid, SOURCE_GROUP.get(qo.source, qo.source), qo.question.problem.value, feats, hypothesis_family(qo))
+
+
+def structure_similarity(a: Structure, b: Structure) -> float:
+    """0..1: same source group 0.25, same problem 0.25, feature Jaccard 0.30 (two questions with no features share that part only if
+    both have none), same explanation family 0.20."""
+    fj = 1.0 if not a.features and not b.features else len(a.features & b.features) / max(len(a.features | b.features), 1)
+    return 0.25 * (a.group == b.group) + 0.25 * (a.problem == b.problem) + 0.30 * fj + 0.20 * (a.family == b.family)
+
+
+def themes_by_structure(items: Sequence[Structure], threshold: float = 0.7) -> list:
+    """Single-link clusters on structure similarity (union-find, deterministic order). Returns tuples of qids, largest first."""
+    items = sorted(items, key=lambda s: s.qid)
+    parent = {s.qid: s.qid for s in items}
+
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+    for i, a in enumerate(items):
+        for b in items[i + 1:]:
+            if structure_similarity(a, b) >= threshold:
+                ra, rb = find(a.qid), find(b.qid)
+                if ra != rb:
+                    parent[max(ra, rb)] = min(ra, rb)
+    groups: dict = {}
+    for s in items:
+        groups.setdefault(find(s.qid), []).append(s.qid)
+    return sorted((tuple(sorted(v)) for v in groups.values()), key=lambda t: (-len(t), t))
+
+
+def theme_summary(items: Sequence[Structure], objs: Sequence[QuestionObject], threshold: float = 0.7) -> list:
+    """Per theme: size, the shared structure (group / problem / family), the combined priority and the lead question - so a theme
+    with many questions and one tree is reported as one research direction."""
+    by = {o.qid: o for o in objs}
+    st = {s.qid: s for s in items}
+    out = []
+    for th in themes_by_structure(items, threshold):
+        members = [by[q] for q in th if q in by]
+        if not members:
+            continue
+        lead = max(members, key=lambda o: (o.priority, o.qid))
+        first = st[th[0]]
+        out.append({"qids": th, "size": len(th), "group": first.group, "problem": first.problem, "family": first.family,
+                    "features": sorted(set().union(*[st[q].features for q in th])), "priority": sum(o.priority for o in members), "lead": lead.qid})
+    return sorted(out, key=lambda r: (-r["priority"], r["qids"]))
+
+
+# ---------------------------------------------------------------------------------------------------------- learned difficulty wired into the ledger
+
+def effective_difficulty(ledger: QuestionLedger, source: str, prior: float) -> float:
+    """Difficulty of a NEW question of this source: the a-priori formula blended with what past questions of the source actually cost
+    and how often they ended UNDECIDED (DifficultyModel attached to the ledger). Without a model it is the prior unchanged."""
+    dm = getattr(ledger, "difficulty_model", None)
+    return dm.difficulty(source, prior) if dm is not None else prior
+
+
+def attach_difficulty_model(ledger: QuestionLedger, model: "DifficultyModel | None" = None) -> "DifficultyModel":
+    """Wire a DifficultyModel into the ledger. `generate` then records each new question's difficulty through it, and `answer_learn`
+    feeds actual outcomes back."""
+    ledger.difficulty_model = model or DifficultyModel()
+    return ledger.difficulty_model
+
+
+def answer_learn(qo: QuestionObject, outcome: Outcome, event: QuestionEvent, book: QuestionOutcomeBook | None, ledger: QuestionLedger, at, now,
+                 actual_minutes: float | None = None) -> tuple:
+    """`answer`, plus the learning: the ledger's DifficultyModel sees (actual/planned minutes, undecided?) and the difficulty stored
+    for the question is refreshed. Returns (verdict, follow-ups)."""
+    row = ledger.latest(qo.qid)
+    prior = row["difficulty"] if row else 0.5
+    verdict, fups = answer(qo, outcome, event, book, prior, at, now, ledger)
+    dm = getattr(ledger, "difficulty_model", None)
+    if dm is not None:
+        ratio = (actual_minutes / qo.plan.cost_minutes) if actual_minutes else 1.0
+        dm.observe(qo.source, ratio, verdict == "UNDECIDED")
+    return verdict, fups
+
+
+# ---------------------------------------------------------------------------------------------------------- too hard / always undecided
+
+@dataclass(frozen=True)
+class HardnessFlag:
+    scope: str                                      # "source" or "question"
+    key: str
+    undecided_share: float
+    n: int
+    action: str                                     # DEPRIORITISE (source is slow) / REDESIGN (this question never resolves)
+    multiplier: float
+    reason: str
+
+
+def undecided_streak(book: QuestionOutcomeBook, qid: str, now) -> int:
+    """Consecutive most-recent answers to this question that were UNDECIDED."""
+    rows = [r for r in book._visible(now) if r["qid"] == qid]
+    n = 0
+    for r in reversed(sorted(rows, key=lambda r: r["at"])):
+        if r["verdict"] != "UNDECIDED":
+            break
+        n += 1
+    return n
+
+
+def too_hard_flags(book: QuestionOutcomeBook, now, min_n: int = 4, source_share: float = 0.6, streak: int = 3) -> list:
+    """Flags for the priority engine. A SOURCE is 'too hard' when most of its answers are UNDECIDED (its plans are underpowered or its
+    questions unanswerable with the data): its priority is halved and the plans should be redesigned. A QUESTION asked `streak` times in
+    a row and UNDECIDED every time is 'always undecided': REDESIGN, priority to 0.25 so compute stops flowing into a dead end. A source
+    that is hard but decides when it does is left alone if it changes decisions more often than average."""
+    out = []
+    for s in SOURCES:
+        rows = [r for r in book._visible(now) if r["source"] == s]
+        if len(rows) < min_n:
+            continue
+        share = sum(1 for r in rows if r["verdict"] == "UNDECIDED") / len(rows)
+        if share >= source_share:
+            p, _ = book.p_decision_change(s, now)
+            if p <= book.overall(now) * 1.2:
+                out.append(HardnessFlag("source", s, share, len(rows), "DEPRIORITISE", 0.5, f"{share:.0%} of {len(rows)} answers were UNDECIDED"))
+    for qid in sorted({r["qid"] for r in book._visible(now)}):
+        k = undecided_streak(book, qid, now)
+        if k >= streak:
+            out.append(HardnessFlag("question", qid, 1.0, k, "REDESIGN", 0.25, f"UNDECIDED on the last {k} attempts"))
+    return out
+
+
+def hardness_multipliers(flags: Sequence[HardnessFlag], objs: Sequence[QuestionObject]) -> dict:
+    """{priority item id: multiplier} for engine.research.priority (PriorityState.external_multipliers). Item ids are 'r_' + qid."""
+    src = {f.key: f.multiplier for f in flags if f.scope == "source"}
+    qs = {f.key: f.multiplier for f in flags if f.scope == "question"}
+    out = {}
+    for o in objs:
+        m = min(src.get(o.source, 1.0), qs.get(o.qid, 1.0))
+        if m < 1.0:
+            out["r_" + o.qid] = m
+    return out
+
+
+def apply_hardness(state: PRI.PriorityState, flags: Sequence[HardnessFlag], objs: Sequence[QuestionObject]) -> dict:
+    """Install the multipliers on the priority state so its ranking uses them. Returns what was installed."""
+    mult = hardness_multipliers(flags, objs)
+    state.external_multipliers.update(mult)
+    return mult

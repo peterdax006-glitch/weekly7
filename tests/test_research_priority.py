@@ -567,3 +567,104 @@ def test_remaining_question_builders_cost_model_and_reports():
     for _ in range(20):
         dm.observe("loss", 3.0, True)
     assert dm.difficulty("loss", 0.4) > 0.6
+
+
+# ------------------------------------------------------------------ wave-2c: calibration, conjunctions, structural themes, hardness
+def test_target_calibrator_shrinks_and_corrects_overclaiming_source():
+    cal = T.TargetCalibrator()
+    rng = np.random.default_rng(0)
+    for i in range(30):
+        p = float(rng.uniform(0.2, 0.8))
+        cal.observe("surprise", p, 0.2 * p, f"2026-01-{1 + i % 28:02d}", "2026-06-01")        # surprises deliver 20% of what they promise
+        cal.observe("loss", p, 1.0 * p, f"2026-01-{1 + i % 28:02d}", "2026-06-01")
+    cal.observe("data_anomaly", 0.5, 0.0, "2026-01-01", "2026-06-01")                        # ONE bad result must not condemn a source
+    assert cal.scale("surprise", "2026-06-01") < 0.5 and 0.85 < cal.scale("loss", "2026-06-01") < 1.15
+    assert cal.scale("data_anomaly", "2026-06-01") > 0.4 and cal.scale("data_anomaly", "2026-06-01") > cal.scale("surprise", "2026-06-01")
+    assert cal.error("surprise", "2026-06-01")["verdict"] == "overclaims"
+    assert cal.error("surprise", "2026-06-01")["calibration_error"] < cal.error("surprise", "2026-06-01")["raw_error"]
+    tg = T._mk("surprise", "s", "why s", "h", "t", Problem.VOLATILITY, "2026-05-01", 0.8, 0.5, 20.0, 1.0)
+    assert cal.apply(tg, "2026-06-01").magnitude < 0.5 * tg.magnitude
+    assert cal.scale("surprise", "2026-01-01") == 1.0                                       # nothing visible before it matured
+    assert T.TargetCalibrator().scale("loss", "2026-06-01") == 1.0                          # empty
+    with pytest.raises(FirewallBreach):
+        cal.observe("loss", 0.5, 0.5, "2026-06-01", "2026-06-01")
+    assert T.TargetCalibrator.from_json(cal.to_json()).scale("loss", "2026-06-01") == cal.scale("loss", "2026-06-01")
+
+
+def _conj_world(seed, planted=True, n=300):
+    rng = np.random.default_rng(seed)
+    rows = []
+    for _ in range(n):
+        d, b, v = rng.uniform(0, 2), rng.uniform(0, 1), rng.uniform(0, 1)
+        hot = d > 1.2 and b < 0.4
+        fail = rng.random() < (0.9 if (planted and hot) else 0.12)
+        rows.append(T.PredictionRow("p", not fail, {"dispersion": float(d), "breadth": float(b), "noise": float(v)}))
+    return rows
+
+
+def test_conjunction_search_finds_planted_two_feature_region_and_oos_promotes():
+    rows = _conj_world(1)
+    found = T.find_conjunctions(rows)
+    assert found and set(found[0].features) >= {"dispersion", "breadth"} and "noise" not in found[0].features
+    assert found[0].rate_in > 0.7 and found[0].p_value < 0.05
+    hist = _conj_world(2, n=600)
+    assert T.evaluate_conjunction(found[0], "p", hist, "2003-01-01").verdict == GateVerdict.PROMOTE
+    assert T.evaluate_conjunction(found[0], "p", [], "2003-01-01").verdict == GateVerdict.NEEDS_MORE_EVIDENCE
+    tg = T.conjunction_target("p", found[0], "2003-01-01")
+    assert "and" in tg.hypothesis and tg.check() == []
+
+
+def test_conjunction_search_finds_nothing_in_null_world_and_guards_hold():
+    for seed in range(4):
+        assert T.find_conjunctions(_conj_world(seed, planted=False)) == []
+    assert T.find_conjunctions([]) == []
+    null_hist = _conj_world(5, planted=False, n=600)
+    planted_conj = T.find_conjunctions(_conj_world(1))[0]
+    assert T.evaluate_conjunction(planted_conj, "p", null_hist, "2003-01-01").verdict != GateVerdict.PROMOTE   # a false region fails OOS
+    assert T.conjunction_stability(_conj_world(1), ["dispersion", "breadth"], n_boot=20)["found_share"] > 0.4
+    assert T.conjunction_stability(_conj_world(3, planted=False), ["dispersion", "breadth"], n_boot=15)["verdict"] == "UNSTABLE"
+
+
+def test_structure_themes_group_by_meaning_not_wording():
+    e1 = Q.QuestionEvent("loss", "regime_a", "2026-09-20", 0.6, problem=Problem.LOSS_AVOIDANCE, contexts={"dispersion": "high"}, loss_share=0.3)
+    e2 = Q.QuestionEvent("false_positive", "totally_other_words", "2026-09-20", 0.6, problem=Problem.LOSS_AVOIDANCE, contexts={"dispersion": "high"}, loss_share=0.3)
+    e3 = Q.QuestionEvent("new_discovery", "zeta", "2026-09-20", 0.6, problem=Problem.VOLATILITY, contexts={"liquidity": "low"})
+    objs = Q.generate([e1, e2, e3], "2026-09-29").questions
+    by_subj = {o.subject: o for o in objs}
+    st = [Q.structure_of(by_subj["regime_a"], e1), Q.structure_of(by_subj["totally_other_words"], e2), Q.structure_of(by_subj["zeta"], e3)]
+    assert Q.question_similarity(by_subj["regime_a"].question.text, by_subj["totally_other_words"].question.text) < 0.6     # wording differs
+    th = Q.themes_by_structure(st, 0.7)
+    assert th[0] == tuple(sorted((by_subj["regime_a"].qid, by_subj["totally_other_words"].qid))) and len(th) == 2
+    summ = Q.theme_summary(st, objs, 0.7)
+    assert summ[0]["size"] == 2 and "dispersion" in summ[0]["features"]
+    assert Q.themes_by_structure([]) == []
+
+
+def test_learned_difficulty_is_wired_into_ledger_and_too_hard_flags_reach_priority():
+    ledger = Q.QuestionLedger()
+    dm = Q.attach_difficulty_model(ledger)
+    ev = _ev("loss", "hard_thing", loss_share=0.3)
+    base = Q.generate([ev], "2026-09-29", ledger).questions[0]
+    d0 = ledger.latest(base.qid)["difficulty"]
+    book = Q.QuestionOutcomeBook()
+    for i in range(6):
+        Q.answer_learn(base, Q.Outcome(n=3, lift=0.0, p_value=1.0), ev, book, ledger, f"2026-10-{1 + i:02d}", "2026-11-01", actual_minutes=90.0)
+    assert dm.difficulty("loss", d0) > d0
+    ev2 = _ev("loss", "another_thing", loss_share=0.3)
+    other = Q.generate([ev2], "2026-11-02", ledger).questions[0]
+    assert ledger.latest(other.qid)["difficulty"] > d0                                     # the learned prior reached a NEW question's row
+    flags = Q.too_hard_flags(book, "2026-11-01")
+    assert any(f.scope == "question" and f.key == base.qid and f.action == "REDESIGN" for f in flags)
+    assert any(f.scope == "source" and f.key == "loss" for f in flags)
+    st = P.new_state()
+    mult = Q.apply_hardness(st, flags, [base, other])
+    assert mult["r_" + base.qid] == 0.25 and mult["r_" + other.qid] == 0.5
+    it = base.to_item("2026-09-29")
+    item2 = other.to_item("2026-09-29")
+    ranked = {r.item.item_id: r for r in P.rank(st, [it, item2], "2026-11-02")}
+    assert ranked[it.item_id].multipliers["external"] == 0.25
+    healthy = Q.QuestionOutcomeBook()
+    for i in range(6):
+        healthy.record(base, 0.3, Q.Outcome(200, 0.2, 0.001, decision_changed=True), "SUCCESS", f"2026-10-{1 + i:02d}", "2026-11-01")
+    assert Q.too_hard_flags(healthy, "2026-11-01") == []                                    # decided answers are never flagged
+    assert Q.too_hard_flags(Q.QuestionOutcomeBook(), "2026-11-01") == []

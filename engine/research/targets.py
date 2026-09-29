@@ -29,7 +29,7 @@ from dataclasses import dataclass, field, replace
 from typing import Any, Iterable, Mapping, Sequence
 
 import numpy as np
-from scipy.stats import binom
+from scipy.stats import binom, hypergeom
 
 from engine.learning.experiment_memory import question_key, to_ts
 from engine.learning.research_priority import identity_leak
@@ -206,8 +206,7 @@ def find_failure_conditions(rows: Sequence[PredictionRow], min_fail: int = 3, al
                 fail_out = len(fails) - fail_in
                 if n_in < min_side or n_out < min_side or fail_in < min_fail:
                     continue
-                base = max(fail_out / n_out, 1.0 / (n_out + 2.0))          # never a zero null rate
-                p = float(binom.sf(fail_in - 1, n_in, base))
+                p = float(hypergeom.sf(fail_in - 1, len(rows), len(fails), n_in))     # random-subset null; see _tail_p
                 if p * tried <= alpha and fail_in / n_in > fail_out / n_out:
                     out.append(Condition(f, op, float(thr), int(n_in), int(fail_in), int(n_out), int(fail_out), float(min(1.0, p * tried))))
     return sorted(out, key=lambda c: (c.p_value, -c.rate_in, c.feature, c.op, c.threshold))
@@ -610,7 +609,7 @@ def score_win(row: Mapping) -> SourceScore:
     base = float(row.get("base_rate", 0.5))
     if n < 5:
         return SourceScore("win", 0.0, 0.2, 0.3, 15.0, Problem.VOLATILITY, 0.0, ("too few to study",))
-    from scipy.stats import binom
+    from scipy.stats import binom, hypergeom
     p = float(binom.sf(k - 1, n, base))
     return SourceScore("win", min(1.0, max(0.0, k / n - base) * 2), 0.4, 0.6, 20.0, Problem.VOLATILITY, 1.0 - p, (f"{k}/{n} vs base {base:.2f}",))
 
@@ -1415,3 +1414,256 @@ def target_to_event(t: Target, now) -> QST.QuestionEvent:
     loss = t.value.loss_reduction_value or 0.0
     return QST.QuestionEvent(src, t.subject if not identity_leak(t.subject) else "situation", t.evidence_through, t.magnitude, stake=t.stake, problem=t.problem,
                              loss_share=min(1.0, loss * 2.0))
+
+
+# ---------------------------------------------------------------------------------------------------------- calibrating target value estimates
+
+@dataclass
+class TargetCalibrator:
+    """Per-source calibration of target value estimates against realised value. A source that keeps promising more than it delivers is
+    discounted; one that delivers more is credited - but every correction is SHRUNK toward the pooled ratio (across all sources) with
+    `k` pseudo-observations, so a source with three results is treated almost like the average source, never like an outlier."""
+    k: float = 6.0
+    rows: list = field(default_factory=list)          # (at, source, predicted, realised)
+
+    def observe(self, source: str, predicted: float, realised: float, at, now) -> None:
+        if source not in TARGET_SOURCES:
+            raise TargetError(f"unknown source {source!r}")
+        if predicted < 0 or realised < 0 or math.isnan(predicted) or math.isnan(realised):
+            raise TargetError("predicted and realised value must be non-negative numbers")
+        require_past(at, now, f"realised value of {source}")
+        self.rows.append((str(at), source, float(predicted), float(realised)))
+
+    def _vis(self, now) -> list:
+        return [r for r in self.rows if to_ts(r[0]) < to_ts(now)]
+
+    def pooled_scale(self, now) -> float:
+        v = self._vis(now)
+        p = sum(r[2] for r in v)
+        return sum(r[3] for r in v) / p if p > 0 else 1.0
+
+    def scale(self, source: str, now) -> float:
+        """Shrunk realised/predicted ratio for the source: (sum real + k*pooled*mean_pred) / (sum pred + k*mean_pred)."""
+        v = self._vis(now)
+        mine = [r for r in v if r[1] == source]
+        if not v:
+            return 1.0
+        mean_pred = float(np.mean([r[2] for r in (mine or v)])) or 1e-9
+        pooled = self.pooled_scale(now)
+        num = sum(r[3] for r in mine) + self.k * pooled * mean_pred
+        den = sum(r[2] for r in mine) + self.k * mean_pred
+        return float(num / den)
+
+    def error(self, source: str, now, bins: int = 3) -> dict:
+        """Calibration error of the source's PREDICTED values: split into predicted-value bins; per bin |mean predicted*scale - mean
+        realised|, averaged. Also the rank correlation of predicted and realised, which is scale-free."""
+        mine = [r for r in self._vis(now) if r[1] == source]
+        if len(mine) < 2 * bins:
+            return {"source": source, "n": len(mine), "verdict": "INSUFFICIENT"}
+        pred = np.array([r[2] for r in mine])
+        real = np.array([r[3] for r in mine])
+        sc = self.scale(source, now)
+        order = np.argsort(pred)
+        errs = [abs(float(pred[g].mean() * sc - real[g].mean())) for g in np.array_split(order, bins)]
+        rho = float(np.corrcoef(np.argsort(np.argsort(pred)), np.argsort(np.argsort(real)))[0, 1]) if pred.std() > 0 and real.std() > 0 else 0.0
+        raw = float(np.mean([abs(float(pred[g].mean() - real[g].mean())) for g in np.array_split(order, bins)]))
+        return {"source": source, "n": len(mine), "scale": sc, "calibration_error": float(np.mean(errs)), "raw_error": raw, "rank_corr": rho,
+                "verdict": "overclaims" if sc < 0.7 else "underclaims" if sc > 1.5 else "roughly calibrated"}
+
+    def apply(self, t: Target, now) -> Target:
+        """Return the target with its decision value and magnitude rescaled by its source's shrunk calibration (bounded 0.2-3)."""
+        s = min(3.0, max(0.2, self.scale(t.source, now)))
+        v = t.value
+        dec = None if v.decision_value is None else min(1.0, v.decision_value * s)
+        return replace(t, magnitude=min(1.0, t.magnitude * s), value=replace(v, decision_value=dec))
+
+    def apply_score(self, sc: SourceScore, now) -> SourceScore:
+        s = min(3.0, max(0.2, self.scale(sc.source, now)))
+        return replace(sc, magnitude=min(1.0, sc.magnitude * s), reasons=sc.reasons + (f"calibrated x{s:.2f}",))
+
+    def report(self, now) -> dict:
+        return {s: self.error(s, now) for s in TARGET_SOURCES if any(r[1] == s for r in self._vis(now))}
+
+    def to_json(self) -> str:
+        return json.dumps({"k": self.k, "rows": self.rows}, sort_keys=True)
+
+    @classmethod
+    def from_json(cls, text: str) -> "TargetCalibrator":
+        d = json.loads(text)
+        return cls(d["k"], [tuple(r) for r in d["rows"]])
+
+
+# ---------------------------------------------------------------------------------------------------------- multi-feature conjunctions
+
+@dataclass(frozen=True)
+class Term:
+    feature: str
+    op: str
+    threshold: float
+
+    def holds(self, features: Mapping) -> bool:
+        if self.feature not in features:
+            return False
+        return features[self.feature] > self.threshold if self.op == ">" else features[self.feature] < self.threshold
+
+    def text(self) -> str:
+        return f"{self.feature} {'above' if self.op == '>' else 'below'} {self.threshold:.3g}"
+
+
+@dataclass(frozen=True)
+class Conjunction:
+    """feature1 op t1 AND feature2 op t2 [AND feature3 ...]: a failure region. Fields mirror Condition so the two are read the same way."""
+    terms: tuple
+    n_in: int
+    fail_in: int
+    n_out: int
+    fail_out: int
+    p_value: float                                  # corrected for every candidate the search evaluated
+
+    def holds(self, features: Mapping) -> bool:
+        return all(t.holds(features) for t in self.terms)
+
+    @property
+    def rate_in(self) -> float:
+        return self.fail_in / self.n_in if self.n_in else 0.0
+
+    @property
+    def rate_out(self) -> float:
+        return self.fail_out / self.n_out if self.n_out else 0.0
+
+    @property
+    def features(self) -> tuple:
+        return tuple(t.feature for t in self.terms)
+
+    def text(self, pattern: str) -> str:
+        return f"Pattern {pattern} loses reliability when " + " and ".join(t.text() for t in self.terms)
+
+
+def _tail_p(rows: Sequence[PredictionRow], inside: Sequence[bool]) -> tuple:
+    n_in = sum(inside)
+    fail_in = sum(1 for r, i in zip(rows, inside) if i and not r.correct)
+    n_out = len(rows) - n_in
+    fail_out = sum(1 for r in rows if not r.correct) - fail_in
+    if n_in == 0 or n_out == 0:
+        return 1.0, n_in, fail_in, n_out, fail_out
+    # Fisher/hypergeometric tail: under 'no association' the failures are a random subset of the rows. Using the OUTSIDE rate as the null
+    # would be biased when the region was chosen to make the outside look clean (selection), and did produce false regions in a null world.
+    return float(hypergeom.sf(fail_in - 1, len(rows), fail_in + fail_out, n_in)), n_in, fail_in, n_out, fail_out
+
+
+def _atoms(rows: Sequence[PredictionRow], feats: Sequence[str], n_thr: int) -> list:
+    out = []
+    for f in feats:
+        vals = np.array([r.features[f] for r in rows], float)
+        for thr in np.unique(np.quantile(vals, np.linspace(0.25, 0.75, n_thr))):
+            out += [Term(f, ">", float(thr)), Term(f, "<", float(thr))]
+    return out
+
+
+def find_conjunctions(rows: Sequence[PredictionRow], max_terms: int = 3, beam: int = 6, n_thr: int = 5, min_fail: int = 3, min_side: int = 3,
+                      alpha: float = 0.05, q: float = 0.10, min_gain: float = 2.0) -> list:
+    """Beam search for failure regions built from up to `max_terms` features. Every candidate evaluated is counted, and each
+    p-value is Bonferroni-corrected by that count (the search itself is a multiple-comparison machine). A term is only added if it
+    lowers the p-value by at least `min_gain`x AND raises the inside failure rate (no decorative terms); different features only. The
+    survivors are then filtered with Benjamini-Hochberg at level q. Scattered failures return []."""
+    rows = list(rows)
+    fails = sum(1 for r in rows if not r.correct)
+    if fails < min_fail or len(rows) - fails < 1:
+        return []
+    feats = sorted(set.intersection(*[set(r.features) for r in rows]))
+    atoms = _atoms(rows, feats, n_thr)
+    evaluated = 0
+    frontier = [((), [True] * len(rows), 1.0, 0.0)]
+    finished: list = []
+    for depth in range(max_terms):
+        cand = []
+        for terms, mask, p_prev, rate_prev in frontier:
+            used = {t.feature for t in terms}
+            for a in atoms:
+                if a.feature in used:
+                    continue
+                m = [mk and a.holds(r.features) for mk, r in zip(mask, rows)]
+                p, n_in, f_in, n_out, f_out = _tail_p(rows, m)
+                evaluated += 1
+                if n_in < min_side or n_out < min_side or f_in < min_fail:
+                    continue
+                rate = f_in / n_in
+                if rate <= f_out / n_out:
+                    continue
+                if terms and (p * min_gain > p_prev or rate <= rate_prev):
+                    continue
+                cand.append((terms + (a,), m, p, rate, n_in, f_in, n_out, f_out))
+        cand.sort(key=lambda c: (c[2], -c[3], [(t.feature, t.op, t.threshold) for t in c[0]]))
+        frontier = [(c[0], c[1], c[2], c[3]) for c in cand[:beam]]
+        finished += cand[:beam]
+        if not frontier:
+            break
+    tried = max(evaluated, 1)
+    kept = [c for c in finished if c[2] * tried <= alpha]
+    seen, uniq = set(), []
+    for c in sorted(kept, key=lambda c: (c[2], len(c[0]))):
+        key = tuple(sorted((t.feature, t.op) for t in c[0]))
+        if key in seen:
+            continue
+        seen.add(key)
+        uniq.append(c)
+    idx = bh_select([min(1.0, c[2] * tried) for c in uniq], q)
+    return [Conjunction(uniq[i][0], int(uniq[i][4]), int(uniq[i][5]), int(uniq[i][6]), int(uniq[i][7]), float(min(1.0, uniq[i][2] * tried))) for i in idx]
+
+
+def conjunction_stability(rows: Sequence[PredictionRow], features: Sequence[str], n_boot: int = 60, seed: int = 0, **kw) -> dict:
+    """Would a re-draw of the data find a conjunction on the SAME feature set? Reports the share of bootstrap resamples in which the
+    search returns one using exactly `features`, and the spread of its thresholds. A conjunction that appears in under half the
+    resamples is UNSTABLE however small its p-value."""
+    rng = np.random.default_rng(seed)
+    rows = list(rows)
+    want = tuple(sorted(features))
+    hits, ths = 0, {f: [] for f in want}
+    for _ in range(n_boot):
+        samp = [rows[i] for i in rng.integers(0, len(rows), len(rows))]
+        for c in find_conjunctions(samp, **kw):
+            if tuple(sorted(c.features)) == want:
+                hits += 1
+                for t in c.terms:
+                    ths[t.feature].append(t.threshold)
+                break
+    share = hits / n_boot
+    if hits < 5:
+        return {"found_share": share, "verdict": "UNSTABLE"}
+    rel = {}
+    for f, v in ths.items():
+        vals = np.array([r.features[f] for r in rows], float)
+        rel[f] = float(np.std(v) / max(vals.max() - vals.min(), 1e-9))
+    return {"found_share": share, "relative_sd": rel, "verdict": "STABLE" if share >= 0.5 and max(rel.values()) < 0.2 else "UNSTABLE"}
+
+
+def evaluate_conjunction(conj: Conjunction, pattern: str, history: Sequence[PredictionRow], now, min_in: int = 8, min_out: int = 8, alpha: float = 0.05,
+                         seed: int = 0, n_placebo: int = 200) -> ConditionVerdict:
+    """Out-of-sample test of a conjunction with every threshold FIXED, same rules as evaluate_condition: PROMOTE needs a significant
+    inside-vs-outside failure gap AND a placebo random split of the same size not doing as well."""
+    mine = [r for r in history if r.pattern == pattern and all(f in r.features for f in conj.features)]
+    flags = [conj.holds(r.features) for r in mine]
+    n_in = sum(flags)
+    if n_in < min_in or len(mine) - n_in < min_out:
+        return ConditionVerdict(GateVerdict.NEEDS_MORE_EVIDENCE, n_in, len(mine) - n_in, 0.0, 0.0, 1.0, 1.0, f"{n_in} inside / {len(mine) - n_in} outside")
+    inside = [r for r, f in zip(mine, flags) if f]
+    outside = [r for r, f in zip(mine, flags) if not f]
+    p, *_ = _tail_p(mine, flags)
+    fail = np.array([not r.correct for r in mine])
+    obs = failure_rate(inside) - failure_rate(outside)
+    rng = np.random.default_rng(seed)
+    hits = sum(int(fail[idx[:n_in]].mean() - fail[idx[n_in:]].mean() >= obs - 1e-12) for idx in (rng.permutation(len(mine)) for _ in range(n_placebo)))
+    pp = (hits + 1) / (n_placebo + 1)
+    ri, ro = failure_rate(inside), failure_rate(outside)
+    if p <= alpha and pp <= alpha and ri > ro:
+        return ConditionVerdict(GateVerdict.PROMOTE, n_in, len(outside), ri, ro, p, pp, "conjunction replicated out of sample and beat the placebo split")
+    if p > 0.30 or ri <= ro:
+        return ConditionVerdict(GateVerdict.FAILED, n_in, len(outside), ri, ro, p, pp, "no failure concentration out of sample")
+    return ConditionVerdict(GateVerdict.NEEDS_MORE_EVIDENCE, n_in, len(outside), ri, ro, p, pp, "suggestive but not significant")
+
+
+def conjunction_target(pattern: str, conj: Conjunction, evidence_through: str, loss_share: float = 0.0) -> Target:
+    loss = PRI.expected_loss_avoided(min(loss_share, 1.0), 0.5, 0.6, 0.6) if loss_share > 0 else None
+    return _mk("failure_condition", pattern, f"Does {conj.text(pattern)}, and does that hold out of sample?", conj.text(pattern),
+               "fix every threshold; measure failure rate inside vs outside on unseen days and against a placebo split", Problem.LOSS_AVOIDANCE,
+               evidence_through, conj.rate_in, 0.7, 20.0, 1.2, loss, None, pattern)

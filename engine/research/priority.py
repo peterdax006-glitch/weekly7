@@ -747,6 +747,7 @@ class PriorityState:
     policy: PriorityFunction | None = None
     costs: CostModel = field(default_factory=CostModel)
     max_per_question: int = 2
+    external_multipliers: dict = field(default_factory=dict)   # item id -> multiplier from other modules (e.g. too-hard flags)
 
     def weights(self) -> ObjectiveWeights:
         return self.model.weights
@@ -858,7 +859,8 @@ def rank(state: PriorityState, items: Sequence[ResearchItem], now, budget: Compu
         it = fill_missing(it, state.history)
         cost = it.cost * state.costs.multiplier(it.family)
         cand = to_candidate(replace(it, value=replace(it.value, compute_cost=cost)), now)
-        mult = {"waste": state.waste.multiplier(it.family), "direction_gate": direction_lane(state, it)}
+        mult = {"waste": state.waste.multiplier(it.family), "direction_gate": direction_lane(state, it),
+                "external": float(state.external_multipliers.get(it.item_id, 1.0))}
         dup, dup_msg = pf.duplicate_penalty(cand, ctx)
         mult["duplicate"] = dup
         mult["forking_paths"] = pf.overfit_penalty(cand, ctx)
