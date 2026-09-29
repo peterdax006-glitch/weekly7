@@ -362,3 +362,9 @@ it should be very long
 > some memory should be releavant for every year if it stays consisistent, if it doesnt stay consistenet it should be disguarderded for that year
 
 `sha256: 8a6ab5116ed50d694dd510296e46f8dd3c1bc9c842e265502256982b71ad0e81`
+
+## C60 — Patterns die within a year: learn WHY they flip, predict when a pattern will be unreliable, and gate it instead of discarding it (2026-09-29)
+
+> also some memory should be diguarded throughout the year as it finds patterns at the begining  of the year that have no relevance at the end of the year, but it should try to self learn to find what changed to make the pattern flip or stop working and become unpredictable, that should be a massive part where it should develop patterns, but it should also develop explanations for how to know what patterns will be unpredictable, because the stock market is always changning and the same problems wont always be predictable so it should be constantly learning to find how to know when and how some pattern it created will be consisistent, and if you can determine when a pattern will be unpredictable, and knowing when not to rely on a pattern then the pattern does not have to be disguarded
+
+`sha256: 7fcaf52a1ae95158e0407ef90d216eac1a10f16ade1847062045c8721e1e63f6`

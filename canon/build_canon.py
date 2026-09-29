@@ -127,6 +127,8 @@ DIRECTIVES = [
      'the memory for patterns should always be improved but it should organize timelines for when it noticed different patternsso then it knows how releavant a pattern is to the year its working with but you also need to enforce no cheating so there is not info it can gather from a date that has yet to occur'),
     ("C59", "2026-09-29", 'Consistent memory is relevant to every year; memory that does not stay consistent is disregarded for that year',
      'some memory should be releavant for every year if it stays consisistent, if it doesnt stay consistenet it should be disguarderded for that year'),
+    ("C60", "2026-09-29", 'Patterns die within a year: learn WHY they flip, predict when a pattern will be unreliable, and gate it instead of discarding it',
+     'also some memory should be diguarded throughout the year as it finds patterns at the begining  of the year that have no relevance at the end of the year, but it should try to self learn to find what changed to make the pattern flip or stop working and become unpredictable, that should be a massive part where it should develop patterns, but it should also develop explanations for how to know what patterns will be unpredictable, because the stock market is always changning and the same problems wont always be predictable so it should be constantly learning to find how to know when and how some pattern it created will be consisistent, and if you can determine when a pattern will be unpredictable, and knowing when not to rely on a pattern then the pattern does not have to be disguarded'),
 ]
 
 def sha(t): return hashlib.sha256(t.encode("utf-8")).hexdigest()
