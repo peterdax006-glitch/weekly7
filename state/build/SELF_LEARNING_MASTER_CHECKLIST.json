@@ -3139,20 +3139,24 @@
    "phase": "I VALIDATION",
    "description": "Integration tests.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
+    "engine/learning/test_path.py",
+    "engine/learning/wiring.py",
     "tests/integration/"
    ],
    "tests": [
-    "tests/integration/test_session_replay_pipeline.py"
+    "tests/integration/test_session_replay_pipeline.py",
+    "tests/test_learning_integration.py",
+    "tests/test_learning_test_path.py"
    ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[under-tested] 4 files, 314 lines; no learning-loop integration test."
+   "last_run": "2026-09-29T12:11:41",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED: end-to-end integration tests for every hook + the C64 test path. | earlier: [under-tested] 4 files, 314 lines; no learning-loop integration test."
   },
   {
    "id": "I03",
@@ -5557,15 +5561,16 @@
   {
    "section": "Integration/refactoring/type safety",
    "minimum_lines": 4000,
-   "actual_lines": 1539,
+   "actual_lines": 1610,
    "code_paths": [
     "engine/adaptive.py",
     "engine/adaptive.py (605)",
     "engine/learning/test_path.py",
-    "engine/learning/wiring.py"
+    "engine/learning/wiring.py",
+    "scripts/acceptance_mini.py"
    ],
    "status": "IN_PROGRESS",
-   "notes": "S17a landed (wiring.py, mypy clean, CI); S17b still running. | earlier: UNDER by 3395 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). under-depth: adaptive.Adapter is the only place learned state reaches decisions in the blind path. No engine/learning package, no loop that wires OBSERVE..SELECT NEXT QUESTION, several parallel stores to unify."
+   "notes": "S17a+S17b landed: every queued hook applied, mypy clean on engine/learning (~830 type errors fixed inside the modules, not counted here), CI steps. Ruler count of the dedicated integration files is 1,610 vs the 4,000 estimate. Section 83 question OPEN: functionality looks complete (no queued hook left), but the estimate is not met; judge in the next mapping, do not pad. | earlier: S17a landed (wiring.py, mypy clean, CI); S17b still running. | earlier: UNDER by 3395 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). under-depth: adaptive.Adapter is the only place learned state reaches decisions in the blind path. No engine/learning package, no loop that wires OBSERVE..SELECT NEXT QUESTION, several parallel stores to unify."
   }
  ]
 }
