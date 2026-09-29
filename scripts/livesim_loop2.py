@@ -57,10 +57,38 @@ def run_window(w, cfg, meta):
     wk = np.array(S.weeks)
     r["sd_week"] = float(wk.std()) if len(wk) > 1 else 0.0
     r["win_weeks"] = float((wk > 0).mean()) if len(wk) else 0.5
+    band = (np.abs(wk) >= BAND[0]) & (np.abs(wk) <= BAND[1])
+    r["in_band"] = float(band.mean()) if len(wk) else 0.0                 # tier 1: share of ~7% weeks
+    r["over_band"] = float((np.abs(wk) > BAND[1]).mean()) if len(wk) else 0.0
+    r["worst5"] = float(np.quantile(wk, 0.05)) if len(wk) > 5 else 0.0   # tier 2: tail risk
+    r["pos_in_band"] = float((wk[band] > 0).mean()) if band.any() else 0.0  # tier 3
     return r
 
 
+BAND = (0.05, 0.10)          # "about 7%": below 5% is too low, above 10% too risky (C38)
+
+
+def tiered(rows):
+    """C39: tier 1 dominates until most weeks are ~7% (majority); then risk; then the positive share."""
+    t1 = float(np.mean([r["in_band"] for r in rows]))
+    over = float(np.mean([r["over_band"] for r in rows]))
+    risk = float(np.mean([r["worst5"] for r in rows])) + float(min(r["max_dd"] for r in rows)) / 4
+    t3 = float(np.mean([r["pos_in_band"] for r in rows]))
+    reached = t1 >= 0.5
+    return (100 * min(t1, 0.5) - 50 * over + (10 * (risk + 0.3) + t3 if reached else 0.0)), t1, risk, t3
+
+
 def objective(rows, phase):
+    """Kept for the old call sites; now defers to the tiered objective."""
+    mw = float(np.mean([r["mean_week"] for r in rows]))
+    sd = float(np.mean([r["sd_week"] for r in rows]))
+    worst = min(r["max_dd"] for r in rows)
+    if worst < -0.99:
+        return -9.0, mw, sd, worst
+    return tiered(rows)[0], mw, sd, worst
+
+
+def _old_objective(rows, phase):
     mw = float(np.mean([r["mean_week"] for r in rows]))
     sd = float(np.mean([r["sd_week"] for r in rows]))
     worst = min(r["max_dd"] for r in rows)
@@ -98,6 +126,10 @@ def worker(run_id, cfg, meta):
     r = trader.session.result()
     wk = np.array(trader.session.weeks)
     r["sd_week"] = float(wk.std()) if len(wk) > 1 else 0.0
+    band = (np.abs(wk) >= BAND[0]) & (np.abs(wk) <= BAND[1])
+    r["in_band"] = float(band.mean()) if len(wk) else 0.0
+    r["pos_in_band"] = float((wk[band] > 0).mean()) if band.any() else 0.0
+    r["weekly_returns"] = [float(x) for x in wk]
     r.update({"run_id": run_id, "prior_cfg": cfg, "meta": meta, "preseason": trader.preseason, "clock_s": wall,
               "ms_per_day": 1000 * wall / max(1, len(trader.session.days)), "used_cfg": trader.cfg})
     (a / "result2.json").write_text(json.dumps(r, default=str))
@@ -136,7 +168,8 @@ while len(st["windows"]) < MAXW:
                       scramble_after=cut, seed=len(r), opens=w["opens"], long_term=w["ltm"])
         before = lambda S: [d for d in S.decisions if pd.Timestamp(d[0]) <= cut]
         scram = before(S1) == before(S2)
-        print(f"  [{r}] avg week {res['mean_week']:+.2%} | swing (sd) {res['sd_week']:.2%} | {res['weeks_ge_7']} weeks >= +7% | "
+        wk_ = np.array(res.get("weekly_returns", [])) if res.get("weekly_returns") else None
+        print(f"  [{r}] ~7% weeks (5-10% moves) {res.get('in_band', float('nan')):.0%} | avg week {res['mean_week']:+.2%} | swing (sd) {res['sd_week']:.2%} | {res['weeks_ge_7']} weeks >= +7% | "
               f"window {res['year_return']:+.1%} | max DD {res['max_dd']:.0%} | {len(res['adaptations'])} self-adjustments | "
               f"missed winners studied {sum(m['winners'] for m in res['missed_winners'])} | clock {res['ms_per_day']:.0f} ms/day", flush=True)
         print(f"       gates: re-tester {'OK' if rep else 'MISMATCH'} | future-scramble {'OK' if scram else 'LEAK'}", flush=True)

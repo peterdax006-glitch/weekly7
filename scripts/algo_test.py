@@ -29,7 +29,10 @@ if PARAMS.pop("candles", True):
 O, C = stocks["Open"], stocks["Close"]
 fwd = C.shift(-5) / O.shift(-1) - 1                              # C33: bought at the next open
 y = fwd.stack(future_stack=True).reindex(X.index)
-y = y - y.groupby(level=0).transform("mean")                     # excess vs that week's average stock
+TARGET = PARAMS.pop("target", "direction")
+if TARGET == "move":                                             # tier 1 (C39): how BIG the week's move is
+    y = y.abs()
+y = y - y.groupby(level=0).transform("mean")                     # relative to that week's average stock
 d = X.index.get_level_values(0)
 last_train = ud[ud.searchsorted(CUT) - 7]                        # training labels close before CUT
 tr, te = d <= last_train, (d >= CUT) & (d < END)

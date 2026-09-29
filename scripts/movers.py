@@ -62,6 +62,14 @@ def run_window(rid, variant=None, scramble_after=None, save=True):
     if v.get("absfeat"):                               # magnitude signals: a +/-10% mover can go either way
         X = X.assign(abs_ear=X["ear"].abs(), abs_r5=X["r5"].abs(), abs_r1=X["r1"].abs(),
                      abs_gap=X["gap_today"].abs(), abs_r20=X["r20"].abs(), range_pct=X["max20"] - X["min20"])
+    if v.get("patterns"):
+        from engine import candles
+        from engine.patterns import PatternMiner
+        cf = candles.build(feed._stocks)
+        X = X.copy()
+        for k2, fr in cf.items():
+            X[k2] = fr.stack(future_stack=True).reindex(X.index).astype("float32").values
+        del cf
     cols = [c for c in X.columns if not c.startswith(DROP)]
     S = feed._stocks
     up, dn, cl = labels(S)
@@ -75,6 +83,43 @@ def run_window(rid, variant=None, scramble_after=None, save=True):
         warm = list(sessions[(sessions < first) & (sessions >= sessions[0] + pd.Timedelta(days=300))])
     warm = [d for d in warm if d <= cutoff]
     dates = X.index.get_level_values(0)
+    if v.get("patterns"):
+        # the miner sees only warm-up week-ends whose 5-session window has closed
+        wk_warm = [d0 for d0 in week_ends(sessions[sessions < first]) if d0 <= cutoff]
+        Xm = X[dates.isin(wk_warm)][cols]
+        swing = np.maximum(up, -dn).stack(future_stack=True).reindex(Xm.index)
+        swing = swing - swing.groupby(level=0).transform("mean")
+        bank_f = OUT / "pattern_bank_move.parquet"
+        real_start = first - feed._shift
+        prior = None
+        if bank_f.exists():
+            b = pd.read_parquet(bank_f)
+            b = b[pd.to_datetime(b["real_end"]) < real_start]      # only windows that ENDED before this one began
+            prior = b if len(b) else None
+        miner = PatternMiner({"max_rows": 400_000, "null_reps": 1}).fit(Xm, swing, now=first, prior=prior)
+        ex = miner.export_bank()
+        if len(ex):
+            ex["real_end"] = str((sessions[-1] - feed._shift).date())
+            ex["window"] = rid
+            import os
+            lock = str(bank_f) + ".lock"
+            for _ in range(600):                          # parallel windows: one writer at a time
+                try:
+                    fd = os.open(lock, os.O_CREAT | os.O_EXCL); os.close(fd); break
+                except FileExistsError:
+                    time.sleep(0.5)
+            try:
+                (pd.concat([pd.read_parquet(bank_f), ex]) if bank_f.exists() else ex).to_parquet(bank_f)
+            finally:
+                os.remove(lock)
+        pat = pd.Series(0.0, index=X.index)
+        for d0 in sorted(set(dates)):
+            if d0 in set(wk_warm) or d0 >= first:
+                Xd = X.xs(d0, level=0)[cols]
+                pat.loc[d0] = miner.score(Xd).values
+        X = X.assign(pat_move=pat.values)
+        cols = cols + ["pat_move"]
+        run_window.miner_report = miner.report
     Xt = X[dates.isin(warm)][cols]
     y = touch.stack(future_stack=True).reindex(Xt.index)
     ok = y.notna().values
@@ -137,7 +182,8 @@ def run_window(rid, variant=None, scramble_after=None, save=True):
     wdir.mkdir(exist_ok=True)
     D.to_parquet(wdir / "weeks.parquet")
     res = summarize(D)
-    res.update({"id": rid, "train_base_rate": base_rate_train, "variant": v, "seconds": round(time.time() - t0)})
+    res.update({"id": rid, "train_base_rate": base_rate_train, "variant": v, "seconds": round(time.time() - t0),
+                "miner": getattr(run_window, "miner_report", None) if v.get("patterns") else None})
     (wdir / "result.json").write_text(json.dumps(res, default=float))
     return res
 
