@@ -1,0 +1,7 @@
+# R01_research_trader_firewall  [model: OPUS]
+C66 §29, §30, §31 (2,000-3,000).
+Read state/build/CONTEXT.md fully (rules 1-26), engine/research/core.py, engine/learning/core.py, and in RESEARCH_BRAIN_CONTRACT.md sections 0, 1, 29-31, 43, 44, 48, 53 plus the sections below, in full. If state/build/RESEARCH_MAPPING.md exists, read its row for your components first. C63: code + unit tests only.
+You own: engine/research/firewall.py, engine/research/namespaces.py; tests/test_research_firewall.py.
+Build on (import, extend - never copy): engine/learning/firewalls.py, future_firewall.py, memory_firewall.py, identity_firewall.py, curator.py, trader_view.py, engine/leak_audit.py, engine/pit.py.
+
+Build: The formal RESEARCH-SIDE / TRADER-SIDE firewall: two namespaces with no implicit shared state; every information object carries provenance; research results reach training/decision state ONLY via an explicit point-in-time gate; an import/reachability guard that the trader path never imports matured-research state; planted leak tests where the research side tries to leak future price, future label, future event, year identity, future pattern status, future experiment result, future learned state, future research results - the trader must fail closed on each. Disguised-year obligations of §30 (no year / same-year / training-run inference from fingerprints, identities, dataset structure, metadata, hidden cache).

@@ -71,3 +71,21 @@ that the owner should record.
 19. ONE RULER for line minimums: `.venv/Scripts/python scripts/contract_lines.py <your files>` (excludes docstrings, comments,
     blank lines). Report those numbers. A module under its minimum is incomplete (contract section 83) unless you name where
     the equivalent functionality genuinely lives.
+
+## Research-brain builders (R-series, from 2026-09-29; canon C66 + C63)
+20. THE SPEC is `RESEARCH_BRAIN_CONTRACT.md` (owner, verbatim; never edit). Read sections 0, 1, 29-31, 43, 44, 48, 53 plus
+    every section your brief names, in full. It EXTENDS C62 (SELF_LEARNING_CONTRACT.md); both bind.
+21. Package `engine/research/`. Shared vocabulary: `engine.research.core` (Namespace, Knowability, Availability, MoveCategory,
+    ResearchState, Stage, GateVerdict, Problem, Horizon, ExperimentValue, ResearchQuestion, MaturedRecord) and
+    `engine.learning.core`. Do NOT edit either core; define new shared terms in your module and list them under INTEGRATION.
+22. EXTEND, never duplicate: your brief names the existing engine/learning or engine modules that already do part of your job.
+    Import and build on them. A parallel copy of an existing mechanism is a defect. Say in your report what you built on.
+23. C63 (re-affirmed by the owner for C66): code + unit tests only. No real-data runs, no tuning, no section-46 test programme.
+    Every module gets fast tests with a planted case it must catch, a null case where it must find nothing, and the empty case.
+24. Blind trader vs research world (C64, C66 sections 29-31): anything built from matured outcomes lives in
+    MATURED_RESEARCH_STATE and may reach a decision only through MaturedRecord.gate(now) / engine.learning.curator. No real
+    date, year or ticker may appear in anything handed to the trader (engine.learning.trader_view refuses them).
+25. Expose ONE clear public entry per module (e.g. `step(state, now)`, `run_day(...)`), because the wave-2 research loop will
+    call it. List it under INTEGRATION. Reachability is proven in wave 2 by scripts/reachability.py, which must reach your module.
+26. Ruler: `.venv/Scripts/python scripts/contract_lines.py <your files>`. Report counts against your brief's minimum. Scratch
+    files must use unique names in your own scratchpad (never shared /tmp names - builders clobbered each other before).
