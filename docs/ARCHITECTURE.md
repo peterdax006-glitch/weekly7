@@ -23,7 +23,7 @@ Governing documents: `canon/CANON.md` (owner directives, verbatim) > `BIBLE.md` 
 | `candidates` | 567 | 2 | Bible Phase 3.1 - candidate generation for the pattern miner (canons C35, C37, C43). |
 | `candles` | 50 | 3 | Multi-timeframe candle features (canon C35): daily, weekly (5 sessions) and monthly (21 sessions) candles and small-print signals - momentary reversals, inside days, engulfing, str |
 | `champion` | 437 | 1 | Bible Phase 0.4 (immutable baseline snapshot) and Phase 35 (champion / challenger). |
-| `checkpoint` | 184 | 2 | Bible Phase 0.3: checkpoint bundle for every major run. |
+| `checkpoint` | 184 | 3 | Bible Phase 0.3: checkpoint bundle for every major run. |
 | `claims` | 397 | 1 | Bible Phase 42 (the standard for every claim): no number reaches a report without an evidence trail. |
 | `config` | 62 | 4 | Central settings. Numbers here are the blueprint's numbers; the learning loop (Part M) may only change the ones listed in TUNABLE, and only through a promoted challenger. |
 | `data` | 101 | 1 | Daily bar store. Wide parquet frames (date x ticker) per field, split-and-dividend adjusted. Source: yfinance (history + fallback). Alpaca replaces it for live bars once keys exist |
@@ -34,7 +34,7 @@ Governing documents: `canon/CANON.md` (owner directives, verbatim) > `BIBLE.md` 
 | `direction_features` | 485 | 1 | Direction research on PREDICTED movers (Bible checklist V2/V5; canons C23, C24, C56). |
 | `edgar` | 358 | 0 | SEC EDGAR: point-in-time corporate events and insider purchases (all free, 10 req/s limit). |
 | `exits` | 669 | 3 | Bible Phase 15 (Exit learner), serving the tiered objective of Phase 20 and the "no look-ahead, fills at next open" rules. |
-| `experiment_memory` | 388 | 3 | Bible Phase 30 (experiment memory), the search-space half: a normalised index of WHAT WAS TRIED. |
+| `experiment_memory` | 388 | 4 | Bible Phase 30 (experiment memory), the search-space half: a normalised index of WHAT WAS TRIED. |
 | `explain` | 45 | 0 | Plain-English names for features and market readings, and the top reasons behind a pick. Pure text helpers shared by the live trader, research scripts and the public pages. Lives o |
 | `features` | 288 | 6 | Point-in-time feature panel (Blueprint Part B). |
 | `fill_audit` | 56 | 1 | Bible Phase 1.4 / canon C33, as a Test-loop gate: prove from a finished Session that every decision was taken at a close and filled at the NEXT session's open - never at the same c |
@@ -50,19 +50,19 @@ Governing documents: `canon/CANON.md` (owner directives, verbatim) > `BIBLE.md` 
 | `lessons` | 801 | 4 | Bible Phase 10 - lesson memory / learning from mistakes. |
 | `live` | 251 | 2 | Live jobs (Blueprint Part F). Entry: python -m engine.live <job> |
 | `livesim` | 597 | 4 | Blind live-clock simulation of a random hidden year (canon C11). |
-| `memory` | 636 | 5 | Factor-weighted episodic memory for the self-learning system (Bible Phase 9, canon C34). |
+| `memory` | 636 | 6 | Factor-weighted episodic memory for the self-learning system (Bible Phase 9, canon C34). |
 | `memory_diagnostics` | 384 | 1 | Why did this memory count? Diagnostics for the factor-weighted memory (Bible Phase 9, canon C34). |
 | `miner_tuning` | 177 | 1 | A7 (canon C34-C37, blueprint: the Algorithm tunes itself): walk-forward self-tuning of the pattern miner's own settings. The system - not a person - decides how fast memory fades ( |
 | `missed_winners` | 601 | 2 | Missed-winner detector and its evaluation (Bible Phase 14, canon C20). |
 | `model` | 123 | 0 | Learning layer (Blueprint Part C): evidence composite + LightGBM ranker + triple-barrier classifier, trained walk-forward with a purge/embargo gap, isotonic-calibrated. |
-| `objective` | 270 | 4 | Tiered objective firewall (Bible PHASE 20; canon C38 band, C39 lexicographic tiers). |
+| `objective` | 270 | 5 | Tiered objective firewall (Bible PHASE 20; canon C38 band, C39 lexicographic tiers). |
 | `options` | 55 | 0 | Live options features for the top candidates (Blueprint B2). Free, 15-minute delayed. |
 | `parity` | 496 | 2 | Bible Phase 2: feature/parity firewall (canon: no look-ahead; the fast path must reproduce the strict live path). |
 | `parity_suite` | 422 | 1 | Bible Phase 2 (parity firewall), all feature families. `engine.parity` is the harness; this module points it at every place a model input is made, each through the REAL production  |
 | `pattern_bank` | 495 | 2 | Bible Phase 5 - long-term pattern bank (canon C43; "no pattern is trusted forever, none deleted for one bad regime"). |
 | `pattern_identity` | 588 | 3 | Bible Phase 3.2 - pattern identity (canons C35, C37, C43). |
 | `pattern_lifecycle` | 582 | 3 | Bible Phase 4 - pattern lifecycle state machine (canon C43: never hold a failed pattern). |
-| `pattern_memory` | 789 | 4 | Bible phases 4, 5, 9 - TIMELINE PATTERN MEMORY (canon C55, C56, C57, C58, C59, C60). |
+| `pattern_memory` | 789 | 5 | Bible phases 4, 5, 9 - TIMELINE PATTERN MEMORY (canon C55, C56, C57, C58, C59, C60). |
 | `pattern_memory_eval` | 341 | 1 | Bible phases 4, 5, 9 - walk-forward evaluation helpers for the timeline pattern memory (canon C57-C60). |
 | `pattern_movers` | 842 | 2 | Bible Phase 6 (pattern -> Find volatility integration) and Phase 34 (required ablation framework). |
 | `pattern_reliability` | 1966 | 2 | Bible phases 3, 4 (lifecycle / rescoping), 9, 10 - PATTERN RELIABILITY: learn WHEN a pattern works (canon C60, C61; C56-C59). |
@@ -72,8 +72,8 @@ Governing documents: `canon/CANON.md` (owner directives, verbatim) > `BIBLE.md` 
 | `planted` | 353 | 2 | Bible Phase 25 (mandatory): planted-pattern calibration. Build synthetic markets whose true patterns are KNOWN, run the full discovery pipeline on them, and measure whether it can  |
 | `policy` | 202 | 5 | The trading policy, shared by the backtest and live trading so that what is tested is what trades. |
 | `portfolio` | 135 | 0 | Portfolio layer (Blueprint Part D + E). |
-| `provenance` | 135 | 2 | Bible Phase 0: provenance for every experiment - git commit, canon hash, Bible hash, blueprint version, config hash, data snapshot, seed - plus a canon/Bible integrity check that f |
-| `registry` | 286 | 5 | Bible Phase 0.2 + Phase 30: read-side of the experiment registry and the experiment memory. |
+| `provenance` | 135 | 3 | Bible Phase 0: provenance for every experiment - git commit, canon hash, Bible hash, blueprint version, config hash, data snapshot, seed - plus a canon/Bible integrity check that f |
+| `registry` | 286 | 6 | Bible Phase 0.2 + Phase 30: read-side of the experiment registry and the experiment memory. |
 | `replay` | 174 | 0 | Live-as-if replays of any year 1976-2025 (canon C9, C10). |
 | `repro` | 360 | 1 | Bible Phase 33 (required reproducibility); serves the deterministic-experiment canon. |
 | `resources` | 516 | 2 | Bible Phase 44 (resource management), Phase 43 (priority when compute is limited): a memory-aware job runner. |
@@ -440,7 +440,7 @@ Bible Phase 0.3: checkpoint bundle for every major run.
 - `def default_root()`
 - `def checkpoint_run(kind, config, metrics, seeds, summary, logs, artifacts, root)` - Bible P0.3 in one call for a major run: bundle config, metrics, seeds, summary, logs and artifacts under state/checkpoints/<kind>_<UTC timestamp>, stamped with 
 
-Tests: `tests/test_baseline.py`, `tests/test_checkpoint.py`
+Tests: `tests/test_baseline.py`, `tests/test_checkpoint.py`, `tests/test_learning_compute.py`
 
 ## engine.claims
 
@@ -649,7 +649,7 @@ Bible Phase 30 (experiment memory), the search-space half: a normalised index of
 - `def answer_phase30(rec, base_rec, series, windows, seed)` - The four computed answers for one experiment, keyed like registry.QUESTIONS where they overlap: data_unseen, worsened, statistically_meaningful, survived_anothe
 - `def answer_coverage(rows)` - How many logged experiments can even answer the Phase 30 questions? Counts, over all records, those that carry ranges, metrics and a reason - the honest measure
 
-Tests: `tests/test_champion.py`, `tests/test_claims.py`, `tests/test_experiment_memory.py`
+Tests: `tests/test_champion.py`, `tests/test_claims.py`, `tests/test_experiment_memory.py`, `tests/test_learning_research.py`
 
 ## engine.explain
 
@@ -1109,7 +1109,7 @@ Factor-weighted episodic memory for the self-learning system (Bible Phase 9, can
 - `def scan_lessons(lessons, tickers, window_ids, exact_outcomes)` - Leak scan of a lesson table/list (Phase 9.2). Returns findings: [(row, field, why)]. Empty = clean. tickers / window_ids: identifiers that must appear nowhere; 
 - `class Memory [set_clock(self, date, era), record(self, arm, week, ctx, outcome, date, era, source_experiment, expected), retention_score(self, i, week_ref), half_life(self, arm), factors(self, e, week_now, ctx_now, info), weight(self, e, week_now, ctx_now), estimate_detail(self, arm, week_now, ctx_now), estimate(self, arm, week_now, ctx_now), ...]`
 
-Tests: `tests/test_adapter.py`, `tests/test_basis_search.py`, `tests/test_learning_failure.py`, `tests/test_memory.py`, `tests/test_memory_ext.py`
+Tests: `tests/test_adapter.py`, `tests/test_basis_search.py`, `tests/test_learning_failure.py`, `tests/test_learning_situation.py`, `tests/test_memory.py`, `tests/test_memory_ext.py`
 
 ## engine.memory_diagnostics
 
@@ -1211,7 +1211,7 @@ Tiered objective firewall (Bible PHASE 20; canon C38 band, C39 lexicographic tie
 - `def by_group(rows, labels, reach)` - Score each label's rows separately (per era, per strategy type). Groups are reported in sorted label order; a group with no rows is reported as no-data instead 
 - `def rank_correlation_of_tiers(scores)` - Spearman rho between the tier-1 and tier-2 components across a set of TierScores: a value near +1 means the two tiers are not really separate objectives in this
 
-Tests: `tests/test_basis_search.py`, `tests/test_livesim_loop2.py`, `tests/test_objective.py`, `tests/test_timeline.py`
+Tests: `tests/test_basis_search.py`, `tests/test_learning_scorecard.py`, `tests/test_livesim_loop2.py`, `tests/test_objective.py`, `tests/test_timeline.py`
 
 ## engine.options
 
@@ -1353,7 +1353,7 @@ Bible phases 4, 5, 9 - TIMELINE PATTERN MEMORY (canon C55, C56, C57, C58, C59, C
 - `def audit_prefix_invariance(mem, dates, ctx_now, tol)` - Self-audit for C56/C58: for every date, the view must equal the view of a store that contains ONLY the observations matured before that date (i.e. the store as 
 - `def default_root()`
 
-Tests: `tests/test_learning_graph.py`, `tests/test_pattern_memory.py`, `tests/test_pattern_memory_eval.py`, `tests/test_pattern_reliability.py`
+Tests: `tests/test_learning_archive.py`, `tests/test_learning_graph.py`, `tests/test_pattern_memory.py`, `tests/test_pattern_memory_eval.py`, `tests/test_pattern_reliability.py`
 
 ## engine.pattern_memory_eval
 
@@ -1658,7 +1658,7 @@ Bible Phase 0: provenance for every experiment - git commit, canon hash, Bible h
 - `def stale(recorded)` - True when a result cannot be trusted to come from the code on disk now. `recorded` is a provenance dict (or a bare legacy code_hash string, which is always trea
 - `def stamp(cfg, seed)`
 
-Tests: `tests/test_provenance.py`, `tests/test_retester.py`
+Tests: `tests/test_learning_transfer.py`, `tests/test_provenance.py`, `tests/test_retester.py`
 
 ## engine.registry
 
@@ -1668,7 +1668,7 @@ Bible Phase 0.2 + Phase 30: read-side of the experiment registry and the experim
 - `def fingerprint(change)` - Canonical hash of a proposed change, so the same idea with keys in another order is recognised as a repeat.
 - `class ExperimentMemory [missing_answers(entry), record(self, experiment_id, change, answers, now), already_tried(self, change), orphans(self, registry), lessons(self, adopted)]` - Append-only lessons file. One entry per experiment answers the twelve Phase 30 questions (the twelfth, the reason for a rejection, is required when adopted is F
 
-Tests: `tests/test_baseline.py`, `tests/test_experiment_memory.py`, `tests/test_learning_firewalls.py`, `tests/test_registry.py`, `tests/test_run_report.py`
+Tests: `tests/test_baseline.py`, `tests/test_experiment_memory.py`, `tests/test_learning_firewalls.py`, `tests/test_learning_research.py`, `tests/test_registry.py`, `tests/test_run_report.py`
 
 ## engine.replay
 

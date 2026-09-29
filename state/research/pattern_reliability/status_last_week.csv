@@ -1,0 +1,50 @@
+pattern,status,weight_now,health,age,gateable,skill_t,n_pred,case
+ear q4 & news5 q1,disregarded,0.0,broken,105,False,-0.33140743939588135,84,discarded
+days_to_earn q4 & ear q2,disregarded,0.0,broken,320,False,1.5357912473585582,283,discarded
+news5 q1,disregarded,0.0,broken,105,False,1.2360611806111057,84,discarded
+dist_ma200 q3 & ear q3,steady,1.0,suspect,469,False,-0.07673420606931654,413,
+r5 q1,steady,1.0,healthy,559,False,0.3340865883130732,465,
+range_compress q4 & skew60 q0,steady,1.0,suspect,373,False,-0.13083415224039135,346,
+r1 q2 & skew60 q2,steady,1.0,suspect,415,False,0.7172095034564169,387,
+ear q3 & mom_12_1 q3,disregarded,0.0,broken,409,False,-1.0690546569260637,383,discarded
+dist_52wh q1 & min20 q1,disregarded,0.0,broken,491,False,-1.3422030799826843,436,discarded
+news5 q1 & range_compress q4,disregarded,0.0,broken,92,False,0.019266721618076563,84,discarded
+days_since_earn q1 & earn_in_week q1,disregarded,0.0,broken,63,False,-0.08379290168778594,58,discarded
+days_since_earn q2 & news5 q1,disregarded,0.0,broken,92,False,0.02839654431237374,84,discarded
+rel_ind20 q3 & vol_surge1 q3,disregarded,0.0,broken,391,False,0.6117822095260357,380,discarded
+ear q1 & ins_buyers30 q2,disregarded,0.0,broken,478,False,-1.1066535328536993,462,discarded
+ear q1 & news5 q1,disregarded,0.0,broken,81,False,-1.1376310396144638,81,discarded
+intraday20 q0 & news5 q1,steady,1.0,suspect,81,False,-0.11683467609807546,81,
+dist_ma200 q3 & news5 q1,steady,1.0,suspect,77,False,-2.025048604241686,77,
+dist_ma50 q1 & ear_volsurge q3,disregarded,0.0,broken,287,False,-1.7566245520799937,286,discarded
+ear q1 & ear_volsurge q3,steady,1.0,suspect,271,False,-2.2684791943078038,270,
+days_since_earn q2 & log_dv q1,steady,1.0,healthy,322,False,-1.5725301004700611,321,
+ear q3 & news5 q1,steady,1.0,suspect,71,False,1.923565692509072,71,
+ear_volsurge q0 & news5 q1,disregarded,0.0,broken,71,False,-1.141873095290403,71,discarded
+dist_52wh q3 & news5 q1,steady,1.0,suspect,65,False,-1.3677693746931574,65,
+ear q1 & skew60 q1,disregarded,0.0,broken,343,False,-0.8677730061570429,342,discarded
+log_dv q1 & r5 q1 unless frog q0,disregarded,0.0,broken,228,False,-0.6867220898085538,227,discarded
+log_dv q1 & r5 q1 unless vol_surge1 q0,disregarded,0.0,broken,189,False,0.2001548313556271,188,discarded
+log_dv q1 & r5 q1 unless gap_today q0,disregarded,0.0,broken,226,False,0.013801621293465393,225,discarded
+news5 q2 & vol_surge5 q4,steady,1.0,healthy,269,False,-0.8819154304204356,268,
+frog q2 & log_dv q3,steady,1.0,healthy,230,False,0.09432933620347266,229,
+atr_pct q3 & log_dv q1,disregarded,0.0,broken,266,False,-1.9792841319601184,265,discarded
+mom_12_1 q3 & vol_ratio q0,disregarded,0.0,broken,228,False,-1.3873066092565165,227,discarded
+dist_ma50 q4 & log_dv q3,steady,1.0,healthy,219,False,1.0080137897927361,218,
+ind_mom60 q1 & r20 q1,steady,1.0,healthy,228,False,1.721189708576339,227,
+days_to_earn q2 & mom_12_1 q2,steady,1.0,healthy,245,False,1.5547720148962552,244,
+dist_ma50 q2 & r120 q3,disregarded,0.0,broken,216,False,-0.8135411293537986,215,discarded
+dist_ma50 q2 & intraday20 q2,disregarded,0.0,broken,220,False,-1.4246260457616882,219,discarded
+r5_nonews q4 & vol_surge5 q0,steady,1.0,healthy,135,False,-0.2571346287198037,134,
+rel_ind60 q2 & vol_surge5 q3,disregarded,0.0,broken,185,False,-1.0695073181995791,184,discarded
+intraday20 q4 & vol_surge5 q0,steady,1.0,healthy,166,False,0.7264650785254009,165,
+ear q4 & vol20 q2,steady,1.0,suspect,133,False,0.2936288753107542,132,
+gap_today q1 & r20 q2,disregarded,0.0,broken,159,False,0.1609968711716568,158,discarded
+dist_52wh q1 & vol_surge1 q1,disregarded,0.0,broken,129,False,-0.8338252003518538,128,discarded
+atr_pct q3 & dist_ma50 q1,steady,1.0,healthy,119,False,0.16470313399889108,118,
+vol20 q2,steady,1.0,healthy,116,False,-0.8460735600827399,115,
+ear q1 & min20 q1,steady,1.0,healthy,104,False,0.19790918215866546,103,
+ear q2 & vol_surge1 q0,disregarded,0.0,broken,89,False,-0.8373653947373384,88,discarded
+ear q2 & vol20 q4,disregarded,0.0,broken,90,False,-1.945827453871331,89,discarded
+ear q2 & skew60 q4,steady,1.0,healthy,63,False,-1.4608264773240387,62,
+close_loc q0 & vol20 q2,steady,1.0,healthy,60,False,-0.6166011737166808,59,

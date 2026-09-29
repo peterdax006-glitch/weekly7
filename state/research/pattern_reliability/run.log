@@ -1,0 +1,32 @@
+[09:24:12] main run: 49 patterns x 716 weeks, code e6a83b30bd7b71fd
+[09:25:58] main run done in 107s
+[09:27:15] sensitivity arl0=100 hard lgbm: gated_raw gain -0.0133%
+[09:28:16] sensitivity arl0=100 hard logit: gated_raw gain -0.0118%
+[09:29:29] sensitivity arl0=100 soft lgbm: gated_raw gain -0.0059%
+[09:30:38] sensitivity arl0=100 soft logit: gated_raw gain -0.0077%
+[09:31:34] sensitivity arl0=250 hard lgbm: gated_raw gain -0.0133%
+[09:32:27] sensitivity arl0=250 hard logit: gated_raw gain -0.0118%
+[09:33:23] sensitivity arl0=250 soft lgbm: gated_raw gain -0.0059%
+[09:34:15] sensitivity arl0=250 soft logit: gated_raw gain -0.0077%
+[09:35:05] sensitivity arl0=500 hard logit: gated_raw gain -0.0118%
+[09:36:01] sensitivity arl0=500 soft lgbm: gated_raw gain -0.0059%
+[09:36:46] sensitivity arl0=500 soft logit: gated_raw gain -0.0077%
+C:\Users\Peter\weekly7\scripts\pattern_reliability_study.py:246: UserWarning: [registry] None: Phase 0.2 fields not supplied: ['window_ids', 'train_range', 'validation_range', 'test_range', 'metrics', 'gates']
+  log_experiment({"name": "pattern_reliability_study", "kind": "reliability_gating", "code_hash": h0, "stale": stale,
+[09:36:47] analyse done
+[09:36:48] memory gate 2019-01-01: {'proven': False, 't': -0.3491962352535663, 'n_test': 607, 'brier_model': 0.232517503194806, 'brier_base': 0.23212386338050334}
+[09:36:48] memory gate 2019-07-01: {'proven': False, 't': -0.48714558219104986, 'n_test': 790, 'brier_model': 0.24098454863650856, 'brier_base': 0.23948951863630916}
+[09:36:49] memory gate 2020-01-01: {'proven': True, 't': 3.261843878995554, 'n_test': 1069, 'brier_model': 0.2452988924641085, 'brier_base': 0.24737137511693172}
+[09:36:49] memory gate 2020-07-01: {'proven': False, 't': 2.567927512976529, 'n_test': 1326, 'brier_model': 0.23881603081459357, 'brier_base': 0.24082588412435707}
+[09:36:49] memory gate 2021-01-01: {'proven': True, 't': 4.484893740066561, 'n_test': 1576, 'brier_model': 0.23520105882164746, 'brier_base': 0.23742784367398695}
+[09:36:50] memory gate 2021-07-01: {'proven': True, 't': 3.8867599800084447, 'n_test': 1923, 'brier_model': 0.23437033627124443, 'brier_base': 0.23578695103772648}
+[09:36:50] memory gate 2022-01-01: {'proven': False, 't': 0.4299651689121984, 'n_test': 2262, 'brier_model': 0.24263702441312368, 'brier_base': 0.24297441689511007}
+[09:36:51] memory gate 2022-07-01: {'proven': False, 't': 2.122010956421405, 'n_test': 2729, 'brier_model': 0.24059671847736797, 'brier_base': 0.24230950820825284}
+[09:36:51] memory gate 2023-01-01: {'proven': False, 't': 2.3407860330100934, 'n_test': 3192, 'brier_model': 0.24535441559755072, 'brier_base': 0.24679416182857844}
+[09:36:52] memory gate 2023-07-01: {'proven': True, 't': 5.288601061216851, 'n_test': 3626, 'brier_model': 0.24126130467131554, 'brier_base': 0.24366247034449912}
+[09:36:53] memory gate 2024-01-01: {'proven': False, 't': 2.320389413094752, 'n_test': 4164, 'brier_model': 0.24424042627296685, 'brier_base': 0.24523952431646048}
+[09:36:54] memory gate 2024-07-01: {'proven': False, 't': 1.7421816936379793, 'n_test': 4633, 'brier_model': 0.24201170814502937, 'brier_base': 0.2426822049723802}
+[09:36:55] memory gate 2025-01-01: {'proven': False, 't': -1.3428559054710631, 'n_test': 5331, 'brier_model': 0.2435795167127153, 'brier_base': 0.24279284927539901}
+[09:36:56] memory gate 2025-07-01: {'proven': True, 't': 4.347243474021064, 'n_test': 5895, 'brier_model': 0.2421497362608149, 'brier_base': 0.2437189646950074}
+[09:36:57] memory gate 2026-01-01: {'proven': False, 't': 2.685521728082822, 'n_test': 6516, 'brier_model': 0.24427542124476115, 'brier_base': 0.24548179575915913}
+[09:36:58] memory gate 2026-07-01: {'proven': False, 't': -0.8459515411646595, 'n_test': 7196, 'brier_model': 0.24383382765847356, 'brier_base': 0.24359691947032683}

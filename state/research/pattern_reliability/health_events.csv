@@ -1,0 +1,67 @@
+pattern,detect,onset,recover,phantom
+ear q4 & news5 q1,201,130,,True
+days_to_earn q4 & ear q2,239,176,438.0,False
+days_to_earn q4 & ear q2,463,176,475.0,False
+days_to_earn q4 & ear q2,495,176,657.0,False
+days_to_earn q4 & ear q2,709,176,,False
+news5 q1,201,130,,True
+dist_ma200 q3 & ear q3,185,157,261.0,True
+r5 q1,183,157,288.0,True
+r5 q1,483,432,502.0,False
+range_compress q4 & skew60 q0,210,157,251.0,True
+range_compress q4 & skew60 q0,418,301,482.0,False
+range_compress q4 & skew60 q0,662,612,693.0,False
+r1 q2 & skew60 q2,223,183,252.0,True
+r1 q2 & skew60 q2,326,281,579.0,False
+r1 q2 & skew60 q2,649,609,688.0,False
+ear q3 & mom_12_1 q3,232,183,,True
+dist_52wh q1 & min20 q1,209,183,,True
+news5 q1 & range_compress q4,278,209,,True
+days_since_earn q1 & earn_in_week q1,304,209,,True
+days_since_earn q2 & news5 q1,278,209,,True
+rel_ind20 q3 & vol_surge1 q3,297,262,325.0,False
+rel_ind20 q3 & vol_surge1 q3,376,350,444.0,False
+rel_ind20 q3 & vol_surge1 q3,449,350,540.0,False
+rel_ind20 q3 & vol_surge1 q3,644,626,,False
+ear q1 & ins_buyers30 q2,261,235,,True
+ear q1 & news5 q1,710,643,,False
+intraday20 q0 & news5 q1,436,330,517.0,False
+intraday20 q0 & news5 q1,671,330,712.0,False
+dist_ma50 q1 & ear_volsurge q3,313,287,324.0,True
+dist_ma50 q1 & ear_volsurge q3,585,466,593.0,False
+dist_ma50 q1 & ear_volsurge q3,611,466,,False
+ear q1 & ear_volsurge q3,317,287,372.0,True
+ear q1 & ear_volsurge q3,464,373,508.0,False
+ear q1 & ear_volsurge q3,634,373,712.0,False
+days_since_earn q2 & log_dv q1,339,313,389.0,True
+ear q3 & news5 q1,373,313,449.0,True
+ear_volsurge q0 & news5 q1,373,313,426.0,True
+ear_volsurge q0 & news5 q1,670,434,,False
+dist_52wh q3 & news5 q1,410,339,426.0,True
+ear q1 & skew60 q1,365,339,429.0,True
+ear q1 & skew60 q1,470,440,,False
+log_dv q1 & r5 q1 unless frog q0,399,365,,True
+log_dv q1 & r5 q1 unless vol_surge1 q0,402,365,,True
+log_dv q1 & r5 q1 unless gap_today q0,395,365,,True
+news5 q2 & vol_surge5 q4,417,391,574.0,True
+frog q2 & log_dv q3,469,443,477.0,True
+atr_pct q3 & log_dv q1,469,443,,True
+mom_12_1 q3 & vol_ratio q0,469,443,,True
+dist_ma50 q4 & log_dv q3,496,470,606.0,True
+ind_mom60 q1 & r20 q1,496,470,591.0,True
+days_to_earn q2 & mom_12_1 q2,496,470,498.0,True
+dist_ma50 q2 & r120 q3,522,496,,True
+dist_ma50 q2 & intraday20 q2,522,496,,True
+r5_nonews q4 & vol_surge5 q0,548,522,584.0,True
+rel_ind60 q2 & vol_surge5 q3,548,522,,True
+intraday20 q4 & vol_surge5 q0,548,522,692.0,True
+ear q4 & vol20 q2,574,548,575.0,True
+ear q4 & vol20 q2,682,582,706.0,False
+gap_today q1 & r20 q2,574,548,581.0,True
+gap_today q1 & r20 q2,699,604,,False
+dist_52wh q1 & vol_surge1 q1,641,600,,False
+vol20 q2,626,600,679.0,True
+ear q1 & min20 q1,626,600,627.0,True
+ear q2 & vol_surge1 q0,652,626,,True
+ear q2 & vol20 q4,652,626,,True
+close_loc q0 & vol20 q2,678,652,703.0,True
