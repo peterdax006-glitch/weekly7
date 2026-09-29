@@ -45,9 +45,9 @@
    },
    {
     "module": "antimemo.py",
-    "lines": 559,
+    "lines": 577,
     "summary": "Bible Phase 11 - rerun anti-memorisation experiment (firewall against \"learning the answer\").",
-    "commits": 3
+    "commits": 6
    },
    {
     "module": "antioverfit.py",
@@ -63,9 +63,9 @@
    },
    {
     "module": "baseline.py",
-    "lines": 147,
+    "lines": 154,
     "summary": "Bible Phase 0.4: the immutable baseline snapshot, and the comparison of any later run against it.",
-    "commits": 1
+    "commits": 2
    },
    {
     "module": "basis_search.py",
@@ -81,9 +81,9 @@
    },
    {
     "module": "broker.py",
-    "lines": 125,
+    "lines": 124,
     "summary": "Execution (Blueprint Part F). Two interchangeable brokers:",
-    "commits": 2
+    "commits": 3
    },
    {
     "module": "candidates.py",
@@ -105,8 +105,14 @@
    },
    {
     "module": "checkpoint.py",
-    "lines": 159,
+    "lines": 184,
     "summary": "Bible Phase 0.3: checkpoint bundle for every major run.",
+    "commits": 2
+   },
+   {
+    "module": "claims.py",
+    "lines": 397,
+    "summary": "Bible Phase 42 (the standard for every claim): no number reaches a report without an evidence trail.",
     "commits": 1
    },
    {
@@ -123,9 +129,9 @@
    },
    {
     "module": "data_sources.py",
-    "lines": 733,
+    "lines": 737,
     "summary": "Data expansion adapters (Bible PHASE 27): sector ETF history, backup price source, delisted-company registry.",
-    "commits": 2
+    "commits": 3
    },
    {
     "module": "direction.py",
@@ -146,6 +152,12 @@
     "commits": 1
    },
    {
+    "module": "direction_features.py",
+    "lines": 485,
+    "summary": "Direction research on PREDICTED movers (Bible checklist V2/V5; canons C23, C24, C56).",
+    "commits": 1
+   },
+   {
     "module": "edgar.py",
     "lines": 358,
     "summary": "SEC EDGAR: point-in-time corporate events and insider purchases (all free, 10 req/s limit).",
@@ -159,9 +171,9 @@
    },
    {
     "module": "experiment_memory.py",
-    "lines": 177,
+    "lines": 388,
     "summary": "Bible Phase 30 (experiment memory), the search-space half: a normalised index of WHAT WAS TRIED.",
-    "commits": 1
+    "commits": 2
    },
    {
     "module": "explain.py",
@@ -171,9 +183,9 @@
    },
    {
     "module": "features.py",
-    "lines": 278,
+    "lines": 288,
     "summary": "Point-in-time feature panel (Blueprint Part B).",
-    "commits": 7
+    "commits": 8
    },
    {
     "module": "fill_audit.py",
@@ -183,9 +195,9 @@
    },
    {
     "module": "fv_pipeline.py",
-    "lines": 1145,
+    "lines": 1148,
     "summary": "Bible Phase 38 checklist V1-V5 (Find volatility), canons C23 / C24 / C33: ONE point-in-time weekly pipeline.",
-    "commits": 1
+    "commits": 4
    },
    {
     "module": "gaprisk.py",
@@ -207,15 +219,33 @@
    },
    {
     "module": "improve.py",
-    "lines": 334,
+    "lines": 351,
     "summary": "The self-improvement engine (Blueprint Part M, canon C5).",
-    "commits": 4
+    "commits": 5
    },
    {
     "module": "isolation.py",
     "lines": 521,
     "summary": "Live/research separation and live safety audits (Bible PHASE 28; checklist L2-L5).",
     "commits": 2
+   },
+   {
+    "module": "leak_audit.py",
+    "lines": 1154,
+    "summary": "Future-leak audit of the blind Test path (Bible PHASES 1, 2, 21, 26; canon C56 \"only information available live at",
+    "commits": 4
+   },
+   {
+    "module": "learners.py",
+    "lines": 1013,
+    "summary": "Generalising learners (Bible Phases 11, 21-23, 45; canon C54, C55, C56).",
+    "commits": 3
+   },
+   {
+    "module": "learning_delta.py",
+    "lines": 1180,
+    "summary": "Learning-delta harness (Bible Phases 11, 21-23, 45; canon C54 and C55).",
+    "commits": 3
    },
    {
     "module": "lessons.py",
@@ -231,9 +261,9 @@
    },
    {
     "module": "livesim.py",
-    "lines": 540,
+    "lines": 597,
     "summary": "Blind live-clock simulation of a random hidden year (canon C11).",
-    "commits": 12
+    "commits": 14
    },
    {
     "module": "memory.py",
@@ -251,13 +281,13 @@
     "module": "miner_tuning.py",
     "lines": 177,
     "summary": "A7 (canon C34-C37, blueprint: the Algorithm tunes itself): walk-forward self-tuning of the pattern miner's own",
-    "commits": 1
+    "commits": 2
    },
    {
     "module": "missed_winners.py",
-    "lines": 598,
+    "lines": 601,
     "summary": "Missed-winner detector and its evaluation (Bible Phase 14, canon C20).",
-    "commits": 3
+    "commits": 4
    },
    {
     "module": "model.py",
@@ -321,9 +351,9 @@
    },
    {
     "module": "patterns.py",
-    "lines": 493,
+    "lines": 530,
     "summary": "Self-learning pattern miner with relevance-weighted memory (canon C35), on the Phase 3 hardening libraries.",
-    "commits": 5
+    "commits": 8
    },
    {
     "module": "pit.py",
@@ -333,15 +363,15 @@
    },
    {
     "module": "planted.py",
-    "lines": 299,
+    "lines": 353,
     "summary": "Bible Phase 25 (mandatory): planted-pattern calibration. Build synthetic markets whose true patterns are KNOWN,",
-    "commits": 1
+    "commits": 2
    },
    {
     "module": "policy.py",
-    "lines": 181,
+    "lines": 202,
     "summary": "The trading policy, shared by the backtest and live trading so that what is tested is what trades.",
-    "commits": 7
+    "commits": 9
    },
    {
     "module": "portfolio.py",
@@ -374,6 +404,12 @@
     "commits": 1
    },
    {
+    "module": "resources.py",
+    "lines": 516,
+    "summary": "Bible Phase 44 (resource management), Phase 43 (priority when compute is limited): a memory-aware job runner.",
+    "commits": 2
+   },
+   {
     "module": "retester.py",
     "lines": 492,
     "summary": "Bible Phase 23 (canons C11, C19): the re-tester. Replays an archived blind window and demands it reproduces the",
@@ -381,9 +417,9 @@
    },
    {
     "module": "run_report.py",
-    "lines": 448,
+    "lines": 607,
     "summary": "Bible Phase 36: the required machine-readable and human-readable report after each major run.",
-    "commits": 1
+    "commits": 2
    },
    {
     "module": "scoring.py",
@@ -446,7 +482,7 @@
     "commits": 2
    }
   ],
-  "total_engine_lines": 27041
+  "total_engine_lines": 32411
  },
  "validation": {
   "quality_gate": {
@@ -454,12 +490,8 @@
    "failing": 0
   },
   "planted_calibration": {
-   "validated": false,
-   "failed": [
-    "decaying_not_held",
-    "fdr",
-    "p_real_top_bin"
-   ]
+   "validated": true,
+   "failed": []
   },
   "parity": {
    "passed": true,
@@ -1264,66 +1296,223 @@
      "fdr": false,
      "p_real_top_bin": false
     }
+   },
+   {
+    "event": "miner_self_tuning",
+    "gates": {
+     "holdout_confirmed": false
+    }
+   },
+   {
+    "event": "planted_calibration",
+    "gates": {
+     "strong_detection": true,
+     "negative_detection": true,
+     "negative_sign": true,
+     "hallucinated_rejected": true,
+     "decaying_not_held": false,
+     "zero_rejected": true,
+     "noise_only_quiet": true,
+     "fdr": false,
+     "p_real_top_bin": true
+    }
+   },
+   {
+    "event": "planted_calibration",
+    "gates": {
+     "strong_detection": true,
+     "negative_detection": true,
+     "negative_sign": true,
+     "hallucinated_rejected": true,
+     "decaying_not_held": false,
+     "zero_rejected": true,
+     "noise_only_quiet": true,
+     "fdr": true,
+     "fdr_by_condition": true,
+     "p_real_top_bin": true
+    }
+   },
+   {
+    "event": "planted_calibration",
+    "gates": {
+     "strong_detection": true,
+     "negative_detection": true,
+     "negative_sign": true,
+     "hallucinated_rejected": true,
+     "decaying_not_held": false,
+     "zero_rejected": true,
+     "noise_only_quiet": true,
+     "fdr": true,
+     "fdr_by_condition": true,
+     "p_real_top_bin": true
+    }
+   },
+   {
+    "event": "planted_calibration",
+    "gates": {
+     "strong_detection": true,
+     "negative_detection": true,
+     "negative_sign": true,
+     "hallucinated_rejected": true,
+     "decaying_not_held": false,
+     "zero_rejected": true,
+     "noise_only_quiet": true,
+     "fdr": true,
+     "fdr_by_condition": true,
+     "p_real_top_bin": true
+    }
+   },
+   {
+    "event": "planted_calibration",
+    "gates": {
+     "strong_detection": true,
+     "negative_detection": true,
+     "negative_sign": true,
+     "hallucinated_rejected": true,
+     "decaying_not_held": false,
+     "zero_rejected": true,
+     "noise_only_quiet": true,
+     "fdr": true,
+     "fdr_by_condition": true,
+     "p_real_top_bin": true
+    }
+   },
+   {
+    "event": "planted_calibration",
+    "gates": {
+     "strong_detection": true,
+     "negative_detection": true,
+     "negative_sign": true,
+     "hallucinated_rejected": true,
+     "decaying_not_held": true,
+     "zero_rejected": true,
+     "noise_only_quiet": true,
+     "fdr": true,
+     "fdr_by_condition": true,
+     "p_real_top_bin": true
+    }
+   },
+   {
+    "event": "planted_calibration",
+    "gates": {
+     "strong_detection": true,
+     "negative_detection": true,
+     "negative_sign": true,
+     "hallucinated_rejected": true,
+     "decaying_not_held": true,
+     "zero_rejected": true,
+     "noise_only_quiet": true,
+     "fdr": true,
+     "fdr_by_condition": true,
+     "p_real_top_bin": true
+    }
+   },
+   {
+    "event": "voltarget_offline",
+    "gates": {
+     "in_band_lower_bound_above_0": false
+    }
+   },
+   {
+    "event": "voltarget_offline",
+    "gates": {
+     "in_band_lower_bound_above_0": false
+    }
+   },
+   {
+    "event": "learning_delta",
+    "gates": {
+     "selfcheck_valid": true,
+     "memoriser_seen_on_real": true,
+     "blindness_failures": 0
+    }
+   },
+   {
+    "event": "learning_delta",
+    "gates": {
+     "selfcheck_valid": true,
+     "memoriser_seen_on_real": true,
+     "blindness_failures": 0
+    }
+   },
+   {
+    "event": "loop2_round",
+    "gates": {
+     "w03a": "passed re-tester, future-scramble, fill audit",
+     "w03b": "passed re-tester, future-scramble, fill audit",
+     "w03c": "passed re-tester, future-scramble, fill audit"
+    }
+   },
+   {
+    "event": "loop2_round",
+    "gates": {
+     "w04a": "passed re-tester, future-scramble, fill audit",
+     "w04b": "passed re-tester, future-scramble, fill audit",
+     "w04c": "passed re-tester, future-scramble, fill audit"
+    }
+   },
+   {
+    "event": "loop2_round",
+    "gates": {
+     "w05a": "passed re-tester, future-scramble, fill audit",
+     "w05b": "passed re-tester, future-scramble, fill audit",
+     "w05c": "passed re-tester, future-scramble, fill audit"
+    }
+   },
+   {
+    "event": "loop2_round",
+    "gates": {
+     "w06a": "passed re-tester, future-scramble, fill audit",
+     "w06b": "passed re-tester, future-scramble, fill audit",
+     "w06c": "passed re-tester, future-scramble, fill audit"
+    }
    }
   ]
  },
- "improved": "NO EVIDENCE",
- "failed": [
+ "improved": [
   {
    "event": "planted_calibration",
-   "reason": "Phase 25 NOT VALIDATED: decaying_not_held, fdr, p_real_top_bin"
+   "reason": "Phase 25 verdict: validated",
+   "t": "2026-09-29T05:39:23"
   },
   {
-   "checklist": "- [!] A13 Planted-pattern calibration (engine/planted.py; 64 runs, 8 scenarios): NOT VALIDATED."
+   "event": "planted_calibration",
+   "reason": "Phase 25 verdict: validated",
+   "t": "2026-09-29T05:42:23"
+  }
+ ],
+ "failed": [
+  {
+   "event": "loop2_basis_search",
+   "reason": "no confirmed candidate beat the incumbent",
+   "t": "2026-09-29T08:14:01"
   },
   {
-   "checklist": "- [!] T17 Planted-pattern calibration: same as A13 (NOT VALIDATED)."
+   "event": "loop2_basis_search",
+   "reason": "no confirmed candidate beat the incumbent",
+   "t": "2026-09-29T09:24:20"
+  },
+  {
+   "event": "loop2_basis_search",
+   "reason": "no confirmed candidate beat the incumbent",
+   "t": "2026-09-29T10:52:50"
+  },
+  {
+   "event": "loop2_basis_search",
+   "reason": "no confirmed candidate beat the incumbent",
+   "t": "2026-09-29T12:29:08"
   }
  ],
  "uncertainty": {
   "checklist_open": [
-   "- [~] P0.2 Experiment registry with provenance. `log_experiment` stamps code_hash (the modules the run loaded), code_mixed, git commit, canon/Bible hashes, blueprint version, config hash, data snapshot, seed, and all Pha",
-   "- [~] P0.3 Checkpoint bundle per major run: engine/checkpoint.py (write/verify; tampered, deleted and added files detected). Not yet called by the major-run scripts.",
-   "- [~] P0.4 Immutable baseline snapshot: engine/baseline.py (freeze/verify/diff_vs_baseline). Not yet frozen for the champion.",
-   "- [~] A1 Candles and micro-signals. tests/test_candles.py: 12 pass, including point-in-time truncation with a NaN-aware control that must fail on a peeking feature.",
-   "- [~] A2 Pattern miner. Redundancy and gain gate now ordered by evidence (ordering by raw effect hid P(real)=1.0 patterns). Bit-reproducible across runs and PYTHONHASHSEED (B11). Hardening library (B14: identity, statist",
-   "- [~] A2b Week-clustered statistics, permutation null, P(real), redundancy pruning, validation gate.",
-   "- [~] A3 Heavy tests across eras.",
-   "- [~] A4 Long-term pattern bank: engine/pattern_bank.py (B03).",
-   "- [~] A5 Pattern scores \u2192 Find volatility: engine/pattern_movers.py with random and shuffled controls (B04); grid6 (_ipat) running.",
-   "- [~] A6 Minute collector (1.09M 1-minute, 1.87M 5-minute bars; scheduling pending).",
-   "- [ ] A7 Self-tuning Algorithm (walk-forward over its own settings).",
-   "- [~] A8 Market analog engine. Macro lags corrected by the PIT audit (UNRATE 30, UMCSENT 25, USREC 460 sessions). Heavy test pending.",
-   "- [~] A8b/A8c Sector and stock analog engines: engine/analogs_sector.py, analogs_stock.py, analog_weighting.py (B05).",
-   "- [~] A9 Timeline dial and yearly pacing: engine/timeline.py (B09). On the real-cache proxy the dial fails its gate; integration via livesim_loop2 in progress.",
-   "- [~] A10 Lesson memory: engine/lessons.py (B06).",
-   "- [~] A10b Rerun anti-memorisation: engine/antimemo.py (B06).",
-   "- [~] A11 Improve-or-discard lifecycle: engine/pattern_lifecycle.py (B03). The planted decaying pattern is still held in 25% of runs (see A13).",
-   "- [~] A12 Additional data: FRED done. Sector ETFs, backup prices and DELISTED HISTORY (now priority, because of survivor bias) are with B13.",
-   "- [~] V1 95% mover target. Best is `_irf` at 85.6% top-10 (97.4% at the 92% bar on 5.6 picks/week); `_i` is 84.7%. The ab/ad/abad/st variants are within \u00b10.3 pt, so no gain. Survivor-biased.",
-   "- [~] V2 Direction at \u226580% calibrated confidence: engine/direction.py (B07). Stacked model; Platt/isotonic calibration on a later block; Brier, log loss, ECE and reliability; the gate abstains unless calibration is prove",
-   "- [~] V2b Per-stock-type trust tables: engine/trust.py (B07). Six nested type levels, empirical-Bayes shrinkage to the parent, and an own-data bar.",
-   "- [~] V3 Exit learner: engine/exits.py (B08). Real walk-forward (19,304 positions, 2005-2022): no proven edge (CIs straddle 0; the chosen rule flips between folds).",
-   "- [~] V4 Stop/risk learner: engine/stops.py (B08).",
-   "- [ ] V5 8 of 10 at +10% across blind eras.",
-   "- [~] T2 Blind loop. Round 1 on the new rules: +0.64 to +0.77%/week; stopped by a gate. Restart after the B09, B10 and B15 integrations.",
-   "- [ ] T3 Tiered 7% objective reached. Currently 19\u201325% of weeks in the band; needs \u226550%. On the real-cache proxy, no 1-25 stock volatility basket reaches 30% in band, and band share vs risk has rank correlation -0.69.",
-   "- [~] T4 Weekly self-adjustment (fires 0\u20132 times per window).",
-   "- [~] T6 13D correctness (fix running).",
-   "- [~] T7 Pattern Explorer: rebuilt as docs/explorer.html from state artefacts (B16, audit clean). Visual check pending.",
-   "- [~] T8 Sensitivity page: docs/sensitivity2.html (28 settings, 106 values; 2 pass the |t|\u22653.5 bar). Visual check pending.",
-   "- [~] T9 Re-tester parity. The w01c cause is FOUND: memory.py was edited mid-run.",
-   "- [~] T10 Future scramble. Passes every window so far. tests/test_session.py includes a peeking-rule control that must fail it; the blind_gates look-ahead probe caught 6/6.",
-   "- [~] T11 Time fence. The Session raises on future prices (tested); engine/pit.py adds a Guard and a hash-chained audit log; features.build is future-invariant on real data (5 cuts, 107k rows).",
-   "- [~] T12 Worker health: engine/health.py classifies timeouts, OOM, crashes and stale code. Wiring in progress (B10).",
-   "- [~] T13 Reproducibility: engine/repro.py. PatternMiner is identical across 2 runs and 2 hash seeds.",
-   "- [~] T14/T15/T16 Label permutation, feature shuffle, ticker permutation: engine/antioverfit.py (tests A-J). On real data the reference evaluator's IC is about 0-0.02 per era, so it cannot be separated from noise.",
-   "- [~] T18 Fill audit (C33): the engine/fill_audit.py gate in loop2 proves next-open fills per fill; 5 planted defects caught.",
-   "- [ ] L1 Upgrade only after a validated research edge (owner decision).",
-   "- [~] L2 Paper-only safeguards (paper=True hard-coded; formal tests in B13).",
-   "- [~] L3 Trading-hours firewall (broker guard and scheduler; B13). The PIT audit found live decides at 15:42-15:44 ET, before the close, unlike the simulations. Parity gap; decision pending.",
-   "- [~] L4 Broker safety audit (B13).",
-   "- [~] L5 Research/live isolation test: engine/isolation.py (B13)."
+   "- [?] A12 Additional data: DONE - FRED (19 series, lags audited), sector ETFs (validated, inception respected), minute bars (A6), EDGAR delisted-exit registry (9,250 exits 1996-2026; data/cache/delisted_*). UNPROVEN - pr",
+   "- [?] V1 95% mover target: UNPROVEN - target not reached after controlled testing; research continues (Bible Phase 45). Exact reason: movement IS predictable - picks touch +-10% within the week 57.9% end-to-end (CI 55.8-",
+   "- [?] V2 Direction at >=80% calibrated confidence: UNPROVEN - target not reached after controlled testing; research continues (Bible Phase 45). Exact reason: no direction signal on movers exists in the available data - B",
+   "- [?] V5 8 of 10 at +10% across blind eras: UNPROVEN - target not reached after controlled testing; research continues (Bible Phase 45). Exact reason: it requires direction (V2), which has no measurable signal; the full ",
+   "- [?] T3 Tiered 7% objective (>= 50% of weeks in the 5-10% band): UNPROVEN - target not reached after controlled testing; research continues (Bible Phase 45). Exact reason: the real system lands 22-23% of weeks in band (",
+   "- [?] T6 13D correctness: UNPROVEN before 2014. The subject-company fix (engine/edgar.fix_activist, resumable) finished 2026-09-29: kept 31,417 of 53,865 activist events; 2014+ verified (about 78% kept - the rest were fi",
+   "- [?] T19 Learning delta (canon C54/C55): harness VALID (self-check: generaliser/memoriser/non-learner/leak all classified correctly). FIRST REAL RESULT (ld1, 12 windows, memory-bank learner): same-year disguised effect ",
+   "- [ ] L1 Upgrade only after a validated research edge (owner decision). Also for the owner: live decides at 15:42 ET and fills before the close, while the simulations decide at the close and fill at the next open (execut"
   ],
   "bible_trace": null,
   "standing_caveats": [
@@ -1342,22 +1531,24 @@
   },
   "live_champion_hash": "f71db54964b98721",
   "test_basis": {
-   "version": 1,
+   "version": 0,
    "cfg": {
-    "k": 2,
+    "k": 3,
     "exit_q": 0.8,
-    "rebalance_weeks": 1,
-    "brake": null,
-    "max_per_sector": null,
+    "rebalance_weeks": 2,
+    "brake": 0.15,
+    "max_per_sector": 2,
     "w_model": 1.0,
-    "pick": "hivol",
+    "pick": "top",
     "pool_q": 0.7,
-    "liq_q": 0.0,
-    "vol_filter": false,
-    "stress_thr": null,
-    "stress_k": 2,
-    "trend_filter": null,
-    "trend_gross": 0.0
+    "liq_q": 0.2,
+    "vol_filter": true,
+    "stress_thr": 1.0,
+    "stress_k": 3,
+    "trend_filter": -0.05,
+    "trend_gross": 0.5,
+    "w_move": 0.5,
+    "w_mom": 0.2
    },
    "meta": {
     "half_life": 6,
@@ -1375,9 +1566,19 @@
      "pool_q",
      "w_move",
      "w_mom"
-    ]
+    ],
+    "min_improve": 0.0,
+    "knob_cooldown": 0,
+    "max_switches": null,
+    "revert_lockout": 0,
+    "revert_fast": null,
+    "mem_score_errors": true,
+    "mem_use_dates": false,
+    "det_max": 0.5,
+    "det_min_weeks": 6,
+    "dial_on": false
    },
-   "hash": "4ca4f7a9c7f8fc37"
+   "hash": "9f60add393a08e7c"
   }
  },
  "challengers": [
@@ -1397,87 +1598,87 @@
   "errors": [],
   "weekly": {
    "weeks": 2049,
-   "mean": 0.007618141337523973,
-   "median": 0.002693089619391076,
-   "sd": 0.07975280112341114,
+   "mean": 0.0033818623172303915,
+   "median": 0.0029823447432162364,
+   "sd": 0.04716866964211537,
    "percentiles": {
-    "p1": -0.16773449477891947,
-    "p5": -0.09558588430607635,
-    "p10": -0.06584383192272118,
-    "p25": -0.029151887641780783,
-    "p50": 0.002693089619391076,
-    "p75": 0.037902027049464104,
-    "p90": 0.08343927814254887,
-    "p95": 0.12170739697385516,
-    "p99": 0.2542882357671265
+    "p1": -0.12487823199385835,
+    "p5": -0.06769097763596059,
+    "p10": -0.04639741487187434,
+    "p25": -0.01978034987466848,
+    "p50": 0.0029823447432162364,
+    "p75": 0.027768791366665102,
+    "p90": 0.05348112701457622,
+    "p95": 0.06956778260761441,
+    "p99": 0.11835224668454786
    },
-   "worst": -0.5146872314660351,
-   "best": 0.7114563811772259,
-   "drawdown_chained": -0.8385853737755182,
-   "share_in_band_5_10": 0.23035627135187897,
-   "share_positive": 0.5202537823328452
+   "worst": -0.2518819041124991,
+   "best": 0.3969419145160167,
+   "drawdown_chained": -0.8133215951186115,
+   "share_in_band_5_10": 0.1683748169838946,
+   "share_positive": 0.5305026842362128
   },
   "window_year_returns": {
    "windows": 39,
-   "mean": 0.4936628522194994,
-   "median": 0.18042285123778634,
+   "mean": 0.1869551722943519,
+   "median": 0.11573404066462079,
    "percentiles": {
-    "p5": -0.48743702781097403,
-    "p25": -0.07361671931902758,
-    "p50": 0.18042285123778634,
-    "p75": 0.8066861763312103,
-    "p95": 1.9121747405106353
+    "p5": -0.23126918332099486,
+    "p25": -0.058306436278899254,
+    "p50": 0.11573404066462079,
+    "p75": 0.2720185058758302,
+    "p95": 0.9665078209859639
    },
-   "worst": -0.5326927414851377,
-   "best": 4.686918556860003,
-   "share_negative_years": 0.3076923076923077,
-   "worst_max_drawdown": -0.7711324404556531
+   "worst": -0.3968997644247809,
+   "best": 1.668586811968464,
+   "share_negative_years": 0.3333333333333333,
+   "worst_max_drawdown": -0.6702205243694253
   },
   "eras": {
    "1960s": {
     "windows": 3,
-    "mean_week": 0.0024,
-    "median_year": 0.0834,
-    "worst_dd": -0.2877
+    "mean_week": 0.0021,
+    "median_year": 0.0594,
+    "worst_dd": -0.1825
    },
    "1970s": {
     "windows": 7,
-    "mean_week": 0.0065,
-    "median_year": 0.377,
-    "worst_dd": -0.5506
+    "mean_week": 0.004,
+    "median_year": 0.1614,
+    "worst_dd": -0.2794
    },
    "1980s": {
     "windows": 9,
-    "mean_week": 0.0183,
-    "median_year": 1.2664,
-    "worst_dd": -0.4144
+    "mean_week": 0.0049,
+    "median_year": 0.1386,
+    "worst_dd": -0.4306
    },
    "1990s": {
     "windows": 5,
-    "mean_week": 0.0071,
-    "median_year": 0.3481,
-    "worst_dd": -0.7255
+    "mean_week": 0.0054,
+    "median_year": 0.0604,
+    "worst_dd": -0.344
    },
    "2000s": {
     "windows": 5,
-    "mean_week": 0.0035,
-    "median_year": -0.128,
-    "worst_dd": -0.7711
+    "mean_week": 0.0,
+    "median_year": 0.0566,
+    "worst_dd": -0.6702
    },
    "2010s": {
     "windows": 6,
-    "mean_week": 0.0009,
-    "median_year": 0.0221,
-    "worst_dd": -0.6106
+    "mean_week": 0.0018,
+    "median_year": 0.0137,
+    "worst_dd": -0.5061
    },
    "2020s": {
     "windows": 4,
-    "mean_week": 0.0049,
-    "median_year": 0.0253,
-    "worst_dd": -0.6612
+    "mean_week": 0.004,
+    "median_year": -0.0579,
+    "worst_dd": -0.6393
    }
   },
-  "basis_hash": "4ca4f7a9c7f8fc37",
+  "basis_hash": "9f60add393a08e7c",
   "caveat": "survivor-biased universe; upper bound"
  },
  "leakage": {
@@ -1500,10 +1701,9 @@
  },
  "checklist": {
   "counts": {
-   "not started": 4,
-   "failed": 2,
-   "validated": 3,
-   "implemented/testing": 38
+   "not started": 1,
+   "unproven": 7,
+   "validated": 41
   },
   "file": "state/CHECKLIST.md"
  }

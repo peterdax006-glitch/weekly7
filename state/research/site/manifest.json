@@ -1,24 +1,24 @@
 {
- "built_at": "2026-09-29 05:45 UTC",
+ "built_at": "2026-09-29 12:40 UTC",
  "pages": {
   "checklist.html": {
-   "bytes": 44175,
-   "sha256": "dfa74a4d6bdc2d9077d61519d51073a5b16a1164b3ac82f43ecb57154fa5b700",
+   "bytes": 47218,
+   "sha256": "9fd302213848d6008ab5558351297115c2df96b70a25c89456026e76a10a4c1b",
    "summary": {
     "counts": {
-     " ": 4,
-     "x": 19,
-     "~": 24
+     " ": 1,
+     "?": 7,
+     "x": 39
     },
     "items": 47,
     "negatives": 2,
     "unparsed": 2,
-    "unproven": 28
+    "unproven": 8
    }
   },
   "explorer.html": {
    "bytes": 646839,
-   "sha256": "039709683d2f16ea704f311d414af820e2bdd82536098edc1c42e9e327c76ca4",
+   "sha256": "4671e8bc3966878dbd8a6b46482a6320a90c1b6b9d2b2721254f38c2bcbe1a5c",
    "summary": {
     "listed": 470,
     "live": 21,
@@ -34,14 +34,19 @@
    }
   },
   "runs.html": {
-   "bytes": 157317,
-   "sha256": "c104ff786351e68f83a1ac46d35f9d2a192aee0c0ebf2085db54c0d8fe08205c",
+   "bytes": 238287,
+   "sha256": "57975aa1811fac255dcb7e32b6b542939fca09a31c492472dbb343f7e4e0a776",
    "summary": {
     "events": {
      "challenger_historical": 1,
      "frontier": 2,
      "historical_test": 2,
+     "leak_audit": 2,
+     "learner_search": 4,
+     "learning_delta": 2,
      "livesim_cycle": 39,
+     "loop2_basis_search": 5,
+     "loop2_round": 5,
      "miner_self_tuning": 1,
      "planted_calibration": 13,
      "replay_year": 1,
@@ -49,17 +54,18 @@
      "topk_rules": 1,
      "tuning_lab": 2,
      "voided_adjustment": 1,
+     "voltarget_offline": 2,
      "walk_forward": 1
     },
     "hidden_windows_not_shown": 0,
-    "registry_records": 65,
+    "registry_records": 85,
     "reports": 33,
     "windows": 39
    }
   },
   "sensitivity2.html": {
    "bytes": 457446,
-   "sha256": "7b358b892cdf4917b063c97b272f0d72460a0a9f3dd84f02ac877e16aaed1368",
+   "sha256": "86fd89c230b8edccd1111c64924f83eaebf64173c4145e554f18244d1f30c55b",
    "summary": {
     "bonferroni_t": 3.4963338674606126,
     "settings": 28,
@@ -72,8 +78,8 @@
  "problems": {},
  "sources": {
   "docs\\sensitivity.json": "44963834c919ae00",
-  "state\\CHECKLIST.md": "40ed665cbb3766f4",
-  "state\\experiments.jsonl": "264249564bcccbb8",
+  "state\\CHECKLIST.md": "c7fe83960e6159b8",
+  "state\\experiments.jsonl": "1d04bfde8d43a24a",
   "state\\livesim\\cycles.json": "85efbb548c80dfdc",
   "state\\research\\algorithm\\patterns_2017-01-01_v1.parquet": "00389e9a726ed69e",
   "state\\research\\algorithm\\patterns_2020-01-01.parquet": "e81722729cfbc4f4",
