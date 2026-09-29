@@ -242,10 +242,6 @@
   }
  ],
  "failing_tests_cache": {
-  "tests/test_antimemo.py": [
-   "",
-   "test_ticker_keyed_memory_is_attributed_to_names_not_dates"
-  ],
   "tests/test_antioverfit.py": [
    "test_clean_pipeline_passes_everything",
    "test_future_scramble_catches_global_standardisation"
@@ -270,11 +266,11 @@
    "test_secret_in_registry_is_scrubbed_not_published"
   ]
  },
- "generated": "2026-09-29T04:48Z",
+ "generated": "2026-09-29T05:05Z",
  "index": {
-  "evidence_files": 413,
-  "modules": 142,
-  "test_files": 67
+  "evidence_files": 433,
+  "modules": 144,
+  "test_files": 68
  },
  "integration_pending": {
   "adaptive": [
@@ -324,6 +320,7 @@
   "engine/config.py",
   "engine/edgar.py",
   "engine/explain.py",
+  "engine/fill_audit.py",
   "engine/model.py",
   "engine/options.py",
   "engine/scoring.py",
@@ -345,6 +342,7 @@
   "scripts/extend_history.py",
   "scripts/fetch_macro.py",
   "scripts/frontier.py",
+  "scripts/fv_eval.py",
   "scripts/grid_runner.py",
   "scripts/loop_years.py",
   "scripts/miner_tune_real.py",
@@ -370,11 +368,7 @@
   "scripts/tuning_lab.py",
   "scripts/tuning_report.py"
  ],
- "planned_files_missing": [
-  "engine/fv_pipeline.py",
-  "scripts/fv_eval.py",
-  "tests/test_fv_pipeline.py"
- ],
+ "planned_files_missing": [],
  "requirements": [
   {
    "bible_claim": "[ ]",
@@ -446,15 +440,18 @@
     }
    ],
    "evidence": [
+    "state/research/analogs_ext/results.json",
     "state/research/antioverfit/real_v1/results.json",
     "state/research/blind_gates/results.json",
     "state/research/data_live_safety/report.json",
     "state/research/direction/summary.json",
     "state/research/exits_stops/summary.json",
     "state/research/gaprisk/summary.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/lessons/real_v1.json",
     "state/research/lessons/real_v2.json",
     "state/research/lessons/real_v3.json",
+    "state/research/lessons/real_v4_1y.json",
     "state/research/memory_adapter/results.json",
     "state/research/miner_coverage/coverage.json",
     "state/research/parity/latest.json",
@@ -550,6 +547,7 @@
    ],
    "evidence": [
     "state/research/data_live_safety/report.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/pattern_bank/bank_v3/bank_v000001.json",
     "state/research/pattern_bank/bank_v3/bank_v000002.json",
     "state/research/pattern_bank/bank_v3/bank_v000003.json",
@@ -615,15 +613,18 @@
     }
    ],
    "evidence": [
+    "state/research/analogs_ext/results.json",
     "state/research/antioverfit/real_v1/results.json",
     "state/research/blind_gates/results.json",
     "state/research/data_live_safety/report.json",
     "state/research/direction/summary.json",
     "state/research/exits_stops/summary.json",
     "state/research/gaprisk/summary.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/lessons/real_v1.json",
     "state/research/lessons/real_v2.json",
     "state/research/lessons/real_v3.json",
+    "state/research/lessons/real_v4_1y.json",
     "state/research/memory_adapter/results.json",
     "state/research/miner_coverage/coverage.json",
     "state/research/parity/latest.json",
@@ -789,15 +790,18 @@
     }
    ],
    "evidence": [
+    "state/research/analogs_ext/results.json",
     "state/research/antioverfit/real_v1/results.json",
     "state/research/blind_gates/results.json",
     "state/research/data_live_safety/report.json",
     "state/research/direction/summary.json",
     "state/research/exits_stops/summary.json",
     "state/research/gaprisk/summary.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/lessons/real_v1.json",
     "state/research/lessons/real_v2.json",
     "state/research/lessons/real_v3.json",
+    "state/research/lessons/real_v4_1y.json",
     "state/research/memory_adapter/results.json",
     "state/research/miner_coverage/coverage.json",
     "state/research/parity/latest.json",
@@ -853,15 +857,18 @@
     }
    ],
    "evidence": [
+    "state/research/analogs_ext/results.json",
     "state/research/antioverfit/real_v1/results.json",
     "state/research/blind_gates/results.json",
     "state/research/data_live_safety/report.json",
     "state/research/direction/summary.json",
     "state/research/exits_stops/summary.json",
     "state/research/gaprisk/summary.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/lessons/real_v1.json",
     "state/research/lessons/real_v2.json",
     "state/research/lessons/real_v3.json",
+    "state/research/lessons/real_v4_1y.json",
     "state/research/memory_adapter/results.json",
     "state/research/miner_coverage/coverage.json",
     "state/research/parity/latest.json",
@@ -949,9 +956,11 @@
    ],
    "evidence": [
     "state/research/data_live_safety/registry_candidates.csv",
+    "state/research/lessons/archive_v1.json",
     "state/research/lessons/real_v1.json",
     "state/research/lessons/real_v2.json",
     "state/research/lessons/real_v3.json",
+    "state/research/lessons/real_v4_1y.json",
     "state/research/registry_audit.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
@@ -1058,15 +1067,18 @@
     }
    ],
    "evidence": [
+    "state/research/analogs_ext/results.json",
     "state/research/antioverfit/real_v1/results.json",
     "state/research/blind_gates/results.json",
     "state/research/data_live_safety/report.json",
     "state/research/direction/summary.json",
     "state/research/exits_stops/summary.json",
     "state/research/gaprisk/summary.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/lessons/real_v1.json",
     "state/research/lessons/real_v2.json",
     "state/research/lessons/real_v3.json",
+    "state/research/lessons/real_v4_1y.json",
     "state/research/memory_adapter/results.json",
     "state/research/miner_coverage/coverage.json",
     "state/research/parity/latest.json",
@@ -1158,15 +1170,18 @@
     }
    ],
    "evidence": [
+    "state/research/analogs_ext/results.json",
     "state/research/antioverfit/real_v1/results.json",
     "state/research/blind_gates/results.json",
     "state/research/data_live_safety/report.json",
     "state/research/direction/summary.json",
     "state/research/exits_stops/summary.json",
     "state/research/gaprisk/summary.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/lessons/real_v1.json",
     "state/research/lessons/real_v2.json",
     "state/research/lessons/real_v3.json",
+    "state/research/lessons/real_v4_1y.json",
     "state/research/memory_adapter/results.json",
     "state/research/miner_coverage/coverage.json",
     "state/research/parity/latest.json",
@@ -1260,15 +1275,18 @@
     }
    ],
    "evidence": [
+    "state/research/analogs_ext/results.json",
     "state/research/antioverfit/real_v1/results.json",
     "state/research/blind_gates/results.json",
     "state/research/data_live_safety/report.json",
     "state/research/direction/summary.json",
     "state/research/exits_stops/summary.json",
     "state/research/gaprisk/summary.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/lessons/real_v1.json",
     "state/research/lessons/real_v2.json",
     "state/research/lessons/real_v3.json",
+    "state/research/lessons/real_v4_1y.json",
     "state/research/memory_adapter/results.json",
     "state/research/miner_coverage/coverage.json",
     "state/research/parity/latest.json",
@@ -1361,9 +1379,11 @@
    ],
    "evidence": [
     "state/research/antioverfit/real_v1/results.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/lessons/real_v1.json",
     "state/research/lessons/real_v2.json",
-    "state/research/lessons/real_v3.json"
+    "state/research/lessons/real_v3.json",
+    "state/research/lessons/real_v4_1y.json"
    ],
    "fail_lines": [],
    "failing_tests": [],
@@ -1448,9 +1468,11 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_v1.json",
     "state/research/lessons/real_v1.json",
     "state/research/lessons/real_v2.json",
-    "state/research/lessons/real_v3.json"
+    "state/research/lessons/real_v3.json",
+    "state/research/lessons/real_v4_1y.json"
    ],
    "fail_lines": [],
    "failing_tests": [],
@@ -1507,9 +1529,11 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_v1.json",
     "state/research/lessons/real_v1.json",
     "state/research/lessons/real_v2.json",
-    "state/research/lessons/real_v3.json"
+    "state/research/lessons/real_v3.json",
+    "state/research/lessons/real_v4_1y.json"
    ],
    "fail_lines": [],
    "failing_tests": [],
@@ -1565,9 +1589,11 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_v1.json",
     "state/research/lessons/real_v1.json",
     "state/research/lessons/real_v2.json",
-    "state/research/lessons/real_v3.json"
+    "state/research/lessons/real_v3.json",
+    "state/research/lessons/real_v4_1y.json"
    ],
    "fail_lines": [],
    "failing_tests": [],
@@ -1668,9 +1694,11 @@
     "state/research/exits_stops/summary.json",
     "state/research/exits_stops_run.log",
     "state/research/gaprisk/summary.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/lessons/real_v1.json",
     "state/research/lessons/real_v2.json",
     "state/research/lessons/real_v3.json",
+    "state/research/lessons/real_v4_1y.json",
     "state/research/pattern_fail/summary.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
@@ -1693,6 +1721,7 @@
     "tests/test_champion.py",
     "tests/test_exits.py",
     "tests/test_experiment_memory.py",
+    "tests/test_fv_pipeline.py",
     "tests/test_lessons.py",
     "tests/test_stops.py"
    ],
@@ -1831,6 +1860,7 @@
     "tests/test_champion.py",
     "tests/test_exits.py",
     "tests/test_experiment_memory.py",
+    "tests/test_fv_pipeline.py",
     "tests/test_stops.py"
    ],
    "text": "validation range",
@@ -1971,6 +2001,7 @@
     "tests/test_baseline.py",
     "tests/test_exits.py",
     "tests/test_experiment_memory.py",
+    "tests/test_fv_pipeline.py",
     "tests/test_registry.py",
     "tests/test_run_report.py",
     "tests/test_stops.py"
@@ -2082,9 +2113,11 @@
    ],
    "evidence": [
     "state/research/data_live_safety/registry_candidates.csv",
+    "state/research/lessons/archive_v1.json",
     "state/research/lessons/real_v1.json",
     "state/research/lessons/real_v2.json",
     "state/research/lessons/real_v3.json",
+    "state/research/lessons/real_v4_1y.json",
     "state/research/registry_audit.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
@@ -2553,6 +2586,8 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
    ],
@@ -2699,6 +2734,8 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
    ],
@@ -2792,6 +2829,8 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json",
     "state/research/tuning/cfg_CHAMPION_v1.2.json",
@@ -2889,6 +2928,8 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json",
     "state/research/tuning/cfg_CHAMPION_v1.2.json",
@@ -3061,7 +3102,9 @@
      ]
     }
    ],
-   "evidence": [],
+   "evidence": [
+    "state/research/analogs_ext/results.json"
+   ],
    "fail_lines": [],
    "failing_tests": [],
    "id": "0.4.7",
@@ -3474,7 +3517,10 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/lessons/archive_v1.log",
+    "state/research/lessons/archive_v1.md",
     "state/research/lessons/real_v1.json",
     "state/research/lessons/real_v1.log",
     "state/research/lessons/real_v1.md",
@@ -3484,7 +3530,9 @@
     "state/research/lessons/real_v3.json",
     "state/research/lessons/real_v3.log",
     "state/research/lessons/real_v3.md",
-    "state/research/lessons/real_v4_1y.log"
+    "state/research/lessons/real_v4_1y.json",
+    "state/research/lessons/real_v4_1y.log",
+    "state/research/lessons/real_v4_1y.md"
    ],
    "fail_lines": [],
    "failing_tests": [],
@@ -3744,6 +3792,7 @@
    "evidence": [
     "state/research/blind_gates/report.md",
     "state/research/blind_gates/results.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/pit/pit_audit.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
@@ -3847,6 +3896,7 @@
    "evidence": [
     "state/research/blind_gates/report.md",
     "state/research/blind_gates/results.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
    ],
@@ -3937,6 +3987,7 @@
     }
    ],
    "evidence": [
+    "state/research/analogs_ext/results.json",
     "state/research/pit/pit_audit.json"
    ],
    "fail_lines": [],
@@ -4068,6 +4119,7 @@
     "state/research/antioverfit/real_v1.log",
     "state/research/antioverfit/real_v1/results.json",
     "state/research/antioverfit/real_v1/summary.txt",
+    "state/research/lessons/archive_v1.json",
     "state/research/memory_adapter/missed_winners_summary.txt",
     "state/research/memory_adapter/results.json",
     "state/research/pattern_fail/summary.json",
@@ -4159,12 +4211,12 @@
      ]
     },
     {
-     "module": "engine/missed_winners.py",
+     "module": "engine/fv_pipeline.py",
      "phase_linked": false,
      "score": 0.719,
      "symbols": [
-      "_base_score",
-      "_scramble_returns"
+      "model_score",
+      "score"
      ],
      "terms": [
       "scor",
@@ -4174,16 +4226,15 @@
     }
    ],
    "evidence": [
+    "state/research/analogs_ext/market_ablation.csv",
+    "state/research/analogs_ext/sector_ablation_by_sector.csv",
+    "state/research/analogs_ext/stock_own-history_ablation.csv",
     "state/research/antioverfit/real_v1.log",
     "state/research/antioverfit/real_v1/results.json",
     "state/research/antioverfit/real_v1/summary.txt",
     "state/research/direction/ablation.csv",
     "state/research/memory_adapter/memory_factor_ablation.csv",
-    "state/research/memory_adapter/missed_winners_summary.txt",
-    "state/research/memory_adapter/results.json",
-    "state/research/pit/pit_audit.json",
-    "state/research/timeline_basis/basis_offline_seed0.json",
-    "state/research/timeline_basis/dial_offline_seed0.json"
+    "state/research/pit/pit_audit.json"
    ],
    "fail_lines": [],
    "failing_tests": [],
@@ -4206,20 +4257,19 @@
    "section": "3",
    "state": "[x]",
    "test_functions": [
-    "tests/test_adapter.py::test_future_scramble_leaves_the_adapters_earlier_audit_unchanged",
     "tests/test_antioverfit.py::test_future_scramble_catches_an_evaluator_that_ignores_now",
     "tests/test_antioverfit.py::test_future_scramble_catches_outlier_trimming_on_all_rows",
-    "tests/test_missed_winners.py::test_future_scramble_leaves_the_past_untouched_and_kills_later_skill"
+    "tests/test_fv_pipeline.py::test_future_scramble_leaves_earlier_decisions_identical",
+    "tests/test_fv_pipeline.py::test_scramble_audit_catches_a_planted_leak"
    ],
    "tests": [
     "tests/test_ablation.py",
-    "tests/test_adapter.py",
     "tests/test_antioverfit.py",
-    "tests/test_missed_winners.py",
+    "tests/test_fv_pipeline.py",
     "tests/test_pit.py"
    ],
    "text": "scores unchanged",
-   "why": "code engine/pit.py, test tests/test_adapter.py::test_future_scramble_leaves_the_adapters_earlier_audit_unchanged, cited state/research/antioverfit/real_v1.log"
+   "why": "code engine/pit.py, test tests/test_antioverfit.py::test_future_scramble_catches_an_evaluator_that_ignores_now, cited state/research/antioverfit/real_v1.log"
   },
   {
    "bible_claim": "",
@@ -4233,6 +4283,21 @@
       "future_scramble",
       "future_scramble_store",
       "ScrambleReport"
+     ],
+     "terms": [
+      "pattern",
+      "select",
+      "futur",
+      "scrambl"
+     ]
+    },
+    {
+     "module": "engine/fv_pipeline.py",
+     "phase_linked": false,
+     "score": 0.761,
+     "symbols": [
+      "Selection",
+      "fv_select"
      ],
      "terms": [
       "pattern",
@@ -4257,13 +4322,15 @@
    "section": "3",
    "state": "[x]",
    "test_functions": [
+    "tests/test_fv_pipeline.py::test_future_scramble_leaves_earlier_decisions_identical",
     "tests/test_pit.py::test_scrambled_store_changes_only_the_future"
    ],
    "tests": [
+    "tests/test_fv_pipeline.py",
     "tests/test_pit.py"
    ],
    "text": "pattern selection unchanged",
-   "why": "code engine/pit.py, test tests/test_pit.py::test_scrambled_store_changes_only_the_future, cited tests/test_pit.py::test_scrambled_store_changes_only_the_future"
+   "why": "code engine/pit.py, test tests/test_fv_pipeline.py::test_future_scramble_leaves_earlier_decisions_identical, cited tests/test_fv_pipeline.py::test_future_scramble_leaves_earlier_decisions_identical"
   },
   {
    "bible_claim": "",
@@ -4325,6 +4392,7 @@
    "evidence": [
     "state/research/blind_gates/report.md",
     "state/research/blind_gates/results.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/memory_adapter/results.json",
     "state/research/pit/pit_audit.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
@@ -4417,6 +4485,7 @@
    "evidence": [
     "state/research/blind_gates/report.md",
     "state/research/blind_gates/results.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/memory_adapter/missed_winners_summary.txt",
     "state/research/memory_adapter/results.json",
     "state/research/pit/pit_audit.json",
@@ -4504,11 +4573,12 @@
      ]
     },
     {
-     "module": "engine/livesim.py",
+     "module": "engine/fv_pipeline.py",
      "phase_linked": false,
      "score": 1.0,
      "symbols": [
-      "audit"
+      "audit_fill_timing",
+      "audit_no_lookahead"
      ],
      "terms": [
       "decis",
@@ -4522,6 +4592,7 @@
    "evidence": [
     "state/research/blind_gates/report.md",
     "state/research/blind_gates/results.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/pit/pit_audit.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
@@ -4539,12 +4610,13 @@
    "state": "[x]",
    "test_functions": [
     "tests/test_pit.py::test_audit_fills_checks_decisions_even_when_nothing_filled",
-    "tests/test_pit.py::test_audit_fills_catches_planted_violations",
-    "tests/test_pit.py::test_audit_fills_clean",
-    "tests/test_pit.py::test_audit_fills_late_fill_is_warning_and_empty_ok"
+    "tests/test_fv_pipeline.py::test_fill_timing_audit_on_run",
+    "tests/test_fv_pipeline.py::test_future_scramble_leaves_earlier_decisions_identical",
+    "tests/test_pit.py::test_audit_fills_catches_planted_violations"
    ],
    "tests": [
     "tests/test_blind_gates.py",
+    "tests/test_fv_pipeline.py",
     "tests/test_livesim_gates.py",
     "tests/test_livesim_loop2.py",
     "tests/test_pit.py"
@@ -4606,17 +4678,19 @@
      ]
     },
     {
-     "module": "engine/fill_audit.py",
-     "phase_linked": true,
-     "score": 0.877,
+     "module": "engine/fv_pipeline.py",
+     "phase_linked": false,
+     "score": 1.0,
      "symbols": [
-      "audit_session"
+      "audit_fill_timing",
+      "audit_no_lookahead"
      ],
      "terms": [
       "fill",
       "next",
       "open",
       "clos",
+      "futur",
       "audit"
      ]
     }
@@ -4624,6 +4698,7 @@
    "evidence": [
     "state/research/blind_gates/report.md",
     "state/research/blind_gates/results.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/pit/pit_audit.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
@@ -4640,20 +4715,20 @@
    "section": "4",
    "state": "[x]",
    "test_functions": [
-    "tests/test_fill_audit.py::test_honest_next_open_fills_pass",
+    "tests/test_fv_pipeline.py::test_gather_fills_next_open_pads_and_flattens_missing",
     "tests/test_pit.py::test_executor_fills_only_at_next_open_and_refuses_weekends",
-    "tests/test_fill_audit.py::test_fill_at_close_price_fails",
-    "tests/test_fill_audit.py::test_same_close_fill_fails"
+    "tests/test_fv_pipeline.py::test_fill_timing_audit_on_run",
+    "tests/test_pit.py::test_audit_fills_catches_planted_violations"
    ],
    "tests": [
     "tests/test_blind_gates.py",
-    "tests/test_fill_audit.py",
+    "tests/test_fv_pipeline.py",
     "tests/test_livesim_gates.py",
     "tests/test_livesim_loop2.py",
     "tests/test_pit.py"
    ],
    "text": "fill next open",
-   "why": "code engine/pit.py, test tests/test_fill_audit.py::test_honest_next_open_fills_pass, cited tests/test_fill_audit.py::test_honest_next_open_fills_pass"
+   "why": "code engine/pit.py, test tests/test_fv_pipeline.py::test_gather_fills_next_open_pads_and_flattens_missing, cited tests/test_fv_pipeline.py::test_gather_fills_next_open_pads_and_flattens_missing"
   },
   {
    "bible_claim": "",
@@ -4703,11 +4778,12 @@
      ]
     },
     {
-     "module": "engine/livesim.py",
+     "module": "engine/fv_pipeline.py",
      "phase_linked": false,
      "score": 0.745,
      "symbols": [
-      "audit"
+      "audit_fill_timing",
+      "audit_no_lookahead"
      ],
      "terms": [
       "clos",
@@ -4720,6 +4796,7 @@
    "evidence": [
     "state/research/blind_gates/report.md",
     "state/research/blind_gates/results.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/pit/pit_audit.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
@@ -4736,19 +4813,20 @@
    "section": "4",
    "state": "[x]",
    "test_functions": [
+    "tests/test_fv_pipeline.py::test_fill_timing_audit_on_run",
     "tests/test_pit.py::test_audit_fills_catches_planted_violations",
     "tests/test_pit.py::test_audit_fills_checks_decisions_even_when_nothing_filled",
-    "tests/test_pit.py::test_audit_fills_clean",
-    "tests/test_pit.py::test_audit_fills_late_fill_is_warning_and_empty_ok"
+    "tests/test_pit.py::test_audit_fills_clean"
    ],
    "tests": [
     "tests/test_blind_gates.py",
+    "tests/test_fv_pipeline.py",
     "tests/test_livesim_gates.py",
     "tests/test_livesim_loop2.py",
     "tests/test_pit.py"
    ],
    "text": "no same-close execution",
-   "why": "code engine/pit.py, test tests/test_pit.py::test_audit_fills_catches_planted_violations, cited tests/test_pit.py::test_audit_fills_catches_planted_violations"
+   "why": "code engine/pit.py, test tests/test_fv_pipeline.py::test_fill_timing_audit_on_run, cited tests/test_fv_pipeline.py::test_fill_timing_audit_on_run"
   },
   {
    "bible_claim": "",
@@ -4826,6 +4904,7 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
    ],
@@ -5187,6 +5266,8 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
    ],
@@ -5928,9 +6009,13 @@
     "state/research/algorithm/planted/summary.json",
     "state/research/algorithm/planted/summary_before_B14.json",
     "state/research/algorithm/planted_calibration.json",
+    "state/research/analogs_ext/market_ablation.csv",
+    "state/research/analogs_ext/sector_ablation_by_sector.csv",
+    "state/research/analogs_ext/stock_own-history_ablation.csv",
     "state/research/antioverfit/real_v1/results.json",
     "state/research/data_live_safety/registry_candidates.csv",
     "state/research/direction/ablation.csv",
+    "state/research/lessons/archive_v1.json",
     "state/research/memory_adapter/memory_factor_ablation.csv",
     "state/research/miner_coverage/coverage.json",
     "state/research/pattern_bank/run_v3.json",
@@ -7410,6 +7495,7 @@
     "tests/integration/pipeline_world.py",
     "tests/test_candidates.py",
     "tests/test_exits.py",
+    "tests/test_fv_pipeline.py",
     "tests/test_pattern_bank.py",
     "tests/test_pattern_identity.py",
     "tests/test_pattern_lifecycle.py",
@@ -7603,6 +7689,7 @@
     "tests/integration/pipeline_world.py",
     "tests/test_candidates.py",
     "tests/test_exits.py",
+    "tests/test_fv_pipeline.py",
     "tests/test_pattern_bank.py",
     "tests/test_pattern_identity.py",
     "tests/test_pattern_lifecycle.py",
@@ -7788,6 +7875,7 @@
     "tests/integration/pipeline_world.py",
     "tests/test_candidates.py",
     "tests/test_exits.py",
+    "tests/test_fv_pipeline.py",
     "tests/test_pattern_bank.py",
     "tests/test_pattern_identity.py",
     "tests/test_pattern_lifecycle.py",
@@ -8159,6 +8247,7 @@
     "tests/test_antioverfit.py",
     "tests/test_candidates.py",
     "tests/test_exits.py",
+    "tests/test_fv_pipeline.py",
     "tests/test_pattern_bank.py",
     "tests/test_pattern_identity.py",
     "tests/test_pattern_lifecycle.py",
@@ -8887,6 +8976,7 @@
    ],
    "evidence": [
     "state/research/data_live_safety/report.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/pattern_bank/bank_v3/bank_v000001.json",
     "state/research/pattern_bank/bank_v3/bank_v000002.json",
     "state/research/pattern_bank/bank_v3/bank_v000003.json",
@@ -9340,6 +9430,7 @@
     "state/research/antioverfit/real_v1.log",
     "state/research/antioverfit/real_v1/results.json",
     "state/research/antioverfit/real_v1/summary.txt",
+    "state/research/lessons/archive_v1.json",
     "state/research/pattern_bank/bank_v3/bank_v000001.json",
     "state/research/pattern_bank/bank_v3/bank_v000002.json",
     "state/research/pattern_bank/bank_v3/bank_v000003.json",
@@ -9785,6 +9876,7 @@
     }
    ],
    "evidence": [
+    "state/research/analogs_ext/results.json",
     "state/research/data_live_safety/registry_candidates.csv",
     "state/research/miner_coverage/coverage.json",
     "state/research/pattern_bank/bank_v3/bank_v000001.json",
@@ -9971,6 +10063,7 @@
     }
    ],
    "evidence": [
+    "state/research/analogs_ext/results.json",
     "state/research/pattern_bank/bank_v3/bank_v000001.json",
     "state/research/pattern_bank/bank_v3/bank_v000002.json",
     "state/research/pattern_bank/bank_v3/bank_v000003.json",
@@ -10083,6 +10176,8 @@
     "state/research/exits_stops/summary.json",
     "state/research/exits_stops_run.log",
     "state/research/gaprisk/summary.json",
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/pattern_bank/bank_v3/bank_v000001.json",
     "state/research/pattern_bank/bank_v3/bank_v000002.json",
     "state/research/pattern_bank/bank_v3/bank_v000003.json",
@@ -10151,6 +10246,7 @@
     "tests/test_basis_search.py",
     "tests/test_data_sources.py",
     "tests/test_exits.py",
+    "tests/test_fv_pipeline.py",
     "tests/test_missed_winners.py",
     "tests/test_pattern_bank.py",
     "tests/test_session.py",
@@ -10193,6 +10289,20 @@
       "move",
       "scor"
      ]
+    },
+    {
+     "module": "engine/fv_pipeline.py",
+     "phase_linked": false,
+     "score": 1.0,
+     "symbols": [
+      "model_score",
+      "score"
+     ],
+     "terms": [
+      "pattern",
+      "move",
+      "scor"
+     ]
     }
    ],
    "evidence": [
@@ -10213,6 +10323,7 @@
     "tests/test_pattern_movers.py::test_planted_movement_pattern_beats_every_control"
    ],
    "tests": [
+    "tests/test_fv_pipeline.py",
     "tests/test_heavy_tests.py",
     "tests/test_pattern_movers.py"
    ],
@@ -10318,6 +10429,21 @@
      ],
      "terms": [
       "interact",
+      "exist",
+      "mover",
+      "model"
+     ]
+    },
+    {
+     "module": "engine/fv_pipeline.py",
+     "phase_linked": false,
+     "score": 0.71,
+     "symbols": [
+      "MoverStage",
+      "model_score",
+      "mover_report"
+     ],
+     "terms": [
       "exist",
       "mover",
       "model"
@@ -10599,10 +10725,14 @@
      ]
     },
     {
-     "module": "scripts/run_pattern_fail.py",
+     "module": "engine/fv_pipeline.py",
      "phase_linked": false,
      "score": 1.0,
-     "symbols": [],
+     "symbols": [
+      "MoverStage",
+      "mover_report",
+      "mover_weekly"
+     ],
      "terms": [
       "mover",
       "pattern"
@@ -10611,8 +10741,7 @@
    ],
    "evidence": [
     "state/research/heavy_algo_real_run.log",
-    "state/research/pattern_fail/summary.json",
-    "state/research/pattern_fail_run.log"
+    "state/research/pattern_fail/summary.json"
    ],
    "fail_lines": [],
    "failing_tests": [],
@@ -10626,9 +10755,11 @@
    "section": "0",
    "state": "[x]",
    "test_functions": [
-    "tests/test_pattern_movers.py::test_no_incremental_value_when_mover_model_already_sees_the_signal"
+    "tests/test_pattern_movers.py::test_no_incremental_value_when_mover_model_already_sees_the_signal",
+    "tests/test_fv_pipeline.py::test_scramble_audit_catches_a_planted_leak"
    ],
    "tests": [
+    "tests/test_fv_pipeline.py",
     "tests/test_heavy_tests.py",
     "tests/test_pattern_movers.py"
    ],
@@ -10667,6 +10798,21 @@
       "random",
       "pattern"
      ]
+    },
+    {
+     "module": "engine/fv_pipeline.py",
+     "phase_linked": false,
+     "score": 1.0,
+     "symbols": [
+      "MoverStage",
+      "mover_report",
+      "mover_weekly"
+     ],
+     "terms": [
+      "mover",
+      "random",
+      "pattern"
+     ]
     }
    ],
    "evidence": [
@@ -10687,6 +10833,7 @@
     "tests/test_pattern_movers.py::test_no_incremental_value_when_mover_model_already_sees_the_signal"
    ],
    "tests": [
+    "tests/test_fv_pipeline.py",
     "tests/test_heavy_tests.py",
     "tests/test_pattern_movers.py"
    ],
@@ -11301,6 +11448,7 @@
     "state/research/direction/trust_store/v0023_2023-01-01.json",
     "state/research/direction/trust_store/v0024_2024-01-01.json",
     "state/research/direction/trust_store/v0025_2025-01-01.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/memory_adapter/missed_winners_summary.txt",
     "state/research/memory_adapter/results.json",
     "state/research/pattern_fail/summary.json",
@@ -11543,6 +11691,11 @@
     }
    ],
    "evidence": [
+    "state/research/analogs_ext/pooled_stock_analog_rank_ic_by_half-decade.csv",
+    "state/research/analogs_ext/results.json",
+    "state/research/analogs_ext/sector_ablation_by_sector.csv",
+    "state/research/analogs_ext/sector_weighted_skill_by_decade.csv",
+    "state/research/analogs_ext/stock_own-history_ablation.csv",
     "state/research/pattern_fail/summary.json"
    ],
    "fail_lines": [],
@@ -11618,7 +11771,10 @@
     }
    ],
    "evidence": [
+    "state/research/analogs_ext/results.json",
     "state/research/heavy_algo_real_run.log",
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
    ],
@@ -11946,11 +12102,11 @@
      ]
     },
     {
-     "module": "engine/replay.py",
+     "module": "engine/fv_pipeline.py",
      "phase_linked": false,
      "score": 1.0,
      "symbols": [
-      "cost_bps"
+      "cost"
      ],
      "terms": [
       "cost"
@@ -11997,6 +12153,7 @@
    ],
    "tests": [
     "tests/test_exits.py",
+    "tests/test_fv_pipeline.py",
     "tests/test_heavy_tests.py",
     "tests/test_pattern_movers.py",
     "tests/test_stops.py"
@@ -12072,6 +12229,7 @@
     "state/research/exits_stops/summary.json",
     "state/research/exits_stops_run.log",
     "state/research/gaprisk/summary.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/memory_adapter/missed_winners_summary.txt",
     "state/research/memory_adapter/results.json",
     "state/research/pattern_fail/summary.json",
@@ -12098,6 +12256,7 @@
    "tests": [
     "tests/test_adapter.py",
     "tests/test_exits.py",
+    "tests/test_fv_pipeline.py",
     "tests/test_heavy_tests.py",
     "tests/test_memory_ext.py",
     "tests/test_missed_winners.py",
@@ -12209,7 +12368,21 @@
     }
    ],
    "evidence": [
-    "state/research/analogs_ext/ledger.parquet"
+    "state/research/analogs_ext/fingerprint_coverage.csv",
+    "state/research/analogs_ext/ledger.parquet",
+    "state/research/analogs_ext/market_ablation.csv",
+    "state/research/analogs_ext/market_confidence_calibration.csv",
+    "state/research/analogs_ext/market_feature_weights.csv",
+    "state/research/analogs_ext/market_metric_k_sweep.csv",
+    "state/research/analogs_ext/market_per-decade_skill.csv",
+    "state/research/analogs_ext/market_weight_learners.csv",
+    "state/research/analogs_ext/market_weight_refits.csv",
+    "state/research/analogs_ext/pooled_stock_analog_rank_ic_by_half-decade.csv",
+    "state/research/analogs_ext/report.md",
+    "state/research/analogs_ext/results.json",
+    "state/research/analogs_ext/sector_ablation_by_sector.csv",
+    "state/research/analogs_ext/sector_weighted_skill_by_decade.csv",
+    "state/research/analogs_ext/stock_own-history_ablation.csv"
    ],
    "fail_lines": [],
    "failing_tests": [],
@@ -12282,6 +12455,13 @@
     }
    ],
    "evidence": [
+    "state/research/analogs_ext/pooled_stock_analog_rank_ic_by_half-decade.csv",
+    "state/research/analogs_ext/results.json",
+    "state/research/analogs_ext/sector_ablation_by_sector.csv",
+    "state/research/analogs_ext/sector_weighted_skill_by_decade.csv",
+    "state/research/analogs_ext/stock_own-history_ablation.csv",
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
    ],
@@ -12368,6 +12548,13 @@
     }
    ],
    "evidence": [
+    "state/research/analogs_ext/pooled_stock_analog_rank_ic_by_half-decade.csv",
+    "state/research/analogs_ext/results.json",
+    "state/research/analogs_ext/sector_ablation_by_sector.csv",
+    "state/research/analogs_ext/sector_weighted_skill_by_decade.csv",
+    "state/research/analogs_ext/stock_own-history_ablation.csv",
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
    ],
@@ -12454,6 +12641,13 @@
     }
    ],
    "evidence": [
+    "state/research/analogs_ext/pooled_stock_analog_rank_ic_by_half-decade.csv",
+    "state/research/analogs_ext/results.json",
+    "state/research/analogs_ext/sector_ablation_by_sector.csv",
+    "state/research/analogs_ext/sector_weighted_skill_by_decade.csv",
+    "state/research/analogs_ext/stock_own-history_ablation.csv",
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
    ],
@@ -12540,6 +12734,13 @@
     }
    ],
    "evidence": [
+    "state/research/analogs_ext/pooled_stock_analog_rank_ic_by_half-decade.csv",
+    "state/research/analogs_ext/results.json",
+    "state/research/analogs_ext/sector_ablation_by_sector.csv",
+    "state/research/analogs_ext/sector_weighted_skill_by_decade.csv",
+    "state/research/analogs_ext/stock_own-history_ablation.csv",
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
    ],
@@ -12616,7 +12817,21 @@
     }
    ],
    "evidence": [
-    "state/research/analogs_ext/ledger.parquet"
+    "state/research/analogs_ext/fingerprint_coverage.csv",
+    "state/research/analogs_ext/ledger.parquet",
+    "state/research/analogs_ext/market_ablation.csv",
+    "state/research/analogs_ext/market_confidence_calibration.csv",
+    "state/research/analogs_ext/market_feature_weights.csv",
+    "state/research/analogs_ext/market_metric_k_sweep.csv",
+    "state/research/analogs_ext/market_per-decade_skill.csv",
+    "state/research/analogs_ext/market_weight_learners.csv",
+    "state/research/analogs_ext/market_weight_refits.csv",
+    "state/research/analogs_ext/pooled_stock_analog_rank_ic_by_half-decade.csv",
+    "state/research/analogs_ext/report.md",
+    "state/research/analogs_ext/results.json",
+    "state/research/analogs_ext/sector_ablation_by_sector.csv",
+    "state/research/analogs_ext/sector_weighted_skill_by_decade.csv",
+    "state/research/analogs_ext/stock_own-history_ablation.csv"
    ],
    "fail_lines": [],
    "failing_tests": [],
@@ -12680,7 +12895,13 @@
      ]
     }
    ],
-   "evidence": [],
+   "evidence": [
+    "state/research/analogs_ext/pooled_stock_analog_rank_ic_by_half-decade.csv",
+    "state/research/analogs_ext/results.json",
+    "state/research/analogs_ext/sector_ablation_by_sector.csv",
+    "state/research/analogs_ext/sector_weighted_skill_by_decade.csv",
+    "state/research/analogs_ext/stock_own-history_ablation.csv"
+   ],
    "fail_lines": [],
    "failing_tests": [],
    "id": "8.1.7",
@@ -12750,7 +12971,13 @@
      ]
     }
    ],
-   "evidence": [],
+   "evidence": [
+    "state/research/analogs_ext/pooled_stock_analog_rank_ic_by_half-decade.csv",
+    "state/research/analogs_ext/results.json",
+    "state/research/analogs_ext/sector_ablation_by_sector.csv",
+    "state/research/analogs_ext/sector_weighted_skill_by_decade.csv",
+    "state/research/analogs_ext/stock_own-history_ablation.csv"
+   ],
    "fail_lines": [],
    "failing_tests": [],
    "id": "8.1.8",
@@ -12816,7 +13043,13 @@
      ]
     }
    ],
-   "evidence": [],
+   "evidence": [
+    "state/research/analogs_ext/pooled_stock_analog_rank_ic_by_half-decade.csv",
+    "state/research/analogs_ext/results.json",
+    "state/research/analogs_ext/sector_ablation_by_sector.csv",
+    "state/research/analogs_ext/sector_weighted_skill_by_decade.csv",
+    "state/research/analogs_ext/stock_own-history_ablation.csv"
+   ],
    "fail_lines": [],
    "failing_tests": [],
    "id": "8.1.9",
@@ -12885,7 +13118,21 @@
     }
    ],
    "evidence": [
-    "state/research/analogs_ext/ledger.parquet"
+    "state/research/analogs_ext/fingerprint_coverage.csv",
+    "state/research/analogs_ext/ledger.parquet",
+    "state/research/analogs_ext/market_ablation.csv",
+    "state/research/analogs_ext/market_confidence_calibration.csv",
+    "state/research/analogs_ext/market_feature_weights.csv",
+    "state/research/analogs_ext/market_metric_k_sweep.csv",
+    "state/research/analogs_ext/market_per-decade_skill.csv",
+    "state/research/analogs_ext/market_weight_learners.csv",
+    "state/research/analogs_ext/market_weight_refits.csv",
+    "state/research/analogs_ext/pooled_stock_analog_rank_ic_by_half-decade.csv",
+    "state/research/analogs_ext/report.md",
+    "state/research/analogs_ext/results.json",
+    "state/research/analogs_ext/sector_ablation_by_sector.csv",
+    "state/research/analogs_ext/sector_weighted_skill_by_decade.csv",
+    "state/research/analogs_ext/stock_own-history_ablation.csv"
    ],
    "fail_lines": [],
    "failing_tests": [],
@@ -12939,7 +13186,21 @@
     }
    ],
    "evidence": [
-    "state/research/analogs_ext/ledger.parquet"
+    "state/research/analogs_ext/fingerprint_coverage.csv",
+    "state/research/analogs_ext/ledger.parquet",
+    "state/research/analogs_ext/market_ablation.csv",
+    "state/research/analogs_ext/market_confidence_calibration.csv",
+    "state/research/analogs_ext/market_feature_weights.csv",
+    "state/research/analogs_ext/market_metric_k_sweep.csv",
+    "state/research/analogs_ext/market_per-decade_skill.csv",
+    "state/research/analogs_ext/market_weight_learners.csv",
+    "state/research/analogs_ext/market_weight_refits.csv",
+    "state/research/analogs_ext/pooled_stock_analog_rank_ic_by_half-decade.csv",
+    "state/research/analogs_ext/report.md",
+    "state/research/analogs_ext/results.json",
+    "state/research/analogs_ext/sector_ablation_by_sector.csv",
+    "state/research/analogs_ext/sector_weighted_skill_by_decade.csv",
+    "state/research/analogs_ext/stock_own-history_ablation.csv"
    ],
    "fail_lines": [],
    "failing_tests": [],
@@ -13002,7 +13263,21 @@
     }
    ],
    "evidence": [
-    "state/research/analogs_ext/ledger.parquet"
+    "state/research/analogs_ext/fingerprint_coverage.csv",
+    "state/research/analogs_ext/ledger.parquet",
+    "state/research/analogs_ext/market_ablation.csv",
+    "state/research/analogs_ext/market_confidence_calibration.csv",
+    "state/research/analogs_ext/market_feature_weights.csv",
+    "state/research/analogs_ext/market_metric_k_sweep.csv",
+    "state/research/analogs_ext/market_per-decade_skill.csv",
+    "state/research/analogs_ext/market_weight_learners.csv",
+    "state/research/analogs_ext/market_weight_refits.csv",
+    "state/research/analogs_ext/pooled_stock_analog_rank_ic_by_half-decade.csv",
+    "state/research/analogs_ext/report.md",
+    "state/research/analogs_ext/results.json",
+    "state/research/analogs_ext/sector_ablation_by_sector.csv",
+    "state/research/analogs_ext/sector_weighted_skill_by_decade.csv",
+    "state/research/analogs_ext/stock_own-history_ablation.csv"
    ],
    "fail_lines": [],
    "failing_tests": [],
@@ -13079,7 +13354,21 @@
     }
    ],
    "evidence": [
-    "state/research/analogs_ext/ledger.parquet"
+    "state/research/analogs_ext/fingerprint_coverage.csv",
+    "state/research/analogs_ext/ledger.parquet",
+    "state/research/analogs_ext/market_ablation.csv",
+    "state/research/analogs_ext/market_confidence_calibration.csv",
+    "state/research/analogs_ext/market_feature_weights.csv",
+    "state/research/analogs_ext/market_metric_k_sweep.csv",
+    "state/research/analogs_ext/market_per-decade_skill.csv",
+    "state/research/analogs_ext/market_weight_learners.csv",
+    "state/research/analogs_ext/market_weight_refits.csv",
+    "state/research/analogs_ext/pooled_stock_analog_rank_ic_by_half-decade.csv",
+    "state/research/analogs_ext/report.md",
+    "state/research/analogs_ext/results.json",
+    "state/research/analogs_ext/sector_ablation_by_sector.csv",
+    "state/research/analogs_ext/sector_weighted_skill_by_decade.csv",
+    "state/research/analogs_ext/stock_own-history_ablation.csv"
    ],
    "fail_lines": [],
    "failing_tests": [],
@@ -13138,7 +13427,21 @@
     }
    ],
    "evidence": [
-    "state/research/analogs_ext/ledger.parquet"
+    "state/research/analogs_ext/fingerprint_coverage.csv",
+    "state/research/analogs_ext/ledger.parquet",
+    "state/research/analogs_ext/market_ablation.csv",
+    "state/research/analogs_ext/market_confidence_calibration.csv",
+    "state/research/analogs_ext/market_feature_weights.csv",
+    "state/research/analogs_ext/market_metric_k_sweep.csv",
+    "state/research/analogs_ext/market_per-decade_skill.csv",
+    "state/research/analogs_ext/market_weight_learners.csv",
+    "state/research/analogs_ext/market_weight_refits.csv",
+    "state/research/analogs_ext/pooled_stock_analog_rank_ic_by_half-decade.csv",
+    "state/research/analogs_ext/report.md",
+    "state/research/analogs_ext/results.json",
+    "state/research/analogs_ext/sector_ablation_by_sector.csv",
+    "state/research/analogs_ext/sector_weighted_skill_by_decade.csv",
+    "state/research/analogs_ext/stock_own-history_ablation.csv"
    ],
    "fail_lines": [],
    "failing_tests": [],
@@ -13182,7 +13485,11 @@
      ]
     }
    ],
-   "evidence": [],
+   "evidence": [
+    "state/research/analogs_ext/results.json",
+    "state/research/analogs_ext/sector_ablation_by_sector.csv",
+    "state/research/analogs_ext/sector_weighted_skill_by_decade.csv"
+   ],
    "fail_lines": [],
    "failing_tests": [],
    "id": "8.1.15",
@@ -13273,7 +13580,11 @@
      ]
     }
    ],
-   "evidence": [],
+   "evidence": [
+    "state/research/analogs_ext/results.json",
+    "state/research/analogs_ext/sector_ablation_by_sector.csv",
+    "state/research/analogs_ext/sector_weighted_skill_by_decade.csv"
+   ],
    "fail_lines": [],
    "failing_tests": [],
    "id": "8.1.17",
@@ -13362,7 +13673,9 @@
      ]
     }
    ],
-   "evidence": [],
+   "evidence": [
+    "state/research/analogs_ext/results.json"
+   ],
    "fail_lines": [],
    "failing_tests": [],
    "id": "8.2.1",
@@ -13373,7 +13686,7 @@
    "pass_lines": [],
    "phase": 8,
    "section": "2",
-   "state": "[~]",
+   "state": "[?]",
    "test_functions": [
     "tests/test_analogs_ext.py::test_market_context_applies_publication_lags_and_is_point_in_time",
     "tests/test_analogs_ext.py::test_price_state_and_outcomes_are_point_in_time",
@@ -13383,7 +13696,7 @@
     "tests/test_analogs_ext.py"
    ],
    "text": "8.2 Point-in-time standardization: Standardize using only historical information available at the moment",
-   "why": "Bible asks for real-data proof; no evidence file under state/research"
+   "why": "evidence files exist but none says PASS about this requirement"
   },
   {
    "bible_claim": "",
@@ -13447,7 +13760,21 @@
     }
    ],
    "evidence": [
-    "state/research/analogs_ext/ledger.parquet"
+    "state/research/analogs_ext/fingerprint_coverage.csv",
+    "state/research/analogs_ext/ledger.parquet",
+    "state/research/analogs_ext/market_ablation.csv",
+    "state/research/analogs_ext/market_confidence_calibration.csv",
+    "state/research/analogs_ext/market_feature_weights.csv",
+    "state/research/analogs_ext/market_metric_k_sweep.csv",
+    "state/research/analogs_ext/market_per-decade_skill.csv",
+    "state/research/analogs_ext/market_weight_learners.csv",
+    "state/research/analogs_ext/market_weight_refits.csv",
+    "state/research/analogs_ext/pooled_stock_analog_rank_ic_by_half-decade.csv",
+    "state/research/analogs_ext/report.md",
+    "state/research/analogs_ext/results.json",
+    "state/research/analogs_ext/sector_ablation_by_sector.csv",
+    "state/research/analogs_ext/sector_weighted_skill_by_decade.csv",
+    "state/research/analogs_ext/stock_own-history_ablation.csv"
    ],
    "fail_lines": [],
    "failing_tests": [],
@@ -13532,7 +13859,21 @@
     }
    ],
    "evidence": [
-    "state/research/analogs_ext/ledger.parquet"
+    "state/research/analogs_ext/fingerprint_coverage.csv",
+    "state/research/analogs_ext/ledger.parquet",
+    "state/research/analogs_ext/market_ablation.csv",
+    "state/research/analogs_ext/market_confidence_calibration.csv",
+    "state/research/analogs_ext/market_feature_weights.csv",
+    "state/research/analogs_ext/market_metric_k_sweep.csv",
+    "state/research/analogs_ext/market_per-decade_skill.csv",
+    "state/research/analogs_ext/market_weight_learners.csv",
+    "state/research/analogs_ext/market_weight_refits.csv",
+    "state/research/analogs_ext/pooled_stock_analog_rank_ic_by_half-decade.csv",
+    "state/research/analogs_ext/report.md",
+    "state/research/analogs_ext/results.json",
+    "state/research/analogs_ext/sector_ablation_by_sector.csv",
+    "state/research/analogs_ext/sector_weighted_skill_by_decade.csv",
+    "state/research/analogs_ext/stock_own-history_ablation.csv"
    ],
    "fail_lines": [],
    "failing_tests": [],
@@ -13596,7 +13937,21 @@
     }
    ],
    "evidence": [
-    "state/research/analogs_ext/ledger.parquet"
+    "state/research/analogs_ext/fingerprint_coverage.csv",
+    "state/research/analogs_ext/ledger.parquet",
+    "state/research/analogs_ext/market_ablation.csv",
+    "state/research/analogs_ext/market_confidence_calibration.csv",
+    "state/research/analogs_ext/market_feature_weights.csv",
+    "state/research/analogs_ext/market_metric_k_sweep.csv",
+    "state/research/analogs_ext/market_per-decade_skill.csv",
+    "state/research/analogs_ext/market_weight_learners.csv",
+    "state/research/analogs_ext/market_weight_refits.csv",
+    "state/research/analogs_ext/pooled_stock_analog_rank_ic_by_half-decade.csv",
+    "state/research/analogs_ext/report.md",
+    "state/research/analogs_ext/results.json",
+    "state/research/analogs_ext/sector_ablation_by_sector.csv",
+    "state/research/analogs_ext/sector_weighted_skill_by_decade.csv",
+    "state/research/analogs_ext/stock_own-history_ablation.csv"
    ],
    "fail_lines": [],
    "failing_tests": [],
@@ -13659,7 +14014,13 @@
      ]
     }
    ],
-   "evidence": [],
+   "evidence": [
+    "state/research/analogs_ext/pooled_stock_analog_rank_ic_by_half-decade.csv",
+    "state/research/analogs_ext/results.json",
+    "state/research/analogs_ext/sector_ablation_by_sector.csv",
+    "state/research/analogs_ext/sector_weighted_skill_by_decade.csv",
+    "state/research/analogs_ext/stock_own-history_ablation.csv"
+   ],
    "fail_lines": [],
    "failing_tests": [],
    "id": "8.4.1",
@@ -13736,7 +14097,21 @@
     }
    ],
    "evidence": [
-    "state/research/analogs_ext/ledger.parquet"
+    "state/research/analogs_ext/fingerprint_coverage.csv",
+    "state/research/analogs_ext/ledger.parquet",
+    "state/research/analogs_ext/market_ablation.csv",
+    "state/research/analogs_ext/market_confidence_calibration.csv",
+    "state/research/analogs_ext/market_feature_weights.csv",
+    "state/research/analogs_ext/market_metric_k_sweep.csv",
+    "state/research/analogs_ext/market_per-decade_skill.csv",
+    "state/research/analogs_ext/market_weight_learners.csv",
+    "state/research/analogs_ext/market_weight_refits.csv",
+    "state/research/analogs_ext/pooled_stock_analog_rank_ic_by_half-decade.csv",
+    "state/research/analogs_ext/report.md",
+    "state/research/analogs_ext/results.json",
+    "state/research/analogs_ext/sector_ablation_by_sector.csv",
+    "state/research/analogs_ext/sector_weighted_skill_by_decade.csv",
+    "state/research/analogs_ext/stock_own-history_ablation.csv"
    ],
    "fail_lines": [],
    "failing_tests": [],
@@ -13826,7 +14201,11 @@
      ]
     }
    ],
-   "evidence": [],
+   "evidence": [
+    "state/research/analogs_ext/pooled_stock_analog_rank_ic_by_half-decade.csv",
+    "state/research/analogs_ext/results.json",
+    "state/research/analogs_ext/stock_own-history_ablation.csv"
+   ],
    "fail_lines": [],
    "failing_tests": [],
    "id": "8.6.1",
@@ -13906,6 +14285,7 @@
     }
    ],
    "evidence": [
+    "state/research/analogs_ext/results.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json",
     "state/research/timeline_basis/report_seed0.json",
@@ -13961,7 +14341,9 @@
      ]
     }
    ],
-   "evidence": [],
+   "evidence": [
+    "state/research/analogs_ext/results.json"
+   ],
    "fail_lines": [],
    "failing_tests": [],
    "id": "8.7.2",
@@ -14008,7 +14390,9 @@
      ]
     }
    ],
-   "evidence": [],
+   "evidence": [
+    "state/research/analogs_ext/results.json"
+   ],
    "fail_lines": [],
    "failing_tests": [],
    "id": "8.7.3",
@@ -14091,6 +14475,7 @@
     }
    ],
    "evidence": [
+    "state/research/analogs_ext/results.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json",
     "state/research/timeline_basis/report_seed0.json",
@@ -14161,7 +14546,9 @@
      ]
     }
    ],
-   "evidence": [],
+   "evidence": [
+    "state/research/analogs_ext/results.json"
+   ],
    "fail_lines": [],
    "failing_tests": [],
    "id": "8.7.5",
@@ -14236,6 +14623,7 @@
     }
    ],
    "evidence": [
+    "state/research/analogs_ext/results.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json",
     "state/research/timeline_basis/report_seed0.json",
@@ -14303,7 +14691,13 @@
      ]
     }
    ],
-   "evidence": [],
+   "evidence": [
+    "state/research/analogs_ext/pooled_stock_analog_rank_ic_by_half-decade.csv",
+    "state/research/analogs_ext/results.json",
+    "state/research/analogs_ext/sector_ablation_by_sector.csv",
+    "state/research/analogs_ext/sector_weighted_skill_by_decade.csv",
+    "state/research/analogs_ext/stock_own-history_ablation.csv"
+   ],
    "fail_lines": [],
    "failing_tests": [],
    "id": "8.7.7",
@@ -14365,6 +14759,7 @@
     }
    ],
    "evidence": [
+    "state/research/analogs_ext/results.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json",
     "state/research/timeline_basis/report_seed0.json",
@@ -14445,7 +14840,9 @@
      ]
     }
    ],
-   "evidence": [],
+   "evidence": [
+    "state/research/analogs_ext/results.json"
+   ],
    "fail_lines": [],
    "failing_tests": [],
    "id": "8.7.9",
@@ -14520,7 +14917,13 @@
      ]
     }
    ],
-   "evidence": [],
+   "evidence": [
+    "state/research/analogs_ext/pooled_stock_analog_rank_ic_by_half-decade.csv",
+    "state/research/analogs_ext/results.json",
+    "state/research/analogs_ext/sector_ablation_by_sector.csv",
+    "state/research/analogs_ext/sector_weighted_skill_by_decade.csv",
+    "state/research/analogs_ext/stock_own-history_ablation.csv"
+   ],
    "fail_lines": [],
    "failing_tests": [],
    "id": "8.8.1",
@@ -14602,7 +15005,13 @@
      ]
     }
    ],
-   "evidence": [],
+   "evidence": [
+    "state/research/analogs_ext/pooled_stock_analog_rank_ic_by_half-decade.csv",
+    "state/research/analogs_ext/results.json",
+    "state/research/analogs_ext/sector_ablation_by_sector.csv",
+    "state/research/analogs_ext/sector_weighted_skill_by_decade.csv",
+    "state/research/analogs_ext/stock_own-history_ablation.csv"
+   ],
    "fail_lines": [],
    "failing_tests": [],
    "id": "8.8.2",
@@ -14683,7 +15092,11 @@
      ]
     }
    ],
-   "evidence": [],
+   "evidence": [
+    "state/research/analogs_ext/results.json",
+    "state/research/analogs_ext/sector_ablation_by_sector.csv",
+    "state/research/analogs_ext/sector_weighted_skill_by_decade.csv"
+   ],
    "fail_lines": [],
    "failing_tests": [],
    "id": "8.8.3",
@@ -14764,7 +15177,13 @@
      ]
     }
    ],
-   "evidence": [],
+   "evidence": [
+    "state/research/analogs_ext/pooled_stock_analog_rank_ic_by_half-decade.csv",
+    "state/research/analogs_ext/results.json",
+    "state/research/analogs_ext/sector_ablation_by_sector.csv",
+    "state/research/analogs_ext/sector_weighted_skill_by_decade.csv",
+    "state/research/analogs_ext/stock_own-history_ablation.csv"
+   ],
    "fail_lines": [],
    "failing_tests": [],
    "id": "8.8.4",
@@ -14846,7 +15265,11 @@
      ]
     }
    ],
-   "evidence": [],
+   "evidence": [
+    "state/research/analogs_ext/results.json",
+    "state/research/analogs_ext/sector_ablation_by_sector.csv",
+    "state/research/analogs_ext/sector_weighted_skill_by_decade.csv"
+   ],
    "fail_lines": [],
    "failing_tests": [],
    "id": "8.8.5",
@@ -14902,7 +15325,9 @@
      ]
     }
    ],
-   "evidence": [],
+   "evidence": [
+    "state/research/analogs_ext/results.json"
+   ],
    "fail_lines": [],
    "failing_tests": [],
    "id": "8.8.6",
@@ -15467,7 +15892,10 @@
    "evidence": [
     "state/research/blind_gates/report.md",
     "state/research/blind_gates/results.json",
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/lessons/archive_v1.log",
+    "state/research/lessons/archive_v1.md",
     "state/research/lessons/real_v1.json",
     "state/research/lessons/real_v1.log",
     "state/research/lessons/real_v1.md",
@@ -15477,7 +15905,9 @@
     "state/research/lessons/real_v3.json",
     "state/research/lessons/real_v3.log",
     "state/research/lessons/real_v3.md",
+    "state/research/lessons/real_v4_1y.json",
     "state/research/lessons/real_v4_1y.log",
+    "state/research/lessons/real_v4_1y.md",
     "state/research/memory_adapter/by_era.csv",
     "state/research/memory_adapter/by_year.csv",
     "state/research/memory_adapter/calibration_corrected.csv",
@@ -15688,7 +16118,10 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/lessons/archive_v1.log",
+    "state/research/lessons/archive_v1.md",
     "state/research/lessons/real_v1.json",
     "state/research/lessons/real_v1.log",
     "state/research/lessons/real_v1.md",
@@ -15698,7 +16131,9 @@
     "state/research/lessons/real_v3.json",
     "state/research/lessons/real_v3.log",
     "state/research/lessons/real_v3.md",
+    "state/research/lessons/real_v4_1y.json",
     "state/research/lessons/real_v4_1y.log",
+    "state/research/lessons/real_v4_1y.md",
     "state/research/memory_adapter/by_era.csv",
     "state/research/memory_adapter/by_year.csv",
     "state/research/memory_adapter/calibration_corrected.csv",
@@ -15800,7 +16235,10 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/lessons/archive_v1.log",
+    "state/research/lessons/archive_v1.md",
     "state/research/lessons/real_v1.json",
     "state/research/lessons/real_v1.log",
     "state/research/lessons/real_v1.md",
@@ -15810,7 +16248,9 @@
     "state/research/lessons/real_v3.json",
     "state/research/lessons/real_v3.log",
     "state/research/lessons/real_v3.md",
+    "state/research/lessons/real_v4_1y.json",
     "state/research/lessons/real_v4_1y.log",
+    "state/research/lessons/real_v4_1y.md",
     "state/research/memory_adapter/by_era.csv",
     "state/research/memory_adapter/by_year.csv",
     "state/research/memory_adapter/calibration_corrected.csv",
@@ -16134,7 +16574,10 @@
     "state/research/algorithm/patterns_2022-01-01_v1.parquet",
     "state/research/blind_gates/report.md",
     "state/research/blind_gates/results.json",
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/lessons/archive_v1.log",
+    "state/research/lessons/archive_v1.md",
     "state/research/lessons/real_v1.json",
     "state/research/lessons/real_v1.log",
     "state/research/lessons/real_v1.md",
@@ -16144,7 +16587,9 @@
     "state/research/lessons/real_v3.json",
     "state/research/lessons/real_v3.log",
     "state/research/lessons/real_v3.md",
+    "state/research/lessons/real_v4_1y.json",
     "state/research/lessons/real_v4_1y.log",
+    "state/research/lessons/real_v4_1y.md",
     "state/research/memory_adapter/by_era.csv",
     "state/research/memory_adapter/by_year.csv",
     "state/research/memory_adapter/calibration_corrected.csv",
@@ -16168,9 +16613,7 @@
     "state/research/timeline_basis/dial_offline_seed0.json"
    ],
    "fail_lines": [],
-   "failing_tests": [
-    "tests/test_antimemo.py::test_ticker_keyed_memory_is_attributed_to_names_not_dates"
-   ],
+   "failing_tests": [],
    "id": "9.1.7",
    "kind": "list",
    "label": "",
@@ -16179,7 +16622,7 @@
    "pass_lines": [],
    "phase": 9,
    "section": "1",
-   "state": "[!]",
+   "state": "[x]",
    "test_functions": [
     "tests/test_adapter.py::test_memory_uses_dates_only_when_asked",
     "tests/test_antimemo.py::test_ticker_keyed_memory_is_attributed_to_names_not_dates",
@@ -16208,7 +16651,7 @@
     "tests/test_planted_patterns.py"
    ],
    "text": "date",
-   "why": "failed verdict recorded in tests/test_antimemo.py::test_ticker_keyed_memory_is_attributed_to_names_not_dates"
+   "why": "code engine/memory.py, test tests/test_adapter.py::test_memory_uses_dates_only_when_asked, cited tests/test_adapter.py::test_memory_uses_dates_only_when_asked"
   },
   {
    "bible_claim": "",
@@ -16269,6 +16712,7 @@
    "evidence": [
     "state/research/blind_gates/report.md",
     "state/research/blind_gates/results.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/memory_adapter/by_era.csv",
     "state/research/memory_adapter/by_year.csv",
     "state/research/memory_adapter/calibration_corrected.csv",
@@ -17298,7 +17742,10 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/lessons/archive_v1.log",
+    "state/research/lessons/archive_v1.md",
     "state/research/lessons/real_v1.json",
     "state/research/lessons/real_v1.log",
     "state/research/lessons/real_v1.md",
@@ -17308,7 +17755,9 @@
     "state/research/lessons/real_v3.json",
     "state/research/lessons/real_v3.log",
     "state/research/lessons/real_v3.md",
-    "state/research/lessons/real_v4_1y.log"
+    "state/research/lessons/real_v4_1y.json",
+    "state/research/lessons/real_v4_1y.log",
+    "state/research/lessons/real_v4_1y.md"
    ],
    "fail_lines": [],
    "failing_tests": [],
@@ -17350,6 +17799,7 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_v1.json",
     "state/research/memory_adapter/missed_winners_summary.txt",
     "state/research/memory_adapter/results.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
@@ -17531,10 +17981,12 @@
    "test_functions": [
     "tests/test_exits.py::test_pattern_failure_fills_next_open_and_never_same_close",
     "tests/test_exits.py::test_pattern_failure_rules_only_offered_with_flags_and_used_when_informative",
+    "tests/test_fv_pipeline.py::test_pattern_hook_is_optional_and_failures_are_recorded_not_hidden",
     "tests/test_pattern_lifecycle.py::test_tests_are_sign_aware_and_report_each_failure"
    ],
    "tests": [
     "tests/test_exits.py",
+    "tests/test_fv_pipeline.py",
     "tests/test_parity.py",
     "tests/test_parity_suite.py",
     "tests/test_pattern_bank.py",
@@ -17604,7 +18056,10 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/lessons/archive_v1.log",
+    "state/research/lessons/archive_v1.md",
     "state/research/lessons/real_v1.json",
     "state/research/lessons/real_v1.log",
     "state/research/lessons/real_v1.md",
@@ -17614,7 +18069,9 @@
     "state/research/lessons/real_v3.json",
     "state/research/lessons/real_v3.log",
     "state/research/lessons/real_v3.md",
-    "state/research/lessons/real_v4_1y.log"
+    "state/research/lessons/real_v4_1y.json",
+    "state/research/lessons/real_v4_1y.log",
+    "state/research/lessons/real_v4_1y.md"
    ],
    "fail_lines": [],
    "failing_tests": [],
@@ -17686,9 +18143,16 @@
     }
    ],
    "evidence": [
+    "state/research/analogs_ext/market_ablation.csv",
+    "state/research/analogs_ext/results.json",
+    "state/research/analogs_ext/sector_ablation_by_sector.csv",
+    "state/research/analogs_ext/stock_own-history_ablation.csv",
     "state/research/antioverfit/real_v1/results.json",
     "state/research/direction/ablation.csv",
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/lessons/archive_v1.log",
+    "state/research/lessons/archive_v1.md",
     "state/research/lessons/real_v1.json",
     "state/research/lessons/real_v1.log",
     "state/research/lessons/real_v1.md",
@@ -17698,7 +18162,9 @@
     "state/research/lessons/real_v3.json",
     "state/research/lessons/real_v3.log",
     "state/research/lessons/real_v3.md",
+    "state/research/lessons/real_v4_1y.json",
     "state/research/lessons/real_v4_1y.log",
+    "state/research/lessons/real_v4_1y.md",
     "state/research/memory_adapter/memory_factor_ablation.csv"
    ],
    "fail_lines": [],
@@ -17777,8 +18243,12 @@
     }
    ],
    "evidence": [
+    "state/research/analogs_ext/results.json",
     "state/research/data_live_safety/registry_candidates.csv",
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/lessons/archive_v1.log",
+    "state/research/lessons/archive_v1.md",
     "state/research/lessons/real_v1.json",
     "state/research/lessons/real_v1.log",
     "state/research/lessons/real_v1.md",
@@ -17788,7 +18258,9 @@
     "state/research/lessons/real_v3.json",
     "state/research/lessons/real_v3.log",
     "state/research/lessons/real_v3.md",
+    "state/research/lessons/real_v4_1y.json",
     "state/research/lessons/real_v4_1y.log",
+    "state/research/lessons/real_v4_1y.md",
     "state/research/memory_adapter/by_era.csv",
     "state/research/memory_adapter/by_year.csv",
     "state/research/memory_adapter/calibration_corrected.csv",
@@ -17891,7 +18363,10 @@
    "evidence": [
     "state/research/blind_gates/report.md",
     "state/research/blind_gates/results.json",
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/lessons/archive_v1.log",
+    "state/research/lessons/archive_v1.md",
     "state/research/lessons/real_v1.json",
     "state/research/lessons/real_v1.log",
     "state/research/lessons/real_v1.md",
@@ -17901,7 +18376,9 @@
     "state/research/lessons/real_v3.json",
     "state/research/lessons/real_v3.log",
     "state/research/lessons/real_v3.md",
+    "state/research/lessons/real_v4_1y.json",
     "state/research/lessons/real_v4_1y.log",
+    "state/research/lessons/real_v4_1y.md",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
    ],
@@ -17976,10 +18453,14 @@
     }
    ],
    "evidence": [
+    "state/research/analogs_ext/results.json",
     "state/research/antioverfit/real_v1.log",
     "state/research/antioverfit/real_v1/results.json",
     "state/research/antioverfit/real_v1/summary.txt",
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/lessons/archive_v1.log",
+    "state/research/lessons/archive_v1.md",
     "state/research/lessons/real_v1.json",
     "state/research/lessons/real_v1.log",
     "state/research/lessons/real_v1.md",
@@ -17989,7 +18470,9 @@
     "state/research/lessons/real_v3.json",
     "state/research/lessons/real_v3.log",
     "state/research/lessons/real_v3.md",
-    "state/research/lessons/real_v4_1y.log"
+    "state/research/lessons/real_v4_1y.json",
+    "state/research/lessons/real_v4_1y.log",
+    "state/research/lessons/real_v4_1y.md"
    ],
    "fail_lines": [],
    "failing_tests": [],
@@ -18046,7 +18529,10 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/lessons/archive_v1.log",
+    "state/research/lessons/archive_v1.md",
     "state/research/lessons/real_v1.json",
     "state/research/lessons/real_v1.log",
     "state/research/lessons/real_v1.md",
@@ -18056,7 +18542,9 @@
     "state/research/lessons/real_v3.json",
     "state/research/lessons/real_v3.log",
     "state/research/lessons/real_v3.md",
-    "state/research/lessons/real_v4_1y.log"
+    "state/research/lessons/real_v4_1y.json",
+    "state/research/lessons/real_v4_1y.log",
+    "state/research/lessons/real_v4_1y.md"
    ],
    "fail_lines": [],
    "failing_tests": [],
@@ -18117,7 +18605,11 @@
     }
    ],
    "evidence": [
+    "state/research/analogs_ext/results.json",
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/lessons/archive_v1.log",
+    "state/research/lessons/archive_v1.md",
     "state/research/lessons/real_v1.json",
     "state/research/lessons/real_v1.log",
     "state/research/lessons/real_v1.md",
@@ -18127,7 +18619,9 @@
     "state/research/lessons/real_v3.json",
     "state/research/lessons/real_v3.log",
     "state/research/lessons/real_v3.md",
-    "state/research/lessons/real_v4_1y.log"
+    "state/research/lessons/real_v4_1y.json",
+    "state/research/lessons/real_v4_1y.log",
+    "state/research/lessons/real_v4_1y.md"
    ],
    "fail_lines": [],
    "failing_tests": [],
@@ -18172,7 +18666,10 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/lessons/archive_v1.log",
+    "state/research/lessons/archive_v1.md",
     "state/research/lessons/real_v1.json",
     "state/research/lessons/real_v1.log",
     "state/research/lessons/real_v1.md",
@@ -18182,7 +18679,9 @@
     "state/research/lessons/real_v3.json",
     "state/research/lessons/real_v3.log",
     "state/research/lessons/real_v3.md",
-    "state/research/lessons/real_v4_1y.log"
+    "state/research/lessons/real_v4_1y.json",
+    "state/research/lessons/real_v4_1y.log",
+    "state/research/lessons/real_v4_1y.md"
    ],
    "fail_lines": [],
    "failing_tests": [],
@@ -18266,9 +18765,11 @@
    "evidence": [
     "state/research/blind_gates/report.md",
     "state/research/blind_gates/results.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/lessons/real_v1.json",
     "state/research/lessons/real_v2.json",
     "state/research/lessons/real_v3.json",
+    "state/research/lessons/real_v4_1y.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
    ],
@@ -18337,7 +18838,10 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/lessons/archive_v1.log",
+    "state/research/lessons/archive_v1.md",
     "state/research/lessons/real_v1.json",
     "state/research/lessons/real_v1.log",
     "state/research/lessons/real_v1.md",
@@ -18347,7 +18851,9 @@
     "state/research/lessons/real_v3.json",
     "state/research/lessons/real_v3.log",
     "state/research/lessons/real_v3.md",
-    "state/research/lessons/real_v4_1y.log"
+    "state/research/lessons/real_v4_1y.json",
+    "state/research/lessons/real_v4_1y.log",
+    "state/research/lessons/real_v4_1y.md"
    ],
    "fail_lines": [],
    "failing_tests": [],
@@ -18389,9 +18895,11 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_v1.json",
     "state/research/lessons/real_v1.json",
     "state/research/lessons/real_v2.json",
-    "state/research/lessons/real_v3.json"
+    "state/research/lessons/real_v3.json",
+    "state/research/lessons/real_v4_1y.json"
    ],
    "fail_lines": [],
    "failing_tests": [],
@@ -18435,9 +18943,11 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_v1.json",
     "state/research/lessons/real_v1.json",
     "state/research/lessons/real_v2.json",
-    "state/research/lessons/real_v3.json"
+    "state/research/lessons/real_v3.json",
+    "state/research/lessons/real_v4_1y.json"
    ],
    "fail_lines": [],
    "failing_tests": [],
@@ -18480,9 +18990,11 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_v1.json",
     "state/research/lessons/real_v1.json",
     "state/research/lessons/real_v2.json",
-    "state/research/lessons/real_v3.json"
+    "state/research/lessons/real_v3.json",
+    "state/research/lessons/real_v4_1y.json"
    ],
    "fail_lines": [],
    "failing_tests": [],
@@ -18539,9 +19051,11 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_v1.json",
     "state/research/lessons/real_v1.json",
     "state/research/lessons/real_v2.json",
-    "state/research/lessons/real_v3.json"
+    "state/research/lessons/real_v3.json",
+    "state/research/lessons/real_v4_1y.json"
    ],
    "fail_lines": [],
    "failing_tests": [],
@@ -18593,9 +19107,11 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_v1.json",
     "state/research/lessons/real_v1.json",
     "state/research/lessons/real_v2.json",
     "state/research/lessons/real_v3.json",
+    "state/research/lessons/real_v4_1y.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
    ],
@@ -18648,9 +19164,11 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_v1.json",
     "state/research/lessons/real_v1.json",
     "state/research/lessons/real_v2.json",
-    "state/research/lessons/real_v3.json"
+    "state/research/lessons/real_v3.json",
+    "state/research/lessons/real_v4_1y.json"
    ],
    "fail_lines": [],
    "failing_tests": [],
@@ -18704,9 +19222,11 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_v1.json",
     "state/research/lessons/real_v1.json",
     "state/research/lessons/real_v2.json",
     "state/research/lessons/real_v3.json",
+    "state/research/lessons/real_v4_1y.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
    ],
@@ -18819,7 +19339,10 @@
    ],
    "evidence": [
     "state/research/data_live_safety/registry_candidates.csv",
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/lessons/archive_v1.log",
+    "state/research/lessons/archive_v1.md",
     "state/research/lessons/real_v1.json",
     "state/research/lessons/real_v1.log",
     "state/research/lessons/real_v1.md",
@@ -18829,7 +19352,9 @@
     "state/research/lessons/real_v3.json",
     "state/research/lessons/real_v3.log",
     "state/research/lessons/real_v3.md",
+    "state/research/lessons/real_v4_1y.json",
     "state/research/lessons/real_v4_1y.log",
+    "state/research/lessons/real_v4_1y.md",
     "state/research/memory_adapter/by_era.csv",
     "state/research/memory_adapter/by_year.csv",
     "state/research/memory_adapter/calibration_corrected.csv",
@@ -18920,7 +19445,10 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/lessons/archive_v1.log",
+    "state/research/lessons/archive_v1.md",
     "state/research/lessons/real_v1.json",
     "state/research/lessons/real_v1.log",
     "state/research/lessons/real_v1.md",
@@ -18930,7 +19458,9 @@
     "state/research/lessons/real_v3.json",
     "state/research/lessons/real_v3.log",
     "state/research/lessons/real_v3.md",
-    "state/research/lessons/real_v4_1y.log"
+    "state/research/lessons/real_v4_1y.json",
+    "state/research/lessons/real_v4_1y.log",
+    "state/research/lessons/real_v4_1y.md"
    ],
    "fail_lines": [],
    "failing_tests": [],
@@ -18999,9 +19529,11 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_v1.json",
     "state/research/lessons/real_v1.json",
     "state/research/lessons/real_v2.json",
-    "state/research/lessons/real_v3.json"
+    "state/research/lessons/real_v3.json",
+    "state/research/lessons/real_v4_1y.json"
    ],
    "fail_lines": [],
    "failing_tests": [],
@@ -19091,6 +19623,7 @@
     "state/research/direction/trust_store/v0023_2023-01-01.json",
     "state/research/direction/trust_store/v0024_2024-01-01.json",
     "state/research/direction/trust_store/v0025_2025-01-01.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
    ],
@@ -19537,6 +20070,7 @@
    "tests": [
     "tests/test_direction_ablate.py",
     "tests/test_exits.py",
+    "tests/test_fv_pipeline.py",
     "tests/test_pattern_stats.py",
     "tests/test_stops.py",
     "tests/test_trust.py",
@@ -19628,7 +20162,8 @@
     }
    ],
    "evidence": [
-    "state/research/blind_gates/results.json"
+    "state/research/blind_gates/results.json",
+    "state/research/lessons/archive_v1.json"
    ],
    "fail_lines": [],
    "failing_tests": [],
@@ -19695,6 +20230,7 @@
     }
    ],
    "evidence": [
+    "state/research/analogs_ext/results.json",
     "state/research/direction/ablation.csv",
     "state/research/direction/alt_routes.csv",
     "state/research/direction/alt_routes_pooled.csv",
@@ -19888,12 +20424,11 @@
      ]
     },
     {
-     "module": "engine/heavy_tests.py",
+     "module": "engine/fv_pipeline.py",
      "phase_linked": false,
      "score": 1.0,
      "symbols": [
-      "_oos_pattern_check",
-      "pattern_lifetimes"
+      "DirectionStage"
      ],
      "terms": [
       "pattern",
@@ -19949,15 +20484,16 @@
    "section": "0",
    "state": "[x]",
    "test_functions": [
-    "tests/test_direction_study.py::test_fold_finds_planted_direction_effect_and_opens_gate"
+    "tests/test_direction_study.py::test_fold_finds_planted_direction_effect_and_opens_gate",
+    "tests/test_fv_pipeline.py::test_direction_engine_opened_on_planted_and_calibrated",
+    "tests/test_fv_pipeline.py::test_noise_direction_makes_the_pipeline_abstain"
    ],
    "tests": [
     "tests/test_direction.py",
     "tests/test_direction_ablate.py",
     "tests/test_direction_calib.py",
     "tests/test_direction_study.py",
-    "tests/test_heavy_tests.py",
-    "tests/test_pattern_movers.py"
+    "tests/test_fv_pipeline.py"
    ],
    "text": "pattern direction",
    "why": "code engine/direction.py, test tests/test_direction_study.py::test_fold_finds_planted_direction_effect_and_opens_gate, cited tests/test_direction_study.py::test_fold_finds_planted_direction_effect_and_opens_gate"
@@ -20006,7 +20542,21 @@
     }
    ],
    "evidence": [
+    "state/research/analogs_ext/fingerprint_coverage.csv",
     "state/research/analogs_ext/ledger.parquet",
+    "state/research/analogs_ext/market_ablation.csv",
+    "state/research/analogs_ext/market_confidence_calibration.csv",
+    "state/research/analogs_ext/market_feature_weights.csv",
+    "state/research/analogs_ext/market_metric_k_sweep.csv",
+    "state/research/analogs_ext/market_per-decade_skill.csv",
+    "state/research/analogs_ext/market_weight_learners.csv",
+    "state/research/analogs_ext/market_weight_refits.csv",
+    "state/research/analogs_ext/pooled_stock_analog_rank_ic_by_half-decade.csv",
+    "state/research/analogs_ext/report.md",
+    "state/research/analogs_ext/results.json",
+    "state/research/analogs_ext/sector_ablation_by_sector.csv",
+    "state/research/analogs_ext/sector_weighted_skill_by_decade.csv",
+    "state/research/analogs_ext/stock_own-history_ablation.csv",
     "state/research/direction/ablation.csv",
     "state/research/direction/alt_routes.csv",
     "state/research/direction/alt_routes_pooled.csv",
@@ -20204,6 +20754,7 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_v1.json",
     "state/research/memory_adapter/missed_winners_summary.txt",
     "state/research/memory_adapter/results.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
@@ -20524,6 +21075,7 @@
     "state/research/exits_stops/summary.json",
     "state/research/exits_stops_run.log",
     "state/research/gaprisk/summary.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/memory_adapter/missed_winners_summary.txt",
     "state/research/memory_adapter/results.json",
     "state/research/pattern_fail/summary.json",
@@ -20635,6 +21187,7 @@
     "state/research/direction/trust_store/v0023_2023-01-01.json",
     "state/research/direction/trust_store/v0024_2024-01-01.json",
     "state/research/direction/trust_store/v0025_2025-01-01.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/memory_adapter/missed_winners_summary.txt",
     "state/research/memory_adapter/results.json",
     "state/research/pattern_fail/summary.json",
@@ -20703,12 +21256,11 @@
      ]
     },
     {
-     "module": "engine/gaprisk.py",
+     "module": "engine/fv_pipeline.py",
      "phase_linked": false,
      "score": 1.0,
      "symbols": [
-      "LossCap",
-      "loss_cap_analysis"
+      "LossCapFilter"
      ],
      "terms": [
       "loss"
@@ -20716,6 +21268,7 @@
     }
    ],
    "evidence": [
+    "state/research/analogs_ext/results.json",
     "state/research/direction/ablation.csv",
     "state/research/direction/alt_routes.csv",
     "state/research/direction/alt_routes_pooled.csv",
@@ -20749,15 +21302,7 @@
     "state/research/direction/trust_store/v0022_2022-01-01.json",
     "state/research/direction/trust_store/v0023_2023-01-01.json",
     "state/research/direction/trust_store/v0024_2024-01-01.json",
-    "state/research/direction/trust_store/v0025_2025-01-01.json",
-    "state/research/gaprisk/coverage_by_era.csv",
-    "state/research/gaprisk/coverage_event_vs_normal.csv",
-    "state/research/gaprisk/coverage_summary.csv",
-    "state/research/gaprisk/coverage_vol_regime.csv",
-    "state/research/gaprisk/loss_cap10_policies_by_era.csv",
-    "state/research/gaprisk/loss_cap_model_calibration.csv",
-    "state/research/gaprisk/loss_cap_policies_by_era.csv",
-    "state/research/gaprisk/summary.json"
+    "state/research/direction/trust_store/v0025_2025-01-01.json"
    ],
    "fail_lines": [],
    "failing_tests": [],
@@ -20771,17 +21316,17 @@
    "section": "0",
    "state": "[x]",
    "test_functions": [
-    "tests/test_gaprisk.py::test_loss_cap_analysis_shows_avoidance_and_that_sizing_cannot_fix_it"
+    "tests/test_fv_pipeline.py::test_loss_cap_filter_drops_gap_prone_names_and_is_inert_on_thin_history"
    ],
    "tests": [
     "tests/test_analogs_ext.py",
     "tests/test_direction.py",
     "tests/test_direction_ablate.py",
     "tests/test_direction_calib.py",
-    "tests/test_gaprisk.py"
+    "tests/test_fv_pipeline.py"
    ],
    "text": "log loss",
-   "why": "code engine/direction.py, test tests/test_gaprisk.py::test_loss_cap_analysis_shows_avoidance_and_that_sizing_cannot_fix_it, cited tests/test_gaprisk.py::test_loss_cap_analysis_shows_avoidance_and_that_sizing_cannot_fix_it"
+   "why": "code engine/direction.py, test tests/test_fv_pipeline.py::test_loss_cap_filter_drops_gap_prone_names_and_is_inert_on_thin_history, cited tests/test_fv_pipeline.py::test_loss_cap_filter_drops_gap_prone_names_and_is_inert_on_thin_history"
   },
   {
    "bible_claim": "",
@@ -21028,6 +21573,7 @@
     "state/research/antioverfit/real_v1.log",
     "state/research/antioverfit/real_v1/results.json",
     "state/research/antioverfit/real_v1/summary.txt",
+    "state/research/lessons/archive_v1.json",
     "state/research/memory_adapter/by_era.csv",
     "state/research/memory_adapter/by_year.csv",
     "state/research/memory_adapter/calibration_corrected.csv",
@@ -21108,6 +21654,7 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_v1.json",
     "state/research/memory_adapter/missed_winners_summary.txt",
     "state/research/memory_adapter/results.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
@@ -21155,6 +21702,7 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_v1.json",
     "state/research/memory_adapter/missed_winners_summary.txt",
     "state/research/memory_adapter/results.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
@@ -21194,6 +21742,7 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_v1.json",
     "state/research/memory_adapter/missed_winners_summary.txt",
     "state/research/memory_adapter/results.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
@@ -21250,6 +21799,7 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_v1.json",
     "state/research/memory_adapter/missed_winners_summary.txt",
     "state/research/memory_adapter/results.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
@@ -21314,6 +21864,7 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_v1.json",
     "state/research/memory_adapter/missed_winners_summary.txt",
     "state/research/memory_adapter/results.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
@@ -21350,6 +21901,22 @@
    "bible_claim": "",
    "bible_line": 1055,
    "code": [
+    {
+     "module": "engine/fv_pipeline.py",
+     "phase_linked": false,
+     "score": 0.652,
+     "symbols": [
+      "ComboRule",
+      "build_rule_set",
+      "inputs"
+     ],
+     "terms": [
+      "input",
+      "point",
+      "time",
+      "rule"
+     ]
+    },
     {
      "module": "engine/pattern_stats.py",
      "phase_linked": false,
@@ -21390,28 +21957,13 @@
       "time",
       "rule"
      ]
-    },
-    {
-     "module": "engine/missed_winners.py",
-     "phase_linked": true,
-     "score": 0.488,
-     "symbols": [],
-     "terms": [
-      "input",
-      "point",
-      "time"
-     ]
     }
    ],
    "evidence": [
-    "state/research/memory_adapter/missed_winners_summary.txt",
-    "state/research/memory_adapter/results.json",
     "state/research/miner_coverage/coverage.json",
     "state/research/pattern_bank/run_v3.json",
     "state/research/pattern_fail/summary.json",
-    "state/research/pit/pit_audit.json",
-    "state/research/timeline_basis/basis_offline_seed0.json",
-    "state/research/timeline_basis/dial_offline_seed0.json"
+    "state/research/pit/pit_audit.json"
    ],
    "fail_lines": [],
    "failing_tests": [],
@@ -21423,26 +21975,15 @@
    "pass_lines": [],
    "phase": 14,
    "section": "0",
-   "state": "[x]",
-   "test_functions": [
-    "tests/test_missed_winners.py::test_evaluate_flags_a_leaking_input_as_suspicious_not_as_success",
-    "tests/test_missed_winners.py::test_point_in_time_rule_rejects_forward_looking_inputs",
-    "tests/integration/test_pipeline_features_miner.py::test_panel_is_point_in_time"
-   ],
+   "state": "[~]",
+   "test_functions": [],
    "tests": [
-    "tests/integration/pipeline_world.py",
-    "tests/integration/test_pipeline_features_miner.py",
-    "tests/integration/test_session_replay_pipeline.py",
-    "tests/test_adapter.py",
-    "tests/test_antimemo_archive.py",
-    "tests/test_basis_search.py",
-    "tests/test_missed_winners.py",
+    "tests/test_fv_pipeline.py",
     "tests/test_pattern_stats.py",
-    "tests/test_pit.py",
-    "tests/test_session.py"
+    "tests/test_pit.py"
    ],
    "text": "other approved inputs only if they pass point-in-time rules",
-   "why": "code engine/pattern_stats.py, test tests/test_missed_winners.py::test_evaluate_flags_a_leaking_input_as_suspicious_not_as_success, cited tests/test_missed_winners.py::test_evaluate_flags_a_leaking_input_as_suspicious_not_as_success"
+   "why": "tests import the code but no test name speaks to this requirement"
   },
   {
    "bible_claim": "",
@@ -21484,6 +22025,7 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_v1.json",
     "state/research/memory_adapter/missed_winners_summary.txt",
     "state/research/memory_adapter/results.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
@@ -21549,6 +22091,7 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_v1.json",
     "state/research/memory_adapter/missed_winners_summary.txt",
     "state/research/memory_adapter/results.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
@@ -21618,6 +22161,7 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_v1.json",
     "state/research/memory_adapter/missed_winners_summary.txt",
     "state/research/memory_adapter/results.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
@@ -21678,6 +22222,7 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_v1.json",
     "state/research/memory_adapter/missed_winners_summary.txt",
     "state/research/memory_adapter/results.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
@@ -21753,6 +22298,7 @@
     }
    ],
    "evidence": [
+    "state/research/analogs_ext/results.json",
     "state/research/blind_gates/results.json",
     "state/research/exits_stops/exit_cost_sensitivity.csv",
     "state/research/exits_stops/exit_families_insample_first_train.csv",
@@ -21772,6 +22318,7 @@
     "state/research/exits_stops/summary.json",
     "state/research/exits_stops_run.log",
     "state/research/gaprisk/summary.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/memory_adapter/missed_winners_summary.txt",
     "state/research/memory_adapter/results.json",
     "state/research/pattern_fail/summary.json",
@@ -21790,22 +22337,23 @@
    "section": "0",
    "state": "[x]",
    "test_functions": [
+    "tests/test_fv_pipeline.py::test_fv_compare_feasibility_beats_hit_rate",
     "tests/test_health.py::test_failure_rates_and_window_breakdown",
     "tests/test_missed_winners.py::test_a_detector_that_only_rediscovers_volatility_is_shown_next_to_the_vol_only_ranking",
-    "tests/test_missed_winners.py::test_calibration_beats_base_rate_only_for_informative_probabilities",
-    "tests/test_missed_winners.py::test_prior_correct_restores_the_base_rate"
+    "tests/test_missed_winners.py::test_calibration_beats_base_rate_only_for_informative_probabilities"
    ],
    "tests": [
     "tests/test_adapter.py",
     "tests/test_analogs_ext.py",
     "tests/test_exits.py",
+    "tests/test_fv_pipeline.py",
     "tests/test_health.py",
     "tests/test_livesim_loop2.py",
     "tests/test_missed_winners.py",
     "tests/test_stops.py"
    ],
    "text": "hit rate",
-   "why": "code engine/exits.py, test tests/test_health.py::test_failure_rates_and_window_breakdown, cited tests/test_health.py::test_failure_rates_and_window_breakdown"
+   "why": "code engine/exits.py, test tests/test_fv_pipeline.py::test_fv_compare_feasibility_beats_hit_rate, cited tests/test_fv_pipeline.py::test_fv_compare_feasibility_beats_hit_rate"
   },
   {
    "bible_claim": "",
@@ -21863,6 +22411,7 @@
    ],
    "tests": [
     "tests/test_exits.py",
+    "tests/test_fv_pipeline.py",
     "tests/test_stops.py"
    ],
    "text": "average gain",
@@ -21908,6 +22457,7 @@
     }
    ],
    "evidence": [
+    "state/research/analogs_ext/results.json",
     "state/research/exits_stops/exit_cost_sensitivity.csv",
     "state/research/exits_stops/exit_families_insample_first_train.csv",
     "state/research/exits_stops/exit_families_oos_window_untuned.csv",
@@ -21943,6 +22493,7 @@
    "tests": [
     "tests/test_analogs_ext.py",
     "tests/test_exits.py",
+    "tests/test_fv_pipeline.py",
     "tests/test_gaprisk.py",
     "tests/test_stops.py"
    ],
@@ -22038,6 +22589,7 @@
    ],
    "tests": [
     "tests/test_exits.py",
+    "tests/test_fv_pipeline.py",
     "tests/test_gaprisk.py",
     "tests/test_stops.py"
    ],
@@ -22094,6 +22646,7 @@
    "test_functions": [],
    "tests": [
     "tests/test_exits.py",
+    "tests/test_fv_pipeline.py",
     "tests/test_stops.py"
    ],
    "text": "time held",
@@ -22164,22 +22717,22 @@
      ]
     },
     {
-     "module": "engine/heavy_tests.py",
+     "module": "engine/fv_pipeline.py",
      "phase_linked": false,
      "score": 1.0,
      "symbols": [
-      "cost_sensitivity"
+      "cost"
      ],
      "terms": [
       "cost"
      ]
     },
     {
-     "module": "engine/replay.py",
+     "module": "engine/heavy_tests.py",
      "phase_linked": false,
      "score": 1.0,
      "symbols": [
-      "cost_bps"
+      "cost_sensitivity"
      ],
      "terms": [
       "cost"
@@ -22225,6 +22778,7 @@
    ],
    "tests": [
     "tests/test_exits.py",
+    "tests/test_fv_pipeline.py",
     "tests/test_gaprisk.py",
     "tests/test_heavy_tests.py",
     "tests/test_pattern_movers.py",
@@ -22287,6 +22841,7 @@
    "test_functions": [],
    "tests": [
     "tests/test_exits.py",
+    "tests/test_fv_pipeline.py",
     "tests/test_stops.py"
    ],
    "text": "weekly band behavior",
@@ -22733,6 +23288,7 @@
    "test_functions": [],
    "tests": [
     "tests/test_exits.py",
+    "tests/test_fv_pipeline.py",
     "tests/test_gaprisk.py",
     "tests/test_stops.py"
    ],
@@ -22794,6 +23350,7 @@
     "state/research/antioverfit/real_v1/results.json",
     "state/research/antioverfit/real_v1/summary.txt",
     "state/research/backtest_summary.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/parity/latest.json",
     "state/research/parity/parity_20260929T040227Z.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
@@ -22903,6 +23460,11 @@
     }
    ],
    "evidence": [
+    "state/research/analogs_ext/pooled_stock_analog_rank_ic_by_half-decade.csv",
+    "state/research/analogs_ext/results.json",
+    "state/research/analogs_ext/sector_ablation_by_sector.csv",
+    "state/research/analogs_ext/sector_weighted_skill_by_decade.csv",
+    "state/research/analogs_ext/stock_own-history_ablation.csv",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json",
     "state/research/timeline_basis/report_seed0.json",
@@ -23195,6 +23757,9 @@
     }
    ],
    "evidence": [
+    "state/research/analogs_ext/pooled_stock_analog_rank_ic_by_half-decade.csv",
+    "state/research/analogs_ext/results.json",
+    "state/research/analogs_ext/stock_own-history_ablation.csv",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json",
     "state/research/timeline_basis/report_seed0.json",
@@ -23307,9 +23872,11 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_v1.json",
     "state/research/lessons/real_v1.json",
     "state/research/lessons/real_v2.json",
     "state/research/lessons/real_v3.json",
+    "state/research/lessons/real_v4_1y.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json",
     "state/research/timeline_basis/report_seed0.json",
@@ -23528,11 +24095,11 @@
      ]
     },
     {
-     "module": "engine/gaprisk.py",
+     "module": "engine/fv_pipeline.py",
      "phase_linked": false,
      "score": 1.0,
      "symbols": [
-      "ConditionalGapModel"
+      "model_score"
      ],
      "terms": [
       "model"
@@ -23557,14 +24124,9 @@
     "state/research/exits_stops/stop_rule_usage.csv",
     "state/research/exits_stops/summary.json",
     "state/research/exits_stops_run.log",
-    "state/research/gaprisk/coverage_by_era.csv",
-    "state/research/gaprisk/coverage_event_vs_normal.csv",
-    "state/research/gaprisk/coverage_summary.csv",
-    "state/research/gaprisk/coverage_vol_regime.csv",
-    "state/research/gaprisk/loss_cap10_policies_by_era.csv",
-    "state/research/gaprisk/loss_cap_model_calibration.csv",
-    "state/research/gaprisk/loss_cap_policies_by_era.csv",
     "state/research/gaprisk/summary.json",
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/memory_adapter/missed_winners_summary.txt",
     "state/research/memory_adapter/results.json",
     "state/research/pattern_fail/summary.json",
@@ -23583,7 +24145,6 @@
    "section": "0",
    "state": "[x]",
    "test_functions": [
-    "tests/test_gaprisk.py::test_conditional_model_covers_fat_event_tails_the_old_model_misses",
     "tests/test_stops.py::test_gap_model_flags_the_gap_prone_names_and_filtering_cuts_catastrophes"
    ],
    "tests": [
@@ -23594,13 +24155,13 @@
     "tests/test_antimemo_archive.py",
     "tests/test_basis_search.py",
     "tests/test_exits.py",
-    "tests/test_gaprisk.py",
+    "tests/test_fv_pipeline.py",
     "tests/test_missed_winners.py",
     "tests/test_session.py",
     "tests/test_stops.py"
    ],
    "text": "w_model",
-   "why": "code engine/adaptive.py, test tests/test_gaprisk.py::test_conditional_model_covers_fat_event_tails_the_old_model_misses, cited tests/test_gaprisk.py::test_conditional_model_covers_fat_event_tails_the_old_model_misses"
+   "why": "code engine/adaptive.py, test tests/test_stops.py::test_gap_model_flags_the_gap_prone_names_and_filtering_cuts_catastrophes, cited tests/test_stops.py::test_gap_model_flags_the_gap_prone_names_and_filtering_cuts_catastrophes"
   },
   {
    "bible_claim": "",
@@ -23653,6 +24214,8 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/memory_adapter/by_era.csv",
     "state/research/memory_adapter/by_year.csv",
     "state/research/memory_adapter/calibration_corrected.csv",
@@ -23756,6 +24319,8 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/memory_adapter/by_era.csv",
     "state/research/memory_adapter/by_year.csv",
     "state/research/memory_adapter/calibration_corrected.csv",
@@ -23824,7 +24389,11 @@
      ]
     }
    ],
-   "evidence": [],
+   "evidence": [
+    "state/research/analogs_ext/pooled_stock_analog_rank_ic_by_half-decade.csv",
+    "state/research/analogs_ext/results.json",
+    "state/research/analogs_ext/stock_own-history_ablation.csv"
+   ],
    "fail_lines": [],
    "failing_tests": [],
    "id": "18.0.4",
@@ -23891,6 +24460,8 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/memory_adapter/missed_winners_summary.txt",
     "state/research/memory_adapter/results.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
@@ -23978,6 +24549,8 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/memory_adapter/by_era.csv",
     "state/research/memory_adapter/by_year.csv",
     "state/research/memory_adapter/calibration_corrected.csv",
@@ -24056,6 +24629,7 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_v1.json",
     "state/research/memory_adapter/missed_winners_summary.txt",
     "state/research/memory_adapter/results.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
@@ -24148,6 +24722,8 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/memory_adapter/by_era.csv",
     "state/research/memory_adapter/by_year.csv",
     "state/research/memory_adapter/calibration_corrected.csv",
@@ -24249,6 +24825,8 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/memory_adapter/by_era.csv",
     "state/research/memory_adapter/by_year.csv",
     "state/research/memory_adapter/calibration_corrected.csv",
@@ -24332,7 +24910,9 @@
      ]
     }
    ],
-   "evidence": [],
+   "evidence": [
+    "state/research/analogs_ext/results.json"
+   ],
    "fail_lines": [],
    "failing_tests": [],
    "id": "18.0.11",
@@ -24392,9 +24972,12 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/lessons/real_v1.json",
     "state/research/lessons/real_v2.json",
     "state/research/lessons/real_v3.json",
+    "state/research/lessons/real_v4_1y.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
    ],
@@ -24492,6 +25075,8 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/memory_adapter/by_era.csv",
     "state/research/memory_adapter/by_year.csv",
     "state/research/memory_adapter/calibration_corrected.csv",
@@ -24562,6 +25147,8 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
    ],
@@ -24620,6 +25207,8 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
    ],
@@ -24706,6 +25295,9 @@
     }
    ],
    "evidence": [
+    "state/research/analogs_ext/results.json",
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
    ],
@@ -24780,6 +25372,8 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/memory_adapter/results.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
@@ -24830,6 +25424,8 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
    ],
@@ -24933,6 +25529,8 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/memory_adapter/missed_winners_summary.txt",
     "state/research/memory_adapter/results.json",
     "state/research/pattern_fail/summary.json",
@@ -25033,6 +25631,7 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json",
     "state/research/timeline_basis/report_seed1.json"
@@ -25122,6 +25721,7 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json",
     "state/research/timeline_basis/report_seed1.json"
@@ -25202,6 +25802,8 @@
    ],
    "evidence": [
     "state/research/data_live_safety/registry_candidates.csv",
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/miner_coverage/coverage.json",
     "state/research/pattern_bank/run_v3.json",
     "state/research/pattern_fail/summary.json",
@@ -25291,9 +25893,11 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_v1.json",
     "state/research/lessons/real_v1.json",
     "state/research/lessons/real_v2.json",
-    "state/research/lessons/real_v3.json"
+    "state/research/lessons/real_v3.json",
+    "state/research/lessons/real_v4_1y.json"
    ],
    "fail_lines": [],
    "failing_tests": [],
@@ -25369,6 +25973,7 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json",
     "state/research/timeline_basis/report_seed0.json",
@@ -25425,6 +26030,7 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json",
     "state/research/timeline_basis/report_seed1.json"
@@ -25593,6 +26199,7 @@
     "state/research/exits_stops/summary.json",
     "state/research/exits_stops_run.log",
     "state/research/gaprisk/summary.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/memory_adapter/missed_winners_summary.txt",
     "state/research/memory_adapter/results.json",
     "state/research/miner_coverage/coverage.json",
@@ -25623,6 +26230,7 @@
     "tests/test_adapter.py",
     "tests/test_candidates.py",
     "tests/test_exits.py",
+    "tests/test_fv_pipeline.py",
     "tests/test_missed_winners.py",
     "tests/test_pattern_bank.py",
     "tests/test_pattern_identity.py",
@@ -25640,7 +26248,20 @@
   {
    "bible_claim": "",
    "bible_line": 1234,
-   "code": [],
+   "code": [
+    {
+     "module": "engine/fv_pipeline.py",
+     "phase_linked": false,
+     "score": 1.0,
+     "symbols": [
+      "certify_threshold"
+     ],
+     "terms": [
+      "switch",
+      "threshold"
+     ]
+    }
+   ],
    "evidence": [],
    "fail_lines": [],
    "failing_tests": [],
@@ -25652,11 +26273,15 @@
    "pass_lines": [],
    "phase": 19,
    "section": "0",
-   "state": "[ ]",
-   "test_functions": [],
-   "tests": [],
+   "state": "[x]",
+   "test_functions": [
+    "tests/test_fv_pipeline.py::test_certify_threshold_and_bootstrap_helpers"
+   ],
+   "tests": [
+    "tests/test_fv_pipeline.py"
+   ],
    "text": "switch threshold",
-   "why": "no implementing code found by name/docstring/task-file"
+   "why": "code engine/fv_pipeline.py, test tests/test_fv_pipeline.py::test_certify_threshold_and_bootstrap_helpers, cited tests/test_fv_pipeline.py::test_certify_threshold_and_bootstrap_helpers"
   },
   {
    "bible_claim": "",
@@ -25668,6 +26293,20 @@
      "score": 1.0,
      "symbols": [
       "is_week_end"
+     ],
+     "terms": [
+      "minimum",
+      "week"
+     ]
+    },
+    {
+     "module": "engine/fv_pipeline.py",
+     "phase_linked": false,
+     "score": 1.0,
+     "symbols": [
+      "mover_weekly",
+      "week_end_sessions",
+      "weekly_frame"
      ],
      "terms": [
       "minimum",
@@ -25697,23 +26336,12 @@
       "minimum",
       "week"
      ]
-    },
-    {
-     "module": "engine/miner_tuning.py",
-     "phase_linked": false,
-     "score": 1.0,
-     "symbols": [
-      "weekly_bootstrap_diff"
-     ],
-     "terms": [
-      "minimum",
-      "week"
-     ]
     }
    ],
    "evidence": [
     "state/research/blind_gates/report.md",
     "state/research/blind_gates/results.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
    ],
@@ -25732,10 +26360,10 @@
    "tests": [
     "tests/test_blind_gates.py",
     "tests/test_exits.py",
+    "tests/test_fv_pipeline.py",
     "tests/test_live_safety.py",
     "tests/test_livesim_gates.py",
     "tests/test_livesim_loop2.py",
-    "tests/test_miner_tuning.py",
     "tests/test_parity_suite.py"
    ],
    "text": "minimum weeks",
@@ -25822,6 +26450,8 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
    ],
@@ -25888,6 +26518,8 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/memory_adapter/results.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
@@ -26061,6 +26693,7 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_v1.json",
     "state/research/memory_adapter/by_era.csv",
     "state/research/memory_adapter/by_year.csv",
     "state/research/memory_adapter/calibration_corrected.csv",
@@ -26250,6 +26883,7 @@
     "state/research/exits_stops/summary.json",
     "state/research/exits_stops_run.log",
     "state/research/gaprisk/summary.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/pattern_fail/summary.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json",
@@ -26273,6 +26907,7 @@
    "tests": [
     "tests/test_basis_search.py",
     "tests/test_exits.py",
+    "tests/test_fv_pipeline.py",
     "tests/test_livesim_loop2.py",
     "tests/test_objective.py",
     "tests/test_stops.py",
@@ -26317,6 +26952,7 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json",
     "state/research/timeline_basis/report_seed1.json"
@@ -26422,6 +27058,7 @@
     "state/research/exits_stops/summary.json",
     "state/research/exits_stops_run.log",
     "state/research/gaprisk/summary.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/pattern_fail/summary.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json",
@@ -26502,6 +27139,7 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json",
     "state/research/timeline_basis/report_seed1.json"
@@ -26609,6 +27247,7 @@
     "state/research/exits_stops/summary.json",
     "state/research/exits_stops_run.log",
     "state/research/gaprisk/summary.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/pattern_fail/summary.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json",
@@ -26650,6 +27289,7 @@
     "tests/test_adapter.py",
     "tests/test_basis_search.py",
     "tests/test_exits.py",
+    "tests/test_fv_pipeline.py",
     "tests/test_livesim_loop2.py",
     "tests/test_objective.py",
     "tests/test_stops.py",
@@ -26710,6 +27350,7 @@
     "state/research/exits_stops/summary.json",
     "state/research/exits_stops_run.log",
     "state/research/gaprisk/summary.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/pattern_fail/summary.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json",
@@ -26821,6 +27462,7 @@
     "state/research/exits_stops/summary.json",
     "state/research/exits_stops_run.log",
     "state/research/gaprisk/summary.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/pattern_fail/summary.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json",
@@ -26862,6 +27504,7 @@
     "tests/test_adapter.py",
     "tests/test_basis_search.py",
     "tests/test_exits.py",
+    "tests/test_fv_pipeline.py",
     "tests/test_livesim_loop2.py",
     "tests/test_objective.py",
     "tests/test_stops.py",
@@ -26890,6 +27533,7 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json",
     "state/research/timeline_basis/report_seed1.json"
@@ -26936,6 +27580,7 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json",
     "state/research/timeline_basis/report_seed1.json"
@@ -27017,6 +27662,7 @@
    "evidence": [
     "state/research/blind_gates/report.md",
     "state/research/blind_gates/results.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
    ],
@@ -27101,9 +27747,11 @@
    "evidence": [
     "state/research/blind_gates/report.md",
     "state/research/blind_gates/results.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/lessons/real_v1.json",
     "state/research/lessons/real_v2.json",
     "state/research/lessons/real_v3.json",
+    "state/research/lessons/real_v4_1y.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
    ],
@@ -27170,6 +27818,7 @@
    "evidence": [
     "state/research/blind_gates/report.md",
     "state/research/blind_gates/results.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
    ],
@@ -27229,6 +27878,7 @@
    "evidence": [
     "state/research/blind_gates/report.md",
     "state/research/blind_gates/results.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
    ],
@@ -27277,6 +27927,7 @@
    "evidence": [
     "state/research/blind_gates/report.md",
     "state/research/blind_gates/results.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
    ],
@@ -27337,6 +27988,7 @@
    "evidence": [
     "state/research/blind_gates/report.md",
     "state/research/blind_gates/results.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
    ],
@@ -27395,6 +28047,7 @@
    "evidence": [
     "state/research/blind_gates/report.md",
     "state/research/blind_gates/results.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
    ],
@@ -27466,6 +28119,8 @@
    "evidence": [
     "state/research/blind_gates/report.md",
     "state/research/blind_gates/results.json",
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
    ],
@@ -27554,6 +28209,8 @@
    "evidence": [
     "state/research/blind_gates/report.md",
     "state/research/blind_gates/results.json",
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
    ],
@@ -27646,10 +28303,15 @@
     }
    ],
    "evidence": [
+    "state/research/analogs_ext/market_ablation.csv",
+    "state/research/analogs_ext/sector_ablation_by_sector.csv",
+    "state/research/analogs_ext/stock_own-history_ablation.csv",
     "state/research/antioverfit/real_v1/results.json",
     "state/research/backtest_summary.json",
     "state/research/blind_gates/results.json",
     "state/research/direction/ablation.csv",
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/memory_adapter/memory_factor_ablation.csv",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
@@ -27742,6 +28404,8 @@
    "evidence": [
     "state/research/blind_gates/report.md",
     "state/research/blind_gates/results.json",
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
    ],
@@ -27913,6 +28577,8 @@
    "evidence": [
     "state/research/blind_gates/report.md",
     "state/research/blind_gates/results.json",
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/memory_adapter/by_era.csv",
     "state/research/memory_adapter/by_year.csv",
     "state/research/memory_adapter/calibration_corrected.csv",
@@ -28015,6 +28681,7 @@
    "evidence": [
     "state/research/blind_gates/report.md",
     "state/research/blind_gates/results.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
    ],
@@ -28097,6 +28764,8 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json",
     "state/research/timeline_basis/report_seed0.json",
@@ -28188,6 +28857,7 @@
    "evidence": [
     "state/research/blind_gates/report.md",
     "state/research/blind_gates/results.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
    ],
@@ -28262,6 +28932,7 @@
    "evidence": [
     "state/research/blind_gates/report.md",
     "state/research/blind_gates/results.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
    ],
@@ -28344,6 +29015,7 @@
    "evidence": [
     "state/research/blind_gates/report.md",
     "state/research/blind_gates/results.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
    ],
@@ -28413,6 +29085,7 @@
    "evidence": [
     "state/research/blind_gates/report.md",
     "state/research/blind_gates/results.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
    ],
@@ -28466,7 +29139,8 @@
     }
    ],
    "evidence": [
-    "state/research/blind_gates/results.json"
+    "state/research/blind_gates/results.json",
+    "state/research/lessons/archive_v1.json"
    ],
    "fail_lines": [],
    "failing_tests": [],
@@ -28519,6 +29193,7 @@
    ],
    "evidence": [
     "state/research/blind_gates/results.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/pattern_bank/bank_v3/bank_v000001.json",
     "state/research/pattern_bank/bank_v3/bank_v000002.json",
     "state/research/pattern_bank/bank_v3/bank_v000003.json",
@@ -28615,6 +29290,7 @@
    ],
    "evidence": [
     "state/research/blind_gates/results.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/memory_adapter/results.json"
    ],
    "fail_lines": [],
@@ -28703,6 +29379,7 @@
     "state/research/exits_stops/summary.json",
     "state/research/exits_stops_run.log",
     "state/research/gaprisk/summary.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/pattern_fail/summary.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json",
@@ -28727,6 +29404,7 @@
    "tests": [
     "tests/test_basis_search.py",
     "tests/test_exits.py",
+    "tests/test_fv_pipeline.py",
     "tests/test_health.py",
     "tests/test_livesim_loop2.py",
     "tests/test_stops.py"
@@ -28766,6 +29444,7 @@
    ],
    "evidence": [
     "state/research/blind_gates/results.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/pattern_bank/run_v3.json"
    ],
    "fail_lines": [],
@@ -28875,6 +29554,7 @@
     "state/research/algorithm/planted/summary.json",
     "state/research/algorithm/planted/summary_before_B14.json",
     "state/research/algorithm/planted_calibration.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/memory_adapter/missed_winners_summary.txt",
     "state/research/memory_adapter/results.json",
     "state/research/miner_coverage/coverage.json",
@@ -29061,6 +29741,9 @@
     }
    ],
    "evidence": [
+    "state/research/analogs_ext/market_ablation.csv",
+    "state/research/analogs_ext/sector_ablation_by_sector.csv",
+    "state/research/analogs_ext/stock_own-history_ablation.csv",
     "state/research/antioverfit/real_v1/results.json",
     "state/research/direction/ablation.csv",
     "state/research/memory_adapter/memory_factor_ablation.csv"
@@ -29573,6 +30256,7 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_v1.json",
     "state/research/memory_adapter/missed_winners_summary.txt",
     "state/research/memory_adapter/results.json",
     "state/research/miner_coverage/coverage.json",
@@ -29674,6 +30358,7 @@
     "state/research/antioverfit/real_v1/results.json",
     "state/research/antioverfit/real_v1/summary.txt",
     "state/research/data_live_safety/report.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/memory_adapter/missed_winners_summary.txt",
     "state/research/memory_adapter/results.json",
     "state/research/miner_coverage/coverage.json",
@@ -29782,11 +30467,11 @@
      ]
     },
     {
-     "module": "engine/heavy_tests.py",
+     "module": "engine/fv_pipeline.py",
      "phase_linked": false,
      "score": 1.0,
      "symbols": [
-      "validate_panel"
+      "validate_bars"
      ],
      "terms": [
       "date",
@@ -29794,12 +30479,11 @@
      ]
     },
     {
-     "module": "engine/memory.py",
+     "module": "engine/heavy_tests.py",
      "phase_linked": false,
      "score": 1.0,
      "symbols": [
-      "coarse_date",
-      "validate"
+      "validate_panel"
      ],
      "terms": [
       "date",
@@ -29811,25 +30495,7 @@
     "state/research/antioverfit/real_v1.log",
     "state/research/antioverfit/real_v1/results.json",
     "state/research/antioverfit/real_v1/summary.txt",
-    "state/research/data_live_safety/report.json",
-    "state/research/memory_adapter/by_era.csv",
-    "state/research/memory_adapter/by_year.csv",
-    "state/research/memory_adapter/calibration_corrected.csv",
-    "state/research/memory_adapter/coef_stability.csv",
-    "state/research/memory_adapter/control_uplifts.csv",
-    "state/research/memory_adapter/memory_bandwidth_sweep.csv",
-    "state/research/memory_adapter/memory_block_stability.csv",
-    "state/research/memory_adapter/memory_by_era.csv",
-    "state/research/memory_adapter/memory_calibration.csv",
-    "state/research/memory_adapter/memory_factor_ablation.csv",
-    "state/research/memory_adapter/memory_half_life_sweep.csv",
-    "state/research/memory_adapter/memory_nested_tune_train.csv",
-    "state/research/memory_adapter/memory_shrink_sweep.csv",
-    "state/research/memory_adapter/missed_winners_summary.txt",
-    "state/research/memory_adapter/results.json",
-    "state/research/memory_adapter/threshold_sweep.csv",
-    "state/research/memory_adapter/topk_curve.csv",
-    "state/research/timeline_basis/dial_offline_seed0.json"
+    "state/research/data_live_safety/report.json"
    ],
    "fail_lines": [],
    "failing_tests": [],
@@ -29852,24 +30518,20 @@
    "section": "0",
    "state": "[x]",
    "test_functions": [
-    "tests/test_adapter.py::test_decision_dates_in_fills_are_dates_the_session_actually_decided",
-    "tests/test_adapter.py::test_memory_uses_dates_only_when_asked",
     "tests/test_antioverfit.py::test_date_disguise_catches_calendar_dependence",
-    "tests/test_memory_ext.py::test_era_of_maps_dates_and_unknown"
+    "tests/test_pattern_movers.py::test_detectable_gain_shrinks_with_more_dates",
+    "tests/test_pattern_movers.py::test_scramble_moves_every_date_and_shuffle_keeps_date_multiset"
    ],
    "tests": [
     "tests/test_ablation.py",
-    "tests/test_adapter.py",
     "tests/test_antioverfit.py",
-    "tests/test_basis_search.py",
     "tests/test_data_sources.py",
+    "tests/test_fv_pipeline.py",
     "tests/test_heavy_tests.py",
-    "tests/test_memory.py",
-    "tests/test_memory_ext.py",
     "tests/test_pattern_movers.py"
    ],
    "text": "date validation",
-   "why": "code engine/data_sources.py, test tests/test_adapter.py::test_decision_dates_in_fills_are_dates_the_session_actually_decided, cited state/research/antioverfit/real_v1.log"
+   "why": "code engine/data_sources.py, test tests/test_antioverfit.py::test_date_disguise_catches_calendar_dependence, cited state/research/antioverfit/real_v1.log"
   },
   {
    "bible_claim": "",
@@ -29921,15 +30583,18 @@
     }
    ],
    "evidence": [
+    "state/research/analogs_ext/results.json",
     "state/research/antioverfit/real_v1/results.json",
     "state/research/blind_gates/results.json",
     "state/research/data_live_safety/report.json",
     "state/research/direction/summary.json",
     "state/research/exits_stops/summary.json",
     "state/research/gaprisk/summary.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/lessons/real_v1.json",
     "state/research/lessons/real_v2.json",
     "state/research/lessons/real_v3.json",
+    "state/research/lessons/real_v4_1y.json",
     "state/research/memory_adapter/results.json",
     "state/research/miner_coverage/coverage.json",
     "state/research/parity/latest.json",
@@ -30076,6 +30741,19 @@
      ]
     },
     {
+     "module": "engine/fv_pipeline.py",
+     "phase_linked": false,
+     "score": 1.0,
+     "symbols": [
+      "validate_bars"
+     ],
+     "terms": [
+      "point",
+      "time",
+      "validat"
+     ]
+    },
+    {
      "module": "engine/pattern_stats.py",
      "phase_linked": false,
      "score": 1.0,
@@ -30130,6 +30808,7 @@
    ],
    "tests": [
     "tests/test_data_sources.py",
+    "tests/test_fv_pipeline.py",
     "tests/test_pattern_stats.py",
     "tests/test_pit.py"
    ],
@@ -30212,6 +30891,7 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json",
     "state/research/timeline_basis/report_seed0.json",
@@ -31473,6 +32153,7 @@
    "test_functions": [],
    "tests": [
     "tests/test_exits.py",
+    "tests/test_fv_pipeline.py",
     "tests/test_stops.py"
    ],
    "text": "stability",
@@ -31572,6 +32253,7 @@
    ],
    "tests": [
     "tests/test_exits.py",
+    "tests/test_fv_pipeline.py",
     "tests/test_site_build.py",
     "tests/test_stops.py"
    ],
@@ -31668,6 +32350,7 @@
    "test_functions": [],
    "tests": [
     "tests/test_exits.py",
+    "tests/test_fv_pipeline.py",
     "tests/test_stops.py"
    ],
    "text": "reason selected",
@@ -31709,6 +32392,7 @@
    ],
    "evidence": [
     "state/research/data_live_safety/registry_candidates.csv",
+    "state/research/lessons/archive_v1.json",
     "state/research/registry_audit.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json",
@@ -31774,6 +32458,7 @@
    ],
    "evidence": [
     "state/research/data_live_safety/registry_candidates.csv",
+    "state/research/lessons/archive_v1.json",
     "state/research/registry_audit.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json",
@@ -31847,7 +32532,11 @@
     }
    ],
    "evidence": [
+    "state/research/analogs_ext/pooled_stock_analog_rank_ic_by_half-decade.csv",
+    "state/research/analogs_ext/results.json",
+    "state/research/analogs_ext/stock_own-history_ablation.csv",
     "state/research/data_live_safety/registry_candidates.csv",
+    "state/research/lessons/archive_v1.json",
     "state/research/registry_audit.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
@@ -31952,6 +32641,7 @@
     }
    ],
    "evidence": [
+    "state/research/analogs_ext/results.json",
     "state/research/backtest_summary.json",
     "state/research/tuning/cfg_CHAMPION_v1.2.json",
     "state/research/tuning/eq_CHAMPION_v1.2.parquet"
@@ -32027,9 +32717,11 @@
    ],
    "evidence": [
     "state/research/data_live_safety/registry_candidates.csv",
+    "state/research/lessons/archive_v1.json",
     "state/research/lessons/real_v1.json",
     "state/research/lessons/real_v2.json",
     "state/research/lessons/real_v3.json",
+    "state/research/lessons/real_v4_1y.json",
     "state/research/registry_audit.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json",
@@ -32206,6 +32898,7 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json",
     "state/research/timeline_basis/report_seed1.json"
@@ -32468,6 +33161,7 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_v1.json",
     "state/research/site/audit.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
@@ -32817,6 +33511,7 @@
     }
    ],
    "evidence": [
+    "state/research/analogs_ext/results.json",
     "state/research/data_live_safety/registry_candidates.csv",
     "state/research/data_live_safety/report.json",
     "state/research/miner_coverage/coverage.json",
@@ -32910,6 +33605,7 @@
     }
    ],
    "evidence": [
+    "state/research/analogs_ext/results.json",
     "state/research/antioverfit/real_v1.log",
     "state/research/antioverfit/real_v1/results.json",
     "state/research/antioverfit/real_v1/summary.txt",
@@ -32954,6 +33650,7 @@
     "tests/test_analogs_ext.py",
     "tests/test_antioverfit.py",
     "tests/test_exits.py",
+    "tests/test_fv_pipeline.py",
     "tests/test_quality_gate.py",
     "tests/test_stops.py"
    ],
@@ -33026,6 +33723,7 @@
    "evidence": [
     "state/research/blind_gates/report.md",
     "state/research/blind_gates/results.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
    ],
@@ -33083,6 +33781,7 @@
    "evidence": [
     "state/research/blind_gates/report.md",
     "state/research/blind_gates/results.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
    ],
@@ -33251,6 +33950,8 @@
    ],
    "evidence": [
     "state/research/antioverfit/real_v1/results.json",
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json",
     "state/research/timeline_basis/report_seed1.json"
@@ -33331,6 +34032,9 @@
     }
    ],
    "evidence": [
+    "state/research/analogs_ext/market_ablation.csv",
+    "state/research/analogs_ext/sector_ablation_by_sector.csv",
+    "state/research/analogs_ext/stock_own-history_ablation.csv",
     "state/research/antioverfit/real_v1.log",
     "state/research/antioverfit/real_v1/results.json",
     "state/research/antioverfit/real_v1/summary.txt",
@@ -33492,6 +34196,8 @@
    ],
    "evidence": [
     "state/research/antioverfit/real_v1/results.json",
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
    ],
@@ -33570,6 +34276,7 @@
     }
    ],
    "evidence": [
+    "state/research/analogs_ext/results.json",
     "state/research/antioverfit/real_v1.log",
     "state/research/antioverfit/real_v1/results.json",
     "state/research/antioverfit/real_v1/summary.txt",
@@ -33702,6 +34409,8 @@
     "state/research/exits_stops/summary.json",
     "state/research/exits_stops_run.log",
     "state/research/gaprisk/summary.json",
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/pattern_fail/summary.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
@@ -33721,7 +34430,7 @@
     "tests/integration/test_session_replay_pipeline.py::test_no_snapshots_means_no_trades_and_flat_equity",
     "tests/integration/test_session_replay_pipeline.py::test_replay_trades_only_listed_tickers_within_the_cash_budget",
     "tests/test_adapter.py::test_result_does_not_depend_on_the_interpreters_hash_seed",
-    "tests/test_session.py::test_no_snapshots_means_no_trades"
+    "tests/test_fv_pipeline.py::test_too_short_history_trades_nothing_and_every_report_survives"
    ],
    "tests": [
     "tests/integration/pipeline_world.py",
@@ -33731,6 +34440,7 @@
     "tests/test_antimemo_archive.py",
     "tests/test_basis_search.py",
     "tests/test_exits.py",
+    "tests/test_fv_pipeline.py",
     "tests/test_missed_winners.py",
     "tests/test_repro.py",
     "tests/test_session.py",
@@ -33783,6 +34493,9 @@
     }
    ],
    "evidence": [
+    "state/research/analogs_ext/market_ablation.csv",
+    "state/research/analogs_ext/sector_ablation_by_sector.csv",
+    "state/research/analogs_ext/stock_own-history_ablation.csv",
     "state/research/antioverfit/real_v1.log",
     "state/research/antioverfit/real_v1/results.json",
     "state/research/antioverfit/real_v1/summary.txt",
@@ -33863,6 +34576,10 @@
     }
    ],
    "evidence": [
+    "state/research/analogs_ext/market_ablation.csv",
+    "state/research/analogs_ext/results.json",
+    "state/research/analogs_ext/sector_ablation_by_sector.csv",
+    "state/research/analogs_ext/stock_own-history_ablation.csv",
     "state/research/antioverfit/real_v1/results.json",
     "state/research/backtest_summary.json",
     "state/research/direction/ablation.csv",
@@ -33924,6 +34641,19 @@
      ]
     },
     {
+     "module": "engine/fv_pipeline.py",
+     "phase_linked": false,
+     "score": 1.0,
+     "symbols": [
+      "price_features",
+      "rank_features"
+     ],
+     "terms": [
+      "baselin",
+      "featur"
+     ]
+    },
+    {
      "module": "engine/live.py",
      "phase_linked": false,
      "score": 1.0,
@@ -33934,22 +34664,13 @@
       "baselin",
       "featur"
      ]
-    },
-    {
-     "module": "engine/antioverfit.py",
-     "phase_linked": true,
-     "score": 0.5,
-     "symbols": [
-      "dead_feature_injection",
-      "duplicate_feature_injection",
-      "feature_cols"
-     ],
-     "terms": [
-      "featur"
-     ]
     }
    ],
    "evidence": [
+    "state/research/analogs_ext/market_ablation.csv",
+    "state/research/analogs_ext/results.json",
+    "state/research/analogs_ext/sector_ablation_by_sector.csv",
+    "state/research/analogs_ext/stock_own-history_ablation.csv",
     "state/research/antioverfit/real_v1/results.json",
     "state/research/direction/ablation.csv",
     "state/research/memory_adapter/memory_factor_ablation.csv"
@@ -33974,6 +34695,7 @@
    "tests": [
     "tests/test_ablation.py",
     "tests/test_analogs_ext.py",
+    "tests/test_fv_pipeline.py",
     "tests/test_live_safety.py",
     "tests/test_parity_suite.py"
    ],
@@ -34036,8 +34758,12 @@
     }
    ],
    "evidence": [
+    "state/research/analogs_ext/market_ablation.csv",
+    "state/research/analogs_ext/sector_ablation_by_sector.csv",
+    "state/research/analogs_ext/stock_own-history_ablation.csv",
     "state/research/antioverfit/real_v1/results.json",
     "state/research/direction/ablation.csv",
+    "state/research/lessons/archive_v1.json",
     "state/research/memory_adapter/memory_factor_ablation.csv",
     "state/research/memory_adapter/missed_winners_summary.txt",
     "state/research/memory_adapter/results.json",
@@ -34114,6 +34840,9 @@
     }
    ],
    "evidence": [
+    "state/research/analogs_ext/market_ablation.csv",
+    "state/research/analogs_ext/sector_ablation_by_sector.csv",
+    "state/research/analogs_ext/stock_own-history_ablation.csv",
     "state/research/antioverfit/real_v1.log",
     "state/research/antioverfit/real_v1/results.json",
     "state/research/antioverfit/real_v1/summary.txt",
@@ -34207,6 +34936,10 @@
     }
    ],
    "evidence": [
+    "state/research/analogs_ext/market_ablation.csv",
+    "state/research/analogs_ext/results.json",
+    "state/research/analogs_ext/sector_ablation_by_sector.csv",
+    "state/research/analogs_ext/stock_own-history_ablation.csv",
     "state/research/antioverfit/real_v1.log",
     "state/research/antioverfit/real_v1/results.json",
     "state/research/antioverfit/real_v1/summary.txt",
@@ -34315,12 +35048,12 @@
      ]
     },
     {
-     "module": "engine/missed_winners.py",
+     "module": "engine/fv_pipeline.py",
      "phase_linked": false,
      "score": 0.67,
      "symbols": [
-      "_scramble_returns",
-      "check_feature_pit"
+      "price_features",
+      "rank_features"
      ],
      "terms": [
       "futur",
@@ -34330,6 +35063,9 @@
     }
    ],
    "evidence": [
+    "state/research/analogs_ext/market_ablation.csv",
+    "state/research/analogs_ext/sector_ablation_by_sector.csv",
+    "state/research/analogs_ext/stock_own-history_ablation.csv",
     "state/research/antioverfit/real_v1/results.json",
     "state/research/direction/ablation.csv",
     "state/research/memory_adapter/memory_factor_ablation.csv"
@@ -34467,6 +35203,7 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json",
     "state/research/tuning/cfg_CHAMPION_v1.2.json",
@@ -34549,6 +35286,8 @@
    ],
    "evidence": [
     "state/research/data_live_safety/registry_candidates.csv",
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/miner_coverage/coverage.json",
     "state/research/pattern_bank/run_v3.json",
     "state/research/pattern_fail/summary.json",
@@ -34741,6 +35480,7 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_v1.json",
     "state/research/parity/latest.json",
     "state/research/parity/parity_20260929T040227Z.json",
     "state/research/pit/pit_audit.json",
@@ -35013,6 +35753,7 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json",
     "state/research/timeline_basis/report_seed1.json"
@@ -35112,6 +35853,7 @@
     "state/research/gaprisk/loss_cap_model_calibration.csv",
     "state/research/gaprisk/loss_cap_policies_by_era.csv",
     "state/research/gaprisk/summary.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json",
     "state/research/timeline_basis/report_seed0.json",
@@ -35178,6 +35920,7 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json",
     "state/research/timeline_basis/report_seed1.json"
@@ -35239,6 +35982,7 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json",
     "state/research/timeline_basis/report_seed1.json"
@@ -35300,6 +36044,7 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json",
     "state/research/timeline_basis/report_seed1.json"
@@ -35378,6 +36123,7 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json",
     "state/research/timeline_basis/report_seed1.json"
@@ -35439,6 +36185,7 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json",
     "state/research/timeline_basis/report_seed1.json"
@@ -35578,6 +36325,7 @@
     "state/research/exits_stops/summary.json",
     "state/research/exits_stops_run.log",
     "state/research/gaprisk/summary.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/pattern_fail/summary.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json",
@@ -35709,6 +36457,7 @@
    ],
    "tests": [
     "tests/test_exits.py",
+    "tests/test_fv_pipeline.py",
     "tests/test_stops.py"
    ],
    "text": "TIER 2: costs",
@@ -35777,6 +36526,7 @@
     "state/research/exits_stops/summary.json",
     "state/research/exits_stops_run.log",
     "state/research/gaprisk/summary.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/pattern_fail/summary.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json",
@@ -35800,6 +36550,7 @@
    "tests": [
     "tests/test_basis_search.py",
     "tests/test_exits.py",
+    "tests/test_fv_pipeline.py",
     "tests/test_livesim_loop2.py",
     "tests/test_objective.py",
     "tests/test_run_report.py",
@@ -36413,6 +37164,9 @@
     }
    ],
    "evidence": [
+    "state/research/analogs_ext/results.json",
+    "state/research/analogs_ext/sector_ablation_by_sector.csv",
+    "state/research/analogs_ext/sector_weighted_skill_by_decade.csv",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json",
     "state/research/timeline_basis/report_seed0.json",
@@ -36564,7 +37318,10 @@
    ],
    "evidence": [
     "state/research/data_live_safety/registry_candidates.csv",
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/lessons/archive_v1.log",
+    "state/research/lessons/archive_v1.md",
     "state/research/lessons/real_v1.json",
     "state/research/lessons/real_v1.log",
     "state/research/lessons/real_v1.md",
@@ -36574,7 +37331,9 @@
     "state/research/lessons/real_v3.json",
     "state/research/lessons/real_v3.log",
     "state/research/lessons/real_v3.md",
+    "state/research/lessons/real_v4_1y.json",
     "state/research/lessons/real_v4_1y.log",
+    "state/research/lessons/real_v4_1y.md",
     "state/research/memory_adapter/by_era.csv",
     "state/research/memory_adapter/by_year.csv",
     "state/research/memory_adapter/calibration_corrected.csv",
@@ -36660,6 +37419,7 @@
    "evidence": [
     "state/research/blind_gates/report.md",
     "state/research/blind_gates/results.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
    ],
@@ -36844,6 +37604,8 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json",
     "state/research/timeline_basis/report_seed1.json"
@@ -36893,6 +37655,8 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
    ],
@@ -36967,6 +37731,8 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
    ],
@@ -37095,6 +37861,7 @@
    ],
    "evidence": [
     "state/research/data_live_safety/report.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/parity/latest.json",
     "state/research/parity/parity_20260929T040227Z.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
@@ -37107,10 +37874,19 @@
    "label": "",
    "needs_real_data": true,
    "notes": [],
-   "pass_lines": [],
+   "pass_lines": [
+    {
+     "line": "control.parity_ok = True",
+     "path": "state/research/lessons/archive_v1.json"
+    },
+    {
+     "line": "lessons.parity_ok = True",
+     "path": "state/research/lessons/archive_v1.json"
+    }
+   ],
    "phase": 36,
    "section": "GATES",
-   "state": "[?]",
+   "state": "[x]",
    "test_functions": [
     "tests/test_data_sources.py::test_parity_detects_single_changed_value",
     "tests/test_parity_suite.py::test_analog_find_parity_catches_an_engine_that_saw_the_future"
@@ -37123,7 +37899,7 @@
     "tests/test_parity_suite.py"
    ],
    "text": "GATES: parity",
-   "why": "evidence files exist but none says PASS about this requirement"
+   "why": "code engine/data_sources.py, test tests/test_data_sources.py::test_parity_detects_single_changed_value, cited state/research/lessons/archive_v1.json"
   },
   {
    "bible_claim": "",
@@ -37259,6 +38035,7 @@
     "state/research/antioverfit/real_v1/summary.txt",
     "state/research/blind_gates/report.md",
     "state/research/blind_gates/results.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/pit/pit_audit.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
@@ -37344,6 +38121,8 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/pit/pit_audit.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
@@ -37422,7 +38201,8 @@
     }
    ],
    "evidence": [
-    "state/research/blind_gates/results.json"
+    "state/research/blind_gates/results.json",
+    "state/research/lessons/archive_v1.json"
    ],
    "fail_lines": [],
    "failing_tests": [],
@@ -37718,11 +38498,11 @@
     "n": 22
    },
    "evidence": [
+    "state/research/analogs_ext/pooled_stock_analog_rank_ic_by_half-decade.csv",
+    "state/research/analogs_ext/results.json",
     "state/research/blind_gates/results.json",
     "state/research/data_live_safety/registry_candidates.csv",
-    "state/research/direction/ablation.csv",
-    "state/research/exits_stops/exit_cost_sensitivity.csv",
-    "state/research/gaprisk/coverage_by_era.csv"
+    "state/research/direction/ablation.csv"
    ],
    "fail_lines": [],
    "failing_tests": [],
@@ -37777,8 +38557,8 @@
    },
    "evidence": [
     "state/research/algorithm/patterns_2017-01-01_v1.parquet",
+    "state/research/analogs_ext/results.json",
     "state/research/antioverfit/real_v1.log",
-    "state/research/data_live_safety/registry_candidates.csv",
     "state/research/data_live_safety/report.json",
     "state/research/exits_stops/exit_cost_sensitivity.csv"
    ],
@@ -37880,6 +38660,7 @@
    "state": "[?]",
    "test_functions": [],
    "tests": [
+    "tests/test_fv_pipeline.py",
     "tests/test_heavy_tests.py"
    ],
    "text": "ALGORITHM: Pattern scores → Find Volatility",
@@ -37908,8 +38689,8 @@
     "n": 7
    },
    "evidence": [
+    "state/research/analogs_ext/results.json",
     "state/research/antioverfit/real_v1.log",
-    "state/research/antioverfit/real_v1/results.json",
     "state/research/data_live_safety/report.json"
    ],
    "fail_lines": [],
@@ -37968,10 +38749,10 @@
    ],
    "derived": {
     "counts": {
-     "[ ]": 6,
+     "[ ]": 5,
      "[!]": 1,
      "[?]": 1,
-     "[x]": 9,
+     "[x]": 10,
      "[~]": 3
     },
     "n": 20
@@ -37980,8 +38761,8 @@
     "state/research/algorithm/patterns_2017-01-01_v1.parquet",
     "state/research/blind_gates/report.md",
     "state/research/data_live_safety/registry_candidates.csv",
-    "state/research/lessons/real_v1.json",
-    "state/research/memory_adapter/by_era.csv"
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json"
    ],
    "fail_lines": [
     {
@@ -38008,7 +38789,7 @@
     "tests/test_basis_search.py"
    ],
    "text": "ALGORITHM: Self-tuning Algorithm",
-   "why": "derived from 20 requirements: 6 [ ], 3 [~], 1 [?], 9 [x], 1 [!]"
+   "why": "derived from 20 requirements: 5 [ ], 3 [~], 1 [?], 10 [x], 1 [!]"
   },
   {
    "bible_claim": "[x/~]",
@@ -38040,17 +38821,18 @@
     "counts": {
      "[ ]": 0,
      "[!]": 0,
-     "[?]": 0,
+     "[?]": 1,
      "[x]": 19,
-     "[~]": 21
+     "[~]": 20
     },
     "n": 40
    },
    "evidence": [
-    "state/research/analogs_ext/ledger.parquet",
+    "state/research/analogs_ext/fingerprint_coverage.csv",
+    "state/research/analogs_ext/pooled_stock_analog_rank_ic_by_half-decade.csv",
+    "state/research/analogs_ext/results.json",
     "state/research/parity/latest.json",
-    "state/research/pit/pit_audit.json",
-    "state/research/timeline_basis/basis_offline_seed0.json"
+    "state/research/pit/pit_audit.json"
    ],
    "fail_lines": [],
    "failing_tests": [],
@@ -38074,7 +38856,7 @@
     "tests/test_pit.py"
    ],
    "text": "ALGORITHM: Market analog engine",
-   "why": "derived from 40 requirements: 21 [~], 19 [x]"
+   "why": "derived from 40 requirements: 20 [~], 1 [?], 19 [x]"
   },
   {
    "bible_claim": "[ ]",
@@ -38099,7 +38881,7 @@
     "n": 1
    },
    "evidence": [
-    "state/research/analogs_ext/ledger.parquet"
+    "state/research/analogs_ext/fingerprint_coverage.csv"
    ],
    "fail_lines": [],
    "failing_tests": [],
@@ -38143,7 +38925,9 @@
     },
     "n": 1
    },
-   "evidence": [],
+   "evidence": [
+    "state/research/analogs_ext/pooled_stock_analog_rank_ic_by_half-decade.csv"
+   ],
    "fail_lines": [],
    "failing_tests": [],
    "id": "38.ALGORITHM.11",
@@ -38187,8 +38971,9 @@
     "n": 12
    },
    "evidence": [
+    "state/research/analogs_ext/pooled_stock_analog_rank_ic_by_half-decade.csv",
     "state/research/antioverfit/real_v1.log",
-    "state/research/lessons/real_v1.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/pit/pit_audit.json",
     "state/research/timeline_basis/basis_offline_seed0.json"
    ],
@@ -38253,19 +39038,19 @@
    "derived": {
     "counts": {
      "[ ]": 3,
-     "[!]": 3,
+     "[!]": 2,
      "[?]": 3,
-     "[x]": 16,
+     "[x]": 17,
      "[~]": 15
     },
     "n": 40
    },
    "evidence": [
     "state/research/algorithm/patterns_2017-01-01_v1.parquet",
+    "state/research/analogs_ext/market_ablation.csv",
+    "state/research/analogs_ext/results.json",
     "state/research/antioverfit/real_v1.log",
-    "state/research/antioverfit/real_v1/results.json",
-    "state/research/blind_gates/report.md",
-    "state/research/data_live_safety/registry_candidates.csv"
+    "state/research/blind_gates/report.md"
    ],
    "fail_lines": [
     {
@@ -38274,7 +39059,6 @@
     }
    ],
    "failing_tests": [
-    "tests/test_antimemo.py::test_ticker_keyed_memory_is_attributed_to_names_not_dates",
     "tests/test_candidates.py::test_generator_reserves_budget_for_context_pairs_and_random_pairs"
    ],
    "id": "38.ALGORITHM.13",
@@ -38308,7 +39092,7 @@
     "tests/test_antimemo.py"
    ],
    "text": "ALGORITHM: Lesson memory",
-   "why": "derived from 40 requirements: 3 [ ], 15 [~], 3 [?], 16 [x], 3 [!]"
+   "why": "derived from 40 requirements: 3 [ ], 15 [~], 3 [?], 17 [x], 2 [!]"
   },
   {
    "bible_claim": "[ ]",
@@ -38342,8 +39126,8 @@
    "evidence": [
     "state/research/blind_gates/report.md",
     "state/research/data_live_safety/registry_candidates.csv",
-    "state/research/lessons/archive_v1.log",
-    "state/research/lessons/real_v1.json"
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json"
    ],
    "fail_lines": [
     {
@@ -38453,8 +39237,8 @@
     "n": 7
    },
    "evidence": [
+    "state/research/analogs_ext/results.json",
     "state/research/antioverfit/real_v1.log",
-    "state/research/antioverfit/real_v1/results.json",
     "state/research/data_live_safety/report.json"
    ],
    "fail_lines": [],
@@ -38593,10 +39377,10 @@
    },
    "evidence": [
     "state/research/algorithm/planted/report.md",
-    "state/research/analogs_ext/ledger.parquet",
+    "state/research/analogs_ext/fingerprint_coverage.csv",
+    "state/research/analogs_ext/results.json",
     "state/research/direction/ablation.csv",
-    "state/research/direction/summary.json",
-    "state/research/heavy_algo_real_run.log"
+    "state/research/direction/summary.json"
    ],
    "fail_lines": [
     {
@@ -38620,7 +39404,7 @@
     "tests/test_analogs_ext.py",
     "tests/test_bible_trace.py",
     "tests/test_direction.py",
-    "tests/test_heavy_tests.py"
+    "tests/test_fv_pipeline.py"
    ],
    "text": "FIND VOLATILITY: 95% mover target where sufficient candidates exist",
    "why": "derived from 21 requirements: 6 [~], 1 [?], 13 [x], 1 [!]"
@@ -38663,10 +39447,10 @@
    },
    "evidence": [
     "state/research/algorithm/planted/report.md",
-    "state/research/analogs_ext/ledger.parquet",
+    "state/research/analogs_ext/fingerprint_coverage.csv",
+    "state/research/analogs_ext/results.json",
     "state/research/direction/ablation.csv",
-    "state/research/direction/summary.json",
-    "state/research/memory_adapter/missed_winners_summary.txt"
+    "state/research/direction/summary.json"
    ],
    "fail_lines": [
     {
@@ -38731,9 +39515,9 @@
     "n": 11
    },
    "evidence": [
+    "state/research/analogs_ext/results.json",
     "state/research/antioverfit/real_v1.log",
     "state/research/blind_gates/results.json",
-    "state/research/direction/ablation.csv",
     "state/research/direction/summary.json"
    ],
    "fail_lines": [],
@@ -38788,6 +39572,7 @@
     "n": 8
    },
    "evidence": [
+    "state/research/analogs_ext/results.json",
     "state/research/blind_gates/results.json",
     "state/research/exits_stops/exit_cost_sensitivity.csv"
    ],
@@ -38907,11 +39692,11 @@
     "n": 31
    },
    "evidence": [
+    "state/research/analogs_ext/pooled_stock_analog_rank_ic_by_half-decade.csv",
+    "state/research/analogs_ext/results.json",
     "state/research/blind_gates/results.json",
     "state/research/data_live_safety/registry_candidates.csv",
-    "state/research/direction/ablation.csv",
-    "state/research/exits_stops/exit_cost_sensitivity.csv",
-    "state/research/gaprisk/coverage_by_era.csv"
+    "state/research/direction/ablation.csv"
    ],
    "fail_lines": [
     {
@@ -39077,7 +39862,7 @@
    },
    "evidence": [
     "state/research/exits_stops/exit_cost_sensitivity.csv",
-    "state/research/timeline_basis/basis_offline_seed0.json"
+    "state/research/lessons/archive_v1.json"
    ],
    "fail_lines": [
     {
@@ -39149,11 +39934,11 @@
     "n": 21
    },
    "evidence": [
+    "state/research/analogs_ext/pooled_stock_analog_rank_ic_by_half-decade.csv",
+    "state/research/analogs_ext/results.json",
     "state/research/exits_stops/exit_cost_sensitivity.csv",
-    "state/research/lessons/real_v1.json",
-    "state/research/memory_adapter/by_era.csv",
-    "state/research/memory_adapter/missed_winners_summary.txt",
-    "state/research/memory_adapter/results.json"
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json"
    ],
    "fail_lines": [
     {
@@ -39217,9 +40002,10 @@
     "n": 6
    },
    "evidence": [
+    "state/research/analogs_ext/results.json",
     "state/research/blind_gates/report.md",
     "state/research/data_live_safety/report.json",
-    "state/research/lessons/archive_v1.log",
+    "state/research/lessons/archive_adaptive12.log",
     "state/research/pit/pit_audit.json"
    ],
    "fail_lines": [],
@@ -39267,8 +40053,8 @@
     "n": 7
    },
    "evidence": [
+    "state/research/analogs_ext/results.json",
     "state/research/antioverfit/real_v1.log",
-    "state/research/antioverfit/real_v1/results.json",
     "state/research/data_live_safety/report.json"
    ],
    "fail_lines": [],
@@ -39439,7 +40225,7 @@
     "n": 7
    },
    "evidence": [
-    "state/research/antioverfit/real_v1/results.json",
+    "state/research/analogs_ext/market_ablation.csv",
     "state/research/blind_gates/report.md",
     "state/research/blind_gates/results.json"
    ],
@@ -39508,8 +40294,8 @@
     "n": 6
    },
    "evidence": [
+    "state/research/analogs_ext/market_ablation.csv",
     "state/research/antioverfit/real_v1.log",
-    "state/research/antioverfit/real_v1/results.json",
     "state/research/blind_gates/report.md",
     "state/research/pit/pit_audit.json"
    ],
@@ -39544,7 +40330,7 @@
     "tests/test_ablation.py",
     "tests/test_adapter.py",
     "tests/test_blind_gates.py",
-    "tests/test_pit.py"
+    "tests/test_fv_pipeline.py"
    ],
    "text": "TEST: Future scramble",
    "why": "derived from 6 requirements: 1 [~], 5 [x]"
@@ -39631,7 +40417,7 @@
    "evidence": [
     "state/research/blind_gates/report.md",
     "state/research/blind_gates/results.json",
-    "state/research/timeline_basis/basis_offline_seed0.json"
+    "state/research/lessons/archive_adaptive12.log"
    ],
    "fail_lines": [],
    "failing_tests": [],
@@ -39694,7 +40480,8 @@
     "n": 7
    },
    "evidence": [
-    "state/research/antioverfit/real_v1.log",
+    "state/research/analogs_ext/market_ablation.csv",
+    "state/research/analogs_ext/results.json",
     "state/research/antioverfit/real_v1/results.json"
    ],
    "fail_lines": [],
@@ -40026,6 +40813,7 @@
    },
    "evidence": [
     "state/research/data_live_safety/report.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json"
    ],
    "fail_lines": [],
@@ -40087,6 +40875,7 @@
    },
    "evidence": [
     "state/research/data_live_safety/report.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json"
    ],
    "fail_lines": [],
@@ -40148,6 +40937,7 @@
    },
    "evidence": [
     "state/research/data_live_safety/report.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json"
    ],
    "fail_lines": [],
@@ -40209,6 +40999,7 @@
    },
    "evidence": [
     "state/research/data_live_safety/report.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json"
    ],
    "fail_lines": [],
@@ -40270,6 +41061,7 @@
    },
    "evidence": [
     "state/research/data_live_safety/report.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json"
    ],
    "fail_lines": [],
@@ -40321,10 +41113,10 @@
    ],
    "derived": {
     "counts": {
-     "[ ]": 37,
-     "[!]": 29,
+     "[ ]": 36,
+     "[!]": 28,
      "[?]": 35,
-     "[x]": 216,
+     "[x]": 218,
      "[~]": 212
     },
     "n": 529
@@ -40332,9 +41124,9 @@
    "evidence": [
     "state/research/algorithm/patterns_2017-01-01_v1.parquet",
     "state/research/algorithm/planted/report.md",
-    "state/research/analogs_ext/ledger.parquet",
-    "state/research/antioverfit/real_v1.log",
-    "state/research/antioverfit/real_v1/results.json"
+    "state/research/analogs_ext/fingerprint_coverage.csv",
+    "state/research/analogs_ext/market_ablation.csv",
+    "state/research/analogs_ext/pooled_stock_analog_rank_ic_by_half-decade.csv"
    ],
    "fail_lines": [
     {
@@ -40353,7 +41145,7 @@
    "failing_tests": [
     "tests/test_candidates.py::test_generator_reserves_budget_for_context_pairs_and_random_pairs",
     "tests/test_candidates.py::test_generator_reserves_budget_for_context_pairs_and_random_pairs",
-    "tests/test_antimemo.py::test_ticker_keyed_memory_is_attributed_to_names_not_dates"
+    "tests/test_candidates.py::test_generator_reserves_budget_for_context_pairs_and_random_pairs"
    ],
    "id": "39.0.1",
    "kind": "checkbox",
@@ -40386,7 +41178,7 @@
     "tests/test_analogs_ext.py"
    ],
    "text": "every required module exists",
-   "why": "derived from 529 requirements: 37 [ ], 212 [~], 35 [?], 216 [x], 29 [!]"
+   "why": "derived from 529 requirements: 36 [ ], 212 [~], 35 [?], 218 [x], 28 [!]"
   },
   {
    "bible_claim": "[ ]",
@@ -40416,10 +41208,10 @@
    ],
    "derived": {
     "counts": {
-     "[ ]": 37,
-     "[!]": 29,
+     "[ ]": 36,
+     "[!]": 28,
      "[?]": 35,
-     "[x]": 216,
+     "[x]": 218,
      "[~]": 212
     },
     "n": 529
@@ -40427,9 +41219,9 @@
    "evidence": [
     "state/research/algorithm/patterns_2017-01-01_v1.parquet",
     "state/research/algorithm/planted/report.md",
-    "state/research/analogs_ext/ledger.parquet",
-    "state/research/antioverfit/real_v1.log",
-    "state/research/antioverfit/real_v1/results.json"
+    "state/research/analogs_ext/fingerprint_coverage.csv",
+    "state/research/analogs_ext/market_ablation.csv",
+    "state/research/analogs_ext/pooled_stock_analog_rank_ic_by_half-decade.csv"
    ],
    "fail_lines": [
     {
@@ -40448,7 +41240,7 @@
    "failing_tests": [
     "tests/test_candidates.py::test_generator_reserves_budget_for_context_pairs_and_random_pairs",
     "tests/test_candidates.py::test_generator_reserves_budget_for_context_pairs_and_random_pairs",
-    "tests/test_antimemo.py::test_ticker_keyed_memory_is_attributed_to_names_not_dates"
+    "tests/test_candidates.py::test_generator_reserves_budget_for_context_pairs_and_random_pairs"
    ],
    "id": "39.0.2",
    "kind": "checkbox",
@@ -40481,7 +41273,7 @@
     "tests/test_analogs_ext.py"
    ],
    "text": "every required module is tested",
-   "why": "derived from 529 requirements: 37 [ ], 212 [~], 35 [?], 216 [x], 29 [!]"
+   "why": "derived from 529 requirements: 36 [ ], 212 [~], 35 [?], 218 [x], 28 [!]"
   },
   {
    "bible_claim": "[ ]",
@@ -40506,8 +41298,8 @@
     "n": 7
    },
    "evidence": [
+    "state/research/analogs_ext/results.json",
     "state/research/antioverfit/real_v1.log",
-    "state/research/antioverfit/real_v1/results.json",
     "state/research/data_live_safety/report.json"
    ],
    "fail_lines": [],
@@ -40575,11 +41367,11 @@
     "n": 16
    },
    "evidence": [
+    "state/research/analogs_ext/market_ablation.csv",
+    "state/research/analogs_ext/results.json",
     "state/research/antioverfit/real_v1.log",
     "state/research/blind_gates/report.md",
-    "state/research/data_live_safety/report.json",
-    "state/research/lessons/archive_v1.log",
-    "state/research/pit/pit_audit.json"
+    "state/research/data_live_safety/report.json"
    ],
    "fail_lines": [],
    "failing_tests": [],
@@ -40690,7 +41482,7 @@
     "n": 7
    },
    "evidence": [
-    "state/research/antioverfit/real_v1/results.json",
+    "state/research/analogs_ext/market_ablation.csv",
     "state/research/blind_gates/report.md",
     "state/research/blind_gates/results.json"
    ],
@@ -40761,8 +41553,8 @@
    "evidence": [
     "state/research/antioverfit/real_v1.log",
     "state/research/data_live_safety/report.json",
-    "state/research/parity/latest.json",
-    "state/research/timeline_basis/basis_offline_seed0.json"
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/parity/latest.json"
    ],
    "fail_lines": [],
    "failing_tests": [],
@@ -40822,8 +41614,8 @@
     "n": 6
    },
    "evidence": [
+    "state/research/analogs_ext/market_ablation.csv",
     "state/research/antioverfit/real_v1.log",
-    "state/research/antioverfit/real_v1/results.json",
     "state/research/blind_gates/report.md",
     "state/research/pit/pit_audit.json"
    ],
@@ -40858,7 +41650,7 @@
     "tests/test_ablation.py",
     "tests/test_adapter.py",
     "tests/test_blind_gates.py",
-    "tests/test_pit.py"
+    "tests/test_fv_pipeline.py"
    ],
    "text": "future scramble works",
    "why": "derived from 6 requirements: 1 [~], 5 [x]"
@@ -40945,7 +41737,7 @@
    "evidence": [
     "state/research/blind_gates/report.md",
     "state/research/blind_gates/results.json",
-    "state/research/timeline_basis/basis_offline_seed0.json"
+    "state/research/lessons/archive_adaptive12.log"
    ],
    "fail_lines": [],
    "failing_tests": [],
@@ -41008,7 +41800,8 @@
     "n": 7
    },
    "evidence": [
-    "state/research/antioverfit/real_v1.log",
+    "state/research/analogs_ext/market_ablation.csv",
+    "state/research/analogs_ext/results.json",
     "state/research/antioverfit/real_v1/results.json"
    ],
    "fail_lines": [],
@@ -41244,17 +42037,18 @@
     "counts": {
      "[ ]": 0,
      "[!]": 0,
-     "[?]": 0,
+     "[?]": 1,
      "[x]": 19,
-     "[~]": 21
+     "[~]": 20
     },
     "n": 40
    },
    "evidence": [
-    "state/research/analogs_ext/ledger.parquet",
+    "state/research/analogs_ext/fingerprint_coverage.csv",
+    "state/research/analogs_ext/pooled_stock_analog_rank_ic_by_half-decade.csv",
+    "state/research/analogs_ext/results.json",
     "state/research/parity/latest.json",
-    "state/research/pit/pit_audit.json",
-    "state/research/timeline_basis/basis_offline_seed0.json"
+    "state/research/pit/pit_audit.json"
    ],
    "fail_lines": [],
    "failing_tests": [],
@@ -41276,7 +42070,7 @@
     "tests/test_pit.py"
    ],
    "text": "analog engine works",
-   "why": "derived from 40 requirements: 21 [~], 19 [x]"
+   "why": "derived from 40 requirements: 20 [~], 1 [?], 19 [x]"
   },
   {
    "bible_claim": "[ ]",
@@ -41307,9 +42101,9 @@
    "derived": {
     "counts": {
      "[ ]": 1,
-     "[!]": 1,
+     "[!]": 0,
      "[?]": 3,
-     "[x]": 9,
+     "[x]": 10,
      "[~]": 12
     },
     "n": 26
@@ -41318,13 +42112,11 @@
     "state/research/algorithm/patterns_2017-01-01_v1.parquet",
     "state/research/antioverfit/real_v1.log",
     "state/research/blind_gates/report.md",
-    "state/research/lessons/archive_v1.log",
+    "state/research/lessons/archive_adaptive12.log",
     "state/research/memory_adapter/by_era.csv"
    ],
    "fail_lines": [],
-   "failing_tests": [
-    "tests/test_antimemo.py::test_ticker_keyed_memory_is_attributed_to_names_not_dates"
-   ],
+   "failing_tests": [],
    "id": "39.0.16",
    "kind": "checkbox",
    "label": "",
@@ -41350,7 +42142,7 @@
     "tests/test_adapter.py"
    ],
    "text": "memory works",
-   "why": "derived from 26 requirements: 1 [ ], 12 [~], 3 [?], 9 [x], 1 [!]"
+   "why": "derived from 26 requirements: 1 [ ], 12 [~], 3 [?], 10 [x]"
   },
   {
    "bible_claim": "[ ]",
@@ -41389,10 +42181,10 @@
     "n": 14
    },
    "evidence": [
+    "state/research/analogs_ext/market_ablation.csv",
+    "state/research/analogs_ext/results.json",
     "state/research/antioverfit/real_v1.log",
-    "state/research/antioverfit/real_v1/results.json",
     "state/research/blind_gates/report.md",
-    "state/research/data_live_safety/registry_candidates.csv",
     "state/research/exits_stops/exit_cost_sensitivity.csv"
    ],
    "fail_lines": [
@@ -41465,8 +42257,8 @@
    "evidence": [
     "state/research/blind_gates/report.md",
     "state/research/data_live_safety/registry_candidates.csv",
-    "state/research/lessons/archive_v1.log",
-    "state/research/lessons/real_v1.json"
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json"
    ],
    "fail_lines": [
     {
@@ -41534,10 +42326,10 @@
    },
    "evidence": [
     "state/research/algorithm/planted/report.md",
-    "state/research/analogs_ext/ledger.parquet",
+    "state/research/analogs_ext/fingerprint_coverage.csv",
+    "state/research/analogs_ext/results.json",
     "state/research/direction/ablation.csv",
-    "state/research/direction/summary.json",
-    "state/research/memory_adapter/missed_winners_summary.txt"
+    "state/research/direction/summary.json"
    ],
    "fail_lines": [
     {
@@ -41595,6 +42387,7 @@
     "n": 8
    },
    "evidence": [
+    "state/research/analogs_ext/results.json",
     "state/research/blind_gates/results.json",
     "state/research/exits_stops/exit_cost_sensitivity.csv"
    ],
@@ -41714,9 +42507,9 @@
     "n": 11
    },
    "evidence": [
+    "state/research/analogs_ext/results.json",
     "state/research/antioverfit/real_v1.log",
     "state/research/blind_gates/results.json",
-    "state/research/direction/ablation.csv",
     "state/research/direction/summary.json"
    ],
    "fail_lines": [],
@@ -41764,8 +42557,9 @@
     "n": 12
    },
    "evidence": [
+    "state/research/analogs_ext/pooled_stock_analog_rank_ic_by_half-decade.csv",
     "state/research/antioverfit/real_v1.log",
-    "state/research/lessons/real_v1.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/pit/pit_audit.json",
     "state/research/timeline_basis/basis_offline_seed0.json"
    ],
@@ -41829,10 +42623,10 @@
    ],
    "derived": {
     "counts": {
-     "[ ]": 6,
+     "[ ]": 5,
      "[!]": 1,
      "[?]": 1,
-     "[x]": 9,
+     "[x]": 10,
      "[~]": 3
     },
     "n": 20
@@ -41841,8 +42635,8 @@
     "state/research/algorithm/patterns_2017-01-01_v1.parquet",
     "state/research/blind_gates/report.md",
     "state/research/data_live_safety/registry_candidates.csv",
-    "state/research/lessons/real_v1.json",
-    "state/research/memory_adapter/by_era.csv"
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json"
    ],
    "fail_lines": [
     {
@@ -41869,7 +42663,7 @@
     "tests/test_basis_search.py"
    ],
    "text": "outer training-basis loop works",
-   "why": "derived from 20 requirements: 6 [ ], 3 [~], 1 [?], 9 [x], 1 [!]"
+   "why": "derived from 20 requirements: 5 [ ], 3 [~], 1 [?], 10 [x], 1 [!]"
   },
   {
    "bible_claim": "[ ]",
@@ -41978,11 +42772,11 @@
     "n": 29
    },
    "evidence": [
+    "state/research/analogs_ext/pooled_stock_analog_rank_ic_by_half-decade.csv",
+    "state/research/analogs_ext/results.json",
     "state/research/antioverfit/real_v1/results.json",
-    "state/research/backtest_summary.json",
     "state/research/data_live_safety/registry_candidates.csv",
-    "state/research/exits_stops/exit_cost_sensitivity.csv",
-    "state/research/lessons/real_v1.json"
+    "state/research/exits_stops/exit_cost_sensitivity.csv"
    ],
    "fail_lines": [
     {
@@ -42220,11 +43014,11 @@
     "n": 19
    },
    "evidence": [
-    "state/research/backtest_summary.json",
+    "state/research/analogs_ext/pooled_stock_analog_rank_ic_by_half-decade.csv",
+    "state/research/analogs_ext/results.json",
     "state/research/data_live_safety/registry_candidates.csv",
-    "state/research/pit/pit_audit.json",
-    "state/research/timeline_basis/basis_offline_seed0.json",
-    "state/research/tuning/cfg_CHAMPION_v1.2.json"
+    "state/research/lessons/archive_v1.json",
+    "state/research/pit/pit_audit.json"
    ],
    "fail_lines": [
     {
@@ -42291,8 +43085,8 @@
    },
    "evidence": [
     "state/research/data_live_safety/registry_candidates.csv",
+    "state/research/lessons/archive_v1.json",
     "state/research/miner_coverage/coverage.json",
-    "state/research/parity/latest.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/tuning/cfg_CHAMPION_v1.2.json"
    ],
@@ -42452,6 +43246,7 @@
     "state/research/antioverfit/real_v1.log",
     "state/research/antioverfit/real_v1/results.json",
     "state/research/antioverfit/real_v1/summary.txt",
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json",
     "state/research/timeline_basis/report_seed1.json"
@@ -42599,6 +43394,7 @@
    "tests": [
     "tests/test_direction_ablate.py",
     "tests/test_exits.py",
+    "tests/test_fv_pipeline.py",
     "tests/test_pattern_stats.py",
     "tests/test_stops.py",
     "tests/test_trust.py",
@@ -42729,9 +43525,13 @@
     }
    ],
    "evidence": [
+    "state/research/analogs_ext/results.json",
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/lessons/real_v1.json",
     "state/research/lessons/real_v2.json",
     "state/research/lessons/real_v3.json",
+    "state/research/lessons/real_v4_1y.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json",
     "state/research/timeline_basis/report_seed1.json"
@@ -42821,6 +43621,7 @@
     "state/research/antioverfit/real_v1.log",
     "state/research/antioverfit/real_v1/results.json",
     "state/research/antioverfit/real_v1/summary.txt",
+    "state/research/lessons/archive_v1.json",
     "state/research/miner_coverage/coverage.json",
     "state/research/pattern_bank/run_v3.json",
     "state/research/pattern_fail/summary.json",
@@ -43088,6 +43889,7 @@
     }
    ],
    "evidence": [
+    "state/research/analogs_ext/results.json",
     "state/research/backtest_summary.json",
     "state/research/tuning/cfg_CHAMPION_v1.2.json",
     "state/research/tuning/eq_CHAMPION_v1.2.parquet"
@@ -43172,6 +43974,8 @@
    ],
    "evidence": [
     "state/research/data_live_safety/registry_candidates.csv",
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/miner_coverage/coverage.json",
     "state/research/pattern_bank/run_v3.json",
     "state/research/pattern_fail/summary.json",
@@ -43248,6 +44052,7 @@
    "evidence": [
     "state/research/blind_gates/report.md",
     "state/research/blind_gates/results.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/miner_coverage/coverage.json",
     "state/research/pattern_bank/run_v3.json",
     "state/research/pattern_fail/summary.json",
@@ -43456,6 +44261,7 @@
     "state/research/exits_stops/summary.json",
     "state/research/exits_stops_run.log",
     "state/research/gaprisk/summary.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/memory_adapter/missed_winners_summary.txt",
     "state/research/memory_adapter/results.json",
     "state/research/pattern_fail/summary.json",
@@ -43482,6 +44288,7 @@
    "tests": [
     "tests/test_adapter.py",
     "tests/test_exits.py",
+    "tests/test_fv_pipeline.py",
     "tests/test_heavy_tests.py",
     "tests/test_memory_ext.py",
     "tests/test_missed_winners.py",
@@ -43509,6 +44316,8 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
    ],
@@ -43616,6 +44425,18 @@
      ]
     },
     {
+     "module": "engine/fv_pipeline.py",
+     "phase_linked": false,
+     "score": 1.0,
+     "symbols": [
+      "validate_bars"
+     ],
+     "terms": [
+      "pattern",
+      "validat"
+     ]
+    },
+    {
      "module": "engine/heavy_tests.py",
      "phase_linked": false,
      "score": 1.0,
@@ -43635,20 +44456,6 @@
      "score": 1.0,
      "symbols": [
       "PatternBank"
-     ],
-     "terms": [
-      "pattern",
-      "validat"
-     ]
-    },
-    {
-     "module": "engine/pattern_identity.py",
-     "phase_linked": false,
-     "score": 1.0,
-     "symbols": [
-      "PatternBook",
-      "PatternRecord",
-      "pattern_hash"
      ],
      "terms": [
       "pattern",
@@ -43675,7 +44482,6 @@
     "state/research/exits_stops/summary.json",
     "state/research/exits_stops_run.log",
     "state/research/gaprisk/summary.json",
-    "state/research/miner_coverage/coverage.json",
     "state/research/pattern_bank/bank_v3/bank_v000001.json",
     "state/research/pattern_bank/bank_v3/bank_v000002.json",
     "state/research/pattern_bank/bank_v3/bank_v000003.json",
@@ -43731,17 +44537,15 @@
    "state": "[!]",
    "test_functions": [
     "tests/test_exits.py::test_validate_catches_planted_defects",
-    "tests/test_heavy_tests.py::test_validate_panel_rejects_broken_input",
-    "tests/test_pattern_identity.py::test_term_validates_feature_and_level"
+    "tests/test_fv_pipeline.py::test_validate_bars_catches_planted_defects",
+    "tests/test_heavy_tests.py::test_validate_panel_rejects_broken_input"
    ],
    "tests": [
-    "tests/test_candidates.py",
     "tests/test_exits.py",
+    "tests/test_fv_pipeline.py",
     "tests/test_heavy_tests.py",
     "tests/test_pattern_bank.py",
-    "tests/test_pattern_identity.py",
     "tests/test_pattern_movers.py",
-    "tests/test_patterns_integration.py",
     "tests/test_site_build.py",
     "tests/test_stops.py"
    ],
@@ -43905,6 +44709,7 @@
    "evidence": [
     "state/research/blind_gates/report.md",
     "state/research/blind_gates/results.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
    ],
@@ -43971,11 +44776,11 @@
      ]
     },
     {
-     "module": "engine/pattern_movers.py",
+     "module": "engine/fv_pipeline.py",
      "phase_linked": false,
      "score": 1.0,
      "symbols": [
-      "_direction_accuracy"
+      "DirectionStage"
      ],
      "terms": [
       "direct"
@@ -44016,8 +44821,7 @@
     "state/research/direction/trust_store/v0022_2022-01-01.json",
     "state/research/direction/trust_store/v0023_2023-01-01.json",
     "state/research/direction/trust_store/v0024_2024-01-01.json",
-    "state/research/direction/trust_store/v0025_2025-01-01.json",
-    "state/research/pattern_fail/summary.json"
+    "state/research/direction/trust_store/v0025_2025-01-01.json"
    ],
    "fail_lines": [],
    "failing_tests": [],
@@ -44029,17 +44833,19 @@
    "pass_lines": [],
    "phase": 43,
    "section": "0",
-   "state": "[~]",
-   "test_functions": [],
+   "state": "[x]",
+   "test_functions": [
+    "tests/test_fv_pipeline.py::test_direction_engine_opened_on_planted_and_calibrated",
+    "tests/test_fv_pipeline.py::test_noise_direction_makes_the_pipeline_abstain"
+   ],
    "tests": [
     "tests/test_direction.py",
     "tests/test_direction_ablate.py",
     "tests/test_direction_calib.py",
-    "tests/test_heavy_tests.py",
-    "tests/test_pattern_movers.py"
+    "tests/test_fv_pipeline.py"
    ],
    "text": "Direction",
-   "why": "tests import the code but no test name speaks to this requirement"
+   "why": "code engine/direction.py, test tests/test_fv_pipeline.py::test_direction_engine_opened_on_planted_and_calibrated, cited tests/test_fv_pipeline.py::test_direction_engine_opened_on_planted_and_calibrated"
   },
   {
    "bible_claim": "",
@@ -44053,6 +44859,19 @@
       "ExitResult",
       "ExitSpec",
       "run_exit"
+     ],
+     "terms": [
+      "exit",
+      "stop"
+     ]
+    },
+    {
+     "module": "engine/fv_pipeline.py",
+     "phase_linked": false,
+     "score": 1.0,
+     "symbols": [
+      "exit_specs",
+      "stop_rules"
      ],
      "terms": [
       "exit",
@@ -44128,6 +44947,7 @@
    ],
    "tests": [
     "tests/test_exits.py",
+    "tests/test_fv_pipeline.py",
     "tests/test_gaprisk.py",
     "tests/test_stops.py"
    ],
@@ -44314,9 +45134,11 @@
    "evidence": [
     "state/research/blind_gates/report.md",
     "state/research/blind_gates/results.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/lessons/real_v1.json",
     "state/research/lessons/real_v2.json",
     "state/research/lessons/real_v3.json",
+    "state/research/lessons/real_v4_1y.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
    ],
@@ -44492,6 +45314,7 @@
    "evidence": [
     "state/research/blind_gates/report.md",
     "state/research/blind_gates/results.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
    ],
@@ -44626,6 +45449,7 @@
    ],
    "evidence": [
     "state/research/blind_gates/results.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/memory_adapter/results.json"
    ],
    "fail_lines": [],
@@ -44696,6 +45520,8 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/parity/latest.json",
     "state/research/parity/parity_20260929T040227Z.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
@@ -44793,6 +45619,8 @@
     "state/research/antioverfit/real_v1/results.json",
     "state/research/antioverfit/real_v1/summary.txt",
     "state/research/data_live_safety/report.json",
+    "state/research/lessons/archive_adaptive12.log",
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
    ],
@@ -44857,6 +45685,7 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
    ],
@@ -44962,6 +45791,7 @@
     "state/research/exits_stops/summary.json",
     "state/research/exits_stops_run.log",
     "state/research/gaprisk/summary.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/pattern_fail/summary.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
@@ -44984,6 +45814,7 @@
     "tests/test_blind_gates.py",
     "tests/test_data_sources.py",
     "tests/test_exits.py",
+    "tests/test_fv_pipeline.py",
     "tests/test_health.py",
     "tests/test_livesim_gates.py",
     "tests/test_livesim_loop2.py",
@@ -45514,6 +46345,7 @@
     }
    ],
    "evidence": [
+    "state/research/lessons/archive_v1.json",
     "state/research/pattern_bank/run_v3.json",
     "state/research/pit/pit_audit.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
@@ -45708,6 +46540,7 @@
    "evidence": [
     "state/research/blind_gates/report.md",
     "state/research/blind_gates/results.json",
+    "state/research/lessons/archive_v1.json",
     "state/research/timeline_basis/basis_offline_seed0.json",
     "state/research/timeline_basis/dial_offline_seed0.json"
    ],
@@ -45822,11 +46655,11 @@
      ]
     },
     {
-     "module": "engine/missed_winners.py",
+     "module": "engine/fv_pipeline.py",
      "phase_linked": false,
      "score": 0.685,
      "symbols": [
-      "skill_mean"
+      "keep"
      ],
      "terms": [
       "keep",
@@ -45836,14 +46669,14 @@
     }
    ],
    "evidence": [
+    "state/research/analogs_ext/market_ablation.csv",
+    "state/research/analogs_ext/results.json",
+    "state/research/analogs_ext/sector_ablation_by_sector.csv",
+    "state/research/analogs_ext/stock_own-history_ablation.csv",
     "state/research/antioverfit/real_v1/results.json",
     "state/research/data_live_safety/report.json",
     "state/research/direction/ablation.csv",
-    "state/research/memory_adapter/memory_factor_ablation.csv",
-    "state/research/memory_adapter/missed_winners_summary.txt",
-    "state/research/memory_adapter/results.json",
-    "state/research/timeline_basis/basis_offline_seed0.json",
-    "state/research/timeline_basis/dial_offline_seed0.json"
+    "state/research/memory_adapter/memory_factor_ablation.csv"
    ],
    "fail_lines": [],
    "failing_tests": [],
@@ -45859,10 +46692,9 @@
    "test_functions": [],
    "tests": [
     "tests/test_ablation.py",
-    "tests/test_adapter.py",
     "tests/test_analogs_ext.py",
     "tests/test_data_sources.py",
-    "tests/test_missed_winners.py"
+    "tests/test_fv_pipeline.py"
    ],
    "text": "WHAT \"KEEP WORKING\" MEANS: After each completed phase:",
    "why": "tests import the code but no test name speaks to this requirement"
@@ -45920,11 +46752,11 @@
  ],
  "summary": {
   "counts": {
-   "[ ]": 52,
-   "[!]": 46,
+   "[ ]": 51,
+   "[!]": 45,
    "[?]": 55,
-   "[x]": 237,
-   "[~]": 277
+   "[x]": 240,
+   "[~]": 276
   },
   "per_kind": {
    "checkbox": {
@@ -45944,15 +46776,15 @@
    "heading": {
     "[ ]": 6,
     "[!]": 4,
-    "[?]": 7,
+    "[?]": 8,
     "[x]": 11,
-    "[~]": 26
+    "[~]": 25
    },
    "list": {
-    "[ ]": 36,
-    "[!]": 26,
+    "[ ]": 35,
+    "[!]": 25,
     "[?]": 25,
-    "[x]": 182,
+    "[x]": 184,
     "[~]": 176
    },
    "phase": {
@@ -45965,8 +46797,8 @@
    "report": {
     "[ ]": 3,
     "[!]": 1,
-    "[?]": 3,
-    "[x]": 15,
+    "[?]": 2,
+    "[x]": 16,
     "[~]": 18
    }
   },
@@ -45983,7 +46815,7 @@
      1000,
      2000
     ],
-    "linked_code_lines": 1644,
+    "linked_code_lines": 1651,
     "linked_modules": [
      "engine/baseline.py",
      "engine/champion.py",
@@ -46029,7 +46861,7 @@
      1500,
      3000
     ],
-    "linked_code_lines": 1487,
+    "linked_code_lines": 1490,
     "linked_modules": [
      "engine/antimemo.py",
      "engine/lessons.py",
@@ -46050,7 +46882,7 @@
      800,
      1500
     ],
-    "linked_code_lines": 1574,
+    "linked_code_lines": 1577,
     "linked_modules": [
      "engine/antimemo.py",
      "engine/lessons.py",
@@ -46110,8 +46942,8 @@
      "[ ]": 0,
      "[!]": 3,
      "[?]": 1,
-     "[x]": 4,
-     "[~]": 3
+     "[x]": 3,
+     "[~]": 4
     },
     "est_range": [
      700,
@@ -46218,17 +47050,17 @@
    },
    "19": {
     "counts": {
-     "[ ]": 6,
+     "[ ]": 5,
      "[!]": 1,
      "[?]": 1,
-     "[x]": 9,
+     "[x]": 10,
      "[~]": 3
     },
     "est_range": [
      1500,
      3000
     ],
-    "linked_code_lines": 1322,
+    "linked_code_lines": 1323,
     "linked_modules": [
      "engine/basis_search.py",
      "engine/objective.py",
@@ -46503,7 +47335,7 @@
      3000,
      6000
     ],
-    "linked_code_lines": 2594,
+    "linked_code_lines": 2603,
     "linked_modules": [
      "engine/candidates.py",
      "engine/pattern_identity.py",
@@ -46652,8 +47484,8 @@
     "counts": {
      "[ ]": 3,
      "[!]": 1,
-     "[?]": 3,
-     "[x]": 15,
+     "[?]": 2,
+     "[x]": 16,
      "[~]": 18
     },
     "est_range": [
@@ -46703,9 +47535,11 @@
      0,
      0
     ],
-    "linked_code_lines": 1392,
+    "linked_code_lines": 2667,
     "linked_modules": [
+     "engine/fv_pipeline.py",
      "scripts/bible_trace.py",
+     "scripts/fv_eval.py",
      "scripts/test_inventory.py"
     ],
     "requirements": 45,
@@ -46807,8 +47641,8 @@
      "[ ]": 3,
      "[!]": 2,
      "[?]": 1,
-     "[x]": 3,
-     "[~]": 2
+     "[x]": 4,
+     "[~]": 1
     },
     "est_range": [
      0,
@@ -46865,7 +47699,7 @@
      0,
      0
     ],
-    "linked_code_lines": 266,
+    "linked_code_lines": 270,
     "linked_modules": [
      "scripts/final_report.py"
     ],
@@ -46939,9 +47773,9 @@
     "counts": {
      "[ ]": 0,
      "[!]": 0,
-     "[?]": 0,
+     "[?]": 1,
      "[x]": 19,
-     "[~]": 21
+     "[~]": 20
     },
     "est_range": [
      2000,
@@ -46960,9 +47794,9 @@
    "9": {
     "counts": {
      "[ ]": 1,
-     "[!]": 1,
+     "[!]": 0,
      "[?]": 3,
-     "[x]": 9,
+     "[x]": 10,
      "[~]": 12
     },
     "est_range": [

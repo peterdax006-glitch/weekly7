@@ -1,0 +1,174 @@
+{
+  "provenance": {
+    "code_hash": "49152f121178976b",
+    "code_files": [
+      "engine/__init__.py",
+      "engine/analog_weighting.py",
+      "engine/analogs_sector.py",
+      "engine/analogs_stock.py",
+      "engine/config.py",
+      "engine/provenance.py",
+      "scripts/run_analogs_ext.py"
+    ],
+    "code_mixed": [],
+    "git_commit": "b59f0a717b31ab2df2f5aa78a6b0d2d523641dda+dirty",
+    "canon_sha": "34762a4230aca64e",
+    "bible_sha": "a97ea91862cee371",
+    "blueprint_version": "4.0",
+    "config_hash": "00db6baa1a60b13c",
+    "data_snapshot": "5f94924cad053ffd",
+    "seed": 7
+  },
+  "args": {
+    "seed": 7,
+    "tickers": 250,
+    "refit": 1008,
+    "n_random": 3,
+    "max_sectors": 8,
+    "stock_names": 12,
+    "pooled_names": 60
+  },
+  "market": {
+    "n_eval": 621,
+    "ablation": {
+      "none": {
+        "n": 621.0,
+        "mse": 0.002172786113978699,
+        "mae": 0.03317531633566115,
+        "corr": -0.04185434044019428,
+        "hit": 0.6183574879227053,
+        "skill_ctl": 0.07444172547723493,
+        "t_ctl": 4.979710212227837,
+        "p_ctl": 0.0004997501249375312,
+        "skill_ref": null,
+        "t_ref": null,
+        "p_ref": null
+      },
+      "unweighted": {
+        "n": 621.0,
+        "mse": 0.002569010044015716,
+        "mae": 0.03628005621642477,
+        "corr": 0.030784871597908398,
+        "hit": 0.5297906602254429,
+        "skill_ctl": -0.09434080431266456,
+        "t_ctl": -2.27896991021645,
+        "p_ctl": 0.9775112443778111,
+        "skill_ref": -0.1823575396988666,
+        "t_ref": -4.388813718341082,
+        "p_ref": 1.0
+      },
+      "weighted": {
+        "n": 621.0,
+        "mse": 0.00254848351035108,
+        "mae": 0.03617508262843873,
+        "corr": 0.0336094003101992,
+        "hit": 0.533011272141707,
+        "skill_ctl": -0.085596960195498,
+        "t_ctl": -2.075479045498422,
+        "p_ctl": 0.9630184907546226,
+        "skill_ref": -0.17291043695249964,
+        "t_ref": -4.2150335671796375,
+        "p_ref": 1.0
+      },
+      "random": {
+        "n": 621.0,
+        "mse": 0.0023475411260290746,
+        "mae": 0.03505567441061772,
+        "corr": -0.04381262002131296,
+        "hit": 0.5281803542673108,
+        "skill_ctl": null,
+        "t_ctl": null,
+        "p_ctl": null,
+        "skill_ref": -0.0804289989364726,
+        "t_ref": -4.979710212227837,
+        "p_ref": 1.0
+      },
+      "shuffled": {
+        "n": 621.0,
+        "mse": 0.002248714086506522,
+        "mae": 0.034552848823865695,
+        "corr": 0.05572549204981835,
+        "hit": 0.5410628019323671,
+        "skill_ctl": 0.04209810785710111,
+        "t_ctl": 1.48004076053614,
+        "p_ctl": 0.05147426286856572,
+        "skill_ref": -0.03494498240730537,
+        "t_ref": -1.5376886720816758,
+        "p_ref": 0.9655172413793104
+      },
+      "nn_random": {
+        "n": 621.0,
+        "mse": 0.002529977757716141,
+        "mae": 0.035517966724198734,
+        "corr": 0.0025569584804857708,
+        "hit": 0.5297906602254429,
+        "skill_ctl": -0.07771392358764007,
+        "t_ctl": -1.8792946700042887,
+        "p_ctl": 0.9545227386306847,
+        "skill_ref": -0.1643933756016922,
+        "t_ref": -4.036217357881004,
+        "p_ref": 1.0
+      }
+    },
+    "verdict": {
+      "beats_unweighted": false,
+      "p_unweighted": 0.2283858070964518,
+      "beats_random": false,
+      "beats_none": false,
+      "mse_weighted": 0.00254848351035108,
+      "n": 621
+    },
+    "confidence_spearman": -0.016169810928558986,
+    "refits": 16,
+    "refits_accepted": 4,
+    "audit_dirty_rows": 0,
+    "causality_offenders": [],
+    "fingerprint_items_present": 17,
+    "learner_null_ic": {
+      "accept_real": 0.25,
+      "accept_null_mean": 0.5416666666666666,
+      "accept_null_max": 0.75,
+      "n_shuffles": 3
+    },
+    "learner_null_descent": {
+      "accept_real": 0.3333333333333333,
+      "accept_null_mean": 0.5,
+      "accept_null_max": 0.5,
+      "n_shuffles": 2
+    },
+    "ledger_rows": 150
+  },
+  "sector": {
+    "n_sectors": 8,
+    "audit_dirty_rows": 0,
+    "rank_ic": {
+      "mean_ic": 0.02253125438966147,
+      "t": 1.112699279574042,
+      "p": 0.1634182908545727,
+      "share_pos": 0.49852507374631266,
+      "n_dates": 339
+    },
+    "mean_skill_weighted": -0.1583740667759732,
+    "share_sectors_weighted_beats_none_p05": 0.0,
+    "share_sectors_beat_random": 0.0,
+    "share_sectors_beat_unweighted": 0.0
+  },
+  "stock": {
+    "own_history_names": 12,
+    "audit_dirty_rows": 0,
+    "mean_skill_unweighted": -0.25479382399366,
+    "share_beat_none_p05": 0.0,
+    "share_beat_random": 0.0,
+    "pooled": {
+      "n_names": 60,
+      "mean_ic": 0.01071847956477024,
+      "t": 1.3096135066603256,
+      "p": 0.11294352823588207,
+      "share_pos": 0.5142857142857142,
+      "n_dates": 245
+    },
+    "insufficient": []
+  },
+  "peak_rss_mb": 451.2421875,
+  "seconds": 1645.134780406952
+}

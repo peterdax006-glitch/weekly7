@@ -1,0 +1,19 @@
+item,columns,present,non_nan,first,last
+market drawdown,drawdown,True,0.9963788129871725,1962-03-27,2026-09-28
+1m return,ret_1m,True,0.9987111029276377,1962-01-31,2026-09-28
+3m return,ret_3m,True,0.996133308782913,1962-04-02,2026-09-28
+6m return,ret_6m,True,0.9922666175658258,1962-07-02,2026-09-28
+12m return,ret_12m,True,0.9845332351316516,1963-01-02,2026-09-28
+acceleration,accel,True,0.9845332351316516,1963-01-02,2026-09-28
+distance from MA200,dist_ma200,True,0.9939237709445774,1962-05-23,2026-09-28
+volatility,vol_1m,True,0.9990793592340269,1962-01-23,2026-09-28
+volatility ratio,vol_ratio,True,0.9938623948935126,1962-05-24,2026-09-28
+VIX,vix,True,0.5678512244522187,1990-01-02,2026-09-28
+VIX term structure,vix_term,True,0.31191309151169216,2006-07-17,2026-09-28
+breadth,breadth,True,0.9999386239489352,1962-01-02,2026-09-25
+dispersion,dispersion,True,0.9993862394893512,1962-01-16,2026-09-28
+sector crowding,sector_crowding,True,1.0,1962-01-02,2026-09-28
+top-sector concentration change,top_sector_share_chg,True,0.995580924323329,1962-04-13,2026-09-28
+FRED data,,False,0.0,,
+10Y yield change,rate_chg_1y,True,0.9844718590805868,1963-01-03,2026-09-28
+credit-spread change,credit_chg_3m,True,0.04216534708156877,2024-01-02,2026-09-28

@@ -700,8 +700,7 @@ def walk_forward(panel: Panel, cfg: FVConfig = FVConfig(), calendar: EventCalend
     kk = lab["k"].to_numpy()
     n_dec = len(panel.dates)
     starts = list(range(cfg.min_train_weeks, n_dec, cfg.refit_every))
-    if last_block is not None:
-        starts = starts[:last_block]
+    n_run = len(starts) if last_block is None else min(last_block, len(starts))   # a truncated run keeps true block edges
     state = {"cands": [], "rows": [], "paths": [], "soft": [], "blocks": {}, "origins": [], "week_dates": [], "done": 0, "cfg": cfg.hash()}
     if ckpt and Path(ckpt).exists():
         with open(ckpt, "rb") as fh:
@@ -719,7 +718,7 @@ def walk_forward(panel: Panel, cfg: FVConfig = FVConfig(), calendar: EventCalend
     rule_sets = {"E": build_rule_set(True, False, cost), "S": build_rule_set(False, True, cost),
                  "ES": build_rule_set(True, True, cost)}
 
-    for bi in range(state["done"], len(starts)):
+    for bi in range(state["done"], n_run):
         s0 = starts[bi]
         s1 = starts[bi + 1] if bi + 1 < len(starts) else n_dec
         origin = panel.dates[s0]
@@ -1077,8 +1076,9 @@ def audit_no_lookahead(bars: dict, cfg: FVConfig, cut, seed: int = 11, last_bloc
     rng = np.random.default_rng(seed)
     b2 = {k: v.copy() for k, v in bars.items()}
     m = b2["Close"].index > cut
+    noise = np.exp(rng.normal(0, 0.3, b2["Close"].loc[m].shape))      # one factor per bar keeps high >= low
     for k in BAR_KEYS:
-        b2[k].loc[m] = b2[k].loc[m].to_numpy() * np.exp(rng.normal(0, 0.3, b2[k].loc[m].shape))
+        b2[k].loc[m] = b2[k].loc[m].to_numpy() * noise
     a = walk_forward(build_panel(bars, cfg), cfg, last_block=last_block)
     b = walk_forward(build_panel(b2, cfg), cfg, last_block=last_block)
     ca = a.cands[a.cands["date"] <= cut].reset_index(drop=True)
