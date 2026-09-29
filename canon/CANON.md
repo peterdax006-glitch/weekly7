@@ -368,3 +368,9 @@ it should be very long
 > also some memory should be diguarded throughout the year as it finds patterns at the begining  of the year that have no relevance at the end of the year, but it should try to self learn to find what changed to make the pattern flip or stop working and become unpredictable, that should be a massive part where it should develop patterns, but it should also develop explanations for how to know what patterns will be unpredictable, because the stock market is always changning and the same problems wont always be predictable so it should be constantly learning to find how to know when and how some pattern it created will be consisistent, and if you can determine when a pattern will be unpredictable, and knowing when not to rely on a pattern then the pattern does not have to be disguarded
 
 `sha256: 7fcaf52a1ae95158e0407ef90d216eac1a10f16ade1847062045c8721e1e63f6`
+
+## C61 — Constant pattern health checks: no phantom patterns; every break is investigated - predict it or discard; admit unknown causes (2026-09-29)
+
+> also we need to ensure that there is a system in place to ensure all patterns are working so it constantly checks that so we never have patterns that dont exist because the system is forced to find out the why for a pattern stopped to learn how to predict the pattern or disguard it if it truly is just unpredictable,  it should also be careful to know when indicators and the things the system has in not the factor at hand but rather its something no one knows the answer to until it happens
+
+`sha256: 6cae6416a0a27f51c73f57337eeab46832346b7dd7ef4f5b4193096802ec6bb0`
