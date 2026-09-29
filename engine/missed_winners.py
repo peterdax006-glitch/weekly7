@@ -273,8 +273,11 @@ class MissedLedger:
         self.rows = []
 
     def add(self, date, winners, missed, profile, detector_skill=0.0, detector_weight=0.0, types=None, era=None):
+        # a feature undefined this week (e.g. no earnings reaction) is omitted, not stored as NaN: NaN is not valid JSON
+        # and the worker's result validator rightly rejects it (round 2, 2026-09-29: all 3 windows excluded for this)
+        prof = {c: float(v) for c, v in dict(profile).items() if v is not None and np.isfinite(v)}
         self.rows.append({"date": str(date), "winners": int(winners), "missed": int(missed), "caught": int(winners - missed),
-                          "missed_minus_picked": dict(profile), "detector_skill": float(detector_skill),
+                          "missed_minus_picked": prof, "detector_skill": float(detector_skill),
                           "detector_weight": float(detector_weight), "types": dict(types or {}), "era": era})
 
     def frame(self):
