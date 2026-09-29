@@ -47,6 +47,7 @@ COUNTER_KINDS = ("null", "noise", "measurement", "mechanism")     # a hypothesis
 
 
 class TestState(str, enum.Enum):
+    __test__ = False                     # not a pytest class
     PASSED = "PASSED"
     FAILED = "FAILED"
     NOT_TESTED = "NOT_TESTED"            # unknown stays unknown: never read as PASSED
@@ -612,7 +613,7 @@ class ResearchExperimentMemory:
     def __init__(self, ledger: ExperimentLedger, store: ExtensionStore | None = None, policy: GradePolicy = GradePolicy(),
                  question_match: float | None = None):
         self.ledger = ledger
-        self.store = store or ExtensionStore()
+        self.store = store if store is not None else ExtensionStore()   # NOT `or`: an empty store is falsy (__len__)
         self.policy = policy
         self.question_match = question_match if question_match is not None else ledger.question_match
 
@@ -716,7 +717,8 @@ class ResearchExperimentMemory:
             return LaunchAssessment(LaunchDecision.NEEDS_EXPLANATION, f"a legacy store remembers this ({lv.message}); explain what is different", **base)
         weak_note = f" (its weaknesses: {'; '.join(top.grade_reasons)})" if top.grade_reasons else ""
         words = len(statement.split())
-        changed = top.diff.materiality >= MATERIAL_AT or top.status in (ExperimentStatus.INVALID, ExperimentStatus.FAILED, ExperimentStatus.ABANDONED)
+        changed = (top.diff.materiality >= MATERIAL_AT or top.status in (ExperimentStatus.INVALID, ExperimentStatus.FAILED, ExperimentStatus.ABANDONED)
+               or any(p.grade == AnswerGrade.WEAK for p in priors))       # a weak answer's missing check IS the difference
         if words >= 4 and (changed or verified):
             return LaunchAssessment(LaunchDecision.LAUNCH_AFTER_EXPLANATION, f"{top.experiment_id} did not answer{weak_note}; "
                                     f"launching on the stated difference: {statement.strip()}", **base)
@@ -1213,3 +1215,66 @@ def evidence_summary(mem: ResearchExperimentMemory, question: str, now) -> dict:
 def render_launch(a: LaunchAssessment, question: str = "") -> str:
     head = f"Launch review{': ' + question if question else ''}"
     return head + "\n" + a.render()
+
+
+# ------------------------------------------------------------------------------------------------ batches, legacy annotation, report
+
+def screen_batch(mem: ResearchExperimentMemory, proposals: Sequence[tuple], now, current_code: str = "", current_data: str = "") -> list:
+    """Gate a batch of (record, extension, claims, statement) proposals together. Each is judged against the ledger AND against
+    the earlier members of the same batch, so two workers cannot both launch the same test in one submission. Read-only: the
+    caller registers the ones marked launchable."""
+    out: list = []
+    accepted: list = []
+    for rec, ext, claims, statement in proposals:
+        a = mem.launch_gate(rec, ext, now, claims, statement, current_code, current_data)
+        clash = None
+        if a.decision.permits_launch:
+            for prev_rec, prev_ext in accepted:
+                same_q = question_similarity(rec.question, prev_rec.question) >= mem.question_match
+                if same_q and (prev_ext.configuration_hash == ext.configuration_hash or design_diff(rec, ext, prev_rec, prev_ext).is_same_design):
+                    clash = prev_rec.experiment_id
+                    break
+        if clash:
+            a = LaunchAssessment(LaunchDecision.WAIT_IN_FLIGHT, f"same test as {clash}, earlier in this batch", True, a.priors, ledger_status=a.ledger_status)
+        elif a.decision.permits_launch:
+            accepted.append((rec, ext))
+        out.append({"experiment_id": rec.experiment_id, "decision": a.decision, "launchable": a.decision.permits_launch, "message": a.message,
+                    "assessment": a})
+    return out
+
+
+def annotate_legacy(mem: ResearchExperimentMemory, experiment_id: str, ext: DesignExtension, now) -> None:
+    """Attach a design extension to a LEGACY ledger record whose section-15 fields were never captured, when someone later
+    reconstructs them from evidence. Only legacy rows qualify (new experiments record theirs at proposal), and the extension
+    is written at `now`, so the dossier shows the annotation only from that date on."""
+    r = mem.ledger.get(experiment_id, now)
+    if r is None:
+        raise KeyError(f"{experiment_id} not visible at {now}")
+    if not r.legacy:
+        raise ValueError(f"{experiment_id} is not a legacy record; its design extension was written at proposal and cannot be replaced")
+    errs = [e for e in ext.check() if "not strictly before now" not in e]
+    if errs:
+        raise ValueError("annotation invalid: " + "; ".join(errs))
+    mem.store.put_design(experiment_id, ext, now)
+
+
+def to_markdown(mem: ResearchExperimentMemory, now) -> str:
+    """The memory as a document: one row per question family with its stance, then every experiment's completeness. For people;
+    the loop reads `step` instead."""
+    view = list(mem.ledger.view(now).values())
+    lines = [f"# Research experiments as of {em._iso(now)}", "", f"{len(view)} experiments; [{LABEL}]", "", "## Questions", ""]
+    done: set = set()
+    for r in sorted(view, key=lambda x: x.recorded_at):
+        key = em.question_key(r.question)
+        if key in done:
+            continue
+        done.add(key)
+        s = evidence_summary(mem, r.question, now)
+        lines.append(f"- {r.question}: {s['stance']} ({s['n']} experiment(s), {s['trials']} trials)")
+    lines += ["", "## Experiments", "", "| id | status | result | grade | fields recorded |", "|---|---|---|---|---|"]
+    for r in sorted(view, key=lambda x: x.experiment_id):
+        d = mem.dossier(r.experiment_id, now)
+        g = grade_answer(r, mem.store.outcome(r.experiment_id, now), mem.policy)
+        lines.append(f"| {r.experiment_id} | {r.status} | {r.result.kind if r.result else '-'} | {g.grade} | "
+                     f"{sum(1 for f in SECTION15_FIELDS if d[f] != MISSING)}/{len(SECTION15_FIELDS)} |")
+    return "\n".join(lines)

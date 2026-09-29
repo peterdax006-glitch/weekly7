@@ -494,7 +494,7 @@ class FailedLearnerLab:
     jsonl holds autopsies, pass records and the consultation log, all read as of a time."""
 
     def __init__(self, registry: FailedLearnerRegistry | None = None, path=None, taxonomy: Mapping = CLASSES):
-        self.registry = registry or FailedLearnerRegistry()
+        self.registry = registry if registry is not None else FailedLearnerRegistry()   # NOT `or`: an empty registry is falsy
         self.taxonomy = dict(taxonomy)
         self.path = Path(path) if path else None
         self._rows: list = []
@@ -1020,3 +1020,68 @@ def audit_lab(lab: FailedLearnerLab, now) -> dict:
     unwritten = sorted(f"{k[0]} v{k[1]}" for k in set(keys) - set(written))
     return {"ok": not problems, "problems": problems, "derived_only": unwritten, "n_records": len(keys), "n_autopsies": len(written),
             "unparseable_lines": lab.unparseable}
+
+
+# ------------------------------------------------------------------------------------------------ discovering classes from the data
+
+def discover_classes(lab: FailedLearnerLab, now, link_at: float = 0.35) -> list:
+    """Classes found from the failures themselves rather than the declared taxonomy: attempts are linked when their tags and
+    hypotheses are similar enough (single linkage). Returns groups with their dominant tags and reasons. An attempt with no
+    declared class is reported in `unclassified`, which is how the taxonomy learns where it has a gap."""
+    rows = [r for r in lab.registry._rows if to_ts(r.recorded_at) < to_ts(now)]
+    parent = list(range(len(rows)))
+
+    def find(i):
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+    for i, a in enumerate(rows):
+        for j in range(i + 1, len(rows)):
+            b = rows[j]
+            sim = attempt_similarity(LearnerProposal(a.learner, a.hypothesis, a.mechanism_tags, a.family, a.data_regime), b, lab.taxonomy)
+            if sim >= link_at:
+                parent[find(j)] = find(i)
+    groups: dict = {}
+    for i, r in enumerate(rows):
+        groups.setdefault(find(i), []).append(r)
+    out = []
+    for members in groups.values():
+        tags: dict = {}
+        for m in members:
+            for t in m.mechanism_tags:
+                tags[t] = tags.get(t, 0) + 1
+        buckets: dict = {}
+        for m in members:
+            b = reason_bucket(m, lab.autopsy(m.learner, m.version, now)).value
+            buckets[b] = buckets.get(b, 0) + 1
+        declared = {c for m in members for c in classes_of(m.mechanism_tags, lab.taxonomy)}
+        out.append({"attempts": len(members), "learners": sorted({m.learner for m in members}),
+                    "top_tags": [t for t, _ in sorted(tags.items(), key=lambda kv: (-kv[1], kv[0]))[:4]],
+                    "by_bucket": dict(sorted(buckets.items(), key=lambda kv: -kv[1])), "declared_classes": sorted(declared),
+                    "unclassified": not declared})
+    return sorted(out, key=lambda g: (-g["attempts"], g["learners"]))
+
+
+def screen_proposals(lab: FailedLearnerLab, proposals: Sequence[LabProposal], now) -> list:
+    """Consult the lab for several proposals at once, without logging. Proposals in the same batch that are the same idea
+    (registry similarity above the block threshold) are flagged, so one submission cannot smuggle a dead end in twice."""
+    out = []
+    for i, p in enumerate(proposals):
+        c = lab.consult(p, now, log=False)
+        twin = next((q.name for q in proposals[:i] if proposal_similarity(p, FailedLearner(
+            q.name, q.hypothesis, "batch", FailureMode.NO_EFFECT, ("batch",), {"n": 1}, "batch", Generalization.UNKNOWN, "1970-01-01T00:00:00",
+            tuple(q.mechanism_tags), q.family)) >= 0.5), "")
+        out.append({"proposal": p.name, "decision": c.decision, "permitted": c.decision.permits and not twin, "duplicate_of_batch_member": twin,
+                    "statement": c.statement})
+    return out
+
+
+def explain(c: Consultation) -> str:
+    """A consultation as prose for the person who asked: the class statement, why the verdict, what to change."""
+    lines = [c.statement, f"Verdict on the class: {c.verdict} - {c.verdict_why}.", c.difference.summary() + "."]
+    if c.required_controls and not c.decision.permits:
+        lines.append(f"Before any retry, include: {', '.join(c.required_controls)}.")
+    if c.reopen_conditions:
+        lines.append("This class would be worth reopening if: " + "; ".join(c.reopen_conditions[:3]) + ".")
+    return "\n".join(lines)
