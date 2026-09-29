@@ -1,0 +1,51 @@
+name: intraday-collector
+# Canon C35/C38: minute candles accumulate from today forward. Free sources keep 7 days of 1-minute bars and 60 days
+# of 5-minute bars, so this runs after every weekday close and uploads each completed day as an asset of a monthly
+# release (intraday-YYYY-MM). A missed day is backfilled by the next run (7-day window); Saturday backfills 60 days
+# of 5-minute bars. Research only: no orders, no secrets beyond the repo token.
+on:
+  schedule:
+    - cron: "40 21 * * 1-5"   # 17:40 ET in summer / 16:40 ET in winter: after the close either way
+    - cron: "10 14 * * 6"     # Saturday backfill
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: intraday
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install
+        run: pip install -q pandas pyarrow yfinance
+      - name: Price cache (for the liquidity ranking)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p data/cache
+          gh release download data-cache --dir data/cache --pattern "stocks_*.parquet" --clobber || echo "no cache"
+      - name: Collect
+        run: |
+          if [ "$(date -u +%u)" = "6" ]; then RECENT=60; else RECENT=7; fi
+          python scripts/collect_intraday.py 400 --recent $RECENT --manifest written.txt
+          cat written.txt | wc -l
+      - name: Upload to the monthly release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          while read -r f; do
+            [ -z "$f" ] && continue
+            day=$(basename "$f" .parquet); iv=$(basename "$(dirname "$f")"); tag="intraday-${day:0:7}"
+            gh release view "$tag" >/dev/null 2>&1 || gh release create "$tag" --title "$tag" --notes "Minute candles (research data)." --prerelease
+            cp "$f" "${iv}_${day}.parquet"
+            gh release upload "$tag" "${iv}_${day}.parquet" --clobber
+          done < written.txt
