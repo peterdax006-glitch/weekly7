@@ -514,8 +514,8 @@ def check_network_cache(events: Sequence[NetworkEvent] | None, cache: Sequence[C
             from engine.isolation import is_sealed_path
             if is_sealed_path(c.path, sealed_dir):
                 out.append(fail(L, "cache-in-sealed-path", c.path, "cache lives inside the sealed area"))
-        except ImportError:
-            pass
+        except ImportError as e:                 # fail CLOSED (C69 audit, 29 Sep): an unchecked sealed-path test must block
+            out.append(fail(L, "sealed-path-check-missing", c.path, f"engine.isolation unavailable ({e}); sealed-area check could not run"))
     if not events and not cache:
         out.append(info(L, "no-io", "io", "no network or cache activity recorded"))
     return CheckResult("network_cache", True, tuple(out), len(events) + len(cache))

@@ -52,6 +52,7 @@ def download(tickers, start=HISTORY_START, chunk=150, pause=1.0) -> dict:
     # repair pass: Yahoo times out silently -> retry any ticker that came back empty, in small batches
     got = pd.concat(frames["Close"], axis=1) if frames["Close"] else pd.DataFrame()
     missing = [t for t in tickers if t not in got.columns or got[t].isna().all()]
+    repair_failures: list = []
     if missing and len(missing) < len(tickers):
         print(f"  repair: retrying {len(missing)} empty tickers", flush=True)
         for i in range(0, len(missing), 20):
@@ -59,7 +60,8 @@ def download(tickers, start=HISTORY_START, chunk=150, pause=1.0) -> dict:
             time.sleep(2)
             try:
                 d = yf.download(part, start=start, auto_adjust=True, threads=False, progress=False, group_by="column")
-            except Exception:
+            except Exception as e:               # never silent (C69 audit): the dropped batch is counted and written below
+                repair_failures.append({"tickers": part, "error": str(e)[:200]})
                 continue
             if not isinstance(d.columns, pd.MultiIndex):
                 d.columns = pd.MultiIndex.from_product([d.columns, part])
@@ -73,7 +75,25 @@ def download(tickers, start=HISTORY_START, chunk=150, pause=1.0) -> dict:
         w = w.loc[:, ~w.columns.duplicated()]
         w.index = pd.to_datetime(w.index).tz_localize(None)
         out[f] = _drop_partial(w.sort_index()).astype("float32")
+    _report_gaps(tickers, out.get("Close"), repair_failures)
     return out
+
+
+def _report_gaps(tickers, close, repair_failures):
+    """Record every requested ticker that came back with no data, and every repair batch that failed, instead of letting
+    them vanish (C69 audit, 29 Sep: failed batches silently thinned the universe on top of the survivor bias)."""
+    import json
+    have = set(close.columns[close.notna().any()]) if close is not None and len(close.columns) else set()
+    lost = sorted(t for t in tickers if t not in have)
+    rep = {"requested": len(tickers), "returned": len(have), "lost": lost, "repair_failures": repair_failures,
+           "written_real": pd.Timestamp.now().isoformat(timespec="seconds")}
+    try:
+        (CACHE / "download_gaps.json").write_text(json.dumps(rep, indent=1), encoding="utf-8")
+    except Exception as e:
+        print(f"  WARNING: could not write download_gaps.json: {e}", flush=True)
+    if lost:
+        print(f"  WARNING: {len(lost)} of {len(tickers)} tickers returned no data (see data/cache/download_gaps.json)", flush=True)
+    return rep
 
 
 def save(frames: dict, name: str):
