@@ -64,6 +64,11 @@ STEPS = {"k": [1, 2, 3, 4, 6, 8, 12, 16], "exit_q": [0.5, 0.6, 0.7, 0.8, 0.9, 0.
          "rebalance_weeks": [1, 2, 3, 4], "w_move": [0.0, 0.3, 0.5, 0.7], "w_mom": [0.0, 0.2, 0.4]}
 
 
+def _wiring():
+    from .learning import wiring                   # lazy: the learning package is a sink here, never a dependency of a decision
+    return wiring
+
+
 class TimeFence(Exception):
     pass
 
@@ -79,6 +84,14 @@ def eligible(p, cfg):
 def pick(p, cfg, held, divs, det=None):
     """The selection rule (same as the trader's): score -> eligible -> regime-aware top-k.
     det: optional missed-winner detector probabilities, blended in with weight cfg['det_w']."""
+    s, p = pick_score(p, cfg, det)
+    mkt = {c: float(p[c].iloc[0]) for c in p.columns if c.startswith("m_")}
+    return policy.regime_targets(s[eligible(p, cfg)], list(held), cfg, p["vol20"], divs, mkt)
+
+
+def pick_score(p, cfg, det=None):
+    """The cross-sectional score pick() ranks by, over the WHOLE snapshot (before eligibility), and the snapshot it was computed
+    on. The learning sinks read it to say how far below the cut a missed winner ranked."""
     if cfg.get("ew"):
         p = p.assign(evidence=policy.evidence_from(p, cfg["ew"]))
     s = policy.score(p, cfg["w_model"])
@@ -91,8 +104,7 @@ def pick(p, cfg, held, divs, det=None):
         s = (1 - wo) * s + wo * mom
     if det is not None and cfg.get("det_w", 0) > 0:
         s = (1 - cfg["det_w"]) * s + cfg["det_w"] * det.reindex(s.index).rank(pct=True).fillna(0.5)
-    mkt = {c: float(p[c].iloc[0]) for c in p.columns if c.startswith("m_")}
-    return policy.regime_targets(s[eligible(p, cfg)], list(held), cfg, p["vol20"], divs, mkt)
+    return s, p
 
 
 def neighbours(cfg, knobs):
@@ -185,6 +197,8 @@ class Adapter:
         self.det = MissedWinnerDetector(self.meta)
         self.ledger = MissedLedger()
         self.missed = self.ledger.rows       # per closed period: winners it did not pick, and their profile
+        self._pm_pending = []                # closed weeks awaiting the failure post-mortem (learning sink only; never decides)
+        self._lessons_sent = None            # memory state last exported to the learning sinks
         self.knobs = {k: KnobState(k, base=self.cfg.get(k)) for k in self.meta["adaptive_knobs"] if k in STEPS}
         self.audit = []                      # hash-chained record of every weekly decision (Phase 18 audit trail)
         self._chain = "genesis"
@@ -213,12 +227,34 @@ class Adapter:
         if self.meta.get("mem_use_dates"):
             self.mem.set_clock(today)
         self._closed = None
+        self.flush_post_mortems(today)
         if self.prev is not None:
             from .memory import context_of
             self._learn(self.prev[0], self.prev[1], today, closes_to_now, divs, held, ctx_now=context_of(snap))
         self.prev = (today, snap)
         self.weeks += 1
         return dict(self.cfg)
+
+    def flush_post_mortems(self, now):
+        """S21b: closed weeks whose outcome matured strictly before `now` go to the learning failure post-mortem (a sink: it
+        records, it never changes a decision). Weeks not yet mature stay queued."""
+        if not self._pm_pending:
+            return 0
+        now_ts = pd.Timestamp(now)
+        live = [fx for fx in self._pm_pending if len(fx[0])]          # a week with no outcomes has nothing to explain
+        ready = [fx for fx in live if fx[0]["resolved"].iloc[0] < now_ts]
+        self._pm_pending = [fx for fx in live if fx[0]["resolved"].iloc[0] >= now_ts]
+        for frame, X in ready:
+            _wiring().on_post_mortem(frame, X, now)
+        return len(ready)
+
+    def send_lessons(self):
+        """S21b: export the memory's sanitised lesson bank to the learning sinks once per memory state (dedupes repeated calls)."""
+        mark = (len(self.mem), self.mem.seq)
+        if mark == self._lessons_sent:
+            return 0
+        self._lessons_sent = mark
+        return _wiring().on_session_end(self.mem) or 0
 
     def set_knob(self, knob, value, who="manual"):
         """Manual override. Allowed only BEFORE the first decision (the pre-season setting); after that it is refused,
@@ -348,15 +384,16 @@ class Adapter:
         # 2b) canon C20: study every winner of the closed period, picked or not
         self.det.learn(p0, fwd)
         self.cfg["det_w"] = self.det.weight()
-        win = fwd[fwd >= m.get("det_winner", 0.07)].index
-        missed = [t for t in win if t not in set(cur_names)]
-        if len(win):
-            types = {}
-            for t in missed:
-                ty = winner_type(p0, t)
-                types[ty] = types.get(ty, 0) + 1
-            self.ledger.add(d1, len(win), len(missed), missed_profile(p0, cur_names, missed), self.det.skill_mean(),
-                            self.cfg["det_w"], types)
+        # S21b: observe() keeps the same ledger row as the old add() AND hands the week to the learning ledger (why each winner
+        # was rejected); the pick score says how far below the cut each one ranked
+        score0 = pick_score(p0, self.cfg)[0]
+        self.ledger.observe(d0, d1, p0, fwd, cur_names, score=score0, thr=m.get("det_winner", 0.07),
+                            detector_skill=self.det.skill_mean(), detector_weight=self.cfg["det_w"], k=int(self.cfg.get("k") or 10))
+        # the same closed week goes to the failure post-mortem at the NEXT decision: its outcome matured ON d1, and a record may
+        # only be classified strictly after it matured (require_past); pending weeks are sink-only state, not in the snapshot
+        fx = _wiring().adapter_week_frame(d0, d1, p0, fwd, cur_names, score0)
+        if fx is not None:
+            self._pm_pending.append(fx)
         # 3) knob table: evidence for every one-step neighbour, whether or not anything may move this week
         cand = self._evaluate_candidates(ctx_now, last_gain)
         # 4) fast revert: the active deviation from the default suddenly stops working
@@ -638,6 +675,9 @@ class Session:
             self.wk += 1
 
     def result(self, start_cash=1000.0):
+        if self.adapter is not None and self.days:          # S21b: the run's learning sinks (record only; the result is unchanged)
+            self.adapter.flush_post_mortems(self.days[-1][0])
+            self.adapter.send_lessons()
         e = pd.Series([v for _, v in self.days])
         w = np.array(self.weeks) if self.weeks else np.array([0.0])
         return {"mean_week": float(w.mean()), "weeks_ge_7": int((w >= 0.07).sum()), "weeks_le_m7": int((w <= -0.07).sum()),

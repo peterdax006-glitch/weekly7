@@ -153,6 +153,12 @@ class Hub:
             self._worker: WorkerConfig | None = None
             self._persisted: dict[str, set[str]] = {}
             self._backfilled: set[str] = set()
+            self.lane: str = ""
+            self.used: dict[str, set[str]] = {}               # decision run -> board member ids that carried weight in it
+            self.source_violations: list[dict[str, Any]] = []
+            self.scorecards: dict[str, LearningScorecard] = {}
+            self.identity_reports: dict[str, IdentityReport | IdentityJob] = {}
+            self.knowledge_verdicts: dict[str, PromotionVerdict] = {}
 
     # ---- bookkeeping
     def record_error(self, hook: str, exc: BaseException) -> None:
@@ -225,6 +231,32 @@ def configure(root: str | Path | None = None, board: KnowledgeBoard | None = Non
     return HUB
 
 
+_LANE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
+
+
+def production_root() -> Path:
+    """Where the production entry points persist the sinks: state/learning/hub/ (trusted side; nothing on the decision path reads it)."""
+    from engine import config as K
+    return Path(K.STATE) / "learning" / "hub"
+
+
+def configure_production(lane: str, root: str | Path | None = None, board_path: str | Path | None = None,
+                         strict: bool = False) -> Hub:
+    """Called by a production entry point (improve.weekly; livesim_loop2's worker when --learner legit) - never on import, never
+    by a test unless it passes its own tmp root. Sinks then append to <root>/<lane>/<sink>.jsonl: one lane per process, so parallel
+    workers never interleave lines in one file. The KnowledgeBoard at `board_path` (default <root>/board.jsonl, shared by every
+    lane and read-only here) makes effective_weight() board-scaled. NEUTRAL WITH NO BOARD: an empty board registers nothing, so every
+    legacy weight passes through unchanged until knowledge is registered and promoted on it (strict=False)."""
+    if not _LANE.match(lane):
+        raise ValueError(f"lane {lane!r} must be 1-64 characters of [A-Za-z0-9_.-] (it names a directory)")
+    base = Path(root) if root is not None else production_root()
+    board = KnowledgeBoard(Path(board_path) if board_path is not None else base / "board.jsonl")
+    configure(root=base / lane, board=board, strict=strict, enabled=True)
+    HUB.lane = lane
+    HUB.calls["production_config"] += 1
+    return HUB
+
+
 def sink(name: str) -> Callable[[Callable[..., T]], Callable[..., T | None]]:
     """Decorator for observer hooks: counts the call, swallows-and-records any failure, and is inert when the hub is disabled."""
     def deco(fn: Callable[..., T]) -> Callable[..., T | None]:
@@ -284,6 +316,10 @@ def on_post_mortem(frame: pd.DataFrame, X: pd.DataFrame, now: Any, max_classify:
         cls = hub.classifier.classify(t, None, now)
         hub._classified.add(t.rid)
         hub.failure_ledger.add(cls)
+        hub.persist("failures", t.rid, {"rid": t.rid, "cause": cls.cause.value, "named": cls.named, "confidence": cls.confidence,
+                                        "subsystem": (cls.top_subsystem() or Subsystem.SELECTION).value, "decided_at": t.decided_at,
+                                        "resolved_at": t.resolved_at, "pnl": t.pnl, "rank_pct": t.rank_pct,
+                                        "unknown_state": cls.unknown_state.value if cls.unknown_state is not None else None})
         classified += 1
         named += cls.named
         hyp = make_hypothesis(cls.cause, cls.top_subsystem() or Subsystem.SELECTION, t, cls)
@@ -322,6 +358,44 @@ def on_lessons(lessons: Iterable[Any] | Mapping[str, Iterable[Any]]) -> list[str
     return fresh
 
 
+def post_mortem_frame(decided: Any, closed: Any, p0: pd.DataFrame, fwd: pd.Series, picked: Sequence[Any],
+                      score: pd.Series | None) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """One closed adapter week as the (frame, X) pair lessons.post_mortem / on_post_mortem read: index (decided, ticker), columns
+    score (the pick score, 0 where unscored), y (the week's realised return), resolved (the close the outcome matured on), taken.
+    X carries p0's market-context columns so the classifier sees the regime the decision was made in. Rows without an outcome
+    are dropped (a name that stopped trading has no loss to explain yet)."""
+    if p0 is None or p0.empty:
+        empty = pd.DataFrame(columns=["score", "y", "resolved", "taken"])
+        return empty, pd.DataFrame()
+    y = fwd.reindex(p0.index).astype(float)
+    sc = (score.reindex(p0.index).astype(float) if score is not None else pd.Series(0.0, index=p0.index)).fillna(0.0)
+    keep = y.notna().to_numpy()
+    names = p0.index[keep]
+    idx = pd.MultiIndex.from_arrays([pd.DatetimeIndex([pd.Timestamp(as_date(decided))] * len(names)), names], names=["date", "ticker"])
+    pk = set(picked)
+    frame = pd.DataFrame({"score": sc[keep].to_numpy(), "y": y[keep].to_numpy(),
+                          "resolved": pd.Timestamp(as_date(closed)), "taken": [t in pk for t in names]}, index=idx)
+    ctx = [c for c in p0.columns if str(c).startswith("m_")]
+    X = pd.DataFrame(p0.loc[names, ctx].to_numpy(), index=idx, columns=ctx) if ctx else pd.DataFrame(index=idx)
+    return frame, X
+
+
+@sink("pm_frame")
+def adapter_week_frame(decided: Any, closed: Any, p0: pd.DataFrame, fwd: pd.Series, picked: Sequence[Any],
+                       score: pd.Series | None) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """post_mortem_frame with sink semantics, for the adapter: a failure to build the frame is recorded, never raised into a decision."""
+    return post_mortem_frame(decided, closed, p0, fwd, picked, score)
+
+
+@sink("session_lessons")
+def on_session_end(memory: Any) -> int:
+    """End of an adaptive session (the path the Test loop really runs): the adapter's memory exports its sanitised lesson bank, which
+    reaches on_lessons through memory.export_lessons (the memory.py hook). Returns the number of lessons exported."""
+    if memory is None or not len(memory):
+        return 0
+    return int(len(memory.export_lessons()))
+
+
 # ================================================================================================================== missed winners
 @sink("missed_week")
 def on_missed_week(decided: Any, closed: Any, p0: pd.DataFrame, fwd: pd.Series, picked: Sequence[Any], score: pd.Series | None = None,
@@ -334,6 +408,12 @@ def on_missed_week(decided: Any, closed: Any, p0: pd.DataFrame, fwd: pd.Series, 
         raise ValueError("; ".join(errs[:3]))
     rej = HUB.missed.add_week(week)
     HUB.delivered["rejections"] += len(rej)
+    kinds = {c.cid: c for c in week.candidates}
+    for r in rej:                                  # the ticker never leaves: cid is a salted hash of (date, ticker)
+        c = kinds[r.cid]
+        HUB.persist("missed_winners", stable_hash([week.label, r.cid, r.primary.value]),
+                    {"period": week.label, "decided_at": week.decided_at, "resolved_at": week.resolved_at, "era": week.era,
+                     "reason": r.primary.value, "named": r.named, "kind": c.kind, "fwd": c.fwd, "rank": c.rank})
     return len(rej)
 
 
@@ -533,27 +613,77 @@ def write_dashboard_inputs(report: MonitorReport, root: str | Path) -> dict[str,
 
 
 # ================================================================================================================== production weight
-def board_weight(kid: str) -> float | None:
-    """The board's decision weight for a knowledge id: 1 if any of its members is a champion, 0 if it is registered but not one,
-    None if the board has never heard of it (or no board is configured)."""
+def _scope_chain(scope: str) -> list[str]:
+    return [scope] if scope == "global" else [scope, "global"]
+
+
+def deciding_member(kid: str) -> str | None:
+    """The board member of `kid` that decides for its slot, found the way production must find it: effective_champion over the
+    member's scope chain (its own scope, then global). None when no member of `kid` is the effective champion (or no board)."""
+    from .champion import Slot, effective_champion
     b = HUB.board
     if b is None:
         return None
-    mine = [mid for mid, m in b.members.items() if m.knowledge_id == kid]
-    if not mine:
+    for mid, m in sorted(b.members.items()):
+        if m.knowledge_id != kid:
+            continue
+        slot = Slot.from_key(m.slot)
+        if effective_champion(b, slot.effect, slot.subsystem, _scope_chain(slot.scope)) == mid:
+            return mid
+    return None
+
+
+def board_weight(kid: str) -> float | None:
+    """The board's decision weight for a knowledge id: 1 if one of its members is the effective champion of its slot, 0 if it is
+    registered but not deciding (shadow, challenger, retired, or shadowed by a more specific champion), None if the board has never
+    heard of it (or no board is configured)."""
+    b = HUB.board
+    if b is None:
         return None
-    return max(b.weight(mid) for mid in mine)
+    if not any(m.knowledge_id == kid for m in b.members.values()):
+        return None
+    return 1.0 if deciding_member(kid) is not None else 0.0
 
 
-def effective_weight(kid: str, legacy_weight: float) -> float:
+def effective_weight(kid: str, legacy_weight: float, run: str | None = None) -> float:
     """What a production reader should use for knowledge `kid`. ADAPTER: with no board configured, or knowledge the board never
     registered (and strict off), this returns `legacy_weight` unchanged, so untested paths do not move. Registered knowledge is
-    scaled by the board: a shadow or challenger has weight exactly 0 and can never influence a decision; a champion keeps its weight."""
+    scaled by the board: a shadow or challenger has weight exactly 0 and can never influence a decision; a champion keeps its weight.
+    With `run`, every registered member that carried non-zero weight is noted for end_decision_run's source audit."""
     HUB.calls["weight"] += 1
     bw = board_weight(kid)
     if bw is None:
         return 0.0 if (HUB.strict and HUB.board is not None) else float(legacy_weight)
-    return float(legacy_weight) * bw
+    w = float(legacy_weight) * bw
+    if run is not None and w != 0.0:
+        mid = deciding_member(kid)
+        if mid is not None:
+            HUB.used.setdefault(run, set()).add(mid)
+    return w
+
+
+def note_use(run: str, mids: Iterable[str]) -> None:
+    """A decision path that reads the board directly (e.g. a learner scoring with champion knowledge) declares what it used."""
+    HUB.used.setdefault(run, set()).update(str(m) for m in mids)
+
+
+def end_decision_run(run: str) -> list[dict[str, Any]]:
+    """After each decision run that consulted the board: champion.audit_decision_sources over every member that carried weight.
+    A non-champion that influenced a decision is a violation; each is kept in HUB.source_violations and persisted. With no board
+    this is neutral (nothing could have been used) and returns []. With strict on, a violation raises FirewallBreach."""
+    from .champion import audit_decision_sources
+    HUB.calls["decision_sources"] += 1
+    used = HUB.used.pop(run, set())
+    if HUB.board is None:
+        return []
+    bad: list[dict[str, Any]] = audit_decision_sources(HUB.board, {run: sorted(used)})
+    HUB.delivered["decision_runs_audited"] += 1
+    HUB.source_violations.extend(bad)
+    for v in bad:
+        HUB.persist("decision_source_violations", stable_hash([run, v]), v)
+    if bad and HUB.strict:
+        raise FirewallBreach(f"decision run {run} used non-champion knowledge: {bad[:3]}")
+    return bad
 
 
 # ================================================================================================================== promotion gate
@@ -630,6 +760,57 @@ def promotion_allowed(challenger: Mapping[str, Any], now: Any) -> PromotionVerdi
     return promotion_gate(cid or "challenger", now, bool(challenger.get("claims_learning")), HUB.evidence.get(cid))
 
 
+def register_scorecard(kid: str, card: LearningScorecard) -> None:
+    """The learner (or its runner) states the scorecard its learned knowledge `kid` is promoted on; the card must be valid."""
+    errs = card.check()
+    if errs:
+        raise ValueError(f"scorecard for {kid} is invalid: {'; '.join(errs[:3])}")
+    HUB.scorecards[kid] = card
+
+
+def register_identity(kid: str, report: IdentityReport | IdentityJob) -> None:
+    """The identity-harness result (or a deferred job) for learned knowledge `kid`."""
+    HUB.identity_reports[kid] = report
+
+
+def store_scorecard(card: LearningScorecard) -> str | None:
+    """scorecard -> ScorecardStore.append under the configured root (append-only, hash-chained). None with no root. A learner
+    version already stored is not an error here: the store refuses to overwrite history, and the refusal is counted."""
+    from .scorecard import ScorecardStore
+    if HUB.root is None:
+        return None
+    try:
+        return ScorecardStore(HUB.root / "scorecards.jsonl").append(card)
+    except FileExistsError:
+        HUB.delivered["scorecard_already_stored"] += 1
+        return None
+
+
+def learning_evidence_for(k: Any, now: Any) -> LearningEvidence:
+    """The LearningEvidence of a knowledge promotion: the registered scorecard and identity report (None when nobody registered
+    one - a failed check at the gate, never a pass), and a firewall context over the knowledge item itself, checked by the memory
+    and provenance layers (could this item exist at `now`, and is its lineage complete)."""
+    from .firewalls import LayerName
+    kid = str(getattr(k, "knowledge_id", ""))
+    ctx = GateContext(now=now, subject=kid, items=[k], relevant=frozenset({LayerName.MEMORY, LayerName.PROVENANCE}))
+    return LearningEvidence(card=HUB.scorecards.get(kid), gate_ctx=ctx, identity=HUB.identity_reports.get(kid))
+
+
+def on_knowledge_promotion(k: Any, now: Any) -> PromotionVerdict:
+    """Every promotion attempt of LEARNED knowledge (promotion.PromotionGate.evaluate) is a learning claim: its evidence is
+    registered under the knowledge id and the composite gate runs with claims_learning=True, so the scorecard, firewall and identity
+    checks genuinely execute. Whether the verdict blocks is the PromotionGate's choice (learning_claim='enforce'); it is always
+    recorded and persisted with the other promotion decisions."""
+    HUB.calls["knowledge_promotion"] += 1
+    kid = str(getattr(k, "knowledge_id", "")) or "knowledge"
+    ev = learning_evidence_for(k, now)
+    register_evidence(kid, ev)
+    v = promotion_gate(kid, now, claims_learning=True, evidence=ev)
+    HUB.knowledge_verdicts[kid] = v
+    HUB.delivered["learning_claims_evaluated"] += 1
+    return v
+
+
 # ================================================================================================================== health of the wiring itself
 @dataclasses.dataclass(frozen=True)
 class Hook:
@@ -644,7 +825,12 @@ HOOKS: dict[str, Hook] = {
     "lessons": Hook("on_lessons", ("engine/lessons.py", "engine/memory.py"), "failure hypotheses"),
     "missed_week": Hook("on_missed_week", ("engine/missed_winners.py",), "why-rejected ledger"),
     "experiment": Hook("on_experiment", ("engine/improve.py",), "ExperimentLedger facade row"),
-    "memory_entry": Hook("on_memory_entry", ("engine/registry.py",), "ExperimentLedger facade row"),
+    "memory_entry": Hook("on_memory_entry", ("engine/registry.py", "engine/improve.py"), "ExperimentLedger facade row"),
+    "adapter_post_mortem": Hook("on_post_mortem", ("engine/adaptive.py",), "the Test loop's closed weeks -> failure ledger"),
+    "session_lessons": Hook("on_session_end", ("engine/adaptive.py",), "adapter memory lessons -> hypotheses"),
+    "knowledge_promotion": Hook("on_knowledge_promotion", ("engine/learning/promotion.py",), "learning-claim verdict per promotion"),
+    "decision_sources": Hook("end_decision_run", ("engine/lessons.py",), "champion-only source audit per decision run"),
+    "production_config": Hook("configure_production", ("engine/improve.py",), "persisting sinks + board in production"),
     "pre_launch": Hook("pre_launch", ("engine/improve.py",), "already-tested verdict"),
     "repro": Hook("repro_dict", ("engine/improve.py",), "ReproRecord on the registry record"),
     "registry_audit": Hook("registry_audit", ("engine/registry.py",), "provenance findings"),
@@ -654,6 +840,7 @@ HOOKS: dict[str, Hook] = {
 }
 # Period-level seams are called by the period runner (S17b / the nightly loop), not by an old engine file, so they have no `sites` here;
 # the integration tests prove the data flows. Listed for the report: on_period -> research_step and write_dashboard_inputs.
+CALL_NAME: dict[str, str] = {"adapter_post_mortem": "post_mortem"}     # a HOOKS key whose calls are counted under another sink name
 PERIOD_HOOKS: tuple[str, ...] = ("contradiction_period", "research_step", "dashboard")
 
 
@@ -675,9 +862,11 @@ def unwired_hooks(root: str | Path | None = None, hooks: Mapping[str, Hook] | No
 def hook_report() -> dict[str, Any]:
     """Which hooks fired, what they delivered, and what failed. A hook with calls == 0 in a full run is a wiring gap."""
     return {"calls": dict(HUB.calls), "delivered": dict(HUB.delivered), "errors": [dataclasses.asdict(e) for e in HUB.errors],
-            "silent_hooks": sorted(h for h in HOOKS if HUB.calls[h] == 0), "hypotheses": len(HUB.hypotheses),
+            "silent_hooks": sorted(h for h in HOOKS if HUB.calls[CALL_NAME.get(h, h)] == 0), "hypotheses": len(HUB.hypotheses),
             "failures_classified": len(HUB.failure_ledger), "failure_unknown_rate": HUB.failure_ledger.unknown_rate(),
-            "rejections": len(HUB.missed.rows), "graph_edges": len(HUB.graph.edges("2100-01-01")), "decisions": len(HUB.decisions)}
+            "rejections": len(HUB.missed.rows), "graph_edges": len(HUB.graph.edges("2100-01-01")), "decisions": len(HUB.decisions),
+            "root": str(HUB.root) if HUB.root is not None else None, "board": HUB.board is not None,
+            "source_violations": len(HUB.source_violations), "learning_claims": len(HUB.knowledge_verdicts)}
 
 
 def state_digest() -> str:
