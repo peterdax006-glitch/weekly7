@@ -406,6 +406,8 @@ def scorecard(oos: pd.DataFrame, hid: str, table: pd.DataFrame | None = None, cf
     """Summarise one hypothesis's out-of-sample rows. AUC is per-date (cross-sectional ranking: 'which names move THIS week'), bootstrapped
     by month so that neighbouring weeks do not pretend to be independent."""
     pc = f"p_{hid}"
+    if table is None and oos is None:
+        raise ValueError("scorecard needs rows or a per-date table")
     t = table if table is not None else per_date_table(oos, [pc], cfg.top_frac)
     a = t[f"auc_{pc}"].dropna() if f"auc_{pc}" in t else pd.Series(dtype=float)
     nan = float("nan")
@@ -416,15 +418,19 @@ def scorecard(oos: pd.DataFrame, hid: str, table: pd.DataFrame | None = None, cf
     tb = t.loc[a.index]
     lifts = (tb[f"prec_{pc}"] / tb["base"].replace(0, np.nan)).dropna()
     lb = TS.cluster_bootstrap_mean(lifts.to_numpy(), month_cluster(lifts.index), n_boot=cfg.n_boot, seed=cfg.seed + 1) if len(lifts) >= 2 else None
-    s, y = oos[pc].to_numpy(float), oos["touch"].to_numpy(float)
-    ok = np.isfinite(s) & np.isfinite(y)
-    brier = float(np.mean((s[ok] - y[ok]) ** 2)) if ok.any() else nan
-    ref = float(np.mean((y[ok].mean() - y[ok]) ** 2)) if ok.any() else nan
-    mc, lm = oos[f"m_{hid}"].to_numpy(float), np.log(oos["absmove"].to_numpy(float) + 1e-4)
-    okm = np.isfinite(mc) & np.isfinite(lm)
-    rho = float(pd.Series(mc[okm]).corr(pd.Series(lm[okm]), method="spearman")) if okm.sum() > 30 else nan
+    brier = ref = ece = rho = nan
+    if oos is not None and pc in oos:                 # row-level measures; a stream keeps only the date table and reports NaN here
+        s, y = oos[pc].to_numpy(float), oos["touch"].to_numpy(float)
+        ok = np.isfinite(s) & np.isfinite(y)
+        if ok.any():
+            brier = float(np.mean((s[ok] - y[ok]) ** 2))
+            ref = float(np.mean((y[ok].mean() - y[ok]) ** 2))
+        ece = expected_calibration_error(s, y)
+        mc, lm = oos[f"m_{hid}"].to_numpy(float), np.log(oos["absmove"].to_numpy(float) + 1e-4)
+        okm = np.isfinite(mc) & np.isfinite(lm)
+        rho = float(pd.Series(mc[okm]).corr(pd.Series(lm[okm]), method="spearman")) if okm.sum() > 30 else nan
     return ScoreCard(hid, int(len(a)), bm.mean + 0.5, bm.lo + 0.5, bm.hi + 0.5, p, float(lifts.mean()) if len(lifts) else nan,
-                     lb.lo if lb else nan, brier, (1 - brier / ref) if ref and ref > 0 else nan, expected_calibration_error(s, y), rho)
+                     lb.lo if lb else nan, brier, (1 - brier / ref) if np.isfinite(ref) and ref > 0 else nan, ece, rho)
 
 
 @dc.dataclass(frozen=True)
@@ -563,10 +569,8 @@ def direction_check(oos: pd.DataFrame, hid: str, cfg: LabConfig = LabConfig(), v
         s, y = mm[pc].to_numpy(float), mm["up"].to_numpy(bool)
         dauc = _auc(s, y)
         cl = month_cluster(mm.index.get_level_values(0))
-        per = pd.Series(np.where(y, 1.0, 0.0)).groupby(cl)
         boots = _bootstrap_auc(s, y, cl, cfg.n_boot, cfg.seed)
         dlo, dhi = float(np.quantile(boots, 0.05)), float(np.quantile(boots, 0.95))
-        del per
     blind = np.isfinite(dlo) and dlo <= 0.5 <= dhi
     if pv < 0.01 and lo > 0.5 and not blind:
         flag, why = DirectionFlag.GAIN_SKEWED, "picked movers close up significantly more often"
@@ -634,14 +638,14 @@ def decay_check(t: pd.DataFrame, oos: pd.DataFrame, hid: str, cfg: LabConfig = L
     early_folds, late_folds = set(fa.index[:cut]), set(fa.index[cut:])
     fm = fmap.reindex(a.index)
     ea, la = a[fm.isin(early_folds)], a[fm.isin(late_folds)]
-    diff = TS.cluster_bootstrap_diff(la.to_numpy(), ea.to_numpy(), month_cluster(la.index), month_cluster(ea.index), n_boot=cfg.n_boot, seed=cfg.seed)
+    diff = TS.cluster_bootstrap_diff(la.to_numpy(), ea.to_numpy(), month_cluster(la.index), month_cluster(ea.index), n_boot=cfg.n_boot, level=0.99, seed=cfg.seed)
     lb = TS.cluster_bootstrap_mean(la.to_numpy() - 0.5, month_cluster(la.index), n_boot=cfg.n_boot, seed=cfg.seed)
     early, late = float(ea.mean()), float(la.mean())
     if early > 0.53 and lb.lo <= 0.0 and late < 0.52:
         st, why = "STOPPED", "earlier folds were above chance; the latest folds are not distinguishable from chance"
-    elif diff.hi < 0 and slope < 0:
+    elif diff.hi < -0.01 and slope < 0 and len(late_folds) >= 2:
         st, why = "DECAYING", "latest folds significantly weaker than early folds, trend downwards"
-    elif diff.lo > 0 and slope > 0:
+    elif diff.lo > 0.01 and slope > 0 and len(late_folds) >= 2:
         st, why = "IMPROVING", "latest folds significantly stronger"
     else:
         st, why = "STABLE", "no significant change between early and late folds"
@@ -691,7 +695,7 @@ def regime_check(t: pd.DataFrame, oos: pd.DataFrame, hid: str, by: str = "regime
         return RegimeCheck(hid, by, tuple(groups), float("nan"), float("nan"), float("nan"), False, "fewer than two groups with enough dates")
     best, worst = max(groups, key=lambda x: x[2]), min(groups, key=lambda x: x[2])
     hi_s, lo_s = a[lab == best[0]], a[lab == worst[0]]
-    diff = TS.cluster_bootstrap_diff(hi_s.to_numpy(), lo_s.to_numpy(), month_cluster(hi_s.index), month_cluster(lo_s.index), n_boot=cfg.n_boot, seed=cfg.seed)
+    diff = TS.cluster_bootstrap_diff(hi_s.to_numpy(), lo_s.to_numpy(), month_cluster(hi_s.index), month_cluster(lo_s.index), n_boot=cfg.n_boot, level=0.99, seed=cfg.seed)
     dep = bool(diff.mean >= 0.03 and diff.lo > 0)
     return RegimeCheck(hid, by, tuple(groups), diff.mean, diff.lo, diff.hi, dep,
                        f"{best[0]} {best[2]:.3f} vs {worst[0]} {worst[2]:.3f}" + (": regime-dependent" if dep else ": no reliable difference"))
@@ -734,7 +738,7 @@ def unexplained_extremes(oos: pd.DataFrame, hids: Sequence[str], cfg: LabConfig 
 # ---------------------------------------------------------------------------------------------------------------
 # competition between hypotheses (engine.learning.competition.Arena)
 # ---------------------------------------------------------------------------------------------------------------
-def run_competition(oos: pd.DataFrame, hids: Sequence[str], now, *, rows_per_date: int = 30, seed: int = 0) -> dict:
+def run_competition(oos: pd.DataFrame, hids: Sequence[str], now, *, rows_per_date: int = 30, seed: int = 0, outcome: str = "touch") -> dict:
     """Let the hypotheses compete as explanations of the realised size of moves. Each hypothesis contributes its logit-probability as the
     only feature of a CAUSAL spec in an Arena beside a NULL spec; batches are decision dates in time order, a seeded sample per date.
     The leader, weights, statuses, and the Arena's own account of why it may be undecided are returned; an Arena that cannot separate
@@ -744,7 +748,9 @@ def run_competition(oos: pd.DataFrame, hids: Sequence[str], now, *, rows_per_dat
     if len(hs) < 1 or len(oos) == 0:
         return {"tested": False, "reason": "no complete hypothesis columns"}
     d = oos.copy()
-    y = np.log(d["absmove"].to_numpy(float) + 1e-3)
+    if outcome not in ("touch", "size"):
+        raise ValueError("outcome must be 'touch' or 'size'")
+    y = d["touch"].to_numpy(float) if outcome == "touch" else np.log(d["absmove"].to_numpy(float) + 1e-3)
     d["y"] = (y - np.nanmean(y)) / (np.nanstd(y) + 1e-9)
     specs = [CP.null_spec()]
     for h in hs:
@@ -995,6 +1001,12 @@ def run_scan_study(spec: StudySpec, F: pd.DataFrame, now, cfg: LabConfig) -> Stu
                        caveats=("univariate: a feature can rank movers only because it proxies own volatility (see Q03-Q13 for incremental value)",))
 
 
+def _feature_edge(v: np.ndarray, y: np.ndarray) -> float:
+    ok = np.isfinite(v)
+    a = _auc(v[ok], y[ok].astype(bool)) if ok.sum() > 100 else np.nan
+    return abs(a - 0.5) if np.isfinite(a) else 0.0
+
+
 def run_pairs_study(spec: StudySpec, F: pd.DataFrame, now, cfg: LabConfig, fit_cfg: VH.FitConfig) -> StudyResult:
     """Q02. The K strongest features are chosen on rows that ended before the FIRST test fold (so no fold's choice used its own future),
     every pair's product is tested for incremental value over the additive model, and control pairs (second factor permuted within
@@ -1011,7 +1023,7 @@ def run_pairs_study(spec: StudySpec, F: pd.DataFrame, now, cfg: LabConfig, fit_c
                            detail={"why": "too little training history for feature selection"}, caveats=("too little history",))
     D = VH.derive(tr, feats)
     y = tr["touch"].to_numpy(float)
-    edge = {f: abs((_auc(D[f].to_numpy(float)[np.isfinite(D[f].to_numpy(float))], y[np.isfinite(D[f].to_numpy(float))].astype(bool)) or 0.5) - 0.5) for f in feats}
+    edge = {f: _feature_edge(D[f].to_numpy(float), y) for f in feats}
     top = sorted(feats, key=lambda f: -edge[f])[:cfg.max_pair_features]
     pairs = [(a, b) for i, a in enumerate(top) for b in top[i + 1:]]
     additive = tuple(BASE_FEATURES) + tuple(top)
@@ -1296,6 +1308,15 @@ class LabReport:
     studies: list
     registry_fingerprint: str
     caveats: tuple
+    data_through: str = ""
+    fits: pd.DataFrame = dc.field(default_factory=pd.DataFrame)
+    assessments: dict = dc.field(default_factory=dict)
+    extremes: dict = dc.field(default_factory=dict)
+    health: pd.DataFrame = dc.field(default_factory=pd.DataFrame)
+    persistence: pd.DataFrame = dc.field(default_factory=pd.DataFrame)
+    thresholds: pd.DataFrame = dc.field(default_factory=pd.DataFrame)
+    cells: pd.DataFrame = dc.field(default_factory=pd.DataFrame)
+    fused: dict = dc.field(default_factory=dict)
 
     def study(self, qid: str) -> StudyResult:
         return next(s for s in self.studies if s.qid == qid)
@@ -1343,9 +1364,24 @@ def run_lab(F: pd.DataFrame, now, cfg: LabConfig = LabConfig(), registry: VH.Hyp
     caveats = survivor_caveats(F)
     if len(oos) == 0:
         caveats += ("no out-of-sample rows: frame too short for the configured folds",)
-    return LabReport(str(as_date(now)), cfg.fingerprint(), current_code_hash(), bool(F.attrs.get("survivor_free", False)), int(len(F)),
+    health = feature_health(F) if len(F) else pd.DataFrame()
+    if len(health) and health["data_failure"].any():
+        caveats += (f"input columns failing health checks (DATA_FAILURE, not evidence): {health.loc[health['data_failure'], 'column'].tolist()}",)
+    fused = {}
+    if len(oos):
+        fz, used = fuse_forward(oos, [h for h in hids if h != "B0"], cfg)
+        tt = per_date_table(oos.assign(p_FUSED=fz), ["p_FUSED", f"p_{champ.hid}"], cfg.top_frac)
+        fi = auc_increment(tt, "FUSED", champ.hid, cfg)
+        fused = {"increment_over_champion": dc.asdict(fi), "weights": used, "beats_champion": bool(np.isfinite(fi.lo) and fi.lo > 0)}
+    ch = champ.hid if champ.hid != "B0" else (hids[1] if len(hids) > 1 else "B0")
+    rep_ = LabReport(str(as_date(now)), cfg.fingerprint(), current_code_hash(), bool(F.attrs.get("survivor_free", False)), int(len(F)),
                      int(F.index.get_level_values(0).nunique()) if len(F) else 0, tuple(hids), wf.unavailable, cards, incs, champ, directions, decay,
-                     regimes, years, unexpl, comp, calib, disc, studies, registry.fingerprint(), caveats)
+                     regimes, years, unexpl, comp, calib, disc, studies, registry.fingerprint(), caveats,
+                     str(pd.to_datetime(mature_only(F, now)[0]["end"]).max().date()) if len(F) and len(mature_only(F, now)[0]) else "",
+                     fits, assess_all(hids, incs, fits, decay, regimes, directions, studies, cfg), classify_extremes(oos, [h for h in hids if h != "B0"], cfg) if len(oos) else {},
+                     health, mover_persistence(F, cfg=cfg) if len(F) else pd.DataFrame(),
+                     threshold_curve(oos, ch, cfg=cfg) if len(oos) else pd.DataFrame(), cell_breakdown(oos, F, ch, cfg) if len(oos) else pd.DataFrame(), fused)
+    return rep_
 
 
 def run_studies(F: pd.DataFrame, now, cfg: LabConfig = LabConfig(), fit_cfg: VH.FitConfig = VH.FitConfig(), *, wf: WFResult | None = None,
@@ -1368,3 +1404,750 @@ def run_studies(F: pd.DataFrame, now, cfg: LabConfig = LabConfig(), fit_cfg: VH.
             h = registry.get(champion) if champion in registry else registry.get("H1")
             out.append(run_transfer_study(s, F, h, now, cfg, fit_cfg))
     return finalise_family(out, cfg)
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# calibrated forecast: P(move), magnitude quantiles, timing - fitted on matured rows only, applied to a point-in-time frame
+# ---------------------------------------------------------------------------------------------------------------
+TIMING_DAYS = tuple(range(1, HORIZON_BARS + 1))
+
+
+@dc.dataclass
+class VolatilityModel:
+    hyp: VH.Hypothesis
+    fitted: VH.FittedHypothesis
+    trained_through: str
+    calibrator: Any = None
+    reliability: pd.DataFrame = dc.field(default_factory=pd.DataFrame)
+    mag_models: dict = dc.field(default_factory=dict)
+    mag_std: VH.Standardiser | None = None
+    mag_features: tuple = ()
+    timing: Any = None
+    timing_prior: np.ndarray = dc.field(default_factory=lambda: np.full(HORIZON_BARS, 1.0 / HORIZON_BARS))
+    direction: DirectionCheck | None = None
+    survivor_free: bool = False
+    code_hash: str = ""
+    cfg_hash: str = ""
+
+    @classmethod
+    def fit(cls, F: pd.DataFrame, now, hyp: VH.Hypothesis, cfg: LabConfig = LabConfig(), fit_cfg: VH.FitConfig = VH.FitConfig(),
+            calib_oos: pd.DataFrame | None = None, direction: DirectionCheck | None = None) -> "VolatilityModel":
+        """Fit on rows whose outcome ended before `now`. `calib_oos` (a walk-forward OOS frame with a p_<hid> column, all earlier than
+        `now`) supplies the isotonic calibration and the reliability table; without it the forecast is raw and says so."""
+        Fm, _ = mature_only(F, now)
+        Fm = Fm[Fm["touch"].notna()].sort_index()
+        fh = VH.fit_hypothesis(hyp, Fm, now, fit_cfg)
+        m = cls(hyp, fh, fh.trained_through, direction=direction, survivor_free=bool(F.attrs.get("survivor_free", False)),
+                code_hash=current_code_hash(), cfg_hash=cfg.fingerprint())
+        if not fh.ok:
+            return m
+        pc = f"p_{hyp.hid}"
+        if calib_oos is not None and pc in calib_oos and len(calib_oos):
+            if (pd.to_datetime(calib_oos["end"]) >= pd.Timestamp(as_date(now))).any():
+                raise FirewallBreach("calibration rows include outcomes that had not ended before now")
+            from sklearn.isotonic import IsotonicRegression
+            c = calib_oos[calib_oos[pc].notna() & calib_oos["touch"].notna()]
+            if len(c) >= 200 and c["touch"].nunique() == 2:
+                m.calibrator = IsotonicRegression(y_min=1e-4, y_max=1 - 1e-4, out_of_bounds="clip").fit(c[pc].to_numpy(float), c["touch"].to_numpy(float))
+                m.reliability = reliability_table(m.calibrator.predict(c[pc].to_numpy(float)), c["touch"].to_numpy(float))
+        feats = fh.resid_features if hyp.kind == VH.HypKind.RESIDUAL else hyp.features
+        feats = tuple(f for f in feats if not VH.missing_columns((f,), Fm.columns))
+        if feats and len(Fm) >= fit_cfg.min_rows:
+            import lightgbm as lgb
+            sub = VH._subsample(Fm, fit_cfg.max_train_rows, fit_cfg.seed)
+            X = VH.derive(sub, feats).to_numpy(float)
+            std = VH.Standardiser.fit(X, fit_cfg.winsor)
+            Z = std.apply(X)
+            lm = np.log(sub["absmove"].to_numpy(float) + 1e-4)
+            m.mag_std, m.mag_features = std, feats
+            for a in (0.5, 0.9):
+                m.mag_models[a] = lgb.LGBMRegressor(objective="quantile", alpha=a, n_estimators=fit_cfg.gbm_trees, num_leaves=fit_cfg.gbm_leaves,
+                                                    min_child_samples=fit_cfg.gbm_min_child, learning_rate=0.06, random_state=fit_cfg.seed,
+                                                    verbose=-1, n_jobs=1).fit(Z, lm)
+            ev = sub[(sub["touch"] == 1) & sub["tday"].between(1, HORIZON_BARS)]
+            if len(ev):
+                cnt = np.array([(ev["tday"] == d).sum() for d in TIMING_DAYS], float)
+                m.timing_prior = (cnt + 1.0) / (cnt.sum() + HORIZON_BARS)
+            if len(ev) >= 150 and ev["tday"].nunique() >= 3:
+                from sklearn.linear_model import LogisticRegression
+                Ze = std.apply(VH.derive(ev, feats).to_numpy(float))
+                m.timing = LogisticRegression(C=0.3, max_iter=300).fit(Ze, ev["tday"].astype(int).to_numpy())
+        return m
+
+    def forecast(self, Fnow: pd.DataFrame, now) -> pd.DataFrame:
+        """One row per (date, ticker) of Fnow. Fails closed if any row is dated after `now` or if the model was trained on outcomes that
+        ended at/after the earliest row it is asked to forecast. An unfitted model abstains (NaN), it never guesses."""
+        if len(Fnow) == 0:
+            return pd.DataFrame(columns=["p_raw", "p_move", "p_lo", "p_hi", "calibrated", "mag_med", "mag_q90", "exp_day", "dir_flag", "abstain"])
+        dts = pd.to_datetime(Fnow.index.get_level_values(0))
+        if dts.max() > pd.Timestamp(as_date(now)):
+            raise FirewallBreach(f"forecast asked for rows dated {dts.max().date()} after now={as_date(now)}")
+        if self.trained_through:
+            require_past(self.trained_through, dts.min(), "model training data")
+        n = len(Fnow)
+        out = pd.DataFrame(index=Fnow.index)
+        if not self.fitted.ok:
+            for c in ("p_raw", "p_move", "p_lo", "p_hi", "mag_med", "mag_q90", "exp_day"):
+                out[c] = np.nan
+            out["calibrated"], out["dir_flag"], out["abstain"] = False, str(DirectionFlag.UNTESTED), True
+            return out
+        p, _ = self.fitted.predict(Fnow)
+        out["p_raw"] = p
+        if self.calibrator is not None:
+            pc = self.calibrator.predict(p)
+            out["p_move"], out["calibrated"] = pc, True
+            if len(self.reliability):
+                edges = self.reliability["p_mean"].to_numpy()
+                nb = np.abs(pc[:, None] - edges[None, :]).argmin(1)
+                out["p_lo"], out["p_hi"] = self.reliability["lo"].to_numpy()[nb], self.reliability["hi"].to_numpy()[nb]
+            else:
+                out["p_lo"], out["p_hi"] = np.nan, np.nan
+        else:
+            out["p_move"], out["calibrated"], out["p_lo"], out["p_hi"] = p, False, np.nan, np.nan
+        if self.mag_models:
+            Z = self.mag_std.apply(VH.derive(Fnow, self.mag_features).to_numpy(float))
+            out["mag_med"] = np.exp(self.mag_models[0.5].predict(Z))
+            out["mag_q90"] = np.maximum(np.exp(self.mag_models[0.9].predict(Z)), out["mag_med"])
+            tp = np.tile(self.timing_prior, (n, 1))
+            if self.timing is not None:
+                pr = self.timing.predict_proba(Z)
+                tp = np.zeros((n, HORIZON_BARS))
+                for j, cls_ in enumerate(self.timing.classes_):
+                    tp[:, int(cls_) - 1] = pr[:, j]
+                tp = tp / tp.sum(1, keepdims=True)
+        else:
+            out["mag_med"] = out["mag_q90"] = np.nan
+            tp = np.tile(self.timing_prior, (n, 1))
+        for d in TIMING_DAYS:
+            out[f"p_day{d}"] = out["p_move"].to_numpy() * tp[:, d - 1]
+        out["exp_day"] = tp @ np.array(TIMING_DAYS, float)
+        flag = self.direction.flag if self.direction else DirectionFlag.UNTESTED
+        out["dir_flag"] = str(flag)
+        out["abstain"] = False
+        out["dir_blind"] = flag in (DirectionFlag.DIRECTION_BLIND, DirectionFlag.LOSS_SKEWED)
+        return out
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# streaming, market-wide: keep per-date snapshots and exception rows, never the whole universe (RESEARCH_MAPPING rule 27)
+# ---------------------------------------------------------------------------------------------------------------
+class TrainReservoir:
+    """A bounded, seeded, per-date reservoir of past rows for refitting during a stream. Holds at most `per_date` rows of every date, so
+    memory grows with the number of dates, not with the size of the universe."""
+
+    def __init__(self, per_date: int = 150, seed: int = 0):
+        self.per_date, self.seed = per_date, seed
+        self._parts: list[pd.DataFrame] = []
+
+    def add(self, F: pd.DataFrame) -> None:
+        if len(F) == 0:
+            return
+        codes = pd.factorize(F.index.get_level_values(0))[0]
+        rng = np.random.default_rng(self.seed + len(self._parts))
+        keep = []
+        for c in np.unique(codes):
+            ix = np.flatnonzero(codes == c)
+            keep.append(ix if len(ix) <= self.per_date else ix[np.sort(rng.choice(len(ix), self.per_date, replace=False))])
+        self._parts.append(F.iloc[np.concatenate(keep)].astype({c: "float32" for c in F.select_dtypes("float64").columns}))
+
+    def rows_ended_before(self, cutoff) -> pd.DataFrame:
+        if not self._parts:
+            return pd.DataFrame()
+        R = pd.concat(self._parts)
+        return R[pd.to_datetime(R["end"]) < pd.Timestamp(as_date(cutoff))].sort_index()
+
+    def __len__(self) -> int:
+        return int(sum(len(p) for p in self._parts))
+
+
+@dc.dataclass
+class StreamResult:
+    date_table: pd.DataFrame
+    exceptions: pd.DataFrame
+    fits: list
+    years_done: list
+    rows_seen: int
+    peak_rows_in_memory: int
+    hids: tuple
+
+
+def stream_walk_forward(loader: Callable[[int], pd.DataFrame], years: Sequence[int], hyps: Sequence[VH.Hypothesis], now,
+                        cfg: LabConfig = LabConfig(), fit_cfg: VH.FitConfig = VH.FitConfig(), *, per_date_reservoir: int = 150,
+                        exceptions_per_date: int = 4, min_train_dates: int | None = None) -> StreamResult:
+    """Year-by-year walk-forward that never holds more than one year plus a reservoir. For each year: fit every hypothesis on the reservoir
+    rows that ENDED before the year's first decision date, score the year, keep (a) the per-date snapshot table (AUC, top-decile
+    precision per hypothesis) and (b) at most `exceptions_per_date` exception rows per date - missed extremes (touches that every
+    hypothesis ranked in its lower half) and confident false alarms - then add a bounded sample of the year to the reservoir and drop
+    the year. `loader(year)` must return a lab frame for that calendar year only."""
+    min_dates = min_train_dates or cfg.min_train_dates
+    field = [baseline_hypothesis()] + [h for h in hyps if h.state != VH.HypState.RETIRED]
+    res = TrainReservoir(per_date_reservoir, cfg.seed)
+    tables, exc, fits = [], [], []
+    seen, peak, done = 0, 0, []
+    for y in years:
+        Fy = loader(y)
+        errs = validate_frame(Fy, cfg)
+        if errs:
+            raise ValueError(f"year {y}: " + "; ".join(errs))
+        Fy = Fy.sort_index()
+        seen += len(Fy)
+        peak = max(peak, len(Fy) + len(res))
+        Fm, _ = mature_only(Fy, now)
+        Fm = Fm[Fm["touch"].notna()]
+        if len(Fm):
+            first = Fm.index.get_level_values(0).min()
+            tr = res.rows_ended_before(first)
+            if tr.index.get_level_values(0).nunique() >= min_dates:
+                chunk = Fm[[c for c in OUTCOME_COLS + ("sector",) if c in Fm]].copy()
+                for h in field:
+                    if h.kind != VH.HypKind.RESIDUAL and (h.missing(Fm.columns) or h.missing(tr.columns)):
+                        chunk[f"p_{h.hid}"] = np.nan
+                        continue
+                    fh = VH.fit_hypothesis(h, tr, first, fit_cfg, others=[x for x in field if x.hid not in ("B0", h.hid)])
+                    p, _m = fh.predict(Fm)
+                    chunk[f"p_{h.hid}"] = p
+                    fits.append({"year": y, "hid": h.hid, "ok": fh.ok, "reason": fh.reason, "n_train": fh.n_train})
+                cols = [c for c in chunk.columns if c.startswith("p_") and chunk[c].notna().any()]
+                tables.append(per_date_table(chunk, cols, cfg.top_frac))
+                exc.append(_exception_rows(chunk, cols, exceptions_per_date, cfg))
+        res.add(Fy)
+        done.append(y)
+        del Fy, Fm
+    dt_ = pd.concat(tables) if tables else pd.DataFrame()
+    ex = pd.concat(exc) if exc else pd.DataFrame()
+    return StreamResult(dt_, ex, fits, done, seen, peak, tuple(h.hid for h in field))
+
+
+def _exception_rows(chunk: pd.DataFrame, cols: Sequence[str], k: int, cfg: LabConfig) -> pd.DataFrame:
+    """Missed extremes (touches ranked below the median by every hypothesis) and the most confident false alarms, at most k per date."""
+    ranks = pd.concat([chunk[c].groupby(level=0).rank(pct=True, method="first") for c in cols], axis=1)
+    best_rank = ranks.max(axis=1)
+    strongest = chunk[list(cols)].max(axis=1)
+    missed = chunk[(chunk["touch"] == 1) & (best_rank < 0.5)].assign(kind="MISSED_EXTREME")
+    false_alarm = chunk[(chunk["touch"] == 0) & (best_rank > 1 - cfg.top_frac / 2)].assign(kind="FALSE_ALARM")
+    pick = []
+    for part, key in ((missed, missed["absmove"]), (false_alarm, strongest.reindex(false_alarm.index))):
+        if len(part):
+            g = part.assign(_k=key.to_numpy()).groupby(level=0, group_keys=False).apply(lambda x: x.nlargest(k, "_k")).drop(columns="_k")
+            pick.append(g)
+    return pd.concat(pick) if pick else chunk.iloc[:0].assign(kind="")
+
+
+def summarise_stream(sr: StreamResult, cfg: LabConfig = LabConfig()) -> dict:
+    """Scorecards and BH increments from a stream's date table alone (no rows needed)."""
+    if len(sr.date_table) == 0:
+        return {"cards": {}, "increments": []}
+    hids = [h for h in sr.hids if f"auc_p_{h}" in sr.date_table]
+    return {"cards": {h: scorecard(None, h, sr.date_table, cfg) for h in hids}, "increments": increments_vs_baseline(sr.date_table, hids, cfg)}
+
+
+def remeasure(old: Mapping[str, Any], new: ScoreCard, tol: float = 0.01) -> dict:
+    """RS re-measurement (contract WP3): compare a figure measured on the survivor-only panel with the same hypothesis measured on a
+    survivor-free one. Returns the AUC change, its direction, and whether the old headline survives."""
+    d = new.auc - float(old["auc"])
+    return {"hid": new.hid, "old_auc": float(old["auc"]), "new_auc": new.auc, "delta": d,
+            "direction": "SURVIVOR_BIAS_INFLATED" if d < -tol else "SURVIVOR_BIAS_DEFLATED" if d > tol else "UNCHANGED_WITHIN_TOL",
+            "old_headline_survives": bool(np.isfinite(new.auc_lo) and new.auc_lo > 0.5 and new.auc >= float(old["auc"]) - tol)}
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# report, matured record, and the research-loop entry point
+# ---------------------------------------------------------------------------------------------------------------
+def render_report(rep: LabReport) -> str:
+    L = [f"VOLATILITY LABORATORY  now={rep.now}  rows={rep.n_rows}  dates={rep.n_dates}  survivor_free={rep.survivor_free}",
+         "status: IMPLEMENTED - NOT VALIDATED", f"champion: {rep.champion.hid} ({rep.champion.reason})", ""]
+    L.append("hypothesis  auc   [lo,hi]        lift  brier_skill  ece    direction / decay")
+    for h in rep.hids:
+        c = rep.scorecards.get(h)
+        if c is None:
+            continue
+        d = rep.directions.get(h)
+        dk = rep.decay.get(h)
+        L.append(f"{h:<10} {c.auc:.3f} [{c.auc_lo:.3f},{c.auc_hi:.3f}] {c.lift:5.2f} {c.brier_skill:+.3f}      {c.ece:.3f}  "
+                 f"{d.flag if d else '-'} / {dk.status if dk else '-'}")
+    if rep.unavailable:
+        L.append("unavailable (UNKNOWN, not failed): " + "; ".join(f"{k} needs {list(v)}" for k, v in rep.unavailable.items()))
+    L.append(f"unexplained extremes: {rep.unexplained.share:.1%} [{rep.unexplained.lo:.1%},{rep.unexplained.hi:.1%}] of {rep.unexplained.n_extremes}")
+    L.append(f"discovery: {rep.discovery.reason}; registered {list(rep.discovery.registered)}; rejected {len(rep.discovery.rejected)}")
+    L.append("")
+    for s in rep.studies:
+        L.append(f"{s.qid} {str(s.verdict):<13} effect={s.effect:+.4f} [{s.lo:+.4f},{s.hi:+.4f}] q={s.q:.3f}  {s.question}")
+        for c in s.caveats[:1]:
+            L.append(f"      note: {c}")
+    for c in rep.caveats:
+        L.append(f"CAVEAT: {c}")
+    return "\n".join(L)
+
+
+def to_matured_record(rep: LabReport, now, data_through, seed: int = 0) -> MaturedRecord:
+    """Wrap a report as a MATURED_RESEARCH_STATE record. It can reach the live side only through record.gate(now), which fails closed unless
+    `data_through` (the newest outcome the report used) is strictly before that now. Payload is identity-free: no tickers, no dates
+    other than the maturity stamp on the record itself."""
+    payload = {"kind": "volatility_lab", "problem": str(Problem.VOLATILITY), "champion": rep.champion.hid, "champion_reason": rep.champion.reason,
+               "cards": {h: c.as_dict() for h, c in rep.scorecards.items()}, "verdicts": rep.verdicts(),
+               "directions": {h: str(d.flag) for h, d in rep.directions.items()}, "decay": {h: d.status for h, d in rep.decay.items()},
+               "unexplained_share": rep.unexplained.share, "survivor_free": rep.survivor_free, "caveats": list(rep.caveats),
+               "status": "IMPLEMENTED - NOT VALIDATED"}
+    rid = "VL" + stable_hash([rep.cfg_hash, rep.registry_fingerprint, str(data_through), payload["verdicts"]], 12)
+    import datetime as _dt
+    prov = Provenance(created_real=_dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds"), learned_at=str(as_date(data_through)),
+                      code_hash=rep.code_hash or current_code_hash(), data_hash=stable_hash([rep.n_rows, rep.n_dates, str(data_through)], 12),
+                      config_hash=rep.cfg_hash, experiment_id="volatility_lab", seed=seed, outcomes_seen_through=str(as_date(data_through)))
+    return MaturedRecord(rid, str(as_date(data_through)), payload, prov, Namespace.MATURED_RESEARCH)
+
+
+@dc.dataclass
+class LabState:
+    """What the loop carries between steps. Holds research-side results only."""
+    registry: VH.HypothesisRegistry = dc.field(default_factory=VH.HypothesisRegistry)
+    cfg: LabConfig = LabConfig()
+    fit_cfg: VH.FitConfig = VH.FitConfig()
+    results: dict = dc.field(default_factory=dict)          # qid -> StudyResult
+    ran_on: dict = dc.field(default_factory=dict)           # task -> frame key it was last run on
+    score: dict = dc.field(default_factory=dict)
+    discovery: DiscoveryOutcome | None = None
+    history: list = dc.field(default_factory=list)
+    _wf: tuple | None = None
+
+    def tasks(self) -> list[str]:
+        return ["SCORE"] + [s.qid for s in STUDIES] + ["DISCOVER"]
+
+
+@dc.dataclass(frozen=True)
+class StepResult:
+    ran: tuple
+    remaining: tuple
+    record: MaturedRecord | None
+    note: str
+
+
+def frame_key(F: pd.DataFrame, now) -> str:
+    if len(F) == 0:
+        return stable_hash(["empty", str(as_date(now))])
+    d = F.index.get_level_values(0)
+    return stable_hash([len(F), str(d.min()), str(d.max()), float(np.nansum(F["touch"].to_numpy(float))), sorted(F.columns), str(as_date(now))], 16)
+
+
+def step(state: LabState, now, frame: pd.DataFrame | None = None, max_tasks: int = 2) -> StepResult:
+    """One scheduled unit of volatility research for the wave-2 loop. Runs up to `max_tasks` not-yet-done tasks on this frame (SCORE =
+    the multi-hypothesis walk-forward with scorecards/direction/decay; Q01-Q18; DISCOVER = H10+ search), folds the results into
+    `state`, and returns a MaturedRecord (research namespace) when something new was learned. With no frame or an empty one it does
+    nothing and says so. A frame with outcomes that end at/after `now` is refused, not trimmed silently."""
+    if frame is None or len(frame) == 0:
+        return StepResult((), tuple(state.tasks()), None, "no matured frame supplied")
+    errs = validate_frame(frame, state.cfg)
+    if errs:
+        raise ValueError("; ".join(errs))
+    check = pd.to_datetime(frame["end"]).max()
+    if check >= pd.Timestamp(as_date(now)):
+        raise FirewallBreach(f"frame contains outcomes ending {check.date()} at/after now={as_date(now)}; pass mature_only(frame, now) explicitly")
+    key = frame_key(frame, now)
+    if state._wf is None or state._wf[0] != key:
+        state._wf = (key, walk_forward(frame, state.registry.all(), now, state.cfg, state.fit_cfg))
+    wf = state._wf[1]
+    due = [t for t in state.tasks() if state.ran_on.get(t) != key][:max(1, max_tasks)]
+    for t in due:
+        if t == "SCORE":
+            cols = [f"p_{h}" for h in wf.hids]
+            tb = per_date_table(wf.oos, cols, state.cfg.top_frac) if len(wf.oos) else pd.DataFrame()
+            cards = {h: scorecard(wf.oos, h, tb, state.cfg) for h in wf.hids} if len(wf.oos) else {}
+            incs = increments_vs_baseline(tb, wf.hids, state.cfg) if len(wf.oos) else []
+            state.score = {"cards": cards, "increments": incs, "champion": pick_champion(incs, wf.fit_table(), state.cfg),
+                           "directions": {h: direction_check(wf.oos, h, state.cfg) for h in wf.hids} if len(wf.oos) else {}}
+        elif t == "DISCOVER":
+            state.discovery = discover(frame, wf, state.registry, now, state.cfg)
+        else:
+            champ = state.score["champion"].hid if state.score else "H1"
+            got = run_studies(frame, now, state.cfg, state.fit_cfg, wf=wf, champion=champ if champ != "B0" else "H1", registry=state.registry, qids=[t])
+            state.results[t] = got[0]
+        state.ran_on[t] = key
+    if state.results:
+        fam = finalise_family(list(state.results.values()), state.cfg)
+        state.results = {r.qid: r for r in fam}
+    remaining = tuple(t for t in state.tasks() if state.ran_on.get(t) != key)
+    through = pd.to_datetime(frame["end"]).max()
+    rep_like = {"n_done": len(due), "through": str(through.date())}
+    state.history.append({"now": str(as_date(now)), "ran": due, "key": key, **rep_like})
+    rec = None
+    if due:
+        payload = {"kind": "volatility_lab_step", "tasks": due, "verdicts": {q: str(r.verdict) for q, r in state.results.items()},
+                   "champion": state.score["champion"].hid if state.score else None, "survivor_free": bool(frame.attrs.get("survivor_free", False)),
+                   "caveats": list(survivor_caveats(frame)), "status": "IMPLEMENTED - NOT VALIDATED"}
+        import datetime as _dt
+        prov = Provenance(_dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds"), str(through.date()), current_code_hash(), key,
+                          state.cfg.fingerprint(), "volatility_lab.step", "", state.cfg.seed, str(through.date()))
+        rec = MaturedRecord("VS" + stable_hash([key, due], 12), str(through.date()), payload, prov, Namespace.MATURED_RESEARCH)
+    return StepResult(tuple(due), remaining, rec, "ok" if due else "all tasks already done on this frame")
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# input health: a data failure must not be mistaken for a market finding
+# ---------------------------------------------------------------------------------------------------------------
+def population_stability_index(a: np.ndarray, b: np.ndarray, bins: int = 10) -> float:
+    """PSI of b against a's decile bins (a = reference). > 0.25 is a material shift. NaN if either side has too few finite values."""
+    a, b = a[np.isfinite(a)], b[np.isfinite(b)]
+    if len(a) < 50 or len(b) < 50:
+        return float("nan")
+    edges = np.unique(np.quantile(a, np.linspace(0, 1, bins + 1)))
+    if len(edges) < 3:
+        return 0.0
+    edges[0], edges[-1] = -np.inf, np.inf
+    pa = np.histogram(a, edges)[0] / len(a)
+    pb = np.histogram(b, edges)[0] / len(b)
+    pa, pb = np.clip(pa, 1e-4, None), np.clip(pb, 1e-4, None)
+    return float(np.sum((pb - pa) * np.log(pb / pa)))
+
+
+def feature_health(F: pd.DataFrame, cols: Sequence[str] | None = None, psi_limit: float = 0.25, max_missing: float = 0.5) -> pd.DataFrame:
+    """One row per input column: missing share, share of exact zeros, infinities, constancy, and the PSI between the first and second half
+    of the dates. `data_failure` is True for a column that is mostly missing, constant, infinite, or that shifted so much between halves
+    that a study spanning both is comparing two different measurements. A failing column is a DATA_FAILURE (Knowability), not evidence."""
+    cols = list(cols) if cols is not None else [c for c in VH.BASE_COLUMNS + VH.EVENT_COLUMNS if c in F.columns and c != "sector"]
+    dates = pd.to_datetime(F.index.get_level_values(0))
+    half = dates.min() + (dates.max() - dates.min()) / 2 if len(F) else None
+    rows = []
+    for c in cols:
+        v = F[c].to_numpy(float)
+        miss = float(np.mean(~np.isfinite(v))) if len(v) else float("nan")
+        fin = v[np.isfinite(v)]
+        const = bool(len(fin) > 1 and np.nanstd(fin) < 1e-12)
+        psi = population_stability_index(v[(dates <= half)], v[(dates > half)]) if len(F) else float("nan")
+        rows.append({"column": c, "missing": miss, "zeros": float(np.mean(fin == 0)) if len(fin) else float("nan"), "n_inf": int(np.isinf(v).sum()),
+                     "constant": const, "psi_halves": psi,
+                     "data_failure": bool(miss > max_missing or const or np.isinf(v).any() or (np.isfinite(psi) and psi > psi_limit))})
+    return pd.DataFrame(rows, columns=["column", "missing", "zeros", "n_inf", "constant", "psi_halves", "data_failure"])
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# model-free evidence for H1 and friends: do extreme movers repeat?
+# ---------------------------------------------------------------------------------------------------------------
+def mover_persistence(F: pd.DataFrame, lags: Sequence[int] = (1, 2, 4), cfg: LabConfig = LabConfig(), max_gap_days: int = 10) -> pd.DataFrame:
+    """P(mover now | mover `lag` decisions ago) against P(mover now | not), per lag, with the same contrast inside each own-volatility
+    tercile (so 'volatile names move again' is separated from 'names that just moved move again'). A lagged outcome is used only if it had
+    ENDED before the current decision date (otherwise it is NaN, never peeked). Weekly frames only: rows whose lag is more than
+    max_gap_days*lag calendar days back are skipped."""
+    F = F[F["touch"].notna()].sort_index()
+    if len(F) == 0:
+        return pd.DataFrame(columns=["lag", "n", "p1", "p0", "diff", "lo", "hi", "diff_controlled"])
+    G = F.reset_index().sort_values(["ticker", "date"])
+    G["date"] = pd.to_datetime(G["date"])
+    out = []
+    tercile = G.groupby("date")["vol20"].rank(pct=True) if "vol20" in G else pd.Series(0.5, index=G.index)
+    G["terc"] = np.minimum((tercile * 3).astype(int), 2) if "vol20" in G else 0
+    for lag in lags:
+        g = G.groupby("ticker")
+        prev_touch, prev_end, prev_date = g["touch"].shift(lag), g["end"].shift(lag), g["date"].shift(lag)
+        usable = prev_touch.notna() & (prev_end < G["date"]) & ((G["date"] - prev_date).dt.days <= max_gap_days * lag)
+        d = G[usable].assign(prev=prev_touch[usable].to_numpy())
+        if len(d) < 200 or d["prev"].nunique() < 2:
+            out.append({"lag": lag, "n": int(len(d)), "p1": np.nan, "p0": np.nan, "diff": np.nan, "lo": np.nan, "hi": np.nan, "diff_controlled": np.nan})
+            continue
+        per_date = d.groupby("date").apply(lambda x: (x.loc[x["prev"] == 1, "touch"].mean() - x.loc[x["prev"] == 0, "touch"].mean())
+                                           if (x["prev"] == 1).sum() >= 2 and (x["prev"] == 0).sum() >= 2 else np.nan).dropna()
+        ctrl = []
+        for tq, x in d.groupby("terc"):
+            if (x["prev"] == 1).sum() >= 20 and (x["prev"] == 0).sum() >= 20:
+                ctrl.append(x.loc[x["prev"] == 1, "touch"].mean() - x.loc[x["prev"] == 0, "touch"].mean())
+        bm = TS.cluster_bootstrap_mean(per_date.to_numpy(), month_cluster(per_date.index), n_boot=cfg.n_boot, seed=cfg.seed) if len(per_date) >= 2 else None
+        out.append({"lag": lag, "n": int(len(d)), "p1": float(d.loc[d["prev"] == 1, "touch"].mean()), "p0": float(d.loc[d["prev"] == 0, "touch"].mean()),
+                    "diff": bm.mean if bm else np.nan, "lo": bm.lo if bm else np.nan, "hi": bm.hi if bm else np.nan,
+                    "diff_controlled": float(np.mean(ctrl)) if ctrl else np.nan})
+    return pd.DataFrame(out)
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# does the signal find only the huge movers, or the 7% ones too? where is it weak?
+# ---------------------------------------------------------------------------------------------------------------
+def threshold_curve(oos: pd.DataFrame, hid: str, thresholds: Sequence[float] = (0.05, 0.07, 0.10, 0.15, 0.20), cfg: LabConfig = LabConfig()) -> pd.DataFrame:
+    """Per-date AUC of the (10%-mover) probability against 'moved at least thr' for several thr. A signal trained on +-10% touches may or
+    may not rank 5-7% movers; the portfolio target lives around 7%, so this is asked explicitly."""
+    pc = f"p_{hid}"
+    rows = []
+    d = oos[oos[pc].notna() & oos["absmove"].notna()]
+    for thr in thresholds:
+        t = d.assign(touch=(d["absmove"] >= thr).astype(float))
+        tb = per_date_table(t, [pc], cfg.top_frac)
+        a = tb[f"auc_{pc}"].dropna() if f"auc_{pc}" in tb else pd.Series(dtype=float)
+        bm = TS.cluster_bootstrap_mean(a.to_numpy(), month_cluster(a.index), n_boot=cfg.n_boot, seed=cfg.seed) if len(a) >= 2 else None
+        rows.append({"threshold": thr, "base_rate": float(t["touch"].mean()) if len(t) else np.nan, "n_dates": int(len(a)),
+                     "auc": bm.mean if bm else np.nan, "lo": bm.lo if bm else np.nan, "hi": bm.hi if bm else np.nan})
+    return pd.DataFrame(rows)
+
+
+def cell_labels(F: pd.DataFrame) -> dict[str, pd.Series]:
+    """Universe cells for the breakdown: price band, liquidity tercile (same-date), own-volatility tercile (same-date), sector."""
+    out: dict[str, pd.Series] = {}
+    if "logp" in F:
+        p = np.exp(F["logp"].to_numpy(float))
+        out["price"] = pd.Series(np.where(p < 10, "P<10", np.where(p < 30, "P10-30", "P30+")), index=F.index)
+    for name, col in (("liquidity", "log_dv"), ("volatility", "vol20")):
+        if col in F:
+            r = F[col].groupby(level=0).rank(pct=True)
+            out[name] = pd.Series(np.where(r < 1 / 3, f"{name[:3]}_lo", np.where(r < 2 / 3, f"{name[:3]}_mid", f"{name[:3]}_hi")), index=F.index)
+    if "sector" in F:
+        out["sector"] = F["sector"].astype(str)
+    return out
+
+
+def cell_breakdown(oos: pd.DataFrame, F: pd.DataFrame, hid: str, cfg: LabConfig = LabConfig(), min_names: int = 15) -> pd.DataFrame:
+    """Per-cell mean per-date AUC (dates with fewer than min_names names in the cell are skipped) for each universe cell. weak=True when the
+    interval's upper end is below 0.52: the signal does not work there and a portfolio should not lean on it there."""
+    pc = f"p_{hid}"
+    labs = cell_labels(F.loc[F.index.intersection(oos.index)])
+    rows = []
+    d = oos[oos[pc].notna()]
+    for kind, lab in labs.items():
+        L = lab.reindex(d.index)
+        for name in sorted(L.dropna().unique()):
+            sub = d[(L == name).to_numpy()]
+            vals = {}
+            for dt_, g in sub.groupby(level=0):
+                y = g["touch"].to_numpy(float)
+                if len(g) >= min_names and 0 < y.sum() < len(y):
+                    vals[dt_] = _auc(g[pc].to_numpy(float), y.astype(bool))
+            a = pd.Series(vals, dtype=float)
+            if len(a) < 2:
+                rows.append({"kind": kind, "cell": name, "n_dates": len(a), "auc": np.nan, "lo": np.nan, "hi": np.nan, "weak": None})
+                continue
+            bm = TS.cluster_bootstrap_mean(a.to_numpy(), month_cluster(a.index), n_boot=cfg.n_boot, seed=cfg.seed)
+            rows.append({"kind": kind, "cell": name, "n_dates": len(a), "auc": bm.mean, "lo": bm.lo, "hi": bm.hi, "weak": bool(bm.hi < 0.52)})
+    return pd.DataFrame(rows, columns=["kind", "cell", "n_dates", "auc", "lo", "hi", "weak"])
+
+
+def classify_extremes(oos: pd.DataFrame, hids: Sequence[str], cfg: LabConfig = LabConfig()) -> dict:
+    """Volatility-side view of 'could the features have told us': every extreme mover is PREDICTABLE if some hypothesis ranked it in the
+    top `top_frac` that day, WEAKLY_PREDICTABLE if in the top 3x that, else UNKNOWN. (The full could-I-have-known test with external
+    information is the knowability module's job; this only reports what the price/volume features could see.) Also, per hypothesis, how
+    many extremes it alone caught."""
+    from engine.research.core import Knowability
+    hs = [h for h in hids if f"p_{h}" in oos and oos[f"p_{h}"].notna().any()]
+    ex_mask = (oos["touch"] == 1).to_numpy()
+    if not hs or not ex_mask.any():
+        return {"n": int(ex_mask.sum()), "counts": {}, "shares": {}, "unique_catch": {}}
+    rk = {h: oos[f"p_{h}"].groupby(level=0).rank(pct=True, method="first").to_numpy() for h in hs}
+    top = {h: rk[h] > 1 - cfg.top_frac for h in hs}
+    wide = {h: rk[h] > 1 - min(0.5, 3 * cfg.top_frac) for h in hs}
+    any_top = np.any([top[h] for h in hs], axis=0)
+    any_wide = np.any([wide[h] for h in hs], axis=0)
+    cls = np.where(any_top, str(Knowability.PREDICTABLE), np.where(any_wide, str(Knowability.WEAKLY_PREDICTABLE), str(Knowability.UNKNOWN)))
+    labs, cnt = np.unique(cls[ex_mask], return_counts=True)
+    n = int(ex_mask.sum())
+    uniq = {}
+    for h in hs:
+        others = np.any([top[o] for o in hs if o != h], axis=0) if len(hs) > 1 else np.zeros(len(oos), bool)
+        uniq[h] = int((top[h] & ~others & ex_mask).sum())
+    return {"n": n, "counts": dict(zip(labs.tolist(), cnt.tolist())), "shares": {k: v / n for k, v in zip(labs.tolist(), cnt.tolist())}, "unique_catch": uniq}
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# magnitude and timing measured walk-forward (how large, and when)
+# ---------------------------------------------------------------------------------------------------------------
+def walk_forward_forecast(F: pd.DataFrame, hyp: VH.Hypothesis, now, cfg: LabConfig = LabConfig(), fit_cfg: VH.FitConfig = VH.FitConfig(),
+                          wf: WFResult | None = None) -> pd.DataFrame:
+    """Out-of-sample VolatilityModel forecasts (calibrated probability, magnitude quantiles, timing) for every test fold. Fold k's model is
+    fitted on rows that ended before the fold and calibrated on earlier folds' out-of-sample probabilities that had also ended by then."""
+    Fm, _ = mature_only(F, now)
+    Fm = Fm[Fm["touch"].notna()].sort_index()
+    wf = wf or walk_forward(Fm, [hyp], now, cfg, fit_cfg, include_baseline=False)
+    pc = f"p_{hyp.hid}"
+    parts = []
+    for fd in wf.folds:
+        te = Fm[np.isin(pd.to_datetime(Fm.index.get_level_values(0)).to_numpy(), np.array(fd.test_dates, dtype="datetime64[ns]"))]
+        if len(te) == 0:
+            continue
+        cal = wf.oos[(wf.oos["fold"] < fd.idx) & (pd.to_datetime(wf.oos["end"]) < fd.now)] if pc in wf.oos else None
+        model = VolatilityModel.fit(Fm, fd.now, hyp, cfg, fit_cfg, calib_oos=cal)
+        fc = model.forecast(te, fd.test_dates[-1])
+        keep = te[[c for c in OUTCOME_COLS if c in te]]
+        parts.append(keep.join(fc).assign(fold=fd.idx))
+    return pd.concat(parts) if parts else pd.DataFrame()
+
+
+def forecast_metrics(fc: pd.DataFrame) -> dict:
+    """Score forecasts: probability calibration (calibrated rows only), coverage of the magnitude quantiles (median should cover ~50%,
+    q90 ~90%, judged against the realised absolute move), and timing (mean log-loss of the day distribution on movers against a uniform
+    guess, argmax hit rate, MAE of the expected day against always guessing the middle)."""
+    out: dict[str, Any] = {"n": int(len(fc))}
+    if len(fc) == 0 or fc.get("abstain", pd.Series(dtype=bool)).all():
+        return {**out, "note": "no forecasts or the model abstained"}
+    ok = fc[~fc["abstain"].astype(bool)]
+    cal = ok[ok["calibrated"].astype(bool) & ok["touch"].notna()]
+    out["calibration"] = calibration_verdict(reliability_table(cal["p_move"].to_numpy(), cal["touch"].to_numpy())) if len(cal) >= 100 else {"tested": False}
+    m = ok[ok["mag_med"].notna() & ok["absmove"].notna()]
+    if len(m):
+        out["cover_median"] = float((m["absmove"] <= m["mag_med"]).mean())
+        out["cover_q90"] = float((m["absmove"] <= m["mag_q90"]).mean())
+        out["q90_ok"] = bool(abs(out["cover_q90"] - 0.9) <= 0.05)
+    mv = ok[(ok["touch"] == 1) & ok["tday"].between(1, HORIZON_BARS)]
+    if len(mv) >= 30 and all(f"p_day{d}" in mv for d in TIMING_DAYS):
+        P = mv[[f"p_day{d}" for d in TIMING_DAYS]].to_numpy(float)
+        P = P / np.clip(P.sum(1, keepdims=True), 1e-12, None)
+        day = mv["tday"].astype(int).to_numpy()
+        ll = -np.log(np.clip(P[np.arange(len(mv)), day - 1], 1e-6, 1))
+        out["timing_logloss"] = float(ll.mean())
+        out["timing_logloss_uniform"] = float(np.log(HORIZON_BARS))
+        out["timing_beats_uniform"] = bool(ll.mean() < np.log(HORIZON_BARS))
+        out["timing_argmax_hit"] = float((P.argmax(1) + 1 == day).mean())
+        out["timing_mae"] = float(np.abs(mv["exp_day"].to_numpy(float) - day).mean())
+        out["timing_mae_constant"] = float(np.abs(3.0 - day).mean())
+    return out
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# forward-only fusion of hypotheses
+# ---------------------------------------------------------------------------------------------------------------
+def fuse_forward(oos: pd.DataFrame, hids: Sequence[str], cfg: LabConfig = LabConfig()) -> tuple[pd.Series, dict]:
+    """Stack the hypotheses' probabilities. Weights for fold k come from folds < k only (proportional to the positive Brier improvement
+    over the constant forecast, so a hypothesis that lost to the base rate gets none); fold 0 is NaN. Returns the fused probability and
+    the weights used in each fold. A fused forecast must beat its best member before it is worth having - the caller tests that."""
+    hs = [h for h in hids if f"p_{h}" in oos and oos[f"p_{h}"].notna().all()]
+    fused = pd.Series(np.nan, index=oos.index, dtype=float)
+    used = {}
+    for k in sorted(oos["fold"].unique()):
+        past = oos[oos["fold"] < k]
+        if len(past) < 200 or not hs:
+            continue
+        y = past["touch"].to_numpy(float)
+        ref = float(np.mean((y.mean() - y) ** 2))
+        gain = np.array([max(0.0, ref - float(np.mean((past[f"p_{h}"].to_numpy(float) - y) ** 2))) for h in hs])
+        if gain.sum() <= 0:
+            continue
+        w = gain / gain.sum()
+        cur = (oos["fold"] == k).to_numpy()
+        lg = np.sum([wi * VH._logit(oos.loc[cur, f"p_{h}"].to_numpy(float)) for wi, h in zip(w, hs)], axis=0)
+        fused.loc[cur] = VH._expit(lg)
+        used[int(k)] = dict(zip(hs, w.tolist()))
+    return fused, used
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# evidence for each hypothesis, and the questions the results raise
+# ---------------------------------------------------------------------------------------------------------------
+def assess_all(hids: Sequence[str], incs: Sequence[Increment], fits: pd.DataFrame, decay: Mapping[str, DecayCheck], regimes: Mapping[str, RegimeCheck],
+               directions: Mapping[str, DirectionCheck], studies: Sequence[StudyResult], cfg: LabConfig = LabConfig()) -> dict:
+    """Collect each hypothesis's measurements into a HypothesisEvidence and assess it. Transfer evidence exists only for the hypothesis the
+    transfer studies used (the champion); every other hypothesis is therefore capped at CONDITIONAL with 'transfer not measured'."""
+    by_a = {i.a: i for i in incs}
+    out = {}
+    for h in hids:
+        if h == "B0":
+            continue
+        inc = by_a.get(h)
+        sub = fits[(fits["hid"] == h) & fits["mechanism_consistent"].notna()] if len(fits) else fits
+        share = float(sub["mechanism_consistent"].astype(bool).mean()) if len(sub) else None
+        transfer = tuple((s.detail.get("axis", s.qid), str(s.verdict)) for s in studies if s.detail.get("hypothesis") == h and s.qid in ("Q15", "Q16", "Q17", "Q18"))
+        grp = [s for s in studies if s.detail.get("hypothesis") == h and s.qid not in ("Q15", "Q16", "Q17", "Q18")]
+        null_ok = None if not grp else all(s.verdict != StudyVerdict.INVALID for s in grp)
+        ev = VH.HypothesisEvidence(h, inc.diff if inc else None, inc.lo if inc else None, inc.hi if inc else None, inc.q if inc else None, share,
+                                   decay[h].status if h in decay else None, regimes[h].regime_dependent if h in regimes else None, transfer,
+                                   str(directions[h].flag) if h in directions else None, null_ok)
+        out[h] = VH.assess_hypothesis(ev, cfg.alpha)
+    return out
+
+
+def follow_up_questions(rep: "LabReport", now) -> list:
+    """Research questions raised by this report (contract section 40): inconclusive studies, decaying signals, direction-blind champions,
+    a large unexplained share, failed null controls, promoted discoveries, survivor-only data. Identity-free text; each carries a success
+    and a failure criterion so the agenda can decide whether to spend compute on it."""
+    from engine.research.core import ExperimentValue, ResearchQuestion
+    made = str(as_date(now))
+    through = rep.data_through or made
+    qs = []
+
+    def mk(text, source, problem, ok, bad, ev):
+        qs.append(ResearchQuestion.make(text, source, problem, made, through, ok, bad, expected=ev))
+
+    for s in rep.studies:
+        if s.verdict == StudyVerdict.INCONCLUSIVE:
+            mk(f"Does {s.question.rstrip('?').lower()} once more matured weeks are available (interval currently spans no effect and a material effect)?",
+               "inconclusive", Problem.VOLATILITY, "the interval excludes zero or excludes a gain above 0.01 AUC", "still inconclusive after doubling the dates",
+               ExperimentValue(information_gain=0.6, transfer_potential=0.4, compute_cost=8.0))
+        if s.verdict == StudyVerdict.INVALID:
+            mk(f"Why did the shuffled-input control of '{s.question.rstrip('?').lower()}' gain accuracy (measurement leak or mis-specification)?",
+               "contradiction", Problem.DATA_QUALITY, "the control returns to zero after the defect is found", "the gain persists with all known leaks removed",
+               ExperimentValue(information_gain=0.9, failure_reduction_value=0.8, compute_cost=5.0))
+    for h, d in rep.decay.items():
+        if d.status in ("STOPPED", "DECAYING") and h != "B0":
+            mk(f"What changed when the {h} volatility signal went from AUC {d.early:.2f} to {d.late:.2f} in the latest folds (regime, crowding, data)?",
+               "break", Problem.VOLATILITY, "a cause explains at least half of the drop", "the cause stays unknown and is logged as such",
+               ExperimentValue(information_gain=0.7, failure_reduction_value=0.6, compute_cost=6.0))
+    ch = rep.directions.get(rep.champion.hid)
+    if ch is not None and ch.flag in (DirectionFlag.DIRECTION_BLIND, DirectionFlag.LOSS_SKEWED):
+        mk(f"Can anything rank the up-movers above the down-movers among the names {rep.champion.hid} selects (it finds movers with no direction)?",
+           "discovery", Problem.DIRECTION, "a direction AUC interval above 0.5 out of sample", "direction stays a coin flip",
+           ExperimentValue(direction_value=0.8, loss_reduction_value=0.5, compute_cost=12.0))
+    if np.isfinite(rep.unexplained.hi) and rep.unexplained.hi > 0.5:
+        mk("Do the extreme movers that no hypothesis ranked share any structure (the unexplained share is above half)?", "surprise", Problem.VOLATILITY,
+           "a replicated rule covering a material share of them", "no structure beyond chance", ExperimentValue(information_gain=0.8, volatility_value=0.7, compute_cost=10.0))
+    if rep.discovery.promoted:
+        mk(f"Do the newly promoted rules {list(rep.discovery.promoted)} transfer to other sectors and stocks?", "discovery", Problem.VOLATILITY,
+           "lift above one in at least 75% of sectors", "lift only in the discovery sector mix", ExperimentValue(transfer_potential=0.8, information_gain=0.5, compute_cost=4.0))
+    if not rep.survivor_free:
+        mk("Do the volatility results change on a survivor-free universe including delisted names?", "data", Problem.DATA_QUALITY,
+           "AUC and mover base rate unchanged within 0.01", "material change (results were survivor-biased)",
+           ExperimentValue(information_gain=0.9, failure_reduction_value=0.9, compute_cost=30.0))
+    seen, uniq = set(), []
+    for q in qs:
+        if q.question_id not in seen:
+            seen.add(q.question_id)
+            uniq.append(q)
+    return uniq
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# persistence and the harness's own self-check
+# ---------------------------------------------------------------------------------------------------------------
+def to_jsonable(x: Any) -> Any:
+    if dc.is_dataclass(x) and not isinstance(x, type):
+        return {f.name: to_jsonable(getattr(x, f.name)) for f in dc.fields(x)}
+    if isinstance(x, pd.DataFrame):
+        return x.reset_index().to_dict("records") if x.index.name or isinstance(x.index, pd.MultiIndex) else x.to_dict("records")
+    if isinstance(x, Mapping):
+        return {str(k): to_jsonable(v) for k, v in x.items()}
+    if isinstance(x, (list, tuple, set, frozenset)):
+        return [to_jsonable(v) for v in x]
+    if isinstance(x, _StrEnum):
+        return str(x)
+    if isinstance(x, (np.integer,)):
+        return int(x)
+    if isinstance(x, (np.floating, float)):
+        return None if not math.isfinite(float(x)) else float(x)
+    if isinstance(x, (pd.Timestamp, np.datetime64)):
+        return str(pd.Timestamp(x))
+    if isinstance(x, np.ndarray):
+        return to_jsonable(x.tolist())
+    return x
+
+
+def save_report(rep: LabReport, out_dir, *, cfg: LabConfig | None = None, seed: int | None = None, name: str = "volatility_lab") -> dict:
+    """Write <name>.json and <name>.txt into out_dir with an engine.provenance stamp (code hash, config hash, seed). Returns the paths."""
+    import json
+    from pathlib import Path
+    from engine import provenance
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    body = to_jsonable(rep)
+    body["provenance"] = provenance.stamp(dc.asdict(cfg) if cfg else None, seed)
+    (out / f"{name}.json").write_text(json.dumps(body, indent=1, sort_keys=True, default=str), encoding="utf-8")
+    (out / f"{name}.txt").write_text(render_report(rep) + "\n", encoding="utf-8")
+    return {"json": str(out / f"{name}.json"), "txt": str(out / f"{name}.txt")}
+
+
+def selfcheck(seed: int = 0, n_dates: int = 90, n_tickers: int = 50) -> dict:
+    """The laboratory's own calibration (a check that can fail): on a planted H1 world H1 must beat the baseline out of sample and its
+    fitted signs must agree with the mechanism; on a null world no hypothesis may be BH-significantly better than the baseline and the
+    signal check must not call a random score a volatility signal."""
+    cfg = LabConfig(min_train_dates=40, test_step_dates=12, n_boot=150, seed=seed)
+    hyps = [h for h in VH.seeded_hypotheses() if h.hid in ("H1", "H6")]
+    res = {}
+    for truth in ("H1", "null"):
+        F = planted_frame(truth, n_dates=n_dates, n_tickers=n_tickers, seed=seed + 5, effect=1.3)
+        wf = walk_forward(F, hyps, "2035-01-01", cfg)
+        tb = per_date_table(wf.oos, [f"p_{h}" for h in wf.hids], cfg.top_frac)
+        incs = increments_vs_baseline(tb, wf.hids, cfg)
+        res[truth] = {"increments": {i.a: (i.diff, i.lo, i.q) for i in incs}}
+    h1 = res["H1"]["increments"]["H1"]
+    res["planted_recovered"] = bool(h1[1] > 0 and h1[2] <= cfg.alpha)
+    res["null_clean"] = all(not (v[1] > 0 and v[2] <= cfg.alpha) for v in res["null"]["increments"].values())
+    res["passed"] = bool(res["planted_recovered"] and res["null_clean"])
+    return res

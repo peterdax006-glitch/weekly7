@@ -40,7 +40,7 @@ def build_world(seed: int = 0, planted: bool = True, n_a: int = 6, n_b: int = 5)
                 g.relate(pid, fid, rg.R.USES_FEATURE, t)
             last_a = planted and fam == "a" and i == n - 1
             for r in works:
-                if last_a and r == "r3":
+                if last_a and r == "r1":
                     continue
                 g.relate(pid, rg.node_key(rg.K.REGIME, r), rg.R.WORKS_IN, day(5))
             for r in fails:
@@ -76,11 +76,13 @@ def test_relate_enforces_role_kinds_and_merges_roles_on_one_edge():
         g.relate(p, "tgt:volatility", rg.R.WORKS_IN, day(9))          # a target is not a context
     with pytest.raises(GraphError):
         g.relate("reg:r1", "reg:r2", rg.R.WORKS_IN, day(9))
-    e = g.relate(p, r, rg.R.GATED_BY, day(9), 0.4)                    # same pair, second role, same base relation
-    assert {x.value for x in g.roles_of(e)} == {"WORKS_IN", "GATED_BY"}
-    assert g.role_weight(e, rg.R.GATED_BY) == 0.4
-    assert g.role_weight(e, rg.R.WORKS_IN) == 1.0
-    assert r in g.targets(p, rg.R.WORKS_IN, NOW) and r in g.targets(p, rg.R.GATED_BY, NOW)
+    f = "feat:f_vol"                                                  # USES_FEATURE and GATED_BY share the DEPENDS_ON relation
+    e = g.relate(p, f, rg.R.GATED_BY, day(9), 0.4)
+    assert {x.value for x in g.roles_of(e)} == {"USES_FEATURE", "GATED_BY"}
+    assert g.role_weight(e, rg.R.GATED_BY) == 0.4 and g.role_weight(e, rg.R.USES_FEATURE) == 1.0
+    assert e.weight == 1.0                                            # the edge carries the max over its roles
+    assert f in g.targets(p, rg.R.USES_FEATURE, NOW) and f in g.targets(p, rg.R.GATED_BY, NOW)
+    assert r in g.targets(p, rg.R.WORKS_IN, NOW) and r not in g.targets(p, rg.R.GATED_BY, NOW)
 
 
 def test_roles_are_time_aware():
@@ -135,7 +137,7 @@ def test_story_names_each_missing_link_and_only_the_ones_that_can_exist():
     g2.add_context(rg.K.REGIME, "x", day(0))
     g2.relate("pat:z", "reg:x", rg.R.WORKS_IN, day(1))
     g2.add_failure("fz", "pat:z", FailureCause.UNKNOWN, day(2))
-    assert g2.pattern_story("pat:z", NOW).missing == ("failure_explanation",) or "failure_explanation" in g2.pattern_story("pat:z", NOW).missing
+    assert g2.pattern_story("pat:z", NOW).missing == ("failure_explanation",)
     with pytest.raises(GraphError):
         g2.pattern_story("reg:x", NOW)
 
@@ -153,7 +155,7 @@ def test_coverage_matrix_marks_works_fails_and_untested():
     g = build_world()
     m = g.coverage_matrix(NOW)
     assert m.loc["pat:a0", "reg:r1"] == 1.0 and m.loc["pat:b0", "reg:r1"] == -1.0
-    assert np.isnan(m.loc["pat:a5", "reg:r3"])
+    assert np.isnan(m.loc["pat:a5", "reg:r1"])
 
 
 def test_empty_graph_is_quiet():
@@ -171,7 +173,7 @@ def test_empty_graph_is_quiet():
 def test_planted_transfer_gap_is_found_with_a_significant_p_value():
     g = build_world()
     gaps = rg.predicted_transfers(g, NOW, rg.GapConfig(n_null=300, seed=1))
-    hit = [x for x in gaps if x.subjects == ("pat:a5", "reg:r3")]
+    hit = [x for x in gaps if x.subjects == ("pat:a5", "reg:r1")]
     assert hit and hit[0].kind == rg.GapKind.PREDICTED_TRANSFER and hit[0].p_value <= 0.05
     assert hit[0].evidence["rho"] == pytest.approx(1.0) and hit[0].evidence["support"] >= 2
 
@@ -220,7 +222,7 @@ def test_discovery_is_deterministic_and_time_bounded():
     cfg = rg.GapConfig(n_null=100, seed=5)
     a, b = rg.discover(g, NOW, cfg), rg.discover(g, NOW, cfg)
     assert [x.gap_id for x in a] == [x.gap_id for x in b]
-    assert rg.discover(g, day(5), cfg) == []                             # nothing was known before day 5 but the bare patterns
+    assert {x.kind for x in rg.discover(g, day(5), cfg)} == {rg.GapKind.CONTEXT_BLIND}     # only the bare patterns were known then
     assert all(as_date_ok(x.known_through, NOW) for x in a)
 
 
@@ -449,9 +451,9 @@ def test_gap_flow_shows_a_closed_gap_after_new_evidence():
     cfg = rg.GapConfig(n_null=200, seed=1)
     t0, t1 = day(100), day(200)
     before = {x.gap_id for x in rg.discover(g, t0, cfg)}
-    g.relate("pat:a5", "reg:r3", rg.R.WORKS_IN, day(150))                  # the planted gap is answered
+    g.relate("pat:a5", "reg:r1", rg.R.WORKS_IN, day(150))                  # the planted gap is answered
     flow = rg.gap_flow(g, t0, t1, cfg)
-    gid = next(x.gap_id for x in rg.discover(build_world(), t0, cfg) if x.subjects == ("pat:a5", "reg:r3"))
+    gid = next(x.gap_id for x in rg.discover(build_world(), t0, cfg) if x.subjects == ("pat:a5", "reg:r1"))
     assert gid in before and gid in dict(flow.closed) and dict(flow.closed)[gid] == "new evidence about its subjects"
     with pytest.raises(FirewallBreach):
         rg.gap_flow(g, t1, t0, cfg)

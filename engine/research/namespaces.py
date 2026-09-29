@@ -175,6 +175,39 @@ def payload_dates(obj: Any, _depth: int = 0, _budget: list | None = None) -> lis
     return out
 
 
+def frame_timestamp_findings(frame: pd.DataFrame | pd.Series, name: str = "frame") -> list[str]:
+    """Section 29 'no timestamp ambiguity' for dated frames: an undated or unreadable index, missing stamps, duplicated or
+    out-of-order dates, and intraday stamps (which session is a 17:30 bar?) are each named. An empty frame is fine."""
+    if len(frame) == 0:
+        return []
+    idx = frame.index
+    lvl = idx.get_level_values(0) if isinstance(idx, pd.MultiIndex) else idx
+    if not isinstance(lvl, pd.DatetimeIndex):
+        dated = frame_dates(frame)
+        if len(dated) == 0 or dated.isna().all():
+            return [f"{name}: index is not dated, so no row can be placed in time"]
+        lvl = dated
+    out = []
+    n_nat = int(lvl.isna().sum())
+    if n_nat:
+        out.append(f"{name}: {n_nat} rows have no timestamp")
+    ok = lvl[~lvl.isna()]
+    if ok.tz is not None:
+        ok = ok.tz_convert("America/New_York").tz_localize(None)
+    if not isinstance(idx, pd.MultiIndex):
+        if ok.has_duplicates:
+            out.append(f"{name}: {int(ok.duplicated().sum())} duplicated timestamps (which value was known?)")
+        if not ok.is_monotonic_increasing:
+            out.append(f"{name}: timestamps out of order")
+    intraday = ok[(ok.hour != 0) | (ok.minute != 0) | (ok.second != 0)]
+    if len(intraday) and len(intraday.normalize().unique()) != len(intraday):
+        out.append(f"{name}: several intraday stamps share a session: the bar's close time is ambiguous")
+    late = intraday[(intraday.hour > CLOSE_HOUR) | ((intraday.hour == CLOSE_HOUR) & ((intraday.minute > 0) | (intraday.second > 0)))]
+    if len(late):
+        out.append(f"{name}: {len(late)} stamps after the {CLOSE_HOUR}:00 close are dated to their calendar day, not the next session")
+    return out
+
+
 # ------------------------------------------------------------------------------------------------ freezing
 def deep_freeze(obj: Any, _depth: int = 0) -> Any:
     """A read-only deep copy: dicts become MappingProxyType, lists tuples, sets frozensets, arrays read-only copies, frames
@@ -320,6 +353,10 @@ class InfoObject:
             declared = max([obs] + ([av] if av is not None else []) +
                            [d for d in (optional_moment(self.provenance.learned_at, "learned_at"),
                                         optional_moment(self.provenance.outcomes_seen_through, "outcomes_seen_through")) if d])
+            if isinstance(self.payload, Mapping):
+                for k, v in self.payload.items():
+                    if isinstance(v, (pd.DataFrame, pd.Series)):
+                        errs += [f"timestamp: {e}" for e in frame_timestamp_findings(v, f"payload.{k}")]
             late = [d for d in payload_dates(self.payload) if d > declared]
             if late:
                 errs.append(f"payload holds dates through {max(late)}, after everything the object declares ({declared}): "
@@ -805,3 +842,38 @@ def store_frame(store: NamespaceStore) -> pd.DataFrame:
                      "evidence_through": b, "n_parents": len(o.all_parents()), "origin": o.origin})
     return pd.DataFrame(rows, columns=["object_id", "kind", "knowable_at", "set_by", "evidence_from", "evidence_through",
                                        "n_parents", "origin"])
+
+
+PROVENANCE_FIELDS = ("code_hash", "data_hash", "config_hash", "experiment_id", "run_id", "outcomes_seen_through")
+
+
+def provenance_census(store: NamespaceStore) -> pd.DataFrame:
+    """Section 29 'every information object needs provenance': per object, which provenance fields are recorded, how deep its
+    lineage runs, and whether its created/learned ordering is plausible (a record cannot be written before what it learned)."""
+    rows = []
+    for o in store.objects():
+        p = o.provenance
+        anc, missing, cycle = store.lineage(o.object_id)
+        try:
+            created = pd.Timestamp(p.created_real).date() if p.created_real else None
+        except (ValueError, TypeError):
+            created = None
+        learned = optional_moment(p.learned_at, "learned_at") if p.learned_at else None
+        row = {"object_id": o.object_id, "kind": str(o.kind), "n_ancestors": len(anc), "missing_parents": len(missing),
+               "cycle": cycle, "created_parseable": created is not None,
+               "written_before_learned": bool(created is not None and learned is not None and created < learned)}
+        row.update({f"has_{f}": bool(getattr(p, f)) for f in PROVENANCE_FIELDS})
+        rows.append(row)
+    cols = ["object_id", "kind", "n_ancestors", "missing_parents", "cycle", "created_parseable", "written_before_learned"] +         [f"has_{f}" for f in PROVENANCE_FIELDS]
+    return pd.DataFrame(rows, columns=cols)
+
+
+def provenance_completeness(store: NamespaceStore) -> dict:
+    """Shares of objects carrying each provenance field, plus the objects whose provenance is implausible. Empty store -> n=0 and
+    no shares (never a 100% on nothing)."""
+    df = provenance_census(store)
+    if df.empty:
+        return {"n": 0, "shares": {}, "implausible": []}
+    shares = {c[4:]: float(df[c].mean()) for c in df.columns if c.startswith("has_")}
+    bad = df.loc[df["written_before_learned"] | ~df["created_parseable"] | df["cycle"] | (df["missing_parents"] > 0), "object_id"]
+    return {"n": int(len(df)), "shares": shares, "implausible": sorted(bad.tolist())}

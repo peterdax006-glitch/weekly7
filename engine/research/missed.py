@@ -50,7 +50,7 @@ from engine import missed_winners as base
 from engine.learning import missed_winners as MW
 from engine.learning import trader_view as TV
 from engine.learning.core import _StrEnum, as_date, clip01, current_code_hash
-from engine.research.core import (Availability, DecisionEffect, FirewallBreach, Knowability, MaturedRecord, Namespace, Problem,
+from engine.research.core import (Availability, DecisionEffect, ExperimentValue, FirewallBreach, Knowability, MaturedRecord, Namespace, Problem,
                                   Provenance, ResearchQuestion, ResearchState, require_past, stable_hash)
 
 NL = chr(10)
@@ -148,7 +148,7 @@ class Capture(_StrEnum):
 
 
 FAMILY = {Capture.PREDICTED: "predicted", Capture.PARTIAL_UNDERSIZED: "partial", Capture.PARTIAL_MOVEMENT_ONLY: "partial",
-          Capture.PARTIAL_NEAR_BAND: "partial", Capture.PARTIAL_PROTECTED: "partial", Capture.LUCKY_AVOID: "partial",
+          Capture.PARTIAL_NEAR_BAND: "partial", Capture.PARTIAL_PROTECTED: "partial", Capture.LUCKY_AVOID: "missed",
           Capture.MISSED: "missed", Capture.ANTI_PREDICTED: "missed", Capture.NOT_A_MOVE: "none"}
 
 
@@ -1269,6 +1269,7 @@ class StreamEntry:
     reasons: tuple[tuple[str, int], ...]
     paths: tuple[tuple[str, int], ...] = ()
     history: tuple[tuple[int, str], ...] = ()
+    eras: tuple[tuple[str, int], ...] = ()
 
     @property
     def mean_score(self) -> float:
@@ -1320,8 +1321,9 @@ class ResearchStream:
                 x0 = group[0]
                 e = StreamEntry(sid, x0.signature, x0.direction, decode_signature(x0.signature, self.names), ResearchState.QUEUED,
                                 self.day_index, self.day_index, 0, 0, 0.0, 0.0, 0.0, 0.0, 0, 0, (), (), ((self.day_index, "QUEUED"),))
-            reasons, paths = e.reasons, e.paths
+            reasons, paths, eras = e.reasons, e.paths, e.eras
             for x in group:
+                eras = _bump(eras, x.era)
                 reasons = _bump(reasons, x.reason)
                 if x.path:
                     paths = _bump(paths, x.path)
@@ -1329,7 +1331,7 @@ class ResearchStream:
                 e, last_day=self.day_index, n_obs=e.n_obs + len(group), n_days=e.n_days + 1, sum_score=e.sum_score + sum(x.score for x in group),
                 best_score=max(e.best_score, max(x.score for x in group)), sum_abs_move=e.sum_abs_move + sum(abs(x.fwd) for x in group),
                 loss_cost=e.loss_cost + sum(x.loss_cost for x in group), learnable=e.learnable + sum(x.knowability in LEARNABLE for x in group),
-                unknowable=e.unknowable + sum(x.knowability in UNKNOWABLE for x in group), reasons=reasons, paths=paths)
+                unknowable=e.unknowable + sum(x.knowability in UNKNOWABLE for x in group), reasons=reasons, paths=paths, eras=eras)
             self.entries[sid] = self._transition(e, stats)
             touched.append(self.entries[sid])
         for sid, e in list(self.entries.items()):
@@ -1396,7 +1398,7 @@ class ResearchStream:
         for r in blob["entries"]:
             r = dict(r)
             r["state"] = ResearchState(r["state"])
-            for key in ("features", "reasons", "paths", "history"):
+            for key in ("features", "reasons", "paths", "history", "eras"):
                 r[key] = tuple(tuple(x) for x in r[key])
             s.entries[r["sig_id"]] = StreamEntry(**r)
         return s
@@ -1568,7 +1570,20 @@ class DailyReport:
     stream_size: int
     stream_states: Mapping[str, int]
     path: PathDay | None
+    engagement: Mapping[int, tuple[int, int, int, int]] = field(default_factory=dict)   # direction -> (engaged movers, movers, engaged others, others)
     namespace: Namespace = Namespace.MATURED_RESEARCH
+
+    def engagement_lift(self, direction: int) -> float:
+        """How much more often the system engaged (owned/flagged a winner, flagged-to-avoid a loser) with the movers of this side than
+        with unmoved names. 1.0 = chance. Each cell gets one pseudo-observation at the pooled engagement rate, so an empty cell is
+        shrunk toward 'no difference' (never toward a huge ratio) and nobody engaging at all is exactly 1.0."""
+        e = self.engagement.get(direction)
+        if e is None or e[1] == 0 or e[3] == 0:
+            return float("nan")
+        pooled = (e[0] + e[2]) / (e[1] + e[3])
+        if pooled == 0.0:
+            return 1.0
+        return ((e[0] + pooled) / (e[1] + 1.0)) / ((e[2] + pooled) / (e[3] + 1.0))
 
     @property
     def unknowable_share(self) -> float:
@@ -1678,10 +1693,24 @@ def _process(state: MissedState, day: DayBook, now) -> DailyReport:
                 n_learn += int(rep.learnable)
                 n_unk += int(rep.knowability in UNKNOWABLE)
             reasons[losses[o.cid].primary.value if o.cid in losses else rejections[o.cid].primary.value if o.cid in rejections else "UNKNOWN"] += 1
+    eng = {UP: [0, 0, 0, 0], DOWN: [0, 0, 0, 0]}
+    for o in day.obs:
+        if not math.isfinite(o.fwd):
+            continue
+        d = o.move_dir(p)
+        engaged = {UP: bool(o.picked or (o.pred_prob is not None and o.pred_prob >= p.flag_gate and o.pred_dir != DOWN)), DOWN: avoid_intent(o)}
+        for side in (UP, DOWN):
+            if d == side:
+                eng[side][0] += int(engaged[side])
+                eng[side][1] += 1
+            elif d == 0:
+                eng[side][2] += int(engaged[side])
+                eng[side][3] += 1
     top = tuple(opps[:20])
     report = DailyReport(day.decided_at, snap, {d: dict(c) for d, c in caps.items()}, {d: dict(c) for d, c in know.items()}, dict(reasons),
                          len(movers), n_learn, n_unk, tuple(near), top, tuple(audits[x.cid] for x in top), float(loss_total), float(loss_unavoid),
-                         stable, len(state.stream), dict(Counter(e.state.value for e in state.stream.entries.values())), path_day)
+                         stable, len(state.stream), dict(Counter(e.state.value for e in state.stream.entries.values())), path_day,
+                         {d: tuple(v) for d, v in eng.items()})
     state.lift.add_day(day)                            # only now may today's outcome become history for later days
     state.done[day.decided_at] = day.matured_at
     state.exceptions[day.decided_at] = exc
@@ -1798,14 +1827,18 @@ def load_checkpoint(path: str | os.PathLike) -> MissedState:
 # 11. controls: symmetry, shuffled-outcome null, predictable share
 # ==================================================================================================================
 def symmetry(reports: Sequence[DailyReport], seed: int = 0, alpha: float = 0.05) -> dict[str, Any]:
-    """Section 12 in miniature: is the system as good at catching (avoiding) big losers as at catching big winners? Paired per-day
-    catch-rate differences (winners minus losers) go through a sign-flip test in both directions, with a bootstrap interval."""
-    ups, dns = [], []
+    """Section 12 in miniature: is the system as good at engaging with big losers (flagging them to avoid) as with big winners
+    (owning or flagging them)? The comparison is on engagement LIFT over unmoved names, not raw catch rate: a long-only book owns
+    few names and avoids most by default, so raw rates are not comparable across sides. Paired per-day log-lift differences go
+    through a sign-flip test in both directions, with a bootstrap interval."""
+    ups, dns, cu, cd = [], [], [], []
     for r in reports:
-        u, d = r.catch_rate(UP), r.catch_rate(DOWN)
+        u, d = r.engagement_lift(UP), r.engagement_lift(DOWN)
         if math.isfinite(u) and math.isfinite(d):
-            ups.append(u)
-            dns.append(d)
+            ups.append(math.log(u))
+            dns.append(math.log(d))
+            cu.append(r.catch_rate(UP))
+            cd.append(r.catch_rate(DOWN))
     if len(ups) < 5:
         return {"days": len(ups), "verdict": "INSUFFICIENT", "diff": float("nan")}
     diff = np.array(ups) - np.array(dns)
@@ -1813,8 +1846,9 @@ def symmetry(reports: Sequence[DailyReport], seed: int = 0, alpha: float = 0.05)
     p_lose = base.sign_flip_p(-diff, n=2000, seed=seed + 1)
     lo, hi = base.boot_ci(diff, n=2000, seed=seed)
     verdict = "WINNER_BIASED" if p_win < alpha else "LOSER_BIASED" if p_lose < alpha else "SYMMETRIC"
-    return {"days": len(ups), "winner_catch": float(np.mean(ups)), "loser_catch": float(np.mean(dns)), "diff": float(diff.mean()),
-            "ci": (lo, hi), "p_winner_better": p_win, "p_loser_better": p_lose, "verdict": verdict}
+    return {"days": len(ups), "winner_log_lift": float(np.mean(ups)), "loser_log_lift": float(np.mean(dns)), "diff": float(diff.mean()),
+            "ci": (lo, hi), "p_winner_better": p_win, "p_loser_better": p_lose, "verdict": verdict,
+            "winner_catch": float(np.nanmean(cu)), "loser_catch": float(np.nanmean(cd))}
 
 
 def predictable_share(state: MissedState, direction: int | None = None) -> float:
@@ -1915,3 +1949,367 @@ def render_report(rep: DailyReport, weights: Mapping[str, float] | None = None) 
     if rep.path is not None and rep.path.n_labelled:
         lines.append(f"  next-day paths of {rep.path.n_labelled} band movers: " + ", ".join(f"{k}={v}" for k, v in sorted(rep.path.distribution.items())))
     return NL.join(lines)
+
+
+# ==================================================================================================================
+# 13. input audit: a day that leaks its own outcome must never reach the engine
+# ==================================================================================================================
+@dataclass(frozen=True)
+class DayAudit:
+    n: int
+    issues: tuple[str, ...]
+    leaks: tuple[tuple[str, float], ...]        # (feature, rank correlation with the outcome) above the suspicion level
+    ok: bool
+
+
+def _rank_corr(x: np.ndarray, y: np.ndarray) -> float:
+    m = np.isfinite(x) & np.isfinite(y)
+    if m.sum() < 30:
+        return float("nan")
+    rx, ry = pd.Series(x[m]).rank().to_numpy(), pd.Series(y[m]).rank().to_numpy()
+    if rx.std() == 0 or ry.std() == 0:
+        return 0.0
+    return float(np.corrcoef(rx, ry)[0, 1])
+
+
+def audit_day(day: DayBook, p: Params, min_names: int = 200) -> DayAudit:
+    """Structural and leak checks on one closed day. A feature whose cross-sectional rank correlation with the outcome exceeds
+    engine.missed_winners.SUSPICIOUS_IC is treated as leakage (it could not have been known at the close), not as skill; the
+    check needs a cross-section big enough that a correlation that large cannot be chance."""
+    issues: list[str] = []
+    leaks: list[tuple[str, float]] = []
+    f = day.fwd()
+    n = len(day.obs)
+    if n == 0:
+        return DayAudit(0, ("empty day",), (), False)
+    miss = float(np.mean(~np.isfinite(f)))
+    if miss > 0.2:
+        issues.append(f"{miss:.0%} of outcomes are missing")
+    if int(np.sum(np.abs(f[np.isfinite(f)]) > 1.0)):
+        issues.append("outcomes beyond +-100% (a bad print or a split)")
+    X = day.matrix()
+    for j, name in enumerate(day.feature_names):
+        col = X[:, j]
+        if np.isfinite(col).sum() and np.nanstd(col) == 0:
+            issues.append(f"feature {name} is constant")
+        if n >= min_names:
+            c = _rank_corr(col.astype(np.float64), f)
+            if math.isfinite(c) and abs(c) >= base.SUSPICIOUS_IC:
+                leaks.append((name, c))
+    ranks = [o.rank for o in day.obs if o.rank is not None]
+    if len(ranks) != len(set(ranks)):
+        issues.append("duplicate ranks: ties would be broken by input order")
+    if sum(o.picked for o in day.obs) > 3 * day.k:
+        issues.append("far more picks than the cut allows")
+    if leaks:
+        issues.append("leak suspected: " + ", ".join(f"{a} (rho={c:+.2f})" for a, c in leaks))
+    return DayAudit(n, tuple(issues), tuple(leaks), not leaks)
+
+
+def submit_checked(state: MissedState, day: DayBook) -> DayAudit:
+    """submit() behind the leak audit. A day with a suspected leak is refused (FirewallBreach), never analysed with a warning."""
+    audit = audit_day(day, state.p)
+    if audit.leaks:
+        raise FirewallBreach(f"day {day.decided_at} refused: " + "; ".join(audit.issues))
+    submit(state, day)
+    return audit
+
+
+# ==================================================================================================================
+# 14. regimes, stream health and topic reports
+# ==================================================================================================================
+def regime_of(snap: DaySnapshot, dispersion_median: float | None) -> str:
+    tone = "down" if snap.market_ret < -0.01 else "up" if snap.market_ret > 0.01 else "flat"
+    if dispersion_median is None or not math.isfinite(snap.dispersion):
+        return tone
+    return tone + ("_wide" if snap.dispersion > dispersion_median else "_tight")
+
+
+def regime_table(state: MissedState) -> pd.DataFrame:
+    """Catch rate for winners and losers by day regime (market tone x dispersion versus its own running median, computed only
+    from days up to the one being labelled). Misses concentrated in one regime are a finding; uniform misses are not."""
+    disp: list[float] = []
+    rows = []
+    by_day = {r.decided_at: r for r in state.reports}
+    for day in sorted(by_day):
+        rep = by_day[day]
+        med = float(np.median(disp)) if len(disp) >= 5 else None
+        if math.isfinite(rep.snapshot.dispersion):
+            disp.append(rep.snapshot.dispersion)
+        rows.append({"regime": regime_of(rep.snapshot, med), "up_catch": rep.catch_rate(UP), "down_catch": rep.catch_rate(DOWN),
+                     "moves": rep.n_moves, "loss_cost": rep.loss_cost})
+    if not rows:
+        return pd.DataFrame(columns=["regime", "days", "moves", "up_catch", "down_catch", "loss_cost"])
+    df = pd.DataFrame(rows)
+    g = df.groupby("regime")
+    return pd.DataFrame({"days": g.size(), "moves": g.moves.sum(), "up_catch": g.up_catch.mean(), "down_catch": g.down_catch.mean(),
+                         "loss_cost": g.loss_cost.sum()}).reset_index()
+
+
+def stream_health(state: MissedState) -> dict[str, Any]:
+    """Is the permanent stream still a useful research queue? Size and state mix, staleness, how much of it is cancelled as
+    unknowable, and feature diversity (a stream that is 90% one feature is a monoculture, not a search)."""
+    es = list(state.stream.entries.values())
+    if not es:
+        return {"topics": 0, "verdict": "EMPTY"}
+    states = Counter(e.state.value for e in es)
+    use = Counter(f for e in es for f, _ in e.features)
+    tot = sum(use.values())
+    probs = np.array([c / tot for c in use.values()]) if tot else np.array([1.0])
+    entropy = float(-(probs * np.log(probs)).sum())
+    top_share = float(probs.max())
+    stale = sum(1 for e in es if state.stream.day_index - e.last_day >= state.p.dormant_after)
+    live = sum(1 for e in es if e.state in (ResearchState.QUEUED, ResearchState.EXPLORING, ResearchState.PROMISING))
+    cancelled = states.get(ResearchState.CANCELLED.value, 0)
+    verdict = "MONOCULTURE" if top_share > 0.6 and len(use) > 3 else "STALE" if stale > 0.7 * len(es) else "HEALTHY"
+    return {"topics": len(es), "states": dict(states), "live": live, "stale": stale, "cancelled_share": cancelled / len(es),
+            "feature_entropy": entropy, "top_feature_share": top_share, "up_topics": sum(e.direction == UP for e in es),
+            "down_topics": sum(e.direction == DOWN for e in es), "verdict": verdict}
+
+
+def topic_report(state: MissedState, sig_id: str) -> dict[str, Any]:
+    """Everything known about one stream topic: how often, how large, how learnable, its enrichment among movers against chance,
+    how often it appeared with each rejection reason and next-day path."""
+    e = state.stream.entries.get(sig_id)
+    if e is None:
+        raise KeyError(f"no stream topic {sig_id}")
+    ratio, pv, n_occ = state.sigs.enrichment(e.code, e.direction)
+    days, expected = state.sigs.spread(e.code)
+    return {"sig_id": e.sig_id, "direction": e.direction, "features": e.features, "state": e.state.value, "observations": e.n_obs, "days": e.n_days,
+            "mean_score": e.mean_score, "mean_abs_move": e.sum_abs_move / max(e.n_obs, 1), "loss_cost": e.loss_cost,
+            "learnable_share": e.learnable / max(e.n_obs, 1), "unknowable_share": e.unknowable_share, "enrichment": ratio, "p_enrichment": pv,
+            "occurrences_all_names": n_occ, "days_carried_by_a_mover": days, "days_expected_if_scattered": expected,
+            "reasons": dict(e.reasons), "paths": dict(e.paths), "history": e.history}
+
+
+def path_topics(state: MissedState, n: int = 10, min_obs: int = 20, alpha: float = 0.01) -> list[dict[str, Any]]:
+    """C67: stream topics whose movers keep doing the same thing the next day (continue, reverse, consolidate, expand) far more
+    often than movers in general. The reference rate is the store-wide path frequency; the test is a one-sided binomial."""
+    view = state.lift.view(dt.date.max)
+    out = []
+    for e in state.stream.entries.values():
+        tot = sum(c for _, c in e.paths)
+        if tot < min_obs:
+            continue
+        path, cnt = max(e.paths, key=lambda t: (t[1], t[0]))
+        b = view.base_rate(path)
+        if b is None or not 0.0 < b < 1.0:
+            continue
+        pv = float(sps.binom.sf(cnt - 1, tot, b))
+        if pv < alpha and cnt / tot > b:
+            out.append({"sig_id": e.sig_id, "features": e.features, "direction": e.direction, "path": path, "share": cnt / tot, "base": b,
+                        "lift": cnt / tot / b, "n": tot, "p": pv})
+    return sorted(out, key=lambda r: (r["p"], r["sig_id"]))[:n]
+
+
+def opportunity_frame(opps: Sequence[Opportunity]) -> pd.DataFrame:
+    rows = [{"cid": x.cid, "decided_at": x.decided_at, "direction": x.direction, "capture": x.capture.value, "knowability": x.knowability.value,
+             "fwd": x.fwd, "score": x.score, "reason": x.reason, "effect": x.effect.value, "loss_cost": x.loss_cost, "era": x.era, "kind": x.kind,
+             "path": x.path, **{c: x.criteria[c] for c in CRITERIA}} for x in opps]
+    return pd.DataFrame(rows, columns=["cid", "decided_at", "direction", "capture", "knowability", "fwd", "score", "reason", "effect", "loss_cost",
+                                       "era", "kind", "path", *CRITERIA])
+
+
+def criteria_redundancy(opps: Sequence[Opportunity], cutoff: float = 0.9) -> list[tuple[str, str, float]]:
+    """Criteria pairs whose values are almost the same across the day's opportunities: two of the nine saying one thing means
+    the ranking counts that thing twice."""
+    if len(opps) < 8:
+        return []
+    M = np.array([[x.criteria[c] for c in CRITERIA] for x in opps])
+    out = []
+    for i in range(len(CRITERIA)):
+        for j in range(i + 1, len(CRITERIA)):
+            if M[:, i].std() < 1e-9 or M[:, j].std() < 1e-9:
+                continue
+            r = float(np.corrcoef(M[:, i], M[:, j])[0, 1])
+            if abs(r) >= cutoff:
+                out.append((CRITERIA[i], CRITERIA[j], r))
+    return out
+
+
+def priority_audit(reports: Sequence[DailyReport], top: int = 10) -> dict[str, Any]:
+    """Section-5 loss priority: do losers get their share of the top of the ranking? Compares the loser share among the day's
+    top-ranked opportunities with the loser share among all uncaptured moves. Far below parity means losses are being under-ranked."""
+    top_loss = top_all = mv_loss = mv_all = 0
+    for r in reports:
+        t = r.top[:top]
+        top_all += len(t)
+        top_loss += sum(x.is_loss for x in t)
+        for d, c in r.captures.items():
+            n = sum(v for k, v in c.items() if FAMILY[Capture(k)] in ("missed", "partial"))
+            mv_all += n
+            mv_loss += n if d == DOWN else 0
+    if top_all == 0 or mv_all == 0:
+        return {"verdict": "NO_DATA"}
+    ts, ms = top_loss / top_all, mv_loss / mv_all
+    return {"top_loser_share": ts, "uncaptured_loser_share": ms, "ratio": ts / ms if ms else float("nan"),
+            "verdict": "UNDER_RANKED" if ms > 0 and ts / ms < 0.8 else "OK"}
+
+
+# ==================================================================================================================
+# 15. bridge to the base module's distinction search (missed movers vs same-rank controls)
+# ==================================================================================================================
+def retained_weeks(state: MissedState) -> list[MW.Week]:
+    """The exception rows kept in state, as base-module Weeks, oldest first. Only processed days exist here, so every week's
+    outcomes matured before the engine ever saw it."""
+    weeks = []
+    for day in sorted(state.exceptions):
+        cands = tuple(to_candidate(o) for o in state.exceptions[day])
+        if not cands:
+            continue
+        weeks.append(MW.Week(day, day, state.done[day], cands, k=state.p.k, thr=state.p.move_thr))
+    return weeks
+
+
+def discover_distinctions(state: MissedState, now, seed: int = 0, params: MW.MissedParams | None = None) -> list[MW.Distinction]:
+    """Search the retained days for rules separating missed winners from same-rank false positives, with the base module's
+    family-wise permutation test. Returns [] when the cohorts are too small: no guess is made. `now` is enforced by cohort_frame."""
+    prm = params or MW.MissedParams()
+    df = MW.cohort_frame(retained_weeks(state), prm, now)
+    return MW.find_distinctions(df, prm, seed)
+
+
+# ==================================================================================================================
+# 16. consistency across eras, research targets, and a narrative for one move
+# ==================================================================================================================
+def era_consistency(state: MissedState, min_obs: int = 5) -> list[dict[str, Any]]:
+    """Which stream topics keep recurring in EVERY era seen so far (canon: consistent means every year, not one lucky stretch)?
+    A topic carried by a single era is reported with share < 1 and is never a candidate for promotion on this evidence alone."""
+    all_eras = sorted({era for e in state.stream.entries.values() for era, _ in e.eras if era})
+    out = []
+    for e in state.stream.entries.values():
+        if e.n_obs < min_obs:
+            continue
+        per = {era: c for era, c in e.eras if era}
+        share = len(per) / len(all_eras) if all_eras else float("nan")
+        top = max(per.values()) / sum(per.values()) if per else float("nan")
+        out.append({"sig_id": e.sig_id, "features": e.features, "direction": e.direction, "eras_seen": len(per), "eras_total": len(all_eras),
+                    "era_share": share, "max_era_concentration": top, "state": e.state.value,
+                    "consistent": bool(all_eras) and len(per) == len(all_eras) and top <= 0.8})
+    return sorted(out, key=lambda r: (-(r["era_share"] if math.isfinite(r["era_share"]) else 0.0), r["max_era_concentration"], r["sig_id"]))
+
+
+def cross_era_topics(state: MissedState, min_eras: int = 2) -> list[StreamEntry]:
+    return [state.stream.entries[r["sig_id"]] for r in era_consistency(state) if r["eras_seen"] >= min_eras]
+
+
+def research_targets(report: DailyReport, n: int = 10) -> list[dict[str, Any]]:
+    """Section 22 hand-off: the day's best opportunities as research targets carrying an ExperimentValue the priority engine can
+    rank against other work. Estimates only: fields the day cannot support stay None, never 0. The loss-reduction value is the
+    book loss that fixing this cause could have avoided; unknowable causes carry no decision value."""
+    out = []
+    for x in report.top[:n]:
+        learnable = x.knowability in LEARNABLE
+        val = ExperimentValue(
+            information_gain=x.criteria["novelty"] * x.criteria["predictability"] if learnable else 0.0,
+            decision_value=x.criteria["decision_relevance"] if learnable else 0.0,
+            loss_reduction_value=x.criteria["loss_reduction"] if x.is_loss else None,
+            volatility_value=None if x.is_loss else x.criteria["magnitude"] * x.criteria["predictability"],
+            transfer_potential=x.criteria["repeatability"], redundancy=1.0 - x.criteria["novelty"],
+            failure_reduction_value=x.criteria["loss_reduction"] if x.is_loss else None,
+            compute_cost=0.5 if x.capture == Capture.MISSED else 1.0)
+        out.append({"cid": x.cid, "sig_id": x.sig_id, "direction": x.direction, "knowability": x.knowability.value, "reason": x.reason,
+                    "effect": x.effect.value, "score": x.score, "value": val, "problem": Problem.LOSS_AVOIDANCE if x.is_loss else Problem.VOLATILITY,
+                    "path": x.path})
+    return out
+
+
+def narrate(o: MoveObs, view: LiftView, p: Params, k: int | None = None) -> str:
+    """One paragraph answering 'what happened and could it have been known?' for a single move: capture, why, knowability,
+    the strongest pre-move evidence and the information that was or was not available. Research side only."""
+    cap = classify_capture(o, p, k)
+    rep = assess(o, view, p)
+    side = "gain" if o.move_dir(p) == UP else "loss" if o.move_dir(p) == DOWN else "non-move"
+    parts = [f"A {side} of {o.fwd:+.1%} was {cap.capture.value} (coverage {cap.coverage:.2f})."]
+    if o.move_dir(p) == DOWN and o.picked:
+        ex = LossAnalyzer(p).explain(o)
+        parts.append(f"Owned through the loss; main cause {ex.primary.value}" + ("" if ex.avoidable_by_stop else " (no stop could have helped)") + ".")
+    if rep.p_mover is not None:
+        top = ", ".join(f"{f} in bin {b} ({lift:.1f}x)" for f, b, lift, _, _ in view.evidence(o.features, "up" if o.fwd > 0 else "down").contributors[:3])
+        parts.append(f"Pre-move history gave {rep.p_mover:.2f} ({rep.lift:.1f}x base)" + (f" from {top}" if top else "") + ".")
+    parts.append(f"Classified {rep.knowability.value} at confidence {rep.confidence_in_classification:.2f}: " + "; ".join(rep.reasons) + ".")
+    if rep.information_that_would_have_been_available:
+        parts.append("Available beforehand: " + ", ".join(rep.information_that_would_have_been_available) + ".")
+    if rep.information_that_was_unavailable:
+        parts.append("Not in the data: " + ", ".join(rep.information_that_was_unavailable) + ".")
+    return " ".join(parts)
+
+
+# ==================================================================================================================
+# 17. does the missed-opportunity picture replicate? (same-window results are interesting, transfer is required)
+# ==================================================================================================================
+def coverage_curve(reports: Sequence[DailyReport], window: int = 10) -> pd.DataFrame:
+    """Rolling engagement lift and unknowable share, so 'the system misses fewer learnable moves over time' is a curve to inspect
+    rather than a claim. A rising winner or loser lift without a matching fall in learnable misses would be a warning."""
+    rows = []
+    for i in range(0, max(0, len(reports) - window + 1)):
+        w = reports[i:i + window]
+        lu = [math.log(r.engagement_lift(UP)) for r in w if math.isfinite(r.engagement_lift(UP))]
+        ld = [math.log(r.engagement_lift(DOWN)) for r in w if math.isfinite(r.engagement_lift(DOWN))]
+        moves = sum(r.n_moves for r in w)
+        rows.append({"end": w[-1].decided_at, "winner_log_lift": float(np.mean(lu)) if lu else float("nan"),
+                     "loser_log_lift": float(np.mean(ld)) if ld else float("nan"),
+                     "learnable_miss_rate": sum(r.n_learnable_misses for r in w) / moves if moves else float("nan"),
+                     "unknowable_miss_rate": sum(r.n_unknowable_misses for r in w) / moves if moves else float("nan"),
+                     "loss_cost": float(sum(r.loss_cost for r in w))})
+    return pd.DataFrame(rows, columns=["end", "winner_log_lift", "loser_log_lift", "learnable_miss_rate", "unknowable_miss_rate", "loss_cost"])
+
+
+def half_split_replication(days: Sequence[DayBook], feature_names: Sequence[str], p: Params | None = None, top: int = 20) -> dict[str, Any]:
+    """Section 32 in miniature. Run the whole engine independently on the early and the late half of the days and ask which
+    stream topics are among the best in BOTH. A topic that only ranks in one half is same-window noise. Reports the overlap,
+    the expected overlap under independence (hypergeometric) and its p-value, so 'they overlap' is not mistaken for 'they replicate'."""
+    if len(days) < 12:
+        return {"verdict": "INSUFFICIENT", "days": len(days)}
+    mid = len(days) // 2
+    ordered = sorted(days, key=lambda d: d.decided_at)
+    sides = []
+    for part in (ordered[:mid], ordered[mid:]):
+        st, _ = replay(part, feature_names, p)
+        sides.append(st)
+    tops = [{e.sig_id for e in s.stream.top(top)} for s in sides]
+    universe = set(sides[0].stream.entries) | set(sides[1].stream.entries)
+    common = tops[0] & tops[1]
+    n_u, n_a, n_b = len(universe), len(tops[0]), len(tops[1])
+    pv = float(sps.hypergeom.sf(len(common) - 1, n_u, n_a, n_b)) if n_u and common else 1.0
+    return {"days": len(days), "universe": n_u, "early_top": n_a, "late_top": n_b, "overlap": len(common), "expected_overlap": n_a * n_b / n_u if n_u else 0.0,
+            "p_overlap": pv, "replicated": sorted(common), "verdict": "REPLICATES" if pv < 0.05 and common else "DOES_NOT_REPLICATE"}
+
+
+# ==================================================================================================================
+# 18. the trader-side hand-off and report export
+# ==================================================================================================================
+def trader_handoff(item: Any, now) -> Mapping[str, Any]:
+    """The single door from this module toward a decision. Only a MaturedRecord may pass, only through gate(now), and only if its
+    payload carries no date, year or name-shaped token (trader_view.assert_trader_safe). Reports, audits, opportunities and
+    stream entries are research-side objects (they contain the outcome) and are refused outright rather than scrubbed."""
+    if not isinstance(item, MaturedRecord):
+        raise FirewallBreach(f"{type(item).__name__} is a research-side object and may not reach the trader; wrap it in a MaturedRecord")
+    payload = item.gate(now)
+    TV.assert_trader_safe(payload, f"record {item.record_id}")
+    return payload
+
+
+def report_to_dict(rep: DailyReport) -> dict[str, Any]:
+    """JSON-safe form of a daily report for the results folder (research side: dates and counts are fine here)."""
+    return {"decided_at": rep.decided_at, "n_moves": rep.n_moves, "captures": {str(d): dict(c) for d, c in rep.captures.items()},
+            "knowability": {str(d): dict(c) for d, c in rep.knowability.items()}, "reasons": dict(rep.reasons),
+            "learnable_misses": rep.n_learnable_misses, "unknowable_misses": rep.n_unknowable_misses, "loss_cost": rep.loss_cost,
+            "loss_unavoidable": rep.loss_unavoidable, "stable_separators": list(rep.stable_separators), "stream_size": rep.stream_size,
+            "stream_states": dict(rep.stream_states),
+            "engagement_lift": {str(d): rep.engagement_lift(d) for d in (UP, DOWN)},
+            "near_misses": [{"source": n.source, "gap": n.gap, "informative": n.informative, "direction": n.direction} for n in rep.near_misses],
+            "top": [{"cid": x.cid, "direction": x.direction, "capture": x.capture.value, "knowability": x.knowability.value, "fwd": x.fwd,
+                     "score": x.score, "reason": x.reason, "criteria": dict(x.criteria), "path": x.path} for x in rep.top],
+            "path": None if rep.path is None else {"labelled": rep.path.n_labelled, "distribution": dict(rep.path.distribution)}}
+
+
+def write_reports(reports: Sequence[DailyReport], path: str | os.PathLike) -> int:
+    """Append-safe JSON-lines export written atomically (temp then replace). Returns the number of lines written."""
+    target = os.fspath(path)
+    tmp = target + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        for r in reports:
+            fh.write(json.dumps(report_to_dict(r), sort_keys=True, default=float) + NL)
+    os.replace(tmp, target)
+    return len(reports)

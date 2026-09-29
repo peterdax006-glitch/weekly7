@@ -883,3 +883,190 @@ def step(candidates: Sequence[Candidate], now, policy: QualityPolicy | None = No
             promoted.append(c.subject_id)
         decisions.append(d)
     return GateReport(str(as_date(now)), tuple(decisions), tuple(promoted), tuple(quarantined), funnel(decisions))
+
+
+# ------------------------------------------------------------------------------------------------ evidence hygiene before the gate runs
+def validate_evidence(ev: QualityEvidence, now) -> list[str]:
+    """Structural problems in a bundle that would make a gate misjudge it: mismatched lengths, non-finite numbers, dates that are not
+    dates, a replication assessment made as of another day. These are caller bugs and are reported before (not instead of) the gate;
+    the gate itself still fails closed on anything malformed."""
+    errs = []
+    if ev.calibration is not None:
+        if len(ev.calibration.p) != len(ev.calibration.y):
+            errs.append("calibration: p and y differ in length")
+        elif ev.calibration.p and not np.isfinite(np.asarray(ev.calibration.p, dtype=float)).all():
+            errs.append("calibration: non-finite forecast")
+    if ev.oos is not None and ev.oos.oos is not None:
+        o = ev.oos.oos
+        if len(o.oos_dates) != len(o.oos_effects):
+            errs.append("oos: dates and effects differ in length")
+        for d in o.oos_dates:
+            try:
+                as_date(d)
+            except (ValueError, TypeError):
+                errs.append(f"oos: {d!r} is not a date")
+                break
+        if o.oos_effects and not np.isfinite(np.asarray(o.oos_effects, dtype=float)).all():
+            errs.append("oos: non-finite effect")
+    if ev.replication is not None and ev.replication.now != str(as_date(now)):
+        errs.append(f"replication assessment was made as of {ev.replication.now}, not {as_date(now)}: it must be re-made as of the decision day")
+    if ev.pit is not None:
+        names = [f.name for f in ev.pit.features]
+        if len(set(names)) != len(names):
+            errs.append("pit: duplicate feature names")
+        for f in ev.pit.features:
+            if f.available_at is not None:
+                try:
+                    as_date(f.available_at)
+                except (ValueError, TypeError):
+                    errs.append(f"pit: {f.name} has unreadable available_at {f.available_at!r}")
+    if ev.transfer is not None and any(not math.isfinite(float(v)) for v in ev.transfer.context_effects.values()):
+        errs.append("transfer: non-finite context effect")
+    if ev.justification and len(set(ev.justification)) != len(ev.justification):
+        errs.append("justification: repeated metric names")
+    return errs
+
+
+def evidence_completeness(ev: QualityEvidence) -> dict[str, bool]:
+    """Which gates have any evidence at all (calibration counts as present when probabilities are not stated, risk when it changes no
+    risk-bearing decision). The first thing to read when a decision is NEEDS_MORE_EVIDENCE."""
+    return {"point_in_time": ev.pit is not None, "leakage": ev.leak is not None, "identity": ev.identity is not None,
+            "out_of_sample": ev.oos is not None, "replication": ev.replication is not None,
+            "calibration": ev.calibration is not None or not ev.outputs_probabilities, "risk": ev.risk is not None or not ev.changes_risk_decisions,
+            "complexity": ev.complexity is not None, "transfer": ev.transfer is not None, "failure_behavior": ev.failure is not None,
+            "reproducibility": ev.repro is not None, "metric_alignment": bool(ev.justification)}
+
+
+def evidence_plan(d: QualityDecision) -> list[tuple[str, str]]:
+    """What to collect next, cheapest integrity checks first: (gate, action) for every gate that asked for evidence rather than
+    failing on it. Integrity gates come first because nothing else matters if the discovery is tainted."""
+    order = {g: i for i, g in enumerate(GATES)}
+    asks = [g for g in d.gates if g.state in (MISSING, UNKNOWN)]
+    asks.sort(key=lambda g: (g.gate not in INTEGRITY_GATES, order[g.gate]))
+    return [(g.gate, REMEDIATION[g.gate]) for g in asks]
+
+
+def stage_of(ev: QualityEvidence):
+    """Which rung of the section-18 escalation ladder this bundle has reached: cheap screen (some statistics), stronger tests (OOS and
+    integrity evidence), cross-year (unseen years and transfer), fresh holdout (replication), integration (everything supplied)."""
+    from engine.research.core import Stage
+    have = evidence_completeness(ev)
+    if all(have.values()):
+        return Stage.INTEGRATION
+    if have["replication"] and have["out_of_sample"] and have["transfer"]:
+        return Stage.FRESH_HOLDOUT
+    if have["out_of_sample"] and have["transfer"]:
+        return Stage.CROSS_YEAR
+    if have["out_of_sample"] or (have["point_in_time"] and have["leakage"]):
+        return Stage.STRONGER_TESTS
+    return Stage.CHEAP_SCREEN
+
+
+# ------------------------------------------------------------------------------------------------ building evidence from raw material
+def pit_evidence(feature_dates: Mapping[str, str | None], decision_time: str, train_end: str, first_test_start: str, label_horizon_days: int,
+                 newest_evidence: str, fills_next_open: bool = True, known_before: Sequence[str] = ()) -> PITEvidence:
+    """PITEvidence from a name -> available_at mapping. A name in `known_before` with no date is declared KNOWN_BEFORE_EVENT by the
+    caller; a name with no date and no declaration stays UNCERTAIN (and will make the gate answer UNKNOWN, never PASS)."""
+    feats = tuple(FeatureUse(n, d, Availability.KNOWN_BEFORE_EVENT if (d or n in known_before) else Availability.UNCERTAIN)
+                  for n, d in sorted(feature_dates.items()))
+    return PITEvidence(feats, decision_time, label_horizon_days, train_end, first_test_start, fills_next_open, newest_evidence)
+
+
+def screen_label_leak(X: pd.DataFrame, y: pd.Series, max_abs_corr: float = 0.9, min_rows: int = 50, max_rows: int = 200_000) -> list[str]:
+    """Findings for features that reproduce the label: rank correlation with the forward return above `max_abs_corr` (nothing known
+    beforehand predicts a weekly return that well), or a name that says it is the future. A screen, not a proof: it can only ADD
+    findings to the leak audit."""
+    if X.empty or len(X) < min_rows:
+        return []
+    if len(X) > max_rows:
+        X = X.sample(max_rows, random_state=0)
+    yy = y.reindex(X.index)
+    out = []
+    for c in X.columns:
+        name = str(c).lower()
+        if any(t in name for t in ("fwd", "future", "next_", "label", "target", "forward")):
+            out.append(f"feature name {c!r} says it is the future")
+        col = X[c]
+        if col.dtype.kind not in "fiu" or col.nunique() < 3:
+            continue
+        ok = col.notna() & yy.notna()
+        if ok.sum() < min_rows:
+            continue
+        rho = float(col[ok].rank().corr(yy[ok].rank()))
+        if math.isfinite(rho) and abs(rho) >= max_abs_corr:
+            out.append(f"feature {c!r} has rank correlation {rho:+.3f} with the forward return: it contains the answer")
+    return out
+
+
+def leak_evidence_from_panel(X: pd.DataFrame, y: pd.Series, firewall: FW.GateVerdict | None, planted_probe_caught: bool | None,
+                             outcomes_after_now: int, sealed_touched: Sequence[str] = ()) -> LeakEvidence:
+    """LeakEvidence whose findings include the panel screen, so the leak gate quarantines a label-in-features panel even when the
+    caller forgot to run the firewall on it."""
+    return LeakEvidence(True, firewall, planted_probe_caught, tuple(screen_label_leak(X, y)), tuple(sealed_touched), int(outcomes_after_now))
+
+
+# ------------------------------------------------------------------------------------------------ comparing and logging decisions
+def compare_decisions(a: QualityDecision, b: QualityDecision) -> dict:
+    """What changed between two decisions on the same subject: verdict, gates that flipped, gates that newly block or newly clear."""
+    ga, gb = {g.gate: g for g in a.gates}, {g.gate: g for g in b.gates}
+    flipped = {k: (ga[k].state, gb[k].state) for k in GATES if k in ga and k in gb and ga[k].state != gb[k].state}
+    return {"same_subject": a.subject_id == b.subject_id, "verdict": (a.verdict.value, b.verdict.value), "flipped": flipped,
+            "newly_blocking": sorted(set(b.blocking) - set(a.blocking)), "newly_clear": sorted(set(a.blocking) - set(b.blocking)),
+            "policy_changed": a.policy_digest != b.policy_digest, "evidence_changed": a.evidence_digest != b.evidence_digest}
+
+
+class DecisionLog(RP.ChainLog):
+    """Append-only, hash-chained log of gate decisions. Verdict flips of one subject over time are visible (a promotion that was once
+    QUARANTINED needs an explanation), and a verdict may not be rewritten."""
+
+    def add(self, d: QualityDecision) -> None:
+        if any(r["body"]["decision_id"] == d.decision_id for r in self.rows()):
+            raise FileExistsError(f"decision {d.decision_id} already logged")
+        self.append("decision", d.to_dict())
+
+    def history(self, subject_id: str) -> list[tuple[str, str]]:
+        return [(r["body"]["now"], r["body"]["verdict"]) for r in self.rows() if r["body"]["subject_id"] == subject_id]
+
+    def flips(self) -> dict[str, list[tuple[str, str]]]:
+        """Subjects whose verdict changed between consecutive decisions, with the (from, to) pairs."""
+        by: dict[str, list[str]] = {}
+        for r in self.rows():
+            by.setdefault(r["body"]["subject_id"], []).append(r["body"]["verdict"])
+        return {s: [(a, b) for a, b in zip(v, v[1:]) if a != b] for s, v in by.items() if any(a != b for a, b in zip(v, v[1:]))}
+
+    def promoted_after_quarantine(self) -> list[str]:
+        """Subjects that were PROMOTE after having been QUARANTINED: legitimate only through QuarantineStore.release, so listed for audit."""
+        out = []
+        for s in {r["body"]["subject_id"] for r in self.rows()}:
+            v = [x for _, x in self.history(s)]
+            if "QUARANTINED" in v and "PROMOTE" in v[v.index("QUARANTINED"):]:
+                out.append(s)
+        return sorted(out)
+
+
+# ------------------------------------------------------------------------------------------------ is the gate itself tested both ways?
+def defect_coverage() -> dict:
+    """Coverage in BOTH directions (a gate with no planted defect, or a defect no gate is named for, is untested): which gates have at
+    least one planted defect targeting them, which do not, and which verdict kinds the defects exercise."""
+    defects = planted_defects()
+    targeted = {g for _, g, _ in defects.values()}
+    verdicts = {v.value for _, _, v in defects.values()}
+    return {"untargeted_gates": sorted(set(GATES) - targeted), "unknown_targets": sorted(targeted - set(GATES)),
+            "verdicts_exercised": sorted(verdicts), "verdicts_missing": sorted({v.value for v in GateVerdict} - verdicts - {"PROMOTE"}),
+            "n_defects": len(defects)}
+
+
+def gate_ablation(now="2021-06-01", seed: int = 0) -> dict:
+    """Remove one gate at a time from the critical set's reach (by dropping its evidence) and report what the verdict becomes: shows
+    that no gate is redundant with another. A gate whose absence changes nothing would be dead weight - or hidden by another."""
+    ev, pol = reference_evidence(now, seed)
+    gate = QualityGate(pol)
+    drop = {"point_in_time": _mut(pit=None), "leakage": _mut(leak=None), "identity": _mut(identity=None), "out_of_sample": _mut(oos=None),
+            "replication": _mut(replication=None), "calibration": _mut(calibration=None), "risk": _mut(risk=None), "complexity": _mut(complexity=None),
+            "transfer": _mut(transfer=None), "failure_behavior": _mut(failure=None), "reproducibility": _mut(repro=None),
+            "metric_alignment": _mut(justification=())}
+    out = {}
+    for name, fn in drop.items():
+        d = gate.evaluate(name, fn(ev), now)
+        out[name] = {"verdict": d.verdict.value, "blocking": list(d.blocking), "only_this": d.blocking == (name,)}
+    return out

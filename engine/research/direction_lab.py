@@ -49,7 +49,7 @@ from engine.research.core import (Availability, ExperimentValue, GateVerdict, Ma
 
 EIGHTY = 0.80                          # the section 10/11 target; fv_pipeline.FVConfig.gate must agree (see shared_target)
 EPS = 1e-9
-TARGETS = ("up_sign", "up_first")      # up_sign: finished the holding week above entry; up_first: the +10% barrier came first
+TARGETS = ("up_sign", "up_first", "up_rel")   # up_sign: finished the week above entry; up_first: the +10% barrier came first; up_rel: above the week's pool median
 FORBIDDEN_RANK_COLUMNS = ("mover", "up_first", "up_sign", "fwd", "amb", "end_date", "entry_date")
 
 
@@ -424,9 +424,9 @@ def _sector_of(idx: pd.MultiIndex, sector: pd.Series | None) -> pd.Series:
 
 
 class ConditionalUniverse:
-    """score -> predicted movers -> labelled direction pool. Ranking reads the score only: the constructor refuses any score whose
-    name or origin is an outcome column, and the pool keeps realised-mover flags in a separately named diagnostic column that the
-    feature builders refuse to read."""
+    """score -> predicted movers -> labelled direction pool. Ranking reads the score only: DirectionLab.run refuses a score named
+    like an outcome column, and the pool keeps realised-mover flags in a separately named diagnostic column (`realised_mover`) that
+    the feature builders never read (screen_feature_leakage and name_leak_reasons reject outcome-named columns)."""
 
     def __init__(self, cfg: LabConfig):
         self.cfg = cfg
@@ -446,8 +446,8 @@ class ConditionalUniverse:
         pool = picks[picks["pool"]].copy()
         pool["score"] = sc.reindex(pool.index).to_numpy()
         L = lab.reindex(pool.index)
-        pool["up"] = L[cfg.target].to_numpy(dtype=float)
         pool["fwd"] = L["fwd"].to_numpy(dtype=float)
+        pool["up"] = np.nan if cfg.target == "up_rel" else L[cfg.target].to_numpy(dtype=float)
         pool["entry_date"] = L["entry_date"].to_numpy()
         pool["end_date"] = L["end_date"].to_numpy()
         pool["realised_mover"] = L["mover"].to_numpy(dtype=float)
@@ -458,6 +458,8 @@ class ConditionalUniverse:
         pool["ticker"] = pool.index.get_level_values(1)
         pool["year"] = pool["date"].dt.year
         pool = pool.sort_values(["date", "rank"], kind="stable")
+        if cfg.target == "up_rel":
+            pool["up"] = add_relative_target(pool).to_numpy()
         funnel = self._funnel(sc, pool)
         if pool["up"].notna().mean() < 0.5:
             warn.append("fewer than half of the pool rows are labelled: check the label alignment")
@@ -857,7 +859,8 @@ def run_walk_forward(pool: pd.DataFrame, fams: Mapping[str, FamilyMatrix], Xp: p
     if F["combined"].shape[1] == 0 or not cfg.test_years:
         return WalkForwardResult(pd.DataFrame(columns=["row", "date", "year", "model", "p", "up", "q", "p0"]), pd.DataFrame(), tuple(), stage, {})
     hooks = dict(extra_hooks) if extra_hooks is not None else make_extra_hooks(pool, fams, Xp, cfg, use, existing_p)
-    pred, blocks = DF.walk_forward(pool, F, "up", cfg.test_years, models=tuple(kinds), extra=hooks, seg_cols=("seg", "reg"),
+    segs = ("seg", "reg") + (("sector",) if "sector" in pool and pool["sector"].nunique() > 1 else ())
+    pred, blocks = DF.walk_forward(pool, F, "up", cfg.test_years, models=tuple(kinds), extra=hooks, seg_cols=segs,
                                    embargo_days=cfg.embargo_days, min_train=cfg.min_train, min_calib=cfg.min_calib, seed=cfg.seed)
     if len(pred):
         pred = pred[pred["model"] != "blend"].reset_index(drop=True)
@@ -1244,6 +1247,12 @@ class HypothesisResult:
     decay: dict[str, Any] = dataclasses.field(default_factory=dict)
     monotonic: dict[str, float] = dataclasses.field(default_factory=dict)
     payoff_full: dict[str, float] = dataclasses.field(default_factory=dict)
+    learn_curve: dict[str, float] = dataclasses.field(default_factory=dict)
+    downside: dict[str, float] = dataclasses.field(default_factory=dict)
+    portfolio: dict[str, Any] = dataclasses.field(default_factory=dict)
+    calibration: dict[str, Any] = dataclasses.field(default_factory=dict)
+    mechanism: dict[str, float] = dataclasses.field(default_factory=dict)
+    posterior_skill: float = float("nan")
     reasons: list[str] = dataclasses.field(default_factory=list)
     dropped: dict[str, str] = dataclasses.field(default_factory=dict)
 
@@ -1266,7 +1275,7 @@ def compare_all(pred: pd.DataFrame, hyp: str, tag: str, kind: str, cfg: LabConfi
     for comp, (other, src) in comparator_tags(hyp, kind, models).items():
         t = paired_test(pred, tag, other, cfg.n_boot, cfg.alpha, seed)
         out[comp] = ComparatorResult(comp, other, src, t["n"], t["mean_diff"], t["lo"], t["hi"], t["p_one"],
-                                     bool(t["better"]) and not src.startswith("fallback_base_rate:unsigned") or bool(t["better"]))
+                                     bool(t["better"]))
     return out
 
 
@@ -1284,6 +1293,8 @@ def decide_outcome(res: HypothesisResult, cfg: LabConfig, n_dedicated: int) -> t
                    f"{n_dedicated} cells tried)")
     if not res.skill >= cfg.edge_floor:
         why.append(f"Brier skill {res.skill:+.4f} below the floor {cfg.edge_floor}")
+    if np.isfinite(res.posterior_skill) and res.posterior_skill <= 0:
+        why.append("empirical-Bayes shrinkage across all hypotheses tried leaves no edge (winner's curse)")
     missing = [c.value for c in ALL_COMPARATORS if c not in res.comparators]
     if missing:
         why.append("comparators unavailable: " + ",".join(missing))
@@ -1423,6 +1434,626 @@ def honest_statement(eighty: Mapping[str, Any], power: Mapping[str, float], gate
     return base + f" The sample ({n_eff:.0f} effective bets) was large enough to have confirmed it."
 
 
+# ---------------------------------------------------------------------------------------------- single-feature diagnostics
+def _date_codes(dates: Sequence) -> tuple[np.ndarray, int]:
+    codes, uniq = pd.factorize(pd.DatetimeIndex(dates))
+    return codes, len(uniq)
+
+
+def feature_ic_table(M: pd.DataFrame, pool: pd.DataFrame, target: str = "up", min_rows: int = 20, family_of: Mapping[str, str] | None = None) -> pd.DataFrame:
+    """Weekly cross-sectional information coefficient of every raw or derived column with the outcome, among the week's predicted
+    movers. IC_w is the Spearman correlation of the column with `target` inside week w (mean-centred ranks, vectorised); the
+    table reports the mean IC, its t statistic across weeks, hit rate, information ratio, the two half-sample means (a real effect
+    keeps its sign) and Benjamini-Hochberg adjusted p over ALL columns tried. This is the cheapest test in the lab and the one
+    every later complexity has to beat."""
+    cols = ["column", "family", "weeks", "mean_ic", "sd_ic", "t", "hit_rate", "ir", "ic_first", "ic_second", "sign_stable", "p_two",
+            "p_bh"]
+    y = pool[target].to_numpy(dtype=float)
+    dc, nd = _date_codes(pool["date"])
+    rows = []
+    for c in M.columns:
+        x = M[c].to_numpy(dtype=float)
+        m = np.isfinite(x) & np.isfinite(y)
+        if m.sum() < 5 * min_rows or nd < 4:
+            continue
+        g = dc[m]
+        cnt = np.bincount(g, minlength=nd)
+        xr = pd.Series(x[m]).groupby(g).rank(pct=True).to_numpy()
+        yr = pd.Series(y[m]).groupby(g).rank(pct=True).to_numpy()
+        with np.errstate(invalid="ignore", divide="ignore"):
+            xc = xr - (np.bincount(g, weights=xr, minlength=nd) / cnt)[g]
+            yc = yr - (np.bincount(g, weights=yr, minlength=nd) / cnt)[g]
+            sxy = np.bincount(g, weights=xc * yc, minlength=nd)
+            sxx = np.bincount(g, weights=xc * xc, minlength=nd)
+            syy = np.bincount(g, weights=yc * yc, minlength=nd)
+            ic = sxy / np.sqrt(sxx * syy)
+        ic = ic[(cnt >= min_rows) & np.isfinite(ic)]
+        if len(ic) < 8:
+            continue
+        mid = len(ic) // 2
+        mean, sd = float(ic.mean()), float(ic.std(ddof=1))
+        t = mean / (sd / math.sqrt(len(ic))) if sd > 0 else 0.0
+        p = float(2 * stats.t.sf(abs(t), len(ic) - 1))
+        a, b = float(ic[:mid].mean()), float(ic[mid:].mean())
+        rows.append(dict(column=c, family=(family_of or {}).get(c, ""), weeks=len(ic), mean_ic=mean, sd_ic=sd, t=t,
+                         hit_rate=float((np.sign(ic) == np.sign(mean)).mean()), ir=mean / sd if sd > 0 else 0.0, ic_first=a, ic_second=b,
+                         sign_stable=bool(np.sign(a) == np.sign(b) == np.sign(mean)), p_two=p, p_bh=1.0))
+    out = pd.DataFrame(rows, columns=cols)
+    if len(out):
+        out["p_bh"] = benjamini_hochberg(out["p_two"].to_numpy())
+    return out.sort_values("p_two").reset_index(drop=True) if len(out) else out
+
+
+def quantile_spread(x: np.ndarray, up: np.ndarray, dates: Sequence, n_bins: int = 5, n_boot: int = 400, seed: int = 0) -> tuple[pd.DataFrame, dict[str, float]]:
+    """Up-rate by within-week quantile of a feature and the top-minus-bottom spread with a week-cluster bootstrap. A monotone rise
+    from the bottom to the top bin is the classic signature of a real ranking signal; a spread made of one extreme bin is not."""
+    x, up = np.asarray(x, float), np.asarray(up, float)
+    m = np.isfinite(x) & np.isfinite(up)
+    dc, nd = _date_codes(np.asarray(dates)[m])
+    empty = (pd.DataFrame(columns=["bin", "n", "up_rate", "wilson_lo", "wilson_hi"]),
+             dict(spread=float("nan"), lo=float("nan"), hi=float("nan"), rho=float("nan"), weeks=0))
+    if m.sum() < n_bins * 30 or nd < 8:
+        return empty
+    r = pd.Series(x[m]).groupby(dc).rank(pct=True, method="first").to_numpy()
+    b = np.minimum((r * n_bins).astype(int), n_bins - 1)
+    yy = up[m]
+    rows = []
+    for k in range(n_bins):
+        s = b == k
+        n = int(s.sum())
+        lo, hi = LC.wilson(float(yy[s].sum()), n, z=1.96) if n else (float("nan"), float("nan"))
+        rows.append(dict(bin=k, n=n, up_rate=float(yy[s].mean()) if n else float("nan"), wilson_lo=lo, wilson_hi=hi))
+    t = pd.DataFrame(rows)
+    top, bot = b == n_bins - 1, b == 0
+    Kt, Nt = np.bincount(dc[top], weights=yy[top], minlength=nd), np.bincount(dc[top], minlength=nd).astype(float)
+    Kb, Nb = np.bincount(dc[bot], weights=yy[bot], minlength=nd), np.bincount(dc[bot], minlength=nd).astype(float)
+    rng = np.random.default_rng(seed)
+    idx = rng.integers(0, nd, size=(n_boot, nd))
+    with np.errstate(invalid="ignore", divide="ignore"):
+        bs = Kt[idx].sum(1) / Nt[idx].sum(1) - Kb[idx].sum(1) / Nb[idx].sum(1)
+    bs = bs[np.isfinite(bs)]
+    spread = float(Kt.sum() / max(Nt.sum(), 1) - Kb.sum() / max(Nb.sum(), 1))
+    lo, hi = (np.quantile(bs, [0.05, 0.95]) if len(bs) > 20 else (float("nan"), float("nan")))
+    rho = float(stats.spearmanr(t["bin"], t["up_rate"])[0]) if t["up_rate"].nunique() > 1 else 0.0
+    return t, dict(spread=spread, lo=float(lo), hi=float(hi), rho=rho, weeks=nd)
+
+
+def null_max_accuracy(sizes: Sequence[int], p: float = 0.5, n_sim: int = 2000, seed: int = 0, level: float = 0.95) -> dict[str, float]:
+    """How accurate the BEST of many cells looks by luck alone: for cells of the given sizes with true accuracy p, the `level`
+    quantile of the maximum observed accuracy over all cells. An 'accuracy 0.82 in a cell of 40' is only interesting if it beats
+    this number, which grows with the number of cells tried. Also returns the chance any cell reaches 0.80 by luck."""
+    s = np.asarray([int(n) for n in sizes if n > 0])
+    if s.size == 0:
+        return dict(q_max=float("nan"), p_any_80=float("nan"), cells=0)
+    rng = np.random.default_rng(seed)
+    acc = rng.binomial(s[None, :], p, size=(n_sim, len(s))) / s[None, :]
+    mx = acc.max(axis=1)
+    return dict(q_max=float(np.quantile(mx, level)), p_any_80=float((mx >= 0.80).mean()), cells=int(len(s)))
+
+
+def conditional_cells(M: pd.DataFrame, pool: pd.DataFrame, columns: Sequence[str], conditions: Sequence[str] = ("all", "reg", "seg"),
+                      n_tier: int = 3, min_n: int = 40, n_sim: int = 2000, seed: int = 0) -> tuple[pd.DataFrame, dict[str, Any]]:
+    """Exhaustive small-cell search, done honestly. A cell = (feature tercile) x (condition value). The side of each cell is set on
+    the FIRST half of the dates and its accuracy is measured on the SECOND half only; every cell tried is counted, and the best
+    out-of-sample cell is compared with the maximum accuracy that many cells produce by pure chance (null_max_accuracy). This is
+    how 'an 80% pocket' is manufactured, and this function is what proves whether one is real."""
+    d = pd.DatetimeIndex(pool["date"])
+    cut = d[np.argsort(d.values)[len(d) // 2]] if len(d) else None
+    up = pool["up"].to_numpy(dtype=float)
+    first, second = (d < cut).to_numpy(), (d >= cut).to_numpy()
+    cells = []
+    for c in columns:
+        x = M[c].to_numpy(dtype=float)
+        ok = np.isfinite(x) & np.isfinite(up)
+        if ok.sum() < 6 * min_n:
+            continue
+        edges = np.nanquantile(x[ok & first], np.linspace(0, 1, n_tier + 1)[1:-1]) if (ok & first).sum() > n_tier else None
+        if edges is None or len(np.unique(edges)) < len(edges):
+            continue
+        tier = np.digitize(x, edges)
+        for cond in conditions:
+            vals = ["all"] if cond == "all" else sorted(pool[cond].dropna().unique())
+            for v in vals:
+                cm = np.ones(len(pool), bool) if cond == "all" else (pool[cond].to_numpy() == v)
+                for k in range(n_tier):
+                    m = ok & cm & (tier == k)
+                    a, b = m & first, m & second
+                    if a.sum() < min_n or b.sum() < min_n:
+                        continue
+                    side = 1.0 if up[a].mean() >= 0.5 else 0.0
+                    hit = float((up[b] == side).mean())
+                    lo, hi = LC.wilson(float((up[b] == side).sum()), int(b.sum()), z=1.96)
+                    cells.append(dict(column=c, condition=cond, value=str(v), tier=k, n_first=int(a.sum()), n_second=int(b.sum()), side=side,
+                                      acc_second=hit, wilson_lo=lo, first_up=float(up[a].mean())))
+    t = pd.DataFrame(cells)
+    if t.empty:
+        return t, dict(cells=0, best_acc=float("nan"), null_q95=float("nan"), beats_null=False, p_any_80=float("nan"), reaching_80=0)
+    base = float(np.nanmean(up[second]))
+    nm = null_max_accuracy(t["n_second"].tolist(), max(base, 1 - base), n_sim, seed)
+    best = t.sort_values("acc_second", ascending=False).iloc[0]
+    return t, dict(cells=len(t), best_acc=float(best["acc_second"]), best_n=int(best["n_second"]), best_cell=f"{best['column']}|{best['condition']}={best['value']}|t{best['tier']}",
+                   null_q95=nm["q_max"], beats_null=bool(best["acc_second"] > nm["q_max"]), p_any_80=nm["p_any_80"],
+                   reaching_80=int((t["acc_second"] >= EIGHTY).sum()), reaching_80_lo=int((t["wilson_lo"] >= EIGHTY).sum()))
+
+
+def interaction_scan(M: pd.DataFrame, pool: pd.DataFrame, columns: Sequence[str], top_k: int = 5, min_rows: int = 500) -> tuple[pd.DataFrame, dict[str, float]]:
+    """Do pairwise interactions replicate? On the first half of the dates every product of two z-scored columns is ranked by |IC|
+    with the outcome; the top_k are then re-measured on the second half. Under no structure about top_k * 0.05 of them keep
+    |t| > 1.96 and half keep their sign; a real interaction keeps both. The count of pairs searched is reported."""
+    cols = [c for c in columns if c in M.columns]
+    d = pd.DatetimeIndex(pool["date"])
+    if len(cols) < 2 or len(d) < 2 * min_rows:
+        return pd.DataFrame(columns=["a", "b", "t_first", "t_second", "sign_kept", "replicates"]), dict(pairs=0, selected=0, replicated=0, expected_by_chance=0.0)
+    cut = d[np.argsort(d.values)[len(d) // 2]]
+    first = (d < cut).to_numpy()
+    Z = M[cols].to_numpy(dtype=float)
+    mu, sd = np.nanmean(Z[first], axis=0), np.nanstd(Z[first], axis=0)
+    sd[~(sd > 0)] = 1.0
+    Z = np.nan_to_num((np.clip((Z - mu) / sd, -4, 4)), nan=0.0)
+    up = pool["up"].to_numpy(dtype=float)
+    ok = np.isfinite(up)
+
+    def t_of(v, m):
+        m = m & ok
+        if m.sum() < min_rows or np.ptp(v[m]) == 0:
+            return 0.0, 0
+        r = float(np.corrcoef(v[m], up[m])[0, 1])
+        n = int(m.sum())
+        return r * math.sqrt((n - 2) / max(1 - r * r, 1e-12)), n
+    scored = []
+    for i in range(len(cols)):
+        for j in range(i + 1, len(cols)):
+            v = Z[:, i] * Z[:, j]
+            t1, _ = t_of(v, first)
+            scored.append((abs(t1), t1, i, j))
+    scored.sort(reverse=True)
+    rows = []
+    for _, t1, i, j in scored[:top_k]:
+        t2, _ = t_of(Z[:, i] * Z[:, j], ~first)
+        kept = bool(np.sign(t1) == np.sign(t2) and t2 != 0)
+        rows.append(dict(a=cols[i], b=cols[j], t_first=t1, t_second=t2, sign_kept=kept, replicates=bool(kept and abs(t2) > 1.96)))
+    t = pd.DataFrame(rows)
+    return t, dict(pairs=len(scored), selected=len(t), replicated=int(t["replicates"].sum()) if len(t) else 0,
+                   expected_by_chance=len(t) * 0.025)
+
+
+def sample_size_curve(pool: pd.DataFrame, M: np.ndarray, cfg: LabConfig, kind: str = "linear",
+                      fractions: Sequence[float] = (0.25, 0.5, 1.0)) -> tuple[pd.DataFrame, dict[str, float]]:
+    """Is there anything to learn? Skill on each test year when the model sees only the most recent 25%/50%/100% of the available
+    history. If skill does not rise with more data the feature set has no structure that experience can reveal (or it is
+    non-stationary); a slope significantly above zero says accumulating data helps, which is the case for waiting."""
+    if M.shape[1] == 0 or not cfg.test_years:
+        return pd.DataFrame(columns=["fraction", "years", "mean_skill", "se"]), dict(slope=float("nan"), rho=float("nan"))
+    date = pd.DatetimeIndex(pool["date"]).to_numpy()
+    yv, year, pick = pool["up"].to_numpy(float), pool["year"].to_numpy(), pool["pick"].to_numpy(bool)
+    have = np.isfinite(yv)
+    res: dict[float, list[float]] = {f: [] for f in fractions}
+    for Y in cfg.test_years:
+        cut = (pd.Timestamp(year=int(Y), month=1, day=1) - pd.Timedelta(days=cfg.embargo_days + DF.LABEL_SPAN_DAYS)).to_datetime64()
+        past = np.flatnonzero(have & (date < cut))
+        te = np.flatnonzero(have & pick & (year == Y))
+        if len(past) < cfg.min_train or len(te) < 50:
+            continue
+        past = past[np.argsort(date[past], kind="stable")]
+        for f in fractions:
+            tr = past[-max(int(len(past) * f), 1):]
+            if len(np.unique(yv[tr])) < 2 or len(tr) < 200:
+                continue
+            mdl = DF.DirModel(kind, cfg.seed).fit(M[tr], yv[tr])
+            res[f].append(brier_skill(mdl.prob(M[te]), yv[te], np.full(len(te), float(yv[tr].mean()))))
+    rows = [dict(fraction=f, years=len(v), mean_skill=float(np.mean(v)), se=float(np.std(v, ddof=1) / math.sqrt(len(v))) if len(v) > 1 else float("nan"))
+            for f, v in res.items() if v]
+    t = pd.DataFrame(rows, columns=["fraction", "years", "mean_skill", "se"])
+    if len(t) < 3:
+        return t, dict(slope=float("nan"), rho=float("nan"))
+    slope = float(np.polyfit(np.log(t["fraction"]), t["mean_skill"], 1)[0])
+    return t, dict(slope=slope, rho=float(stats.spearmanr(t["fraction"], t["mean_skill"])[0]))
+
+
+def winners_curse(skills: Sequence[float], null_sd: Sequence[float]) -> pd.DataFrame:
+    """Empirical-Bayes shrinkage of the observed skills. The standardised skills z_i = skill_i / null_sd_i have variance
+    1 + tau^2 when true effects have variance tau^2; the shrinkage factor tau^2 / (1 + tau^2) is what the best-looking hypothesis
+    should be discounted by (method of moments, floored at zero). With no real effect tau^2 = 0 and every posterior skill is 0, so
+    the ranking that the raw numbers suggest is refused. Also gives the expected maximum |z| among M nulls, sqrt(2 ln M)."""
+    s, sd = np.asarray(skills, float), np.asarray(null_sd, float)
+    if s.size == 0:
+        return pd.DataFrame(columns=["z", "posterior_skill", "shrink", "tau2", "null_max_z"])
+    sd = np.where(sd > 0, sd, 1.0)
+    z = s / sd
+    tau2 = max(float(np.var(z, ddof=1)) - 1.0, 0.0) if len(z) > 1 else 0.0
+    b = tau2 / (tau2 + 1.0)
+    return pd.DataFrame({"z": z, "posterior_skill": b * z * sd, "shrink": b, "tau2": tau2,
+                         "null_max_z": math.sqrt(2 * math.log(max(len(z), 2)))})
+
+
+# ---------------------------------------------------------------------------------------------- risk of the calls
+def downside_profile(pred: pd.DataFrame, pool: pd.DataFrame, model: str, coverage: float = 1.0, cap: float = -0.20, cost_bps: float = 7.0,
+                     n_random: int = 200, seed: int = 0) -> dict[str, float]:
+    """The risk half of 'direction probability -> risk assessment'. For the bets at `coverage`: net signed return quantiles, expected
+    shortfall, the share of calls that lose more than the owner's cap (-20%), the loss when wrong versus the win when right, and the
+    same statistics for RANDOM sides on the same rows. A directional model earns its keep only if it improves the tail, not just
+    the hit rate; the random-side row is the no-skill floor for every one of these numbers."""
+    d = pred[(pred["model"] == model) & (pred["q"] <= coverage + 1e-12)]
+    if len(d) < 30:
+        return dict(n=len(d))
+    fwd = pool["fwd"].to_numpy(dtype=float)[d["row"].to_numpy()]
+    ok = np.isfinite(fwd)
+    fwd = fwd[ok]
+    side = np.where(d["p"].to_numpy()[ok] >= 0.5, 1.0, -1.0)
+    net = side * fwd - 2 * cost_bps / 1e4
+    rng = np.random.default_rng(seed)
+    rnd = np.array([(rng.choice([-1.0, 1.0], len(fwd)) * fwd - 2 * cost_bps / 1e4) for _ in range(n_random)])
+    q05, q01 = np.quantile(net, 0.05), np.quantile(net, 0.01)
+    wrong = net < 0
+    out = dict(n=int(len(net)), mean=float(net.mean()), q05=float(q05), q01=float(q01), es05=float(net[net <= q05].mean()),
+               cap_breach=float((net <= cap).mean()), loss_when_wrong=float(net[wrong].mean()) if wrong.any() else 0.0,
+               win_when_right=float(net[~wrong].mean()) if (~wrong).any() else 0.0, worst=float(net.min()),
+               random_mean=float(rnd.mean()), random_q05=float(np.quantile(rnd, 0.05)), random_cap_breach=float((rnd <= cap).mean()))
+    out["tail_improvement"] = out["q05"] - out["random_q05"]
+    out["breakeven_hit"] = (abs(out["loss_when_wrong"]) / (abs(out["loss_when_wrong"]) + max(out["win_when_right"], 1e-9))) if wrong.any() else 0.0
+    return out
+
+
+def rank_gradient(pool: pd.DataFrame, n_bins: int = 3, n_boot: int = 300, seed: int = 0) -> tuple[pd.DataFrame, dict[str, float]]:
+    """Does the volatility model's own ranking carry a direction? Up-rate by within-week tercile of P(vol) among the pool, and the
+    Spearman IC of P(vol) with the outcome. A significant gradient would mean the mover model already leaks a side and the
+    direction stage must be judged AFTER removing it; a null gradient means the two problems really are separate."""
+    d = pool.dropna(subset=["up", "score"])
+    if len(d) < 60 * n_bins:
+        return pd.DataFrame(), dict(ic=float("nan"), lo=float("nan"), hi=float("nan"))
+    t, sp = quantile_spread(d["score"].to_numpy(), d["up"].to_numpy(), d["date"].to_numpy(), n_bins, n_boot, seed)
+    ic = feature_ic_table(pd.DataFrame({"score": d["score"].to_numpy()}), d, "up")
+    return t, dict(ic=float(ic["mean_ic"].iloc[0]) if len(ic) else float("nan"), t=float(ic["t"].iloc[0]) if len(ic) else float("nan"),
+                   spread=sp["spread"], lo=sp["lo"], hi=sp["hi"])
+
+
+def market_component(pool: pd.DataFrame) -> dict[str, float]:
+    """How much of 'up vs down' is the market rather than the stock? ICC of the outcome inside decision weeks (share of variance
+    explained by the week), the mean of the weekly up-rate and its dispersion. A high ICC says direction among movers is mostly
+    market timing: a stock-picking model earns nothing from it, and a per-stock accuracy figure is inflated by the week's drift."""
+    d = pool.dropna(subset=["up"])
+    if len(d) < 100:
+        return dict(icc=float("nan"), weeks=0, weekly_up_mean=float("nan"), weekly_up_sd=float("nan"), excess_dispersion=float("nan"))
+    wk = d.groupby("date")["up"].agg(["mean", "count"])
+    icc = max((week_design_effect(d["up"].to_numpy(), pd.factorize(d["date"])[0]) - 1) / max(wk["count"].mean() - 1, 1), 0.0)
+    p = float(d["up"].mean())
+    exp_sd = math.sqrt(p * (1 - p) / max(wk["count"].mean(), 1))
+    return dict(icc=float(icc), weeks=len(wk), weekly_up_mean=float(wk["mean"].mean()), weekly_up_sd=float(wk["mean"].std(ddof=1)),
+                excess_dispersion=float(wk["mean"].std(ddof=1) / exp_sd) if exp_sd > 0 else float("nan"))
+
+
+def add_relative_target(pool: pd.DataFrame) -> pd.Series:
+    """Market-neutral direction: 1 when the stock ended above the median forward return of the week's pool, else 0 (NaN where the
+    return is missing). Balanced by construction, so it isolates stock selection from market timing. Research-side outcome only."""
+    fwd = pool["fwd"]
+    med = fwd.groupby(pool["date"]).transform("median")
+    return pd.Series(np.where(fwd.notna(), (fwd > med).astype(float), np.nan), index=pool.index, name="up_rel")
+
+
+# ---------------------------------------------------------------------------------------------- mechanism checks
+@dataclasses.dataclass(frozen=True)
+class MechanismCheck:
+    """A prediction the hypothesis' stated mechanism makes about SHAPE, independent of headline skill. kind: ic_sign (the column's
+    weekly IC has sign `expect`), ic_order (IC of cols[0] exceeds IC of cols[1] when expect=+1), dose (up-rate trends with the
+    column, Cochran-Armitage), cond_ic (IC of cols[0] is higher in the 'hi' state of `cond` than the 'lo' state when expect=+1),
+    spread (top-minus-bottom quintile up-rate has sign `expect`). A real effect should reproduce the shape the literature gives it;
+    a coincidence usually does not, which is evidence the skill test alone cannot supply."""
+    hypothesis: str
+    kind: str
+    cols: tuple[str, ...]
+    expect: int
+    text: str
+    cond: str = ""
+
+
+MECHANISM_CHECKS: tuple[MechanismCheck, ...] = (
+    MechanismCheck("momentum", "ic_order", ("mom_12_1", "r5"), 1, "long-horizon momentum carries a higher IC than the 1-week move"),
+    MechanismCheck("momentum", "ic_sign", ("r60",), 1, "intermediate momentum continues"),
+    MechanismCheck("reversal", "ic_sign", ("r5",), -1, "last week's move partly reverses"),
+    MechanismCheck("reversal", "ic_order", ("r5_news", "r5_nonews"), 1, "reversal is stronger without news (no-news moves reverse, news moves continue)"),
+    MechanismCheck("event_reaction", "dose", ("event_net",), 1, "up-rate rises with the net signed filing content"),
+    MechanismCheck("earnings_reaction", "ic_sign", ("ear_recent",), 1, "a recent positive earnings reaction drifts up"),
+    MechanismCheck("earnings_reaction", "cond_ic", ("ear_recent",), -1, "the drift fades as the release ages", "release_age"),
+    MechanismCheck("insider", "dose", ("ins_buyers30",), 1, "more insider buyers, higher up-rate"),
+    MechanismCheck("range_52w", "spread", ("dist_52wh",), 1, "names nearer their 52-week high rise more than names far below it"),
+    MechanismCheck("relative_strength", "spread", ("rel_ind20",), 1, "industry-relative winners keep winning"),
+    MechanismCheck("sector_behavior", "ic_sign", ("sector_mom",), 1, "sector momentum leads its members"),
+    MechanismCheck("market_regime", "cond_ic", ("r5",), 1, "short-term reversal is stronger in bear markets", "regime"),
+    MechanismCheck("volume_structure", "cond_ic", ("r5",), 1, "volume-confirmed moves continue more than thin-volume moves", "volume"),
+    MechanismCheck("intraday_path", "ic_sign", ("close_loc",), 1, "closing near the high carries into the next week"),
+    MechanismCheck("gap_behavior", "cond_ic", ("gap_today",), 1, "gaps continue when the close is strong", "close_strength"),
+    MechanismCheck("volatility_regime", "cond_ic", ("r5",), -1, "reversal strengthens when the VIX is high", "vix"),
+    MechanismCheck("cross_sectional", "ic_sign", ("xs_r20",), 1, "rank among the week's movers carries the same sign as the level"),
+)
+
+
+@dataclasses.dataclass(frozen=True)
+class MechanismResult:
+    check: MechanismCheck
+    status: str                      # consistent / inconsistent / inconclusive / untestable
+    stat: float
+    detail: str
+
+
+def cochran_armitage(counts: np.ndarray, successes: np.ndarray, scores: np.ndarray | None = None, deff: float = 1.0) -> float:
+    """Cochran-Armitage trend z for a monotone change of a proportion across ordered groups, divided by sqrt(design effect) so that
+    rows clustered in weeks are not counted as independent. Positive z = the proportion rises with the score."""
+    n, r = np.asarray(counts, float), np.asarray(successes, float)
+    ok = n > 0
+    n, r = n[ok], r[ok]
+    if len(n) < 3:
+        return 0.0
+    s = np.arange(len(n), dtype=float) if scores is None else np.asarray(scores, float)[ok]
+    N, R = n.sum(), r.sum()
+    p = R / N
+    if p <= 0 or p >= 1:
+        return 0.0
+    t = np.sum(s * (r - n * p))
+    var = p * (1 - p) * (np.sum(n * s * s) - np.sum(n * s) ** 2 / N)
+    return float(t / math.sqrt(var * max(deff, 1.0))) if var > 0 else 0.0
+
+
+def _condition_labels(Xd: pd.DataFrame, pool: pd.DataFrame, cond: str) -> pd.Series | None:
+    """'lo'/'hi' state of a conditioning variable at the decision close (never an outcome)."""
+    def split(v: pd.Series, thr: float | None = None):
+        t = float(v.median()) if thr is None else thr
+        return pd.Series(np.where(v.isna(), None, np.where(v > t, "hi", "lo")), index=v.index)
+    if cond == "regime":
+        r = pool["reg"]
+        return pd.Series(np.where(r == "bull", "hi", np.where(r == "bear", "lo", None)), index=pool.index) if (r != "na").any() else None
+    if cond == "vix" and "m_vix" in Xd:
+        return split(Xd["m_vix"].astype(float))
+    if cond == "volume":
+        c = "ear_volsurge" if "ear_volsurge" in Xd else "vol_surge" if "vol_surge" in Xd else None
+        return split(Xd[c].astype(float)) if c else None
+    if cond == "close_strength" and "close_loc" in Xd:
+        return split(Xd["close_loc"].astype(float))
+    if cond == "release_age" and "days_since_earn" in Xd:
+        return split(Xd["days_since_earn"].astype(float), 20.0)                 # 'hi' = older than 20 sessions
+    return None
+
+
+def evaluate_mechanism(check: MechanismCheck, Xd: pd.DataFrame, pool: pd.DataFrame, z_crit: float = 1.96, seed: int = 0) -> MechanismResult:
+    """Runs one check; status is 'inconclusive' unless |z| clears z_crit, so the mechanism scorecard cannot manufacture agreement."""
+    if any(c not in Xd.columns for c in check.cols):
+        return MechanismResult(check, "untestable", float("nan"), "missing " + ",".join(c for c in check.cols if c not in Xd.columns))
+    Xd = Xd.reset_index(drop=True)
+    pl = pool.reset_index(drop=True)
+
+    def verdict(z: float, detail: str) -> MechanismResult:
+        if not np.isfinite(z) or abs(z) < z_crit:
+            return MechanismResult(check, "inconclusive", float(z), detail)
+        return MechanismResult(check, "consistent" if np.sign(z) == check.expect else "inconsistent", float(z), detail)
+    if check.kind == "ic_sign":
+        t = feature_ic_table(Xd[[check.cols[0]]], pl, "up")
+        return verdict(float(t["t"].iloc[0]), f"mean IC {t['mean_ic'].iloc[0]:+.4f}") if len(t) else MechanismResult(check, "untestable", float("nan"), "too few weeks")
+    if check.kind == "ic_order":
+        t = feature_ic_table(Xd[list(check.cols)], pl, "up").set_index("column")
+        if len(t) < 2:
+            return MechanismResult(check, "untestable", float("nan"), "too few weeks")
+        a, b = t.loc[check.cols[0]], t.loc[check.cols[1]]
+        se = math.sqrt(a["sd_ic"] ** 2 / a["weeks"] + b["sd_ic"] ** 2 / b["weeks"])
+        return verdict(float((a["mean_ic"] - b["mean_ic"]) / se) if se > 0 else float("nan"), f"IC {a['mean_ic']:+.4f} vs {b['mean_ic']:+.4f}")
+    if check.kind == "dose":
+        x, up = Xd[check.cols[0]].to_numpy(float), pl["up"].to_numpy(float)
+        m = np.isfinite(x) & np.isfinite(up)
+        if m.sum() < 200 or len(np.unique(x[m])) < 3:
+            return MechanismResult(check, "untestable", float("nan"), "no dose variation")
+        edges = np.unique(x[m]) if len(np.unique(x[m])) <= 6 else np.unique(np.quantile(x[m], np.linspace(0, 1, 6)[1:-1]))
+        b = np.digitize(x[m], edges) if len(np.unique(x[m])) > 6 else np.searchsorted(edges, x[m])
+        k = int(b.max()) + 1
+        n = np.bincount(b, minlength=k)
+        r = np.bincount(b, weights=up[m], minlength=k)
+        deff = week_design_effect(up[m], pd.factorize(pl["date"].to_numpy()[m])[0])
+        return verdict(cochran_armitage(n, r, deff=deff), f"{k} dose levels, design effect {deff:.1f}")
+    if check.kind == "spread":
+        _, s = quantile_spread(Xd[check.cols[0]].to_numpy(float), pl["up"].to_numpy(float), pl["date"].to_numpy(), 5, 300, seed)
+        if not np.isfinite(s["spread"]):
+            return MechanismResult(check, "untestable", float("nan"), "too few rows")
+        se = (s["hi"] - s["lo"]) / (2 * 1.645) if np.isfinite(s["hi"]) and s["hi"] > s["lo"] else float("nan")
+        return verdict(s["spread"] / se if se and np.isfinite(se) else float("nan"), f"top-minus-bottom up-rate {s['spread']:+.4f}")
+    lab = _condition_labels(Xd.set_index(pool.index), pool, check.cond)
+    if lab is None:
+        return MechanismResult(check, "untestable", float("nan"), f"condition {check.cond!r} unavailable")
+    lab = lab.reset_index(drop=True)
+    parts = {}
+    for st in ("lo", "hi"):
+        m = (lab == st).to_numpy()
+        if m.sum() < 200:
+            return MechanismResult(check, "untestable", float("nan"), "thin condition state")
+        parts[st] = feature_ic_table(Xd.loc[m, [check.cols[0]]].reset_index(drop=True), pl.loc[m].reset_index(drop=True), "up")
+    if not all(len(v) for v in parts.values()):
+        return MechanismResult(check, "untestable", float("nan"), "too few weeks in a state")
+    a, b = parts["hi"].iloc[0], parts["lo"].iloc[0]
+    se = math.sqrt(a["sd_ic"] ** 2 / a["weeks"] + b["sd_ic"] ** 2 / b["weeks"])
+    return verdict(float((a["mean_ic"] - b["mean_ic"]) / se) if se > 0 else float("nan"), f"IC hi {a['mean_ic']:+.4f} / lo {b['mean_ic']:+.4f}")
+
+
+def mechanism_report(Xd: pd.DataFrame, pool: pd.DataFrame, checks: Sequence[MechanismCheck] = MECHANISM_CHECKS, seed: int = 0) -> dict[str, list[MechanismResult]]:
+    """All mechanism checks grouped by hypothesis."""
+    out: dict[str, list[MechanismResult]] = {}
+    for ch in checks:
+        out.setdefault(ch.hypothesis, []).append(evaluate_mechanism(ch, Xd, pool, seed=seed))
+    return out
+
+
+def mechanism_summary(results: Sequence[MechanismResult]) -> dict[str, float]:
+    """Counts by status and the share of TESTABLE, conclusive checks that agree with the stated mechanism."""
+    c = {s: sum(1 for r in results if r.status == s) for s in ("consistent", "inconsistent", "inconclusive", "untestable")}
+    conclusive = c["consistent"] + c["inconsistent"]
+    return dict(**c, agreement=float(c["consistent"] / conclusive) if conclusive else float("nan"))
+
+
+# ---------------------------------------------------------------------------------------------- calibration and gates
+def calibration_report(pred: pd.DataFrame, model: str, seed: int = 0, n_boot: int = 200) -> dict[str, Any]:
+    """Is P(up) trustworthy, not just ranked? Murphy decomposition (reliability vs resolution), logistic recalibration slope with its
+    interval (slope < 1 = overconfident), equal-mass ECE with bootstrap interval and its sampling floor, sharpness and AUC."""
+    d = pred[pred["model"] == model]
+    if len(d) < 100:
+        return dict(n=len(d))
+    p, y = np.clip(d["p"].to_numpy(float), 1e-4, 1 - 1e-4), d["up"].to_numpy(float)
+    ece_pt, ece_lo, ece_hi = LC.bootstrap_ece_ci(p, y, np.random.default_rng(seed), n_boot)
+    return dict(n=len(d), decomposition=LC.brier_decomposition(p, y), slope=LC.platt_slope(p, y), ece=ece_pt, ece_lo=ece_lo, ece_hi=ece_hi,
+                ece_floor=D.ece_noise_floor(p), sharpness=LC.sharpness(p), auc=LC.discrimination(p, y), overconfidence=LC.overconfidence(p, y))
+
+
+def gate_alternatives(pred: pd.DataFrame, model: str, gate: float = EIGHTY, min_rows: int = 400) -> pd.DataFrame:
+    """The existing gate routes (raw, Platt, isotonic, Venn-Abers, conformal) applied to this model's test rows: the earlier half of
+    the rows calibrates and the later half is judged, so no route sees its own evaluation rows. Empty when the sample is small."""
+    d = pred[pred["model"] == model].sort_values("date")
+    if len(d) < min_rows:
+        return pd.DataFrame()
+    cut = len(d) // 2
+    a, b = d.iloc[:cut], d.iloc[cut:]
+    return DC.compare_gates(a["p"].to_numpy(), a["up"].to_numpy(), b["p"].to_numpy(), b["up"].to_numpy(), gate)
+
+
+# ---------------------------------------------------------------------------------------------- what the calls earn, week by week
+def weekly_portfolio(pred: pd.DataFrame, pool: pd.DataFrame, model: str, coverage: float = 1.0, cost_bps: float = 7.0, n_boot: int = 400,
+                     seed: int = 0) -> dict[str, Any]:
+    """Equal-weight book of the model's calls, one book per decision week (long the up calls, short the down calls, round-trip cost
+    charged), compared with two no-skill books on the same names: always-long and random sides. Reports the mean and dispersion of
+    weekly return, the share of positive weeks (the project's third objective), the worst week, the maximum drawdown of the summed
+    weekly returns and a week-bootstrap interval on the gain over always-long."""
+    d = pred[(pred["model"] == model) & (pred["q"] <= coverage + 1e-12)]
+    if len(d) < 60:
+        return dict(weeks=0)
+    fwd = pool["fwd"].to_numpy(float)[d["row"].to_numpy()]
+    ok = np.isfinite(fwd)
+    d, fwd = d[ok], fwd[ok]
+    cost = 2 * cost_bps / 1e4
+    side = np.where(d["p"].to_numpy() >= 0.5, 1.0, -1.0)
+    rng = np.random.default_rng(seed)
+    books = {"model": side * fwd - cost, "always_long": fwd - cost, "random": rng.choice([-1.0, 1.0], len(fwd)) * fwd - cost}
+    wk = pd.factorize(d["date"].to_numpy(), sort=True)[0]
+    nw = wk.max() + 1
+    W = {k: np.bincount(wk, weights=v, minlength=nw) / np.bincount(wk, minlength=nw) for k, v in books.items()}
+    out: dict[str, Any] = dict(weeks=int(nw), coverage=coverage)
+    for k, w in W.items():
+        cum = np.cumsum(w)
+        out[k] = dict(mean=float(w.mean()), sd=float(w.std(ddof=1)) if nw > 1 else float("nan"), share_positive=float((w > 0).mean()),
+                      worst=float(w.min()), max_drawdown=float((np.maximum.accumulate(cum) - cum).max()),
+                      in_band=float(((np.abs(w) >= 0.05) & (np.abs(w) <= 0.10)).mean()),
+                      sharpe=float(w.mean() / w.std(ddof=1) * math.sqrt(52)) if nw > 2 and w.std(ddof=1) > 0 else float("nan"))
+    gain = W["model"] - W["always_long"]
+    idx = rng.integers(0, nw, size=(n_boot, nw))
+    bs = gain[idx].mean(axis=1)
+    out["gain_over_long"] = dict(mean=float(gain.mean()), lo=float(np.quantile(bs, 0.05)), hi=float(np.quantile(bs, 0.95)))
+    return out
+
+
+def abstention_value(pred: pd.DataFrame, pool: pd.DataFrame, model: str, n_bins: int = 5, cost_bps: float = 7.0) -> tuple[pd.DataFrame, dict[str, float]]:
+    """Should the lab ever abstain? Mean net return of the calls in confidence bins (bin 0 = the most confident fifth). If abstaining
+    on the least confident calls does not raise the average, the confidence measure carries no information about payoff, whatever
+    its calibration plots look like. Reports the Spearman correlation between confidence rank and net return."""
+    d = pred[pred["model"] == model]
+    cols = ["bin", "n", "hit", "mean_net_bp", "mean_conf"]
+    if len(d) < n_bins * 30:
+        return pd.DataFrame(columns=cols), dict(rho=float("nan"), gain_top_vs_all_bp=float("nan"))
+    fwd = pool["fwd"].to_numpy(float)[d["row"].to_numpy()]
+    ok = np.isfinite(fwd)
+    d, fwd = d[ok], fwd[ok]
+    net = (np.where(d["p"].to_numpy() >= 0.5, 1.0, -1.0) * fwd - 2 * cost_bps / 1e4) * 1e4
+    conf = np.abs(d["p"].to_numpy() - 0.5)
+    b = np.minimum(((1 - d["q"].to_numpy()) * n_bins).astype(int), n_bins - 1)
+    b = n_bins - 1 - b
+    rows = [dict(bin=k, n=int((b == k).sum()), hit=float((net[b == k] > 0).mean()), mean_net_bp=float(net[b == k].mean()),
+                 mean_conf=float(conf[b == k].mean())) for k in range(n_bins) if (b == k).any()]
+    rho = float(stats.spearmanr(conf, net)[0]) if np.ptp(conf) > 0 else 0.0
+    t = pd.DataFrame(rows, columns=cols)
+    return t, dict(rho=rho, gain_top_vs_all_bp=float(t["mean_net_bp"].iloc[0] - net.mean()) if len(t) else float("nan"))
+
+
+def wrong_call_anatomy(pred: pd.DataFrame, pool: pd.DataFrame, model: str, min_n: int = 50) -> tuple[pd.DataFrame, dict[str, float]]:
+    """Study the losers (section 5 applied to direction): where are the wrong calls concentrated? Wrong-call rate by event type,
+    market regime, sector, move size (terciles of |return|) and by the week's market direction, with an excess-over-overall column
+    and a Wilson interval. Also splits the wrong calls into 'the whole week went the other way' (market-driven) and
+    'this stock went against its week' (stock-specific), because the remedies differ (regime awareness vs selection)."""
+    d = pred[pred["model"] == model]
+    if len(d) < 2 * min_n:
+        return pd.DataFrame(columns=["factor", "level", "n", "wrong", "wrong_rate", "excess", "wilson_lo", "wilson_hi"]), dict(market_driven=float("nan"), stock_specific=float("nan"))
+    rows_ix = d["row"].to_numpy()
+    fwd = pool["fwd"].to_numpy(float)[rows_ix]
+    wrong = ((d["p"].to_numpy() >= 0.5) != (d["up"].to_numpy() > 0.5))
+    dates = pd.DatetimeIndex(d["date"])
+    wk_med = pd.Series(fwd).groupby(dates.to_numpy()).transform("median").to_numpy()
+    size = pd.Series(np.abs(fwd)).rank(pct=True).to_numpy()
+    factors = {"event": d["seg"].to_numpy(), "regime": d["reg"].to_numpy(),
+               "size": np.where(size > 2 / 3, "large", np.where(size > 1 / 3, "mid", "small")),
+               "week": np.where(wk_med > 0, "market_up", "market_down")}
+    if "sector" in d:
+        factors["sector"] = d["sector"].to_numpy()
+    overall = float(wrong.mean())
+    rows = []
+    for f, lv in factors.items():
+        for v in pd.unique(lv):
+            m = lv == v
+            if m.sum() < min_n:
+                continue
+            lo, hi = LC.wilson(float(wrong[m].sum()), int(m.sum()), z=1.96)
+            rows.append(dict(factor=f, level=str(v), n=int(m.sum()), wrong=int(wrong[m].sum()), wrong_rate=float(wrong[m].mean()),
+                             excess=float(wrong[m].mean() - overall), wilson_lo=lo, wilson_hi=hi))
+    side = np.where(d["p"].to_numpy() >= 0.5, 1.0, -1.0)
+    market_against = np.sign(wk_med) == -side
+    n_wrong = max(int(wrong.sum()), 1)
+    return pd.DataFrame(rows), dict(market_driven=float((wrong & market_against).sum() / n_wrong), stock_specific=float((wrong & ~market_against).sum() / n_wrong),
+                                    overall_wrong=overall)
+
+
+def ic_by_year(M: pd.DataFrame, pool: pd.DataFrame, target: str = "up") -> pd.DataFrame:
+    """Mean weekly IC per calendar year for each column plus the share of years whose sign agrees with the pooled sign: an IC that
+    flips sign between years is a regime artefact however large its pooled t statistic is."""
+    parts = []
+    for y in sorted(pool["year"].unique()):
+        m = (pool["year"] == y).to_numpy()
+        t = feature_ic_table(M[m].reset_index(drop=True), pool[m].reset_index(drop=True), target, min_rows=15)
+        if len(t):
+            parts.append(t.set_index("column")["mean_ic"].rename(int(y)))
+    if not parts:
+        return pd.DataFrame()
+    W = pd.concat(parts, axis=1)
+    yrs = list(W.columns)
+    pooled = np.sign(W[yrs].mean(axis=1))
+    agree = W[yrs].apply(lambda col: np.sign(col) == pooled)
+    W["sign_agreement"] = agree.where(W[yrs].notna()).sum(axis=1) / W[yrs].notna().sum(axis=1)
+    return W.reset_index()
+
+
+# ---------------------------------------------------------------------------------------------- the lab checks itself
+def null_size_check(n_rows: int = 3000, n_models: int = 12, n_weeks: int = 60, n_perm: int = 150, trials: int = 120, seed: int = 0) -> dict[str, float]:
+    """Size of the testing machinery under the null: random calibrated probabilities unrelated to the labels are pushed through
+    max_t_permutation `trials` times. The share of trials with ANY cell below 0.05 (family-wise, p_maxT) must be about 0.05 or less,
+    and the raw p-values must look uniform (KS). A test that rejects a true null far more often than alpha would make every 'lead'
+    the lab reports meaningless."""
+    rng = np.random.default_rng(seed)
+    gid = np.repeat(np.arange(n_weeks), n_rows // n_weeks)
+    n = len(gid)
+    fw, raw = 0, []
+    for t in range(trials):
+        y = (rng.uniform(size=n) < 0.5).astype(float)
+        P = np.clip(0.5 + rng.normal(0, 0.03, (n, n_models)), 0.02, 0.98)
+        r = max_t_permutation(P, y, np.full(n, 0.5), gid, n_perm, seed=int(rng.integers(1 << 30)))
+        fw += int((r["p_maxT"] < 0.05).any())
+        raw += list(r["p_raw"])
+    raw = np.asarray(raw)
+    return dict(family_wise_size=fw / trials, raw_size=float((raw < 0.05).mean()), ks_p=float(stats.kstest(raw, "uniform")[1]), trials=trials)
+
+
+def determinism_check(inputs: LabInputs, now, cfg: LabConfig, gate: DirectionGate | None = None) -> dict[str, Any]:
+    """Two runs, same inputs, same seed: the per-hypothesis outcome table must be identical (rule 4: every draw is seeded). Returns
+    the differing hypotheses, if any."""
+    a = DirectionLab(cfg, gate).run(inputs, now).frame()
+    b = DirectionLab(cfg, gate).run(inputs, now).frame()
+    diff = [] if a.equals(b) else sorted(set(a.loc[(a != b).any(axis=1), "hypothesis"]) if len(a) == len(b) else set(a["hypothesis"]) ^ set(b["hypothesis"]))
+    return dict(identical=not diff, differing=diff)
+
+
+def lifetime_trials(state: LabState) -> int:
+    """Total cells (hypothesis x model) ever tested across all fresh looks: the running price of the whole research programme, which
+    the sequential alpha already charges through time and which the report states so no run looks free."""
+    return int(sum(h.get("n_cells", 0) for h in state.history if h.get("fresh", True)))
+
+
 # ---------------------------------------------------------------------------------------------- the lab
 @dataclasses.dataclass
 class LabReport:
@@ -1447,6 +2078,16 @@ class LabReport:
     existing_source: str = "none"
     years: tuple[int, ...] = ()
     latest_label_end: str = ""
+    ic: pd.DataFrame = dataclasses.field(default_factory=pd.DataFrame)
+    ic_years: pd.DataFrame = dataclasses.field(default_factory=pd.DataFrame)
+    rank_gradient: dict[str, float] = dataclasses.field(default_factory=dict)
+    market: dict[str, float] = dataclasses.field(default_factory=dict)
+    cells_search: dict[str, Any] = dataclasses.field(default_factory=dict)
+    interactions: dict[str, float] = dataclasses.field(default_factory=dict)
+    curse: pd.DataFrame = dataclasses.field(default_factory=pd.DataFrame)
+    mechanisms: dict[str, list] = dataclasses.field(default_factory=dict)
+    wrong_calls: dict[str, float] = dataclasses.field(default_factory=dict)
+    gates: pd.DataFrame = dataclasses.field(default_factory=pd.DataFrame)
 
     @property
     def protocol_ok(self) -> bool:
@@ -1596,6 +2237,9 @@ class DirectionLab:
         report.n_cells = len(cells_final)
         report.power = self._power(pred_final, W_final, final_info, lc)
         powered = report.power.get("mde_edge", 1.0) <= 0.03
+        cu = winners_curse([cell_stats[c]["skill"] for c in cells_final], mt["null_sd"])
+        cu.index = cells_final
+        report.curse = cu
         for n in names:
             mine = [c for c in cells_final if c.split(":")[0] == n]
             if not mine:
@@ -1606,6 +2250,7 @@ class DirectionLab:
             y, pp = final_info["up"].to_numpy(float), W_final[best].to_numpy(float)
             r.acc = float(((pp >= 0.5) == (y > 0.5)).mean())
             r.acc_edge = r.acc - float(max(y.mean(), 1 - y.mean()))
+            r.posterior_skill = float(cu.loc[best, "posterior_skill"])
             if n not in survivors:
                 r.outcome, r.state = Outcome.NO_RELIABLE_SIGNAL, state_for(Outcome.NO_RELIABLE_SIGNAL, powered)
                 r.reasons = [f"stage-1 screen: permutation p {r.p_raw:.3f} >= {lc.screen_p}; not escalated (compute saved)"]
@@ -1613,11 +2258,16 @@ class DirectionLab:
             kind = best.split(":")[1]
             r.stage = Stage.STRONGER_TESTS
             r.comparators = compare_all(wf2.pred, n, best, kind, lc, lc.seed + 5)
-            stress_test(r, wf2.pred, pool.assign(**{}), fams[n].matrix, best, kind, lc)
+            stress_test(r, wf2.pred, pool, fams[n].matrix, best, kind, lc)
+            _, r.learn_curve = sample_size_curve(pool, fams[n].matrix, lc, kind)
+            r.downside = downside_profile(wf2.pred, pool, best, 1.0, cost_bps=lc.cost_bps, seed=lc.seed)
+            r.portfolio = weekly_portfolio(wf2.pred, pool, best, 1.0, lc.cost_bps, min(lc.n_boot, 300), lc.seed)
+            r.calibration = calibration_report(wf2.pred, best, lc.seed)
             r.outcome, r.reasons = decide_outcome(r, lc, len(cells_final))
             r.state = state_for(r.outcome, powered)
             if r.outcome is Outcome.CANDIDATE:
                 r.stage = Stage.CROSS_YEAR
+        self._deep(report, Xd, pool, fams, lc)
         report.controls = evaluate_controls(pred_final, wf2.blocks if wf2 is not None else wf1.blocks, leak, lc, truth["planted_share"])
         if not report.controls.ok:
             for r in report.results.values():
@@ -1626,7 +2276,33 @@ class DirectionLab:
                     r.outcome, r.state = Outcome.CONTROL_FAILURE, ResearchState.CANCELLED
         self._frontier(report, pred_final, cells_final, names, lc)
         report.statement = honest_statement(report.eighty, report.power, lc.gate)
+        leads = [r for r in report.results.values() if r.stage is not Stage.CHEAP_SCREEN and r.best_tag]
+        if leads:
+            top = max(leads, key=lambda r: r.skill)
+            report.gates = gate_alternatives(pred_final, top.best_tag, lc.gate)
+            report.wrong_calls = wrong_call_anatomy(pred_final, pool, top.best_tag)[1]
         return report
+
+    def _deep(self, report: LabReport, Xd: pd.DataFrame, pool: pd.DataFrame, fams: Mapping[str, FamilyMatrix], cfg: LabConfig) -> None:
+        """Model-free diagnostics that need no walk-forward: single-feature IC tables (pooled and by year), the volatility model's
+        own directional gradient, the market-vs-stock decomposition, the exhaustive small-cell search against its chance maximum,
+        the interaction replication scan and the mechanism checks of every hypothesis."""
+        owner = {c: n for n, f in fams.items() if n in self.specs for c in f.columns}
+        cols = [c for c in owner if c in Xd.columns]
+        if not cols:
+            return
+        M = Xd[cols]
+        report.ic = feature_ic_table(M, pool, "up", owner)
+        report.ic_years = ic_by_year(M[report.ic["column"].head(30).tolist()] if len(report.ic) else M.iloc[:, :30], pool)
+        report.rank_gradient = rank_gradient(pool, seed=cfg.seed)[1]
+        report.market = market_component(pool)
+        top = report.ic["column"].head(10).tolist() if len(report.ic) else cols[:10]
+        _, report.cells_search = conditional_cells(M, pool, top[:8], seed=cfg.seed)
+        _, report.interactions = interaction_scan(M, pool, top)
+        report.mechanisms = mechanism_report(Xd, pool, seed=cfg.seed)
+        for name, res in report.mechanisms.items():
+            if name in report.results:
+                report.results[name].mechanism = mechanism_summary(res)
 
     def _blank(self, name: str, fam: FamilyMatrix) -> HypothesisResult:
         spec = self.specs[name]
@@ -1667,15 +2343,34 @@ class DirectionLab:
 class LabState:
     """What survives between runs (trusted side). `null_streak` counts consecutive powered runs that found no lead, which is the
     evidence the compute manager needs before moving effort from direction to volatility (RESEARCH_MAPPING: 'direction yields
-    nothing' is a valid answer, not a stall)."""
+    nothing' is a valid answer, not a stall). `info_prev` is the information clock (matured weeks) at the last FRESH look, the
+    input of the alpha-spending rule; `last_alpha` is reused when the very same data are looked at again."""
     states: dict[str, ResearchState] = dataclasses.field(default_factory=dict)
     null_streak: int = 0
     runs: int = 0
     history: list[dict[str, Any]] = dataclasses.field(default_factory=list)
     seen_keys: set = dataclasses.field(default_factory=set)
+    info_prev: int = 0
+    last_alpha: float = 0.0
+    alpha_spent: float = 0.0
 
     def digest(self) -> str:
-        return stable_hash({"states": {k: str(v) for k, v in sorted(self.states.items())}, "streak": self.null_streak, "runs": self.runs}, 12)
+        return stable_hash({"states": {k: str(v) for k, v in sorted(self.states.items())}, "streak": self.null_streak, "runs": self.runs,
+                            "info": self.info_prev}, 12)
+
+    def validate(self) -> list[str]:
+        """Consistency of the persisted state (a corrupted state must not silently steer the research queue)."""
+        errs = []
+        if self.runs < len(self.history):
+            errs.append("more history entries than runs")
+        if self.null_streak < 0 or self.null_streak > self.runs:
+            errs.append("null streak outside [0, runs]")
+        if self.info_prev < 0 or not 0 <= self.alpha_spent <= 1:
+            errs.append("information clock or alpha spent out of range")
+        bad = [k for k, v in self.states.items() if not isinstance(v, ResearchState)]
+        if bad:
+            errs.append(f"non-ResearchState values for {bad[:3]}")
+        return errs
 
 
 def data_fingerprint(inputs: LabInputs) -> str:
@@ -1706,22 +2401,368 @@ def compute_shift(state: LabState, report: LabReport, min_streak: int = 3) -> di
 
 
 def step(state: LabState | None, now, inputs: LabInputs, cfg: LabConfig | None = None, gate: DirectionGate | None = None,
-         ignore_gate: bool = False) -> tuple[LabState, LabReport]:
-    """The lab's ONE public entry for the research loop: run once at `now`, fold the outcome into the persistent state. A rerun on
-    identical inputs and code is recorded but does not extend the null streak (repetition is not replication)."""
+         ignore_gate: bool = False, spending: AlphaSpending | None = None) -> tuple[LabState, LabReport]:
+    """The lab's ONE public entry for the research loop: run once at `now`, fold the outcome into the persistent state.
+    Sequential looks: each fresh look on more matured weeks is charged the Lan-DeMets alpha increment (AlphaSpending) instead of
+    the full alpha, so re-running the lab every month cannot manufacture a discovery. A rerun on identical inputs and code is
+    recorded, reuses the previous alpha and does not extend the null streak (repetition is not replication)."""
     state = state or LabState()
-    lab = DirectionLab(cfg, gate)
-    report = lab.run(inputs, now, ignore_gate=ignore_gate)
-    key = stable_hash([data_fingerprint(inputs), current_code_hash(), lab.cfg.hash(), str(as_date(now))], 16)
+    bad = state.validate()
+    if bad:
+        raise ValueError("LabState is inconsistent: " + "; ".join(bad))
+    base = (cfg or LabConfig()).validate()
+    spending = spending or AlphaSpending(base.alpha)
+    key = stable_hash([data_fingerprint(inputs), current_code_hash(), str(as_date(now))], 16)
     fresh = key not in state.seen_keys
-    new = LabState(dict(state.states), state.null_streak, state.runs + 1, list(state.history), set(state.seen_keys))
+    weeks = information_weeks(inputs, now)
+    alpha = max(spending.increment(state.info_prev, max(weeks, state.info_prev)), 1e-4) if fresh else state.last_alpha
+    lab = DirectionLab(dataclasses.replace(base, alpha=min(alpha, 0.49)), gate)
+    report = lab.run(inputs, now, ignore_gate=ignore_gate)
+    new = LabState(dict(state.states), state.null_streak, state.runs + 1, list(state.history), set(state.seen_keys), state.info_prev,
+                   state.last_alpha, state.alpha_spent)
     for name, r in report.results.items():
         new.states[name] = r.state
     powered = report.power.get("mde_edge", 1.0) <= 0.03
     counts = report.gate.is_open and report.protocol_ok and powered
     if fresh:
         new.null_streak = (state.null_streak + 1) if counts and not report.found_anything() else (0 if report.found_anything() else state.null_streak)
+        new.info_prev, new.last_alpha = max(weeks, state.info_prev), alpha
+        new.alpha_spent = min(state.alpha_spent + alpha, 1.0)
     new.seen_keys.add(key)
     new.history.append(dict(key=key, fresh=fresh, outcomes=report.outcomes(), gate_open=report.gate.is_open, protocol_ok=report.protocol_ok,
-                            null_streak=new.null_streak, config=report.config_hash))
+                            null_streak=new.null_streak, config=base.hash(), alpha=alpha, weeks=weeks, n_cells=report.n_cells))
     return new, report
+
+
+# ---------------------------------------------------------------------------------------------- sequential looks (alpha spending)
+class AlphaSpending:
+    """The lab is run again and again as weeks mature; each look at overlapping data is another chance for a false discovery. Lan-
+    DeMets spending spreads a total alpha over information time t = weeks_now / target_weeks: 'obf' spends almost nothing early
+    (O'Brien-Fleming shape), 'pocock' spends evenly. The alpha available at a look is the INCREMENT of the spending function since
+    the previous look, a conservative (Bonferroni-style) level that keeps the total below `total` whatever the number of looks."""
+
+    def __init__(self, total: float = 0.05, target_weeks: int = 520, kind: str = "obf"):
+        if not 0 < total < 0.5 or target_weeks < 8 or kind not in ("obf", "pocock"):
+            raise ValueError("AlphaSpending: total in (0, 0.5), target_weeks >= 8, kind in {'obf', 'pocock'}")
+        self.total, self.target_weeks, self.kind = total, int(target_weeks), kind
+
+    def spent(self, weeks: float) -> float:
+        t = min(max(weeks / self.target_weeks, 0.0), 1.0)
+        if t <= 0:
+            return 0.0
+        if self.kind == "pocock":
+            return float(self.total * math.log(1 + (math.e - 1) * t))
+        return float(min(2 - 2 * stats.norm.cdf(stats.norm.ppf(1 - self.total / 2) / math.sqrt(t)), self.total))
+
+    def increment(self, weeks_prev: float, weeks_now: float) -> float:
+        """Alpha to use at this look; never negative, never above what remains."""
+        if weeks_now < weeks_prev:
+            raise ValueError("information cannot shrink between looks (would re-use evidence)")
+        return max(self.spent(weeks_now) - self.spent(weeks_prev), 0.0)
+
+
+def information_weeks(inputs: LabInputs, now) -> int:
+    """Matured, scored decision weeks available at `now` (the information clock of the sequential test)."""
+    lab = inputs.labels
+    ok = pd.DatetimeIndex(lab["end_date"]) < pd.Timestamp(as_date(now))
+    d = pd.DatetimeIndex(lab.index.get_level_values(0))[ok]
+    sc = inputs.score.dropna()
+    sd = pd.DatetimeIndex(sc.index.get_level_values(0))
+    return int(len(d.unique().intersection(sd.unique())))
+
+
+# ---------------------------------------------------------------------------------------------- synthetic worlds
+SYNTH_COLUMNS = ("r1", "r5", "r20", "r60", "r120", "mom_12_1", "dist_52wh", "dist_ma50", "dist_ma200", "close_loc", "intraday20",
+                 "gap_today", "overnight20", "ear", "ear_volsurge", "days_since_earn", "days_to_earn", "earn_in_week", "news5",
+                 "ins_buyers30", "ins_value30", "rel_ind20", "rel_ind60", "r5_nonews", "r5_news", "m_spy_ma50", "m_spy_ma200",
+                 "m_spy_r5", "m_vix", "m_vix_chg5", "m_breadth", "atr_pct")
+
+
+def synthetic_inputs(seed: int = 0, n_tickers: int = 150, n_weeks: int = 416, world: str = "null", strength: float = 0.20,
+                     start: str = "2010-01-01", sectors: int = 6, vol_skill: float = 1.3) -> LabInputs:
+    """A small market with known truth, for tests and for the lab's own health probe (self_check).
+    world 'null'    : P(up) = 0.5 + a shared weekly drift; no feature relates to direction.
+    world 'planted' : P(up) = 0.5 - strength * tanh(z(r5)) (a short-term reversal of size `strength`).
+    world 'leaky'   : as null, but column r1 is built from the realised outcome (a look-ahead the lab must refuse).
+    The volatility score is informative in every world (the gate must open), the first two years are unscored (a walk-forward that
+    has not been fitted yet), and the first-touch labels follow the contract's next-open convention (entry after the decision)."""
+    if world not in ("null", "planted", "leaky"):
+        raise ValueError("world must be null, planted or leaky")
+    rng = np.random.default_rng(seed)
+    dates = pd.bdate_range(start, periods=n_weeks, freq="W-FRI")
+    tickers = [f"S{i:03d}" for i in range(n_tickers)]
+    idx = pd.MultiIndex.from_product([dates, tickers], names=["date", "ticker"])
+    n = len(idx)
+    X = {c: rng.standard_normal(n).astype("float32") * 0.05 for c in SYNTH_COLUMNS}
+    tick_sector = np.array([f"SEC{i % sectors}" for i in range(n_tickers)])
+    v_t = rng.standard_normal(n_tickers)                                    # persistent volatility trait per ticker
+    v = np.tile(v_t, n_weeks) * 0.8 + rng.standard_normal(n) * 0.6
+    X["atr_pct"] = np.abs(v).astype("float32")
+    X["days_since_earn"] = rng.integers(1, 90, n).astype("float32")
+    X["days_to_earn"] = rng.integers(1, 90, n).astype("float32")
+    X["earn_in_week"] = (rng.uniform(size=n) < 0.08).astype("float32")
+    X["news5"] = (rng.uniform(size=n) < 0.10).astype("float32")
+    X["ear_volsurge"] = np.abs(rng.standard_normal(n)).astype("float32") * 2
+    X["close_loc"] = rng.uniform(0, 1, n).astype("float32")
+    wk_mkt = rng.standard_normal(n_weeks)
+    for c, sc_ in (("m_spy_ma50", 0.04), ("m_spy_ma200", 0.08), ("m_spy_r5", 0.02), ("m_vix", 5.0), ("m_vix_chg5", 0.05), ("m_breadth", 0.15)):
+        base = 20.0 if c == "m_vix" else 0.0
+        X[c] = np.repeat(base + wk_mkt * sc_ + rng.standard_normal(n_weeks) * sc_ * 0.3, n_tickers).astype("float32")
+    z5 = (X["r5"] - X["r5"].mean()) / X["r5"].std()
+    p_up = 0.5 - strength * np.tanh(z5) if world == "planted" else np.full(n, 0.5)
+    drift = np.repeat(0.04 * np.tanh(wk_mkt * 0.8), n_tickers)               # week-level up/down tilt shared by all names
+    up = rng.uniform(size=n) < np.clip(p_up + drift, 0.02, 0.98)
+    mover = rng.uniform(size=n) < 1 / (1 + np.exp(-(-1.4 + vol_skill * v)))
+    mag = np.where(mover, 0.10 + np.abs(rng.standard_normal(n)) * 0.05, np.abs(rng.standard_normal(n)) * 0.02)
+    fwd = np.where(up, 1.0, -1.0) * mag
+    score = pd.Series(v + rng.standard_normal(n) * 0.9, index=idx, name="p_vol")
+    score[dates.year < dates[0].year + 2] = np.nan
+    ent = pd.DatetimeIndex(np.repeat(dates + pd.Timedelta(days=3), n_tickers))
+    end = pd.DatetimeIndex(np.repeat(dates + pd.Timedelta(days=8), n_tickers))
+    labels = pd.DataFrame({"entry_date": ent, "end_date": end, "fwd": fwd.astype("float32"), "mover": mover, "amb": False,
+                           "up_first": np.where(mover, up.astype(float), np.nan), "up_sign": (fwd > 0).astype(float)}, index=idx)
+    if world == "leaky":
+        X["r1"] = (np.where(fwd > 0, 1.0, -1.0) * 0.05 + rng.standard_normal(n) * 0.01).astype("float32")
+    Xf = pd.DataFrame(X, index=idx)
+    sector = pd.Series(tick_sector, index=tickers, name="sector")
+    return LabInputs(Xf, score, labels, sector=sector)
+
+
+def synthetic_config(**kw) -> LabConfig:
+    """A fast configuration for synthetic worlds: linear models only, few permutations, three test years."""
+    base = dict(models=("linear",), screen_models=("linear",), n_boot=150, n_perm=120, min_test_rows=300, min_weeks=20, min_eras=3,
+                min_train=1500, min_calib=150, test_years=(2014, 2015, 2016, 2017), n_pick=30, n_pool=100, seed=3)
+    base.update(kw)
+    return LabConfig(**base).validate()
+
+
+def self_check(seed: int = 0, strength: float = 0.25, cfg: LabConfig | None = None) -> dict[str, Any]:
+    """The lab tests itself on worlds whose truth is known: it must call the null world 'no reliable signal' and find the planted
+    reversal in the planted world, and its controls must pass in both. Returns a dict of booleans plus the two reports; a False
+    anywhere means the lab must not be trusted on real data until fixed (research-brain health input)."""
+    cfg = cfg or synthetic_config()
+    lab = DirectionLab(cfg, DirectionGate(min_weeks=30))
+    now = "2019-06-01"
+    null = lab.run(synthetic_inputs(seed, world="null"), now)
+    planted = lab.run(synthetic_inputs(seed + 1, world="planted", strength=strength), now)
+    found = planted.results["reversal"].outcome in (Outcome.CANDIDATE, Outcome.WEAK_UNREPLICATED)
+    false_pos = null.candidates()
+    return dict(null_no_candidates=not false_pos, null_false_positives=false_pos, planted_found=bool(found),
+                controls_ok_null=null.protocol_ok, controls_ok_planted=planted.protocol_ok, ok=bool(not false_pos and found and null.protocol_ok
+                                                                                                       and planted.protocol_ok),
+                null_report=null, planted_report=planted)
+
+
+# ---------------------------------------------------------------------------------------------- robustness of the conclusion
+DEFAULT_VARIANTS: dict[str, dict[str, Any]] = {
+    "base": {}, "barrier_label": {"target": "up_first"}, "market_neutral": {"target": "up_rel"},
+    "narrow_picks": {"n_pick": 15, "n_pool": 60}, "wide_picks": {"n_pick": 60, "n_pool": 140}}
+
+
+def robustness_sweep(inputs: LabInputs, now, cfg: LabConfig, variants: Mapping[str, Mapping[str, Any]] | None = None,
+                     gate: DirectionGate | None = None) -> tuple[pd.DataFrame, dict[str, Any]]:
+    """Re-runs the lab under label, market-neutral and universe-size variants. A finding that appears under one definition of
+    'direction' or of 'predicted mover' and vanishes under the others is a property of the definition, not of the market. Returns
+    the per-variant outcome table and an agreement summary: the share of hypotheses whose outcome CLASS (signal / no signal / other)
+    is the same in every variant, and the conclusion drawn (stable_null, stable_signal, definition_dependent)."""
+    rows = []
+    for name, kw in (variants or DEFAULT_VARIANTS).items():
+        rep = DirectionLab(dataclasses.replace(cfg, **kw), gate).run(inputs, now)
+        for h, r in rep.results.items():
+            rows.append(dict(variant=name, hypothesis=h, outcome=str(r.outcome), skill=r.skill, p_maxT=r.p_maxT,
+                             cls="signal" if r.outcome in (Outcome.CANDIDATE, Outcome.WEAK_UNREPLICATED) else
+                             "null" if r.outcome is Outcome.NO_RELIABLE_SIGNAL else "other"))
+    t = pd.DataFrame(rows)
+    if t.empty:
+        return t, dict(agreement=float("nan"), conclusion="empty", definition_dependent=[])
+    per = t.groupby("hypothesis")["cls"].nunique()
+    dep = sorted(per[per > 1].index.tolist())
+    signal_any = bool((t["cls"] == "signal").any())
+    conclusion = "definition_dependent" if dep else ("stable_signal" if signal_any else "stable_null")
+    return t, dict(agreement=float((per == 1).mean()), conclusion=conclusion, definition_dependent=dep, variants=int(t["variant"].nunique()))
+
+
+# ---------------------------------------------------------------------------------------------- research-brain integration
+def _bucket(n: float) -> str:
+    """Opaque size class ('n_1e3' = thousands of rows): exact counts in the 1900-2100 range look like years to the blind-side scrub."""
+    return f"n_1e{int(math.log10(max(float(n), 1.0)))}"
+
+
+def decision_effect_of(outcome: Outcome) -> DecisionEffect:
+    """A CANDIDATE may, after a fresh holdout, inform DIRECTION; everything else is research knowledge that may not reach production."""
+    return DecisionEffect.DIRECTION if outcome is Outcome.CANDIDATE else DecisionEffect.NONE
+
+
+def _record_payload(name: str, r: HypothesisResult, years: Sequence[int]) -> dict[str, Any]:
+    return dict(kind="direction_hypothesis", hypothesis=name, topic=r.topic, outcome=str(r.outcome), skill=round(float(r.skill), 5)
+                if np.isfinite(r.skill) else None, p_family=round(float(r.p_maxT), 4), beaten=r.comparators_passed,
+                comparators=len(ALL_COMPARATORS), size=_bucket(r.n), effect=str(decision_effect_of(r.outcome)),
+                filed_under=[int(y) for y in years])
+
+
+def to_matured_records(report: LabReport, run_id: str = "", extra_years: Sequence[int] = ()) -> list[MaturedRecord]:
+    """Every hypothesis verdict as a MATURED_RESEARCH_STATE record. matured_at is the last label close used (nothing can be
+    released before every outcome behind it has closed); `filed_under` carries the real years the evidence comes from so the
+    same-year rerun guard can refuse it, and is stripped before anything crosses to the trader."""
+    matured = report.latest_label_end or str(report.now)
+    years = sorted(set(int(y) for y in report.years) | set(int(y) for y in extra_years))
+    prov = Provenance(created_real=str(report.now), learned_at=matured, code_hash=report.code_hash or current_code_hash(),
+                      config_hash=report.config_hash, experiment_id="direction_lab", run_id=run_id, outcomes_seen_through=matured)
+    out = []
+    for name, r in report.results.items():
+        pl = _record_payload(name, r, years)
+        out.append(MaturedRecord("DL" + stable_hash([name, report.config_hash, matured, str(r.outcome)], 12), matured, pl, prov))
+    summary = dict(kind="direction_summary", statement=report.statement, gate_open=report.gate.is_open, protocol_ok=report.protocol_ok,
+                   candidates=len(report.candidates()), filed_under=[int(y) for y in years])
+    out.append(MaturedRecord("DL" + stable_hash(["summary", report.config_hash, matured], 12), matured, summary, prov))
+    return out
+
+
+def replay_year_guard(payload: Mapping[str, Any], replaying_years: Sequence[int]) -> None:
+    """Research filed under a real year must never be released while that same year is being replayed in disguise (the same-year
+    rerun leak). Fails closed on overlap."""
+    overlap = sorted(set(int(y) for y in payload.get("filed_under", ())) & set(int(y) for y in replaying_years))
+    if overlap:
+        raise FirewallBreach(f"direction research filed under {len(overlap)} year(s) that are currently being replayed: refusing release")
+
+
+def release_to_trader(records: Sequence[MaturedRecord], now, replaying_years: Sequence[int] = ()) -> list[dict[str, Any]]:
+    """The only road from the lab to a decision: each record must have matured strictly before `now` (MaturedRecord.gate), must not
+    come from a replayed year, must be a CANDIDATE with a DIRECTION effect (leads and nulls stay on the research side), and its
+    payload, stripped of the filing years, must survive the blind-side scan. Anything else raises or is withheld."""
+    out = []
+    for rec in records:
+        payload = dict(rec.gate(now))
+        replay_year_guard(payload, replaying_years)
+        if payload.get("kind") != "direction_hypothesis" or payload.get("effect") != str(DecisionEffect.DIRECTION):
+            continue
+        safe = {k: v for k, v in payload.items() if k not in ("filed_under", "topic")}
+        TV.assert_trader_safe(safe, what=f"direction record {rec.record_id}")
+        out.append(safe)
+    return out
+
+
+def questions_from_report(report: LabReport, created_real: str) -> list[ResearchQuestion]:
+    """Section 40: the lab's own follow-ups as research objects. Text is identity-free (no tickers, dates or years). A closed gate
+    asks about volatility, a void run asks about the protocol, leads ask for replication, a powered null asks whether the compute
+    should move on, and an unavailable input asks for data."""
+    ev_through = report.latest_label_end or str(report.now)
+    qs = []
+
+    def q(text, source, success, failure, **kw):
+        qs.append(ResearchQuestion.make(text, source, Problem.DIRECTION, created_real, ev_through, success, failure, **kw))
+    if report.results and all(r.outcome is Outcome.VOLATILITY_GATE_CLOSED for r in report.results.values()):
+        qs.append(ResearchQuestion.make("Which volatility improvements would open the direction gate?", "gate", Problem.VOLATILITY, created_real,
+                                        ev_through, "AUC lower bound and top-pick lift lower bound clear the gate thresholds",
+                                        "No improvement after a powered volatility experiment"))
+        return qs
+    if report.controls is not None and not report.controls.ok:
+        q("Which protocol control failed and why: " + "; ".join(report.controls.failures()), "contradiction",
+          "the failing control is explained and the run repeated with all controls passing", "the failure is not reproducible")
+    for name, r in report.results.items():
+        if r.outcome is Outcome.WEAK_UNREPLICATED:
+            q(f"Does the {r.topic} lead replicate on a fresh, unseen period among predicted movers?", "surprise",
+              "family-wise p below alpha on a period that no earlier run touched", "skill within noise on the fresh period",
+              parents=(name,))
+        elif r.outcome is Outcome.CANDIDATE:
+            q(f"Does the {r.topic} candidate survive the fresh holdout and transfer to unseen names, sectors and regimes?", "discovery",
+              "beats every comparator on the holdout with positive net payoff", "any comparator not beaten or payoff <= 0", parents=(name,))
+        elif r.outcome is Outcome.UNAVAILABLE_INPUT:
+            q(f"Can the missing {r.topic} inputs be built point-in-time from raw data?", "discovery",
+              "a leak-free column exists for at least one input", "no point-in-time source exists", parents=(name,))
+    if report.power.get("mde_edge", 0) > 0.03 and report.controls is not None and report.controls.ok:
+        q("How much more history is needed before a 3-point accuracy edge could be detected among predicted movers?", "regime",
+          "the sample reaches the effective size that gives 80% power for a 3-point edge", "the edge cannot be resolved with available history")
+    if report.cells_search and report.cells_search.get("beats_null"):
+        q("Does the best small conditional pocket found by the exhaustive cell search survive a fresh period?", "surprise",
+          "same side and accuracy above the chance maximum on new data", "accuracy inside the chance maximum")
+    return qs
+
+
+def experiment_value(report: LabReport, name: str, specs: Mapping[str, HypothesisSpec] | None = None) -> ExperimentValue:
+    """Value vector of re-running (or extending) one hypothesis, for the priority engine. Unknowns stay None. direction_value grows
+    with the strength of the evidence for a lead and shrinks to ~0 for a powered null; overfit_risk grows with the number of cells
+    tried; redundancy is the share of the hypothesis' inputs that another hypothesis also uses."""
+    specs = specs or HYPOTHESES
+    r = report.results[name]
+    lead = r.outcome in (Outcome.CANDIDATE, Outcome.WEAK_UNREPLICATED)
+    dv = float(max(0.0, 1.0 - r.p_maxT)) if lead else 0.0
+    others = set().union(*[set(s.columns) for k, s in specs.items() if k != name]) if len(specs) > 1 else set()
+    mine = set(specs[name].columns)
+    unc = float(min(report.power.get("mde_edge", 1.0), 1.0)) if report.power else None
+    cost = {Stage.CHEAP_SCREEN: 2.0, Stage.STRONGER_TESTS: 15.0, Stage.CROSS_YEAR: 30.0}.get(r.stage, 60.0)
+    return ExperimentValue(information_gain=dv if lead else 0.05 * (1.0 if report.gate.is_open else 0.2), decision_value=dv,
+                           uncertainty_reduction=unc, transfer_potential=float(r.era.get("share_positive")) if r.era else None,
+                           direction_value=dv, compute_cost=cost, overfit_risk=float(1 - math.exp(-max(report.n_cells, 1) / 20.0)),
+                           redundancy=float(len(mine & others) / max(len(mine), 1)))
+
+
+def priority_terms(report: LabReport, state: LabState | None = None) -> dict[str, Any]:
+    """What research_policy.PriorityFunction needs from the direction lab: the direction target's value, the gate multiplier and the
+    compute-shift recommendation (INTEGRATION: research_policy adds a DIRECTION target and reads these three numbers)."""
+    state = state or LabState()
+    shift = compute_shift(state, report)
+    best = max((experiment_value(report, n).direction_value or 0.0 for n in report.results), default=0.0)
+    return dict(direction_value=best, gate_multiplier=report.gate.priority_multiplier(), shift=shift["shift_to_volatility"],
+                reason=shift["reason"], multiplier=shift["priority_multiplier"])
+
+
+# ---------------------------------------------------------------------------------------------- reporting
+def format_report(report: LabReport, top: int = 15) -> str:
+    """Plain-text report: headline first, then the funnel, the controls, one line per hypothesis (with the reason it failed), the
+    honest 80% statement, the power, the small-cell search and the market-vs-stock decomposition."""
+    L = [f"DIRECTION LAB  now={report.now}  config={report.config_hash}  code={report.code_hash}", "STATUS: IMPLEMENTED - NOT VALIDATED",
+         "", "HEADLINE: " + report.headline(), ""]
+    ev = report.gate.evidence
+    L.append(f"volatility gate: {'OPEN' if report.gate.is_open else 'CLOSED'} (weeks={ev.n_weeks}, AUC={ev.auc:.3f} lo={ev.auc_lo:.3f}, "
+             f"top-pick lift={ev.top_lift:.2f} lo={ev.top_lift_lo:.2f}); " + "; ".join(report.gate.reasons))
+    if len(report.universe_funnel):
+        L += ["", "universe funnel (per year):", report.universe_funnel.to_string(index=False)]
+    if report.controls is not None:
+        c = report.controls
+        L += ["", f"controls: {'PASS' if c.ok else 'FAIL'}  planted found={c.planted_found} (acc {c.planted_acc:.3f}, lo {c.planted_lo:.3f})  "
+                  f"leak caught={c.leak_caught}  shuffled null={c.shuffled_null}  random null={c.random_null}  audit={c.audit_ok}"]
+        L += ["  note: " + n for n in c.notes]
+    L += ["", f"hypotheses ({len(report.results)}; comparators: {', '.join(c.value for c in ALL_COMPARATORS)}; existing model = {report.existing_source}):"]
+    for name, r in list(report.results.items())[:top]:
+        L.append(f"  {name:22s} {str(r.outcome):24s} skill={r.skill:+.4f} p_raw={r.p_raw:.3f} p_family={r.p_maxT:.3f} "
+                 f"beat={r.comparators_passed}/{len(ALL_COMPARATORS)}  " + ("; ".join(r.reasons[:2]) if r.reasons else ""))
+    if report.power:
+        p = report.power
+        L += ["", f"power: n={p['n']} weeks={p['weeks']} design effect={p['design_effect']:.1f} effective n={p['n_eff']:.0f} "
+                  f"minimum detectable edge={p['mde_edge']:.3f} bets needed to confirm {EIGHTY:.0%}={p['n_bets_for_target']:.0f}"]
+    if report.eighty:
+        e = report.eighty
+        L += [f"80% question: cells={e.get('cells')} reached (point)={e.get('reached_acc')} reached (lower bound)={e.get('reached_lo')} "
+              f"reached (multiplicity-adjusted)={e.get('reached_lo_adj')} control hits={e.get('control_hits')}", "  " + report.statement]
+    if report.cells_search:
+        s = report.cells_search
+        L.append(f"small-cell search: {s.get('cells')} cells, best out-of-sample {s.get('best_acc', float('nan')):.3f} vs chance maximum "
+                 f"{s.get('null_q95', float('nan')):.3f} -> {'BEATS chance' if s.get('beats_null') else 'inside chance'}")
+    if report.market:
+        m = report.market
+        L.append(f"market vs stock: week explains {m.get('icc', float('nan')):.1%} of direction variance (excess dispersion {m.get('excess_dispersion', float('nan')):.2f}x)")
+    if report.warnings:
+        L += ["", "warnings:"] + ["  " + w for w in report.warnings]
+    return "\n".join(L)
+
+
+def save_report(report: LabReport, out_dir, extra: Mapping[str, Any] | None = None):
+    """Writes summary.json, hypotheses.csv, frontier.csv, ic.csv and report.txt with a provenance stamp (code hash, config hash, seed)
+    under out_dir. The runner script (wave 2) calls this; the tests call it on a temporary directory."""
+    import json
+    from pathlib import Path
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    summary = dict(now=report.now, config_hash=report.config_hash, code_hash=report.code_hash, gate_open=report.gate.is_open,
+                   protocol_ok=report.protocol_ok, outcomes=report.outcomes(), candidates=report.candidates(), statement=report.statement,
+                   power=report.power, eighty={k: v for k, v in report.eighty.items() if k not in ("hits", "best")},
+                   warnings=report.warnings, stages=[str(s) for s in report.stages_run], extra=dict(extra or {}))
+    (out / "summary.json").write_text(json.dumps(summary, indent=2, default=str), encoding="utf-8")
+    report.frame().to_csv(out / "hypotheses.csv", index=False)
+    if len(report.frontier):
+        report.frontier.to_csv(out / "frontier.csv", index=False)
+    if len(report.ic):
+        report.ic.to_csv(out / "ic.csv", index=False)
+    (out / "report.txt").write_text(format_report(report), encoding="utf-8")
+    return out

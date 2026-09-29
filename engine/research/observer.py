@@ -630,6 +630,31 @@ class DayRecord:
                 "market": dict(self.market), "model": dict(self.model)}
 
 
+MOVE_EDGES = (0.05, 0.06, 0.07, 0.08, 0.09, 0.10, 0.125, 0.15, 0.20, 0.30)
+
+
+def move_histogram(c2c: np.ndarray) -> dict[str, list[int]]:
+    """Counts of |close-to-close| moves in fine bins from 5% up (up and down separately), the shape behind the two C67 bands:
+    a day whose 5-10% count is dominated by 5-6% names is a different day from one full of 9-10% names."""
+    ok = np.isfinite(c2c)
+    edges = np.array(MOVE_EDGES + (np.inf,))
+    out = {}
+    for side, m in (("up", ok & (c2c >= MOVE_EDGES[0])), ("down", ok & (c2c <= -MOVE_EDGES[0]))):
+        out[side] = np.bincount(np.searchsorted(edges, np.abs(c2c[m]), side="right") - 1, minlength=len(MOVE_EDGES)).tolist()
+    return out
+
+
+def sector_table(sector: np.ndarray, band_mask: np.ndarray) -> dict[str, list[int]]:
+    """[names, band movers] per sector code (-1 = unknown is left out)."""
+    known = sector >= 0
+    if not known.any():
+        return {}
+    codes, inv = np.unique(sector[known], return_inverse=True)
+    n = np.bincount(inv, minlength=len(codes))
+    m = np.bincount(inv, weights=band_mask[known].astype(float), minlength=len(codes))
+    return {str(int(c)): [int(a), int(b)] for c, a, b in zip(codes, n, m)}
+
+
 def feature_health(snap: DecisionSnapshot) -> dict[str, dict[str, float]]:
     """Per feature: share missing, share non-finite, and whether the cross-section is constant (a stale or broken feed shows up
     as a constant column or a sudden hole long before it shows up in a result)."""
@@ -670,6 +695,9 @@ def _summary_stats(dc: DayClass, snap: DecisionSnapshot, out: DayOutcome, p: Obs
               "median_volume_ratio": float(np.median(vr)) if len(vr) else float("nan"),
               "gap_median_abs": float(np.nanmedian(np.abs(dc.gap))) if np.isfinite(dc.gap).any() else float("nan"),
               "delisted": int(out.delisted.sum())}
+    market["move_hist"] = move_histogram(dc.c2c)
+    market["sector_movers"] = sector_table(snap.sector, dc.band != 0)
+    market["n_moved"] = int(dc.moved.sum())
     market["n_suspect"] = int((dc.suspect != 0).sum())
     market["n_suspect_band"] = int(((dc.suspect != 0) & (dc.band != 0)).sum())
     market["tone"] = ("up" if med > 0.005 else "down" if med < -0.005 else "flat") if len(sig) else "unknown"
@@ -934,11 +962,11 @@ class ObserverLedger:
         if cf.empty:
             return {}
         pr, un = float(cf[MC.PREDICTABLE_MOVER.value].sum()), float(cf[MC.UNPREDICTABLE_MOVER.value].sum())
-        fn = float(cf[MC.FALSE_NEGATIVE.value].sum())
         recs = self._recs if now is None else self.known(now)
+        moved = float(sum(r.market.get("n_moved", 0) for r in recs))
         pa = [r.model.get("precursor_auc") for r in recs if r.model.get("precursor_auc") == r.model.get("precursor_auc")]
         sa = [r.model.get("score_auc") for r in recs if r.model.get("score_auc") == r.model.get("score_auc")]
-        return {"predictable": pr, "unpredictable": un, "unplaced_share": 1.0 - (pr + un) / fn if fn else float("nan"),
+        return {"predictable": pr, "unpredictable": un, "unplaced_share": 1.0 - (pr + un) / moved if moved else float("nan"),
                 "mean_precursor_auc": float(np.mean(pa)) if pa else float("nan"),
                 "mean_score_auc": float(np.mean(sa)) if sa else float("nan")}
 
@@ -1200,7 +1228,7 @@ def render_ledger(ledger: ObserverLedger, now=None, top: int = 14) -> str:
     pred = ledger.predictability(now)
     if pred:
         lines.append(f"predictability proxy: predictable {pred['predictable']:.0f}, unpredictable {pred['unpredictable']:.0f}, "
-                     f"unplaced share of false negatives {pred['unplaced_share']:.2f}, precursor AUC {pred['mean_precursor_auc']:.3f}, "
+                     f"unplaced share of movers {pred['unplaced_share']:.2f}, precursor AUC {pred['mean_precursor_auc']:.3f}, "
                      f"score AUC {pred['mean_score_auc']:.3f}")
     cov = ledger.coverage()
     thin = ", ".join(f"{k} {v:.2f}" for k, v in cov.items() if v == v and v < 1.0)
@@ -1356,22 +1384,20 @@ def score_calibration(ledger: ObserverLedger, kind: str = "score", now=None) -> 
 
 
 def sector_breadth(rec: DayRecord, min_movers: int = 8) -> pd.DataFrame:
-    """Are the day's band movers concentrated in a few sectors? Per sector: band movers, universe share, and a binomial z of
-    the excess. Uses the sector codes on the exception rows for movers and the universe size for the denominator, so the
-    universe share is only known when the caller supplies sector sizes through rows of eligible names; otherwise unknown (NaN)."""
-    rf = rec.rows
-    if rf.empty or "sector" not in rf:
-        return pd.DataFrame(columns=["movers", "share", "z"])
-    band = rf[(rf["band"] != 0) & (rf["sector"] >= 0)]
-    if len(band) < min_movers:
-        return pd.DataFrame(columns=["movers", "share", "z"])
-    g = band.groupby("sector").size()
-    share_all = rf[rf["sector"] >= 0].groupby("sector").size() / max(1, (rf["sector"] >= 0).sum())
-    n = len(band)
-    out = pd.DataFrame({"movers": g, "share": g / n})
-    p0 = share_all.reindex(out.index).clip(lower=1e-6, upper=1 - 1e-6)
-    out["z"] = (g - n * p0) / np.sqrt(n * p0 * (1 - p0))
-    return out.sort_values("z", ascending=False)
+    """Are the day's band movers concentrated in a few sectors? Per sector: names, band movers, the mover rate and a binomial z
+    of the excess over the day's overall rate. Exact: it reads the per-sector counts over the whole universe, not the rows."""
+    tab = rec.market.get("sector_movers") or {}
+    cols = ["names", "movers", "rate", "z"]
+    if not tab:
+        return pd.DataFrame(columns=cols)
+    df = pd.DataFrame(tab, index=["names", "movers"]).T.astype(float)
+    tot_n, tot_m = df["names"].sum(), df["movers"].sum()
+    if tot_m < min_movers or tot_n <= 0:
+        return pd.DataFrame(columns=cols)
+    p0 = min(max(tot_m / tot_n, 1e-9), 1 - 1e-9)
+    df["rate"] = df["movers"] / df["names"].clip(lower=1)
+    df["z"] = (df["movers"] - df["names"] * p0) / np.sqrt(df["names"] * p0 * (1 - p0))
+    return df.sort_values("z", ascending=False)[cols]
 
 
 def counterfactual_sample(rec: DayRecord, k: int = 25, seed: int = 0, categories: Sequence[MoveCategory] = (
@@ -1597,3 +1623,184 @@ def verify_checkpoint(ledger: ObserverLedger, directory, tag: str) -> list[str]:
         if record_digest(a) != record_digest(b):
             bad.append(f"day {a.day} differs after reload")
     return bad
+
+
+# ==================================================================================================================
+# trailing context, cells, transitions, significance and the history runner
+# ==================================================================================================================
+MARKET_KEYS = ("mover_rate", "dispersion", "median_ret", "breadth_up", "median_vol_x", "median_volume_ratio", "gap_median_abs")
+
+
+def market_zscores(rec: DayRecord, ledger: ObserverLedger, window: int = 60, min_days: int = 10) -> dict[str, float]:
+    """Today's market statistics as robust z-scores against the trailing `window` recorded days that matured no later than
+    today's decision (so a day is never standardised by itself or by its future). NaN until `min_days` of history exist."""
+    cut = as_date(rec.decided_at)
+    past = [r for r in ledger._recs if as_date(r.resolved_at) <= cut and not r.empty][-window:]
+    out = {}
+    for k in MARKET_KEYS:
+        hist = np.array([r.market.get(k, np.nan) for r in past], dtype=np.float64)
+        hist = hist[np.isfinite(hist)]
+        x = rec.market.get(k, np.nan)
+        if len(hist) < min_days or x is None or not np.isfinite(x):
+            out[k] = float("nan")
+            continue
+        med = float(np.median(hist))
+        sc = 1.4826 * float(np.median(np.abs(hist - med)))
+        out[k] = (float(x) - med) / sc if sc > 1e-12 else float("nan")
+    return out
+
+
+def context_cell(rec: DayRecord, z: Mapping[str, float] | None = None) -> str:
+    """An opaque, identity-free situation key for the day (tone, dispersion, mover activity, gap activity). SurpriseTracker cells
+    are strings of tokens like this; it names no date, year or stock, so it cannot be used to recognise a replayed year."""
+    m = rec.market
+    z = z or {}
+    act = z.get("mover_rate", float("nan"))
+    activity = "hot" if act == act and act > 1.5 else "cold" if act == act and act < -1.0 else "usual"
+    gaps = z.get("gap_median_abs", float("nan"))
+    gap_tok = "gappy" if gaps == gaps and gaps > 1.5 else "orderly"
+    return f"tone={m.get('tone', 'unknown')}|disp={m.get('dispersion_level', 'normal')}|movers={activity}|gaps={gap_tok}"
+
+
+def category_transitions(ledger: ObserverLedger, cats: Sequence[MoveCategory] = (MC.NEAR_MISS, MC.CONSIDERED_HIGH, MC.FALSE_NEGATIVE,
+                                                                                MC.FALSE_POSITIVE), now=None) -> pd.DataFrame:
+    """P(category tomorrow | category today) over names present in both days' rows, from consecutive recorded days. Rows only, so
+    it describes exception names: 'a false negative today - is it a false negative again tomorrow?' Persistence of misses is the
+    first hint that a miss has a learnable cause rather than being noise. Research side."""
+    recs = [r for r in (ledger._recs if now is None else ledger.known(now)) if not r.rows.empty]
+    n_tab = np.zeros((len(cats), len(cats) + 1))
+    for a, b in zip(recs[:-1], recs[1:]):
+        m = a.rows[["ticker", "flags"]].merge(b.rows[["ticker", "flags"]], on="ticker", how="left", suffixes=("_a", "_b"))
+        fb = m["flags_b"].fillna(0).to_numpy().astype(np.int64)
+        fa = m["flags_a"].to_numpy().astype(np.int64)
+        for i, ca in enumerate(cats):
+            sel = (fa & BIT[ca]) != 0
+            if not sel.any():
+                continue
+            for j, cb in enumerate(cats):
+                n_tab[i, j] += int(((fb[sel] & BIT[cb]) != 0).sum())
+            n_tab[i, -1] += int(sel.sum())
+    df = pd.DataFrame(n_tab, index=[c.value for c in cats], columns=[c.value for c in cats] + ["n_today"])
+    prob = df[[c.value for c in cats]].div(df["n_today"].replace(0, np.nan), axis=0)
+    return prob.assign(n_today=df["n_today"])
+
+
+def precursor_significance(ledger: ObserverLedger, kind: str = "precursor_auc", now=None) -> dict[str, float]:
+    """Is the precursor proxy (or the model score) better than a coin at ordering movers? Day-level AUCs against 0.5 with a
+    sign test and a t statistic (days, not names, are the independent units). A proxy that fails here labels nothing:
+    'predictable' would then be an arbitrary tag, and the autopsy says so instead of using it."""
+    recs = ledger._recs if now is None else ledger.known(now)
+    a = np.array([r.model.get(kind, np.nan) for r in recs], dtype=np.float64)
+    a = a[np.isfinite(a)]
+    if len(a) < 5:
+        return {"days": float(len(a)), "mean_auc": float("nan"), "t": float("nan"), "sign_p": float("nan"), "informative": False}
+    from scipy.stats import binomtest
+    d = a - 0.5
+    sd = float(d.std(ddof=1))
+    t = float(d.mean() / (sd / math.sqrt(len(d)))) if sd > 0 else float("inf") if d.mean() > 0 else float("nan")
+    p = float(binomtest(int((d > 0).sum()), int((d != 0).sum()), 0.5).pvalue) if (d != 0).any() else 1.0
+    return {"days": float(len(a)), "mean_auc": float(a.mean()), "t": t, "sign_p": p, "informative": bool(a.mean() > 0.52 and p < 0.05)}
+
+
+def run_history(bars: Mapping[str, pd.DataFrame], directory, years: Iterable[int] | None = None, params: ObserverParams | None = None,
+                scorer=None, resume: bool = True, log=None) -> dict[int, ObserverLedger]:
+    """Stream a long history one calendar year at a time (rule 27: never the whole panel in memory as records; each year is a
+    checkpoint, and a killed run resumes at the first unfinished year). `bars` are wide OHLCV frames including delisted names."""
+    p = (params or ObserverParams()).require_valid()
+    slices = year_slices(pd.DatetimeIndex(bars["Close"].index))
+    out = {}
+    for y in sorted(slices if years is None else [y for y in years if y in slices]):
+        a, b = slices[y]
+        t0 = time.perf_counter()
+        days = bars_stream(bars, p, scorer, start=a, end=b)
+        out[y] = run_year(str(y), days, directory, p, resume=resume)
+        if log:
+            log(f"observer year {y}: {len(out[y])} days in {time.perf_counter() - t0:.1f}s")
+    return out
+
+
+# ==================================================================================================================
+# uncertainty, merging, the episode hand-off and a one-day narrative
+# ==================================================================================================================
+def universe_bootstrap(snap: DecisionSnapshot, out: DayOutcome, now, p: ObserverParams | None = None, reps: int = 30, seed: int = 0,
+                       level: float = 0.90) -> pd.DataFrame:
+    """How sure is a day's category share? Resample the universe's names with replacement `reps` times, recompute the counts,
+    and report the share of each category with its percentile interval. A share whose interval spans zero on a busy day is a
+    small-sample artefact of the day, not a feature of the market. Deterministic in `seed`."""
+    p = dataclasses.replace((p or ObserverParams()).require_valid(), explain_limit=0)
+    rng = np.random.default_rng(seed)
+    base_rec = observe_day(snap, out, now, p)
+    aligned, _ = align_outcome(snap, out)
+    n = snap.n
+    shares = np.zeros((reps, len(CATEGORIES)))
+    for b in range(reps):
+        ix = rng.integers(0, n, n)
+        s2 = DecisionSnapshot(snap.decided_at, snap.tickers[ix] + "#" + np.arange(n).astype(str), snap.eligible[ix], snap.score[ix],
+                              snap.confidence[ix], snap.dir_prob[ix], snap.picked[ix], snap.abstained[ix], snap.filters[ix],
+                              snap.prev_close[ix], snap.event_known[ix], snap.sector[ix], {k: v[ix] for k, v in snap.features.items()},
+                              snap.filter_names)
+        o2 = DayOutcome(aligned.resolved_at, s2.tickers, aligned.entry[ix], aligned.hi[ix], aligned.lo[ix], aligned.close[ix],
+                        aligned.volume_ratio[ix], aligned.delisted[ix], aligned.day_hi[ix], aligned.day_lo[ix], aligned.day_close[ix])
+        dc = classify_day(s2, o2, p)
+        shares[b] = [dc.masks[c].mean() for c in CATEGORIES]
+    a = (1.0 - level) / 2.0
+    return pd.DataFrame({"share": [base_rec.counts[c.value] / max(1, base_rec.n_universe) for c in CATEGORIES],
+                         "lo": np.quantile(shares, a, axis=0), "hi": np.quantile(shares, 1 - a, axis=0)},
+                        index=[c.value for c in CATEGORIES])
+
+
+def merge_ledgers(ledgers: Sequence[ObserverLedger]) -> ObserverLedger:
+    """Join year ledgers into one, in day order. Refuses ledgers made with different parameters or with overlapping days
+    (two runs of the same year are a duplicate, not a longer history), and it never merges different filing years silently."""
+    if not ledgers:
+        raise ObserverError("nothing to merge")
+    if len({l.params.hash() for l in ledgers}) != 1:
+        raise ObserverError("ledgers were made with different observer parameters")
+    out = ObserverLedger(ledgers[0].params, filed_year=None)
+    for rec in sorted((r for l in ledgers for r in l), key=lambda r: r.day):
+        out.add(rec)                                   # add() rejects a repeated or out-of-order day
+    out.universe_log = [u for l in sorted(ledgers, key=lambda l: l._recs[0].day if l._recs else "") for u in l.universe_log]
+    return out
+
+
+def iter_band_events(ledger: ObserverLedger, now, since=None) -> Iterator[dict[str, Any]]:
+    """The episode-research feed (C67): every band mover of every day that matured strictly before `now`, oldest first, one
+    dict per mover with the ROW_SCHEMA columns plus the day. Streaming, so the consumer never needs the whole history."""
+    lo = as_date(since) if since is not None else None
+    for rec in ledger.known(now):
+        if lo is not None and as_date(rec.day) < lo:
+            continue
+        yield from as_records(rec, bands=True)
+
+
+def winner_loser_test(ledger: ObserverLedger, now=None) -> dict[str, float]:
+    """Are there systematically more winners than losers (or the reverse) across days? A paired sign test on daily counts. The
+    market drifts up, so a small imbalance is normal; a large one says which side of the market the study is really about."""
+    from scipy.stats import binomtest
+    cf = ledger.counts_frame(now)
+    if cf.empty:
+        return {"days": 0.0, "mean_diff": float("nan"), "sign_p": float("nan")}
+    d = (cf[MC.WINNER.value] - cf[MC.LOSER.value]).to_numpy(dtype=float)
+    nz = int((d != 0).sum())
+    return {"days": float(len(d)), "mean_diff": float(d.mean()), "winner_days": float((d > 0).sum()), "loser_days": float((d < 0).sum()),
+            "sign_p": float(binomtest(int((d > 0).sum()), nz, 0.5).pvalue) if nz else 1.0}
+
+
+def explain_day(rec: DayRecord, p: ObserverParams | None = None) -> str:
+    """A short deterministic paragraph for one day: the universe, the bands, the model's hit and miss counts, and the data flags.
+    It names no ticker (counts and shares only), so it can go into a report the trader side may later read."""
+    if rec.empty:
+        return f"{rec.day}: no universe recorded"
+    c, b = rec.counts, rec.bands
+    lines = [f"{rec.day}: {rec.n_universe} names ({rec.n_eligible} eligible, {rec.n_scored} scored); market {rec.market.get('tone')}, "
+             f"dispersion {rec.market.get('dispersion_level')}, breadth up {100 * rec.market.get('breadth_up', float('nan')):.0f}%.",
+             f"bands: {b['up_5_10']} up 5-10%, {b['up_gt10']} up >10%, {b['down_5_10']} down 5-10%, {b['down_gt10']} down >10%"
+             f" ({rec.market.get('n_suspect_band', 0)} suspect data).",
+             f"model: {rec.model.get('n_picked', 0)} picked, {c[MC.FALSE_POSITIVE.value]} false positives, {c[MC.FALSE_NEGATIVE.value]} false negatives, "
+             f"{c[MC.NEAR_MISS.value]} near misses, {c[MC.ABSTAINED.value]} abstentions, {c[MC.LOW_CONFIDENCE.value]} low-confidence.",
+             f"movers: {c[MC.PREDICTABLE_MOVER.value]} placed predictable, {c[MC.UNPREDICTABLE_MOVER.value]} placed unpredictable, "
+             f"{rec.market.get('n_moved', 0) - c[MC.PREDICTABLE_MOVER.value] - c[MC.UNPREDICTABLE_MOVER.value]} left unplaced."]
+    dropped = {k: v for k, v in rec.dropped.items() if v}
+    if dropped:
+        lines.append("rows sampled (counts are exact): " + ", ".join(f"{k} -{v}" for k, v in sorted(dropped.items())))
+    return "\n".join(lines)

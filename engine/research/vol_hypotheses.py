@@ -16,7 +16,7 @@ from typing import Callable, Mapping, Sequence
 import numpy as np
 import pandas as pd
 
-from engine.learning.core import FirewallBreach, _StrEnum, as_date, stable_hash
+from engine.learning.core import Epistemic, FirewallBreach, _StrEnum, as_date, stable_hash
 
 EPS = 1e-9
 BASE_COLUMNS = ("r1", "r5", "r20", "r60", "vol20", "atr", "gap", "range20", "dist_hi", "dist_lo", "absr1", "absr5", "max5",
@@ -818,3 +818,128 @@ def register_interaction(a: str, b: str, null_seed: int | None = None) -> str:
 
     DERIVED[name] = (tuple(dict.fromkeys(DERIVED[a][0] + DERIVED[b][0])), fn)
     return name
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# does a discovered rule hold in every group, or only on average?
+# ---------------------------------------------------------------------------------------------------------------
+@dc.dataclass(frozen=True)
+class RuleStability:
+    rule_id: str
+    by: str
+    groups: tuple                 # ((label, n_in, lift), ...) for groups with enough rows
+    share_above_one: float
+    p_sign: float                 # binomial p that lift>1 in at least this many groups if the rule were noise (p=0.5 each)
+    min_lift: float
+    stable: bool
+    reason: str
+
+
+def rule_stability(h: Hypothesis, F: pd.DataFrame, by: str = "year", min_in: int = 40, min_groups: int = 3) -> RuleStability:
+    """Lift of the rule (mover rate inside / outside) per calendar year or per sector. A rule is STABLE when it lifts in at least 75% of
+    the groups it can be measured in (binomial p<0.1 against 50/50 luck) and the worst group is not below 0.8. Too few measurable
+    groups is reported as not stable with that reason: absence of evidence is never 'stable'."""
+    from scipy.stats import binomtest
+    rid = "R" + stable_hash(sorted(h.rule), 10)
+    if h.kind != HypKind.RULE:
+        raise ValueError("only RULE hypotheses have a stability profile")
+    nan = float("nan")
+    F = F[F["touch"].notna()]
+    if by == "year":
+        lab = pd.to_datetime(F.index.get_level_values(0)).year.astype(str).to_numpy()
+    elif by == "sector":
+        if "sector" not in F:
+            return RuleStability(rid, by, (), nan, nan, nan, False, "no sector column")
+        lab = F["sector"].astype(str).to_numpy()
+    else:
+        raise ValueError("by must be 'year' or 'sector'")
+    if h.missing(F.columns) or len(F) == 0:
+        return RuleStability(rid, by, (), nan, nan, nan, False, "rule inputs unavailable or empty frame")
+    m = rule_mask(F, h.rule)
+    y = F["touch"].to_numpy(float)
+    rows = []
+    for g in np.unique(lab):
+        sel = lab == g
+        n_in, n_out = int((m & sel).sum()), int((~m & sel).sum())
+        if n_in < min_in or n_out < min_in:
+            continue
+        rin, rout = y[m & sel].mean(), y[~m & sel].mean()
+        rows.append((str(g), n_in, float(rin / max(rout, 1e-9))))
+    if len(rows) < min_groups:
+        return RuleStability(rid, by, tuple(rows), nan, nan, nan, False, f"only {len(rows)} measurable groups")
+    lifts = np.array([r[2] for r in rows])
+    k = int((lifts > 1).sum())
+    share = k / len(rows)
+    p = float(binomtest(k, len(rows), 0.5, alternative="greater").pvalue)
+    stable = bool(share >= 0.75 and p < 0.1 and lifts.min() >= 0.8)
+    return RuleStability(rid, by, tuple(rows), share, p, float(lifts.min()), stable,
+                         "lifts in most groups" if stable else f"lift>1 in {k}/{len(rows)} groups, worst {lifts.min():.2f}")
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# evidence -> epistemic status of a hypothesis (real / conditional / degraded / contradicted / unknown)
+# ---------------------------------------------------------------------------------------------------------------
+@dc.dataclass(frozen=True)
+class HypothesisEvidence:
+    hid: str
+    increment: float | None = None          # mean per-date AUC gain over the B0 baseline
+    increment_lo: float | None = None
+    increment_hi: float | None = None
+    q: float | None = None
+    sign_consistent_share: float | None = None    # share of folds whose fitted signs agreed with the mechanism
+    decay: str | None = None                       # STABLE | DECAYING | STOPPED | IMPROVING | UNTESTED
+    regime_dependent: bool | None = None
+    transfer: tuple[tuple[str, str], ...] = ()     # (axis, StudyVerdict) actually measured for this hypothesis
+    direction: str | None = None
+    null_control_ok: bool | None = None
+
+
+@dc.dataclass(frozen=True)
+class HypothesisAssessment:
+    hid: str
+    status: Epistemic
+    reasons: tuple[str, ...]
+    untested: tuple[str, ...]
+
+    @property
+    def usable(self) -> bool:
+        return str(self.status) in ("SUPPORTED", "CONDITIONAL")
+
+
+def assess_hypothesis(ev: HypothesisEvidence, alpha: float = 0.10) -> HypothesisAssessment:
+    """Turn the lab's separate measurements into one status, without hiding what was not measured. Order of precedence:
+    a failed null control or a significantly negative increment is CONTRADICTED; no increment at all is UNKNOWN; a fitted mechanism whose
+    signs disagree in most folds is DEGRADED (it predicts for the wrong reason); STOPPED/DECAYING is DEGRADED; SUPPORTED needs a
+    significant increment, consistent signs, no decay and at least one transfer axis measured and not failed; everything else that
+    shows a positive increment is CONDITIONAL and says what is untested."""
+    why: list[str] = []
+    untested = [n for n, v in (("increment", ev.increment), ("sign_consistency", ev.sign_consistent_share),
+                               ("decay", ev.decay if ev.decay not in (None, "UNTESTED") else None), ("transfer", ev.transfer or None),
+                               ("null_control", ev.null_control_ok)) if v is None]
+    if ev.null_control_ok is False:
+        return HypothesisAssessment(ev.hid, Epistemic.CONTRADICTED, ("the shuffled-input control gained: the measurement is untrustworthy",), tuple(untested))
+    if ev.increment is None or ev.increment_lo is None:
+        return HypothesisAssessment(ev.hid, Epistemic.UNKNOWN, ("no incremental measurement over the baseline",), tuple(untested))
+    if ev.increment_hi is not None and ev.increment_hi < 0:
+        return HypothesisAssessment(ev.hid, Epistemic.CONTRADICTED, (f"significantly worse than own-volatility persistence (hi {ev.increment_hi:+.4f})",), tuple(untested))
+    significant = ev.increment_lo > 0 and (ev.q is None or ev.q <= alpha)
+    if not significant:
+        return HypothesisAssessment(ev.hid, Epistemic.HYPOTHESIS, ("no significant gain over the baseline yet",), tuple(untested))
+    if ev.sign_consistent_share is not None and ev.sign_consistent_share < 0.5:
+        why.append(f"fitted signs agree with the mechanism in only {ev.sign_consistent_share:.0%} of folds: predicts, but not for the stated reason")
+        return HypothesisAssessment(ev.hid, Epistemic.DEGRADED, tuple(why), tuple(untested))
+    if ev.decay in ("STOPPED", "DECAYING"):
+        return HypothesisAssessment(ev.hid, Epistemic.DEGRADED, (f"signal is {ev.decay}",), tuple(untested))
+    failed = [a for a, v in ev.transfer if v in ("NOT_SUPPORTED", "INVALID")]
+    passed = [a for a, v in ev.transfer if v == "SUPPORTED"]
+    if failed:
+        why.append(f"does not transfer across {failed}")
+    if ev.regime_dependent:
+        why.append("effect depends on the market regime")
+    if passed and not failed and not ev.regime_dependent and ev.sign_consistent_share is not None and ev.decay in ("STABLE", "IMPROVING"):
+        return HypothesisAssessment(ev.hid, Epistemic.SUPPORTED, ("significant gain, consistent mechanism, stable, transfers on " + ",".join(passed),), tuple(untested))
+    if not ev.transfer:
+        why.append("transfer not measured for this hypothesis")
+    if ev.direction in ("DIRECTION_BLIND", "LOSS_SKEWED"):
+        why.append(f"finds volatility but is {ev.direction}")
+    return HypothesisAssessment(ev.hid, Epistemic.CONDITIONAL, tuple(why) or ("significant gain; some evidence still missing",), tuple(untested))

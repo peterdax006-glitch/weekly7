@@ -117,6 +117,7 @@ class CounterfactualConfig:
     moderate: float = 0.40                 # ... POTENTIALLY_PREDICTABLE
     weak: float = 0.18                     # ... WEAKLY_PREDICTABLE
     min_direction_for_predictable: float = 0.25
+    min_pointer: float = 0.25              # a class above UNKNOWN needs at least one pointer this strong (sub-threshold ones are noise)
     min_supporting_domains: int = 2
     magnitude_discount: float = 0.85       # magnitude evidence is worth less than direction evidence for a directional move
     external_share: float = 0.6            # market + peer share of the move at which it is called EXTERNALLY_CAUSED
@@ -1286,8 +1287,9 @@ def score_evidence(ev: Sequence[Evidence], cfg: CounterfactualConfig | None = No
     dirn = max(0.0, a - o * (1.0 - a))
     combined = 1.0 - (1.0 - cfg.magnitude_discount * m) * (1.0 - dirn)
     domains = set(mag) | set(agree)
+    strongest = max([e.strength for e in ev if e.agrees is not False] or [0.0])
     return {"magnitude": m, "direction": dirn, "opposing": o, "agreeing": a, "combined": combined,
-            "n_supporting_domains": float(len(domains))}
+            "n_supporting_domains": float(len(domains)), "strongest": float(strongest)}
 
 
 # ------------------------------------------------------------------------------------------------ classification
@@ -1315,6 +1317,10 @@ def classify_knowability(state: KnowledgeState, scores: Mapping[str, float], aud
     if audit.attribution.realized is None:
         return Knowability.DATA_FAILURE, ["the realised move could not be measured"]
     c, dirn, nd = scores["combined"], scores["direction"], scores["n_supporting_domains"]
+    if scores["strongest"] < cfg.min_pointer:
+        if c >= cfg.weak:
+            notes.append(f"only sub-threshold pointers (strongest {scores['strongest']:.2f} < {cfg.min_pointer}): treated as noise")
+        c = 0.0
     if c >= cfg.strong and dirn >= cfg.min_direction_for_predictable and nd >= cfg.min_supporting_domains:
         return Knowability.PREDICTABLE, notes
     if c >= cfg.strong:
@@ -1359,11 +1365,11 @@ def confidence_in_classification(kn: Knowability, state: KnowledgeState, scores:
     prov = 1.0 - (sum(1 for i in relevant if i.availability == Availability.UNCERTAIN) / n_rel if n_rel else 0.0)
     att = audit.attribution
     att_c = 1.0 if att.complete and att.beta_obs >= 60 else 0.7 if att.complete else 0.4
-    c = scores["combined"]
+    c = 0.0 if scores["strongest"] < cfg.min_pointer else scores["combined"]
     edges = (cfg.weak, cfg.moderate, cfg.strong)
     margin = min(1.0, min(abs(c - e) for e in edges) / 0.15) if kn in (Knowability.PREDICTABLE, Knowability.POTENTIALLY_PREDICTABLE,
                                                                        Knowability.WEAKLY_PREDICTABLE) else \
-        min(1.0, (cfg.weak - c) / cfg.weak) if c < cfg.weak else 0.0
+        (0.5 if scores["opposing"] >= cfg.moderate else 1.0 - min(1.0, c / cfg.weak))
     if kn == Knowability.EXTERNALLY_CAUSED:
         margin = min(1.0, (att.market_share + att.peer_share - cfg.external_share) / 0.3 + 0.3)
     if kn == Knowability.INFORMATIONALLY_UNAVAILABLE:
@@ -1376,6 +1382,7 @@ def confidence_in_classification(kn: Knowability, state: KnowledgeState, scores:
         hind = min(1.0, scores["direction"])   # 'agreed with the direction' is a comparison against the realised sign
     caps: list[str] = []
     overall = (max(prov, 1e-9) * max(coverage, 1e-9) * max(att_c, 1e-9) * max(margin, 1e-9)) ** 0.25
+    overall *= 1.0 - 0.25 * hind         # the more the label needed the outcome to be read, the less it can be trusted
     if kn == Knowability.DATA_FAILURE:
         overall, margin = min(1.0, 1.0 - coverage + 0.1), 1.0 - coverage
         caps.append("data failure: confidence is that the data are missing, not a statement about the market")
@@ -1735,6 +1742,7 @@ class BatchResult:
     errors: list[dict]
     n_snapshots: int
     resumed: int = 0
+    n_selected: int = 0
 
     def summary(self) -> dict:
         return summarize(self.rows)
@@ -1770,6 +1778,7 @@ def run_batch(store: pit.PITStore, events: Sequence[EventSpec], now, providers: 
     root = Path(out_dir) if out_dir is not None else None
     if root is not None:
         root.mkdir(parents=True, exist_ok=True)
+        check_manifest(root, cfg, srcs, seed)
     done = {y: _done_ids(root / f"cf_{y}.jsonl") for y in sorted({e.real_year for e, _, _ in chosen})} if root else {}
     rows, reports, skipped, errors = [], [], [], []
     n_snap = resumed = 0
@@ -1810,7 +1819,7 @@ def run_batch(store: pit.PITStore, events: Sequence[EventSpec], now, providers: 
                 reports.append(rep)
         del snap
     frame = pd.DataFrame(rows, columns=list(_ROW_COLUMNS))
-    return BatchResult(frame, reports, skipped, errors, n_snap, resumed)
+    return BatchResult(frame, reports, skipped, errors, n_snap, resumed, len(chosen))
 
 
 _ROW_COLUMNS = ("report_id", "event_id", "year", "category", "direction", "knowability", "confidence", "n_available", "n_unavailable",
@@ -1890,3 +1899,659 @@ def report_markdown(result: BatchResult | pd.DataFrame, title: str = "Could I ha
     if isinstance(result, BatchResult) and (result.skipped or result.errors):
         lines += ["", f"Skipped {len(result.skipped)}, errors {len(result.errors)}."]
     return "\n".join(lines)
+
+
+# ------------------------------------------------------------------------------------------------ how stable is the label
+
+
+def reclassify(report: CounterfactualReport, cfg: CounterfactualConfig, drop_domain: Domain | None = None) -> Knowability:
+    """Re-run the ladder on the report's own recorded state, evidence and attribution with a different config, optionally
+    without one whole domain. Uses only what the report already holds, so it cannot pick up new information."""
+    ev = [e for e in report.evidence if drop_domain is None or e.domain != drop_domain]
+    scores = score_evidence(ev, cfg)
+    state = report.knowledge_state_at_decision
+    if drop_domain is not None:
+        state = dataclasses.replace(state, items=tuple(i for i in state.items if i.domain != drop_domain))
+    causes = tuple(FutureUse(u.item, u.used_for, u.days_after_decision, u.relevance) for u in report.future_information_used_by_auditor)
+    audit = AuditResult(report.attribution.realized, causes, report.information_that_was_unavailable, report.attribution,
+                        report.notes, report.auditor_as_of, "", "")
+    kn, _ = classify_knowability(state, scores, audit, cfg, tuple(report.information_that_would_have_been_available)
+                                 + tuple(report.information_that_was_unavailable))
+    return kn
+
+
+@dataclasses.dataclass(frozen=True)
+class StabilityReport:
+    event_id: str
+    label: Knowability
+    stable_share: float                     # share of threshold perturbations that keep the label
+    flips_to: Mapping[str, int]
+    decisive_domains: tuple[str, ...]       # domains whose removal changes the label
+    fragile: bool
+
+
+def perturbed_configs(cfg: CounterfactualConfig, scale: float = 0.2) -> list[CounterfactualConfig]:
+    """Every threshold moved up and down by `scale` (keeping the ordering weak < moderate < strong): the label is only as firm
+    as its invariance to where the starting thresholds were put."""
+    out = []
+    for f in (1.0 - scale, 1.0 + scale):
+        weak, mod, strong = cfg.weak * f, cfg.moderate * f, min(cfg.strong * f, 1.0)
+        if not weak < mod < strong:
+            continue
+        out.append(dataclasses.replace(cfg, weak=weak, moderate=mod, strong=strong, external_share=min(1.0, cfg.external_share * f),
+                                       idio_share=min(1.0, cfg.idio_share * f)))
+    for name in ("magnitude_discount", "min_direction_for_predictable", "min_cause_relevance"):
+        for f in (1.0 - scale, 1.0 + scale):
+            out.append(dataclasses.replace(cfg, **{name: min(1.0, getattr(cfg, name) * f)}))
+    return out
+
+
+def label_stability(report: CounterfactualReport, cfg: CounterfactualConfig | None = None, scale: float = 0.2) -> StabilityReport:
+    """Threshold sensitivity plus leave-one-domain-out. `fragile` when fewer than 75% of perturbations keep the label, or when
+    a single domain carries a non-UNKNOWN label (that is a finding: the label rests on one channel)."""
+    cfg = cfg or CounterfactualConfig()
+    base = reclassify(report, cfg)
+    flips: Counter = Counter()
+    cfgs = perturbed_configs(cfg, scale)
+    for c in cfgs:
+        k = reclassify(report, c)
+        if k != base:
+            flips[k.value] += 1
+    stable = 1.0 - sum(flips.values()) / len(cfgs) if cfgs else 1.0
+    decisive = []
+    for d in ALL_DOMAINS:
+        if any(e.domain == d for e in report.evidence) or d in (Domain.PRICE, Domain.VOLUME):
+            if reclassify(report, cfg, d) != base:
+                decisive.append(d.value)
+    fragile = stable < 0.75 or (len(decisive) == 1 and base not in (Knowability.UNKNOWN, Knowability.DATA_FAILURE))
+    return StabilityReport(report.event.event_id, base, float(stable), dict(flips), tuple(decisive), bool(fragile))
+
+
+# ------------------------------------------------------------------------------------------------ lead time and missed information
+
+
+@dataclasses.dataclass(frozen=True)
+class LeadTime:
+    domain: str
+    name: str
+    sessions_before: int          # how many sessions before the decision close the pointer first became public
+    strength: float
+
+
+def lead_times(report: CounterfactualReport) -> list[LeadTime]:
+    """For each piece of evidence, how early was the underlying information public? A pointer that surfaced the same
+    session is a different research target from one that was public for weeks (section 8: 'what became known later')."""
+    by_key = {(i.domain, i.name): i for i in report.knowledge_state_at_decision.items}
+    out = []
+    for e in report.evidence:
+        srcs = _EVIDENCE_SOURCES.get(e.name, (e.name,))
+        lags = [-(by_key[(e.domain, s)].lag_sessions or 0) for s in srcs if (e.domain, s) in by_key]
+        if lags:
+            out.append(LeadTime(e.domain.value, e.name, int(max(lags)), e.strength))
+    return sorted(out, key=lambda x: (-x.strength, x.name))
+
+
+def earliest_warning(report: CounterfactualReport, min_strength: float = 0.2) -> int | None:
+    """Sessions before the decision of the earliest sufficiently strong pointer; None if nothing pointed at all."""
+    lts = [lt.sessions_before for lt in lead_times(report) if lt.strength >= min_strength]
+    return max(lts) if lts else None
+
+
+def missed_information(reports: Sequence[CounterfactualReport], min_strength: float = 0.3) -> pd.DataFrame:
+    """Evidence that WAS public at T and pointed toward the move but was NOT an input the model used (item.in_model False):
+    the actionable output of the test. One row per (domain, evidence name) with counts and mean strength, weighted by the
+    sampling weights. Reports labelled UNKNOWN/DATA_FAILURE contribute nothing (no evidence to miss)."""
+    acc: dict[tuple[str, str], list[tuple[float, float]]] = defaultdict(list)
+    tot_w = sum(r.weight for r in reports) or 1.0
+    for r in reports:
+        if r.knowability in (Knowability.UNKNOWN, Knowability.DATA_FAILURE):
+            continue
+        model_keys = {(i.domain, i.name) for i in r.knowledge_state_at_decision.items if i.in_model}
+        for e in r.evidence:
+            if e.strength < min_strength or e.agrees is False:
+                continue
+            srcs = _EVIDENCE_SOURCES.get(e.name, (e.name,))
+            if any((e.domain, s) in model_keys for s in srcs):
+                continue
+            acc[(e.domain.value, e.name)].append((e.strength, r.weight))
+    rows = [{"domain": d, "evidence": n, "n": len(v), "weighted_share": sum(w for _, w in v) / tot_w,
+             "mean_strength": float(np.average([s for s, _ in v], weights=[w for _, w in v]))} for (d, n), v in acc.items()]
+    return pd.DataFrame(rows, columns=["domain", "evidence", "n", "weighted_share", "mean_strength"]).sort_values(
+        ["weighted_share", "evidence"], ascending=[False, True]).reset_index(drop=True)
+
+
+def domain_contribution(reports: Sequence[CounterfactualReport]) -> pd.DataFrame:
+    """Which domains supplied the pointers, per label. Rows: domain; columns: label; values: mean strongest evidence."""
+    rec: dict[tuple[str, str], list[float]] = defaultdict(list)
+    for r in reports:
+        best: dict[str, float] = {}
+        for e in r.evidence:
+            best[e.domain.value] = max(best.get(e.domain.value, 0.0), e.strength)
+        for d in ALL_DOMAINS:
+            rec[(d.value, r.knowability.value)].append(best.get(d.value, 0.0))
+    if not rec:
+        return pd.DataFrame()
+    df = pd.Series({k: float(np.mean(v)) for k, v in rec.items()}).unstack(fill_value=0.0)
+    return df.reindex([d.value for d in ALL_DOMAINS]).fillna(0.0)
+
+
+# ------------------------------------------------------------------------------------------------ what became known later
+
+
+def what_became_known(store: pit.PITStore, event: EventSpec, horizons: Sequence[int] = (1, 5, 20), providers: Providers | None = None,
+                      cfg: CounterfactualConfig | None = None, srcs: SourceMap | None = None) -> pd.DataFrame:
+    """The literal comparison section 8 asks for: the same reconstruction at T and at T + h sessions, diffed. For every
+    horizon the rows are the state items that are new, changed or vanished, with their domain. Only the AUDITOR calls this
+    (it builds guards after T) and the result is hindsight; the state at T is rebuilt from scratch through its own guard."""
+    cfg, srcs = cfg or CounterfactualConfig(), srcs or SourceMap()
+    t0 = pd.Timestamp(event.decision_ts).normalize()
+    base_snap = build_snapshot(store, t0, srcs, cfg)
+    base, _ = reconstruct_state(base_snap, event, providers, cfg)
+    ref = {i.key: i for i in base.items}
+    rows = []
+    for h in horizons:
+        later = _shift(t0, int(h), store.cal)
+        ev = dataclasses.replace(event, decision_ts=str(later.date()), event_start=str(_shift(later, 1, store.cal).date()),
+                                 event_end=str(_shift(later, 1, store.cal).date()), model_score=None, score_asof="")
+        snap = build_snapshot(store, later, srcs, cfg)
+        st, _ = reconstruct_state(snap, ev, providers, cfg)
+        cur = {i.key: i for i in st.items}
+        for k in sorted(set(ref) | set(cur)):
+            a, b = ref.get(k), cur.get(k)
+            if a is None:
+                rows.append({"horizon": h, "key": k, "domain": b.domain.value, "change": "new", "available": b.available, "before": None, "after": b.value})
+            elif b is None:
+                rows.append({"horizon": h, "key": k, "domain": a.domain.value, "change": "gone", "available": a.available, "before": a.value, "after": None})
+            elif a.value != b.value and a.domain in (Domain.EVENT, Domain.MACRO, Domain.PATTERN, Domain.MEMORY):
+                rows.append({"horizon": h, "key": k, "domain": a.domain.value, "change": "revised", "available": b.available,
+                             "before": a.value, "after": b.value})
+    return pd.DataFrame(rows, columns=["horizon", "key", "domain", "change", "available", "before", "after"])
+
+
+# ------------------------------------------------------------------------------------------------ persistence and comparison
+
+
+def load_rows(out_dir: str | os.PathLike) -> pd.DataFrame:
+    """Flat summary rows rebuilt from the cf_<year>.jsonl files a run left behind, so a resumed run summarises everything.
+    Torn lines are skipped and counted in `frame.attrs['torn']`."""
+    rows, torn = [], 0
+    for f in sorted(Path(out_dir).glob("cf_*.jsonl")):
+        for line in f.read_text(encoding="utf-8").splitlines():
+            try:
+                d = json.loads(line)
+                ks, ev, conf = d["knowledge_state_at_decision"], d["event"], d["confidence_in_classification"]
+                rows.append({"report_id": d["report_id"], "event_id": ev["event_id"], "year": int(ev["decision_ts"][:4]),
+                             "category": ev["category"], "direction": ev["direction"], "knowability": d["knowability"],
+                             "confidence": conf["overall"], "n_available": len(d["information_that_would_have_been_available"]),
+                             "n_unavailable": len(d["information_that_was_unavailable"]),
+                             "n_future_used": len(d["future_information_used_by_auditor"]), "n_uncertain": len(d["uncertain_items"]),
+                             "coverage_domains": sum(1 for v in ks["coverage"].values() if v),
+                             "market_share": d["attribution"]["market_share"], "idio_share": d["attribution"]["idio_share"],
+                             "combined": d["scores"].get("combined", 0.0), "selection": d["selection"], "weight": d["weight"],
+                             "matured_at": d["matured_at"]})
+            except (ValueError, KeyError, TypeError):
+                torn += 1
+    frame = pd.DataFrame(rows, columns=list(_ROW_COLUMNS))
+    frame.attrs["torn"] = torn
+    return frame
+
+
+def compare_reports(a: CounterfactualReport, b: CounterfactualReport) -> dict[str, Any]:
+    """Field-level difference of two reports for the same event (a rerun, a changed config, a scrambled-future rebuild). A
+    deterministic pipeline gives an empty diff apart from the wall-clock provenance stamp."""
+    if a.event.event_id != b.event.event_id:
+        raise ValueError("reports are for different events")
+    da, db = a.to_dict(), b.to_dict()
+    da.pop("report_id", None), db.pop("report_id", None)
+    diff = {}
+    for k in sorted(set(da) | set(db)):
+        if canonical_json(da.get(k)) != canonical_json(db.get(k)):
+            diff[k] = (da.get(k), db.get(k))
+    return diff
+
+
+def adapt_classifier(obj: Any) -> Callable[[Mapping[str, Any]], tuple[Knowability, str]]:
+    """Wrap R02's knowability engine without importing it: accepts a callable(bundle) or an object with `.classify(bundle)`;
+    the answer may be a Knowability, its name, or an object with `.knowability`. Anything else is refused at call time."""
+    fn = obj if callable(obj) else getattr(obj, "classify", None)
+    if fn is None:
+        raise TypeError("classifier must be callable or have .classify(bundle)")
+
+    def call(bundle: Mapping[str, Any]) -> tuple[Knowability, str]:
+        ans = fn(bundle)
+        why = ""
+        if isinstance(ans, tuple):
+            ans, why = ans[0], str(ans[1]) if len(ans) > 1 else ""
+        ans = getattr(ans, "knowability", ans)
+        return Knowability.parse(ans), why
+    return call
+
+
+# ------------------------------------------------------------------------------------------------ self-check (planted leaks)
+
+
+def selfcheck(store: pit.PITStore, event: EventSpec, providers: Providers | None = None, cfg: CounterfactualConfig | None = None,
+              srcs: SourceMap | None = None) -> dict[str, bool]:
+    """Does the machinery actually refuse a leak? Each entry must be True for the pipeline to be trusted:
+      future_invariant      the state is identical on a store whose future was scrambled;
+      fence_refuses_future  a Guard bound to T refuses a request past T;
+      state_rejects_future  a KnowledgeState holding a post-T item fails its own validation;
+      gate_refuses_early    a report cannot be released at or before its maturity;
+      feedback_refused      the classification is refused inside a feature frame."""
+    cfg, srcs = cfg or CounterfactualConfig(), srcs or SourceMap()
+    t0 = pd.Timestamp(event.decision_ts).normalize()
+    out = {"future_invariant": verify_future_invariance(store, event, providers, cfg, srcs).invariant}
+    g = store.view(t0)
+    try:
+        g.wide(srcs.prices, srcs.close, end=t0 + pd.Timedelta(days=5))
+        out["fence_refuses_future"] = False
+    except pit.LookAheadError:
+        out["fence_refuses_future"] = True
+    snap = build_snapshot(store, t0, srcs, cfg)
+    st, _ = reconstruct_state(snap, event, providers, cfg)
+    late = InfoItem.make(Domain.PRICE, "planted", 1.0, event.event_end, event.event_end, "planted", t0, event.event_start, snap.cal)
+    out["state_rejects_future"] = bool(dataclasses.replace(st, items=st.items + (late,)).validate())
+    rep = assess_event(store, snap, event, pd.Timestamp(event.event_end) + pd.Timedelta(days=30), providers, cfg)
+    if rep is None:
+        out["gate_refuses_early"] = out["feedback_refused"] = False
+        return out
+    gate = ClassificationGate()
+    rid = gate.add(rep)
+    try:
+        gate.release_one(rid, rep.matured_at)
+        out["gate_refuses_early"] = False
+    except FirewallBreach:
+        out["gate_refuses_early"] = True
+    try:
+        refuse_feedback(pd.DataFrame({"x": [1.0], "cf_knowability": ["UNKNOWN"]}), "selfcheck")
+        out["feedback_refused"] = False
+    except FirewallBreach:
+        out["feedback_refused"] = True
+    return out
+
+
+# ------------------------------------------------------------------------------------------------ planted worlds (for tests and wave-2 self-tests)
+
+PLANTED_KINDS = ("precursor", "external", "news", "unknown", "data_failure")
+
+
+@dataclasses.dataclass(frozen=True)
+class PlantedPattern:
+    """A pattern-like object for tests: fires when `rule(features)` is true; `provenance.learned_at` decides when it existed."""
+    pattern_id: str
+    name: str
+    effect: float
+    p_real: float
+    provenance: Provenance
+    rule: Callable[[Mapping[str, float]], bool]
+
+    def fires(self, features: Mapping[str, float]) -> bool:
+        return bool(self.rule(features))
+
+
+@dataclasses.dataclass(frozen=True)
+class PlantedMemory:
+    mem_id: str
+    kind: str
+    context: Mapping[str, float]
+    lean: float
+    filed_date: str
+    matured_at: str
+    reliability: float = 0.7
+
+
+class PlantedMemoryStore:
+    def __init__(self, items: Sequence[PlantedMemory]):
+        self._items = list(items)
+
+    def memories(self, matured_before=None):
+        if matured_before is None:
+            return list(self._items)
+        return [m for m in self._items if as_date(m.matured_at) < as_date(matured_before)]
+
+
+@dataclasses.dataclass(frozen=True)
+class PlantedCase:
+    kind: str
+    store: pit.PITStore
+    event: EventSpec
+    providers: Providers
+    truth: Knowability
+    now: pd.Timestamp
+    decision_index: int
+
+
+def make_planted_case(kind: str, seed: int = 0, n_tickers: int = 40, n_days: int = 320) -> PlantedCase:
+    """A synthetic market with ONE planted movement of a known cause. kinds: precursor (public build-up, then a jump in the
+    direction it pointed), external (a market shock after T that drags every name), news (a company filing after T; the stock
+    was quiet before), unknown (an idiosyncratic jump with no trace), data_failure (no volume data at all). The truth label
+    each should receive is in `case.truth`. Everything is seeded; no real dates or tickers."""
+    if kind not in PLANTED_KINDS:
+        raise ValueError(f"unknown planted kind {kind!r}; choose from {PLANTED_KINDS}")
+    rng = np.random.default_rng(seed)
+    dates = pd.bdate_range("2020-01-02", periods=n_days)
+    tick = [f"T{i:02d}" for i in range(n_tickers)]
+    D = n_days - 12
+    beta = np.clip(rng.normal(1.0, 0.15, n_tickers), 0.6, 1.5)
+    beta[0] = 1.2
+    rm = rng.normal(0.0003, 0.007, n_days)
+    idio = rng.normal(0.0, 0.011, (n_days, n_tickers))
+    ret = beta[None, :] * rm[:, None] + idio
+    vol_mult = np.ones((n_days, n_tickers))
+    spread = np.full((n_days, n_tickers), 0.006)
+    gap = np.zeros((n_days, n_tickers))
+    events = []
+    truth = Knowability.UNKNOWN
+    direction = 1
+    if kind == "precursor":
+        ret[D - 40:D - 12, 0] += 0.006                    # a run-up into a 52-week high
+        ret[D - 12:D + 1, 0] = rng.normal(0.0004, 0.0035, 13)   # then a tight coil
+        spread[D - 12:D + 1, 0] = 0.0012
+        vol_mult[D - 6:D + 1, 0] = 2.6
+        ret[D + 1:D + 4, 0] += 0.045
+        truth = Knowability.PREDICTABLE
+    elif kind == "external":
+        rm[D + 1:D + 4] = -0.022
+        ret = beta[None, :] * rm[:, None] + idio
+        direction, truth = -1, Knowability.EXTERNALLY_CAUSED
+    elif kind == "news":
+        ret[D + 2, 0] += 0.16
+        gap[D + 2, 0] = 0.14
+        events.append({"ticker": "T00", "kind": "EARN", "accepted": (dates[D + 2] + pd.Timedelta(hours=13)).tz_localize("UTC")})
+        truth = Knowability.INFORMATIONALLY_UNAVAILABLE
+    elif kind == "unknown":
+        ret[D + 1:D + 4, 0] += 0.045
+        truth = Knowability.UNKNOWN
+    else:
+        ret[D + 1:D + 4, 0] += 0.045
+        truth = Knowability.DATA_FAILURE
+    close = 100.0 * np.cumprod(1.0 + ret, axis=0)
+    prev = np.vstack([close[:1], close[:-1]])
+    opn = prev * (1.0 + gap + rng.normal(0.0, 0.0015, ret.shape))
+    hi = np.maximum(opn, close) * (1.0 + spread * rng.uniform(0.6, 1.0, ret.shape))
+    lo = np.minimum(opn, close) * (1.0 - spread * rng.uniform(0.6, 1.0, ret.shape))
+    volume = 1.0e6 * np.exp(rng.normal(0.0, 0.25, ret.shape)) * vol_mult
+    frames = {"Close": close, "Open": opn, "High": hi, "Low": lo, "Volume": volume}
+    if kind == "data_failure":
+        frames.pop("Volume")
+    stocks = {f: pd.DataFrame(v, index=dates, columns=tick) for f, v in frames.items()}
+    spy = 300.0 * np.cumprod(1.0 + rm)
+    vix = 17.0 + np.cumsum(rng.normal(0, 0.15, n_days)) * 0.1 + np.where(np.arange(n_days) > D, 12.0 if kind == "external" else 0.0, 0.0)
+    m_cols = ["SPY", "^VIX", "^VIX3M"]
+    m_close = np.column_stack([spy, vix, np.full(n_days, 19.0)])
+    market = {f: pd.DataFrame(m_close * (1.0 + (0.0 if f == "Close" else 0.0005)), index=dates, columns=m_cols)
+              for f in ("Close", "Open", "High", "Low", "Volume")}
+    market["Volume"] = market["Volume"] * 0.0 + 1.0
+    old = [{"ticker": t, "kind": "PERIODIC", "accepted": (dates[D - 20] + pd.Timedelta(hours=21)).tz_localize("UTC")} for t in tick[:8]]
+    ev = pd.DataFrame(old + events)
+    macro = pd.DataFrame({"date": pd.to_datetime(["2019-11-01", "2019-12-01", "2020-01-01", "2020-02-01", "2020-03-01", "2020-04-01"]),
+                          "series": "cpi", "value": [2.0, 2.1, 2.1, 2.2, 2.3, 2.2]})
+    store = store_from_feed_data((stocks, market, ev, None, None), macro=macro)
+    peers = tuple(tick[1:9])
+    cal = store.cal
+    direction_hint = direction
+    ev_spec = EventSpec.make("T00", dates[D], dates[D + 3], direction_hint, cal, category="mover", peers=peers)
+    old_prov = Provenance("2020-01-01T00:00:00", "2019-12-01", "planted", outcomes_seen_through="2019-12-01")
+    late_prov = Provenance("2021-01-01T00:00:00", str(dates[D + 8].date()), "planted", outcomes_seen_through=str(dates[D + 8].date()))
+    pats = [PlantedPattern("P_old", "quiet_pattern", 0.05, 0.9, old_prov, lambda f: False),
+            PlantedPattern("P_late", "learned_later_squeeze", 0.06, 0.8, late_prov, lambda f: True)]
+    ctx = {"m_spy_ma200": 0.02, "m_spy_ma50": 0.01, "m_spy_r5": 0.003, "m_vix": 17.0, "m_vix_term": 0.9, "m_vix_chg5": 0.0}
+    mem = PlantedMemoryStore([PlantedMemory("M_old", "pattern", ctx, 0.3, "2019-10-01", "2019-11-01"),
+                              PlantedMemory("M_late", "pattern", ctx, 0.3, str(dates[D + 1].date()), str(dates[D + 9].date()))])
+    prov = Providers(feature_fn=lambda g, t, asof: {"f_r5": float(g.wide("prices", "Close", tickers=[t], lookback=6).iloc[-1, 0]
+                                                              / g.wide("prices", "Close", tickers=[t], lookback=6).iloc[0, 0] - 1.0)},
+                     patterns=pats, memory=mem, sic={t: 3571 for t in tick})
+    return PlantedCase(kind, store, ev_spec, prov, truth, dates[-1] + pd.Timedelta(days=1), D)
+
+
+# ------------------------------------------------------------------------------------------------ audits of the report itself
+
+
+def audit_report_timestamps(report: CounterfactualReport, cal: pit.Calendar | None = None, boundary_sessions: int = 0) -> list[str]:
+    """Recompute every item's availability class and lag from its own dates and compare with what the report stored. A report
+    whose stored class disagrees with its own timestamps (tampered, or built by a buggy path) is not trustworthy."""
+    t0, t1 = report.event.decision_ts, report.event.event_start
+    errs = []
+    groups = (("state", report.knowledge_state_at_decision.items),
+              ("future", tuple(u.item for u in report.future_information_used_by_auditor)),
+              ("unavailable", report.information_that_was_unavailable), ("available", report.information_that_would_have_been_available))
+    for label, items in groups:
+        for it in items:
+            if it.note.startswith("outcome") or it.availability == Availability.UNAVAILABLE and it.domain in (Domain.PRICE, Domain.VOLUME,
+                                                                                                             Domain.MARKET_STATE, Domain.CROSS_SECTION):
+                continue                      # outcome facts are forced UNAVAILABLE by construction
+            klass, lag = classify_availability(it.effective, it.available, t0, t1, cal, boundary_sessions)
+            if klass != it.availability:
+                errs.append(f"{label}:{it.key}: stored {it.availability.value} but its dates say {klass.value}")
+            elif lag != it.lag_sessions:
+                errs.append(f"{label}:{it.key}: stored lag {it.lag_sessions} but recomputed {lag}")
+    return errs
+
+
+def wilson_interval(k: float, n: float, z: float = 1.96) -> tuple[float, float]:
+    """Wilson score interval for a share k/n; the honest error bar on 'x% of moves were unpredictable'."""
+    if n <= 0:
+        return 0.0, 1.0
+    p = k / n
+    den = 1.0 + z * z / n
+    centre = (p + z * z / (2 * n)) / den
+    half = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / den
+    return max(0.0, centre - half), min(1.0, centre + half)
+
+
+def effective_sample_size(weights: Sequence[float]) -> float:
+    """Kish effective sample size of the sampling weights: how many equally weighted reports the sample is worth."""
+    w = np.asarray(list(weights), dtype=float)
+    return float(w.sum() ** 2 / (w ** 2).sum()) if len(w) and (w ** 2).sum() > 0 else 0.0
+
+
+def share_table(rows: pd.DataFrame, by: str = "category") -> pd.DataFrame:
+    """Class shares within each group, weighted, with Wilson intervals on the effective sample. Rows: group x class."""
+    if not len(rows):
+        return pd.DataFrame(columns=[by, "knowability", "share", "lo", "hi", "n"])
+    out = []
+    for g, d in rows.groupby(rows[by].replace("", "uncategorised") if by == "category" else rows[by]):
+        n_eff = effective_sample_size(d["weight"])
+        tot = float(d["weight"].sum())
+        for k, dk in d.groupby("knowability"):
+            share = float(dk["weight"].sum() / tot)
+            lo, hi = wilson_interval(share * n_eff, n_eff)
+            out.append({by: g, "knowability": k, "share": share, "lo": lo, "hi": hi, "n": int(len(dk))})
+    return pd.DataFrame(out)
+
+
+def sampling_audit(rows: pd.DataFrame, chosen_from: int) -> dict[str, Any]:
+    """Weights must reconstruct the population the sample was drawn from: their sum should match the eligible event count
+    (within sampling noise) when every event was eligible. Returns the ratio and the effective sample size."""
+    w = rows["weight"].astype(float) if len(rows) else pd.Series(dtype=float)
+    total = float(w.sum())
+    ratio = total / chosen_from if chosen_from else float("nan")
+    return {"n": int(len(rows)), "weighted_total": total, "eligible": int(chosen_from), "ratio": ratio,
+            "ess": effective_sample_size(w), "biased": bool(chosen_from and abs(ratio - 1.0) > 0.35)}
+
+
+def explain(report: CounterfactualReport, top: int = 6) -> str:
+    """A plain-language account of one event for the research log (trusted side; carries real dates, never given to a trader)."""
+    e, ks = report.event, report.knowledge_state_at_decision
+    lines = [f"{e.ticker} moved {report.attribution.realized:+.1%} after the close of {e.decision_ts}: {report.knowability.value} "
+             f"(confidence {report.confidence_in_classification.overall:.2f})." if report.attribution.realized is not None
+             else f"{e.ticker}: the move could not be measured: {report.knowability.value}."]
+    lines.append(f"The state at the decision covered {sum(1 for v in ks.coverage().values() if v)}/{len(ALL_DOMAINS)} domains"
+                 + (f"; missing {', '.join(ks.missing_domains())}." if ks.missing_domains() else "."))
+    ev = sorted(report.evidence, key=lambda x: -x.strength)[:top]
+    lines += [f"- pointer {x.domain.value}/{x.name}: strength {x.strength:.2f} ({x.channel.value.lower()}"
+              + ("" if x.agrees is None else ", agreed" if x.agrees else ", opposed") + ")" for x in ev]
+    if not ev:
+        lines.append("- nothing in the available information pointed toward this move.")
+    if report.information_that_was_unavailable:
+        lines.append("Not knowable then: " + ", ".join(sorted({i.key for i in report.information_that_was_unavailable})[:top]) + ".")
+    att = report.attribution
+    if att.complete:
+        lines.append(f"Attribution: market {att.market_share:.0%}, peers {att.peer_share:.0%}, idiosyncratic {att.idio_share:.0%}.")
+    lines += [f"Note: {n}" for n in report.notes]
+    lines += [f"Cap: {c}" for c in report.confidence_in_classification.caps]
+    return "\n".join(lines)
+
+
+# ------------------------------------------------------------------------------------------------ run manifests (a result needs its code)
+
+
+def manifest_of(cfg: CounterfactualConfig, srcs: SourceMap, seed: int) -> dict:
+    """What a run is: config, source map, seed and the hash of THIS module's code. Results from a different manifest must not
+    be mixed into one output directory (a code edit mid-run once made two halves of a result incomparable)."""
+    src = Path(__file__).read_bytes()
+    return {"config": stable_hash(cfg, 16), "sources": stable_hash(srcs, 16), "seed": int(seed),
+            "module": stable_hash(src.decode("utf-8", "replace"), 16), "version": cfg.version}
+
+
+def check_manifest(out_dir: str | os.PathLike, cfg: CounterfactualConfig, srcs: SourceMap, seed: int, allow_change: bool = False) -> dict:
+    """Write the manifest on first use; on resume refuse a directory written under a different one."""
+    path = Path(out_dir) / "cf_manifest.json"
+    cur = manifest_of(cfg, srcs, seed)
+    if path.exists():
+        old = json.loads(path.read_text(encoding="utf-8"))
+        if old != cur and not allow_change:
+            changed = sorted(k for k in cur if old.get(k) != cur[k])
+            raise ValueError(f"{path} was written under a different manifest (changed: {changed}); results would not be comparable")
+        return old
+    path.write_text(canonical_json(cur), encoding="utf-8")
+    return cur
+
+
+# ------------------------------------------------------------------------------------------------ scheduled catalysts, replay, event discovery
+
+
+def partial_knowledge(report: CounterfactualReport) -> list[dict]:
+    """Catalysts whose TIMING was public at T but whose CONTENT was not: a scheduled filing/announcement in the state paired
+    with the post-decision record of the same kind. The move was then predictable in when, not in what (section 7: known
+    before vs known after are properties of pieces of information, not of events)."""
+    sched = {i.name.split(":", 1)[1].upper(): i for i in report.knowledge_state_at_decision.items
+             if i.domain == Domain.EVENT and i.name.startswith("scheduled:")}
+    out = []
+    for u in report.future_information_used_by_auditor:
+        if u.used_for == "cause" and u.item.domain == Domain.EVENT and u.item.name.upper() in sched:
+            s = sched[u.item.name.upper()]
+            out.append({"kind": u.item.name, "timing_known_since": s.available, "content_available": u.item.available,
+                        "content_class": u.item.availability.value, "relevance": u.relevance})
+    return out
+
+
+def replay_matches(store: pit.PITStore, event: EventSpec, now, providers: Providers | None = None,
+                   cfg: CounterfactualConfig | None = None, srcs: SourceMap | None = None) -> bool:
+    """Determinism: the same event assessed twice on fresh snapshots gives the same report (apart from the wall-clock stamp)."""
+    cfg, srcs = cfg or CounterfactualConfig(), srcs or SourceMap()
+    reps = []
+    for _ in range(2):
+        snap = build_snapshot(store, event.decision_ts, srcs, cfg)
+        r = assess_event(store, snap, event, now, providers, cfg)
+        if r is None:
+            return False
+        reps.append(r)
+    return not compare_reports(reps[0], reps[1])
+
+
+def discover_events(store: pit.PITStore, decision_ts, now, horizon_sessions: int = 5, tail: float = 0.01, min_abs: float = 0.08,
+                    srcs: SourceMap | None = None, cfg: CounterfactualConfig | None = None) -> list[EventSpec]:
+    """Market-wide movers for one decision date, found the way the audit world finds them: after the outcome has matured. Reads
+    the window through a Guard bound to the window's last session, ranks every name by the return from the fill open to the
+    window close, and keeps the extreme tails (top and bottom `tail` share, at least `min_abs` in size). Names without a
+    complete window are skipped rather than filled. Empty when the window has not matured before the real clock `now`."""
+    srcs, cfg = srcs or SourceMap(), cfg or CounterfactualConfig()
+    t0 = pd.Timestamp(decision_ts).normalize()
+    t1 = pd.Timestamp(store.cal.strict_next([t0])[0])
+    end = _shift(t1, horizon_sessions - 1, store.cal)
+    stub = EventSpec("stub", "X", str(t0.date()), str(t1.date()), str(end.date()), 1)
+    as_of = auditor_as_of_for(stub, now, store.cal, cfg.settle_sessions)
+    if as_of is None:
+        return []
+    g = store.view(as_of)
+    C = g.wide(srcs.prices, srcs.close, start=t0, end=end)
+    O = g.wide(srcs.prices, srcs.open_, start=t1, end=t1)
+    if len(C) < horizon_sessions + 1 or not len(O) or pd.Timestamp(C.index[-1]) < end:
+        return []
+    ret = (C.iloc[-1] / O.iloc[0] - 1.0).replace([np.inf, -np.inf], np.nan).dropna()
+    ret = ret[(C.iloc[0].reindex(ret.index) > 0)]
+    if len(ret) < 20:
+        return []
+    lo_q, hi_q = ret.quantile(tail), ret.quantile(1.0 - tail)
+    picks = ret[((ret >= hi_q) | (ret <= lo_q)) & (ret.abs() >= min_abs)]
+    out = []
+    for t, r in picks.sort_values(key=lambda s: -s.abs()).items():
+        cat = MoveCategory.EXTREME_UP if r > 0 else MoveCategory.EXTREME_DOWN
+        out.append(EventSpec.make(str(t), t0, end, 1 if r > 0 else -1, store.cal, cat.value, float(r)))
+    return out
+
+
+def validate_providers(providers: Providers) -> list[str]:
+    """Structural check before a long run: every pattern is pattern-like, the memory store answers memories(), and each
+    memory has the fields the reconstruction reads. A provider that cannot be read would otherwise fail on the millionth event."""
+    errs: list[str] = []
+    for p in providers.patterns:
+        errs += pattern_problems(p)
+        prov = getattr(p, "provenance", None)
+        if prov is not None:
+            errs += [f"pattern {getattr(p, 'pattern_id', '?')}: {e}" for e in prov.check()]
+    if providers.memory is not None:
+        if not callable(getattr(providers.memory, "memories", None)):
+            errs.append("memory store has no memories() method")
+        else:
+            need = ("mem_id", "kind", "context", "lean", "filed_date", "matured_at")
+            for m in list(providers.memory.memories())[:50]:
+                errs += [f"memory {getattr(m, 'mem_id', '?')} missing {a}" for a in need if not hasattr(m, a)]
+                if hasattr(m, "matured_at") and hasattr(m, "filed_date") and as_date(m.matured_at) < as_date(m.filed_date):
+                    errs.append(f"memory {m.mem_id}: matured before it was filed")
+    if providers.feature_fn is not None and not callable(providers.feature_fn):
+        errs.append("feature_fn is not callable")
+    return errs
+
+
+def run_year(store: pit.PITStore, year: int, now, out_dir: str | os.PathLike, providers: Providers | None = None,
+             cfg: CounterfactualConfig | None = None, srcs: SourceMap | None = None, seed: int = 0, horizon_sessions: int = 5,
+             stride: int = 5, tail: float = 0.01, min_abs: float = 0.08, max_days: int | None = None) -> BatchResult:
+    """One year of the market-wide test, streamed: discover the extreme movers of every `stride`-th session (non-overlapping
+    windows), assess them with the per-day cap, append to cf_<year>.jsonl and resume past what is already there. Only one
+    day's snapshot is alive at a time. `now` is the real clock; windows not finished before it are skipped."""
+    cfg, srcs, providers = cfg or CounterfactualConfig(), srcs or SourceMap(), providers or Providers()
+    bad = validate_providers(providers)
+    if bad:
+        raise ValueError("providers failed validation: " + "; ".join(bad[:5]))
+    sess = pd.DatetimeIndex(store.source(srcs.prices).frames[srcs.close].index).normalize()
+    days = sess[sess.year == int(year)][::max(1, int(stride))]
+    if max_days is not None:
+        days = days[:int(max_days)]
+    events: list[EventSpec] = []
+    for d in days:
+        events += discover_events(store, d, now, horizon_sessions, tail, min_abs, srcs, cfg)
+    return run_batch(store, events, now, providers, cfg, srcs, out_dir, seed)
+
+
+def coverage_report(reports: Sequence[CounterfactualReport]) -> pd.DataFrame:
+    """Per domain: share of reports where the domain was reconstructed at all, mean item count, and share of those items that
+    the model itself used. A domain that is empty for most events is a data or wiring gap, not a finding about the market."""
+    if not reports:
+        return pd.DataFrame(columns=["domain", "present_share", "mean_items", "in_model_share"])
+    w = np.asarray([r.weight for r in reports], dtype=float)
+    rows = []
+    for d in ALL_DOMAINS:
+        counts = np.asarray([sum(1 for i in r.knowledge_state_at_decision.items if i.domain == d) for r in reports], dtype=float)
+        used = np.asarray([sum(1 for i in r.knowledge_state_at_decision.items if i.domain == d and i.in_model) for r in reports], dtype=float)
+        rows.append({"domain": d.value, "present_share": float((w * (counts > 0)).sum() / w.sum()),
+                     "mean_items": float((w * counts).sum() / w.sum()),
+                     "in_model_share": float(used.sum() / counts.sum()) if counts.sum() else 0.0})
+    return pd.DataFrame(rows)
+
+
+def unavailable_breakdown(reports: Sequence[CounterfactualReport]) -> pd.DataFrame:
+    """What kind of information was missing when the answer was 'unavailable': counts by domain and availability class over the
+    reports, so 'we could not have known' can be traced to the kinds of facts that did not yet exist."""
+    acc: Counter = Counter()
+    for r in reports:
+        for i in r.information_that_was_unavailable:
+            acc[(i.domain.value, i.availability.value)] += 1
+    rows = [{"domain": d, "availability": a, "n": n} for (d, a), n in sorted(acc.items())]
+    return pd.DataFrame(rows, columns=["domain", "availability", "n"])
+
+
+ENTRYPOINTS = {"step": step, "run_batch": run_batch, "run_year": run_year, "assess_event": assess_event,
+               "release": ClassificationGate, "selfcheck": selfcheck}      # what the wave-2 research loop and reachability call
+__all__ = sorted(n for n, o in dict(globals()).items() if not n.startswith("_") and getattr(o, "__module__", None) == __name__)

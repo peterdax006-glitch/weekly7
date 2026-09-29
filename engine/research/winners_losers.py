@@ -579,10 +579,20 @@ class SignalStat:
     verdict: SignalVerdict
     groups: Mapping[str, float] = field(default_factory=dict)
     reasons: tuple[str, ...] = ()
+    mde: float | None = None              # smallest |AUC - 0.5| this sample could have detected (80% power)
 
     @property
     def edge(self) -> float:
         return self.auc - 0.5
+
+
+def minimum_detectable_edge(n_case: int, n_ctrl: int, alpha: float = 0.05, power: float = 0.8) -> float:
+    """The smallest |AUC - 0.5| a Mann-Whitney comparison of this size can detect: (z_alpha/2 + z_power) x the null standard error
+    sqrt((n1 + n0 + 1) / (12 n1 n0)). It is what makes IRRELEVANT honest: 'no effect' is only a finding when the sample could have seen one."""
+    if n_case < 2 or n_ctrl < 2:
+        return float("inf")
+    se = math.sqrt((n_case + n_ctrl + 1) / (12.0 * n_case * n_ctrl))
+    return float((stats.norm.isf(alpha / 2.0) + stats.norm.ppf(power)) * se)
 
 
 def _side(x: float) -> int:
@@ -662,14 +672,16 @@ def study_signals(cases: Sequence[MoveRecord], controls: Sequence[MoveRecord], p
                     reasons.append("time halves disagree or cannot be tested")
                 else:
                     verdict = SignalVerdict.INFORMATIVE
-            elif res.lo >= 0.5 - p.min_edge and res.hi <= 0.5 + p.min_edge:
+            elif res.lo >= 0.5 - p.min_edge and res.hi <= 0.5 + p.min_edge and \
+                    minimum_detectable_edge(res.n_case, res.n_ctrl, p.alpha) <= p.min_edge * 1.5:
                 verdict = SignalVerdict.IRRELEVANT
-                reasons.append("interval is inside the no-effect band and the sample is large enough to say so")
+                reasons.append("interval is inside the no-effect band and the sample could have detected an effect that size")
             else:
                 verdict = SignalVerdict.UNDERPOWERED
                 reasons.append("not significant, but the interval is too wide to call it irrelevant")
         out.append(SignalStat(r["s"], res.n_case, res.n_ctrl, res.auc, res.lo, res.hi, res.p, float(q[i]), len(r["groups"]),
-                              agree, half_ok, w, verdict, dict(r["groups"]), tuple(reasons)))
+                              agree, half_ok, w, verdict, dict(r["groups"]), tuple(reasons),
+                              minimum_detectable_edge(res.n_case, res.n_ctrl, p.alpha)))
     return sorted(out, key=lambda s: (-abs(s.edge) if math.isfinite(s.edge) else 0.0, s.signal))
 
 
@@ -1126,3 +1138,280 @@ def step(state: WinnerState, records: Iterable[MoveRecord], now, identities: Ite
     controls = sum(1 for m in known if is_control(m, state.params))
     return WinnerReport(str(as_date(now)), tuple(fresh), tuple(wr.signal_stats), wr.magnitude, wr.timing, wr.rank, controls, pending,
                         matured, state.params.hash())
+
+
+# ==================================================================================================================
+# diagnostics that decide whether the studies above can be believed
+# ==================================================================================================================
+def control_balance(cases: Sequence[MoveRecord], controls: Sequence[MoveRecord], smd_max: float = 0.25) -> dict[str, Any]:
+    """Are the controls a fair comparison? Standardised mean difference of every market-context value and of prior return / expected
+    volatility between cases and controls, plus the share of cases whose decision week has any control. A signal AUC against controls
+    drawn from other weeks or other conditions measures the condition, not the signal."""
+    if not cases or not controls:
+        return {"balanced": False, "reason": "no cases or no controls", "smd": {}, "week_overlap": 0.0}
+
+    def col(recs, name):
+        if name.startswith("ctx:"):
+            k = name[4:]
+            return np.array([np.nan if _fin(m.context.get(k)) is None else float(m.context[k]) for m in recs], dtype=float)
+        return np.array([np.nan if getattr(m, name) is None else float(getattr(m, name)) for m in recs], dtype=float)
+
+    names = sorted({"ctx:" + k for m in list(cases) + list(controls) for k in m.context}) + ["prior_ret", "exp_vol"]
+    smd = {}
+    for n in names:
+        a, b = col(cases, n), col(controls, n)
+        a, b = a[np.isfinite(a)], b[np.isfinite(b)]
+        if len(a) < 5 or len(b) < 5:
+            continue
+        sd = math.sqrt((a.var(ddof=1) + b.var(ddof=1)) / 2.0)
+        smd[n] = float((a.mean() - b.mean()) / sd) if sd > 0 else 0.0
+    case_weeks = week_of([m.decided_at for m in cases])
+    ctrl_weeks = set(week_of([m.decided_at for m in controls]).tolist())
+    overlap = float(np.mean([int(w) in ctrl_weeks for w in case_weeks]))
+    bad = sorted(k for k, v in smd.items() if abs(v) > smd_max)
+    return {"balanced": not bad and overlap >= 0.9, "smd": smd, "imbalanced": bad, "week_overlap": overlap,
+            "case_weeks": len(set(case_weeks.tolist())), "control_weeks": len(ctrl_weeks)}
+
+
+def split_replication(cases: Sequence[MoveRecord], controls: Sequence[MoveRecord], p: ResearchParams | None = None,
+                      weights: Mapping[str, float] | None = None, cohort_dir: int = 1, seed: int = 0) -> dict[str, Any]:
+    """Do the signal effects replicate? Fit the study separately on the earlier and the later half of the cases (controls split at the
+    same date). Reports each signal's edge in both halves and the share of early-significant signals that keep their sign and
+    significance in the later half: the time-generalisation question, asked directly."""
+    p = p or ResearchParams()
+    if len(cases) < 2 * p.min_n or len(controls) < 2 * p.min_n:
+        return {"n_signals": 0, "n_early_significant": 0, "replication_rate": float("nan"), "signals": {},
+                "reason": "too few records to split"}
+    cut = float(np.median([as_date(m.decided_at).toordinal() for m in cases]))
+
+    def early(recs):
+        return [m for m in recs if as_date(m.decided_at).toordinal() <= cut]
+
+    def late(recs):
+        return [m for m in recs if as_date(m.decided_at).toordinal() > cut]
+
+    a = {s.signal: s for s in study_signals(early(cases), early(controls), p, weights, cohort_dir, seed)}
+    b = {s.signal: s for s in study_signals(late(cases), late(controls), p, weights, cohort_dir, seed + 1)}
+    out = {}
+    for name in sorted(set(a) & set(b)):
+        sa, sb = a[name], b[name]
+        sig_a = sa.q <= p.alpha and abs(sa.edge) >= p.min_edge
+        sig_b = sb.q <= p.alpha and abs(sb.edge) >= p.min_edge
+        out[name] = {"edge_early": sa.edge, "edge_late": sb.edge, "sig_early": bool(sig_a), "sig_late": bool(sig_b),
+                     "same_sign": _side(sa.edge) == _side(sb.edge),
+                     "replicates": bool(sig_a and sig_b and _side(sa.edge) == _side(sb.edge))}
+    first = [v for v in out.values() if v["sig_early"]]
+    return {"n_signals": len(out), "n_early_significant": len(first),
+            "replication_rate": float(np.mean([v["replicates"] for v in first])) if first else float("nan"), "signals": out}
+
+
+def tiered_signal_study(winners: Sequence[MoveRecord], controls: Sequence[MoveRecord], p: ResearchParams | None = None,
+                        weights: Mapping[str, float] | None = None, seed: int = 0) -> dict[str, Any]:
+    """Regular winners against extreme winners (|return| >= extreme_thr), each against the same controls. A signal informative only
+    for the extreme tier is a tail signal; one informative only for regular winners does not reach the tail. Extremes are few, so
+    an UNDERPOWERED tier is reported as such, never merged into the regular one."""
+    p = p or ResearchParams()
+    ext = [m for m in winners if m.ret >= p.extreme_thr]
+    reg = [m for m in winners if m.ret < p.extreme_thr]
+    res = {"regular": study_signals(reg, controls, p, weights, +1, seed), "extreme": study_signals(ext, controls, p, weights, +1, seed + 7)}
+    vr = {s.signal: s.verdict for s in res["regular"]}
+    ve = {s.signal: s.verdict for s in res["extreme"]}
+    tail_only = sorted(k for k in ve if ve[k] is SignalVerdict.INFORMATIVE and vr.get(k) is not SignalVerdict.INFORMATIVE)
+    body_only = sorted(k for k in vr if vr[k] is SignalVerdict.INFORMATIVE and ve.get(k) is not SignalVerdict.INFORMATIVE)
+    return {"n_regular": len(reg), "n_extreme": len(ext), "stats": res, "tail_only": tail_only, "body_only": body_only}
+
+
+def unconditional_magnitude(records: Sequence[MoveRecord], p: ResearchParams | None = None, seed: int = 0) -> PredictabilityStat:
+    """Magnitude predictability over EVERY record with an expected move - movers and non-movers alike. Studying only the names that
+    moved restricts the range of the outcome and understates how well size is predicted; conditioning on the outcome is the winner's
+    curse. This is the unconditioned companion of magnitude_predictability, and the two should be read together."""
+    p = p or ResearchParams()
+    st = magnitude_predictability(records, p, seed)
+    return PredictabilityStat("magnitude_all", st.n, st.rho, st.p, st.skill, st.verdict, st.detail)
+
+
+def winner_type(f: WinnerFinding) -> str:
+    """One label per winner: how it was won x why it moved. EARNED_* is a win the volatility model saw; LUCKY_* one it did not."""
+    return f"{f.detection.value}_{f.driver.value}"
+
+
+def type_table(findings: Sequence[WinnerFinding]) -> dict[str, dict[str, float]]:
+    out: dict[str, dict[str, float]] = {}
+    for t in sorted({winner_type(f) for f in findings}):
+        sub = [f for f in findings if winner_type(f) == t]
+        out[t] = {"n": len(sub), "share": len(sub) / len(findings), "mean_ret": float(np.mean([f.ret for f in sub])),
+                  "mean_severity": float(np.mean([f.severity for f in sub]))}
+    return out
+
+
+def audit_no_future(findings: Sequence[Any], now) -> list[str]:
+    """Every finding must have matured strictly before `now`; returns the violations (empty when clean)."""
+    bad = []
+    for f in findings:
+        try:
+            require_past(f.learned_at, now, f"finding {f.rid}")
+        except FirewallBreach as e:
+            bad.append(str(e))
+    return bad
+
+
+def manifest(params: ResearchParams, records: Iterable[MoveRecord], findings: Iterable[Any], seed: int, now) -> dict[str, Any]:
+    """Reproducibility stamp: hashes of parameters, the exact record set and the finding set, the code hash and the seed. Two runs
+    with the same manifest read the same inputs and, being deterministic, must write the same findings."""
+    recs = sorted(m.rid for m in records)
+    fnd = sorted(f.rid for f in findings)
+    return {"params": params.hash(), "records": stable_hash(recs), "findings": stable_hash(fnd), "n_records": len(recs),
+            "n_findings": len(fnd), "code": current_code_hash(), "seed": seed, "now": str(as_date(now))}
+
+
+# ==================================================================================================================
+# more of the winner questions, asked of losers with the very same code (symmetry by construction)
+# ==================================================================================================================
+class PathShape(_StrEnum):
+    JUMP_AND_HOLD = "JUMP_AND_HOLD"       # most of the move arrived in one day and stayed
+    SPIKE_AND_FADE = "SPIKE_AND_FADE"     # an excursion much larger than the end result: the exit question
+    DRIFT = "DRIFT"                       # no single day carried it
+    V_SHAPE = "V_SHAPE"                   # went the wrong way first, then finished in the direction of the move
+    UNKNOWN = "UNKNOWN"                   # path columns missing
+
+
+def path_shape(m: MoveRecord, p: ResearchParams | None = None) -> PathShape:
+    """Shape of the path to the end result, from the excursions and the largest day. Defined on the direction of the MOVE (up for
+    a winner, down for a loser) so that winners and losers are classified by one rule. The path decides whether an exit could have
+    kept the move (a spike that faded could, a jump that held could not)."""
+    p = p or ResearchParams()
+    if m.peak_ret is None or m.trough_ret is None:
+        return PathShape.UNKNOWN
+    sgn = 1.0 if m.ret >= 0 else -1.0
+    end = abs(m.ret)
+    favourable = m.peak_ret if sgn > 0 else -m.trough_ret
+    adverse = -m.trough_ret if sgn > 0 else m.peak_ret
+    if favourable >= 1.6 * max(end, 1e-9) and favourable - end >= 0.5 * p.win_thr:
+        return PathShape.SPIKE_AND_FADE
+    if adverse >= 0.5 * end and adverse >= 0.5 * p.win_thr:
+        return PathShape.V_SHAPE
+    jump = _fin(m.max_day_ret)
+    if jump is not None and sgn * jump >= p.event_share * end:
+        return PathShape.JUMP_AND_HOLD
+    return PathShape.DRIFT
+
+
+def path_table(records: Sequence[MoveRecord], p: ResearchParams | None = None) -> dict[str, dict[str, float]]:
+    """Path-shape mix for winners and for losers side by side: if losers spike-and-fade more often than winners, exits are the
+    losers' problem; if winners jump-and-hold, no exit changed them. One function for both, by construction."""
+    p = p or ResearchParams()
+    out: dict[str, dict[str, float]] = {}
+    for name, sel in (("winners", [m for m in records if m.is_winner(p)]), ("losers", [m for m in records if m.is_loser(p)])):
+        shapes = [path_shape(m, p) for m in sel]
+        n = len(shapes)
+        out[name] = {"n": float(n), **{s.value: (sum(1 for x in shapes if x is s) / n if n else float("nan")) for s in PathShape}}
+    return out
+
+
+def speed_profile(records: Sequence[MoveRecord], p: ResearchParams | None = None) -> dict[str, Any]:
+    """When in the horizon do the big days land for winners vs losers? Two-sample Kolmogorov-Smirnov on move_day / horizon. Losses
+    that come faster than gains leave less time to react; the exit design should know."""
+    p = p or ResearchParams()
+    def frac(sel):
+        return np.array([m.move_day / m.horizon_days for m in sel if m.move_day is not None], dtype=float)
+    w = frac([m for m in records if m.is_winner(p) and not m.is_loser(p)])
+    l = frac([m for m in records if m.is_loser(p)])
+    if len(w) < p.min_group_n or len(l) < p.min_group_n:
+        return {"n_winners": len(w), "n_losers": len(l), "verdict": Predictability.UNDERPOWERED.value}
+    ks = stats.ks_2samp(w, l)
+    return {"n_winners": len(w), "n_losers": len(l), "median_winners": float(np.median(w)), "median_losers": float(np.median(l)),
+            "ks": float(ks.statistic), "p": float(ks.pvalue),
+            "verdict": "LOSSES_FASTER" if ks.pvalue <= p.alpha and np.median(l) < np.median(w) else
+            "GAINS_FASTER" if ks.pvalue <= p.alpha else "NO_DIFFERENCE"}
+
+
+def signal_interactions(cases: Sequence[MoveRecord], controls: Sequence[MoveRecord], stats_: Sequence[SignalStat],
+                        p: ResearchParams | None = None, top: int = 6) -> list[dict[str, Any]]:
+    """Do two informative signals together do more than either alone? For the top informative pairs, the lift of the case rate when
+    BOTH are active over the better single lift, Fisher-tested on the both-active cell against controls, BH-controlled across pairs.
+    A pair that only ever fires together is reported as such (redundant), not as an interaction."""
+    p = p or ResearchParams()
+    inf = [s for s in stats_ if s.verdict is SignalVerdict.INFORMATIVE][:top]
+    if len(inf) < 2 or not cases or not controls:
+        return []
+    def act(recs, s):
+        sg = 1 if s.auc > 0.5 else -1
+        return np.array([(_fin(m.signals.get(s.signal)) is not None and sg * m.signals[s.signal] >= p.active_z) for m in recs])
+    rate = lambda a: (a.sum() + 0.5) / (len(a) + 1.0)
+    rows = []
+    for i in range(len(inf)):
+        for j in range(i + 1, len(inf)):
+            ac, bc, an, bn = act(cases, inf[i]), act(cases, inf[j]), act(controls, inf[i]), act(controls, inf[j])
+            both_c, both_n = ac & bc, an & bn
+            lift_both = rate(both_c) / rate(both_n)
+            lift_a, lift_b = rate(ac) / rate(an), rate(bc) / rate(bn)
+            table = [[int(both_c.sum()), int(len(both_c) - both_c.sum())], [int(both_n.sum()), int(len(both_n) - both_n.sum())]]
+            pv = float(stats.fisher_exact(table, alternative="greater")[1])
+            corr = float(np.corrcoef(np.concatenate([ac, an]).astype(float), np.concatenate([bc, bn]).astype(float))[0, 1]) \
+                if ac.std() > 0 and bc.std() > 0 else float("nan")
+            rows.append({"a": inf[i].signal, "b": inf[j].signal, "lift_both": float(lift_both), "lift_a": float(lift_a),
+                         "lift_b": float(lift_b), "synergy": float(lift_both / max(lift_a, lift_b)), "p": pv, "activation_corr": corr,
+                         "n_both": int(both_c.sum())})
+    q = bh_qvalues(np.array([r["p"] for r in rows]))
+    for r, qq in zip(rows, q):
+        r["q"] = float(qq)
+        r["kind"] = ("REDUNDANT" if math.isfinite(r["activation_corr"]) and r["activation_corr"] > 0.8 else
+                     "SYNERGY" if qq <= p.alpha and r["synergy"] >= 1.25 and r["n_both"] >= 5 else "NONE")
+    return sorted(rows, key=lambda r: (-r["synergy"], r["a"], r["b"]))
+
+
+def regime_stability(cases: Sequence[MoveRecord], controls: Sequence[MoveRecord], stats_: Sequence[SignalStat],
+                     context: str, p: ResearchParams | None = None, seed: int = 0) -> list[dict[str, Any]]:
+    """Does a signal's edge survive every market condition? Cases and controls are split by tercile of one context value (the
+    tercile edges come from the controls only) and each informative signal's AUC is recomputed inside each tercile. A signal that
+    flips sign, or vanishes, in a tercile is regime-bound and is reported as such (generalising across regimes, contract section 0)."""
+    p = p or ResearchParams()
+    cv = np.array([m.context[context] for m in controls if _fin(m.context.get(context)) is not None], dtype=float)
+    if len(cv) < 3 * p.min_group_n:
+        return []
+    edges = np.quantile(cv, [1 / 3, 2 / 3])
+    def bucket(m):
+        v = _fin(m.context.get(context))
+        return None if v is None else int(np.searchsorted(edges, v))
+    rows = []
+    for s in stats_:
+        if s.verdict not in (SignalVerdict.INFORMATIVE, SignalVerdict.NOT_GENERALISED):
+            continue
+        per = {}
+        for b in (0, 1, 2):
+            c = [m for m in cases if bucket(m) == b and _fin(m.signals.get(s.signal)) is not None]
+            n = [m for m in controls if bucket(m) == b and _fin(m.signals.get(s.signal)) is not None]
+            if len(c) < p.min_group_n or len(n) < p.min_group_n:
+                continue
+            r = stratified_auc(np.array([m.signals[s.signal] for m in c], dtype=float), week_of([m.decided_at for m in c]),
+                               np.array([m.signals[s.signal] for m in n], dtype=float), week_of([m.decided_at for m in n]),
+                               50, 10 ** 9, seed)
+            if r.pairs > 0:
+                per[b] = r.auc
+        held = [b for b, v in per.items() if _side(v - 0.5) == _side(s.auc - 0.5) and abs(v - 0.5) >= p.min_edge / 2]
+        rows.append({"signal": s.signal, "context": context, "auc_by_tercile": per, "n_terciles": len(per),
+                     "regime_bound": bool(len(per) >= 2 and len(held) < len(per)),
+                     "flips": bool(any(_side(v - 0.5) == -_side(s.auc - 0.5) for v in per.values()))})
+    return rows
+
+
+def probability_calibration(records: Sequence[MoveRecord], p: ResearchParams | None = None, bins: int = 5) -> dict[str, Any]:
+    """Is prob_move honest? Records are binned by the volatility model's probability and the realised rate of a meaningful move
+    (|ret| >= win_thr) is compared with the mean probability in the bin; also the Brier score against the base rate. This is the
+    'why did we detect it' question's quality control: a detector that is confidently wrong explains nothing."""
+    p = p or ResearchParams()
+    rows = [(m.prob_move, float(abs(m.ret) >= p.win_thr)) for m in records if m.prob_move is not None]
+    if len(rows) < bins * 5:
+        return {"n": len(rows), "verdict": Predictability.UNDERPOWERED.value}
+    pr, y = np.array([r[0] for r in rows]), np.array([r[1] for r in rows])
+    order = np.argsort(pr, kind="stable")
+    table = []
+    for chunk in np.array_split(order, bins):
+        table.append({"mean_prob": float(pr[chunk].mean()), "realised": float(y[chunk].mean()), "n": int(len(chunk))})
+    brier = float(np.mean((pr - y) ** 2))
+    base = float(np.mean((y.mean() - y) ** 2))
+    gap = float(np.mean([abs(t["mean_prob"] - t["realised"]) for t in table]))
+    slope = float(np.polyfit(pr, y, 1)[0]) if np.ptp(pr) > 0 else 0.0
+    return {"n": len(rows), "table": table, "brier": brier, "brier_base": base, "brier_skill": 1.0 - brier / base if base > 0 else None,
+            "mean_gap": gap, "slope": slope, "verdict": "CALIBRATED" if gap <= 0.05 and 0.6 <= slope <= 1.4 else
+            "OVERCONFIDENT" if slope < 0.6 else "MISCALIBRATED"}

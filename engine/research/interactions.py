@@ -39,7 +39,7 @@ from scipy import stats as sps
 
 from engine.antioverfit import permute_within_date, verify_walk_forward, walk_forward_splits
 from engine.learning import complexity as CX
-from engine.learning.core import (Epistemic, FirewallBreach, Provenance, _StrEnum, current_code_hash, require_past,
+from engine.learning.core import (Epistemic, FailureCause, FirewallBreach, Provenance, _StrEnum, current_code_hash, require_past,
                                   stable_hash)
 from engine.pattern_reliability import nw_t
 from engine.pattern_stats import bh_qvalues, bonferroni, by_qvalues, jaccard, t_to_p
@@ -71,6 +71,7 @@ class Fate(_StrEnum):
     INTERESTING_ONLY = "INTERESTING_ONLY"            # raw p < alpha_raw but expected from the number of combinations tried
     SURVIVED_CORRECTION = "SURVIVED_CORRECTION"      # passes the screen and shuffled controls, not yet through later stages
     REJECTED_COMPLEXITY = "REJECTED_COMPLEXITY"      # |t| below the bar its complexity units demand
+    REJECTED_CURVATURE = "REJECTED_CURVATURE"        # only curvature of a main effect / a dispersion-scaling artefact
     REJECTED_CROSS_YEAR = "REJECTED_CROSS_YEAR"
     REJECTED_VALIDATION = "REJECTED_VALIDATION"      # did not hold in the held-out window
     REJECTED_CROSS_STOCK = "REJECTED_CROSS_STOCK"
@@ -81,7 +82,7 @@ class Fate(_StrEnum):
     VALIDATED = "VALIDATED"
 
 
-_TERMINAL_REJECTIONS = frozenset({Fate.REJECTED_COMPLEXITY, Fate.REJECTED_CROSS_YEAR, Fate.REJECTED_VALIDATION,
+_TERMINAL_REJECTIONS = frozenset({Fate.REJECTED_COMPLEXITY, Fate.REJECTED_CURVATURE, Fate.REJECTED_CROSS_YEAR, Fate.REJECTED_VALIDATION,
                                   Fate.REJECTED_CROSS_STOCK, Fate.REJECTED_SEEDS, Fate.REJECTED_OOS_COMPLEXITY,
                                   Fate.REJECTED_HOLDOUT})
 
@@ -115,6 +116,9 @@ class SearchConfig:
     dispersion_control: bool = True        # slopes are divided by the date's cross-sectional sd of y (vol-scaling confound)
     overlap_max: float = 0.9               # two binary atoms overlapping more than this are one atom
     min_atom_freq: float = 0.01
+    max_atom_corr: float = 0.95            # two continuous atoms this correlated are one atom: their product only measures curvature
+    min_retention: float = 0.4             # share of the discovery t the effect must keep under the curvature/scaling control
+    leak_corr: float = 0.5                 # per-date correlation with the label above which an atom is treated as a leak
     base_seed: int = 7
     complexity: CX.ComplexityConfig = CX.DEFAULT_CCFG
 
@@ -133,6 +137,8 @@ class SearchConfig:
                      "min_group_agree", "min_year_agree", "min_wf_agree"):
             if not 0.0 < getattr(self, name) < 1.0:
                 errs.append(f"{name} outside (0,1)")
+        if not 0.0 <= self.min_retention < 1.0 or not 0.0 < self.leak_corr <= 1.0:
+            errs.append("min_retention / leak_corr out of range")
         if self.n_shuffles < 10:
             errs.append("n_shuffles < 10 cannot resolve a family-wise p at 0.10")
         if self.n_fresh_seeds < 3 or self.n_stock_groups < 2 or self.min_names < 3:
@@ -397,6 +403,7 @@ class Panel:
     dropped_unmatured: int = 0
     data_key: str = ""
     last_date: str = ""
+    z_atoms: dict = dc.field(default_factory=dict)      # winsorised per-date z-scores (the alternative transform)
 
     def __post_init__(self) -> None:
         if len(self.date_pos):
@@ -416,14 +423,16 @@ class Panel:
         m = np.asarray(mask, bool)
         return Panel(self.all_dates, self.date_pos[m], self.tcode[m], self.tnames, self.tgroup, self.y[m],
                      {k: v[m] for k, v in self.row_atoms.items()}, self.date_atoms, self.meta, self.horizon,
-                     self.dropped_unmatured, self.data_key, self.last_date)
+                     self.dropped_unmatured, self.data_key, self.last_date,
+                     {k: v[m] for k, v in self.z_atoms.items()})
 
     def window(self, lo: int, hi: int) -> "Panel":
         return self.select((self.date_pos >= lo) & (self.date_pos < hi))
 
     def with_y(self, y: np.ndarray) -> "Panel":
         out = Panel(self.all_dates, self.date_pos, self.tcode, self.tnames, self.tgroup, np.asarray(y, float),
-                    self.row_atoms, self.date_atoms, self.meta, self.horizon, self.dropped_unmatured, self.data_key, self.last_date)
+                    self.row_atoms, self.date_atoms, self.meta, self.horizon, self.dropped_unmatured, self.data_key, self.last_date,
+                    self.z_atoms)
         return out
 
     def by_role(self) -> dict[str, list[str]]:
@@ -490,6 +499,7 @@ def prepare(inp: InteractionInputs, now, cfg: SearchConfig) -> Panel:
     tcode, tnames = pd.factorize(tick)
     roles = {r: tuple(c) for r, c in (inp.roles if inp.roles is not None else infer_roles(Xk.columns)).items()}
     row_atoms: dict[str, np.ndarray] = {}
+    z_atoms: dict[str, np.ndarray] = {}
     date_atoms: dict[str, np.ndarray] = {}
     meta: dict[str, Atom] = {}
     for role, cols in roles.items():
@@ -507,6 +517,8 @@ def prepare(inp: InteractionInputs, now, cfg: SearchConfig) -> Panel:
             else:
                 v = _rank_centered(s)
                 if v.std() > 1e-9:
+                    g = s.groupby(level=0)
+                    z_atoms[c] = ((s - g.transform("mean")) / g.transform("std").replace(0.0, np.nan)).clip(-3, 3).fillna(0.0).to_numpy(float)
                     row_atoms[c] = v
                     meta[c] = Atom(c, role, "cont", "row")
     for role, frame in (("pattern", inp.masks), ("event", inp.events)):
@@ -519,7 +531,7 @@ def prepare(inp: InteractionInputs, now, cfg: SearchConfig) -> Panel:
                     and role == "event":
                 raise InteractionError(f"column {c!r} is both a pattern mask and an event flag")
             if cfg.min_atom_freq <= v.mean() <= 1 - cfg.min_atom_freq:
-                row_atoms[str(c)] = v
+                row_atoms[str(c)] = z_atoms[str(c)] = v
                 meta[str(c)] = Atom(str(c), role, "bin", "row")
     if inp.regimes is not None:
         lab = pd.Series(inp.regimes).copy()
@@ -534,7 +546,7 @@ def prepare(inp: InteractionInputs, now, cfg: SearchConfig) -> Panel:
     key = stable_hash({"first": str(all_dates[0]), "atoms": sorted(meta), "h": cfg.horizon}, 12)
     groups = stock_groups(list(tnames), cfg.n_stock_groups, inp.sectors)
     return Panel(all_dates.to_numpy(), dpos.astype(np.int64), tcode.astype(np.int64), np.asarray(tnames, dtype=object),
-                 groups, yk.to_numpy(float), row_atoms, date_atoms, meta, cfg.horizon, dropped, key, str(dates.max())[:10])
+                 groups, yk.to_numpy(float), row_atoms, date_atoms, meta, cfg.horizon, dropped, key, str(dates.max())[:10], z_atoms)
 
 
 @dc.dataclass(frozen=True)
@@ -568,6 +580,16 @@ def split_windows(n_dates: int, cfg: SearchConfig) -> Windows:
     if bad:
         raise InteractionError("; ".join(bad))
     return w
+
+
+def atom_correlation(P: Panel, a: str, b: str) -> float:
+    """Mean over dates of the cross-sectional correlation between two row atoms."""
+    ac, bc = _center(P.row_atoms[a], P), _center(P.row_atoms[b], P)
+    saa, sbb = np.add.reduceat(ac * ac, P.starts), np.add.reduceat(bc * bc, P.starts)
+    ok = (saa > 1e-12) & (sbb > 1e-12) & (P.counts >= 5)
+    if not ok.any():
+        return 0.0
+    return float(np.mean(np.add.reduceat(ac * bc, P.starts)[ok] / np.sqrt(saa[ok] * sbb[ok])))
 
 
 # ---------------------------------------------------------------------------------------------------- enumerating trials
@@ -620,6 +642,11 @@ def enumerate_trials(P: Panel, cfg: SearchConfig, seeds: SeedLedger | None = Non
                 for q in cfg.quantiles:
                     add(fam.name, a, b, Form.CORNER_H, q, "cont*bin")
             else:
+                rho = atom_correlation(P, a, b)
+                if abs(rho) > cfg.max_atom_corr:
+                    skipped.append({"family": fam.name, "a": a, "b": b,
+                                    "reason": f"atoms are collinear (mean per-date corr {rho:+.2f}): their product is a curvature proxy"})
+                    continue
                 add(fam.name, a, b, Form.PRODUCT, 0.0, "cont*cont")
                 for q in cfg.quantiles:
                     add(fam.name, a, b, Form.CORNER_HH, q, "cont*cont")
@@ -1031,15 +1058,515 @@ def oos_compare(Pd: Panel, Pv: Panel, tr: Trial, cfg: SearchConfig) -> dict:
     cand_s = CX.Candidate(tr.simple_spec(), series["simple"][0], folds, series["simple"][1])
     cand_c = CX.Candidate(tr.spec(), series["full"][0], folds, series["full"][1])
     v = CX.compare(cand_s, cand_c, cfg.complexity)
-    return {"verdict": str(v.verdict), "gain": v.gain, "gain_t": v.gain_t, "t_required": v.t_required,
+    ps, pc = downside_profile(series["simple"][0]), downside_profile(series["full"][0])
+    return {"tail_change": pc["worst5"] - ps["worst5"], "dd_change": pc["max_dd"] - ps["max_dd"],
+            "verdict": str(v.verdict), "gain": v.gain, "gain_t": v.gain_t, "t_required": v.t_required,
             "transfer": v.transfer, "delta_units": v.delta_units, "n": v.n, "reasons": list(v.reasons),
             "usable": v.verdict != CX.Verdict.NEED_DATA, "pass": v.verdict == CX.Verdict.COMPLEX}
+
+
+# ---------------------------------------------------------------------------------------------------- spurious-interaction controls
+def curvature_check(P: Panel, tr: Trial, cfg: SearchConfig) -> dict:
+    """Is the 'interaction' only curvature or a scaling artefact? Two atoms that are correlated make a*b a proxy for a**2 or
+    b**2, so a purely non-linear main effect looks like an interaction. Row-level forms are re-estimated with the squared
+    continuous atoms added as controls. A market-level covariate can move the slope simply because it moves the dispersion of
+    y, so a MODULATION trial is re-estimated with the dispersion control flipped. Either way the effect has to survive."""
+    if tr.form is Form.MODULATION:
+        st = trial_stat(P, tr, dc.replace(cfg, dispersion_control=not cfg.dispersion_control))
+        return {"kind": "scaling", "t": st.t, "beta": st.beta, "n": st.n}
+    cols = [P.row_atoms[tr.a], P.row_atoms[tr.b]]
+    for name in (tr.a, tr.b):
+        if P.meta[name].kind == "cont":
+            cols.append(P.row_atoms[name] ** 2)
+    pos, v = fm_series(P, cols, _term(P, tr), cfg)
+    st = series_stat(TrialSeries(pos, v), cfg.lags)
+    return {"kind": "curvature", "t": st.t, "beta": st.beta, "n": st.n}
+
+
+def leak_tripwires(P: Panel, corr_limit: float = 0.5, date_corr_limit: float = 0.9) -> list[dict]:
+    """A feature that tracks the forward label is a leak, not a discovery. Row atoms whose per-date correlation with y averages
+    above `corr_limit`, and market-level atoms whose correlation with the date-mean of y exceeds `date_corr_limit`, are
+    reported. Real predictors sit near 0.02-0.05; nothing legitimate reaches these limits."""
+    out = []
+    if P.n_rows == 0:
+        return out
+    yc = _center(P.y, P)
+    syy = np.add.reduceat(yc * yc, P.starts)
+    for name, v in P.row_atoms.items():
+        vc = _center(v, P)
+        svv = np.add.reduceat(vc * vc, P.starts)
+        ok = (svv > 1e-12) & (syy > 1e-18) & (P.counts >= 5)
+        if ok.sum() < 10:
+            continue
+        rho = float(np.mean(np.add.reduceat(vc * yc, P.starts)[ok] / np.sqrt(svv[ok] * syy[ok])))
+        if abs(rho) > corr_limit:
+            out.append({"atom": name, "level": "row", "corr": rho})
+    if len(P.upos) >= 60:
+        ymean = np.add.reduceat(P.y, P.starts) / P.counts
+        for name, v in P.date_atoms.items():
+            z = v[P.upos]
+            if z.std() > 1e-12 and ymean.std() > 1e-12:
+                rho = float(np.corrcoef(z, ymean)[0, 1])
+                if abs(rho) > date_corr_limit:
+                    out.append({"atom": name, "level": "date", "corr": rho})
+    return out
+
+
+# ---------------------------------------------------------------------------------------------------- understanding a survivor
+def _levels(values: np.ndarray, kind: str, bins: int) -> tuple[np.ndarray, int]:
+    if kind == "bin":
+        return (values > 0.5).astype(np.int64), 2
+    edges = np.quantile(values, np.linspace(0, 1, bins + 1)[1:-1])
+    return np.searchsorted(edges, values, side="right").astype(np.int64), bins
+
+
+def interaction_surface(P: Panel, tr: Trial, cfg: SearchConfig, bins: int = 3) -> dict:
+    """The conditional-mean surface behind an interaction: per-date mean outcome (after removing the date's average) in each
+    cell of a x b, averaged over dates with a Newey-West t. Returns the cell table, the residual of the best ADDITIVE fit (what
+    the interaction adds) and a shape label: additive / multiplicative / corner / mixed."""
+    a_kind, b_kind = P.meta[tr.a].kind, P.meta[tr.b].kind
+    a_val = P.row_atoms[tr.a]
+    b_val = P.date_atoms[tr.b][P.date_pos] if P.meta[tr.b].level == "date" else P.row_atoms[tr.b]
+    la, na = _levels(a_val, a_kind, bins)
+    lb, nb = _levels(b_val, b_kind, bins)
+    yc = _center(P.y, P)
+    grid = np.full((na, nb), np.nan)
+    rows = []
+    for i in range(na):
+        for j in range(nb):
+            m = ((la == i) & (lb == j)).astype(float)
+            cnt = np.add.reduceat(m, P.starts)
+            per = np.add.reduceat(m * yc, P.starts) / np.where(cnt > 0, cnt, 1.0)
+            ok = cnt >= 2
+            if ok.sum() < 10:
+                rows.append({"a_level": i, "b_level": j, "n_rows": int(m.sum()), "mean": float("nan"), "t": float("nan")})
+                continue
+            grid[i, j] = float(per[ok].mean())
+            rows.append({"a_level": i, "b_level": j, "n_rows": int(m.sum()), "mean": grid[i, j], "t": nw_t(per[ok], lags=cfg.lags)})
+    table = pd.DataFrame(rows)
+    if np.isnan(grid).any():
+        return {"cells": table, "residual": None, "shape": "unresolved", "contrast": float("nan")}
+    fit = grid.mean(1, keepdims=True) + grid.mean(0, keepdims=True) - grid.mean()
+    resid = grid - fit
+    contrast = float(grid[-1, -1] - grid[-1, 0] - grid[0, -1] + grid[0, 0])
+    total = float((resid ** 2).sum())
+    if total < 1e-14 or float(np.abs(resid).max()) < 0.05 * max(float(np.abs(grid).max()), 1e-12):
+        shape = "additive"
+    else:
+        prod = np.outer(np.arange(na) - (na - 1) / 2, np.arange(nb) - (nb - 1) / 2)
+        cos = float((resid * prod).sum() / (math.sqrt(total) * math.sqrt(float((prod ** 2).sum())) + 1e-30))
+        peak = float((resid ** 2).max() / total)
+        shape = "multiplicative" if abs(cos) > 0.85 else ("corner" if peak > 0.5 else "mixed")
+    return {"cells": table, "residual": resid, "shape": shape, "contrast": contrast}
+
+
+def describe(tr: Trial, surface: Mapping[str, Any]) -> str:
+    """One identity-free sentence about what the interaction does, from the surface (never from a ticker or a date)."""
+    shape, contrast = surface.get("shape", "unresolved"), surface.get("contrast", float("nan"))
+    if shape in ("unresolved", "additive") or not math.isfinite(contrast):
+        return f"{tr.a} and {tr.b}: no distinct interaction surface could be resolved ({shape})."
+    direction = "reinforces" if contrast > 0 else "offsets"
+    where = "when both are high" if tr.form in (Form.CORNER_HH, Form.CORNER_H) else "across the whole range"
+    return (f"{tr.a} {direction} the payoff of {tr.b} {where}; the surface is {shape} "
+            f"(high-high minus mixed minus low-low contrast {contrast:+.4f}).")
+
+
+def redundancy_clusters(series: Mapping[str, TrialSeries], threshold: float = 0.6) -> dict:
+    """Group survivors that are the same effect seen through different forms (a product, its high-high corner, its high-low
+    corner). Each trial's per-date contribution (the coefficient, or slope-deviation times covariate) is correlated on shared
+    dates; components of the |corr| > threshold graph are one cluster. n_effective is the participation ratio of the
+    correlation matrix: how many INDEPENDENT effects the survivors amount to."""
+    ids = list(series)
+    if not ids:
+        return {"clusters": [], "n_effective": 0.0}
+    cols = {}
+    for k, ts in series.items():
+        contrib = ts.v if ts.z is None else (ts.v - ts.v.mean()) * ts.z
+        cols[k] = pd.Series(contrib, index=ts.pos)
+    frame = pd.DataFrame(cols).dropna()
+    parent = {k: k for k in ids}
+
+    def find(x: str) -> str:
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+    if len(frame) >= 10 and len(ids) > 1:
+        corr = frame.corr().to_numpy()
+        for i in range(len(ids)):
+            for j in range(i + 1, len(ids)):
+                if abs(corr[i, j]) > threshold:
+                    parent[find(ids[i])] = find(ids[j])
+        eig = np.clip(np.linalg.eigvalsh(np.nan_to_num(corr)), 0, None)
+        n_eff = float(eig.sum() ** 2 / (eig ** 2).sum()) if (eig ** 2).sum() > 0 else float(len(ids))
+    else:
+        n_eff = float(len(ids))
+    groups: dict[str, list[str]] = {}
+    for k in ids:
+        groups.setdefault(find(k), []).append(k)
+    return {"clusters": [tuple(sorted(g)) for g in groups.values()], "n_effective": n_eff}
+
+
+def shrink_effects(works: Sequence[Any]) -> dict[str, float]:
+    """Empirical-Bayes shrinkage (engine.pattern_stats.eb_shrink) of every trial's discovery coefficient toward zero, within
+    each functional form (a product coefficient and a corner coefficient are on different scales). The winner's curse: the
+    surviving effects are the luckiest draws of the search, and the shrinkage is estimated from the whole search, so a search
+    that returned mostly noise shrinks its survivors hard."""
+    from engine.pattern_stats import eb_shrink
+    out: dict[str, float] = {}
+    by_form: dict[str, list] = {}
+    for w in works:
+        if w.disc.ok and w.disc.se > 0:
+            by_form.setdefault(str(w.trial.form), []).append(w)
+    for group in by_form.values():
+        res = eb_shrink([w.disc.beta for w in group], [w.disc.se for w in group], center=0.0)
+        for w, post in zip(group, res["post_mean"]):
+            out[w.trial.trial_id] = float(post)
+    return out
+
+
+def passed_correction(f: Any) -> bool:
+    """True when the finding got through the multiple-testing screens (whatever happened to it afterwards)."""
+    return f.fate in (Fate.SURVIVED_CORRECTION, Fate.VALIDATED, Fate.NEEDS_MORE_EVIDENCE) and f.stage is not Stage.CHEAP_SCREEN         or (f.fate in _TERMINAL_REJECTIONS and f.fate is not Fate.REJECTED_COMPLEXITY)
+
+
+def family_table(findings: Sequence[Any], alpha: float = 0.05) -> pd.DataFrame:
+    """Per family: how many combinations were tried, how many raw hits chance alone predicts, how many came, how many
+    survived correction and validation, and whether the family's raw hits beat chance (binomial)."""
+    rows = []
+    fams = sorted({f.trial.family for f in findings})
+    for fam in fams:
+        fs = [f for f in findings if f.trial.family == fam]
+        raw = sum(1 for f in fs if f.stats.get("disc_p", 1.0) < alpha)
+        rows.append({"family": fam, "tried": len(fs), "expected_raw": len(fs) * alpha, "raw_hits": raw,
+                     "hits_vs_chance_p": float(sps.binom.sf(raw - 1, len(fs), alpha)) if raw else 1.0,
+                     "survived": sum(1 for f in fs if passed_correction(f)),
+                     "validated": sum(1 for f in fs if f.fate is Fate.VALIDATED),
+                     "best_abs_t": max((abs(f.stats.get("disc_t", 0.0) or 0.0) for f in fs), default=0.0)})
+    return pd.DataFrame(rows, columns=["family", "tried", "expected_raw", "raw_hits", "hits_vs_chance_p", "survived",
+                                       "validated", "best_abs_t"])
+
+
+# ---------------------------------------------------------------------------------------------------- planted effects and power
+def plant_interaction(P: Panel, tr: Trial, size: float) -> Panel:
+    """A copy of P whose outcome carries a KNOWN interaction of the trial's form: `size` date-dispersions of y per one
+    standard deviation of the standardised term. Used to measure what the pipeline can and cannot detect."""
+    yc = _center(P.y, P)
+    sd_row = np.repeat(_dispersion(P, yc), P.counts)
+    if tr.form is Form.MODULATION:
+        z = P.date_atoms[tr.b][P.date_pos].astype(float)
+        if P.meta[tr.b].kind == "cont":
+            z = (z - z.mean()) / (z.std() or 1.0)
+        term = _center(P.row_atoms[tr.a], P) * z
+    else:
+        term = _term(P, tr)
+    term = _center(term, P)
+    term = term / (float(term.std()) or 1.0)
+    return P.with_y(P.y + size * sd_row * term)
+
+
+def detection_curve(P: Panel, tr: Trial, sizes: Sequence[float], cfg: SearchConfig, m_total: int, reps: int,
+                    seeds: SeedLedger, run_key: Any = "power") -> pd.DataFrame:
+    """Power of the cheapest gate (|t| above the Bonferroni bar for m_total combinations, correct sign) as a function of the
+    planted size. Noise is the panel's own outcomes permuted within date, redrawn with a fresh seed each repetition, so the
+    curve says how large an interaction must be before this search - at this many combinations - could see it at all."""
+    bar = detectable_t(m_total, cfg.alpha_raw)
+    rows = []
+    for size in sizes:
+        ts_ = []
+        for r in range(reps):
+            rng = seeds.rng("power", (run_key, tr.trial_id, float(size), r))
+            base = P.with_y(permute_within_date(P.y, P.date_pos, rng))
+            ts_.append(trial_stat(plant_interaction(base, tr, size), tr, cfg).t)
+        arr = np.array([t for t in ts_ if math.isfinite(t)])
+        rows.append({"size": float(size), "power": float(np.mean(arr >= bar)) if len(arr) else float("nan"),
+                     "false_sign": float(np.mean(arr <= -bar)) if len(arr) else float("nan"),
+                     "median_t": float(np.median(arr)) if len(arr) else float("nan"), "bar": bar, "reps": int(len(arr))})
+    return pd.DataFrame(rows)
+
+
+def minimum_detectable_size(curve: pd.DataFrame, power: float = 0.8) -> float:
+    """Smallest planted size with the requested power, interpolated linearly between the two bracketing sizes; NaN when the
+    curve never reaches it (the search is blind at every size tried)."""
+    c = curve.dropna(subset=["power"]).sort_values("size")
+    hit = c[c["power"] >= power]
+    if hit.empty:
+        return float("nan")
+    first = hit.iloc[0]
+    below = c[c["size"] < first["size"]]
+    if below.empty:
+        return float(first["size"])
+    last = below.iloc[-1]
+    span = first["power"] - last["power"]
+    return float(first["size"]) if span <= 0 else float(last["size"] + (power - last["power"]) / span * (first["size"] - last["size"]))
+
+
+# ---------------------------------------------------------------------------------------------------- planning the search
+@dc.dataclass(frozen=True)
+class SearchPlan:
+    available: Mapping[str, int]
+    planned: Mapping[str, int]
+    budget: int | None
+    weights: Mapping[str, float]
+    expected_false_hits: float
+    bonferroni_t: float
+    est_seconds: float
+
+    @property
+    def truncated(self) -> bool:
+        return sum(self.planned.values()) < sum(self.available.values())
+
+
+def family_weights(history: Sequence[Mapping[str, Any]], families: Sequence[str], floor: float = 0.05) -> dict[str, float]:
+    """Budget shares from what each family has yielded before: (validated + 1) / (tried + 2), normalised, with a floor share
+    so no family is starved (a family that has never worked may still be the one that does)."""
+    tried = {f: 0 for f in families}
+    won = {f: 0 for f in families}
+    for h in history:
+        for f, (t, v) in (h.get("by_family") or {}).items():
+            if f in tried:
+                tried[f] += int(t)
+                won[f] += int(v)
+    raw = {f: (won[f] + 1.0) / (tried[f] + 2.0) for f in families}
+    total = sum(raw.values()) or 1.0
+    w = {f: max(floor, raw[f] / total) for f in families}
+    scale = sum(w.values())
+    return {f: v / scale for f, v in w.items()}
+
+
+def plan_search(trials: Sequence[Trial], cfg: SearchConfig, budget: int | None = None,
+                history: Sequence[Mapping[str, Any]] = (), secs_per_trial: float = 0.04) -> SearchPlan:
+    """How big is the space, how many combinations will be tried, and what does that do to the bar? With a budget the
+    combinations are shared out across families by yield history (water-filling: a family that runs out gives its leftover to
+    the others)."""
+    avail: dict[str, int] = {}
+    for t in trials:
+        avail[t.family] = avail.get(t.family, 0) + 1
+    fams = sorted(avail)
+    weights = family_weights(history, fams) if fams else {}
+    planned = dict(avail)
+    if budget is not None and sum(avail.values()) > budget:
+        planned = {f: 0 for f in fams}
+        left, open_f = int(budget), set(fams)
+        while left > 0 and open_f:
+            wsum = sum(weights[f] for f in open_f)
+            gave = 0
+            for f in sorted(open_f):
+                take = min(avail[f] - planned[f], max(1, int(round(left * weights[f] / wsum))))
+                take = min(take, left - gave)
+                planned[f] += take
+                gave += take
+                if planned[f] >= avail[f]:
+                    open_f.discard(f)
+                if gave >= left:
+                    break
+            if gave == 0:
+                break
+            left -= gave
+    n = sum(planned.values())
+    return SearchPlan(avail, planned, budget, weights, n * cfg.alpha_raw, detectable_t(max(n, 1), cfg.alpha_raw),
+                      n * secs_per_trial * (1 + cfg.n_shuffles))
+
+
+def restrict_trials(trials: Sequence[Trial], plan: SearchPlan, seeds: SeedLedger, run_key: Any) -> list[Trial]:
+    """Apply a plan: keep, per family, a seeded random subset of the planned size (order of the original list preserved)."""
+    keep: set[str] = set()
+    for fam, n in plan.planned.items():
+        ids = [t.trial_id for t in trials if t.family == fam]
+        if n >= len(ids):
+            keep.update(ids)
+        elif n > 0:
+            rng = seeds.rng("plan", (run_key, fam))
+            keep.update(ids[i] for i in rng.choice(len(ids), size=n, replace=False))
+    return [t for t in trials if t.trial_id in keep]
+
+
+# ---------------------------------------------------------------------------------------------------- watching a finding afterwards
+def monitor_finding(P: Panel, tr: Trial, sign: float, evidence_end: str, now, cfg: SearchConfig) -> dict:
+    """Replication on data that arrived AFTER the finding's evidence ended (P must be prepared with `now`, so labels are
+    matured). Status is about the finding, never about a decision: HOLDING / UNCONFIRMED / CONTRADICTED / INSUFFICIENT."""
+    require_past(pd.Timestamp(P.last_date), now, "monitor panel")
+    after = int(np.searchsorted(P.all_dates, np.datetime64(pd.Timestamp(evidence_end)), side="right"))
+    Pn = P.window(after, len(P.all_dates))
+    if Pn.n_dates < cfg.min_dates_window // 2:
+        return {"status": "INSUFFICIENT", "n_dates": Pn.n_dates, "t": float("nan")}
+    ts = trial_series(Pn, tr, cfg)
+    st = series_stat(ts, cfg.lags)
+    if not st.ok:
+        return {"status": "INSUFFICIENT", "n_dates": Pn.n_dates, "t": float("nan")}
+    contrib = ts.v if ts.z is None else (ts.v - ts.v.mean()) * ts.z
+    seq = always_valid_p(contrib[:: cfg.horizon])              # thinned to non-overlapping labels
+    direction = sign * st.beta
+    if seq["p"] <= 0.05 and direction > 0:
+        status = "HOLDING"
+    elif seq["p"] <= 0.05 and direction < 0:
+        status = "CONTRADICTED"
+    else:
+        status = "UNCONFIRMED"
+    signed = sign * st.t
+    return {"status": status, "n_dates": Pn.n_dates, "t": st.t, "signed_t": signed, "beta": st.beta,
+            "always_valid_p": seq["p"], "stop_at": seq["stop"]}
+
+
+# ---------------------------------------------------------------------------------------------------- robustness and health
+def transform_check(P: Panel, tr: Trial, cfg: SearchConfig) -> dict | None:
+    """The same interaction with the rank transform replaced by winsorised z-scores. A real interaction does not care how the
+    atoms were scaled; one that lives only in the rank product is usually an outlier or tie artefact. Corner forms are defined
+    on ranks and have no z-score twin (None)."""
+    if tr.form not in (Form.PRODUCT, Form.MODULATION):
+        return None
+    st = trial_stat(dc.replace(P, row_atoms=P.z_atoms), tr, cfg)
+    return {"t": st.t, "beta": st.beta, "n": st.n}
+
+
+def atom_health(P: Panel) -> pd.DataFrame:
+    """Per atom: how much of it carries information. Coverage is the share of non-neutral values, tie share the mean share of
+    a date's cross-section sharing a value with another name, stale share the fraction of market-level values unchanged from
+    the previous session. Discrete, stale or nearly-constant atoms make ranks and cell splits meaningless."""
+    rows = []
+    for name, v in P.row_atoms.items():
+        a = P.meta[name]
+        ties = float(1.0 - pd.Series(v).groupby(P.date_pos).nunique().mean() / max(P.counts.mean(), 1.0)) if a.kind == "cont" else 0.0
+        rows.append({"atom": name, "role": a.role, "level": "row", "kind": a.kind,
+                     "coverage": float(np.mean(np.abs(v) > 1e-12)) if a.kind == "cont" else float(v.mean()),
+                     "tie_share": ties, "stale_share": 0.0})
+    for name, v in P.date_atoms.items():
+        a = P.meta[name]
+        rows.append({"atom": name, "role": a.role, "level": "date", "kind": a.kind, "coverage": float(np.mean(v != 0)),
+                     "tie_share": 0.0, "stale_share": float(np.mean(v[1:] == v[:-1])) if len(v) > 1 else 1.0})
+    df = pd.DataFrame(rows, columns=["atom", "role", "level", "kind", "coverage", "tie_share", "stale_share"])
+    df["healthy"] = (df["coverage"] > 0.02) & (df["tie_share"] < 0.5) & (df["stale_share"] < 0.9)
+    return df
+
+
+def downside_profile(ret: pd.Series) -> dict:
+    """Return-and-risk summary of a per-date return series: mean, sd, hit rate, the average of the worst 5% of days and the
+    worst peak-to-trough fall of the cumulative return. The objective is transfer WITH controlled downside (section 43)."""
+    r = np.asarray(ret, float)
+    r = r[np.isfinite(r)]
+    if len(r) == 0:
+        return {"n": 0, "mean": float("nan"), "sd": float("nan"), "hit": float("nan"), "worst5": float("nan"), "max_dd": float("nan")}
+    k = max(1, int(math.ceil(0.05 * len(r))))
+    cum = np.cumsum(r)
+    return {"n": int(len(r)), "mean": float(r.mean()), "sd": float(r.std(ddof=1)) if len(r) > 1 else 0.0,
+            "hit": float((r > 0).mean()), "worst5": float(np.sort(r)[:k].mean()),
+            "max_dd": float((np.maximum.accumulate(cum) - cum).max())}
+
+
+def always_valid_p(x: Sequence[float], tau: float = 0.5, alpha: float = 0.05) -> dict:
+    """Mixture sequential probability ratio test (normal mixture, prior sd `tau` in units of the series' own sd) for 'mean is
+    zero'. The p-value path min_k 1/Lambda_k stays valid however often it is looked at, so a finding can be watched every day
+    without the repeated-look inflation an ordinary t-test would suffer. Returns the final p, the path and the first index
+    at which p <= alpha (None if never)."""
+    v = np.asarray(x, float)
+    v = v[np.isfinite(v)]
+    n = len(v)
+    if n < 5 or v.std(ddof=1) <= 1e-15:
+        return {"p": 1.0, "path": np.ones(n), "stop": None, "n": n}
+    z = v / v.std(ddof=1)
+    k = np.arange(1, n + 1)
+    s = np.cumsum(z)
+    log_lam = -0.5 * np.log1p(k * tau ** 2) + (tau ** 2) * s ** 2 / (2.0 * (1.0 + k * tau ** 2))
+    path = np.minimum.accumulate(np.minimum(1.0, np.exp(-log_lam)))
+    hit = np.flatnonzero(path <= alpha)
+    return {"p": float(path[-1]), "path": path, "stop": int(hit[0]) if len(hit) else None, "n": n}
+
+
+def state_breakdown(P: Panel, tr: Trial, cfg: SearchConfig, parts: int = 3) -> dict | None:
+    """The interaction's t inside each tercile of the first market-level continuous atom (where does it work: calm, normal or
+    turbulent markets?). Informational, never a gate. None when the panel has no market-level continuous atom."""
+    names = [n for n, a in P.meta.items() if a.level == "date" and a.kind == "cont"]
+    if not names:
+        return None
+    name = sorted(names, key=lambda n: (P.meta[n].role != "market_vol", n))[0]
+    ts = trial_series(P, tr, cfg)
+    if len(ts) < 3 * 15:
+        return None
+    state = P.date_atoms[name][ts.pos]
+    edges = np.quantile(state, np.linspace(0, 1, parts + 1)[1:-1])
+    part = np.searchsorted(edges, state, side="right")
+    ts_ = []
+    for k in range(parts):
+        m = part == k
+        st = series_stat(TrialSeries(ts.pos[m], ts.v[m], None if ts.z is None else ts.z[m]), cfg.lags, min_n=15)
+        ts_.append(st.t)
+    return {"atom": name, "t_by_part": ts_}
+
+
+_FAILURE = {Fate.NOISE: FailureCause.UNKNOWN, Fate.INTERESTING_ONLY: FailureCause.FALSE_PATTERN,
+            Fate.REJECTED_COMPLEXITY: FailureCause.INSUFFICIENT_EVIDENCE, Fate.REJECTED_CURVATURE: FailureCause.MEASUREMENT_ERROR,
+            Fate.REJECTED_VALIDATION: FailureCause.SELECTION_ERROR, Fate.REJECTED_SEEDS: FailureCause.SELECTION_ERROR,
+            Fate.REJECTED_CROSS_STOCK: FailureCause.WRONG_CONTEXT, Fate.REJECTED_OOS_COMPLEXITY: FailureCause.REDUNDANCY,
+            Fate.REJECTED_HOLDOUT: FailureCause.SELECTION_ERROR, Fate.NEEDS_MORE_EVIDENCE: FailureCause.INSUFFICIENT_EVIDENCE}
+
+
+def explain_failure(f: Any) -> FailureCause | None:
+    """Map a fate to the section-9 vocabulary the learning brain teaches from. Cross-year rejections are a regime story when the
+    sign flips in a minority of years and a false pattern when it does not hold in most. VALIDATED has no failure."""
+    if f.fate is Fate.VALIDATED or f.fate is Fate.SURVIVED_CORRECTION:
+        return None
+    if f.fate is Fate.REJECTED_CROSS_YEAR:
+        agree = f.stats.get("cy_agree", float("nan"))
+        return FailureCause.REGIME_CHANGE if math.isfinite(agree) and 0.3 <= agree < 0.7 + 1e-9 else FailureCause.FALSE_PATTERN
+    return _FAILURE.get(f.fate, FailureCause.UNKNOWN)
+
+
+# ---------------------------------------------------------------------------------------------------- a planted world
+def synthetic_panel(n_dates: int = 700, n_tickers: int = 40, seed: int = 1, product: float = 0.06, regime: float = 0.02,
+                    curvature: float = 0.0, single_year: bool = False, leak: bool = False) -> tuple[InteractionInputs, pd.Timestamp]:
+    """A world whose interactions are KNOWN, for the planted-effect tests and for self_test(). `product` plants
+    rank(volume_ratio) x rank(atr_pct) (size in y units per unit rank product), `regime` makes pattern pat_a pay only in the
+    high-volatility regime, `curvature` plants a pure non-linear main effect on two correlated atoms (no interaction exists),
+    `single_year` confines the product to the first calendar year, `leak` adds a feature that IS the label."""
+    rng = np.random.default_rng(seed)
+    dates = pd.bdate_range("2015-01-01", periods=n_dates)
+    tick = [f"T{i:03d}" for i in range(n_tickers)]
+    idx = pd.MultiIndex.from_product([dates, tick], names=["date", "ticker"])
+    n = len(idx)
+    X = pd.DataFrame(index=idx)
+    for c in ("volume_ratio", "mom_20", "rev_5", "gap_pct", "sector_rel", "rs_20", "liq_dollar", "volat_10", "turnover_z"):
+        X[c] = rng.normal(size=n)
+    X["atr_pct"] = (0.9 * X["volume_ratio"] + 0.44 * rng.normal(size=n)) if curvature else rng.normal(size=n)
+    vix = np.cumsum(rng.normal(size=n_dates)) * 0.3
+    X["m_vix"] = np.repeat(vix, n_tickers)
+    masks = pd.DataFrame({f"pat_{k}": rng.random(n) < 0.15 for k in "abcd"}, index=idx)
+    events = pd.DataFrame({"ev_earn": rng.random(n) < 0.10, "ev_gap": rng.random(n) < 0.08}, index=idx)
+    high = vix > np.quantile(vix, 0.66)
+    reg = pd.Series(np.where(high, "high", np.where(vix < np.quantile(vix, 0.33), "low", "mid")), index=dates)
+    y = rng.normal(scale=0.03, size=n)
+
+    def rk(c: str) -> np.ndarray:
+        return X[c].groupby(level=0).rank(pct=True).to_numpy() - 0.5
+    gate = np.repeat((dates.year == dates.year[0]).astype(float), n_tickers) if single_year else 1.0
+    y = y + product * rk("volume_ratio") * rk("atr_pct") * gate
+    y = y + regime * masks["pat_a"].to_numpy() * np.repeat(high.astype(float), n_tickers)
+    if curvature:
+        y = y + curvature * rk("volume_ratio") ** 2
+    if leak:
+        X["gap_leak"] = y + rng.normal(scale=0.002, size=n)
+    return InteractionInputs(X, pd.Series(y, index=idx), 5, masks=masks, events=events, regimes=reg), dates[-1] + pd.Timedelta(days=1)
+
+
+def self_test(seed: int = 3, cfg: SearchConfig | None = None) -> dict:
+    """Health check for the search itself (section 37): on a world with a planted product interaction it must VALIDATE it, and
+    on the same world with nothing planted it must validate nothing. Anything else means the machinery is broken."""
+    cfg = cfg or SearchConfig()
+    planted, now = synthetic_panel(seed=seed)
+    null, _ = synthetic_panel(seed=seed + 100, product=0.0, regime=0.0)
+    rep_p = step(InteractionState(cfg.base_seed), planted, now, cfg)
+    rep_n = step(InteractionState(cfg.base_seed), null, now, cfg)
+    found = sorted(f.trial.text() for f in rep_p.validated())
+    hit = any(f.trial.a == "volume_ratio" and f.trial.b == "atr_pct" for f in rep_p.validated())
+    return {"planted_found": hit, "planted_validated": found, "null_validated": len(rep_n.validated()),
+            "null_verdict": rep_n.lottery.get("verdict"), "audit_errors": rep_p.audit() + rep_n.audit(),
+            "ok": bool(hit and not rep_n.validated() and not rep_p.audit() and not rep_n.audit())}
 
 
 # ---------------------------------------------------------------------------------------------------- findings and report
 _EPISTEMIC = {Fate.NOISE: Epistemic.UNKNOWN, Fate.INTERESTING_ONLY: Epistemic.HYPOTHESIS,
               Fate.SURVIVED_CORRECTION: Epistemic.HYPOTHESIS, Fate.NEEDS_MORE_EVIDENCE: Epistemic.HYPOTHESIS,
-              Fate.REJECTED_COMPLEXITY: Epistemic.HYPOTHESIS, Fate.REJECTED_CROSS_YEAR: Epistemic.HYPOTHESIS,
+              Fate.REJECTED_COMPLEXITY: Epistemic.HYPOTHESIS, Fate.REJECTED_CURVATURE: Epistemic.HYPOTHESIS,
+              Fate.REJECTED_CROSS_YEAR: Epistemic.HYPOTHESIS,
               Fate.REJECTED_OOS_COMPLEXITY: Epistemic.HYPOTHESIS, Fate.REJECTED_VALIDATION: Epistemic.CONTRADICTED,
               Fate.REJECTED_CROSS_STOCK: Epistemic.CONTRADICTED, Fate.REJECTED_SEEDS: Epistemic.CONTRADICTED,
               Fate.REJECTED_HOLDOUT: Epistemic.CONTRADICTED, Fate.VALIDATED: Epistemic.SUPPORTED}
@@ -1099,6 +1626,11 @@ class SearchReport:
     evidence_end: str
     config_hash: str
     notes: tuple[str, ...] = ()
+    clusters: tuple[tuple[str, ...], ...] = ()
+    n_effective: float = 0.0
+    families: tuple[Mapping[str, Any], ...] = ()
+    shrunk: Mapping[str, float] = dc.field(default_factory=dict)
+    tripwires: tuple[Mapping[str, Any], ...] = ()
 
     def by_fate(self) -> dict[str, int]:
         out: dict[str, int] = {}
@@ -1145,7 +1677,15 @@ def render_text(rep: SearchReport, top: int = 12) -> str:
     for f in ranked[:top]:
         lines.append(f"  {f.fate:<24} t={f.stats.get('disc_t', float('nan')):+.2f} q={f.stats.get('q', float('nan')):.3g} "
                      f"{f.trial.text()}")
-        lines.append(f"      {f.reasons[0]}")
+        lines.append(f"      {f.reasons[-1]}")
+    if rep.clusters:
+        multi = sum(1 for c in rep.clusters if len(c) > 1)
+        lines.append(f"{sum(len(c) for c in rep.clusters)} candidates carried past the screens form {len(rep.clusters)} clusters "
+                     f"({multi} with several forms of one effect); effective independent effects {rep.n_effective:.1f}")
+    for r in rep.families:
+        if r["raw_hits"] or r["validated"]:
+            lines.append(f"  family {r['family']}: tried {r['tried']}, raw hits {r['raw_hits']} (chance {r['expected_raw']:.1f}), "
+                         f"validated {r['validated']}")
     lines += [f"NOTE {n}" for n in rep.notes]
     return "\n".join(lines)
 
@@ -1179,7 +1719,7 @@ class _Work:
         self.reasons.append(reason)
 
     def freeze(self) -> Finding:
-        st = {"disc_beta": self.disc.beta, "disc_t": self.disc.t, "disc_p": self.disc.p, "q": self.q, "maxt_p": self.maxt_p}
+        st = {"disc_beta": self.disc.beta, "disc_se": self.disc.se, "disc_t": self.disc.t, "disc_p": self.disc.p, "q": self.q, "maxt_p": self.maxt_p}
         st.update(self.stats)
         return Finding(self.trial, self.fate, self.stage, self.units, st, tuple(self.reasons) or ("no reason recorded",))
 
@@ -1234,13 +1774,35 @@ def _screen(Pd: Panel, trials: Sequence[Trial], cfg: SearchConfig, state: Intera
 
 
 def _validate_survivors(P: Panel, win: Windows, works: list[_Work], cfg: SearchConfig, state: InteractionState,
-                        run_key: int) -> None:
-    """Stages CROSS_YEAR then FRESH_HOLDOUT for every _Work still SURVIVED_CORRECTION. Mutates the works."""
+                        run_key: int) -> dict[str, TrialSeries]:
+    """Stages CURVATURE control, CROSS_YEAR then FRESH_HOLDOUT for every _Work still SURVIVED_CORRECTION. Mutates the works and
+    returns the per-date series of every candidate that entered (for the redundancy clustering)."""
     live = [w for w in works if w.fate is Fate.SURVIVED_CORRECTION]
     if not live:
-        return
+        return {}
     Pdv = P.window(0, win.valid[1])
     series = {w.trial.trial_id: trial_series(Pdv, w.trial, cfg) for w in live}
+    Pdisc = P.window(*win.disc)
+    for w in live:
+        sign = _sgn(w.disc.beta)
+        cc = curvature_check(Pdisc, w.trial, cfg)
+        kept = sign * cc["t"] / abs(w.disc.t) if math.isfinite(cc["t"]) else float("nan")
+        w.stats.update(ctrl_t=cc["t"], ctrl_retention=kept)
+        if not math.isfinite(kept) or sign * cc["t"] < cfg.robust_t or kept < cfg.min_retention:
+            w.close(Fate.REJECTED_CURVATURE, Stage.STRONGER_TESTS,
+                    f"under the {cc['kind']} control t falls from {w.disc.t:.2f} to {cc['t']:.2f}: the 'interaction' is not "
+                    f"more than a non-linear main effect or a dispersion-scaling artefact")
+            continue
+        tc = transform_check(Pdisc, w.trial, cfg)
+        if tc is not None:
+            keep = sign * tc["t"] / abs(w.disc.t) if math.isfinite(tc["t"]) else float("nan")
+            w.stats.update(zscore_t=tc["t"], zscore_retention=keep)
+            if not math.isfinite(keep) or keep < cfg.min_retention:
+                w.close(Fate.REJECTED_CURVATURE, Stage.STRONGER_TESTS,
+                        f"with z-scores instead of ranks t falls from {w.disc.t:.2f} to {tc['t']:.2f}: the effect lives in "
+                        f"the rank transform (outliers or ties), not in the atoms")
+    live = [w for w in works if w.fate is Fate.SURVIVED_CORRECTION]
+    entered = dict(series)
     for w in live:
         sign = _sgn(w.disc.beta)
         ts = series[w.trial.trial_id]
@@ -1257,7 +1819,7 @@ def _validate_survivors(P: Panel, win: Windows, works: list[_Work], cfg: SearchC
             w.close(Fate.REJECTED_CROSS_YEAR, Stage.CROSS_YEAR, f"walk-forward agreement {wf['agree']:.0%} over {wf['n_folds']} purged folds")
     live = [w for w in works if w.fate is Fate.SURVIVED_CORRECTION]
     if not live:
-        return
+        return entered
     Pd, Pv = P.window(*win.disc), P.window(*win.valid)
     vstat = [trial_stat(Pv, w.trial, cfg) for w in live]
     signs = [_sgn(w.disc.beta) for w in live]
@@ -1291,13 +1853,15 @@ def _validate_survivors(P: Panel, win: Windows, works: list[_Work], cfg: SearchC
                     f"significant in {fs['pass_share']:.0%} of {fs['n_draws']} fresh stock/date draws (needs {cfg.seed_pass_frac:.0%})")
             continue
         oc = oos_compare(Pd, Pv, w.trial, cfg)
-        w.stats.update(oos_gain=oc["gain"], oos_gain_t=oc["gain_t"], oos_transfer=oc["transfer"])
+        w.stats.update(oos_gain=oc["gain"], oos_gain_t=oc["gain_t"], oos_transfer=oc["transfer"],
+                       oos_tail_change=oc["tail_change"], oos_dd_change=oc["dd_change"])
         if not oc["usable"]:
             w.close(Fate.NEEDS_MORE_EVIDENCE, Stage.FRESH_HOLDOUT, "too few out-of-sample periods to compare with the main-effects rule")
         elif not oc["pass"]:
             w.close(Fate.REJECTED_OOS_COMPLEXITY, Stage.FRESH_HOLDOUT,
                     f"out of sample the main-effects rule does as well ({oc['verdict']}): " + "; ".join(oc["reasons"][:1]))
     _holdout(P, win, [w for w in works if w.fate is Fate.SURVIVED_CORRECTION], cfg, state)
+    return entered
 
 
 def _holdout(P: Panel, win: Windows, live: list[_Work], cfg: SearchConfig, state: InteractionState) -> None:
@@ -1322,6 +1886,9 @@ def _holdout(P: Panel, win: Windows, live: list[_Work], cfg: SearchConfig, state
         p = min(1.0, one_sided_p(st.t, _sgn(w.disc.beta)) * m_cum)
         w.stats.update(hold_t=st.t if st.ok else float("nan"), hold_beta=st.beta, hold_p=p)
         if st.ok and p <= cfg.alpha_valid:
+            sb = state_breakdown(P.window(0, win.hold[1]), w.trial, cfg)
+            if sb is not None:
+                w.stats["state_min_signed_t"] = float(np.nanmin([_sgn(w.disc.beta) * t for t in sb["t_by_part"]]))
             w.close(Fate.VALIDATED, Stage.FRESH_HOLDOUT,
                     f"held-out, cross-year, cross-stock, fresh-seed and out-of-sample tests passed; fresh holdout t={st.t:.2f} "
                     f"(Bonferroni over {m_cum} holdout looks p={p:.3g})")
@@ -1331,7 +1898,7 @@ def _holdout(P: Panel, win: Windows, live: list[_Work], cfg: SearchConfig, state
 
 
 def step(state: InteractionState, inputs: InteractionInputs, now, cfg: SearchConfig | None = None,
-         families: Sequence[Family] = FAMILIES) -> SearchReport:
+         families: Sequence[Family] = FAMILIES, budget: int | None = None) -> SearchReport:
     """One interaction search on data strictly before `now`. Registers every tested combination, corrects against the
     cumulative count, and returns a SearchReport. Too little data returns an empty, explained report (never a guess)."""
     cfg = cfg or SearchConfig(horizon=inputs.horizon)
@@ -1347,9 +1914,16 @@ def step(state: InteractionState, inputs: InteractionInputs, now, cfg: SearchCon
     if P.all_dates.size < 3 * cfg.min_dates_window // 2 + 2 * (cfg.horizon + 1):
         state.ledger.runs += 1
         return empty_report(run_key, P.data_key, f"only {P.all_dates.size} matured sessions: below the minimum to hold out anything", chash)
+    leaks = leak_tripwires(P, cfg.leak_corr)
+    if leaks:
+        raise FirewallBreach("atom(s) track the forward label and cannot be searched: "
+                             + ", ".join(f"{d['atom']} (corr {d['corr']:+.2f})" for d in leaks))
     win = split_windows(int(P.all_dates.size), cfg)
     Pd = P.window(*win.disc)
     trials, skipped = enumerate_trials(P, cfg, state.seeds, run_key, families)
+    plan = plan_search(trials, cfg, budget, state.history) if budget else None
+    if plan is not None and plan.truncated:
+        trials = restrict_trials(trials, plan, state.seeds, run_key)
     if not trials:
         state.ledger.runs += 1
         return empty_report(run_key, P.data_key, "no testable combinations among the supplied atoms", chash)
@@ -1357,12 +1931,19 @@ def step(state: InteractionState, inputs: InteractionInputs, now, cfg: SearchCon
     works, control, pvals = _screen(Pd, trials, cfg, state, run_key, m_total)
     survivors = sum(1 for w in works if w.fate is Fate.SURVIVED_CORRECTION)
     lottery = lottery_diagnostic(pvals, m_total, survivors, cfg.alpha_raw)
-    _validate_survivors(P, win, works, cfg, state, run_key)
+    entered = _validate_survivors(P, win, works, cfg, state, run_key)
     lottery = {**lottery, "validated": sum(1 for w in works if w.fate is Fate.VALIDATED)}
     if lottery["validated"] == 0 and lottery["verdict"] == "SIGNAL":
         lottery["verdict"] = "SIGNAL_NOT_VALIDATED"
     findings = tuple(w.freeze() for w in works)
+    clus = redundancy_clusters({k: v for k, v in entered.items() if len(v)}) if entered else {"clusters": [], "n_effective": 0.0}
+    shrunk = {k: v for k, v in shrink_effects(works).items()
+              if any(f.trial.trial_id == k and passed_correction(f) for f in findings)}
+    fam_rows = family_table(findings, cfg.alpha_raw).to_dict("records")
     notes = []
+    if plan is not None and plan.truncated:
+        notes.append(f"budget {budget}: {sum(plan.planned.values())} of {sum(plan.available.values())} combinations tried; "
+                     f"the untested rest are not counted and not claimed")
     if state.ledger.repeats(P.data_key):
         notes.append(f"{state.ledger.repeats(P.data_key)} combinations were tried before on this data; the correction counts all {m_total}")
     if win.hold is None:
@@ -1372,9 +1953,11 @@ def step(state: InteractionState, inputs: InteractionInputs, now, cfg: SearchCon
     rep = SearchReport(run_key, P.data_key, len(trials), m_total, findings, tuple(skipped), lottery, control.summary(),
                        {"discovery_dates": Pd.n_dates, "validation_dates": win.valid[1] - win.valid[0],
                         "holdout_dates": 0 if win.hold is None else win.hold[1] - win.hold[0], "purge_gap": win.gap},
-                       P.dropped_unmatured, P.last_date, chash, tuple(notes))
+                       P.dropped_unmatured, P.last_date, chash, tuple(notes),
+                       tuple(clus["clusters"]), float(clus["n_effective"]), tuple(fam_rows), shrunk, ())
     state.history.append({"run": run_key, "data_key": P.data_key, "n_trials": len(trials), "m_total": m_total,
-                          "fates": rep.by_fate(), "verdict": lottery["verdict"]})
+                          "fates": rep.by_fate(), "verdict": lottery["verdict"],
+                          "by_family": {r["family"]: (r["tried"], r["validated"]) for r in fam_rows}})
     state.ledger.runs += 1
     return rep
 
@@ -1399,3 +1982,116 @@ def to_matured_records(rep: SearchReport, created_real: str, tickers: Iterable[s
         out.append(MaturedRecord("IR" + stable_hash({"t": f.trial.trial_id, "k": rep.data_key}, 12), rep.evidence_end,
                                  payload, prov))
     return out
+
+
+# ---------------------------------------------------------------------------------------------------- persistence and reports
+def _num(v: Any) -> Any:
+    if isinstance(v, (np.floating, float)):
+        return float(v) if math.isfinite(float(v)) else None
+    if isinstance(v, (np.integer,)):
+        return int(v)
+    return v
+
+
+def _clean(o: Any) -> Any:
+    if isinstance(o, Mapping):
+        return {str(k): _clean(v) for k, v in o.items()}
+    if isinstance(o, (list, tuple, set, frozenset)):
+        return [_clean(v) for v in o]
+    if isinstance(o, np.ndarray):
+        return _clean(o.tolist())
+    if isinstance(o, (_StrEnum,)):
+        return str(o)
+    return _num(o)
+
+
+def state_to_dict(state: InteractionState) -> dict:
+    return {"version": 1, "ledger": state.ledger.to_dict(),
+            "seeds": {"base": state.seeds.base, "pairs": sorted([p, k] for p, k in state.seeds._pairs),
+                      "used": {str(s): list(v) for s, v in state.seeds._used.items()}},
+            "vault": {k: sorted(v) for k, v in state.vault._opened.items()}, "history": _clean(state.history)}
+
+
+def state_from_dict(d: Mapping) -> InteractionState:
+    if int(d.get("version", 0)) != 1:
+        raise InteractionError(f"unknown state version {d.get('version')!r}")
+    st = InteractionState(int(d["seeds"]["base"]))
+    st.ledger = TrialLedger.from_dict(d["ledger"])
+    st.seeds._pairs = {(p, k) for p, k in d["seeds"]["pairs"]}
+    st.seeds._used = {int(s): (v[0], v[1]) for s, v in d["seeds"]["used"].items()}
+    st.vault._opened = {k: set(v) for k, v in d["vault"].items()}
+    st.history = list(d.get("history", []))
+    return st
+
+
+def save_state(state: InteractionState, path) -> str:
+    """Write the state atomically with a content hash. The ledger IS the multiple-testing count: losing it silently would let
+    a later search claim a smaller m than the truth, so a state file that fails its hash is refused on load."""
+    import json
+    import os
+    import pathlib
+    body = state_to_dict(state)
+    digest = stable_hash(body, 32)
+    path = pathlib.Path(path)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(json.dumps({"sha": digest, "state": body}, sort_keys=True), encoding="utf-8")
+    os.replace(tmp, path)
+    return digest
+
+
+def load_state(path) -> InteractionState:
+    import json
+    import pathlib
+    raw = json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
+    if "state" not in raw or stable_hash(raw["state"], 32) != raw.get("sha"):
+        raise InteractionError(f"{path}: state file failed its integrity hash (edited or truncated); refusing to load")
+    return state_from_dict(raw["state"])
+
+
+def report_to_dict(rep: SearchReport) -> dict:
+    return _clean({"run_no": rep.run_no, "data_key": rep.data_key, "n_trials": rep.n_trials, "m_total": rep.m_total,
+                   "lottery": rep.lottery, "control": rep.control, "windows": rep.windows,
+                   "dropped_unmatured": rep.dropped_unmatured, "evidence_end": rep.evidence_end,
+                   "config_hash": rep.config_hash, "notes": rep.notes, "clusters": rep.clusters,
+                   "n_effective": rep.n_effective, "families": rep.families, "shrunk": rep.shrunk,
+                   "skipped": rep.skipped, "fates": rep.by_fate(),
+                   "findings": [{"trial": {"id": f.trial.trial_id, "family": f.trial.family, "a": f.trial.a, "b": f.trial.b,
+                                           "form": str(f.trial.form), "q": f.trial.q, "horizon": f.trial.horizon},
+                                 "fate": str(f.fate), "stage": str(f.stage), "epistemic": str(f.epistemic),
+                                 "units": f.units, "stats": dict(f.stats), "reasons": list(f.reasons)}
+                                for f in rep.findings]})
+
+
+def write_report(rep: SearchReport, directory, seed: int | None = None) -> dict:
+    """Write report.json + report.txt into `directory` (created), stamped with the engine provenance when available."""
+    import json
+    import pathlib
+    out = pathlib.Path(directory)
+    out.mkdir(parents=True, exist_ok=True)
+    body = report_to_dict(rep)
+    try:
+        from engine.provenance import stamp
+        body["provenance"] = _clean(stamp({"module": "interactions", "config_hash": rep.config_hash}, seed))
+    except Exception:
+        body["provenance"] = {"code_hash": current_code_hash(), "config_hash": rep.config_hash}
+    (out / "report.json").write_text(json.dumps(body, indent=1, sort_keys=True), encoding="utf-8")
+    (out / "report.txt").write_text(render_text(rep), encoding="utf-8")
+    return {"json": str(out / "report.json"), "text": str(out / "report.txt")}
+
+
+def replicate_search(inputs: InteractionInputs, now, cfg: SearchConfig, seeds: Sequence[int],
+                     families: Sequence[Family] = FAMILIES) -> dict:
+    """Run the whole search from scratch under several independent base seeds (each with its own empty state: this is a
+    replication diagnostic, not additional looks at the data by one researcher). The validated sets should agree; a set that
+    changes with the seed was produced by the seed. Returns each run's validated ids and their pairwise Jaccard overlap."""
+    sets = []
+    for s in seeds:
+        rep = step(InteractionState(int(s)), inputs, now, dc.replace(cfg, base_seed=int(s)), families)
+        sets.append(frozenset(f.trial.trial_id for f in rep.validated()))
+    overlaps = []
+    for i in range(len(sets)):
+        for j in range(i + 1, len(sets)):
+            union = sets[i] | sets[j]
+            overlaps.append(len(sets[i] & sets[j]) / len(union) if union else 1.0)
+    return {"validated": [sorted(s) for s in sets], "mean_jaccard": float(np.mean(overlaps)) if overlaps else 1.0,
+            "stable": bool(overlaps) and min(overlaps) >= 0.999, "n_runs": len(sets)}

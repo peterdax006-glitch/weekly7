@@ -88,6 +88,9 @@ class DiversityConfig:
     starved_boost: float = 2.0                      # starved areas get this x their floor
     adherence_alarm: float = 0.30                   # total-variation gap between planned and realised shares
     drift_reset: float = 0.5                        # evidence retained when an area's yield is found to have shifted down
+    stagnant_weight: float = 0.2                    # a family whose marginal return has stopped keeps this fraction of its weight
+    eig_weight: float = 0.3                         # weight of the information value of exploring an uncertain area
+    damping: float = 0.25                           # weight kept on the previous plan, so shares do not thrash round to round
     history_len: int = 200
 
     def validate(self) -> list:
@@ -104,6 +107,8 @@ class DiversityConfig:
             errs.append("caps must be in (0,1]")
         if not 0 < self.drift_reset <= 1:
             errs.append("drift_reset must be in (0,1]")
+        if not 0 <= self.damping < 1:
+            errs.append("damping must be in [0,1)")
         return errs
 
 
@@ -222,6 +227,7 @@ class DiversityPlan:
     drift_events: tuple = ()
     code_hash: str = ""
     label: str = LABEL
+    hard_quota: float = 0.25
 
     def validate(self) -> list:
         errs = []
@@ -282,6 +288,7 @@ class DiversityController:
         self.spent_since_plan = {a.value: 0.0 for a in AREAS}
         self.reopen_marks = {a: (0, 0) for a in AREAS}       # (raw_trials, raw_useful) when the area was last re-opened
         self.total_experiments = 0
+        self.rounds: list = []
 
     # -- time -------------------------------------------------------------------------------------------------
     def decay_factor(self, days: float) -> float:
@@ -342,7 +349,8 @@ class DiversityController:
             st.last_useful = max(st.last_useful, str(o.when)) if st.last_useful else str(o.when)
         st.series.append(1.0 if useful else 0.0)
         del st.series[:-self.cfg.history_len]
-        fs = self.family_stats.setdefault((area.value, o.family or "(none)"), {"trials": 0.0, "useful": 0.0, "bits": 0.0, "minutes": 0.0})
+        fs = self.family_stats.setdefault((area.value, o.family or "(none)"), {"trials": 0.0, "useful": 0.0, "bits": 0.0, "minutes": 0.0, "gains": []})
+        fs["gains"] = (fs["gains"] + [float(o.gain_bits)])[-20:]
         fs["trials"] += w
         fs["useful"] += w * useful
         fs["bits"] += w * (o.gain_bits if useful else 0.0)
@@ -453,18 +461,20 @@ class DiversityController:
             val = (st.bits + 2.0 * self.cfg.value_prior_bits) / (st.useful + 2.0)
             cost = (st.minutes + 2.0 * self.cfg.cost_prior_minutes) / (st.trials + 2.0)
             ucb = math.sqrt(2.0 * math.log(n_total + 2.0) / (st.trials + 1.0))
-            score = (p * val / cost + 1e-4) * (1.0 + self.cfg.ucb_weight * ucb)
+            eig = RP.eig_beta_binomial(a0 + st.useful, b0 + max(st.trials - st.useful, 0.0), 10)
+            score = (p * val / cost + 1e-4) * (1.0 + self.cfg.ucb_weight * ucb + self.cfg.eig_weight * eig)
             out[a] = score ** (1.0 / self.cfg.softmax_temperature)
         return out
 
-    def allocate(self, now, budget_minutes: float, seed: int, directives: Directives | None = None) -> DiversityPlan:
+    def allocate(self, now, budget_minutes: float, seed: int, directives: Directives | None = None, commit: bool = True) -> DiversityPlan:
         if budget_minutes <= 0 or not math.isfinite(budget_minutes):
             raise ValueError("budget_minutes must be positive and finite")
         directives = directives or Directives()
         bad = directives.validate()
         if bad:
             raise ValueError("invalid directives: " + "; ".join(bad))
-        self.advance(now)
+        if commit:
+            self.advance(now)
         raw = self.raw_scores(seed)
         tot = sum(raw.values()) or 1.0
         n = sum(st.trials for st in self.stats.values())
@@ -481,17 +491,23 @@ class DiversityController:
             rationale.append("max_share/exploration bound infeasible: caps fall back to the specifications")
         shares = RP.project_box_simplex({a.value: mix[a] for a in AREAS}, {a.value: lo[a] for a in AREAS},
                                         {a.value: hi[a] for a in AREAS})
+        if self.plans and self.cfg.damping > 0:
+            last = self.plans[-1][1]
+            shares = RP.project_box_simplex({k: (1 - self.cfg.damping) * v + self.cfg.damping * last.get(k, v) for k, v in shares.items()},
+                                            {a.value: lo[a] for a in AREAS}, {a.value: hi[a] for a in AREAS})
+            rationale.append(f"damped {self.cfg.damping:.0%} toward the previous plan")
         explore = 1.0 - sum(shares[a.value] for a in EXPLOIT_AREAS)
         fam = {a.value: self.family_split(a, directives) for a in AREAS}
         prev = self.adherence()
-        self.spent_since_plan = {a.value: 0.0 for a in AREAS}
         plan = DiversityPlan(
             str(now), float(budget_minutes), int(seed), shares, {a: s * budget_minutes for a, s in shares.items()},
             {a.value: lo[a] for a in AREAS}, {a.value: hi[a] for a in AREAS},
             {a.value: self.exploratory_fraction(a, seed + 1 + i) for i, a in enumerate(AREAS)}, explore, 1.0 - explore, fam,
-            directives.reopen_questions, tuple(rationale), prev, 0, 0, (), current_code_hash())
-        self.plans.append((str(now), dict(shares)))
-        del self.plans[:-self.cfg.history_len]
+            directives.reopen_questions, tuple(rationale), prev, 0, 0, (), current_code_hash(), LABEL, hard_quota(directives))
+        if commit:
+            self.spent_since_plan = {a.value: 0.0 for a in AREAS}
+            self.plans.append((str(now), dict(shares)))
+            del self.plans[:-self.cfg.history_len]
         return plan
 
     def family_split(self, area: Area, directives: Directives) -> dict:
@@ -508,6 +524,8 @@ class DiversityController:
             rate = (s["useful"] + 1.0) / (s["trials"] + 2.0)
             per_min = (s["minutes"] + self.cfg.cost_prior_minutes) / (s["trials"] + 1.0)
             raw[f] = rate * (1.0 + s["bits"] / (s["trials"] + 1.0)) / per_min
+        dead_ends = set(stagnant_families(self).get(area.value, ()))
+        raw = {f: (r * self.cfg.stagnant_weight if f in dead_ends else r) for f, r in raw.items()}
         cap = {f: min(1.0, directives.family_caps.get(f, self.cfg.family_cap)) for f in names}
         cap_sum = sum(cap.values())
         if cap_sum < 1.0:
@@ -557,6 +575,7 @@ def step(ctrl: DiversityController, now, outcomes: Iterable[Outcome] = (), budge
         if any(o.area == name and o.exploratory_credit and not o.stale_repeat and not o.ignored for o in obs):
             ctrl.reopen(name)
     plan = ctrl.allocate(now, budget_minutes, seed, d)
+    log_round(ctrl, now, plan, obs, rows)
     return dataclasses.replace(plan, n_observed=sum(1 for o in obs if not o.ignored), n_ignored=sum(1 for o in obs if o.ignored),
                                drift_events=events)
 
@@ -628,6 +647,402 @@ def explain_shift(prev: Mapping[str, float] | None, plan: DiversityPlan, tol: fl
     return out + [f"why: {r}" for r in plan.rationale[:3]] if out else ["no area moved by more than the tolerance"]
 
 
+def preview_distribution(ctrl: DiversityController, now, budget_minutes: float, seed: int, n_draws: int = 50,
+                        directives: Directives | None = None) -> dict:
+    """How uncertain is the plan itself? Thompson sampling makes each plan a draw; this takes `n_draws` UNCOMMITTED plans (the
+    controller is not changed) and reports the mean and spread of each area's share. A wide spread on an area means the
+    evidence has not settled where compute should go, which is what exploration is for."""
+    if n_draws < 2:
+        raise ValueError("need at least 2 draws")
+    rows = np.array([[ctrl.allocate(now, budget_minutes, seed * 7919 + i, directives, commit=False).shares[a.value] for a in AREAS]
+                     for i in range(n_draws)])
+    return {a.value: {"mean": float(rows[:, j].mean()), "sd": float(rows[:, j].std(ddof=1)),
+                      "lo": float(np.percentile(rows[:, j], 5)), "hi": float(np.percentile(rows[:, j], 95))}
+            for j, a in enumerate(AREAS)}
+
+
+def compare_splits(ctrl: DiversityController, a: Mapping[str, float], b: Mapping[str, float], seed: int, n_draws: int = 2000) -> dict:
+    """P(split a yields more useful results per minute than split b) under the controller's current posteriors. Each draw
+    samples every area's useful-rate from its Beta belief and scores both splits with it; ties are split. A comparison of plans,
+    not proof either is right."""
+    rng = np.random.default_rng(seed)
+    a0, b0 = ctrl.prior()
+    draws = np.column_stack([rng.beta(a0 + ctrl.stats[x].useful, b0 + max(ctrl.stats[x].trials - ctrl.stats[x].useful, 0.0), n_draws)
+                             for x in AREAS])
+    wa = np.array([a.get(x.value, 0.0) for x in AREAS])
+    wb = np.array([b.get(x.value, 0.0) for x in AREAS])
+    diff = draws @ wa - draws @ wb
+    return {"p_a_better": float((diff > 0).mean() + 0.5 * (diff == 0).mean()), "mean_diff": float(diff.mean()),
+            "ci": (float(np.percentile(diff, 5)), float(np.percentile(diff, 95)))}
+
+
+def coverage_matrix(ctrl: DiversityController) -> dict:
+    """Area x family effective trial counts, and the cells that have never been tried. Empty cells are the map of what the
+    researcher has not looked at yet."""
+    fams = sorted({f for (_, f) in ctrl.family_stats})
+    cells = {a.value: {f: round(ctrl.family_stats.get((a.value, f), {}).get("trials", 0.0), 3) for f in fams} for a in AREAS}
+    empty = [(a, f) for a, row in cells.items() for f, n in row.items() if n == 0 and f.startswith(a[:3])]
+    return {"families": fams, "cells": cells, "untried_within_area": empty}
+
+
+# ------------------------------------------------------------------------------------------------ questions to areas
+
+_SOURCE_AREA = {"loss": Area.RISK, "risk": Area.RISK, "break": Area.PATTERN_BREAK, "pattern_break": Area.PATTERN_BREAK,
+                "regime": Area.REGIME, "missed_winner": Area.VOLATILITY, "surprise": Area.UNCERTAIN,
+                "contradiction": Area.UNCERTAIN, "discovery": Area.NEW_REPRESENTATION, "data": Area.DATA_QUALITY,
+                "failed": Area.FAILED_NEW_HYPOTHESIS, "known": Area.KNOWN_PROMISING}
+_PROBLEM_AREA = {"VOLATILITY": Area.VOLATILITY, "LOSS_AVOIDANCE": Area.RISK, "DIRECTION": Area.DIRECTION,
+                 "DATA_QUALITY": Area.DATA_QUALITY, "CONSISTENCY": Area.KNOWN_PROMISING}
+
+
+def classify_question(source: str, problem=None) -> Area:
+    """Which section-38 area a research question (section 40) belongs to: by its source first, then by the problem it serves,
+    and UNCERTAIN when neither says. Unknown stays UNCERTAIN, never silently KNOWN_PROMISING."""
+    src = str(source).lower()
+    for key, area in _SOURCE_AREA.items():
+        if key in src:
+            return area
+    if problem is not None:
+        return _PROBLEM_AREA.get(str(getattr(problem, "value", problem)), Area.UNCERTAIN)
+    return Area.UNCERTAIN
+
+
+def select_questions(plan: DiversityPlan, questions: Sequence[Any], minutes_each: float = 30.0, reopen_first: bool = True) -> list:
+    """Turn the plan into a work list. Each question (duck-typed: question_id, source, problem) is filed under its area; areas
+    are served by deficit round-robin - every area gets questions in proportion to its share of the budget - and reopen-listed
+    questions go first. Returns question ids in execution order, never exceeding the plan's minutes."""
+    queues: dict = defaultdict(list)
+    for q in sorted(questions, key=lambda q: q.question_id):
+        queues[classify_question(q.source, getattr(q, "problem", None)).value].append(q)
+    credit = {a: 0.0 for a in queues}
+    left = {a.value: plan.minutes[a.value] for a in AREAS}
+    order: list = []
+    if reopen_first:
+        for a in sorted(queues):
+            for q in [q for q in queues[a] if q.question_id in plan.reopen_questions]:
+                if left[a] >= minutes_each:
+                    order.append(q.question_id)
+                    left[a] -= minutes_each
+                    queues[a].remove(q)
+    while True:
+        ready = [a for a in queues if queues[a] and left[a] >= minutes_each]
+        if not ready:
+            return order
+        for a in ready:
+            credit[a] += plan.shares[a]
+        pick = max(ready, key=lambda a: (credit[a], a))
+        credit[pick] -= 1.0
+        left[pick] -= minutes_each
+        order.append(queues[pick].pop(0).question_id)
+
+
+# ------------------------------------------------------------------------------------------------ learning accounting
+
+def log_round(ctrl: DiversityController, now, plan: DiversityPlan, observations: Sequence[Observation],
+              outcomes: Sequence[Outcome]) -> dict:
+    """Append one line to the controller's round ledger: what the previous evidence looked like when this plan was made.
+    Only ingested (non-ignored) outcomes count. The ledger is what learning_curve() and regret are computed from."""
+    minutes = {a.value: 0.0 for a in AREAS}
+    useful = {a.value: 0 for a in AREAS}
+    by_id = {o.exp_id: o for o in outcomes}
+    for ob in observations:
+        if ob.ignored:
+            continue
+        minutes[ob.area] += max(by_id[ob.exp_id].cost_minutes, 0.0)
+        useful[ob.area] += int(ob.useful)
+    rec = {"now": str(now), "shares": dict(plan.shares), "minutes": minutes, "useful": useful}
+    ctrl.rounds.append(rec)
+    del ctrl.rounds[:-ctrl.cfg.history_len]
+    return rec
+
+
+def learning_curve(ctrl: DiversityController, seed: int = 0, n_boot: int = 500) -> dict:
+    """Is the allocator getting better at finding useful results per CPU-minute? Compares the useful-per-1000-minutes of the
+    earliest third of rounds with the latest third, with a seeded bootstrap over rounds. Needs >= 6 rounds with spend. A rising
+    curve is necessary, not sufficient: the world may simply have got easier (compare against uniform in a planted world)."""
+    rows = [r for r in ctrl.rounds if sum(r["minutes"].values()) > 0]
+    if len(rows) < 6:
+        return {"verdict": "INSUFFICIENT", "rounds": len(rows)}
+    per = np.array([1000.0 * sum(r["useful"].values()) / sum(r["minutes"].values()) for r in rows])
+    k = len(per) // 3
+    early, late = per[:k], per[-k:]
+    rng = np.random.default_rng(seed)
+    diffs = np.array([rng.choice(late, k).mean() - rng.choice(early, k).mean() for _ in range(n_boot)])
+    lo, hi = float(np.percentile(diffs, 5)), float(np.percentile(diffs, 95))
+    verdict = "IMPROVING" if lo > 0 else "WORSENING" if hi < 0 else "FLAT"
+    return {"verdict": verdict, "rounds": len(rows), "early": float(early.mean()), "late": float(late.mean()), "diff_ci": (lo, hi)}
+
+
+def realised_regret(ctrl: DiversityController) -> dict:
+    """Ex-post regret of the plans that were followed: for each round, the useful-rate the spend achieved against the rate the
+    best single area achieved that round. Positive regret is normal (exploration costs); what matters is that it shrinks."""
+    out = []
+    for r in ctrl.rounds:
+        rates = {a: r["useful"][a] / r["minutes"][a] for a in r["minutes"] if r["minutes"][a] > 0}
+        tot = sum(r["minutes"].values())
+        if not rates or tot <= 0:
+            continue
+        got = sum(r["useful"].values()) / tot
+        out.append({"now": r["now"], "achieved": got, "best_area": max(rates.values()), "regret": max(rates.values()) - got})
+    if not out:
+        return {"rounds": 0, "mean_regret": None}
+    return {"rounds": len(out), "mean_regret": float(np.mean([o["regret"] for o in out])),
+            "first_half": float(np.mean([o["regret"] for o in out[:len(out) // 2]])) if len(out) > 1 else None,
+            "second_half": float(np.mean([o["regret"] for o in out[len(out) // 2:]])) if len(out) > 1 else None}
+
+
+def thrash_index(ctrl: DiversityController, last: int = 10) -> float | None:
+    """Mean plan-to-plan total-variation distance over the last plans. High = the split lurches; damping should keep it small."""
+    seq = [s for _, s in ctrl.plans[-(last + 1):]]
+    if len(seq) < 2:
+        return None
+    return float(np.mean([total_variation(a, b) for a, b in zip(seq, seq[1:])]))
+
+
+# ------------------------------------------------------------------------------------------------ walk-forward and sensitivity
+
+def replay_plans(outcomes: Sequence[Outcome], checkpoints: Sequence, budget_minutes: float = 600.0, seed: int = 0,
+                 cfg: DiversityConfig | None = None, directives_by_checkpoint: Mapping | None = None) -> list:
+    """Run the controller the way the live loop would: at each checkpoint only outcomes dated strictly before it (and not yet
+    ingested) are visible. Returns the plan at each checkpoint. Look-ahead is impossible by construction: the outcomes handed
+    to step() are filtered by date first, and step() raises FirewallBreach if that filter were ever removed."""
+    ctrl = DiversityController(cfg)
+    plans, done = [], set()
+    for i, cp in enumerate(sorted(checkpoints, key=as_date)):
+        fresh = [o for o in outcomes if as_date(o.when) < as_date(cp) and o.exp_id not in done]
+        done.update(o.exp_id for o in fresh)
+        d = (directives_by_checkpoint or {}).get(str(cp))
+        plans.append(step(ctrl, cp, fresh, budget_minutes, seed + i, directives=d))
+    return plans
+
+
+def half_life_sensitivity(outcomes: Sequence[Outcome], checkpoint, half_lives: Sequence[float], seed: int = 0) -> dict:
+    """How much does today's plan depend on the memory length? Rebuilds the controller under each half-life on the same
+    outcomes and reports the plans and their largest pairwise distance. A plan that flips with the half-life is not settled."""
+    shares = {}
+    for hl in half_lives:
+        ctrl = DiversityController(DiversityConfig(half_life_days=hl))
+        shares[hl] = step(ctrl, checkpoint, [o for o in outcomes if as_date(o.when) < as_date(checkpoint)], 600.0, seed).shares
+    keys = list(shares)
+    worst = max((total_variation(shares[a], shares[b]) for i, a in enumerate(keys) for b in keys[i + 1:]), default=0.0)
+    return {"shares": shares, "max_tv": worst, "stable": worst < 0.15}
+
+
+# ------------------------------------------------------------------------------------------------ directive compliance
+
+def directive_compliance(plan: DiversityPlan, directives: Directives, cfg: DiversityConfig | None = None) -> list:
+    """Did the plan actually honour what brain health asked? Returns a list of violations (empty = complied). Checked from the
+    plan alone so it can audit any controller, not only this one."""
+    cfg = cfg or DiversityConfig()
+    errs = []
+    for fam, cap in directives.family_caps.items():
+        for area, split in plan.family_split.items():
+            if fam in split and split[fam] > max(cap, 1.0 / max(len(split), 1)) + 1e-6:
+                errs.append(f"family {fam} in {area} has {split[fam]:.0%}, above its cap {cap:.0%}")
+    if plan.explore_share + 1e-9 < min(directives.min_explore_share, 1.0 - cfg.floor_min):
+        errs.append(f"explore share {plan.explore_share:.0%} below the requested floor {directives.min_explore_share:.0%}")
+    for area in directives.starved_areas:
+        if plan.shares[area] + 1e-9 < plan.floors[area]:
+            errs.append(f"starved area {area} below its raised floor")
+    for q in directives.reopen_questions:
+        if q not in plan.reopen_questions:
+            errs.append(f"reopen request {q} was dropped")
+    return errs
+
+
+def hard_quota(directives: Directives, base: float = 0.25) -> float:
+    """Share of every area's minutes reserved for hard questions: the base rate, raised when health reports hard questions
+    being abandoned. Inside-area protection against easy-area bias that the area split alone cannot give."""
+    return float(min(0.6, base + (0.15 if directives.reopen_questions else 0.0)
+                     + 0.1 * sum(1 for m in directives.area_multiplier.values() if m > 1.0) / max(len(AREAS), 1)))
+
+
+# ------------------------------------------------------------------------------------------------ reports
+
+def write_plan_report(plan: DiversityPlan, ctrl: DiversityController, out_dir) -> Path:
+    """One JSON file per plan (audit-friendly: plan, learned exploration table, balance, audit errors, state hash) plus the
+    rendered text beside it. Files are named by plan date and seed so a rerun overwrites itself, never a different plan."""
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    stem = f"diversity_{plan.now}_{plan.seed}"
+    body = {"plan": plan.to_dict(), "balance": balance_report(plan.shares), "exploration": learned_exploration_table(ctrl, plan.seed),
+            "audit": audit_plan(plan, ctrl), "state_hash": state_hash(ctrl), "label": LABEL}
+    (out / f"{stem}.txt").write_text(plan.render(), encoding="utf-8")
+    path = out / f"{stem}.json"
+    path.write_text(json.dumps(body, sort_keys=True, default=str), encoding="utf-8")
+    return path
+
+
+# ------------------------------------------------------------------------------------------------ stagnant families, information value
+
+def stagnant_families(ctrl: DiversityController, k: int = 4, eps: float = 0.03) -> dict:
+    """Families inside each area whose last k results all gained < eps bits with a non-rising trend, by research_policy's
+    marginal_return_verdict. These are the 'tiny parameter families' section 37 warns about, found from the controller's own
+    per-family gain series rather than from health's window, so the controller can starve them before health has to."""
+    out: dict = {}
+    for (area, fam), fs in sorted(ctrl.family_stats.items()):
+        v = RP.marginal_return_verdict(fs.get("gains", []), k=k, eps=eps)
+        if v["verdict"] == "STOP":
+            out.setdefault(area, []).append(fam)
+    return out
+
+
+def information_value(ctrl: DiversityController, area: Area, trials: int = 10) -> float:
+    """Expected entropy reduction (bits) about the area's useful-rate from `trials` more jobs (exact Beta-Binomial, from
+    research_policy). An area we know little about is worth exploring even if its current estimate is modest."""
+    a0, b0 = ctrl.prior()
+    st = ctrl.stats[area]
+    return RP.eig_beta_binomial(a0 + st.useful, b0 + max(st.trials - st.useful, 0.0), trials)
+
+
+def explain_area(ctrl: DiversityController, area: Area) -> str:
+    """Everything the controller believes about one area, in a sentence: evidence, rate with interval, whether it is dead,
+    when it last paid, and whether exploring beats routine work there."""
+    st = ctrl.stats[area]
+    lo, hi = wilson(st.raw_useful, st.raw_trials)
+    lift = ctrl.exploration_lift(area, 0)
+    parts = [f"{area.value}: {st.raw_useful}/{st.raw_trials} useful ({lo:.0%}-{hi:.0%})"]
+    parts.append("dead (floor relaxed)" if ctrl.is_dead(area) else "alive")
+    parts.append(f"last useful {st.last_useful or 'never'}")
+    if lift["known"]:
+        parts.append(f"exploring beats routine with p={lift['p_explore_better']:.2f}")
+    if st.stale_repeats:
+        parts.append(f"{st.stale_repeats} stale repeats earned nothing")
+    parts.append(f"{information_value(ctrl, area):.2f} bits to gain from 10 more jobs")
+    return "; ".join(parts)
+
+
+# ------------------------------------------------------------------------------------------------ work orders
+
+def largest_remainder(weights: Mapping[str, float], total: int) -> dict:
+    """Apportion `total` integer slots by weight (Hamilton's method): each key gets floor(share x total) and the leftover slots
+    go to the largest fractional remainders, ties broken by name. Deterministic, sums exactly to `total`."""
+    if total < 0:
+        raise ValueError("total must be >= 0")
+    tot = sum(max(w, 0.0) for w in weights.values())
+    if tot <= 0 or total == 0:
+        return {k: 0 for k in weights}
+    exact = {k: max(w, 0.0) / tot * total for k, w in weights.items()}
+    base = {k: int(math.floor(v)) for k, v in exact.items()}
+    left = total - sum(base.values())
+    for k in sorted(weights, key=lambda k: (-(exact[k] - base[k]), k))[:left]:
+        base[k] += 1
+    return base
+
+
+@dataclass(frozen=True)
+class JobSlot:
+    """One concrete unit of research the loop should run: which area, which family, exploratory or routine, hard or not."""
+    area: str
+    family: str
+    exploratory: bool
+    hard: bool
+    minutes: float
+
+
+def job_slots(plan: DiversityPlan, job_minutes: float = 10.0) -> list:
+    """Turn a plan into work orders. Each area's minutes become whole jobs (largest remainder); within an area, jobs are split
+    exploratory/routine by the learned fraction, routine jobs go to families by the family split, and the hard quota decides
+    how many are aimed at hard questions. A plan that cannot be turned into whole jobs is rounded, never inflated."""
+    if job_minutes <= 0:
+        raise ValueError("job_minutes must be positive")
+    per_area = largest_remainder(plan.shares, int(plan.budget_minutes // job_minutes))
+    slots = []
+    for a in AREAS:
+        n = per_area[a.value]
+        if n == 0:
+            continue
+        n_exp = int(round(n * plan.exploratory_fraction[a.value]))
+        n_hard = int(round(n * plan.hard_quota))
+        fam = largest_remainder(plan.family_split.get(a.value) or {"(new)": 1.0}, n - n_exp)
+        rows = [(f, False) for f, c in sorted(fam.items()) for _ in range(c)] + [("(new)", True)] * n_exp
+        for i, (f, ex) in enumerate(rows):
+            slots.append(JobSlot(a.value, f, ex, i < n_hard, job_minutes))
+    return slots
+
+
+# ------------------------------------------------------------------------------------------------ one full research-brain cycle
+
+def run_cycle(ctrl: DiversityController, ledger, outcomes: Sequence[Outcome], now, budget_minutes: float, seed: int,
+              events: Sequence = (), health_cfg=None) -> tuple:
+    """Health first, then allocation: measure the researcher from outcomes that matured before `now`, append the report to
+    `ledger` (a brain_health.HealthLedger), and let the report's directives shape the next split. Returns (report, plan).
+    This is the single call the wave-2 research loop makes each cycle."""
+    from engine.research import brain_health as BH
+    fresh = [o for o in outcomes if as_date(o.when) < as_date(now)]
+    report = BH.step(fresh, now, health_cfg, events, ledger)
+    plan = step(ctrl, now, [o for o in fresh if o.exp_id not in ctrl.seen_ids], budget_minutes, seed, report=report)
+    return report, plan
+
+
+# ------------------------------------------------------------------------------------------------ small budgets, revival, invariants
+
+def job_slots_with_carry(plan: DiversityPlan, carry: Mapping[str, float] | None = None, job_minutes: float = 10.0) -> tuple:
+    """When the budget is small a 2% floor is less than one job, so a per-round rounding would starve the floor areas for ever.
+    Fractional jobs are therefore CARRIED: each round's exact entitlement plus last round's remainder is apportioned, and the
+    new remainder is returned. Over many rounds every area receives its share. Returns (slots, new_carry)."""
+    carry = dict(carry or {})
+    exact = {a.value: plan.shares[a.value] * plan.budget_minutes / job_minutes + carry.get(a.value, 0.0) for a in AREAS}
+    whole = largest_remainder(exact, int(sum(exact.values()) + 1e-9))
+    new_carry = {a: exact[a] - whole[a] for a in exact}
+    scaled = dataclasses.replace(plan, shares={a: whole[a] / max(sum(whole.values()), 1) for a in whole},
+                                 budget_minutes=float(sum(whole.values()) * job_minutes))
+    return job_slots(scaled, job_minutes), new_carry
+
+
+def propose_hypothesis(ctrl: DiversityController, area: Area | str, family: str, config_hash: str) -> bool:
+    """Offer a hypothesis for a (possibly dead) area. If this exact (area, family, config) was never run it is genuinely new:
+    the area is re-opened and True is returned; otherwise nothing changes and False says 'you have already tried this'."""
+    a = Area.parse(area)
+    if not config_hash or (a.value, family, config_hash) in ctrl.seen_hypotheses:
+        return False
+    ctrl.reopen(a)
+    return True
+
+
+def revival_candidates(ctrl: DiversityController) -> list:
+    """Areas currently written off as dead: the ones a new hypothesis could bring back. Their floor is at the minimum but not
+    zero, so a proposal always has somewhere to run."""
+    return [a.value for a in AREAS if ctrl.is_dead(a)]
+
+
+def validate_state(ctrl: DiversityController) -> list:
+    """Invariants the controller must never break. Used after loading persisted state and by the tests."""
+    errs = []
+    for a, st in ctrl.stats.items():
+        for name in ("trials", "useful", "weighted", "bits", "minutes", "exp_trials", "exp_useful", "routine_trials", "routine_useful"):
+            v = getattr(st, name)
+            if v < -1e-9 or not math.isfinite(v):
+                errs.append(f"{a.value}.{name} = {v}")
+        if st.useful > st.trials + 1e-6:
+            errs.append(f"{a.value}: more useful results than trials")
+        if st.raw_useful > st.raw_trials:
+            errs.append(f"{a.value}: raw useful exceeds raw trials")
+        if any(v not in (0.0, 1.0) for v in st.series):
+            errs.append(f"{a.value}: series holds non-binary values")
+    if ctrl.total_experiments != sum(st.raw_trials for st in ctrl.stats.values()):
+        errs.append("experiment count disagrees with the per-area counters")
+    if len(ctrl.seen_ids) != ctrl.total_experiments:
+        errs.append("seen ids disagree with the experiment count")
+    for _, s in ctrl.plans:
+        if abs(sum(s.values()) - 1.0) > 1e-6:
+            errs.append("a stored plan does not sum to 1")
+    return errs
+
+
+def area_table(ctrl: DiversityController, now) -> list:
+    """One structured row per area for dashboards: evidence, rate interval, dead flag, information value, days since it paid."""
+    rows = []
+    for a in AREAS:
+        st = ctrl.stats[a]
+        lo, hi = wilson(st.raw_useful, st.raw_trials)
+        rows.append({"area": a.value, "trials": st.raw_trials, "useful": st.raw_useful, "rate_lo": lo, "rate_hi": hi,
+                     "dead": ctrl.is_dead(a), "stale_repeats": st.stale_repeats, "new_hypotheses": st.new_hypotheses,
+                     "info_bits": information_value(ctrl, a),
+                     "days_since_useful": (as_date(now) - as_date(st.last_useful)).days if st.last_useful else None})
+    return rows
+
+
 # ------------------------------------------------------------------------------------------------ persistence
 
 def controller_to_dict(ctrl: DiversityController) -> dict:
@@ -638,7 +1053,8 @@ def controller_to_dict(ctrl: DiversityController) -> dict:
             "seen_hypotheses": sorted(list(k) for k in ctrl.seen_hypotheses),
             "family_stats": [[a, f, v] for (a, f), v in sorted(ctrl.family_stats.items())], "clock": ctrl.clock,
             "plans": ctrl.plans, "spent_since_plan": ctrl.spent_since_plan,
-            "reopen_marks": {a.value: list(m) for a, m in ctrl.reopen_marks.items()}, "total_experiments": ctrl.total_experiments}
+            "reopen_marks": {a.value: list(m) for a, m in ctrl.reopen_marks.items()}, "total_experiments": ctrl.total_experiments,
+            "rounds": ctrl.rounds}
 
 
 def controller_from_dict(d: Mapping) -> DiversityController:
@@ -654,6 +1070,7 @@ def controller_from_dict(d: Mapping) -> DiversityController:
     ctrl.spent_since_plan = dict(d["spent_since_plan"])
     ctrl.reopen_marks = {Area.parse(a): tuple(m) for a, m in d["reopen_marks"].items()}
     ctrl.total_experiments = d["total_experiments"]
+    ctrl.rounds = list(d.get("rounds", []))
     return ctrl
 
 
@@ -740,14 +1157,14 @@ def farming_probe(seed: int = 0, rounds: int = 12, budget_minutes: float = 600.0
     day0 = as_date("2021-01-04").toordinal()
     idx = 0
     for r in range(rounds):
-        now = _iso(day0 + 7 * r)
+        now = _iso(day0 + 7 * r + 7)
         batch = []
         for a in AREAS:
             for j in range(10):
                 honest = rng.random() < 0.2
                 if a is Area.RISK:                                   # the farmer: high 'success', none of it useful
                     o = Outcome(f"F{idx:07d}", _iso(day0 + 7 * r + 1), a.value, "RIS_0", 10.0, bool(rng.random() < 0.9), 0.4, 0.5,
-                                duplicate_of="E0" if rng.random() < 0.5 else "", memorised=bool(rng.random() < 0.5) or None)
+                                duplicate_of="E0" if rng.random() < 0.7 else "", memorised=bool(rng.random() < 0.7) or None)
                 else:
                     o = Outcome(f"F{idx:07d}", _iso(day0 + 7 * r + 1), a.value, f"{a.value[:3]}_0", 10.0, honest, 0.4 if honest else 0.0, 0.5)
                 batch.append(o)

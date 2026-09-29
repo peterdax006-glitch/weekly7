@@ -1190,3 +1190,63 @@ def render_assessment(a: ReplicationAssessment) -> str:
               for x in a.run_results]
     lines += ["", "May change the system: " + ("YES" if a.may_change_system else "NO"), "IMPLEMENTED - NOT VALIDATED."]
     return "\n".join(lines)
+
+
+# ------------------------------------------------------------------------------------------------ what the thresholds cost and buy
+def power_table(d: Discovery, policy: ReplicationPolicy = DEFAULT_POLICY, sds: Sequence[float] | None = None) -> list[dict]:
+    """Periods needed to replicate at the policy's power, for the raw and the winner's-curse-adjusted effect and a range of noise
+    levels (default 0.5x, 1x, 2x the original sd). Tells the planner whether a replication is affordable BEFORE running it."""
+    adj = adjusted_effect(d)
+    sd_list = list(sds) if sds is not None else [d.sd * m for m in (0.5, 1.0, 2.0)]
+    return [{"sd": float(sd), "n_raw_effect": required_n(d.effect, sd, policy.alpha, policy.power),
+             "n_adjusted_effect": required_n(adj, sd, policy.alpha, policy.power), "adjusted_effect": adj} for sd in sd_list]
+
+
+def seed_sensitivity(runs: Sequence[ReplicationRun]) -> dict:
+    """Runs on the same window and stocks with different seeds measure optimiser luck, not the market. Their spread (relative to the
+    mean) is reported per (window, stocks) cell; a large spread means single-seed results cannot be trusted at all."""
+    cells: dict[tuple, list[float]] = {}
+    for r in runs:
+        cells.setdefault((tuple(r.window), tuple(sorted(r.stocks))), []).append(float(np.mean(r.effects)))
+    spreads = {f"{k[0][0]}..{k[0][1]}": (max(v) - min(v)) / max(abs(float(np.mean(v))), 1e-12) for k, v in cells.items() if len(v) >= 2}
+    return {"cells_with_repeats": len(spreads), "max_relative_spread": max(spreads.values()) if spreads else float("nan"), "spreads": spreads}
+
+
+def runs_needed(d: Discovery, policy: ReplicationPolicy = DEFAULT_POLICY, typical_periods: int = 40) -> dict:
+    """Expected number of independent replications until REPLICATED: the policy minimum, inflated by the chance a run of the typical
+    length supports the adjusted effect (power of that run) and by the required success share. Infinite when the adjusted effect is 0."""
+    adj = adjusted_effect(d)
+    if adj <= 0:
+        return {"expected_runs": math.inf, "run_power": 0.0, "note": "the winner's-curse-adjusted effect is zero: nothing to replicate"}
+    z = adj / (d.sd / math.sqrt(typical_periods)) - _z(1 - policy.alpha)
+    power = float(0.5 * math.erfc(-z / math.sqrt(2.0)))
+    expected = max(policy.min_independent / max(power, 1e-9), policy.min_independent / max(policy.min_success_share, 1e-9) * power)
+    return {"expected_runs": float(expected), "run_power": power, "note": f"a {typical_periods}-period run supports the adjusted effect with probability {power:.2f}"}
+
+
+def simulate_replication_rates(policy: ReplicationPolicy = DEFAULT_POLICY, n_sim: int = 30, true_effect: float = 0.006, sd: float = 0.02,
+                               n_tests: int = 20, seed: int = 0) -> dict:
+    """Monte Carlo of the policy on synthetic discoveries: how often does a discovery with NO real effect reach REPLICATED (the false
+    replication rate), and how often does one with a real effect (the replication power)? Each simulated discovery is the best of
+    `n_tests` noise draws for the null case, so the winner's curse is really present. This is how the thresholds are documented: not
+    chosen, but measured for what they let through. Deterministic given `seed`."""
+    rng = np.random.default_rng(seed)
+    pol = dataclasses.replace(policy, bootstrap_n=min(policy.bootstrap_n, 100))
+    out = {"null": 0, "real": 0}
+    stocks = frozenset(f"S{i}" for i in range(30))
+    for kind, eff in (("null", 0.0), ("real", true_effect)):
+        for i in range(n_sim):
+            n0 = 60
+            best = max((rng.normal(eff, sd, n0) for _ in range(n_tests if kind == "null" else 1)), key=lambda x: x.mean() / max(x.std(ddof=1), 1e-12))
+            d = Discovery(f"{kind}{i}", float(best.mean()), float(best.std(ddof=1)), n0, ("2015-01-05", "2015-12-28"), 10, stocks, (1,), frozenset({"calm"}),
+                          "c", "d", "2016-01-15", n_tests if kind == "null" else 1)
+            runs = []
+            for k in range(3):
+                x = rng.normal(eff, sd, 50)
+                runs.append(ReplicationRun(f"{kind}{i}r{k}", d.discovery_id, (f"{2017 + k}-01-02", f"{2017 + k}-12-29"),
+                                           frozenset(f"T{k}_{j}" for j in range(30)), 10 + k, ("calm", "stress", "boom")[k], tuple(float(v) for v in x),
+                                           tuple(float(v) for v in rng.normal(0.0, sd, 50)), "c", "d", f"{2018 + k}-01-15", "alt" if k else "primary"))
+            if assess(d, runs, "2021-01-01", pol).status == Status.REPLICATED:
+                out[kind] += 1
+    return {"false_replication_rate": out["null"] / n_sim, "replication_power": out["real"] / n_sim, "n_sim": n_sim, "n_tests": n_tests,
+            "policy": policy.digest()}

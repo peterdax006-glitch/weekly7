@@ -308,7 +308,7 @@ class SelfTrainingGuard:
     FUTURE evaluation into a FirewallBreach instead of a refusal, because that can only come from a time-travelling pipeline."""
 
     def __init__(self, vault: EvaluationVault | None = None, strict: bool = True):
-        self.vault = vault or EvaluationVault()
+        self.vault = EvaluationVault() if vault is None else vault
         self.strict = strict
 
     def screen(self, rows: Sequence[ResearchOutcome], now, evaluating_advice: str = "") -> tuple:
@@ -867,6 +867,17 @@ class PathVerdict:
     action: str                                     # STOP / THROTTLE / KEEP / UNKNOWN
 
 
+def path_action(useful: int, runs: int, barren: int, useful_floor: float = 0.15, stop_p: float = 0.05, throttle_p: float = 0.25,
+                min_runs: int = 4, barren_run: int = 4) -> str:
+    """The single stop/throttle rule, shared by the verdicts and by the counterfactual replay so they cannot drift apart."""
+    if runs < min_runs:
+        return "UNKNOWN"
+    prob = posterior_rate_above(useful, runs, useful_floor)
+    if prob < stop_p and barren >= barren_run:
+        return "STOP"
+    return "THROTTLE" if prob < throttle_p else "KEEP"
+
+
 def path_verdicts(records: Sequence[ResearchOutcome], useful_floor: float = 0.15, stop_p: float = 0.05, throttle_p: float = 0.25,
                   min_runs: int = 4, barren_run: int = 4) -> list:
     """Sequential stop rule per research path (exp_type|family|representation). STOP when the posterior probability that the
@@ -885,14 +896,7 @@ def path_verdicts(records: Sequence[ResearchOutcome], useful_floor: float = 0.15
         wmins = sum(o.cost_minutes for o, w in rows if w)
         prob = posterior_rate_above(useful, len(rows), useful_floor)
         barren = _streak([w for _, w in rows], True)
-        if len(rows) < min_runs:
-            act = "UNKNOWN"
-        elif prob < stop_p and barren >= barren_run:
-            act = "STOP"
-        elif prob < throttle_p:
-            act = "THROTTLE"
-        else:
-            act = "KEEP"
+        act = path_action(useful, len(rows), barren, useful_floor, stop_p, throttle_p, min_runs, barren_run)
         out.append(PathVerdict(p, len(rows), useful, mins, wmins, wmins / mins if mins > 0 else 0.0, prob, barren, act))
     return sorted(out, key=lambda v: (-v.wasted_minutes, v.path))
 
@@ -1169,13 +1173,20 @@ class SchedulerAdvice:
             if p in self.throttle_paths:
                 errs.append(f"path {p} is both STOP and THROTTLE")
         try:
-            assert_identity_free(self.to_dict(), "advice")
+            assert_identity_free(self.payload(), "advice")
         except FirewallBreach as e:
             errs.append(str(e))
         return errs
 
     def to_dict(self) -> dict:
+        """Full trusted-side form, including fitted_through (a real date)."""
         return json.loads(canonical_json(self))
+
+    def payload(self) -> dict:
+        """What may be handed on: the same content without the real fit date, which lives in the record's provenance."""
+        d = self.to_dict()
+        d.pop("fitted_through", None)
+        return d
 
     def to_json(self) -> str:
         return canonical_json(self)
@@ -1201,7 +1212,7 @@ class SchedulerAdvice:
             raise ValueError("; ".join(errs))
         prov = Provenance(created_real=created_real, learned_at=self.fitted_through, code_hash=code_hash or current_code_hash(),
                           outcomes_seen_through=self.fitted_through, parents=tuple(parents))
-        return MaturedRecord(self.advice_id, self.fitted_through, self.to_dict(), prov, Namespace.MATURED_RESEARCH)
+        return MaturedRecord(self.advice_id, self.fitted_through, self.payload(), prov, Namespace.MATURED_RESEARCH)
 
 
 def advice_from_json(text: str) -> SchedulerAdvice:
@@ -1305,6 +1316,8 @@ def schedule_decision(desc: Mapping, adv: SchedulerAdvice, cid: str = "", cfg: M
         ("false-discovery dataset", adv.dataset_false_discovery.get(desc.get("dataset")), P.get(Q16.FALSE_DISCOVERY_DATASETS.value), True),
         ("decision source", adv.source_decision.get(desc.get("question_source")), P.get(Q16.DECISION_QUESTIONS.value), False),
         ("family transfer", adv.family_transfer.get(desc.get("family")), P.get(Q16.TRANSFERRING_FAMILIES.value), False),
+        ("validation recall", adv.validation_recall.get(desc.get("validation_method")), P.get(Q16.VALIDATION_METHODS.value), False),
+        ("informative failure", adv.exp_type_informative_failure.get(desc.get("exp_type")), P.get(Q16.INFORMATIVE_FAILURES.value), False),
         ("failing representation", adv.representation_failure.get(desc.get("representation")), P.get(Q16.FAILING_REPRESENTATIONS.value), True))
     for name, rate, pooled, invert in checks:
         r = _ratio(rate, pooled, invert)
@@ -1501,12 +1514,12 @@ class MetaResearchState:
 
     def __init__(self, store: OutcomeStore | None = None, cfg: MetaResearchConfig | None = None, vault: EvaluationVault | None = None,
                  strict_guard: bool = True):
-        self.store = store or OutcomeStore()
+        self.store = OutcomeStore() if store is None else store
         self.cfg = cfg or MetaResearchConfig()
         errs = self.cfg.check()
         if errs:
             raise ValueError("; ".join(errs))
-        self.vault = vault or EvaluationVault()
+        self.vault = EvaluationVault() if vault is None else vault
         self.guard = SelfTrainingGuard(self.vault, strict_guard)
         self.history: list = []
         self.last_advice: SchedulerAdvice | None = None
@@ -1847,3 +1860,544 @@ def self_check(seed: int = 0) -> dict:
     return {"recovery": rec, "usable": list(res.update.usable), "blocked": list(res.advice.blocked_representations),
             "stop_paths": list(res.advice.stop_paths), "guard_refuses_eval_output": "poison" in gr.refused,
             "verdict": res.verdict.value, "label": LABEL}
+
+
+# ================================================================================================ DEPTH: is the meta-knowledge itself trustworthy?
+# Everything below tests the meta-learner's own claims: are its predictions calibrated, do its findings replicate in a second
+# half of history, does it find nothing in a shuffled world, does its knowledge go stale, and which question actually earns
+# its keep in the scheduler.
+
+def _fold_edges(n: int, folds: int) -> np.ndarray:
+    return np.linspace(n // 2, n, folds + 1).astype(int)
+
+
+def oos_predictions(question: Q16, records: Sequence[ResearchOutcome], now, cfg: MetaResearchConfig) -> dict:
+    """The actual out-of-sample predictions behind evaluate_questions (which returns only summaries), so calibration and
+    ranking quality can be measured. Same fold rule: train only on runs resolved before the fold's first run started."""
+    rows = question_rows(SPECS[question], records)
+    cut = to_ts(now)
+    lab = sorted((r for r in rows if r[1] and to_ts(r[1]) < cut), key=lambda r: (to_ts(r[0]), str(r[2])))
+    empty = {"n": 0, "p_model": np.zeros(0), "p_base": np.zeros(0), "y": np.zeros(0, int), "keys": [], "fold": np.zeros(0, int)}
+    if len(lab) < cfg.min_train + cfg.folds:
+        return empty
+    pm, pb, ys, keys, fid = [], [], [], [], []
+    edges = _fold_edges(len(lab), cfg.folds)
+    for f, (a, b) in enumerate(zip(edges[:-1], edges[1:])):
+        test = lab[a:b]
+        if not test:
+            continue
+        cutoff = to_ts(test[0][0])
+        train = [r for r in lab[:a] if to_ts(r[1]) < cutoff]
+        if len(train) < cfg.min_train:
+            continue
+        rates, _ = group_rates(((r[2], r[3]) for r in train), 1)
+        pooled = sum(1 for r in train if r[3]) / len(train)
+        for r in test:
+            pm.append(rates[r[2]].shrunk if r[2] in rates else pooled)
+            pb.append(pooled)
+            ys.append(1 if r[3] else 0)
+            keys.append(r[2])
+            fid.append(f)
+    if not ys:
+        return empty
+    return {"n": len(ys), "p_model": np.array(pm), "p_base": np.array(pb), "y": np.array(ys), "keys": keys, "fold": np.array(fid)}
+
+
+def calibration_report(question: Q16, records: Sequence[ResearchOutcome], now, cfg: MetaResearchConfig, bins: int = 5) -> dict:
+    """How honest are the group rates as probabilities, out of sample? Brier gain over the pooled rate, AUC of the group
+    ranking, expected calibration error, reliability bins, and precision at the top of the ranking."""
+    from engine.learning.meta_learning import auc, decile_lift, expected_calibration_error, precision_at_k, reliability_bins
+    pr = oos_predictions(question, records, now, cfg)
+    if pr["n"] < cfg.min_test:
+        return {"question": question.value, "n": pr["n"], "verdict": "INSUFFICIENT"}
+    y, pm, pb = pr["y"], pr["p_model"], pr["p_base"]
+    gain = brier(pb, y) - brier(pm, y)
+    ece = expected_calibration_error(pm, y, bins)
+    k = max(5, pr["n"] // 10)
+    return {"question": question.value, "n": pr["n"], "brier_model": brier(pm, y), "brier_base": brier(pb, y), "brier_gain": gain,
+            "auc": auc(pm, y), "ece": ece, "reliability": reliability_bins(pm, y, bins), "precision_at_k": precision_at_k(pm, y, k), "k": k,
+            "base_rate": float(y.mean()), "lift": decile_lift(pm, y, 4),
+            "verdict": "CALIBRATED_AND_USEFUL" if gain > 0 and ece < 0.10 else ("USEFUL_BUT_MISCALIBRATED" if gain > 0 else "NO_SKILL")}
+
+
+def calibration_sweep(records: Sequence[ResearchOutcome], now, cfg: MetaResearchConfig) -> dict:
+    return {q: calibration_report(q, records, now, cfg) for q in Q16}
+
+
+def recalibrate_advice(adv: SchedulerAdvice, sweep: Mapping) -> SchedulerAdvice:
+    """Drop the groups of any question whose OOS calibration verdict is NO_SKILL: a rate that ranks nothing is not information."""
+    bad = {q.value for q in Q16 if sweep.get(q, {}).get("verdict") == "NO_SKILL"}
+    if not bad:
+        return adv
+    blank = {}
+    for q, fields in QUESTION_FIELDS.items():
+        if q.value in bad:
+            for f in fields:
+                blank[f] = () if isinstance(getattr(adv, f), tuple) else {}
+    pooled = {k: v for k, v in adv.pooled.items() if k not in bad}
+    withheld = {**adv.withheld, **{b: "no out-of-sample calibration skill" for b in bad}}
+    return replace(adv, **blank, pooled=pooled, withheld=withheld, usable_questions=tuple(u for u in adv.usable_questions if u not in bad))
+
+
+QUESTION_FIELDS = {
+    Q16.DURABLE_EXPERIMENTS: ("exp_type_durable",), Q16.OVERFIT_TYPES: ("exp_type_overfit", "family_overfit"),
+    Q16.TRANSFERRING_FAMILIES: ("family_transfer",), Q16.FAILING_REPRESENTATIONS: ("representation_failure", "blocked_representations"),
+    Q16.FALSE_DISCOVERY_DATASETS: ("dataset_false_discovery",), Q16.VALIDATION_METHODS: ("validation_recall", "validation_order"),
+    Q16.DECISION_QUESTIONS: ("source_decision", "target_decision"), Q16.INFORMATIVE_FAILURES: ("exp_type_informative_failure",),
+    Q16.WASTED_COMPUTE: ("stop_paths", "throttle_paths"), Q16.ERA_SURVIVAL: ("survival_era",), Q16.STOCK_SURVIVAL: ("survival_stock",),
+    Q16.REGIME_SURVIVAL: ("survival_regime",)}
+CONSUMED_BY_SCHEDULE = {Q16.DURABLE_EXPERIMENTS, Q16.OVERFIT_TYPES, Q16.TRANSFERRING_FAMILIES, Q16.FAILING_REPRESENTATIONS,
+                        Q16.FALSE_DISCOVERY_DATASETS, Q16.VALIDATION_METHODS, Q16.DECISION_QUESTIONS, Q16.INFORMATIVE_FAILURES,
+                        Q16.WASTED_COMPUTE}                       # Q10-12 reach the policy through MetaAdvice.context_transfer instead
+
+
+# ------------------------------------------------------------------------------------------------ do findings replicate?
+
+@dataclass(frozen=True)
+class Replication:
+    question: str
+    n_first: int
+    n_second: int
+    common_groups: int
+    rho: float | None
+    sign_agreement: float | None                    # share of groups whose lift has the same sign in both halves
+    verdict: str                                    # REPLICATES / WEAK / DOES_NOT_REPLICATE / INSUFFICIENT
+
+
+def split_half_replication(question: Q16, records: Sequence[ResearchOutcome], cfg: MetaResearchConfig, min_lift: float = 0.03) -> Replication:
+    """A finding that holds only in one half of history is a coincidence of that half. Fit the group rates on the first and
+    second half of the runs (by start time) independently and ask whether they agree. The meta-learner's own claims must
+    survive the same test it applies to pattern discoveries."""
+    spec = SPECS[question]
+    key = spec.groupers[spec.primary]
+    rel = sorted((o for o in records if spec.row_filter(o) and spec.outcome(o) is not None and key(o) is not None),
+                 key=lambda o: (to_ts(o.started_at), o.run_id))
+    if len(rel) < 2 * cfg.min_train:
+        return Replication(question.value, 0, 0, 0, None, None, "INSUFFICIENT")
+    mid = len(rel) // 2
+    tabs = [rate_table(spec_rows(spec, part), spec.outcome_name, spec.higher_is_better, cfg.min_group_n, cfg.fdr_q) for part in (rel[:mid], rel[mid:])]
+    common = sorted(set(tabs[0].groups) & set(tabs[1].groups))
+    if len(common) < 3:
+        return Replication(question.value, mid, len(rel) - mid, len(common), None, None, "INSUFFICIENT")
+    a = [tabs[0].groups[k].shrunk for k in common]
+    b = [tabs[1].groups[k].shrunk for k in common]
+    rho = spearman(a, b)
+    moved = [k for k in common if abs(tabs[0].groups[k].lift) >= min_lift and abs(tabs[1].groups[k].lift) >= min_lift]
+    agree = (sum(1 for k in moved if tabs[0].groups[k].lift * tabs[1].groups[k].lift > 0) / len(moved)) if moved else None
+    if rho is None:
+        verdict = "INSUFFICIENT"
+    elif rho >= 0.5 and (agree is None or agree >= 0.6):
+        verdict = "REPLICATES"
+    elif rho <= 0.0:
+        verdict = "DOES_NOT_REPLICATE"
+    else:
+        verdict = "WEAK"
+    return Replication(question.value, mid, len(rel) - mid, len(common), rho, agree, verdict)
+
+
+def replication_sweep(records: Sequence[ResearchOutcome], cfg: MetaResearchConfig) -> dict:
+    return {q: split_half_replication(q, records, cfg) for q in Q16}
+
+
+def prob_best(table: RateTable, seed: int, draws: int = 4000) -> dict:
+    """Posterior probability that each group is the best (or worst) for research on this outcome, from Beta posteriors under
+    the table's empirical-Bayes prior. Sharper than a point ranking: it says how sure the top spot is."""
+    if not table.groups:
+        return {}
+    rng = np.random.default_rng(seed)
+    a0, b0 = table.prior
+    keys = sorted(table.groups)
+    samples = np.column_stack([rng.beta(a0 + table.groups[k].successes, b0 + table.groups[k].n - table.groups[k].successes, draws) for k in keys])
+    win = np.argmax(samples if table.higher_is_better else -samples, axis=1)
+    lose = np.argmin(samples if table.higher_is_better else -samples, axis=1)
+    return {k: {"p_best": float(np.mean(win == i)), "p_worst": float(np.mean(lose == i))} for i, k in enumerate(keys)}
+
+
+@dataclass(frozen=True)
+class DataNeed:
+    question: str
+    group: str
+    n_now: int
+    half_width_now: float
+    n_needed: int                                   # additional runs so the Wilson half-width reaches the target
+    known: bool
+
+
+def exploration_needs(report: QuestionReport, target_half_width: float = 0.15, z: float = 1.96) -> list:
+    """How many more runs each group of a question needs before its rate is pinned to +/- target_half_width. Unknown groups
+    (too few runs to appear in the table) are included: they are exactly what the scheduler should explore."""
+    t = report.main
+    out = []
+    for k, g in t.groups.items():
+        p = min(0.95, max(0.05, g.shrunk))
+        need = math.ceil(z * z * p * (1 - p) / target_half_width ** 2) - g.n
+        out.append(DataNeed(report.question.value, k, g.n, (g.hi - g.lo) / 2, max(0, need), True))
+    full = math.ceil(z * z * 0.25 / target_half_width ** 2)
+    for k in t.unknown:
+        out.append(DataNeed(report.question.value, k, 0, 0.5, full, False))
+    return sorted(out, key=lambda d: (-d.n_needed, d.question, d.group))
+
+
+# ------------------------------------------------------------------------------------------------ cost-effectiveness across experiment types
+
+@dataclass(frozen=True)
+class TypeEconomics:
+    exp_type: str
+    runs: int
+    minutes: float
+    durable_per_hour: float
+    overfit_rate: float | None
+    decisions_per_hour: float
+    info_bits_per_hour: float
+    dominated: bool = False
+
+
+def type_economics(records: Sequence[ResearchOutcome]) -> list:
+    """Durable knowledge, decision changes and information per compute hour, by experiment type, with the Pareto set on
+    (durable per hour up, overfit rate down). A dominated type is worse on both counts than some other type."""
+    by: dict = defaultdict(list)
+    for o in records:
+        by[o.exp_type].append(o)
+    rows = []
+    for t in sorted(by):
+        rs = by[t]
+        hrs = sum(o.cost_minutes for o in rs) / 60.0
+        dur = [o.durable for o in rs if o.durable is not None]
+        ov = [o.overfit for o in rs if o.overfit is not None]
+        dec = [o.decision_changed for o in rs if o.decision_changed is not None]
+        if hrs <= 0:
+            continue
+        rows.append(TypeEconomics(t, len(rs), hrs * 60.0, sum(map(bool, dur)) / hrs, (sum(map(bool, ov)) / len(ov)) if ov else None,
+                                  sum(map(bool, dec)) / hrs, sum(o.info_bits for o in rs) / hrs))
+    out = []
+    for r in rows:
+        dom = any(o is not r and o.durable_per_hour >= r.durable_per_hour and o.overfit_rate is not None and r.overfit_rate is not None
+                  and o.overfit_rate <= r.overfit_rate and (o.durable_per_hour > r.durable_per_hour or o.overfit_rate < r.overfit_rate) for o in rows)
+        out.append(replace(r, dominated=dom))
+    return sorted(out, key=lambda r: (-r.durable_per_hour, r.exp_type))
+
+
+def compute_reallocation(records: Sequence[ResearchOutcome], adv: SchedulerAdvice, total_minutes: float, floor_share: float = 0.05,
+                         cap_share: float = 0.45) -> dict:
+    """Recommended compute split across experiment types: proportional to advice-adjusted durable knowledge per minute,
+    boxed by a floor (nothing starves, C62 section 35) and a cap (no single type eats the budget). Types the advice knows
+    nothing about get the mean of the known scores: exploring the unknown is not penalised."""
+    from engine.learning.research_policy import project_box_simplex
+    types = sorted({o.exp_type for o in records})
+    if not types:
+        return {"minutes": {}, "share": {}, "reason": "no runs"}
+    cost = {t: max(0.1, float(np.mean([o.cost_minutes for o in records if o.exp_type == t]))) for t in types}
+    pooled_over = adv.pooled.get(Q16.OVERFIT_TYPES.value, 0.3)
+    raw, known = {}, {}
+    for t in types:
+        d = adv.exp_type_durable.get(t)
+        if d is None:
+            continue
+        raw[t] = d * (1 - adv.exp_type_overfit.get(t, pooled_over)) / cost[t]
+        known[t] = True
+    mean_raw = float(np.mean(list(raw.values()))) if raw else 1.0
+    for t in types:
+        raw.setdefault(t, mean_raw)
+    floor = min(floor_share, 0.5 / len(types))
+    cap = max(cap_share, 1.5 / len(types))
+    share = project_box_simplex(raw, {t: floor for t in types}, {t: min(1.0, cap) for t in types})
+    return {"minutes": {t: round(share[t] * total_minutes, 2) for t in types}, "share": {t: round(share[t], 4) for t in types},
+            "explored_unknown": sorted(t for t in types if t not in known), "floor": floor, "cap": cap}
+
+
+# ------------------------------------------------------------------------------------------------ contradictions between findings
+
+@dataclass(frozen=True)
+class Contradiction:
+    kind: str
+    subject: str
+    detail: str
+
+
+def find_contradictions(reports: Mapping) -> list:
+    """Findings that cannot all be trusted at once. (1) An experiment type significantly MORE durable and significantly MORE
+    overfit than average. (2) A dataset with the lowest false-discovery rate that also makes families look worst. (3) A
+    validation method with high recall and an equally high false-alarm rate (it alarms on everything). These are reported,
+    never resolved silently."""
+    out = []
+    dur, ovf = reports[Q16.DURABLE_EXPERIMENTS].tables["exp_type"], reports[Q16.OVERFIT_TYPES].tables["exp_type"]
+    for k in sorted(set(dur.groups) & set(ovf.groups)):
+        if dur.groups[k].direction == "ABOVE" and ovf.groups[k].direction == "ABOVE":
+            out.append(Contradiction("durable_and_overfit", k, f"durable lift {dur.groups[k].lift:+.2f} and overfit lift {ovf.groups[k].lift:+.2f} both significant"))
+    inf, wst = reports[Q16.INFORMATIVE_FAILURES].tables["exp_type"], reports[Q16.DURABLE_EXPERIMENTS].tables["exp_type"]
+    for k in sorted(set(inf.groups) & set(wst.groups)):
+        if inf.groups[k].direction == "BELOW" and wst.groups[k].direction == "ABOVE":
+            out.append(Contradiction("durable_but_uninformative_failures", k, "produces durable knowledge yet its failures teach nothing"))
+    return out
+
+
+def method_contradictions(scores: Sequence[MethodScore], j_floor: float = 0.15, recall_hi: float = 0.7) -> list:
+    return [Contradiction("alarm_on_everything", m.method, f"recall {m.recall:.2f} but false-alarm {m.false_alarm_rate:.2f} (Youden {m.youden:.2f})")
+            for m in scores if m.n_with_error and m.n_clean and m.recall >= recall_hi and m.youden < j_floor]
+
+
+# ------------------------------------------------------------------------------------------------ is the pipeline able to find NOTHING?
+
+OUTCOME_FIELDS = ("failed", "durable", "overfit", "false_discovery", "decision_changed", "new_era_survived", "new_stock_survived",
+                  "new_regime_survived", "info_bits", "followups")
+
+
+def permute_outcomes(records: Sequence[ResearchOutcome], seed: int) -> list:
+    """The null world: descriptors and timing stay, outcomes are shuffled across runs. Any 'finding' here is a false alarm."""
+    rng = np.random.default_rng(seed)
+    idx = rng.permutation(len(records))
+    out = [replace(o, **{f: getattr(records[j], f) for f in OUTCOME_FIELDS}) for o, j in zip(records, idx)]
+    have = [i for i, o in enumerate(out) if o.validator_flagged is not None]
+    flags = [out[i].validator_flagged for i in have]
+    perm = rng.permutation(len(have))
+    for i, j in zip(have, perm):
+        out[i] = replace(out[i], validator_flagged=flags[j])
+    return out
+
+
+def null_world_check(records: Sequence[ResearchOutcome], now, cfg: MetaResearchConfig, seed: int = 0, n_perm: int = 8) -> dict:
+    """Run the whole out-of-sample battery on shuffled outcomes. The share of questions that come out 'usable' is the
+    meta-learner's false-discovery rate; the run must be near zero, and a real world must beat it clearly."""
+    real = evaluate_questions(records, now, seed, cfg)
+    real_usable = sum(1 for q in Q16 if question_usable(real[q], cfg)[0])
+    counts = []
+    per_q = {q.value: 0 for q in Q16}
+    for i in range(n_perm):
+        fake = evaluate_questions(permute_outcomes(records, seed * 1000 + i + 1), now, seed + 7 * i + 3, cfg)
+        ok = [q for q in Q16 if question_usable(fake[q], cfg)[0]]
+        counts.append(len(ok))
+        for q in ok:
+            per_q[q.value] += 1
+    mean = float(np.mean(counts)) if counts else 0.0
+    return {"real_usable": real_usable, "null_usable_mean": mean, "null_usable_max": int(max(counts)) if counts else 0,
+            "false_usable_rate": mean / len(Q16), "per_question_false_rate": {k: v / max(1, n_perm) for k, v in per_q.items()},
+            "verdict": "PIPELINE_QUIET_ON_NOISE" if mean <= 0.15 * len(Q16) else "PIPELINE_FINDS_STRUCTURE_IN_NOISE", "n_perm": n_perm}
+
+
+# ------------------------------------------------------------------------------------------------ generalisation across contexts, and staleness
+
+def context_holdout(question: Q16, records: Sequence[ResearchOutcome], dim: str, cfg: MetaResearchConfig, min_test: int = 15) -> dict:
+    """Leave one context label out (one era, one stock group, one regime): fit the question's group rates on the rest, score
+    the held-out label against the pooled rate. Not a time test (labels are contexts, not dates) - it asks whether the
+    advice is carried by a single context. Fails when it beats the pooled rate in fewer than half the held-out labels."""
+    spec = SPECS[question]
+    labels = sorted({getattr(o, dim) for o in records if getattr(o, dim)})
+    rows = []
+    for lab in labels:
+        tr = spec_rows(spec, [o for o in records if getattr(o, dim) != lab])
+        te = spec_rows(spec, [o for o in records if getattr(o, dim) == lab])
+        if len(tr) < cfg.min_train or len(te) < min_test:
+            continue
+        rates, _ = group_rates(tr, 1)
+        pooled = sum(1 for _, y in tr if y) / len(tr)
+        pm = [rates[k].shrunk if k in rates else pooled for k, _ in te]
+        y = [1 if v else 0 for _, v in te]
+        bm, bb = brier(pm, y), brier([pooled] * len(y), y)
+        rows.append({"label": lab, "n_test": len(te), "brier_group": bm, "brier_pooled": bb, "better": bm < bb})
+    if len(rows) < 2:
+        return {"question": question.value, "dimension": dim, "labels": rows, "verdict": "INSUFFICIENT"}
+    share = sum(1 for r in rows if r["better"]) / len(rows)
+    return {"question": question.value, "dimension": dim, "labels": rows, "share_better": share,
+            "verdict": "CARRIES_ACROSS_CONTEXTS" if share >= 0.5 else "CONTEXT_SPECIFIC"}
+
+
+def predictive_decay(question: Q16, records: Sequence[ResearchOutcome], cfg: MetaResearchConfig, windows: int = 5) -> dict:
+    """How fast does meta-knowledge go stale? Rates fitted on window i predict window i+lag; the mean Brier gain over the
+    pooled rate at each lag shows the horizon over which advice stays useful. `stale_after` is the first lag with no gain:
+    advice older than that should be shrunk (stale_discount) or refitted."""
+    spec = SPECS[question]
+    key = spec.groupers[spec.primary]
+    rel = sorted((o for o in records if spec.row_filter(o) and spec.outcome(o) is not None and key(o) is not None),
+                 key=lambda o: (to_ts(o.started_at), o.run_id))
+    if len(rel) < windows * 12:
+        return {"question": question.value, "lags": [], "stale_after": None, "verdict": "INSUFFICIENT"}
+    chunks = [spec_rows(spec, [rel[i] for i in ix]) for ix in np.array_split(np.arange(len(rel)), windows)]
+    lags = []
+    for lag in range(1, windows):
+        gains = []
+        for i in range(windows - lag):
+            tr, te = chunks[i], chunks[i + lag]
+            if len(tr) < 10 or len(te) < 10:
+                continue
+            rates, _ = group_rates(tr, 1)
+            pooled = sum(1 for _, y in tr if y) / len(tr)
+            pm = [rates[k].shrunk if k in rates else pooled for k, _ in te]
+            y = [1 if v else 0 for _, v in te]
+            gains.append(brier([pooled] * len(y), y) - brier(pm, y))
+        if gains:
+            lags.append({"lag": lag, "mean_gain": float(np.mean(gains)), "n_pairs": len(gains)})
+    stale = next((r["lag"] for r in lags if r["mean_gain"] <= 0), None)
+    return {"question": question.value, "lags": lags, "stale_after": stale,
+            "verdict": "STALE_WITHIN_HORIZON" if stale is not None else "DURABLE_OVER_HORIZON"}
+
+
+# ------------------------------------------------------------------------------------------------ which question earns its keep in the scheduler?
+
+def drop_question(adv: SchedulerAdvice, question: Q16) -> SchedulerAdvice:
+    """The advice as if this one question had never been answered."""
+    blank = {f: (() if isinstance(getattr(adv, f), tuple) else {}) for f in QUESTION_FIELDS[question]}
+    return replace(adv, **blank, pooled={k: v for k, v in adv.pooled.items() if k != question.value})
+
+
+def question_ablation(rows: Sequence[ResearchOutcome], now, seed: int, cfg: MetaResearchConfig, guard: SelfTrainingGuard | None = None) -> dict:
+    """Leave-one-question-out over the scheduler replay: how much of the advice's lift disappears when a question is
+    removed? A question with contribution <= 0 is either not consumed by the schedule or not helping it. Q10-Q12 feed the
+    policy through MetaAdvice.context_transfer, not this schedule, and are reported as such rather than as zero."""
+    full = evaluate_scheduler(rows, now, seed, cfg, guard)
+    out = {"full_lift": full.lift, "full_label": full.label, "questions": {}}
+    if not math.isfinite(full.lift):
+        return out
+    for q in Q16:
+        if q not in CONSUMED_BY_SCHEDULE:
+            out["questions"][q.value] = {"consumed_by_schedule": False, "contribution": None}
+            continue
+        ev = evaluate_scheduler(rows, now, seed, cfg, guard, lambda a, q=q: drop_question(a, q))
+        out["questions"][q.value] = {"consumed_by_schedule": True, "lift_without": ev.lift, "contribution": full.lift - ev.lift}
+    return out
+
+
+def stop_rule_replay(records: Sequence[ResearchOutcome], cfg: MetaResearchConfig) -> dict:
+    """The compute-waste counterfactual (contract section 20): walk each path's runs in resolution order, apply the STOP
+    rule to the prefix, and count what would have been skipped. Reports minutes saved against the useful runs that would
+    have been lost by stopping: the stop rule is only worth having if it saves much more than it loses."""
+    by: dict = defaultdict(list)
+    for o in sorted(records, key=lambda o: (to_ts(o.resolved_at), o.run_id)):
+        w = wasted(o)
+        if w is not None:
+            by[o.path].append((o, w))
+    saved = lost_useful = lost_minutes = total = 0.0
+    stopped = []
+    for p, rows in sorted(by.items()):
+        useful = barren = 0
+        for i, (o, w) in enumerate(rows):
+            total += o.cost_minutes
+            if path_action(useful, i, barren, cfg.useful_floor, cfg.stop_p, cfg.throttle_p, 4, cfg.barren_run) == "STOP":
+                saved += o.cost_minutes
+                if not w:
+                    lost_useful += 1
+                    lost_minutes += o.cost_minutes
+                if p not in stopped:
+                    stopped.append(p)
+                continue
+            useful += 0 if w else 1
+            barren = barren + 1 if w else 0
+    return {"total_minutes": total, "minutes_skipped": saved, "useful_runs_lost": int(lost_useful), "stopped_paths": stopped,
+            "minutes_of_useful_lost": lost_minutes, "net_minutes": saved - lost_minutes,
+            "verdict": "WORTH_HAVING" if saved > 0 and saved >= 3 * max(lost_minutes, 1e-9) else ("HARMS_MORE_THAN_HELPS" if lost_minutes > 0.5 * saved else "MARGINAL")}
+
+
+def meta_rerank(engine, adv: SchedulerAdvice, cfg: MetaResearchConfig | None = None) -> list:
+    """INTEGRATION HOOK for engine.learning.research_priority.ResearchPriorityEngine: multiplies each OPEN item's adjusted
+    priority by the meta multiplier and BLOCKS items on a stop path / failing representation (recorded in the item's note,
+    never deleted). Returns the new top order. Applied after each meta update, exactly like experience_rerank."""
+    from engine.learning.research_priority import ItemStatus
+    for it in list(engine.queue.items.values()):
+        if it.status != ItemStatus.OPEN:
+            continue
+        d = schedule_decision(descriptor_from_candidate(it.candidate), adv, it.candidate.cid, cfg)
+        it.note = (it.note + " | " if it.note else "") + "meta: " + "; ".join(d.reasons)
+        if d.action == "BLOCK":
+            it.status = ItemStatus.BLOCKED
+        else:
+            it.adjusted *= d.multiplier
+    return [i.candidate.cid for i in engine.queue.top(len(engine.queue.items))]
+
+
+def explain(desc: Mapping, adv: SchedulerAdvice, cfg: MetaResearchConfig | None = None) -> str:
+    d = schedule_decision(desc, adv, "", cfg)
+    return f"{d.action} x{d.multiplier:.2f} (advice {adv.advice_id}, trust {adv.trust():.2f}): " + "; ".join(d.reasons)
+
+
+# ------------------------------------------------------------------------------------------------ questions about the research process
+
+def meta_questions(update: ResearchMetaUpdate, now, max_questions: int = 12, need_threshold: int = 10) -> list:
+    """Section 40 applied to research itself: the gaps in what the meta-learner knows become ResearchQuestion objects for the
+    scheduler. Sources: groups too small to judge, questions that could not be answered out of sample, findings that did
+    not replicate, contradictions, and drifts in the process. All text is identity-free."""
+    from engine.research.core import ExperimentValue, Problem, ResearchQuestion
+    qs = []
+    through = update.advice.fitted_through
+    def add(text, source, success, failure, bits):
+        assert not identity_leak(text), text
+        qs.append(ResearchQuestion.make(text, source, Problem.RESEARCH_PROCESS, str(now), through, success, failure,
+                                        expected=ExperimentValue(information_gain=bits)))
+    for q in Q16:
+        if q.value not in update.usable:
+            add(f"what evidence is missing before '{SPECS[q].text}' can be answered out of sample", "unanswered_meta_question",
+                "the group predictor beats the pooled rate on held-out runs", "still no better than the pooled rate with the extra runs", 1.0)
+        for need in exploration_needs(update.reports[q])[:2]:
+            if need.n_needed >= need_threshold:
+                add(f"how {SPECS[q].outcome_name} behaves for {need.group} ({need.n_needed} more runs pin it down)", "unknown_group",
+                    "the rate is pinned within the target width", "the rate stays too wide to act on", min(1.0, need.n_needed / 100))
+    for c in find_contradictions(update.reports) + method_contradictions(update.methods):
+        add(f"why {c.subject} looks both good and bad ({c.kind})", "contradiction", "one reading is ruled out", "both readings survive", 0.6)
+    for name, alarms in update.drift.items():
+        if alarms:
+            add(f"has the {name} rate of the research process shifted after the last alarm", "process_drift",
+                "a stable new rate is confirmed", "the shift disappears", 0.5)
+    seen, out = set(), []
+    for q in qs:
+        if q.question_id not in seen:
+            seen.add(q.question_id)
+            out.append(q)
+    return sorted(out, key=lambda x: (-(x.expected.information_gain or 0.0), x.question_id))[:max_questions]
+
+
+# ------------------------------------------------------------------------------------------------ store health and diff
+
+def store_health(store: OutcomeStore, now) -> dict:
+    """What can and cannot be learned from the store right now: field coverage among resolved runs, pending runs, thin
+    experiment types, and duplicate paths on the same start. A field with near-zero coverage silences its question."""
+    vis = store.as_of(now)
+    allrows = store.all()
+    cov = {}
+    for f in ("durable", "overfit", "false_discovery", "decision_changed", "new_era_survived", "new_stock_survived", "new_regime_survived",
+              "validator_flagged"):
+        cov[f] = (sum(1 for o in vis if getattr(o, f) is not None) / len(vis)) if vis else 0.0
+    thin = sorted(t for t in {o.exp_type for o in vis} if sum(1 for o in vis if o.exp_type == t) < 5)
+    dup = defaultdict(int)
+    for o in vis:
+        dup[(o.path, o.started_at)] += 1
+    warnings = [f"{f} known for only {c:.0%} of resolved runs" for f, c in cov.items() if c < 0.1 and vis]
+    if thin:
+        warnings.append(f"{len(thin)} experiment type(s) with fewer than 5 runs")
+    if sum(1 for v in dup.values() if v > 1):
+        warnings.append("several runs share a path and start time (possible double logging)")
+    return {"resolved": len(vis), "pending": len(allrows) - len(vis), "coverage": cov, "thin_types": thin,
+            "duplicate_starts": sum(1 for v in dup.values() if v > 1), "warnings": warnings,
+            "poison_rows": sum(1 for o in vis if o.origin in EVAL_ORIGINS)}
+
+
+def question_power(store: OutcomeStore, now, cfg: MetaResearchConfig) -> dict:
+    """Per question: usable rows, rows needed before the OOS test can run at all, and whether it can be answered yet."""
+    vis = store.as_of(now)
+    need = cfg.min_train + cfg.folds
+    out = {}
+    for q in Q16:
+        n = len(question_rows(SPECS[q], vis))
+        out[q.value] = {"rows": n, "needed": need + cfg.min_test, "answerable": n >= need + cfg.min_test, "short_by": max(0, need + cfg.min_test - n)}
+    return out
+
+
+def diff_updates(old: ResearchMetaUpdate, new: ResearchMetaUpdate, min_move: float = 0.10) -> dict:
+    """What changed between two fits: questions gained or lost, group rates that moved, paths newly stopped."""
+    def moved(a: Mapping, b: Mapping) -> dict:
+        return {k: (a[k], b[k]) for k in sorted(set(a) & set(b)) if abs(a[k] - b[k]) >= min_move}
+    oa, na = old.advice, new.advice
+    return {"usable_gained": sorted(set(na.usable_questions) - set(oa.usable_questions)),
+            "usable_lost": sorted(set(oa.usable_questions) - set(na.usable_questions)),
+            "durable_moved": moved(oa.exp_type_durable, na.exp_type_durable), "overfit_moved": moved(oa.exp_type_overfit, na.exp_type_overfit),
+            "dataset_moved": moved(oa.dataset_false_discovery, na.dataset_false_discovery),
+            "stop_added": sorted(set(na.stop_paths) - set(oa.stop_paths)), "stop_removed": sorted(set(oa.stop_paths) - set(na.stop_paths)),
+            "blocked_added": sorted(set(na.blocked_representations) - set(oa.blocked_representations)),
+            "label": (oa.oos_label, na.oos_label), "stability": advice_stability(oa, na)}
+
+
+def scorecard_numbers(u: ResearchMetaUpdate) -> dict:
+    """Flat numbers for the self-improvement scorecard (contract section 36): a small, stable set of scalars."""
+    s = u.scheduler
+    return {"meta_questions_usable": len(u.usable), "meta_questions_total": len(Q16),
+            "scheduler_lift": None if s is None or not math.isfinite(s.lift) else s.lift, "scheduler_p": None if s is None else s.p_value,
+            "stop_paths": len(u.advice.stop_paths), "blocked_representations": len(u.advice.blocked_representations),
+            "advice_trust": u.advice.trust(), "guard_refused": len(u.guard.refused),
+            "compute_waste_share": compute_waste_summary(u.paths)["waste_share"] if u.paths else None}

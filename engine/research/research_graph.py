@@ -520,8 +520,8 @@ class ResearchGraph(KnowledgeGraph):
         gate_exps = {e for _, e, _ in tests}
         improving = self.sources(pattern, R.IMPROVES, now)
         imp = tuple(o for o in improving if not gate_exps or gate_exps & set(self.targets(o, R.PRODUCED_BY, now)))
-        missing = [s for s, present in (("predicts", predicts), ("works_in", works), ("fails_in", fails)) if not present]
-        if fails and not any(ex for _, ex in expl):
+        missing = [s for s, present in (("predicts", predicts), ("works_in", works), ("fails_in", fails or expl)) if not present]
+        if (fails or expl) and not any(ex for _, ex in expl):
             missing.append("failure_explanation")
         if any(ex for _, ex in expl) and not gates:
             missing.append("gating_rule")
@@ -593,6 +593,10 @@ class GapKind(_StrEnum):
     UNEXPLAINED_CONTRADICTION = "UNEXPLAINED_CONTRADICTION"
     ONE_SIDED_EVIDENCE = "ONE_SIDED_EVIDENCE"          # many wins, never a failure, never attacked
     UNREPLICATED = "UNREPLICATED"
+    COVERAGE_HOLE = "COVERAGE_HOLE"                    # most similar patterns were tried in a context this one never was
+    CONTEXT_FLIP = "CONTEXT_FLIP"                      # latest evidence contradicts the earliest in the same context
+    ROLLUP_CONFLICT = "ROLLUP_CONFLICT"                # a broad context disagrees with most of its members
+    SHARED_MECHANISM = "SHARED_MECHANISM"              # patterns co-behave beyond chance with no common parent
     STALE = "STALE"
     ISLAND = "ISLAND"                                  # a cluster of beliefs never compared with the main body
 
@@ -608,6 +612,7 @@ class GapConfig:
     stale_days: int = 180
     min_wins_one_sided: int = 3
     max_per_kind: int = 10
+    reinvestigate_days: int = 365      # an investigated-and-still-unexplained failure is not re-raised sooner than this
     seed: int = 0
 
     def check(self) -> list[str]:
@@ -785,6 +790,34 @@ def predicted_transfers(g: ResearchGraph, now, cfg: GapConfig = GapConfig(), imp
     return out
 
 
+def coverage_holes(g: ResearchGraph, now, cfg: GapConfig, imp: Mapping[str, float]) -> list[Gap]:
+    """Contexts most of a pattern's siblings were tried in but the pattern never was. Unlike predicted_transfers this makes no claim
+    about the RESULT (a context where every sibling works cannot be distinguished from base rate by any null), only that the
+    grid has a hole where its neighbours have data."""
+    pats = _active_beliefs(g, now)
+    if len(pats) < cfg.min_support + 1:
+        return []
+    cols, T, _ = _grid(g, pats, now)
+    if not cols:
+        return []
+    S = similarity_matrix(g, pats, now, cfg.min_similarity)
+    near = (S > 0).astype(float)
+    n_near = near.sum(axis=1)
+    support = near @ T
+    out = []
+    for i, j in zip(*np.nonzero((T == 0) & (support >= cfg.min_support))):
+        share = support[i, j] / n_near[i]
+        if share < 0.6:
+            continue
+        mass = float((S @ T)[i, j])
+        out.append(_gap(GapKind.COVERAGE_HOLE, (pats[i], cols[j]), share * (mass / (mass + cfg.shrink)) * (0.4 + 0.6 * imp.get(pats[i], 0.0)),
+                        f"{int(support[i, j])} of {int(n_near[i])} patterns built like {pats[i]} were tried in {cols[j]}; "
+                        f"{pats[i]} never was.", problem_of(g, pats[i], now), _newest(g, [pats[i], cols[j]], now),
+                        ev={"share_of_siblings": float(share), "support": int(support[i, j])}, information_gain=0.4,
+                        transfer_potential=float(share), decision_value=imp.get(pats[i], 0.0)))
+    return out
+
+
 def context_blind(g: ResearchGraph, now, cfg: GapConfig, imp: Mapping[str, float]) -> list[Gap]:
     """Patterns that claim to predict a target but have no context, transfer or failure record at all."""
     out = []
@@ -823,6 +856,9 @@ def candidate_explanations(g: ResearchGraph, failure: str, now, top: int = 3) ->
 def unexplained_failures(g: ResearchGraph, now, cfg: GapConfig, imp: Mapping[str, float]) -> list[Gap]:
     out = []
     for f in g.unexplained_failures(now):
+        done = g.node_at(f, now).attrs.get("investigated_at")
+        if done is not None and as_date(now).toordinal() - int(done) < cfg.reinvestigate_days:
+            continue
         pats = [p for p in g.targets(f, R.FAILS_IN, now)]
         if not pats:
             continue
@@ -968,7 +1004,258 @@ def islands(g: ResearchGraph, now, cfg: GapConfig, imp: Mapping[str, float]) -> 
     return out
 
 
-_FINDERS = (context_blind, unexplained_failures, ungated_failures, untested_gates, unanswered_questions,
+
+
+# ====================================================================================================== higher-order structure
+
+@dataclasses.dataclass(frozen=True)
+class Flip:
+    pattern: str
+    context: str
+    first: str                          # "works" or "fails"
+    last: str
+    first_at: str
+    last_at: str
+
+
+def flipped_contexts(g: ResearchGraph, now) -> list[Flip]:
+    """Contexts where the latest evidence about a pattern contradicts the earliest: it used to work there and now fails, or the
+    reverse. The evidence is the pattern's own WORKS_IN / FAILS_IN edges (each with its known_at), so this needs no extra
+    bookkeeping: a drift in the graph's record IS the drift. Sorted by how recently the flip happened."""
+    n = as_date(now)
+    out = []
+    for p in _active_beliefs(g, now):
+        seen: dict[str, list[tuple[str, str]]] = defaultdict(list)
+        for c, e in g.by_role(p, R.WORKS_IN, now, "out"):
+            seen[c].append((e.known_at, "works"))
+        for c, e in g.by_role(p, R.FAILS_IN, now, "in"):
+            if g.kind_of(c) in CONTEXT_KINDS:
+                seen[c].append((e.known_at, "fails"))
+        for c, ev in seen.items():
+            ev.sort()
+            if len({s for _, s in ev}) > 1 and ev[0][1] != ev[-1][1]:
+                out.append(Flip(p, c, ev[0][1], ev[-1][1], ev[0][0], ev[-1][0]))
+    return sorted(out, key=lambda f: ((n - as_date(f.last_at)).days, f.pattern, f.context))
+
+
+def context_flips(g: ResearchGraph, now, cfg: GapConfig, imp: Mapping[str, float]) -> list[Gap]:
+    out = []
+    for f in flipped_contexts(g, now):
+        out.append(_gap(GapKind.CONTEXT_FLIP, (f.pattern, f.context), 0.5 + 0.5 * imp.get(f.pattern, 0.0),
+                        f"{f.pattern} first {f.first} in {f.context} and the latest evidence says it {f.last}. Did the context "
+                        f"change, or was one of the two results noise?", problem_of(g, f.pattern, now),
+                        _newest(g, [f.pattern, f.context], now), ev=dataclasses.asdict(f), information_gain=0.7,
+                        uncertainty_reduction=0.7, loss_reduction_value=imp.get(f.pattern, 0.0) if f.last == "fails" else None))
+    return out
+
+
+@dataclasses.dataclass(frozen=True)
+class Motif:
+    items: tuple[str, ...]              # 'WORKS_IN:reg:r1' style items
+    patterns: tuple[str, ...]
+    support: int
+    lift: float
+    p_value: float
+
+
+def _behaviour_items(g: ResearchGraph, p: str, now) -> set[str]:
+    items = {f"{'WORKS_IN' if v['works'] > v['fails'] else 'FAILS_IN'}:{c}" for c, v in g.contexts_of(p, now).items()
+             if g.kind_of(c) in _MATRIX_KINDS}
+    items |= {f"GATED_BY:{c}" for c in g.targets(p, R.GATED_BY, now)}
+    items |= {f"PREDICTS:{t}" for t in g.targets(p, R.PREDICTS, now)}
+    return items
+
+
+def mine_motifs(g: ResearchGraph, now, min_support: int = 3, n_null: int = 200, alpha: float = 0.10, seed: int = 0,
+                max_items: int = 200) -> list[Motif]:
+    """Pairs of behaviours that co-occur across patterns more than chance (e.g. 'works in high volume AND fails at transitions'
+    across five patterns): a hint of one shared mechanism. Null: shuffle each item's column independently, which keeps every
+    item's frequency and destroys their co-occurrence; p is the share of shuffles with at least the observed pair count;
+    Benjamini-Hochberg over all pairs with support >= min_support. Pure structure, no outcome data leaves the graph."""
+    from engine import pattern_stats as ps
+    pats = _active_beliefs(g, now)
+    sets = {p: _behaviour_items(g, p, now) for p in pats}
+    freq = Counter(i for s in sets.values() for i in s)
+    items = [i for i, k in sorted(freq.items()) if k >= min_support][:max_items]
+    if len(pats) < min_support or len(items) < 2:
+        return []
+    M = np.array([[1.0 if i in sets[p] else 0.0 for i in items] for p in pats])
+    obs = M.T @ M
+    pairs = [(a, b) for a in range(len(items)) for b in range(a + 1, len(items)) if obs[a, b] >= min_support]
+    if not pairs:
+        return []
+    rng = np.random.default_rng(seed)
+    ia = np.array([a for a, _ in pairs])
+    ib = np.array([b for _, b in pairs])
+    ge = np.zeros(len(pairs))
+    for _ in range(n_null):
+        Mn = np.column_stack([rng.permutation(M[:, k]) for k in range(M.shape[1])])
+        ge += (Mn[:, ia] * Mn[:, ib]).sum(axis=0) >= obs[ia, ib]
+    pv = (1 + ge) / (n_null + 1)
+    keep = ps.bh_reject(pv, alpha)
+    n = len(pats)
+    out = []
+    for (a, b), p, k in zip(pairs, pv, keep):
+        if k:
+            exp = freq[items[a]] * freq[items[b]] / n
+            who = tuple(pt for pt in pats if items[a] in sets[pt] and items[b] in sets[pt])
+            out.append(Motif((items[a], items[b]), who, int(obs[a, b]), float(obs[a, b] / exp), float(p)))
+    return sorted(out, key=lambda m: (m.p_value, -m.support, m.items))
+
+
+def shared_mechanisms(g: ResearchGraph, now, cfg: GapConfig, imp: Mapping[str, float]) -> list[Gap]:
+    """A significant motif whose patterns have no common parent belief is a candidate for a more general hypothesis."""
+    out = []
+    for m in mine_motifs(g, now, max(3, cfg.min_support + 1), cfg.n_null, cfg.alpha, cfg.seed):
+        parents = [set(g.targets(p, R.SPECIALIZES_TO, now)) for p in m.patterns]
+        if parents and set.intersection(*parents):
+            continue
+        out.append(_gap(GapKind.SHARED_MECHANISM, m.patterns[:3] + (m.items[0].split(":", 1)[1],), min(1.0, m.support / 8.0) * min(1.0, m.lift / 2.0),
+                        f"{m.support} patterns ({', '.join(m.patterns[:3])}...) share both {m.items[0]} and {m.items[1]} (lift "
+                        f"{m.lift:.1f}). Is there one mechanism behind them that a more general hypothesis would capture?",
+                        Problem.RESEARCH_PROCESS, _newest(g, m.patterns, now), p=m.p_value,
+                        ev={"items": list(m.items), "support": m.support, "lift": m.lift}, information_gain=0.6,
+                        redundancy=None, transfer_potential=0.5))
+    return out
+
+
+def context_ancestors(g: ResearchGraph, context: str, now, max_depth: int = 4) -> list[str]:
+    """Broader contexts that contain this one (sector contains cohort, regime contains event), nearest first."""
+    t = g.traverse(context, now, [Edge.CONTAINS], "in", max_depth)
+    return [n for n in t.nodes()[1:]]
+
+
+def rollup_exposure(g: ResearchGraph, pattern: str, now) -> dict[str, dict[str, int]]:
+    """For each broader context, how the pattern fared across the narrower contexts it contains: works, fails, and untested
+    children. A parent nobody tested directly still has an implied record."""
+    ctx = g.contexts_of(pattern, now)
+    out: dict[str, dict[str, int]] = {}
+    parents = {a for c in ctx for a in context_ancestors(g, c, now)}
+    for parent in sorted(parents):
+        kids = g.traverse(parent, now, [Edge.CONTAINS], "out", 4).nodes()[1:]
+        works = sum(1 for k in kids if ctx.get(k, {}).get("works", 0) > ctx.get(k, {}).get("fails", 0))
+        fails = sum(1 for k in kids if ctx.get(k, {}).get("fails", 0) > ctx.get(k, {}).get("works", 0))
+        out[parent] = {"works": works, "fails": fails, "untested": len(kids) - sum(1 for k in kids if k in ctx), "children": len(kids)}
+    return out
+
+
+def rollup_conflicts(g: ResearchGraph, now) -> list[tuple[str, str, str]]:
+    """(pattern, parent context, why): the pattern's direct record at a broader context disagrees with the majority of its record
+    across that context's members (works at the sector, yet fails in most of its cohorts: an aggregation trap)."""
+    out = []
+    for p in _active_beliefs(g, now):
+        ctx = g.contexts_of(p, now)
+        for parent, r in rollup_exposure(g, p, now).items():
+            direct = ctx.get(parent)
+            if direct is None or r["works"] + r["fails"] < 2:
+                continue
+            direct_works = direct["works"] > direct["fails"]
+            if direct_works and r["fails"] > r["works"]:
+                out.append((p, parent, f"works at {parent} overall but fails in {r['fails']} of {r['children']} of its members"))
+            elif not direct_works and r["works"] > r["fails"]:
+                out.append((p, parent, f"fails at {parent} overall but works in {r['works']} of {r['children']} of its members"))
+    return sorted(out)
+
+
+def rollup_gaps(g: ResearchGraph, now, cfg: GapConfig, imp: Mapping[str, float]) -> list[Gap]:
+    return [_gap(GapKind.ROLLUP_CONFLICT, (p, parent), 0.5 + 0.5 * imp.get(p, 0.0), f"{p}: {why}. Which level is the truth?",
+                 problem_of(g, p, now), _newest(g, [p, parent], now), information_gain=0.6, uncertainty_reduction=0.6)
+            for p, parent, why in rollup_conflicts(g, now)]
+
+
+# ====================================================================================================== closing the loop
+
+CLOSERS: dict[GapKind, tuple[str, ...]] = {
+    GapKind.PREDICTED_TRANSFER: ("WORKS_IN", "FAILS_IN", "TRANSFERS_TO"),
+    GapKind.PREDICTED_EXPOSURE: ("WORKS_IN", "FAILS_IN", "TRANSFERS_TO"),
+    GapKind.COVERAGE_HOLE: ("WORKS_IN", "FAILS_IN", "TRANSFERS_TO"),
+    GapKind.CONTEXT_BLIND: ("WORKS_IN", "FAILS_IN", "TRANSFERS_TO"),
+    GapKind.UNEXPLAINED_FAILURE: ("EXPLAINED_BY", "investigated"),
+    GapKind.UNGATED_FAILURE: ("GATED_BY",),
+    GapKind.UNTESTED_GATE: ("VALIDATED_BY_EXP(gate)", "REFUTED_BY_EXP(gate)"),
+    GapKind.UNANSWERED_QUESTION: ("ANSWERED_BY",),
+    GapKind.UNEXPLAINED_CONTRADICTION: ("CONTRADICTS_WITH(context)",),
+    GapKind.ONE_SIDED_EVIDENCE: ("REFUTED_BY_EXP", "FAILS_IN", "TRANSFERS_TO(failed)"),
+    GapKind.UNREPLICATED: ("VALIDATED_BY_EXP", "TRANSFERS_TO"),
+    GapKind.STALE: ("VALIDATED_BY_EXP", "REFUTED_BY_EXP", "TRANSFERS_TO"),
+    GapKind.CONTEXT_FLIP: ("WORKS_IN", "FAILS_IN"),
+    GapKind.ROLLUP_CONFLICT: ("WORKS_IN", "FAILS_IN"),
+    GapKind.SHARED_MECHANISM: ("SPECIALIZES_TO",),
+    GapKind.ISLAND: ("COMPLEMENTS_WITH", "REDUNDANT_WITH", "SPECIALIZES_TO", "CONTRADICTS_WITH"),
+}
+
+
+def resolve_gap(g: ResearchGraph, gap: Gap, outcome: str, known_at, experiment: str | None = None, *, context: str | None = None,
+                effect: float | None = None, weight: float = 1.0) -> list[str]:
+    """Write the RESULT of investigating a gap back into the graph in the shape that closes it, and return the node ids touched.
+    `outcome` is one of: works, fails (transfer/exposure/coverage/blind/flip), explained (needs `context`), unexplained (the honest
+    'we looked and do not know': recorded, not forced), gated (needs `context`), validated / refuted (gate test or replication),
+    answered (question). Every path records the experiment that produced it, so the answer has provenance."""
+    kind = gap.kind
+    touched: list[str] = []
+    if experiment:
+        touched.append(g.add_research_node(K.EXPERIMENT, experiment, known_at, attrs={} if effect is None else {"effect": float(effect)}).node_id)
+    subj = gap.subjects
+    if kind in (GapKind.PREDICTED_TRANSFER, GapKind.PREDICTED_EXPOSURE, GapKind.COVERAGE_HOLE, GapKind.CONTEXT_FLIP, GapKind.ROLLUP_CONFLICT):
+        pat, ctx = subj[0], subj[1]
+        if outcome == "works":
+            g.relate(pat, ctx, R.WORKS_IN, known_at, weight)
+        elif outcome == "fails":
+            g.relate(ctx, pat, R.FAILS_IN, known_at, weight)
+        else:
+            raise GraphError(f"{kind.value} is resolved by 'works' or 'fails', not {outcome!r}")
+        if experiment:
+            g.relate(pat, touched[0], R.VALIDATED_BY_EXP if outcome == "works" else R.REFUTED_BY_EXP, known_at, weight)
+        touched += [pat, ctx]
+    elif kind == GapKind.UNEXPLAINED_FAILURE:
+        f = subj[0]
+        if outcome == "explained":
+            if not context:
+                raise GraphError("'explained' needs the explaining context")
+            g.relate(f, context, R.EXPLAINED_BY, known_at, weight)
+            touched.append(context)
+        elif outcome == "unexplained":
+            g.merge_attrs(f, known_at, investigated_at=as_date(known_at).toordinal())
+        else:
+            raise GraphError(f"UNEXPLAINED_FAILURE is resolved by 'explained' or 'unexplained', not {outcome!r}")
+        touched.append(f)
+    elif kind == GapKind.UNGATED_FAILURE:
+        if outcome != "gated" or not context:
+            raise GraphError("UNGATED_FAILURE is resolved by outcome='gated' with the gating context")
+        g.add_gate(subj[0], context, known_at, weight)
+        touched += [subj[0], context]
+    elif kind == GapKind.UNTESTED_GATE:
+        if outcome not in ("validated", "refuted") or not experiment:
+            raise GraphError("UNTESTED_GATE is resolved by validated/refuted with an experiment")
+        g.relate(subj[0], touched[0], R.VALIDATED_BY_EXP if outcome == "validated" else R.REFUTED_BY_EXP, known_at, weight,
+                 attrs={"gate": subj[1]})
+        touched.append(subj[0])
+    elif kind == GapKind.UNANSWERED_QUESTION:
+        if outcome != "answered" or not experiment:
+            raise GraphError("UNANSWERED_QUESTION is resolved by outcome='answered' with an experiment")
+        g.relate(subj[0], touched[0], R.ANSWERED_BY, known_at, attrs={"verdict": "answered"})
+        touched.append(subj[0])
+    elif kind in (GapKind.UNREPLICATED, GapKind.STALE, GapKind.ONE_SIDED_EVIDENCE):
+        if outcome not in ("validated", "refuted") or not experiment:
+            raise GraphError(f"{kind.value} is resolved by validated/refuted with an experiment")
+        g.relate(subj[0], touched[0], R.VALIDATED_BY_EXP if outcome == "validated" else R.REFUTED_BY_EXP, known_at, weight)
+        touched.append(subj[0])
+    elif kind == GapKind.UNEXPLAINED_CONTRADICTION:
+        if not context:
+            raise GraphError("a contradiction is explained by the context that separates the two")
+        g.relate(subj[0], subj[1], R.CONTRADICTS_WITH, known_at, weight, attrs={"context": context})
+        touched += list(subj[:2])
+    else:
+        raise GraphError(f"{kind.value} has no automatic resolution: relate the nodes explicitly with the role you found")
+    return list(dict.fromkeys(touched))
+
+
+def closing_relations(gap: Gap) -> tuple[str, ...]:
+    """Which recorded relationships would close this gap (what a finished investigation must write back)."""
+    return CLOSERS[gap.kind]
+
+
+_FINDERS = (coverage_holes, context_flips, rollup_gaps, shared_mechanisms, context_blind, unexplained_failures, ungated_failures, untested_gates, unanswered_questions,
             unexplained_contradictions, one_sided_evidence, unreplicated, stale_beliefs, islands)
 
 
@@ -983,9 +1270,12 @@ def discover(g: ResearchGraph, now, cfg: GapConfig = GapConfig()) -> list[Gap]:
         gaps += fn(g, now, cfg, imp)
     per: Counter = Counter()
     seen, out = set(), []
+    predicted = {gp.subjects for gp in gaps if gp.kind in (GapKind.PREDICTED_TRANSFER, GapKind.PREDICTED_EXPOSURE)}
     for gp in sorted(gaps, key=lambda x: (-x.score, x.kind.value, x.gap_id)):
         if gp.gap_id in seen or per[gp.kind] >= cfg.max_per_kind:
             continue
+        if gp.kind == GapKind.COVERAGE_HOLE and gp.subjects in predicted:
+            continue                                     # the sharper, tested claim already covers this cell
         seen.add(gp.gap_id)
         per[gp.kind] += 1
         out.append(gp)
@@ -1002,7 +1292,11 @@ _CRITERIA = {GapKind.PREDICTED_TRANSFER: ("the pattern works in the context at a
              GapKind.UNEXPLAINED_CONTRADICTION: ("a context separates the two", "no context does: one is retired"),
              GapKind.ONE_SIDED_EVIDENCE: ("an adversarial test finds where it fails", "it survives the adversarial test"),
              GapKind.UNREPLICATED: ("a second independent test agrees", "the replication fails"),
+             GapKind.COVERAGE_HOLE: ("the pattern is tested there and the result recorded", "it cannot be tested there: record why"),
              GapKind.STALE: ("fresh evidence agrees", "fresh evidence disagrees: degrade or retire"),
+             GapKind.CONTEXT_FLIP: ("a fresh test confirms the latest state", "the fresh test agrees with the earlier state: noise"),
+             GapKind.ROLLUP_CONFLICT: ("the right level is identified and gated on", "neither level is stable: record it"),
+             GapKind.SHARED_MECHANISM: ("a general hypothesis explains all of them and predicts a new case", "no common mechanism: coincidence"),
              GapKind.ISLAND: ("the cluster is linked to the main body", "they are unrelated: record it")}
 
 

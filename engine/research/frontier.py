@@ -37,7 +37,7 @@ import numpy as np
 import pandas as pd
 from scipy import stats as sps
 
-from engine import direction_calib
+from engine import direction_calib, pattern_stats
 from engine.learning import calibration as CAL
 from engine.learning.core import FirewallBreach, Provenance, as_date, canonical_json, current_code_hash, require_past, stable_hash
 from engine.learning.scorecard import Measured, MStatus
@@ -149,8 +149,9 @@ class Predictions:
             f["correct"] = ((f["p"] >= 0.5) == (f["up"] > 0.5)).astype(float)
             if "era" not in f:
                 f["era"] = f["date"].dt.year.astype(str)
+            f["wk"] = week_codes(f["date"])
         else:
-            for c in ("conf", "side", "correct", "era"):
+            for c in ("conf", "side", "correct", "era", "wk"):
                 f[c] = pd.Series(dtype=float)
         self.frame = f
 
@@ -189,15 +190,15 @@ class Predictions:
     def matured_before(self, now) -> "Predictions":
         """The rows whose outcome was known strictly before `now`; nothing else is visible."""
         cut = pd.Timestamp(as_date(now))
-        return Predictions(self.frame[self.frame["matured_at"] < cut].drop(columns=["conf", "side", "correct"], errors="ignore"),
+        return Predictions(self.frame[self.frame["matured_at"] < cut].drop(columns=["conf", "side", "correct", "wk"], errors="ignore"),
                            validate=False)
 
     def subset(self, mask) -> "Predictions":
         keep = self.frame[np.asarray(mask, bool)]
-        return Predictions(keep.drop(columns=["conf", "side", "correct"], errors="ignore"), validate=False)
+        return Predictions(keep.drop(columns=["conf", "side", "correct", "wk"], errors="ignore"), validate=False)
 
     def week_codes(self) -> np.ndarray:
-        return week_codes(self.frame["date"])
+        return self.frame["wk"].to_numpy()
 
     def ticker_codes(self) -> np.ndarray:
         return pd.factorize(self.frame["ticker"])[0]
@@ -211,7 +212,7 @@ class Predictions:
 
     @classmethod
     def concat(cls, parts: Sequence["Predictions"]) -> "Predictions":
-        frames = [p.frame.drop(columns=["conf", "side", "correct"], errors="ignore") for p in parts if not p.empty]
+        frames = [p.frame.drop(columns=["conf", "side", "correct", "wk"], errors="ignore") for p in parts if not p.empty]
         if not frames:
             return cls(pd.DataFrame({c: pd.Series(dtype=float) for c in REQUIRED_COLUMNS}))
         return cls(pd.concat(frames, ignore_index=True))
@@ -335,7 +336,7 @@ def independent_observations(P: Predictions, mask: np.ndarray, cfg: FrontierConf
         return 0.0, 1.0
     f = P.frame[mask]
     corr = f["correct"].to_numpy()
-    deff = max(design_effect(corr, week_codes(f["date"])), design_effect(corr, pd.factorize(f["ticker"])[0]))
+    deff = max(design_effect(corr, f["wk"].to_numpy()), design_effect(corr, pd.factorize(f["ticker"])[0]))
     deff *= overlap_factor(f["date"], f["ticker"], cfg.horizon_days)
     return float(n / deff), float(deff)
 
@@ -479,7 +480,7 @@ def cell_risk(f: pd.DataFrame, cfg: FrontierConfig) -> CellRisk:
     avg_win = float(win.mean()) if len(win) else 0.0
     avg_loss = float(lose.mean()) if len(lose) else 0.0
     k = max(int(math.ceil(0.05 * len(r))), 1)
-    wk = pd.Series(r).groupby(week_codes(f["date"])).mean()
+    wk = pd.Series(r).groupby(f["wk"].to_numpy()).mean()
     cum = (1.0 + wk).cumprod()
     dd = float((cum / cum.cummax() - 1.0).min()) if len(cum) else math.nan
     return CellRisk(True, len(r), float(r.mean()), avg_win, avg_loss, avg_win / avg_loss if avg_loss > 0 else math.inf,
@@ -517,7 +518,7 @@ def selection_null(P: Predictions, cfg: FrontierConfig, thresholds: Mapping[floa
         return SelectionNull(covs, nan, dict(nan), dict(nan), dict(nan), 0)
     order = np.argsort(week_codes(P.frame["date"]), kind="stable")
     f = P.frame.iloc[order]
-    codes = week_codes(f["date"])
+    codes = f["wk"].to_numpy()
     conf, corr = f["conf"].to_numpy(), f["correct"].to_numpy()
     masks = {c: select_mask(conf, c, thresholds) for c in covs}
     ns = {c: int(m.sum()) for c, m in masks.items()}
@@ -658,7 +659,7 @@ def compute_cell(P: Predictions, coverage: float, cfg: FrontierConfig, rng: np.r
     corr = sel["correct"].to_numpy()
     k = float(corr.sum())
     acc = k / n
-    wcodes = week_codes(f["date"])
+    wcodes = f["wk"].to_numpy()
     lo, hi, se = cluster_bootstrap(f["correct"].to_numpy(), wcodes, mask, rng, cfg.n_boot, cfg.level)
     n_eff, deff = independent_observations(P, mask, cfg)
     z = cfg.z
@@ -1153,6 +1154,7 @@ class TestEntry:
     p: float
     logged_real: str
     matured_through: str
+    count: int = 1                        # number of tests this entry stands for (a block of screened-out tests has p = 1)
 
 
 class TestLedger:
@@ -1171,7 +1173,19 @@ class TestLedger:
                     self._entries.setdefault(e.test_id, e)
 
     def __len__(self) -> int:
-        return len(self._entries)
+        return sum(e.count for e in self._entries.values())
+
+    def log_null(self, test_id: str, family: str, count: int, matured_through, now) -> None:
+        """Register `count` tests that were examined but screened out (each counts as p = 1): the search size is part of the price."""
+        require_past(matured_through, now, f"test block {test_id}")
+        if count <= 0 or test_id in self._entries:
+            return
+        e = TestEntry(test_id, family, 1.0, str(as_date(now)), str(as_date(matured_through)), int(count))
+        self._entries[test_id] = e
+        if self.path:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            with self.path.open("a", encoding="utf-8") as fh:
+                fh.write(json.dumps(dataclasses.asdict(e), sort_keys=True) + NL)
 
     def log(self, test_id: str, family: str, p: float, matured_through, now) -> TestEntry:
         """Record one test. `matured_through` (newest outcome date used) must be strictly before `now`, else FirewallBreach."""
@@ -1202,20 +1216,14 @@ class TestLedger:
         return float(min(1.0, e.p * len(self)))
 
     def bh_adjusted(self) -> dict[str, float]:
-        """Benjamini-Hochberg step-up adjusted p-values over EVERY test in the ledger."""
-        if not self._entries:
+        """Benjamini-Hochberg q-values over EVERY test in the ledger, counting screened-out blocks as p = 1 tests
+        (engine.pattern_stats.bh_qvalues on the real p-values padded with ones up to the cumulative count)."""
+        real = [e for e in self._entries.values() if e.count == 1]
+        if not real:
             return {}
-        ids = list(self._entries)
-        p = np.array([self._entries[i].p for i in ids])
-        order = np.argsort(p)
-        m = len(p)
-        adj = np.empty(m)
-        run = 1.0
-        for rank_from_end, idx in enumerate(order[::-1]):
-            rank = m - rank_from_end
-            run = min(run, p[idx] * m / rank)
-            adj[idx] = run
-        return dict(zip(ids, adj.tolist()))
+        p = np.array([e.p for e in real] + [1.0] * (len(self) - len(real)))
+        q = pattern_stats.bh_qvalues(p)[:len(real)]
+        return {e.test_id: float(x) for e, x in zip(real, q)}
 
     def survivors(self, q: float = 0.05, strict: bool = True) -> list[str]:
         """Tests that survive. strict=True demands BOTH BH q-value <= q and Bonferroni <= 0.5 (a big-search guard); False is BH only."""
@@ -1233,7 +1241,7 @@ class TestLedger:
         n = len(self)
         if n == 0:
             return {"n": 0, "observed": 0, "expected": 0.0, "p": math.nan}
-        obs = sum(1 for e in self._entries.values() if e.p <= alpha)
+        obs = sum(e.count for e in self._entries.values() if e.p <= alpha and e.count == 1)
         return {"n": n, "observed": obs, "expected": alpha * n, "p": float(sps.binom.sf(obs - 1, n, alpha))}
 
     def digest(self) -> str:
@@ -1915,7 +1923,7 @@ def paired_model_comparison(Pa: Predictions, Pb: Predictions, names: tuple[str, 
 def random_control(P: Predictions, seed: int = 0) -> Predictions:
     """Same rows, confidence and side carry no information: outcomes are kept, p is redrawn. A frontier run on this must find nothing."""
     rng = np.random.default_rng(seed)
-    f = P.frame.drop(columns=["conf", "side", "correct"], errors="ignore").copy()
+    f = P.frame.drop(columns=["conf", "side", "correct", "wk"], errors="ignore").copy()
     conf = rng.uniform(0.5, 0.99, len(f))
     f["p"] = np.where(rng.random(len(f)) < 0.5, conf, 1.0 - conf)
     return Predictions(f)
@@ -1924,7 +1932,7 @@ def random_control(P: Predictions, seed: int = 0) -> Predictions:
 def shuffled_outcome_control(P: Predictions, seed: int = 0) -> Predictions:
     """Same calls, outcomes permuted within each week: real confidence structure, no link to what happened."""
     rng = np.random.default_rng(seed)
-    f = P.frame.drop(columns=["conf", "side", "correct"], errors="ignore").copy()
+    f = P.frame.drop(columns=["conf", "side", "correct", "wk"], errors="ignore").copy()
     codes = week_codes(f["date"])
     perm = np.arange(len(f))
     for g in np.unique(codes):
@@ -1940,7 +1948,7 @@ def leak_canary(P: Predictions, seed: int = 0, strength: float = 0.9) -> Predict
     """A deliberately leaking model: p is a noisy copy of the OUTCOME. The frontier must find an 80% region on it (it does not prove
     the region is tradable, only that the instrument is not blind); reachable through the same `assess` path as a real model."""
     rng = np.random.default_rng(seed)
-    f = P.frame.drop(columns=["conf", "side", "correct"], errors="ignore").copy()
+    f = P.frame.drop(columns=["conf", "side", "correct", "wk"], errors="ignore").copy()
     conf = rng.uniform(0.75, 0.99, len(f))
     right = rng.random(len(f)) < strength
     says_up = np.where(right, f["up"].to_numpy() > 0.5, f["up"].to_numpy() <= 0.5)

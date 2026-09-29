@@ -29,7 +29,7 @@ from scipy.stats import rankdata
 from engine.learning import research_policy as RP
 from engine.learning.core import (FirewallBreach, Health, ValidationLabel, as_date, current_code_hash, require_past,
                                   stable_hash, _StrEnum)
-from engine.learning.meta_learning import group_rates, wilson
+from engine.learning.meta_learning import auc, group_rates, wilson
 from engine.research.core import Problem
 
 LABEL = ValidationLabel.NOT_VALIDATED.value
@@ -927,7 +927,7 @@ def compute_metrics(rows: Sequence[Outcome], events: Sequence[KnowledgeEvent], n
 
 def run_detectors(rows: Sequence[Outcome], now, cfg: HealthConfig) -> tuple:
     found = [detect_family_monopoly(rows, cfg), detect_hard_abandonment(rows, now, cfg), detect_easy_bias(rows, cfg),
-             detect_wrong_metric(rows, now, cfg)]
+             detect_wrong_metric(rows, now, cfg), detect_unjudged_claims(rows, now, cfg)]
     found.extend(detect_exploration_deficit(rows, now, cfg))
     return tuple(f for f in found if f is not None)
 
@@ -946,7 +946,7 @@ def step(outcomes: Iterable[Outcome], now, cfg: HealthConfig | None = None, even
         raise ValueError("invalid brain-health input: " + "; ".join(errs[:8]))
     rows = visible(outcomes, now)
     metrics = compute_metrics(rows, events, now, cfg)
-    findings = run_detectors(rows, now, cfg)
+    findings = apply_difficulty_guard(run_detectors(rows, now, cfg), difficulty_validity(rows[-4 * cfg.window:]))
     for m in metrics:
         if m.name == "false_discovery_rate" and m.level in (Level.ALARM, Level.WATCH) and m.value is not None:
             findings = findings + (Finding("FALSE_DISCOVERIES", m.level, f"{m.value:.0%} of judged claims were not real",
@@ -1094,6 +1094,151 @@ def family_report(rows: Sequence[Outcome], min_n: int = 3) -> dict:
     rates, prior = group_rates(((o.family or "(none)", o.success) for o in rows), min_n=min_n)
     return {"prior": prior, "families": {k: {"n": v.n, "raw": v.raw, "shrunk": v.shrunk, "lo": v.lo, "hi": v.hi}
                                           for k, v in sorted(rates.items())}}
+
+
+# ------------------------------------------------------------------------------------------------ guards on the health system itself
+
+def difficulty_validity(rows: Sequence[Outcome], min_n: int = 40) -> dict:
+    """Do the pre-run difficulty ratings actually predict failure? AUC of difficulty against 'did not succeed'. The hard-question
+    and easy-area detectors are only as good as this rating; if it is uninformative (AUC near 0.5) they must not raise ALARMs."""
+    if len(rows) < min_n:
+        return {"verdict": "INSUFFICIENT", "n": len(rows), "auc": None}
+    a = auc([o.difficulty for o in rows], [0 if o.success else 1 for o in rows])
+    if a is None:
+        return {"verdict": "INSUFFICIENT", "n": len(rows), "auc": None}
+    return {"verdict": "INFORMATIVE" if a >= 0.55 else "UNINFORMATIVE", "n": len(rows), "auc": a}
+
+
+def apply_difficulty_guard(findings: Sequence[Finding], validity: Mapping) -> tuple:
+    """Downgrade difficulty-based ALARMs to WATCH when the difficulty rating is uninformative, recording why in the evidence,
+    so a broken rating cannot redirect the whole research programme."""
+    if validity.get("verdict") != "UNINFORMATIVE":
+        return tuple(findings)
+    out = []
+    for f in findings:
+        if f.kind in ("HARD_ABANDONMENT", "EASY_BIAS") and f.level is Level.ALARM:
+            f = Finding(f.kind, Level.WATCH, f.message + " (downgraded: difficulty ratings are uninformative)",
+                        {**dict(f.evidence), "difficulty_auc": validity.get("auc"), "downgraded": True})
+        out.append(f)
+    return tuple(out)
+
+
+def stagnant_families(rows: Sequence[Outcome], cfg: HealthConfig, k: int = 4) -> list:
+    """Every family whose last k gains are negligible and not trending up (research_policy.marginal_return_verdict), with the
+    compute it has consumed. The 'stop wasting compute' input: families to retire or starve, worst waste first."""
+    by: dict = defaultdict(list)
+    for o in rows:
+        by[o.family or "(none)"].append(o)
+    out = []
+    for fam, os_ in by.items():
+        mean_cost = float(np.mean([o.cost_minutes for o in os_])) if os_ else 0.0
+        v = RP.marginal_return_verdict([o.gain_bits for o in os_], k=k, eps=cfg.negligible_bits_per_min * max(mean_cost, EPS))
+        if v["verdict"] == "STOP":
+            out.append({"family": fam, "n": len(os_), "minutes": sum(o.cost_minutes for o in os_), "tail_mean": v["tail_mean"]})
+    return sorted(out, key=lambda r: -r["minutes"])
+
+
+def integrity_gate(report: BrainHealthReport) -> tuple:
+    """May this researcher's new claims be trusted enough to promote? QUARANTINED when the false-discovery, memorisation or
+    overfitting metric is in ALARM (the brain is producing claims that do not hold); NEEDS_MORE_EVIDENCE when those metrics
+    are unknown; PROMOTE only when they are all measured and not in ALARM. Returns (GateVerdict, reasons)."""
+    from engine.research.core import GateVerdict
+    names = ("false_discovery_rate", "memorisation_rate", "overfitting_rate", "replication_rate")
+    ms = [report.metric(n) for n in names]
+    alarms = [m.name for m in ms if m is not None and m.level is Level.ALARM]
+    unknown = [n for n, m in zip(names, ms) if m is None or m.level is Level.UNKNOWN]
+    if alarms:
+        return GateVerdict.QUARANTINED, [f"{a} in ALARM" for a in alarms]
+    if unknown:
+        return GateVerdict.NEEDS_MORE_EVIDENCE, [f"{u} not yet measurable" for u in unknown]
+    return GateVerdict.PROMOTE, []
+
+
+def write_report(rep: BrainHealthReport, out_dir, rows: Sequence[Outcome] = (), cfg: HealthConfig | None = None) -> Path:
+    """Persist a report as JSON plus rendered text; the JSON carries the scorecard, per-area and per-family breakdowns and the
+    stagnant families so a reader can drill from an alarm to the rows that caused it."""
+    cfg = cfg or HealthConfig()
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    stem = f"brain_health_{rep.now}"
+    body = rep.to_dict()
+    if rows:
+        body["scorecard"] = researcher_scorecard(rows)
+        body["by_area"] = breakdown(rows, lambda o: o.area)
+        body["by_family"] = breakdown(rows, lambda o: o.family or "(none)")
+        body["eras"] = era_breakdown(rows)
+        body["stagnant_families"] = stagnant_families(rows, cfg)
+        body["difficulty_validity"] = difficulty_validity(rows)
+    (out / f"{stem}.txt").write_text(rep.render(), encoding="utf-8")
+    path = out / f"{stem}.json"
+    path.write_text(json.dumps(body, sort_keys=True, default=str), encoding="utf-8")
+    return path
+
+
+# ------------------------------------------------------------------------------------------------ unjudged claims, degradation, definitions
+
+def unjudged_claims(rows: Sequence[Outcome], now, max_age_days: int = 60) -> dict:
+    """Claims old enough to have been judged but still carrying no replication verdict. The false-discovery metric only sees
+    JUDGED claims, so a growing pile of unjudged ones is survivor bias: the researcher may be shelving claims that would have
+    failed. Returns counts and the oldest waiting claim."""
+    claims = [o for o in rows if o.claimed_discovery]
+    old = [o for o in claims if _days(now, o.when) > max_age_days]
+    waiting = [o for o in old if o.replicated is None and o.false_discovery is None]
+    return {"claims": len(claims), "old_claims": len(old), "unjudged": len(waiting),
+            "share": (len(waiting) / len(old)) if old else None,
+            "oldest_days": max((_days(now, o.when) for o in waiting), default=None)}
+
+
+def detect_unjudged_claims(rows: Sequence[Outcome], now, cfg: HealthConfig) -> Finding | None:
+    u = unjudged_claims(rows, now)
+    if u["old_claims"] < max(5, cfg.min_n // 3) or u["share"] is None or u["share"] < 0.5:
+        return None
+    return Finding("CLAIMS_UNJUDGED", Level.WATCH, f"{u['unjudged']} of {u['old_claims']} claims older than 60 days were never "
+                   f"replicated or refuted: the false-discovery rate is measured on survivors", u)
+
+
+def degradation_report(rows: Sequence[Outcome], cfg: HealthConfig) -> list:
+    """Which headline rates got significantly WORSE in the recent window against the four windows before it (two-proportion z,
+    one-sided at ~5%)? Complements the absolute thresholds: a metric can be under its alarm line and still be sliding."""
+    recent, prior = recent_and_prior(rows, cfg.window, prior_windows=4)
+    if len(recent) < cfg.min_n or len(prior) < cfg.min_n:
+        return []
+    out = []
+    tests = (("success_rate", lambda o: o.success, -1), ("duplicate_rate", lambda o: bool(o.duplicate_of), +1),
+             ("memorisation_rate", lambda o: bool(o.memorised), +1))
+    for name, pred, bad in tests:
+        k1, k2 = sum(1 for o in recent if pred(o)), sum(1 for o in prior if pred(o))
+        z = two_proportion_z(k1, len(recent), k2, len(prior))
+        if z is not None and bad * z > 1.645:
+            out.append({"metric": name, "recent": k1 / len(recent), "baseline": k2 / len(prior), "z": z})
+    r, p = bits_per_minute(recent), bits_per_minute(prior)
+    if r is not None and p is not None and p > EPS and r < 0.5 * p:
+        out.append({"metric": "compute_efficiency", "recent": r, "baseline": p, "z": None})
+    return out
+
+
+def expected_false_watches(n_metrics: int, n_reports: int, per_check_rate: float = 0.05) -> float:
+    """How many spurious WATCH levels to expect from chance alone across a run of reports: a reminder that a long-lived
+    monitor will cry wolf, which is why persistence (min_hold) rather than a single report drives redirects."""
+    return float(n_metrics * n_reports * per_check_rate)
+
+
+def metric_definitions() -> dict:
+    """The eleven section-37 quantities in plain terms: what is counted, which direction is bad, and where its evidence comes
+    from. Kept as data so reports, docs and tests read one source."""
+    return {
+        "diversity": ("normalised entropy of compute over the ten areas", "low is bad", "recent window"),
+        "duplicate_rate": ("share of experiments repeating an earlier one, tagged or implied by identical config", "high is bad", "recent window"),
+        "success_rate": ("share of experiments with a verified useful result", "too low or too high is bad", "recent window"),
+        "false_discovery_rate": ("share of judged claims later shown not real (+ BH cross-check)", "high is bad", "long window, judged claims"),
+        "replication_rate": ("share of tested claims that replicated", "low is bad", "long window, tested claims"),
+        "transfer_rate": ("share of replicated claims that transferred to unseen data", "low is bad", "long window, replicated claims"),
+        "compute_efficiency": ("bits per CPU-minute vs the previous window; share of minutes spent on repeats or misleading work", "falling is bad", "recent and prior window"),
+        "knowledge_churn": ("knowledge events per standing item and the flip-flop share", "high is bad", "knowledge events"),
+        "overfitting_rate": ("share of scored experiments whose holdout collapsed against train", "high is bad", "recent window"),
+        "memorisation_rate": ("share of memorisation-controlled experiments that were memorised", "high is bad", "recent window"),
+        "research_concentration": ("top hypothesis family's share of compute (HHI in the note)", "high is bad", "recent window"),
+    }
 
 
 # ------------------------------------------------------------------------------------------------ breakdowns

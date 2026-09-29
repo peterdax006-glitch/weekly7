@@ -367,6 +367,7 @@ class Branch:
     audit_cleared: list = dataclasses.field(default_factory=list)      # rung values whose extreme result passed a leakage audit
     looks: int = 1
     n_obs_planned: int = 0
+    waste_factor: float = 1.0                                          # (0,1]: set by the waste controller to deprioritise, never to delete
     parents: tuple[str, ...] = ()
 
     @property
@@ -604,7 +605,7 @@ def priority(state: ManagerState, b: Branch, now, policy: LadderPolicy) -> tuple
     cost = max(planned_cost(state, b, policy), 1e-6)
     age = max(0.0, (as_date(now) - as_date(b.created)).days)
     momentum = 1.0 + 0.25 * (b.highest_passed() + 1)          # a branch that has earned rungs is worth finishing
-    score = float(val) * pen * w_problem * (0.5 + p_end) * momentum / math.sqrt(cost) * (1.0 + policy.age_boost * math.log1p(age))
+    score = b.waste_factor * float(val) * pen * w_problem * (0.5 + p_end) * momentum / math.sqrt(cost) * (1.0 + policy.age_boost * math.log1p(age))
     return score, {"value": float(val), "penalty": pen, "problem_weight": w_problem, "p_reach_end": p_end,
                    "momentum": momentum, "cost": cost, "age_days": age, "missing_estimates": miss}
 
