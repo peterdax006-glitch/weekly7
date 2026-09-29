@@ -104,3 +104,16 @@
 - S11 production: production readers call KnowledgeBoard.weight + effective_champion; audit_decision_sources after each decision
   run; compute.job_for wraps an experiment as engine.resources.Job.
 - S14 planted world: scoring PatternMiner output via planted_world.as_claim (key_named/effect duck-typing); no hook needed.
+- S07 belief: PatternMiner rows -> belief.evidence_from_pattern_row(row, now, n_candidates=len(R)) -> BeliefLedger.update;
+  questions.QuestionEngine.ask_many + boundary.to_knowledge(bset) -> knowledge store; competition.boundary_field(...) feeds
+  boundary proposals into competitions; questions.py imports boundary.py.
+- S06 credit: CreditReport -> credit.update_proposals() -> belief updates; RedundancyReport.edges() + credit.credit_edges() ->
+  knowledge graph; redundancy takes credit.masked_pairs() as candidate pairs. Local enums: UpdateAction, CreditVerdict, Utility,
+  PairClass, RedundancyKind, Reason, Predictiveness.
+- S09 research: improve.log_experiment -> ExperimentLedger.record_result / em.import_legacy; pre-launch ExperimentLedger.already_tested(question, design, now);
+  MetaLearner.update(now).advice -> PolicyContext(meta=...); nightly ResearchPriorityEngine.step -> propose_selected -> update_from_result;
+  signals_from_* adapters for failure/surprise/health/missed-winner/leak-audit; failed_learners.seed_registry + check_proposal before any new learner.
+- S10 transfer/scoring: promotion calls scorecard.gate_improvement_claim(card).allowed; real runner -> scorecard_for_learner -> ScorecardStore.append;
+  scripts/learning_curve* records -> learning_curve.delta_from_records / curve_from_play_records.
+- S11 pass 2: compute.run_experiment_process for real workers; checkpoints.resume_verified at every resume; write_interruption on shutdown.
+  CAVEAT: current_code_hash() moves while builders edit engine/, so real launches will be refused as stale until edits stop - by design.

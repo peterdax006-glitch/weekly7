@@ -1062,34 +1062,51 @@
    "phase": "C LEARNING",
    "description": "Implement meta-learning update.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/learning/experiment_memory.py",
+    "engine/learning/failed_learners.py",
+    "engine/learning/meta_learning.py",
+    "engine/learning/research_policy.py",
+    "engine/learning/research_priority.py"
+   ],
+   "tests": [
+    "tests/test_learning_meta.py",
+    "tests/test_learning_research.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[missing]"
+   "last_run": "2026-09-29T09:37:16",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S09 pass 1). one LegacyBridge facade over TriedIndex + registry dedup; 13 failed learners seeded with checked evidence paths; EIG tables are priors. | earlier: [missing]"
   },
   {
    "id": "C17",
    "phase": "C LEARNING",
    "description": "Implement research-priority update.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
-    "engine/improve.py::diagnose,spawn_challengers"
+    "engine/improve.py::diagnose,spawn_challengers",
+    "engine/learning/experiment_memory.py",
+    "engine/learning/failed_learners.py",
+    "engine/learning/meta_learning.py",
+    "engine/learning/research_policy.py",
+    "engine/learning/research_priority.py"
    ],
-   "tests": [],
+   "tests": [
+    "tests/test_learning_meta.py",
+    "tests/test_learning_research.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial][contradictory] Spawns parameter challengers only - the tuning loop section 35 warns against; untested."
+   "last_run": "2026-09-29T09:37:16",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S09 pass 1). one LegacyBridge facade over TriedIndex + registry dedup; 13 failed learners seeded with checked evidence paths; EIG tables are priors. | earlier: [partial][contradictory] Spawns parameter challengers only - the tuning loop section 35 warns against; untested."
   },
   {
    "id": "D01",
@@ -1621,94 +1638,133 @@
    "owner": "Claude",
    "status": "VALIDATED",
    "code_paths": [
-    "engine/learning_delta.py::headline_transfer,choose_pairs,causal_bank",
-    "engine/learners.py"
+    "engine/learners.py",
+    "engine/learning/learning_curve.py",
+    "engine/learning/portfolio_value.py",
+    "engine/learning/scorecard.py",
+    "engine/learning/transfer.py",
+    "engine/learning/transfer_score.py",
+    "engine/learning_delta.py::headline_transfer,choose_pairs,causal_bank"
    ],
    "tests": [
+    "tests/test_learners.py",
     "tests/test_learning_delta.py",
-    "tests/test_learners.py"
+    "tests/test_learning_scorecard.py",
+    "tests/test_learning_transfer.py"
    ],
    "evidence": [
-    "state/research/learning_delta/ld2_basis/report.md",
+    "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)",
     "state/research/learners/ls3_s11/report.md",
-    "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)"
+    "state/research/learning_delta/ld2_basis/report.md"
    ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[already implemented] The TEST is valid; result NO_TRANSFER (see E04/I18)."
+   "last_run": "2026-09-29T09:37:18",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S10 pass 1). all modules under minimum on the ruler (3120/3550); sent back. | earlier: [already implemented] The TEST is valid; result NO_TRANSFER (see E04/I18)."
   },
   {
    "id": "E09",
    "phase": "E TRANSFER",
    "description": "Cross-regime test.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
-    "engine/learning_delta.py::aggregate (by era)",
     "engine/antioverfit.py::regime_split",
-    "engine/heavy_tests.py::by_regime"
+    "engine/heavy_tests.py::by_regime",
+    "engine/learning/learning_curve.py",
+    "engine/learning/portfolio_value.py",
+    "engine/learning/scorecard.py",
+    "engine/learning/transfer.py",
+    "engine/learning/transfer_score.py",
+    "engine/learning_delta.py::aggregate (by era)"
    ],
    "tests": [
-    "tests/test_antioverfit.py"
+    "tests/test_antioverfit.py",
+    "tests/test_learning_scorecard.py",
+    "tests/test_learning_transfer.py"
    ],
    "evidence": [
-    "state/research/learning_delta/ld1/report.md",
-    "state/research/antioverfit/real_v1/summary.txt"
+    "state/research/antioverfit/real_v1/summary.txt",
+    "state/research/learning_delta/ld1/report.md"
    ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial] Era breakdowns only; no held-out-regime transfer test."
+   "last_run": "2026-09-29T09:37:18",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S10 pass 1). all modules under minimum on the ruler (3120/3550); sent back. | earlier: [partial] Era breakdowns only; no held-out-regime transfer test."
   },
   {
    "id": "E10",
    "phase": "E TRANSFER",
    "description": "Cross-stock test.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/learning/learning_curve.py",
+    "engine/learning/portfolio_value.py",
+    "engine/learning/scorecard.py",
+    "engine/learning/transfer.py",
+    "engine/learning/transfer_score.py"
+   ],
+   "tests": [
+    "tests/test_learning_scorecard.py",
+    "tests/test_learning_transfer.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[missing] No held-out-stock transfer (ticker permutation tests invariance, not transfer)."
+   "last_run": "2026-09-29T09:37:18",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S10 pass 1). all modules under minimum on the ruler (3120/3550); sent back. | earlier: [missing] No held-out-stock transfer (ticker permutation tests invariance, not transfer)."
   },
   {
    "id": "E11",
    "phase": "E TRANSFER",
    "description": "Cross-sector test.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/learning/learning_curve.py",
+    "engine/learning/portfolio_value.py",
+    "engine/learning/scorecard.py",
+    "engine/learning/transfer.py",
+    "engine/learning/transfer_score.py"
+   ],
+   "tests": [
+    "tests/test_learning_scorecard.py",
+    "tests/test_learning_transfer.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[missing]"
+   "last_run": "2026-09-29T09:37:18",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S10 pass 1). all modules under minimum on the ruler (3120/3550); sent back. | earlier: [missing]"
   },
   {
    "id": "E12",
    "phase": "E TRANSFER",
    "description": "Cross-volatility test.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
     "engine/antioverfit.py (type quiet/middle/wild)",
-    "engine/learners.py::RegimeMapLearner"
+    "engine/learners.py::RegimeMapLearner",
+    "engine/learning/learning_curve.py",
+    "engine/learning/portfolio_value.py",
+    "engine/learning/scorecard.py",
+    "engine/learning/transfer.py",
+    "engine/learning/transfer_score.py"
    ],
    "tests": [
-    "tests/test_learners.py"
+    "tests/test_learners.py",
+    "tests/test_learning_scorecard.py",
+    "tests/test_learning_transfer.py"
    ],
    "evidence": [
     "state/research/antioverfit/real_v1/summary.txt"
@@ -1716,21 +1772,28 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial] Per-volatility-type IC for the miner; no learned-knowledge transfer across volatility states."
+   "last_run": "2026-09-29T09:37:18",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S10 pass 1). all modules under minimum on the ruler (3120/3550); sent back. | earlier: [partial] Per-volatility-type IC for the miner; no learned-knowledge transfer across volatility states."
   },
   {
    "id": "E13",
    "phase": "E TRANSFER",
    "description": "Transfer ratio.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
+    "engine/learning/learning_curve.py",
+    "engine/learning/portfolio_value.py",
+    "engine/learning/scorecard.py",
+    "engine/learning/transfer.py",
+    "engine/learning/transfer_score.py",
     "engine/learning_delta.py::aggregate (gap)"
    ],
    "tests": [
-    "tests/test_learning_delta.py"
+    "tests/test_learning_delta.py",
+    "tests/test_learning_scorecard.py",
+    "tests/test_learning_transfer.py"
    ],
    "evidence": [
     "state/research/learning_delta/ld1/report.md"
@@ -1738,9 +1801,9 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial] Gap computed, ratio not."
+   "last_run": "2026-09-29T09:37:18",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S10 pass 1). all modules under minimum on the ruler (3120/3550); sent back. | earlier: [partial] Gap computed, ratio not."
   },
   {
    "id": "E14",
@@ -1749,22 +1812,29 @@
    "owner": "Claude",
    "status": "VALIDATED",
    "code_paths": [
+    "engine/learning/learning_curve.py",
+    "engine/learning/portfolio_value.py",
+    "engine/learning/scorecard.py",
+    "engine/learning/transfer.py",
+    "engine/learning/transfer_score.py",
     "engine/learning_delta.py::aggregate,verdict (gap)"
    ],
    "tests": [
-    "tests/test_learning_delta.py"
+    "tests/test_learning_delta.py",
+    "tests/test_learning_scorecard.py",
+    "tests/test_learning_transfer.py"
    ],
    "evidence": [
+    "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)",
     "state/research/learning_delta/ld1/report.md",
-    "state/research/learning_delta/ld2_basis/report.md",
-    "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)"
+    "state/research/learning_delta/ld2_basis/report.md"
    ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[already implemented] Measured with bootstrap CI: ld1 gap +0.00259 [+0.00012,+0.00585]; ld2 +0.00095."
+   "last_run": "2026-09-29T09:37:18",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S10 pass 1). all modules under minimum on the ruler (3120/3550); sent back. | earlier: [already implemented] Measured with bootstrap CI: ld1 gap +0.00259 [+0.00012,+0.00585]; ld2 +0.00095."
   },
   {
    "id": "E15",
@@ -1774,10 +1844,17 @@
    "status": "IMPLEMENTED",
    "code_paths": [
     "engine/antimemo.py::archive_experiment (b - c)",
+    "engine/learning/learning_curve.py",
+    "engine/learning/portfolio_value.py",
+    "engine/learning/scorecard.py",
+    "engine/learning/transfer.py",
+    "engine/learning/transfer_score.py",
     "engine/learning_delta.py::IdentityRecallLearner"
    ],
    "tests": [
-    "tests/test_antimemo_archive.py"
+    "tests/test_antimemo_archive.py",
+    "tests/test_learning_scorecard.py",
+    "tests/test_learning_transfer.py"
    ],
    "evidence": [
     "state/research/lessons/archive_v2.md"
@@ -1785,21 +1862,28 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "IMPLEMENTED — NOT VALIDATED. Identity gap b-c = +0.000% on the lessons archive; not yet in the learning scorecard."
+   "last_run": "2026-09-29T09:37:18",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S10 pass 1). all modules under minimum on the ruler (3120/3550); sent back. | earlier: IMPLEMENTED — NOT VALIDATED. Identity gap b-c = +0.000% on the lessons archive; not yet in the learning scorecard."
   },
   {
    "id": "E16",
    "phase": "E TRANSFER",
    "description": "Transfer stability.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
+    "engine/learning/learning_curve.py",
+    "engine/learning/portfolio_value.py",
+    "engine/learning/scorecard.py",
+    "engine/learning/transfer.py",
+    "engine/learning/transfer_score.py",
     "scripts/learner_search.py (seeds)"
    ],
    "tests": [
-    "tests/test_learners.py"
+    "tests/test_learners.py",
+    "tests/test_learning_scorecard.py",
+    "tests/test_learning_transfer.py"
    ],
    "evidence": [
     "state/research/learners/ls2_replicate/report.md",
@@ -1808,9 +1892,9 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial] Replicates by seed exist; ls2 learner self-check INVALID; no stability statistic."
+   "last_run": "2026-09-29T09:37:18",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S10 pass 1). all modules under minimum on the ruler (3120/3550); sent back. | earlier: [partial] Replicates by seed exist; ls2 learner self-check INVALID; no stability statistic."
   },
   {
    "id": "F01",
@@ -2106,12 +2190,19 @@
    "status": "FAILED",
    "code_paths": [
     "engine/improve.py::log_experiment",
+    "engine/learning/experiment_memory.py",
+    "engine/learning/failed_learners.py",
+    "engine/learning/meta_learning.py",
+    "engine/learning/research_policy.py",
+    "engine/learning/research_priority.py",
     "engine/registry.py::Registry",
     "state/experiments.jsonl"
    ],
    "tests": [
-    "tests/test_registry.py",
-    "tests/test_audit_registry.py"
+    "tests/test_audit_registry.py",
+    "tests/test_learning_meta.py",
+    "tests/test_learning_research.py",
+    "tests/test_registry.py"
    ],
    "evidence": [
     "state/research/registry_audit.json"
@@ -2119,89 +2210,134 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "IMPLEMENTED — FAILED VALIDATION. [unsafe] registry_audit ok=false: experiment_id/git/config/seed present on 3.8% of audited records."
+   "last_run": "2026-09-29T09:37:16",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S09 pass 1). one LegacyBridge facade over TriedIndex + registry dedup; 13 failed learners seeded with checked evidence paths; EIG tables are priors. | earlier: IMPLEMENTED — FAILED VALIDATION. [unsafe] registry_audit ok=false: experiment_id/git/config/seed present on 3.8% of audited records."
   },
   {
    "id": "G02",
    "phase": "G RESEARCH INTELLIGENCE",
    "description": "Question generation.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/learning/experiment_memory.py",
+    "engine/learning/failed_learners.py",
+    "engine/learning/meta_learning.py",
+    "engine/learning/research_policy.py",
+    "engine/learning/research_priority.py"
+   ],
+   "tests": [
+    "tests/test_learning_meta.py",
+    "tests/test_learning_research.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[missing]"
+   "last_run": "2026-09-29T09:37:16",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S09 pass 1). one LegacyBridge facade over TriedIndex + registry dedup; 13 failed learners seeded with checked evidence paths; EIG tables are priors. | earlier: [missing]"
   },
   {
    "id": "G03",
    "phase": "G RESEARCH INTELLIGENCE",
    "description": "Competing hypothesis generation.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/learning/experiment_memory.py",
+    "engine/learning/failed_learners.py",
+    "engine/learning/meta_learning.py",
+    "engine/learning/research_policy.py",
+    "engine/learning/research_priority.py"
+   ],
+   "tests": [
+    "tests/test_learning_meta.py",
+    "tests/test_learning_research.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[missing] P(real)/P(hallucinated)/P(coincidence) is the only hypothesis split, and it is fixed."
+   "last_run": "2026-09-29T09:37:16",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S09 pass 1). one LegacyBridge facade over TriedIndex + registry dedup; 13 failed learners seeded with checked evidence paths; EIG tables are priors. | earlier: [missing] P(real)/P(hallucinated)/P(coincidence) is the only hypothesis split, and it is fixed."
   },
   {
    "id": "G04",
    "phase": "G RESEARCH INTELLIGENCE",
    "description": "Expected outcome generation.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/learning/experiment_memory.py",
+    "engine/learning/failed_learners.py",
+    "engine/learning/meta_learning.py",
+    "engine/learning/research_policy.py",
+    "engine/learning/research_priority.py"
+   ],
+   "tests": [
+    "tests/test_learning_meta.py",
+    "tests/test_learning_research.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[missing]"
+   "last_run": "2026-09-29T09:37:16",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S09 pass 1). one LegacyBridge facade over TriedIndex + registry dedup; 13 failed learners seeded with checked evidence paths; EIG tables are priors. | earlier: [missing]"
   },
   {
    "id": "G05",
    "phase": "G RESEARCH INTELLIGENCE",
    "description": "Information-gain scoring.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/learning/experiment_memory.py",
+    "engine/learning/failed_learners.py",
+    "engine/learning/meta_learning.py",
+    "engine/learning/research_policy.py",
+    "engine/learning/research_priority.py"
+   ],
+   "tests": [
+    "tests/test_learning_meta.py",
+    "tests/test_learning_research.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[missing]"
+   "last_run": "2026-09-29T09:37:16",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S09 pass 1). one LegacyBridge facade over TriedIndex + registry dedup; 13 failed learners seeded with checked evidence paths; EIG tables are priors. | earlier: [missing]"
   },
   {
    "id": "G06",
    "phase": "G RESEARCH INTELLIGENCE",
    "description": "Research priority queue.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/learning/experiment_memory.py",
+    "engine/learning/failed_learners.py",
+    "engine/learning/meta_learning.py",
+    "engine/learning/research_policy.py",
+    "engine/learning/research_priority.py"
+   ],
+   "tests": [
+    "tests/test_learning_meta.py",
+    "tests/test_learning_research.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[missing] resources.JobQueue can execute a queue; nothing ranks research."
+   "last_run": "2026-09-29T09:37:16",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S09 pass 1). one LegacyBridge facade over TriedIndex + registry dedup; 13 failed learners seeded with checked evidence paths; EIG tables are priors. | earlier: [missing] resources.JobQueue can execute a queue; nothing ranks research."
   },
   {
    "id": "G07",
@@ -2211,32 +2347,46 @@
    "status": "IMPLEMENTED",
    "code_paths": [
     "engine/experiment_memory.py::TriedIndex",
+    "engine/learning/experiment_memory.py",
+    "engine/learning/failed_learners.py",
+    "engine/learning/meta_learning.py",
+    "engine/learning/research_policy.py",
+    "engine/learning/research_priority.py",
     "engine/registry.py::fingerprint,ExperimentMemory"
    ],
    "tests": [
     "tests/test_experiment_memory.py",
+    "tests/test_learning_meta.py",
+    "tests/test_learning_research.py",
     "tests/test_registry.py"
    ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "IMPLEMENTED — NOT VALIDATED. [duplicated] Two dedup mechanisms (TriedIndex, registry.ExperimentMemory) - merge."
+   "last_run": "2026-09-29T09:37:16",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S09 pass 1). one LegacyBridge facade over TriedIndex + registry dedup; 13 failed learners seeded with checked evidence paths; EIG tables are priors. | earlier: IMPLEMENTED — NOT VALIDATED. [duplicated] Two dedup mechanisms (TriedIndex, registry.ExperimentMemory) - merge."
   },
   {
    "id": "G08",
    "phase": "G RESEARCH INTELLIGENCE",
    "description": "Failed experiment memory.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
     "engine/experiment_memory.py::worsened,answer_phase30",
+    "engine/learning/experiment_memory.py",
+    "engine/learning/failed_learners.py",
+    "engine/learning/meta_learning.py",
+    "engine/learning/research_policy.py",
+    "engine/learning/research_priority.py",
     "state/experiments.jsonl"
    ],
    "tests": [
-    "tests/test_experiment_memory.py"
+    "tests/test_experiment_memory.py",
+    "tests/test_learning_meta.py",
+    "tests/test_learning_research.py"
    ],
    "evidence": [
     "state/research/registry_audit.json"
@@ -2244,21 +2394,29 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial] Failed experiments are in the log but mostly without the fields to recognise them."
+   "last_run": "2026-09-29T09:37:16",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S09 pass 1). one LegacyBridge facade over TriedIndex + registry dedup; 13 failed learners seeded with checked evidence paths; EIG tables are priors. | earlier: [partial] Failed experiments are in the log but mostly without the fields to recognise them."
   },
   {
    "id": "G09",
    "phase": "G RESEARCH INTELLIGENCE",
    "description": "Failed learner memory.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
-    "state/research/learners/*/report.md",
-    "engine/learning_delta.py::CAVEATS"
+    "engine/learning/experiment_memory.py",
+    "engine/learning/failed_learners.py",
+    "engine/learning/meta_learning.py",
+    "engine/learning/research_policy.py",
+    "engine/learning/research_priority.py",
+    "engine/learning_delta.py::CAVEATS",
+    "state/research/learners/*/report.md"
    ],
-   "tests": [],
+   "tests": [
+    "tests/test_learning_meta.py",
+    "tests/test_learning_research.py"
+   ],
    "evidence": [
     "state/research/learners/ls2_replicate/report.md",
     "state/research/learners/ls3_s11/report.md"
@@ -2266,36 +2424,52 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial] Failed learners exist only as markdown reports; no structured failed-learner store."
+   "last_run": "2026-09-29T09:37:16",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S09 pass 1). one LegacyBridge facade over TriedIndex + registry dedup; 13 failed learners seeded with checked evidence paths; EIG tables are priors. | earlier: [partial] Failed learners exist only as markdown reports; no structured failed-learner store."
   },
   {
    "id": "G10",
    "phase": "G RESEARCH INTELLIGENCE",
    "description": "Exploration/exploitation policy.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/learning/experiment_memory.py",
+    "engine/learning/failed_learners.py",
+    "engine/learning/meta_learning.py",
+    "engine/learning/research_policy.py",
+    "engine/learning/research_priority.py"
+   ],
+   "tests": [
+    "tests/test_learning_meta.py",
+    "tests/test_learning_research.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[missing]"
+   "last_run": "2026-09-29T09:37:16",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S09 pass 1). one LegacyBridge facade over TriedIndex + registry dedup; 13 failed learners seeded with checked evidence paths; EIG tables are priors. | earlier: [missing]"
   },
   {
    "id": "G11",
    "phase": "G RESEARCH INTELLIGENCE",
    "description": "Compute-aware research allocation.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
+    "engine/learning/experiment_memory.py",
+    "engine/learning/failed_learners.py",
+    "engine/learning/meta_learning.py",
+    "engine/learning/research_policy.py",
+    "engine/learning/research_priority.py",
     "engine/resources.py::worker_count,wait_for_memory,JobQueue"
    ],
    "tests": [
+    "tests/test_learning_meta.py",
+    "tests/test_learning_research.py",
     "tests/test_resources.py"
    ],
    "evidence": [
@@ -2304,25 +2478,34 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial] Compute-aware execution, not research allocation."
+   "last_run": "2026-09-29T09:37:16",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S09 pass 1). one LegacyBridge facade over TriedIndex + registry dedup; 13 failed learners seeded with checked evidence paths; EIG tables are priors. | earlier: [partial] Compute-aware execution, not research allocation."
   },
   {
    "id": "G12",
    "phase": "G RESEARCH INTELLIGENCE",
    "description": "Meta-learning research policy.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/learning/experiment_memory.py",
+    "engine/learning/failed_learners.py",
+    "engine/learning/meta_learning.py",
+    "engine/learning/research_policy.py",
+    "engine/learning/research_priority.py"
+   ],
+   "tests": [
+    "tests/test_learning_meta.py",
+    "tests/test_learning_research.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[missing]"
+   "last_run": "2026-09-29T09:37:16",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S09 pass 1). one LegacyBridge facade over TriedIndex + registry dedup; 13 failed learners seeded with checked evidence paths; EIG tables are priors. | earlier: [missing]"
   },
   {
    "id": "H01",
@@ -3242,6 +3425,8 @@
    "owner": "Claude",
    "status": "IN_PROGRESS",
    "code_paths": [
+    "engine/learning/champion.py",
+    "engine/learning/promotion.py",
     "engine/pattern_reliability.py::health_monitor,HealthLedger",
     "engine/trust_store.py::drift"
    ],
@@ -3252,8 +3437,8 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
+   "last_run": "2026-09-29T09:37:15",
+   "code_hash": "6c44a0173dc73530",
    "notes": "[partial][under-tested]"
   },
   {
@@ -3285,14 +3470,17 @@
    "description": "Contradiction monitoring.",
    "owner": "Claude",
    "status": "NOT_STARTED",
-   "code_paths": [],
+   "code_paths": [
+    "engine/learning/champion.py",
+    "engine/learning/promotion.py"
+   ],
    "tests": [],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
+   "last_run": "2026-09-29T09:37:15",
+   "code_hash": "6c44a0173dc73530",
    "notes": "[missing]"
   },
   {
@@ -3322,8 +3510,10 @@
    "owner": "Claude",
    "status": "IN_PROGRESS",
    "code_paths": [
-    "engine/pattern_reliability.py::HealthLedger",
-    "engine/memory_diagnostics.py::memory_health"
+    "engine/learning/champion.py",
+    "engine/learning/promotion.py",
+    "engine/memory_diagnostics.py::memory_health",
+    "engine/pattern_reliability.py::HealthLedger"
    ],
    "tests": [
     "tests/test_memory_ext.py"
@@ -3332,8 +3522,8 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
+   "last_run": "2026-09-29T09:37:15",
+   "code_hash": "6c44a0173dc73530",
    "notes": "[partial] healthy/suspect/broken only."
   },
   {
@@ -3341,34 +3531,48 @@
    "phase": "J PRODUCTION INTELLIGENCE",
    "description": "Decision impact monitoring.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
-    "engine/pattern_movers.py (ablation)",
-    "engine/adaptive.py::adaptation_value"
+    "engine/adaptive.py::adaptation_value",
+    "engine/learning/learning_curve.py",
+    "engine/learning/portfolio_value.py",
+    "engine/learning/scorecard.py",
+    "engine/learning/transfer.py",
+    "engine/learning/transfer_score.py",
+    "engine/pattern_movers.py (ablation)"
    ],
    "tests": [
+    "tests/test_learning_scorecard.py",
+    "tests/test_learning_transfer.py",
     "tests/test_pattern_movers.py"
    ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial]"
+   "last_run": "2026-09-29T09:37:18",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S10 pass 1). all modules under minimum on the ruler (3120/3550); sent back. | earlier: [partial]"
   },
   {
    "id": "J13",
    "phase": "J PRODUCTION INTELLIGENCE",
    "description": "Learning curve.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
+    "engine/learning/learning_curve.py",
+    "engine/learning/portfolio_value.py",
+    "engine/learning/scorecard.py",
+    "engine/learning/transfer.py",
+    "engine/learning/transfer_score.py",
     "engine/learning_delta.py::play_curve,curve_verdict",
     "scripts/learning_curve.py"
    ],
    "tests": [
-    "tests/test_learning_curve.py"
+    "tests/test_learning_curve.py",
+    "tests/test_learning_scorecard.py",
+    "tests/test_learning_transfer.py"
    ],
    "evidence": [
     "state/research/learning_delta/lc1/run.log (running)"
@@ -3376,21 +3580,28 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[implemented-but-unvalidated] Builders editing; real run lc1 in flight."
+   "last_run": "2026-09-29T09:37:18",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S10 pass 1). all modules under minimum on the ruler (3120/3550); sent back. | earlier: [implemented-but-unvalidated] Builders editing; real run lc1 in flight."
   },
   {
    "id": "J14",
    "phase": "J PRODUCTION INTELLIGENCE",
    "description": "Learning scorecard.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
+    "engine/learning/learning_curve.py",
+    "engine/learning/portfolio_value.py",
+    "engine/learning/scorecard.py",
+    "engine/learning/transfer.py",
+    "engine/learning/transfer_score.py",
     "engine/learning_delta.py::aggregate,render_report"
    ],
    "tests": [
-    "tests/test_learning_delta.py"
+    "tests/test_learning_delta.py",
+    "tests/test_learning_scorecard.py",
+    "tests/test_learning_transfer.py"
    ],
    "evidence": [
     "state/research/learning_delta/ld1/report.md",
@@ -3399,9 +3610,9 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial] 8 metrics + controls; ~10 of 19 scorecard fields."
+   "last_run": "2026-09-29T09:37:18",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S10 pass 1). all modules under minimum on the ruler (3120/3550); sent back. | earlier: [partial] 8 metrics + controls; ~10 of 19 scorecard fields."
   },
   {
    "id": "J15",
@@ -4476,24 +4687,26 @@
   {
    "section": "Cross-year transfer",
    "minimum_lines": 1100,
-   "actual_lines": 1041,
+   "actual_lines": 939,
    "code_paths": [
     "engine/learners.py (739)",
-    "scripts/learner_search.py (212)",
-    "engine/learning_delta.py::causal_bank,choose_pairs,pattern_window,PatternPlayer,PatternLearner,trim_history (90)"
+    "engine/learning/transfer.py",
+    "engine/learning_delta.py::causal_bank,choose_pairs,pattern_window,PatternPlayer,PatternLearner,trim_history (90)",
+    "scripts/learner_search.py (212)"
    ],
    "status": "FAILED",
-   "notes": "UNDER by 59 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). IMPLEMENTED — FAILED VALIDATION: 6 cross-year learners, past-only pairs; none passes (ls3_s11); ls2_replicate learner self-check INVALID. Cross-regime/stock/sector/volatility transfer not built."
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S10 pass 1). under minimum; sent back. | earlier: UNDER by 59 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). IMPLEMENTED — FAILED VALIDATION: 6 cross-year learners, past-only pairs; none passes (ls3_s11); ls2_replicate learner self-check INVALID. Cross-regime/stock/sector/volatility transfer not built."
   },
   {
    "section": "Transfer scoring",
    "minimum_lines": 400,
-   "actual_lines": 126,
+   "actual_lines": 380,
    "code_paths": [
+    "engine/learning/transfer_score.py",
     "engine/learning_delta.py::headline_transfer,verdict,aggregate,_col,pair_table,signflip_p,boot_ci (126)"
    ],
    "status": "IN_PROGRESS",
-   "notes": "UNDER by 274 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: gap = learning effect - transfer with CIs. transfer_ratio (with zero/negative denominator safeguards) and over-specialisation flag are not computed."
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S10 pass 1). under minimum; sent back. | earlier: UNDER by 274 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: gap = learning effect - transfer with CIs. transfer_ratio (with zero/negative denominator safeguards) and over-specialisation flag are not computed."
   },
   {
    "section": "Memory firewall",
@@ -4539,14 +4752,15 @@
   {
    "section": "Experiment memory",
    "minimum_lines": 800,
-   "actual_lines": 541,
+   "actual_lines": 851,
    "code_paths": [
     "engine/experiment_memory.py (293)",
-    "engine/registry.py (225)",
-    "engine/improve.py::log_experiment,n_trials (23)"
+    "engine/improve.py::log_experiment,n_trials (23)",
+    "engine/learning/experiment_memory.py",
+    "engine/registry.py (225)"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "UNDER by 259 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: what-was-tried index, duplicate fingerprint, Phase-30 questions. Missing QUESTION/BELIEF/COMPETING HYPOTHESES/PREDICTION/EXPECTED OUTCOMES/BELIEF UPDATE fields. registry_audit ok=false (3.8% complete)."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S09 pass 1). | earlier: UNDER by 259 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: what-was-tried index, duplicate fingerprint, Phase-30 questions. Missing QUESTION/BELIEF/COMPETING HYPOTHESES/PREDICTION/EXPECTED OUTCOMES/BELIEF UPDATE fields. registry_audit ok=false (3.8% complete)."
   },
   {
    "section": "Belief updating",
@@ -4572,45 +4786,54 @@
   {
    "section": "Portfolio-value learning",
    "minimum_lines": 850,
-   "actual_lines": 829,
+   "actual_lines": 701,
    "code_paths": [
+    "engine/learning/portfolio_value.py",
     "engine/objective.py (193)",
     "engine/pattern_movers.py (636)"
    ],
    "status": "IN_PROGRESS",
-   "notes": "UNDER by 21 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: tiered objective and pattern->movers ablation. No per-knowledge breakdown of predictive/ ranking/selection/direction/timing/risk/portfolio value."
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S10 pass 1). under minimum; sent back. | earlier: UNDER by 21 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: tiered objective and pattern->movers ablation. No per-knowledge breakdown of predictive/ ranking/selection/direction/timing/risk/portfolio value."
   },
   {
    "section": "Exploration/exploitation",
    "minimum_lines": 750,
-   "actual_lines": 0,
-   "code_paths": [],
-   "status": "NOT_STARTED",
-   "notes": "UNDER by 750 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). missing. basis_search/miner_tuning/improve.spawn_challengers are parameter tuning - the thing section 35 says not to spend all compute on."
+   "actual_lines": 1609,
+   "code_paths": [
+    "engine/learning/research_policy.py"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S09 pass 1). research_policy.py covers 35+36: 1609 vs 1650; sent back. | earlier: UNDER by 750 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). missing. basis_search/miner_tuning/improve.spawn_challengers are parameter tuning - the thing section 35 says not to spend all compute on."
   },
   {
    "section": "Information-gain research",
    "minimum_lines": 900,
-   "actual_lines": 0,
-   "code_paths": [],
-   "status": "NOT_STARTED",
-   "notes": "UNDER by 900 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). missing: no priority function."
+   "actual_lines": 1609,
+   "code_paths": [
+    "engine/learning/research_policy.py"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S09 pass 1). shared file with exploration; see that row. | earlier: UNDER by 900 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). missing: no priority function."
   },
   {
    "section": "Meta-learning",
    "minimum_lines": 1200,
-   "actual_lines": 0,
-   "code_paths": [],
-   "status": "NOT_STARTED",
-   "notes": "UNDER by 1200 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). missing. Raw material exists (planted calibration history, learner reports, experiments.jsonl) but nothing learns from it."
+   "actual_lines": 1213,
+   "code_paths": [
+    "engine/learning/meta_learning.py"
+   ],
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S09 pass 1). | earlier: UNDER by 1200 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). missing. Raw material exists (planted calibration history, learner reports, experiments.jsonl) but nothing learns from it."
   },
   {
    "section": "Failed-learner memory",
    "minimum_lines": 500,
-   "actual_lines": 0,
-   "code_paths": [],
-   "status": "NOT_STARTED",
-   "notes": "UNDER by 500 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). missing as a store: failed learners are only markdown reports (state/research/learners/*). experiment_memory.TriedIndex is the reuse point."
+   "actual_lines": 508,
+   "code_paths": [
+    "engine/learning/failed_learners.py"
+   ],
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S09 pass 1). | earlier: UNDER by 500 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). missing as a store: failed learners are only markdown reports (state/research/learners/*). experiment_memory.TriedIndex is the reuse point."
   },
   {
    "section": "Knowledge competition",
@@ -4666,15 +4889,15 @@
   {
    "section": "Champion/challenger",
    "minimum_lines": 700,
-   "actual_lines": 629,
+   "actual_lines": 708,
    "code_paths": [
     "engine/champion.py::ChampionError,_atomic_write,_canon,_num,freeze_baseline,load_baseline,vs_baseline,_score,Ledger,Board,default_paths,ChallengerQueue (241)",
     "engine/improve.py::diagnose,spawn_challengers,evaluate,test_and_promote,_replay_score (144)",
     "engine/learning/champion.py",
     "engine/shadows.py (44)"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S11 pass 1). under minimum on the ruler; sent back. | earlier: UNDER by 271 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial and DUPLICATED: two champion systems (champion.py Board, improve.py test_and_promote) for configs/models; nothing for knowledge objects; no SHADOW knowledge state."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S11 pass 2). shadow scoring on identical decisions, degradation retirement, head-to-head record. | earlier: IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S11 pass 1). under minimum on the ruler; sent back. | earlier: UNDER by 271 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial and DUPLICATED: two champion systems (champion.py Board, improve.py test_and_promote) for configs/models; nothing for knowledge objects; no SHADOW knowledge state."
   },
   {
    "section": "Promotion gates",
@@ -4702,23 +4925,25 @@
   {
    "section": "Learning scorecard",
    "minimum_lines": 700,
-   "actual_lines": 106,
+   "actual_lines": 610,
    "code_paths": [
+    "engine/learning/scorecard.py",
     "engine/learning_delta.py::pick_hits,max_drawdown,run_metrics,metric_delta,render_report (106)"
    ],
    "status": "IN_PROGRESS",
-   "notes": "UNDER by 594 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: 8 metrics with noise/shuffle/transfer controls per learner. Missing cross-regime/stock gains, transfer ratio, calibration, identity gap, future-leak status, stability, compute cost in one versioned card."
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S10 pass 1). under minimum; sent back. | earlier: UNDER by 594 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: 8 metrics with noise/shuffle/transfer controls per learner. Missing cross-regime/stock gains, transfer ratio, calibration, identity gap, future-leak status, stability, compute cost in one versioned card."
   },
   {
    "section": "Learning curve",
    "minimum_lines": 500,
-   "actual_lines": 346,
+   "actual_lines": 490,
    "code_paths": [
+    "engine/learning/learning_curve.py",
     "engine/learning_delta.py::play_curve,plateau_index,slope_perm_p,alpha_bar,series_stats,perm_budget,curve_stats,persistence,curve_verdict,curve_selfcheck,render_curve_report (194)",
     "scripts/learning_curve.py (152)"
    ],
    "status": "IN_PROGRESS",
-   "notes": "UNDER by 154 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). in progress: builders are live-editing; lc1 real run is mid-flight. Tracks gain vs rerun count; not yet knowledge count / validated knowledge / transfer gain / memorisation gap against experience."
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S10 pass 1). under minimum; sent back. | earlier: UNDER by 154 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). in progress: builders are live-editing; lc1 real run is mid-flight. Tracks gain vs rerun count; not yet knowledge count / validated knowledge / transfer gain / memorisation gap against experience."
   },
   {
    "section": "Knowledge archive",
@@ -4743,10 +4968,12 @@
   {
    "section": "Research priority",
    "minimum_lines": 900,
-   "actual_lines": 0,
-   "code_paths": [],
-   "status": "NOT_STARTED",
-   "notes": "UNDER by 900 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). missing. resources.JobQueue and champion.ChallengerQueue are compute/promotion queues, reusable as the execution side only."
+   "actual_lines": 878,
+   "code_paths": [
+    "engine/learning/research_priority.py"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S09 pass 1). 878 vs 900; sent back. | earlier: UNDER by 900 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). missing. resources.JobQueue and champion.ChallengerQueue are compute/promotion queues, reusable as the execution side only."
   },
   {
    "section": "Surprise engine",
@@ -4809,26 +5036,26 @@
   {
    "section": "Compute manager",
    "minimum_lines": 900,
-   "actual_lines": 817,
+   "actual_lines": 904,
    "code_paths": [
     "engine/health.py (306)",
     "engine/learning/compute.py",
     "engine/resources.py (396)"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S11 pass 1). under minimum on the ruler; sent back. | earlier: UNDER by 198 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: deterministic seeds, memory-aware queue, stale-code/OOM classification, stale-process report. No isolated learning-state snapshot per worker or result reconciliation into shared knowledge."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S11 pass 2). real subprocess workers with timeout/RSS ceiling (OOM/CRASHED/FAILED), 2.5 GB admission, adjudication via repro.diagnose. | earlier: IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S11 pass 1). under minimum on the ruler; sent back. | earlier: UNDER by 198 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: deterministic seeds, memory-aware queue, stale-code/OOM classification, stale-process report. No isolated learning-state snapshot per worker or result reconciliation into shared knowledge."
   },
   {
    "section": "Continuous execution/checkpointing",
    "minimum_lines": 700,
-   "actual_lines": 624,
+   "actual_lines": 718,
    "code_paths": [
     "engine/checkpoint.py (135)",
     "engine/learning/checkpoints.py",
     "scripts/livesim_loop2.py (382)"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S11 pass 1). under minimum on the ruler; sent back. | earlier: UNDER by 183 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: checkpoint bundles + resumable outer loop; learning_curve checkpoints per window (lc1/ckpt). No SAVE STATE/NEXT ACTION/CURRENT FAILURES checkpoint for the learning engine."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S11 pass 2). resume_verified refuses stale code hash; typed section-58 InterruptionRecord; prune never deletes newest valid. | earlier: IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S11 pass 1). under minimum on the ruler; sent back. | earlier: UNDER by 183 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: checkpoint bundles + resumable outer loop; learning_curve checkpoints per window (lc1/ckpt). No SAVE STATE/NEXT ACTION/CURRENT FAILURES checkpoint for the learning engine."
   },
   {
    "section": "Reporting/dashboard/inspection",
