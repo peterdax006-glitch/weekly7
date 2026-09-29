@@ -650,14 +650,27 @@ def ingest_graph(mem: ScienceMemory, graph, now, source: str = "research_graph",
 
     for p in rg._active_beliefs(graph, now) + [n.node_id for n in graph.nodes(now) if graph.kind_of(n.node_id) in rg.BELIEF_KINDS
                                                 and str(n.attrs.get("status", "")).lower() in rg.RETIRED_STATUSES]:
-        nd = graph.node_at(p, now)
-        counts["proposed"] += put(mem.propose, p, nd.known_at, "imported from the research graph: origin not recorded", "graph:" + source, fal, source)
+        # W02 fold fix: a node's LATER versions (new known_at, revised attrs) never re-propose or re-test; the proposal rests on the
+        # node's FIRST version, each later version is its own dated NOTE, and a test already in the ledger (by experiment id, from
+        # this fold or written directly by the loop) is not imported again. Folding twice == folding once.
+        vers = node_versions(graph, p, now)
+        if not any(x.stage == S.PROPOSED for x in mem._by_item.get(p, [])):
+            counts["proposed"] += put(mem.propose, p, vers[0].known_at, "imported from the research graph: origin not recorded",
+                                      "graph:" + source, fal, source)
+        prop = next(x for x in mem._by_item[p] if x.stage == S.PROPOSED)
+        for prev_v, v in zip(vers, vers[1:]):
+            diff = version_diff(prev_v.attrs, v.attrs)
+            if diff and as_date(v.known_at) >= as_date(prop.known_at):
+                counts["versions"] += put(mem.note, p, v.known_at, "graph version: " + diff)
+        cited = {ev for x in mem._by_item.get(p, []) if x.stage == S.TESTED for ev in x.evidence}
         for e in graph.by_role(p, rg.R.VALIDATED_BY_EXP, now) + graph.by_role(p, rg.R.REFUTED_BY_EXP, now):
             exp, edge = e
+            if exp in cited:
+                continue
             pos = rg.R.VALIDATED_BY_EXP in graph.roles_of(edge)
-            en = graph.node_at(exp, now)
-            counts["tested"] += put(mem.tested, p, edge.known_at, en.attrs.get("method") or "graph experiment", "positive" if pos else "negative",
-                                    int(en.attrs.get("n", 1) or 1), en.attrs.get("effect"), None, (), False, (exp,), source)
+            ea = stable_attrs(graph, exp, now)
+            counts["tested"] += put(mem.tested, p, first_edge_date(graph, edge), ea.get("method") or "graph experiment",
+                                    "positive" if pos else "negative", int(ea.get("n", 1) or 1), ea.get("effect"), None, (), False, (exp,), source)
         direct_fail = {src for src, _ in graph.by_role(p, rg.R.FAILS_IN, now, "in") if graph.kind_of(src) in rg.CONTEXT_KINDS}
         for c, v in graph.contexts_of(p, now).items():
             if v["works"] and any(x.stage == S.TESTED for x in mem.history(p, now)):
@@ -682,8 +695,48 @@ def ingest_graph(mem: ScienceMemory, graph, now, source: str = "research_graph",
 
 
 def _edge_date(graph, pattern: str, context: str, now) -> str:
-    dates = [e.known_at for _, e in graph.neighbors(pattern, now, None, "both") if _ == context]
-    return min(dates, key=as_date) if dates else graph.node_at(pattern, now).known_at
+    dates = [first_edge_date(graph, e) for _, e in graph.neighbors(pattern, now, None, "both") if _ == context]
+    return min(dates, key=as_date) if dates else node_versions(graph, pattern, now)[0].known_at
+
+
+def node_versions(graph, node_id: str, now) -> list:
+    """Every version of a graph node known strictly before `now`, oldest first (the graph keeps history; it never overwrites)."""
+    hist = getattr(graph, "_nodes", {}).get(node_id) or []
+    out = [v for v in hist if as_date(v.known_at) < as_date(now)]
+    if not out:
+        cur = graph.node_at(node_id, now)
+        out = [cur] if cur is not None else []
+    return out
+
+
+def first_edge_date(graph, edge) -> str:
+    """When a relationship was FIRST known: later versions of the same edge (a merged role, a re-weight) keep that date."""
+    try:
+        hist = graph.edge_history(edge.src, edge.dst, edge.rel)
+    except Exception:                                   # noqa: BLE001 - a graph without history: the version's own date
+        hist = ()
+    return min((h.known_at for h in hist if not getattr(h, "retracted", False)), key=as_date, default=edge.known_at)
+
+
+def stable_attrs(graph, node_id: str, now) -> dict:
+    """Attributes as FIRST recorded, filled in by later versions only where the earlier ones were silent: a later bare re-add of a
+    node (e.g. answer_question re-adding an experiment) cannot change what an imported entry says."""
+    out: dict = {}
+    for v in node_versions(graph, node_id, now):
+        for k, x in v.attrs.items():
+            if k not in out or out[k] in (None, ""):
+                out[k] = x
+    return out
+
+
+def version_diff(a: Mapping[str, Any], b: Mapping[str, Any]) -> str:
+    """The attributes a node version changed, as short identity-free text ('' = nothing that matters changed)."""
+    keys = sorted(k for k in set(a) | set(b) if k != "rkind" and a.get(k) != b.get(k) and b.get(k) not in (None, ""))
+    parts = []
+    for k in keys[:6]:
+        x = b.get(k)
+        parts.append(f"{k}={x:.6g}" if isinstance(x, float) else f"{k}={str(x)[:40]}")
+    return ", ".join(parts)
 
 
 def ingest_archive(mem: ScienceMemory, archive, now) -> dict[str, int]:

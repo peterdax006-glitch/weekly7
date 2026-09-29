@@ -897,10 +897,21 @@ class Ctx:
         return self.rt.obs
 
     def extra(self, stage: str, what: str) -> dict:
+        """The feed's input for `stage`. A callable input (engine.research.feeds builders) is built HERE, inside the stage, so it can
+        read what earlier stages of this cycle produced and so a future leak it carries is refused at this stage (REFUSED_LEAK)."""
         ex = (self.rt.obs.extras if self.rt.obs is not None else {}).get(stage)
+        if ex is not None and callable(ex):
+            ex = ex(self)
         if not ex:
             raise NoInput(f"the feed supplies no {what}")
         return dict(ex)
+
+    def handle(self, name: str, factory: Callable[[], Any]) -> Any:
+        """A transient per-process object a stage reuses across cycles (never checkpointed: engines, stores)."""
+        h = self.rt.__dict__.setdefault("handles", {})
+        if name not in h:
+            h[name] = factory()
+        return h[name]
 
     def mod_state(self, name: str, factory: Callable[[], Any]) -> Any:
         if name not in self.state.modules:
@@ -972,8 +983,9 @@ def st_autopsy(ctx: Ctx) -> tuple:
     ex = ctx.extra("observe.autopsy", "DecisionSnapshot/DayOutcome pair (autopsy inputs)")
     st = ctx.mod_state("autopsy", AU.AutopsyState)
     a = AU.step(st, ex["snap"], ex["out"], ctx.now, ctx.created_real(), ex.get("ctx"))
-    _rquestions(ctx).extend(a.questions)
-    return 1, len(a.questions), ""
+    qs = a.questions() if callable(a.questions) else a.questions
+    _rquestions(ctx).extend(qs)
+    return 1, len(qs), ""
 
 
 # ================================================================================================================ UPDATE KNOWLEDGE
@@ -1097,10 +1109,12 @@ def st_frontier(ctx: Ctx) -> tuple:
         from engine.research import frontier as FR
     except ImportError as e:
         raise MissingModule("frontier") from e
+    ex = ctx.extra("evaluate.frontier", "P(up | predicted mover) rows or a populated FrontierState")
     st = ctx.state.modules.get("frontier")
     if st is None:
-        ex = ctx.extra("evaluate.frontier", "populated FrontierState (conditional-accuracy cells)")
-        st = ctx.state.modules["frontier"] = ex["state"]
+        st = ctx.state.modules["frontier"] = ex["state"] if "state" in ex else ex["make"]()
+    if ex.get("rows") is not None and len(ex["rows"]):
+        st.add(ex["rows"])
     rep = FR.step(st, ctx.now, ctx.state.cfg.seed, code_hash=ctx.rt.code_hash)
     _records(ctx).append(rep.to_matured_record())
     return 1, 1, ""
@@ -1111,13 +1125,18 @@ def st_symmetry(ctx: Ctx) -> tuple:
         from engine.research import symmetry as SY
     except ImportError as e:
         raise MissingModule("symmetry") from e
+    ex = ctx.extra("evaluate.symmetry", "winner/loser pattern rows or a populated SymmetryState")
     st = ctx.state.modules.get("symmetry")
     if st is None:
-        ex = ctx.extra("evaluate.symmetry", "populated SymmetryState (winner/loser pattern rows)")
-        st = ctx.state.modules["symmetry"] = ex["state"]
+        st = ctx.state.modules["symmetry"] = ex["state"] if "state" in ex else ex["make"]()
+    n = 0
+    if ex.get("rows") is not None and len(ex["rows"]):
+        st.add(ex["rows"])
+        n = len(ex["rows"])
     rep = SY.step(st, ctx.now, ctx.state.cfg.seed, code_hash=ctx.rt.code_hash)
-    _records(ctx).append(rep.to_matured_record())
-    return 1, 1, ""
+    _records(ctx).append(rep.to_matured_record(getattr(st, "bank", None)))
+    ctx.bus["symmetry_report"] = rep
+    return n, 1, ""
 
 
 # ================================================================================================================ SURPRISES
@@ -1167,11 +1186,18 @@ def st_cross_section(ctx: Ctx) -> tuple:
         from engine.research import cross_section as CS
     except ImportError as e:
         raise MissingModule("cross_section") from e
-    ex = ctx.extra("surprises.cross_section", "day frame of returns through today's close (cross-section inputs)")
-    lab = ctx.mod_state("cross_section", CS.CrossSectionLab)
-    res = CS.step(lab, ctx.now, ex["day_frame"], ex.get("settle", ()), ex.get("null_seed"))
-    _records(ctx).extend(lab.matured_records(ctx.now))
-    return res.n, res.n_small if hasattr(res, "n_small") else 0, str(res.status)
+    ex = ctx.extra("surprises.cross_section", "day frames of returns through each session's close (cross-section inputs)")
+    lab = ctx.mod_state("cross_section", ex.get("make", CS.CrossSectionLab))
+    days = ex["days"] if "days" in ex else [(ctx.now, ex["day_frame"], ex.get("settle", ()))]
+    res, n = None, 0
+    for day, frame, settle in days:
+        res = CS.step(lab, day, frame, settle, ex.get("null_seed"), n_shuffles=3)
+        n += int(res.n_names)
+    if res is None:
+        raise NoInput("every offered session was already processed")
+    outs = getattr(lab, "outcomes", lab)
+    _records(ctx).extend(outs.matured_records(ctx.now))
+    return n, len(days), str(res.status)
 
 
 def st_regimes(ctx: Ctx) -> tuple:
@@ -1348,8 +1374,10 @@ def st_knowability(ctx: Ctx) -> tuple:
     st = ctx.mod_state("knowability", KB.KnowabilityState)
     st, rep = KB.step(st, ctx.now, ex["inputs"], ex.get("calendar"), code_hash=ctx.rt.code_hash)
     ctx.state.modules["knowability"] = st
-    ctx.bus["knowability_assessments"] = tuple(getattr(rep, "assessments", ()) or ())
-    return len(ex["inputs"]), len(ctx.bus["knowability_assessments"]), ""
+    ids = {i.move.move_id for i in ex["inputs"]}
+    ass = tuple(getattr(rep, "assessments", ()) or ()) or tuple(a for a in st.ledger.rows() if a.move_id in ids)
+    ctx.bus["knowability_assessments"] = ass
+    return len(ex["inputs"]), len(ass), f"{rep.n_classified} classified, {rep.n_immature} immature"
 
 
 def st_unknown_cause(ctx: Ctx) -> tuple:
@@ -1427,7 +1455,8 @@ def st_discovery(ctx: Ctx) -> tuple:
         raise MissingModule("discovery") from e
     ex = ctx.extra("questions.discovery", "discovery SourceInputs")
     st = ctx.mod_state("discovery", DI.DiscoveryState)
-    rep = DI.step(st, ctx.now, ex["inputs"])
+    eng = ctx.handle("discovery_engine", ex["engine_factory"]) if ex.get("engine_factory") else None
+    rep = DI.step(st, ctx.now, ex["inputs"], engine=eng)
     return 1, len(getattr(rep, "new", ()) or ()), ""
 
 
@@ -1450,10 +1479,15 @@ def st_precursors(ctx: Ctx) -> tuple:
     except ImportError as e:
         raise MissingModule("precursors") from e
     ex = ctx.extra("questions.precursors", "a bar loader and sweep years (R21 precursor inputs)")
+    kw = {k: ex[k] for k in ("registry",) if ex.get(k) is not None}
+    args = (ex["cfg"],) if ex.get("cfg") is not None else ()
     if "precursors" not in ctx.state.modules:
-        st, store = PC.open_state(ctx.rt.root / "sweeps" / "precursors_stage", ex["years"])
+        st, store = PC.open_state(ctx.rt.root / "sweeps" / "precursors_stage", ex["years"], *args, **kw)
         ctx.state.modules["precursors"] = st
-    rep = PC.step(ctx.state.modules["precursors"], ctx.now, ex["loader"], max_units=1)
+        ctx.rt.__dict__.setdefault("handles", {})["precursor_store"] = store
+    store = ctx.handle("precursor_store", lambda: PC.open_state(ctx.rt.root / "sweeps" / "precursors_stage", ex["years"], *args, **kw)[1])
+    ctx.state.modules["precursors"].book.extend_years(ex["years"])
+    rep = PC.step(ctx.state.modules["precursors"], ctx.now, ex["loader"], max_units=1, store=store)
     ev = rep.evaluation
     if ev is not None:
         for c in list(getattr(ev, "promoted", ()) or ())[:3]:
@@ -1471,7 +1505,10 @@ def st_targets(ctx: Ctx) -> tuple:
     ex = ctx.extra("questions.targets", "a matured DayInput (daily research target sources)")
     led = ctx.mod_state("targets", TG.TargetLedger)
     rep = TG.run_day(ex["day"], ctx.now, led, ctx.state.modules.get("priority"), ctx.state.cfg.seed)
-    return 1, len(getattr(rep, "ranked", ()) or ()), ""
+    got = getattr(rep, "targets", None)
+    if got is None:
+        got = getattr(rep, "ranked", ())
+    return len(ex["day"].predictions), len(got or ()), ""
 
 
 def _graph(ctx: Ctx):
@@ -2078,10 +2115,10 @@ def st_value(ctx: Ctx) -> tuple:
 
 
 def st_science(ctx: Ctx) -> tuple:
-    """science_memory: every tested feature is an item with a proposal (its falsifier) and a TESTED entry per rung (effect, se,
-    control, holdout flag); the research graph records the same test as an experiment node answering its question. The memory's own
-    step then audits the ledger. The graph is NOT folded into the memory here: the loop writes both from the same result, and a second
-    import of that result through the graph would count every test twice."""
+    """science_memory + research graph from the SAME result, then the fold: every tested feature is a graph pattern node (its id is
+    the memory item), each rung an experiment node answering its question; the memory gets the proposal (with its falsifier) and a
+    TESTED entry per rung that cites the experiment node. SM.step then FOLDS the graph into the memory (W02: the fold is idempotent
+    under changing node versions and skips experiments the memory already cites, so nothing is counted twice) and audits it."""
     try:
         from engine.research import science_memory as SM
     except ImportError as e:
@@ -2089,43 +2126,49 @@ def st_science(ctx: Ctx) -> tuple:
     mem = ctx.mod_state("science_memory", SM.ScienceMemory)
     g = _graph(ctx)
     n = 0
+    nodes = ctx.state.memo.setdefault("graph_patterns", {})
     for key in ctx.bus.get("validated", []):
         rec = ctx.state.jobs[key]
         r = rec.result
         if "action" not in r:
             continue
         item = f"{rec.problem.lower()}:{rec.feature}"
-        proposed = ctx.state.memo.setdefault("science_items", [])
-        if item not in proposed:
-            proposed.append(item)
-            fz = SM.Falsifier("effect_below", 0.0, f"out-of-sample per-date AUC of {rec.feature} falls to chance")
-            try:
-                mem.propose(item, rec.cutoff, f"{rec.feature} ranks {rec.problem.lower()} outcomes", "research_loop", fz)
-            except Exception as e:                       # noqa: BLE001 - a refused proposal is reported, not fatal
-                ctx.bus.setdefault("notes", []).append(f"science memory proposal refused: {str(e)[:120]}")
         try:
-            mem.tested(item, rec.cutoff, f"{r.get('kind', 'rank_auc')} {rec.stage}", r["action"], int(r.get("n_obs", 0)),
-                       float(r["effect"]), float(r["se"]), controls=("shuffled_labels",), holdout=rec.stage == Stage.FRESH_HOLDOUT.value)
-            n += 1
-        except Exception as e:                           # noqa: BLE001
-            ctx.bus.setdefault("notes", []).append(f"science memory test entry refused: {str(e)[:120]}")
-        try:
-            qo = ctx.state.questions.get(rec.question_id)
-            nodes = ctx.state.memo.setdefault("graph_patterns", {})
             if item not in nodes:
                 nodes[item] = g.add_pattern(item, rec.cutoff, label=rec.feature, effect=float(r["effect"])).node_id
             pnode = nodes[item]
+            enode = g.add_test(key[:16].lower(), pnode, r["action"] in ("ADVANCE", "COMPLETE"), rec.cutoff, float(r["effect"]),
+                               r.get("kind", "")).node_id
+            qo = ctx.state.questions.get(rec.question_id)
             if qo is not None:
                 qnode = g.add_question(qo.question, (pnode,), rec.cutoff).node_id
-                enode = g.add_test(key[:16].lower(), pnode, r["action"] in ("ADVANCE", "COMPLETE"), rec.cutoff, float(r["effect"]),
-                                   r.get("kind", "")).node_id
                 g.answer_question(qnode, key[:16].lower(), rec.cutoff, r["action"].lower())
-                ctx.state.count("graph_tests", 1 if enode else 0)
+            ctx.state.count("graph_tests")
         except Exception as e:                           # noqa: BLE001 - graph vocabulary refusals are reported
             ctx.bus.setdefault("notes", []).append(f"research graph refused: {str(e)[:120]}")
-    rep = SM.step(mem, ctx.now, previous=ctx.state.memo.get("science_prev"))
+            continue
+        proposed = ctx.state.memo.setdefault("science_items", [])
+        if pnode not in proposed:
+            fz = SM.Falsifier("effect_below", 0.0, f"out-of-sample per-date AUC of {rec.feature} falls to chance")
+            try:
+                mem.propose(pnode, rec.cutoff, f"{rec.feature} ranks {rec.problem.lower()} outcomes", "research_loop", fz)
+                proposed.append(pnode)
+            except Exception as e:                       # noqa: BLE001 - a refused proposal is reported, not fatal
+                ctx.bus.setdefault("notes", []).append(f"science memory proposal refused: {str(e)[:120]}")
+        try:
+            mem.tested(pnode, rec.cutoff, f"{r.get('kind', 'rank_auc')} {rec.stage}", r["action"], int(r.get("n_obs", 0)),
+                       float(r["effect"]), float(r["se"]), controls=("shuffled_labels",), holdout=rec.stage == Stage.FRESH_HOLDOUT.value,
+                       evidence=(enode,))
+            n += 1
+        except Exception as e:                           # noqa: BLE001
+            ctx.bus.setdefault("notes", []).append(f"science memory test entry refused: {str(e)[:120]}")
+    before = len(mem)
+    rep = SM.step(mem, ctx.now, graph=g, previous=ctx.state.memo.get("science_prev"))
     ctx.state.memo["science_prev"] = ctx.now
-    return len(ctx.bus.get("validated", [])), n, f"{rep.items} items; {len(rep.findings)} audit findings ({len(rep.errors)} errors)"
+    folded = len(mem) - before
+    ctx.state.count("science_folded", folded)
+    return len(ctx.bus.get("validated", [])), n, (f"{rep.items} items; folded {folded} graph entries {dict(rep.ingested.get('graph', {}))}; "
+                                                  f"{len(rep.findings)} audit findings ({len(rep.errors)} errors)")
 
 
 def st_replication(ctx: Ctx) -> tuple:

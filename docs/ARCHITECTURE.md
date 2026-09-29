@@ -33,7 +33,7 @@ Governing documents: `canon/CANON.md` (owner directives, verbatim) > `BIBLE.md` 
 | `direction_calib` | 186 | 1 | Direction calibration alternatives and abstention gates (Bible PHASE 13; canon: "if the system cannot produce sufficient confidence, do not bet"). Complements engine/direction.py,  |
 | `direction_features` | 485 | 1 | Direction research on PREDICTED movers (Bible checklist V2/V5; canons C23, C24, C56). |
 | `edgar` | 358 | 0 | SEC EDGAR: point-in-time corporate events and insider purchases (all free, 10 req/s limit). |
-| `exits` | 669 | 3 | Bible Phase 15 (Exit learner), serving the tiered objective of Phase 20 and the "no look-ahead, fills at next open" rules. |
+| `exits` | 669 | 4 | Bible Phase 15 (Exit learner), serving the tiered objective of Phase 20 and the "no look-ahead, fills at next open" rules. |
 | `experiment_memory` | 388 | 4 | Bible Phase 30 (experiment memory), the search-space half: a normalised index of WHAT WAS TRIED. |
 | `explain` | 45 | 0 | Plain-English names for features and market readings, and the top reasons behind a pick. Pure text helpers shared by the live trader, research scripts and the public pages. Lives o |
 | `features` | 288 | 6 | Point-in-time feature panel (Blueprint Part B). |
@@ -632,7 +632,7 @@ Bible Phase 15 (Exit learner), serving the tiered objective of Phase 20 and the 
 - `def rule_usage(wf)` - How often each rule was chosen per type across folds (instability = the choice is noise).
 - `def format_report(wf)` - Plain-text summary for the report pages: what was chosen per fold and how it did out of sample.
 
-Tests: `tests/test_exits.py`, `tests/test_fv_pipeline.py`, `tests/test_stops.py`
+Tests: `tests/test_exits.py`, `tests/test_fv_pipeline.py`, `tests/test_research_selection_exits.py`, `tests/test_stops.py`
 
 ## engine.experiment_memory
 
