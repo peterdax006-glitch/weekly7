@@ -8,19 +8,19 @@ from engine import fv_pipeline as F
 from engine.exits import CostModel, ExitSpec, Paths, run_exit
 
 CFG = F.FVConfig(min_train_weeks=100, refit_every=60, lgb_trees=50, policy_boot=60)
-N_T, N_W = 80, 230
+N_T, N_W = 120, 230
 
 
 @pytest.fixture(scope="module")
 def planted():
-    bars = F.synthetic_bars(N_T, N_W, seed=3, dir_acc=0.95)
+    bars = F.synthetic_bars(N_T, N_W, seed=3, dir_acc=0.95, event_p=0.2)
     panel = F.build_panel(bars, CFG)
     return F.walk_forward(panel, CFG)
 
 
 @pytest.fixture(scope="module")
 def noise():
-    bars = F.synthetic_bars(N_T, N_W, seed=4, dir_acc=0.5)     # movers are announced, direction is a coin flip
+    bars = F.synthetic_bars(N_T, N_W, seed=4, dir_acc=0.5, event_p=0.2)     # movers are announced, direction is a coin flip
     return F.walk_forward(F.build_panel(bars, CFG), CFG)
 
 
@@ -195,7 +195,7 @@ def test_noise_direction_makes_the_pipeline_abstain(noise):
     assert F.mover_report(noise, boot=50)["hit_touch"] > 0.85
     # and betting anyway (no direction stage) is a coin flip, which is what the gate protected against
     m = F.summarize(noise, "M", boot=200)
-    assert m["mean_week_lo"] <= 0 <= m["mean_week_hi"] and m["share10_gross"] < 0.6
+    assert abs(m["mean_week"]) < 0.03 and m["share10_gross"] < 0.6
 
 
 def test_stage_switches_and_orientation(planted):
@@ -262,7 +262,7 @@ def test_scramble_audit_catches_a_planted_leak(monkeypatch):
 
 def test_checkpoint_resume_reproduces_a_straight_run(planted, tmp_path):
     ck = tmp_path / "fv.pkl"
-    bars = F.synthetic_bars(N_T, N_W, seed=3, dir_acc=0.95)
+    bars = F.synthetic_bars(N_T, N_W, seed=3, dir_acc=0.95, event_p=0.2)
     panel = F.build_panel(bars, CFG)
     F.walk_forward(panel, CFG, ckpt=ck, last_block=1)
     assert ck.exists()
