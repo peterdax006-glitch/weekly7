@@ -1078,7 +1078,9 @@ def audit_no_lookahead(bars: dict, cfg: FVConfig, cut, seed: int = 11, last_bloc
     m = b2["Close"].index > cut
     noise = np.exp(rng.normal(0, 0.3, b2["Close"].loc[m].shape))      # one factor per bar keeps high >= low
     for k in BAR_KEYS:
-        b2[k].loc[m] = b2[k].loc[m].to_numpy() * noise
+        # real caches are float32 and pandas refuses a lossy float64 write-back (it crashed the first real run; the
+        # synthetic tests are float64) - scale in the frame's own dtype
+        b2[k].loc[m] = (b2[k].loc[m].to_numpy() * noise).astype(b2[k].to_numpy().dtype, copy=False)
     a = walk_forward(build_panel(bars, cfg), cfg, last_block=last_block)
     b = walk_forward(build_panel(b2, cfg), cfg, last_block=last_block)
     ca = a.cands[a.cands["date"] <= cut].reset_index(drop=True)

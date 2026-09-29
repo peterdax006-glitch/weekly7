@@ -338,3 +338,12 @@ def test_save_results_writes_provenance(planted, tmp_path):
     prov = json.loads((out / "provenance.json").read_text())
     assert prov["config_hash"] == planted.cfg.hash() and prov["seed"] == planted.cfg.seed and prov["note"] == "test"
     assert (out / "report.md").exists() and (out / "candidates.parquet").exists()
+
+
+def test_scramble_audit_runs_on_float32_bars_like_the_real_caches():
+    """Regression: the real caches are float32 and the audit's noise write-back crashed the first real run
+    (pandas LossySetitemError); the synthetic tests were float64 and never reached it."""
+    cfg = F.FVConfig(min_train_weeks=100, refit_every=60, lgb_trees=30, policy_boot=30)
+    bars = {k: v.astype("float32") if hasattr(v, "astype") else v for k, v in F.synthetic_bars(60, 170, seed=5).items()}
+    a = F.audit_no_lookahead(bars, cfg, bars["Close"].index[5 * 135], last_block=1)
+    assert a["identical"] and a["n_compared"] > 300
