@@ -1,0 +1,3 @@
+pid 26128 stage eval
+memory built: 1286 patterns, 27176 observations [32s]
+{"patterns_registered": 1286, "observations": 27176, "prefix_invariance_violations": [], "chain": {"ok": true, "records": 27200, "first_bad_seq": null}, "final_mode_counts": {"disregarded": 1154, "local": 3}}

@@ -161,7 +161,8 @@ def evaluate(a):
     fit_b, judge_b = list(range(0, split)), list(range(split, n_eval))
     defaults_tab = sc.score(mem)
     fitted = ev.fit_thresholds(mem, sc, fit_b, judge_b, n_configs=a.configs, seed=a.seed)
-    chosen_tab = sc.score(mem, fitted["chosen"])
+    chosen_tab = sc.score(mem, fitted["chosen_active"] or fitted["chosen"])
+    nofdr_tab = sc.score(mem, {"use_fdr": False})
     modes = mode_series(mem, sc, blocks)
     fn = first_noticed_table(mem, reg)
     an = pm.Analytics(mem)
@@ -173,6 +174,7 @@ def evaluate(a):
     chain = mem.verify()
     OUT.mkdir(parents=True, exist_ok=True)
     defaults_tab.to_csv(OUT / "score_defaults.csv", index=False)
+    nofdr_tab.to_csv(OUT / "score_defaults_no_fdr.csv", index=False)
     chosen_tab.to_csv(OUT / "score_chosen.csv", index=False)
     modes.to_csv(OUT / "modes_over_time.csv", index=False)
     fn.to_csv(OUT / "first_noticed.csv", index=False)
@@ -184,7 +186,7 @@ def evaluate(a):
            "fit_blocks": [str(blocks[i].date()) for i in fit_b], "judge_blocks": [str(blocks[i].date()) for i in judge_b],
            "patterns_registered": len(reg), "observations": len(mem.records()),
            "cumulative_tries": {k: tries[k] for k in ("total_tries", "distinct_keys", "runs", "expected_best_null_t")},
-           "all_blocks_defaults": ev.summarise(defaults_tab), "all_blocks_chosen": ev.summarise(chosen_tab),
+           "all_blocks_defaults": ev.summarise(defaults_tab), "all_blocks_chosen_active": ev.summarise(chosen_tab), "all_blocks_defaults_no_fdr": ev.summarise(nofdr_tab),
            "walk_forward_fit": fitted, "prefix_invariance_violations": audit, "chain": {k: v for k, v in chain.items() if k != "head"},
            "final_mode_counts": rep_end["mode"].value_counts().to_dict() if len(rep_end) else {},
            "first_noticed_lag_days": fn["lag_days"].describe().to_dict() if len(fn) else {},
@@ -230,11 +232,21 @@ def write_report(res, modes, tab, judge_tabs, an, end, ctx_end, fn):
           f"{_fmt(res['walk_forward_fit']['fit_objective_defaults'])}",
           f"- JUDGE objective chosen {_fmt(res['walk_forward_fit']['judge_objective_chosen'])} vs defaults "
           f"{_fmt(res['walk_forward_fit']['judge_objective_defaults'])}"]
-    for nm in ("judge_chosen", "judge_defaults"):
-        j = res["walk_forward_fit"][nm]
+    L.append(f"- chosen_active (best config that used >= 5 patterns on average in the fit blocks): "
+             f"{res['walk_forward_fit']['chosen_active']}")
+    for nm in ("judge_chosen", "judge_chosen_active", "judge_defaults"):
+        j = res["walk_forward_fit"].get(nm)
+        if j is None:
+            continue
         L.append(f"- {nm}: used {_fmt(j.get('use'))} weighted {_fmt(j.get('use_w'))} disregarded {_fmt(j.get('off'))} "
                  f"random subset {_fmt(j.get('subset'))} random {_fmt(j.get('random'))}; used-minus-random-subset "
                  f"{_fmt(j.get('use_minus_subset'))} (t {_fmt(j.get('use_minus_subset_t'), 2)}); mean used {j.get('mean_n_use', 0):.1f}")
+    s2 = res["all_blocks_defaults_no_fdr"]
+    L += ["", "## Same, with the cumulative-tries FDR switched off (defaults otherwise)", "",
+          f"- blocks with >= 5 used: {s2.get('blocks_with_use')}; used {_fmt(s2.get('use'))} disregarded {_fmt(s2.get('off'))} "
+          f"random subset {_fmt(s2.get('subset'))} random patterns {_fmt(s2.get('random'))}; used minus random subset "
+          f"{_fmt(s2.get('use_minus_subset'))} (t {_fmt(s2.get('use_minus_subset_t'), 2)}); used minus disregarded "
+          f"{_fmt(s2.get('use_minus_off'))} (t {_fmt(s2.get('use_minus_off_t'), 2)})"]
     L += ["", "## First-noticed lag (registration to first usable evidence, days)", "", str(res["first_noticed_lag_days"]), "",
           "## Final-state report", "", an.markdown(end, ctx_end, ERAS)]
     (OUT / "report.md").write_text("\n".join(L) + "\n")

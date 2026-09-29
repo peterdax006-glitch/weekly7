@@ -119,8 +119,11 @@ def test_fit_thresholds_uses_early_blocks_only_and_reports_both(world):
     fit_b, judge_b = list(range(0, n // 2)), list(range(n // 2, n))
     res = ev.fit_thresholds(mem, sc, fit_b, judge_b, n_configs=12, seed=3)
     assert set(res["chosen"]) == set(ev.FIT_GRID) and set(res["defaults"]) == set(ev.FIT_GRID)
+    assert res["chosen_active"] is None or res["fit_ranking_active"][0]["mean_n_use"] >= 5
+    assert set(res["judge_tables"]) >= {"chosen", "defaults"} and res["configs_tried"] >= 12
     assert res["fit_objective_chosen"] >= res["fit_objective_defaults"] - 1e-12         # best on the fit blocks by construction
     assert set(res["judge_tables"]["chosen"]["block"]) == set(judge_b)
+    assert set(res["judge_tables"]["defaults"]["block"]) == set(judge_b)
     assert "use_minus_random" in res["judge_chosen"]
     with pytest.raises(ValueError):
         ev.fit_thresholds(mem, sc, [0, 1, 2, 9], [5, 6, 7], n_configs=2)               # overlapping / not later

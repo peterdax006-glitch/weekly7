@@ -22,7 +22,7 @@ from . import pattern_memory as pm
 HORIZON_SESSIONS = 7                     # label = next-open to close five sessions on, plus slack (matches run_pattern_bank)
 MIN_QUARTER_DATES = 6
 FIT_GRID = {"n_universal": [3, 4, 6, 8], "t_fail": [1.0, 1.5, 2.5], "tau_time_years": [1.5, 3.0, 6.0],
-            "intra_k": [2, 3, 4], "use_fdr": [True, False]}
+            "intra_k": [2, 3, 4], "use_fdr": [True, False], "t_min_local": [0.5, 1.0, 1.5]}
 
 
 # ---------------------------------------------------------------- schedules and per-quarter evidence
@@ -275,28 +275,41 @@ def sample_configs(grid, n, seed):
     return [full[i] for i in sorted(rng.choice(len(full), n, replace=False))]
 
 
-def fit_thresholds(mem, scorer, fit_blocks, judge_blocks, defaults=None, grid=None, n_configs=60, seed=0):
-    """Choose parameters by `objective` on `fit_blocks` ONLY, then report chosen vs defaults on `judge_blocks` (later).
-    Raises if the two sets overlap or judge blocks are not strictly later, so the split cannot be blurred."""
+def fit_thresholds(mem, scorer, fit_blocks, judge_blocks, defaults=None, grid=None, n_configs=60, seed=0, min_use=5):
+    """Choose parameters by `objective` on `fit_blocks` ONLY, then report on `judge_blocks` (strictly later):
+      chosen         best objective overall (may be a config that uses almost nothing - objective 0 - if no active config
+                     beat a random selection on the fit blocks; that is a legitimate answer, not a failure);
+      chosen_active  best objective among configs whose view used >= min_use patterns on average in the fit blocks;
+      defaults       the shipped parameters.
+    Raises if the judge blocks are not all later than the fit blocks, so the split cannot be blurred."""
     if max(fit_blocks) >= min(judge_blocks):
         raise ValueError("judge blocks must all come after the fit blocks")
-    defaults = {k: pm.PARAMS[k] for k in (grid or FIT_GRID)} if defaults is None else defaults
-    cfgs = sample_configs(grid or FIT_GRID, n_configs, seed)
+    grid = grid or FIT_GRID
+    defaults = {k: pm.PARAMS[k] for k in grid} if defaults is None else defaults
+    cfgs = sample_configs(grid, n_configs, seed)
     if defaults not in cfgs:
         cfgs.append(dict(defaults))
     fitted = []
     for c in cfgs:
         tab = scorer.score(mem, c, fit_blocks)
-        fitted.append({**c, "objective": objective(tab)})
-    fitted.sort(key=lambda r: -r["objective"])
-    best = {k: fitted[0][k] for k in defaults}
-    res = {"chosen": best, "defaults": dict(defaults), "fit_ranking": fitted[:10],
+        fitted.append({**c, "objective": objective(tab, min_use), "mean_n_use": float(tab["n_use"].mean())})
+    fitted.sort(key=lambda r: (-r["objective"], -r["mean_n_use"]))
+    active = [r for r in fitted if r["mean_n_use"] >= min_use]
+    pick = lambda r: {k: r[k] for k in defaults}
+    res = {"chosen": pick(fitted[0]), "chosen_active": pick(active[0]) if active else None, "defaults": dict(defaults),
+           "fit_ranking": fitted[:10], "fit_ranking_active": active[:10], "configs_tried": len(cfgs),
            "fit_objective_chosen": fitted[0]["objective"],
+           "fit_objective_chosen_active": active[0]["objective"] if active else None,
            "fit_objective_defaults": next(r["objective"] for r in fitted if all(r[k] == defaults[k] for k in defaults))}
-    jt_best, jt_def = scorer.score(mem, best, judge_blocks), scorer.score(mem, defaults, judge_blocks)
-    res["judge_chosen"], res["judge_defaults"] = summarise(jt_best), summarise(jt_def)
-    res["judge_objective_chosen"], res["judge_objective_defaults"] = objective(jt_best), objective(jt_def)
-    res["judge_tables"] = {"chosen": jt_best, "defaults": jt_def}
+    tabs = {}
+    for name in ("chosen", "chosen_active", "defaults"):
+        cfg = res[name]
+        if cfg is None:
+            continue
+        tabs[name] = scorer.score(mem, cfg, judge_blocks)
+        res["judge_" + name] = summarise(tabs[name], min_use)
+        res["judge_objective_" + name] = objective(tabs[name], min_use)
+    res["judge_tables"] = tabs
     return res
 
 

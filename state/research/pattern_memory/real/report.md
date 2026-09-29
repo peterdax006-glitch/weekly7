@@ -41,12 +41,18 @@ Signed weekly excess return in the NEXT half-year for patterns the view uses (we
 
 Fit blocks (early): 2015-07-01 .. 2020-01-01; judged on later blocks 2020-07-01 .. 2026-07-01.
 
-- chosen: {'n_universal': 3, 't_fail': 1.0, 'tau_time_years': 1.5, 'intra_k': 2, 'use_fdr': True}
-- defaults: {'n_universal': 6, 't_fail': 1.5, 'tau_time_years': 3.0, 'intra_k': 3, 'use_fdr': True}
-- fit objective chosen +0.00000 vs defaults +0.00000
-- JUDGE objective chosen +0.00000 vs defaults +0.00000
-- judge_chosen: used nan weighted nan disregarded nan random subset nan random nan; used-minus-random-subset nan (t nan); mean used 0.1
+- chosen: {'n_universal': 4, 't_fail': 2.5, 'tau_time_years': 6.0, 'intra_k': 4, 'use_fdr': False, 't_min_local': 1.0}
+- defaults: {'n_universal': 6, 't_fail': 1.5, 'tau_time_years': 3.0, 'intra_k': 3, 'use_fdr': True, 't_min_local': 1.5}
+- fit objective chosen +0.00006 vs defaults +0.00000
+- JUDGE objective chosen +0.00016 vs defaults +0.00000
+- chosen_active (best config that used >= 5 patterns on average in the fit blocks): {'n_universal': 4, 't_fail': 2.5, 'tau_time_years': 6.0, 'intra_k': 4, 'use_fdr': False, 't_min_local': 1.0}
+- judge_chosen: used +0.00041 weighted +0.00048 disregarded +0.00034 random subset +0.00033 random +0.00032; used-minus-random-subset +0.00008 (t +0.54); mean used 237.5
+- judge_chosen_active: used +0.00041 weighted +0.00048 disregarded +0.00034 random subset +0.00033 random +0.00032; used-minus-random-subset +0.00008 (t +0.54); mean used 237.5
 - judge_defaults: used nan weighted nan disregarded nan random subset nan random nan; used-minus-random-subset nan (t nan); mean used 0.1
+
+## Same, with the cumulative-tries FDR switched off (defaults otherwise)
+
+- blocks with >= 5 used: 22; used +0.00030 disregarded +0.00022 random subset +0.00026 random patterns +0.00021; used minus random subset +0.00003 (t +0.23); used minus disregarded +0.00008 (t +0.44)
 
 ## First-noticed lag (registration to first usable evidence, days)
 

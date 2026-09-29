@@ -1,0 +1,26 @@
+pid 21692 stage mine
+23 block(s) to mine
+loaded 156,376 rows, 500 tickers [2s]
+{"T": "2015-07-01", "tested": 1612, "candidates_in_frame": 1612, "by_status": {"rejected": 1612}, "seconds": 2}
+{"T": "2016-01-01", "tested": 1590, "candidates_in_frame": 1590, "by_status": {"rejected": 1590}, "seconds": 2}
+{"T": "2016-07-01", "tested": 1567, "candidates_in_frame": 1567, "by_status": {"rejected": 1567}, "seconds": 3}
+{"T": "2017-01-01", "tested": 1520, "candidates_in_frame": 1520, "by_status": {"rejected": 1520}, "seconds": 3}
+{"T": "2017-07-01", "tested": 1586, "candidates_in_frame": 1586, "by_status": {"rejected": 1586}, "seconds": 3}
+{"T": "2018-01-01", "tested": 1618, "candidates_in_frame": 1618, "by_status": {"rejected": 1618}, "seconds": 3}
+{"T": "2018-07-01", "tested": 1653, "candidates_in_frame": 1653, "by_status": {"rejected": 1653}, "seconds": 4}
+{"T": "2019-01-01", "tested": 1666, "candidates_in_frame": 1666, "by_status": {"rejected": 1666}, "seconds": 4}
+{"T": "2019-07-01", "tested": 1692, "candidates_in_frame": 1692, "by_status": {"rejected": 1691, "discarded": 1}, "seconds": 4}
+{"T": "2020-01-01", "tested": 1722, "candidates_in_frame": 1722, "by_status": {"rejected": 1713, "duplicate": 8, "active": 1}, "seconds": 5}
+{"T": "2020-07-01", "tested": 1748, "candidates_in_frame": 1748, "by_status": {"rejected": 1748}, "seconds": 5}
+{"T": "2021-01-01", "tested": 1690, "candidates_in_frame": 1690, "by_status": {"rejected": 1689, "active": 1}, "seconds": 6}
+{"T": "2021-07-01", "tested": 1734, "candidates_in_frame": 1734, "by_status": {"rejected": 1733, "active": 1}, "seconds": 6}
+{"T": "2022-01-01", "tested": 1757, "candidates_in_frame": 1757, "by_status": {"rejected": 1757}, "seconds": 7}
+{"T": "2022-07-01", "tested": 1673, "candidates_in_frame": 1673, "by_status": {"rejected": 1673}, "seconds": 7}
+{"T": "2023-01-01", "tested": 1748, "candidates_in_frame": 1748, "by_status": {"rejected": 1716, "duplicate": 23, "no_gain": 7, "active": 2}, "seconds": 8}
+{"T": "2023-07-01", "tested": 1753, "candidates_in_frame": 1753, "by_status": {"rejected": 1753}, "seconds": 8}
+{"T": "2024-01-01", "tested": 1753, "candidates_in_frame": 1753, "by_status": {"rejected": 1753}, "seconds": 9}
+{"T": "2024-07-01", "tested": 1700, "candidates_in_frame": 1700, "by_status": {"rejected": 1700}, "seconds": 9}
+{"T": "2025-01-01", "tested": 1661, "candidates_in_frame": 1661, "by_status": {"rejected": 1661}, "seconds": 9}
+{"T": "2025-07-01", "tested": 1738, "candidates_in_frame": 1738, "by_status": {"rejected": 1736, "active": 1, "no_gain": 1}, "seconds": 10}
+{"T": "2026-01-01", "tested": 1745, "candidates_in_frame": 1745, "by_status": {"rejected": 1699, "duplicate": 28, "no_gain": 12, "active": 6}, "seconds": 11}
+{"T": "2026-07-01", "tested": 1737, "candidates_in_frame": 1737, "by_status": {"rejected": 1702, "duplicate": 22, "no_gain": 7, "active": 6}, "seconds": 11}
