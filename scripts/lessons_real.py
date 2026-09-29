@@ -2,7 +2,7 @@
 on window A, firewalled against a disguised rerun of A and an unseen window B, for every consecutive pair of
 two-year eras. Small seeded ticker sample so memory stays well under 1.5 GB.
 
-usage: lessons_real.py [--tickers 400] [--seed 0] [--era-years 2] [--tag name]
+usage: lessons_real.py [--tickers 400] [--seed 0] [--era-years 1] [--tag name]
 Writes state/research/lessons/<tag>.json and <tag>.md (provenance-stamped). Never writes to data/cache or state/livesim."""
 import argparse
 import json
@@ -72,7 +72,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--tickers", type=int, default=400)
     ap.add_argument("--seed", type=int, default=0)
-    ap.add_argument("--era-years", type=int, default=2)
+    ap.add_argument("--era-years", type=int, default=1)
     ap.add_argument("--tag", default="real_v1")
     a = ap.parse_args()
     t0 = time.time()
@@ -82,7 +82,7 @@ def main():
           f"[{d.min().date()} .. {d.max().date()}] {time.time() - t0:.0f}s", flush=True)
     edges = pd.date_range(d.min().normalize().replace(month=1, day=1), d.max(), freq=f"{a.era_years}YS")
     wins = [(lo, hi) for lo, hi in zip(edges[:-1], edges[1:]) if ((d >= lo) & (d < hi)).sum() > 500]
-    cfg = {"k": 5, "cost": 0.0005, "horizon_days": 8, "n_disguises": 2, "boot": 300, "block": 4, "long_only": True, "null_reps": 3}
+    cfg = {"k": 5, "cost": 0.0005, "horizon_days": 8, "n_disguises": 2, "boot": 300, "block": 4, "long_only": True, "null_reps": 5}
     out = {"stamp": stamp(cfg, a.seed), "cfg": cfg, "tickers_sampled": a.tickers, "pairs": []}
     for i in range(len(wins) - 2):
         (alo, ahi), (blo, bhi), (clo, chi) = wins[i], wins[i + 1], wins[i + 2]
@@ -93,6 +93,9 @@ def main():
         cols, bad = usable_features(XA)
         r = run_experiment(XA, yA, XB, yB, score_fn, cfg=cfg, seed=a.seed + i, type_fn=lambda Z: label(Z["atr_pct"]), XC=XC, yC=yC)
         r.pop("final_book", None)
+        fs = r.pop("full_stats", None)
+        if fs:
+            r["full_book_ci"] = {"A": fs["A"], "B": fs["B"]}          # bootstrap CIs over weeks of the unfiltered book
         r["window_A"], r["window_B"] = [str(alo.date()), str(ahi.date())], [str(blo.date()), str(bhi.date())]
         r["window_C"] = [str(clo.date()), str(chi.date())]
         r["proxy_excluded"] = bad

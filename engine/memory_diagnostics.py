@@ -347,3 +347,38 @@ def stability_by_block(df, blocks=4):
         rows.append({"block": i, "n": len(b), "skill": 1 - float(((b["pred"] - b["outcome"]) ** 2).mean()) / z if z > 0 else 0.0})
     t = pd.DataFrame(rows)
     return t, float((t["skill"] > 0).mean())
+
+
+def lesson_summary(mem, tickers=()):
+    """What the memory has been taught, in aggregate: the sanitised lessons grouped by error type, era and shock state
+    with counts and the share of the bank each holds, plus mean relevance and reliability. Read-only and safe to share
+    (it goes through export_lessons, so nothing answer-identifying is in it)."""
+    df = mem.export_lessons(tickers=tickers)
+    if df.empty:
+        return {"n": 0, "by_error": {}, "by_era": {}, "by_shock": {}, "by_experiment": {}, "mean_relevance": float("nan"),
+                "mean_reliability": float("nan"), "false_positive_share": float("nan")}
+    scored = df[df["error_type"] != "unscored"]
+    return {"n": len(df), "by_error": df["error_type"].value_counts().to_dict(), "by_era": df["era"].value_counts().to_dict(),
+            "by_shock": df["shock_state"].value_counts().to_dict(), "by_experiment": df["source_experiment"].value_counts().to_dict(),
+            "mean_relevance": float(df["relevance"].mean()), "mean_reliability": float(df["reliability"].mean()),
+            "false_positive_share": float((scored["error_type"] == "false_positive").mean()) if len(scored) else float("nan")}
+
+
+def error_profile_by_arm(mem, min_scored=5):
+    """Per arm: how often was memory's prediction right? Counts of correct / false_positive / false_negative / noise
+    among SCORED episodes, and the hit rate. An arm the memory keeps getting wrong is one whose evidence should not be
+    trusted yet; arms with fewer than min_scored scored episodes are marked 'thin' instead of given a rate."""
+    rows = {}
+    for (arm, wk, c, y, src), info in zip(mem.ep, mem.info):
+        if src or info["err"] in (None, "unscored"):
+            continue
+        r = rows.setdefault(repr(arm), {"correct": 0, "false_positive": 0, "false_negative": 0, "noise": 0})
+        r[info["err"]] += 1
+    out = []
+    for arm, r in rows.items():
+        n = sum(r.values())
+        graded = r["correct"] + r["false_positive"] + r["false_negative"]
+        out.append({"arm": arm, **r, "scored": n, "hit_rate": r["correct"] / graded if graded and n >= min_scored else float("nan"),
+                    "thin": n < min_scored})
+    cols = ["arm", "correct", "false_positive", "false_negative", "noise", "scored", "hit_rate", "thin"]
+    return pd.DataFrame(out, columns=cols).sort_values("scored", ascending=False).reset_index(drop=True)

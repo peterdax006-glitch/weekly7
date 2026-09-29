@@ -9,7 +9,10 @@ The evaluator is injected (`evaluate(window, cfg, meta) -> row`), so the search 
 adaptive.replay is the caller's job. Windows carry an `end`: with `as_of` given, later windows are invisible.
 """
 from dataclasses import dataclass, field
+import hashlib
 import json
+import os
+from pathlib import Path
 import numpy as np
 from engine import objective as O
 
@@ -185,7 +188,7 @@ class BasisSearch:
                 q = sc.boot_q / max(1, sc.n_start)
             c.boot_lo = O.paired_bootstrap(diffs, sc.n_boot, q, seed=sc.seed)
             c.share = float((diffs > 0).mean()) if len(diffs) else 0.0
-            ok, why = O.firewall(inc.confirm, c.confirm)
+            ok, why = O.firewall(inc.confirm, c.confirm, inc_rows, rows)      # refuses leverage-only / cash-hiding gains
             if not ok:
                 c.verdict = f"firewall: {why}"
             elif c.share < sc.min_win_share:
@@ -208,3 +211,108 @@ class BasisSearch:
         se = float(per_window.std(ddof=1) / np.sqrt(len(per_window))) if len(per_window) > 1 else 0.0
         drop = max(0.0, cand.screen.soft - cand.confirm.soft) if cand.screen is not None else 0.0
         return cand.confirm.soft - self.sc.penalty_se * se - self.sc.penalty_gap * drop
+
+
+# ------------------------------------------------------------------ version history and rollback
+class HistoryError(RuntimeError):
+    pass
+
+
+class BasisHistory:
+    """Every adopted basis (cfg + meta) as an append-only, hash-chained list, so the loop can say which basis produced
+    which windows and can go back. Nothing is deleted: a rollback appends a new version that re-installs an older one.
+    `verify()` recomputes the chain and fails on any edited, removed or reordered entry. The file is written atomically."""
+
+    def __init__(self, path=None, cfg=None, meta=None):
+        self.path = None if path is None else Path(path)
+        self.entries = []
+        if self.path is not None and self.path.exists():
+            self.entries = json.loads(self.path.read_text())
+            if not self.verify():
+                raise HistoryError(f"{self.path}: history chain is broken")
+        elif cfg is not None:
+            self._append("initial", cfg, meta or {}, "starting basis", None, None)
+
+    @staticmethod
+    def _hash(prev, body):
+        return hashlib.sha256((prev + json.dumps(body, sort_keys=True, default=str)).encode()).hexdigest()[:16]
+
+    def _append(self, kind, cfg, meta, reason, parent, score):
+        body = {"kind": kind, "cfg": cfg, "meta": meta, "reason": reason, "parent": parent, "score": score}
+        prev = self.entries[-1]["hash"] if self.entries else ""
+        self.entries.append({"version": len(self.entries) + 1, **body, "hash": self._hash(prev, body)})
+        self._save()
+
+    def _save(self):
+        if self.path is None:
+            return
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = self.path.with_suffix(".tmp")
+        tmp.write_text(json.dumps(self.entries, indent=1, default=str))
+        os.replace(tmp, self.path)
+
+    @property
+    def current(self):
+        if not self.entries:
+            raise HistoryError("no basis recorded yet")
+        return self.entries[-1]
+
+    def adopt(self, result):
+        """Record a SearchResult's basis as the next version. Refuses a result that was not an adoption."""
+        if not result.adopted:
+            raise HistoryError("cannot record a search that adopted nothing")
+        c = result.winner.confirm
+        self._append("adopted", result.cfg, result.meta, result.reason, self.current["version"],
+                     {"key": list(c.key), "t1": c.t1, "risk": c.risk})
+        return self.current
+
+    def get(self, version):
+        for e in self.entries:
+            if e["version"] == version:
+                return e
+        raise HistoryError(f"no basis version {version}")
+
+    def rollback(self, to_version=None, why=""):
+        """Re-install an earlier basis (default: the one before the current). Recorded as a new version."""
+        cur = self.current
+        if to_version is None:
+            to_version = cur["parent"]
+        if to_version is None or to_version == cur["version"]:
+            raise HistoryError("nothing to roll back to")
+        old = self.get(to_version)
+        self._append("rollback", old["cfg"], old["meta"], f"rollback to v{to_version}: {why}", cur["version"], old["score"])
+        return self.current
+
+    def verify(self):
+        prev = ""
+        for i, e in enumerate(self.entries):
+            body = {k: e[k] for k in ("kind", "cfg", "meta", "reason", "parent", "score")}
+            if e.get("version") != i + 1 or e.get("hash") != self._hash(prev, body):
+                return False
+            prev = e["hash"]
+        return True
+
+    def lineage(self, version=None):
+        """Versions from the given one back to the start, following parents (a rollback's parent is the version it left)."""
+        e, out = (self.current if version is None else self.get(version)), []
+        while e is not None:
+            out.append(e["version"])
+            e = None if e["parent"] is None else self.get(e["parent"])
+        return out
+
+
+def review_current_basis(prev_rows, cur_rows, n_boot=400, q=0.10, seed=0):
+    """Should the current basis be rolled back? Compares fresh window rows (paired) produced under the previous and the
+    current basis. Rolls back only on evidence the newer one is WORSE: the firewall prefers the older one AND the paired
+    deciding-tier bootstrap upper tail says the loss is not one unlucky window. Returns (rollback, reason)."""
+    if len(prev_rows) != len(cur_rows) or len(prev_rows) < 3:
+        return False, "need at least 3 paired windows: keep the current basis"
+    a, b = O.evaluate(prev_rows), O.evaluate(cur_rows)
+    ok, why = O.firewall(b, a, cur_rows, prev_rows)          # would the OLD basis replace the current one?
+    if not ok:
+        return False, f"no case for rollback ({why})"
+    _, d = O.decisive_diffs(cur_rows, prev_rows)
+    lo = O.paired_bootstrap(d, n_boot, q, seed)
+    if lo <= 0:
+        return False, f"old basis looks better but not reliably (bootstrap lower bound {lo:+.3f})"
+    return True, f"previous basis is better ({why}; bootstrap lower bound {lo:+.3f})"

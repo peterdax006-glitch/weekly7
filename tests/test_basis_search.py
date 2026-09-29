@@ -210,3 +210,118 @@ def test_batch_evaluator_gives_the_same_answer_and_is_used_once_per_candidate():
     b = B.BasisSearch(None, ws, CFG0, META0, B.SearchConfig(seed=1), CS, MS, evaluate_batch=batch).run()
     assert (a.adopted, a.cfg, a.meta, a.n_evals) == (b.adopted, b.cfg, b.meta, b.n_evals)
     assert sum(sizes) == b.n_evals and max(sizes) == 10   # never re-asks cached windows (confirm only adds the unscreened 10)
+
+import json
+
+
+# ---------------------------------------------------------------- Phase 19 items: funnel sizes, gaming, history, rollback
+def test_default_funnel_is_24_starts_10_screen_3_finalists():
+    c = B.SearchConfig()
+    assert (c.n_start, c.n_screen, c.n_top) == (24, 10, 3)
+    calls = {}
+    def ev(w, cfg, m):
+        calls.setdefault(B.fingerprint(cfg, m), set()).add(w["id"])
+        return sigma_eval(w, cfg, m)
+    B.BasisSearch(ev, wins(30), CFG0, META0, B.SearchConfig(seed=2)).run()        # default spaces, default sizes
+    assert len(calls) <= 25                                                        # incumbent + at most 24 distinct draws
+    assert sum(len(v) == 30 for v in calls.values()) == 4                          # incumbent + top 3 on every window
+    assert sum(len(v) == 10 for v in calls.values()) == len(calls) - 4
+
+
+def test_search_refuses_a_leverage_only_candidate_and_the_firewall_alone_would_pass_it(monkeypatch):
+    def ev(w, c, m):
+        rng = np.random.default_rng(zlib.crc32(w["id"].encode()))
+        if c["k"] == CFG0["k"]:
+            return O.week_row(0.008 + 0.045 * rng.standard_normal(52))              # honest, small edge
+        return O.week_row(0.075 * rng.standard_normal(52))                          # zero edge, levered into the band
+    cfg = B.SearchConfig(seed=3)
+    r = B.BasisSearch(ev, wins(30), CFG0, META0, cfg, CS, MS).run()
+    assert not r.adopted
+    assert any("gaming: no_edge" in c.verdict for c in r.candidates if c.confirm is not None)
+    monkeypatch.setattr(O, "gaming_flags", lambda rows, *a, **k: [])
+    r2 = B.BasisSearch(ev, wins(30), CFG0, META0, cfg, CS, MS).run()
+    v = [c.verdict for c in r2.candidates if c.confirm is not None]
+    assert v and not any("gaming" in x or x.startswith("firewall:") for x in v), v   # the tiers alone let it through the firewall
+
+
+def test_search_refuses_a_cash_hiding_candidate():
+    def ev(w, c, m):
+        rng = np.random.default_rng(zlib.crc32(w["id"].encode()))
+        if c["k"] == CFG0["k"]:
+            return O.week_row(0.008 + 0.03 * rng.standard_normal(52))
+        w_ = np.where(rng.random(52) < 0.55, rng.normal(0, 0.001, 52), rng.choice([-1, 1], 52) * 0.07)
+        return O.week_row(w_)
+    r = B.BasisSearch(ev, wins(30), CFG0, META0, B.SearchConfig(seed=4), CS, MS).run()
+    assert not r.adopted and any("cash_hiding" in c.verdict for c in r.candidates if c.confirm is not None)
+
+
+def _adopted_result(seed=1):
+    r = B.BasisSearch(sigma_eval, wins(20), CFG0, META0, B.SearchConfig(seed=seed), CS, MS).run()
+    assert r.adopted
+    return r
+
+
+def test_history_records_adoptions_and_lineage(tmp_path):
+    h = B.BasisHistory(tmp_path / "basis.json", CFG0, META0)
+    assert h.current["version"] == 1 and h.current["kind"] == "initial" and h.current["cfg"] == CFG0
+    r = _adopted_result()
+    v2 = h.adopt(r)
+    assert v2["version"] == 2 and v2["parent"] == 1 and v2["cfg"] == r.cfg and v2["score"]["t1"] > 0
+    assert h.lineage() == [2, 1] and h.verify()
+    kept = B.BasisSearch(sigma_eval, wins(2), CFG0, META0, B.SearchConfig(seed=0), CS, MS).run()
+    with pytest.raises(B.HistoryError):
+        h.adopt(kept)                                                            # a non-adoption cannot be recorded
+
+
+def test_rollback_reinstalls_an_older_basis_without_deleting_anything(tmp_path):
+    h = B.BasisHistory(tmp_path / "basis.json", CFG0, META0)
+    h.adopt(_adopted_result())
+    back = h.rollback(why="fresh windows got worse")
+    assert back["kind"] == "rollback" and back["cfg"] == CFG0 and back["version"] == 3 and back["parent"] == 2
+    assert len(h.entries) == 3 and h.get(2)["kind"] == "adopted" and h.verify()
+    assert h.lineage() == [3, 2, 1] and "fresh windows got worse" in back["reason"]
+    with pytest.raises(B.HistoryError):
+        h.rollback(to_version=3)                                                 # cannot roll back to where you already are
+    with pytest.raises(B.HistoryError):
+        h.rollback(to_version=42)
+    fresh = B.BasisHistory(cfg=CFG0)
+    with pytest.raises(B.HistoryError):
+        fresh.rollback()                                                         # v1 has no parent
+
+
+def test_history_persists_and_tampering_is_detected(tmp_path):
+    path = tmp_path / "basis.json"
+    h = B.BasisHistory(path, CFG0, META0)
+    h.adopt(_adopted_result())
+    again = B.BasisHistory(path)
+    assert again.entries == h.entries and again.current["version"] == 2            # reload does not start a new history
+    data = json.loads(path.read_text())
+    data[1]["cfg"]["k"] = 1 if data[1]["cfg"]["k"] != 1 else 2                     # edit an adopted basis after the fact
+    path.write_text(json.dumps(data))
+    with pytest.raises(B.HistoryError):
+        B.BasisHistory(path)
+    data = json.loads(path.read_text())
+    path.write_text(json.dumps(data[1:]))                                          # drop the first entry
+    with pytest.raises(B.HistoryError):
+        B.BasisHistory(path)
+    empty = B.BasisHistory()
+    with pytest.raises(B.HistoryError):
+        empty.current
+
+
+def _fresh_rows(sd, n=12, seed=0, mean=0.008):
+    rng = np.random.default_rng(seed)
+    return [O.week_row(mean + sd * rng.standard_normal(52)) for _ in range(n)]
+
+
+def test_review_rolls_back_only_on_reliable_evidence():
+    good, bad = _fresh_rows(0.07, seed=1), _fresh_rows(0.02, seed=2)
+    roll, why = B.review_current_basis(prev_rows=good, cur_rows=bad)               # current is much worse: roll back
+    assert roll and "previous basis is better" in why
+    roll, why = B.review_current_basis(prev_rows=bad, cur_rows=good)               # current is better: never roll back
+    assert not roll and "no case" in why
+    same = _fresh_rows(0.05, seed=3)
+    assert B.review_current_basis(same, same)[0] is False
+    assert B.review_current_basis(good[:2], bad[:2])[0] is False                    # too few windows
+    assert B.review_current_basis(_fresh_rows(0.05, seed=4), _fresh_rows(0.05, seed=5))[0] is False   # two equal-quality bases: keep
+    assert B.review_current_basis([], [])[0] is False

@@ -139,7 +139,7 @@ def test_gate_fails_closed_and_checks_order():
 def test_gate_catches_a_risk_deteriorating_dial():
     """Planted: a dial pinned at max leverage improves nothing safely - on wild windows it must trip the risk check."""
     wins = make_windows(18, 4, sig=(0.16,))
-    p = T.DialParams(k_bounds=(1, 1), exposure_bounds=(1.0, 1.0))                            # always k=1, full exposure
+    p = T.DialParams(k_bounds=(1, 1), exposure_bounds=(1.0, 1.0), brake_dd=5.0, brake_exposure=1.0)   # always k=1, full exposure, no brake
     rep = T.promotion_gate(wins[:6], wins[6:], p)
     assert not rep.passed and (not rep.checks["risk"] or not rep.checks["improvement"])
 
@@ -209,3 +209,111 @@ def test_gate_rows_matches_promotion_gate_and_rejects_unpaired():
     with pytest.raises(ValueError):
         T.gate_rows([O.week_row(w["weeks"]) for w in train], T._rows(train, p), [O.week_row(w["weeks"]) for w in test], [])
     assert not T.gate_rows([], [], [], []).passed
+
+import json
+
+
+# ---------------------------------------------------------------- Phase 17 items: yearly pacing, inputs, champion door
+def test_pacing_state_on_the_path_behind_and_ahead():
+    on = T.pacing_state([0.07] * 10)
+    assert on["gap"] == pytest.approx(0, abs=1e-12) and on["pace"] == pytest.approx(1) and on["weeks_behind"] == pytest.approx(0, abs=1e-9)
+    assert on["required"] == pytest.approx(0.07) and on["remaining"] == 42
+    assert on["projected"] == pytest.approx(1.07 ** 52 - 1)
+    behind = T.pacing_state([0.0] * 10)
+    assert behind["weeks_behind"] == pytest.approx(-10) and behind["required"] > 0.07 and behind["cum"] == 0
+    ahead = T.pacing_state([0.10] * 10)
+    assert ahead["gap"] > 0 and ahead["required"] < 0.07
+
+
+def test_pacing_state_edges():
+    fresh = T.pacing_state([])
+    assert fresh["n"] == 0 and fresh["gap"] == 0 and fresh["pace"] == 0 and fresh["remaining"] == 52
+    done = T.pacing_state([0.05] * 52)
+    assert np.isnan(done["required"]) and done["remaining"] == 0
+    wiped = T.pacing_state([-1.0, 0.5])
+    assert np.isfinite(wiped["gap"]) and wiped["cum"] == pytest.approx(-1.0)
+    short = T.pacing_state([0.07] * 10, horizon=20)
+    assert short["remaining"] == 10
+
+
+def test_pacing_feeds_the_dial_and_losing_is_defended_not_chased():
+    _, _ = T.step([0.0] * 10)
+    behind, _ = T.step([0.0] * 10)
+    ahead, _ = T.step([0.07] * 10)
+    assert behind.terms["path_gap"] < 0 <= ahead.terms["path_gap"] + 1e-9
+    assert behind.terms["prog"] > ahead.terms["prog"]                       # flat and behind: a bolder push is allowed ...
+    losing, _ = T.step([-0.03] * 10)
+    assert losing.terms["prog"] < 0                                         # ... but a losing run is never chased
+    assert T.DialParams(horizon=26).validate().horizon == 26
+    with pytest.raises(ValueError):
+        T.DialParams(horizon=2).validate()
+
+
+def test_regime_from_market_dict_series_and_missing():
+    r = T.regime_from_market({"m_vix_term": 1.3, "m_vix": 22.0, "m_breadth": 0.4})
+    assert r == {"stress": 1.3, "vix": 22.0, "breadth": 0.4}
+    assert T.regime_from_market(pd.Series({"m_vix_term": 9.0}))["stress"] == 5.0        # clipped
+    assert T.regime_from_market({})["stress"] == 1.0 and T.regime_from_market({"m_vix_term": float("nan")})["stress"] == 1.0
+    assert T.regime_from_market({"m_vix_term": -2})["stress"] == 0.0
+    assert T.regime_from_market(None)["stress"] == 1.0
+    out, _ = T.step([0.03] * 6, T.regime_from_market({"m_vix_term": 2.0}), None)
+    calm, _ = T.step([0.03] * 6, T.regime_from_market({"m_vix_term": 0.6}), None)
+    assert calm.terms["goal"] > out.terms["goal"]
+
+
+def test_forecast_from_analogs_scaling_uniqueness_and_missing():
+    res = {"prediction": {"fwd_ret_1m": 0.043, "fwd_vol_1m": 0.20}, "uniqueness": 0.5}
+    f = T.forecast_from_analogs(res)
+    assert f["mean"] == pytest.approx(3 * 0.043 / 4.33) and f["sd"] == pytest.approx(3 * 0.20 / np.sqrt(52))
+    odd = T.forecast_from_analogs({**res, "uniqueness": 5.0})
+    assert odd["sd"] == pytest.approx(f["sd"] * 2.0) and odd["mean"] == f["mean"]      # unfamiliar market: wider, not bolder
+    assert T.forecast_from_analogs({**res, "uniqueness": 0.0})["sd"] == pytest.approx(f["sd"])
+    assert T.forecast_from_analogs(None) is None and T.forecast_from_analogs({}) is None
+    assert T.forecast_from_analogs({"prediction": {"fwd_ret_1m": 0.1}}) is None
+    assert T.forecast_from_analogs({"prediction": {"fwd_ret_1m": float("nan"), "fwd_vol_1m": 0.2}}) is None
+    assert T.forecast_from_analogs({"prediction": {"fwd_ret_1m": 0, "fwd_vol_1m": 0}})["sd"] == 0.005    # floored
+    out, _ = T.step([0.03] * 6, None, f)
+    assert "fc" in out.terms and -1 <= out.terms["fc"] <= 1
+
+
+def _passing_report():
+    wins = make_windows(24, 11, sig=(0.05, 0.2))
+    p = T.DialParams()
+    rep = T.promotion_gate(wins[:10], wins[10:], p)
+    assert rep.passed, rep.summary()
+    return p, rep
+
+
+def test_admission_refuses_unproven_and_admits_proven(tmp_path):
+    reg = T.DialAdmission(tmp_path / "dial.json")
+    p, rep = _passing_report()
+    bad = T.GateReport(False, {"improvement": False}, ["no reliable improvement"], {})
+    assert not reg.admit(p, bad, "candidate-a") and reg.champion() is None
+    partial = T.GateReport(True, {"improvement": True, "risk": True, "no_overfit": True, "stable_eras": True}, [], {})
+    assert not reg.admit(p, partial, "missing not_gaming") and reg.champion() is None      # passed=True is not enough
+    assert reg.admit(p, rep, "candidate-b") and reg.champion() == p
+    assert [e["action"] for e in reg.log] == ["refused", "refused", "admitted"]
+
+
+def test_admission_persists_verifies_and_detects_tampering(tmp_path):
+    path = tmp_path / "dial.json"
+    reg = T.DialAdmission(path)
+    p, rep = _passing_report()
+    reg.admit(p, rep, "x")
+    assert T.DialAdmission(path).champion() == p and T.DialAdmission(path).verify()
+    data = json.loads(path.read_text())
+    data[0]["params"]["gain"] = 99.0                                          # someone edits the admitted params
+    path.write_text(json.dumps(data))
+    assert not T.DialAdmission(path).verify()
+    reg.revoke("regression in live")
+    assert reg.champion() is None and reg.log[-1]["action"] == "revoked"
+
+
+def test_gate_flags_a_dial_that_wins_by_hiding_in_cash():
+    """Planted: exposure crushed to ~zero. Risk looks perfect; flat weeks are not a strategy. The gate must say so."""
+    wins = make_windows(24, 31, sig=(0.05, 0.2))
+    hide = T.DialParams(exposure_bounds=(0.01, 0.02), brake_exposure=1.0, k_bounds=(6, 6))
+    rep = T.promotion_gate(wins[:10], wins[10:], hide)
+    assert not rep.passed
+    sane = [f for f in O.gaming_flags(T._rows(wins[10:], hide))]
+    assert "cash_hiding" in sane and not rep.checks["not_gaming"]

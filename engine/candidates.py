@@ -41,7 +41,8 @@ CANDLE_SIGNALS = (
 FAMILY_OF = {"engine": ENGINE_FEATURES, "context": MARKET_CONTEXT, "candle": CANDLE_SIGNALS}
 
 CAND_DEFAULT = {"seed": 7, "top_singles": 60, "max_pairs": 4000, "max_unless": 600, "unless_top_pairs": 40,
-                "unless_thirds": 15, "unless_levels": (0, 4), "min_history": 60, "min_random_frac": 0.25}
+                "unless_thirds": 15, "unless_levels": (0, 4), "min_history": 60, "min_random_frac": 0.25,
+                "context_top": 20, "context_share": 0.3}
 
 
 # ---------------------------------------------------------------- the universe
@@ -282,6 +283,22 @@ def top_pair_candidates(terms: Sequence[Term], uni: Universe, target: str = "exc
     return out
 
 
+def context_pair_candidates(terms: Sequence[Term], uni: Universe, target: str = "excess_5d") -> list:
+    """The strongest STOCK terms crossed with every market-context term (all five time-series levels of every context
+    column). A context column has the same value for every stock on a date, so against a per-date demeaned outcome its
+    single-term effect is exactly zero: it can only matter in interaction with a stock feature, and it can never earn a
+    place among the 'strongest singles'. This family is how a regime pattern gets tested on purpose, not by luck."""
+    ctx = [f for f in uni.all if uni.is_context(f)]
+    out = []
+    for t in terms:
+        if uni.is_context(t.feature):
+            continue
+        for f in ctx:
+            for q in range(N_LEVELS):
+                out.append(_cand(Expression.make([t, Term(f, q)]), uni, "pair", "context_pair", target))
+    return out
+
+
 def _pair_space(features: Sequence[str]):
     combos = list(itertools.combinations(sorted(features), 2))
     return combos, len(combos) * N_LEVELS * N_LEVELS
@@ -387,6 +404,10 @@ class CandidateGenerator:
         self.set = CandidateSet()
         self.skipped_bank = []
 
+    def _is_empty(self, cand: Candidate) -> bool:
+        e = cand.expression
+        return any((t.feature, t.level) in self.empty for t in e.base + e.unless)
+
     def stage_singles(self) -> list:
         c = single_candidates(self.uni, self.target)
         self.set.extend(c)
@@ -395,11 +416,15 @@ class CandidateGenerator:
     def stage_pairs(self, single_scores: Mapping[str, float]) -> list:
         """single_scores: {'feat q3': |t|} from the singles just tested."""
         terms = top_terms(single_scores, self.p["top_singles"])
-        top = top_pair_candidates(terms, self.uni, self.target)
         # the strongest singles may not crowd out the random draw: at least min_random_frac of the budget stays random,
         # otherwise a feature outside the top-k singles could never be paired (the default 4,000 leaves ~2,250 random)
         floor = int(self.p["max_pairs"] * self.p["min_random_frac"])
-        top = top[: max(0, self.p["max_pairs"] - floor)]
+        room = max(0, self.p["max_pairs"] - floor)
+        stock = [t for t in terms if not self.uni.is_context(t.feature)]
+        ctxp = context_pair_candidates(stock[: self.p["context_top"]], self.uni, self.target)
+        ctxp = [c for c in ctxp if not self._is_empty(c)][: int(room * self.p["context_share"])]
+        top = [c for c in top_pair_candidates(stock, self.uni, self.target) if not self._is_empty(c)][: room - len(ctxp)]
+        top = ctxp + top
         self.set.extend(top)
         n_rand = max(0, self.p["max_pairs"] - len(top))
         rnd = random_pair_candidates(self.uni, n_rand, self.rng, set(self.set.ids()), self.target, self.empty)

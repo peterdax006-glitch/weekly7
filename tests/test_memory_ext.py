@@ -598,3 +598,68 @@ def test_ancient_evidence_does_not_underflow_to_nan():
     assert np.isfinite(d["mean"]) and np.isfinite(d["se"]) and d["n_eff"] > 1
     assert 0.02 < d["mean"] < 0.024
     assert D._shrunk(np.array([1e-300, 2e-300, 1e-300]), np.array([1.0, 2.0, 3.0]), 0.0)[2] > 1
+
+
+# --- validate(): the invariants, and proof that each one can fail ---------------------------------------------------
+def test_a_healthy_memory_validates_through_capacity_eviction_absorb_and_state_round_trip():
+    M = Memory({"mem_capacity": 30, "mem_arm_capacity": 12})
+    for arm, wk, c, y in stream(40, seed=3, arms=("a", "b", "c")):
+        M.record(arm, wk, c, y, date=pd.Timestamp("2018-01-01") + pd.Timedelta(weeks=int(wk)))
+    assert M.validate() == []
+    M.absorb(Memory().export())
+    assert M.validate() == [] and Memory.from_state(M.state_dict()).validate() == []
+    assert Memory().validate() == []
+
+
+def test_validate_catches_each_planted_corruption():
+    def healthy():
+        M = Memory({"mem_capacity": 10})
+        for w in range(6):
+            M.record("a", w, ctx(w), 0.01 * w)
+        return M
+    M = healthy(); M.info.pop()
+    assert any("out of step" in p for p in M.validate())
+    M = healthy(); M._by_arm["a"].pop()
+    assert any("arm index covers" in p for p in M.validate())
+    M = healthy(); M._by_arm["a"][0] = 3; M._by_arm["a"][3] = 0
+    assert M.validate() == []                                              # a permutation of correct entries is still correct
+    M = healthy(); M.ep[2] = ("zzz",) + M.ep[2][1:]
+    assert any("does not hold arm" in p for p in M.validate())
+    M = healthy(); a = M.ep[1]; M.ep[1] = (a[0], a[1], a[2], float("nan"), a[4])
+    assert any("non-finite" in p for p in M.validate())
+    M = healthy(); M.info[1]["seq"] = M.info[0]["seq"]
+    assert any("not unique" in p for p in M.validate())
+    M = healthy(); M.p["mem_capacity"] = 3
+    assert any("exceed capacity" in p for p in M.validate())
+    M = healthy(); M.breaks["ghost"] = 4.0
+    assert any("no CUSUM state" in p for p in M.validate())
+    M = healthy(); M.scale = np.array([1.0, 0.0] + [1.0] * 5)
+    assert any("context scale" in p for p in M.validate())
+
+
+# --- lesson_summary / error_profile_by_arm ---------------------------------------------------------------------------
+def scored_memory():
+    """Arm 'wins' is predicted correctly every time; arm 'flip' is always predicted wrong."""
+    M = Memory({"mem_shock_k": 1e9})
+    for w in range(12):
+        M.record("wins", w, Z, 0.02, date="2019-03-01", source_experiment="e1", expected=0.01)
+        M.record("flip", w, Z, -0.02, date="2019-03-01", source_experiment="e2", expected=0.01)
+    M.record("thin", 0, Z, 0.02, expected=0.01)
+    M.record("unscored", 0, Z, 0.02)
+    return M
+
+
+def test_lesson_summary_counts_errors_eras_and_shares():
+    s = D.lesson_summary(scored_memory())
+    assert s["n"] == 26 and s["by_error"]["correct"] == 13 and s["by_error"]["false_positive"] == 12 and s["by_error"]["unscored"] == 1
+    assert s["by_era"]["zero_rates_2010_19"] == 24 and s["by_experiment"] == {"e1": 12, "e2": 12, "unspecified": 2}
+    assert s["false_positive_share"] == pytest.approx(12 / 25) and 0 < s["mean_reliability"] < 1
+    e = D.lesson_summary(Memory())
+    assert e["n"] == 0 and np.isnan(e["false_positive_share"])
+
+
+def test_error_profile_separates_the_arm_memory_gets_right_from_the_one_it_gets_wrong():
+    t = D.error_profile_by_arm(scored_memory()).set_index("arm")
+    assert t.loc["'wins'", "hit_rate"] == 1.0 and t.loc["'flip'", "hit_rate"] == 0.0
+    assert bool(t.loc["'thin'", "thin"]) and np.isnan(t.loc["'thin'", "hit_rate"]) and "'unscored'" not in t.index
+    assert D.error_profile_by_arm(Memory()).empty

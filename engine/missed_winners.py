@@ -171,6 +171,19 @@ class MissedWinnerDetector:
         return float(self._w)
 
     # ------------------------------------------------------------------ inspection and state
+    def explain(self, p, name, top=5):
+        """Why does the detector like (or not like) one stock today? Each feature's contribution to the logit for `name`
+        (coefficient x its centred cross-sectional rank), largest first, plus the bias and the resulting probability.
+        Read-only: nothing is learned. Returns {'prob', 'logit', 'bias', 'contributions': Series (all features), 'top': list}."""
+        if name not in p.index:
+            raise KeyError(f"{name!r} is not in today's snapshot")
+        x = self._x(p)[list(p.index).index(name)]
+        contrib = pd.Series(x * self.coef, index=self.feats)
+        logit = float(contrib.sum() + self.bias)
+        order = contrib.abs().sort_values(ascending=False).index[:top]
+        return {"prob": float(1 / (1 + np.exp(-logit))), "logit": logit, "bias": float(self.bias), "contributions": contrib,
+                "top": [(f, float(contrib[f])) for f in order]}
+
     def coef_table(self):
         return pd.Series(self.coef, index=self.feats, name="coef").sort_values(key=np.abs, ascending=False)
 

@@ -387,3 +387,35 @@ def test_empty_candidate_set_fails_the_audit_loudly():
     rep = C.coverage_audit(TINY, C.CandidateSet())
     assert not rep["ok"] and len(rep["problems"]) == 2 * len(TINY.all) and rep["n_candidates"] == 0
     assert rep["min_pairs_per_feature"] == 0
+
+
+# ------------------------------------------------------------------ context interactions
+def test_context_pairs_cross_the_strongest_stock_terms_with_every_context_level():
+    terms = [I.Term("e1", 4), I.Term("m_a", 2), I.Term("c1", 0)]
+    got = C.context_pair_candidates(terms, TINY)
+    assert len(got) == 2 * 2 * 5                                     # two stock terms x two context columns x five levels
+    assert {c.origin for c in got} == {"context_pair"} and {c.transform for c in got} == {"ts_quintile"}
+    assert all(sum(TINY.is_context(f) for f in c.expression.features) == 1 for c in got)
+    assert C.context_pair_candidates(terms, C.Universe(("e1",), ("c1",), ())) == []
+
+
+def test_generator_reserves_budget_for_context_pairs_and_random_pairs():
+    u = C.Universe(tuple(f"e{i}" for i in range(20)), (), ("m_a", "m_b"))
+    g = C.CandidateGenerator(u, {"max_pairs": 400, "top_singles": 30, "context_top": 10})
+    singles = g.stage_singles()
+    pairs = g.stage_pairs({c.text: float(i % 50) for i, c in enumerate(singles) if not c.text.startswith("m_")})
+    by = {}
+    for p in pairs:
+        by[p.origin] = by.get(p.origin, 0) + 1
+    assert len(pairs) == 400 and by["context_pair"] == 90 and by["random_pair"] >= 100 and by["top_pair"] > 0
+
+
+def test_a_context_single_against_a_date_demeaned_outcome_has_exactly_zero_effect():
+    """WHY the context-pair family exists: a per-date value cannot predict a per-date-demeaned return on its own."""
+    X = panel(cols=("e1", "m_a"), n_dates=100, n_tick=30, seed=9)
+    y = pd.Series(np.random.default_rng(9).normal(size=len(X)), index=X.index)
+    y = y - y.groupby(level=0).transform("mean")
+    qm = C.quantise(X, C.Universe(("e1",), (), ("m_a",)), min_history=20)
+    for q in range(5):
+        m = qm.mask(E(f"m_a q{q}"))
+        assert abs(y[m].groupby(level=0).mean().mean()) < 1e-12

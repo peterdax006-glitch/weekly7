@@ -193,3 +193,108 @@ def test_overshoot_costs_tier1_even_when_band_share_is_equal():
     calm = {**mk(0.4, -0.05, 0.5, over=0.0)[0]}
     wild = {**mk(0.4, -0.05, 0.5, over=0.5)[0]}
     assert O.evaluate([wild]).key[0] < O.evaluate([calm]).key[0]
+
+import json
+
+
+# ---------------------------------------------------------------- Phase 20 items: closeness to 7%, tier-3 composite, gaming
+def _r(inb=0.6, over=0.0, w5=-0.04, dd=-0.1, pos=0.5, **kw):
+    return {"in_band": inb, "over_band": over, "worst5": w5, "max_dd": dd, "pos_in_band": pos, "cat_rate": 0.0,
+            "mean_week": 0.01, "n_weeks": 52, **kw}
+
+
+def test_yearly_average_move_near_7pct_orders_equal_band_shares():
+    near, far = O.evaluate([_r(abs_mean=0.07)]), O.evaluate([_r(abs_mean=0.16)])
+    assert near.closeness > far.closeness and near.key[0] == far.key[0] and near.key > far.key
+    assert O.firewall(far, near)[0] and "closeness" in O.firewall(far, near)[1]
+    assert O.evaluate([_r(abs_mean=0.0)]).closeness == 0.0                  # never negative
+
+
+def test_closeness_cannot_outrank_the_band_share_and_risk_cannot_outrank_closeness():
+    more_band_far = O.evaluate([_r(inb=0.30, abs_mean=0.20, w5=-0.25, dd=-0.6)])
+    less_band_near = O.evaluate([_r(inb=0.20, abs_mean=0.07, w5=-0.01, dd=-0.01)])
+    assert more_band_far.key > less_band_near.key                           # tier 1 share first
+    safe_far = O.evaluate([_r(inb=0.6, abs_mean=0.15, w5=-0.01, dd=-0.02)])
+    risky_near = O.evaluate([_r(inb=0.6, abs_mean=0.07, w5=-0.3, dd=-0.7)])
+    assert risky_near.key > safe_far.key                                    # closeness is tier 1, risk is tier 2
+
+
+def test_decisive_diffs_can_be_decided_by_closeness():
+    a = [_r(abs_mean=0.16) for _ in range(5)]
+    b = [_r(abs_mean=0.08) for _ in range(5)]
+    tier, d = O.decisive_diffs(a, b)
+    assert tier == 0 and (d > 0).all()
+
+
+def test_tier3_composite_rewards_plus10_and_precision_but_only_after_tier1():
+    plain = _r(plus10=0.0, dir_precision=0.4)
+    good = _r(plus10=0.2, dir_precision=0.7)
+    assert O.evaluate([good]).t3c > O.evaluate([plain]).t3c and O.evaluate([good]).key[3] > O.evaluate([plain]).key[3]
+    low_t1 = O.evaluate([_r(inb=0.2, plus10=0.3, dir_precision=0.9)])
+    assert low_t1.key[3] == 0                                               # direction is not judged before tier 1 is met
+    legacy = O.evaluate([_r()])                                             # rows without the new fields
+    assert legacy.t3c == pytest.approx(0.5)
+    assert O.tiered_legacy([good])[0] == O.tiered_legacy([_r(pos=0.5)])[0]  # the legacy scalar ignores the new fields
+
+
+def test_week_row_new_fields():
+    r = O.week_row([0.07, -0.001, 0.002, 0.10, -0.06])
+    assert r["abs_mean"] == pytest.approx(np.mean([0.07, 0.001, 0.002, 0.10, 0.06]))
+    assert r["flat_share"] == pytest.approx(2 / 5)
+    assert O.week_row([])["abs_mean"] == 0.0
+
+
+def _honest(seed, n=6, sd=0.045, mean=0.008):
+    rng = np.random.default_rng(seed)
+    return [O.week_row(mean + sd * rng.standard_normal(52)) for _ in range(n)]
+
+
+def test_leverage_only_strategy_is_caught_as_no_edge():
+    """Planted: zero-edge noise levered until the weeks land in the band beats an honest strategy on tier 1. The plain
+    firewall accepts it; the gaming guard must not."""
+    honest = _honest(1)
+    rng = np.random.default_rng(2)
+    levered = [O.week_row(0.075 * rng.standard_normal(52)) for _ in range(6)]      # mean 0: pure leverage on noise
+    si, sc = O.evaluate(honest), O.evaluate(levered)
+    assert sc.key > si.key and O.firewall(si, sc)[0]                        # without the guard it would win
+    assert "no_edge" in O.gaming_flags(levered) and "no_edge" not in O.gaming_flags(honest)
+    ok, why = O.firewall(si, sc, honest, levered)
+    assert not ok and why == "gaming: no_edge"
+
+
+def test_levering_a_real_edge_is_not_flagged():
+    rng = np.random.default_rng(3)
+    edge = [O.week_row(0.012 + 0.07 * rng.standard_normal(52)) for _ in range(6)]
+    assert O.gaming_flags(edge) == []
+
+
+def test_cash_hiding_is_caught():
+    """Planted: sit flat half the time, take clean 7% moves the rest. Tier 1 and risk both look great; flagged."""
+    rng = np.random.default_rng(4)
+    def hider():
+        w = np.where(rng.random(52) < 0.55, rng.normal(0, 0.001, 52), rng.choice([-1, 1], 52) * 0.07)
+        return O.week_row(w)
+    hid = [hider() for _ in range(6)]
+    honest = _honest(5, sd=0.03)
+    assert O.gaming_flags(hid).count("cash_hiding") == 1
+    assert O.evaluate(hid).key > O.evaluate(honest).key                      # it would win on the tiers
+    ok, why = O.firewall(O.evaluate(honest), O.evaluate(hid), honest, hid)
+    assert not ok and "cash_hiding" in why
+
+
+def test_one_lucky_window_carry_is_caught_and_both_sides_flagged_is_not_new():
+    carry = [_r(inb=0.05, n_weeks=52) for _ in range(5)] + [_r(inb=1.0, n_weeks=52)]
+    assert "single_window_carry" in O.gaming_flags(carry)
+    spread = [_r(inb=0.3, n_weeks=52) for _ in range(6)]
+    assert "single_window_carry" not in O.gaming_flags(spread)
+    assert O.gaming_flags(carry[:3]) == []                                  # under 4 windows the flag cannot fire
+    noedge, better = [_r(inb=0.40, mean_week=-0.01)], [_r(inb=0.45, mean_week=-0.01)]
+    assert O.gaming_flags(noedge) == ["no_edge"] == O.gaming_flags(better)
+    assert O.firewall(O.evaluate(noedge), O.evaluate(better), noedge, better)[0]      # same flag on both sides: not a NEW flag
+
+
+def test_gaming_flags_degenerate_inputs():
+    assert O.gaming_flags([]) == []
+    assert O.gaming_flags([_r()]) == []
+    with pytest.raises(KeyError):
+        O.gaming_flags([{"in_band": 0.5}])

@@ -1,0 +1,169 @@
+{
+ "stamp": {
+  "code_hash": "888386df30fc0f4b",
+  "code_files": [
+   "engine/__init__.py",
+   "engine/config.py",
+   "engine/direction.py",
+   "engine/direction_ablate.py",
+   "engine/direction_calib.py",
+   "engine/provenance.py",
+   "engine/trust.py",
+   "engine/trust_store.py",
+   "scripts/direction_study.py"
+  ],
+  "code_mixed": [],
+  "git_commit": "7b27ec36d8685f22eecfc519f96530e33b37c9a8+dirty",
+  "canon_sha": "34762a4230aca64e",
+  "bible_sha": "a97ea91862cee371",
+  "blueprint_version": "4.0",
+  "config_hash": "67d403ab18855504",
+  "data_snapshot": "5f94924cad053ffd",
+  "seed": 7
+ },
+ "args": {
+  "seed": 7,
+  "n_tickers": 500,
+  "first_year": 2005,
+  "last_year": 2025,
+  "out": "C:\\Users\\Peter\\weekly7\\state\\research\\direction"
+ },
+ "n_tickers": 500,
+ "n_rows": 315706,
+ "n_movers": 67569,
+ "minutes": 12.0,
+ "peak_mb": 443.584512,
+ "eras": [
+  {
+   "era": "2005-09",
+   "folds": 5,
+   "n": 8534,
+   "brier": 0.2527849593,
+   "brier_base": 0.2506670193,
+   "ece": 0.0714217327,
+   "acc": 0.5002343567,
+   "open_folds": 0,
+   "n_bet": 0,
+   "coverage": 0.0,
+   "acc_bet": null,
+   "acc_bet_lo": null
+  },
+  {
+   "era": "2010-14",
+   "folds": 5,
+   "n": 5902,
+   "brier": 0.2497692448,
+   "brier_base": 0.2500086579,
+   "ece": 0.0337530569,
+   "acc": 0.5127075568,
+   "open_folds": 0,
+   "n_bet": 0,
+   "coverage": 0.0,
+   "acc_bet": null,
+   "acc_bet_lo": null
+  },
+  {
+   "era": "2015-19",
+   "folds": 5,
+   "n": 8821,
+   "brier": 0.2498055803,
+   "brier_base": 0.2501965726,
+   "ece": 0.0327261054,
+   "acc": 0.5219362884,
+   "open_folds": 0,
+   "n_bet": 0,
+   "coverage": 0.0,
+   "acc_bet": null,
+   "acc_bet_lo": null
+  },
+  {
+   "era": "2020-25",
+   "folds": 6,
+   "n": 34215,
+   "brier": 0.2494854107,
+   "brier_base": 0.2499772356,
+   "ece": 0.035275436,
+   "acc": 0.5221101856,
+   "open_folds": 0,
+   "n_bet": 0,
+   "coverage": 0.0,
+   "acc_bet": null,
+   "acc_bet_lo": null
+  },
+  {
+   "era": "all",
+   "folds": 21,
+   "n": 57472,
+   "brier": 0.2500536483,
+   "brier_base": 0.2501165529,
+   "ece": 0.0400951703,
+   "acc": 0.5178695713,
+   "open_folds": 0,
+   "n_bet": 0,
+   "coverage": 0.0,
+   "acc_bet": null,
+   "acc_bet_lo": null
+  }
+ ],
+ "alt_routes_pooled": [
+  {
+   "method": "conformal_gate",
+   "n": 57472.0,
+   "brier": 0.2497758931,
+   "ece": 0.0416091359,
+   "n_bet": 14.0,
+   "coverage": 0.0002435969,
+   "acc_bet": 0.4285714286
+  },
+  {
+   "method": "isotonic",
+   "n": 57472.0,
+   "brier": 0.2493507666,
+   "ece": 0.0364863809,
+   "n_bet": 43.0,
+   "coverage": 0.0007481904,
+   "acc_bet": 0.4418604651
+  },
+  {
+   "method": "none",
+   "n": 57472.0,
+   "brier": 0.2498530828,
+   "ece": 0.0370790357,
+   "n_bet": 0.0,
+   "coverage": 0.0,
+   "acc_bet": null
+  },
+  {
+   "method": "per_type_platt",
+   "n": 57472.0,
+   "brier": 0.2499461135,
+   "ece": 0.0413133733,
+   "n_bet": 14.0,
+   "coverage": 0.0002435969,
+   "acc_bet": 0.4285714286
+  },
+  {
+   "method": "platt",
+   "n": 57472.0,
+   "brier": 0.2497758994,
+   "ece": 0.0416093751,
+   "n_bet": 14.0,
+   "coverage": 0.0002435969,
+   "acc_bet": 0.4285714286
+  },
+  {
+   "method": "venn_abers_gate",
+   "n": 57472.0,
+   "brier": 0.2492810339,
+   "ece": 0.0363613675,
+   "n_bet": 0.0,
+   "coverage": 0.0,
+   "acc_bet": null
+  }
+ ],
+ "caveats": [
+  "survivorship: sample drawn from today's tickers",
+  "realised movers, not predicted movers",
+  "inputs are simple point-in-time stand-ins, not the production pattern/model/analog sources"
+ ]
+}

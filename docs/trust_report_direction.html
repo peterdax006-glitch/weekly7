@@ -1,6 +1,6 @@
 <!doctype html><meta charset=utf-8><title>Per-type trust, study seed 7</title>
 <style>body{font-family:sans-serif;max-width:980px;margin:2em auto;padding:0 1em}table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:3px 8px;text-align:right}</style>
-<h1>Per-type trust, study seed 7</h1><p>As of 2011-01-01; 204 cells, 2 reliable. Hatched = neutralized (no reliable evidence): the indicator is skipped for that type.</p>
+<h1>Per-type trust, study seed 7</h1><p>As of 2025-01-01; 924 cells, 7 reliable. Hatched = neutralized (no reliable evidence): the indicator is skipped for that type.</p>
 <h2>Reliability by SIC division</h2>
 <svg xmlns="http://www.w3.org/2000/svg" width="292" height="116" font-family="sans-serif" font-size="11">
 <defs><pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" fill="#eee"/><line x1="0" y1="0" x2="0" y2="6" stroke="#bbb" stroke-width="2"/></pattern></defs>
@@ -8,10 +8,10 @@
 <text x="186.0" y="72" transform="rotate(-40 186.0 72)">model</text>
 <text x="250.0" y="72" transform="rotate(-40 250.0 72)">evidence</text>
 <text x="84" y="97.0" text-anchor="end">NA</text>
-<rect x="90" y="80" width="62" height="24" fill="rgb(255,145,45)"><title>NA / pattern: post=+0.0239 z=+2.4 weeks=568 reliable</title></rect>
-<text x="121.0" y="97.0" text-anchor="middle">+0.02</text>
-<rect x="154" y="80" width="62" height="24" fill="url(#hatch)"><title>NA / model: post=-0.0049 z=-0.5 weeks=568 indistinguishable from zero (|z|=0.48)</title></rect>
-<rect x="218" y="80" width="62" height="24" fill="url(#hatch)"><title>NA / evidence: post=-0.0091 z=-0.9 weeks=568 indistinguishable from zero (|z|=0.94)</title></rect>
+<rect x="90" y="80" width="62" height="24" fill="rgb(255,145,45)"><title>NA / pattern: post=+0.0143 z=+3.2 weeks=1299 reliable</title></rect>
+<text x="121.0" y="97.0" text-anchor="middle">+0.01</text>
+<rect x="154" y="80" width="62" height="24" fill="url(#hatch)"><title>NA / model: post=-0.0029 z=-0.6 weeks=1299 indistinguishable from zero (|z|=0.64)</title></rect>
+<rect x="218" y="80" width="62" height="24" fill="url(#hatch)"><title>NA / evidence: post=-0.0065 z=-1.7 weeks=1299 indistinguishable from zero (|z|=1.66)</title></rect>
 </svg>
 <h2>Earned trust by level</h2>
 <table border="1" class="dataframe">
@@ -39,28 +39,57 @@
     <tr>
       <td>sic|size</td>
       <td>9</td>
-      <td>0</td>
-      <td>0.000</td>
+      <td>1</td>
+      <td>0.111</td>
     </tr>
     <tr>
       <td>sic|size|vol</td>
       <td>27</td>
-      <td>0</td>
-      <td>0.000</td>
+      <td>1</td>
+      <td>0.037</td>
     </tr>
     <tr>
       <td>sic|size|vol|trend</td>
       <td>81</td>
-      <td>0</td>
-      <td>0.000</td>
+      <td>3</td>
+      <td>0.037</td>
     </tr>
     <tr>
       <td>sic|size|vol|trend|theme|attn</td>
-      <td>81</td>
+      <td>801</td>
       <td>0</td>
       <td>0.000</td>
     </tr>
   </tbody>
 </table>
 <h2>Drift since previous version</h2>
-<p>No drift flagged.</p>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>type</th>
+      <th>indicator</th>
+      <th>flag</th>
+      <th>post_a</th>
+      <th>post_b</th>
+      <th>zmove</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>ALL</td>
+      <td>evidence</td>
+      <td>lost_trust</td>
+      <td>-0.0081</td>
+      <td>-0.0064</td>
+      <td>0.3087</td>
+    </tr>
+    <tr>
+      <td>NA|S|lowvol|flat</td>
+      <td>pattern</td>
+      <td>gained_trust</td>
+      <td>0.0166</td>
+      <td>0.0180</td>
+      <td>0.1875</td>
+    </tr>
+  </tbody>
+</table>

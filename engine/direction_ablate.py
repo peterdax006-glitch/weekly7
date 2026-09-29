@@ -40,7 +40,8 @@ def _fit_predict(F, up, now, movers, **kw):
     eng = D.DirectionEngine(**kw).fit(F, up, now, movers)
     if eng.stack is None or "test_start" not in eng.diag:
         return None, eng
-    te = F.index.get_level_values(0) >= pd.Timestamp(eng.diag["test_start"])
+    d = F.index.get_level_values(0)
+    te = (d >= pd.Timestamp(eng.diag["test_start"])) & (d + pd.Timedelta(days=eng.p["horizon_days"]) <= pd.Timestamp(now))
     Fte = F[te]
     return eng.predict(Fte), eng
 

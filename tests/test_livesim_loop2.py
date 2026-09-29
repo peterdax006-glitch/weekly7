@@ -13,22 +13,30 @@ SRC = ROOT / "scripts" / "livesim_loop2.py"
 
 
 @pytest.fixture(scope="module")
-def L():
+def L(tmp_path_factory):
+    """The loop module, imported with livesim.DIR pointed at a temp dir: nothing here can seal, read, reveal or write
+    the real state/livesim (a live loop may be running there)."""
+    from engine import livesim
+    home = tmp_path_factory.mktemp("livesim")
+    real, livesim.DIR = livesim.DIR, home
     argv, sys.argv = sys.argv, ["livesim_loop2.py"]
     try:
         spec = importlib.util.spec_from_file_location("livesim_loop2_under_test", SRC)
         m = importlib.util.module_from_spec(spec)
-        before = m_state_stamp()
         spec.loader.exec_module(m)
-        assert m_state_stamp() == before, "importing the loop wrote its state file"
-        return m
+        assert m.DIR == home and not list(home.iterdir()), "importing the loop wrote something"
+        yield m
     finally:
         sys.argv = argv
+        livesim.DIR = real
 
 
-def m_state_stamp():
-    p = ROOT / "state" / "livesim" / "loop2.json"
-    return (p.stat().st_mtime_ns, p.stat().st_size) if p.exists() else None
+@pytest.fixture(autouse=True)
+def never_touch_real_state(L, monkeypatch):
+    """Every test in this file sees livesim.DIR and the loop's DIR as temp dirs (SealedYear draws land there)."""
+    real = (ROOT / "state" / "livesim").resolve()
+    assert Path(L.livesim.DIR).resolve() != real and Path(L.DIR).resolve() != real
+    yield
 
 
 def row(inb, over=0.0, w5=-0.05, dd=-0.1, pos=0.5):
@@ -167,6 +175,7 @@ def fake_run(weeks, findings, mem_rows=0):
 @pytest.fixture
 def sandbox(L, tmp_path, monkeypatch):
     monkeypatch.setattr(L, "DIR", tmp_path)
+    monkeypatch.setattr(L.livesim, "DIR", tmp_path)
     monkeypatch.setattr(L, "BEAT_EVERY_S", 0.05)
     return tmp_path
 
@@ -273,20 +282,15 @@ def test_missing_worker_is_incomplete_not_silently_dropped(L, sandbox):
 
 
 def test_run_workers_supervises_each_window_in_parallel_with_limits(L, sandbox):
-    calls, active, peak = [], [0], [0]
     import threading
-    lock = threading.Lock()
+    calls = []
+    gate = threading.Barrier(3, timeout=20)                       # all three must be inside supervise at once, or it breaks
     def fake_supervise(cmd, log_path, wid, timeout_s, mem_mb, heartbeat_s=None, stdout=None, **k):
-        with lock:
-            active[0] += 1
-            peak[0] = max(peak[0], active[0])
-        time.sleep(0.15)
-        with lock:
-            active[0] -= 1
+        gate.wait()
         calls.append((cmd, str(log_path), wid, timeout_s, mem_mb, heartbeat_s, stdout))
         return 0, "exit"
     out = L.run_workers(["w1a", "w1b", "w1c"], CFG, META, supervise=fake_supervise)
-    assert set(out) == {"w1a", "w1b", "w1c"} and peak[0] == 3
+    assert set(out) == {"w1a", "w1b", "w1c"} and not gate.broken
     for cmd, log, wid, t, mem, hb, so in calls:
         assert "--worker" in cmd and wid in cmd and log.endswith("health2.jsonl")
         assert (t, mem, hb, so) == (L.WORKER_TIMEOUT_S, L.WORKER_MEM_MB, L.WORKER_HEARTBEAT_S, "inherit")

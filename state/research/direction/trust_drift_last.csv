@@ -1,0 +1,3 @@
+type,indicator,change,post_a,post_b,sd_a,sd_b,reliable_a,reliable_b,delta,zmove,flag
+ALL,evidence,lost_trust,-0.0081228862,-0.0063860985,0.0040513687,0.0039039216,True,False,0.0017367876999999999,0.3086960818832573,lost_trust
+NA|S|lowvol|flat,pattern,gained_trust,0.0166246849,0.0180314898,0.0054193715,0.0051916542,False,True,0.0014068049000000027,0.18745262199373572,gained_trust

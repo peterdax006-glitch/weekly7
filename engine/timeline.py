@@ -39,6 +39,7 @@ class DialParams:
     brake_release: int = 3           # clean weeks before it lifts
     brake_exposure: float = 0.5
     brake_level: float = 0.15        # weekly-loss trigger handed to the trader while defensive
+    horizon: int = 52                # weeks in a pacing year (the ~7%/week path is measured against this)
 
     def validate(self):
         if not (0 < self.target < 0.5 and self.trail >= 2 and self.ewma_half > 0):
@@ -48,6 +49,8 @@ class DialParams:
         for lo, hi in (self.k_bounds, self.exposure_bounds, self.pool_bounds):
             if not lo <= hi:
                 raise ValueError("bounds must be ordered")
+        if self.horizon < 4:
+            raise ValueError("pacing horizon too short")
         if self.k_bounds[0] < 1 or not 0 < self.exposure_bounds[0] or self.exposure_bounds[1] > 1.5:
             raise ValueError("bounds outside the safe envelope")
         return self
@@ -90,6 +93,58 @@ def _weights(n, half):
     return w / w.sum()
 
 
+def pacing_state(weeks, target=O.TARGET, horizon=52):
+    """Where the run stands against the ~7%/week path (the designed yearly pacing). Uses only completed weeks; the week
+    count is the run's own age. Returns: n, cum (compounded return so far), path (what the target path would be),
+    gap (log cum - log path: negative = behind), weeks_behind (how many path-weeks that gap is), pace (mean week /
+    target), required (mean weekly return over the remaining weeks that lands ON the path at the horizon; may be huge,
+    and is reported, never chased), projected (year-end return if the mean week persists), remaining."""
+    w = np.asarray(weeks, float).ravel()
+    n = len(w)
+    cum = float(np.prod(1 + np.maximum(w, -1.0))) if n else 1.0
+    path = (1 + target) ** n
+    lg = math.log(max(cum, 1e-12))
+    gap = lg - n * math.log1p(target)
+    left = max(horizon - n, 0)
+    goal = (1 + target) ** horizon
+    req = (goal / max(cum, 1e-12)) ** (1 / left) - 1 if left else float("nan")
+    mean = float(w.mean()) if n else 0.0
+    return {"n": n, "cum": cum - 1, "path": path - 1, "gap": gap, "weeks_behind": gap / math.log1p(target),
+            "pace": mean / target, "required": req, "remaining": left, "projected": cum * (1 + mean) ** left - 1}
+
+
+def regime_from_market(m, cap=5.0):
+    """Turn the m_* market-context columns (a dict or one-row Series) into the dial's regime reading. stress is the
+    short-vs-long fear ratio (m_vix_term; above 1 = fear rising), clipped to [0, cap]; missing or non-finite means
+    neutral 1.0 so an absent feed can neither raise nor lower aggressiveness."""
+    def num(k):
+        try:
+            v = float(m[k])
+        except (KeyError, TypeError, ValueError):
+            return float("nan")
+        return v
+    vt = num("m_vix_term")
+    stress = float(np.clip(vt, 0.0, cap)) if np.isfinite(vt) else 1.0
+    return {"stress": stress, "vix": num("m_vix"), "breadth": num("m_breadth")}
+
+
+def forecast_from_analogs(res, beta=3.0, floor_sd=0.005):
+    """Weekly forecast {"mean", "sd"} for the PORTFOLIO from an `Analogs.find()` result (market-level 1-month outcomes):
+    mean = fwd_ret_1m / 4.33; sd = fwd_vol_1m / sqrt(52); both scaled by `beta`, the portfolio-to-market swing ratio
+    (an assumption, measure it). The less the day resembles any past day (uniqueness above 1), the wider the sd: an
+    unfamiliar market earns less trust, not more. None when there is no usable analog."""
+    if not res or "prediction" not in res:
+        return None
+    pr = res["prediction"]
+    if "fwd_ret_1m" not in pr or "fwd_vol_1m" not in pr:
+        return None
+    r, v = pr["fwd_ret_1m"], pr["fwd_vol_1m"]
+    if not (np.isfinite(r) and np.isfinite(v)):
+        return None
+    widen = 1.0 + 0.25 * max(0.0, float(res.get("uniqueness", 0.0)) - 1.0)
+    return {"mean": beta * r / 4.33, "sd": max(floor_sd, beta * v / math.sqrt(52) * widen)}
+
+
 def pace_terms(weeks, regime, forecast, p):
     """Pace inputs in [-1, 1]; positive means 'too calm / behind, be bolder'. Also over-band share and trailing drawdown."""
     w = np.asarray(weeks, float)
@@ -102,8 +157,10 @@ def pace_terms(weeks, regime, forecast, p):
         eq = np.concatenate([[1.0], np.cumprod(1 + np.maximum(tail, -1))])
         terms["dd"] = float(1 - (eq / np.maximum.accumulate(eq)).min())
     if len(w):
-        r = float(w.mean()) / p.target                     # progress: year-to-date mean week vs the ~7% path
+        ps = pacing_state(w, p.target, p.horizon)
+        r = ps["pace"]                                     # progress: year-to-date mean week vs the ~7% path
         terms["edge"] = float(w.mean())
+        terms["path_gap"] = ps["gap"]
         terms["prog"] = float(np.clip(1 - r, -1, 1)) if r >= 0 else -0.5   # losing: defend, do not gamble
     if forecast:
         fm = expected_abs_move(float(forecast.get("mean", 0.0)), float(forecast.get("sd", 0.0)))
@@ -240,6 +297,10 @@ def gate_rows(tr_base, tr_dial, base_r, dial_r, params=None, n_eras=3, risk_tol=
     if not checks["improvement"]:
         reasons.append(f"no reliable improvement ({why}; bootstrap lower bound {lo:+.3f})")
     dd_b, dd_d = min(r["max_dd"] for r in base_r), min(r["max_dd"] for r in dial_r)
+    new_flags = [f for f in O.gaming_flags(dial_r) if f not in O.gaming_flags(base_r)]
+    checks["not_gaming"] = not new_flags
+    if new_flags:
+        reasons.append(f"dial looks better by gaming the objective: {new_flags}")
     checks["risk"] = bool(sd_.risk >= sb.risk - risk_tol and dd_d >= dd_b - dd_tol and
                           np.mean([r["cat_rate"] for r in dial_r]) <= np.mean([r["cat_rate"] for r in base_r]) + 1e-9)
     if not checks["risk"]:
@@ -256,3 +317,58 @@ def gate_rows(tr_base, tr_dial, base_r, dial_r, params=None, n_eras=3, risk_tol=
     nums = dict(gain_train=gain_tr, gain_test=gain_te, boot_lo=lo, era_gain=em, base_key=sb.key, dial_key=sd_.key,
                 params=params)
     return GateReport(all(checks.values()), checks, reasons, nums)
+
+
+class DialAdmission:
+    """The champion door for the dial (Phase 17: 'NOT allowed into the champion until it proves ...'). `admit` needs a
+    GateReport that passed every check; anything else is refused and the refusal is recorded. Entries are append-only and
+    hash-chained, so the record of what was admitted (and why not) cannot be quietly rewritten. State is a JSON file."""
+
+    def __init__(self, path=None):
+        self.path = None if path is None else __import__("pathlib").Path(path)
+        self.log = []
+        if self.path is not None and self.path.exists():
+            self.log = __import__("json").loads(self.path.read_text())
+
+    @staticmethod
+    def _h(prev, body):
+        import hashlib, json
+        return hashlib.sha256((prev + json.dumps(body, sort_keys=True, default=str)).encode()).hexdigest()[:16]
+
+    def _append(self, body):
+        prev = self.log[-1]["hash"] if self.log else ""
+        self.log.append({**body, "n": len(self.log), "hash": self._h(prev, body)})
+        if self.path is not None:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            self.path.write_text(__import__("json").dumps(self.log, indent=1, default=str))
+
+    def admit(self, params, report, label=""):
+        need = ("improvement", "risk", "no_overfit", "stable_eras", "not_gaming")
+        missing = [c for c in need if not report.checks.get(c)]
+        if not report.passed or missing:
+            self._append({"action": "refused", "label": label, "why": report.reasons or [f"unproven: {missing}"], "params": asdict(params)})
+            return False
+        self._append({"action": "admitted", "label": label, "params": asdict(params), "numbers": report.numbers})
+        return True
+
+    def champion(self):
+        """Params of the latest admission that has not been revoked (None if there is none)."""
+        cur = None
+        for e in self.log:
+            if e["action"] == "admitted":
+                cur = e["params"]
+            elif e["action"] == "revoked":
+                cur = None
+        return None if cur is None else DialParams(**{k: tuple(v) if isinstance(v, list) else v for k, v in cur.items()})
+
+    def revoke(self, why):
+        self._append({"action": "revoked", "why": why})
+
+    def verify(self):
+        prev = ""
+        for e in self.log:
+            body = {k: v for k, v in e.items() if k not in ("n", "hash")}
+            if e.get("hash") != self._h(prev, body):
+                return False
+            prev = e["hash"]
+        return True

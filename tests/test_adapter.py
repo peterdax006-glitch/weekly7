@@ -531,3 +531,50 @@ def test_detector_full_state_round_trips():
     _, p, f = mw_weeks(1, 1.0, seed0=77)[0]
     d.learn(p, f); r.learn(p, f)
     assert r.fingerprint() == d.fingerprint()                             # and they keep learning identically
+
+
+# ---------------------------------------------------------------- did the adapting pay?
+def test_every_weekly_record_carries_the_closed_weeks_excess_and_deviation():
+    ad = replay().adapter
+    assert A.Adapter(CFG)._closed is None                                    # nothing has closed yet
+    later = [r["closed"] for r in ad.audit]
+    assert all(c is not None and set(c) == {"excess", "deviation"} for c in later)
+    assert any(c["deviation"] == ["k"] for c in later)                      # the weeks spent at k=3 are labelled as such
+    assert all(abs(c["excess"]) < 1e-12 for c in later if not c["deviation"])   # on the default the excess is exactly zero
+
+
+def test_adaptation_value_adds_up_the_excess_of_weeks_off_default_only():
+    au = [{"closed": {"excess": 0.02, "deviation": ["k"]}}, {"closed": {"excess": 0.01, "deviation": ["k", "pool_q"]}},
+          {"closed": {"excess": 0.0, "deviation": []}}, {"closed": None}, {"closed": {"excess": 0.03, "deviation": ["k"]}},
+          {"closed": {"excess": 0.02, "deviation": ["k"]}}]
+    v = A.adaptation_value(au, seed=1)
+    assert v["weeks_off_default"] == 4 and v["total_excess"] == pytest.approx(0.08) and v["mean_excess"] == pytest.approx(0.02)
+    assert v["by_knob"]["k"] == pytest.approx(0.075) and v["by_knob"]["pool_q"] == pytest.approx(0.005)
+    assert v["t"] > 2 and v["p_helped"] < 0.2
+
+
+def test_adaptation_value_says_not_proven_for_a_losing_or_thin_record():
+    lose = [{"closed": {"excess": x, "deviation": ["k"]}} for x in (-0.02, -0.01, -0.03, 0.005, -0.02)]
+    v = A.adaptation_value(lose, seed=1)
+    assert v["mean_excess"] < 0 and v["p_helped"] > 0.9
+    thin = A.adaptation_value([{"closed": {"excess": 0.05, "deviation": ["k"]}}])
+    assert np.isnan(thin["t"]) and thin["p_helped"] == 1.0 and A.adaptation_value([])["weeks_off_default"] == 0
+
+
+def test_adaptation_value_on_the_real_replay_matches_the_reverts_it_made():
+    ad = replay().adapter
+    v = A.adaptation_value(ad.audit)
+    assert v["weeks_off_default"] == sum(1 for r in ad.audit if r["closed"]["deviation"]) and set(v["by_knob"]) == {"k"}
+    # both spells ended in a revert, and a revert is triggered by losing: the value of those spells is negative
+    assert v["total_excess"] < 0
+
+
+def test_the_memory_inside_a_real_replay_passes_its_own_invariants():
+    ad = replay().adapter
+    assert ad.mem.validate() == [] and len(ad.mem) > 300 and ad.mem.rejected == 0
+    assert Memory_from(ad).fingerprint() == ad.mem.fingerprint()
+
+
+def Memory_from(ad):
+    from engine.memory import Memory
+    return Memory.from_state(ad.mem.state_dict())

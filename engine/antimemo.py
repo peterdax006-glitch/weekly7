@@ -202,6 +202,7 @@ def run_experiment(XA, yA, XB, yB, score_fn, cfg=None, seed=0, learner=None, par
            "improvement_B": full["B"]["mean"] if full else 0.0,
            "degradation_B": max(0.0, -full["B"]["mean"]) if full else 0.0,
            "baseline_A": float(baseA.mean()), "baseline_B": float(baseB.mean()),
+           "full_stats": full,
            "b_selection_note": "B is used to reject lessons; holdout_C (when a window C is given) is the unbiased figure"}
     res["memorisation_gap"] = res["improvement_A"] - res["improvement_A_disguised"]
     if ids:                                          # which identity did it key on? rename-only vs shift-only reruns
@@ -259,6 +260,7 @@ def run_experiment(XA, yA, XB, yB, score_fn, cfg=None, seed=0, learner=None, par
     if c["null_reps"]:
         res["null_control"] = optimism_control(XA, yA, score_fn, c, seed, res["improvement_A"], params)
     res.update({"accepted_lessons": keep, "rejected_lessons": rejected, "per_lesson": per,
+                "final_B_stat": final["B"] if final else None, "final_A_stat": final["A"] if final else None,
                 "final_improvement_A": final["A"]["mean"] if final else 0.0,
                 "final_improvement_A_disguised": final["A_dis"]["mean"] if final else 0.0,
                 "final_improvement_B": final["B"]["mean"] if final else 0.0,

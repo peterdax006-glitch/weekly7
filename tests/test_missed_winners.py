@@ -375,3 +375,19 @@ def test_a_detector_that_only_rediscovers_volatility_is_shown_next_to_the_vol_on
     res = W.evaluate(ws, None, seed=1, n_controls=4)
     assert res["alone"]["prec_vol_only"] > res["alone"]["base_rate"] and res["verdict"] is False
     assert "vol20-only" in W.summary_text(res)
+
+
+def test_explain_attributes_the_logit_to_the_features_that_drive_it():
+    det = MissedWinnerDetector()
+    train(det, weeks(30, 1.0))
+    _, p, _ = week(999, 1.0)
+    hot = p["e_max20"].idxmax()
+    e = det.explain(p, hot)
+    assert e["contributions"].sum() + e["bias"] == pytest.approx(e["logit"])
+    assert e["prob"] == pytest.approx(float(det.predict(p)[hot]))
+    assert e["top"][0][0] in ("e_max20", "vol20", "e_dist_52wh") and len(e["top"]) == 5
+    cold = p["e_max20"].idxmin()
+    assert det.explain(p, cold)["contributions"]["e_max20"] < 0 < e["contributions"]["e_max20"]
+    with pytest.raises(KeyError):
+        det.explain(p, "NOPE")
+    assert (MissedWinnerDetector().explain(p, hot)["contributions"] == 0).all()   # an untrained detector explains nothing

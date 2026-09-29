@@ -192,6 +192,7 @@ class Adapter:
         self.n_switch = 0
         self.sealed = False                  # True after the first decision: no more manual changes
         self._last_date = None
+        self._closed = None                  # what the week that just closed looked like: excess vs default, settings in force
         # a knob whose starting value is off its grid cannot be stepped, so it is frozen (and the audit says so)
         self.frozen = sorted(k for k in self.meta["adaptive_knobs"] if k in STEPS and k in self.cfg and self.cfg[k] not in STEPS[k])
         if self.frozen:
@@ -211,6 +212,7 @@ class Adapter:
         self.sealed = True
         if self.meta.get("mem_use_dates"):
             self.mem.set_clock(today)
+        self._closed = None
         if self.prev is not None:
             from .memory import context_of
             self._learn(self.prev[0], self.prev[1], today, closes_to_now, divs, held, ctx_now=context_of(snap))
@@ -243,7 +245,8 @@ class Adapter:
         edited, dropped or reordered without breaking every hash after it."""
         rec = {"i": len(self.audit), "week": self.weeks, "date": None if date is None else str(date), "action": action,
                "cfg_diff": _jsonable(self.cfg_diff()), "since_switch": self.since_switch,
-               "mem": f"{len(self.mem)}:{self.mem.seq}:{len(self.mem.break_log)}", "detail": _jsonable(detail)}
+               "mem": f"{len(self.mem)}:{self.mem.seq}:{len(self.mem.break_log)}", "closed": _jsonable(self._closed),
+               "detail": _jsonable(detail)}
         blob = json.dumps(rec, sort_keys=True, default=str)
         self._chain = hashlib.sha256((self._chain + blob).encode()).hexdigest()
         rec["hash"] = self._chain
@@ -316,6 +319,8 @@ class Adapter:
         base_r = self._period_return(cur_names, d0, d1, closes)
         def_names = list(pick(p0, self.default, held, divs).index)
         def_r = self._period_return(def_names, d0, d1, closes)
+        # the closed week as it was: what the settings in force earned versus the defaults (before any decision below)
+        self._closed = {"excess": base_r - def_r, "deviation": sorted(self.cfg_diff())}
         dates = m.get("mem_use_dates")
         last_gain = {}
         # 1) knob neighbours: one-step counterfactuals on the period that has just CLOSED
@@ -720,6 +725,28 @@ def adaptation_report(adapter):
             "hold_reasons": hold_reasons(au), "knobs": adapter.knob_table(), "chain_ok": ok, "chain_bad_index": bad,
             "settings_match_audit": adapter.audit_matches_cfg(), "digest": adapter.audit_digest(),
             "memory_fingerprint": adapter.mem.fingerprint(), "detector_weight": adapter.det.weight()}
+
+
+def adaptation_value(audit, n_flips=2000, seed=0):
+    """Did the adapting pay? For every closed week the adapter spent OFF its default settings, the excess return of the
+    settings in force over the defaults (both measured on the same closed week, picks scored on next-period prices).
+    Returns weeks off default, total and mean excess, its t-statistic, a one-sided sign-flip p-value that the mean is
+    positive, and the contribution split by knob (a week with two deviating knobs credits each half). Weeks on the
+    default contribute exactly zero, so this is the whole in-sample value of the adaptations, before costs."""
+    rows = [r["closed"] for r in audit if r.get("closed") and r["closed"]["deviation"]]
+    ex = np.array([c["excess"] for c in rows], dtype=float)
+    by = {}
+    for c in rows:
+        for k in c["deviation"]:
+            by[k] = by.get(k, 0.0) + c["excess"] / len(c["deviation"])
+    if len(ex) < 3:
+        return {"weeks_off_default": len(ex), "total_excess": float(ex.sum()), "mean_excess": float(ex.mean()) if len(ex) else 0.0,
+                "t": float("nan"), "p_helped": 1.0, "by_knob": by}
+    from .missed_winners import sign_flip_p
+    sd = ex.std(ddof=1)
+    return {"weeks_off_default": len(ex), "total_excess": float(ex.sum()), "mean_excess": float(ex.mean()),
+            "t": float(ex.mean() / (sd / np.sqrt(len(ex)))) if sd > 0 else float("nan"),
+            "p_helped": sign_flip_p(ex, n=n_flips, seed=seed), "by_knob": by}
 
 
 def replay_check(default_cfg, snaps, closes, cost_bps, divs, opens=None, meta=None, long_term=None, runs=2):

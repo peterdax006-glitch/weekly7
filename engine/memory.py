@@ -542,6 +542,50 @@ class Memory:
                 rows.append(r)
         return pd.DataFrame(rows)
 
+    # ---------------------------------------------------------------- self-check
+    def validate(self):
+        """Invariants the memory must always hold. Returns a list of problems (empty = healthy): parallel lists in step,
+        the arm index pointing at the right episodes, finite outcomes and contexts, unique insertion numbers, capacity
+        respected, breaks only for arms that have episodes or CUSUM state, a finite context scale. Cheap enough to call
+        every week; the adapter's tests do, and so should any long-running process."""
+        bad = []
+        if len(self.ep) != len(self.info):
+            bad.append(f"episodes ({len(self.ep)}) and info ({len(self.info)}) out of step")
+            return bad
+        seen = 0
+        for arm, ix in self._by_arm.items():
+            seen += len(ix)
+            for i in ix:
+                if i >= len(self.ep) or self.ep[i][0] != arm:
+                    bad.append(f"index entry {i} does not hold arm {arm!r}")
+        if seen != len(self.ep):
+            bad.append(f"arm index covers {seen} of {len(self.ep)} episodes")
+        for i, (arm, wk, c, y, src) in enumerate(self.ep):
+            if not (np.isfinite(y) and np.isfinite(c).all() and (np.isfinite(wk) or src)):
+                bad.append(f"episode {i} has a non-finite field")
+            if c.shape != (len(CTX),):
+                bad.append(f"episode {i} context has shape {c.shape}")
+            if src not in (0, 1):
+                bad.append(f"episode {i} has source {src}")
+        seqs = [i["seq"] for i in self.info]
+        if len(set(seqs)) != len(seqs):
+            bad.append("insertion numbers are not unique")
+        if seqs and max(seqs) >= self.seq:
+            bad.append("insertion counter behind the newest episode")
+        cap, cap_arm = self.p["mem_capacity"], self.p["mem_arm_capacity"]
+        if cap is not None and len(self.ep) > cap:
+            bad.append(f"{len(self.ep)} episodes exceed capacity {cap}")
+        if cap_arm is not None:
+            for arm, ix in self._by_arm.items():
+                if len(ix) > cap_arm:
+                    bad.append(f"arm {arm!r} holds {len(ix)} > {cap_arm}")
+        for arm in self.breaks:
+            if arm not in self.cusum:
+                bad.append(f"break for {arm!r} with no CUSUM state")
+        if self.scale is not None and not (np.isfinite(self.scale).all() and (self.scale > 0).all()):
+            bad.append("context scale is not finite and positive")
+        return bad
+
     # ---------------------------------------------------------------- state and determinism
     def state_dict(self):
         """Plain-data image of the memory: episodes, breaks, CUSUM state, counters. Round-trips through from_state()."""
