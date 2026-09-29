@@ -125,3 +125,7 @@
   (proposal: state/learning/curator/). FIX: archive.py _YEAR regex misses AAPL_2008 - use trader_view's digit-only lookarounds.
   DESIGN GAP: release weights sum to 1, so a lone weak memory reads as weight 1.0 - pass a coarse calibrated strength band too
   (era-free) so the trader cannot over-rely on a weak memory.
+- S20: period loop calls ContradictionMonitor(graph, ledger).run_period(now); mon.signals(report) -> ResearchPriorityEngine.step;
+  mon.dashboard_rows(report)["rows"] -> reports.health_dashboard. Add public KnowledgeGraph.contradiction_keys(now) (monitor reads _edges).
+  KNOWN GAPS for Stage 3: transfer_ratio(inf, x) not guarded; FW.reference_context seeds 11/17/41 trip the implausible-IC check by chance;
+  calibration.ece_equal_mass NaN with <3 rows per bin.
