@@ -129,3 +129,13 @@
   mon.dashboard_rows(report)["rows"] -> reports.health_dashboard. Add public KnowledgeGraph.contradiction_keys(now) (monitor reads _edges).
   KNOWN GAPS for Stage 3: transfer_ratio(inf, x) not guarded; FW.reference_context seeds 11/17/41 trip the implausible-IC check by chance;
   calibration.ece_equal_mass NaN with <3 rows per bin.
+
+## C66 wave 1 (R-series) hooks and known defects
+- R03 counterfactual: loop entry counterfactual.step(store, events, now, providers); market-wide run_year(...); R02 hook
+  Providers(classifier=adapt_classifier(r02_engine)); ONLY release path ClassificationGate().add(report).release(now, replaying_years);
+  add the cf_ prefix + HINDSIGHT_NAMES to the trader-side leak scan. DEFECT: null world 6/10 seeds -> POTENTIALLY_PREDICTABLE
+  from magnitude-only pointers (must be UNKNOWN). pit scrambled stores bump fabricated rows only ~400 days.
+- R06 missed: submit_checked(state, day) -> step(state, now) or sweep(...); research_targets(report) -> priority engine;
+  trader_handoff(record, now) is its only door. trader_view forbids a 'reasons' key even inside MaturedRecord payloads.
+- R19 (partial, sent back): replication.authorize_system_change before any research-derived change reaches the trader,
+  passing replayed_years; QualityGate.evaluate before PromotionGate; scorecard priority weights -> research priority.
