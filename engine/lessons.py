@@ -48,6 +48,12 @@ DEFAULTS = {
 _N = NormalDist()
 
 
+def _wiring():
+    """S17a: the single door into the learning package (lazy: engine.lessons must import without it)."""
+    from .learning import wiring
+    return wiring
+
+
 class IdentityLeak(ValueError):
     """Raised when an episode or lesson would carry a ticker/date as its predictive identity."""
 
@@ -248,6 +254,7 @@ def post_mortem(frame, X, now, params=None, seed=0, salt="lessons"):
             counterfactual=_counterfactual(tk_, s, float(f["y"].iloc[i]), pnl, p["cost"], mae, stop),
             origin={"week": _hash(salt, *pd.Timestamp(dt).isocalendar()[:2]), "tk": _hash(salt, tkr)},
             seq=int(order.iloc[i]), kind=kind))
+    _wiring().on_post_mortem(frame, X, now)      # S17a: losses -> failure ledger + hypotheses (sink; never changes `out`)
     return out
 
 
@@ -337,7 +344,9 @@ class LessonBook:
         the NEW lessons. Existing lessons keep their trust. See learn_by_kind() for the mistake-kind mining."""
         eps = sorted(self.episodes.values(), key=lambda e: e.seq)
         chosen, names = self._mine(eps, lambda e: e.pnl, None, self.p["min_abs_delta"])
-        return self._materialise(chosen, names, eps, None, "reweight")
+        new = self._materialise(chosen, names, eps, None, "reweight")
+        _wiring().on_lessons(new)                # S17a: new lessons -> failure hypotheses (sink)
+        return new
 
     def learn_by_kind(self, kinds=None):
         """One mining pass per mistake kind. For each kind the outcome is an indicator (the episode WAS that kind of
@@ -351,6 +360,7 @@ class LessonBook:
             eps = sorted((e for e in self.episodes.values() if e.decision.get("taken") == taken_side), key=lambda e: e.seq)
             chosen, names = self._mine(eps, lambda e, k=kind: float(e.kind == k), 1, self.p["min_rate_delta"])
             out[kind] = self._materialise(chosen, names, eps, kind, KIND_ACTION[kind])
+        _wiring().on_lessons(out)                # S17a: new lessons -> failure hypotheses (sink)
         return out
 
     def _mine(self, eps, value_fn, want_sign, min_delta):
@@ -528,7 +538,7 @@ class LessonBook:
         for L in self.active():
             if L.action != "reweight":
                 continue
-            w = L.weight()
+            w = _wiring().effective_weight(L.lid, L.weight())      # S17a ADAPTER: board-scaled only for registered knowledge
             if w > 0:
                 f[L.mask(X)] *= 1.0 + w * (L.factor - 1.0)
         lo, hi = self.p["factor_clip"]
@@ -539,9 +549,10 @@ class LessonBook:
         Not applied by adjust(); the sizing and exit rules decide what to do with it."""
         rows = []
         for L in self.active():
-            if L.action.startswith("advisory") and L.weight() > 0:
+            w = _wiring().effective_weight(L.lid, L.weight())      # S17a ADAPTER (see factor)
+            if L.action.startswith("advisory") and w > 0:
                 for i in np.flatnonzero(L.mask(X)):
-                    rows.append({"row": i, "kind": L.kind, "action": L.action, "lid": L.lid, "weight": L.weight()})
+                    rows.append({"row": i, "kind": L.kind, "action": L.action, "lid": L.lid, "weight": w})
         if not rows:
             return pd.DataFrame(columns=["kind", "action", "lid", "weight"], index=X.index[:0])
         d = pd.DataFrame(rows)

@@ -70,8 +70,13 @@ def log_experiment(rec, cfg=None, seed=None, **fields):
     import hashlib, uuid
     body = json.dumps(rec, sort_keys=True, default=str) + uuid.uuid4().hex
     rec.setdefault("experiment_id", "E" + hashlib.sha256(body.encode()).hexdigest()[:16])
+    from .learning import wiring                       # S17a: one door into the learning package
+    repro = wiring.repro_dict(rec)
+    if repro is not None:
+        rec["repro"] = repro                           # a ReproRecord rides on every registry record
     with open(REG, "a") as f:
         f.write(json.dumps(rec, default=float) + "\n")
+    wiring.on_experiment(rec, REG)                     # mirror into the ExperimentLedger facade (sink: cannot break this write)
 
 
 def n_trials():
@@ -189,6 +194,10 @@ def spawn_challengers(F, meta):
             if knob:
                 ch = {"kind": "config", "change": {knob[0]: knob[1]}, "desc": f"loosen the {f['what']} rule"}
         if ch:
+            from .learning import wiring
+            seen = wiring.pre_launch(ch["desc"], ch["change"], datetime.utcnow(), REG)     # S17a: already tested?
+            if wiring.blocks_launch(seen):
+                continue                               # same configuration already run (code and data unchanged): do not repeat it
             ch.update({"id": f"CH{len(C) + 1:03d}", "finding": key, "created": today, "status": "testing"})
             C.append(ch)
             log_experiment({"event": "challenger_created", **ch, "evidence": f["last_detail"]}, cfg=ch.get("change"), seed=7,
@@ -231,6 +240,11 @@ def evaluate(ch, meta, stocks):
     return np.array(diffs)
 
 
+def _promotion_gate(ch):
+    from .learning import wiring
+    return wiring.promotion_allowed(ch, datetime.utcnow())
+
+
 def test_and_promote(C, meta, stocks):
     trials = max(1, n_trials())
     z_needed = NormalDist().inv_cdf(1 - 0.05 / trials)          # Bonferroni over every trial ever run
@@ -242,7 +256,10 @@ def test_and_promote(C, meta, stocks):
             continue
         z = d.mean() / (d.std(ddof=1) + 1e-9) * np.sqrt(len(d))
         ch["live"] = {"days": int(len(d)), "ic_gain": float(d.mean()), "z": float(z), "z_needed": float(z_needed)}
-        if z >= z_needed:
+        gate = _promotion_gate(ch) if z >= z_needed else None     # S17a: learning claims need scorecard + firewalls + identity; others: z-test only
+        if gate is not None and not gate.allowed:
+            ch["gate_blocked"] = list(gate.blockers)
+        elif z >= z_needed:
             prev = {k: meta.get(k) for k in ch["change"]}
             if ch["kind"] == "config":
                 ov = _j(K.STATE / "config_overrides.json", {})
@@ -253,13 +270,13 @@ def test_and_promote(C, meta, stocks):
             meta["version"] = _bump(meta.get("version", "1.0"))
             ch.update({"status": "promoted", "promoted": datetime.utcnow().strftime("%Y-%m-%d"), "previous": prev,
                        "version": meta["version"]})
-            log_experiment({"event": "promoted", "id": ch["id"], "version": meta["version"], **ch["live"]}, cfg=ch.get("change"),
+            log_experiment({"event": "promoted", "id": ch["id"], "desc": ch.get("desc"), "version": meta["version"], **ch["live"]}, cfg=ch.get("change"),
                            seed=7, outcome="adopt", reason="live shadow beat the champion (z-test)", metrics=ch["live"],
                            gates={"live_shadow_z": True}, window_ids=["live-shadow"], train_range="live history",
                            validation_range="live shadow", test_range="live (forward)")
         elif len(d) >= 3 * MIN_LIVE_DAYS and z < 0:
             ch["status"] = "rejected"
-            log_experiment({"event": "rejected", "id": ch["id"], **ch["live"]}, cfg=ch.get("change"), seed=7, outcome="reject",
+            log_experiment({"event": "rejected", "id": ch["id"], "desc": ch.get("desc"), **ch["live"]}, cfg=ch.get("change"), seed=7, outcome="reject",
                            reason="live shadow lost to the champion", metrics=ch["live"], gates={"live_shadow_z": False},
                            window_ids=["live-shadow"], train_range="live history", validation_range="live shadow",
                            test_range="live shadow")

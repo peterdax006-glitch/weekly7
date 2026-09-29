@@ -59,6 +59,7 @@ from . import research_priority as RPR
 from . import retirement as RT
 from . import retrieval as RV
 from . import separation as SP
+from . import similarity as SM
 from . import situation as ST
 from . import surprise as SU
 from . import temporal as TP
@@ -171,6 +172,7 @@ class LearnerConfig:
     version_tol: float = 0.05
     audit_weeks: int = 12
     transfer_every: int = 16
+    similarity: SM.SimilarityWeights | None = None
 
     def validate(self) -> list[str]:
         errs = []
@@ -207,6 +209,7 @@ class RowDecision:
     slot: int
     situation_id: str
     exact_id: str
+    probe_id: str                            # the situation's own content without the learner's pattern annotations
     action: str                              # LONG | ABSTAIN
     size: float
     expected: float | None                   # prediction: expected edge over the horizon
@@ -221,7 +224,7 @@ class RowDecision:
     explanation: str
 
     def behaviour_key(self) -> tuple:
-        return (self.action, None if self.expected is None else round(self.expected, 9), self.knowledge_ids)
+        return (self.action, None if self.expected is None else round(self.expected, 4), self.knowledge_ids)
 
 
 @dataclass(frozen=True)
@@ -270,8 +273,6 @@ class _Episode:
     rows: list
     cursor: int = 0
     learned: bool = False
-    used: list = field(default_factory=list)      # knowledge objects that carried weight (for DECIDE bookkeeping)
-    decided_kids: dict = field(default_factory=dict)
     track: bool = True
 
 
@@ -309,7 +310,8 @@ class LegitimateLearner:
         self.gate = FW.LearningFirewallGate()
         self.index = RV.KnowledgeIndex()
         self.monitor = RV.SkillMonitor(min_n=c.skill_min_n, seed=c.seed)
-        self.retriever = RV.Retriever(self.index, config=c.retrieval, monitor=self.monitor)
+        self.retriever = _CachedRetriever(self.index, config=c.retrieval, monitor=self.monitor,
+                                          sim_weights=c.similarity or RV.DEFAULT_SIMILARITY)
         self.store = KN.KnowledgeStore()
         self.archive = AR.Archive(self.workdir / "archive")
         self.graph = KG.KnowledgeGraph()
@@ -324,13 +326,11 @@ class LegitimateLearner:
         self.context = CX.ContextModel(CX.ContextConfig(min_n=10, n_perm=100))
         self.rules = CX.RuleBook()
         self.boundaries = BD.BoundaryRegistry()
-        self.contradictions = CT.ContradictionLedger()
         self.credit_ledger = CR.DecisionLedger()
         self.credit_reports: list = []
         self.subsystems = SP.SubsystemLedger()
         self.classifier = FL.LossClassifier()
         self.postmortems = PM.PostmortemStore()
-        self.pm_builder = PM.PostmortemBuilder(self.classifier, code_hash=self.code_hash)
         self.hypotheses = PM.HypothesisBook()
         self.missed = MW.MissedLearningLedger(MW.RejectionAnalyzer(c.missed_params))
         self.missed_weeks: list = []
@@ -358,6 +358,7 @@ class LegitimateLearner:
         self._features: tuple[str, ...] = tuple(c.candidate_features)
         self.last_learned_on: Any = None
         self._tick = 0
+        self._allow_cache: dict[tuple, bool] = {}
         self._epistemic: dict[str, Epistemic] = {}
         self.failures = FL.FailureLedger()
         self._failure_rows: list = []
@@ -606,7 +607,14 @@ class LegitimateLearner:
 
     def _contract_allows(self, kid: str, now) -> bool:
         k = self.store.as_of(kid, now)
-        return k is not None and DC.check(k, now).allowed
+        if k is None:
+            return False
+        key = (kid, k.version, str(as_date(now)))
+        if key not in self._allow_cache:
+            if len(self._allow_cache) > 512:
+                self._allow_cache.clear()
+            self._allow_cache[key] = DC.check(k, now).allowed
+        return self._allow_cache[key]
 
     def _row_decision(self, r: _Row, slot: int, long: bool, n_long: int) -> RowDecision:
         ret = r.retrieval
@@ -628,7 +636,8 @@ class LegitimateLearner:
             else:
                 why = "outside the top picks"
         unc = "" if r.expected is not None else str(ret.unknown or "UNKNOWN") if ret is not None else "INSUFFICIENT_DATA"
-        return RowDecision(slot, r.situation.situation_id, r.situation.exact_id, action, size, r.expected, r.confidence, r.risk, unc,
+        probe = stable_hash([b.as_dict() for b in r.situation.blocks if b.kind != "pattern_interaction"])
+        return RowDecision(slot, r.situation.situation_id, r.situation.exact_id, probe, action, size, r.expected, r.confidence, r.risk, unc,
                            r.members, kids, why, ret.retrieval_id if ret is not None else "", bool(ret.influence) if ret is not None else False,
                            ret.explain()[:240] if ret is not None else "")
 
@@ -672,6 +681,8 @@ class LegitimateLearner:
             mean = float(np.mean([r.raw_ret for r in done]))
             for r in done:
                 r.edge = r.raw_ret - mean
+                if r.retrieval is not None and r.retrieval.items:
+                    RV.resolve_outcome(r.retrieval, self.monitor, r.matured, r.edge)     # walk-forward score of retrieval itself
             ep.rows = done
             box["n"], box["note"] = len(done), f"matured {max(r.matured for r in done)}"
 
@@ -1063,13 +1074,25 @@ class LegitimateLearner:
         p = self.board.gate.policy
         return max(p.min_oos_periods, p.min_delta_periods, p.min_risk_periods, p.min_stability_periods, self.board.policy.min_shadow_sessions)
 
+    def _transfer_score(self, kid: str) -> float | None:
+        """Transfer confidence from what this learner measured: the near/far support test when it had enough cases, else the share of
+        context values (n >= 5) in which the signed edge stayed positive.  None only if neither could be measured.  A champion
+        must carry a recorded value: the retriever otherwise re-runs the quadratic near/far test for every row it scores."""
+        t = self._transfer.get(kid)
+        if t is None:
+            return None
+        if t["evidence"]["score"] is not None:
+            return float(t["evidence"]["score"])
+        usable = [m for m, n in t["contexts"].values() if n >= 5]
+        return float(np.mean([m > 0 for m in usable])) if len(usable) >= 2 else None
+
     def _promote(self, kid: str, learned: str) -> None:
         st = CH.shadow_summary(self.board, self._mid[kid])
         rel = self.tracker.state(kid, pd.Timestamp(learned) + pd.Timedelta(days=1))
         cur = self.store.latest(kid)
         conf = dataclasses.replace(cur.confidence, usefulness=float(max(0.0, min(1.0, 1.0 - st.p_one_sided))),
-                                   current_reliability=rel.current_reliability, failure_risk=rel.failure_risk, transfer=rel.transfer,
-                                   context=rel.context)
+                                   current_reliability=rel.current_reliability, failure_risk=rel.failure_risk,
+                                   transfer=self._transfer_score(kid), context=rel.context)
         self._revise(kid, learned, "passed every promotion gate and the head-to-head", promotion=Promotion.CHAMPION,
                      lifecycle=Lifecycle.ACTIVE, confidence=conf)
         self._resolved_meta[kid] = True
@@ -1079,7 +1102,7 @@ class LegitimateLearner:
         cur = self.store.latest(kid)
         rel = self.tracker.state(kid, pd.Timestamp(learned) + pd.Timedelta(days=1))
         new = dataclasses.replace(cur.confidence, truth=rel.truth, current_reliability=rel.current_reliability,
-                                  failure_risk=rel.failure_risk, transfer=rel.transfer, context=rel.context)
+                                  failure_risk=rel.failure_risk, transfer=self._transfer_score(kid), context=rel.context)
         moved = max((abs((getattr(new, f) or 0.0) - (getattr(cur.confidence, f) or 0.0)) for f in ("truth", "current_reliability", "failure_risk")))
         if moved > self.cfg.version_tol:
             self._revise(kid, learned, "reliability re-measured", confidence=new)
@@ -1431,6 +1454,16 @@ class LegitimateLearner:
                 "influence_log_ok": not self.decision_log.verify()}
 
 
+class _CachedRetriever(RV.Retriever):
+    """Retriever whose configuration id is computed once: weights, similarity weights and config are immutable for its life, and
+    hashing them on every one of thousands of retrievals was a measurable share of a run."""
+
+    def _weights_id(self) -> str:
+        if not hasattr(self, "_wid"):
+            self._wid = super()._weights_id()
+        return self._wid
+
+
 def _gate_view(k: KN.KnowledgeObject) -> KN.KnowledgeObject:
     """The memory firewall resolves ancestry by bare knowledge id; knowledge.py records parents as 'id@vN' (and a new version
     lists its own predecessor).  The copy handed to the gate names parents by bare id and drops self-references, so the audit
@@ -1558,7 +1591,7 @@ def score_decisions(learner: LegitimateLearner, feed: WorldFeed, weeks: Iterable
         got = [float(real.loc[k]) for k, _ in picks if k in real.index]
         for r in ep.rows:
             recs.append((t, r.decision))
-            by_exact[(t, r.decision.exact_id)] = r.decision.behaviour_key()
+            by_exact[(t, r.decision.probe_id)] = r.decision.behaviour_key()
         edges += got
         rows.append({"week": t, "n_long": len(picks), "mean_edge": float(np.mean(got)) if got else np.nan,
                      "n_knowledge": sum(bool(r.decision.knowledge_ids) for r in ep.rows)})

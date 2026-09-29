@@ -280,6 +280,23 @@ class MissedLedger:
                           "missed_minus_picked": prof, "detector_skill": float(detector_skill),
                           "detector_weight": float(detector_weight), "types": dict(types or {}), "era": era})
 
+    def observe(self, decided, closed, p0, fwd, picked, score=None, thr=WINNER, detector_skill=0.0, detector_weight=0.0, era=None, k=10):
+        """S17a: one call per CLOSED week. Does exactly what the adapter did by hand (winners, missed, profile, types -> add()) and
+        ALSO hands the same week to learning.missed_winners.MissedLearningLedger, which records WHY each winner was rejected.
+        `decided` is the decision date, `closed` the date the outcome matured (the row's date, as before)."""
+        picked = list(picked)
+        win = fwd[fwd >= thr].index
+        if not len(win):
+            return
+        miss = [t for t in win if t not in set(picked)]
+        types = {}
+        for t in miss:
+            ty = winner_type(p0, t)
+            types[ty] = types.get(ty, 0) + 1
+        self.add(closed, len(win), len(miss), missed_profile(p0, picked, miss), detector_skill, detector_weight, types, era)
+        from .learning import wiring
+        wiring.on_missed_week(decided, closed, p0, fwd, picked, score=score, era=era or "", thr=thr, k=k)
+
     def frame(self):
         return pd.DataFrame(self.rows)
 

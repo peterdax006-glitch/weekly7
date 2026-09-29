@@ -43,7 +43,12 @@ FORBIDDEN_KEYS = frozenset({"ticker", "tickers", "symbol", "symbols", "cusip", "
 ABSTRACT_LAYERS = frozenset({Layer.L4_HYPOTHESIS, Layer.L5_PATTERN, Layer.L6_CONTEXT_RULE, Layer.L7_VALIDATED,
                              Layer.L8_POLICY})
 _ISO = re.compile(r"\d{4}-\d{2}-\d{2}")
-_YEAR = re.compile(r"(?<![A-Za-z0-9_.])(?:19|20)\d{2}(?![A-Za-z0-9_])")
+_YEAR = re.compile(r"(?<!\d)(?:19|20)\d{2}(?!\d)")               # digit-only lookarounds (as trader_view): "AAPL_2008" is a year
+_HEXID = re.compile(r"[0-9a-f]{12,}")                       # content hashes contain digit runs by chance; not years
+
+
+def _has_year(s: str) -> bool:
+    return bool(_YEAR.search(_HEXID.sub(" ", s)))
 _TOKEN = re.compile(r"[a-z0-9_]{2,}")
 _ALL = frozenset(Layer)
 LAYER_ORDER = {l: i for i, l in enumerate(Layer)}
@@ -220,7 +225,7 @@ def _identity_errors(obj: Any, forbidden: frozenset, path: str = "payload") -> l
         for i, v in enumerate(obj):
             errs += _identity_errors(v, forbidden, f"{path}[{i}]")
     elif isinstance(obj, str):
-        if _ISO.search(obj) or _YEAR.search(obj):
+        if _ISO.search(obj) or _has_year(obj):
             errs.append(f"{path}: contains a date/year")
         toks = {t.upper() for t in re.findall(r"[A-Za-z0-9_.\-]+", obj)}
         hit = toks & forbidden
@@ -548,7 +553,7 @@ class Archive:
             errs += _identity_errors(payload, self.forbidden)
             for k, v in dict(contexts or {}).items():
                 errs += _identity_errors({k: v}, self.forbidden, "contexts")
-            if subject and (_ISO.search(subject) or _YEAR.search(subject)):
+            if subject and (_ISO.search(subject) or _has_year(subject)):
                 errs.append("subject of an abstract record contains a date")
         if provenance is not None:
             errs += provenance.check()

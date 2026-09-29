@@ -526,6 +526,8 @@ class Memory:
     def export_lessons(self, features=None, tickers=None, week_now=None):
         """The sanitised bank (a DataFrame). This, not export(), is what may be shared across experiments."""
         ls = self.lessons(features, tickers, week_now)
+        from .learning import wiring
+        wiring.on_lessons(ls)                  # S17a: shared lesson bank -> failure hypotheses (sink)
         cols = list(Lesson.__dataclass_fields__)
         return pd.DataFrame([asdict(l) for l in ls], columns=cols)
 

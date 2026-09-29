@@ -374,9 +374,12 @@ class PatternMiner:
         R["duplicate_of"] = None
         sub_rows = np.sort(rng.choice(len(yv), min(len(yv), 200_000), replace=False))
         live = [i for i in R.index if R.at[i, "status"] in ("active", "rescoped")]
-        kept, dup = _S.prune_redundant(live, _Masks(exprs, Q[sub_rows], allf, cache=True), P["redundancy_overlap"])
+        _redundancy_masks = _Masks(exprs, Q[sub_rows], allf, cache=True)
+        kept, dup = _S.prune_redundant(live, _redundancy_masks, P["redundancy_overlap"])
         for i, j in dup.items():
             R.at[i, "status"], R.at[i, "duplicate_of"] = "duplicate", R.at[j, "key_named"]
+        from .learning import wiring                # S17a: keep what pruning throws away as REDUNDANT_WITH edges (sink)
+        wiring.on_redundancy(R["key_named"].astype(str).tolist(), dup, _redundancy_masks, now, P["redundancy_overlap"])
         # never learns for no reason: add patterns greedily, keep one only if it improves out-of-sample prediction
         cand = [i for i in R.index if R.at[i, "status"] in ("active", "rescoped")]
         full = _Masks(exprs, Q, allf)

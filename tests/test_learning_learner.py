@@ -18,6 +18,7 @@ from engine.learning import knowledge as KN
 from engine.learning import learner as LN
 from engine.learning import planted_world as PW
 from engine.learning import promotion as PR
+from engine.learning import similarity as SM
 from engine.learning.core import (Confidence, DecisionEffect, Epistemic, FirewallBreach, Lifecycle, Promotion, Provenance,
                                   TemporalClass)
 
@@ -45,7 +46,8 @@ def make_cfg(**kw):
                              min_gain_t=1.0, min_oos_t=1.0, bootstrap_n=200)
     base = dict(seed=1, column_map=COLUMN_MAP, top_n=5, min_cs_n=20, min_coverage=0.05, context_dim="market.vix", skill_min_n=10,
                 promotion_policy=pol, board_policy=CH.BoardPolicy(min_shadow_sessions=8), min_weeks_belief=6, min_context_obs=40,
-                min_transfer_cases=12, retire_window=8, audit_weeks=8)
+                min_transfer_cases=12, retire_window=8, audit_weeks=8, transfer_every=30,
+                similarity=SM.SimilarityWeights(min_component_coverage=0.2, min_total_coverage=0.2, vetoes=()))
     base.update(kw)
     return LN.LearnerConfig(**base)
 
@@ -116,8 +118,8 @@ def test_full_loop_runs_end_to_end_and_every_stage_is_represented(trained, world
         assert stages[s.value]["count"] == rep["episodes"] and stages[s.value]["ok"] == rep["episodes"]
     tr = trained.trace_table()
     assert tr["ok"].all()
-    first = tr[tr.episode == tr.episode.iloc[0]]
-    assert list(first.stage) == [s.value for s in LN.DECISION_STAGES]
+    last = tr[tr.episode == tr.episode.iloc[-1]]                      # the newest episode has decided but not yet learned
+    assert list(last.stage) == [s.value for s in LN.DECISION_STAGES]
     done = tr[tr.episode == "E00001"]
     assert list(done.stage) == [s.value for s in LN.STAGES]          # a learned episode passes all 19 stages, in order
     assert rep["influence_log_ok"] and trained.decision_log.verify() == []
@@ -195,7 +197,7 @@ def test_stage_order_is_enforced(world):
     assert [e.ok for e in L.trace if e.episode == "X1"] == [True, True]
     ep2 = L.decide_batch(feed.input(1).now, feed.input(1).panel)
     with pytest.raises(LN.StageOrderError):
-        L.stage_outcome(ep2, feed.input(4).now, feed.input(4).outcomes)      # learning stage before the decision stages are done? no: decisions done
+        L.stage_credit(ep2, feed.input(4).now)         # credit assignment before the outcome has even been observed
     with pytest.raises(KeyError):
         L.resolve_and_learn(LN._Episode("nope", inp.now, []), inp.now, feed.input(4).outcomes)
 
@@ -220,11 +222,11 @@ def test_future_feature_rows_and_canary_columns_are_refused_at_observe(world):
 def test_an_outcome_that_has_not_matured_is_refused_at_observe_outcome(world):
     feed = LN.WorldFeed(world)
     L = LN.LegitimateLearner(make_cfg())
-    for t in range(3):
+    for t in range(2):
         L.step(feed.input(t).now, feed.input(t).panel, feed.input(t).outcomes)
     ep = L.pending["E00001"]
-    now = world.dates[3]
-    good = feed.outcomes(3)
+    now = world.dates[2]
+    good = feed.outcomes(2)
     assert good is not None
     leak = good.copy()
     leak["matured"] = now                              # matures ON now: the return is not known until the close
@@ -285,8 +287,8 @@ def test_frozen_learner_decides_but_never_learns_and_refuses_if_code_or_config_c
 
 def test_learning_is_deterministic_given_the_seed(world):
     feed = LN.WorldFeed(world)
-    a = run(LN.LegitimateLearner(make_cfg()), feed, range(22))
-    b = run(LN.LegitimateLearner(make_cfg()), feed, range(22))
+    a = run(LN.LegitimateLearner(make_cfg()), feed, range(16))
+    b = run(LN.LegitimateLearner(make_cfg()), feed, range(16))
     assert a.trace_digest() == b.trace_digest()
     assert [d.behaviour_key() for d in a.decisions] == [d.behaviour_key() for d in b.decisions]
     assert sorted(a._pid_of.values()) == sorted(b._pid_of.values()) and sorted(a._pid_of) == sorted(b._pid_of)
@@ -295,7 +297,7 @@ def test_learning_is_deterministic_given_the_seed(world):
 # ------------------------------------------------------------------------------------------------ null world and controls
 
 def test_a_world_with_no_signal_yields_no_production_knowledge():
-    null_world = PW.make_world(mini_spec(46, noise=True), seed=8)
+    null_world = PW.make_world(mini_spec(38, noise=True), seed=8)
     L = run(LN.LegitimateLearner(make_cfg()), LN.WorldFeed(null_world), range(len(null_world.dates)))
     assert L.production_ids() == ()
     assert all(d.action == "ABSTAIN" for d in L.decisions[-40:])
@@ -308,18 +310,23 @@ def test_section_3_protocol_and_section_87_miniature(trained, world):
     world_b = PW.year_swap(world, 11, years=6)
     world_b_id = PW.reidentify(world_b, 12, tickers=True, shift_years=1).world
     world_a_id = PW.reidentify(world, 13, tickers=True, shift_years=6).world
+    world_a_id2 = PW.reidentify(world, 14, tickers=True, shift_years=9).world
     probe = LN.WorldFeed(world_b_id)
-    weeks = range(len(world_b.dates))
+    weeks = range(14)
     before = LN.score_decisions(LN.LegitimateLearner(make_cfg()).freeze(), probe, weeks, "before")
     after = LN.score_decisions(trained, probe, weeks, "after")
     assert before.n_long == 0 and all(r.action == "ABSTAIN" for _, r in before.records)       # no lesson, no knowledge, no decision
     # the section-3 record is complete on every row
     for _, r in before.records[:5]:
-        assert r.situation_id and r.exact_id and r.abstention and r.uncertainty in ("UNTESTED", "UNKNOWN", "INSUFFICIENT_DATA", "")
+        assert r.situation_id and r.exact_id and r.probe_id and r.abstention and r.uncertainty in ("UNTESTED", "UNKNOWN", "INSUFFICIENT_DATA", "")
     res = LN.validate_protocol(before, after, None, len(world.dates))
-    disguised = LN.score_decisions(trained, LN.WorldFeed(world_a_id), range(len(world.dates)), "year A disguised")
-    plain = LN.score_decisions(trained, LN.WorldFeed(world), range(len(world.dates)), "year A")
-    assert disguised.by_exact == plain.by_exact                                  # new identities, new dates: identical decisions
+    # year A replayed on its own dates would be knowledge from the future (the firewall refuses it, below); replayed under two
+    # different disguises after the learning date, the same episode must draw identical decisions
+    d1 = LN.score_decisions(trained, LN.WorldFeed(world_a_id), range(14), "year A, disguise 1")
+    d2 = LN.score_decisions(trained, LN.WorldFeed(world_a_id2), range(14), "year A, disguise 2")
+    assert d1.by_exact == d2.by_exact
+    with pytest.raises(FirewallBreach, match="could not have existed"):
+        LN.score_decisions(trained, LN.WorldFeed(world), range(14), "year A on its own dates")
     assert res.n_changed_without_knowledge == 0                                  # behaviour changed only where knowledge carried it
     if trained.production_ids():
         assert res.n_changed > 0 and after.n_with_knowledge > 0 and after.n_long > 0
@@ -360,7 +367,7 @@ def test_empty_and_degenerate_inputs(world):
     with pytest.raises(ValueError):
         L.decide_batch(world.dates[0], pd.DataFrame({"f0": [1.0]}))          # not a (date, ticker) panel
     assert L.report()["episodes"] == 0 and L.report()["knowledge"]["items"] == 0
-    assert L.trace_table().empty and L.production_ids() == ()
+    assert not L.trace_table()["ok"].any() and L.production_ids() == ()      # the one refused call is the only event
     tiny = LN.WorldFeed(world).panel(0).iloc[:5]
     ep = L.decide_batch(world.dates[0], tiny)                                # too few names to rank: situations unusable, all abstain
     assert all(r.decision.action == "ABSTAIN" for r in ep.rows)

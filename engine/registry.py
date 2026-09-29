@@ -190,6 +190,8 @@ class Registry:
                                                       or bad_outcome or unrepro)
         findings["completeness"] = ({f: 1 - len(missing_by_field.get(f, [])) / len(self.records) for f in REQUIRED}
                                     if self.records else {})
+        from .learning import wiring               # S17a: provenance-firewall view of the same records (information only; `ok` unchanged)
+        findings["learning_provenance"] = wiring.registry_audit(self.records)
         return findings
 
     def reproducibility_conflicts(self, tol=1e-9):
@@ -268,6 +270,8 @@ class ExperimentMemory:
         with open(self.path, "a", encoding="utf-8") as f:
             f.write(json.dumps(entry, default=str) + "\n")
         self.entries.append(entry)
+        from .learning import wiring               # S17a ADAPTER: the same entry also lands in the ExperimentLedger facade (no old behaviour changes)
+        wiring.on_memory_entry(experiment_id, change, answers, now, self.path)
         return entry
 
     def already_tried(self, change):

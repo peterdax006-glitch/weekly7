@@ -69,6 +69,8 @@ class RelevanceConfig:
     min_history: int = 60
     z_clip: float = 6.0
     seasonal_width_days: float = 45.0       # SEASONAL memories: gaussian in circular day-of-year distance
+    strength_edges: tuple = (0.2, 0.4, 0.6)  # S17a: era-free absolute strength (reliability x consistency) -> band 0..len(edges)
+    single_year_max_band: int = 1           # a memory seen in one real year can never read as strong
 
     def check(self) -> list[str]:
         errs = []
@@ -80,6 +82,8 @@ class RelevanceConfig:
             errs.append("floors must lie in [0,1]")
         if self.default_k < 1 or self.min_history < 2 or self.history_days < self.min_history:
             errs.append("k >= 1 and 2 <= min_history <= history_days")
+        if list(self.strength_edges) != sorted(set(self.strength_edges)) or not all(0 < e < 1 for e in self.strength_edges):
+            errs.append("strength_edges must be strictly increasing values inside (0,1)")
         return errs
 
 
@@ -322,6 +326,18 @@ def consistency_across_years(leans_by_year: Mapping[int, Sequence[float]], cfg: 
     return cons, n, n >= cfg.universal_min_years and top / n >= cfg.universal_share
 
 
+def strength_band(reliability: float, consistency: float, n_years: int, cfg: RelevanceConfig) -> float:
+    """Coarse ABSOLUTE strength of one memory in [0,1] (band / n_bands), for the trader. The release weights sum to 1, so a lone weak
+    memory would otherwise read as weight 1.0. Era-free on purpose: only calibrated reliability (already shrunk by the
+    calibration error) and cross-year consistency enter; era match, recency and season are excluded because they would tell the
+    trader when the memory is from. Coarse on purpose: a fine number would be a fingerprint of the year."""
+    strength = float(reliability) * float(consistency)
+    band = sum(strength >= e for e in cfg.strength_edges)
+    if n_years < 2:
+        band = min(band, cfg.single_year_max_band)
+    return band / len(cfg.strength_edges)
+
+
 def recency_factor(age_days: int, temporal: TemporalClass, cfg: RelevanceConfig) -> float:
     hl = HALF_LIFE_DAYS.get(temporal, 730.0)
     if hl is None:
@@ -523,7 +539,8 @@ class Curator:
             rows.append({"key": key, "score": best.score, "lean": lean, "best": best.mem_id, "years": sorted({p.real_year for p in ps}),
                          "n_records": len(ps), "consistency": best.consistency, "n_years": best.n_years,
                          "universal": best.universal, "era": best.era, "reliability": best.reliability, "recency": best.recency,
-                         "seasonal": best.seasonal})
+                         "seasonal": best.seasonal,
+                         "band": strength_band(best.reliability, best.consistency, best.n_years, self.cfg)})
         return sorted(rows, key=lambda r: (-r["score"], r["key"]))
 
     def release(self, real_now, market_state: Mapping[str, float], k: int | None = None) -> TraderRelease:
@@ -546,8 +563,8 @@ class Curator:
         for r in sorted(kept, key=lambda r: r["key"]):
             best = mems[r["best"]]
             p = best.payload
-            items.append(TraderMemoryItem.make(r["key"], best.kind, r["score"] / total, p["features"], float(np.clip(r["lean"], -1, 1)),
-                                               p["horizon"]))
+            items.append(TraderMemoryItem.make(r["key"], best.kind, r["score"] / total, {**p["features"], "strength_band": r["band"]},
+                                               float(np.clip(r["lean"], -1, 1)), p["horizon"]))
         rel = TraderRelease(max(self.step, 0), tuple(items))
         hits = release_year_hits(rel)
         if hits:
