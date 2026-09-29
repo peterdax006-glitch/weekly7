@@ -134,7 +134,7 @@ def validate_key(key, forbidden=()):
         raise KeyError_(f"pattern key contains a date: {key!r}")
     bad = {str(f).upper() for f in forbidden}
     for tok in _TOKEN.findall(key):
-        if tok.upper() in bad and tok.upper() not in ("Q1", "Q2", "Q3", "Q4", "Q5"):
+        if any(part in bad for part in [tok.upper()] + tok.upper().split("_")):
             raise KeyError_(f"pattern key names a forbidden identity {tok!r}: {key!r}")
         if tok.isalpha() and tok.isupper() and len(tok) <= 5:
             raise KeyError_(f"pattern key looks like a ticker {tok!r}: {key!r}")
@@ -481,6 +481,7 @@ class PatternMemory:
         pattern that still has weight; a 0 marks it 'gated' (kept, switched off here), never deleted."""
         self._sync()
         now = _day(real_now)
+        scan_for_dates(ctx_now if ctx_now is not None else {}, "ctx_now")      # a dated context is a leak channel
         mat = self._matured(now)
         check_no_future(mat, now)
         self.last_audit = {"n_used": len(mat), "max_mature": max((m["mature_date"] for m in mat), default=None),
@@ -493,8 +494,6 @@ class PatternMemory:
         keys = sorted(stats)
         pv = [p_two_sided(stats[k]["pooled_t"] * sqrt(1.0)) for k in keys]
         qv = bh_adjust(pv, self.cumulative_tries()["total_tries"]) if self.p["use_fdr"] else np.zeros(len(keys))
-        if gate is not None:
-            scan_for_dates(ctx_now if ctx_now is not None else {}, "ctx_now")
         out, gate_calls = {}, 0
         for k, q in zip(keys, qv):
             s = stats[k]
@@ -713,6 +712,76 @@ class Analytics:
         return pd.DataFrame(rows).sort_values(["weight", "key"], ascending=[False, True]).reset_index(drop=True) \
             if rows else pd.DataFrame(columns=["key", "mode", "reason", "weight", "pooled_t", "n_periods", "first_noticed",
                                                "held_years", "failed_years"])
+
+
+    def era_breakdown(self, as_of, eras):
+        """Held / failed / flat period counts per pattern inside each named era. `eras` = {name: (first_year, last_year)}.
+        Shows which patterns belong to which era and which ones cut across all of them (the universal candidates)."""
+        rows = []
+        for k in self.mem.keys():
+            tl = self.timeline(k, as_of)
+            for name, (y0, y1) in eras.items():
+                sub = tl[(tl["year"] >= y0) & (tl["year"] <= y1)] if len(tl) else tl
+                if len(sub) == 0:
+                    continue
+                rows.append({"key": k, "era": name, "periods": len(sub), "held": int((sub["status"] == "held").sum()),
+                             "failed": int(sub["status"].isin(["broke", "opposed"]).sum()),
+                             "mean_t": float(sub["t"].mean())})
+        return pd.DataFrame(rows, columns=["key", "era", "periods", "held", "failed", "mean_t"])
+
+    def markdown(self, as_of, ctx_now=None, eras=None, top=25):
+        """Owner-readable report as of `as_of`: try accounting, weights by mode, and the era table."""
+        rep = self.report(as_of, ctx_now)
+        tries = self.mem.cumulative_tries()
+        lines = [f"# Pattern memory report as of {_iso(as_of)}", "",
+                 f"- observations stored: {len(self.mem.records())}; patterns: {len(self.mem.keys())}; chain ok: "
+                 f"{self.mem.verify()['ok']}",
+                 f"- cumulative candidate tries: {tries['total_tries']} over {tries['runs']} runs "
+                 f"({tries['distinct_keys']} distinct keys); best-of-many null |t| ~ {tries['expected_best_null_t']:.2f}"]
+        if len(rep):
+            lines += ["- by mode: " + ", ".join(f"{m}={n}" for m, n in rep["mode"].value_counts().items()), "",
+                      "| key | mode | weight | pooled t | periods | first noticed | held | failed |", "|---|---|---|---|---|---|---|---|"]
+            for _, r in rep.head(top).iterrows():
+                lines.append(f"| {r['key']} | {r['mode']} | {r['weight']:.3f} | {r['pooled_t']:.2f} | {r['n_periods']} | "
+                             f"{r['first_noticed']} | {len(r['held_years'])} | {len(r['failed_years'])} |")
+        if eras:
+            eb = self.era_breakdown(as_of, eras)
+            if len(eb):
+                lines += ["", "## Era breakdown", "", eb.to_markdown(index=False, floatfmt=".2f")
+                          if hasattr(eb, "to_markdown") and _has_tabulate() else eb.to_string(index=False)]
+        return "\n".join(lines) + "\n"
+
+
+def _has_tabulate():
+    try:
+        import tabulate  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
+def audit_prefix_invariance(mem, dates, ctx_now=None, tol=1e-12):
+    """Self-audit for C56/C58: for every date, the view must equal the view of a store that contains ONLY the observations
+    matured before that date (i.e. the store as it would have been had nothing later ever been written). Any difference
+    means later evidence influenced an earlier view. Returns a list of mismatch descriptions (empty = clean)."""
+    import tempfile
+    bad = []
+    for d in dates:
+        now = _day(d)
+        with tempfile.TemporaryDirectory() as tmp:
+            twin = PatternMemory(tmp, mem.p, mem.forbidden, mem.holidays)
+            recs = [r for r in mem.records() if pd.Timestamp(r["mature_date"]) < now]
+            twin._append("obs", [dict(r) for r in recs])
+            # the try ledger is copied whole: counts are not market information (see module docstring)
+            twin._append("run", [r["body"] for r in mem._recs if r["kind"] == "run"])
+            a, b = mem.view(now, ctx_now).weights, twin.view(now, ctx_now).weights
+        if set(a) != set(b):
+            bad.append(f"{_iso(now)}: key sets differ ({sorted(set(a) ^ set(b))[:3]})")
+            continue
+        for k in a:
+            if abs(a[k].weight - b[k].weight) > tol or a[k].mode != b[k].mode or abs(a[k].pooled_t - b[k].pooled_t) > tol:
+                bad.append(f"{_iso(now)}: {k!r} differs ({a[k].weight:.6f} vs {b[k].weight:.6f})")
+    return bad
 
 
 def default_root():
