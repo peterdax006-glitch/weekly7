@@ -60,7 +60,7 @@ class Feed:
         lo, hi = start - pd.DateOffset(years=w), start + pd.DateOffset(months=12) - pd.Timedelta(days=1)
         C = stocks["Close"].loc[lo:hi]
         live_cols = C.columns[C.loc[start:hi].notna().any()]    # names that trade in the hidden window
-        rng = np.random.default_rng(secrets.randbits(64))
+        rng = np.random.default_rng(s["shift_days"] * 7919 + 17)   # code names fixed per sealed window (reproducible)
         codes = [f"S{n:04d}" for n in rng.permutation(len(live_cols))]
         self._map = dict(zip(live_cols, codes))
         self._stocks = {f: self._disguise(v.loc[lo:hi, live_cols]) for f, v in stocks.items()}
@@ -104,10 +104,10 @@ class Feed:
         return df
 
     # ---- feature service: computed once, served one session at a time (proven equal to live by parity_test) ----
-    def precompute_features(self):
+    def precompute_features(self, rel_q=(0.2, 0.4)):
         ev, ins = self._events, self._insider
         X, atr = features.build(self._stocks, self._market, ev, ins, self.sic,
-                                start=str(self.sessions[0].date()), relative=True)
+                                start=str(self.sessions[0].date()), relative=True, rel_q=rel_q)
         self._X, self._atr = X, atr
 
     def features_today(self):

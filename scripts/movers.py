@@ -31,11 +31,24 @@ def week_ends(idx):
     return [d for i, d in enumerate(idx[:-1]) if idx[i + 1].isocalendar().week != d.isocalendar().week]
 
 
-def run_window(rid, variant=None):
+def run_window(rid, variant=None, scramble_after=None, save=True):
     v = {"n_estimators": 300, "num_leaves": 31, "min_child_samples": 200, "learning_rate": 0.05, **(variant or {})}
+    model_v = {k: v[k] for k in ("n_estimators", "num_leaves", "min_child_samples", "learning_rate")}
     t0 = time.time()
     feed = livesim.Feed(livesim.SealedYear(rid))
-    feed.precompute_features()
+    if v.get("f64") or scramble_after is not None:     # same numeric precision on both sides of the scramble test
+        for f in ("Open", "High", "Low", "Close"):
+            feed._stocks[f] = feed._stocks[f].astype("float64")
+    if scramble_after is not None:                     # anti-cheat: noise after the cut must not change earlier picks
+        cut_day = feed.sessions[feed.sessions.get_loc(feed.first_live) + scramble_after]
+        m = feed._stocks["Close"].index > cut_day
+        rng = np.random.default_rng(11)
+        for f in ("Open", "High", "Low", "Close"):
+            arr = feed._stocks[f].astype("float64")
+            arr.loc[m] = arr.loc[m].values * np.exp(rng.normal(0, 0.3, arr.loc[m].shape))
+            feed._stocks[f] = arr
+        run_window.cut_day = cut_day
+    feed.precompute_features(rel_q=tuple(v.get("rel_q", (0.2, 0.4))))
     X = feed._X
     cols = [c for c in X.columns if not c.startswith(DROP)]
     S = feed._stocks
@@ -56,7 +69,7 @@ def run_window(rid, variant=None):
         if c.startswith("m_"):
             Rt[c] = Xt[ok][c]
     clf = lgb.LGBMClassifier(objective="binary", subsample=0.8, subsample_freq=1, colsample_bytree=0.7,
-                             random_state=7, verbose=-1, **v)
+                             random_state=7, verbose=-1, **model_v)
     clf.fit(Rt, y[ok])
     base_rate_train = float(y[ok].mean())
     # ---- hidden window: predict each week, evaluate after the week ----
@@ -77,7 +90,9 @@ def run_window(rid, variant=None):
         o["date"] = str(d.date())
         rows.append(o.dropna(subset=["up"]))
     D = pd.concat(rows)
-    wdir = OUT / rid
+    if not save:
+        return D
+    wdir = OUT / (rid + v.get("tag", ""))
     wdir.mkdir(exist_ok=True)
     D.to_parquet(wdir / "weeks.parquet")
     res = summarize(D)
@@ -111,8 +126,20 @@ if __name__ == "__main__":
     if sys.argv[1] == "run":
         r = run_window(sys.argv[2], json.loads(sys.argv[3]) if len(sys.argv) > 3 else None)
         print(json.dumps(r, default=float), flush=True)
+    elif sys.argv[1] == "scramble":
+        rid = sys.argv[2]
+        a = run_window(rid, {"f64": True}, save=False)
+        b = run_window(rid, {"f64": True}, scramble_after=120, save=False)
+        dates = sorted(a["date"].unique())
+        cut = str(run_window.cut_day.date())                # decisions on or before the last clean day
+        pa = pick(a[a["date"] <= cut]); pb = pick(b[b["date"] <= cut])
+        same = sorted(zip(pa["date"], pa.index)) == sorted(zip(pb["date"], pb.index))
+        pa2 = pick(a[a["date"] > dates[-5]]); pb2 = pick(b[b["date"] > dates[-5]])
+        print(f"{rid} future-scramble: picks before the cut identical: {same} | after the cut differ (sanity): "
+              f"{sorted(zip(pa2['date'], pa2.index)) != sorted(zip(pb2['date'], pb2.index))}")
     elif sys.argv[1] == "report":
-        rs = [json.loads(p.read_text()) for p in sorted(OUT.glob("*/result.json"))]
+        tag = sys.argv[2] if len(sys.argv) > 2 else ""
+        rs = [json.loads(p.read_text()) for p in sorted(OUT.glob(f"m??{tag}/result.json"))]
         for r in rs:
             print(f"{r['id']}: hit (touched +/-10%) {r['hit_touch']:.1%} | closed +/-10% {r['hit_close']:.1%} | "
                   f"all stocks {r['base_rate_touch']:.1%} | weeks with all 10 right {r['weeks_all_10_right']:.0%}")

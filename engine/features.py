@@ -44,7 +44,7 @@ def _days_since(flag: pd.DataFrame, cap=400) -> pd.DataFrame:
 
 
 def build(stocks: dict, market: dict, ev: pd.DataFrame, ins: pd.DataFrame, sic: pd.DataFrame,
-          start="2013-01-01", chunk=500, relative=False):
+          start="2013-01-01", chunk=500, relative=False, rel_q=(0.2, 0.4)):
     """Cross-sectional pieces (industry momentum, regime) on the whole universe, then the
     per-stock features in ticker chunks so memory stays bounded (~50 wide frames per chunk)."""
     C, H, L, V = stocks["Close"], stocks["High"], stocks["Low"], stocks["Volume"]
@@ -52,7 +52,7 @@ def build(stocks: dict, market: dict, ev: pd.DataFrame, ins: pd.DataFrame, sic: 
     if relative:
         # any-era filters (canon C10: 1976-2025): split-adjusted prices and 1980s dollar volumes make fixed
         # thresholds meaningless, so keep names above the day's 20th price and 40th dollar-volume percentile
-        tradable = (C.rank(axis=1, pct=True) >= 0.2) & (dv20.rank(axis=1, pct=True) >= 0.4) & C.notna()
+        tradable = (C.rank(axis=1, pct=True) >= rel_q[0]) & (dv20.rank(axis=1, pct=True) >= rel_q[1]) & C.notna()
     else:
         tradable = (C >= MIN_PRICE) & (dv20 >= MIN_DOLLAR_VOL) & C.notna()
     ever = tradable.loc[pd.Timestamp(start) - pd.Timedelta(days=10):].any()

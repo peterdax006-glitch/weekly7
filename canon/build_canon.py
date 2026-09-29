@@ -54,6 +54,15 @@ DIRECTIVES = [
      "this result is not nearly volatile enough we want to be seeing 200%-200% returns over a year"),
     ("C23", "2026-09-28", "Weekly 10 movers: 95% then direction, exit, stop; +10% 8x as often as -10%",
      "okay what we want to do seperately while also doing all this, is every week we want it to find 10 stocks that it thinks will move 10% up or down from its current position in the next week, it should give a percentage of how often its correct, you should adjust it until its correct 95% of the time, once that happens it should look for patterns to tell which ones are going to go up or down, exaclty when to sell, and exactly where to have a stop loss, the goal is to get postive 10% 8 times more than a negative 10% and you should play with it until you can consistently achieve that no matter the year, without cheating, make sure to do everything in the order i said and dont skip steps"),
+    ("C24", "2026-09-28", "Selection and direction accuracy, not more aggression; 80% confidence gate; 8/10 positive, losers capped",
+     "if you ever fall short of a 700% year that doesnt neccessarily mean we arent being aggreeisve enough, it means we arent correctly finding the highly volatile stocks, and then picking out which ones will be positive and which will be negative at a high success rate, if there are external factors you cant controll that cause success chances to be below 80% even with all your tools of checking indicators, such as fda results, no indicator can predict those, and if the chances of its success is below 80% with your tools theres nothing you can do so dont bet on it because the tools you have at your disposal wont accurately enough help you to know if it will be a successful stock, so you need to find 10 stocks that you think will be more volatile that 10% and you need to bet 8/10 will be positive 10% and you need to ensure the remaining to never loose more than 20% and hopefully dont even loose 15 or even 10%"),
+    ("C25", "2026-09-28", "Run many experiments; use all the memory all the time",
+     "you should be running many experiments at a time\n"
+     "i want youto be utilizing all the memory all the time"),
+    ("C26", "2026-09-28", "Free memory between projects",
+     "when one project ends close everything you can to clear up memory then start a new one"),
+    ("C27", "2026-09-28", "Per-stock-type learned indicators and triggers (after picking the right stocks)",
+     "the indicators you should be watching and the triggers should be custom to the stock you should have a learning system on what is the most trusting for what type of stock and not just based on the sector, but the size, the current cultural trend ect for it, it should be very detailed, but first you need to ensure you are watching the right stocks before you get to invested in indicators, but if useful and if patterens helps you can also use indicators for helping you find what stocks to pick"),
 ]
 
 def sha(t): return hashlib.sha256(t.encode("utf-8")).hexdigest()

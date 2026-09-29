@@ -37,6 +37,7 @@ for c in cyc[shard::n]:
     for k, v in tr.warm_snaps.items():
         v.to_parquet(a / f"warm_{k}.parquet")
     feed._stocks["Close"].loc[feed.first_live:].to_parquet(a / "closes_v2.parquet")   # prices on today's data
+    feed.sic.to_parquet(a / "sic.parquet")                                            # sector map in the same code names
     stocks, _ = feed.history()
     first = min(tr.warm_snaps) if tr.warm_snaps else None
     if first:
