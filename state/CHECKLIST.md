@@ -26,7 +26,7 @@ Nothing is marked `[x]` merely because code exists. Work continues until every b
 - [ ] A10b Rerun anti-memorisation test
 - [~] A11 Improve-or-discard lifecycle (built; unit tests pending)
 - [~] A12 Additional data (FRED done; sector ETFs, backup price source and delisted history pending)
-- [~] A13 Planted-pattern calibration. 8 seeds after the evidence-ordered gate fix: recovery strong/weak/negative 100%, regime-only 75%; 1 false active in 8 runs (~5 active/run). Before the fix: 75/75/50/25%, 38.6 active/run. OPEN (logged, foundation first): P(real) 0.8-0.9 bin only 53% truly real; the 0.9-1.0 bin is 96%. Evidence: data/planted_cal2.log, state/research/algorithm/planted_calibration.json
+- [!] A13 Planted-pattern calibration (Phase 25 library engine/planted.py, 64 runs, 8 scenarios): NOT VALIDATED. Pass: strong/weak/negative/pair detection 100%, hallucinated 0% admitted, zero 0%, noise-only 0.4 active/run, P(real)>0.9 bin 86% truly real. FAIL: FDR 15.9% (<=10%), decaying held 25% (<=20%). Also: effect sizes recovered at ~25% of truth (shrinkage), regime found 50% and never rescoped, unless candidate untested in 6/8 runs (max_unless reach). Evidence: state/research/algorithm/planted/report.md
 
 ## Find volatility
 - [~] V1 95% mover target where enough candidates exist (84.7% average; 95%+ in 5–6 of 13; ~97% at the 92% bar on 5–6 picks a week)
