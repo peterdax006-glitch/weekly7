@@ -36,7 +36,7 @@
    "validation_result": null,
    "last_run": "2026-09-29T09:26:00",
    "code_hash": "a1332647a44b1945",
-   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S01). knowledge.py: typed KnowledgeObject (all section-5 fields), immutable versions, JSON round-trip (12-digit), schema validation, stable_hash ids, code/data/config provenance; adapters from PatternRecord/pattern rows/lessons."
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S01). knowledge.py: typed KnowledgeObject (all section-5 fields), immutable versions, JSON round-trip (12-digit), schema validation, stable_hash ids, code/data/config provenance; adapters from PatternRecord/pattern rows/lessons. | earlier (mapping): [partial][duplicated] Typed PatternRecord (validated, hashed) covers patterns only; ~15 of ~60 contract fields. Three other record types hold knowledge (lessons.Lesson, memory.Lesson, pattern_bank dicts). No KnowledgeObject."
   },
   {
    "id": "A02",
@@ -59,7 +59,7 @@
    "validation_result": null,
    "last_run": "2026-09-29T09:26:01",
    "code_hash": "a1332647a44b1945",
-   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S01). epistemic.py: enforced state definitions + legal transitions, scoped states (historical/context/current), maps the 4 existing vocabularies; confidence/reliability dimensions in core.Confidence."
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S01). epistemic.py: enforced state definitions + legal transitions, scoped states (historical/context/current), maps the 4 existing vocabularies; confidence/reliability dimensions in core.Confidence. | earlier (mapping): [missing][contradictory] No epistemic states. Three unrelated vocabularies exist: pattern_lifecycle.STATES, pattern_memory modes (universal/local/disregarded), pattern_reliability.VERDICTS."
   },
   {
    "id": "A03",
@@ -135,7 +135,7 @@
    "validation_result": null,
    "last_run": "2026-09-29T09:26:00",
    "code_hash": "a1332647a44b1945",
-   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S01). knowledge.py: typed KnowledgeObject (all section-5 fields), immutable versions, JSON round-trip (12-digit), schema validation, stable_hash ids, code/data/config provenance; adapters from PatternRecord/pattern rows/lessons."
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S01). knowledge.py: typed KnowledgeObject (all section-5 fields), immutable versions, JSON round-trip (12-digit), schema validation, stable_hash ids, code/data/config provenance; adapters from PatternRecord/pattern rows/lessons. | earlier (mapping): IMPLEMENTED — NOT VALIDATED. [unsafe] Schema defined, but registry_audit ok=false (51 of 53 records missing git/canon/config/seed fields). test_integrity_fails_closed_on_tampered_bible FAILS now: its fake repo lacks SELF_LEARNING_CONTRACT.md that verify_integrity started requiring with C62."
   },
   {
    "id": "A06",
@@ -165,7 +165,7 @@
    "validation_result": null,
    "last_run": "2026-09-29T09:26:00",
    "code_hash": "a1332647a44b1945",
-   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S01). knowledge.py: typed KnowledgeObject (all section-5 fields), immutable versions, JSON round-trip (12-digit), schema validation, stable_hash ids, code/data/config provenance; adapters from PatternRecord/pattern rows/lessons."
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S01). knowledge.py: typed KnowledgeObject (all section-5 fields), immutable versions, JSON round-trip (12-digit), schema validation, stable_hash ids, code/data/config provenance; adapters from PatternRecord/pattern rows/lessons. | earlier (mapping): [partial] Versioned trust tables, content-addressed bank commits, basis lineage. No knowledge-object versioning."
   },
   {
    "id": "A07",
@@ -190,7 +190,7 @@
    "validation_result": null,
    "last_run": "2026-09-29T09:26:01",
    "code_hash": "a1332647a44b1945",
-   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S01). epistemic.py: enforced state definitions + legal transitions, scoped states (historical/context/current), maps the 4 existing vocabularies; confidence/reliability dimensions in core.Confidence."
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S01). epistemic.py: enforced state definitions + legal transitions, scoped states (historical/context/current), maps the 4 existing vocabularies; confidence/reliability dimensions in core.Confidence. | earlier (mapping): IMPLEMENTED — NOT VALIDATED. [partial] Bible Phase-4 states with enforced transitions; not the contract's ACTIVE/DEGRADED/DORMANT/RETIRED or birth..retirement phases."
   },
   {
    "id": "A08",
@@ -218,7 +218,7 @@
    "validation_result": null,
    "last_run": "2026-09-29T09:26:01",
    "code_hash": "a1332647a44b1945",
-   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S01). epistemic.py: enforced state definitions + legal transitions, scoped states (historical/context/current), maps the 4 existing vocabularies; confidence/reliability dimensions in core.Confidence."
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S01). epistemic.py: enforced state definitions + legal transitions, scoped states (historical/context/current), maps the 4 existing vocabularies; confidence/reliability dimensions in core.Confidence. | earlier (mapping): [partial] truth confidence = P(real) (calibrated on planted truth); current reliability = P(hold). transfer_confidence, context_confidence, failure_risk missing."
   },
   {
    "id": "A09",
@@ -244,7 +244,7 @@
    "validation_result": null,
    "last_run": "2026-09-29T09:26:01",
    "code_hash": "a1332647a44b1945",
-   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S01). epistemic.py: enforced state definitions + legal transitions, scoped states (historical/context/current), maps the 4 existing vocabularies; confidence/reliability dimensions in core.Confidence."
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S01). epistemic.py: enforced state definitions + legal transitions, scoped states (historical/context/current), maps the 4 existing vocabularies; confidence/reliability dimensions in core.Confidence. | earlier (mapping): [partial][under-tested] One reliability dimension; pattern_reliability has no test file and is being live-edited."
   },
   {
    "id": "A10",
@@ -274,7 +274,7 @@
    "validation_result": null,
    "last_run": "2026-09-29T09:26:00",
    "code_hash": "a1332647a44b1945",
-   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S01). knowledge.py: typed KnowledgeObject (all section-5 fields), immutable versions, JSON round-trip (12-digit), schema validation, stable_hash ids, code/data/config provenance; adapters from PatternRecord/pattern rows/lessons."
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S01). knowledge.py: typed KnowledgeObject (all section-5 fields), immutable versions, JSON round-trip (12-digit), schema validation, stable_hash ids, code/data/config provenance; adapters from PatternRecord/pattern rows/lessons. | earlier (mapping): [partial] JSON round-trips exist per store; none for a knowledge object."
   },
   {
    "id": "A11",
@@ -302,14 +302,14 @@
    "validation_result": null,
    "last_run": "2026-09-29T09:26:00",
    "code_hash": "a1332647a44b1945",
-   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S01). knowledge.py: typed KnowledgeObject (all section-5 fields), immutable versions, JSON round-trip (12-digit), schema validation, stable_hash ids, code/data/config provenance; adapters from PatternRecord/pattern rows/lessons."
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S01). knowledge.py: typed KnowledgeObject (all section-5 fields), immutable versions, JSON round-trip (12-digit), schema validation, stable_hash ids, code/data/config provenance; adapters from PatternRecord/pattern rows/lessons. | earlier (mapping): [partial] Validation per store; no knowledge schema."
   },
   {
    "id": "A12",
    "phase": "A FOUNDATION",
    "description": "Add deterministic hashing.",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "VALIDATED",
    "code_paths": [
     "engine/learning/core.py",
     "engine/learning/knowledge.py",
@@ -334,7 +334,7 @@
    "validation_result": null,
    "last_run": "2026-09-29T09:26:00",
    "code_hash": "a1332647a44b1945",
-   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S01). knowledge.py: typed KnowledgeObject (all section-5 fields), immutable versions, JSON round-trip (12-digit), schema validation, stable_hash ids, code/data/config provenance; adapters from PatternRecord/pattern rows/lessons."
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S01). knowledge.py: typed KnowledgeObject (all section-5 fields), immutable versions, JSON round-trip (12-digit), schema validation, stable_hash ids, code/data/config provenance; adapters from PatternRecord/pattern rows/lessons. | earlier (mapping): [already implemented] Order-independent canonical hashing, tested for determinism and tamper detection (those files passed in the audit run). Must be reused, not re-written, by the knowledge layer."
   },
   {
    "id": "A13",
@@ -362,7 +362,7 @@
    "validation_result": null,
    "last_run": "2026-09-29T09:26:00",
    "code_hash": "a1332647a44b1945",
-   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S01). knowledge.py: typed KnowledgeObject (all section-5 fields), immutable versions, JSON round-trip (12-digit), schema validation, stable_hash ids, code/data/config provenance; adapters from PatternRecord/pattern rows/lessons."
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S01). knowledge.py: typed KnowledgeObject (all section-5 fields), immutable versions, JSON round-trip (12-digit), schema validation, stable_hash ids, code/data/config provenance; adapters from PatternRecord/pattern rows/lessons. | earlier (mapping): IMPLEMENTED — NOT VALIDATED. [unsafe] Works where called; not applied to most experiment records; one provenance test failing (see A05)."
   },
   {
    "id": "B01",
@@ -586,7 +586,7 @@
    "validation_result": null,
    "last_run": "2026-09-29T09:25:26",
    "code_hash": "a1332647a44b1945",
-   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S08). retirement.py: ACTIVE/DEGRADED/DORMANT/RETIRED ledger, dormant never influences live, evidence-gated recovery (attempt_recovery), maps pattern_lifecycle.STATES."
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S08). retirement.py: ACTIVE/DEGRADED/DORMANT/RETIRED ledger, dormant never influences live, evidence-gated recovery (attempt_recovery), maps pattern_lifecycle.STATES. | earlier (mapping): [missing] pattern_memory requalifies silently; recoveries are not recorded."
   },
   {
    "id": "B12",
@@ -854,7 +854,7 @@
    "validation_result": null,
    "last_run": "2026-09-29T09:25:26",
    "code_hash": "a1332647a44b1945",
-   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S08). surprise.py: expected vs actual, magnitude/direction/persistence, cluster half-life, research-priority feed, failure hand-off."
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S08). surprise.py: expected vs actual, magnitude/direction/persistence, cluster half-life, research-priority feed, failure hand-off. | earlier (mapping): [under-depth] FP/FN classification and z-score shocks; no surprise magnitude/direction/persistence."
   },
   {
    "id": "C08",
@@ -3153,7 +3153,7 @@
    "validation_result": null,
    "last_run": "2026-09-29T09:25:26",
    "code_hash": "a1332647a44b1945",
-   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S08). retirement.py: ACTIVE/DEGRADED/DORMANT/RETIRED ledger, dormant never influences live, evidence-gated recovery (attempt_recovery), maps pattern_lifecycle.STATES."
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S08). retirement.py: ACTIVE/DEGRADED/DORMANT/RETIRED ledger, dormant never influences live, evidence-gated recovery (attempt_recovery), maps pattern_lifecycle.STATES. | earlier (mapping): IMPLEMENTED — NOT VALIDATED. Retire-not-delete holds for patterns; no knowledge-level retirement gate."
   },
   {
    "id": "J06",
@@ -3178,7 +3178,7 @@
    "validation_result": null,
    "last_run": "2026-09-29T09:25:26",
    "code_hash": "a1332647a44b1945",
-   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S08). retirement.py: ACTIVE/DEGRADED/DORMANT/RETIRED ledger, dormant never influences live, evidence-gated recovery (attempt_recovery), maps pattern_lifecycle.STATES."
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S08). retirement.py: ACTIVE/DEGRADED/DORMANT/RETIRED ledger, dormant never influences live, evidence-gated recovery (attempt_recovery), maps pattern_lifecycle.STATES. | earlier (mapping): [partial] Automatic requalification; no explicit evidence threshold for recovery."
   },
   {
    "id": "J07",
@@ -3222,7 +3222,7 @@
    "validation_result": null,
    "last_run": "2026-09-29T09:25:26",
    "code_hash": "a1332647a44b1945",
-   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S08). calibration.py wraps pattern_reliability.brier/ece + pattern_stats.calibration_table; drift, per-context hierarchical calibration, walk-forward recalibration, influence reduction."
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S08). calibration.py wraps pattern_reliability.brier/ece + pattern_stats.calibration_table; drift, per-context hierarchical calibration, walk-forward recalibration, influence reduction. | earlier (mapping): [partial] Calibration measured; no drift monitor or influence reduction."
   },
   {
    "id": "J09",
@@ -3258,7 +3258,7 @@
    "validation_result": null,
    "last_run": "2026-09-29T09:25:26",
    "code_hash": "a1332647a44b1945",
-   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S08). surprise.py: expected vs actual, magnitude/direction/persistence, cluster half-life, research-priority feed, failure hand-off."
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S08). surprise.py: expected vs actual, magnitude/direction/persistence, cluster half-life, research-priority feed, failure hand-off. | earlier (mapping): [missing] run_report.memory_shock_events is a shock detector, not a surprise monitor."
   },
   {
    "id": "J11",
@@ -4189,7 +4189,7 @@
     "engine/pattern_identity.py (444)"
    ],
    "status": "IMPLEMENTED",
-   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S01)."
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S01). | earlier (mapping): UNDER by 456 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: typed, validated, hashed PatternRecord/Expression/Scope/Window exist for PATTERNS only; no KnowledgeObject (no contexts/anti_contexts, 5 confidence dims, relations, decision_effect, promotion state). Parallel record types: lessons.Lesson, memory.Lesson, pattern_bank dict records, pattern_memory observations."
   },
   {
    "section": "Epistemic states",
@@ -4199,7 +4199,7 @@
     "engine/learning/epistemic.py"
    ],
    "status": "IMPLEMENTED",
-   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S01)."
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S01). | earlier (mapping): UNDER by 450 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). missing: no OBSERVED/HYPOTHESIS/SUPPORTED/CONDITIONAL/DEGRADED/CONTRADICTED/GATED/RETIRED/UNKNOWN state. Three other vocabularies exist (pattern_lifecycle.STATES, pattern_memory modes, pattern_reliability.VERDICTS) - contradictory; the new layer must map them, not add a fourth."
   },
   {
    "section": "Observation/interpretation",
@@ -4209,7 +4209,7 @@
     "engine/learning/interpretation.py"
    ],
    "status": "IMPLEMENTED",
-   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S01). H1-H6 likelihood table is a design prior (unfitted)."
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S01). H1-H6 likelihood table is a design prior (unfitted). | earlier (mapping): UNDER by 600 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). missing: observation, statistical relationship, hypothesis, mechanism and decision usefulness are not stored separately; no competing-explanation set (H1-H6). pattern_stats P(real)/P(hallucinated)/P(coincidence) is the only split and is counted under Real/useful/current."
   },
   {
    "section": "Context modeling",
@@ -4275,7 +4275,7 @@
     "engine/pattern_bank.py (384)"
    ],
    "status": "IMPLEMENTED",
-   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S08). ruler count of engine/learning/retirement.py; older partial code listed for reference."
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S08). ruler count of engine/learning/retirement.py; older partial code listed for reference. | earlier (mapping): UNDER by 66 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: bank never deletes (discarded kept, decayed prior), pattern_memory requalifies automatically. No ACTIVE/DEGRADED/DORMANT/RETIRED states and no evidence-gated recovery rule."
   },
   {
    "section": "Time-aware memory",
@@ -4288,7 +4288,7 @@
     "engine/pattern_memory.py::_pool,_summary,periods_of,_period_of (95)"
    ],
    "status": "IMPLEMENTED",
-   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S08)."
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S08). | earlier (mapping): UNDER by 568 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: universal/local/disregarded relevance, fixed time kernels (tau_time_years grid), a decay fit in heavy_tests. No learned temporal class (PERSISTENT..SEASONAL), no expected-lifetime estimate with uncertainty."
   },
   {
    "section": "Situation representation",
@@ -4581,7 +4581,7 @@
     "engine/learning/unknowns.py"
    ],
    "status": "IMPLEMENTED",
-   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S01)."
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S01). | earlier (mapping): UNDER by 271 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: direction abstention gates; pattern_reliability OPEN verdict. No UNKNOWN/INSUFFICIENT_DATA/CONFLICTED/UNTESTED states with ABSTAIN/COLLECT/RUN EXPERIMENT/USE GENERAL RULE actions."
   },
   {
    "section": "Knowledge→decision contract",
@@ -4591,7 +4591,7 @@
     "engine/learning/decision_contract.py"
    ],
    "status": "IMPLEMENTED",
-   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S01)."
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S01). | earlier (mapping): UNDER by 450 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). missing: only pattern_lifecycle.TRADEABLE and the LiveGate multiplier touch decisions; no per-knowledge 'what decision does this change'."
   },
   {
    "section": "Champion/challenger",
@@ -4685,7 +4685,7 @@
     "engine/run_report.py::memory_shock_events (28)"
    ],
    "status": "IMPLEMENTED",
-   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S08)."
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S08). | earlier (mapping): UNDER by 472 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). under-depth: z-score shock events on a score series; no expected-vs-actual surprise with magnitude/direction/persistence feeding research priority."
   },
   {
    "section": "Disagreement engine",
@@ -4707,7 +4707,7 @@
     "engine/run_report.py::calibration (11)"
    ],
    "status": "IMPLEMENTED",
-   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S08)."
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S08). | earlier (mapping): UNDER by 581 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: Brier/ECE/reliability tables in several places (+ direction_calib, counted under unknown handling). No confidence-drift tracking, no context-specific calibration, no influence reduction when overconfident."
   },
   {
    "section": "Learning firewalls",

@@ -40,6 +40,7 @@ def main():
     ap.add_argument("--evidence", nargs="*", default=[])
     ap.add_argument("--note")
     ap.add_argument("--validation")
+    ap.add_argument("--downgrade", action="store_true")
     a = ap.parse_args()
     d = load()
     if a.kind == "summary":
@@ -65,15 +66,20 @@ def main():
         sys.exit(f"unknown keys: {missing}")
     for k in a.keys:
         r = rows[k]
-        if a.status:
-            r["status"] = a.status
+        if a.status and r.get("status") in ("VALIDATED", "FAILED") and a.status != r["status"] and not a.downgrade:
+            print(f"{k}: kept {r['status']} (earned by evidence; pass --downgrade with a reason in --note to change it)")
+            a_status, r_status = None, r["status"]
+        else:
+            a_status = a.status
+        if a_status:
+            r["status"] = a_status
         r["code_paths"] = merge(r.get("code_paths"), a.code)
         if "tests" in r or a.kind == "item":
             r["tests"] = merge(r.get("tests"), a.tests)
         if "evidence" in r or a.kind == "item":
             r["evidence"] = merge(r.get("evidence"), a.evidence)
         if a.note:
-            r["notes"] = a.note
+            r["notes"] = a.note if not r.get("notes") or a.note in r["notes"] else a.note + " | earlier: " + r["notes"]
         if a.validation:
             r["validation_result"] = a.validation
         if a.kind == "budget" and r["code_paths"]:
