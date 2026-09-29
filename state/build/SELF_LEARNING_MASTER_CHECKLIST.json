@@ -753,18 +753,20 @@
    "status": "IN_PROGRESS",
    "code_paths": [
     "engine/adaptive.py::Session",
+    "engine/learning/learner.py",
     "engine/livesim.py"
    ],
    "tests": [
+    "tests/test_learning_learner.py",
     "tests/test_session.py"
    ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial] Decisions are recorded by the blind session; no OBSERVE stage of a learning loop."
+   "last_run": "2026-09-29T10:52:20",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (S12): LegitimateLearner runs all 19 section-4 stages calling the real modules, stage order enforced, firewall at OBSERVE/RETRIEVE/OBSERVE_OUTCOME, frozen (L02). Mini acceptance (planted, seed 3): builder-reported year-B edge +0.012, t +2.43 vs shuffled control 0 picks - NOT yet re-derived (S17b adds a recorded runner). | earlier: [partial] Decisions are recorded by the blind session; no OBSERVE stage of a learning loop."
   },
   {
    "id": "C02",
@@ -774,6 +776,7 @@
    "status": "IMPLEMENTED",
    "code_paths": [
     "engine/learning/context.py",
+    "engine/learning/learner.py",
     "engine/learning/retrieval.py",
     "engine/learning/similarity.py",
     "engine/learning/situation.py",
@@ -781,6 +784,7 @@
     "engine/memory.py::context_of"
    ],
    "tests": [
+    "tests/test_learning_learner.py",
     "tests/test_learning_retrieval.py",
     "tests/test_learning_situation.py",
     "tests/test_memory.py"
@@ -789,9 +793,9 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": "2026-09-29T09:43:59",
+   "last_run": "2026-09-29T10:52:20",
    "code_hash": "6c44a0173dc73530",
-   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S04). identity-free situations from decision-time data; 10-component explained similarity; retrieval ranked on 10 factors with explanations; ABSTAIN unless walk-forward skill PROVEN (old episodic retrieval skill was -0.16). | earlier: [under-depth] See A04."
+   "notes": "IMPLEMENTED — NOT VALIDATED (S12): LegitimateLearner runs all 19 section-4 stages calling the real modules, stage order enforced, firewall at OBSERVE/RETRIEVE/OBSERVE_OUTCOME, frozen (L02). Mini acceptance (planted, seed 3): builder-reported year-B edge +0.012, t +2.43 vs shuffled control 0 picks - NOT yet re-derived (S17b adds a recorded runner). | earlier: IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S04). identity-free situations from decision-time data; 10-component explained similarity; retrieval ranked on 10 factors with explanations; ABSTAIN unless walk-forward skill PROVEN (old episodic retrieval skill was -0.16). | earlier: [under-depth] See A04."
   },
   {
    "id": "C03",
@@ -802,6 +806,7 @@
    "code_paths": [
     "engine/analogs*.py",
     "engine/learning/context.py",
+    "engine/learning/learner.py",
     "engine/learning/retrieval.py",
     "engine/learning/similarity.py",
     "engine/learning/situation.py",
@@ -810,6 +815,7 @@
    ],
    "tests": [
     "tests/test_analogs_ext.py",
+    "tests/test_learning_learner.py",
     "tests/test_learning_retrieval.py",
     "tests/test_learning_situation.py",
     "tests/test_memory.py",
@@ -821,9 +827,9 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": "2026-09-29T09:43:59",
+   "last_run": "2026-09-29T10:52:20",
    "code_hash": "6c44a0173dc73530",
-   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S04). identity-free situations from decision-time data; 10-component explained similarity; retrieval ranked on 10 factors with explanations; ABSTAIN unless walk-forward skill PROVEN (old episodic retrieval skill was -0.16). | earlier: IMPLEMENTED — FAILED VALIDATION. Retrieval exists; real walk-forward skill -0.16 (CI -0.20..-0.12), IC -0.029 (memory_adapter/results.json)."
+   "notes": "IMPLEMENTED — NOT VALIDATED (S12): LegitimateLearner runs all 19 section-4 stages calling the real modules, stage order enforced, firewall at OBSERVE/RETRIEVE/OBSERVE_OUTCOME, frozen (L02). Mini acceptance (planted, seed 3): builder-reported year-B edge +0.012, t +2.43 vs shuffled control 0 picks - NOT yet re-derived (S17b adds a recorded runner). | earlier: IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S04). identity-free situations from decision-time data; 10-component explained similarity; retrieval ranked on 10 factors with explanations; ABSTAIN unless walk-forward skill PROVEN (old episodic retrieval skill was -0.16). | earlier: IMPLEMENTED — FAILED VALIDATION. Retrieval exists; real walk-forward skill -0.16 (CI -0.20..-0.12), IC -0.029 (memory_adapter/results.json)."
   },
   {
    "id": "C04",
@@ -832,20 +838,22 @@
    "owner": "Claude",
    "status": "IN_PROGRESS",
    "code_paths": [
-    "engine/memory.py::classify_error",
-    "engine/direction.py"
+    "engine/direction.py",
+    "engine/learning/learner.py",
+    "engine/memory.py::classify_error"
    ],
    "tests": [
-    "tests/test_memory.py",
-    "tests/test_direction.py"
+    "tests/test_direction.py",
+    "tests/test_learning_learner.py",
+    "tests/test_memory.py"
    ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial] Expected outcome used only after the fact to classify errors; not recorded before the decision."
+   "last_run": "2026-09-29T10:52:20",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (S12): LegitimateLearner runs all 19 section-4 stages calling the real modules, stage order enforced, firewall at OBSERVE/RETRIEVE/OBSERVE_OUTCOME, frozen (L02). Mini acceptance (planted, seed 3): builder-reported year-B edge +0.012, t +2.43 vs shuffled control 0 picks - NOT yet re-derived (S17b adds a recorded runner). | earlier: [partial] Expected outcome used only after the fact to classify errors; not recorded before the decision."
   },
   {
    "id": "C05",
@@ -855,20 +863,22 @@
    "status": "IN_PROGRESS",
    "code_paths": [
     "engine/adaptive.py::Session",
-    "engine/learning_delta.py::Run",
-    "engine/fill_audit.py"
+    "engine/fill_audit.py",
+    "engine/learning/learner.py",
+    "engine/learning_delta.py::Run"
    ],
    "tests": [
-    "tests/test_session.py",
-    "tests/test_fill_audit.py"
+    "tests/test_fill_audit.py",
+    "tests/test_learning_learner.py",
+    "tests/test_session.py"
    ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial] Picks and fills captured; confidence, prediction, retrieved memories, abstentions, uncertainty and explanation (section 3 BEFORE record) are not."
+   "last_run": "2026-09-29T10:52:20",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (S12): LegitimateLearner runs all 19 section-4 stages calling the real modules, stage order enforced, firewall at OBSERVE/RETRIEVE/OBSERVE_OUTCOME, frozen (L02). Mini acceptance (planted, seed 3): builder-reported year-B edge +0.012, t +2.43 vs shuffled control 0 picks - NOT yet re-derived (S17b adds a recorded runner). | earlier: [partial] Picks and fills captured; confidence, prediction, retrieved memories, abstentions, uncertainty and explanation (section 3 BEFORE record) are not."
   },
   {
    "id": "C06",
@@ -877,13 +887,15 @@
    "owner": "Claude",
    "status": "IMPLEMENTED",
    "code_paths": [
-    "engine/pattern_memory.py (mature_date)",
+    "engine/learning/learner.py",
+    "engine/learning_delta.py::run_metrics",
     "engine/lessons.py::post_mortem",
-    "engine/learning_delta.py::run_metrics"
+    "engine/pattern_memory.py (mature_date)"
    ],
    "tests": [
-    "tests/test_pattern_memory.py",
-    "tests/test_lessons.py"
+    "tests/test_learning_learner.py",
+    "tests/test_lessons.py",
+    "tests/test_pattern_memory.py"
    ],
    "evidence": [
     "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)"
@@ -891,9 +903,9 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "IMPLEMENTED — NOT VALIDATED. Outcomes captured only after labels mature."
+   "last_run": "2026-09-29T10:52:20",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (S12): LegitimateLearner runs all 19 section-4 stages calling the real modules, stage order enforced, firewall at OBSERVE/RETRIEVE/OBSERVE_OUTCOME, frozen (L02). Mini acceptance (planted, seed 3): builder-reported year-B edge +0.012, t +2.43 vs shuffled control 0 picks - NOT yet re-derived (S17b adds a recorded runner). | earlier: IMPLEMENTED — NOT VALIDATED. Outcomes captured only after labels mature."
   },
   {
    "id": "C07",
@@ -902,11 +914,13 @@
    "owner": "Claude",
    "status": "IMPLEMENTED",
    "code_paths": [
+    "engine/learning/learner.py",
     "engine/learning/surprise.py",
     "engine/memory.py::classify_error",
     "engine/run_report.py::memory_shock_events"
    ],
    "tests": [
+    "tests/test_learning_learner.py",
     "tests/test_learning_temporal.py",
     "tests/test_run_report.py"
    ],
@@ -914,9 +928,9 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": "2026-09-29T09:25:26",
-   "code_hash": "a1332647a44b1945",
-   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S08). surprise.py: expected vs actual, magnitude/direction/persistence, cluster half-life, research-priority feed, failure hand-off. | earlier (mapping): [under-depth] FP/FN classification and z-score shocks; no surprise magnitude/direction/persistence."
+   "last_run": "2026-09-29T10:52:20",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (S12): LegitimateLearner runs all 19 section-4 stages calling the real modules, stage order enforced, firewall at OBSERVE/RETRIEVE/OBSERVE_OUTCOME, frozen (L02). Mini acceptance (planted, seed 3): builder-reported year-B edge +0.012, t +2.43 vs shuffled control 0 picks - NOT yet re-derived (S17b adds a recorded runner). | earlier: IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S08). surprise.py: expected vs actual, magnitude/direction/persistence, cluster half-life, research-priority feed, failure hand-off. | earlier (mapping): [under-depth] FP/FN classification and z-score shocks; no surprise magnitude/direction/persistence."
   },
   {
    "id": "C08",
@@ -927,20 +941,22 @@
    "code_paths": [
     "engine/ablation.py",
     "engine/learning/credit.py",
+    "engine/learning/learner.py",
     "engine/memory_diagnostics.py::factor_attribution,factor_ablation"
    ],
    "tests": [
     "tests/test_ablation.py",
     "tests/test_learning_credit.py",
+    "tests/test_learning_learner.py",
     "tests/test_memory_ext.py"
    ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": "2026-09-29T09:34:01",
+   "last_run": "2026-09-29T10:52:20",
    "code_hash": "6c44a0173dc73530",
-   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S06). credit.py: ablation.ablate + Shapley with interactions and cluster-bootstrap stability; LOO alone hides duplicates, Shapley shares them. | earlier: [partial] Component ablation, not per-decision credit."
+   "notes": "IMPLEMENTED — NOT VALIDATED (S12): LegitimateLearner runs all 19 section-4 stages calling the real modules, stage order enforced, firewall at OBSERVE/RETRIEVE/OBSERVE_OUTCOME, frozen (L02). Mini acceptance (planted, seed 3): builder-reported year-B edge +0.012, t +2.43 vs shuffled control 0 picks - NOT yet re-derived (S17b adds a recorded runner). | earlier: IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S06). credit.py: ablation.ablate + Shapley with interactions and cluster-bootstrap stability; LOO alone hides duplicates, Shapley shares them. | earlier: [partial] Component ablation, not per-decision credit."
   },
   {
    "id": "C09",
@@ -949,11 +965,13 @@
    "owner": "Claude",
    "status": "IMPLEMENTED",
    "code_paths": [
+    "engine/learning/learner.py",
     "engine/learning/separation.py",
     "engine/lessons.py::classify_kind,_counterfactual"
    ],
    "tests": [
     "tests/test_learning_failure.py",
+    "tests/test_learning_learner.py",
     "tests/test_lessons.py"
    ],
    "evidence": [
@@ -962,9 +980,9 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": "2026-09-29T09:30:30",
-   "code_hash": "42a303dfffa2e182",
-   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S05). separation.py: additive pnl decomposition selection/direction/timing/exit/risk, blame + lesson routing. | earlier: [partial] 5 lesson kinds with a counterfactual; learned lessons hurt on the real archive (D15)."
+   "last_run": "2026-09-29T10:52:20",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (S12): LegitimateLearner runs all 19 section-4 stages calling the real modules, stage order enforced, firewall at OBSERVE/RETRIEVE/OBSERVE_OUTCOME, frozen (L02). Mini acceptance (planted, seed 3): builder-reported year-B edge +0.012, t +2.43 vs shuffled control 0 picks - NOT yet re-derived (S17b adds a recorded runner). | earlier: IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S05). separation.py: additive pnl decomposition selection/direction/timing/exit/risk, blame + lesson routing. | earlier: [partial] 5 lesson kinds with a counterfactual; learned lessons hurt on the real archive (D15)."
   },
   {
    "id": "C10",
@@ -974,11 +992,13 @@
    "status": "IMPLEMENTED",
    "code_paths": [
     "engine/learning/belief.py",
+    "engine/learning/learner.py",
     "engine/pattern_stats.py::eb_shrink",
     "engine/trust.py::TrustTable"
    ],
    "tests": [
     "tests/test_learning_belief.py",
+    "tests/test_learning_learner.py",
     "tests/test_pattern_stats.py",
     "tests/test_trust.py"
    ],
@@ -986,9 +1006,9 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": "2026-09-29T09:33:59",
+   "last_run": "2026-09-29T10:52:20",
    "code_hash": "6c44a0173dc73530",
-   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S07). belief.py: prior/evidence strength/posterior/uncertainty/effective n/contradictions; never overwrite."
+   "notes": "IMPLEMENTED — NOT VALIDATED (S12): LegitimateLearner runs all 19 section-4 stages calling the real modules, stage order enforced, firewall at OBSERVE/RETRIEVE/OBSERVE_OUTCOME, frozen (L02). Mini acceptance (planted, seed 3): builder-reported year-B edge +0.012, t +2.43 vs shuffled control 0 picks - NOT yet re-derived (S17b adds a recorded runner). | earlier: IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S07). belief.py: prior/evidence strength/posterior/uncertainty/effective n/contradictions; never overwrite."
   },
   {
    "id": "C11",
@@ -997,19 +1017,21 @@
    "owner": "Claude",
    "status": "IN_PROGRESS",
    "code_paths": [
+    "engine/learning/learner.py",
     "engine/pattern_reliability.py::walk_forward,health_monitor",
     "engine/trust_store.py::drift"
    ],
    "tests": [
+    "tests/test_learning_learner.py",
     "tests/test_trust_store.py"
    ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial][under-tested] pattern_reliability live-edited by builders; no tests yet."
+   "last_run": "2026-09-29T10:52:20",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (S12): LegitimateLearner runs all 19 section-4 stages calling the real modules, stage order enforced, firewall at OBSERVE/RETRIEVE/OBSERVE_OUTCOME, frozen (L02). Mini acceptance (planted, seed 3): builder-reported year-B edge +0.012, t +2.43 vs shuffled control 0 picks - NOT yet re-derived (S17b adds a recorded runner). | earlier: [partial][under-tested] pattern_reliability live-edited by builders; no tests yet."
   },
   {
    "id": "C12",
@@ -1021,6 +1043,7 @@
     "engine/candidates.py::context_pair_candidates",
     "engine/learning/boundary.py",
     "engine/learning/competition.py",
+    "engine/learning/learner.py",
     "engine/pattern_lifecycle.py (rescoped)",
     "engine/pattern_reliability.py::explain_breaks,confirm_driver"
    ],
@@ -1028,6 +1051,7 @@
     "tests/test_candidates.py",
     "tests/test_learning_belief.py",
     "tests/test_learning_boundary.py",
+    "tests/test_learning_learner.py",
     "tests/test_pattern_lifecycle.py"
    ],
    "evidence": [
@@ -1036,9 +1060,9 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": "2026-09-29T09:33:59",
+   "last_run": "2026-09-29T10:52:20",
    "code_hash": "6c44a0173dc73530",
-   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S07). boundary.py learns where patterns stop working (conditions + anti-conditions); competition.py keeps rival explanations alive until evidence separates them."
+   "notes": "IMPLEMENTED — NOT VALIDATED (S12): LegitimateLearner runs all 19 section-4 stages calling the real modules, stage order enforced, firewall at OBSERVE/RETRIEVE/OBSERVE_OUTCOME, frozen (L02). Mini acceptance (planted, seed 3): builder-reported year-B edge +0.012, t +2.43 vs shuffled control 0 picks - NOT yet re-derived (S17b adds a recorded runner). | earlier: IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S07). boundary.py learns where patterns stop working (conditions + anti-conditions); competition.py keeps rival explanations alive until evidence separates them."
   },
   {
    "id": "C13",
@@ -1050,12 +1074,14 @@
     "engine/candidates.py::unless_candidates",
     "engine/learning/boundary.py",
     "engine/learning/competition.py",
+    "engine/learning/learner.py",
     "engine/pattern_reliability.py::explain_breaks"
    ],
    "tests": [
     "tests/test_candidates.py",
     "tests/test_learning_belief.py",
-    "tests/test_learning_boundary.py"
+    "tests/test_learning_boundary.py",
+    "tests/test_learning_learner.py"
    ],
    "evidence": [
     "state/research/algorithm/planted/report_final_seeds100.md"
@@ -1063,9 +1089,9 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": "2026-09-29T09:33:59",
+   "last_run": "2026-09-29T10:52:20",
    "code_hash": "6c44a0173dc73530",
-   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S07). boundary.py learns where patterns stop working (conditions + anti-conditions); competition.py keeps rival explanations alive until evidence separates them."
+   "notes": "IMPLEMENTED — NOT VALIDATED (S12): LegitimateLearner runs all 19 section-4 stages calling the real modules, stage order enforced, firewall at OBSERVE/RETRIEVE/OBSERVE_OUTCOME, frozen (L02). Mini acceptance (planted, seed 3): builder-reported year-B edge +0.012, t +2.43 vs shuffled control 0 picks - NOT yet re-derived (S17b adds a recorded runner). | earlier: IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S07). boundary.py learns where patterns stop working (conditions + anti-conditions); competition.py keeps rival explanations alive until evidence separates them."
   },
   {
    "id": "C14",
@@ -1074,24 +1100,26 @@
    "owner": "Claude",
    "status": "VALIDATED",
    "code_paths": [
-    "engine/learning_delta.py::headline_transfer,run_pair,harness_selfcheck",
-    "engine/learners.py"
+    "engine/learners.py",
+    "engine/learning/learner.py",
+    "engine/learning_delta.py::headline_transfer,run_pair,harness_selfcheck"
    ],
    "tests": [
+    "tests/test_learners.py",
     "tests/test_learning_delta.py",
-    "tests/test_learners.py"
+    "tests/test_learning_learner.py"
    ],
    "evidence": [
-    "state/research/learning_delta/ld2_basis/report.md",
+    "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)",
     "state/research/learners/ls3_s11/report.md",
-    "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)"
+    "state/research/learning_delta/ld2_basis/report.md"
    ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[already implemented] The EVALUATION is validated (planted generaliser/memoriser/non-learner/leak self-check VALID, past-only pairs). Its result on real data is NO_TRANSFER - that is recorded under E04/I16, not here."
+   "last_run": "2026-09-29T10:52:20",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (S12): LegitimateLearner runs all 19 section-4 stages calling the real modules, stage order enforced, firewall at OBSERVE/RETRIEVE/OBSERVE_OUTCOME, frozen (L02). Mini acceptance (planted, seed 3): builder-reported year-B edge +0.012, t +2.43 vs shuffled control 0 picks - NOT yet re-derived (S17b adds a recorded runner). | earlier: [already implemented] The EVALUATION is validated (planted generaliser/memoriser/non-learner/leak self-check VALID, past-only pairs). Its result on real data is NO_TRANSFER - that is recorded under E04/I16, not here."
   },
   {
    "id": "C15",
@@ -1100,14 +1128,16 @@
    "owner": "Claude",
    "status": "IMPLEMENTED",
    "code_paths": [
-    "engine/pattern_memory.py",
-    "engine/pattern_bank.py",
+    "engine/learning/learner.py",
     "engine/lessons.py::LessonStore",
+    "engine/pattern_bank.py",
+    "engine/pattern_memory.py",
     "engine/trust_store.py"
    ],
    "tests": [
-    "tests/test_pattern_memory.py",
-    "tests/test_pattern_bank.py"
+    "tests/test_learning_learner.py",
+    "tests/test_pattern_bank.py",
+    "tests/test_pattern_memory.py"
    ],
    "evidence": [
     "state/research/pattern_memory/report.md"
@@ -1115,9 +1145,9 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "IMPLEMENTED — NOT VALIDATED. [duplicated] Four stores; see B04."
+   "last_run": "2026-09-29T10:52:20",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (S12): LegitimateLearner runs all 19 section-4 stages calling the real modules, stage order enforced, firewall at OBSERVE/RETRIEVE/OBSERVE_OUTCOME, frozen (L02). Mini acceptance (planted, seed 3): builder-reported year-B edge +0.012, t +2.43 vs shuffled control 0 picks - NOT yet re-derived (S17b adds a recorded runner). | earlier: IMPLEMENTED — NOT VALIDATED. [duplicated] Four stores; see B04."
   },
   {
    "id": "C16",
@@ -1128,11 +1158,13 @@
    "code_paths": [
     "engine/learning/experiment_memory.py",
     "engine/learning/failed_learners.py",
+    "engine/learning/learner.py",
     "engine/learning/meta_learning.py",
     "engine/learning/research_policy.py",
     "engine/learning/research_priority.py"
    ],
    "tests": [
+    "tests/test_learning_learner.py",
     "tests/test_learning_meta.py",
     "tests/test_learning_research.py"
    ],
@@ -1140,9 +1172,9 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": "2026-09-29T09:37:16",
+   "last_run": "2026-09-29T10:52:20",
    "code_hash": "6c44a0173dc73530",
-   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S09 pass 1). one LegacyBridge facade over TriedIndex + registry dedup; 13 failed learners seeded with checked evidence paths; EIG tables are priors. | earlier: [missing]"
+   "notes": "IMPLEMENTED — NOT VALIDATED (S12): LegitimateLearner runs all 19 section-4 stages calling the real modules, stage order enforced, firewall at OBSERVE/RETRIEVE/OBSERVE_OUTCOME, frozen (L02). Mini acceptance (planted, seed 3): builder-reported year-B edge +0.012, t +2.43 vs shuffled control 0 picks - NOT yet re-derived (S17b adds a recorded runner). | earlier: IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S09 pass 1). one LegacyBridge facade over TriedIndex + registry dedup; 13 failed learners seeded with checked evidence paths; EIG tables are priors. | earlier: [missing]"
   },
   {
    "id": "C17",
@@ -1154,11 +1186,13 @@
     "engine/improve.py::diagnose,spawn_challengers",
     "engine/learning/experiment_memory.py",
     "engine/learning/failed_learners.py",
+    "engine/learning/learner.py",
     "engine/learning/meta_learning.py",
     "engine/learning/research_policy.py",
     "engine/learning/research_priority.py"
    ],
    "tests": [
+    "tests/test_learning_learner.py",
     "tests/test_learning_meta.py",
     "tests/test_learning_research.py"
    ],
@@ -1166,9 +1200,9 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": "2026-09-29T09:37:16",
+   "last_run": "2026-09-29T10:52:20",
    "code_hash": "6c44a0173dc73530",
-   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S09 pass 1). one LegacyBridge facade over TriedIndex + registry dedup; 13 failed learners seeded with checked evidence paths; EIG tables are priors. | earlier: [partial][contradictory] Spawns parameter challengers only - the tuning loop section 35 warns against; untested."
+   "notes": "IMPLEMENTED — NOT VALIDATED (S12): LegitimateLearner runs all 19 section-4 stages calling the real modules, stage order enforced, firewall at OBSERVE/RETRIEVE/OBSERVE_OUTCOME, frozen (L02). Mini acceptance (planted, seed 3): builder-reported year-B edge +0.012, t +2.43 vs shuffled control 0 picks - NOT yet re-derived (S17b adds a recorded runner). | earlier: IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S09 pass 1). one LegacyBridge facade over TriedIndex + registry dedup; 13 failed learners seeded with checked evidence paths; EIG tables are priors. | earlier: [partial][contradictory] Spawns parameter challengers only - the tuning loop section 35 warns against; untested."
   },
   {
    "id": "D01",
@@ -4313,17 +4347,21 @@
    "description": "Legitimate learner frozen.",
    "owner": "Claude",
    "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "code_paths": [
+    "engine/learning/learner.py"
+   ],
+   "tests": [
+    "tests/test_learning_learner.py"
+   ],
    "evidence": [
     "state/research/learners/ls3_s11/report.md"
    ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[missing] No learner has passed; nothing to freeze."
+   "last_run": "2026-09-29T10:52:20",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (S12): LegitimateLearner runs all 19 section-4 stages calling the real modules, stage order enforced, firewall at OBSERVE/RETRIEVE/OBSERVE_OUTCOME, frozen (L02). Mini acceptance (planted, seed 3): builder-reported year-B edge +0.012, t +2.43 vs shuffled control 0 picks - NOT yet re-derived (S17b adds a recorded runner). | earlier: [missing] No learner has passed; nothing to freeze."
   },
   {
    "id": "L03",

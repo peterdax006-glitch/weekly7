@@ -52,6 +52,12 @@ def make_cfg(**kw):
     return LN.LearnerConfig(**base)
 
 
+def new_learner(**kw):
+    """Code hash pinned: the real hash covers the whole engine tree, which other builders edit while a test runs."""
+    kw.setdefault("code_hash_fn", lambda: "pinned-test-code")
+    return LN.LegitimateLearner(make_cfg(), **kw)
+
+
 def run(learner, feed, weeks):
     for t in weeks:
         inp = feed.input(t)
@@ -67,7 +73,7 @@ def world():
 @pytest.fixture(scope="module")
 def trained(world):
     t0 = time.time()
-    L = run(LN.LegitimateLearner(make_cfg()), LN.WorldFeed(world), range(len(world.dates)))
+    L = run(new_learner(), LN.WorldFeed(world), range(len(world.dates)))
     L.wall_seconds = time.time() - t0
     return L
 
@@ -183,7 +189,7 @@ def test_the_reports_can_read_the_trace(trained):
 
 def test_stage_order_is_enforced(world):
     feed = LN.WorldFeed(world)
-    L = LN.LegitimateLearner(make_cfg())
+    L = new_learner()
     inp = feed.input(0)
     ep = LN._Episode("X1", inp.now, [])
     with pytest.raises(LN.StageOrderError):
@@ -204,7 +210,7 @@ def test_stage_order_is_enforced(world):
 
 def test_future_feature_rows_and_canary_columns_are_refused_at_observe(world):
     feed = LN.WorldFeed(world)
-    L = LN.LegitimateLearner(make_cfg())
+    L = new_learner()
     inp = feed.input(3)
     future = pd.concat([inp.panel, feed.panel(4)])
     with pytest.raises(FirewallBreach, match="after now"):
@@ -221,7 +227,7 @@ def test_future_feature_rows_and_canary_columns_are_refused_at_observe(world):
 
 def test_an_outcome_that_has_not_matured_is_refused_at_observe_outcome(world):
     feed = LN.WorldFeed(world)
-    L = LN.LegitimateLearner(make_cfg())
+    L = new_learner()
     for t in range(2):
         L.step(feed.input(t).now, feed.input(t).panel, feed.input(t).outcomes)
     ep = L.pending["E00001"]
@@ -242,7 +248,7 @@ def test_an_outcome_that_has_not_matured_is_refused_at_observe_outcome(world):
 
 
 def test_knowledge_from_the_future_is_refused_at_retrieve(trained, world):
-    L = LN.LegitimateLearner(make_cfg())
+    L = new_learner()
     feed = LN.WorldFeed(world)
     inp = feed.input(2)
     prov = Provenance("2020-01-01T00:00:00+00:00", str(world.dates[10].date()), "c" * 8, "d" * 8, "e" * 8, "exp", "run", 1,
@@ -287,8 +293,8 @@ def test_frozen_learner_decides_but_never_learns_and_refuses_if_code_or_config_c
 
 def test_learning_is_deterministic_given_the_seed(world):
     feed = LN.WorldFeed(world)
-    a = run(LN.LegitimateLearner(make_cfg()), feed, range(16))
-    b = run(LN.LegitimateLearner(make_cfg()), feed, range(16))
+    a = run(new_learner(), feed, range(16))
+    b = run(new_learner(), feed, range(16))
     assert a.trace_digest() == b.trace_digest()
     assert [d.behaviour_key() for d in a.decisions] == [d.behaviour_key() for d in b.decisions]
     assert sorted(a._pid_of.values()) == sorted(b._pid_of.values()) and sorted(a._pid_of) == sorted(b._pid_of)
@@ -298,7 +304,7 @@ def test_learning_is_deterministic_given_the_seed(world):
 
 def test_a_world_with_no_signal_yields_no_production_knowledge():
     null_world = PW.make_world(mini_spec(38, noise=True), seed=8)
-    L = run(LN.LegitimateLearner(make_cfg()), LN.WorldFeed(null_world), range(len(null_world.dates)))
+    L = run(new_learner(), LN.WorldFeed(null_world), range(len(null_world.dates)))
     assert L.production_ids() == ()
     assert all(d.action == "ABSTAIN" for d in L.decisions[-40:])
 
@@ -313,7 +319,7 @@ def test_section_3_protocol_and_section_87_miniature(trained, world):
     world_a_id2 = PW.reidentify(world, 14, tickers=True, shift_years=9).world
     probe = LN.WorldFeed(world_b_id)
     weeks = range(14)
-    before = LN.score_decisions(LN.LegitimateLearner(make_cfg()).freeze(), probe, weeks, "before")
+    before = LN.score_decisions(new_learner().freeze(), probe, weeks, "before")
     after = LN.score_decisions(trained, probe, weeks, "after")
     assert before.n_long == 0 and all(r.action == "ABSTAIN" for _, r in before.records)       # no lesson, no knowledge, no decision
     # the section-3 record is complete on every row
@@ -363,7 +369,7 @@ def test_validate_protocol_flags_behaviour_that_changed_without_knowledge():
 
 
 def test_empty_and_degenerate_inputs(world):
-    L = LN.LegitimateLearner(make_cfg())
+    L = new_learner()
     with pytest.raises(ValueError):
         L.decide_batch(world.dates[0], pd.DataFrame({"f0": [1.0]}))          # not a (date, ticker) panel
     assert L.report()["episodes"] == 0 and L.report()["knowledge"]["items"] == 0
