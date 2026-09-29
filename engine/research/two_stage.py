@@ -3,7 +3,7 @@ IMPLEMENTED - NOT VALIDATED (C63: code and unit tests on planted worlds only).
 
     ALL ELIGIBLE STOCKS -> POINT-IN-TIME FEATURE STATE -> P(volatility) -> VOLATILITY RANK -> PREDICTED-MOVER UNIVERSE
     -> P(up | predicted mover), P(down | predicted mover) -> CALIBRATION -> FAILURE / REGIME / PATTERN HEALTH -> RISK FILTER
-    -> POSITION / ABSTENTION
+    -> 5-10% BAND GATE (C68 checklist L, when a `band_gate` is installed: engine.research.error_loop) -> POSITION / ABSTENTION
 
 This module is the ORCHESTRATOR of that chain; it builds no fifth mover model and no new direction learner (RESEARCH_MAPPING design
 risk 2): P(volatility) is engine.research.volatility_lab.VolatilityModel (the lab's champion form, fitted on matured rows only,
@@ -27,7 +27,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import math
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any, Callable, Iterable, Mapping, Sequence
 
 import numpy as np
 import pandas as pd
@@ -60,6 +60,7 @@ class Reason(_StrEnum):                    # why a name did not become a positio
     SECTOR_CAP = "SECTOR_CAP"
     POSITION_CAP = "POSITION_CAP"
     SHORT_DISABLED = "SHORT_DISABLED"
+    OUT_OF_BAND = "OUT_OF_BAND"             # C68 checklist L: predicted realisable gain under the intended exit is not in [5%, 10%]
     POSITION = "POSITION"
 
 
@@ -290,6 +291,9 @@ class TwoStage:
         self.report: FitReport | None = None
         self.dir_cols: tuple = ()
         self.last_oos: pd.DataFrame | None = None           # the walk-forward predicted-mover block (research side: direction lab)
+        # C68 checklist L: `band_gate(rows, now) -> DataFrame[eligible, reason, point, p_band]` (engine.research.error_loop.BandGate over
+        # engine.research.selection_constraint). Installed, it runs INSIDE the funnel before the caps, so no later stage can bypass it.
+        self.band_gate: Callable[[pd.DataFrame, Any], pd.DataFrame] | None = None
 
     # -------------------------------------------------------------------------------------- fit
     def fit(self, history: pd.DataFrame, now, knowledge: KnowledgeView | None = None) -> FitReport:
@@ -450,6 +454,8 @@ class TwoStage:
             for i, ix in enumerate(movers):
                 if alive[ix] and hit[i]:
                     out.loc[ix, "reason"], alive[ix] = str(Reason.RISK_RULE), False
+        if self.band_gate is not None:
+            _apply_band(out, alive, today, self.band_gate, now, fun)
         order = sorted((i for i, ix in enumerate(movers) if alive[ix]), key=lambda i: (-conf[i], str(movers[i])))
         per_sector: dict = {}
         held = []
@@ -520,6 +526,53 @@ class DayDecision:
         return {"decided_at": self.decided_at, "n": len(self.table), "movers": int(self.table["mover"].sum()),
                 "positions": int((self.table["side"] != FLAT).sum()), "gate_open": self.gate.get("open", False),
                 "funnel": self.funnel.as_dict(), "reasons": self.reasons(), "knowledge": self.knowledge_digest}
+
+
+# ------------------------------------------------------------------------------------------------ C68 checklist L: the 5-10% gate
+BAND_STAGE = "band_5_10"
+BAND_COLUMNS = ("gain_pred", "p_band", "band_reason")
+
+
+def _apply_band(out: pd.DataFrame, alive: pd.Series, today: pd.DataFrame, gate: Callable, now, fun: "Funnel") -> None:
+    """Ask the gate about every name still alive (a long that cleared direction, health and risk) and remove the ineligible ones
+    with Reason.OUT_OF_BAND. A name the gate did not answer for is removed too (fail closed: no forecast, no position)."""
+    cand = [ix for ix in alive.index if alive[ix]]
+    for c in BAND_COLUMNS:
+        if c not in out:
+            out[c] = np.nan if c != "band_reason" else ""
+    if cand:
+        bv = gate(today.loc[cand], now)
+        for ix in cand:
+            row = bv.loc[ix] if ix in bv.index else None
+            if row is not None:
+                out.loc[ix, "gain_pred"], out.loc[ix, "p_band"] = float(row["point"]), float(row["p_band"])
+                out.loc[ix, "band_reason"] = str(row["reason"])
+            if row is None or not bool(row["eligible"]):
+                out.loc[ix, "reason"], alive[ix] = str(Reason.OUT_OF_BAND), False
+                if row is None:
+                    out.loc[ix, "band_reason"] = "NO_FORECAST"
+    fun.add(BAND_STAGE, len(cand), int(sum(bool(alive[ix]) for ix in cand)),
+            "C68-L: predicted realisable gain under the intended exit policy in [+5%, +10%]")
+
+
+def apply_band_gate(dec: "DayDecision", gate: Callable, today: pd.DataFrame, now) -> "DayDecision":
+    """Idempotent post-hoc form of the same gate for a decision taken without it (e.g. a resumed loop whose transient pipe lost the
+    installed gate): positions the gate does not make eligible become FLAT with Reason.OUT_OF_BAND and the weights of the kept ones
+    are renormalised. A decision whose funnel already carries the band stage is returned unchanged. Freed slots are NOT refilled
+    from other names - the in-funnel gate is the primary path; this one only guarantees the constraint can never be skipped."""
+    if BAND_STAGE in dec.funnel.as_dict():
+        return dec
+    t = dec.table.copy()
+    held = t["side"].to_numpy(int) != FLAT
+    alive = pd.Series(held, index=t.index)
+    fun = Funnel(list(dec.funnel.rows))
+    _apply_band(t, alive, today.reindex(t.index), gate, now, fun)
+    dropped = held & ~alive.to_numpy(bool)
+    t.loc[dropped, "side"], t.loc[dropped, "weight"] = FLAT, 0.0
+    k = int(alive.sum())
+    if k:
+        t.loc[alive.to_numpy(bool), "weight"] = 1.0 / k
+    return DayDecision(dec.decided_at, t, fun, dec.gate, dec.knowledge_digest)
 
 
 # ------------------------------------------------------------------------------------------------ public entry

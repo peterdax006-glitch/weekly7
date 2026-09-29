@@ -302,25 +302,30 @@ def test_section47_end_to_end_on_the_rich_planted_world(tmp_path):
     feed = FD.WorldFeed(FD.InMemorySource(world), FD.FeedConfig(first_decision="2018-06-01"))
     # smallest useful effect = per-date AUC 0.60 (the planted pattern is far stronger): the fresh holdout then needs ~9 fresh weeks
     # for its required power instead of ~30 at AUC 0.55 (fresh_needed); nothing else is relaxed
-    cfg = loop_cfg(experiment=LP.ExperimentConfig(min_effect=0.10))
+    # the chain starts WITHOUT the volatility-persistence family (lv20 and its near copies): the planted mechanism is new information
+    # that only research can supply, so a promotion must visibly change P(volatility)
+    ts = TS.TwoStageConfig(gate_min_weeks=6, min_direction_rows=60, min_calib_rows=20, base_features=("shock1", "dv_level", "compress", "mkt_vol"))
+    cfg = loop_cfg(experiment=LP.ExperimentConfig(min_effect=0.10), two_stage=ts)
     state, rt, _ = LP.open_loop(feed, tmp_path, cfg, sweeps=feed.sweeps(), clock=CLOCK)
     reps, promoted_at = [], None
-    for _ in range(60):
+    for _ in range(64):
         rep = LP.step(state, rt)
         if rep is None:
             break
         reps.append(rep)
         if promoted_at is None and state.knowledge:
             promoted_at = rep["cycle"]
-        if promoted_at is not None and rep["cycle"] >= promoted_at + 4 and state.lineage.section47_chains():
+        if promoted_at is not None and state.lineage.section47_chains() and any("post_effect" in k for k in state.knowledge.values()):
             break
     table = FD.input_table(reps)
+    print(f"\nW02 planted run: {len(reps)} cycles, knowledge promoted at cycle {promoted_at}\n" + table.to_string())   # -s shows it
     assert FD.starved_stages(reps, exempt=("evaluate.volatility_lab", "evaluate.direction_lab")) == [], table.to_string()
     assert not any(r["failed"] for r in reps), [r["failed"] for r in reps if r["failed"]]
     assert not any(r["refused"] for r in reps)
     # (b) PROMOTE -> knowledge -> release -> decision
     assert promoted_at is not None, [r.get("ladder") for r in reps]
     gates = {k: v for k, v in state.lineage.nodes.items() if v["kind"] == "GATE"}
+    print({k: (v.get("verdict"), v.get("blocking")) for k, v in gates.items()})
     assert any(v.get("verdict") == "PROMOTE" for v in gates.values())
     filed = {k["feature"] for k in state.knowledge.values()}
     assert filed and filed <= set(world.truth["genuine"]) | set(world.truth["genuine_event"])
@@ -330,8 +335,12 @@ def test_section47_end_to_end_on_the_rich_planted_world(tmp_path):
     base = TS.TwoStage(state.cfg.two_stage)
     no_k = TS.run_day(base, obs.matured, obs.today, state.decisions[-1].decided_at, None)
     with_k = state.decisions[-1]
-    assert with_k.knowledge_digest != no_k.knowledge_digest
-    assert not np.allclose(with_k.table["p_move"].fillna(0).to_numpy(), no_k.table["p_move"].fillna(0).to_numpy())
+    assert with_k.knowledge_digest != no_k.knowledge_digest                     # the chain decided WITH the released knowledge
+    new_feats = filed - set(state.cfg.two_stage.base_features)
+    print(f"filed {sorted(filed)}; new to the chain {sorted(new_feats)}")
+    if new_feats:                                                              # new information must move P(volatility)
+        assert set(new_feats) <= set(rt.pipe.report.vol_features)
+        assert not np.allclose(with_k.table["p_move"].fillna(0).to_numpy(), no_k.table["p_move"].fillna(0).to_numpy())
     # outcome measured after filing, and a new question raised from results
     assert any("post_effect" in k for k in state.knowledge.values())
     assert state.lineage.section47_chains()

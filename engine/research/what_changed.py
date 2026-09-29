@@ -34,6 +34,7 @@ from engine.learning.core import DecisionEffect, FirewallBreach, Subsystem, _Str
 from engine.learning.experiment_memory import Hypothesis
 from engine.learning.research_priority import identity_leak
 from engine.research import hypothesis_tree as HT
+from engine.research import knowability as KN
 from engine.research import pattern_change as PC
 from engine.research import quality_gate as QG
 from engine.research import replication as RP
@@ -76,13 +77,7 @@ class Level(_StrEnum):
 LEVELS = tuple(Level)
 
 
-class FiveWay(_StrEnum):
-    """Checklist K: exactly these five."""
-    PREDICTABLE_BUT_MISSED = "PREDICTABLE_BUT_MISSED"
-    PARTIALLY_PREDICTABLE = "PARTIALLY_PREDICTABLE"
-    PREDICTABLE_UNDER_NEW_CONDITION = "PREDICTABLE_ONLY_UNDER_NEWLY_DISCOVERED_CONDITION"
-    CURRENTLY_UNEXPLAINED = "CURRENTLY_UNEXPLAINED"
-    GENUINELY_UNKNOWABLE = "GENUINELY_UNKNOWABLE_FROM_AVAILABLE_INFORMATION"
+FiveWay = KN.FiveWay        # checklist K's five classes are OWNED by engine.research.knowability (one mapping; P06 de-duplication)
 
 
 # ------------------------------------------------------------------------------------------------ the case
@@ -412,36 +407,17 @@ class KnowabilityVerdict:
 
 def classify_knowability(findings: Sequence[LevelFinding], assessment: Any = None, confirmed_conditions: Mapping[str, Any] | None = None,
                          condition_key: str = "") -> KnowabilityVerdict:
-    """Map an outcome to the five checklist-K classes. Order matters: unknowable evidence is never overridden by a story, and the
-    'newly discovered condition' class needs a condition that has ALREADY been replicated (never a fresh claim)."""
+    """Map an outcome to the five checklist-K classes through THE mapping, engine.research.knowability.five_way. This function only
+    reads the investigation facts that mapping needs (the pattern level's lead, whether a pre-outcome cause fired, whether the
+    condition has ALREADY been replicated - never a fresh claim); it decides nothing itself."""
     by = {f.level: f for f in findings}
     cond_ok = bool(condition_key) and confirmed_conditions is not None and \
         getattr(confirmed_conditions.get(condition_key), "status", None) == RP.Status.REPLICATED
-    if assessment is not None:
-        c = assessment.classification
-        if c == Knowability.DATA_FAILURE:
-            return KnowabilityVerdict(FiveWay.CURRENTLY_UNEXPLAINED, ("the move traces to a data defect, not market behaviour",), True, "assessment")
-        if c in (Knowability.EXTERNALLY_CAUSED, Knowability.INFORMATIONALLY_UNAVAILABLE):
-            return KnowabilityVerdict(FiveWay.GENUINELY_UNKNOWABLE, (f"assessment {c.value}: nothing available beforehand carried it",), False, "assessment")
-        if c == Knowability.PREDICTABLE:
-            return KnowabilityVerdict(FiveWay.PREDICTABLE_BUT_MISSED, ("the information was available and sufficient before the decision",), False, "assessment")
-        if c in (Knowability.POTENTIALLY_PREDICTABLE, Knowability.WEAKLY_PREDICTABLE):
-            if cond_ok:
-                return KnowabilityVerdict(FiveWay.PREDICTABLE_UNDER_NEW_CONDITION,
-                                          (f"a replicated condition ({condition_key}) makes it predictable where it was only weakly so",), False, "condition")
-            return KnowabilityVerdict(FiveWay.PARTIALLY_PREDICTABLE, (f"assessment {c.value}: part of the move was foreseeable",), False, "assessment")
-        if cond_ok:
-            return KnowabilityVerdict(FiveWay.PREDICTABLE_UNDER_NEW_CONDITION,
-                                      (f"a replicated condition ({condition_key}) explains what the assessment could not",), False, "condition")
-        return KnowabilityVerdict(FiveWay.CURRENTLY_UNEXPLAINED, ("the assessment found no explanation; unknown stays unknown",), False, "assessment")
     pat = by.get(Level.PATTERN)
-    if pat is not None and pat.fired and pat.lead is not None:
-        return KnowabilityVerdict(FiveWay.PREDICTABLE_BUT_MISSED, (f"the pattern was already failing {pat.lead} rows before the decision",), False, "findings")
-    if cond_ok:
-        return KnowabilityVerdict(FiveWay.PREDICTABLE_UNDER_NEW_CONDITION, (f"replicated condition {condition_key}",), False, "condition")
-    if any(f.fired and f.availability == Availability.KNOWN_BEFORE_EVENT for f in findings):
-        return KnowabilityVerdict(FiveWay.PARTIALLY_PREDICTABLE, ("a cause with pre-outcome evidence fired, but no knowability assessment confirms it",), False, "findings")
-    return KnowabilityVerdict(FiveWay.CURRENTLY_UNEXPLAINED, ("no level explained the error with pre-outcome evidence; no forced explanation",), False, "findings")
+    v = KN.five_way(assessment.classification if assessment is not None else None, condition_key=condition_key, condition_replicated=cond_ok,
+                    pattern_failing_lead=pat.lead if (pat is not None and pat.fired) else None,
+                    pre_outcome_cause=any(f.fired and f.availability == Availability.KNOWN_BEFORE_EVENT for f in findings))
+    return KnowabilityVerdict(v.klass, v.reasons, v.excluded_data_failure, v.basis)
 
 
 # ------------------------------------------------------------------------------------------------ the chain

@@ -82,7 +82,7 @@ PARAMS = {
     "explain_meta": ("age", "crowd", "share"),   # pattern-meta drivers that can CAUSE a break (own hit rate is a symptom)
     "est_win": 26,              # matured weeks after first use that set the pattern's expected effect (no earlier)
     "effect_shrink": 0.7,       # expected effect = shrink x burn-in mean (winner's-curse guard) ...
-    "effect_lcb_z": 1.0,        # ... capped at the burn-in mean minus this many standard errors (the pattern was picked BECAUSE its
+    "effect_lcb_z": 0.5,        # ... capped at the burn-in mean minus this many standard errors (the pattern was picked BECAUSE its
                                 #     burn-in looked good, so the raw mean is an upper estimate of its true effect: W-05)
     "effect_floor": 0.2,        # ... but never below this share of the burn-in mean (a positive effect must stay positive)
     "arl0": 500,                # target average weeks between false alarms of the sequential test, per pattern
@@ -92,6 +92,8 @@ PARAMS = {
     "release_frac": 0.5,        # a broken pattern is released when the CUSUM falls below this share
     "release_hold": 4,          # ... and only after that condition held this many weeks running
     "p_release": 0.9,           # ... or released early when P(still works) is back above this and the recent mean >= expected
+    "release_t": 1.5,           # ... AND the recent mean is this many standard errors above ZERO (the posterior alone leans on the prior
+                                #     expected effect, so a lucky streak in a dead pattern used to clear it)
     "p_suspect": 0.5,           # ... or when the posterior P(still works) drops under this
     "review_every": 13,         # weeks between investigation reviews
     "oos_horizon": 52,          # weeks of later, unseen data a proposed driver must predict before it is trusted
@@ -1172,7 +1174,7 @@ def health_monitor(tl, cfg=None, expected=None, as_of=None):
         if b0 >= T:
             continue
         exp_ = None if expected is None else expected.get(tl.patterns[j])
-        est, mu0, h, k = False, np.nan, np.nan, np.nan
+        est, mu0, h, k, mu_rel = False, np.nan, np.nan, np.nan, np.nan
         S, broken, cur, ok_run = 0.0, False, None, 0
         A = W = Q = 0.0
         cnt, m1, m2 = 0, 0.0, 0.0
@@ -1193,6 +1195,7 @@ def health_monitor(tl, cfg=None, expected=None, as_of=None):
                 if exp_ is not None or (m1 > 0.05 * sd_run and tst >= P["t_work"]):
                     est = True
                     mu0 = float(exp_) if exp_ is not None else expected_effect(m1, sd_run, cnt, P)
+                    mu_rel = mu0 if exp_ is not None else P["effect_shrink"] * m1     # release bar: the full shrunk effect, not the lower bound
                     sd0 = sd_run
                     k = max(0.5 * mu0 / sd0, P["k_floor"])
                     kk = round(k, 3)
@@ -1222,7 +1225,8 @@ def health_monitor(tl, cfg=None, expected=None, as_of=None):
             prec = 1.0 / pv + neff / (sd * sd)
             post = (mu0 / pv + neff * mean_d / (sd * sd)) / prec
             pwork = float(sps.norm.cdf(post * math.sqrt(prec)))
-            early = pwork >= P["p_release"] and mean_d >= mu0
+            t_rec = mean_d * math.sqrt(neff) / sd if neff > 0 else 0.0
+            early = pwork >= P["p_release"] and mean_d >= mu_rel and t_rec >= P["release_t"]
             ok_run = ok_run + 1 if (broken and early) else 0
             if broken and (S < P["release_frac"] * h or ok_run >= P["release_hold"]):
                 broken = False

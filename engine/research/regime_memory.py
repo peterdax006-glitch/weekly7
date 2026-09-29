@@ -35,6 +35,7 @@ from engine.learning.core import FirewallBreach, Provenance, _StrEnum, as_date, 
 from engine.research import regimes as RG
 from engine.research.change_points import PRECURSOR_OF, Detection, Scope, ScopeVerdict, exact_digest
 from engine.research.core import MaturedRecord, Namespace
+from engine.research.expectations import SealedLane
 from engine.research.multiscale import benjamini_hochberg, t_to_p
 
 SCHEMA_VERSION = "regime_memory.v1"
@@ -539,25 +540,30 @@ class RegimeAdvice:
     text: str
 
 
+LANE_REGIME = "rgm68"
+
+
 class RegimeMemory:
-    """Append-only, hash-chained store of regime-change records and their status events."""
+    """Append-only store of regime-change records whose status EVENTS live on an ARCHIVE CHAIN LANE (engine.research.expectations.
+    SealedLane over engine.learning.archive.ChainFile, kind 'rgm68' - P06 de-duplication: no private hash chain). An event's `prev` is
+    the lane head it extends; `verify` re-reads the lane and compares every cached event with the body the chain holds."""
 
-    GENESIS = "genesis"
-
-    def __init__(self, cfg: MemoryConfig | None = None):
+    def __init__(self, cfg: MemoryConfig | None = None, root=None):
         self.cfg = cfg or MemoryConfig()
         self._records: dict[str, RegimeChangeRecord] = {}
         self._events: list[MemoryEvent] = []
+        self.lane = SealedLane(root, LANE_REGIME)
 
     def __len__(self) -> int:
         return len(self._records)
 
     def _head(self) -> str:
-        return self._events[-1].digest if self._events else self.GENESIS
+        return self.lane.head
 
     def _push(self, kind: str, rid: str, at: str, status: str, payload_digest: str) -> MemoryEvent:
         ev = MemoryEvent(kind, rid, at, status, payload_digest, self._head())
         ev = dataclasses.replace(ev, digest=ev.compute())
+        self.lane.append({"kind": kind, "record_id": rid, "at": at, "status": status, "payload_digest": payload_digest, "digest": ev.digest})
         self._events.append(ev)
         return ev
 
@@ -605,12 +611,17 @@ class RegimeMemory:
         return tuple(self._events)
 
     def verify(self) -> list[int]:
-        """Event indices with a broken link or altered content, plus -1 if a stored record no longer matches its DETECTED digest."""
-        bad, prev = [], self.GENESIS
-        for i, e in enumerate(self._events):
-            if e.prev != prev or e.digest != e.compute():
+        """Event indices whose content differs from its digest or from the body on the archive lane, or that do not extend the lane
+        position they were appended at; -1 if the lane itself is broken or a stored record no longer matches its DETECTED digest."""
+        rep = self.lane.verify()
+        lines = self.lane.lines()
+        bad = [] if rep["ok"] and len(lines) == len(self._events) else [-1]
+        for i, (e, ln) in enumerate(zip(self._events, lines)):
+            b = ln["body"]
+            same = (b.get("kind"), b.get("record_id"), b.get("at"), b.get("status"), b.get("payload_digest"), b.get("digest")) == \
+                (e.kind, e.record_id, e.at, e.status, e.payload_digest, e.digest)
+            if not same or e.prev != ln["prev"] or e.digest != e.compute():
                 bad.append(i)
-            prev = e.digest
         for e in self._events:
             if e.kind == "DETECTED" and (e.record_id not in self._records or exact_digest(self._records[e.record_id]) != e.payload_digest):
                 bad.append(-1)

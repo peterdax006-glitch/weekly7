@@ -1,0 +1,1645 @@
+"""The C68 prediction-error pipeline wired into the research loop (PREDICTION_ERROR_ADDITION checklists T, Y, Z and the COMPLETION
+REQUIREMENT; canon C68, C69 sections 4, 12-18 and 31; EXECUTION_LEDGER work item W-02). IMPLEMENTED - NOT VALIDATED (C63: code and
+planted-world tests only; nothing here has run on real data).
+
+The thirteen C68 modules existed and were unreached (EXECUTION_LEDGER headline 4). This module is the wiring: every checklist-Y step is
+a stage REGISTERED into engine.research.loop (`register_stage`, never an edit of loop.py) and fed by a feed builder registered into
+engine.research.feeds (`register_builder('c68.world')`: the point-in-time world strictly before `now`, through the feed's fail-closed
+input audit). One cycle, in loop order:
+
+  UPDATE_KNOWLEDGE  c68.selection_policy   the learned exit (exit_research.LearnedExitRule, target-blind) is fitted on matured
+                                           candidate paths; the realisable-gain model (selection_constraint) is fitted UNDER THAT exit;
+                                           the PathModel for expectations likewise; the 5-10% BandGate is installed INSIDE the
+                                           two-stage funnel (two_stage.TwoStage.band_gate) so no later stage can bypass it
+  EVALUATE          c68.expectations       every position of today's two-stage decision gets an immutable checklist-A expectation
+                                           (expectations.ExpectationLedger.record, BEFORE the next-open fill) and a calibration
+                                           commitment (calibration_target.CommitmentBook.commit); a decision taken without the gate is
+                                           re-gated (two_stage.apply_band_gate) before anything reads it
+  SURPRISES         c68.market_regime      market expectation vs reality (market_expectations), change points and early warning
+                                           (change_points, forward only, one session at a time), regime memory (regime_memory)
+                    c68.pattern_change     pattern verdicts (pattern_change, which consumes break_research's detector) + the regime
+                                           guard -> pattern INFLUENCE, released to the gate only through MaturedRecord.gate(now)
+  FAILURES          c68.outcomes_errors    the LEARNED exit decides every exit (the +-1pp target is never an input); outcomes
+                                           (outcomes.reconstruct -> OutcomeLedger), ten separate errors (prediction_error.ErrorEngine,
+                                           feeding the shared SurpriseTracker), exit records for the honest calibration statistic
+                    c68.what_changed       ten-level investigation, five-way knowability (knowability.five_way, the one mapping),
+                                           hypothesis trees into the loop's own TreeForest, checklist-V claims
+                    c68.error_research     intensity x confidence x repeatability x value x market significance, confident-wrong
+                                           15-question investigations, error-pattern escalation and the eleven checklist-T self-research
+                                           questions -> QuestionEvents / ResearchQuestions on the loop bus (no second scheduler)
+  QUESTIONS         c68.research_depth     after questions.generate: the depth multipliers (unknowable / barren cells) are applied to
+                                           the loop's OWN priority state, so tiny and unknowable errors stay cheap
+  LEARN             c68.validate_promote   self_correct: each candidate fix tested ALONE out of sample and gated by the existing quality
+                                           gate; only a PROMOTE verdict changes the production learner; promoted fixes are monitored
+  PRIORITIES        c68.monitor_audit      every ledger verified against anchors held OUTSIDE it (a rewrite is REFUSED_LEAK), the honest
+                                           +-1pp report (calibration_target.evaluate, the canonical statistic), exit-independence audit,
+                                           identification curve, a persisted cycle report
+
+Persistence and audit: the P01 ledgers, the commitment book and the pipeline ledger live on archive ChainFile lanes under
+<loop root>/c68 (one chain.jsonl); `PipelineLedger` writes one event per checklist-Y step and every event carries the hash of the
+same prediction's previous event, so `trail(pid)` walks Prediction -> ... -> Future monitoring and fails closed on a broken link or an
+out-of-order step. Everything else is in the loop state (checkpointed after every stage).
+
+Research-world rule (C64/C66): all of this is MATURED_RESEARCH_STATE. The only things that reach a decision are the fitted exit policy
+and gain model (trained on paths that ended strictly before `now`) and pattern influences released through MaturedRecord.gate(now).
+Public entries: `register()` (idempotent; runs at import), `configure(cfg)`, the stage functions `st_*`, `plant_world(...)` (the
+planted C68 world with known mechanisms) and `stage_table(reports)`."""
+from __future__ import annotations
+
+import dataclasses
+import json
+import math
+from pathlib import Path
+from typing import Any, Callable, Mapping, Sequence
+
+import numpy as np
+import pandas as pd
+
+from engine import exits as EX
+from engine.learning.core import Provenance, as_date, canonical_json, current_code_hash, require_past, stable_hash
+from engine.learning.surprise import SurpriseTracker
+from engine.research import calibration_target as CT
+from engine.research import change_points as CP
+from engine.research import error_research as ER
+from engine.research import exit_research as XR
+from engine.research import expectations as XP
+from engine.research import feeds as FD
+from engine.research import knowability as KN
+from engine.research import loop as LP
+from engine.research import market_expectations as ME
+from engine.research import outcomes as OC
+from engine.research import pattern_change as PC
+from engine.research import prediction_error as PE
+from engine.research import regime_memory as RM
+from engine.research import selection_constraint as SC
+from engine.research import self_correct as SCX
+from engine.research import two_stage as TS
+from engine.research import what_changed as WC
+from engine.research.core import FirewallBreach, MaturedRecord, Namespace, Problem, ResearchQuestion
+
+LABEL = "IMPLEMENTED - NOT VALIDATED"
+NAMESPACE = Namespace.MATURED_RESEARCH
+WORLD_KEY = "c68.world"
+SUBDIR = "c68"
+LANE_PIPE = "pipe68"
+
+
+# ================================================================================================================ configuration
+@dataclasses.dataclass(frozen=True)
+class PatternRule:
+    """An identity-free pattern: fires on a name whose cross-sectional rank of `feature` is at/above `quantile` (top) or at/below it
+    (bottom); it predicts a move in direction `sign`. The feature is one the research frame and the bars both carry."""
+    name: str
+    feature: str
+    quantile: float
+    top: bool
+    sign: int = 1
+
+    def validate(self) -> list[str]:
+        errs = []
+        if self.feature not in SIGNALS:
+            errs.append(f"{self.name}: unknown signal {self.feature!r} (one of {SIGNALS})")
+        if not 0 < self.quantile < 1 or self.sign not in (-1, 1):
+            errs.append(f"{self.name}: quantile in (0,1) and sign +-1 required")
+        return errs
+
+
+SIGNALS = ("r20", "r5", "vol20")
+DEFAULT_PATTERNS = (PatternRule("mom_r20_top", "r20", 0.8, True), PatternRule("rev_r5_bottom", "r5", 0.2, False),
+                    PatternRule("vol_top", "vol20", 0.8, True))
+CLASS_INFLUENCE = {PC.ChangeClass.NOISE: 1.0, PC.ChangeClass.NORMAL_VARIANCE: 1.0, PC.ChangeClass.STRENGTHENING: 1.0,
+                   PC.ChangeClass.RETURNING: 1.0, PC.ChangeClass.WEAKENING: 0.5, PC.ChangeClass.REGIME_SPECIFIC_FAILURE: 0.5,
+                   PC.ChangeClass.STRUCTURAL_CHANGE: 0.0, PC.ChangeClass.OBSOLESCENCE: 0.0}
+GUARD_INFLUENCE = {RM.PatternAction.KEEP: 1.0, RM.PatternAction.REDUCE: 0.5, RM.PatternAction.SUSPEND: 0.0}
+UNINVESTIGATED_FLOOR = 0.5          # checklist H: a failing pattern is investigated before it may lose more than half its influence
+
+
+@dataclasses.dataclass(frozen=True)
+class C68Config:
+    horizon: int = 5                                   # sessions of a position (= the feed / two-stage outcome horizon)
+    features: tuple = ("vol20", "atr", "r20", "r5")    # entry features of the realisable-gain model (known at the deciding close)
+    path_context: tuple = ("r20", "r5")               # extra PathModel inputs (never a prediction or target: exit_research refuses those)
+    market_features: tuple = ("m_vol", "m_r20", "m_breadth")
+    train_max: int = 4000                              # newest matured candidate paths used to fit the exit / gain / path models
+    min_train: int = 80
+    patterns: tuple = DEFAULT_PATTERNS
+    strength_window: int = 20                          # daily pattern-effect rows behind an expected pattern strength
+    min_fired: int = 3                                 # names a pattern must fire on for a daily effect row
+    selection: SC.SelectionConfig = SC.SelectionConfig()
+    exit_cfg: XR.ExitResearchConfig = XR.ExitResearchConfig()
+    error_cfg: PE.ErrorConfig = PE.ErrorConfig()
+    research_cfg: ER.ErrorConfig = ER.ErrorConfig()
+    change: CP.ChangeConfig = CP.ChangeConfig()
+    memory: RM.MemoryConfig = RM.MemoryConfig()
+    market: ME.ExpectationConfig = ME.ExpectationConfig()
+    target: CT.Target = CT.DEFAULT_TARGET
+    self_correct: SCX.SelfCorrectConfig = SCX.SelfCorrectConfig()
+    pattern_cfg: Mapping = dataclasses.field(default_factory=dict)
+    what_cfg: Mapping = dataclasses.field(default_factory=dict)
+    max_investigations: int = 6                        # what-changed cases per cycle (the rest wait in the queue, never dropped)
+    max_events: int = 12                               # error-research question events per cycle (largest intensity first)
+    post_exit: int = 5
+    peers: int = 8
+    history_days: int = 400                            # daily evidence kept for regime memory
+    seed: int = 0
+
+    def validate(self) -> list[str]:
+        errs = []
+        if not 2 <= self.horizon <= 20:
+            errs.append("horizon in [2, 20] required (an exit needs at least two sessions)")
+        if not self.features or len(set(self.features)) != len(self.features):
+            errs.append("features must be a non-empty set")
+        if self.min_train < max(self.selection.min_support, self.exit_cfg.min_train, 20):
+            errs.append("min_train below the gain model's or the exit learner's own support floor")
+        for p in self.patterns:
+            errs += p.validate()
+        if len({p.name for p in self.patterns}) != len(self.patterns):
+            errs.append("pattern names must be unique")
+        errs += list(self.selection.validate()) + list(self.exit_cfg.validate()) + list(self.error_cfg.validate())
+        errs += list(self.research_cfg.check()) + list(self.change.validate()) + list(self.memory.validate()) + list(self.market.validate())
+        errs += list(self.target.validate()) + list(self.self_correct.validate())
+        if self.max_investigations < 1 or self.max_events < 1:
+            errs.append("per-cycle caps must be >= 1")
+        return errs
+
+
+_CONFIG: list[C68Config] = [C68Config()]
+
+
+def configure(cfg: C68Config) -> C68Config:
+    """Set the configuration a NEW loop state starts with (an existing state keeps the one it was created with, so a resumed loop
+    never changes its rules mid-run)."""
+    errs = cfg.validate()
+    if errs:
+        raise ValueError("invalid C68Config: " + "; ".join(errs))
+    _CONFIG[0] = cfg
+    return cfg
+
+
+# ================================================================================================================ the pipeline ledger
+Y_STEPS = ("PREDICTION", "EXPECTATION", "OUTCOME", "ERROR", "CLASSIFIED", "CAUSE", "KNOWABILITY", "PATTERN_REGIME", "HYPOTHESIS",
+           "RESEARCH", "OOS_TEST", "MODEL_UPDATE", "VALIDATION", "PROMOTED", "REJECTED", "MONITORED")
+_ORDER = {s: i for i, s in enumerate(Y_STEPS)}
+_ORDER["REJECTED"] = _ORDER["PROMOTED"]                # alternatives: the same position in the chain
+
+
+class PipelineBroken(FirewallBreach):
+    """A pipeline trail whose links do not hold, or a step recorded out of the checklist-Y order."""
+
+
+class PipelineLedger:
+    """Checklist Y, persistent and auditable: one archive ChainFile lane ('pipe68'). Every event names its object (a prediction id or
+    a fix / claim id), the step, the date, a payload and `prev_event` = the hash of the SAME object's previous event (parents name the
+    objects it was derived from). An object's steps must follow Y_STEPS order - an outcome can never be filed before its expectation."""
+
+    def __init__(self, root=None):
+        self.lane = XP.SealedLane(root, LANE_PIPE)
+        self._last: dict[str, tuple[str, str]] = {}          # key -> (hash of its newest event, its step)
+        for ln in self.lane.lines():
+            self._last[ln["body"]["key"]] = (ln["hash"], ln["body"]["step"])
+
+    def __len__(self) -> int:
+        return len(self.lane)
+
+    @property
+    def head(self) -> str:
+        return self.lane.head
+
+    def last_step(self, key: str) -> str | None:
+        return self._last.get(key, (None, None))[1]
+
+    def add(self, key: str, step: str, at, payload: Mapping[str, Any] | None = None, parents: Sequence[str] = ()) -> str:
+        if step not in _ORDER:
+            raise ValueError(f"unknown pipeline step {step!r}")
+        prev = self._last.get(key)
+        if prev is not None and _ORDER[step] < _ORDER[prev[1]]:
+            raise PipelineBroken(f"{key}: step {step} after {prev[1]} breaks the checklist-Y order")
+        if prev is None and step not in ("PREDICTION", "OOS_TEST", "HYPOTHESIS", "VALIDATION"):
+            raise PipelineBroken(f"{key}: a trail must start at PREDICTION (predictions) or OOS_TEST / HYPOTHESIS / VALIDATION (research)")
+        body = {"key": str(key), "step": step, "at": str(as_date(at)), "prev_event": prev[0] if prev else "",
+                "parents": sorted(str(p) for p in parents), "payload": json.loads(canonical_json(dict(payload or {})))}
+        ln = self.lane.append(body)
+        self._last[key] = (ln["hash"], step)
+        return ln["hash"]
+
+    def trail(self, key: str) -> list[dict]:
+        """The object's events oldest first, each checked to link to its predecessor and to keep the Y order."""
+        evs = [ln for ln in self.lane.lines() if ln["body"]["key"] == key]
+        prev, pos = "", -1
+        for ln in evs:
+            b = ln["body"]
+            if b["prev_event"] != prev:
+                raise PipelineBroken(f"{key}: event {b['step']} does not link to its predecessor")
+            if _ORDER[b["step"]] < pos:
+                raise PipelineBroken(f"{key}: {b['step']} out of order")
+            prev, pos = ln["hash"], _ORDER[b["step"]]
+        return [dict(ln["body"], hash=ln["hash"]) for ln in evs]
+
+    def keys(self) -> list[str]:
+        return sorted(self._last)
+
+    def verify(self, anchors: Sequence[str] = ()) -> dict:
+        rep = self.lane.verify(anchors)
+        for k in self.keys():
+            try:
+                self.trail(k)
+            except PipelineBroken as e:
+                rep = {**rep, "ok": False, "problems": list(rep["problems"]) + [str(e)]}
+        return rep
+
+    def furthest(self) -> dict[str, int]:
+        """How far each prediction got: step -> number of objects whose newest step it is."""
+        out: dict[str, int] = {}
+        for _, s in self._last.values():
+            out[s] = out.get(s, 0) + 1
+        return dict(sorted(out.items(), key=lambda kv: _ORDER[kv[0]]))
+
+
+# ================================================================================================================ state
+@dataclasses.dataclass
+class Position:
+    pid: str
+    ticker: str
+    decided_at: str
+    entry_at: str
+    policy_id: str
+    sector: str
+    vol: float
+    atr: float
+    patterns: tuple
+
+
+@dataclasses.dataclass
+class C68State:
+    """Everything the C68 stages remember between cycles (picklable: it rides in the loop checkpoint)."""
+    cfg: C68Config
+    tracker: SurpriseTracker
+    er: ER.ErrorResearchState
+    pcs: PC.PatternChangeState
+    wcs: WC.WhatChangedState
+    market: ME.MarketExpectationEngine
+    ews: CP.EarlyWarningSystem
+    memory: RM.RegimeMemory
+    policies: dict = dataclasses.field(default_factory=dict)        # policy id -> the fitted exit rule trades were committed under
+    intended: dict = dataclasses.field(default_factory=dict)        # decided_at -> policy id intended that day
+    gate: Any = None
+    path_model: Any = None
+    trained_through: str = ""
+    pending: dict = dataclasses.field(default_factory=dict)         # pid -> Position (open positions awaiting their outcome)
+    forecasts: dict = dataclasses.field(default_factory=dict)       # decided_at -> {ticker: forecast row} (research-side, all names)
+    realised: dict = dataclasses.field(default_factory=dict)        # decided_at -> {ticker: (net, exit date)}
+    exit_records: list = dataclasses.field(default_factory=list)    # calibration_target.ExitRecord of every traded exit
+    decided: list = dataclasses.field(default_factory=list)         # decision days already turned into expectations
+    investigated: list = dataclasses.field(default_factory=list)    # pids already sent to what_changed
+    wc_queue: list = dataclasses.field(default_factory=list)
+    contexts: dict = dataclasses.field(default_factory=dict)        # pid -> error_research.InvestigationContext
+    cells: dict = dataclasses.field(default_factory=dict)           # question subject -> error-research cell (depth multipliers)
+    subject_pids: dict = dataclasses.field(default_factory=dict)    # question subject -> pids behind it
+    influence: dict = dataclasses.field(default_factory=dict)       # pattern -> influence in [0, 1] (1 = full)
+    influence_log: list = dataclasses.field(default_factory=list)
+    verdicts: dict = dataclasses.field(default_factory=dict)        # pattern -> latest change class
+    guard: dict = dataclasses.field(default_factory=dict)           # pattern -> latest regime guard action
+    ews_through: str = ""
+    market_through: str = ""
+    daily: dict = dataclasses.field(default_factory=lambda: {"dates": [], "q": {}, "error_z": []})
+    warnings: list = dataclasses.field(default_factory=list)        # (date, level, scope)
+    production: dict = dataclasses.field(default_factory=lambda: {"name": "incumbent", "since": "", "window_share": 1.0,
+                                                                   "extra_features": ()})
+    corrections: list = dataclasses.field(default_factory=list)
+    monitoring: list = dataclasses.field(default_factory=list)
+    anchors: list = dataclasses.field(default_factory=list)         # (cycle, ledger, head): stored OUTSIDE the ledgers
+    calibration: list = dataclasses.field(default_factory=list)
+    independence: list = dataclasses.field(default_factory=list)
+    runs: list = dataclasses.field(default_factory=list)            # per-stage run table rows
+    counters: dict = dataclasses.field(default_factory=dict)
+    namespace: Namespace = NAMESPACE
+
+    def count(self, key: str, n: int = 1) -> None:
+        self.counters[key] = self.counters.get(key, 0) + int(n)
+
+
+def new_state(cfg: C68Config | None = None) -> C68State:
+    cfg = cfg or _CONFIG[0]
+    errs = cfg.validate()
+    if errs:
+        raise ValueError("invalid C68Config: " + "; ".join(errs))
+    return C68State(cfg, SurpriseTracker(), ER.new_state(cfg.research_cfg), PC.PatternChangeState(), WC.WhatChangedState(),
+                    ME.MarketExpectationEngine(cfg.market, cfg.seed), CP.EarlyWarningSystem(cfg.change), RM.RegimeMemory(cfg.memory),
+                    influence={p.name: 1.0 for p in cfg.patterns})
+
+
+@dataclasses.dataclass
+class Ledgers:
+    """The on-disk C68 ledgers of one loop root (transient handles; rebuilt from the chain after a restart)."""
+    root: Path
+    expectations: XP.ExpectationLedger
+    outcomes: OC.OutcomeLedger
+    errors: PE.ErrorEngine
+    book: CT.CommitmentBook
+    pipe: PipelineLedger
+
+    def heads(self) -> dict:
+        return {"expectations": self.expectations.anchor(), "outcomes": self.outcomes.head, "errors": self.errors.lane.head,
+                "book": self.book._cf.head, "pipe": self.pipe.head}
+
+
+def open_ledgers(root, tracker: SurpriseTracker | None, cfg: C68Config, code_hash: str) -> Ledgers:
+    d = Path(root) / SUBDIR
+    d.mkdir(parents=True, exist_ok=True)
+    exp = XP.ExpectationLedger(d, code_hash)
+    return Ledgers(d, exp, OC.OutcomeLedger(exp, d), PE.ErrorEngine(cfg.error_cfg, tracker, d), CT.CommitmentBook(d), PipelineLedger(d))
+
+
+def _state(ctx: LP.Ctx) -> C68State:
+    return ctx.mod_state("c68", new_state)
+
+
+def _ledgers(ctx: LP.Ctx, st: C68State) -> Ledgers:
+    return ctx.handle("c68.ledgers", lambda: open_ledgers(ctx.rt.root, st.tracker, st.cfg, ctx.rt.code_hash))
+
+
+def _run(st: C68State, ctx: LP.Ctx, stage: str, n_in: int, n_out: int, note: str) -> tuple:
+    st.runs.append({"cycle": ctx.cycle, "now": ctx.now, "stage": stage, "in": int(n_in), "out": int(n_out), "note": note[:240]})
+    st.runs = st.runs[-2000:]
+    return int(n_in), int(n_out), note
+
+
+# ================================================================================================================ point-in-time bars
+@dataclasses.dataclass
+class BarView:
+    """The builder's world as arrays (every session strictly before now). Rows = sessions, columns = tickers."""
+    sessions: pd.DatetimeIndex
+    tickers: tuple
+    O: np.ndarray
+    H: np.ndarray
+    L: np.ndarray
+    C: np.ndarray
+    V: np.ndarray
+    market: np.ndarray
+    sector: np.ndarray
+    col: dict
+
+    @property
+    def T(self) -> int:
+        return len(self.sessions)
+
+    def pos_after(self, day) -> int:
+        """Index of the first session strictly after `day` (the next-open fill of a decision taken at day's close)."""
+        return int(self.sessions.searchsorted(pd.Timestamp(as_date(day)), side="right"))
+
+    def returns(self) -> np.ndarray:
+        with np.errstate(invalid="ignore", divide="ignore"):
+            r = self.C[1:] / self.C[:-1] - 1.0
+        return np.vstack([np.full((1, self.C.shape[1]), np.nan), r])
+
+    def sector_index(self, sector: str) -> np.ndarray:
+        m = self.sector == sector
+        r = self.returns()[:, m]
+        mr = np.nan_to_num(np.nanmean(r, axis=1) if m.any() else np.zeros(self.T), nan=0.0)
+        return 100.0 * np.cumprod(1.0 + mr)
+
+
+def bar_view(world: FD.World) -> BarView:
+    C = world.bars["Close"]
+    S = pd.DatetimeIndex(C.index)
+    tick = tuple(str(c) for c in C.columns)
+    arr = {f: world.bars[f].reindex(index=S, columns=list(C.columns)).to_numpy(float) for f in FD.BAR_FIELDS}
+    if world.market and "Close" in world.market and "SPY" in world.market["Close"]:
+        mk = world.market["Close"]["SPY"].reindex(S).to_numpy(float)
+    else:
+        with np.errstate(invalid="ignore"):
+            r = np.nanmean(arr["Close"][1:] / arr["Close"][:-1] - 1.0, axis=1)
+        mk = 100.0 * np.cumprod(np.r_[1.0, 1.0 + np.nan_to_num(r)])
+    sec = np.array([str(world.sectors.get(t, "all")) for t in tick], object)
+    return BarView(S, tick, arr["Open"], arr["High"], arr["Low"], arr["Close"], arr["Volume"], mk, sec, {t: j for j, t in enumerate(tick)})
+
+
+def b_world(feed, ctx) -> dict:
+    """Feed builder 'c68.world': the point-in-time world strictly before now (bars, market proxy, sectors). It passes the feed's
+    fail-closed audit like every other stage input (a bar dated at/after now is REFUSED_LEAK at the stage that asked)."""
+    return {"world": feed.store.bars_before(ctx.now)}
+
+
+def _bars(ctx: LP.Ctx) -> BarView:
+    cache = ctx.rt.__dict__.setdefault("_c68_bars", {})
+    if cache.get("now") != ctx.now:
+        w = ctx.namespace(WORLD_KEY)["world"]
+        if len(w.sessions) < 60:
+            raise LP.NoInput(f"only {len(w.sessions)} sessions of bars before now")
+        cache.clear()
+        cache.update(now=ctx.now, bv=bar_view(w), world=w)
+    return cache["bv"]
+
+
+def next_session(ctx: LP.Ctx, day) -> str:
+    """The exchange session after `day` (the fill). The calendar is public information; without one the next business day."""
+    sess = getattr(ctx.rt.feed, "all_sessions", None)
+    d = pd.Timestamp(as_date(day))
+    if callable(sess):
+        S = sess()
+        i = int(S.searchsorted(d, side="right"))
+        if i < len(S):
+            return str(S[i].date())
+    return str((d + pd.offsets.BDay(1)).date())
+
+
+def session_after(ctx: LP.Ctx, day, k: int) -> str:
+    """The k-th session after `day` (k=1 is the fill session)."""
+    d = str(as_date(day))
+    for _ in range(k):
+        d = next_session(ctx, d)
+    return d
+
+
+# ================================================================================================================ paths
+def build_paths(bv: BarView, rows: pd.DataFrame, horizon: int, now, kind_col: str = "sector") -> tuple[EX.Paths, pd.DataFrame]:
+    """Candidate positions as engine.exits.Paths: for each (decision date, ticker) row, entry at the next session's open and
+    `horizon` sessions of bars - only when EVERY bar is strictly before now (a path still running does not exist yet). Returns the
+    paths and the rows they came from (same order)."""
+    if not len(rows):
+        return _empty_paths(horizon), rows.iloc[0:0]
+    dates = pd.to_datetime(rows.index.get_level_values(0))
+    ticks = [str(t) for t in rows.index.get_level_values(-1)]
+    pos = bv.sessions.searchsorted(dates, side="right")
+    j = np.array([bv.col.get(t, -1) for t in ticks])
+    last = pos + horizon - 1
+    ok = (j >= 0) & (pos >= 1) & (last < bv.T)
+    n_cut = pd.Timestamp(as_date(now))
+    idx = np.flatnonzero(ok)
+    if not len(idx):
+        return _empty_paths(horizon), rows.iloc[0:0]
+    pp, jj = pos[idx], j[idx]
+    steps = pp[:, None] + np.arange(horizon)[None, :]
+    o, h, l, c = (A[steps, jj[:, None]] for A in (bv.O, bv.H, bv.L, bv.C))
+    prev = bv.C[pp - 1, jj]
+    good = np.isfinite(o).all(1) & np.isfinite(h).all(1) & np.isfinite(l).all(1) & np.isfinite(c).all(1) & np.isfinite(prev)
+    good &= (o > 0).all(1) & (c > 0).all(1) & (prev > 0)
+    ends = bv.sessions[last[idx]]
+    good &= np.asarray(ends < n_cut)
+    idx, o, h, l, c, prev, pp = idx[good], o[good], h[good], l[good], c[good], prev[good], pp[good]
+    src = rows.iloc[idx]
+    h = np.maximum(h, np.maximum(o, c))
+    l = np.minimum(l, np.minimum(o, c))
+    vol = _col(src, "vol20", 0.02)
+    atr = _col(src, "atr", 0.02)
+    kinds = src[kind_col].astype(str).to_numpy(object) if kind_col in src else np.full(len(src), "all", object)
+    P = EX.Paths(o, h, l, c, prev, vol, atr, np.asarray(pd.to_datetime(src.index.get_level_values(0)).values, "datetime64[D]"),
+                 np.asarray(bv.sessions[pp + horizon - 1].values, "datetime64[D]"), kinds, np.array([str(t) for t in src.index.get_level_values(-1)], object))
+    return P, src
+
+
+def _col(df: pd.DataFrame, name: str, fill: float) -> np.ndarray:
+    v = df[name].to_numpy(float) if name in df else np.full(len(df), fill)
+    return np.where(np.isfinite(v) & (v > 0), v, fill)
+
+
+def _empty_paths(horizon: int) -> EX.Paths:
+    z = np.zeros((0, horizon))
+    e = np.zeros(0)
+    return EX.Paths(z, z, z, z, e, e, e, np.zeros(0, "datetime64[D]"), np.zeros(0, "datetime64[D]"), np.zeros(0, object), np.zeros(0, object))
+
+
+def feature_matrix(rows: pd.DataFrame, names: Sequence[str]) -> np.ndarray:
+    return np.stack([rows[n].to_numpy(float) if n in rows else np.full(len(rows), np.nan) for n in names], 1) if len(rows) else \
+        np.zeros((0, len(names)))
+
+
+# ================================================================================================================ patterns from bars
+def signals(bv: BarView) -> dict[str, pd.DataFrame]:
+    """The pattern signals at each session's close from bars up to that close only (r20, r5, vol20 - the research frame's names)."""
+    C = pd.DataFrame(bv.C, index=bv.sessions, columns=list(bv.tickers))
+    r = C.pct_change(fill_method=None)
+    return {"r20": C / C.shift(20) - 1.0, "r5": C / C.shift(5) - 1.0, "vol20": r.rolling(20, min_periods=15).std()}
+
+
+def fired_masks(sig: Mapping[str, pd.DataFrame], rules: Sequence[PatternRule]) -> dict[str, pd.DataFrame]:
+    out = {}
+    for rule in rules:
+        rk = sig[rule.feature].rank(axis=1, pct=True)
+        out[rule.name] = (rk >= rule.quantile) if rule.top else (rk <= rule.quantile)
+    return out
+
+
+def market_labels(bv: BarView, cfg: PE.ErrorConfig, window: int = 20) -> pd.Series:
+    """The market regime label ('UP_CALM', ...) at each session from the trailing `window` sessions of the market proxy (the same
+    vocabulary prediction_error scores the expected regime in)."""
+    m = pd.Series(bv.market, index=bv.sessions)
+    mr = m.pct_change(fill_method=None)
+    mv = m / m.shift(window) - 1.0
+    vv = mr.rolling(window, min_periods=10).std()
+    lab = [PE.realized_regime(None if not math.isfinite(a) else float(a), None if not math.isfinite(b) else float(b), window, cfg) or "UNKNOWN"
+           for a, b in zip(mv.to_numpy(float), vv.to_numpy(float))]
+    return pd.Series(lab, index=bv.sessions)
+
+
+def pattern_frames(bv: BarView, rules: Sequence[PatternRule], cfg: C68Config) -> tuple[dict, dict]:
+    """Daily pattern outcomes for pattern_change: row dated at session t+1 (when its outcome is known) = the sign-adjusted mean
+    next-session return of the names the pattern fired on at t's close. Also the pairwise combination series (interactions).
+    Columns regime / volatility let pattern_change find regime-specific failures."""
+    sig = signals(bv)
+    fired = fired_masks(sig, rules)
+    R = pd.DataFrame(bv.returns(), index=bv.sessions, columns=list(bv.tickers))
+    nxt = R.shift(-1)
+    lab = market_labels(bv, cfg.error_cfg)
+    frames, combos = {}, {}
+    sign = {r.name: r.sign for r in rules}
+
+    def eff(mask: pd.DataFrame, s: int) -> pd.Series:
+        m = mask.fillna(False).to_numpy(bool)
+        x = nxt.to_numpy(float)
+        cnt = (m & np.isfinite(x)).sum(1)
+        with np.errstate(invalid="ignore"):
+            v = np.where(cnt >= cfg.min_fired, np.nansum(np.where(m, x, 0.0), 1) / np.maximum(cnt, 1), np.nan) * s
+        out = pd.Series(v, index=bv.sessions).shift(1)            # dated at the session whose close realised it
+        return out.dropna()
+    for rule in rules:
+        e = eff(fired[rule.name], rule.sign)
+        lb = lab.reindex(e.index)
+        frames[rule.name] = pd.DataFrame({"effect": e, "regime": lb.to_numpy(object),
+                                          "volatility": ["VOLATILE" if "VOLATILE" in str(x) else "CALM" for x in lb]}, index=e.index)
+    names = [r.name for r in rules]
+    for i, a in enumerate(names):
+        for b in names[i + 1:]:
+            combos[f"{a}|{b}"] = eff(fired[a] & fired[b], sign[a])
+    return frames, combos
+
+
+def _patterns(ctx: LP.Ctx, st: C68State) -> tuple[dict, dict]:
+    cache = ctx.rt.__dict__.setdefault("_c68_patterns", {})
+    if cache.get("now") != ctx.now:
+        cache.clear()
+        cache.update(now=ctx.now, v=pattern_frames(_bars(ctx), st.cfg.patterns, st.cfg))
+    return cache["v"]
+
+
+def fired_today(today: pd.DataFrame, rules: Sequence[PatternRule]) -> dict[str, tuple]:
+    """Which patterns fire on each name of the decision day, from the research frame's own features at the deciding close."""
+    out: dict[str, list] = {str(ix[-1]): [] for ix in today.index}
+    for rule in rules:
+        if rule.feature not in today or len(today) < 5:
+            continue
+        rk = today[rule.feature].astype(float).rank(pct=True)
+        hit = (rk >= rule.quantile) if rule.top else (rk <= rule.quantile)
+        for ix, h in zip(today.index, hit.to_numpy(bool)):
+            if h:
+                out[str(ix[-1])].append(rule.name)
+    return {k: tuple(v) for k, v in out.items()}
+
+
+# ================================================================================================================ the 5-10% gate
+@dataclasses.dataclass
+class BandGate:
+    """Checklist L inside the two-stage funnel: a name is eligible only when the realisable gain its INTENDED exit policy is forecast
+    to deliver lies in [+5%, +10%] (selection_constraint.select; forbidden bases and stale policies refused there). Pattern influence
+    (released through MaturedRecord.gate) shrinks a degraded pattern's feature toward the gain model's training mean on the names the
+    pattern fires on, so a suspended pattern cannot carry a name into the band."""
+    model: SC.RealisableGainModel
+    policy: str
+    cfg: SC.SelectionConfig
+    features: tuple
+    influence: Mapping[str, float]
+    pattern_feature: Mapping[str, str]
+    fired: Mapping[str, tuple]
+    last: dict = dataclasses.field(default_factory=dict)
+
+    def adjusted(self, rows: pd.DataFrame) -> np.ndarray:
+        F = feature_matrix(rows, self.features)
+        if self.model.mu_ is None:
+            return F
+        for p, w in self.influence.items():
+            f = self.pattern_feature.get(p)
+            if f not in self.features or w >= 1.0:
+                continue
+            j = self.features.index(f)
+            hit = np.array([p in self.fired.get(str(ix[-1]), ()) for ix in rows.index], bool)
+            F[hit, j] = self.model.mu_[j] + float(w) * (F[hit, j] - self.model.mu_[j])
+        return F
+
+    def forecast(self, rows: pd.DataFrame, now) -> list:
+        kinds = rows["sector"].astype(str).tolist() if "sector" in rows else ["all"] * len(rows)
+        return self.model.forecast([str(ix[-1]) for ix in rows.index], self.adjusted(rows), kinds, now)
+
+    def __call__(self, rows: pd.DataFrame, now) -> pd.DataFrame:
+        fcs = self.forecast(rows, now)
+        rep = SC.select(fcs, now, self.policy, self.cfg)
+        by = {d.candidate: d for d in rep.decisions}
+        self.last = {fc.candidate: fc for fc in fcs}
+        out = pd.DataFrame(index=rows.index)
+        out["eligible"] = [by[str(ix[-1])].eligible for ix in rows.index]
+        out["reason"] = [by[str(ix[-1])].reason.value for ix in rows.index]
+        out["point"] = [fc.median if math.isfinite(fc.mean) else float("nan") for fc in fcs]
+        out["p_band"] = [fc.p_in_band for fc in fcs]
+        return out
+
+
+def abstain_gate(rows: pd.DataFrame, now) -> pd.DataFrame:
+    """The gate when no realisable-gain model could be fitted: nobody is eligible (UNSUPPORTED), never waved through."""
+    return pd.DataFrame({"eligible": False, "reason": SC.Reason.UNSUPPORTED.value, "point": np.nan, "p_band": 0.0}, index=rows.index)
+
+
+def released_influence(st: C68State, now, created_real: str, code_hash: str) -> dict[str, float]:
+    """Pattern influence as the decision path may see it: each value is a MaturedRecord passed through gate(now), so an influence
+    decided at `now` itself (from evidence that includes today's research) only takes effect at the next decision."""
+    out = {}
+    for row in reversed(st.influence_log):
+        p = row["pattern"]
+        if p in out:
+            continue
+        rec = MaturedRecord("INF-" + stable_hash([p, row["decided"]], 10), row["decided"], {"pattern": p, "influence": row["influence"]},
+                            Provenance(created_real or row["decided"], row["evidence"], code_hash or "c68", outcomes_seen_through=row["evidence"]))
+        try:
+            out[p] = float(rec.gate(now)["influence"])
+        except FirewallBreach:
+            continue
+    return {p.name: out.get(p.name, 1.0) for p in st.cfg.patterns}
+
+
+def _gain_rows(M: pd.DataFrame, st: C68State) -> pd.DataFrame:
+    """Training rows for the production gain model: the newest matured candidate rows, restricted to the promoted fix's window."""
+    rows = M.sort_index().iloc[-st.cfg.train_max:]
+    share = float(st.production.get("window_share", 1.0))
+    if share < 1.0 and len(rows):
+        d = pd.to_datetime(rows.index.get_level_values(0))
+        cut = d.sort_values()[int(len(d) * (1.0 - share))]
+        rows = rows[np.asarray(d >= cut)]
+    return rows
+
+
+# ================================================================================================================ stage: policy and gate
+def st_policy(ctx: LP.Ctx) -> tuple:
+    """c68.selection_policy. Learn the exit (target-blind), fit the realisable-gain and path models UNDER it, install the band gate in
+    the two-stage pipe. Training uses only candidate paths whose last bar is strictly before now."""
+    st = _state(ctx)
+    cfg = st.cfg
+    bv = _bars(ctx)
+    M = ctx.obs.matured
+    if len(M) == 0:
+        raise LP.NoInput("no matured research rows")
+    rows = _gain_rows(M, st)
+    P, src = build_paths(bv, rows, cfg.horizon, ctx.now)
+    pipe = ctx.rt.pipe if ctx.rt.pipe is not None else TS.TwoStage(ctx.state.cfg.two_stage)
+    ctx.rt.pipe = pipe
+    if len(P) < cfg.min_train:
+        st.gate, pipe.band_gate = None, abstain_gate
+        return _run(st, ctx, "c68.selection_policy", len(P), 0,
+                    f"only {len(P)} matured candidate paths (< {cfg.min_train}): the band gate abstains, no position is allowed")
+    rule = XR.LearnedExitRule(cfg.exit_cfg).fit(P, ctx.now)
+    pid = SC.policy_id(rule)
+    st.policies[pid] = rule
+    feats = tuple(cfg.features) + tuple(st.production.get("extra_features", ()))
+    gm = SC.RealisableGainModel(rule, feats, cfg.selection).fit(P, feature_matrix(src, feats), ctx.now)
+    ctxf = {k: np.nan_to_num(src[k].to_numpy(float)) for k in cfg.path_context if k in src}
+    pm = XR.PathModel(rule).fit(P, ctx.now, ctxf) if len(P) >= 20 else None
+    infl = released_influence(st, ctx.now, ctx.created_real(), ctx.rt.code_hash)
+    today = ctx.obs.today
+    gate = BandGate(gm, pid, cfg.selection, feats, infl, {p.name: p.feature for p in cfg.patterns}, fired_today(today, cfg.patterns))
+    pipe.band_gate = gate
+    st.gate, st.path_model = gate, pm
+    st.trained_through = str(pd.Timestamp(P.end.max()).date())
+    st.intended[str(as_date(ctx.now))] = pid
+    dg = gm.diagnostics
+    return _run(st, ctx, "c68.selection_policy", len(P), 1,
+                f"policy {pid[:9]} (threshold {rule.threshold:.4f}); gain model {dg.get('status')} n={dg.get('n')} base in-band "
+                f"{dg.get('base_in_band', float('nan')):.3f}; influence {', '.join(f'{k}={v:.2f}' for k, v in infl.items())}")
+
+
+# ================================================================================================================ stage: expectations
+def regime_label(series: np.ndarray, cfg: PE.ErrorConfig, window: int = 20) -> str:
+    s = np.asarray(series, float)[-(window + 1):]
+    if len(s) < window // 2 + 1 or not np.isfinite(s[[0, -1]]).all() or s[0] <= 0:
+        return "UNKNOWN"
+    r = s[1:] / s[:-1] - 1.0
+    r = r[np.isfinite(r)]
+    return PE.realized_regime(float(s[-1] / s[0] - 1.0), float(np.std(r, ddof=1)) if len(r) > 2 else None, window, cfg) or "UNKNOWN"
+
+
+def _strength(series: pd.Series | None, before, window: int) -> float:
+    if series is None:
+        return 0.0
+    s = series[series.index < pd.Timestamp(as_date(before))].tail(window)
+    return float(s.mean()) if len(s) else 0.0
+
+
+def expectation_context(ctx: LP.Ctx, st: C68State, bv: BarView, day: str, subject: str, sector: str, fired: tuple, entry_at: str) -> dict:
+    """Checklist-A context for one position: expected market and sector regime (the trailing state, carried forward), the patterns
+    that fire on it with their expected strengths (trailing mean daily effect), the interactions among them."""
+    frames, combos = _patterns(ctx, st)
+    cfg = st.cfg
+    pats = tuple(sorted(fired)) or ("no_pattern",)
+    strengths = {p: _strength(frames[p]["effect"] if p in frames else None, entry_at, cfg.strength_window) for p in pats}
+    inter = {}
+    for i, a in enumerate(pats):
+        for b in pats[i + 1:]:
+            key = f"{a}|{b}" if f"{a}|{b}" in combos else f"{b}|{a}"
+            if key in combos:
+                inter[f"{a} x {b}"] = _strength(combos[key], entry_at, cfg.strength_window)
+    return {"market_regime": regime_label(bv.market, cfg.error_cfg), "sector_regime": regime_label(bv.sector_index(sector), cfg.error_cfg),
+            "patterns": pats, "pattern_strengths": strengths, "interactions": inter, "entry_at": entry_at,
+            "timestamp": f"{as_date(day).isoformat()}T15:59:00"}
+
+
+def _subday(dec: TS.DayDecision, ix) -> TS.DayDecision:
+    t = dec.table
+    keep = (t.index == ix) | ((t["side"] == TS.FLAT) & t["mover"].astype(bool)).to_numpy()
+    return TS.DayDecision(dec.decided_at, t[keep], dec.funnel, dec.gate, dec.knowledge_digest)
+
+
+def st_expect(ctx: LP.Ctx) -> tuple:
+    """c68.expectations. Make sure today's decision is band-gated, then freeze a checklist-A expectation and a calibration commitment
+    for every position BEFORE its next-open fill, and log the research-side forecast of every name (identification / self-correction)."""
+    st = _state(ctx)
+    led = _ledgers(ctx, st)
+    cfg = st.cfg
+    if not ctx.state.decisions:
+        raise LP.NoInput("no two-stage decision this cycle")
+    dec = ctx.state.decisions[-1]
+    if dec.decided_at in st.decided:
+        raise LP.NoInput(f"decision {dec.decided_at} already has its expectations")
+    today = ctx.obs.today
+    gate = st.gate if st.gate is not None else abstain_gate
+    gated = TS.apply_band_gate(dec, gate, today, ctx.now)
+    if gated is not dec:
+        ctx.state.decisions[-1] = gated
+        st.count("decisions_regated")
+    dec = gated
+    st.decided.append(dec.decided_at)
+    bv = _bars(ctx)
+    if isinstance(gate, BandGate) and len(today):
+        fcs = gate.forecast(today, ctx.now)
+        el = SC.select(fcs, ctx.now, gate.policy, gate.cfg)
+        ok = set(el.eligible)
+        st.forecasts[dec.decided_at] = {fc.candidate: {"mean": fc.mean, "median": fc.median, "p_band": fc.p_in_band, "eligible": fc.candidate in ok,
+                                                       "policy": gate.policy, **{f: float(today.loc[ix, f]) if f in today else float("nan")
+                                                                                 for f in (*cfg.features, *cfg.market_features)},
+                                                       "sector": str(today.loc[ix, "sector"]) if "sector" in today else "all"}
+                                        for fc, ix in zip(fcs, today.index) if math.isfinite(fc.mean)}
+    pos = dec.positions
+    if not len(pos):
+        return _run(st, ctx, "c68.expectations", len(dec.table), 0, f"no position on {dec.decided_at}: {dict(dec.reasons())}")
+    if st.path_model is None or not isinstance(gate, BandGate):
+        raise FirewallBreach(f"{len(pos)} position(s) on {dec.decided_at} without a fitted path model and band gate")
+    entry_at = next_session(ctx, dec.decided_at)
+    matures = session_after(ctx, dec.decided_at, cfg.horizon)
+    fired = fired_today(today, cfg.patterns)
+    entries = {}
+    for ix, row in pos.iterrows():
+        t = today.loc[ix]
+        entries[str(ix[-1])] = {"vol": float(t["vol20"]) if "vol20" in t and math.isfinite(float(t["vol20"])) else 0.02,
+                                "atr": float(t["atr"]) if "atr" in t and math.isfinite(float(t["atr"])) else 0.02,
+                                "kind": str(t["sector"]) if "sector" in t else "all",
+                                **{k: float(np.nan_to_num(float(t[k]))) for k in cfg.path_context if k in t}}
+    pm = st.path_model.bind(entries, ctx.now)
+    gm = gate.model
+    version = f"{gate.policy}|{gm.digest()[:10]}|{str(ctx.rt.code_hash)[:8]}"
+    info = {"bars": str(bv.sessions[-1].date()), "decision_frame": dec.decided_at, "gain_model": min(st.trained_through, dec.decided_at),
+            "knowledge": dec.decided_at}
+    recorded = 0
+    for ix, row in pos.iterrows():
+        tk = str(ix[-1])
+        ctxd = expectation_context(ctx, st, bv, dec.decided_at, tk, entries[tk]["kind"], fired.get(tk, ()), entry_at)
+        exp = XP.expectations_from_day(_subday(dec, ix), pm, ctxd, ctx.now, model_version=version, information_set=info,
+                                       feature_columns=list(cfg.features), today=today)[0]
+        pid = led.expectations.record(exp, ctx.now)
+        if pid not in {c.pred_id for c in led.book.commitments()}:
+            led.book.commit(pid, exp, gate.policy, st.trained_through, matures, ctx.now, cfg.target)
+        st.pending[pid] = Position(pid, tk, dec.decided_at, entry_at, gate.policy, entries[tk]["kind"], entries[tk]["vol"],
+                                   entries[tk]["atr"], tuple(ctxd["patterns"]))
+        fc = gate.last.get(tk)
+        if led.pipe.last_step(pid) is None:
+            led.pipe.add(pid, "PREDICTION", ctx.now, {"side": int(row["side"]), "p_move": float(row["p_move"]), "p_up": float(row["p_up"]),
+                                                      "gain_forecast": None if fc is None else fc.median,
+                                                      "p_band": None if fc is None else fc.p_in_band, "policy": gate.policy})
+            led.pipe.add(pid, "EXPECTATION", ctx.now, {"content_hash": exp.content_hash, "predicted_return": exp.predicted_return,
+                                                       "confidence": exp.confidence, "entry_at": exp.entry_at, "committed": True})
+        recorded += 1
+    st.count("expectations", recorded)
+    return _run(st, ctx, "c68.expectations", len(pos), recorded, f"{recorded} expectation(s) frozen before the {entry_at} fill")
+
+
+# ================================================================================================================ stage: market and regime
+def market_day(bv: BarView, t: int, err_z: Sequence[float]) -> CP.DayInputs:
+    """One session's market-level inputs for change_points.build_streams (volatility, dispersion, breadth, correlation, errors)."""
+    R = bv.returns()
+    r = R[t]
+    ok = np.isfinite(r)
+    win = R[max(1, t - 19): t + 1].T
+    ez = np.asarray([z for z in err_z if math.isfinite(z)], float)
+    return CP.DayInputs(returns_window=win if win.shape[1] >= 10 else None, day_abs_move=float(np.mean(np.abs(r[ok]))) if ok.sum() >= 5 else None,
+                        dispersion=float(np.std(r[ok])) if ok.sum() >= 5 else None, breadth_up=float(np.mean(r[ok] > 0)) if ok.sum() >= 5 else None,
+                        error_z=ez if len(ez) else None)
+
+
+def unit_values(bv: BarView, t: int) -> dict:
+    """Per-name stream: the trailing 5-session standardised return (a sudden single-name break persists in it for a week)."""
+    R = bv.returns()
+    lo = max(1, t - 60)
+    sd = np.nanstd(R[lo:t - 4], axis=0) if t - 4 > lo + 10 else np.full(R.shape[1], np.nan)
+    z5 = np.nansum(R[t - 4:t + 1], axis=0) / (sd * math.sqrt(5)) if t >= 5 else np.full(R.shape[1], np.nan)
+    return {f"u:{i}": (float(v) if math.isfinite(v) else None) for i, v in enumerate(z5)}
+
+
+def market_obs(bv: BarView, t_end: int, horizon: int) -> ME.MarketObs | None:
+    """The period (last `horizon` sessions ending at t_end) as a market_expectations observation: opportunity (share of names that
+    moved >= 5%), volatility, breadth, dispersion, correlation, momentum persistence, reversal probability, gap behaviour, movers and
+    qualifying 5-10% opportunities, holding period and the best exit day of the movers."""
+    a = t_end - horizon
+    if a < 25:
+        return None
+    C, O = bv.C, bv.O
+    ret = C[t_end] / C[a] - 1.0
+    ok = np.isfinite(ret)
+    if ok.sum() < 10:
+        return None
+    r = ret[ok]
+    prior = (C[a] / C[a - 20] - 1.0)[ok]
+    prev_w = (C[a] / C[a - horizon] - 1.0)[ok]
+    path = C[a + 1:t_end + 1][:, ok] / C[a][ok] - 1.0
+    movers = np.abs(r) >= 0.05
+    qual = (r >= 0.05) & (r <= 0.10)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        gaps = np.abs(O[a + 1:t_end + 1] / C[a:t_end] - 1.0)
+    R = bv.returns()[a + 1:t_end + 1][:, ok]
+    cm = np.corrcoef(R.T) if R.shape[0] >= 3 else None
+    corr = float(np.nanmean(cm[np.triu_indices_from(cm, 1)])) if cm is not None and np.isfinite(cm).any() else None
+    big = np.abs(prev_w) >= 0.05
+    rev = float(np.mean(np.sign(r[big]) != np.sign(prev_w[big]))) if big.sum() >= 3 else None
+    pm = np.isfinite(prior) & np.isfinite(r)
+    mom = float(pd.Series(prior[pm]).corr(pd.Series(r[pm]), method="spearman")) if pm.sum() >= 10 else None
+    best = (np.nanargmax(np.abs(path[:, movers]), axis=0) + 1).astype(float) if movers.any() else np.array([])
+    vals = {"opportunity": float(movers.mean()), "volatility": float(np.mean(np.abs(r))), "breadth": float(np.mean(r > 0)),
+            "dispersion": float(np.std(r)), "correlation": corr, "momentum_persistence": mom, "reversal_probability": rev,
+            "gap_behavior": float(np.nanmedian(gaps)) if np.isfinite(gaps).any() else None, "n_movers": float(movers.sum()),
+            "n_qualifying": float(qual.sum()), "holding_period": float(horizon), "optimal_exit_days": float(best.mean()) if len(best) else None}
+    return ME.MarketObs(str(bv.sessions[t_end].date()), {k: v for k, v in vals.items() if v is None or math.isfinite(v)})
+
+
+def _err_z_by_day(led: Ledgers, now) -> dict[str, list]:
+    out: dict[str, list] = {}
+    for rep in led.errors.reports(now):
+        z = rep["return"].z
+        if z is not None and math.isfinite(z):
+            out.setdefault(rep.matured_at, []).append(float(z))
+    return out
+
+
+def st_market(ctx: LP.Ctx) -> tuple:
+    """c68.market_regime. Advance, one session at a time and strictly in date order, the early-warning streams (market + single-name),
+    the weekly market expectation (resolve the last one, investigate a big miss, expect the next) and the regime memory."""
+    st = _state(ctx)
+    led = _ledgers(ctx, st)
+    cfg = st.cfg
+    bv = _bars(ctx)
+    ez = _err_z_by_day(led, ctx.now)
+    new_days, alarms = 0, 0
+    start = 25
+    if st.ews_through:
+        start = max(start, int(bv.sessions.searchsorted(pd.Timestamp(st.ews_through), side="right")))
+    unit_sector = {f"u:{i}": str(s) for i, s in enumerate(bv.sector)}
+    ew = None
+    for t in range(start, bv.T):
+        day = str(bv.sessions[t].date())
+        di = market_day(bv, t, ez.get(day, ()))
+        vals, tg, _ = CP.build_streams(di)
+        ew = CP.step(st.ews, day, vals, tg, unit_values=unit_values(bv, t), unit_sector=unit_sector, unit_target=CP.Target.VOLATILITY)
+        st.warnings.append((day, ew.level.value, ew.scope.scope.value))
+        d = st.daily
+        d["dates"].append(day)
+        for q in ("volatility", "dispersion", "breadth", "correlation"):
+            d["q"].setdefault(q, [np.nan] * (len(d["dates"]) - 1)).append(np.nan if vals.get(q) is None else float(vals[q]))
+        for q in d["q"]:
+            if len(d["q"][q]) < len(d["dates"]):
+                d["q"][q].append(np.nan)
+        z = ez.get(day, ())
+        d["error_z"].append(float(np.mean(z)) if len(z) else np.nan)
+        alarms += len([x for x in ew.detections if x.alarm_date == day])
+        st.ews_through = day
+        new_days += 1
+    keep = cfg.history_days
+    if len(st.daily["dates"]) > keep:
+        st.daily = {"dates": st.daily["dates"][-keep:], "q": {k: v[-keep:] for k, v in st.daily["q"].items()},
+                    "error_z": st.daily["error_z"][-keep:]}
+    st.warnings = st.warnings[-keep:]
+    n_market = 0
+    t_end = bv.T - 1
+    week_ends = [t for t in range(bv.T) if t == bv.T - 1 or bv.sessions[t + 1].to_period("W") != bv.sessions[t].to_period("W")]
+    for t in week_ends:
+        day = str(bv.sessions[t].date())
+        if st.market_through and day <= st.market_through:
+            continue
+        ob = market_obs(bv, t, cfg.horizon)
+        if ob is None:
+            continue
+        nxt = str((bv.sessions[t] + pd.Timedelta(days=7)).date())
+        frames, _ = _patterns(ctx, st)
+        pe = {p: f["effect"][f.index <= bv.sessions[t]].tail(60).to_numpy(float) for p, f in frames.items()}
+        res = ME.step(st.market, ctx.now, ob, pattern_effects=pe, next_period=nxt)
+        st.market.feed_tracker(st.tracker, res, ctx.now)
+        st.market_through = day
+        n_market += 1
+        t_end = t
+    dets = [x for x in st.ews.market.detections if x.alarm_date in set(st.daily["dates"])]
+    ev = RM.RegimeEvidence(tuple(st.daily["dates"]), tuple(dets), {k: list(v) for k, v in st.daily["q"].items()},
+                           {p: _aligned(f["effect"], st.daily["dates"]) for p, f in _patterns(ctx, st)[0].items()}, tuple(st.daily["error_z"]))
+    ms = RM.step(st.memory, ctx.now, ev, scope=ew.scope if ew is not None else None, active_precursors=ew.fired() if ew is not None else ())
+    if not new_days and not n_market:
+        raise LP.NoInput("no new session before now")
+    return _run(st, ctx, "c68.market_regime", new_days + n_market, alarms + len(ms.new_records),
+                f"{new_days} session(s), {alarms} alarm(s), warning {ew.level.value if ew else 'n/a'} ({ew.scope.scope.value if ew else 'n/a'}); "
+                f"{n_market} market period(s); regime records +{len(ms.new_records)}, status changes {list(ms.status_changes)}")
+
+
+def _aligned(s: pd.Series, dates: Sequence[str]) -> list:
+    m = {str(k.date()): float(v) for k, v in s.items()}
+    return [m.get(d, np.nan) for d in dates]
+
+
+# ================================================================================================================ stage: pattern change + influence
+def st_patterns(ctx: LP.Ctx) -> tuple:
+    """c68.pattern_change. Classify every pattern (pattern_change -> break_research's detector), then combine the verdict with the
+    regime memory's guard (a regime alarm alone never switches a working pattern off) into the pattern's influence. A failing pattern
+    is never deleted; before it has been investigated it keeps at least half its influence."""
+    st = _state(ctx)
+    cfg = st.cfg
+    frames, _ = _patterns(ctx, st)
+    if not frames:
+        raise LP.NoInput("no pattern outcomes yet")
+    rep = PC.step(st.pcs, ctx.now, frames, dict(cfg.pattern_cfg))
+    recs = st.memory.records(ctx.now)
+    latest = recs[-1] if recs else None
+    status = st.memory.status(latest.record_id) if latest is not None else None
+    adv = st.memory.advice(st.warnings and () or (), ctx.now)
+    changed = 0
+    for v in rep.verdicts:
+        p = v.pattern_id
+        st.verdicts[p] = v.change.value
+        base = CLASS_INFLUENCE.get(v.change)
+        if base is None:
+            base = st.influence.get(p, 1.0)
+        elif v.change in PC.FAILING and p not in st.pcs.investigated:
+            base = max(base, UNINVESTIGATED_FLOOR)
+        g = RM.PatternAction.KEEP
+        if latest is not None:
+            eff = frames[p]["effect"]
+            cd = pd.Timestamp(latest.change_date)
+            gd = RM.pattern_guard(p, status, eff[eff.index < cd].to_numpy(float), eff[eff.index >= cd].to_numpy(float),
+                                  p in adv.weaken, st.memory.cfg)
+            g = gd.action
+        st.guard[p] = g.value
+        new = float(min(base, GUARD_INFLUENCE[g]))
+        if abs(new - st.influence.get(p, 1.0)) > 1e-12:
+            changed += 1
+            ctx.bus.setdefault("events", []).append(_pattern_event(ctx, p, v, st.influence.get(p, 1.0), new))
+        st.influence[p] = new
+        st.influence_log.append({"pattern": p, "influence": new, "decided": str(as_date(ctx.now)), "change": v.change.value,
+                                 "guard": g.value, "evidence": str(frames[p].index[frames[p].index < pd.Timestamp(as_date(ctx.now))].max().date())
+                                 if len(frames[p]) else str(as_date(ctx.now))})
+    st.influence_log = st.influence_log[-5000:]
+    for pid in rep.investigations_needed:
+        ev = _pattern_event(ctx, pid, st.pcs.latest[pid], st.influence.get(pid, 1.0), st.influence.get(pid, 1.0))
+        ctx.bus.setdefault("events", []).append(ev)
+    return _run(st, ctx, "c68.pattern_change", len(frames), changed,
+                f"verdicts {dict(rep.counts)}; influence {', '.join(f'{k}={v:.2f}' for k, v in st.influence.items())}; "
+                f"regime {status.value if status else 'none'}; {len(rep.investigations_needed)} to investigate")
+
+
+def _pattern_event(ctx: LP.Ctx, p: str, v, old: float, new: float):
+    from engine.research import questions as Q
+    through = str(v.profile.as_of) if v is not None else str(as_date(ctx.now))
+    last = ctx.evidence_date() if ctx.rt.obs is not None and ctx.obs.evidence_through else through
+    ev_through = min(str(as_date(last)), str((pd.Timestamp(as_date(ctx.now)) - pd.Timedelta(days=1)).date()))
+    mag = float(min(1.0, abs(v.profile.z) / 6.0)) if v is not None and math.isfinite(v.profile.z) else 0.5
+    return Q.QuestionEvent("pattern_break", f"pattern {p}", ev_through, mag, stake=float(min(1.0, max(0.1, 1.0 - new))),
+                           problem=Problem.VOLATILITY, contexts={"change": v.change.value if v is not None else "?",
+                                                                 "influence": f"{old:.2f}->{new:.2f}"},
+                           detail=f"pattern {p} {v.change.value if v is not None else ''}; influence {old:.2f} -> {new:.2f}")
+
+
+# ================================================================================================================ stage: outcomes and errors
+def position_paths(bv: BarView, p: Position, horizon: int, now) -> tuple[EX.Paths, int] | None:
+    rows = pd.DataFrame({"vol20": [p.vol], "atr": [p.atr], "sector": [p.sector]},
+                        index=pd.MultiIndex.from_tuples([(pd.Timestamp(p.decided_at), p.ticker)]))
+    P, _ = build_paths(bv, rows, horizon, now)
+    if not len(P):
+        return None
+    return P, bv.pos_after(p.decided_at)
+
+
+def path_data(bv: BarView, p: Position, pos0: int, exit_pos: int, exit_price: float, frames: Mapping, combos: Mapping,
+              patterns: Sequence[str], interactions: Sequence[str], post: int, peers: int) -> OC.PathData:
+    """The raw material outcomes.reconstruct needs, all strictly before now: bars from the fill through `post` sessions after the
+    exit, the market proxy, the equal-weight sector index, same-sector peers, the patterns' daily effects over the hold."""
+    j = bv.col[p.ticker]
+    hi = min(bv.T, exit_pos + 1 + post)
+    sl = slice(pos0, hi)
+    dates = tuple(str(d.date()) for d in bv.sessions[sl])
+    sec = bv.sector_index(p.sector)
+    peer_j = [bv.col[t] for t, s in zip(bv.tickers, bv.sector) if s == p.sector and t != p.ticker][:peers]
+    ser = {k: tuple(_aligned(frames[k]["effect"], dates)) for k in patterns if k in frames}
+    hold_dates = dates[: exit_pos - pos0 + 1]
+    real = {k: float(np.nanmean(v[: len(hold_dates)])) for k, v in ser.items() if np.isfinite(v[: len(hold_dates)]).any()}
+    ireal = {}
+    for key in interactions:
+        a, b = [x.strip() for x in key.split(" x ")]
+        c = combos.get(f"{a}|{b}", combos.get(f"{b}|{a}"))
+        if c is not None:
+            v = np.asarray(_aligned(c, hold_dates), float)
+            if np.isfinite(v).any():
+                ireal[key] = float(np.nanmean(v))
+    return OC.PathData(dates, tuple(bv.O[sl, j]), tuple(bv.H[sl, j]), tuple(bv.L[sl, j]), tuple(bv.C[sl, j]), hold_dates[-1], exit_price,
+                       tuple(bv.V[sl, j]), tuple(bv.market[sl]), float(bv.market[pos0 - 1]), tuple(sec[sl]), float(sec[pos0 - 1]),
+                       {f"peer{i}": tuple(bv.C[sl, pj]) for i, pj in enumerate(peer_j)}, {f"peer{i}": float(bv.C[pos0 - 1, pj]) for i, pj in enumerate(peer_j)},
+                       ser, real, ireal)
+
+
+def run_exit(rule: EX.Rule, P: EX.Paths) -> EX.ExitResult:
+    """THE exit of every C68 position: the committed learned policy on the realised path. Its inputs are the path and the rule -
+    no prediction, expectation, target or tolerance exists in this call (checklist O)."""
+    return rule.run(P)
+
+
+def st_outcomes(ctx: LP.Ctx) -> tuple:
+    """c68.outcomes_errors. For every position whose path ended before now: the committed learned exit decides the exit, the whole path
+    is reconstructed against the frozen expectation, the ten errors are computed (feeding the shared surprise tracker), and the exit is
+    recorded for the honest +-1pp statistic. Also the realised gain of every name forecast on a resolved day (identification)."""
+    st = _state(ctx)
+    led = _ledgers(ctx, st)
+    cfg = st.cfg
+    bv = _bars(ctx)
+    frames, combos = _patterns(ctx, st)
+    done = 0
+    skipped: dict[str, str] = {}
+    for pid in sorted(st.pending):
+        p = st.pending[pid]
+        got = position_paths(bv, p, cfg.horizon, ctx.now)
+        if got is None:
+            continue
+        P, pos0 = got
+        rule = st.policies[p.policy_id]
+        res = run_exit(rule, P)
+        days = int(res.days[0])
+        exit_pos = pos0 + days - 1
+        exp = led.expectations.get(pid)
+        meta = led.expectations.meta(pid)
+        price = float(P.o[0, 0] * (1.0 + res.gross[0]))
+        pdata = path_data(bv, p, pos0, exit_pos, price, frames, combos, exp.patterns, tuple(exp.interactions), cfg.post_exit, cfg.peers)
+        try:
+            out = OC.reconstruct(exp, meta["content_hash"], pdata, ctx.now)
+        except (OC.OutcomeUnavailable, FirewallBreach) as e:
+            skipped[pid] = str(e)[:120]
+            continue
+        led.outcomes.add(out, ctx.now)
+        st.exit_records.append(CT.exit_record_from_policy(pid, out.exit_at, float(res.net[0]), p.policy_id))
+        led.pipe.add(pid, "OUTCOME", ctx.now, {"exit_at": out.exit_at, "exit_return": out.exit_return, "net": float(res.net[0]),
+                                               "held": out.holding_days, "decided_by": CT.LEARNED_POLICY, "policy": p.policy_id,
+                                               "mfe": out.mfe, "mae": out.mae, "regret": out.regret})
+        del st.pending[pid]
+        done += 1
+    reports = led.errors.step(led.outcomes, ctx.now)
+    for rep in reports:
+        led.pipe.add(rep.prediction_id, "ERROR", ctx.now, {k: v for k, v in rep.vector().items()})
+        led.pipe.add(rep.prediction_id, "CLASSIFIED", ctx.now, {"diagnosis": list(rep.diagnosis), "confident_wrong": rep.confident_wrong,
+                                                                "severity": rep.severity(3)})
+        st.wc_queue.append(rep.prediction_id)
+    ident = _resolve_forecasts(st, bv, ctx.now)
+    st.count("outcomes", done)
+    st.count("errors", len(reports))
+    if not done and not reports and not ident:
+        raise LP.NoInput(f"{len(st.pending)} open position(s), none resolved before now")
+    return _run(st, ctx, "c68.outcomes_errors", done + len(skipped), len(reports),
+                f"{done} exit(s) by the learned policy, {len(reports)} error report(s), {len(skipped)} unreconstructable, "
+                f"{ident} candidate gain(s) resolved")
+
+
+def _resolve_forecasts(st: C68State, bv: BarView, now) -> int:
+    """Realised gain, under the policy intended on that day, of every name the gate forecast (research side: the identification
+    curve and the self-correction frame need the unselected names too)."""
+    n = 0
+    for day, fc in sorted(st.forecasts.items()):
+        have = st.realised.setdefault(day, {})
+        todo = [t for t in fc if t not in have]
+        if not todo:
+            continue
+        pol = st.policies.get(fc[todo[0]]["policy"])
+        if pol is None:
+            continue
+        rows = pd.DataFrame({"vol20": [fc[t].get("vol20", 0.02) for t in todo], "atr": [fc[t].get("atr", 0.02) for t in todo],
+                             "sector": [fc[t]["sector"] for t in todo]}, index=pd.MultiIndex.from_tuples([(pd.Timestamp(day), t) for t in todo]))
+        P, src = build_paths(bv, rows, st.cfg.horizon, now)
+        if not len(P):
+            continue
+        res = run_exit(pol, P)
+        pos0 = bv.pos_after(day)
+        for k, t in enumerate(src.index.get_level_values(-1)):
+            have[str(t)] = (float(res.net[k]), str(bv.sessions[pos0 + int(res.days[k]) - 1].date()))
+            n += 1
+    return n
+
+
+# ================================================================================================================ stage: what changed
+def error_case(bv: BarView, st: C68State, pid: str, exp: XP.Expectation, out: OC.OutcomeReconstruction, frames: Mapping, combos: Mapping,
+               now) -> tuple[WC.ErrorCase, Any]:
+    """The checklist-J case of one matured error, from bars strictly before now: histories cut at the decision, the hold path, the
+    post-maturity path (hindsight, used by the timing level only), peers, pattern histories and a knowability assessment."""
+    j = bv.col[exp.subject]
+    R = bv.returns()
+    S = bv.sessions
+    d0 = int(S.searchsorted(pd.Timestamp(exp.decided_at), side="right")) - 1
+    e0 = d0 + 1
+    e1 = int(S.searchsorted(pd.Timestamp(out.exit_at), side="left"))
+    idx_h = S[max(1, d0 - 150): d0 + 1]
+    hist = pd.Series(R[max(1, d0 - 150): d0 + 1, j], index=idx_h)
+    path = pd.Series(R[e0: e1 + 1, j] * exp.direction, index=S[e0: e1 + 1]).fillna(0.0)
+    mr = pd.Series(bv.market, index=S).pct_change(fill_method=None)
+    sec = pd.Series(bv.sector_index(str(bv.sector[j])), index=S).pct_change(fill_method=None)
+    peers_j = [k for k, s in enumerate(bv.sector) if s == bv.sector[j] and k != j]
+    fc = st.forecasts.get(exp.decided_at, {})
+    pr = []
+    for k in peers_j:
+        c0, c1 = bv.C[d0, k], bv.C[e1, k]
+        if math.isfinite(c0) and math.isfinite(c1) and c0 > 0:
+            f = fc.get(bv.tickers[k])
+            pr.append({"realised": c1 / c0 - 1.0, **({"predicted": f["median"]} if f and math.isfinite(f.get("median", np.nan)) else {})})
+    peers = pd.DataFrame(pr) if pr else None
+    if peers is not None and "predicted" in peers and peers["predicted"].isna().any():
+        peers = peers.drop(columns=["predicted"])
+    after = pd.Series(R[e1 + 1: min(bv.T, e1 + 6), j] * exp.direction, index=S[e1 + 1: min(bv.T, e1 + 6)]).dropna()
+    kn = None
+    try:
+        a = max(0, d0 - 60)
+        b = pd.DataFrame({"open": bv.O[a:, j], "high": bv.H[a:, j], "low": bv.L[a:, j], "close": bv.C[a:, j], "volume": bv.V[a:, j]},
+                         index=S[a:]).loc[: S[min(bv.T - 1, e1 + 3)]]
+        mv = KN.MoveEvent("K" + pid[1:12], exp.subject, exp.decided_at, exp.entry_at, out.exit_at, float(bv.C[e1, j] / bv.C[d0, j] - 1.0),
+                          max(1, e1 - d0), sector=str(bv.sector[j]))
+        kn = KN.classify_move(KN.MoveInputs(mv, b, market=mr.loc[b.index].fillna(0.0)))
+    except (KN.KnowabilityError, KeyError, ValueError, IndexError):
+        kn = None
+    pf = {p: frames[p][["effect"]] for p in exp.patterns if p in frames}
+    cb = {k: v for k, v in combos.items() if all(x in exp.patterns for x in k.split("|"))}
+    case = WC.ErrorCase("C" + pid[1:], exp.decided_at, out.matured_at, float(exp.predicted_return), float(out.exit_return), hist, path,
+                        mr.loc[idx_h], mr.iloc[e0: e1 + 1], sec.loc[idx_h], sec.iloc[e0: e1 + 1], peers, 0.0, pf, cb,
+                        after if len(after) else None, float(out.exit_return), kn, float(exp.confidence))
+    return case, kn
+
+
+def investigation_context(st: C68State, exp: XP.Expectation, out: OC.OutcomeReconstruction, kn, gate: BandGate | None) -> ER.InvestigationContext:
+    """What the research world measured about one error, for the checklist-E questions. Absent evidence stays None (UNANSWERED)."""
+    shifts = None
+    if gate is not None and gate.model.mu_ is not None:
+        shifts = {}
+        for i, f in enumerate(gate.features):
+            v = exp.feature_state.get(f)
+            if v is not None and math.isfinite(float(v)) and gate.model.sd_[i] > 0:
+                shifts[f] = float((float(v) - gate.model.mu_[i]) / gate.model.sd_[i])
+    top = max(exp.pattern_strengths, key=lambda k: (abs(exp.pattern_strengths[k]), k)) if exp.pattern_strengths else ""
+    v = st.pcs.latest.get(top)
+    before = v.profile.hist_reliability if v is not None else None
+    after = v.profile.recent_reliability if v is not None else None
+    fc = st.forecasts.get(exp.decided_at, {})
+    rl = st.realised.get(exp.decided_at, {})
+    same = [t for t, f in fc.items() if f.get("sector") == exp.sector_regime or False]
+    miss = [np.sign(rl[t][0] - fc[t]["median"]) for t in fc if t in rl and math.isfinite(fc[t]["median"])]
+    share = float(np.mean(np.array(miss) == np.sign(out.exit_return - exp.predicted_return))) if len(miss) >= 5 else None
+    del same
+    return ER.InvestigationContext(feature_shifts=shifts, pattern_reliability_before=before, pattern_reliability_after=after,
+                                   overriding_pattern=None, interaction_change_z=None,
+                                   vol_ratio=float(out.realized_vol / exp.predicted_volatility) if math.isfinite(out.realized_vol) and exp.predicted_volatility > 0 else None,
+                                   corr_change=None, sector_error_share=share, timing_shift_days=float(out.t_max - exp.time_to_peak),
+                                   exit_regret=float(out.regret / abs(exp.predicted_return)) if abs(exp.predicted_return) > 1e-9 else None,
+                                   model_inputs=tuple(exp.feature_state), knowability=kn, precursor_hits=None)
+
+
+def st_what_changed(ctx: LP.Ctx) -> tuple:
+    """c68.what_changed. Investigate the newest matured errors (largest |z| first, at most max_investigations per cycle - the rest wait,
+    none is dropped): ten levels, the five-way knowability class, the conclusion chain, a hypothesis tree in the loop's own forest and a
+    checklist-V claim; also the checklist-E context error_research reads for confident-wrong predictions."""
+    from engine.research import hypothesis_tree as HT
+    st = _state(ctx)
+    led = _ledgers(ctx, st)
+    cfg = st.cfg
+    queue = [p for p in st.wc_queue if p not in st.investigated]
+    if not queue:
+        raise LP.NoInput("no newly matured error to investigate")
+    bv = _bars(ctx)
+    frames, combos = _patterns(ctx, st)
+    zs = {p: abs(led.errors.report(p)["return"].z or 0.0) for p in queue}
+    todo = sorted(queue, key=lambda p: (-zs[p], p))[: cfg.max_investigations]
+    cases, kns = [], {}
+    for pid in todo:
+        exp, out = led.expectations.get(pid), led.outcomes.get(pid, ctx.now)
+        try:
+            case, kn = error_case(bv, st, pid, exp, out, frames, combos, ctx.now)
+        except KeyError:
+            st.investigated.append(pid)
+            continue
+        cases.append(case)
+        kns[case.case_id] = (pid, kn)
+        st.contexts[pid] = investigation_context(st, exp, out, kn, st.gate if isinstance(st.gate, BandGate) else None)
+    rep = WC.step(st.wcs, ctx.now, cases, dict(cfg.what_cfg))
+    forest = ctx.mod_state("hypothesis_tree", HT.TreeForest)
+    trees = 0
+    for cid, (pid, _) in kns.items():
+        st.investigated.append(pid)
+        inv = st.wcs.investigations.get(cid)
+        if inv is None:
+            continue
+        fired = [f.level.value for f in inv.findings if f.fired]
+        led.pipe.add(pid, "CAUSE", ctx.now, {"significant": inv.significant, "fired": fired, "explained": inv.explained_share,
+                                             "cause": inv.conclusion.cause if inv.conclusion else "insignificant error"})
+        if not inv.significant:
+            continue
+        led.pipe.add(pid, "KNOWABILITY", ctx.now, {"class": inv.knowability.klass.value, "basis": inv.knowability.basis,
+                                                   "reasons": list(inv.knowability.reasons)})
+        exp = led.expectations.get(pid)
+        led.pipe.add(pid, "PATTERN_REGIME", ctx.now, {"patterns": {p: st.verdicts.get(p, "?") for p in exp.patterns},
+                                                      "influence": {p: st.influence.get(p, 1.0) for p in exp.patterns},
+                                                      "regime_records": len(st.memory.records(ctx.now)),
+                                                      "warning": st.warnings[-1][1] if st.warnings else "NONE"})
+        for p in exp.patterns:
+            if p in frames and any(p in str(e) for f in inv.findings if f.level == WC.Level.PATTERN for e in f.evidence):
+                st.pcs.mark_investigated(p)
+        tid = inv.conclusion.test.tree_id if inv.conclusion and inv.conclusion.test.kind == "HYPOTHESIS_TREE" else ""
+        if tid and tid in st.wcs.trees:
+            tree = st.wcs.trees[tid]
+            if tid not in forest.trees and not forest.find_similar(tree.question):
+                try:
+                    forest.add(tree)
+                    trees += 1
+                except HT.TreeError:
+                    st.count("trees_refused")
+            led.pipe.add(pid, "HYPOTHESIS", ctx.now, {"tree": tid, "claim": next((c for c, cl in st.wcs.claims.items() if cid in cl.origin_cases), ""),
+                                                      "question": tree.question[:160]})
+    st.count("investigations", len(rep.investigated))
+    return _run(st, ctx, "c68.what_changed", len(todo), len(rep.investigated),
+                f"classes {dict(rep.by_class)}; {len(rep.preserved_unknowable)} unknowable preserved; {trees} tree(s) into the loop forest; "
+                f"{len(queue) - len(todo)} waiting")
+
+
+# ================================================================================================================ stage: error research (D, E, S, T, U)
+def _magnitude(it: ER.Intensity, cfg: ER.ErrorConfig) -> float:
+    """Question magnitude in [0,1] from the checklist-D intensity: the DEEP cut maps to 0.75 so deeper errors outrank shallower ones
+    while nothing saturates below a confident-wrong boost."""
+    return float(min(1.0, 0.75 * it.value / cfg.tier_cut[2]))
+
+
+def st_error_research(ctx: LP.Ctx) -> tuple:
+    """c68.error_research. error_research.step over every matured error (tiny ones stay NONE/CHEAP), with the checklist-E contexts;
+    each job becomes a QuestionEvent on the loop bus (questions.generate -> hypothesis trees -> priority -> compute: the EXISTING
+    scheduler), investigation follow-ups and the eleven checklist-T self-research questions become ResearchQuestions, and the shared
+    surprise tracker's repeated cells and the market investigations join them."""
+    from engine.research import questions as Q
+    st = _state(ctx)
+    led = _ledgers(ctx, st)
+    cfg = st.cfg
+    records = led.errors.records(led.outcomes, ctx.now)
+    if not records and not st.market.reports:
+        raise LP.NoInput("no matured prediction error yet")
+    rep = ER.step(st.er, ctx.now, records, st.contexts, priority_state=None, created_real=ctx.created_real())
+    events = ctx.bus.setdefault("events", [])
+    rqs = ctx.bus.setdefault("research_questions", [])
+    by_obs = {o: st.er.intensities[o] for o in st.er.intensities}
+    ranked = sorted(rep.items, key=lambda i: (-float(i.value.decision_value or 0.0), i.item_id))[: cfg.max_events]
+    n_ev = 0
+    for item in ranked:
+        cell = st.er.item_cells.get(item.item_id, "all")
+        subject = f"prediction error {cell}"[:150]
+        obs = [o for o, c in _obs_cells(st).items() if c == cell] if "|" in cell or "=" in cell else []
+        its = [by_obs[o] for o in obs if o in by_obs]
+        mag = max([_magnitude(i, cfg.research_cfg) for i in its], default=float(min(1.0, (item.value.decision_value or 0.0))))
+        cw = any(i.confident_wrong for i in its) or item.family.endswith("confident_wrong")
+        ev = Q.QuestionEvent("loss" if cw else "surprise", subject, str(item.created), float(min(1.0, max(0.0, mag))),
+                             stake=float(min(1.0, 0.3 + mag)), problem=item.problem, n_obs=len(obs), detail=f"{item.family} {'/'.join(item.tags)}")
+        events.append(ev)
+        st.cells[subject] = cell
+        st.subject_pids[subject] = sorted(set(st.subject_pids.get(subject, [])) | set(obs))
+        n_ev += 1
+    for inv in rep.investigations:
+        rqs.extend(inv.follow_ups)
+    rqs.extend(s.question for s in rep.self_questions)
+    for pr in st.tracker.research_priority(ctx.now)[:3]:
+        if pr.score > 0:
+            events.append(Q.QuestionEvent("surprise", f"repeated surprise {pr.cell}"[:150], _last_matured(st, ctx.now),
+                                          float(min(1.0, pr.score)), problem=Problem.VOLATILITY, detail=pr.reason[:150]))
+    for mr in st.market.reports[st.counters.get("market_reports_sent", 0):]:
+        rqs.extend(ME.investigation_questions(mr, ctx.created_real(), mr.period))
+    st.counters["market_reports_sent"] = len(st.market.reports)
+    for o in rep.confident_wrong:
+        led.pipe.add(o, "CAUSE", ctx.now, {"confident_wrong": True, "answered": st.er.investigations[o].answered_share}) \
+            if led.pipe.last_step(o) in ("ERROR", "CLASSIFIED") else None
+    return _run(st, ctx, "c68.error_research", rep.ingested, n_ev + len(rep.self_questions),
+                f"{rep.summary()}; {n_ev} question event(s), {len(rep.self_questions)} self-research question(s)")
+
+
+def _obs_cells(st: C68State) -> dict:
+    return {o: st.er.book._obs[o].cell() or "all" for o in getattr(st.er.book, "_obs", {})} if hasattr(st.er.book, "_obs") else \
+        {r.obs_id: r.cell() or "all" for r in st.er.book.records("9999-12-31")}
+
+
+def _last_matured(st: C68State, now) -> str:
+    rs = st.er.book.records(now)
+    return rs[-1].matured_at if rs else str((pd.Timestamp(as_date(now)) - pd.Timedelta(days=1)).date())
+
+
+# ================================================================================================================ stage: research depth into priority
+def st_depth(ctx: LP.Ctx) -> tuple:
+    """c68.research_depth (after questions.generate). The questions the loop generated from C68 events carry the checklist-U depth
+    multiplier of their cell (unknowable causes and barren cells are deprioritised) on the loop's OWN priority state - no second
+    scheduler. The pipeline records which question each prediction's research became."""
+    from engine.research import priority as PRI
+    st = _state(ctx)
+    led = _ledgers(ctx, st)
+    new = ctx.bus.get("new_questions", [])
+    ours = [(q, ctx.state.questions[q]) for q in new if q in ctx.state.questions and ctx.state.questions[q].subject in st.cells]
+    if not ours:
+        raise LP.NoInput("no new question from a C68 event this cycle")
+    pst = ctx.mod_state("priority", PRI.new_state)
+    damped = 0
+    for qid, qo in ours:
+        cell = st.cells[qo.subject]
+        m = st.er.depth.multiplier(cell)
+        if m < 1.0:
+            pst.external_multipliers["r_" + qid] = m
+            damped += 1
+        for pid in st.subject_pids.get(qo.subject, []):
+            if led.pipe.last_step(pid) in ("ERROR", "CLASSIFIED", "CAUSE", "KNOWABILITY", "PATTERN_REGIME", "HYPOTHESIS"):
+                led.pipe.add(pid, "RESEARCH", ctx.now, {"question": qid, "priority": float(qo.priority), "multiplier": m})
+    return _run(st, ctx, "c68.research_depth", len(ours), damped, f"{len(ours)} C68 question(s) in the loop's queue, {damped} damped")
+
+
+# ================================================================================================================ stage: self-correction, promotion, monitoring
+def correction_frame(st: C68State, now) -> pd.DataFrame:
+    """One row per forecast whose realised gain matured before now (research side): the self_correct frame contract."""
+    rows = []
+    for day, fc in st.forecasts.items():
+        rl = st.realised.get(day, {})
+        for t, f in fc.items():
+            if t not in rl or pd.Timestamp(rl[t][1]) >= pd.Timestamp(as_date(now)):
+                continue
+            net = rl[t][0]
+            rows.append({"date": day, "matured_at": rl[t][1], "predicted": f["median"], "realised": net, "selected": bool(f["eligible"]),
+                         "p_in_band": f["p_band"], "in_band": bool(0.05 <= net <= 0.10), "sector": f["sector"],
+                         **{f"f_{k}": f.get(k, np.nan) for k in st.cfg.features}, **{k: f.get(k, np.nan) for k in st.cfg.market_features}})
+    if not rows:
+        return pd.DataFrame(columns=list(SCX.REQUIRED))
+    df = pd.DataFrame(rows).sort_values(["matured_at", "date"], kind="stable").reset_index(drop=True)
+    num = [c for c in df.columns if c.startswith(("f_", "m_"))]
+    df[num] = df[num].astype(float).fillna(df[num].astype(float).median())
+    return df
+
+
+def _ridge_fix(cols_of: Callable[[pd.DataFrame], list], window_share: float = 1.0, noise: bool = False, lam: float = 1.0):
+    """A CandidateFix builder: ridge of realised gain on the chosen columns, trained on `train` only (optionally its newest share)."""
+    def build(train: pd.DataFrame, seed: int):
+        tr = train
+        if window_share < 1.0 and len(tr) > 20:
+            tr = tr.iloc[int(len(tr) * (1.0 - window_share)):]
+        cols = cols_of(tr)
+
+        def design(fr: pd.DataFrame, s: int) -> np.ndarray:
+            X = fr[cols].to_numpy(float) if cols else np.zeros((len(fr), 0))
+            if noise:
+                X = np.hstack([X, np.random.default_rng(s).normal(size=(len(fr), 1))])
+            return X
+        X = design(tr, seed)
+        mu, sd = X.mean(0), X.std(0)
+        sd = np.where(sd > 1e-12, sd, 1.0)
+        A = np.hstack([np.ones((len(X), 1)), (X - mu) / sd])
+        pen = np.eye(A.shape[1]) * lam
+        pen[0, 0] = 0.0
+        beta = np.linalg.solve(A.T @ A + pen, A.T @ tr["realised"].to_numpy(float))
+
+        def predict(fr: pd.DataFrame) -> np.ndarray:
+            Z = design(fr, seed + 7)
+            return np.hstack([np.ones((len(Z), 1)), (Z - mu) / sd]) @ beta
+        return predict
+    return build
+
+
+def candidate_fixes(cfg: C68Config) -> list:
+    """The checklist-Q candidate fixes, each tested ALONE: a recency refit (regime recognition), market conditioning, and a placebo
+    (a pure-noise feature) that must never be promoted - the control that proves the gate can say no."""
+    f = lambda fr: [c for c in fr.columns if c.startswith("f_")]              # noqa: E731
+    fm = lambda fr: [c for c in fr.columns if c.startswith(("f_", "m_"))]     # noqa: E731
+    I = SCX.FixInput
+    return [SCX.CandidateFix("recency_refit", SCX.Component.REGIME_RECOGNITION, tuple(I(c) for c in cfg.features), _ridge_fix(f, 0.4)),
+            SCX.CandidateFix("market_conditioning", SCX.Component.MARKET_CONDITIONING,
+                             tuple(I(c) for c in (*cfg.features, *cfg.market_features)), _ridge_fix(fm)),
+            SCX.CandidateFix("placebo_noise", SCX.Component.MISSING_FEATURE, tuple(I(c) for c in cfg.features), _ridge_fix(f, noise=True))]
+
+
+FIX_EFFECT = {"recency_refit": {"window_share": 0.4, "extra_features": ()},
+              "market_conditioning": {"window_share": 1.0, "extra_features": ("m_vol", "m_r20", "m_breadth")},
+              "placebo_noise": None}
+
+
+def st_validate(ctx: LP.Ctx) -> tuple:
+    """c68.validate_promote. Checklist Q through the EXISTING validation: diagnose, test every candidate fix alone out of sample, gate
+    each through engine.research.quality_gate. Only a PROMOTE verdict changes the production learner (the realisable-gain model's
+    training window / inputs from the next fit); a placebo can never be promoted by design of the gate. A promoted fix is monitored and
+    rolled back when its out-of-sample error on newer outcomes is significantly worse than the incumbent's forecasts."""
+    from engine.research import quality_gate as QG
+    st = _state(ctx)
+    led = _ledgers(ctx, st)
+    cfg = st.cfg
+    fr = SCX.as_of(correction_frame(st, ctx.now), ctx.now)
+    if len(fr) < 2 * cfg.self_correct.min_rows:
+        raise LP.NoInput(f"only {len(fr)} matured forecasts (< {2 * cfg.self_correct.min_rows}) for self-correction")
+    fixes = candidate_fixes(cfg)
+    base = QG.QualityEvidence(provenance=Provenance(ctx.created_real(), str(fr["matured_at"].max()), ctx.rt.code_hash,
+                                                    run_id=ctx.state.cfg.run_id, outcomes_seen_through=str(fr["matured_at"].max())))
+    try:
+        rep = SCX.step(fr, fixes, ctx.now, base=base, policy=QG.QualityPolicy(code_hash=ctx.rt.code_hash), cfg=cfg.self_correct)
+    except ValueError as e:
+        raise LP.NoInput(f"self-correction could not split the matured forecasts: {e}") from None
+    st.corrections.append({"now": ctx.now, "deteriorated": bool(rep.diagnosis.deterioration.detected),
+                           "implicated": [c.value for c in rep.diagnosis.implicated], "promoted": list(rep.promoted), "rejected": dict(rep.rejected),
+                           "effects": {r.fix: (r.mean_effect, r.t, len(r.oos_effects)) for r in rep.results}})
+    for r in rep.results:
+        key = f"FIX:{r.fix}"
+        if led.pipe.last_step(key) is None:
+            led.pipe.add(key, "OOS_TEST", ctx.now, {"mean_effect": r.mean_effect, "t": r.t, "weeks": len(r.oos_effects), "split": r.split},
+                         parents=[p for p in led.errors._reports][:50])
+        verdict = "PROMOTED" if r.fix in rep.promoted else "REJECTED"
+        if led.pipe.last_step(key) in ("OOS_TEST", "MODEL_UPDATE", "VALIDATION"):
+            if led.pipe.last_step(key) == "OOS_TEST":
+                led.pipe.add(key, "MODEL_UPDATE", ctx.now, {"proposal": FIX_EFFECT.get(r.fix) or "none (control)", "applied": False})
+                led.pipe.add(key, "VALIDATION", ctx.now, {"gate": rep.rejected.get(r.fix, "PROMOTE")})
+            led.pipe.add(key, verdict, ctx.now, {"gate": rep.rejected.get(r.fix, "PROMOTE")})
+    changed = 0
+    for name in rep.promoted:
+        eff = FIX_EFFECT.get(name)
+        if eff is None:
+            st.count("placebo_promoted")                 # would be a gate defect: counted loudly, never applied
+            continue
+        if st.production.get("name") != name:
+            st.production = {"name": name, "since": str(as_date(ctx.now)), **eff}
+            st.monitoring.append({"fix": name, "since": str(as_date(ctx.now))})
+            changed += 1
+    rolled = _monitor(st, fr, ctx.now, led)
+    for cid, v in st.wcs.verdicts.items():
+        key = f"CLAIM:{cid}"
+        if led.pipe.last_step(key) is None:
+            led.pipe.add(key, "VALIDATION", ctx.now, {"status": v.status.value, "failed_steps": list(v.failed_steps())})
+    return _run(st, ctx, "c68.validate_promote", len(fr), changed,
+                f"{rep.summary().splitlines()[0]}; promoted {list(rep.promoted)}; production {st.production['name']}; rolled back {rolled}")
+
+
+def _monitor(st: C68State, fr: pd.DataFrame, now, led: Ledgers) -> int:
+    """Future monitoring of the production learner: after a promotion, forecasts decided since then must not be significantly worse
+    (|error| higher, one-sided t <= -2 over >= 20 rows) than they were before it; otherwise the incumbent is restored."""
+    if st.production.get("name") == "incumbent" or not st.production.get("since"):
+        return 0
+    since = st.production["since"]
+    after = fr[pd.to_datetime(fr["date"]) >= pd.Timestamp(since)]
+    before = fr[pd.to_datetime(fr["date"]) < pd.Timestamp(since)]
+    if len(after) < 20 or len(before) < 20:
+        return 0
+    ea, eb = (after["realised"] - after["predicted"]).abs().to_numpy(float), (before["realised"] - before["predicted"]).abs().to_numpy(float)
+    t = (eb.mean() - ea.mean()) / math.sqrt(ea.var(ddof=1) / len(ea) + eb.var(ddof=1) / len(eb) + 1e-18)
+    key = f"FIX:{st.production['name']}"
+    led.pipe.add(key, "MONITORED", now, {"t": float(t), "n_after": len(after), "rolled_back": bool(t <= -2.0)})
+    if t <= -2.0:
+        st.production = {"name": "incumbent", "since": str(as_date(now)), "window_share": 1.0, "extra_features": ()}
+        return 1
+    return 0
+
+
+# ================================================================================================================ stage: audit and report
+def verify_all(st: C68State, led: Ledgers) -> list[str]:
+    """Every C68 ledger re-verified from its medium, each against the anchors stored OUTSIDE it; the P03 memories too."""
+    probs = []
+    anchors: dict[str, list] = {}
+    for _, name, h in st.anchors:
+        anchors.setdefault(name, []).append(h)
+    checks = {"expectations": led.expectations.verify(anchors.get("expectations", ())), "outcomes": led.outcomes.verify(anchors.get("outcomes", ())),
+              "errors": led.errors.lane.verify(anchors.get("errors", ())), "pipe": led.pipe.verify(anchors.get("pipe", ()))}
+    for k, v in checks.items():
+        probs += [f"{k}: {p}" for p in v.get("problems", [])]
+    probs += [f"book: {p}" for p in led.book.verify()]
+    known = {r["hash"] if "hash" in r else "" for r in led.book._cf._all()}
+    probs += [f"book: anchor {a[:12]} is no longer part of the chain" for a in anchors.get("book", ()) if a not in known]
+    if st.market.ledger.verify():
+        probs.append(f"market expectations: entries {st.market.ledger.verify()} rewritten")
+    if st.memory.verify():
+        probs.append(f"regime memory: events {st.memory.verify()} rewritten")
+    return probs
+
+
+def exit_independence(st: C68State, bv: BarView, now) -> XR.IndependenceReport | None:
+    """Checklist O on this loop's own exits: the committed policies re-run under different evaluation targets must give bit-identical
+    exits (the procedure never sees a target, so any difference would be a planted defect)."""
+    if not st.exit_records:
+        return None
+    recent = st.exit_records[-20:]
+    items = []
+    for r in recent:
+        pol = st.policies.get(r.exit_policy_id)
+        exp_day = next((d for d, fc in st.forecasts.items() if False), None)
+        del exp_day
+        if pol is not None:
+            items.append((r, pol))
+    if not items:
+        return None
+
+    def run(target):
+        nets, days, reasons = [], [], []
+        for r, pol in items:
+            rows = [x for x in st.forecasts.values()]
+            del rows
+            res = run_exit(pol, r._paths) if hasattr(r, "_paths") else None
+            if res is not None:
+                nets.append(res.net), days.append(res.days), reasons.append(res.reason)
+        z = np.zeros(0)
+        return EX.ExitResult(np.concatenate(nets) if nets else z, np.concatenate(nets) if nets else z,
+                             np.concatenate(days) if days else z.astype(int), np.concatenate(reasons) if reasons else z.astype(int), z, 0)
+    return XR.exit_independence_audit(run, [st.cfg.target, CT.Target(0.05, 0.5, name="pm5pp_50")])
+
+
+def st_audit(ctx: LP.Ctx) -> tuple:
+    """c68.monitor_audit. Verify every ledger against the anchors held outside it (a rewrite is a FirewallBreach: REFUSED_LEAK), store
+    new anchors, measure the +-1pp target honestly (calibration_target.evaluate: the canonical statistic; honest_tolerance is its
+    adapter), audit exit independence on this cycle's exits, and persist the cycle report under <root>/c68."""
+    st = _state(ctx)
+    led = _ledgers(ctx, st)
+    probs = verify_all(st, led)
+    if probs:
+        st.count("tamper_detected")
+        raise XP.LedgerTampered("; ".join(probs[:6]))
+    for k, h in led.heads().items():
+        if not st.anchors or (st.anchors[-1][0] != ctx.cycle or k not in [a[1] for a in st.anchors if a[0] == ctx.cycle]):
+            st.anchors.append((ctx.cycle, k, h))
+    st.anchors = st.anchors[-500:]
+    cal = CT.evaluate(led.book, st.exit_records, ctx.now, st.cfg.target, st.cfg.seed)
+    reps = led.errors.reports(ctx.now)
+    adapter = PE.honest_tolerance(reps, 0, st.cfg.error_cfg)
+    st.calibration.append({"now": ctx.now, "status": cal.status.value, "share": cal.all_.share, "n": cal.all_.n, "oos_n": cal.oos.n,
+                           "abuses": [a.kind.value for a in cal.abuses], "adapter_share": adapter["rate"], "headline": cal.headline})
+    rep = cycle_report(ctx, st, led, cal)
+    path = led.root / f"cycle_{ctx.cycle:05d}.json"
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(rep, default=str, indent=1), encoding="utf-8")
+    tmp.replace(path)
+    return _run(st, ctx, "c68.monitor_audit", len(led.expectations), len(led.outcomes),
+                f"ledgers intact ({len(led.pipe)} pipeline events); {cal.headline[:150]}")
+
+
+def cycle_report(ctx: LP.Ctx, st: C68State, led: Ledgers, cal: CT.CalibrationReport) -> dict:
+    frame = correction_frame(st, ctx.now)
+    ident = None
+    if len(frame):
+        fcs = [SC.GainForecast(f"{r.date}|{i}", r.date, "p", float(r.predicted), {0.5: float(r.predicted)}, float(r.p_in_band), 999, "d")
+               for i, r in frame.iterrows()]
+        cur = SC.identification_curve(fcs, {f.candidate: float(frame.loc[i, "realised"]) for i, f in zip(frame.index, fcs)},
+                                      {f.candidate: str(frame.loc[i, "matured_at"]) for i, f in zip(frame.index, fcs)}, ctx.now, "p",
+                                      dataclasses.replace(st.cfg.selection, min_support=20))
+        ident = {"periods": len(cur), "trend": SC.improvement_trend(cur)}
+    return {"cycle": ctx.cycle, "now": ctx.now, "label": LABEL, "counters": dict(st.counters),
+            "ledgers": {"expectations": len(led.expectations), "outcomes": len(led.outcomes), "errors": len(led.errors),
+                        "commitments": len(led.book.commitments()), "pipeline_events": len(led.pipe), "pipeline_furthest": led.pipe.furthest()},
+            "calibration": cal.to_dict() | {"target": dataclasses.asdict(cal.target)}, "influence": dict(st.influence),
+            "verdicts": dict(st.verdicts), "guard": dict(st.guard), "production": dict(st.production),
+            "regime_records": [{"id": r.record_id, "scope": r.scope, "detected": r.detected_at, "status": st.memory.status(r.record_id).value,
+                                "weakened": list(r.patterns_weakened)} for r in st.memory.records(ctx.now)],
+            "identification": ident, "stage_runs": [r for r in st.runs if r["cycle"] == ctx.cycle]}
+
+
+# ================================================================================================================ registration
+STAGES = (
+    ("c68.selection_policy", st_policy, "update.firewall_release", LP.LoopPhase.UPDATE_KNOWLEDGE),
+    ("c68.expectations", st_expect, "evaluate.two_stage", LP.LoopPhase.EVALUATE),
+    ("c68.market_regime", st_market, "surprises.regimes", LP.LoopPhase.SURPRISES),
+    ("c68.pattern_change", st_patterns, "c68.market_regime", LP.LoopPhase.SURPRISES),
+    ("c68.outcomes_errors", st_outcomes, "failures.decision_losses", LP.LoopPhase.FAILURES),
+    ("c68.what_changed", st_what_changed, "c68.outcomes_errors", LP.LoopPhase.FAILURES),
+    ("c68.error_research", st_error_research, "c68.what_changed", LP.LoopPhase.FAILURES),
+    ("c68.research_depth", st_depth, "questions.generate", LP.LoopPhase.QUESTIONS),
+    ("c68.validate_promote", st_validate, "learn.quality_gate", LP.LoopPhase.LEARN),
+    ("c68.monitor_audit", st_audit, "priorities.stale", LP.LoopPhase.PRIORITIES),
+)
+STAGE_NAMES = tuple(s[0] for s in STAGES)
+
+
+def register() -> tuple:
+    """Register the feed builder and every C68 stage into the loop (idempotent: a re-import registers nothing twice)."""
+    FD.register_builder(WORLD_KEY, b_world, replace=True)
+    out = []
+    for name, fn, after, phase in STAGES:
+        out.append(LP.register_stage(name, fn, after=after, phase=phase, module="error_loop"))
+    return tuple(s.name for s in out)
+
+
+def unregister() -> None:
+    """Remove the C68 stages and builder (tests leave the loop's stage table as they found it)."""
+    for name in reversed(STAGE_NAMES):
+        if name in LP.registered_stages():
+            LP.unregister_stage(name)
+    FD.BUILDERS.pop(WORLD_KEY, None)
+
+
+def stage_table(reports: Sequence[Mapping[str, Any]]) -> pd.DataFrame:
+    """The per-stage run table of the C68 stages over loop cycle reports: cycle, stage, status, in, out, note."""
+    rows = [{"cycle": r.get("cycle"), "stage": s["stage"], "status": s["status"], "in": s.get("n_in"), "out": s.get("n_out"),
+             "note": s.get("note", "")[:160]} for r in reports for s in r.get("stages", []) if str(s.get("stage", "")).startswith("c68.")]
+    return pd.DataFrame(rows, columns=["cycle", "stage", "status", "in", "out", "note"])
+
+
+register()

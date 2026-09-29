@@ -38,6 +38,7 @@ from engine.learning.core import (FirewallBreach, Provenance, _StrEnum, as_date,
 from engine.learning.surprise import continuous_z, surprise_bits
 from engine.research.break_research import BreakCause
 from engine.research.core import Knowability, MaturedRecord, Namespace, Problem, ResearchQuestion
+from engine.research.expectations import SealedLane
 from engine.research.multiscale import benjamini_hochberg, t_to_p
 
 SCHEMA_VERSION = "market_expectations.v1"
@@ -234,8 +235,8 @@ def observation_from_day_record(rec, extras: Mapping[str, float | None] | None =
 
 @dataclasses.dataclass(frozen=True)
 class MarketExpectation:
-    """Everything the engine believed about the coming period BEFORE it: immutable (tuples, frozen) and chained to the previous
-    expectation by hash, so a rewrite of any earlier entry is detected by MarketExpectationLedger.verify()."""
+    """Everything the engine believed about the coming period BEFORE it: immutable (tuples, frozen). `prev_hash` is the head of the
+    archive lane it extends, so a rewrite of any earlier entry is detected by MarketExpectationLedger.verify()."""
     for_period: str
     made_at: str
     history_through: str
@@ -258,6 +259,11 @@ class MarketExpectation:
     def scale(self, q: str) -> float | None:
         return next((s for n, _, s in self.quantities if n == q), None)
 
+    @classmethod
+    def from_body(cls, b: Mapping[str, Any]) -> "MarketExpectation":
+        return cls(b["for"], b["made"], b["through"], tuple((str(n), float(e), float(s)) for n, e, s in b["q"]), int(b["n"]), b["code"],
+                   b["prev"], b["digest"])
+
     def validate(self) -> list[str]:
         errs = []
         if as_date(self.made_at) >= as_date(self.for_period):
@@ -270,19 +276,26 @@ class MarketExpectation:
         return errs
 
 
+LANE_MARKET = "mex68"
+
+
 class MarketExpectationLedger:
-    """Append-only, hash-chained store. There is no update or delete; appending anything but the next link is refused."""
+    """Append-only store on an ARCHIVE CHAIN LANE (engine.research.expectations.SealedLane over engine.learning.archive.ChainFile, kind
+    'mex68' - the same hash-chained lanes as P01's exp68/out68/err68; P06 de-duplication: this module keeps no private hash chain). An
+    expectation's `prev_hash` is the lane head it extends (so its link IS the archive link), there is no update or delete, and
+    `verify` re-reads the chain and compares every cached entry with the body the chain holds. `root=None` keeps the lane in memory;
+    with a root the ledger reloads from disk."""
 
-    GENESIS = "genesis"
-
-    def __init__(self):
-        self._items: list[MarketExpectation] = []
+    def __init__(self, root=None):
+        self.lane = SealedLane(root, LANE_MARKET)
+        lines = self.lane.lines()
+        self._items: list[MarketExpectation] = [MarketExpectation.from_body(ln["body"]) for ln in lines]
 
     def __len__(self) -> int:
         return len(self._items)
 
     def head(self) -> str:
-        return self._items[-1].digest if self._items else self.GENESIS
+        return self.lane.head
 
     def append(self, exp: MarketExpectation) -> MarketExpectation:
         errs = exp.validate()
@@ -294,6 +307,7 @@ class MarketExpectationLedger:
             raise FirewallBreach("expectation digest does not match its content")
         if self._items and as_date(exp.for_period) <= as_date(self._items[-1].for_period):
             raise FirewallBreach("expectation for a period that already has one (or an earlier one)")
+        self.lane.append({**exp.body(), "digest": exp.digest})
         self._items.append(exp)
         return exp
 
@@ -305,13 +319,17 @@ class MarketExpectationLedger:
         return tuple(self._items)
 
     def verify(self) -> list[int]:
-        """Indices whose content no longer matches its digest or whose link to the previous entry is broken (empty = intact)."""
-        bad, prev = [], self.GENESIS
-        for i, e in enumerate(self._items):
-            if e.prev_hash != prev or e.digest != e.compute_digest():
+        """Indices whose content no longer matches its digest, differs from the body on the archive lane, or does not extend the lane
+        position it was appended at; -1 when the lane itself is broken (edited, truncated, reordered). Empty = intact."""
+        rep = self.lane.verify()
+        lines = self.lane.lines()
+        bad = [] if rep["ok"] else [-1]
+        if len(lines) != len(self._items):
+            bad.append(-1)
+        for i, (e, ln) in enumerate(zip(self._items, lines)):
+            if e.digest != e.compute_digest() or ln["body"].get("digest") != e.digest or e.prev_hash != ln["prev"]:
                 bad.append(i)
-            prev = e.digest
-        return bad
+        return sorted(set(bad))
 
 
 # ------------------------------------------------------------------------------------------------ forecasting and error scale
@@ -830,14 +848,14 @@ class MarketExpectationEngine:
     """Forward-only market expectation machine. step(now, obs) resolves yesterday's expectation, investigates a large error, and
     records the expectation for the next period. Every decision uses observations dated <= now."""
 
-    def __init__(self, cfg: ExpectationConfig | None = None, seed: int = 0):
+    def __init__(self, cfg: ExpectationConfig | None = None, seed: int = 0, root=None):
         self.cfg = cfg or ExpectationConfig()
         errs = self.cfg.validate()
         if errs:
             raise ValueError("bad ExpectationConfig: " + "; ".join(errs))
         self.seed = seed
         self.history: list[MarketObs] = []
-        self.ledger = MarketExpectationLedger()
+        self.ledger = MarketExpectationLedger(root)
         self.errors: dict[str, list[float]] = {q: [] for q in FORECAST}
         self.target_z: dict[str, list[float]] = {q: [] for q in TARGETS}
         self.reports: list[InvestigationReport] = []

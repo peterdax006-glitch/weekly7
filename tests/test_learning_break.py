@@ -983,3 +983,59 @@ def test_flap_and_untested_helpers():
     assert lc.is_flapping(tr, 0) and lc.last_change(lc.trace(np.zeros(0))) is None
     ok, thin = rl.state_from_profile("a", rl.profile_a()), rl.compute_state("x", stream("steady", T=8), "2030-01-01")
     assert not rl.is_untested(ok) and rl.is_untested(thin) and rl.tested_share([ok, thin]) == 0.5 and np.isnan(rl.tested_share([]))
+
+
+# ---------------------------------------------------------------- W-05: family-wise shifted-placebo bar
+def test_w05_placebo_leak_rate_over_120_shifted_runs_is_bounded():
+    """20 regime items x 6 shifted-context runs. The bare pipeline let 6/120 (5%, the OOS alpha) through as EXPLAINED; the
+    family-wise bar (the real condition must out-score 12 placebos of its own) lets at most 2 through."""
+    bare = shipped = runs = 0
+    for s in range(20):
+        item = make_item("regime", seed=s)
+        a = bd.placebo_false_condition_rate(item, n=6, cfg=FAST, seed=s, controlled=False)
+        b = bd.placebo_false_condition_rate(item, n=6, cfg=FAST, seed=s)
+        bare += a["explained"]
+        shipped += b["explained"]
+        runs += b["runs"]
+    assert runs == 120
+    assert bare >= 4                                    # the old behaviour: this is the leak the bar closes
+    assert shipped <= 2 and shipped < bare
+
+
+def test_w05_controlled_explain_still_finds_planted_regime_breaks():
+    found = 0
+    for s in range(8):
+        ex = bd.explain_break_controlled(make_item("regime", seed=s), cfg=FAST, seed=s)
+        found += ex.explained
+        if ex.explained:
+            runs, strong, p = ex.placebo
+            assert runs >= 2 and strong == 0 and p <= bd.PARAMS["placebo_alpha"]
+            assert ex.condition.terms[0].column == "m_regime"
+    assert found >= 7
+
+
+def test_w05_chance_condition_is_demoted_when_placebos_match_it(monkeypatch):
+    item = make_item("regime", seed=3)
+    real = bd.explain_break(item, cfg=FAST, seed=3)
+    assert real.explained
+    calls = []
+    orig = bd.explain_break
+
+    def rigged(it, as_of=None, cfg=None, seed=0):
+        out = orig(it, as_of, cfg, seed)
+        if it.item_id == item.item_id and calls is not None and it is not item:   # every placebo looks as strong as the real one
+            calls.append(seed)
+            return __import__("dataclasses").replace(out, best_t=real.oos.t_diff + 1.0)
+        return out
+    monkeypatch.setattr(bd, "explain_break", rigged)
+    ex = bd.explain_break_controlled(item, cfg=FAST, seed=3)
+    assert len(calls) == bd.PARAMS["placebo_n"]
+    assert ex.status == "UNKNOWN" and "placebos" in ex.statement and ex.placebo[1] == ex.placebo[0]
+
+
+def test_w05_control_skips_placebos_when_nothing_was_explained_and_handles_empty():
+    healthy = bd.explain_break_controlled(make_item("healthy", seed=1), cfg=FAST, seed=1)
+    assert not healthy.explained and healthy.placebo == ()
+    assert bd.placebo_shifts(8, 5, 0) == sorted(set(bd.placebo_shifts(8, 5, 0)), key=bd.placebo_shifts(8, 5, 0).index)
+    assert len(bd.placebo_shifts(100, 12, 4)) == 12 and all(25 <= x < 75 for x in bd.placebo_shifts(100, 12, 4))
+    assert bd.placebo_shifts(100, 12, 4) == bd.placebo_shifts(100, 12, 4)

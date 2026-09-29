@@ -3305,3 +3305,70 @@ def source_staleness(items: Sequence[InfoItem], b: DecisionBoundary, calendar: C
     out: dict[str, int | None] = {s: None for s in {i.source for i in items}}
     out.update({s: _sessions_between(t, pd.Timestamp(b.decision_date), calendar) for s, t in newest.items()})
     return dict(sorted(out.items()))
+
+
+# ==================================================================================================================
+# checklist K (C68): the five-way outcome classes. This module OWNS the mapping from its knowability classes (plus the few
+# investigation facts that can decide without an assessment) to the five checklist-K classes; engine.research.what_changed
+# calls `five_way` and re-exports FiveWay - there is no second five-way split anywhere (C69 duplication audit, P06).
+# ==================================================================================================================
+class FiveWay(_StrEnum):
+    """Checklist K: exactly these five."""
+    PREDICTABLE_BUT_MISSED = "PREDICTABLE_BUT_MISSED"
+    PARTIALLY_PREDICTABLE = "PARTIALLY_PREDICTABLE"
+    PREDICTABLE_UNDER_NEW_CONDITION = "PREDICTABLE_ONLY_UNDER_NEWLY_DISCOVERED_CONDITION"
+    CURRENTLY_UNEXPLAINED = "CURRENTLY_UNEXPLAINED"
+    GENUINELY_UNKNOWABLE = "GENUINELY_UNKNOWABLE_FROM_AVAILABLE_INFORMATION"
+
+
+FIVE_WAY_OF_CLASS = {
+    Knowability.PREDICTABLE: FiveWay.PREDICTABLE_BUT_MISSED,
+    Knowability.POTENTIALLY_PREDICTABLE: FiveWay.PARTIALLY_PREDICTABLE,
+    Knowability.WEAKLY_PREDICTABLE: FiveWay.PARTIALLY_PREDICTABLE,
+    Knowability.UNKNOWN: FiveWay.CURRENTLY_UNEXPLAINED,
+    Knowability.EXTERNALLY_CAUSED: FiveWay.GENUINELY_UNKNOWABLE,
+    Knowability.INFORMATIONALLY_UNAVAILABLE: FiveWay.GENUINELY_UNKNOWABLE,
+    Knowability.DATA_FAILURE: FiveWay.CURRENTLY_UNEXPLAINED,
+}
+
+
+@dataclasses.dataclass(frozen=True)
+class FiveWayVerdict:
+    klass: FiveWay
+    reasons: tuple
+    excluded_data_failure: bool        # a data defect is not a market event; it is excluded from market conclusions
+    basis: str                         # which evidence decided: assessment / findings / condition
+
+
+def five_way(classification: Knowability | None, *, condition_key: str = "", condition_replicated: bool = False,
+             pattern_failing_lead: int | None = None, pre_outcome_cause: bool = False) -> FiveWayVerdict:
+    """THE checklist-K mapping. Order is the contract: a data defect is excluded; unknowable evidence (externally caused,
+    informationally unavailable) is never overridden by a story; PREDICTABLE is 'predictable but missed'; a potentially or weakly
+    predictable move is 'partially predictable' unless a condition that has ALREADY been replicated makes it predictable (the
+    new-condition class is never granted to a fresh claim). Without an assessment (`classification` None) only investigation facts
+    decide: a pattern that was already failing `pattern_failing_lead` rows before the decision -> predictable but missed; a fired cause
+    with pre-outcome evidence -> partially predictable; otherwise currently unexplained - nothing is forced predictable."""
+    if classification is not None:
+        c = Knowability(classification)
+        if c == Knowability.DATA_FAILURE:
+            return FiveWayVerdict(FiveWay.CURRENTLY_UNEXPLAINED, ("the move traces to a data defect, not market behaviour",), True, "assessment")
+        if FIVE_WAY_OF_CLASS[c] == FiveWay.GENUINELY_UNKNOWABLE:
+            return FiveWayVerdict(FiveWay.GENUINELY_UNKNOWABLE, (f"assessment {c.value}: nothing available beforehand carried it",), False, "assessment")
+        if c == Knowability.PREDICTABLE:
+            return FiveWayVerdict(FiveWay.PREDICTABLE_BUT_MISSED, ("the information was available and sufficient before the decision",), False, "assessment")
+        if condition_replicated:
+            why = "makes it predictable where it was only weakly so" if FIVE_WAY_OF_CLASS[c] == FiveWay.PARTIALLY_PREDICTABLE \
+                else "explains what the assessment could not"
+            return FiveWayVerdict(FiveWay.PREDICTABLE_UNDER_NEW_CONDITION, (f"a replicated condition ({condition_key}) {why}",), False, "condition")
+        if FIVE_WAY_OF_CLASS[c] == FiveWay.PARTIALLY_PREDICTABLE:
+            return FiveWayVerdict(FiveWay.PARTIALLY_PREDICTABLE, (f"assessment {c.value}: part of the move was foreseeable",), False, "assessment")
+        return FiveWayVerdict(FiveWay.CURRENTLY_UNEXPLAINED, ("the assessment found no explanation; unknown stays unknown",), False, "assessment")
+    if pattern_failing_lead is not None:
+        return FiveWayVerdict(FiveWay.PREDICTABLE_BUT_MISSED, (f"the pattern was already failing {pattern_failing_lead} rows before the decision",),
+                              False, "findings")
+    if condition_replicated:
+        return FiveWayVerdict(FiveWay.PREDICTABLE_UNDER_NEW_CONDITION, (f"replicated condition {condition_key}",), False, "condition")
+    if pre_outcome_cause:
+        return FiveWayVerdict(FiveWay.PARTIALLY_PREDICTABLE, ("a cause with pre-outcome evidence fired, but no knowability assessment confirms it",),
+                              False, "findings")
+    return FiveWayVerdict(FiveWay.CURRENTLY_UNEXPLAINED, ("no level explained the error with pre-outcome evidence; no forced explanation",), False, "findings")

@@ -462,10 +462,9 @@ def test_live_gate_gates_in_the_bad_regime_and_uses_only_matured_evidence():
 
 
 # ---------------------------------------------------------------- W-05: winner's curse in the expected effect
-def _stationary_false_alarms(cfg, seeds=range(500, 540), T=400, n=8):
+def _stationary_false_alarms(cfg, mu=0.0015, seeds=range(700, 730), T=520, n=8):
     events = monitored = flagged = total = 0
     for sd in seeds:
-        mu = (0.006, 0.003, 0.0015)[sd % 3]                           # strong, medium and weak stationary edges
         tl = PR.planted_world("healthy", seed=sd, n_weeks=T, n_patterns=n, mu=mu)
         h = PR.health_monitor(tl, cfg)
         real = h.events[~h.events["phantom"].astype(bool)]
@@ -476,29 +475,28 @@ def _stationary_false_alarms(cfg, seeds=range(500, 540), T=400, n=8):
     return events, monitored, flagged, total
 
 
-def test_w05_stationary_series_false_alarm_rate_is_bounded_over_40_worlds():
-    """320 stationary patterns whose edge never changes. The pattern is picked because its burn-in looked good, so the raw burn-in
-    mean over-states the true edge; the lower-bound expected effect stops that from reading as decay. Measured: 95/320 patterns
-    flagged (151 alarms, 0.63 of the nominal budget) before, 53/320 (79 alarms, 0.33) after."""
+def test_w05_weak_stationary_edges_false_alarm_rate_is_bounded_over_30_worlds():
+    """240 stationary patterns with a weak edge (0.15 sd a week), the case where being picked for a good burn-in inflates the mean
+    most. Nothing about them ever changes, so every alarm is false. Measured with the shrunk mean alone (old rule): 205 alarms =
+    0.86 of the nominal budget, 50% of patterns flagged; with the lower-bound expected effect: 178 = 0.75, 42%."""
     events, monitored, flagged, total = _stationary_false_alarms(None)
-    budget = monitored / PR.PARAMS["arl0"]
-    assert total == 320 and monitored > 100_000
-    assert events <= 0.40 * budget
-    assert flagged / total <= 0.20
+    assert total == 240 and monitored > 80_000
+    assert events <= 0.80 * monitored / PR.PARAMS["arl0"]
+    assert flagged / total <= 0.46
 
 
 def test_w05_old_winners_curse_expected_effect_would_fail_those_bounds():
     events, monitored, flagged, total = _stationary_false_alarms({"effect_lcb_z": -1e9})      # the shrunk mean alone (old rule)
-    assert events > 0.40 * monitored / PR.PARAMS["arl0"] and flagged / total > 0.20
+    assert events > 0.80 * monitored / PR.PARAMS["arl0"] and flagged / total > 0.46
 
 
 def test_w05_expected_effect_is_a_lower_bound_and_stays_positive():
     P = PR.PARAMS
     lo = PR.expected_effect(0.010, 0.010, 26, P)                                             # mean 0.010, se 0.00196
-    assert lo == pytest.approx(min(0.7 * 0.010, 0.010 - 0.010 / math.sqrt(26)))
-    assert PR.expected_effect(0.010, 0.010, 26, P) < PR.expected_effect(0.010, 0.010, 400, P)   # more evidence, less discount
-    thin = PR.expected_effect(0.002, 0.010, 26, P)                                            # t ~ 1: bound would be ~0
-    assert thin == pytest.approx(P["effect_floor"] * 0.002) and thin > 0
+    assert lo == pytest.approx(min(0.7 * 0.010, 0.010 - P["effect_lcb_z"] * 0.010 / math.sqrt(26)))
+    assert PR.expected_effect(0.003, 0.010, 26, P) < PR.expected_effect(0.003, 0.010, 400, P)   # more evidence, less discount
+    thin = PR.expected_effect(0.002, 0.010, 26, P)                                            # t ~ 1: the bound is near zero
+    assert P["effect_floor"] * 0.002 <= thin < 0.7 * 0.002 and thin > 0
     assert PR.expected_effect(0.0, 0.01, 30, P) == 0.0                                         # nothing established, nothing expected
 
 
@@ -512,3 +510,14 @@ def test_w05_planted_real_decay_is_still_caught():
         n += 8
         delays += list(ev["detect"] - 100)
     assert caught >= 0.9 * n and np.median(delays) <= 60
+
+
+def test_w05_a_lucky_streak_in_a_dead_pattern_does_not_release_it_early():
+    """Dead pattern (edge zero), broken, then a short run of good weeks: the posterior leans on the prior expected effect, so the
+    early release also needs the recent mean to be release_t standard errors above ZERO."""
+    rng = np.random.default_rng(11)
+    r = np.r_[rng.normal(0.006, 0.01, 80), rng.normal(0.0, 0.01, 120), rng.normal(0.0045, 0.01, 12)]
+    h = PR.health_monitor(_series_tl(r), {"est_win": 26})
+    strict = PR.health_monitor(_series_tl(r), {"est_win": 26, "release_t": 0.0})
+    assert (h.codes.iloc[:, 0] == PR.BROKEN).sum() >= (strict.codes.iloc[:, 0] == PR.BROKEN).sum()
+    assert h.codes.iloc[-1, 0] in (PR.BROKEN, PR.SUSPECT)

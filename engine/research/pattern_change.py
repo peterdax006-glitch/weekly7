@@ -10,8 +10,9 @@ OBSOLESCENCE verdict that has been investigated may PROPOSE retirement (the gate
 
 Everything is forward-in-time: `classify` slices the observation frame to rows strictly before `now`, so its verdict at t cannot
 change when the data after t changes (tested by scrambling the future). Mechanisms are the existing ones, not copies:
-engine.learning.reliability (AR(1) deflation, discounted stats, posterior), lifecycle (causal stage trace, deterioration shape by
-BIC + block permutation, recovery bar) and health (nine-state monitor, reported next to ours for comparison).
+engine.learning.reliability (AR(1) deflation, discounted stats, posterior), engine.research.break_research.detect_events (THE break
+detector: episodes, onsets, recoveries - no second detector here), lifecycle (deterioration shape by BIC + block permutation,
+recovery bar) and health (nine-state monitor, reported next to ours for comparison).
 Public entry: `step(state, now, frames)`."""
 from __future__ import annotations
 
@@ -22,10 +23,12 @@ from typing import Any, Mapping, Sequence
 import numpy as np
 import pandas as pd
 
+from engine.learning import break_detection as BD
 from engine.learning import health as HL
 from engine.learning import lifecycle as LC
 from engine.learning import reliability as RL
 from engine.learning.core import FirewallBreach, Health, Lifecycle, _StrEnum, as_date, stable_hash
+from engine.research import break_research as BR
 
 DIMENSIONS = ("regime", "volatility", "sector", "holding_period", "confidence")
 PARAMS: dict[str, Any] = {
@@ -260,15 +263,36 @@ def degradation_rate(x: np.ndarray, window: int) -> float:
     return float((t @ (v - v.mean())) / (t @ t))
 
 
-def recovery_rate(x: np.ndarray, P: Mapping) -> float:
-    """Recoveries per failure spell in the causal lifecycle trace; NaN when the pattern never failed."""
+def break_episodes(x: np.ndarray) -> list:
+    """The pattern's break episodes from THE break detector - engine.research.break_research.detect_events over
+    engine.learning.break_detection (causal working -> broken -> recovered states; C69 duplication audit: pattern_change consumes
+    break_research and runs no detector of its own). `x` is the causal outcome series; rows are positions in it. A placeholder row
+    is appended because the detector hides the newest row of an item (whose outcome is still open) - every row of `x` has matured."""
+    v = np.asarray(x, float)
+    if len(v) < 3:
+        return []
+    idx = pd.bdate_range("2000-01-03", periods=len(v) + 1)
+    item = BD.ItemSeries("pattern", pd.DataFrame({"value": np.r_[v, np.nan]}, index=idx))
+    return [e for e in BR.detect_events(item, idx[-1]) if e.source == "episode"]
+
+
+def recovery_rate(x: np.ndarray, P: Mapping, episodes: Sequence | None = None) -> float:
+    """Recoveries per break episode found by the break detector; NaN when the pattern never broke."""
     v = np.asarray(x, float)
     if len(v) < 2 * P["recent_n"]:
         return float("nan")
-    tr = LC.trace(v)
-    fails = sum(c.to == Lifecycle.FAILURE.value for c in tr.changes)
-    recov = sum(c.to == Lifecycle.RECOVERY.value for c in tr.changes)
-    return float(recov / fails) if fails else float("nan")
+    eps = break_episodes(v) if episodes is None else episodes
+    return float(sum(e.recover is not None for e in eps) / len(eps)) if eps else float("nan")
+
+
+def stage_from_episodes(eps: Sequence, n: int, recent_n: int, hist_mean: float) -> str:
+    """A lifecycle stage name read off the break detector's episodes (no second state machine): FAILURE while the newest episode
+    is open, RECOVERY within `recent_n` rows of its recovery, ACTIVE for a pattern that delivered, BIRTH before it ever did."""
+    if eps and eps[-1].recover is None:
+        return Lifecycle.FAILURE.value
+    if eps and n - int(eps[-1].recover) <= recent_n:
+        return Lifecycle.RECOVERY.value
+    return Lifecycle.ACTIVE.value if math.isfinite(hist_mean) and hist_mean > 0 else Lifecycle.BIRTH.value
 
 
 # ------------------------------------------------------------------------------------------------ the verdict
@@ -295,17 +319,6 @@ class PatternVerdict:
 
     def record_id(self) -> str:
         return stable_hash([self.pattern_id, self.as_of, self.change, self.action, self.culprit])
-
-
-def _failing_run(stage: np.ndarray) -> int:
-    """Length of the trailing run of FAILURE / DECAY / DEGRADED stages."""
-    bad = {Lifecycle.FAILURE.value, Lifecycle.DECAY.value, Lifecycle.DEGRADED.value}
-    n = 0
-    for s in stage[::-1]:
-        if str(s) not in bad:
-            break
-        n += 1
-    return n
 
 
 def _accuse_cells(prof: ReliabilityProfile, frame: pd.DataFrame, P: Mapping) -> tuple | None:
@@ -346,17 +359,16 @@ def classify(pattern_id: str, frame: pd.DataFrame, now, cfg=None, families: Mapp
                               (f"only {prof.hist_n} historical and {prof.recent_n} recent outcomes",), None, None, prof,
                               Lifecycle.BIRTH.value, 0, investigated)
     x = f["effect"].astype(float).to_numpy()
-    tr = LC.trace(x)
-    stage = tr.stage
-    cur_stage = str(tr.current)
-    failing = _failing_run(stage)
-    why: list[str] = [f"recent-vs-history z={prof.z:.2f} (outlier-trimmed {prof.z_trimmed:.2f}); lifecycle stage {cur_stage}"]
+    eps = break_episodes(x)                                  # THE break detector (break_research); a break needs a working pattern first
+    cur_stage = stage_from_episodes(eps, len(x), prof.recent_n, prof.hist_mean)
+    failing = (len(x) - int(eps[-1].onset)) if eps and eps[-1].recover is None else 0
+    why: list[str] = [f"recent-vs-history z={prof.z:.2f} (outlier-trimmed {prof.z_trimmed:.2f}); break detector: {len(eps)} episode(s), "
+                      f"stage {cur_stage}"]
     culprit = _accuse_cells(prof, f, P)
     det: str | None = None
     ff = {k: (None if v is None else v.loc[v.index.isin(f.index)]) for k, v in (families or {}).items()}
-    est = (Lifecycle.ACTIVE.value, Lifecycle.PEAK.value, Lifecycle.DECAY.value, Lifecycle.DEGRADED.value, Lifecycle.RECOVERY.value)
-    had_failure = any(c.to == Lifecycle.FAILURE.value and c.frm in est for c in tr.changes)      # an ESTABLISHED pattern failed
-    fail_at = max([c.at for c in tr.changes if c.to == Lifecycle.FAILURE.value and c.frm in est] or [-10 ** 9])
+    had_failure = bool(eps)                                  # an ESTABLISHED pattern broke (the detector requires 'working' first)
+    fail_at = int(eps[-1].detect) if eps else -10 ** 9
     returned = (had_failure and len(x) - fail_at <= P["return_window"] and prof.recent_mean > 0 and prof.z > -P["z_strong"]
                 and fail_at < len(x) - prof.recent_n and _t(_finite(x[-prof.recent_n:])) >= P["t_return"])
     if culprit is not None:
