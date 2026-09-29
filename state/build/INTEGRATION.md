@@ -82,3 +82,10 @@
 - [ ] mutable default scripts/antioverfit_real.py:43; tests/test_livesim_gates.py:172 has no assert
 - [x] A6 collector test (tests/test_collect_intraday.py, 2026-09-28)
 - [ ] CI: quality_gate.py --baseline state/quality/baseline.json
+
+## B04 pattern_movers + heavy_tests (52 tests) - accepted; real run in progress (state/research/heavy_algo_real_run.log)
+- hook: Find volatility uses PatternMoverModel(cfg).fit(X, y, now).features(Xday, as_of) -> pat_dir, pat_mov, p_move, deployed
+- smoke: 0.14 live patterns per refit, rank IC ~0 (miner rarely admits patterns on real price-only data)
+- bug sent to B14: score() uses full CTX list vs fitted subset for regime scopes
+
+## A7 self-tuning (main session): engine/miner_tuning.py, scripts/miner_tune_real.py (7 tests); real run: data/tune_move0.log
