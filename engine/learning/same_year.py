@@ -6,7 +6,7 @@ plus identity-preserving perturbations) while five frozen controls (engine.learn
 date filter. The learning curve of each control over runs 1..N is measured. The legitimate learner (B) must beat the no-learning
 floor (A) without resembling the identity memoriser (C): its memorisation gap (gain with identities kept minus gain with identities
 disguised) must be about zero and C's must be large. The random learner (D) must show no curve; the leaky learner (E) must be
-caught by the future firewall (LeakGuard) and must be distinguishable from B by skill at run 1. If any of those sanity conditions
+caught by the future firewall (FirewallScreen, which calls future_firewall.FutureFirewall.screen) and must be distinguishable from B by skill at run 1. If any of those sanity conditions
 fails the harness declares itself VOID rather than report a learning result -- a harness that cannot see memorisation or a leak
 cannot vouch for learning.
 
@@ -21,7 +21,12 @@ reported as the honest residual, not hidden.
 
 Reuses: engine.learning.planted_world (reidentify = the disguise; make_world/year_swap = the year and the other years),
 engine.learning.learning_curve (LearningCurve, trend), engine.learning.controls (the five frozen controls; which wrap
-engine.pattern_memory), engine.learning.core (FirewallBreach, require_past, stable_hash)."""
+engine.pattern_memory), engine.learning.core (FirewallBreach, stable_hash).
+
+Firewalls are the finished ones, not copies: input screening and the leaky control's detection go through FutureFirewall.screen and
+LearningFirewallGate (firewalls.py); identity checks go through IdentityHarness (identity_firewall.py). The real-panel path plays a
+learning_delta.Window through its audited disguise (make_presentation + audit_presentation) and referees each control's C58 date filter
+against the audited TimeGate (LearnedState.make_gates + verify_gate_log). `SameYearHarness.from_window` is that path (C63: not run on real data)."""
 from __future__ import annotations
 
 import dataclasses
@@ -33,11 +38,15 @@ import numpy as np
 import pandas as pd
 
 from engine.learning import controls as CT
-from engine.learning.core import FirewallBreach, ValidationLabel, _StrEnum, current_code_hash, require_past, stable_hash
+from engine import learning_delta as LD
+from engine.learning import future_firewall as FF
+from engine.learning import identity_firewall as IDF
+from engine.learning.core import FirewallBreach, ValidationLabel, _StrEnum, current_code_hash, stable_hash
+from engine.learning.firewalls import DataFirewall, GateContext, LayerName, LearningFirewallGate, TimeFirewall
 from engine.learning.learning_curve import CurvePoint, LearningCurve, Trend, trend
-from engine.learning.planted_world import CANARY_PREFIX, PlantedWorld, assert_no_canary, reidentify
+from engine.learning.planted_world import PlantedWorld, make_world, reidentify
 
-GUARD_GATE = CT.MemoryGate("guard")
+GUARD_GATE = CT.MemoryGate("guard")          # the firewall is the one other reader of real time; its reads are logged too
 MAX_SHIFT_YEARS = 60
 MODES = ("fresh_perturbed", "fresh_plain", "kept")
 
@@ -109,9 +118,6 @@ class RunPanel:
     meta: dict = field(default_factory=dict)
 
     def __post_init__(self):
-        bad = [c for c in self.X.columns if str(c).startswith(CANARY_PREFIX)]
-        if bad:
-            raise FirewallBreach(f"canary column(s) {bad} in a presentation")
         self._slices = {}
         for d, g in self.X.groupby(level=0, sort=True):
             self._slices[pd.Timestamp(d)] = g.droplevel(0)
@@ -229,38 +235,152 @@ class GuardRecord:
     ic_mean: float = 0.0
     ic_leak: bool = False
     canary: bool = False
+    screen_digest: str = ""
 
     @property
     def flagged(self) -> bool:
         return bool(self.provenance_breaches) or self.ic_leak or self.canary
 
 
-class LeakGuard:
-    """The future-information firewall as the harness applies it to every control at every decision (contract sections 30, 55):
-    (1) no canary/future column may reach a control; (2) the newest outcome a control has used must be dated strictly before the real
-    decision time (core.require_past); (3) a run's mean rank-IC against realised excess returns above `ic_threshold` is not skill in
-    a world where real signal is a few percent of a standard deviation -- it is a leak (or, for C, a memorised answer). The IC test
-    catches a leak that lies about its provenance."""
+ALL_CHECKS = tuple(FF.CHECKS)
+
+
+def _skip_except(*keep: str) -> tuple:
+    return tuple(c for c in ALL_CHECKS if c not in keep)
+
+
+class FirewallScreen:
+    """The harness's only view of the finished firewalls. It owns no rule of its own:
+      screen_frame / screen_presentation   FutureFirewall.screen (timestamp + feature provenance incl. the implausible-IC screen, which is
+                                           what catches a canary or any column that already knows the answer) and LearningFirewallGate
+                                           (DATA + TIME layers) on every presentation before anyone plays it;
+      check_decision                       FutureFirewall.screen on the newest outcome a control says it has used (a LABEL input dated at
+                                           its observation date, which must be strictly before the real decision time);
+      screen_scores                        the same firewall's implausible-IC screen applied to a control's SCORES, which catches a leak
+                                           that lies about its provenance;
+      identity_report / gate_identity      IdentityHarness on the control as a learner, and the gate's IDENTITY layer on its report.
+    Checks that do not apply to a planted panel (survivorship, memory items, code state, network) are skipped explicitly, so the verdict
+    records the skip; nothing here is silently passed."""
 
     def __init__(self, ic_threshold: float = 0.25):
         self.ic_threshold = float(ic_threshold)
+        self.fw = FF.FutureFirewall(ic_cap=self.ic_threshold)
+        self.gate = LearningFirewallGate([DataFirewall(ic_cap=self.ic_threshold), TimeFirewall()])
+        self.id_gate = LearningFirewallGate()
 
-    def check_frame(self, X: pd.DataFrame) -> None:
-        assert_no_canary(X.columns)
+    @staticmethod
+    def now_after(X: pd.DataFrame) -> pd.Timestamp:
+        return pd.Timestamp(X.index.get_level_values(0).max()) + pd.Timedelta(days=CT.HORIZON_DAYS + 1)
+
+    def screen_frame(self, X: pd.DataFrame, y: pd.Series | None = None, now=None, skip_ic: bool = False):
+        now = self.now_after(X) if now is None else now
+        specs = [FF.FeatureSpec(str(c), "panel", FF.InputKind.FEATURE) for c in X.columns]
+        # y is left out of the future firewall's provenance screen on purpose: the implausible-IC screen of the same columns is run by the
+        # gate's DATA layer (screen_presentation), and running it twice is the most expensive thing this harness does. A caller who calls
+        # check_frame directly passes y and gets the IC screen here.
+        return self.fw.screen(now, inputs=FF.inputs_from_panel(X, now, y if not skip_ic else None, "panel"), specs=specs, X=X,
+                              y=None if skip_ic else y, registered_sources={"panel"}, skip=_skip_except("timestamp", "feature_provenance"))
+
+    def check_frame(self, X: pd.DataFrame, y: pd.Series | None = None) -> None:
+        self.screen_frame(X, y).require()
+
+    def screen_presentation(self, panel: RunPanel) -> dict:
+        """Raise FirewallBreach unless the presentation passes both firewalls; returns the digests for the record."""
+        v = self.screen_frame(panel.X, panel.y, skip_ic=True)
+        v.require()
+        now = self.now_after(panel.X)
+        ctx = GateContext(now, f"presentation:{panel.meta.get('mode')}", X=panel.X, y=panel.y,
+                          label_close=pd.DatetimeIndex(panel.X.index.get_level_values(0)) + pd.Timedelta(days=CT.HORIZON_DAYS),
+                          relevant=frozenset({LayerName.DATA, LayerName.TIME}))
+        g = self.gate.admit(ctx)
+        return {"future": v.digest(), "gate": g.context_fingerprint}
 
     def check_decision(self, control: CT.Control, moment: CT.Moment) -> str | None:
         seen = control.seen_through()
         if seen is None:
             return None
-        try:
-            require_past(seen, moment.real(GUARD_GATE), f"control {control.letter} evidence")
-        except FirewallBreach as e:
-            return str(e)
-        return None
+        inp = FF.LearningInput(f"evidence:{control.letter}", FF.InputKind.LABEL, timestamp=seen, source="control")
+        v = self.fw.screen(moment.real(GUARD_GATE), inputs=[inp], skip=_skip_except("timestamp"))
+        res = v.results["timestamp"]
+        return None if res.passed else "; ".join(f.message for f in res.findings if f.is_fail)
 
-    def summarise(self, letter: str, breaches: list, ics: np.ndarray) -> GuardRecord:
+    def screen_scores(self, letter: str, scores: pd.Series, excess: pd.Series, now) -> tuple:
+        """(ic_leak, verdict): does the firewall's implausible-IC screen flag the control's scores as already knowing the answer?"""
+        v = self.fw.screen(now, X=scores.to_frame("score"), y=excess, specs=[FF.FeatureSpec("score", "control", FF.InputKind.FEATURE)],
+                           registered_sources={"control"}, skip=_skip_except("feature_provenance"))
+        leak = any(f.check == "implausible-ic" for f in v.results["feature_provenance"].findings)
+        return leak, v
+
+    def summarise(self, letter: str, breaches: list, ics: np.ndarray, scores: pd.Series | None = None, excess: pd.Series | None = None,
+                  now=None) -> GuardRecord:
         m = float(np.mean(ics)) if len(ics) else 0.0
-        return GuardRecord(letter, list(breaches), m, bool(m > self.ic_threshold))
+        leak, digest = False, ""
+        if scores is not None and len(scores):
+            leak, v = self.screen_scores(letter, scores, excess, now)
+            digest = v.digest()
+        return GuardRecord(letter, list(breaches), m, bool(leak), False, digest)
+
+    # -- identity (section 29) through the finished harness
+    def control_as_learner(self, frozen: CT.FrozenControl) -> Callable:
+        """A frozen control as an IdentityHarness learner: replay the training panel, then score the evaluation panel as of the day after
+        training ends (a static learner; the attacks move dates, so every decision is pinned to that one real time)."""
+        def learner(Xt, yt, Xe, seed):
+            c = frozen.build(seed)
+            c.begin_run(0)
+            c.fit(Xt, yt, None)
+            end = pd.Timestamp(Xt.index.get_level_values(0).max()) + pd.Timedelta(days=CT.HORIZON_DAYS)
+            out = []
+            for i, d in enumerate(sorted(Xe.index.get_level_values(0).unique())):
+                Xd = Xe.xs(d, level=0)
+                sc = c.decide(Xd, CT.Moment(pd.Timestamp(d), i, end))
+                out.append(pd.Series(sc.to_numpy(), index=pd.MultiIndex.from_product([[d], Xd.index], names=Xe.index.names)))
+            return pd.concat(out).reindex(Xe.index)
+        return learner
+
+    def identity_report(self, frozen: CT.FrozenControl, panel: RunPanel, seed: int = 0,
+                        attacks: Sequence[str] = ("ticker_permutation", "stock_substitution", "presentation_disguise"),
+                        modes: Sequence[str] = ("eval",), boot: int = 120, train_share: float = 0.6):
+        dates = sorted(panel.X.index.get_level_values(0).unique())
+        cut = dates[int(len(dates) * train_share)]
+        tr = panel.X.index.get_level_values(0) < cut
+        excess = lambda y: y - y.groupby(level=0).transform("mean")
+        h = IDF.IdentityHarness(self.control_as_learner(frozen), attacks, seed=seed, modes=modes, boot=boot, min_dates=6, min_skill=0.005, min_t=1.5)
+        return h.run(panel.X[tr], excess(panel.y[tr]), panel.X[~tr], excess(panel.y[~tr]))
+
+    def gate_identity(self, report, panel: RunPanel):
+        ctx = GateContext(self.now_after(panel.X), "identity", identity_report=report, relevant=frozenset({LayerName.IDENTITY}))
+        return self.id_gate.evaluate(ctx)
+
+
+class GateReferee:
+    """Cross-checks a control's own C58 filter against the audited TimeGate of learning_delta: the control's prior-run evidence is put
+    into a LearnedState.records table, served through LearnedState.make_gates(offset), and at every decision the number of prior records
+    the control has released must equal the number the gate releases for that simulated day. verify_gate_log then re-derives the rule
+    on everything the gate served. Two independent implementations of 'nothing that has not matured' must agree."""
+
+    def __init__(self, control: CT.Control, panel: RunPanel):
+        self.ev = control.evidence()
+        self.gate = None
+        if self.ev is not None and len(panel):
+            table = self.ev.prior_table()
+            if len(table):
+                offset = panel.weeks[0][0] - panel.weeks[0][1]
+                self.gate = LD.LearnedState(cfg={}, meta={}, records=table).make_gates(offset).get("records")
+
+    def check(self, moment: CT.Moment) -> None:
+        if self.ev is None:
+            return
+        served = 0 if self.gate is None else len(self.gate.serve(moment.disguised))
+        if served != self.ev.prior_count():
+            raise FirewallBreach(f"the control released {self.ev.prior_count()} prior-run records at week {moment.week}; the audited "
+                                 f"time gate releases {served}")
+
+    def finish(self) -> None:
+        if self.gate is None:
+            return
+        bad = [f for f in LD.verify_gate_log({"records": self.gate}, "referee") if f.severity == "fail"]
+        if bad:
+            raise FirewallBreach("; ".join(f.message for f in bad))
 
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -297,22 +417,25 @@ def pick_top(scores: pd.Series, k: int, tie_seed: tuple) -> np.ndarray:
     return order[:min(k, n)]
 
 
-def play_run(control: CT.Control, panel: RunPanel, run: int, guard: LeakGuard, top_k: int = 8, seed: int = 0) -> ControlRun:
+def play_run(control: CT.Control, panel: RunPanel, run: int, guard: FirewallScreen, top_k: int = 8, seed: int = 0, referee: bool = True) -> ControlRun:
     """One pass of one control through one presentation: at each week it first learns from the outcome that has just matured (last
     week's features and realised return), then decides on this week's features. The final week's outcome is observed after the run."""
     control.begin_run(run)
+    ref = GateReferee(control, panel) if referee else None
     n = len(panel)
     gains, ics, hits, breaches = np.zeros(n), np.zeros(n), np.zeros(n), []
     reads0 = 0
+    score_rows, excess_rows = [], []
     prev = None
     if control.letter == "E":
         control.attach_oracle(lambda m: (panel.excess(m.week), m.real_ts))
     for i in range(n):
         Xw, yw, mom = panel.week(i)
-        guard.check_frame(Xw)
         if prev is not None:
             control.observe(prev[0], prev[1], prev[2], mom)
         scores = control.decide(Xw, mom)
+        if ref is not None:
+            ref.check(mom)
         msg = guard.check_decision(control, mom)
         if msg:
             if not control.expects_breach:
@@ -323,13 +446,20 @@ def play_run(control: CT.Control, panel: RunPanel, run: int, guard: LeakGuard, t
         gains[i] = float(ex[pos].mean()) if len(pos) else 0.0
         hits[i] = float((ex[pos] > 0).mean()) if len(pos) else 0.0
         ics[i] = rank_ic(scores.to_numpy(dtype=float), ex)
+        score_rows.append(pd.Series(scores.to_numpy(dtype=float), index=pd.MultiIndex.from_product([[mom.disguised], Xw.index], names=["date", "ticker"])))
+        excess_rows.append(pd.Series(ex, index=score_rows[-1].index))
         reads0 += len(mom.reads)
         prev = (Xw, yw, mom)
     if prev is not None:
         end = CT.Moment(prev[2].disguised + pd.Timedelta(days=CT.HORIZON_DAYS), n, prev[2].real_ts + pd.Timedelta(days=CT.HORIZON_DAYS))
         control.observe(prev[0], prev[1], prev[2], end)
     control.end_run(run)
-    return ControlRun(control.letter, run, gains, ics, hits, control.state_size(), guard.summarise(control.letter, breaches, ics), reads0)
+    if ref is not None:
+        ref.finish()
+    sc = pd.concat(score_rows) if score_rows else None
+    ex_all = pd.concat(excess_rows) if excess_rows else None
+    now = FirewallScreen.now_after(sc.to_frame()) if sc is not None else None
+    return ControlRun(control.letter, run, gains, ics, hits, control.state_size(), guard.summarise(control.letter, breaches, ics, sc, ex_all, now), reads0)
 
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -665,6 +795,96 @@ def perturbation_frontier(world: PlantedWorld, others: Sequence[PlantedWorld], l
 
 
 # ---------------------------------------------------------------------------------------------------------------
+# where a presentation comes from: a planted world, or a real weekly panel through learning_delta's audited disguise
+# ---------------------------------------------------------------------------------------------------------------
+class WorldSource:
+    """A planted world as a source of run presentations (planted_world.reidentify is the disguise)."""
+
+    def __init__(self, world: PlantedWorld):
+        self.world = world
+
+    def panel(self, run: int, seed: int, cfg: PerturbConfig | None, mode: str) -> RunPanel:
+        return make_run_panel(self.world, run, seed, cfg, mode)
+
+    def content_id(self) -> str:
+        return self.world.content_hash()
+
+
+def presentation_to_panel(pres: "LD.Presentation", offset: pd.Timedelta, feature_cols: Sequence[str] | None = None,
+                          market_cols: Sequence[str] | None = None, meta: dict | None = None, order_seed: int | None = None) -> RunPanel:
+    """A learning_delta.Presentation (weekly snapshots by code name, plus closes) as a RunPanel. Each snapshot date is one decision
+    week; its forward return is the change in close to the NEXT snapshot date, so the final snapshot has no outcome and is not a week.
+    Numeric snapshot columns become f0..fn (names carry no meaning to a learner), columns already named m_* stay market context, and the
+    real date of each week is the disguised date minus `offset` = the window's archive offset plus the disguise shift (trusted side; it
+    never reaches a player except through a MemoryGate)."""
+    dates = sorted(pd.Timestamp(k) for k in pres.snaps)
+    if len(dates) < 3:
+        raise ValueError("a real panel needs at least three snapshot dates (two weeks with outcomes)")
+    num = pres.snaps[str(dates[0].date())].select_dtypes("number").columns
+    mcols = [c for c in num if str(c).startswith("m_")] if market_cols is None else list(market_cols)
+    fcols = [c for c in num if c not in mcols] if feature_cols is None else list(feature_cols)
+    if not fcols:
+        raise ValueError("the snapshots have no numeric feature column")
+    rename = {c: f"f{i}" for i, c in enumerate(fcols)}
+    closes, xs, ys, weeks = pres.closes, [], [], []
+    rng = None if order_seed is None else np.random.default_rng(order_seed)      # an order-preserving disguise keeps row order = code order
+    for a, b in zip(dates[:-1], dates[1:]):
+        ia, ib = closes.index.get_indexer([a, b], method="bfill")
+        if ia < 0 or ib < 0 or ia == ib:
+            continue
+        snap = pres.snaps[str(a.date())]
+        ret = (closes.iloc[ib] / closes.iloc[ia] - 1.0).reindex(snap.index)
+        keep = ret.notna().to_numpy() & np.isfinite(ret.to_numpy(dtype=float))
+        if keep.sum() < 8:
+            continue
+        order = np.arange(int(keep.sum())) if rng is None else rng.permutation(int(keep.sum()))
+        idx = pd.MultiIndex.from_product([[a], list(snap.index[keep][order])], names=["date", "ticker"])
+        xs.append(snap.loc[keep, fcols + mcols].rename(columns=rename).iloc[order].set_axis(idx))
+        ys.append(pd.Series(ret[keep].to_numpy(dtype=float)[order], index=idx))
+        weeks.append((a, a - offset))
+    if len(weeks) < 3:
+        raise ValueError("fewer than three weeks have both a snapshot and a next-snapshot close")
+    return RunPanel(pd.concat(xs), pd.concat(ys), weeks, dict(meta or {}))
+
+
+class WindowSource:
+    """A real (or real-shaped) learning_delta.Window as a source of run presentations. Fresh runs go through
+    learning_delta.make_presentation (new order-preserving codes, a new whole-week shift into the disguised era) and are refused unless
+    learning_delta.audit_presentation finds nothing that fails the blindness audit (C55); 'kept' plays the archive as it is."""
+
+    def __init__(self, window: "LD.Window", feature_cols: Sequence[str] | None = None, market_cols: Sequence[str] | None = None):
+        self.window, self.feature_cols, self.market_cols = window, feature_cols, market_cols
+
+    def panel(self, run: int, seed: int, cfg: PerturbConfig | None, mode: str) -> RunPanel:
+        if mode not in MODES:
+            raise ValueError(f"mode {mode!r} not in {MODES}")
+        cfg = cfg or PerturbConfig.standard()
+        errs = cfg.validate()
+        if errs:
+            raise ValueError("; ".join(errs))
+        w = self.window
+        if mode == "kept":
+            pres, shift = LD.archive_presentation(w), 0
+        else:
+            pres, rec = LD.make_presentation(w, LD.derive_seed(seed, run, "same_year", mode))
+            bad = [f for f in LD.audit_presentation(pres, w, rec, kind=f"run{run}") if f.severity == "fail"]
+            if bad:
+                raise LD.BlindnessError("; ".join(f.message for f in bad))
+            shift = rec.shift_days
+        panel = presentation_to_panel(pres, w.archive_offset + pd.Timedelta(days=shift), self.feature_cols, self.market_cols,
+                                      {"mode": mode, "run": run, "audited": mode != "kept", "shift_days": shift},
+                                      order_seed=None if mode == "kept" else LD.derive_seed(seed, run, "rows", mode) % (2 ** 31))
+        if mode == "fresh_perturbed" and not cfg.is_off:
+            X, y, lo, hi, pm = _perturb(panel.X, panel.y, cfg, seed, run)
+            panel = RunPanel(X, y, panel.weeks[lo:hi], {**panel.meta, **pm})
+        return panel
+
+    def content_id(self) -> str:
+        w = self.window
+        return stable_hash([w.id, list(w.closes.shape), float(np.nansum(w.closes.to_numpy(dtype=float))), sorted(w.snaps)[:3]])
+
+
+# ---------------------------------------------------------------------------------------------------------------
 # the harness
 # ---------------------------------------------------------------------------------------------------------------
 class Verdict(_StrEnum):
@@ -685,6 +905,9 @@ class HarnessConfig:
     late_share: float = 0.4
     gap_tolerance: float = 0.25           # B's memorisation gap must be under this share of B's own gain
     min_runs: int = 5
+    probe: bool = True                    # recognition probe (tier 1 and tier 2) on every run set: a first-class output, not an extra
+    probe_other_runs: int = 3
+    tier2_alarm: float = 0.7              # a fuzzy-matching adversary above this AUC means the disguise is still recognisable
 
     def validate(self) -> list[str]:
         errs = list(self.perturb.validate())
@@ -718,11 +941,14 @@ class Judgement:
 
 
 class SameYearHarness:
-    """Plays one planted year N times per mode with the five frozen controls and judges the result."""
+    """Plays one year N times per mode with the five frozen controls and judges the result. The year is a planted world (default) or a
+    real weekly panel (`from_window`); either way every presentation is screened by the finished firewalls before it is played, and
+    every control's date filter is refereed against the audited TimeGate."""
 
-    def __init__(self, world: PlantedWorld, controls: Mapping[str, CT.FrozenControl] | None = None, cfg: HarnessConfig | None = None,
-                 registry: CT.ControlRegistry | None = None):
-        self.world = world
+    def __init__(self, world, controls: Mapping[str, CT.FrozenControl] | None = None, cfg: HarnessConfig | None = None,
+                 registry: CT.ControlRegistry | None = None, others: Sequence | None = None):
+        self.source = world if hasattr(world, "panel") else WorldSource(world)
+        self.world = getattr(self.source, "world", None)
         self.cfg = cfg or HarnessConfig()
         errs = self.cfg.validate()
         if errs:
@@ -733,8 +959,20 @@ class SameYearHarness:
         self.registry = registry or CT.ControlRegistry()
         for fc in self.frozen.values():
             self.registry.register(fc)
-        self.guard = LeakGuard(self.cfg.ic_threshold)
+        self.guard = FirewallScreen(self.cfg.ic_threshold)
+        if others is None and self.world is not None and self.cfg.probe:
+            others = [make_world(self.world.spec, self.cfg.seed + 101 + i) for i in range(2)]      # other years, same situation classes
+        self.others = [o if hasattr(o, "panel") else WorldSource(o) for o in (others or ())]
         self.results: dict = {}
+        self.panels: dict = {}
+        self.recognition: dict = {}
+        self.identity: dict = {}
+
+    @classmethod
+    def from_window(cls, window: "LD.Window", feature_cols: Sequence[str] | None = None, market_cols: Sequence[str] | None = None,
+                    others: Sequence["LD.Window"] = (), **kw) -> "SameYearHarness":
+        """The real-panel path: `window` is a learning_delta.Window; `others` are different years' windows for the recognition probe."""
+        return cls(WindowSource(window, feature_cols, market_cols), others=[WindowSource(o, feature_cols, market_cols) for o in others], **kw)
 
     def run_mode(self, mode: str) -> ModeResult:
         cfg = self.cfg
@@ -742,15 +980,36 @@ class SameYearHarness:
             self.registry.verify(fc)                           # refuse to run on a changed control
         controls = {L: fc.build(cfg.seed) for L, fc in self.frozen.items()}
         runs = {L: [] for L in controls}
-        metas = []
+        metas, panels = [], []
         for k in range(cfg.n_runs):
-            panel = make_run_panel(self.world, k, cfg.seed, cfg.perturb, mode)
+            panel = self.source.panel(k, cfg.seed, cfg.perturb, mode)
+            panel.meta["screen"] = self.guard.screen_presentation(panel)     # FutureFirewall + LearningFirewallGate before anyone plays
             metas.append(panel.meta)
+            panels.append(panel)
             for L, c in controls.items():
                 runs[L].append(play_run(c, panel, k, self.guard, cfg.top_k, cfg.seed))
         res = ModeResult(mode, runs, metas)
         self.results[mode] = res
+        self.panels[mode] = panels
+        if cfg.probe and mode != "kept":
+            self.recognition[mode] = self.probe_mode(mode)
         return res
+
+    def probe_mode(self, mode: str) -> dict | None:
+        """Recognition probe on this run set: tier 1 (numeric fingerprints) and tier 2 (fuzzy row matching) AUCs with intervals."""
+        panels, cfg = self.panels[mode], self.cfg
+        if len(panels) < 3 or not self.others:
+            return None
+        oth = [[o.panel(k, cfg.seed + 50 + j, cfg.perturb, mode) for k in range(cfg.probe_other_runs)] for j, o in enumerate(self.others)]
+        return recognition_probe(panels, oth, seed=cfg.seed)
+
+    def run_identity(self, mode: str = "fresh_plain", letters: Sequence[str] = ("B",), **kw) -> dict:
+        """Section 29 through IdentityHarness: each listed control as a learner under identity attacks, plus the gate's IDENTITY layer."""
+        panel = self.panels[mode][0]
+        for L in letters:
+            rep = self.guard.identity_report(self.frozen[L], panel, seed=self.cfg.seed, **kw)
+            self.identity[L] = (rep, self.guard.gate_identity(rep, panel))
+        return self.identity
 
     def run_all(self, modes: Sequence[str] = MODES) -> dict:
         for m in modes:
@@ -800,14 +1059,14 @@ class SameYearHarness:
         return float(self.results[mode].runs[letter][0].ics.mean())
 
     # -- judgement
-    def judge(self) -> Judgement:
+    def _judge(self) -> Judgement:
         cfg = self.cfg
+        if cfg.n_runs < cfg.min_runs:
+            return Judgement(Verdict.INSUFFICIENT_RUNS, [f"{cfg.n_runs} runs < {cfg.min_runs}"], {"n_runs": cfg.n_runs})
         need = set(MODES)
         if not need <= set(self.results):
             raise RuntimeError(f"judge() needs modes {sorted(need)} to have been run")
         fp, kept = self.results["fresh_perturbed"], self.results["kept"]
-        if cfg.n_runs < cfg.min_runs:
-            return Judgement(Verdict.INSUFFICIENT_RUNS, [f"{cfg.n_runs} runs < {cfg.min_runs}"], {"n_runs": cfg.n_runs})
         void, facts = [], {}
         e_recs = [r.guard for r in fp.runs["E"]]
         facts["E_flagged_share"] = float(np.mean([g.flagged for g in e_recs]))
@@ -850,6 +1109,37 @@ class SameYearHarness:
             reasons.append("B beats A but its curve over runs is not (yet) rising with a positive interval")
         return Judgement(Verdict.LEARNING, reasons or ["B beats A, rises over runs and does not need identities"], facts)
 
+    def judge(self) -> Judgement:
+        """The verdict, with the recognition residual and any identity-harness finding attached as facts (never averaged away)."""
+        j = self._judge()
+        rec = self.recognition_record()
+        if rec:
+            j.facts["recognition"] = rec
+            t2 = rec.get("fresh_perturbed", {}).get("tier2")
+            if t2 and t2["auc"] > self.cfg.tier2_alarm:
+                j.reasons.append(f"recognition residual: a fuzzy row-matching adversary tells reruns apart at AUC {t2['auc']:.2f} "
+                                 f"(CI {t2['lo']:.2f}-{t2['hi']:.2f}) even after the perturbations")
+        if self.identity:
+            j.facts["identity"] = {L: {"collapsed": list(rep.collapsed), "memorization_suspected": bool(rep.memorization_suspected),
+                                       "gate_passed": bool(gate.passed), "digest": rep.digest()} for L, (rep, gate) in self.identity.items()}
+            if "B" in self.identity and self.identity["B"][0].memorization_suspected and j.verdict == Verdict.LEARNING:
+                j.reasons.append("the identity harness suspects B of memorisation")
+        return j
+
+    def recognition_record(self) -> dict:
+        return {m: {t: dataclasses.asdict(r) | {"consistent_with_chance": r.consistent_with_chance} for t, r in pr.items()}
+                for m, pr in self.recognition.items() if pr}
+
+    def recognition_markdown(self) -> str:
+        lines = ["## recognition residual (can an adversary tell two runs are the same year?)"]
+        if not any(self.recognition.values()):
+            return "\n".join(lines + ["not measured (probe off, fewer than 3 runs, or no other year supplied)"])
+        lines += ["| mode | tier | AUC | 95% CI | best single feature | chance-consistent |", "|---|---|---|---|---|---|"]
+        for m, pr in self.recognition.items():
+            for t, r in (pr or {}).items():
+                lines.append(f"| {m} | {t} | {r.auc:.2f} | {r.lo:.2f}-{r.hi:.2f} | {r.single_best:.2f} | {'yes' if r.consistent_with_chance else 'NO'} |")
+        return "\n".join(lines)
+
     # -- report
     def render(self) -> str:
         lines = ["# Same-year rerun harness (IMPLEMENTED — NOT VALIDATED)", ""]
@@ -863,11 +1153,12 @@ class SameYearHarness:
                 lines.append(f"| {L} | " + " | ".join(f"{v:+.4f}" for v in g) + f" | {tr.mean:+.5f} | {sum(r.guard.flagged for r in res.runs[L])}/{len(g)} |"
                              if tr else f"| {L} | " + " | ".join(f"{v:+.4f}" for v in g) + " | n/a | - |")
             lines.append("")
+        lines.append(self.recognition_markdown())
         return "\n".join(lines)
 
     def fingerprint(self) -> str:
         return stable_hash({"code": current_code_hash(), "controls": {L: fc.record.as_dict() for L, fc in self.frozen.items()},
-                            "cfg": dataclasses.asdict(self.cfg), "world": self.world.content_hash()})
+                            "cfg": dataclasses.asdict(self.cfg), "source": self.source.content_id()})
 
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -942,5 +1233,6 @@ def record_of(h: "SameYearHarness") -> dict:
     if set(MODES) <= set(h.results):
         j = h.judge()
         rec["judgement"] = j.as_record()
+    rec["recognition"] = h.recognition_record()
     rec["id"] = stable_hash(rec)
     return rec

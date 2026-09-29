@@ -44,6 +44,7 @@ from . import context as CX
 from . import contradiction as CT
 from . import credit as CR
 from . import decision_contract as DC
+from . import experiment_memory as EM
 from . import failure as FL
 from . import firewalls as FW
 from . import knowledge as KN
@@ -62,7 +63,7 @@ from . import situation as ST
 from . import surprise as SU
 from . import temporal as TP
 from . import transfer as TR
-from .core import (Confidence, DecisionEffect, Epistemic, FirewallBreach, Lifecycle, Promotion, Subsystem, TemporalClass,
+from .core import (Confidence, DecisionEffect, Epistemic, FailureCause, FirewallBreach, Lifecycle, Promotion, Subsystem, TemporalClass,
                    as_date, current_code_hash, require_past, stable_hash)
 
 # ---------------------------------------------------------------------------------------------------------------- vocabulary
@@ -156,13 +157,20 @@ class LearnerConfig:
     cost: float = 0.0005
     max_history_rows: int = 30000
     skill_min_n: int = 10
-    retrieval: RV.RetrievalConfig = RV.RetrievalConfig(novelty_check=False)
+    retrieval: RV.RetrievalConfig = RV.RetrievalConfig(novelty_check=False, require_active_pattern=True)
     promotion_policy: PR.PromotionPolicy | None = None
     board_policy: CH.BoardPolicy | None = None
     credit_cfg: CR.CreditConfig | None = None
     surprise_cfg: SU.SurpriseConfig | None = None
     missed_params: MW.MissedParams | None = None
     cpu_minutes: float = 30.0
+    context_dim: str = "regime.label"
+    missed_train_min: int = 20
+    min_transfer_cases: int = 20
+    retire_window: int = 8
+    version_tol: float = 0.05
+    audit_weeks: int = 12
+    transfer_every: int = 16
 
     def validate(self) -> list[str]:
         errs = []
@@ -264,6 +272,7 @@ class _Episode:
     learned: bool = False
     used: list = field(default_factory=list)      # knowledge objects that carried weight (for DECIDE bookkeeping)
     decided_kids: dict = field(default_factory=dict)
+    track: bool = True
 
 
 def _phi(z: float) -> float:
@@ -306,13 +315,13 @@ class LegitimateLearner:
         self.graph = KG.KnowledgeGraph()
         # ---- reliability, retirement, calibration, time
         self.tracker = RL.ReliabilityTracker()
-        self.retirement = RT.RetirementLedger()
+        self.retirement = RT.RetirementLedger(RT.RetirementPolicy(min_n=c.retire_window, recover_min_n=2 * c.retire_window))
         self.calibration = CB.CalibrationMonitor()
         self.temporal = TP.TemporalMemory()
         # ---- learning
         self.surprise = SU.SurpriseTracker(c.surprise_cfg)
         self.beliefs = BL.BeliefLedger()
-        self.context = CX.ContextModel(CX.ContextConfig(min_n=8, n_perm=100))
+        self.context = CX.ContextModel(CX.ContextConfig(min_n=10, n_perm=100))
         self.rules = CX.RuleBook()
         self.boundaries = BD.BoundaryRegistry()
         self.contradictions = CT.ContradictionLedger()
@@ -341,7 +350,6 @@ class LegitimateLearner:
         self.decisions: list[RowDecision] = []
         self.summaries: list[EpisodeSummary] = []
         self.pending: dict[str, _Episode] = {}
-        self._n_episodes = 0
         self._weekly: dict[str, list] = {}                 # candidate pattern -> [(matured, mean_edge, se, n)]
         self._history: list = []                           # resolved rows kept for retro-fitting support to newborn knowledge
         self._kid_of: dict[str, str] = {}                  # pattern id -> knowledge id
@@ -349,6 +357,29 @@ class LegitimateLearner:
         self._registered_rids: set[str] = set()
         self._features: tuple[str, ...] = tuple(c.candidate_features)
         self.last_learned_on: Any = None
+        self._tick = 0
+        self._epistemic: dict[str, Epistemic] = {}
+        self.failures = FL.FailureLedger()
+        self._failure_rows: list = []
+        self._failure_cursor = 0
+        self._mkt: dict = {}
+        self.missed_report = None
+        self._mid: dict[str, str] = {}
+        self._birth_date: dict[str, str] = {}
+        self._births: list[str] = []
+        self._resolved_meta: dict[str, bool] = {}
+        self._meta_done: set[str] = set()
+        self._contradicts: set[tuple] = set()
+        self._graph_pairs: set[tuple] = set()
+        self._graph_rules: set[str] = set()
+        self._transfer: dict[str, dict] = {}
+        self._transfer_logged: set[str] = set()
+        self._refusals: list = []
+        self._gate_log: list = []
+        self._recent: list = []
+        self.calibration_last = None
+        self.meta_update = None
+        self.research_step = None
         self.counters: dict[str, int] = {}
 
     # ------------------------------------------------------------------------------------------------ guards
@@ -396,9 +427,9 @@ class LegitimateLearner:
             self._features = tuple(c for c in panel.columns if not str(c).startswith("m_") and pd.api.types.is_numeric_dtype(panel[c]))
         return self._features
 
-    def _levels(self, panel: pd.DataFrame) -> pd.DataFrame:
+    def _levels(self, panel: pd.DataFrame, feats: Sequence[str] | None = None) -> pd.DataFrame:
         """Cross-sectional quantile level (0 = lowest) of every candidate feature, per date: identity-free membership."""
-        feats = self._candidate_features(panel)
+        feats = tuple(feats) if feats is not None else self._candidate_features(panel)
         n_q = self.cfg.n_quantiles
         out = {}
         for f in feats:
@@ -464,7 +495,8 @@ class LegitimateLearner:
         """C03. Knowledge that could exist at `now`, ranked for each situation.  Abstains (influence=False) without proven skill."""
         with self._stage(ep, Stage.RETRIEVE) as box:
             visible = self.store.visible(ep.now)
-            self._admit(ep.now, "retrieve", items=visible, all_items=self.store.visible(ep.now),
+            lineage = [_gate_view(k) for kid in self.store.ids() for k in self.store.history(kid) if k.visible_at(ep.now)]
+            self._admit(ep.now, "retrieve", items=[_gate_view(k) for k in visible], all_items=lineage,
                         relevant=frozenset({FW.LayerName.MEMORY}))
             n_items = 0
             for r in ep.rows:
@@ -562,12 +594,13 @@ class LegitimateLearner:
             for i, r in enumerate(ep.rows):
                 out.append(self._row_decision(r, slot_of[i], id(r) in chosen, len(chosen)))
                 r.decision = out[-1]
-            self._log_influence(ep, out)
             ep.rows.sort(key=lambda r: r.decision.slot)
-            self.decisions.extend(sorted(out, key=lambda d: d.slot))
-            self.summaries.append(EpisodeSummary(ep.eid, str(as_date(ep.now)), len(out), sum(d.action == "LONG" for d in out),
-                                                 sum(d.action != "LONG" for d in out), sum(bool(d.knowledge_ids) for d in out), False))
-            self._register_predictions(ep)
+            if ep.track:
+                self._log_influence(ep, out)
+                self.decisions.extend(sorted(out, key=lambda d: d.slot))
+                self.summaries.append(EpisodeSummary(ep.eid, str(as_date(ep.now)), len(out), sum(d.action == "LONG" for d in out),
+                                                     sum(d.action != "LONG" for d in out), sum(bool(d.knowledge_ids) for d in out), False))
+                self._register_predictions(ep)
             box["n"], box["note"] = len(out), f"{len(chosen)} long"
             return sorted(out, key=lambda d: d.slot)
 
@@ -691,7 +724,7 @@ class LegitimateLearner:
                     self.subsystems.add(self._trade(ep, r))
                     blamed += 1
             cc = self.cfg.credit_cfg or CR.CreditConfig(n_boot=80, n_perm=40, min_decisions=40, min_groups=6)
-            if self._n_episodes % self.cfg.credit_every == 0 and len(self.credit_ledger) >= cc.min_decisions:
+            if self._tick % self.cfg.credit_every == 0 and len(self.credit_ledger) >= cc.min_decisions:
                 eng = CR.CreditEngine(CR.WeightedSumCombiner({"pattern": 1.0}), cc)
                 self.credit_reports.append(eng.assess(self.credit_ledger, now))
             box["n"], box["note"] = n, f"{blamed} trades attributed"
@@ -774,7 +807,7 @@ class LegitimateLearner:
         self.missed.add_week(wk)
         self.missed_weeks.append(wk)
         p = self.cfg.missed_params or MW.MissedParams(n_perm=60, n_boot=40, boot=200)
-        if len(self.missed_weeks) >= self.cfg.missed_train_min + 12 and self._n_episodes % self.cfg.missed_every == 0:
+        if len(self.missed_weeks) >= self.cfg.missed_train_min + 12 and self._tick % self.cfg.missed_every == 0:
             self.missed_report = MW.walk_forward_distinctions(self.missed_weeks, p, self.cfg.seed, train_min=self.cfg.missed_train_min,
                                                               fold_len=10, now=now)
 
@@ -799,7 +832,7 @@ class LegitimateLearner:
             self._mkt[max(r.matured for r in ep.rows)] = {"vix": float(np.mean(vix)) if vix else np.nan,
                                                           "breadth": float(np.mean(brd)) if brd else np.nan}
             found = 0
-            if self._n_episodes % self.cfg.discover_every == 0:
+            if self._tick % self.cfg.discover_every == 0:
                 for pid in sorted(stored):
                     if self.context.n_obs(pid) < self.cfg.min_context_obs:
                         continue
@@ -927,6 +960,9 @@ class LegitimateLearner:
             n = 0
             for kid, pid in sorted(self._pid_of.items()):
                 self.transfer_ledger.register(kid)
+                due = kid not in self._transfer or self._tick % self.cfg.transfer_every == 0
+                if not due:
+                    continue                                  # the near/far test is quadratic in support size: on a cadence
                 te = RV.transfer_evidence(self.index, kid, now, self.retriever.sim_weights, self.cfg.min_transfer_cases)
                 eff = self.context_effects(pid, self._direction_of(kid))
                 good = [c for c, (m, k) in eff.items() if k >= 5 and m > 0]
@@ -959,14 +995,17 @@ class LegitimateLearner:
     def _put(self, k: KN.KnowledgeObject) -> KN.KnowledgeObject:
         self.store.add(k)
         self.index.add_item(_Indexed(k, self._pid_of.get(k.knowledge_id, "")))
-        self.archive.put_knowledge(k, occurred_at=k.updated_at)
+        self.archive.put_knowledge(_Indexed(k, self._pid_of.get(k.knowledge_id, "")), occurred_at=k.updated_at)
         return k
 
     def _revise(self, kid: str, learned: str, reason: str, **changes) -> KN.KnowledgeObject:
         cur = self.store.latest(kid)
+        changes.setdefault("provenance", dataclasses.replace(cur.provenance, outcomes_seen_through=str(as_date(learned))))
         try:
             nxt = cur.new_version(learned, reason, learned_at=learned, **changes)
-        except KN.SchemaError:
+        except KN.SchemaError as e:
+            if "no-op" not in str(e):
+                raise
             return cur                                     # nothing changed: a no-op version is refused by design
         self._count("versions")
         return self._put(nxt)
@@ -987,7 +1026,8 @@ class LegitimateLearner:
         self.retirement.register(kid, now)
         self._mid[kid] = self.board.register(k, CH.Slot(DecisionEffect.RANKING, Subsystem.SELECTION, pid), now)
         self.board.to_shadow(self._mid[kid], now, "born from a supported belief")
-        self._birth_date[kid], self._births.append(kid)
+        self._birth_date[kid] = learned
+        self._births.append(kid)
         self.graph.add_knowledge(k, learned, label=pid)
 
     def _shadow_value(self, ep: _Episode, pid: str, dirn: int) -> float | None:
@@ -1010,9 +1050,8 @@ class LegitimateLearner:
             except CH.BoardError as e:
                 self._refusals.append((kid, "open_challenge", str(e)[:120]))
                 return
-            self._revise(kid, learned, "shadow record supports a challenge", promotion=Promotion.CHALLENGER, lifecycle=Lifecycle.GROWTH)
         elif m.role == Promotion.CHALLENGER and len(m.shadow) >= self._min_sessions_for_gate() and self._tick % self.cfg.discover_every == 0:
-            k = self.store.latest(kid)
+            k = self.store.get(kid, m.version)                # the board gates the exact version it registered
             res = self.board.attempt_promotion(k, self._promotion_evidence(kid, pid, now, learned), now)
             self._gate_log.append((kid, res["promoted"], tuple(res["decision"].critical_failures)))
             if res["promoted"]:
@@ -1063,8 +1102,7 @@ class LegitimateLearner:
             return
         mid = self._mid[kid]
         if self.board.members[mid].role != Promotion.RETIRED:
-            self.board.retire(mid, FL.FailureCause.WEAKENING_EFFECT if hasattr(FL, "FailureCause") else FailureCause.WEAKENING_EFFECT,
-                              "retirement gate: evidence no longer supports the item", now)
+            self.board.retire(mid, FailureCause.WEAKENING_EFFECT, "retirement gate: evidence no longer supports the item", now)
         self._put(cur.retire(learned, "retirement gate: evidence no longer supports the item"))
         self._resolved_meta[kid] = False
 
@@ -1111,7 +1149,7 @@ class LegitimateLearner:
     # ---- evidence for the ten-gate promotion check: measured here from the learner's own history, never asserted
     def _pattern_effect(self, pid: str, X: pd.DataFrame, edge: pd.Series, dirn: int) -> float:
         feat, lvl = pid.rsplit(":q", 1)
-        lv = self._levels(X[[feat]])[feat]
+        lv = self._levels(X, (feat,))[feat]
         hit = edge[(lv == int(lvl)).reindex(edge.index, fill_value=False).to_numpy()]
         if not len(hit):
             return float("nan")
@@ -1150,7 +1188,6 @@ class LegitimateLearner:
         return float(np.mean([rng.choice(sig, size=len(sig)).mean() for _ in range(200)]))
 
     def _perturbed(self, pid: str, dirn: int, sig: np.ndarray) -> list[float]:
-        top = max(range(1), default=0)
         ident_rows = [(h.ident, dirn * h.edge) for h in self._history if pid in h.members]
         share: dict[str, float] = {}
         for i, e in ident_rows:
@@ -1161,7 +1198,7 @@ class LegitimateLearner:
         half = len(sig) // 2
         lo, hi = np.percentile(sig, [5, 95])
         return [float(cut.mean()), float(np.mean(drop_top)) if drop_top else float("nan"), float(sig[:half].mean()),
-                float(sig[half:].mean()), float(np.clip(sig, lo, hi).mean()), float(np.median(sig)) + top]
+                float(sig[half:].mean()), float(np.clip(sig, lo, hi).mean()), float(np.median(sig))]
 
     def _promotion_evidence(self, kid: str, pid: str, now, learned: str) -> PR.PromotionEvidence:
         k = self.store.latest(kid)
@@ -1187,8 +1224,9 @@ class LegitimateLearner:
                                float(low.mean()), int((oos_sig < pol.worst_period_floor).sum()))
         shuf, disg = self.disguised_retention(pid, dirn)
         top_share, n_ident = self._identity_concentration(pid, dirn)
-        memo = PR.MemorizationEvidence(shuf, disg, top_share > 0.6 or n_ident < 5, top_share, n_ident, (pid.rsplit(":q", 1)[0],)) \
-            if math.isfinite(shuf) else PR.MemorizationEvidence(None, None, None, top_share, n_ident, (pid.rsplit(":q", 1)[0],))
+        feats = (pid.rsplit(":q", 1)[0],)
+        memo = PR.MemorizationEvidence(shuf if math.isfinite(shuf) else None, disg if math.isfinite(disg) else None, feats,
+                                       top_share > 0.6 or n_ident < 5, top_share, n_ident)
         fut = PR.FutureAudit(True, tuple(KN.audit_future(self.store, now)), str(max(dates)), (), sum(as_date(d) >= as_date(now) for d in dates))
         data_hash = k.provenance.data_hash
         reruns = tuple(PR.RerunRecord(self._boot_value(sig, s), s, self.code_hash, data_hash) for s in (1, 2, 1, 3))
@@ -1197,4 +1235,492 @@ class LegitimateLearner:
                                     float(sig.mean()))
         return PR.PromotionEvidence(stat, inc, oos, trn, risk, memo, fut, PR.ReproEvidence(reruns, data_hash), stab)
 
-    # <<CONTINUE>>
+    # ------------------------------------------------------------------------------------------------ 17. UPDATE GRAPH
+    def stage_graph(self, ep: _Episode, now) -> None:
+        """F01-F11. Decision, outcome, the knowledge that carried the decision, the failures it caused and the conditions it
+        learned are written as typed nodes and time-stamped edges, so 'what caused this decision?' stays answerable."""
+        with self._stage(ep, Stage.UPDATE_GRAPH) as box:
+            g, matured = self.graph, max(r.matured for r in ep.rows)
+            longs = [r for r in ep.rows if r.decision.action == "LONG"]
+            dn, on = f"decision:{ep.eid}", f"outcome:{ep.eid}"
+            g.add_node(dn, KG.NodeType.DECISION, ep.now, label=ep.eid, attrs={"n_long": len(longs)})
+            g.add_node(on, KG.NodeType.OUTCOME, matured, label=ep.eid,
+                       attrs={"mean_edge_long": float(np.mean([r.edge for r in longs])) if longs else 0.0, "n": len(ep.rows)})
+            g.add_edge(dn, on, KG.Link.RESULTED_IN, matured)
+            used: dict[str, float] = {}
+            for r in ep.rows:
+                for kid, w, *_ in r.parts:
+                    used[kid] = used.get(kid, 0.0) + w
+            tot = sum(used.values()) or 1.0
+            n_edges = 0
+            for kid, w in sorted(used.items()):
+                g.add_edge(kid, dn, KG.Link.USED_IN, ep.now, weight=float(w / tot))
+                n_edges += 1
+            while self._failure_cursor < len(self._failure_rows):
+                fr = self._failure_rows[self._failure_cursor]
+                self._failure_cursor += 1
+                fid = f"failure:{ep.eid}:{self._failure_cursor}"
+                g.add_node(fid, KG.NodeType.FAILURE, fr["when"], label=fr["cause"], attrs={"subsystem": fr["subsystem"]})
+                if fr["knowledge_id"] in self._pid_of:
+                    g.add_edge(fid, fr["knowledge_id"], KG.Edge.CAUSES_FAILURE_OF, fr["when"], weight=fr["loss_share"])
+                    n_edges += 1
+            for a, b in sorted(self._contradicts - self._graph_pairs):
+                g.add_edge(a, b, KG.Edge.CONTRADICTS, max(self._birth_date[a], self._birth_date[b]))
+                self._graph_pairs.add((a, b))
+                n_edges += 1
+            for rule in self.rules.active():
+                if rule.rule_id in self._graph_rules or rule.pattern_id not in self._kid_of:
+                    continue
+                self._graph_rules.add(rule.rule_id)
+                cn, kid = f"condition:{rule.rule_id}", self._kid_of[rule.pattern_id]
+                g.add_node(cn, KG.NodeType.CONDITION, matured, label=rule.spec.describe())
+                if rule.role == "CONTEXT":
+                    g.add_edge(kid, cn, KG.Link.APPLIES_IN, matured)
+                else:
+                    g.add_edge(cn, kid, KG.Edge.CAUSES_FAILURE_OF, matured)
+                n_edges += 1
+            box["n"], box["note"] = n_edges, f"{len(g.nodes(now))} nodes visible"
+
+    # ------------------------------------------------------------------------------------------------ 18. UPDATE META-KNOWLEDGE
+    def stage_meta(self, ep: _Episode, now) -> None:
+        """G12/C16. The learner learns about its own learning: which kinds of discovery survived, how fast reliability decays, which
+        contexts transfer; refitted on a cadence, out-of-sample, and handed to the research stage as advice."""
+        with self._stage(ep, Stage.UPDATE_META) as box:
+            matured = max(r.matured for r in ep.rows)
+            added = 0
+            for kid, survived in sorted(self._resolved_meta.items()):
+                if kid in self._meta_done or as_date(matured) <= as_date(self._birth_date[kid]):
+                    continue
+                pid = self._pid_of[kid]
+                st = self.beliefs.current(pid)
+                feats = {"t_disc": float(abs(st.mean) / max(st.sd, 1e-9)), "log_n": float(math.log(max(st.n_obs, 1))),
+                         "effect": float(abs(st.mean)), "n_conditions": 0.0, "p_real": float(st.prob_sign_right())}
+                self.meta.store.add(ML.DiscoveryRecord(kid, pid.rsplit(":q", 1)[0], self._birth_date[kid], feats, survived, matured,
+                                                       temporal_class=str(TemporalClass.UNKNOWN)))
+                self._meta_done.add(kid)
+                added += 1
+            if self._tick % self.cfg.discover_every == 0:
+                for kid in sorted(self._pid_of):
+                    h = [s for s in self.tracker.history(kid) if s.current_reliability]
+                    age = (as_date(matured) - as_date(self._birth_date[kid])).days
+                    if len(h) >= 2 and age > 0 and h[0].current_reliability > 0:
+                        self.meta.store.add(ML.DecayRecord(kid, "pattern", float(age), float(max(h[-1].current_reliability, 1e-3) / h[0].current_reliability),
+                                                           matured))
+                        added += 1
+            if self._tick % self.cfg.meta_every == 0:
+                self.meta_update = self.meta.update(now, self.cfg.seed)
+                self.meta_advice = self.meta_update.advice
+            box["n"] = added
+
+    # ------------------------------------------------------------------------------------------------ 19. SELECT NEXT RESEARCH QUESTION
+    def stage_research(self, ep: _Episode, now) -> None:
+        """C17/G02-G06. Surprises, failures and missed winners become signals; the research engine ranks the questions by expected
+        information per unit cost, using what meta-learning says about which kinds of experiment have paid off."""
+        with self._stage(ep, Stage.SELECT_RESEARCH) as box:
+            if self.experiments is None:
+                self.experiments = EM.ExperimentLedger()
+            recent = [r for r in self.surprise.records(now) if abs(r.z) >= 2.0][-8:]
+            sig = RPR.signals_from_surprise_rows(
+                [{"subject": r.cell, "when": r.matured_at, "expected": r.expected, "observed": r.actual, "sd": r.scale,
+                  "subsystem": "SELECTION"} for r in recent], now, z_min=2.0)
+            new_fail = [f for f in self._failure_rows if as_date(f["when"]) == as_date(max(r.matured for r in ep.rows))]
+            sig += RPR.signals_from_failure_rows(new_fail[:5], now)
+            winners = [r for r in ep.rows if r.edge >= self.cfg.winner_thr and r.decision.action != "LONG"]
+            if winners:
+                key = stable_hash(sorted(w.situation.situation_id for w in winners), 10)
+                sig += RPR.signals_from_missed_winners([{"situation_key": f"missed-{key}", "when": max(r.matured for r in ep.rows),
+                                                         "gain_share": min(1.0, len(winners) / len(ep.rows)), "n_obs": len(winners)}], now)
+            budget = RP.ComputeBudget(cpu_minutes=self.cfg.cpu_minutes, ram_gb_free=8.0)
+            step = self.research.step(sig, self.experiments, budget, now, self.cfg.seed, meta=self.meta_advice)
+            self.next_questions = tuple(q.text for q in step.questions[:5])
+            self.research_step = step
+            box["n"], box["note"] = len(sig), f"{len(step.questions)} questions, queue {step.queue_summary}"
+
+    # ------------------------------------------------------------------------------------------------ orchestration
+    def decide_batch(self, now, panel: pd.DataFrame, track: bool = True) -> _Episode:
+        """Stages 1-6 for the cross-section of `now`.  track=False is a dry decision (an evaluation probe): nothing is logged,
+        registered or remembered, so probing a learner never changes it."""
+        self.verify_frozen()
+        eid = f"E{len(self.summaries) + 1:05d}" if track else f"P{stable_hash([str(as_date(now)), self.config_hash], 6)}"
+        ep = _Episode(eid, now, [], track=track)
+        self.stage_observe(ep, panel)
+        self.stage_describe(ep, panel)
+        self.stage_retrieve(ep)
+        self.stage_assess(ep)
+        self.stage_expectations(ep)
+        self.stage_decide(ep)
+        if track and not self.frozen:
+            self.pending[ep.eid] = ep
+        return ep
+
+    def resolve_and_learn(self, ep: _Episode, now, outcomes: pd.DataFrame) -> EpisodeSummary:
+        """Stages 7-19 once the outcomes have matured strictly before `now`.  Any FirewallBreach stops the cycle where it happens
+        and leaves the episode pending (nothing half-learned is committed past the stage that failed)."""
+        self.verify_frozen()
+        if self.frozen:
+            raise FrozenLearnerError("a frozen learner does not learn")
+        if ep.eid not in self.pending:
+            raise KeyError(f"episode {ep.eid} is not pending")
+        self._tick += 1
+        self.stage_outcome(ep, now, outcomes)
+        self.stage_surprise(ep, now)
+        self.stage_credit(ep, now)
+        self.stage_beliefs(ep, now)
+        self.stage_failures(ep, now)
+        self.stage_conditions(ep, now)
+        self.stage_anti_conditions(ep, now)
+        self.stage_reliability(ep, now)
+        self.stage_transfer(ep, now)
+        self._recent.append((pd.DataFrame([r.raw for r in ep.rows], index=pd.MultiIndex.from_tuples([r.key for r in ep.rows])),
+                             pd.Series([r.edge for r in ep.rows], index=pd.MultiIndex.from_tuples([r.key for r in ep.rows]))))
+        del self._recent[: max(0, len(self._recent) - self.cfg.audit_weeks)]
+        self.stage_store(ep, now)
+        self.stage_graph(ep, now)
+        self.stage_meta(ep, now)
+        self.stage_research(ep, now)
+        ep.learned = True
+        del self.pending[ep.eid]
+        longs = [r.edge for r in ep.rows if r.decision.action == "LONG"]
+        i = next(j for j, s in enumerate(self.summaries) if s.episode == ep.eid)
+        self.summaries[i] = dataclasses.replace(self.summaries[i], learned=True, matured_on=max(r.matured for r in ep.rows),
+                                                mean_edge_long=float(np.mean(longs)) if longs else None)
+        self.last_learned_on = max(r.matured for r in ep.rows)
+        return self.summaries[i]
+
+    def ready(self, ep: _Episode, now) -> bool:
+        return (as_date(now) - as_date(ep.now)).days > self.cfg.horizon_days
+
+    def step(self, now, panel: pd.DataFrame, outcomes: pd.DataFrame | None = None) -> tuple[list[EpisodeSummary], _Episode]:
+        """One tick of the loop: learn from every pending episode whose horizon has passed (oldest first), then decide today's
+        cross-section.  The outcomes frame may hold rows for episodes that are not yet ready; those are left untouched."""
+        learned = []
+        if not self.frozen and outcomes is not None:
+            for eid in sorted(self.pending):
+                ep = self.pending[eid]
+                if self.ready(ep, now):
+                    learned.append(self.resolve_and_learn(ep, now, outcomes))
+        return learned, self.decide_batch(now, panel)
+
+    def picks(self, ep: _Episode) -> list[tuple[tuple, RowDecision]]:
+        """(private row key, decision) of every LONG row: for an external scorer only; nothing the learner stores uses the key."""
+        return [(r.key, r.decision) for r in ep.rows if r.decision is not None and r.decision.action == "LONG"]
+
+    # ------------------------------------------------------------------------------------------------ reports
+    def trace_table(self) -> pd.DataFrame:
+        return pd.DataFrame([dataclasses.asdict(e) | {"stage": e.stage.value} for e in self.trace])
+
+    def trace_digest(self) -> str:
+        return stable_hash([(e.episode, e.stage.value, e.ok, e.n) for e in self.trace])
+
+    def report(self, now=None) -> dict[str, Any]:
+        """One dictionary a report can read: stage counts, knowledge by role, skill, gate history, credit, counters."""
+        now = now if now is not None else (self.last_learned_on or "1900-01-01")
+        roles = {}
+        for kid in self._pid_of:
+            o = self.store.latest(kid)
+            roles[str(o.promotion)] = roles.get(str(o.promotion), 0) + 1
+        tr = self.trace_table()
+        by_stage = {} if tr.empty else tr.groupby("stage")["ok"].agg(["count", "sum"]).rename(columns={"sum": "ok"}).astype(int).to_dict("index")
+        return {"label": LABEL, "code_hash": self.code_hash, "config_hash": self.config_hash, "frozen": self.frozen,
+                "episodes": len(self.summaries), "learned": sum(s.learned for s in self.summaries), "stages": by_stage,
+                "knowledge": {"items": len(self._pid_of), "by_role": roles, "production": list(self.production_ids())},
+                "skill": self.monitor.status(now) if now != "1900-01-01" else {}, "gate_history": list(self._gate_log),
+                "refusals": list(self._refusals)[-10:], "counters": dict(self.counters), "n_credit_reports": len(self.credit_reports),
+                "n_postmortems": len(self.postmortems.bodies()), "open_hypotheses": len(self.hypotheses),
+                "contradicting_pairs": len(self._contradicts), "questions": list(self.next_questions),
+                "influence_log_ok": not self.decision_log.verify()}
+
+
+def _gate_view(k: KN.KnowledgeObject) -> KN.KnowledgeObject:
+    """The memory firewall resolves ancestry by bare knowledge id; knowledge.py records parents as 'id@vN' (and a new version
+    lists its own predecessor).  The copy handed to the gate names parents by bare id and drops self-references, so the audit
+    walks real lineage instead of reporting every revised item as its own missing ancestor.  (INTEGRATION: see report.)"""
+    parents = tuple(dict.fromkeys(p.split("@")[0] for p in k.provenance.parents if p.split("@")[0] != k.knowledge_id))
+    return dataclasses.replace(k, provenance=dataclasses.replace(k.provenance, parents=parents))
+
+
+def context_mapping(cs: KN.ContextSet) -> dict[str, dict]:
+    """A ContextSet as the plain {path: {"in": [labels], "not": bool}} mapping that context.py, retrieval.py and the archive read
+    (the typed ContextSet is what the knowledge object stores; these consumers were written against the mapping form)."""
+    out: dict[str, dict] = {}
+    for c in cs.conditions:
+        if c.op in ("in", "eq", "not_in", "ne") and c.labels:
+            out[c.feature] = {"in": list(c.labels), **({"not": True} if c.op in ("not_in", "ne") else {})}
+    return out
+
+
+class _Indexed:
+    """A KnowledgeObject as the retrieval index holds it: identical, plus the pattern id the retriever's activity gate reads and
+    the contexts in the mapping form the retriever reads."""
+    __slots__ = ("_k", "pattern_id", "contexts", "anti_contexts")
+
+    def __init__(self, k: KN.KnowledgeObject, pattern_id: str):
+        self._k, self.pattern_id = k, pattern_id
+        self.contexts, self.anti_contexts = context_mapping(k.contexts), context_mapping(k.anti_contexts)
+
+    def __getattr__(self, name):
+        return getattr(self._k, name)
+
+
+@dataclass(frozen=True)
+class _Hist:
+    matured: str
+    edge: float
+    members: frozenset
+    situation: ST.Situation
+    ident: str                                # opaque hash used ONLY by the identity-concentration audit
+    ctx: str
+    ref: str
+
+
+_NUMERIC_PATHS = ("volatility.vol_rank", "liquidity.dv_rank", "sector.strength20", "sector.strength60", "stock_type.lottery_rank")
+
+# ---------------------------------------------------------------------------------------------------------------- feeds
+
+
+@dataclass(frozen=True)
+class StepInput:
+    now: Any
+    panel: pd.DataFrame
+    outcomes: pd.DataFrame | None
+
+
+class WorldFeed:
+    """Feeds a planted world to a learner one week at a time: the cross-section of week t as features, and as outcomes only the
+    weeks whose label closed strictly before `now`.  `shuffle_seed` permutes the outcomes inside each week (the control learner
+    learns from outcomes that carry no information about the features)."""
+
+    def __init__(self, world, shuffle_seed: int | None = None, include_canary: bool = False):
+        self.world = world
+        self.cols = world.feature_columns() + world.market_columns() + (world.canary_columns() if include_canary else [])
+        y = world.y.copy()
+        if shuffle_seed is not None:
+            rng = np.random.default_rng(shuffle_seed)
+            for w in range(len(world.dates)):
+                m = world.week_idx == w
+                y.loc[m] = rng.permutation(y.loc[m].to_numpy())
+        self.y = y
+        self.n_weeks = len(world.dates)
+
+    def week_rows(self, t: int) -> np.ndarray:
+        return self.world.week_idx == t
+
+    def panel(self, t: int) -> pd.DataFrame:
+        return self.world.X.loc[self.week_rows(t), self.cols]
+
+    def realised(self, t: int) -> pd.Series:
+        """Excess return of week t's rows, for the external scorer only (never passed to a learner at week t)."""
+        y = self.y.loc[self.week_rows(t)]
+        return y - y.mean()
+
+    def outcomes(self, t: int, back: int = 3) -> pd.DataFrame | None:
+        frames = []
+        for w in range(max(0, t - back), t - 1):                       # label of week w closes at the date of week w+1 < now
+            y = self.y.loc[self.week_rows(w)]
+            frames.append(pd.DataFrame({"ret": y, "matured": self.world.dates[w + 1]}, index=y.index))
+        return pd.concat(frames) if frames else None
+
+    def input(self, t: int) -> StepInput:
+        return StepInput(self.world.dates[t], self.panel(t), self.outcomes(t))
+
+
+def learn_from(learner: LegitimateLearner, feed: WorldFeed, weeks: Iterable[int]) -> LegitimateLearner:
+    for t in weeks:
+        inp = feed.input(t)
+        learner.step(inp.now, inp.panel, inp.outcomes)
+    return learner
+
+
+# ---------------------------------------------------------------------------------------------------------------- section 3
+
+
+@dataclass(frozen=True)
+class DecisionScore:
+    """What a (frozen) learner decided on a probe, with the full section-3 record, and how the picks then did."""
+    label: str
+    records: tuple                                    # (week, RowDecision)
+    by_exact: Mapping                                 # (week, exact situation id) -> behaviour key
+    weekly: pd.DataFrame
+    n_long: int
+    n_with_knowledge: int
+    mean_edge: float | None
+    t_stat: float | None
+    hit_rate: float | None
+
+
+def score_decisions(learner: LegitimateLearner, feed: WorldFeed, weeks: Iterable[int], label: str = "") -> DecisionScore:
+    recs, by_exact, rows, edges = [], {}, [], []
+    for t in weeks:
+        inp = feed.input(t)
+        ep = learner.decide_batch(inp.now, inp.panel, track=False)
+        real = feed.realised(t)
+        picks = learner.picks(ep)
+        got = [float(real.loc[k]) for k, _ in picks if k in real.index]
+        for r in ep.rows:
+            recs.append((t, r.decision))
+            by_exact[(t, r.decision.exact_id)] = r.decision.behaviour_key()
+        edges += got
+        rows.append({"week": t, "n_long": len(picks), "mean_edge": float(np.mean(got)) if got else np.nan,
+                     "n_knowledge": sum(bool(r.decision.knowledge_ids) for r in ep.rows)})
+    weekly = pd.DataFrame(rows)
+    ok = weekly["mean_edge"].dropna()
+    t_stat = float(ok.mean() / (ok.std(ddof=1) / math.sqrt(len(ok)))) if len(ok) > 2 and ok.std(ddof=1) > 0 else None
+    return DecisionScore(label, tuple(recs), by_exact, weekly, int(weekly["n_long"].sum()), int(weekly["n_knowledge"].sum()),
+                         float(np.mean(edges)) if edges else None, t_stat, float(np.mean(np.array(edges) > 0)) if edges else None)
+
+
+@dataclass(frozen=True)
+class ProtocolResult:
+    """Section 3: BEFORE / EXPERIENCE / LEARNING / AFTER / VALIDATION as one record."""
+    before: DecisionScore
+    after: DecisionScore
+    n_situations: int
+    n_changed: int
+    n_changed_with_knowledge: int
+    n_changed_without_knowledge: int
+    identity_invariant: bool | None
+    experience_weeks: int
+    verdict: str
+    improvement: float | None
+    notes: tuple = ()
+
+    def behaved_differently(self) -> bool:
+        return self.n_changed > 0
+
+
+def compare_scores(before: DecisionScore, after: DecisionScore) -> tuple[int, int, int]:
+    """(changed, changed with knowledge behind the new decision, changed with none) over situations both learners saw."""
+    changed = wk = wo = 0
+    for key, b in before.by_exact.items():
+        a = after.by_exact.get(key)
+        if a is None or a == b:
+            continue
+        changed += 1
+        if a[2]:
+            wk += 1
+        else:
+            wo += 1
+    return changed, wk, wo
+
+
+def validate_protocol(before: DecisionScore, after: DecisionScore, disguised: DecisionScore | None, experience_weeks: int) -> ProtocolResult:
+    changed, wk, wo = compare_scores(before, after)
+    inv = None if disguised is None else disguised.by_exact == after.by_exact
+    imp = None if after.mean_edge is None else after.mean_edge - (before.mean_edge or 0.0)
+    notes = []
+    if wo:
+        verdict = "INVALID: behaviour changed with no transferable knowledge behind it"
+    elif changed == 0:
+        verdict = "NO CHANGE: the experience did not alter any decision"
+    elif inv is False:
+        verdict = "INVALID: the decisions changed when only the identities changed"
+    elif imp is not None and imp > 0 and (after.t_stat or 0) > 0:
+        verdict = "IMPROVED"
+    else:
+        verdict = "CHANGED, NOT IMPROVED"
+    if after.n_long == 0:
+        notes.append("the learner abstained everywhere after learning")
+    return ProtocolResult(before, after, len(before.by_exact), changed, wk, wo, inv, experience_weeks, verdict, imp, tuple(notes))
+
+
+def run_protocol(make_learner: Callable[[], LegitimateLearner], learn_feed: WorldFeed, learn_weeks: Sequence[int],
+                 probe_feed: WorldFeed, probe_weeks: Sequence[int], disguised_feed: WorldFeed | None = None) -> ProtocolResult:
+    """BEFORE: a learner that has not had the experience decides on the probe.  EXPERIENCE + LEARNING: an identical fresh learner
+    lives through `learn_weeks`.  AFTER: it is frozen and decides on the same probe (and, if given, on a disguised copy).
+    VALIDATION: did behaviour change, only where knowledge carried the change, and only for transferable reasons?"""
+    before = score_decisions(make_learner().freeze(), probe_feed, probe_weeks, "before")
+    learner = learn_from(make_learner(), learn_feed, learn_weeks).freeze()
+    after = score_decisions(learner, probe_feed, probe_weeks, "after")
+    disg = score_decisions(learner, disguised_feed, probe_weeks, "disguised") if disguised_feed is not None else None
+    return validate_protocol(before, after, disg, len(learn_weeks))
+
+
+# ---------------------------------------------------------------------------------------------------------------- section 87
+
+
+@dataclass(frozen=True)
+class AcceptanceReport:
+    """The final acceptance experiment in miniature: learn in year A, then meet the same situation classes in a different
+    episode, under new identities, with the learner frozen and nothing from the future."""
+    label: str
+    seed: int
+    learned_weeks: int
+    probe_weeks: int
+    production: int
+    items: int
+    lesson: DecisionScore
+    control: DecisionScore                            # learned from outcomes shuffled inside each week
+    lesson_on_disguised_a: DecisionScore              # year A again, under new identities (same episode)
+    protocol: ProtocolResult
+    truth: Mapping
+    improvement_vs_none: float | None
+    improvement_vs_control: float | None
+    identity_invariant: bool | None
+    skill: Mapping
+    notes: tuple = ()
+
+    def improved(self) -> bool:
+        return bool(self.improvement_vs_none and self.improvement_vs_none > 0 and (self.lesson.t_stat or 0) > 1.0
+                    and (self.improvement_vs_control is None or self.improvement_vs_control > 0))
+
+    def render(self) -> str:
+        f = lambda x: "n/a" if x is None else f"{x:+.5f}"
+        t = lambda x: "n/a" if x is None else f"{x:+.2f}"
+        rows = [f"Section-87 acceptance (miniature)   [{self.label}]",
+                f"  learned {self.learned_weeks} weeks -> {self.items} knowledge items, {self.production} in production",
+                f"  probe: {self.probe_weeks} weeks of a different episode under new identities",
+                f"  lesson learner : {self.lesson.n_long} picks, mean edge {f(self.lesson.mean_edge)}, weekly t {t(self.lesson.t_stat)}, "
+                f"{self.lesson.n_with_knowledge} rows backed by knowledge",
+                f"  control learner: {self.control.n_long} picks, mean edge {f(self.control.mean_edge)}, weekly t {t(self.control.t_stat)}",
+                f"  decisions changed vs a learner without the lesson: {self.protocol.n_changed}/{self.protocol.n_situations} "
+                f"({self.protocol.n_changed_without_knowledge} without knowledge)",
+                f"  identity-invariant on year A under new identities: {self.identity_invariant}",
+                f"  improvement vs no lesson {f(self.improvement_vs_none)}, vs control {f(self.improvement_vs_control)}",
+                f"  planted truth: {dict(self.truth)}",
+                f"  verdict: {'IMPROVED' if self.improved() else 'NOT DEMONSTRATED'}  ({self.protocol.verdict})"]
+        rows += [f"  note: {n}" for n in self.notes]
+        return "\n".join(rows)
+
+
+def truth_check(world, learner: LegitimateLearner, at_week: int) -> dict:
+    """The learner's stored items scored against the planted ledger (what it holds that is real, what it holds that is not)."""
+    from . import planted_world as PW
+    claims = []
+    for pid in sorted(learner._kid_of):
+        st = learner.beliefs.current(pid)
+        claims.append(PW.Claim(pid.replace(":q", " q"), float(st.mean), None))
+    sc = PW.score_claims(world, claims, at_week)
+    return {"claims": sc.n_claims, "true_positive": sc.tp, "false_positive": sc.fp, "recall": round(sc.recall, 3),
+            "false_discovery_rate": round(sc.false_discovery_rate, 3)}
+
+
+def run_acceptance(spec, seed: int, make_learner: Callable[[], LegitimateLearner], years_apart: int = 6, probe_from: int = 0,
+                   probe_weeks: int | None = None) -> AcceptanceReport:
+    """Year A is learned once (and once more from shuffled outcomes as a control).  Year B is a different episode of the same
+    situation classes (fresh noise, other volatility, later dates) shown under new tickers, shuffled rows and shifted dates.
+    Both learners are frozen before they see B; B's outcomes are used only to score their picks."""
+    from . import planted_world as PW
+    world_a = PW.make_world(spec, seed)
+    world_b = PW.year_swap(world_a, seed + 1, years=years_apart)
+    world_b_id = PW.reidentify(world_b, seed + 2, tickers=True, shift_years=1).world
+    world_a_id = PW.reidentify(world_a, seed + 3, tickers=True, shift_years=years_apart).world
+    fa, fb = WorldFeed(world_a), WorldFeed(world_b_id)
+    n_a, n_b = len(world_a.dates), len(world_b.dates)
+    lesson = learn_from(make_learner(), fa, range(n_a)).freeze()
+    control = learn_from(make_learner(), WorldFeed(world_a, shuffle_seed=seed + 4), range(n_a)).freeze()
+    pw = range(probe_from, n_b if probe_weeks is None else min(n_b, probe_from + probe_weeks))
+    s_lesson = score_decisions(lesson, fb, pw, "lesson")
+    s_control = score_decisions(control, fb, pw, "control")
+    s_none = score_decisions(make_learner().freeze(), fb, pw, "none")
+    a_plain = score_decisions(lesson, fa, range(n_a), "year A")
+    a_disguised = score_decisions(lesson, WorldFeed(world_a_id), range(n_a), "year A disguised")
+    proto = validate_protocol(s_none, s_lesson, None, n_a)
+    inv = a_plain.by_exact == a_disguised.by_exact
+    imp = None if s_lesson.mean_edge is None else s_lesson.mean_edge - (s_none.mean_edge or 0.0)
+    imp_c = None if s_lesson.mean_edge is None else s_lesson.mean_edge - (s_control.mean_edge or 0.0)
+    notes = []
+    if not lesson.production_ids():
+        notes.append("no knowledge reached production, so the frozen learner abstained: the lesson was not transferable enough to act on")
+    return AcceptanceReport(LABEL, seed, n_a, len(pw), len(lesson.production_ids()), len(lesson._pid_of), s_lesson, s_control, a_disguised,
+                            proto, truth_check(world_a, lesson, n_a - 1), imp, imp_c, inv, lesson.monitor.status(world_b.dates[0]), tuple(notes))
+

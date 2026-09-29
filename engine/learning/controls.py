@@ -327,7 +327,9 @@ class Control:
         dates = X.index.get_level_values(0).unique()
         for i, d in enumerate(dates):
             Xd, yd = X.xs(d, level=0), y.xs(d, level=0) if len(y) else y
-            self.observe(Xd, yd, Moment(pd.Timestamp(d), -1 - i, pd.Timestamp(d)), moment)
+            day = pd.Timestamp(d)
+            later = day + pd.Timedelta(days=HORIZON_DAYS)                 # the week's outcome is known one horizon after its features
+            self.observe(Xd, yd, Moment(day, -1 - i, day), Moment(later, -i, later))
 
     def observe(self, X: pd.DataFrame, y: pd.Series, moment: Moment, now: Moment) -> None:
         """One matured cross-section (features of `moment`, their realised forward return) is now known at `now`."""

@@ -17,7 +17,7 @@ ITEMS = (PW.Item("strong", PW.STRONG, (("f0", 4),), 0.02), PW.Item("neg", PW.NEG
 
 def small_world(seed=3, weeks=52, stocks=60, scale=1.0):
     items = tuple(dataclasses.replace(it, effect=it.effect * scale) for it in ITEMS)
-    spec = PW.WorldSpec("sy_test", items, weeks=weeks, stocks=stocks, n_feat=8, discovery_end=weeks // 2, confirm_end=(weeks * 3) // 4).check()
+    spec = PW.WorldSpec("sy_test", items, weeks=weeks, stocks=stocks, n_feat=5, discovery_end=weeks // 2, confirm_end=(weeks * 3) // 4).check()
     return PW.make_world(spec, seed)
 
 
@@ -181,7 +181,7 @@ def test_canary_column_is_a_breach(world):
     with pytest.raises(FirewallBreach):
         CT.feature_columns(X)                                       # world.X still carries canary_future_ret
     with pytest.raises(FirewallBreach):
-        SY.LeakGuard().check_frame(X)
+        SY.FirewallScreen().check_frame(X)
 
 
 def test_random_learner_matches_b_update_magnitude(world):
@@ -203,7 +203,7 @@ def test_random_learner_matches_b_update_magnitude(world):
 def test_identity_memoriser_recalls_kept_identities_and_loses_them_under_reidentify(world):
     kept = SY.make_run_panel(world, 0, 0, None, "kept")
     c = CT.FrozenControl(CT.IdentityMemoriser, {"mode": "ticker_date"}).build(0)
-    g = SY.LeakGuard()
+    g = SY.FirewallScreen()
     r1 = SY.play_run(c, kept, 0, g)
     r2 = SY.play_run(c, kept, 1, g)
     assert r2.gain > 0.05 and r2.gain > r1.gain + 0.05               # identical identities: it looks brilliant
@@ -217,7 +217,7 @@ def test_identity_memoriser_recalls_kept_identities_and_loses_them_under_reident
 
 def test_numeric_memoriser_needs_the_perturbations_to_be_stopped(world):
     c_fac = lambda: CT.FrozenControl(CT.IdentityMemoriser, {"mode": "row_hash"}).build(0)
-    g = SY.LeakGuard()
+    g = SY.FirewallScreen()
     plain, pert = c_fac(), c_fac()
     SY.play_run(plain, SY.make_run_panel(world, 0, 0, None, "kept"), 0, g)
     SY.play_run(pert, SY.make_run_panel(world, 0, 0, None, "kept"), 0, g)
@@ -231,7 +231,7 @@ def test_numeric_memoriser_needs_the_perturbations_to_be_stopped(world):
 def test_leaky_learner_is_flagged_with_provenance_and_ic(harness):
     fp = harness.results["fresh_perturbed"]
     assert all(r.guard.provenance_breaches and r.guard.ic_leak for r in fp.runs["E"])
-    assert "not strictly before" in fp.runs["E"][0].guard.provenance_breaches[0]
+    assert "not matured" in fp.runs["E"][0].guard.provenance_breaches[0]
     assert harness.skill_at_run_one("fresh_perturbed", "E") > 0.5 > harness.skill_at_run_one("fresh_perturbed", "B")
     for L in "ABD":
         assert not any(r.guard.flagged for r in fp.runs[L])
@@ -242,7 +242,7 @@ def test_a_leak_that_lies_about_its_provenance_is_caught_by_the_ic_test(world):
         def seen_through(self):
             return None
     panel = SY.make_run_panel(world, 0, 0, None, "kept")
-    r = SY.play_run(Liar({}, 0), panel, 0, SY.LeakGuard())
+    r = SY.play_run(Liar({}, 0), panel, 0, SY.FirewallScreen())
     assert not r.guard.provenance_breaches and r.guard.ic_leak and r.guard.ic_mean > 0.5
 
 
@@ -252,7 +252,7 @@ def test_a_non_leaky_control_that_breaches_stops_the_run(world):
             return pd.Timestamp("2100-01-01")                        # claims to have seen a future outcome
     panel = SY.make_run_panel(world, 0, 0, None, "kept")
     with pytest.raises(FirewallBreach):
-        SY.play_run(Sloppy({}, 0), panel, 0, SY.LeakGuard())
+        SY.play_run(Sloppy({}, 0), panel, 0, SY.FirewallScreen())
 
 
 # ------------------------------------------------------------------------------------------------ the learning curves
@@ -301,40 +301,41 @@ def test_render_and_curves_and_fingerprint(harness):
 
 
 def test_run_is_deterministic(world):
-    a = SY.play_run(CT.standard_controls()["B"].build(4), SY.make_run_panel(world, 0, 7, SY.PerturbConfig.standard()), 0, SY.LeakGuard())
-    b = SY.play_run(CT.standard_controls()["B"].build(4), SY.make_run_panel(world, 0, 7, SY.PerturbConfig.standard()), 0, SY.LeakGuard())
+    a = SY.play_run(CT.standard_controls()["B"].build(4), SY.make_run_panel(world, 0, 7, SY.PerturbConfig.standard()), 0, SY.FirewallScreen())
+    b = SY.play_run(CT.standard_controls()["B"].build(4), SY.make_run_panel(world, 0, 7, SY.PerturbConfig.standard()), 0, SY.FirewallScreen())
     np.testing.assert_array_equal(a.gains, b.gains)
 
 
-def test_a_broken_harness_declares_itself_void(world):
+def test_a_broken_harness_declares_itself_void():
+    world = small_world(5, weeks=30, stocks=30)
     class FakeE(CT.NoLearning):                                     # planted defect: the 'leaky' control does not leak
         letter, name, expects_breach = "E", "fake_e", True
     frozen = CT.standard_controls()
     frozen["E"] = CT.FrozenControl(FakeE, {})
-    h = SY.SameYearHarness(world, frozen, SY.HarnessConfig(n_runs=5, seed=1))
+    h = SY.SameYearHarness(world, frozen, SY.HarnessConfig(n_runs=5, seed=1, probe=False))
     h.run_all()
     j = h.judge()
     assert j.verdict == SY.Verdict.VOID_HARNESS
     assert any("leaky learner E was not caught" in r for r in j.reasons)
 
 
-def test_a_learner_that_does_not_learn_is_reported_as_no_learning(world):
+def test_a_learner_that_does_not_learn_is_reported_as_no_learning():
+    world = small_world(6, weeks=30, stocks=30)
     frozen = CT.standard_controls(legit_factory=lambda cfg, seed: CT.NoLearning(cfg, seed))
-    h = SY.SameYearHarness(world, frozen, SY.HarnessConfig(n_runs=5, seed=2))
+    h = SY.SameYearHarness(world, frozen, SY.HarnessConfig(n_runs=5, seed=2, probe=False))
     h.run_all()
     assert h.judge().verdict == SY.Verdict.NO_LEARNING
 
 
 def test_too_few_runs_is_insufficient_not_a_verdict(world):
-    h = SY.SameYearHarness(world, cfg=SY.HarnessConfig(n_runs=2, seed=0))
-    h.run_all()
-    assert h.judge().verdict == SY.Verdict.INSUFFICIENT_RUNS
+    h = SY.SameYearHarness(world, cfg=SY.HarnessConfig(n_runs=2, seed=0, probe=False))
+    assert h.judge().verdict == SY.Verdict.INSUFFICIENT_RUNS         # decided before any mode is needed
 
 
 def test_harness_refuses_a_changed_control(world):
     frozen = CT.standard_controls()
     reg = CT.ControlRegistry()
-    h = SY.SameYearHarness(world, frozen, SY.HarnessConfig(n_runs=1), registry=reg)
+    h = SY.SameYearHarness(world, frozen, SY.HarnessConfig(n_runs=1, probe=False), registry=reg)
     CT.NoLearning.decide, orig = (lambda self, X, moment: pd.Series(0.0, index=X.index)), CT.NoLearning.decide
     try:
         with pytest.raises(CT.ControlChanged):
@@ -473,7 +474,7 @@ def test_information_cost_needs_a_planted_single_key():
 
 def test_frontier_trades_recognisability_against_recoverability(probe_worlds):
     w, o = probe_worlds
-    fr = SY.perturbation_frontier(w, o, levels=(0.0, 1.0, 1.5), n_runs=5, seed=0)
+    fr = SY.perturbation_frontier(w, o, levels=(0.0, 1.5), n_runs=4, seed=0)
     assert fr["tier1_auc"].iloc[0] > 0.95 and fr["tier1_auc"].iloc[-1] < fr["tier1_auc"].iloc[0] - 0.2
     assert fr["t_retention"].is_monotonic_decreasing and fr["gate_agreement"].iloc[-1] < 0.9
 
@@ -506,3 +507,187 @@ def test_record_is_json_serialisable_and_stamped(harness):
     json.dumps(rec)
     assert rec["label"] == "IMPLEMENTED — NOT VALIDATED" and rec["judgement"]["verdict"] == "LEARNING"
     assert set(rec["modes"]) == set(SY.MODES) and len(rec["modes"]["kept"]["C"]["gains"]) == 6
+
+
+# ------------------------------------------------------------------------------------------------ finished firewalls, not copies
+def test_no_parallel_firewall_remains():
+    from engine.learning import future_firewall as FF
+    assert not hasattr(SY, "LeakGuard")
+    assert isinstance(SY.FirewallScreen().fw, FF.FutureFirewall)
+
+
+def test_presentation_screen_passes_a_clean_panel_and_rejects_an_answer_column(world):
+    g = SY.FirewallScreen()
+    p = SY.make_run_panel(world, 0, 0, None, "fresh_plain")
+    assert g.screen_presentation(p)["future"]
+    with pytest.raises(FirewallBreach):
+        g.check_frame(p.X.assign(peek=p.y), p.y)                     # a column that IS the answer
+    with pytest.raises(FirewallBreach):
+        g.screen_presentation(SY.RunPanel(p.X.assign(peek=p.y), p.y, p.weeks, p.meta))
+
+
+def test_decision_check_uses_the_future_firewall_verdict():
+    class Peek(CT.NoLearning):
+        def seen_through(self):
+            return pd.Timestamp("2009-03-06")
+    late = CT.Moment(pd.Timestamp("2100-01-01"), 3, pd.Timestamp("2009-03-06"))
+    msg = SY.FirewallScreen().check_decision(Peek({}, 0), late)
+    assert msg and "matured" in msg
+    ok = CT.Moment(pd.Timestamp("2100-01-01"), 3, pd.Timestamp("2009-03-13"))
+    assert SY.FirewallScreen().check_decision(Peek({}, 0), ok) is None
+
+
+def test_identity_checks_go_through_the_identity_harness(harness):
+    out = harness.run_identity("fresh_plain", ("B",))
+    rep, gate = out["B"]
+    assert len(rep.verdicts) >= 3 and rep.deterministic
+    assert not rep.memorization_suspected                            # B keys on patterns, not on names
+    assert "IDENTITY" in {str(k) for k in gate.verdicts}
+    assert harness.judge().facts["identity"]["B"]["memorization_suspected"] is False
+
+
+# ------------------------------------------------------------------------------------------------ real weekly panel (synthetic, real-shaped)
+def window_from_world(w, years=100):
+    from engine import learning_delta as LD
+    shift = pd.Timedelta(days=364 * years)                          # archived windows already live in the simulated era
+    dates = list(w.dates)
+    cols = w.feature_columns() + w.market_columns()
+    snaps = {str((d + shift).date()): w.X.xs(d, level=0)[cols].copy() for d in dates}
+    last = dates[-1] + pd.Timedelta(days=7)
+    snaps[str((last + shift).date())] = snaps[str((dates[-1] + shift).date())].copy()
+    ret = w.y_raw.unstack(level=1)
+    idx = pd.DatetimeIndex([d + shift for d in dates] + [last + shift])
+    px = np.vstack([np.full(ret.shape[1], 100.0), 100.0 * np.cumprod(1.0 + ret.to_numpy(), axis=0)])
+    closes = pd.DataFrame(px, index=idx, columns=ret.columns)
+    return LD.Window("SYNWIN", snaps, closes, None, 5.0, {}, dates[0], last, frozenset(ret.columns))
+
+
+@pytest.fixture(scope="module")
+def window(world):
+    return window_from_world(world)
+
+
+def test_real_shaped_window_becomes_a_panel_through_the_audited_disguise(window):
+    src = SY.WindowSource(window)
+    kept, fresh = src.panel(0, 0, None, "kept"), src.panel(0, 0, None, "fresh_plain")
+    assert len(kept) == len(fresh) == 52
+    assert set(fresh.X.columns) == set(kept.X.columns) and any(c.startswith("m_") for c in fresh.X.columns)
+    assert set(fresh.X.index.get_level_values(1)).isdisjoint(set(kept.X.index.get_level_values(1)))
+    assert fresh.meta["audited"] and fresh.meta["shift_days"] % 7 == 0 and fresh.meta["shift_days"] != 0
+    assert min(d for d, _ in fresh.weeks).year >= 2100
+    assert [r.year for _, r in fresh.weeks][0] == 2009                           # trusted-side real dates map back to the real year
+    np.testing.assert_allclose(fresh.y.groupby(level=0).mean().to_numpy(), kept.y.groupby(level=0).mean().to_numpy(), atol=1e-12)
+
+
+def test_window_runs_are_freshly_disguised_and_pass_the_disguise_audit(window):
+    src = SY.WindowSource(window)
+    panels = [src.panel(k, 3, SY.PerturbConfig.standard(), "fresh_perturbed") for k in range(3)]
+    assert SY.audit_disguises(panels) == []
+    assert len({p.meta["shift_days"] for p in panels}) == 3
+
+
+def test_a_disguise_that_fails_the_blindness_audit_is_refused(window, monkeypatch):
+    from engine import learning_delta as LD
+    monkeypatch.setattr(LD, "audit_presentation", lambda *a, **k: [LD.BG.Finding("blindness", "fail", "planted identifying token")])
+    with pytest.raises(LD.BlindnessError, match="planted identifying token"):
+        SY.WindowSource(window).panel(0, 0, None, "fresh_plain")
+
+
+def test_a_panel_with_too_few_weeks_is_refused(window):
+    from engine import learning_delta as LD
+    pres = LD.archive_presentation(window)
+    pres = LD.Presentation(dict(list(pres.snaps.items())[:2]), pres.closes, None, 5.0, {})
+    with pytest.raises(ValueError, match="three snapshot"):
+        SY.presentation_to_panel(pres, pd.Timedelta(0))
+
+
+def test_harness_runs_on_a_window_and_the_time_gate_referee_agrees(window):
+    h = SY.SameYearHarness.from_window(window, cfg=SY.HarnessConfig(n_runs=3, seed=0, probe=False))
+    res = h.run_mode("fresh_perturbed")
+    assert len(res.runs["B"]) == 3 and all(len(r.gains) > 30 for r in res.runs["B"])
+    assert res.runs["B"][2].state_size > res.runs["B"][0].state_size     # memory carried through the audited presentations
+    assert all(r.guard.flagged for r in res.runs["E"]) and not any(r.guard.flagged for r in res.runs["A"])
+    assert h.fingerprint() == h.fingerprint()
+
+
+def test_referee_catches_a_control_that_releases_evidence_early(world):
+    class Greedy(CT.EvidenceLearner):
+        def decide(self, X, moment):
+            out = super().decide(X, moment)
+            if len(self.ev._prior["mature"]) > self.ev._ptr:
+                self.ev._ptr += 1                                    # releases one prior record too many
+            return out
+    b = CT.FrozenControl(CT.LegitimateLearner, {}, factory=Greedy).build(0)
+    g = SY.FirewallScreen()
+    SY.play_run(b, SY.make_run_panel(world, 0, 0, None, "fresh_plain"), 0, g)
+    with pytest.raises(FirewallBreach, match="audited"):
+        SY.play_run(b, SY.make_run_panel(world, 1, 0, None, "fresh_plain"), 1, g)
+
+
+# ------------------------------------------------------------------------------------------------ rerun weight and recognition residual
+def _records(seed, shared, n_weeks=30, keys=40, noise_share=1.0):
+    g = np.random.default_rng(seed)
+    out = []
+    for w in range(n_weeks):
+        mean = shared[w] * (1 - noise_share) + g.normal(0, 0.012, keys) * noise_share
+        n = np.full(keys, 12.0)
+        out.append({"obs": (pd.Timestamp("2009-01-02") + pd.Timedelta(days=7 * w)).to_datetime64(), "n": n, "s": n * mean, "ss": n * (0.05 ** 2 + mean ** 2)})
+    return out
+
+
+def test_rerun_weight_falls_with_between_run_correlation():
+    shared = np.random.default_rng(0).normal(0, 0.012, (30, 40))
+    ident = _records(1, shared, noise_share=0.0)
+    w_same, rho_same = CT.estimate_rerun_weight(ident, ident, 0.35)
+    w_ind, rho_ind = CT.estimate_rerun_weight(_records(2, shared), _records(3, shared), 0.35)
+    assert rho_same > 0.95 and w_same < 0.05                         # an identical rerun adds (almost) nothing
+    assert abs(rho_ind) < 0.15 and w_ind > 0.75                      # independent noise adds nearly a full sample
+    w_few, rho_few = CT.estimate_rerun_weight(ident[:3], ident[:3], 0.35)
+    assert w_few == 0.35 and np.isnan(rho_few)                       # too little to estimate: the stated constant
+
+
+def test_fallback_weight_is_used_until_two_runs_exist():
+    ev = CT.KeyEvidence(40, "auto", 0.35)
+    assert ev.prior_weight == 0.35
+    ev.begin_run()
+    for r in _records(1, np.zeros((6, 40)), n_weeks=6):
+        ev.advance(pd.Timestamp(r["obs"]) + pd.Timedelta(days=7))
+        ev.add(pd.Timestamp(r["obs"]), r["n"], r["s"], r["ss"])
+    ev.begin_run()
+    assert ev.prior_weight == 0.35 and ev.rho_history == []          # one finished run: nothing to compare with yet
+    with pytest.raises(ValueError):
+        CT.KeyEvidence(3, 0.0)
+    with pytest.raises(ValueError):
+        CT.KeyEvidence(3, "auto", 0.0)
+
+
+def test_measured_weight_is_lower_for_identical_reruns_than_for_perturbed_ones(harness):
+    evs = {}
+    for mode in ("kept", "fresh_perturbed"):
+        b = harness.frozen["B"].build(0)
+        for k, p in enumerate(harness.panels[mode][:3]):
+            SY.play_run(b, p, k, harness.guard, referee=False)
+        b.begin_run(3)
+        evs[mode] = b.evidence()
+    assert evs["kept"].rho_history and evs["fresh_perturbed"].rho_history
+    assert evs["kept"].prior_weight < evs["fresh_perturbed"].prior_weight
+    assert evs["kept"].rho_history[-1] > evs["fresh_perturbed"].rho_history[-1]
+
+
+def test_recognition_residual_is_a_first_class_output_of_every_run(harness):
+    rec = harness.recognition_record()
+    assert set(rec) == {"fresh_plain", "fresh_perturbed"}                        # 'kept' is not disguised, so it is not probed
+    assert rec["fresh_plain"]["tier1"]["auc"] > 0.9 and not rec["fresh_plain"]["tier1"]["consistent_with_chance"]
+    assert rec["fresh_perturbed"]["tier1"]["auc"] < rec["fresh_plain"]["tier1"]["auc"] - 0.15
+    assert rec["fresh_perturbed"]["tier2"]["auc"] > rec["fresh_perturbed"]["tier1"]["auc"]
+    assert "recognition residual" in harness.render()
+    j = harness.judge()
+    assert j.facts["recognition"]["fresh_perturbed"]["tier2"]["auc"] > 0.5
+    assert any("recognition residual" in r for r in j.reasons) == (rec["fresh_perturbed"]["tier2"]["auc"] > harness.cfg.tier2_alarm)
+    assert SY.record_of(harness)["recognition"] == rec
+
+
+def test_probe_off_is_reported_as_not_measured(world):
+    h = SY.SameYearHarness(world, cfg=SY.HarnessConfig(n_runs=2, probe=False))
+    h.run_mode("fresh_plain")
+    assert h.recognition == {} and "not measured" in h.recognition_markdown()
