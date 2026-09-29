@@ -44,6 +44,8 @@ from . import experiment_memory as EM
 from . import failure as F
 from . import missed_winners as MW
 from .champion import KnowledgeBoard
+from .contradiction import ContradictionLedger
+from .contradiction_monitor import ContradictionMonitor, MonitorReport
 from .core import FirewallBreach, Subsystem, ValidationLabel, as_date, canonical_json, current_code_hash, stable_hash
 from .firewalls import Finding, GateContext, LearningFirewallGate, registry_findings
 from .identity_firewall import IdentityHarness, IdentityReport
@@ -53,6 +55,7 @@ from .reproducibility import ReproRecord, WorkerConfig, capture_worker, make_rec
 from .scorecard import LearningScorecard, gate_improvement_claim
 
 T = TypeVar("T")
+NL = chr(10)
 MAX_CLASSIFY = 200                       # per post-mortem call: the worst losses only (a classifier pass costs ~1 ms per loss)
 BLOCKING_LAUNCH = (EM.DuplicateStatus.SAME_CONFIG_REPEAT, EM.DuplicateStatus.NEAR_DUPLICATE, EM.DuplicateStatus.KNOWN_FAILURE_NEARBY)
 UNRECORDED = "unrecorded"                # memory_hash of a legacy registry record: honest, not a fabricated snapshot
@@ -143,6 +146,7 @@ class Hub:
             self._ledgers: dict[str, EM.ExperimentLedger] = {}
             self.graph = KnowledgeGraph(None)
             self.board: KnowledgeBoard | None = None
+            self.monitor: ContradictionMonitor | None = None
             self.strict = False
             self.evidence: dict[str, LearningEvidence] = {}
             self.decisions: list[PromotionVerdict] = []
@@ -483,6 +487,51 @@ def on_redundancy(names: Sequence[str], dup: Mapping[int, int], masks: Any, know
     return n
 
 
+# ================================================================================================================== contradiction period loop
+@sink("contradiction_period")
+def on_period(now: Any, ledger: ContradictionLedger | None = None) -> MonitorReport:
+    """Once per period (S20): ContradictionMonitor(graph, ledger).run_period(now) over the hub's knowledge graph. The monitor is kept
+    so its run order is enforced across calls (a period not after the previous one is a FirewallBreach, recorded as a sink error).
+    Returns the report; None when the run failed."""
+    if HUB.monitor is None:
+        HUB.monitor = ContradictionMonitor(HUB.graph, ledger)
+    rep = HUB.monitor.run_period(now)
+    HUB.delivered["contradictions_tracked"] += len(rep.items)
+    return rep
+
+
+def research_step(report: MonitorReport, engine: Any, ledger: EM.ExperimentLedger, budget: Any, now: Any, seed: int) -> Any:
+    """Feed the period's contradiction signals into ResearchPriorityEngine.step (an open contradiction becomes a research question).
+    Signals are built by the monitor; the engine and budget are the caller's. Returns the EngineStep."""
+    if HUB.monitor is None:
+        raise FirewallBreach("research_step before on_period: there is no monitor to take signals from")
+    HUB.calls["research_step"] += 1
+    signals = HUB.monitor.signals(report)
+    HUB.delivered["contradiction_signals"] += len(signals)
+    return engine.step(signals, ledger, budget, now, seed)
+
+
+def write_dashboard_inputs(report: MonitorReport, root: str | Path) -> dict[str, Path]:
+    """Write the monitor's rows where reports.health_dashboard reads them: knowledge.jsonl (one row per knowledge id touched by a
+    contradiction, from dashboard_rows) and contradictions.jsonl (one row per tracked pair; open ones carry verdict UNRESOLVED, which
+    is what makes assess_knowledge mark both ids CONTRADICTED). Rows are dated the report's own day, so ReportContext(now=that day)
+    excludes them, exactly like any record made on `now`; pass the NEXT period as its `now`."""
+    if HUB.monitor is None:
+        raise FirewallBreach("write_dashboard_inputs before on_period: there is no monitor")
+    HUB.calls["dashboard"] += 1
+    base = Path(root)
+    base.mkdir(parents=True, exist_ok=True)
+    rows = HUB.monitor.dashboard_rows(report)["rows"]
+    know = [{**r, "version": 1, "at": report.now, "lifecycle": "ACTIVE", "confidence": {},
+             "evidence": {"note": r["evidence"], "sample_size": r["sample_size"]}} for r in rows]     # shape assess_knowledge reads
+    con = [{"pair": list(t.pair), "verdict": "UNRESOLVED" if t.is_open else t.phase.value, "at": report.now} for t in report.items]
+    out = {"knowledge": base / "knowledge.jsonl", "contradictions": base / "contradictions.jsonl"}
+    for name, data in (("knowledge", know), ("contradictions", con)):
+        out[name].write_bytes((NL.join(json.dumps(r, sort_keys=True, default=str) for r in data) + (NL if data else "")).encode("utf-8"))
+    HUB.delivered["dashboard_rows"] += len(know)
+    return out
+
+
 # ================================================================================================================== production weight
 def board_weight(kid: str) -> float | None:
     """The board's decision weight for a knowledge id: 1 if any of its members is a champion, 0 if it is registered but not one,
@@ -603,6 +652,9 @@ HOOKS: dict[str, Hook] = {
     "weight": Hook("effective_weight", ("engine/lessons.py",), "board-scaled weight"),
     "promotion_gate": Hook("promotion_allowed", ("engine/improve.py",), "composite promotion verdict"),
 }
+# Period-level seams are called by the period runner (S17b / the nightly loop), not by an old engine file, so they have no `sites` here;
+# the integration tests prove the data flows. Listed for the report: on_period -> research_step and write_dashboard_inputs.
+PERIOD_HOOKS: tuple[str, ...] = ("contradiction_period", "research_step", "dashboard")
 
 
 def unwired_hooks(root: str | Path | None = None, hooks: Mapping[str, Hook] | None = None) -> list[str]:

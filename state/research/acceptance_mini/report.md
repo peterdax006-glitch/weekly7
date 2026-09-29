@@ -12,7 +12,7 @@ Status: IMPLEMENTED - NOT VALIDATED. Planted synthetic world; numbers are produc
 | 4 | NO CHANGE: the experience did not alter any decision | 2 | 2 | 0 | n/a | n/a | n/a | n/a | True |
 | 5 | NO CHANGE: the experience did not alter any decision | 2 | 1 | 0 | n/a | n/a | n/a | n/a | True |
 
-## seed 3 (106.9 s)
+## seed 3 (103.9 s)
 
 ```
 Section-87 acceptance (miniature)   [IMPLEMENTED - NOT VALIDATED]
@@ -27,7 +27,7 @@ Section-87 acceptance (miniature)   [IMPLEMENTED - NOT VALIDATED]
   verdict: IMPROVED  (IMPROVED)
 ```
 
-## seed 4 (89.6 s)
+## seed 4 (87.1 s)
 
 ```
 Section-87 acceptance (miniature)   [IMPLEMENTED - NOT VALIDATED]
@@ -42,7 +42,7 @@ Section-87 acceptance (miniature)   [IMPLEMENTED - NOT VALIDATED]
   verdict: NOT DEMONSTRATED  (NO CHANGE: the experience did not alter any decision)
 ```
 
-## seed 5 (69.3 s)
+## seed 5 (71.2 s)
 
 ```
 Section-87 acceptance (miniature)   [IMPLEMENTED - NOT VALIDATED]

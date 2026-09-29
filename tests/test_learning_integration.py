@@ -632,3 +632,63 @@ def test_lessons_p_value_adapter_matches_the_old_normal_cdf_form_and_keeps_the_n
     for t in np.linspace(-12, 12, 481):
         assert abs(LS._p_two_sided(t) - 2.0 * (1.0 - n.cdf(abs(t)))) < 1e-14
     assert LS._p_two_sided(float("nan")) == 1.0 and LS._p_two_sided(float("inf")) == 1.0
+
+
+
+# ================================================================================================================ S20 contradiction period loop
+def _plant_contradiction(hub, a="patA", b="patB", known="2021-03-01"):
+    from engine.learning.knowledge_graph import NodeType
+    for n in (a, b):
+        hub.graph.add_node(n, NodeType.PATTERN, "2021-01-01", n)
+    hub.graph.add_edge(a, b, Edge.CONTRADICTS, known, weight=0.5, evidence=("e1",))
+
+
+def test_period_run_tracks_a_planted_contradiction_and_orders_periods(fresh_hub):
+    _plant_contradiction(fresh_hub)
+    with pytest.warns(UserWarning, match="contradiction_period"):
+        assert W.on_period("2021-03-01") is None                                     # the edge is known AT this day: a live run refuses it
+    fresh_hub.monitor = None
+    fresh_hub.errors.clear()
+    fresh_hub._warned.clear()
+    assert W.on_period("2021-03-05") is not None and fresh_hub.calls["contradiction_period"] == 2
+    rep = W.on_period("2021-03-10")
+    assert [t.pair for t in rep.items] == [("patA", "patB")] and fresh_hub.delivered["contradictions_tracked"] == 2   # tracked in both periods
+    with pytest.warns(UserWarning, match="contradiction_period"):
+        assert W.on_period("2021-03-10") is None                                     # not after the previous period: refused, recorded
+    assert fresh_hub.errors[-1].error_type == "FirewallBreach"
+
+
+def test_period_run_on_an_empty_graph_is_empty_not_an_error(fresh_hub):
+    rep = W.on_period("2021-03-10")
+    assert rep.items == () and not fresh_hub.errors
+
+
+def test_contradiction_signals_reach_the_research_priority_engine(fresh_hub, tmp_path):
+    from engine.learning import research_priority as RP
+    _plant_contradiction(fresh_hub)
+    rep = W.on_period("2021-06-01")                                                   # 3 months uninvestigated: stale and escalated
+    led = EM.ExperimentLedger(tmp_path / "led.jsonl")
+    eng = RP.ResearchPriorityEngine()
+    step = W.research_step(rep, eng, led, RP.ComputeBudget(cpu_minutes=120, ram_gb_free=8), "2021-06-01", seed=1)
+    assert fresh_hub.delivered["contradiction_signals"] == 1
+    blob = json.dumps(dataclasses.asdict(step), default=str)
+    assert "patA" in blob and "CONTRADICTION" in blob.upper()                          # the question about the pair is in the plan
+    with pytest.raises(FirewallBreach, match="no monitor"):
+        fresh_hub.reset()
+        W.research_step(rep, eng, led, RP.ComputeBudget(cpu_minutes=120, ram_gb_free=8), "2021-06-01", seed=1)
+
+
+def test_monitor_rows_reach_the_health_dashboard_as_contradicted(fresh_hub, tmp_path):
+    from engine.learning import reports as RPT
+    _plant_contradiction(fresh_hub)
+    _plant_contradiction(fresh_hub, "patC", "patD", "2021-03-02")
+    rep = W.on_period("2021-06-01")
+    paths = W.write_dashboard_inputs(rep, tmp_path / "art")
+    assert fresh_hub.delivered["dashboard_rows"] == 4 and all(p.exists() for p in paths.values())
+    ctx = RPT.ReportContext(tmp_path / "art", "2021-06-02", paths=paths, code_hash="x")
+    dash = RPT.health_dashboard(ctx)
+    assert dash["status"] in ("MEASURED", "PARTIAL")
+    got = {r["knowledge_id"]: r["health"] for k in ("trusted", "losing_trust", "other") for r in dash.get(k, [])}
+    assert set(got) == {"patA", "patB", "patC", "patD"} and set(got.values()) == {"CONTRADICTED"}
+    empty = W.write_dashboard_inputs(type(rep)(rep.now, (), 0, rep.graph_head), tmp_path / "e")
+    assert RPT.health_dashboard(RPT.ReportContext(tmp_path / "e", "2021-06-02", paths=empty, code_hash="x"))["status"] == "UNMEASURED"

@@ -247,10 +247,11 @@ def _worker(run_id, cfg, meta):
         if LEARNER == "legit":
             from engine.learning import test_path as TP
             hook = TP.hook_factory(TP.PathConfig(store_root=str(CURATOR_ROOT), seed=MODEL_SEED))
+        extra = {} if hook is None else {"hook_factory": hook}          # the off path calls livesim.run exactly as before
         feed, trader, sealed, wall = livesim.run(cfg, run_id, log=lambda *x: print(f"[{run_id}]", *x, flush=True),
-                                                 adaptive=True, meta=meta, hook_factory=hook)
+                                                 adaptive=True, meta=meta, **extra)
         findings = feed.audit()
-        if trader.hook is not None:
+        if getattr(trader, "hook", None) is not None:
             findings += [blind_gates.Finding(f.gate, f.severity, f.message) for f in trader.hook.findings()]
         blind_gates.save_report(findings, a / "blind_audit2.json")
         bad = [f for f in findings if f.severity == "fail"]

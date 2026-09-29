@@ -661,5 +661,5 @@ def test_workers_inherit_the_flag_and_the_gates_are_still_wired(loop):
     assert src.count("*LEARNER_ARGS") == 2                                                # the supervised worker and the stale rerun
     for gate in ("fill_audit.gate", "scramble_after", "reveal_round", "checkpoint_run", "plan_round", "classify_round"):
         assert gate in src
-    assert 'hook_factory=hook' in src and "trader.hook.findings()" in src and 'r["legit"] = trader.hook.report()' in src
+    assert '**extra' in src and "trader.hook.findings()" in src and 'r["legit"] = trader.hook.report()' in src
     assert "MAXW = int(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1].isdigit() else 60" in src     # positional arg unchanged

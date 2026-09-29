@@ -1101,7 +1101,7 @@ Blind live-clock simulation of a random hidden year (canon C11).
 - `def parity_test(feed, n_days, seed)` - Leakage guard for the fast path: recompute features the slow, strictly-live way (history up to that day only) on random days and require them to equal the preco
 - `def drive(feed, on_tick)` - Run the lockstep clock against `on_tick` until the window ends; returns wall seconds. A gate or clock failure raised in either thread surfaces here.
 - `def blind_feed_class(hardened)` - The Feed class blind runs use: the hardened one (columns sorted by code, market prices rebased, names hidden until they list - engine.leak_audit, canon C56) unl
-- `def run(cfg, run_id, log, check_parity, adaptive, meta, hardened, hook_factory)` - `hook_factory(feed, trader)` (optional, canon C64) builds a side runner once the warm-up is done; its `on_tick()` is called after the trader's own on_tick on ev
+- `def run(cfg, run_id, log, check_parity, adaptive, hook_factory, meta, hardened)` - `hook_factory(feed, trader)` (optional, canon C64) builds a side runner once the warm-up is done; its `on_tick()` is called after the trader's own on_tick on ev
 
 Tests: `tests/test_leak_audit.py`, `tests/test_learning_delta.py`, `tests/test_learning_test_path.py`, `tests/test_livesim_gates.py`, `tests/test_livesim_loop2.py`
 

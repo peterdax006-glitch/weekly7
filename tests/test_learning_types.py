@@ -86,7 +86,7 @@ def test_a_declared_hook_that_is_never_called_is_reported(tmp_path):
 
 def test_every_counted_hook_is_declared_and_every_declared_hook_is_counted():
     counted = set(re.findall(r'(?:@sink|HUB\.calls)\(?\[?"(\w+)"', WIRING_SRC))
-    assert counted == set(W.HOOKS), (counted ^ set(W.HOOKS))
+    assert counted == set(W.HOOKS) | set(W.PERIOD_HOOKS), (counted ^ (set(W.HOOKS) | set(W.PERIOD_HOOKS)))
     fn_names = {n for n, _ in public_functions()}
     assert {h.function for h in W.HOOKS.values()} <= fn_names
 

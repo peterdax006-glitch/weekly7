@@ -11,7 +11,7 @@
  "seeds": [
   {
    "seed": 3,
-   "seconds": 106.9,
+   "seconds": 103.9,
    "improved": true,
    "verdict": "IMPROVED",
    "items": 5,
@@ -49,7 +49,7 @@
   },
   {
    "seed": 4,
-   "seconds": 89.6,
+   "seconds": 87.1,
    "improved": false,
    "verdict": "NO CHANGE: the experience did not alter any decision",
    "items": 2,
@@ -87,7 +87,7 @@
   },
   {
    "seed": 5,
-   "seconds": 69.3,
+   "seconds": 71.2,
    "improved": false,
    "verdict": "NO CHANGE: the experience did not alter any decision",
    "items": 2,

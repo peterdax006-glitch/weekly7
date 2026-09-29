@@ -579,7 +579,7 @@ def blind_feed_class(hardened=True):
     return Feed
 
 
-def run(cfg, run_id, log=print, check_parity=True, adaptive=False, meta=None, hardened=True, hook_factory=None):
+def run(cfg, run_id, log=print, check_parity=True, adaptive=False, hook_factory=None, meta=None, hardened=True):
     """`hook_factory(feed, trader)` (optional, canon C64) builds a side runner once the warm-up is done; its `on_tick()` is called
     after the trader's own on_tick on every session, inside the same lockstep pass, and it is left on `trader.hook`. This module
     only calls it: the runner lives in a trusted script, so nothing on the trader's import path can reach the curator."""
