@@ -37,3 +37,9 @@
 
 ## B10 blind gates/retester/health (84 tests)
 - real-cache: 40 seals 0 overlap; disguise 0 failures/12 windows; look-ahead probe 6/6 honest pass, 6/6 peeking caught
+
+## B16 public pages (29 tests; real-data build CLEAN)
+- [x] nav links in docs/index.html (2026-09-28)
+- [ ] visual/mobile check of explorer/sensitivity2/runs/checklist (not yet viewed in a browser)
+- [ ] CI: site_build.py --verify; optional site_publish.py --interval 300 (no --push)
+- note: pattern bank path state/pattern_bank is B16's guess; align with B03's pattern_bank.py location
