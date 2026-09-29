@@ -66,3 +66,19 @@
 
 ## B08 exits/stops (43 tests) - sent back for conditional gap model + loss-cap analysis
 - hooks: exits.learn(paths, default_rules(), as_of).apply(paths); stops.walk_forward_stops; stops.fit_gap_model + size_positions
+
+## B09 second pass (loop2 integrated; 65+ tests)
+- [x] loop2: objective.evaluate, BasisSearch via train_basis(), gates intact, seeded search, archive_dirs skips _ dirs
+      (my _w01c_original backup had been trained on twice)
+- real-system basis search (39 windows, 155 replays): OOS in-band 22%, risk -0.31; nothing adopted
+- [ ] dial on real replays: pending (state/research/timeline_basis/dial_offline_seed0.json)
+- [ ] adaptive.py: META_DEFAULT det_max/det_min_weeks; dial hook (sent to B15)
+
+## B17 quality gate (70 tests) - gate findings to fix (baseline state/quality/baseline.json)
+- [ ] import boundaries: parity_suite -> engine.live; tick.py -> alpaca.trading; research scripts data_live_audit,
+      patterns, replay_year, three_way, site_build import engine.live/broker (move plain/explain helpers to a neutral module)
+- [ ] print() in engine: improve, live, universe
+- [ ] engine/repro.py seeds global RNGs; tests/test_repro.py draws from them
+- [ ] mutable default scripts/antioverfit_real.py:43; tests/test_livesim_gates.py:172 has no assert
+- [x] A6 collector test (tests/test_collect_intraday.py, 2026-09-28)
+- [ ] CI: quality_gate.py --baseline state/quality/baseline.json
