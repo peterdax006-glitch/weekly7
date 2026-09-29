@@ -1765,21 +1765,23 @@
    "section": "Pattern discovery",
    "minimum_lines": 4000,
    "upper_lines": 6000,
-   "actual_lines": 4632,
+   "actual_lines": 8310,
    "code_paths": [
-    "engine/patterns.py",
     "engine/candidates.py",
-    "engine/pattern_stats.py",
-    "engine/pattern_identity.py",
+    "engine/learning/knowledge.py",
     "engine/pattern_bank.py",
+    "engine/pattern_identity.py",
     "engine/pattern_lifecycle.py",
     "engine/pattern_memory.py",
     "engine/pattern_memory_eval.py",
-    "engine/learning/knowledge.py",
-    "engine/planted.py"
+    "engine/pattern_stats.py",
+    "engine/patterns.py",
+    "engine/planted.py",
+    "engine/research/discovery.py",
+    "engine/research/discovery_sources.py"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "[mapping 2026-09-29, read-only audit] [duplicated-risk] 4632/4000 meaningful lines genuinely doing this job. 401+407+502+444+384+477+597+249+907+264. Miner, candidate universe, BH/permutation statistics, identity hashing, lifecycle and the formal KnowledgeObject all exist, but PatternMiner rows never become KnowledgeObjects (evidence_from_pattern_row 0 callers) and THREE pattern stores exist (pattern_bank, pattern_memory, learning archive). New sources (filings/insider/breadth/dispersion/correlation/liquidity as candidates) are partial."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C66 wave 1, R10 pass 2): discovery 2,640 + sources 1,038 = 3,678 new, extending the mapped miner stack (patterns/candidates/pattern_stats/pattern_identity, 4,632) - section-83 mapping; 33 audited feature families, staged search with a whole-search null, cumulative q + alpha investing, full section-13 dossiers as RESEARCH knowledge objects, always-on sweep, beta-neutral residual outcome + beta-proxy quarantine; ONE TrialLedger (subclasses interactions'). 88 tests. | earlier: [mapping 2026-09-29, read-only audit] [duplicated-risk] 4632/4000 meaningful lines genuinely doing this job. 401+407+502+444+384+477+597+249+907+264. Miner, candidate universe, BH/permutation statistics, identity hashing, lifecycle and the formal KnowledgeObject all exist, but PatternMiner rows never become KnowledgeObjects (evidence_from_pattern_row 0 callers) and THREE pattern stores exist (pattern_bank, pattern_memory, learning archive). New sources (filings/insider/breadth/dispersion/correlation/liquidity as candidates) are partial."
   },
   {
    "section": "Pattern-break research integration",
