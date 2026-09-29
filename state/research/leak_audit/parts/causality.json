@@ -1,0 +1,68 @@
+{
+ "features_truncation_invariance_2012_sample": {
+  "n_features": 53,
+  "n_cuts": 3,
+  "leaky_features": {},
+  "clean": true,
+  "seconds": 1.9658429622650146,
+  "n_tickers": 60,
+  "n_events": 1235,
+  "n_insider": 312
+ },
+ "feed_exposure_real_windows": {
+  "1975-03-01": {
+   "plain": {
+    "spy_first_level": 6.145759105682373,
+    "column_order_vs_real_alpha_rho": 0.989732882136943,
+    "columns_shown_before_listing": 4,
+    "n_columns": 171,
+    "cost_bps": 40,
+    "warmup_sessions_before_window": 1515
+   },
+   "hardened": {
+    "spy_first_level": 100.0,
+    "column_order_vs_real_alpha_rho": -0.17728178174574605,
+    "columns_shown_before_listing": 0,
+    "n_columns": 171,
+    "cost_bps": 40,
+    "warmup_sessions_before_window": 1515
+   }
+  },
+  "1995-06-01": {
+   "plain": {
+    "spy_first_level": 20.11333656311035,
+    "column_order_vs_real_alpha_rho": 0.9843861032010874,
+    "columns_shown_before_listing": 91,
+    "n_columns": 1246,
+    "cost_bps": 40,
+    "warmup_sessions_before_window": 1518
+   },
+   "hardened": {
+    "spy_first_level": 100.0,
+    "column_order_vs_real_alpha_rho": -0.021085783509074436,
+    "columns_shown_before_listing": 0,
+    "n_columns": 1246,
+    "cost_bps": 40,
+    "warmup_sessions_before_window": 1518
+   }
+  },
+  "2018-03-01": {
+   "plain": {
+    "spy_first_level": 106.73981475830078,
+    "column_order_vs_real_alpha_rho": 0.4851467507920429,
+    "columns_shown_before_listing": 161,
+    "n_columns": 3347,
+    "cost_bps": 10,
+    "warmup_sessions_before_window": 1510
+   },
+   "hardened": {
+    "spy_first_level": 100.0,
+    "column_order_vs_real_alpha_rho": -0.007468139537587451,
+    "columns_shown_before_listing": 0,
+    "n_columns": 3347,
+    "cost_bps": 10,
+    "warmup_sessions_before_window": 1510
+   }
+  }
+ }
+}

@@ -85,6 +85,8 @@ class Audit:
             lines += [f"code {stamp.get('code_hash')} | git {stamp.get('git_commit')} | seed {stamp.get('seed')}", ""]
         c = self.counts()
         lines += [f"**{len(self.channels)} channels: " + ", ".join(f"{c[s]} {s}" for s in STATUSES) + "**", ""]
+        lines += ["LEAK = present in the current default blind path (a tested fix or hook exists where stated); FIXED = closed in the default path; "
+                  "QUARANTINED = cannot be removed from the data, measured, results must carry the stated rule; CLEAN = nothing found, tested.", ""]
         lines += ["| # | channel | status | test |", "|---|---|---|---|"]
         for k, ch in self.channels.items():
             lines.append(f"| {k} | {ch.name} | {ch.status} | {ch.test or '-'} |")
@@ -469,11 +471,12 @@ def inject_dead_names(close: pd.DataFrame, delist_dates, seed: int, terminal_mea
 
 
 def vol_basket_weekly(close: pd.DataFrame, top_frac: float = 0.1, min_price: float = 0.0, lookback: int = 60,
-                      step: int = 5, entry_lag: int = 1) -> pd.Series:
+                      step: int = 5, entry_lag: int = 1, clip=(-0.9, 2.0)) -> pd.Series:
     """Equal-weight weekly return of the top-volatility slice (the kind of basket a 7%-a-week rule holds): rank by trailing
     volatility at the close of t, buy at the close of t+entry_lag (a stand-in for the next open), sell `step` sessions
-    later; a name with no price at the exit earns its last valid return (terminal print if any). Used to compare a survivor
-    panel with the same panel plus dead names."""
+    later; a name with no price at the exit earns its last valid return (terminal print if any). Each name-week return is
+    clipped to `clip`: penny-stock data glitches otherwise swamp the mean of a volatile slice (raw weekly sd was 140%). Used to
+    compare a survivor panel with the same panel plus dead names."""
     r = np.log(close / close.shift(1))
     vol = r.rolling(lookback, min_periods=lookback // 2).std()
     out = {}
@@ -487,7 +490,7 @@ def vol_basket_weekly(close: pd.DataFrame, top_frac: float = 0.1, min_price: flo
         p0 = close.iloc[t + entry_lag][pick]
         seg = close.iloc[t + entry_lag: t + entry_lag + step + 1][pick]
         p1 = seg.ffill().iloc[-1]
-        out[close.index[t]] = float((p1 / p0 - 1).mean())
+        out[close.index[t]] = float((p1 / p0 - 1).clip(*clip).mean())
     return pd.Series(out, dtype=float)
 
 
@@ -818,7 +821,11 @@ CAL_FEATS = ["gap2_rate", "gap4_rate", "gap5plus", "sessions_per_year", "mon_sha
 LEVEL_RAW = ["log_n_names", "med_logp", "share_lt3", "med_logdv", "zero_vol", "hl_equal", "open_nan", "spy_log_start", "spy_log_end"]
 LEVEL_SCRUB = ["n_names_change", "spy_ret", "logp_change", "logdv_change"]
 STATE_FEATS = ["vix_mean", "vix_max", "vix_sd", "spy_vol", "spy_dd", "spy_up_share"]
-GROUPS = {"calendar": CAL_FEATS, "levels_raw": LEVEL_RAW, "levels_scrubbed": LEVEL_SCRUB, "market_state": STATE_FEATS}
+TRADER_COLS = ["m_spy_ma50", "m_spy_ma200", "m_spy_r5", "m_vix", "m_vix_chg5", "m_breadth", "m_dispersion"]
+TRADER_INPUT_FEATS = [f"{c}_{a}" for c in TRADER_COLS for a in ("mean", "sd")]        # what the model and the memory context consume
+LEVEL_HARDENED = [f for f in LEVEL_RAW if not f.startswith("spy_log")]                 # levels left after HardenedFeed rebases SPY
+GROUPS = {"calendar": CAL_FEATS, "levels_raw": LEVEL_RAW, "levels_after_hardening": LEVEL_HARDENED, "levels_scrubbed": LEVEL_SCRUB,
+          "market_state": STATE_FEATS, "trader_inputs": TRADER_INPUT_FEATS}
 
 
 def calendar_features(sessions: pd.DatetimeIndex) -> dict:
@@ -860,6 +867,11 @@ def window_features(daily: pd.DataFrame, start, warm_years: int = 6, months: int
     out.update(n_names_change=float(np.log(n1 / n0)), spy_ret=float(d["spy_log"].iloc[-1] - d["spy_log"].iloc[0]) if "spy_log" in d else np.nan,
                logp_change=float(d["med_logp"].iloc[-1] - d["med_logp"].iloc[0]),
                logdv_change=float(d["med_logdv"].iloc[-1] - d["med_logdv"].iloc[0]) if "med_logdv" in d else np.nan)
+    for c in TRADER_COLS:
+        if c in d:
+            out[f"{c}_mean"], out[f"{c}_sd"] = float(d[c].mean()), float(d[c].std())
+        else:
+            out[f"{c}_mean"] = out[f"{c}_sd"] = float("nan")
     if "vix" in d and "spy_log" in d and len(live) > 20:
         sr = live["spy_log"].diff().dropna()
         eq = np.exp(live["spy_log"] - live["spy_log"].iloc[0])
@@ -876,6 +888,53 @@ def regular_grid_index(n_sessions: int, start="2100-01-03") -> pd.DatetimeIndex:
     instead of the real (sometimes 4-session) week. An opt-in scrub, not wired into the Feed (its check_calendar gate
     demands the real pattern)."""
     return pd.bdate_range(pd.Timestamp(start), periods=n_sessions)
+
+
+def regime_series(close: pd.DataFrame, market_close: pd.DataFrame, col_chunk: int = 800) -> pd.DataFrame:
+    """The market-context inputs the trader's model and memory consume (features.regime_frame's m_* columns) as a daily
+    series over the WHOLE panel, computed in column blocks so the 16,000 x 6,800 frame is never copied whole: breadth is the
+    share of names above their 50-day mean, dispersion the 5-day mean of the cross-sectional std of daily log returns
+    (accumulated from n, sum, sum of squares). Uses every name, where the trader's copy uses the tradable ones."""
+    idx = close.index
+    n_ma, above, n_r, s1, s2 = (np.zeros(len(idx)) for _ in range(5))
+    for a in range(0, close.shape[1], col_chunk):
+        blk = close.iloc[:, a:a + col_chunk].astype("float64")
+        ma = blk.rolling(50).mean()
+        above += (blk > ma).sum(axis=1).to_numpy()
+        n_ma += blk.notna().sum(axis=1).to_numpy()
+        r = np.log(blk / blk.shift(1)).replace([np.inf, -np.inf], np.nan)
+        ok = r.notna()
+        n_r += ok.sum(axis=1).to_numpy()
+        r0 = r.fillna(0.0)
+        s1 += r0.sum(axis=1).to_numpy()
+        s2 += (r0 ** 2).sum(axis=1).to_numpy()
+    with np.errstate(all="ignore"):
+        var = (s2 - s1 ** 2 / np.where(n_r > 0, n_r, np.nan)) / (n_r - 1)
+        disp = pd.Series(np.sqrt(np.clip(var, 0, None)), index=idx).rolling(5).mean()
+        breadth = pd.Series(above / np.where(n_ma > 0, n_ma, np.nan), index=idx)
+    spy = market_close["SPY"].reindex(idx)
+    vix = market_close["^VIX"].reindex(idx).ffill()
+    return pd.DataFrame({"m_spy_ma50": spy / spy.rolling(50).mean() - 1, "m_spy_ma200": spy / spy.rolling(200).mean() - 1,
+                         "m_spy_r5": np.log(spy / spy.shift(5)), "m_vix": vix, "m_vix_chg5": np.log(vix / vix.shift(5)),
+                         "m_breadth": breadth, "m_dispersion": disp}, index=idx)
+
+
+def thin_universe_share(alive_by_year: pd.Series, starts, min_names: int = 500, months: int = 12) -> dict:
+    """How many possible blind windows run on a universe too thin to mean anything. A window's names = the SMALLEST yearly
+    count over the calendar years it touches (a survivor panel is thinnest at the start of history). Returns the share of
+    `starts` below `min_names`, the first start that clears it, and the count per decade of starts."""
+    st = pd.DatetimeIndex(starts)
+    if not len(st) or alive_by_year is None or not len(alive_by_year):
+        return {"n_windows": int(len(st)), "share_below": float("nan"), "first_clean_start": None}
+    ends = st + pd.DateOffset(months=months) - pd.Timedelta(days=1)
+    n = np.array([min(alive_by_year.get(y, 0) for y in range(a.year, b.year + 1)) for a, b in zip(st, ends)])
+    below = n < min_names
+    clean = st[~below]
+    dec = pd.Series(below, index=st).groupby((st.year // 10) * 10).mean()
+    return {"n_windows": int(len(st)), "min_names": int(min_names), "share_below": float(below.mean()),
+            "first_clean_start": str(clean[0].date()) if len(clean) else None,
+            "share_below_by_decade": {int(k): float(v) for k, v in dec.items()},
+            "median_names_in_window": float(np.median(n)), "min_names_in_any_window": int(n.min())}
 
 
 class FingerprintProbe:
@@ -1037,7 +1096,7 @@ def hardened_feed_class():
     return HardenedFeed
 
 
-def hardened_run(cfg, run_id, log=print, check_parity=True, adaptive=False, meta=None, network_guard=True, data=None):
+def hardened_run(cfg, run_id, log=print, check_parity=True, adaptive=False, meta=None, network_guard=True, data=None, warmup_years=6):
     """`livesim.run` on the hardened feed, with the network closed for the whole run (channel 7). `data` replaces the real caches
     (synthetic windows in tests)."""
     import time
@@ -1045,7 +1104,7 @@ def hardened_run(cfg, run_id, log=print, check_parity=True, adaptive=False, meta
     guard = NetworkGuard().install() if network_guard else None
     try:
         sealed = livesim.SealedYear(run_id)
-        feed = hardened_feed_class()(sealed)
+        feed = hardened_feed_class()(sealed, warmup_years=warmup_years, data=data)
         t = time.perf_counter()
         feed.precompute_features()
         log(f"  feature service ready in {time.perf_counter() - t:.0f}s")

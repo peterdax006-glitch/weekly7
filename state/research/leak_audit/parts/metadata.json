@@ -1,0 +1,219 @@
+{
+ "crypto_matches_in_panel": [
+  {
+   "ticker": "MSTR",
+   "first": "1998-06-11",
+   "last": "2026-09-25",
+   "by_list": true,
+   "by_name": false
+  },
+  {
+   "ticker": "WULF",
+   "first": "1994-04-05",
+   "last": "2026-09-25",
+   "by_list": true,
+   "by_name": false
+  },
+  {
+   "ticker": "ABTC",
+   "first": "2018-02-26",
+   "last": "2026-09-25",
+   "by_list": false,
+   "by_name": true
+  },
+  {
+   "ticker": "AIXC",
+   "first": "2015-06-23",
+   "last": "2026-09-25",
+   "by_list": false,
+   "by_name": true
+  },
+  {
+   "ticker": "APLD",
+   "first": "2022-04-13",
+   "last": "2026-09-25",
+   "by_list": true,
+   "by_name": false
+  },
+  {
+   "ticker": "BDCI",
+   "first": "2025-10-16",
+   "last": "2026-09-25",
+   "by_list": false,
+   "by_name": true
+  },
+  {
+   "ticker": "BGIN",
+   "first": "2025-10-21",
+   "last": "2026-09-25",
+   "by_list": false,
+   "by_name": true
+  },
+  {
+   "ticker": "BKKT",
+   "first": "2020-11-19",
+   "last": "2026-09-25",
+   "by_list": true,
+   "by_name": false
+  },
+  {
+   "ticker": "BTBT",
+   "first": "2018-03-20",
+   "last": "2026-09-25",
+   "by_list": true,
+   "by_name": false
+  },
+  {
+   "ticker": "BTCS",
+   "first": "2010-11-15",
+   "last": "2026-09-25",
+   "by_list": true,
+   "by_name": false
+  },
+  {
+   "ticker": "BTCT",
+   "first": "2018-10-17",
+   "last": "2026-09-25",
+   "by_list": false,
+   "by_name": true
+  },
+  {
+   "ticker": "BTDR",
+   "first": "2021-07-28",
+   "last": "2026-09-25",
+   "by_list": true,
+   "by_name": false
+  },
+  {
+   "ticker": "CIFR",
+   "first": "2020-10-20",
+   "last": "2026-09-25",
+   "by_list": true,
+   "by_name": false
+  },
+  {
+   "ticker": "CLSK",
+   "first": "2016-11-16",
+   "last": "2026-09-25",
+   "by_list": true,
+   "by_name": false
+  },
+  {
+   "ticker": "COIN",
+   "first": "2021-04-14",
+   "last": "2026-09-25",
+   "by_list": true,
+   "by_name": false
+  },
+  {
+   "ticker": "CORZ",
+   "first": "2024-01-24",
+   "last": "2026-09-25",
+   "by_list": true,
+   "by_name": false
+  },
+  {
+   "ticker": "GLXY",
+   "first": "2025-05-16",
+   "last": "2026-09-25",
+   "by_list": true,
+   "by_name": false
+  },
+  {
+   "ticker": "HIVE",
+   "first": "2011-02-02",
+   "last": "2026-09-25",
+   "by_list": true,
+   "by_name": false
+  },
+  {
+   "ticker": "HSDT",
+   "first": "2014-06-27",
+   "last": "2026-09-25",
+   "by_list": false,
+   "by_name": true
+  },
+  {
+   "ticker": "HUT",
+   "first": "2018-03-08",
+   "last": "2026-09-25",
+   "by_list": true,
+   "by_name": false
+  },
+  {
+   "ticker": "IREN",
+   "first": "2021-11-17",
+   "last": "2026-09-25",
+   "by_list": true,
+   "by_name": false
+  },
+  {
+   "ticker": "MARA",
+   "first": "2012-05-04",
+   "last": "2026-09-25",
+   "by_list": true,
+   "by_name": false
+  },
+  {
+   "ticker": "RIOT",
+   "first": "2016-03-31",
+   "last": "2026-09-25",
+   "by_list": true,
+   "by_name": false
+  },
+  {
+   "ticker": "SOS",
+   "first": "2017-04-28",
+   "last": "2026-09-25",
+   "by_list": true,
+   "by_name": false
+  }
+ ],
+ "n_universe": 5247,
+ "n_panel_columns": 5247,
+ "universe_names_matching_crypto_regex_still_in_universe": 6,
+ "hard_listed_crypto_tickers_in_panel": [
+  "APLD",
+  "BKKT",
+  "BTBT",
+  "BTCS",
+  "BTDR",
+  "CIFR",
+  "CLSK",
+  "COIN",
+  "CORZ",
+  "GLXY",
+  "HIVE",
+  "HUT",
+  "IREN",
+  "MARA",
+  "MSTR",
+  "RIOT",
+  "SOS",
+  "WULF"
+ ],
+ "hard_listed_crypto_tickers_traded_before_2018": [
+  "BTCS",
+  "CLSK",
+  "HIVE",
+  "MARA",
+  "MSTR",
+  "RIOT",
+  "SOS",
+  "WULF"
+ ],
+ "not_crypto_on_blind_codes_filters_nothing": true,
+ "blind_universe_note": "load_universe() (nasdaqtraded.txt, today) removed crypto-named tickers before any panel was built; in blind runs policy.not_crypto sees code names and is inert",
+ "sic": {
+  "rows": 5247,
+  "source": "SEC company_tickers / submissions, CURRENT classification",
+  "n_distinct_2digit": 71,
+  "n_distinct_4digit": 392,
+  "n_distinct_division_1digit": 10
+ },
+ "sic_uses": "features.build groups ind_mom20/60 and rel_ind20/60 by 2-digit SIC; policy.sic_division (division) caps sectors; both from today's codes",
+ "universe_membership_is_todays_listing": {
+  "exchange_listed_today": true,
+  "n": 5247
+ }
+}

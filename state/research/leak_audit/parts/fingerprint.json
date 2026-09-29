@@ -1,0 +1,213 @@
+{
+ "daily_rows": 16292,
+ "first": "1962-01-02",
+ "last": "2026-09-25",
+ "exposed_6y_warmup_plus_window": {
+  "calendar": {
+   "n_train": 204,
+   "n_test": 180,
+   "mae_years": 3.1031152099303148,
+   "baseline_mae_years": 14.95767973856209,
+   "decade_acc": 0.6333333333333333,
+   "majority_decade_acc": 0.13333333333333333,
+   "skill": 0.7925403361906301,
+   "verdict": "identifiable"
+  },
+  "levels_raw": {
+   "n_train": 204,
+   "n_test": 180,
+   "mae_years": 0.32299456564114987,
+   "baseline_mae_years": 14.95767973856209,
+   "decade_acc": 0.9611111111111111,
+   "majority_decade_acc": 0.13333333333333333,
+   "skill": 0.978406105005147,
+   "verdict": "identifiable"
+  },
+  "levels_scrubbed": {
+   "n_train": 204,
+   "n_test": 180,
+   "mae_years": 4.985120252188724,
+   "baseline_mae_years": 14.95767973856209,
+   "decade_acc": 0.6222222222222222,
+   "majority_decade_acc": 0.13333333333333333,
+   "skill": 0.6667183454037535,
+   "verdict": "identifiable"
+  },
+  "market_state": {
+   "n_train": 125,
+   "n_test": 108,
+   "mae_years": 8.876794111245495,
+   "baseline_mae_years": 8.920555555555556,
+   "decade_acc": 0.25925925925925924,
+   "majority_decade_acc": 0.2222222222222222,
+   "skill": 0.004905685978583096,
+   "verdict": "not identifiable"
+  },
+  "scrubbed_all": {
+   "n_train": 125,
+   "n_test": 108,
+   "mae_years": 1.2174199368020742,
+   "baseline_mae_years": 8.920555555555556,
+   "decade_acc": 0.8796296296296297,
+   "majority_decade_acc": 0.2222222222222222,
+   "skill": 0.8635264441524735,
+   "verdict": "identifiable"
+  }
+ },
+ "exposed_6y_warmup_plus_window__shuffled_control": {
+  "calendar": {
+   "n_train": 204,
+   "n_test": 180,
+   "mae_years": 15.3763471086249,
+   "baseline_mae_years": 14.95767973856209,
+   "decade_acc": 0.17222222222222222,
+   "majority_decade_acc": 0.13333333333333333,
+   "skill": -0.02799012797308742
+  },
+  "levels_raw": {
+   "n_train": 204,
+   "n_test": 180,
+   "mae_years": 15.82722749218589,
+   "baseline_mae_years": 14.95767973856209,
+   "decade_acc": 0.16666666666666666,
+   "majority_decade_acc": 0.13333333333333333,
+   "skill": -0.05813386626951478
+  },
+  "levels_scrubbed": {
+   "n_train": 204,
+   "n_test": 180,
+   "mae_years": 15.250149121956687,
+   "baseline_mae_years": 14.95767973856209,
+   "decade_acc": 0.17777777777777778,
+   "majority_decade_acc": 0.13333333333333333,
+   "skill": -0.019553125117433012
+  },
+  "market_state": {
+   "n_train": 119,
+   "n_test": 113,
+   "mae_years": 16.898723650101267,
+   "baseline_mae_years": 16.250830420663856,
+   "decade_acc": 0.13274336283185842,
+   "majority_decade_acc": 0.11504424778761062,
+   "skill": -0.039868315197823856
+  }
+ },
+ "exposed_6y_warmup_plus_window__cost_bps_only": {
+  "n_train": 204,
+  "n_test": 180,
+  "mae_years": 6.7858974358969215,
+  "baseline_mae_years": 14.95767973856209,
+  "decade_acc": 0.4666666666666667,
+  "majority_decade_acc": 0.13333333333333333,
+  "skill": 0.5463268665659196
+ },
+ "hidden_12_months_only": {
+  "calendar": {
+   "n_train": 204,
+   "n_test": 180,
+   "mae_years": 11.04281591192377,
+   "baseline_mae_years": 14.95767973856209,
+   "decade_acc": 0.32222222222222224,
+   "majority_decade_acc": 0.13333333333333333,
+   "skill": 0.2617293520829631,
+   "verdict": "identifiable"
+  },
+  "levels_raw": {
+   "n_train": 204,
+   "n_test": 180,
+   "mae_years": 0.8354198952710691,
+   "baseline_mae_years": 14.95767973856209,
+   "decade_acc": 0.9166666666666666,
+   "majority_decade_acc": 0.13333333333333333,
+   "skill": 0.9441477615597498,
+   "verdict": "identifiable"
+  },
+  "levels_scrubbed": {
+   "n_train": 204,
+   "n_test": 180,
+   "mae_years": 12.153449205444984,
+   "baseline_mae_years": 14.95767973856209,
+   "decade_acc": 0.23333333333333334,
+   "majority_decade_acc": 0.13333333333333333,
+   "skill": 0.18747764239714104,
+   "verdict": "not identifiable"
+  },
+  "market_state": {
+   "n_train": 125,
+   "n_test": 108,
+   "mae_years": 8.876794111245495,
+   "baseline_mae_years": 8.920555555555556,
+   "decade_acc": 0.25925925925925924,
+   "majority_decade_acc": 0.2222222222222222,
+   "skill": 0.004905685978583096,
+   "verdict": "not identifiable"
+  },
+  "scrubbed_all": {
+   "n_train": 125,
+   "n_test": 108,
+   "mae_years": 7.271495592870245,
+   "baseline_mae_years": 8.920555555555556,
+   "decade_acc": 0.4444444444444444,
+   "majority_decade_acc": 0.2222222222222222,
+   "skill": 0.18486067963091235,
+   "verdict": "not identifiable"
+  }
+ },
+ "hidden_12_months_only__shuffled_control": {
+  "calendar": {
+   "n_train": 204,
+   "n_test": 180,
+   "mae_years": 17.003864332769,
+   "baseline_mae_years": 14.95767973856209,
+   "decade_acc": 0.17777777777777778,
+   "majority_decade_acc": 0.13333333333333333,
+   "skill": -0.13679826216172297
+  },
+  "levels_raw": {
+   "n_train": 204,
+   "n_test": 180,
+   "mae_years": 15.995896495623315,
+   "baseline_mae_years": 14.95767973856209,
+   "decade_acc": 0.14444444444444443,
+   "majority_decade_acc": 0.13333333333333333,
+   "skill": -0.06941028122059723
+  },
+  "levels_scrubbed": {
+   "n_train": 204,
+   "n_test": 180,
+   "mae_years": 14.850773209251537,
+   "baseline_mae_years": 14.95767973856209,
+   "decade_acc": 0.2111111111111111,
+   "majority_decade_acc": 0.13333333333333333,
+   "skill": 0.007147266900957905
+  },
+  "market_state": {
+   "n_train": 119,
+   "n_test": 113,
+   "mae_years": 16.898723650101267,
+   "baseline_mae_years": 16.250830420663856,
+   "decade_acc": 0.13274336283185842,
+   "majority_decade_acc": 0.11504424778761062,
+   "skill": -0.039868315197823856
+  }
+ },
+ "hidden_12_months_only__cost_bps_only": {
+  "n_train": 204,
+  "n_test": 180,
+  "mae_years": 6.7858974358969215,
+  "baseline_mae_years": 14.95767973856209,
+  "decade_acc": 0.4666666666666667,
+  "majority_decade_acc": 0.13333333333333333,
+  "skill": 0.5463268665659196
+ },
+ "regular_grid_calendar_probe": {
+  "n_train": 204,
+  "n_test": 180,
+  "mae_years": 6.93109563159063,
+  "baseline_mae_years": 14.95767973856209,
+  "decade_acc": 0.40555555555555556,
+  "majority_decade_acc": 0.13333333333333333,
+  "skill": 0.5366195992469531,
+  "verdict": "identifiable"
+ }
+}

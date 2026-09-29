@@ -277,6 +277,21 @@ def test_inject_dead_names_creates_terminal_prints_and_lowers_vol_basket():
     assert L.inject_dead_names(close, [], seed=1).equals(close)
 
 
+def test_vol_basket_clips_a_planted_glitch_and_thin_universe_share_counts_thin_windows():
+    close, _ = panel(n_days=400, n=40, seed=6)
+    glitch = close.copy()
+    glitch.iloc[200:, 3] *= 500.0                                    # a persistent 500x data error in one name
+    raw = L.vol_basket_weekly(glitch, top_frac=1.0, clip=(-100.0, 1e9))
+    clipped = L.vol_basket_weekly(glitch, top_frac=1.0)
+    assert raw.max() > 3 * clipped.max() and clipped.max() < 1.0
+    alive = pd.Series({y: (30 if y < 1975 else 800) for y in range(1965, 2027)})
+    starts = pd.date_range("1965-01-01", "2025-09-01", freq="MS")
+    r = L.thin_universe_share(alive, starts, min_names=500)
+    assert 0.1 < r["share_below"] < 0.2 and r["first_clean_start"] == "1975-01-01" and r["min_names_in_any_window"] == 30
+    assert r["share_below_by_decade"][1960] == 1.0 and r["share_below_by_decade"][2000] == 0.0
+    assert np.isnan(L.thin_universe_share(pd.Series(dtype=float), starts)["share_below"])
+
+
 def test_pit_universe_excludes_future_ipo_and_effective_delistings():
     close, _ = panel(n_days=500, n=6)
     close.iloc[:300, 0] = np.nan                                       # T00 lists at session 300
@@ -509,6 +524,18 @@ def test_probe_identifies_year_from_a_planted_level_channel_and_not_after_scrub(
     assert L.fingerprint_verdict(miss) == "not identifiable" and miss["skill"] < 0.2
 
 
+def test_regime_series_matches_the_trader_feature_code():
+    from engine import features
+    close, _ = panel(n_days=320, n=25, seed=8)
+    close.iloc[:100, 5:9] = np.nan
+    mk = pd.DataFrame({"SPY": 100 * np.exp(np.random.default_rng(1).normal(0.0003, 0.01, len(close)).cumsum()),
+                       "^VIX": 20 + np.random.default_rng(2).normal(0, 1, len(close))}, index=close.index)
+    got = L.regime_series(close, mk, col_chunk=7)
+    want = features.regime_frame({"Close": mk}, close, np.log(close / close.shift(1)))
+    for c in ["m_spy_ma50", "m_spy_ma200", "m_spy_r5", "m_vix", "m_vix_chg5", "m_breadth", "m_dispersion"]:
+        pd.testing.assert_series_equal(got[c].astype("float32"), want[c], check_names=False, rtol=1e-3, atol=1e-5)
+
+
 def test_probe_degenerate_inputs_do_not_crash():
     empty = pd.DataFrame({c: [] for c in L.CAL_FEATS})
     r = L.FingerprintProbe().score(empty, pd.DatetimeIndex([]), L.CAL_FEATS)
@@ -631,6 +658,8 @@ def test_hardened_run_closes_the_network_for_the_whole_window_and_reopens_it_aft
            "liq_q": 0.0, "vol_filter": False, "stress_thr": None, "stress_k": 2, "trend_filter": None, "trend_gross": 0.0}
     seen = {}
     real_train = livesim.BlindTrader.train
+    stocks, market, ev, ins, sic = make_data(rec["start"], n=8)
+    data = (stocks, market, ev, ins.assign(owner_cik="1", value=50_000.0, relation="officer", title="ceo"), sic)
 
     def spying_train(self):
         try:                                                        # a refresh attempted mid-run, as a careless module might do
@@ -641,7 +670,7 @@ def test_hardened_run_closes_the_network_for_the_whole_window_and_reopens_it_aft
         return real_train(self)
     livesim.BlindTrader.train = spying_train
     try:
-        feed, trader, sealed, wall = L.hardened_run(cfg, "t1", log=lambda *a: None, check_parity=False, data=make_data(rec["start"], n=30))
+        feed, trader, sealed, wall = L.hardened_run(cfg, "t1", log=lambda *a: None, check_parity=False, data=data, warmup_years=1)
     finally:
         livesim.BlindTrader.train = real_train
     assert seen["blocked"] is True and len(trader.session.days) > 200
