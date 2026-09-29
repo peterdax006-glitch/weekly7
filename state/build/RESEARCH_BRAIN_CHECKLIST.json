@@ -1774,14 +1774,15 @@
    "section": "Pattern-break research integration",
    "minimum_lines": 2000,
    "upper_lines": 3000,
-   "actual_lines": 3558,
+   "actual_lines": 5591,
    "code_paths": [
+    "engine/learning/boundary.py",
     "engine/learning/break_detection.py",
     "engine/pattern_reliability.py",
-    "engine/learning/boundary.py"
+    "engine/research/break_research.py"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "[mapping 2026-09-29, read-only audit] [duplicated-risk] 3558/2000 meaningful lines genuinely doing this job. break_detection 1271 (excl. interaction_scan) + pattern_reliability 1576 + boundary 711. Two parallel 'what changed when it broke' engines (engine/pattern_reliability C60 and learning/break_detection C62). Real result on disk: reliability NOT predictable (skill -0.2%). Not scheduled by the research engine (signals_from_health 0 callers)."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C66 wave 1, R11): 2,001; every break -> Investigation with 13 section-14 causes (UNKNOWN floored 0.10), the six section-14 questions as a powered escalation ladder, fresh-holdout replication, outputs to the research queue only; planted precursor EXPLAINED, no-precursor never, placebo 0. 45 tests. | earlier: [mapping 2026-09-29, read-only audit] [duplicated-risk] 3558/2000 meaningful lines genuinely doing this job. break_detection 1271 (excl. interaction_scan) + pattern_reliability 1576 + boundary 711. Two parallel 'what changed when it broke' engines (engine/pattern_reliability C60 and learning/break_detection C62). Real result on disk: reliability NOT predictable (skill -0.2%). Not scheduled by the research engine (signals_from_health 0 callers)."
   },
   {
    "section": "Experiment memory",
