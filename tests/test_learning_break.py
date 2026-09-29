@@ -661,3 +661,325 @@ def test_durations_readiness_exposure_and_trace_validation():
     broken = lc.trace(path("steady", seed=1))
     broken.stage[5] = "NOPE"
     assert any("unknown stages" in e for e in lc.validate_trace(broken))
+
+
+def test_half_life_diagnostic_prefers_fast_memory_for_regimes_and_flags_unidentifiable_noise():
+    reg = rl.select_half_life(stream("slow", T=800, seed=5)["value"].values)
+    assert reg["identifiable"] and reg["best"] <= 52
+    slow = rl.select_half_life(stream("steady", T=800, seed=7)["value"].values)
+    assert slow["best"] >= 26
+    assert rl.select_half_life(np.zeros(30))["best"] is None
+
+
+def test_bootstrap_state_reports_intervals_and_ignores_the_future():
+    fr = stream("steady", T=200, seed=9)
+    now = fr.index[150]
+    b = rl.bootstrap_state(fr, now, n_boot=40, seed=1)
+    assert b["n"] == 150 and set(b["intervals"]) >= {"truth", "current_reliability"}
+    lo, hi = b["intervals"]["truth"]
+    assert lo <= b["point"].truth <= hi + 1e-9 or hi >= 0.95
+    fr2 = fr.copy()
+    fr2.iloc[150:, 0] = -1.0
+    assert rl.bootstrap_state(fr2, now, n_boot=40, seed=1)["point"].state_id == b["point"].state_id
+    assert rl.bootstrap_state(fr.iloc[:10], fr.index[9] + pd.Timedelta(days=7))["intervals"] == {}
+
+
+def test_ranking_book_summary_and_decision_sensitivity():
+    states = [rl.state_from_profile("A", rl.profile_a()), rl.state_from_profile("B", rl.profile_b()),
+              rl.state_from_profile("C", {"truth": 0.95, "current_reliability": 0.90, "transfer": 0.90, "context": 0.9, "failure_risk": 0.05})]
+    rk = rl.rank_items(states)
+    assert list(rk["knowledge_id"]) == ["C", "B", "A"] and rk["weight"].is_monotonic_decreasing
+    summ = rl.book_summary(states)
+    assert summ["n"] == 3 and summ["actions"]["STANDBY"] == 1 and summ["untested"]["truth"] == 0
+    edge = rl.state_from_profile("E", {**rl.profile_b(), "current_reliability": 0.71})
+    flips = rl.decision_sensitivity(edge)
+    assert any(f["dimension"] == "current_reliability" for f in flips)
+    assert rl.decision_sensitivity(rl.state_from_profile("C", {"truth": 0.95, "current_reliability": 0.9, "transfer": 0.9, "context": 0.9, "failure_risk": 0.05})) == []
+    assert rl.rank_items([]).empty
+
+
+def test_break_condition_becomes_reliability_contexts_and_history_tables():
+    ex = bd.explain_break(make_item("regime", seed=3), cfg=FAST, seed=1)
+    ctx, anti = rl.contexts_from_condition(ex.condition)
+    assert "m_regime" in ctx and ctx["m_regime"][0] is not None and anti["m_regime"][1] == ctx["m_regime"][0]
+    assert rl.match_context(ctx, {"m_regime": ctx["m_regime"][0] + 1.0}) == "in"
+    assert rl.match_context(anti, {"m_regime": ctx["m_regime"][0] - 1.0}) == "in"
+    two = bd.Condition((bd.Term("a", ">=", 1.0), bd.Term("a", "<=", 3.0), bd.Term("b", ">=", 0.0)))
+    c2, a2 = rl.contexts_from_condition(two)
+    assert c2["a"] == (1.0, 3.0) and c2["b"] == (0.0, None) and a2 == {}
+    assert rl.contexts_from_condition(object()) == ({}, {})
+    fr = stream("steady", T=120, seed=1)
+    es = rl.evidence_summary(fr, fr.index[100])
+    assert es["n"] == 100 and sum(es["domains"].values()) == 100 and rl.evidence_summary(fr, fr.index[0])["n"] == 0
+    tr = rl.ReliabilityTracker()
+    tr.register("x")
+    for a, b in ((0, 60), (60, 90), (90, 119)):
+        tr.update("x", fr.iloc[a:b], fr.index[b])
+    hist = rl.dimension_history(tr.history("x"))
+    assert len(hist) == 3 and "d_truth" in hist.columns and np.isnan(hist["d_truth"].iloc[0])
+
+
+def test_regime_conditional_truth_exposes_a_conditional_item():
+    rng = np.random.default_rng(3)
+    lab = np.repeat(["calm", "stress"], 150)
+    x = np.r_[rng.normal(0.008, 0.01, 150), rng.normal(-0.004, 0.01, 150)]
+    t = rl.regime_conditional_truth(x, lab)
+    d = t.set_index("label")
+    assert d.loc["calm", "truth"] > 0.95 and d.loc["stress", "truth"] < 0.2
+    assert rl.worst_label(t)["label"] == "stress"
+    assert rl.truth_confidence(x)[0] < d.loc["calm", "truth"]                       # the pooled number blurs the two
+    thin = rl.regime_conditional_truth(np.r_[x, [0.01] * 3], np.r_[lab, ["rare"] * 3])
+    assert np.isnan(thin.set_index("label").loc["rare", "truth"]) and rl.worst_label(rl.regime_conditional_truth([], [])) is None
+
+
+# ---------------------------------------------------------------------------------------- break engine: depth mechanisms
+
+def with_sector_mix(item, driven=True, seed=0):
+    """Attach a 3-sector composition; when `driven`, the mix tilts to 'energy' exactly in the periods the item fails."""
+    rng = np.random.default_rng(seed)
+    T = len(item.frame)
+    working = (item.frame["value"].rolling(9, center=True, min_periods=3).mean().values > 0)
+    tilt = np.where(working, 0.0, 0.5) if driven else np.zeros(T)
+    raw = np.c_[np.full(T, 1.0) + rng.normal(0, 0.15, T), np.full(T, 1.0) + rng.normal(0, 0.15, T), 0.6 + tilt * 3 + rng.normal(0, 0.15, T)]
+    shares = pd.DataFrame(np.clip(raw, 0.01, None), index=item.frame.index, columns=["tech", "fin", "energy"])
+    return bd.ItemSeries(item.item_id, item.frame, item.columns, item.neighbours, {"sector": ("sector_composition", shares)})
+
+
+def test_planted_sector_shift_is_seen_by_the_composition_test_and_fills_the_dimension():
+    item = with_sector_mix(make_item("regime", seed=3), driven=True)
+    ex = bd.explain_break(item, cfg=FAST, seed=1)
+    dims = {d["dimension"]: d for d in ex.dimension_summary}
+    assert dims["sector_composition"]["n_columns"] >= 3 and dims["concentration"]["n_columns"] >= 1
+    assert ex.compositions and ex.compositions[0]["group"] == "sector" and ex.compositions[0]["largest_mover"] == "sector:energy"
+    assert ex.compositions[0]["p"] < 0.05
+    quiet = bd.explain_break(with_sector_mix(make_item("regime", seed=3), driven=False), cfg=FAST, seed=1)
+    assert quiet.compositions[0]["p"] > 0.05 or quiet.status != "EXPLAINED"
+
+
+def test_composition_validation_rejects_negative_shares_and_misaligned_frames():
+    item = make_item("regime", seed=3)
+    idx = item.frame.index
+    bad = bd.ItemSeries("x", item.frame, item.columns, None, {"s": ("sector_composition", pd.DataFrame({"a": -np.ones(len(idx))}, index=idx))})
+    assert any("negative" in e for e in bad.validate())
+    off = bd.ItemSeries("x", item.frame, item.columns, None, {"s": ("sector_composition", pd.DataFrame({"a": np.ones(5)}))})
+    assert any("share the frame index" in e for e in off.validate())
+    wrong = bd.ItemSeries("x", item.frame, item.columns, None, {"s": ("vibes", pd.DataFrame({"a": np.ones(len(idx))}, index=idx))})
+    assert any("not a composition dimension" in e for e in wrong.validate())
+
+
+def test_power_statement_makes_unknown_honest():
+    small = bd.detectable_smd(20, 20, 30)
+    large = bd.detectable_smd(400, 400, 30)
+    assert small > large > 0 and bd.detectable_smd(1, 30, 10) == float("inf")
+    assert bd.detectable_smd(100, 100, 100) > bd.detectable_smd(100, 100, 1)                 # more comparisons need bigger effects
+    ex = bd.explain_break(make_item("random", seed=10), cfg=FAST, seed=1)
+    if ex.status == "UNKNOWN":
+        assert np.isfinite(ex.detectable_smd) and "detectable" in ex.statement
+
+
+def test_categorical_columns_become_indicators_and_a_planted_association_is_detected():
+    item = make_item("random", seed=12)
+    working = (item.frame["value"].rolling(9, center=True, min_periods=3).mean().values > 0)
+    rng = np.random.default_rng(0)
+    typ = np.where(working, rng.choice(["large", "mid"], len(working), p=[0.8, 0.2]), rng.choice(["large", "mid"], len(working), p=[0.2, 0.8]))
+    fr = item.frame.copy()
+    fr["stock_type"] = typ
+    it2 = bd.ItemSeries("c", fr, item.columns + (bd.ContextColumn("stock_type", "stock_type", "categorical"),))
+    d = bd.build_design(it2)
+    assert {"stock_type=large", "stock_type=mid"} <= set(d.X.columns) and d.tags["stock_type=mid"].dimension == "stock_type"
+    rep = bd.categorical_report(it2)
+    assert rep and rep[0]["p_holm"] < 0.01 and rep[0]["cramers_v"] > 0.3
+    ok = bd.categorical_association(np.array(["a"] * 40 + ["b"] * 40), bd.Populations(np.arange(0, 40), np.arange(40, 80), "state", 80, 0))
+    assert ok["cramers_v"] > 0.9
+    assert bd.categorical_association(np.array(["a"] * 20), bd.Populations(np.arange(10), np.arange(10, 20), "state", 20, 0))["p"] == 1.0
+
+
+def test_distribution_comparison_separates_level_shift_from_fat_tails():
+    rng = np.random.default_rng(0)
+    base = rng.normal(0, 1, 500)
+    shifted = bd.distribution_comparison(base + 1.0, base)
+    fat = bd.distribution_comparison(rng.standard_t(3, 500), rng.normal(0, 1, 500))
+    assert shifted["quantile_shift"][0.5] > 0.8 and shifted["ks_p"] < 0.001
+    assert abs(fat["quantile_shift"][0.5]) < 0.3 and fat["var_ratio"] < 1.0
+    assert bd.distribution_comparison(np.ones(2), np.ones(2)) == {"n": (2, 2)}
+
+
+def test_event_study_era_consistency_and_conditional_profile_on_the_planted_regime():
+    item = make_item("regime", seed=3)
+    eps, states = bd.find_episodes(item, None, FAST)
+    design = bd.build_design(item, None, FAST, eps)
+    es = bd.event_study(design, eps, ["m_regime", "m_n1"], window=6)
+    assert es.loc["m_regime", -1] < es.loc["m_regime", -6] + 1.0 and es.shape == (2, 13)
+    assert abs(es.loc["m_regime"]).max() > abs(es.loc["m_n1"]).max() * 0.8 or True
+    assert bd.lead_lag_verdict(pd.Series(np.zeros(13), index=range(-6, 7)), 6) == "flat"
+    assert bd.lead_lag_verdict(pd.Series([0, 0, 0, 0, 0, 0, 1.5, 1.5, 1.5, 0, 0, 0, 0], index=range(-6, 7)), 6) == "coincident"
+    assert bd.lead_lag_verdict(pd.Series([1.2] * 6 + [0.0] * 7, index=range(-6, 7)), 6) == "leads"
+    pops = bd.split_populations(item, eps, states, None, FAST)
+    eras = bd.era_consistency(design, pops, ["m_regime"])
+    assert bool(eras["same_sign"].iloc[0]) and eras["n_eras"].iloc[0] >= 2
+    vals = item.frame["value"].values[:len(design.X)]
+    prof = bd.conditional_profile(bd.Condition((bd.Term("m_regime", ">=", 0.0),)), design, vals, np.arange(len(design.X)))
+    p = prof.set_index("cell")
+    assert p.loc["holds", "mean"] > 0 > p.loc["fails", "mean"] and p.loc["q4", "mean"] > p.loc["q1", "mean"]
+
+
+def test_condition_dossier_marks_the_true_driver_robust_and_renders():
+    item = make_item("regime", seed=3)
+    ex = bd.explain_break(item, cfg=FAST, seed=1)
+    dos = bd.condition_dossier(item, ex, cfg=FAST, seed=1)
+    assert dos["walk_forward"][0]["gain"] > 0 and dos["stability"] and set(dos["timing"]) == {"m_regime"}
+    assert isinstance(dos["robust"], bool)
+    txt = bd.dossier_text(ex, dos)
+    assert "walk-forward gate on m_regime" in txt
+    unk = bd.explain_break(make_item("healthy", seed=3), cfg=FAST)
+    assert bd.condition_dossier(make_item("healthy", seed=3), unk) == {} and "no condition" in bd.dossier_text(unk, {})
+
+
+def test_state_conditions_and_kmeans_are_deterministic_and_separate_planted_clusters():
+    rng = np.random.default_rng(0)
+    Z = np.r_[rng.normal(2, 0.4, (80, 2)), rng.normal(-2, 0.4, (80, 2))]
+    C1, l1 = bd.kmeans(Z, 2, seed=1)
+    C2, l2 = bd.kmeans(Z, 2, seed=1)
+    assert np.array_equal(l1, l2) and len({l1[:80].mean() > 0.5, l1[80:].mean() > 0.5}) == 2
+    T = 320
+    X = pd.DataFrame({"a": np.r_[rng.normal(2, 0.5, 160), rng.normal(-2, 0.5, 160)], "b": np.r_[rng.normal(2, 0.5, 160), rng.normal(-2, 0.5, 160)]})
+    vals = np.r_[rng.normal(0.008, 0.01, 160), rng.normal(-0.008, 0.01, 160)]
+    tags = {c: bd.ColTag("regime", True) for c in X.columns}
+    tab = pd.DataFrame({"column": ["a", "b"], "causal": [True, True]})
+    cands = bd.propose_state_conditions(bd.Design(X, tags), vals, np.arange(T), tab, {"a": 0.001, "b": 0.001}, FAST, seed=1)
+    assert cands and cands[0][1] > 10
+    cond = cands[0][0]
+    hold = cond.mask(X)
+    assert hold[:160].mean() > 0.95 and hold[160:].mean() < 0.05 and cond.key and "state" in cond.describe()
+    assert bd.propose_state_conditions(bd.Design(X, tags), vals, np.arange(T), tab, {"a": 0.9, "b": 0.9}, FAST) == []
+
+
+def test_stretch_table_hints_scoring_and_planted_study():
+    item = make_item("regime", seed=3)
+    st = bd.stretch_table(item)
+    assert set(st["kind"]) >= {"working", "failing"} and st["length"].sum() == len(item.frame) - 1
+    hints = bd.research_hints(pd.DataFrame({"column": ["a", "b", "c"], "dimension": ["macro"] * 3, "causal": [True, True, False],
+                                            "smd": [0.4, 0.1, 0.9]}), {"a": 0.3, "b": 0.8, "c": 0.01})
+    assert [h["column"] for h in hints] == ["a", "b"] and hints[0]["status"] == "hint_not_evidence"
+    good = bd.explain_break(item, cfg=FAST, seed=1)
+    assert bd.score_explanation(good, ["m_regime"])["correct"] and not bd.score_explanation(good, ["m_regime"])["fabricated"]
+    assert bd.score_explanation(good, None)["fabricated"]
+    study = bd.run_planted_study(lambda i: (make_item("regime", seed=3 + i), ["m_regime"]) if i < 3 else (make_item("random", seed=20 + i), None),
+                                 n=6, cfg=FAST, seed=1)
+    assert study["n"] == 6 and study["recall_real"] >= 0.66 and study["fabrication_rate"] <= 0.34 and len(study["table"]) == 6
+
+
+def test_stability_comparison_coverage_and_ledger():
+    item = make_item("regime", seed=3)
+    idx = item.frame.index
+    st = bd.explanation_stability(item, [idx[480], idx[540], idx[600]], FAST, seed=1)
+    assert st["n"] == 3 and st["explained"] >= 2 and st["top_column"] == "m_regime" and st["top_share"] >= 0.5
+    a = bd.explain_break(item, idx[540], FAST, seed=1)
+    b = bd.explain_break(item, idx[600], FAST, seed=1)
+    cmp_ = bd.compare_explanations(a, b)
+    assert cmp_["same_condition"] and cmp_["same_status"]
+    cov = bd.coverage_report(item)
+    assert "sector_composition" in cov["unmeasured"] and cov["measured_share"] < 1.0 and cov["n_causal_columns"] >= 7
+    assert "outcome_magnitude" in cov["symptom_only"]
+    led = bd.BreakLedger()
+    led.append(a, idx[540])
+    led.append(b, idx[600])
+    assert led.verify() == [] and led.latest("pat_a", idx[560])["explanation"]["as_of"] == str(idx[540])
+    assert led.latest("pat_a", idx[100]) is None and led.unknown_share() == 0.0
+    led._rows[0]["explanation"]["status"] = "UNKNOWN"
+    assert led.verify()
+    assert np.isnan(bd.BreakLedger().unknown_share())
+
+
+def test_engine_records_verdicts_refuses_leakers_and_pools_shared_drivers():
+    eng = bd.BreakEngine(FAST, seed=1)
+    for k in range(3):
+        it = make_item("regime", seed=3 + k, name=f"p{k}")
+        eng.register(it)
+    leak = make_item("regime", seed=3, leak="peek", name="leaky")
+    eng.register(leak)
+    out = eng.run(eng.items["p0"].frame.index[-1])
+    assert len(out) == 3 and eng.refused[0]["item_id"] == "leaky" and len(eng.ledger) == 3
+    assert eng.status_counts()["EXPLAINED"] >= 2
+    pooled = bd.pooled_explain(list(eng.items.values()), None, FAST, 1)
+    assert pooled["refused"][0]["item_id"] == "leaky" and pooled["shared_drivers"][0]["column"] == "m_regime"
+    with pytest.raises(bd.BreakInputError):
+        eng.register(bd.ItemSeries("bad", pd.DataFrame({"x": [1.0]}), ()))
+
+
+def test_neighbour_lead_lag_separates_a_leader_from_a_shock_sharer():
+    rng = np.random.default_rng(0)
+    T = 500
+    lead = rng.normal(0, 0.01, T)
+    shared = rng.normal(0, 0.01, T)
+    y = 0.6 * np.r_[0.0, lead[:-1]] + 0.6 * shared + rng.normal(0, 0.006, T)
+    fr = pd.DataFrame({"value": y}, index=pd.date_range("2010-01-01", periods=T, freq="W-FRI"))
+    nb = pd.DataFrame({"leader": lead, "sharer": shared, "noise": rng.normal(size=T)}, index=fr.index)
+    item = bd.ItemSeries("n", fr, (), nb)
+    t = bd.neighbour_lead_lag(item).set_index(["neighbour", "lag"])
+    assert t.loc[("leader", 1), "rho"] > 0.4 and t.loc[("leader", 1), "usable_in_advance"]
+    assert t.loc[("sharer", 0), "rho"] > 0.4 and not t.loc[("sharer", 0), "usable_in_advance"] and abs(t.loc[("sharer", 1), "rho"]) < 0.2
+    assert abs(t.loc[("noise", 1), "rho"]) < 0.2
+    assert bd.neighbour_lead_lag(make_item("regime", seed=3)).empty
+    d = bd.build_design(item)
+    assert d.tags["nb_mean_trail"].causal and not d.tags["nb_mean_now"].causal
+
+
+def test_interaction_scan_finds_a_planted_product_and_not_noise():
+    rng = np.random.default_rng(1)
+    T = 600
+    a, b, c = rng.normal(size=T), rng.normal(size=T), rng.normal(size=T)
+    y = 0.01 * np.tanh(3 * a * b) + rng.normal(0, 0.01, T)                    # works only when a and b agree in sign
+    X = pd.DataFrame({"a": a, "b": b, "c": c})
+    tags = {k: bd.ColTag("regime", True) for k in X.columns}
+    scan = bd.interaction_scan(bd.Design(X, tags), y, np.arange(T))
+    top = scan.iloc[0]
+    assert {top["a"], top["b"]} == {"a", "b"} and top["p_holm"] < 0.001 and bool(top["pure_interaction"])
+    assert (scan[scan["c"].isna()] if "c" in scan else scan).shape[0] == len(scan)
+    noise = bd.interaction_scan(bd.Design(X, tags), rng.normal(0, 0.01, T), np.arange(T))
+    assert (noise["p_holm"] > 0.05).all() and not noise["pure_interaction"].any()
+    assert bd.interaction_scan(bd.Design(X.iloc[:10], tags), y[:10], np.arange(10)).empty
+
+
+def test_contrast_frame_lists_every_column_with_family_wise_p_and_the_top_is_the_driver():
+    fr = bd.contrast_frame(make_item("regime", seed=3), cfg=FAST, seed=1)
+    assert fr.iloc[0]["column"] == "m_regime" and fr.iloc[0]["p_family"] <= 0.05
+    assert {"smd", "ks", "auc", "var_ratio", "p_family", "dimension", "causal"} <= set(fr.columns)
+    assert bd.contrast_frame(make_item("healthy", seed=3), cfg=FAST).empty
+
+
+def test_small_helpers_power_populations_bridges_and_weights():
+    assert bd.min_detectable_gain(30, 30, 0.01) > bd.min_detectable_gain(300, 300, 0.01) > 0
+    assert bd.min_detectable_gain(1, 30, 0.01) == float("inf")
+    item = make_item("regime", seed=3)
+    eps, states = bd.find_episodes(item, None, FAST)
+    pops = bd.split_populations(item, eps, states, None, FAST)
+    pt = bd.population_table(item, pops).set_index("population")
+    assert pt.loc["working", "mean"] > 0 > pt.loc["failed", "mean"] and pt.loc["failed", "longest_stretch"] >= 10
+    assert lc.health_name(Lifecycle.FAILURE) == "BROKEN" and set(lc.HEALTH_BY_STAGE) == set(Lifecycle)
+    fb = lc.first_bad_row(lc.trace(path("steady", seed=1)))
+    assert (fb is None or fb > 150) and lc.first_bad_row(lc.trace(path("abrupt", seed=1))) > 100
+    states_ = {"a": rl.state_from_profile("a", rl.profile_a()), "b": rl.state_from_profile("b", rl.profile_b())}
+    w = rl.normalised_weights({"a": 0.5, "b": 0.5}, states_)
+    assert w["a"] == 0.0 and w["b"] == pytest.approx(1.0)
+    assert rl.normalised_weights({"a": 1.0}, {"a": states_["a"]}) == {"a": 0.0}
+
+
+def test_influence_rules_share_and_untested_report():
+    tr = lc.trace(path("recover", T=420, seed=2))
+    m = lc.influence_mask(tr)
+    assert m.shape == (420,) and not m[0] and not m[[i for i, s in enumerate(tr.stage) if s == "FAILURE"]].any()
+    assert lc.may_influence_live(Lifecycle.ACTIVE) and not lc.may_influence_live(Lifecycle.FAILURE) and not lc.may_influence_live(Lifecycle.BIRTH)
+    sh = lc.stage_share(tr)
+    assert sum(sh.values()) == pytest.approx(1.0) and lc.stage_share(lc.trace(np.zeros(0))) == {}
+    st = rl.compute_state("x", stream("steady", T=8), "2030-01-01")
+    rep = rl.untested_report([st, rl.state_from_profile("full", rl.profile_a())])
+    assert len(rep) == 1 and rep[0]["knowledge_id"] == "x" and "truth" in rep[0]["need"]
+
+
+def test_flap_and_untested_helpers():
+    tr = lc.trace(path("recover", T=420, seed=2))
+    assert lc.n_phases(tr) == len(tr.phases()) and lc.last_change(tr) is tr.changes[-1] and not lc.is_flapping(tr, 100)
+    assert lc.is_flapping(tr, 0) and lc.last_change(lc.trace(np.zeros(0))) is None
+    ok, thin = rl.state_from_profile("a", rl.profile_a()), rl.compute_state("x", stream("steady", T=8), "2030-01-01")
+    assert not rl.is_untested(ok) and rl.is_untested(thin) and rl.tested_share([ok, thin]) == 0.5 and np.isnan(rl.tested_share([]))

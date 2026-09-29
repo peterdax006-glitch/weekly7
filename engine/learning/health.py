@@ -582,3 +582,300 @@ def false_alarm_expectation(records: Sequence[HealthRecord], n_periods: int, arl
     a = arl0 or PARAMS["arl0"]
     monitored = sum(1 for r in records if r.evidence.get("monitor_code", 0) != 0)
     return monitored * n_periods / float(a)
+
+
+# ------------------------------------------------------------------------------------------------- trajectories and debouncing
+
+def trust_trajectory(book: HealthBook, kid: str) -> pd.DataFrame:
+    """The item's assessments in order: date, state, trust weight, and the flags that held. The row-by-row history behind the
+    dashboard's `since` field."""
+    return pd.DataFrame([{"as_of": r.as_of, "state": r.state.value, "trust_weight": r.trust_weight, "flags": ",".join(r.flags)}
+                         for r in book.history(kid)], columns=["as_of", "state", "trust_weight", "flags"])
+
+
+def time_in_state(book: HealthBook, kid: str) -> dict:
+    """Number of assessments spent in each state and the current run length."""
+    h = book.history(kid)
+    counts: dict[str, int] = {}
+    for r in h:
+        counts[r.state.value] = counts.get(r.state.value, 0) + 1
+    run = 0
+    for r in reversed(h):
+        if h and r.state == h[-1].state:
+            run += 1
+        else:
+            break
+    return {"counts": counts, "current_run": run, "n": len(h)}
+
+
+def flap_rate(book: HealthBook, kid: str) -> float:
+    """State changes per assessment. High values mean the monitor (or the item) is chattering; the debounce exists for them."""
+    h = book.history(kid)
+    if len(h) < 2:
+        return 0.0
+    return float(sum(a.state != b.state for a, b in zip(h[:-1], h[1:])) / (len(h) - 1))
+
+
+def debounced_state(book: HealthBook, kid: str, min_hold: int = 2, as_of=None) -> Health | None:
+    """The state an item is OFFICIALLY in: a move to a new state is adopted only after `min_hold` consecutive assessments in it,
+    except moves toward danger (higher severity) which are adopted at once - a warning is never delayed, trust is never
+    restored on a single good reading. None for an item never assessed."""
+    h = [r for r in book.history(kid) if as_of is None or as_date(r.as_of) <= as_date(as_of)]
+    if not h:
+        return None
+    official = h[0].state
+    run_state, run = h[0].state, 1
+    for r in h[1:]:
+        if r.state == run_state:
+            run += 1
+        else:
+            run_state, run = r.state, 1
+        if run_state == official:
+            continue
+        if SEVERITY[run_state] > SEVERITY[official] or run >= min_hold:
+            official = run_state
+    return official
+
+
+def official_snapshot(book: HealthBook, min_hold: int = 2, as_of=None) -> dict:
+    return {k: debounced_state(book, k, min_hold, as_of) for k in book.items()}
+
+
+# ------------------------------------------------------------------------------------------------- research routing and diffs
+
+def research_queue(dash: Mapping[str, Any]) -> list[dict]:
+    """Failing items ordered by what most needs a researcher: severity first, unattended before attended, then how long they
+    have been in the state. Each row says why it is queued. This is what connects 'losing trust' to 'which research
+    investigates it'."""
+    rows = []
+    as_of = as_date(dash["as_of"])
+    for e in dash["losing_trust"]:
+        since = as_date(e["since"]) if e.get("since") else as_of
+        rows.append({"knowledge_id": e["knowledge_id"], "state": e["state"], "severity": SEVERITY[Health(e["state"])],
+                     "attended": bool(e["investigating"]), "days_in_state": (as_of - since).days, "investigating": e["investigating"],
+                     "why": e["why"]})
+    rows.sort(key=lambda r: (-r["severity"], r["attended"], -r["days_in_state"], r["knowledge_id"]))
+    for i, r in enumerate(rows):
+        r["rank"] = i + 1
+    return rows
+
+
+def diff_dashboards(old: Mapping[str, Any], new: Mapping[str, Any]) -> dict:
+    """What changed between two exports: items that got worse, items that got better, new and vanished items."""
+    def states(d):
+        return {e["knowledge_id"]: Health(e["state"]) for lst in d["sections"].values() for e in lst}
+    a, b = states(old), states(new)
+    worse = sorted(k for k in a.keys() & b.keys() if SEVERITY[b[k]] > SEVERITY[a[k]])
+    better = sorted(k for k in a.keys() & b.keys() if SEVERITY[b[k]] < SEVERITY[a[k]])
+    return {"worse": [{"knowledge_id": k, "from": a[k].value, "to": b[k].value} for k in worse],
+            "better": [{"knowledge_id": k, "from": a[k].value, "to": b[k].value} for k in better],
+            "new": sorted(b.keys() - a.keys()), "gone": sorted(a.keys() - b.keys()),
+            "unchanged": sum(1 for k in a.keys() & b.keys() if a[k] == b[k])}
+
+
+def summary_line(dash: Mapping[str, Any]) -> str:
+    """One line for a log or a message: date, item count, trusted count, and what is failing."""
+    c = dash["counts"]
+    bad = [f"{c[k]} {k.lower()}" for k in ("BROKEN", "CONTRADICTED", "UNSTABLE", "DEGRADING") if c.get(k)]
+    att = len(dash["unattended_failures"])
+    return (f"{dash['as_of']}: {dash['n_items']} items, {c.get('HEALTHY', 0)} healthy"
+            + (f", {', '.join(bad)}" if bad else "") + (f", {att} failing with no research" if att else ""))
+
+
+def epistemic_proposals(records: Sequence[HealthRecord], current: Mapping[str, Epistemic]) -> list[dict]:
+    """The epistemic label each record implies versus the one the knowledge store holds now. Proposals only: the caller writes
+    the new version of the object (history is immutable). Items already at the implied label are omitted."""
+    out = []
+    for r in records:
+        cur = current.get(r.knowledge_id)
+        if cur is not None and cur != r.epistemic:
+            out.append({"knowledge_id": r.knowledge_id, "from": cur.value, "to": r.epistemic.value, "because": r.state.value,
+                        "reasons": list(r.reasons), "record_id": r.record_id})
+    return out
+
+
+# ------------------------------------------------------------------------------------------------- scoring the monitor itself
+
+def evaluate_detection(book: HealthBook, truth: Mapping[str, Sequence[tuple]], grace: int = 0) -> dict:
+    """Score the monitor against a planted truth. `truth[kid]` lists (start, end) dates of intervals in which the item was
+    really broken. For each interval: was any assessment inside it BROKEN, and after how many assessments? Outside every
+    interval (plus `grace` assessments after it ends) a BROKEN record is a false alarm. Reports recall, mean detection delay in
+    assessments, and the false-alarm rate per assessed item-period."""
+    detected, delays, false_alarms, clean = 0, [], 0, 0
+    intervals = 0
+    rows = []
+    for kid in book.items():
+        h = book.history(kid)
+        dates = [as_date(r.as_of) for r in h]
+        ivs = [(as_date(a), as_date(b)) for a, b in truth.get(kid, [])]
+        for a, b in ivs:
+            intervals += 1
+            inside = [i for i, d in enumerate(dates) if a <= d <= b]
+            hit = [i for i in inside if h[i].state == Health.BROKEN]
+            rows.append({"knowledge_id": kid, "start": str(a), "end": str(b), "detected": bool(hit),
+                         "delay": (hit[0] - inside[0]) if hit and inside else None})
+            if hit:
+                detected += 1
+                delays.append(hit[0] - inside[0])
+        for i, r in enumerate(h):
+            covered = any(a <= dates[i] <= b or (b < dates[i] and sum(1 for d in dates if b < d <= dates[i]) <= grace) for a, b in ivs)
+            if not covered:
+                clean += 1
+                false_alarms += r.state == Health.BROKEN
+    return {"intervals": intervals, "detected": detected, "recall": detected / intervals if intervals else float("nan"),
+            "mean_delay": float(np.mean(delays)) if delays else float("nan"), "false_alarms": int(false_alarms),
+            "clean_assessments": clean, "false_alarm_rate": false_alarms / clean if clean else float("nan"), "detail": rows}
+
+
+# ------------------------------------------------------------------------------------------------- wiring, archive, coverage
+
+def inputs_from_knowledge(items: Sequence[Any], series_by_id: Mapping[str, pd.Series], as_of, ledger=None,
+                          contradictions: Mapping[str, Sequence[ContradictionRef]] | None = None,
+                          exposure_by_id: Mapping[str, pd.Series] | None = None) -> list[HealthInput]:
+    """Build the monitor's inputs from knowledge objects (anything with `knowledge_id`, like core.KnowledgeLike), their outcome
+    series, an optional RetirementLedger (state as of `as_of`) and open contradictions. An item with no series still gets an
+    input (empty), so it shows up as UNKNOWN instead of silently missing from the dashboard."""
+    out = []
+    empty = pd.Series([], index=pd.DatetimeIndex([]), dtype=float)
+    for it in items:
+        kid = str(it.knowledge_id)
+        state = None
+        if ledger is not None and ledger.known(kid):
+            s = ledger.state(kid, as_of)
+            state = None if s is None else s.value
+        out.append(HealthInput(kid, series_by_id.get(kid, empty), (exposure_by_id or {}).get(kid),
+                               tuple((contradictions or {}).get(kid, ())), state))
+    return out
+
+
+def export_book(book: HealthBook) -> dict:
+    """Plain-data archive of the whole history (records + chain) for the knowledge archive."""
+    return {"schema": SCHEMA_VERSION, "chain": list(book._chain),
+            "records": [r.as_dict() for k in book.items() for r in book.history(k)]}
+
+
+def import_book(data: Mapping[str, Any]) -> HealthBook:
+    """Rebuild a book from `export_book` output, re-checking every record id and the chain; raises ValueError on tampering."""
+    if data.get("schema") != SCHEMA_VERSION:
+        raise ValueError(f"unknown schema {data.get('schema')}")
+    book = HealthBook()
+    for d in data["records"]:
+        rec = HealthRecord(d["knowledge_id"], d["as_of"], Health(d["state"]), tuple(d["flags"]), tuple(d["reasons"]), d["evidence"],
+                           bool(d["trusted"]), float(d["trust_weight"]), tuple(d["investigating"]),
+                           None if d["prev_state"] is None else Health(d["prev_state"]), d["since"], d["code_hash"])
+        if rec.record_id != d["record_id"]:
+            raise ValueError(f"{d['knowledge_id']} @ {d['as_of']}: record altered")
+        book._by_item.setdefault(rec.knowledge_id, []).append(rec)
+    book._chain = list(data["chain"])
+    errs = book.verify()
+    if errs:
+        raise ValueError("chain mismatch: " + "; ".join(errs[:3]))
+    return book
+
+
+def coverage_gaps(book: HealthBook, expected_dates: Sequence[Any], item_ids: Sequence[str] | None = None) -> list[dict]:
+    """The C61 rule is 'every item re-checked every period'. Lists (item, date) pairs that were expected but never assessed."""
+    want = {str(as_date(d)) for d in expected_dates}
+    gaps = []
+    for k in (item_ids or book.items()):
+        have = {r.as_of for r in book.history(k)}
+        for d in sorted(want - have):
+            gaps.append({"knowledge_id": k, "as_of": d})
+    return gaps
+
+
+def stale_assessments(book: HealthBook, as_of, max_age_days: int = 14) -> list[str]:
+    """Items whose latest record is older than `max_age_days` at `as_of` - a monitor that stopped looking at them."""
+    cut = as_date(as_of)
+    out = []
+    for k in book.items():
+        r = book.latest(k, as_of)
+        if r is None or (cut - as_date(r.as_of)).days > max_age_days:
+            out.append(k)
+    return out
+
+
+# ------------------------------------------------------------------------------------------------- book-level summaries
+
+def dwell_summary(book: HealthBook) -> pd.DataFrame:
+    """For every state: how many runs the book has seen, and the median / longest run in assessments. Long BROKEN runs mean
+    nothing is being done about them; long HEALTHY runs with a high flap rate elsewhere mean the monitor is asleep."""
+    runs: dict[str, list[int]] = {}
+    for k in book.items():
+        h = book.history(k)
+        i = 0
+        while i < len(h):
+            j = i
+            while j + 1 < len(h) and h[j + 1].state == h[i].state:
+                j += 1
+            runs.setdefault(h[i].state.value, []).append(j - i + 1)
+            i = j + 1
+    rows = [{"state": s, "runs": len(v), "median_run": float(np.median(v)), "longest_run": int(max(v))} for s, v in sorted(runs.items())]
+    return pd.DataFrame(rows, columns=["state", "runs", "median_run", "longest_run"])
+
+
+def worst_offenders(book: HealthBook, top: int = 5) -> list[dict]:
+    """Items ranked by the share of their assessments spent in the failing states (BROKEN / CONTRADICTED / UNSTABLE / DEGRADING)."""
+    rows = []
+    for k in book.items():
+        h = book.history(k)
+        bad = sum(r.state in LOSING for r in h)
+        rows.append({"knowledge_id": k, "share_failing": bad / len(h), "assessments": len(h), "now": h[-1].state.value})
+    rows.sort(key=lambda r: (-r["share_failing"], r["knowledge_id"]))
+    return rows[:top]
+
+
+def render_history(book: HealthBook, kid: str) -> str:
+    """One item's health history as text: each change of state with the reasons and what evidence moved."""
+    h = book.history(kid)
+    if not h:
+        return f"{kid}: never assessed"
+    lines = [f"# {kid}: {len(h)} assessments, now {h[-1].state.value} since {h[-1].since}"]
+    prev = None
+    for r in h:
+        if prev is None or r.state != prev.state:
+            lines.append(f"- {r.as_of}: {r.state.value} - {'; '.join(r.reasons)}")
+            moved = explain_change(prev, r)
+            if moved and prev is not None:
+                lines.append(f"    evidence: {'; '.join(moved)}")
+        prev = r
+    return "\n".join(lines)
+
+
+def book_trust_index(records: Sequence[HealthRecord]) -> float:
+    """Mean trust weight over the assessed items (1 = everything fully trusted, 0 = nothing trusted). NaN for an empty book."""
+    return float(np.mean([r.trust_weight for r in records])) if records else float("nan")
+
+
+def severity_histogram(records: Sequence[HealthRecord]) -> dict:
+    """Count of items at each severity rank (0 healthy ... 6 broken) - a quick read of how bad the book looks."""
+    out: dict[int, int] = {}
+    for r in records:
+        out[SEVERITY[r.state]] = out.get(SEVERITY[r.state], 0) + 1
+    return dict(sorted(out.items()))
+
+
+def influence_allowed(state: Health) -> bool:
+    """May an item in this health state carry any live weight at all? (Trust weight above zero.)"""
+    return TRUST_WEIGHT[state] > 0.0
+
+
+def silent_ids(records: Sequence[HealthRecord]) -> list[str]:
+    """Ids that must carry zero weight right now."""
+    return sorted(r.knowledge_id for r in records if not influence_allowed(r.state))
+
+
+def worst_state(records: Sequence[HealthRecord]) -> Health | None:
+    """The most severe state present in the book (None when empty) - the headline number of the dashboard."""
+    if not records:
+        return None
+    return max((r.state for r in records), key=lambda s: SEVERITY[s])
+
+
+def is_failing(state: Health) -> bool:
+    return state in LOSING
+
+
+def failing_share(records: Sequence[HealthRecord]) -> float:
+    """Share of assessed items in a failing state (BROKEN / CONTRADICTED / UNSTABLE / DEGRADING); NaN for an empty book."""
+    return sum(is_failing(r.state) for r in records) / len(records) if records else float("nan")

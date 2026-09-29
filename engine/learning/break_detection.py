@@ -458,7 +458,7 @@ def build_design(item: ItemSeries, as_of=None, cfg=None, episodes: Sequence[Epis
     tr = P["trail"]
     add("abs_value", v.abs().fillna(0.0), "outcome_magnitude", False)
     add("loss_size", (-v.clip(upper=0.0)).fillna(0.0), "outcome_magnitude", False)
-    add("abs_value_trail", v.abs().shift(1).rolling(tr, min_periods=3).mean().fillna(0.0), "outcome_magnitude", True)
+    add("abs_value_trail", v.abs().shift(1).rolling(tr, min_periods=3).mean().fillna(0.0), "outcome_magnitude", False)
     sign = np.sign(v.fillna(0.0).values)
     add("run_len", _full_run_lengths(sign), "outcome_duration", False)
     add("streak_trail", pd.Series(_run_lengths(sign), index=idx).shift(1).fillna(0.0) * pd.Series(sign, index=idx).shift(1).fillna(0.0),
@@ -966,7 +966,8 @@ def explain_break(item: ItemSeries, as_of=None, cfg=None, seed: int = 0) -> Brea
     if not good:
         return _empty(item, as_of, "UNKNOWN",
                       f"{len(cands)} candidate condition(s) survived discovery but none held out of sample "
-                      f"({'; '.join(t.why for t in tests)}); cause unknown", summary, len(pops.success), len(pops.failed),
+                      f"({'; '.join(t.why for t in tests)}); cause unknown (smallest standardised difference detectable here: "
+                      f"{power:.2f})", summary, len(pops.success), len(pops.failed),
                       len(conf_rows), n_tested, eps, symptoms, len(cands), power, comps)
     cond, test = max(good, key=lambda z: z[1].gain)
     dim = cond.dimensions[0] if cond.dimensions else "feature_distribution"
@@ -1513,3 +1514,198 @@ class BreakEngine:
         for s in latest.values():
             counts[s] = counts.get(s, 0) + 1
         return counts
+
+
+# ------------------------------------------------------------------------------------------------- stability, comparison, coverage
+
+def explanation_stability(item: ItemSeries, as_ofs: Sequence[Any], cfg=None, seed: int = 0) -> dict:
+    """Explain the same item at several dates and see whether the story holds still. Reports the status at each date, how often
+    the top condition column is the same, and how often the verdict is UNKNOWN. A cause that changes every time new data
+    arrives was probably never a cause."""
+    rows = []
+    for i, a in enumerate(as_ofs):
+        try:
+            ex = explain_break(item, a, cfg, seed + i)
+        except FirewallBreach as err:
+            rows.append({"as_of": str(a), "status": "LEAK_REFUSED", "column": None, "why": str(err)})
+            continue
+        col = None
+        if ex.condition is not None:
+            col = ex.condition.terms[0].column if ex.condition.terms else "state:" + ",".join(getattr(ex.condition, "columns", ()))
+        rows.append({"as_of": str(a), "status": ex.status, "column": col, "why": ex.statement[:120]})
+    cols = [r["column"] for r in rows if r["column"]]
+    top = max(set(cols), key=cols.count) if cols else None
+    return {"rows": rows, "n": len(rows), "top_column": top, "top_share": (cols.count(top) / len(cols)) if cols else float("nan"),
+            "explained": sum(r["status"] == "EXPLAINED" for r in rows), "unknown": sum(r["status"] == "UNKNOWN" for r in rows),
+            "stable": bool(cols and cols.count(top) == len(cols))}
+
+
+def compare_explanations(a: BreakExplanation, b: BreakExplanation) -> dict:
+    """Side-by-side of two verdicts (different dates, seeds or items): did status, cause, condition column and direction agree?"""
+    def key(e):
+        if e.condition is None:
+            return None
+        return tuple((t.column, t.op) for t in e.condition.terms) or ("state",)
+    return {"same_status": a.status == b.status, "same_cause": a.cause == b.cause, "same_condition": key(a) == key(b),
+            "gain_a": None if a.oos is None else a.oos.gain, "gain_b": None if b.oos is None else b.oos.gain,
+            "n_failed": (a.n_failed, b.n_failed)}
+
+
+def coverage_report(item: ItemSeries, cfg=None) -> dict:
+    """Which of the 18 dimensions the item can be tested on, from which columns, and which are unmeasured. Unmeasured dimensions
+    are a data-collection to-do list: an UNKNOWN break cause on an item with six unmeasured dimensions says less than one on
+    an item with none."""
+    design = build_design(item, None, cfg, [])
+    by_dim = {d: [c for c in design.X.columns if design.tags[c].dimension == d] for d in DIMENSIONS}
+    causal = {d: [c for c in cols if design.tags[c].causal] for d, cols in by_dim.items()}
+    missing = [d for d in DIMENSIONS if not by_dim[d]]
+    only_symptoms = [d for d in DIMENSIONS if by_dim[d] and not causal[d]]
+    return {"columns": {d: len(v) for d, v in by_dim.items()}, "unmeasured": missing, "symptom_only": only_symptoms,
+            "n_causal_columns": sum(len(v) for v in causal.values()), "measured_share": 1.0 - len(missing) / len(DIMENSIONS)}
+
+
+def categorical_report(item: ItemSeries, as_of=None, cfg=None) -> list[dict]:
+    """Chi-square association of every raw categorical context column (sector, stock type, exchange...) with the working /
+    failed populations of the discovery window. Reported per column with Cramer's V; family-wise Holm across the columns."""
+    P = _cfg(cfg)
+    eps, states = find_episodes(item, as_of, P)
+    m = item.n_matured(as_of)
+    pops = split_populations(item, eps, states, as_of, P, rows=np.arange(int(P["disc_frac"] * m)))
+    out = []
+    for c in item.columns:
+        if c.kind != "categorical" or len(pops.success) < 5 or len(pops.failed) < 5:
+            continue
+        lab = item.frame[c.name].astype(str).values[:m]
+        r = categorical_association(lab, pops)
+        out.append({"column": c.name, "dimension": c.dimension, **r})
+    if out:
+        adj = PR.holm([r["p"] for r in out])
+        for r, a in zip(out, adj):
+            r["p_holm"] = float(a)
+    return out
+
+
+def dossier_text(ex: BreakExplanation, dossier: Mapping[str, Any]) -> str:
+    """The out-of-sample harness result as plain language."""
+    if not dossier:
+        return f"{ex.item_id}: no condition to test ({ex.status})"
+    lines = [f"{ex.item_id}: {ex.condition.describe()}", f"robust: {dossier['robust']}"]
+    for w in dossier["walk_forward"]:
+        lines.append(f"- walk-forward gate on {w['column']}: gain {w['gain']:+.3%} per period (90% CI {w['gain_lo']:+.3%} to "
+                     f"{w['gain_hi']:+.3%}), {w['n_refits']} refits, cut instability {w['cut_instability']:.2f}")
+    if dossier["stability"]:
+        lines.append(f"- threshold nudges that still pass: {sum(s['passes'] for s in dossier['stability'])}/{len(dossier['stability'])}")
+    for c, v in dossier["timing"].items():
+        lines.append(f"- {c} relative to the break onsets: {v}")
+    return "\n".join(lines)
+
+
+# ------------------------------------------------------------------------------------------------- neighbours and interactions
+
+def neighbour_lead_lag(item: ItemSeries, as_of=None, max_lag: int = 4) -> pd.DataFrame:
+    """Rank correlation between the item's outcome at row t and each neighbour's outcome at row t - lag, lags 0..max_lag, over the
+    matured rows. A neighbour that LEADS the item (large correlation at lag >= 1) is usable information at decision time;
+    one that only correlates at lag 0 shares the item's shocks and explains nothing in advance. The lag-0 column is
+    descriptive (contemporaneous) and is labelled so."""
+    vis = item.visible(as_of)
+    if vis.neighbours is None or vis.neighbours.shape[1] == 0:
+        return pd.DataFrame(columns=["neighbour", "lag", "rho", "n", "usable_in_advance"])
+    m = vis.n_matured(None)
+    y = vis.frame["value"].values[:m].astype(float)
+    rows = []
+    for c in vis.neighbours.columns:
+        z = vis.neighbours[c].values[:m].astype(float)
+        for lag in range(0, max_lag + 1):
+            a, b = (y[lag:], z[: m - lag]) if lag else (y, z)
+            ok = np.isfinite(a) & np.isfinite(b)
+            rows.append({"neighbour": c, "lag": lag, "rho": _spearman(a[ok], b[ok]) if ok.sum() >= 20 else float("nan"),
+                         "n": int(ok.sum()), "usable_in_advance": lag >= 1})
+    return pd.DataFrame(rows)
+
+
+def interaction_scan(design: Design, values: np.ndarray, rows: np.ndarray, columns: Sequence[str] | None = None,
+                     max_cols: int = 8) -> pd.DataFrame:
+    """Does the outcome depend on two causal columns TOGETHER? For every pair, an incremental F test of value ~ a + b + a*b
+    against value ~ a + b on the given rows (z-scored inputs), Holm-adjusted across all pairs searched. A significant product
+    term with weak main effects is the signature of an interaction failure (the item breaks only when both conditions
+    hold), which a per-column contrast cannot see."""
+    cols = list(columns) if columns is not None else [c for c in design.columns(causal=True) if "*" not in c and "__" not in c]
+    cols = cols[:max_cols]
+    rows = np.asarray(rows, int)
+    y = values[rows].astype(float)
+    ok = np.isfinite(y)
+    out = []
+    for i, a in enumerate(cols):
+        for b in cols[i + 1:]:
+            xa = design.X[a].values[rows].astype(float)
+            xb = design.X[b].values[rows].astype(float)
+            good = ok & np.isfinite(xa) & np.isfinite(xb)
+            if good.sum() < 40 or xa[good].std() < 1e-12 or xb[good].std() < 1e-12:
+                continue
+            za = (xa[good] - xa[good].mean()) / xa[good].std()
+            zb = (xb[good] - xb[good].mean()) / xb[good].std()
+            yy = y[good]
+            A0 = np.column_stack([np.ones(len(yy)), za, zb])
+            A1 = np.column_stack([A0, za * zb])
+            c0, *_ = np.linalg.lstsq(A0, yy, rcond=None)
+            c1, *_ = np.linalg.lstsq(A1, yy, rcond=None)
+            r0, r1 = float(((yy - A0 @ c0) ** 2).sum()), float(((yy - A1 @ c1) ** 2).sum())
+            dof = len(yy) - 4
+            F = (r0 - r1) / (r1 / dof) if r1 > 1e-18 and dof > 0 else 0.0
+            out.append({"a": a, "b": b, "F": float(F), "p": float(sps.f.sf(F, 1, max(dof, 1))), "beta_product": float(c1[3]),
+                        "beta_a": float(c1[1]), "beta_b": float(c1[2]), "n": int(good.sum())})
+    df = pd.DataFrame(out, columns=["a", "b", "F", "p", "beta_product", "beta_a", "beta_b", "n"])
+    if len(df):
+        df["p_holm"] = PR.holm(df["p"].values)
+        df["pure_interaction"] = (df["p_holm"] < 0.05) & (df["beta_product"].abs() > df[["beta_a", "beta_b"]].abs().max(axis=1))
+    return df.sort_values("p").reset_index(drop=True)
+
+
+def contrast_frame(item: ItemSeries, as_of=None, cfg=None, seed: int = 0) -> pd.DataFrame:
+    """The full per-column comparison of working vs failed rows in the discovery window with family-wise p-values, as one table
+    (what `explain_break` computes internally, exposed for review and for the validation wave). Empty when there is not enough
+    evidence to form both populations."""
+    P = _cfg(cfg)
+    eps, states = find_episodes(item, as_of, P)
+    m = item.n_matured(as_of)
+    design = build_design(item, as_of, P, eps)
+    pops = split_populations(item, eps, states, as_of, P, rows=np.arange(int(P["disc_frac"] * m)))
+    if pops.enough(P):
+        return pd.DataFrame()
+    parts = []
+    for causal in (True, False):
+        cols = design.columns(causal=causal)
+        if cols:
+            tab = contrast_table(design.X, pops, design.tags, cols)
+            _, p = family_wise_p(design.X, pops, cols, P["n_perm"], seed + (0 if causal else 1))
+            tab["p_family"] = p
+            parts.append(tab)
+    return pd.concat(parts, ignore_index=True).sort_values("p_family").reset_index(drop=True)
+
+
+def min_detectable_gain(n_in: int, n_out: int, sd: float, alpha: float = 0.05, power: float = 0.8) -> float:
+    """Smallest difference in mean outcome (holds minus not) the out-of-sample test could have confirmed: (z_{1-alpha} + z_power) *
+    sd * sqrt(1/n_in + 1/n_out), one-sided. Read next to `ConditionTest`: a condition that failed OOS on a confirmation window
+    too small to see any plausible effect is 'untested', not 'refuted'."""
+    if n_in < 2 or n_out < 2 or sd <= 0:
+        return float("inf")
+    return float((sps.norm.isf(alpha) + sps.norm.ppf(power)) * sd * math.sqrt(1.0 / n_in + 1.0 / n_out))
+
+
+def population_table(item: ItemSeries, pops: Populations) -> pd.DataFrame:
+    """Plain description of the two populations: rows, mean / sd / hit rate of the outcome, first and last row, and the longest
+    unbroken stretch. What a reviewer reads before looking at any column-level result."""
+    v = item.frame["value"].values.astype(float)
+    rows = []
+    for name, idx in (("working", pops.success), ("failed", pops.failed)):
+        x = v[idx] if len(idx) else np.zeros(0)
+        run = best = 0
+        for a, b in zip(idx[:-1], idx[1:]):
+            run = run + 1 if b == a + 1 else 0
+            best = max(best, run)
+        rows.append({"population": name, "rows": int(len(idx)), "mean": float(np.nanmean(x)) if len(x) else float("nan"),
+                     "sd": float(np.nanstd(x, ddof=1)) if len(x) > 1 else float("nan"),
+                     "hit": float(np.nanmean(x > 0)) if len(x) else float("nan"),
+                     "first_row": int(idx.min()) if len(idx) else None, "last_row": int(idx.max()) if len(idx) else None,
+                     "longest_stretch": int(best + 1) if len(idx) else 0})
+    return pd.DataFrame(rows)

@@ -46,7 +46,7 @@ Governing documents: `canon/CANON.md` (owner directives, verbatim) > `BIBLE.md` 
 | `isolation` | 521 | 2 | Live/research separation and live safety audits (Bible PHASE 28; checklist L2-L5). |
 | `leak_audit` | 1658 | 3 | Future-leak audit of the blind Test path (Bible PHASES 1, 2, 21, 26; canon C56 "only information available live at that moment" and C55 "the rerun of a year must be disguised"). |
 | `learners` | 1013 | 1 | Generalising learners (Bible Phases 11, 21-23, 45; canon C54, C55, C56). |
-| `learning_delta` | 1742 | 4 | Learning-delta harness (Bible Phases 11, 21-23, 45; canon C54 and C55). |
+| `learning_delta` | 1742 | 5 | Learning-delta harness (Bible Phases 11, 21-23, 45; canon C54 and C55). |
 | `lessons` | 801 | 4 | Bible Phase 10 - lesson memory / learning from mistakes. |
 | `live` | 251 | 2 | Live jobs (Blueprint Part F). Entry: python -m engine.live <job> |
 | `livesim` | 597 | 4 | Blind live-clock simulation of a random hidden year (canon C11). |
@@ -1049,7 +1049,7 @@ Learning-delta harness (Bible Phases 11, 21-23, 45; canon C54 and C55).
 - `def curve_selfcheck(seed, K, log_fn)` - The curve harness is VALID only if: (c) the planted-pattern learner rises, (a) the reset control is flat, (b) the identity-recall learner is flat under disguise
 - `def render_curve_report(summary)` - Markdown for the repeated-run curves: the plain answer first, then per-window curves and controls.
 
-Tests: `tests/test_learners.py`, `tests/test_learning_curve.py`, `tests/test_learning_delta.py`, `tests/test_learning_situation.py`
+Tests: `tests/test_learners.py`, `tests/test_learning_curve.py`, `tests/test_learning_delta.py`, `tests/test_learning_same_year.py`, `tests/test_learning_situation.py`
 
 ## engine.lessons
 

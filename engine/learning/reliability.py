@@ -1007,3 +1007,215 @@ def import_tracker(data: Mapping[str, Any], cfg=None) -> ReliabilityTracker:
             tr._frames[k] = fr
         tr._history[k] = [state_from_dict(h) for h in blob.get("history", [])]
     return tr
+
+
+# ------------------------------------------------------------------------------------------------- choosing memory, uncertainty, the book
+
+def select_half_life(values: Sequence[float], grid: Sequence[float] = (6.0, 13.0, 26.0, 52.0, 104.0), start: int = 60) -> dict:
+    """Which memory length predicts this item best? For each candidate half-life, forecast the next outcome by the discounted
+    mean of the outcomes before it and score the one-step squared error out of sample from `start` on. Returns the per-half-life
+    error and the winner; a flat error profile (best within 1% of the worst) says the item's memory is not identifiable and the
+    default should stay. It is a diagnostic of the fast-memory parameter, not a tuner that changes it."""
+    x = np.asarray(values, float)
+    n = len(x)
+    if n < start + 20:
+        return {"errors": {}, "best": None, "identifiable": False, "n": max(n - start, 0)}
+    errs = {}
+    for h in grid:
+        lam = 0.5 ** (1.0 / h)
+        num = den = 0.0
+        se = []
+        for t in range(n):
+            if t >= start and np.isfinite(x[t]) and den > 0:
+                se.append((x[t] - num / den) ** 2)
+            if np.isfinite(x[t]):
+                num, den = lam * num + x[t], lam * den + 1.0
+            else:
+                num, den = lam * num, lam * den
+        errs[float(h)] = float(np.mean(se)) if se else float("nan")
+    best = min(errs, key=lambda k: errs[k] if np.isfinite(errs[k]) else np.inf)
+    spread = (max(errs.values()) - min(errs.values())) / max(max(errs.values()), 1e-18)
+    return {"errors": errs, "best": best, "identifiable": bool(spread > 0.01), "spread": float(spread), "n": n - start}
+
+
+def bootstrap_state(frame: pd.DataFrame, now, n_boot: int = 100, block: int = 8, seed: int = 0, cfg=None) -> dict:
+    """Uncertainty of the five dimensions: recompute the state on block-bootstrapped evidence and report the 5th-95th percentile of
+    each. A dimension whose interval spans most of [0, 1] is barely measured, whatever its point value says. Rows dated at
+    or after `now` are excluded before resampling."""
+    P = _cfg(cfg)
+    fr = frame.loc[[i for i in frame.index if as_date(i) < as_date(now)]]
+    n = len(fr)
+    base = compute_state("boot", fr, now, None, None, None, None, P)
+    if n < 2 * block:
+        return {"point": base, "intervals": {}, "n": n}
+    rng = np.random.default_rng(seed)
+    draws = {d: [] for d in DIMS}
+    for _ in range(n_boot):
+        starts = rng.integers(0, n - block + 1, size=math.ceil(n / block))
+        idx = np.concatenate([np.arange(s, s + block) for s in starts])[:n]
+        boot = fr.iloc[np.sort(idx)].copy()
+        boot.index = fr.index[:n]
+        st = compute_state("boot", boot, now, None, None, None, None, P)
+        for d in DIMS:
+            v = getattr(st, d)
+            if v is not None:
+                draws[d].append(v)
+    iv = {d: (float(np.quantile(v, 0.05)), float(np.quantile(v, 0.95))) for d, v in draws.items() if len(v) >= max(10, n_boot // 5)}
+    return {"point": base, "intervals": iv, "n": n,
+            "barely_measured": sorted(d for d, (lo, hi) in iv.items() if hi - lo > 0.6)}
+
+
+def rank_items(states: Sequence[ReliabilityState], cfg=None, in_context: bool = True) -> pd.DataFrame:
+    """Items ordered by the decision weight their state implies, with the action and reasons. Ties break by id so the order is
+    deterministic. The table a portfolio layer would read."""
+    rows = []
+    for s in states:
+        d = decide(s, cfg, in_context)
+        rows.append({"knowledge_id": s.knowledge_id, "action": d.action, "weight": d.weight, "scope": d.scope,
+                     "truth": s.truth, "current": s.current_reliability, "risk": s.failure_risk, "reasons": "; ".join(d.reasons)})
+    df = pd.DataFrame(rows, columns=["knowledge_id", "action", "weight", "scope", "truth", "current", "risk", "reasons"])
+    return df.sort_values(["weight", "knowledge_id"], ascending=[False, True]).reset_index(drop=True)
+
+
+def book_summary(states: Sequence[ReliabilityState], cfg=None) -> dict:
+    """Whole-book view: counts by action, how many items have each dimension untested, mean of each measured dimension, and
+    whether any pair of dimensions has collapsed into one number."""
+    acts: dict[str, int] = {}
+    for s in states:
+        a = decide(s, cfg).action
+        acts[a] = acts.get(a, 0) + 1
+    df = dimension_table(states)
+    return {"n": len(states), "actions": acts,
+            "untested": {d: int(df[d].isna().sum()) for d in DIMS} if len(df) else {},
+            "means": {d: (float(df[d].mean()) if df[d].notna().any() else None) for d in DIMS} if len(df) else {},
+            "collapsed": collapse_check(states, cfg)}
+
+
+def decision_sensitivity(state: ReliabilityState, cfg=None, delta: float = 0.1) -> list[dict]:
+    """How fragile is this item's decision? Nudge each measured dimension by +/- delta (clipped) and report which nudges change
+    the action. An item that flips on a 0.1 nudge sits on a boundary and its weight should be read as uncertain."""
+    base = decide(state, cfg)
+    out = []
+    for d in DIMS:
+        v = getattr(state, d)
+        if v is None:
+            continue
+        for sign in (-1, 1):
+            moved = dataclasses.replace(state, **{d: float(min(max(v + sign * delta, 0.0), 1.0))})
+            dec = decide(moved, cfg)
+            if dec.action != base.action:
+                out.append({"dimension": d, "shift": sign * delta, "from": base.action, "to": dec.action})
+    return out
+
+
+# ------------------------------------------------------------------------------------------------- linking to the break engine
+
+def contexts_from_condition(condition: Any) -> tuple[dict, dict]:
+    """Turn a validated break-engine condition (terms of column / op / cut, the item works when ALL hold) into the two mappings the
+    reliability state understands: `contexts` (works when column is in (lo, hi)) and `anti_contexts` (a single-term condition
+    yields its complement; a conjunction has no single complement, so none is claimed). A condition without terms (a fitted
+    state) yields nothing rather than a guess."""
+    terms = getattr(condition, "terms", ())
+    if not terms:
+        return {}, {}
+    ctx: dict[str, tuple] = {}
+    for t in terms:
+        lo, hi = ctx.get(t.column, (None, None))
+        ctx[t.column] = (max(lo, t.cut) if (t.op == ">=" and lo is not None) else (t.cut if t.op == ">=" else lo),
+                         min(hi, t.cut) if (t.op == "<=" and hi is not None) else (t.cut if t.op == "<=" else hi))
+    anti: dict[str, tuple] = {}
+    if len(terms) == 1:
+        t = terms[0]
+        anti[t.column] = (None, t.cut) if t.op == ">=" else (t.cut, None)
+    return ctx, anti
+
+
+def evidence_summary(frame: pd.DataFrame, now) -> dict:
+    """What evidence a state rests on: outcome count, span in days, per-domain counts, share missing, newest outcome date."""
+    fr = frame.loc[[i for i in frame.index if as_date(i) < as_date(now)]]
+    if not len(fr):
+        return {"n": 0, "span_days": 0, "domains": {}, "missing_share": float("nan"), "newest": None}
+    v = fr["value"].astype(float)
+    dom = fr["domain"].astype(str) if "domain" in fr.columns else pd.Series([str(as_date(i).year) for i in fr.index], index=fr.index)
+    return {"n": int(v.notna().sum()), "span_days": (as_date(fr.index[-1]) - as_date(fr.index[0])).days,
+            "domains": {k: int(c) for k, c in dom[v.notna()].value_counts().sort_index().items()},
+            "missing_share": float(v.isna().mean()), "newest": str(as_date(fr.index[-1]))}
+
+
+def dimension_history(states: Sequence[ReliabilityState]) -> pd.DataFrame:
+    """A tracker's history for one item as a table with the change in each dimension from the previous state - how reliability
+    moved as evidence arrived."""
+    rows = []
+    prev = None
+    for s in states:
+        row = {"as_of": s.as_of, "n_obs": s.n_obs}
+        for d in DIMS:
+            v = getattr(s, d)
+            row[d] = np.nan if v is None else v
+            p = None if prev is None else getattr(prev, d)
+            row[f"d_{d}"] = np.nan if (v is None or p is None) else v - p
+        rows.append(row)
+        prev = s
+    return pd.DataFrame(rows)
+
+
+def regime_conditional_truth(values: Sequence[float], labels: Sequence[Any], cfg=None) -> pd.DataFrame:
+    """truth_confidence computed separately inside each regime / sector / year label. Where the item's truth is high in one
+    label and near 0.5 or lower in another, one global truth number was hiding a conditional item. Labels with too little
+    evidence show NaN (untested), never a default."""
+    P = _cfg(cfg)
+    x = np.asarray(values, float)
+    lab = np.asarray(labels, dtype=object).astype(str)
+    rows = []
+    for g in sorted(set(lab)):
+        v = x[lab == g]
+        p, det = truth_confidence(v, {**P, "min_n": min(P["min_n"], 8)})
+        rows.append({"label": g, "n": int(np.isfinite(v).sum()), "truth": np.nan if p is None else p,
+                     "effect": det.get("effect", np.nan)})
+    return pd.DataFrame(rows, columns=["label", "n", "truth", "effect"])
+
+
+def worst_label(table: pd.DataFrame) -> dict | None:
+    """The label with the lowest measured truth, or None when no label was measurable."""
+    t = table.dropna(subset=["truth"])
+    if not len(t):
+        return None
+    r = t.sort_values("truth").iloc[0]
+    return {"label": r["label"], "truth": float(r["truth"]), "n": int(r["n"])}
+
+
+def normalised_weights(base: Mapping[str, float], states: Mapping[str, ReliabilityState], cfg=None, keep_total: bool = True) -> dict[str, float]:
+    """Decision-scaled weights, optionally rescaled so the total equals the original total (capital freed from STANDBY items is
+    redistributed pro rata). If every item is zero-weighted nothing is redistributed: an empty result is the honest answer."""
+    scaled = apply_decision_to_weights(base, states, cfg)
+    tot_new, tot_old = sum(scaled.values()), sum(base.values())
+    if keep_total and tot_new > 1e-12:
+        return {k: v * tot_old / tot_new for k, v in scaled.items()}
+    return scaled
+
+
+def untested_report(states: Sequence[ReliabilityState]) -> list[dict]:
+    """Per item, which dimensions are UNTESTED and how many more outcomes a rough rule says are needed (min_n effective
+    observations for truth / current, `min_domains` domains for transfer). A to-do list, not a verdict."""
+    out = []
+    for s in states:
+        need = {}
+        if s.truth is None:
+            need["truth"] = f"needs about {max(PARAMS['min_n'] - int(s.n_eff_truth), 1)} more effective outcomes"
+        if s.transfer is None:
+            need["transfer"] = f"needs {max(PARAMS['min_domains'] - s.n_domains, 1)} more domain(s) with {PARAMS['min_domain_n']}+ outcomes"
+        if s.context is None:
+            need["context"] = "needs context columns for today and at least knn historical outcomes"
+        if need:
+            out.append({"knowledge_id": s.knowledge_id, "untested": s.untested(), "need": need})
+    return out
+
+
+def is_untested(state: ReliabilityState) -> bool:
+    """True when any of truth / current reliability is missing - the two without which no decision can be made."""
+    return state.truth is None or state.current_reliability is None
+
+
+def tested_share(states: Sequence[ReliabilityState]) -> float:
+    """Share of items whose truth AND current reliability are both measured; NaN for an empty book."""
+    return sum(not is_untested(s) for s in states) / len(states) if states else float("nan")

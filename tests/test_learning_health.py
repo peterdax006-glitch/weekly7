@@ -228,3 +228,159 @@ def test_false_alarm_expectation_and_epistemic_mapping():
     assert hm.false_alarm_expectation([], 52) == 0.0
     rec = [r for r in recs if r.knowledge_id == "contra"][0]
     assert rec.epistemic.value == "CONTRADICTED"
+
+
+def _tracked_book():
+    good = series([(300, 0.012)], seed=21, sigma=0.008)
+    bad = series([(140, 0.007), (80, -0.011), (80, 0.007)], seed=22)
+    mon = hm.HealthMonitor()
+    ins = [hm.HealthInput("good", good), hm.HealthInput("flip", bad)]
+    for cut in range(100, 300, 10):
+        mon.step(ins, good.index[cut])
+    return mon.book, good.index
+
+
+def test_trajectory_time_in_state_and_flap_rate():
+    book, idx = _tracked_book()
+    tj = hm.trust_trajectory(book, "flip")
+    assert len(tj) == 20 and set(tj["state"]) & {"BROKEN", "RECOVERING", "DEGRADING", "UNSTABLE"}
+    tis = hm.time_in_state(book, "good")
+    assert tis["n"] == 20 and sum(tis["counts"].values()) == 20 and 1 <= tis["current_run"] <= 20
+    assert 0.0 < hm.flap_rate(book, "flip") <= 1.0 and 0.0 <= hm.flap_rate(book, "good") <= 1.0
+    assert hm.flap_rate(book, "nobody") == 0.0 and hm.time_in_state(book, "nobody")["n"] == 0
+
+
+def test_debounce_delays_recovery_but_never_a_warning():
+    book, _ = _tracked_book()
+    hist = [r.state for r in book.history("flip")]
+    off = hm.debounced_state(book, "flip", min_hold=3)
+    assert off is not None and hm.debounced_state(book, "nobody") is None
+    fast = hm.SEVERITY[hist[-1]]
+    if any(hm.SEVERITY[s] > hm.SEVERITY[hist[0]] for s in hist):
+        first_bad = next(i for i, s in enumerate(hist) if hm.SEVERITY[s] > hm.SEVERITY[hist[0]])
+        assert hm.SEVERITY[hm.debounced_state(book, "flip", 3, as_of=book.history("flip")[first_bad].as_of)] > hm.SEVERITY[hist[0]]
+    assert set(hm.official_snapshot(book)) == {"good", "flip"} and fast >= 0
+
+
+def test_research_queue_orders_unattended_severe_items_first():
+    ins, idx = _book_world()
+    mon = hm.HealthMonitor()
+    research = [hm.ResearchAssignment("R1", "look at the broken one", ("broken",))]
+    mon.step(ins, idx[219], research)
+    dash = hm.build_dashboard(mon.book, idx[219], research)
+    q = hm.research_queue(dash)
+    assert [r["rank"] for r in q] == list(range(1, len(q) + 1))
+    assert q[0]["severity"] >= q[-1]["severity"] and any(not r["attended"] for r in q)
+    unattended_first = [r for r in q if r["severity"] == q[0]["severity"]]
+    assert unattended_first == sorted(unattended_first, key=lambda r: r["attended"])
+
+
+def test_dashboard_diff_and_summary_line():
+    ins, idx = _book_world()
+    mon = hm.HealthMonitor()
+    mon.step(ins, idx[150])
+    d1 = hm.build_dashboard(mon.book, idx[150])
+    mon.step(ins, idx[219])
+    d2 = hm.build_dashboard(mon.book, idx[219])
+    diff = hm.diff_dashboards(d1, d2)
+    assert any(x["knowledge_id"] == "broken" for x in diff["worse"]) and diff["gone"] == [] and diff["unchanged"] >= 1
+    line = hm.summary_line(d2)
+    assert "5 items" in line and "broken" in line and "no research" in line
+
+
+def test_detection_scoring_against_planted_intervals():
+    book, idx = _tracked_book()
+    truth = {"flip": [(idx[140], idx[219])], "good": []}
+    sc = hm.evaluate_detection(book, truth, grace=5)
+    assert sc["intervals"] == 1 and sc["detected"] == 1 and sc["mean_delay"] >= 0
+    assert 0.0 <= sc["false_alarm_rate"] <= 0.4 and sc["clean_assessments"] > 0
+    none = hm.evaluate_detection(book, {})
+    assert none["intervals"] == 0 and np.isnan(none["recall"])
+
+
+def test_epistemic_proposals_only_for_items_that_changed():
+    from engine.learning.core import Epistemic
+    ins, idx = _book_world()
+    recs = hm.assess(ins, idx[219])
+    cur = {r.knowledge_id: Epistemic.SUPPORTED for r in recs}
+    props = hm.epistemic_proposals(recs, cur)
+    ids = {p["knowledge_id"] for p in props}
+    assert "healthy" not in ids and {"broken", "contra", "parked"} <= ids
+    assert hm.epistemic_proposals(recs, {}) == []
+
+
+def test_inputs_from_knowledge_objects_and_ledger_state():
+    from types import SimpleNamespace
+    from engine.learning.retirement import RetirementLedger, State
+    s = series([(220, 0.008)], seed=31, sigma=0.008)
+    now = after(s)
+    led = RetirementLedger()
+    led.register("a", s.index[0])
+    led.register("b", s.index[0])
+    led.transition("b", State.DORMANT, s.index[100], "DORMANT", "test park")
+    items = [SimpleNamespace(knowledge_id="a"), SimpleNamespace(knowledge_id="b"), SimpleNamespace(knowledge_id="c")]
+    ins = hm.inputs_from_knowledge(items, {"a": s, "b": s}, now, led, {"a": (hm.ContradictionRef("x", 0.9),)})
+    assert [i.knowledge_id for i in ins] == ["a", "b", "c"]
+    assert ins[1].retirement_state == "DORMANT" and ins[0].retirement_state == "ACTIVE" and ins[2].retirement_state is None
+    recs = {r.knowledge_id: r for r in hm.assess(ins, now)}
+    assert recs["a"].state == Health.CONTRADICTED and recs["b"].state == Health.DORMANT and recs["c"].state == Health.UNKNOWN
+
+
+def test_export_import_roundtrip_detects_tampering():
+    book, idx = _tracked_book()
+    data = json.loads(json.dumps(hm.export_book(book)))
+    back = hm.import_book(data)
+    assert len(back) == len(book) and back.verify() == [] and back.counts() == book.counts()
+    forged = json.loads(json.dumps(data))
+    forged["records"][3]["state"] = "HEALTHY" if forged["records"][3]["state"] != "HEALTHY" else "BROKEN"
+    with pytest.raises(ValueError):
+        hm.import_book(forged)
+    with pytest.raises(ValueError):
+        hm.import_book({"schema": "x"})
+
+
+def test_coverage_gaps_and_stale_assessments():
+    book, idx = _tracked_book()
+    dates = [idx[c] for c in range(100, 300, 10)]
+    assert hm.coverage_gaps(book, dates) == []
+    gaps = hm.coverage_gaps(book, dates + [idx[299] + pd.Timedelta(days=30)])
+    assert len(gaps) == 2 and {g["knowledge_id"] for g in gaps} == {"good", "flip"}
+    assert hm.stale_assessments(book, idx[291]) == []
+    assert set(hm.stale_assessments(book, idx[299] + pd.Timedelta(days=60))) == {"good", "flip"}
+
+
+def test_book_level_summaries_and_history_rendering():
+    book, idx = _tracked_book()
+    dw = hm.dwell_summary(book)
+    assert set(dw.columns) == {"state", "runs", "median_run", "longest_run"} and (dw["runs"] >= 1).all()
+    wo = hm.worst_offenders(book, 2)
+    assert wo[0]["share_failing"] >= wo[1]["share_failing"] and len(wo) == 2
+    txt = hm.render_history(book, "flip")
+    assert txt.startswith("# flip") and "BROKEN" in txt
+    assert "never assessed" in hm.render_history(book, "ghost")
+    assert hm.dwell_summary(hm.HealthBook()).empty and hm.worst_offenders(hm.HealthBook()) == []
+
+
+def test_trust_index_and_severity_histogram():
+    ins, idx = _book_world()
+    recs = hm.assess(ins, idx[219])
+    ti = hm.book_trust_index(recs)
+    assert 0.0 < ti < 1.0 and np.isnan(hm.book_trust_index([]))
+    hist = hm.severity_histogram(recs)
+    assert sum(hist.values()) == 5 and 6 in hist and list(hist) == sorted(hist)
+
+
+def test_influence_predicate_matches_the_silent_list():
+    ins, idx = _book_world()
+    recs = hm.assess(ins, idx[219])
+    silent = set(hm.silent_ids(recs))
+    assert silent == {r.knowledge_id for r in recs if r.state in hm.SILENT} and "healthy" not in silent and "broken" in silent
+    assert hm.influence_allowed(Health.HEALTHY) and not hm.influence_allowed(Health.BROKEN) and hm.influence_allowed(Health.UNSTABLE)
+
+
+def test_worst_state_and_failing_share():
+    ins, idx = _book_world()
+    recs = hm.assess(ins, idx[219])
+    assert hm.worst_state(recs) == Health.BROKEN and hm.worst_state([]) is None
+    assert 0.0 < hm.failing_share(recs) < 1.0 and np.isnan(hm.failing_share([]))
+    assert hm.is_failing(Health.BROKEN) and not hm.is_failing(Health.DORMANT)

@@ -1013,3 +1013,58 @@ def validate_trace(tr: LifecycleTrace, n_expected: int | None = None) -> list[st
         if 0 <= at < n and str(tr.stage[at]) != to:
             errs.append(f"stage at {at} is {tr.stage[at]} but the last change says {to}")
     return errs
+
+
+# ------------------------------------------------------------------------------------------------- vocabulary bridges
+
+HEALTH_BY_STAGE = {Lifecycle.BIRTH: "INSUFFICIENT_EVIDENCE", Lifecycle.GROWTH: "INSUFFICIENT_EVIDENCE", Lifecycle.PEAK: "HEALTHY",
+                   Lifecycle.ACTIVE: "HEALTHY", Lifecycle.DECAY: "DEGRADING", Lifecycle.DEGRADED: "DEGRADING",
+                   Lifecycle.FAILURE: "BROKEN", Lifecycle.DORMANT: "DORMANT", Lifecycle.RECOVERY: "RECOVERING",
+                   Lifecycle.RETIRED: "DORMANT"}
+
+
+def health_name(stage: Lifecycle) -> str:
+    """The section-46 health state a lifecycle stage implies on its own (the health monitor combines this with other sources)."""
+    return HEALTH_BY_STAGE[stage]
+
+
+def first_bad_row(tr: LifecycleTrace) -> int | None:
+    """First row at which the trace left the healthy family (DECAY, FAILURE, DORMANT, RETIRED); None if it never did."""
+    bad = {Lifecycle.DECAY.value, Lifecycle.FAILURE.value, Lifecycle.DORMANT.value, Lifecycle.RETIRED.value}
+    hit = [i for i, s in enumerate(tr.stage) if s in bad]
+    return hit[0] if hit else None
+
+
+LIVE_STAGES = (Lifecycle.ACTIVE, Lifecycle.PEAK, Lifecycle.RECOVERY, Lifecycle.DECAY)
+
+
+def may_influence_live(stage: Lifecycle) -> bool:
+    """Only items that are working, or on probation after a recovery, or merely decaying carry live influence. BIRTH / GROWTH
+    (unproven), FAILURE, DORMANT and RETIRED must not; the ledger enforces this with assert_clean, this is the trace-level rule."""
+    return stage in LIVE_STAGES
+
+
+def stage_share(tr: LifecycleTrace) -> dict:
+    """Share of the trace's rows spent in each stage (sums to 1); empty for an empty trace."""
+    n = len(tr)
+    return {s: c / n for s, c in tr.time_in().items()} if n else {}
+
+
+def influence_mask(tr: LifecycleTrace) -> np.ndarray:
+    """Boolean per row: may the item influence decisions at that row?"""
+    return np.array([may_influence_live(Lifecycle(s)) for s in tr.stage], dtype=bool)
+
+
+def n_phases(tr: LifecycleTrace) -> int:
+    """Number of distinct consecutive phases in the trace (a life with many phases has flapped or recovered repeatedly)."""
+    return len(tr.phases())
+
+
+def is_flapping(tr: LifecycleTrace, max_changes: int = 8) -> bool:
+    """True when the trace changed stage more than `max_changes` times - thresholds that make an item chatter are a design
+    fault to be reported, not a life history."""
+    return len(tr.changes) > max_changes
+
+
+def last_change(tr: LifecycleTrace) -> StageChange | None:
+    return tr.changes[-1] if tr.changes else None

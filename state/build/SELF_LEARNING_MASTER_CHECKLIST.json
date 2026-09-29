@@ -1423,10 +1423,16 @@
    "owner": "Claude",
    "status": "IMPLEMENTED",
    "code_paths": [
+    "engine/learning/break_detection.py",
+    "engine/learning/health.py",
+    "engine/learning/lifecycle.py",
+    "engine/learning/reliability.py",
     "engine/pattern_reliability.py",
     "engine/pattern_reliability.py::explain_breaks,driver_table,onset_shifts,confirm_driver,investigate"
    ],
    "tests": [
+    "tests/test_learning_break.py",
+    "tests/test_learning_health.py",
     "tests/test_pattern_reliability.py"
    ],
    "evidence": [
@@ -1435,9 +1441,9 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": "2026-09-29T09:41:23",
+   "last_run": "2026-09-29T10:26:53",
    "code_hash": "6c44a0173dc73530",
-   "notes": "IMPLEMENTED — FAILED VALIDATION on real data (B27 study 5914232: reliability AUC 0.4975, gating gains CIs span 0, all 25 real breaks unknown cause). Code exists; engine/learning wrappers pending (S15). | earlier: [partial][under-tested] Success-vs-failure contrasts on market drivers with a family-wise null; builders live-editing; no test file."
+   "notes": "IMPLEMENTED — NOT VALIDATED (S15): §10/11/12/46 lifted to any knowledge; known false alarms on steady series (B27 winner's-curse expected effect) - Stage 3 must fix. | earlier: IMPLEMENTED — FAILED VALIDATION on real data (B27 study 5914232: reliability AUC 0.4975, gating gains CIs span 0, all 25 real breaks unknown cause). Code exists; engine/learning wrappers pending (S15). | earlier: [partial][under-tested] Success-vs-failure contrasts on market drivers with a family-wise null; builders live-editing; no test file."
   },
   {
    "id": "D12",
@@ -1446,9 +1452,15 @@
    "owner": "Claude",
    "status": "IMPLEMENTED",
    "code_paths": [
+    "engine/learning/break_detection.py",
+    "engine/learning/health.py",
+    "engine/learning/lifecycle.py",
+    "engine/learning/reliability.py",
     "engine/pattern_reliability.py"
    ],
    "tests": [
+    "tests/test_learning_break.py",
+    "tests/test_learning_health.py",
     "tests/test_pattern_reliability.py"
    ],
    "evidence": [
@@ -1457,9 +1469,9 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": "2026-09-29T09:41:23",
+   "last_run": "2026-09-29T10:26:53",
    "code_hash": "6c44a0173dc73530",
-   "notes": "IMPLEMENTED — FAILED VALIDATION on real data (B27 study 5914232: reliability AUC 0.4975, gating gains CIs span 0, all 25 real breaks unknown cause). Code exists; engine/learning wrappers pending (S15). | earlier: [missing] Recovery happens (pattern_memory requalification) but is never analysed."
+   "notes": "IMPLEMENTED — NOT VALIDATED (S15): §10/11/12/46 lifted to any knowledge; known false alarms on steady series (B27 winner's-curse expected effect) - Stage 3 must fix. | earlier: IMPLEMENTED — FAILED VALIDATION on real data (B27 study 5914232: reliability AUC 0.4975, gating gains CIs span 0, all 25 real breaks unknown cause). Code exists; engine/learning wrappers pending (S15). | earlier: [missing] Recovery happens (pattern_memory requalification) but is never analysed."
   },
   {
    "id": "D13",
@@ -3663,21 +3675,27 @@
    "owner": "Claude",
    "status": "IN_PROGRESS",
    "code_paths": [
+    "engine/learning/break_detection.py",
     "engine/learning/champion.py",
+    "engine/learning/health.py",
+    "engine/learning/lifecycle.py",
     "engine/learning/promotion.py",
+    "engine/learning/reliability.py",
     "engine/pattern_reliability.py::health_monitor,HealthLedger",
     "engine/trust_store.py::drift"
    ],
    "tests": [
+    "tests/test_learning_break.py",
+    "tests/test_learning_health.py",
     "tests/test_trust_store.py"
    ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": "2026-09-29T09:37:15",
+   "last_run": "2026-09-29T10:26:53",
    "code_hash": "6c44a0173dc73530",
-   "notes": "[partial][under-tested]"
+   "notes": "IMPLEMENTED — NOT VALIDATED (S15): §10/11/12/46 lifted to any knowledge; known false alarms on steady series (B27 winner's-curse expected effect) - Stage 3 must fix. | earlier: [partial][under-tested]"
   },
   {
    "id": "J08",
@@ -3748,21 +3766,27 @@
    "owner": "Claude",
    "status": "IN_PROGRESS",
    "code_paths": [
+    "engine/learning/break_detection.py",
     "engine/learning/champion.py",
+    "engine/learning/health.py",
+    "engine/learning/lifecycle.py",
     "engine/learning/promotion.py",
+    "engine/learning/reliability.py",
     "engine/memory_diagnostics.py::memory_health",
     "engine/pattern_reliability.py::HealthLedger"
    ],
    "tests": [
+    "tests/test_learning_break.py",
+    "tests/test_learning_health.py",
     "tests/test_memory_ext.py"
    ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": "2026-09-29T09:37:15",
+   "last_run": "2026-09-29T10:26:53",
    "code_hash": "6c44a0173dc73530",
-   "notes": "[partial] healthy/suspect/broken only."
+   "notes": "IMPLEMENTED — NOT VALIDATED (S15): §10/11/12/46 lifted to any knowledge; known false alarms on steady series (B27 winner's-curse expected effect) - Stage 3 must fix. | earlier: [partial] healthy/suspect/broken only."
   },
   {
    "id": "J12",
@@ -4807,33 +4831,36 @@
   {
    "section": "Pattern-break engine",
    "minimum_lines": 1300,
-   "actual_lines": 296,
+   "actual_lines": 1303,
    "code_paths": [
-    "engine/pattern_reliability.py::break_states,_cusum_onset,find_breaks,driver_values,_contrast_parts,_contrast_t,driver_table,onset_shifts,Explanation,_statement,explain_breaks,confirm_driver (255)",
-    "engine/pattern_lifecycle.py::run_tests,detect_failure,wstat (41)"
+    "engine/learning/break_detection.py",
+    "engine/pattern_lifecycle.py::run_tests,detect_failure,wstat (41)",
+    "engine/pattern_reliability.py::break_states,_cusum_onset,find_breaks,driver_values,_contrast_parts,_contrast_t,driver_table,onset_shifts,Explanation,_statement,explain_breaks,confirm_driver (255)"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "UNDER by 1004 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: success-vs-failure context contrasts with family-wise null and OOS confirm_driver exist in pattern_reliability (live-edited, NO test file yet). Compares only market-context drivers - not sector composition, stock type, liquidity, magnitude/duration, missingness or data quality."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (S15): §10/11/12/46 lifted to any knowledge; known false alarms on steady series (B27 winner's-curse expected effect) - Stage 3 must fix. | earlier: UNDER by 1004 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: success-vs-failure context contrasts with family-wise null and OOS confirm_driver exist in pattern_reliability (live-edited, NO test file yet). Compares only market-context drivers - not sector composition, stock type, liquidity, magnitude/duration, missingness or data quality."
   },
   {
    "section": "Dynamic reliability",
    "minimum_lines": 900,
-   "actual_lines": 420,
+   "actual_lines": 902,
    "code_paths": [
+    "engine/learning/reliability.py",
     "engine/pattern_reliability.py::MetaModel,PredLog,walk_forward,_base_own,score_predictions,reliability_table,causality_audit,skill_tests,gate_matrix,gateable_matrix,policy_weights,classify,LiveGate,MemoryGate,timelines_from_memory (420)"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "UNDER by 480 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: one pooled calibrated P(pattern holds) - a single dimension. The contract needs five (truth_confidence, current_reliability, transfer_confidence, context_confidence, failure_risk) updated separately."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (S15): §10/11/12/46 lifted to any knowledge; known false alarms on steady series (B27 winner's-curse expected effect) - Stage 3 must fix. | earlier: UNDER by 480 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: one pooled calibrated P(pattern holds) - a single dimension. The contract needs five (truth_confidence, current_reliability, transfer_confidence, context_confidence, failure_risk) updated separately."
   },
   {
    "section": "Pattern lifecycle",
    "minimum_lines": 800,
-   "actual_lines": 401,
+   "actual_lines": 800,
    "code_paths": [
+    "engine/learning/lifecycle.py",
     "engine/pattern_lifecycle.py::Lifecycle,Panel,new_record,pattern_id,parse_key_named,_p_two_sided (401)"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "UNDER by 399 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: Bible Phase-4 state machine with enforced transitions. Lacks birth/growth/peak/decay phases and classification of deterioration (random/gradual/abrupt/regime-/sector-/vol-/liquidity-linked)."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (S15): §10/11/12/46 lifted to any knowledge; known false alarms on steady series (B27 winner's-curse expected effect) - Stage 3 must fix. | earlier: UNDER by 399 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: Bible Phase-4 state machine with enforced transitions. Lacks birth/growth/peak/decay phases and classification of deterioration (random/gradual/abrupt/regime-/sector-/vol-/liquidity-linked)."
   },
   {
    "section": "Retirement/recovery",
@@ -5224,14 +5251,15 @@
   {
    "section": "Knowledge health",
    "minimum_lines": 650,
-   "actual_lines": 209,
+   "actual_lines": 653,
    "code_paths": [
-    "engine/pattern_reliability.py::cusum_threshold,HealthLedger,health_monitor,false_alarm_budget (129)",
+    "engine/learning/health.py",
     "engine/memory_diagnostics.py::memory_health,capacity_report,shock_report (38)",
+    "engine/pattern_reliability.py::cusum_threshold,HealthLedger,health_monitor,false_alarm_budget (129)",
     "engine/trust_store.py::diff,drift (42)"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "UNDER by 441 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: healthy/suspect/broken per pattern (live-edited). Missing contradicted/dormant/recovering/unstable/insufficient/unknown and the 'why / which evidence / which research' dashboard."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (S15): §10/11/12/46 lifted to any knowledge; known false alarms on steady series (B27 winner's-curse expected effect) - Stage 3 must fix. | earlier: UNDER by 441 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: healthy/suspect/broken per pattern (live-edited). Missing contradicted/dormant/recovering/unstable/insufficient/unknown and the 'why / which evidence / which research' dashboard."
   },
   {
    "section": "Learning scorecard",
