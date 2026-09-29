@@ -35,3 +35,11 @@ exits -> stops), Test (blind simulated years), Live (Alpaca PAPER only).
 ## Final report (keep under 200 words)
 Files + line counts; test result line (N passed); what is honestly UNPROVEN; INTEGRATION hooks; anything you learned
 that the owner should record.
+
+## Added after wave 1 (2026-09-28)
+9. Line range is a requirement: every wave-1 builder undershot and was sent back. Depth = a real-cache runner script
+   (scripts/, background, results to state/research/<module>/ with provenance), report outputs, per-era/per-type
+   breakdowns, planted-defect tests per mechanism.
+10. RAM is shared by ~13 builders plus long experiments. Before launching any real-data run, check free memory
+    (`.venv/Scripts/python -c "import psutil;print(psutil.virtual_memory().available/1e9)"`); if under 2.5 GB,
+    wait and retry (poll every 60 s, give up after 20 min and report). Use float32, column subsets, seeded ticker samples.
