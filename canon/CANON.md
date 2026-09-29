@@ -398,3 +398,9 @@ it should be very long
 > we arent worrying about the live one until the test self learning one is perfected
 
 `sha256: 4cf73f8e1f5be5cf1d46f0d3cda3e6d6880ce5adaa71e80783c466456452a59f`
+
+## C66 — Autonomous Deep-Research Self-Learning Engine build prompt v1.0: the new master checklist (verbatim in RESEARCH_BRAIN_CONTRACT.md, sha256 787fd48cdb3cb11f) (2026-09-29)
+
+> [WEEKLY7 AUTONOMOUS DEEP-RESEARCH SELF-LEARNING ENGINE, MASTER BUILD PROMPT v1.0, stored verbatim in RESEARCH_BRAIN_CONTRACT.md; sent as the new master checklist after the owner said 'let me know when they finish that and i will create another master checklist for you']
+
+`sha256: 1ca00f11b6a91b3dc33d5ec920b34d4ffa9981cb2a49c5f476ffc3c386a9b85e`

@@ -43,6 +43,14 @@ def verify_integrity():
         got = hashlib.sha256((ROOT / "BIBLE.md").read_text(encoding="utf-8").rstrip("\n").encode("utf-8")).hexdigest()
         if got != want:
             raise IntegrityError("BIBLE.md altered")
+    rl = ROOT / "canon" / "research_contract.lock.json"      # the owner's Research-Brain build prompt (C66), same rule
+    if rl.exists():
+        rf = ROOT / "RESEARCH_BRAIN_CONTRACT.md"
+        if not rf.exists():
+            raise IntegrityError("RESEARCH_BRAIN_CONTRACT.md missing while its lock exists")
+        want = json.loads(rl.read_text(encoding="utf-8"))["sha256"]
+        if hashlib.sha256(rf.read_text(encoding="utf-8").rstrip("\n").encode("utf-8")).hexdigest() != want:
+            raise IntegrityError("RESEARCH_BRAIN_CONTRACT.md altered")
     cl = ROOT / "canon" / "contract.lock.json"               # the owner's Self-Learning contract (C62), same rule
     if cl.exists():
         want = json.loads(cl.read_text(encoding="utf-8"))["sha256"]

@@ -90,6 +90,7 @@ def test_integrity_fails_closed_on_tampered_bible(tmp_path, monkeypatch):
         shutil.copytree(real / sub, tmp_path / sub)
     shutil.copy(real / "BIBLE.md", tmp_path / "BIBLE.md")
     shutil.copy(real / "SELF_LEARNING_CONTRACT.md", tmp_path / "SELF_LEARNING_CONTRACT.md")
+    shutil.copy(real / "RESEARCH_BRAIN_CONTRACT.md", tmp_path / "RESEARCH_BRAIN_CONTRACT.md")
     monkeypatch.setattr(P, "ROOT", tmp_path)
     assert P.verify_integrity() is True
     (tmp_path / "BIBLE.md").write_text((tmp_path / "BIBLE.md").read_text(encoding="utf-8") + "\nextra rule\n", encoding="utf-8")
@@ -103,6 +104,7 @@ def test_integrity_fails_closed_on_tampered_or_missing_contract(tmp_path, monkey
     shutil.copytree(real / "canon", tmp_path / "canon")
     shutil.copy(real / "BIBLE.md", tmp_path / "BIBLE.md")
     shutil.copy(real / "SELF_LEARNING_CONTRACT.md", tmp_path / "SELF_LEARNING_CONTRACT.md")
+    shutil.copy(real / "RESEARCH_BRAIN_CONTRACT.md", tmp_path / "RESEARCH_BRAIN_CONTRACT.md")
     monkeypatch.setattr(P, "ROOT", tmp_path)
     assert P.verify_integrity() is True
     c = tmp_path / "SELF_LEARNING_CONTRACT.md"

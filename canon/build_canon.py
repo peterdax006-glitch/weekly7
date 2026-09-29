@@ -139,6 +139,8 @@ DIRECTIVES = [
      'how i want it is while its running the system should not know the year and it should only have access to the live data at the time and as the year progresses it gains access to more info so it gets info on a daily basis based on when info was available, and when it all gets saved to memory it saves in the file as the year it operated in, now the relative memory is still important but that should be a seperate system where the system doesnt know the year, but the workings behind the system know the year so it prioritzies different memory but the system itself doesnt know that, that all happens in a automatic spot it cant see'),
     ("C65", "2026-09-29", 'Live is parked: no work on the Live account until the Test self-learning system is perfected',
      'we arent worrying about the live one until the test self learning one is perfected'),
+    ("C66", "2026-09-29", 'Autonomous Deep-Research Self-Learning Engine build prompt v1.0: the new master checklist (verbatim in RESEARCH_BRAIN_CONTRACT.md, sha256 787fd48cdb3cb11f)',
+     "[WEEKLY7 AUTONOMOUS DEEP-RESEARCH SELF-LEARNING ENGINE, MASTER BUILD PROMPT v1.0, stored verbatim in RESEARCH_BRAIN_CONTRACT.md; sent as the new master checklist after the owner said 'let me know when they finish that and i will create another master checklist for you']"),
 ]
 
 def sha(t): return hashlib.sha256(t.encode("utf-8")).hexdigest()
