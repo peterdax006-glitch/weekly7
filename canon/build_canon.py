@@ -119,6 +119,8 @@ DIRECTIVES = [
      'remember you arent as focused on the system as you are the learning system meaning when a test comes back its less about the results you see that time, but the changes in the results the second time you run the same year'),
     ("C55", "2026-09-29", 'The rerun of a year must be disguised: the system must not know it is the same year',
      '(it should not be aware its the same year however)'),
+    ("C56", "2026-09-29", 'Only information available live at that moment: audit every way the system might know the future',
+     'the system should be fully oblivious to any details that would have not been available at the time its operating live so it cant predict the future in any way, double check any way it even might be able to know the future if events or speeches or anything slipped by where the self training could research it that ruins the whole point so ensure it only has live info when testing'),
 ]
 
 def sha(t): return hashlib.sha256(t.encode("utf-8")).hexdigest()

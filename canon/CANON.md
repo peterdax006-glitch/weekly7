@@ -338,3 +338,9 @@ it should be very long
 > (it should not be aware its the same year however)
 
 `sha256: 2c55539235ea64d27da526dc03710c0169e036fd42db45c0f3fc7c9515371941`
+
+## C56 — Only information available live at that moment: audit every way the system might know the future (2026-09-29)
+
+> the system should be fully oblivious to any details that would have not been available at the time its operating live so it cant predict the future in any way, double check any way it even might be able to know the future if events or speeches or anything slipped by where the self training could research it that ruins the whole point so ensure it only has live info when testing
+
+`sha256: cdc22b6e1caaf08793667fb49d45ff8f325a91f4e255121652e3c9d84c1f2da0`
