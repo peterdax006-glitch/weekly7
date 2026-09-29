@@ -344,3 +344,9 @@ it should be very long
 > the system should be fully oblivious to any details that would have not been available at the time its operating live so it cant predict the future in any way, double check any way it even might be able to know the future if events or speeches or anything slipped by where the self training could research it that ruins the whole point so ensure it only has live info when testing
 
 `sha256: cdc22b6e1caaf08793667fb49d45ff8f325a91f4e255121652e3c9d84c1f2da0`
+
+## C57 — Memory persists across runs and eras; the same year rerun many times must keep improving on its patterns (never on stock identities) (2026-09-29)
+
+> well its memory should remain no matter what era it is so if you run the same year twice it should not remember stocks from that era but it should remember the same patterns it delt with last time and the second time it should deal with those patterns better than it did previously, meaning you can run the same year 500 times and it should still be learning from that year because its constantly learning new patterns and memory, the memory its learned in those 500 times should also stay releavent because you are still working with the same year
+
+`sha256: d42e6609d00de8170a5336199577f83d1b2d158fdaca619d55a9af2e1c962f23`
