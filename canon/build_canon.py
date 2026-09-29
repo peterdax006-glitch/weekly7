@@ -113,6 +113,8 @@ DIRECTIVES = [
      'you can go over 25,000 though just make sure everythings foundation is done before you touch anythings rabit hole'),
     ("C52", "2026-09-28", 'Masterstock: one file anyone can read to fully catch up',
      'save everything at all that happens in a single large file so that i can switch claude accounts and still just point them to one file for them to fully catch up, call the file/folder Masterstock'),
+    ("C53", "2026-09-28", 'Handoff files current at any moment (session switch may come without notice)',
+     'make sure my files are fully updated because i may need to switch claude sessions sometime soon so that needs to stay up to date for any given moment'),
 ]
 
 def sha(t): return hashlib.sha256(t.encode("utf-8")).hexdigest()

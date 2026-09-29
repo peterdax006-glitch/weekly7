@@ -320,3 +320,9 @@ it should be very long
 > save everything at all that happens in a single large file so that i can switch claude accounts and still just point them to one file for them to fully catch up, call the file/folder Masterstock
 
 `sha256: b8be48f6818d0b0a20aab53a81f752b4613ce3dfb46564dc0e669456842c278c`
+
+## C53 — Handoff files current at any moment (session switch may come without notice) (2026-09-28)
+
+> make sure my files are fully updated because i may need to switch claude sessions sometime soon so that needs to stay up to date for any given moment
+
+`sha256: 02da1fde3a349b43fe6dba91a0e02cd52617b12fac57a5c7a2e92c2fecd0faf9`

@@ -46,3 +46,5 @@ that the owner should record.
 11. NEVER kill processes by image name (`taskkill /IM python.exe`, `pkill python`): on 2026-09-28 a builder did this
     and killed every experiment on the machine (a 91%-done SEC job, a movers grid). Kill only a PID you started
     yourself (record it when you launch). Long jobs must checkpoint so a kill costs minutes, not hours.
+12. Git: never run `git pull --rebase`, `git stash` or `git reset` - other builders' uncommitted work lives in the
+    same working tree. You do not commit; the main session (and an auto-snapshot every 15 min) does.
