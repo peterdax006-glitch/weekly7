@@ -61,7 +61,7 @@ Governing documents: `canon/CANON.md` (owner directives, verbatim) > `BIBLE.md` 
 | `parity_suite` | 422 | 1 | Bible Phase 2 (parity firewall), all feature families. `engine.parity` is the harness; this module points it at every place a model input is made, each through the REAL production  |
 | `pattern_bank` | 495 | 2 | Bible Phase 5 - long-term pattern bank (canon C43; "no pattern is trusted forever, none deleted for one bad regime"). |
 | `pattern_identity` | 588 | 3 | Bible Phase 3.2 - pattern identity (canons C35, C37, C43). |
-| `pattern_lifecycle` | 582 | 3 | Bible Phase 4 - pattern lifecycle state machine (canon C43: never hold a failed pattern). |
+| `pattern_lifecycle` | 582 | 4 | Bible Phase 4 - pattern lifecycle state machine (canon C43: never hold a failed pattern). |
 | `pattern_memory` | 789 | 5 | Bible phases 4, 5, 9 - TIMELINE PATTERN MEMORY (canon C55, C56, C57, C58, C59, C60). |
 | `pattern_memory_eval` | 341 | 1 | Bible phases 4, 5, 9 - walk-forward evaluation helpers for the timeline pattern memory (canon C57-C60). |
 | `pattern_movers` | 842 | 2 | Bible Phase 6 (pattern -> Find volatility integration) and Phase 34 (required ablation framework). |
@@ -1341,7 +1341,7 @@ Bible Phase 4 - pattern lifecycle state machine (canon C43: never hold a failed 
 - `def new_record(names, name, as_of, effect)`
 - `class Lifecycle [ingest(self, frame, as_of, run_id), scope_null_rate(self, means, panel, sign, rec_id, cur), cause_search(self, panel, rec, as_of), review(self, panel, as_of), counts(self), invariants(self), tradeable(self), log_frame(self), ...]` - Registry of pattern records plus the transition log. Records are plain dicts so the bank can persist them.
 
-Tests: `tests/test_pattern_bank.py`, `tests/test_pattern_lifecycle.py`, `tests/test_pattern_memory_eval.py`
+Tests: `tests/test_pattern_bank.py`, `tests/test_pattern_lifecycle.py`, `tests/test_pattern_memory_eval.py`, `tests/test_research_graph.py`
 
 ## engine.pattern_memory
 

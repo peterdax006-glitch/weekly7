@@ -1,0 +1,2079 @@
+"""Knowability engine (contract C66 sections 7 and 8; canons C62/C66). RESEARCH / AUDIT WORLD ONLY (MATURED_RESEARCH_STATE).
+
+For each major historical move it answers "could the system have known?" by rebuilding the information state at the decision
+boundary, tagging every information item KNOWN_BEFORE / ONLY_AFTER / SIMULTANEOUS / UNCERTAIN / UNAVAILABLE by timestamp and
+provenance, and classifying the move PREDICTABLE / POTENTIALLY / WEAKLY / UNKNOWN / EXTERNALLY_CAUSED /
+INFORMATIONALLY_UNAVAILABLE / DATA_FAILURE. Unknown stays unknown: a missing timestamp or provenance can only lower a
+classification, never raise it, and a cause discovered after the fact is never turned into predictive knowledge.
+The result is a hindsight label. It is a MaturedRecord: it may reach the blind trader only through gate(now) and the curator,
+and `refuse_hindsight_columns` / `assert_not_trader_bound` fail closed if it is offered as a feature or handed to the trader.
+
+Builds on: engine.pit.Calendar (sessions, publication lags), engine.edgar.classify (filing kinds), engine.learning.failure
+(ramp, noisy_or), engine.research.core (Availability, Knowability, MaturedRecord, Namespace).
+Public entry: step(state, now, inputs) -> (state, StepReport).
+Status: IMPLEMENTED - NOT VALIDATED."""
+from __future__ import annotations
+
+import dataclasses
+import math
+from typing import Any, Callable, Iterable, Mapping, Sequence
+
+import numpy as np
+import pandas as pd
+
+from engine.learning.core import current_code_hash
+from engine.learning.failure import noisy_or, ramp
+from engine.pit import Calendar
+from engine.research.core import (Availability, FirewallBreach, Knowability, MaturedRecord, Namespace, Provenance,
+                                  _StrEnum, as_date, stable_hash)
+
+
+class KnowabilityError(ValueError):
+    """Malformed knowability input (bad timestamps, empty windows). Never swallowed: a broken audit is not an answer."""
+
+
+class InfoKind(_StrEnum):
+    FEATURE = "FEATURE"
+    PATTERN = "PATTERN"
+    MEMORY = "MEMORY"
+    MACRO = "MACRO"
+    MARKET_STATE = "MARKET_STATE"
+    EVENT = "EVENT"
+    FILING = "FILING"
+    INSIDER = "INSIDER"
+    PRICE = "PRICE"
+    VOLUME = "VOLUME"
+    TECHNICAL = "TECHNICAL"
+    CROSS_SECTION = "CROSS_SECTION"
+    CORPORATE_ACTION = "CORPORATE_ACTION"
+    NEWS_EXTERNAL = "NEWS_EXTERNAL"
+
+
+CHANNELS = ("FEATURES", "PATTERNS", "MEMORY", "MACRO", "MARKET_STATE", "EVENT", "PRICE", "VOLUME", "TECHNICAL",
+            "CROSS_SECTION")                                   # section 8: the ten things compared with what became known later
+PREC_INTRADAY, PREC_DATE, PREC_UNKNOWN = "INTRADAY", "DATE", "UNKNOWN"
+PROV_RECORDED, PROV_INFERRED, PROV_RECONSTRUCTED, PROV_UNKNOWN = "recorded", "inferred_lag", "reconstructed", "unknown"
+PROVENANCES = (PROV_RECORDED, PROV_INFERRED, PROV_RECONSTRUCTED, PROV_UNKNOWN)
+KIND_STRENGTH = {"EARN": 0.7, "BANKRUPTCY": 0.95, "ACQ_DONE": 0.8, "RESTATEMENT": 0.85, "DELIST_NOTICE": 0.8,
+                 "AUDITOR_CHANGE": 0.5, "AGREEMENT": 0.55, "OFFERING": 0.5, "SHELF": 0.2, "ACTIVIST": 0.6,
+                 "ACTIVIST_AMEND": 0.3, "LATE_FILING": 0.45, "PERIODIC": 0.15, "UNREG_SALE": 0.35}
+FILING_KIND_TO_INFO = {k: InfoKind.FILING for k in KIND_STRENGTH}
+
+
+def to_ny(x) -> tuple[pd.Timestamp | None, str]:
+    """Any timestamp-like -> (naive New York wall time, precision). A date-only string or a naive midnight is DATE
+    precision (cannot be ordered inside its own day); tz-aware values are converted to New York time."""
+    if x is None:
+        return None, PREC_UNKNOWN
+    try:
+        t = pd.Timestamp(x)
+    except (ValueError, TypeError):
+        return None, PREC_UNKNOWN
+    if pd.isna(t):
+        return None, PREC_UNKNOWN
+    if t.tzinfo is not None:
+        return t.tz_convert("America/New_York").tz_localize(None), PREC_INTRADAY
+    if (isinstance(x, str) and len(x.strip()) <= 10) or t == t.normalize():
+        return t.normalize(), PREC_DATE
+    return t, PREC_INTRADAY
+
+
+def _sessions_between(a: pd.Timestamp, b: pd.Timestamp, calendar: Calendar | None) -> int:
+    """Signed number of sessions from date a to date b (b after a -> positive)."""
+    hol = calendar._hol if calendar is not None else np.array([], dtype="datetime64[D]")
+    da, db = np.datetime64(a.normalize().date()), np.datetime64(b.normalize().date())
+    if db >= da:
+        return int(np.busday_count(da, db, holidays=hol))
+    return -int(np.busday_count(db, da, holidays=hol))
+
+
+# ==================================================================================================================
+# information items and the decision boundary
+# ==================================================================================================================
+@dataclasses.dataclass(frozen=True)
+class InfoItem:
+    """One piece of information with the two clocks that matter: when the thing happened (`effective_at`) and when the world
+    could first see it (`published_at`). `provenance` says how the publication time is known. `scheduled` marks an
+    announcement of a FUTURE event (an earnings date): it is legitimately published before it is effective."""
+    item_id: str
+    kind: InfoKind
+    subject: str                                  # ticker, "MARKET", or a sector name (research side may hold real names)
+    effective_at: str | None
+    published_at: str | None
+    source: str
+    provenance: str = PROV_RECORDED
+    exists: bool = True                           # False = the auditor established that nothing of this sort existed
+    scheduled: bool = False
+    strength: float = 0.5                         # how strongly this item would explain/anticipate a move, in [0,1]
+    direction: int = 0                            # -1 / 0 / +1: sign of the move it points to (0 = magnitude only)
+    detail: str = ""
+
+    def check(self) -> list[str]:
+        errs = []
+        if not self.item_id:
+            errs.append("item without an id")
+        if self.provenance not in PROVENANCES:
+            errs.append(f"{self.item_id}: unknown provenance {self.provenance!r}")
+        if not 0.0 <= float(self.strength) <= 1.0:
+            errs.append(f"{self.item_id}: strength {self.strength} outside [0,1]")
+        if self.direction not in (-1, 0, 1):
+            errs.append(f"{self.item_id}: direction must be -1, 0 or 1")
+        if self.exists and self.published_at is None and self.provenance != PROV_INFERRED and self.provenance != PROV_UNKNOWN:
+            errs.append(f"{self.item_id}: an item that exists needs a publication time or an honest 'unknown' provenance")
+        return errs
+
+
+@dataclasses.dataclass(frozen=True)
+class DecisionBoundary:
+    """The moment the system decides (the close of `decision_date`) and the moment the move can start (the next session's
+    open). Information published inside [decision - tolerance, fill open] is SIMULTANEOUS: it arrived around the boundary
+    and could not be used to decide, but it also is not hindsight."""
+    decision_date: str
+    fill_date: str
+    decision_time: str = "16:00"
+    fill_time: str = "09:30"
+    tolerance_minutes: int = 30
+
+    def check(self) -> list[str]:
+        errs = []
+        if as_date(self.fill_date) <= as_date(self.decision_date):
+            errs.append("fill date must be strictly after the decision date (decisions at a close fill at the next open)")
+        if self.tolerance_minutes < 0:
+            errs.append("negative tolerance")
+        return errs
+
+    @property
+    def cutoff(self) -> pd.Timestamp:
+        return pd.Timestamp(f"{self.decision_date} {self.decision_time}")
+
+    @property
+    def fill_open(self) -> pd.Timestamp:
+        return pd.Timestamp(f"{self.fill_date} {self.fill_time}")
+
+    @staticmethod
+    def make(decision_date, calendar: Calendar | None = None, tolerance_minutes: int = 30) -> "DecisionBoundary":
+        d = pd.Timestamp(as_date(decision_date))
+        nxt = (calendar or Calendar()).strict_next([d])[0]
+        return DecisionBoundary(str(d.date()), str(pd.Timestamp(nxt).date()), tolerance_minutes=tolerance_minutes)
+
+
+@dataclasses.dataclass(frozen=True)
+class LagPolicy:
+    """Publication lags in sessions per source, for items that only record when they were EFFECTIVE (macro releases,
+    fundamentals). An inferred publication is treated as UNCERTAIN whenever it lands within `margin_sessions` of the
+    boundary, because a lag estimated on average says nothing about that one record."""
+    lags: tuple[tuple[str, int], ...] = ()
+    default: int = 1
+    margin_sessions: int = 1
+
+    def lag_for(self, source: str) -> int:
+        return dict(self.lags).get(source, self.default)
+
+    def check(self) -> list[str]:
+        errs = [f"lag for {s} is negative" for s, v in self.lags if v < 0]
+        if self.default < 0 or self.margin_sessions < 0:
+            errs.append("default lag and margin must be >= 0")
+        return errs
+
+
+@dataclasses.dataclass(frozen=True)
+class AvailabilityJudgement:
+    item_id: str
+    kind: InfoKind
+    availability: Availability
+    reason: str
+    margin_minutes: float | None = None           # publication minus decision cutoff (negative = before)
+    inferred: bool = False                        # publication time was derived from a lag, not recorded
+
+    def usable_at_decision(self) -> bool:
+        return self.availability == Availability.KNOWN_BEFORE_EVENT
+
+
+def judge_item(item: InfoItem, b: DecisionBoundary, calendar: Calendar | None = None,
+               lag: LagPolicy = LagPolicy()) -> AvailabilityJudgement:
+    """Timestamp + provenance -> Availability. Every branch that cannot establish order returns UNCERTAIN, never KNOWN_BEFORE."""
+    def out(av, why, margin=None, inferred=False):
+        return AvailabilityJudgement(item.item_id, item.kind, av, why, margin, inferred)
+
+    if not item.exists:
+        return out(Availability.UNAVAILABLE, "auditor established that nothing of this kind existed")
+    if item.provenance == PROV_UNKNOWN:
+        return out(Availability.UNCERTAIN, "provenance unknown: publication time cannot be trusted")
+    pub, prec = to_ny(item.published_at)
+    inferred = False
+    if pub is None:
+        eff, _ = to_ny(item.effective_at)
+        if item.provenance != PROV_INFERRED or eff is None:
+            return out(Availability.UNCERTAIN, "no publication timestamp")
+        cal = calendar or Calendar()
+        pub = pd.Timestamp(cal.shift([eff], lag.lag_for(item.source))[0]).normalize()
+        prec, inferred = PREC_DATE, True
+    eff, _ = to_ny(item.effective_at)
+    if eff is not None and pub < eff.normalize() - pd.Timedelta(days=1) and not item.scheduled:
+        return out(Availability.UNCERTAIN, "published before it happened without being a scheduled announcement", None, inferred)
+    if prec == PREC_DATE:
+        d, dd, fd = pub.normalize(), pd.Timestamp(b.decision_date), pd.Timestamp(b.fill_date)
+        margin = float((d - dd).days * 1440)
+        if inferred:
+            gap_before = _sessions_between(d, dd, calendar)
+            gap_after = _sessions_between(fd, d, calendar)
+            if gap_before < lag.margin_sessions and gap_after < lag.margin_sessions:
+                return out(Availability.UNCERTAIN, "inferred publication lands within the lag margin of the boundary", margin, True)
+        if d < dd:
+            return out(Availability.KNOWN_BEFORE_EVENT, "published on an earlier date", margin, inferred)
+        if d == dd:
+            return out(Availability.SIMULTANEOUS, "date-only stamp on the decision day cannot be ordered against the close", margin, inferred)
+        if d == fd:
+            return out(Availability.UNCERTAIN, "date-only stamp on the fill day cannot be ordered against the open", margin, inferred)
+        return out(Availability.KNOWN_ONLY_AFTER_EVENT, "published after the fill day", margin, inferred)
+    margin = (pub - b.cutoff).total_seconds() / 60.0
+    if margin <= -b.tolerance_minutes:
+        return out(Availability.KNOWN_BEFORE_EVENT, "published before the decision cutoff", margin)
+    if pub <= b.fill_open:
+        return out(Availability.SIMULTANEOUS, "published around the boundary (after the tolerance, before the fill open)", margin)
+    return out(Availability.KNOWN_ONLY_AFTER_EVENT, "published after the fill open", margin)
+
+
+def judge_all(items: Iterable[InfoItem], b: DecisionBoundary, calendar: Calendar | None = None,
+              lag: LagPolicy = LagPolicy()) -> dict[str, AvailabilityJudgement]:
+    """Judge a batch. Bad items raise; duplicate ids raise (two clocks for one item would let the optimistic one win)."""
+    berrs = b.check() + lag.check()
+    if berrs:
+        raise KnowabilityError("; ".join(berrs))
+    res: dict[str, AvailabilityJudgement] = {}
+    for it in items:
+        errs = it.check()
+        if errs:
+            raise KnowabilityError("; ".join(errs))
+        if it.item_id in res:
+            raise KnowabilityError(f"duplicate information item {it.item_id}")
+        res[it.item_id] = judge_item(it, b, calendar, lag)
+    return res
+
+
+def availability_counts(judgements: Iterable[AvailabilityJudgement]) -> dict[str, int]:
+    out = {a.value: 0 for a in Availability}
+    for j in judgements:
+        out[j.availability.value] += 1
+    return out
+
+
+@dataclasses.dataclass(frozen=True)
+class SourceProbe:
+    """Result of asking one data source "did anything precursor-like exist before the event?". `covers` False means the source
+    does not span the window at all, so its silence proves nothing."""
+    source: str
+    covers: bool
+    precursors: tuple[str, ...] = ()              # item ids found before the boundary
+
+
+def judge_precursors(cause: InfoItem, probes: Sequence[SourceProbe], b: DecisionBoundary, calendar: Calendar | None = None,
+                     lag: LagPolicy = LagPolicy()) -> tuple[Availability, str]:
+    """A cause found only afterwards is UNAVAILABLE (nothing legitimate existed) only when every source that could have
+    revealed it covered the window and none held a precursor. One uncovered source turns silence into UNCERTAIN."""
+    own = judge_item(cause, b, calendar, lag)
+    if own.availability in (Availability.KNOWN_BEFORE_EVENT,):
+        return own.availability, "the cause itself was public before the boundary"
+    if not probes:
+        return Availability.UNCERTAIN, "no source was probed for precursors"
+    blind = [p.source for p in probes if not p.covers]
+    if blind:
+        return Availability.UNCERTAIN, f"sources not covering the window: {sorted(blind)}"
+    found = sorted({i for p in probes for i in p.precursors})
+    if found:
+        return Availability.KNOWN_BEFORE_EVENT, f"precursors existed before the boundary: {found[:5]}"
+    if own.availability == Availability.UNCERTAIN:
+        return Availability.UNCERTAIN, "no precursors, but the cause's own timestamp is uncertain"
+    return Availability.UNAVAILABLE, "every covering source was silent before the boundary"
+
+
+# ==================================================================================================================
+# adapters: repo data -> InfoItem (point-in-time timestamps preserved, never re-dated)
+# ==================================================================================================================
+def items_from_edgar_events(events: pd.DataFrame, ticker: str, window: tuple[str, str]) -> list[InfoItem]:
+    """engine.edgar events.parquet rows (ticker, form, accepted UTC, kind) inside `window` (inclusive real dates). The
+    accepted timestamp is the SEC acceptance moment, the earliest the world could see it: provenance is 'recorded'."""
+    if events is None or len(events) == 0:
+        return []
+    need = {"ticker", "accepted", "kind"}
+    if not need <= set(events.columns):
+        raise KnowabilityError(f"events frame lacks {sorted(need - set(events.columns))}")
+    lo, hi = pd.Timestamp(window[0]), pd.Timestamp(window[1]) + pd.Timedelta(days=1)
+    out = []
+    sub = events[events["ticker"] == ticker]
+    for row in sub.itertuples(index=False):
+        t, prec = to_ny(getattr(row, "accepted"))
+        if t is None or not (lo <= t.normalize() < hi):
+            continue
+        kind = str(getattr(row, "kind"))
+        out.append(InfoItem(f"EDGAR-{ticker}-{kind}-{t.strftime('%Y%m%d%H%M%S')}", FILING_KIND_TO_INFO.get(kind, InfoKind.FILING),
+                            ticker, str(t), str(t), "edgar", PROV_RECORDED, True, False, KIND_STRENGTH.get(kind, 0.3),
+                            0, f"{getattr(row, 'form', '')} {kind}"))
+    return out
+
+
+def items_from_insider(ins: pd.DataFrame, ticker: str, window: tuple[str, str]) -> list[InfoItem]:
+    """DERA insider purchases: FILING_DATE is a date (not a time), so publication is DATE precision; the transaction itself
+    happened earlier (TRANS_DATE). Cluster buying is a bullish precursor, so direction is +1."""
+    if ins is None or len(ins) == 0:
+        return []
+    cols = {c.upper(): c for c in ins.columns}
+    for c in ("FILING_DATE", "ISSUERTRADINGSYMBOL"):
+        if c not in cols:
+            raise KnowabilityError(f"insider frame lacks {c}")
+    sub = ins[ins[cols["ISSUERTRADINGSYMBOL"]] == ticker]
+    lo, hi = pd.Timestamp(window[0]), pd.Timestamp(window[1])
+    out = []
+    for i, row in enumerate(sub.itertuples(index=False)):
+        rec = dict(zip(sub.columns, row))
+        fd, _ = to_ny(str(rec[cols["FILING_DATE"]])[:10])
+        if fd is None or not (lo <= fd <= hi):
+            continue
+        td = rec.get(cols.get("TRANS_DATE", ""), None)
+        out.append(InfoItem(f"INS-{ticker}-{fd.strftime('%Y%m%d')}-{i}", InfoKind.INSIDER, ticker,
+                            None if td is None else str(td)[:10], str(fd.date()), "insider", PROV_RECORDED, True, False,
+                            0.35, 1, "open-market purchase"))
+    return out
+
+
+def items_from_effective_series(values: pd.Series, kind: InfoKind, subject: str, source: str,
+                                strength: float = 0.3) -> list[InfoItem]:
+    """Series indexed by EFFECTIVE date (macro releases, fundamentals) -> items with provenance 'inferred_lag': their real
+    publication time is not in the data, so judge_item derives it from a LagPolicy and refuses to trust it near the boundary."""
+    out = []
+    for ts, v in values.dropna().items():
+        eff, _ = to_ny(ts)
+        if eff is None:
+            continue
+        out.append(InfoItem(f"{source}-{subject}-{eff.strftime('%Y%m%d')}", kind, subject, str(eff.date()), None, source,
+                            PROV_INFERRED, True, False, strength, int(np.sign(v)) if strength and v == v else 0,
+                            f"value={float(v):.4g}"))
+    return out
+
+
+def scheduled_announcement(item_id: str, kind: InfoKind, subject: str, announced_at: str, event_at: str, source: str,
+                           strength: float = 0.8, detail: str = "") -> InfoItem:
+    """An earnings date / FOMC date announced before it happens. Published early on purpose; that is what makes it knowable."""
+    return InfoItem(item_id, kind, subject, event_at, announced_at, source, PROV_RECORDED, True, True, strength, 0, detail)
+
+
+# ==================================================================================================================
+# configuration and the move under audit
+# ==================================================================================================================
+@dataclasses.dataclass(frozen=True)
+class KnowabilityConfig:
+    """Every threshold in one hashed object, so a classification can always be traced to the exact rules that made it."""
+    min_pre_bars: int = 60
+    vol_long: int = 60
+    vol_short: int = 5
+    mom_lookback: int = 20
+    vol_ratio: tuple[float, float] = (1.5, 3.0)           # short/long realised-vol ratio mapped to 0..1
+    volume_z: tuple[float, float] = (1.0, 3.0)
+    compression: tuple[float, float] = (0.3, 0.7)         # 1 - (10d range / 60d range)
+    cs_rank: tuple[float, float] = (0.8, 0.98)
+    mkt_ratio: tuple[float, float] = (1.5, 3.0)
+    weights: tuple[tuple[str, float], ...] = (("FEATURES", 1.0), ("PATTERNS", 0.8), ("MEMORY", 0.6), ("MACRO", 0.5),
+                                              ("MARKET_STATE", 0.5), ("EVENT", 0.9), ("PRICE", 0.7), ("VOLUME", 0.7),
+                                              ("TECHNICAL", 0.5), ("CROSS_SECTION", 0.6))
+    channel_present: float = 0.3                          # a channel counts as an independent known signal above this
+    predictable_at: float = 0.65
+    potential_at: float = 0.45
+    weak_at: float = 0.2
+    flag_pct: float = 0.9                                 # decision-time model percentile that counts as "it flagged this"
+    ext_share: float = 0.6
+    ext_market_z: float = 1.5
+    explain_min: float = 0.5                              # post-hoc cause strength that counts as "a cause was found"
+    failure_bar: float = 0.6
+    split_tol: float = 0.03
+    split_min_ret: float = 0.4
+    badtick_ret: float = 0.3
+    badtick_revert: float = 0.8
+    stale_run: int = 4
+    return_tol: float = 0.02
+    uncertain_demote: float = 0.5
+    min_fit: int = 30
+
+    def check(self) -> list[str]:
+        errs = []
+        if not (0 < self.weak_at < self.potential_at < self.predictable_at <= 1):
+            errs.append("thresholds must satisfy 0 < weak < potential < predictable <= 1")
+        for name in ("vol_ratio", "volume_z", "compression", "cs_rank", "mkt_ratio"):
+            lo, hi = getattr(self, name)
+            if not lo < hi:
+                errs.append(f"{name} ramp needs lo < hi")
+        if {c for c, _ in self.weights} != set(CHANNELS):
+            errs.append("weights must name exactly the ten channels")
+        if any(not 0 < w <= 1 for _, w in self.weights):
+            errs.append("channel weights must be in (0,1]")
+        if self.min_pre_bars < self.vol_long:
+            errs.append("min_pre_bars must cover the long volatility window")
+        return errs
+
+    def weight(self, channel: str) -> float:
+        return dict(self.weights)[channel]
+
+    def hash(self) -> str:
+        return stable_hash(self, 12)
+
+    def scaled(self, f: float) -> "KnowabilityConfig":
+        """Every classification threshold moved by factor f (sensitivity analysis)."""
+        return dataclasses.replace(self, predictable_at=min(1.0, self.predictable_at * f), potential_at=self.potential_at * f,
+                                   weak_at=self.weak_at * f, ext_share=min(1.0, self.ext_share * f), explain_min=min(1.0, self.explain_min * f))
+
+
+@dataclasses.dataclass(frozen=True)
+class MoveEvent:
+    """A major historical move to audit. `end_date` is when the outcome finished forming: the record matures then, not before."""
+    move_id: str
+    ticker: str
+    decision_date: str
+    fill_date: str
+    end_date: str
+    fwd_return: float
+    horizon: int = 5
+    regime: str = ""
+    sector: str = ""
+    model_pct: float | None = None                # decision-time model percentile for this name (None = no model output)
+    model_confidence: float | None = None
+
+    def check(self) -> list[str]:
+        errs = DecisionBoundary(self.decision_date, self.fill_date).check()
+        if as_date(self.end_date) < as_date(self.fill_date):
+            errs.append("end date precedes the fill date")
+        if not math.isfinite(self.fwd_return):
+            errs.append("non-finite forward return")
+        if self.horizon < 1:
+            errs.append("horizon must be >= 1 session")
+        for f in ("model_pct", "model_confidence"):
+            v = getattr(self, f)
+            if v is not None and not 0.0 <= v <= 1.0:
+                errs.append(f"{f} outside [0,1]")
+        return errs
+
+    @property
+    def boundary(self) -> DecisionBoundary:
+        return DecisionBoundary(self.decision_date, self.fill_date)
+
+    @property
+    def direction(self) -> int:
+        return int(np.sign(self.fwd_return))
+
+    @property
+    def matured_at(self) -> str:
+        return self.end_date
+
+
+@dataclasses.dataclass
+class MoveInputs:
+    """Everything the auditor is given about one move. Bars must include the pre-window, the move window and at least a few
+    sessions after (used only to detect bad ticks; recorded as future information used by the auditor)."""
+    move: MoveEvent
+    bars: pd.DataFrame
+    market: pd.Series | None = None
+    sector: pd.Series | None = None
+    items: Sequence[InfoItem] = ()
+    probes: Mapping[str, Sequence[SourceProbe]] = dataclasses.field(default_factory=dict)
+    cross: Mapping[str, float] = dataclasses.field(default_factory=dict)
+    pattern_hits: Sequence[Mapping[str, Any]] = ()
+    memory_hits: Sequence[Mapping[str, Any]] = ()
+
+    def windows(self) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+        """(pre, move window, after). `pre` ends at the decision date inclusive: the close is known at the cutoff."""
+        m = self.move
+        if not isinstance(self.bars.index, pd.DatetimeIndex):
+            raise KnowabilityError("bars need a DatetimeIndex")
+        b = self.bars.sort_index()
+        dd, ed = pd.Timestamp(m.decision_date), pd.Timestamp(m.end_date)
+        return b.loc[:dd], b.loc[(b.index > dd) & (b.index <= ed)], b.loc[b.index > ed]
+
+
+# ==================================================================================================================
+# data failure detection (a "move" that is really a data defect must never be studied as market behaviour)
+# ==================================================================================================================
+@dataclasses.dataclass(frozen=True)
+class QualityFlag:
+    code: str
+    severity: float                                # 0..1
+    detail: str
+    uses_future: bool = False                      # needed sessions after the decision to see it
+
+
+@dataclasses.dataclass(frozen=True)
+class DataQuality:
+    flags: tuple[QualityFlag, ...]
+    failed: bool
+    severity: float
+
+    def codes(self) -> tuple[str, ...]:
+        return tuple(f.code for f in self.flags)
+
+
+SPLIT_RATIOS = (0.5, 1 / 3, 0.25, 0.2, 0.1, 2.0, 3.0, 4.0, 5.0, 10.0)
+
+
+def _flag_ohlc(df: pd.DataFrame) -> list[QualityFlag]:
+    need = {"open", "high", "low", "close", "volume"}
+    if not need <= set(df.columns):
+        return [QualityFlag("MISSING_COLUMNS", 1.0, f"bars lack {sorted(need - set(df.columns))}")]
+    out = []
+    px = df[["open", "high", "low", "close"]]
+    if px.isna().any().any() or (px <= 0).any().any():
+        out.append(QualityFlag("BAD_PRICE", 1.0, "non-positive or missing price in the audited span"))
+    bad = ((df["high"] < df["low"]) | (df["close"] > df["high"] * 1.0001) | (df["close"] < df["low"] * 0.9999)).sum()
+    if bad:
+        out.append(QualityFlag("OHLC_INCONSISTENT", 0.5 if bad < 3 else 0.8, f"{int(bad)} bars with close outside high/low"))
+    if df.index.duplicated().any():
+        out.append(QualityFlag("DUPLICATE_SESSIONS", 0.8, "repeated dates in the bar index"))
+    return out
+
+
+def _flag_gaps_and_stale(pre: pd.DataFrame, win: pd.DataFrame, cfg: KnowabilityConfig) -> list[QualityFlag]:
+    out = []
+    span = pd.concat([pre.tail(cfg.vol_long), win])
+    if len(span) >= 2:
+        gaps = np.diff(span.index.values.astype("datetime64[D]")).astype(int)
+        if gaps.max(initial=0) > 5:
+            out.append(QualityFlag("MISSING_SESSIONS", 0.4, f"gap of {int(gaps.max())} calendar days in the audited span"))
+    for name, part in (("pre", pre.tail(cfg.vol_long)), ("window", win)):
+        if len(part) < cfg.stale_run:
+            continue
+        same = (part["close"].diff().abs() < 1e-12) & (part["volume"] <= 0)
+        run = best = 0
+        for v in same.values:
+            run = run + 1 if v else 0
+            best = max(best, run)
+        if best >= cfg.stale_run:
+            out.append(QualityFlag("STALE_PRICES", 0.7, f"{best} consecutive unchanged closes with zero volume in the {name}"))
+    return out
+
+
+def _flag_split_and_ticks(pre: pd.DataFrame, win: pd.DataFrame, post: pd.DataFrame, items: Sequence[InfoItem],
+                          cfg: KnowabilityConfig) -> list[QualityFlag]:
+    out = []
+    if len(win) == 0 or len(pre) < 2:
+        return out
+    full = pd.concat([pre, win, post])
+    ret = full["close"].pct_change()
+    vol_med = float(pre["volume"].tail(cfg.vol_long).median()) if len(pre) else 0.0
+    has_action = any(i.kind == InfoKind.CORPORATE_ACTION for i in items)
+    for ts in win.index:
+        r = ret.loc[ts]
+        if not math.isfinite(r) or abs(r) < cfg.split_min_ret:
+            continue
+        ratio = 1.0 + r
+        near = [s for s in SPLIT_RATIOS if abs(ratio - s) / s < cfg.split_tol]
+        vol_ratio = float(win.loc[ts, "volume"]) / vol_med if vol_med > 0 else float("nan")
+        if near and not (vol_ratio == vol_ratio and vol_ratio > 4.0):
+            out.append(QualityFlag("SPLIT_SIGNATURE", 0.9 if not has_action else 0.7,
+                                   f"close ratio {ratio:.3f} matches a {near[0]:.3g}:1 split without a volume surge"
+                                   + (" (recorded corporate action)" if has_action else "")))
+        loc = full.index.get_loc(ts)
+        tail = ret.iloc[loc + 1: loc + 3]
+        if len(tail) and abs(r) >= cfg.badtick_ret:
+            back = float(np.prod(1.0 + tail.values) - 1.0)
+            if np.sign(back) == -np.sign(r) and abs(back) >= cfg.badtick_revert * abs(r) / (1 + abs(r)):
+                out.append(QualityFlag("BAD_TICK", 0.75, f"{r:+.1%} day reversed {back:+.1%} within {len(tail)} sessions", True))
+    return out
+
+
+def _flag_label_mismatch(m: MoveEvent, win: pd.DataFrame, cfg: KnowabilityConfig) -> list[QualityFlag]:
+    if len(win) == 0:
+        return [QualityFlag("EMPTY_WINDOW", 1.0, "no bars inside the labelled move window")]
+    try:
+        real = float(win["close"].iloc[-1] / win["open"].iloc[0] - 1.0)
+    except (KeyError, ZeroDivisionError):
+        return [QualityFlag("EMPTY_WINDOW", 1.0, "cannot recompute the labelled move")]
+    if not math.isfinite(real) or abs(real - m.fwd_return) > cfg.return_tol:
+        return [QualityFlag("RETURN_MISMATCH", 0.8, f"label says {m.fwd_return:+.2%}, bars say {real:+.2%}")]
+    return []
+
+
+def assess_data_quality(inp: MoveInputs, cfg: KnowabilityConfig = KnowabilityConfig()) -> DataQuality:
+    """Run every defect check on the audited span. Failing any check at or above `failure_bar` makes the move DATA_FAILURE,
+    the only class allowed to outrank everything else because a defective bar cannot support any market explanation."""
+    pre, win, post = inp.windows()
+    flags = _flag_ohlc(pd.concat([pre.tail(cfg.vol_long), win]))
+    if not any(f.code == "MISSING_COLUMNS" for f in flags):
+        flags += _flag_gaps_and_stale(pre, win, cfg)
+        flags += _flag_label_mismatch(inp.move, win, cfg)
+        flags += _flag_volume_and_truncation(inp.move, pre, win, cfg)
+        if not any(f.code in ("BAD_PRICE", "EMPTY_WINDOW") for f in flags):
+            flags += _flag_split_and_ticks(pre, win, post, inp.items, cfg)
+    if len(pre) < cfg.min_pre_bars:
+        flags.append(QualityFlag("SHORT_HISTORY", 0.3, f"{len(pre)} pre-decision bars, need {cfg.min_pre_bars}"))
+    sev = max((f.severity for f in flags), default=0.0)
+    return DataQuality(tuple(flags), sev >= cfg.failure_bar, sev)
+
+
+# ==================================================================================================================
+# the ten information channels: what was knowable at the decision cutoff (reads only data at or before the cutoff)
+# ==================================================================================================================
+@dataclasses.dataclass(frozen=True)
+class ChannelEvidence:
+    """anticipation is the strength of the case, from information available at the cutoff only, that a large move was coming
+    (None = the channel had no data: that is NOT zero). `future_used` lists anything the auditor looked at beyond the cutoff."""
+    channel: str
+    anticipation: float | None
+    direction: int = 0
+    detail: str = ""
+    n_items: int = 0
+    uncertain_share: float = 0.0
+    future_used: tuple[str, ...] = ()
+
+    def has_signal(self, bar: float) -> bool:
+        return self.anticipation is not None and self.anticipation >= bar
+
+    def check(self) -> list[str]:
+        if self.channel not in CHANNELS:
+            return [f"unknown channel {self.channel}"]
+        if self.anticipation is not None and not 0.0 <= self.anticipation <= 1.0:
+            return [f"{self.channel}: anticipation {self.anticipation} outside [0,1]"]
+        return []
+
+
+def _none(ch: str, why: str) -> ChannelEvidence:
+    return ChannelEvidence(ch, None, 0, why)
+
+
+def _ret(close: pd.Series) -> pd.Series:
+    return close.pct_change().dropna()
+
+
+def price_channel(pre: pd.DataFrame, cfg: KnowabilityConfig) -> ChannelEvidence:
+    """Volatility expansion into the cutoff (short vs long realised vol) plus prior momentum direction."""
+    r = _ret(pre["close"]) if len(pre) else pd.Series(dtype=float)
+    if len(r) < cfg.vol_long:
+        return _none("PRICE", "too little price history")
+    long_sd, short_sd = float(r.iloc[-cfg.vol_long:].std()), float(r.iloc[-cfg.vol_short:].std())
+    if long_sd <= 0:
+        return _none("PRICE", "zero long-run volatility")
+    ratio = short_sd / long_sd
+    mom = float(pre["close"].iloc[-1] / pre["close"].iloc[-1 - cfg.mom_lookback] - 1.0)
+    z = mom / (long_sd * math.sqrt(cfg.mom_lookback))
+    direction = int(np.sign(z)) if abs(z) > 1.0 else 0
+    return ChannelEvidence("PRICE", ramp(ratio, *cfg.vol_ratio), direction, f"vol ratio {ratio:.2f}, momentum z {z:+.2f}")
+
+
+def volume_channel(pre: pd.DataFrame, cfg: KnowabilityConfig) -> ChannelEvidence:
+    """Recent volume against its own history: unusual participation before the move."""
+    if len(pre) < cfg.vol_long or (pre["volume"] <= 0).all():
+        return _none("VOLUME", "no usable volume history")
+    v = pre["volume"].astype(float)
+    base = v.iloc[-cfg.vol_long:-3]
+    sd = float(base.std())
+    if sd <= 0:
+        return _none("VOLUME", "constant volume history")
+    z = (float(v.iloc[-3:].mean()) - float(base.mean())) / sd
+    day = pre["close"].pct_change().iloc[-3:]
+    direction = int(np.sign(day.sum())) if z > cfg.volume_z[0] else 0
+    return ChannelEvidence("VOLUME", ramp(z, *cfg.volume_z), direction, f"3-day volume z {z:+.2f}")
+
+
+def technical_channel(pre: pd.DataFrame, cfg: KnowabilityConfig) -> ChannelEvidence:
+    """Range compression (a coiled range) and proximity to a 52-week extreme, from the trailing bars only."""
+    if len(pre) < cfg.vol_long:
+        return _none("TECHNICAL", "too little history")
+    rng = (pre["high"] - pre["low"]) / pre["close"]
+    short, long = float(rng.iloc[-10:].mean()), float(rng.iloc[-cfg.vol_long:].mean())
+    comp = ramp(1.0 - short / long, *cfg.compression) if long > 0 else 0.0
+    brk, direction = 0.0, 0
+    if len(pre) >= 252:
+        hi, lo, last = float(pre["high"].iloc[-252:].max()), float(pre["low"].iloc[-252:].min()), float(pre["close"].iloc[-1])
+        near_hi, near_lo = last / hi, lo / last
+        brk = 0.6 * ramp(max(near_hi, near_lo), 0.98, 1.0)
+        direction = 1 if near_hi >= near_lo else -1
+    return ChannelEvidence("TECHNICAL", max(comp, brk), direction if brk > comp else 0, f"compression {comp:.2f}, extreme {brk:.2f}")
+
+
+def cross_section_channel(cross: Mapping[str, float], cfg: KnowabilityConfig) -> ChannelEvidence:
+    """The name's prior-volatility rank in the universe and its sector-relative strength, both computed at the cutoff."""
+    if not cross or "vol_rank_pct" not in cross:
+        return _none("CROSS_SECTION", "no cross-sectional snapshot supplied")
+    pct = float(cross["vol_rank_pct"])
+    if not 0.0 <= pct <= 1.0:
+        raise KnowabilityError(f"vol_rank_pct {pct} outside [0,1]")
+    rel = float(cross.get("sector_rel_z", 0.0))
+    return ChannelEvidence("CROSS_SECTION", ramp(pct, *cfg.cs_rank), int(np.sign(rel)) if abs(rel) > 1.0 else 0,
+                           f"volatility rank {pct:.2f}, sector-relative z {rel:+.2f}")
+
+
+def market_state_channel(market: pd.Series | None, decision_date: str, cfg: KnowabilityConfig) -> ChannelEvidence:
+    """Market-wide volatility regime at the cutoff: high market volatility makes any move more likely to be systematic."""
+    if market is None or len(market) == 0:
+        return _none("MARKET_STATE", "no market series")
+    m = market.sort_index().loc[:pd.Timestamp(decision_date)].dropna()
+    if len(m) < cfg.vol_long:
+        return _none("MARKET_STATE", "too little market history")
+    long_sd, short_sd = float(m.iloc[-cfg.vol_long:].std()), float(m.iloc[-cfg.vol_short:].std())
+    if long_sd <= 0:
+        return _none("MARKET_STATE", "zero market volatility")
+    ratio = short_sd / long_sd
+    return ChannelEvidence("MARKET_STATE", ramp(ratio, *cfg.mkt_ratio), 0, f"market vol ratio {ratio:.2f}")
+
+
+def _usable(items: Sequence[InfoItem], kinds: set, judg: Mapping[str, AvailabilityJudgement]) -> tuple[list[InfoItem], int, int]:
+    rel = [i for i in items if i.kind in kinds]
+    known = [i for i in rel if judg[i.item_id].availability == Availability.KNOWN_BEFORE_EVENT]
+    unc = sum(1 for i in rel if judg[i.item_id].availability == Availability.UNCERTAIN)
+    return known, len(rel), unc
+
+
+def event_channel(items: Sequence[InfoItem], judg: Mapping[str, AvailabilityJudgement], move: MoveEvent,
+                  cfg: KnowabilityConfig) -> ChannelEvidence:
+    """Company events (filings, scheduled earnings, insider buying) that were public before the cutoff and whose event time
+    falls inside the move window or the days before it. Items known only afterwards are hindsight and are NOT counted here."""
+    known, n_rel, unc = _usable(items, {InfoKind.EVENT, InfoKind.FILING, InfoKind.INSIDER}, judg)
+    if n_rel == 0:
+        return _none("EVENT", "no event items supplied")
+    lo = pd.Timestamp(move.decision_date) - pd.Timedelta(days=5)
+    hi = pd.Timestamp(move.end_date)
+    live = []
+    for i in known:
+        eff, _ = to_ny(i.effective_at)
+        if eff is not None and lo <= eff.normalize() <= hi:
+            live.append(i)
+    if not live:
+        return ChannelEvidence("EVENT", 0.0, 0, "events existed but none timed into the move window", 0, unc / n_rel)
+    ant = noisy_or([i.strength for i in live])
+    d = int(np.sign(sum(i.direction for i in live)))
+    return ChannelEvidence("EVENT", ant, d, f"{len(live)} event(s) known before the cutoff", len(live), unc / n_rel)
+
+
+def macro_channel(items: Sequence[InfoItem], judg: Mapping[str, AvailabilityJudgement], move: MoveEvent,
+                  cfg: KnowabilityConfig) -> ChannelEvidence:
+    """Scheduled macro releases inside the move window that were announced before the cutoff (an FOMC date is knowable)."""
+    known, n_rel, unc = _usable(items, {InfoKind.MACRO}, judg)
+    if n_rel == 0:
+        return _none("MACRO", "no macro items supplied")
+    lo, hi = pd.Timestamp(move.fill_date), pd.Timestamp(move.end_date)
+    live = [i for i in known if i.scheduled and (e := to_ny(i.effective_at)[0]) is not None and lo <= e.normalize() <= hi]
+    ant = noisy_or([i.strength for i in live]) if live else 0.0
+    return ChannelEvidence("MACRO", ant, 0, f"{len(live)} scheduled release(s) in the window", len(live), unc / n_rel)
+
+
+def _hits_channel(name: str, hits: Sequence[Mapping[str, Any]], key: str, move: MoveEvent) -> ChannelEvidence:
+    """Patterns / memory hits count only if they had matured before the decision date. Later ones are future information
+    the auditor must not credit; they are reported, not used."""
+    if not hits:
+        return _none(name, "no hits supplied")
+    dd = pd.Timestamp(move.decision_date)
+    good, future = [], []
+    for h in hits:
+        learned = h.get("learned_at")
+        if learned is None or pd.Timestamp(str(learned)[:10]) >= dd:
+            future.append(str(h.get("id", "?")))
+        else:
+            good.append(h)
+    if not good:
+        return ChannelEvidence(name, 0.0, 0, "every hit was learned at or after the decision date", 0, 1.0, tuple(future))
+    ant = noisy_or([min(1.0, max(0.0, float(h.get(key, 0.0)))) * min(1.0, max(0.0, float(h.get("strength", 1.0)))) for h in good])
+    d = int(np.sign(sum(float(h.get("effect", 0.0)) for h in good)))
+    return ChannelEvidence(name, ant, d, f"{len(good)} matured hit(s), {len(future)} excluded as later", len(good), 0.0, tuple(future))
+
+
+def features_channel(move: MoveEvent, cfg: KnowabilityConfig) -> ChannelEvidence:
+    """What the decision-time model itself said about this name."""
+    if move.model_pct is None:
+        return _none("FEATURES", "no model output for this name")
+    ant = ramp(move.model_pct, 0.5, cfg.flag_pct)
+    conf = "" if move.model_confidence is None else f", confidence {move.model_confidence:.2f}"
+    return ChannelEvidence("FEATURES", ant, 0, f"model percentile {move.model_pct:.2f}{conf}")
+
+
+def build_channels(inp: MoveInputs, judg: Mapping[str, AvailabilityJudgement], cfg: KnowabilityConfig) -> dict[str, ChannelEvidence]:
+    """The full information state at the decision cutoff, one entry per section-8 channel."""
+    pre, _, _ = inp.windows()
+    pre = pre.tail(max(cfg.vol_long * 5, 260))
+    m = inp.move
+    ch = {
+        "FEATURES": features_channel(m, cfg),
+        "PATTERNS": _hits_channel("PATTERNS", inp.pattern_hits, "p_real", m),
+        "MEMORY": _hits_channel("MEMORY", inp.memory_hits, "similarity", m),
+        "MACRO": macro_channel(inp.items, judg, m, cfg),
+        "MARKET_STATE": market_state_channel(inp.market, m.decision_date, cfg),
+        "EVENT": event_channel(inp.items, judg, m, cfg),
+        "PRICE": price_channel(pre, cfg),
+        "VOLUME": volume_channel(pre, cfg),
+        "TECHNICAL": technical_channel(pre, cfg),
+        "CROSS_SECTION": cross_section_channel(inp.cross, cfg),
+    }
+    bad = [e for c in ch.values() for e in c.check()]
+    if bad:
+        raise KnowabilityError("; ".join(bad))
+    return ch
+
+
+def combine_anticipation(channels: Mapping[str, ChannelEvidence], cfg: KnowabilityConfig) -> tuple[float, int, float]:
+    """(total anticipation, number of independent present channels, coverage). Total is noisy-or over weighted channels, so
+    many weak signals cannot masquerade as one strong one unless they are independent; channels with no data contribute
+    nothing but lower `coverage`, the honest 'how much of the picture we could see'."""
+    vals, present, seen = [], 0, 0.0
+    tot_w = sum(w for _, w in cfg.weights)
+    for name, c in channels.items():
+        if c.anticipation is None:
+            continue
+        seen += cfg.weight(name)
+        vals.append(cfg.weight(name) * c.anticipation)
+        present += int(c.anticipation >= cfg.channel_present)
+    return noisy_or(vals), present, seen / tot_w
+
+
+# ==================================================================================================================
+# external (systematic) attribution
+# ==================================================================================================================
+@dataclasses.dataclass(frozen=True)
+class ExternalDecomposition:
+    beta_market: float
+    beta_sector: float
+    market_window_ret: float
+    sector_window_ret: float
+    explained: float
+    idiosyncratic: float
+    systematic_share: float                       # share of the move explained by market and sector, in [0,1]
+    market_move_z: float
+    sector_move_z: float
+    n_fit: int
+
+
+def _window_compound(s: pd.Series | None, lo: str, hi: str) -> float:
+    if s is None:
+        return 0.0
+    w = s.sort_index().loc[(s.index > pd.Timestamp(lo)) & (s.index <= pd.Timestamp(hi))].dropna()
+    return float(np.prod(1.0 + w.values) - 1.0) if len(w) else 0.0
+
+
+def decompose_external(inp: MoveInputs, cfg: KnowabilityConfig = KnowabilityConfig()) -> ExternalDecomposition | None:
+    """Betas are fitted on the PRE-decision window only, then applied to the market and sector returns over the move window.
+    None when the fit is impossible: an unmeasurable external share must not be read as zero or as one."""
+    pre, win, _ = inp.windows()
+    m = inp.move
+    if inp.market is None or len(win) == 0:
+        return None
+    y = pre["close"].pct_change().dropna().tail(cfg.vol_long * 2)
+    mk = inp.market.sort_index().reindex(y.index)
+    if int(mk.notna().sum()) < cfg.min_fit:
+        return None
+    sec = inp.sector.sort_index().reindex(y.index) if inp.sector is not None else None
+    ok = mk.notna() & (sec.notna() if sec is not None else True)
+    y, mk = y[ok], mk[ok]
+    if len(y) < cfg.min_fit or float(mk.var()) <= 0:
+        return None
+    b_m = float(np.cov(y, mk)[0, 1] / mk.var())
+    b_s, sec_orth_win = 0.0, 0.0
+    sec_win = _window_compound(inp.sector, m.decision_date, m.end_date)
+    mkt_win = _window_compound(inp.market, m.decision_date, m.end_date)
+    if sec is not None:
+        s = sec[ok]
+        gam = float(np.cov(s, mk)[0, 1] / mk.var())
+        s_orth = s - gam * mk
+        if float(s_orth.var()) > 0:
+            resid = y - b_m * mk
+            b_s = float(np.cov(resid, s_orth)[0, 1] / s_orth.var())
+            sec_orth_win = sec_win - gam * mkt_win
+    b_m, b_s = 0.67 * b_m + 0.33, 0.67 * b_s                   # shrink the market beta toward 1 (Blume) and the sector loading toward 0
+    explained = b_m * mkt_win + b_s * sec_orth_win
+    share = 0.0
+    if abs(m.fwd_return) > 1e-9 and np.sign(explained) == np.sign(m.fwd_return):
+        share = float(min(1.0, abs(explained) / abs(m.fwd_return)))
+    mk_sd = float(inp.market.sort_index().loc[:pd.Timestamp(m.decision_date)].tail(cfg.vol_long).std())
+    z = abs(mkt_win) / (mk_sd * math.sqrt(m.horizon)) if mk_sd > 0 else 0.0
+    sc_sd = float(inp.sector.sort_index().loc[:pd.Timestamp(m.decision_date)].tail(cfg.vol_long).std()) if inp.sector is not None else 0.0
+    sz = abs(sec_orth_win) / (sc_sd * math.sqrt(m.horizon)) if sc_sd > 0 else 0.0
+    return ExternalDecomposition(b_m, b_s, mkt_win, sec_win, explained, m.fwd_return - explained, share, z, sz, len(y))
+
+
+# ==================================================================================================================
+# hindsight explanations: causes found AFTER the fact, never converted into predictive knowledge
+# ==================================================================================================================
+@dataclasses.dataclass(frozen=True)
+class Explanation:
+    item_id: str
+    kind: InfoKind
+    availability: Availability                 # of the cause itself
+    strength: float
+    precursor: Availability                    # could anything legitimate have revealed it beforehand?
+    why: str
+
+    def check(self) -> list[str]:
+        return [] if 0.0 <= self.strength <= 1.0 else [f"{self.item_id}: strength outside [0,1]"]
+
+
+CAUSE_KINDS = {InfoKind.EVENT, InfoKind.FILING, InfoKind.INSIDER, InfoKind.MACRO, InfoKind.NEWS_EXTERNAL, InfoKind.CORPORATE_ACTION}
+
+
+def find_explanations(inp: MoveInputs, judg: Mapping[str, AvailabilityJudgement], b: DecisionBoundary, cfg: KnowabilityConfig,
+                      calendar: Calendar | None = None, lag: LagPolicy = LagPolicy()) -> list[Explanation]:
+    """Items published at or after the boundary whose event time falls in the move window and whose direction does not
+    contradict the move. Each is asked the knowability question: were there precursors in any covering source?"""
+    m = inp.move
+    lo, hi = pd.Timestamp(m.decision_date), pd.Timestamp(m.end_date)
+    out = []
+    for it in inp.items:
+        j = judg[it.item_id]
+        if it.kind not in CAUSE_KINDS or j.availability not in (Availability.KNOWN_ONLY_AFTER_EVENT, Availability.SIMULTANEOUS,
+                                                                Availability.UNCERTAIN):
+            continue
+        eff, _ = to_ny(it.effective_at)
+        if eff is None or not (lo <= eff.normalize() <= hi) or it.strength < cfg.explain_min:
+            continue
+        if it.direction not in (0, m.direction):
+            continue
+        probes = inp.probes.get(it.item_id, ())
+        if j.availability == Availability.UNCERTAIN:
+            prec, why = Availability.UNCERTAIN, "the cause's own publication time is uncertain"
+        else:
+            prec, why = judge_precursors(it, probes, b, calendar, lag)
+        out.append(Explanation(it.item_id, it.kind, j.availability, it.strength, prec, why))
+    return sorted(out, key=lambda e: (-e.strength, e.item_id))
+
+
+# ==================================================================================================================
+# the assessment (section 8 report) and the classifier cascade
+# ==================================================================================================================
+VOL_EDGES = (0.015, 0.03)                       # prior daily volatility buckets: LOW < 1.5% <= MID < 3% <= HIGH
+_DEMOTE = {Knowability.PREDICTABLE: Knowability.POTENTIALLY_PREDICTABLE, Knowability.POTENTIALLY_PREDICTABLE: Knowability.WEAKLY_PREDICTABLE}
+
+
+def vol_bucket(daily_vol: float | None) -> str:
+    if daily_vol is None or not math.isfinite(daily_vol):
+        return "UNKNOWN"
+    return "LOW" if daily_vol < VOL_EDGES[0] else "MID" if daily_vol < VOL_EDGES[1] else "HIGH"
+
+
+@dataclasses.dataclass(frozen=True)
+class KnowabilityAssessment:
+    """The "could I have known?" report for one move (section 8). A hindsight artefact: namespace MATURED_RESEARCH."""
+    move_id: str
+    ticker: str
+    decision_date: str
+    matured_at: str
+    classification: Knowability
+    anticipation: float
+    n_present_channels: int
+    coverage: float
+    systematic_share: float | None
+    direction_knowable: bool
+    knowledge_state_at_decision: Mapping[str, Any]
+    future_information_used_by_auditor: tuple[str, ...]
+    information_that_would_have_been_available: tuple[str, ...]
+    information_that_was_unavailable: tuple[str, ...]
+    uncertain_information: tuple[str, ...]
+    simultaneous_information: tuple[str, ...]
+    explanations: tuple[tuple[str, str, float, str], ...]      # (item id, availability, strength, precursor verdict)
+    quality_flags: tuple[str, ...]
+    confidence_in_classification: float
+    trace: tuple[str, ...]
+    regime: str = ""
+    sector: str = ""
+    vol_bucket: str = "UNKNOWN"
+    model_pct: float | None = None
+    model_confidence: float | None = None
+    abs_move_z: float | None = None
+    move_direction: int = 0
+    fwd_return: float | None = None
+    config_hash: str = ""
+    code_hash: str = ""
+    namespace: Namespace = Namespace.MATURED_RESEARCH
+
+    def check(self) -> list[str]:
+        errs = []
+        if self.namespace != Namespace.MATURED_RESEARCH:
+            errs.append("a knowability assessment belongs to MATURED_RESEARCH_STATE only")
+        if not 0.0 <= self.confidence_in_classification <= 1.0:
+            errs.append("confidence outside [0,1]")
+        if not self.trace:
+            errs.append("classification without a decision trace")
+        if self.classification == Knowability.DATA_FAILURE and not self.quality_flags:
+            errs.append("DATA_FAILURE without a quality flag")
+        if self.classification == Knowability.INFORMATIONALLY_UNAVAILABLE and not self.explanations:
+            errs.append("INFORMATIONALLY_UNAVAILABLE needs a discovered cause")
+        if as_date(self.matured_at) <= as_date(self.decision_date):
+            errs.append("outcome cannot mature on or before the decision date")
+        return errs
+
+    def content_hash(self) -> str:
+        return stable_hash(self._plain(), 16)
+
+    def _plain(self) -> dict:
+        d = {f.name: getattr(self, f.name) for f in dataclasses.fields(self)}
+        d["knowledge_state_at_decision"] = dict(self.knowledge_state_at_decision)
+        return d
+
+    def to_record(self, code_hash: str = "") -> MaturedRecord:
+        """Wrap for the research world. Nothing here is trader-visible until MaturedRecord.gate(now) passes."""
+        prov = Provenance(created_real=self.matured_at, learned_at=self.matured_at, code_hash=code_hash or self.code_hash or "none",
+                          config_hash=self.config_hash, outcomes_seen_through=self.matured_at)
+        return MaturedRecord("KNW-" + self.move_id, self.matured_at, self._plain(), prov)
+
+
+def _channel_state(ch: Mapping[str, ChannelEvidence]) -> dict[str, dict]:
+    return {k: {"anticipation": v.anticipation, "direction": v.direction, "detail": v.detail, "n_items": v.n_items,
+                "uncertain_share": v.uncertain_share} for k, v in ch.items()}
+
+
+def _prior_vol(pre: pd.DataFrame, n: int) -> float | None:
+    r = _ret(pre["close"]) if len(pre) else pd.Series(dtype=float)
+    return float(r.iloc[-n:].std()) if len(r) >= 20 else None
+
+
+def _move_z(m: MoveEvent, pv: float | None) -> float | None:
+    return abs(m.fwd_return) / (pv * math.sqrt(m.horizon)) if pv and pv > 0 else None
+
+
+def _confidence(margin: float, coverage: float, unc: float) -> float:
+    base = 0.5 + 0.5 * min(1.0, max(0.0, margin) / 0.2)
+    return float(min(1.0, max(0.0, base * (0.6 + 0.4 * coverage) * (1.0 - 0.5 * unc))))
+
+
+def classify_move(inp: MoveInputs, cfg: KnowabilityConfig = KnowabilityConfig(), calendar: Calendar | None = None,
+                  lag: LagPolicy = LagPolicy(), code_hash: str = "", drop_channels: Iterable[str] = ()) -> KnowabilityAssessment:
+    """The cascade. Order matters and is part of the contract: a data defect outranks every market story; a mostly
+    systematic move that no channel foresaw is external; then anticipation decides predictable / potential / weak; a move
+    nobody could foresee is INFORMATIONALLY_UNAVAILABLE only when a cause was found AND no covering source held a precursor,
+    otherwise it stays UNKNOWN. Missing or uncertain information only ever lowers a class."""
+    m = inp.move
+    errs = m.check() + cfg.check()
+    if errs:
+        raise KnowabilityError("; ".join(errs))
+    b = m.boundary
+    judg = judge_all(inp.items, b, calendar, lag)
+    pre, _, post = inp.windows()
+    pv = _prior_vol(pre, cfg.vol_long)
+    ids = {a: sorted(i for i, j in judg.items() if j.availability == a) for a in Availability}
+    future = [f"bars:{len(post)} sessions after the move (bad-tick check)"] if len(post) else []
+    future += [f"item:{i} ({judg[i].availability.value})" for i in ids[Availability.KNOWN_ONLY_AFTER_EVENT]]
+    common = dict(move_id=m.move_id, ticker=m.ticker, decision_date=m.decision_date, matured_at=m.matured_at, regime=m.regime,
+                  sector=m.sector, vol_bucket=vol_bucket(pv), model_pct=m.model_pct, model_confidence=m.model_confidence,
+                  abs_move_z=_move_z(m, pv), move_direction=m.direction, fwd_return=m.fwd_return, config_hash=cfg.hash(), code_hash=code_hash)
+    dq = assess_data_quality(inp, cfg)
+    if dq.failed:
+        top = max(dq.flags, key=lambda f: f.severity)
+        fut = tuple(future + [f"flag:{f.code}" for f in dq.flags if f.uses_future])
+        a = KnowabilityAssessment(classification=Knowability.DATA_FAILURE, anticipation=0.0, n_present_channels=0, coverage=0.0,
+                                  systematic_share=None, direction_knowable=False, knowledge_state_at_decision={},
+                                  future_information_used_by_auditor=tuple(fut),
+                                  information_that_would_have_been_available=tuple(ids[Availability.KNOWN_BEFORE_EVENT]),
+                                  information_that_was_unavailable=tuple(ids[Availability.UNAVAILABLE]),
+                                  uncertain_information=tuple(ids[Availability.UNCERTAIN]),
+                                  simultaneous_information=tuple(ids[Availability.SIMULTANEOUS]), explanations=(),
+                                  quality_flags=dq.codes(), confidence_in_classification=0.5 + 0.5 * dq.severity,
+                                  trace=(f"data defect {top.code} severity {top.severity:.2f}: {top.detail}",), **common)
+        return a
+    ch = build_channels(inp, judg, cfg)
+    for name in drop_channels:
+        if name not in CHANNELS:
+            raise KnowabilityError(f"cannot ablate unknown channel {name!r}")
+        ch[name] = _none(name, "ablated")
+    A, n_present, coverage = combine_anticipation(ch, cfg)
+    ext = decompose_external(inp, cfg)
+    expl = find_explanations(inp, judg, b, cfg, calendar, lag)
+    flagged = m.model_pct is not None and m.model_pct >= cfg.flag_pct
+    unc_shares = [c.uncertain_share for c in ch.values() if c.n_items or c.uncertain_share]
+    unc = float(np.mean(unc_shares)) if unc_shares else 0.0
+    trace = [f"anticipation {A:.2f} from {n_present} independent channel(s), coverage {coverage:.2f}, flagged={flagged}"]
+    for e in expl[:1]:
+        led = pre_publication_share(inp, next(i for i in inp.items if i.item_id == e.item_id))
+        if led is not None and led >= 0.5:
+            trace.append(f"PRICE_LED_NEWS: {led:.0%} of the move happened before {e.item_id} was public (leak, informed trading or a bad timestamp)")
+    mkt_ant = ch["MARKET_STATE"].anticipation or 0.0
+    sys_share = None if ext is None else ext.systematic_share
+    ext_hit = ext is not None and ext.systematic_share >= cfg.ext_share and max(ext.market_move_z, ext.sector_move_z) >= cfg.ext_market_z
+    margin = 0.0
+    if ext_hit and A < cfg.predictable_at and mkt_ant < 0.5:
+        cls = Knowability.EXTERNALLY_CAUSED
+        margin = ext.systematic_share - cfg.ext_share
+        trace.append(f"systematic share {ext.systematic_share:.2f} >= {cfg.ext_share}, market z {ext.market_move_z:.1f}, sector z "
+                     f"{ext.sector_move_z:.1f}, no channel foresaw the market state")
+    elif A >= cfg.predictable_at and n_present >= 2 and flagged:
+        cls, margin = Knowability.PREDICTABLE, A - cfg.predictable_at
+        trace.append(f"anticipation >= {cfg.predictable_at} with >=2 channels and the model flagged it")
+    elif A >= cfg.predictable_at or (A >= cfg.potential_at and n_present >= 2):
+        cls, margin = Knowability.POTENTIALLY_PREDICTABLE, min(abs(A - cfg.potential_at), abs(A - cfg.predictable_at))
+        trace.append("information existed before the cutoff but " + ("the model did not flag it" if not flagged else "too few independent channels"))
+    elif A >= cfg.weak_at:
+        cls, margin = Knowability.WEAKLY_PREDICTABLE, min(A - cfg.weak_at, cfg.potential_at - A)
+        trace.append(f"anticipation between {cfg.weak_at} and {cfg.potential_at}")
+    else:
+        best = next((e for e in expl), None)
+        if best is None:
+            cls, margin = Knowability.UNKNOWN, cfg.weak_at - A
+            trace.append("no channel anticipated it and no cause was found: unknown stays unknown")
+        elif best.precursor == Availability.UNAVAILABLE:
+            cls, margin = Knowability.INFORMATIONALLY_UNAVAILABLE, best.strength - cfg.explain_min
+            trace.append(f"cause {best.item_id} found after the fact and no covering source held a precursor")
+        elif best.precursor == Availability.KNOWN_BEFORE_EVENT:
+            cls, margin = Knowability.WEAKLY_PREDICTABLE, 0.0
+            trace.append(f"cause {best.item_id} had precursors before the boundary that the channels did not capture: {best.why}")
+        else:
+            cls, margin = Knowability.UNKNOWN, cfg.weak_at - A
+            trace.append(f"cause {best.item_id} found but its knowability cannot be established ({best.why}); left UNKNOWN")
+    if cls in _DEMOTE and unc >= cfg.uncertain_demote:
+        trace.append(f"{unc:.0%} of the timestamped evidence is UNCERTAIN: demoted from {cls.value}")
+        cls, margin = _DEMOTE[cls], 0.0
+    dirs = [c.direction for c in ch.values() if c.anticipation is not None and c.anticipation >= cfg.channel_present and c.direction]
+    dir_ok = bool(dirs) and all(d == m.direction for d in dirs) and len(dirs) >= 2
+    conf = _confidence(margin, coverage, unc) if cls != Knowability.UNKNOWN else float(min(1.0, 0.5 + 0.5 * coverage * (1.0 - unc)))
+    fut = list(future) + [f"channel:{k}:{x}" for k, c in ch.items() for x in c.future_used]
+    return KnowabilityAssessment(
+        classification=cls, anticipation=A, n_present_channels=n_present, coverage=coverage, systematic_share=sys_share,
+        direction_knowable=dir_ok, knowledge_state_at_decision=_channel_state(ch), future_information_used_by_auditor=tuple(fut),
+        information_that_would_have_been_available=tuple(ids[Availability.KNOWN_BEFORE_EVENT]),
+        information_that_was_unavailable=tuple(sorted(set(ids[Availability.UNAVAILABLE]) | set(ids[Availability.KNOWN_ONLY_AFTER_EVENT]))),
+        uncertain_information=tuple(ids[Availability.UNCERTAIN]), simultaneous_information=tuple(ids[Availability.SIMULTANEOUS]),
+        explanations=tuple((e.item_id, e.availability.value, e.strength, e.precursor.value) for e in expl),
+        quality_flags=dq.codes(), confidence_in_classification=conf, trace=tuple(trace), **common)
+
+
+# ==================================================================================================================
+# robustness: is the class an accident of a threshold, or of the future?
+# ==================================================================================================================
+def class_stability(inp: MoveInputs, cfg: KnowabilityConfig = KnowabilityConfig(), factors: Sequence[float] = (0.8, 0.9, 1.1, 1.25),
+                    calendar: Calendar | None = None, lag: LagPolicy = LagPolicy()) -> dict[str, Any]:
+    """Re-classify under every threshold scaled by `factors`. Stable classes survive; a class that flips under +-10% is a
+    coin-flip near a boundary and should be reported with that fragility rather than trusted."""
+    base = classify_move(inp, cfg, calendar, lag).classification
+    flips = {}
+    for f in factors:
+        c = classify_move(inp, cfg.scaled(f), calendar, lag).classification
+        if c != base:
+            flips[f] = c.value
+    return {"base": base.value, "stable_share": 1.0 - len(flips) / max(1, len(factors)), "flips": flips}
+
+
+def _scramble_future(inp: MoveInputs, seed: int) -> MoveInputs:
+    """Copy of the inputs with everything after the decision cutoff replaced by noise."""
+    rng = np.random.default_rng(seed)
+    m, dd = inp.move, pd.Timestamp(inp.move.decision_date)
+    bars = inp.bars.sort_index().copy()
+    fut = bars.index > dd
+    for c in ("open", "high", "low", "close"):
+        bars.loc[fut, c] = bars.loc[fut, c].to_numpy() * rng.uniform(0.5, 2.0, int(fut.sum()))
+    bars.loc[fut, "volume"] = bars.loc[fut, "volume"].to_numpy() * rng.uniform(0.1, 10.0, int(fut.sum()))
+    def scr(s):
+        if s is None:
+            return None
+        s = s.sort_index().copy()
+        f = s.index > dd
+        s.loc[f] = rng.normal(0.0, 0.05, int(f.sum()))
+        return s
+    b = m.boundary
+    items = []
+    for it in inp.items:
+        pub, _ = to_ny(it.published_at)
+        if pub is not None and pub > b.cutoff:
+            it = dataclasses.replace(it, strength=float(rng.uniform(0.0, 1.0)), direction=int(rng.choice([-1, 0, 1])))
+        items.append(it)
+    hits = lambda hs: [h if pd.Timestamp(str(h.get("learned_at", "2100-01-01"))[:10]) < dd else {**h, "p_real": float(rng.uniform()), "similarity": float(rng.uniform())} for h in hs]
+    return dataclasses.replace(inp, bars=bars, market=scr(inp.market), sector=scr(inp.sector), items=items,
+                               pattern_hits=hits(inp.pattern_hits), memory_hits=hits(inp.memory_hits))
+
+
+def channels_future_invariant(inp: MoveInputs, cfg: KnowabilityConfig = KnowabilityConfig(), seed: int = 0,
+                              calendar: Calendar | None = None, lag: LagPolicy = LagPolicy(), atol: float = 1e-9) -> list[str]:
+    """The no-peeking proof for the information state: scramble every future value and rebuild the ten channels. Any channel
+    whose anticipation moves has read something it must not have. Returns the offending channel names (empty = clean)."""
+    b = inp.move.boundary
+    a = build_channels(inp, judge_all(inp.items, b, calendar, lag), cfg)
+    alt = _scramble_future(inp, seed)
+    c = build_channels(alt, judge_all(alt.items, b, calendar, lag), cfg)
+    bad = []
+    for k in CHANNELS:
+        x, y = a[k].anticipation, c[k].anticipation
+        if (x is None) != (y is None) or (x is not None and abs(x - y) > atol):
+            bad.append(k)
+    return bad
+
+
+# ==================================================================================================================
+# hindsight firewall: the label may never become a feature, a prompt or a trader input
+# ==================================================================================================================
+HINDSIGHT_MARKERS = tuple(k.value.lower() for k in Knowability) + (
+    "knowability", "could_have_known", "hindsight", "informationally_unavailable", "unknown_cause", "explained_after",
+    "externally_caused", "information_that_would_have_been_available")
+
+
+def refuse_hindsight_columns(columns: Iterable[str]) -> None:
+    """Fail closed if any feature/training column name looks like a knowability or hindsight label."""
+    bad = sorted(str(c) for c in columns if any(mk in str(c).lower() for mk in HINDSIGHT_MARKERS))
+    if bad:
+        raise FirewallBreach(f"hindsight/knowability labels offered as features: {bad}")
+
+
+def assert_not_trader_bound(obj: Any, where: str = "trader input") -> None:
+    """A KnowabilityAssessment (or anything carrying MATURED_RESEARCH_STATE) reaching the trader is a breach, whatever its shape."""
+    stack = [obj]
+    while stack:
+        o = stack.pop()
+        if isinstance(o, (KnowabilityAssessment, Explanation, ChannelEvidence)) or getattr(o, "namespace", None) == Namespace.MATURED_RESEARCH:
+            raise FirewallBreach(f"{type(o).__name__} is MATURED_RESEARCH_STATE and cannot enter {where}")
+        if isinstance(o, Mapping):
+            stack.extend(o.values())
+        elif isinstance(o, (list, tuple, set, frozenset)):
+            stack.extend(o)
+
+
+def release_for_trader(a: KnowabilityAssessment, now, replaying_years: Iterable[int] = ()) -> dict[str, Any]:
+    """The only road out: MaturedRecord.gate(now) (outcome matured strictly before real `now`), refusal while the record's own
+    year is being replayed in disguise (the same-year rerun leak), and a payload with no ticker, date, year or id."""
+    payload = a.to_record().gate(now)
+    if as_date(a.decision_date).year in {int(y) for y in replaying_years}:
+        raise FirewallBreach(f"knowability research filed under {as_date(a.decision_date).year} while that year is replayed")
+    return {"knowability": payload["classification"].value if isinstance(payload["classification"], Knowability)
+            else str(payload["classification"]), "anticipation_bucket": round(float(payload["anticipation"]) * 4) / 4,
+            "confidence_bucket": round(float(payload["confidence_in_classification"]) * 4) / 4,
+            "n_present_channels": int(payload["n_present_channels"])}
+
+
+# ==================================================================================================================
+# ledger and aggregate views (kept small: one assessment row per major move, never the bars)
+# ==================================================================================================================
+def wilson(k: int, n: int, z: float = 1.96) -> tuple[float, float]:
+    """Wilson score interval for a rate; (nan, nan) when n == 0 (an empty group has no rate, not a zero rate)."""
+    if n <= 0:
+        return float("nan"), float("nan")
+    p = k / n
+    den = 1.0 + z * z / n
+    centre = (p + z * z / (2 * n)) / den
+    half = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / den
+    return max(0.0, centre - half), min(1.0, centre + half)
+
+
+class KnowabilityLedger:
+    """Append-only, one row per move id. Re-adding an identical assessment is a no-op; a different one for the same move is an
+    error (history is immutable: reclassify under a new config by using a new ledger, not by overwriting)."""
+
+    def __init__(self):
+        self._rows: dict[str, KnowabilityAssessment] = {}
+
+    def __len__(self) -> int:
+        return len(self._rows)
+
+    def rows(self) -> list[KnowabilityAssessment]:
+        return list(self._rows.values())
+
+    def add(self, a: KnowabilityAssessment) -> bool:
+        errs = a.check()
+        if errs:
+            raise KnowabilityError("; ".join(errs))
+        cur = self._rows.get(a.move_id)
+        if cur is not None:
+            if cur.content_hash() != a.content_hash():
+                raise KnowabilityError(f"{a.move_id} already classified differently; history is immutable")
+            return False
+        self._rows[a.move_id] = a
+        return True
+
+    def counts(self) -> dict[str, int]:
+        out = {k.value: 0 for k in Knowability}
+        for a in self._rows.values():
+            out[a.classification.value] += 1
+        return out
+
+    def table(self, by: str = "regime") -> pd.DataFrame:
+        """Class shares per group with Wilson intervals on each share. `by`: regime, sector, vol_bucket, year, confidence."""
+        def key(a: KnowabilityAssessment) -> str:
+            if by == "year":
+                return str(as_date(a.decision_date).year)
+            if by == "confidence":
+                c = a.model_confidence
+                return "NONE" if c is None else "LOW" if c < 0.34 else "MID" if c < 0.67 else "HIGH"
+            v = getattr(a, by, None)
+            if v is None:
+                raise KnowabilityError(f"unknown grouping {by!r}")
+            return str(v) or "UNSPECIFIED"
+        rows = []
+        groups: dict[str, list[KnowabilityAssessment]] = {}
+        for a in self._rows.values():
+            groups.setdefault(key(a), []).append(a)
+        for g, items in sorted(groups.items()):
+            n = len(items)
+            for k in Knowability:
+                c = sum(1 for a in items if a.classification == k)
+                lo, hi = wilson(c, n)
+                rows.append({"group": g, "class": k.value, "n": c, "of": n, "share": c / n, "lo": lo, "hi": hi})
+        return pd.DataFrame(rows, columns=["group", "class", "n", "of", "share", "lo", "hi"])
+
+
+def hindsight_dependence(ledger: KnowabilityLedger) -> dict[str, float]:
+    """How much of what we can explain we could only explain afterwards. explained = moves with at least one discovered cause;
+    after_only = of those, the share whose class says the cause was not knowable. A high value means the research world's
+    understanding is mostly hindsight and must not be mistaken for a predictive edge."""
+    rows = ledger.rows()
+    expl = [a for a in rows if a.explanations]
+    after = [a for a in expl if a.classification in (Knowability.INFORMATIONALLY_UNAVAILABLE, Knowability.UNKNOWN,
+                                                     Knowability.EXTERNALLY_CAUSED)]
+    return {"n_moves": len(rows), "n_explained": len(expl), "after_only_share": len(after) / len(expl) if expl else float("nan"),
+            "predictable_share": (sum(1 for a in rows if a.classification == Knowability.PREDICTABLE) / len(rows)) if rows else float("nan")}
+
+
+def model_gap(ledger: KnowabilityLedger, cfg: KnowabilityConfig = KnowabilityConfig()) -> dict[str, Any]:
+    """Moves whose information existed beforehand (POTENTIALLY_PREDICTABLE with high anticipation) but the model did not flag:
+    the size of the research opportunity that is about using knowable information better, not finding new data."""
+    pot = [a for a in ledger.rows() if a.classification == Knowability.POTENTIALLY_PREDICTABLE]
+    missed = [a for a in pot if a.model_pct is None or a.model_pct < cfg.flag_pct]
+    by_channel: dict[str, int] = {}
+    for a in missed:
+        for ch, st in a.knowledge_state_at_decision.items():
+            if st["anticipation"] is not None and st["anticipation"] >= cfg.channel_present and ch != "FEATURES":
+                by_channel[ch] = by_channel.get(ch, 0) + 1
+    return {"potential": len(pot), "unflagged": len(missed), "unflagged_share": len(missed) / len(pot) if pot else float("nan"),
+            "channels_the_model_ignored": dict(sorted(by_channel.items(), key=lambda kv: -kv[1]))}
+
+
+def render_report(ledger: KnowabilityLedger) -> str:
+    """Plain-text summary for the research report (no tickers or dates: shares and counts only)."""
+    n = len(ledger)
+    if n == 0:
+        return "knowability: no moves classified yet"
+    lines = [f"knowability: {n} major moves classified"]
+    for k, c in ledger.counts().items():
+        lo, hi = wilson(c, n)
+        lines.append(f"  {k:<28s} {c:>5d}  {c / n:6.1%}  [{lo:5.1%}, {hi:5.1%}]")
+    h = hindsight_dependence(ledger)
+    lines.append(f"  explained {h['n_explained']} moves; {h['after_only_share']:.0%} of those only in hindsight")
+    g = model_gap(ledger)
+    lines.append(f"  model ignored knowable information on {g['unflagged']} of {g['potential']} potentially predictable moves")
+    return "\n".join(lines)
+
+
+# ==================================================================================================================
+# streaming selection: keep exception rows only, one snapshot per day (a market-wide scan cannot fit in memory)
+# ==================================================================================================================
+@dataclasses.dataclass(frozen=True)
+class DaySnapshot:
+    date: str
+    n_names: int
+    market_return: float
+    cross_dispersion: float
+    median_abs_return: float
+    frac_extreme: float
+
+
+def select_major_moves(day: str, returns: pd.Series, prior_vol: pd.Series, z_min: float = 3.0,
+                       max_n: int = 200) -> tuple[DaySnapshot, pd.DataFrame]:
+    """One pass over a day's cross-section -> (its snapshot, the exception rows |return| >= z_min prior sigmas, capped at max_n
+    by size). Names without a positive prior volatility are excluded by construction, not treated as huge movers."""
+    r = returns.astype(float)
+    pv = prior_vol.reindex(r.index).astype(float)
+    ok = r.notna() & pv.notna() & (pv > 0)
+    z = (r[ok] / pv[ok])
+    ext = z[z.abs() >= z_min].sort_values(key=lambda s: -s.abs()).head(max_n)
+    snap = DaySnapshot(str(as_date(day)), int(ok.sum()), float(r[ok].mean()) if ok.any() else float("nan"),
+                       float(r[ok].std()) if ok.sum() > 1 else float("nan"), float(r[ok].abs().median()) if ok.any() else float("nan"),
+                       float((z.abs() >= z_min).mean()) if ok.any() else float("nan"))
+    return snap, pd.DataFrame({"z": ext, "ret": r.loc[ext.index], "prior_vol": pv.loc[ext.index]})
+
+
+# ==================================================================================================================
+# public entry
+# ==================================================================================================================
+@dataclasses.dataclass
+class KnowabilityState:
+    cfg: KnowabilityConfig = KnowabilityConfig()
+    lag: LagPolicy = LagPolicy()
+    ledger: KnowabilityLedger = dataclasses.field(default_factory=KnowabilityLedger)
+    snapshots: dict[str, DaySnapshot] = dataclasses.field(default_factory=dict)
+    immature: list[str] = dataclasses.field(default_factory=list)
+
+
+@dataclasses.dataclass(frozen=True)
+class StepReport:
+    now: str
+    n_in: int
+    n_classified: int
+    n_immature: int
+    n_duplicates: int
+    counts: Mapping[str, int]
+    mean_confidence: float | None
+    low_confidence: tuple[str, ...]
+    notes: tuple[str, ...]
+
+
+def step(state: KnowabilityState, now, inputs: Sequence[MoveInputs], calendar: Calendar | None = None,
+         code_hash: str | None = None, low_conf: float = 0.5) -> tuple[KnowabilityState, StepReport]:
+    """Classify every input whose outcome matured strictly before real `now`; immature inputs are skipped and reported (their
+    outcome is not yet a fact, so no hindsight class exists). Returns the (mutated) state and a report."""
+    ch = code_hash if code_hash is not None else current_code_hash()
+    n_new = n_dup = 0
+    confs, low, notes = [], [], []
+    for inp in inputs:
+        m = inp.move
+        if as_date(m.matured_at) >= as_date(now):
+            state.immature.append(m.move_id)
+            continue
+        a = classify_move(inp, state.cfg, calendar, state.lag, ch)
+        if state.ledger.add(a):
+            n_new += 1
+            confs.append(a.confidence_in_classification)
+            if a.confidence_in_classification < low_conf:
+                low.append(a.move_id)
+        else:
+            n_dup += 1
+        if a.classification == Knowability.DATA_FAILURE:
+            notes.append(f"{a.move_id}: data failure {','.join(a.quality_flags)}")
+    n_imm = len(inputs) - n_new - n_dup
+    return state, StepReport(str(as_date(now)), len(inputs), n_new, n_imm, n_dup, state.ledger.counts(),
+                             float(np.mean(confs)) if confs else None, tuple(low), tuple(notes))
+
+
+# ==================================================================================================================
+# planted worlds: synthetic moves whose true knowability class is known by construction (used by tests and, later, by the
+# wave-2 research loop to check that the classifier can still tell them apart)
+# ==================================================================================================================
+def _base_bars(rng: np.random.Generator, n_pre: int, horizon: int, n_post: int, mkt_beta: float = 1.0):
+    """Pre-window returns = beta * market + idiosyncratic noise, so the external-attribution fit has something real to find."""
+    n = n_pre + 1 + horizon + n_post
+    dates = pd.bdate_range(end=pd.Timestamp("2019-06-28"), periods=n)
+    mkt = pd.Series(rng.normal(0.0003, 0.008, n), index=dates)
+    idio = rng.normal(0.0, 0.012, n)
+    ret = pd.Series(mkt_beta * mkt.values + idio, index=dates)
+    return dates, mkt, ret
+
+
+def _finish_bars(dates, ret: pd.Series, rng: np.random.Generator, volume: np.ndarray) -> pd.DataFrame:
+    close = 50.0 * (1.0 + ret).cumprod()
+    opn = close.shift(1).fillna(close.iloc[0]) * (1.0 + rng.normal(0, 0.001, len(close)))
+    hi = np.maximum(opn, close) * (1.0 + np.abs(rng.normal(0, 0.003, len(close))))
+    lo = np.minimum(opn, close) * (1.0 - np.abs(rng.normal(0, 0.003, len(close))))
+    return pd.DataFrame({"open": opn, "high": hi, "low": lo, "close": close, "volume": volume}, index=dates)
+
+
+def planted_inputs(kind: str, seed: int = 0, n_pre: int = 300, horizon: int = 3, n_post: int = 4) -> MoveInputs:
+    """A synthetic move of a known class. kind in: PREDICTABLE, POTENTIALLY_PREDICTABLE, WEAKLY_PREDICTABLE, EXTERNALLY_CAUSED,
+    INFORMATIONALLY_UNAVAILABLE, UNKNOWN, DATA_FAILURE, UNCERTAIN_EVENT (an earnings item with no provenance: must not raise
+    a class), HINDSIGHT_ONLY (a cause published after the move with a precursor-free but uncovered source)."""
+    rng = np.random.default_rng(seed)
+    dates, mkt, ret = _base_bars(rng, n_pre, horizon, n_post)
+    vol = rng.lognormal(13.8, 0.3, len(dates))
+    d_i = n_pre
+    D = dates[d_i]
+    fill, end = dates[d_i + 1], dates[d_i + horizon]
+    items: list[InfoItem] = []
+    probes: dict[str, list[SourceProbe]] = {}
+    hits: list[dict] = []
+    cross: dict[str, float] = {}
+    pct: float | None = None
+    target = 0.12 if rng.uniform() < 0.5 else -0.12
+    sign = 1 if target > 0 else -1
+    win = slice(d_i + 1, d_i + horizon + 1)
+    per_day = (1.0 + target) ** (1.0 / horizon) - 1.0
+
+    def set_window(total: float):
+        ret.iloc[win] = (1.0 + total) ** (1.0 / horizon) - 1.0
+
+    if kind in ("PREDICTABLE", "POTENTIALLY_PREDICTABLE"):
+        ret.iloc[d_i - 4:d_i + 1] *= 3.0
+        vol[d_i - 2:d_i + 1] *= 4.0
+        set_window(target)
+        items.append(scheduled_announcement("ER-1", InfoKind.EVENT, "T", str((D - pd.Timedelta(days=20)).date()),
+                                            str((fill + pd.Timedelta(days=1)).date()), "calendar", 0.8, "earnings date"))
+        hits.append({"id": "P1", "p_real": 0.9, "strength": 1.0, "effect": sign * 0.05, "learned_at": str((D - pd.Timedelta(days=90)).date())})
+        cross = {"vol_rank_pct": 0.96, "sector_rel_z": 1.5 * sign}
+        pct = 0.97 if kind == "PREDICTABLE" else 0.4
+    elif kind == "WEAKLY_PREDICTABLE":
+        base = vol[d_i - 62:d_i - 2]
+        vol[d_i - 2:d_i + 1] = base.mean() + 1.7 * base.std()          # a modest, exactly 1.7-sigma volume bump and nothing else
+        set_window(target)
+    elif kind == "EXTERNALLY_CAUSED":
+        mkt.iloc[win] = (1.0 - 0.07) ** (1.0 / horizon) - 1.0
+        ret.iloc[win] = 1.3 * mkt.iloc[win].values + rng.normal(0, 0.002, horizon)
+        target = float(np.prod(1.0 + ret.iloc[win].values) - 1.0)
+    elif kind in ("INFORMATIONALLY_UNAVAILABLE", "HINDSIGHT_ONLY"):
+        set_window(target)
+        acc = str((dates[d_i + 2] + pd.Timedelta(hours=10)))
+        items.append(InfoItem("8K-1", InfoKind.FILING, "T", acc, acc, "edgar", PROV_RECORDED, True, False, 0.85, sign, "acquisition closed"))
+        probes["8K-1"] = [SourceProbe("edgar", True, ()), SourceProbe("insider", kind == "INFORMATIONALLY_UNAVAILABLE", ())]
+    elif kind == "UNCERTAIN_EVENT":
+        ret.iloc[d_i - 4:d_i + 1] *= 2.0
+        vol[d_i - 2:d_i + 1] *= 3.0
+        set_window(target)
+        items.append(InfoItem("ER-U", InfoKind.EVENT, "T", str((fill + pd.Timedelta(days=1)).date()), None, "calendar",
+                              PROV_UNKNOWN, True, True, 0.9, 0, "earnings date of unknown provenance"))
+    elif kind == "DATA_FAILURE":
+        horizon = 1
+        ret.iloc[d_i + 1] = 0.5
+        ret.iloc[d_i + 2] = -0.34
+        target = 0.5
+    elif kind == "UNKNOWN":
+        set_window(target)
+    else:
+        raise KnowabilityError(f"unknown planted kind {kind!r}")
+    if kind == "DATA_FAILURE":
+        end = dates[d_i + 1]
+    bars = _finish_bars(dates, ret, rng, vol)
+    fwd = float(bars["close"].loc[end] / bars["open"].loc[fill] - 1.0)
+    mv = MoveEvent(f"M-{kind[:4]}-{seed}", "TKR", str(D.date()), str(fill.date()), str(end.date()), fwd, horizon,
+                   regime="R1", sector="S1", model_pct=pct, model_confidence=None if pct is None else pct)
+    sec = pd.Series(0.5 * mkt.values + rng.normal(0, 0.004, len(dates)), index=dates)
+    if kind == "EXTERNALLY_CAUSED":
+        sec.iloc[win] = 0.5 * mkt.iloc[win].values
+    return MoveInputs(mv, bars, mkt, sec, items, probes, cross, hits, [])
+
+
+# ==================================================================================================================
+# extra data-failure checks (volume/price consistency, truncated windows, cross-source disagreement)
+# ==================================================================================================================
+def _flag_volume_and_truncation(m: MoveEvent, pre: pd.DataFrame, win: pd.DataFrame, cfg: KnowabilityConfig) -> list[QualityFlag]:
+    """A window shorter than the labelled horizon (delisting, halt, feed gap) and large price moves that traded no shares."""
+    out = []
+    if len(win):
+        expected = int(np.busday_count(np.datetime64(m.fill_date), np.datetime64(m.end_date))) + 1
+        if len(win) < expected - 1:
+            out.append(QualityFlag("TRUNCATED_WINDOW", 0.6, f"{len(win)} bars for a {expected}-session window"))
+        r = win["close"].pct_change().fillna(win["close"] / pre["close"].iloc[-1] - 1.0 if len(pre) else 0.0)
+        silent = (r.abs() > 0.10) & (win["volume"] <= 0)
+        if silent.any():
+            out.append(QualityFlag("MOVE_WITHOUT_VOLUME", 0.65, f"{int(silent.sum())} day(s) moved >10% on zero volume"))
+    return out
+
+
+def cross_source_check(bars_a: pd.DataFrame, bars_b: pd.DataFrame, tol: float = 0.02, min_overlap: int = 20) -> list[QualityFlag]:
+    """Two vendors' closes for the same name: a disagreement beyond `tol` on any overlapping day means at least one is wrong,
+    which makes a move that appears in only one of them a data question before it is a market question."""
+    idx = bars_a.index.intersection(bars_b.index)
+    if len(idx) < min_overlap:
+        return [QualityFlag("SOURCES_NOT_COMPARABLE", 0.2, f"only {len(idx)} overlapping sessions")]
+    diff = (bars_a.loc[idx, "close"] / bars_b.loc[idx, "close"] - 1.0).abs()
+    bad = diff[diff > tol]
+    if bad.empty:
+        return []
+    return [QualityFlag("SOURCE_DISAGREEMENT", min(1.0, 0.5 + float(bad.max())), f"{len(bad)} session(s) differ by more than {tol:.0%}; worst {float(bad.max()):.1%}")]
+
+
+# ==================================================================================================================
+# pre-publication drift: did the price move before the news was public?
+# ==================================================================================================================
+def pre_publication_share(inp: MoveInputs, item: InfoItem) -> float | None:
+    """Share of the move already realised before `item` became public, from the daily bars of the move window. Intraday
+    publication splits its own session evenly (a coarse but unbiased assumption); DATE-precision counts the whole day as after.
+    A high share means the price led the news: leakage, informed trading, or a wrong timestamp. None when it cannot be measured."""
+    pub, prec = to_ny(item.published_at)
+    _, win, _ = inp.windows()
+    if pub is None or len(win) == 0:
+        return None
+    total = float(np.log(win["close"].iloc[-1] / win["open"].iloc[0]))
+    if abs(total) < 1e-9:
+        return None
+    day_log = np.log(win["close"] / win["open"]).to_numpy()
+    before = 0.0
+    for ts, lr in zip(win.index, day_log):
+        if ts.normalize() < pub.normalize():
+            before += float(lr)
+        elif ts.normalize() == pub.normalize() and prec == PREC_INTRADAY:
+            before += float(lr) * 0.5
+    return float(min(1.0, max(0.0, before / total)))
+
+
+# ==================================================================================================================
+# sources: coverage registry, automated precursor probes, timestamp audit
+# ==================================================================================================================
+@dataclasses.dataclass(frozen=True)
+class SourceSpec:
+    name: str
+    first_date: str
+    last_date: str
+    granularity: str = PREC_INTRADAY
+    typical_lag_sessions: int = 0
+
+    def check(self) -> list[str]:
+        errs = []
+        if as_date(self.last_date) < as_date(self.first_date):
+            errs.append(f"{self.name}: coverage ends before it starts")
+        if self.granularity not in (PREC_INTRADAY, PREC_DATE):
+            errs.append(f"{self.name}: granularity must be INTRADAY or DATE")
+        return errs
+
+
+class SourceRegistry:
+    """What each data source can and cannot see. A source's silence is evidence only inside its own coverage window."""
+
+    def __init__(self, specs: Iterable[SourceSpec] = ()):
+        self._specs: dict[str, SourceSpec] = {}
+        for s in specs:
+            self.add(s)
+
+    def add(self, spec: SourceSpec) -> None:
+        errs = spec.check()
+        if errs:
+            raise KnowabilityError("; ".join(errs))
+        self._specs[spec.name] = spec
+
+    def names(self) -> list[str]:
+        return sorted(self._specs)
+
+    def covers(self, source: str, lo: str, hi: str) -> bool:
+        s = self._specs.get(source)
+        return s is not None and as_date(s.first_date) <= as_date(lo) and as_date(hi) <= as_date(s.last_date)
+
+    def probe(self, source: str, cause: InfoItem, all_items: Sequence[InfoItem], b: DecisionBoundary, lookback_days: int = 30,
+              calendar: Calendar | None = None, lag: LagPolicy = LagPolicy(), min_strength: float = 0.2) -> SourceProbe:
+        """Ask one source for precursors of `cause`: same subject, published KNOWN_BEFORE the boundary within the lookback."""
+        lo = str((pd.Timestamp(b.decision_date) - pd.Timedelta(days=lookback_days)).date())
+        if not self.covers(source, lo, b.fill_date):
+            return SourceProbe(source, False, ())
+        found = []
+        for it in all_items:
+            if it.item_id == cause.item_id or it.source != source or it.subject != cause.subject or it.strength < min_strength:
+                continue
+            j = judge_item(it, b, calendar, lag)
+            eff, _ = to_ny(it.effective_at)
+            if j.availability == Availability.KNOWN_BEFORE_EVENT and eff is not None and eff >= pd.Timestamp(lo):
+                found.append(it.item_id)
+        return SourceProbe(source, True, tuple(sorted(found)))
+
+
+def attach_probes(inp: MoveInputs, registry: SourceRegistry, sources: Sequence[str] | None = None, lookback_days: int = 30,
+                  calendar: Calendar | None = None, lag: LagPolicy = LagPolicy()) -> MoveInputs:
+    """Fill `inp.probes` for every cause candidate from the registry, so INFORMATIONALLY_UNAVAILABLE is decided by evidence
+    about what each source held, never by the absence of a probe."""
+    b = inp.move.boundary
+    srcs = list(sources) if sources is not None else registry.names()
+    probes = {c.item_id: [registry.probe(s, c, inp.items, b, lookback_days, calendar, lag) for s in srcs]
+              for c in inp.items if c.kind in CAUSE_KINDS}
+    return dataclasses.replace(inp, probes=probes)
+
+
+@dataclasses.dataclass(frozen=True)
+class TimestampFinding:
+    code: str
+    item_ids: tuple[str, ...]
+    detail: str
+
+
+def audit_items(items: Sequence[InfoItem], now, calendar: Calendar | None = None) -> list[TimestampFinding]:
+    """Integrity checks on the timestamps themselves, before any knowability question is asked of them: publication before the
+    event without a scheduled flag, publication in the future of `now`, duplicated items with different clocks, intraday
+    stamps on non-sessions' weekends, and sources that never carry a time of day."""
+    out: list[TimestampFinding] = []
+    cutoff = pd.Timestamp(as_date(now))
+    early, future, weekend, missing = [], [], [], []
+    for it in items:
+        pub, prec = to_ny(it.published_at)
+        eff, _ = to_ny(it.effective_at)
+        if pub is None:
+            if it.exists and it.provenance != PROV_INFERRED:
+                missing.append(it.item_id)
+            continue
+        if eff is not None and not it.scheduled and pub < eff.normalize() - pd.Timedelta(days=1):
+            early.append(it.item_id)
+        if pub >= cutoff:
+            future.append(it.item_id)
+        if prec == PREC_INTRADAY and pub.weekday() >= 5:
+            weekend.append(it.item_id)
+    for code, ids, detail in (("PUBLISHED_BEFORE_EVENT", early, "published before it happened and not scheduled"),
+                              ("PUBLISHED_IN_FUTURE", future, f"publication at or after {cutoff.date()}"),
+                              ("WEEKEND_TIMESTAMP", weekend, "intraday timestamp on a Saturday or Sunday"),
+                              ("NO_PUBLICATION_TIME", missing, "exists but has no publication time and no lag rule")):
+        if ids:
+            out.append(TimestampFinding(code, tuple(sorted(ids)), detail))
+    seen: dict[tuple, list[InfoItem]] = {}
+    for it in items:
+        seen.setdefault((it.subject, it.kind.value, str(it.effective_at)[:10], it.source), []).append(it)
+    dup = [x.item_id for g in seen.values() if len(g) > 1 and len({y.published_at for y in g}) > 1 for x in g]
+    if dup:
+        out.append(TimestampFinding("CONFLICTING_CLOCKS", tuple(sorted(dup)), "same fact stored with different publication times"))
+    by_src: dict[str, list[str]] = {}
+    for it in items:
+        by_src.setdefault(it.source, []).append(to_ny(it.published_at)[1])
+    coarse = [s for s, v in by_src.items() if len(v) >= 5 and all(p == PREC_DATE for p in v)]
+    if coarse:
+        out.append(TimestampFinding("DATE_ONLY_SOURCE", tuple(sorted(coarse)), "source never carries a time of day: intraday order is unknowable"))
+    return out
+
+
+def merge_duplicate_items(items: Iterable[InfoItem]) -> list[InfoItem]:
+    """Collapse the same fact reported by several sources to ONE item carrying the EARLIEST recorded publication (the moment the
+    world first knew it); provenance stays that of the earliest record. Items with no publication time never win a merge."""
+    groups: dict[tuple, list[InfoItem]] = {}
+    for it in items:
+        groups.setdefault((it.subject, it.kind.value, str(it.effective_at)[:10], it.direction), []).append(it)
+    out = []
+    for g in groups.values():
+        timed = [(to_ny(x.published_at)[0], x) for x in g if to_ny(x.published_at)[0] is not None]
+        best = min(timed, key=lambda t: (t[0], t[1].item_id))[1] if timed else sorted(g, key=lambda x: x.item_id)[0]
+        out.append(dataclasses.replace(best, strength=max(x.strength for x in g)))
+    return sorted(out, key=lambda x: x.item_id)
+
+
+def estimate_lag_policy(effective, published, sources: Sequence[str], calendar: Calendar | None = None, quantile: float = 0.9,
+                        margin_sessions: int = 1) -> LagPolicy:
+    """Learn per-source publication lags from records that carry BOTH clocks (engine.pit.lag_profile). The lag used for
+    inference is the given quantile, so a record with no publication time is assumed slow, not fast."""
+    from engine.pit import lag_profile
+    cal = calendar or Calendar()
+    e = pd.to_datetime(pd.Series(effective)).reset_index(drop=True)
+    p = pd.to_datetime(pd.Series(published)).reset_index(drop=True)
+    src = np.asarray(list(sources))
+    lags = []
+    for s in sorted(set(src)):
+        mask = (src == s) & e.notna().values & p.notna().values
+        if int(mask.sum()) < 5:
+            continue
+        e_s, p_s = e[mask].to_numpy(), p[mask].to_numpy()
+        prof = lag_profile(e_s, p_s, cal)
+        if prof.empty or float(prof["negative_share"].iloc[0]) > 0.2:
+            continue                                             # a source that publishes before it happens is not a lag source
+        sessions = np.array([max(0, _sessions_between(pd.Timestamp(a), pd.Timestamp(c), cal)) for a, c in zip(e_s, p_s)])
+        lags.append((s, int(math.ceil(float(np.quantile(sessions, quantile))))))
+    return LagPolicy(tuple(lags), default=max((l for _, l in lags), default=1), margin_sessions=margin_sessions)
+
+
+def availability_by_source(judgements: Iterable[AvailabilityJudgement], items: Sequence[InfoItem]) -> pd.DataFrame:
+    """Share of each availability class per source. A source whose items are habitually SIMULTANEOUS or ONLY_AFTER is a poor
+    input for decisions at a close, however rich its content."""
+    src = {i.item_id: i.source for i in items}
+    rows = [{"source": src[j.item_id], "availability": j.availability.value} for j in judgements if j.item_id in src]
+    if not rows:
+        return pd.DataFrame(columns=["source"] + [a.value for a in Availability] + ["n"])
+    t = pd.crosstab(pd.DataFrame(rows)["source"], pd.DataFrame(rows)["availability"])
+    for a in Availability:
+        if a.value not in t.columns:
+            t[a.value] = 0
+    t = t[[a.value for a in Availability]]
+    t["n"] = t.sum(axis=1)
+    return t
+
+
+# ==================================================================================================================
+# more adapters: splits, earnings calendars, macro schedules
+# ==================================================================================================================
+def items_from_splits(splits: pd.DataFrame, ticker: str, window: tuple[str, str]) -> list[InfoItem]:
+    """Recorded corporate actions (columns ticker, ex_date, ratio[, announced]). A split is announced weeks ahead, so when
+    `announced` exists the item is a scheduled announcement; without it, publication is unknown (UNCERTAIN, never assumed)."""
+    if splits is None or len(splits) == 0:
+        return []
+    out = []
+    lo, hi = pd.Timestamp(window[0]), pd.Timestamp(window[1])
+    for r in splits[splits["ticker"] == ticker].itertuples(index=False):
+        ex = pd.Timestamp(str(r.ex_date)[:10])
+        if not lo <= ex <= hi:
+            continue
+        ann = getattr(r, "announced", None)
+        out.append(InfoItem(f"SPLIT-{ticker}-{ex:%Y%m%d}", InfoKind.CORPORATE_ACTION, ticker, str(ex.date()),
+                            None if ann is None or pd.isna(ann) else str(ann)[:10], "splits",
+                            PROV_RECORDED if ann is not None and not pd.isna(ann) else PROV_UNKNOWN, True, ann is not None,
+                            0.9, 0, f"ratio {getattr(r, 'ratio', '?')}"))
+    return out
+
+
+def items_from_earnings_calendar(cal: pd.DataFrame, ticker: str, window: tuple[str, str], strength: float = 0.8) -> list[InfoItem]:
+    """Scheduled earnings (columns ticker, event_date, announced). The announcement date is what makes the event knowable."""
+    if cal is None or len(cal) == 0:
+        return []
+    lo, hi = pd.Timestamp(window[0]), pd.Timestamp(window[1])
+    out = []
+    for r in cal[cal["ticker"] == ticker].itertuples(index=False):
+        ev = pd.Timestamp(str(r.event_date)[:10])
+        if lo <= ev <= hi:
+            out.append(scheduled_announcement(f"ER-{ticker}-{ev:%Y%m%d}", InfoKind.EVENT, ticker, str(pd.Timestamp(str(r.announced)[:10]).date()),
+                                              str(ev.date()), "earnings_calendar", strength, "scheduled earnings"))
+    return out
+
+
+def macro_schedule(name: str, dates: Sequence[str], lead_days: int = 30, strength: float = 0.4) -> list[InfoItem]:
+    """A macro calendar (FOMC, CPI) whose dates are published `lead_days` ahead; each is a scheduled MACRO item on subject MARKET."""
+    out = []
+    for d in dates:
+        t = pd.Timestamp(d)
+        out.append(scheduled_announcement(f"MACRO-{name}-{t:%Y%m%d}", InfoKind.MACRO, "MARKET",
+                                          str((t - pd.Timedelta(days=lead_days)).date()), str(t.date()), name, strength, name))
+    return out
+
+
+# ==================================================================================================================
+# are the channels informative at all? placebo decision dates on the same bars
+# ==================================================================================================================
+PRICE_CHANNELS = ("PRICE", "VOLUME", "TECHNICAL", "MARKET_STATE")
+
+
+def price_only_anticipation(inp: MoveInputs, cfg: KnowabilityConfig = KnowabilityConfig()) -> float:
+    """Anticipation from price-derived channels only (no model, patterns or items), the only ones a placebo date can share."""
+    pre, _, _ = inp.windows()
+    pre = pre.tail(max(cfg.vol_long * 5, 260))
+    ch = {"PRICE": price_channel(pre, cfg), "VOLUME": volume_channel(pre, cfg), "TECHNICAL": technical_channel(pre, cfg),
+          "MARKET_STATE": market_state_channel(inp.market, inp.move.decision_date, cfg)}
+    return noisy_or([cfg.weight(k) * v.anticipation for k, v in ch.items() if v.anticipation is not None])
+
+
+def placebo_inputs(inp: MoveInputs, offset: int) -> MoveInputs | None:
+    """The same name on an earlier ordinary date, `offset` sessions before the real decision, with its own realised window
+    and no items, hits or model output. None when the bars cannot support it or the window would overlap the real move."""
+    m = inp.move
+    bars = inp.bars.sort_index()
+    loc = bars.index.get_loc(pd.Timestamp(m.decision_date))
+    j = loc - int(offset)
+    if j < 61 or offset < m.horizon + 5:
+        return None
+    fill, end = bars.index[j + 1], bars.index[j + m.horizon]
+    fwd = float(bars["close"].iloc[j + m.horizon] / bars["open"].iloc[j + 1] - 1.0)
+    mv = MoveEvent(m.move_id + f"~p{offset}", m.ticker, str(bars.index[j].date()), str(fill.date()), str(end.date()), fwd, m.horizon,
+                   m.regime, m.sector)
+    return MoveInputs(mv, bars, inp.market, inp.sector)
+
+
+def discrimination_auc(moves: Sequence[MoveInputs], seed: int = 0, per_move: int = 5, cfg: KnowabilityConfig = KnowabilityConfig(),
+                       n_boot: int = 200) -> dict[str, float]:
+    """AUC of price-only anticipation for real major moves against placebo dates on the same names (Mann-Whitney), with a
+    bootstrap interval over moves. ~0.5 means the channels cannot tell a coming move from an ordinary day: every
+    PREDICTABLE label built on them would be noise."""
+    rng = np.random.default_rng(seed)
+    real, plc, owner = [], [], []
+    for k, inp in enumerate(moves):
+        real.append(price_only_anticipation(inp, cfg))
+        loc = inp.bars.sort_index().index.get_loc(pd.Timestamp(inp.move.decision_date))
+        offs = rng.integers(inp.move.horizon + 5, max(inp.move.horizon + 6, loc - 61), per_move)
+        for o in offs:
+            p = placebo_inputs(inp, int(o))
+            if p is not None:
+                plc.append(price_only_anticipation(p, cfg))
+                owner.append(k)
+    if not real or not plc:
+        return {"auc": float("nan"), "lo": float("nan"), "hi": float("nan"), "n_real": len(real), "n_placebo": len(plc)}
+
+    def auc(a, b):
+        a, b = np.asarray(a), np.asarray(b)
+        gt = (a[:, None] > b[None, :]).mean()
+        eq = (a[:, None] == b[None, :]).mean()
+        return float(gt + 0.5 * eq)
+    base = auc(real, plc)
+    owner_arr, plc_arr, real_arr = np.asarray(owner), np.asarray(plc), np.asarray(real)
+    boots = []
+    for _ in range(n_boot):
+        pick = rng.integers(0, len(real), len(real))
+        pl = np.concatenate([plc_arr[owner_arr == p] for p in pick]) if len(pick) else plc_arr
+        if len(pl):
+            boots.append(auc(real_arr[pick], pl))
+    lo, hi = (float(np.quantile(boots, 0.025)), float(np.quantile(boots, 0.975))) if boots else (float("nan"), float("nan"))
+    return {"auc": base, "lo": lo, "hi": hi, "n_real": len(real), "n_placebo": len(plc)}
+
+
+# ==================================================================================================================
+# which channel carries the class? (necessity by ablation) and classifier self-checks against planted truth
+# ==================================================================================================================
+def ablate_channels(inp: MoveInputs, cfg: KnowabilityConfig = KnowabilityConfig(), calendar: Calendar | None = None,
+                    lag: LagPolicy = LagPolicy()) -> dict[str, Any]:
+    """Re-classify with each channel removed in turn. A channel whose removal changes the class is NECESSARY for it; a class
+    that no single removal changes is redundantly supported (robust) or, if anticipation is ~0, simply unsupported."""
+    base = classify_move(inp, cfg, calendar, lag)
+    changed = {}
+    for ch in CHANNELS:
+        c = classify_move(inp, cfg, calendar, lag, drop_channels=(ch,))
+        if c.classification != base.classification:
+            changed[ch] = c.classification.value
+    return {"base": base.classification.value, "necessary": sorted(changed), "becomes": changed,
+            "redundant": not changed and base.anticipation >= cfg.weak_at}
+
+
+PLANTED_TRUTH = {"PREDICTABLE": Knowability.PREDICTABLE, "POTENTIALLY_PREDICTABLE": Knowability.POTENTIALLY_PREDICTABLE,
+                 "WEAKLY_PREDICTABLE": Knowability.WEAKLY_PREDICTABLE, "EXTERNALLY_CAUSED": Knowability.EXTERNALLY_CAUSED,
+                 "INFORMATIONALLY_UNAVAILABLE": Knowability.INFORMATIONALLY_UNAVAILABLE, "UNKNOWN": Knowability.UNKNOWN,
+                 "DATA_FAILURE": Knowability.DATA_FAILURE, "HINDSIGHT_ONLY": Knowability.UNKNOWN,
+                 "UNCERTAIN_EVENT": Knowability.WEAKLY_PREDICTABLE}
+
+
+def planted_battery(seeds: Sequence[int] = (0, 1, 2, 3, 4), cfg: KnowabilityConfig = KnowabilityConfig(),
+                    kinds: Sequence[str] | None = None) -> dict[str, Any]:
+    """Classifier canary: classify every planted kind over several seeds and report the confusion matrix and per-class recall.
+    The wave-2 loop runs this after any change to thresholds or channels; a drop in recall is a regression."""
+    kinds = list(kinds or PLANTED_TRUTH)
+    conf: dict[str, dict[str, int]] = {k: {} for k in kinds}
+    for k in kinds:
+        for sd in seeds:
+            got = classify_move(planted_inputs(k, sd), cfg).classification.value
+            conf[k][got] = conf[k].get(got, 0) + 1
+    recall = {k: conf[k].get(PLANTED_TRUTH[k].value, 0) / max(1, sum(conf[k].values())) for k in kinds}
+    return {"confusion": conf, "recall": recall, "min_recall": min(recall.values()) if recall else float("nan")}
+
+
+def confidence_calibration(pairs: Sequence[tuple[KnowabilityAssessment, Knowability]], bins: int = 5) -> dict[str, Any]:
+    """Is stated confidence honest? Bin assessments by confidence and compare with accuracy against a known planted truth."""
+    if not pairs:
+        return {"n": 0, "ece": float("nan"), "bins": []}
+    conf = np.array([a.confidence_in_classification for a, _ in pairs])
+    ok = np.array([a.classification == t for a, t in pairs], dtype=float)
+    edges = np.linspace(0.0, 1.0, bins + 1)
+    out, ece = [], 0.0
+    for lo, hi in zip(edges[:-1], edges[1:]):
+        m = (conf >= lo) & ((conf < hi) if hi < 1.0 else (conf <= hi))
+        if m.any():
+            gap = abs(float(conf[m].mean()) - float(ok[m].mean()))
+            ece += gap * float(m.mean())
+            out.append({"lo": float(lo), "hi": float(hi), "n": int(m.sum()), "confidence": float(conf[m].mean()), "accuracy": float(ok[m].mean())})
+    return {"n": len(pairs), "ece": float(ece), "bins": out, "brier": float(np.mean((conf - ok) ** 2))}
+
+
+# ==================================================================================================================
+# population views: common-cause days, heterogeneity, reclassification, intervals
+# ==================================================================================================================
+def common_cause_clusters(assessments: Iterable[KnowabilityAssessment], min_names: int = 3) -> list[dict[str, Any]]:
+    """Moves that share a decision day and direction usually share a cause. Reports each cluster's class mix; a cluster whose
+    members are classified differently (some EXTERNAL, some UNKNOWN) is inconsistent and should be reviewed."""
+    groups: dict[tuple, list[KnowabilityAssessment]] = {}
+    for a in assessments:
+        if a.move_direction:
+            groups.setdefault((a.decision_date, a.move_direction), []).append(a)
+    out = []
+    for (d, s), g in sorted(groups.items()):
+        if len(g) < min_names:
+            continue
+        mix: dict[str, int] = {}
+        for a in g:
+            mix[a.classification.value] = mix.get(a.classification.value, 0) + 1
+        top = max(mix.values())
+        out.append({"date": d, "direction": s, "n": len(g), "mix": mix, "agreement": top / len(g), "inconsistent": top / len(g) < 0.6})
+    return out
+
+
+def heterogeneity_test(ledger: KnowabilityLedger, by: str = "regime", n_perm: int = 500, seed: int = 0, min_group: int = 5) -> dict[str, float]:
+    """Do class shares differ across groups more than chance? Chi-square statistic with a permutation null (group labels
+    shuffled), so small or lumpy groups do not inflate significance."""
+    rows = [a for a in ledger.rows()]
+    if by == "year":
+        grp = [str(as_date(a.decision_date).year) for a in rows]
+    else:
+        grp = [str(getattr(a, by)) or "UNSPECIFIED" for a in rows]
+    cls = [a.classification.value for a in rows]
+    keep_g = {g for g in set(grp) if grp.count(g) >= min_group}
+    idx = [i for i, g in enumerate(grp) if g in keep_g]
+    if len(keep_g) < 2 or len(idx) < 2 * min_group:
+        return {"chi2": float("nan"), "p": float("nan"), "n": len(idx), "groups": len(keep_g)}
+    g_arr = np.array([grp[i] for i in idx])
+    c_arr = np.array([cls[i] for i in idx])
+    def chi2(gs):
+        t = pd.crosstab(gs, c_arr).to_numpy().astype(float)
+        exp = t.sum(1, keepdims=True) * t.sum(0, keepdims=True) / t.sum()
+        with np.errstate(divide="ignore", invalid="ignore"):
+            return float(np.nansum((t - exp) ** 2 / np.where(exp > 0, exp, np.nan)))
+    obs = chi2(g_arr)
+    rng = np.random.default_rng(seed)
+    null = [chi2(rng.permutation(g_arr)) for _ in range(n_perm)]
+    return {"chi2": obs, "p": (1 + sum(x >= obs for x in null)) / (n_perm + 1), "n": len(idx), "groups": len(keep_g)}
+
+
+def class_share_ci(ledger: KnowabilityLedger, cls: Knowability, n_boot: int = 500, seed: int = 0, level: float = 0.95) -> dict[str, float]:
+    """Bootstrap interval for one class's share (resampling moves)."""
+    rows = ledger.rows()
+    if not rows:
+        return {"share": float("nan"), "lo": float("nan"), "hi": float("nan"), "n": 0}
+    x = np.array([a.classification == cls for a in rows], dtype=float)
+    rng = np.random.default_rng(seed)
+    b = np.array([x[rng.integers(0, len(x), len(x))].mean() for _ in range(n_boot)])
+    a = (1.0 - level) / 2.0
+    return {"share": float(x.mean()), "lo": float(np.quantile(b, a)), "hi": float(np.quantile(b, 1 - a)), "n": len(x)}
+
+
+def reclassification_report(old: KnowabilityLedger, new: KnowabilityLedger) -> pd.DataFrame:
+    """Transition matrix between two runs over the same moves (different config or code). Off-diagonal mass is what a rule
+    change actually did; the diagonal is what it left alone. Only moves present in both are compared."""
+    a, b = {r.move_id: r.classification.value for r in old.rows()}, {r.move_id: r.classification.value for r in new.rows()}
+    common = sorted(set(a) & set(b))
+    if not common:
+        return pd.DataFrame()
+    return pd.crosstab(pd.Series([a[i] for i in common], name="old"), pd.Series([b[i] for i in common], name="new"))
+
+
+def explain_assessment(a: KnowabilityAssessment) -> str:
+    """Human-readable 'could I have known' summary of one move for the research report (no dates or names)."""
+    lines = [f"{a.classification.value} (confidence {a.confidence_in_classification:.2f}, anticipation {a.anticipation:.2f}, "
+             f"{a.n_present_channels} independent channel(s), coverage {a.coverage:.2f})"]
+    lines += [f"  - {t}" for t in a.trace]
+    live = [k for k, v in a.knowledge_state_at_decision.items() if v["anticipation"] is not None and v["anticipation"] >= 0.3]
+    blind = [k for k, v in a.knowledge_state_at_decision.items() if v["anticipation"] is None]
+    if live:
+        lines.append(f"  knew from: {', '.join(live)}")
+    if blind:
+        lines.append(f"  could not see: {', '.join(blind)}")
+    if a.explanations:
+        lines.append("  causes found in hindsight: " + "; ".join(f"{i} ({av}, precursor {pv})" for i, av, _, pv in a.explanations))
+    if a.quality_flags:
+        lines.append(f"  data flags: {', '.join(a.quality_flags)}")
+    return "\n".join(lines)
+
+
+# ==================================================================================================================
+# persistence: append-only, hash-chained, verified on load (history is immutable)
+# ==================================================================================================================
+def assessment_to_plain(a: KnowabilityAssessment) -> dict[str, Any]:
+    from engine.learning.core import canonical_json
+    import json
+    return json.loads(canonical_json(a._plain()))
+
+
+def assessment_from_plain(d: Mapping[str, Any]) -> KnowabilityAssessment:
+    tup = lambda x: tuple(x)
+    kw = dict(d)
+    kw["classification"] = Knowability.parse(kw["classification"])
+    kw["namespace"] = Namespace(kw.get("namespace", Namespace.MATURED_RESEARCH.value))
+    for f in ("future_information_used_by_auditor", "information_that_would_have_been_available", "information_that_was_unavailable",
+              "uncertain_information", "simultaneous_information", "quality_flags", "trace"):
+        kw[f] = tup(kw[f])
+    kw["explanations"] = tuple(tuple(x) for x in kw["explanations"])
+    known = {f.name for f in dataclasses.fields(KnowabilityAssessment)}
+    return KnowabilityAssessment(**{k: v for k, v in kw.items() if k in known})
+
+
+def save_ledger(ledger: KnowabilityLedger, path) -> str:
+    """Write the ledger as JSON lines, each carrying the hash of the previous line. Atomic (temp file then replace).
+    Returns the head hash."""
+    import json, os
+    prev = "GENESIS"
+    lines = []
+    for a in ledger.rows():
+        body = assessment_to_plain(a)
+        h = stable_hash({"prev": prev, "body": body}, 20)
+        lines.append(json.dumps({"prev": prev, "hash": h, "body": body}, sort_keys=True))
+        prev = h
+    tmp = str(path) + ".tmp"
+    with open(tmp, "w", encoding="utf-8", newline="\n") as f:
+        f.write("\n".join(lines) + ("\n" if lines else ""))
+    os.replace(tmp, path)
+    return prev
+
+
+def load_ledger(path) -> KnowabilityLedger:
+    """Read and verify the chain. Any tampered, reordered or truncated-in-the-middle line raises."""
+    import json, os
+    led = KnowabilityLedger()
+    if not os.path.exists(path):
+        return led
+    prev = "GENESIS"
+    with open(path, encoding="utf-8") as f:
+        for n, line in enumerate(f, 1):
+            if not line.strip():
+                continue
+            rec = json.loads(line)
+            if rec["prev"] != prev or stable_hash({"prev": prev, "body": rec["body"]}, 20) != rec["hash"]:
+                raise KnowabilityError(f"ledger chain broken at line {n}")
+            led.add(assessment_from_plain(rec["body"]))
+            prev = rec["hash"]
+    return led
+
+
+# ==================================================================================================================
+# streaming driver: one move's bars in memory at a time
+# ==================================================================================================================
+def classify_stream(loader: Callable[[MoveEvent], MoveInputs | None], moves: Iterable[MoveEvent], state: KnowabilityState, now,
+                    batch: int = 25, calendar: Calendar | None = None, max_rows: int = 20000) -> list[StepReport]:
+    """Classify a large set of major moves without ever holding more than `batch` of them. `loader` builds the inputs for one
+    move (bars, items) and may return None (skipped and counted as a data failure of the loader, not silently dropped).
+    Inputs bigger than `max_rows` bar rows are refused so a runaway loader cannot exhaust the shared machine."""
+    reports, buf, skipped = [], [], []
+    def flush():
+        if buf:
+            _, rep = step(state, now, list(buf), calendar)
+            reports.append(rep)
+            buf.clear()
+    for mv in moves:
+        inp = loader(mv)
+        if inp is None:
+            skipped.append(mv.move_id)
+            continue
+        if len(inp.bars) > max_rows:
+            raise KnowabilityError(f"{mv.move_id}: {len(inp.bars)} bar rows exceeds max_rows={max_rows}")
+        buf.append(inp)
+        if len(buf) >= batch:
+            flush()
+    flush()
+    if skipped:
+        reports.append(StepReport(str(as_date(now)), len(skipped), 0, 0, 0, state.ledger.counts(), None, (), tuple(f"loader returned nothing for {s}" for s in skipped)))
+    return reports
