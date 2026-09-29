@@ -62,3 +62,5 @@ log_experiment({"event": "miner_self_tuning", "target": TARGET}, cfg={**BASE, **
                outcome="adopt" if R.adopted_any else "continue_testing", reason=R.holdout["verdict"],
                train_range=f"{START.date()}..holdout", test_range=f"holdout from {R.holdout['start']}",
                validation_range="rolling-origin folds", window_ids=[f"sample{SEED}"])
+from engine.checkpoint import checkpoint_run                           # Bible P0.3
+log(f"checkpoint: {checkpoint_run('miner_self_tuning', {'base': BASE, 'target': TARGET, 'tickers': NT, 'start': str(START.date())}, R.holdout, {'seed': SEED}, R.to_record(), artifacts={'result.json': str(out / f'tune_{TARGET}_{SEED}.json')})}")

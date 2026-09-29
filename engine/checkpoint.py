@@ -157,3 +157,28 @@ def same_config(a, b):
 
 def default_root():
     return K.STATE / "checkpoints"
+
+
+def _finite(o):
+    """NaN/inf -> None throughout (bundles are strict JSON: allow_nan=False)."""
+    import math
+    if isinstance(o, dict):
+        return {k: _finite(v) for k, v in o.items()}
+    if isinstance(o, (list, tuple)):
+        return [_finite(v) for v in o]
+    if isinstance(o, float) and not math.isfinite(o):
+        return None
+    return o
+
+
+def checkpoint_run(kind, config, metrics, seeds, summary, logs=None, artifacts=None, root=None):
+    """Bible P0.3 in one call for a major run: bundle config, metrics, seeds, summary, logs and artifacts under
+    state/checkpoints/<kind>_<UTC timestamp>, stamped with provenance. Never overwrites; returns the bundle path."""
+    from datetime import datetime, timezone
+    from . import provenance
+    now = datetime.now(timezone.utc)
+    run_id = f"{kind}_{now:%Y%m%dT%H%M%S}"
+    return write_checkpoint(root or default_root(), run_id, _finite(config), _finite(metrics), _finite(seeds),
+                            _finite(summary), now.isoformat(timespec="seconds"), logs=logs,
+                            artifacts={k: v for k, v in (artifacts or {}).items() if Path(v).exists()},
+                            provenance=_finite(provenance.stamp(config, seeds)))

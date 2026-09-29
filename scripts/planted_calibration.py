@@ -81,6 +81,12 @@ def main():
                    reason="Phase 25 verdict: " + ("validated" if v["validated"] else
                           "NOT validated: " + ", ".join(k for k, c in v["criteria"].items() if not c["pass"])),
                    train_range="synthetic", validation_range="synthetic", test_range="synthetic")
+    from engine.checkpoint import checkpoint_run                        # Bible P0.3: bundle every major run
+    ck = checkpoint_run("planted_calibration", {"miner": MINER, "scenarios": names, "seeds": seeds, "workers": workers},
+                        {k: c["value"] for k, c in v["criteria"].items()}, {"seed_base": jobs[0][1] if jobs else None,
+                        "jobs": [f"{n}:{s}" for n, s in jobs]}, {"validated": v["validated"], "seconds": round(secs)},
+                        artifacts={"report.md": str(out / "report.md"), "summary.json": str(out / "summary.json")})
+    print("checkpoint:", ck)
 
 
 if __name__ == "__main__":

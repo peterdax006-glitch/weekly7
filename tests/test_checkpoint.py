@@ -74,3 +74,17 @@ def test_same_config(tmp_path):
     a = mkb(tmp_path, "A")
     b = mkb(tmp_path, "B")
     assert C.same_config(a, b)
+
+
+def test_checkpoint_run_sanitises_nonfinite_and_verifies(tmp_path):
+    """P0.3 one-call bundle for major runs: NaN/inf become null (bundles are strict JSON), provenance is stamped,
+    the bundle verifies, and a tampered metric is detected."""
+    import json
+    b = C.checkpoint_run("unit", {"a": 1, "x": float("nan")}, {"m": 0.5, "n": float("inf")}, {"seed": 3},
+                         {"ok": True}, root=tmp_path)
+    assert C.verify(b)["ok"]
+    m = json.loads((b / "metrics.json").read_text())
+    assert m == {"m": 0.5, "n": None}
+    os.chmod(b / "metrics.json", stat.S_IWRITE | stat.S_IREAD)      # bundles are written read-only on purpose
+    (b / "metrics.json").write_text(json.dumps({"m": 0.9, "n": None}))
+    assert not C.verify(b)["ok"]
