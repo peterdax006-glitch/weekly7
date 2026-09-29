@@ -89,9 +89,11 @@ def learner_selfcheck(seed=0):
     """Planted worlds through the same harness: a generalisable law must be learned and must transfer; a world with nothing to learn
     (null) and a world whose law flips sign with the year (flip) must leave the learner idle. Returns a dict and a valid flag."""
     res = {}
-    for world, name, want in (("band", "band_pool", "learns"), ("lesson", "lessons", "learns"), ("null", "band_pool", "idle"),
-                              ("flip", "lessons", "idle")):
-        recs, lrn, _ = LR.planted_pairs(world, name, n_hist=10, n_pairs=4, seed=seed)
+    loose = LR.GateParams(guard_worst5_tol=-0.2)             # a hotter pool has a worse worst week by construction in the band world
+    for world, name, want, kw in (("band", "band_pool", "learns", dict(n_pairs=6, n_weeks=30, gp=loose)),
+                                  ("lesson", "lessons", "learns", dict(n_pairs=4)), ("null", "band_pool", "idle", dict(n_pairs=4)),
+                                  ("flip", "lessons", "idle", dict(n_pairs=4))):
+        recs, lrn, _ = LR.planted_pairs(world, name, n_hist=10, seed=seed, **kw)
         agg = L.aggregate(recs, seed)
         metric = DESIGN_METRIC[name]
         tr = agg["metrics"][metric]["transfer"]

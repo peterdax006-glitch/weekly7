@@ -1,0 +1,59 @@
+{
+ "harness": {
+  "generaliser": {
+   "verdict": "GENERALISING",
+   "same": 0.062142998821041295,
+   "effect": 0.062142998821041295,
+   "transfer": 0.06478317466436043
+  },
+  "memoriser": {
+   "verdict": "MEMORISATION",
+   "same": 0.08776374466129674,
+   "effect": 0.08776374466129674,
+   "transfer": 0.0
+  },
+  "non_learner": {
+   "verdict": "NO_EFFECT",
+   "same": 0.0,
+   "effect": 0.0,
+   "transfer": 0.0
+  },
+  "leak_detected": true,
+  "valid": true
+ },
+ "learners": {
+  "band/band_pool": {
+   "want": "learns",
+   "ok": true,
+   "transfer": 0.10555555555555553,
+   "lo": 0.03888888888888888,
+   "hi": 0.16666666666666663,
+   "pairs_changed": 6
+  },
+  "lesson/lessons": {
+   "want": "learns",
+   "ok": true,
+   "transfer": 0.006975252009517369,
+   "lo": 0.004635593783802737,
+   "hi": 0.009314910235232,
+   "pairs_changed": 4
+  },
+  "null/band_pool": {
+   "want": "idle",
+   "ok": true,
+   "transfer": 0.0,
+   "lo": 0.0,
+   "hi": 0.0,
+   "pairs_changed": 0
+  },
+  "flip/lessons": {
+   "want": "idle",
+   "ok": true,
+   "transfer": 0.0,
+   "lo": 0.0,
+   "hi": 0.0,
+   "pairs_changed": 0
+  },
+  "valid": true
+ }
+}

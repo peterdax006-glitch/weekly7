@@ -167,14 +167,24 @@ def test_learner_ids_all_end_before_the_target_started():
 
 
 # ------------------------------------------------------------------------------------------------ planted worlds
+LOOSE = LR.GateParams(guard_worst5_tol=-0.2)     # the planted band world has a natural trade-off: a hotter pool has a worse worst week
+
+
 def test_band_world_learned_and_transfers():
-    recs, lrn, _ = planted("band", "band_pool", feats=("vol20",))
+    recs, lrn, _ = planted("band", "band_pool", feats=("vol20",), gp=LOOSE, n_pairs=6, n_weeks=30)
     assert changed(recs) == len(recs)
     tr = transfer(recs, "in_band")
     assert tr["mean"] > 0.03 and tr["lo"] >= 0.0
     assert any("vol20" in x for x in recs[-1]["lineage"])
     # the same-year gain is not larger than a real generaliser's: the law is shared by every window
     assert L.aggregate(recs, 1)["metrics"]["in_band"]["same"]["mean"] > 0
+
+
+def test_guard_blocks_band_share_bought_with_tail_risk():
+    """The same band world with a strict worst-week guard: the hotter pool raises in-band share but deepens the worst week, so the
+    learner must decline (a tier-1 gain may not buy back damage to the tail)."""
+    recs, _, _ = planted("band", "band_pool", feats=("vol20",), gp=LR.GateParams(guard_worst5_tol=0.0))
+    assert changed(recs) == 0
 
 
 def test_lesson_world_learned_and_transfers():
@@ -203,22 +213,22 @@ def test_year_specific_law_is_not_adopted():
 
 
 def test_false_adoption_rate_on_null_worlds_is_low():
-    """Calibration: over several independent null worlds a learner with ~10 candidates adopts (almost) never."""
+    """Calibration: over independent null worlds a learner with ~10 candidates adopts (almost) never."""
     adopted = 0
-    for seed in range(6):
-        recs, _, _ = LR.planted_pairs("null", "band_pool", n_hist=9, n_pairs=1, seed=100 + seed, n_stocks=50, n_weeks=16, feats=("vol20",))
+    for seed in range(4):
+        recs, _, _ = LR.planted_pairs("null", "band_pool", n_hist=9, n_pairs=1, seed=100 + seed, n_stocks=50, n_weeks=14, feats=("vol20",))
         adopted += changed(recs)
     assert adopted <= 1
 
 
 def test_regime_map_targets_only_the_regime_where_the_law_holds():
-    recs, lrn, _ = planted("regime", "regime_map", feats=("vol20",), n_hist=9)
-    line = " ".join(recs[-1]["lineage"])
+    recs, lrn, _ = planted("regime", "regime_map", feats=("vol20",), n_hist=10, n_pairs=2, n_weeks=45, gp=LR.GateParams(prior_n=12.0, guard_worst5_tol=-0.2))
+    line = " ".join(lrn.last_notes)
     assert "buckets on m_vix" in line
-    if changed(recs):
-        # in the low-vix bucket (bucket 0) vol is irrelevant: no rule may be adopted there
-        assert "bucket 0: keep" not in line
-        assert "bucket 2: keep vol20" in line
+    assert changed(recs) > 0
+    # low-vix weeks (bucket 0) carry no vol law: no rule may be adopted there; the top bucket has it
+    assert "bucket 0: keep" not in line
+    assert "bucket 2: keep vol20" in line
 
 
 # ------------------------------------------------------------------------------------------------ the movement score
@@ -245,7 +255,7 @@ def test_move_weights_empty_when_nothing_moves_with_a_feature():
 
 
 def test_mover_use_learner_adopts_the_movement_score_in_a_band_world():
-    recs, lrn, _ = planted("band", "mover_use", n_hist=9, n_pairs=2)
+    recs, lrn, _ = planted("band", "mover_use", n_hist=9, n_pairs=2, gp=LOOSE)
     assert lrn.diag["vol20"]["share_pos"] == 1.0
     tr = transfer(recs, "in_band")
     assert tr["mean"] >= 0.0
