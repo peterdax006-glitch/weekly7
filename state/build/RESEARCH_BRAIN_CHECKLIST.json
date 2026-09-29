@@ -266,13 +266,18 @@
    "group": "FOUNDATION",
    "description": "Meta-learning integrated",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
-    "engine/learning/meta_learning.py"
+    "engine/learning/meta_learning.py",
+    "engine/research/meta_research.py"
    ],
-   "tests": [],
+   "tests": [
+    "tests/test_research_meta.py"
+   ],
    "evidence": [],
-   "notes": "[mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Meta-learning'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md)."
+   "notes": "IMPLEMENTED — NOT VALIDATED (C66 wave 1, R13). | earlier: [mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Meta-learning'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
+   "last_run": "2026-09-29T15:27:47",
+   "code_hash": "80564c4ab02a9432"
   },
   {
    "id": "RF17",
@@ -1795,12 +1800,13 @@
    "section": "Meta-learning",
    "minimum_lines": 2500,
    "upper_lines": 4000,
-   "actual_lines": 1213,
+   "actual_lines": 3049,
    "code_paths": [
-    "engine/learning/meta_learning.py"
+    "engine/learning/meta_learning.py",
+    "engine/research/meta_research.py"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "[mapping 2026-09-29, read-only audit] [partial] 1213/2500 meaningful lines genuinely doing this job. Eight meta questions with walk-forward OOS and a null control; wired only inside learner.stage_meta. Missing: validation-method yield, which datasets create false discoveries, research-question -> decision-change learning, era/stock/regime survival reported for research processes."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C66 wave 1, R13): meta_research 1,836 extends learning/meta_learning 1,213 (=3,049); 12 section-16 questions OOS, EvaluationVault + SelfTrainingGuard (never trains on its own evaluation), 69 tests. | earlier: [mapping 2026-09-29, read-only audit] [partial] 1213/2500 meaningful lines genuinely doing this job. Eight meta questions with walk-forward OOS and a null control; wired only inside learner.stage_meta. Missing: validation-method yield, which datasets create false discoveries, research-question -> decision-change learning, era/stock/regime survival reported for research processes."
   },
   {
    "section": "Failed-learner laboratory",
@@ -1918,16 +1924,17 @@
    "section": "Interaction discovery",
    "minimum_lines": 2000,
    "upper_lines": 3000,
-   "actual_lines": 592,
+   "actual_lines": 2157,
    "code_paths": [
+    "engine/candidates.py (pairs, A and B UNLESS C)",
+    "engine/learning/break_detection.py::interaction_scan",
     "engine/learning/complexity.py",
     "engine/learning/missed_winners.py::discover_interactions",
-    "engine/learning/break_detection.py::interaction_scan",
     "engine/pattern_movers.py::interaction_table",
-    "engine/candidates.py (pairs, A and B UNLESS C)"
+    "engine/research/interactions.py"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "[mapping 2026-09-29, read-only audit] [duplicated-risk] 592/2000 meaningful lines genuinely doing this job. complexity 510 + 32 + 32 + 18. Interactions are searched in four places with four different multiple-testing treatments. Needs one interaction search with a global search-size ledger, shuffled controls, cross-year/cross-stock holdout."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C66 wave 1, R17): 1,647 + existing interaction code (mapping 592) ; cumulative multiple-testing ledger, shuffled-label family-wise control, one-shot holdout vault; planted interaction VALIDATED, noise validates nothing (7 seeds). | earlier: [mapping 2026-09-29, read-only audit] [duplicated-risk] 592/2000 meaningful lines genuinely doing this job. complexity 510 + 32 + 32 + 18. Interactions are searched in four places with four different multiple-testing treatments. Needs one interaction search with a global search-size ledger, shuffled controls, cross-year/cross-stock holdout."
   },
   {
    "section": "Knowledge graph",
@@ -1956,31 +1963,34 @@
    "section": "Research/trader firewall integration",
    "minimum_lines": 2000,
    "upper_lines": 3000,
-   "actual_lines": 5544,
+   "actual_lines": 7329,
    "code_paths": [
-    "engine/learning/trader_view.py",
     "engine/learning/curator.py",
-    "engine/learning/test_path.py",
     "engine/learning/firewalls.py",
     "engine/learning/future_firewall.py",
+    "engine/learning/identity_firewall.py",
     "engine/learning/memory_firewall.py",
-    "engine/learning/identity_firewall.py"
+    "engine/learning/test_path.py",
+    "engine/learning/trader_view.py",
+    "engine/research/firewall.py",
+    "engine/research/namespaces.py"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "[mapping 2026-09-29, read-only audit] [duplicated-risk] 5544/2000 meaningful lines genuinely doing this job. 554+673+509+1140+1003+910+755 (leak_audit 1210, pit 1030, isolation 376, blind_gates 462 not credited). Seven overlapping firewalls exist for the C62/C64 trader. No MATURED_RESEARCH_STATE namespace, no research-side planted leaks (future pattern status, future experiment result). Add as a layer of firewalls.LearningFirewallGate, not a ninth parallel firewall."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C66 wave 1, R01, Opus): 1,785 new on top of the existing firewall stack; two frozen hash-chained namespaces, one release road checking 28 leak channels, all 28 planted leaks refused, removing any check lets one through. | earlier: [mapping 2026-09-29, read-only audit] [duplicated-risk] 5544/2000 meaningful lines genuinely doing this job. 554+673+509+1140+1003+910+755 (leak_audit 1210, pit 1030, isolation 376, blind_gates 462 not credited). Seven overlapping firewalls exist for the C62/C64 trader. No MATURED_RESEARCH_STATE namespace, no research-side planted leaks (future pattern status, future experiment result). Add as a layer of firewalls.LearningFirewallGate, not a ninth parallel firewall."
   },
   {
    "section": "Research replication system",
    "minimum_lines": 1000,
    "upper_lines": 1800,
-   "actual_lines": 1568,
+   "actual_lines": 2646,
    "code_paths": [
+    "engine/learning/promotion.py::RerunRecord,ReproEvidence,gate_reproducibility",
     "engine/learning/transfer.py",
     "engine/learning/transfer_score.py",
-    "engine/learning/promotion.py::RerunRecord,ReproEvidence,gate_reproducibility"
+    "engine/research/replication.py"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "[mapping 2026-09-29, read-only audit] [partial] 1568/1000 meaningful lines genuinely doing this job. 1109 + 413 + 46. Fresh-year/regime/stock/sector evaluation and rerun records exist. Missing: a replication requirement object (which combination of fresh period/stocks/seed/regime/control) that is learned and documented, and the rule that one lucky experiment cannot change production."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C66 wave 1, R19): 1,124; freshness on 6 axes, single door authorize_system_change (one lucky experiment cannot change the system), rates with Wilson CIs; ledgers on archive lanes (duplicate ChainLog removed). | earlier: [mapping 2026-09-29, read-only audit] [partial] 1568/1000 meaningful lines genuinely doing this job. 1109 + 413 + 46. Fresh-year/regime/stock/sector evaluation and rerun records exist. Missing: a replication requirement object (which combination of fresh period/stocks/seed/regime/control) that is learned and documented, and the rule that one lucky experiment cannot change production."
   },
   {
    "section": "Unknown-cause system",
@@ -1997,13 +2007,14 @@
    "section": "Self-improvement scorecard",
    "minimum_lines": 1000,
    "upper_lines": 1800,
-   "actual_lines": 1205,
+   "actual_lines": 2088,
    "code_paths": [
+    "engine/learning/learning_curve.py",
     "engine/learning/scorecard.py",
-    "engine/learning/learning_curve.py"
+    "engine/research/scorecard.py"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "[mapping 2026-09-29, read-only audit] [partial] 1205/1000 meaningful lines genuinely doing this job. 701 + 504. Claim gate and learning curve exist. Missing C66 fields: volatility precision/recall/ranking/coverage, direction accuracy-at-coverage, avoidable-loss rate, experiments replicated, duplicate experiments avoided, branches escalated/abandoned."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C66 wave 1, R19): 883 extending learning/scorecard 701; UNTESTED never 0; honest 80% report. | earlier: [mapping 2026-09-29, read-only audit] [partial] 1205/1000 meaningful lines genuinely doing this job. 701 + 504. Claim gate and learning curve exist. Missing C66 fields: volatility precision/recall/ranking/coverage, direction accuracy-at-coverage, avoidable-loss rate, experiments replicated, duplicate experiments avoided, branches escalated/abandoned."
   },
   {
    "section": "Research-brain health",
@@ -2068,13 +2079,14 @@
    "section": "Quality/promotion gate",
    "minimum_lines": 1000,
    "upper_lines": 1800,
-   "actual_lines": 1072,
+   "actual_lines": 1917,
    "code_paths": [
+    "engine/champion.py",
     "engine/learning/promotion.py",
-    "engine/champion.py"
+    "engine/research/quality_gate.py"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "[mapping 2026-09-29, read-only audit] [partial] 1072/1000 meaningful lines genuinely doing this job. 748 + 324. Ten fail-closed gates. Missing vs C66 section 42: calibration gate, complexity gate (complexity.py exists, not called), failure-behaviour gate, replication (not reproducibility) gate, and outcomes QUARANTINED / NEEDS_MORE_EVIDENCE / UNKNOWN."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C66 wave 1, R19): 845 extending learning/promotion 748; 12 gates, verify_gate_can_fail with 16 planted defects. | earlier: [mapping 2026-09-29, read-only audit] [partial] 1072/1000 meaningful lines genuinely doing this job. 748 + 324. Ten fail-closed gates. Missing vs C66 section 42: calibration gate, complexity gate (complexity.py exists, not called), failure-behaviour gate, replication (not reproducibility) gate, and outcomes QUARANTINED / NEEDS_MORE_EVIDENCE / UNKNOWN."
   }
  ]
 }

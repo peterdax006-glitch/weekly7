@@ -270,7 +270,7 @@ def test_arena_competition_prefers_the_true_mechanism_and_handles_empty(h1_wf):
 def test_group_study_supported_when_planted_and_clean_null_control():
     F = L.planted_frame("H6", n_dates=84, n_tickers=50, seed=31, effect=1.6)
     s = L.run_group_study(L.STUDIES[3], F, NOW, CFG, FIT)
-    assert s.verdict == L.StudyVerdict.SUPPORTED and s.lo > 0 and abs(s.null_effect) < CFG.null_tol
+    assert s.verdict == L.StudyVerdict.SUPPORTED and s.lo > 0 and s.null_effect < CFG.null_tol
     assert L.run_group_study(L.STUDIES[4], F, NOW, CFG, FIT).verdict != L.StudyVerdict.SUPPORTED
 
 

@@ -51,14 +51,14 @@ def test_minute_and_ohlc_horizons_declare_their_source():
 
 
 def test_available_horizons_match_the_data():
-    none = {a.horizon: a for a in M.available_horizons(M.DataProfile(600, 100, {}))}
+    none = {a.horizon: a for a in M.available_horizons(M.DataProfile(900, 100, {}))}
     assert not none["5min"].testable and "no minute" in none["5min"].reason
     assert none[M.OHLC_DAY_KEY].testable            # the daily-OHLC intraday scale needs no minute data
     assert none["1m"].testable and none["1y"].testable
     short = {a.horizon: a for a in M.available_horizons(M.DataProfile(60, 100, {"5m": 60}))}
     assert short["30min"].testable and not short["5min"].testable is False     # 5m bars divide 5 and 30 minutes
     assert not short["1m"].testable and not short["1y"].testable
-    keys = M.testable_keys(M.DataProfile(600, 100, {}))
+    keys = M.testable_keys(M.DataProfile(900, 100, {}))
     assert "1y" not in keys and "1w" not in keys and "5d" in keys           # per-stock ladder: no market-only, one key per length
     with pytest.raises(ValueError):
         M.available_horizons(M.DataProfile(-1, 0, {}))

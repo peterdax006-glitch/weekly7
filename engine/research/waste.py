@@ -951,3 +951,117 @@ def daily_summary(state: CM.ManagerState, ledger: VA.ValueLedger, book: DormantB
     wb = waste_budget(state, ledger, now)
     lines.append(f"  waste share of last 30 days: {wb['waste_share']:.0%} (cap {wb['cap']:.0%})" + ("  OVER CAP" if wb["over_cap"] else ""))
     return "\n".join(lines)
+
+
+# ------------------------------------------------------------------------------------------------ savings and overrides
+def savings_estimate(book: DormantBook, state: CM.ManagerState, ledger: VA.ValueLedger, now) -> dict:
+    """What parking has saved and what it has cost. Saved = expected remaining ladder compute of every currently dormant branch;
+    at risk = the same figure weighted by the measured false-dormancy mean (a branch wrongly parked forgoes its expected value);
+    the net is reported with its uncertainty, because a saving that assumes the controller is never wrong is not a saving."""
+    fd = book.false_dormancy_rate()
+    active = [r for r in book.records.values() if r.active]
+    saved = float(sum(r.avoided_cpu_min for r in active))
+    tot = ledger.totals(now)
+    rate = tot["net_value"] / tot["cpu_min"] if tot["cpu_min"] > 0 else 0.0
+    forgone = float(sum(r.avoided_cpu_min for r in active)) * fd["mean"] * max(rate, 0.0)
+    return {"parked": len(active), "avoided_cpu_min": saved, "false_dormancy_mean": fd["mean"], "false_dormancy_upper90": fd["upper90"],
+            "value_forgone_estimate": forgone, "value_rate_per_cpu_min": rate,
+            "avoided_cpu_min_at_upper90_wrong": saved * (1.0 - fd["upper90"])}
+
+
+def repeat_offenders(book: DormantBook, min_parks: int = 2) -> list[str]:
+    """Branches parked more than once (revived, then parked again): the revival triggers were not strong enough evidence."""
+    return sorted(bid for bid, r in book.records.items() if r.revive_count >= min_parks)
+
+
+class OverrideError(RuntimeError):
+    """A manual override was refused (no reason, wrong state, or attempted on a retired branch)."""
+
+
+def manual_hold(state: CM.ManagerState, book: DormantBook, branch_id: str, now, reason: str, by: str) -> None:
+    """An operator parks a branch by hand. Recorded exactly like a controller parking (reason, fingerprint, lifecycle), with the
+    operator named, so manual and automatic dormancy live in one book and one audit trail."""
+    if not reason.strip() or not by.strip():
+        raise OverrideError("a manual hold needs a reason and an operator name")
+    b = state.branches[branch_id]
+    if b.state not in CM.ACTIVE_STATES:
+        raise OverrideError(f"{branch_id} is {b.state.value}; only active branches can be held")
+    v = WasteVerdict(branch_id, Action.DORMANT, Reason.NO_PROGRESS_PER_COMPUTE, 0.1, None, None, (f"manual hold by {by}: {reason}",))
+    book.park(state, v, WorldContext(as_date(now).isoformat()), now, WastePolicy())
+
+
+def manual_release(state: CM.ManagerState, book: DormantBook, branch_id: str, now, reason: str, by: str) -> None:
+    """An operator revives a dormant branch by hand, restarting it at rung 1. Counts toward the revival limit like any revival, so
+    manual release cannot be used to loop a dead idea for ever."""
+    if not reason.strip() or not by.strip():
+        raise OverrideError("a manual release needs a reason and an operator name")
+    rec = book.records.get(branch_id)
+    if rec is None or not rec.active:
+        raise OverrideError(f"{branch_id} is not held in the dormant book")
+    trig = [Trigger.make(TriggerKind.NEW_EVIDENCE, f"manual release by {by}: {reason}", 1.0)]
+    if not book.revive(state, rec, trig, now, min_strength=0.0):
+        raise OverrideError("release refused")
+
+
+def apply_to_priorities(state: CM.ManagerState, policy: CM.LadderPolicy, now) -> dict[str, float]:
+    """The priority every active branch now has, waste factor included. Shows the controller's effect on the ladder's ordering:
+    a deprioritised branch sinks but stays selectable (a floor of factor_floor keeps it from ever being ranked at zero)."""
+    return {bid: CM.priority(state, b, now, policy)[0] for bid, b in sorted(state.branches.items()) if b.state in CM.ACTIVE_STATES}
+
+
+# ------------------------------------------------------------------------------------------------ controller self-monitoring
+@dataclasses.dataclass(frozen=True)
+class TickRecord:
+    day: str
+    judged: int
+    parked: int
+    revived: int
+    held_back: int
+    alarm: bool
+
+
+class TickHistory:
+    """The controller watching itself. It alarms when it parks or holds back an unusual share of the portfolio for several ticks in
+    a row (a symptom of a measurement bug, not of a portfolio full of duds) or when it has revived nothing for a long time while
+    the dormant book keeps growing (a controller that only ever closes doors)."""
+
+    def __init__(self):
+        self.ticks: list[TickRecord] = []
+
+    def add(self, res: WasteStepResult, now) -> TickRecord:
+        rec = TickRecord(as_date(now).isoformat(), len(res.verdicts), len(res.parked), len(res.revived), len(res.held_back), res.mass_dormancy_alarm)
+        if self.ticks and as_date(rec.day) < as_date(self.ticks[-1].day):
+            raise CM.FirewallBreach("tick dated before the previous tick")
+        self.ticks.append(rec)
+        return rec
+
+    def health(self, window: int = 8, max_parked_share: float = 0.3) -> dict:
+        w = self.ticks[-window:]
+        if len(w) < 3:
+            return {"verdict": "INSUFFICIENT", "ticks": len(w)}
+        judged = sum(t.judged for t in w) or 1
+        parked_share = (sum(t.parked for t in w) + sum(t.held_back for t in w)) / judged
+        issues = []
+        if parked_share > max_parked_share:
+            issues.append(f"{parked_share:.0%} of judgements ended in dormancy: check the measurements before trusting the verdicts")
+        if sum(1 for t in w if t.alarm) >= 2:
+            issues.append("mass-dormancy alarm raised repeatedly")
+        if sum(t.parked for t in w) >= 3 and sum(t.revived for t in w) == 0 and len(self.ticks) >= 2 * window:
+            issues.append("nothing has been revived in a long time while branches keep being parked")
+        return {"verdict": "SUSPECT" if issues else "OK", "ticks": len(w), "parked_share": parked_share, "issues": issues}
+
+    def to_rows(self) -> list[dict]:
+        return [dataclasses.asdict(t) for t in self.ticks]
+
+
+def explain_dormant(book: DormantBook, state: CM.ManagerState, branch_id: str, ctx: WorldContext, now, pol: WastePolicy | None = None) -> list[str]:
+    """Why a branch is parked and exactly what would bring it back: each recovery condition with the distance still to go."""
+    pol = pol or WastePolicy()
+    rec = book.records[branch_id]
+    snap, trig = snapshot_for(rec, ctx, pol)
+    lines = [f"{branch_id} parked {rec.since} for {rec.reason}: {rec.detail[:120]}",
+             f"  spent {rec.spent_cpu_min:.1f} cpu-min, avoided ~{rec.avoided_cpu_min:.1f}; revived {rec.revive_count}x (max {pol.max_revivals})"]
+    for c in recovery_conditions(pol):
+        lines.append(f"  {c.key}: now {snap.get(c.key, 0.0):.2f}, needs >= {c.lo} -> {'MET' if c.satisfied_by(snap) else 'not met'}")
+    lines.append(f"  unseen triggers now: {len(trig)}; combined strength {combined_strength(trig):.2f}")
+    return lines

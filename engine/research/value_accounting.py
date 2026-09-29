@@ -1538,3 +1538,25 @@ def ledger_diff(a: ValueLedger, b: ValueLedger) -> dict:
     changed = {j: (ra[j].verdict, rb[j].verdict) for j in sorted(set(ra) & set(rb)) if ra[j].verdict != rb[j].verdict}
     return {"only_a": sorted(set(ra) - set(rb)), "only_b": sorted(set(rb) - set(ra)), "changed": changed,
             "value_delta": sum(r.net_value for r in rb.values()) - sum(r.net_value for r in ra.values())}
+
+
+def cumulative_value(ledger: ValueLedger, as_of) -> list[tuple[str, float, float]]:
+    """(date, cumulative cpu_min, cumulative net value) by job finish date: the curve on which 'is research paying for itself'
+    is read. A flat or falling curve while compute climbs is the accountant's headline warning."""
+    rows = sorted((r for r in ledger.records(as_of)), key=lambda r: (r.at, r.seq))
+    cpu = val = 0.0
+    out = []
+    for r in rows:
+        cpu += 0.0 if r.verdict == Verdict.CORRECTION.value else r.cost_cpu_min
+        val += r.net_value
+        out.append((r.at, cpu, val))
+    return out
+
+
+def paying_for_itself(ledger: ValueLedger, as_of, window: int = 10) -> dict:
+    """Is the last `window` jobs' net value positive, and is the trend of cumulative value rising? Both must hold."""
+    curve = cumulative_value(ledger, as_of)
+    if len(curve) < window + 1:
+        return {"verdict": "INSUFFICIENT", "n": len(curve)}
+    recent = curve[-1][2] - curve[-window - 1][2]
+    return {"verdict": "YES" if recent > 0 else "NO", "recent_net_value": recent, "recent_cpu_min": curve[-1][1] - curve[-window - 1][1], "n": len(curve)}

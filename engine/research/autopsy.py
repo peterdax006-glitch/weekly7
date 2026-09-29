@@ -1756,3 +1756,115 @@ def narrative(a: Autopsy) -> str:
 
 
 A_LOSS = AutopsyParams().loss_thr
+
+
+def loss_taxonomy(autopsies: Sequence[Autopsy]) -> pd.DataFrame:
+    """Across days: how many listed losses per verdict and per named cause, and the loss-weighted mean size. UNKNOWN causes stay a
+    row of their own ('' cause) - the classifier's honesty is part of the result."""
+    rows = []
+    for a in autopsies:
+        if a.empty:
+            continue
+        for it in a.risk.avoidable + a.risk.unavoidable + a.risk.undetermined:
+            rows.append({"verdict": it.verdict, "cause": it.cause or "UNNAMED", "loss": it.loss})
+    if not rows:
+        return pd.DataFrame(columns=["n", "mean_loss"])
+    g = pd.DataFrame(rows).groupby(["verdict", "cause"])["loss"]
+    return pd.DataFrame({"n": g.size(), "mean_loss": g.mean()}).sort_values("n", ascending=False)
+
+
+def severity_ranking(autopsies: Sequence[Autopsy], k: int = 10) -> list[tuple[str, float]]:
+    """The days most worth a person's reading, by severity(); ties broken by day."""
+    return sorted(((a.day, severity(a)) for a in autopsies), key=lambda t: (-t[1], t[0]))[:k]
+
+
+def merge_queues(queues: Sequence[QuestionQueue]) -> QuestionQueue:
+    """Combine queues from separate runs (e.g. per year). The same normalised question raised in several runs keeps the earliest
+    first_day, the latest last_day and the summed times_raised, and its score is recomputed from the sum."""
+    out = QuestionQueue()
+    for q in queues:
+        for item in q._q.values():
+            key = QuestionQueue._key(item.question)
+            cur = out._q.get(out._text_key.get(key, ""))
+            if cur is None:
+                out._q[item.question.question_id] = item
+                out._text_key[key] = item.question.question_id
+                continue
+            n = cur.times_raised + item.times_raised
+            out._q[cur.question.question_id] = QueuedQuestion(cur.question, min(cur.first_day, item.first_day), max(cur.last_day, item.last_day),
+                                                              n, QuestionQueue._value(cur.question) * (1.0 + math.log(n)))
+    return out
+
+
+def gap_exposure_history(autopsies: Sequence[Autopsy]) -> dict[str, float]:
+    """Across days: how often the book took an adverse entry gap and what it cost, so the gap-risk question has a base rate."""
+    live = [a for a in autopsies if not a.empty and a.risk.n_positions]
+    if not live:
+        return {"days": 0.0}
+    n_adv = np.array([a.risk.gap_risk.get("adverse_entry_gaps", 0.0) for a in live])
+    cost = np.array([a.risk.gap_risk.get("adverse_gap_cost", 0.0) for a in live])
+    return {"days": float(len(live)), "days_with_adverse_gap": float((n_adv > 0).mean()), "mean_adverse_gaps": float(n_adv.mean()),
+            "mean_cost": float(cost.mean()), "worst_cost": float(cost.max())}
+
+
+def finding_stability(alog: AutopsyLedger, column: str, window: int = 20) -> dict[str, float]:
+    """Is a per-day autopsy measure stable, drifting or noisy? Mean and spread over the last `window` days versus the earlier days,
+    with a Welch t. A measure that swings wildly day to day cannot anchor a research question."""
+    f = alog.frame()
+    if f.empty or column not in f:
+        return {"n": 0.0}
+    x = f[column].astype(float).dropna().to_numpy()
+    if len(x) < 2 * 5:
+        return {"n": float(len(x))}
+    late, early = x[-window:], x[:-window]
+    if len(early) < 5 or len(late) < 5:
+        late, early = x[len(x) // 2:], x[:len(x) // 2]
+    se = math.sqrt(late.var(ddof=1) / len(late) + early.var(ddof=1) / len(early))
+    return {"n": float(len(x)), "early_mean": float(early.mean()), "late_mean": float(late.mean()), "late_sd": float(late.std(ddof=1)),
+            "welch_t": float((late.mean() - early.mean()) / se) if se > 0 else float("nan")}
+
+
+def rerun_digests(days_factory, n_days: int, obs_params: ob.ObserverParams | None = None, ap: AutopsyParams | None = None) -> tuple[list[str], list[str]]:
+    """Run the whole observer + autopsy twice from scratch on the same days and return both digest lists. Equal lists = the
+    autopsy is deterministic (nothing depends on wall-clock, dict order, hidden state or a leaked previous run)."""
+    runs = []
+    for _ in range(2):
+        st = AutopsyState(ap or AutopsyParams(), obs_params or ob.ObserverParams())
+        runs.append([replay_digest(a) for a in run_days(days_factory(), st, None, None, created_real="fixed")][:n_days])
+    return runs[0], runs[1]
+
+
+def check_no_future(a: Autopsy, now) -> list[str]:
+    """The autopsy and everything it evidences must be dated strictly before `now`. Returns the offending items (empty = clean)."""
+    bad = []
+    try:
+        require_past(a.resolved_at, now, "autopsy")
+    except FirewallBreach as e:
+        bad.append(str(e))
+    for q in a.questions():
+        try:
+            require_past(q.evidence_through, now, f"question {q.question_id} evidence")
+        except FirewallBreach as e:
+            bad.append(str(e))
+    return bad
+
+
+def pattern_break_summary(autopsies: Sequence[Autopsy]) -> pd.DataFrame:
+    """Per pattern, across days: how often it was reported broken / new / revived and its last effect. A pattern that breaks on
+    many days with a p_real that stays high is the highest-value break to study (C66 section 14)."""
+    rows = []
+    for a in autopsies:
+        if a.empty:
+            continue
+        for e in a.research.new_patterns + a.research.broken_patterns:
+            rows.append({"pattern": e.pattern_id, "kind": e.kind, "effect_after": e.effect_after, "p_real": e.p_real})
+    if not rows:
+        return pd.DataFrame(columns=["broken", "new", "revived", "weakened", "last_effect", "last_p_real"])
+    df = pd.DataFrame(rows)
+    piv = df.pivot_table(index="pattern", columns="kind", values="effect_after", aggfunc="size", fill_value=0)
+    for c in ("broken", "new", "revived", "weakened"):
+        if c not in piv:
+            piv[c] = 0
+    last = df.groupby("pattern").tail(1).set_index("pattern")
+    piv["last_effect"], piv["last_p_real"] = last["effect_after"], last["p_real"]
+    return piv[["broken", "new", "revived", "weakened", "last_effect", "last_p_real"]].sort_values("broken", ascending=False)

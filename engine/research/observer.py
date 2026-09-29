@@ -1948,3 +1948,32 @@ def pick_vs_universe(ledger: ObserverLedger, now=None) -> dict[str, float]:
     diff = np.array([a - b for a, b in d])
     return {"days": float(len(d)), "pick_mean": float(np.mean([a for a, _ in d])), "universe_mean": float(np.mean([b for _, b in d])),
             "mean_edge": float(diff.mean()), "days_ahead": float((diff > 0).mean())}
+
+
+def recount_from_rows(rec: DayRecord) -> dict[str, int]:
+    """Recompute, from the persisted rows alone, every count that must be exact: the four band counts and the number of picks.
+    A mismatch with the record's own counts means rows were lost or the classifier changed between counting and persisting."""
+    rf = rec.rows
+    if rf.empty:
+        return {n: 0 for n in BAND_NAMES.values()} | {"picked": 0}
+    out = {name: int((rf["band"] == code).sum()) for code, name in BAND_NAMES.items()}
+    out["picked"] = int(rf["picked"].astype(bool).sum())
+    return out
+
+
+def verify_counts(rec: DayRecord) -> list[str]:
+    """Empty list = the rows reproduce the exact counts they must (bands, picks) and the flag bits agree with the band code."""
+    got, bad = recount_from_rows(rec), []
+    for k, v in rec.bands.items():
+        if got[k] != v:
+            bad.append(f"band {k}: rows {got[k]} != count {v}")
+    if rec.model.get("n_picked", 0) != got["picked"] and not rec.rows.empty:
+        bad.append(f"picked: rows {got['picked']} != {rec.model.get('n_picked')}")
+    if not rec.rows.empty:
+        both = has(rec.rows["flags"].to_numpy(), MC.EXTREME_UP) & has(rec.rows["flags"].to_numpy(), MC.EXTREME_DOWN)
+        if both.any():
+            bad.append("a row is both extreme up and extreme down")
+        sign = np.sign(rec.rows["band"].to_numpy()) * np.sign(rec.rows["c2c"].astype(float).to_numpy())
+        if ((rec.rows["band"].to_numpy() != 0) & (sign <= 0)).any():
+            bad.append("a band code disagrees with the sign of its close-to-close move")
+    return bad

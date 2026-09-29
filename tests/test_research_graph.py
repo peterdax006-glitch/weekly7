@@ -493,3 +493,289 @@ def test_question_board_and_markdown_render():
     md = rg.research_markdown(g, NOW)
     assert "Unanswered relationships" in md and "PATTERN" in md
     assert rg.kind_stats(g, NOW)["kinds"]["REGIME"] == 6
+
+
+# ================================================================================================ decision bridge (section 28)
+
+from engine.learning.core import Provenance
+from engine.research import decision_bridge as br
+from engine.research import science_memory as sm
+
+BN = dt.date(2021, 6, 1)
+
+
+def prov(learned="2020-12-01", seen=None):
+    return Provenance(created_real="2026-01-01T00:00:00", learned_at=learned, code_hash="abc", outcomes_seen_through=seen or learned)
+
+
+def good_measure(n=60, lower=0.004, delta=0.01, holdout=True, windows=3, metric="risk_adjusted_delta"):
+    return br.Measurement(metric, delta, lower, n, windows, holdout)
+
+
+def size_claim(direction=-1, meas="ok", **kw):
+    m = good_measure() if meas == "ok" else meas
+    return br.Claim(br.Output.POSITION_SIZING, "pat:a0", direction, 0.3, ("regime: state eq high_vol",), expected_delta=0.01,
+                    measurement=m, how_tested="walk-forward", **kw)
+
+
+def disc(claims=(), note="", subjects=("pat:a0",), matured="2020-12-01", statement="sizing rule", source="lab1", **kw):
+    return br.Discovery.make(statement, source, matured, prov(matured), claims, note, subjects, **kw)
+
+
+def dc_allowed(ko, mode):
+    from engine.learning import decision_contract as dc
+    return dc.check(ko, BN, dc.Mode(mode)).allowed
+
+
+def test_informational_when_nothing_changes_and_flagged_when_unstated():
+    b = br.Bridge()
+    e1 = b.submit(disc(note="descriptive statistic of the cross-section"), BN)
+    e2 = b.submit(disc(statement="an interesting thing"), BN)
+    assert e1.disposition == e2.disposition == br.Disposition.INFORMATIONAL
+    assert not e1.unstated and e2.unstated and not e1.changes_a_decision
+    assert "informational only" in e2.answer and "nobody stated" in e2.answer
+    assert b.value_ledger(BN).informational_unstated == 1
+    assert br.informational_rate(b) == 1.0
+
+
+def test_measured_claim_is_decision_changing_but_capped_at_shadow():
+    b = br.Bridge()
+    e = b.submit(disc([size_claim(direction=1)]), BN)                 # +1 on sizing is a loosening: measured with 3 windows
+    assert e.disposition == br.Disposition.DECISION_CHANGING and e.ceiling == "SHADOW"
+    (ko,) = b.knowledge()
+    assert ko.promotion.value == "RESEARCH" and ko.epistemic.value == "HYPOTHESIS"           # the bridge never promotes
+    assert dc_allowed(ko, "RESEARCH") and not dc_allowed(ko, "PRODUCTION")
+    assert e.readiness and e.readiness[0][1]                                                   # production still lacks things
+
+
+def test_loosening_without_evidence_is_refused_but_tightening_may_wait_in_shadow():
+    b = br.Bridge()
+    weak = br.Measurement("risk_adjusted_delta", 0.01, 0.002, 12, 1, True)
+    e = b.submit(disc([size_claim(direction=1, meas=weak)]), BN)
+    assert e.disposition == br.Disposition.REFUSED and "loosening" in e.answer
+    tight = b.submit(disc([size_claim(direction=-1, meas=weak)], statement="tighter"), BN)
+    assert tight.disposition == br.Disposition.SHADOW_ONLY
+    assert any("n=12" in r for v in tight.verdicts for r in v.reasons)
+
+
+def test_unmeasured_and_insample_claims_never_reach_decision_changing():
+    b = br.Bridge()
+    cases = [size_claim(-1, meas=None), size_claim(-1, meas=good_measure(holdout=False)), size_claim(-1, meas=good_measure(lower=-0.001)),
+             size_claim(-1, meas=good_measure(n=3))]
+    for i, c in enumerate(cases):
+        e = b.submit(disc([c], statement=f"case {i}"), BN)
+        assert e.disposition == br.Disposition.SHADOW_ONLY, i
+
+
+def test_malformed_claims_are_refused():
+    b = br.Bridge()
+    bad = [br.Claim(br.Output.RISK_PENALTY, "pat:a0", -1, 0.2),
+           br.Claim(br.Output.POSITION_SIZING, "", 1, 5.0),
+           br.Claim(br.Output.ABSTENTION, "", 1, 0.5, ()),
+           br.Claim(br.Output.PATTERN_GATING, "pat:a0", 1, 0.5, ("not parseable",)),
+           br.Claim(br.Output.RESEARCH_PRIORITY, "", 1, 0.5),
+           br.Claim(br.Output.VOLATILITY_RANKING, "pat:a0", 1, 0.0),
+           br.Claim(br.Output.VOLATILITY_RANKING, "AAPL 2008", 1, 0.1)]
+    for i, c in enumerate(bad):
+        e = b.submit(disc([c], statement=f"bad {i}"), BN)
+        assert e.disposition == br.Disposition.REFUSED, (i, e.answer)
+    wrong_metric = size_claim(-1, meas=br.Measurement("n_trades", 5.0, 4.0, 100, 3, True))
+    assert b.submit(disc([wrong_metric], statement="volume"), BN).disposition == br.Disposition.REFUSED
+    with pytest.raises(ValueError):
+        br.assert_value_metric("backtest_return")
+
+
+def test_identity_in_a_statement_is_refused():
+    e = br.Bridge().submit(disc([size_claim(-1)], statement="AAPL in 2008 fell 40%"), BN)
+    assert e.disposition == br.Disposition.REFUSED
+
+
+def test_priority_claims_merge_by_urgency():
+    b = br.Bridge()
+    q = "does the effect survive a liquidity shock"
+    b.submit(disc([br.Claim(br.Output.RESEARCH_PRIORITY, "", 1, 0.4, question=q)], source="labA"), BN)
+    b.submit(disc([br.Claim(br.Output.RESEARCH_PRIORITY, "", 1, 0.9, question=q)], statement="second", source="labB"), BN)
+    b.submit(disc([br.Claim(br.Output.DATA_PRIORITY, "", 1, 0.5, question="need quote-level spreads")], statement="third"), BN)
+    reqs = b.priority_requests(BN)
+    assert len(reqs) == 2 and reqs[0].question.text == q and reqs[0].source == "labB" and not reqs[0].data
+    assert any(r.data and r.question.problem == Problem.DATA_QUALITY for r in reqs)
+
+
+def test_time_firewall_on_submission_and_realised_outcomes():
+    b = br.Bridge()
+    with pytest.raises(FirewallBreach):
+        b.submit(disc([size_claim(-1)], matured="2021-06-01"), BN)
+    with pytest.raises(FirewallBreach):
+        b.submit(dataclasses.replace(disc([size_claim(-1)]), provenance=prov("2021-07-01")), BN)
+    e = b.submit(disc([size_claim(-1)]), BN)
+    with pytest.raises(FirewallBreach):
+        b.record_realised(e.entry_id, 0, 0.01, 50, BN, BN)
+    with pytest.raises(br.BridgeError):
+        b.record_realised(e.entry_id, 0, 0.01, 50, "2021-05-01", dt.date(2021, 7, 1))
+    r = b.record_realised(e.entry_id, 0, 0.01, 50, "2021-06-10", dt.date(2021, 7, 1))
+    assert r.metric == "risk_adjusted_delta" and b.realised(BN) == []
+
+
+def test_credit_only_from_realised_change_and_harm_subtracts():
+    b = br.Bridge()
+    e1 = b.submit(disc([size_claim(-1)], statement="one"), BN)
+    e2 = b.submit(disc([size_claim(-1)], statement="two", source="lab2"), BN)
+    b.submit(disc(note="descriptive", statement="three"), BN)
+    assert b.value_ledger(dt.date(2021, 8, 1)).realised_by_metric == {}
+    b.record_realised(e1.entry_id, 0, 0.02, 40, "2021-06-20", dt.date(2021, 8, 1))
+    b.record_realised(e2.entry_id, 0, -0.015, 40, "2021-06-25", dt.date(2021, 8, 1))
+    led = b.value_ledger(dt.date(2021, 8, 1))
+    assert led.realised_by_metric["risk_adjusted_delta"] == pytest.approx(0.005) and led.realised_entries == 2
+    cal = b.calibration(dt.date(2021, 8, 1))["POSITION_SIZING"]
+    assert cal.realised == 2 and cal.hit_rate == 0.5 and cal.shrunk_ratio < 1.0
+
+
+def test_source_that_inflates_claims_is_flagged():
+    b = br.Bridge()
+    for i in range(4):
+        e = b.submit(disc([size_claim(-1)], statement=f"big claim {i}", source="hype"), BN)
+        b.record_realised(e.entry_id, 0, 0.001, 30, "2021-06-15", dt.date(2021, 9, 1))
+    rep = b.source_report(dt.date(2021, 9, 1))["hype"]
+    assert rep["inflating"]
+    assert b.trust("nobody", dt.date(2021, 9, 1)) == 0.5
+
+
+def test_conflicting_claims_are_reported_and_block_release():
+    b = br.Bridge()
+    e1 = b.submit(disc([size_claim(-1)], statement="shrink it", source="a"), BN)
+    b.submit(disc([size_claim(1)], statement="grow it", source="b"), BN)
+    assert b.conflicts() and b.conflicts()[0][:2] == ("POSITION_SIZE", "pat:a0")
+    with pytest.raises(FirewallBreach):
+        b.release(e1.entry_id, BN, "2026-01-01T00:00:00")
+
+
+def test_duplicates_and_revisions():
+    b = br.Bridge()
+    a = b.submit(disc([size_claim(-1)], statement="v1", source="a"), BN)
+    b.submit(disc([size_claim(-1)], statement="same claim, different lab", source="b"), BN)
+    assert len(b.duplicates()) == 1
+    old = b.discovery(a.discovery_id)
+    new = br.Discovery.make("v2", "a", "2020-12-02", prov("2020-12-02"), [size_claim(-1)], subjects=("pat:a0",), parent=old.discovery_id)
+    b.revise(old.discovery_id, new, BN)
+    assert old.discovery_id in b.superseded() and len(b.live_entries()) == 2
+    with pytest.raises(br.BridgeError):
+        b.revise(old.discovery_id, disc([size_claim(-1)], statement="v3"), BN)
+    assert b.submit(old, BN).entry_id == a.entry_id
+
+
+def test_release_is_a_matured_record_and_refuses_the_same_year_rerun():
+    b = br.Bridge()
+    e = b.submit(disc([size_claim(-1)], matured="2020-12-01"), BN)
+    rec = b.release(e.entry_id, BN, "2026-01-01T00:00:00", replaying=[2019])
+    assert rec.namespace == br.Namespace.MATURED_RESEARCH and rec.gate(BN)["mode"] == "SHADOW"
+    with pytest.raises(FirewallBreach):
+        rec.gate(dt.date(2020, 12, 1))
+    with pytest.raises(FirewallBreach):
+        b.release(e.entry_id, BN, "2026-01-01T00:00:00", replaying=[2020])
+    info = b.submit(disc(note="descriptive", statement="x"), BN)
+    with pytest.raises(FirewallBreach):
+        b.release(info.entry_id, BN, "2026-01-01T00:00:00")
+
+
+def test_audit_catches_a_tampered_entry_and_records_roundtrip():
+    b = br.Bridge()
+    b.submit(disc([size_claim(-1)]), BN)
+    b.submit(disc(note="n", statement="two"), BN)
+    assert b.audit(BN) == []
+    rec = br.to_records(b)
+    assert br.from_records(rec).entries() == b.entries()
+    rec["routed"][0] = (rec["routed"][0][0], rec["routed"][0][1], "0" * 24)
+    with pytest.raises(br.BridgeError):
+        br.from_records(rec)
+    b._entries[0] = dataclasses.replace(b._entries[0], disposition=br.Disposition.PRIORITY)
+    assert any("chain broken" in e for e in b.audit(BN))
+
+
+def test_preview_uses_the_contracts_own_limits():
+    b = br.Bridge()
+    claim = br.Claim(br.Output.VOLATILITY_RANKING, "x1", 1, 0.5, expected_delta=0.01,
+                     measurement=good_measure(metric="portfolio_return_delta"), how_tested="wf")
+    e = b.submit(disc([claim, size_claim(-1)], statement="both"), BN)
+    pv = b.preview(e.entry_id, {"x1": 1.0, "x2": 0.0, "x3": 0.5})
+    assert pv["VOLATILITY_RANKING"]["after"]["x1"] <= 1.0 + 0.5 * 1.0 + 1e-9
+    assert pv["POSITION_SIZING"]["after"] < pv["POSITION_SIZING"]["before"]
+
+
+def test_stack_effect_stays_inside_the_contract_bounds():
+    b = br.Bridge()
+    for i in range(6):
+        c = br.Claim(br.Output.VOLATILITY_RANKING, "x1", 1, 0.5, expected_delta=0.01,
+                     measurement=good_measure(metric="portfolio_return_delta"), how_tested="wf")
+        b.submit(disc([c], statement=f"rank {i}", source=f"s{i}"), BN)
+    out = br.stack_effect(b, {"x1": 1.0, "x2": 0.0})
+    assert 0 < out["max_rank_shift"] <= out["rank_limit"] + 1e-9
+
+
+def test_lint_predicts_the_route_and_upgrade_path_names_whats_missing():
+    weak = br.Measurement("risk_adjusted_delta", 0.01, 0.002, 12, 1, False)
+    d = disc([size_claim(-1, meas=weak)])
+    lt = br.lint(d)
+    assert lt.ok and lt.predicted == br.Disposition.SHADOW_ONLY
+    assert any("held-out" in x for x in br.upgrade_path(d.claims[0]))
+    assert not br.lint(disc([br.Claim(br.Output.RISK_PENALTY, "", -1, 2.0)])).ok
+    assert br.upgrade_path(disc([size_claim(-1)]).claims[0]) == []
+    b = br.Bridge()
+    b.submit(d, BN)
+    assert br.upgrade_queue(b, BN)[0][2]
+
+
+def test_graph_adapters_give_every_gap_an_answer_and_attach_decisions():
+    g = build_world()
+    gaps = rg.discover(g, NOW, rg.GapConfig(n_null=100, seed=1))
+    ds = br.discoveries_from_gaps(gaps, NOW, "2026-01-01T00:00:00")
+    assert len(ds) == len(gaps) and gaps
+    b = br.Bridge()
+    rep = br.step(b, ds, dt.date(2021, 3, 1))
+    assert rep.clean and rep.by_disposition.get("REFUSED", 0) == 0 and rep.priorities
+    g2 = _story_graph()
+    g2.add_failure("f6", "pat:pa", FailureCause.REGIME_CHANGE, day(6), contexts=["reg:transition"])
+    ung = [x for x in rg.discover(g2, NOW, rg.GapConfig(n_null=20)) if x.kind == rg.GapKind.UNGATED_FAILURE]
+    dz = br.discoveries_from_gaps(ung, NOW, "2026-01-01T00:00:00")
+    e = b.submit(dz[0], dt.date(2021, 3, 1))
+    assert e.disposition == br.Disposition.SHADOW_ONLY and e.outputs == ("PATTERN_GATING",)
+    assert br.attach_to_graph(b, g2, day(400)) >= 1
+
+
+def test_dangerous_context_becomes_a_shadow_abstention_candidate():
+    g = rg.ResearchGraph()
+    g.add_context(rg.K.REGIME, "shock", day(0))
+    for i in range(4):
+        g.add_pattern(f"d{i}", day(0))
+        g.add_test(f"t{i}", f"pat:d{i}", True, day(1))
+        g.relate("reg:shock", f"pat:d{i}", rg.R.FAILS_IN, day(2))
+    ds = br.discoveries_from_contexts(g, NOW, "2026-01-01T00:00:00")
+    assert len(ds) == 1
+    e = br.Bridge().submit(ds[0], dt.date(2021, 3, 1))
+    assert e.disposition == br.Disposition.SHADOW_ONLY and e.outputs == ("ABSTENTION",)
+    assert br.discoveries_from_contexts(rg.ResearchGraph(), NOW, "x") == []
+
+
+def test_from_pattern_rows_routes_active_and_records_dead_ones_as_informational():
+    tab = pd.DataFrame({"key_named": ["vol20 q4", "mom q3"], "effect": [0.02, 0.01], "status": ["active", "no_gain"], "p_real": [0.9, 0.9]})
+    es = br.Bridge().submit_all(br.from_pattern_rows(tab, NOW, "2026-01-01T00:00:00"), dt.date(2021, 3, 1))
+    assert [e.disposition for e in es] == [br.Disposition.SHADOW_ONLY, br.Disposition.INFORMATIONAL]
+    assert br.from_pattern_rows(None, NOW, "x") == [] and br.decision_coverage(br.Bridge())["share_covered"] == 0.0
+
+
+def test_bridge_config_validation_and_empty_step():
+    with pytest.raises(br.BridgeError):
+        br.Bridge(br.BridgeConfig(min_n_tighten=50, min_n_loosen=10))
+    rep = br.step(br.Bridge(), [], BN)
+    assert rep.entries == () and rep.clean and br.bridge_markdown(br.Bridge(), BN)
+
+
+def test_misc_bridge_reports():
+    b = br.Bridge()
+    e = b.submit(disc([size_claim(-1)]), BN)
+    b.record_realised(e.entry_id, 0, -0.01, 30, "2021-06-05", dt.date(2021, 7, 1))
+    assert br.stale_entries(b, dt.date(2021, 7, 1)) == [] and br.retire_failed(b, dt.date(2021, 7, 1), 1) == [e.discovery_id]
+    assert br.attribute_realised(b, dt.date(2021, 7, 1))[e.discovery_id] == pytest.approx(-0.01)
+    assert br.decision_coverage(b)["moved"] == {"POSITION_SIZING": 1}
+    assert br.disposition_flow(b, "2021-01-01", "2022-01-01")["lab1"]["DECISION_CHANGING"] == 1
+    assert b.revisit_informational(["pat:a0"]) == [] and br.concentration(b) == []
+    assert "DECISION_CHANGING" in br.bridge_markdown(b, dt.date(2021, 7, 1))
