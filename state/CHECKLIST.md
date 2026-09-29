@@ -21,15 +21,15 @@ Foundation status per Bible phase (line ranges, tests): `state/build/FOUNDATION.
   - Movement patterns (test 2020+): IC 0.383, t 38.5; 56 active of 4,382; null t95 1.93 vs real 42.8.
   - Direction: 2017 v1 IC 0.010; 2020 v1 0.042; 2022 v2 0.006; 2020 v2 nothing passed.
   - Harness: engine/heavy_tests.py (B04).
-- [~] A4 Long-term pattern bank: engine/pattern_bank.py (B03).
+- [x] A4 Long-term pattern bank: engine/pattern_bank.py (B03, 53 tests: name-keyed, hash-chained versions, earlier-windows-only reads, integrity verify). Real run (1,500 tickers, 458k weekly rows, six eras): verify ok, 0 audit problems; active patterns +0.10%/wk out of sample (t 2.31, optimistic), discarded ~0. Evidence: state/research/pattern_bank/report_v3.md.
 - [~] A5 Pattern scores → Find volatility: engine/pattern_movers.py with random and shuffled controls (B04); grid6 (_ipat) running.
 - [~] A6 Minute collector: scheduled after every weekday close (.github/workflows/intraday.yml -> monthly intraday-YYYY-MM releases; scripts/sync_intraday.py; 6 tests). First scheduled runs not yet verified.
 - [~] A7 Self-tuning Algorithm: engine/miner_tuning.py (walk-forward coordinate search, fold-share + week-bootstrap rule, untouched holdout; 7 tests). Real run (movement, 600 tickers, 2008+): no change adopted, holdout IC 0.352; fdr_q found inert.
-- [~] A8 Market analog engine. Macro lags corrected by the PIT audit (UNRATE 30, UMCSENT 25, USREC 460 sessions). Heavy test pending.
-- [~] A8b/A8c Sector and stock analog engines: engine/analogs_sector.py, analogs_stock.py, analog_weighting.py (B05).
-- [~] A9 Timeline dial and yearly pacing: engine/timeline.py (B09). On the real-cache proxy the dial fails its gate; integration via livesim_loop2 in progress.
-- [~] A10 Lesson memory: engine/lessons.py (B06).
-- [~] A10b Rerun anti-memorisation: engine/antimemo.py (B06).
+- [x] A8 Market analog engine: built, point-in-time (macro lags fixed), heavy-tested on real data (B05: no-analog baseline beats every analog mode, skill -0.17/-0.18, p~1). EVALUATED - NOT ADOPTED: no edge. Evidence: state/research/analogs_ext/.
+- [x] A8b/A8c Sector and stock analog engines (B05, 44 tests; 0 causality offenders): sector rank IC 0.023 (p 0.16), stock pooled 0.011 (p 0.11) - none beats no-analog. EVALUATED - NOT ADOPTED. Open note: the analog weight gate accepts shuffled data ~50% (raise val_margin) before any future adoption.
+- [x] A9 Timeline dial and yearly pacing: engine/timeline.py (+ pacing, admission, gaming guards; B09, 106 tests). Real replays (15 test windows): in-band 22.1% -> 14.3% with the dial, risk better; fails the tiered gate. EVALUATED - NOT ADOPTED; hook stays off (meta dial_on). Evidence: state/research/timeline_basis/dial_offline_seed0.json.
+- [x] A10 Lesson memory: engine/lessons.py (mistake kinds, hash-chained LessonStore; B06, 56 tests). Real data: lessons from other windows -0.19%/wk (90% CI -0.34..-0.02); 7 era triples beat the shuffled null in 2/7. EVALUATED - NOT ADOPTED. Evidence: state/research/lessons/.
+- [x] A10b Rerun anti-memorisation: engine/antimemo.py on the real archive (45 windows): memorisation (same window vs renamed+shifted) = 0.000; positive control (RecallControl memoriser) +4.9%/wk on its window, 0 on the disguised rerun - flagged in 45/45, so the harness can see memorisation. Evidence: state/research/lessons/archive_v2.md.
 - [x] A11 Improve-or-discard lifecycle: decaying pattern 0% held on both seed sets (decay death rule + Bonferroni-corrected rescue at in-scope size, C43); regime patterns correctly rescoped; engine/pattern_lifecycle.py + bank integrity on real data (B03, 53 tests).
 - [~] A12 Additional data: FRED done. Sector ETFs, backup prices and DELISTED HISTORY (now priority, because of survivor bias) are with B13.
 - [x] A13 Planted-pattern calibration: VALIDATED on BOTH seed sets with the final code (2026-09-29) - original seeds 100+ (FDR 6.7%, decaying 0% held, P(real)>0.9 bin 97% real) and fresh hold-out seeds 300+ (FDR 9.9%, decaying 0%, 96%); all 10 criteria pass. Evidence: state/research/algorithm/planted/report_final_seeds100.md, report.md (hold-out), data/planted_cal9_holdout.log, data/planted_cal10_origseeds.log. Fixes: exact-truth discovery scoring, decay death rule, Bonferroni-corrected rescue scored at in-scope size. Still open (separate, stricter): tests/test_patterns_integration.py strict xfail - small fast-setting noise panels admit ~0.67 false patterns/run. History:
@@ -41,9 +41,9 @@ Foundation status per Bible phase (line ranges, tests): `state/build/FOUNDATION.
 ## Find volatility
 - [~] V1 95% mover target. Best is `_irf` at 85.6% top-10 (97.4% at the 92% bar on 5.6 picks/week); `_i` is 84.7%. The ab/ad/abad/st variants are within ±0.3 pt, so no gain. Survivor-biased.
 - [~] V2 Direction at ≥80% calibrated confidence: engine/direction.py (B07). Stacked model; Platt/isotonic calibration on a later block; Brier, log loss, ECE and reliability; the gate abstains unless calibration is proven out of sample. Real-data study in progress.
-- [~] V2b Per-stock-type trust tables: engine/trust.py (B07). Six nested type levels, empirical-Bayes shrinkage to the parent, and an own-data bar.
-- [~] V3 Exit learner: engine/exits.py (B08). Real walk-forward (19,304 positions, 2005-2022): no proven edge (CIs straddle 0; the chosen rule flips between folds).
-- [~] V4 Stop/risk learner: engine/stops.py (B08).
+- [x] V2b Per-stock-type trust tables: engine/trust.py + trust_store.py (versioned, drift monitor; B07, 44 tests). Real walk-forward: no type carries direction skill. EVALUATED - NOT ADOPTED (neutral weights). Evidence: state/research/direction/, docs/trust_report_direction.html.
+- [x] V3 Exit learner: engine/exits.py (B08). Real walk-forward (19,304 positions, 2005-2022): out-of-sample gain CIs straddle 0, chosen rule flips between folds; pattern-failure exits carry no information (z~1). EVALUATED - NOT ADOPTED: exits stay week-end. Evidence: state/research/exits_stops/, state/research/pattern_fail/.
+- [x] V4 Stop/risk learner: engine/stops.py + engine/gaprisk.py (B08, 51 tests). Stops cut P(loss>20%) 3.3% -> 1.2% but gaps leave a -73% worst loss; the conditional gap model is calibrated (5.2%/1.06% exceedance vs 5%/1%); holding the -20% cap at 1% needs dropping ~41% of positions (loss-cap filter). Evidence: state/research/gaprisk/. The -20% GOAL itself is tracked under V5.
   - Stops cut P(loss>20%) from 3.3% to 1.2%, but the worst loss is still -73% because of overnight gaps.
   - The gap model is miscalibrated: 11-16% of nights beyond its 95% tail, against a 5% target.
   - A conditional gap model is being built.
