@@ -1036,7 +1036,7 @@ def verify_link(link, root: Path) -> dict:
         out["broken"].append("link is not an object with code/tests/evidence")
         return out
     for k in link:
-        if k not in LINK_FIELDS and k != "note":
+        if k not in LINK_FIELDS and k not in ("note", "failed_verdict"):
             out["broken"].append(f"unknown link field '{k}'")
     for fld in LINK_FIELDS:
         v = link.get(fld, [])
@@ -1078,6 +1078,14 @@ def verify_link(link, root: Path) -> dict:
             out["evidence"].append(path)
     if not link.get("code"):
         out["broken"].append("link names no code")
+    fv = link.get("failed_verdict")
+    if fv is not None:   # a reviewer recording a measured failure the text heuristics cannot see; it must point at the measurement
+        if not isinstance(fv, str) or not fv.strip():
+            out["broken"].append("failed_verdict must be a non-empty reason string")
+        elif not out["evidence"]:
+            out["broken"].append("failed_verdict needs an existing evidence path that shows the failure")
+        else:
+            out["failed_verdict"] = fv.strip()
     out["ok"] = not out["broken"] and bool(out["code"])
     return out
 
@@ -1129,6 +1137,8 @@ def apply_link(rec: dict, req: Requirement, ver: dict, failing: dict, evidence: 
             continue
         rec["fail_lines"] += [{"path": ep, "line": ln} for ln, toks in ev.fail_lines if speaks_to(req.terms, toks, idf)][:3]
         rec["pass_lines"] += [{"path": ep, "line": ln} for ln, toks in ev.pass_lines if speaks_to(req.terms, toks, idf)][:3]
+    if ver.get("failed_verdict"):
+        rec["fail_lines"].insert(0, {"path": ver["evidence"][0], "line": ver["failed_verdict"]})
     if rec["fail_lines"] or rec["failing_tests"]:
         src = rec["fail_lines"][0]["path"] if rec["fail_lines"] else rec["failing_tests"][0]
         rec["state"], rec["why"] = "[!]", f"linked; failed verdict recorded in {src}"
@@ -1144,10 +1154,10 @@ def apply_link(rec: dict, req: Requirement, ver: dict, failing: dict, evidence: 
 
 def genuine_gaps(records: list[dict], gaps: dict) -> list[dict]:
     """Requirements still without any code after links, each with the reviewer's reason ('' = never reviewed).
-    Derived claims (Phases 38-39) are excluded: they are a consequence of other requirements, not a separate gap."""
+    A Phase 38/39 claim counts only when NO requirement maps to it (nothing verifies it); otherwise it follows its parts."""
     out = []
     for r in records:
-        if r["state"] == "[ ]" and not r.get("derived"):
+        if r["state"] == "[ ]" and (not r.get("derived") or r["derived"]["n"] == 0):
             out.append({"id": r["id"], "phase": r["phase"], "kind": r["kind"], "text": r["text"], "bible_line": r["bible_line"],
                         "reason": str(gaps.get(r["id"], "")), "reviewed": r["id"] in gaps})
     return out

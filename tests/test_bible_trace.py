@@ -394,3 +394,111 @@ def test_main_writes_both_outputs_and_returns_nonzero_only_on_invariant_violatio
     rc = bt.main(["--root", str(tmp_path), "--now", "T", "--out-md", str(tmp_path / "o.md"), "--out-json", str(tmp_path / "o.json")])
     assert rc == 0 and (tmp_path / "o.md").exists() and (tmp_path / "o.json").exists()
     assert "requirements" in capsys.readouterr().out
+
+
+# ---- B20: explicit, verified links -------------------------------------------------------------------------------------
+def _rid(tr, text):
+    return by_text(tr, text)["id"]
+
+
+def _links(tmp_path, rid, link):
+    write(tmp_path / "state" / "build" / "trace_links.json", json.dumps({rid: link}))
+
+
+GOOD = {"code": ["engine/parity.py::max_abs_error"], "tests": ["tests/test_parity.py::test_maximum_absolute_error_is_the_largest_gap"],
+        "evidence": ["state/research/parity/latest.json"]}
+
+
+def test_verified_link_upgrades_a_missing_requirement_to_x(tmp_path):
+    make_repo(tmp_path, with_test=True, with_evidence=True)
+    rid = "1.1.1"
+    _links(tmp_path, rid, {**GOOD})
+    tr = bt.build_trace(tmp_path)
+    rec = next(r for r in tr["requirements"] if r["id"] == rid)
+    assert rec["link"] == "honoured" and rec["state"] == "[x]" and rec["code"][0]["symbols"] == ["max_abs_error"]
+    assert tr["links"]["honoured"] == 1 and tr["links"]["broken"] == []
+    assert tr["invariant_violations"] == []
+
+
+def test_link_cannot_reach_x_without_evidence_and_without_test_it_is_only_implemented(tmp_path):
+    make_repo(tmp_path)
+    rid = "1.1.1"
+    _links(tmp_path, rid, {**GOOD, "evidence": []})
+    rec = next(r for r in bt.build_trace(tmp_path)["requirements"] if r["id"] == rid)
+    assert rec["state"] == "[?]"                       # code + test, nothing shows it worked
+    _links(tmp_path, rid, {"code": GOOD["code"]})
+    rec = next(r for r in bt.build_trace(tmp_path)["requirements"] if r["id"] == rid)
+    assert rec["state"] == "[~]"
+
+
+@pytest.mark.parametrize("field,value,frag", [
+    ("code", ["engine/parity.py::no_such_function"], "symbol not found"),
+    ("code", ["engine/ghost.py::max_abs_error"], "code file missing"),
+    ("code", ["../outside.py::x"], "code file missing"),
+    ("tests", ["tests/test_parity.py::test_ghost"], "test not found"),
+    ("tests", ["engine/parity.py::max_abs_error"], "outside tests/"),
+    ("evidence", ["state/research/nothing.json"], "evidence missing"),
+])
+def test_planted_broken_link_is_rejected_whole_and_reported(tmp_path, field, value, frag):
+    make_repo(tmp_path)
+    rid = "1.1.1"
+    before = next(r for r in bt.build_trace(tmp_path)["requirements"] if r["id"] == rid)["state"]
+    _links(tmp_path, rid, {**GOOD, field: value})
+    tr = bt.build_trace(tmp_path)
+    rec = next(r for r in tr["requirements"] if r["id"] == rid)
+    assert rec["state"] == before and rec.get("link") == "rejected"         # never silently honoured, not even the good parts
+    assert tr["links"]["honoured"] == 0
+    assert any(b["id"] == rid and frag in " ".join(b["broken"]) for b in tr["links"]["broken"])
+    assert "BROKEN" in bt.render_markdown(tr)
+
+
+def test_link_to_unparseable_file_or_unknown_id_or_bad_json_is_a_problem(tmp_path):
+    make_repo(tmp_path)
+    write(tmp_path / "engine" / "broken.py", "def f(:\n")
+    assert bt.verify_link({"code": ["engine/broken.py::f"]}, tmp_path)["ok"] is False
+    write(tmp_path / "state" / "build" / "trace_links.json", json.dumps({"99.9.9": GOOD}))
+    tr = bt.build_trace(tmp_path)
+    assert any(b["id"] == "99.9.9" for b in tr["links"]["broken"])
+    write(tmp_path / "state" / "build" / "trace_links.json", "{not json")
+    tr = bt.build_trace(tmp_path)
+    assert tr["links"]["honoured"] == 0 and tr["links"]["broken"][0]["id"] == "*"
+
+
+def test_link_cannot_hide_a_recorded_failure_and_failed_verdict_needs_evidence(tmp_path):
+    make_repo(tmp_path)
+    write(tmp_path / "state" / "research" / "parity" / "fail.json", json.dumps({"provenance": {}, "rate": 1}))
+    rid = "1.1.1"
+    _links(tmp_path, rid, {**GOOD, "evidence": ["state/research/parity/fail.json"], "failed_verdict": "measured rate 1 breaks the rule"})
+    rec = next(r for r in bt.build_trace(tmp_path)["requirements"] if r["id"] == rid)
+    assert rec["state"] == "[!]"
+    _links(tmp_path, rid, {**GOOD, "evidence": [], "failed_verdict": "no artefact behind it"})
+    tr = bt.build_trace(tmp_path)
+    assert tr["links"]["honoured"] == 0 and any("failed_verdict" in " ".join(b["broken"]) for b in tr["links"]["broken"])
+
+
+def test_derived_claims_cannot_be_linked_and_genuine_gaps_use_the_reviewers_reason(tmp_path):
+    make_repo(tmp_path)
+    tr0 = bt.build_trace(tmp_path)
+    derived = next(r["id"] for r in tr0["requirements"] if r["phase"] == 39)
+    gap_id = next(g["id"] for g in tr0["genuine_gaps"] if g["phase"] == 4)
+    write(tmp_path / "state" / "build" / "trace_links.json", json.dumps({derived: GOOD, "_gaps": {gap_id: "reviewed: nothing does this"}}))
+    tr = bt.build_trace(tmp_path)
+    assert any(b["id"] == derived for b in tr["links"]["broken"])
+    g = next(x for x in tr["genuine_gaps"] if x["id"] == gap_id)
+    assert g["reviewed"] and g["reason"] == "reviewed: nothing does this"
+    assert "## Genuine gaps" in bt.render_markdown(tr) and "UNREVIEWED" in bt.render_markdown(tr)
+
+
+def test_empty_links_file_and_absent_links_change_nothing(tmp_path):
+    make_repo(tmp_path)
+    a = bt.build_trace(tmp_path)["summary"]["counts"]
+    write(tmp_path / "state" / "build" / "trace_links.json", "{}")
+    tr = bt.build_trace(tmp_path)
+    assert tr["summary"]["counts"] == a and tr["links"]["declared"] == 0
+
+
+def test_real_repository_links_all_verify():
+    p = ROOT / "state" / "build" / "trace_links.json"
+    raw = json.loads(p.read_text(encoding="utf-8"))
+    bad = {k: bt.verify_link(v, ROOT)["broken"] for k, v in raw.items() if not k.startswith("_") and not bt.verify_link(v, ROOT)["ok"]}
+    assert bad == {}

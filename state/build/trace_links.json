@@ -1,0 +1,1045 @@
+{
+ "0.2.9": {
+  "code": [
+   "engine/registry.py::REQUIRED",
+   "engine/registry.py::Registry.audit"
+  ],
+  "tests": [
+   "tests/test_registry.py::test_complete_record_audits_clean",
+   "tests/test_registry.py::test_planted_defects_are_caught"
+  ],
+  "evidence": [
+   "state/research/registry_audit.json"
+  ],
+  "note": "window_ids is one of the REQUIRED registry fields and audit() checks it"
+ },
+ "2.0.2": {
+  "code": [
+   "engine/parity.py::sample_dates"
+  ],
+  "tests": [
+   "tests/test_parity.py::test_sampling_is_seeded_and_keeps_last_date"
+  ],
+  "evidence": [
+   "state/research/parity/latest.json"
+  ]
+ },
+ "2.0.7": {
+  "code": [
+   "engine/parity.py::ParityReport.max_rel",
+   "engine/parity.py::compare_panels"
+  ],
+  "tests": [
+   "tests/test_parity.py::test_compare_detects_nan_missing_and_value_drift",
+   "tests/test_parity.py::test_tolerance_cannot_be_loosened"
+  ],
+  "evidence": [
+   "state/research/parity/latest.json"
+  ],
+  "note": "the summary line prints max_abs and max_rel; the gate passes only when abs OR relative error is within tolerance"
+ },
+ "2.0.8": {
+  "code": [
+   "engine/parity.py::compare_panels",
+   "engine/parity.py::FeatureDiff"
+  ],
+  "tests": [
+   "tests/test_parity.py::test_compare_detects_nan_missing_and_value_drift"
+  ],
+  "evidence": [
+   "state/research/parity/latest.json"
+  ],
+  "note": "NaN-vs-value is counted per feature as n_nan_mismatch whatever the value"
+ },
+ "3.3.1": {
+  "code": [
+   "engine/pattern_stats.py::relevance",
+   "engine/pattern_stats.py::recency_weight",
+   "engine/pattern_stats.py::context_similarity",
+   "engine/pattern_stats.py::era_weight",
+   "engine/patterns.py::PatternMiner"
+  ],
+  "tests": [
+   "tests/test_pattern_stats.py::test_relevance_equals_the_miner_weights_when_era_is_neutral",
+   "tests/test_pattern_stats.py::test_relevance_uses_no_information_after_now",
+   "tests/test_pattern_stats.py::test_similar_context_outweighs_a_distant_one_and_missing_context_is_neutral"
+  ],
+  "evidence": []
+ },
+ "3.5.3": {
+  "code": [
+   "engine/pattern_stats.py::validation_gain_gate"
+  ],
+  "tests": [
+   "tests/test_pattern_stats.py::test_validation_gain_gate_rejects_noise_and_accepts_signal"
+  ],
+  "evidence": [
+   "state/research/algorithm/planted/report.md"
+  ]
+ },
+ "3.5.4": {
+  "code": [
+   "engine/pattern_stats.py::admission_flags",
+   "engine/pattern_stats.py::confirmation_factor"
+  ],
+  "tests": [
+   "tests/test_pattern_stats.py::test_confirmation_factor_requires_the_same_sign",
+   "tests/test_pattern_stats.py::test_effect_that_flips_sign_after_discovery_gets_zero_p_real"
+  ],
+  "evidence": [
+   "state/research/algorithm/planted/report.md"
+  ]
+ },
+ "3.5.5": {
+  "code": [
+   "engine/pattern_stats.py::LookAheadError",
+   "engine/pattern_stats.py::recency_weight",
+   "engine/patterns.py::PatternMiner.fit"
+  ],
+  "tests": [
+   "tests/test_pattern_stats.py::test_rows_after_now_are_ignored_by_the_miner",
+   "tests/test_pattern_stats.py::test_relevance_uses_no_information_after_now"
+  ],
+  "evidence": [],
+  "note": "the miner drops rows after `now` and the relevance weights raise LookAheadError on future dates"
+ },
+ "3.7.1": {
+  "code": [
+   "engine/pattern_stats.py::validation_gain_gate"
+  ],
+  "tests": [
+   "tests/test_pattern_stats.py::test_validation_gain_gate_reproduces_the_miners_greedy_selection",
+   "tests/test_pattern_stats.py::test_validation_gain_gate_rejects_noise_and_accepts_signal"
+  ],
+  "evidence": [
+   "state/research/algorithm/planted/report.md"
+  ]
+ },
+ "4.0.6": {
+  "code": [
+   "engine/pattern_lifecycle.py::run_tests",
+   "engine/pattern_lifecycle.py::detect_failure"
+  ],
+  "tests": [
+   "tests/test_pattern_lifecycle.py::test_tests_are_sign_aware_and_report_each_failure",
+   "tests/test_pattern_lifecycle.py::test_sign_consistency_catches_an_effect_that_lives_in_three_years"
+  ],
+  "evidence": []
+ },
+ "5.0.2": {
+  "code": [
+   "engine/pattern_bank.py::PatternBank.history"
+  ],
+  "tests": [
+   "tests/test_pattern_bank.py::test_retest_rescopes_discards_and_keeps_the_whole_story"
+  ],
+  "evidence": [
+   "state/research/pattern_bank/report_v3.md"
+  ]
+ },
+ "5.0.3": {
+  "code": [
+   "engine/pattern_identity.py::PatternRecord",
+   "engine/pattern_identity.py::new_record"
+  ],
+  "tests": [
+   "tests/test_pattern_identity.py::test_record_json_round_trip_is_lossless_and_stable"
+  ],
+  "evidence": [
+   "state/research/pattern_bank/report_v3.md"
+  ],
+  "note": "discovery and validation windows are first-class fields of the record"
+ },
+ "5.0.4": {
+  "code": [
+   "engine/pattern_lifecycle.py::detect_failure",
+   "engine/pattern_lifecycle.py::Lifecycle._fail"
+  ],
+  "tests": [
+   "tests/test_pattern_bank.py::test_audit_catches_state_without_history_and_missing_discard_reason"
+  ],
+  "evidence": [
+   "state/research/pattern_fail/report.txt"
+  ]
+ },
+ "7.0.5": {
+  "code": [
+   "engine/heavy_tests.py::by_regime",
+   "engine/heavy_tests.py::regime_tags"
+  ],
+  "tests": [
+   "tests/test_heavy_tests.py::test_regime_table_flags_a_planted_regime_dependent_edge",
+   "tests/test_heavy_tests.py::test_regime_tags_use_only_the_past"
+  ],
+  "evidence": []
+ },
+ "8.2.1": {
+  "code": [
+   "engine/analog_weighting.py::pit_moments"
+  ],
+  "tests": [
+   "tests/test_analogs_ext.py::test_pit_moments_ignore_the_future"
+  ],
+  "evidence": []
+ },
+ "9.1.8": {
+  "code": [
+   "engine/memory.py::era_of",
+   "engine/memory.py::Memory.factors"
+  ],
+  "tests": [
+   "tests/test_memory_ext.py::test_era_of_maps_dates_and_unknown",
+   "tests/test_memory_ext.py::test_era_factor_discounts_other_eras_and_is_neutral_by_default"
+  ],
+  "evidence": [
+   "state/research/memory_adapter/memory_by_era.csv"
+  ]
+ },
+ "9.2.3": {
+  "code": [
+   "engine/memory.py::coarse_date",
+   "engine/memory_diagnostics.py::leak_check",
+   "engine/memory.py::Memory.export_lessons"
+  ],
+  "tests": [
+   "tests/test_memory_ext.py::test_exported_lessons_carry_no_ticker_no_exact_outcome_no_exact_date",
+   "tests/test_memory_ext.py::test_leak_scan_can_fail_it_catches_planted_leaks"
+  ],
+  "evidence": []
+ },
+ "9.2.4": {
+  "code": [
+   "engine/memory.py::coarse_date",
+   "engine/memory_diagnostics.py::leak_check",
+   "engine/memory.py::Memory.export_lessons"
+  ],
+  "tests": [
+   "tests/test_memory_ext.py::test_exported_lessons_carry_no_ticker_no_exact_outcome_no_exact_date",
+   "tests/test_memory_ext.py::test_leak_scan_can_fail_it_catches_planted_leaks"
+  ],
+  "evidence": []
+ },
+ "9.4.1": {
+  "code": [
+   "engine/memory.py::Memory.factors",
+   "engine/memory.py::Memory.weight"
+  ],
+  "tests": [
+   "tests/test_memory.py::test_similar_markets_count_more"
+  ],
+  "evidence": [
+   "state/research/memory_adapter/memory_bandwidth_sweep.csv"
+  ],
+  "note": "similarity = exp(-||c - c_now||^2 / (2 bandwidth^2)) inside factors(); the bandwidth sweep is the real-data evidence"
+ },
+ "10.0.3": {
+  "code": [
+   "engine/lessons.py::CATEGORIES",
+   "engine/lessons.py::classify_kind"
+  ],
+  "tests": [
+   "tests/test_lessons.py::test_classify_kind_precedence_and_untaken_winner",
+   "tests/test_lessons.py::test_post_mortem_labels_every_kind_and_the_report_counts_them"
+  ],
+  "evidence": [
+   "state/research/lessons/real_v2.json"
+  ]
+ },
+ "10.0.4": {
+  "code": [
+   "engine/lessons.py::CATEGORIES",
+   "engine/lessons.py::classify_kind"
+  ],
+  "tests": [
+   "tests/test_lessons.py::test_classify_kind_precedence_and_untaken_winner",
+   "tests/test_lessons.py::test_post_mortem_labels_every_kind_and_the_report_counts_them"
+  ],
+  "evidence": [
+   "state/research/lessons/real_v2.json"
+  ]
+ },
+ "11.0.1": {
+  "code": [
+   "engine/antimemo.py::play_window",
+   "engine/antimemo.py::run_experiment"
+  ],
+  "tests": [
+   "tests/test_antimemo.py::test_long_only_play_never_shorts_and_report_renders_every_required_output"
+  ],
+  "evidence": [
+   "state/research/lessons/archive_v1.md"
+  ]
+ },
+ "11.0.5": {
+  "code": [
+   "engine/antimemo.py::run_experiment",
+   "engine/antimemo.py::play_window"
+  ],
+  "tests": [
+   "tests/test_antimemo.py::test_genuine_lessons_survive_disguise_and_unseen_window",
+   "tests/test_antimemo.py::test_holdout_window_c_scores_the_kept_book_once_and_flags_harm"
+  ],
+  "evidence": [
+   "state/research/lessons/archive_v1.md"
+  ]
+ },
+ "11.0.10": {
+  "code": [
+   "engine/antimemo.py::run_experiment",
+   "engine/antimemo.py::harmed"
+  ],
+  "tests": [
+   "tests/test_antimemo.py::test_paired_delta_and_harm_rule_on_known_series",
+   "tests/test_antimemo.py::test_long_only_play_never_shorts_and_report_renders_every_required_output"
+  ],
+  "evidence": [
+   "state/research/lessons/archive_v1.md"
+  ],
+  "note": "run_experiment returns degradation_B = max(0, -mean improvement on B)"
+ },
+ "12.0.5": {
+  "code": [
+   "engine/trust.py::NUMERIC",
+   "engine/trust.py::LEVELS"
+  ],
+  "tests": [
+   "tests/test_trust.py::test_planted_effect_found_and_noise_neutralized"
+  ],
+  "evidence": [],
+  "note": "theme_mom is one of the six type dimensions of the trust table (level sic|size|vol|trend|theme|attn)"
+ },
+ "13.0.7": {
+  "code": [
+   "engine/direction.py::reliability_bins",
+   "engine/direction.py::ece",
+   "engine/direction.py::brier"
+  ],
+  "tests": [
+   "tests/test_direction_calib.py::test_overconfident_raw_is_worse_than_calibrated",
+   "tests/test_direction_calib.py::test_perfect_model_all_routes_calibrated_and_bets_are_right"
+  ],
+  "evidence": [
+   "state/research/direction/summary.json"
+  ]
+ },
+ "14.0.1": {
+  "code": [
+   "engine/missed_winners.py::MissedWinnerDetector"
+  ],
+  "tests": [
+   "tests/test_missed_winners.py::test_planted_signal_is_learned_and_earns_a_positive_capped_weight"
+  ],
+  "evidence": [],
+  "note": "the detector works on cross-sectional ranks (v.rank(pct=True)) of evidence, mu_raw, vol20, max20, log_dv, r5"
+ },
+ "17.0.10": {
+  "code": [
+   "engine/timeline.py::promotion_gate",
+   "engine/timeline.py::gate_rows"
+  ],
+  "tests": [
+   "tests/test_timeline.py::test_gate_catches_a_risk_deteriorating_dial"
+  ],
+  "evidence": [
+   "state/research/timeline_basis/dial_offline_seed0.json"
+  ]
+ },
+ "18.0.8": {
+  "code": [
+   "engine/adaptive.py::KnobState",
+   "engine/adaptive.py::neighbours"
+  ],
+  "tests": [
+   "tests/test_adapter.py::test_candidate_table_scores_a_planted_better_neighbour_and_blocks_a_thin_one"
+  ],
+  "evidence": []
+ },
+ "18.0.9": {
+  "code": [
+   "engine/adaptive.py::KnobState",
+   "engine/adaptive.py::Adapter._evaluate_candidates"
+  ],
+  "tests": [
+   "tests/test_adapter.py::test_candidate_table_scores_a_planted_better_neighbour_and_blocks_a_thin_one"
+  ],
+  "evidence": []
+ },
+ "18.0.10": {
+  "code": [
+   "engine/adaptive.py::KnobState",
+   "engine/adaptive.py::Adapter._evaluate_candidates"
+  ],
+  "tests": [
+   "tests/test_adapter.py::test_candidate_table_scores_a_planted_better_neighbour_and_blocks_a_thin_one"
+  ],
+  "evidence": []
+ },
+ "18.0.17": {
+  "code": [
+   "engine/adaptive.py::Adapter._global_gate",
+   "engine/adaptive.py::META_DEFAULT"
+  ],
+  "tests": [
+   "tests/test_adapter.py::test_no_change_before_min_weeks_and_none_during_cooldown"
+  ],
+  "evidence": []
+ },
+ "18.0.19": {
+  "code": [
+   "engine/adaptive.py::Adapter._evaluate_candidates",
+   "engine/adaptive.py::META_DEFAULT"
+  ],
+  "tests": [
+   "tests/test_adapter.py::test_every_switch_is_one_grid_step_and_at_least_switch_z_confident",
+   "tests/test_adapter.py::test_min_improve_floor_blocks_a_significant_but_tiny_gain"
+  ],
+  "evidence": [],
+  "note": "switch_z (standard errors) plus min_improve (absolute) are the significance rail"
+ },
+ "18.0.21": {
+  "code": [
+   "engine/adaptive.py::Adapter._learn",
+   "engine/adaptive.py::META_DEFAULT"
+  ],
+  "tests": [
+   "tests/test_adapter.py::test_revert_returns_to_default_after_a_deviation_stops_working",
+   "tests/test_adapter.py::test_revert_fast_fires_on_one_bad_week_where_the_two_period_rule_would_wait"
+  ],
+  "evidence": []
+ },
+ "19.0.2": {
+  "code": [
+   "engine/basis_search.py::BasisSearch"
+  ],
+  "tests": [
+   "tests/test_basis_search.py::test_default_funnel_is_24_starts_10_screen_3_finalists"
+  ],
+  "evidence": [
+   "state/research/timeline_basis/basis_offline_seed0.json"
+  ]
+ },
+ "19.0.11": {
+  "code": [
+   "engine/adaptive.py::META_DEFAULT",
+   "engine/basis_search.py::META_SPACE"
+  ],
+  "tests": [
+   "tests/test_basis_search.py::test_meta_space_covers_bible_list"
+  ],
+  "evidence": []
+ },
+ "19.0.12": {
+  "code": [
+   "engine/adaptive.py::META_DEFAULT",
+   "engine/basis_search.py::META_SPACE"
+  ],
+  "tests": [
+   "tests/test_basis_search.py::test_meta_space_covers_bible_list"
+  ],
+  "evidence": []
+ },
+ "19.0.13": {
+  "code": [
+   "engine/adaptive.py::META_DEFAULT",
+   "engine/basis_search.py::META_SPACE"
+  ],
+  "tests": [
+   "tests/test_basis_search.py::test_meta_space_covers_bible_list"
+  ],
+  "evidence": []
+ },
+ "19.0.17": {
+  "code": [
+   "engine/memory.py::MEM_DEFAULT",
+   "engine/basis_search.py::META_SPACE"
+  ],
+  "tests": [
+   "tests/test_basis_search.py::test_meta_space_covers_bible_list"
+  ],
+  "evidence": []
+ },
+ "19.0.19": {
+  "code": [
+   "engine/adaptive.py::META_DEFAULT",
+   "engine/memory.py::MEM_DEFAULT",
+   "engine/basis_search.py::META_SPACE"
+  ],
+  "tests": [
+   "tests/test_basis_search.py::test_meta_space_covers_bible_list"
+  ],
+  "evidence": [],
+  "note": "prior_weeks and mem_shrink are the two shrinkage strengths in META_SPACE"
+ },
+ "21.SEALED-WINDOW.1": {
+  "code": [
+   "engine/blind_gates.py::seal_window",
+   "engine/blind_gates.py::check_seal"
+  ],
+  "tests": [
+   "tests/test_blind_gates.py::test_seal_is_deterministic_and_clean",
+   "tests/test_blind_gates.py::test_tampered_seal_caught",
+   "tests/test_blind_gates.py::test_seal_after_worker_start_caught"
+  ],
+  "evidence": [
+   "state/research/blind_gates/report.md"
+  ]
+ },
+ "24.0.3": {
+  "code": [
+   "engine/health.py::window_breakdown",
+   "engine/health.py::WorkerLog.begin"
+  ],
+  "tests": [
+   "tests/test_health.py::test_failure_rates_and_window_breakdown"
+  ],
+  "evidence": []
+ },
+ "25.0.1": {
+  "code": [
+   "engine/planted.py::summarise",
+   "engine/planted.py::score_run"
+  ],
+  "tests": [
+   "tests/test_planted_library.py::test_score_run_counts_true_and_false_discoveries"
+  ],
+  "evidence": [
+   "state/research/algorithm/planted/report.md"
+  ],
+  "note": "replaces a false heuristic link to health.failure_rates"
+ },
+ "25.0.2": {
+  "code": [
+   "engine/planted.py::summarise",
+   "engine/planted.py::score_run"
+  ],
+  "tests": [
+   "tests/test_planted_library.py::test_score_run_counts_true_and_false_discoveries",
+   "tests/test_planted_library.py::test_child_of_a_plant_is_not_a_false_discovery"
+  ],
+  "evidence": [
+   "state/research/algorithm/planted/report.md"
+  ],
+  "note": "measured (false_discovery_rate in summarise)",
+  "failed_verdict": "measured false discovery rate 0.182 on 64 planted runs misses the 0.10 rule (report.md criterion fdr: NO)"
+ },
+ "25.0.4": {
+  "code": [
+   "engine/planted.py::summarise",
+   "engine/planted.py::verdict"
+  ],
+  "tests": [
+   "tests/test_planted_library.py::test_verdict_passes_a_perfect_summary_and_fails_one_flaw"
+  ],
+  "evidence": [
+   "state/research/algorithm/planted/report.md"
+  ],
+  "note": "rejection_rate_of_bad_plants; replaces a false heuristic link to pattern_stats.bh_reject"
+ },
+ "25.0.5": {
+  "code": [
+   "engine/planted.py::summarise"
+  ],
+  "tests": [
+   "tests/test_planted_library.py::test_planted_single_effect_is_present_at_the_right_size"
+  ],
+  "evidence": [],
+  "note": "median_effect_ratio and admitted_via_child_rate measure recovery; no run that reports recovery separately from detection is on disk"
+ },
+ "25.0.6": {
+  "code": [
+   "engine/pattern_lifecycle.py::Lifecycle.scope_null_rate",
+   "engine/pattern_lifecycle.py::Lifecycle.cause_search"
+  ],
+  "tests": [
+   "tests/test_pattern_lifecycle.py::test_false_rescope_rate_on_meaningless_context_is_low",
+   "tests/test_pattern_lifecycle.py::test_planted_review_keeps_stable_rescopes_regime_and_discards_reversed"
+  ],
+  "evidence": [
+   "state/research/pattern_fail/summary.json"
+  ]
+ },
+ "26.D.1": {
+  "code": [
+   "engine/antioverfit.py::date_disguise"
+  ],
+  "tests": [
+   "tests/test_antioverfit.py::test_date_disguise_catches_calendar_dependence"
+  ],
+  "evidence": [
+   "state/research/antioverfit/real_v1/results.json"
+  ]
+ },
+ "26.G.1": {
+  "code": [
+   "engine/antioverfit.py::dead_feature_injection"
+  ],
+  "tests": [
+   "tests/test_antioverfit.py::test_dead_feature_injection_catches_in_sample_overfit"
+  ],
+  "evidence": [
+   "state/research/antioverfit/real_v1/results.json"
+  ]
+ },
+ "26.H.1": {
+  "code": [
+   "engine/antioverfit.py::duplicate_feature_injection"
+  ],
+  "tests": [
+   "tests/test_antioverfit.py::test_duplicate_injection_catches_double_counting"
+  ],
+  "evidence": [
+   "state/research/antioverfit/real_v1/results.json"
+  ]
+ },
+ "26.I.1": {
+  "code": [
+   "engine/antioverfit.py::regime_split"
+  ],
+  "tests": [
+   "tests/test_antioverfit.py::test_regime_split_catches_a_sign_flip_regime"
+  ],
+  "evidence": [
+   "state/research/antioverfit/real_v1/results.json"
+  ]
+ },
+ "26.J.1": {
+  "code": [
+   "engine/antioverfit.py::walk_forward_splits",
+   "engine/antioverfit.py::verify_walk_forward"
+  ],
+  "tests": [
+   "tests/test_antioverfit.py::test_walk_forward_verifier_flags_overlap_and_missing_gap",
+   "tests/test_antioverfit.py::test_walk_forward_test_fails_for_unauditable_or_leaky_splits"
+  ],
+  "evidence": [
+   "state/research/antioverfit/real_v1/results.json"
+  ]
+ },
+ "27.0.1": {
+  "code": [
+   "engine/data_sources.py::validate_prices",
+   "engine/data_sources.py::ValidationReport"
+  ],
+  "tests": [
+   "tests/test_data_sources.py::test_schema_and_empty_refused",
+   "tests/test_data_sources.py::test_planted_defects_each_caught_and_counted"
+  ],
+  "evidence": []
+ },
+ "27.0.6": {
+  "code": [
+   "engine/data_sources.py::point_in_time_filter"
+  ],
+  "tests": [
+   "tests/test_data_sources.py::test_point_in_time_filter",
+   "tests/test_data_sources.py::test_adapter_never_requests_past_as_of"
+  ],
+  "evidence": []
+ },
+ "28.0.3": {
+  "code": [
+   "engine/adaptive.py::validate_cfg",
+   "engine/isolation.py::verify_activation"
+  ],
+  "tests": [
+   "tests/test_adapter.py::test_validate_cfg_rejects_off_grid_and_ignores_unset_knobs",
+   "tests/test_isolation.py::test_activation_roundtrip_and_drift"
+  ],
+  "evidence": [],
+  "note": "live starts only from a hashed activation record and a grid-validated configuration"
+ },
+ "28.0.7": {
+  "code": [
+   "engine/isolation.py::check_order",
+   "engine/isolation.py::SafeBroker"
+  ],
+  "tests": [
+   "tests/test_live_safety.py::test_check_order_rules",
+   "tests/test_live_safety.py::test_safe_broker_refuses_planted_short_and_overspend",
+   "tests/test_live_safety.py::test_safe_broker_budget_across_many_small_buys"
+  ],
+  "evidence": []
+ },
+ "29.DASHBOARD.1": {
+  "code": [
+   "engine/site_data.py::write_site"
+  ],
+  "tests": [],
+  "evidence": [],
+  "note": "code exists; no test drives write_site"
+ },
+ "29.PATTERN-EXPLORER.11": {
+  "code": [
+   "scripts/site_pages.py::_evidence_html",
+   "scripts/site_pages.py::build_explorer"
+  ],
+  "tests": [
+   "tests/test_site_build.py::test_explorer_never_hides_failed_patterns_and_marks_nan_as_dash"
+  ],
+  "evidence": []
+ },
+ "30.WHAT-WAS.1": {
+  "code": [
+   "engine/registry.py::QUESTIONS",
+   "engine/registry.py::ExperimentMemory.missing_answers"
+  ],
+  "tests": [
+   "tests/test_experiment_memory.py::test_planted_repeat_and_known_failure_are_blocked",
+   "tests/test_registry.py::test_memory_blocks_repeat_and_refuses_orphans"
+  ],
+  "evidence": [],
+  "note": "QUESTIONS holds data_unseen"
+ },
+ "30.WHAT-WORSENED.1": {
+  "code": [
+   "engine/registry.py::QUESTIONS",
+   "engine/registry.py::ExperimentMemory.missing_answers"
+  ],
+  "tests": [
+   "tests/test_registry.py::test_memory_blocks_repeat_and_refuses_orphans"
+  ],
+  "evidence": []
+ },
+ "30.WAS-IMPROVEMENT.1": {
+  "code": [
+   "engine/registry.py::QUESTIONS",
+   "engine/registry.py::ExperimentMemory.missing_answers"
+  ],
+  "tests": [
+   "tests/test_registry.py::test_memory_blocks_repeat_and_refuses_orphans"
+  ],
+  "evidence": []
+ },
+ "30.DID-THE.1": {
+  "code": [
+   "engine/registry.py::QUESTIONS",
+   "engine/registry.py::ExperimentMemory.missing_answers"
+  ],
+  "tests": [
+   "tests/test_registry.py::test_memory_blocks_repeat_and_refuses_orphans"
+  ],
+  "evidence": []
+ },
+ "31.0.4": {
+  "code": [
+   "scripts/quality_gate.py::check_randomness"
+  ],
+  "tests": [
+   "tests/test_quality_gate.py::test_unseeded_and_global_randomness"
+  ],
+  "evidence": []
+ },
+ "31.0.9": {
+  "code": [
+   "scripts/quality_gate.py::check_module_docstrings"
+  ],
+  "tests": [
+   "tests/test_quality_gate.py::test_module_docstring_rules"
+  ],
+  "evidence": []
+ },
+ "32.L4.1": {
+  "code": [
+   "engine/antioverfit.py::walk_forward_splits"
+  ],
+  "tests": [
+   "tests/test_antioverfit.py::test_walk_forward_verifier_flags_overlap_and_missing_gap"
+  ],
+  "evidence": [
+   "state/research/antioverfit/real_v1/results.json"
+  ]
+ },
+ "33.0.1": {
+  "code": [
+   "engine/repro.py::config_hash",
+   "engine/repro.py::artifact_hash"
+  ],
+  "tests": [
+   "tests/test_repro.py::test_hash_semantics",
+   "tests/test_repro.py::test_cfg_mutation_and_missing_artifact_are_reported"
+  ],
+  "evidence": [
+   "state/research/antioverfit/real_v1/results.json"
+  ]
+ },
+ "33.0.2": {
+  "code": [
+   "engine/repro.py::config_hash"
+  ],
+  "tests": [
+   "tests/test_repro.py::test_global_numpy_rng_is_caught_and_diagnosed"
+  ],
+  "evidence": [
+   "state/research/antioverfit/real_v1/results.json"
+  ]
+ },
+ "35.0.7": {
+  "code": [
+   "engine/champion.py::_check_priority"
+  ],
+  "tests": [
+   "tests/test_champion.py::test_lower_tier_gain_cannot_buy_higher_tier_loss",
+   "tests/test_champion.py::test_newer_is_not_better"
+  ],
+  "evidence": []
+ },
+ "35.0.8": {
+  "code": [
+   "engine/champion.py::_check_risk"
+  ],
+  "tests": [
+   "tests/test_champion.py::test_every_check_fails_closed",
+   "tests/test_champion.py::test_pnl_alone_never_promotes"
+  ],
+  "evidence": []
+ },
+ "33.0.3": {
+  "code": [
+   "engine/candidates.py::CandidateGenerator",
+   "engine/candidates.py::CandidateSet"
+  ],
+  "tests": [
+   "tests/test_candidates.py::test_generation_is_reproducible_and_seed_dependent_only_where_it_should_be",
+   "tests/test_candidates.py::test_candidate_ids_do_not_depend_on_the_interpreter_hash_seed",
+   "tests/test_candidates.py::test_set_digest_ignores_generation_order"
+  ],
+  "evidence": [
+   "state/research/antioverfit/real_v1/results.json"
+  ],
+  "note": "candidate ids are identity hashes and the digest is order-independent; the run-level repro record is in the anti-overfit evidence"
+ },
+ "33.0.5": {
+  "code": [
+   "engine/repro.py::run_twice",
+   "engine/repro.py::assert_reproducible"
+  ],
+  "tests": [
+   "tests/test_repro.py::test_deterministic_experiment_is_reproducible",
+   "tests/test_repro.py::test_float_noise_is_a_failure_not_a_tolerance",
+   "tests/test_repro.py::test_hash_seed_dependence_needs_a_fresh_process"
+  ],
+  "evidence": [
+   "state/research/antioverfit/real_v1/results.json"
+  ]
+ },
+ "33.0.6": {
+  "code": [
+   "engine/adaptive.py::replay_check",
+   "engine/adaptive.py::replay"
+  ],
+  "tests": [
+   "tests/test_adapter.py::test_replay_gives_identical_adaptations_audit_and_memory",
+   "tests/test_adapter.py::test_result_does_not_depend_on_the_interpreters_hash_seed",
+   "tests/integration/test_replay_reproducibility_blind.py::test_two_complete_runs_are_identical"
+  ],
+  "evidence": [
+   "state/research/antioverfit/real_v1/results.json"
+  ],
+  "note": "replay determinism is tested end to end; the on-disk evidence covers the evaluator and miner, not a real-cache trade replay"
+ },
+ "33.0.7": {
+  "code": [
+   "engine/repro.py::diagnose",
+   "engine/repro.py::artifact_hash"
+  ],
+  "tests": [
+   "tests/test_repro.py::test_diagnose_shapes_and_nan_pattern",
+   "tests/test_repro.py::test_deterministic_experiment_is_reproducible"
+  ],
+  "evidence": [
+   "state/research/antioverfit/real_v1/results.json"
+  ]
+ },
+ "36.TIER-3.2": {
+  "code": [
+   "engine/run_report.py::tier3"
+  ],
+  "tests": [
+   "tests/test_run_report.py::test_nan_weeks_are_dropped_and_direction_accuracy"
+  ],
+  "evidence": []
+ },
+ "36.TIER-3.3": {
+  "code": [
+   "engine/run_report.py::calibration",
+   "engine/run_report.py::tier3"
+  ],
+  "tests": [
+   "tests/test_run_report.py::test_eight_of_ten_and_calibration"
+  ],
+  "evidence": []
+ },
+ "36.ANALOGS.2": {
+  "code": [
+   "engine/run_report.py::analogs_section"
+  ],
+  "tests": [
+   "tests/test_run_report.py::test_full_report_adopts_and_renders_every_section"
+  ],
+  "evidence": []
+ },
+ "36.MEMORY.4": {
+  "code": [
+   "engine/run_report.py::build_report"
+  ],
+  "tests": [
+   "tests/test_run_report.py::test_full_report_adopts_and_renders_every_section"
+  ],
+  "evidence": [],
+  "note": "build_report copies shock_events from the memory summary into the report"
+ },
+ "36.ADAPTATION.3": {
+  "code": [
+   "engine/adaptive.py::adaptation_report",
+   "engine/adaptive.py::adaptation_value"
+  ],
+  "tests": [
+   "tests/test_adapter.py::test_adaptation_report_counts_actions_spells_and_integrity_on_a_real_run",
+   "tests/test_adapter.py::test_adaptation_value_says_not_proven_for_a_losing_or_thin_record"
+  ],
+  "evidence": []
+ },
+ "42.0.1": {
+  "code": [
+   "engine/pattern_identity.py::pattern_id",
+   "engine/pattern_identity.py::canonical_expression"
+  ],
+  "tests": [
+   "tests/test_pattern_identity.py::test_id_ignores_order_but_depends_on_expression_transform_and_target"
+  ],
+  "evidence": []
+ },
+ "42.0.3": {
+  "code": [
+   "engine/pattern_stats.py::confirmation_factor",
+   "engine/pattern_stats.py::split_dates"
+  ],
+  "tests": [
+   "tests/test_pattern_stats.py::test_confirmation_factor_requires_the_same_sign",
+   "tests/test_pattern_stats.py::test_split_dates_matches_the_miner_for_awkward_lengths"
+  ],
+  "evidence": []
+ },
+ "42.0.12": {
+  "code": [
+   "engine/objective.py::week_row"
+  ],
+  "tests": [
+   "tests/test_objective.py::test_week_row_known_series"
+  ],
+  "evidence": [],
+  "note": "strategy-level results carry costs (COST_BPS); pattern-level cost-adjusted result is not produced per pattern"
+ },
+ "42.0.15": {
+  "code": [
+   "engine/basis_search.py::BasisSearch"
+  ],
+  "tests": [
+   "tests/test_basis_search.py::test_screening_windows_cannot_testify_for_their_own_winner"
+  ],
+  "evidence": [
+   "state/research/timeline_basis/basis_offline_seed0.json"
+  ]
+ },
+ "42.0.17": {
+  "code": [
+   "engine/ablation.py::paired_ci",
+   "engine/objective.py::paired_bootstrap"
+  ],
+  "tests": [
+   "tests/test_ablation.py::test_paired_ci_detects_a_real_gain_and_not_a_null"
+  ],
+  "evidence": []
+ },
+ "43.0.1": {
+  "code": [
+   "engine/pit.py::full_check",
+   "engine/pit.py::future_scramble"
+  ],
+  "tests": [
+   "tests/test_pit.py::test_full_check_gate",
+   "tests/test_pit.py::test_invariance_catches_planted_lookahead"
+  ],
+  "evidence": [
+   "state/research/pit/PIT_AUDIT.md"
+  ]
+ },
+ "43.0.5": {
+  "code": [
+   "engine/run_report.py::analogs_section",
+   "engine/timeline.py::forecast_from_analogs"
+  ],
+  "tests": [
+   "tests/test_run_report.py::test_full_report_adopts_and_renders_every_section",
+   "tests/test_analogs_ext.py::test_analogs_beat_no_analog_and_random_when_an_effect_exists"
+  ],
+  "evidence": [
+   "state/research/analogs_ext/market_ablation.csv"
+  ]
+ },
+ "43.0.9": {
+  "code": [
+   "engine/basis_search.py::BasisSearch"
+  ],
+  "tests": [
+   "tests/test_basis_search.py::test_planted_effect_is_found"
+  ],
+  "evidence": [
+   "state/research/timeline_basis/basis_offline_seed0.json"
+  ]
+ },
+ "43.0.10": {
+  "code": [
+   "engine/site_data.py::write_site"
+  ],
+  "tests": [],
+  "evidence": [],
+  "note": "code exists; untested"
+ },
+ "44.0.3": {
+  "code": [
+   "engine/resources.py::memory_gb",
+   "engine/resources.py::worker_count"
+  ],
+  "tests": [],
+  "evidence": []
+ },
+ "44.0.4": {
+  "code": [
+   "engine/resources.py::worker_count"
+  ],
+  "tests": [],
+  "evidence": []
+ },
+ "44.0.5": {
+  "code": [
+   "engine/resources.py::JobQueue",
+   "engine/resources.py::wait_for_memory"
+  ],
+  "tests": [],
+  "evidence": []
+ },
+ "44.0.7": {
+  "code": [
+   "engine/resources.py::cleanup"
+  ],
+  "tests": [],
+  "evidence": []
+ },
+ "44.0.8": {
+  "code": [
+   "engine/resources.py::stale_report",
+   "engine/resources.py::reap_dead"
+  ],
+  "tests": [],
+  "evidence": []
+ },
+ "_gaps": {
+  "31.0.1": "reviewed quality_gate.py (check_* list): no check requires or counts type annotations; nothing in engine/ enforces type-safe interfaces",
+  "31.0.2": "reviewed quality_gate.py: check_mutable_defaults and check_hidden_global_state cover parts of 'explicit inputs', but no check that a module reads its inputs only from arguments",
+  "31.0.5": "reviewed quality_gate.py: check_print_debug forbids print() in engine/ but nothing requires modules to log; the repo has no logging usage to check",
+  "39.0.30": "no requirement maps to it: nothing compares README/BLUEPRINT/state docs with the code except this trace itself",
+  "41.0.1": "NOT CODE: a directive about how to work (no cosmetic implementations); it is enforced by review, and the trace/quality gate are the closest mechanisms",
+  "45.0.1": "NOT CODE: a directive to keep researching after implementation; scripts/loop_years.py runs the C10 fresh-year loop only, there is no general research-loop scheduler"
+ }
+}
