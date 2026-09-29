@@ -369,33 +369,37 @@
    "phase": "B MEMORY",
    "description": "Build raw experience archive.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
+    "engine/learning/archive.py",
     "engine/pattern_memory.py::PatternMemory",
     "state/experiments.jsonl"
    ],
    "tests": [
+    "tests/test_learning_archive.py",
     "tests/test_pattern_memory.py"
    ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial] No L0 raw-observation layer; sealed livesim archives exist but are the test answers (must not be read)."
+   "last_run": "2026-09-29T09:41:38",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S03 pass 1). archive.py: L0-L9 typed lanes on the pattern_memory hash chain, snapshots, indices, adapters over the 5 existing stores. | earlier: [partial] No L0 raw-observation layer; sealed livesim archives exist but are the test answers (must not be read)."
   },
   {
    "id": "B02",
    "phase": "B MEMORY",
    "description": "Build episode archive.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
+    "engine/learning/archive.py",
     "engine/lessons.py::LessonStore,Episode",
     "engine/memory.py::Memory"
    ],
    "tests": [
+    "tests/test_learning_archive.py",
     "tests/test_lessons.py",
     "tests/test_memory_ext.py"
    ],
@@ -405,63 +409,71 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial][contradictory] memory.Memory evicts episodes at capacity (eviction_regret measured) - contract section 49 says never destroy evidence."
+   "last_run": "2026-09-29T09:41:38",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S03 pass 1). archive.py: L0-L9 typed lanes on the pattern_memory hash chain, snapshots, indices, adapters over the 5 existing stores. | earlier: [partial][contradictory] memory.Memory evicts episodes at capacity (eviction_regret measured) - contract section 49 says never destroy evidence."
   },
   {
    "id": "B03",
    "phase": "B MEMORY",
    "description": "Build situation archive.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/learning/archive.py"
+   ],
+   "tests": [
+    "tests/test_learning_archive.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[missing] No situation archive."
+   "last_run": "2026-09-29T09:41:38",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S03 pass 1). archive.py: L0-L9 typed lanes on the pattern_memory hash chain, snapshots, indices, adapters over the 5 existing stores. | earlier: [missing] No situation archive."
   },
   {
    "id": "B04",
    "phase": "B MEMORY",
    "description": "Build knowledge archive.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
-    "engine/pattern_memory.py::PatternMemory",
+    "engine/learning/archive.py",
     "engine/pattern_bank.py::PatternBank",
+    "engine/pattern_memory.py::PatternMemory",
     "engine/trust_store.py::TrustStore"
    ],
    "tests": [
-    "tests/test_pattern_memory.py",
-    "tests/test_pattern_bank.py"
+    "tests/test_learning_archive.py",
+    "tests/test_pattern_bank.py",
+    "tests/test_pattern_memory.py"
    ],
    "evidence": [
-    "state/research/pattern_memory/report.md",
-    "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)"
+    "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)",
+    "state/research/pattern_memory/report.md"
    ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial][duplicated] Three knowledge stores (timeline memory, pattern bank, trust store). Pick pattern_memory's hash chain as the archive core."
+   "last_run": "2026-09-29T09:41:38",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S03 pass 1). archive.py: L0-L9 typed lanes on the pattern_memory hash chain, snapshots, indices, adapters over the 5 existing stores. | earlier: [partial][duplicated] Three knowledge stores (timeline memory, pattern bank, trust store). Pick pattern_memory's hash chain as the archive core."
   },
   {
    "id": "B05",
    "phase": "B MEMORY",
    "description": "Build retrieval index.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
+    "engine/learning/archive.py",
     "engine/memory.py::Memory",
     "engine/pattern_memory.py::PatternMemory.view"
    ],
    "tests": [
+    "tests/test_learning_archive.py",
     "tests/test_memory.py"
    ],
    "evidence": [
@@ -470,36 +482,42 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial] Linear kernel scans, no index; retrieval skill on real data negative (C03)."
+   "last_run": "2026-09-29T09:41:38",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S03 pass 1). archive.py: L0-L9 typed lanes on the pattern_memory hash chain, snapshots, indices, adapters over the 5 existing stores. | earlier: [partial] Linear kernel scans, no index; retrieval skill on real data negative (C03)."
   },
   {
    "id": "B06",
    "phase": "B MEMORY",
    "description": "Build context index.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/learning/archive.py"
+   ],
+   "tests": [
+    "tests/test_learning_archive.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[missing] Context used only as a kernel weight; no context index."
+   "last_run": "2026-09-29T09:41:38",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S03 pass 1). archive.py: L0-L9 typed lanes on the pattern_memory hash chain, snapshots, indices, adapters over the 5 existing stores. | earlier: [missing] Context used only as a kernel weight; no context index."
   },
   {
    "id": "B07",
    "phase": "B MEMORY",
    "description": "Build temporal index.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
+    "engine/learning/archive.py",
     "engine/pattern_memory.py::PatternMemory.view,Analytics"
    ],
    "tests": [
+    "tests/test_learning_archive.py",
     "tests/test_pattern_memory.py"
    ],
    "evidence": [
@@ -508,38 +526,44 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial] mature_date gating and a dated owner-side timeline; no temporal index over knowledge."
+   "last_run": "2026-09-29T09:41:38",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S03 pass 1). archive.py: L0-L9 typed lanes on the pattern_memory hash chain, snapshots, indices, adapters over the 5 existing stores. | earlier: [partial] mature_date gating and a dated owner-side timeline; no temporal index over knowledge."
   },
   {
    "id": "B08",
    "phase": "B MEMORY",
    "description": "Build reliability index.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/learning/archive.py"
+   ],
+   "tests": [
+    "tests/test_learning_archive.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[missing] pattern_reliability.PredLog holds per-pattern predictions but is not an index."
+   "last_run": "2026-09-29T09:41:38",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S03 pass 1). archive.py: L0-L9 typed lanes on the pattern_memory hash chain, snapshots, indices, adapters over the 5 existing stores. | earlier: [missing] pattern_reliability.PredLog holds per-pattern predictions but is not an index."
   },
   {
    "id": "B09",
    "phase": "B MEMORY",
    "description": "Build failure index.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
+    "engine/learning/archive.py",
     "engine/lessons.py::LessonBook,kind_report",
     "engine/memory_diagnostics.py::error_profile_by_arm",
     "engine/pattern_reliability.py::investigate"
    ],
    "tests": [
+    "tests/test_learning_archive.py",
     "tests/test_lessons.py"
    ],
    "evidence": [
@@ -548,25 +572,29 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial] Failures grouped by lesson kind; no index across knowledge."
+   "last_run": "2026-09-29T09:41:38",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S03 pass 1). archive.py: L0-L9 typed lanes on the pattern_memory hash chain, snapshots, indices, adapters over the 5 existing stores. | earlier: [partial] Failures grouped by lesson kind; no index across knowledge."
   },
   {
    "id": "B10",
    "phase": "B MEMORY",
    "description": "Build contradiction index.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/learning/archive.py"
+   ],
+   "tests": [
+    "tests/test_learning_archive.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[missing]"
+   "last_run": "2026-09-29T09:41:38",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S03 pass 1). archive.py: L0-L9 typed lanes on the pattern_memory hash chain, snapshots, indices, adapters over the 5 existing stores. | earlier: [missing]"
   },
   {
    "id": "B11",
@@ -595,13 +623,15 @@
    "owner": "Claude",
    "status": "IMPLEMENTED",
    "code_paths": [
-    "engine/pattern_memory.py::PatternMemory.view,audit_prefix_invariance",
+    "engine/checkpoint.py",
+    "engine/learning/archive.py",
     "engine/learning_delta.py::LearnedState",
-    "engine/checkpoint.py"
+    "engine/pattern_memory.py::PatternMemory.view,audit_prefix_invariance"
    ],
    "tests": [
-    "tests/test_pattern_memory.py",
-    "tests/test_checkpoint.py"
+    "tests/test_checkpoint.py",
+    "tests/test_learning_archive.py",
+    "tests/test_pattern_memory.py"
    ],
    "evidence": [
     "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)"
@@ -609,9 +639,9 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "IMPLEMENTED — NOT VALIDATED. Past-as-of views are prefix-invariant and learner state S0 is snapshotted per pair; the snapshot is not yet part of the reproducibility key (section 56)."
+   "last_run": "2026-09-29T09:41:38",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S03 pass 1). archive.py: L0-L9 typed lanes on the pattern_memory hash chain, snapshots, indices, adapters over the 5 existing stores. | earlier: IMPLEMENTED — NOT VALIDATED. Past-as-of views are prefix-invariant and learner state S0 is snapshotted per pair; the snapshot is not yet part of the reproducibility key (section 56)."
   },
   {
    "id": "B13",
@@ -620,16 +650,18 @@
    "owner": "Claude",
    "status": "IMPLEMENTED",
    "code_paths": [
-    "engine/pattern_memory.py (hash chain, ChainCorrupt)",
+    "engine/checkpoint.py::verify",
+    "engine/learning/archive.py",
     "engine/pattern_bank.py",
-    "engine/trust_store.py",
-    "engine/checkpoint.py::verify"
+    "engine/pattern_memory.py (hash chain, ChainCorrupt)",
+    "engine/trust_store.py"
    ],
    "tests": [
-    "tests/test_pattern_memory.py",
+    "tests/test_checkpoint.py",
+    "tests/test_learning_archive.py",
     "tests/test_pattern_bank.py::test_flipped_byte_is_detected_and_head_falls_back",
-    "tests/test_trust_store.py",
-    "tests/test_checkpoint.py"
+    "tests/test_pattern_memory.py",
+    "tests/test_trust_store.py"
    ],
    "evidence": [
     "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)"
@@ -637,9 +669,9 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "IMPLEMENTED — NOT VALIDATED. Tamper detection is tested and passing for these stores; memory.py and lessons stores are mutable, so coverage is partial."
+   "last_run": "2026-09-29T09:41:38",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S03 pass 1). archive.py: L0-L9 typed lanes on the pattern_memory hash chain, snapshots, indices, adapters over the 5 existing stores. | earlier: IMPLEMENTED — NOT VALIDATED. Tamper detection is tested and passing for these stores; memory.py and lessons stores are mutable, so coverage is partial."
   },
   {
    "id": "B14",
@@ -648,24 +680,26 @@
    "owner": "Claude",
    "status": "IMPLEMENTED",
    "code_paths": [
-    "engine/pattern_memory.py::_pool,PatternMemory.view(gate=)",
+    "engine/learning/archive.py",
     "engine/memory.py::Memory",
-    "engine/pattern_bank.py::decay"
+    "engine/pattern_bank.py::decay",
+    "engine/pattern_memory.py::_pool,PatternMemory.view(gate=)"
    ],
    "tests": [
-    "tests/test_pattern_memory.py",
-    "tests/test_pattern_bank.py"
+    "tests/test_learning_archive.py",
+    "tests/test_pattern_bank.py",
+    "tests/test_pattern_memory.py"
    ],
    "evidence": [
-    "state/research/pattern_memory/report.md",
-    "state/research/learning_delta/lc1/run.log (running)"
+    "state/research/learning_delta/lc1/run.log (running)",
+    "state/research/pattern_memory/report.md"
    ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "IMPLEMENTED — NOT VALIDATED. Influence changes without deletion (universal/local/disregarded, gate hook); not shown to improve decisions."
+   "last_run": "2026-09-29T09:41:38",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S03 pass 1). archive.py: L0-L9 typed lanes on the pattern_memory hash chain, snapshots, indices, adapters over the 5 existing stores. | earlier: IMPLEMENTED — NOT VALIDATED. Influence changes without deletion (universal/local/disregarded, gate hook); not shown to improve decisions."
   },
   {
    "id": "B15",
@@ -674,16 +708,18 @@
    "owner": "Claude",
    "status": "IMPLEMENTED",
    "code_paths": [
-    "engine/memory_diagnostics.py::leak_check",
+    "engine/blind_gates.py::check_memory_bank_causality",
+    "engine/learning/archive.py",
     "engine/lessons.py::audit_identity",
-    "engine/pattern_memory.py::check_no_future",
-    "engine/blind_gates.py::check_memory_bank_causality"
+    "engine/memory_diagnostics.py::leak_check",
+    "engine/pattern_memory.py::check_no_future"
    ],
    "tests": [
-    "tests/test_memory_ext.py",
+    "tests/test_blind_gates.py",
+    "tests/test_learning_archive.py",
     "tests/test_lessons.py",
-    "tests/test_pattern_memory.py",
-    "tests/test_blind_gates.py"
+    "tests/test_memory_ext.py",
+    "tests/test_pattern_memory.py"
    ],
    "evidence": [
     "state/research/leak_audit/report.md"
@@ -691,9 +727,9 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "IMPLEMENTED — NOT VALIDATED. [unsafe] Per-store audits exist; leak_audit channel 4 (learned state from the future) is LEAK in the default loop."
+   "last_run": "2026-09-29T09:41:38",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S03 pass 1). archive.py: L0-L9 typed lanes on the pattern_memory hash chain, snapshots, indices, adapters over the 5 existing stores. | earlier: IMPLEMENTED — NOT VALIDATED. [unsafe] Per-store audits exist; leak_audit channel 4 (learned state from the future) is LEAK in the default loop."
   },
   {
    "id": "C01",
@@ -1359,34 +1395,45 @@
    "phase": "D FAILURE LEARNING",
    "description": "Pattern-break analysis.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
+    "engine/pattern_reliability.py",
     "engine/pattern_reliability.py::explain_breaks,driver_table,onset_shifts,confirm_driver,investigate"
    ],
-   "tests": [],
-   "evidence": [],
+   "tests": [
+    "tests/test_pattern_reliability.py"
+   ],
+   "evidence": [
+    "state/research/pattern_reliability/report.md"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial][under-tested] Success-vs-failure contrasts on market drivers with a family-wise null; builders live-editing; no test file."
+   "last_run": "2026-09-29T09:41:23",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — FAILED VALIDATION on real data (B27 study 5914232: reliability AUC 0.4975, gating gains CIs span 0, all 25 real breaks unknown cause). Code exists; engine/learning wrappers pending (S15). | earlier: [partial][under-tested] Success-vs-failure contrasts on market drivers with a family-wise null; builders live-editing; no test file."
   },
   {
    "id": "D12",
    "phase": "D FAILURE LEARNING",
    "description": "Recovery analysis.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/pattern_reliability.py"
+   ],
+   "tests": [
+    "tests/test_pattern_reliability.py"
+   ],
+   "evidence": [
+    "state/research/pattern_reliability/report.md"
+   ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[missing] Recovery happens (pattern_memory requalification) but is never analysed."
+   "last_run": "2026-09-29T09:41:23",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — FAILED VALIDATION on real data (B27 study 5914232: reliability AUC 0.4975, gating gains CIs span 0, all 25 real breaks unknown cause). Code exists; engine/learning wrappers pending (S15). | earlier: [missing] Recovery happens (pattern_memory requalification) but is never analysed."
   },
   {
    "id": "D13",
@@ -1901,126 +1948,169 @@
    "phase": "F KNOWLEDGE GRAPH",
    "description": "Supports edges.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/learning/contradiction.py",
+    "engine/learning/hierarchy.py",
+    "engine/learning/knowledge_graph.py"
+   ],
+   "tests": [
+    "tests/test_learning_graph.py",
+    "tests/test_learning_hierarchy.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[missing] No SUPPORTS edges; no knowledge graph exists."
+   "last_run": "2026-09-29T09:41:39",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S03 pass 1). all 10 edge types, traversal, lineage; contradiction investigation (never averaged); hierarchical shrinkage. | earlier: [missing] No SUPPORTS edges; no knowledge graph exists."
   },
   {
    "id": "F02",
    "phase": "F KNOWLEDGE GRAPH",
    "description": "Contradicts edges.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/learning/contradiction.py",
+    "engine/learning/hierarchy.py",
+    "engine/learning/knowledge_graph.py"
+   ],
+   "tests": [
+    "tests/test_learning_graph.py",
+    "tests/test_learning_hierarchy.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[missing] No CONTRADICTS edges; no knowledge graph exists."
+   "last_run": "2026-09-29T09:41:39",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S03 pass 1). all 10 edge types, traversal, lineage; contradiction investigation (never averaged); hierarchical shrinkage. | earlier: [missing] No CONTRADICTS edges; no knowledge graph exists."
   },
   {
    "id": "F03",
    "phase": "F KNOWLEDGE GRAPH",
    "description": "Contains edges.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
-    "engine/pattern_stats.py::containment",
-    "engine/pattern_identity.py::Scope"
+    "engine/learning/contradiction.py",
+    "engine/learning/hierarchy.py",
+    "engine/learning/knowledge_graph.py",
+    "engine/pattern_identity.py::Scope",
+    "engine/pattern_stats.py::containment"
    ],
    "tests": [
+    "tests/test_learning_graph.py",
+    "tests/test_learning_hierarchy.py",
     "tests/test_pattern_stats.py"
    ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial] Row containment computed for pruning; not stored as an edge."
+   "last_run": "2026-09-29T09:41:39",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S03 pass 1). all 10 edge types, traversal, lineage; contradiction investigation (never averaged); hierarchical shrinkage. | earlier: [partial] Row containment computed for pruning; not stored as an edge."
   },
   {
    "id": "F04",
    "phase": "F KNOWLEDGE GRAPH",
    "description": "Specializes edges.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
-    "engine/trust.py::parent_key",
-    "engine/pattern_lifecycle.py (rescoped)"
+    "engine/learning/contradiction.py",
+    "engine/learning/hierarchy.py",
+    "engine/learning/knowledge_graph.py",
+    "engine/pattern_lifecycle.py (rescoped)",
+    "engine/trust.py::parent_key"
    ],
    "tests": [
+    "tests/test_learning_graph.py",
+    "tests/test_learning_hierarchy.py",
     "tests/test_trust.py"
    ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial] Parent/child exists for trust types and rescoped patterns; not edges."
+   "last_run": "2026-09-29T09:41:39",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S03 pass 1). all 10 edge types, traversal, lineage; contradiction investigation (never averaged); hierarchical shrinkage. | earlier: [partial] Parent/child exists for trust types and rescoped patterns; not edges."
   },
   {
    "id": "F05",
    "phase": "F KNOWLEDGE GRAPH",
    "description": "Generalizes edges.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
+    "engine/learning/contradiction.py",
+    "engine/learning/hierarchy.py",
+    "engine/learning/knowledge_graph.py",
     "engine/trust.py::parent_key"
    ],
    "tests": [
+    "tests/test_learning_graph.py",
+    "tests/test_learning_hierarchy.py",
     "tests/test_trust.py"
    ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial] See F04."
+   "last_run": "2026-09-29T09:41:39",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S03 pass 1). all 10 edge types, traversal, lineage; contradiction investigation (never averaged); hierarchical shrinkage. | earlier: [partial] See F04."
   },
   {
    "id": "F06",
    "phase": "F KNOWLEDGE GRAPH",
    "description": "Causes-failure edges.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/learning/contradiction.py",
+    "engine/learning/hierarchy.py",
+    "engine/learning/knowledge_graph.py"
+   ],
+   "tests": [
+    "tests/test_learning_graph.py",
+    "tests/test_learning_hierarchy.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[missing] No CAUSES_FAILURE_OF edges; no knowledge graph exists."
+   "last_run": "2026-09-29T09:41:39",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S03 pass 1). all 10 edge types, traversal, lineage; contradiction investigation (never averaged); hierarchical shrinkage. | earlier: [missing] No CAUSES_FAILURE_OF edges; no knowledge graph exists."
   },
   {
    "id": "F07",
    "phase": "F KNOWLEDGE GRAPH",
    "description": "Recovers-with edges.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/learning/contradiction.py",
+    "engine/learning/hierarchy.py",
+    "engine/learning/knowledge_graph.py"
+   ],
+   "tests": [
+    "tests/test_learning_graph.py",
+    "tests/test_learning_hierarchy.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[missing] No RECOVERS_WITH edges; no knowledge graph exists."
+   "last_run": "2026-09-29T09:41:39",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S03 pass 1). all 10 edge types, traversal, lineage; contradiction investigation (never averaged); hierarchical shrinkage. | earlier: [missing] No RECOVERS_WITH edges; no knowledge graph exists."
   },
   {
    "id": "F08",
@@ -2072,50 +2162,70 @@
    "phase": "F KNOWLEDGE GRAPH",
    "description": "Depends-on edges.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/learning/contradiction.py",
+    "engine/learning/hierarchy.py",
+    "engine/learning/knowledge_graph.py"
+   ],
+   "tests": [
+    "tests/test_learning_graph.py",
+    "tests/test_learning_hierarchy.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[missing] No DEPENDS_ON edges; no knowledge graph exists."
+   "last_run": "2026-09-29T09:41:39",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S03 pass 1). all 10 edge types, traversal, lineage; contradiction investigation (never averaged); hierarchical shrinkage. | earlier: [missing] No DEPENDS_ON edges; no knowledge graph exists."
   },
   {
    "id": "F11",
    "phase": "F KNOWLEDGE GRAPH",
    "description": "Graph traversal.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/learning/contradiction.py",
+    "engine/learning/hierarchy.py",
+    "engine/learning/knowledge_graph.py"
+   ],
+   "tests": [
+    "tests/test_learning_graph.py",
+    "tests/test_learning_hierarchy.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[missing]"
+   "last_run": "2026-09-29T09:41:39",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S03 pass 1). all 10 edge types, traversal, lineage; contradiction investigation (never averaged); hierarchical shrinkage. | earlier: [missing]"
   },
   {
    "id": "F12",
    "phase": "F KNOWLEDGE GRAPH",
    "description": "Contradiction investigation.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
+    "engine/learning/contradiction.py",
+    "engine/learning/hierarchy.py",
+    "engine/learning/knowledge_graph.py",
     "engine/pattern_reliability.py::explain_breaks"
    ],
-   "tests": [],
+   "tests": [
+    "tests/test_learning_graph.py",
+    "tests/test_learning_hierarchy.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial][under-tested] Explains a pattern's own worked-vs-broke periods; no investigation of disagreement between two knowledge items."
+   "last_run": "2026-09-29T09:41:39",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S03 pass 1). all 10 edge types, traversal, lineage; contradiction investigation (never averaged); hierarchical shrinkage. | earlier: [partial][under-tested] Explains a pattern's own worked-vs-broke periods; no investigation of disagreement between two knowledge items."
   },
   {
    "id": "F13",
@@ -2124,63 +2234,78 @@
    "owner": "Claude",
    "status": "IMPLEMENTED",
    "code_paths": [
-    "engine/trust.py::TrustTable (shrink to parent)",
-    "engine/pattern_stats.py::eb_shrink"
+    "engine/learning/contradiction.py",
+    "engine/learning/hierarchy.py",
+    "engine/learning/knowledge_graph.py",
+    "engine/pattern_stats.py::eb_shrink",
+    "engine/trust.py::TrustTable (shrink to parent)"
    ],
    "tests": [
+    "tests/test_learning_graph.py",
+    "tests/test_learning_hierarchy.py",
     "tests/test_trust.py::test_shrinkage_pulls_thin_cell_toward_parent"
    ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "IMPLEMENTED — NOT VALIDATED. Shrinkage to parent works for trust tables; not applied to a knowledge hierarchy."
+   "last_run": "2026-09-29T09:41:39",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S03 pass 1). all 10 edge types, traversal, lineage; contradiction investigation (never averaged); hierarchical shrinkage. | earlier: IMPLEMENTED — NOT VALIDATED. Shrinkage to parent works for trust tables; not applied to a knowledge hierarchy."
   },
   {
    "id": "F14",
    "phase": "F KNOWLEDGE GRAPH",
    "description": "Knowledge lineage.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
+    "engine/leak_audit.py::BasisLineage",
+    "engine/learning/contradiction.py",
+    "engine/learning/hierarchy.py",
+    "engine/learning/knowledge_graph.py",
     "engine/pattern_bank.py (window history)",
-    "engine/pattern_memory.py (source run id)",
-    "engine/leak_audit.py::BasisLineage"
+    "engine/pattern_memory.py (source run id)"
    ],
    "tests": [
+    "tests/test_learning_graph.py",
+    "tests/test_learning_hierarchy.py",
     "tests/test_pattern_bank.py"
    ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial]"
+   "last_run": "2026-09-29T09:41:39",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S03 pass 1). all 10 edge types, traversal, lineage; contradiction investigation (never averaged); hierarchical shrinkage. | earlier: [partial]"
   },
   {
    "id": "F15",
    "phase": "F KNOWLEDGE GRAPH",
    "description": "Decision lineage.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
     "engine/adaptive.py::adaptation_report,hold_reasons",
     "engine/explain.py",
+    "engine/learning/contradiction.py",
+    "engine/learning/hierarchy.py",
+    "engine/learning/knowledge_graph.py",
     "engine/memory_diagnostics.py::explain"
    ],
    "tests": [
-    "tests/test_adapter.py"
+    "tests/test_adapter.py",
+    "tests/test_learning_graph.py",
+    "tests/test_learning_hierarchy.py"
    ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial] Explains knob changes and top reasons; no link from a decision to knowledge ids."
+   "last_run": "2026-09-29T09:41:39",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S03 pass 1). all 10 edge types, traversal, lineage; contradiction investigation (never averaged); hierarchical shrinkage. | earlier: [partial] Explains knob changes and top reasons; no link from a decision to knowledge ids."
   },
   {
    "id": "G01",
@@ -4596,26 +4721,29 @@
   {
    "section": "Contradiction graph",
    "minimum_lines": 850,
-   "actual_lines": 0,
-   "code_paths": [],
-   "status": "NOT_STARTED",
-   "notes": "UNDER by 850 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). missing: no knowledge edges of any type."
+   "actual_lines": 788,
+   "code_paths": [
+    "engine/learning/contradiction.py"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S03 pass 1). under minimum on ruler; sent back. | earlier: UNDER by 850 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). missing: no knowledge edges of any type."
   },
   {
    "section": "Knowledge hierarchy",
    "minimum_lines": 900,
-   "actual_lines": 291,
+   "actual_lines": 813,
    "code_paths": [
-    "engine/trust.py (253)",
-    "engine/pattern_stats.py::shrink_effect,eb_shrink,implied_k (38)"
+    "engine/learning/hierarchy.py",
+    "engine/pattern_stats.py::shrink_effect,eb_shrink,implied_k (38)",
+    "engine/trust.py (253)"
    ],
    "status": "IN_PROGRESS",
-   "notes": "UNDER by 609 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: trust tables shrink child type toward parent_key (SIC hierarchy); EB shrinkage of pattern effects. Not the general->market->sector->stock-type->vol->interaction knowledge hierarchy."
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S03 pass 1). under minimum on ruler; sent back. | earlier: UNDER by 609 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: trust tables shrink child type toward parent_key (SIC hierarchy); EB shrinkage of pattern effects. Not the general->market->sector->stock-type->vol->interaction knowledge hierarchy."
   },
   {
    "section": "Credit assignment",
    "minimum_lines": 1200,
-   "actual_lines": 1191,
+   "actual_lines": 1258,
    "code_paths": [
     "engine/ablation.py (171)",
     "engine/direction_ablate.py (69)",
@@ -4623,8 +4751,8 @@
     "engine/learning/credit.py",
     "engine/memory_diagnostics.py::factor_ablation (8)"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S06). 9 lines under minimum on the ruler; sent back for sampled Shapley above 10 components. | earlier: UNDER by 934 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: component/feature ablation with paired block bootstrap. No per-DECISION credit/blame across pattern/analog/memory/direction/timing/risk components, no interaction or stability of credit."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (S06 pass 2: sampled Shapley n>10, exact/sampled switch). | earlier: IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S06). 9 lines under minimum on the ruler; sent back for sampled Shapley above 10 components. | earlier: UNDER by 934 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: component/feature ablation with paired block bootstrap. No per-DECISION credit/blame across pattern/analog/memory/direction/timing/risk components, no interaction or stability of credit."
   },
   {
    "section": "Redundancy intelligence",
@@ -4798,22 +4926,22 @@
   {
    "section": "Exploration/exploitation",
    "minimum_lines": 750,
-   "actual_lines": 1609,
+   "actual_lines": 1696,
    "code_paths": [
     "engine/learning/research_policy.py"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S09 pass 1). research_policy.py covers 35+36: 1609 vs 1650; sent back. | earlier: UNDER by 750 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). missing. basis_search/miner_tuning/improve.spawn_challengers are parameter tuning - the thing section 35 says not to spend all compute on."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (S09 pass 2: measured costs, registry-driven overfit risk, cache inventory). | earlier: IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S09 pass 1). research_policy.py covers 35+36: 1609 vs 1650; sent back. | earlier: UNDER by 750 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). missing. basis_search/miner_tuning/improve.spawn_challengers are parameter tuning - the thing section 35 says not to spend all compute on."
   },
   {
    "section": "Information-gain research",
    "minimum_lines": 900,
-   "actual_lines": 1609,
+   "actual_lines": 1696,
    "code_paths": [
     "engine/learning/research_policy.py"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S09 pass 1). shared file with exploration; see that row. | earlier: UNDER by 900 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). missing: no priority function."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (S09 pass 2: measured costs, registry-driven overfit risk, cache inventory). | earlier: IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S09 pass 1). shared file with exploration; see that row. | earlier: UNDER by 900 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). missing: no priority function."
   },
   {
    "section": "Meta-learning",
@@ -4948,32 +5076,35 @@
   {
    "section": "Knowledge archive",
    "minimum_lines": 1000,
-   "actual_lines": 483,
+   "actual_lines": 963,
    "code_paths": [
-    "engine/pattern_memory.py::PatternMemory,_canon,_hash,_num,PatternWeight,TimelineSummary,PatternView,Analytics (351)",
+    "engine/learning/archive.py",
     "engine/lessons.py::LessonStore (73)",
+    "engine/pattern_memory.py::PatternMemory,_canon,_hash,_num,PatternWeight,TimelineSummary,PatternView,Analytics (351)",
     "engine/trust_store.py::TrustStore,_content_hash (59)"
    ],
    "status": "IN_PROGRESS",
-   "notes": "UNDER by 517 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: append-only hash-chained pattern timeline (the right core) + two more stores. No L0-L9 layers; memory.py evicts episodes at capacity (contradicts 'never destroy')."
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S03 pass 1). under minimum on ruler; sent back. | earlier: UNDER by 517 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: append-only hash-chained pattern timeline (the right core) + two more stores. No L0-L9 layers; memory.py evicts episodes at capacity (contradicts 'never destroy')."
   },
   {
    "section": "Knowledge graph",
    "minimum_lines": 1000,
-   "actual_lines": 0,
-   "code_paths": [],
-   "status": "NOT_STARTED",
-   "notes": "UNDER by 1000 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). missing."
+   "actual_lines": 951,
+   "code_paths": [
+    "engine/learning/knowledge_graph.py"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S03 pass 1). under minimum on ruler; sent back. | earlier: UNDER by 1000 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). missing."
   },
   {
    "section": "Research priority",
    "minimum_lines": 900,
-   "actual_lines": 878,
+   "actual_lines": 916,
    "code_paths": [
     "engine/learning/research_priority.py"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S09 pass 1). 878 vs 900; sent back. | earlier: UNDER by 900 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). missing. resources.JobQueue and champion.ChallengerQueue are compute/promotion queues, reusable as the execution side only."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (S09 pass 2: queue re-ranked by realised information gain, barren decay). | earlier: IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S09 pass 1). 878 vs 900; sent back. | earlier: UNDER by 900 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). missing. resources.JobQueue and champion.ChallengerQueue are compute/promotion queues, reusable as the execution side only."
   },
   {
    "section": "Surprise engine",
