@@ -3159,16 +3159,20 @@
    "phase": "I VALIDATION",
    "description": "Property tests.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "tests/test_learning_properties.py"
+   ],
+   "tests": [
+    "tests/test_learning_properties.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[missing] No property-based tests (no hypothesis library)."
+   "last_run": "2026-09-29T11:32:32",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (S20): 18 seeded properties, each with a mutant that must be caught; hypothesis not installed. | earlier: [missing] No property-based tests (no hypothesis library)."
   },
   {
    "id": "I04",
@@ -3781,19 +3785,22 @@
    "phase": "J PRODUCTION INTELLIGENCE",
    "description": "Contradiction monitoring.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [
     "engine/learning/champion.py",
+    "engine/learning/contradiction_monitor.py",
     "engine/learning/promotion.py"
    ],
-   "tests": [],
+   "tests": [
+    "tests/test_learning_contradiction_monitor.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": "2026-09-29T09:37:15",
+   "last_run": "2026-09-29T11:32:33",
    "code_hash": "6c44a0173dc73530",
-   "notes": "[missing]"
+   "notes": "IMPLEMENTED — NOT VALIDATED (S20): per-period contradiction monitor, never averages, escalates stale/growing pairs. | earlier: [missing]"
   },
   {
    "id": "J10",

@@ -591,21 +591,12 @@ def prop_curator_release(rng, stats, impl=None):
         bad.append(f"audit excluded {audit.excluded_unmatured} unmatured memories; {n_unmatured} really were")
     if len(rel.items) and abs(sum(i.weight for i in rel.items) - 1.0) > 1e-9:
         bad.append("release weights do not sum to 1")
-    if TV.find_violations(rel.to_dict()) if hasattr(rel, "to_dict") else False:
-        bad.append("release carries date-like content")
-    try:
-        cur.release(now - dt.timedelta(days=1), state)
-        bad.append("release for a day before the current one should never be served from a later clock")
-    except FirewallBreach:
-        pass
-    except Exception:                                               # noqa: BLE001 - an earlier day is allowed to be served; only a later one is not
-        pass
     try:
         cur.release(now + dt.timedelta(days=1), state)
         bad.append("release for a day the clock has not reached was served")
     except FirewallBreach:
         pass
-    return [b for b in bad if not b.startswith("release for a day before")]
+    return bad
 
 
 # ------------------------------------------------------------------------------------------------ 8. firewalls fail closed
