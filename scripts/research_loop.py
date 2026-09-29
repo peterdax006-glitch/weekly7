@@ -127,6 +127,8 @@ def main(argv=None) -> int:
         return status(root)
     cfg = config(a)
     root.mkdir(parents=True, exist_ok=True)
+    from engine.learning import wiring                    # hub sinks persist under state/learning/hub/<lane>/ (F03, C69 ledger)
+    wiring.configure_from_env(a.run_id)
     try:
         from engine import provenance
         stamp = provenance.stamp(vars(a), a.seed)

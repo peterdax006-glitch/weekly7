@@ -38,6 +38,7 @@ from __future__ import annotations
 import dataclasses
 import functools
 import json
+import os
 import re
 import threading
 import warnings
@@ -263,6 +264,27 @@ def configure_production(lane: str, root: str | Path | None = None, board_path: 
     HUB.lane = lane
     HUB.calls["production_config"] += 1
     return HUB
+
+
+ENV_HUB = "WEEKLY7_HUB"                  # "off" disables the sinks for the process
+ENV_HUB_ROOT = "WEEKLY7_HUB_ROOT"        # persistence root (default state/learning/hub)
+ENV_HUB_LANE = "WEEKLY7_HUB_LANE"        # lane name when the entry point does not pass one
+ENV_HUB_BOARD = "WEEKLY7_HUB_BOARD"      # board file (default <root>/board.jsonl)
+ENV_HUB_STRICT = "WEEKLY7_HUB_STRICT"    # "1" -> effective_weight() is 0 for knowledge the board never saw
+
+
+def configure_from_env(lane: str | None = None, root: str | Path | None = None, environ: Mapping[str, str] | None = None) -> Hub | None:
+    """The one line an ENTRY SCRIPT calls to make the sinks persist: scripts/research_loop.py -> `wiring.configure_from_env(run_id)`.
+    Arguments beat the environment; the environment beats the defaults (state/learning/hub/<lane>/). WEEKLY7_HUB=off returns None and
+    leaves the hub untouched (an operator kill switch, never a silent default). Returns the configured Hub, whose root the caller can
+    print. Deterministic: no clock, no randomness."""
+    env = os.environ if environ is None else environ
+    if str(env.get(ENV_HUB, "")).strip().lower() in ("off", "0", "false", "no"):
+        return None
+    name = lane or env.get(ENV_HUB_LANE) or "research_loop"
+    base = root if root is not None else (env.get(ENV_HUB_ROOT) or None)
+    return configure_production(name, root=base, board_path=env.get(ENV_HUB_BOARD) or None,
+                                strict=str(env.get(ENV_HUB_STRICT, "")).strip() in ("1", "true", "yes"))
 
 
 def sink(name: str) -> Callable[[Callable[..., T]], Callable[..., T | None]]:
@@ -730,7 +752,10 @@ def effective_weight(kid: str, legacy_weight: float, run: str | None = None) -> 
     HUB.calls["weight"] += 1
     bw = board_weight(kid)
     if bw is None:
+        # visible, not silent: a pass-through means the board never heard of this knowledge (hook_report shows the count)
+        HUB.delivered["weight_unregistered_passthrough" if not (HUB.strict and HUB.board is not None) else "weight_unregistered_zeroed"] += 1
         return 0.0 if (HUB.strict and HUB.board is not None) else float(legacy_weight)
+    HUB.delivered["weight_board_scaled"] += 1
     w = float(legacy_weight) * bw
     if run is not None and w != 0.0:
         mid = deciding_member(kid)
@@ -837,11 +862,27 @@ def require_promotion(subject: str, now: Any, claims_learning: bool = False, evi
     return v
 
 
+LEGACY_CHALLENGER_KINDS = frozenset({"config", "meta", "evidence_weights", "recalibrate"})   # improve.spawn_challengers' vocabulary
+
+
+def challenger_claims_learning(challenger: Mapping[str, Any]) -> bool:
+    """Does this challenger make a LEARNING claim? A config / meta-weight / evidence-weight / recalibration change is judged by the
+    live-shadow z-test. Anything else - an unknown or missing kind, evidence already registered under its id, or an explicit
+    claims_learning=True - is a learning claim. A challenger cannot opt OUT by writing claims_learning=False: the kind decides
+    (the gate used to be bypassed because nothing ever set the flag)."""
+    if bool(challenger.get("claims_learning")):
+        return True
+    if str(challenger.get("id", "")) in HUB.evidence:
+        return True
+    return str(challenger.get("kind") or "") not in LEGACY_CHALLENGER_KINDS
+
+
 def promotion_allowed(challenger: Mapping[str, Any], now: Any) -> PromotionVerdict:
-    """improve.test_and_promote hook. A challenger dict with claims_learning=True is a learning claim and needs registered evidence;
-    any other challenger is judged by its live-shadow test alone."""
+    """improve.test_and_promote hook. A challenger of a legacy kind (config / meta / evidence_weights / recalibrate) is judged by its
+    live-shadow test alone; every other challenger is a learning claim (challenger_claims_learning) and needs registered evidence, else
+    the gate FAILS CLOSED on scorecard, firewalls and identity."""
     cid = str(challenger.get("id", ""))
-    return promotion_gate(cid or "challenger", now, bool(challenger.get("claims_learning")), HUB.evidence.get(cid))
+    return promotion_gate(cid or "challenger", now, challenger_claims_learning(challenger), HUB.evidence.get(cid))
 
 
 def register_scorecard(kid: str, card: LearningScorecard) -> None:

@@ -347,6 +347,38 @@ def _expit(z):
     return 1.0 / (1.0 + np.exp(-np.asarray(z, float)))
 
 
+class CanonicalMoverModel:
+    """Thin adapter over engine.fv_pipeline.MoverStage, the ONE canonical mover model (RESEARCH_MAPPING WP3; C69 ledger duplicate
+    'predict big movers'). The GBM hypothesis used to train its own LightGBM classifier - a fifth mover model whose results could not
+    be compared with the fv run. It now delegates to MoverStage (same trees/leaves/min-child mapping from FitConfig, same purge and
+    calibration split) and only adds the predict_proba shape FittedHypothesis.predict reads."""
+
+    def __init__(self, cfg: "FitConfig"):
+        from engine.fv_pipeline import FVConfig, MoverStage
+        self.stage = MoverStage(FVConfig(lgb_trees=cfg.gbm_trees, lgb_leaves=cfg.gbm_leaves, lgb_min_child=cfg.gbm_min_child,
+                                         mover_min_rows=cfg.min_rows, seed=cfg.seed, lgb_jobs=1))
+        self.features: list[str] = []
+
+    def fit(self, Z: np.ndarray, y: np.ndarray, dates: np.ndarray, features: Sequence[str]) -> "CanonicalMoverModel":
+        self.features = list(features)
+        self.stage.fit(pd.DataFrame(Z, columns=self.features), np.asarray(y, float), np.asarray(dates))
+        return self
+
+    @property
+    def ok(self) -> bool:
+        return self.stage.ok
+
+    def predict_proba(self, Z: np.ndarray) -> np.ndarray:
+        p = self.stage.score(pd.DataFrame(Z, columns=self.features))
+        return np.column_stack([1.0 - p, p])
+
+    def importance(self) -> dict[str, float]:
+        g = self.stage.clf.booster_.feature_importance("gain")
+        return dict(zip(self.features, (g / max(1.0, g.sum())).tolist()))
+
+
+
+
 @dc.dataclass
 class FittedHypothesis:
     hyp: Hypothesis
@@ -455,14 +487,14 @@ def fit_hypothesis(h: Hypothesis, F: pd.DataFrame, now, cfg: FitConfig = FitConf
     std = Standardiser.fit(X, cfg.winsor)
     Z = std.apply(X)
     if h.kind == HypKind.GBM:
-        import lightgbm as lgb
-        clf = lgb.LGBMClassifier(objective="binary", n_estimators=cfg.gbm_trees, num_leaves=cfg.gbm_leaves, min_child_samples=cfg.gbm_min_child,
-                                 learning_rate=0.06, subsample=0.8, subsample_freq=1, colsample_bytree=0.8, random_state=cfg.seed, verbose=-1, n_jobs=1)
-        clf.fit(Z, y)
-        mag = lgb.LGBMRegressor(n_estimators=cfg.gbm_trees, num_leaves=cfg.gbm_leaves, min_child_samples=cfg.gbm_min_child, learning_rate=0.06,
-                                random_state=cfg.seed, verbose=-1, n_jobs=1).fit(Z, lm)
-        imp = dict(zip(h.features, (clf.booster_.feature_importance("gain") / max(1.0, clf.booster_.feature_importance("gain").sum())).tolist()))
-        base.coef = imp
+        clf = CanonicalMoverModel(cfg).fit(Z, y, F.index.get_level_values(0).to_numpy(), list(h.features))
+        if not clf.ok:
+            base.reason = f"canonical mover model (fv_pipeline.MoverStage) declined: {clf.stage.reason}"
+            return base
+        from sklearn.ensemble import HistGradientBoostingRegressor
+        mag = HistGradientBoostingRegressor(max_iter=cfg.gbm_trees, max_leaf_nodes=cfg.gbm_leaves, min_samples_leaf=cfg.gbm_min_child,
+                                            learning_rate=0.06, random_state=cfg.seed).fit(Z, lm)
+        base.coef = clf.importance()
     else:
         from sklearn.linear_model import LogisticRegression, Ridge
         clf = LogisticRegression(C=cfg.C, max_iter=300).fit(Z, y)
