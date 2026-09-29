@@ -70,7 +70,7 @@ class FVConfig:
     lgb_trees: int = 150
     lgb_leaves: int = 15
     lgb_min_child: int = 80
-    lgb_jobs: int = 4
+    lgb_jobs: int = 1
     dir_split: float = 0.50          # share of mover dates used only to fit the direction model itself
     dir_min_rows: int = 300
     dir_min_inputs: int = 1
@@ -278,8 +278,9 @@ def synthetic_bars(n_tickers=120, n_weeks=260, seed=0, event_p=0.15, dir_acc=0.9
     informative_mover=False removes the marker; dir_acc=0.5 removes the direction signal (pure noise)."""
     rng = np.random.default_rng(seed)
     sess = pd.bdate_range(start, periods=n_weeks * 5 + 1)
-    n = n_weeks * 5
+    n = n_weeks * 5 + 1
     ret = rng.normal(0, 0.008, (n, n_tickers))
+    ret[0] = 0.0
     for w in range(1, n_weeks):
         ev = rng.random(n_tickers) < event_p
         sign = np.where(rng.random(n_tickers) < 0.5, 1.0, -1.0)
@@ -289,7 +290,6 @@ def synthetic_bars(n_tickers=120, n_weeks=260, seed=0, event_p=0.15, dir_acc=0.9
         hint = np.where(rng.random(n_tickers) < dir_acc, sign, -sign)
         marker = rng.uniform(0.02, 0.04, n_tickers)
         ret[w * 5 - 1] = np.where(ev & informative_mover, hint * marker, np.where(ev, rng.normal(0, 0.008, n_tickers), ret[w * 5 - 1]))
-    ret = np.vstack([np.zeros((1, n_tickers)), ret])
     close = 40 * np.exp(np.cumsum(ret, 0))
     gap = rng.normal(0, 0.002, close.shape)
     op = np.vstack([close[:1], close[:-1]]) * (1 + gap)
@@ -1021,7 +1021,8 @@ def mover_report(run: FVRun, boot: int = 400, block: int = 4, seed: int = 0) -> 
     calib = cal.groupby("bin", observed=True).agg(p=("p", "mean"), y=("y", "mean"), n=("y", "size")).reset_index(drop=True)
     return {"weeks": len(mv), "hit_touch": float(t.sum() / (tot * len(mv))), "hit_touch_lo": hit_ci[0], "hit_touch_hi": hit_ci[1],
             "hit_close10": float(cl.sum() / (tot * len(mv))), "predicted_mean": float(ex.mean()),
-            "base_rate_candidates": float(c["touch"].mean()), "target_95_met": bool(t.sum() / (tot * len(mv)) >= 0.95),
+            "base_rate_pool": float(c["touch"].mean()),
+            "base_rate_all": float(np.nanmean(run.panel.lab.loc[run.panel.lab["k"].isin(np.flatnonzero(run.panel.dates.isin(run.week_dates))), "touch"].to_numpy(float))), "target_95_met": bool(t.sum() / (tot * len(mv)) >= 0.95),
             "weeks_with_10_qualified": float((q >= run.cfg.n_picks).mean()), "mean_qualified": float(q.mean()),
             "tau95_available": float(tau.notna().mean()) if len(tau) else 0.0, "calibration": calib}
 
@@ -1109,7 +1110,7 @@ def format_report(run: FVRun, tab: pd.DataFrame, diffs: pd.DataFrame, mover: dic
          "## V1 movers (touch +-10% inside the week)"]
     if mover.get("weeks", 0):
         L += [f"- hit rate {p(mover['hit_touch'])} (90% CI {p(mover['hit_touch_lo'])}-{p(mover['hit_touch_hi'])}) vs base rate of all "
-              f"candidates {p(mover['base_rate_candidates'])}; predicted {p(mover['predicted_mean'])}",
+              f"tradable stocks {p(mover['base_rate_all'])}; predicted {p(mover['predicted_mean'])}",
               f"- 95% target {'MET' if mover['target_95_met'] else 'NOT met'}; weeks with >=10 candidates above tau95: "
               f"{p(mover['weeks_with_10_qualified'])} (mean {mover['mean_qualified']:.1f} qualified)"]
     L += ["", "## Ablation (same picks, paired CIs)", "", tab[["variant", "weeks", "mean_week", "mean_week_lo", "mean_week_hi", "share10_gross",

@@ -1,0 +1,157 @@
+{
+ "target": "move",
+ "seed": 0,
+ "tickers": 600,
+ "start": "2008-01-01",
+ "base": {
+  "max_pairs": 800,
+  "max_unless": 100,
+  "null_reps": 1
+ },
+ "defaults": {
+  "half_life_years": 4.0,
+  "ctx_bandwidth": 1.5,
+  "fdr_q": 0.05,
+  "min_n": 300,
+  "shrink_k": 400
+ },
+ "chosen": {
+  "half_life_years": 4.0,
+  "ctx_bandwidth": 1.5,
+  "fdr_q": 0.05,
+  "min_n": 300,
+  "shrink_k": 400
+ },
+ "steps": [
+  {
+   "knob": "half_life_years",
+   "value": 1.0,
+   "from": 4.0,
+   "fold_gains": [
+    -0.003259015658530015,
+    0.002610680003381236,
+    -0.0030282504293537085,
+    -0.00016697291504874453
+   ],
+   "fold_share": 0.25,
+   "diff_lo": -0.0019725958632869044,
+   "diff_hi": 6.061434728862181e-05,
+   "passes": false
+  },
+  {
+   "knob": "half_life_years",
+   "value": 2.0,
+   "from": 4.0,
+   "fold_gains": [
+    0.0001480222148915511,
+    0.0015293142137745375,
+    -7.09785456796997e-05,
+    -0.00015886746392691146
+   ],
+   "fold_share": 0.5,
+   "diff_lo": -0.0002448490511554859,
+   "diff_hi": 0.0010283106345201744,
+   "passes": false
+  },
+  {
+   "knob": "half_life_years",
+   "value": 8.0,
+   "from": 4.0,
+   "fold_gains": [
+    0.0001479069619228129,
+    0.0027721079683042634,
+    -0.0007116693195351955,
+    0.0008275532000580059
+   ],
+   "fold_share": 0.75,
+   "diff_lo": -3.051848628816986e-05,
+   "diff_hi": 0.0014954183172138792,
+   "passes": false
+  },
+  {
+   "knob": "half_life_years",
+   "value": 16.0,
+   "from": 4.0,
+   "fold_gains": [
+    0.00016287388001120162,
+    0.0029152144633908476,
+    -0.0006975317877404749,
+    0.0007919500623115253
+   ],
+   "fold_share": 0.75,
+   "diff_lo": -1.7946050974807243e-07,
+   "diff_hi": 0.0015157461615671046,
+   "passes": false
+  },
+  {
+   "knob": "ctx_bandwidth",
+   "value": 0.75,
+   "from": 1.5,
+   "fold_gains": [
+    -0.0019428075917706747,
+    NaN,
+    -0.007010534925452659,
+    -0.048072330702176945
+   ],
+   "fold_share": 0.0,
+   "diff_lo": -0.02204837479223319,
+   "diff_hi": -0.01591735877704081,
+   "passes": false
+  },
+  {
+   "knob": "ctx_bandwidth",
+   "value": 3.0,
+   "from": 1.5,
+   "fold_gains": [
+    -0.0024207000040312805,
+    0.003890468012022263,
+    -0.0018623226835832037,
+    0.0027403333258940636
+   ],
+   "fold_share": 0.5,
+   "diff_lo": -0.0010440869301281792,
+   "diff_hi": 0.0020381045833327317,
+   "passes": false
+  },
+  {
+   "knob": "fdr_q",
+   "value": 0.02,
+   "from": 0.05,
+   "fold_gains": [
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "fold_share": 0.0,
+   "diff_lo": 0.0,
+   "diff_hi": 0.0,
+   "passes": false
+  },
+  {
+   "knob": "fdr_q",
+   "value": 0.1,
+   "from": 0.05,
+   "fold_gains": [
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "fold_share": 0.0,
+   "diff_lo": 0.0,
+   "diff_hi": 0.0,
+   "passes": false
+  }
+ ],
+ "holdout": {
+  "start": "2023-12-22",
+  "default_ic": 0.352156294393484,
+  "chosen_ic": 0.352156294393484,
+  "diff_lo": 0.0,
+  "diff_hi": 0.0,
+  "verdict": "no change adopted"
+ },
+ "adopted_any": false,
+ "seconds": 2465
+}

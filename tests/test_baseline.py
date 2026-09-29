@@ -77,5 +77,5 @@ def test_no_baseline_fails_closed(tmp_path, monkeypatch):
 def test_code_drift_flag(tmp_path, monkeypatch):
     d, _ = frozen(tmp_path)
     assert B.verify(d)["code_drift"] is False
-    monkeypatch.setattr(B.P, "code_hash", lambda: "different")
+    monkeypatch.setattr(B.P, "code_hash", lambda *a, **k: "different")
     assert B.verify(d)["code_drift"] is True

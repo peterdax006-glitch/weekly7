@@ -1,6 +1,6 @@
 # WEEKLY7 FINAL REPORT (Bible Phase 46)
 
-_Generated 2026-09-28 22:38 from artefacts by scripts/final_report.py. Nothing here is typed by hand._
+_Generated 2026-09-28 23:03 from artefacts by scripts/final_report.py. Nothing here is typed by hand._
 
 ## 1. Implementation
 
@@ -23,7 +23,7 @@ _Generated 2026-09-28 22:38 from artefacts by scripts/final_report.py. Nothing h
    "module": "adaptive.py",
    "lines": 776,
    "summary": "Self-training inside a year (canon C15-C18). One pure, deterministic module used by BOTH the blind live",
-   "commits": 7
+   "commits": 8
   },
   {
    "module": "analog_weighting.py",
@@ -51,9 +51,9 @@ _Generated 2026-09-28 22:38 from artefacts by scripts/final_report.py. Nothing h
   },
   {
    "module": "antimemo.py",
-   "lines": 557,
+   "lines": 559,
    "summary": "Bible Phase 11 - rerun anti-memorisation experiment (firewall against \"learning the answer\").",
-   "commits": 2
+   "commits": 3
   },
   {
    "module": "antioverfit.py",
@@ -75,9 +75,9 @@ _Generated 2026-09-28 22:38 from artefacts by scripts/final_report.py. Nothing h
   },
   {
    "module": "basis_search.py",
-   "lines": 210,
+   "lines": 318,
    "summary": "Outer training-basis search (Bible PHASE 19; canon C11, C15-C21, C34, C39).",
-   "commits": 1
+   "commits": 2
   },
   {
    "module": "blind_gates.py",
@@ -93,9 +93,9 @@ _Generated 2026-09-28 22:38 from artefacts by scripts/final_report.py. Nothing h
   },
   {
    "module": "candidates.py",
-   "lines": 542,
+   "lines": 567,
    "summary": "Bible Phase 3.1 - candidate generation for the pattern miner (canons C35, C37, C43).",
-   "commits": 3
+   "commits": 4
   },
   {
    "module": "candles.py",
@@ -143,7 +143,7 @@ _Generated 2026-09-28 22:38 from artefacts by scripts/final_report.py. Nothing h
    "module": "direction_ablate.py",
    "lines": 92,
    "summary": "Direction-input ablation (Bible PHASE 13: \"evidence where justified\"; generic ablation pattern: drop one input",
-   "commits": 1
+   "commits": 2
   },
   {
    "module": "direction_calib.py",
@@ -185,6 +185,12 @@ _Generated 2026-09-28 22:38 from artefacts by scripts/final_report.py. Nothing h
    "module": "fill_audit.py",
    "lines": 56,
    "summary": "Bible Phase 1.4 / canon C33, as a Test-loop gate: prove from a finished Session that every decision was taken at a",
+   "commits": 1
+  },
+  {
+   "module": "fv_pipeline.py",
+   "lines": 1145,
+   "summary": "Bible Phase 38 checklist V1-V5 (Find volatility), canons C23 / C24 / C33: ONE point-in-time weekly pipeline.",
    "commits": 1
   },
   {
@@ -239,13 +245,13 @@ _Generated 2026-09-28 22:38 from artefacts by scripts/final_report.py. Nothing h
    "module": "memory.py",
    "lines": 636,
    "summary": "Factor-weighted episodic memory for the self-learning system (Bible Phase 9, canon C34).",
-   "commits": 3
+   "commits": 4
   },
   {
    "module": "memory_diagnostics.py",
    "lines": 384,
    "summary": "Why did this memory count? Diagnostics for the factor-weighted memory (Bible Phase 9, canon C34).",
-   "commits": 2
+   "commits": 3
   },
   {
    "module": "miner_tuning.py",
@@ -257,7 +263,7 @@ _Generated 2026-09-28 22:38 from artefacts by scripts/final_report.py. Nothing h
    "module": "missed_winners.py",
    "lines": 598,
    "summary": "Missed-winner detector and its evaluation (Bible Phase 14, canon C20).",
-   "commits": 2
+   "commits": 3
   },
   {
    "module": "model.py",
@@ -267,9 +273,9 @@ _Generated 2026-09-28 22:38 from artefacts by scripts/final_report.py. Nothing h
   },
   {
    "module": "objective.py",
-   "lines": 260,
+   "lines": 270,
    "summary": "Tiered objective firewall (Bible PHASE 20; canon C38 band, C39 lexicographic tiers).",
-   "commits": 1
+   "commits": 2
   },
   {
    "module": "options.py",
@@ -402,16 +408,7 @@ _Generated 2026-09-28 22:38 from artefacts by scripts/final_report.py. Nothing h
    "lines": 129,
    "summary": "Writes site/data.json \u2014 everything the dashboard shows (Blueprint Part J).",
    "commits": 4
-  },
-  {
-   "module": "stops.py",
-   "lines": 400,
-   "summary": "Bible Phase 16 (Stop / loss engine), under the tiered objective of Phase 20.",
-   "commits": 2
-  },
-  {
-   "module": "tick.py",
-   "li
+
 ```
 
 ## 2. Validation (every gate)
@@ -1164,7 +1161,7 @@ _Generated 2026-09-28 22:38 from artefacts by scripts/final_report.py. Nothing h
   "- [~] L4 Broker safety audit (B13).",
   "- [~] L5 Research/live isolation test: engine/isolation.py (B13)."
  ],
- "bible_trace": "NO EVIDENCE",
+ "bible_trace": null,
  "standing_caveats": [
   "price panel is survivor-only (Phase 1 audit): historical returns are upper bounds"
  ]
@@ -1247,8 +1244,92 @@ _Generated 2026-09-28 22:38 from artefacts by scripts/final_report.py. Nothing h
 
 ```json
 {
- "windows_revealed": 39,
- "note": "replay skipped"
+ "windows_replayed": 39,
+ "errors": [],
+ "weekly": {
+  "weeks": 2049,
+  "mean": 0.007618141337523973,
+  "median": 0.002693089619391076,
+  "sd": 0.07975280112341114,
+  "percentiles": {
+   "p1": -0.16773449477891947,
+   "p5": -0.09558588430607635,
+   "p10": -0.06584383192272118,
+   "p25": -0.029151887641780783,
+   "p50": 0.002693089619391076,
+   "p75": 0.037902027049464104,
+   "p90": 0.08343927814254887,
+   "p95": 0.12170739697385516,
+   "p99": 0.2542882357671265
+  },
+  "worst": -0.5146872314660351,
+  "best": 0.7114563811772259,
+  "drawdown_chained": -0.8385853737755182,
+  "share_in_band_5_10": 0.23035627135187897,
+  "share_positive": 0.5202537823328452
+ },
+ "window_year_returns": {
+  "windows": 39,
+  "mean": 0.4936628522194994,
+  "median": 0.18042285123778634,
+  "percentiles": {
+   "p5": -0.48743702781097403,
+   "p25": -0.07361671931902758,
+   "p50": 0.18042285123778634,
+   "p75": 0.8066861763312103,
+   "p95": 1.9121747405106353
+  },
+  "worst": -0.5326927414851377,
+  "best": 4.686918556860003,
+  "share_negative_years": 0.3076923076923077,
+  "worst_max_drawdown": -0.7711324404556531
+ },
+ "eras": {
+  "1960s": {
+   "windows": 3,
+   "mean_week": 0.0024,
+   "median_year": 0.0834,
+   "worst_dd": -0.2877
+  },
+  "1970s": {
+   "windows": 7,
+   "mean_week": 0.0065,
+   "median_year": 0.377,
+   "worst_dd": -0.5506
+  },
+  "1980s": {
+   "windows": 9,
+   "mean_week": 0.0183,
+   "median_year": 1.2664,
+   "worst_dd": -0.4144
+  },
+  "1990s": {
+   "windows": 5,
+   "mean_week": 0.0071,
+   "median_year": 0.3481,
+   "worst_dd": -0.7255
+  },
+  "2000s": {
+   "windows": 5,
+   "mean_week": 0.0035,
+   "median_year": -0.128,
+   "worst_dd": -0.7711
+  },
+  "2010s": {
+   "windows": 6,
+   "mean_week": 0.0009,
+   "median_year": 0.0221,
+   "worst_dd": -0.6106
+  },
+  "2020s": {
+   "windows": 4,
+   "mean_week": 0.0049,
+   "median_year": 0.0253,
+   "worst_dd": -0.6612
+  }
+ },
+ "basis_hash": "4ca4f7a9c7f8fc37",
+ "caveat": "survivor-biased universe; upper bound"
 }
 ```
 

@@ -59,6 +59,7 @@ def run_window(w, cfg, meta):
     r.update(O.week_row(wk, BAND) if len(wk) else O.week_row([]))        # tiers 1-3 statistics, one definition (engine/objective)
     r["win_weeks"] = float((wk > 0).mean()) if len(wk) else 0.5
     r["max_dd"] = daily_dd                                                # tier 2 reads the daily-path drawdown
+    r["weekly_returns"] = [float(x) for x in wk]                          # the distribution, not just the mean (Phase 46)
     return r
 
 

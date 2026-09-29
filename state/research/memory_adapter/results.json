@@ -1,6 +1,6 @@
 {
  "stamp": {
-  "code_hash": "2f1ce924e7eee219",
+  "code_hash": "0394f5858e794ee8",
   "code_files": [
    "engine/__init__.py",
    "engine/config.py",
@@ -10,9 +10,13 @@
    "engine/provenance.py",
    "scripts/run_b15_memory_adapter.py"
   ],
-  "code_mixed": [],
-  "git_commit": "25360d5abe39ef3d70caf9c85efea76a478d30da+dirty",
-  "canon_sha": "83225f36953ff54a",
+  "code_mixed": [
+   "engine/memory.py",
+   "engine/memory_diagnostics.py",
+   "engine/missed_winners.py"
+  ],
+  "git_commit": "081fd4633ab474fbc6c1caa3e68fdcce8a0da005",
+  "canon_sha": "34762a4230aca64e",
   "bible_sha": "a97ea91862cee371",
   "blueprint_version": "4.0",
   "config_hash": "e09c1c801a65fbee",
@@ -28,7 +32,10 @@
    "ic": -0.01594145587098171,
    "ic_t": -1.5802746675811992,
    "prec_at_k": 0.17964426877470357,
-   "base_rate": 0.07867028808953619
+   "base_rate": 0.07867028808953619,
+   "prec_vol_only": 0.19387351778656128,
+   "ret_at_k": 0.0017707502300089058,
+   "ret_vol_only": 0.0019392781813625287
   },
   "base": {
    "ic": 0.018969899269951424,
@@ -118,5 +125,5 @@
    }
   }
  },
- "seconds": 530
+ "seconds": 578
 }

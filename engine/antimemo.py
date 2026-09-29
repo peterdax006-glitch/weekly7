@@ -389,6 +389,9 @@ class RecallControl:
     def factor(self, X):
         return pd.Series([self.boost if i in self.keys else 1.0 for i in X.index], index=X.index)
 
+    def items(self):
+        return ["rows"] if self.keys else []
+
 
 def default_archive_learner(params=None, seed=0):
     """items: [{"episodes": [...], "frame": DataFrame}] -> a LessonBook mined by pnl and by mistake kind."""

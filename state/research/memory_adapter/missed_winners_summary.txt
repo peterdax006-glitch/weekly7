@@ -1,5 +1,5 @@
 weeks scored 506
-detector alone   IC -0.016 (t -1.6)  precision@k 0.180 vs base rate 0.079
+detector alone   IC -0.016 (t -1.6)  precision@k 0.180 vs base rate 0.079 vs vol20-only 0.194
 base             IC +0.019  precision@k 0.083
 detector + base  IC +0.019  uplift +0.0000 CI [+0.0000, +0.0000]  p 1.000  mean weight 0.000
 shuffled detector IC +0.001  collapsed True

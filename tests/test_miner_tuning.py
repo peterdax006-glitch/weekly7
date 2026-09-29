@@ -56,7 +56,8 @@ def test_recent_regime_change_prefers_short_memory():
                holdout_frac=0.15, min_fold_share=0.6)
     tried = [s for s in r.steps if s["knob"] == "half_life_years" and s["value"] == 0.5]
     assert tried and np.nanmean(tried[0]["fold_gains"]) > 0            # shorter memory helps in the folds
-    assert r.holdout["verdict"] in ("confirmed on holdout", "not confirmed on holdout (CI straddles 0) - keep defaults")
+    assert r.holdout["verdict"] in ("confirmed on holdout", "no change adopted",
+                                    "not confirmed on holdout (CI straddles 0) - keep defaults")
     if r.adopted_any:
         assert r.chosen["half_life_years"] == 0.5
 

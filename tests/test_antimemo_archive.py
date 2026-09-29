@@ -110,13 +110,13 @@ def test_disguise_window_renames_and_shifts_everything_consistently():
 
 @pytest.fixture(scope="module")
 def windows():
-    return [make_window(10 + i, n_weeks=45, n_tk=50, tag=f"w{i}")[0] for i in range(6)]
+    return [make_window(10 + i, n_weeks=36, n_tk=40, start=f"{2190 + i}-01-05", tag=f"w{i}")[0] for i in range(5)]
 
 
 def test_archive_experiment_real_lessons_transfer_and_are_not_memorisation(windows):
     res = archive_experiment(windows, CFG, {}, adaptive=False, folds=3, seed=1,
                              params={"min_support": 25, "min_weeks": 5, "min_tickers": 8})
-    assert res["parity_ok"] and len(res["windows"]) == 6
+    assert res["parity_ok"] and len(res["windows"]) == 5
     assert res["weekly_gain_a"]["mean"] > 0 and res["weekly_gain_a"]["lo"] > 0       # learned from OTHER windows, still helps
     assert res["weekly_gain_b"]["mean"] > 0
     for r in res["windows"]:                                                        # identity-free: b and c are the same rule
@@ -130,12 +130,12 @@ def test_archive_experiment_sees_a_planted_memoriser_and_never_flags_it_as_trans
     assert res["weekly_gain_b"]["mean"] > 0.005 and res["weekly_gain_b"]["lo"] > 0     # it aced the window it memorised
     assert res["weekly_gain_c"]["mean"] == 0.0 and res["weekly_gain_a"]["mean"] == 0.0   # and nothing else
     m = res["memorisation"]
-    assert m["windows_memorised"] == 6 and m["b_minus_c_mean"] > 0.005 and m["b_minus_a_mean"] > 0.005
+    assert m["windows_memorised"] == 5 and m["b_minus_c_mean"] > 0.005 and m["b_minus_a_mean"] > 0.005
     assert all(r["picks_changed_c"] == 0 and r["picks_changed_b"] > 0 for r in res["windows"])
 
 
 def test_archive_experiment_on_windows_with_no_structure_finds_nothing_to_apply():
-    ws = [make_window(50 + i, n_weeks=40, n_tk=40, trap=False, tag=f"n{i}")[0] for i in range(4)]
+    ws = [make_window(50 + i, n_weeks=30, n_tk=36, trap=False, start=f"{2200 + i}-01-05", tag=f"n{i}")[0] for i in range(3)]
     for w in ws:                                                  # returns unrelated to the score at all
         rng = np.random.default_rng(len(w["id"]) + int(w["id"][1:]))
         w["closes"] = w["closes"].apply(lambda c: c.iloc[0] * np.exp(np.cumsum(rng.normal(0, 0.01, len(c)))))

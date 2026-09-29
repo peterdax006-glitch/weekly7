@@ -179,7 +179,11 @@ def s_performance(replay=True):
         df["era"] = (df["year"] // 10 * 10).astype(int).astype(str) + "s"
         eras = df.groupby("era").agg(windows=("window", "size"), mean_week=("mean_week", "mean"),
                                      median_year=("year_return", "median"), worst_dd=("max_dd", "min")).round(4).to_dict("index")
-        per_window = distribution(df["year_return"].values)
+        y = df["year_return"].values
+        per_window = {"windows": int(len(y)), "mean": float(y.mean()), "median": float(np.median(y)),
+                      "percentiles": dict(zip(["p5", "p25", "p50", "p75", "p95"], map(float, np.percentile(y, [5, 25, 50, 75, 95])))),
+                      "worst": float(y.min()), "best": float(y.max()), "share_negative_years": float((y < 0).mean()),
+                      "worst_max_drawdown": float(df["max_dd"].min())}
     else:
         per_window = None
     return {"windows_replayed": int(len(df)), "errors": [x for x in rows if "error" in x],

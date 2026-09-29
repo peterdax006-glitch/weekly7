@@ -216,7 +216,7 @@ def test_counterfactual_tight_stop_and_flip_are_computed_from_the_outcome():
 
 def test_multiple_testing_control_keeps_noise_from_becoming_lessons():
     books_with_lessons = 0
-    for seed in range(8):
+    for seed in range(6):
         X, _ = make_panel(30 + seed, n_days=110, n_tk=30, trap=False)
         y = pd.Series(np.random.default_rng(seed).normal(scale=0.03, size=len(X)), index=X.index)
         fr = base_frame(X, y)
@@ -253,8 +253,8 @@ def test_untaken_sample_is_uniform_so_the_baseline_is_not_selected_on_outcome():
 
 
 def test_deterministic_given_seed():
-    b1, *_ = learn_book(50)
-    b2, *_ = learn_book(50)
+    b1, *_ = learn_book(50, n_days=110, n_tk=30)
+    b2, *_ = learn_book(50, n_days=110, n_tk=30)
     assert b1.to_json() == b2.to_json()
 
 

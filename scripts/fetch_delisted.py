@@ -161,9 +161,9 @@ def chart(ticker):
         res = r.json()["chart"]["result"][0]
         q = res["indicators"]["quote"][0]
         adj = res["indicators"].get("adjclose", [{}])[0].get("adjclose")
+        ts = pd.to_datetime(res["timestamp"], unit="s").normalize()
     except (KeyError, IndexError, TypeError, ValueError):
         return None
-    ts = pd.to_datetime(res["timestamp"], unit="s").normalize()
     df = pd.DataFrame({"date": ts, "open": q["open"], "high": q["high"], "low": q["low"], "close": q["close"],
                        "volume": q["volume"]})
     if adj and len(adj) == len(df):                       # split/dividend-adjust like the rest of the panel

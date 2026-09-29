@@ -24,8 +24,8 @@ SPACE = {
     "ctx_bandwidth": [0.75, 1.5, 3.0],
     "fdr_q": [0.02, 0.05, 0.10],
     "min_n": [200, 300, 600],
-    "shrink_k": [100, 400, 1600],
 }
+# shrink_k is not tuned: the miner's default effect rule is empirical Bayes, under which shrink_k is inert
 
 
 @dataclass

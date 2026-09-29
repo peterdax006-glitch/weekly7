@@ -71,6 +71,11 @@ def extract_metrics(records):
     return m, src, unmeasured
 
 
+def engine_files():
+    """A baseline stands for the whole engine, not for whichever modules happen to be imported when it is frozen."""
+    return sorted(q.relative_to(P.ROOT).as_posix() for q in (P.ROOT / "engine").glob("*.py"))
+
+
 def freeze(champion_cfg, now, root=None, registry=None, baseline_id=None, seeds=None, note=""):
     """Write state/baseline/<id>/. Refuses an empty champion config and refuses to overwrite an existing baseline id.
     Returns (path, summary)."""
@@ -80,8 +85,10 @@ def freeze(champion_cfg, now, root=None, registry=None, baseline_id=None, seeds=
     metrics, sources, unmeasured = extract_metrics(reg.records)
     if not metrics:
         raise ValueError("no baseline metrics found in the registry; run the existing system first (Phase 0.4)")
-    bid = baseline_id or f"B_{str(now)[:10]}_{P.code_hash()[:8]}"
-    prov = {"code_hash": P.code_hash(), "data_snapshot": P.data_snapshot(), "git_commit": P.git_commit(),
+    files = engine_files()
+    ch = P.code_hash(files)
+    bid = baseline_id or f"B_{str(now)[:10]}_{ch[:8]}"
+    prov = {"code_hash": ch, "code_files": files, "code_mixed": [], "data_snapshot": P.data_snapshot(), "git_commit": P.git_commit(),
             "blueprint_version": P.BLUEPRINT_VERSION, "config_hash": P.config_hash(champion_cfg),
             "n_registry_records": len(reg)}
     summary = {"baseline_id": bid, "sources": sources, "unmeasured": unmeasured, "note": note,
@@ -103,7 +110,7 @@ def verify(path):
     v = C.verify(path)
     out = {"ok": v["ok"], "problems": v["problems"], "code_drift": None}
     if v["ok"]:
-        out["code_drift"] = P.stale(load(path)["provenance"].get("code_hash"))
+        out["code_drift"] = P.stale(load(path)["provenance"])       # same file list re-hashed; legacy records count as drift
     return out
 
 

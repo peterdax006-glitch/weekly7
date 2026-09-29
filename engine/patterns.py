@@ -35,7 +35,9 @@ MINER_DEFAULT = {"half_life_years": 4.0, "ctx_bandwidth": 1.5, "fdr_q": 0.05, "m
                  "hac_lags": None,              # None = detect overlap from date spacing; int overrides; 0 disables
                  "hac_kernel": "bartlett",
                  "p_method": "bh",              # blueprint section 30; "bonferroni" reproduces the pre-Phase-3 miner
-                 "effect_method": "k",          # "k" blueprint n_eff/(n_eff+k); "eb" empirical Bayes
+                 # "eb" empirical Bayes (default since 2026-09-28): with week-clustered n_eff the blueprint k=400 rule
+                 # shrank every planted effect to ~25% of truth; eb recovers 0.8-1.0 on strong/negative/pair plants
+                 "effect_method": "eb",
                  "context_candidates": False,   # opt-in until pattern_movers builds its quantiles with quantile_matrix()
                  "era_weights": None,           # learned later (blueprint 29); None = neutral
                  "ts_min_history": 60, "top_singles": 60, "unless_top_pairs": 40, "unless_thirds": 15,
@@ -132,6 +134,13 @@ class PatternMiner:
         rng = np.random.default_rng(P["seed"])
         ok = y.notna().values
         X, y = X[ok], y[ok]
+        # name invariance (Bible T16 / blind disguise): every seeded draw below works on row POSITIONS (row
+        # subsample, permutation null, redundancy subsample). Rows sorted by ticker made those draws depend on what
+        # the tickers are called (a disguised market picked different stocks). Order by date, then by row CONTENT.
+        if len(X):
+            content = pd.util.hash_pandas_object(X.reset_index(drop=True), index=False).values
+            order = np.lexsort((content, X.index.get_level_values(0).values))
+            X, y = X.iloc[order], y.iloc[order]
         d_all = X.index.get_level_values(0)
         past = np.asarray(d_all <= pd.Timestamp(now))
         dropped_future = int((~past).sum())
