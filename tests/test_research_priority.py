@@ -480,3 +480,90 @@ def test_resume_replaying_overlapping_results_is_safe_and_broken_forest_not_save
     tr.nodes[H.UNKNOWN_HID] = dataclasses.replace(tr.nodes[H.UNKNOWN_HID], status=H.NodeStatus.FAILED)
     with pytest.raises(H.ForestIntegrityError):
         H.save_forest(forest2, tmp_path / "bad.json")
+
+
+# ------------------------------------------------------------------ wave-2b: detectors, selection, builders
+def test_detectors_catch_planted_and_stay_silent_on_null():
+    rng = np.random.default_rng(0)
+    assert T.detect_clusters({"tech": 12, "energy": 2, "util": 1}, {"tech": 2.0, "energy": 2.0, "util": 2.0})[0]["subject"] == "tech"
+    assert T.detect_clusters({"tech": 3, "energy": 2}, {"tech": 2.0, "energy": 2.0}) == []
+    ok = (rng.random(200) < 0.7).astype(float)
+    broken = np.concatenate([ok[:150], (rng.random(50) < 0.3).astype(float)])
+    assert T.detect_breaks({"p_broken": broken, "p_fine": ok})[0]["subject"] == "p_broken"
+    assert [r["subject"] for r in T.detect_breaks({"p_fine": ok})] == []
+    shifted = np.concatenate([rng.normal(0, 1, 200), rng.normal(3, 1, 20)])
+    assert T.detect_regime_shift(shifted) is not None and T.detect_regime_shift(rng.normal(0, 1, 220)) is None
+    assert T.detect_regime_shift([1.0, 2.0]) is None
+    c = T.detect_contradictions({"sig": {"a": (18, 20), "b": (5, 20), "c": (17, 20)}})
+    assert {(r["subject"], r["counterpart"]) for r in c} == {("a", "b"), ("b", "c")}
+
+
+def test_bh_and_threshold_stability_and_conjunction():
+    assert T.bh_select([]) == [] and T.bh_select([0.001, 0.9, 0.5, 0.004]) == [0, 3]
+    day = T.dispersion_example(0)
+    assert T.threshold_stability(day.predictions, "dispersion")["found_share"] > 0.5
+    rng = np.random.default_rng(2)
+    noise = [T.PredictionRow("p", bool(rng.random() < 0.7), {"dispersion": float(rng.uniform(0, 2))}) for _ in range(30)]
+    assert T.threshold_stability(noise, "dispersion")["verdict"] == "UNSTABLE"
+    rows = [T.PredictionRow("p", not (d > 1.0 and b > 0.5 and rng.random() < 0.9), {"dispersion": float(d), "breadth": float(b)})
+            for d, b in zip(rng.uniform(0, 2, 200), rng.uniform(0, 1, 200))]
+    base = T.find_failure_conditions(rows)
+    assert base and T.find_conjunction_conditions(rows, base) is not None
+
+
+def test_daily_selection_keeps_breadth_and_respects_budget():
+    mk = lambda src, i, cost, pri: __import__("dataclasses").replace(T._mk(src, f"s{i}", f"t {src} {i}", "h", "t", Problem.VOLATILITY, "2003-05-01", 0.5, 0.5, cost, 1.0), priority=pri)
+    ts = [mk("loss", i, 20.0, 1.0 - 0.01 * i) for i in range(6)] + [mk("surprise", 0, 20.0, 0.1), mk("unknown_area", 0, 60.0, 0.05)]
+    chosen, deferred = T.select_daily(ts, 100.0, max_per_source=3)
+    assert {t.source for t in chosen} >= {"loss", "surprise"} and sum(t.value.compute_cost for t in chosen) <= 100.0
+    assert sum(1 for t in chosen if t.source == "loss") <= 3 and deferred
+    assert T.select_daily([], 100.0) == ((), ())
+    aged = T.age_targets(ts, "2004-05-01")
+    assert aged == []                                                                    # a year old: below the drop line
+    merged = T.merge_across_days([[ts[0]], [ts[0]], [ts[1]]])
+    assert len(merged) == 2 and merged[0].magnitude >= merged[1].magnitude
+
+
+def test_run_days_is_deterministic_and_bridges_to_questions():
+    def day(d, n_fail):
+        e = [T.AutopsyEntry(d, "WINNER", f"w{i}", 0.05, "pattern_x", {"dispersion": 0.4 + 0.05 * i}, True, True) for i in range(10)]
+        e += [T.AutopsyEntry(d, "FALSE_POSITIVE", f"f{i}", -0.06, "pattern_x", {"dispersion": 1.7 + 0.05 * i}, True, False) for i in range(n_fail)]
+        e.append(T.AutopsyEntry(d, "FALSE_NEGATIVE", "sit_m", 0.2, knowable_before=0.7))
+        return e
+    days = {"2003-05-01": day("2003-05-01", 5), "2003-05-02": day("2003-05-02", 4)}
+    r1 = T.run_days(days)
+    r2 = T.run_days(days)
+    assert r1.digest == r2.digest and r1.n_targets > 0 and "missed_winner" not in r1.silent_sources
+    rep = T.run_day(T.dispersion_example(0), "2003-05-02")
+    t = T.run_day(T.DayInput("2003-05-01", missed_winners=[{"subject": "sit_m", "gain_share": 0.4, "knowable_before": 0.8}]), "2003-05-02").targets[0]
+    ev = T.target_to_event(t, "2003-05-02")
+    assert ev.source == "missed_winner" and Q.generate([ev], "2003-05-03").questions
+    with pytest.raises(FirewallBreach):
+        T.target_to_event(t, "2003-05-01")
+
+
+def test_remaining_question_builders_cost_model_and_reports():
+    assert Q.builders_cover_sources() == []
+    assert Q.event_from_false_positive("p", 2, 20, 0.7, "2026-09-20") is None and Q.event_from_false_positive("p", 9, 12, 0.7, "2026-09-20")
+    assert Q.event_from_anomaly("d", 0.1, "2026-09-20") is None and Q.event_from_anomaly("d", 0.8, "2026-09-20")
+    assert Q.event_from_coverage("tech", 0.2, "2026-09-20") is None and Q.event_from_research_failure("f", 2, "2026-09-20") is None
+    qo = Q.generate([_ev("loss", "cm", loss_share=0.3)], "2026-09-29").questions[0]
+    cm = Q.PlanCostModel()
+    for _ in range(12):
+        cm.observe("loss", 10.0, 20.0)
+    assert Q.PlanCostModel().recost(qo).plan.cost_minutes == pytest.approx(qo.plan.cost_minutes) and cm.recost(qo).plan.cost_minutes > 1.4 * qo.plan.cost_minutes
+    with pytest.raises(Q.QuestionError):
+        cm.observe("loss", 0.0, 1.0)
+    assert Q.refine_question(qo, Q.Outcome(n=qo.plan.min_n, lift=0.1, p_value=0.01), "2026-10-01") is None
+    r = Q.refine_question(qo, Q.Outcome(n=max(qo.plan.min_n // 2, 1), lift=0.1, p_value=0.5), "2026-10-01")
+    assert r is not None and r.plan.cost_minutes > qo.plan.cost_minutes
+    assert Q.refine_question(qo, Q.Outcome(n=1, lift=0, p_value=1), "2026-10-01") is None or qo.plan.min_n <= 5
+    txt = Q.explain_question(qo)
+    assert "success:" in txt and "failure:" in txt and "| 1 |" in Q.agenda_markdown([qo])
+    rep = Q.quality_report(Q.QuestionLedger(), Q.QuestionOutcomeBook(), "2026-10-01")
+    assert rep["unbuilt_sources"] == [] and rep["integrity"] == []
+    dm = Q.DifficultyModel()
+    assert dm.difficulty("loss", 0.4) == 0.4
+    for _ in range(20):
+        dm.observe("loss", 3.0, True)
+    assert dm.difficulty("loss", 0.4) > 0.6

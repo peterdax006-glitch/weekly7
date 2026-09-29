@@ -992,3 +992,135 @@ def coverage_of_sources(objs: Sequence[QuestionObject]) -> dict:
     for o in objs:
         seen[o.source] = seen.get(o.source, 0) + 1
     return {"per_source": seen, "silent": sorted(s for s, n in seen.items() if n == 0)}
+
+
+# ---------------------------------------------------------------------------------------------------------- remaining source builders
+
+def event_from_false_positive(subject: str, n_wrong: int, n_predicted: int, base_precision: float, when: str, **kw) -> QuestionEvent | None:
+    """A pattern that said 'mover' and was wrong more often than its own record. Significance is a binomial tail against the
+    pattern's base precision; a wrong-count within chance makes no question."""
+    from scipy.stats import binom
+    if n_predicted < 6 or n_wrong < 2:
+        return None
+    p = float(binom.sf(n_wrong - 1, n_predicted, max(1.0 - base_precision, 0.02)))
+    if p > 0.10:
+        return None
+    return QuestionEvent("false_positive", subject, when, min(1.0, n_wrong / n_predicted), stake=min(1.0, 0.4 + (1 - p) * 0.4),
+                         problem=Problem.LOSS_AVOIDANCE, n_obs=n_predicted, loss_share=min(1.0, n_wrong / n_predicted * 0.5), **kw)
+
+
+def event_from_anomaly(subject: str, severity: float, when: str, **kw) -> QuestionEvent | None:
+    if severity < 0.3:
+        return None
+    return QuestionEvent("data_anomaly", subject, when, min(1.0, severity), stake=0.8, problem=Problem.DATA_QUALITY, **kw)
+
+
+def event_from_coverage(subject: str, need: float, when: str, **kw) -> QuestionEvent | None:
+    """An under-studied region (need from targets.CoverageModel). Low stake by design: coverage questions must not crowd out losses."""
+    if need < 0.5:
+        return None
+    return QuestionEvent("coverage_gap", subject, when, min(1.0, need), stake=0.3, problem=Problem.COVERAGE, **kw)
+
+
+def event_from_research_failure(subject: str, barren_streak: int, when: str, **kw) -> QuestionEvent | None:
+    if barren_streak < 3:
+        return None
+    return QuestionEvent("research_failure", subject, when, min(1.0, 1.0 - math.exp(-barren_streak / 4.0)), stake=0.5, problem=Problem.RESEARCH_PROCESS, **kw)
+
+
+BUILDERS = {"surprise": event_from_surprise, "contradiction": event_from_contradiction, "loss": event_from_loss, "missed_winner": event_from_missed_winner,
+            "pattern_break": event_from_break, "regime_change": event_from_regime, "new_discovery": event_from_discovery,
+            "false_positive": event_from_false_positive, "data_anomaly": event_from_anomaly, "coverage_gap": event_from_coverage,
+            "research_failure": event_from_research_failure}
+
+
+def builders_cover_sources() -> list:
+    """Sources with no event builder (should be empty: every section-40 source has one)."""
+    return sorted(s for s in SOURCES if s not in BUILDERS)
+
+
+# ---------------------------------------------------------------------------------------------------------- cost and difficulty learning
+
+@dataclass
+class PlanCostModel:
+    """Learn how wrong the test-plan cost estimates are, per source: log(actual/planned) with a ridge toward 0. Sources whose plans
+    keep costing twice the estimate are re-costed before ranking, so the priority engine compares honest numbers."""
+    k: float = 3.0
+    sums: dict = field(default_factory=dict)
+    n: dict = field(default_factory=dict)
+
+    def observe(self, source: str, planned: float, actual: float) -> None:
+        if planned <= 0 or actual <= 0:
+            raise QuestionError("planned and actual minutes must be positive")
+        self.sums[source] = self.sums.get(source, 0.0) + math.log(actual / planned)
+        self.n[source] = self.n.get(source, 0) + 1
+
+    def multiplier(self, source: str) -> float:
+        return math.exp(self.sums.get(source, 0.0) / (self.n.get(source, 0) + self.k))
+
+    def recost(self, qo: QuestionObject) -> QuestionObject:
+        m = self.multiplier(qo.source)
+        c = (qo.value.compute_cost or 1.0) * m
+        return replace(qo, value=replace(qo.value, compute_cost=c), plan=replace(qo.plan, cost_minutes=qo.plan.cost_minutes * m))
+
+
+class DifficultyModel:
+    """Learn what makes a question hard from how it actually went: running mean of the ratio (actual minutes / planned) and the
+    UNDECIDED share, per source, blended with the a-priori difficulty formula. Feeds `easy_question_bias` a truer difficulty."""
+
+    def __init__(self):
+        self.rows: dict = {}
+
+    def observe(self, source: str, ratio: float, undecided: bool) -> None:
+        self.rows.setdefault(source, []).append((float(ratio), bool(undecided)))
+
+    def difficulty(self, source: str, prior: float) -> float:
+        r = self.rows.get(source, [])
+        if not r:
+            return prior
+        w = len(r) / (len(r) + 6.0)
+        measured = min(1.0, 0.5 * min(np.mean([x[0] for x in r]) / 3.0, 1.0) + 0.5 * np.mean([x[1] for x in r]))
+        return float((1 - w) * prior + w * measured)
+
+
+# ---------------------------------------------------------------------------------------------------------- presenting and refining
+
+def refine_question(qo: QuestionObject, outcome: Outcome, now) -> QuestionObject | None:
+    """An UNDECIDED question is not re-asked verbatim: the refined version asks for the sample it was short of, at the cost that
+    sample implies. Returns None if the outcome was decided or the required sample is unreachable (> 5x the plan)."""
+    need = qo.plan.min_n
+    if outcome.n >= need:
+        return None
+    scale = need / max(outcome.n, 1)
+    if scale > 5.0:
+        return None
+    plan = replace(qo.plan, cost_minutes=qo.plan.cost_minutes * min(scale, 3.0), steps=qo.plan.steps + (f"collect {need - outcome.n} more observations",))
+    return replace(qo, plan=plan, value=replace(qo.value, compute_cost=qo.value.compute_cost * min(scale, 3.0)))
+
+
+def explain_question(qo: QuestionObject) -> str:
+    """Plain-text card with the six section-40 fields, for the research report."""
+    q = qo.question
+    lead = max(qo.hypotheses, key=lambda h: h.prior)
+    lines = [f"[{qo.source}] {q.text}", f"  hypothesis: {lead.statement} ({lead.prior:.0%}); {len(qo.hypotheses)} explanations kept alive",
+             f"  expected value: info {qo.value.information_gain or 0:.2f} bits, decision {qo.value.decision_value or 0:.2f}, "
+             f"loss avoided {qo.value.loss_reduction_value if qo.value.loss_reduction_value is not None else 'n/a'}, cost {qo.plan.cost_minutes:.0f} min",
+             "  test plan: " + "; ".join(qo.plan.steps), f"  success: {q.success_criterion}", f"  failure: {q.failure_criterion}", f"  priority: {qo.priority:.6f}"]
+    return "\n".join(lines)
+
+
+def agenda_markdown(objs: Sequence[QuestionObject], limit: int = 10) -> str:
+    """Today's question agenda as a markdown table."""
+    rows = ["| # | source | question | priority | cost (min) |", "|---|---|---|---|---|"]
+    for i, o in enumerate(sorted(objs, key=lambda q: (-q.priority, q.qid))[:limit], 1):
+        rows.append(f"| {i} | {o.source} | {o.question.text} | {o.priority:.5f} | {o.plan.cost_minutes:.0f} |")
+    return "\n".join(rows)
+
+
+def quality_report(ledger: QuestionLedger, book: QuestionOutcomeBook, now) -> dict:
+    """One dictionary for the research-brain health system: the source mix, easy-question bias, stale open questions, per-source decision
+    yield and calibration, sources missing from the mix that pay, and ledger integrity."""
+    return {"n_questions": len({r["qid"] for r in ledger.rows}), "source_mix": source_mix(ledger), "easy_bias": easy_question_bias(ledger),
+            "stale_open": stale_open(ledger, now), "book": book.table(now), "starved_sources": source_starvation(ledger, book, now),
+            "calibration": {s: book.calibration(s, now)["verdict"] for s in SOURCES}, "integrity": ledger_integrity(ledger),
+            "unbuilt_sources": builders_cover_sources()}

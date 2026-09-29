@@ -1186,3 +1186,232 @@ def run_autopsy_day(entries: Sequence[AutopsyEntry], now, ledger: TargetLedger, 
                             "at": str(now), "evidence_through": through, "detail": "sequential test confirmed", "n_obs": 0})
     book.record_day(through, autopsy_counts(entries), rep)
     return rep
+
+
+# ---------------------------------------------------------------------------------------------------------- source detectors (raw data -> rows)
+
+def detect_clusters(counts: Mapping, baseline: Mapping, alpha: float = 0.01, min_size: int = 4) -> list:
+    """New volatility clusters: groups (sector code, condition bucket) whose count of unusual movers today is a Poisson upper-tail
+    surprise against that group's own baseline rate, Bonferroni-corrected over the groups. Returns rows for `DayInput.clusters`."""
+    from scipy.stats import poisson
+    groups = sorted(counts)
+    m = max(len(groups), 1)
+    rows = []
+    for g in groups:
+        size, base = float(counts[g]), max(float(baseline.get(g, 0.0)), 0.05)
+        if size < min_size:
+            continue
+        p = float(poisson.sf(size - 1, base))
+        if p * m <= alpha:
+            rows.append({"subject": g, "size": size, "base_size": base, "excess": min(1.0, (size - base) / size), "p_value": min(1.0, p * m)})
+    return rows
+
+
+def detect_breaks(series: Mapping, window: int = 20, min_drop: float = 0.15, k: float = 0.5, h: float = 4.0) -> list:
+    """Pattern breaks from per-pattern hit series (0/1 per matured prediction, oldest first). A one-sided CUSUM on the DROP of the hit
+    rate against the pattern's own earlier mean; a break needs the CUSUM alarm AND a recent-window mean at least `min_drop` under
+    the earlier mean. Returns rows for `DayInput.breaks` with the before/after reliability and the number of post-break observations."""
+    rows = []
+    for name in sorted(series):
+        x = np.asarray(series[name], float)
+        if x.size < 2 * window:
+            continue
+        ref = x[:-window]
+        mu, sd = float(ref.mean()), max(float(ref.std()), 0.05)
+        s, alarm_at = 0.0, None
+        for i, v in enumerate(x[len(ref):]):
+            s = max(0.0, s + (mu - v) / sd - k)
+            if s >= h and alarm_at is None:
+                alarm_at = i
+        recent = float(x[-window:].mean())
+        if alarm_at is not None and mu - recent >= min_drop:
+            rows.append({"subject": name, "drop": mu - recent, "before": mu, "n_after": int(window - alarm_at)})
+    return rows
+
+
+def detect_regime_shift(feature: Sequence[float], recent: int = 20, z_min: float = 2.5) -> dict | None:
+    """Has the market context moved to a new regime? Mean of the last `recent` observations against the earlier history, in standard
+    errors of the earlier history (with autocorrelation-inflated variance). Returns a row for `DayInput.regimes`, or None."""
+    x = np.asarray(feature, float)
+    if x.size < 3 * recent:
+        return None
+    ref, cur = x[:-recent], x[-recent:]
+    r1 = float(np.corrcoef(ref[:-1], ref[1:])[0, 1]) if ref.std() > 0 else 0.0
+    infl = (1 + max(r1, 0.0)) / (1 - max(r1, 0.0) + 1e-9)
+    se = float(ref.std()) * math.sqrt(infl / recent)
+    z = abs(float(cur.mean() - ref.mean())) / max(se, 1e-9)
+    return {"z": z, "shift": min(1.0, z / 6.0)} if z >= z_min else None
+
+
+def detect_contradictions(setups: Mapping, min_n: int = 10, z_min: float = 2.0) -> list:
+    """Setups with the same feature signature but different hit rates. `setups` maps signature -> {name: (hits, n)}; any pair inside a
+    signature separated by a two-proportion z above `z_min` is a contradiction row (strength = the gap)."""
+    rows = []
+    for sig in sorted(setups):
+        names = sorted(setups[sig])
+        for i, a in enumerate(names):
+            for b in names[i + 1:]:
+                (ha, na), (hb, nb) = setups[sig][a], setups[sig][b]
+                if min(na, nb) < min_n:
+                    continue
+                pool = (ha + hb) / (na + nb)
+                se = math.sqrt(max(pool * (1 - pool) * (1 / na + 1 / nb), 1e-12))
+                z = abs(ha / na - hb / nb) / se
+                if z >= z_min:
+                    rows.append({"subject": a, "counterpart": b, "strength": abs(ha / na - hb / nb), "n": na + nb, "z": z})
+    return rows
+
+
+# ---------------------------------------------------------------------------------------------------------- multiplicity and interaction
+
+def bh_select(pvalues: Sequence[float], q: float = 0.10) -> list:
+    """Benjamini-Hochberg: indices of hypotheses to keep at false-discovery rate q. Used across the day's candidate conditions so that
+    generating many targets does not itself manufacture false ones (section 32)."""
+    p = np.asarray(pvalues, float)
+    if p.size == 0:
+        return []
+    order = np.argsort(p)
+    thr = q * (np.arange(1, p.size + 1) / p.size)
+    ok = np.where(p[order] <= thr)[0]
+    return sorted(int(i) for i in order[: ok.max() + 1]) if ok.size else []
+
+
+def find_conjunction_conditions(rows: Sequence[PredictionRow], base: Sequence[Condition], min_fail: int = 3, alpha: float = 0.05) -> list:
+    """Two-feature conditions: a base condition AND a second single-feature condition, kept only if the conjunction concentrates
+    failures BETTER than either alone (higher inside failure rate and a smaller p-value). Returns Condition objects whose feature name is
+    'a&b' and whose threshold is the first's (holds() is not usable for them; they are reported, and tested via `conjunction_holds`)."""
+    out = []
+    for c1 in base[:3]:
+        for c2 in find_failure_conditions([r for r in rows if c1.holds(r.features)], min_fail=min_fail, alpha=alpha):
+            if c2.feature == c1.feature:
+                continue
+            if c2.rate_in > c1.rate_in and c2.p_value < c1.p_value:
+                out.append(Condition(f"{c1.feature}&{c2.feature}", c1.op + c2.op, c1.threshold, c2.n_in, c2.fail_in, c2.n_out, c2.fail_out, c2.p_value))
+    return out
+
+
+def threshold_stability(rows: Sequence[PredictionRow], feature: str, n_boot: int = 100, seed: int = 0) -> dict:
+    """Would a re-draw of the day's data pick the same threshold? Bootstrap the rows, take the best condition on `feature` each time;
+    report how often one is found at all and the spread of the chosen threshold. A condition whose threshold wanders over the whole
+    range is describing noise, however small its p-value looked."""
+    rng = np.random.default_rng(seed)
+    rows = list(rows)
+    ths = []
+    for _ in range(n_boot):
+        samp = [rows[i] for i in rng.integers(0, len(rows), len(rows))]
+        cs = [c for c in find_failure_conditions(samp) if c.feature == feature]
+        if cs:
+            ths.append(cs[0].threshold)
+    vals = np.array([r.features[feature] for r in rows if feature in r.features], float)
+    rng_width = float(vals.max() - vals.min()) if vals.size else 1.0
+    if len(ths) < 5:
+        return {"found_share": len(ths) / n_boot, "verdict": "UNSTABLE"}
+    spread = float(np.std(ths))
+    return {"found_share": len(ths) / n_boot, "threshold_sd": spread, "relative_sd": spread / max(rng_width, 1e-9),
+            "verdict": "STABLE" if spread / max(rng_width, 1e-9) < 0.15 and len(ths) / n_boot >= 0.6 else "UNSTABLE"}
+
+
+# ---------------------------------------------------------------------------------------------------------- daily selection and multi-day driving
+
+def select_daily(targets: Sequence[Target], budget_minutes: float, max_per_source: int = 3, min_sources: int = 3) -> tuple:
+    """Choose today's targets under a compute budget with breadth: best-priority first, at most `max_per_source` from one source, and
+    the first pass takes the best of each source so no section-22 source is starved while others fill the day. Returns (chosen, deferred
+    with reasons). Nothing is dropped silently."""
+    ranked = sorted(targets, key=lambda t: (-t.priority, t.target_id))
+    chosen, used, per = [], 0.0, {}
+    reasons: dict = {}
+    for src in sorted({t.source for t in ranked}):
+        best = next(t for t in ranked if t.source == src)
+        cost = best.value.compute_cost or 1.0
+        if used + cost <= budget_minutes:
+            chosen.append(best)
+            used += cost
+            per[src] = 1
+    for t in ranked:
+        if t in chosen:
+            continue
+        cost = t.value.compute_cost or 1.0
+        if per.get(t.source, 0) >= max_per_source:
+            reasons[t.target_id] = f"source {t.source} already has {max_per_source} today"
+        elif used + cost > budget_minutes:
+            reasons[t.target_id] = f"needs {cost:.0f} cpu-min, {max(budget_minutes - used, 0):.0f} left"
+        else:
+            chosen.append(t)
+            used += cost
+            per[t.source] = per.get(t.source, 0) + 1
+    return tuple(sorted(chosen, key=lambda t: (-t.priority, t.target_id))), tuple(sorted(reasons.items()))
+
+
+def age_targets(targets: Sequence[Target], now, half_life_days: float = 30.0, drop_below: float = 0.1) -> list:
+    """Yesterday's unrun target is worth less today: priority halves every half-life; targets under `drop_below` of their original are
+    dropped (they will be regenerated if the evidence persists)."""
+    out = []
+    for t in targets:
+        f = 0.5 ** (max(0.0, (to_ts(now) - to_ts(t.evidence_through)).total_seconds() / 86400.0) / half_life_days)
+        if f >= drop_below:
+            out.append(replace(t, priority=t.priority * f))
+    return sorted(out, key=lambda t: (-t.priority, t.target_id))
+
+
+def merge_across_days(batches: Sequence[Sequence[Target]]) -> list:
+    """Same hypothesis raised on several days is ONE target with the newest evidence and the largest magnitude; its repeat count is
+    kept in the id-independent key so a persistent problem can be told from a one-day event."""
+    best: dict = {}
+    count: dict = {}
+    for batch in batches:
+        for t in batch:
+            k = _key(t)
+            count[k] = count.get(k, 0) + 1
+            cur = best.get(k)
+            if cur is None or t.evidence_through > cur.evidence_through or (t.evidence_through == cur.evidence_through and t.magnitude > cur.magnitude):
+                best[k] = t
+    out = []
+    for k, t in best.items():
+        boost = min(1.5, 1.0 + 0.1 * (count[k] - 1))
+        out.append(replace(t, magnitude=min(1.0, t.magnitude * boost)))
+    return sorted(out, key=lambda t: (-t.magnitude, t.target_id))
+
+
+@dataclass(frozen=True)
+class MultiDayReport:
+    days: tuple
+    n_targets: int
+    promoted: int
+    failed: int
+    confirmed_by_tracking: int
+    silent_sources: tuple
+    digest: str
+
+
+def run_days(days: Mapping, ledger: TargetLedger | None = None, tracker: OpenConditionTracker | None = None, book: DayTargetBook | None = None,
+             history: Sequence[DatedRow] = (), seed: int = 0) -> MultiDayReport:
+    """Drive several autopsy days in date order. `days` maps day -> list[AutopsyEntry]; each day is processed at `now` = the next calendar
+    day (its outcomes matured strictly before). History rows are only those dated before each day's `now`. Deterministic: the digest
+    hashes every day's target ids, so two runs over the same input can be compared."""
+    import datetime as _dt
+    ledger = ledger if ledger is not None else TargetLedger()
+    tracker = tracker if tracker is not None else OpenConditionTracker()
+    book = book if book is not None else DayTargetBook()
+    reports = []
+    for day in sorted(days):
+        now = (_dt.date.fromisoformat(day) + _dt.timedelta(days=1)).isoformat()
+        hist = [dr for dr in history if to_ts(dr.day) < to_ts(now)]
+        reports.append(run_autopsy_day(days[day], now, ledger, tracker, book, hist, None, seed))
+    cov = source_coverage(reports)
+    return MultiDayReport(tuple(sorted(days)), sum(len(r.targets) for r in reports), sum(len(r.promoted) for r in reports),
+                          sum(len(r.failed) for r in reports), len(tracker.by_state(TrackState.CONFIRMED)), tuple(cov["silent"]),
+                          stable_hash([[t.target_id for t in r.targets] for r in reports], 16))
+
+
+def target_to_event(t: Target, now) -> QST.QuestionEvent:
+    """Bridge to the question generator: a target becomes the event of the matching section-40 source, so the two modules stay one
+    pipeline (target -> question -> tree). Sources without a section-40 twin map to the closest one."""
+    require_past(t.evidence_through, now, f"target {t.target_id}")
+    src = {"surprise": "surprise", "loss": "loss", "win": "new_discovery", "missed_winner": "missed_winner", "missed_loser": "missed_winner",
+           "volatility_cluster": "new_discovery", "pattern_break": "pattern_break", "contradiction": "contradiction", "new_regime": "regime_change",
+           "data_anomaly": "data_anomaly", "research_failure": "research_failure", "new_combination": "new_discovery",
+           "understudied_sector": "coverage_gap", "understudied_condition": "coverage_gap", "unknown_area": "coverage_gap",
+           "failure_condition": "loss"}[t.source]
+    loss = t.value.loss_reduction_value or 0.0
+    return QST.QuestionEvent(src, t.subject if not identity_leak(t.subject) else "situation", t.evidence_through, t.magnitude, stake=t.stake, problem=t.problem,
+                             loss_share=min(1.0, loss * 2.0))
