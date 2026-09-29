@@ -97,6 +97,22 @@ DIRECTIVES = [
      'we should never hold onto a pattern that failed, the pattern either needs to be improved to something that would be consistent up to that point or disguarded'),
     ("C44", "2026-09-28", "Master blueprint covers every detail, including undiscussed and uncertain ones",
      'make sure the master blueprint literally covers every detail from every single thing the system looks at to what should be built in to what the system can learn on its own, to how risky to be ect every single little detail in the master blueprint, even the details we havent discussed that you know the answer to or even things you dont know 100% how it will work yet'),
+    ("C45", "2026-09-28", 'The Bible: Master Autonomous Build & Validation Prompt v1.0 (verbatim in BIBLE.md, sha256 in canon/bible.lock.json)',
+     'save this as your master prompt task to follow: [WEEKLY7 MASTER AUTONOMOUS BUILD & VALIDATION PROMPT v1.0, stored verbatim in BIBLE.md] or just call it your bible'),
+    ("C46", "2026-09-28", 'Line-count rule',
+     'im also creating a rule where if you do not have the number of code lines in the expected range its not detailed enough so correct it to be more detailed'),
+    ("C47", "2026-09-28", 'Check every box, in the best order, with tests running',
+     'check off the master list in whatever order you see best just make sure as you do it you are running tests to collect data, and that all the checkboxes get checked before you call it'),
+    ("C48", "2026-09-28", 'Keep coding continuously; tests run in the background and are reviewed later',
+     'as you work on this you can have things running but I want you consistently coding cause theres a lot of code to get through and you can go back and test everything later but dont stop coding no matter what'),
+    ("C49", "2026-09-28", 'Save everything learned (from the owner or from the system) to memory files',
+     'also ensure anything you learn from me or yourself gets saved into memory files to ensure we dont loose any valuable stuff'),
+    ("C50", "2026-09-28", 'Foundation before rabbit holes: 25,000 lines minimum first',
+     'we need our foundation before we need rabit holes so dont dive into any rabit holes until you have the 25,000 minimum lines of code'),
+    ("C51", "2026-09-28", '25,000 is a floor, not a cap; every foundation before any rabbit hole',
+     'you can go over 25,000 though just make sure everythings foundation is done before you touch anythings rabit hole'),
+    ("C52", "2026-09-28", 'Masterstock: one file anyone can read to fully catch up',
+     'save everything at all that happens in a single large file so that i can switch claude accounts and still just point them to one file for them to fully catch up, call the file/folder Masterstock'),
 ]
 
 def sha(t): return hashlib.sha256(t.encode("utf-8")).hexdigest()

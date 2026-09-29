@@ -272,3 +272,51 @@ it should be very long
 > make sure the master blueprint literally covers every detail from every single thing the system looks at to what should be built in to what the system can learn on its own, to how risky to be ect every single little detail in the master blueprint, even the details we havent discussed that you know the answer to or even things you dont know 100% how it will work yet
 
 `sha256: 8c70a208c82ef435a024798fddb4cc31695c0c2cebee83df86f4e6a05e7fce4f`
+
+## C45 — The Bible: Master Autonomous Build & Validation Prompt v1.0 (verbatim in BIBLE.md, sha256 in canon/bible.lock.json) (2026-09-28)
+
+> save this as your master prompt task to follow: [WEEKLY7 MASTER AUTONOMOUS BUILD & VALIDATION PROMPT v1.0, stored verbatim in BIBLE.md] or just call it your bible
+
+`sha256: 6553f152b6783de4ed4960351a3cc8456db8e591e59196311cc3e62b325cfa92`
+
+## C46 — Line-count rule (2026-09-28)
+
+> im also creating a rule where if you do not have the number of code lines in the expected range its not detailed enough so correct it to be more detailed
+
+`sha256: 788f428741854ac543a4f1a8e01bbf7a690c079f63331bfd728922a6684d2b03`
+
+## C47 — Check every box, in the best order, with tests running (2026-09-28)
+
+> check off the master list in whatever order you see best just make sure as you do it you are running tests to collect data, and that all the checkboxes get checked before you call it
+
+`sha256: ce4eed30a39bf296293b7384ef20d03859e86ed7d5e721adac7d9cc813026ebd`
+
+## C48 — Keep coding continuously; tests run in the background and are reviewed later (2026-09-28)
+
+> as you work on this you can have things running but I want you consistently coding cause theres a lot of code to get through and you can go back and test everything later but dont stop coding no matter what
+
+`sha256: da75a213407b5c5824364ff5e965057dfabf907474c37ab5e52b773d1d757d05`
+
+## C49 — Save everything learned (from the owner or from the system) to memory files (2026-09-28)
+
+> also ensure anything you learn from me or yourself gets saved into memory files to ensure we dont loose any valuable stuff
+
+`sha256: 42bcbde3687f002a62c0750a253f8a23f7f2410f6099ad0a7d867f6f219fe93e`
+
+## C50 — Foundation before rabbit holes: 25,000 lines minimum first (2026-09-28)
+
+> we need our foundation before we need rabit holes so dont dive into any rabit holes until you have the 25,000 minimum lines of code
+
+`sha256: c4e600b3f5e724ef0fe01bc465ec169fc8ff1396f9ec5f5f3a5cc170e3494894`
+
+## C51 — 25,000 is a floor, not a cap; every foundation before any rabbit hole (2026-09-28)
+
+> you can go over 25,000 though just make sure everythings foundation is done before you touch anythings rabit hole
+
+`sha256: e06a77f6f2f1b5f0a0e4a15bda7a7885fafb829d19e577b00ad1165665981a6a`
+
+## C52 — Masterstock: one file anyone can read to fully catch up (2026-09-28)
+
+> save everything at all that happens in a single large file so that i can switch claude accounts and still just point them to one file for them to fully catch up, call the file/folder Masterstock
+
+`sha256: b8be48f6818d0b0a20aab53a81f752b4613ce3dfb46564dc0e669456842c278c`
