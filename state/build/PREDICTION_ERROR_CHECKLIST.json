@@ -129,11 +129,18 @@
    "group": "CHECKLIST",
    "description": "Checklist H: PATTERN CHANGE DETECTION",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/research/pattern_change.py",
+    "engine/research/what_changed.py"
+   ],
+   "tests": [
+    "tests/test_research_what_changed.py"
+   ],
    "evidence": [],
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED (P04): per-pattern reliability profile + 9-way change classification (never deleted, investigate first), ten-level what-changed tree ending CAUSE->...->TEST with pre-outcome detectability, five-way knowability (unknowable preserved), 11-step discovery testing via replication + quality gate; forward-time scramble test passes. 51 tests.",
+   "last_run": "2026-09-29T16:44:18",
+   "code_hash": "39566f8d9a0884d1"
   },
   {
    "id": "PEI",
@@ -151,22 +158,36 @@
    "group": "CHECKLIST",
    "description": "Checklist J: \"WHAT CHANGED?\" INVESTIGATION TREE",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/research/pattern_change.py",
+    "engine/research/what_changed.py"
+   ],
+   "tests": [
+    "tests/test_research_what_changed.py"
+   ],
    "evidence": [],
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED (P04): per-pattern reliability profile + 9-way change classification (never deleted, investigate first), ten-level what-changed tree ending CAUSE->...->TEST with pre-outcome detectability, five-way knowability (unknowable preserved), 11-step discovery testing via replication + quality gate; forward-time scramble test passes. 51 tests.",
+   "last_run": "2026-09-29T16:44:18",
+   "code_hash": "39566f8d9a0884d1"
   },
   {
    "id": "PEK",
    "group": "CHECKLIST",
    "description": "Checklist K: KNOWABILITY CLASSIFICATION",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/research/pattern_change.py",
+    "engine/research/what_changed.py"
+   ],
+   "tests": [
+    "tests/test_research_what_changed.py"
+   ],
    "evidence": [],
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED (P04): per-pattern reliability profile + 9-way change classification (never deleted, investigate first), ten-level what-changed tree ending CAUSE->...->TEST with pre-outcome detectability, five-way knowability (unknowable preserved), 11-step discovery testing via replication + quality gate; forward-time scramble test passes. 51 tests.",
+   "last_run": "2026-09-29T16:44:18",
+   "code_hash": "39566f8d9a0884d1"
   },
   {
    "id": "PEL",
@@ -301,11 +322,18 @@
    "group": "CHECKLIST",
    "description": "Checklist V: EVERY DISCOVERY MUST BE TESTABLE",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/research/pattern_change.py",
+    "engine/research/what_changed.py"
+   ],
+   "tests": [
+    "tests/test_research_what_changed.py"
+   ],
    "evidence": [],
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED (P04): per-pattern reliability profile + 9-way change classification (never deleted, investigate first), ten-level what-changed tree ending CAUSE->...->TEST with pre-outcome detectability, five-way knowability (unknowable preserved), 11-step discovery testing via replication + quality gate; forward-time scramble test passes. 51 tests.",
+   "last_run": "2026-09-29T16:44:18",
+   "code_hash": "39566f8d9a0884d1"
   },
   {
    "id": "PEW",
