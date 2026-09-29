@@ -1657,7 +1657,7 @@ def render_ledger_report(alog: AutopsyLedger, top: int = 5) -> str:
     L.append("score skill: " + ", ".join(f"{k} {v:.3f}" for k, v in sk.items()))
     rt = alog.reason_trend()
     if not rt.empty:
-        L.append("missed-winner reason shifts: " + ", ".join(f"{k} {r.shift:+.2f}" for k, r in rt.sort_values("shift", key=abs, ascending=False).head(top).iterrows()))
+        L.append("missed-winner reason shifts: " + ", ".join(f"{k} {r['shift']:+.2f}" for k, r in rt.sort_values("shift", key=abs, ascending=False).head(top).iterrows()))
     reg = alog.band_regimes()
     L.append(f"band-storm days: {len(reg)}")
     return "\n".join(L)
@@ -1868,3 +1868,83 @@ def pattern_break_summary(autopsies: Sequence[Autopsy]) -> pd.DataFrame:
     last = df.groupby("pattern").tail(1).set_index("pattern")
     piv["last_effect"], piv["last_p_real"] = last["effect_after"], last["p_real"]
     return piv[["broken", "new", "revived", "weakened", "last_effect", "last_p_real"]].sort_values("broken", ascending=False)
+
+
+def context_warnings(rec: ob.DayRecord) -> list[str]:
+    """Data-quality warnings the day carries into its questions (thin scoring, missing features, suspect band movers, an outage)."""
+    w = ob.stale_or_thin(rec)
+    nb = sum(rec.bands.values())
+    if nb and rec.market.get("n_suspect_band", 0) / nb >= 0.25:
+        w.append("a quarter or more of the band movers are suspect prints")
+    if rec.n_no_outcome and rec.n_universe and rec.n_no_outcome / rec.n_universe >= 0.2:
+        w.append("a fifth or more of the universe has no outcome")
+    return w
+
+
+def annotate(a: Autopsy, rec: ob.DayRecord) -> dict[str, Any]:
+    """Wrap an Autopsy with its warnings, severity, regime label and narrative, ready for a report."""
+    return {"day": a.day, "warnings": context_warnings(rec), "severity": severity(a), "regime": regime_label(a.market) if not a.empty else "empty",
+            "narrative": narrative(a), "coverage_problems": coverage_audit(a, rec), "count_problems": ob.verify_counts(rec)}
+
+
+def question_texts(queue: QuestionQueue, k: int = 10) -> list[str]:
+    """The top-k questions as text lines with their raise count, for a quick read."""
+    return [f"[{i.times_raised}x, {i.question.problem.value}] {i.question.text}" for i in queue.top(k)]
+
+
+def loss_first_order(queue: QuestionQueue, k: int = 10) -> list[QueuedQuestion]:
+    """Section 34: loss-avoidance questions are ordered ahead of others at equal score, because a loss is worth studying before a
+    missed gain. The order is (problem rank, -score); the objective order comes from engine.research.core.OBJECTIVE_ORDER."""
+    from engine.research.core import OBJECTIVE_ORDER
+    rank = {p: i for i, p in enumerate(OBJECTIVE_ORDER)}
+    return sorted(queue._q.values(), key=lambda i: (rank.get(i.question.problem, len(rank)), -i.score, i.question.question_id))[:k]
+
+
+def write_reports(autopsies: Sequence[Autopsy], directory, keep_ticker: bool = False) -> list[str]:
+    """Write one markdown and one JSON file per autopsy (atomic). With keep_ticker=False the JSON carries no ticker and no date, and
+    the file name is a content hash, so the directory can be handed to a reader that must not learn identities."""
+    import json, os
+    os.makedirs(directory, exist_ok=True)
+    paths = []
+    for a in autopsies:
+        stem = f"autopsy_{a.day}" if keep_ticker else f"autopsy_{replay_digest(a)}"
+        for ext, body in (("md", to_markdown(a)), ("json", json.dumps(to_dict(a, keep_ticker)))):
+            path = os.path.join(directory, f"{stem}.{ext}")
+            tmp = path + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as fh:
+                fh.write(body)
+            os.replace(tmp, path)
+            paths.append(path)
+    return paths
+
+
+def band_table(autopsies: Sequence[Autopsy]) -> pd.DataFrame:
+    """One row per day, one column per C67 band (close-to-close), plus the open-to-close total: the series the episode research
+    reads to see how many 5-10% and >10% movers each day offered."""
+    rows = [{"day": a.day, **a.market.bands, "o2c_total": sum(a.market.bands_o2c.values()), "suspect": a.market.n_suspect_band}
+            for a in autopsies if not a.empty]
+    return pd.DataFrame(rows).set_index("day") if rows else pd.DataFrame(columns=list(O_BANDS) + ["o2c_total", "suspect"])
+
+
+def unresolved_questions(queue: QuestionQueue, answered: Sequence[str]) -> list[QueuedQuestion]:
+    """Queued questions whose ids the research loop has not reported as answered, highest score first."""
+    done = set(answered)
+    return [i for i in queue.top(len(queue)) if i.question.question_id not in done]
+
+
+def priorities_delta(before: Mapping[str, float], after: Mapping[str, float]) -> dict[str, float]:
+    """Change in each priority between two snapshots (added items count from 0, removed items to 0)."""
+    return {k: after.get(k, 0.0) - before.get(k, 0.0) for k in sorted(set(before) | set(after)) if abs(after.get(k, 0.0) - before.get(k, 0.0)) > 1e-12}
+
+
+def top_reason(m: ModelSection) -> str:
+    """The most frequent rejection reason among today's missed winners, or '' if none were analysed."""
+    return max(m.reason_counts.items(), key=lambda kv: (kv[1], kv[0]))[0] if m.reason_counts else ""
+
+
+def sources_of(a: Autopsy) -> dict[str, int]:
+    """Number of today's questions by source."""
+    out: dict[str, int] = {}
+    for q in a.questions():
+        out[q.source] = out.get(q.source, 0) + 1
+    return out

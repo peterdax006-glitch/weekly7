@@ -339,3 +339,100 @@ def test_autopsy_empty_day():
     o = O.DayOutcome.make("2020-01-07", [], [], [], [], [])
     a = A.step(st, s, o, NOW, "2026-09-29")
     assert a.empty and not a.validate() and "empty" in A.render(a)
+
+
+# ---------------------------------------------------------------- extended analytics
+def test_shapes_transitions_and_recount():
+    st = O.ObserverState(P)
+    for r in O.stream(O.synthetic_days(6, 400, 20, O.Plant(n_up_mid=10, n_down_big=5)), st):
+        assert O.verify_counts(r) == []
+    led = st.ledger
+    sh = O.band_shapes(list(led)[-1], P)
+    assert sh.loc["down_gt10", "closed_at_low"] + sh.loc["down_gt10", "closed_near_low"] + sh.loc["down_gt10", "closed_mid"] >= 5
+    assert O.band_shapes_ledger(led, P).values.sum() > 0
+    tr = O.band_transitions(led)
+    assert tr.values.sum() > 0 and list(tr.columns) == [-2, -1, 0, 1, 2]
+    runs = O.band_run_lengths(led)
+    assert sum(runs.values()) > 0
+    co = O.category_outcomes(led)
+    assert co.loc["FALSE_NEGATIVE", "mover_share"] > 0.5
+    assert O.pick_vs_universe(led)["days"] == 6
+    assert set(O.volume_by_band(list(led)[-1])) == set(O.BAND_NAMES.values())
+    assert O.shape_of(np.array([0.95, 0.7, 0.5, 0.2, 0.0, np.nan]))[[0, 4, 5]].tolist() == ["closed_at_high", "closed_at_low", "closed_mid"]
+
+
+def test_verify_counts_catches_a_lost_row():
+    import dataclasses
+    s, o, _ = day(300, 21, 0, O.Plant(n_up_mid=6))
+    r = O.observe_day(s, o, NOW, P)
+    broken = dataclasses.replace(r, rows=r.rows[r.rows["band"] != 1].iloc[0:].reset_index(drop=True))
+    assert O.verify_counts(r) == [] and any("up_5_10" in m for m in O.verify_counts(broken))
+
+
+def test_thin_day_warns_and_threshold_sensitivity_moves():
+    s, o, _ = day(200, 22, 0, O.Plant(n_up_mid=6))
+    r = O.observe_day(s, o, NOW, P)
+    thin = dataclass_replace(r, n_scored=5)
+    assert O.stale_or_thin(thin)
+    ts = O.threshold_sensitivity(s, o, NOW, P)
+    assert ts.loc[0.05, "WINNER"] >= ts.loc[0.10, "WINNER"]
+
+
+def test_autopsy_analytics_end_to_end(tmp_path):
+    st = A.AutopsyState(); q = A.QuestionQueue(); al = A.AutopsyLedger()
+    auts = list(A.run_days(O.synthetic_days(30, 500, 23, O.Plant(n_up_mid=12, n_up_big=5, n_down_mid=9, n_down_big=4)), st, q, al))
+    assert len(al) == 30 and len(q) > 0
+    ann = A.annotate(auts[-1], st.observer.ledger._recs[-1])
+    assert ann["coverage_problems"] == [] and ann["count_problems"] == [] and isinstance(ann["narrative"], str)
+    assert A.rollup(auts)["days"] == 30 and A.rollup([])["days"] == 0
+    assert A.day_over_day(auts[-2], auts[-1])["comparable"] == 1.0 and A.day_over_day(None, auts[-1]) == {"comparable": 0.0}
+    assert not A.check_no_future(auts[-1], NOW) and A.check_no_future(auts[-1], auts[-1].resolved_at)
+    d1, d2 = A.rerun_digests(lambda: O.synthetic_days(6, 300, 24, O.Plant(n_up_mid=5)), 6)
+    assert d1 == d2 and len(d1) == 6
+    A.save_queue(q, tmp_path / "q.json"); q2 = A.load_queue(tmp_path / "q.json")
+    assert [i.question.question_id for i in q.top(5)] == [i.question.question_id for i in q2.top(5)]
+    A.save_ledger(al, tmp_path / "l.json"); assert len(A.load_ledger(tmp_path / "l.json")) == 30
+    assert A.question_health(q, auts[-1].day)["size"] == len(q)
+    assert sum(A.question_sources(q).values()) == pytest.approx(1.0)
+    assert A.loss_first_order(q, 3)[0].question.problem is not None
+    assert len(A.merge_queues([q, q2])) == len(q)
+    assert A.render_ledger_report(al).startswith("autopsy ledger")
+    assert A.finding_stability(al, "score_auc")["n"] == 30
+    assert not A.mover_type_recall(st.observer.ledger).empty
+    assert A.model_by_type(st.observer.ledger._recs[-1])["band_movers"].sum() > 0
+    assert 0.0 <= A.severity(auts[-1]) <= 1.0 and A.severity_ranking(auts, 3)
+    assert A.selfcheck(1) == {k: True for k in A.selfcheck(1)}
+    with pytest.raises(A.AutopsyError):
+        al.add(auts[0])
+
+
+def test_pattern_diff_and_export_is_identity_free():
+    before = pd.DataFrame({"key_named": ["a", "b", "c"], "effect": [0.02, 0.03, 0.01], "p_real": [.9, .8, .5], "status": ["active"] * 3})
+    after = pd.DataFrame({"key_named": ["a", "b", "d"], "effect": [0.005, 0.03, 0.02], "p_real": [.9, .2, .7], "status": ["active", "no_gain", "active"]})
+    ev = {e.pattern_id: e.kind for e in A.pattern_events(before, after)}
+    assert ev == {"a": "weakened", "b": "broken", "c": "broken", "d": "new"}
+    assert A.pattern_events(None, None) == []
+    st, a = run_autopsy()
+    tk = list(st.observer.ledger._recs[-1].rows["ticker"])
+    assert A.identity_leaks(A.to_dict(a), tk) == []
+    assert A.identity_leaks({"x": "buy " + tk[0]}, tk)             # the leak detector itself can fail
+
+
+def test_reports_written_without_identity(tmp_path):
+    st = A.AutopsyState()
+    auts = list(A.run_days(O.synthetic_days(3, 300, 25, O.Plant(n_up_mid=5)), st))
+    paths = A.write_reports(auts, tmp_path)
+    assert len(paths) == 6 and not any("2020" in p for p in paths)
+    assert A.band_table(auts).shape[0] == 3 and A.band_table([]).empty
+
+
+def test_priorities_delta_and_unresolved():
+    assert A.priorities_delta({"a": 1.0, "b": 2.0}, {"b": 2.0, "c": 0.5}) == {"a": -1.0, "c": 0.5}
+    q = A.QuestionQueue()
+    assert A.unresolved_questions(q, []) == []
+
+
+def test_small_helpers():
+    st, a = run_autopsy(days=3)
+    assert A.top_reason(a.model) in ("", *[k for k in a.model.reason_counts])
+    assert sum(A.sources_of(a).values()) == len(a.questions())

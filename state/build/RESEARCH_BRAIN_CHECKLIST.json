@@ -1635,14 +1635,15 @@
    "section": "Market-wide observer",
    "minimum_lines": 1500,
    "upper_lines": 2500,
-   "actual_lines": 0,
+   "actual_lines": 1500,
    "code_paths": [
-    "engine/learning/missed_winners.py::week_from_base,Week,Candidate",
     "engine/fv_pipeline.py::Panel,build_panel",
-    "engine/missed_winners.py::MissedLedger"
+    "engine/learning/missed_winners.py::week_from_base,Week,Candidate",
+    "engine/missed_winners.py::MissedLedger",
+    "engine/research/observer.py"
    ],
-   "status": "NOT_STARTED",
-   "notes": "[mapping 2026-09-29, read-only audit] [missing] 0/1500 meaningful lines genuinely doing this job. Nothing builds a per-day universe record with categories A-I. Reusable blocks only (not credited): week_from_base keeps picked and non-picked candidates; fv_pipeline.Panel is the weekly universe panel."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C66 wave 1, R04): 1,500; every section-4 category daily over the whole universe, every 5-10% and >10% mover kept uncapped (C67) with close-to-close/open-to-close/gap/range/close-location; ~55 ms and ~57 KB per 3,000-name day; streams year by year. | earlier: [mapping 2026-09-29, read-only audit] [missing] 0/1500 meaningful lines genuinely doing this job. Nothing builds a per-day universe record with categories A-I. Reusable blocks only (not credited): week_from_base keeps picked and non-picked candidates; fv_pipeline.Panel is the weekly universe panel."
   },
   {
    "section": "Winner/loser research",
@@ -1865,13 +1866,14 @@
    "section": "Daily market autopsy",
    "minimum_lines": 1500,
    "upper_lines": 2500,
-   "actual_lines": 0,
+   "actual_lines": 3468,
    "code_paths": [
     "engine/learning/reports.py",
-    "engine/learning/surprise.py"
+    "engine/learning/surprise.py",
+    "engine/research/autopsy.py"
    ],
-   "status": "NOT_STARTED",
-   "notes": "[mapping 2026-09-29, read-only audit] [missing] 0/1500 meaningful lines genuinely doing this job. No daily autopsy. reports.py Builder and surprise.py are reusable infrastructure (not credited)."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C66 wave 1, R04): 1,502; market/model/research/risk/learning sections, band counts vs history, question-queue intake; never labels a mover PREDICTABLE from its cheap proxy. | earlier: [mapping 2026-09-29, read-only audit] [missing] 0/1500 meaningful lines genuinely doing this job. No daily autopsy. reports.py Builder and surprise.py are reusable infrastructure (not credited)."
   },
   {
    "section": "Daily research target generator",
