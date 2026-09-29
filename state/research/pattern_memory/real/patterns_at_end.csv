@@ -1,0 +1,1158 @@
+key,mode,reason,weight,pooled_t,n_periods,first_noticed,held_years,failed_years
+days_to_earn q2 & ear q2,local,held_in_similar_periods,0.2991975631190195,4.9648283625927645,6,2021-09-24,"[2021, 2023, 2024, 2025, 2026]",[2022]
+ear q2 & min20 q0,local,held_in_similar_periods,0.19687423514989358,5.094034488137798,9,2018-09-28,"[2020, 2021, 2023, 2024, 2025, 2026]",[]
+ear_volsurge q2 & skew60 q4,local,held_in_similar_periods,0.18608923443845227,4.5575339340086,2,2025-03-28,"[2025, 2026]",[]
+atr_pct q0 & ind_mom60 q4,disregarded,weak_or_inconsistent,0.0,0.8606294410485351,8,2019-09-27,[2024],[2021]
+atr_pct q0 & intraday20 q3,disregarded,weak_or_inconsistent,0.0,0.2521158647287203,11,2016-03-24,"[2020, 2023]","[2018, 2021, 2022, 2025, 2026]"
+atr_pct q0 & skew60 q4,disregarded,weak_or_inconsistent,0.0,0.03883474449466946,11,2016-12-30,[],"[2016, 2017, 2018, 2019, 2022, 2024]"
+atr_pct q1 & dist_ma50 q2,disregarded,weak_or_inconsistent,0.0,1.492317658665965,5,2022-12-30,"[2022, 2026]",[2023]
+atr_pct q1 & ind_mom60 q4,disregarded,not_significant_after_all_tries,0.0,1.8581883948024078,5,2022-12-30,"[2023, 2025, 2026]",[2024]
+atr_pct q1 & overnight20 q3,disregarded,weak_or_inconsistent,0.0,1.2863254178312793,6,2021-09-24,[2021],[2024]
+atr_pct q1 & r120 q3,disregarded,weak_or_inconsistent,0.0,0.23345751312185056,5,2022-12-30,[2024],"[2023, 2025, 2026]"
+atr_pct q1 & r5_nonews q4,disregarded,weak_or_inconsistent,0.0,0.06601369711432649,10,2017-09-29,[],"[2017, 2021, 2023, 2025, 2026]"
+atr_pct q2,disregarded,lapsed,0.0,1.8729442470975015,8,2019-03-29,"[2019, 2021, 2022, 2023]","[2024, 2026]"
+atr_pct q2 & ev_red_flag q2,disregarded,lapsed,0.0,2.0601985895243256,8,2019-03-29,"[2019, 2021, 2022, 2023]","[2024, 2026]"
+atr_pct q2 & intraday20 q1,disregarded,weak_or_inconsistent,0.0,0.26176762933470055,4,2023-03-31,[2024],"[2023, 2026]"
+atr_pct q2 & max20 q4,disregarded,weak_or_inconsistent,0.0,0.05571518430638724,1,2026-03-27,[],[]
+atr_pct q2 & r1 q1,disregarded,weak_or_inconsistent,0.0,1.174934294498396,4,2023-09-29,[2023],[2024]
+atr_pct q2 & r1 q4,disregarded,weak_or_inconsistent,0.0,0.4406145409655453,6,2021-09-24,[2026],"[2021, 2022, 2023]"
+atr_pct q2 & rel_ind20 q0,disregarded,weak_or_inconsistent,0.0,0.5332319539771759,11,2016-03-24,"[2018, 2024, 2026]","[2019, 2021, 2022, 2023, 2025]"
+atr_pct q2 & rel_ind20 q2,disregarded,weak_or_inconsistent,0.0,0.8597973649101324,11,2016-12-30,"[2019, 2022]","[2017, 2025, 2026]"
+atr_pct q3,disregarded,not_significant_after_all_tries,0.0,2.465097907022091,6,2021-09-24,"[2023, 2025, 2026]",[2021]
+atr_pct q3 & close_loc q2,disregarded,weak_or_inconsistent,0.0,0.6167469650397346,3,2024-03-28,[],[2026]
+atr_pct q3 & days_since_earn q1,disregarded,lapsed,0.0,1.5095451648351232,6,2021-09-24,[2024],[2026]
+atr_pct q3 & days_since_earn q2,disregarded,weak_or_inconsistent,0.0,0.2673836482994172,8,2019-03-29,"[2020, 2021]","[2019, 2024, 2025]"
+atr_pct q3 & days_to_earn q3,disregarded,lapsed,0.0,1.7604613651511483,6,2021-09-24,[2024],[]
+atr_pct q3 & dist_ma50 q1,disregarded,weak_or_inconsistent,0.0,1.2871848983090972,3,2024-03-28,"[2025, 2026]",[2024]
+atr_pct q3 & dist_ma50 q3,disregarded,weak_or_inconsistent,0.0,0.6633430193852147,8,2019-03-29,"[2019, 2021, 2025]","[2020, 2023, 2026]"
+atr_pct q3 & ear_volsurge q3,disregarded,weak_or_inconsistent,0.0,0.6904812283736278,6,2021-09-24,[],"[2023, 2025]"
+atr_pct q3 & earn_in_week q2,disregarded,not_significant_after_all_tries,0.0,3.1159934598868873,6,2021-09-24,"[2023, 2025, 2026]",[]
+atr_pct q3 & ev_agreement q2,disregarded,not_significant_after_all_tries,0.0,2.490370394533485,3,2024-03-28,"[2025, 2026]",[]
+atr_pct q3 & ev_offering q2,disregarded,weak_or_inconsistent,0.0,1.2028514649086641,3,2024-09-27,"[2025, 2026]",[2024]
+atr_pct q3 & ev_shelf q2,disregarded,weak_or_inconsistent,0.0,1.2921583036496602,3,2024-09-27,"[2025, 2026]",[2024]
+atr_pct q3 & frog q1,disregarded,weak_or_inconsistent,0.0,0.7558285693700538,3,2024-03-28,[2026],[2025]
+atr_pct q3 & frog q2,disregarded,weak_or_inconsistent,0.0,0.01021278396124264,3,2024-09-27,[],"[2025, 2026]"
+atr_pct q3 & gap_today q2,disregarded,weak_or_inconsistent,0.0,0.13562915548170795,5,2022-12-30,[],"[2023, 2025]"
+atr_pct q3 & ins_opportunistic30 q2,disregarded,weak_or_inconsistent,0.0,1.2839574661671938,3,2024-09-27,"[2025, 2026]",[2024]
+atr_pct q3 & log_dv q1,disregarded,weak_or_inconsistent,0.0,0.2559886588999915,6,2021-09-24,[2023],"[2021, 2022, 2026]"
+atr_pct q3 & log_dv q4,disregarded,weak_or_inconsistent,0.0,1.2162802571943443,8,2019-03-29,"[2020, 2025]","[2019, 2021, 2022]"
+atr_pct q3 & mom_12_1 q2,disregarded,weak_or_inconsistent,0.0,1.256759010963641,9,2018-09-28,"[2020, 2022, 2026]","[2019, 2024, 2025]"
+atr_pct q3 & news5 q2,disregarded,not_significant_after_all_tries,0.0,2.5924110546353787,4,2023-09-29,"[2023, 2025, 2026]",[]
+atr_pct q3 & overnight20 q0,disregarded,weak_or_inconsistent,0.0,0.41755658589728695,5,2022-12-30,[2025],"[2022, 2024, 2026]"
+atr_pct q3 & r5 q1,disregarded,weak_or_inconsistent,0.0,0.09879717445137008,6,2021-03-26,[2021],"[2022, 2024, 2025]"
+atr_pct q3 & r5 q1 unless close_loc q0,disregarded,weak_or_inconsistent,0.0,0.44321266424625316,6,2021-03-26,[2021],"[2022, 2024, 2025]"
+atr_pct q3 & r5 q1 unless close_loc q4,disregarded,weak_or_inconsistent,0.0,0.10117551810258453,6,2021-03-26,"[2024, 2025]","[2021, 2023, 2026]"
+atr_pct q3 & r5 q1 unless earn_in_week q4,disregarded,weak_or_inconsistent,0.0,0.6009082604964052,6,2021-03-26,"[2022, 2024, 2025]","[2021, 2023, 2026]"
+atr_pct q3 & r5 q1 unless ev_offering q4,disregarded,weak_or_inconsistent,0.0,0.13262769180221998,6,2021-03-26,[2021],"[2022, 2024, 2025]"
+atr_pct q3 & r5 q1 unless ev_red_flag q4,disregarded,weak_or_inconsistent,0.0,0.03274467224830398,6,2021-03-26,"[2024, 2025]","[2021, 2023, 2026]"
+atr_pct q3 & r5 q1 unless frog q0,disregarded,weak_or_inconsistent,0.0,0.13107373528223387,6,2021-03-26,[2021],"[2022, 2024, 2025]"
+atr_pct q3 & r5 q1 unless frog q4,disregarded,weak_or_inconsistent,0.0,0.091317305276886,6,2021-03-26,"[2022, 2024]","[2021, 2023, 2026]"
+atr_pct q3 & r5 q1 unless gap_today q4,disregarded,weak_or_inconsistent,0.0,0.0702137458392848,6,2021-03-26,[],"[2022, 2023, 2024]"
+atr_pct q3 & r5 q1 unless news5 q4,disregarded,weak_or_inconsistent,0.0,0.7504036472624308,6,2021-03-26,[2021],"[2022, 2024, 2025]"
+atr_pct q3 & r5 q1 unless overnight20 q0,disregarded,weak_or_inconsistent,0.0,0.9773628601487435,6,2021-03-26,[2021],"[2022, 2024]"
+atr_pct q3 & r5 q1 unless r20 q0,disregarded,weak_or_inconsistent,0.0,0.5577951151648864,6,2021-03-26,[2021],"[2022, 2023, 2024, 2025]"
+atr_pct q3 & r5 q1 unless r20 q4,disregarded,weak_or_inconsistent,0.0,0.3272432804091615,6,2021-03-26,"[2021, 2023]","[2022, 2024, 2025]"
+atr_pct q3 & r5 q1 unless r5_news q4,disregarded,weak_or_inconsistent,0.0,0.3648849288237202,6,2021-03-26,[2021],"[2022, 2024, 2025]"
+atr_pct q3 & r5 q1 unless r60 q0,disregarded,weak_or_inconsistent,0.0,0.030364041509653415,6,2021-03-26,[2021],"[2022, 2023, 2024, 2026]"
+atr_pct q3 & r5 q1 unless r60 q4,disregarded,weak_or_inconsistent,0.0,1.3505699899403427,6,2021-03-26,"[2021, 2026]","[2022, 2024]"
+atr_pct q3 & r5_news q2,disregarded,not_significant_after_all_tries,0.0,2.1521860105673665,3,2024-03-28,"[2025, 2026]",[]
+atr_pct q3 & range_compress q0,disregarded,weak_or_inconsistent,0.0,0.7803999987984882,5,2022-03-25,"[2025, 2026]","[2022, 2023]"
+atr_pct q3 & range_compress q2,disregarded,weak_or_inconsistent,0.0,0.3928622091649214,3,2024-09-27,[],[2024]
+atr_pct q3 & rel_ind60 q2,disregarded,weak_or_inconsistent,0.0,0.22876152738167377,4,2023-09-29,[],"[2023, 2026]"
+atr_pct q3 & skew60 q2,disregarded,weak_or_inconsistent,0.0,1.4869813154495706,8,2019-03-29,"[2024, 2025, 2026]","[2019, 2020, 2021]"
+atr_pct q3 & vol_ratio q1,disregarded,weak_or_inconsistent,0.0,0.9647273736684233,3,2024-09-27,[2025],[2024]
+atr_pct q3 & vol_surge1 q1,disregarded,not_significant_after_all_tries,0.0,1.5895092163961428,5,2022-03-25,"[2023, 2025]","[2022, 2026]"
+atr_pct q4,disregarded,lapsed,0.0,1.6318043267533326,4,2023-09-29,[2023],[]
+atr_pct q4 & days_since_earn q4,disregarded,not_significant_after_all_tries,0.0,2.2067982965331354,1,2026-03-27,[2026],[]
+atr_pct q4 & ear q2,disregarded,not_significant_after_all_tries,0.0,2.0650299747957392,1,2026-03-27,[2026],[]
+atr_pct q4 & min20 q0,disregarded,weak_or_inconsistent,0.0,0.3902160555194847,1,2026-03-27,[],[]
+atr_pct q4 & min20 q2,disregarded,weak_or_inconsistent,0.0,0.5016606621484175,5,2022-12-30,[],"[2024, 2026]"
+atr_pct q4 & mom_12_1 q2,disregarded,weak_or_inconsistent,0.0,0.11954157987809427,1,2026-03-27,[],[]
+atr_pct q4 & vol20 q3,disregarded,weak_or_inconsistent,0.0,0.3390606753527653,7,2020-09-25,"[2020, 2023]","[2021, 2022, 2025, 2026]"
+atr_pct q4 & vol_surge1 q0,disregarded,weak_or_inconsistent,0.0,0.8826634994010795,1,2026-03-27,[],[]
+atr_pct q4 & vol_surge5 q0,disregarded,weak_or_inconsistent,0.0,0.5064947781908459,1,2026-03-27,[],[]
+close_loc q0 & dist_ma50 q1,disregarded,weak_or_inconsistent,0.0,0.5397924031389911,4,2023-09-29,[],[2026]
+close_loc q0 & gap_today q4,disregarded,weak_or_inconsistent,0.0,1.2056115877364704,8,2019-03-29,"[2020, 2021]","[2022, 2023]"
+close_loc q0 & ins_buyers30 q4,disregarded,weak_or_inconsistent,0.0,0.9767163819612977,6,2021-06-25,"[2022, 2023]","[2021, 2024, 2026]"
+close_loc q0 & intraday20 q4,disregarded,weak_or_inconsistent,0.0,1.3805591311024106,5,2022-03-25,"[2025, 2026]","[2023, 2024]"
+close_loc q0 & log_dv q1,disregarded,weak_or_inconsistent,0.0,1.0632320446820198,8,2019-03-29,[2019],"[2020, 2025, 2026]"
+close_loc q0 & skew60 q2,disregarded,weak_or_inconsistent,0.0,0.9724987361716069,2,2025-09-26,[2025],[]
+close_loc q0 & vol20 q2,disregarded,weak_or_inconsistent,0.0,1.1867663152301584,2,2025-09-26,[],[]
+close_loc q1 & days_since_earn q0,disregarded,weak_or_inconsistent,0.0,0.14391536982371433,10,2017-03-31,"[2017, 2021]","[2018, 2019, 2022, 2024, 2026]"
+close_loc q1 & days_since_earn q3,disregarded,not_significant_after_all_tries,0.0,1.9141908977778672,12,2015-09-25,"[2018, 2020, 2022, 2024, 2025]","[2016, 2023]"
+close_loc q1 & days_to_earn q2,disregarded,weak_or_inconsistent,0.0,1.134548501629837,10,2017-03-31,"[2018, 2024, 2026]","[2019, 2020, 2021, 2023, 2025]"
+close_loc q1 & ear_volsurge q3,disregarded,weak_or_inconsistent,0.0,1.3771588909072658,2,2025-09-26,[2026],[]
+close_loc q1 & intraday20 q3,disregarded,weak_or_inconsistent,0.0,0.9118579184672403,11,2016-12-30,"[2017, 2018, 2020]","[2016, 2019, 2021, 2024, 2026]"
+close_loc q1 & min20 q2,disregarded,weak_or_inconsistent,0.0,0.7921852553284756,2,2025-09-26,[],[]
+close_loc q1 & min20 q4,disregarded,weak_or_inconsistent,0.0,0.7462007127421448,10,2017-09-29,"[2019, 2021]","[2020, 2022, 2023, 2024]"
+close_loc q1 & news5 q4,disregarded,not_significant_after_all_tries,0.0,3.3320009916218223,10,2017-03-31,"[2019, 2020, 2024, 2026]","[2017, 2023, 2025]"
+close_loc q1 & r120 q2,disregarded,weak_or_inconsistent,0.0,0.05427839775685831,10,2017-09-29,[],"[2018, 2021, 2024, 2026]"
+close_loc q1 & r20 q2,disregarded,weak_or_inconsistent,0.0,0.3965491746282997,10,2017-03-31,"[2017, 2021]","[2022, 2024, 2026]"
+close_loc q1 & skew60 q3,disregarded,weak_or_inconsistent,0.0,1.2398454471393607,2,2025-09-26,[],[]
+close_loc q2 & gap_today q0,disregarded,weak_or_inconsistent,0.0,0.841271759267199,7,2020-09-25,[2022],[2023]
+close_loc q3 & ear q3,disregarded,weak_or_inconsistent,0.0,0.33151462328723336,11,2016-12-30,[2016],"[2018, 2019, 2021, 2022, 2024]"
+close_loc q3 & frog q3,disregarded,weak_or_inconsistent,0.0,0.46989410035087703,9,2018-09-28,"[2020, 2023, 2025]","[2019, 2022, 2026]"
+close_loc q3 & r20 q3,disregarded,weak_or_inconsistent,0.0,0.6802167827187587,11,2016-12-30,"[2024, 2025]","[2016, 2018, 2019, 2021, 2022, 2026]"
+close_loc q3 & r5 q2,disregarded,weak_or_inconsistent,0.0,0.17672965290284434,6,2021-09-24,[2023],"[2021, 2025, 2026]"
+close_loc q3 & range_compress q3,disregarded,weak_or_inconsistent,0.0,0.8229888600259755,11,2016-12-30,"[2016, 2024, 2026]","[2017, 2018, 2020]"
+close_loc q3 & vol_surge1 q3,disregarded,weak_or_inconsistent,0.0,0.2445534420331755,9,2018-03-29,[2018],"[2019, 2020, 2022, 2023, 2024]"
+close_loc q4 & days_since_earn q3,disregarded,weak_or_inconsistent,0.0,0.9535412835267836,11,2016-03-24,[2016],"[2018, 2026]"
+close_loc q4 & days_to_earn q3,disregarded,weak_or_inconsistent,0.0,0.7385147956277643,11,2016-03-24,"[2020, 2023]","[2018, 2024, 2026]"
+close_loc q4 & dist_ma50 q2,disregarded,weak_or_inconsistent,0.0,0.7139611493977069,5,2022-12-30,"[2023, 2025]","[2024, 2026]"
+close_loc q4 & ev_agreement q4,disregarded,lapsed,0.0,1.9575972442450127,4,2023-06-30,[2024],[]
+close_loc q4 & intraday20 q4,disregarded,weak_or_inconsistent,0.0,0.1979018852641084,4,2023-03-31,[],[2023]
+close_loc q4 & mom_12_1 q3,disregarded,weak_or_inconsistent,0.0,0.6957192124348703,11,2016-03-24,[2019],"[2022, 2023, 2024, 2025]"
+close_loc q4 & r20 q4,disregarded,weak_or_inconsistent,0.0,0.5000760998949512,4,2023-03-31,[2023],"[2024, 2026]"
+close_loc q4 & r60 q3,disregarded,weak_or_inconsistent,0.0,1.0118746485176724,5,2022-12-30,[2025],[2023]
+close_loc q4 & rel_ind60 q4,disregarded,weak_or_inconsistent,0.0,1.1709696110398538,5,2022-12-30,[2025],[2024]
+days_since_earn q0,disregarded,weak_or_inconsistent,0.0,0.9645804537169308,11,2016-03-24,"[2018, 2019]","[2017, 2020, 2024, 2025, 2026]"
+days_since_earn q0 & earn_in_week q2,disregarded,weak_or_inconsistent,0.0,0.5498870136258703,6,2021-09-24,[2021],"[2024, 2025]"
+days_since_earn q0 & ind_mom20 q4,disregarded,weak_or_inconsistent,0.0,0.41557868609665116,7,2020-09-25,[2026],"[2020, 2022, 2024]"
+days_since_earn q0 & ind_mom60 q0,disregarded,weak_or_inconsistent,0.0,0.3136000239789741,11,2016-03-24,"[2021, 2022]","[2016, 2017, 2018, 2019, 2024, 2026]"
+days_since_earn q0 & ind_mom60 q1,disregarded,weak_or_inconsistent,0.0,0.7845860754665251,8,2019-03-29,"[2019, 2021, 2022]","[2020, 2023, 2024, 2025, 2026]"
+days_since_earn q0 & ins_officer30 q2,disregarded,weak_or_inconsistent,0.0,1.0737750221039808,11,2016-03-24,"[2018, 2019]","[2017, 2020, 2024, 2025, 2026]"
+days_since_earn q0 & intraday20 q3,disregarded,weak_or_inconsistent,0.0,1.0700776251199113,12,2015-09-25,"[2019, 2021]","[2020, 2022, 2024, 2026]"
+days_since_earn q0 & min20 q3,disregarded,weak_or_inconsistent,0.0,0.5234871800535386,6,2021-09-24,[2022],"[2021, 2023, 2024]"
+days_since_earn q0 & mom_12_1 q3,disregarded,weak_or_inconsistent,0.0,0.15425149875340075,11,2016-03-24,"[2022, 2024]","[2016, 2017, 2018, 2019, 2020]"
+days_since_earn q0 & r120 q1,disregarded,not_significant_after_all_tries,0.0,1.5036120089820024,10,2017-03-31,"[2017, 2018, 2020, 2025]","[2022, 2023, 2026]"
+days_since_earn q0 & r20 q3,disregarded,lapsed,0.0,2.2505646376873716,11,2016-03-24,"[2018, 2019, 2020]","[2016, 2017, 2025]"
+days_since_earn q0 & r20 q4,disregarded,weak_or_inconsistent,0.0,0.42224291864224334,7,2020-09-25,"[2021, 2022]","[2020, 2023, 2024]"
+days_since_earn q0 & r5 q1,disregarded,not_significant_after_all_tries,0.0,1.5977273174691793,3,2024-03-28,[2026],[]
+days_since_earn q0 & range_compress q1,disregarded,weak_or_inconsistent,0.0,0.2348459416288806,6,2021-09-24,[2021],"[2024, 2026]"
+days_since_earn q0 & range_compress q2,disregarded,weak_or_inconsistent,0.0,0.6932182198674335,6,2021-09-24,[2024],[2025]
+days_since_earn q0 & rel_ind20 q3,disregarded,weak_or_inconsistent,0.0,0.1746377133155921,11,2016-03-24,[2019],"[2017, 2018, 2020, 2021, 2022, 2023, 2026]"
+days_since_earn q0 & rel_ind60 q3,disregarded,weak_or_inconsistent,0.0,0.8517226539969855,11,2016-03-24,[2018],"[2017, 2020, 2021, 2026]"
+days_since_earn q1,disregarded,weak_or_inconsistent,0.0,0.41806781018079886,6,2021-03-26,[2026],"[2021, 2025]"
+days_since_earn q1 & dist_ma50 q0,disregarded,weak_or_inconsistent,0.0,0.7993368852453951,11,2016-03-24,[2017],"[2016, 2021, 2023, 2025]"
+days_since_earn q1 & dist_ma50 q2,disregarded,weak_or_inconsistent,0.0,0.26657340004938984,10,2017-03-31,[2021],"[2019, 2020, 2025, 2026]"
+days_since_earn q1 & dist_ma50 q4,disregarded,lapsed,0.0,1.5722630659376422,9,2018-03-29,"[2023, 2024]","[2021, 2022]"
+days_since_earn q1 & frog q3,disregarded,weak_or_inconsistent,0.0,1.3292844170592546,8,2019-03-29,"[2020, 2023, 2024]","[2021, 2022, 2025]"
+days_since_earn q1 & gap_today q0,disregarded,lapsed,0.0,2.1206849787912376,7,2020-09-25,"[2022, 2023, 2024]",[2021]
+days_since_earn q1 & ind_mom20 q1,disregarded,weak_or_inconsistent,0.0,0.8689546030212625,2,2025-03-28,[2025],[]
+days_since_earn q1 & ind_mom20 q2,disregarded,weak_or_inconsistent,0.0,0.3312449431823173,11,2016-12-30,"[2018, 2025]","[2017, 2019, 2022, 2024, 2026]"
+days_since_earn q1 & ind_mom20 q2 unless ear_volsurge q4,disregarded,weak_or_inconsistent,0.0,0.2376418518296279,6,2021-09-24,[2022],"[2023, 2025]"
+days_since_earn q1 & ind_mom20 q2 unless vol_ratio q4,disregarded,weak_or_inconsistent,0.0,0.4287009676454151,6,2021-09-24,[2022],"[2023, 2025]"
+days_since_earn q1 & ind_mom20 q2 unless vol_surge1 q4,disregarded,weak_or_inconsistent,0.0,0.2732051077069285,6,2021-09-24,[2022],"[2023, 2025, 2026]"
+days_since_earn q1 & ind_mom20 q4,disregarded,weak_or_inconsistent,0.0,0.19088430478272514,9,2018-09-28,[],"[2018, 2024, 2025]"
+days_since_earn q1 & intraday20 q3,disregarded,weak_or_inconsistent,0.0,1.0213716271343003,11,2016-12-30,"[2024, 2026]","[2017, 2018, 2021, 2023, 2025]"
+days_since_earn q1 & log_dv q1,disregarded,weak_or_inconsistent,0.0,0.3639771008597069,5,2022-03-25,[2024],[2022]
+days_since_earn q1 & max20 q0,disregarded,weak_or_inconsistent,0.0,0.1286352047306545,11,2016-03-24,[],"[2017, 2019, 2021, 2022]"
+days_since_earn q1 & r120 q1,disregarded,weak_or_inconsistent,0.0,0.5379667378595737,10,2017-03-31,"[2021, 2024, 2025]","[2017, 2020, 2022, 2026]"
+days_since_earn q1 & r20 q2,disregarded,weak_or_inconsistent,0.0,0.9511499781144167,10,2017-09-29,"[2017, 2019, 2020, 2023]","[2018, 2021, 2022]"
+days_since_earn q1 & r20 q4,disregarded,weak_or_inconsistent,0.0,0.0937857416073898,9,2018-03-29,[2023],"[2019, 2020, 2021, 2022, 2026]"
+days_since_earn q1 & range_compress q3,disregarded,weak_or_inconsistent,0.0,0.48255130676049274,11,2016-12-30,[2021],"[2017, 2020, 2022, 2023, 2025]"
+days_since_earn q1 & rel_ind60 q1,disregarded,weak_or_inconsistent,0.0,0.7800088748585462,10,2017-03-31,"[2017, 2020, 2024]","[2018, 2021, 2022, 2023, 2025]"
+days_since_earn q1 & vol_ratio q0,disregarded,weak_or_inconsistent,0.0,0.3902675677143348,12,2015-09-25,"[2018, 2019, 2021]","[2016, 2017, 2020, 2022, 2023]"
+days_since_earn q2,disregarded,weak_or_inconsistent,0.0,0.7413063700541268,2,2025-09-26,[2026],[2025]
+days_since_earn q2 & ind_mom60 q1,disregarded,weak_or_inconsistent,0.0,0.7706938077639588,4,2023-09-29,[2023],"[2025, 2026]"
+days_since_earn q2 & log_dv q1,disregarded,lapsed,0.0,2.5143529431223453,8,2019-03-29,"[2020, 2023, 2024]",[2025]
+days_since_earn q2 & max20 q1,disregarded,weak_or_inconsistent,0.0,0.39626462464360246,8,2019-03-29,"[2019, 2026]","[2020, 2021, 2022, 2025]"
+days_since_earn q2 & r5 q1,disregarded,weak_or_inconsistent,0.0,0.7216071236037741,7,2020-03-27,"[2021, 2022, 2025]","[2023, 2024, 2026]"
+days_since_earn q2 & r60 q3,disregarded,lapsed,0.0,1.8398875053631834,9,2018-03-29,"[2020, 2021, 2022, 2023]","[2018, 2024, 2026]"
+days_since_earn q2 & range_compress q2,disregarded,lapsed,0.0,1.530813574432922,4,2023-09-29,"[2023, 2024]",[2026]
+days_since_earn q2 & vol_ratio q1,disregarded,weak_or_inconsistent,0.0,1.052736285653494,8,2019-03-29,"[2022, 2024]","[2019, 2025, 2026]"
+days_since_earn q2 & vol_surge1 q2,disregarded,weak_or_inconsistent,0.0,0.3445726163309275,3,2024-09-27,[2025],"[2024, 2026]"
+days_since_earn q3,disregarded,not_significant_after_all_tries,0.0,3.2763090062702473,7,2020-03-27,"[2022, 2023, 2025, 2026]",[]
+days_since_earn q3 & days_to_earn q1,disregarded,not_significant_after_all_tries,0.0,2.629385884696336,11,2016-03-24,"[2017, 2018, 2019, 2021, 2022, 2026]","[2016, 2020, 2024, 2025]"
+days_since_earn q3 & dist_ma50 q1,disregarded,not_significant_after_all_tries,0.0,2.0413119708080085,4,2023-09-29,"[2025, 2026]",[2024]
+days_since_earn q3 & frog q0,disregarded,weak_or_inconsistent,0.0,0.1162599307038435,3,2024-03-28,[2026],[2024]
+days_since_earn q3 & frog q4,disregarded,weak_or_inconsistent,0.0,0.9567016939961478,3,2024-03-28,[2025],[2024]
+days_since_earn q3 & ind_mom60 q4,disregarded,weak_or_inconsistent,0.0,1.106760062961898,7,2020-03-27,[2023],[2021]
+days_since_earn q3 & log_dv q3,disregarded,not_significant_after_all_tries,0.0,1.5757271827687211,11,2016-03-24,"[2019, 2026]","[2017, 2021]"
+days_since_earn q3 & max20 q1,disregarded,not_significant_after_all_tries,0.0,2.0124962545333127,4,2023-09-29,"[2023, 2025, 2026]",[2024]
+days_since_earn q3 & min20 q4,disregarded,weak_or_inconsistent,0.0,0.5836747594820466,9,2018-09-28,"[2018, 2021, 2026]","[2019, 2020, 2023, 2024]"
+days_since_earn q3 & overnight20 q3,disregarded,not_significant_after_all_tries,0.0,3.3132652799290216,10,2017-09-29,"[2017, 2019, 2020, 2022, 2023, 2026]","[2018, 2025]"
+days_since_earn q3 & skew60 q1,disregarded,not_significant_after_all_tries,0.0,2.2856520900173427,3,2024-03-28,[2026],[]
+days_since_earn q3 & vol_ratio q2,disregarded,weak_or_inconsistent,0.0,1.2567434260678272,11,2016-03-24,"[2020, 2023, 2026]","[2016, 2018, 2021, 2022]"
+days_since_earn q3 & vol_ratio q3,disregarded,weak_or_inconsistent,0.0,0.6307603827469778,8,2019-03-29,"[2022, 2026]","[2020, 2023, 2024]"
+days_since_earn q3 & vol_surge1 q3,disregarded,not_significant_after_all_tries,0.0,1.7164397167876444,4,2023-09-29,"[2025, 2026]",[2024]
+days_since_earn q3 & vol_surge5 q2,disregarded,not_significant_after_all_tries,0.0,2.49892795456179,3,2024-03-28,"[2025, 2026]",[]
+days_since_earn q4,disregarded,not_significant_after_all_tries,0.0,3.3661460331066166,10,2017-03-31,"[2018, 2021, 2023, 2024, 2025, 2026]","[2019, 2020]"
+days_since_earn q4 & ear q2,disregarded,not_significant_after_all_tries,0.0,2.578788011336649,1,2026-03-27,[2026],[]
+days_since_earn q4 & ev_offering q2,disregarded,not_significant_after_all_tries,0.0,3.1605191102920376,10,2017-03-31,"[2018, 2021, 2023, 2024, 2025]","[2019, 2020]"
+days_since_earn q4 & frog q2,disregarded,not_significant_after_all_tries,0.0,2.4814012501884943,12,2015-09-25,"[2019, 2021, 2024, 2025]","[2016, 2017, 2018, 2022]"
+days_since_earn q4 & gap_today q0,disregarded,not_significant_after_all_tries,0.0,2.9906215128334215,7,2020-09-25,"[2022, 2023, 2024, 2026]",[]
+days_since_earn q4 & max20 q4,disregarded,not_significant_after_all_tries,0.0,2.3164817991199165,1,2026-03-27,[2026],[]
+days_since_earn q4 & min20 q0,disregarded,not_significant_after_all_tries,0.0,2.988778542159897,1,2026-03-27,[2026],[]
+days_since_earn q4 & mom_12_1 q2,disregarded,not_significant_after_all_tries,0.0,2.388762193543206,12,2015-09-25,"[2021, 2023, 2025]","[2016, 2026]"
+days_since_earn q4 & r5 q1,disregarded,weak_or_inconsistent,0.0,1.2826806232377217,7,2020-09-25,"[2020, 2024]","[2021, 2023, 2026]"
+days_since_earn q4 & range_compress q0,disregarded,not_significant_after_all_tries,0.0,1.7954575501868328,1,2026-03-27,[2026],[]
+days_since_earn q4 & rel_ind20 q2,disregarded,weak_or_inconsistent,0.0,0.1614192762033781,11,2016-12-30,[],"[2016, 2019, 2020, 2022, 2026]"
+days_since_earn q4 & skew60 q4,disregarded,weak_or_inconsistent,0.0,0.7659849493325205,1,2026-03-27,[],[]
+days_since_earn q4 & vol20 q3,disregarded,weak_or_inconsistent,0.0,0.08448149360319161,3,2024-03-28,[],[2025]
+days_since_earn q4 & vol20 q4,disregarded,not_significant_after_all_tries,0.0,1.749498117149052,1,2026-03-27,[2026],[]
+days_since_earn q4 & vol_surge5 q0,disregarded,not_significant_after_all_tries,0.0,3.816335036601328,1,2026-03-27,[2026],[]
+days_to_earn q0 & min20 q1,disregarded,not_significant_after_all_tries,0.0,3.7213364777095097,3,2024-03-28,"[2024, 2025, 2026]",[]
+days_to_earn q0 & news5 q4,disregarded,weak_or_inconsistent,0.0,0.24320934262648855,1,2025-12-26,[],[]
+days_to_earn q0 & r5 q3,disregarded,not_significant_after_all_tries,0.0,2.0093916443756608,3,2024-03-28,"[2024, 2026]",[2025]
+days_to_earn q0 & vol_surge1 q1,disregarded,weak_or_inconsistent,0.0,1.2556152583266993,3,2024-03-28,"[2025, 2026]",[2024]
+days_to_earn q0 & vol_surge5 q1,disregarded,weak_or_inconsistent,0.0,1.3791848831928093,12,2015-09-25,"[2022, 2023, 2025, 2026]","[2015, 2016, 2018, 2019, 2021, 2024]"
+days_to_earn q1,disregarded,not_significant_after_all_tries,0.0,2.5607772175702896,11,2016-03-24,"[2017, 2018, 2021, 2023, 2026]","[2016, 2020, 2025]"
+days_to_earn q1 & gap_today q3,disregarded,weak_or_inconsistent,0.0,0.16979516339145237,12,2015-09-25,"[2019, 2021, 2022]","[2015, 2016, 2020, 2023, 2024, 2025]"
+days_to_earn q1 & ind_mom20 q0,disregarded,weak_or_inconsistent,0.0,0.423671277616002,12,2015-09-25,"[2018, 2019, 2021]","[2015, 2020, 2023, 2024, 2025, 2026]"
+days_to_earn q1 & ind_mom20 q1,disregarded,weak_or_inconsistent,0.0,1.407559113126097,8,2019-03-29,"[2019, 2022]","[2020, 2021, 2025, 2026]"
+days_to_earn q1 & ins_officer30 q2,disregarded,not_significant_after_all_tries,0.0,2.554284354272436,11,2016-03-24,"[2017, 2018, 2021, 2026]","[2016, 2020, 2025]"
+days_to_earn q1 & intraday20 q0,disregarded,weak_or_inconsistent,0.0,1.0949952354046113,11,2016-03-24,"[2019, 2021]","[2017, 2018, 2020]"
+days_to_earn q1 & log_dv q2,disregarded,weak_or_inconsistent,0.0,1.4516759046687424,9,2018-03-29,"[2021, 2022, 2026]","[2018, 2020, 2023, 2025]"
+days_to_earn q1 & overnight20 q3,disregarded,weak_or_inconsistent,0.0,1.4752013514124331,10,2017-09-29,"[2017, 2022]","[2018, 2025, 2026]"
+days_to_earn q1 & r20 q2,disregarded,lapsed,0.0,1.801001221237542,4,2023-09-29,[2023],[]
+days_to_earn q1 & r5_nonews q0,disregarded,not_significant_after_all_tries,0.0,2.910496645140992,7,2020-03-27,"[2021, 2022, 2023, 2026]",[]
+days_to_earn q1 & rel_ind60 q3,disregarded,weak_or_inconsistent,0.0,1.2124719951881198,4,2023-09-29,"[2024, 2025]",[2023]
+days_to_earn q1 & vol_ratio q4,disregarded,weak_or_inconsistent,0.0,0.8748768679338365,12,2015-09-25,"[2018, 2026]","[2016, 2017, 2020, 2022, 2025]"
+days_to_earn q2,disregarded,not_significant_after_all_tries,0.0,3.4749503456849915,5,2022-12-30,"[2023, 2025, 2026]",[2022]
+days_to_earn q2 & dist_52wh q3,disregarded,weak_or_inconsistent,0.0,0.3933733688763916,5,2022-12-30,[2025],"[2022, 2024, 2026]"
+days_to_earn q2 & dist_ma50 q2,disregarded,not_significant_after_all_tries,0.0,2.1105192169337674,5,2022-12-30,"[2023, 2024, 2026]",[2022]
+days_to_earn q2 & earn_in_week q2,disregarded,not_significant_after_all_tries,0.0,2.2973011574268427,6,2021-09-24,"[2025, 2026]","[2022, 2024]"
+days_to_earn q2 & ev_agreement q4,disregarded,not_significant_after_all_tries,0.0,3.4501928501618697,3,2024-03-28,"[2024, 2026]",[]
+days_to_earn q2 & ev_offering q2,disregarded,not_significant_after_all_tries,0.0,3.414604592008147,5,2022-12-30,"[2023, 2025, 2026]",[2022]
+days_to_earn q2 & frog q0,disregarded,not_significant_after_all_tries,0.0,3.2783536506853315,7,2020-09-25,"[2023, 2024, 2025, 2026]",[2021]
+days_to_earn q2 & frog q2,disregarded,not_significant_after_all_tries,0.0,2.7459421463761364,6,2021-09-24,"[2021, 2025, 2026]",[2022]
+days_to_earn q2 & frog q3,disregarded,weak_or_inconsistent,0.0,0.7950424114914689,12,2015-09-25,"[2015, 2016, 2022, 2023]","[2018, 2019, 2021, 2025, 2026]"
+days_to_earn q2 & gap_today q0,disregarded,not_significant_after_all_tries,0.0,2.519509047706013,7,2020-09-25,"[2023, 2024, 2025, 2026]",[]
+days_to_earn q2 & gap_today q1,disregarded,weak_or_inconsistent,0.0,0.3470252785152461,5,2022-03-25,[],"[2023, 2024]"
+days_to_earn q2 & ind_mom60 q4,disregarded,not_significant_after_all_tries,0.0,1.7501697902569378,5,2022-12-30,"[2023, 2024]",[]
+days_to_earn q2 & ins_officer30 q2,disregarded,not_significant_after_all_tries,0.0,3.1709855964536096,5,2022-12-30,"[2023, 2025, 2026]",[2022]
+days_to_earn q2 & intraday20 q4,disregarded,not_significant_after_all_tries,0.0,2.2785288350496726,6,2021-09-24,[2026],[]
+days_to_earn q2 & max20 q2,disregarded,weak_or_inconsistent,0.0,0.24573437261660863,10,2017-09-29,"[2020, 2024, 2025]","[2017, 2018, 2019, 2022, 2026]"
+days_to_earn q2 & max20 q4,disregarded,not_significant_after_all_tries,0.0,3.5288471344649417,5,2022-03-25,"[2023, 2024, 2025, 2026]",[]
+days_to_earn q2 & mom_12_1 q0,disregarded,weak_or_inconsistent,0.0,1.2587251513834923,12,2015-09-25,"[2020, 2025, 2026]","[2016, 2017, 2019, 2021, 2022]"
+days_to_earn q2 & mom_12_1 q2,disregarded,not_significant_after_all_tries,0.0,1.7377391750731033,5,2022-03-25,"[2024, 2025]",[2022]
+days_to_earn q2 & overnight20 q4,disregarded,not_significant_after_all_tries,0.0,1.6469253262849548,10,2017-03-31,"[2020, 2021, 2025, 2026]","[2018, 2019, 2022, 2023]"
+days_to_earn q2 & r20 q4,disregarded,not_significant_after_all_tries,0.0,3.009687769075991,6,2021-09-24,"[2023, 2025, 2026]",[]
+days_to_earn q2 & r5 q1,disregarded,not_significant_after_all_tries,0.0,1.630121572637043,7,2020-03-27,"[2020, 2021, 2024, 2025]","[2023, 2026]"
+days_to_earn q2 & r5_nonews q2,disregarded,not_significant_after_all_tries,0.0,2.004540837946476,10,2017-03-31,"[2020, 2023, 2026]","[2017, 2018, 2021, 2025]"
+days_to_earn q2 & range_compress q3,disregarded,weak_or_inconsistent,0.0,0.7158654720936544,12,2015-09-25,"[2015, 2025]","[2018, 2020, 2023, 2024, 2026]"
+days_to_earn q2 & range_compress q4,disregarded,weak_or_inconsistent,0.0,1.1383037202406372,10,2017-09-29,"[2018, 2020, 2026]","[2021, 2022, 2024, 2025]"
+days_to_earn q2 & rel_ind60 q4,disregarded,not_significant_after_all_tries,0.0,1.9571952424955636,8,2019-03-29,"[2020, 2021, 2025, 2026]","[2019, 2023]"
+days_to_earn q2 & vol_surge5 q1,disregarded,weak_or_inconsistent,0.0,0.1419042535787642,7,2020-09-25,[],"[2022, 2023, 2025]"
+days_to_earn q3 & dist_ma200 q0,disregarded,not_significant_after_all_tries,0.0,2.6151092254819117,10,2017-03-31,"[2018, 2020, 2025, 2026]",[2019]
+days_to_earn q3 & dist_ma50 q0,disregarded,weak_or_inconsistent,0.0,0.6873604929460752,11,2016-03-24,[2018],"[2016, 2021, 2023]"
+days_to_earn q3 & ear_volsurge q0,disregarded,not_significant_after_all_tries,0.0,2.6713774911745425,6,2021-09-24,"[2021, 2026]",[2024]
+days_to_earn q3 & ind_mom20 q3,disregarded,weak_or_inconsistent,0.0,1.2446200653632966,5,2022-12-30,[2026],[2024]
+days_to_earn q3 & intraday20 q0,disregarded,weak_or_inconsistent,0.0,0.226451228824063,10,2017-09-29,"[2020, 2025]","[2017, 2018, 2019, 2022, 2023, 2024]"
+days_to_earn q3 & intraday20 q1,disregarded,weak_or_inconsistent,0.0,0.6374951665178074,9,2018-03-29,[2023],"[2020, 2021, 2024]"
+days_to_earn q3 & max20 q0,disregarded,weak_or_inconsistent,0.0,0.5554802444325713,11,2016-03-24,"[2016, 2023, 2024]","[2018, 2019, 2020, 2021, 2022, 2026]"
+days_to_earn q3 & mom_12_1 q3,disregarded,weak_or_inconsistent,0.0,0.5469569232374479,11,2016-03-24,"[2016, 2017]","[2020, 2021, 2022, 2025]"
+days_to_earn q3 & r20 q0,disregarded,weak_or_inconsistent,0.0,0.6216654111664744,10,2017-03-31,"[2020, 2025]","[2017, 2021, 2024, 2026]"
+days_to_earn q3 & r20 q4,disregarded,weak_or_inconsistent,0.0,0.02045431160990275,10,2017-03-31,"[2018, 2023]","[2017, 2020, 2021, 2022, 2026]"
+days_to_earn q3 & r60 q1,disregarded,weak_or_inconsistent,0.0,0.33011599783138684,6,2021-09-24,[],"[2021, 2025]"
+days_to_earn q3 & range_compress q1,disregarded,not_significant_after_all_tries,0.0,1.5552608646870718,6,2021-09-24,"[2022, 2023, 2026]","[2024, 2025]"
+days_to_earn q3 & rel_ind60 q1,disregarded,weak_or_inconsistent,0.0,0.4265793890811977,10,2017-03-31,"[2017, 2020, 2024]","[2018, 2021, 2022, 2025, 2026]"
+days_to_earn q3 & rel_ind60 q2,disregarded,weak_or_inconsistent,0.0,1.2278665602908985,6,2021-09-24,"[2021, 2023]","[2022, 2025]"
+days_to_earn q4 & dist_ma50 q0,disregarded,weak_or_inconsistent,0.0,0.3870659030775136,5,2022-12-30,[],"[2025, 2026]"
+days_to_earn q4 & ear q2,disregarded,weak_or_inconsistent,0.0,0.1573384762903298,12,2015-09-25,"[2020, 2021]","[2015, 2016, 2022, 2023, 2024, 2025, 2026]"
+days_to_earn q4 & gap_today q2,disregarded,weak_or_inconsistent,0.0,0.040177173549794505,5,2022-12-30,[2025],"[2022, 2023, 2024]"
+days_to_earn q4 & ind_mom20 q1,disregarded,weak_or_inconsistent,0.0,0.10981333055068966,5,2022-12-30,[],"[2022, 2026]"
+days_to_earn q4 & ind_mom20 q2,disregarded,weak_or_inconsistent,0.0,0.2222287289761092,11,2016-12-30,"[2019, 2023]","[2016, 2017, 2018, 2022, 2024, 2026]"
+days_to_earn q4 & ind_mom20 q4,disregarded,weak_or_inconsistent,0.0,0.641435050684439,7,2020-09-25,[2026],"[2020, 2022, 2024]"
+days_to_earn q4 & ind_mom60 q0,disregarded,weak_or_inconsistent,0.0,0.11006710103727285,5,2022-12-30,[],"[2024, 2026]"
+days_to_earn q4 & ins_buyers30 q2,disregarded,weak_or_inconsistent,0.0,0.3784455153871658,12,2015-09-25,"[2019, 2021]","[2015, 2017, 2020, 2023, 2024, 2025, 2026]"
+days_to_earn q4 & ins_officer30 q2,disregarded,weak_or_inconsistent,0.0,0.6575126551512975,12,2015-09-25,"[2018, 2019, 2021]","[2017, 2020, 2023, 2024, 2025, 2026]"
+days_to_earn q4 & intraday20 q3,disregarded,weak_or_inconsistent,0.0,1.141623657333247,12,2015-09-25,"[2017, 2018, 2019]","[2020, 2022, 2023, 2026]"
+days_to_earn q4 & min20 q3,disregarded,weak_or_inconsistent,0.0,0.41219474861114286,6,2021-09-24,"[2022, 2025]","[2021, 2023, 2024]"
+days_to_earn q4 & r1 q2,disregarded,weak_or_inconsistent,0.0,0.889081907886613,12,2015-09-25,"[2019, 2021]","[2015, 2016, 2017, 2022, 2024, 2025]"
+days_to_earn q4 & r120 q1,disregarded,weak_or_inconsistent,0.0,1.3530734428154174,10,2017-09-29,"[2018, 2020, 2021]","[2022, 2023, 2026]"
+days_to_earn q4 & r20 q2,disregarded,weak_or_inconsistent,0.0,0.41079497100555085,5,2022-12-30,[2024],"[2025, 2026]"
+days_to_earn q4 & r20 q3,disregarded,weak_or_inconsistent,0.0,1.0707377855835014,12,2015-09-25,"[2018, 2019, 2020]","[2015, 2016, 2017, 2024, 2025]"
+days_to_earn q4 & range_compress q2,disregarded,weak_or_inconsistent,0.0,0.6387745925641714,6,2021-09-24,[2024],"[2025, 2026]"
+days_to_earn q4 & rel_ind20 q3,disregarded,weak_or_inconsistent,0.0,1.0051838353993718,12,2015-09-25,[2021],"[2019, 2024, 2026]"
+days_to_earn q4 & vol_ratio q1,disregarded,weak_or_inconsistent,0.0,0.11236337765821548,11,2016-03-24,[],"[2016, 2018, 2020, 2025]"
+dist_52wh q0,disregarded,not_significant_after_all_tries,0.0,1.678401068794704,11,2016-12-30,"[2021, 2025, 2026]","[2016, 2020, 2023]"
+dist_52wh q0 & ear q2,disregarded,not_significant_after_all_tries,0.0,2.5990692756332883,1,2026-03-27,[2026],[]
+dist_52wh q0 & min20 q0,disregarded,weak_or_inconsistent,0.0,1.3627454829596997,1,2026-03-27,[2026],[]
+dist_52wh q0 & skew60 q4,disregarded,not_significant_after_all_tries,0.0,1.8812206493460448,1,2026-03-27,[2026],[]
+dist_52wh q0 & vol20 q4,disregarded,not_significant_after_all_tries,0.0,1.826241057423524,1,2026-03-27,[2026],[]
+dist_52wh q1 & ear q1,disregarded,weak_or_inconsistent,0.0,0.11902337485445906,10,2017-09-29,[2019],"[2018, 2024, 2026]"
+dist_52wh q1 & ear_volsurge q0,disregarded,weak_or_inconsistent,0.0,0.38261574849959556,4,2023-09-29,[],"[2023, 2025]"
+dist_52wh q1 & ev_shelf q2,disregarded,not_significant_after_all_tries,0.0,2.0658121914517493,10,2017-03-31,"[2021, 2022, 2026]","[2019, 2024]"
+dist_52wh q1 & frog q0,disregarded,not_significant_after_all_tries,0.0,1.5336102734557862,12,2015-09-25,"[2017, 2019, 2022]","[2015, 2016, 2018]"
+dist_52wh q1 & frog q3,disregarded,weak_or_inconsistent,0.0,0.21366940667385223,10,2017-09-29,"[2017, 2021]","[2018, 2019, 2020, 2023, 2024]"
+dist_52wh q1 & ind_mom60 q0,disregarded,weak_or_inconsistent,0.0,0.6227204156684499,10,2017-03-31,"[2017, 2019, 2022]","[2018, 2020, 2023, 2026]"
+dist_52wh q1 & ins_value30 q2,disregarded,not_significant_after_all_tries,0.0,1.5074569783788387,5,2022-12-30,"[2023, 2026]",[]
+dist_52wh q1 & intraday20 q3,disregarded,weak_or_inconsistent,0.0,1.4306028274103473,7,2020-03-27,"[2022, 2023, 2026]","[2020, 2021, 2024]"
+dist_52wh q1 & log_dv q4,disregarded,weak_or_inconsistent,0.0,0.6055590922884517,3,2024-03-28,[2026],[2025]
+dist_52wh q1 & min20 q1,disregarded,not_significant_after_all_tries,0.0,2.6922574097298235,11,2016-12-30,"[2020, 2023, 2024, 2026]","[2021, 2022]"
+dist_52wh q1 & news5 q2,disregarded,weak_or_inconsistent,0.0,0.8738633155428257,4,2023-09-29,[2023],[2024]
+dist_52wh q1 & overnight20 q3,disregarded,not_significant_after_all_tries,0.0,1.9567829690392666,11,2016-12-30,"[2016, 2017, 2023, 2026]","[2021, 2022, 2025]"
+dist_52wh q1 & r20 q2,disregarded,weak_or_inconsistent,0.0,0.6150343398850311,10,2017-03-31,"[2018, 2021, 2023]","[2019, 2020, 2025, 2026]"
+dist_52wh q1 & r20 q3,disregarded,weak_or_inconsistent,0.0,0.099970303924306,8,2019-09-27,[2021],"[2022, 2024, 2025, 2026]"
+dist_52wh q1 & r5_news q4,disregarded,weak_or_inconsistent,0.0,0.40297695402011885,5,2020-06-26,"[2020, 2022]","[2024, 2025, 2026]"
+dist_52wh q1 & r5_nonews q4,disregarded,weak_or_inconsistent,0.0,0.5525476558575313,10,2017-09-29,"[2019, 2022]","[2017, 2018, 2020, 2021, 2026]"
+dist_52wh q1 & r60 q3,disregarded,weak_or_inconsistent,0.0,0.7582665099933068,10,2017-09-29,"[2017, 2020, 2022]","[2018, 2019, 2021, 2024, 2025]"
+dist_52wh q1 & rel_ind20 q3,disregarded,weak_or_inconsistent,0.0,0.34282783142110934,10,2017-03-31,[2019],"[2018, 2022, 2023]"
+dist_52wh q1 & rel_ind60 q1,disregarded,weak_or_inconsistent,0.0,1.1591196261517487,5,2022-12-30,"[2022, 2023]",[2025]
+dist_52wh q1 & vol_surge1 q1,disregarded,weak_or_inconsistent,0.0,0.5544741426657817,3,2024-03-28,[],[2026]
+dist_52wh q1 & vol_surge1 q3,disregarded,not_significant_after_all_tries,0.0,2.103339406514951,10,2017-09-29,"[2017, 2018, 2020, 2025, 2026]","[2019, 2023, 2024]"
+dist_52wh q1 & vol_surge5 q1,disregarded,weak_or_inconsistent,0.0,1.0499085876695313,12,2015-09-25,"[2020, 2024]","[2015, 2016, 2019, 2021, 2022, 2026]"
+dist_52wh q2,disregarded,weak_or_inconsistent,0.0,0.7334986047895419,12,2015-09-25,"[2019, 2024]","[2016, 2017, 2018, 2020, 2025]"
+dist_52wh q2 & frog q0,disregarded,not_significant_after_all_tries,0.0,2.686915543916754,4,2023-09-29,"[2023, 2024, 2026]",[]
+dist_52wh q2 & gap_today q4,disregarded,weak_or_inconsistent,0.0,0.4645273795894859,12,2015-09-25,"[2016, 2020, 2025]","[2019, 2022, 2023, 2024, 2026]"
+dist_52wh q2 & ind_mom20 q4,disregarded,not_significant_after_all_tries,0.0,1.556912544731989,9,2018-09-28,"[2019, 2022, 2023, 2025]","[2018, 2020]"
+dist_52wh q2 & intraday20 q0,disregarded,weak_or_inconsistent,0.0,0.3493296626671451,12,2015-09-25,"[2017, 2022, 2024]","[2015, 2016, 2018, 2020, 2021, 2025]"
+dist_52wh q2 & min20 q4,disregarded,weak_or_inconsistent,0.0,0.470731972019433,10,2017-09-29,"[2017, 2021]","[2018, 2020, 2023, 2024, 2025]"
+dist_52wh q2 & overnight20 q4,disregarded,weak_or_inconsistent,0.0,1.2028562428560772,5,2022-03-25,"[2022, 2023]",[2025]
+dist_52wh q2 & r1 q0,disregarded,weak_or_inconsistent,0.0,0.9767548096217274,12,2015-09-25,"[2020, 2023, 2024]","[2016, 2017, 2021, 2025]"
+dist_52wh q2 & r1 q1,disregarded,weak_or_inconsistent,0.0,0.5291519429849899,5,2022-03-25,[2024],"[2022, 2026]"
+dist_52wh q2 & rel_ind20 q0,disregarded,weak_or_inconsistent,0.0,0.7294044862982729,12,2015-09-25,"[2015, 2018, 2021]","[2019, 2020, 2022, 2023, 2024]"
+dist_52wh q3 & dist_ma50 q4,disregarded,weak_or_inconsistent,0.0,1.22320445092927,5,2022-12-30,"[2023, 2025]","[2022, 2024]"
+dist_52wh q3 & ear q4,disregarded,weak_or_inconsistent,0.0,1.4637799746195332,5,2022-12-30,[2023],[2024]
+dist_52wh q3 & log_dv q3,disregarded,weak_or_inconsistent,0.0,0.7546700020497321,5,2022-12-30,[2025],"[2023, 2026]"
+dist_52wh q3 & min20 q4,disregarded,weak_or_inconsistent,0.0,1.3144288948397702,8,2019-09-27,"[2020, 2023]","[2019, 2021, 2022, 2025, 2026]"
+dist_52wh q3 & r120 q3,disregarded,weak_or_inconsistent,0.0,0.4348027260688713,5,2022-12-30,[],"[2022, 2025, 2026]"
+dist_52wh q3 & r20 q3,disregarded,weak_or_inconsistent,0.0,1.3616124900427369,11,2016-12-30,"[2017, 2022]","[2019, 2020, 2023, 2024]"
+dist_52wh q3 & r5_nonews q3,disregarded,weak_or_inconsistent,0.0,1.286049678544907,6,2021-09-24,[],[]
+dist_52wh q3 & r5_nonews q4,disregarded,not_significant_after_all_tries,0.0,1.5915253778950684,4,2023-09-29,"[2025, 2026]",[2024]
+dist_52wh q3 & r60 q2,disregarded,weak_or_inconsistent,0.0,0.5110263355769977,12,2015-09-25,"[2025, 2026]","[2017, 2020, 2023, 2024]"
+dist_52wh q3 & rel_ind20 q3,disregarded,not_significant_after_all_tries,0.0,1.6672306713425398,12,2015-09-25,"[2015, 2021, 2025, 2026]","[2016, 2018, 2019, 2020]"
+dist_52wh q3 & rel_ind60 q4,disregarded,weak_or_inconsistent,0.0,1.4424949850857578,5,2022-12-30,[2023],[2024]
+dist_52wh q3 & vol20 q0,disregarded,weak_or_inconsistent,0.0,0.8327741697679653,11,2016-03-24,"[2017, 2020, 2023]","[2018, 2019, 2021, 2022, 2026]"
+dist_52wh q3 & vol_surge1 q3,disregarded,not_significant_after_all_tries,0.0,1.7106653857850538,5,2022-12-30,"[2025, 2026]",[]
+dist_ma200 q0 & gap_today q1,disregarded,weak_or_inconsistent,0.0,0.42275777728543523,7,2020-03-27,[2023],"[2020, 2022, 2024, 2026]"
+dist_ma200 q1,disregarded,not_significant_after_all_tries,0.0,2.5740448171259462,4,2023-03-31,"[2025, 2026]",[]
+dist_ma200 q1 & frog q4,disregarded,lapsed,0.0,1.8434199099830455,8,2019-03-29,"[2021, 2022]","[2019, 2020, 2026]"
+dist_ma200 q1 & ind_mom60 q1,disregarded,weak_or_inconsistent,0.0,1.184862963156974,9,2018-09-28,"[2019, 2023, 2026]","[2018, 2020]"
+dist_ma200 q1 & skew60 q4,disregarded,weak_or_inconsistent,0.0,0.647979995040191,1,2026-03-27,[],[]
+dist_ma200 q1 & vol_surge5 q3,disregarded,not_significant_after_all_tries,0.0,3.7044957449588276,4,2023-03-31,"[2023, 2025, 2026]",[2024]
+dist_ma200 q2 & gap_today q0,disregarded,weak_or_inconsistent,0.0,0.37474871387539443,4,2023-09-29,[],[2026]
+dist_ma200 q2 & intraday20 q4,disregarded,weak_or_inconsistent,0.0,0.4856198117800241,2,2025-03-28,[],[]
+dist_ma200 q2 & vol_ratio q3,disregarded,weak_or_inconsistent,0.0,0.5591075603990188,9,2018-09-28,"[2019, 2024, 2026]","[2018, 2020, 2022, 2023]"
+dist_ma200 q3 & ear q3,disregarded,weak_or_inconsistent,0.0,0.5296973552540534,11,2016-03-24,"[2016, 2021, 2022]","[2017, 2018, 2019, 2020, 2023, 2026]"
+dist_ma200 q4 & ear q0,disregarded,weak_or_inconsistent,0.0,1.1096042061455123,2,2025-03-28,[2025],[]
+dist_ma200 q4 & mom_12_1 q0,disregarded,weak_or_inconsistent,0.0,0.505470700361792,4,2023-03-31,[2025],"[2024, 2026]"
+dist_ma200 q4 & skew60 q2,disregarded,weak_or_inconsistent,0.0,0.07130054791991808,8,2019-03-29,"[2021, 2022]","[2019, 2020, 2024, 2026]"
+dist_ma50 q0 & frog q0,disregarded,weak_or_inconsistent,0.0,1.1988684605611064,7,2020-03-27,"[2024, 2026]","[2020, 2021, 2022]"
+dist_ma50 q0 & frog q4,disregarded,weak_or_inconsistent,0.0,0.15931165577793216,8,2019-09-27,"[2020, 2026]","[2019, 2023, 2025]"
+dist_ma50 q0 & gap_today q0,disregarded,not_significant_after_all_tries,0.0,2.3452630648893575,7,2020-09-25,"[2022, 2023, 2024, 2026]",[2020]
+dist_ma50 q0 & log_dv q1,disregarded,weak_or_inconsistent,0.0,0.5124543026950451,11,2016-03-24,"[2016, 2017, 2025]","[2019, 2021, 2022, 2023, 2024, 2026]"
+dist_ma50 q1,disregarded,not_significant_after_all_tries,0.0,2.78657889055912,11,2016-12-30,"[2019, 2020, 2021, 2025]",[2018]
+dist_ma50 q1 & ear_volsurge q3,disregarded,weak_or_inconsistent,0.0,0.1658621771110553,9,2018-03-29,[2018],"[2020, 2022, 2025]"
+dist_ma50 q1 & ev_agreement q2,disregarded,not_significant_after_all_tries,0.0,2.3487475882148234,4,2023-09-29,"[2023, 2025]",[]
+dist_ma50 q1 & ev_offering q2,disregarded,not_significant_after_all_tries,0.0,2.8188449658201473,11,2016-12-30,"[2019, 2020, 2021, 2025]","[2016, 2018]"
+dist_ma50 q1 & frog q0,disregarded,weak_or_inconsistent,0.0,1.0280304174655155,4,2023-09-29,[2025],"[2023, 2024]"
+dist_ma50 q1 & gap_today q1,disregarded,not_significant_after_all_tries,0.0,1.8529968117522664,4,2023-09-29,[2024],[]
+dist_ma50 q1 & ind_mom20 q2,disregarded,not_significant_after_all_tries,0.0,2.535269185947995,4,2023-09-29,"[2023, 2025]",[]
+dist_ma50 q1 & log_dv q3,disregarded,weak_or_inconsistent,0.0,1.003690857605068,4,2023-09-29,[2026],[2024]
+dist_ma50 q1 & min20 q1,disregarded,not_significant_after_all_tries,0.0,2.3345065352952257,3,2024-03-28,"[2024, 2025]",[]
+dist_ma50 q1 & news5 q2,disregarded,not_significant_after_all_tries,0.0,2.1962498888289708,4,2023-09-29,"[2023, 2025]",[]
+dist_ma50 q1 & overnight20 q0,disregarded,weak_or_inconsistent,0.0,0.4448326647721023,1,2026-03-27,[],[]
+dist_ma50 q1 & overnight20 q2,disregarded,not_significant_after_all_tries,0.0,2.499154559854531,9,2018-09-28,"[2018, 2022, 2023, 2024, 2026]","[2020, 2025]"
+dist_ma50 q1 & r120 q3,disregarded,weak_or_inconsistent,0.0,0.8504403567272518,8,2019-09-27,"[2020, 2026]","[2019, 2021, 2023]"
+dist_ma50 q1 & r5_news q2,disregarded,not_significant_after_all_tries,0.0,2.5461893027202898,4,2023-09-29,"[2023, 2025]",[]
+dist_ma50 q1 & r5_nonews q0,disregarded,not_significant_after_all_tries,0.0,3.3705489068105354,4,2023-09-29,"[2023, 2025, 2026]",[]
+dist_ma50 q1 & range_compress q2,disregarded,not_significant_after_all_tries,0.0,2.8038704228878704,4,2023-09-29,"[2023, 2025]",[]
+dist_ma50 q1 & rel_ind20 q1,disregarded,weak_or_inconsistent,0.0,0.8756504168731072,2,2025-03-28,[],[]
+dist_ma50 q1 & vol20 q2,disregarded,weak_or_inconsistent,0.0,0.6709950507723871,1,2026-03-27,[],[]
+dist_ma50 q1 & vol_surge1 q0,disregarded,weak_or_inconsistent,0.0,1.1321271527594,6,2021-09-24,"[2021, 2022, 2024]","[2023, 2025, 2026]"
+dist_ma50 q1 & vol_surge1 q1,disregarded,not_significant_after_all_tries,0.0,1.7612943080201031,4,2023-09-29,"[2023, 2024, 2025]",[2026]
+dist_ma50 q1 & vol_surge1 q3,disregarded,weak_or_inconsistent,0.0,0.16170707134658913,4,2023-09-29,[2024],"[2025, 2026]"
+dist_ma50 q1 & vol_surge5 q2,disregarded,weak_or_inconsistent,0.0,0.5254413183259786,3,2024-03-28,[2024],[2026]
+dist_ma50 q2 & ins_officer30 q2,disregarded,weak_or_inconsistent,0.0,0.30321667451019507,5,2022-12-30,[2024],"[2023, 2025]"
+dist_ma50 q2 & intraday20 q2,disregarded,weak_or_inconsistent,0.0,0.5730872687558822,5,2022-12-30,[2022],"[2024, 2025]"
+dist_ma50 q2 & mom_12_1 q3,disregarded,weak_or_inconsistent,0.0,1.1088390538281199,5,2022-12-30,"[2025, 2026]","[2023, 2024]"
+dist_ma50 q2 & r120 q3,disregarded,weak_or_inconsistent,0.0,0.8713176304663359,5,2022-12-30,[2022],[2023]
+dist_ma50 q2 & r20 q3,disregarded,weak_or_inconsistent,0.0,0.3041283211575178,11,2016-03-24,"[2017, 2022]","[2016, 2018, 2019, 2020]"
+dist_ma50 q2 & r60 q3,disregarded,weak_or_inconsistent,0.0,0.19346138193163853,5,2022-12-30,[2025],"[2022, 2023, 2024, 2026]"
+dist_ma50 q2 & rel_ind20 q4,disregarded,lapsed,0.0,1.7780960286107161,11,2016-12-30,[2021],"[2017, 2026]"
+dist_ma50 q2 & rel_ind60 q3,disregarded,weak_or_inconsistent,0.0,0.5810443510130783,5,2022-12-30,[2024],[2025]
+dist_ma50 q2 & rel_ind60 q4,disregarded,not_significant_after_all_tries,0.0,2.092454289592456,9,2018-09-28,"[2018, 2020, 2022, 2023, 2025]","[2019, 2024]"
+dist_ma50 q2 & vol_surge1 q1,disregarded,weak_or_inconsistent,0.0,0.8946994659664241,10,2017-03-31,"[2017, 2019, 2021]","[2018, 2020, 2022]"
+dist_ma50 q2 & vol_surge1 q3,disregarded,weak_or_inconsistent,0.0,0.05971614553677114,10,2017-09-29,[2020],"[2018, 2021, 2023, 2024, 2025]"
+dist_ma50 q3 & ear_volsurge q0,disregarded,lapsed,0.0,1.6370399641702333,8,2019-03-29,"[2019, 2022, 2024]","[2025, 2026]"
+dist_ma50 q3 & ev_agreement q4,disregarded,not_significant_after_all_tries,0.0,1.7762124074583947,5,2020-09-25,"[2024, 2026]","[2020, 2021]"
+dist_ma50 q3 & frog q0,disregarded,not_significant_after_all_tries,0.0,2.6557387137837054,6,2021-09-24,"[2021, 2022, 2024, 2025, 2026]",[2023]
+dist_ma50 q3 & gap_today q3,disregarded,weak_or_inconsistent,0.0,0.23482455065305122,8,2019-09-27,[2024],"[2019, 2021, 2022, 2026]"
+dist_ma50 q3 & ins_value30 q4,disregarded,weak_or_inconsistent,0.0,0.7360749055758822,1,2025-03-28,[],[]
+dist_ma50 q3 & log_dv q1,disregarded,weak_or_inconsistent,0.0,0.534957327697388,8,2019-03-29,[2019],"[2020, 2021, 2025, 2026]"
+dist_ma50 q3 & log_dv q3,disregarded,weak_or_inconsistent,0.0,0.07236269945494825,5,2022-12-30,[2024],[2022]
+dist_ma50 q3 & mom_12_1 q0,disregarded,weak_or_inconsistent,0.0,0.18371832377647404,8,2019-09-27,[2021],"[2022, 2023, 2024, 2025]"
+dist_ma50 q3 & r5_news q4,disregarded,weak_or_inconsistent,0.0,0.2722337712474785,8,2019-12-27,[2020],"[2021, 2022, 2023, 2026]"
+dist_ma50 q3 & r5_nonews q3,disregarded,weak_or_inconsistent,0.0,0.4227650428894011,11,2016-12-30,"[2018, 2026]","[2020, 2022, 2024, 2025]"
+dist_ma50 q3 & range_compress q2,disregarded,weak_or_inconsistent,0.0,0.05697612966458002,9,2018-03-29,"[2018, 2022, 2023, 2026]","[2019, 2020, 2024, 2025]"
+dist_ma50 q3 & rel_ind60 q4,disregarded,weak_or_inconsistent,0.0,1.3763813796225495,9,2018-09-28,[2025],[2018]
+dist_ma50 q3 & vol20 q3,disregarded,weak_or_inconsistent,0.0,0.2466309120079571,8,2019-03-29,[2023],"[2019, 2021, 2022, 2025]"
+dist_ma50 q3 & vol_ratio q0,disregarded,weak_or_inconsistent,0.0,0.16347325477741834,8,2019-03-29,[2024],"[2019, 2022, 2026]"
+dist_ma50 q3 & vol_surge1 q3,disregarded,weak_or_inconsistent,0.0,1.4462552576819816,11,2016-12-30,"[2016, 2019, 2020]","[2017, 2021, 2022, 2024, 2025]"
+dist_ma50 q3 & vol_surge5 q1,disregarded,lapsed,0.0,2.8344362613409215,7,2020-09-25,"[2022, 2024]",[]
+dist_ma50 q4 & gap_today q0,disregarded,not_significant_after_all_tries,0.0,2.699760712268801,7,2020-09-25,"[2021, 2024, 2025]",[2026]
+dist_ma50 q4 & ins_buyers30 q2,disregarded,weak_or_inconsistent,0.0,0.3157632744446913,8,2019-03-29,"[2019, 2021]","[2020, 2023, 2024, 2026]"
+dist_ma50 q4 & intraday20 q4,disregarded,weak_or_inconsistent,0.0,0.3908107365595158,4,2023-03-31,[2025],"[2024, 2026]"
+dist_ma50 q4 & log_dv q1,disregarded,weak_or_inconsistent,0.0,0.4206360369625165,5,2022-03-25,[],"[2022, 2025]"
+dist_ma50 q4 & log_dv q3,disregarded,not_significant_after_all_tries,0.0,1.6357957489104749,5,2022-03-25,"[2023, 2024, 2025]",[2022]
+dist_ma50 q4 & log_dv q3 unless frog q4,disregarded,weak_or_inconsistent,0.0,1.094294533437226,1,2026-03-27,[2026],[]
+dist_ma50 q4 & r5_nonews q0,disregarded,weak_or_inconsistent,0.0,1.1588812730759848,10,2017-03-31,"[2017, 2024, 2025]","[2018, 2019, 2020, 2023, 2026]"
+dist_ma50 q4 & r5_nonews q4,disregarded,weak_or_inconsistent,0.0,0.36172363442282585,4,2023-03-31,[2026],"[2023, 2024, 2025]"
+dist_ma50 q4 & vol20 q2,disregarded,weak_or_inconsistent,0.0,1.4361697528889503,12,2015-09-25,"[2020, 2025, 2026]","[2016, 2017, 2021, 2023, 2024]"
+dist_ma50 q4 & vol_ratio q3,disregarded,weak_or_inconsistent,0.0,0.9943719084481892,5,2022-03-25,[2022],[2023]
+dist_ma50 q4 & vol_surge5 q0,disregarded,weak_or_inconsistent,0.0,0.15017791269178637,4,2023-03-31,[],[2024]
+ear q0,disregarded,weak_or_inconsistent,0.0,0.8111892526913883,6,2021-09-24,"[2025, 2026]","[2021, 2024]"
+ear q0 & earn_in_week q2,disregarded,weak_or_inconsistent,0.0,0.22223002712715054,6,2021-09-24,"[2025, 2026]","[2021, 2022, 2023, 2024]"
+ear q0 & ev_offering q2,disregarded,weak_or_inconsistent,0.0,0.7769594752929231,6,2021-09-24,[2026],"[2021, 2024]"
+ear q0 & frog q1,disregarded,weak_or_inconsistent,0.0,0.6245969496041179,5,2022-03-25,[2023],"[2024, 2026]"
+ear q0 & ind_mom20 q2,disregarded,weak_or_inconsistent,0.0,0.7634643262087504,6,2021-09-24,[2025],"[2021, 2022, 2023, 2024]"
+ear q0 & ind_mom60 q0,disregarded,weak_or_inconsistent,0.0,0.09431381685608627,5,2022-03-25,[2022],"[2023, 2024, 2026]"
+ear q0 & range_compress q2,disregarded,weak_or_inconsistent,0.0,0.15986781156896746,6,2021-09-24,[],"[2021, 2022, 2024]"
+ear q1,disregarded,weak_or_inconsistent,0.0,1.1517454777190157,11,2016-03-24,"[2019, 2024, 2025]","[2016, 2017, 2020]"
+ear q1 & ear_volsurge q3,disregarded,weak_or_inconsistent,0.0,0.2433339675697447,9,2018-09-28,[2021],"[2022, 2023, 2026]"
+ear q1 & ev_shelf q2,disregarded,not_significant_after_all_tries,0.0,2.039296493945919,10,2017-09-29,"[2019, 2024, 2025, 2026]","[2020, 2023]"
+ear q1 & frog q0,disregarded,weak_or_inconsistent,0.0,0.9823490287391886,8,2019-09-27,[2019],"[2022, 2023, 2026]"
+ear q1 & gap_today q3,disregarded,weak_or_inconsistent,0.0,1.2278427130979601,9,2018-09-28,"[2019, 2021, 2025]","[2020, 2023, 2024]"
+ear q1 & ind_mom60 q1,disregarded,weak_or_inconsistent,0.0,0.3355486818793119,8,2019-09-27,"[2024, 2025]","[2019, 2020, 2021, 2022]"
+ear q1 & ins_buyers30 q2,disregarded,not_significant_after_all_tries,0.0,1.9105242856854832,10,2017-09-29,"[2019, 2024, 2025]","[2018, 2020]"
+ear q1 & ins_officer30 q2,disregarded,not_significant_after_all_tries,0.0,2.0556174510126977,10,2017-09-29,"[2019, 2024, 2025]",[2020]
+ear q1 & ins_value30 q2,disregarded,not_significant_after_all_tries,0.0,1.9105242856854832,10,2017-09-29,"[2019, 2024, 2025]","[2018, 2020]"
+ear q1 & intraday20 q2,disregarded,weak_or_inconsistent,0.0,1.1674075976846858,8,2019-09-27,"[2019, 2021]","[2020, 2022, 2025]"
+ear q1 & intraday20 q3,disregarded,weak_or_inconsistent,0.0,0.20058433954736302,9,2018-03-29,"[2021, 2024]","[2018, 2023, 2025, 2026]"
+ear q1 & log_dv q3,disregarded,weak_or_inconsistent,0.0,0.7029341854386452,9,2018-09-28,[2018],"[2020, 2022, 2025, 2026]"
+ear q1 & max20 q0,disregarded,lapsed,0.0,1.974860098668976,7,2020-03-27,"[2020, 2023]","[2021, 2022]"
+ear q1 & max20 q3,disregarded,weak_or_inconsistent,0.0,0.8845464411942279,12,2015-09-25,"[2018, 2019]","[2015, 2017, 2021, 2022, 2023, 2024]"
+ear q1 & max20 q4,disregarded,weak_or_inconsistent,0.0,1.3636297017939458,5,2022-03-25,"[2023, 2026]",[2022]
+ear q1 & min20 q1,disregarded,not_significant_after_all_tries,0.0,1.5361509459840315,3,2024-09-27,[2025],[]
+ear q1 & min20 q3,disregarded,weak_or_inconsistent,0.0,0.04797649841351763,6,2021-09-24,[2023],"[2021, 2022, 2025]"
+ear q1 & r20 q4,disregarded,weak_or_inconsistent,0.0,0.5327742469984464,6,2021-03-26,[2023],"[2021, 2022]"
+ear q1 & r5_news q2,disregarded,not_significant_after_all_tries,0.0,2.3133904351418995,9,2018-09-28,"[2018, 2019, 2024, 2025]",[2020]
+ear q1 & r5_nonews q2,disregarded,weak_or_inconsistent,0.0,0.19226527809332522,6,2021-03-26,[2024],"[2021, 2022, 2025]"
+ear q1 & range_compress q0,disregarded,weak_or_inconsistent,0.0,1.3655748273590556,5,2022-03-25,[2026],[2022]
+ear q1 & rel_ind20 q4,disregarded,weak_or_inconsistent,0.0,0.387724771719908,7,2020-03-27,"[2023, 2026]","[2020, 2021, 2022, 2025]"
+ear q1 & rel_ind60 q2,disregarded,weak_or_inconsistent,0.0,0.32895499944898837,9,2018-09-28,[2022],"[2020, 2021, 2024, 2025]"
+ear q1 & rel_ind60 q4,disregarded,weak_or_inconsistent,0.0,0.4431168138977652,9,2018-09-28,"[2019, 2026]","[2020, 2021, 2022, 2024]"
+ear q1 & skew60 q1,disregarded,not_significant_after_all_tries,0.0,2.6802161723353346,8,2019-09-27,"[2021, 2022, 2025, 2026]",[2020]
+ear q1 & vol_ratio q3,disregarded,weak_or_inconsistent,0.0,1.2374494304065493,6,2021-03-26,"[2024, 2025]","[2021, 2023]"
+ear q2,disregarded,not_significant_after_all_tries,0.0,4.374994037778583,10,2017-03-31,"[2017, 2020, 2021, 2023, 2024, 2025, 2026]","[2019, 2022]"
+ear q2 & ear_volsurge q2,disregarded,not_significant_after_all_tries,0.0,3.7344255047631805,2,2025-03-28,"[2025, 2026]",[]
+ear q2 & earn_in_week q2,disregarded,not_significant_after_all_tries,0.0,2.824778074230944,6,2021-09-24,"[2021, 2023, 2024, 2025, 2026]",[2022]
+ear q2 & ev_agreement q2,disregarded,not_significant_after_all_tries,0.0,2.317841504981827,2,2025-09-26,[2025],[]
+ear q2 & ev_agreement q4,disregarded,not_significant_after_all_tries,0.0,2.7307920917478756,2,2025-09-26,[2026],[]
+ear q2 & ev_offering q2,disregarded,not_significant_after_all_tries,0.0,2.673338751060431,2,2025-03-28,[2025],[]
+ear q2 & ev_red_flag q2,disregarded,not_significant_after_all_tries,0.0,2.540851117799966,2,2025-03-28,[2025],[]
+ear q2 & ev_red_flag q4,disregarded,not_significant_after_all_tries,0.0,2.5230199878916455,2,2025-12-26,"[2025, 2026]",[]
+ear q2 & ev_shelf q2,disregarded,not_significant_after_all_tries,0.0,1.8056431351599005,2,2025-03-28,[2025],[]
+ear q2 & frog q2 unless dist_52wh q4,disregarded,not_significant_after_all_tries,0.0,2.330283510408225,2,2025-09-26,[2025],[]
+ear q2 & frog q2 unless ind_mom20 q4,disregarded,not_significant_after_all_tries,0.0,1.5799157391353003,1,2026-03-27,[2026],[]
+ear q2 & frog q2 unless vol_surge1 q4,disregarded,weak_or_inconsistent,0.0,1.4927169625154308,1,2026-03-27,[2026],[]
+ear q2 & frog q2 unless vol_surge5 q4,disregarded,not_significant_after_all_tries,0.0,1.7838507224864542,2,2025-09-26,[2025],[]
+ear q2 & gap_today q0,disregarded,weak_or_inconsistent,0.0,1.213894114153064,2,2025-09-26,[2026],[]
+ear q2 & ins_opportunistic30 q2,disregarded,not_significant_after_all_tries,0.0,2.878057657921398,2,2025-03-28,"[2025, 2026]",[]
+ear q2 & intraday20 q4,disregarded,weak_or_inconsistent,0.0,0.953293378046911,1,2026-03-27,[],[]
+ear q2 & log_dv q3,disregarded,weak_or_inconsistent,0.0,1.08822964336188,2,2025-03-28,[],[]
+ear q2 & max20 q4,disregarded,not_significant_after_all_tries,0.0,3.336670776023396,2,2025-03-28,"[2025, 2026]",[]
+ear q2 & news5 q2,disregarded,weak_or_inconsistent,0.0,0.5840604792209833,1,2026-03-27,[],[]
+ear q2 & r1 q0,disregarded,not_significant_after_all_tries,0.0,3.1548138769620073,5,2022-03-25,"[2023, 2025, 2026]",[2022]
+ear q2 & r1 q4,disregarded,weak_or_inconsistent,0.0,0.6435363933574326,1,2026-03-27,[],[]
+ear q2 & r5_news q0,disregarded,not_significant_after_all_tries,0.0,2.920988661206076,2,2025-03-28,[2026],[]
+ear q2 & r5_news q2,disregarded,not_significant_after_all_tries,0.0,2.1651401690512353,2,2025-09-26,[2025],[]
+ear q2 & r60 q0,disregarded,not_significant_after_all_tries,0.0,2.877561554309094,2,2025-09-26,[2026],[]
+ear q2 & r60 q4,disregarded,not_significant_after_all_tries,0.0,1.594539097574672,2,2025-09-26,[2025],[]
+ear q2 & range_compress q0,disregarded,not_significant_after_all_tries,0.0,2.571632588819186,2,2025-03-28,"[2025, 2026]",[]
+ear q2 & rel_ind60 q4,disregarded,not_significant_after_all_tries,0.0,1.9289034459082817,2,2025-09-26,[2025],[]
+ear q2 & skew60 q0,disregarded,weak_or_inconsistent,0.0,0.20710728486715346,2,2025-03-28,[],[2025]
+ear q2 & skew60 q1,disregarded,weak_or_inconsistent,0.0,0.4900431197389353,8,2019-03-29,"[2019, 2022, 2024]","[2020, 2021, 2023, 2026]"
+ear q2 & skew60 q4,disregarded,not_significant_after_all_tries,0.0,2.9958298685164633,2,2025-03-28,[2025],[]
+ear q2 & vol20 q4,disregarded,not_significant_after_all_tries,0.0,3.132422311021297,2,2025-03-28,"[2025, 2026]",[]
+ear q2 & vol_ratio q2,disregarded,weak_or_inconsistent,0.0,0.2120258870353361,2,2025-03-28,[],[2026]
+ear q2 & vol_surge1 q0,disregarded,not_significant_after_all_tries,0.0,1.8478119961800588,2,2025-03-28,[2026],[]
+ear q2 & vol_surge5 q0,disregarded,not_significant_after_all_tries,0.0,1.9473782066875476,1,2026-03-27,[2026],[]
+ear q2 & vol_surge5 q3,disregarded,weak_or_inconsistent,0.0,0.18917888601410807,2,2025-09-26,[2026],[2025]
+ear q3,disregarded,weak_or_inconsistent,0.0,0.3791161484064033,11,2016-03-24,"[2021, 2024]","[2019, 2020, 2026]"
+ear q3 & ins_buyers30 q2,disregarded,weak_or_inconsistent,0.0,0.33033201202777757,11,2016-12-30,"[2021, 2024]","[2017, 2018, 2019, 2020, 2026]"
+ear q3 & ins_officer30 q2,disregarded,weak_or_inconsistent,0.0,0.061371796851941475,11,2016-12-30,"[2021, 2024]","[2016, 2019, 2020, 2026]"
+ear q3 & ins_value30 q2,disregarded,weak_or_inconsistent,0.0,0.33033201202777757,11,2016-12-30,"[2021, 2024]","[2017, 2018, 2019, 2020, 2026]"
+ear q3 & log_dv q1,disregarded,weak_or_inconsistent,0.0,0.07540772724726406,2,2025-03-28,[],[2025]
+ear q3 & mom_12_1 q3,disregarded,weak_or_inconsistent,0.0,1.405799423357048,11,2016-12-30,"[2021, 2025]","[2019, 2026]"
+ear q3 & overnight20 q1,disregarded,weak_or_inconsistent,0.0,0.510693149484767,11,2016-12-30,"[2016, 2020]","[2017, 2018, 2022, 2024, 2025]"
+ear q3 & r20 q3,disregarded,weak_or_inconsistent,0.0,0.7722903586735987,11,2016-12-30,[2019],"[2017, 2021, 2023, 2026]"
+ear q3 & range_compress q1,disregarded,weak_or_inconsistent,0.0,0.5050780086209772,10,2017-09-29,"[2018, 2024]","[2019, 2020, 2022, 2026]"
+ear q3 & vol_surge1 q2,disregarded,weak_or_inconsistent,0.0,0.778895774743224,3,2024-09-27,[2025],[2024]
+ear q3 & vol_surge5 q2,disregarded,weak_or_inconsistent,0.0,0.6724628064575401,2,2025-03-28,[2026],[2025]
+ear q4,disregarded,lapsed,0.0,1.9393330645696547,10,2017-03-31,"[2020, 2023, 2024]",[2022]
+ear q4 & ev_offering q2,disregarded,weak_or_inconsistent,0.0,0.3278310808481897,2,2025-09-26,[],[]
+ear q4 & log_dv q3,disregarded,weak_or_inconsistent,0.0,0.3815826453288602,9,2018-09-28,[2021],"[2018, 2020, 2023, 2024, 2026]"
+ear q4 & vol20 q2,disregarded,weak_or_inconsistent,0.0,0.07748771784032604,4,2023-03-31,[],[2023]
+ear_volsurge q0,disregarded,not_significant_after_all_tries,0.0,1.7805825587467596,12,2015-09-25,"[2020, 2022, 2023, 2026]","[2015, 2017, 2018, 2025]"
+ear_volsurge q0 & ind_mom20 q4,disregarded,weak_or_inconsistent,0.0,1.4572044973339116,8,2019-03-29,"[2020, 2022, 2026]","[2019, 2024]"
+ear_volsurge q0 & log_dv q4,disregarded,weak_or_inconsistent,0.0,1.2597119711847242,8,2019-03-29,"[2023, 2024, 2026]","[2019, 2020, 2021, 2025]"
+ear_volsurge q0 & mom_12_1 q3,disregarded,weak_or_inconsistent,0.0,1.1122593652459447,11,2016-12-30,"[2018, 2020, 2024]","[2016, 2019, 2021, 2025, 2026]"
+ear_volsurge q0 & rel_ind20 q4,disregarded,not_significant_after_all_tries,0.0,2.4051240155494122,7,2020-09-25,"[2021, 2022, 2025, 2026]","[2020, 2023, 2024]"
+ear_volsurge q1,disregarded,weak_or_inconsistent,0.0,1.419880028870851,3,2024-03-28,[],[]
+ear_volsurge q1 & frog q4,disregarded,lapsed,0.0,1.873163197533622,8,2019-03-29,"[2019, 2020, 2021, 2023]","[2022, 2025]"
+ear_volsurge q1 & gap_today q0,disregarded,weak_or_inconsistent,0.0,0.5254833126743722,7,2020-09-25,"[2020, 2021]","[2022, 2025, 2026]"
+ear_volsurge q1 & skew60 q4,disregarded,weak_or_inconsistent,0.0,0.3733807886519388,8,2019-03-29,[2025],"[2020, 2021, 2022]"
+ear_volsurge q1 & vol_surge5 q3,disregarded,weak_or_inconsistent,0.0,1.3814658989562176,4,2023-03-31,"[2025, 2026]",[2023]
+ear_volsurge q2,disregarded,not_significant_after_all_tries,0.0,2.1430168059725148,10,2017-03-31,"[2020, 2025, 2026]",[2022]
+ear_volsurge q2 & gap_today q0,disregarded,not_significant_after_all_tries,0.0,2.6779689982141694,7,2020-09-25,"[2023, 2024, 2025, 2026]",[2022]
+ear_volsurge q2 & log_dv q3,disregarded,weak_or_inconsistent,0.0,1.0774189451944645,11,2016-03-24,[2026],"[2016, 2022, 2025]"
+ear_volsurge q2 & mom_12_1 q3,disregarded,weak_or_inconsistent,0.0,0.24195397849879063,11,2016-12-30,"[2017, 2018]","[2016, 2022, 2025, 2026]"
+ear_volsurge q2 & vol_surge5 q1,disregarded,not_significant_after_all_tries,0.0,1.9284051118304446,7,2020-09-25,"[2021, 2024, 2026]","[2023, 2025]"
+ear_volsurge q2 & vol_surge5 q3,disregarded,weak_or_inconsistent,0.0,1.1098682420137416,2,2025-03-28,[],[]
+ear_volsurge q3,disregarded,weak_or_inconsistent,0.0,1.4999006577804475,9,2018-09-28,"[2020, 2023]","[2018, 2019, 2022]"
+ear_volsurge q3 & ev_offering q2,disregarded,weak_or_inconsistent,0.0,0.6019326813231682,2,2025-09-26,[],[]
+ear_volsurge q3 & ind_mom20 q1,disregarded,weak_or_inconsistent,0.0,0.6343183743474536,2,2025-09-26,[2025],[2026]
+ear_volsurge q3 & intraday20 q3,disregarded,weak_or_inconsistent,0.0,1.1090968121935045,6,2021-09-24,"[2021, 2023]","[2022, 2024, 2026]"
+ear_volsurge q3 & intraday20 q4,disregarded,not_significant_after_all_tries,0.0,1.7675509633117228,7,2020-09-25,"[2020, 2023, 2024]","[2021, 2022]"
+ear_volsurge q3 & min20 q2,disregarded,weak_or_inconsistent,0.0,0.9361680835096581,2,2025-09-26,[],[]
+ear_volsurge q3 & overnight20 q2,disregarded,weak_or_inconsistent,0.0,1.091842869184581,6,2021-09-24,"[2024, 2026]",[2023]
+ear_volsurge q3 & r120 q3,disregarded,weak_or_inconsistent,0.0,0.5284758774331215,5,2022-12-30,"[2022, 2023]","[2025, 2026]"
+ear_volsurge q3 & r5_news q2,disregarded,weak_or_inconsistent,0.0,0.3639567336930348,3,2024-03-28,[],"[2025, 2026]"
+ear_volsurge q3 & rel_ind60 q2,disregarded,weak_or_inconsistent,0.0,0.7470596833889801,4,2023-09-29,[],[2026]
+ear_volsurge q3 & rel_ind60 q3,disregarded,weak_or_inconsistent,0.0,0.32485127688781223,5,2022-12-30,[2023],"[2024, 2026]"
+ear_volsurge q3 & vol20 q2,disregarded,lapsed,0.0,2.5453156276942397,6,2021-03-26,"[2021, 2023, 2024]",[]
+ear_volsurge q3 & vol_surge1 q2,disregarded,weak_or_inconsistent,0.0,0.5166524296307146,4,2023-09-29,[2024],"[2025, 2026]"
+ear_volsurge q4,disregarded,weak_or_inconsistent,0.0,0.20993779631269363,5,2022-12-30,[2026],"[2022, 2024]"
+ear_volsurge q4 & frog q4,disregarded,weak_or_inconsistent,0.0,0.18380743281877404,8,2019-03-29,"[2019, 2023]","[2020, 2021, 2024, 2025, 2026]"
+ear_volsurge q4 & ind_mom60 q1,disregarded,weak_or_inconsistent,0.0,1.1509391536294806,12,2015-09-25,"[2016, 2020]","[2015, 2026]"
+ear_volsurge q4 & log_dv q1,disregarded,weak_or_inconsistent,0.0,0.24187226228314868,8,2019-03-29,"[2019, 2023]","[2021, 2025, 2026]"
+ear_volsurge q4 & overnight20 q4,disregarded,weak_or_inconsistent,0.0,0.4756006238779218,5,2022-12-30,[2023],"[2024, 2026]"
+ear_volsurge q4 & r20 q3,disregarded,weak_or_inconsistent,0.0,1.2483067488603579,12,2015-09-25,"[2019, 2022, 2024]","[2015, 2018, 2020, 2021]"
+ear_volsurge q4 & range_compress q2,disregarded,weak_or_inconsistent,0.0,1.4648789661561141,6,2021-03-26,"[2022, 2025]",[2024]
+ear_volsurge q4 & vol20 q3,disregarded,not_significant_after_all_tries,0.0,2.074460007905703,8,2019-03-29,"[2023, 2025, 2026]","[2019, 2022]"
+ear_volsurge q4 & vol_surge1 q1,disregarded,weak_or_inconsistent,0.0,0.09754387463064627,8,2019-03-29,[2021],"[2022, 2023, 2025]"
+ear_volsurge q4 & vol_surge5 q3,disregarded,weak_or_inconsistent,0.0,0.13737798420300912,11,2016-03-24,[2017],"[2018, 2019, 2021, 2023, 2024]"
+earn_in_week q2 & ins_buyers30 q2,disregarded,weak_or_inconsistent,0.0,1.4615745303907115,12,2015-09-25,"[2018, 2020, 2022]","[2015, 2016, 2017, 2021]"
+earn_in_week q2 & mom_12_1 q3,disregarded,weak_or_inconsistent,0.0,0.06299785879270817,11,2016-12-30,"[2021, 2022]","[2016, 2017, 2018, 2019, 2020]"
+earn_in_week q4 & r5 q1,disregarded,stale_for_this_period,0.0,1.6133630909292564,1,2021-12-31,[2021],[]
+ev_agreement q2,disregarded,not_significant_after_all_tries,0.0,3.3354345248915767,9,2018-03-29,"[2019, 2020, 2022, 2026]","[2021, 2023]"
+ev_agreement q2 & ev_offering q2,disregarded,not_significant_after_all_tries,0.0,3.7060880859702716,8,2019-03-29,"[2019, 2020, 2022, 2026]","[2021, 2023]"
+ev_agreement q2 & ev_offering q4,disregarded,weak_or_inconsistent,0.0,0.491456616258423,7,2019-09-27,[],"[2019, 2020, 2025]"
+ev_agreement q2 & frog q1,disregarded,weak_or_inconsistent,0.0,0.30183908538228477,6,2021-03-26,[],"[2021, 2022]"
+ev_agreement q2 & intraday20 q4,disregarded,weak_or_inconsistent,0.0,0.2478714019629158,4,2023-03-31,[],[2026]
+ev_agreement q2 & r5 q1,disregarded,weak_or_inconsistent,0.0,1.4322998942626404,7,2020-03-27,"[2020, 2024, 2025]","[2021, 2023, 2026]"
+ev_agreement q2 & r5_nonews q4,disregarded,weak_or_inconsistent,0.0,0.5748537091401984,4,2023-03-31,[2024],[2026]
+ev_agreement q2 & range_compress q0,disregarded,weak_or_inconsistent,0.0,0.6895802757191084,4,2023-09-29,[2023],"[2024, 2026]"
+ev_agreement q2 & rel_ind60 q2,disregarded,weak_or_inconsistent,0.0,0.9075110188774499,7,2020-03-27,"[2022, 2026]","[2021, 2023, 2024, 2025]"
+ev_agreement q2 & rel_ind60 q2 unless close_loc q0,disregarded,weak_or_inconsistent,0.0,0.3639258601213573,4,2023-03-31,[2023],[2026]
+ev_agreement q2 & rel_ind60 q2 unless close_loc q4,disregarded,weak_or_inconsistent,0.0,0.30031732211280737,4,2023-03-31,[],"[2025, 2026]"
+ev_agreement q2 & rel_ind60 q2 unless dist_52wh q0,disregarded,weak_or_inconsistent,0.0,0.10270437514119052,4,2023-03-31,[],[2026]
+ev_agreement q2 & rel_ind60 q2 unless dist_52wh q4,disregarded,weak_or_inconsistent,0.0,0.023138030290560385,4,2023-03-31,[2026],"[2023, 2025]"
+ev_agreement q2 & rel_ind60 q2 unless dist_ma50 q0,disregarded,weak_or_inconsistent,0.0,0.07046342077861834,4,2023-03-31,[],"[2023, 2024]"
+ev_agreement q2 & rel_ind60 q2 unless ind_mom20 q4,disregarded,weak_or_inconsistent,0.0,0.49916533297722643,4,2023-03-31,[2023],"[2024, 2026]"
+ev_agreement q2 & rel_ind60 q2 unless r120 q0,disregarded,weak_or_inconsistent,0.0,0.5665846512296242,4,2023-03-31,[],[2026]
+ev_agreement q2 & rel_ind60 q2 unless r120 q4,disregarded,weak_or_inconsistent,0.0,0.4389879473010382,4,2023-03-31,[2023],[2026]
+ev_agreement q2 & rel_ind60 q2 unless r5_news q0,disregarded,weak_or_inconsistent,0.0,0.5048364038703166,4,2023-03-31,[2023],[2026]
+ev_agreement q2 & rel_ind60 q2 unless vol_surge1 q4,disregarded,weak_or_inconsistent,0.0,1.0323144528987092,4,2023-03-31,[2023],[2026]
+ev_agreement q2 & rel_ind60 q4,disregarded,weak_or_inconsistent,0.0,1.0379934211818973,5,2022-12-30,"[2022, 2025]","[2023, 2024]"
+ev_agreement q2 & vol20 q2,disregarded,not_significant_after_all_tries,0.0,1.9497651896344335,2,2025-09-26,"[2025, 2026]",[]
+ev_agreement q2 & vol20 q3,disregarded,not_significant_after_all_tries,0.0,3.064511071376273,8,2019-03-29,"[2019, 2020, 2023, 2025, 2026]","[2021, 2022]"
+ev_agreement q2 & vol_ratio q3,disregarded,weak_or_inconsistent,0.0,1.1898159783676403,6,2021-03-26,[2025],"[2022, 2026]"
+ev_agreement q2 & vol_ratio q4,disregarded,weak_or_inconsistent,0.0,0.6344994518730002,10,2017-09-29,"[2017, 2021, 2024, 2025]","[2018, 2022, 2023, 2026]"
+ev_agreement q2 & vol_surge5 q0,disregarded,weak_or_inconsistent,0.0,0.7938401852769431,4,2023-03-31,"[2024, 2026]",[2023]
+ev_agreement q2 & vol_surge5 q2,disregarded,not_significant_after_all_tries,0.0,1.5495038712190807,4,2023-03-31,[2023],[]
+ev_agreement q2 & vol_surge5 q3,disregarded,not_significant_after_all_tries,0.0,2.642328585739045,5,2022-03-25,"[2022, 2025, 2026]",[2023]
+ev_agreement q2 & vol_surge5 q4,disregarded,weak_or_inconsistent,0.0,0.19391029948929545,3,2024-03-28,[2024],[2025]
+ev_agreement q4,disregarded,not_significant_after_all_tries,0.0,3.083800909640138,8,2019-09-27,"[2020, 2022, 2026]","[2021, 2023]"
+ev_agreement q4 & ev_shelf q2,disregarded,not_significant_after_all_tries,0.0,2.681661529602052,8,2019-09-27,"[2020, 2022, 2026]","[2021, 2023, 2025]"
+ev_agreement q4 & ind_mom60 q1,disregarded,weak_or_inconsistent,0.0,1.2540889341235975,2,2025-12-26,[2026],[2025]
+ev_agreement q4 & mom_12_1 q3,disregarded,weak_or_inconsistent,0.0,0.9188183854170235,3,2024-03-28,[2025],[2026]
+ev_agreement q4 & r5 q3,disregarded,weak_or_inconsistent,0.0,0.36266224266789865,3,2024-06-28,[],[2026]
+ev_agreement q4 & range_compress q0,disregarded,weak_or_inconsistent,0.0,1.0212060631371103,7,2020-03-27,"[2022, 2026]","[2020, 2021, 2023, 2025]"
+ev_agreement q4 & rel_ind60 q4,disregarded,not_significant_after_all_tries,0.0,3.5887837153706985,8,2019-12-27,"[2019, 2021, 2025, 2026]","[2022, 2024]"
+ev_agreement q4 & vol_surge1 q1,disregarded,weak_or_inconsistent,0.0,0.5447308012318579,5,2020-06-26,[2026],"[2020, 2021]"
+ev_agreement q4 & vol_surge1 q2,disregarded,weak_or_inconsistent,0.0,0.6786036175014226,2,2025-09-26,[],[]
+ev_agreement q4 & vol_surge1 q4,disregarded,weak_or_inconsistent,0.0,0.8982654578328573,7,2020-09-25,[2022],"[2020, 2021]"
+ev_offering q2,disregarded,not_significant_after_all_tries,0.0,1.7202376425101678,6,2021-09-24,"[2023, 2026]","[2024, 2025]"
+ev_offering q2 & ev_shelf q2,disregarded,not_significant_after_all_tries,0.0,3.2293200956687267,3,2024-09-27,"[2025, 2026]",[2024]
+ev_offering q2 & intraday20 q4,disregarded,weak_or_inconsistent,0.0,0.31791130484207275,4,2023-03-31,[],[2023]
+ev_offering q2 & min20 q1,disregarded,weak_or_inconsistent,0.0,0.8758341842292154,3,2024-09-27,[2025],[2026]
+ev_offering q2 & rel_ind60 q2,disregarded,weak_or_inconsistent,0.0,0.885842541936859,7,2020-03-27,[2022],"[2021, 2023, 2024]"
+ev_offering q2 & rel_ind60 q4,disregarded,weak_or_inconsistent,0.0,1.0957776984088488,5,2022-12-30,"[2022, 2025]","[2023, 2024]"
+ev_offering q2 & skew60 q1,disregarded,not_significant_after_all_tries,0.0,2.396856901252953,5,2022-12-30,"[2024, 2025, 2026]",[]
+ev_offering q2 & vol20 q2,disregarded,not_significant_after_all_tries,0.0,1.6424440170422092,2,2025-03-28,"[2025, 2026]",[]
+ev_offering q2 & vol20 q3,disregarded,not_significant_after_all_tries,0.0,2.8325903712256517,8,2019-03-29,"[2019, 2020, 2023, 2025]","[2021, 2022]"
+ev_offering q2 & vol_surge5 q3,disregarded,not_significant_after_all_tries,0.0,2.030870847909018,4,2023-03-31,"[2025, 2026]",[]
+ev_red_flag q2,disregarded,not_significant_after_all_tries,0.0,2.0668421167771425,5,2022-12-30,"[2022, 2026]",[]
+ev_red_flag q2 & frog q0,disregarded,weak_or_inconsistent,0.0,0.36136019499979566,8,2019-09-27,[2019],"[2020, 2022, 2024, 2025]"
+ev_red_flag q2 & frog q1,disregarded,weak_or_inconsistent,0.0,0.24948498562166083,6,2021-03-26,[],[2023]
+ev_red_flag q2 & news5 q2,disregarded,not_significant_after_all_tries,0.0,2.2878310476795543,6,2021-03-26,"[2022, 2026]",[]
+ev_red_flag q2 & r5 q1,disregarded,not_significant_after_all_tries,0.0,1.577930764368474,8,2019-09-27,"[2020, 2024, 2025]","[2021, 2023, 2026]"
+ev_red_flag q2 & r60 q3,disregarded,weak_or_inconsistent,0.0,0.40766948476039244,1,2026-03-27,[],[]
+ev_red_flag q2 & range_compress q2,disregarded,weak_or_inconsistent,0.0,0.47259704257982543,8,2019-09-27,[2024],"[2021, 2023, 2026]"
+ev_red_flag q2 & rel_ind20 q4,disregarded,weak_or_inconsistent,0.0,0.5741511879816914,7,2020-03-27,"[2022, 2025]","[2020, 2023, 2024, 2026]"
+ev_red_flag q2 & rel_ind60 q2,disregarded,weak_or_inconsistent,0.0,0.5263730671798601,7,2020-03-27,[2022],"[2021, 2023, 2024]"
+ev_red_flag q2 & vol20 q3,disregarded,not_significant_after_all_tries,0.0,2.6453523261631733,8,2019-03-29,"[2019, 2020, 2023, 2025]","[2021, 2022]"
+ev_red_flag q2 & vol_ratio q3,disregarded,weak_or_inconsistent,0.0,1.4682611774266545,6,2021-03-26,"[2021, 2024, 2025]","[2022, 2026]"
+ev_red_flag q4,disregarded,not_significant_after_all_tries,0.0,1.8381455950055372,5,2022-12-30,[2026],[2024]
+ev_shelf q2,disregarded,not_significant_after_all_tries,0.0,3.2148177278642005,11,2016-03-24,"[2024, 2025, 2026]","[2016, 2017]"
+ev_shelf q2 & max20 q3,disregarded,weak_or_inconsistent,0.0,1.1488659603944544,8,2019-03-29,[2025],"[2019, 2021, 2022, 2024]"
+ev_shelf q2 & min20 q1,disregarded,weak_or_inconsistent,0.0,0.9730700955382304,3,2024-09-27,[2025],[2026]
+ev_shelf q2 & news5 q2,disregarded,not_significant_after_all_tries,0.0,3.40805923881821,6,2021-03-26,"[2022, 2024, 2025, 2026]",[]
+ev_shelf q2 & r20 q1,disregarded,weak_or_inconsistent,0.0,0.2449851125399305,3,2024-09-27,[2025],"[2024, 2026]"
+ev_shelf q2 & r60 q3,disregarded,weak_or_inconsistent,0.0,0.4797618603872076,1,2026-03-27,[],[]
+ev_shelf q2 & vol20 q3,disregarded,weak_or_inconsistent,0.0,0.5703645279650614,3,2024-09-27,[2025],[2024]
+ev_shelf q2 & vol_ratio q3,disregarded,weak_or_inconsistent,0.0,1.2766165244867806,6,2021-03-26,[2025],"[2022, 2026]"
+ev_shelf q2 & vol_surge1 q3,disregarded,weak_or_inconsistent,0.0,1.2433027641995755,10,2017-09-29,"[2018, 2021, 2022]","[2019, 2020, 2023, 2024]"
+frog q0,disregarded,weak_or_inconsistent,0.0,0.4375163419795048,8,2019-09-27,"[2024, 2025]","[2019, 2021]"
+frog q0 & gap_today q4,disregarded,weak_or_inconsistent,0.0,0.158606869989879,3,2024-03-28,[],[2026]
+frog q0 & ind_mom20 q4,disregarded,weak_or_inconsistent,0.0,1.4521750255051822,7,2020-09-25,"[2024, 2026]","[2020, 2022, 2023]"
+frog q0 & intraday20 q4,disregarded,not_significant_after_all_tries,0.0,2.9478908098541456,7,2020-09-25,"[2022, 2023, 2024, 2025]",[]
+frog q0 & log_dv q3,disregarded,weak_or_inconsistent,0.0,0.2622189810081673,8,2019-09-27,"[2019, 2022]","[2021, 2024, 2025, 2026]"
+frog q0 & max20 q1,disregarded,weak_or_inconsistent,0.0,0.510293187878212,4,2023-09-29,[2025],[2024]
+frog q0 & r1 q0,disregarded,weak_or_inconsistent,0.0,1.0427399148566683,12,2015-09-25,"[2018, 2021, 2025, 2026]","[2015, 2017, 2020, 2022, 2023]"
+frog q0 & r5_nonews q4,disregarded,not_significant_after_all_tries,0.0,1.656925106441772,5,2022-03-25,"[2022, 2025, 2026]","[2023, 2024]"
+frog q0 & r60 q2,disregarded,weak_or_inconsistent,0.0,1.0591792030892104,10,2017-09-29,[2023],"[2021, 2024, 2026]"
+frog q0 & range_compress q0,disregarded,not_significant_after_all_tries,0.0,2.7902055434265214,6,2021-03-26,"[2022, 2023, 2026]",[]
+frog q0 & rel_ind60 q0,disregarded,weak_or_inconsistent,0.0,0.441136229419656,12,2015-09-25,"[2016, 2017]","[2015, 2019, 2020, 2021, 2025]"
+frog q0 & vol_ratio q2,disregarded,weak_or_inconsistent,0.0,1.141201471723539,3,2024-03-28,[2026],[2024]
+frog q0 & vol_surge5 q1,disregarded,weak_or_inconsistent,0.0,0.9423318740410455,7,2020-09-25,[2023],"[2020, 2026]"
+frog q1,disregarded,weak_or_inconsistent,0.0,0.34271127449898875,6,2021-03-26,[],"[2023, 2024]"
+frog q1 & ins_officer30 q2,disregarded,weak_or_inconsistent,0.0,0.01631839181021022,6,2021-03-26,[],"[2023, 2024]"
+frog q1 & intraday20 q1,disregarded,weak_or_inconsistent,0.0,0.8662629257611948,6,2021-03-26,"[2022, 2024]","[2025, 2026]"
+frog q1 & intraday20 q4,disregarded,weak_or_inconsistent,0.0,0.9271436912917387,4,2023-03-31,[2026],[]
+frog q1 & log_dv q3,disregarded,weak_or_inconsistent,0.0,0.1708925314778386,9,2018-03-29,[2026],"[2018, 2020, 2022]"
+frog q1 & max20 q0,disregarded,weak_or_inconsistent,0.0,0.20694559808052637,5,2022-03-25,[],"[2023, 2025, 2026]"
+frog q1 & min20 q1,disregarded,weak_or_inconsistent,0.0,0.6161527045561185,3,2024-03-28,[],[2026]
+frog q1 & min20 q3,disregarded,weak_or_inconsistent,0.0,0.611302975629465,3,2024-03-28,[],[2026]
+frog q1 & news5 q2,disregarded,weak_or_inconsistent,0.0,0.16675695882501218,6,2021-03-26,[2023],"[2021, 2022, 2025]"
+frog q1 & r5 q1,disregarded,weak_or_inconsistent,0.0,1.1615681929435162,9,2018-09-28,[2020],"[2018, 2023, 2025]"
+frog q1 & range_compress q2,disregarded,weak_or_inconsistent,0.0,0.9778229600000558,6,2021-03-26,"[2021, 2023]","[2022, 2025]"
+frog q1 & range_compress q3,disregarded,weak_or_inconsistent,0.0,0.6343843310545306,3,2024-09-27,[2024],[2025]
+frog q1 & rel_ind60 q1,disregarded,lapsed,0.0,1.6400783847473346,11,2016-03-24,"[2016, 2020, 2022]","[2018, 2021, 2025, 2026]"
+frog q1 & rel_ind60 q2,disregarded,not_significant_after_all_tries,0.0,2.2231580842830763,7,2020-03-27,"[2022, 2024, 2025]",[2023]
+frog q1 & rel_ind60 q4,disregarded,weak_or_inconsistent,0.0,0.8488679016770593,2,2025-09-26,[2025],[2026]
+frog q1 & vol20 q2,disregarded,weak_or_inconsistent,0.0,0.6624271037392764,2,2025-09-26,[],[]
+frog q1 & vol_surge1 q1,disregarded,weak_or_inconsistent,0.0,0.49560782443592477,4,2023-09-29,[2025],"[2023, 2026]"
+frog q1 & vol_surge5 q3,disregarded,weak_or_inconsistent,0.0,0.9324152700846363,5,2022-03-25,[2022],"[2023, 2025]"
+frog q2,disregarded,weak_or_inconsistent,0.0,1.4441751981832605,4,2023-09-29,[2025],[]
+frog q2 & gap_today q0,disregarded,weak_or_inconsistent,0.0,1.1380688489658888,7,2020-09-25,[],[2020]
+frog q2 & log_dv q0,disregarded,not_significant_after_all_tries,0.0,1.727355199924273,3,2024-09-27,"[2024, 2025]",[]
+frog q2 & log_dv q3,disregarded,lapsed,0.0,1.6850579574096738,6,2021-09-24,[2024],[2021]
+frog q2 & min20 q1,disregarded,weak_or_inconsistent,0.0,0.023846874412779676,3,2024-09-27,[],[2026]
+frog q2 & min20 q3,disregarded,weak_or_inconsistent,0.0,0.5831891980385836,6,2021-09-24,[2021],"[2023, 2024, 2025]"
+frog q2 & overnight20 q3,disregarded,weak_or_inconsistent,0.0,0.18127097745677126,6,2021-09-24,[2023],"[2022, 2024, 2025]"
+frog q2 & r20 q4,disregarded,weak_or_inconsistent,0.0,0.8127916724492663,7,2020-09-25,[2021],"[2024, 2026]"
+frog q2 & r5_nonews q3,disregarded,weak_or_inconsistent,0.0,1.3936744724863468,6,2021-09-24,"[2022, 2023, 2025]","[2021, 2026]"
+frog q2 & range_compress q0,disregarded,weak_or_inconsistent,0.0,0.9382324835388766,6,2021-09-24,[2021],[2026]
+frog q2 & rel_ind20 q0,disregarded,weak_or_inconsistent,0.0,0.05903897186597778,3,2024-09-27,[],[2024]
+frog q2 & rel_ind20 q4,disregarded,lapsed,0.0,1.6765492835865234,7,2020-09-25,[2022],[]
+frog q2 & rel_ind60 q2,disregarded,not_significant_after_all_tries,0.0,2.04210839311155,7,2020-09-25,"[2021, 2023, 2025]","[2022, 2026]"
+frog q2 & skew60 q0,disregarded,weak_or_inconsistent,0.0,0.34451591578168783,2,2025-03-28,[],[]
+frog q2 & vol20 q3,disregarded,weak_or_inconsistent,0.0,0.23364616228246485,3,2024-09-27,[2024],"[2025, 2026]"
+frog q2 & vol_surge1 q0,disregarded,weak_or_inconsistent,0.0,1.0282093630482925,1,2026-03-27,[2026],[]
+frog q2 & vol_surge1 q2,disregarded,weak_or_inconsistent,0.0,0.4241637330238921,2,2025-09-26,[],[]
+frog q3 & gap_today q4,disregarded,weak_or_inconsistent,0.0,0.4611275691300604,6,2021-03-26,[2022],"[2021, 2026]"
+frog q3 & ind_mom20 q2,disregarded,weak_or_inconsistent,0.0,0.673515041433898,4,2023-09-29,[2023],"[2025, 2026]"
+frog q3 & ind_mom20 q4,disregarded,weak_or_inconsistent,0.0,1.4715024920319004,6,2021-09-24,"[2021, 2024, 2026]","[2022, 2025]"
+frog q3 & intraday20 q4,disregarded,not_significant_after_all_tries,0.0,2.0734533860061126,2,2025-03-28,[2026],[]
+frog q3 & log_dv q3,disregarded,weak_or_inconsistent,0.0,0.6944332736617591,6,2021-09-24,"[2025, 2026]","[2022, 2024]"
+frog q3 & max20 q1,disregarded,weak_or_inconsistent,0.0,0.8283998835816924,10,2017-09-29,"[2020, 2022, 2025]","[2017, 2018, 2019]"
+frog q3 & min20 q3,disregarded,lapsed,0.0,1.594908818513202,6,2021-09-24,"[2021, 2022, 2024]","[2023, 2025]"
+frog q3 & mom_12_1 q2,disregarded,weak_or_inconsistent,0.0,0.6515710933649644,12,2015-09-25,"[2022, 2026]","[2016, 2020, 2021, 2023, 2024, 2025]"
+frog q3 & r1 q4,disregarded,lapsed,0.0,1.9687887991483253,10,2017-09-29,"[2018, 2020]","[2023, 2026]"
+frog q3 & r20 q4,disregarded,weak_or_inconsistent,0.0,0.14589845357144285,7,2020-09-25,"[2025, 2026]","[2020, 2021, 2022, 2024]"
+frog q3 & vol_ratio q4,disregarded,weak_or_inconsistent,0.0,0.3660182881984525,6,2021-03-26,"[2022, 2023, 2024]","[2021, 2025, 2026]"
+frog q3 & vol_surge5 q1,disregarded,weak_or_inconsistent,0.0,0.11206634647349237,7,2020-09-25,[2021],"[2020, 2024, 2025, 2026]"
+frog q4,disregarded,weak_or_inconsistent,0.0,0.9897850262650928,7,2020-09-25,[2025],"[2020, 2022, 2026]"
+frog q4 & ind_mom60 q2,disregarded,lapsed,0.0,1.737173594414069,8,2019-03-29,"[2019, 2021, 2023]","[2022, 2026]"
+frog q4 & r5_nonews q0,disregarded,weak_or_inconsistent,0.0,1.0609589641806627,11,2016-12-30,"[2016, 2018, 2025]","[2017, 2022, 2026]"
+frog q4 & vol20 q1,disregarded,weak_or_inconsistent,0.0,1.414133035334113,12,2015-09-25,"[2019, 2021, 2025]","[2015, 2018, 2020, 2023]"
+frog q4 & vol_ratio q1,disregarded,weak_or_inconsistent,0.0,0.1183722687110644,8,2019-03-29,[],"[2021, 2022]"
+frog q4 & vol_surge5 q3,disregarded,not_significant_after_all_tries,0.0,2.0337593257152924,2,2025-09-26,[2025],[]
+gap_today q0,disregarded,weak_or_inconsistent,0.0,1.3972953493465603,10,2017-09-29,"[2021, 2023, 2025]","[2017, 2018, 2020]"
+gap_today q0 & ind_mom20 q4,disregarded,weak_or_inconsistent,0.0,0.6928518786850986,8,2019-09-27,"[2020, 2023]","[2019, 2022, 2025, 2026]"
+gap_today q0 & ins_opportunistic30 q2,disregarded,lapsed,0.0,1.665518374181947,7,2020-09-25,"[2021, 2023]",[2020]
+gap_today q0 & intraday20 q4,disregarded,weak_or_inconsistent,0.0,1.3777371392774462,7,2020-09-25,"[2022, 2025]","[2020, 2023, 2026]"
+gap_today q0 & log_dv q2,disregarded,weak_or_inconsistent,0.0,1.1112727623028502,9,2018-03-29,"[2018, 2020]","[2021, 2022]"
+gap_today q0 & log_dv q3,disregarded,not_significant_after_all_tries,0.0,1.7078612535938624,7,2020-09-25,[2021],"[2022, 2023]"
+gap_today q0 & max20 q3,disregarded,not_significant_after_all_tries,0.0,1.8085301461170455,7,2020-09-25,"[2020, 2026]","[2021, 2022]"
+gap_today q0 & min20 q1,disregarded,not_significant_after_all_tries,0.0,2.4104775512481758,9,2018-09-28,"[2020, 2023, 2024, 2025, 2026]","[2019, 2021]"
+gap_today q0 & mom_12_1 q2,disregarded,not_significant_after_all_tries,0.0,1.6271366269907486,5,2022-03-25,"[2024, 2025]","[2022, 2026]"
+gap_today q0 & overnight20 q1,disregarded,weak_or_inconsistent,0.0,0.9242336829514327,7,2020-09-25,[2024],"[2022, 2026]"
+gap_today q0 & overnight20 q3,disregarded,weak_or_inconsistent,0.0,0.7294496016921491,9,2018-03-29,"[2019, 2020]","[2021, 2022, 2023, 2024, 2025]"
+gap_today q0 & r1 q0,disregarded,weak_or_inconsistent,0.0,0.6742211042879702,7,2020-09-25,[2026],"[2020, 2023, 2024]"
+gap_today q0 & r120 q3,disregarded,weak_or_inconsistent,0.0,0.3458022113180154,9,2018-09-28,[],"[2018, 2022, 2023, 2026]"
+gap_today q0 & r20 q0,disregarded,weak_or_inconsistent,0.0,1.1847755958120472,7,2020-09-25,"[2023, 2024]","[2020, 2026]"
+gap_today q0 & r20 q4,disregarded,weak_or_inconsistent,0.0,0.9544323703136155,7,2020-09-25,"[2022, 2025]","[2020, 2021, 2023]"
+gap_today q0 & r5 q1,disregarded,weak_or_inconsistent,0.0,0.08767393705670244,7,2020-09-25,"[2020, 2024]","[2021, 2023, 2026]"
+gap_today q0 & r5_nonews q1,disregarded,weak_or_inconsistent,0.0,0.2942471460963098,7,2020-09-25,"[2020, 2024]","[2021, 2022, 2023, 2026]"
+gap_today q0 & r5_nonews q3,disregarded,weak_or_inconsistent,0.0,1.2630277192382138,5,2022-03-25,[2024],[2025]
+gap_today q0 & r60 q4,disregarded,not_significant_after_all_tries,0.0,2.920535094268672,7,2020-09-25,"[2021, 2024, 2025]",[]
+gap_today q0 & range_compress q1,disregarded,weak_or_inconsistent,0.0,0.16007026657537937,9,2018-09-28,"[2019, 2020]","[2018, 2021, 2022, 2023, 2024, 2026]"
+gap_today q0 & rel_ind20 q0,disregarded,lapsed,0.0,1.5763715580318822,7,2020-09-25,"[2021, 2023, 2024]","[2020, 2026]"
+gap_today q0 & rel_ind20 q4,disregarded,weak_or_inconsistent,0.0,1.313514992188064,7,2020-09-25,"[2022, 2025]",[2021]
+gap_today q0 & rel_ind60 q4,disregarded,not_significant_after_all_tries,0.0,2.549532056237577,7,2020-09-25,"[2022, 2025]",[]
+gap_today q0 & vol_surge1 q1,disregarded,weak_or_inconsistent,0.0,0.7952372167884981,8,2019-09-27,"[2022, 2026]","[2020, 2023, 2024]"
+gap_today q1 & intraday20 q2,disregarded,weak_or_inconsistent,0.0,0.6145587545531994,5,2022-03-25,"[2023, 2024]","[2022, 2025]"
+gap_today q1 & intraday20 q4,disregarded,weak_or_inconsistent,0.0,0.12354470964185793,4,2023-03-31,[],"[2023, 2024]"
+gap_today q1 & mom_12_1 q0,disregarded,weak_or_inconsistent,0.0,1.1341304037449946,7,2020-03-27,[2022],[2023]
+gap_today q1 & r20 q2,disregarded,weak_or_inconsistent,0.0,0.5663023736743792,5,2022-03-25,[2023],"[2022, 2025, 2026]"
+gap_today q1 & r5_nonews q4,disregarded,weak_or_inconsistent,0.0,0.6954875795659693,4,2023-03-31,[2023],[2025]
+gap_today q1 & vol_surge5 q0,disregarded,weak_or_inconsistent,0.0,1.2045402788035195,4,2023-03-31,"[2023, 2026]","[2024, 2025]"
+gap_today q2,disregarded,weak_or_inconsistent,0.0,0.5076716961269371,11,2016-03-24,"[2019, 2022]","[2018, 2020, 2023, 2024, 2026]"
+gap_today q2 & log_dv q1,disregarded,weak_or_inconsistent,0.0,0.16160210081952106,6,2021-03-26,[],"[2021, 2023, 2024]"
+gap_today q2 & min20 q3,disregarded,weak_or_inconsistent,0.0,0.6081124068376373,5,2022-12-30,[],[2022]
+gap_today q2 & r60 q0 unless frog q4,disregarded,weak_or_inconsistent,0.0,0.059733493282594814,5,2022-12-30,[2026],"[2022, 2024, 2025]"
+gap_today q2 & r60 q0 unless r5_news q0,disregarded,weak_or_inconsistent,0.0,0.3302376105821425,5,2022-12-30,[],"[2024, 2026]"
+gap_today q2 & r60 q0 unless r5_nonews q4,disregarded,weak_or_inconsistent,0.0,0.3059759980856416,5,2022-12-30,[2026],"[2022, 2023, 2025]"
+gap_today q2 & rel_ind20 q1,disregarded,weak_or_inconsistent,0.0,1.1908886487673735,4,2023-03-31,"[2024, 2025]",[2026]
+gap_today q3,disregarded,weak_or_inconsistent,0.0,0.773686423935623,12,2015-09-25,"[2021, 2022]","[2015, 2016, 2017, 2020, 2024]"
+gap_today q3 & ind_mom60 q0,disregarded,weak_or_inconsistent,0.0,0.32520811594526666,12,2015-09-25,"[2023, 2026]","[2017, 2018, 2019, 2021, 2025]"
+gap_today q3 & intraday20 q2,disregarded,weak_or_inconsistent,0.0,0.3996300902561326,8,2019-09-27,[2021],"[2020, 2024, 2025]"
+gap_today q3 & intraday20 q3,disregarded,weak_or_inconsistent,0.0,0.008765751165789894,10,2017-03-31,"[2021, 2022, 2026]","[2017, 2019, 2020, 2023, 2024, 2025]"
+gap_today q3 & log_dv q3,disregarded,weak_or_inconsistent,0.0,1.1378308995192488,7,2020-09-25,"[2020, 2021]","[2023, 2024]"
+gap_today q3 & min20 q2,disregarded,weak_or_inconsistent,0.0,1.3746432349206528,8,2019-03-29,"[2021, 2025, 2026]","[2020, 2023, 2024]"
+gap_today q3 & min20 q4,disregarded,weak_or_inconsistent,0.0,0.4254051730917462,6,2021-03-26,"[2021, 2022]","[2023, 2024]"
+gap_today q3 & mom_12_1 q2,disregarded,weak_or_inconsistent,0.0,0.4630969945922377,12,2015-09-25,[2023],"[2015, 2017, 2022, 2025]"
+gap_today q3 & r120 q3,disregarded,weak_or_inconsistent,0.0,1.0338302182418153,5,2022-12-30,[2026],"[2023, 2024]"
+gap_today q3 & r5 q3,disregarded,not_significant_after_all_tries,0.0,1.9140332855305013,7,2020-09-25,"[2021, 2023, 2026]","[2020, 2024]"
+gap_today q3 & r5_news q4,disregarded,weak_or_inconsistent,0.0,1.2874202581132235,6,2020-06-26,[2025],"[2021, 2022]"
+gap_today q3 & range_compress q3,disregarded,not_significant_after_all_tries,0.0,1.5652796922010581,8,2019-09-27,"[2019, 2021, 2022, 2026]","[2020, 2024]"
+gap_today q3 & vol20 q3,disregarded,weak_or_inconsistent,0.0,0.7115293651962082,3,2024-03-28,[2025],"[2024, 2026]"
+gap_today q3 & vol_surge5 q1,disregarded,weak_or_inconsistent,0.0,1.4803835051095489,7,2020-09-25,"[2021, 2022]","[2024, 2026]"
+gap_today q3 & vol_surge5 q3,disregarded,weak_or_inconsistent,0.0,0.7687262752996953,12,2015-09-25,"[2021, 2022, 2025, 2026]","[2015, 2018, 2019, 2020, 2023, 2024]"
+gap_today q4,disregarded,weak_or_inconsistent,0.0,0.1403847050149984,7,2020-09-25,[],"[2022, 2024, 2025]"
+gap_today q4 & log_dv q1,disregarded,weak_or_inconsistent,0.0,0.23107551728569634,6,2021-03-26,[],"[2021, 2023, 2025]"
+gap_today q4 & log_dv q3,disregarded,lapsed,0.0,1.6767913603076041,11,2016-03-24,"[2017, 2021, 2023]","[2019, 2022, 2024, 2025]"
+gap_today q4 & min20 q4,disregarded,weak_or_inconsistent,0.0,0.06499029837752512,6,2021-03-26,[],"[2023, 2024, 2026]"
+gap_today q4 & r5_nonews q2,disregarded,weak_or_inconsistent,0.0,0.5956920193915998,6,2021-03-26,"[2022, 2023]","[2021, 2024, 2026]"
+gap_today q4 & range_compress q0,disregarded,not_significant_after_all_tries,0.0,1.6726129632053486,10,2017-03-31,"[2017, 2023, 2026]","[2019, 2024, 2025]"
+gap_today q4 & rel_ind60 q0,disregarded,not_significant_after_all_tries,0.0,2.5408657207485272,12,2015-09-25,"[2017, 2018, 2023, 2026]","[2016, 2022]"
+gap_today q4 & rel_ind60 q2,disregarded,weak_or_inconsistent,0.0,0.303423360806765,7,2020-03-27,"[2020, 2021]","[2022, 2023, 2025, 2026]"
+gap_today q4 & skew60 q4,disregarded,weak_or_inconsistent,0.0,0.3201413381555129,2,2025-09-26,[],[]
+gap_today q4 & vol_ratio q3,disregarded,weak_or_inconsistent,0.0,0.3491243040224651,6,2021-03-26,[2022],"[2025, 2026]"
+gap_today q4 & vol_surge1 q3,disregarded,weak_or_inconsistent,0.0,0.17916744425283074,6,2021-03-26,[2026],"[2022, 2023]"
+ind_mom20 q0,disregarded,weak_or_inconsistent,0.0,0.07946607346811489,9,2018-03-29,"[2023, 2024]","[2019, 2021, 2022, 2025, 2026]"
+ind_mom20 q0 & intraday20 q2,disregarded,weak_or_inconsistent,0.0,0.15667540311076647,11,2016-03-24,"[2016, 2023, 2024]","[2018, 2019, 2021, 2022, 2025, 2026]"
+ind_mom20 q0 & mom_12_1 q3,disregarded,weak_or_inconsistent,0.0,0.05393478119147604,11,2016-03-24,"[2022, 2025]","[2017, 2018, 2020, 2023]"
+ind_mom20 q0 & vol_surge5 q3,disregarded,weak_or_inconsistent,0.0,0.39857780404653287,7,2020-09-25,"[2021, 2022]","[2020, 2023, 2024, 2026]"
+ind_mom20 q1,disregarded,weak_or_inconsistent,0.0,0.49211053154981726,6,2021-09-24,[],"[2022, 2024]"
+ind_mom20 q1 & intraday20 q4,disregarded,weak_or_inconsistent,0.0,0.38927721820809835,2,2025-03-28,[],[2026]
+ind_mom20 q1 & rel_ind60 q2,disregarded,weak_or_inconsistent,0.0,1.296914394564712,5,2022-12-30,"[2022, 2025]",[2026]
+ind_mom20 q2,disregarded,weak_or_inconsistent,0.0,1.2093976929867731,11,2016-12-30,"[2018, 2020, 2025]","[2016, 2017, 2022, 2024]"
+ind_mom20 q2 & ins_buyers30 q2,disregarded,weak_or_inconsistent,0.0,1.3447507273213528,11,2016-12-30,"[2018, 2020, 2025]","[2016, 2017, 2022, 2024]"
+ind_mom20 q2 & ins_officer30 q2,disregarded,weak_or_inconsistent,0.0,1.2487534175311434,11,2016-12-30,"[2020, 2023, 2025]","[2016, 2017, 2022, 2024]"
+ind_mom20 q2 & ins_value30 q2,disregarded,weak_or_inconsistent,0.0,1.3447507273213528,11,2016-12-30,"[2018, 2020, 2025]","[2016, 2017, 2022, 2024]"
+ind_mom20 q2 & log_dv q0,disregarded,weak_or_inconsistent,0.0,0.36559421355892696,11,2016-12-30,"[2017, 2019, 2022]","[2020, 2021, 2023, 2024, 2025]"
+ind_mom20 q2 & log_dv q1,disregarded,weak_or_inconsistent,0.0,0.2133127037588396,6,2021-09-24,"[2021, 2025]","[2022, 2023, 2024, 2026]"
+ind_mom20 q2 & news5 q2,disregarded,weak_or_inconsistent,0.0,0.052673471521971944,5,2022-03-25,"[2025, 2026]","[2022, 2024]"
+ind_mom20 q2 & overnight20 q2,disregarded,lapsed,0.0,1.5098840418076043,10,2017-09-29,"[2018, 2020, 2021]","[2017, 2019, 2022, 2023]"
+ind_mom20 q2 & r5 q1,disregarded,not_significant_after_all_tries,0.0,1.6156908877386569,11,2016-12-30,"[2018, 2019, 2025]","[2021, 2022, 2023]"
+ind_mom20 q2 & rel_ind20 q3,disregarded,not_significant_after_all_tries,0.0,1.8093056318147118,12,2015-09-25,"[2015, 2018, 2021, 2025]","[2016, 2017, 2019, 2024]"
+ind_mom20 q2 & vol_surge5 q1,disregarded,not_significant_after_all_tries,0.0,1.8929377018197724,11,2016-12-30,"[2018, 2021, 2025]","[2016, 2017, 2024, 2026]"
+ind_mom20 q3 & log_dv q3,disregarded,lapsed,0.0,2.187928125873824,10,2017-03-31,"[2018, 2019, 2020, 2022]","[2017, 2025, 2026]"
+ind_mom20 q3 & r5 q3,disregarded,weak_or_inconsistent,0.0,0.06473645380854944,6,2021-09-24,[2022],"[2023, 2026]"
+ind_mom20 q3 & rel_ind20 q3,disregarded,lapsed,0.0,2.0182408895078328,12,2015-09-25,"[2016, 2019, 2022]","[2015, 2017, 2018, 2023, 2025]"
+ind_mom20 q3 & vol_surge5 q3,disregarded,weak_or_inconsistent,0.0,0.7779939583970559,11,2016-03-24,[2026],"[2016, 2019, 2020, 2023]"
+ind_mom20 q4 & intraday20 q3,disregarded,weak_or_inconsistent,0.0,0.280017087951063,6,2021-03-26,[],"[2021, 2024, 2025]"
+ind_mom20 q4 & intraday20 q4,disregarded,weak_or_inconsistent,0.0,0.3856371360980315,7,2020-09-25,[],"[2023, 2025, 2026]"
+ind_mom20 q4 & log_dv q0,disregarded,weak_or_inconsistent,0.0,0.45055427467403614,8,2019-03-29,"[2019, 2023, 2024]","[2021, 2022, 2025, 2026]"
+ind_mom20 q4 & log_dv q3,disregarded,weak_or_inconsistent,0.0,0.21740872858538568,6,2021-03-26,"[2021, 2024]","[2022, 2023]"
+ind_mom20 q4 & r20 q3,disregarded,weak_or_inconsistent,0.0,0.37275275133153435,9,2018-03-29,[2026],"[2018, 2019, 2020]"
+ind_mom20 q4 & r5 q4,disregarded,weak_or_inconsistent,0.0,1.1300814331875457,9,2018-09-28,"[2018, 2022]","[2023, 2025, 2026]"
+ind_mom20 q4 & r5_news q4,disregarded,not_significant_after_all_tries,0.0,1.5791388987887012,8,2019-12-27,"[2020, 2021, 2022, 2025]","[2019, 2024]"
+ind_mom20 q4 & r5_nonews q0,disregarded,weak_or_inconsistent,0.0,1.1760698064126633,8,2019-03-29,"[2020, 2023]","[2021, 2024, 2026]"
+ind_mom20 q4 & rel_ind20 q4,disregarded,weak_or_inconsistent,0.0,0.08064542048361768,7,2020-09-25,[],"[2022, 2023, 2026]"
+ind_mom20 q4 & vol_ratio q1,disregarded,weak_or_inconsistent,0.0,0.856278810798389,3,2024-03-28,[2025],[2026]
+ind_mom20 q4 & vol_ratio q4,disregarded,weak_or_inconsistent,0.0,1.162455005302444,12,2015-09-25,"[2017, 2020, 2021, 2024]","[2015, 2016, 2022, 2023]"
+ind_mom20 q4 & vol_surge1 q1,disregarded,weak_or_inconsistent,0.0,0.12920567236037542,3,2024-03-28,[],[2025]
+ind_mom60 q0 & mom_12_1 q3,disregarded,weak_or_inconsistent,0.0,0.1401134694710341,8,2019-09-27,"[2022, 2023]","[2019, 2021, 2024]"
+ind_mom60 q0 & r20 q2,disregarded,weak_or_inconsistent,0.0,0.19097074951085427,10,2017-09-29,"[2019, 2020, 2023]","[2017, 2021, 2022, 2024, 2025]"
+ind_mom60 q0 & r20 q4,disregarded,weak_or_inconsistent,0.0,1.0802090006688239,8,2019-09-27,"[2020, 2023, 2024]","[2021, 2025, 2026]"
+ind_mom60 q0 & rel_ind60 q2,disregarded,weak_or_inconsistent,0.0,0.026329836817738546,6,2021-09-24,[2022],"[2023, 2024, 2025, 2026]"
+ind_mom60 q1,disregarded,weak_or_inconsistent,0.0,0.2023954119333297,9,2018-03-29,[2026],"[2019, 2021, 2022, 2024]"
+ind_mom60 q1 & intraday20 q2,disregarded,not_significant_after_all_tries,0.0,2.610994026427784,5,2022-03-25,"[2022, 2024, 2026]",[2023]
+ind_mom60 q1 & intraday20 q4,disregarded,lapsed,0.0,1.6791711474184652,7,2020-09-25,"[2021, 2022]",[2020]
+ind_mom60 q1 & log_dv q1,disregarded,weak_or_inconsistent,0.0,0.0809239554928934,9,2018-09-28,"[2023, 2026]","[2019, 2020, 2021, 2022, 2024]"
+ind_mom60 q1 & max20 q4,disregarded,weak_or_inconsistent,0.0,0.19347518537463812,5,2022-03-25,[],"[2023, 2025]"
+ind_mom60 q1 & min20 q3,disregarded,lapsed,0.0,1.6438029416981776,6,2021-09-24,"[2021, 2022]","[2023, 2024, 2025]"
+ind_mom60 q1 & min20 q4,disregarded,weak_or_inconsistent,0.0,0.005099403929621642,9,2018-09-28,[2023],"[2021, 2024, 2025, 2026]"
+ind_mom60 q1 & r20 q1,disregarded,not_significant_after_all_tries,0.0,2.1210623518777356,7,2020-03-27,"[2021, 2025]",[]
+ind_mom60 q1 & r20 q4,disregarded,not_significant_after_all_tries,0.0,2.0516551198363318,7,2020-09-25,[2021],[2023]
+ind_mom60 q1 & r60 q0,disregarded,weak_or_inconsistent,0.0,0.20908507241023586,8,2019-03-29,[2021],"[2019, 2020, 2023, 2025]"
+ind_mom60 q1 & range_compress q0,disregarded,weak_or_inconsistent,0.0,0.1477013988276266,5,2022-03-25,[2022],"[2023, 2025]"
+ind_mom60 q1 & range_compress q4,disregarded,weak_or_inconsistent,0.0,1.09033033815106,5,2022-03-25,[2024],"[2023, 2025]"
+ind_mom60 q1 & rel_ind20 q4,disregarded,not_significant_after_all_tries,0.0,1.9499342119979002,7,2020-09-25,[2021],[2023]
+ind_mom60 q1 & vol20 q3,disregarded,weak_or_inconsistent,0.0,0.7870262542240765,3,2024-09-27,[2024],"[2025, 2026]"
+ind_mom60 q1 & vol_surge1 q1,disregarded,weak_or_inconsistent,0.0,0.2129733434093618,3,2024-03-28,[],[2025]
+ind_mom60 q2,disregarded,weak_or_inconsistent,0.0,0.2904968955046165,8,2019-09-27,[2020],"[2019, 2021, 2025]"
+ind_mom60 q2 & log_dv q4,disregarded,weak_or_inconsistent,0.0,0.5917349750611972,7,2020-03-27,[2025],"[2020, 2022, 2026]"
+ind_mom60 q2 & vol20 q3,disregarded,weak_or_inconsistent,0.0,0.6468693237588793,8,2019-03-29,"[2020, 2021, 2022]","[2023, 2025]"
+ind_mom60 q3 & intraday20 q3,disregarded,weak_or_inconsistent,0.0,0.5400098511741858,12,2015-09-25,[2015],"[2022, 2023, 2025, 2026]"
+ind_mom60 q3 & log_dv q0,disregarded,weak_or_inconsistent,0.0,0.9423426400417279,11,2016-12-30,"[2016, 2019]","[2020, 2022, 2023, 2025]"
+ind_mom60 q3 & mom_12_1 q3,disregarded,weak_or_inconsistent,0.0,0.061795244154810684,11,2016-12-30,"[2022, 2023]","[2016, 2017, 2018, 2019, 2020, 2024, 2025]"
+ind_mom60 q3 & r20 q2,disregarded,weak_or_inconsistent,0.0,0.1066454946576467,12,2015-09-25,[],"[2015, 2017, 2025, 2026]"
+ind_mom60 q3 & r5 q3,disregarded,weak_or_inconsistent,0.0,0.19397281483840514,5,2022-03-25,[2025],"[2022, 2023, 2026]"
+ind_mom60 q3 & r60 q1,disregarded,weak_or_inconsistent,0.0,1.011142525451073,9,2018-09-28,"[2021, 2022]","[2018, 2019, 2025]"
+ind_mom60 q3 & vol_surge1 q3,disregarded,lapsed,0.0,1.656311150195691,10,2017-09-29,"[2017, 2021, 2022]","[2019, 2023, 2024]"
+ind_mom60 q4 & r20 q3,disregarded,weak_or_inconsistent,0.0,0.6983907800435737,12,2015-09-25,"[2015, 2019]","[2017, 2021, 2023, 2025, 2026]"
+ins_buyers30 q2,disregarded,weak_or_inconsistent,0.0,1.3898186462003614,11,2016-03-24,"[2020, 2022, 2024]","[2016, 2017, 2018, 2021, 2025]"
+ins_buyers30 q2 & ins_officer30 q2,disregarded,weak_or_inconsistent,0.0,1.3898186462003614,11,2016-03-24,"[2020, 2022, 2024]","[2016, 2017, 2018, 2021, 2025]"
+ins_buyers30 q2 & ins_value30 q2,disregarded,weak_or_inconsistent,0.0,1.3898186462003614,11,2016-03-24,"[2020, 2022, 2024]","[2016, 2017, 2018, 2021, 2025]"
+ins_buyers30 q2 & mom_12_1 q3,disregarded,weak_or_inconsistent,0.0,0.1435547957249727,11,2016-03-24,"[2017, 2018]","[2020, 2021, 2022, 2024, 2025, 2026]"
+ins_buyers30 q2 & overnight20 q3,disregarded,weak_or_inconsistent,0.0,1.1500404864000622,10,2017-09-29,"[2017, 2020, 2023, 2026]","[2018, 2022, 2024, 2025]"
+ins_buyers30 q2 & r20 q3,disregarded,weak_or_inconsistent,0.0,0.7382755585323549,11,2016-03-24,[2019],"[2017, 2021, 2023, 2026]"
+ins_buyers30 q2 & r20 q4,disregarded,weak_or_inconsistent,0.0,0.9487175740436419,10,2017-09-29,"[2018, 2021, 2022]","[2017, 2020, 2023, 2024, 2026]"
+ins_buyers30 q2 & r5 q1,disregarded,not_significant_after_all_tries,0.0,1.5649207584051668,9,2018-09-28,"[2020, 2024, 2025]","[2021, 2023, 2026]"
+ins_buyers30 q2 & r5 q3,disregarded,weak_or_inconsistent,0.0,0.7201577446667516,7,2020-03-27,[2026],"[2020, 2025]"
+ins_buyers30 q2 & r60 q3,disregarded,weak_or_inconsistent,0.0,1.3064547611209074,11,2016-12-30,"[2020, 2021, 2022]","[2016, 2019, 2024]"
+ins_buyers30 q2 & rel_ind20 q1,disregarded,weak_or_inconsistent,0.0,0.17913194873603575,2,2025-03-28,[],[2026]
+ins_buyers30 q2 & vol_surge1 q1,disregarded,not_significant_after_all_tries,0.0,1.8703967376615276,10,2017-03-31,"[2020, 2023, 2025]",[2026]
+ins_buyers30 q2 & vol_surge1 q3,disregarded,weak_or_inconsistent,0.0,0.8591525612338944,10,2017-09-29,"[2017, 2021, 2022]","[2019, 2020, 2024]"
+ins_buyers30 q4 & vol_surge1 q3,disregarded,weak_or_inconsistent,0.0,0.6667809560726661,2,2025-06-27,[2026],[2025]
+ins_officer30 q2,disregarded,weak_or_inconsistent,0.0,0.6251905918517716,12,2015-09-25,"[2022, 2024]","[2015, 2016, 2018, 2019, 2021]"
+ins_officer30 q2 & ins_value30 q2,disregarded,weak_or_inconsistent,0.0,1.3898186462003614,11,2016-03-24,"[2020, 2022, 2024]","[2016, 2017, 2018, 2021, 2025]"
+ins_officer30 q2 & intraday20 q3,disregarded,weak_or_inconsistent,0.0,0.22254193520361415,11,2016-12-30,[2025],"[2016, 2018, 2019, 2020, 2021, 2024]"
+ins_officer30 q2 & min20 q1,disregarded,not_significant_after_all_tries,0.0,3.20397993934797,11,2016-12-30,"[2017, 2019, 2020, 2023, 2024, 2025]","[2018, 2021, 2022, 2026]"
+ins_officer30 q2 & mom_12_1 q3,disregarded,weak_or_inconsistent,0.0,0.11886445060520533,11,2016-03-24,"[2017, 2018]","[2021, 2022, 2024, 2025, 2026]"
+ins_officer30 q2 & overnight20 q3,disregarded,weak_or_inconsistent,0.0,1.0941137492861985,10,2017-09-29,"[2017, 2020, 2023, 2026]","[2018, 2022, 2024, 2025]"
+ins_officer30 q2 & r20 q3,disregarded,weak_or_inconsistent,0.0,0.8553220209075564,11,2016-03-24,[2019],"[2017, 2021, 2023, 2024, 2026]"
+ins_officer30 q2 & r20 q4,disregarded,weak_or_inconsistent,0.0,1.2156976284128422,10,2017-09-29,"[2018, 2021, 2022]","[2017, 2023, 2024, 2026]"
+ins_officer30 q2 & r5 q0,disregarded,weak_or_inconsistent,0.0,1.0950579828486897,11,2016-12-30,"[2018, 2020, 2022]","[2021, 2024, 2026]"
+ins_officer30 q2 & rel_ind60 q2,disregarded,weak_or_inconsistent,0.0,0.94046341139146,7,2020-03-27,[2022],"[2021, 2023, 2025]"
+ins_officer30 q2 & rel_ind60 q4,disregarded,weak_or_inconsistent,0.0,1.0220150353303183,5,2022-12-30,[2025],"[2023, 2024]"
+ins_officer30 q2 & vol_surge1 q1,disregarded,not_significant_after_all_tries,0.0,1.7765409048203034,10,2017-03-31,"[2020, 2023, 2025]","[2018, 2026]"
+ins_officer30 q2 & vol_surge1 q3,disregarded,weak_or_inconsistent,0.0,1.1227871858912677,10,2017-09-29,"[2017, 2018, 2021, 2022, 2025]","[2019, 2020, 2024, 2026]"
+ins_officer30 q2 & vol_surge5 q1,disregarded,not_significant_after_all_tries,0.0,2.088415027904541,7,2020-09-25,"[2024, 2025]",[2020]
+ins_opportunistic30 q2,disregarded,weak_or_inconsistent,0.0,0.6418095032520255,12,2015-09-25,"[2022, 2024]","[2015, 2016, 2018, 2020, 2026]"
+ins_opportunistic30 q2 & min20 q1,disregarded,weak_or_inconsistent,0.0,0.9435377928955057,3,2024-09-27,[2025],[2026]
+ins_opportunistic30 q2 & mom_12_1 q3,disregarded,weak_or_inconsistent,0.0,0.2598555726047182,11,2016-03-24,"[2017, 2018]","[2021, 2022, 2024, 2025, 2026]"
+ins_opportunistic30 q2 & r20 q1,disregarded,weak_or_inconsistent,0.0,0.1240491448368559,3,2024-09-27,[2025],"[2024, 2026]"
+ins_opportunistic30 q2 & range_compress q2,disregarded,weak_or_inconsistent,0.0,0.2669254356518076,10,2017-03-31,[2018],"[2019, 2020, 2024, 2025]"
+ins_opportunistic30 q2 & vol20 q2,disregarded,not_significant_after_all_tries,0.0,1.9335822165064593,2,2025-09-26,"[2025, 2026]",[]
+ins_opportunistic30 q2 & vol20 q3,disregarded,weak_or_inconsistent,0.0,0.6344327738205849,3,2024-09-27,[2025],[2024]
+ins_opportunistic30 q2 & vol_surge5 q1,disregarded,not_significant_after_all_tries,0.0,1.8389650033445646,7,2020-09-25,[2025],[2020]
+ins_opportunistic30 q2 & vol_surge5 q3,disregarded,weak_or_inconsistent,0.0,1.4619491922871959,2,2025-09-26,[2026],[]
+ins_value30 q2,disregarded,weak_or_inconsistent,0.0,1.3898186462003614,11,2016-03-24,"[2020, 2022, 2024]","[2016, 2017, 2018, 2021, 2025]"
+ins_value30 q2 & mom_12_1 q3,disregarded,weak_or_inconsistent,0.0,0.1435547957249727,11,2016-03-24,"[2017, 2018]","[2020, 2021, 2022, 2024, 2025, 2026]"
+ins_value30 q2 & overnight20 q3,disregarded,weak_or_inconsistent,0.0,1.1500404864000622,10,2017-09-29,"[2017, 2020, 2023, 2026]","[2018, 2022, 2024, 2025]"
+ins_value30 q2 & r20 q3,disregarded,weak_or_inconsistent,0.0,0.7382755585323549,11,2016-03-24,[2019],"[2017, 2021, 2023, 2026]"
+ins_value30 q2 & r20 q4,disregarded,weak_or_inconsistent,0.0,0.9487175740436419,10,2017-09-29,"[2018, 2021, 2022]","[2017, 2020, 2023, 2024, 2026]"
+ins_value30 q2 & r5 q1,disregarded,not_significant_after_all_tries,0.0,1.5649207584051668,9,2018-09-28,"[2020, 2024, 2025]","[2021, 2023, 2026]"
+ins_value30 q2 & vol20 q3,disregarded,not_significant_after_all_tries,0.0,3.0817730145605307,8,2019-03-29,"[2019, 2020, 2023, 2024, 2025]","[2021, 2022]"
+ins_value30 q2 & vol_surge1 q1,disregarded,not_significant_after_all_tries,0.0,1.8703967376615276,10,2017-03-31,"[2020, 2023, 2025]",[2026]
+ins_value30 q2 & vol_surge1 q3,disregarded,weak_or_inconsistent,0.0,0.8591525612338944,10,2017-09-29,"[2017, 2021, 2022]","[2019, 2020, 2024]"
+intraday20 q0 & mom_12_1 q2,disregarded,weak_or_inconsistent,0.0,0.541504951224841,12,2015-09-25,"[2015, 2020, 2021, 2024, 2025]","[2016, 2017, 2018, 2022, 2023, 2026]"
+intraday20 q0 & mom_12_1 q3,disregarded,lapsed,0.0,1.604069746239321,10,2017-09-29,[2022],"[2018, 2019, 2020]"
+intraday20 q0 & r5 q0,disregarded,weak_or_inconsistent,0.0,1.142100752094371,7,2020-03-27,"[2021, 2024]","[2020, 2023, 2025]"
+intraday20 q1,disregarded,weak_or_inconsistent,0.0,1.4383282530348005,3,2024-09-27,[2024],[]
+intraday20 q1 & max20 q1,disregarded,not_significant_after_all_tries,0.0,3.268848453090556,5,2022-03-25,"[2022, 2023, 2024, 2025, 2026]",[]
+intraday20 q1 & min20 q4,disregarded,weak_or_inconsistent,0.0,0.49264443070818276,9,2018-03-29,[2020],"[2018, 2021, 2022, 2025]"
+intraday20 q1 & r1 q0,disregarded,weak_or_inconsistent,0.0,0.669582721913707,6,2021-09-24,[2025],"[2021, 2026]"
+intraday20 q1 & range_compress q1,disregarded,weak_or_inconsistent,0.0,1.4943403168976597,10,2017-03-31,"[2019, 2020, 2023, 2025]","[2018, 2022, 2026]"
+intraday20 q1 & rel_ind60 q2,disregarded,weak_or_inconsistent,0.0,0.29056365221138897,4,2023-03-31,[],[2026]
+intraday20 q1 & rel_ind60 q2 unless close_loc q0,disregarded,weak_or_inconsistent,0.0,0.0811742593281134,4,2023-03-31,[],[2026]
+intraday20 q1 & rel_ind60 q2 unless days_since_earn q4,disregarded,weak_or_inconsistent,0.0,0.06458399008078608,4,2023-03-31,[2026],"[2023, 2024]"
+intraday20 q1 & rel_ind60 q2 unless mom_12_1 q0,disregarded,weak_or_inconsistent,0.0,0.9013074901180139,4,2023-03-31,[2024],[2023]
+intraday20 q1 & rel_ind60 q2 unless mom_12_1 q4,disregarded,weak_or_inconsistent,0.0,1.0471051071030744,4,2023-03-31,[2025],[2026]
+intraday20 q1 & rel_ind60 q2 unless r5_nonews q4,disregarded,weak_or_inconsistent,0.0,0.07453322634714245,4,2023-03-31,[],"[2023, 2025]"
+intraday20 q1 & rel_ind60 q2 unless range_compress q0,disregarded,weak_or_inconsistent,0.0,0.6573401214030498,4,2023-03-31,[],[]
+intraday20 q1 & rel_ind60 q2 unless vol20 q4,disregarded,weak_or_inconsistent,0.0,0.980357715318242,4,2023-03-31,[],[2026]
+intraday20 q1 & vol_surge1 q2,disregarded,weak_or_inconsistent,0.0,0.7893889028645006,4,2023-03-31,[],[2025]
+intraday20 q2,disregarded,weak_or_inconsistent,0.0,0.7978770586445012,10,2017-09-29,"[2021, 2022]","[2018, 2019, 2023, 2024, 2025]"
+intraday20 q2 & overnight20 q3,disregarded,weak_or_inconsistent,0.0,1.1780723389290815,8,2019-09-27,"[2022, 2023]","[2024, 2025]"
+intraday20 q2 & r20 q4,disregarded,weak_or_inconsistent,0.0,0.02372846320663943,7,2020-06-26,[],"[2023, 2024]"
+intraday20 q2 & range_compress q2,disregarded,weak_or_inconsistent,0.0,0.8938390472270321,5,2022-03-25,[2022],"[2024, 2026]"
+intraday20 q2 & vol20 q2,disregarded,weak_or_inconsistent,0.0,0.9688459513865713,7,2020-03-27,[2021],"[2020, 2024]"
+intraday20 q3 & max20 q0,disregarded,weak_or_inconsistent,0.0,0.614024160405355,11,2016-03-24,"[2018, 2021]","[2016, 2017, 2020, 2023]"
+intraday20 q3 & min20 q1,disregarded,weak_or_inconsistent,0.0,0.034416086139311165,9,2018-03-29,"[2018, 2025]","[2019, 2021, 2022]"
+intraday20 q3 & mom_12_1 q3,disregarded,weak_or_inconsistent,0.0,0.4968141635063043,11,2016-12-30,"[2016, 2017, 2018, 2019]","[2022, 2024, 2025, 2026]"
+intraday20 q3 & overnight20 q1,disregarded,weak_or_inconsistent,0.0,0.5075445031351777,12,2015-09-25,"[2016, 2025]","[2019, 2020, 2026]"
+intraday20 q3 & overnight20 q3,disregarded,weak_or_inconsistent,0.0,1.3930632376123275,11,2016-12-30,"[2016, 2018]","[2017, 2020, 2021, 2026]"
+intraday20 q3 & r1 q2,disregarded,weak_or_inconsistent,0.0,0.021994149516476817,12,2015-09-25,"[2018, 2019]","[2015, 2016, 2017, 2020, 2021, 2022, 2024, 2026]"
+intraday20 q3 & r20 q3,disregarded,weak_or_inconsistent,0.0,0.03585951344102385,11,2016-12-30,[2019],"[2016, 2017, 2021, 2022, 2024, 2025, 2026]"
+intraday20 q3 & r5 q1,disregarded,lapsed,0.0,2.0626952543651353,12,2015-09-25,"[2017, 2018, 2020, 2024]","[2021, 2023, 2025]"
+intraday20 q3 & range_compress q3,disregarded,weak_or_inconsistent,0.0,0.42098604570372133,11,2016-12-30,[],"[2016, 2019, 2020]"
+intraday20 q3 & rel_ind60 q1,disregarded,weak_or_inconsistent,0.0,0.0179549891642653,9,2018-03-29,[2022],"[2019, 2020, 2021]"
+intraday20 q4,disregarded,lapsed,0.0,2.141938694799662,10,2017-09-29,"[2019, 2021, 2022]","[2017, 2024]"
+intraday20 q4 & log_dv q1,disregarded,weak_or_inconsistent,0.0,0.5236427035250822,4,2023-03-31,[2023],"[2025, 2026]"
+intraday20 q4 & log_dv q3,disregarded,not_significant_after_all_tries,0.0,2.2475218775506662,6,2021-09-24,"[2021, 2022, 2024]",[2023]
+intraday20 q4 & max20 q4,disregarded,weak_or_inconsistent,0.0,1.144010347826948,5,2022-03-25,[2022],[2024]
+intraday20 q4 & overnight20 q2,disregarded,weak_or_inconsistent,0.0,0.36931581081908327,7,2020-09-25,[2020],"[2021, 2022, 2023]"
+intraday20 q4 & r20 q4,disregarded,weak_or_inconsistent,0.0,0.2753877195260242,4,2023-03-31,[],[2023]
+intraday20 q4 & r5_nonews q4,disregarded,weak_or_inconsistent,0.0,0.13700623714817506,4,2023-03-31,[],[2026]
+intraday20 q4 & rel_ind20 q1,disregarded,weak_or_inconsistent,0.0,0.49903617961594826,4,2023-03-31,"[2024, 2026]","[2023, 2025]"
+intraday20 q4 & rel_ind20 q4,disregarded,weak_or_inconsistent,0.0,0.5167381679957501,4,2023-03-31,[2025],"[2023, 2026]"
+intraday20 q4 & rel_ind60 q4,disregarded,weak_or_inconsistent,0.0,0.7905239620414988,4,2023-03-31,"[2025, 2026]","[2023, 2024]"
+intraday20 q4 & skew60 q0,disregarded,weak_or_inconsistent,0.0,1.098490568184417,2,2025-03-28,[2026],[]
+intraday20 q4 & vol_surge1 q0,disregarded,weak_or_inconsistent,0.0,0.8477575160538927,2,2025-03-28,[2026],[]
+intraday20 q4 & vol_surge5 q0,disregarded,weak_or_inconsistent,0.0,0.3955469664943431,4,2023-03-31,[2026],"[2023, 2025]"
+log_dv q0 & news5 q2,disregarded,weak_or_inconsistent,0.0,1.4612203125629737,12,2015-09-25,"[2018, 2021, 2025]","[2015, 2017, 2019, 2022, 2026]"
+log_dv q0 & r20 q1,disregarded,weak_or_inconsistent,0.0,0.3145837819554414,9,2018-03-29,[2018],"[2022, 2023, 2025]"
+log_dv q0 & rel_ind60 q2,disregarded,weak_or_inconsistent,0.0,1.025884842166971,3,2024-09-27,[2024],[2026]
+log_dv q1,disregarded,weak_or_inconsistent,0.0,0.38060543519967277,10,2017-03-31,[2018],"[2019, 2020, 2022, 2023]"
+log_dv q1 & max20 q4,disregarded,weak_or_inconsistent,0.0,1.4445629913609657,2,2025-03-28,[2025],[]
+log_dv q1 & mom_12_1 q3,disregarded,weak_or_inconsistent,0.0,0.4768601224941011,11,2016-12-30,[],"[2018, 2020, 2021, 2024]"
+log_dv q1 & r120 q3,disregarded,weak_or_inconsistent,0.0,1.0939026982336266,11,2016-12-30,"[2016, 2021, 2022, 2023, 2024]","[2018, 2019, 2020, 2025, 2026]"
+log_dv q1 & r120 q4,disregarded,weak_or_inconsistent,0.0,0.3758503167710567,4,2023-03-31,[2026],"[2023, 2025]"
+log_dv q1 & r20 q4,disregarded,weak_or_inconsistent,0.0,0.0021413939407002804,5,2022-03-25,[],"[2022, 2025]"
+log_dv q1 & r5 q1,disregarded,weak_or_inconsistent,0.0,1.223284199413181,9,2018-09-28,"[2018, 2019, 2023]","[2021, 2022, 2026]"
+log_dv q1 & r5 q1 unless atr_pct q4,disregarded,weak_or_inconsistent,0.0,1.0028538310080832,6,2021-03-26,"[2023, 2024]","[2021, 2026]"
+log_dv q1 & r5 q1 unless close_loc q0,disregarded,lapsed,0.0,1.8015623838117227,7,2020-03-27,"[2021, 2022]",[2024]
+log_dv q1 & r5 q1 unless close_loc q4,disregarded,weak_or_inconsistent,0.0,0.44528407758542216,7,2020-03-27,[2023],"[2021, 2022, 2026]"
+log_dv q1 & r5 q1 unless dist_52wh q0,disregarded,weak_or_inconsistent,0.0,0.488883008377797,7,2020-03-27,"[2020, 2023]","[2022, 2025, 2026]"
+log_dv q1 & r5 q1 unless dist_52wh q4,disregarded,weak_or_inconsistent,0.0,0.15189339779228556,7,2020-03-27,"[2021, 2026]","[2020, 2023, 2024, 2025]"
+log_dv q1 & r5 q1 unless dist_ma50 q0,disregarded,weak_or_inconsistent,0.0,0.057028959969046104,7,2020-03-27,"[2023, 2024]","[2021, 2022, 2025, 2026]"
+log_dv q1 & r5 q1 unless dist_ma50 q4,disregarded,weak_or_inconsistent,0.0,0.3774846981487465,7,2020-03-27,"[2023, 2025]","[2021, 2022, 2026]"
+log_dv q1 & r5 q1 unless ear_volsurge q0,disregarded,weak_or_inconsistent,0.0,0.5511088676300526,7,2020-03-27,"[2023, 2024, 2025]","[2021, 2022, 2026]"
+log_dv q1 & r5 q1 unless ear_volsurge q4,disregarded,weak_or_inconsistent,0.0,0.5335806958319069,7,2020-03-27,"[2021, 2022]","[2020, 2023, 2024, 2025]"
+log_dv q1 & r5 q1 unless frog q0,disregarded,weak_or_inconsistent,0.0,0.6903148391914429,7,2020-03-27,"[2020, 2023, 2024]","[2021, 2022, 2026]"
+log_dv q1 & r5 q1 unless gap_today q0,disregarded,weak_or_inconsistent,0.0,0.5660502954715171,7,2020-03-27,"[2021, 2022]","[2020, 2023, 2024, 2025]"
+log_dv q1 & r5 q1 unless gap_today q4,disregarded,weak_or_inconsistent,0.0,0.9178680461074565,7,2020-03-27,"[2020, 2023, 2025]","[2021, 2022, 2026]"
+log_dv q1 & r5 q1 unless ind_mom20 q0,disregarded,weak_or_inconsistent,0.0,0.45147634145153215,7,2020-03-27,[2021],"[2020, 2023, 2024, 2025]"
+log_dv q1 & r5 q1 unless ind_mom20 q4,disregarded,weak_or_inconsistent,0.0,0.5701397918085436,7,2020-03-27,"[2021, 2022]","[2020, 2024, 2025]"
+log_dv q1 & r5 q1 unless r120 q0,disregarded,weak_or_inconsistent,0.0,0.3267360045578164,7,2020-03-27,[2022],"[2020, 2024, 2025]"
+log_dv q1 & r5 q1 unless r120 q4,disregarded,weak_or_inconsistent,0.0,1.2079311585741856,7,2020-03-27,"[2020, 2023, 2025]","[2021, 2022, 2026]"
+log_dv q1 & r5 q1 unless r5_news q0,disregarded,weak_or_inconsistent,0.0,0.4781997082396698,7,2020-03-27,"[2023, 2024, 2025]","[2021, 2022, 2026]"
+log_dv q1 & r5 q1 unless rel_ind20 q4,disregarded,weak_or_inconsistent,0.0,0.26382750954401507,6,2021-09-24,[2021],"[2023, 2024, 2025]"
+log_dv q1 & r5 q1 unless vol_ratio q0,disregarded,weak_or_inconsistent,0.0,0.6645555587613031,7,2020-03-27,"[2023, 2024]","[2021, 2022, 2026]"
+log_dv q1 & r5 q1 unless vol_surge1 q0,disregarded,weak_or_inconsistent,0.0,0.2657975994142469,7,2020-03-27,"[2020, 2023, 2024, 2025]","[2021, 2022, 2026]"
+log_dv q1 & r5 q1 unless vol_surge5 q0,disregarded,weak_or_inconsistent,0.0,0.5061271787444475,7,2020-03-27,[2025],"[2021, 2022, 2026]"
+log_dv q1 & r5 q1 unless vol_surge5 q4,disregarded,weak_or_inconsistent,0.0,0.9253718524257367,6,2021-03-26,[2021],"[2023, 2024, 2025]"
+log_dv q1 & range_compress q0,disregarded,weak_or_inconsistent,0.0,0.037880227558840976,2,2025-03-28,[],[2025]
+log_dv q1 & range_compress q1,disregarded,not_significant_after_all_tries,0.0,2.364855030125505,8,2019-09-27,"[2020, 2023, 2024, 2025]","[2021, 2022, 2026]"
+log_dv q1 & range_compress q3,disregarded,weak_or_inconsistent,0.0,1.1730356769075727,8,2019-09-27,[2026],[2025]
+log_dv q1 & rel_ind20 q1,disregarded,weak_or_inconsistent,0.0,0.5372814712830105,5,2022-03-25,[2022],"[2024, 2025]"
+log_dv q1 & rel_ind20 q3,disregarded,weak_or_inconsistent,0.0,1.0061771591949782,11,2016-03-24,"[2023, 2025]","[2016, 2017, 2019, 2020]"
+log_dv q1 & rel_ind20 q4,disregarded,weak_or_inconsistent,0.0,0.8941623833465124,7,2020-03-27,"[2020, 2021, 2022]","[2023, 2024, 2026]"
+log_dv q1 & rel_ind60 q4,disregarded,weak_or_inconsistent,0.0,0.12982581636684026,4,2023-03-31,[2025],"[2023, 2026]"
+log_dv q1 & skew60 q4,disregarded,weak_or_inconsistent,0.0,0.2181112791384477,2,2025-03-28,[2025],[2026]
+log_dv q1 & vol_ratio q0,disregarded,weak_or_inconsistent,0.0,0.5034203694631654,8,2019-03-29,[],"[2022, 2023]"
+log_dv q2,disregarded,weak_or_inconsistent,0.0,0.47761311915886895,3,2024-09-27,[2026],[2024]
+log_dv q2 & r5_nonews q0,disregarded,weak_or_inconsistent,0.0,0.1349878676409871,3,2024-03-28,[],"[2024, 2025]"
+log_dv q3 & max20 q4,disregarded,weak_or_inconsistent,0.0,1.3872528412073566,5,2022-03-25,"[2022, 2023]",[2024]
+log_dv q3 & overnight20 q3,disregarded,weak_or_inconsistent,0.0,0.11693442273547201,5,2022-12-30,[2024],"[2022, 2023, 2025, 2026]"
+log_dv q3 & r5 q4,disregarded,weak_or_inconsistent,0.0,0.8777892355144634,5,2022-03-25,[2024],"[2023, 2026]"
+log_dv q3 & r5_nonews q4,disregarded,weak_or_inconsistent,0.0,0.8205859275897845,5,2022-03-25,"[2022, 2024]","[2023, 2025, 2026]"
+log_dv q3 & range_compress q0,disregarded,weak_or_inconsistent,0.0,0.7895149271274459,5,2022-03-25,[2023],[2026]
+log_dv q3 & rel_ind20 q4,disregarded,not_significant_after_all_tries,0.0,2.375245636480342,5,2022-03-25,"[2025, 2026]",[2023]
+log_dv q3 & rel_ind60 q1,disregarded,not_significant_after_all_tries,0.0,1.694763219087002,8,2019-09-27,"[2022, 2023, 2025, 2026]","[2020, 2024]"
+log_dv q3 & vol_ratio q3,disregarded,weak_or_inconsistent,0.0,0.22822674395503562,6,2021-03-26,"[2022, 2023]","[2021, 2024, 2026]"
+log_dv q4 & r5 q1,disregarded,weak_or_inconsistent,0.0,0.19258047740115578,3,2024-09-27,[],[2025]
+log_dv q4 & rel_ind60 q2,disregarded,lapsed,0.0,2.2179071406659707,7,2020-03-27,"[2021, 2022]",[2026]
+max20 q0 & overnight20 q3,disregarded,weak_or_inconsistent,0.0,0.02959618737189514,6,2021-09-24,[2025],"[2021, 2022, 2024, 2026]"
+max20 q1 & r20 q1,disregarded,weak_or_inconsistent,0.0,0.871803128347438,3,2024-09-27,[],[]
+max20 q1 & r5_nonews q4,disregarded,weak_or_inconsistent,0.0,0.40510765093760487,4,2023-09-29,[2024],[2025]
+max20 q1 & rel_ind60 q2,disregarded,weak_or_inconsistent,0.0,0.9140605419843579,4,2023-03-31,[2023],[2025]
+max20 q1 & vol20 q2,disregarded,weak_or_inconsistent,0.0,1.2141521983609034,1,2026-03-27,[2026],[]
+max20 q1 & vol_surge1 q2,disregarded,weak_or_inconsistent,0.0,0.39818058303604476,4,2023-09-29,[2025],"[2023, 2024]"
+max20 q1 & vol_surge5 q2,disregarded,weak_or_inconsistent,0.0,1.1321088539135766,4,2023-03-31,[2023],[2024]
+max20 q2 & news5 q2,disregarded,not_significant_after_all_tries,0.0,2.4211899354080786,4,2023-09-29,"[2023, 2025, 2026]",[]
+max20 q2 & overnight20 q4,disregarded,weak_or_inconsistent,0.0,0.4130562325129647,10,2017-09-29,"[2020, 2021, 2024, 2026]","[2017, 2018, 2019, 2023, 2025]"
+max20 q2 & r5_nonews q3,disregarded,weak_or_inconsistent,0.0,1.0966888124230267,7,2020-03-27,[2021],"[2024, 2026]"
+max20 q2 & vol_surge1 q4,disregarded,weak_or_inconsistent,0.0,0.5863671596515675,10,2017-09-29,"[2024, 2026]","[2018, 2020, 2022, 2023]"
+max20 q3,disregarded,weak_or_inconsistent,0.0,0.8674381683471747,8,2019-03-29,[2025],"[2019, 2021, 2022, 2024]"
+max20 q3 & r5_nonews q0,disregarded,weak_or_inconsistent,0.0,0.5034712250557098,5,2022-03-25,[2023],"[2022, 2024, 2026]"
+max20 q4,disregarded,weak_or_inconsistent,0.0,1.314171665447053,5,2022-03-25,"[2022, 2025]",[2024]
+max20 q4 & mom_12_1 q2,disregarded,weak_or_inconsistent,0.0,0.1760666240814448,1,2026-03-27,[],[]
+max20 q4 & range_compress q3,disregarded,weak_or_inconsistent,0.0,0.06122783820014222,7,2020-03-27,"[2024, 2025]","[2021, 2022, 2023, 2026]"
+max20 q4 & skew60 q0,disregarded,weak_or_inconsistent,0.0,1.0574439267822047,2,2025-03-28,[2026],[2025]
+max20 q4 & vol_surge1 q0,disregarded,weak_or_inconsistent,0.0,1.0204585092690204,1,2026-03-27,[2026],[]
+min20 q0 & mom_12_1 q2,disregarded,weak_or_inconsistent,0.0,0.2476888120293304,1,2026-03-27,[],[]
+min20 q0 & vol_surge5 q0,disregarded,weak_or_inconsistent,0.0,1.0211553984663106,1,2026-03-27,[2026],[]
+min20 q1,disregarded,not_significant_after_all_tries,0.0,3.216112865804355,11,2016-12-30,"[2017, 2019, 2020, 2023, 2024, 2025]","[2018, 2021, 2022, 2026]"
+min20 q1 & mom_12_1 q3,disregarded,weak_or_inconsistent,0.0,0.49454695727601833,11,2016-12-30,"[2023, 2024, 2025]","[2017, 2018, 2021, 2022, 2026]"
+min20 q1 & news5 q2,disregarded,not_significant_after_all_tries,0.0,2.2283896218961385,3,2024-03-28,"[2024, 2025]",[]
+min20 q1 & r20 q1,disregarded,lapsed,0.0,2.48797384573943,8,2019-03-29,"[2019, 2020, 2021, 2023]",[2022]
+min20 q1 & r5 q1,disregarded,weak_or_inconsistent,0.0,0.1699057352322553,3,2024-09-27,[2024],[2026]
+min20 q1 & r5_news q2,disregarded,not_significant_after_all_tries,0.0,3.361963655369679,11,2016-12-30,"[2017, 2019, 2020, 2023, 2024, 2025]","[2021, 2022, 2026]"
+min20 q1 & r60 q2,disregarded,weak_or_inconsistent,0.0,0.11512082751496984,3,2024-09-27,[],[2024]
+min20 q1 & vol_ratio q1,disregarded,weak_or_inconsistent,0.0,1.1650571529351794,8,2019-03-29,"[2019, 2024]","[2021, 2022, 2025]"
+min20 q1 & vol_surge1 q1,disregarded,not_significant_after_all_tries,0.0,1.863729218401535,3,2024-03-28,"[2024, 2025]",[2026]
+min20 q2,disregarded,weak_or_inconsistent,0.0,0.7444804072899663,4,2023-03-31,[2023],[]
+min20 q2 & r1 q0,disregarded,weak_or_inconsistent,0.0,0.4336739526604569,2,2025-09-26,[2026],[2025]
+min20 q2 & r5_nonews q1,disregarded,weak_or_inconsistent,0.0,1.3110912168384614,8,2019-03-29,"[2020, 2022, 2025]","[2021, 2024, 2026]"
+min20 q2 & skew60 q2,disregarded,weak_or_inconsistent,0.0,1.206042800958376,4,2023-09-29,"[2023, 2025]",[]
+min20 q2 & vol20 q3,disregarded,weak_or_inconsistent,0.0,0.30989436948482124,8,2019-03-29,"[2020, 2023]","[2019, 2021, 2022, 2025, 2026]"
+min20 q2 & vol_surge1 q1,disregarded,weak_or_inconsistent,0.0,0.042285528910002326,8,2019-03-29,[2023],"[2019, 2020, 2024, 2026]"
+min20 q3 & overnight20 q2,disregarded,not_significant_after_all_tries,0.0,1.8825691605985992,6,2021-09-24,"[2021, 2025]",[2023]
+min20 q3 & r5 q2,disregarded,not_significant_after_all_tries,0.0,2.7727027183500965,4,2023-03-31,"[2023, 2024, 2025, 2026]",[]
+min20 q3 & r5_nonews q1,disregarded,lapsed,0.0,1.6119346349509838,6,2021-09-24,[2021],[2023]
+min20 q3 & r60 q3,disregarded,weak_or_inconsistent,0.0,1.0421884003706219,5,2022-12-30,[2022],"[2023, 2024]"
+min20 q3 & rel_ind60 q1,disregarded,lapsed,0.0,1.5950857703454095,6,2021-09-24,"[2021, 2022]","[2025, 2026]"
+min20 q3 & skew60 q3,disregarded,weak_or_inconsistent,0.0,0.6408590407491956,6,2021-09-24,"[2021, 2022]","[2023, 2024, 2026]"
+min20 q4,disregarded,weak_or_inconsistent,0.0,0.33984470645733006,11,2016-03-24,"[2020, 2023]","[2016, 2017, 2018, 2021, 2022, 2024, 2025, 2026]"
+min20 q4 & r1 q4,disregarded,weak_or_inconsistent,0.0,0.4558072089441045,6,2021-03-26,[],"[2021, 2024]"
+min20 q4 & r120 q1,disregarded,weak_or_inconsistent,0.0,0.21325857135818943,10,2017-09-29,[2019],"[2017, 2020, 2022, 2023]"
+min20 q4 & r20 q2,disregarded,weak_or_inconsistent,0.0,0.019507765349500335,10,2017-09-29,"[2020, 2023]","[2018, 2021, 2022, 2025, 2026]"
+min20 q4 & r5_news q4,disregarded,weak_or_inconsistent,0.0,0.43607318747374413,8,2019-09-27,"[2019, 2022, 2025]","[2020, 2021, 2023, 2026]"
+min20 q4 & range_compress q2,disregarded,weak_or_inconsistent,0.0,0.689198558458706,9,2018-09-28,[2020],"[2018, 2021, 2022, 2026]"
+min20 q4 & rel_ind60 q1,disregarded,weak_or_inconsistent,0.0,0.8506468359278249,10,2017-03-31,"[2017, 2021, 2025, 2026]","[2018, 2019, 2020, 2023, 2024]"
+mom_12_1 q0 & r20 q3,disregarded,weak_or_inconsistent,0.0,1.219228843338855,8,2019-09-27,"[2022, 2024, 2025]","[2020, 2023, 2026]"
+mom_12_1 q0 & rel_ind20 q3,disregarded,weak_or_inconsistent,0.0,0.44071096402486465,10,2017-03-31,"[2017, 2021]","[2018, 2019, 2022, 2024]"
+mom_12_1 q0 & rel_ind20 q4 unless range_compress q0,disregarded,stale_for_this_period,0.0,1.59301278810033,8,2019-09-27,"[2021, 2025]","[2020, 2024, 2026]"
+mom_12_1 q0 & vol20 q3,disregarded,weak_or_inconsistent,0.0,0.8179108765695126,6,2021-09-24,[2021],"[2023, 2025]"
+mom_12_1 q0 & vol_surge1 q3,disregarded,weak_or_inconsistent,0.0,0.03251342107243271,10,2017-09-29,[2025],"[2017, 2021, 2022, 2024]"
+mom_12_1 q1 & range_compress q1,disregarded,weak_or_inconsistent,0.0,0.12685653814891157,11,2016-12-30,[],"[2016, 2019, 2020, 2021, 2023, 2025]"
+mom_12_1 q2,disregarded,weak_or_inconsistent,0.0,0.7895624794698992,10,2017-09-29,"[2020, 2021, 2024]","[2017, 2019, 2022, 2026]"
+mom_12_1 q2 & r20 q0,disregarded,weak_or_inconsistent,0.0,0.7715220065854129,12,2015-09-25,"[2015, 2021]","[2016, 2017, 2018, 2022, 2026]"
+mom_12_1 q2 & r60 q3,disregarded,lapsed,0.0,1.7270993326229638,8,2019-09-27,"[2021, 2022]",[]
+mom_12_1 q2 & range_compress q2,disregarded,weak_or_inconsistent,0.0,0.43430068763675017,8,2019-09-27,[2024],"[2019, 2022, 2023, 2026]"
+mom_12_1 q2 & vol20 q4,disregarded,weak_or_inconsistent,0.0,0.6304238491680981,1,2026-03-27,[],[]
+mom_12_1 q2 & vol_surge1 q3,disregarded,weak_or_inconsistent,0.0,0.33781494202590573,12,2015-09-25,[2016],"[2015, 2019, 2020, 2021, 2023]"
+mom_12_1 q2 & vol_surge5 q3,disregarded,weak_or_inconsistent,0.0,0.9718990455630574,4,2023-03-31,[2026],[2023]
+mom_12_1 q3,disregarded,weak_or_inconsistent,0.0,0.4407585765919937,12,2015-09-25,"[2015, 2022, 2025, 2026]","[2016, 2017, 2018, 2019, 2020, 2023]"
+mom_12_1 q3 & r20 q3,disregarded,weak_or_inconsistent,0.0,0.39277805276657046,11,2016-03-24,"[2016, 2017]","[2019, 2020, 2021, 2022, 2023, 2026]"
+mom_12_1 q3 & r5 q0,disregarded,weak_or_inconsistent,0.0,0.7711814373777488,11,2016-03-24,"[2017, 2022, 2023, 2026]","[2016, 2018, 2020, 2021, 2025]"
+mom_12_1 q3 & r5_news q2,disregarded,weak_or_inconsistent,0.0,0.09787176248080036,11,2016-12-30,"[2017, 2018]","[2020, 2021, 2022, 2025, 2026]"
+mom_12_1 q3 & range_compress q0,disregarded,weak_or_inconsistent,0.0,0.6609327600394169,11,2016-03-24,"[2022, 2025, 2026]","[2017, 2018, 2021, 2023]"
+mom_12_1 q3 & range_compress q4,disregarded,weak_or_inconsistent,0.0,0.4172969839884871,11,2016-03-24,"[2017, 2018]","[2019, 2021, 2022, 2024, 2025, 2026]"
+mom_12_1 q3 & rel_ind20 q3,disregarded,weak_or_inconsistent,0.0,0.09338565211643529,11,2016-12-30,"[2019, 2022]","[2020, 2023, 2024, 2025, 2026]"
+mom_12_1 q3 & rel_ind60 q2,disregarded,weak_or_inconsistent,0.0,0.31951010948526326,5,2022-12-30,"[2025, 2026]","[2022, 2023, 2024]"
+mom_12_1 q3 & vol20 q3,disregarded,weak_or_inconsistent,0.0,0.9193253249694762,8,2019-03-29,"[2024, 2025]","[2019, 2021, 2022, 2026]"
+mom_12_1 q3 & vol_ratio q0,disregarded,weak_or_inconsistent,0.0,0.7602296654045618,6,2021-09-24,"[2023, 2024]","[2022, 2025]"
+mom_12_1 q3 & vol_ratio q2,disregarded,weak_or_inconsistent,0.0,0.08465777227747129,11,2016-12-30,"[2016, 2018, 2023]","[2019, 2024, 2025, 2026]"
+mom_12_1 q3 & vol_surge1 q2,disregarded,weak_or_inconsistent,0.0,0.5674909029545573,4,2023-03-31,[2023],"[2024, 2025, 2026]"
+mom_12_1 q4,disregarded,lapsed,0.0,1.5546715661350807,10,2017-03-31,"[2018, 2020]","[2021, 2022]"
+mom_12_1 q4 & vol_ratio q4,disregarded,weak_or_inconsistent,0.0,0.4479234755819662,8,2019-03-29,[],"[2019, 2021]"
+mom_12_1 q4 & vol_surge1 q2,disregarded,weak_or_inconsistent,0.0,1.2512813666023108,9,2018-03-29,"[2018, 2020, 2026]","[2021, 2024]"
+news5 q2,disregarded,not_significant_after_all_tries,0.0,2.069652351286699,8,2019-09-27,"[2020, 2022, 2024, 2026]",[2019]
+news5 q2 & r60 q3,disregarded,weak_or_inconsistent,0.0,0.22838379712907317,1,2026-03-27,[],[]
+news5 q2 & vol_ratio q3,disregarded,weak_or_inconsistent,0.0,1.182875128274244,6,2021-03-26,"[2021, 2025]","[2022, 2026]"
+news5 q2 & vol_surge5 q4,disregarded,not_significant_after_all_tries,0.0,1.850292204637778,7,2020-09-25,"[2023, 2025]","[2020, 2021, 2024, 2026]"
+news5 q4 & r20 q4,disregarded,not_significant_after_all_tries,0.0,2.299763968599632,8,2019-09-27,"[2021, 2022, 2026]","[2023, 2024]"
+overnight20 q0,disregarded,weak_or_inconsistent,0.0,1.2189366699392006,8,2019-09-27,"[2021, 2022, 2024, 2026]","[2019, 2020, 2025]"
+overnight20 q0 & r120 q3,disregarded,weak_or_inconsistent,0.0,0.5267945325554435,5,2022-12-30,"[2024, 2025]","[2022, 2023]"
+overnight20 q0 & rel_ind60 q4,disregarded,weak_or_inconsistent,0.0,0.48109096662182405,5,2022-12-30,[],"[2023, 2024]"
+overnight20 q0 & skew60 q1,disregarded,weak_or_inconsistent,0.0,0.10261253406633719,5,2022-12-30,"[2022, 2024]","[2023, 2025]"
+overnight20 q1,disregarded,weak_or_inconsistent,0.0,0.04633168778308424,5,2022-03-25,"[2024, 2025]","[2023, 2026]"
+overnight20 q1 & r5 q3,disregarded,not_significant_after_all_tries,0.0,1.9099057123293608,7,2020-09-25,"[2021, 2023, 2026]","[2020, 2022]"
+overnight20 q1 & skew60 q0,disregarded,weak_or_inconsistent,0.0,0.5150364553364136,12,2015-09-25,"[2019, 2020, 2023, 2026]","[2015, 2016, 2017, 2021, 2022, 2024, 2025]"
+overnight20 q2,disregarded,weak_or_inconsistent,0.0,0.7726245254685584,8,2019-09-27,"[2025, 2026]","[2019, 2020, 2023]"
+overnight20 q2 & range_compress q0,disregarded,weak_or_inconsistent,0.0,0.37727863962692143,5,2022-03-25,"[2025, 2026]","[2023, 2024]"
+overnight20 q2 & range_compress q2,disregarded,weak_or_inconsistent,0.0,0.8997523671863403,9,2018-09-28,"[2021, 2022, 2023]","[2019, 2020, 2024, 2025]"
+overnight20 q2 & rel_ind60 q1,disregarded,not_significant_after_all_tries,0.0,2.6268878433589147,6,2021-09-24,"[2021, 2023, 2025]",[]
+overnight20 q2 & vol20 q2,disregarded,weak_or_inconsistent,0.0,0.7044256355170854,1,2026-03-27,[],[]
+overnight20 q2 & vol_surge5 q3,disregarded,weak_or_inconsistent,0.0,0.7329003568028069,5,2022-03-25,[2024],[2023]
+overnight20 q3,disregarded,weak_or_inconsistent,0.0,0.9824428425322682,10,2017-09-29,"[2017, 2020, 2023, 2026]","[2018, 2022, 2024, 2025]"
+overnight20 q3 & r1 q1,disregarded,weak_or_inconsistent,0.0,0.3194696937979495,6,2021-03-26,[2023],"[2022, 2024, 2025]"
+overnight20 q3 & r20 q3,disregarded,weak_or_inconsistent,0.0,0.3457532268517198,11,2016-12-30,"[2018, 2019, 2025]","[2017, 2020, 2021, 2022, 2023, 2026]"
+overnight20 q3 & range_compress q1,disregarded,weak_or_inconsistent,0.0,0.8238936371449065,10,2017-03-31,"[2020, 2021, 2023]","[2017, 2018, 2019, 2024, 2026]"
+r1 q0 & skew60 q4,disregarded,not_significant_after_all_tries,0.0,2.83099849828738,2,2025-03-28,"[2025, 2026]",[]
+r1 q0 & vol20 q2,disregarded,weak_or_inconsistent,0.0,0.3387825462883353,2,2025-09-26,[],[]
+r1 q0 & vol20 q3,disregarded,weak_or_inconsistent,0.0,0.17214610983940098,2,2025-09-26,[],[]
+r1 q0 & vol_surge5 q3,disregarded,weak_or_inconsistent,0.0,0.5305927912082878,2,2025-09-26,[],[2025]
+r1 q1,disregarded,not_significant_after_all_tries,0.0,1.5989231381917246,7,2020-09-25,"[2020, 2021, 2026]","[2022, 2025]"
+r1 q1 & vol20 q2,disregarded,weak_or_inconsistent,0.0,0.9818509677891539,2,2025-09-26,[],[]
+r1 q2 & r5 q1,disregarded,weak_or_inconsistent,0.0,1.0937904912004615,11,2016-03-24,"[2018, 2022, 2024]","[2016, 2019, 2023, 2025, 2026]"
+r1 q2 & rel_ind60 q1,disregarded,weak_or_inconsistent,0.0,0.16829233424176404,10,2017-03-31,"[2018, 2019]","[2021, 2022, 2024, 2025]"
+r1 q2 & skew60 q2,disregarded,weak_or_inconsistent,0.0,0.7378285956543137,11,2016-03-24,"[2016, 2017, 2024, 2026]","[2018, 2019, 2020, 2021, 2022, 2023, 2025]"
+r1 q2 & skew60 q3,disregarded,weak_or_inconsistent,0.0,1.4197313042887714,8,2019-09-27,"[2019, 2023, 2026]",[2024]
+r1 q4 & vol_surge1 q2,disregarded,weak_or_inconsistent,0.0,1.0752153720843503,2,2025-09-26,[2026],[]
+r120 q1,disregarded,not_significant_after_all_tries,0.0,1.8892891650803978,4,2023-09-29,"[2023, 2025, 2026]",[2024]
+r120 q3 & r60 q3,disregarded,weak_or_inconsistent,0.0,0.3301551346980819,5,2022-12-30,[],"[2023, 2026]"
+r120 q3 & skew60 q0,disregarded,weak_or_inconsistent,0.0,1.1996544961165871,2,2025-03-28,[2025],[]
+r120 q4 & r5 q2,disregarded,weak_or_inconsistent,0.0,0.9290030028310912,9,2018-09-28,"[2019, 2020]","[2022, 2023, 2024, 2025, 2026]"
+r20 q1,disregarded,not_significant_after_all_tries,0.0,2.1628111475974166,11,2016-03-24,"[2019, 2020, 2021, 2025]","[2017, 2024, 2026]"
+r20 q1 & range_compress q2,disregarded,weak_or_inconsistent,0.0,0.5639324743426488,7,2020-03-27,"[2020, 2025]","[2021, 2023, 2024, 2026]"
+r20 q1 & range_compress q4,disregarded,weak_or_inconsistent,0.0,0.9161790265857139,4,2023-03-31,[2023],"[2024, 2026]"
+r20 q1 & rel_ind20 q0,disregarded,weak_or_inconsistent,0.0,0.2517835285786859,3,2024-09-27,[2025],"[2024, 2026]"
+r20 q1 & rel_ind60 q2,disregarded,lapsed,0.0,2.532626514856563,7,2020-03-27,"[2020, 2021, 2022]","[2023, 2024]"
+r20 q1 & skew60 q2,disregarded,weak_or_inconsistent,0.0,0.7896423841914486,2,2025-09-26,[2026],[]
+r20 q1 & vol_ratio q0,disregarded,weak_or_inconsistent,0.0,0.5473153376751051,8,2019-03-29,[2019],"[2020, 2024, 2026]"
+r20 q1 & vol_ratio q1,disregarded,weak_or_inconsistent,0.0,0.7718438517602261,8,2019-03-29,"[2020, 2021]","[2019, 2022, 2023, 2025, 2026]"
+r20 q1 & vol_surge1 q1,disregarded,lapsed,0.0,1.517724157921342,7,2020-03-27,"[2021, 2023, 2024]","[2020, 2026]"
+r20 q2 & range_compress q2,disregarded,weak_or_inconsistent,0.0,0.09522571949269579,5,2022-03-25,[2025],"[2022, 2024]"
+r20 q2 & rel_ind20 q4,disregarded,weak_or_inconsistent,0.0,0.4499590056481112,4,2023-06-30,[2023],"[2024, 2026]"
+r20 q3,disregarded,weak_or_inconsistent,0.0,0.4771789811866461,12,2015-09-25,[2019],"[2015, 2017, 2021, 2023, 2026]"
+r20 q3 & range_compress q2,disregarded,weak_or_inconsistent,0.0,0.4748591318401692,12,2015-09-25,"[2015, 2017, 2021, 2026]","[2016, 2022, 2023, 2024, 2025]"
+r20 q3 & rel_ind20 q3,disregarded,weak_or_inconsistent,0.0,0.871529422102353,12,2015-09-25,"[2016, 2019, 2022]","[2015, 2017, 2018, 2021, 2024, 2025]"
+r20 q3 & rel_ind60 q1,disregarded,not_significant_after_all_tries,0.0,1.7080542152136942,8,2019-09-27,"[2022, 2023, 2026]","[2020, 2021]"
+r20 q3 & vol20 q0,disregarded,weak_or_inconsistent,0.0,0.7350850020848655,11,2016-03-24,"[2020, 2023]","[2018, 2021, 2022, 2024, 2026]"
+r20 q3 & vol_ratio q4,disregarded,weak_or_inconsistent,0.0,0.5318259746797146,8,2019-03-29,[2022],"[2020, 2021, 2026]"
+r20 q4,disregarded,weak_or_inconsistent,0.0,1.3732772042405286,10,2017-09-29,"[2018, 2021, 2022]","[2017, 2023, 2024, 2026]"
+r20 q4 & r5_nonews q4,disregarded,weak_or_inconsistent,0.0,0.11058506342924057,4,2023-03-31,[2026],"[2023, 2024, 2025]"
+r20 q4 & range_compress q2,disregarded,weak_or_inconsistent,0.0,0.17740967508149347,5,2022-03-25,[],[2022]
+r20 q4 & rel_ind60 q2,disregarded,weak_or_inconsistent,0.0,0.351063644649723,7,2020-09-25,"[2021, 2024]","[2020, 2025, 2026]"
+r20 q4 & skew60 q1,disregarded,weak_or_inconsistent,0.0,0.9850349976938574,8,2019-09-27,[],[2026]
+r20 q4 & vol_surge5 q0,disregarded,weak_or_inconsistent,0.0,0.8623658351734136,4,2023-03-31,"[2024, 2026]","[2023, 2025]"
+r5 q0,disregarded,weak_or_inconsistent,0.0,1.023084440504607,11,2016-12-30,"[2018, 2020, 2022]","[2021, 2024, 2026]"
+r5 q0 & rel_ind60 q1,disregarded,not_significant_after_all_tries,0.0,2.080508019630224,6,2021-03-26,[2022],[2024]
+r5 q0 & vol_surge5 q4,disregarded,weak_or_inconsistent,0.0,1.1030127491219535,1,2026-03-27,[2026],[]
+r5 q1,disregarded,not_significant_after_all_tries,0.0,3.091974847626439,12,2015-09-25,"[2015, 2017, 2018, 2020, 2024, 2025]","[2016, 2021, 2023, 2026]"
+r5 q1 & r5_news q2 unless gap_today q4,disregarded,weak_or_inconsistent,0.0,0.2482330125641058,3,2024-09-27,[],[2024]
+r5 q1 & r5_news q2 unless vol_surge1 q0,disregarded,weak_or_inconsistent,0.0,0.2001894876176242,3,2024-09-27,[2025],[2026]
+r5 q1 & r60 q3,disregarded,weak_or_inconsistent,0.0,1.474321577221609,10,2017-03-31,"[2017, 2020, 2023]","[2025, 2026]"
+r5 q1 & range_compress q2,disregarded,weak_or_inconsistent,0.0,0.15952912306275305,7,2020-03-27,[],"[2020, 2024, 2025]"
+r5 q1 & rel_ind60 q0,disregarded,weak_or_inconsistent,0.0,0.05602391769565491,6,2021-03-26,[2023],"[2024, 2025, 2026]"
+r5 q1 & rel_ind60 q2,disregarded,weak_or_inconsistent,0.0,0.9308525264606619,7,2020-03-27,"[2022, 2024]","[2021, 2023, 2025]"
+r5 q1 & vol20 q1,disregarded,weak_or_inconsistent,0.0,0.5573209466591759,3,2024-09-27,[],[]
+r5 q1 & vol_ratio q1,disregarded,weak_or_inconsistent,0.0,0.9713054074586925,6,2021-03-26,"[2021, 2026]","[2024, 2025]"
+r5 q1 & vol_ratio q3,disregarded,not_significant_after_all_tries,0.0,2.12506283575746,2,2025-03-28,[2026],[]
+r5 q1 & vol_surge5 q2,disregarded,weak_or_inconsistent,0.0,0.8198985387549859,2,2025-09-26,[2026],[2025]
+r5 q3,disregarded,weak_or_inconsistent,0.0,0.10787249151503339,7,2020-03-27,[2026],"[2020, 2022, 2025]"
+r5 q3 & r5_nonews q3,disregarded,weak_or_inconsistent,0.0,0.4325690767193259,7,2020-09-25,[],"[2020, 2025]"
+r5 q3 & vol20 q3,disregarded,weak_or_inconsistent,0.0,0.5423973303052857,3,2024-09-27,[2025],[2024]
+r5 q4,disregarded,weak_or_inconsistent,0.0,1.2962912472057322,7,2020-03-27,"[2020, 2022, 2024]","[2021, 2023, 2026]"
+r5 q4 & vol_surge1 q2,disregarded,weak_or_inconsistent,0.0,0.971645150078645,3,2024-03-28,[2025],[2026]
+r5_news q0,disregarded,weak_or_inconsistent,0.0,1.133113380319556,4,2023-09-29,"[2023, 2026]",[2025]
+r5_news q2,disregarded,not_significant_after_all_tries,0.0,2.031998314329868,6,2021-03-26,"[2023, 2024, 2026]",[2025]
+r5_news q2 & rel_ind60 q2,disregarded,weak_or_inconsistent,0.0,0.38810198206243185,7,2020-03-27,[2022],"[2021, 2023, 2024, 2025]"
+r5_news q2 & vol20 q3,disregarded,weak_or_inconsistent,0.0,0.6938671579943871,3,2024-09-27,[2025],[2024]
+r5_nonews q0 & vol20 q3,disregarded,not_significant_after_all_tries,0.0,1.9410272475082309,7,2020-03-27,"[2020, 2023, 2026]",[2024]
+r5_nonews q0 & vol_surge5 q3,disregarded,weak_or_inconsistent,0.0,0.21682016847218252,2,2025-09-26,[2026],[2025]
+r5_nonews q1,disregarded,weak_or_inconsistent,0.0,0.1954518851693258,11,2016-03-24,"[2016, 2021, 2023, 2026]","[2018, 2019, 2020, 2022, 2024, 2025]"
+r5_nonews q1 & r60 q4,disregarded,weak_or_inconsistent,0.0,1.0803963752291659,3,2024-03-28,[2026],[]
+r5_nonews q1 & range_compress q2,disregarded,weak_or_inconsistent,0.0,0.09885795156614724,6,2021-03-26,[],"[2022, 2023, 2025]"
+r5_nonews q1 & vol20 q1,disregarded,weak_or_inconsistent,0.0,0.4066562141515708,3,2024-09-27,[],[]
+r5_nonews q1 & vol_ratio q3,disregarded,not_significant_after_all_tries,0.0,1.562564220127871,2,2025-03-28,[2026],[2025]
+r5_nonews q2 & rel_ind60 q2,disregarded,weak_or_inconsistent,0.0,0.6015184653246296,7,2020-03-27,[2022],"[2020, 2023, 2024]"
+r5_nonews q2 & rel_ind60 q4,disregarded,not_significant_after_all_tries,0.0,2.3223735749804577,2,2025-03-28,"[2025, 2026]",[]
+r5_nonews q3 & skew60 q3,disregarded,weak_or_inconsistent,0.0,0.31563038477112937,6,2021-09-24,[2026],"[2024, 2025]"
+r5_nonews q3 & vol_surge5 q2,disregarded,weak_or_inconsistent,0.0,0.08664320815026598,2,2025-03-28,[],[2025]
+r5_nonews q3 & vol_surge5 q4,disregarded,not_significant_after_all_tries,0.0,2.112642179899753,10,2017-09-29,"[2018, 2020, 2023, 2025]","[2017, 2021, 2022, 2026]"
+r5_nonews q4,disregarded,lapsed,0.0,2.4046951099379927,7,2020-03-27,"[2020, 2022, 2024]","[2021, 2026]"
+r5_nonews q4 & vol_surge1 q2,disregarded,not_significant_after_all_tries,0.0,1.9035639323434004,7,2020-03-27,"[2020, 2021, 2023, 2025]",[2026]
+r5_nonews q4 & vol_surge5 q0,disregarded,not_significant_after_all_tries,0.0,2.8759480214111908,5,2022-03-25,"[2022, 2023, 2026]",[2024]
+r60 q1,disregarded,not_significant_after_all_tries,0.0,2.792380500033225,8,2019-09-27,"[2021, 2022, 2023, 2025, 2026]",[2020]
+r60 q1 & rel_ind60 q2,disregarded,weak_or_inconsistent,0.0,1.335408171503178,6,2021-09-24,"[2022, 2025]","[2023, 2024, 2026]"
+r60 q3,disregarded,weak_or_inconsistent,0.0,1.1558487310060332,11,2016-12-30,"[2020, 2021]","[2016, 2019, 2024]"
+r60 q3 & range_compress q0,disregarded,weak_or_inconsistent,0.0,1.0157082371400448,2,2025-03-28,[],[]
+r60 q4 & skew60 q4,disregarded,weak_or_inconsistent,0.0,1.451656009618456,2,2025-09-26,[2025],[]
+r60 q4 & vol_ratio q3,disregarded,weak_or_inconsistent,0.0,1.1112473750289273,6,2021-09-24,"[2023, 2026]","[2021, 2024]"
+range_compress q0 & rel_ind20 q1,disregarded,weak_or_inconsistent,0.0,0.7049742385341029,5,2022-03-25,[2022],"[2023, 2025]"
+range_compress q0 & vol_ratio q3,disregarded,weak_or_inconsistent,0.0,1.304211274210089,6,2021-03-26,"[2024, 2026]","[2023, 2025]"
+range_compress q1 & rel_ind20 q3,disregarded,not_significant_after_all_tries,0.0,2.63665914211066,7,2020-03-27,"[2022, 2023, 2024, 2026]",[]
+range_compress q2 & rel_ind20 q3,disregarded,weak_or_inconsistent,0.0,0.3983637663889546,3,2024-09-27,[2026],[2024]
+range_compress q2 & rel_ind20 q4,disregarded,stale_for_this_period,0.0,1.6606101628399592,7,2020-03-27,[],[]
+range_compress q2 & rel_ind60 q2,disregarded,weak_or_inconsistent,0.0,0.932791345466654,9,2018-09-28,"[2019, 2021, 2024]","[2018, 2022]"
+range_compress q2 & vol20 q2,disregarded,weak_or_inconsistent,0.0,0.9054880550145533,2,2025-03-28,[],[]
+range_compress q2 & vol_surge1 q1,disregarded,weak_or_inconsistent,0.0,1.0631795943540832,4,2023-09-29,[2025],[2026]
+range_compress q2 & vol_surge5 q3,disregarded,not_significant_after_all_tries,0.0,2.29874727545737,5,2022-03-25,"[2023, 2026]",[2022]
+range_compress q3 & vol_surge5 q1,disregarded,weak_or_inconsistent,0.0,0.24647912652446016,12,2015-09-25,[2021],"[2016, 2018, 2019, 2020, 2024]"
+range_compress q4,disregarded,weak_or_inconsistent,0.0,0.42495309981049406,11,2016-03-24,"[2017, 2020]","[2021, 2022, 2024, 2026]"
+range_compress q4 & rel_ind60 q3,disregarded,weak_or_inconsistent,0.0,0.22173018778857015,11,2016-03-24,"[2018, 2020]","[2016, 2017, 2021, 2022, 2024]"
+range_compress q4 & skew60 q0,disregarded,weak_or_inconsistent,0.0,1.0969700759163887,12,2015-09-25,"[2015, 2022]","[2018, 2020, 2024, 2025]"
+rel_ind20 q1 & vol_ratio q4,disregarded,weak_or_inconsistent,0.0,0.7604590736249404,1,2026-03-27,[],[]
+rel_ind20 q2,disregarded,weak_or_inconsistent,0.0,0.8831978288864208,7,2020-03-27,[2022],"[2020, 2023]"
+rel_ind20 q3,disregarded,weak_or_inconsistent,0.0,1.118325791551605,11,2016-12-30,"[2016, 2019, 2020]","[2017, 2018, 2021, 2025, 2026]"
+rel_ind20 q3 & skew60 q2,disregarded,weak_or_inconsistent,0.0,0.970715107017417,9,2018-09-28,"[2025, 2026]","[2018, 2019, 2020]"
+rel_ind20 q3 & vol_surge1 q3,disregarded,weak_or_inconsistent,0.0,0.1292859874802295,10,2017-09-29,"[2018, 2021, 2025]","[2019, 2020, 2023, 2024, 2026]"
+rel_ind20 q4,disregarded,weak_or_inconsistent,0.0,1.2228780912710069,10,2017-09-29,"[2021, 2022, 2025]","[2017, 2023, 2024]"
+rel_ind20 q4 & vol_surge5 q0,disregarded,weak_or_inconsistent,0.0,0.23144797255963595,4,2023-03-31,[],"[2023, 2025]"
+rel_ind60 q1,disregarded,not_significant_after_all_tries,0.0,2.281492883376477,12,2015-09-25,"[2016, 2022, 2023, 2025]","[2015, 2017, 2018, 2019, 2020]"
+rel_ind60 q2,disregarded,lapsed,0.0,2.350962964547675,9,2018-09-28,"[2018, 2019, 2022]","[2021, 2023, 2025]"
+rel_ind60 q2 & vol20 q2,disregarded,weak_or_inconsistent,0.0,0.0362848657142361,2,2025-03-28,[],[2025]
+rel_ind60 q2 & vol_ratio q2,disregarded,weak_or_inconsistent,0.0,0.22048436808577582,10,2017-09-29,"[2018, 2019]","[2021, 2024, 2025, 2026]"
+rel_ind60 q2 & vol_surge1 q3,disregarded,weak_or_inconsistent,0.0,0.9850374052819428,7,2020-09-25,"[2020, 2021, 2022]","[2023, 2024, 2026]"
+rel_ind60 q2 & vol_surge5 q2 unless close_loc q4,disregarded,weak_or_inconsistent,0.0,0.5732899210497161,5,2022-12-30,"[2023, 2024]","[2022, 2025, 2026]"
+rel_ind60 q2 & vol_surge5 q2 unless ind_mom20 q4,disregarded,weak_or_inconsistent,0.0,0.49765670564662173,5,2022-12-30,[],[2024]
+rel_ind60 q2 & vol_surge5 q3,disregarded,weak_or_inconsistent,0.0,1.4411827127280448,5,2022-03-25,"[2022, 2026]","[2023, 2024]"
+rel_ind60 q3,disregarded,weak_or_inconsistent,0.0,0.4945981202466762,11,2016-03-24,[2021],"[2016, 2018, 2019, 2020, 2023, 2025]"
+rel_ind60 q4,disregarded,weak_or_inconsistent,0.0,0.984735688704059,10,2017-03-31,"[2022, 2025]","[2017, 2018, 2023, 2024]"
+skew60 q1,disregarded,not_significant_after_all_tries,0.0,1.8198305058129132,5,2022-12-30,"[2024, 2025]",[]
+skew60 q1 & vol_surge1 q1,disregarded,weak_or_inconsistent,0.0,1.17696373270082,4,2023-09-29,"[2023, 2024]",[2026]
+skew60 q2,disregarded,lapsed,0.0,1.8976379164799104,10,2017-03-31,"[2018, 2022, 2023, 2024]","[2019, 2020, 2021]"
+skew60 q3,disregarded,weak_or_inconsistent,0.0,0.2516007079558695,5,2022-12-30,[],"[2024, 2025]"
+skew60 q4,disregarded,not_significant_after_all_tries,0.0,1.8861253215123248,5,2022-03-25,[2025],[2023]
+skew60 q4 & vol_surge1 q0,disregarded,weak_or_inconsistent,0.0,0.6243484745171817,1,2026-03-27,[],[]
+skew60 q4 & vol_surge5 q0,disregarded,weak_or_inconsistent,0.0,1.2882704295563498,1,2026-03-27,[2026],[]
+vol20 q0,disregarded,weak_or_inconsistent,0.0,0.7524641075648494,11,2016-12-30,"[2020, 2023]","[2016, 2021, 2022, 2024, 2025, 2026]"
+vol20 q0 & vol_surge1 q4,disregarded,weak_or_inconsistent,0.0,0.8103137126878853,11,2016-12-30,[2020],"[2021, 2022, 2024, 2026]"
+vol20 q2,disregarded,not_significant_after_all_tries,0.0,2.838920111382929,4,2023-03-31,"[2023, 2025, 2026]",[]
+vol20 q2 & vol_ratio q2,disregarded,not_significant_after_all_tries,0.0,1.749616803848103,2,2025-09-26,"[2025, 2026]",[]
+vol20 q2 & vol_ratio q3,disregarded,weak_or_inconsistent,0.0,0.6574882868601704,2,2025-09-26,[],[]
+vol20 q3,disregarded,not_significant_after_all_tries,0.0,2.7585040888344206,8,2019-03-29,"[2019, 2020, 2023, 2025]","[2021, 2022]"
+vol20 q3 & vol_ratio q1,disregarded,weak_or_inconsistent,0.0,1.1429378510809558,8,2019-03-29,"[2020, 2023]","[2019, 2021, 2022]"
+vol20 q3 & vol_ratio q3,disregarded,weak_or_inconsistent,0.0,0.07610851307398224,3,2024-09-27,[2025],"[2024, 2026]"
+vol20 q3 & vol_ratio q4,disregarded,weak_or_inconsistent,0.0,0.6899294102517753,3,2024-03-28,[2026],[2025]
+vol20 q3 & vol_surge1 q2,disregarded,weak_or_inconsistent,0.0,0.3171155389888185,7,2020-03-27,[2020],"[2021, 2024, 2025, 2026]"
+vol20 q4,disregarded,lapsed,0.0,1.781470073850861,4,2023-09-29,[2023],[]
+vol20 q4 & vol_surge1 q0,disregarded,weak_or_inconsistent,0.0,0.6048179124938744,1,2026-03-27,[],[]
+vol20 q4 & vol_surge5 q0,disregarded,weak_or_inconsistent,0.0,0.4583631344772782,1,2026-03-27,[],[]
+vol_ratio q0,disregarded,weak_or_inconsistent,0.0,0.6509513570944058,9,2018-03-29,[2025],"[2023, 2026]"
+vol_ratio q3,disregarded,weak_or_inconsistent,0.0,1.2776417936332645,6,2021-03-26,[2025],"[2022, 2026]"
+vol_ratio q4,disregarded,weak_or_inconsistent,0.0,0.8934620719010047,10,2017-09-29,"[2017, 2021, 2025]","[2018, 2022, 2023, 2026]"
+vol_surge1 q0 & vol_surge5 q0,disregarded,weak_or_inconsistent,0.0,0.7805631665692054,1,2026-03-27,[],[]
+vol_surge1 q1,disregarded,not_significant_after_all_tries,0.0,1.6520698432861747,10,2017-03-31,"[2020, 2023, 2025]",[2026]
+vol_surge1 q2,disregarded,weak_or_inconsistent,0.0,0.4838099180304815,6,2021-09-24,[2022],"[2023, 2024, 2026]"
+vol_surge1 q3,disregarded,weak_or_inconsistent,0.0,1.0593449831415591,10,2017-09-29,"[2018, 2021, 2022]","[2019, 2020, 2023, 2024, 2026]"
+vol_surge5 q0,disregarded,not_significant_after_all_tries,0.0,1.992747455553871,5,2022-03-25,"[2022, 2024, 2026]",[2023]
+vol_surge5 q1,disregarded,not_significant_after_all_tries,0.0,1.7599968942693511,7,2020-09-25,[2025],[2020]
+vol_surge5 q2,disregarded,weak_or_inconsistent,0.0,0.07173463358692467,3,2024-09-27,[],[2024]
+vol_surge5 q3,disregarded,not_significant_after_all_tries,0.0,2.947340721001407,7,2020-09-25,"[2021, 2022, 2025, 2026]",[2020]

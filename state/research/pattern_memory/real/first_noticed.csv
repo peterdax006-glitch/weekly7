@@ -1,0 +1,1287 @@
+key,registered,first_evidence,lag_days
+ear q4 & news5 q1,2015-07-01,,
+days_to_earn q4 & ear q2,2015-07-01,2015-09-25,86.0
+news5 q1,2015-07-01,,
+ind_mom60 q3 & intraday20 q3,2015-07-01,2015-09-25,86.0
+ins_officer30 q2,2015-07-01,2015-09-25,86.0
+news5 q1 & r20 q3,2015-07-01,,
+dist_52wh q2,2015-07-01,2015-09-25,86.0
+range_compress q4 & skew60 q0,2015-07-01,2015-09-25,86.0
+close_loc q1 & days_since_earn q3,2015-07-01,2015-09-25,86.0
+news5 q1 & range_compress q1,2015-07-01,,
+days_to_earn q1 & vol_ratio q4,2015-07-01,2015-09-25,86.0
+days_since_earn q0 & intraday20 q3,2015-07-01,2015-09-25,86.0
+news5 q1 & vol_ratio q0,2015-07-01,,
+days_to_earn q4 & intraday20 q3,2015-07-01,2015-09-25,86.0
+rel_ind60 q1,2015-07-01,2015-09-25,86.0
+mom_12_1 q3,2015-07-01,2015-09-25,86.0
+earn_in_week q2 & ins_buyers30 q2,2015-07-01,2015-09-25,86.0
+ind_mom20 q4 & vol_ratio q4,2015-07-01,2015-09-25,86.0
+days_to_earn q4 & rel_ind20 q3,2015-07-01,2015-09-25,86.0
+dist_52wh q2 & gap_today q4,2015-07-01,2015-09-25,86.0
+days_to_earn q1 & gap_today q3,2015-07-01,2015-09-25,86.0
+gap_today q3 & mom_12_1 q2,2015-07-01,2015-09-25,86.0
+days_since_earn q4 & frog q2,2015-07-01,2015-09-25,86.0
+dist_52wh q1 & frog q0,2015-07-01,2015-09-25,86.0
+ear_volsurge q4 & r20 q3,2015-07-01,2015-09-25,86.0
+ind_mom60 q4 & r20 q3,2015-07-01,2015-09-25,86.0
+mom_12_1 q2 & vol_surge1 q3,2015-07-01,2015-09-25,86.0
+intraday20 q3 & overnight20 q1,2015-07-01,2015-09-25,86.0
+days_to_earn q4 & r20 q3,2015-07-01,2015-09-25,86.0
+news5 q1 & rel_ind20 q2,2015-07-01,,
+days_to_earn q2 & range_compress q3,2015-07-01,2015-09-25,86.0
+frog q3 & mom_12_1 q2,2015-07-01,2015-09-25,86.0
+frog q3 & news5 q1,2015-07-01,,
+days_to_earn q4 & r1 q2,2015-07-01,2015-09-25,86.0
+dist_52wh q2 & r1 q0,2015-07-01,2015-09-25,86.0
+days_since_earn q4 & mom_12_1 q2,2015-07-01,2015-09-25,86.0
+log_dv q0 & news5 q2,2015-07-01,2015-09-25,86.0
+gap_today q3 & vol_surge5 q3,2015-07-01,2015-09-25,86.0
+dist_52wh q1 & vol_surge5 q1,2015-07-01,2015-09-25,86.0
+overnight20 q1 & skew60 q0,2015-07-01,2015-09-25,86.0
+ind_mom60 q3 & r20 q2,2015-07-01,2015-09-25,86.0
+dist_52wh q2 & rel_ind20 q0,2015-07-01,2015-09-25,86.0
+dist_52wh q2 & intraday20 q0,2015-07-01,2015-09-25,86.0
+gap_today q3 & news5 q1,2015-07-01,,
+intraday20 q3 & r5 q1,2015-07-01,2015-09-25,86.0
+intraday20 q0 & news5 q1,2015-07-01,,
+days_to_earn q2 & mom_12_1 q0,2015-07-01,2015-09-25,86.0
+r20 q3 & range_compress q2,2015-07-01,2015-09-25,86.0
+ins_opportunistic30 q2,2015-07-01,2015-09-25,86.0
+days_to_earn q4 & ins_buyers30 q2,2015-07-01,2015-09-25,86.0
+r5 q1,2015-07-01,2015-09-25,86.0
+days_to_earn q1 & ind_mom20 q0,2015-07-01,2015-09-25,86.0
+mom_12_1 q2 & r20 q0,2015-07-01,2015-09-25,86.0
+days_to_earn q4 & ins_officer30 q2,2015-07-01,2015-09-25,86.0
+days_to_earn q2 & frog q3,2015-07-01,2015-09-25,86.0
+ear_volsurge q4 & ind_mom60 q1,2015-07-01,2015-09-25,86.0
+intraday20 q3 & r1 q2,2015-07-01,2015-09-25,86.0
+days_since_earn q1 & vol_ratio q0,2015-07-01,2015-09-25,86.0
+dist_ma50 q4 & vol20 q2,2015-07-01,2015-09-25,86.0
+ear_volsurge q0,2015-07-01,2015-09-25,86.0
+frog q4 & vol20 q1,2015-07-01,2015-09-25,86.0
+intraday20 q0 & mom_12_1 q2,2015-07-01,2015-09-25,86.0
+gap_today q3,2015-07-01,2015-09-25,86.0
+r20 q3,2015-07-01,2015-09-25,86.0
+frog q0 & r1 q0,2015-07-01,2015-09-25,86.0
+dist_52wh q3 & r60 q2,2015-07-01,2015-09-25,86.0
+ind_mom20 q3 & rel_ind20 q3,2015-07-01,2015-09-25,86.0
+intraday20 q3 & news5 q1,2015-07-01,,
+news5 q1 & r5_nonews q3,2015-07-01,,
+range_compress q3 & vol_surge5 q1,2015-07-01,2015-09-25,86.0
+gap_today q4 & news5 q1,2015-07-01,,
+days_to_earn q0 & vol_surge5 q1,2015-07-01,2015-09-25,86.0
+dist_52wh q3 & rel_ind20 q3,2015-07-01,2015-09-25,86.0
+gap_today q3 & ind_mom60 q0,2015-07-01,2015-09-25,86.0
+ind_mom20 q2 & rel_ind20 q3,2015-07-01,2015-09-25,86.0
+news5 q1 & vol_surge1 q2,2015-07-01,,
+r20 q3 & rel_ind20 q3,2015-07-01,2015-09-25,86.0
+gap_today q4 & rel_ind60 q0,2015-07-01,2015-09-25,86.0
+frog q0 & rel_ind60 q0,2015-07-01,2015-09-25,86.0
+ear q1 & max20 q3,2015-07-01,2015-09-25,86.0
+dist_ma200 q3 & ear q3,2016-01-01,2016-03-24,83.0
+days_to_earn q1 & ins_officer30 q2,2016-01-01,2016-03-24,83.0
+days_since_earn q0 & r20 q3,2016-01-01,2016-03-24,83.0
+ins_buyers30 q2 & mom_12_1 q3,2016-01-01,2016-03-24,83.0
+ins_value30 q2 & mom_12_1 q3,2016-01-01,2016-03-24,83.0
+days_to_earn q1,2016-01-01,2016-03-24,83.0
+days_to_earn q3 & max20 q0,2016-01-01,2016-03-24,83.0
+close_loc q4 & days_since_earn q3,2016-01-01,2016-03-24,83.0
+ins_officer30 q2 & mom_12_1 q3,2016-01-01,2016-03-24,83.0
+r20 q3 & vol20 q0,2016-01-01,2016-03-24,83.0
+atr_pct q2 & rel_ind20 q0,2016-01-01,2016-03-24,83.0
+range_compress q4 & rel_ind60 q3,2016-01-01,2016-03-24,83.0
+ins_opportunistic30 q2 & mom_12_1 q3,2016-01-01,2016-03-24,83.0
+days_since_earn q3 & days_to_earn q1,2016-01-01,2016-03-24,83.0
+r1 q2 & r5 q1,2016-01-01,2016-03-24,83.0
+r5_nonews q1,2016-01-01,2016-03-24,83.0
+close_loc q4 & days_to_earn q3,2016-01-01,2016-03-24,83.0
+range_compress q4,2016-01-01,2016-03-24,83.0
+log_dv q1 & rel_ind20 q3,2016-01-01,2016-03-24,83.0
+ind_mom20 q0 & intraday20 q2,2016-01-01,2016-03-24,83.0
+days_since_earn q0 & ind_mom60 q0,2016-01-01,2016-03-24,83.0
+atr_pct q0 & intraday20 q3,2016-01-01,2016-03-24,83.0
+ins_officer30 q2 & r20 q3,2016-01-01,2016-03-24,83.0
+days_since_earn q0 & ins_officer30 q2,2016-01-01,2016-03-24,83.0
+ins_buyers30 q2 & r20 q3,2016-01-01,2016-03-24,83.0
+ins_value30 q2 & r20 q3,2016-01-01,2016-03-24,83.0
+close_loc q4 & mom_12_1 q3,2016-01-01,2016-03-24,83.0
+r1 q2 & skew60 q2,2016-01-01,2016-03-24,83.0
+ind_mom20 q0 & mom_12_1 q3,2016-01-01,2016-03-24,83.0
+days_to_earn q3 & mom_12_1 q3,2016-01-01,2016-03-24,83.0
+frog q1 & rel_ind60 q1,2016-01-01,2016-03-24,83.0
+days_since_earn q0 & rel_ind60 q3,2016-01-01,2016-03-24,83.0
+ear_volsurge q4 & vol_surge5 q3,2016-01-01,2016-03-24,83.0
+dist_ma50 q2 & news5 q1,2016-01-01,,
+min20 q4,2016-01-01,2016-03-24,83.0
+days_since_earn q0 & rel_ind20 q3,2016-01-01,2016-03-24,83.0
+mom_12_1 q3 & r5 q0,2016-01-01,2016-03-24,83.0
+days_since_earn q1 & max20 q0,2016-01-01,2016-03-24,83.0
+intraday20 q3 & max20 q0,2016-01-01,2016-03-24,83.0
+days_since_earn q0 & mom_12_1 q3,2016-01-01,2016-03-24,83.0
+news5 q1 & overnight20 q0,2016-01-01,,
+mom_12_1 q3 & r20 q3,2016-01-01,2016-03-24,83.0
+mom_12_1 q3 & range_compress q4,2016-01-01,2016-03-24,83.0
+dist_ma50 q0 & log_dv q1,2016-01-01,2016-03-24,83.0
+days_to_earn q3 & dist_ma50 q0,2016-01-01,2016-03-24,83.0
+rel_ind60 q3,2016-01-01,2016-03-24,83.0
+log_dv q2 & news5 q1,2016-01-01,,
+days_since_earn q3 & log_dv q3,2016-01-01,2016-03-24,83.0
+ear_volsurge q2 & log_dv q3,2016-01-01,2016-03-24,83.0
+ins_buyers30 q2,2016-01-01,2016-03-24,83.0
+ins_buyers30 q2 & ins_officer30 q2,2016-01-01,2016-03-24,83.0
+ins_buyers30 q2 & ins_value30 q2,2016-01-01,2016-03-24,83.0
+ins_officer30 q2 & ins_value30 q2,2016-01-01,2016-03-24,83.0
+ins_value30 q2,2016-01-01,2016-03-24,83.0
+ind_mom20 q3 & vol_surge5 q3,2016-01-01,2016-03-24,83.0
+r20 q1,2016-01-01,2016-03-24,83.0
+days_since_earn q3 & vol_ratio q2,2016-01-01,2016-03-24,83.0
+gap_today q2,2016-01-01,2016-03-24,83.0
+mom_12_1 q3 & range_compress q0,2016-01-01,2016-03-24,83.0
+days_to_earn q1 & intraday20 q0,2016-01-01,2016-03-24,83.0
+ear q3,2016-01-01,2016-03-24,83.0
+dist_ma50 q2 & r20 q3,2016-01-01,2016-03-24,83.0
+dist_52wh q3 & vol20 q0,2016-01-01,2016-03-24,83.0
+days_to_earn q4 & vol_ratio q1,2016-01-01,2016-03-24,83.0
+gap_today q4 & log_dv q3,2016-01-01,2016-03-24,83.0
+days_since_earn q0,2016-01-01,2016-03-24,83.0
+days_since_earn q1 & dist_ma50 q0,2016-01-01,2016-03-24,83.0
+ear q1,2016-01-01,2016-03-24,83.0
+ev_shelf q2,2016-01-01,2016-03-24,83.0
+ear q3 & overnight20 q1,2016-07-01,2016-12-30,182.0
+ear q3 & mom_12_1 q3,2016-07-01,2016-12-30,182.0
+dist_52wh q1 & min20 q1,2016-07-01,2016-12-30,182.0
+mom_12_1 q3 & r5_news q2,2016-07-01,2016-12-30,182.0
+dist_ma50 q3 & vol_surge1 q3,2016-07-01,2016-12-30,182.0
+earn_in_week q2 & mom_12_1 q3,2016-07-01,2016-12-30,182.0
+vol20 q0,2016-07-01,2016-12-30,182.0
+days_since_earn q1 & news5 q1,2016-07-01,,
+mom_12_1 q3 & rel_ind20 q3,2016-07-01,2016-12-30,182.0
+days_since_earn q1 & ind_mom20 q2,2016-07-01,2016-12-30,182.0
+intraday20 q3 & r20 q3,2016-07-01,2016-12-30,182.0
+days_to_earn q4 & ind_mom20 q2,2016-07-01,2016-12-30,182.0
+intraday20 q3 & range_compress q3,2016-07-01,2016-12-30,182.0
+mom_12_1 q3 & vol_ratio q2,2016-07-01,2016-12-30,182.0
+ind_mom60 q3 & mom_12_1 q3,2016-07-01,2016-12-30,182.0
+days_since_earn q1 & range_compress q3,2016-07-01,2016-12-30,182.0
+overnight20 q3 & r20 q3,2016-07-01,2016-12-30,182.0
+ind_mom60 q3 & log_dv q0,2016-07-01,2016-12-30,182.0
+dist_52wh q3 & r20 q3,2016-07-01,2016-12-30,182.0
+ins_buyers30 q2 & r60 q3,2016-07-01,2016-12-30,182.0
+vol20 q0 & vol_surge1 q4,2016-07-01,2016-12-30,182.0
+ind_mom20 q2 & vol_surge5 q1,2016-07-01,2016-12-30,182.0
+dist_52wh q1 & overnight20 q3,2016-07-01,2016-12-30,182.0
+r5 q0,2016-07-01,2016-12-30,182.0
+dist_ma50 q1 & ev_offering q2,2016-07-01,2016-12-30,182.0
+dist_ma50 q3 & r5_nonews q3,2016-07-01,2016-12-30,182.0
+dist_ma50 q1,2016-07-01,2016-12-30,182.0
+frog q4 & r5_nonews q0,2016-07-01,2016-12-30,182.0
+r60 q3,2016-07-01,2016-12-30,182.0
+atr_pct q0 & skew60 q4,2016-07-01,2016-12-30,182.0
+ind_mom20 q2 & ins_officer30 q2,2016-07-01,2016-12-30,182.0
+ear q3 & r20 q3,2016-07-01,2016-12-30,182.0
+ind_mom20 q2 & log_dv q0,2016-07-01,2016-12-30,182.0
+atr_pct q2 & rel_ind20 q2,2016-07-01,2016-12-30,182.0
+intraday20 q3 & overnight20 q3,2016-07-01,2016-12-30,182.0
+ind_mom20 q2 & ins_buyers30 q2,2016-07-01,2016-12-30,182.0
+ind_mom20 q2 & ins_value30 q2,2016-07-01,2016-12-30,182.0
+ear_volsurge q2 & mom_12_1 q3,2016-07-01,2016-12-30,182.0
+log_dv q1 & mom_12_1 q3,2016-07-01,2016-12-30,182.0
+ear q3 & ins_buyers30 q2,2016-07-01,2016-12-30,182.0
+ear q3 & ins_value30 q2,2016-07-01,2016-12-30,182.0
+days_since_earn q1 & intraday20 q3,2016-07-01,2016-12-30,182.0
+log_dv q4 & news5 q1,2016-07-01,,
+log_dv q1 & r120 q3,2016-07-01,2016-12-30,182.0
+close_loc q3 & range_compress q3,2016-07-01,2016-12-30,182.0
+ear q3 & ins_officer30 q2,2016-07-01,2016-12-30,182.0
+ind_mom20 q2 & r5 q1,2016-07-01,2016-12-30,182.0
+dist_52wh q0,2016-07-01,2016-12-30,182.0
+min20 q1,2016-07-01,2016-12-30,182.0
+close_loc q3 & ear q3,2016-07-01,2016-12-30,182.0
+rel_ind20 q3,2016-07-01,2016-12-30,182.0
+dist_ma50 q2 & rel_ind20 q4,2016-07-01,2016-12-30,182.0
+ins_officer30 q2 & r5 q0,2016-07-01,2016-12-30,182.0
+intraday20 q3 & mom_12_1 q3,2016-07-01,2016-12-30,182.0
+ind_mom60 q3 & news5 q1,2016-07-01,,
+min20 q1 & r5_news q2,2016-07-01,2016-12-30,182.0
+mom_12_1 q1 & range_compress q1,2016-07-01,2016-12-30,182.0
+min20 q1 & mom_12_1 q3,2016-07-01,2016-12-30,182.0
+close_loc q3 & r20 q3,2016-07-01,2016-12-30,182.0
+ins_officer30 q2 & min20 q1,2016-07-01,2016-12-30,182.0
+close_loc q1 & intraday20 q3,2016-07-01,2016-12-30,182.0
+ind_mom20 q2,2016-07-01,2016-12-30,182.0
+ins_officer30 q2 & intraday20 q3,2016-07-01,2016-12-30,182.0
+days_since_earn q4 & rel_ind20 q2,2016-07-01,2016-12-30,182.0
+ear_volsurge q0 & mom_12_1 q3,2016-07-01,2016-12-30,182.0
+news5 q1 & range_compress q4,2017-01-01,,
+close_loc q1 & days_to_earn q2,2017-01-01,2017-03-31,89.0
+days_since_earn q1 & earn_in_week q1,2017-01-01,,
+days_since_earn q2 & news5 q1,2017-01-01,,
+days_to_earn q3 & dist_ma200 q0,2017-01-01,2017-03-31,89.0
+close_loc q1 & news5 q4,2017-01-01,2017-03-31,89.0
+days_to_earn q3 & earn_in_week q1,2017-01-01,,
+days_since_earn q2 & earn_in_week q1,2017-01-01,,
+days_to_earn q3 & r20 q4,2017-01-01,2017-03-31,89.0
+ear q2,2017-01-01,2017-03-31,89.0
+r5 q1 & r60 q3,2017-01-01,2017-03-31,89.0
+ind_mom20 q3 & log_dv q3,2017-01-01,2017-03-31,89.0
+days_since_earn q1 & r120 q1,2017-01-01,2017-03-31,89.0
+dist_52wh q1 & rel_ind20 q3,2017-01-01,2017-03-31,89.0
+days_since_earn q1 & rel_ind60 q1,2017-01-01,2017-03-31,89.0
+days_to_earn q2 & r5_nonews q2,2017-01-01,2017-03-31,89.0
+close_loc q1 & days_since_earn q0,2017-01-01,2017-03-31,89.0
+rel_ind60 q4,2017-01-01,2017-03-31,89.0
+ear q4,2017-01-01,2017-03-31,89.0
+days_to_earn q3 & rel_ind60 q1,2017-01-01,2017-03-31,89.0
+ear_volsurge q2,2017-01-01,2017-03-31,89.0
+r1 q2 & rel_ind60 q1,2017-01-01,2017-03-31,89.0
+dist_ma50 q2 & vol_surge1 q1,2017-01-01,2017-03-31,89.0
+intraday20 q1 & range_compress q1,2017-01-01,2017-03-31,89.0
+dist_ma50 q4 & r5_nonews q0,2017-01-01,2017-03-31,89.0
+news5 q1 & r5 q1,2017-01-01,,
+close_loc q1 & r20 q2,2017-01-01,2017-03-31,89.0
+skew60 q2,2017-01-01,2017-03-31,89.0
+days_since_earn q4,2017-01-01,2017-03-31,89.0
+vol_surge1 q1,2017-01-01,2017-03-31,89.0
+dist_52wh q1 & r20 q2,2017-01-01,2017-03-31,89.0
+days_since_earn q4 & ev_offering q2,2017-01-01,2017-03-31,89.0
+min20 q4 & rel_ind60 q1,2017-01-01,2017-03-31,89.0
+overnight20 q3 & range_compress q1,2017-01-01,2017-03-31,89.0
+mom_12_1 q0 & rel_ind20 q3,2017-01-01,2017-03-31,89.0
+days_to_earn q3 & r20 q0,2017-01-01,2017-03-31,89.0
+dist_52wh q1 & ind_mom60 q0,2017-01-01,2017-03-31,89.0
+ins_buyers30 q2 & vol_surge1 q1,2017-01-01,2017-03-31,89.0
+ins_value30 q2 & vol_surge1 q1,2017-01-01,2017-03-31,89.0
+gap_today q4 & range_compress q0,2017-01-01,2017-03-31,89.0
+gap_today q3 & intraday20 q3,2017-01-01,2017-03-31,89.0
+days_to_earn q2 & overnight20 q4,2017-01-01,2017-03-31,89.0
+ins_officer30 q2 & vol_surge1 q1,2017-01-01,2017-03-31,89.0
+days_since_earn q1 & dist_ma50 q2,2017-01-01,2017-03-31,89.0
+ins_opportunistic30 q2 & range_compress q2,2017-01-01,2017-03-31,89.0
+days_since_earn q0 & r120 q1,2017-01-01,2017-03-31,89.0
+mom_12_1 q4,2017-01-01,2017-03-31,89.0
+log_dv q1,2017-01-01,2017-03-31,89.0
+dist_52wh q1 & ev_shelf q2,2017-01-01,2017-03-31,89.0
+min20 q4 & news5 q1,2017-07-01,,
+rel_ind20 q3 & vol_surge1 q3,2017-07-01,2017-09-29,90.0
+ear q1 & ins_buyers30 q2,2017-07-01,2017-09-29,90.0
+ear q1 & ins_value30 q2,2017-07-01,2017-09-29,90.0
+dist_52wh q2 & news5 q1,2017-07-01,,
+ins_buyers30 q2 & vol_surge1 q3,2017-07-01,2017-09-29,90.0
+ins_value30 q2 & vol_surge1 q3,2017-07-01,2017-09-29,90.0
+min20 q4 & r120 q1,2017-07-01,2017-09-29,90.0
+ear q1 & ev_shelf q2,2017-07-01,2017-09-29,90.0
+ear q1 & ins_officer30 q2,2017-07-01,2017-09-29,90.0
+ev_shelf q2 & vol_surge1 q3,2017-07-01,2017-09-29,90.0
+dist_52wh q1 & vol_surge1 q3,2017-07-01,2017-09-29,90.0
+vol_surge1 q3,2017-07-01,2017-09-29,90.0
+ins_officer30 q2 & vol_surge1 q3,2017-07-01,2017-09-29,90.0
+dist_52wh q1 & frog q3,2017-07-01,2017-09-29,90.0
+news5 q1 & overnight20 q4,2017-07-01,,
+days_to_earn q2 & max20 q2,2017-07-01,2017-09-29,90.0
+days_to_earn q4 & r120 q1,2017-07-01,2017-09-29,90.0
+dist_52wh q1 & r60 q3,2017-07-01,2017-09-29,90.0
+ins_buyers30 q2 & overnight20 q3,2017-07-01,2017-09-29,90.0
+ins_value30 q2 & overnight20 q3,2017-07-01,2017-09-29,90.0
+mom_12_1 q0 & vol_surge1 q3,2017-07-01,2017-09-29,90.0
+days_to_earn q2 & range_compress q4,2017-07-01,2017-09-29,90.0
+max20 q2 & overnight20 q4,2017-07-01,2017-09-29,90.0
+dist_52wh q1 & r5_nonews q4,2017-07-01,2017-09-29,90.0
+intraday20 q0 & mom_12_1 q3,2017-07-01,2017-09-29,90.0
+days_since_earn q1 & r20 q2,2017-07-01,2017-09-29,90.0
+dist_52wh q1 & ear q1,2017-07-01,2017-09-29,90.0
+rel_ind60 q2 & vol_ratio q2,2017-07-01,2017-09-29,90.0
+ind_mom20 q2 & overnight20 q2,2017-07-01,2017-09-29,90.0
+gap_today q0,2017-07-01,2017-09-29,90.0
+ins_officer30 q2 & overnight20 q3,2017-07-01,2017-09-29,90.0
+mom_12_1 q2,2017-07-01,2017-09-29,90.0
+atr_pct q0 & news5 q1,2017-07-01,,
+news5 q1 & vol20 q0,2017-07-01,,
+ins_buyers30 q2 & r20 q4,2017-07-01,2017-09-29,90.0
+ins_value30 q2 & r20 q4,2017-07-01,2017-09-29,90.0
+days_to_earn q1 & overnight20 q3,2017-07-01,2017-09-29,90.0
+frog q3 & r1 q4,2017-07-01,2017-09-29,90.0
+days_to_earn q3 & intraday20 q0,2017-07-01,2017-09-29,90.0
+close_loc q1 & min20 q4,2017-07-01,2017-09-29,90.0
+ev_agreement q2 & vol_ratio q4,2017-07-01,2017-09-29,90.0
+ind_mom60 q0 & r20 q2,2017-07-01,2017-09-29,90.0
+ins_officer30 q2 & r20 q4,2017-07-01,2017-09-29,90.0
+frog q3 & max20 q1,2017-07-01,2017-09-29,90.0
+vol_ratio q4,2017-07-01,2017-09-29,90.0
+min20 q4 & r20 q2,2017-07-01,2017-09-29,90.0
+close_loc q1 & r120 q2,2017-07-01,2017-09-29,90.0
+intraday20 q4,2017-07-01,2017-09-29,90.0
+ind_mom60 q3 & vol_surge1 q3,2017-07-01,2017-09-29,90.0
+rel_ind20 q4,2017-07-01,2017-09-29,90.0
+r5_nonews q3 & vol_surge5 q4,2017-07-01,2017-09-29,90.0
+r20 q4,2017-07-01,2017-09-29,90.0
+days_to_earn q3 & news5 q1,2017-07-01,,
+dist_ma50 q2 & vol_surge1 q3,2017-07-01,2017-09-29,90.0
+overnight20 q3,2017-07-01,2017-09-29,90.0
+frog q0 & r60 q2,2017-07-01,2017-09-29,90.0
+dist_52wh q2 & min20 q4,2017-07-01,2017-09-29,90.0
+atr_pct q1 & r5_nonews q4,2017-07-01,2017-09-29,90.0
+ear q3 & range_compress q1,2017-07-01,2017-09-29,90.0
+max20 q2 & vol_surge1 q4,2017-07-01,2017-09-29,90.0
+days_since_earn q3 & overnight20 q3,2017-07-01,2017-09-29,90.0
+mom_12_1 q0 & news5 q1,2017-07-01,,
+intraday20 q2,2017-07-01,2017-09-29,90.0
+ear q1 & news5 q1,2018-01-01,,
+dist_ma50 q1 & ear_volsurge q3,2018-01-01,2018-03-29,87.0
+log_dv q0 & r20 q1,2018-01-01,2018-03-29,87.0
+days_to_earn q3 & intraday20 q1,2018-01-01,2018-03-29,87.0
+vol_ratio q0,2018-01-01,2018-03-29,87.0
+ind_mom20 q4 & r20 q3,2018-01-01,2018-03-29,87.0
+days_since_earn q1 & r20 q4,2018-01-01,2018-03-29,87.0
+gap_today q0 & overnight20 q3,2018-01-01,2018-03-29,87.0
+dist_ma50 q3 & earn_in_week q1,2018-01-01,,
+ind_mom60 q1,2018-01-01,2018-03-29,87.0
+ear q1 & intraday20 q3,2018-01-01,2018-03-29,87.0
+days_to_earn q1 & log_dv q2,2018-01-01,2018-03-29,87.0
+frog q1 & log_dv q3,2018-01-01,2018-03-29,87.0
+dist_ma200 q3 & news5 q1,2018-01-01,,
+days_since_earn q2 & r60 q3,2018-01-01,2018-03-29,87.0
+days_since_earn q1 & dist_ma50 q4,2018-01-01,2018-03-29,87.0
+intraday20 q3 & rel_ind60 q1,2018-01-01,2018-03-29,87.0
+ind_mom20 q0,2018-01-01,2018-03-29,87.0
+dist_ma50 q3 & range_compress q2,2018-01-01,2018-03-29,87.0
+ev_agreement q2,2018-01-01,2018-03-29,87.0
+gap_today q0 & log_dv q2,2018-01-01,2018-03-29,87.0
+intraday20 q3 & min20 q1,2018-01-01,2018-03-29,87.0
+intraday20 q1 & min20 q4,2018-01-01,2018-03-29,87.0
+close_loc q3 & vol_surge1 q3,2018-01-01,2018-03-29,87.0
+mom_12_1 q4 & vol_surge1 q2,2018-01-01,2018-03-29,87.0
+ear q1 & ear_volsurge q3,2018-07-01,2018-09-28,89.0
+log_dv q1 & r5 q1,2018-07-01,2018-09-28,89.0
+close_loc q3 & frog q3,2018-07-01,2018-09-28,89.0
+ind_mom60 q3 & r60 q1,2018-07-01,2018-09-28,89.0
+ear q1 & r5_news q2,2018-07-01,2018-09-28,89.0
+dist_ma50 q3 & rel_ind60 q4,2018-07-01,2018-09-28,89.0
+gap_today q0 & r120 q3,2018-07-01,2018-09-28,89.0
+rel_ind60 q2,2018-07-01,2018-09-28,89.0
+gap_today q0 & min20 q1,2018-07-01,2018-09-28,89.0
+range_compress q2 & rel_ind60 q2,2018-07-01,2018-09-28,89.0
+ear q1 & log_dv q3,2018-07-01,2018-09-28,89.0
+dist_ma50 q1 & overnight20 q2,2018-07-01,2018-09-28,89.0
+gap_today q0 & range_compress q1,2018-07-01,2018-09-28,89.0
+days_since_earn q1 & ind_mom20 q4,2018-07-01,2018-09-28,89.0
+dist_ma50 q3 & news5 q1,2018-07-01,,
+ind_mom60 q1 & min20 q4,2018-07-01,2018-09-28,89.0
+atr_pct q3 & mom_12_1 q2,2018-07-01,2018-09-28,89.0
+overnight20 q2 & range_compress q2,2018-07-01,2018-09-28,89.0
+frog q1 & r5 q1,2018-07-01,2018-09-28,89.0
+ear q1 & rel_ind60 q2,2018-07-01,2018-09-28,89.0
+ear q1 & rel_ind60 q4,2018-07-01,2018-09-28,89.0
+dist_ma200 q1 & ind_mom60 q1,2018-07-01,2018-09-28,89.0
+ear_volsurge q3,2018-07-01,2018-09-28,89.0
+ev_agreement q4 & rel_ind60 q4,2018-07-01,2019-12-27,544.0
+ear q4 & log_dv q3,2018-07-01,2018-09-28,89.0
+min20 q4 & range_compress q2,2018-07-01,2018-09-28,89.0
+rel_ind20 q3 & skew60 q2,2018-07-01,2018-09-28,89.0
+dist_ma200 q2 & vol_ratio q3,2018-07-01,2018-09-28,89.0
+dist_ma50 q2 & rel_ind60 q4,2018-07-01,2018-09-28,89.0
+r120 q4 & r5 q2,2018-07-01,2018-09-28,89.0
+days_since_earn q3 & min20 q4,2018-07-01,2018-09-28,89.0
+ear q1 & gap_today q3,2018-07-01,2018-09-28,89.0
+ind_mom20 q4 & r5 q4,2018-07-01,2018-09-28,89.0
+ind_mom60 q1 & log_dv q1,2018-07-01,2018-09-28,89.0
+ear q2 & min20 q0,2018-07-01,2018-09-28,89.0
+dist_52wh q2 & ind_mom20 q4,2018-07-01,2018-09-28,89.0
+ins_buyers30 q2 & r5 q1,2018-07-01,2018-09-28,89.0
+ins_value30 q2 & r5 q1,2018-07-01,2018-09-28,89.0
+days_since_earn q2 & log_dv q1,2019-01-01,2019-03-29,87.0
+ear q3 & news5 q1,2019-01-01,,
+frog q1 & news5 q1,2019-01-01,,
+ear_volsurge q0 & news5 q1,2019-01-01,,
+news5 q1 & r5_nonews q1,2019-01-01,,
+r20 q1 & vol_ratio q1,2019-01-01,2019-03-29,87.0
+news5 q1 & skew60 q0,2019-01-01,,
+min20 q2 & vol20 q3,2019-01-01,2019-03-29,87.0
+min20 q2 & r5_nonews q1,2019-01-01,2019-03-29,87.0
+ear_volsurge q4 & earn_in_week q1,2019-01-01,,
+min20 q2 & vol_surge1 q1,2019-01-01,2019-03-29,87.0
+ear_volsurge q4 & vol20 q3,2019-01-01,2019-03-29,87.0
+ear_volsurge q4 & vol_surge1 q1,2019-01-01,2019-03-29,87.0
+r20 q3 & vol_ratio q4,2019-01-01,2019-03-29,87.0
+atr_pct q3 & days_since_earn q2,2019-01-01,2019-03-29,87.0
+news5 q1 & rel_ind60 q4,2019-01-01,,
+atr_pct q2 & ev_red_flag q2,2019-01-01,2019-03-29,87.0
+atr_pct q2,2019-01-01,2019-03-29,87.0
+log_dv q1 & vol_ratio q0,2019-01-01,2019-03-29,87.0
+ind_mom60 q3 & news5 q1 unless atr_pct q4,2019-01-01,,
+news5 q1 & r5 q2,2019-01-01,,
+close_loc q0 & gap_today q4,2019-01-01,2019-03-29,87.0
+news5 q1 & vol20 q3,2019-01-01,,
+ind_mom20 q4 & r5_nonews q0,2019-01-01,2019-03-29,87.0
+atr_pct q3 & skew60 q2,2019-01-01,2019-03-29,87.0
+atr_pct q3 & log_dv q4,2019-01-01,2019-03-29,87.0
+news5 q1 & r120 q4,2019-01-01,,
+dist_ma200 q1 & frog q4,2019-01-01,2019-03-29,87.0
+mom_12_1 q4 & vol_ratio q4,2019-01-01,2019-03-29,87.0
+ear_volsurge q0 & log_dv q4,2019-01-01,2019-03-29,87.0
+dist_ma50 q3 & log_dv q1,2019-01-01,2019-03-29,87.0
+frog q4 & news5 q1,2019-01-01,,
+ear_volsurge q1 & skew60 q4,2019-01-01,2019-03-29,87.0
+ins_value30 q2 & vol20 q3,2019-01-01,2019-03-29,87.0
+dist_ma50 q3 & vol20 q3,2019-01-01,2019-03-29,87.0
+days_to_earn q1 & ind_mom20 q1,2019-01-01,2019-03-29,87.0
+days_since_earn q3 & vol_ratio q3,2019-01-01,2019-03-29,87.0
+ear_volsurge q4 & log_dv q1,2019-01-01,2019-03-29,87.0
+ear q2 & skew60 q1,2019-01-01,2019-03-29,87.0
+close_loc q4 & news5 q1 unless vol_surge5 q4,2019-01-01,,
+min20 q1 & r20 q1,2019-01-01,2019-03-29,87.0
+mom_12_1 q3 & vol20 q3,2019-01-01,2019-03-29,87.0
+ind_mom20 q4 & log_dv q0,2019-01-01,2019-03-29,87.0
+news5 q1 & vol_surge1 q2 unless frog q4,2019-01-01,,
+ev_agreement q2 & ev_offering q4,2019-01-01,2019-09-27,269.0
+close_loc q0 & log_dv q1,2019-01-01,2019-03-29,87.0
+ind_mom60 q1 & r60 q0,2019-01-01,2019-03-29,87.0
+frog q4 & ind_mom60 q2,2019-01-01,2019-03-29,87.0
+gap_today q3 & min20 q2,2019-01-01,2019-03-29,87.0
+r20 q1 & vol_ratio q0,2019-01-01,2019-03-29,87.0
+vol20 q3 & vol_ratio q1,2019-01-01,2019-03-29,87.0
+ev_agreement q2 & vol20 q3,2019-01-01,2019-03-29,87.0
+days_since_earn q0 & ind_mom60 q1,2019-01-01,2019-03-29,87.0
+dist_ma50 q4 & ins_buyers30 q2,2019-01-01,2019-03-29,87.0
+ev_red_flag q2 & vol20 q3,2019-01-01,2019-03-29,87.0
+max20 q3,2019-01-01,2019-03-29,87.0
+days_since_earn q2 & vol_ratio q1,2019-01-01,2019-03-29,87.0
+news5 q1 & vol_surge1 q2 unless r20 q0,2019-01-01,,
+ear_volsurge q0 & ind_mom20 q4,2019-01-01,2019-03-29,87.0
+vol20 q3,2019-01-01,2019-03-29,87.0
+ev_offering q2 & vol20 q3,2019-01-01,2019-03-29,87.0
+min20 q1 & vol_ratio q1,2019-01-01,2019-03-29,87.0
+ind_mom60 q2 & vol20 q3,2019-01-01,2019-03-29,87.0
+dist_ma200 q4 & skew60 q2,2019-01-01,2019-03-29,87.0
+days_since_earn q1 & frog q3,2019-01-01,2019-03-29,87.0
+ear_volsurge q4 & frog q4,2019-01-01,2019-03-29,87.0
+atr_pct q3 & dist_ma50 q3,2019-01-01,2019-03-29,87.0
+dist_ma50 q3 & ear_volsurge q0,2019-01-01,2019-03-29,87.0
+ev_agreement q2 & ev_offering q2,2019-01-01,2019-03-29,87.0
+dist_ma50 q3 & vol_ratio q0,2019-01-01,2019-03-29,87.0
+ev_shelf q2 & max20 q3,2019-01-01,2019-03-29,87.0
+ear_volsurge q1 & frog q4,2019-01-01,2019-03-29,87.0
+frog q4 & vol_ratio q1,2019-01-01,2019-03-29,87.0
+days_since_earn q2 & max20 q1,2019-01-01,2019-03-29,87.0
+days_to_earn q2 & rel_ind60 q4,2019-01-01,2019-03-29,87.0
+dist_52wh q3 & news5 q1,2019-07-01,,
+dist_ma50 q1 & r120 q3,2019-07-01,2019-09-27,88.0
+ear q1 & skew60 q1,2019-07-01,2019-09-27,88.0
+earn_in_week q1 & intraday20 q4,2019-07-01,,
+dist_ma50 q3 & r5_news q4,2019-07-01,2019-12-27,179.0
+log_dv q3 & rel_ind60 q1,2019-07-01,2019-09-27,88.0
+news5 q2,2019-07-01,2019-09-27,88.0
+ind_mom60 q0 & r20 q4,2019-07-01,2019-09-27,88.0
+dist_ma50 q3 & mom_12_1 q0,2019-07-01,2019-09-27,88.0
+ev_red_flag q2 & r5 q1,2019-07-01,2019-09-27,88.0
+frog q0,2019-07-01,2019-09-27,88.0
+earn_in_week q1 & skew60 q3,2019-07-01,,
+ev_red_flag q2 & frog q0,2019-07-01,2019-09-27,88.0
+gap_today q0 & vol_surge1 q1,2019-07-01,2019-09-27,88.0
+ind_mom20 q4 & r5_news q4,2019-07-01,2019-12-27,179.0
+earn_in_week q1 & r20 q4,2019-07-01,,
+ev_agreement q4,2019-07-01,2019-09-27,88.0
+ev_agreement q4 & ev_shelf q2,2019-07-01,2019-09-27,88.0
+r20 q4 & skew60 q1,2019-07-01,2019-09-27,88.0
+mom_12_1 q2 & r60 q3,2019-07-01,2019-09-27,88.0
+dist_52wh q1 & r20 q3,2019-07-01,2019-09-27,88.0
+earn_in_week q1 & range_compress q1,2019-07-01,,
+ind_mom60 q0 & mom_12_1 q3,2019-07-01,2019-09-27,88.0
+log_dv q1 & range_compress q1,2019-07-01,2019-09-27,88.0
+r20 q3 & rel_ind60 q1,2019-07-01,2019-09-27,88.0
+dist_ma50 q0 & frog q4,2019-07-01,2019-09-27,88.0
+ear q1 & intraday20 q2,2019-07-01,2019-09-27,88.0
+intraday20 q2 & overnight20 q3,2019-07-01,2019-09-27,88.0
+mom_12_1 q0 & r20 q3,2019-07-01,2019-09-27,88.0
+ear q1 & ind_mom60 q1,2019-07-01,2019-09-27,88.0
+atr_pct q0 & ind_mom60 q4,2019-07-01,2019-09-27,88.0
+dist_52wh q3 & min20 q4,2019-07-01,2019-09-27,88.0
+ear q1 & frog q0,2019-07-01,2019-09-27,88.0
+min20 q4 & r5_news q4,2019-07-01,2019-09-27,88.0
+gap_today q3 & intraday20 q2,2019-07-01,2019-09-27,88.0
+dist_ma50 q3 & gap_today q3,2019-07-01,2019-09-27,88.0
+gap_today q0 & ind_mom20 q4,2019-07-01,2019-09-27,88.0
+intraday20 q2 & r20 q4,2019-07-01,2020-06-26,361.0
+earn_in_week q1 & mom_12_1 q2,2019-07-01,,
+gap_today q3 & range_compress q3,2019-07-01,2019-09-27,88.0
+r1 q2 & skew60 q3,2019-07-01,2019-09-27,88.0
+days_to_earn q2 & news5 q1,2019-07-01,,
+gap_today q3 & r5_news q4,2019-07-01,2020-06-26,361.0
+news5 q1 & range_compress q2,2019-07-01,,
+earn_in_week q1 & gap_today q3,2019-07-01,,
+earn_in_week q4 & r5 q1,2019-07-01,2021-12-31,914.0
+ind_mom60 q2,2019-07-01,2019-09-27,88.0
+frog q0 & log_dv q3,2019-07-01,2019-09-27,88.0
+mom_12_1 q2 & range_compress q2,2019-07-01,2019-09-27,88.0
+overnight20 q0,2019-07-01,2019-09-27,88.0
+news5 q4 & r20 q4,2019-07-01,2019-09-27,88.0
+overnight20 q2,2019-07-01,2019-09-27,88.0
+r60 q1,2019-07-01,2019-09-27,88.0
+ev_red_flag q2 & range_compress q2,2019-07-01,2019-09-27,88.0
+mom_12_1 q0 & rel_ind20 q4 unless range_compress q0,2019-07-01,2019-09-27,88.0
+log_dv q1 & range_compress q3,2019-07-01,2019-09-27,88.0
+log_dv q1 & r5 q1 unless dist_ma50 q4,2020-01-01,2020-03-27,86.0
+log_dv q1 & r5 q1 unless frog q0,2020-01-01,2020-03-27,86.0
+log_dv q1 & r5 q1 unless vol_surge1 q0,2020-01-01,2020-03-27,86.0
+log_dv q1 & r5 q1 unless gap_today q0,2020-01-01,2020-03-27,86.0
+ind_mom60 q1 & r20 q1,2020-01-01,2020-03-27,86.0
+log_dv q1 & r5 q1 unless ind_mom20 q0,2020-01-01,2020-03-27,86.0
+earn_in_week q1,2020-01-01,,
+r20 q1 & rel_ind60 q2,2020-01-01,2020-03-27,86.0
+log_dv q1 & r5 q1 unless r5_news q0,2020-01-01,2020-03-27,86.0
+log_dv q1 & r5 q1 unless dist_52wh q0,2020-01-01,2020-03-27,86.0
+log_dv q1 & r5 q1 unless close_loc q4,2020-01-01,2020-03-27,86.0
+log_dv q1 & r5 q1 unless ear_volsurge q0,2020-01-01,2020-03-27,86.0
+gap_today q1 & mom_12_1 q0,2020-01-01,2020-03-27,86.0
+ins_buyers30 q2 & r5 q3,2020-01-01,2020-03-27,86.0
+ev_agreement q2 & r5 q1,2020-01-01,2020-03-27,86.0
+log_dv q1 & r5 q1 unless dist_52wh q4,2020-01-01,2020-03-27,86.0
+log_dv q1 & r5 q1 unless dist_ma50 q0,2020-01-01,2020-03-27,86.0
+log_dv q1 & r5 q1 unless r120 q4,2020-01-01,2020-03-27,86.0
+news5 q1 & rel_ind60 q2,2020-01-01,,
+log_dv q1 & r5 q1 unless vol_surge5 q0,2020-01-01,2020-03-27,86.0
+days_to_earn q2 & r5 q1,2020-01-01,2020-03-27,86.0
+r5_nonews q4,2020-01-01,2020-03-27,86.0
+dist_ma200 q0 & gap_today q1,2020-01-01,2020-03-27,86.0
+log_dv q1 & r5 q1 unless ear_volsurge q4,2020-01-01,2020-03-27,86.0
+days_since_earn q3 & ind_mom60 q4,2020-01-01,2020-03-27,86.0
+log_dv q1 & r5 q1 unless r120 q0,2020-01-01,2020-03-27,86.0
+dist_52wh q1 & r5_news q4,2020-01-01,2020-06-26,177.0
+max20 q2 & r5_nonews q3,2020-01-01,2020-03-27,86.0
+r5_nonews q0 & vol20 q3,2020-01-01,2020-03-27,86.0
+r5 q4,2020-01-01,2020-03-27,86.0
+ins_officer30 q2 & rel_ind60 q2,2020-01-01,2020-03-27,86.0
+r5 q3,2020-01-01,2020-03-27,86.0
+ev_agreement q2 & rel_ind60 q2,2020-01-01,2020-03-27,86.0
+log_dv q1 & r5 q1 unless gap_today q4,2020-01-01,2020-03-27,86.0
+log_dv q1 & r5 q1 unless close_loc q0,2020-01-01,2020-03-27,86.0
+dist_52wh q1 & intraday20 q3,2020-01-01,2020-03-27,86.0
+r5_nonews q2 & rel_ind60 q2,2020-01-01,2020-03-27,86.0
+ev_red_flag q2 & rel_ind60 q2,2020-01-01,2020-03-27,86.0
+r20 q1 & vol_surge1 q1,2020-01-01,2020-03-27,86.0
+close_loc q4 & news5 q1,2020-01-01,,
+r20 q1 & range_compress q2,2020-01-01,2020-03-27,86.0
+gap_today q4 & rel_ind60 q2,2020-01-01,2020-03-27,86.0
+days_since_earn q3,2020-01-01,2020-03-27,86.0
+max20 q4 & range_compress q3,2020-01-01,2020-03-27,86.0
+ear q1 & max20 q0,2020-01-01,2020-03-27,86.0
+days_to_earn q1 & r5_nonews q0,2020-01-01,2020-03-27,86.0
+ind_mom60 q2 & log_dv q4,2020-01-01,2020-03-27,86.0
+r5 q1 & range_compress q2,2020-01-01,2020-03-27,86.0
+ev_agreement q4 & vol_surge1 q1,2020-01-01,2020-06-26,177.0
+log_dv q1 & r5 q1 unless vol_ratio q0,2020-01-01,2020-03-27,86.0
+range_compress q1 & rel_ind20 q3,2020-01-01,2020-03-27,86.0
+ev_offering q2 & rel_ind60 q2,2020-01-01,2020-03-27,86.0
+log_dv q1 & r5 q1 unless ind_mom20 q4,2020-01-01,2020-03-27,86.0
+intraday20 q0 & r5 q0,2020-01-01,2020-03-27,86.0
+frog q1 & rel_ind60 q2,2020-01-01,2020-03-27,86.0
+range_compress q2 & rel_ind20 q4,2020-01-01,2020-03-27,86.0
+days_since_earn q2 & r5 q1,2020-01-01,2020-03-27,86.0
+log_dv q1 & rel_ind20 q4,2020-01-01,2020-03-27,86.0
+r5_news q2 & rel_ind60 q2,2020-01-01,2020-03-27,86.0
+ev_red_flag q2 & rel_ind20 q4,2020-01-01,2020-03-27,86.0
+vol20 q3 & vol_surge1 q2,2020-01-01,2020-03-27,86.0
+r5_nonews q4 & vol_surge1 q2,2020-01-01,2020-03-27,86.0
+ear q1 & rel_ind20 q4,2020-01-01,2020-03-27,86.0
+r5 q1 & rel_ind60 q2,2020-01-01,2020-03-27,86.0
+dist_ma50 q0 & frog q0,2020-01-01,2020-03-27,86.0
+intraday20 q2 & vol20 q2,2020-01-01,2020-03-27,86.0
+rel_ind20 q2,2020-01-01,2020-03-27,86.0
+ev_agreement q4 & range_compress q0,2020-01-01,2020-03-27,86.0
+log_dv q4 & rel_ind60 q2,2020-01-01,2020-03-27,86.0
+days_since_earn q4 & gap_today q0,2020-07-01,2020-09-25,86.0
+ev_agreement q4 & vol_surge1 q4,2020-07-01,2020-09-25,86.0
+news5 q2 & vol_surge5 q4,2020-07-01,2020-09-25,86.0
+days_since_earn q0 & ind_mom20 q4,2020-07-01,2020-09-25,86.0
+days_to_earn q4 & ind_mom20 q4,2020-07-01,2020-09-25,86.0
+gap_today q3 & vol_surge5 q1,2020-07-01,2020-09-25,86.0
+ear_volsurge q0 & rel_ind20 q4,2020-07-01,2020-09-25,86.0
+ear_volsurge q2 & gap_today q0,2020-07-01,2020-09-25,86.0
+frog q2 & gap_today q0,2020-07-01,2020-09-25,86.0
+frog q2 & rel_ind20 q4,2020-07-01,2020-09-25,86.0
+gap_today q0 & r60 q4,2020-07-01,2020-09-25,86.0
+frog q0 & vol_surge5 q1,2020-07-01,2020-09-25,86.0
+gap_today q0 & rel_ind20 q4,2020-07-01,2020-09-25,86.0
+gap_today q4,2020-07-01,2020-09-25,86.0
+frog q2 & r20 q4,2020-07-01,2020-09-25,86.0
+ind_mom60 q1 & r20 q4,2020-07-01,2020-09-25,86.0
+frog q4,2020-07-01,2020-09-25,86.0
+gap_today q0 & rel_ind60 q4,2020-07-01,2020-09-25,86.0
+frog q0 & ind_mom20 q4,2020-07-01,2020-09-25,86.0
+ind_mom20 q4 & intraday20 q4,2020-07-01,2020-09-25,86.0
+gap_today q0 & r1 q0,2020-07-01,2020-09-25,86.0
+ear_volsurge q2 & vol_surge5 q1,2020-07-01,2020-09-25,86.0
+ear_volsurge q1 & gap_today q0,2020-07-01,2020-09-25,86.0
+gap_today q0 & max20 q3,2020-07-01,2020-09-25,86.0
+gap_today q0 & ins_opportunistic30 q2,2020-07-01,2020-09-25,86.0
+gap_today q0 & r20 q4,2020-07-01,2020-09-25,86.0
+dist_ma50 q4 & gap_today q0,2020-07-01,2020-09-25,86.0
+days_since_earn q0 & r20 q4,2020-07-01,2020-09-25,86.0
+ind_mom60 q1 & rel_ind20 q4,2020-07-01,2020-09-25,86.0
+days_to_earn q2 & gap_today q0,2020-07-01,2020-09-25,86.0
+gap_today q0 & log_dv q3,2020-07-01,2020-09-25,86.0
+dist_ma50 q3 & ev_agreement q4,2020-07-01,2020-09-25,86.0
+r5 q3 & r5_nonews q3,2020-07-01,2020-09-25,86.0
+gap_today q0 & r5_nonews q1,2020-07-01,2020-09-25,86.0
+frog q3 & r20 q4,2020-07-01,2020-09-25,86.0
+frog q3 & vol_surge5 q1,2020-07-01,2020-09-25,86.0
+gap_today q0 & r5 q1,2020-07-01,2020-09-25,86.0
+ear_volsurge q3 & intraday20 q4,2020-07-01,2020-09-25,86.0
+frog q2 & rel_ind60 q2,2020-07-01,2020-09-25,86.0
+ind_mom20 q4 & rel_ind20 q4,2020-07-01,2020-09-25,86.0
+gap_today q0 & intraday20 q4,2020-07-01,2020-09-25,86.0
+close_loc q2 & gap_today q0,2020-07-01,2020-09-25,86.0
+days_since_earn q1 & gap_today q0,2020-07-01,2020-09-25,86.0
+days_to_earn q2 & vol_surge5 q1,2020-07-01,2020-09-25,86.0
+ind_mom60 q1 & intraday20 q4,2020-07-01,2020-09-25,86.0
+ins_officer30 q2 & vol_surge5 q1,2020-07-01,2020-09-25,86.0
+r1 q1,2020-07-01,2020-09-25,86.0
+vol_surge5 q1,2020-07-01,2020-09-25,86.0
+dist_ma50 q0 & gap_today q0,2020-07-01,2020-09-25,86.0
+atr_pct q4 & vol20 q3,2020-07-01,2020-09-25,86.0
+ins_opportunistic30 q2 & vol_surge5 q1,2020-07-01,2020-09-25,86.0
+r20 q4 & rel_ind60 q2,2020-07-01,2020-09-25,86.0
+frog q0 & intraday20 q4,2020-07-01,2020-09-25,86.0
+rel_ind60 q2 & vol_surge1 q3,2020-07-01,2020-09-25,86.0
+dist_ma50 q3 & vol_surge5 q1,2020-07-01,2020-09-25,86.0
+gap_today q0 & rel_ind20 q0,2020-07-01,2020-09-25,86.0
+ind_mom20 q0 & vol_surge5 q3,2020-07-01,2020-09-25,86.0
+overnight20 q1 & r5 q3,2020-07-01,2020-09-25,86.0
+days_since_earn q4 & r5 q1,2020-07-01,2020-09-25,86.0
+intraday20 q4 & overnight20 q2,2020-07-01,2020-09-25,86.0
+vol_surge5 q3,2020-07-01,2020-09-25,86.0
+gap_today q0 & r20 q0,2020-07-01,2020-09-25,86.0
+gap_today q0 & overnight20 q1,2020-07-01,2020-09-25,86.0
+gap_today q3 & log_dv q3,2020-07-01,2020-09-25,86.0
+gap_today q3 & r5 q3,2020-07-01,2020-09-25,86.0
+days_to_earn q2 & frog q0,2020-07-01,2020-09-25,86.0
+earn_in_week q1 & ev_agreement q2,2021-01-01,,
+earn_in_week q1 & ins_opportunistic30 q2,2021-01-01,,
+earn_in_week q1 & ins_officer30 q2,2021-01-01,,
+ev_red_flag q2 & news5 q2,2021-01-01,2021-03-26,84.0
+earn_in_week q1 & ev_shelf q2,2021-01-01,,
+ev_shelf q2 & news5 q2,2021-01-01,2021-03-26,84.0
+earn_in_week q1 & ev_red_flag q2,2021-01-01,,
+frog q3 & vol_ratio q4,2021-01-01,2021-03-26,84.0
+overnight20 q3 & r1 q1,2021-01-01,2021-03-26,84.0
+r5_news q2,2021-01-01,2021-03-26,84.0
+ear_volsurge q4 & range_compress q2,2021-01-01,2021-03-26,84.0
+atr_pct q3 & r5 q1 unless earn_in_week q4,2021-01-01,2021-03-26,84.0
+gap_today q4 & r5_nonews q2,2021-01-01,2021-03-26,84.0
+atr_pct q3 & r5 q1 unless frog q0,2021-01-01,2021-03-26,84.0
+atr_pct q3 & r5 q1 unless overnight20 q0,2021-01-01,2021-03-26,84.0
+min20 q4 & r1 q4,2021-01-01,2021-03-26,84.0
+ear q1 & earn_in_week q1,2021-01-01,,
+atr_pct q3 & r5 q1 unless r5_news q4,2021-01-01,2021-03-26,84.0
+gap_today q4 & vol_ratio q3,2021-01-01,2021-03-26,84.0
+vol_ratio q3,2021-01-01,2021-03-26,84.0
+r5_nonews q1 & range_compress q2,2021-01-01,2021-03-26,84.0
+atr_pct q3 & r5 q1 unless news5 q4,2021-01-01,2021-03-26,84.0
+gap_today q4 & log_dv q1,2021-01-01,2021-03-26,84.0
+ear q1 & r20 q4,2021-01-01,2021-03-26,84.0
+ev_shelf q2 & vol_ratio q3,2021-01-01,2021-03-26,84.0
+atr_pct q3 & r5 q1 unless close_loc q4,2021-01-01,2021-03-26,84.0
+earn_in_week q1 & vol_ratio q3,2021-01-01,,
+log_dv q3 & vol_ratio q3,2021-01-01,2021-03-26,84.0
+ind_mom20 q4 & intraday20 q3,2021-01-01,2021-03-26,84.0
+atr_pct q3 & r5 q1,2021-01-01,2021-03-26,84.0
+frog q3 & gap_today q4,2021-01-01,2021-03-26,84.0
+atr_pct q3 & r5 q1 unless r60 q0,2021-01-01,2021-03-26,84.0
+ind_mom20 q4 & log_dv q3,2021-01-01,2021-03-26,84.0
+ev_red_flag q2 & vol_ratio q3,2021-01-01,2021-03-26,84.0
+frog q1 & news5 q2,2021-01-01,2021-03-26,84.0
+gap_today q4 & min20 q4,2021-01-01,2021-03-26,84.0
+atr_pct q3 & r5 q1 unless r20 q4,2021-01-01,2021-03-26,84.0
+atr_pct q3 & r5 q1 unless close_loc q0,2021-01-01,2021-03-26,84.0
+ev_agreement q2 & frog q1,2021-01-01,2021-03-26,84.0
+atr_pct q3 & r5 q1 unless ev_offering q4,2021-01-01,2021-03-26,84.0
+earn_in_week q1 & news5 q2,2021-01-01,,
+days_since_earn q1,2021-01-01,2021-03-26,84.0
+atr_pct q3 & r5 q1 unless ev_red_flag q4,2021-01-01,2021-03-26,84.0
+atr_pct q3 & r5 q1 unless frog q4,2021-01-01,2021-03-26,84.0
+news5 q2 & vol_ratio q3,2021-01-01,2021-03-26,84.0
+gap_today q2 & log_dv q1,2021-01-01,2021-03-26,84.0
+r5 q0 & rel_ind60 q1,2021-01-01,2021-03-26,84.0
+atr_pct q3 & r5 q1 unless r60 q4,2021-01-01,2021-03-26,84.0
+log_dv q1 & r5 q1 unless atr_pct q4,2021-01-01,2021-03-26,84.0
+ear q1 & vol_ratio q3,2021-01-01,2021-03-26,84.0
+ev_agreement q2 & vol_ratio q3,2021-01-01,2021-03-26,84.0
+atr_pct q3 & r5 q1 unless r20 q0,2021-01-01,2021-03-26,84.0
+atr_pct q3 & r5 q1 unless gap_today q4,2021-01-01,2021-03-26,84.0
+r5 q1 & vol_ratio q1,2021-01-01,2021-03-26,84.0
+gap_today q4 & vol_surge1 q3,2021-01-01,2021-03-26,84.0
+ev_red_flag q2 & frog q1,2021-01-01,2021-03-26,84.0
+ear q1 & r5_nonews q2,2021-01-01,2021-03-26,84.0
+earn_in_week q1 & r1 q4,2021-01-01,,
+frog q1 & range_compress q2,2021-01-01,2021-03-26,84.0
+frog q1 & intraday20 q1,2021-01-01,2021-03-26,84.0
+earn_in_week q1 & vol_surge1 q3,2021-01-01,,
+ear_volsurge q3 & vol20 q2,2021-01-01,2021-03-26,84.0
+range_compress q0 & vol_ratio q3,2021-01-01,2021-03-26,84.0
+r5 q1 & rel_ind60 q0,2021-01-01,2021-03-26,84.0
+frog q1 & ins_officer30 q2,2021-01-01,2021-03-26,84.0
+frog q0 & range_compress q0,2021-01-01,2021-03-26,84.0
+close_loc q0 & ins_buyers30 q4,2021-01-01,2021-06-25,175.0
+earn_in_week q1 & r5_nonews q1,2021-01-01,,
+gap_today q3 & min20 q4,2021-01-01,2021-03-26,84.0
+frog q1,2021-01-01,2021-03-26,84.0
+log_dv q1 & r5 q1 unless vol_surge5 q4,2021-01-01,2021-03-26,84.0
+frog q2 & log_dv q3,2021-07-01,2021-09-24,85.0
+atr_pct q3 & log_dv q1,2021-07-01,2021-09-24,85.0
+days_to_earn q2 & frog q2,2021-07-01,2021-09-24,85.0
+mom_12_1 q3 & vol_ratio q0,2021-07-01,2021-09-24,85.0
+r60 q4 & vol_ratio q3,2021-07-01,2021-09-24,85.0
+ear q0 & ind_mom20 q2,2021-07-01,2021-09-24,85.0
+atr_pct q3 & days_since_earn q1,2021-07-01,2021-09-24,85.0
+atr_pct q3 & earn_in_week q2,2021-07-01,2021-09-24,85.0
+ear q0 & earn_in_week q2,2021-07-01,2021-09-24,85.0
+atr_pct q3 & ear_volsurge q3,2021-07-01,2021-09-24,85.0
+ear q0,2021-07-01,2021-09-24,85.0
+min20 q3 & rel_ind60 q1,2021-07-01,2021-09-24,85.0
+frog q2 & r5_nonews q3,2021-07-01,2021-09-24,85.0
+days_to_earn q4 & min20 q3,2021-07-01,2021-09-24,85.0
+days_to_earn q3 & range_compress q1,2021-07-01,2021-09-24,85.0
+ear q0 & range_compress q2,2021-07-01,2021-09-24,85.0
+ind_mom20 q1,2021-07-01,2021-09-24,85.0
+frog q3 & ind_mom20 q4,2021-07-01,2021-09-24,85.0
+close_loc q3 & r5 q2,2021-07-01,2021-09-24,85.0
+ind_mom60 q0 & rel_ind60 q2,2021-07-01,2021-09-24,85.0
+ear q0 & ev_offering q2,2021-07-01,2021-09-24,85.0
+ear_volsurge q3 & overnight20 q2,2021-07-01,2021-09-24,85.0
+days_since_earn q1 & ind_mom20 q2 unless ear_volsurge q4,2021-07-01,2021-09-24,85.0
+days_to_earn q3 & rel_ind60 q2,2021-07-01,2021-09-24,85.0
+min20 q3 & overnight20 q2,2021-07-01,2021-09-24,85.0
+ear q2 & earn_in_week q2,2021-07-01,2021-09-24,85.0
+atr_pct q1 & overnight20 q3,2021-07-01,2021-09-24,85.0
+days_since_earn q0 & range_compress q2,2021-07-01,2021-09-24,85.0
+days_since_earn q0 & min20 q3,2021-07-01,2021-09-24,85.0
+ind_mom20 q3 & r5 q3,2021-07-01,2021-09-24,85.0
+frog q2 & overnight20 q3,2021-07-01,2021-09-24,85.0
+ind_mom60 q1 & min20 q3,2021-07-01,2021-09-24,85.0
+atr_pct q3 & days_to_earn q3,2021-07-01,2021-09-24,85.0
+days_since_earn q0 & range_compress q1,2021-07-01,2021-09-24,85.0
+min20 q3 & skew60 q3,2021-07-01,2021-09-24,85.0
+r5_nonews q3 & skew60 q3,2021-07-01,2021-09-24,85.0
+dist_52wh q3 & r5_nonews q3,2021-07-01,2021-09-24,85.0
+ear_volsurge q3 & intraday20 q3,2021-07-01,2021-09-24,85.0
+overnight20 q2 & rel_ind60 q1,2021-07-01,2021-09-24,85.0
+frog q3 & log_dv q3,2021-07-01,2021-09-24,85.0
+days_to_earn q2 & ear q2,2021-07-01,2021-09-24,85.0
+frog q3 & min20 q3,2021-07-01,2021-09-24,85.0
+mom_12_1 q0 & vol20 q3,2021-07-01,2021-09-24,85.0
+days_since_earn q1 & ind_mom20 q2 unless vol_surge1 q4,2021-07-01,2021-09-24,85.0
+r60 q1 & rel_ind60 q2,2021-07-01,2021-09-24,85.0
+max20 q0 & overnight20 q3,2021-07-01,2021-09-24,85.0
+days_to_earn q2 & r20 q4,2021-07-01,2021-09-24,85.0
+dist_ma50 q1 & vol_surge1 q0,2021-07-01,2021-09-24,85.0
+ind_mom20 q2 & log_dv q1,2021-07-01,2021-09-24,85.0
+log_dv q1 & r5 q1 unless rel_ind20 q4,2021-07-01,2021-09-24,85.0
+intraday20 q4 & log_dv q3,2021-07-01,2021-09-24,85.0
+days_to_earn q3 & ear_volsurge q0,2021-07-01,2021-09-24,85.0
+min20 q3 & r5_nonews q1,2021-07-01,2021-09-24,85.0
+days_to_earn q3 & r60 q1,2021-07-01,2021-09-24,85.0
+days_since_earn q0 & earn_in_week q2,2021-07-01,2021-09-24,85.0
+frog q2 & range_compress q0,2021-07-01,2021-09-24,85.0
+ear q1 & min20 q3,2021-07-01,2021-09-24,85.0
+atr_pct q3,2021-07-01,2021-09-24,85.0
+dist_ma50 q3 & frog q0,2021-07-01,2021-09-24,85.0
+days_to_earn q2 & earn_in_week q2,2021-07-01,2021-09-24,85.0
+intraday20 q1 & r1 q0,2021-07-01,2021-09-24,85.0
+days_since_earn q1 & ind_mom20 q2 unless vol_ratio q4,2021-07-01,2021-09-24,85.0
+days_to_earn q2 & intraday20 q4,2021-07-01,2021-09-24,85.0
+ev_offering q2,2021-07-01,2021-09-24,85.0
+frog q2 & min20 q3,2021-07-01,2021-09-24,85.0
+days_to_earn q4 & range_compress q2,2021-07-01,2021-09-24,85.0
+vol_surge1 q2,2021-07-01,2021-09-24,85.0
+atr_pct q2 & r1 q4,2021-07-01,2021-09-24,85.0
+dist_ma50 q4 & log_dv q3,2022-01-01,2022-03-25,83.0
+days_to_earn q2 & mom_12_1 q2,2022-01-01,2022-03-25,83.0
+log_dv q3 & max20 q4,2022-01-01,2022-03-25,83.0
+log_dv q3 & r5 q4,2022-01-01,2022-03-25,83.0
+frog q1 & max20 q0,2022-01-01,2022-03-25,83.0
+log_dv q3 & r5_nonews q4,2022-01-01,2022-03-25,83.0
+gap_today q0 & mom_12_1 q2,2022-01-01,2022-03-25,83.0
+gap_today q1 & intraday20 q2,2022-01-01,2022-03-25,83.0
+frog q1 & vol_surge5 q3,2022-01-01,2022-03-25,83.0
+ev_agreement q2 & vol_surge5 q3,2022-01-01,2022-03-25,83.0
+vol_surge5 q0,2022-01-01,2022-03-25,83.0
+dist_52wh q2 & overnight20 q4,2022-01-01,2022-03-25,83.0
+dist_ma50 q4 & log_dv q1,2022-01-01,2022-03-25,83.0
+overnight20 q2 & vol_surge5 q3,2022-01-01,2022-03-25,83.0
+ear q1 & range_compress q0,2022-01-01,2022-03-25,83.0
+overnight20 q2 & range_compress q0,2022-01-01,2022-03-25,83.0
+log_dv q3 & range_compress q0,2022-01-01,2022-03-25,83.0
+range_compress q2 & vol_surge5 q3,2022-01-01,2022-03-25,83.0
+days_to_earn q2 & gap_today q1,2022-01-01,2022-03-25,83.0
+atr_pct q3 & range_compress q0,2022-01-01,2022-03-25,83.0
+log_dv q1 & r20 q4,2022-01-01,2022-03-25,83.0
+atr_pct q4 & min20 q2,2022-01-01,2022-12-30,363.0
+days_to_earn q2 & max20 q4,2022-01-01,2022-03-25,83.0
+r5_nonews q4 & vol_surge5 q0,2022-01-01,2022-03-25,83.0
+ind_mom60 q1 & range_compress q0,2022-01-01,2022-03-25,83.0
+days_since_earn q1 & log_dv q1,2022-01-01,2022-03-25,83.0
+atr_pct q3 & vol_surge1 q1,2022-01-01,2022-03-25,83.0
+intraday20 q2 & range_compress q2,2022-01-01,2022-03-25,83.0
+close_loc q0 & intraday20 q4,2022-01-01,2022-03-25,83.0
+ind_mom20 q2 & news5 q2,2022-01-01,2022-03-25,83.0
+intraday20 q1 & max20 q1,2022-01-01,2022-03-25,83.0
+ind_mom60 q1 & max20 q4,2022-01-01,2022-03-25,83.0
+earn_in_week q1 & frog q1,2022-01-01,,
+overnight20 q1,2022-01-01,2022-03-25,83.0
+ear q0 & ind_mom60 q0,2022-01-01,2022-03-25,83.0
+ear q0 & frog q1,2022-01-01,2022-03-25,83.0
+skew60 q4,2022-01-01,2022-03-25,83.0
+ind_mom60 q1 & range_compress q4,2022-01-01,2022-03-25,83.0
+ear q2 & r1 q0,2022-01-01,2022-03-25,83.0
+rel_ind60 q2 & vol_surge5 q3,2022-01-01,2022-03-25,83.0
+intraday20 q4 & max20 q4,2022-01-01,2022-03-25,83.0
+r20 q4 & range_compress q2,2022-01-01,2022-03-25,83.0
+ear q1 & max20 q4,2022-01-01,2022-03-25,83.0
+log_dv q1 & rel_ind20 q1,2022-01-01,2022-03-25,83.0
+gap_today q1 & r20 q2,2022-01-01,2022-03-25,83.0
+r20 q2 & range_compress q2,2022-01-01,2022-03-25,83.0
+ind_mom60 q3 & r5 q3,2022-01-01,2022-03-25,83.0
+max20 q3 & r5_nonews q0,2022-01-01,2022-03-25,83.0
+range_compress q0 & rel_ind20 q1,2022-01-01,2022-03-25,83.0
+log_dv q3 & rel_ind20 q4,2022-01-01,2022-03-25,83.0
+max20 q4,2022-01-01,2022-03-25,83.0
+dist_52wh q2 & r1 q1,2022-01-01,2022-03-25,83.0
+dist_ma50 q4 & vol_ratio q3,2022-01-01,2022-03-25,83.0
+gap_today q0 & r5_nonews q3,2022-01-01,2022-03-25,83.0
+ind_mom60 q1 & intraday20 q2,2022-01-01,2022-03-25,83.0
+frog q0 & r5_nonews q4,2022-01-01,2022-03-25,83.0
+days_to_earn q2 & ev_agreement q4,2022-07-01,2024-03-28,636.0
+dist_ma50 q2 & r120 q3,2022-07-01,2022-12-30,182.0
+dist_ma50 q2 & intraday20 q2,2022-07-01,2022-12-30,182.0
+dist_52wh q3 & rel_ind60 q4,2022-07-01,2022-12-30,182.0
+overnight20 q0 & r120 q3,2022-07-01,2022-12-30,182.0
+days_to_earn q2 & dist_52wh q3,2022-07-01,2022-12-30,182.0
+overnight20 q0 & skew60 q1,2022-07-01,2022-12-30,182.0
+dist_52wh q3 & dist_ma50 q4,2022-07-01,2022-12-30,182.0
+ear_volsurge q4 & overnight20 q4,2022-07-01,2022-12-30,182.0
+r120 q3 & r60 q3,2022-07-01,2022-12-30,182.0
+atr_pct q3 & gap_today q2,2022-07-01,2022-12-30,182.0
+dist_52wh q3 & log_dv q3,2022-07-01,2022-12-30,182.0
+close_loc q4 & r60 q3,2022-07-01,2022-12-30,182.0
+atr_pct q1 & dist_ma50 q2,2022-07-01,2022-12-30,182.0
+close_loc q4 & dist_ma50 q2,2022-07-01,2022-12-30,182.0
+dist_ma50 q2 & rel_ind60 q3,2022-07-01,2022-12-30,182.0
+ev_offering q2 & skew60 q1,2022-07-01,2022-12-30,182.0
+days_to_earn q2 & dist_ma50 q2,2022-07-01,2022-12-30,182.0
+dist_52wh q3 & r120 q3,2022-07-01,2022-12-30,182.0
+rel_ind60 q2 & vol_surge5 q2 unless ind_mom20 q4,2022-07-01,2022-12-30,182.0
+days_to_earn q3 & ind_mom20 q3,2022-07-01,2022-12-30,182.0
+skew60 q1,2022-07-01,2022-12-30,182.0
+gap_today q2 & r60 q0 unless r5_nonews q4,2022-07-01,2022-12-30,182.0
+ev_agreement q2 & rel_ind60 q4,2022-07-01,2022-12-30,182.0
+mom_12_1 q3 & rel_ind60 q2,2022-07-01,2022-12-30,182.0
+ins_officer30 q2 & rel_ind60 q4,2022-07-01,2022-12-30,182.0
+ear_volsurge q4,2022-07-01,2022-12-30,182.0
+dist_ma50 q2 & mom_12_1 q3,2022-07-01,2022-12-30,182.0
+atr_pct q1 & r120 q3,2022-07-01,2022-12-30,182.0
+close_loc q4 & ev_agreement q4,2022-07-01,2023-06-30,364.0
+atr_pct q3 & overnight20 q0,2022-07-01,2022-12-30,182.0
+days_to_earn q2,2022-07-01,2022-12-30,182.0
+skew60 q3,2022-07-01,2022-12-30,182.0
+overnight20 q0 & rel_ind60 q4,2022-07-01,2022-12-30,182.0
+dist_ma200 q4 & mom_12_1 q0,2022-07-01,2023-03-31,273.0
+dist_52wh q1 & ins_value30 q2,2022-07-01,2022-12-30,182.0
+days_to_earn q2 & ins_officer30 q2,2022-07-01,2022-12-30,182.0
+atr_pct q1 & ind_mom60 q4,2022-07-01,2022-12-30,182.0
+ev_offering q2 & rel_ind60 q4,2022-07-01,2022-12-30,182.0
+dist_52wh q3 & vol_surge1 q3,2022-07-01,2022-12-30,182.0
+ev_red_flag q2,2022-07-01,2022-12-30,182.0
+days_to_earn q2 & ev_offering q2,2022-07-01,2022-12-30,182.0
+days_to_earn q4 & dist_ma50 q0,2022-07-01,2022-12-30,182.0
+days_to_earn q4 & ind_mom20 q1,2022-07-01,2022-12-30,182.0
+ear_volsurge q3 & r120 q3,2022-07-01,2022-12-30,182.0
+gap_today q2 & r60 q0 unless r5_news q0,2022-07-01,2022-12-30,182.0
+ev_agreement q4 & mom_12_1 q3,2022-07-01,2024-03-28,636.0
+ear_volsurge q3 & rel_ind60 q3,2022-07-01,2022-12-30,182.0
+days_to_earn q4 & gap_today q2,2022-07-01,2022-12-30,182.0
+gap_today q2 & r60 q0 unless frog q4,2022-07-01,2022-12-30,182.0
+close_loc q4 & rel_ind60 q4,2022-07-01,2022-12-30,182.0
+dist_52wh q1 & rel_ind60 q1,2022-07-01,2022-12-30,182.0
+dist_ma50 q2 & ins_officer30 q2,2022-07-01,2022-12-30,182.0
+dist_ma50 q3 & log_dv q3,2022-07-01,2022-12-30,182.0
+rel_ind60 q2 & vol_surge5 q2 unless close_loc q4,2022-07-01,2022-12-30,182.0
+min20 q3 & r60 q3,2022-07-01,2022-12-30,182.0
+days_to_earn q2 & ind_mom60 q4,2022-07-01,2022-12-30,182.0
+gap_today q3 & r120 q3,2022-07-01,2022-12-30,182.0
+dist_ma50 q2 & r60 q3,2022-07-01,2022-12-30,182.0
+log_dv q3 & overnight20 q3,2022-07-01,2022-12-30,182.0
+gap_today q2 & min20 q3,2022-07-01,2022-12-30,182.0
+dist_52wh q3 & ear q4,2022-07-01,2022-12-30,182.0
+ev_red_flag q4,2022-07-01,2022-12-30,182.0
+days_to_earn q4 & r20 q2,2022-07-01,2022-12-30,182.0
+ind_mom20 q1 & rel_ind60 q2,2022-07-01,2022-12-30,182.0
+days_to_earn q4 & ind_mom60 q0,2022-07-01,2022-12-30,182.0
+r20 q2 & rel_ind20 q4,2022-07-01,2023-06-30,364.0
+intraday20 q4 & vol_surge5 q0,2023-01-01,2023-03-31,89.0
+intraday20 q1 & vol_surge1 q2,2023-01-01,2023-03-31,89.0
+vol20 q2,2023-01-01,2023-03-31,89.0
+gap_today q1 & vol_surge5 q0,2023-01-01,2023-03-31,89.0
+r20 q4 & vol_surge5 q0,2023-01-01,2023-03-31,89.0
+close_loc q4 & intraday20 q4,2023-01-01,2023-03-31,89.0
+ev_agreement q2 & rel_ind60 q2 unless vol_surge1 q4,2023-01-01,2023-03-31,89.0
+dist_ma50 q4 & vol_surge5 q0,2023-01-01,2023-03-31,89.0
+intraday20 q4 & r5_nonews q4,2023-01-01,2023-03-31,89.0
+ev_agreement q2 & intraday20 q4,2023-01-01,2023-03-31,89.0
+earn_in_week q1 & range_compress q2,2023-01-01,,
+ev_offering q2 & intraday20 q4,2023-01-01,2023-03-31,89.0
+rel_ind20 q4 & vol_surge5 q0,2023-01-01,2023-03-31,89.0
+ev_agreement q2 & rel_ind60 q2 unless dist_52wh q0,2023-01-01,2023-03-31,89.0
+min20 q3 & r5 q2,2023-01-01,2023-03-31,89.0
+ev_agreement q2 & rel_ind60 q2 unless close_loc q4,2023-01-01,2023-03-31,89.0
+gap_today q1 & intraday20 q4,2023-01-01,2023-03-31,89.0
+intraday20 q1 & rel_ind60 q2 unless mom_12_1 q4,2023-01-01,2023-03-31,89.0
+max20 q1 & rel_ind60 q2,2023-01-01,2023-03-31,89.0
+ev_agreement q2 & rel_ind60 q2 unless r120 q0,2023-01-01,2023-03-31,89.0
+ev_offering q2 & vol_surge5 q3,2023-01-01,2023-03-31,89.0
+ev_agreement q2 & vol_surge5 q0,2023-01-01,2023-03-31,89.0
+intraday20 q1 & rel_ind60 q2 unless days_since_earn q4,2023-01-01,2023-03-31,89.0
+ev_agreement q2 & rel_ind60 q2 unless r120 q4,2023-01-01,2023-03-31,89.0
+gap_today q1 & r5_nonews q4,2023-01-01,2023-03-31,89.0
+mom_12_1 q3 & vol_surge1 q2,2023-01-01,2023-03-31,89.0
+ev_agreement q4 & r5 q3,2023-01-01,2024-06-28,544.0
+ear q4 & vol20 q2,2023-01-01,2023-03-31,89.0
+dist_ma50 q4 & intraday20 q4,2023-01-01,2023-03-31,89.0
+ev_agreement q2 & rel_ind60 q2 unless r5_news q0,2023-01-01,2023-03-31,89.0
+intraday20 q1 & rel_ind60 q2 unless mom_12_1 q0,2023-01-01,2023-03-31,89.0
+ev_agreement q2 & r5_nonews q4,2023-01-01,2023-03-31,89.0
+mom_12_1 q2 & vol_surge5 q3,2023-01-01,2023-03-31,89.0
+intraday20 q1 & rel_ind60 q2 unless vol20 q4,2023-01-01,2023-03-31,89.0
+min20 q2,2023-01-01,2023-03-31,89.0
+intraday20 q4 & rel_ind20 q1,2023-01-01,2023-03-31,89.0
+intraday20 q4 & r20 q4,2023-01-01,2023-03-31,89.0
+intraday20 q4 & rel_ind20 q4,2023-01-01,2023-03-31,89.0
+intraday20 q4 & log_dv q1,2023-01-01,2023-03-31,89.0
+close_loc q4 & r20 q4,2023-01-01,2023-03-31,89.0
+max20 q1 & vol_surge5 q2,2023-01-01,2023-03-31,89.0
+intraday20 q1 & rel_ind60 q2 unless range_compress q0,2023-01-01,2023-03-31,89.0
+r20 q1 & range_compress q4,2023-01-01,2023-03-31,89.0
+log_dv q1 & r120 q4,2023-01-01,2023-03-31,89.0
+log_dv q1 & rel_ind60 q4,2023-01-01,2023-03-31,89.0
+ev_agreement q2 & rel_ind60 q2 unless dist_52wh q4,2023-01-01,2023-03-31,89.0
+ear_volsurge q1 & vol_surge5 q3,2023-01-01,2023-03-31,89.0
+ev_agreement q2 & rel_ind60 q2 unless close_loc q0,2023-01-01,2023-03-31,89.0
+ev_agreement q2 & rel_ind60 q2 unless ind_mom20 q4,2023-01-01,2023-03-31,89.0
+frog q1 & intraday20 q4,2023-01-01,2023-03-31,89.0
+r20 q4 & r5_nonews q4,2023-01-01,2023-03-31,89.0
+atr_pct q2 & intraday20 q1,2023-01-01,2023-03-31,89.0
+dist_ma50 q4 & r5_nonews q4,2023-01-01,2023-03-31,89.0
+intraday20 q1 & rel_ind60 q2 unless r5_nonews q4,2023-01-01,2023-03-31,89.0
+ev_agreement q2 & vol_surge5 q2,2023-01-01,2023-03-31,89.0
+ev_agreement q2 & rel_ind60 q2 unless dist_ma50 q0,2023-01-01,2023-03-31,89.0
+gap_today q2 & rel_ind20 q1,2023-01-01,2023-03-31,89.0
+dist_ma200 q1 & vol_surge5 q3,2023-01-01,2023-03-31,89.0
+intraday20 q1 & rel_ind60 q2,2023-01-01,2023-03-31,89.0
+intraday20 q1 & rel_ind60 q2 unless close_loc q0,2023-01-01,2023-03-31,89.0
+intraday20 q4 & rel_ind60 q4,2023-01-01,2023-03-31,89.0
+dist_ma200 q1,2023-01-01,2023-03-31,89.0
+dist_ma50 q1 & vol_surge1 q1,2023-07-01,2023-09-29,90.0
+close_loc q0 & dist_ma50 q1,2023-07-01,2023-09-29,90.0
+days_since_earn q2 & ind_mom60 q1,2023-07-01,2023-09-29,90.0
+dist_ma50 q1 & range_compress q2,2023-07-01,2023-09-29,90.0
+frog q2,2023-07-01,2023-09-29,90.0
+ear_volsurge q3 & vol_surge1 q2,2023-07-01,2023-09-29,90.0
+min20 q2 & skew60 q2,2023-07-01,2023-09-29,90.0
+dist_52wh q1 & news5 q2,2023-07-01,2023-09-29,90.0
+dist_ma50 q1 & log_dv q3,2023-07-01,2023-09-29,90.0
+range_compress q2 & vol_surge1 q1,2023-07-01,2023-09-29,90.0
+max20 q1 & vol_surge1 q2,2023-07-01,2023-09-29,90.0
+days_since_earn q2 & range_compress q2,2023-07-01,2023-09-29,90.0
+dist_ma50 q1 & r5_nonews q0,2023-07-01,2023-09-29,90.0
+days_since_earn q4 & news5 q1,2023-07-01,,
+dist_ma50 q1 & news5 q2,2023-07-01,2023-09-29,90.0
+dist_52wh q2 & frog q0,2023-07-01,2023-09-29,90.0
+atr_pct q4 & max20 q1,2023-07-01,,
+dist_ma200 q2 & gap_today q0,2023-07-01,2023-09-29,90.0
+dist_ma50 q1 & r5_news q2,2023-07-01,2023-09-29,90.0
+days_since_earn q3 & max20 q1,2023-07-01,2023-09-29,90.0
+frog q0 & max20 q1,2023-07-01,2023-09-29,90.0
+dist_ma50 q1 & gap_today q1,2023-07-01,2023-09-29,90.0
+skew60 q1 & vol_surge1 q1,2023-07-01,2023-09-29,90.0
+atr_pct q2 & r1 q1,2023-07-01,2023-09-29,90.0
+days_to_earn q1 & r20 q2,2023-07-01,2023-09-29,90.0
+r5_news q0,2023-07-01,2023-09-29,90.0
+dist_ma50 q1 & ind_mom20 q2,2023-07-01,2023-09-29,90.0
+dist_52wh q1 & ear_volsurge q0,2023-07-01,2023-09-29,90.0
+dist_ma50 q1 & ev_agreement q2,2023-07-01,2023-09-29,90.0
+frog q1 & vol_surge1 q1,2023-07-01,2023-09-29,90.0
+dist_ma50 q1 & vol_surge1 q3,2023-07-01,2023-09-29,90.0
+earn_in_week q1 & vol_surge1 q2,2023-07-01,,
+ev_agreement q2 & range_compress q0,2023-07-01,2023-09-29,90.0
+r120 q1,2023-07-01,2023-09-29,90.0
+vol20 q4,2023-07-01,2023-09-29,90.0
+dist_ma50 q1 & frog q0,2023-07-01,2023-09-29,90.0
+max20 q2 & news5 q2,2023-07-01,2023-09-29,90.0
+ear_volsurge q3 & rel_ind60 q2,2023-07-01,2023-09-29,90.0
+max20 q1 & r5_nonews q4,2023-07-01,2023-09-29,90.0
+days_since_earn q3 & dist_ma50 q1,2023-07-01,2023-09-29,90.0
+dist_52wh q3 & r5_nonews q4,2023-07-01,2023-09-29,90.0
+atr_pct q4,2023-07-01,2023-09-29,90.0
+days_to_earn q1 & rel_ind60 q3,2023-07-01,2023-09-29,90.0
+earn_in_week q1 & overnight20 q3,2023-07-01,,
+atr_pct q3 & news5 q2,2023-07-01,2023-09-29,90.0
+days_since_earn q3 & vol_surge1 q3,2023-07-01,2023-09-29,90.0
+frog q3 & ind_mom20 q2,2023-07-01,2023-09-29,90.0
+atr_pct q3 & rel_ind60 q2,2023-07-01,2023-09-29,90.0
+earn_in_week q1 & gap_today q4,2023-07-01,,
+dist_52wh q1 & vol_surge1 q1,2024-01-01,2024-03-28,87.0
+atr_pct q3 & dist_ma50 q1,2024-01-01,2024-03-28,87.0
+days_since_earn q3 & frog q4,2024-01-01,2024-03-28,87.0
+ev_agreement q2 & vol_surge5 q4,2024-01-01,2024-03-28,87.0
+earn_in_week q1 & ind_mom60 q3,2024-01-01,,
+frog q1 & min20 q1,2024-01-01,2024-03-28,87.0
+atr_pct q3 & close_loc q2,2024-01-01,2024-03-28,87.0
+dist_ma50 q3 & ins_value30 q4,2024-01-01,2025-03-28,452.0
+earn_in_week q1 & log_dv q2,2024-01-01,,
+atr_pct q3 & ev_agreement q2,2024-01-01,2024-03-28,87.0
+vol20 q3 & vol_ratio q4,2024-01-01,2024-03-28,87.0
+dist_ma50 q1 & min20 q1,2024-01-01,2024-03-28,87.0
+atr_pct q3 & r5_news q2,2024-01-01,2024-03-28,87.0
+days_to_earn q0 & r5 q3,2024-01-01,2024-03-28,87.0
+days_since_earn q3 & vol_surge5 q2,2024-01-01,2024-03-28,87.0
+ear_volsurge q3 & r5_news q2,2024-01-01,2024-03-28,87.0
+min20 q1 & news5 q2,2024-01-01,2024-03-28,87.0
+days_since_earn q4 & vol20 q3,2024-01-01,2024-03-28,87.0
+min20 q1 & vol_surge1 q1,2024-01-01,2024-03-28,87.0
+gap_today q3 & vol20 q3,2024-01-01,2024-03-28,87.0
+r5_nonews q1 & r60 q4,2024-01-01,2024-03-28,87.0
+days_since_earn q0 & r5 q1,2024-01-01,2024-03-28,87.0
+days_to_earn q0 & min20 q1,2024-01-01,2024-03-28,87.0
+days_to_earn q0 & news5 q4,2024-01-01,2025-12-26,725.0
+dist_52wh q1 & log_dv q4,2024-01-01,2024-03-28,87.0
+dist_ma50 q1 & vol_surge5 q2,2024-01-01,2024-03-28,87.0
+days_since_earn q3 & skew60 q1,2024-01-01,2024-03-28,87.0
+ind_mom60 q1 & vol_surge1 q1,2024-01-01,2024-03-28,87.0
+ind_mom20 q4 & vol_surge1 q1,2024-01-01,2024-03-28,87.0
+earn_in_week q1 & ind_mom20 q3,2024-01-01,,
+frog q1 & min20 q3,2024-01-01,2024-03-28,87.0
+atr_pct q3 & frog q1,2024-01-01,2024-03-28,87.0
+news5 q4 & r5_nonews q4,2024-01-01,,
+ind_mom20 q4 & vol_ratio q1,2024-01-01,2024-03-28,87.0
+days_since_earn q3 & frog q0,2024-01-01,2024-03-28,87.0
+ear_volsurge q1,2024-01-01,2024-03-28,87.0
+r5 q4 & vol_surge1 q2,2024-01-01,2024-03-28,87.0
+log_dv q2 & r5_nonews q0,2024-01-01,2024-03-28,87.0
+days_to_earn q0 & vol_surge1 q1,2024-01-01,2024-03-28,87.0
+frog q0 & vol_ratio q2,2024-01-01,2024-03-28,87.0
+frog q0 & gap_today q4,2024-01-01,2024-03-28,87.0
+earn_in_week q1 & min20 q4,2024-07-01,,
+ear q1 & min20 q1,2024-07-01,2024-09-27,88.0
+earn_in_week q1 & vol20 q0,2024-07-01,,
+vol_surge5 q2,2024-07-01,2024-09-27,88.0
+days_since_earn q2 & vol_surge1 q2,2024-07-01,2024-09-27,88.0
+frog q2 & rel_ind20 q0,2024-07-01,2024-09-27,88.0
+atr_pct q3 & ev_shelf q2,2024-07-01,2024-09-27,88.0
+atr_pct q3 & ins_opportunistic30 q2,2024-07-01,2024-09-27,88.0
+min20 q1 & r60 q2,2024-07-01,2024-09-27,88.0
+ev_offering q2 & ev_shelf q2,2024-07-01,2024-09-27,88.0
+atr_pct q3 & ev_offering q2,2024-07-01,2024-09-27,88.0
+log_dv q2,2024-07-01,2024-09-27,88.0
+frog q2 & vol20 q3,2024-07-01,2024-09-27,88.0
+earn_in_week q1 & r60 q3,2024-07-01,,
+ev_shelf q2 & vol20 q3,2024-07-01,2024-09-27,88.0
+r5 q1 & vol20 q1,2024-07-01,2024-09-27,88.0
+max20 q1 & r20 q1,2024-07-01,2024-09-27,88.0
+atr_pct q3 & range_compress q2,2024-07-01,2024-09-27,88.0
+range_compress q2 & rel_ind20 q3,2024-07-01,2024-09-27,88.0
+r5_news q2 & vol20 q3,2024-07-01,2024-09-27,88.0
+r20 q1 & rel_ind20 q0,2024-07-01,2024-09-27,88.0
+ear q3 & vol_surge1 q2,2024-07-01,2024-09-27,88.0
+intraday20 q1,2024-07-01,2024-09-27,88.0
+frog q2 & log_dv q0,2024-07-01,2024-09-27,88.0
+r5 q1 & r5_news q2 unless vol_surge1 q0,2024-07-01,2024-09-27,88.0
+frog q2 & min20 q1,2024-07-01,2024-09-27,88.0
+atr_pct q1 & earn_in_week q1,2024-07-01,,
+atr_pct q3 & frog q2,2024-07-01,2024-09-27,88.0
+log_dv q4 & r5 q1,2024-07-01,2024-09-27,88.0
+r5 q1 & r5_news q2 unless gap_today q4,2024-07-01,2024-09-27,88.0
+ins_opportunistic30 q2 & vol20 q3,2024-07-01,2024-09-27,88.0
+r5_nonews q1 & vol20 q1,2024-07-01,2024-09-27,88.0
+earn_in_week q1 & range_compress q3,2024-07-01,,
+ev_offering q2 & min20 q1,2024-07-01,2024-09-27,88.0
+earn_in_week q1 & r5_nonews q3,2024-07-01,,
+ev_shelf q2 & min20 q1,2024-07-01,2024-09-27,88.0
+ev_shelf q2 & r20 q1,2024-07-01,2024-09-27,88.0
+log_dv q0 & rel_ind60 q2,2024-07-01,2024-09-27,88.0
+ins_opportunistic30 q2 & r20 q1,2024-07-01,2024-09-27,88.0
+vol20 q3 & vol_ratio q3,2024-07-01,2024-09-27,88.0
+atr_pct q3 & vol_ratio q1,2024-07-01,2024-09-27,88.0
+r5 q3 & vol20 q3,2024-07-01,2024-09-27,88.0
+ind_mom60 q1 & vol20 q3,2024-07-01,2024-09-27,88.0
+ins_opportunistic30 q2 & min20 q1,2024-07-01,2024-09-27,88.0
+min20 q1 & r5 q1,2024-07-01,2024-09-27,88.0
+frog q1 & range_compress q3,2024-07-01,2024-09-27,88.0
+ear q2 & vol_surge1 q0,2025-01-01,2025-03-28,86.0
+ear q2 & vol20 q4,2025-01-01,2025-03-28,86.0
+ev_offering q2 & vol20 q2,2025-01-01,2025-03-28,86.0
+ear q2 & max20 q4,2025-01-01,2025-03-28,86.0
+ear q2 & skew60 q4,2025-01-01,2025-03-28,86.0
+ear q2 & ev_offering q2,2025-01-01,2025-03-28,86.0
+r5 q1 & vol_ratio q3,2025-01-01,2025-03-28,86.0
+frog q2 & skew60 q0,2025-01-01,2025-03-28,86.0
+range_compress q2 & vol20 q2,2025-01-01,2025-03-28,86.0
+ear q3 & log_dv q1,2025-01-01,2025-03-28,86.0
+ear q2 & ins_opportunistic30 q2,2025-01-01,2025-03-28,86.0
+rel_ind60 q2 & vol20 q2,2025-01-01,2025-03-28,86.0
+intraday20 q4 & skew60 q0,2025-01-01,2025-03-28,86.0
+frog q2 & ins_opportunistic30 q4,2025-01-01,,
+ear q2 & range_compress q0,2025-01-01,2025-03-28,86.0
+earn_in_week q1 & vol_surge5 q3,2025-01-01,,
+log_dv q1 & range_compress q0,2025-01-01,2025-03-28,86.0
+r5_nonews q2 & rel_ind60 q4,2025-01-01,2025-03-28,86.0
+ear q2 & ev_shelf q2,2025-01-01,2025-03-28,86.0
+dist_ma200 q2 & intraday20 q4,2025-01-01,2025-03-28,86.0
+ear q2 & ev_red_flag q2,2025-01-01,2025-03-28,86.0
+r5_nonews q1 & vol_ratio q3,2025-01-01,2025-03-28,86.0
+ear q2 & ear_volsurge q2,2025-01-01,2025-03-28,86.0
+ear_volsurge q2 & skew60 q4,2025-01-01,2025-03-28,86.0
+ear_volsurge q2 & vol_surge5 q3,2025-01-01,2025-03-28,86.0
+max20 q4 & skew60 q0,2025-01-01,2025-03-28,86.0
+earn_in_week q1 & ind_mom20 q0,2025-01-01,,
+ind_mom20 q1 & intraday20 q4,2025-01-01,2025-03-28,86.0
+ear q3 & vol_surge5 q2,2025-01-01,2025-03-28,86.0
+ear q2 & skew60 q0,2025-01-01,2025-03-28,86.0
+days_since_earn q1 & ind_mom20 q1,2025-01-01,2025-03-28,86.0
+ear q2 & vol_ratio q2,2025-01-01,2025-03-28,86.0
+r1 q0 & skew60 q4,2025-01-01,2025-03-28,86.0
+ear q2 & log_dv q3,2025-01-01,2025-03-28,86.0
+log_dv q1 & skew60 q4,2025-01-01,2025-03-28,86.0
+earn_in_week q1 & r5_nonews q2,2025-01-01,,
+ins_buyers30 q4 & vol_surge1 q3,2025-01-01,2025-06-27,177.0
+ear q2 & r5_news q0,2025-01-01,2025-03-28,86.0
+intraday20 q4 & vol_surge1 q0,2025-01-01,2025-03-28,86.0
+ev_agreement q4 & ind_mom60 q1,2025-01-01,2025-12-26,359.0
+r5_nonews q3 & vol_surge5 q2,2025-01-01,2025-03-28,86.0
+ins_buyers30 q2 & rel_ind20 q1,2025-01-01,2025-03-28,86.0
+frog q3 & intraday20 q4,2025-01-01,2025-03-28,86.0
+dist_ma50 q1 & rel_ind20 q1,2025-01-01,2025-03-28,86.0
+r60 q3 & range_compress q0,2025-01-01,2025-03-28,86.0
+r120 q3 & skew60 q0,2025-01-01,2025-03-28,86.0
+log_dv q1 & max20 q4,2025-01-01,2025-03-28,86.0
+earn_in_week q1 & skew60 q4,2025-01-01,,
+earn_in_week q1 & ev_offering q2,2025-01-01,,
+dist_ma200 q4 & ear q0,2025-01-01,2025-03-28,86.0
+close_loc q0 & vol20 q2,2025-07-01,2025-09-26,87.0
+ev_agreement q4 & vol_surge1 q2,2025-07-01,2025-09-26,87.0
+close_loc q1 & min20 q2,2025-07-01,2025-09-26,87.0
+ev_agreement q2 & vol20 q2,2025-07-01,2025-09-26,87.0
+ear q2 & gap_today q0,2025-07-01,2025-09-26,87.0
+ins_opportunistic30 q2 & vol20 q2,2025-07-01,2025-09-26,87.0
+r1 q0 & vol20 q2,2025-07-01,2025-09-26,87.0
+ear q2 & ev_red_flag q4,2025-07-01,2025-12-26,178.0
+ev_offering q4 & vol_surge1 q2,2025-07-01,,
+r5 q1 & vol_surge5 q2,2025-07-01,2025-09-26,87.0
+ear_volsurge q3 & min20 q2,2025-07-01,2025-09-26,87.0
+ear q2 & r5_news q2,2025-07-01,2025-09-26,87.0
+vol20 q2 & vol_ratio q3,2025-07-01,2025-09-26,87.0
+ear q2 & ev_agreement q4,2025-07-01,2025-09-26,87.0
+ear_volsurge q3 & ind_mom20 q1,2025-07-01,2025-09-26,87.0
+r1 q0 & vol20 q3,2025-07-01,2025-09-26,87.0
+min20 q2 & r1 q0,2025-07-01,2025-09-26,87.0
+r60 q4 & skew60 q4,2025-07-01,2025-09-26,87.0
+r20 q1 & skew60 q2,2025-07-01,2025-09-26,87.0
+close_loc q1 & skew60 q3,2025-07-01,2025-09-26,87.0
+ear q2 & ev_agreement q2,2025-07-01,2025-09-26,87.0
+gap_today q4 & skew60 q4,2025-07-01,2025-09-26,87.0
+ear_volsurge q3 & ev_offering q2,2025-07-01,2025-09-26,87.0
+frog q4 & vol_surge5 q3,2025-07-01,2025-09-26,87.0
+ear q2 & frog q2 unless dist_52wh q4,2025-07-01,2025-09-26,87.0
+r5_nonews q0 & vol_surge5 q3,2025-07-01,2025-09-26,87.0
+vol20 q2 & vol_ratio q2,2025-07-01,2025-09-26,87.0
+close_loc q1 & ear_volsurge q3,2025-07-01,2025-09-26,87.0
+ins_opportunistic30 q2 & vol_surge5 q3,2025-07-01,2025-09-26,87.0
+ear q2 & frog q2 unless vol_surge5 q4,2025-07-01,2025-09-26,87.0
+close_loc q0 & skew60 q2,2025-07-01,2025-09-26,87.0
+frog q1 & rel_ind60 q4,2025-07-01,2025-09-26,87.0
+ear q2 & r60 q0,2025-07-01,2025-09-26,87.0
+r1 q1 & vol20 q2,2025-07-01,2025-09-26,87.0
+r1 q0 & vol_surge5 q3,2025-07-01,2025-09-26,87.0
+days_since_earn q2,2025-07-01,2025-09-26,87.0
+ear q2 & rel_ind60 q4,2025-07-01,2025-09-26,87.0
+frog q1 & vol20 q2,2025-07-01,2025-09-26,87.0
+frog q2 & vol_surge1 q2,2025-07-01,2025-09-26,87.0
+ear q2 & vol_surge5 q3,2025-07-01,2025-09-26,87.0
+ear q4 & ev_offering q2,2025-07-01,2025-09-26,87.0
+ear q2 & r60 q4,2025-07-01,2025-09-26,87.0
+r1 q4 & vol_surge1 q2,2025-07-01,2025-09-26,87.0
+atr_pct q4 & ear q2,2026-01-01,2026-03-27,85.0
+atr_pct q4 & days_since_earn q4,2026-01-01,2026-03-27,85.0
+days_since_earn q4 & vol20 q4,2026-01-01,2026-03-27,85.0
+days_since_earn q4 & min20 q0,2026-01-01,2026-03-27,85.0
+dist_52wh q0 & ear q2,2026-01-01,2026-03-27,85.0
+days_since_earn q4 & max20 q4,2026-01-01,2026-03-27,85.0
+ear q2 & news5 q2,2026-01-01,2026-03-27,85.0
+frog q2 & vol_surge1 q0,2026-01-01,2026-03-27,85.0
+earn_in_week q1 & ev_shelf q2 unless dist_52wh q4,2026-01-01,,
+days_since_earn q4 & ear q2,2026-01-01,2026-03-27,85.0
+max20 q4 & mom_12_1 q2,2026-01-01,2026-03-27,85.0
+r5 q0 & vol_surge5 q4,2026-01-01,2026-03-27,85.0
+mom_12_1 q2 & vol20 q4,2026-01-01,2026-03-27,85.0
+max20 q1 & vol20 q2,2026-01-01,2026-03-27,85.0
+ear q2 & vol_surge5 q0,2026-01-01,2026-03-27,85.0
+days_since_earn q4 & skew60 q4,2026-01-01,2026-03-27,85.0
+ear q2 & earn_in_week q1,2026-01-01,,
+atr_pct q4 & mom_12_1 q2,2026-01-01,2026-03-27,85.0
+atr_pct q4 & vol_surge1 q0,2026-01-01,2026-03-27,85.0
+dist_ma50 q1 & overnight20 q0,2026-01-01,2026-03-27,85.0
+dist_ma50 q1 & vol20 q2,2026-01-01,2026-03-27,85.0
+days_since_earn q4 & vol_surge5 q0,2026-01-01,2026-03-27,85.0
+ear q2 & frog q2 unless vol_surge1 q4,2026-01-01,2026-03-27,85.0
+atr_pct q2 & max20 q4,2026-01-01,2026-03-27,85.0
+ev_red_flag q2 & r60 q3,2026-01-01,2026-03-27,85.0
+news5 q2 & r60 q3,2026-01-01,2026-03-27,85.0
+dist_ma200 q1 & skew60 q4,2026-01-01,2026-03-27,85.0
+vol20 q4 & vol_surge1 q0,2026-01-01,2026-03-27,85.0
+ear q2 & intraday20 q4,2026-01-01,2026-03-27,85.0
+rel_ind20 q1 & vol_ratio q4,2026-01-01,2026-03-27,85.0
+days_since_earn q4 & range_compress q0,2026-01-01,2026-03-27,85.0
+min20 q0 & vol_surge5 q0,2026-01-01,2026-03-27,85.0
+atr_pct q4 & vol_surge5 q0,2026-01-01,2026-03-27,85.0
+vol_surge1 q0 & vol_surge5 q0,2026-01-01,2026-03-27,85.0
+max20 q4 & vol_surge1 q0,2026-01-01,2026-03-27,85.0
+min20 q0 & mom_12_1 q2,2026-01-01,2026-03-27,85.0
+dist_ma50 q4 & log_dv q3 unless frog q4,2026-01-01,2026-03-27,85.0
+vol20 q4 & vol_surge5 q0,2026-01-01,2026-03-27,85.0
+ear q2 & r1 q4,2026-01-01,2026-03-27,85.0
+days_since_earn q4 & earn_in_week q1,2026-01-01,,
+ev_shelf q2 & r60 q3,2026-01-01,2026-03-27,85.0
+overnight20 q2 & vol20 q2,2026-01-01,2026-03-27,85.0
+skew60 q4 & vol_surge5 q0,2026-01-01,2026-03-27,85.0
+skew60 q4 & vol_surge1 q0,2026-01-01,2026-03-27,85.0
+dist_52wh q0 & skew60 q4,2026-01-01,2026-03-27,85.0
+dist_52wh q0 & min20 q0,2026-01-01,2026-03-27,85.0
+atr_pct q4 & min20 q0,2026-01-01,2026-03-27,85.0
+dist_52wh q0 & vol20 q4,2026-01-01,2026-03-27,85.0
+earn_in_week q1 & ev_shelf q2 unless overnight20 q0,2026-01-01,,
+ear q2 & frog q2 unless ind_mom20 q4,2026-01-01,2026-03-27,85.0
+earn_in_week q1 & ev_shelf q2 unless r120 q4,2026-01-01,,
+ev_shelf q4,2026-07-01,,
+ev_red_flag q2 & ev_shelf q2,2026-07-01,,
+days_to_earn q0 & ev_red_flag q2,2026-07-01,,
+min20 q2 & overnight20 q2,2026-07-01,,
+ear q2 & frog q2 unless r20 q4,2026-07-01,,
+days_to_earn q0,2026-07-01,,
+ear q2 & frog q2 unless r120 q4,2026-07-01,,
+min20 q0 & skew60 q4,2026-07-01,,
+vol_surge1 q0,2026-07-01,,
+atr_pct q4 & skew60 q4,2026-07-01,,
+days_since_earn q4 & ev_red_flag q2,2026-07-01,,
+ear q2 & frog q2 unless r60 q4,2026-07-01,,
+ev_shelf q2 & vol20 q2,2026-07-01,,
+ins_opportunistic30 q2 & overnight20 q2,2026-07-01,,
+ev_red_flag q2 & vol20 q2,2026-07-01,,
+ear q2 & frog q2 unless days_to_earn q0,2026-07-01,,
+ev_red_flag q2 & overnight20 q2,2026-07-01,,
+frog q2 & min20 q0 unless mom_12_1 q4,2026-07-01,,
+overnight20 q1 & vol_surge5 q3,2026-07-01,,
+ear q2 & frog q2 unless overnight20 q4,2026-07-01,,
+ev_red_flag q2 & vol_surge1 q0,2026-07-01,,
+ev_red_flag q4 & vol_surge5 q0,2026-07-01,,
+mom_12_1 q2 & rel_ind20 q4,2026-07-01,,
+ev_offering q2 & vol_surge5 q0,2026-07-01,,
+dist_ma200 q1 & ev_shelf q2,2026-07-01,,
+min20 q0 & vol_surge1 q0,2026-07-01,,

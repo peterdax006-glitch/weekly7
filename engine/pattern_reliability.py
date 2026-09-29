@@ -65,9 +65,10 @@ PARAMS = {
     "batch": 8,                 # weeks per cluster-robust batch in the contrast statistic
     "n_perm": 300,
     "explain_alpha": 0.10,
-    "peek_auc": 0.88,
-    "peek_rho": 0.55,
-    "peek_ratio": 3.0,
+    "peek_auc": 0.78,           # a context alone this good at separating this week's winners is not knowledge, it is a leak
+    "peek_rho": 0.55,           # ... or this tightly tied to this week's return AND far tighter than to its neighbours
+    "peek_ratio": 1.8,
+    "peek_hard_rho": 0.9,       # ... or nearly rank-identical to this week's cross-pattern return, whatever the neighbours
     "boot": 1000,
     "boot_block": 6,
     "seed": 7,
@@ -80,11 +81,13 @@ PARAMS = {
     "half_life": 13,            # weeks: discounted posterior that the pattern still works
     "suspect_frac": 0.4,        # suspect when the CUSUM exceeds this share of its alarm threshold
     "release_frac": 0.5,        # a broken pattern is released when the CUSUM falls below this share
+    "release_hold": 4,          # ... and only after that condition held this many weeks running
     "p_release": 0.9,           # ... or released early when P(still works) is back above this and the recent mean >= expected
     "p_suspect": 0.5,           # ... or when the posterior P(still works) drops under this
     "review_every": 13,         # weeks between investigation reviews
     "oos_horizon": 52,          # weeks of later, unseen data a proposed driver must predict before it is trusted
-    "max_open": 80,             # an investigation older than this many weeks unresolved violates the invariant
+    "oos_embargo": 4,           # weeks after the last open episode recovers before the confirming window starts
+    "max_open": 130,            # an investigation unresolved after this many weeks violates the invariant (then discarded)
 }
 META = ["age", "hit4", "hit13", "hit26", "mean13", "t13", "exp_hit", "since_break", "hit_trend", "crowd", "share"]
 PHRASES = {
@@ -195,14 +198,13 @@ def stationary_bootstrap_ci(x, block=6, n_boot=1000, level=0.95, seed=0):
         return m, float("nan"), float("nan")
     rng = np.random.default_rng(seed)
     p = 1.0 / max(block, 1)
-    means = np.empty(n_boot)
-    for b in range(n_boot):
-        lens = rng.geometric(p, size=n)
-        starts = rng.integers(0, n, size=n)
-        k = int(np.searchsorted(np.cumsum(lens), n)) + 1
-        lens, starts = lens[:k], starts[:k]
-        idx = np.concatenate([(s + np.arange(L)) % n for s, L in zip(starts, lens)])[:n]
-        means[b] = x[idx].mean()
+    idx = np.empty((n, n_boot), np.int64)
+    idx[0] = rng.integers(0, n, size=n_boot)
+    jump = rng.random((n, n_boot)) < p
+    new = rng.integers(0, n, size=(n, n_boot))
+    for t in range(1, n):                                   # Politis-Romano: continue the block, or restart at random
+        idx[t] = np.where(jump[t], new[t], (idx[t - 1] + 1) % n)
+    means = x[idx].mean(axis=0)
     a = (1 - level) / 2
     return float(x.mean()), float(np.quantile(means, a)), float(np.quantile(means, 1 - a))
 
@@ -400,7 +402,9 @@ def scan_context_for_peeking(tl, cfg=None):
         why = []
         if np.isfinite(a) and a >= P["peek_auc"]:
             why.append(f"AUC {a:.2f} on this week's outcome")
-        if abs(rho0) >= P["peek_rho"] and abs(rho0) > P["peek_ratio"] * max(rho_nb, 0.05):
+        if abs(rho0) >= P["peek_hard_rho"]:
+            why.append(f"|rho|={abs(rho0):.2f} with this week's return: nearly the same series")
+        elif abs(rho0) >= P["peek_rho"] and abs(rho0) > P["peek_ratio"] * max(rho_nb, 0.05):
             why.append(f"|rho|={abs(rho0):.2f} with this week's return vs {rho_nb:.2f} with neighbours'")
         rows.append({"col": c, "auc": a, "rho0": rho0, "rho_nb": rho_nb, "flag": bool(why), "why": "; ".join(why)})
     rep = pd.DataFrame(rows)
@@ -833,21 +837,25 @@ def _contrast_parts(Rz, V, Hf, Lf):
 
 
 def _contrast_t(parts, batch_ids, min_side=20):
-    """t of mean(R | high) - mean(R | low) with batch-clustered (consecutive weeks) influence-function variance."""
+    """(t, gap, testable) of mean(R | high) - mean(R | low) with batch-clustered (consecutive weeks) influence-function
+    variance. testable is False when either side has too few pattern-weeks or sits in fewer than 5 batches."""
     a1, n1, a2, n2 = parts
     N1, N2 = n1.sum(), n2.sum()
     if N1 < min_side or N2 < min_side:
-        return 0.0, 0.0
+        return 0.0, 0.0, False
     m1, m2 = a1.sum() / N1, a2.sum() / N2
     psi = (a1 - m1 * n1) / N1 - (a2 - m2 * n2) / N2
     nb = int(batch_ids.max()) + 1
     pb = np.bincount(batch_ids, weights=psi, minlength=nb)
     used = np.bincount(batch_ids, weights=(n1 + n2 > 0).astype(float), minlength=nb) > 0
     k = int(used.sum())
-    if k < 4:
-        return 0.0, m1 - m2
+    # a group that sits inside one or two batches has no measurable between-cluster variance: untestable, never "certain"
+    k1 = int((np.bincount(batch_ids, weights=n1, minlength=nb) > 0).sum())
+    k2 = int((np.bincount(batch_ids, weights=n2, minlength=nb) > 0).sum())
+    if k < 4 or min(k1, k2) < 5:
+        return 0.0, m1 - m2, False
     se = math.sqrt(float((pb ** 2).sum()) * k / (k - 1))
-    return ((m1 - m2) / se if se > 1e-15 else 0.0), float(m1 - m2)
+    return ((m1 - m2) / se if se > 1e-15 else 0.0), float(m1 - m2), True
 
 
 def driver_table(tl, cfg=None, as_of=None, meta=None, seed=None, n_perm=None):
@@ -889,7 +897,6 @@ def driver_table(tl, cfg=None, as_of=None, meta=None, seed=None, n_perm=None):
     if not names:
         return pd.DataFrame(columns=cols)
     obs = [_contrast_t(_contrast_parts(Rz, V, H, L), bid) for H, L in zip(Hs, Ls)]
-    tvec = np.array([o[0] for o in obs])
     rng = np.random.default_rng(seed)
     lo_s = max(26, (m + 1) // 10)
     hi_s = m + 1 - lo_s
@@ -903,7 +910,7 @@ def driver_table(tl, cfg=None, as_of=None, meta=None, seed=None, n_perm=None):
         maxes[:] = np.inf
     rows = []
     for i, name in enumerate(names):
-        t, c = obs[i]
+        t, c, _ok = obs[i]
         p = (1 + int((maxes >= abs(t)).sum())) / (1 + n_perm)
         rows.append({"driver": name, "kind": kinds[i], "contrast": c, "t": t, "p_fwer": p, "n_high": int(Hs[i].sum()),
                      "n_low": int(Ls[i].sum()), "cut_lo": cuts[i][0], "cut_hi": cuts[i][1],
@@ -1037,10 +1044,10 @@ def confirm_driver(tl, driver, cut_lo, cut_hi, works_when, lo_row, hi_row, cfg=N
     last = min(hi_row - P["block"], tl.n_weeks - 1)
     lo = lo_row + 1
     if last - lo < 12:
-        return {"ok": False, "t": float("nan"), "n_good": 0, "n_bad": 0, "why": "window too short"}
+        return {"ok": False, "t": float("nan"), "n_good": 0, "n_bad": 0, "testable": False, "why": "window too short"}
     drv = driver_values(tl, meta, P)
     if driver not in drv:
-        return {"ok": False, "t": float("nan"), "n_good": 0, "n_bad": 0, "why": "driver unavailable"}
+        return {"ok": False, "t": float("nan"), "n_good": 0, "n_bad": 0, "testable": False, "why": "driver unavailable"}
     vals = drv[driver][1][lo: last + 1]
     R = tl.rets.values[lo: last + 1].astype(float)
     V = (np.isfinite(R) & tl.alive().values[lo: last + 1] & np.isfinite(vals)).astype(float)
@@ -1048,10 +1055,10 @@ def confirm_driver(tl, driver, cut_lo, cut_hi, works_when, lo_row, hi_row, cfg=N
     good = V * ((vals >= cut_hi) if works_when == "high" else (vals <= cut_lo))
     bad = V * ((vals <= cut_lo) if works_when == "high" else (vals >= cut_hi))
     bid = np.arange(last - lo + 1) // 4
-    t, c = _contrast_t(_contrast_parts(Rz, V, good, bad), bid, min_side=min_side)
+    t, c, valid = _contrast_t(_contrast_parts(Rz, V, good, bad), bid, min_side=min_side)
     ng, nb = int(good.sum()), int(bad.sum())
-    return {"ok": bool(t >= P["t_pat"] and c > 0 and ng >= min_side and nb >= min_side), "t": float(t), "gap": float(c),
-            "n_good": ng, "n_bad": nb, "why": "" if ng >= min_side and nb >= min_side else "too few pattern-weeks in one zone"}
+    return {"ok": bool(valid and t >= P["t_pat"] and c > 0), "t": float(t), "gap": float(c), "n_good": ng, "n_bad": nb,
+            "testable": bool(valid), "why": "" if valid else "a zone has too few pattern-weeks or sits in under 5 batches"}
 
 
 # ---------------------------------------------------------------- C61: pattern health monitor (no phantom patterns)
@@ -1140,7 +1147,7 @@ def health_monitor(tl, cfg=None, expected=None, as_of=None):
             continue
         exp_ = None if expected is None else expected.get(tl.patterns[j])
         est, mu0, h, k = False, np.nan, np.nan, np.nan
-        S, broken, cur = 0.0, False, None
+        S, broken, cur, ok_run = 0.0, False, None, 0
         A = W = Q = 0.0
         cnt, m1, m2 = 0, 0.0, 0.0
         for i in range(f + 1, min(T, last)):
@@ -1189,7 +1196,9 @@ def health_monitor(tl, cfg=None, expected=None, as_of=None):
             prec = 1.0 / pv + neff / (sd * sd)
             post = (mu0 / pv + neff * mean_d / (sd * sd)) / prec
             pwork = float(sps.norm.cdf(post * math.sqrt(prec)))
-            if broken and (S < P["release_frac"] * h or (pwork >= P["p_release"] and mean_d >= mu0)):
+            early = pwork >= P["p_release"] and mean_d >= mu0
+            ok_run = ok_run + 1 if (broken and early) else 0
+            if broken and (S < P["release_frac"] * h or ok_run >= P["release_hold"]):
                 broken = False
                 S = min(S, P["release_frac"] * h * 0.999)      # a released pattern starts a fresh test
                 cur["recover"] = i
@@ -1220,18 +1229,21 @@ VERDICTS = ("EXPLAINED_AND_GATED", "DISCARDED_UNPREDICTABLE", "PHANTOM_DISCARDED
 
 
 def _onset_zone_bad(tl, driver, e, works_when, cut_lo, cut_hi, meta, P):
-    """Was the driver in its BAD zone at the onset of this break (mean of the lead rows up to the onset)?"""
-    o = int(e["onset"])
+    """Was the driver in its BAD zone while this break developed - a majority of the rows from just before the estimated
+    onset up to the row the break was recognised? (The CUSUM onset estimate is early by construction, so the onset row
+    alone under-reports; nothing after the detection row is read.)"""
+    o, d = int(e["onset"]), int(e["detect"])
+    lo = max(0, o - P["ctx_lead"] + 1)
     if driver in tl.ctx.columns:
-        v = tl.ctx[driver].values[max(0, o - P["ctx_lead"] + 1): o + 1].astype(float)
+        v = tl.ctx[driver].values[lo: d].astype(float)
     else:
         j = tl.patterns.index(e["pattern"])
-        v = meta[driver].values[max(0, o - P["ctx_lead"] + 1): o + 1, j].astype(float)
+        v = meta[driver].values[lo: d, j].astype(float)
     v = v[np.isfinite(v)]
     if not len(v):
         return False
-    x = float(v.mean())
-    return x <= cut_lo if works_when == "high" else x >= cut_hi
+    bad = (v <= cut_lo) if works_when == "high" else (v >= cut_hi)
+    return bool(bad.mean() >= 0.5)
 
 
 def investigate(tl, cfg=None, as_of=None, health=None, meta=None):
@@ -1291,29 +1303,50 @@ def investigate(tl, cfg=None, as_of=None, health=None, meta=None):
                               f"not in their bad zone at this break's onset: they do not describe it (unknown cause)")
             rows.append(rec)
             continue
-        rr = rv + P["oos_horizon"]
-        if rr > as_of:
-            rec.update(verdict="OPEN", cause="pending", driver=cand[0]["driver"], resolve_row=rr,
-                       detail=f"candidate {cand[0]['driver']} passed in-sample (p_fwer={cand[0]['p_fwer']:.3f}); must predict "
-                              f"the next {P['oos_horizon']} weeks before it is trusted")
+        # the confirming window must be INDEPENDENT of the episode(s) that prompted the search: it starts only after most of
+        # the episodes of this event (same onset cluster) have recovered, plus an embargo - else a driver that merely
+        # coincides with the still-running event would "predict" it. It needs at least oos_horizon // 2 weeks of such data
+        # AND enough weeks of the driver's bad zone to be testable; both are awaited (OPEN) up to max_open weeks.
+        clus = ev[(ev["detect"] <= rv) & (~ev["phantom"].astype(bool)) & ((ev["onset"] - on).abs() <= 2 * P["oos_horizon"] // 2)]
+        found, last_msgs = None, []
+        for r_try in range(rv + P["oos_horizon"], min(rv + P["max_open"], as_of) + 1, step):
+            rc = np.sort(np.where(clus["recover"].notna() & (clus["recover"] <= r_try), clus["recover"], np.inf))
+            q = rc[min(len(rc) - 1, int(math.ceil(0.8 * (len(rc) - 1))))] if len(rc) else rv
+            if not np.isfinite(q):
+                continue
+            st0 = max(rv, int(q) + P["oos_embargo"])
+            if r_try - st0 < P["oos_horizon"] // 2:
+                continue
+            res = [(r, confirm_driver(tl, r["driver"], r["cut_lo"], r["cut_hi"], r["works_when"], st0, r_try, P, meta)) for r in cand[:5]]
+            last_msgs = [f"{r['driver']}: out-of-sample t={c['t']:.2f}" if c["testable"] else
+                         f"{r['driver']}: bad zone seen in only {c['n_bad']} pattern-weeks" for r, c in res]
+            if any(c["testable"] for _, c in res):
+                found = (r_try, res)
+                break
+        if found is None:
+            if as_of < rv + P["max_open"]:
+                rec.update(verdict="OPEN", cause="pending", driver=cand[0]["driver"],
+                           detail=f"candidate {cand[0]['driver']} passed in-sample (p_fwer={cand[0]['p_fwer']:.3f}); waiting for "
+                                  f"later data independent of the running episode(s) to test it")
+            else:
+                rec.update(resolve_row=rv + P["max_open"], verdict="DISCARDED_UNPREDICTABLE", cause="unknown",
+                           detail=f"candidate {cand[0]['driver']} passed in-sample but no later independent, testable data "
+                                  f"arrived within {P['max_open']} weeks ({'; '.join(last_msgs) or 'none'}): not trusted "
+                                  f"(unknown cause - unpredictable)")
             rows.append(rec)
             continue
-        best, msgs = None, []
-        for r in cand[:5]:
-            c = confirm_driver(tl, r["driver"], r["cut_lo"], r["cut_hi"], r["works_when"], rv, rr, P, meta)
-            msgs.append(f"{r['driver']}: out-of-sample t={c['t']:.2f}")
-            if c["ok"] and best is None:
-                best = (r, c)
+        rr, res = found
+        best = next(((r, c) for r, c in res if c["ok"]), None)
         if best is not None:
             r, c = best
             rec.update(resolve_row=rr, verdict="EXPLAINED_AND_GATED", cause=f"driver:{r['driver']}", driver=r["driver"],
                        detail=f"{r['driver']} (works when {r['works_when']}; cut {r['cut_lo']:.3g}/{r['cut_hi']:.3g}) beat the "
-                              f"family-wise bar (p={r['p_fwer']:.3f}, {ncand} searched), was in its bad zone at the onset and "
-                              f"predicted the later weeks out of sample (t={c['t']:.2f}, {c['n_bad']} bad vs {c['n_good']} good "
-                              f"pattern-weeks): gated")
+                              f"family-wise bar (p={r['p_fwer']:.3f}, {ncand} searched), was in its bad zone during the break and "
+                              f"predicted the later, independent weeks out of sample (t={c['t']:.2f}, {c['n_bad']} bad vs "
+                              f"{c['n_good']} good pattern-weeks): gated")
         else:
             rec.update(resolve_row=rr, verdict="DISCARDED_UNPREDICTABLE", cause="unknown",
-                       detail="in-sample candidate(s) failed on later unseen data (" + "; ".join(msgs) + "): a spurious "
+                       detail="in-sample candidate(s) failed on later unseen data (" + "; ".join(last_msgs) + "): a spurious "
                               "indicator, not the cause (unknown cause - unpredictable)")
         rows.append(rec)
     return pd.DataFrame(rows, columns=cols)
@@ -1330,7 +1363,7 @@ def investigation_invariants(inv, health, as_of, cfg=None):
     for _, e in ev.iterrows():
         if (e["pattern"], int(e["detect"])) not in have:
             bad.append(f"uninvestigated break: {e['pattern']} @ {int(e['detect'])}")
-    lim = P["review_every"] + P["oos_horizon"] + P["review_every"]
+    lim = P["max_open"] + P["review_every"]
     for _, r in inv.iterrows():
         if r["verdict"] == "OPEN" and as_of - r["detect"] > lim:
             bad.append(f"investigation open too long: {r['pattern']} @ {int(r['detect'])}")
@@ -1739,7 +1772,7 @@ def _ar1(rng, T, phi, sd=1.0):
     return x
 
 
-def planted_world(kind, seed=0, n_weeks=520, n_patterns=8, mu=0.006, sigma=0.010, n_noise=6, life=None):
+def planted_world(kind, seed=0, n_weeks=520, n_patterns=8, mu=0.006, sigma=0.010, n_noise=6, life=None, opts=None):
     """Synthetic Timelines with a known truth. kinds:
       healthy        constant edge mu, no breaks (false-alarm budget)
       regime         edge = +mu when a hidden-but-observable regime variable ('m_regime', noisy) is above -0.4, -mu below
@@ -1748,7 +1781,8 @@ def planted_world(kind, seed=0, n_weeks=520, n_patterns=8, mu=0.006, sigma=0.010
       shock          all patterns take an UNOBSERVED loss in three windows; decoy 'm_spur' coincides with the first two only
       phantom        edge mu for 100 weeks, then zero forever (a pattern that stopped existing)
       leak           regime world plus 'm_peek' = the cross-pattern mean of the COMING week's return
-    Returns Timelines whose .truth holds the generating variables."""
+    opts (shock only): windows [(a, b)...] of the unobserved losses, decoy_on (the windows the decoy marks; default the first
+    two), bumps (decoy excursions with no shock). Returns Timelines whose .truth holds the generating variables."""
     rng = np.random.default_rng(seed)
     T, N = n_weeks, n_patterns
     idx = pd.date_range("2005-01-07", periods=T, freq="W-FRI")
@@ -1776,13 +1810,14 @@ def planted_world(kind, seed=0, n_weeks=520, n_patterns=8, mu=0.006, sigma=0.010
                 S[i, j] = st
     elif kind == "shock":
         S = np.ones((T, N))
-        wins = [(150, 190), (300, 340), (450, 490)]
+        o = opts or {}
+        wins = o.get("windows", [(150, 190), (300, 340), (450, 490)])
         for a, b in wins:
             S[a:b] = -1.2
         spur = _ar1(rng, T, 0.7)
-        for a, b in [(150, 190), (300, 340)]:
+        for a, b in o.get("decoy_on", wins[:2]):
             spur[a:b] += 2.5
-        for a, b in [(230, 250), (380, 400)]:            # excursions with no shock: the decoy is not the cause
+        for a, b in o.get("bumps", [(230, 250), (380, 400)]):   # excursions with no shock: the decoy is not the cause
             spur[a:b] += 2.5
         ctx["m_spur"] = spur
         truth.update(shock_windows=wins)
