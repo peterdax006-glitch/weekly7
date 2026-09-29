@@ -16,33 +16,57 @@
    "group": "CHECKLIST",
    "description": "Checklist A: IMMUTABLE PRE-PREDICTION EXPECTATION",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/research/expectations.py",
+    "engine/research/outcomes.py",
+    "engine/research/prediction_error.py"
+   ],
+   "tests": [
+    "tests/test_research_expectations.py"
+   ],
    "evidence": [],
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED (P01): frozen hash-chained expectations (rewrite/late/future refused, forged chain caught), whole-path outcome reconstruction after maturity only, ten separate error components with no total (exit error independent of the return predictor and of the ±1pp tolerance), honest_tolerance with Wilson CI; schema compatible with P02 (tested). GAP: no model yet supplies the trajectory fields (path_model) - P05/P06.",
+   "last_run": "2026-09-29T16:39:44",
+   "code_hash": "39566f8d9a0884d1"
   },
   {
    "id": "PEB",
    "group": "CHECKLIST",
    "description": "Checklist B: COMPLETE OUTCOME RECONSTRUCTION",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/research/expectations.py",
+    "engine/research/outcomes.py",
+    "engine/research/prediction_error.py"
+   ],
+   "tests": [
+    "tests/test_research_expectations.py"
+   ],
    "evidence": [],
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED (P01): frozen hash-chained expectations (rewrite/late/future refused, forged chain caught), whole-path outcome reconstruction after maturity only, ten separate error components with no total (exit error independent of the return predictor and of the ±1pp tolerance), honest_tolerance with Wilson CI; schema compatible with P02 (tested). GAP: no model yet supplies the trajectory fields (path_model) - P05/P06.",
+   "last_run": "2026-09-29T16:39:44",
+   "code_hash": "39566f8d9a0884d1"
   },
   {
    "id": "PEC",
    "group": "CHECKLIST",
    "description": "Checklist C: PREDICTION ERROR ENGINE",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/research/expectations.py",
+    "engine/research/outcomes.py",
+    "engine/research/prediction_error.py"
+   ],
+   "tests": [
+    "tests/test_research_expectations.py"
+   ],
    "evidence": [],
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED (P01): frozen hash-chained expectations (rewrite/late/future refused, forged chain caught), whole-path outcome reconstruction after maturity only, ten separate error components with no total (exit error independent of the return predictor and of the ±1pp tolerance), honest_tolerance with Wilson CI; schema compatible with P02 (tested). GAP: no model yet supplies the trajectory fields (path_model) - P05/P06.",
+   "last_run": "2026-09-29T16:39:44",
+   "code_hash": "39566f8d9a0884d1"
   },
   {
    "id": "PED",
