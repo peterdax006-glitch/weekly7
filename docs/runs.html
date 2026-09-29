@@ -1,0 +1,1111 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Runs and registry</title><meta name="description" content="Revealed simulation runs, per-era results and the experiment registry.">
+<style>
+:root{color-scheme:light;--page:#f9f9f7;--surface:#fcfcfb;--ink:#0b0b0b;--ink-2:#52514e;--muted:#898781;--grid:#e1e0d9;
+--ring:rgba(11,11,11,.10);--s1:#2a78d6;--s2:#eb6834;--good:#006300;--bad:#d03b3b;--warn:#a66300;--wash:#e9f2fd;--goodw:#e6f3e6;--badw:#fbeaea;--warnw:#fbf1dc}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;--page:#0d0d0d;--surface:#1a1a19;--ink:#fff;--ink-2:#c3c2b7;
+--muted:#898781;--grid:#2c2c2a;--ring:rgba(255,255,255,.10);--s1:#3987e5;--s2:#d95926;--good:#0ca30c;--bad:#e66767;--warn:#e0a030;--wash:#16263a;--goodw:#12261a;--badw:#2e1717;--warnw:#2b2312}}
+:root[data-theme="dark"]{color-scheme:dark;--page:#0d0d0d;--surface:#1a1a19;--ink:#fff;--ink-2:#c3c2b7;--muted:#898781;--grid:#2c2c2a;--ring:rgba(255,255,255,.10);
+--s1:#3987e5;--s2:#d95926;--good:#0ca30c;--bad:#e66767;--warn:#e0a030;--wash:#16263a;--goodw:#12261a;--badw:#2e1717;--warnw:#2b2312}
+*{box-sizing:border-box}body{margin:0;background:var(--page);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:1120px;margin:0 auto;padding:20px 16px 64px}a{color:var(--s1)}
+nav{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;margin-bottom:14px}nav a.on{font-weight:650;color:var(--ink);text-decoration:none}
+h1{font-size:26px;margin:0 0 4px;letter-spacing:-.02em}h2{font-size:17px;margin:0 0 4px}h3{font-size:14px;margin:14px 0 4px}
+.sub{color:var(--ink-2);font-size:13px}.note{font-size:12px;color:var(--muted)}
+.card{background:var(--surface);border:1px solid var(--ring);border-radius:12px;padding:16px;margin:14px 0}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:14px 0}
+.tile{background:var(--surface);border:1px solid var(--ring);border-radius:12px;padding:10px 12px}
+.tile .k{color:var(--ink-2);font-size:11px;text-transform:uppercase;letter-spacing:.04em}.tile .v{font-size:21px;font-weight:650}
+table{width:100%;border-collapse:collapse;font-size:13px}th{text-align:left;color:var(--muted);font-weight:500;padding:6px 8px;border-bottom:1px solid var(--grid);white-space:nowrap}
+th[data-sort]{cursor:pointer}td{padding:6px 8px;border-bottom:1px solid var(--grid);vertical-align:top;font-variant-numeric:tabular-nums}
+.scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.badge{display:inline-block;border-radius:6px;padding:1px 7px;font-size:12px;background:var(--wash);white-space:nowrap}
+.b-good{background:var(--goodw);color:var(--good)}.b-bad{background:var(--badw);color:var(--bad)}.b-warn{background:var(--warnw);color:var(--warn)}
+.good{color:var(--good)}.bad{color:var(--bad)}.muted{color:var(--muted)}.mono{font-family:ui-monospace,Consolas,monospace;font-size:12px}
+.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:8px 0;font-size:13px}
+select,input[type=search]{font:inherit;font-size:13px;padding:5px 8px;border-radius:8px;border:1px solid var(--ring);background:var(--surface);color:var(--ink);max-width:100%}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:16px}@media(max-width:760px){.two{grid-template-columns:1fr}}
+svg{display:block;width:100%;height:auto;overflow:visible}details{margin:2px 0}summary{cursor:pointer;color:var(--s1)}
+pre{white-space:pre-wrap;word-break:break-word;font-size:11px;background:var(--page);padding:8px;border-radius:8px;max-height:260px;overflow:auto}
+.bar{height:10px;border-radius:5px;background:var(--grid);overflow:hidden;display:flex;min-width:80px}.bar i{display:block;height:100%}
+.hist{border-left:2px solid var(--grid);margin:4px 0 4px 6px;padding-left:10px;font-size:12px}
+.hist div{margin:2px 0}.hidden{display:none}
+</style></head><body><main>
+<nav><a href="./">Dashboard</a><a href="explorer.html">Pattern Explorer</a><a href="sensitivity2.html">Sensitivity</a><a href="runs.html" class=on>Runs and registry</a><a href="checklist.html">Checklist and unproven</a></nav>
+<h1>Runs and registry</h1><div class="sub">Every blind simulated year that has been revealed, the weekly self-adjustments, and the append-only registry of experiments.</div>
+<section class="tiles"><div class="tile"><div class="k">Revealed windows</div><div class="v">39</div><div class="note">0 still sealed and not shown</div></div><div class="tile"><div class="k">Beat the market</div><div class="v">26 of 39</div></div><div class="tile"><div class="k">Weeks at +7% or better</div><div class="v">122</div></div><div class="tile"><div class="k">Registry records</div><div class="v">53</div></div><div class="tile"><div class="k">Report files</div><div class="v">31</div></div></section><section class="card"><h2>Blind simulated years</h2><div class="sub">Each row is one 12-month window that was tested blind and has since been revealed. Windows still sealed are not listed, and their contents are never read by this site. Mean-week trend across windows: <svg viewBox="0 0 120 26" width="120" height="26" role="img" aria-label="trend over 39 points" style="display:inline-block;width:120px"><line x1="0" x2="120" y1="17.0" y2="17.0" stroke="var(--axis, var(--grid))" stroke-dasharray="2 2"/><polyline fill="none" stroke="var(--s1)" stroke-width="1.6" points="2.0,16.0 5.1,22.1 8.1,15.7 11.2,17.1 14.2,7.1 17.3,11.0 20.3,13.7 23.4,12.0 26.4,23.4 29.5,12.8 32.5,9.7 35.6,15.4 38.6,16.1 41.7,11.4 44.7,10.7 47.8,18.4 50.8,8.5 53.9,13.6 56.9,14.1 60.0,10.0 63.1,15.3 66.1,16.9 69.2,9.0 72.2,11.0 75.3,6.8 78.3,16.0 81.4,24.0 84.4,2.0 87.5,12.5 90.5,15.0 93.6,20.3 96.6,11.9 99.7,9.9 102.7,10.0 105.8,7.8 108.8,14.6 111.9,6.4 114.9,14.0 118.0,18.6"/></svg></div><div class="controls" data-table="cycles"><input type="search" placeholder="Search runs" aria-label="Search runs"><label>Era <select data-col="era"><option value="">all</option><option value="1960s">1960s</option><option value="1970s">1970s</option><option value="1980s">1980s</option><option value="1990s">1990s</option><option value="2000s">2000s</option><option value="2010s">2010s</option><option value="2020s">2020s</option></select></label><span class="note count"></span></div><div class="scroll"><table id="cycles" class="sortable"><thead><tr><th data-sort>Run</th><th data-sort>Year</th><th data-sort>Era</th><th data-sort>Mean week</th><th data-sort>Weeks ≥ +7%</th><th data-sort>Weeks ≤ −7%</th><th data-sort>Year return</th><th data-sort>Market</th><th>vs market</th><th data-sort>Max drawdown</th><th data-sort>Brakes</th></tr></thead><tbody><tr data-era="1960s"><td class=""><span class="mono">r11c</span></td><td class="" data-v="1967">1967</td><td class="">1960s</td><td class="good" data-v="0.008932500236393871">+0.89%</td><td class="" data-v="3">3</td><td class="" data-v="0">0</td><td class="good" data-v="0.5449518896970331">+54.5%</td><td class="" data-v="0.20092058181762695">+20.1%</td><td class=""><span class="badge b-good">beat</span></td><td class="bad" data-v="-0.13075988069931344">-13.1%</td><td class="" data-v="2">2</td></tr><tr data-era="1960s"><td class=""><span class="mono">r06a</span></td><td class="" data-v="1968">1968</td><td class="">1960s</td><td class="bad" data-v="-0.001751590594474897">-0.18%</td><td class="" data-v="1">1</td><td class="" data-v="0">0</td><td class="bad" data-v="-0.110858395197164">-11.1%</td><td class="" data-v="0.07660436630249023">+7.7%</td><td class=""><span class="badge b-bad">lost</span></td><td class="bad" data-v="-0.21380125195946686">-21.4%</td><td class="" data-v="0">0</td></tr><tr data-era="1960s"><td class=""><span class="mono">r01b</span></td><td class="" data-v="1969">1969</td><td class="">1960s</td><td class="bad" data-v="-0.006462662764837595">-0.65%</td><td class="" data-v="0">0</td><td class="bad" data-v="1">1</td><td class="bad" data-v="-0.30530285020695647">-30.5%</td><td class="" data-v="-0.12106192111968994">-12.1%</td><td class=""><span class="badge b-bad">lost</span></td><td class="bad" data-v="-0.39319433905007817">-39.3%</td><td class="" data-v="1">1</td></tr><tr data-era="1970s"><td class=""><span class="mono">r08c</span></td><td class="" data-v="1971">1971</td><td class="">1970s</td><td class="good" data-v="0.007491842193986191">+0.75%</td><td class="" data-v="1">1</td><td class="" data-v="0">0</td><td class="good" data-v="0.431843464911686">+43.2%</td><td class="" data-v="0.10786759853363037">+10.8%</td><td class=""><span class="badge b-good">beat</span></td><td class="bad" data-v="-0.23777018638355307">-23.8%</td><td class="" data-v="0">0</td></tr><tr data-era="1970s"><td class=""><span class="mono">r07c</span></td><td class="" data-v="1974">1974</td><td class="">1970s</td><td class="good" data-v="0.0020472960540720126">+0.20%</td><td class="" data-v="6">6</td><td class="bad" data-v="4">4</td><td class="good" data-v="0.03953903965454586">+4.0%</td><td class="" data-v="-0.29710865020751953">-29.7%</td><td class=""><span class="badge b-good">beat</span></td><td class="bad" data-v="-0.30641492365433953">-30.6%</td><td class="" data-v="2">2</td></tr><tr data-era="1970s"><td class=""><span class="mono">r03a</span></td><td class="" data-v="1975">1975</td><td class="">1970s</td><td class="good" data-v="0.0040986058251988545">+0.41%</td><td class="" data-v="0">0</td><td class="" data-v="0">0</td><td class="good" data-v="0.21164184620700932">+21.2%</td><td class="" data-v="0.34331321716308594">+34.3%</td><td class=""><span class="badge b-bad">lost</span></td><td class="bad" data-v="-0.2822688212314054">-28.2%</td><td class="" data-v="1">1</td></tr><tr data-era="1970s"><td class=""><span class="mono">r04a</span></td><td class="" data-v="1976">1976</td><td class="">1970s</td><td class="good" data-v="0.005301616014768757">+0.53%</td><td class="" data-v="3">3</td><td class="" data-v="0">0</td><td class="good" data-v="0.28958033366411273">+29.0%</td><td class="" data-v="0.19069266319274902">+19.1%</td><td class=""><span class="badge b-good">beat</span></td><td class="bad" data-v="-0.10632007575103175">-10.6%</td><td class="" data-v="0">0</td></tr><tr data-era="1970s"><td class=""><span class="mono">r08a</span></td><td class="" data-v="1977">1977</td><td class="">1970s</td><td class="good" data-v="0.00011802798741906237">+0.01%</td><td class="" data-v="0">0</td><td class="" data-v="0">0</td><td class="bad" data-v="-0.00717744999590364">-0.7%</td><td class="" data-v="-0.11501938104629517">-11.5%</td><td class=""><span class="badge b-good">beat</span></td><td class="bad" data-v="-0.16952196322403545">-17.0%</td><td class="" data-v="0">0</td></tr><tr data-era="1970s"><td class=""><span class="mono">r08b</span></td><td class="" data-v="1978">1978</td><td class="">1970s</td><td class="good" data-v="0.01006756593888308">+1.01%</td><td class="" data-v="3">3</td><td class="bad" data-v="2">2</td><td class="good" data-v="0.6118773609536652">+61.2%</td><td class="" data-v="0.0106201171875">+1.1%</td><td class=""><span class="badge b-good">beat</span></td><td class="bad" data-v="-0.19317471369440353">-19.3%</td><td class="" data-v="0">0</td></tr><tr data-era="1970s"><td class=""><span class="mono">r05b</span></td><td class="" data-v="1979">1979</td><td class="">1970s</td><td class="good" data-v="0.0070139561773323485">+0.70%</td><td class="" data-v="2">2</td><td class="bad" data-v="1">1</td><td class="good" data-v="0.41576106980785155">+41.6%</td><td class="" data-v="0.12308704853057861">+12.3%</td><td class=""><span class="badge b-good">beat</span></td><td class="bad" data-v="-0.13646205278563572">-13.6%</td><td class="" data-v="1">1</td></tr><tr data-era="1980s"><td class=""><span class="mono">r09a</span></td><td class="" data-v="1980">1980</td><td class="">1980s</td><td class="good" data-v="0.012851494346087596">+1.29%</td><td class="" data-v="3">3</td><td class="" data-v="0">0</td><td class="good" data-v="0.8915652313090692">+89.2%</td><td class="" data-v="0.2589021921157837">+25.9%</td><td class=""><span class="badge b-good">beat</span></td><td class="bad" data-v="-0.22380499087208028">-22.4%</td><td class="" data-v="0">0</td></tr><tr data-era="1980s"><td class=""><span class="mono">r11a</span></td><td class="" data-v="1981">1981</td><td class="">1980s</td><td class="bad" data-v="-0.004160336655943406">-0.42%</td><td class="" data-v="0">0</td><td class="bad" data-v="1">1</td><td class="bad" data-v="-0.21271831628032656">-21.3%</td><td class="" data-v="-0.10265803337097168">-10.3%</td><td class=""><span class="badge b-bad">lost</span></td><td class="bad" data-v="-0.26729524109663805">-26.7%</td><td class="" data-v="4">4</td></tr><tr data-era="1980s"><td class=""><span class="mono">r02b</span></td><td class="" data-v="1983">1983</td><td class="">1980s</td><td class="good" data-v="0.012412763320525082">+1.24%</td><td class="" data-v="2">2</td><td class="" data-v="0">0</td><td class="good" data-v="0.8431275092833357">+84.3%</td><td class="" data-v="0.17270970344543457">+17.3%</td><td class=""><span class="badge b-good">beat</span></td><td class="bad" data-v="-0.13446750834796795">-13.4%</td><td class="" data-v="0">0</td></tr><tr data-era="1980s"><td class=""><span class="mono">r03b</span></td><td class="" data-v="1984">1984</td><td class="">1980s</td><td class="good" data-v="0.006273537707768814">+0.63%</td><td class="" data-v="6">6</td><td class="bad" data-v="3">3</td><td class="good" data-v="0.3238820917280776">+32.4%</td><td class="" data-v="0.014005899429321289">+1.4%</td><td class=""><span class="badge b-good">beat</span></td><td class="bad" data-v="-0.25599323398532825">-25.6%</td><td class="" data-v="2">2</td></tr><tr data-era="1980s"><td class=""><span class="mono">r12b</span></td><td class="" data-v="1985">1985</td><td class="">1980s</td><td class="good" data-v="0.011524142230832925">+1.15%</td><td class="" data-v="3">3</td><td class="bad" data-v="2">2</td><td class="good" data-v="0.750711739286201">+75.1%</td><td class="" data-v="0.2707812786102295">+27.1%</td><td class=""><span class="badge b-good">beat</span></td><td class="bad" data-v="-0.1783576557222628">-17.8%</td><td class="" data-v="3">3</td></tr><tr data-era="1980s"><td class=""><span class="mono">r01c</span></td><td class="" data-v="1987">1987</td><td class="">1980s</td><td class="good" data-v="0.001639743909388585">+0.16%</td><td class="" data-v="3">3</td><td class="bad" data-v="3">3</td><td class="good" data-v="0.019288011348664424">+1.9%</td><td class="" data-v="0.0006477832794189453">+0.1%</td><td class=""><span class="badge b-good">beat</span></td><td class="bad" data-v="-0.4207230764228015">-42.1%</td><td class="" data-v="3">3</td></tr><tr data-era="1980s"><td class=""><span class="mono">r02a</span></td><td class="" data-v="1987">1987</td><td class="">1980s</td><td class="bad" data-v="-0.00014761176306238194">-0.01%</td><td class="" data-v="4">4</td><td class="bad" data-v="4">4</td><td class="bad" data-v="-0.07030717822531019">-7.0%</td><td class="" data-v="0.0006477832794189453">+0.1%</td><td class=""><span class="badge b-bad">lost</span></td><td class="bad" data-v="-0.47384817800183243">-47.4%</td><td class="" data-v="4">4</td></tr><tr data-era="1980s"><td class=""><span class="mono">r12a</span></td><td class="" data-v="1988">1988</td><td class="">1980s</td><td class="good" data-v="0.008762965504049163">+0.88%</td><td class="" data-v="3">3</td><td class="" data-v="0">0</td><td class="good" data-v="0.5321233125891931">+53.2%</td><td class="" data-v="0.12400829792022705">+12.4%</td><td class=""><span class="badge b-good">beat</span></td><td class="bad" data-v="-0.11479761197095639">-11.5%</td><td class="" data-v="0">0</td></tr><tr data-era="1980s"><td class=""><span class="mono">r06b</span></td><td class="" data-v="1989">1989</td><td class="">1980s</td><td class="good" data-v="0.010632680617548377">+1.06%</td><td class="" data-v="4">4</td><td class="bad" data-v="1">1</td><td class="good" data-v="0.6720423050721525">+67.2%</td><td class="" data-v="0.2725043296813965">+27.3%</td><td class=""><span class="badge b-good">beat</span></td><td class="bad" data-v="-0.21176477976930286">-21.2%</td><td class="" data-v="0">0</td></tr><tr data-era="1990s"><td class=""><span class="mono">r12c</span></td><td class="" data-v="1993">1993</td><td class="">1990s</td><td class="good" data-v="0.0029716158388307825">+0.30%</td><td class="" data-v="4">4</td><td class="bad" data-v="3">3</td><td class="good" data-v="0.10781866584501687">+10.8%</td><td class="" data-v="0.07055127620697021">+7.1%</td><td class=""><span class="badge b-good">beat</span></td><td class="bad" data-v="-0.21345516497987105">-21.3%</td><td class="" data-v="3">3</td></tr><tr data-era="1990s"><td class=""><span class="mono">r05a</span></td><td class="" data-v="1994">1994</td><td class="">1990s</td><td class="good" data-v="0.0011513838950091048">+0.12%</td><td class="" data-v="9">9</td><td class="bad" data-v="4">4</td><td class="bad" data-v="-0.06709504954154599">-6.7%</td><td class="" data-v="-0.015392780303955078">-1.5%</td><td class=""><span class="badge b-bad">lost</span></td><td class="bad" data-v="-0.431475580181907">-43.1%</td><td class="" data-v="3">3</td></tr><tr data-era="1990s"><td class=""><span class="mono">r13a</span></td><td class="" data-v="1995">1995</td><td class="">1990s</td><td class="good" data-v="0.01327506936455821">+1.33%</td><td class="" data-v="3">3</td><td class="" data-v="0">0</td><td class="good" data-v="0.9137428290294034">+91.4%</td><td class="" data-v="0.3411067724227905">+34.1%</td><td class=""><span class="badge b-good">beat</span></td><td class="bad" data-v="-0.13052552436732678">-13.1%</td><td class="" data-v="0">0</td></tr><tr data-era="1990s"><td class=""><span class="mono">r07b</span></td><td class="" data-v="1996">1996</td><td class="">1990s</td><td class="good" data-v="0.00877866079568418">+0.88%</td><td class="" data-v="2">2</td><td class="bad" data-v="4">4</td><td class="good" data-v="0.490155112206873">+49.0%</td><td class="" data-v="0.20263707637786865">+20.3%</td><td class=""><span class="badge b-good">beat</span></td><td class="bad" data-v="-0.3012994510696616">-30.1%</td><td class="" data-v="1">1</td></tr><tr data-era="1990s"><td class=""><span class="mono">r05c</span></td><td class="" data-v="1999">1999</td><td class="">1990s</td><td class="good" data-v="0.00789296107296945">+0.79%</td><td class="" data-v="4">4</td><td class="bad" data-v="6">6</td><td class="good" data-v="0.3646238704383966">+36.5%</td><td class="" data-v="0.1952606439590454">+19.5%</td><td class=""><span class="badge b-good">beat</span></td><td class="bad" data-v="-0.331050732702141">-33.1%</td><td class="" data-v="5">5</td></tr><tr data-era="2000s"><td class=""><span class="mono">r11b</span></td><td class="" data-v="2004">2004</td><td class="">2000s</td><td class="good" data-v="0.006334425420672541">+0.63%</td><td class="" data-v="2">2</td><td class="bad" data-v="2">2</td><td class="good" data-v="0.3472047500126558">+34.7%</td><td class="" data-v="0.12292337417602539">+12.3%</td><td class=""><span class="badge b-good">beat</span></td><td class="bad" data-v="-0.1517145361886708">-15.2%</td><td class="" data-v="4">4</td></tr><tr data-era="2000s"><td class=""><span class="mono">r02c</span></td><td class="" data-v="2005">2005</td><td class="">2000s</td><td class="good" data-v="0.0075455963325243465">+0.75%</td><td class="" data-v="3">3</td><td class="" data-v="0">0</td><td class="good" data-v="0.4251226723012833">+42.5%</td><td class="" data-v="0.04828190803527832">+4.8%</td><td class=""><span class="badge b-good">beat</span></td><td class="bad" data-v="-0.18377581032266843">-18.4%</td><td class="" data-v="0">0</td></tr><tr data-era="2000s"><td class=""><span class="mono">r04b</span></td><td class="" data-v="2006">2006</td><td class="">2000s</td><td class="good" data-v="0.00910115553024199">+0.91%</td><td class="" data-v="3">3</td><td class="bad" data-v="2">2</td><td class="good" data-v="0.533105339602572">+53.3%</td><td class="" data-v="0.15845239162445068">+15.8%</td><td class=""><span class="badge b-good">beat</span></td><td class="bad" data-v="-0.15301839231633796">-15.3%</td><td class="" data-v="2">2</td></tr><tr data-era="2000s"><td class=""><span class="mono">r10b</span></td><td class="" data-v="2008">2008</td><td class="">2000s</td><td class="good" data-v="0.005643178679871211">+0.56%</td><td class="" data-v="10">10</td><td class="bad" data-v="9">9</td><td class="bad" data-v="-0.01361075534784506">-1.4%</td><td class="" data-v="-0.3726271390914917">-37.3%</td><td class=""><span class="badge b-good">beat</span></td><td class="bad" data-v="-0.6907762476826456">-69.1%</td><td class="" data-v="0">0</td></tr><tr data-era="2000s"><td class=""><span class="mono">r10c</span></td><td class="" data-v="2008">2008</td><td class="">2000s</td><td class="good" data-v="0.002497112381098116">+0.25%</td><td class="" data-v="12">12</td><td class="bad" data-v="10">10</td><td class="bad" data-v="-0.09809779834842491">-9.8%</td><td class="" data-v="-0.3726271390914917">-37.3%</td><td class=""><span class="badge b-good">beat</span></td><td class="bad" data-v="-0.6136498659356414">-61.4%</td><td class="" data-v="0">0</td></tr><tr data-era="2010s"><td class=""><span class="mono">r13c</span></td><td class="" data-v="2011">2011</td><td class="">2010s</td><td class="bad" data-v="-0.0020597168859431947">-0.21%</td><td class="" data-v="4">4</td><td class="bad" data-v="3">3</td><td class="bad" data-v="-0.15029604679759168">-15.0%</td><td class="" data-v="0.01894998550415039">+1.9%</td><td class=""><span class="badge b-bad">lost</span></td><td class="bad" data-v="-0.32126762547308574">-32.1%</td><td class="" data-v="3">3</td></tr><tr data-era="2010s"><td class=""><span class="mono">r13b</span></td><td class="" data-v="2015">2015</td><td class="">2010s</td><td class="good" data-v="0.0037227033311030906">+0.37%</td><td class="" data-v="0">0</td><td class="" data-v="0">0</td><td class="good" data-v="0.20644151537804523">+20.6%</td><td class="" data-v="-0.0017415285110473633">-0.2%</td><td class=""><span class="badge b-good">beat</span></td><td class="bad" data-v="-0.08473170999169788">-8.5%</td><td class="" data-v="0">0</td></tr><tr data-era="2010s"><td class=""><span class="mono">r01a</span></td><td class="" data-v="2016">2016</td><td class="">2010s</td><td class="good" data-v="0.001195917025331721">+0.12%</td><td class="" data-v="1">1</td><td class="bad" data-v="2">2</td><td class="good" data-v="0.03003157803393086">+3.0%</td><td class="" data-v="0.11997866630554199">+12.0%</td><td class=""><span class="badge b-bad">lost</span></td><td class="bad" data-v="-0.20200383273979716">-20.2%</td><td class="" data-v="2">2</td></tr><tr data-era="2010s"><td class=""><span class="mono">r04c</span></td><td class="" data-v="2017">2017</td><td class="">2010s</td><td class="good" data-v="0.002003910541966817">+0.20%</td><td class="" data-v="1">1</td><td class="bad" data-v="1">1</td><td class="good" data-v="0.046709548538641066">+4.7%</td><td class="" data-v="0.21705377101898193">+21.7%</td><td class=""><span class="badge b-bad">lost</span></td><td class="bad" data-v="-0.29003265568007386">-29.0%</td><td class="" data-v="1">1</td></tr><tr data-era="2010s"><td class=""><span class="mono">r09b</span></td><td class="" data-v="2018">2018</td><td class="">2010s</td><td class="good" data-v="0.0012199989371280448">+0.12%</td><td class="" data-v="3">3</td><td class="bad" data-v="3">3</td><td class="good" data-v="0.012207448402772547">+1.2%</td><td class="" data-v="-0.045689523220062256">-4.6%</td><td class=""><span class="badge b-good">beat</span></td><td class="bad" data-v="-0.2442601088603542">-24.4%</td><td class="" data-v="0">0</td></tr><tr data-era="2010s"><td class=""><span class="mono">r06c</span></td><td class="" data-v="2019">2019</td><td class="">2010s</td><td class="good" data-v="0.004198359471033243">+0.42%</td><td class="" data-v="0">0</td><td class="" data-v="0">0</td><td class="good" data-v="0.2426237713810926">+24.3%</td><td class="" data-v="0.32373154163360596">+32.4%</td><td class=""><span class="badge b-bad">lost</span></td><td class="bad" data-v="-0.04141879772331236">-4.1%</td><td class="" data-v="0">0</td></tr><tr data-era="2020s"><td class=""><span class="mono">r10a</span></td><td class="" data-v="2020">2020</td><td class="">2020s</td><td class="good" data-v="0.01886119407642533">+1.89%</td><td class="" data-v="10">10</td><td class="bad" data-v="6">6</td><td class="good" data-v="1.1783820700008727">+117.8%</td><td class="" data-v="0.17965209484100342">+18.0%</td><td class=""><span class="badge b-good">beat</span></td><td class="bad" data-v="-0.5731727528917505">-57.3%</td><td class="" data-v="0">0</td></tr><tr data-era="2020s"><td class=""><span class="mono">r03c</span></td><td class="" data-v="2022">2022</td><td class="">2020s</td><td class="bad" data-v="-0.008106371055803684">-0.81%</td><td class="" data-v="3">3</td><td class="bad" data-v="3">3</td><td class="bad" data-v="-0.3908012320215203">-39.1%</td><td class="" data-v="-0.1817535161972046">-18.2%</td><td class=""><span class="badge b-bad">lost</span></td><td class="bad" data-v="-0.4982125569882355">-49.8%</td><td class="" data-v="2">2</td></tr><tr data-era="2020s"><td class=""><span class="mono">r07a</span></td><td class="" data-v="2023">2023</td><td class="">2020s</td><td class="good" data-v="0.0036144870085324885">+0.36%</td><td class="" data-v="1">1</td><td class="" data-v="0">0</td><td class="good" data-v="0.18726450889941804">+18.7%</td><td class="" data-v="0.26175713539123535">+26.2%</td><td class=""><span class="badge b-bad">lost</span></td><td class="bad" data-v="-0.11184396614776781">-11.2%</td><td class="" data-v="0">0</td></tr><tr data-era="2020s"><td class=""><span class="mono">r09c</span></td><td class="" data-v="2025">2025</td><td class="">2020s</td><td class="bad" data-v="-0.008856250025580567">-0.89%</td><td class="" data-v="0">0</td><td class="bad" data-v="1">1</td><td class="bad" data-v="-0.39374904512719555">-39.4%</td><td class="" data-v="0.15952301025390625">+16.0%</td><td class=""><span class="badge b-bad">lost</span></td><td class="bad" data-v="-0.42627034999950897">-42.6%</td><td class="" data-v="0">0</td></tr></tbody></table></div></section><section class="card"><h2>By era</h2><div class="scroll"><table id="eras" class="sortable"><thead><tr><th data-sort>Era</th><th data-sort>Windows</th><th data-sort>Mean weekly return</th><th data-sort>Beat market</th><th data-sort>Weeks ≥ +7% per window</th><th data-sort>Worst drawdown</th></tr></thead><tbody><tr><td class=""><b>1960s</b></td><td class="" data-v="3">3</td><td class="good" data-v="0.00023941562569379285">+0.02%</td><td class="" data-v="0.3333333333333333">33%</td><td class="" data-v="1.3333333333333333">1.33</td><td class="bad" data-v="-0.39319433905007817">-39.3%</td></tr><tr><td class=""><b>1970s</b></td><td class="" data-v="7">7</td><td class="good" data-v="0.005162701455951472">+0.52%</td><td class="" data-v="0.8571428571428571">86%</td><td class="" data-v="2.142857142857143">2.14</td><td class="bad" data-v="-0.30641492365433953">-30.6%</td></tr><tr><td class=""><b>1980s</b></td><td class="" data-v="9">9</td><td class="good" data-v="0.006643264357466084">+0.66%</td><td class="" data-v="0.7777777777777778">78%</td><td class="" data-v="3.111111111111111">3.11</td><td class="bad" data-v="-0.47384817800183243">-47.4%</td></tr><tr><td class=""><b>1990s</b></td><td class="" data-v="5">5</td><td class="good" data-v="0.006813938193410346">+0.68%</td><td class="" data-v="0.8">80%</td><td class="" data-v="4.4">4.40</td><td class="bad" data-v="-0.431475580181907">-43.1%</td></tr><tr><td class=""><b>2000s</b></td><td class="" data-v="5">5</td><td class="good" data-v="0.006224293668881642">+0.62%</td><td class="" data-v="1.0">100%</td><td class="" data-v="6.0">6.00</td><td class="bad" data-v="-0.6907762476826456">-69.1%</td></tr><tr><td class=""><b>2010s</b></td><td class="" data-v="6">6</td><td class="good" data-v="0.0017135287367699536">+0.17%</td><td class="" data-v="0.3333333333333333">33%</td><td class="" data-v="1.5">1.50</td><td class="bad" data-v="-0.32126762547308574">-32.1%</td></tr><tr><td class=""><b>2020s</b></td><td class="" data-v="4">4</td><td class="good" data-v="0.0013782650008933917">+0.14%</td><td class="" data-v="0.25">25%</td><td class="" data-v="3.5">3.50</td><td class="bad" data-v="-0.5731727528917505">-57.3%</td></tr></tbody></table></div><div class="note">Eras with few windows say little; the count is shown for that reason.</div></section><section class="card"><h2>Weekly self-adjustment rounds</h2><div class="scroll"><table id="rounds" class="sortable"><thead><tr><th data-sort>Round</th><th>Adjustment</th><th data-sort>Avg week before</th><th data-sort>Avg week after</th><th>Note</th></tr></thead><tbody><tr><td class="" data-v="1">1</td><td class=""><span class="badge b-good">adopted</span></td><td class="" data-v="-0.0019121359192779007">-0.191%</td><td class="" data-v="0.001687644595717729">+0.169%</td><td class=""><span class="badge b-bad">voided</span> re-tester did not reproduce the live trader (sold names stayed &#x27;held&#x27;); adjustment discarded</td></tr><tr><td class="" data-v="2">2</td><td class=""><span class="badge b-good">adopted</span></td><td class="" data-v="0.00268905206242067">+0.269%</td><td class="" data-v="0.007019699746209877">+0.702%</td><td class=""></td></tr><tr><td class="" data-v="3">3</td><td class=""><span class="badge ">not adopted</span></td><td class="" data-v="0.0049289577858786715">+0.493%</td><td class="" data-v="0.0049289577858786715">+0.493%</td><td class=""></td></tr><tr><td class="" data-v="4">4</td><td class=""><span class="badge ">not adopted</span></td><td class="" data-v="0.005064328531324389">+0.506%</td><td class="" data-v="0.005064328531324389">+0.506%</td><td class=""></td></tr><tr><td class="" data-v="5">5</td><td class=""><span class="badge ">not adopted</span></td><td class="" data-v="0.005120196633791385">+0.512%</td><td class="" data-v="0.005120196633791385">+0.512%</td><td class=""></td></tr><tr><td class="" data-v="6">6</td><td class=""><span class="badge ">not adopted</span></td><td class="" data-v="0.004993466611165417">+0.499%</td><td class="" data-v="0.005480031181664906">+0.548%</td><td class=""></td></tr><tr><td class="" data-v="7">7</td><td class=""><span class="badge b-good">adopted</span></td><td class="" data-v="0.004967001801055299">+0.497%</td><td class="" data-v="0.005742160945903447">+0.574%</td><td class=""></td></tr><tr><td class="" data-v="8">8</td><td class=""><span class="badge ">not adopted</span></td><td class="" data-v="0.005760950666010868">+0.576%</td><td class="" data-v="0.005870183724497578">+0.587%</td><td class=""></td></tr><tr><td class="" data-v="9">9</td><td class=""><span class="badge ">not adopted</span></td><td class="" data-v="0.005314002194144292">+0.531%</td><td class="" data-v="0.0056484836665274315">+0.565%</td><td class=""></td></tr><tr><td class="" data-v="10">10</td><td class=""><span class="badge b-good">adopted</span></td><td class="" data-v="0.005682651479309687">+0.568%</td><td class="" data-v="0.004194719758446363">+0.419%</td><td class=""></td></tr><tr><td class="" data-v="11">11</td><td class=""><span class="badge b-good">adopted</span></td><td class="" data-v="0.00415005188416608">+0.415%</td><td class="" data-v="0.005226036116705005">+0.523%</td><td class=""></td></tr><tr><td class="" data-v="12">12</td><td class=""><span class="badge b-good">adopted</span></td><td class="" data-v="0.005492163175472239">+0.549%</td><td class="" data-v="0.006481682266182494">+0.648%</td><td class=""></td></tr><tr><td class="" data-v="13">13</td><td class=""><span class="badge ">not adopted</span></td><td class="" data-v="0.006365915632239772">+0.637%</td><td class="" data-v="0.006365915632239772">+0.637%</td><td class=""></td></tr></tbody></table></div></section><section class="card"><h2>Experiment registry</h2><div class="sub">Append-only log of every experiment, including failures. Sort by column or filter by event.</div><div class="two"><div><div class="scroll"><table id="evcount" class="sortable"><thead><tr><th data-sort>Event</th><th data-sort>Records</th></tr></thead><tbody><tr><td class="">livesim_cycle</td><td class="" data-v="39">39</td></tr><tr><td class="">frontier</td><td class="" data-v="2">2</td></tr><tr><td class="">historical_test</td><td class="" data-v="2">2</td></tr><tr><td class="">tuning_lab</td><td class="" data-v="2">2</td></tr><tr><td class="">planted_calibration</td><td class="" data-v="2">2</td></tr><tr><td class="">walk_forward</td><td class="" data-v="1">1</td></tr><tr><td class="">topk_rules</td><td class="" data-v="1">1</td></tr><tr><td class="">challenger_historical</td><td class="" data-v="1">1</td></tr><tr><td class="">rolled_back</td><td class="" data-v="1">1</td></tr><tr><td class="">replay_year</td><td class="" data-v="1">1</td></tr><tr><td class="">voided_adjustment</td><td class="" data-v="1">1</td></tr></tbody></table></div></div><div><div class="scroll"><table id="cov" class=""><thead><tr><th>Provenance field</th><th>Records that carry it</th></tr></thead><tbody><tr><td class=""><span class="mono">git_commit</span></td><td class="" data-v="0.03773584905660377">4% <span class="bad">(early records predate it)</span></td></tr><tr><td class=""><span class="mono">canon_sha</span></td><td class="" data-v="0.03773584905660377">4% <span class="bad">(early records predate it)</span></td></tr><tr><td class=""><span class="mono">bible_sha</span></td><td class="" data-v="0.03773584905660377">4% <span class="bad">(early records predate it)</span></td></tr><tr><td class=""><span class="mono">blueprint_version</span></td><td class="" data-v="0.03773584905660377">4% <span class="bad">(early records predate it)</span></td></tr><tr><td class=""><span class="mono">config_hash</span></td><td class="" data-v="0.0">0% <span class="bad">(early records predate it)</span></td></tr><tr><td class=""><span class="mono">data_snapshot</span></td><td class="" data-v="0.03773584905660377">4% <span class="bad">(early records predate it)</span></td></tr><tr><td class=""><span class="mono">seed</span></td><td class="" data-v="0.03773584905660377">4% <span class="bad">(early records predate it)</span></td></tr></tbody></table></div></div></div><div class="controls" data-table="registry"><input type="search" placeholder="Search experiments" aria-label="Search experiments"><label>Event <select data-col="event"><option value="">all</option><option value="challenger_historical">challenger_historical</option><option value="frontier">frontier</option><option value="historical_test">historical_test</option><option value="livesim_cycle">livesim_cycle</option><option value="planted_calibration">planted_calibration</option><option value="replay_year">replay_year</option><option value="rolled_back">rolled_back</option><option value="topk_rules">topk_rules</option><option value="tuning_lab">tuning_lab</option><option value="voided_adjustment">voided_adjustment</option><option value="walk_forward">walk_forward</option></select></label><span class="note count"></span></div><div class="scroll"><table id="registry" class="sortable"><thead><tr><th data-sort>When</th><th data-sort>Event</th><th>Experiment id</th><th>Result</th><th>Provenance</th></tr></thead><tbody><tr data-event="planted_calibration"><td class="" data-v="2026-09-29T03:30:59">2026-09-29T03:30:59</td><td class=""><span class="badge ">planted_calibration</span></td><td class=""><span class="mono">E7567704133</span></td><td class="">seeds=8, false_active_per_run=0.125, active_per_run=5, false_share_of_active=0.025<div class="note">recovery: 4 entries; calibration: 5 entries</div><details><summary>record</summary><pre>{
+ &quot;t&quot;: &quot;2026-09-29T03:30:59&quot;,
+ &quot;git_commit&quot;: &quot;72950a8ede936788e4c21620a902065f39bbab64+dirty&quot;,
+ &quot;canon_sha&quot;: &quot;056354e9331f1cde&quot;,
+ &quot;bible_sha&quot;: &quot;a97ea91862cee371&quot;,
+ &quot;blueprint_version&quot;: &quot;4.0&quot;,
+ &quot;config_hash&quot;: null,
+ &quot;data_snapshot&quot;: &quot;5f94924cad053ffd&quot;,
+ &quot;seed&quot;: 100,
+ &quot;event&quot;: &quot;planted_calibration&quot;,
+ &quot;seeds&quot;: 8,
+ &quot;recovery&quot;: {
+  &quot;strong +1.2%&quot;: 1.0,
+  &quot;weak +0.4%&quot;: 1.0,
+  &quot;negative -0.8%&quot;: 1.0,
+  &quot;regime-only +1.0%&quot;: 0.75
+ },
+ &quot;false_active_per_run&quot;: 0.125,
+ &quot;active_per_run&quot;: 5.0,
+ &quot;false_share_of_active&quot;: 0.025,
+ &quot;calibration&quot;: {
+  &quot;(-0.01, 0.2]&quot;: {
+   &quot;share_truly_real&quot;: 0.23541247484909456,
+   &quot;n&quot;: 2485
+  },
+  &quot;(0.2, 0.5]&quot;: {
+   &quot;share_truly_real&quot;: 0.4868421052631579,
+   &quot;n&quot;: 76
+  },
+  &quot;(0.5, 0.8]&quot;: {
+   &quot;share_truly_real&quot;: 0.564935064935065,
+   &quot;n&quot;: 154
+  },
+  &quot;(0.8, 0.9]&quot;: {
+   &quot;share_truly_real&quot;: 0.527027027027027,
+   &quot;n&quot;: 74
+  },
+  &quot;(0.9, 1.0]&quot;: {
+   &quot;share_truly_real&quot;: 0.9640757674722403,
+   &quot;n&quot;: 1531
+  }
+ },
+ &quot;experiment_id&quot;: &quot;E7567704133&quot;
+}</pre></details></td><td class=""><span class="badge">git_commit 72950a8ede</span> <span class="badge">canon_sha 056354e933</span> <span class="badge">bible_sha a97ea91862</span> <span class="badge">blueprint_version 4.0</span> <span class="badge">data_snapshot 5f94924cad</span> <span class="badge">seed 100</span></td></tr><tr data-event="planted_calibration"><td class="" data-v="2026-09-29T03:27:25">2026-09-29T03:27:25</td><td class=""><span class="badge ">planted_calibration</span></td><td class=""><span class="mono">E7605934681</span></td><td class="">seeds=8, false_active_per_run=0.5, active_per_run=38.62, false_share_of_active=0.01294<div class="note">recovery: 4 entries; calibration: 5 entries</div><details><summary>record</summary><pre>{
+ &quot;t&quot;: &quot;2026-09-29T03:27:25&quot;,
+ &quot;git_commit&quot;: &quot;72950a8ede936788e4c21620a902065f39bbab64+dirty&quot;,
+ &quot;canon_sha&quot;: &quot;056354e9331f1cde&quot;,
+ &quot;bible_sha&quot;: &quot;a97ea91862cee371&quot;,
+ &quot;blueprint_version&quot;: &quot;4.0&quot;,
+ &quot;config_hash&quot;: null,
+ &quot;data_snapshot&quot;: &quot;5f94924cad053ffd&quot;,
+ &quot;seed&quot;: 100,
+ &quot;event&quot;: &quot;planted_calibration&quot;,
+ &quot;seeds&quot;: 8,
+ &quot;recovery&quot;: {
+  &quot;strong +1.2%&quot;: 0.75,
+  &quot;weak +0.4%&quot;: 0.75,
+  &quot;negative -0.8%&quot;: 0.5,
+  &quot;regime-only +1.0%&quot;: 0.25
+ },
+ &quot;false_active_per_run&quot;: 0.5,
+ &quot;active_per_run&quot;: 38.625,
+ &quot;false_share_of_active&quot;: 0.012944983818770227,
+ &quot;calibration&quot;: {
+  &quot;(-0.01, 0.2]&quot;: {
+   &quot;share_truly_real&quot;: 0.23541247484909456,
+   &quot;n&quot;: 2485
+  },
+  &quot;(0.2, 0.5]&quot;: {
+   &quot;share_truly_real&quot;: 0.4868421052631579,
+   &quot;n&quot;: 76
+  },
+  &quot;(0.5, 0.8]&quot;: {
+   &quot;share_truly_real&quot;: 0.564935064935065,
+   &quot;n&quot;: 154
+  },
+  &quot;(0.8, 0.9]&quot;: {
+   &quot;share_truly_real&quot;: 0.527027027027027,
+   &quot;n&quot;: 74
+  },
+  &quot;(0.9, 1.0]&quot;: {
+   &quot;share_truly_real&quot;: 0.9640757674722403,
+   &quot;n&quot;: 1531
+  }
+ },
+ &quot;experiment_id&quot;: &quot;E7605934681&quot;
+}</pre></details></td><td class=""><span class="badge">git_commit 72950a8ede</span> <span class="badge">canon_sha 056354e933</span> <span class="badge">bible_sha a97ea91862</span> <span class="badge">blueprint_version 4.0</span> <span class="badge">data_snapshot 5f94924cad</span> <span class="badge">seed 100</span></td></tr><tr data-event="livesim_cycle"><td class="" data-v="2026-09-28T22:48:00">2026-09-28T22:48:00</td><td class=""><span class="badge ">livesim_cycle</span></td><td class=""><span class="mono"></span></td><td class="">run_id=r13a, year=1995, mean_week=0.01328, weeks_ge_7=3, year_return=0.9137, market=0.3411, version=6<details><summary>record</summary><pre>{
+ &quot;t&quot;: &quot;2026-09-28T22:48:00&quot;,
+ &quot;event&quot;: &quot;livesim_cycle&quot;,
+ &quot;run_id&quot;: &quot;r13a&quot;,
+ &quot;year&quot;: 1995,
+ &quot;mean_week&quot;: 0.01327506936455821,
+ &quot;weeks_ge_7&quot;: 3,
+ &quot;year_return&quot;: 0.9137428290294034,
+ &quot;market&quot;: 0.3411067724227905,
+ &quot;version&quot;: 6
+}</pre></details></td><td class=""><span class="muted">no provenance recorded</span></td></tr><tr data-event="livesim_cycle"><td class="" data-v="2026-09-28T22:48:00">2026-09-28T22:48:00</td><td class=""><span class="badge ">livesim_cycle</span></td><td class=""><span class="mono"></span></td><td class="">run_id=r13b, year=2015, mean_week=0.003723, weeks_ge_7=0, year_return=0.2064, market=-0.001742, version=6<details><summary>record</summary><pre>{
+ &quot;t&quot;: &quot;2026-09-28T22:48:00&quot;,
+ &quot;event&quot;: &quot;livesim_cycle&quot;,
+ &quot;run_id&quot;: &quot;r13b&quot;,
+ &quot;year&quot;: 2015,
+ &quot;mean_week&quot;: 0.0037227033311030906,
+ &quot;weeks_ge_7&quot;: 0,
+ &quot;year_return&quot;: 0.20644151537804523,
+ &quot;market&quot;: -0.0017415285110473633,
+ &quot;version&quot;: 6
+}</pre></details></td><td class=""><span class="muted">no provenance recorded</span></td></tr><tr data-event="livesim_cycle"><td class="" data-v="2026-09-28T22:48:00">2026-09-28T22:48:00</td><td class=""><span class="badge ">livesim_cycle</span></td><td class=""><span class="mono"></span></td><td class="">run_id=r13c, year=2011, mean_week=-0.00206, weeks_ge_7=4, year_return=-0.1503, market=0.01895, version=6<details><summary>record</summary><pre>{
+ &quot;t&quot;: &quot;2026-09-28T22:48:00&quot;,
+ &quot;event&quot;: &quot;livesim_cycle&quot;,
+ &quot;run_id&quot;: &quot;r13c&quot;,
+ &quot;year&quot;: 2011,
+ &quot;mean_week&quot;: -0.0020597168859431947,
+ &quot;weeks_ge_7&quot;: 4,
+ &quot;year_return&quot;: -0.15029604679759168,
+ &quot;market&quot;: 0.01894998550415039,
+ &quot;version&quot;: 6
+}</pre></details></td><td class=""><span class="muted">no provenance recorded</span></td></tr><tr data-event="livesim_cycle"><td class="" data-v="2026-09-28T22:35:31">2026-09-28T22:35:31</td><td class=""><span class="badge ">livesim_cycle</span></td><td class=""><span class="mono"></span></td><td class="">run_id=r12a, year=1988, mean_week=0.008763, weeks_ge_7=3, year_return=0.5321, market=0.124, version=5<details><summary>record</summary><pre>{
+ &quot;t&quot;: &quot;2026-09-28T22:35:31&quot;,
+ &quot;event&quot;: &quot;livesim_cycle&quot;,
+ &quot;run_id&quot;: &quot;r12a&quot;,
+ &quot;year&quot;: 1988,
+ &quot;mean_week&quot;: 0.008762965504049163,
+ &quot;weeks_ge_7&quot;: 3,
+ &quot;year_return&quot;: 0.5321233125891931,
+ &quot;market&quot;: 0.12400829792022705,
+ &quot;version&quot;: 5
+}</pre></details></td><td class=""><span class="muted">no provenance recorded</span></td></tr><tr data-event="livesim_cycle"><td class="" data-v="2026-09-28T22:35:31">2026-09-28T22:35:31</td><td class=""><span class="badge ">livesim_cycle</span></td><td class=""><span class="mono"></span></td><td class="">run_id=r12b, year=1985, mean_week=0.01152, weeks_ge_7=3, year_return=0.7507, market=0.2708, version=5<details><summary>record</summary><pre>{
+ &quot;t&quot;: &quot;2026-09-28T22:35:31&quot;,
+ &quot;event&quot;: &quot;livesim_cycle&quot;,
+ &quot;run_id&quot;: &quot;r12b&quot;,
+ &quot;year&quot;: 1985,
+ &quot;mean_week&quot;: 0.011524142230832925,
+ &quot;weeks_ge_7&quot;: 3,
+ &quot;year_return&quot;: 0.750711739286201,
+ &quot;market&quot;: 0.2707812786102295,
+ &quot;version&quot;: 5
+}</pre></details></td><td class=""><span class="muted">no provenance recorded</span></td></tr><tr data-event="livesim_cycle"><td class="" data-v="2026-09-28T22:35:31">2026-09-28T22:35:31</td><td class=""><span class="badge ">livesim_cycle</span></td><td class=""><span class="mono"></span></td><td class="">run_id=r12c, year=1993, mean_week=0.002972, weeks_ge_7=4, year_return=0.1078, market=0.07055, version=5<details><summary>record</summary><pre>{
+ &quot;t&quot;: &quot;2026-09-28T22:35:31&quot;,
+ &quot;event&quot;: &quot;livesim_cycle&quot;,
+ &quot;run_id&quot;: &quot;r12c&quot;,
+ &quot;year&quot;: 1993,
+ &quot;mean_week&quot;: 0.0029716158388307825,
+ &quot;weeks_ge_7&quot;: 4,
+ &quot;year_return&quot;: 0.10781866584501687,
+ &quot;market&quot;: 0.07055127620697021,
+ &quot;version&quot;: 5
+}</pre></details></td><td class=""><span class="muted">no provenance recorded</span></td></tr><tr data-event="livesim_cycle"><td class="" data-v="2026-09-28T22:24:39">2026-09-28T22:24:39</td><td class=""><span class="badge ">livesim_cycle</span></td><td class=""><span class="mono"></span></td><td class="">run_id=r11b, year=2004, mean_week=0.006334, weeks_ge_7=2, year_return=0.3472, market=0.1229, version=4<details><summary>record</summary><pre>{
+ &quot;t&quot;: &quot;2026-09-28T22:24:39&quot;,
+ &quot;event&quot;: &quot;livesim_cycle&quot;,
+ &quot;run_id&quot;: &quot;r11b&quot;,
+ &quot;year&quot;: 2004,
+ &quot;mean_week&quot;: 0.006334425420672541,
+ &quot;weeks_ge_7&quot;: 2,
+ &quot;year_return&quot;: 0.3472047500126558,
+ &quot;market&quot;: 0.12292337417602539,
+ &quot;version&quot;: 4
+}</pre></details></td><td class=""><span class="muted">no provenance recorded</span></td></tr><tr data-event="livesim_cycle"><td class="" data-v="2026-09-28T22:24:39">2026-09-28T22:24:39</td><td class=""><span class="badge ">livesim_cycle</span></td><td class=""><span class="mono"></span></td><td class="">run_id=r11c, year=1967, mean_week=0.008933, weeks_ge_7=3, year_return=0.545, market=0.2009, version=4<details><summary>record</summary><pre>{
+ &quot;t&quot;: &quot;2026-09-28T22:24:39&quot;,
+ &quot;event&quot;: &quot;livesim_cycle&quot;,
+ &quot;run_id&quot;: &quot;r11c&quot;,
+ &quot;year&quot;: 1967,
+ &quot;mean_week&quot;: 0.008932500236393871,
+ &quot;weeks_ge_7&quot;: 3,
+ &quot;year_return&quot;: 0.5449518896970331,
+ &quot;market&quot;: 0.20092058181762695,
+ &quot;version&quot;: 4
+}</pre></details></td><td class=""><span class="muted">no provenance recorded</span></td></tr><tr data-event="livesim_cycle"><td class="" data-v="2026-09-28T22:24:38">2026-09-28T22:24:38</td><td class=""><span class="badge ">livesim_cycle</span></td><td class=""><span class="mono"></span></td><td class="">run_id=r11a, year=1981, mean_week=-0.00416, weeks_ge_7=0, year_return=-0.2127, market=-0.1027, version=4<details><summary>record</summary><pre>{
+ &quot;t&quot;: &quot;2026-09-28T22:24:38&quot;,
+ &quot;event&quot;: &quot;livesim_cycle&quot;,
+ &quot;run_id&quot;: &quot;r11a&quot;,
+ &quot;year&quot;: 1981,
+ &quot;mean_week&quot;: -0.004160336655943406,
+ &quot;weeks_ge_7&quot;: 0,
+ &quot;year_return&quot;: -0.21271831628032656,
+ &quot;market&quot;: -0.10265803337097168,
+ &quot;version&quot;: 4
+}</pre></details></td><td class=""><span class="muted">no provenance recorded</span></td></tr><tr data-event="livesim_cycle"><td class="" data-v="2026-09-28T22:15:02">2026-09-28T22:15:02</td><td class=""><span class="badge ">livesim_cycle</span></td><td class=""><span class="mono"></span></td><td class="">run_id=r10a, year=2020, mean_week=0.01886, weeks_ge_7=10, year_return=1.178, market=0.1797, version=3<details><summary>record</summary><pre>{
+ &quot;t&quot;: &quot;2026-09-28T22:15:02&quot;,
+ &quot;event&quot;: &quot;livesim_cycle&quot;,
+ &quot;run_id&quot;: &quot;r10a&quot;,
+ &quot;year&quot;: 2020,
+ &quot;mean_week&quot;: 0.01886119407642533,
+ &quot;weeks_ge_7&quot;: 10,
+ &quot;year_return&quot;: 1.1783820700008727,
+ &quot;market&quot;: 0.17965209484100342,
+ &quot;version&quot;: 3
+}</pre></details></td><td class=""><span class="muted">no provenance recorded</span></td></tr><tr data-event="livesim_cycle"><td class="" data-v="2026-09-28T22:15:02">2026-09-28T22:15:02</td><td class=""><span class="badge ">livesim_cycle</span></td><td class=""><span class="mono"></span></td><td class="">run_id=r10b, year=2008, mean_week=0.005643, weeks_ge_7=10, year_return=-0.01361, market=-0.3726, version=3<details><summary>record</summary><pre>{
+ &quot;t&quot;: &quot;2026-09-28T22:15:02&quot;,
+ &quot;event&quot;: &quot;livesim_cycle&quot;,
+ &quot;run_id&quot;: &quot;r10b&quot;,
+ &quot;year&quot;: 2008,
+ &quot;mean_week&quot;: 0.005643178679871211,
+ &quot;weeks_ge_7&quot;: 10,
+ &quot;year_return&quot;: -0.01361075534784506,
+ &quot;market&quot;: -0.3726271390914917,
+ &quot;version&quot;: 3
+}</pre></details></td><td class=""><span class="muted">no provenance recorded</span></td></tr><tr data-event="livesim_cycle"><td class="" data-v="2026-09-28T22:15:02">2026-09-28T22:15:02</td><td class=""><span class="badge ">livesim_cycle</span></td><td class=""><span class="mono"></span></td><td class="">run_id=r10c, year=2008, mean_week=0.002497, weeks_ge_7=12, year_return=-0.0981, market=-0.3726, version=3<details><summary>record</summary><pre>{
+ &quot;t&quot;: &quot;2026-09-28T22:15:02&quot;,
+ &quot;event&quot;: &quot;livesim_cycle&quot;,
+ &quot;run_id&quot;: &quot;r10c&quot;,
+ &quot;year&quot;: 2008,
+ &quot;mean_week&quot;: 0.002497112381098116,
+ &quot;weeks_ge_7&quot;: 12,
+ &quot;year_return&quot;: -0.09809779834842491,
+ &quot;market&quot;: -0.3726271390914917,
+ &quot;version&quot;: 3
+}</pre></details></td><td class=""><span class="muted">no provenance recorded</span></td></tr><tr data-event="livesim_cycle"><td class="" data-v="2026-09-28T22:05:13">2026-09-28T22:05:13</td><td class=""><span class="badge ">livesim_cycle</span></td><td class=""><span class="mono"></span></td><td class="">run_id=r09a, year=1980, mean_week=0.01285, weeks_ge_7=3, year_return=0.8916, market=0.2589, version=3<details><summary>record</summary><pre>{
+ &quot;t&quot;: &quot;2026-09-28T22:05:13&quot;,
+ &quot;event&quot;: &quot;livesim_cycle&quot;,
+ &quot;run_id&quot;: &quot;r09a&quot;,
+ &quot;year&quot;: 1980,
+ &quot;mean_week&quot;: 0.012851494346087596,
+ &quot;weeks_ge_7&quot;: 3,
+ &quot;year_return&quot;: 0.8915652313090692,
+ &quot;market&quot;: 0.2589021921157837,
+ &quot;version&quot;: 3
+}</pre></details></td><td class=""><span class="muted">no provenance recorded</span></td></tr><tr data-event="livesim_cycle"><td class="" data-v="2026-09-28T22:05:13">2026-09-28T22:05:13</td><td class=""><span class="badge ">livesim_cycle</span></td><td class=""><span class="mono"></span></td><td class="">run_id=r09b, year=2018, mean_week=0.00122, weeks_ge_7=3, year_return=0.01221, market=-0.04569, version=3<details><summary>record</summary><pre>{
+ &quot;t&quot;: &quot;2026-09-28T22:05:13&quot;,
+ &quot;event&quot;: &quot;livesim_cycle&quot;,
+ &quot;run_id&quot;: &quot;r09b&quot;,
+ &quot;year&quot;: 2018,
+ &quot;mean_week&quot;: 0.0012199989371280448,
+ &quot;weeks_ge_7&quot;: 3,
+ &quot;year_return&quot;: 0.012207448402772547,
+ &quot;market&quot;: -0.045689523220062256,
+ &quot;version&quot;: 3
+}</pre></details></td><td class=""><span class="muted">no provenance recorded</span></td></tr><tr data-event="livesim_cycle"><td class="" data-v="2026-09-28T22:05:13">2026-09-28T22:05:13</td><td class=""><span class="badge ">livesim_cycle</span></td><td class=""><span class="mono"></span></td><td class="">run_id=r09c, year=2025, mean_week=-0.008856, weeks_ge_7=0, year_return=-0.3937, market=0.1595, version=3<details><summary>record</summary><pre>{
+ &quot;t&quot;: &quot;2026-09-28T22:05:13&quot;,
+ &quot;event&quot;: &quot;livesim_cycle&quot;,
+ &quot;run_id&quot;: &quot;r09c&quot;,
+ &quot;year&quot;: 2025,
+ &quot;mean_week&quot;: -0.008856250025580567,
+ &quot;weeks_ge_7&quot;: 0,
+ &quot;year_return&quot;: -0.39374904512719555,
+ &quot;market&quot;: 0.15952301025390625,
+ &quot;version&quot;: 3
+}</pre></details></td><td class=""><span class="muted">no provenance recorded</span></td></tr><tr data-event="livesim_cycle"><td class="" data-v="2026-09-28T21:55:30">2026-09-28T21:55:30</td><td class=""><span class="badge ">livesim_cycle</span></td><td class=""><span class="mono"></span></td><td class="">run_id=r08a, year=1977, mean_week=0.000118, weeks_ge_7=0, year_return=-0.007177, market=-0.115, version=3<details><summary>record</summary><pre>{
+ &quot;t&quot;: &quot;2026-09-28T21:55:30&quot;,
+ &quot;event&quot;: &quot;livesim_cycle&quot;,
+ &quot;run_id&quot;: &quot;r08a&quot;,
+ &quot;year&quot;: 1977,
+ &quot;mean_week&quot;: 0.00011802798741906237,
+ &quot;weeks_ge_7&quot;: 0,
+ &quot;year_return&quot;: -0.00717744999590364,
+ &quot;market&quot;: -0.11501938104629517,
+ &quot;version&quot;: 3
+}</pre></details></td><td class=""><span class="muted">no provenance recorded</span></td></tr><tr data-event="livesim_cycle"><td class="" data-v="2026-09-28T21:55:30">2026-09-28T21:55:30</td><td class=""><span class="badge ">livesim_cycle</span></td><td class=""><span class="mono"></span></td><td class="">run_id=r08b, year=1978, mean_week=0.01007, weeks_ge_7=3, year_return=0.6119, market=0.01062, version=3<details><summary>record</summary><pre>{
+ &quot;t&quot;: &quot;2026-09-28T21:55:30&quot;,
+ &quot;event&quot;: &quot;livesim_cycle&quot;,
+ &quot;run_id&quot;: &quot;r08b&quot;,
+ &quot;year&quot;: 1978,
+ &quot;mean_week&quot;: 0.01006756593888308,
+ &quot;weeks_ge_7&quot;: 3,
+ &quot;year_return&quot;: 0.6118773609536652,
+ &quot;market&quot;: 0.0106201171875,
+ &quot;version&quot;: 3
+}</pre></details></td><td class=""><span class="muted">no provenance recorded</span></td></tr><tr data-event="livesim_cycle"><td class="" data-v="2026-09-28T21:55:30">2026-09-28T21:55:30</td><td class=""><span class="badge ">livesim_cycle</span></td><td class=""><span class="mono"></span></td><td class="">run_id=r08c, year=1971, mean_week=0.007492, weeks_ge_7=1, year_return=0.4318, market=0.1079, version=3<details><summary>record</summary><pre>{
+ &quot;t&quot;: &quot;2026-09-28T21:55:30&quot;,
+ &quot;event&quot;: &quot;livesim_cycle&quot;,
+ &quot;run_id&quot;: &quot;r08c&quot;,
+ &quot;year&quot;: 1971,
+ &quot;mean_week&quot;: 0.007491842193986191,
+ &quot;weeks_ge_7&quot;: 1,
+ &quot;year_return&quot;: 0.431843464911686,
+ &quot;market&quot;: 0.10786759853363037,
+ &quot;version&quot;: 3
+}</pre></details></td><td class=""><span class="muted">no provenance recorded</span></td></tr><tr data-event="livesim_cycle"><td class="" data-v="2026-09-28T21:42:32">2026-09-28T21:42:32</td><td class=""><span class="badge ">livesim_cycle</span></td><td class=""><span class="mono"></span></td><td class="">run_id=r07a, year=2023, mean_week=0.003614, weeks_ge_7=1, year_return=0.1873, market=0.2618, version=2<details><summary>record</summary><pre>{
+ &quot;t&quot;: &quot;2026-09-28T21:42:32&quot;,
+ &quot;event&quot;: &quot;livesim_cycle&quot;,
+ &quot;run_id&quot;: &quot;r07a&quot;,
+ &quot;year&quot;: 2023,
+ &quot;mean_week&quot;: 0.0036144870085324885,
+ &quot;weeks_ge_7&quot;: 1,
+ &quot;year_return&quot;: 0.18726450889941804,
+ &quot;market&quot;: 0.26175713539123535,
+ &quot;version&quot;: 2
+}</pre></details></td><td class=""><span class="muted">no provenance recorded</span></td></tr><tr data-event="livesim_cycle"><td class="" data-v="2026-09-28T21:42:32">2026-09-28T21:42:32</td><td class=""><span class="badge ">livesim_cycle</span></td><td class=""><span class="mono"></span></td><td class="">run_id=r07b, year=1996, mean_week=0.008779, weeks_ge_7=2, year_return=0.4902, market=0.2026, version=2<details><summary>record</summary><pre>{
+ &quot;t&quot;: &quot;2026-09-28T21:42:32&quot;,
+ &quot;event&quot;: &quot;livesim_cycle&quot;,
+ &quot;run_id&quot;: &quot;r07b&quot;,
+ &quot;year&quot;: 1996,
+ &quot;mean_week&quot;: 0.00877866079568418,
+ &quot;weeks_ge_7&quot;: 2,
+ &quot;year_return&quot;: 0.490155112206873,
+ &quot;market&quot;: 0.20263707637786865,
+ &quot;version&quot;: 2
+}</pre></details></td><td class=""><span class="muted">no provenance recorded</span></td></tr><tr data-event="livesim_cycle"><td class="" data-v="2026-09-28T21:42:32">2026-09-28T21:42:32</td><td class=""><span class="badge ">livesim_cycle</span></td><td class=""><span class="mono"></span></td><td class="">run_id=r07c, year=1974, mean_week=0.002047, weeks_ge_7=6, year_return=0.03954, market=-0.2971, version=2<details><summary>record</summary><pre>{
+ &quot;t&quot;: &quot;2026-09-28T21:42:32&quot;,
+ &quot;event&quot;: &quot;livesim_cycle&quot;,
+ &quot;run_id&quot;: &quot;r07c&quot;,
+ &quot;year&quot;: 1974,
+ &quot;mean_week&quot;: 0.0020472960540720126,
+ &quot;weeks_ge_7&quot;: 6,
+ &quot;year_return&quot;: 0.03953903965454586,
+ &quot;market&quot;: -0.29710865020751953,
+ &quot;version&quot;: 2
+}</pre></details></td><td class=""><span class="muted">no provenance recorded</span></td></tr><tr data-event="livesim_cycle"><td class="" data-v="2026-09-28T21:37:21">2026-09-28T21:37:21</td><td class=""><span class="badge ">livesim_cycle</span></td><td class=""><span class="mono"></span></td><td class="">run_id=r06a, year=1968, mean_week=-0.001752, weeks_ge_7=1, year_return=-0.1109, market=0.0766, version=2<details><summary>record</summary><pre>{
+ &quot;t&quot;: &quot;2026-09-28T21:37:21&quot;,
+ &quot;event&quot;: &quot;livesim_cycle&quot;,
+ &quot;run_id&quot;: &quot;r06a&quot;,
+ &quot;year&quot;: 1968,
+ &quot;mean_week&quot;: -0.001751590594474897,
+ &quot;weeks_ge_7&quot;: 1,
+ &quot;year_return&quot;: -0.110858395197164,
+ &quot;market&quot;: 0.07660436630249023,
+ &quot;version&quot;: 2
+}</pre></details></td><td class=""><span class="muted">no provenance recorded</span></td></tr><tr data-event="livesim_cycle"><td class="" data-v="2026-09-28T21:37:21">2026-09-28T21:37:21</td><td class=""><span class="badge ">livesim_cycle</span></td><td class=""><span class="mono"></span></td><td class="">run_id=r06b, year=1989, mean_week=0.01063, weeks_ge_7=4, year_return=0.672, market=0.2725, version=2<details><summary>record</summary><pre>{
+ &quot;t&quot;: &quot;2026-09-28T21:37:21&quot;,
+ &quot;event&quot;: &quot;livesim_cycle&quot;,
+ &quot;run_id&quot;: &quot;r06b&quot;,
+ &quot;year&quot;: 1989,
+ &quot;mean_week&quot;: 0.010632680617548377,
+ &quot;weeks_ge_7&quot;: 4,
+ &quot;year_return&quot;: 0.6720423050721525,
+ &quot;market&quot;: 0.2725043296813965,
+ &quot;version&quot;: 2
+}</pre></details></td><td class=""><span class="muted">no provenance recorded</span></td></tr><tr data-event="livesim_cycle"><td class="" data-v="2026-09-28T21:37:21">2026-09-28T21:37:21</td><td class=""><span class="badge ">livesim_cycle</span></td><td class=""><span class="mono"></span></td><td class="">run_id=r06c, year=2019, mean_week=0.004198, weeks_ge_7=0, year_return=0.2426, market=0.3237, version=2<details><summary>record</summary><pre>{
+ &quot;t&quot;: &quot;2026-09-28T21:37:21&quot;,
+ &quot;event&quot;: &quot;livesim_cycle&quot;,
+ &quot;run_id&quot;: &quot;r06c&quot;,
+ &quot;year&quot;: 2019,
+ &quot;mean_week&quot;: 0.004198359471033243,
+ &quot;weeks_ge_7&quot;: 0,
+ &quot;year_return&quot;: 0.2426237713810926,
+ &quot;market&quot;: 0.32373154163360596,
+ &quot;version&quot;: 2
+}</pre></details></td><td class=""><span class="muted">no provenance recorded</span></td></tr><tr data-event="livesim_cycle"><td class="" data-v="2026-09-28T21:33:04">2026-09-28T21:33:04</td><td class=""><span class="badge ">livesim_cycle</span></td><td class=""><span class="mono"></span></td><td class="">run_id=r05a, year=1994, mean_week=0.001151, weeks_ge_7=9, year_return=-0.0671, market=-0.01539, version=2<details><summary>record</summary><pre>{
+ &quot;t&quot;: &quot;2026-09-28T21:33:04&quot;,
+ &quot;event&quot;: &quot;livesim_cycle&quot;,
+ &quot;run_id&quot;: &quot;r05a&quot;,
+ &quot;year&quot;: 1994,
+ &quot;mean_week&quot;: 0.0011513838950091048,
+ &quot;weeks_ge_7&quot;: 9,
+ &quot;year_return&quot;: -0.06709504954154599,
+ &quot;market&quot;: -0.015392780303955078,
+ &quot;version&quot;: 2
+}</pre></details></td><td class=""><span class="muted">no provenance recorded</span></td></tr><tr data-event="livesim_cycle"><td class="" data-v="2026-09-28T21:33:04">2026-09-28T21:33:04</td><td class=""><span class="badge ">livesim_cycle</span></td><td class=""><span class="mono"></span></td><td class="">run_id=r05b, year=1979, mean_week=0.007014, weeks_ge_7=2, year_return=0.4158, market=0.1231, version=2<details><summary>record</summary><pre>{
+ &quot;t&quot;: &quot;2026-09-28T21:33:04&quot;,
+ &quot;event&quot;: &quot;livesim_cycle&quot;,
+ &quot;run_id&quot;: &quot;r05b&quot;,
+ &quot;year&quot;: 1979,
+ &quot;mean_week&quot;: 0.0070139561773323485,
+ &quot;weeks_ge_7&quot;: 2,
+ &quot;year_return&quot;: 0.41576106980785155,
+ &quot;market&quot;: 0.12308704853057861,
+ &quot;version&quot;: 2
+}</pre></details></td><td class=""><span class="muted">no provenance recorded</span></td></tr><tr data-event="livesim_cycle"><td class="" data-v="2026-09-28T21:33:04">2026-09-28T21:33:04</td><td class=""><span class="badge ">livesim_cycle</span></td><td class=""><span class="mono"></span></td><td class="">run_id=r05c, year=1999, mean_week=0.007893, weeks_ge_7=4, year_return=0.3646, market=0.1953, version=2<details><summary>record</summary><pre>{
+ &quot;t&quot;: &quot;2026-09-28T21:33:04&quot;,
+ &quot;event&quot;: &quot;livesim_cycle&quot;,
+ &quot;run_id&quot;: &quot;r05c&quot;,
+ &quot;year&quot;: 1999,
+ &quot;mean_week&quot;: 0.00789296107296945,
+ &quot;weeks_ge_7&quot;: 4,
+ &quot;year_return&quot;: 0.3646238704383966,
+ &quot;market&quot;: 0.1952606439590454,
+ &quot;version&quot;: 2
+}</pre></details></td><td class=""><span class="muted">no provenance recorded</span></td></tr><tr data-event="livesim_cycle"><td class="" data-v="2026-09-28T21:30:22">2026-09-28T21:30:22</td><td class=""><span class="badge ">livesim_cycle</span></td><td class=""><span class="mono"></span></td><td class="">run_id=r04a, year=1976, mean_week=0.005302, weeks_ge_7=3, year_return=0.2896, market=0.1907, version=2<details><summary>record</summary><pre>{
+ &quot;t&quot;: &quot;2026-09-28T21:30:22&quot;,
+ &quot;event&quot;: &quot;livesim_cycle&quot;,
+ &quot;run_id&quot;: &quot;r04a&quot;,
+ &quot;year&quot;: 1976,
+ &quot;mean_week&quot;: 0.005301616014768757,
+ &quot;weeks_ge_7&quot;: 3,
+ &quot;year_return&quot;: 0.28958033366411273,
+ &quot;market&quot;: 0.19069266319274902,
+ &quot;version&quot;: 2
+}</pre></details></td><td class=""><span class="muted">no provenance recorded</span></td></tr><tr data-event="livesim_cycle"><td class="" data-v="2026-09-28T21:30:22">2026-09-28T21:30:22</td><td class=""><span class="badge ">livesim_cycle</span></td><td class=""><span class="mono"></span></td><td class="">run_id=r04b, year=2006, mean_week=0.009101, weeks_ge_7=3, year_return=0.5331, market=0.1585, version=2<details><summary>record</summary><pre>{
+ &quot;t&quot;: &quot;2026-09-28T21:30:22&quot;,
+ &quot;event&quot;: &quot;livesim_cycle&quot;,
+ &quot;run_id&quot;: &quot;r04b&quot;,
+ &quot;year&quot;: 2006,
+ &quot;mean_week&quot;: 0.00910115553024199,
+ &quot;weeks_ge_7&quot;: 3,
+ &quot;year_return&quot;: 0.533105339602572,
+ &quot;market&quot;: 0.15845239162445068,
+ &quot;version&quot;: 2
+}</pre></details></td><td class=""><span class="muted">no provenance recorded</span></td></tr><tr data-event="livesim_cycle"><td class="" data-v="2026-09-28T21:30:22">2026-09-28T21:30:22</td><td class=""><span class="badge ">livesim_cycle</span></td><td class=""><span class="mono"></span></td><td class="">run_id=r04c, year=2017, mean_week=0.002004, weeks_ge_7=1, year_return=0.04671, market=0.2171, version=2<details><summary>record</summary><pre>{
+ &quot;t&quot;: &quot;2026-09-28T21:30:22&quot;,
+ &quot;event&quot;: &quot;livesim_cycle&quot;,
+ &quot;run_id&quot;: &quot;r04c&quot;,
+ &quot;year&quot;: 2017,
+ &quot;mean_week&quot;: 0.002003910541966817,
+ &quot;weeks_ge_7&quot;: 1,
+ &quot;year_return&quot;: 0.046709548538641066,
+ &quot;market&quot;: 0.21705377101898193,
+ &quot;version&quot;: 2
+}</pre></details></td><td class=""><span class="muted">no provenance recorded</span></td></tr><tr data-event="livesim_cycle"><td class="" data-v="2026-09-28T21:27:00">2026-09-28T21:27:00</td><td class=""><span class="badge ">livesim_cycle</span></td><td class=""><span class="mono"></span></td><td class="">run_id=r03a, year=1975, mean_week=0.004099, weeks_ge_7=0, year_return=0.2116, market=0.3433, version=2<details><summary>record</summary><pre>{
+ &quot;t&quot;: &quot;2026-09-28T21:27:00&quot;,
+ &quot;event&quot;: &quot;livesim_cycle&quot;,
+ &quot;run_id&quot;: &quot;r03a&quot;,
+ &quot;year&quot;: 1975,
+ &quot;mean_week&quot;: 0.0040986058251988545,
+ &quot;weeks_ge_7&quot;: 0,
+ &quot;year_return&quot;: 0.21164184620700932,
+ &quot;market&quot;: 0.34331321716308594,
+ &quot;version&quot;: 2
+}</pre></details></td><td class=""><span class="muted">no provenance recorded</span></td></tr><tr data-event="livesim_cycle"><td class="" data-v="2026-09-28T21:27:00">2026-09-28T21:27:00</td><td class=""><span class="badge ">livesim_cycle</span></td><td class=""><span class="mono"></span></td><td class="">run_id=r03b, year=1984, mean_week=0.006274, weeks_ge_7=6, year_return=0.3239, market=0.01401, version=2<details><summary>record</summary><pre>{
+ &quot;t&quot;: &quot;2026-09-28T21:27:00&quot;,
+ &quot;event&quot;: &quot;livesim_cycle&quot;,
+ &quot;run_id&quot;: &quot;r03b&quot;,
+ &quot;year&quot;: 1984,
+ &quot;mean_week&quot;: 0.006273537707768814,
+ &quot;weeks_ge_7&quot;: 6,
+ &quot;year_return&quot;: 0.3238820917280776,
+ &quot;market&quot;: 0.014005899429321289,
+ &quot;version&quot;: 2
+}</pre></details></td><td class=""><span class="muted">no provenance recorded</span></td></tr><tr data-event="livesim_cycle"><td class="" data-v="2026-09-28T21:27:00">2026-09-28T21:27:00</td><td class=""><span class="badge ">livesim_cycle</span></td><td class=""><span class="mono"></span></td><td class="">run_id=r03c, year=2022, mean_week=-0.008106, weeks_ge_7=3, year_return=-0.3908, market=-0.1818, version=2<details><summary>record</summary><pre>{
+ &quot;t&quot;: &quot;2026-09-28T21:27:00&quot;,
+ &quot;event&quot;: &quot;livesim_cycle&quot;,
+ &quot;run_id&quot;: &quot;r03c&quot;,
+ &quot;year&quot;: 2022,
+ &quot;mean_week&quot;: -0.008106371055803684,
+ &quot;weeks_ge_7&quot;: 3,
+ &quot;year_return&quot;: -0.3908012320215203,
+ &quot;market&quot;: -0.1817535161972046,
+ &quot;version&quot;: 2
+}</pre></details></td><td class=""><span class="muted">no provenance recorded</span></td></tr><tr data-event="livesim_cycle"><td class="" data-v="2026-09-28T21:23:22">2026-09-28T21:23:22</td><td class=""><span class="badge ">livesim_cycle</span></td><td class=""><span class="mono"></span></td><td class="">run_id=r02a, year=1987, mean_week=-0.0001476, weeks_ge_7=4, year_return=-0.07031, market=0.0006478, version=1<details><summary>record</summary><pre>{
+ &quot;t&quot;: &quot;2026-09-28T21:23:22&quot;,
+ &quot;event&quot;: &quot;livesim_cycle&quot;,
+ &quot;run_id&quot;: &quot;r02a&quot;,
+ &quot;year&quot;: 1987,
+ &quot;mean_week&quot;: -0.00014761176306238194,
+ &quot;weeks_ge_7&quot;: 4,
+ &quot;year_return&quot;: -0.07030717822531019,
+ &quot;market&quot;: 0.0006477832794189453,
+ &quot;version&quot;: 1
+}</pre></details></td><td class=""><span class="muted">no provenance recorded</span></td></tr><tr data-event="livesim_cycle"><td class="" data-v="2026-09-28T21:23:22">2026-09-28T21:23:22</td><td class=""><span class="badge ">livesim_cycle</span></td><td class=""><span class="mono"></span></td><td class="">run_id=r02b, year=1983, mean_week=0.01241, weeks_ge_7=2, year_return=0.8431, market=0.1727, version=1<details><summary>record</summary><pre>{
+ &quot;t&quot;: &quot;2026-09-28T21:23:22&quot;,
+ &quot;event&quot;: &quot;livesim_cycle&quot;,
+ &quot;run_id&quot;: &quot;r02b&quot;,
+ &quot;year&quot;: 1983,
+ &quot;mean_week&quot;: 0.012412763320525082,
+ &quot;weeks_ge_7&quot;: 2,
+ &quot;year_return&quot;: 0.8431275092833357,
+ &quot;market&quot;: 0.17270970344543457,
+ &quot;version&quot;: 1
+}</pre></details></td><td class=""><span class="muted">no provenance recorded</span></td></tr><tr data-event="livesim_cycle"><td class="" data-v="2026-09-28T21:23:22">2026-09-28T21:23:22</td><td class=""><span class="badge ">livesim_cycle</span></td><td class=""><span class="mono"></span></td><td class="">run_id=r02c, year=2005, mean_week=0.007546, weeks_ge_7=3, year_return=0.4251, market=0.04828, version=1<details><summary>record</summary><pre>{
+ &quot;t&quot;: &quot;2026-09-28T21:23:22&quot;,
+ &quot;event&quot;: &quot;livesim_cycle&quot;,
+ &quot;run_id&quot;: &quot;r02c&quot;,
+ &quot;year&quot;: 2005,
+ &quot;mean_week&quot;: 0.0075455963325243465,
+ &quot;weeks_ge_7&quot;: 3,
+ &quot;year_return&quot;: 0.4251226723012833,
+ &quot;market&quot;: 0.04828190803527832,
+ &quot;version&quot;: 1
+}</pre></details></td><td class=""><span class="muted">no provenance recorded</span></td></tr><tr data-event="voided_adjustment"><td class="" data-v="2026-09-28T21:21:20">2026-09-28T21:21:20</td><td class=""><span class="badge ">voided_adjustment</span></td><td class=""><span class="mono"></span></td><td class="">round=1, reason=re-tester mismatch vs live trader; fixed<details><summary>record</summary><pre>{
+ &quot;t&quot;: &quot;2026-09-28T21:21:20&quot;,
+ &quot;event&quot;: &quot;voided_adjustment&quot;,
+ &quot;round&quot;: 1,
+ &quot;reason&quot;: &quot;re-tester mismatch vs live trader; fixed bookkeeping; reset to v1&quot;
+}</pre></details></td><td class=""><span class="muted">no provenance recorded</span></td></tr><tr data-event="livesim_cycle"><td class="" data-v="2026-09-28T21:19:24">2026-09-28T21:19:24</td><td class=""><span class="badge ">livesim_cycle</span></td><td class=""><span class="mono"></span></td><td class="">run_id=r01a, year=2016, mean_week=0.001196, weeks_ge_7=1, year_return=0.03003, market=0.12, version=1<details><summary>record</summary><pre>{
+ &quot;t&quot;: &quot;2026-09-28T21:19:24&quot;,
+ &quot;event&quot;: &quot;livesim_cycle&quot;,
+ &quot;run_id&quot;: &quot;r01a&quot;,
+ &quot;year&quot;: 2016,
+ &quot;mean_week&quot;: 0.001195917025331721,
+ &quot;weeks_ge_7&quot;: 1,
+ &quot;year_return&quot;: 0.03003157803393086,
+ &quot;market&quot;: 0.11997866630554199,
+ &quot;version&quot;: 1
+}</pre></details></td><td class=""><span class="muted">no provenance recorded</span></td></tr><tr data-event="livesim_cycle"><td class="" data-v="2026-09-28T21:19:24">2026-09-28T21:19:24</td><td class=""><span class="badge ">livesim_cycle</span></td><td class=""><span class="mono"></span></td><td class="">run_id=r01b, year=1969, mean_week=-0.006463, weeks_ge_7=0, year_return=-0.3053, market=-0.1211, version=1<details><summary>record</summary><pre>{
+ &quot;t&quot;: &quot;2026-09-28T21:19:24&quot;,
+ &quot;event&quot;: &quot;livesim_cycle&quot;,
+ &quot;run_id&quot;: &quot;r01b&quot;,
+ &quot;year&quot;: 1969,
+ &quot;mean_week&quot;: -0.006462662764837595,
+ &quot;weeks_ge_7&quot;: 0,
+ &quot;year_return&quot;: -0.30530285020695647,
+ &quot;market&quot;: -0.12106192111968994,
+ &quot;version&quot;: 1
+}</pre></details></td><td class=""><span class="muted">no provenance recorded</span></td></tr><tr data-event="livesim_cycle"><td class="" data-v="2026-09-28T21:19:24">2026-09-28T21:19:24</td><td class=""><span class="badge ">livesim_cycle</span></td><td class=""><span class="mono"></span></td><td class="">run_id=r01c, year=1987, mean_week=0.00164, weeks_ge_7=3, year_return=0.01929, market=0.0006478, version=1<details><summary>record</summary><pre>{
+ &quot;t&quot;: &quot;2026-09-28T21:19:24&quot;,
+ &quot;event&quot;: &quot;livesim_cycle&quot;,
+ &quot;run_id&quot;: &quot;r01c&quot;,
+ &quot;year&quot;: 1987,
+ &quot;mean_week&quot;: 0.001639743909388585,
+ &quot;weeks_ge_7&quot;: 3,
+ &quot;year_return&quot;: 0.019288011348664424,
+ &quot;market&quot;: 0.0006477832794189453,
+ &quot;version&quot;: 1
+}</pre></details></td><td class=""><span class="muted">no provenance recorded</span></td></tr><tr data-event="replay_year"><td class="" data-v="2026-09-28T20:51:39">2026-09-28T20:51:39</td><td class=""><span class="badge ">replay_year</span></td><td class=""><span class="mono"></span></td><td class="">year=2024, start=1000, end=1423, year_return=0.4233, spy_year_return=0.2489, weeks=53, weeks_ge_7=3<details><summary>record</summary><pre>{
+ &quot;t&quot;: &quot;2026-09-28T20:51:39&quot;,
+ &quot;event&quot;: &quot;replay_year&quot;,
+ &quot;year&quot;: 2024,
+ &quot;start&quot;: 1000.0,
+ &quot;end&quot;: 1423.33,
+ &quot;year_return&quot;: 0.42333,
+ &quot;spy_year_return&quot;: 0.24886465072631836,
+ &quot;weeks&quot;: 53,
+ &quot;weeks_ge_7&quot;: 3,
+ &quot;weeks_positive&quot;: 26,
+ &quot;weeks_le_m7&quot;: 0,
+ &quot;best_week&quot;: 0.12396491551069944,
+ &quot;worst_week&quot;: -0.05916681946812741,
+ &quot;mean_week&quot;: 0.007292648276659908,
+ &quot;max_drawdown&quot;: -0.11846664269604157,
+ &quot;trades&quot;: 314,
+ &quot;brakes&quot;: 0,
+ &quot;model_trained_through&quot;: &quot;2023-12-14&quot;,
+ &quot;labels_end&quot;: &quot;2023-12-21&quot;,
+ &quot;runtime_seconds&quot;: 91
+}</pre></details></td><td class=""><span class="muted">no provenance recorded</span></td></tr><tr data-event="tuning_lab"><td class="" data-v="2026-09-28T20:31:27">2026-09-28T20:31:27</td><td class=""><span class="badge ">tuning_lab</span></td><td class=""><span class="mono"></span></td><td class="">configs=120, episodes_per_split=400, best_on_tune=cfg_3_0.9_0.08_None_0.5_50000000.0_False, locked_gain_weeks7_per_month=0.09719, z=3.373, z_needed=3.341, verdict=KEEP CHAMPION<div class="note">configs: 120; champion: 2 entries; best: 2 entries</div><details><summary>record</summary><pre>{
+ &quot;t&quot;: &quot;2026-09-28T20:31:27&quot;,
+ &quot;event&quot;: &quot;tuning_lab&quot;,
+ &quot;configs&quot;: 120,
+ &quot;episodes_per_split&quot;: 400,
+ &quot;tune_years&quot;: [
+  2017,
+  2019,
+  2021,
+  2023,
+  2025
+ ],
+ &quot;locked_years&quot;: [
+  2018,
+  2020,
+  2022,
+  2024,
+  2026
+ ],
+ &quot;champion&quot;: {
+  &quot;tune&quot;: {
+   &quot;mean_month&quot;: 0.010829339750749043,
+   &quot;median_month&quot;: 0.01281305148741807,
+   &quot;p5_month&quot;: -0.08113980957568924,
+   &quot;beat_spy&quot;: 0.485,
+   &quot;weeks_ge7_per_month&quot;: 0.09,
+   &quot;any_7pct_week&quot;: 0.0825,
+   &quot;worst_week_avg&quot;: -0.026772119945464624,
+   &quot;all_4_weeks_ge7&quot;: 0.0,
+   &quot;spy_mean_month&quot;: 0.01425329688936472,
+   &quot;max_dd_in_year&quot;: -0.2473678332667163
+  },
+  &quot;lock&quot;: {
+   &quot;mean_month&quot;: 0.035353409363794226,
+   &quot;median_month&quot;: 0.028512926277946216,
+   &quot;p5_month&quot;: -0.10762307459245357,
+   &quot;beat_spy&quot;: 0.6547314578005116,
+   &quot;weeks_ge7_per_month&quot;: 0.2966751918158568,
+   &quot;any_7pct_week&quot;: 0.2813299232736573,
+   &quot;worst_week_avg&quot;: -0.03125072345422373,
+   &quot;all_4_weeks_ge7&quot;: 0.0,
+   &quot;spy_mean_month&quot;: 0.008345218375325203,
+   &quot;max_dd_in_year&quot;: -0.4654428968118469
+  }
+ },
+ &quot;best_on_tune&quot;: &quot;cfg_3_0.9_0.08_None_0.5_50000000.0_False_hivol_0.95&quot;,
+ &quot;best&quot;: {
+  &quot;tune&quot;: {
+   &quot;mean_month&quot;: 0.028057203505349446,
+   &quot;median_month&quot;: 0.02127975988141162,
+   &quot;p5_month&quot;: -0.143959271239543,
+   &quot;beat_spy&quot;: 0.56,
+   &quot;weeks_ge7_per_month&quot;: 0.34,
+   &quot;any_7pct_week&quot;: 0.245,
+   &quot;worst_week_avg&quot;: -0.03845443328208924,
+   &quot;all_4_weeks_ge7&quot;: 0.015,
+   &quot;spy_mean_month&quot;: 0.01425329688936472,
+   &quot;max_dd_in_year&quot;: -0.4208051677428055
+  },
+  &quot;lock&quot;: {
+   &quot;mean_month&quot;: 0.008675708125081812,
+   &quot;median_month&quot;: 0.018693779488490048,
+   &quot;p5_month&quot;: -0.19544748564618347,
+   &quot;beat_spy&quot;: 0.46035805626598464,
+   &quot;weeks_ge7_per_month&quot;: 0.3938618925831202,
+   &quot;any_7pct_week&quot;: 0.34782608695652173,
+   &quot;worst_week_avg&quot;: -0.05437888172815279,
+   &quot;all_4_weeks_ge7&quot;: 0.0,
+   &quot;spy_mean_month&quot;: 0.008345218375325203,
+   &quot;max_dd_in_year&quot;: -0.6220005177676218
+  }
+ },
+ &quot;locked_gain_weeks7_per_month&quot;: 0.09718670076726342,
+ &quot;z&quot;: 3.372716790182428,
+ &quot;z_needed&quot;: 3.3414789560386255,
+ &quot;verdict&quot;: &quot;KEEP CHAMPION&quot;
+}</pre></details></td><td class=""><span class="muted">no provenance recorded</span></td></tr><tr data-event="rolled_back"><td class="" data-v="2026-09-28T20:29:59">2026-09-28T20:29:59</td><td class=""><span class="badge ">rolled_back</span></td><td class=""><span class="mono"></span></td><td class="">id=v1.3, reason=full 2017-2026: $3,579 vs SPY $3,987, ma, restored=v1.2<details><summary>record</summary><pre>{
+ &quot;t&quot;: &quot;2026-09-28T20:29:59&quot;,
+ &quot;event&quot;: &quot;rolled_back&quot;,
+ &quot;id&quot;: &quot;v1.3&quot;,
+ &quot;reason&quot;: &quot;full 2017-2026: $3,579 vs SPY $3,987, max drawdown -73%; round-1 guards only checked single months&quot;,
+ &quot;restored&quot;: &quot;v1.2&quot;
+}</pre></details></td><td class=""><span class="muted">no provenance recorded</span></td></tr><tr data-event="tuning_lab"><td class="" data-v="2026-09-28T19:57:41">2026-09-28T19:57:41</td><td class=""><span class="badge ">tuning_lab</span></td><td class=""><span class="mono"></span></td><td class="">configs=120, episodes_per_split=400, best_on_tune=cfg_3_0.9_0.08_None_0.5_50000000.0_False, locked_gain_weeks7_per_month=0.09719, z=3.373, z_needed=3.341, verdict=PROMOTE<div class="note">configs: 120; champion: 2 entries; best: 2 entries</div><details><summary>record</summary><pre>{
+ &quot;t&quot;: &quot;2026-09-28T19:57:41&quot;,
+ &quot;event&quot;: &quot;tuning_lab&quot;,
+ &quot;configs&quot;: 120,
+ &quot;episodes_per_split&quot;: 400,
+ &quot;tune_years&quot;: [
+  2017,
+  2019,
+  2021,
+  2023,
+  2025
+ ],
+ &quot;locked_years&quot;: [
+  2018,
+  2020,
+  2022,
+  2024,
+  2026
+ ],
+ &quot;champion&quot;: {
+  &quot;tune&quot;: {
+   &quot;mean_month&quot;: 0.010829339750749043,
+   &quot;median_month&quot;: 0.01281305148741807,
+   &quot;p5_month&quot;: -0.08113980957568924,
+   &quot;beat_spy&quot;: 0.485,
+   &quot;weeks_ge7_per_month&quot;: 0.09,
+   &quot;any_7pct_week&quot;: 0.0825,
+   &quot;worst_week_avg&quot;: -0.026772119945464624,
+   &quot;all_4_weeks_ge7&quot;: 0.0
+  },
+  &quot;lock&quot;: {
+   &quot;mean_month&quot;: 0.035353409363794226,
+   &quot;median_month&quot;: 0.028512926277946216,
+   &quot;p5_month&quot;: -0.10762307459245357,
+   &quot;beat_spy&quot;: 0.6547314578005116,
+   &quot;weeks_ge7_per_month&quot;: 0.2966751918158568,
+   &quot;any_7pct_week&quot;: 0.2813299232736573,
+   &quot;worst_week_avg&quot;: -0.03125072345422373,
+   &quot;all_4_weeks_ge7&quot;: 0.0
+  }
+ },
+ &quot;best_on_tune&quot;: &quot;cfg_3_0.9_0.08_None_0.5_50000000.0_False_hivol_0.95&quot;,
+ &quot;best&quot;: {
+  &quot;tune&quot;: {
+   &quot;mean_month&quot;: 0.028057203505349446,
+   &quot;median_month&quot;: 0.02127975988141162,
+   &quot;p5_month&quot;: -0.143959271239543,
+   &quot;beat_spy&quot;: 0.56,
+   &quot;weeks_ge7_per_month&quot;: 0.34,
+   &quot;any_7pct_week&quot;: 0.245,
+   &quot;worst_week_avg&quot;: -0.03845443328208924,
+   &quot;all_4_weeks_ge7&quot;: 0.015
+  },
+  &quot;lock&quot;: {
+   &quot;mean_month&quot;: 0.008675708125081812,
+   &quot;median_month&quot;: 0.018693779488490048,
+   &quot;p5_month&quot;: -0.19544748564618347,
+   &quot;beat_spy&quot;: 0.46035805626598464,
+   &quot;weeks_ge7_per_month&quot;: 0.3938618925831202,
+   &quot;any_7pct_week&quot;: 0.34782608695652173,
+   &quot;worst_week_avg&quot;: -0.05437888172815279,
+   &quot;all_4_weeks_ge7&quot;: 0.0
+  }
+ },
+ &quot;locked_gain_weeks7_per_month&quot;: 0.09718670076726342,
+ &quot;z&quot;: 3.372716790182428,
+ &quot;z_needed&quot;: 3.3414789560386255,
+ &quot;verdict&quot;: &quot;PROMOTE&quot;
+}</pre></details></td><td class=""><span class="muted">no provenance recorded</span></td></tr><tr data-event="challenger_historical"><td class="" data-v="2026-09-28T19:31:16">2026-09-28T19:31:16</td><td class=""><span class="badge ">challenger_historical</span></td><td class=""><span class="mono"></span></td><td class="">id=sector_cap<div class="note">rows: 3 entries</div><details><summary>record</summary><pre>{
+ &quot;t&quot;: &quot;2026-09-28T19:31:16&quot;,
+ &quot;event&quot;: &quot;challenger_historical&quot;,
+ &quot;id&quot;: &quot;sector_cap&quot;,
+ &quot;rows&quot;: {
+  &quot;k4_brake8_champion&quot;: {
+   &quot;final&quot;: 9815,
+   &quot;cagr&quot;: 0.264,
+   &quot;pct_ge_7&quot;: 0.0394,
+   &quot;pct_le_m7&quot;: 0.0237,
+   &quot;worst_week&quot;: -0.2113,
+   &quot;max_dd&quot;: -0.451
+  },
+  &quot;k4_brake8_sectorcap1&quot;: {
+   &quot;final&quot;: 6458,
+   &quot;cagr&quot;: 0.2108,
+   &quot;pct_ge_7&quot;: 0.0335,
+   &quot;pct_le_m7&quot;: 0.0256,
+   &quot;worst_week&quot;: -0.1838,
+   &quot;max_dd&quot;: -0.453
+  },
+  &quot;k4_brake8_sectorcap2&quot;: {
+   &quot;final&quot;: 13198,
+   &quot;cagr&quot;: 0.3029,
+   &quot;pct_ge_7&quot;: 0.0454,
+   &quot;pct_le_m7&quot;: 0.0217,
+   &quot;worst_week&quot;: -0.2105,
+   &quot;max_dd&quot;: -0.465
+  }
+ }
+}</pre></details></td><td class=""><span class="muted">no provenance recorded</span></td></tr><tr data-event="topk_rules"><td class="" data-v="2026-09-28T19:03:58">2026-09-28T19:03:58</td><td class=""><span class="badge ">topk_rules</span></td><td class=""><span class="mono"></span></td><td class=""><div class="note">rows: 6 entries</div><details><summary>record</summary><pre>{
+ &quot;t&quot;: &quot;2026-09-28T19:03:58&quot;,
+ &quot;event&quot;: &quot;topk_rules&quot;,
+ &quot;rows&quot;: {
+  &quot;k4_plain&quot;: {
+   &quot;final&quot;: 9580,
+   &quot;cagr&quot;: 0.2608,
+   &quot;mean_week&quot;: 0.00537,
+   &quot;pct_ge_7&quot;: 0.0394,
+   &quot;pct_le_m7&quot;: 0.0217,
+   &quot;max_dd&quot;: -0.495,
+   &quot;turnover&quot;: 325.6,
+   &quot;cost&quot;: 1606.04,
+   &quot;banks&quot;: 0.0,
+   &quot;brakes&quot;: 0.0
+  },
+  &quot;k4_bank7&quot;: {
+   &quot;final&quot;: 8724,
+   &quot;cagr&quot;: 0.2488,
+   &quot;mean_week&quot;: 0.00508,
+   &quot;pct_ge_7&quot;: 0.0414,
+   &quot;pct_le_m7&quot;: 0.0217,
+   &quot;max_dd&quot;: -0.495,
+   &quot;turnover&quot;: 335.43,
+   &quot;cost&quot;: 1482.54,
+   &quot;banks&quot;: 16.0,
+   &quot;brakes&quot;: 0.0
+  },
+  &quot;k4_brake8&quot;: {
+   &quot;final&quot;: 9815,
+   &quot;cagr&quot;: 0.264,
+   &quot;mean_week&quot;: 0.00539,
+   &quot;pct_ge_7&quot;: 0.0394,
+   &quot;pct_le_m7&quot;: 0.0237,
+   &quot;max_dd&quot;: -0.451,
+   &quot;turnover&quot;: 330.02,
+   &quot;cost&quot;: 1659.68,
+   &quot;banks&quot;: 0.0,
+   &quot;brakes&quot;: 8.0
+  },
+  &quot;k4_bank7_brake8&quot;: {
+   &quot;final&quot;: 8939,
+   &quot;cagr&quot;: 0.2519,
+   &quot;mean_week&quot;: 0.0051,
+   &quot;pct_ge_7&quot;: 0.0414,
+   &quot;pct_le_m7&quot;: 0.0237,
+   &quot;max_dd&quot;: -0.451,
+   &quot;turnover&quot;: 339.85,
+   &quot;cost&quot;: 1531.37,
+   &quot;banks&quot;: 16.0,
+   &quot;brakes&quot;: 8.0
+  },
+  &quot;k3_plain&quot;: {
+   &quot;final&quot;: 12797,
+   &quot;cagr&quot;: 0.2988,
+   &quot;mean_week&quot;: 0.00598,
+   &quot;pct_ge_7&quot;: 0.0473,
+   &quot;pct_le_m7&quot;: 0.0237,
+   &quot;max_dd&quot;: -0.423,
+   &quot;turnover&quot;: 326.43,
+   &quot;cost&quot;: 2025.13,
+   &quot;banks&quot;: 0.0,
+   &quot;brakes&quot;: 0.0
+  },
+  &quot;k5_plain&quot;: {
+   &quot;final&quot;: 5973,
+   &quot;cagr&quot;: 0.2012,
+   &quot;mean_week&quot;: 0.00441,
+   &quot;pct_ge_7&quot;: 0.0434,
+   &quot;pct_le_m7&quot;: 0.0217,
+   &quot;max_dd&quot;: -0.511,
+   &quot;turnover&quot;: 329.38,
+   &quot;cost&quot;: 1259.95,
+   &quot;banks&quot;: 0.0,
+   &quot;brakes&quot;: 0.0
+  }
+ }
+}</pre></details></td><td class=""><span class="muted">no provenance recorded</span></td></tr><tr data-event="historical_test"><td class="" data-v="2026-09-28T19:01:53">2026-09-28T19:01:53</td><td class=""><span class="badge ">historical_test</span></td><td class=""><span class="mono"></span></td><td class="">variant=v9_goal_nostop, final=779.4, weeks=507, mean_week=0.0001296, median_week=0.0004359, pct_ge_7=0.03156, pct_le_m7=0.0355<details><summary>record</summary><pre>{
+ &quot;t&quot;: &quot;2026-09-28T19:01:53&quot;,
+ &quot;event&quot;: &quot;historical_test&quot;,
+ &quot;variant&quot;: &quot;v9_goal_nostop&quot;,
+ &quot;final&quot;: 779.3739965960984,
+ &quot;weeks&quot;: 507,
+ &quot;mean_week&quot;: 0.00012956902094606309,
+ &quot;median_week&quot;: 0.0004359031796354884,
+ &quot;pct_ge_7&quot;: 0.03155818540433925,
+ &quot;pct_le_m7&quot;: 0.03550295857988166,
+ &quot;win_weeks&quot;: 0.504930966469428,
+ &quot;worst_week&quot;: -0.12749895290760105,
+ &quot;best_week&quot;: 0.12995460916448298,
+ &quot;max_dd&quot;: -0.7382572746648483,
+ &quot;cost_total&quot;: 757.3358490996594,
+ &quot;avg_names&quot;: 6.136196319018405,
+ &quot;turnover&quot;: 764.0458148046243,
+ &quot;cost&quot;: 757.3358490996592,
+ &quot;stop&quot;: 0.0,
+ &quot;partial&quot;: 142.0,
+ &quot;time&quot;: 0.0,
+ &quot;stop_pnl&quot;: 0.0
+}</pre></details></td><td class=""><span class="muted">no provenance recorded</span></td></tr><tr data-event="historical_test"><td class="" data-v="2026-09-28T19:01:46">2026-09-28T19:01:46</td><td class=""><span class="badge ">historical_test</span></td><td class=""><span class="mono"></span></td><td class="">variant=v10_goal_stop3, final=786.9, weeks=507, mean_week=0.0001661, median_week=0.003335, pct_ge_7=0.02564, pct_le_m7=0.02959<details><summary>record</summary><pre>{
+ &quot;t&quot;: &quot;2026-09-28T19:01:46&quot;,
+ &quot;event&quot;: &quot;historical_test&quot;,
+ &quot;variant&quot;: &quot;v10_goal_stop3&quot;,
+ &quot;final&quot;: 786.9172724891087,
+ &quot;weeks&quot;: 507,
+ &quot;mean_week&quot;: 0.0001661108543905946,
+ &quot;median_week&quot;: 0.0033345198421610434,
+ &quot;pct_ge_7&quot;: 0.02564102564102564,
+ &quot;pct_le_m7&quot;: 0.029585798816568046,
+ &quot;win_weeks&quot;: 0.5502958579881657,
+ &quot;worst_week&quot;: -0.21319802020765521,
+ &quot;best_week&quot;: 0.1432461637229927,
+ &quot;max_dd&quot;: -0.6672144921237286,
+ &quot;cost_total&quot;: 689.0672565463044,
+ &quot;avg_names&quot;: 5.904294478527607,
+ &quot;turnover&quot;: 730.2781868264609,
+ &quot;cost&quot;: 689.067256546304,
+ &quot;stop&quot;: 222.0,
+ &quot;partial&quot;: 149.0,
+ &quot;time&quot;: 0.0,
+ &quot;stop_pnl&quot;: -2695.183344810546
+}</pre></details></td><td class=""><span class="muted">no provenance recorded</span></td></tr><tr data-event="frontier"><td class="" data-v="2026-09-28T18:56:29">2026-09-28T18:56:29</td><td class=""><span class="badge ">frontier</span></td><td class=""><span class="mono"></span></td><td class=""><div class="note">rows: 24 entries</div><details><summary>record</summary><pre>{
+ &quot;t&quot;: &quot;2026-09-28T18:56:29&quot;,
+ &quot;event&quot;: &quot;frontier&quot;,
+ &quot;rows&quot;: [
+  {
+   &quot;k&quot;: 4,
+   &quot;exit_q&quot;: 0.99,
+   &quot;pick&quot;: &quot;top&quot;,
+   &quot;cost_bps&quot;: 10,
+   &quot;final&quot;: 3008.0,
+   &quot;cagr&quot;: 0.11980000138282776,
+   &quot;mean_week&quot;: 0.003109999932348728,
+   &quot;pct_ge_7&quot;: 0.0257,
+   &quot;pct_le_m7&quot;: 0.0277,
+   &quot;max_dd&quot;: -0.5040000081062317,
+   &quot;turnover_per_week&quot;: 0.774
+  },
+  {
+   &quot;k&quot;: 4,
+   &quot;exit_q&quot;: 0.95,
+   &quot;pick&quot;: &quot;top&quot;,
+   &quot;cost_bps&quot;: 10,
+   &quot;final&quot;: 5261.0,
+   &quot;cagr&quot;: 0.18610000610351562,
+   &quot;mean_week&quot;: 0.00418000016361475,
+   &quot;pct_ge_7&quot;: 0.0375,
+   &quot;pct_le_m7&quot;: 0.0257,
+   &quot;max_dd&quot;: -0.49000000953674316,
+   &quot;turnover_per_week&quot;: 0.541
+  },
+  {
+   &quot;k&quot;: 4,
+   &quot;exit_q&quot;: 0.9,
+   &quot;pick&quot;: &quot;top&quot;,
+   &quot;cost_bps&quot;: 10,
+   &quot;final&quot;: 7507.0,
+   &quot;cagr&quot;: 0.23019999265670776,
+   &quot;mean_week&quot;: 0.0048500001430511475,
+   &quot;pct_ge_7&quot;: 0.0316,
+   &quot;pct_le_m7&quot;: 0.0237,
+   &quot;max_dd&quot;: -0.45899999141693115,
+   &quot;turnover_per_week&quot;: 0.434
+  },
+  {
+   &quot;k&quot;: 4,
+   &quot;exit_q&quot;: 0.8,
+   &quot;pick&quot;: &quot;top&quot;,
+   &quot;cost_bps&quot;: 10,
+   &quot;final&quot;: 10052.0,
+   &quot;cagr&quot;: 0.2676999866962433,
+   &quot;mean_week&quot;: 0.00547999981790781,
+   &quot;pct_ge_7&quot;: 0.0415,
+   &quot;pct_le_m7&quot;: 0.0198,
+   &quot;max_dd&quot;: -0.4699999988079071,
+   &quot;turnover_per_week&quot;: 0.31
+  },
+  {
+   &quot;k&quot;: 8,
+   &quot;exit_q&quot;: 0.99,
+   &quot;pick&quot;: &quot;top&quot;,
+   &quot;cost_bps&quot;: 10,
+   &quot;final&quot;: 2008.0,
+   &quot;cagr&quot;: 0.07429999858140945,
+   &quot;mean_week&quot;: 0.00215999991632998,
+   &quot;pct_ge_7&quot;: 0.0277,
+   &quot;pct_le_m7&quot;: 0.0237,
+   &quot;max_dd&quot;: -0.5479999780654907,
+   &quot;turnover_per_week&quot;: 0.804
+  },
+  {
+   &quot;k&quot;: 8,
+   &quot;exit_q&quot;: 0.95,
+   &quot;pick&quot;: &quot;top&quot;,
+   &quot;cost_bps&quot;: 10,
+   &quot;final&quot;: 3571.0,
+   &quot;cagr&quot;: 0.1396999955177307,
+   &quot;mean_week&quot;: 0.0032599999103695154,
+   &quot;pct_ge_7&quot;: 0.0316,
+   &quot;pct_le_m7&quot;: 0.0158,
+   &quot;max_dd&quot;: -0.5180000066757202,
+   &quot;turnover_per_week&quot;: 0.551
+  },
+  {
+   &quot;k&quot;: 8,
+   &quot;exit_q&quot;: 0.9,
+   &quot;pick&quot;: &quot;top&quot;,
+   &quot;cost_bps&quot;: 10,
+   &quot;final&quot;: 4481.0,
+   &quot;cagr&quot;: 0.16660000383853912,
+   &quot;mean_week&quot;: 0.003710000077262521,
+   &quot;pct_ge_7&quot;: 0.0336,
+   &quot;pct_le_m7&quot;: 0.0198,
+   &quot;max_dd&quot;: -0.5199999809265137,
+   &quot;turnover_per_week&quot;: 0.443
+  },
+  {
+   &quot;k&quot;: 8,
+   &quot;exit_q&quot;: 0.8,
+   &quot;pick&quot;: &quot;top&quot;,
+   &quot;cost_bps&quot;: 10,
+   &quot;final&quot;: 4855.0,
+   &quot;cagr&quot;: 0.17630000412464142,
+   &quot;mean_week&quot;: 0.0038300000596791506,
+   &quot;pct_ge_7&quot;: 0.0277,
+   &quot;pct_le_m7&quot;: 0.0138,
+   &quot;max_dd&quot;: -0.48899999260902405,
+   &quot;turnover_per_week&quot;: 0.317
+  },
+  {
+   &quot;k&quot;: 15,
+   &quot;exit_q&quot;: 0.99,
+   &quot;pick&quot;: &quot;top&quot;,
+   &quot;cost_bps&quot;: 10,
+   &quot;final&quot;: 1558.0,
+   &quot;cagr&quot;: 0.04659999907016754,
+   &quot;mean_week&quot;: 0.0015200000489130616,
+   &quot;pct_ge_7&quot;: 0.0158,
+   &quot;pct_le_m7&quot;: 0.0178,
+   &quot;max_dd&quot;: 
+... (truncated; full record in state/experiments.jsonl)</pre></details></td><td class=""><span class="muted">no provenance recorded</span></td></tr><tr data-event="walk_forward"><td class="" data-v="2026-09-28T18:52:18">2026-09-28T18:52:18</td><td class=""><span class="badge ">walk_forward</span></td><td class=""><span class="mono"></span></td><td class="">note=v1.1: insider features, excess-return re, blend=0.03019, evidence=0.02541, model=0.02478, blend_t=9.49<details><summary>record</summary><pre>{
+ &quot;t&quot;: &quot;2026-09-28T18:52:18&quot;,
+ &quot;event&quot;: &quot;walk_forward&quot;,
+ &quot;note&quot;: &quot;v1.1: insider features, excess-return regressor, ranker retired, 2 priors off&quot;,
+ &quot;blend&quot;: 0.03018624035441941,
+ &quot;evidence&quot;: 0.025414464786266695,
+ &quot;model&quot;: 0.02478037771412192,
+ &quot;blend_t&quot;: 9.489973648257054
+}</pre></details></td><td class=""><span class="muted">no provenance recorded</span></td></tr><tr data-event="frontier"><td class="" data-v="2026-09-28T18:30:24">2026-09-28T18:30:24</td><td class=""><span class="badge ">frontier</span></td><td class=""><span class="mono"></span></td><td class=""><div class="note">rows: 24 entries</div><details><summary>record</summary><pre>{
+ &quot;t&quot;: &quot;2026-09-28T18:30:24&quot;,
+ &quot;event&quot;: &quot;frontier&quot;,
+ &quot;rows&quot;: [
+  {
+   &quot;k&quot;: 4,
+   &quot;exit_q&quot;: 0.99,
+   &quot;pick&quot;: &quot;top&quot;,
+   &quot;cost_bps&quot;: 10,
+   &quot;final&quot;: 2757.0,
+   &quot;cagr&quot;: 0.10980000346899033,
+   &quot;mean_week&quot;: 0.002730000065639615,
+   &quot;pct_ge_7&quot;: 0.0316,
+   &quot;pct_le_m7&quot;: 0.0257,
+   &quot;max_dd&quot;: -0.4490000009536743,
+   &quot;turnover_per_week&quot;: 0.763
+  },
+  {
+   &quot;k&quot;: 4,
+   &quot;exit_q&quot;: 0.95,
+   &quot;pick&quot;: &quot;top&quot;,
+   &quot;cost_bps&quot;: 10,
+   &quot;final&quot;: 2262.0,
+   &quot;cagr&quot;: 0.08749999850988388,
+   &quot;mean_week&quot;: 0.002309999894350767,
+   &quot;pct_ge_7&quot;: 0.0217,
+   &quot;pct_le_m7&quot;: 0.0257,
+   &quot;max_dd&quot;: -0.45100000500679016,
+   &quot;turnover_per_week&quot;: 0.554
+  },
+  {
+   &quot;k&quot;: 4,
+   &quot;exit_q&quot;: 0.9,
+   &quot;pick&quot;: &quot;top&quot;,
+   &quot;cost_bps&quot;: 10,
+   &quot;final&quot;: 2415.0,
+   &quot;cagr&quot;: 0.09480000287294388,
+   &quot;mean_week&quot;: 0.002409999957308173,
+   &quot;pct_ge_7&quot;: 0.0257,
+   &quot;pct_le_m7&quot;: 0.0237,
+   &quot;max_dd&quot;: -0.40799999237060547,
+   &quot;turnover_per_week&quot;: 0.436
+  },
+  {
+   &quot;k&quot;: 4,
+   &quot;exit_q&quot;: 0.8,
+   &quot;pick&quot;: &quot;top&quot;,
+   &quot;cost_bps&quot;: 10,
+   &quot;final&quot;: 3704.0,
+   &quot;cagr&quot;: 0.14399999380111694,
+   &quot;mean_week&quot;: 0.003229999914765358,
+   &quot;pct_ge_7&quot;: 0.0217,
+   &quot;pct_le_m7&quot;: 0.0237,
+   &quot;max_dd&quot;: -0.375,
+   &quot;turnover_per_week&quot;: 0.296
+  },
+  {
+   &quot;k&quot;: 8,
+   &quot;exit_q&quot;: 0.99,
+   &quot;pick&quot;: &quot;top&quot;,
+   &quot;cost_bps&quot;: 10,
+   &quot;final&quot;: 2370.0,
+   &quot;cagr&quot;: 0.09269999712705612,
+   &quot;mean_week&quot;: 0.0022899999748915434,
+   &quot;pct_ge_7&quot;: 0.0198,
+   &quot;pct_le_m7&quot;: 0.0237,
+   &quot;max_dd&quot;: -0.39100000262260437,
+   &quot;turnover_per_week&quot;: 0.806
+  },
+  {
+   &quot;k&quot;: 8,
+   &quot;exit_q&quot;: 0.95,
+   &quot;pick&quot;: &quot;top&quot;,
+   &quot;cost_bps&quot;: 10,
+   &quot;final&quot;: 3097.0,
+   &quot;cagr&quot;: 0.12319999933242798,
+   &quot;mean_week&quot;: 0.0028200000524520874,
+   &quot;pct_ge_7&quot;: 0.0178,
+   &quot;pct_le_m7&quot;: 0.0178,
+   &quot;max_dd&quot;: -0.39899998903274536,
+   &quot;turnover_per_week&quot;: 0.58
+  },
+  {
+   &quot;k&quot;: 8,
+   &quot;exit_q&quot;: 0.9,
+   &quot;pick&quot;: &quot;top&quot;,
+   &quot;cost_bps&quot;: 10,
+   &quot;final&quot;: 3127.0,
+   &quot;cagr&quot;: 0.12430000305175781,
+   &quot;mean_week&quot;: 0.0028299998957663774,
+   &quot;pct_ge_7&quot;: 0.0198,
+   &quot;pct_le_m7&quot;: 0.0217,
+   &quot;max_dd&quot;: -0.38600000739097595,
+   &quot;turnover_per_week&quot;: 0.455
+  },
+  {
+   &quot;k&quot;: 8,
+   &quot;exit_q&quot;: 0.8,
+   &quot;pick&quot;: &quot;top&quot;,
+   &quot;cost_bps&quot;: 10,
+   &quot;final&quot;: 4069.0,
+   &quot;cagr&quot;: 0.1551000028848648,
+   &quot;mean_week&quot;: 0.0033199999015778303,
+   &quot;pct_ge_7&quot;: 0.0198,
+   &quot;pct_le_m7&quot;: 0.0158,
+   &quot;max_dd&quot;: -0.37700000405311584,
+   &quot;turnover_per_week&quot;: 0.307
+  },
+  {
+   &quot;k&quot;: 15,
+   &quot;exit_q&quot;: 0.99,
+   &quot;pick&quot;: &quot;top&quot;,
+   &quot;cost_bps&quot;: 10,
+   &quot;final&quot;: 2282.0,
+   &quot;cagr&quot;: 0.0885000005364418,
+   &quot;mean_week&quot;: 0.0021299999207258224,
+   &quot;pct_ge_7&quot;: 0.0138,
+   &quot;pct_le_m7&quot;: 0.0198,
+   &quot;max_dd&quot;: -0.3689
+... (truncated; full record in state/experiments.jsonl)</pre></details></td><td class=""><span class="muted">no provenance recorded</span></td></tr></tbody></table></div></section><section class="card"><h2>Report files</h2><div class="sub">Artefacts produced by research and simulation runs (listing only).</div><div class="controls" data-table="reports"><input type="search" placeholder="Search reports" aria-label="Search reports"><span class="note count"></span></div><div class="scroll"><table id="reports" class="sortable"><thead><tr><th data-sort>Area</th><th data-sort>File</th><th data-sort>Type</th><th data-sort>Size</th><th>Headline numbers</th></tr></thead><tbody><tr><td class="">research</td><td class=""><span class="mono">backtest_summary.json</span></td><td class="">json</td><td class="" data-v="1469">1 KB</td><td class="muted"></td></tr><tr><td class="">research</td><td class=""><span class="mono">dec_v10_goal_stop3.csv</span></td><td class="">csv</td><td class="" data-v="187997">184 KB</td><td class="muted"></td></tr><tr><td class="">research</td><td class=""><span class="mono">dec_v9_goal_nostop.csv</span></td><td class="">csv</td><td class="" data-v="187707">183 KB</td><td class="muted"></td></tr><tr><td class="">research</td><td class=""><span class="mono">eq_k3_plain.csv</span></td><td class="">csv</td><td class="" data-v="74342">73 KB</td><td class="muted"></td></tr><tr><td class="">research</td><td class=""><span class="mono">eq_k4_bank7.csv</span></td><td class="">csv</td><td class="" data-v="74149">72 KB</td><td class="muted"></td></tr><tr><td class="">research</td><td class=""><span class="mono">eq_k4_bank7_brake8.csv</span></td><td class="">csv</td><td class="" data-v="74125">72 KB</td><td class="muted"></td></tr><tr><td class="">research</td><td class=""><span class="mono">eq_k4_brake8.csv</span></td><td class="">csv</td><td class="" data-v="74005">72 KB</td><td class="muted"></td></tr><tr><td class="">research</td><td class=""><span class="mono">eq_k4_plain.csv</span></td><td class="">csv</td><td class="" data-v="73959">72 KB</td><td class="muted"></td></tr><tr><td class="">research</td><td class=""><span class="mono">eq_k5_plain.csv</span></td><td class="">csv</td><td class="" data-v="74369">73 KB</td><td class="muted"></td></tr><tr><td class="">research</td><td class=""><span class="mono">eq_v10_goal_stop3.csv</span></td><td class="">csv</td><td class="" data-v="73477">72 KB</td><td class="muted"></td></tr><tr><td class="">research</td><td class=""><span class="mono">eq_v9_goal_nostop.csv</span></td><td class="">csv</td><td class="" data-v="74104">72 KB</td><td class="muted"></td></tr><tr><td class="">research</td><td class=""><span class="mono">frontier.json</span></td><td class="">json</td><td class="" data-v="6679">7 KB</td><td class="muted"></td></tr><tr><td class="">research</td><td class=""><span class="mono">model_summary.json</span></td><td class="">json</td><td class="" data-v="1138">1 KB</td><td class="muted"></td></tr><tr><td class="">research</td><td class=""><span class="mono">registry_audit.json</span></td><td class="">json</td><td class="" data-v="6346">6 KB</td><td class="muted">n_records=53, records_fully_complete=0, orphans_no_outcome=53, records_with_provenance_stamp=0.03774</td></tr><tr><td class="">research</td><td class=""><span class="mono">res_v10_goal_stop3.json</span></td><td class="">json</td><td class="" data-v="600">1 KB</td><td class="muted"></td></tr><tr><td class="">research</td><td class=""><span class="mono">res_v9_goal_nostop.json</span></td><td class="">json</td><td class="" data-v="584">1 KB</td><td class="muted"></td></tr><tr><td class="">research</td><td class=""><span class="mono">sensitivity.json</span></td><td class="">json</td><td class="" data-v="106321">104 KB</td><td class="muted">hidden_years=39, champion_mean_week=0.003148, runtime_s=1021</td></tr><tr><td class="">research</td><td class=""><span class="mono">three_way.json</span></td><td class="">json</td><td class="" data-v="6081">6 KB</td><td class="muted">windows=42, pick_hit_rate_7=0.1727, pick_win_rate=0.5157, universe_hit_rate_7=0.08121</td></tr><tr><td class="">research</td><td class=""><span class="mono">topk_rules.json</span></td><td class="">json</td><td class="" data-v="1379">1 KB</td><td class="muted"></td></tr><tr><td class="">research</td><td class=""><span class="mono">tuning_summary.json</span></td><td class="">json</td><td class="" data-v="2964">3 KB</td><td class="muted">configs=120, episodes_per_split=400, locked_gain_weeks7_per_month=0.09719, z=3.373, z_needed=3.341</td></tr><tr><td class="">algorithm</td><td class=""><span class="mono">patterns_2017-01-01_v1.parquet</span></td><td class="">parquet</td><td class="" data-v="571887">558 KB</td><td class="muted"></td></tr><tr><td class="">algorithm</td><td class=""><span class="mono">patterns_2020-01-01.parquet</span></td><td class="">parquet</td><td class="" data-v="577358">564 KB</td><td class="muted"></td></tr><tr><td class="">algorithm</td><td class=""><span class="mono">patterns_2020-01-01_v2.parquet</span></td><td class="">parquet</td><td class="" data-v="635811">621 KB</td><td class="muted"></td></tr><tr><td class="">algorithm</td><td class=""><span class="mono">patterns_2020-01-01_v2move.parquet</span></td><td class="">parquet</td><td class="" data-v="584350">571 KB</td><td class="muted"></td></tr><tr><td class="">algorithm</td><td class=""><span class="mono">patterns_2022-01-01_v1.parquet</span></td><td class="">parquet</td><td class="" data-v="629164">614 KB</td><td class="muted"></td></tr><tr><td class="">algorithm</td><td class=""><span class="mono">planted_calibration.json</span></td><td class="">json</td><td class="" data-v="665">1 KB</td><td class="muted">seeds=8, false_active_per_run=0.125, active_per_run=5, false_share_of_active=0.025</td></tr><tr><td class="">algorithm</td><td class=""><span class="mono">test_2017-01-01_v1.json</span></td><td class="">json</td><td class="" data-v="279">0 KB</td><td class="muted">weeks=104, ic_mean=0.009955, ic_t=0.5928, top_decile_excess_week=0.0003998, tested=4344, fdr_pass=2178</td></tr><tr><td class="">algorithm</td><td class=""><span class="mono">test_2020-01-01.json</span></td><td class="">json</td><td class="" data-v="275">0 KB</td><td class="muted">weeks=105, ic_mean=0.04217, ic_t=2.77, top_decile_excess_week=5.415e-05, tested=4373, fdr_pass=1934</td></tr><tr><td class="">algorithm</td><td class=""><span class="mono">test_2020-01-01_v2.json</span></td><td class="">json</td><td class="" data-v="327">0 KB</td><td class="muted">weeks=0, tested=4393, fdr_pass=765, rejected=4393, gate_corr_confirm=0, null_patterns=3000</td></tr><tr><td class="">algorithm</td><td class=""><span class="mono">test_2020-01-01_v2move.json</span></td><td class="">json</td><td class="" data-v="433">0 KB</td><td class="muted">weeks=105, ic_mean=0.383, ic_t=38.52, top_decile_excess_week=0.05517, tested=4382, fdr_pass=3908</td></tr><tr><td class="">algorithm</td><td class=""><span class="mono">test_2022-01-01_v1.json</span></td><td class="">json</td><td class="" data-v="431">0 KB</td><td class="muted">weeks=104, ic_mean=0.005534, ic_t=1.14, top_decile_excess_week=0.0001423, tested=4382, fdr_pass=693</td></tr></tbody></table></div></section>
+<p class="note">Built 2026-09-29 03:55 UTC. Sources: cycles: revealed windows only; registry: 53 records. Generated by scripts/site_build.py; sealed test windows and credentials are never read.
+Paper trading only; nothing here is investment advice.</p>
+</main><script>
+(function(){
+function num(s){var x=parseFloat(String(s).replace(/[^0-9eE.+-]/g,''));return isNaN(x)?null:x}
+document.querySelectorAll('table.sortable').forEach(function(t){
+ t.querySelectorAll('th[data-sort]').forEach(function(th){
+  th.addEventListener('click',function(){
+   var idx=Array.prototype.indexOf.call(th.parentNode.children,th),dir=th.dataset.dir==='a'?-1:1;th.dataset.dir=dir===1?'a':'d';
+   var body=t.tBodies[0],rows=Array.prototype.slice.call(body.rows);
+   rows.sort(function(a,b){var x=a.cells[idx].dataset.v||a.cells[idx].textContent,y=b.cells[idx].dataset.v||b.cells[idx].textContent,nx=num(x),ny=num(y);
+    if(nx!==null&&ny!==null)return (nx-ny)*dir;return String(x).localeCompare(String(y))*dir});
+   rows.forEach(function(r){body.appendChild(r)});});});});
+function apply(box){
+ var t=document.getElementById(box.dataset.table),q=(box.querySelector('input[type=search]')||{}).value||'';q=q.toLowerCase();
+ var sels=box.querySelectorAll('select[data-col]');
+ Array.prototype.forEach.call(t.tBodies[0].rows,function(r){
+  var ok=(r.textContent||'').toLowerCase().indexOf(q)>=0;
+  sels.forEach(function(s){if(s.value&&ok){ok=(r.getAttribute('data-'+s.dataset.col)||'')===s.value}});
+  r.classList.toggle('hidden',!ok);});
+ var n=t.tBodies[0].querySelectorAll('tr:not(.hidden)').length,c=box.querySelector('.count');if(c)c.textContent=n+' shown';}
+document.querySelectorAll('.controls[data-table]').forEach(function(box){
+ box.addEventListener('input',function(){apply(box)});apply(box);});
+})();
+</script></body></html>
