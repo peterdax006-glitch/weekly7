@@ -516,16 +516,20 @@
    "phase": "B MEMORY",
    "description": "Build recovery index.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/learning/retirement.py"
+   ],
+   "tests": [
+    "tests/test_learning_temporal.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[missing] pattern_memory requalifies silently; recoveries are not recorded."
+   "last_run": "2026-09-29T09:25:26",
+   "code_hash": "a1332647a44b1945",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S08). retirement.py: ACTIVE/DEGRADED/DORMANT/RETIRED ledger, dormant never influences live, evidence-gated recovery (attempt_recovery), maps pattern_lifecycle.STATES."
   },
   {
    "id": "B12",
@@ -777,21 +781,23 @@
    "phase": "C LEARNING",
    "description": "Implement surprise detection.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
+    "engine/learning/surprise.py",
     "engine/memory.py::classify_error",
     "engine/run_report.py::memory_shock_events"
    ],
    "tests": [
+    "tests/test_learning_temporal.py",
     "tests/test_run_report.py"
    ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[under-depth] FP/FN classification and z-score shocks; no surprise magnitude/direction/persistence."
+   "last_run": "2026-09-29T09:25:26",
+   "code_hash": "a1332647a44b1945",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S08). surprise.py: expected vs actual, magnitude/direction/persistence, cluster half-life, research-priority feed, failure hand-off."
   },
   {
    "id": "C08",
@@ -2625,12 +2631,14 @@
    "owner": "Claude",
    "status": "VALIDATED",
    "code_paths": [
+    "engine/learning/planted_world.py",
     "engine/planted.py",
     "scripts/planted_calibration.py"
    ],
    "tests": [
-    "tests/test_planted_patterns.py",
-    "tests/test_planted_library.py"
+    "tests/test_learning_planted_world.py",
+    "tests/test_planted_library.py",
+    "tests/test_planted_patterns.py"
    ],
    "evidence": [
     "state/research/algorithm/planted/report_final_seeds100.md"
@@ -2638,8 +2646,8 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
+   "last_run": "2026-09-29T09:25:28",
+   "code_hash": "a1332647a44b1945",
    "notes": "[already implemented] strong_detection 1.000 (rule >= 0.9). Miner-level; the knowledge layer must be re-run."
   },
   {
@@ -2649,9 +2657,11 @@
    "owner": "Claude",
    "status": "VALIDATED",
    "code_paths": [
+    "engine/learning/planted_world.py",
     "engine/planted.py"
    ],
    "tests": [
+    "tests/test_learning_planted_world.py",
     "tests/test_planted_patterns.py"
    ],
    "evidence": [
@@ -2660,8 +2670,8 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
+   "last_run": "2026-09-29T09:25:28",
+   "code_hash": "a1332647a44b1945",
    "notes": "[already implemented] weak admitted 1.00 standard / 0.88 heavy tails, sign 1.0. Not a verdict criterion; miner-level."
   },
   {
@@ -2671,9 +2681,11 @@
    "owner": "Claude",
    "status": "VALIDATED",
    "code_paths": [
+    "engine/learning/planted_world.py",
     "engine/planted.py"
    ],
    "tests": [
+    "tests/test_learning_planted_world.py",
     "tests/test_planted_patterns.py"
    ],
    "evidence": [
@@ -2682,8 +2694,8 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
+   "last_run": "2026-09-29T09:25:28",
+   "code_hash": "a1332647a44b1945",
    "notes": "[already implemented] negative_detection 1.000, sign 1.000. Miner-level."
   },
   {
@@ -2693,9 +2705,11 @@
    "owner": "Claude",
    "status": "VALIDATED",
    "code_paths": [
+    "engine/learning/planted_world.py",
     "engine/planted.py"
    ],
    "tests": [
+    "tests/test_learning_planted_world.py",
     "tests/test_planted_patterns.py"
    ],
    "evidence": [
@@ -2704,8 +2718,8 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
+   "last_run": "2026-09-29T09:25:28",
+   "code_hash": "a1332647a44b1945",
    "notes": "[already implemented] pair admitted 1.00 in standard and heavy tails. Miner-level."
   },
   {
@@ -2715,9 +2729,11 @@
    "owner": "Claude",
    "status": "FAILED",
    "code_paths": [
+    "engine/learning/planted_world.py",
     "engine/planted.py (regime plant)"
    ],
    "tests": [
+    "tests/test_learning_planted_world.py",
     "tests/test_planted_patterns.py"
    ],
    "evidence": [
@@ -2726,8 +2742,8 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
+   "last_run": "2026-09-29T09:25:28",
+   "code_hash": "a1332647a44b1945",
    "notes": "IMPLEMENTED — FAILED VALIDATION. regime plant admitted 0.38 (standard) / 0.50 (heavy tails), effect ratio ~0.2. Not a verdict criterion, so the overall VALIDATED verdict hides it."
   },
   {
@@ -2737,9 +2753,11 @@
    "owner": "Claude",
    "status": "VALIDATED",
    "code_paths": [
+    "engine/learning/planted_world.py",
     "engine/planted.py (decaying plant)"
    ],
    "tests": [
+    "tests/test_learning_planted_world.py",
     "tests/test_planted_patterns.py"
    ],
    "evidence": [
@@ -2748,8 +2766,8 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
+   "last_run": "2026-09-29T09:25:28",
+   "code_hash": "a1332647a44b1945",
    "notes": "[already implemented] decaying_not_held 0.000 (rule <= 0.2). Detection of decay DURING use (pattern_reliability 'phantom' world) is untested."
   },
   {
@@ -2759,18 +2777,21 @@
    "owner": "Claude",
    "status": "IN_PROGRESS",
    "code_paths": [
-    "engine/planted.py",
-    "engine/pattern_reliability.py::planted_world('regime')"
+    "engine/learning/planted_world.py",
+    "engine/pattern_reliability.py::planted_world('regime')",
+    "engine/planted.py"
    ],
-   "tests": [],
+   "tests": [
+    "tests/test_learning_planted_world.py"
+   ],
    "evidence": [
     "state/research/algorithm/planted/report_final_seeds100.md"
    ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
+   "last_run": "2026-09-29T09:25:28",
+   "code_hash": "a1332647a44b1945",
    "notes": "[missing plant] No distinct 'conditional' plant; the closest (regime) fails - see I10."
   },
   {
@@ -2780,9 +2801,11 @@
    "owner": "Claude",
    "status": "FAILED",
    "code_paths": [
+    "engine/learning/planted_world.py",
     "engine/planted.py (unless plant)"
    ],
    "tests": [
+    "tests/test_learning_planted_world.py",
     "tests/test_planted_patterns.py"
    ],
    "evidence": [
@@ -2791,8 +2814,8 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
+   "last_run": "2026-09-29T09:25:28",
+   "code_hash": "a1332647a44b1945",
    "notes": "IMPLEMENTED — FAILED VALIDATION. unless admitted directly 0.12-0.25; 0.75-0.88 only via a child/duplicate."
   },
   {
@@ -2802,9 +2825,11 @@
    "owner": "Claude",
    "status": "VALIDATED",
    "code_paths": [
+    "engine/learning/planted_world.py",
     "engine/planted.py (noise_only)"
    ],
    "tests": [
+    "tests/test_learning_planted_world.py",
     "tests/test_planted_patterns.py"
    ],
    "evidence": [
@@ -2813,8 +2838,8 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
+   "last_run": "2026-09-29T09:25:28",
+   "code_hash": "a1332647a44b1945",
    "notes": "[already implemented] zero_rejected 0.000, noise_only_quiet 0.25 active/run (rule <= 1.0)."
   },
   {
@@ -2824,9 +2849,11 @@
    "owner": "Claude",
    "status": "VALIDATED",
    "code_paths": [
+    "engine/learning/planted_world.py",
     "engine/planted.py (hallucinated plant)"
    ],
    "tests": [
+    "tests/test_learning_planted_world.py",
     "tests/test_planted_patterns.py"
    ],
    "evidence": [
@@ -2835,8 +2862,8 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
+   "last_run": "2026-09-29T09:25:28",
+   "code_hash": "a1332647a44b1945",
    "notes": "[already implemented] hallucinated_rejected 0.000 false admission (rule <= 0.2)."
   },
   {
@@ -3051,11 +3078,13 @@
    "owner": "Claude",
    "status": "IMPLEMENTED",
    "code_paths": [
-    "engine/pattern_lifecycle.py",
+    "engine/learning/retirement.py",
     "engine/pattern_bank.py",
+    "engine/pattern_lifecycle.py",
     "engine/pattern_memory.py (disregarded)"
    ],
    "tests": [
+    "tests/test_learning_temporal.py",
     "tests/test_pattern_bank.py::test_discarded_pattern_stays_in_the_bank_and_can_return",
     "tests/test_pattern_lifecycle.py"
    ],
@@ -3065,21 +3094,23 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "IMPLEMENTED — NOT VALIDATED. Retire-not-delete holds for patterns; no knowledge-level retirement gate."
+   "last_run": "2026-09-29T09:25:26",
+   "code_hash": "a1332647a44b1945",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S08). retirement.py: ACTIVE/DEGRADED/DORMANT/RETIRED ledger, dormant never influences live, evidence-gated recovery (attempt_recovery), maps pattern_lifecycle.STATES."
   },
   {
    "id": "J06",
    "phase": "J PRODUCTION INTELLIGENCE",
    "description": "Recovery gate.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
-    "engine/pattern_memory.py (requalify)",
-    "engine/pattern_bank.py"
+    "engine/learning/retirement.py",
+    "engine/pattern_bank.py",
+    "engine/pattern_memory.py (requalify)"
    ],
    "tests": [
+    "tests/test_learning_temporal.py",
     "tests/test_pattern_bank.py"
    ],
    "evidence": [
@@ -3088,9 +3119,9 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial] Automatic requalification; no explicit evidence threshold for recovery."
+   "last_run": "2026-09-29T09:25:26",
+   "code_hash": "a1332647a44b1945",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S08). retirement.py: ACTIVE/DEGRADED/DORMANT/RETIRED ledger, dormant never influences live, evidence-gated recovery (attempt_recovery), maps pattern_lifecycle.STATES."
   },
   {
    "id": "J07",
@@ -3118,21 +3149,23 @@
    "phase": "J PRODUCTION INTELLIGENCE",
    "description": "Calibration monitoring.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
-    "engine/pattern_reliability.py::brier,ece,reliability_table",
-    "engine/direction_calib.py"
+    "engine/direction_calib.py",
+    "engine/learning/calibration.py",
+    "engine/pattern_reliability.py::brier,ece,reliability_table"
    ],
    "tests": [
-    "tests/test_direction_calib.py"
+    "tests/test_direction_calib.py",
+    "tests/test_learning_calibration.py"
    ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial] Calibration measured; no drift monitor or influence reduction."
+   "last_run": "2026-09-29T09:25:26",
+   "code_hash": "a1332647a44b1945",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S08). calibration.py wraps pattern_reliability.brier/ece + pattern_stats.calibration_table; drift, per-context hierarchical calibration, walk-forward recalibration, influence reduction."
   },
   {
    "id": "J09",
@@ -3155,16 +3188,20 @@
    "phase": "J PRODUCTION INTELLIGENCE",
    "description": "Surprise monitoring.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/learning/surprise.py"
+   ],
+   "tests": [
+    "tests/test_learning_temporal.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[missing] run_report.memory_shock_events is a shock detector, not a surprise monitor."
+   "last_run": "2026-09-29T09:25:26",
+   "code_hash": "a1332647a44b1945",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S08). surprise.py: expected vs actual, magnitude/direction/persistence, cluster half-life, research-priority feed, failure hand-off."
   },
   {
    "id": "J11",
@@ -4170,24 +4207,26 @@
   {
    "section": "Retirement/recovery",
    "minimum_lines": 450,
-   "actual_lines": 384,
+   "actual_lines": 480,
    "code_paths": [
+    "engine/learning/retirement.py",
     "engine/pattern_bank.py (384)"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "UNDER by 66 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: bank never deletes (discarded kept, decayed prior), pattern_memory requalifies automatically. No ACTIVE/DEGRADED/DORMANT/RETIRED states and no evidence-gated recovery rule."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S08). ruler count of engine/learning/retirement.py; older partial code listed for reference."
   },
   {
    "section": "Time-aware memory",
    "minimum_lines": 700,
-   "actual_lines": 132,
+   "actual_lines": 737,
    "code_paths": [
-    "engine/pattern_memory.py::_pool,_summary,periods_of,_period_of (95)",
     "engine/heavy_tests.py::decay_fit,pattern_lifetimes (25)",
-    "engine/memory_diagnostics.py::detect_lag,eviction_regret (12)"
+    "engine/learning/temporal.py",
+    "engine/memory_diagnostics.py::detect_lag,eviction_regret (12)",
+    "engine/pattern_memory.py::_pool,_summary,periods_of,_period_of (95)"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "UNDER by 568 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: universal/local/disregarded relevance, fixed time kernels (tau_time_years grid), a decay fit in heavy_tests. No learned temporal class (PERSISTENT..SEASONAL), no expected-lifetime estimate with uncertainty."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S08)."
   },
   {
    "section": "Situation representation",
@@ -4575,12 +4614,13 @@
   {
    "section": "Surprise engine",
    "minimum_lines": 500,
-   "actual_lines": 28,
+   "actual_lines": 536,
    "code_paths": [
+    "engine/learning/surprise.py",
     "engine/run_report.py::memory_shock_events (28)"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "UNDER by 472 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). under-depth: z-score shock events on a score series; no expected-vs-actual surprise with magnitude/direction/persistence feeding research priority."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S08)."
   },
   {
    "section": "Disagreement engine",
@@ -4593,15 +4633,16 @@
   {
    "section": "Calibration",
    "minimum_lines": 650,
-   "actual_lines": 69,
+   "actual_lines": 654,
    "code_paths": [
-    "engine/pattern_reliability.py::brier,ece,auc (21)",
+    "engine/learning/calibration.py",
     "engine/memory_diagnostics.py::calibration_table,skill_ci (26)",
-    "engine/run_report.py::calibration (11)",
-    "engine/planted.py::calibration_table (11)"
+    "engine/pattern_reliability.py::brier,ece,auc (21)",
+    "engine/planted.py::calibration_table (11)",
+    "engine/run_report.py::calibration (11)"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "UNDER by 581 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: Brier/ECE/reliability tables in several places (+ direction_calib, counted under unknown handling). No confidence-drift tracking, no context-specific calibration, no influence reduction when overconfident."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S08)."
   },
   {
    "section": "Learning firewalls",
