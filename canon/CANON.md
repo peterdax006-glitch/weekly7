@@ -356,3 +356,9 @@ it should be very long
 > the memory for patterns should always be improved but it should organize timelines for when it noticed different patternsso then it knows how releavant a pattern is to the year its working with but you also need to enforce no cheating so there is not info it can gather from a date that has yet to occur
 
 `sha256: 8e04336deb3f1b44188c281166bc0779dfb365272af2504e1b03dc3784c35304`
+
+## C59 — Consistent memory is relevant to every year; memory that does not stay consistent is disregarded for that year (2026-09-29)
+
+> some memory should be releavant for every year if it stays consisistent, if it doesnt stay consistenet it should be disguarderded for that year
+
+`sha256: 8a6ab5116ed50d694dd510296e46f8dd3c1bc9c842e265502256982b71ad0e81`

@@ -125,6 +125,8 @@ DIRECTIVES = [
      'well its memory should remain no matter what era it is so if you run the same year twice it should not remember stocks from that era but it should remember the same patterns it delt with last time and the second time it should deal with those patterns better than it did previously, meaning you can run the same year 500 times and it should still be learning from that year because its constantly learning new patterns and memory, the memory its learned in those 500 times should also stay releavent because you are still working with the same year'),
     ("C58", "2026-09-29", 'Pattern memory always improves and keeps a timeline of when each pattern was seen; nothing from a date that has not yet occurred',
      'the memory for patterns should always be improved but it should organize timelines for when it noticed different patternsso then it knows how releavant a pattern is to the year its working with but you also need to enforce no cheating so there is not info it can gather from a date that has yet to occur'),
+    ("C59", "2026-09-29", 'Consistent memory is relevant to every year; memory that does not stay consistent is disregarded for that year',
+     'some memory should be releavant for every year if it stays consisistent, if it doesnt stay consistenet it should be disguarderded for that year'),
 ]
 
 def sha(t): return hashlib.sha256(t.encode("utf-8")).hexdigest()
