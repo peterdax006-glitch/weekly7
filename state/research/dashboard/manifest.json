@@ -1,14 +1,14 @@
 {
- "built_at": "2026-09-29T05:47:10Z",
+ "built_at": "2026-09-29T12:40:03Z",
  "page": "docs/dashboard.html",
- "sha256": "394cb5a07d0cb04ffc7f1af11b3d8376984e556ba4b21cb736906bb6ee867c11",
+ "sha256": "5bcea034dbb7345d61b6eef5249dea92498b52fa5b5598c4a1278480bf68fd58",
  "sources": {
-  "state/CHECKLIST.md": "40ed665cbb3766f4",
-  "state/build/FOUNDATION.md": "dd27eba67d780fcb",
-  "state/build/bible_trace.json": "f9173d005fafdb43",
-  "state/experiments.jsonl": "108c995b953c8a35",
-  "state/heartbeat.json": "83ade7687c2e0573",
-  "state/reports/final_report.json": "8c4fab075dd40600",
+  "state/CHECKLIST.md": "c7fe83960e6159b8",
+  "state/build/FOUNDATION.md": "124c57ebe4741fe7",
+  "state/build/bible_trace.json": "3e6c595c3c3d2c0f",
+  "state/experiments.jsonl": "b4944c6ff08dc6f4",
+  "state/heartbeat.json": "317ea2fa6facc5a1",
+  "state/reports/final_report.json": "ecb61f6538d87cb6",
   "state/research/backtest_summary.json": "e023b587808acd12"
  }
 }
