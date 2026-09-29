@@ -566,3 +566,132 @@ def diff_records(a: ReproRecord, b: ReproRecord) -> dict[str, tuple[Any, Any]]:
         elif getattr(a, c) != getattr(b, c):
             out[c] = (getattr(a, c), getattr(b, c))
     return out
+
+
+# ---------------------------------------------------------------- manifests and drift
+@dataclasses.dataclass(frozen=True)
+class ExperimentManifest:
+    """The full reproducibility statement of one experiment: every worker's record plus the pooled result hashes, sealed with
+    a digest so the manifest itself cannot be edited unnoticed."""
+    experiment_id: str
+    records: tuple[ReproRecord, ...]
+    pooled: Mapping[str, str] = dataclasses.field(default_factory=dict)
+
+    def digest(self) -> str:
+        return stable_hash([self.experiment_id, [r.to_dict() for r in self.records], dict(self.pooled)], 32)
+
+    def problems(self, base_seed: int | None = None) -> list[str]:
+        out = check_manifest_consistency(self.records, base_seed=base_seed)
+        if any(r.experiment_id != self.experiment_id and not r.experiment_id.startswith(self.experiment_id) for r in self.records):
+            out.append("a worker record belongs to a different experiment")
+        return out
+
+    def save(self, path) -> str:
+        d = {"experiment_id": self.experiment_id, "records": [r.to_dict() for r in self.records], "pooled": dict(self.pooled), "digest": self.digest()}
+        p = Path(path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_bytes(json.dumps(d, sort_keys=True, indent=1).encode("utf-8"))            # binary: no CRLF rewriting on Windows
+        return d["digest"]
+
+    @classmethod
+    def load(cls, path) -> "ExperimentManifest":
+        d = json.loads(Path(path).read_bytes().decode("utf-8"))
+        m = cls(d["experiment_id"], tuple(ReproRecord.from_dict(r) for r in d["records"]), dict(d.get("pooled") or {}))
+        if m.digest() != d.get("digest"):
+            raise FirewallBreach(f"manifest {path} was edited: its digest no longer matches")
+        return m
+
+
+def compare_many(recorded: ReproRecord, currents: Iterable[ReproRecord]) -> dict[str, ReproVerdict]:
+    """One recorded run against several later ones (different machines, days, branches): a verdict per candidate, keyed by its id."""
+    return {c.experiment_id: compare(recorded, c) for c in currents}
+
+
+def environment_drift(records: Iterable[ReproRecord]) -> list[dict]:
+    """Walk records in creation order and report each change of worker environment (interpreter, library or hash seed).
+    Results straddling a drift may differ numerically for no reason in the learning logic."""
+    recs = sorted(records, key=lambda r: r.created_real)
+    out, prev = [], None
+    for r in recs:
+        if prev is not None:
+            d = prev.worker.diff(r.worker)
+            if d:
+                out.append({"from": prev.experiment_id, "to": r.experiment_id, "at": r.created_real, "changed": sorted(d), "hard": bool(prev.worker.hard_diff(r.worker))})
+        prev = r
+    return out
+
+
+def worker_summary(w: WorkerConfig) -> str:
+    """One-line description of a worker environment for logs."""
+    pk = ",".join(f"{k}={v}" for k, v in sorted(w.packages.items()))
+    return f"py{w.python} {w.platform} x{w.n_workers} [{pk}] hashseed={w.hashseed or 'random'}"
+
+
+# ---------------------------------------------------------------- explaining a difference, saving the environment
+def explain_difference(name: str, a: Any, b: Any) -> dict:
+    """Why do two artefacts differ? Names the first differing element and classifies the cause (ordering, float noise, shape,
+    NaN pattern, dtype, missing key) via engine.repro.diagnose. Equal artefacts return {'same': True}."""
+    from engine.repro import artifact_hash, diagnose
+    if artifact_hash(a) == artifact_hash(b):
+        return {"artifact": name, "same": True}
+    return {"artifact": name, "same": False, **diagnose(name, a, b)}
+
+
+def save_environment(path, worker: WorkerConfig | None = None) -> str:
+    """Write the worker configuration next to a result so the environment travels with it. Returns the fingerprint."""
+    w = worker or capture_worker()
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_bytes(json.dumps({"fingerprint": w.fingerprint(), **dataclasses.asdict(w)}, sort_keys=True, indent=1).encode("utf-8"))
+    return w.fingerprint()
+
+
+def load_environment(path) -> WorkerConfig:
+    """Read a saved worker configuration; a file whose content no longer matches its fingerprint was edited and is refused."""
+    d = json.loads(Path(path).read_bytes().decode("utf-8"))
+    w = WorkerConfig(d["python"], d["platform"], dict(d["packages"]), int(d["n_workers"]), dict(d["threads"]), d["hashseed"])
+    if w.fingerprint() != d.get("fingerprint"):
+        raise FirewallBreach(f"environment file {path} does not match its fingerprint (edited)")
+    return w
+
+
+# ---------------------------------------------------------------- sealing a result to its record
+def seal_result(result: Mapping, rec: ReproRecord) -> dict:
+    """Attach the reproducibility record to a result and seal both with a digest. The digest covers the result content and the
+    run key, so a result cannot be re-labelled with a different run's record."""
+    body = {k: v for k, v in dict(result).items() if k != "_seal"}
+    from engine.repro import artifact_hash
+    seal = stable_hash({"result": artifact_hash(body), "run_key": rec.run_key}, 32)
+    return {**body, "_repro": rec.to_dict(), "_seal": seal}
+
+
+def verify_sealed(sealed: Mapping) -> ReproRecord:
+    """Check a sealed result: its content still hashes to the seal and its record's run key matches. Returns the record;
+    raises FirewallBreach if the result or its record was altered."""
+    from engine.repro import artifact_hash
+    if "_seal" not in sealed or "_repro" not in sealed:
+        raise FirewallBreach("result is not sealed: it carries no reproducibility record")
+    rec = ReproRecord.from_dict(sealed["_repro"])
+    body = {k: v for k, v in sealed.items() if k not in ("_seal", "_repro")}
+    if stable_hash({"result": artifact_hash(body), "run_key": rec.run_key}, 32) != sealed["_seal"]:
+        raise FirewallBreach("sealed result was altered after it was sealed")
+    return rec
+
+
+def by_label(verdicts: Mapping[str, ReproVerdict]) -> dict[str, list[str]]:
+    """Invert a {experiment_id: verdict} map: label -> experiment ids carrying it (for triage after a code or data change)."""
+    out: dict[str, list[str]] = {}
+    for eid, v in verdicts.items():
+        for lab in (v.labels or (ReproLabel.REPRODUCIBLE,)):
+            out.setdefault(str(lab), []).append(eid)
+    return {k: sorted(v) for k, v in sorted(out.items())}
+
+
+def assert_bitwise_reproducible(fn: Callable[[dict, int], Mapping], cfg: Mapping, seed: int) -> None:
+    """Run the experiment twice and require bit-identical artefacts. On a difference raise FirewallBreach naming the artefact and
+    the first differing element (engine.repro.run_twice + diagnose), so a nondeterministic learner is stopped where it starts."""
+    from engine.repro import run_twice
+    rep = run_twice(fn, dict(cfg), seed, required=())
+    if not rep["reproducible"]:
+        detail = "; ".join(f"{d['artifact']} at {d['first_difference']}" for d in rep["diagnoses"]) or "; ".join(rep["problems"])
+        raise FirewallBreach(f"experiment is not bitwise reproducible: {detail}")

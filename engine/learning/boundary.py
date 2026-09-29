@@ -77,6 +77,19 @@ class BoundaryConfig:
 DEFAULT_BCFG = BoundaryConfig()
 
 
+def validate_config(cfg: BoundaryConfig) -> list[str]:
+    errs = []
+    if cfg.min_side < 5:
+        errs.append("min_side >= 5: a side of fewer observations cannot carry a threshold")
+    if cfg.n_perm < 49 or not 0 < cfg.alpha < 0.5:
+        errs.append("n_perm >= 49 and alpha in (0, 0.5)")
+    if not 0.1 <= cfg.holdout_frac <= 0.5:
+        errs.append("holdout_frac in [0.1, 0.5]")
+    if cfg.min_shift_frac <= 0 or cfg.min_shift_frac >= 0.5:
+        errs.append("min_shift_frac in (0, 0.5)")
+    return errs
+
+
 # ------------------------------------------------------------------------------------------------ conditions
 def condition_holds(spec: Any, value: Any) -> bool | None:
     """Evaluate one condition spec against a feature value.  None = cannot tell (value missing/NaN).
@@ -397,6 +410,9 @@ class BoundaryLearner:
     that period, and any number of context features known at decision time."""
 
     def __init__(self, cfg: BoundaryConfig = DEFAULT_BCFG):
+        bad = validate_config(cfg)
+        if bad:
+            raise BoundaryError("; ".join(bad))
         self.cfg = cfg
 
     def _rng(self, pattern_id: str, salt: str = "") -> np.random.Generator:
@@ -443,6 +459,9 @@ class BoundaryLearner:
             for c in ok_cols:
                 sc, keep = scanners[c]
                 nulls[c][i] = sc.max_abs_t(ep[keep])
+        if ok_cols and len(ok_cols) / (cfg.n_perm + 1) >= cfg.alpha:
+            skipped.append(("__config__", f"n_perm={cfg.n_perm} can never reach alpha={cfg.alpha} after Holm over {len(ok_cols)} features: "
+                                          f"need n_perm >= {int(math.ceil(len(ok_cols) / cfg.alpha))}"))
         raw_p = np.array([(1 + np.sum(nulls[c] >= abs(obs[c].t) - 1e-12)) / (cfg.n_perm + 1) for c in ok_cols]) if ok_cols else np.array([])
         from engine.pattern_reliability import holm
         adj = holm(raw_p) if len(raw_p) > 1 else raw_p
@@ -725,7 +744,7 @@ def transition_effect(edge: pd.Series, regime: pd.Series, max_lag: int = 8) -> p
 def shock_aftermath(edge: pd.Series, market_ret: pd.Series, max_lag: int = 8, z: float = 3.0) -> pd.DataFrame:
     """Edge in the periods after a market shock (row t sees shocks through t-1 only)."""
     sf = shock_features(market_ret, z=z)
-    since = shift_trailing(sf["since_shock"], 1) + 1
+    since = shift_trailing(sf["since_shock"], 1)          # lag 0 = the first period that can know about the shock
     return event_profile(edge, since, max_lag)
 
 
@@ -757,7 +776,7 @@ def build_boundary_frame(edge: pd.Series, *, volatility: pd.Series | None = None
         mr = pd.Series(market_ret).astype(float)
         mr.index = pd.to_datetime(mr.index)
         sf = shock_features(mr)
-        put("since_shock", shift_trailing(sf["since_shock"], 1) + 1, BoundaryKind.SHOCK)
+        put("since_shock", shift_trailing(sf["since_shock"], 1), BoundaryKind.SHOCK)
     if regime is not None:
         rg = pd.Series(regime)
         rg.index = pd.to_datetime(rg.index)
@@ -836,3 +855,76 @@ def set_from_dict(d: Mapping) -> BoundarySet:
     return BoundarySet(d["pattern_id"], d["learned_at"], int(d["n_periods"]), tuple(boundary_from_dict(x) for x in d["boundaries"]),
                        tuple(boundary_from_dict(x) for x in d["rejected"]), tuple(tuple(s) for s in d["skipped"]),
                        float(d["overall_edge"]), d["config_hash"])
+
+
+# ------------------------------------------------------------------------------------------------ shape of a boundary
+def feature_profile(df: pd.DataFrame, edge_col: str, feature: str, bins: int = 8) -> pd.DataFrame:
+    """Mean edge by quantile bin of a feature, with standard errors: the picture behind a threshold.  A boundary is a step in
+    this profile; a slope means there is no crisp edge to learn."""
+    d = df[[edge_col, feature]].astype(float).dropna()
+    if len(d) < bins * 5:
+        return pd.DataFrame(columns=["bin", "lo", "hi", "n", "mean", "se"])
+    q = pd.qcut(d[feature], bins, duplicates="drop")
+    rows = []
+    for k, (iv, g) in enumerate(d.groupby(q, observed=True)):
+        e = g[edge_col].values
+        rows.append({"bin": k, "lo": float(iv.left), "hi": float(iv.right), "n": int(len(e)), "mean": float(e.mean()),
+                     "se": float(e.std(ddof=1) / math.sqrt(len(e))) if len(e) > 1 else float("nan")})
+    return pd.DataFrame(rows)
+
+
+def step_vs_slope(df: pd.DataFrame, edge_col: str, feature: str, min_side: int = 20) -> dict:
+    """Is the relationship between a feature and the edge a STEP (a boundary worth storing) or a SLOPE (a graded effect that
+    belongs in a model, not a threshold)?  Compares the variance explained by the best single split with that of a straight line."""
+    d = df[[edge_col, feature]].astype(float).dropna()
+    if len(d) < 2 * min_side + 10:
+        return {"shape": str(Unknown.INSUFFICIENT_DATA), "n": int(len(d))}
+    e, f = d[edge_col].values, d[feature].values
+    tot = float(((e - e.mean()) ** 2).sum())
+    if tot <= 0:
+        return {"shape": "FLAT", "n": int(len(d)), "r2_step": 0.0, "r2_line": 0.0}
+    sp = best_split(e, f, min_side)
+    if sp is None:
+        return {"shape": "FLAT", "n": int(len(d)), "r2_step": 0.0, "r2_line": 0.0}
+    left = f <= sp.threshold
+    step_fit = np.where(left, e[left].mean(), e[~left].mean())
+    r2_step = 1.0 - float(((e - step_fit) ** 2).sum()) / tot
+    c = np.polyfit(f, e, 1)
+    r2_line = 1.0 - float(((e - np.polyval(c, f)) ** 2).sum()) / tot
+    floor = 3.0 * math.log(len(d)) / len(d)               # the best of ~n splits explains this much of pure noise by chance
+    shape = "FLAT" if max(r2_step, r2_line) < floor else "STEP" if r2_step > 1.3 * r2_line else "SLOPE"
+    return {"shape": shape, "n": int(len(d)), "r2_step": r2_step, "r2_line": r2_line, "threshold": sp.threshold}
+
+
+def detection_power(n: int = 400, inside: float = 0.02, outside: float = -0.006, noise: float = 0.02, thr: float = 0.3,
+                    sims: int = 20, cfg: BoundaryConfig | None = None, seed: int = 0) -> dict:
+    """Share of planted-boundary worlds in which the learner accepts the planted feature (power), and the share of NULL worlds
+    (no boundary planted) in which it accepts anything (false-acceptance rate).  Calibrates the whole pipeline, not one number."""
+    cfg = cfg or BoundaryConfig(n_perm=99, n_boot=15)
+    hits = false_acc = 0
+    for s in range(sims):
+        rng = np.random.default_rng(seed * 10_000 + s)
+        idx = pd.date_range("2014-01-06", periods=n, freq="W-MON")
+        x, junk = rng.normal(size=n), rng.normal(size=n)
+        planted = pd.DataFrame({"edge": np.where(x < thr, inside, outside) + rng.normal(0, noise, n), "x": x, "junk": junk}, index=idx)
+        null = pd.DataFrame({"edge": rng.normal(0.5 * (inside + outside), noise, n), "x": x, "junk": junk}, index=idx)
+        now = idx[-1] + pd.Timedelta(days=7)
+        lrn = BoundaryLearner(cfg)
+        hits += int("x" in [b.feature for b in lrn.learn("power", planted, "edge", ["x", "junk"], now).boundaries])
+        false_acc += int(len(lrn.learn("null", null, "edge", ["x", "junk"], now).boundaries) > 0)
+    return {"n": n, "sims": sims, "power": hits / sims, "false_acceptance": false_acc / sims}
+
+
+def stability_across_min_side(pattern_id: str, df: pd.DataFrame, edge_col: str, feature_cols: Sequence[str], now,
+                              min_sides: Sequence[int] = (15, 20, 30), base: BoundaryConfig | None = None) -> dict:
+    """Do the accepted boundaries depend on the tuning constant `min_side`?  Learns with several values and reports, per feature,
+    in how many runs it was accepted and how far its threshold moved.  A boundary that appears only at one setting is a tuning
+    artefact, not knowledge."""
+    base = base or BoundaryConfig(n_perm=99, n_boot=15)
+    seen: dict[str, list[float]] = {}
+    for ms in min_sides:
+        bs = BoundaryLearner(dc.replace(base, min_side=ms)).learn(pattern_id, df, edge_col, feature_cols, now)
+        for b in bs.boundaries:
+            seen.setdefault(b.feature, []).append(b.threshold)
+    return {f: {"accepted_in": len(v), "of": len(min_sides), "threshold_range": float(max(v) - min(v)),
+                "stable": len(v) == len(min_sides)} for f, v in seen.items()}

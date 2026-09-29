@@ -828,3 +828,157 @@ def test_board_as_of_shows_production_on_a_past_date_and_is_read_only(tmp_path):
         then.retire(m1, FailureCause.UNKNOWN, "tamper with history", dt.date(2022, 7, 1))
     assert C.diff_boards(then, then) == {"added": [], "removed": [], "replaced": [], "new_members": []}
     assert not then.invariants()
+
+
+# ================================================================================================ additions: housekeeping
+def test_idle_members_are_retired_not_deleted_and_can_recover(tmp_path):
+    b = make_board(tmp_path)
+    old = b.register(BK("old"), SLOT, T0)
+    b.to_shadow(old, T0)
+    fresh = b.register(BK("fresh"), SLOT, dt.date(2021, 9, 1))
+    assert C.last_activity(b.members[old]) == "2021-01-01"
+    gone = C.expire_idle(b, dt.date(2021, 9, 10), 180)
+    assert gone == [old] and b.view(old).role == Promotion.RETIRED and b.view(old).cause == "INSUFFICIENT_EVIDENCE"
+    assert b.view(fresh).role == Promotion.RESEARCH and C.expire_idle(b, dt.date(2021, 9, 11), 180) == []
+    assert C.recovery_candidates(b, lambda m: True) == [old]
+    b.reinstate(old, dt.date(2021, 10, 1), "new data collected")
+    assert b.view(old).role == Promotion.SHADOW
+
+
+def test_capacity_and_scorecard(tmp_path):
+    b = make_board(tmp_path, max_challengers_per_slot=1)
+    k = BK()
+    mid = shadow_to_challenger(b, k, T0)
+    assert C.challenger_capacity(b) == {SLOT.key: 0}
+    sc = C.scorecard(b, dt.date(2021, 6, 1))
+    assert sc["full_slots"] == [SLOT.key] and sc["empty_slots"] == [SLOT.key] and sc["oldest_champion"] is None and sc["problems"] == []
+    b.attempt_promotion(k, good_evidence(), dt.date(2021, 9, 1))
+    sc = C.scorecard(b, dt.date(2021, 12, 1))
+    assert sc["empty_slots"] == [] and sc["oldest_champion"] == {"mid": mid, "tenure_days": 91} and sc["roles"]["CHAMPION"] == 1
+    empty = C.scorecard(make_board(tmp_path / "e"), dt.date(2021, 1, 1))
+    assert empty["members"] == 0 and empty["oldest_champion"] is None and empty["empty_slots"] == []
+
+
+def test_only_champions_may_influence_decisions(tmp_path):
+    b = make_board(tmp_path)
+    k = BK()
+    champ = shadow_to_challenger(b, k, T0)
+    other = b.register(BK("shadowy"), SLOT, dt.date(2021, 8, 1))
+    b.attempt_promotion(k, good_evidence(), dt.date(2021, 9, 1))
+    assert C.audit_decision_sources(b, {"d1": [champ], "d2": []}) == []
+    bad = C.audit_decision_sources(b, {"d1": [champ, other], "d2": ["ghost@v1"]})
+    assert [(v["decision"], v["mid"]) for v in bad] == [("d1", other), ("d2", "ghost@v1")]
+    assert "RESEARCH" in bad[0]["problem"] and "unknown" in bad[1]["problem"]
+    assert C.audit_decision_sources(b, {}) == []
+
+
+def test_slot_history_lists_tenures_including_replacement_and_rollback(tmp_path):
+    b = make_board(tmp_path, watch_sessions=10)
+    k1, k2 = BK("k1"), BK("k2")
+    m1 = shadow_to_challenger(b, k1, T0)
+    b.attempt_promotion(k1, good_evidence(), dt.date(2021, 9, 1))
+    assert C.slot_history(b, SLOT) == [{"mid": m1, "from": "2021-09-01", "to": None, "how_ended": None}]
+    m2 = shadow_to_challenger(b, k2, dt.date(2021, 9, 5), cand=0.012, base=0.004)
+    b.attempt_promotion(k2, good_evidence(), T_PROMO)
+    h = C.slot_history(b, SLOT)
+    assert [(t["mid"], t["to"]) for t in h] == [(m1, "2022-01-03"), (m2, None)] and h[0]["how_ended"] == "replaced"
+    rng = np.random.default_rng(1)
+    for d in dates(12, T_PROMO + dt.timedelta(days=1)):
+        b.record_watch(SLOT, -0.01 + rng.normal(0, 0.002), 0.004 + rng.normal(0, 0.002), d)
+    b.review_watch(SLOT, T_PROMO + dt.timedelta(days=20))
+    h = C.slot_history(b, SLOT)
+    assert [t["mid"] for t in h] == [m1, m2, m1] and h[1]["how_ended"] == "rolled_back" and h[2]["to"] is None
+    assert C.slot_history(b, C.Slot(DecisionEffect.EXIT)) == []
+
+
+# ================================================================================================ additions: identical-decision scoring, degradation, head-to-head
+def pairs_for(start, n, cand, base, per_day=2, seed=0):
+    rng = np.random.default_rng(seed)
+    return [C.DecisionPair(str(d), f"dec{i}_{j}", cand + rng.normal(0, 0.002), base + rng.normal(0, 0.002))
+            for i, d in enumerate(dates(n, start)) for j in range(per_day)]
+
+
+def test_identical_decision_scoring_makes_sessions_and_is_replay_safe(tmp_path):
+    b = make_board(tmp_path)
+    mid = b.register(BK(), SLOT, T0)
+    b.to_shadow(mid, T0)
+    prs = pairs_for(T0 + dt.timedelta(days=1), 25, 0.006, 0.0)
+    out = C.score_on_identical_decisions(b, mid, prs, dt.date(2021, 3, 1))
+    assert len(out["recorded"]) == 25 and out["n_decisions"] == 50 and out["skipped_existing"] == []
+    assert b.shadow_record(mid)["n"] == 25 and b.shadow_record(mid)["mean"] > 0.004
+    again = C.score_on_identical_decisions(b, mid, prs, dt.date(2021, 3, 1))
+    assert again["recorded"] == [] and len(again["skipped_existing"]) == 25
+    b.open_challenge(mid, dt.date(2021, 3, 2))
+
+
+def test_identical_decision_scoring_rejects_bad_pairs(tmp_path):
+    b = make_board(tmp_path)
+    mid = b.register(BK(), SLOT, T0)
+    b.to_shadow(mid, T0)
+    ok = C.DecisionPair("2021-01-05", "d1", 0.01, 0.0)
+    with pytest.raises(FirewallBreach):
+        C.score_on_identical_decisions(b, mid, [C.DecisionPair("2021-03-01", "d2", 0.01, 0.0)], dt.date(2021, 3, 1))
+    with pytest.raises(C.BoardError, match="twice"):
+        C.score_on_identical_decisions(b, mid, [ok, ok], dt.date(2021, 3, 1))
+    with pytest.raises(C.BoardError, match="non-finite"):
+        C.score_on_identical_decisions(b, mid, [C.DecisionPair("2021-01-05", "d3", float("nan"), 0.0)], dt.date(2021, 3, 1))
+    assert C.score_on_identical_decisions(b, mid, [], dt.date(2021, 3, 1)) == {"recorded": [], "skipped_existing": [], "n_decisions": 0}
+    other = b.register(BK("r"), SLOT, dt.date(2021, 1, 6))
+    with pytest.raises(C.BoardError):
+        C.score_on_identical_decisions(b, other, [ok], dt.date(2021, 3, 1))                  # RESEARCH members cannot be scored
+
+
+def test_degraded_champion_is_retired_and_replacements_listed(tmp_path):
+    b = make_board(tmp_path, max_challengers_per_slot=3)
+    k1 = BK("k1")
+    m1 = shadow_to_challenger(b, k1, T0)
+    b.attempt_promotion(k1, good_evidence(), dt.date(2021, 9, 1))
+    m2 = b.register(BK("next"), SLOT, dt.date(2021, 9, 2))
+    b.to_shadow(m2, dt.date(2021, 9, 2))
+    rng = np.random.default_rng(4)
+    for d in dates(30, dt.date(2021, 9, 3)):
+        b.record_shadow(m2, 0.007 + rng.normal(0, 0.002), rng.normal(0, 0.002), d)
+    b.open_challenge(m2, dt.date(2021, 10, 20))
+    healthy = C.check_degradation(b, m1, list(np.random.default_rng(1).normal(0.004, 0.002, 15)), dt.date(2021, 11, 1))
+    assert not healthy["degraded"] and b.view(m1).role == Promotion.CHAMPION and healthy["action"] == "none"
+    few = C.check_degradation(b, m1, [-0.05] * 5, dt.date(2021, 11, 1))
+    assert not few["degraded"]                                                              # too few sessions to condemn
+    bad = C.check_degradation(b, m1, list(np.random.default_rng(2).normal(-0.006, 0.002, 15)), dt.date(2021, 11, 2))
+    assert bad["degraded"] and b.view(m1).role == Promotion.RETIRED and b.view(m1).cause == "WEAKENING_EFFECT"
+    assert bad["replacements"] == [m2] and b.champion(SLOT) is None
+    with pytest.raises(C.BoardError):
+        C.check_degradation(b, m1, [0.0] * 12, dt.date(2021, 11, 3))                       # no longer a champion
+
+
+def test_head_to_head_record_counts_promotions_and_rollbacks_per_family(tmp_path):
+    b = make_board(tmp_path, watch_sessions=10)
+    k1, k2 = BK("fam_a_1"), BK("fam_a_2")
+    m1 = shadow_to_challenger(b, k1, T0)
+    b.attempt_promotion(k1, good_evidence(), dt.date(2021, 9, 1))
+    assert C.head_to_head_record(b) == {}                                                   # nothing displaced yet
+    m2 = shadow_to_challenger(b, k2, dt.date(2021, 9, 5), cand=0.012, base=0.004)
+    b.attempt_promotion(k2, good_evidence(), T_PROMO)
+    rec = C.head_to_head_record(b)[SLOT.key]
+    assert rec["contests"] == 1 and rec["pairs"][f"{m2} > {m1}"]["how"] == ["promotion"] and rec["standings"] == {m2: 1, m1: -1}
+    rng = np.random.default_rng(1)
+    for d in dates(12, T_PROMO + dt.timedelta(days=1)):
+        b.record_watch(SLOT, -0.01 + rng.normal(0, 0.002), 0.004 + rng.normal(0, 0.002), d)
+    b.review_watch(SLOT, T_PROMO + dt.timedelta(days=20))
+    rec = C.head_to_head_record(b)[SLOT.key]
+    assert rec["contests"] == 2 and rec["standings"][m1] == 0 and rec["pairs"][f"{m1} > {m2}"]["how"] == ["rollback"]
+    by_fam = C.head_to_head_record(b, family_of=lambda m: m.knowledge_id.rsplit("_", 1)[0])
+    assert list(by_fam) == ["fam_a"]
+
+
+def test_readiness_names_the_next_step_for_each_role(tmp_path):
+    b, mid = shadow_board_with(tmp_path, 0.006, n=30)
+    r = C.readiness(b, mid, dt.date(2021, 6, 1))
+    assert r["role"] == "SHADOW" and r["next_step"] == "open a challenge" and r["verdict"] == "READY" and r["n"] == 30
+    few = C.readiness(*shadow_board_with(tmp_path / "few", 0.006, n=8), dt.date(2021, 6, 1))
+    assert few["next_step"] == "collect 12 more shadow sessions"
+    harm = C.readiness(*shadow_board_with(tmp_path / "harm", -0.006, n=30), dt.date(2021, 6, 1))
+    assert harm["next_step"].startswith("retire or demote") and harm["sessions_still_needed"] is None
+    b.open_challenge(mid, dt.date(2021, 6, 1))
+    assert C.readiness(b, mid, dt.date(2021, 6, 2))["next_step"] == "submit evidence to the promotion gate"
+    b.retire(mid, FailureCause.UNKNOWN, "test", dt.date(2021, 6, 3))
+    assert C.readiness(b, mid, dt.date(2021, 6, 4))["next_step"].startswith("retired")

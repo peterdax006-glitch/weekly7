@@ -613,3 +613,221 @@ def test_investigation_edges_land_in_the_graph_with_their_explaining_context():
     assert e is not None and e.attrs["investigated"] is True and "bear" in e.attrs["context"]
     assert not any(i.code == "UNINVESTIGATED_CONTRADICTION" for i in g.audit("2019-02-01"))
     assert g.edge_at(("A", "B", "COMPLEMENTS"), "2019-02-01") is None                 # not cleanly resolved: no complement
+
+
+# ------------------------------------------------------------------ graph: snapshots, diffs, evidence-over-time, portable records
+
+def test_snapshot_verifies_and_detects_back_dated_history():
+    g = mk_graph()
+    snap = g.snapshot("2020-08-15", "mid-year")
+    assert g.verify_snapshot(snap)["ok"] and snap.nodes == 14
+    g.add_node("k7", N.KNOWLEDGE, "2020-09-01")                     # later knowledge does not disturb an earlier view
+    assert g.verify_snapshot(snap)["ok"]
+    forged = dataclasses.replace(snap, digest="0" * 24)
+    res = g.verify_snapshot(forged)
+    assert not res["ok"] and "altered or back-dated" in res["problems"][0]
+    g.add_node("k8", N.KNOWLEDGE, "2020-03-01")                     # BACK-DATED insert changes what 2020-08-15 looked like
+    assert not g.verify_snapshot(snap)["ok"]
+
+
+def test_diff_between_dates_reports_added_withdrawn_and_reweighted():
+    g = mk_graph()
+    d = g.diff("2020-06-05", "2021-01-01")
+    assert ("k1", "x2", "REFUTED_BY") in d.added_edges and ("f1", "k1", "CAUSES_FAILURE_OF") in d.added_edges
+    g.add_edge("k1", "d1", Link.USED_IN, "2020-10-01", weight=0.5)
+    g.retract_edge("f1", "k1", Edge.CAUSES_FAILURE_OF, "2020-11-01", "data error")
+    d2 = g.diff("2020-09-01", "2021-01-01")
+    assert (("k1", "d1", "USED_IN"), 0.7, 0.5) in d2.reweighted and ("f1", "k1", "CAUSES_FAILURE_OF") in d2.withdrawn_edges
+    assert g.diff("2021-01-01", "2021-01-01").is_empty()
+
+
+def test_balance_series_health_signals_and_stale_beliefs():
+    g = mk_graph()
+    series = g.balance_series("k1", ["2020-04-01", "2020-05-01", "2020-08-01", "2021-01-01"])
+    assert [round(x["support"], 2) for x in series] == [0.0, 0.9, 0.9, 0.9] and series[-1]["contradiction"] == pytest.approx(0.6)
+    assert g.balance_series("k1", ["2017-01-01"])[0]["support"] == 0.0
+    h = g.health_signals("k1", "2020-08-15")
+    assert h["experiments_for"] == 1 and h["experiments_against"] == 1 and h["recent_failures"] == 1
+    assert h["transfer_rate"] == 0.5 and h["transfer_lower"] < 0.5 and h["dependants"] == 0
+    assert g.health_signals("k1", "2021-06-01")["recent_failures"] == 0 and g.health_signals("k1", "2021-06-01")["all_failures"] == 1
+    assert "k2" in g.stale_beliefs("2021-01-01", days=90) and "k1" not in g.stale_beliefs("2020-09-01", days=90)
+
+
+def test_transfer_table_neighborhood_and_hubs():
+    g = mk_graph()
+    tt = g.transfer_table("2021-01-01")
+    assert tt.loc["k1", "s1"] == 1.0 and tt.loc["k1", "s2"] == 0.0 and list(tt.index) == ["k1"]
+    assert G.KnowledgeGraph().transfer_table("2021-01-01").empty
+    nb = g.neighborhood("k1", "2021-01-01", radius=1)
+    assert nb["center"] == "k1" and {"id": "k1", "type": "KNOWLEDGE", "depth": 0} in nb["nodes"]
+    assert all(e["src"] in {n["id"] for n in nb["nodes"]} for e in nb["edges"])
+    hubs = g.hubs("2021-01-01", top=3)
+    assert len(hubs) == 3 and hubs[0][1] >= hubs[1][1] >= hubs[2][1]
+    assert all(g.node_at(n, "2021-01-01").ntype == N.KNOWLEDGE for n, _ in g.hubs("2021-01-01", 5, "KNOWLEDGE"))
+
+
+def test_explain_decision_and_path_explanation_read_as_plain_text():
+    g = mk_graph()
+    text = g.explain_decision("d1", "2021-01-01")
+    assert "k1: 70% of the decision" in text and "REGIME_CHANGE failure f1" in text and "outcome: o1" in text
+    g.add_node("d2", N.DECISION, "2020-07-01")
+    assert "baseline behaviour" in g.explain_decision("d2", "2021-01-01")
+    pe = g.path_explanation("k2", "e1", "2021-01-01", G.LINEAGE_RELS)
+    assert pe.startswith("k2 --SPECIALIZES--> k1") and pe.endswith("--DERIVED_FROM--> e1")
+    assert "no path" in g.path_explanation("k2", "e1", "2020-04-01")
+
+
+def test_review_queue_conflicting_pairs_and_rootless_lineages():
+    g = mk_graph()
+    assert g.review_queue("2021-01-01") == [("k1", pytest.approx(0.6))]
+    g.add_node("h9", N.HYPOTHESIS, T0)
+    g.add_node("p9", N.PATTERN, T0)
+    g.add_edge("p9", "h9", Link.DERIVED_FROM, "2020-06-01")            # chain ends at a hypothesis: no experience/experiment
+    assert g.rootless_lineages("2021-01-01") == ["p9"]
+    assert any(i.code == "LINEAGE_NO_ROOT" and i.where == "p9" for i in g.audit("2021-01-01"))
+    g.add_node("k5", N.KNOWLEDGE, T0)
+    g.add_edge("x1", "k5", Edge.SUPPORTS, "2020-06-01")
+    g.add_edge("k5", "h9", Edge.CONTRADICTS, "2020-06-02")
+    g.add_edge("h9", "k5", Edge.SUPPORTS, "2020-06-03")
+    assert g.conflicting_pairs("2021-01-01") == [("h9", "k5")]
+    assert any(i.code == "SUPPORTS_AND_CONTRADICTS" for i in g.audit("2021-01-01"))
+
+
+def test_relation_stats_ancestors_of_type_and_portable_records():
+    g = mk_graph()
+    rs = g.relation_stats("2021-01-01")
+    assert rs["USED_IN"]["edges"] == 2 and rs["USED_IN"]["all_unit_weight"] == 0.0 and rs["DERIVED_FROM"]["all_unit_weight"] == 1.0
+    assert g.ancestors_of_type("k2", N.EXPERIENCE, "2021-01-01") == ["e1", "e2"]
+    assert g.ancestors_of_type("k2", "HYPOTHESIS", "2021-01-01") == ["h1"]
+    rec = g.to_records("2021-01-01")
+    clone = G.KnowledgeGraph.from_records(rec)
+    assert clone.digest("2021-01-01") == g.digest("2021-01-01") and clone.stats("2021-01-01")["edges"] == g.stats("2021-01-01")["edges"]
+    rec["edges"][0]["weight"] = 0.123
+    with pytest.raises(G.GraphError, match="digest"):
+        G.KnowledgeGraph.from_records(rec)
+
+
+# ------------------------------------------------------------------ contradiction: dossiers, stability, calibration, queue
+
+def two_level_world(seed, n_days=260):
+    """A = +0.02 everywhere. B = +0.02 in bull; in bear B is -0.02 in 'small' names and +0.02 in 'large' ones."""
+    rng = np.random.default_rng(seed)
+    rows = []
+    for i in range(n_days):
+        day = pd.Timestamp("2018-01-01") + pd.Timedelta(days=i)
+        regime = "bull" if rng.random() < 0.5 else "bear"
+        size = "small" if rng.random() < 0.5 else "large"
+        for src in "AB":
+            eff = 0.02 if (src == "A" or regime == "bull" or size == "large") else -0.02
+            for _ in range(3):
+                rows.append({"source": src, "when": day, "effect": eff + rng.normal(0, 0.03), "regime": regime, "size": size,
+                             "junk": rng.choice(["p", "q", "r"])})
+    return C.EvidenceSet(pd.DataFrame(rows))
+
+
+def test_investigation_json_roundtrip_preserves_everything():
+    import json
+    inv = C.Investigator().investigate("A", "B", world(0, {"bull": 0.02, "bear": 0.02}, {"bull": 0.02, "bear": -0.02}), NOW)
+    back = C.Investigation.from_dict(json.loads(json.dumps(inv.to_dict())))
+    assert stable_hash(back) == stable_hash(inv) and back.verdict == inv.verdict and back.levels == inv.levels
+    nan_inv = C.Investigator().investigate("A", "B", world(3, {"bull": 0.0, "bear": 0.0}, {"bull": 0.05, "bear": 0.05}, n_days=6), NOW)
+    again = C.Investigation.from_dict(json.loads(json.dumps(nan_inv.to_dict())))
+    assert again.verdict == C.Verdict.INSUFFICIENT_DATA and math.isnan(again.overall_diff)
+
+
+def test_knowledge_updates_split_agreement_from_contested_contexts():
+    inv = C.Investigator().investigate("A", "B", world(0, {"bull": 0.02, "bear": 0.02}, {"bull": 0.02, "bear": -0.02}), NOW)
+    up = inv.knowledge_updates()
+    assert up["A"] == up["B"] == {"contexts": {"regime": "bull"}, "anti_contexts": {"regime": "bear"}}
+    none = C.Investigator().investigate("A", "B", world(3, {"bull": 0.01, "bear": 0.01}, {"bull": 0.01, "bear": 0.01}), NOW)
+    assert none.knowledge_updates() == {}
+
+
+def test_estimate_in_context_replaces_the_average_and_abstains_off_grid():
+    inv = C.Investigator().investigate("A", "B", world(0, {"bull": 0.02, "bear": 0.02}, {"bull": 0.02, "bear": -0.02}), NOW)
+    bear = inv.estimate_in_context({"regime": "bear"})
+    assert bear["contested"] and bear["A"] > 0 > bear["B"] and bear["state"] is None
+    assert not inv.estimate_in_context({"regime": "bull"})["contested"]
+    assert inv.estimate_in_context({"regime": "sideways"})["state"] == Unknown.INSUFFICIENT_DATA.value
+    assert inv.estimate_in_context({})["state"] == Unknown.INSUFFICIENT_DATA.value
+    assert inv.epistemic() == Epistemic.CONTRADICTED and "regime" in inv.summary_line()
+    empty = C.Investigator().investigate("A", "B", world(3, {"bull": 0.0, "bear": 0.0}, {"bull": 0.05, "bear": 0.05}, n_days=6), NOW)
+    assert empty.estimate_in_context({"regime": "bull"})["state"] == Unknown.UNKNOWN.value and empty.epistemic() == Epistemic.UNKNOWN
+
+
+def test_coverage_matrix_and_dimension_table_expose_the_search():
+    same = {"bull": 0.03, "bear": -0.03}
+    ev = world(1, same, same, a_dates=lambda r: 0.9 if r == "bull" else 0.25, b_dates=lambda r: 0.25 if r == "bull" else 0.9)
+    m = ev.coverage_matrix("regime", "A", "B")
+    assert m.loc["bull", "A"] > 2 * m.loc["bull", "B"] and m.loc["bear", "B"] > 2 * m.loc["bear", "A"]   # a lopsided mix, visible
+    with pytest.raises(C.ContradictionError):
+        ev.coverage_matrix("nope", "A", "B")
+    tab = C.Investigator().dimension_table("A", "B", ev, NOW)
+    assert tab.iloc[0]["dimension"] == "regime" and tab.iloc[0]["mechanism"] == "COMPOSITION"
+    assert tab.iloc[0]["p_adjusted"] < 0.01 and (tab["p_adjusted"].iloc[1:] > 0.05).all()
+
+
+def test_selection_stability_separates_real_explanations_from_noise():
+    inv = C.Investigator()
+    real = inv.selection_stability("A", "B", world(0, {"bull": 0.02, "bear": 0.02}, {"bull": 0.02, "bear": -0.02}), NOW, reps=25)
+    assert real["regime"] >= 0.9
+    noise = inv.selection_stability("A", "B", world(100, {"bull": 0.02, "bear": 0.02}, {"bull": 0.0, "bear": 0.0}, extra_cols=6), NOW, reps=25)
+    assert max(noise.values()) < 0.7 and abs(sum(noise.values()) - 1.0) < 1e-9
+    assert inv.selection_stability("A", "B", world(3, {"bull": 0.0, "bear": 0.0}, {"bull": 0.05, "bear": 0.05}, n_days=6), NOW) == {}
+    ev = world(0, {"bull": 0.02, "bear": 0.02}, {"bull": 0.02, "bear": -0.02})
+    assert inv.selection_stability("A", "B", ev, NOW, reps=6, seed=1) == inv.selection_stability("A", "B", ev, NOW, reps=6, seed=1)
+
+
+def test_residual_scan_finds_the_second_context_inside_a_leftover_disagreement():
+    ev = two_level_world(0)
+    inv = C.Investigator()
+    first = inv.investigate("A", "B", ev, NOW, context_cols=["regime", "size", "junk"])
+    assert first.dimension == ("regime",) and first.verdict == C.Verdict.PARTLY_RESOLVED and first.residual_levels == ("bear",)
+    inner = inv.residual_scan(first, "A", "B", ev, NOW)
+    assert list(inner) == ["bear"] and inner["bear"].dimension == ("size",)
+    assert inner["bear"].m_tests > first.m_tests                     # the bar rose: earlier tries are remembered
+    assert inv.residual_scan(dataclasses.replace(first, verdict=C.Verdict.UNRESOLVED), "A", "B", ev, NOW) == {}
+
+
+def test_null_calibration_procedure_rarely_invents_explanations():
+    ev = world(100, {"bull": 0.02, "bear": 0.02}, {"bull": 0.0, "bear": 0.0}, n_days=120, extra_cols=3)
+    res = C.Investigator().null_calibration("A", "B", ev, NOW, reps=8, seed=0, context_cols=["regime", "nvol", "noise0", "noise1", "noise2"])
+    assert res["reps"] == 8 and res["false_positive_rate"] <= 0.25
+    assert res["investigated"] <= 8      # a shuffled world has no real A-B gap, so it normally stops before the search
+
+
+def test_claims_from_evidence_and_disagreement_map():
+    ev = world(0, {"bull": 0.02, "bear": 0.02}, {"bull": 0.02, "bear": -0.02})
+    claims = C.claims_from_evidence(ev)
+    assert [c.knowledge_id for c in claims] == ["A", "B"] and claims[0].effect == pytest.approx(0.02, abs=0.004) and claims[0].n > 100
+    extra = [C.Claim("Cbull", 0.02, 0.004, 100, (("regime", "bull"),)), C.Claim("Dbear", -0.02, 0.004, 100, (("regime", "bear"),))]
+    m = C.disagreement_map(claims + extra)
+    assert m.loc["A", "B"] == -m.loc["B", "A"] and m.loc["A", "A"] == 0.0 and math.isnan(m.loc["Cbull", "Dbear"])
+    scoped = C.claims_from_evidence(C.EvidenceSet(ev.frame[ev.frame.regime == "bull"], ["regime"]))
+    assert scoped[0].contexts == (("regime", "bull"),)
+
+
+def test_next_to_investigate_prioritises_and_respects_the_ledger():
+    claims = [C.Claim("A", 0.02, 0.004, 400), C.Claim("B", -0.02, 0.004, 400), C.Claim("C", 0.05, 0.004, 100),
+              C.Claim("D", 0.021, 0.004, 100)]
+    led = C.ContradictionLedger()
+    q = C.next_to_investigate(claims, led, "2019-02-01")
+    assert q[0]["kind"] == "SIGN_CONFLICT" and (q[0]["a"], q[0]["b"]) == ("A", "B") and all(r["why"] == "never investigated" for r in q)
+    ev = world(0, {"bull": 0.02, "bear": 0.02}, {"bull": 0.02, "bear": -0.02})
+    C.investigate_and_record(C.Investigator(), led, "A", "B", ev, NOW)
+    q2 = C.next_to_investigate(claims, led, "2019-02-01", evidence_through="2018-09-01")
+    assert ("A", "B") not in [(r["a"], r["b"]) for r in q2]                       # settled: nothing new to look at
+    q3 = C.next_to_investigate(claims, led, "2019-09-01", evidence_through="2019-08-01")
+    row = [r for r in q3 if (r["a"], r["b"]) == ("A", "B")]
+    assert row and row[0]["why"] == "new evidence since last look"
+
+
+def test_ledger_keeps_the_full_dossier_and_renders_markdown(tmp_path):
+    led = C.ContradictionLedger(tmp_path / "led")
+    ev = world(0, {"bull": 0.02, "bear": 0.02}, {"bull": 0.02, "bear": -0.02})
+    res = C.investigate_and_record(C.Investigator(), led, "A", "B", ev, NOW)
+    assert led.dossier(("A", "B"), NOW) is None
+    doc = C.ContradictionLedger(tmp_path / "led").dossier(("B", "A"), "2019-02-01")
+    assert doc is not None and stable_hash(doc) == stable_hash(res)
+    md = led.markdown("2019-02-01")
+    assert "A vs B" in md and "PARTLY_RESOLVED" in md and "regime" in md

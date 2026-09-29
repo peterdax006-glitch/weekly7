@@ -465,7 +465,7 @@ def admissibility_monotone(items: Iterable, nows: Sequence, policy: MemoryPolicy
     for n in order:
         views = views_as_of(items, n)
         for it in items:
-            kid = view(it).knowledge_id
+            kid = f"{view(it).knowledge_id}@{view(it).version}"
             ok = could_exist_at(it, n, views, None, (), policy).could_exist
             if kid in seen_ok and not ok:
                 bad.append(f"{kid} admissible earlier but rejected at {as_date(n)}")
@@ -1041,3 +1041,157 @@ def plant_hidden_answer_table(n: int = 40, seed: int = 0) -> dict:
     tickers = [f"T{chr(65 + i % 26)}{chr(65 + (i // 26) % 26)}" for i in range(n)]
     dates = pd.bdate_range("2019-01-02", periods=n)
     return {"table": {(t, str(d.date())): float(v) for t, d, v in zip(tickers, dates, rng.normal(0, 0.05, n))}}
+
+
+# ---------------------------------------------------------------- retirement is not deletion (section 13)
+def audit_retirements(items: Iterable, tombstones: Iterable[Tombstone], now, retrieval_log: Iterable[Mapping] = ()) -> list[Finding]:
+    """A retired item stays in the store; the tombstone says why and when. Checks: every tombstone names an existing item,
+    carries a reason, is dated before `now`; no item was DELETED (a tombstone for an id that has no record); and no retired item
+    was retrieved after its retirement date."""
+    items = list(items)
+    ids = {view(i).knowledge_id for i in items}
+    nowd = as_date(now)
+    out: list[Finding] = []
+    seen: dict[str, str] = {}
+    for t in tombstones:
+        if t.knowledge_id not in ids:
+            out.append(fail(L, "tombstone-without-item", t.knowledge_id, "an item was retired but no record of it exists: it was deleted"))
+        if not t.reason:
+            out.append(fail(L, "tombstone-without-reason", t.knowledge_id, "retirement carries no reason (a lost lesson)"))
+        d = _d(t.retired_at)
+        if d is None or d >= nowd:
+            out.append(fail(L, "tombstone-not-in-past", t.knowledge_id, f"retirement dated {t.retired_at!r} is not before now {nowd}"))
+        if t.knowledge_id in seen and seen[t.knowledge_id] != t.retired_at:
+            out.append(warn(L, "retired-twice", t.knowledge_id, f"retired on {seen[t.knowledge_id]} and again on {t.retired_at}"))
+        seen.setdefault(t.knowledge_id, t.retired_at)
+    for e in retrieval_log:
+        kid, when = e.get("knowledge_id"), _d(e.get("now"))
+        if kid in seen and when is not None and _d(seen[kid]) is not None and when > _d(seen[kid]):
+            out.append(fail(L, "retired-item-retrieved", str(kid), f"retrieved on {when}, after its retirement on {seen[kid]}"))
+    return out
+
+
+def contamination_score(report: MemoryAuditReport, weights: Mapping[str, float] | None = None) -> float:
+    """Severity-weighted contamination in [0, 1]: a future-outcome leak counts more than a missing hash. 0 = clean store."""
+    w = {"saw-future-outcomes": 1.0, "tainted-by-parent": 1.0, "learned-after-now": 1.0, "saw-sealed-window": 1.0,
+         "learned-from-evaluation": 1.0, "outcome-labels-stored": 0.9, "answer-lookup-table": 0.9, "data-reaches-now": 0.9}
+    w.update(weights or {})
+    if not report.existences:
+        return 0.0
+    per_item = []
+    for e in report.existences:
+        per_item.append(max((w.get(r, 0.4) for r in e.reasons), default=0.0))
+    return float(np.mean(per_item))
+
+
+def merge_stores(a: Sequence, b: Sequence) -> list:
+    """Union of two item lists that respects immutable history: an (id, version) present in both must have the same content
+    digest, otherwise the merge is refused (someone rewrote history in one of the stores)."""
+    merged: dict[tuple, Any] = {}
+    digests: dict[tuple, str] = {}
+    for it in list(a) + list(b):
+        v = view(it)
+        key = (v.knowledge_id, v.version)
+        dg = item_digest(it)
+        if key in digests:
+            if digests[key] != dg:
+                raise FirewallBreach(f"cannot merge: {key} has different content in the two stores (history rewritten)")
+            continue
+        digests[key] = dg
+        merged[key] = it
+    return [merged[k] for k in sorted(merged)]
+
+
+# ---------------------------------------------------------------- lineage graph
+def lineage_edges(items: Iterable) -> dict[str, tuple[str, ...]]:
+    """child id -> parent ids, for the newest version of each id."""
+    return {v.knowledge_id: v.parents for v in views_as_of(items, "9999-12-31").values()}
+
+
+def descendants_of(items: Iterable, roots: Iterable[str]) -> set[str]:
+    """Every item that derives (directly or transitively) from any of `roots`. When a root is rejected, its descendants are
+    suspect even if their own provenance looks clean: they inherited what the root learned."""
+    edges = lineage_edges(items)
+    children: dict[str, set[str]] = {}
+    for c, ps in edges.items():
+        for p in ps:
+            children.setdefault(p, set()).add(c)
+    out: set[str] = set()
+    stack = list(roots)
+    while stack:
+        cur = stack.pop()
+        for ch in children.get(cur, ()):
+            if ch not in out:
+                out.add(ch)
+                stack.append(ch)
+    return out
+
+
+def quarantine_closure(report: MemoryAuditReport, items: Iterable) -> set[str]:
+    """Rejected items plus all their descendants: the set that must not be retrieved until the root is re-qualified."""
+    rejected = set(report.rejected)
+    return rejected | descendants_of(items, rejected)
+
+
+def lineage_depth(items: Iterable) -> dict[str, int]:
+    """Longest ancestor chain per item (0 for a root). A deep chain is a long path along which contamination can travel."""
+    edges = lineage_edges(items)
+    memo: dict[str, int] = {}
+
+    def depth(k: str, stack: frozenset) -> int:
+        if k in memo:
+            return memo[k]
+        if k in stack or k not in edges:
+            return 0
+        d = 0 if not edges[k] else 1 + max(depth(p, stack | {k}) for p in edges[k])
+        memo[k] = d
+        return d
+    return {k: depth(k, frozenset()) for k in edges}
+
+
+STRICT_POLICY = MemoryPolicy(require_seen_through=True, max_age_days=None)
+LENIENT_POLICY = MemoryPolicy(require_code_hash=False, require_data_hash=False, require_experiment_id=False, forbid_identity_contexts=False)
+
+
+# ---------------------------------------------------------------- human-readable answers
+def explain_existence(ex: Existence) -> str:
+    """The answer to 'could this item have existed at the decision time?' in one paragraph, with the reasons behind a no."""
+    if ex.could_exist:
+        seen = f" (newest outcome seen, including ancestors: {ex.effective_seen})" if ex.effective_seen else ""
+        warns = [f.message for f in ex.findings if f.severity == Severity.WARN]
+        return f"{ex.knowledge_id} v{ex.version}: YES, it could have existed{seen}." + (f" Warnings: {'; '.join(warns)}." if warns else "")
+    return f"{ex.knowledge_id} v{ex.version}: NO - REJECT. " + " ".join(f"[{f.check}] {f.message}." for f in ex.findings if f.is_fail)
+
+
+def validate_policy(policy: MemoryPolicy) -> list[str]:
+    """A policy that switches off provenance requirements is legal for research replays and must be visible: returns the list of
+    protections it disables so a report can print them next to any result."""
+    off = []
+    for name, label in (("require_code_hash", "code hash"), ("require_data_hash", "data hash"), ("require_experiment_id", "experiment id"),
+                        ("taint_through_parents", "ancestry taint"), ("forbid_identity_contexts", "identity-context ban"),
+                        ("forbid_label_payload", "stored-label ban")):
+        if not getattr(policy, name):
+            off.append(label)
+    if not 0 < policy.max_identity_key_share <= 1:
+        off.append("identity-key share out of range")
+    return off
+
+
+def earliest_use_date(item, store: Iterable | None = None) -> dt.date | None:
+    """The first decision date on which this item may be used: one day after the newest outcome it or any ancestor has seen.
+    None if its provenance is too incomplete to say (it may not be used at all)."""
+    v = view(item)
+    if not v.has_provenance or v.learned_at is None:
+        return None
+    pool = {v.knowledge_id: v, **views_as_of(list(store) if store is not None else [item], "9999-12-31")}
+    pool[v.knowledge_id] = v
+    anc = ancestry(v.knowledge_id, pool)
+    if anc.missing or anc.cycle or anc.effective_seen is None:
+        return None
+    return anc.effective_seen + dt.timedelta(days=1)
+
+
+def usable_from(items: Iterable) -> pd.Series:
+    """earliest_use_date for every item (NaT when it can never be shown clean): when each lesson comes into play."""
+    items = list(items)
+    return pd.Series({view(i).knowledge_id: pd.Timestamp(d) if (d := earliest_use_date(i, items)) else pd.NaT for i in items}, dtype="datetime64[ns]")

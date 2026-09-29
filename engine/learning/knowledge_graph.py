@@ -14,6 +14,7 @@ Contradictions are represented, never averaged: CONTRADICTS edges are symmetric 
 from __future__ import annotations
 
 import dataclasses
+import datetime as dt
 import json
 import math
 from collections import Counter, defaultdict, deque
@@ -276,6 +277,28 @@ class GraphIssue:
     severity: str
     where: str
     detail: str
+
+
+@dataclasses.dataclass(frozen=True)
+class GraphSnapshot:
+    now: str
+    digest: str
+    nodes: int
+    edges: int
+    head: str
+    label: str = ""
+
+
+@dataclasses.dataclass(frozen=True)
+class GraphDiff:
+    added_nodes: tuple[str, ...]
+    added_edges: tuple[tuple[str, str, str], ...]
+    withdrawn_edges: tuple[tuple[str, str, str], ...]
+    reweighted: tuple[tuple[tuple[str, str, str], float, float], ...]
+
+    def is_empty(self) -> bool:
+        return not (self.added_nodes or self.added_edges or self.withdrawn_edges or self.reweighted)
+
 
 
 def wilson_lower(k: int, n: int, z: float = 1.645) -> float | None:
@@ -859,6 +882,201 @@ class KnowledgeGraph:
                 counts["contradicts"] += 1
         return dict(counts)
 
+    # ------------------------------------------------------------------ snapshots, diffs, evidence over time
+    def digest(self, now) -> str:
+        """Content hash of everything live and known before `now` (nodes with their latest attrs, edges with weights)."""
+        nodes = [(n.node_id, n.ntype.value, n.attrs_json) for n in self.nodes(now)]
+        edges = [(e.src, e.dst, e.rel, e.weight, e.attrs_json) for e in self.edges(now)]
+        return stable_hash([nodes, edges], 24)
+
+    def snapshot(self, now, label: str = "") -> "GraphSnapshot":
+        """Freeze what the graph said at `now`; `verify_snapshot` proves later that history has not been rewritten."""
+        stats = self.stats(now)
+        return GraphSnapshot(now=as_date(now).isoformat(), digest=self.digest(now), nodes=stats["nodes"],
+                             edges=stats["edges"], head=self.head, label=label)
+
+    def verify_snapshot(self, snap: "GraphSnapshot") -> dict:
+        """Recompute the view at the snapshot's date. It must match: anything added later carries a later known_at."""
+        now_digest = self.digest(snap.now)
+        problems = []
+        if now_digest != snap.digest:
+            problems.append("the graph as of the snapshot date now reads differently (history was altered or back-dated)")
+        if not self.verify()["ok"]:
+            problems.append("hash chain broken")
+        return {"ok": not problems, "problems": problems}
+
+    def diff(self, earlier, later) -> "GraphDiff":
+        """What changed between two dates: nodes/edges that appeared, edges that were withdrawn, edges whose weight moved."""
+        e0 = {(e.src, e.dst, e.rel): e for e in self.edges(earlier)}
+        e1 = {(e.src, e.dst, e.rel): e for e in self.edges(later)}
+        n0 = {n.node_id for n in self.nodes(earlier)}
+        n1 = {n.node_id for n in self.nodes(later)}
+        moved = sorted((k, e0[k].weight, e1[k].weight) for k in e0.keys() & e1.keys()
+                       if abs(e0[k].weight - e1[k].weight) > 1e-12)
+        return GraphDiff(added_nodes=tuple(sorted(n1 - n0)), added_edges=tuple(sorted(e1.keys() - e0.keys())),
+                         withdrawn_edges=tuple(sorted(e0.keys() - e1.keys())), reweighted=tuple(moved))
+
+    def balance_series(self, node: str, dates: Sequence) -> list[dict]:
+        """Support vs contradiction pressure on a belief at each of several dates: is the case for it strengthening?"""
+        out = []
+        for d in dates:
+            if self.node_at(node, d) is None:
+                out.append({"date": as_date(d).isoformat(), "support": 0.0, "contradiction": 0.0, "contested": 0.0})
+            else:
+                out.append({"date": as_date(d).isoformat(), **self.support_balance(node, d)})
+        return out
+
+    def transfer_table(self, now) -> "pd.DataFrame":
+        """Knowledge x situation grid of transfer results (1 = transferred, 0 = failed to, NaN = never tried)."""
+        import pandas as pd
+        rows = {}
+        for k in self.nodes(now):
+            if k.ntype not in (NodeType.KNOWLEDGE, NodeType.PATTERN):
+                continue
+            for t in self.situations_transferred(k.node_id, now, None):
+                rows.setdefault(k.node_id, {})[t.situation_id] = 1.0 if t.success else 0.0
+        return pd.DataFrame.from_dict(rows, orient="index").sort_index().sort_index(axis=1) if rows else pd.DataFrame()
+
+    def health_signals(self, node: str, now, recent_days: int = 90) -> dict:
+        """Graph-derived evidence about a belief's health, kept as separate numbers (the health monitor decides what they
+        mean): contradiction pressure, recent failure count, transfer lower bound, experiment net, connectivity."""
+        n = as_date(now)
+        bal = self.support_balance(node, now)
+        recent = [f for f in self.failures_contradicting(node, now)
+                  if (n - as_date(f.known_at)).days <= recent_days]
+        ex = self.experiment_record(node, now)
+        ts = self.transfer_summary(node, now)
+        return {"support": bal["support"], "contradiction": bal["contradiction"], "contested": bal["contested"],
+                "recent_failures": len(recent), "all_failures": len(self.failures_contradicting(node, now)),
+                "experiments_for": sum(1 for x in ex if x.supports), "experiments_against": sum(1 for x in ex if not x.supports),
+                "transfer_rate": ts.rate, "transfer_lower": ts.lower_bound, "redundant_with": len(
+                    self.neighbors(node, now, [Edge.REDUNDANT_WITH], "both")),
+                "dependants": len(self.neighbors(node, now, [Edge.DEPENDS_ON], "in"))}
+
+    def stale_beliefs(self, now, days: int = 180) -> list[str]:
+        """Beliefs with no evidence link (support, validation, transfer, derivation) newer than `days`: research priorities."""
+        n = as_date(now)
+        stale = []
+        for b in self.nodes(now):
+            if b.ntype not in _BELIEF:
+                continue
+            links = self.neighbors(b.node_id, now, [Edge.SUPPORTS], "in") + self.neighbors(
+                b.node_id, now, [Link.VALIDATED_BY, Link.REFUTED_BY, Link.TRANSFERRED_TO], "out")
+            newest = max((as_date(e.known_at) for _, e in links), default=as_date(b.known_at))
+            if (n - newest).days > days:
+                stale.append(b.node_id)
+        return sorted(stale)
+
+    def neighborhood(self, node: str, now, radius: int = 2, rels: Iterable | None = None) -> dict:
+        """The induced sub-graph within `radius` hops (both directions), as plain data for inspection pages."""
+        t = self.traverse(node, now, rels, "both", radius)
+        keep = set(t.depth)
+        return {"center": node, "nodes": [{"id": i, "type": self.node_at(i, now).ntype.value, "depth": t.depth[i]}
+                                          for i in sorted(keep, key=lambda x: (t.depth[x], x))],
+                "edges": [{"src": e.src, "dst": e.dst, "rel": e.rel, "weight": e.weight} for e in self.edges(now)
+                          if e.src in keep and e.dst in keep]}
+
+    def explain_decision(self, decision_id: str, now) -> str:
+        """Plain-English chain of custody for one decision: what it used, where that came from, what happened."""
+        dl = self.decision_lineage(decision_id, now)
+        if dl.unsupported:
+            return f"{decision_id}: no knowledge was behind this decision (baseline behaviour)."
+        lines = [f"{decision_id} was driven by {len(dl.causes)} piece(s) of knowledge:"]
+        for c in dl.causes:
+            lin = dict(dl.lineages)[c.knowledge_id]
+            tr = self.transfer_summary(c.knowledge_id, now)
+            lines.append(f"  {c.knowledge_id}: {c.contribution:.0%} of the decision; rests on {len(lin.origins)} origin(s), "
+                         f"lineage depth {lin.depth()}; transferred {tr.successes}/{tr.successes + tr.failures} times")
+            for f in self.failures_contradicting(c.knowledge_id, now)[:3]:
+                lines.append(f"    warning: {f.cause} failure {f.failure_id} (weight {f.weight:.2f})")
+        lines.append(f"  outcome: {', '.join(dl.outcomes) if dl.outcomes else 'not yet known'}")
+        return "\n".join(lines)
+
+    def hubs(self, now, top: int = 5, ntype: NodeType | str | None = None) -> list[tuple[str, float]]:
+        """Most central nodes by PageRank (what the rest of the knowledge leans on), optionally of one type."""
+        t = NodeType.parse(ntype) if ntype else None
+        pr = self.pagerank(now)
+        rows = [(n, v) for n, v in pr.items() if t is None or self.node_at(n, now).ntype == t]
+        return sorted(rows, key=lambda kv: (-kv[1], kv[0]))[:top]
+
+    def path_explanation(self, src: str, dst: str, now, rels: Iterable | None = None, max_depth: int = 6) -> str:
+        """Why is `src` connected to `dst`? The shortest chain, naming each relation and its direction."""
+        t = self.traverse(src, now, rels, "both", max_depth)
+        path = t.path_to(dst)
+        if not path:
+            return f"no path from {src} to {dst} within {max_depth} hops at {as_date(now)}"
+        parts = [src]
+        for a, b in zip(path, path[1:]):
+            rel = t.parent[b][1]
+            spec = RELATIONS[rel]
+            forward = self.edge_at((a, b, rel), now) is not None
+            arrow = "--" + rel + "-->" if forward or spec.symmetric else "<--" + rel + "--"
+            parts.append(f"{arrow} {b}")
+        return " ".join(parts)
+
+    def review_queue(self, now, min_contested: float = 0.25) -> list[tuple[str, float]]:
+        """Beliefs that have BOTH real support and real contradiction pressure, most contested first: the ones an
+        investigation (contradiction.py) should look at before anything relies on them."""
+        out = []
+        for b in self.nodes(now):
+            if b.ntype in _BELIEF:
+                bal = self.support_balance(b.node_id, now)
+                if bal["contested"] >= min_contested:
+                    out.append((b.node_id, bal["contested"]))
+        return sorted(out, key=lambda kv: (-kv[1], kv[0]))
+
+    def conflicting_pairs(self, now) -> list[tuple[str, str]]:
+        """Pairs that carry both a SUPPORTS and a CONTRADICTS edge: either two different contexts were conflated or a
+        relationship was recorded wrongly. Reported by `audit` as a warning."""
+        sup = {frozenset((e.src, e.dst)) for e in self.edges(now, Edge.SUPPORTS)}
+        con = {frozenset((e.src, e.dst)) for e in self.edges(now, Edge.CONTRADICTS)}
+        return sorted(tuple(sorted(p)) for p in sup & con)
+
+    def rootless_lineages(self, now) -> list[str]:
+        """Beliefs whose derivation chain never reaches an experience or experiment: provenance that ends in thin air."""
+        out = []
+        for b in self.nodes(now):
+            if b.ntype in _BELIEF and self.neighbors(b.node_id, now, LINEAGE_RELS, "out"):
+                if not self.knowledge_lineage(b.node_id, now).origins:
+                    out.append(b.node_id)
+        return sorted(out)
+
+    def relation_stats(self, now) -> dict[str, dict[str, float]]:
+        """Per relation: how many live edges and their mean/min weight (a relation whose weights all sit at 1.0 was never
+        actually measured)."""
+        out: dict[str, list[float]] = defaultdict(list)
+        for e in self.edges(now):
+            out[e.rel].append(e.weight)
+        return {r: {"edges": float(len(w)), "mean_weight": float(np.mean(w)), "min_weight": float(min(w)),
+                    "all_unit_weight": float(all(x == 1.0 for x in w))} for r, w in sorted(out.items())}
+
+    def ancestors_of_type(self, node: str, ntype: NodeType | str, now, rels: Iterable = LINEAGE_RELS) -> list[str]:
+        """Everything of one node type upstream of `node` (e.g. every EXPERIENCE a pattern was ultimately built from)."""
+        t = NodeType.parse(ntype)
+        return sorted(n for n in self.ancestors(node, now, rels).depth if n != node and self.node_at(n, now).ntype == t)
+
+    def to_records(self, now) -> dict:
+        """Portable, deterministic dump of the live graph at `now` (for inspection pages and cross-machine comparison)."""
+        return {"now": as_date(now).isoformat(), "digest": self.digest(now),
+                "nodes": [{"id": n.node_id, "type": n.ntype.value, "label": n.label, "attrs": n.attrs}
+                          for n in self.nodes(now)],
+                "edges": [{"src": e.src, "dst": e.dst, "rel": e.rel, "weight": e.weight, "attrs": e.attrs}
+                          for e in self.edges(now)]}
+
+    @classmethod
+    def from_records(cls, rec: Mapping, known_at=None) -> "KnowledgeGraph":
+        """Rebuild an in-memory graph from `to_records` output and check its digest matches (tamper/transcription check)."""
+        g = cls()
+        at = known_at if known_at is not None else (as_date(rec["now"]) - dt.timedelta(days=1))
+        for n in rec["nodes"]:
+            g.add_node(n["id"], n["type"], at, n["label"], n["attrs"])
+        for e in rec["edges"]:
+            if not RELATIONS[e["rel"]].inverse or e["rel"] == Edge.SPECIALIZES.value:
+                g.add_edge(e["src"], e["dst"], e["rel"], at, e["weight"], (), e["attrs"])
+        if g.digest(rec["now"]) != rec["digest"]:
+            raise GraphError("records do not reproduce their digest: graph was altered or not fully transcribed")
+        return g
+
     # ------------------------------------------------------------------ audit & reports
     def audit(self, now) -> list[GraphIssue]:
         """Structural integrity at `now`: chain, dangling/ill-typed edges, cycles, mirror consistency, contradictions with
@@ -890,6 +1108,11 @@ class KnowledgeGraph:
             if not e.attrs.get("context") and not e.attrs.get("investigated"):
                 issues.append(GraphIssue("UNINVESTIGATED_CONTRADICTION", "warn", f"{a}<->{b}",
                                          "no explaining context recorded (never average; investigate)"))
+        for a, b in self.conflicting_pairs(now):
+            issues.append(GraphIssue("SUPPORTS_AND_CONTRADICTS", "warn", f"{a}<->{b}",
+                                     "both supports and contradicts: contexts conflated or a wrong edge"))
+        for nid in self.rootless_lineages(now):
+            issues.append(GraphIssue("LINEAGE_NO_ROOT", "warn", nid, "derivation never reaches an experience or experiment"))
         for n in self.nodes(now, NodeType.DECISION):
             if not self.neighbors(n.node_id, now, [Link.USED_IN], "in"):
                 issues.append(GraphIssue("UNSUPPORTED_DECISION", "warn", n.node_id, "no knowledge behind this decision"))

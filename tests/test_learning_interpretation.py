@@ -343,3 +343,42 @@ def test_end_to_end_interpret_helper():
     assert rec.belief.leading()[0] is H2 and rec.level() is Level.HYPOTHESIS and len(rec.belief.log) == len(outs)
     with pytest.raises(FirewallBreach):
         it.interpret(o, rel(o), outs, NOW, "2020-12-31", evidence_through=NOW)
+
+
+# ------------------------------------------------------------------ choosing the next test and reading belief movement
+
+def test_next_test_targets_the_ambiguity_and_information_gain_is_positive():
+    b = it.HypothesisSet.uniform()
+    gains = {t: it.expected_information_gain(b, t) for t in it.TESTS}
+    assert all(g > 0 for g in gains.values())
+    b2 = b.apply_tests({"survives_volatility_control": False}, NOW)                   # H2 now leads
+    top = it.next_test(b2)
+    assert top is not None and top[0] != "survives_volatility_control" and top[1] > 0
+    assert it.unresolved_pairs(it.HypothesisSet.uniform(), within=0.01)[0][2] == pytest.approx(1 / 3)
+    assert not it.unresolved_pairs(b2, within=0.01) or all(c < 0.9 for _, _, c in it.unresolved_pairs(b2, within=0.01))
+    full = b
+    for i, t in enumerate(sorted(it.TESTS)):
+        full = full.apply_tests({t: True}, f"2020-0{i + 1}-01")
+    assert it.next_test(full) is None
+    with pytest.raises(ClaimError):
+        it.expected_information_gain(b, "astrology")
+    assert 0.0 < it.outcome_probability(b, "sign_consistent_rolling") < 1.0
+
+
+def test_information_gain_is_largest_for_the_test_that_separates_the_leaders():
+    b = it.HypothesisSet.from_priors({H1: 0.45, H2: 0.45, H3: 0.025, H4: 0.025, H5: 0.025, H6: 0.025})
+    g = {t: it.expected_information_gain(b, t) for t in it.TESTS}
+    assert max(g, key=g.get) == "survives_volatility_control"                         # only this test can split H1 from H2
+
+
+def test_belief_shift_and_kl_and_evidence_ledger():
+    a = it.HypothesisSet.uniform()
+    assert it.kl_divergence(a, a) == 0.0
+    b = a.apply_tests({"survives_volatility_control": False, "sign_consistent_rolling": True}, NOW, evidence_through="2020-12-30")
+    sh = it.belief_shift(a, b)
+    assert sh["leader_changed"] and sh["leader_after"] == "H2" and sh["kl"] > 0 and sh["alive_after"] < sh["alive_before"]
+    rows = it.evidence_ledger(b)
+    assert len(rows) == 2 and any("survives_volatility_control: favours H2" in r for r in rows)
+    assert any("evidence through 2020-12-30" in r for r in rows) and it.evidence_ledger(a) == []
+    with pytest.raises(ClaimError):
+        it.kl_divergence(a, it.HypothesisSet.uniform((H1, H2)))

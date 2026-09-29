@@ -77,7 +77,8 @@ def node_id(path: Path) -> str:
 # ------------------------------------------------------------------------------------------- sufficient statistics
 
 class NodeStats:
-    """Per-cluster sums for one node: cluster -> [sum w, sum w*y, count]. Order-independent and additive."""
+    """Per-cluster sums for one node: cluster -> [sum w, sum w*y, count, sum w*y^2, sum w^2]. Order-independent and
+    additive, so evidence can arrive in any order and a node's data can be split into explained/unexplained parts."""
     __slots__ = ("cl",)
 
     def __init__(self):
@@ -86,11 +87,13 @@ class NodeStats:
     def add(self, y: float, w: float, c: str):
         s = self.cl.get(c)
         if s is None:
-            self.cl[c] = [w, w * y, 1]
+            self.cl[c] = [w, w * y, 1, w * y * y, w * w]
         else:
             s[0] += w
             s[1] += w * y
             s[2] += 1
+            s[3] += w * y * y
+            s[4] += w * w
 
     @property
     def clusters(self) -> int:
@@ -116,10 +119,38 @@ class NodeStats:
         m, sw = self.mean(), self.sw
         return sum((s[1] - m * s[0]) ** 2 for s in self.cl.values()) / (sw * sw) * G / (G - 1)
 
+    def iid_var(self) -> float:
+        """Variance of the mean if rows within a date were independent: the floor no honest estimate can go under. Uses the
+        pooled within-date variance; inf when no date has two rows (nothing to estimate it from)."""
+        n, G = self.n, self.clusters
+        if n - G <= 0:
+            return float("inf")
+        ss = sum(max(s[3] - s[1] * s[1] / s[0], 0.0) for s in self.cl.values() if s[0] > 0)
+        sw = self.sw
+        return ss / (n - G) * sum(s[4] for s in self.cl.values()) / (sw * sw)
+
     def n_eff(self) -> float:
         """Kish effective number of clusters: (sum w)^2 / sum of squared cluster weights."""
         sq = sum(s[0] ** 2 for s in self.cl.values())
         return self.sw ** 2 / sq if sq > 0 else 0.0
+
+    def minus(self, *others: "NodeStats") -> "NodeStats":
+        """This node's data with the given (sub)sets removed: cluster sums subtract, emptied clusters vanish."""
+        out = NodeStats()
+        out.cl = {c: list(v) for c, v in self.cl.items()}
+        for o in others:
+            for c, v in o.cl.items():
+                cur = out.cl.get(c)
+                if cur is None:
+                    continue
+                cur[0] -= v[0]
+                cur[1] -= v[1]
+                cur[2] -= v[2]
+                cur[3] -= v[3]
+                cur[4] -= v[4]
+                if cur[2] <= 0 or cur[0] <= 1e-12:
+                    del out.cl[c]
+        return out
 
     def cluster_means(self) -> np.ndarray:
         return np.array([s[1] / s[0] for s in self.cl.values() if s[0] > 0])
@@ -130,8 +161,27 @@ class NodeStats:
     @classmethod
     def from_json(cls, d: Mapping) -> "NodeStats":
         n = cls()
-        n.cl = {str(c): [float(s[0]), float(s[1]), int(s[2])] for c, s in d.items()}
+        n.cl = {str(c): [float(s[0]), float(s[1]), int(s[2]), float(s[3]), float(s[4])] for c, s in d.items()}
         return n
+
+
+def contrast(a: NodeStats, b: NodeStats) -> tuple[float, float, int]:
+    """(mean_a - mean_b, se, clusters in union) for two DISJOINT row sets. Dates they share are differenced cluster by
+    cluster, so a market-wide shock that hit both sets cancels instead of inflating the noise."""
+    if a.clusters < 1 or b.clusters < 1:
+        return float("nan"), float("inf"), 0
+    ma, mb, swa, swb = a.mean(), b.mean(), a.sw, b.sw
+    keys = set(a.cl) | set(b.cl)
+    G = len(keys)
+    if G < 2:
+        return ma - mb, float("inf"), G
+    tot = 0.0
+    for c in keys:
+        sa, sb = a.cl.get(c), b.cl.get(c)
+        ra = (sa[1] - ma * sa[0]) / swa if sa else 0.0
+        rb = (sb[1] - mb * sb[0]) / swb if sb else 0.0
+        tot += (ra - rb) ** 2
+    return ma - mb, math.sqrt(tot * G / (G - 1)), G
 
 
 @dataclasses.dataclass(frozen=True)
@@ -144,11 +194,13 @@ class Posterior:
     n_eff: float
     raw_mean: float
     raw_var: float
+    resid_mean: float            # mean of the node's data NOT already explained by a qualified descendant
+    resid_var: float
     tau2: float
     weight_own: float            # w: share of the posterior mean that comes from this node's own data
     post_mean: float
     post_var: float
-    z_vs_parent: float
+    z_vs_parent: float           # node vs its complement inside the parent (qualified siblings removed)
     z_needed: float
     qualifies: bool
     used_path: Path              # the node whose estimate is actually used at this path
@@ -268,8 +320,10 @@ class KnowledgeHierarchy:
     def _node_var(self, st: NodeStats, s2: float) -> float:
         """Robust variance floored by the cross-cluster noise / clusters: two lucky dates cannot claim a tiny variance."""
         floor = s2 / max(st.clusters, 1) if math.isfinite(s2) else 0.0
+        iid = st.iid_var()
+        floor = max(floor, iid) if math.isfinite(iid) else floor
         rv = st.robust_var()
-        return max(rv, floor) if math.isfinite(rv) else max(s2, 1e-12) if math.isfinite(s2) else float("inf")
+        return max(rv, floor) if math.isfinite(rv) else max(s2, floor, 1e-12) if math.isfinite(s2) else float("inf")
 
     def _dl_tau2(self, ms: np.ndarray, vs: np.ndarray, sd_root: float) -> float:
         """Between-sibling variance by DerSimonian-Laird (engine.pattern_stats.eb_shrink, centre estimated), floored."""
@@ -279,6 +333,94 @@ class KnowledgeHierarchy:
         dl = _ps.eb_shrink(ms, np.sqrt(vs), center=None)["tau2"]
         return max(float(dl), (P["tau_min_frac"] * sd_root) ** 2)
 
+    def _zcrit(self, k: int) -> float:
+        """Two-sided z after a Sidak correction over the `k` siblings tested together."""
+        return float(sps.norm.isf((1.0 - (1.0 - self.p["alpha_override"]) ** (1.0 / max(k, 1))) / 2.0))
+
+    def _gate(self, st: NodeStats, z: float, zc: float, tau2: float, s2: float) -> tuple[bool, str, float]:
+        """The three conditions for a node to replace its parent's estimate; returns (ok, reason, own-evidence weight)."""
+        P = self.p
+        w = self._weight(st, tau2, s2)
+        if st.clusters < P["min_clusters_override"] or st.n_eff() < P["min_n_eff"]:
+            return False, "too few independent dates", w
+        if w < P["w_min"]:
+            return False, "own evidence too weak against sibling noise", w
+        if abs(z) < zc:
+            return False, "not distinguishable from the rest of its parent", w
+        return True, "overrides parent", w
+
+    def _weight(self, st: NodeStats, tau2: float, s2: float) -> float:
+        """Own-evidence weight tau^2/(tau^2+v), capped at G/(G+k0) so a handful of dates can never dominate its own
+        posterior even when a wild sibling spread inflates tau^2."""
+        v = self._node_var(st, s2)
+        if not math.isfinite(v):
+            return 0.0
+        g = st.clusters
+        return float(min(tau2 / (tau2 + v), g / (g + self.p["min_clusters_override"])))
+
+    def _maximal_qualified(self, path: Path, qual: set) -> list[Path]:
+        """Qualified strict descendants with no qualified node between them and `path` (their data covers the deeper ones)."""
+        out, stack = [], sorted(self._children.get(path, ()))
+        while stack:
+            c = stack.pop()
+            if c in qual:
+                out.append(c)
+            else:
+                stack.extend(sorted(self._children.get(c, ())))
+        return sorted(out)
+
+    def _select(self, s2: float, tau2_of: dict) -> tuple[set, dict]:
+        """Forward selection among siblings. Each round the sibling that differs MOST from the rest of its parent (with
+        already-selected siblings' data removed, so a real outlier cannot make its ordinary neighbours look different) is
+        tested against the gate; selection continues until none passes. Then a redundancy pass drops any selected node whose
+        data, minus its own selected descendants, no longer differs from its surroundings."""
+        qual: set = set()
+        info: dict = {}
+        frontier: list[Path] = [()]
+        while frontier:
+            nxt: list[Path] = []
+            for parent in frontier:
+                kids = sorted(self._children.get(parent, ()))
+                nxt.extend(kids)
+                if not kids:
+                    continue
+                zc, sp, chosen = self._zcrit(len(kids)), self._stats[parent], []
+                while True:
+                    best = None
+                    for k in kids:
+                        if k in chosen:
+                            continue
+                        comp = sp.minus(self._stats[k], *(self._stats[q] for q in chosen))
+                        d, se, _ = contrast(self._stats[k], comp)
+                        z = d / se if math.isfinite(se) and se > 0 else 0.0
+                        ok, why, w = self._gate(self._stats[k], z, zc, tau2_of[k], s2)
+                        info[k] = (z, zc, why, w)
+                        if ok and (best is None or abs(z) > abs(best[1])):
+                            best = (k, z)
+                    if best is None:
+                        break
+                    chosen.append(best[0])
+                qual.update(chosen)
+            frontier = nxt
+        keep = set(qual)
+        for q in sorted(qual, key=lambda x: (-len(x), x)):          # deepest first: descendants are settled before ancestors
+            parent = q[:-1]
+            desc = self._maximal_qualified(q, keep)
+            resid = self._stats[q].minus(*(self._stats[d] for d in desc))
+            elsewhere = []                                              # explained data that must not colour the comparison
+            for k in self._children[parent]:
+                if k == q:
+                    continue
+                elsewhere += [self._stats[k]] if k in keep else [self._stats[d] for d in self._maximal_qualified(k, keep)]
+            comp = self._stats[parent].minus(self._stats[q], *elsewhere)
+            d_, se, _ = contrast(resid, comp)
+            z = d_ / se if math.isfinite(se) and se > 0 else 0.0
+            if resid.clusters < self.p["min_clusters_override"] or abs(z) < self._zcrit(len(self._children[parent])):
+                keep.discard(q)
+                why = "explained by its own qualified descendants" if desc else "explained by qualified rules elsewhere in its parent"
+                info[q] = (z, info[q][1], why, info[q][3])
+        return keep, info
+
     def _compute(self):
         if not self._dirty:
             return
@@ -286,47 +428,47 @@ class KnowledgeHierarchy:
         self._post = {}
         root = self._stats[()]
         s2 = self._root_scale()
+        self._dirty = False
         if root.clusters < P["min_root_clusters"] or not math.isfinite(s2):
-            self._dirty = False
             return
         sd_root = math.sqrt(s2)
-        rv = self._node_var(root, s2)
-        rm = root.mean()
-        self._post[()] = Posterior((), Level.GENERAL, root.clusters, root.n, root.n_eff(), rm, rv, float("nan"), 1.0, rm, rv,
-                                   0.0, 0.0, True, (), rm, rv, "the general rule")
+        tau2_of: dict[Path, float] = {}        # per child: the between-sibling variance of its parent's children
+        for parent, kids in self._children.items():
+            ks = sorted(kids)
+            if ks:
+                ms = np.array([self._stats[k].mean() for k in ks])
+                vs = np.array([self._node_var(self._stats[k], s2) for k in ks])
+                t2 = self._dl_tau2(ms, vs, sd_root)
+                for k in ks:
+                    tau2_of[k] = t2
+        qual, info = self._select(s2, tau2_of)
+        resid_of = {(): root.minus(*(self._stats[d] for d in self._maximal_qualified((), qual)))}
+        rm, rv = resid_of[()].mean(), self._node_var(resid_of[()], s2)
+        self._post[()] = Posterior((), Level.GENERAL, root.clusters, root.n, root.n_eff(), root.mean(),
+                                   self._node_var(root, s2), rm, rv, float("nan"), 1.0, rm, rv, 0.0, 0.0, True, (), rm, rv,
+                                   "the general rule (data not explained by a qualified rule)")
         frontier: list[Path] = [()]
         while frontier:
             nxt: list[Path] = []
             for parent in frontier:
-                kids = sorted(self._children.get(parent, ()))
-                if not kids:
-                    continue
                 pp = self._post[parent]
-                ms = np.array([self._stats[k].mean() for k in kids])
-                vs = np.array([self._node_var(self._stats[k], s2) for k in kids])
-                tau2 = self._dl_tau2(ms, vs, sd_root)
-                zc = float(sps.norm.isf((1.0 - (1.0 - P["alpha_override"]) ** (1.0 / len(kids))) / 2.0))     # Sidak over siblings
-                for k, m, v in zip(kids, ms, vs):
+                for k in sorted(self._children.get(parent, ())):
                     st = self._stats[k]
-                    w = tau2 / (tau2 + v) if math.isfinite(v) else 0.0
-                    pm = w * m + (1 - w) * pp.post_mean
-                    pv = w * v + (1 - w) ** 2 * pp.post_var if math.isfinite(v) else pp.post_var
-                    z = float((m - pp.used_mean) / math.sqrt(v)) if math.isfinite(v) and v > 0 else 0.0
-                    enough = st.clusters >= P["min_clusters_override"] and st.n_eff() >= P["min_n_eff"]
-                    strong = w >= P["w_min"]
-                    differs = abs(z) >= zc
-                    ok = enough and strong and differs
-                    why = ("overrides parent" if ok else
-                           "too few independent dates" if not enough else
-                           "own evidence too weak against sibling noise" if not strong else
-                           "not distinguishable from the parent")
-                    post = Posterior(k, Level(len(k)), st.clusters, st.n, st.n_eff(), float(m), float(v), tau2, float(w),
-                                     float(pm), float(pv), z, zc, ok, k if ok else pp.used_path,
-                                     pm if ok else pp.used_mean, pv if ok else pp.used_var, why)
-                    self._post[k] = post
+                    rs = st.minus(*(self._stats[d] for d in self._maximal_qualified(k, qual)))
+                    m, v = rs.mean(), self._node_var(rs, s2)
+                    tau2 = tau2_of[k]
+                    w = self._weight(rs, tau2, s2) if rs.clusters else 0.0
+                    pm = w * m + (1 - w) * pp.used_mean if rs.clusters else pp.used_mean
+                    pv = (w * v + (1 - w) ** 2 * pp.used_var) if math.isfinite(v) else pp.used_var
+                    z, zc, why, _ = info.get(k, (0.0, 0.0, "not evaluated", w))
+                    ok = k in qual
+                    self._post[k] = Posterior(k, Level(len(k)), st.clusters, st.n, st.n_eff(), st.mean(),
+                                              self._node_var(st, s2), float(m), float(v), tau2, float(w), float(pm),
+                                              float(pv), float(z), float(zc), ok, k if ok else pp.used_path,
+                                              pm if ok else pp.used_mean, pv if ok else pp.used_var,
+                                              "overrides parent" if ok else why)
                     nxt.append(k)
             frontier = nxt
-        self._dirty = False
 
     # ---- queries
     def posterior(self, path: Path) -> Posterior | None:
@@ -457,9 +599,35 @@ class KnowledgeHierarchy:
                 out.append((p, p[:-1]))
         return out
 
+    def explained_share(self) -> float | None:
+        """Share of all evidence (independent dates x rows) that sits inside a qualified rule rather than the general
+        remainder: how much of the data the hierarchy has actually carved out (0 = everything follows the general rule)."""
+        self._compute()
+        if () not in self._post:
+            return None
+        total = self._stats[()].n
+        rest = self._stats[()].minus(*(self._stats[d] for d in self._maximal_qualified((), set(self.qualified())))).n
+        return 0.0 if total == 0 else (total - rest) / total
+
+    def contrast_table(self) -> pd.DataFrame:
+        """For every qualified rule: its raw and residual mean against the general remainder, and the evidence still
+        missing for its siblings to qualify (dates needed) - a to-do list for data collection."""
+        self._compute()
+        rows = []
+        for p in self.paths():
+            po = self._post[p]
+            if not p:
+                continue
+            need = self.evidence_needed(p) if abs(po.z_vs_parent) > 1e-9 else {"extra": float("nan")}
+            rows.append({"rule": po.id, "qualified": po.qualifies, "residual_mean": po.resid_mean,
+                         "general_mean": self._post[()].used_mean, "z": po.z_vs_parent, "dates": po.clusters,
+                         "extra_dates_to_qualify": 0.0 if po.qualifies else need["extra"]})
+        return pd.DataFrame(rows)
+
     def fingerprint(self) -> str:
         self._compute()
-        return stable_hash([(node_id(p), round(po.post_mean, 10), round(po.post_var, 12), po.qualifies)
+        sig = lambda x: float(format(x, ".8g"))          # significant digits, so summation-order noise (1e-17) cannot change it
+        return stable_hash([(node_id(p), sig(po.post_mean), sig(po.post_var), po.qualifies)
                             for p, po in sorted(self._post.items())], 20)
 
     # ---- persistence
@@ -706,7 +874,12 @@ class HierarchyTimeline:
         return sorted(k for k, v in state.items() if v)
 
     def flips(self, node: str, now=None) -> int:
+        """Changes of state AFTER the rule first qualified (its onset is not a flip; losing and regaining the override is)."""
         h = self.history(node, now)
+        on = next((i for i, e in enumerate(h) if e.qualified), None)
+        if on is None:
+            return 0
+        h = h[on:]
         return sum(1 for a, b in zip(h, h[1:]) if a.qualified != b.qualified)
 
     def first_qualified(self, node: str) -> str | None:

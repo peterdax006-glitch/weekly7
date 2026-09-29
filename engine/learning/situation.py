@@ -1249,3 +1249,56 @@ def to_json(sit: Situation) -> str:
 def from_json(text: str) -> Situation:
     import json
     return Situation.from_dict(json.loads(text))
+
+# memory.CTX column -> situation dimension (parity with the market context engine.memory already uses)
+MEMORY_CTX_PATHS = {"m_vix": "market.vix", "m_vix_term": "market.vix_term", "m_spy_ma200": "market.spy_ma200",
+                    "m_spy_ma50": "market.spy_ma50", "m_breadth": "breadth.breadth", "m_dispersion": "breadth.dispersion",
+                    "m_spy_r5": "market.spy_r5"}
+
+
+def to_memory_context(sit: Situation) -> np.ndarray:
+    """The engine.memory market-context vector (in memory.CTX order) as seen through a Situation. A dimension the situation
+    does not observe is 0.0, exactly as memory.context_of fills a column the snapshot lacks, so the two agree row for row."""
+    out = []
+    for c in market_columns():
+        path = MEMORY_CTX_PATHS.get(c)
+        v = None if path is None else sit.get(path)
+        out.append(0.0 if v is None else float(v))
+    return np.array(out, dtype=float)
+
+
+def memory_context_parity(sit: Situation, snap: pd.DataFrame) -> dict[str, Any]:
+    """Compare to_memory_context with engine.memory.context_of on the snapshot the situation was built from. `max_gap` is the
+    largest absolute difference over the columns both sides observed (rounding to 6 places is the only expected gap)."""
+    from engine.memory import context_of
+    a, b = to_memory_context(sit), context_of(snap)
+    both = [i for i, c in enumerate(market_columns()) if c in snap.columns and snap[c].notna().any() and sit.get(MEMORY_CTX_PATHS[c]) is not None]
+    gap = float(np.max(np.abs(a[both] - b[both]))) if both else 0.0
+    return {"columns_compared": len(both), "max_gap": gap, "ok": gap < 1e-5}
+
+class PopulationDriftMonitor:
+    """Is today's situation population still the population knowledge was learned on? Keeps a reference set and a rolling
+    window of recent situations; `report()` gives per-dimension PSI and lists the dimensions above `alarm`. Knowledge whose
+    contexts sit on an alarmed dimension deserves a re-test before it is trusted (contract sections 12, 14)."""
+
+    def __init__(self, reference: Sequence[Situation], window: int = 250, alarm: float = 0.25):
+        if window < 20 or alarm <= 0:
+            raise ValueError("window must be >= 20 and alarm positive")
+        self.reference = tuple(reference)
+        self.window = window
+        self.alarm = alarm
+        self._recent: list[Situation] = []
+
+    def push(self, sit: Situation) -> None:
+        errs = sit.validate()
+        if errs:
+            raise ValueError("cannot monitor an invalid situation: " + "; ".join(errs[:3]))
+        self._recent.append(sit)
+        del self._recent[:-self.window]
+
+    def report(self) -> dict[str, Any]:
+        if len(self.reference) < 20 or len(self._recent) < 20:
+            return {"n_recent": len(self._recent), "psi": {}, "alarmed": [], "status": Unknown.INSUFFICIENT_DATA}
+        psi = population_shift(self.reference, self._recent)
+        alarmed = sorted((p for p, v in psi.items() if v > self.alarm), key=lambda p: -psi[p])
+        return {"n_recent": len(self._recent), "psi": psi, "alarmed": alarmed, "status": "SHIFTED" if alarmed else "STABLE"}

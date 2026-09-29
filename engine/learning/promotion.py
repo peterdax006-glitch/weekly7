@@ -26,9 +26,8 @@ import numpy as np
 from engine import experiment_memory as EM
 from engine import pattern_stats as PS
 
-from .compute import phash
 from .core import (DecisionEffect, Epistemic, FirewallBreach, KnowledgeLike, Promotion, as_date, current_code_hash,
-                   require_past)
+                   require_past, stable_hash)
 
 GATES = ("statistical_validity", "incremental_value", "oos_confirmation", "cross_context_transfer", "risk_acceptance",
          "anti_memorization", "future_information_audit", "reproducibility", "stability", "provenance_completeness")
@@ -109,7 +108,7 @@ class PromotionPolicy:
         return errs
 
     def digest(self) -> str:
-        return phash(self)
+        return stable_hash(self)
 
 
 # ------------------------------------------------------------------------------------------------ evidence records
@@ -213,7 +212,7 @@ class PromotionEvidence:
     stability: StabilityEvidence | None = None
 
     def digest(self) -> str:
-        return phash(self)
+        return stable_hash(self)
 
 
 @dataclass(frozen=True)
@@ -244,7 +243,7 @@ class PromotionDecision:
 
     @property
     def decision_id(self) -> str:
-        return phash([self.knowledge_id, self.version, self.now, self.verdict, self.policy_digest,
+        return stable_hash([self.knowledge_id, self.version, self.now, self.verdict, self.policy_digest,
                             self.evidence_digest, [r.gate + r.status for r in self.results]])
 
     @property

@@ -73,7 +73,7 @@ class DisagreementConfig:
     train_frac: float = 0.6
     conf_gap: float = 0.30
     weak_stance: float = 0.30
-    lift_min: float = 1.25
+    lift_min: float = 1.15
     min_predictive_n: int = 120
     auc_min: float = 0.53
     alpha: float = 0.05
@@ -529,6 +529,8 @@ def consensus_accuracy_by_conflict(sf: StanceFrame, bins: Sequence[float] = (0.0
     c, cons, y = conflict_score(S), consensus(S), sf.y
     ok = np.isfinite(y) & (y != 0) & (cons != 0)
     df = pd.DataFrame({"conflict": c[ok], "right": (cons[ok] * y[ok] > 0).astype(float)})
+    if df.empty:
+        return pd.DataFrame(columns=["bucket", "n", "consensus_accuracy", "lo", "hi"])
     df["bucket"] = pd.cut(df["conflict"], bins=list(bins), right=False, include_lowest=True)
     g = df.groupby("bucket", observed=True)["right"].agg(["count", "mean"]).reset_index()
     g[["lo", "hi"]] = [wilson(int(round(m * n)), int(n)) for n, m in zip(g["count"], g["mean"])]

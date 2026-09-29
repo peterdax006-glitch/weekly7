@@ -103,10 +103,10 @@ def label_volatility(returns: pd.DataFrame, *, lookback: int = 60, n_buckets: in
     if n_buckets < 2:
         raise ValueError("need at least two buckets")
     sd = returns.astype(float).rolling(lookback, min_periods=lookback).std()
-    pct = sd.rank(axis=1, pct=True, method="average")
-    b = np.minimum((pct.to_numpy() * n_buckets).astype(float), n_buckets - 1e-9)
-    lab = pd.DataFrame(np.where(np.isfinite(b), np.floor(b) + 1, np.nan), index=sd.index, columns=sd.columns)
-    s = lab.stack()
+    frac = (sd.rank(axis=1, method="average") - 1).div(sd.notna().sum(axis=1), axis=0)      # 0 .. (n-1)/n: the lowest name is bucket 1
+    b = np.minimum(np.floor(frac.to_numpy() * n_buckets) + 1, n_buckets)
+    lab = pd.DataFrame(b, index=sd.index, columns=sd.columns)
+    s = lab.stack().dropna()                      # rows without a full window are absent, whatever the pandas stack default is
     s = ("V" + s.astype(int).astype(str))
     s.index.names = ["date", "ticker"]
     s.name = "vol_bucket"
@@ -871,7 +871,8 @@ def time_decay(units: pd.DataFrame, scope: TrainingScope, now, *, bin_days: int 
     if len(ok) >= 3:
         tmid = (ok["days_from"] + ok["days_to"]).to_numpy() / 2.0
         slope = np.polyfit(tmid, np.log(ok["gain"].to_numpy()), 1)[0]
-        if slope < 0:
+        separated = ok["hi"].iloc[-1] < ok["lo"].iloc[0]           # the last bin's interval lies wholly below the first's
+        if slope < 0 and separated:
             half, decays = float(math.log(2) / -slope), True
     g = d.loc[sel, "gain"]
     rho = float(spearmanr(age[sel], g.to_numpy())[0]) if sel.sum() > 3 and g.std() > 0 else float("nan")
@@ -1236,3 +1237,277 @@ class TransferHistory:
                 if ax.value in cmp_["worse"]:
                     out.append(f"{v1} transfers worse than {v0} on {ax.value}")
         return sorted(set(out))
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# tables for reports
+# ---------------------------------------------------------------------------------------------------------------
+def axis_table(report: TransferReport) -> pd.DataFrame:
+    """One row per axis, in the order asked for: same-context and cross-context gain, ratio (NaN when undefined), specialisation
+    flag, stability score, verdict. Untested axes appear with NaN gains."""
+    rows = []
+    for ax, r in report.axes.items():
+        rows.append({"axis": ax.value, "same": r.same.mean, "cross": r.cross.mean if r.tested else float("nan"),
+                     "ratio": r.ratio.value if r.ratio.value is not None else float("nan"), "specialisation": r.specialisation.flag,
+                     "stability": r.stability.score, "label": r.verdict.label.value})
+    return TS.verdict_table(rows)
+
+
+def group_table(report: TransferReport, axis: Axis) -> pd.DataFrame:
+    """Gain in each novel group of one axis (year, regime, sector, ticker group ...) with its unit count, worst group first."""
+    r = report.axes.get(axis)
+    rows = [{"group": g[0], "n": g[1], "gain": g[2]} for g in (r.groups if r else ())]
+    return pd.DataFrame(rows, columns=["group", "n", "gain"]).sort_values("gain", kind="mergesort").reset_index(drop=True)
+
+
+def planning_note(report: TransferReport, axis: Axis = Axis.YEAR, target_gain: float = 0.005) -> str:
+    """What it would take to settle an inconclusive axis: the minimum detectable gain of the test as run, and the number of monthly
+    clusters needed to see `target_gain`. Empty string when the axis was not tested or its interval is unbounded."""
+    r = report.axes.get(axis)
+    if r is None or not r.tested or r.cross.n_clusters < 3:
+        return ""
+    se = (r.cross.hi - r.cross.lo) / 3.92 if math.isfinite(r.cross.lo) and math.isfinite(r.cross.hi) else float("nan")
+    if not math.isfinite(se) or se <= 0:
+        return ""
+    sd = se * math.sqrt(r.cross.n_clusters)
+    return (f"{axis.value}: {r.cross.n_clusters} clusters give a detectable gain of about {2.487 * se:.4f}; "
+            f"seeing {target_gain:.4f} would take about {TS.clusters_needed(target_gain, sd)} clusters")
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# section 26 completion: gains per context with intervals, market conditions, per-rule ledgers
+# ---------------------------------------------------------------------------------------------------------------
+CONTEXT_GAIN_COLS = ["axis", "group", "familiar", "forward", "n", "gain", "lo", "hi", "p_signflip"]
+
+
+def context_gain_table(units: pd.DataFrame, scope: TrainingScope, now, axis: Axis, *, cluster_by: str = "month", n_boot: int = 400, seed: int = 0,
+                       min_units: int = 30, n_stock_groups: int = 8) -> pd.DataFrame:
+    """Gain with a cluster-bootstrap interval and a sign-flip p-value for EVERY context group on one axis (each regime, sector,
+    volatility bucket, stock type, year, ticker group), not only for their pooled average. `familiar` says whether the group was in
+    training; `forward` says the row is restricted to units decided after learned_through (the only rows that can prove transfer).
+    Groups below min_units are kept with NaN gain so a thin context is visible rather than absent."""
+    d = prepare_units(units, now, cluster_by=cluster_by)
+    scope.validate(now)
+    rows = []
+    if len(d):
+        m = _masks(d, scope)
+        use = (m.fwd & ~m.replay).to_numpy() & m.known[axis].to_numpy()
+        grp = _group_labels(d, axis, use, n_stock_groups)
+        for g, sub in d.loc[use].groupby(grp.to_numpy()):
+            fam = bool(m.fam[axis].loc[sub.index].all()) if axis != Axis.STOCK else bool(m.fam[axis].loc[sub.index].mean() > 0.5)
+            if len(sub) < min_units:
+                rows.append({"axis": axis.value, "group": str(g), "familiar": fam, "forward": True, "n": len(sub), "gain": float("nan"),
+                             "lo": float("nan"), "hi": float("nan"), "p_signflip": float("nan")})
+                continue
+            bm = TS.cluster_bootstrap_mean(sub["gain"], sub["cluster"], n_boot=n_boot, seed=seed + int(stable_hash(str(g), 4), 16) % 997)
+            rows.append({"axis": axis.value, "group": str(g), "familiar": fam, "forward": True, "n": bm.n, "gain": bm.mean, "lo": bm.lo, "hi": bm.hi,
+                         "p_signflip": TS.cluster_signflip_p(sub["gain"], sub["cluster"], seed=seed)})
+    return pd.DataFrame(rows, columns=CONTEXT_GAIN_COLS)
+
+
+def market_condition_gains(units: pd.DataFrame, train: pd.DataFrame, scope: TrainingScope, now, cond_cols: Sequence[str], *, n_bins: int = 3,
+                           cluster_by: str = "month", n_boot: int = 400, seed: int = 0, min_units: int = 30) -> pd.DataFrame:
+    """Cross-market-condition gains: for each numeric market-condition column (trailing market return, index volatility, breadth ...)
+    the forward units are cut at the TRAINING distribution's quantiles and the gain is reported per band with an interval. A band
+    the training data never reached (below its minimum or above its maximum) is marked outside_training - the strictest novelty.
+    Bands are decided from `train` only, so the test data cannot move the cut points."""
+    d = prepare_units(units, now, cluster_by=cluster_by)
+    t = prepare_units(train, now, cluster_by=cluster_by)
+    scope.validate(now)
+    cols = ["condition", "band", "outside_training", "n", "gain", "lo", "hi"]
+    rows = []
+    if len(d) and len(t):
+        m = _masks(d, scope)
+        use = (m.fwd & ~m.replay).to_numpy()
+        for c in cond_cols:
+            if c not in d or c not in t:
+                raise ValueError(f"condition column {c!r} missing")
+            edges = np.quantile(t[c].to_numpy(float), np.linspace(0, 1, n_bins + 1))
+            lo_t, hi_t = edges[0], edges[-1]
+            band = np.clip(np.searchsorted(edges[1:-1], d[c].to_numpy(float), side="right"), 0, n_bins - 1)
+            outside = (d[c].to_numpy(float) < lo_t) | (d[c].to_numpy(float) > hi_t)
+            for b in range(n_bins):
+                for out in (False, True):
+                    sel = use & (band == b) & (outside == out)
+                    if not sel.any():
+                        continue
+                    bm = _bm(d, sel, n_boot, seed + 13 * b + int(out))
+                    rows.append({"condition": c, "band": b, "outside_training": out, "n": bm.n, "gain": bm.mean if bm.n >= min_units else float("nan"),
+                                 "lo": bm.lo if bm.n >= min_units else float("nan"), "hi": bm.hi if bm.n >= min_units else float("nan")})
+    return pd.DataFrame(rows, columns=cols)
+
+
+REQUIRED_TRANSFER_AXES = ("YEAR", "REGIME", "STOCK", "SECTOR", "VOLATILITY", "MARKET_CONDITION")
+
+
+class RuleTransferLedger:
+    """Per-rule record of where a learned rule has been tested for transfer. Section 26: every meaningful learned rule must eventually
+    be tested across years, regimes, market conditions, sectors, stock types and volatility states. The ledger is append-only and
+    time-ordered; a rule's status is derived from its tests, never set by hand:
+      UNTESTED   no test on any required axis
+      PARTIAL    some required axes tested, some outstanding
+      COMPLETE   every required axis tested and none failed
+      FAILED     a tested axis showed the rule harmful or over-specialised there"""
+
+    def __init__(self, required: Sequence[str] = REQUIRED_TRANSFER_AXES):
+        self.required = tuple(required)
+        self._tests: dict[str, list[dict]] = {}
+
+    def rules(self) -> list[str]:
+        return sorted(self._tests)
+
+    def register(self, rule_id: str) -> None:
+        self._tests.setdefault(rule_id, [])
+
+    def record(self, rule_id: str, axis: str, tested_on, gain: TS.BootMean, verdict: TS.TransferVerdictLabel, *, n_groups: int = 0) -> None:
+        if axis not in self.required:
+            raise ValueError(f"axis {axis!r} is not one of the required axes {self.required}")
+        rows = self._tests.setdefault(rule_id, [])
+        when = as_date(tested_on)
+        if rows and when < rows[-1]["when"]:
+            raise FirewallBreach(f"test dated {when} precedes the rule's previous test ({rows[-1]['when']}): the ledger is time ordered")
+        rows.append({"axis": axis, "when": when, "gain": gain.mean, "lo": gain.lo, "hi": gain.hi, "n": gain.n, "verdict": verdict.value, "n_groups": n_groups})
+
+    def record_report(self, rule_id: str, report: "TransferReport", tested_on=None) -> int:
+        """Log every tested axis of a TransferReport for the rule; returns how many axes were logged."""
+        n = 0
+        for ax, r in report.axes.items():
+            if r.tested and ax.value in self.required:
+                self.record(rule_id, ax.value, tested_on or report.now, r.cross, r.verdict.label, n_groups=r.stability.n_groups)
+                n += 1
+        if not n:
+            self.register(rule_id)
+        return n
+
+    def latest(self, rule_id: str) -> dict:
+        """Most recent test per axis."""
+        out = {}
+        for t in self._tests.get(rule_id, []):
+            out[t["axis"]] = t
+        return out
+
+    def outstanding(self, rule_id: str) -> list[str]:
+        done = self.latest(rule_id)
+        return [a for a in self.required if a not in done]
+
+    def status(self, rule_id: str) -> str:
+        done = self.latest(rule_id)
+        bad = (TS.TransferVerdictLabel.HARMFUL.value, TS.TransferVerdictLabel.OVER_SPECIALISED.value, TS.TransferVerdictLabel.IDENTITY_DEPENDENT.value)
+        if any(t["verdict"] in bad for t in done.values()):
+            return "FAILED"
+        if not done:
+            return "UNTESTED"
+        return "COMPLETE" if not self.outstanding(rule_id) else "PARTIAL"
+
+    def overdue(self, now, max_age_days: int = 365) -> list[str]:
+        """Rules whose most recent test on some axis is older than max_age_days, or which still have outstanding axes."""
+        out = []
+        for r in self.rules():
+            latest = self.latest(r)
+            stale = any((as_date(now) - t["when"]).days > max_age_days for t in latest.values())
+            if stale or self.outstanding(r):
+                out.append(r)
+        return out
+
+    def summary(self) -> pd.DataFrame:
+        rows = [{"rule": r, "status": self.status(r), "tested": len(self.latest(r)), "outstanding": ",".join(self.outstanding(r))} for r in self.rules()]
+        return pd.DataFrame(rows, columns=["rule", "status", "tested", "outstanding"])
+
+
+def full_context_report(units: pd.DataFrame, scope: TrainingScope, now, *, axes: Sequence[Axis] = ALL_AXES, train: pd.DataFrame | None = None,
+                        cond_cols: Sequence[str] = (), n_boot: int = 300, seed: int = 0, min_units: int = 30, cluster_by: str = "month") -> dict:
+    """Section 26 in one call: the gain in every context group of every axis (with intervals) and, when `train` and `cond_cols` are
+    given, per market-condition band. Also a coverage summary per axis: how many contexts were tested, how many gained significantly,
+    lost significantly, or were too thin, and an exact binomial sign test of 'more contexts gained than lost'."""
+    from scipy.stats import binomtest
+    tables = {ax.value: context_gain_table(units, scope, now, ax, cluster_by=cluster_by, n_boot=n_boot, seed=seed, min_units=min_units) for ax in axes}
+    if train is not None and len(cond_cols):
+        tables["MARKET_CONDITION"] = market_condition_gains(units, train, scope, now, cond_cols, n_boot=n_boot, seed=seed, min_units=min_units,
+                                                             cluster_by=cluster_by)
+    cover = {}
+    for name, tb in tables.items():
+        if name == "MARKET_CONDITION":
+            tb = tb.rename(columns={"band": "group"})
+        ok = tb[np.isfinite(tb["gain"])] if len(tb) else tb
+        up, down = int((ok["lo"] > 0).sum()), int((ok["hi"] < 0).sum())
+        decided = up + down
+        p = float(binomtest(up, decided, 0.5, alternative="greater").pvalue) if decided else float("nan")
+        cover[name] = {"contexts": int(len(tb)), "thin": int(len(tb) - len(ok)), "gained": up, "lost": down, "undecided": int(len(ok) - decided), "p_more_gain_than_loss": p}
+    return {"tables": tables, "coverage": cover}
+
+
+def ledger_records(ledger: RuleTransferLedger) -> list[dict]:
+    """Serialisable copy of every test in a ledger (dates as ISO strings)."""
+    return [{"rule": r, **{**t, "when": t["when"].isoformat()}} for r in ledger.rules() for t in ledger._tests[r]]
+
+
+def ledger_from_records(records: Sequence[Mapping], required: Sequence[str] = REQUIRED_TRANSFER_AXES) -> RuleTransferLedger:
+    """Rebuild a ledger from stored records, re-applying every check: an unknown axis or an out-of-order test is refused."""
+    led = RuleTransferLedger(required)
+    for r in records:
+        g = TS.BootMean(r["gain"], r["lo"], r["hi"], r["n"], max(2, r.get("n_groups", 0)))
+        led.record(r["rule"], r["axis"], r["when"], g, TS.TransferVerdictLabel(r["verdict"]), n_groups=r.get("n_groups", 0))
+    return led
+
+
+TRACKED_AXES = {"cross_year_gain": Axis.YEAR, "cross_regime_gain": Axis.REGIME, "cross_stock_gain": Axis.STOCK, "cross_sector_gain": Axis.SECTOR,
+                "cross_volatility_gain": Axis.VOLATILITY, "cross_stock_type_gain": Axis.STOCK_TYPE}
+
+
+def tracked_gains_from_folds(units: pd.DataFrame, fit: Fit, now, *, n_boot: int = 400, seed: int = 0, min_units: int = 30) -> dict:
+    """The section-26 tracked quantities for a RE-TRAINABLE learner, each with an interval: same_year_gain (the trained model replayed
+    on its own years) and cross_year / cross_regime / cross_stock / cross_sector / cross_volatility / cross_stock_type gain from
+    hold-one-context-out folds (forward-purged for years). An axis with no valid folds (one label only, too little data) is reported
+    as None: untested, not zero. Also returns the ratio for each tested axis, with the bootstrap over-specialisation verdict."""
+    d = prepare_units(units.assign(learned=units["base"]) if "learned" not in units else units, now)
+    out: dict = {"same_year_gain": None}
+    for name, ax in TRACKED_AXES.items():
+        folds = make_folds(d, ax, seed=seed)
+        out[name] = None
+        if not folds:
+            continue
+        fr = run_folds(units, fit, folds, now)
+        res = axis_result_from_folds(ax, fr, n_boot=n_boot, seed=seed, min_units=min_units)
+        te = np.concatenate([r.gain_test for r in fr])
+        tc = np.concatenate([r.cluster_test for r in fr])
+        rp = np.concatenate([r.gain_replay for r in fr])
+        rc = np.concatenate([r.cluster_replay for r in fr])
+        spec = TS.over_specialisation_verdict(te, rp, tc, rc, n_boot=n_boot, seed=seed)
+        out[name] = {"gain": res.cross, "same": res.same, "ratio": res.ratio, "verdict": res.verdict.label.value, "specialisation": spec}
+        if ax == Axis.YEAR:
+            out["same_year_gain"] = res.same
+    return out
+
+
+def record_tracked(ledger: RuleTransferLedger, rule_id: str, tracked: Mapping, tested_on) -> int:
+    """Write the axes of a tracked_gains_from_folds result into a rule's ledger (year, regime, stock, sector, volatility). Axes that were
+    not testable (None) are skipped, so they stay outstanding. Returns the number of axes logged."""
+    to_axis = {"cross_year_gain": "YEAR", "cross_regime_gain": "REGIME", "cross_stock_gain": "STOCK", "cross_sector_gain": "SECTOR", "cross_volatility_gain": "VOLATILITY"}
+    ledger.register(rule_id)
+    n = 0
+    for key, axis in to_axis.items():
+        t = tracked.get(key)
+        if t is None or axis not in ledger.required:
+            continue
+        ledger.record(rule_id, axis, tested_on, t["gain"], TS.TransferVerdictLabel(t["verdict"]), n_groups=t["gain"].n_clusters)
+        n += 1
+    return n
+
+
+def record_market_conditions(ledger: RuleTransferLedger, rule_id: str, table: pd.DataFrame, tested_on) -> bool:
+    """Log the MARKET_CONDITION axis from a market_condition_gains table: the rule counts as tested there once at least two bands have a
+    measured gain; the pooled gain over measured bands (unit-weighted) is stored with a conservative verdict (HARMFUL if any measured band
+    is significantly negative, else GENERALISES if every measured band gained, else NO_LEARNING)."""
+    ok = table[np.isfinite(table["gain"])] if len(table) else table
+    if len(ok) < 2:
+        return False
+    w = ok["n"].to_numpy(float)
+    pooled = TS.BootMean(float((ok["gain"] * w).sum() / w.sum()), float(ok["lo"].min()), float(ok["hi"].max()), int(w.sum()), int(len(ok)))
+    if (ok["hi"] < 0).any():
+        v = TS.TransferVerdictLabel.HARMFUL
+    elif (ok["lo"] > 0).all():
+        v = TS.TransferVerdictLabel.GENERALISES
+    else:
+        v = TS.TransferVerdictLabel.NO_LEARNING
+    ledger.record(rule_id, "MARKET_CONDITION", tested_on, pooled, v, n_groups=len(ok))
+    return True

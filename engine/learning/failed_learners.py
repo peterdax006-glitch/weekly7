@@ -19,11 +19,11 @@ from __future__ import annotations
 import enum
 import json
 import math
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Iterable, Mapping, Sequence
 
-from .core import FirewallBreach, ValidationLabel, canonical_json, stable_hash
+from .core import ValidationLabel, canonical_json, stable_hash
 from .experiment_memory import question_similarity, to_ts
 
 LABEL = ValidationLabel.NOT_VALIDATED.value
@@ -273,7 +273,7 @@ class FailedLearnerRegistry:
 
     # -------------------------------------------------------------- the gate for the NEXT learner
     def check_proposal(self, proposal: "LearnerProposal", now, justification: "Justification | None" = None,
-                       block_at: float = 0.55, warn_at: float = 0.30) -> "DeadEndVerdict":
+                       block_at: float = 0.50, warn_at: float = 0.30) -> "DeadEndVerdict":
         matches = []
         for r in self.as_of(now):
             sim = proposal_similarity(proposal, r)
@@ -289,7 +289,8 @@ class FailedLearnerRegistry:
             return DeadEndVerdict(DeadEndStatus.SIMILAR_TO_FAILED,
                                   f"resembles failed '{top.learner}' ({top.failure_mode}) at {sim:.2f}; include controls {list(needed)}",
                                   listing, needed)
-        new_regime = [g for g in proposal.data_regime if g not in set(top.data_regime) | set(top.regimes_failed)]
+        seen = tuple(top.data_regime) + tuple(top.regimes_failed)
+        new_regime = [g for g in proposal.data_regime if not any(same_regime(g, s) for s in seen)]
         if top.generalization in (Generalization.SINGLE_REGIME, Generalization.REGIME_SPECIFIC) and new_regime:
             return DeadEndVerdict(DeadEndStatus.RETRY_ALLOWED_NEW_REGIME,
                                   f"'{top.learner}' failed only in {list(top.regimes_failed or top.data_regime)}; a retry in "
@@ -347,15 +348,30 @@ class DeadEndRepeat(Exception):
         self.verdict = verdict
 
 
+def same_regime(a: str, b: str) -> bool:
+    """Two regime descriptions name the same data world when one's content words are contained in the other's ('real' is inside
+    'real archive windows, past-only pairs') or their wording overlaps strongly. Exact string equality is far too strict: a
+    retry on the same archive under a shorter label is not a new regime."""
+    from .experiment_memory import question_tokens
+    ta, tb = question_tokens(a), question_tokens(b)
+    if not ta or not tb:
+        return a.strip().lower() == b.strip().lower()
+    return ta <= tb or tb <= ta or question_similarity(a, b) >= 0.5
+
+
 def jaccard(a: Iterable, b: Iterable) -> float:
     sa, sb = set(a), set(b)
     return len(sa & sb) / len(sa | sb) if sa | sb else 0.0
 
 
 def proposal_similarity(p: LearnerProposal, f: FailedLearner) -> float:
-    """0.5 x tag Jaccard + 0.3 x hypothesis wording + 0.2 x same family. Tags dominate: renaming a learner does not hide it."""
+    """0.5 x tag overlap (mean of Jaccard and containment) + 0.3 x hypothesis wording + 0.2 x same family. Tags dominate:
+    renaming a learner does not hide it."""
     fam = 1.0 if p.family and p.family == f.family else 0.0
-    return 0.5 * jaccard(p.mechanism_tags, f.mechanism_tags) + 0.3 * question_similarity(p.hypothesis, f.hypothesis) + 0.2 * fam
+    a, b = set(p.mechanism_tags), set(f.mechanism_tags)
+    contain = len(a & b) / min(len(a), len(b)) if a and b else 0.0            # a proposal wholly inside a failure's tags is that failure
+    tags = 0.5 * (jaccard(a, b) + contain)
+    return 0.5 * tags + 0.3 * question_similarity(p.hypothesis, f.hypothesis) + 0.2 * fam
 
 
 def justification_ok(p: LearnerProposal, failed: FailedLearner, j: Justification | None) -> tuple:
@@ -559,3 +575,77 @@ def audit_registry(reg: FailedLearnerRegistry, now, root=None) -> dict:
     ev = reg.verify_evidence(root, now) if root is not None else {"unverified_learners": []}
     return {"ok": not problems, "problems": problems, "unverified_learners": ev["unverified_learners"], "n": len(reg.as_of(now)),
             "unparseable_lines": reg.unparseable}
+
+
+# ------------------------------------------------------------------------------------------------ recognising the idea, not the name
+
+TAG_VOCABULARY = {
+    "stored_numeric_memory": ("memory bank", "stored memory", "numeric memory", "remember", "recall", "store window"),
+    "memory_bank": ("memory bank", "memorybank", "window-level memories", "window level memories"),
+    "exact_path_recall": ("same path", "identical path", "exact recall", "path recall"),
+    "episodic_retrieval": ("episodic", "retrieve similar", "similar past situations", "nearest situations"),
+    "analog_memory": ("analog", "analogue", "similar situation", "nearest neighbour", "nearest neighbor"),
+    "basis_expansion": ("basis", "feature expansion", "learned basis"),
+    "veto_rules": ("veto", "lesson", "avoid names", "exclude names", "filter out"),
+    "lessons_from_other_windows": ("lessons from other windows", "cross-window lessons", "other windows"),
+    "band_targeting": ("5-10", "in band", "band", "weekly move toward"),
+    "cfg_knob_search": ("cfg", "config knob", "knobs", "parameter search"),
+    "pool_rank_rules": ("pool", "rank windows", "keep-window", "keep window"),
+    "regime_bucket_rules": ("regime bucket", "regime map", "regime rule"),
+    "movement_score": ("movement score", "p_move", "mover score"),
+    "mover_selection": ("mover", "movers"),
+    "learner_chain": ("chain", "compose learners", "stack learners"),
+    "direction_classifier": ("direction", "up or down", "sign of the move"),
+    "missed_winner_rules": ("missed winner", "missed-winner"),
+    "cross_year_learner": ("cross-year", "across years", "unseen year", "transfer to later years"),
+    "past_only_transfer_gate": ("past-only", "past only"),
+    "causal_discovery": ("causal", "causality", "granger"),
+    "sequence_model": ("lstm", "transformer", "sequence model", "recurrent"),
+}
+
+
+def infer_tags(text: str, min_hits: int = 1) -> tuple:
+    """Mechanism tags implied by free text (a docstring, a proposal paragraph), from a keyword vocabulary. A proposal cannot
+    escape the dead-end check by renaming: its description is tagged the same way the seeded failures are. Returns tags in
+    vocabulary order with more than `min_hits` distinct keyword hits considered stronger (ties keep all)."""
+    low = text.lower()
+    scored = []
+    for tag, words in TAG_VOCABULARY.items():
+        hits = sum(1 for w in words if w in low)
+        if hits >= min_hits:
+            scored.append((tag, hits))
+    return tuple(t for t, _ in scored)
+
+
+def proposal_from_text(name: str, description: str, family: str = "", data_regime: Sequence[str] = (), extra_tags: Sequence[str] = ()) -> LearnerProposal:
+    """LearnerProposal with mechanism tags inferred from the description plus any explicitly declared ones. A description that
+    yields no tag at all is refused: an unclassifiable idea cannot be checked against the record of failures."""
+    tags = tuple(dict.fromkeys(list(infer_tags(description)) + list(extra_tags)))
+    if not tags:
+        raise ValueError(f"cannot tag proposal {name!r}: no recognised mechanism in its description (declare extra_tags)")
+    return LearnerProposal(name, description, tags, family, tuple(data_regime))
+
+
+def failure_summary_for(reg: FailedLearnerRegistry, tags: Sequence[str], now) -> list:
+    """Every current failed learner touching any of `tags`, with mode and reason: what to read before writing the code."""
+    want = set(tags)
+    return [{"learner": r.learner, "mode": r.failure_mode.value, "generalization": r.generalization.value, "reason": r.reason,
+             "shared_tags": sorted(want & set(r.mechanism_tags)), "evidence": list(r.evidence_paths)}
+            for r in reg.as_of(now) if want & set(r.mechanism_tags)]
+
+
+def to_markdown(reg: FailedLearnerRegistry, now) -> str:
+    """The dead-end map as Markdown: one row per failed learner, then the mechanism tags that keep failing and what any retry
+    must include. Meant to be read BEFORE building a new learner."""
+    rows = reg.as_of(now)
+    lines = [f"# Failed learners as of {now}", "", f"{len(rows)} learners; {reg.mode_counts(now)}", "",
+             "| learner | failure | generalised | why | evidence |", "|---|---|---|---|---|"]
+    for r in rows:
+        lines.append(f"| {r.learner} | {r.failure_mode} | {r.generalization} | {r.reason[:140]} | {', '.join(r.evidence_paths[:2])} |")
+    lines += ["", "## Mechanisms that keep failing", ""]
+    for tag, e in reg.dead_end_tags(now).items():
+        lines.append(f"- `{tag}`: {', '.join(e['learners'])}")
+    lines += ["", "## A retry must include", ""]
+    for mode, controls in REQUIRED_CONTROLS.items():
+        lines.append(f"- after {mode}: {', '.join(controls)}")
+    return "\n".join(lines)

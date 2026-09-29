@@ -18,6 +18,7 @@ EXPERIMENT, WRITE CURRENT CODE HASH and CONTINUE FROM CHECKPOINT. This module ma
 Times are explicit (`now`); nothing here reads a clock except through the injectable `clock`."""
 from __future__ import annotations
 
+import contextlib
 import dataclasses
 import json
 import os
@@ -30,8 +31,10 @@ from typing import Any, Callable, Iterable, Mapping, Sequence
 
 from engine import checkpoint as bundle
 
-from .compute import phash, plain
-from .core import BuildStatus, FirewallBreach, ValidationLabel, canonical_json, current_code_hash
+from .core import BuildStatus, FirewallBreach, ValidationLabel, as_date, canonical_json, current_code_hash, stable_hash
+
+
+SCHEMA_VERSION = 1
 
 
 class CheckpointCorrupt(RuntimeError):
@@ -67,6 +70,7 @@ class ExecutionState:
     pending: tuple[str, ...] = ()
     notes: Mapping[str, str] = field(default_factory=dict)
     artifacts: Mapping[str, str] = field(default_factory=dict)      # path -> sha256 at save time
+    schema: int = SCHEMA_VERSION
 
     def validate(self) -> list[str]:
         errs = []
@@ -85,7 +89,7 @@ class ExecutionState:
 
     @property
     def digest(self) -> str:
-        return phash(self, 20)
+        return stable_hash(self, 20)
 
     def open_failures(self) -> tuple[FailureNote, ...]:
         return tuple(f for f in self.failures if f.open())
@@ -95,8 +99,12 @@ class ExecutionState:
 
     @classmethod
     def from_dict(cls, d: Mapping[str, Any]) -> "ExecutionState":
-        d = dict(d)
-        d["failures"] = tuple(FailureNote(**f) for f in d.get("failures", ()))
+        """Tolerant reader: unknown keys (written by newer code) are ignored and missing ones (older code) take their defaults, so
+        a run can resume across a code change. `schema` is kept so `audit_store` can report states from a newer schema."""
+        names = {f.name for f in dataclasses.fields(cls)}
+        d = {k: v for k, v in d.items() if k in names}
+        fnames = {f.name for f in dataclasses.fields(FailureNote)}
+        d["failures"] = tuple(FailureNote(**{k: v for k, v in f.items() if k in fnames}) for f in d.get("failures", ()))
         d["pending"] = tuple(d.get("pending", ()))
         return cls(**d)
 
@@ -144,7 +152,7 @@ class CheckpointStore:
         errs = st.validate()
         if errs:
             raise CheckpointCorrupt(f"refusing to write an invalid checkpoint: {errs}")
-        body = json.loads(canonical_json(plain(st)))
+        body = json.loads(canonical_json(st))
         doc = json.dumps({"sha256": bundle._body_hash(body), "body": body}, sort_keys=True, allow_nan=False)
         if self._path(seq).exists():
             raise CheckpointCorrupt(f"checkpoint {seq} already exists")
@@ -681,3 +689,273 @@ def resume_report(plan: ResumePlan) -> str:
     if plan.skipped_corrupt:
         lines.append("corrupt checkpoint sequence numbers skipped: " + ", ".join(map(str, plan.skipped_corrupt)))
     return "\n".join(lines) + "\n"
+
+
+# ------------------------------------------------------------------------------------------------ store audit and repair
+def audit_store(store: CheckpointStore) -> dict:
+    """Health of the whole checkpoint directory, not just the newest file: which sequence numbers verify, which are corrupt,
+    where numbering has gaps (a deleted file), whether LATEST.json points at the newest valid checkpoint, and whether any
+    checkpoint was written under a newer schema than this code understands."""
+    seqs = store.sequences()
+    valid, corrupt, newer_schema = [], [], []
+    for q in seqs:
+        try:
+            st = store.read(q)
+            valid.append(q)
+            if st.schema > SCHEMA_VERSION:
+                newer_schema.append(q)
+        except CheckpointCorrupt:
+            corrupt.append(q)
+    gaps = [q for q in range(seqs[0], seqs[-1] + 1) if q not in seqs] if seqs else []
+    pointer = None
+    lp = store.dir / "LATEST.json"
+    if lp.is_file():
+        try:
+            pointer = json.loads(lp.read_text(encoding="utf-8")).get("sequence")
+        except ValueError:
+            pointer = None
+    newest = valid[-1] if valid else None
+    return {"sequences": len(seqs), "valid": valid, "corrupt": corrupt, "gaps": gaps, "newest_valid": newest,
+            "latest_pointer": pointer, "latest_pointer_ok": pointer == newest, "newer_schema": newer_schema,
+            "healthy": not corrupt and not gaps and pointer == newest and not newer_schema}
+
+
+def repair_latest(store: CheckpointStore) -> int | None:
+    """Point LATEST.json at the newest valid checkpoint (after a crash between writing a checkpoint and its pointer, or after
+    the newest file was found corrupt). Never deletes or edits a checkpoint. Returns the sequence now pointed at."""
+    st, _ = store.latest_valid()
+    if st is None:
+        return None
+    _atomic_text(store.dir / "LATEST.json", json.dumps({"sequence": st.sequence, "digest": st.digest}))
+    return st.sequence
+
+
+def timeline(store: CheckpointStore) -> list[dict]:
+    """One row per valid checkpoint: how the run progressed (tasks completed, open failures, what it planned next)."""
+    rows = []
+    for q in store.sequences():
+        try:
+            st = store.read(q)
+        except CheckpointCorrupt:
+            rows.append({"sequence": q, "corrupt": True})
+            continue
+        rows.append({"sequence": q, "saved_at": st.saved_at, "phase": st.phase, "completed": len(st.completed),
+                     "pending": len(st.pending), "open_failures": len(st.open_failures()), "next_action": st.next_action,
+                     "code_hash": st.code_hash, "experiment": st.current_experiment})
+    return rows
+
+
+def progress_made(store: CheckpointStore) -> dict:
+    """Net movement between the first and last valid checkpoint: tasks completed, failures resolved, code changes."""
+    rows = [r for r in timeline(store) if not r.get("corrupt")]
+    if len(rows) < 2:
+        return {"checkpoints": len(rows), "tasks_completed": 0, "code_changes": 0, "failures_delta": 0}
+    first, last = rows[0], rows[-1]
+    return {"checkpoints": len(rows), "tasks_completed": last["completed"] - first["completed"],
+            "code_changes": sum(1 for a, b in zip(rows, rows[1:]) if a["code_hash"] != b["code_hash"]),
+            "failures_delta": last["open_failures"] - first["open_failures"]}
+
+
+def render_masterstock_block(state: ExecutionState, plan: ResumePlan | None = None, tracker: "ChecklistTracker | None" = None,
+                             policy: EscalationPolicy | None = None) -> str:
+    """The 'NEXT SESSION: START HERE' block for the Masterstock hand-off file, so any account can resume without asking:
+    where we are, the very next action, what is broken and what must be escalated, and the exact labels the work may
+    carry (never 'validated' without evidence - section 59)."""
+    summ = summarise_failures(state.failures, policy)
+    lines = ["NEXT SESSION: START HERE",
+             f"run {state.run_id}, checkpoint #{state.sequence} ({state.saved_at}), phase '{state.phase}'",
+             f"next action: {state.next_action}",
+             f"code hash at save: {state.code_hash}   (tasks done under other code must be revalidated)"]
+    if state.current_experiment:
+        lines.append(f"experiment in flight: {state.current_experiment}")
+    if plan is not None:
+        lines.append(f"resume plan: {plan.action}" + ("; " + "; ".join(plan.reasons) if plan.reasons else ""))
+    lines.append(f"open failures: {summ['open']}" + ("" if not summ["escalate"] else
+                 " - ESCALATE: " + ", ".join(f"{e['task']}/{e['kind']} x{e['count']}" for e in summ["escalate"])))
+    if tracker is not None:
+        c = tracker.summary()
+        lines.append("checklist: " + (", ".join(f"{k}={v}" for k, v in sorted(c.items())) or "empty"))
+        nxt = tracker.next_incomplete()
+        lines.append("first incomplete critical item: " + (f"{nxt.item_id} {nxt.title} [{nxt.label.value}]" if nxt else "none"))
+        bad = tracker.falsely_complete()
+        if bad:
+            lines.append("FALSELY MARKED COMPLETE (fix first): " + ", ".join(bad))
+    lines.append("label to use for unproven work: " + ValidationLabel.NOT_VALIDATED.value)
+    return "\n".join(lines) + "\n"
+
+
+# ------------------------------------------------------------------------------------------------ guarding a single risky step
+@contextlib.contextmanager
+def guarded_step(store: CheckpointStore, task: str, code_hash: str, clock: Callable[[], float] = time.time,
+                 phase: str = "run", completed: dict | None = None, pending: Sequence[str] = (), experiment: str = "",
+                 failures: Sequence[FailureNote] = (), next_action: str = "choose the next task"):
+    """Wrap ONE step of a hand-driven script so it obeys the save/checkpoint/next-action protocol without a full
+    ExecutionLoop: a checkpoint is written before the step ('running X'), and afterwards either the completed record
+    (success), or a failure note plus an 'investigate' next action (any exception, which is then re-raised). A
+    FirewallBreach is recorded as escalated. KeyboardInterrupt is recorded as INTERRUPTED so the resume plan knows the
+    step did not finish. `completed` is updated in place on success."""
+    done = completed if completed is not None else {}
+    fails = list(failures)
+    store.save(clock(), phase, f"running {task}", code_hash, experiment, fails, done, pending)
+    try:
+        yield
+    except FirewallBreach as e:
+        fails.append(FailureNote(str(clock()), task, "FIREWALL", str(e)[:300], escalated=True))
+        store.save(clock(), phase, f"INVESTIGATE firewall breach in {task}", code_hash, experiment, fails, done, pending)
+        raise
+    except BaseException as e:
+        kind = "INTERRUPTED" if isinstance(e, KeyboardInterrupt) else "OOM" if isinstance(e, MemoryError) else "ERROR"
+        fails.append(FailureNote(str(clock()), task, kind, f"{type(e).__name__}: {e}"[:300]))
+        store.save(clock(), phase, f"retry or fix {task}", code_hash, experiment, fails, done, [task, *pending])
+        raise
+    else:
+        done[task] = code_hash
+        store.save(clock(), phase, next_action, code_hash, "", [dataclasses.replace(f, resolved=True) if f.task == task else f
+                                                                for f in fails], done, pending)
+
+
+def new_run_id(prefix: str, when, salt: str = "") -> str:
+    """A run id that is unique per (prefix, date, salt) yet human-readable: 'prefix_YYYYMMDD_hhhh'. Deterministic - the same
+    inputs always give the same id, so a restarted process rejoins its own run instead of starting a second one."""
+    d = str(as_date(when)).replace("-", "")
+    return f"{prefix}_{d}_{stable_hash([prefix, d, salt], 4)}"
+
+
+def diff_states(old: ExecutionState, new: ExecutionState) -> dict:
+    """What changed between two checkpoints of one run: tasks newly completed, failures added or resolved, next action, code."""
+    return {"completed_added": sorted(set(new.completed) - set(old.completed)),
+            "completed_lost": sorted(set(old.completed) - set(new.completed)),
+            "failures_added": len(new.failures) - len(old.failures),
+            "failures_resolved": sum(f.resolved for f in new.failures) - sum(f.resolved for f in old.failures),
+            "next_action": None if old.next_action == new.next_action else (old.next_action, new.next_action),
+            "code_changed": old.code_hash != new.code_hash, "experiment": (old.current_experiment, new.current_experiment)
+            if old.current_experiment != new.current_experiment else None}
+
+
+# ------------------------------------------------------------------------------------------------ resume that refuses stale state
+class StaleState(RuntimeError):
+    """The saved state was made by different code than the code now loaded, and the caller did not explicitly accept that."""
+
+
+def resume_verified(store: CheckpointStore, code_hash: str, allow_code_change: bool = False,
+                    experiment_state: Callable[[str], str | None] | None = None) -> ResumePlan:
+    """`resume`, but fail-closed on stale state. If the newest valid checkpoint was saved under a different code hash - or
+    records completed tasks done under one - the state is NOT resumed: StaleState names exactly what is stale. With
+    allow_code_change=True the plan is returned instead and its `revalidate` list says what must be redone before any of it is
+    trusted. A missing or fully corrupt store is a fresh start, never an error and never a silent guess."""
+    plan = resume(store, code_hash, experiment_state)
+    st = plan.state
+    if st is None:
+        return plan
+    problems = []
+    if st.code_hash != code_hash:
+        problems.append(f"checkpoint #{st.sequence} was saved under code {st.code_hash}, engine is {code_hash}")
+    if plan.revalidate:
+        problems.append(f"tasks completed under other code: {list(plan.revalidate)}")
+    if problems and not allow_code_change:
+        raise StaleState("; ".join(problems))
+    return plan
+
+
+# ------------------------------------------------------------------------------------------------ the interruption record (section 58)
+@dataclass(frozen=True)
+class InterruptionRecord:
+    """Exactly what section 58 says must be written when work is interrupted, as a typed, checksummed record: the next action,
+    the current failures, the current experiment and the code hash (plus where it was saved, so a reader can find the full
+    checkpoint)."""
+    run_id: str
+    checkpoint_sequence: int
+    saved_at: str
+    next_action: str
+    current_experiment: str
+    code_hash: str
+    failures: tuple[FailureNote, ...] = ()
+    reason: str = "interrupted"
+
+    def validate(self) -> list[str]:
+        errs = []
+        if not self.next_action:
+            errs.append("next_action missing")
+        if not self.code_hash:
+            errs.append("code_hash missing")
+        if not self.run_id:
+            errs.append("run_id missing")
+        return errs
+
+    @classmethod
+    def from_state(cls, state: ExecutionState, reason: str = "interrupted") -> "InterruptionRecord":
+        return cls(state.run_id, state.sequence, state.saved_at, state.next_action, state.current_experiment, state.code_hash,
+                   state.open_failures(), reason)
+
+
+def write_interruption(path: str | Path, rec: InterruptionRecord) -> Path:
+    """Atomic JSON with an embedded body hash (engine.checkpoint._body_hash). An invalid record is refused, not written."""
+    errs = rec.validate()
+    if errs:
+        raise CheckpointCorrupt(f"refusing to write an invalid interruption record: {errs}")
+    body = json.loads(canonical_json(rec))
+    p = Path(path)
+    _atomic_text(p, json.dumps({"sha256": bundle._body_hash(body), "body": body}, sort_keys=True, indent=1))
+    return p
+
+
+def read_interruption(path: str | Path) -> InterruptionRecord:
+    """Read and verify. A missing, unparseable, altered or invalid record raises CheckpointCorrupt - the caller then falls back
+    to the checkpoint store instead of trusting a damaged hand-off."""
+    try:
+        doc = json.loads(Path(path).read_text(encoding="utf-8"))
+        body = doc["body"]
+    except (OSError, ValueError, KeyError) as e:
+        raise CheckpointCorrupt(f"interruption record unreadable: {type(e).__name__}") from e
+    if bundle._body_hash(body) != doc.get("sha256"):
+        raise CheckpointCorrupt("interruption record content hash mismatch")
+    fnames = {f.name for f in dataclasses.fields(FailureNote)}
+    names = {f.name for f in dataclasses.fields(InterruptionRecord)}
+    body = {k: v for k, v in body.items() if k in names}
+    body["failures"] = tuple(FailureNote(**{k: v for k, v in f.items() if k in fnames}) for f in body.get("failures", ()))
+    rec = InterruptionRecord(**body)
+    errs = rec.validate()
+    if errs:
+        raise CheckpointCorrupt(f"interruption record invalid: {errs}")
+    return rec
+
+
+# ------------------------------------------------------------------------------------------------ pruning
+@dataclass(frozen=True)
+class PrunePolicy:
+    keep_last: int = 10             # always keep this many newest checkpoints
+    keep_every: int = 25            # and every Nth sequence number as a coarse history (0 disables)
+    keep_sequences: tuple[int, ...] = ()     # and these (e.g. the sequence a milestone bundle was sealed from)
+
+    def validate(self) -> list[str]:
+        return [] if self.keep_last >= 3 and self.keep_every >= 0 else ["keep_last must be >= 3 and keep_every >= 0"]
+
+
+def prune(store: CheckpointStore, policy: PrunePolicy | None = None, dry_run: bool = False) -> list[int]:
+    """Delete old checkpoints that the policy does not protect. Never deletes the newest VALID checkpoint (it is what a resume
+    would use), never deletes anything newer than it, and never deletes a corrupt file - a corrupt file is evidence and is left
+    for `audit_store` to report. Returns the sequence numbers removed (or that would be removed, for a dry run)."""
+    pol = policy or PrunePolicy()
+    errs = pol.validate()
+    if errs:
+        raise ValueError(errs)
+    seqs = store.sequences()
+    newest, _ = store.latest_valid()
+    if newest is None:
+        return []
+    protect = set(seqs[-pol.keep_last:]) | {newest.sequence} | set(pol.keep_sequences)
+    if pol.keep_every:
+        protect |= {q for q in seqs if q % pol.keep_every == 0}
+    doomed = []
+    for q in seqs:
+        if q in protect or q > newest.sequence:
+            continue
+        try:
+            store.read(q)
+        except CheckpointCorrupt:
+            continue
+        doomed.append(q)
+    if not dry_run:
+        for q in doomed:
+            store._path(q).unlink()
+    return doomed

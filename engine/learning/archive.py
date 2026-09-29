@@ -4,7 +4,9 @@ Permanent, immutable, hash-chained raw-experience storage in ten layers (L0 raw 
 changing INFLUENCE (a new record), never from editing or deleting history: a record, once written, is fixed forever;
 "changing" it means appending a `supersede` record, "retiring" it means appending an `influence` of 0. The chain storage
 idea is engine/pattern_memory.py's (append-only jsonl, prev-hash links, incremental sync, torn-tail refusal, cross-process
-lock from engine.pattern_bank.file_lock) generalised into `ChainFile`, which knowledge_graph.py / contradiction.py reuse.
+lock from engine.pattern_bank.file_lock) is `ChainFile`: a typed LANE on that very chain (kind 'arc'), reused by
+knowledge_graph.py / contradiction.py / hierarchy.py. Read adapters (adopt_*) mirror PatternMemory, PatternBank, TrustTable,
+Lessons and Memory lessons into the layers; nothing here is a sixth independent store.
 
 Time (C56/C58): every record carries `occurred_at` (when it happened) and `matured_at` (when it became knowable - an
 outcome that matures ON `now` is not yet known). A view at `now` exposes a record only if matured_at < now AND its

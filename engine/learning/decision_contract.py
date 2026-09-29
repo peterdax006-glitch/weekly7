@@ -624,14 +624,30 @@ class ProductionChange:
         return not self.added and not self.removed
 
 
+def _as_of(items: Iterable[Any], now) -> list[Any]:
+    """Newest version of each id that already existed before `now` (items may include several versions of one id)."""
+    best: dict[str, Any] = {}
+    for k in items:
+        try:
+            if as_date(k.updated_at) >= as_date(now):
+                continue
+        except (AttributeError, ValueError):
+            continue
+        cur = best.get(str(k.knowledge_id))
+        if cur is None or getattr(k, "version", 0) > getattr(cur, "version", 0):
+            best[str(k.knowledge_id)] = k
+    return [best[i] for i in sorted(best)]
+
+
 def production_changes(items: Iterable[Any], t0, t1, mode: Mode = Mode.PRODUCTION) -> ProductionChange:
-    """Which items were allowed at t0 versus t1 (same objects, two dates). Knowledge that silently stopped being allowed
+    """Which items were allowed at t0 versus t1 (pass every version; each date sees the newest one that existed before
+    it). Knowledge that silently stopped being allowed
     (retired, aged out of visibility, degraded) or began to be allowed is listed with the first reason it was refused."""
     if as_date(t1) < as_date(t0):
         raise FirewallBreach("t1 precedes t0")
     items = list(items)
-    a = {v.knowledge_id: v for _, v in split(items, t0, mode)[0]}
-    later, refused = split(items, t1, mode)
+    a = {v.knowledge_id: v for _, v in split(_as_of(items, t0), t0, mode)[0]}
+    later, refused = split(_as_of(items, t1), t1, mode)
     b = {v.knowledge_id: v for _, v in later}
     why = tuple(sorted((v.knowledge_id, v.reasons[0] if v.reasons else "") for _, v in refused if v.knowledge_id in a))
     return ProductionChange(tuple(sorted(set(b) - set(a))), tuple(sorted(set(a) - set(b))), tuple(sorted(set(a) & set(b))), why)

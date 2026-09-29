@@ -645,3 +645,144 @@ def test_component_diagnostics_run_and_are_bounded():
     disc = SM.discrimination(cases, y, seed=1, n_pairs=300)
     assert disc["volatility"] > 0.2
     assert SM.component_correlation(cases[:2]) == {}
+
+
+# ------------------------------------------------------------------------------------------------ reuse & extras
+
+def test_memory_context_parity_with_engine_memory():
+    from engine.memory import CTX, context_of
+    X = panel(n_dates=2, n_tk=25, seed=3)
+    day = X.xs(X.index.get_level_values(0)[0], level=0)
+    row = day.iloc[[0]]
+    s = ST.SituationBuilder().build(day.iloc[0].to_dict(), None, NOW, cross_section=ST.CrossSection(day, 20))
+    par = ST.memory_context_parity(s, row)
+    assert par["ok"] and par["columns_compared"] == len(CTX)
+    assert np.allclose(ST.to_memory_context(s), context_of(row), atol=1e-5)
+    blank = ST.SituationBuilder().build({}, {}, NOW)
+    assert (ST.to_memory_context(blank) == 0.0).all()                      # unobserved fills 0.0 exactly as memory.context_of does
+    assert ST.market_columns_missing({"m_vix": 15.0}) and not ST.market_columns_missing(dict.fromkeys(ST.market_columns(), 1.0))
+
+
+def test_weight_registry_is_time_safe_and_append_only():
+    reg = SM.WeightRegistry()
+    w2 = SM.SimilarityWeights.from_dict({**SM.DEFAULT.as_dict(), "regime": 0.5})
+    assert reg.register(w2, "2019-01-10", "refit on 2018 outcomes") == 1
+    assert reg.in_effect("2019-01-10")[0] == 0 and reg.in_effect("2019-01-11")[0] == 1      # only strictly earlier registrations
+    assert reg.in_effect("1990-01-01")[0] == 0
+    with pytest.raises(ValueError):
+        reg.register(w2, "2019-01-10", "same day")
+    with pytest.raises(ValueError):
+        reg.register(w2, "2019-02-01", "")
+    assert len(reg) == 2 and reg.history()[1][3] == "refit on 2018 outcomes"
+    assert "regime" in SM.weights_change(SM.DEFAULT, w2) and SM.weights_change(SM.DEFAULT, SM.DEFAULT) == {}
+    assert "vetoes regime<0.40" in SM.describe_weights()
+
+
+def test_field_importance_learns_which_dimension_matters_and_is_conservative():
+    rng = np.random.default_rng(0)
+    cases, y = [], []
+    for _ in range(200):
+        v = float(rng.uniform(.05, .95))
+        cases.append(mk(volatility__vol_rank=v, liquidity__dv_rank=float(rng.uniform(.05, .95)), trend__r20=float(rng.normal(0, .06))))
+        y.append(v * 0.1 + rng.normal(0, .002))
+    w, corr = SM.fit_field_importance(cases, y, n_pairs=3000, seed=1)
+    fw = dict(w.field_weights)
+    assert corr["volatility.vol_rank"] > 0.3 and fw["volatility.vol_rank"] > fw["liquidity.dv_rank"]
+    assert fw["liquidity.dv_rank"] >= 0.2                                                    # never silenced
+    same, none = SM.fit_field_importance(cases[:5], y[:5])
+    assert same == SM.DEFAULT and none == {}
+
+
+def test_equivalent_situations_have_more_alike_outcomes_than_chance():
+    rng = np.random.default_rng(1)
+    cases, y = [], []
+    for k in range(6):
+        base = dict(volatility__vol_rank=.1 + .15 * k, market__vix=13.0 + 3 * k)
+        for _ in range(12):
+            cases.append(mk(volatility__vol_rank=float(np.clip(base["volatility__vol_rank"] + rng.normal(0, .002), .01, .99)),
+                            market__vix=base["market__vix"] + float(rng.normal(0, .05))))
+            y.append(0.01 * k + rng.normal(0, .001))
+    good = SM.equivalent_transfer_check(cases, y, threshold=0.985, seed=2)
+    assert good["clusters"] >= 4 and good["lift"] > 0 and good["p"] < 0.05
+    noise = SM.equivalent_transfer_check(cases, list(rng.normal(0, .02, len(cases))), threshold=0.985, seed=2)
+    assert noise["p"] > 0.05                                                                  # equivalence carries no information about noise
+    assert np.isnan(SM.equivalent_transfer_check([], [])["lift"])
+
+
+def test_weight_sensitivity_high_for_a_clear_twin_and_ranking_table_is_complete():
+    rng = np.random.default_rng(2)
+    cases = [mk(volatility__vol_rank=float(rng.uniform(.05, .95)), market__vix=float(rng.uniform(12, 30))) for _ in range(40)]
+    q = mk(volatility__vol_rank=.5, market__vix=20.0)
+    cases[3] = mk(volatility__vol_rank=.5, market__vix=20.05)
+    sens = SM.weight_sensitivity(q, cases, k=3, trials=10, seed=1)
+    assert sens["overlap"] > 0.6 and sens["trials"] == 10
+    assert np.isnan(SM.weight_sensitivity(q, cases[:2], k=3)["overlap"])
+    rows = SM.ranking_table(q, SM.nearest(q, cases, k=3))
+    assert rows[0]["rank"] == 1 and rows[0]["ref"] == "3" and set(SM.COMPONENTS) <= set(rows[0])
+
+
+def test_similarity_record_roundtrip_cache_and_component_views():
+    a, b = mk(), mk(regime__label="stress", regime__vol_regime="crisis")
+    r = SM.compare(a, b)
+    again = SM.result_from_record(SM.result_to_record(r))
+    assert again == r
+    bad = SM.result_to_record(r)
+    bad["components"] = bad["components"][:-1]
+    with pytest.raises(ValueError):
+        SM.result_from_record(bad)
+    cache = SM.SimilarityCache(maxsize=2)
+    assert cache.compare(a, b) == r and cache.compare(b, a) == r and cache.hits == 1 and cache.misses == 1
+    heavy = SM.SimilarityWeights(field_weights=(("regime.label", 5.0),))
+    assert cache.compare(a, b, heavy) != r                                                   # a different weighting is never served stale
+    cache.compare(a, a)
+    assert len(cache) == 2
+    with pytest.raises(ValueError):
+        SM.SimilarityCache(0)
+    cases = [mk(volatility__vol_rank=v) for v in (0.1, 0.5, 0.9)] + [ST.coarsen(mk(), keep=["regime"])]
+    top = SM.nearest_by_component(mk(volatility__vol_rank=0.52), cases, "volatility", k=3)
+    assert top[0][0] == 1 and all(i != 3 for i, _ in top)                                    # the unobservable case is left out, not ranked last
+    with pytest.raises(ValueError):
+        SM.nearest_by_component(a, cases, "nonsense")
+    part = SM.partition_by_veto(a, cases + [b])
+    assert part["unknown"] == [3] and part["vetoed"] == [4] and part["comparable"] == [0, 1, 2]
+    avail = SM.component_availability(cases[:3], n_pairs=20)
+    assert avail["volatility"] == 1.0 and SM.component_availability(cases[:1]) == {}
+
+
+def test_population_drift_monitor_alarms_on_a_shifted_regime_mix():
+    ref = [mk(regime__label="bull_calm", volatility__vol_rank=float(v)) for v in np.linspace(.1, .9, 60)]
+    mon = ST.PopulationDriftMonitor(ref, window=40)
+    assert mon.report()["status"] == Unknown.INSUFFICIENT_DATA
+    for v in np.linspace(.1, .9, 40):
+        mon.push(mk(regime__label="bull_calm", volatility__vol_rank=float(v)))
+    assert mon.report()["status"] == "STABLE" and not mon.report()["alarmed"]
+    for v in np.linspace(.1, .9, 40):
+        mon.push(mk(regime__label="stress", regime__vol_regime="crisis", volatility__vol_rank=float(v)))
+    rep = mon.report()
+    assert rep["status"] == "SHIFTED" and rep["alarmed"][0].startswith("regime.") and rep["n_recent"] == 40
+    with pytest.raises(ValueError):
+        ST.PopulationDriftMonitor(ref, window=5)
+    with pytest.raises(ValueError):
+        mon.push(ST.Situation(mk().blocks[:2]))
+
+
+def test_pairwise_and_stratified_neighbours_and_record_roundtrips():
+    rng = np.random.default_rng(4)
+    cases = [mk(volatility__vol_rank=float(rng.uniform(.05, .95)), market__vix=float(rng.uniform(12, 30))) for _ in range(24)]
+    P = SM.pairwise_totals(cases)
+    assert P.shape == (24, 24) and np.allclose(np.nan_to_num(P), np.nan_to_num(P.T), atol=1e-6) and abs(P[0, 0] - 1.0) < 1e-9
+    assert SM.pairwise_totals([]).shape == (0, 0)
+    strata = ["a"] * 12 + ["b"] * 12
+    q = mk(volatility__vol_rank=.5, market__vix=20.0)
+    got = SM.stratified_nearest(q, cases, strata, per_stratum=2)
+    assert len(got) == 4 and {strata[n.index] for n in got} == {"a", "b"} and [n.result.total for n in got] == sorted([n.result.total for n in got], reverse=True)
+    with pytest.raises(ValueError):
+        SM.stratified_nearest(q, cases, strata[:3])
+    text = SM.explain_neighbours(q, SM.nearest(q, cases, k=2))
+    assert text.startswith("#1 case") and "similarity" in text and SM.explain_neighbours(q, []) == "no comparable neighbours"
+    w = SM.SimilarityWeights.from_dict({**SM.DEFAULT.as_dict(), "sector": 0.3}, field_weights=(("regime.label", 2.0),))
+    assert SM.weights_from_record(SM.weights_to_record(w)) == w
+    rec = SM.weights_to_record(w)
+    rec["values"]["regime"] = 0.9
+    with pytest.raises(ValueError):
+        SM.weights_from_record(rec)                                            # edited content no longer matches its id

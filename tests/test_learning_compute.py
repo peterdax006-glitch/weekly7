@@ -280,7 +280,7 @@ def test_duplicate_attempts_that_disagree_prove_nondeterminism(tmp_path):
     two.mkdir()
     env = json.loads((CM.attempt_dir(out, ka, 1) / "result.json").read_text(encoding="utf-8"))
     env["result"] = {"mean": 0.123}
-    env["result_hash"] = CM.phash(env["result"], 20)
+    env["result_hash"] = CM.stable_hash(env["result"], 20)
     (two / "result.json").write_text(json.dumps(env), encoding="utf-8")
     (two / "DONE").write_text(env["result_hash"], encoding="utf-8")
     assert CM.reconcile(led, out, HASH).reasons() == {"nondeterministic": 1}
@@ -884,3 +884,502 @@ def test_resume_report_is_plain_language(tmp_path):
     txt = CP.resume_report(CP.resume(s, HASH))
     assert "resume action: CONTINUE" in txt and "revalidate before trusting: a" in txt and "checkpoint #0" in txt
     assert CP.resume_report(CP.resume(CP.CheckpointStore(tmp_path, "none"), HASH)).startswith("resume action: START_FRESH")
+
+
+# ================================================================================================ additions: backoff, dependencies, manifests
+def test_backoff_is_deterministic_bounded_and_growing():
+    b = CM.BackoffPolicy(base_s=10, factor=2, cap_s=100, jitter=0.25)
+    d = [b.delay("k", n) for n in (1, 2, 3, 4, 5, 6)]
+    assert d == [b.delay("k", n) for n in (1, 2, 3, 4, 5, 6)]
+    assert 7.5 <= d[0] <= 12.5
+    assert d[1] > d[0] * 1.2 and max(d) <= 125.0 and b.delay("k", 1) != b.delay("other", 1)
+    assert CM.BackoffPolicy(jitter=1.5).validate() and CM.BackoffPolicy(cap_s=1, base_s=5).validate() and not b.validate()
+
+
+def test_failed_experiments_wait_before_retrying(tmp_path):
+    led = CM.ExperimentLedger(tmp_path / "l.json", backoff=CM.BackoffPolicy(base_s=60, jitter=0.0))
+    out = tmp_path / "o"
+    sp = spec()
+    led.submit(sp, 0, HASH)
+
+    def bad(s, c):
+        raise ValueError("x")
+
+    CM.run_worker(sp, bad, led, None, out, "w", 100.0, HASH, clock=lambda: 100.0)
+    assert led.get(sp.key)["not_before"] == 160.0
+    plan = CM.plan_launches(led, 16.0, cores=8, now=120.0)
+    assert plan.launch == () and "backing off" in dict(plan.held)[sp.key]
+    with pytest.raises(CM.ClaimError, match="backing off"):
+        led.claim(sp.key, "w", 130.0, HASH)
+    assert CM.plan_launches(led, 16.0, cores=8, now=161.0).launch == (sp.key,)
+    led.claim(sp.key, "w", 161.0, HASH)
+    assert led.get(sp.key)["not_before"] is None
+    with pytest.raises(ValueError):
+        CM.ExperimentLedger(tmp_path / "l2.json", backoff=CM.BackoffPolicy(factor=0.5))
+
+
+def test_dependency_order_and_cycle_detection():
+    a = spec("a")
+    b = spec("b", after=(a.key,))
+    c = spec("c", after=(a.key, b.key))
+    order = [s.name for s in CM.dependency_order([c, b, a])]
+    assert order == ["a", "b", "c"]
+    x = spec("x")
+    y = dataclasses_replace(spec("y"), after=(x.key,))
+    x2 = dataclasses_replace(x, after=(y.key,))
+    with pytest.raises(CM.ComputeError, match="cycle"):
+        CM.dependency_order([x2, y])
+    assert spec("a").key == dataclasses_replace(spec("a"), after=("zzz",)).key         # dependencies are not identity
+    assert CM.ExperimentSpec.from_dict(b.to_dict()) == b
+
+
+def dataclasses_replace(obj, **kw):
+    import dataclasses
+    return dataclasses.replace(obj, **kw)
+
+
+def test_dependent_experiments_wait_for_prerequisites(tmp_path):
+    led, out = make(tmp_path)
+    a = spec("a")
+    b = spec("b", after=(a.key,))
+    res = CM.submit_batch(led, [b, a], 0, HASH)
+    assert res["queued"] == [a.key, b.key] and res["duplicates"] == []
+    plan = CM.plan_launches(led, 16.0, cores=8)
+    assert plan.launch == (a.key,) and "waiting for prerequisites" in dict(plan.held)[b.key]
+    CM.run_worker(a, fn_ok, led, None, out, "w", 1.0, HASH)
+    assert CM.plan_launches(led, 16.0, cores=8).launch == (b.key,)
+
+
+def test_submit_batch_is_safe_to_repeat_and_rejects_unknown_prerequisites(tmp_path):
+    led, out = make(tmp_path)
+    a, b = spec("a"), spec("b", after=(spec("a").key,))
+    CM.submit_batch(led, [a, b], 0, HASH)
+    again = CM.submit_batch(led, [a, b], 1, HASH)
+    assert again["queued"] == [] and len(again["duplicates"]) == 2
+    with pytest.raises(CM.ComputeError, match="unknown"):
+        CM.submit_batch(led, [spec("c", after=("feedfacefeedface0000",))], 2, HASH)
+    assert CM.submit_batch(led, [], 3, HASH) == {"queued": [], "duplicates": []}
+
+
+def test_dependents_of_a_given_up_experiment_are_reported_blocked(tmp_path):
+    led, out = make(tmp_path, max_attempts=1)
+    a = spec("a")
+    b = spec("b", after=(a.key,))
+    c = spec("c", after=(b.key,))
+    d = spec("d")
+    CM.submit_batch(led, [a, b, c, d], 0, HASH)
+
+    def bad(s, ctx):
+        raise ValueError("x")
+
+    assert CM.run_worker(a, bad, led, None, out, "w", 1.0, HASH)["next"] == CM.GAVE_UP
+    assert sorted(CM.blocked_by_failure(led), key=lambda r: r["name"]) == [{"key": b.key, "name": "b", "blocked_by": a.key},
+                                                                             {"key": c.key, "name": "c", "blocked_by": b.key}]
+    assert d.key not in [x["key"] for x in CM.blocked_by_failure(led)]
+    assert CM.blocked_by_failure(CM.ExperimentLedger(tmp_path / "none.json")) == []
+
+
+def test_run_manifest_detects_tampering_and_compares_reruns(tmp_path):
+    led1, out1 = run_all(tmp_path / "r1")
+    led2, out2 = run_all(tmp_path / "r2")
+    rec1, rec2 = CM.reconcile(led1, out1, HASH), CM.reconcile(led2, out2, HASH)
+    m1 = CM.write_run_manifest(tmp_path / "m1.json", led1, rec1, HASH, ["snapA"])
+    m2 = CM.write_run_manifest(tmp_path / "m2.json", led2, rec2, HASH)
+    assert CM.verify_manifest(tmp_path / "m1.json") == []
+    cmp_ = CM.compare_manifests(m1, m2)
+    assert cmp_["reproducible"] and cmp_["compared"] == 3 and cmp_["differ"] == []
+    doc = json.loads((tmp_path / "m1.json").read_text(encoding="utf-8"))
+    doc["body"]["code_hash"] = "other"
+    (tmp_path / "m1.json").write_text(json.dumps(doc), encoding="utf-8")
+    assert CM.verify_manifest(tmp_path / "m1.json") == ["manifest body altered after writing"]
+    assert CM.verify_manifest(tmp_path / "missing.json") == ["manifest missing or unreadable"]
+
+
+def test_manifest_comparison_exposes_a_nondeterministic_experiment(tmp_path):
+    def fn_a(s, c):
+        return {"v": 1}
+
+    def fn_b(s, c):
+        return {"v": 2}
+
+    docs = []
+    for i, fn in enumerate((fn_a, fn_b)):
+        led, out = make(tmp_path / f"r{i}")
+        led.submit(spec(), 0, HASH)
+        CM.run_worker(spec(), fn, led, None, out, "w", 1.0, HASH)
+        docs.append(CM.write_run_manifest(tmp_path / f"m{i}.json", led, CM.reconcile(led, out, HASH), HASH))
+    c = CM.compare_manifests(*docs)
+    assert c["differ"] == [spec().key] and not c["reproducible"]
+    docs[1]["body"]["code_hash"] = "other"
+    assert not CM.compare_manifests(*docs)["same_code"]
+
+
+# ================================================================================================ additions: audit, repair, schema, hand-off
+def test_audit_store_finds_corruption_gaps_and_bad_pointer(tmp_path):
+    s = CP.CheckpointStore(tmp_path, "run1")
+    for i in range(5):
+        save(s, i)
+    a = CP.audit_store(s)
+    assert a["healthy"] and a["valid"] == [0, 1, 2, 3, 4] and a["latest_pointer"] == 4
+    os.remove(s._path(1))
+    s._path(3).write_text("torn", encoding="utf-8")
+    a = CP.audit_store(s)
+    assert a["gaps"] == [1] and a["corrupt"] == [3] and a["newest_valid"] == 4 and a["latest_pointer_ok"] and not a["healthy"]
+    (s.dir / "LATEST.json").write_text("{not json", encoding="utf-8")
+    a = CP.audit_store(s)
+    assert a["latest_pointer"] is None and not a["latest_pointer_ok"]
+    assert CP.repair_latest(s) == 4 and CP.audit_store(s)["latest_pointer_ok"]
+    assert CP.audit_store(CP.CheckpointStore(tmp_path, "empty")) == {
+        "sequences": 0, "valid": [], "corrupt": [], "gaps": [], "newest_valid": None, "latest_pointer": None,
+        "latest_pointer_ok": True, "newer_schema": [], "healthy": True}
+    assert CP.repair_latest(CP.CheckpointStore(tmp_path, "empty")) is None
+
+
+def test_states_from_newer_and_older_code_still_load(tmp_path):
+    s = CP.CheckpointStore(tmp_path, "run1")
+    save(s, 0)
+    p = s._path(0)
+    doc = json.loads(p.read_text(encoding="utf-8"))
+    doc["body"]["added_in_future"] = "x"
+    doc["body"]["schema"] = CP.SCHEMA_VERSION + 1
+    doc["body"]["failures"] = [{"at": "t", "task": "a", "kind": "ERROR", "message": "m", "new_field": 1}]
+    del doc["body"]["notes"]                                                          # an older writer did not have this field
+    from engine import checkpoint as bundle
+    doc["sha256"] = bundle._body_hash(doc["body"])
+    p.write_text(json.dumps(doc), encoding="utf-8")
+    st = s.read(0)
+    assert st.notes == {} and st.failures[0].task == "a"
+    assert CP.audit_store(s)["newer_schema"] == [0]
+
+
+def test_timeline_and_progress(tmp_path):
+    s = CP.CheckpointStore(tmp_path, "run1")
+    assert CP.progress_made(s)["checkpoints"] == 0
+    save(s, 0, completed={}, pending=("a", "b"), failures=[CP.FailureNote("t", "a", "ERROR", "x")])
+    save(s, 1, completed={"a": HASH}, pending=("b",))
+    save(s, 2, completed={"a": HASH, "b": NEWHASH}, code_hash=NEWHASH)
+    s._path(1).write_text("torn", encoding="utf-8")
+    tl = CP.timeline(s)
+    assert [r.get("corrupt", False) for r in tl] == [False, True, False]
+    pm = CP.progress_made(s)
+    assert pm == {"checkpoints": 2, "tasks_completed": 2, "code_changes": 1, "failures_delta": -1}
+
+
+def test_masterstock_block_is_complete_and_honest(tmp_path):
+    t = CP.ChecklistTracker(tmp_path / "cl.json")
+    t.add("J01", "champion board")
+    t.mark("J01", BuildStatus.IMPLEMENTED)
+    s = CP.CheckpointStore(tmp_path, "run1")
+    fails = [CP.FailureNote(f"t{i}", "fit", "OOM", "alloc") for i in range(3)]
+    st = save(s, 0, current_experiment="ek1", failures=fails, next_action="rerun fit with half batch")
+    txt = CP.render_masterstock_block(st, CP.resume(s, HASH), t)
+    for frag in ("NEXT SESSION: START HERE", "rerun fit with half batch", "experiment in flight: ek1", "ESCALATE: fit/OOM x3",
+                 "first incomplete critical item: J01 champion board", "IMPLEMENTED — NOT VALIDATED", HASH):
+        assert frag in txt
+    raw = json.loads((tmp_path / "cl.json").read_text(encoding="utf-8"))
+    raw["J01"]["status"] = "VALIDATED"
+    (tmp_path / "cl.json").write_text(json.dumps(raw), encoding="utf-8")
+    assert "FALSELY MARKED COMPLETE" in CP.render_masterstock_block(st, None, CP.ChecklistTracker(tmp_path / "cl.json"))
+    assert "checklist" not in CP.render_masterstock_block(st)
+
+
+# ================================================================================================ additions: guarded steps
+def test_guarded_step_records_success_and_marks_earlier_failures_resolved(tmp_path):
+    s = CP.CheckpointStore(tmp_path, "run1")
+    done = {}
+    old = [CP.FailureNote("t0", "fit", "ERROR", "earlier")]
+    with CP.guarded_step(s, "fit", HASH, clock=lambda: 5.0, completed=done, pending=("report",), failures=old, next_action="write report"):
+        pass
+    st = s.latest_valid()[0]
+    assert done == {"fit": HASH} and st.completed == {"fit": HASH} and st.next_action == "write report"
+    assert st.failures[0].resolved and s.read(st.sequence - 1).next_action == "running fit"
+
+
+def test_guarded_step_records_failure_and_reraises(tmp_path):
+    s = CP.CheckpointStore(tmp_path, "run1")
+    with pytest.raises(ValueError):
+        with CP.guarded_step(s, "fit", HASH, clock=lambda: 5.0, pending=("report",)):
+            raise ValueError("bad input")
+    st = s.latest_valid()[0]
+    assert st.failures[-1].kind == "ERROR" and "bad input" in st.failures[-1].message
+    assert st.pending == ("fit", "report") and st.next_action == "retry or fix fit" and st.completed == {}
+    with pytest.raises(MemoryError):
+        with CP.guarded_step(s, "big", HASH, clock=lambda: 6.0):
+            raise MemoryError("alloc")
+    assert s.latest_valid()[0].failures[-1].kind == "OOM"
+    with pytest.raises(KeyboardInterrupt):
+        with CP.guarded_step(s, "long", HASH, clock=lambda: 7.0):
+            raise KeyboardInterrupt()
+    assert s.latest_valid()[0].failures[-1].kind == "INTERRUPTED"
+
+
+def test_guarded_step_escalates_a_firewall_breach(tmp_path):
+    s = CP.CheckpointStore(tmp_path, "run1")
+    with pytest.raises(FirewallBreach):
+        with CP.guarded_step(s, "audit", HASH, clock=lambda: 5.0):
+            raise FirewallBreach("future rows")
+    st = s.latest_valid()[0]
+    assert st.failures[-1].kind == "FIREWALL" and st.failures[-1].escalated and "INVESTIGATE" in st.next_action
+    assert "audit" not in st.completed
+
+
+def test_new_run_id_is_deterministic_and_safe():
+    a = CP.new_run_id("s11", "2026-09-29")
+    assert a == CP.new_run_id("s11", "2026-09-29") and a != CP.new_run_id("s11", "2026-09-29", "b") and a.startswith("s11_20260929_")
+    CP.CheckpointStore("x", a)                                                       # accepted as a run id
+
+
+def test_diff_states(tmp_path):
+    s = CP.CheckpointStore(tmp_path, "run1")
+    a = save(s, 0, completed={"x": HASH}, failures=[CP.FailureNote("t", "y", "ERROR", "m")], current_experiment="e1")
+    b = save(s, 1, completed={"x": HASH, "y": HASH}, failures=[CP.FailureNote("t", "y", "ERROR", "m", resolved=True)], code_hash=NEWHASH)
+    d = CP.diff_states(a, b)
+    assert d["completed_added"] == ["y"] and d["completed_lost"] == [] and d["failures_added"] == 0 and d["failures_resolved"] == 1
+    assert d["code_changed"] and d["next_action"] == ("do step 0", "do step 1") and d["experiment"] == ("e1", "")
+    same = CP.diff_states(a, a)
+    assert not same["code_changed"] and same["next_action"] is None and same["completed_added"] == []
+
+
+# ================================================================================================ additions: admission, real child processes, adjudication
+PY = __import__("sys").executable
+
+
+def test_admission_follows_the_2_5_gb_rule_and_fails_closed():
+    assert CM.admit(2.0, lambda: 8.0) == (True, "ok")
+    ok, why = CM.admit(1.0, lambda: 2.4)
+    assert not ok and "2.5 GB rule" in why
+    ok, why = CM.admit(5.0, lambda: 6.0)
+    assert not ok and "reserve" in why
+    assert CM.admit(1.0, lambda: None)[0] is False and CM.admit(1.0, lambda: float("nan"))[0] is False
+    assert CM.admit(1.0, lambda: 2.5 + 1.0 + 2.5)[0]
+    real = CM.admit(0.01)                                             # the real machine reading is at least well-formed
+    assert isinstance(real[0], bool) and isinstance(real[1], str)
+
+
+def test_subprocess_success_and_output_files(tmp_path):
+    r = CM.run_subprocess([PY, "-c", "print('hello'); import sys; sys.stderr.write('note')"], tmp_path / "w", 30)
+    assert r.kind == CM.DONE and r.returncode == 0 and not r.timed_out and r.elapsed_s < 30
+    assert (tmp_path / "w" / "stdout.txt").read_text(encoding="utf-8").strip() == "hello" and r.stderr_tail == "note"
+
+
+def test_subprocess_timeout_kills_only_the_child_and_is_retryable(tmp_path):
+    r = CM.run_subprocess([PY, "-c", "import time; time.sleep(60)"], tmp_path / "w", 0.5)
+    assert r.timed_out and r.kind == CM.CRASHED and r.elapsed_s < 20
+
+
+def test_subprocess_memory_error_and_exit_codes_are_classified(tmp_path):
+    r = CM.run_subprocess([PY, "-c", "raise MemoryError('Unable to allocate 9 GiB')"], tmp_path / "a", 30)
+    assert r.kind == CM.OOM and r.returncode == 1 and "MemoryError" in r.stderr_tail
+    r = CM.run_subprocess([PY, "-c", "import os; os._exit(137)"], tmp_path / "b", 30)
+    assert r.kind == CM.OOM and r.returncode == 137
+    r = CM.run_subprocess([PY, "-c", "raise ValueError('plain bug')"], tmp_path / "c", 30)
+    assert r.kind == CM.FAILED and "plain bug" in r.stderr_tail
+    r = CM.run_subprocess([PY, "-c", "import sys; sys.exit(3)"], tmp_path / "d", 30)
+    assert r.kind == CM.FAILED and r.returncode == 3
+
+
+def test_subprocess_over_memory_ceiling_is_killed_as_oom(tmp_path):
+    fake = iter([0.1, 0.2, 5.0, 5.0, 5.0])
+    r = CM.run_subprocess([PY, "-c", "import time; time.sleep(60)"], tmp_path / "w", 30, mem_limit_gb=1.0,
+                          rss_fn=lambda pid: next(fake, 5.0))
+    assert r.killed_for_memory and r.kind == CM.OOM and r.peak_gb == 5.0 and r.elapsed_s < 20
+
+
+def test_settle_fails_a_child_that_died_without_recording(tmp_path):
+    led, out = make(tmp_path, max_attempts=2, oom_growth=2.0)
+    sp = spec(est_gb=1.0)
+    led.submit(sp, 0, HASH)
+    led.claim(sp.key, "child", 1.0, HASH)
+    res = CM.run_subprocess([PY, "-c", "raise MemoryError('Unable to allocate')"], tmp_path / "w", 30)
+    assert CM.settle(led, sp.key, res, 2.0) == CM.PENDING
+    e = led.get(sp.key)
+    assert e["est_gb"] == 2.0 and e["batch_scale"] == 0.5 and "MemoryError" in json.dumps(e["history"])
+    led.claim(sp.key, "child2", 3.0, HASH)
+    clean = CM.run_subprocess([PY, "-c", "pass"], tmp_path / "w2", 30)
+    assert CM.settle(led, sp.key, clean, 4.0) == CM.GAVE_UP                          # exit 0 but nothing recorded is a failure
+    assert CM.settle(led, "unknown", clean, 5.0) == "UNKNOWN"
+
+
+def test_settle_leaves_a_child_that_recorded_its_own_result(tmp_path):
+    led, out = make(tmp_path)
+    led.submit(spec(), 0, HASH)
+    CM.run_worker(spec(), fn_ok, led, None, out, "w", 1.0, HASH)
+    res = CM.run_subprocess([PY, "-c", "pass"], tmp_path / "w", 30)
+    assert CM.settle(led, spec().key, res, 9.0) == CM.DONE
+
+
+def write_attempt(out, key, n, spec_, result, code=HASH, seed=None, worker="w"):
+    d = CM.attempt_dir(out, key, n)
+    d.mkdir(parents=True)
+    env = CM._envelope(spec_, result, code, worker, n, 0.0, 1.0)
+    if seed is not None:
+        env["seed"] = seed
+    (d / "result.json").write_text(json.dumps(env), encoding="utf-8")
+    (d / "DONE").write_text(env["result_hash"], encoding="utf-8")
+
+
+def test_adjudicate_explains_a_nondeterministic_pair_and_asks_for_a_third(tmp_path):
+    led, out = make(tmp_path)
+    sp = spec()
+    led.submit(sp, 0, HASH)
+    write_attempt(out, sp.key, 1, sp, {"mean": 0.010, "v": [1.0, 2.0]}, worker="w1")
+    write_attempt(out, sp.key, 2, sp, {"mean": 0.011, "v": [1.0, 2.0]}, worker="w2")
+    a = CM.adjudicate(led, out, sp.key)
+    assert not a["agree"] and a["cause"] == "nondeterministic" and a["n_distinct"] == 2 and a["majority_hash"] is None
+    assert a["action"] == "run a third attempt" and "value_change" in " ".join(a["difference"]["causes"])
+    write_attempt(out, sp.key, 3, sp, {"mean": 0.010, "v": [1.0, 2.0]}, worker="w3")
+    a = CM.adjudicate(led, out, sp.key)
+    assert a["majority_hash"] and a["action"].startswith("majority reported; still flagged")
+    write_attempt(out, sp.key, 4, sp, {"mean": 0.012, "v": [1.0, 2.0]}, worker="w4")
+    assert CM.adjudicate(led, out, sp.key)["action"] == "escalate: fix the source of non-determinism"
+
+
+def test_adjudicate_separates_code_and_seed_differences_from_nondeterminism(tmp_path):
+    led, out = make(tmp_path)
+    sp = spec()
+    write_attempt(out, sp.key, 1, sp, {"m": 1.0})
+    write_attempt(out, sp.key, 2, sp, {"m": 2.0}, code=NEWHASH)
+    assert CM.adjudicate(led, out, sp.key)["cause"] == "code_difference"
+    sp2 = spec("other")
+    write_attempt(out, sp2.key, 1, sp2, {"m": 1.0})
+    write_attempt(out, sp2.key, 2, sp2, {"m": 2.0}, seed=99)
+    assert CM.adjudicate(led, out, sp2.key)["cause"] == "seed_difference"
+    sp3 = spec("same")
+    write_attempt(out, sp3.key, 1, sp3, {"m": 1.0})
+    write_attempt(out, sp3.key, 2, sp3, {"m": 1.0})
+    assert CM.adjudicate(led, out, sp3.key)["agree"]
+    assert CM.adjudicate(led, out, "nokey") == {"key": "nokey", "agree": True, "attempts": 0, "action": "nothing to adjudicate"}
+
+
+WORKER_MODULE = """
+from engine.learning import compute as CM
+
+CM.current_code_hash = lambda: "test_code"      # parallel builders edit engine/ files, so pin the hash in this child
+
+@CM.register_worker("child_exp")
+def run(spec, ctx):
+    if spec.params.get("boom") == "oom":
+        raise MemoryError("Unable to allocate 64 GiB")
+    return {"draw": float(ctx.rng("x").normal()), "attempt": ctx.attempt}
+"""
+
+
+def test_experiment_runs_end_to_end_in_a_real_child_process(tmp_path):
+    (tmp_path / "w7_child_worker.py").write_text(WORKER_MODULE, encoding="utf-8")
+    old = os.environ.get("PYTHONPATH")
+    os.environ["PYTHONPATH"] = str(tmp_path) + (os.pathsep + old if old else "")
+    try:
+        led = CM.ExperimentLedger(tmp_path / "ledger.json", max_attempts=2)
+        sp = spec("child_exp", params={"boom": "no"})
+        code = "test_code"
+        led.submit(sp, 0, code)
+        out = CM.run_experiment_process(sp, led, tmp_path / "out", tmp_path / "work", 5.0, 120, ["w7_child_worker"], free_fn=lambda: 16.0)
+        assert out["launched"] and out["result"].kind == CM.DONE and out["state"] == CM.DONE, out["result"].stderr_tail
+        rec = CM.reconcile(led, tmp_path / "out", code)
+        assert rec.clean and len(rec.accepted) == 1 and CM.verify_isolation(led, tmp_path / "out") == []
+        again = spec("child_exp", params={"boom": "no"})
+        assert again.key == sp.key
+        oom = spec("child_exp", params={"boom": "oom"})
+        led.submit(oom, 6.0, code)
+        r2 = CM.run_experiment_process(oom, led, tmp_path / "out", tmp_path / "work", 7.0, 120, ["w7_child_worker"], free_fn=lambda: 16.0)
+        assert r2["result"].returncode == 1 and led.get(oom.key)["state"] == CM.PENDING       # the child recorded its OOM itself
+        assert led.get(oom.key)["batch_scale"] == 0.5
+    finally:
+        if old is None:
+            os.environ.pop("PYTHONPATH", None)
+        else:
+            os.environ["PYTHONPATH"] = old
+
+
+def test_no_child_is_started_when_memory_is_short(tmp_path):
+    led = CM.ExperimentLedger(tmp_path / "ledger.json")
+    led.submit(spec(), 0, HASH)
+    out = CM.run_experiment_process(spec(), led, tmp_path / "out", tmp_path / "work", 1.0, 30, free_fn=lambda: 2.0)
+    assert not out["launched"] and "2.5 GB rule" in out["why"] and out["state"] == CM.PENDING
+    assert not (tmp_path / "work").exists()
+
+
+# ================================================================================================ additions: stale-state refusal, interruption record, pruning
+def test_resume_verified_refuses_state_from_other_code(tmp_path):
+    s = CP.CheckpointStore(tmp_path, "run1")
+    assert CP.resume_verified(s, HASH).action == "START_FRESH"                      # nothing saved is not an error
+    save(s, 0, completed={"a": HASH})
+    assert CP.resume_verified(s, HASH).action == "CONTINUE"
+    with pytest.raises(CP.StaleState, match="saved under code"):
+        CP.resume_verified(s, NEWHASH)
+    plan = CP.resume_verified(s, NEWHASH, allow_code_change=True)
+    assert plan.revalidate == ("a",) and plan.code_changed
+
+
+def test_resume_verified_names_tasks_done_under_other_code_even_if_the_checkpoint_code_matches(tmp_path):
+    s = CP.CheckpointStore(tmp_path, "run1")
+    save(s, 0, completed={"a": "older", "b": HASH})
+    with pytest.raises(CP.StaleState, match=r"\['a'\]"):
+        CP.resume_verified(s, HASH)
+    assert CP.resume_verified(s, HASH, allow_code_change=True).revalidate == ("a",)
+
+
+def test_interruption_record_roundtrip_and_tamper_detection(tmp_path):
+    s = CP.CheckpointStore(tmp_path, "run1")
+    fails = [CP.FailureNote("t0", "fit", "OOM", "alloc"), CP.FailureNote("t1", "old", "ERROR", "x", resolved=True)]
+    st = save(s, 0, current_experiment="ek9", failures=fails, next_action="rerun fit with half batch")
+    rec = CP.InterruptionRecord.from_state(st, "power loss")
+    assert rec.next_action == "rerun fit with half batch" and rec.current_experiment == "ek9" and rec.code_hash == HASH
+    assert [f.task for f in rec.failures] == ["fit"]                                # only OPEN failures are carried
+    p = CP.write_interruption(tmp_path / "hand" / "interrupt.json", rec)
+    assert CP.read_interruption(p) == rec
+    doc = json.loads(p.read_text(encoding="utf-8"))
+    doc["body"]["next_action"] = "delete everything"
+    p.write_text(json.dumps(doc), encoding="utf-8")
+    with pytest.raises(CP.CheckpointCorrupt, match="hash mismatch"):
+        CP.read_interruption(p)
+    p.write_text("{torn", encoding="utf-8")
+    with pytest.raises(CP.CheckpointCorrupt, match="unreadable"):
+        CP.read_interruption(p)
+    with pytest.raises(CP.CheckpointCorrupt, match="unreadable"):
+        CP.read_interruption(tmp_path / "missing.json")
+
+
+def test_invalid_interruption_record_is_never_written(tmp_path):
+    bad = CP.InterruptionRecord("run1", 0, "t", "", "", "")
+    assert len(bad.validate()) == 2
+    with pytest.raises(CP.CheckpointCorrupt):
+        CP.write_interruption(tmp_path / "x.json", bad)
+    assert not (tmp_path / "x.json").exists()
+
+
+def test_prune_keeps_the_newest_valid_checkpoint_and_protected_ones(tmp_path):
+    s = CP.CheckpointStore(tmp_path, "run1", keep=60)
+    for i in range(40):
+        save(s, i)
+    pol = CP.PrunePolicy(keep_last=5, keep_every=10, keep_sequences=(7,))
+    assert CP.prune(s, pol, dry_run=True) == [q for q in range(35) if q not in (0, 7, 10, 20, 30)]
+    assert len(s.sequences()) == 40                                                 # dry run deleted nothing
+    gone = CP.prune(s, pol)
+    assert s.sequences() == [0, 7, 10, 20, 30, 35, 36, 37, 38, 39] and len(gone) == 30
+    assert s.latest_valid()[0].sequence == 39
+
+
+def test_prune_never_touches_corrupt_files_or_anything_newer_than_the_newest_valid(tmp_path):
+    s = CP.CheckpointStore(tmp_path, "run1", keep=60)
+    for i in range(12):
+        save(s, i)
+    s._path(11).write_text("torn", encoding="utf-8")                                # newest file is corrupt
+    s._path(3).write_text("torn", encoding="utf-8")                                 # and an old one
+    gone = CP.prune(s, CP.PrunePolicy(keep_last=3, keep_every=0))
+    assert 11 not in gone and 3 not in gone and 10 not in gone                      # 10 is the newest VALID one and is kept
+    assert set(gone) == {0, 1, 2, 4, 5, 6, 7, 8} and s.latest_valid()[0].sequence == 10
+    assert 3 in s.sequences() and 11 in s.sequences()
+
+
+def test_prune_edge_cases(tmp_path):
+    s = CP.CheckpointStore(tmp_path, "run1")
+    assert CP.prune(s) == []                                                        # empty store
+    for i in range(2):
+        save(s, i)
+    assert CP.prune(s) == []                                                        # fewer than keep_last
+    with pytest.raises(ValueError):
+        CP.prune(s, CP.PrunePolicy(keep_last=1))
+    for q in s.sequences():
+        s._path(q).write_text("garbage", encoding="utf-8")
+    assert CP.prune(s) == [] and len(s.sequences()) == 2                            # nothing valid: delete nothing

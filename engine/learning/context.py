@@ -215,6 +215,7 @@ class ContextConfig:
     conj_top: int = 8                   # best singles considered for two-condition conjunctions
     half_life_days: float | None = None # recency weighting of the ladder estimate (None = equal weights)
     max_labels_per_dim: int = 40        # guard against a free-text dimension exploding the candidate set
+    winsor: float | None = None         # clip outcomes to this two-sided quantile (returns are heavy-tailed; None = as given)
 
     def validate(self) -> list[str]:
         errs = []
@@ -230,6 +231,8 @@ class ContextConfig:
             errs.append("n_perm < 50 cannot resolve alpha")
         if self.half_life_days is not None and self.half_life_days <= 0:
             errs.append("half_life_days must be positive")
+        if self.winsor is not None and not 0.0 < self.winsor < 0.25:
+            errs.append("winsor must be in (0, 0.25)")
         return errs
 
 
@@ -374,6 +377,9 @@ class _Index:
         order = sorted(range(self.n), key=lambda i: (as_date(obs[i].matured), i))
         self.obs = [obs[i] for i in order]
         self.y = np.array([o.outcome for o in self.obs], dtype=float)
+        if cfg.winsor is not None and self.n >= 20:
+            lo, hi = np.quantile(self.y, [cfg.winsor, 1 - cfg.winsor])
+            self.y = np.clip(self.y, lo, hi)                 # one -70% gap must not decide a context
         self.day = np.array([as_date(o.matured).toordinal() for o in self.obs], dtype=float)
         self.codes, _ = PS.week_codes(pd.DatetimeIndex([pd.Timestamp(as_date(o.matured)) for o in self.obs]))
         now_o = as_date(now).toordinal()
@@ -621,7 +627,7 @@ class ContextModel:
             r = self._rule_from(pattern_id, ix, spec, train, hold, float(max(abs(t_obs[a]), abs(t_obs[b]))), None)
             if r is None or r.t_holdout is None:
                 continue
-            p_h = float(PS.bonferroni(PS.t_to_p(r.t_holdout), len(pairs)))
+            p_h = float(PS.bonferroni([PS.t_to_p(r.t_holdout)], len(pairs))[0])
             best_single = max(abs(t_obs[a]), abs(t_obs[b]))
             if r.confirmed and p_h < cfg.alpha and abs(r.t_train) >= best_single:
                 out.append(r)
@@ -1163,3 +1169,346 @@ def model_from_state(state: Mapping[str, Any]) -> ContextModel:
         for r in rows:
             m.add(Obs(pid, Situation.from_dict(r["situation"]), r["outcome"], r["matured"], r.get("weight", 1.0)))
     return m
+
+
+# ------------------------------------------------------------------------------------------------ importance, weighting, reports
+
+def dimension_importance(model: ContextModel, pattern_id: str, now, folds: int = 4, seed: int = 0) -> dict[str, float]:
+    """Which situation dimensions carry the context effect? Drop-one importance on the additive model: the rise in
+    cross-validated squared error when a dimension's buckets are removed. Positive = the dimension helps predict the edge;
+    about zero or negative = it adds nothing (the cure for reading meaning into every dimension that merely exists)."""
+    obs = list(model._obs.get(pattern_id, ()))
+    paths = tuple(dict.fromkeys(p for rung in POOLING_LADDER for p in rung))
+    if len(obs) < folds * model.cfg.min_n:
+        return {}
+    for o in obs:
+        require_past(o.matured, now, "importance observation")
+    rng = np.random.default_rng(seed)
+    fold = rng.integers(0, folds, size=len(obs))
+
+    def cv(use):
+        err = 0.0
+        for f in range(folds):
+            tr = [o for o, g in zip(obs, fold) if g != f]
+            te = [o for o, g in zip(obs, fold) if g == f]
+            rc = RidgeContext(paths=use, min_n=model.cfg.min_n).fit(tr, now, seed)
+            err += sum((o.outcome - rc.predict(o.situation)) ** 2 for o in te)
+        return err / len(obs)
+    full = cv(paths)
+    return {p: float(cv(tuple(q for q in paths if q != p)) - full) for p in paths}
+
+
+def rule_hit_intervals(rule: ContextRule, level: float = 0.9) -> dict[str, tuple[float, float, float]]:
+    """Beta credible interval of the hit rate (outcome > 0) inside and outside a rule's context, prior centred on 0.5."""
+    out = {}
+    for side, st in (("in", rule.stats_in), ("out", rule.stats_out)):
+        out[side] = beta_interval((st.hit or 0.0) * st.n, st.n, 0.5, 4.0, level)
+    return out
+
+
+def context_weight(model: ContextModel, pattern_id: str, sit: Situation, now, seed: int = 0, blocks: int = 5) -> dict[str, Any]:
+    """A multiplier in [0, 1.5] for the pattern's weight in this situation: the context-aware expected edge relative to the
+    unconditional one. If the context model has no proven walk-forward skill for this pattern (`context_skill` FAILED or
+    INSUFFICIENT_EVIDENCE) the multiplier is 1.0 and the reason says so: an unearned context must not move a decision."""
+    est = model.estimate(pattern_id, sit, now, seed)
+    if est.expected is None:
+        return {"multiplier": 1.0, "used_context": False, "reason": f"{est.unknown}: no estimate", "estimate": est}
+    sk = context_skill(model, pattern_id, now, blocks)
+    flat = model.ladder_estimate(pattern_id, sit, now)[3][0].shrunk_mean if est.trail else None
+    if sk["status"] in ("FAILED", "INSUFFICIENT_EVIDENCE") or flat is None or abs(flat) < 1e-12:
+        return {"multiplier": 1.0, "used_context": False, "estimate": est,
+                "reason": f"context model skill is {sk['status']}: using the unconditional weight"}
+    mult = float(np.clip(est.expected / flat, 0.0, 1.5))
+    return {"multiplier": mult, "used_context": True, "estimate": est, "reason": f"skill {sk['skill']:+.3f} ({sk['status']}); conditional/unconditional edge"}
+
+
+def explain_pattern(model: ContextModel, pattern_id: str, now, seed: int = 0) -> str:
+    """One readable block: what is known about a pattern's context, what could not be seen, and how far to trust it."""
+    ix = model._index(pattern_id, now)
+    if ix is None:
+        return f"{pattern_id}: no observations (UNTESTED)"
+    rules = model.rules(pattern_id, now, seed)
+    rep = model.reports.get(pattern_id)
+    lines = [f"{pattern_id}: {ix.n} matured observations, mean edge {float(ix.y.mean()):+.4f}"]
+    if rep is not None:
+        lines.append(f"  searched {rep.candidates} splits (train {rep.n_train}, holdout {rep.n_holdout}); "
+                     f"minimum detectable in-out difference {rep.mde if rep.mde is None else round(rep.mde, 4)}")
+    if not rules:
+        lines.append("  no context learned: " + (rep.reason if rep else "not fitted"))
+    for r in rules:
+        lines.append("  " + r.describe())
+        iv = rule_hit_intervals(r)
+        lines.append(f"    hit rate in {iv['in'][0]:.2f} [{iv['in'][1]:.2f},{iv['in'][2]:.2f}] vs out {iv['out'][0]:.2f} [{iv['out'][1]:.2f},{iv['out'][2]:.2f}]")
+    sk = context_skill(model, pattern_id, now)
+    lines.append(f"  walk-forward context skill: {sk['status']}" + ("" if not np.isfinite(sk["skill"]) else f" ({sk['skill']:+.3f})"))
+    return "\n".join(lines)
+
+
+def rulebook_state(book: RuleBook) -> dict[str, Any]:
+    """JSON-safe snapshot of a RuleBook (rules, retirements, history). Retired rules stay in the snapshot with their reason."""
+    def enc(r: ContextRule) -> dict:
+        return {"pattern_id": r.pattern_id, "spec": r.spec.to_mapping(), "role": r.role, "diff": r.diff, "t_train": r.t_train,
+                "p_adj": r.p_adj, "t_holdout": r.t_holdout, "confirmed": r.confirmed, "epistemic": str(r.epistemic),
+                "n_train": r.n_train, "n_holdout": r.n_holdout,
+                "in": dataclasses.asdict(r.stats_in), "out": dataclasses.asdict(r.stats_out)}
+    return {"rules": {rid: enc(r) for rid, r in sorted(book._rules.items())}, "retired": dict(sorted(book._retired.items())),
+            "history": list(book._log)}
+
+
+def rulebook_from_state(state: Mapping[str, Any]) -> RuleBook:
+    book = RuleBook()
+    for rid, d in state["rules"].items():
+        rule = ContextRule(d["pattern_id"], ContextSpec.from_mapping(d["spec"]), d["role"], CellStats(**d["in"]), CellStats(**d["out"]),
+                           d["diff"], d["t_train"], d["p_adj"], d["t_holdout"], d["confirmed"], Epistemic.parse(d["epistemic"]),
+                           d["n_train"], d["n_holdout"])
+        if rule.rule_id != rid:
+            raise ValueError(f"rule {rid} does not reproduce its own id: the snapshot was edited or the id scheme changed")
+        book._rules[rid] = rule
+    book._retired = dict(state.get("retired", {}))
+    book._log = list(state.get("history", []))
+    return book
+
+def estimate_many(model: ContextModel, pattern_ids: Iterable[str], sit: Situation, now, seed: int = 0) -> dict[str, ContextEstimate]:
+    """Context-aware estimates for several patterns in one situation (one pass, deterministic order)."""
+    return {pid: model.estimate(pid, sit, now, seed) for pid in sorted(set(pattern_ids))}
+
+
+def ladder_report(model: ContextModel, pattern_id: str, now) -> list[dict[str, Any]]:
+    """Per pooling rung: bucket count, how many buckets are big enough to speak, the shrinkage strength and the spread of
+    bucket means. A rung whose buckets barely differ (large k) is telling you that dimension set adds no context."""
+    ix = model._index(pattern_id, now)
+    if ix is None:
+        return []
+    rows = []
+    for r, d in enumerate(ix.rung_acc):
+        big = [a for a in d.values() if a.n >= model.cfg.min_n]
+        means = [a.mean for a in big if a.mean is not None]
+        rows.append({"rung": r, "dims": POOLING_LADDER[r], "buckets": len(d), "speaking": len(big), "k": round(ix.k[r], 3),
+                     "mean_spread": float(np.std(means)) if len(means) > 1 else 0.0,
+                     "obs_speaking": int(sum(a.n for a in big))})
+    return rows
+
+
+def resolve_rules(rules: Sequence[ContextRule]) -> list[ContextRule]:
+    """From possibly overlapping rules pick a consistent set: confirmed first, then larger |effect| x sqrt(n); a rule that
+    shares a dimension with an already-chosen rule of the OPPOSITE role is dropped (the two cannot both be the explanation),
+    same-role rules on the same dimension keep only the stronger."""
+    ranked = sorted(rules, key=lambda r: (not r.confirmed, -abs(r.diff) * math.sqrt(min(r.stats_in.n, r.stats_out.n)), r.rule_id))
+    chosen: list[ContextRule] = []
+    for r in ranked:
+        dims = {c.path for c in r.spec.conditions}
+        if any(dims & {c.path for c in k.spec.conditions} for k in chosen):
+            continue
+        chosen.append(r)
+    return chosen
+
+def outcome_distribution(model: ContextModel, pattern_id: str, spec: ContextSpec, now,
+                         quantiles: Sequence[float] = (0.05, 0.25, 0.5, 0.75, 0.95), loss_at: float = -0.05) -> dict[str, Any]:
+    """P(outcome | pattern, context) and P(outcome | pattern, NOT context) as distributions, not just means: weighted
+    quantiles, the probability of a loss worse than `loss_at`, and the expected shortfall (mean of the worst 5%) on each
+    side. A context can leave the mean alone and still change the tail, which is what a risk budget cares about."""
+    from .. import analog_weighting as AW
+    ix = model._index(pattern_id, now)
+    empty = {"n": 0, "quantiles": {}, "p_loss": None, "shortfall": None, "mean": None}
+    if ix is None:
+        return {"in": dict(empty), "out": dict(empty), "unobserved": 0}
+    m = [spec.matches(o.situation) for o in ix.obs]
+    res = {}
+    for name, sel in (("in", [x is True for x in m]), ("out", [x is False for x in m])):
+        sel = np.array(sel)
+        y, w = ix.y[sel], ix.w[sel]
+        if len(y) == 0:
+            res[name] = dict(empty)
+            continue
+        qs = AW.weighted_quantile(y, w, list(quantiles))
+        k = max(int(math.ceil(0.05 * len(y))), 1)
+        res[name] = {"n": int(len(y)), "quantiles": {q: v for q, v in zip(quantiles, qs)},
+                     "p_loss": float((w * (y < loss_at)).sum() / w.sum()), "shortfall": float(np.sort(y)[:k].mean()),
+                     "mean": float((w * y).sum() / w.sum())}
+    res["unobserved"] = int(sum(x is None for x in m))
+    return res
+
+def bootstrap_rule_effect(model: ContextModel, rule: ContextRule, now, n_boot: int = 400, seed: int = 0,
+                          level: float = 0.9) -> dict[str, Any]:
+    """Uncertainty of a rule's in-minus-out difference with a WEEK-cluster bootstrap (weeks resampled whole, so the shared
+    market move inside a week is not counted as independent evidence). Returns the interval and the share of resamples
+    that keep the rule's sign; a confirmed rule whose interval straddles zero is a warning, not a result."""
+    ix = model._index(rule.pattern_id, now)
+    if ix is None:
+        return {"lo": None, "hi": None, "sign_share": None, "n_boot": 0}
+    m = [rule.spec.matches(o.situation) for o in ix.obs]
+    inn = np.array([x is True for x in m])
+    out = np.array([x is False for x in m])
+    weeks = np.unique(ix.codes)
+    by_week = {w: np.where(ix.codes == w)[0] for w in weeks}
+    rng = np.random.default_rng(seed)
+    diffs = []
+    for _ in range(n_boot):
+        pick = rng.choice(weeks, size=len(weeks), replace=True)
+        idx = np.concatenate([by_week[w] for w in pick])
+        a, b = ix.y[idx][inn[idx]], ix.y[idx][out[idx]]
+        if len(a) >= 5 and len(b) >= 5:
+            diffs.append(a.mean() - b.mean())
+    if len(diffs) < n_boot // 2:
+        return {"lo": None, "hi": None, "sign_share": None, "n_boot": len(diffs)}
+    d = np.array(diffs)
+    lo, hi = np.quantile(d, [(1 - level) / 2, 1 - (1 - level) / 2])
+    return {"lo": float(lo), "hi": float(hi), "sign_share": float(np.mean(np.sign(d) == np.sign(rule.diff))), "n_boot": len(diffs)}
+
+
+def refine_rule(model: ContextModel, rule: ContextRule, now, seed: int = 0) -> ContextRule | None:
+    """Does a second condition sharpen a rule INSIDE its context? Searches single conditions on other dimensions restricted to
+    the rule's in-set (train part), keeps the strongest one only if it is confirmed on the holdout with the same sign, and
+    returns the conjunction as a new rule. None when nothing survives - most rules should not refine."""
+    cfg = model.cfg
+    ix = model._index(rule.pattern_id, now)
+    if ix is None or ix.n < 4 * cfg.min_n:
+        return None
+    inn = np.array([rule.spec.matches(o.situation) is True for o in ix.obs])
+    n_hold = int(round(cfg.holdout_frac * ix.n))
+    train = np.arange(ix.n - n_hold)
+    hold = np.arange(ix.n - n_hold, ix.n)
+    rows_tr = train[inn[train]]
+    if len(rows_tr) < 2 * cfg.min_n:
+        return None
+    cands, I, V = model._design(ix, rows_tr)
+    used = {c.path for c in rule.spec.conditions}
+    keep = [j for j, (p, _) in enumerate(cands) if p not in used]
+    if not keep:
+        return None
+    cands, I, V = [cands[j] for j in keep], I[:, keep], V[:, keep]
+    t, _, _ = ContextModel._t_from_sums(I, V, ix.y[rows_tr][:, None])
+    rng = np.random.default_rng(seed)
+    Yp = np.column_stack([PS.permute_within_clusters(ix.y[rows_tr], ix.codes[rows_tr], rng) for _ in range(cfg.n_perm)])
+    tp, _, _ = ContextModel._t_from_sums(I, V, Yp)
+    j = int(np.argmax(np.abs(t[:, 0])))
+    p_adj = float((1 + (np.abs(tp).max(axis=0) >= abs(t[j, 0])).sum()) / (1 + cfg.n_perm))
+    if p_adj > cfg.alpha:
+        return None
+    spec = rule.spec.with_condition(Condition(*cands[j]))
+    new = model._rule_from(rule.pattern_id, ix, spec, train, hold, float(t[j, 0]), p_adj)
+    if new is None or not new.confirmed or np.sign(new.diff) != np.sign(rule.diff) or abs(new.diff) <= abs(rule.diff):
+        return None
+    return new
+
+
+def summarize_pattern(model: ContextModel, pattern_id: str, now, seed: int = 0) -> dict[str, Any]:
+    """Everything downstream needs to know about a pattern's context in one record: overall edge, whether context matters at
+    all (heterogeneity across regimes), the confirmed contexts and anti-contexts as knowledge fields, walk-forward context
+    skill, and what the data could not have shown (minimum detectable effect)."""
+    ix = model._index(pattern_id, now)
+    if ix is None:
+        return {"pattern_id": pattern_id, "n": 0, "status": Unknown.UNTESTED}
+    rules = [r for r in model.rules(pattern_id, now, seed) if r.confirmed]
+    ctx, anti = {}, {}
+    for r in rules:
+        (ctx if r.role == "CONTEXT" else anti)[r.rule_id] = r.spec.to_mapping()
+    het = model.heterogeneity(pattern_id, now)
+    sk = context_skill(model, pattern_id, now)
+    rep = model.reports.get(pattern_id)
+    return {"pattern_id": pattern_id, "n": ix.n, "mean_edge": float(ix.y.mean()), "hit_rate": float((ix.y > 0).mean()),
+            "context_dependent": bool(het["p"] is not None and het["p"] < 0.01 or rules), "regime_heterogeneity_p": het["p"],
+            "contexts": ctx, "anti_contexts": anti, "context_skill": sk["status"], "mde": None if rep is None else rep.mde,
+            "status": Epistemic.CONDITIONAL if rules else Epistemic.SUPPORTED if ix.y.mean() > 0 else Epistemic.HYPOTHESIS}
+
+
+def rulebook_report(book: RuleBook) -> str:
+    lines = [f"{len(book)} rules, {len(book.active())} active"]
+    for r in sorted(book._rules.values(), key=lambda r: (r.pattern_id, r.rule_id)):
+        tag = f"RETIRED ({book._retired[r.rule_id]})" if book.is_retired(r.rule_id) else "active"
+        lines.append(f"  [{tag}] {r.describe()}")
+    return "\n".join(lines)
+
+def false_context_rate(model: ContextModel, pattern_id: str, now, n_shuffles: int = 8, seed: int = 0,
+                       count: str = "confirmed") -> dict[str, Any]:
+    """Empirical false-discovery control. Outcomes are shuffled inside each week (destroying any link to context while keeping
+    the weekly market move) and `discover` is run on the shuffled data; the share of shuffles that still yield a CONFIRMED rule
+    estimates how often this procedure hallucinates a context. It should sit near or below alpha. count="any" also counts
+    unconfirmed (HYPOTHESIS) rules, which measures the search stage alone."""
+    if count not in ("confirmed", "any"):
+        raise ValueError("count must be confirmed or any")
+    ix = model._index(pattern_id, now)
+    if ix is None or ix.n < 4 * model.cfg.min_n:
+        return {"shuffles": 0, "false_confirmed": 0, "rate": float("nan"), "status": Unknown.INSUFFICIENT_DATA}
+    rng = np.random.default_rng(seed)
+    bad = 0
+    for _ in range(n_shuffles):
+        y = PS.permute_within_clusters(np.array([o.outcome for o in ix.obs]), ix.codes, rng)
+        sub = ContextModel(model.cfg)
+        sub.add_many(Obs(pattern_id, o.situation, float(v), o.matured, o.weight) for o, v in zip(ix.obs, y))
+        found = sub.discover(pattern_id, now, int(rng.integers(1 << 30)))
+        bad += any(r.confirmed for r in found) if count == "confirmed" else bool(found)
+    rate = bad / n_shuffles
+    return {"shuffles": n_shuffles, "false_confirmed": bad, "rate": rate, "status": "OK" if rate <= 0.2 else "HALLUCINATING"}
+
+
+def predict_interval(model: ContextModel, pattern_id: str, sit: Situation, now, level: float = 0.9, seed: int = 0) -> dict[str, Any]:
+    """Predictive interval for ONE new outcome of the pattern in this situation: the context-aware expected edge plus/minus
+    the normal quantile of sqrt(residual variance + estimate variance). The residual variance is the pattern's own outcome
+    variance, so the interval is honest about how noisy a single trade is even when the mean is well known."""
+    est = model.estimate(pattern_id, sit, now, seed)
+    ix = model._index(pattern_id, now)
+    if est.expected is None or ix is None or ix.n < 5:
+        return {"lo": None, "hi": None, "expected": None, "unknown": est.unknown or Unknown.INSUFFICIENT_DATA}
+    z = float(sps.norm.ppf(0.5 + level / 2))
+    sd = math.sqrt(max(ix.var, 0.0) + est.se ** 2)
+    return {"lo": est.expected - z * sd, "hi": est.expected + z * sd, "expected": est.expected, "sd": sd, "unknown": None}
+
+def rule_stability(model: ContextModel, pattern_id: str, now, n_runs: int = 6, frac: float = 0.8, seed: int = 0) -> dict[str, Any]:
+    """Stability selection. Discovery is re-run on random `frac` subsamples (whole weeks kept together); the share of runs in
+    which each rule reappears is its selection frequency. A rule found in fewer than about 60% of subsamples depends on a few
+    observations and should not be relied on however small its p-value."""
+    ix = model._index(pattern_id, now)
+    if ix is None or ix.n < 4 * model.cfg.min_n:
+        return {"runs": 0, "frequency": {}, "stable": [], "status": Unknown.INSUFFICIENT_DATA}
+    rng = np.random.default_rng(seed)
+    weeks = np.unique(ix.codes)
+    seen: dict[str, int] = {}
+    for _ in range(n_runs):
+        keep = set(rng.choice(weeks, size=max(int(frac * len(weeks)), 1), replace=False).tolist())
+        sub = ContextModel(model.cfg)
+        sub.add_many(o for o, w in zip(ix.obs, ix.codes) if int(w) in keep)
+        for r in sub.discover(pattern_id, now, int(rng.integers(1 << 30))):
+            if r.confirmed:
+                seen[r.rule_id] = seen.get(r.rule_id, 0) + 1
+    freq = {k: v / n_runs for k, v in sorted(seen.items())}
+    return {"runs": n_runs, "frequency": freq, "stable": [k for k, v in freq.items() if v >= 0.6], "status": "OK"}
+
+
+def regime_table(model: ContextModel, now, path: str = "regime.label") -> list[dict[str, Any]]:
+    """Report table: for every pattern and every bucket of one dimension, n, raw mean, hit rate and the reliable flag. The
+    quick look that shows whether a pattern behaves the same across regimes before any rule is learned."""
+    rows = []
+    for pid in model.patterns():
+        ix = model._index(pid, now)
+        by: dict[str, list[float]] = {}
+        for lab, y in zip(ix.labels, ix.y):
+            by.setdefault(lab.get(path, "na"), []).append(float(y))
+        for lab, ys in sorted(by.items()):
+            a = np.array(ys)
+            rows.append({"pattern": pid, "bucket": lab, "n": len(a), "mean": float(a.mean()), "hit": float((a > 0).mean()),
+                         "reliable": len(a) >= model.cfg.min_n})
+    return rows
+
+def outcome_bin_table(model: ContextModel, pattern_id: str, spec: ContextSpec, now) -> dict[str, Any]:
+    """P(outcome bin | pattern, context) and P(outcome bin | pattern, NOT context) on the coarse signed bins engine.memory
+    already uses for lessons (`outcome_bin`): lessons keep direction and rough size, never the exact realised value. Returns the
+    two distributions over the union of bins seen and the total-variation distance between them."""
+    from engine.memory import outcome_bin
+    ix = model._index(pattern_id, now)
+    if ix is None:
+        return {"in": {}, "out": {}, "tv": None, "n_in": 0, "n_out": 0}
+    counts = {"in": {}, "out": {}}
+    for o, y in zip(ix.obs, ix.y):
+        m = spec.matches(o.situation)
+        if m is None:
+            continue
+        side = "in" if m else "out"
+        b = outcome_bin(float(y))
+        counts[side][b] = counts[side].get(b, 0) + 1
+    n_in, n_out = sum(counts["in"].values()), sum(counts["out"].values())
+    keys = sorted(set(counts["in"]) | set(counts["out"]))
+    pin = {k: counts["in"].get(k, 0) / n_in if n_in else 0.0 for k in keys}
+    pout = {k: counts["out"].get(k, 0) / n_out if n_out else 0.0 for k in keys}
+    tv = None if not (n_in and n_out) else 0.5 * float(sum(abs(pin[k] - pout[k]) for k in keys))
+    return {"in": pin, "out": pout, "tv": tv, "n_in": n_in, "n_out": n_out}

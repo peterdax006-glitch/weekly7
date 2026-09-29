@@ -554,8 +554,8 @@ class KnowledgeObject:
         if any(retired) and not all(retired):
             errs.append("RETIRED must be set consistently on epistemic, lifecycle and promotion")
         if self.promotion == Promotion.CHAMPION:
-            if self.epistemic not in (Epistemic.SUPPORTED, Epistemic.CONDITIONAL):
-                errs.append("CHAMPION knowledge must be SUPPORTED or CONDITIONAL")
+            if self.epistemic not in (Epistemic.SUPPORTED, Epistemic.CONDITIONAL, Epistemic.DEGRADED):
+                errs.append("CHAMPION knowledge must be SUPPORTED, CONDITIONAL or DEGRADED (reduced weight until demoted)")
             if de <= {DecisionEffect.NONE}:
                 errs.append("CHAMPION knowledge must change a decision")
         if self.effect.direction != 0 and self.epistemic == Epistemic.OBSERVED:
@@ -596,10 +596,10 @@ class KnowledgeObject:
         return stable_hash(self, 24)
 
     def content_hash(self) -> str:
-        """Identity of the knowledge itself: ignores version metadata and wall-clock, so re-deriving the same lesson twice
-        gives the same hash (used to detect duplicate lessons and unchanged re-versions)."""
+        """Identity of the knowledge itself: ignores its id, version metadata and wall-clock, so the same lesson derived twice
+        (even under two ids) gives the same hash (used to detect duplicate lessons and unchanged re-versions)."""
         d = encode(self)
-        for k in ("version", "parent_hash", "version_reason", "updated_at"):
+        for k in ("knowledge_id", "created_at", "version", "parent_hash", "version_reason", "updated_at"):
             d.pop(k)
         d["provenance"].pop("created_real", None)
         d["provenance"].pop("parents", None)

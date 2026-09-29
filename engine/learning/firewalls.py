@@ -863,12 +863,12 @@ class CodeVersionFirewall(FirewallLayer):
             if prov is None:
                 continue
             n += 1
-            h, kid = prov.code_hash, str(field_of(it, "knowledge_id", "?"))
+            h, kid = str(field_of(prov, "code_hash", "")), str(field_of(it, "knowledge_id", "?"))
             if cs.known_hashes and h not in cs.known_hashes:
                 out.append(fail(L, "unregistered-code", kid, f"item was built by code {h!r} that was never registered"))
-            elif h in cs.known_hashes and prov.created_real and str(cs.known_hashes[h]) > str(prov.created_real):
+            elif h in cs.known_hashes and field_of(prov, "created_real", "") and str(cs.known_hashes[h]) > str(field_of(prov, "created_real", "")):
                 out.append(fail(L, "code-postdates-record", kid,
-                                f"code {h} first existed {cs.known_hashes[h]}, after the record was written ({prov.created_real})"))
+                                f"code {h} first existed {cs.known_hashes[h]}, after the record was written ({field_of(prov, 'created_real', '')})"))
             cur = cs.current_hash or (rec.get("code_hash") if isinstance(rec, Mapping) else None)
             if cur and h != cur and h not in cs.accepted_hashes:
                 out.append(warn(L, "older-code", kid, f"built by code {h}; current is {cur} (not in the accepted list)"))
@@ -1265,3 +1265,165 @@ def worst_findings(verdict: GateVerdict, n: int = 5) -> list[Finding]:
     """The most informative failures first: those with numeric evidence, then by layer order."""
     fs = verdict.findings(Severity.FAIL)
     return sorted(fs, key=lambda f: (-len(f.evidence), LAYER_ORDER.index(f.layer), f.check))[:n]
+
+
+# ---------------------------------------------------------------- validating a context before the gate reads it
+def validate_context(ctx: GateContext) -> list[str]:
+    """Structural problems in the context itself (not defects in the learning result): unusable `now`, unknown relevant layers,
+    labels not aligned to features. Returned as messages; `LearningFirewallGate.evaluate(..., validate=True)` raises on any.
+    A malformed context must not be silently evaluated to a pass on the parts that happened to parse."""
+    errs: list[str] = []
+    try:
+        as_date(ctx.now)
+    except (ValueError, TypeError):
+        errs.append(f"now={ctx.now!r} is not a date")
+    if ctx.relevant is not None:
+        bad = [r for r in ctx.relevant if not isinstance(r, LayerName)]
+        if bad:
+            errs.append(f"relevant contains non-layer entries {bad}")
+    if ctx.X is not None and ctx.y is not None and ctx.X.index.nlevels == ctx.y.index.nlevels:
+        if not ctx.y.index.isin(ctx.X.index).any():
+            errs.append("labels y share no index entry with the features X")
+    if ctx.horizon is not None and int(ctx.horizon) < 1:
+        errs.append("horizon must be >= 1 session")
+    if ctx.label_close is not None and ctx.X is not None and len(ctx.label_close) != len(ctx.X):
+        errs.append("label_close has a different length than X")
+    if ctx.embargo_days < 0:
+        errs.append("embargo_days must not be negative")
+    if ctx.decisions is not None and not isinstance(ctx.decisions, pd.DataFrame):
+        errs.append("decisions must be a DataFrame")
+    return errs
+
+
+class StrictGate(LearningFirewallGate):
+    """A gate that also rejects on chosen WARN checks. Warnings such as 'no baseline declared' or 'not disguised' are
+    tolerable in research and not in a promotion decision: `strict_checks` names the ones that become failures."""
+
+    def __init__(self, strict_checks: Iterable[str], layers: Iterable[FirewallLayer] | None = None):
+        super().__init__(layers)
+        self.strict = frozenset(strict_checks)
+
+    def evaluate(self, ctx: GateContext) -> GateVerdict:
+        v = super().evaluate(ctx)
+        upgraded: dict[LayerName, LayerVerdict] = {}
+        for k, lv in v.verdicts.items():
+            fs = tuple(dataclasses.replace(f, severity=Severity.FAIL, message=f"[strict] {f.message}")
+                       if f.severity == Severity.WARN and f.check in self.strict else f for f in lv.findings)
+            status = lv.status
+            if status == LayerStatus.PASS and any(f.is_fail for f in fs):
+                status = LayerStatus.FAIL
+            upgraded[k] = LayerVerdict(k, status, fs, lv.n_checked)
+        return GateVerdict(v.now, v.subject, upgraded, v.context_fingerprint)
+
+
+# ---------------------------------------------------------------- one call: evaluate, record, remember which windows were judged
+class GateRunner:
+    """Gate + ledger + window-use accounting, so a result cannot be judged without leaving a trace. Every evaluation is
+    appended to the hash-chained ledger; the evaluation windows named by the context's EvaluationRecord are counted in the
+    window-use ledger, and a window already burned turns the evaluation layer's verdict into a rejection."""
+
+    def __init__(self, gate: LearningFirewallGate | None = None, ledger: GateLedger | None = None, windows: WindowUseLedger | None = None):
+        self.gate = gate or LearningFirewallGate()
+        self.ledger, self.windows = ledger, windows or WindowUseLedger()
+
+    def run(self, ctx: GateContext, validate: bool = True) -> GateVerdict:
+        if validate:
+            errs = validate_context(ctx)
+            if errs:
+                raise FirewallBreach("malformed gate context: " + "; ".join(errs))
+        v = self.gate.evaluate(ctx)
+        if ctx.evaluation is not None and ctx.experiment is not None:
+            burned = self.windows.findings(ctx.evaluation.evaluation_windows, ctx.subject)
+            for w in ctx.evaluation.evaluation_windows:
+                self.windows.record(w, ctx.experiment.experiment_id)
+            if burned and LayerName.EVALUATION in v.verdicts:
+                lv = v.verdicts[LayerName.EVALUATION]
+                status = LayerStatus.FAIL if any(f.is_fail for f in burned) or lv.status == LayerStatus.FAIL else lv.status
+                verdicts = dict(v.verdicts)
+                verdicts[LayerName.EVALUATION] = LayerVerdict(LayerName.EVALUATION, status, lv.findings + tuple(burned), lv.n_checked)
+                v = GateVerdict(v.now, v.subject, verdicts, v.context_fingerprint)
+        if self.ledger is not None:
+            self.ledger.append(v)
+        return v
+
+    def admit(self, ctx: GateContext) -> GateVerdict:
+        return self.run(ctx).require()
+
+
+def severity_counts(verdict: GateVerdict) -> dict[str, int]:
+    """Findings by severity (a quick health number for dashboards): the gate never reports a bare pass without these."""
+    out = {s.value: 0 for s in Severity}
+    for f in verdict.findings():
+        out[f.severity.value] += 1
+    return out
+
+
+# ---------------------------------------------------------------- a built-in planted corpus (startup self-check for the whole chain)
+def reference_context(now="2020-06-01", seed: int = 0) -> GateContext:
+    """A small synthetic context that passes every layer, for self-checks and for other modules' tests. Nothing in it is
+    real data; it exists so 'the gate can pass' and 'the gate can fail' are both demonstrable without a fixture."""
+    from .core import Provenance
+    rng = np.random.default_rng(seed)
+    dates = pd.bdate_range("2019-01-04", periods=200)[::5]
+    idx = pd.MultiIndex.from_product([dates, [f"R{i:03d}" for i in range(20)]], names=["date", "ticker"])
+    X = pd.DataFrame({"f1": rng.normal(size=len(idx)), "f2": rng.normal(size=len(idx))}, index=idx)
+    y = pd.Series(0.003 * X["f1"].to_numpy() + rng.normal(0, 0.03, len(idx)), index=idx, name="y")
+    prov = Provenance("2026-09-29T00:00:00", "2019-12-31", "codeA", "dataA", "cfgA", "expA", "run1", 7, "2019-12-31")
+    item = {"knowledge_id": "ref1", "version": 1, "provenance": prov, "contexts": {"vol": "high"}, "anti_contexts": {}}
+    ident = type("Rep", (), {"verdicts": [type("V", (), {"kind": "ticker_permutation", "mode": "eval", "status": "OK", "retention": 1.0})()]})()
+    return GateContext(
+        now=now, subject="reference", items=[item], X=X, y=y, horizon=5, identity_report=ident,
+        experiment=ExperimentRecord("expA", "2026-09-01T00:00:00", "2026-09-02T00:00:00", "cfgA", 7, "h", baseline_declared=True,
+                                    training_windows=(("2015-01-01", "2016-12-31"),)),
+        evaluation=EvaluationRecord(evaluation_windows=(("2019-01-01", "2019-12-31"),), training_windows=(("2015-01-01", "2016-12-31"),),
+                                    sealed_real="2026-08-01T00:00:00", training_started_real="2026-08-15T00:00:00", state_hash_before="s",
+                                    state_hash_after="s", n_decisions=200, disguised=True, paired_baseline=True),
+        code=CodeState(recorded={"code_hash": "codeA", "code_files": ["a.py"], "code_mixed": []}, current_hash="codeA"))
+
+
+def planted_corpus() -> dict[str, Callable[[GateContext], GateContext]]:
+    """Twelve known defects as mutations of `reference_context`. Each must be rejected, by at least the named layer; used by
+    `run_corpus` and as the startup check that no firewall has been silently disabled."""
+    def with_prov(ctx, **kw):
+        item = dict(ctx.items[0])
+        item["provenance"] = dataclasses.replace(item["provenance"], **kw)
+        return dataclasses.replace(ctx, items=[item])
+
+    def ev(ctx, **kw):
+        return dataclasses.replace(ctx, evaluation=dataclasses.replace(ctx.evaluation, **kw))
+
+    def ex(ctx, **kw):
+        return dataclasses.replace(ctx, experiment=dataclasses.replace(ctx.experiment, **kw))
+
+    return {
+        "memory_learned_in_future": lambda c: with_prov(c, learned_at="2020-08-01", outcomes_seen_through="2020-08-01"),
+        "memory_no_code_hash": lambda c: with_prov(c, code_hash=""),
+        "memory_saw_sealed_window": lambda c: with_prov(c, sealed_windows=(("2019-06-01", "2019-07-01"),), learned_at="2019-06-15",
+                                                        outcomes_seen_through="2019-06-15"),
+        "data_label_as_feature": lambda c: dataclasses.replace(c, X=c.X.assign(fwd_ret=c.y)),
+        "time_future_rows": lambda c: dataclasses.replace(c, now="2019-06-01"),
+        "code_changed": lambda c: dataclasses.replace(c, code=dataclasses.replace(c.code, current_hash="codeB")),
+        "experiment_best_of_many": lambda c: ex(c, selected_from=9, n_variants_tried=9),
+        "experiment_tuned_on_eval": lambda c: ex(c, tuned_windows=(("2019-02-01", "2019-03-01"),)),
+        "evaluation_state_changed": lambda c: ev(c, state_hash_after="s2"),
+        "evaluation_rerun_identified": lambda c: ev(c, learner_told_rerun=True),
+        "identity_collapse": lambda c: dataclasses.replace(c, identity_report=type("R", (), {"verdicts": [type("V", (), {
+            "kind": "ticker_permutation", "mode": "eval", "status": "COLLAPSE", "retention": 0.0})()]})()),
+        "provenance_incomplete_registry": lambda c: dataclasses.replace(c, registry_records=[{"experiment_id": "x"}]),
+    }
+
+
+def run_corpus(gate: LearningFirewallGate | None = None) -> dict:
+    """Run the planted corpus through a gate. Returns {'clean_passed', 'missed': [names not rejected], 'by_layer': {name: layers}}.
+    A non-empty `missed` means a firewall layer no longer catches a defect it is supposed to."""
+    gate = gate or LearningFirewallGate()
+    clean = reference_context()
+    out = {"clean_passed": gate.evaluate(clean).passed}
+    missed, by_layer = [], {}
+    for name, mut in planted_corpus().items():
+        v = gate.evaluate(mut(clean))
+        by_layer[name] = [k.value for k in v.failed_layers]
+        if v.passed:
+            missed.append(name)
+    out.update(missed=missed, by_layer=by_layer)
+    return out

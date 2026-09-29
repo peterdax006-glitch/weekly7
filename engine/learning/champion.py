@@ -25,8 +25,7 @@ from engine import pattern_stats as PS
 from engine.champion import ChallengerQueue, Ledger
 
 from .core import (DecisionEffect, Epistemic, FailureCause, FirewallBreach, Health, KnowledgeLike, Promotion, Subsystem, as_date,
-                   require_past)
-from .compute import phash
+                   require_past, stable_hash)
 from .promotion import PromotionDecision, PromotionEvidence, PromotionGate, write_rejection_report
 
 P = Promotion
@@ -427,7 +426,7 @@ class KnowledgeBoard:
 
     def digest(self) -> str:
         """State fingerprint: identical ledgers give identical digests on any machine."""
-        return phash({mid: [m.slot, m.role.value, m.path] for mid, m in sorted(self.members.items())})
+        return stable_hash({mid: [m.slot, m.role.value, m.path] for mid, m in sorted(self.members.items())})
 
     def invariants(self) -> list[str]:
         """Structural problems; an empty list means the board is consistent. Run after every replay and in tests."""
@@ -733,7 +732,7 @@ def context_consistency(breakdown: Mapping[str, Mapping[str, float]], concentrat
 
 # ------------------------------------------------------------------------------------------------ recovery
 RECOVERABLE_CAUSES = frozenset({FailureCause.TEMPORARY_INACTIVITY.value, FailureCause.WRONG_CONTEXT.value,
-                                FailureCause.REGIME_CHANGE.value, "REPLACED"})
+                                FailureCause.REGIME_CHANGE.value, FailureCause.INSUFFICIENT_EVIDENCE.value, "REPLACED"})
 
 
 def recovery_candidates(board: KnowledgeBoard, conditions_returned: Callable[[Member], bool]) -> list[str]:
@@ -771,3 +770,191 @@ def diff_boards(old: KnowledgeBoard, new: KnowledgeBoard) -> dict:
     return {"added": sorted(set(b.values()) - set(a.values())), "removed": sorted(set(a.values()) - set(b.values())),
             "replaced": sorted((a[s], b[s]) for s in a if s in b and a[s] != b[s]),
             "new_members": sorted(set(new.members) - set(old.members))}
+
+
+# ------------------------------------------------------------------------------------------------ housekeeping
+def last_activity(m: Member) -> str:
+    """Date of the newest thing that happened to a member: its last shadow session or its last role change."""
+    return max([m.since] + [o[0] for o in m.shadow], key=as_date)
+
+
+def expire_idle(board: KnowledgeBoard, now, max_idle_days: int = 180) -> list[str]:
+    """Nothing waits in limbo forever: RESEARCH and SHADOW members with no activity for `max_idle_days` are RETIRED as
+    INSUFFICIENT_EVIDENCE. That is a retirement, not a deletion - the record stays and `recovery_candidates` may reinstate it
+    when new evidence arrives."""
+    out = []
+    for mid, m in sorted(board.members.items()):
+        if m.role in (P.RESEARCH, P.SHADOW) and (as_date(now) - as_date(last_activity(m))).days > max_idle_days:
+            board.retire(mid, FailureCause.INSUFFICIENT_EVIDENCE,
+                         f"no shadow or research activity for more than {max_idle_days} days", now)
+            out.append(mid)
+    return out
+
+
+def challenger_capacity(board: KnowledgeBoard) -> dict[str, int]:
+    """Free challenger seats per slot (max_challengers_per_slot minus the seats in use)."""
+    used: dict[str, int] = {}
+    for m in board.members.values():
+        used.setdefault(m.slot, 0)
+        used[m.slot] += m.role == P.CHALLENGER
+    return {slot: board.policy.max_challengers_per_slot - n for slot, n in sorted(used.items())}
+
+
+def scorecard(board: KnowledgeBoard, now) -> dict:
+    """One-glance state of the knowledge board for reports: counts by role, empty slots, oldest champion, slots with no free
+    challenger seat, and any invariant problems (which must be empty)."""
+    roles = {k: len(v) for k, v in board.roles().items()}
+    rows = slot_status(board, now)
+    oldest = max(rows, key=lambda r: r["tenure_days"] or -1, default=None)
+    return {"members": len(board.members), "roles": roles, "empty_slots": [r["slot"] for r in rows if r["champion"] is None],
+            "oldest_champion": None if not oldest or oldest["champion"] is None else
+            {"mid": oldest["champion"], "tenure_days": oldest["tenure_days"]},
+            "full_slots": [s for s, free in challenger_capacity(board).items() if free <= 0],
+            "problems": board.invariants(), "digest": board.digest()}
+
+
+def audit_decision_sources(board: KnowledgeBoard, used: Mapping[str, Sequence[str]]) -> list[dict]:
+    """Firewall check for a finished decision run: `used` maps a decision id to the knowledge ids that influenced it. Only
+    champions may influence a decision; anything else (a shadow, a challenger, a retired version, an id the board never
+    heard of) is a violation - a shadow that leaked into production would make its own shadow record meaningless."""
+    out = []
+    for decision, mids in sorted(used.items()):
+        for mid in mids:
+            m = board.members.get(mid)
+            if m is None:
+                out.append({"decision": decision, "mid": mid, "problem": "unknown to the board"})
+            elif m.role != P.CHAMPION:
+                out.append({"decision": decision, "mid": mid, "problem": f"was {m.role.value}, not CHAMPION"})
+    return out
+
+
+def slot_history(board: KnowledgeBoard, slot: Slot) -> list[dict]:
+    """Who held a slot and when, from the ledger: [{'mid', 'from', 'to', 'how_ended'}], the open tenure having to=None. Answers
+    'what was deciding this on date D' without replaying anything (see `board_as_of` for the full historical board)."""
+    tenures: list[dict] = []
+    for r in board.ledger.rows():
+        m = board.members.get(r["id"])
+        if m is None or m.slot != slot.key:
+            continue
+        if r["event"] == "promoted":
+            for ten in tenures:
+                if ten["mid"] == r["detail"].get("replaced") and ten["to"] is None:
+                    ten.update({"to": r["t"], "how_ended": "replaced"})
+            tenures.append({"mid": r["id"], "from": r["t"], "to": None, "how_ended": None})
+        elif r["event"] in ("retired", "rolled_back"):
+            for ten in reversed(tenures):
+                if ten["mid"] == r["id"] and ten["to"] is None:
+                    ten.update({"to": r["t"], "how_ended": r["event"]})
+                    break
+            if r["event"] == "rolled_back":                       # the predecessor is restored the same day
+                tenures.append({"mid": r["detail"]["restored"], "from": r["t"], "to": None, "how_ended": None})
+    return tenures
+
+
+# ------------------------------------------------------------------------------------------------ shadow scoring on identical decisions
+@dataclass(frozen=True)
+class DecisionPair:
+    """One decision evaluated twice: what the shadow/challenger WOULD have delivered and what the live champion (or the general
+    rule) actually delivered, on the SAME decision id. A comparison across different decisions is not a paired comparison."""
+    date: str
+    decision_id: str
+    candidate: float
+    champion: float
+
+
+def score_on_identical_decisions(board: KnowledgeBoard, mid: str, pairs: Sequence[DecisionPair], now) -> dict:
+    """Turn per-decision pairs into board shadow sessions (one session per date, the mean over that date's decisions). Every
+    pair must be dated strictly before `now` (an outcome not yet matured is a FirewallBreach), be finite, and appear once;
+    a date already recorded is skipped, so replaying the same batch after a crash is safe."""
+    m = board._get(mid, P.SHADOW, P.CHALLENGER)
+    by_date: dict[str, list[DecisionPair]] = {}
+    seen: set[tuple[str, str]] = set()
+    for p in pairs:
+        require_past(p.date, now, f"shadow decision {p.decision_id}")
+        if not (math.isfinite(p.candidate) and math.isfinite(p.champion)):
+            raise BoardError(f"decision {p.decision_id}: non-finite value")
+        key = (str(as_date(p.date)), p.decision_id)
+        if key in seen:
+            raise BoardError(f"decision {p.decision_id} on {key[0]} supplied twice")
+        seen.add(key)
+        by_date.setdefault(key[0], []).append(p)
+    recorded, skipped = [], []
+    for d in sorted(by_date):
+        if any(as_date(o[0]) == as_date(d) for o in m.shadow):
+            skipped.append(d)
+            continue
+        rows = by_date[d]
+        board.record_shadow(mid, float(np.mean([r.candidate for r in rows])), float(np.mean([r.champion for r in rows])), d)
+        recorded.append(d)
+    return {"recorded": recorded, "skipped_existing": skipped, "n_decisions": len(seen)}
+
+
+# ------------------------------------------------------------------------------------------------ degradation hand-off
+def check_degradation(board: KnowledgeBoard, mid: str, live_diffs: Sequence[float], now, min_n: int = 10,
+                      t_stop: float = -1.28, min_gap: float = 0.0005) -> dict:
+    """Live degradation test for a CHAMPION from recent paired differences (champion minus the general rule, same decisions).
+    Enough sessions, a negative mean beyond `min_gap` and a t below `t_stop` hands the champion to retirement (cause
+    WEAKENING_EFFECT: the slot is left empty and decisions fall back to the general rule) and lists the eligible challengers
+    that could replace it - which must still pass the promotion gate. Anything less leaves the board untouched."""
+    m = board._get(mid, P.CHAMPION)
+    st = paired_stats(live_diffs)
+    degraded = st["n"] >= min_n and st["mean"] < -min_gap and st["t"] < t_stop
+    out = {"degraded": bool(degraded), **st, "replacements": [], "action": "none"}
+    if degraded:
+        board.retire(mid, FailureCause.WEAKENING_EFFECT, f"live record degraded: mean {st['mean']:+.5f}, t {st['t']:.2f}", now)
+        out["replacements"] = [r["mid"] for r in rank_challengers(board, Slot.from_key(m.slot), now) if r["eligible"]]
+        out["action"] = "retired; slot empty until a replacement passes the promotion gate"
+    return out
+
+
+# ------------------------------------------------------------------------------------------------ head-to-head record
+def head_to_head_record(board: KnowledgeBoard, family_of: Callable[[Member], str] | None = None) -> dict[str, dict]:
+    """Who has beaten whom, per knowledge family (default family = the decision slot). A win is a promotion over an incumbent
+    or a rollback that restored the predecessor; the ledger is the only source, so the record cannot be edited. Each family
+    reports pairwise wins and a standings table (wins minus losses)."""
+    fam = family_of or (lambda m: m.slot)
+    out: dict[str, dict] = {}
+
+    def bump(winner: str, loser: str, t: str, how: str) -> None:
+        f = fam(board.members[winner])
+        rec = out.setdefault(f, {"pairs": {}, "standings": {}, "contests": 0})
+        pair = rec["pairs"].setdefault(f"{winner} > {loser}", {"wins": 0, "last": t, "how": []})
+        pair["wins"] += 1
+        pair["last"] = t
+        pair["how"].append(how)
+        rec["contests"] += 1
+        rec["standings"][winner] = rec["standings"].get(winner, 0) + 1
+        rec["standings"][loser] = rec["standings"].get(loser, 0) - 1
+
+    for r in board.ledger.rows():
+        if r["event"] == "promoted" and r["detail"].get("replaced"):
+            bump(r["id"], r["detail"]["replaced"], r["t"], "promotion")
+        elif r["event"] == "rolled_back":
+            bump(r["detail"]["restored"], r["id"], r["t"], "rollback")
+    return out
+
+
+def readiness(board: KnowledgeBoard, mid: str, now, max_sessions: int = 60) -> dict:
+    """Where a shadow or challenger stands and what it needs next: its shadow summary, the peek-safe sequential verdict, how
+    many more sessions a confirmation would take at the observed effect, and the single next step the board would allow."""
+    m = board._get(mid)
+    s = shadow_summary(board, mid, now)
+    seq = sequential_verdict(board, mid, now, max_sessions)
+    need = sessions_needed(s.mean, s.sd)
+    free = challenger_capacity(board).get(m.slot, board.policy.max_challengers_per_slot)
+    if m.role == P.RETIRED:
+        step = "retired: reinstate to SHADOW only if the enabling conditions have returned"
+    elif m.role == P.CHAMPION:
+        step = "in production: keep the post-promotion watch and live degradation check running"
+    elif seq.action == "ABANDON":
+        step = "retire or demote: the shadow record does not support it"
+    elif m.role == P.CHALLENGER:
+        step = "submit evidence to the promotion gate" if seq.action == "READY" else "keep collecting shadow sessions"
+    elif s.n < board.policy.min_shadow_sessions:
+        step = f"collect {board.policy.min_shadow_sessions - s.n} more shadow sessions"
+    elif free <= 0:
+        step = "wait: the slot has no free challenger seat"
+    else:
+        step = "open a challenge"
+    return {"mid": mid, "role": m.role.value, "n": s.n, "t": s.t, "verdict": seq.action, "boundary": seq.boundary,
+            "sessions_still_needed": None if not math.isfinite(need) else max(0.0, need - s.n), "next_step": step}

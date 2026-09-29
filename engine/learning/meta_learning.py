@@ -1409,3 +1409,211 @@ def scorecard_numbers(update: "MetaUpdate") -> dict:
             "fake_learners": sum(1 for v in update.learners.values() if v["produces_fake_improvement"]),
             "explanation_accuracy": ex["accuracy"], "explanation_beats_majority": ex["beats_majority"],
             "rapid_decay_types": len(update.decay.get("rapid_decay", [])), "records": sum(update.counts.values()), "label": update.label}
+
+
+# ==================================================================================================================
+# Part 5: pairwise family comparison, leave-one-family-out transfer, discovery budgeting
+# ==================================================================================================================
+
+def prob_family_better(a: GroupRate, b: GroupRate, prior: tuple, seed: int = 0, n: int = 20000) -> float:
+    """P(true survival rate of family a > that of family b) from the two Beta posteriors (shared empirical-Bayes prior).
+    A probability, not a verdict: 0.6 means 'lean towards a', and it says so instead of declaring a winner."""
+    rng = np.random.default_rng(seed)
+    pa = rng.beta(a.successes + prior[0], a.n - a.successes + prior[1], n)
+    pb = rng.beta(b.successes + prior[0], b.n - b.successes + prior[1], n)
+    return float((pa > pb).mean())
+
+
+def family_ranking(rep: FamilyReport, seed: int = 0, min_n: int = 5) -> list:
+    """Families ordered by shrunk survival with, for each, the probability it beats the median family. Ties in evidence show
+    as probabilities near 0.5 rather than as an arbitrary order."""
+    fams = [g for g in rep.rates.values() if g.n >= min_n]
+    if len(fams) < 2:
+        return []
+    med = sorted(fams, key=lambda g: g.shrunk)[len(fams) // 2]
+    return [{"family": g.key, "n": g.n, "shrunk": g.shrunk, "p_beats_median": prob_family_better(g, med, rep.prior, seed) if g is not med else 0.5}
+            for g in sorted(fams, key=lambda g: -g.shrunk)]
+
+
+def leave_one_family_out(recs: Sequence[DiscoveryRecord], seed: int = 0, l2: float = 2.0, min_family_n: int = 20) -> dict:
+    """Do the FEATURE relationships transfer across pattern families? For each family F the survival model is fitted on all
+    other families using features only (no family indicator possible: F is unseen) and scored on F against F's own base rate
+    (the best a features-free predictor could know). Positive skill in most held-out families means the features carry a
+    lesson that generalises; skill only inside seen families is family memorisation, the failure the contract warns about."""
+    lab = [r for r in recs if r.survived_oos is not None]
+    out = {}
+    for fam in sorted({r.family for r in lab}):
+        test = [r for r in lab if r.family == fam]
+        train = [r for r in lab if r.family != fam]
+        if len(test) < min_family_n or len(train) < 40:
+            continue
+        names = sorted({k for r in train for k in r.features})
+        X = np.array([[r.features.get(k, 0.0) for k in names] for r in train], float)
+        mu, sd = X.mean(axis=0), np.where(X.std(axis=0) < 1e-9, 1.0, X.std(axis=0))
+        y = np.array([1.0 if r.survived_oos else 0.0 for r in train])
+        w = fit_logistic((X - mu) / sd, y, l2)
+        Xt = (np.array([[r.features.get(k, 0.0) for k in names] for r in test], float) - mu) / sd
+        yt = np.array([1 if r.survived_oos else 0 for r in test])
+        p = sigmoid(Xt @ w[:-1] + w[-1])
+        # a features-only model has no family term, so its intercept reflects the OTHER families' base rate; re-centre on the
+        # held-out family's own base rate so the comparison measures the feature signal, not the family's level
+        logit = Xt @ w[:-1]
+        shift = math.log(max(yt.mean(), 0.02) / max(1 - yt.mean(), 0.02))
+        p_c = sigmoid(logit - float(np.mean(logit)) + shift)
+        base = yt.mean()
+        out[fam] = {"n": len(test), "auc": auc(p, yt), "brier_model": brier(p_c, yt), "brier_base": brier([base] * len(yt), yt),
+                    "skill": brier([base] * len(yt), yt) - brier(p_c, yt)}
+    skills = [v["skill"] for v in out.values()]
+    return {"families": out, "n_tested": len(out), "share_positive": (sum(1 for s in skills if s > 0) / len(skills)) if skills else None,
+            "transfers_across_families": bool(skills and sum(1 for s in skills if s > 0) / len(skills) >= 0.75), "label": LABEL}
+
+
+def discovery_budget(rep: FamilyReport, want_survivors: int, cost_per_test: float = 1.0, min_n: int = 5, default_rate: float | None = None) -> list:
+    """How many discoveries must be tested to EXPECT `want_survivors` survivors, by family: ceil(k / shrunk survival), and the
+    compute that costs. Families with too little history use `default_rate` (the pooled rate) and are marked as guesses."""
+    out = []
+    pooled = default_rate if default_rate is not None else rep.base_rate
+    for fam, g in sorted(rep.rates.items()):
+        known = g.n >= min_n
+        rate = g.shrunk if known else pooled
+        if rate <= 0:
+            continue
+        n_tests = int(math.ceil(want_survivors / rate))
+        out.append({"family": fam, "rate": rate, "tests_needed": n_tests, "compute": n_tests * cost_per_test, "guess": not known})
+    return sorted(out, key=lambda r: r["tests_needed"])
+
+
+# ==================================================================================================================
+# Part 6: advice persistence, staleness and stability across updates
+# ==================================================================================================================
+
+def advice_to_json(a: MetaAdvice) -> str:
+    return canonical_json(a)
+
+
+def advice_from_json(text: str) -> MetaAdvice:
+    d = json.loads(text)
+    known = {k: v for k, v in d.items() if k in MetaAdvice.__dataclass_fields__}
+    adv = MetaAdvice(**known)
+    errs = adv.check()
+    if errs:
+        raise ValueError("stored advice invalid: " + "; ".join(errs))
+    return adv
+
+
+def advice_age_days(a: MetaAdvice, now) -> float:
+    """Days between the advice's fitted_through date and `now`. Advice fitted at/after `now` is a firewall breach."""
+    if not a.fitted_through:
+        return float("inf")
+    d = (to_ts(now) - to_ts(a.fitted_through)).total_seconds() / 86400.0
+    if d < 0:
+        raise FirewallBreach(f"advice fitted through {a.fitted_through} is from the future of now={now}")
+    return d
+
+
+def stale_discount(a: MetaAdvice, now, half_life_days: float = 365.0) -> MetaAdvice:
+    """Advice loses trust as it ages: n_observations is scaled by 0.5 ** (age / half_life). A year-old lesson counts as half
+    as many observations; advice with no fitted date counts as none. The entries stay (they are still information), but
+    `trust()` falls, so the policy leans on them less."""
+    age = advice_age_days(a, now)
+    if math.isinf(age):
+        return replace(a, n_observations=0)
+    return replace(a, n_observations=int(a.n_observations * 0.5 ** (age / half_life_days)))
+
+
+def spearman(x: Sequence[float], y: Sequence[float]) -> float | None:
+    if len(x) < 3 or len(x) != len(y):
+        return None
+    rx, ry = rankdata(x), rankdata(y)
+    if rx.std() == 0 or ry.std() == 0:
+        return None
+    return float(np.corrcoef(rx, ry)[0, 1])
+
+
+def advice_stability(old: MetaAdvice, new: MetaAdvice) -> dict:
+    """How stable are the lessons between two updates? Spearman correlation of family survival over the families both know, and
+    the share of overfit flags (> 0.6) that agree. Unstable advice (low correlation between consecutive fits on overlapping
+    data) is noise the policy should not be steered by."""
+    fams = sorted(set(old.family_survival) & set(new.family_survival))
+    rho = spearman([old.family_survival[f] for f in fams], [new.family_survival[f] for f in fams])
+    flags = [(old.family_overfit.get(f, 0.0) > 0.6) == (new.family_overfit.get(f, 0.0) > 0.6) for f in fams]
+    return {"n_families": len(fams), "spearman": rho, "overfit_flag_agreement": (sum(flags) / len(flags)) if flags else None,
+            "stable": bool(rho is not None and rho >= 0.7 and (not flags or sum(flags) / len(flags) >= 0.8))}
+
+
+def combine_advice(a: MetaAdvice, b: MetaAdvice) -> MetaAdvice:
+    """Merge advice fitted on two disjoint record sets (e.g. two research streams) by observation-weighted average per key.
+    Keys known to one side only are kept as they are; the merged trust follows the summed observations. The label is the
+    weaker of the two (a merge is never MORE validated than its parts)."""
+    wa, wb = max(a.n_observations, 0), max(b.n_observations, 0)
+
+    def mix(x: Mapping, y: Mapping) -> dict:
+        out = {}
+        for k in set(x) | set(y):
+            if k in x and k in y and wa + wb > 0:
+                out[k] = (x[k] * wa + y[k] * wb) / (wa + wb)
+            else:
+                out[k] = x[k] if k in x else y[k]
+        return out
+    order = [ValidationLabel.VALIDATED.value, ValidationLabel.NOT_VALIDATED.value, ValidationLabel.INSUFFICIENT_EVIDENCE.value, ValidationLabel.FAILED_VALIDATION.value]
+    weaker = max((a.oos_label, b.oos_label), key=lambda l: order.index(l) if l in order else len(order))
+    return MetaAdvice(mix(a.family_overfit, b.family_overfit), mix(a.family_survival, b.family_survival), mix(a.target_yield, b.target_yield),
+                      mix(a.context_transfer, b.context_transfer), mix(a.explanation_precision, b.explanation_precision),
+                      max(a.fitted_through, b.fitted_through), wa + wb, weaker)
+
+
+def to_markdown(u: "MetaUpdate") -> str:
+    """The meta-learning update as a Markdown page: records, OOS verdicts with reasons, overfit families, fake learners."""
+    lines = [f"# Meta-learning as of {u.now}", "", f"**{u.label}** - {sum(u.counts.values())} records, store `{u.store_hash}`, code `{u.code_hash}`", "",
+             "## Out-of-sample evaluation of meta-learning itself", "", "| task | n test | model Brier | baseline | verdict |", "|---|---|---|---|---|"]
+    for k, o in u.oos.items():
+        lines.append(f"| {k} | {o.n_test} | {o.model_brier:.4f} | {o.baseline_brier:.4f} | {o.label}: {o.reason} |")
+    lines += ["", "## Families", "", "| family | n | survival (shrunk) | overfit |", "|---|---|---|---|"]
+    for f, g in sorted(u.families.rates.items(), key=lambda kv: kv[1].shrunk):
+        lines.append(f"| {f} | {g.n} | {g.shrunk:.2f} [{g.lo:.2f}, {g.hi:.2f}] | {u.families.overfit.get(f, 0.0):.2f} |")
+    fake = sorted(k for k, v in u.learners.items() if v["produces_fake_improvement"])
+    lines += ["", f"Learners producing fake improvement: {', '.join(fake) if fake else 'none identified'}",
+              f"Store health: {'usable' if u.health.get('usable') else 'NOT usable'} {u.health.get('problems', [])}"]
+    return "\n".join(lines)
+
+
+def survival_by_complexity(recs: Sequence[DiscoveryRecord], feature: str = "n_conditions", min_n: int = 8) -> dict:
+    """Do more complex discoveries overfit more (section 40)? Survival rate per value of a complexity feature (e.g. the number
+    of conditions in a pattern), plus the slope of the logistic relation on the standardised feature. A significantly negative
+    slope is the empirical case for a complexity penalty."""
+    lab = [r for r in recs if r.survived_oos is not None and feature in r.features]
+    if len(lab) < 2 * min_n:
+        return {"verdict": "INSUFFICIENT", "n": len(lab)}
+    x = np.array([r.features[feature] for r in lab], float)
+    y = np.array([1.0 if r.survived_oos else 0.0 for r in lab])
+    by = {}
+    for v in sorted(set(x.tolist())):
+        m = x == v
+        if m.sum() >= min_n:
+            by[v] = {"n": int(m.sum()), "rate": float(y[m].mean())}
+    sd = x.std()
+    if sd < 1e-9 or y.min() == y.max():
+        return {"verdict": "NO_VARIATION", "n": len(lab), "by_value": by}
+    w = fit_logistic(((x - x.mean()) / sd).reshape(-1, 1), y, l2=1.0)
+    return {"verdict": "OK", "n": len(lab), "by_value": by, "slope_per_sd": float(w[0]), "complexity_hurts": bool(w[0] < -0.2)}
+
+
+def top_lessons(u: "MetaUpdate", n: int = 5) -> list:
+    """The strongest things this update learned, as plain sentences ordered by evidence, for the owner. Every sentence carries
+    its record count and its label, so a lesson from 12 records never reads like one from 12,000."""
+    out = []
+    for f, p in sorted(u.families.overfit.items(), key=lambda kv: -kv[1]):
+        g = u.families.rates.get(f)
+        if p > 0.6 and g is not None:
+            out.append((g.n, f"family {f} overfits: only {g.successes} of {g.n} discoveries survived out of sample ({g.shrunk:.0%} shrunk)"))
+    for name, v in u.learners.items():
+        if v["produces_fake_improvement"]:
+            out.append((v["claims"], f"learner {name} claimed improvement {v['claims']} times and {v['fake']} were not verified"))
+    for k, f in u.decay.get("fits", {}).items():
+        if k in u.decay.get("rapid_decay", []):
+            out.append((f.n, f"memory type {k} decays fast: half-life about {f.half_life_days:.0f} days (n={f.n})"))
+    for name, o in u.oos.items():
+        if o.n_test and o.beats_baseline:
+            out.append((o.n_test, f"{name} predictions beat the base rate out of sample (Brier {o.model_brier:.3f} vs {o.baseline_brier:.3f}, n={o.n_test})"))
+    out.sort(key=lambda t: -t[0])
+    return [f"{text} [{u.label}]" for _, text in out[:n]]

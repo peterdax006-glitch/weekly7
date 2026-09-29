@@ -138,6 +138,17 @@ class ComplexityConfig:
 DEFAULT_CCFG = ComplexityConfig()
 
 
+def validate_config(cfg: ComplexityConfig) -> list[str]:
+    errs = []
+    if cfg.kappa < 0 or cfg.z0 < 0:
+        errs.append("kappa and z0 must be non-negative (complexity may never be rewarded)")
+    if cfg.min_periods < 8:
+        errs.append("min_periods >= 8")
+    if not 0 < cfg.min_transfer <= 1 or not 0 < cfg.tail_frac < 0.5:
+        errs.append("min_transfer in (0,1] and tail_frac in (0, 0.5)")
+    return errs
+
+
 class Verdict(_StrEnum):
     SIMPLE = "SIMPLE"                      # complexity has not earned its place
     COMPLEX = "COMPLEX"                    # complexity has earned its place
@@ -191,6 +202,9 @@ def _tail(x: np.ndarray, frac: float) -> float:
 def compare(simple: Candidate, cmplx: Candidate, cfg: ComplexityConfig = DEFAULT_CCFG) -> ComplexityVerdict:
     """Should the more complex rule be preferred over the simpler one?  Requires the SAME dates for both OOS series."""
     from engine.pattern_reliability import nw_t
+    bad = validate_config(cfg)
+    if bad:
+        raise ComplexityError("; ".join(bad))
     du = cmplx.spec.units(cfg.weights) - simple.spec.units(cfg.weights)
     j = _paired(cmplx.oos.astype(float), simple.oos.astype(float))
     n = len(j)
@@ -622,3 +636,59 @@ def complexity_report(cands: Sequence[Candidate], cfg: ComplexityConfig = DEFAUL
         lines.append(f"  {step['from']} -> {step['to']}: {step['verdict']}  gain {step['gain']:+.5f} t={step['t']:.2f} "
                      f"(bar {step['required']:.2f}); earns in {p['p_earn']:.0%} of resamples")
     return "\n".join(lines)
+
+
+# ------------------------------------------------------------------------------------------------ does the whole procedure work?
+def simulate_ladder(true_level: int, n: int = 240, seed: int = 0, levels: int = 4, gain_per_level: float = 0.006,
+                    noise: float = 0.01) -> list[Candidate]:
+    """A ladder of rules r0..r{levels-1}, each more complex than the last.  Rule k earns +gain_per_level over rule k-1 for k <=
+    true_level; beyond that extra complexity adds only noise.  The correct choice is therefore r{true_level}."""
+    if not 0 <= true_level < levels:
+        raise ComplexityError("true_level must be in [0, levels)")
+    rng = np.random.default_rng(seed)
+    idx = pd.date_range("2016-01-04", periods=n, freq="W-MON")
+    base = pd.Series(rng.normal(0.004, noise, n), index=idx)
+    folds = pd.Series(idx.year, index=idx)
+    out = []
+    for k in range(levels):
+        g = gain_per_level * min(k, true_level)
+        spec = RuleSpec(f"r{k}", n_features=1 + k, n_conditions=max(k - 1, 0), n_thresholds=max(k - 1, 0))
+        out.append(Candidate(spec, base + g + rng.normal(0, noise * 0.3, n) * (1 if k else 0), folds))
+    return out
+
+
+def selection_accuracy(true_level: int, n: int = 240, sims: int = 40, cfg: ComplexityConfig = DEFAULT_CCFG, **kw) -> dict:
+    """How often does sequential_growth pick the right rung, too low (missed real structure) or too high (bought noise)?  The
+    honest scorecard of the earn-your-place procedure on a planted ladder."""
+    right = low = high = 0
+    for s in range(sims):
+        lad = simulate_ladder(true_level, n=n, seed=s, **kw)
+        pick = int(sequential_growth(lad, cfg)["chosen"][1:])
+        right += pick == true_level
+        low += pick < true_level
+        high += pick > true_level
+    return {"true_level": true_level, "n": n, "sims": sims, "right": right / sims, "too_simple": low / sims, "too_complex": high / sims}
+
+
+def cross_validated_error(X: np.ndarray, y: np.ndarray, ks: Sequence[int], folds: int = 5, seed: int = 0) -> pd.DataFrame:
+    """Out-of-fold squared error of linear fits that use the first k columns of X, for each k.  The measured price of adding
+    parameters: in-sample error always falls with k, out-of-fold error turns up when the extra columns are noise.  Returns k,
+    mean error and standard error across folds; feed to one_se_rule to choose the simplest adequate k."""
+    X, y = np.asarray(X, float), np.asarray(y, float)
+    n = len(y)
+    if X.shape[0] != n or folds < 2 or n < 2 * folds:
+        raise ComplexityError("need X and y of equal length with at least 2 observations per fold")
+    order = np.random.default_rng(seed).permutation(n)
+    parts = np.array_split(order, folds)
+    rows = []
+    for k in ks:
+        errs = []
+        for f in range(folds):
+            te = parts[f]
+            tr = np.concatenate([parts[g] for g in range(folds) if g != f])
+            A = np.column_stack([np.ones(len(tr)), X[tr, :k]])
+            beta, *_ = np.linalg.lstsq(A, y[tr], rcond=None)
+            pred = np.column_stack([np.ones(len(te)), X[te, :k]]) @ beta
+            errs.append(float(np.mean((y[te] - pred) ** 2)))
+        rows.append({"k": int(k), "cv_error": float(np.mean(errs)), "se": float(np.std(errs, ddof=1) / math.sqrt(folds))})
+    return pd.DataFrame(rows)

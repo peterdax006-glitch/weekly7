@@ -612,7 +612,8 @@ def plant_label_leak(X: pd.DataFrame, y: pd.Series, name: str = "leaky", noise: 
 
 def plant_next_period_feature(X: pd.DataFrame, y: pd.Series, name: str = "peek", lead: int = 1) -> pd.DataFrame:
     """Add a feature equal to the label of the SAME ticker `lead` rows later (a shifted label): a leak that hides behind
-    an innocent timestamp because every individual value looks like an ordinary return."""
+    an innocent timestamp because every individual value looks like an ordinary return. The rank-IC screen cannot see it when
+    returns are not autocorrelated; `lint_feature_source` (negative shift) and `feature_future_probe` (scramble the future) can."""
     out = X.copy()
     yy = y.reindex(X.index)
     out[name] = yy.groupby(level=1).shift(-lead)
@@ -1147,3 +1148,160 @@ def pipeline_future_invariance(build: Callable[[Any], Any], data, now, seed: int
     return [dataclasses.replace(f, layer=CHECK_LAYER["feature_provenance"],
                                 check="pipeline-sees-future" if f.check == "memory-depends-on-future" else f.check)
             for f in memory_future_invariance(build, data, now, seed, trials) if f.is_fail]
+
+
+# ---------------------------------------------------------------- feature availability, calendar and text leaks
+def feature_availability_findings(row_dates, avail: pd.DataFrame | pd.Series, name: str = "features") -> list[Finding]:
+    """Per-feature availability stamps against the decision date of each row (engine.pit.verify_feature_availability): a
+    feature built from an input that became public after the row's date, or carrying no stamp, is a leak or unprovable."""
+    from engine.pit import LookAheadError, verify_feature_availability
+    try:
+        verify_feature_availability(row_dates, avail)
+    except LookAheadError as e:
+        return [fail(CHECK_LAYER["availability"], "feature-input-not-yet-public", name, str(e))]
+    except ValueError as e:
+        return [fail(CHECK_LAYER["availability"], "availability-shape", name, str(e))]
+    return []
+
+
+def session_date_findings(dates, name: str = "dates", calendar=None) -> list[Finding]:
+    """Observations dated on weekends or exchange holidays (with the session calendar in hand) mean the timeline was rebuilt
+    or shifted by a fractional week: a disguise that breaks the calendar leaks that it is a disguise."""
+    from engine.pit import Calendar
+    d = pd.DatetimeIndex(pd.to_datetime(dates)).dropna()
+    if not len(d):
+        return []
+    bad = ~(calendar or Calendar()).is_session(d)
+    if bad.any():
+        return [fail(CHECK_LAYER["timestamp"], "non-session-dates", name, f"{int(bad.sum())} of {len(d)} dates are not trading sessions "
+                     f"(first {d[bad].min().date()})", n=int(bad.sum()))]
+    return []
+
+
+def text_leak_findings(texts: Iterable[str], real_tickers: Iterable[str] = (), real_years: Iterable[int] = (), name: str = "text") -> list[Finding]:
+    """Free text served to a learner (names, notes, headlines) must not contain real tickers or real years
+    (engine.blind_gates.scan_text_for_leaks). Returns one finding per offending text."""
+    from engine.blind_gates import scan_text_for_leaks
+    out = []
+    for i, t in enumerate(texts):
+        hits = [f for f in scan_text_for_leaks(str(t), tuple(real_tickers), tuple(real_years)) if f.severity == "fail"]
+        for h in hits:
+            out.append(fail(CHECK_LAYER["feature_provenance"], "text-leak", f"{name}[{i}]", h.message))
+    return out
+
+
+def screen_panel(fw: FutureFirewall, now, X: pd.DataFrame, y: pd.Series | None, specs: Sequence[FeatureSpec], horizon: int, **kw) -> FutureVerdict:
+    """Screen a training panel end to end: wrap it as inputs, mark label maturity from the horizon (a label is available only once
+    its horizon has closed), and run all eight checks. Extra keyword arguments pass to `FutureFirewall.screen`."""
+    from engine.pit import Calendar, label_close_dates
+    matures = None
+    if y is not None and y.notna().any():
+        rows = X.index[y.reindex(X.index).notna().to_numpy()]
+        matures = label_close_dates(pd.DatetimeIndex(rows.get_level_values(0)), int(horizon), kw.pop("calendar", None) or Calendar()).max()
+    ins = inputs_from_panel(X, now, y, label_matures=matures) + list(kw.pop("extra_inputs", ()))
+    return fw.screen(now, inputs=ins, specs=specs, X=X, y=y, **kw)
+
+
+# ---------------------------------------------------------------- which inputs sit closest to the boundary
+def boundary_margins(inputs: Sequence[LearningInput], now, rules: Mapping[InputKind, AvailabilityRule] | None = None) -> pd.DataFrame:
+    """Per input: newest observation date, the date it becomes public under its rule, and the margin in days before `now`.
+    Small or negative margins are where a small timing error becomes a leak; reviewers read this table first."""
+    rules = rules or DEFAULT_RULES
+    n = _ts(as_date(now))
+    rows = []
+    for inp in inputs:
+        kind = inp.parsed_kind()
+        d = frame_dates(inp.frame)
+        newest = _ts(inp.timestamp) or (d.max() if len(d) else None)
+        if kind is None or newest is None or newest is pd.NaT:
+            rows.append({"input": inp.name, "kind": str(inp.kind), "newest": None, "public_at": None, "margin_days": float("nan")})
+            continue
+        av = _ts(inp.available_at) or (newest + pd.Timedelta(days=rules[kind].typical_lag_days))
+        rows.append({"input": inp.name, "kind": str(kind), "newest": newest, "public_at": av, "margin_days": float((n - av).days)})
+    return pd.DataFrame(rows, columns=["input", "kind", "newest", "public_at", "margin_days"]).sort_values("margin_days").reset_index(drop=True)
+
+
+def rules_from_registry(reg: SourceRegistry, base: Mapping[InputKind, AvailabilityRule] | None = None) -> dict[str, AvailabilityRule]:
+    """Per-source rules (source name -> AvailabilityRule) from a registry, falling back to the kind defaults."""
+    return {n: reg.rule_for(n) for n in sorted(reg.names())}
+
+
+def input_manifest(inputs: Sequence[LearningInput], now) -> dict:
+    """Plain-dict description of what a learner was given, for run logs: per input kind, counts, newest dates and the digest."""
+    kinds: dict[str, dict] = {}
+    for i in inputs:
+        d = frame_dates(i.frame)
+        k = kinds.setdefault(str(i.kind), {"n": 0, "rows": 0, "newest": None})
+        k["n"] += 1
+        k["rows"] += int(len(d))
+        nw = max([x for x in (_ts(i.timestamp), d.max() if len(d) else None) if x is not None and x is not pd.NaT], default=None)
+        if nw is not None and (k["newest"] is None or nw > k["newest"]):
+            k["newest"] = nw
+    return {"now": str(as_date(now)), "digest": input_digest(inputs), "kinds": {k: {**v, "newest": str(v["newest"].date()) if v["newest"] is not None else None}
+                                                                                  for k, v in sorted(kinds.items())}}
+
+
+# ---------------------------------------------------------------- can the firewall fail? (startup self-check)
+def _selfcheck_bundle(now: pd.Timestamp, seed: int = 0) -> dict:
+    """A small bundle that passes all eight checks: flat as-traded prices with exits, a vintage-stamped macro series, a mature
+    label, declared features, one clean memory item, matching code, and empty IO logs."""
+    rng = np.random.default_rng(seed)
+    dates = pd.bdate_range(now - pd.Timedelta(days=365 * 7), now)
+    px = pd.DataFrame(40.0 * np.exp(np.cumsum(rng.normal(0, 0.01, (len(dates), 35)), axis=0)), index=dates, columns=[f"P{i:02d}" for i in range(35)])
+    for i in range(6):
+        px.iloc[int(len(px) * (0.25 + 0.1 * i)):, i] = np.nan
+    X = pd.DataFrame({"mom": rng.normal(size=50)}, index=pd.MultiIndex.from_product([dates[-12:-2:2], list("ABCDEFGHIJ")], names=["date", "ticker"]))
+    from .core import Provenance
+    learned = str((now - pd.Timedelta(days=60)).date())
+    prov = Provenance(created_real="2026-09-29T00:00:00", learned_at=learned, code_hash="c", data_hash="d", experiment_id="e",
+                      outcomes_seen_through=learned)
+    return dict(inputs=[LearningInput("px", InputKind.PRICE, timestamp=now, frame=px, universe=tuple(px.columns)),
+                        LearningInput("un", InputKind.MACRO, timestamp=now - pd.Timedelta(days=60), available_at=now - pd.Timedelta(days=30),
+                                      vintage=now - pd.Timedelta(days=30)),
+                        LearningInput("y", InputKind.LABEL, timestamp=now - pd.Timedelta(days=10))],
+                specs=[FeatureSpec("mom", "px", InputKind.PRICE, lookback=20)], items=[{"knowledge_id": "k", "version": 1, "provenance": prov,
+                                                                                      "contexts": {"vol": "high"}}],
+                code=CodeState(recorded={"code_hash": "c", "code_files": ["a.py"], "code_mixed": []}, current_hash="c"), events=[], cache=[],
+                X=X, registered_sources=["px"])
+
+
+def future_selfcheck(now="2019-12-31", seed: int = 0) -> dict:
+    """Pass a clean bundle, then reject one planted defect per check. Returns {'clean_passed', 'missed': [...]}; anything in
+    `missed` is a check that has stopped being able to fail."""
+    n = pd.Timestamp(now)
+    fw = FutureFirewall()
+    base = _selfcheck_bundle(n, seed)
+    plants = {
+        "timestamp": {"inputs": [LearningInput("x", InputKind.PRICE, timestamp=n + pd.Timedelta(days=5))]},
+        "availability": {"inputs": [LearningInput("f", InputKind.FUNDAMENTAL, timestamp=n - pd.Timedelta(days=3))]},
+        "revision": {"inputs": [LearningInput("m", InputKind.MACRO, timestamp=n - pd.Timedelta(days=60), available_at=n - pd.Timedelta(days=30))]},
+        "survivorship": {"inputs": [LearningInput("px", InputKind.PRICE, timestamp=n, frame=base["inputs"][0].frame.ffill().bfill())]},
+        "feature_provenance": {"specs": []},
+        "memory_provenance": {"items": [dict(base["items"][0], provenance=dataclasses.replace(
+            base["items"][0]["provenance"], learned_at=str((n + pd.Timedelta(days=9)).date()),
+            outcomes_seen_through=str((n + pd.Timedelta(days=9)).date())))]},
+        "code_version": {"code": CodeState(recorded={"code_hash": "c", "code_files": ["a.py"], "code_mixed": []}, current_hash="other")},
+        "network_cache": {"events": [NetworkEvent("network", "example.com")]},
+    }
+    out = {"clean_passed": fw.screen(n, **base).passed, "missed": []}
+    for check, over in plants.items():
+        v = fw.screen(n, **{**base, **over})
+        if check not in v.failed_checks:
+            out["missed"].append(check)
+    return out
+
+
+def lint_files(paths: Iterable, root=None) -> dict[str, list[LintHit]]:
+    """Run the static look-ahead lint over source files (feature builders on disk). Files that cannot be parsed are reported
+    with a single `syntax-error` hit rather than skipped, because an unreadable feature module is not a clean one."""
+    from pathlib import Path
+    out: dict[str, list[LintHit]] = {}
+    for p in paths:
+        pp = Path(root) / p if root is not None else Path(p)
+        try:
+            out[str(p)] = lint_feature_source(pp.read_text(encoding="utf-8"))
+        except SyntaxError as e:
+            out[str(p)] = [LintHit("syntax-error", int(e.lineno or 0), str(e.msg))]
+        except OSError as e:
+            out[str(p)] = [LintHit("source-unavailable", 0, str(e))]
+    return out

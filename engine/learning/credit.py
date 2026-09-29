@@ -94,7 +94,12 @@ class CreditConfig:
     blanket_tol: float = 0.25          # relative deviation from equal split below which credit looks "blanket"
     interaction_min_rel: float = 0.02  # an interaction is material only above this share of the total effect
     interaction_min_share: float = 0.5 # |interaction| share of the total effect above which failure is INTERACTION
-    n_perm_orders: int = 200           # permutations for sampled Shapley (only if components > EXACT_LIMIT)
+    n_perm_orders: int = 200           # orders per legacy sampled call (baseline sensitivity)
+    shapley_method: str = "auto"       # auto | exact | sampled ; auto = exact up to EXACT_LIMIT components, sampled above
+    sample_rel_se: float = 0.03        # stop sampling when max component SE <= this x the largest |mean credit|
+    min_orders: int = 32               # orders drawn before the stopping rule may fire (antithetic pairs count 2)
+    max_orders: int = 2000             # hard budget cap on sampled orders
+    null_orders: int = 8               # orders per permutation-null draw when sampling
     neutral: Mapping[str, float] = dataclasses.field(default_factory=lambda: dict(NEUTRAL))
 
     def validate(self) -> list[str]:
@@ -106,6 +111,10 @@ class CreditConfig:
                 errs.append(f"{f} must be >= 1")
         if self.n_perm >= 1 and 1.0 / (1 + self.n_perm) >= self.alpha:
             errs.append("n_perm too small: the smallest possible permutation p-value is not below alpha")
+        if self.shapley_method not in ("auto", "exact", "sampled"):
+            errs.append("shapley_method must be auto, exact or sampled")
+        if not 0 < self.sample_rel_se < 1 or self.min_orders < 4 or self.max_orders < self.min_orders or self.null_orders < 2:
+            errs.append("sampling controls invalid (need 0<sample_rel_se<1, 4<=min_orders<=max_orders, null_orders>=2)")
         if not 0.5 <= self.stability_min <= 1.0:
             errs.append("stability_min must be in [0.5, 1]")
         if not 0.0 <= self.blanket_tol <= 1.0:
@@ -430,12 +439,75 @@ def shapley_sampled(co: Coalitions, n_orders: int, rng: np.random.Generator) -> 
     return phi / n_orders
 
 
-def shapley_values(co: Coalitions, cfg: CreditConfig, rng: np.random.Generator) -> tuple[np.ndarray, np.ndarray | None]:
-    """(phi[N,n], dividends or None). Exact when n_comp <= EXACT_LIMIT."""
-    if co.n_comp <= EXACT_LIMIT:
+@dataclasses.dataclass(frozen=True)
+class ShapleyInfo:
+    """Which Shapley method produced the numbers and how good they are. For 'exact' the error is zero by construction."""
+    method: str                        # exact | sampled
+    n_components: int
+    n_orders: int                      # sampled orders actually drawn (0 for exact)
+    max_se: float                      # largest standard error of a component's mean credit (0 for exact)
+    rel_se: float                      # max_se / largest |mean credit|
+    converged: bool                    # stopping rule met before the budget cap (always True for exact)
+    budget: int
+
+
+def shapley_adaptive(co: Coalitions, cfg: CreditConfig, rng: np.random.Generator) -> tuple[np.ndarray, ShapleyInfo]:
+    """Permutation-sampled Shapley with antithetic pairs (an order and its reverse are averaged, which cancels much of the
+    variance of order effects) and a standard-error stopping rule. Each sample yields a per-component mean-over-decisions
+    vector; the SE of the running mean over samples is checked every 8 samples once `min_orders` orders are drawn, and
+    sampling stops when max SE <= sample_rel_se x max |mean|, or at `max_orders`. Every sample telescopes to v(all)-v(none),
+    so efficiency is exact regardless of when it stops. Seeded through `rng`."""
+    n = co.n_comp
+    total = np.zeros((co.frame.n, n))
+    samples = []
+    drawn, converged, rel = 0, False, float("inf")
+    se = np.full(n, np.inf)
+    while drawn + 2 <= cfg.max_orders:
+        order = rng.permutation(n)
+        acc = np.zeros((co.frame.n, n))
+        for o in (order, order[::-1]):
+            mask, prev = 0, co.v(0)
+            for i in o:
+                mask |= 1 << int(i)
+                cur = co.v(mask)
+                acc[:, i] += cur - prev
+                prev = cur
+        acc /= 2.0
+        total += acc
+        samples.append(acc.mean(axis=0))
+        drawn += 2
+        if drawn >= cfg.min_orders and len(samples) % 8 == 0:
+            S = np.vstack(samples)
+            se = S.std(axis=0, ddof=1) / math.sqrt(len(S))
+            rel = float(se.max() / max(np.abs(S.mean(axis=0)).max(), 1e-12))
+            if rel <= cfg.sample_rel_se:
+                converged = True
+                break
+    S = np.vstack(samples)
+    se = S.std(axis=0, ddof=1) / math.sqrt(len(S)) if len(S) > 1 else np.full(n, np.inf)
+    rel = float(se.max() / max(np.abs(S.mean(axis=0)).max(), 1e-12))
+    converged = converged or rel <= cfg.sample_rel_se
+    return total / len(samples), ShapleyInfo("sampled", n, drawn, float(se.max()), rel, bool(converged), cfg.max_orders)
+
+
+def shapley_values_info(co: Coalitions, cfg: CreditConfig, rng: np.random.Generator) -> tuple[np.ndarray, np.ndarray | None, ShapleyInfo]:
+    """Automatic switch: exact enumeration (with dividends, hence interaction terms) for n_comp <= EXACT_LIMIT, adaptive sampling
+    above. shapley_method='exact' above 14 components is refused (2^n memory); 'sampled' forces sampling at any size."""
+    n = co.n_comp
+    method = cfg.shapley_method
+    if method == "exact" and n > 14:
+        raise ValueError(f"exact Shapley needs 2^{n} coalitions; use shapley_method='auto' or 'sampled'")
+    if method == "exact" or (method == "auto" and n <= EXACT_LIMIT):
         D = harsanyi_dividends(co.all_values())
-        return shapley_from_dividends(D, co.n_comp), D
-    return shapley_sampled(co, cfg.n_perm_orders, rng), None
+        return shapley_from_dividends(D, n), D, ShapleyInfo("exact", n, 0, 0.0, 0.0, True, 0)
+    phi, info = shapley_adaptive(co, cfg, rng)
+    return phi, None, info
+
+
+def shapley_values(co: Coalitions, cfg: CreditConfig, rng: np.random.Generator) -> tuple[np.ndarray, np.ndarray | None]:
+    """(phi[N,n], dividends or None); see shapley_values_info for the method record."""
+    phi, D, _ = shapley_values_info(co, cfg, rng)
+    return phi, D
 
 
 def loo_and_solo(co: Coalitions) -> tuple[np.ndarray, np.ndarray]:
@@ -549,7 +621,7 @@ def permutation_null(frame: DecisionFrame, combiner: Combiner, cfg: CreditConfig
         if n <= EXACT_LIMIT:
             out[b] = shapley_from_dividends(harsanyi_dividends(co.all_values()), n)[:, comp_index].mean()
         else:
-            out[b] = shapley_sampled(co, max(20, cfg.n_perm_orders // 10), rng)[:, comp_index].mean()
+            out[b] = shapley_sampled(co, cfg.null_orders, rng)[:, comp_index].mean()
     return out
 
 
@@ -649,6 +721,10 @@ class CreditReport:
     blanket: bool
     unattributed_fraction: float       # share of the total effect no component reliably owns
     decision_hash: str
+    shapley_method: str = ""           # exact | sampled (empty for an empty report)
+    shapley_orders: int = 0            # sampled orders drawn
+    shapley_max_se: float = 0.0
+    shapley_converged: bool = True
 
     def component(self, name: str) -> ComponentCredit:
         for c in self.components:
@@ -671,6 +747,9 @@ class CreditReport:
     def render_text(self) -> str:
         lines = [f"Credit assignment @ {self.now}: {self.n_decisions} matured decisions ({self.n_pending} pending, unused)  "
                  f"[{self.label()}]",
+                 f"  Shapley method: {self.shapley_method}" + (f" ({self.shapley_orders} orders, max SE {self.shapley_max_se:.2e}, "
+                                                               f"{'converged' if self.shapley_converged else 'BUDGET HIT, not converged'})"
+                                                               if self.shapley_method == "sampled" else ""),
                  f"  do-nothing value {self.base_value:+.5f}   full value {self.full_value:+.5f}   "
                  f"efficiency error {self.efficiency_error:.2e}"]
         for c in sorted(self.components, key=lambda c: -c.mean_credit):
@@ -708,10 +787,10 @@ class CreditEngine:
         """Per-decision arrays: phi (Shapley), loo, solo, pair interaction indices, values, dividends."""
         rng = np.random.default_rng(np.random.SeedSequence(self.cfg.seed).spawn(1)[0])
         co = Coalitions(frame, self.combiner, self.cfg.utility, self.cfg.neutral)
-        phi, D = shapley_values(co, self.cfg, rng)
+        phi, D, info = shapley_values_info(co, self.cfg, rng)
         loo, solo = loo_and_solo(co)
         inter = pair_interactions(D, co.n_comp) if D is not None else {}
-        return {"co": co, "phi": phi, "dividends": D, "loo": loo, "solo": solo, "pairs": inter,
+        return {"co": co, "phi": phi, "dividends": D, "loo": loo, "solo": solo, "pairs": inter, "shapley_info": info,
                 "v_empty": co.v(0), "v_full": co.v(co.full_mask)}
 
     def assess(self, ledger: DecisionLedger, now) -> CreditReport:
@@ -784,7 +863,9 @@ class CreditEngine:
         return CreditReport(cfg, code, str(as_date(now)), frame.n, pending, float(raw["v_empty"].mean()),
                             float(raw["v_full"].mean()), eff_err, components, tuple(interactions), ctx_credit, ctx_dep,
                             blanket_credit(mean_phi, cfg.blanket_tol), unattributed,
-                            stable_hash({"ids": frame.ids, "seed": cfg.seed}))
+                            stable_hash({"ids": frame.ids, "seed": cfg.seed}), shapley_method=raw["shapley_info"].method,
+                            shapley_orders=raw["shapley_info"].n_orders, shapley_max_se=raw["shapley_info"].max_se,
+                            shapley_converged=raw["shapley_info"].converged)
 
     # ---- interactions
     def _interaction_records(self, raw, comps, frame, rng) -> list[InteractionCredit]:
@@ -1280,3 +1361,318 @@ def run_planted_calibration(seed: int = 0, n: int = 700, combiner: Combiner | No
         rep = CreditEngine(combiner, cfg).assess(led, "2035-01-01")
         res[name] = recovery_score(rep, truth, ignore=("timing", "risk")) | {"errors": validate_report(rep)}
     return res
+
+
+# ---------------------------------------------------------------------------------------------- order sensitivity
+def sequential_credit(frame: DecisionFrame, combiner: Combiner, cfg: CreditConfig, order: Sequence[str] | None = None) -> np.ndarray:
+    """Credit along the production pipeline order (default: signals, then timing, then risk): each component gets the marginal
+    utility it adds ON TOP of everything upstream. Unlike Shapley this is order-dependent by design - it answers "given that
+    selection already happened, what did timing add?" (N, n), columns in frame order. Sums to v(all)-v(none) exactly."""
+    comps = list(frame.scores.columns)
+    order = list(order) if order is not None else [c for c in COMPONENTS if c in comps] + [c for c in comps if c not in COMPONENTS]
+    if sorted(order) != sorted(comps):
+        raise ValueError("order must be a permutation of the components")
+    co = Coalitions(frame, combiner, cfg.utility, cfg.neutral)
+    out = np.zeros((frame.n, len(comps)))
+    mask, prev = 0, co.v(0)
+    for c in order:
+        k = comps.index(c)
+        mask |= 1 << k
+        cur = co.v(mask)
+        out[:, k] = cur - prev
+        prev = cur
+    return out
+
+
+def order_sensitivity(frame: DecisionFrame, combiner: Combiner, cfg: CreditConfig, n_orders: int = 24, seed: int = 0) -> pd.DataFrame:
+    """Mean, min and max credit of each component over random pipeline orders. A wide [min, max] means the component's credit
+    depends on where it sits in the pipeline (strong interactions); Shapley is the mean of this distribution."""
+    comps = list(frame.scores.columns)
+    rng = np.random.default_rng(seed)
+    acc = np.zeros((n_orders, len(comps)))
+    for i in range(n_orders):
+        acc[i] = sequential_credit(frame, combiner, cfg, [comps[j] for j in rng.permutation(len(comps))]).mean(axis=0)
+    return pd.DataFrame({"component": comps, "mean": acc.mean(axis=0), "min": acc.min(axis=0), "max": acc.max(axis=0),
+                         "spread": acc.max(axis=0) - acc.min(axis=0)})
+
+
+# ---------------------------------------------------------------------------------------------- one decision, every counterfactual
+def counterfactual_table(decision: Decision, combiner: Combiner, cfg: CreditConfig | None = None) -> pd.DataFrame:
+    """Every coalition of components for ONE decision: which were on, the decision value, and the realised utility. This is the
+    audit trail behind a single credit number - a reviewer can read it without trusting the aggregate."""
+    cfg = cfg or CreditConfig()
+    fr = DecisionFrame.build([decision], list(decision.scores), cfg.neutral)
+    co = Coalitions(fr, combiner, cfg.utility, cfg.neutral)
+    rows = []
+    for m in range(1 << co.n_comp):
+        on = tuple(c for k, c in enumerate(co.comps) if m >> k & 1)
+        rows.append({"active": on, "n_active": len(on), "decision": float(co.decision(m)[0]), "utility": float(co.v(m)[0])})
+    return pd.DataFrame(rows).sort_values(["n_active", "utility"], ascending=[True, False]).reset_index(drop=True)
+
+
+# ---------------------------------------------------------------------------------------------- does credit transfer across contexts?
+def context_transfer(frame: DecisionFrame, phi: np.ndarray, dim: str, min_n: int = 20) -> pd.DataFrame:
+    """Leave-one-context-out: for each value g of context dimension `dim`, does the sign of a component's mean credit in the
+    OTHER contexts predict its sign inside g? Credit that only holds where it was measured has not been shown to transfer
+    (section 26-27); `transfers` is None when g has too few decisions."""
+    if dim not in frame.context.columns:
+        raise KeyError(dim)
+    comps = list(frame.scores.columns)
+    lab = frame.context[dim].to_numpy(dtype=object)
+    rows = []
+    for g in sorted(set(lab)):
+        inside = lab == g
+        if inside.sum() < min_n or (~inside).sum() < min_n:
+            rows += [{"context": g, "component": c, "outside": np.nan, "inside": np.nan, "transfers": None} for c in comps]
+            continue
+        for k, c in enumerate(comps):
+            o, i = float(phi[~inside, k].mean()), float(phi[inside, k].mean())
+            rows.append({"context": g, "component": c, "outside": o, "inside": i,
+                         "transfers": None if abs(o) < 1e-12 else bool(np.sign(o) == np.sign(i))})
+    return pd.DataFrame(rows)
+
+
+# ---------------------------------------------------------------------------------------------- credit -> belief updates
+class UpdateAction(str, enum.Enum):
+    REINFORCE = "REINFORCE"            # reliable positive credit: evidence for the knowledge behind the component
+    WEAKEN = "WEAKEN"                  # reliable blame
+    HOLD = "HOLD"                      # nothing distinguishable: leave belief alone (no drift on noise)
+    INVESTIGATE = "INVESTIGATE"        # unstable, baseline-dependent or interaction-dominated: needs a human/experiment, not a nudge
+    INSUFFICIENT = "INSUFFICIENT"
+
+
+@dataclasses.dataclass(frozen=True)
+class UpdateProposal:
+    """What credit assignment asks the belief-update stage to do. It carries EVIDENCE (mean credit, interval, stability) and a
+    bounded direction - never a raw win/loss - so an update cannot be driven by a recent P&L run alone (contract 1.2)."""
+    target: str                        # component name or knowledge id
+    level: str                         # 'component' or 'knowledge'
+    action: UpdateAction
+    evidence: float                    # mean credit
+    lo: float
+    hi: float
+    n: int
+    context: str = "all"
+    rationale: str = ""
+    max_step: float = 0.0              # the largest belief change this evidence can justify, in [0, 1]
+
+    def validate(self) -> list[str]:
+        errs = []
+        if not 0.0 <= self.max_step <= 1.0:
+            errs.append(f"{self.target}: max_step {self.max_step} outside [0,1]")
+        if self.action in (UpdateAction.HOLD, UpdateAction.INSUFFICIENT, UpdateAction.INVESTIGATE) and self.max_step != 0.0:
+            errs.append(f"{self.target}: {self.action.value} must not move belief")
+        if self.action is UpdateAction.REINFORCE and not self.lo > 0:
+            errs.append(f"{self.target}: REINFORCE without an interval above zero")
+        if self.action is UpdateAction.WEAKEN and not self.hi < 0:
+            errs.append(f"{self.target}: WEAKEN without an interval below zero")
+        return errs
+
+
+def update_proposals(report: CreditReport, knowledge: Sequence[KnowledgeCredit] = (), step_cap: float = 0.25) -> list[UpdateProposal]:
+    """Translate a report into bounded belief-update proposals. The step is proportional to evidence strength (how far the
+    interval sits from zero relative to its width) and capped, so one strong-looking sample cannot swing a belief."""
+    out = []
+    for c in report.components:
+        scale = max(abs(c.lo), abs(c.hi), 1e-12)
+        strength = float(min(1.0, min(abs(c.lo), abs(c.hi)) / scale)) if c.lo * c.hi > 0 else 0.0
+        if c.verdict is CreditVerdict.EARNS_CREDIT:
+            out.append(UpdateProposal(c.component, "component", UpdateAction.REINFORCE, c.mean_credit, c.lo, c.hi, c.n, "all",
+                                      "positive credit, stable, beats shuffled input", round(step_cap * strength, 6)))
+        elif c.verdict is CreditVerdict.BLAMED:
+            out.append(UpdateProposal(c.component, "component", UpdateAction.WEAKEN, c.mean_credit, c.lo, c.hi, c.n, "all",
+                                      "reliable negative credit", round(step_cap * strength, 6)))
+        elif c.verdict is CreditVerdict.UNSTABLE:
+            out.append(UpdateProposal(c.component, "component", UpdateAction.INVESTIGATE, c.mean_credit, c.lo, c.hi, c.n, "all",
+                                      "; ".join(c.reasons) or "unstable"))
+        elif c.verdict is CreditVerdict.INSUFFICIENT:
+            out.append(UpdateProposal(c.component, "component", UpdateAction.INSUFFICIENT, c.mean_credit, c.lo, c.hi, c.n, "all",
+                                      "; ".join(c.reasons)))
+        else:
+            out.append(UpdateProposal(c.component, "component", UpdateAction.HOLD, c.mean_credit, c.lo, c.hi, c.n, "all",
+                                      "no distinguishable effect"))
+    for k in knowledge:
+        act = {CreditVerdict.EARNS_CREDIT: UpdateAction.REINFORCE, CreditVerdict.BLAMED: UpdateAction.WEAKEN,
+               CreditVerdict.INSUFFICIENT: UpdateAction.INSUFFICIENT}.get(k.verdict, UpdateAction.HOLD)
+        scale = max(abs(k.lo), abs(k.hi), 1e-12) if np.isfinite(k.lo) else 1.0
+        step = round(step_cap * min(1.0, min(abs(k.lo), abs(k.hi)) / scale), 6) if act in (UpdateAction.REINFORCE, UpdateAction.WEAKEN) else 0.0
+        out.append(UpdateProposal(k.knowledge_id, "knowledge", act, k.mean_credit, k.lo, k.hi, k.n, "all",
+                                  f"credit through the {k.component} component", step))
+        for ctx, v in sorted(k.by_context.items()):
+            out.append(UpdateProposal(k.knowledge_id, "knowledge", UpdateAction.INVESTIGATE if (v * k.mean_credit < 0) else UpdateAction.HOLD,
+                                      v, float("nan"), float("nan"), k.n, ctx,
+                                      "credit sign differs in this context: candidate anti-context" if v * k.mean_credit < 0
+                                      else "consistent with the pooled credit"))
+    for u in out:
+        errs = u.validate()
+        if errs:
+            raise ValueError("; ".join(errs))
+    return out
+
+
+def component_confidence(cc: ComponentCredit):
+    """Map a component's credit record onto the contract's separate confidence dimensions (section 11/33), leaving what credit
+    cannot speak to as None = UNTESTED rather than 0. usefulness = share of earned credit; current_reliability = sign stability;
+    failure_risk = how often the component is blamed on losses."""
+    from engine.learning.core import Confidence
+    useful = cc.share if cc.verdict is CreditVerdict.EARNS_CREDIT else 0.0
+    blamed = float(min(1.0, max(0.0, -cc.blame_on_losses / max(abs(cc.credit_on_wins), abs(cc.blame_on_losses), 1e-12)))) \
+        if np.isfinite(cc.blame_on_losses) and np.isfinite(cc.credit_on_wins) and cc.blame_on_losses < 0 else 0.0
+    conf = Confidence(truth=None, usefulness=float(useful), current_reliability=float(cc.sign_stability), failure_risk=blamed)
+    errs = conf.check()
+    if errs:
+        raise ValueError("; ".join(errs))
+    return conf
+
+
+# ---------------------------------------------------------------------------------------------- hand-off to redundancy
+@dataclasses.dataclass(frozen=True)
+class MaskedPair:
+    a: str
+    b: str
+    score_corr: float                  # rank correlation of the two components' scores across decisions
+    solo_a: float
+    solo_b: float
+    loo_a: float
+    loo_b: float
+
+
+def masked_pairs(frame: DecisionFrame, raw: Mapping, min_corr: float = 0.7, tol: float = 0.25) -> list[MaskedPair]:
+    """Component pairs that look free to drop one at a time (LOO ~ 0) yet each carries clear solo credit and their scores move
+    together: the signature of redundancy hiding behind leave-one-out. These are the pairs redundancy.py should test with its
+    five-kind analysis before anyone removes either."""
+    comps = list(frame.scores.columns)
+    hidden = redundancy_masking(raw["loo"], raw["phi"], raw["solo"], tol)
+    out = []
+    for i, j in itertools.combinations(hidden, 2):
+        r = _spearman(frame.scores.iloc[:, i].to_numpy(), frame.scores.iloc[:, j].to_numpy())
+        if np.isfinite(r) and abs(r) >= min_corr:
+            out.append(MaskedPair(comps[i], comps[j], float(r), float(raw["solo"][:, i].mean()), float(raw["solo"][:, j].mean()),
+                                  float(raw["loo"][:, i].mean()), float(raw["loo"][:, j].mean())))
+    return out
+
+
+def subsample_stability(frame: DecisionFrame, combiner: Combiner, cfg: CreditConfig, frac: float = 0.5, n_rep: int = 20,
+                        seed: int = 0) -> pd.DataFrame:
+    """Recompute mean Shapley credit on random half-samples of WEEKS (not rows): the share of subsamples in which each
+    component keeps the sign and top-rank it has on the full sample. Complements the bootstrap, which resamples with
+    replacement and so never drops a week."""
+    comps = list(frame.scores.columns)
+    co_full = Coalitions(frame, combiner, cfg.utility, cfg.neutral)
+    phi = shapley_values(co_full, cfg, np.random.default_rng(seed))[0]
+    full_mean = phi.mean(axis=0)
+    weeks = np.unique(frame.weeks)
+    rng = np.random.default_rng(seed + 1)
+    same_sign = np.zeros(len(comps))
+    top = np.zeros(len(comps))
+    for _ in range(n_rep):
+        pick = rng.choice(weeks, size=max(2, int(len(weeks) * frac)), replace=False)
+        m = np.isin(frame.weeks, pick)
+        mean = phi[m].mean(axis=0)
+        same_sign += (np.sign(mean) == np.sign(full_mean)) & (full_mean != 0)
+        top[int(np.argmax(mean))] += 1
+    return pd.DataFrame({"component": comps, "full_mean": full_mean, "same_sign": same_sign / n_rep, "top_rank": top / n_rep})
+
+
+# ---------------------------------------------------------------------------------------------- reports
+def context_table(rep: CreditReport) -> pd.DataFrame:
+    """Long table (dimension, value, component, mean_credit, dependence_p) from a report - what a dashboard or scorecard reads."""
+    rows = []
+    for dim, groups in rep.context_credit.items():
+        for val, comps in groups.items():
+            for comp, v in comps.items():
+                rows.append({"dimension": dim, "value": val, "component": comp, "mean_credit": v,
+                             "dependence_p": rep.context_dependence.get(dim, {}).get(comp, float("nan"))})
+    return pd.DataFrame(rows, columns=["dimension", "value", "component", "mean_credit", "dependence_p"])
+
+
+def summary_dict(rep: CreditReport) -> dict:
+    """Flat JSON-friendly summary for the learning scorecard: who earns credit, how much of the effect is unowned, whether the
+    machinery is sound. Every value is derived from the report; nothing is typed by hand (prose goes stale)."""
+    return {"now": rep.now, "label": rep.label(), "n_decisions": rep.n_decisions, "n_pending": rep.n_pending,
+            "earners": rep.earners(), "blamed": [c.component for c in rep.components if c.verdict is CreditVerdict.BLAMED],
+            "unstable": [c.component for c in rep.components if c.verdict is CreditVerdict.UNSTABLE],
+            "insufficient": [c.component for c in rep.components if c.verdict is CreditVerdict.INSUFFICIENT],
+            "unattributed_fraction": rep.unattributed_fraction, "blanket": rep.blanket,
+            "efficiency_error": rep.efficiency_error, "code_hash": rep.code_hash,
+            "reliable_interactions": [(i.a, i.b, i.kind) for i in rep.interactions if i.verdict == "RELIABLE"],
+            "problems": validate_report(rep)}
+
+
+def render_markdown(rep: CreditReport) -> str:
+    """Human-readable report with the honest label at the top, one table per view, and every non-credit reason spelled out."""
+    L = [f"# Credit assignment @ {rep.now}", "", f"**{rep.label()}** - {rep.n_decisions} matured decisions, "
+         f"{rep.n_pending} pending outcomes not used.", "",
+         f"Do-nothing value {rep.base_value:+.5f}; full value {rep.full_value:+.5f}; unattributed "
+         f"{rep.unattributed_fraction:.1%}; efficiency error {rep.efficiency_error:.1e}.", "",
+         "| component | credit | 95% CI | LOO | solo | share | stability | q | ablation | verdict |", "|---|---|---|---|---|---|---|---|---|---|"]
+    for c in sorted(rep.components, key=lambda c: -c.mean_credit):
+        L.append(f"| {c.component} | {c.mean_credit:+.5f} | [{c.lo:+.5f}, {c.hi:+.5f}] | {c.loo:+.5f} | {c.solo:+.5f} | "
+                 f"{c.share:.1%} | {c.sign_stability:.2f} | {c.null_p:.3f} | {c.ablate_verdict} | {c.verdict.value} |")
+    why = [(c.component, r) for c in rep.components for r in c.reasons]
+    if why:
+        L += ["", "Why some components received no credit:"] + [f"- {n}: {r}" for n, r in why]
+    rel = [i for i in rep.interactions if i.verdict == "RELIABLE"]
+    if rel:
+        L += ["", "Reliable interactions:"] + [f"- {i.a} x {i.b}: {i.kind.lower()} {i.mean:+.5f} (q={i.q:.3f})" for i in rel]
+    if rep.blanket:
+        L += ["", "> WARNING: credit is spread almost equally across components; treat it as blanket credit, not attribution."]
+    probs = validate_report(rep)
+    L += ["", "Integrity checks: " + ("all passed." if not probs else "; ".join(probs))]
+    return "\n".join(L)
+
+
+def rolling_assessments(engine: CreditEngine, ledger: DecisionLedger, nows: Sequence) -> list[CreditReport]:
+    """Assess the same ledger at a sequence of `now` dates (strictly increasing). Each report sees only outcomes matured before
+    ITS OWN now, so the sequence is exactly what the system would have known at each step - the input to credit trends."""
+    dates = [as_date(n) for n in nows]
+    if any(b <= a for a, b in zip(dates, dates[1:])):
+        raise ValueError("nows must be strictly increasing")
+    return [engine.assess(ledger, n) for n in nows]
+
+
+def earners_over_time(reports: Sequence[CreditReport]) -> pd.DataFrame:
+    """Which components held EARNS_CREDIT at each `now`: rows = now, columns = component, values = mean credit if it earned else NaN.
+    A component that appears and disappears is the learning system's first hint that its knowledge is regime-bound."""
+    rows = []
+    for r in reports:
+        row = {"now": r.now}
+        row.update({c.component: (c.mean_credit if c.verdict is CreditVerdict.EARNS_CREDIT else float("nan")) for c in r.components})
+        rows.append(row)
+    return pd.DataFrame(rows).set_index("now") if rows else pd.DataFrame()
+
+
+# ---------------------------------------------------------------------------------------------- where does blame concentrate?
+def blame_by_context(frame: DecisionFrame, phi: np.ndarray, dim: str, min_losses: int = 10) -> pd.DataFrame:
+    """Failure learning input (section 24): among LOSING decisions only, each component's mean credit (negative = blame) inside
+    each value of context dimension `dim`, and `lift` = that context's share of all blame on the component divided by its share
+    of decisions. lift >> 1 means the component fails disproportionately there - a candidate anti-context."""
+    if dim not in frame.context.columns:
+        raise KeyError(dim)
+    comps = list(frame.scores.columns)
+    lab = frame.context[dim].to_numpy(dtype=object)
+    net = phi.sum(axis=1)
+    lose = net < 0
+    rows = []
+    for k, c in enumerate(comps):
+        blame = np.where(lose, np.minimum(phi[:, k], 0.0), 0.0)
+        total = blame.sum()
+        for g in sorted(set(lab)):
+            m = lab == g
+            n_lose = int((m & lose).sum())
+            if n_lose < min_losses:
+                continue
+            share_blame = float(blame[m].sum() / total) if total < -1e-15 else float("nan")
+            rows.append({"component": c, "context": g, "n_losses": n_lose, "mean_blame": float(phi[m & lose, k].mean()),
+                         "share_of_blame": share_blame, "share_of_decisions": float(m.mean()),
+                         "lift": share_blame / float(m.mean()) if np.isfinite(share_blame) else float("nan")})
+    return pd.DataFrame(rows, columns=["component", "context", "n_losses", "mean_blame", "share_of_blame", "share_of_decisions", "lift"])
+
+
+def anti_context_candidates(blame: pd.DataFrame, min_lift: float = 1.5) -> list[tuple[str, str, float]]:
+    """(component, context, lift) where blame is concentrated at least `min_lift` times beyond the context's size. Candidates
+    only: the lift is descriptive until a held-out window confirms it."""
+    if blame.empty:
+        return []
+    hit = blame[(blame["lift"] >= min_lift) & (blame["mean_blame"] < 0)].sort_values("lift", ascending=False)
+    return [(r.component, r.context, float(r.lift)) for r in hit.itertuples()]

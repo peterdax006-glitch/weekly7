@@ -661,3 +661,26 @@ def curve_from_play_records(recs: Sequence[Mapping], *, tag: str = "main", name:
         k = int(knowledge_of(r)) if knowledge_of else 0
         c.add(CurvePoint(i, (i + 1) * experience_per_run, k, 0, same_year_gain=float(r[metric] - first)))
     return c
+
+
+CURVE_SERIES = ("knowledge_count", "validated_knowledge_count", "same_year_gain", "transfer_gain", "risk", "memorization_gap")
+
+
+def curve_series(curve: LearningCurve, *, seed: int = 0, n_boot: int = 300) -> dict:
+    """Every section-48 quantity against experience: {name: (experience array, values array, Trend)}. Trend slopes are per 100
+    experiences with bootstrap intervals, so 'knowledge count rises' and 'transfer gain rises' are two separate, checkable statements.
+    Unmeasured (NaN) points are omitted per series."""
+    x_all = curve.column("experience_count")
+    out = {}
+    for i, name in enumerate(CURVE_SERIES):
+        y = curve.column(name)
+        ok = np.isfinite(y)
+        out[name] = (x_all[ok], y[ok], trend(x_all[ok], y[ok], seed=seed + i, n_boot=n_boot))
+    return out
+
+
+def validated_share_curve(curve: LearningCurve) -> np.ndarray:
+    """Validated / total knowledge at each point (NaN with no knowledge): a store that grows without validating is hoarding."""
+    kc, vc = curve.column("knowledge_count"), curve.column("validated_knowledge_count")
+    with np.errstate(invalid="ignore", divide="ignore"):
+        return np.where(kc > 0, vc / kc, np.nan)

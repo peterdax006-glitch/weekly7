@@ -554,7 +554,7 @@ def test_soft_worker_difference_and_experiment_id_mismatch_and_incomplete_record
     inc = R.compare(make_rec(memory_hash=""), make_rec(memory_hash=""))
     assert R.ReproLabel.RECORD_INCOMPLETE in inc.labels and not inc.reproducible
     assert "memory_hash" in make_rec(memory_hash="").missing() and make_rec(seed=None).missing() == ("seed",)
-    assert R.diff_records(make_rec(), make_rec(seed=9, memory_hash="x")) == {"seed": (3, 9), "memory_hash": ("m1", "x")}
+    assert R.diff_records(make_rec(experiment_id="e"), make_rec(experiment_id="e", seed=9, memory_hash="x")) == {"seed": (3, 9), "memory_hash": ("m1", "x")}
     assert "run key" in R.markdown(make_rec())
 
 
@@ -657,3 +657,115 @@ def test_memory_snapshot_hash_and_stamp_adapter():
     assert rec.missing() == () and rec.seed == 4
     exp = F.experiment_record_from_stamp({"config_hash": "cf", "seed": 4}, "e-1")
     assert exp.config_hash == "cf" and exp.seed == 4
+
+
+# ---------------------------------------------------------------- second-wave additions: context validation, strict gate, runner, corpus
+def test_validate_context_and_strict_gate_and_runner(tmp_path):
+    assert F.validate_context(clean_ctx()) == []
+    errs = F.validate_context(clean_ctx(now="not-a-date", horizon=0, embargo_days=-1, relevant=frozenset({"DATA"})))
+    assert len(errs) == 4
+    unaligned = clean_ctx(y=pd.Series([1.0], index=pd.MultiIndex.from_tuples([(pd.Timestamp("2001-01-01"), "ZZZ")], names=["date", "ticker"])))
+    assert any("share no index" in e for e in F.validate_context(unaligned))
+    strict = F.StrictGate(["no-baseline"])
+    ctx = clean_ctx(experiment=experiment(baseline_declared=False))
+    assert GATE.evaluate(ctx).passed and not strict.evaluate(ctx).passed
+    assert any("[strict]" in f.message for f in strict.evaluate(ctx).findings(F.Severity.FAIL))
+    runner = F.GateRunner(ledger=F.GateLedger(tmp_path / "runs.jsonl"), windows=F.WindowUseLedger(max_uses=1))
+    first = runner.run(clean_ctx())
+    assert first.passed
+    second = runner.run(clean_ctx())                                          # same evaluation window judged again
+    assert not second.passed and any(f.check == "window-burned" for f in second.findings())
+    assert len(runner.ledger.history()) == 2 and runner.ledger.verify() == []
+    with pytest.raises(FirewallBreach):
+        runner.run(clean_ctx(now="junk"))
+    with pytest.raises(FirewallBreach):
+        runner.admit(clean_ctx())
+    assert F.severity_counts(second)["FAIL"] >= 1
+
+
+def test_builtin_planted_corpus_is_all_rejected_and_the_reference_passes():
+    res = F.run_corpus()
+    assert res["clean_passed"] and res["missed"] == [], res
+    assert len(res["by_layer"]) == 12 and "MEMORY" in res["by_layer"]["memory_learned_in_future"]
+    assert "IDENTITY" in res["by_layer"]["identity_collapse"] and "EVALUATION" in res["by_layer"]["evaluation_state_changed"]
+    blind = F.LearningFirewallGate([layer for layer in F.default_layers() if layer.name != F.LayerName.MEMORY])
+    assert "memory_learned_in_future" in F.run_corpus(blind)["missed"]                 # a disabled layer is exposed by the corpus
+    assert F.gate_from_names(["DATA", "TIME"]).evaluate(F.reference_context()).verdicts.keys() == {F.LayerName.DATA, F.LayerName.TIME}
+    with pytest.raises(ValueError):
+        F.gate_from_names(["NOPE"])
+    assert F.worst_findings(GATE.evaluate(clean_ctx(items=[item(learned="2020-09-01")])), 2)
+
+
+def test_memory_retirement_lineage_and_merge_second_wave():
+    a, b = item("a", learned="2019-01-01"), item("b", learned="2019-02-01", parents=("a",))
+    c = item("c", learned="2019-03-01", parents=("b",))
+    tomb = [M.Tombstone("a", "2019-12-01", "regime ended"), M.Tombstone("ghost", "2019-12-01", "x"), M.Tombstone("b", "2021-01-01", ""),
+            M.Tombstone("c", "2019-12-01", "no longer works")]
+    checks = {(f.subject, f.check) for f in M.audit_retirements([a, b, c], tomb, NOW, [{"knowledge_id": "c", "now": "2020-02-01"}])}
+    assert {("ghost", "tombstone-without-item"), ("b", "tombstone-without-reason"), ("b", "tombstone-not-in-past"), ("c", "retired-item-retrieved")} <= checks
+    assert M.audit_retirements([a], [M.Tombstone("a", "2019-12-01", "why")], NOW) == []
+    assert M.descendants_of([a, b, c], ["a"]) == {"b", "c"} and M.descendants_of([a, b, c], ["c"]) == set()
+    assert M.lineage_depth([a, b, c]) == {"a": 0, "b": 1, "c": 2}
+    bad_root = item("a", code="")
+    rep = M.audit_store([bad_root, b, c], NOW)
+    assert M.quarantine_closure(rep, [bad_root, b, c]) == {"a", "b", "c"}
+    assert M.contamination_score(rep) > 0 and M.contamination_score(M.audit_store([], NOW)) == 0.0
+    assert M.contamination_score(M.audit_store([item(learned="2020-09-01")], NOW)) == 1.0
+    assert [M.view(i).knowledge_id for i in M.merge_stores([a, b], [b, c])] == ["a", "b", "c"]
+    with pytest.raises(FirewallBreach):
+        M.merge_stores([a], [item("a", learned="2019-01-01", contexts={"vol": "low"})])
+    assert M.validate_policy(M.LENIENT_POLICY) and M.validate_policy(M.MemoryPolicy()) == []
+    assert "NO - REJECT" in M.explain_existence(M.could_exist_at(item(learned="2020-09-01"), NOW))
+    assert "YES" in M.explain_existence(M.could_exist_at(item(), NOW))
+    assert M.could_exist_at(item(data=""), NOW, policy=M.LENIENT_POLICY).could_exist and not M.could_exist_at(item(data=""), NOW).could_exist
+
+
+def test_repro_manifest_environment_and_sealing(tmp_path):
+    recs = [make_rec(seed=s, experiment_id=f"m{i}") for i, s in enumerate(R.derive_worker_seeds(5, 3))]
+    man = R.ExperimentManifest("m", tuple(recs), {"metrics": "abc"})
+    assert man.problems(base_seed=5) == []
+    d = man.save(tmp_path / "man.json")
+    assert R.ExperimentManifest.load(tmp_path / "man.json").digest() == d
+    p = tmp_path / "man.json"
+    p.write_bytes(p.read_bytes().replace(b'"metrics": "abc"', b'"metrics": "abd"'))
+    with pytest.raises(FirewallBreach):
+        R.ExperimentManifest.load(p)
+    other = R.ExperimentManifest("m", (make_rec(experiment_id="zzz"),))
+    assert any("different experiment" in x for x in other.problems())
+    a = make_rec(experiment_id="a")
+    cmp_ = R.compare_many(a, [make_rec(experiment_id="b", seed=9), dataclasses.replace(a, experiment_id="c")])
+    assert R.ReproLabel.SEED_CHANGED in cmp_["b"].labels and R.ReproLabel.EXPERIMENT_MISMATCH in cmp_["c"].labels
+    assert set(R.by_label(cmp_)["EXPERIMENT_MISMATCH"]) == {"b", "c"}
+    older = dataclasses.replace(a, created_real="2026-01-01T00:00:00")
+    newer = dataclasses.replace(make_rec(experiment_id="n", worker=R.WorkerConfig("3.12", "Win", {"numpy": "2"}, 1)), created_real="2026-02-01T00:00:00")
+    drift = R.environment_drift([newer, older])
+    assert len(drift) == 1 and drift[0]["hard"] and "python" in drift[0]["changed"]
+    assert "py3.11" in R.worker_summary(older.worker)
+    env = tmp_path / "env.json"
+    fp = R.save_environment(env, older.worker)
+    assert R.load_environment(env) == older.worker and fp == older.worker.fingerprint()
+    env.write_bytes(env.read_bytes().replace(b'"python": "3.11"', b'"python": "3.10"'))
+    with pytest.raises(FirewallBreach):
+        R.load_environment(env)
+    assert R.explain_difference("m", {"a": [1, 2]}, {"a": [1, 2]})["same"]
+    assert not R.explain_difference("m", np.array([1.0, 2.0]), np.array([1.0, 3.0]))["same"]
+    sealed = R.seal_result({"sharpe": 1.5}, a)
+    assert R.verify_sealed(sealed) == a
+    sealed["sharpe"] = 9.9
+    with pytest.raises(FirewallBreach):
+        R.verify_sealed(sealed)
+    with pytest.raises(FirewallBreach):
+        R.verify_sealed({"sharpe": 1.0})
+
+
+def test_earliest_use_date_and_bitwise_reproducibility():
+    a = item("a", learned="2019-01-01", seen="2019-03-01")
+    b = item("b", learned="2019-02-01", parents=("a",))
+    assert str(M.earliest_use_date(a)) == "2019-03-02"
+    assert str(M.earliest_use_date(b, [a, b])) == "2019-03-02"                     # inherits the ancestor's outcomes
+    assert M.earliest_use_date(b) is None and M.earliest_use_date({"knowledge_id": "x", "version": 1}) is None
+    tab = M.usable_from([a, b, item("c", parents=("nobody",))])
+    assert tab["a"] == pd.Timestamp("2019-03-02") and pd.isna(tab["c"])
+    assert R.assert_bitwise_reproducible(lambda c, s: {"v": np.random.default_rng(s).normal(size=3)}, {}, 1) is None
+    with pytest.raises(FirewallBreach):
+        R.assert_bitwise_reproducible(lambda c, s: {"v": np.random.rand(3)}, {}, 1)

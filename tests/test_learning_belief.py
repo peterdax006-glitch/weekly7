@@ -884,3 +884,133 @@ def test_equivalence_test_and_comparison_ledger():
     with pytest.raises(X.ComplexityError):
         led.record(v1, "2020-01-01")
     assert X.format_verdict(v1).startswith(str(v1.verdict))
+
+
+# ============================================================================================ later additions
+def test_retraction_removes_contaminated_evidence_without_rewriting_history():
+    led = ledger()
+    good = [ev(when=f"2020-0{m}-01", est=0.02, se=0.01) for m in range(1, 4)]
+    bad = ev(when="2020-05-01", est=0.30, se=0.01, source="leaky")
+    led.update("s", good + [bad], "2020-06-01")
+    poisoned = led.current("s")
+    assert poisoned.mean > 0.05
+    st = led.retract("s", bad.evidence_id, "found a look-ahead in the source", "2020-07-01")
+    assert st.version == poisoned.version + 1 and st.mean < 0.03 and bad.evidence_id not in st.evidence_ids
+    assert led.history("s")[0].mean == poisoned.mean and bad.evidence_id in led.history("s")[0].evidence_ids   # history unchanged
+    assert led.verify_integrity() == []
+    assert led.retractions("s")[bad.evidence_id][0].startswith("found a look-ahead")
+    assert bad.evidence_id in {e.evidence_id for e in led.evidence_for("s", include_retracted=True)}
+    assert all(e.evidence_id != bad.evidence_id for e in led.evidence_for("s"))
+    with pytest.raises(B.BeliefError):
+        led.retract("s", bad.evidence_id, "again", "2020-08-01")
+    with pytest.raises(B.BeliefError):
+        led.retract("s", "nope", "x", "2020-08-01")
+    with pytest.raises(B.BeliefError):
+        led.retract("s", good[0].evidence_id, "", "2020-08-01")
+    led.update("s", ev(when="2020-08-01", est=0.02), "2020-09-01")      # later updates keep excluding it
+    assert bad.evidence_id not in led.current("s").evidence_ids
+    tab = B.evidence_table(led, "s")
+    assert tab["retracted"].sum() == 1 and len(tab) == 5
+    back = B.BeliefLedger.from_records(led.to_records())
+    assert back.retractions("s") == led.retractions("s") and back.verify_integrity() == []
+
+
+def test_decision_summary_gives_conservative_plan_effects():
+    led = ledger()
+    led.update("strong", [ev("strong", f"2020-0{m}-01", 0.03, 0.006) for m in range(1, 6)], "2020-08-01")
+    led.update("thin", [ev("thin", "2020-02-01", 0.05, 0.05)], "2020-08-01")
+    led.register("blank")
+    tab = B.decision_summary(led, "2020-09-01").set_index("subject")
+    assert tab.loc["strong", "plan_effect"] > 0.02 and tab.loc["strong", "influence"] > 0.5
+    assert tab.loc["thin", "plan_effect"] == 0.0 and tab.loc["thin", "influence"] < tab.loc["strong", "influence"]
+    assert tab.loc["blank", "epistemic"] == "HYPOTHESIS" and tab.loc["blank", "influence"] == 0.0
+
+
+def test_lower_quality_evidence_takes_proportionally_longer_to_support_a_claim():
+    fast = B.records_to_support(0.02, 0.02, quality=1.0)
+    slow = B.records_to_support(0.02, 0.02, quality=0.25)
+    assert slow["median"] > 2 * fast["median"] and fast["share_never"] == 0.0
+    assert B.records_to_support(0.02, 0.02, seed=1) == B.records_to_support(0.02, 0.02, seed=1)
+    with pytest.raises(B.BeliefError):
+        B.records_to_support(0.02, 0.0)
+
+
+def test_verdict_sensitivity_marks_a_marginal_finding_fragile_and_a_strong_one_robust():
+    strong = Q.verdict_sensitivity(rel(weekly(240, 0.012, seed=2)), NOW)
+    assert strong["base"] == "YES" and not strong["fragile"]
+    marg = [Q.verdict_sensitivity(rel(weekly(160, 0.0034, seed=s)), NOW) for s in range(30)]
+    yes = [m for m in marg if m["base"] == "YES"]
+    assert len(yes) >= 8 and sum(m["fragile"] for m in yes) / len(yes) >= 0.5      # marginal YES verdicts are mostly flagged fragile
+    assert not any(Q.verdict_sensitivity(rel(weekly(240, 0.012, seed=s)), NOW)["fragile"] for s in range(8))
+    assert set(strong["variants"]) >= {"trials_x10", "alpha_0.01", "drop_last_20pct"}
+
+
+def test_compare_answers_describes_what_changed():
+    e = Q.QuestionEngine()
+    good = weekly(200, 0.012, seed=1)
+    a = e.ask(Q.RelationEvidence("d", good[:150]), good.index[150])
+    b = e.ask(Q.RelationEvidence("d", pd.concat([good[:180], weekly(20, -0.04, seed=2, start="2019-05-06")]).set_axis(good.index)), NOW)
+    msgs = Q.compare_answers(a, b)
+    assert any(m.startswith("useful_now: YES -> NO") for m in msgs)
+    with pytest.raises(Q.QuestionError):
+        Q.compare_answers(a, e.ask(Q.RelationEvidence("other", good), NOW))
+
+
+def test_era_table_and_bad_configs():
+    tab = Q.real_by_era(rel(weekly(200, 0.01)), NOW)
+    assert len(tab) == 4 and tab["n"].sum() == 200 and Q.real_by_era(rel(weekly(10, 0.01)), NOW).empty
+    with pytest.raises(Q.QuestionError):
+        Q.QuestionEngine(Q.QuestionConfig(alpha=0.9))
+    with pytest.raises(Q.QuestionError):
+        Q.QuestionEngine(Q.QuestionConfig(n_perm=5))
+    led = Q.AnswerLedger()
+    led.add(Q.QuestionEngine().ask(rel(weekly(100, 0.01)), NOW))
+    assert len(Q.latest_table(led)) == 1
+
+
+def test_a_field_can_be_built_from_learned_boundaries_and_the_gated_story_wins():
+    from engine.learning.boundary import BoundaryConfig, BoundaryLearner
+    df = C.synthetic_world("liq", n=500, seed=6)
+    edge_frame = pd.DataFrame({"edge": df["y"] * np.sign(df["a"]), "liq": df["liq"], "trend": df["trend"]})   # long when a>0, short when a<0
+    bs = BoundaryLearner(BoundaryConfig(n_perm=99, n_boot=10)).learn("p", edge_frame, "edge", ["liq", "trend"], "2030-01-01")
+    assert [b.feature for b in bs.boundaries] == ["liq"]
+    arena = C.boundary_field("a", df, [bs], "2030-01-01", proxies=["vol"])
+    assert any(h.startswith("H_bnd_liq") for h in arena.ids)
+    assert arena.winner() is not None and arena.winner().startswith("H_bnd_liq")
+    card = C.hypothesis_card(arena, "H_causal")
+    assert card["status"] == "ELIMINATED" and card["log_bf_leader_over_it"] > 3 and card["separated_from_leader"]
+    assert "unresolved" not in arena.describe() and len(arena.alive()) >= 1
+    with pytest.raises(C.CompetitionError):
+        C.hypothesis_card(arena, "nope")
+
+
+def test_rows_needed_to_separate_a_planted_truth_is_finite_and_never_the_wrong_winner():
+    r = C.rows_to_separate_curve("liq", seeds=range(5), n=500)
+    assert r["never_separated"] == 0 and r["wrong_winner"] == 0 and r["rows_median"] <= 400
+    null = C.rows_to_separate_curve("null", seeds=range(4), n=300)
+    assert null["wrong_winner"] == 0                      # nothing planted: no non-null winner is ever declared
+
+
+def test_the_earn_your_place_procedure_picks_the_right_rung():
+    for level in (0, 1, 3):
+        acc = X.selection_accuracy(level, sims=15)
+        assert acc["right"] >= 0.85 and acc["too_complex"] <= 0.1
+    with pytest.raises(X.ComplexityError):
+        X.simulate_ladder(9)
+
+
+def test_cross_validated_error_turns_up_when_extra_parameters_are_noise():
+    rng = np.random.default_rng(3)
+    n = 160
+    Xm = rng.normal(size=(n, 12))
+    y = 1.0 * Xm[:, 0] + 0.8 * Xm[:, 1] + rng.normal(scale=1.0, size=n)
+    cv = X.cross_validated_error(Xm, y, [0, 1, 2, 6, 12])
+    best = cv.loc[cv["cv_error"].idxmin(), "k"]
+    assert best in (2, 6) and cv.set_index("k").loc[12, "cv_error"] > cv.set_index("k").loc[2, "cv_error"]
+    pick = X.one_se_rule([(str(r.k), float(r.k), -r.cv_error, r.se) for r in cv.itertuples()])
+    assert int(pick) <= 6
+    with pytest.raises(X.ComplexityError):
+        X.cross_validated_error(Xm[:5], y[:5], [1])
+    with pytest.raises(X.ComplexityError):
+        X.compare(cand("s", dict(n_features=1), pd.Series(dtype=float)), cand("c", dict(n_features=2), pd.Series(dtype=float)),
+                  X.ComplexityConfig(kappa=-1.0))

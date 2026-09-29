@@ -1377,3 +1377,44 @@ def cause_persistence(ledger: "FailureLedger", window: int = 20) -> dict[str, fl
     a, b = rows[:window], rows[-window:]
     causes = sorted({c.cause.value for c in rows})
     return {k: sum(c.cause.value == k for c in a) / window - sum(c.cause.value == k for c in b) / window for k in causes}
+
+
+def threshold_sensitivity(t: TradeRecord, env: FailureEnv | None, now, field_name: str, grid: Sequence[float],
+                          params: FailureParams | None = None) -> list[dict[str, Any]]:
+    """Sweep ONE FailureParams threshold over `grid` and report the answer at each value. Where the cause changes is the
+    decision boundary; a trade sitting next to one is a borderline call and should be treated as such, not as a finding."""
+    base_p = params or FailureParams()
+    if field_name not in {f.name for f in dataclasses.fields(FailureParams)}:
+        raise ValueError(f"FailureParams has no field {field_name!r}")
+    out, prev = [], None
+    for v in grid:
+        c = LossClassifier(dataclasses.replace(base_p, **{field_name: v})).classify(t, env, now)
+        out.append({field_name: v, "cause": c.cause.value, "score": round(c.score, 4), "flipped": prev is not None and c.cause.value != prev})
+        prev = c.cause.value
+    return out
+
+
+def boundary_cases(trades_envs: Sequence[tuple[TradeRecord, FailureEnv]], now, field_name: str, grid: Sequence[float],
+                   params: FailureParams | None = None) -> dict[str, Any]:
+    """Share of cases whose named cause changes anywhere along a threshold sweep: how much of the ledger is knife-edge."""
+    flips = 0
+    for t, e in trades_envs:
+        flips += any(r["flipped"] for r in threshold_sensitivity(t, e, now, field_name, grid, params))
+    n = len(trades_envs)
+    return {"field": field_name, "n": n, "boundary_share": flips / n if n else float("nan")}
+
+
+def audit_detectors(clf: "LossClassifier", t: TradeRecord, env: FailureEnv | None, now) -> list[dict[str, Any]]:
+    """One row per detector for one trade: did it run, what was missing, and what it said (strongest supporting and
+    contradicting strengths). The debugging view of a classification - why a cause was or was not named."""
+    t.require_valid()
+    require_past(t.resolved_at, now, f"trade {t.rid} resolution")
+    rows = []
+    for r in clf.run_detectors(t, env or FailureEnv(), now):
+        sup = [e for e in r.evidence if e.supports]
+        con = [e for e in r.evidence if not e.supports]
+        rows.append({"detector": r.detector, "id": CHECKLIST_ID.get(r.detector, "?"), "ran": r.ran, "missing": r.missing,
+                     "n_evidence": len(r.evidence), "max_support": max((e.strength for e in sup), default=0.0),
+                     "max_against": max((e.strength for e in con), default=0.0),
+                     "causes": sorted({e.cause.value for e in sup if e.cause is not None})})
+    return rows

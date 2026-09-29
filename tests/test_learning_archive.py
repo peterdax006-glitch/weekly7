@@ -361,3 +361,103 @@ def test_audit_flags_parent_written_after_child_when_chain_is_forged():
     a._recs[1] = forged
     au = a.audit("2021-01-01")
     assert not au.ok and any(f.code in ("PARENT_ORDER", "CONTENT_MISMATCH") for f in au.findings)
+
+
+# ------------------------------------------------------------------ read adapters over the existing stores
+
+def test_pattern_memory_adapter_mirrors_only_matured_evidence(tmp_path):
+    from engine.pattern_memory import PatternMemory
+    pmem = PatternMemory(tmp_path / "pm")
+    pmem.add_observations("r1", "2020-06-01", [
+        {"key": "vol_q5", "obs_date": "2020-01-06", "effect": 0.011, "n": 20, "t": 2.5},
+        {"key": "vol_q5", "obs_date": "2020-03-02", "effect": 0.009, "n": 22, "t": 2.1},
+        {"key": "gap_up", "obs_date": "2020-05-04", "effect": -0.004, "n": 15, "t": -1.2}])
+    a = mk()
+    early = A.adopt_pattern_memory(a, pmem, "2020-02-01")
+    assert early == {"observations": 1, "patterns": 1}                      # only the January observation has matured
+    full = A.adopt_pattern_memory(a, pmem, "2021-01-01")
+    assert full["observations"] == 3 and full["patterns"] == 2
+    assert A.adopt_pattern_memory(a, pmem, "2021-01-01") == full            # idempotent
+    assert len(a.view("2021-01-01", kinds=("observation",))) == 3 and len(a.view("2021-01-01", kinds=("pattern",))) == 2
+    assert a.audit("2021-01-01").ok and a.lineage(a.view("2021-01-01", kinds=("pattern",))[0].rec_id)
+
+
+def test_pattern_bank_adapter_records_retirement_restoration_and_failures():
+    class Bank:
+        def read(self, as_of):
+            hist = [{"kind": "transition", "as_of": "2020-02-01", "to": "active"},
+                    {"kind": "transition", "as_of": "2020-05-01", "to": "retired"},
+                    {"kind": "transition", "as_of": "2020-08-01", "to": "active"}]
+            return [{"id": "b1", "name": "vol_q5 & gap", "effect": 0.01, "scope": {"col": "m_vix", "lo": 1.0, "hi": 2.0,
+                                                                                      "label": "high"},
+                     "history": hist, "failures": [{"as_of": "2020-04-10", "cause": "REGIME_CHANGE"},
+                                                   {"as_of": "2020-04-20"}]}]
+
+    a = mk()
+    cnt = A.adopt_pattern_bank(a, Bank(), "2021-01-01")
+    assert cnt == {"patterns": 1, "retired": 1, "restored": 1, "failures": 2}
+    assert a.influence_at("b1", "2020-06-01") == 0.0 and a.influence_at("b1", "2020-09-01") == 1.0
+    assert a.failure_counts("2021-01-01") == {"REGIME_CHANGE": 1, "UNKNOWN": 1}
+    assert len(a.view("2021-01-01", kinds=("pattern",))) == 1
+    assert A.adopt_pattern_bank(a, Bank(), "2021-01-01") == cnt and len(a.view("2021-01-01", kinds=("influence",))) == 2
+
+
+def test_trust_table_adapter_marks_unreliable_indicators_retired():
+    import types
+    import pandas as pd
+    tt = types.SimpleNamespace(now=pd.Timestamp("2020-06-01"), table=pd.DataFrame([
+        {"type": "sector", "indicator": "rsi", "confidence": 0.9, "n_obs": 400, "reliable": True, "reason": "ok"},
+        {"type": "sector", "indicator": "vol", "confidence": 0.2, "n_obs": 30, "reliable": False, "reason": "thin"}]))
+    a = mk()
+    assert A.adopt_trust_table(a, tt, "2020-07-01") == {"reliability": 2, "retired": 1}
+    assert a.reliability_at("trust:sector:rsi", "2020-07-01") == 0.9
+    assert a.influence_at("trust:sector:vol", "2020-07-01") == 0.0 and a.influence_at("trust:sector:rsi", "2020-07-01") == 1.0
+    with pytest.raises(FirewallBreach):
+        A.adopt_trust_table(a, tt, "2020-06-01")                             # table dated ON now is not yet known
+
+
+def test_lessons_adapter_and_memory_adapter():
+    import types
+    L = lambda lid, status: types.SimpleNamespace(lid=lid, conds=[("m_vix", ">", 2.5)], direction=-1, factor=0.5,
+                                                  kind="bad_entry", status=status, trust=0.7, n=40, n_weeks=20)
+    a = mk()
+    assert A.adopt_lessons(a, [L("l1", "active"), L("l2", "retired")], "2020-05-01", "2021-01-01") == {"rules": 2, "retired": 1}
+    assert a.influence_at("l2", "2020-06-01") == 0.0 and a.context_values("lesson_kind", "2021-01-01") == {"bad_entry": 2}
+    with pytest.raises(FirewallBreach):
+        A.adopt_lessons(a, [L("l3", "active")], "2021-01-01", "2021-01-01")
+    M = lambda et, date: types.SimpleNamespace(arm="a1", fingerprint="f", context={"c": 1}, features={"x": 0.1},
+                                               outcome_bin="b", error_type=et, era="e1", date=date)
+    cnt = A.adopt_memory_lessons(a, [M("false_positive", "2020-03-02"), M("correct", "2019Q3")], "2021-01-01",
+                                 default_date="2019-09-30")
+    assert cnt == {"observations": 2, "failures": 1}
+    with pytest.raises(A.ArchiveError, match="coarse date"):
+        A.adopt_memory_lessons(a, [M("noise", "2019Q3")], "2021-01-01")
+    with pytest.raises(FirewallBreach):
+        A.adopt_memory_lessons(a, [M("noise", "2022-01-01")], "2021-01-01")
+
+
+def test_archive_shares_the_pattern_memory_chain(tmp_path):
+    from engine.pattern_memory import PatternMemory
+    root = tmp_path / "shared"
+    pmem = PatternMemory(root)
+    pmem.add_observations("r1", "2020-06-01", [{"key": "vol_q5", "obs_date": "2020-01-06", "effect": 0.01, "n": 20, "t": 2.5}])
+    a = mk(root)
+    a.log_observation("s", {"v": 1}, "2020-03-01")
+    pmem.refresh()
+    assert pmem.verify()["ok"] and a.audit("2021-01-01").ok and pmem.keys() == ["vol_q5"]
+    assert len(mk(root)) == 1 and len(PatternMemory(root)) == len(pmem)
+
+
+def test_chainfile_lanes_are_independent_but_share_one_verified_chain(tmp_path):
+    x, y = A.ChainFile(tmp_path / "c", "lane_x"), A.ChainFile(tmp_path / "c", "lane_y")
+    x.append_many([{"v": 1}, {"v": 2}])
+    y.sync()
+    y.append_many([{"w": 9}])
+    x.sync()
+    assert [l["body"] for l in x.take_new()] == [{"v": 1}, {"v": 2}] and [l["body"] for l in y.take_new()] == [{"w": 9}]
+    assert x.verify()["ok"] and x.verify()["records"] == 3 and len(x) == 2 and len(y) == 1
+    mem = A.ChainFile(None, "m")
+    mem.append_many([{"a": 1}])
+    assert mem.verify()["ok"] and mem.head != A.GENESIS
+    mem._mem_recs[0]["body"]["a"] = 2
+    assert not mem.verify()["ok"]                                                # in-memory tampering is caught too

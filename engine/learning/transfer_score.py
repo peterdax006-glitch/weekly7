@@ -521,3 +521,63 @@ def lower_confidence_gain(values, clusters=None, level: float = 0.9, n_boot: int
     """One-sided lower bound of the mean gain (cluster bootstrap): the number a cautious consumer should plan on."""
     b = cluster_bootstrap_mean(values, clusters, n_boot=n_boot, level=2 * level - 1, seed=seed)
     return b.lo
+
+
+def clusters_needed(effect: float, between_cluster_sd: float, *, z_alpha: float = 1.645, z_power: float = 0.842) -> int:
+    """Planning: how many independent clusters (months) a cross-context test needs to detect a true mean gain of `effect` with 80%
+    power at a one-sided 5% level, given the between-cluster spread. Inverse of power_analysis; use it to say how much unseen data
+    a claim of transfer would have to wait for."""
+    if not (effect > 0 and between_cluster_sd > 0):
+        raise ValueError("effect and between_cluster_sd must be positive")
+    return int(math.ceil(((z_alpha + z_power) * between_cluster_sd / effect) ** 2))
+
+
+def verdict_table(rows: Sequence[Mapping]):
+    """Tidy table of per-axis verdicts for reports: one row per mapping with axis, same, cross, ratio, flag, label. Missing keys
+    become NaN/'' rather than being dropped, so an untested axis stays visible."""
+    import pandas as pd
+    cols = ["axis", "same", "cross", "ratio", "specialisation", "stability", "label"]
+    text = ("axis", "specialisation", "label")
+    return pd.DataFrame([{c: r.get(c, "" if c in text else float("nan")) for c in cols} for r in rows], columns=cols)
+
+
+@dataclass(frozen=True)
+class SpecialisationVerdict:
+    """Section 27's verdict with the interval that supports it."""
+    label: str                     # OVER_SPECIALISED | SUSPECTED | GENERAL | UNDEFINED
+    ratio: RatioResult
+    ratio_lo: float | None
+    ratio_hi: float | None
+    p_below_floor: float           # share of bootstrap draws (with a positive denominator) whose ratio fell under the floor
+    denominator_risk: float
+    reasons: tuple
+
+
+def over_specialisation_verdict(cross_values, same_values, cross_clusters=None, same_clusters=None, *, floor: float = RATIO_FLOOR, eps: float = EPS_GAIN,
+                                n_boot: int = 1500, seed: int = 0, confident: float = 0.95) -> SpecialisationVerdict:
+    """Bootstrap the ratio cross/same (clusters resampled, draws with a denominator <= eps discarded and counted) and decide:
+    OVER_SPECIALISED when at least `confident` of the valid draws fall under `floor`; GENERAL when at least `confident` are at or above
+    it; SUSPECTED otherwise; UNDEFINED when the point ratio has no meaning (no same-context gain, NaN) or the denominator reaches
+    zero too often to say. The interval and the share below the floor are returned, so the verdict can be audited."""
+    rng = np.random.default_rng(seed)
+    dc, mc, nc, _ = bootstrap_draws(cross_values, cross_clusters, n_boot, rng)
+    ds, ms, ns, _ = bootstrap_draws(same_values, same_clusters, n_boot, rng)
+    point = transfer_ratio(mc, ms, eps=eps, n_cross=nc, n_same=ns)
+    if len(dc) == 0 or len(ds) == 0:
+        return SpecialisationVerdict("UNDEFINED", point, None, None, float("nan"), 1.0, ("too few clusters to resample",))
+    k = min(len(dc), len(ds))
+    good = ds[:k] > eps
+    risk = float(1 - good.mean())
+    if point.status != RatioStatus.OK or good.sum() < 20 or risk > 0.05:
+        return SpecialisationVerdict("UNDEFINED", point, None, None, float("nan"), risk,
+                                     (f"ratio {point.status.value}; denominator reached zero in {risk:.0%} of draws",))
+    r = np.clip(dc[:k][good] / ds[:k][good], -RATIO_CAP, RATIO_CAP)
+    below = float((r < floor).mean())
+    lo, hi = float(np.quantile(r, 0.025)), float(np.quantile(r, 0.975))
+    if below >= confident:
+        label, why = "OVER_SPECIALISED", f"{below:.0%} of bootstrap ratios are under {floor:.2f}"
+    elif below <= 1 - confident:
+        label, why = "GENERAL", f"only {below:.0%} of bootstrap ratios are under {floor:.2f}"
+    else:
+        label, why = "SUSPECTED", f"{below:.0%} of bootstrap ratios are under {floor:.2f}: not settled"
+    return SpecialisationVerdict(label, point, lo, hi, below, risk, (why,))

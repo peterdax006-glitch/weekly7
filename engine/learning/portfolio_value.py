@@ -325,6 +325,10 @@ def pick_columns(spec: ValueSpec) -> tuple | None:
 def pick_signal(p: pd.DataFrame, spec: ValueSpec, arm: int) -> pd.Series:
     """The ranking signal of one arm. 'both' averages the within-date percentile ranks of the movement and score signals, so
     neither scale dominates."""
+    need = (spec.move + spec.score) if spec.pick == "both" and spec.move and spec.score else (getattr(spec, spec.pick) or ())
+    gone = [c for c in need if c not in p]
+    if gone:
+        raise ValueError(f"panel lacks pick-signal columns {gone}")
     if spec.pick == "both":
         if not (spec.move and spec.score):
             raise ValueError("pick='both' needs both move and score columns")
@@ -364,8 +368,8 @@ def simulate_weekly(p: pd.DataFrame, spec: ValueSpec, arm: int, k: int, rng: np.
     w = pick_weights(sig, picks, spec.weighting)
     side = pd.Series(1.0, index=w.index)
     if spec.direction_mode != "none":
-        if not spec.direction:
-            raise ValueError("direction_mode needs direction columns")
+        if not spec.direction or spec.direction[arm] not in p:
+            raise ValueError("direction_mode needs direction columns present in the panel")
         pu = p.loc[picks, spec.direction[arm]]
         side = pd.Series(np.where(pu >= 0.5, 1.0, 0.0 if spec.direction_mode == "filter" else -1.0), index=w.index)
     contrib = w * side * p.loc[picks, spec.fwd]
@@ -708,8 +712,8 @@ def attribute_signals(panel: pd.DataFrame, spec: ValueSpec, now, *, k: int = 5, 
     source (base/new) and one score source (base/new): bb, nb, bn, nn. Rows give each variant's in-band share, mean |week|, selection lift and
     verdict against bb; the last rows are the Shapley-style marginals (mean of the two orders) for movement, score and their
     interaction, on the in-band share. Needs both a movement and a score pair."""
-    if not (spec.move and spec.score):
-        raise ValueError("attribute_signals needs both movement and score columns")
+    if not (spec.move and spec.score) or any(c not in panel for c in spec.move + spec.score):
+        raise ValueError("attribute_signals needs both movement and score columns in the panel")
     p = check_panel(panel, spec, now)
     _check_spacing(p, spec)
     rk = lambda col: _rank(p[col]) / p[col].groupby(level=0).transform("size")
@@ -920,3 +924,263 @@ def direction_by_conviction(panel: pd.DataFrame, spec: ValueSpec, now, *, arm: i
         bm = TS.cluster_bootstrap_mean(correct[ch], mo[ch], n_boot=n_boot, seed=seed + i)
         rows.append({"bin": i, "n": int(len(ch)), "conviction": float(conv[ch].mean()), "accuracy": bm.mean, "lo": bm.lo, "hi": bm.hi})
     return pd.DataFrame(rows, columns=cols)
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# tables, comparison of two decompositions, tail attribution
+# ---------------------------------------------------------------------------------------------------------------
+def component_table(dec: ValueDecomposition) -> pd.DataFrame:
+    """The eight components as rows, in the contract's order, with tier, base, new, delta, interval, n and status."""
+    rows = [{"component": n, "tier": dec[n].tier, "base": dec[n].base, "new": dec[n].new, "delta": dec[n].delta, "lo": dec[n].lo, "hi": dec[n].hi,
+             "n": dec[n].n, "status": dec[n].status} for n in COMPONENTS]
+    return pd.DataFrame(rows)
+
+
+def compare_decompositions(a: ValueDecomposition, b: ValueDecomposition) -> dict:
+    """Component by component: did the delta of `b` separate from the delta of `a` (non-overlapping intervals)? Used to compare two
+    learner versions on the same panel. Unmeasured components on either side are listed, never compared."""
+    out = {"better": [], "worse": [], "same": [], "unmeasured": []}
+    for n in COMPONENTS:
+        ca, cb = a[n], b[n]
+        if ca.status != STATUS_MEASURED or cb.status != STATUS_MEASURED or not all(math.isfinite(x) for x in (ca.lo, ca.hi, cb.lo, cb.hi)):
+            out["unmeasured"].append(n)
+        elif cb.lo > ca.hi:
+            out["better"].append(n)
+        elif cb.hi < ca.lo:
+            out["worse"].append(n)
+        else:
+            out["same"].append(n)
+    return out
+
+
+def tail_attribution(panel: pd.DataFrame, spec: ValueSpec, now, *, k: int = 5, tail: float = 0.10, cost_bps: float = 5.0, min_names: int = 8,
+                     seed: int = 0) -> dict:
+    """What the new arm did in the base arm's worst weeks. The `tail` share of weeks with the lowest base return: mean base return,
+    mean new return, and in how many of them the new arm was better. A change that lifts the average by giving up tail protection
+    (or that fixes the tail and costs the average) shows here, not in the mean."""
+    arms = run_arms(panel, spec, now, k=k, cost_bps=cost_bps, min_names=min_names, seed=seed)
+    wb, wn = arms["base"][0], arms["new"][0]
+    if len(wb) < 10:
+        return {"n_tail": 0, "base_mean": float("nan"), "new_mean": float("nan"), "share_better": float("nan"), "average_gain": float("nan")}
+    n_t = max(1, int(round(tail * len(wb))))
+    idx = wb.nsmallest(n_t).index
+    return {"n_tail": int(n_t), "base_mean": float(wb.loc[idx].mean()), "new_mean": float(wn.loc[idx].mean()),
+            "share_better": float((wn.loc[idx] > wb.loc[idx]).mean()), "average_gain": float((wn - wb).mean())}
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# section 34 completion: one measure at a time, and where predictive value is lost before the portfolio
+# ---------------------------------------------------------------------------------------------------------------
+def measure(name: str, panel: pd.DataFrame, spec: ValueSpec, now, **kw) -> ComponentValue:
+    """One of the eight kinds of value on its own: predictive_effect, movement_prediction, ranking_value, selection_value,
+    direction_value, timing_value, risk_value or portfolio_value. The value is measured exactly as in decompose_value (same code, same
+    seed), so a separately measured component always equals the one in the full decomposition."""
+    if name not in COMPONENTS:
+        raise ValueError(f"unknown component {name!r}; choose from {COMPONENTS}")
+    return decompose_value(panel, spec, now, **kw)[name]
+
+
+@dataclass(frozen=True)
+class LossStage:
+    stage: str
+    delta: float
+    lo: float
+    hi: float
+    survives: bool                 # the gain is still significantly positive at this stage
+    note: str = ""
+
+
+@dataclass(frozen=True)
+class ValueWaterfall:
+    stages: tuple
+    first_loss: str | None         # the first stage at which a gain that existed earlier is no longer significant
+    lost_between: tuple | None     # (last surviving stage, first failing stage)
+    verdict: str
+
+    def render(self) -> str:
+        lines = [f"{s.stage:<26} {'kept' if s.survives else 'LOST':<5} delta {s.delta:+.4f} [{s.lo:+.4f},{s.hi:+.4f}] {s.note}" for s in self.stages]
+        return "\n".join(lines + [self.verdict])
+
+
+def value_waterfall(panel: pd.DataFrame, spec: ValueSpec, now, *, k: int = 5, cost_bps: float = 5.0, min_names: int = 8, min_dates: int = 20,
+                    n_boot: int = 400, seed: int = 0, window_weeks: int = 26) -> ValueWaterfall:
+    """Where does predictive value leak before it reaches the portfolio? The same new-minus-base comparison is made stage by stage:
+      1 prediction      rank IC of the score / movement signal
+      2 ranking         NDCG@k against in-band moves
+      3 selection       picks' in-band rate minus the universe rate
+      4 gross weeks     the weekly in-band share of the simulated portfolio, before costs
+      5 net weeks       the same after costs
+      6 objective       the tiered-objective decision (lexicographic; direction cannot outrank tier 1 or 2)
+    A stage `survives` when its paired interval is above zero (stage 6: when the firewall accepts). first_loss names the earliest stage
+    that fails after an earlier one held, which is where prediction stopped being portfolio value."""
+    p = check_panel(panel, spec, now)
+    _check_spacing(p, spec)
+    stages: list[LossStage] = []
+    dec = decompose_value(p, spec, now, k=k, cost_bps=cost_bps, min_names=min_names, min_dates=min_dates, n_boot=n_boot, seed=seed, window_weeks=window_weeks)
+    first = dec["movement_prediction"] if dec["movement_prediction"].status == STATUS_MEASURED else dec["predictive_effect"]
+    for label, c in (("1 prediction", first), ("2 ranking", dec["ranking_value"]), ("3 selection", dec["selection_value"])):
+        ok = c.status == STATUS_MEASURED
+        stages.append(LossStage(label, c.delta if ok else float("nan"), c.lo if ok else float("nan"), c.hi if ok else float("nan"), bool(ok and c.lo > 0), c.note if ok else c.status))
+    for label, cost in (("4 gross weeks", 0.0), ("5 net weeks", cost_bps)):
+        arms = run_arms(p, spec, now, k=k, cost_bps=cost, min_names=min_names, seed=seed)
+        wb, wn = arms["base"][0], arms["new"][0]
+        if len(wb) < min_dates:
+            stages.append(LossStage(label, float("nan"), float("nan"), float("nan"), False, "too few weeks"))
+            continue
+        band = lambda w: ((w.abs() >= O.BAND[0]) & (w.abs() <= O.BAND[1])).astype(float)
+        diff = (band(wn) - band(wb)).to_numpy()
+        bm = TS.cluster_bootstrap_mean(diff, pd.DatetimeIndex(wb.index).strftime("%Y-%m").to_numpy(), n_boot=n_boot, seed=seed + 5)
+        stages.append(LossStage(label, bm.mean, bm.lo, bm.hi, bool(bm.lo > 0), "in-band week share, new minus base"))
+    acc = dec.portfolio_accept
+    stages.append(LossStage("6 objective", float(dec["portfolio_value"].delta) if dec["portfolio_value"].status == STATUS_MEASURED else float("nan"),
+                            dec["portfolio_value"].lo, dec["portfolio_value"].hi, bool(acc), dec.portfolio_reason))
+    held = False
+    first_loss, between = None, None
+    for i, s in enumerate(stages):
+        if s.survives:
+            held = True
+        elif held and first_loss is None:
+            first_loss, between = s.stage, (next(x.stage for x in reversed(stages[:i]) if x.survives), s.stage)
+    if not any(s.survives for s in stages):
+        verdict = "no stage shows a reliable gain: nothing was lost because nothing was gained"
+    elif first_loss is None:
+        verdict = "the gain survives every stage to the tiered objective"
+    else:
+        verdict = f"predictive value is lost between {between[0]} and {between[1]}"
+    return ValueWaterfall(tuple(stages), first_loss, between, verdict)
+
+
+def conversion_rate(dec: ValueDecomposition) -> float:
+    """Share of significant prediction-side gains (predictive, movement, ranking, selection) that coincide with an accepted portfolio
+    change: 1.0 or 0.0 for one decomposition, NaN when no prediction gain exists. Averaged over decompositions it is the fraction of
+    predictive improvements that ever became portfolio improvements."""
+    n = dec.translation()["n_predictive_gains"]
+    return float("nan") if n == 0 else float(bool(dec.portfolio_accept))
+
+
+def risk_breakdown(panel: pd.DataFrame, spec: ValueSpec, now, *, k: int = 5, cost_bps: float = 5.0, min_names: int = 8, window_weeks: int = 26,
+                   n_boot: int = 400, seed: int = 0) -> pd.DataFrame:
+    """The tier-2 risk value taken apart: per-window worst-5% week, maximum drawdown, catastrophic-week rate and band overshoot, each as
+    new minus base (positive = less risk) with a paired bootstrap interval over windows. A risk gain that comes from overshoot alone
+    is not the same as one that comes from a shallower drawdown."""
+    arms = run_arms(panel, spec, now, k=k, cost_bps=cost_bps, min_names=min_names, seed=seed)
+    rb, rn = weeks_to_rows(arms["base"][0].to_numpy(), window_weeks), weeks_to_rows(arms["new"][0].to_numpy(), window_weeks)
+    cols = ["measure", "base", "new", "delta", "lo", "hi", "n_windows"]
+    if len(rb) < 2 or len(rb) != len(rn):
+        return pd.DataFrame(columns=cols)
+    rows = []
+    for name, key, sign in (("worst_5pct_week", "worst5", 1.0), ("max_drawdown", "max_dd", 1.0), ("catastrophic_weeks", "cat_rate", -1.0), ("overshoot_weeks", "over_band", -1.0)):
+        b, n = np.array([r[key] for r in rb]), np.array([r[key] for r in rn])
+        d = sign * (n - b)
+        bm = TS.cluster_bootstrap_mean(d, None, n_boot=n_boot, seed=seed + len(rows))
+        rows.append({"measure": name, "base": float(b.mean()), "new": float(n.mean()), "delta": bm.mean, "lo": bm.lo, "hi": bm.hi, "n_windows": len(d)})
+    return pd.DataFrame(rows, columns=cols)
+
+
+def timing_split(panel: pd.DataFrame, spec: ValueSpec, now, *, k: int = 5, min_names: int = 8, seed: int = 0) -> dict:
+    """Timing value separated from exposure level. For the new arm's exposure e_t and the picks' pre-cost return r_t:
+    total = mean(e r) = mean(e) mean(r) + cov(e, r). `level` is the first term (being invested more or less on average),
+    `timing` the second (being invested more when the picks pay). Only the second is timing skill. Needs an exposure pair."""
+    if not spec.exposure or any(c not in panel for c in spec.exposure):
+        return {"available": False, "level": float("nan"), "timing": float("nan"), "total": float("nan"), "n": 0}
+    p = check_panel(panel, spec, now)
+    sig = pick_signal(p, spec, 1)
+    picks = top_k_picks(sig, k, np.random.default_rng(seed + 11), min_names)
+    r = p.loc[picks, spec.fwd].groupby(level=0).mean()
+    e = p[spec.exposure[1]].groupby(level=0).first().reindex(r.index).clip(0, 1)
+    j = pd.concat([e.rename("e"), r.rename("r")], axis=1).dropna()
+    if len(j) < 3:
+        return {"available": False, "level": float("nan"), "timing": float("nan"), "total": float("nan"), "n": int(len(j))}
+    cov = float(((j["e"] - j["e"].mean()) * (j["r"] - j["r"].mean())).mean())
+    level = float(j["e"].mean() * j["r"].mean())
+    return {"available": True, "level": level, "timing": cov, "total": float((j["e"] * j["r"]).mean()), "n": int(len(j))}
+
+
+def conversion_summary(decs: Sequence[ValueDecomposition]) -> dict:
+    """Over many decompositions (versions, eras, seeds): how often a significant prediction gain existed, and how often the portfolio
+    objective accepted the change when it did. The gap is the rate at which predictive value never became portfolio value."""
+    rates = [conversion_rate(d) for d in decs]
+    have = [r for r in rates if np.isfinite(r)]
+    return {"n": len(decs), "with_prediction_gain": len(have), "converted": int(sum(have)), "rate": float(np.mean(have)) if have else float("nan"),
+            "lost": len(have) - int(sum(have))}
+
+
+def picked_direction_value(panel: pd.DataFrame, spec: ValueSpec, now, *, k: int = 5, mover_thr: float = 0.05, n_boot: int = 400, min_names: int = 8,
+                           seed: int = 0) -> dict:
+    """Direction value measured on the names the portfolio actually picks (not the whole universe): accuracy of sign(P(up) - 0.5) on the
+    picked movers, and the return difference between picked names the model calls up and those it calls down (a positive spread is
+    tradeable direction; accuracy alone is not). Each new-minus-base with a month-cluster bootstrap. Tier 3, reported for the record."""
+    if spec.direction is None or any(c not in panel for c in spec.direction):
+        return {"available": False}
+    p = check_panel(panel, spec, now)
+    out = {"available": True}
+    for arm, tag in ((0, "base"), (1, "new")):
+        picks = top_k_picks(pick_signal(p, spec, arm), k, np.random.default_rng(seed + 11), min_names)
+        q = p[picks]
+        mov = q[q[spec.fwd].abs() >= mover_thr]
+        pu = q[spec.direction[arm]]
+        up = q[spec.fwd][pu >= 0.5]
+        dn = q[spec.fwd][pu < 0.5]
+        out[tag] = {"n_movers": int(len(mov)),
+                    "accuracy": float(((mov[spec.direction[arm]] >= 0.5) == (mov[spec.fwd] > 0)).mean()) if len(mov) else float("nan"),
+                    "spread": float(up.mean() - dn.mean()) if len(up) and len(dn) else float("nan")}
+    months = lambda idx: pd.DatetimeIndex(idx.get_level_values(0)).strftime("%Y-%m").to_numpy()
+    q1 = p[top_k_picks(pick_signal(p, spec, 1), k, np.random.default_rng(seed + 11), min_names)]
+    mov = q1[q1[spec.fwd].abs() >= mover_thr]
+    if len(mov) >= 10:
+        hit = ((mov[spec.direction[1]] >= 0.5) == (mov[spec.fwd] > 0)).astype(float).to_numpy()
+        out["accuracy_vs_coin"] = TS.cluster_bootstrap_mean(hit - 0.5, months(mov.index), n_boot=n_boot, seed=seed)
+    else:
+        out["accuracy_vs_coin"] = None
+    return out
+
+
+def value_by_group(panel: pd.DataFrame, spec: ValueSpec, labels: pd.Series, now, *, min_dates: int = 20, **kw) -> pd.DataFrame:
+    """Component deltas per group (era, year, regime) as one table: rows = groups, columns = components, cells = delta or NaN when the
+    component could not be measured in that group. Thin groups appear with NaN, never disappear."""
+    by = decompose_by(panel, spec, labels, now, min_dates=min_dates, **kw)
+    rows = []
+    for g, d in by.items():
+        rows.append({"group": g, **{n: (d[n].delta if d is not None and d[n].status == STATUS_MEASURED else float("nan")) for n in COMPONENTS}})
+    return pd.DataFrame(rows, columns=["group"] + list(COMPONENTS))
+
+
+def selection_over_luck(panel: pd.DataFrame, spec: ValueSpec, now, *, k: int = 5, n_sims: int = 200, min_names: int = 8, seed: int = 0) -> dict:
+    """Selection value of BOTH arms against the same random-picker distribution: lift, percentile and z for base and new, and whether the
+    new arm's advantage over the base arm exceeds the random pickers' own spread (so a lift that a coin-flipper reaches one time in five
+    is not credited). Returns {'base': LuckFloor, 'new': LuckFloor, 'advantage': float, 'exceeds_luck_spread': bool}."""
+    b = random_floor(panel, spec, now, arm=0, k=k, n_sims=n_sims, min_names=min_names, seed=seed)
+    n = random_floor(panel, spec, now, arm=1, k=k, n_sims=n_sims, min_names=min_names, seed=seed)
+    adv = n.arm_lift - b.arm_lift
+    spread = max(n.random_sd, b.random_sd)
+    return {"base": b, "new": n, "advantage": adv, "exceeds_luck_spread": bool(np.isfinite(spread) and adv > 2 * spread)}
+
+
+def signal_quality_needed(panel: pd.DataFrame, spec: ValueSpec, now, *, skills: Sequence[float] = (0.0, 0.2, 0.4, 0.6, 0.8), k: int = 5,
+                          n_boot: int = 120, seed: int = 0) -> pd.DataFrame:
+    """Calibrate the decomposition on the panel's own structure: how much movement skill (correlation of the movement score with the true
+    size) does the portfolio objective need before it accepts the change? Blends the panel's true |fwd| rank into the base movement
+    signal at each skill level, re-runs the objective comparison, and reports the acceptance and in-band share. Answers: is a
+    prediction gain of this size even capable of reaching the portfolio under this objective?"""
+    if spec.move is None or spec.move[0] not in panel:
+        raise ValueError("needs the base movement column")
+    p = check_panel(panel, spec, now)
+    truth = _rank(p[spec.fwd].abs()) / p[spec.fwd].groupby(level=0).transform("size")
+    base = _rank(p[spec.move[0]]) / p[spec.move[0]].groupby(level=0).transform("size")
+    rows = []
+    for s in skills:
+        q = p.copy()
+        q[spec.move[1]] = s * truth + (1 - s) * base
+        d = decompose_value(q, dataclasses.replace(spec, pick="move"), now, k=k, n_boot=n_boot, seed=seed)
+        rows.append({"skill": float(s), "movement_delta": d["movement_prediction"].delta, "accepted": d.portfolio_accept, "reason": d.portfolio_reason})
+    return pd.DataFrame(rows)
+
+
+def significant_components(dec: ValueDecomposition) -> dict:
+    """Components split by what their interval says: gained, lost, unchanged, unmeasured. Never summed: eight different currencies."""
+    out = {"gained": [], "lost": [], "unchanged": [], "unmeasured": []}
+    for n in COMPONENTS:
+        c = dec[n]
+        key = "unmeasured" if c.status != STATUS_MEASURED else "gained" if c.significant_gain else "lost" if c.significant_loss else "unchanged"
+        out[key].append(n)
+    return out

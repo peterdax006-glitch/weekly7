@@ -66,6 +66,20 @@ class QuestionConfig:
 DEFAULT_QCFG = QuestionConfig()
 
 
+def validate_config(cfg: QuestionConfig) -> list[str]:
+    """Reject settings that would silently make a question unanswerable or trivially answerable."""
+    errs = []
+    if not 0 < cfg.alpha < 0.5:
+        errs.append("alpha must be in (0, 0.5)")
+    if cfg.min_n < 8 or cfg.min_n_eff < 4:
+        errs.append("min_n >= 8 and min_n_eff >= 4 are needed for any dependence-robust test")
+    if cfg.n_perm < 99 or cfg.n_blocks < 2:
+        errs.append("n_perm >= 99 and n_blocks >= 2 are needed for the permutation and stability checks")
+    if not 0 < cfg.tail_frac < 0.5 or cfg.recent_window < cfg.min_recent:
+        errs.append("tail_frac in (0, 0.5) and recent_window >= min_recent")
+    return errs
+
+
 # ------------------------------------------------------------------------------------------------ helpers
 def clean_series(s: Any, now, what: str) -> pd.Series:
     """Float series on a DatetimeIndex, sorted, NaN dropped.  Duplicate dates raise; any date >= now is a firewall breach."""
@@ -516,6 +530,9 @@ class QuestionEngine:
     """Asks the three questions for one relation or a whole family (Holm across the family for the REAL question)."""
 
     def __init__(self, cfg: QuestionConfig = DEFAULT_QCFG):
+        bad = validate_config(cfg)
+        if bad:
+            raise QuestionError("; ".join(bad))
         self.cfg = cfg
 
     def ask(self, rel: RelationEvidence, now, p_family: float | None = None) -> ThreeAnswers:
@@ -742,3 +759,61 @@ def answers_table(answers: Sequence[ThreeAnswers]) -> pd.DataFrame:
                      "scope": a.useful_now.scope, "action": d.action, "size_cap": d.size_multiplier,
                      "warnings": "; ".join(a.inconsistencies())})
     return pd.DataFrame(rows)
+
+
+# ------------------------------------------------------------------------------------------------ fragility and change
+def verdict_sensitivity(rel: RelationEvidence, now, cfg: QuestionConfig = DEFAULT_QCFG) -> dict:
+    """Does the REAL verdict survive reasonable perturbations?  Re-asks with 10x the multiple-testing burden, with the first or
+    last fifth of history removed, with a stricter alpha and different dependence settings.  A verdict that flips under two or
+    more of these is fragile and should not carry a decision by itself."""
+    base = answer_real(rel, now, cfg)
+    x = clean_series(rel.effect, now, f"sens[{rel.relation_id}]")
+    k = int(0.2 * len(x))
+    variants = {
+        "trials_x10": (dc.replace(rel, n_trials=max(rel.n_trials, 1) * 10), cfg),
+        "drop_last_20pct": (dc.replace(rel, effect=x.iloc[:len(x) - k]), cfg),
+        "drop_first_20pct": (dc.replace(rel, effect=x.iloc[k:]), cfg),
+        "alpha_0.01": (rel, dc.replace(cfg, alpha=0.01)),
+        "short_dependence": (rel, dc.replace(cfg, nw_lags=1, perm_block=1)),
+        "six_eras": (rel, dc.replace(cfg, n_blocks=6)),
+    }
+    out = {name: str(answer_real(r, now, c).verdict) for name, (r, c) in variants.items()}
+    flips = sorted(n for n, v in out.items() if v != str(base.verdict))
+    return {"base": str(base.verdict), "variants": out, "flips": flips, "fragile": len(flips) >= 2}
+
+
+def compare_answers(prev: ThreeAnswers, cur: ThreeAnswers) -> list[str]:
+    """What changed between two asks of the same relation, in words - for the log a human or a research policy reads."""
+    if prev.relation_id != cur.relation_id:
+        raise QuestionError("cannot compare answers about different relations")
+    out = []
+    for name in ("real", "useful", "useful_now"):
+        a, b = getattr(prev, name), getattr(cur, name)
+        if a.verdict != b.verdict:
+            out.append(f"{name}: {a.verdict} -> {b.verdict} ({'; '.join(b.reasons)})")
+    if prev.real.verdict == cur.real.verdict == Answer.YES and abs(cur.real.effect - prev.real.effect) > 2 * prev.real.se:
+        out.append(f"real: effect moved {prev.real.effect:+.5f} -> {cur.real.effect:+.5f} (more than 2 se)")
+    if disposition(prev).action != disposition(cur).action:
+        out.append(f"decision: {disposition(prev).action} -> {disposition(cur).action}")
+    return out
+
+
+def real_by_era(rel: RelationEvidence, now, n_eras: int = 4, lags: int = 4) -> pd.DataFrame:
+    """The REAL question era by era: mean, standard error, t and count for each contiguous era.  This is the table behind the
+    stability and leave-one-era-out checks, for a human to read when a verdict is UNKNOWN(CONFLICTED)."""
+    x = clean_series(rel.effect, now, f"eras[{rel.relation_id}]")
+    if len(x) < 4 * max(n_eras, 1):
+        return pd.DataFrame(columns=["era", "start", "end", "n", "mean", "se", "t"])
+    rows = []
+    for k, ix in enumerate(np.array_split(np.arange(len(x)), n_eras)):
+        seg = x.iloc[ix]
+        m, se, t = _nw_mean_se(seg.values, lags)
+        rows.append({"era": k, "start": str(seg.index[0].date()), "end": str(seg.index[-1].date()), "n": int(len(seg)),
+                     "mean": m, "se": se, "t": t})
+    return pd.DataFrame(rows)
+
+
+def latest_table(ledger: AnswerLedger) -> pd.DataFrame:
+    """Latest answers for every relation in an AnswerLedger, as the report table."""
+    latest = [ledger.latest(r) for r in ledger.relations()]
+    return answers_table([a for a in latest if a is not None])

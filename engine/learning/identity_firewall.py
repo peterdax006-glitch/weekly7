@@ -83,15 +83,30 @@ def _rng(seed: int, salt: str) -> np.random.Generator:
     return np.random.default_rng([seed, sum(map(ord, salt))])           # never hash(): str hashes change per process
 
 
+def derangement(rng: np.random.Generator, n: int) -> np.ndarray:
+    """A random permutation of range(n) with no fixed point (n >= 2), so a relabelling always relabels everything."""
+    if n < 2:
+        return np.arange(n)
+    for _ in range(1000):
+        p = rng.permutation(n)
+        if not (p == np.arange(n)).any():
+            return p
+    return np.roll(np.arange(n), 1)
+
+
 def ticker_permutation(X, y=None, seed: int = 0, order_preserving: bool = False, universe: Sequence | None = None) -> Transformed:
-    """Random bijection over `universe` (default: the tickers present). Rows are re-sorted by the new names unless
-    `order_preserving`, so an alphabetical tie-break cannot smuggle the old identity through."""
+    """Random bijection over `universe` (default: the tickers present) with no ticker keeping its name. Rows are re-sorted by
+    the new names, so an alphabetical tie-break cannot smuggle the old identity through. With `order_preserving` the tickers
+    are instead renamed to FRESH opaque codes in the same alphabetical order (rows keep their position), which isolates a
+    dependence on the names themselves from a dependence on their order."""
     _check_panel(X)
     tk = pd.Index(sorted(set(universe) if universe is not None else set(_tickers(X))), dtype=object)
     rng = _rng(seed, "ticker")
-    perm = tk[rng.permutation(len(tk))]
     if order_preserving:
-        perm = pd.Index(sorted(perm))
+        nums = np.sort(rng.choice(10 ** 6, size=len(tk), replace=False))
+        perm = pd.Index([f"Z{int(k):06d}" for k in nums])
+    else:
+        perm = tk[derangement(rng, len(tk))]
     tmap = dict(zip(tk, perm))
     new_t = _tickers(X).map(tmap)
     if new_t.isna().any():
@@ -134,8 +149,13 @@ def presentation_disguise(X, y=None, seed: int = 0, order_preserving: bool = Fal
     date shift, values and row order untouched. `order_preserving=False` also scrambles alphabetical order, which is
     what exposes name-order tie-breaks; `dates`/`names` attribute a collapse to what the learner keyed on."""
     _check_panel(X)
-    from engine.learning_delta import make_presentation
-    pres, rec = make_presentation(_panel_window(X), seed, order_preserving=order_preserving)
+    from engine.learning_delta import BlindnessError, make_presentation
+    try:
+        pres, rec = make_presentation(_panel_window(X), seed, order_preserving=order_preserving)
+    except BlindnessError:
+        # a panel still in the real era cannot reach the simulated era (year >= 2100) within the default +-900..1100 week
+        # bounds; widen the upper bound, the lower bound is raised by make_presentation itself
+        pres, rec = make_presentation(_panel_window(X), seed, order_preserving=order_preserving, shift_weeks=(0, 20000))
     delta = pd.Timedelta(days=rec.shift_days) if dates else pd.Timedelta(0)
     cmap = rec.code_map if names else {t: t for t in set(_tickers(X))}
     nd = _dates(X) + delta
@@ -153,7 +173,7 @@ def year_disguise(X, y=None, seed: int = 0, shift_weeks: tuple[int, int] = (40, 
     return dataclasses.replace(t, kind="year_disguise")
 
 
-def stock_substitution(X, y=None, seed: int = 0, frac: float = 0.5) -> Transformed:
+def stock_substitution(X, y=None, seed: int = 0, frac: float = 1.0) -> Transformed:
     """A fraction of the tickers swap identities pairwise (A's rows are labelled B and vice versa)."""
     _check_panel(X)
     if not 0 < frac <= 1:
@@ -185,14 +205,14 @@ def sector_substitution(X, y=None, seed: int = 0, sector_columns: Sequence[str] 
         missing = [c for c in cols if c not in X.columns]
         if missing:
             raise ValueError(f"sector columns not in X: {missing}")
-        perm = [cols[i] for i in rng.permutation(len(cols))]
+        perm = [cols[i] for i in derangement(rng, len(cols))]
         cmap = dict(zip(cols, perm))
         X2 = X.rename(columns=cmap)[list(X.columns)]                  # same column ORDER, permuted meaning
         moved = float(np.mean([cmap[c] != c for c in cols]))
         return Transformed("sector_substitution", X2, y.copy() if y is not None else None, moved, cmap, np.arange(len(X)))
     if groups:
         secs = sorted(set(groups.values()))
-        perm = [secs[i] for i in rng.permutation(len(secs))]
+        perm = [secs[i] for i in derangement(rng, len(secs))]
         smap = dict(zip(secs, perm))
         newg = {t: smap[s] for t, s in groups.items()}
         return Transformed("sector_substitution", X.copy(), y.copy() if y is not None else None,
@@ -250,17 +270,28 @@ def _move_content(X, y, blocks: list[np.ndarray], order: Sequence[int], kind: st
     return Transformed(kind, X2, y2, float(moved.mean()) if len(moved) else 0.0, {}, None)
 
 
+def _size_groups(blocks: list[np.ndarray]) -> list[list[int]]:
+    """Indices of blocks grouped by row count: only equal-size blocks can exchange content cell for cell."""
+    by: dict[int, list[int]] = {}
+    for i, b in enumerate(blocks):
+        by.setdefault(len(b), []).append(i)
+    return [g for _, g in sorted(by.items())]
+
+
 def episode_substitution(X, y=None, seed: int = 0, block: int = 20, frac: float = 0.5) -> Transformed:
-    """Episodes (blocks of `block` consecutive dates) swap content pairwise; the dates and tickers of each slot are kept,
-    so a learner keyed on (date, ticker) sees familiar labels wrapped around another episode's market."""
+    """Episodes (blocks of `block` consecutive dates) swap content pairwise, pairs drawn among equal-size blocks; the dates
+    and tickers of each slot are kept, so a learner keyed on (date, ticker) sees familiar labels wrapped around another
+    episode's market."""
     _check_panel(X)
     blocks = _blocks(X, block)
-    n = len(blocks)
     rng = _rng(seed, "episode")
-    order = list(range(n))
-    pick = list(rng.permutation(n)[:max(2, int(round(frac * n)) // 2 * 2)]) if n >= 2 else []
-    for a, b in zip(pick[0::2], pick[1::2]):
-        order[a], order[b] = order[b], order[a]
+    order = list(range(len(blocks)))
+    for grp in _size_groups(blocks):
+        if len(grp) < 2:
+            continue
+        pick = [grp[i] for i in rng.permutation(len(grp))[:max(2, int(round(frac * len(grp))) // 2 * 2)]]
+        for a, b in zip(pick[0::2], pick[1::2]):
+            order[a], order[b] = order[b], order[a]
     return _move_content(X, y, blocks, order, "episode_substitution")
 
 
@@ -268,7 +299,12 @@ def sequence_scramble(X, y=None, seed: int = 0, block: int = 1) -> Transformed:
     """Deal all date blocks back in a random order: destroys temporal sequence while keeping every cross-section whole."""
     _check_panel(X)
     blocks = _blocks(X, block)
-    order = list(_rng(seed, "sequence").permutation(len(blocks)))
+    rng = _rng(seed, "sequence")
+    order = list(range(len(blocks)))
+    for grp in _size_groups(blocks):
+        if len(grp) > 1:
+            for i, j in zip(grp, derangement(rng, len(grp))):
+                order[i] = grp[j]
     return _move_content(X, y, blocks, order, "sequence_scramble")
 
 
@@ -313,17 +349,29 @@ def verify_transform(orig_X: pd.DataFrame, orig_y: pd.Series | None, t: Transfor
 
 # ---------------------------------------------------------------- scoring
 def per_date_ic(scores: pd.Series, y: pd.Series, min_names: int = 5) -> pd.Series:
-    """Spearman rank correlation of scores with realised returns, per date. Dates with fewer than `min_names` names or
-    no dispersion are dropped (their IC is undefined, not zero)."""
+    """Spearman rank correlation of scores with realised returns, per date. Dates with fewer than `min_names` names, or whose
+    returns have no dispersion, are dropped (nothing to rank). A date on which the SCORES are constant scores exactly 0: a
+    learner that outputs one number for everybody has no skill there, it has not 'failed to be measured'."""
     df = pd.DataFrame({"s": scores.reindex(y.index), "y": y}).dropna()
     if not len(df):
         return pd.Series(dtype=float)
-    g = df.groupby(level=0)
     out = {}
-    for d, sub in g:
-        if len(sub) >= min_names and sub["s"].nunique() > 1 and sub["y"].nunique() > 1:
-            out[d] = sub["s"].rank().corr(sub["y"].rank())
+    for d, sub in df.groupby(level=0):
+        if len(sub) >= min_names and sub["y"].nunique() > 1:
+            out[d] = 0.0 if sub["s"].nunique() <= 1 else sub["s"].rank().corr(sub["y"].rank())
     return pd.Series(out, dtype=float).sort_index()
+
+
+def skill_t(ic: np.ndarray) -> float:
+    """t-statistic of a per-date IC series (mean over standard error). A zero-variance positive series is +inf."""
+    ic = np.asarray(ic, dtype=float)
+    ic = ic[np.isfinite(ic)]
+    if len(ic) < 2:
+        return float("nan")
+    sd = ic.std(ddof=1)
+    if sd == 0:
+        return float("inf") if ic.mean() > 0 else (float("-inf") if ic.mean() < 0 else 0.0)
+    return float(ic.mean() / (sd / np.sqrt(len(ic))))
 
 
 def top_k_spread(scores: pd.Series, y: pd.Series, k: int = 5) -> float:
@@ -436,7 +484,7 @@ class IdentityReport:
 class IdentityHarness:
     def __init__(self, learner: Learner, attacks: Sequence[str] = tuple(ATTACKS), seed: int = 0, collapse_ratio: float = 0.5,
                  min_skill: float = 0.01, min_dates: int = 8, k: int = 5, modes: Sequence[str] = MODES, boot: int = 400,
-                 attack_kwargs: Mapping[str, Mapping] | None = None):
+                 attack_kwargs: Mapping[str, Mapping] | None = None, min_t: float = 2.0):
         bad = [a for a in attacks if a not in ATTACKS and a != "sector_substitution"]
         if bad:
             raise ValueError(f"unknown attacks {bad}")
@@ -444,6 +492,7 @@ class IdentityHarness:
             raise ValueError(f"modes must be within {MODES}")
         self.learner, self.attacks, self.seed = learner, tuple(attacks), seed
         self.ratio, self.min_skill, self.min_dates, self.k, self.modes, self.boot = collapse_ratio, min_skill, min_dates, k, tuple(modes), boot
+        self.min_t = min_t
         self.kwargs = dict(attack_kwargs or {})
 
     def _run(self, Xt, yt, Xe) -> pd.Series:
@@ -513,9 +562,11 @@ class IdentityHarness:
         topk = top_k_spread(s, te.y, self.k)
         if not det:
             return AttackVerdict(name, mode, "NONDETERMINISTIC", base_ic, att_ic, float("nan"), n_dates=len(ic1), changed_frac=te.changed_frac)
-        if not np.isfinite(base_ic) or base_ic < self.min_skill:
+        t_base = skill_t(ic0.to_numpy())
+        if not np.isfinite(base_ic) or base_ic < self.min_skill or not (t_base >= self.min_t):
             return AttackVerdict(name, mode, "NO_SKILL", base_ic, att_ic, float("nan"), base_topk=base_topk, attacked_topk=topk,
-                                 n_dates=len(ic1), changed_frac=te.changed_frac, note="baseline shows no skill to retain")
+                                 n_dates=len(ic1), changed_frac=te.changed_frac,
+                                 note=f"baseline shows no significant skill to retain (IC {base_ic:.3f}, t {t_base:.1f})")
         if len(ic1) < self.min_dates or len(ic0) < self.min_dates:
             return AttackVerdict(name, mode, "INSUFFICIENT", base_ic, att_ic, float("nan"), n_dates=len(ic1),
                                  changed_frac=te.changed_frac, note=f"only {len(ic1)} scored dates")
@@ -565,7 +616,7 @@ def ridge_learner(X_train, y_train, X_eval, seed: int = 0, alpha: float = 1.0) -
 
 def random_learner(X_train, y_train, X_eval, seed: int = 0) -> pd.Series:
     """NULL control: seeded noise. Its IC is ~0 so the harness must report NO_SKILL, never COLLAPSE."""
-    return pd.Series(np.random.default_rng(seed).normal(size=len(X_eval)), index=X_eval.index)
+    return pd.Series(np.random.default_rng([seed, 991, len(X_eval)]).normal(size=len(X_eval)), index=X_eval.index)
 
 
 def distinguish_from_memorizer(candidate: IdentityReport, memorizer: IdentityReport, gap: float = 0.3) -> dict:
@@ -807,3 +858,162 @@ def report_to_json(report: IdentityReport) -> str:
     return json.dumps({"seed": report.seed, "base_ic": report.base_ic, "base_topk": report.base_topk, "deterministic": report.deterministic,
                        "passed": report.passed, "digest": report.digest(), "verdicts": [dataclasses.asdict(v) for v in report.verdicts]},
                       sort_keys=True, default=str)
+
+
+# ---------------------------------------------------------------- dose-response: how much identity does the learner use?
+def substitution_curve(learner: Learner, X_train, y_train, X_eval, y_eval, fractions: Sequence[float] = (0.25, 0.5, 0.75, 1.0),
+                       seed: int = 0, k: int = 5) -> pd.DataFrame:
+    """Retention of skill as a growing fraction of the evaluated tickers swap identities. A memoriser's retention falls in
+    proportion to the fraction changed (about 1 - f); a learner with transferable knowledge stays flat. The slope of this curve
+    is a graded, threshold-free measure of memorisation."""
+    s0 = learner(X_train, y_train, X_eval, seed).astype(float)
+    ic0 = per_date_ic(s0, y_eval)
+    base = float(ic0.mean()) if len(ic0) else float("nan")
+    rows = []
+    for f in fractions:
+        t = stock_substitution(X_eval, y_eval, seed + 17, frac=float(f))
+        s = learner(X_train, y_train, t.X, seed).astype(float)
+        ic = per_date_ic(s, t.y)
+        att = float(ic.mean()) if len(ic) else float("nan")
+        rows.append({"fraction": float(f), "changed_frac": t.changed_frac, "ic": att,
+                     "retention": att / base if np.isfinite(att) and np.isfinite(base) and abs(base) > 1e-12 else float("nan"),
+                     "topk": top_k_spread(s, t.y, k)})
+    return pd.DataFrame(rows, columns=["fraction", "changed_frac", "ic", "retention", "topk"])
+
+
+def memorisation_slope(curve: pd.DataFrame) -> float:
+    """Least-squares slope of retention against the fraction of names changed. About -1 for a lookup table, about 0 for a
+    learner that does not use identity. NaN if fewer than two usable points."""
+    d = curve.dropna(subset=["retention", "changed_frac"])
+    if len(d) < 2 or d["changed_frac"].nunique() < 2:
+        return float("nan")
+    return float(np.polyfit(d["changed_frac"].to_numpy(dtype=float), d["retention"].to_numpy(dtype=float), 1)[0])
+
+
+def name_versus_order(learner: Learner, X_train, y_train, X_eval, y_eval, seed: int = 0) -> dict:
+    """Separate 'depends on the ticker NAMES' from 'depends on their ALPHABETICAL ORDER' (the tie-break leak). Fresh opaque
+    codes that keep the alphabetical order are compared with codes that scramble it; a learner that only cares about order
+    is hit by the second and not the first."""
+    def skill(t):
+        s = learner(X_train, y_train, t.X, seed).astype(float)
+        ic = per_date_ic(s, t.y)
+        return float(ic.mean()) if len(ic) else float("nan")
+    base_s = learner(X_train, y_train, X_eval, seed).astype(float)
+    base = per_date_ic(base_s, y_eval)
+    b = float(base.mean()) if len(base) else float("nan")
+    same_order = skill(ticker_permutation(X_eval, y_eval, seed + 3, order_preserving=True))
+    scrambled = skill(ticker_permutation(X_eval, y_eval, seed + 3, order_preserving=False))
+    ratio = lambda v: v / b if np.isfinite(v) and np.isfinite(b) and abs(b) > 1e-12 else float("nan")       # noqa: E731
+    r_names, r_scr = ratio(same_order), ratio(scrambled)
+    verdict = "NAMES" if np.isfinite(r_names) and r_names < 0.5 else "ORDER" if np.isfinite(r_scr) and r_scr < 0.5 else "NEITHER"
+    return {"base_ic": b, "new_names_same_order": same_order, "scrambled": scrambled, "retention_new_names": r_names,
+            "retention_scrambled": r_scr, "depends_on": verdict}
+
+
+def attack_power(report: IdentityReport) -> pd.DataFrame:
+    """Per attack: was it actually strong enough to matter? Rows changed, retention, and whether the baseline could be judged.
+    An attack that changed few rows, or ran on a baseline with no skill, proves nothing either way."""
+    rows = []
+    for v in report.verdicts:
+        rows.append({"kind": v.kind, "mode": v.mode, "changed_frac": v.changed_frac, "retention": v.retention, "status": v.status,
+                     "informative": v.status in ("OK", "COLLAPSE") and v.changed_frac >= 0.25})
+    return pd.DataFrame(rows, columns=["kind", "mode", "changed_frac", "retention", "status", "informative"])
+
+
+# ---------------------------------------------------------------- cross-identity transfer
+def cross_identity_transfer(learner: Learner, X: pd.DataFrame, y: pd.Series, seed: int = 0, train_frac: float = 0.5, k: int = 5) -> dict:
+    """Train on half the tickers (and the first part of time), evaluate three ways: on the SAME tickers later (time
+    transfer), on UNSEEN tickers over the same period (stock transfer), and on unseen tickers later (both). A learner with
+    transferable knowledge scores alike in all three; a name-keyed one loses the stock transfer. Contract sections 26/29."""
+    _check_panel(X)
+    tk = sorted(set(_tickers(X)))
+    rng = np.random.default_rng(seed)
+    train_t = set(rng.permutation(tk)[:max(1, int(len(tk) * train_frac))])
+    dates = sorted(set(_dates(X)))
+    cut = dates[int(len(dates) * train_frac)]
+    dmask = np.asarray(_dates(X) < cut)
+    tmask = np.asarray(_tickers(X).isin(train_t))
+
+    def part(rows):
+        return X[rows], y.reindex(X.index)[rows]
+    Xtr, ytr = part(dmask & tmask)
+    out = {"n_train": int(len(Xtr))}
+    for name, rows in (("time", ~dmask & tmask), ("stock", dmask & ~tmask), ("both", ~dmask & ~tmask)):
+        Xe, ye = part(rows)
+        if not len(Xe):
+            out[name] = float("nan")
+            continue
+        s = learner(Xtr, ytr, Xe, seed).astype(float)
+        ic = per_date_ic(s, ye)
+        out[name] = float(ic.mean()) if len(ic) else float("nan")
+        out[f"{name}_topk"] = top_k_spread(s, ye, k)
+    ref = out["time"]
+    out["stock_retention"] = out["stock"] / ref if np.isfinite(out["stock"]) and np.isfinite(ref) and abs(ref) > 1e-12 else float("nan")
+    out["transfers_across_stocks"] = bool(np.isfinite(out["stock_retention"]) and out["stock_retention"] >= 0.5)
+    return out
+
+
+def battery_markdown(bat: BatteryResult) -> str:
+    """Report of a multi-seed battery: collapse frequency per attack and the attacks that bite in most seeds."""
+    t = bat.collapse_rate()
+    lines = [f"# Identity battery over seeds {list(bat.seeds)}", f"all seeds passed: {bat.passed}", "",
+             "| attack | mode | seeds | collapse rate | mean retention |", "|---|---|---|---|---|"]
+    for _, r in t.iterrows():
+        lines.append(f"| {r['kind']} | {r['mode']} | {int(r['n'])} | {r['collapse_rate']:.0%} | {r['mean_retention']:.2f} |")
+    if bat.robust_collapse():
+        lines.append("")
+        lines.append("Robust collapse (memorisation suspected): " + ", ".join(bat.robust_collapse()))
+    lines.append("")
+    lines.append("IMPLEMENTED - NOT VALIDATED.")
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------- can the instrument see memorisation? (harness self-check)
+def harness_selfcheck(seed: int = 0, n_dates: int = 40, n_names: int = 18, boot: int = 80) -> dict:
+    """Run the four reference learners through the harness on a synthetic panel with a real (linear) signal and a planted
+    per-ticker effect, and check each lands where it must: the memoriser COLLAPSES on the rerun, the ticker lookup collapses on
+    ticker attacks only, the legitimate ridge stays OK, the random learner has NO_SKILL. A harness that fails this cannot be
+    trusted on a real learner (instruments lie in both directions)."""
+    rng = np.random.default_rng(seed)
+    dates = pd.bdate_range("2019-01-04", periods=n_dates * 5)[::5][:n_dates]
+    tickers = [f"H{i:03d}" for i in range(n_names)]
+    idx = pd.MultiIndex.from_product([dates, tickers], names=["date", "ticker"])
+    X = pd.DataFrame({"f1": rng.normal(size=len(idx)), "f2": rng.normal(size=len(idx))}, index=idx)
+    tk_effect = np.tile(np.linspace(-0.03, 0.03, n_names), n_dates)
+    y = pd.Series(0.03 * X["f1"].to_numpy() + tk_effect + rng.normal(0, 0.03, len(idx)), index=idx, name="y")
+    half = dates[n_dates // 2]
+    tr = np.asarray(X.index.get_level_values(0) < half)
+    Xtr, ytr, Xte, yte = X[tr], y[tr], X[~tr], y[~tr]
+    kw = dict(attacks=("ticker_permutation", "date_permutation"), modes=("eval",), boot=boot, seed=seed)
+    out = {}
+    out["memorizer"] = IdentityHarness(memorizer_learner, **kw).run(X, y, X, y)
+    out["ticker_mean"] = IdentityHarness(ticker_mean_learner, **kw).run(Xtr, ytr, Xte, yte)
+    out["ridge"] = IdentityHarness(ridge_learner, **kw).run(Xtr, ytr, Xte, yte)
+    out["random"] = IdentityHarness(random_learner, **kw).run(Xtr, ytr, Xte, yte)
+
+    def st(rep, kind):
+        return next(v.status for v in rep.verdicts if v.kind == kind)
+    expect = {"memorizer/ticker": (st(out["memorizer"], "ticker_permutation"), "COLLAPSE"),
+              "memorizer/date": (st(out["memorizer"], "date_permutation"), "COLLAPSE"),
+              "ridge/ticker": (st(out["ridge"], "ticker_permutation"), "OK"), "ridge/date": (st(out["ridge"], "date_permutation"), "OK"),
+              "ticker_mean/date": (st(out["ticker_mean"], "date_permutation"), "OK"),
+              "random/ticker": (st(out["random"], "ticker_permutation"), "NO_SKILL")}
+    wrong = {k: {"got": g, "want": w} for k, (g, w) in expect.items() if g != w}
+    return {"ok": not wrong, "wrong": wrong, "observed": {k: v[0] for k, v in expect.items()},
+            "memorizer_distinguished": distinguish_from_memorizer(out["ridge"], out["memorizer"])["distinguishable"]}
+
+
+def retention_summary(report: IdentityReport) -> dict:
+    """Mean / worst retention per mode across attacks that could be judged, and how many attacks were informative."""
+    out = {}
+    for mode in MODES:
+        r = [v.retention for v in report.verdicts if v.mode == mode and np.isfinite(v.retention)]
+        out[mode] = {"mean": float(np.mean(r)) if r else float("nan"), "worst": float(np.min(r)) if r else float("nan"), "n": len(r)}
+    return out
+
+
+def is_identity_free(learner: Learner, X_train, y_train, X_eval, seed: int = 0, tol: float = 0.05) -> bool:
+    """Quick structural test: shuffling only the ticker labels of the evaluated rows (values untouched) must not change the
+    learner's scores once mapped back. True means the learner does not read identity at all."""
+    res = label_only_sensitivity(learner, X_train, y_train, X_eval, seed)
+    return bool(np.isfinite(res.get("sensitivity", float("nan"))) and res["sensitivity"] <= tol)

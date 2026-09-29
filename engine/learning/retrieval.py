@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import dataclasses
 import datetime as dt
+import functools
 import math
 from typing import Any, Iterable, Mapping, Sequence
 
@@ -869,6 +870,7 @@ class RetrievalLog:
         import json
         rec = retrieval.record(now)
         rec["influence"], rec["skill_status"], rec["withheld_reason"] = retrieval.influence, retrieval.skill_status, retrieval.withheld_reason
+        rec["code_hash"] = _code_hash()
         if self.path is not None:
             with self.path.open("a", encoding="utf-8", newline="\n") as f:
                 f.write(json.dumps(rec, sort_keys=True) + chr(10))
@@ -889,6 +891,7 @@ class RetrievalLog:
         no longer reproduces what was logged; the difference in ids is returned for the audit."""
         again = retriever.retrieve(sit, record["now"])
         return {"match": again.retrieval_id == record["retrieval_id"], "logged": record["retrieval_id"], "now_id": again.retrieval_id,
+                "stale_code": stale_code(record),
                 "logged_items": [i["knowledge_id"] for i in record["items"]], "now_items": list(again.ids())}
 
 
@@ -958,3 +961,451 @@ def import_support(index: KnowledgeIndex, state: Mapping[str, Any]) -> dict[str,
             if a in index and b in index:
                 index.set_redundancy(a, b, v)
     return counts
+
+
+# ------------------------------------------------------------------------------------------------ decision-ready output
+
+@dataclasses.dataclass(frozen=True)
+class RetrievalPolicy:
+    """Thresholds that turn a Retrieval into use / abstain. Deliberately conservative: nothing retrieved is knowledge
+    until it is similar enough, backed by enough outcome cases, in agreement, and allowed to influence."""
+    min_top_score: float = 0.45
+    min_expected_n: int = 8
+    min_majority_share: float = 0.7
+    max_disagreement: float = 0.05
+
+    def validate(self) -> list[str]:
+        errs = []
+        if not 0.0 <= self.min_top_score <= 1.0 or not 0.5 <= self.min_majority_share <= 1.0:
+            errs.append("score / majority thresholds out of range")
+        if self.min_expected_n < 1 or self.max_disagreement <= 0:
+            errs.append("min_expected_n < 1 or max_disagreement <= 0")
+        return errs
+
+
+def decide(retrieval: Retrieval, index: KnowledgeIndex | None = None, policy: RetrievalPolicy | None = None) -> dict[str, Any]:
+    """{'action': 'USE' | 'ABSTAIN', 'reasons': [...], 'expected': float | None, ...}. ABSTAIN is the default answer: every
+    condition that fails is listed, so a caller (and a later postmortem) can see exactly why retrieval declined to speak."""
+    policy = policy or RetrievalPolicy()
+    errs = policy.validate()
+    if errs:
+        raise ValueError("; ".join(errs))
+    reasons: list[str] = []
+    if not retrieval.items:
+        reasons.append(f"nothing retrieved ({retrieval.unknown})")
+    if not retrieval.influence:
+        reasons.append(f"retrieval may not influence decisions: {retrieval.withheld_reason}")
+    comb = combine(retrieval, index)
+    if retrieval.items and retrieval.items[0].score < policy.min_top_score:
+        reasons.append(f"best score {retrieval.items[0].score:.2f} < {policy.min_top_score:.2f}")
+    if retrieval.items and comb["expected"] is None:
+        reasons.append("no retrieved item has outcome evidence")
+    elif comb["expected"] is not None:
+        n_ev = sum(i.expected_n for i in retrieval.items if i.expected_edge is not None)
+        if n_ev < policy.min_expected_n:
+            reasons.append(f"only {n_ev} outcome cases behind the expectation (< {policy.min_expected_n})")
+        if comb["majority_share"] < policy.min_majority_share:
+            reasons.append(f"items disagree on direction (majority share {comb['majority_share']:.2f})")
+        if comb["disagreement"] > policy.max_disagreement:
+            reasons.append(f"items disagree on size (spread {comb['disagreement']:.3f})")
+    return {"action": "ABSTAIN" if reasons else "USE", "reasons": reasons, "expected": None if reasons else comb["expected"],
+            "candidate_expected": comb["expected"], "n_items": len(retrieval.items), "retrieval_id": retrieval.retrieval_id}
+
+
+# ------------------------------------------------------------------------------------------------ comparing retrievals
+
+def explain_rank_change(before: Retrieval, after: Retrieval) -> str:
+    """After learning (new evidence, new weights), what moved and on which factors? The retrieval half of a learning delta:
+    an item that rose because a factor became measured is a different story from one that rose because of noise."""
+    b = {i.knowledge_id: i for i in before.items}
+    a = {i.knowledge_id: i for i in after.items}
+    lines = []
+    for kid in sorted(set(b) | set(a)):
+        if kid not in b:
+            lines.append(f"+ {kid} entered at rank {a[kid].rank} (score {a[kid].score:.3f})")
+        elif kid not in a:
+            why = next((r.reasons[0] for r in after.rejected if r.knowledge_id == kid), "fell out of the top k")
+            lines.append(f"- {kid} left (was rank {b[kid].rank}): {why}")
+        elif a[kid].rank != b[kid].rank or abs(a[kid].score - b[kid].score) > 1e-9:
+            moved = sorted(((f, (a[kid].factor(f) or 0.0) - (b[kid].factor(f) or 0.0)) for f in FACTORS
+                            if (a[kid].factor(f) or 0.0) != (b[kid].factor(f) or 0.0)), key=lambda kv: -abs(kv[1]))[:3]
+            lines.append(f"~ {kid} rank {b[kid].rank} -> {a[kid].rank}, score {b[kid].score:.3f} -> {a[kid].score:.3f}"
+                         + ("; factors: " + ", ".join(f"{f} {d:+.2f}" for f, d in moved) if moved else ""))
+    return "\n".join(lines) or "no change"
+
+
+def counterfactual(retriever: Retriever, sit: Situation, now, without: Iterable[str], k: int | None = None) -> dict[str, Any]:
+    """What would have been retrieved had the given knowledge not existed? Used by credit assignment: the difference
+    between the real and the counterfactual retrieval is what those items contributed."""
+    drop = set(without)
+    ix = KnowledgeIndex()
+    for it in retriever.index.items():
+        if str(it.knowledge_id) not in drop:
+            ix.add_item(it)
+            for c in retriever.index.support(str(it.knowledge_id)):
+                ix.add_support(str(it.knowledge_id), c.situation, c.matured, c.outcome, c.ref)
+    for a, row in retriever.index._contradicts.items():
+        for b, v in row.items():
+            if a in ix and b in ix:
+                ix.set_contradiction(a, b, v)
+    for a, row in retriever.index._redundant.items():
+        for b, v in row.items():
+            if a in ix and b in ix:
+                ix.set_redundancy(a, b, v)
+    alt = Retriever(ix, retriever.weights, retriever.cfg, retriever.sim_weights, retriever.monitor).retrieve(sit, now, k=k)
+    real = retriever.retrieve(sit, now, k=k)
+    return {"real": real.ids(), "without": alt.ids(), "changed": real.ids() != alt.ids(),
+            "expected_real": combine(real, retriever.index)["expected"], "expected_without": combine(alt, ix)["expected"]}
+
+
+# ------------------------------------------------------------------------------------------------ evidence audits
+
+def audit_support(index: KnowledgeIndex, now, min_distinct: float = 0.5, max_share: float = 0.5) -> dict[str, dict[str, Any]]:
+    """Quality of each item's support cases, so an item resting on one repeated situation cannot look like broad evidence:
+    distinct-situation share, share of the single most common situation, outcome coverage, and the newest case. Cases that
+    matured at/after `now` are counted as `future` (and would make retrieval raise). Flags list every failed check."""
+    out: dict[str, dict[str, Any]] = {}
+    for kid in index.ids():
+        cases = index.support(kid)
+        n = len(cases)
+        if n == 0:
+            out[kid] = {"n": 0, "flags": ["no support cases"]}
+            continue
+        ids = [c.situation.situation_id for c in cases]
+        counts: dict[str, int] = {}
+        for i in ids:
+            counts[i] = counts.get(i, 0) + 1
+        distinct = len(counts) / n
+        top_share = max(counts.values()) / n
+        with_outcome = sum(c.outcome is not None for c in cases)
+        future = sum(as_date(c.matured) >= as_date(now) for c in cases)
+        flags = []
+        if distinct < min_distinct:
+            flags.append(f"low diversity: {len(counts)} distinct situations in {n} cases")
+        if top_share > max_share:
+            flags.append(f"{top_share:.0%} of the cases are one situation")
+        if with_outcome < n:
+            flags.append(f"{n - with_outcome} cases without an outcome")
+        if future:
+            flags.append(f"{future} cases not matured before now")
+        out[kid] = {"n": n, "distinct_share": round(distinct, 4), "top_share": round(top_share, 4), "outcome_share": round(with_outcome / n, 4),
+                    "future": future, "newest": str(max(as_date(c.matured) for c in cases)), "flags": flags}
+    return out
+
+
+def index_summary(index: KnowledgeIndex) -> dict[str, Any]:
+    items = index.items()
+    by_promo: dict[str, int] = {}
+    by_epi: dict[str, int] = {}
+    for it in items:
+        by_promo[str(it.promotion)] = by_promo.get(str(it.promotion), 0) + 1
+        by_epi[str(it.epistemic)] = by_epi.get(str(it.epistemic), 0) + 1
+    return {"items": len(items), "support_cases": sum(len(index.support(str(i.knowledge_id))) for i in items),
+            "promotion": by_promo, "epistemic": by_epi,
+            "contradiction_edges": sum(len(v) for v in index._contradicts.values()) // 2,
+            "redundancy_edges": sum(len(v) for v in index._redundant.values()) // 2}
+
+
+def calibration_of_expected(retrievals: Sequence[Retrieval], outcomes: Sequence[Mapping[str, float]], bins: int = 4) -> dict[str, Any]:
+    """Is the expected edge calibrated? Items binned by expected edge; per bin the mean expected and mean realised edge.
+    slope = regression of realised on expected (1 = calibrated, 0 = uninformative, negative = misleading)."""
+    xs, ys = [], []
+    for r, o in zip(retrievals, outcomes):
+        for i in r.items:
+            if i.expected_edge is not None and i.knowledge_id in o:
+                xs.append(i.expected_edge)
+                ys.append(o[i.knowledge_id])
+    if len(xs) < 4 * bins:
+        return {"n": len(xs), "slope": float("nan"), "table": [], "status": "INSUFFICIENT_EVIDENCE"}
+    x, y = np.array(xs), np.array(ys)
+    order = np.argsort(x, kind="stable")
+    table = [{"mean_expected": float(x[c].mean()), "mean_realised": float(y[c].mean()), "n": int(len(c))} for c in np.array_split(order, bins)]
+    slope = float(np.polyfit(x, y, 1)[0]) if x.std() > 1e-12 else float("nan")
+    status = "MISLEADING" if slope <= 0 else "OVERCONFIDENT" if slope < 0.5 else "CALIBRATED" if slope <= 1.5 else "UNDERCONFIDENT"
+    return {"n": len(xs), "slope": slope, "table": table, "status": status}
+
+
+@functools.lru_cache(maxsize=1)
+def _code_hash() -> str:
+    from .core import current_code_hash
+    return current_code_hash()
+
+
+def stale_code(record: Mapping[str, Any]) -> bool:
+    """True if a logged retrieval was made by different code than is loaded now (its result must not be trusted as a replay)."""
+    return bool(record.get("code_hash")) and record["code_hash"] != _code_hash()
+
+def register_prediction(retrieval: Retrieval, monitor: SkillMonitor, made_on, index: KnowledgeIndex | None = None) -> float | None:
+    """Record what this retrieval expects, at the time it is made, so its later outcome can be scored walk-forward. Returns the
+    expected edge recorded (None when the retrieval has no outcome evidence: nothing is predicted, nothing is scored)."""
+    expected = combine(retrieval, index)["expected"]
+    monitor.predict(retrieval.retrieval_id, made_on, expected)
+    return expected
+
+
+def resolve_outcome(retrieval: Retrieval, monitor: SkillMonitor, matured, realised: float) -> bool:
+    """Feed the realised edge back once it is known. Returns False if this retrieval had recorded no prediction."""
+    try:
+        monitor.resolve(retrieval.retrieval_id, matured, realised)
+    except KeyError:
+        return False
+    return True
+
+
+def index_health(index: KnowledgeIndex, now, policy_min_cases: int = 20) -> str:
+    """Readable summary of an index for a report: counts, items with thin or repetitive support, and unmatured cases."""
+    aud = audit_support(index, now)
+    summ = index_summary(index)
+    thin = sorted(k for k, v in aud.items() if v["n"] < policy_min_cases)
+    flagged = {k: v["flags"] for k, v in aud.items() if v["flags"] and v["n"] >= 1}
+    lines = [f"{summ['items']} knowledge items, {summ['support_cases']} support cases, "
+             f"{summ['contradiction_edges']} contradiction and {summ['redundancy_edges']} redundancy links"]
+    if thin:
+        lines.append(f"thin support (< {policy_min_cases} cases): {', '.join(thin)}")
+    for k, f in sorted(flagged.items()):
+        lines.append(f"{k}: " + "; ".join(f))
+    return "\n".join(lines)
+
+def retrieve_by_effect(retriever: Retriever, sit: Situation, now, effects: Iterable[DecisionEffect] | None = None,
+                       k: int | None = None) -> dict[str, Retrieval]:
+    """One retrieval per decision the knowledge can change (ranking, selection, direction, timing, exit, stop, size...).
+    Knowledge that only changes one decision cannot leak into another; the caller sees per-decision evidence and per-decision
+    abstentions instead of one blended list."""
+    eff = list(effects) if effects is not None else sorted({e for it in retriever.index.items() for e in it.decision_effect
+                                                            if e != DecisionEffect.NONE}, key=str)
+    return {str(e): retriever.retrieve(sit, now, decision_effect=e, k=k) for e in eff}
+
+def factor_predictiveness(retrievals: Sequence[Retrieval], outcomes: Sequence[Mapping[str, float]]) -> dict[str, float]:
+    """Spearman correlation of each ranking factor with the realised edge, over every retrieved item whose outcome is known.
+    A factor that does not predict is a candidate for a lower weight (`fit_retrieval_weights`); one that predicts backwards
+    is a defect in how the factor is measured."""
+    from scipy.stats import spearmanr
+    cols: dict[str, list[float]] = {f: [] for f in FACTORS}
+    ys: list[float] = []
+    for r, o in zip(retrievals, outcomes):
+        for it in r.items:
+            if it.knowledge_id in o:
+                ys.append(o[it.knowledge_id])
+                for f in FACTORS:
+                    v = it.factor(f)
+                    cols[f].append(np.nan if v is None else v)
+    out: dict[str, float] = {}
+    y = np.array(ys, float)
+    for f, v in cols.items():
+        x = np.array(v, float)
+        ok = ~np.isnan(x)
+        if ok.sum() >= 15 and x[ok].std() > 1e-12 and y[ok].std() > 1e-12:
+            out[f] = round(float(spearmanr(x[ok], y[ok])[0]), 4)
+    return out
+
+
+def walk_forward_replay(retriever: Retriever, events: Sequence[Mapping[str, Any]], monitor: SkillMonitor | None = None) -> dict[str, Any]:
+    """Replay retrieval through time. Each event: {situation, made_on, matured, edge} (edge = realised edge of acting on it).
+    Events are processed in `made_on` order; before each retrieval every earlier event whose outcome has matured strictly
+    before `made_on` is fed back to the monitor, so the skill status a retrieval sees is exactly what was knowable then.
+    Returns per-event influence/action, the final skill status and how often retrieval was allowed to speak."""
+    if monitor is not None:
+        retriever.monitor = monitor
+    order = sorted(range(len(events)), key=lambda i: (as_date(events[i]["made_on"]), i))
+    pending: list[tuple[Any, Retrieval, float]] = []
+    rows = []
+    for i in order:
+        ev = events[i]
+        made = as_date(ev["made_on"])
+        due = [p for p in pending if as_date(p[0]) < made]
+        pending = [p for p in pending if as_date(p[0]) >= made]
+        for matured, r, edge in due:
+            if retriever.monitor is not None:
+                resolve_outcome(r, retriever.monitor, matured, edge)
+        r = retriever.retrieve(ev["situation"], made)
+        if retriever.monitor is not None and r.items:
+            register_prediction(r, retriever.monitor, made, retriever.index)
+        pending.append((ev["matured"], r, float(ev["edge"])))
+        d = decide(r, retriever.index)
+        rows.append({"event": i, "made_on": str(made), "influence": r.influence, "skill_status": r.skill_status, "action": d["action"],
+                     "n_items": len(r.items), "expected": d["candidate_expected"], "edge": float(ev["edge"])})
+    spoke = [r for r in rows if r["action"] == "USE"]
+    final = None
+    if retriever.monitor is not None and order:
+        final = retriever.monitor.status(max(as_date(e["matured"]) for e in events) + dt.timedelta(days=1))
+    return {"rows": rows, "n": len(rows), "spoke_share": len(spoke) / len(rows) if rows else float("nan"),
+            "mean_edge_when_used": float(np.mean([r["edge"] * np.sign(r["expected"]) for r in spoke])) if spoke else None,
+            "final_skill": final}
+
+
+def find_stale(index: KnowledgeIndex, now, max_age_years: float = 3.0, min_temporal: float = 0.25) -> dict[str, list[str]]:
+    """Items whose evidence is older than `max_age_years` or whose temporal-class relevance has decayed below `min_temporal`
+    (blank situation: neutral). Stale items are not deleted; they are the queue for re-testing or retirement."""
+    out: dict[str, list[str]] = {}
+    for it in index.items():
+        kid = str(it.knowledge_id)
+        why = []
+        age = _age_years(it.provenance.outcomes_seen_through or it.provenance.learned_at, now)
+        if age > max_age_years:
+            why.append(f"evidence is {age:.1f} years old")
+        tr, _ = temporal_relevance(it, _neutral_situation(), now, index.support(kid))
+        if tr is not None and tr < min_temporal:
+            why.append(f"temporal relevance {tr:.2f} < {min_temporal:.2f}")
+        if why:
+            out[kid] = why
+    return out
+
+
+def _neutral_situation() -> Situation:
+    from .situation import Block, BLOCK_ORDER
+    return Situation(tuple(Block.make(k) for k in BLOCK_ORDER))
+
+
+def merge_indexes(a: KnowledgeIndex, b: KnowledgeIndex) -> KnowledgeIndex:
+    """Union of two indexes. For the same knowledge id the higher version wins (ties keep `a`); support cases are unioned by
+    ref so a case present in both is not double counted; relations are unioned with the stronger value winning."""
+    out = KnowledgeIndex()
+    for src in (a, b):
+        for it in src.items():
+            out.add_item(it)
+    for src in (a, b):
+        for kid in src.ids():
+            if int(src.get(kid).version) != int(out.get(kid).version):
+                continue                                          # support of a superseded version is not carried over
+            have = {c.ref for c in out.support(kid)}
+            for c in src.support(kid):
+                if c.ref not in have:
+                    out.add_support(kid, c.situation, c.matured, c.outcome, c.ref)
+                    have.add(c.ref)
+    for rel, setter in (("_contradicts", out.set_contradiction), ("_redundant", out.set_redundancy)):
+        best: dict[tuple, float] = {}
+        for src in (a, b):
+            for x, row in getattr(src, rel).items():
+                for y, v in row.items():
+                    if x in out and y in out:
+                        key = tuple(sorted((x, y)))
+                        best[key] = max(best.get(key, 0.0), v)
+        for (x, y), v in best.items():
+            setter(x, y, v)
+    return out
+
+
+def concentration_report(retrievals: Sequence[Retrieval], index: KnowledgeIndex) -> dict[str, Any]:
+    """Over a run of retrievals: how often each item is retrieved, how concentrated that is (Herfindahl), and which items
+    were never retrieved. Heavy reliance on one item is a fragility; items that never fire are dead weight or mis-scoped."""
+    counts: dict[str, int] = {}
+    total = 0
+    for r in retrievals:
+        for i in r.items:
+            counts[i.knowledge_id] = counts.get(i.knowledge_id, 0) + 1
+            total += 1
+    hhi = float(sum((c / total) ** 2 for c in counts.values())) if total else float("nan")
+    return {"retrievals": len(retrievals), "empty": sum(not r.items for r in retrievals), "counts": dict(sorted(counts.items())),
+            "herfindahl": hhi, "never_retrieved": [k for k in index.ids() if k not in counts],
+            "top_share": float(max(counts.values()) / total) if total else float("nan")}
+
+def rank_quality_p(retrievals: Sequence[Retrieval], outcomes: Sequence[Mapping[str, float]], n_perm: int = 500, seed: int = 0) -> dict[str, float]:
+    """Permutation p-value for `rank_quality`: is the score/edge rank correlation larger than when edges are shuffled among the
+    retrieved items? Returns the observed Spearman, the null mean and a one-sided p (score predicts edge)."""
+    from scipy.stats import rankdata
+    xs, ys = [], []
+    for r, o in zip(retrievals, outcomes):
+        for i in r.items:
+            if i.knowledge_id in o:
+                xs.append(i.score)
+                ys.append(o[i.knowledge_id])
+    if len(xs) < 8 or np.std(xs) < 1e-12 or np.std(ys) < 1e-12:
+        return {"n": len(xs), "spearman": float("nan"), "null_mean": float("nan"), "p": float("nan")}
+    rx, ry = rankdata(xs), rankdata(ys)
+    obs = float(np.corrcoef(rx, ry)[0, 1])
+    rng = np.random.default_rng(seed)
+    null = np.array([np.corrcoef(rx, rng.permutation(ry))[0, 1] for _ in range(n_perm)])
+    return {"n": len(xs), "spearman": obs, "null_mean": float(null.mean()), "p": float((1 + (null >= obs).sum()) / (n_perm + 1))}
+
+
+def influence_shares(retrieval: Retrieval) -> dict[str, float]:
+    """Share of the decision weight each retrieved item carries (its score over the total). A retrieval where one item holds
+    nearly all of it is a single-item bet; the shares are what credit assignment (section 20) divides among items."""
+    tot = sum(max(i.score, 0.0) for i in retrieval.items)
+    if tot <= 0:
+        return {}
+    return {i.knowledge_id: round(max(i.score, 0.0) / tot, 6) for i in retrieval.items}
+
+
+def support_leverage(index: KnowledgeIndex, kid: str, sit: Situation, now, top: int = 3,
+                     sim_weights: SimilarityWeights = DEFAULT_SIMILARITY) -> dict[str, Any]:
+    """How much does one support case move an item's expected edge here? Drops each contributing case in turn and reports the
+    largest shifts. A single case with outsized leverage means the item's evidence in this situation is one anecdote."""
+    cases = [c for c in index.support(kid) if c.outcome is not None]
+    base = support_expectation(index, kid, sit, now, sim_weights)
+    if base["mean"] is None or len(cases) < 3:
+        return {"base": base["mean"], "max_shift": None, "top": [], "verdict": Unknown.INSUFFICIENT_DATA}
+    shifts = []
+    for c in cases:
+        sub = KnowledgeIndex()
+        sub.add_item(index.get(kid))
+        for d in cases:
+            if d.ref != c.ref:
+                sub.add_support(kid, d.situation, d.matured, d.outcome, d.ref)
+        alt = support_expectation(sub, kid, sit, now, sim_weights)["mean"]
+        if alt is not None:
+            shifts.append((c.ref, alt - base["mean"]))
+    shifts.sort(key=lambda kv: -abs(kv[1]))
+    worst = abs(shifts[0][1]) if shifts else 0.0
+    scale = max(abs(base["mean"]), 1e-9)
+    return {"base": base["mean"], "max_shift": worst, "top": shifts[:top], "verdict": "ANECDOTE" if worst > 0.5 * scale else "ROBUST"}
+
+def factor_table(retrieval: Retrieval) -> list[dict[str, Any]]:
+    """Report rows: one per retrieved item with every factor value (None = untested), the score and the flags."""
+    return [{"rank": i.rank, "knowledge_id": i.knowledge_id, "score": i.score, "base": i.base_score, **{f.name: f.value for f in i.factors},
+             "untested": ",".join(i.untested), "flags": ",".join(i.flags), "expected_edge": i.expected_edge, "expected_n": i.expected_n}
+            for i in retrieval.items]
+
+
+def ablation_suite(retriever: Retriever, sits: Sequence[Situation], now, k: int | None = None) -> dict[str, dict[str, float]]:
+    """Ablate each positive factor across many queries: mean top-k overlap and the share of queries whose top-1 changes. A
+    factor that never changes anything is inert (weight without effect); one that changes everything dominates."""
+    out = {f: {"overlap": 0.0, "top1_change": 0.0} for f in POSITIVE_FACTORS}
+    live = [s for s in sits if retriever.retrieve(s, now, k=k).items]
+    if not live:
+        return {}
+    for f in POSITIVE_FACTORS:
+        ov, ch = [], []
+        for s in live:
+            a = retriever.ablate(s, now, f, k=k)
+            ov.append(a["overlap"])
+            ch.append(not a["top1_same"])
+        out[f] = {"overlap": float(np.mean(ov)), "top1_change": float(np.mean(ch))}
+    return out
+
+def config_to_record(cfg: RetrievalConfig) -> dict[str, Any]:
+    d = dataclasses.asdict(cfg)
+    d["allowed_promotions"] = [str(p) for p in cfg.allowed_promotions]
+    return d
+
+
+def config_from_record(d: Mapping[str, Any]) -> RetrievalConfig:
+    d = dict(d)
+    d["allowed_promotions"] = tuple(Promotion(p) for p in d["allowed_promotions"])
+    cfg = RetrievalConfig(**d)
+    errs = cfg.validate()
+    if errs:
+        raise ValueError("; ".join(errs))
+    return cfg
+
+
+def drift_over_time(retriever: Retriever, sit: Situation, dates: Sequence[Any], k: int | None = None) -> dict[str, Any]:
+    """The same situation retrieved at several `now`s. Reports the id set at each date and the Jaccard overlap between
+    consecutive dates: how fast temporal relevance, modernity and newly matured evidence reshuffle the answer."""
+    seq = sorted(dates, key=as_date)
+    sets = [retriever.retrieve(sit, d, k=k).ids() for d in seq]
+    ov = []
+    for a, b in zip(sets, sets[1:]):
+        ua, ub = set(a), set(b)
+        ov.append(len(ua & ub) / len(ua | ub) if (ua or ub) else 1.0)
+    return {"dates": [str(as_date(d)) for d in seq], "ids": sets, "consecutive_overlap": ov, "min_overlap": min(ov) if ov else 1.0}
+
+
+def explain_influence(retrieval: Retrieval) -> str:
+    shares = influence_shares(retrieval)
+    if not shares:
+        return "no retrieved item carries decision weight"
+    parts = ", ".join(f"{k} {v:.0%}" for k, v in sorted(shares.items(), key=lambda kv: -kv[1]))
+    top = max(shares.values())
+    tag = " (single-item bet)" if top > 0.8 and len(shares) > 1 else ""
+    return f"decision weight: {parts}{tag}" + ("" if retrieval.influence else "; WITHHELD, no weight is applied")

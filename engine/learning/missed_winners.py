@@ -24,6 +24,7 @@ Status: IMPLEMENTED - NOT VALIDATED."""
 from __future__ import annotations
 
 import datetime as dt
+import dataclasses
 import enum
 import math
 from dataclasses import dataclass, field
@@ -965,3 +966,333 @@ def render_walk_forward(rep: WalkForwardReport, null: Mapping[str, Any] | None =
         lines.append(f"  null control: {null['passed']}/{null['tested']} shuffled-label distinctions passed "
                      f"(false discovery rate {null['false_discovery_rate']:.3f} vs alpha {null['alpha']})")
     return NL.join(lines)
+
+
+# ==================================================================================================================
+# what a distinction would have done, in full
+# ==================================================================================================================
+def rule_confusion(d: Distinction, weeks: Sequence[Week]) -> dict[str, Any]:
+    """Confusion of a rule against winners over ALL non-picked candidates: the price of promoting its matches (false
+    positives) next to the reward (true positives), with precision, recall and the lift over the non-picked base rate."""
+    tp = fp = fn = tn = 0
+    for w in weeks:
+        for c in w.candidates:
+            if c.picked or c.fwd is None:
+                continue
+            hit, win = d.apply(c.features), c.fwd >= w.thr
+            tp += hit and win
+            fp += hit and not win
+            fn += (not hit) and win
+            tn += (not hit) and not win
+    n = tp + fp + fn + tn
+    base_rate = (tp + fn) / n if n else float("nan")
+    prec = tp / (tp + fp) if tp + fp else float("nan")
+    return {"tp": tp, "fp": fp, "fn": fn, "tn": tn, "precision": prec, "recall": tp / (tp + fn) if tp + fn else float("nan"),
+            "base_rate": base_rate, "lift": prec / base_rate if tp + fp and base_rate else float("nan")}
+
+
+def promote_backtest(d: Distinction, weeks: Sequence[Week], swap_n: int = 3, seed: int = 0, now=None) -> pd.DataFrame:
+    """Week-by-week paired swap result: mean return of the rule's best-scored matches minus that of the weakest picks they
+    would displace, and the same for an equal number of random non-picked names. One row per week that had a match; the
+    frame carries era and winner-type of the swapped-in names so the gain can be broken down."""
+    rng = np.random.default_rng(seed)
+    rows = []
+    for w in weeks:
+        if now is not None:
+            require_past(w.resolved_at, now, f"week {w.label}")
+        cs = [c for c in w.candidates if c.fwd is not None]
+        picks = sorted((c for c in cs if c.picked), key=lambda c: (c.score if c.score is not None else 0.0, c.cid))
+        nonp = [c for c in cs if not c.picked]
+        match = sorted((c for c in nonp if d.apply(c.features)), key=lambda c: (-(c.score if c.score is not None else 0.0), c.cid))
+        m = min(swap_n, len(match), len(picks))
+        if m == 0:
+            continue
+        inn, out = match[:m], picks[:m]
+        rnd = [nonp[i] for i in rng.choice(len(nonp), size=m, replace=False)]
+        kinds = pd.Series([c.kind for c in inn]).mode()
+        rows.append({"period": w.label, "era": w.era, "kind": kinds.iloc[0] if len(kinds) else "other", "n_swap": m,
+                     "gain": float(np.mean([c.fwd for c in inn]) - np.mean([c.fwd for c in out])),
+                     "random_gain": float(np.mean([c.fwd for c in rnd]) - np.mean([c.fwd for c in out])),
+                     "winners_in": int(sum(c.fwd >= w.thr for c in inn)), "winners_out": int(sum(c.fwd >= w.thr for c in out))})
+    return pd.DataFrame(rows, columns=["period", "era", "kind", "n_swap", "gain", "random_gain", "winners_in", "winners_out"])
+
+
+def backtest_summary(bt: pd.DataFrame) -> dict[str, Any]:
+    """Headline and breakdowns of promote_backtest(): mean gain, hit fraction of weeks, worst week, cumulative drawdown of the
+    swap (a rule that wins on average but with an ugly drawdown is not free), and the gain by era and by winner type."""
+    if bt.empty:
+        return {"weeks": 0, "verdict": "NO_MATCHES"}
+    cum = bt["gain"].cumsum().to_numpy()
+    dd = float((cum - np.maximum.accumulate(cum)).min())
+    return {"weeks": len(bt), "mean_gain": float(bt["gain"].mean()), "mean_random": float(bt["random_gain"].mean()),
+            "positive_weeks": float((bt["gain"] > 0).mean()), "worst_week": float(bt["gain"].min()), "max_drawdown": dd,
+            "by_era": bt.groupby("era")["gain"].agg(["count", "mean"]).round(6).to_dict("index"),
+            "by_kind": bt.groupby("kind")["gain"].agg(["count", "mean"]).round(6).to_dict("index")}
+
+
+def reason_by_type(weeks: Sequence[Week], analyzer: RejectionAnalyzer | None = None) -> pd.DataFrame:
+    """Counts of missed winners by primary rejection reason (rows) and winner type (columns): which kinds of winner are
+    lost to which mechanism."""
+    analyzer = analyzer or RejectionAnalyzer()
+    rows = []
+    for w in weeks:
+        cmap = {c.cid: c for c in w.candidates}
+        for r in analyzer.explain_missed(w):
+            rows.append({"reason": r.primary.value, "kind": cmap[r.cid].kind})
+    if not rows:
+        return pd.DataFrame()
+    return pd.crosstab(pd.DataFrame(rows)["reason"], pd.DataFrame(rows)["kind"])
+
+
+def combine_rules(rules: Sequence[Distinction], weeks: Sequence[Week]) -> list[dict[str, Any]]:
+    """Incremental coverage of the missed winners by a list of rules taken in order: how many NEW missed winners each rule
+    adds beyond the ones already covered, and how many non-winners it drags in. Shows whether a second rule earns its place."""
+    seen: set[str] = set()
+    out = []
+    for d in rules:
+        new_w = new_l = 0
+        for w in weeks:
+            for c in w.candidates:
+                if c.picked or c.fwd is None or c.cid in seen or not d.apply(c.features):
+                    continue
+                seen.add(c.cid)
+                if c.fwd >= w.thr:
+                    new_w += 1
+                else:
+                    new_l += 1
+        out.append({"did": d.did, "rule": d.describe(), "new_winners": new_w, "new_losers": new_l,
+                    "precision": new_w / (new_w + new_l) if new_w + new_l else float("nan")})
+    return out
+
+
+def discovery_sensitivity(weeks: Sequence[Week], p: MissedParams, field_name: str, grid: Sequence[Any], seed: int = 0) -> list[dict[str, Any]]:
+    """Re-run discovery across a grid of ONE MissedParams setting (band, rank_caliper, complexity_penalty ...). A distinction
+    that survives the whole grid is a property of the data; one that appears at a single setting is a property of the setting."""
+    if field_name not in {f.name for f in dataclasses.fields(MissedParams)}:
+        raise ValueError(f"MissedParams has no field {field_name!r}")
+    out = []
+    for v in grid:
+        pv = dataclasses.replace(p, **{field_name: v})
+        found = find_distinctions(cohort_frame(weeks, pv), pv, seed)
+        top = found[0] if found else None
+        out.append({field_name: v, "found": len(found), "top_rule": top.describe() if top else None,
+                    "top_features": tuple(sorted({c[0] for c in top.conds})) if top else (), "p_fwer": top.p_fwer if top else float("nan")})
+    return out
+
+
+# ==================================================================================================================
+# synthetic weeks with a known truth (the method's own control experiment), and reason dynamics
+# ==================================================================================================================
+def synthetic_weeks(n: int = 60, n_cand: int = 60, k: int = 8, seed: int = 0, planted: bool = True, feats: Sequence[str] = ("f0", "f1", "f2", "f3", "f4", "f5"),
+                    start: str = "2019-01-07") -> list[Week]:
+    """Weeks whose selection score is f0 alone (blind to f1 and f2). With `planted`, winners are 8x likelier inside the region
+    f1 > 0.7 and f2 < 0.35 - a distinction the search should find and validate; without it every candidate wins at the same
+    12%, so anything the search reports is noise. Deterministic in `seed`."""
+    rng = np.random.default_rng(seed)
+    d0 = as_date(start)
+    weeks = []
+    for w in range(n):
+        F = {f: rng.random(n_cand) for f in feats}
+        region = (F["f1"] > 0.7) & (F["f2"] < 0.35)
+        pwin = np.where(region, 0.40, 0.05) if planted else np.full(n_cand, 0.12)
+        win = rng.random(n_cand) < pwin
+        fwd = np.where(win, rng.uniform(0.07, 0.15, n_cand), rng.normal(-0.01, 0.03, n_cand).clip(max=0.06))
+        score = F["f0"] + 0.05 * rng.normal(size=n_cand)
+        rank = (-score).argsort().argsort() + 1
+        cands = tuple(Candidate(cid=f"s{seed}w{w}c{i}", features={f: float(F[f][i]) for f in feats}, fwd=float(fwd[i]), picked=bool(rank[i] <= k),
+                                score=float(score[i]), rank=int(rank[i]), confidence=0.7, reliability=0.8) for i in range(n_cand))
+        day = d0 + dt.timedelta(days=7 * w)
+        weeks.append(Week(f"s{seed}wk{w}", str(day), str(day + dt.timedelta(days=7)), cands, k, WINNER, "early" if w < n // 2 else "late"))
+    return weeks
+
+
+def distinction_selfcheck(seed: int = 0, params: MissedParams | None = None) -> dict[str, Any]:
+    """Planted vs null in one call: the search must find and out-of-sample-confirm the planted rule and must NOT
+    significantly report anything on the null. Foundation self-check only - not a validation on real data."""
+    p = params or MissedParams(n_perm=120, n_boot=60, boot=400, min_test_weeks=5)
+    out = {}
+    for tag, planted in (("planted", True), ("null", False)):
+        ws = synthetic_weeks(planted=planted, seed=seed + (0 if planted else 1))
+        found = find_distinctions(cohort_frame(ws[:40], p), p, seed)
+        oos = [validate_distinction(d, ws[41:], p, seed) for d in found]
+        out[tag] = {"found": len(found), "significant": sum(d.p_fwer <= p.alpha for d in found), "oos_pass": sum(r.verdict == "PASS" for r in oos)}
+    out["ok"] = out["planted"]["oos_pass"] >= 1 and out["null"]["significant"] == 0
+    return out
+
+
+def reason_shift(early: Sequence[Week], late: Sequence[Week], analyzer: RejectionAnalyzer | None = None, min_n: int = 20) -> list[dict[str, Any]]:
+    """Change in each rejection reason's share of missed winners between two spans, with a two-proportion z. A reason that
+    grows is a blind spot that is opening; one that shrinks has been closed (by the system or by the market)."""
+    from engine import pattern_stats as PS
+    analyzer = analyzer or RejectionAnalyzer()
+    def tally(ws):
+        c: dict[str, int] = {}
+        for w in ws:
+            for r in analyzer.explain_missed(w):
+                c[r.primary.value] = c.get(r.primary.value, 0) + 1
+        return c
+    a, b = tally(early), tally(late)
+    na, nb = sum(a.values()), sum(b.values())
+    if na < min_n or nb < min_n:
+        return []
+    out = []
+    for r in sorted(set(a) | set(b)):
+        pa, pb = a.get(r, 0) / na, b.get(r, 0) / nb
+        pool = (a.get(r, 0) + b.get(r, 0)) / (na + nb)
+        se = math.sqrt(max(1e-12, pool * (1 - pool) * (1 / na + 1 / nb)))
+        z = (pb - pa) / se
+        out.append({"reason": r, "early": pa, "late": pb, "shift": pb - pa, "z": float(z), "p": float(PS.t_to_p(z))})
+    return sorted(out, key=lambda r: (-abs(r["z"]), r["reason"]))
+
+
+def recovery_curve(weeks: Sequence[Week], analyzer: RejectionAnalyzer | None = None) -> list[dict[str, Any]]:
+    """If the most frequent rejection reasons were fixed one after another, how much of the total missed-winner return would
+    be recoverable? Cumulative share by reason, biggest first: an upper bound that ranks the mechanisms by what they cost."""
+    analyzer = analyzer or RejectionAnalyzer()
+    ret: dict[str, float] = {}
+    cnt: dict[str, int] = {}
+    for w in weeks:
+        cmap = {c.cid: c for c in w.candidates}
+        for r in analyzer.explain_missed(w):
+            ret[r.primary.value] = ret.get(r.primary.value, 0.0) + float(cmap[r.cid].fwd)
+            cnt[r.primary.value] = cnt.get(r.primary.value, 0) + 1
+    total = sum(ret.values())
+    out, cum = [], 0.0
+    for r, v in sorted(ret.items(), key=lambda kv: (-kv[1], kv[0])):
+        cum += v
+        out.append({"reason": r, "n": cnt[r], "return_missed": v, "cumulative_share": cum / total if total else float("nan")})
+    return out
+
+
+def explain_rejection(r: Rejection) -> str:
+    """Plain-language reading of one rejection."""
+    if not r.reasons:
+        weak = "; ".join(f"{e.reason.value} ({e.strength:.2f}, below the bar)" for e in r.weak) or "nothing in the trail"
+        return f"{r.cid}: {r.primary.value} - the decision trail does not support a reason. Weak hints: {weak}."
+    lines = [f"{r.cid}: rejected mainly because of {r.primary.value}"]
+    for e in r.reasons:
+        lines.append(f"  {'*' if e.reason == r.primary else '-'} {e.reason.value} ({e.strength:.2f}): {e.note}")
+    return NL.join(lines)
+
+
+def weeks_from_frame(df: pd.DataFrame, k: int = 10, thr: float = WINNER, feature_cols: Sequence[str] | None = None) -> list[Week]:
+    """Flat candidate table -> Weeks, for bulk runs. Required columns: period, decided_at, resolved_at, cid, fwd, picked; optional:
+    score, rank, era, kind, confidence, reliability, filters_hit (comma-joined), plus feature columns. Rows are grouped by
+    period; periods are returned in decision-date order."""
+    need = {"period", "decided_at", "resolved_at", "cid", "fwd", "picked"}
+    if not need <= set(df.columns):
+        raise ValueError(f"missing columns: {sorted(need - set(df.columns))}")
+    meta = need | {"score", "rank", "era", "kind", "confidence", "reliability", "filters_hit", "eligible", "dir_side", "selection_side",
+                   "anti_context", "timing_blocked", "missing_frac"}
+    feats = list(feature_cols) if feature_cols else [c for c in df.columns if c not in meta]
+    weeks = []
+    for per, g in df.groupby("period", sort=False):
+        cands = []
+        for r in g.itertuples(index=False):
+            d = r._asdict()
+            hits = tuple(x for x in str(d.get("filters_hit") or "").split(",") if x)
+            opt = {c: d[c] for c in ("confidence", "reliability", "dir_side", "selection_side") if c in d and d[c] == d[c] and d[c] is not None}
+            cands.append(Candidate(cid=str(d["cid"]), features={c: float(d[c]) for c in feats if d.get(c) == d.get(c)}, fwd=float(d["fwd"]) if d["fwd"] == d["fwd"] else None,
+                                   picked=bool(d["picked"]), score=float(d["score"]) if d.get("score") == d.get("score") and "score" in d else None,
+                                   rank=int(d["rank"]) if "rank" in d and d["rank"] == d["rank"] else None, eligible=bool(d.get("eligible", True)),
+                                   filters_hit=hits, anti_context=bool(d.get("anti_context", False)), timing_blocked=bool(d.get("timing_blocked", False)),
+                                   missing_frac=float(d.get("missing_frac", 0.0) or 0.0), kind=str(d.get("kind", "other")), **opt))
+        first = g.iloc[0]
+        weeks.append(Week(str(per), str(first["decided_at"]), str(first["resolved_at"]), tuple(cands), k, thr, str(first["era"]) if "era" in g else ""))
+    return sorted(weeks, key=lambda w: as_date(w.decided_at))
+
+
+def describe_cohorts(df: pd.DataFrame) -> dict[str, Any]:
+    """Sizes of the two cohorts overall, by era and by winner type - the first thing to read before trusting a distinction."""
+    if df.empty:
+        return {"n_a": 0, "n_b": 0}
+    out = {"n_a": int((df["group"] == 1).sum()), "n_b": int((df["group"] == 0).sum()), "periods": int(df["period"].nunique())}
+    for col in ("era", "kind"):
+        out["by_" + col] = {str(k): {"a": int(((g["group"] == 1)).sum()), "b": int(((g["group"] == 0)).sum())} for k, g in df.groupby(col)}
+    return out
+
+
+def validate_params(p: MissedParams) -> list[str]:
+    """Sanity of the discovery parameters; several silently change what counts as significant."""
+    errs = []
+    if not 0.0 < p.alpha < 0.5:
+        errs.append("alpha must be in (0, 0.5)")
+    if p.n_perm < 50:
+        errs.append("n_perm below 50 cannot resolve a p-value near alpha")
+    if p.band < 1.0:
+        errs.append("band below 1 excludes the candidates that were picked")
+    if p.min_a < 5 or p.min_b < 5:
+        errs.append("cohort minimums below 5 make any rule fit")
+    if not 0.0 < p.min_cover <= 1.0:
+        errs.append("min_cover must be in (0, 1]")
+    if p.embargo < 1:
+        errs.append("embargo below 1 lets a training outcome mature into the test block")
+    if sorted(p.grid) != list(p.grid) or not all(0.0 < q < 1.0 for q in p.grid):
+        errs.append("grid must be increasing quantiles in (0, 1)")
+    return errs
+
+
+def rejection_table(weeks: Sequence[Week], analyzer: RejectionAnalyzer | None = None) -> pd.DataFrame:
+    """One row per missed winner across the weeks: period, era, type, primary reason, strength of the primary reason, return."""
+    analyzer = analyzer or RejectionAnalyzer()
+    rows = []
+    for w in weeks:
+        cmap = {c.cid: c for c in w.candidates}
+        for r in analyzer.explain_missed(w):
+            c = cmap[r.cid]
+            rows.append({"period": w.label, "era": w.era, "kind": c.kind, "reason": r.primary.value, "n_reasons": len(r.reasons),
+                         "strength": r.reasons[0].strength if r.reasons else 0.0, "fwd": c.fwd})
+    return pd.DataFrame(rows, columns=["period", "era", "kind", "reason", "n_reasons", "strength", "fwd"])
+
+
+def precedence_is_consistent(analyzer: RejectionAnalyzer | None = None) -> bool:
+    """Property check: whenever a mechanism earlier in PRECEDENCE is supported, no later one can be primary. Exercised over
+    every subset of a candidate's flags; True means the ordering rule holds."""
+    analyzer = analyzer or RejectionAnalyzer()
+    week = Week("w", "2020-01-06", "2020-01-13", (), k=10, interactions=(("f1", "f2"),))
+    flags = [dict(filters_hit=("risk_x",), eligible=False), dict(dir_side=-1, selection_side=1), dict(timing_blocked=True),
+             dict(anti_context=True), dict(reliability=0.01), dict(confidence=0.01)]
+    for mask in range(1, 1 << len(flags)):
+        kw: dict[str, Any] = dict(features={"f1": 0.8, "f2": 0.8}, rank=11)
+        for i, f in enumerate(flags):
+            if mask >> i & 1:
+                kw.update(f)
+        r = analyzer.explain(Candidate("c", fwd=0.1, **kw), week, 60)
+        ranks = [PRECEDENCE.index(e.reason) for e in r.reasons]
+        if not r.reasons or PRECEDENCE.index(r.primary) != min(ranks):
+            return False
+    return True
+
+
+def top_missed(weeks: Sequence[Week], n: int = 10, analyzer: RejectionAnalyzer | None = None) -> list[dict[str, Any]]:
+    """The n largest-return missed winners with their reason: where the biggest single misses came from."""
+    tab = rejection_table(weeks, analyzer)
+    if tab.empty:
+        return []
+    return tab.sort_values(["fwd", "period"], ascending=[False, True]).head(n).to_dict("records")
+
+
+def week_summary(w: Week) -> dict[str, Any]:
+    """Counts a reader wants first: candidates, picks, winners, missed winners, catch rate, base rate, filtered candidates."""
+    winners = w.winners()
+    caught = [c for c in winners if c.picked]
+    return {"label": w.label, "candidates": len(w.candidates), "picked": sum(c.picked for c in w.candidates), "winners": len(winners),
+            "missed": len(winners) - len(caught), "catch_rate": len(caught) / len(winners) if winners else float("nan"),
+            "base_rate": w.base_rate(), "filtered": sum(bool(c.filters_hit) for c in w.candidates)}
+
+
+def winners_by_kind(weeks: Sequence[Week]) -> dict[str, dict[str, float]]:
+    """Per winner type: winners, how many were caught, and the mean return of those missed. Shows which kinds of winner the
+    system systematically fails to own."""
+    acc: dict[str, list[float]] = {}
+    caught: dict[str, int] = {}
+    for w in weeks:
+        for c in w.winners():
+            acc.setdefault(c.kind, [])
+            caught.setdefault(c.kind, 0)
+            if c.picked:
+                caught[c.kind] += 1
+            else:
+                acc[c.kind].append(float(c.fwd))
+    return {k: {"winners": len(v) + caught[k], "caught": caught[k], "catch_rate": caught[k] / (len(v) + caught[k]),
+                "mean_missed_ret": float(np.mean(v)) if v else float("nan")} for k, v in sorted(acc.items())}

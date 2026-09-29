@@ -502,3 +502,36 @@ def test_rank_unknowns_budget_and_explain():
     assert not res["ok"] and res["worst_window"] == 0.6 and "abstained on 60%" in res["note"]
     assert uk.AbstentionBudget(max_share=0).check()
     assert "UNTESTED because never tested" in uk.explain(led.open_rows()[0])
+
+
+# ------------------------------------------------------------------ bridges, escalation, summaries
+
+def test_facts_from_evidence_never_turn_unmeasured_into_zero():
+    f = uk.facts_from_evidence(EvidenceSummary(n_events=100, n_eff=60.0), ("bull",), "bull")
+    assert f.support is None and f.against is None and f.ever_tested is False             # nothing measured => untested
+    assert uk.classify("K", f, NOW).state is Unknown.UNTESTED
+    g = uk.facts_from_evidence(STRONG, ("bull",), "bull")
+    assert g.support == 0.75 and g.against == 0.10 and g.ever_tested and uk.classify("K", g, NOW) is None
+    conflicted = uk.facts_from_evidence(ev(reversal_t=3.0), ("bull",), "bull")
+    assert conflicted.against == 0.75 and uk.classify("K", conflicted, NOW).state is Unknown.CONFLICTED
+    stale = uk.facts_from_evidence(STRONG, ("bull",), "bull", evidence_age_days=999, max_age_days=365)
+    assert uk.classify("K", stale, NOW).state is Unknown.INSUFFICIENT_DATA
+
+
+def test_stale_plans_escalate_to_abstain():
+    rec = uk.classify("A", facts(n_events=3, n_eff=3.0), "2020-01-01", AV)
+    assert rec.action is UnknownAction.COLLECT_DATA
+    assert uk.escalate(rec, "2020-02-01", 60) is rec                                     # still within its window
+    esc = uk.escalate(rec, "2020-04-01", 60)
+    assert esc.action is UnknownAction.ABSTAIN and "unresolved after 91 days" in esc.action_detail and esc.check() == []
+    assert uk.escalate(esc, "2021-01-01") is esc
+    led = uk.UnknownLedger()
+    led.open(rec)
+    led.open(uk.classify("B", facts(ever_tested=False), "2020-03-25", AV))
+    assert uk.apply_escalations(led, "2020-04-01", 60) == ["A"]
+    assert led.plan()["ABSTAIN"] == ["A"] and led.plan()["RUN_EXPERIMENT"] == ["B"] and len(led) == 4
+    assert uk.apply_escalations(led, "2020-04-02", 60) == []                             # idempotent
+    summ = uk.ledger_summary(led, "2020-04-02")
+    assert summ["open"] == 2 and summ["resolved"] == 1 and summ["by_action"] == {"ABSTAIN": 1, "RUN_EXPERIMENT": 1}
+    assert uk.ledger_summary(uk.UnknownLedger(), NOW) == {"open": 0, "by_state": {}, "by_action": {}, "median_age_days": None,
+                                                          "oldest": None, "resolved": 0}

@@ -123,6 +123,7 @@ class Postmortem:
     provenance: Provenance
     params_hash: str = ""
     coverage: float = 0.0
+    inputs_hash: str = ""                  # content hash of the TradeRecord this was built from (replay_check compares it)
 
     def validate(self) -> list[str]:
         errs = []
@@ -438,7 +439,7 @@ def build_postmortem(t: TradeRecord, cls: Classification, att: Attribution, env:
         missing_condition=tuple(miss), invalidating_condition=tuple(inval),
         what_should_change=tuple(hyps), confidence_in_explanation=conf, cause=cls.cause,
         unknown_state=cls.unknown_state.value if cls.unknown_state else "", attribution_primary=att.primary.value if att.primary else "",
-        teach=dict(sig.weights), provenance=prov, params_hash=cls.params_hash, coverage=cls.coverage)
+        teach=dict(sig.weights), provenance=prov, params_hash=cls.params_hash, coverage=cls.coverage, inputs_hash=stable_hash(t))
     errs = pm.validate()
     if errs:
         raise ValueError(f"postmortem for {t.rid} invalid: " + "; ".join(errs))
@@ -719,7 +720,8 @@ def load_postmortem(d: Mapping[str, Any]) -> Postmortem:
         missing_condition=tuple(d["missing_condition"]), invalidating_condition=tuple(d["invalidating_condition"]),
         what_should_change=tuple(hyp(h) for h in d["what_should_change"]), confidence_in_explanation=float(d["confidence_in_explanation"]),
         cause=FC.parse(d["cause"]), unknown_state=d.get("unknown_state", ""), attribution_primary=d.get("attribution_primary", ""),
-        teach=dict(d.get("teach", {})), provenance=Provenance(**pv), params_hash=d.get("params_hash", ""), coverage=float(d.get("coverage", 0.0)))
+        teach=dict(d.get("teach", {})), provenance=Provenance(**pv), params_hash=d.get("params_hash", ""), coverage=float(d.get("coverage", 0.0)),
+        inputs_hash=d.get("inputs_hash", ""))
 
 
 # ==================================================================================================================
@@ -809,3 +811,261 @@ def render_summary(s: Mapping[str, Any]) -> str:
             lines.append(f"  {title}:")
             lines += [f"    {n:>3}x {txt}" for txt, n in s[key]]
     return NL.join(lines)
+
+
+# ==================================================================================================================
+# which losses deserve a postmortem, which failure signatures repeat, what happened to each hypothesis
+# ==================================================================================================================
+def select_for_postmortem(trades: Sequence[TradeRecord], budget: int, seen_signatures: Mapping[str, int] | None = None) -> list[TradeRecord]:
+    """When there are more losses than review capacity, spend the budget on the biggest and most novel: priority = loss size
+    times a novelty factor 1/(1+times a coarse signature was already seen). Deterministic tie-break by rid. Winners and
+    sub-threshold losses are never selected; the caller's classifier still filters noise."""
+    seen = dict(seen_signatures or {})
+    scored = []
+    for t in trades:
+        if t.pnl >= 0:
+            continue
+        sig = f"{t.decided_by.value}|{'|'.join(sorted(t.pattern_ids))}|{'stop' if t.stop_hit else 'open'}"
+        scored.append((-(t.loss / (1.0 + seen.get(sig, 0))), t.rid, t))
+        seen[sig] = seen.get(sig, 0) + 1
+    scored.sort(key=lambda r: (r[0], r[1]))
+    return [t for _, _, t in scored[:max(0, budget)]]
+
+
+def failure_signature(pm: Postmortem) -> str:
+    """Identity-free fingerprint of HOW a loss happened: cause, blamed subsystem and the normalised invalidating condition."""
+    return stable_hash({"c": pm.cause.value, "s": pm.attribution_primary, "i": sorted(_norm(x) for x in pm.invalidating_condition)}, 10)
+
+
+def recurrence(pms: Sequence[Postmortem], min_periods: int = 3) -> list[dict[str, Any]]:
+    """Failure signatures that repeat across DISTINCT periods, longest streak of consecutive occurrences (input order = time).
+    A signature that recurs in many periods is a systematic failure mode; one that recurs in one period is one event."""
+    by: dict[str, dict[str, Any]] = {}
+    for pm in pms:
+        r = by.setdefault(failure_signature(pm), {"signature": failure_signature(pm), "cause": pm.cause.value, "primary": pm.attribution_primary,
+                                                  "n": 0, "periods": set(), "streak": 0, "_cur": 0})
+        r["n"] += 1
+        r["periods"].add(pm.period)
+    order = [failure_signature(pm) for pm in pms]
+    for sig, r in by.items():
+        cur = best = 0
+        for s in order:
+            cur = cur + 1 if s == sig else 0
+            best = max(best, cur)
+        r["streak"] = best
+    out = [{**{k: v for k, v in r.items() if k not in ("periods", "_cur")}, "n_periods": len(r["periods"])} for r in by.values()
+           if len(r["periods"]) >= min_periods]
+    return sorted(out, key=lambda r: (-r["n_periods"], -r["n"], r["signature"]))
+
+
+HYPOTHESIS_STATES = ("PROPOSED", "TESTED_PASS", "TESTED_FAIL", "TESTED_INCONCLUSIVE")
+
+
+class HypothesisOutcomes:
+    """What happened to each hypothesis after it was tested elsewhere. Records verdicts only: nothing here applies a
+    hypothesis. A failed hypothesis is kept (failed learners are knowledge, section 38) and blocks re-proposing the same
+    idea until new evidence is cited."""
+
+    def __init__(self):
+        self._state: dict[str, str] = {}
+        self._notes: dict[str, list[str]] = {}
+
+    def propose(self, h: Hypothesis) -> bool:
+        """False (and no change) if this idea already failed its test - re-proposal needs `reopen`."""
+        if self._state.get(h.hid) == "TESTED_FAIL":
+            return False
+        self._state.setdefault(h.hid, "PROPOSED")
+        return True
+
+    def record(self, hid: str, verdict: str, note: str) -> None:
+        if hid not in self._state:
+            raise KeyError(f"hypothesis {hid} was never proposed")
+        mapped = {"PASS": "TESTED_PASS", "FAIL": "TESTED_FAIL", "INSUFFICIENT": "TESTED_INCONCLUSIVE"}.get(verdict)
+        if mapped is None:
+            raise ValueError(f"unknown verdict {verdict!r}")
+        if not note:
+            raise ValueError("a test outcome must carry a note saying what was tested")
+        self._state[hid] = mapped
+        self._notes.setdefault(hid, []).append(f"{verdict}: {note}")
+
+    def reopen(self, hid: str, new_evidence: str) -> None:
+        if self._state.get(hid) != "TESTED_FAIL" or not new_evidence:
+            raise ValueError("only a failed hypothesis with new evidence can be reopened")
+        self._state[hid] = "PROPOSED"
+        self._notes[hid].append(f"REOPENED: {new_evidence}")
+
+    def state(self, hid: str) -> str | None:
+        return self._state.get(hid)
+
+    def counts(self) -> dict[str, int]:
+        out = {s: 0 for s in HYPOTHESIS_STATES}
+        for s in self._state.values():
+            out[s] += 1
+        return out
+
+    def history(self, hid: str) -> list[str]:
+        return list(self._notes.get(hid, []))
+
+
+def export_markdown(pm: Postmortem) -> str:
+    """Postmortem as a review page: one heading per section-24 field, in contract order."""
+    b = pm.believed
+    changes = [f"- [{h.subsystem.value}/{h.decision_effect.value}] {h.statement}" for h in pm.what_should_change] or ["- nothing proposed"]
+    parts = [f"# Postmortem {pm.pid}", f"cause **{pm.cause.value}**, confidence {pm.confidence_in_explanation:.2f}, IMPLEMENTED - NOT VALIDATED", "",
+             "## What was believed", b.statement, "## Why", *[f"- {w}" for w in pm.why_believed],
+             "## Supporting evidence", *[f"- {e.statement} ({e.strength:.2f})" for e in pm.supporting_evidence],
+             "## Contradicting evidence", *[f"- {e.statement} ({e.strength:.2f})" for e in pm.contradicting_evidence],
+             "## What happened", *[f"- {k}: {v}" for k, v in pm.what_happened.items()],
+             "## What was surprising", *[f"- {k}: {v}" for k, v in pm.surprise.items()],
+             "## Deciding subsystem", pm.deciding_subsystem.value,
+             "## Knowledge that influenced it", *[f"- {k}" for k in pm.knowledge_influencing],
+             "## Knowledge that should not have", *[f"- {m.knowledge_id} [{m.severity}]: {m.reason}" for m in pm.knowledge_should_not_have],
+             "## Missing condition", *[f"- {m}" for m in pm.missing_condition],
+             "## Condition that invalidated the belief", *[f"- {m}" for m in pm.invalidating_condition],
+             "## What should change (hypotheses only)", *changes, "## Confidence in this explanation", f"{pm.confidence_in_explanation:.2f}"]
+    return NL.join(parts)
+
+
+# ==================================================================================================================
+# reproducibility and coverage of the postmortem process itself
+# ==================================================================================================================
+def replay_check(pm: Postmortem, t: TradeRecord, env: FailureEnv | None, now, uses: Sequence[KnowledgeUse] = (),
+                 clf: LossClassifier | None = None, code_hash: str | None = None) -> list[str]:
+    """Rebuild the postmortem from the same inputs and compare the parts that must be deterministic (pid, cause, hypotheses,
+    teaching weights). A stored postmortem that cannot be reproduced was produced by something other than this code."""
+    again = PostmortemBuilder(clf, code_hash=code_hash or pm.provenance.code_hash).build(t, env, now, uses)
+    if again is None:
+        return ["the trade is no longer a meaningful loss under these parameters"]
+    diffs = []
+    if again.inputs_hash != pm.inputs_hash:
+        diffs.append("the trade record differs from the one this postmortem was built from")
+    if again.pid != pm.pid:
+        diffs.append(f"pid {pm.pid} != {again.pid}")
+    if again.cause != pm.cause:
+        diffs.append(f"cause {pm.cause.value} != {again.cause.value}")
+    if [h.hid for h in again.what_should_change] != [h.hid for h in pm.what_should_change]:
+        diffs.append("hypotheses differ")
+    if {k: round(v, 9) for k, v in again.teach.items()} != {k: round(float(v), 9) for k, v in pm.teach.items()}:
+        diffs.append("teaching weights differ")
+    return diffs
+
+
+def loss_coverage(trades: Sequence[TradeRecord], pms: Sequence[Postmortem], bins: int = 4) -> dict[str, Any]:
+    """Share of meaningful losses that received a postmortem, overall and by loss-size quartile. A process that reviews the
+    small losses and skips the large ones is doing the wrong half of the work."""
+    have = {pm.rid for pm in pms}
+    losses = sorted((t for t in trades if t.pnl < 0), key=lambda t: t.pnl)
+    if not losses:
+        return {"n_losses": 0, "coverage": float("nan")}
+    out = {"n_losses": len(losses), "coverage": sum(t.rid in have for t in losses) / len(losses), "by_size": []}
+    step = max(1, len(losses) // bins)
+    for i in range(0, len(losses), step):
+        chunk = losses[i:i + step]
+        out["by_size"].append({"rank_from": i, "worst_loss": float(-chunk[0].pnl), "coverage": sum(t.rid in have for t in chunk) / len(chunk)})
+    return out
+
+
+_OPPOSED = [({"demote", "reduce", "gate", "collapse", "penalise"}, {"promote", "increase", "raise", "enforce"})]
+
+
+def hypothesis_conflicts(book: "HypothesisBook") -> list[tuple[str, str, str]]:
+    """Pairs of recorded hypotheses about the SAME target that push in opposite directions (e.g. 'gate P' and 'promote P').
+    Both stay hypotheses; the conflict is reported so it is resolved by a test and not by whichever arrived last."""
+    by_target: dict[str, list[Hypothesis]] = {}
+    for r in book._h.values():
+        if r.hypothesis.target:
+            by_target.setdefault(r.hypothesis.target, []).append(r.hypothesis)
+    out = []
+    for tgt, hs in sorted(by_target.items()):
+        for i in range(len(hs)):
+            for j in range(i + 1, len(hs)):
+                a, b = hs[i].statement.lower().split(), hs[j].statement.lower().split()
+                for neg, pos in _OPPOSED:
+                    if (neg & set(a) and pos & set(b)) or (pos & set(a) and neg & set(b)):
+                        out.append((tgt, hs[i].hid, hs[j].hid))
+    return out
+
+
+def query_store(store: "PostmortemStore", cause: str | None = None, subsystem: str | None = None, min_confidence: float = 0.0) -> list[dict]:
+    """Filter stored postmortem bodies by cause, blamed subsystem and confidence. Read-only view of the log."""
+    out = []
+    for b in store.bodies():
+        if cause is not None and b["cause"] != cause:
+            continue
+        if subsystem is not None and b.get("attribution_primary") != subsystem:
+            continue
+        if float(b["confidence_in_explanation"]) < min_confidence:
+            continue
+        out.append(b)
+    return out
+
+
+def hypotheses_in_store(store: "PostmortemStore") -> dict[str, dict[str, Any]]:
+    """Every distinct hypothesis proposed anywhere in the log, with how many postmortems and distinct periods proposed it."""
+    acc: dict[str, dict[str, Any]] = {}
+    for b in store.bodies():
+        for h in b["what_should_change"]:
+            r = acc.setdefault(h["hid"], {"statement": h["statement"], "subsystem": h["subsystem"], "effect": h["decision_effect"], "n": 0, "periods": set()})
+            r["n"] += 1
+            r["periods"].add(b["period"])
+    return {k: {**{a: v for a, v in r.items() if a != "periods"}, "n_periods": len(r["periods"])} for k, r in acc.items()}
+
+
+def knowledge_flag_history(store: "PostmortemStore") -> dict[str, dict[str, Any]]:
+    """For each knowledge id ever flagged as 'should not have influenced': flags by severity, distinct periods, and the
+    reasons given. Knowledge flagged BLOCK in many periods is being used in a state the system says it should not be."""
+    acc: dict[str, dict[str, Any]] = {}
+    for b in store.bodies():
+        for m in b["knowledge_should_not_have"]:
+            if m["knowledge_id"] == NONE_FOUND:
+                continue
+            r = acc.setdefault(m["knowledge_id"], {"BLOCK": 0, "WARN": 0, "periods": set(), "reasons": set()})
+            r[m["severity"]] = r.get(m["severity"], 0) + 1
+            r["periods"].add(b["period"])
+            r["reasons"].add(_norm(m["reason"]))
+    return {k: {"BLOCK": v["BLOCK"], "WARN": v["WARN"], "n_periods": len(v["periods"]), "reasons": sorted(v["reasons"])} for k, v in acc.items()}
+
+
+def dedupe_hypotheses(hyps: Sequence[Hypothesis]) -> list[Hypothesis]:
+    """Collapse hypotheses with the same content id, keeping the first; order of first appearance preserved."""
+    seen: dict[str, Hypothesis] = {}
+    for h in hyps:
+        seen.setdefault(h.hid, h)
+    return list(seen.values())
+
+
+def period_counts(store: "PostmortemStore") -> dict[str, int]:
+    """Postmortems per period hash: a burst in one period is one event, not a trend."""
+    out: dict[str, int] = {}
+    for b in store.bodies():
+        out[b["period"]] = out.get(b["period"], 0) + 1
+    return dict(sorted(out.items(), key=lambda kv: (-kv[1], kv[0])))
+
+
+def confidence_by_cause(store: "PostmortemStore") -> dict[str, float]:
+    """Mean confidence in the explanation per cause; a cause that is always named with low confidence is under-evidenced."""
+    acc: dict[str, list[float]] = {}
+    for b in store.bodies():
+        acc.setdefault(b["cause"], []).append(float(b["confidence_in_explanation"]))
+    return {k: float(np.mean(v)) for k, v in sorted(acc.items())}
+
+
+def hypothesis_effect_mix(store: "PostmortemStore") -> dict[str, dict[str, int]]:
+    """Which decision effects the stored hypotheses target, per subsystem: is the learner asking for ranking changes, size
+    changes, exits? A log that only ever asks for one kind of change is telling you something about the classifier."""
+    out: dict[str, dict[str, int]] = {}
+    for b in store.bodies():
+        for h in b["what_should_change"]:
+            row = out.setdefault(h["subsystem"], {})
+            row[h["decision_effect"]] = row.get(h["decision_effect"], 0) + 1
+    return out
+
+
+def severity_counts(store: "PostmortemStore") -> dict[str, int]:
+    """How many BLOCK / WARN knowledge findings the log holds."""
+    out = {"BLOCK": 0, "WARN": 0}
+    for b in store.bodies():
+        for m in b["knowledge_should_not_have"]:
+            if m["severity"] in out:
+                out[m["severity"]] += 1
+    return out

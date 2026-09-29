@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import contextlib
 import dataclasses
-import enum
 import json
 import math
 import os
@@ -35,10 +34,9 @@ from typing import Any, Callable, Iterable, Mapping, Sequence
 
 import numpy as np
 
-from engine import repro
 from engine import resources as R
 
-from .core import FirewallBreach, as_date, canonical_json, current_code_hash, require_past
+from .core import FirewallBreach, as_date, canonical_json, current_code_hash, require_past, stable_hash
 
 PENDING, RUNNING, DONE, FAILED, OOM, CRASHED, STALE, SUPERSEDED, GAVE_UP = (
     "PENDING", "RUNNING", "DONE", "FAILED", "OOM", "CRASHED", "STALE", "SUPERSEDED", "GAVE_UP")
@@ -64,36 +62,6 @@ class SnapshotError(ComputeError):
     pass
 
 
-# ------------------------------------------------------------------------------------------------ plain data
-def plain(obj: Any) -> Any:
-    """Recursively turn numpy scalars/arrays and float subclasses into plain Python values. engine.learning.core's canonical
-    hasher renders a numpy float as 'np.float64(..)' and then fails to parse it, so anything that may carry numpy numbers
-    (experiment results, evidence records) goes through here before hashing or JSON."""
-    if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
-        return {f.name: plain(getattr(obj, f.name)) for f in dataclasses.fields(obj)}
-    if isinstance(obj, Mapping):
-        return {str(k): plain(v) for k, v in obj.items()}
-    if isinstance(obj, (list, tuple, set, frozenset)):
-        return [plain(v) for v in obj]
-    if isinstance(obj, np.ndarray):
-        return plain(obj.tolist())
-    if isinstance(obj, np.generic):
-        return plain(obj.item())
-    if isinstance(obj, enum.Enum):
-        return plain(obj.value)
-    if isinstance(obj, bool) or obj is None or isinstance(obj, (int, str)):
-        return obj
-    if isinstance(obj, float):
-        return float(obj)
-    return obj
-
-
-def phash(obj: Any, n: int = 16) -> str:
-    """The repo's one canonical artifact hash (engine.repro.artifact_hash) of the plain form: numpy-safe, and identical for
-    a tuple and the list it round-trips through JSON as. No new hash function is introduced (contract mapping rule)."""
-    return repro.artifact_hash(plain(obj))[:n]
-
-
 # ------------------------------------------------------------------------------------------------ specification
 @dataclass(frozen=True)
 class ExperimentSpec:
@@ -107,6 +75,7 @@ class ExperimentSpec:
     data_hash: str = ""
     est_gb: float = R.DEFAULT_JOB_GB
     priority: int = 5
+    after: tuple[str, ...] = ()      # experiment keys that must be DONE first; scheduling only, so not part of the identity
 
     def validate(self) -> list[str]:
         errs = []
@@ -120,25 +89,29 @@ class ExperimentSpec:
             errs.append("as_of is not a date")
         if not (math.isfinite(self.est_gb) and self.est_gb > 0):
             errs.append("est_gb must be positive")
+        if any(not isinstance(a, str) or not a for a in self.after):
+            errs.append("after must be a tuple of experiment keys")
         try:
-            canonical_json(plain(self.params))
+            canonical_json(self.params)
         except TypeError as e:
             errs.append(f"params not serialisable: {e}")
         return errs
 
     @property
     def key(self) -> str:
-        return phash([self.name, self.params, self.seed, self.as_of, self.snapshot_id, self.data_hash], 20)
+        return stable_hash([self.name, self.params, self.seed, self.as_of, self.snapshot_id, self.data_hash], 20)
 
     def run_key(self, code_hash: str) -> str:
-        return phash([self.key, code_hash], 20)
+        return stable_hash([self.key, code_hash], 20)
 
     def to_dict(self) -> dict:
-        return json.loads(canonical_json(plain(self)))
+        return json.loads(canonical_json(self))
 
     @classmethod
     def from_dict(cls, d: Mapping[str, Any]) -> "ExperimentSpec":
-        return cls(**{f.name: d[f.name] for f in dataclasses.fields(cls) if f.name in d})
+        kw = {f.name: d[f.name] for f in dataclasses.fields(cls) if f.name in d}
+        kw["after"] = tuple(kw.get("after") or ())
+        return cls(**kw)
 
 
 def worker_seed_for(spec: ExperimentSpec) -> int:
@@ -208,8 +181,8 @@ class SnapshotStore:
 
     def create(self, state: Mapping[str, Any], as_of, code_hash: str = "") -> str:
         """`as_of` is the last date the state contains information from. Returns the snapshot id."""
-        body = plain({"as_of": str(as_date(as_of)), "state": state, "code_hash": code_hash})
-        sid = phash(body, 20)
+        body = json.loads(canonical_json({"as_of": str(as_date(as_of)), "state": state, "code_hash": code_hash}))
+        sid = stable_hash(body, 20)
         d = self.root / sid
         if (d / "snapshot.json").exists():
             return sid
@@ -225,7 +198,7 @@ class SnapshotStore:
         if not f.is_file():
             raise SnapshotError(f"snapshot {sid} not found")
         doc = json.loads(f.read_text(encoding="utf-8"))
-        if phash(doc["body"], 20) != sid or doc.get("id") != sid:
+        if stable_hash(doc["body"], 20) != sid or doc.get("id") != sid:
             raise SnapshotError(f"snapshot {sid} was altered after creation")
         return doc["body"]
 
@@ -263,9 +236,13 @@ class ExperimentLedger:
     """state/.../experiments.json: {key: entry}. All mutations are load-modify-write under a cross-process file lock
     (engine.resources._lock) and land atomically, so two managers cannot interleave and a crash cannot leave half a file."""
 
-    def __init__(self, path: str | Path, max_attempts: int = 3, oom_growth: float = 1.5, max_est_gb: float = 8.0):
+    def __init__(self, path: str | Path, max_attempts: int = 3, oom_growth: float = 1.5, max_est_gb: float = 8.0,
+                 backoff: "BackoffPolicy | None" = None):
         if max_attempts < 1 or oom_growth <= 1.0:
             raise ValueError("max_attempts >= 1 and oom_growth > 1 required")
+        if backoff is not None and backoff.validate():
+            raise ValueError(f"invalid backoff: {backoff.validate()}")
+        self.backoff = backoff
         self.path = Path(path)
         self.max_attempts, self.oom_growth, self.max_est_gb = max_attempts, oom_growth, max_est_gb
 
@@ -334,7 +311,9 @@ class ExperimentLedger:
             if e["code_hash"] != code_hash:
                 raise ClaimError(f"{key} was submitted under code {e['code_hash']} but the worker runs {code_hash}")
             e["attempts"] += 1
-            e.update(worker=worker_id, heartbeat=float(now), launched=None)
+            if e.get("not_before") is not None and float(now) < float(e["not_before"]):
+                raise ClaimError(f"{key} is backing off until {e['not_before']:.0f}")
+            e.update(worker=worker_id, heartbeat=float(now), launched=None, not_before=None)
             self._note(e, now, RUNNING, f"attempt {e['attempts']} by {worker_id}")
             return json.loads(json.dumps(e))
 
@@ -376,6 +355,8 @@ class ExperimentLedger:
             if kind == OOM:
                 e["est_gb"] = min(self.max_est_gb, e["est_gb"] * self.oom_growth)
                 e["batch_scale"] = max(0.125, e["batch_scale"] * 0.5)
+            if self.backoff is not None:
+                e["not_before"] = float(now) + self.backoff.delay(key, e["attempts"])
             self._note(e, now, PENDING, f"retry after {kind}")
             return PENDING
 
@@ -441,7 +422,7 @@ class WorkerContext:
 
     def rng(self, stream: str = "") -> np.random.Generator:
         """A fresh generator per (experiment, stream): independent of worker, order and other streams."""
-        return np.random.default_rng(np.random.SeedSequence([self.seed, int(phash(stream, 8), 16)]))
+        return np.random.default_rng(np.random.SeedSequence([self.seed, int(stable_hash(stream, 8), 16)]))
 
     def beat(self) -> None:
         """Heartbeat to the ledger and enforce the wall-clock budget, if any: call this inside long loops."""
@@ -466,7 +447,7 @@ class WorkerContext:
 def _envelope(spec: ExperimentSpec, result: Any, code_hash: str, worker_id: str, attempt: int, started: float, ended: float) -> dict:
     return {"experiment_key": spec.key, "run_key": spec.run_key(code_hash), "spec": spec.to_dict(), "seed": worker_seed_for(spec),
             "code_hash": code_hash, "data_hash": spec.data_hash, "snapshot_id": spec.snapshot_id, "worker": worker_id,
-            "attempt": attempt, "started": started, "ended": ended, "result": plain(result), "result_hash": phash(result, 20)}
+            "attempt": attempt, "started": started, "ended": ended, "result": json.loads(canonical_json(result)), "result_hash": stable_hash(result, 20)}
 
 
 def attempt_dir(out_root: str | Path, key: str, attempt: int) -> Path:
@@ -494,7 +475,7 @@ def run_worker(spec: ExperimentSpec, fn: Callable[[ExperimentSpec, WorkerContext
         ctx = WorkerContext(spec, adir, snap, code_hash, worker_id, attempt, claim.get("batch_scale", 1.0),
                             Deadline(deadline_s) if deadline_s else None, ledger, clock)
         result = fn(spec, ctx)
-        json.loads(canonical_json(plain(result)))                 # a non-serialisable result fails here, not at reconcile
+        json.loads(canonical_json(result))                 # a non-serialisable result fails here, not at reconcile
         env = _envelope(spec, result, code_hash, worker_id, attempt, started, clock())
         atomic_write_json(adir / "result.json", env)
         (adir / "DONE").write_text(env["result_hash"], encoding="utf-8")     # written last: its presence means result.json is whole
@@ -531,8 +512,20 @@ def plan_launches(ledger: ExperimentLedger, free_gb: float | None, running: int 
                   grace_s: float = R.RAMP_S) -> Plan:
     """Which PENDING experiments may start now. Deterministic: ordered by (priority, key); memory decides how many run (a
     started experiment's estimate is reserved before the next is considered, so 5 launches cannot each see the same free GB)."""
-    pend = [(e["spec"]["priority"], k, e) for k, e in ledger.load().items() if e["state"] == PENDING]
+    led = ledger.load()
+    pend = [(e["spec"]["priority"], k, e) for k, e in led.items() if e["state"] == PENDING]
     pend.sort(key=lambda t: (t[0], t[1]))
+    not_ready: list[tuple[str, str]] = []
+    ready = []
+    for pr, k, e in pend:
+        waiting = [d for d in e["spec"].get("after", []) if led.get(d, {}).get("state") != DONE]
+        if waiting:
+            not_ready.append((k, f"waiting for prerequisites {[w[:8] for w in waiting]}"))
+        elif now is not None and e.get("not_before") is not None and now < float(e["not_before"]):
+            not_ready.append((k, f"backing off for {float(e['not_before']) - now:.0f}s more"))
+        else:
+            ready.append((pr, k, e))
+    pend = ready
     if now is not None:                                # launched but not yet claimed: its slot and memory are already spoken for
         starting = {k: e for _, k, e in pend if e.get("launched") is not None and now - float(e["launched"]) < grace_s}
         running += len(starting)
@@ -552,7 +545,7 @@ def plan_launches(ledger: ExperimentLedger, free_gb: float | None, running: int 
         else:
             launch.append(key)
             budget -= e["est_gb"]
-    return Plan(tuple(launch), tuple(held), wc["workers"], wc["limit"])
+    return Plan(tuple(launch), tuple(not_ready + held), wc["workers"], wc["limit"])
 
 
 def job_for(spec: ExperimentSpec, spec_dir: str | Path, out_root: str | Path, ledger_path: str | Path,
@@ -625,7 +618,7 @@ def reconcile(ledger: ExperimentLedger, out_root: str | Path, current_code_hash_
         spec = ExperimentSpec.from_dict(e["spec"])
         bad = None
         for env in envs:
-            if phash(env["result"], 20) != env["result_hash"]:
+            if stable_hash(env["result"], 20) != env["result_hash"]:
                 bad = ("hash_mismatch", f"{env['_dir']}: result altered after writing")
             elif env["spec"] != spec.to_dict():
                 bad = ("spec_mismatch", f"{env['_dir']}: spec differs from the ledger")
@@ -846,7 +839,7 @@ class MergeLog:
         done = self.merged()
         new, same, conflict = [], [], []
         for key, result in sorted(rec.accepted, key=lambda kv: kv[0]):
-            h = phash(result, 20)
+            h = stable_hash(result, 20)
             if key not in done:
                 new.append((key, result, h))
             elif done[key] == h:
@@ -863,7 +856,7 @@ class MergeLog:
             merged = d.get("merged", {})
             for key, _, h in plan["new"]:
                 merged[key] = h
-            atomic_write_json(self.path, {"merged": merged, "n": len(merged), "digest": phash(sorted(merged.items()), 20)})
+            atomic_write_json(self.path, {"merged": merged, "n": len(merged), "digest": stable_hash(sorted(merged.items()), 20)})
         return len(plan["new"])
 
 
@@ -934,6 +927,269 @@ def experiment_stats(ledger: ExperimentLedger) -> dict[str, dict]:
     return dict(sorted(out.items()))
 
 
+# ------------------------------------------------------------------------------------------------ retry backoff
+@dataclass(frozen=True)
+class BackoffPolicy:
+    """Deterministic exponential backoff for retries. The jitter comes from a hash of (experiment, attempt), not a clock or an
+    RNG, so a replay of the same failure history schedules the same retry times."""
+    base_s: float = 30.0
+    factor: float = 2.0
+    cap_s: float = 1800.0
+    jitter: float = 0.25
+
+    def validate(self) -> list[str]:
+        errs = []
+        if not (self.base_s >= 0 and self.factor >= 1.0 and self.cap_s >= self.base_s and 0 <= self.jitter < 1):
+            errs.append("need base_s >= 0, factor >= 1, cap_s >= base_s, 0 <= jitter < 1")
+        return errs
+
+    def delay(self, key: str, attempt: int) -> float:
+        raw = min(self.cap_s, self.base_s * self.factor ** max(0, attempt - 1))
+        u = int(stable_hash([key, attempt], 8), 16) / 16 ** 8               # deterministic in [0, 1)
+        return float(raw * (1.0 - self.jitter + 2.0 * self.jitter * u))
+
+
+# ------------------------------------------------------------------------------------------------ dependencies between experiments
+def dependency_order(specs: Sequence[ExperimentSpec]) -> list[ExperimentSpec]:
+    """Order a batch so every experiment follows the ones it depends on (`spec.after`, a tuple of experiment keys). Ties break
+    by key. A dependency that is neither in the batch nor already known, or a cycle, is an error - a graph that can never
+    finish must be refused up front, not discovered after hours of compute."""
+    by = {s.key: s for s in specs}
+    out, state = [], {}
+
+    def visit(k: str, stack: tuple[str, ...]) -> None:
+        if state.get(k) == 2:
+            return
+        if state.get(k) == 1:
+            raise ComputeError(f"dependency cycle: {' -> '.join(stack + (k,))}")
+        state[k] = 1
+        for d in sorted(by[k].after):
+            if d in by:
+                visit(d, stack + (k,))
+        state[k] = 2
+        out.append(by[k])
+
+    for k in sorted(by):
+        visit(k, ())
+    return out
+
+
+def submit_batch(ledger: ExperimentLedger, specs: Sequence[ExperimentSpec], now: float, code_hash: str) -> dict:
+    """Submit a dependency-ordered batch. Prerequisites must be in the batch or already in the ledger. Experiments that are
+    duplicates of finished or active ones are reported, not raised, so a restarted run can resubmit its whole plan safely."""
+    known = set(ledger.load())
+    batch = dependency_order(specs)
+    keys = {s.key for s in batch}
+    for s in batch:
+        missing = [d for d in s.after if d not in keys and d not in known]
+        if missing:
+            raise ComputeError(f"{s.name} ({s.key}) depends on unknown experiments {missing}")
+    queued, duplicates = [], []
+    for s in batch:
+        try:
+            ledger.submit(s, now, code_hash)
+            queued.append(s.key)
+        except DuplicateExperiment as e:
+            duplicates.append({"key": s.key, "why": str(e)})
+    return {"queued": queued, "duplicates": duplicates}
+
+
+def blocked_by_failure(ledger: ExperimentLedger) -> list[dict]:
+    """PENDING experiments that can never run because a prerequisite has GAVE_UP (transitively). They are reported for
+    escalation instead of waiting forever."""
+    led = ledger.load()
+    dead = {k for k, e in led.items() if e["state"] == GAVE_UP}
+    changed = True
+    blocked: dict[str, str] = {}
+    while changed:
+        changed = False
+        for k, e in sorted(led.items()):
+            if k in blocked or e["state"] != PENDING:
+                continue
+            bad = [d for d in e["spec"].get("after", []) if d in dead or d in blocked]
+            if bad:
+                blocked[k] = bad[0]
+                changed = True
+    return [{"key": k, "name": led[k]["spec"]["name"], "blocked_by": v} for k, v in sorted(blocked.items())]
+
+
+# ------------------------------------------------------------------------------------------------ run manifest
+def write_run_manifest(path: str | Path, ledger: ExperimentLedger, rec: Reconciliation, code_hash: str,
+                       snapshot_ids: Iterable[str] = ()) -> dict:
+    """Freeze what a batch produced: every experiment with its state and result hash, what reconciliation accepted and
+    rejected, the code and the snapshots. The manifest hash reuses engine.checkpoint._body_hash, so a batch can later be
+    compared with a rerun of itself (`compare_manifests`) - that comparison IS the reproducibility check of section 56."""
+    from engine import checkpoint as bundle
+    led = ledger.load()
+    body = {"code_hash": code_hash,
+            "experiments": {k: {"name": e["spec"]["name"], "state": e["state"], "attempts": e["attempts"],
+                                "result_hash": e["result_hash"], "seed": e["spec"]["seed"]} for k, e in sorted(led.items())},
+            "accepted": [k for k, _ in rec.accepted], "rejected": [list(r) for r in rec.rejected], "orphans": list(rec.orphans),
+            "snapshots": sorted(set(snapshot_ids))}
+    doc = {"body": json.loads(canonical_json(body)), "sha256": None}
+    doc["sha256"] = bundle._body_hash(doc["body"])
+    atomic_write_json(path, doc)
+    return doc
+
+
+def verify_manifest(path: str | Path) -> list[str]:
+    from engine import checkpoint as bundle
+    doc = read_json(path)
+    if not isinstance(doc, dict) or "body" not in doc:
+        return ["manifest missing or unreadable"]
+    return [] if bundle._body_hash(doc["body"]) == doc.get("sha256") else ["manifest body altered after writing"]
+
+
+def compare_manifests(a: Mapping[str, Any], b: Mapping[str, Any]) -> dict:
+    """Two runs of the same plan: which experiments gave different results (a determinism failure), which exist in only one,
+    and whether the code differed (in which case a difference is expected and proves nothing)."""
+    ea, eb = a["body"]["experiments"], b["body"]["experiments"]
+    common = sorted(set(ea) & set(eb))
+    differ = [k for k in common if ea[k]["result_hash"] != eb[k]["result_hash"] and ea[k]["state"] == eb[k]["state"] == DONE]
+    return {"differ": differ, "only_a": sorted(set(ea) - set(eb)), "only_b": sorted(set(eb) - set(ea)),
+            "same_code": a["body"]["code_hash"] == b["body"]["code_hash"], "compared": len(common),
+            "reproducible": not differ and a["body"]["code_hash"] == b["body"]["code_hash"]}
+
+
+# ------------------------------------------------------------------------------------------------ admission control
+MIN_FREE_GB = 2.5            # CONTEXT rule 10: no real run starts with less than this much RAM free
+
+
+def admit(est_gb: float, free_fn: Callable[[], float | None] | None = None, reserve_gb: float = R.RESERVE_GB,
+          min_free_gb: float = MIN_FREE_GB) -> tuple[bool, str]:
+    """RAM-aware admission (psutil via engine.resources.memory_gb). Fails closed: unreadable memory refuses. Two rules must
+    both hold - the machine has at least `min_free_gb` free right now, and after this job's estimate is taken there is still
+    `reserve_gb` left for the OS and the long experiments already running."""
+    free = (free_fn or (lambda: R.memory_gb()[0]))()
+    if free is None or not math.isfinite(free):
+        return False, "free memory unreadable (fail closed)"
+    if free < min_free_gb:
+        return False, f"only {free:.1f} GB free (< {min_free_gb:.1f} GB rule)"
+    if free - est_gb < reserve_gb:
+        return False, f"needs {est_gb:.1f} GB but only {max(0.0, free - reserve_gb):.1f} GB is available after the {reserve_gb:.1f} GB reserve"
+    return True, "ok"
+
+
+# ------------------------------------------------------------------------------------------------ real subprocess workers
+@dataclass(frozen=True)
+class SubprocessResult:
+    returncode: int | None
+    kind: str                # DONE | OOM | CRASHED | FAILED
+    elapsed_s: float
+    peak_gb: float | None
+    stderr_tail: str
+    timed_out: bool
+    killed_for_memory: bool
+
+
+def run_subprocess(cmd: Sequence[str], out_dir: str | Path, timeout_s: float, mem_limit_gb: float | None = None,
+                   poll_s: float = 0.05, cwd: str | None = None, env: Mapping[str, str] | None = None,
+                   rss_fn: Callable[[int], float | None] | None = None) -> SubprocessResult:
+    """Run one worker as a real child process with its own stdout/stderr files. The wall-clock budget and an optional RSS
+    ceiling are enforced by polling; only the child THIS call started is ever killed (never by image name). The outcome is
+    classified with `classify_failure`: a MemoryError message, an allocation-failure exit code or an over-limit RSS is OOM,
+    a timeout or a signal death is CRASHED, an ordinary non-zero exit is FAILED."""
+    import subprocess
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    rss = rss_fn or (lambda pid: R.process_info(pid)["rss_gb"])
+    t0 = time.monotonic()
+    peak, timed_out, mem_kill = 0.0, False, False
+    with open(out / "stdout.txt", "wb") as fo, open(out / "stderr.txt", "wb") as fe:
+        proc = subprocess.Popen(list(cmd), stdout=fo, stderr=fe, stdin=subprocess.DEVNULL, cwd=cwd, env=None if env is None else dict(env))
+        while proc.poll() is None:
+            cur = rss(proc.pid)
+            peak = max(peak, cur or 0.0)
+            if mem_limit_gb is not None and cur is not None and cur > mem_limit_gb:
+                mem_kill = True
+                proc.kill()
+                break
+            if time.monotonic() - t0 > timeout_s:
+                timed_out = True
+                proc.kill()
+                break
+            time.sleep(poll_s)
+        proc.wait()
+    tail = (out / "stderr.txt").read_text(encoding="utf-8", errors="replace")[-500:]
+    if mem_kill:
+        kind = OOM
+    elif proc.returncode == 0 and not timed_out:
+        kind = DONE
+    else:
+        kind = classify_failure(None, proc.returncode, tail, timed_out)
+        if kind == CRASHED and not timed_out and proc.returncode is not None and proc.returncode > 0:
+            kind = FAILED
+    return SubprocessResult(proc.returncode, kind, time.monotonic() - t0, peak or None, tail, timed_out, mem_kill)
+
+
+def settle(ledger: ExperimentLedger, key: str, res: SubprocessResult, now: float) -> str:
+    """Make the ledger agree with what actually happened to the child. A child that recorded its own result has already moved
+    the entry out of RUNNING and nothing is touched; a child that died (or exited 0 without recording anything) leaves the
+    entry RUNNING, so it is failed here with the classified kind and retried or given up by the ledger's normal rules."""
+    e = ledger.get(key)
+    if e is None or e["state"] != RUNNING:
+        return e["state"] if e else "UNKNOWN"
+    kind = res.kind if res.kind != DONE else CRASHED
+    note = "exited 0 without recording a result" if res.kind == DONE else f"exit {res.returncode}: {res.stderr_tail[-160:]}"
+    return ledger.fail(key, kind, note, now)
+
+
+def run_experiment_process(spec: ExperimentSpec, ledger: ExperimentLedger, out_root: str | Path, work_dir: str | Path, now: float,
+                           timeout_s: float = 600.0, modules: Sequence[str] = (), snapshot_root: str | Path | None = None,
+                           mem_limit_gb: float | None = None, free_fn: Callable[[], float | None] | None = None,
+                           python: str | None = None) -> dict:
+    """The whole real-process cycle for one experiment: admission (the 2.5 GB rule), write the spec, run the worker as a child
+    (`python -m engine.learning.compute worker`, with `modules` imported first so its @register_worker functions exist), then
+    settle the ledger with whatever happened. Logs go under `work_dir`, never inside the experiment's own result folder."""
+    ok, why = admit(spec.est_gb, free_fn)
+    if not ok:
+        return {"launched": False, "why": why, "state": (ledger.get(spec.key) or {}).get("state")}
+    work = Path(work_dir)
+    sp = work / "specs" / f"{spec.key}.json"
+    atomic_write_json(sp, spec.to_dict())
+    cmd = [python or sys.executable, "-m", "engine.learning.compute", "worker", str(sp), str(out_root), str(ledger.path)]
+    if snapshot_root is not None:
+        cmd.append(str(snapshot_root))
+    env = {**os.environ, "W7_WORKER_MODULES": ",".join(modules)}
+    res = run_subprocess(cmd, work / "logs" / spec.key, timeout_s, mem_limit_gb, cwd=str(Path(__file__).resolve().parents[2]), env=env)
+    return {"launched": True, "result": res, "state": settle(ledger, spec.key, res, now)}
+
+
+# ------------------------------------------------------------------------------------------------ adjudicating disagreement
+def adjudicate(ledger: ExperimentLedger, out_root: str | Path, key: str) -> dict:
+    """Two workers returned different results for one key: say why, using engine.repro.diagnose for the numeric difference.
+    Attempts made with different code or seeds explain themselves; identical code and seed with different numbers is
+    non-determinism (a bug). Nothing is auto-accepted: with three or more attempts a strict majority is REPORTED as the
+    candidate, but the experiment stays flagged until someone fixes the source of the disagreement."""
+    from engine import repro
+    envs = _read_attempts(Path(out_root), key)
+    if len(envs) < 2:
+        return {"key": key, "agree": True, "attempts": len(envs), "action": "nothing to adjudicate"}
+    groups: dict[str, list[dict]] = {}
+    for env in envs:
+        groups.setdefault(env["result_hash"], []).append(env)
+    summary = [{"attempt": e["attempt"], "worker": e["worker"], "result_hash": e["result_hash"], "code_hash": e["code_hash"],
+                "seed": e["seed"]} for e in envs]
+    if len(groups) == 1:
+        return {"key": key, "agree": True, "attempts": len(envs), "summary": summary, "action": "none"}
+    first, second = [g[0] for g in list(groups.values())[:2]]
+    diag = repro.diagnose(key, first["result"], second["result"])
+    if len({e["code_hash"] for e in envs}) > 1:
+        cause = "code_difference"
+    elif len({e["seed"] for e in envs}) > 1:
+        cause = "seed_difference"
+    else:
+        cause = "nondeterministic"
+    top = max(groups.values(), key=len)
+    majority = top[0]["result_hash"] if len(envs) >= 3 and len(top) * 2 > len(envs) else None
+    action = ("rerun under the current code" if cause == "code_difference" else "rerun with one fixed seed" if cause == "seed_difference"
+              else "run a third attempt" if len(envs) < 3 else "escalate: fix the source of non-determinism" if majority is None
+              else "majority reported; still flagged until the non-determinism is fixed")
+    return {"key": key, "agree": False, "attempts": len(envs), "cause": cause, "n_distinct": len(groups), "majority_hash": majority,
+            "difference": {k: diag.get(k) for k in ("first_difference", "detail", "causes", "max_abs_diff", "max_rel_diff")},
+            "summary": summary, "action": action}
+
+
 # ------------------------------------------------------------------------------------------------ subprocess entry
 def main(argv: Sequence[str] | None = None) -> int:
     """python -m engine.learning.compute worker <spec.json> <out_root> <ledger.json> [snapshot_root]"""
@@ -942,6 +1198,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(main.__doc__)
         return 2
     spec = ExperimentSpec.from_dict(read_json(a[1]))
+    import importlib
+    for mod in filter(None, os.environ.get("W7_WORKER_MODULES", "").split(",")):
+        importlib.import_module(mod)
     fn = WORKERS.get(spec.name)
     if fn is None:
         print(f"no registered worker named {spec.name}", file=sys.stderr)
@@ -952,4 +1211,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    # run the canonical module, not this __main__ copy: worker modules do `from engine.learning import compute`, and their
+    # @register_worker calls must land in the same WORKERS table this entry point reads
+    from engine.learning.compute import main as _main
+    raise SystemExit(_main())

@@ -404,3 +404,197 @@ def test_coverage_preserving_reduction_refuses_to_archive_the_only_effective_ite
                             R.PairClass.TRUE_DUPLICATE, None, (), "", True)
     out = R.RedundancyAnalyzer().coverage_preserving_reduction(panel2, {}, [fake])
     assert out[0][0] == "weak" and out[0][2].startswith("NOT archived")
+
+
+# ============================================================================================================================
+# credit: ordering, single-decision audit, transfer, update proposals, hand-off
+# ============================================================================================================================
+def test_sequential_credit_is_order_dependent_but_sums_to_the_same_total():
+    led = C.simulate_decisions(150, 31, lambda r, d: 0.5 * d.pattern * (2 * d.timing - 1), noise=0.2)
+    fr = frame_of(led)
+    comb = C.StructuredCombiner({c: 1.0 for c in C.SIGNAL_COMPONENTS})
+    a = C.sequential_credit(fr, comb, CFG)
+    b = C.sequential_credit(fr, comb, CFG, ["timing", "pattern", "analog", "memory", "direction", "risk"])
+    co = C.Coalitions(fr, comb, C.Utility.PAYOFF, CFG.neutral)
+    for x in (a, b):
+        assert np.allclose(x.sum(axis=1), co.v(co.full_mask) - co.v(0))
+    names = list(fr.scores.columns)
+    assert not np.allclose(a[:, names.index("timing")], b[:, names.index("timing")])        # timing's credit depends on its position
+    sens = C.order_sensitivity(fr, comb, CFG, n_orders=12).set_index("component")
+    assert sens.loc["timing", "spread"] > 0.05 and sens.loc["timing", "spread"] > 3 * sens.loc["analog", "spread"]
+    with pytest.raises(ValueError):
+        C.sequential_credit(fr, comb, CFG, ["pattern"])
+
+
+def test_counterfactual_table_is_the_audit_trail_of_one_decision():
+    d = C.Decision("one", "2021-03-01", "2021-03-08", {"pattern": 1.0, "timing": 0.0, "risk": 2.0}, 0.05)
+    t = C.counterfactual_table(d, C.StructuredCombiner({"pattern": 1.0}))
+    assert len(t) == 8 and t.loc[t["n_active"] == 0, "utility"].iloc[0] == 0.0
+    full = t[t["n_active"] == 3].iloc[0]
+    assert full["decision"] == 0.0 and full["utility"] == 0.0                       # timing gate closed => no trade
+    only_pattern = t[t["active"] == ("pattern",)].iloc[0]
+    assert only_pattern["utility"] == pytest.approx(0.05)
+
+
+def test_context_transfer_separates_portable_from_context_bound_credit():
+    n = 480
+    led = C.simulate_decisions(n, 33, lambda r, d: 0.6 * d.pattern + 0.6 * d.direction * (d.index < n / 2), noise=0.3, regime_flip_at=0.5)
+    fr = frame_of(led)
+    phi = C.CreditEngine(SUM4, CFG).raw_credit(fr)["phi"]
+    t = C.context_transfer(fr, phi, "regime").set_index(["context", "component"])
+    assert t.loc[("late", "pattern"), "transfers"] is True or t.loc[("late", "pattern"), "transfers"] == True   # noqa: E712
+    assert t.loc[("late", "direction"), "inside"] < 0.5 * t.loc[("late", "direction"), "outside"]              # did not carry over
+    with pytest.raises(KeyError):
+        C.context_transfer(fr, phi, "nonexistent")
+
+
+def test_update_proposals_are_bounded_and_never_move_belief_on_noise(single_report):
+    led, rep = single_report
+    props = {p.target: p for p in C.update_proposals(rep)}
+    assert props["pattern"].action is C.UpdateAction.REINFORCE and 0 < props["pattern"].max_step <= 0.25
+    for c in ("analog", "memory", "direction"):
+        assert props[c].action is C.UpdateAction.HOLD and props[c].max_step == 0.0
+    assert all(p.validate() == [] for p in props.values())
+    bad = C.UpdateProposal("x", "component", C.UpdateAction.REINFORCE, 0.1, -0.1, 0.3, 50, max_step=0.2)
+    assert bad.validate() != []                                                       # REINFORCE with an interval spanning 0
+    assert C.UpdateProposal("x", "component", C.UpdateAction.HOLD, 0.0, -1, 1, 5, max_step=0.1).validate() != []
+
+
+def test_knowledge_proposals_flag_a_context_where_credit_reverses():
+    base = C.simulate_decisions(360, 35, lambda r, d: 0.5 * d.pattern * np.where(d.index < 180, 1.0, -0.5), noise=0.3, regime_flip_at=0.5)
+    led = C.DecisionLedger(dataclasses.replace(d, knowledge={"pattern": {"k1": 1.0}}) for d in base)
+    eng = C.CreditEngine(SUM4, CFG)
+    rep = eng.assess(led, NOW)
+    props = C.update_proposals(rep, eng.knowledge_credit(led, NOW))
+    ctx = [p for p in props if p.level == "knowledge" and p.context != "all"]
+    assert any(p.action is C.UpdateAction.INVESTIGATE and "anti-context" in p.rationale for p in ctx)
+
+
+def test_component_confidence_uses_separate_dimensions_and_leaves_truth_untested(single_report):
+    _, rep = single_report
+    conf = C.component_confidence(rep.component("pattern"))
+    assert conf.truth is None and "truth" in conf.untested()
+    assert conf.usefulness == pytest.approx(1.0) and conf.current_reliability > 0.9 and conf.check() == []
+    assert C.component_confidence(rep.component("analog")).usefulness == 0.0
+
+
+def test_masked_pairs_hand_redundant_components_to_the_redundancy_module():
+    led = C.simulate_decisions(200, 37, lambda r, d: 0.4 * d.pattern, noise=0.2)
+    fr = frame_of(led)
+    fr.scores["direction"] = fr.scores["pattern"] + 0.01 * np.random.default_rng(0).standard_normal(fr.n)
+    comb = C.FunctionCombiner(lambda S: np.where(S["pattern"] != 0, S["pattern"], S["direction"]), "fallback")
+    eng = C.CreditEngine(comb, CFG)
+    pairs = C.masked_pairs(fr, eng.raw_credit(fr))
+    assert [(p.a, p.b) for p in pairs] == [("pattern", "direction")] and pairs[0].score_corr > 0.99
+    assert abs(pairs[0].loo_a) < 1e-3 < pairs[0].solo_a
+
+
+def test_subsample_stability_keeps_the_true_component_on_top(single_report):
+    led, _ = single_report
+    s = C.subsample_stability(frame_of(led), SUM4, CFG, n_rep=12).set_index("component")
+    assert s.loc["pattern", "same_sign"] == 1.0 and s.loc["pattern", "top_rank"] == 1.0
+
+
+def test_reports_render_summarise_and_tabulate(single_report):
+    _, rep = single_report
+    s = C.summary_dict(rep)
+    assert s["earners"] == ["pattern"] and s["problems"] == [] and s["label"] == "IMPLEMENTED — NOT VALIDATED"
+    md = C.render_markdown(rep)
+    assert md.startswith("# Credit assignment") and "IMPLEMENTED — NOT VALIDATED" in md and "| pattern |" in md
+    assert "Why some components received no credit" in md
+    tab = C.context_table(rep)
+    assert {"dimension", "value", "component", "mean_credit", "dependence_p"} <= set(tab.columns)
+
+
+def test_rolling_assessments_only_see_outcomes_matured_before_each_now():
+    led = C.simulate_decisions(360, 41, lambda r, d: 0.5 * d.pattern, noise=0.4, start="2020-01-06")
+    eng = C.CreditEngine(SUM4, dataclasses.replace(CFG, n_perm=150))
+    reps = C.rolling_assessments(eng, led, ["2020-03-02", "2020-04-15", "2020-06-01"])
+    assert [r.n_decisions for r in reps] == sorted(r.n_decisions for r in reps) and reps[0].n_decisions < reps[-1].n_decisions
+    assert reps[0].n_pending > 0
+    tab = C.earners_over_time(reps)
+    assert list(tab.index) == ["2020-03-02", "2020-04-15", "2020-06-01"] and tab["pattern"].notna().iloc[-1]
+    with pytest.raises(ValueError):
+        C.rolling_assessments(eng, led, ["2020-06-01", "2020-03-02"])
+    assert C.earners_over_time([]).empty
+
+
+def test_blame_concentrates_in_the_context_where_the_component_fails():
+    n = 600
+    led = C.simulate_decisions(n, 43, lambda r, d: 0.5 * d.pattern * np.where(d.index < n / 2, 1.0, -1.0), noise=0.3, regime_flip_at=0.5)
+    fr = frame_of(led)
+    phi = C.CreditEngine(SUM4, CFG).raw_credit(fr)["phi"]
+    tab = C.blame_by_context(fr, phi, "regime")
+    late = tab[(tab.component == "pattern") & (tab.context == "late")].iloc[0]
+    assert late["share_of_blame"] > 0.8 and late["lift"] > 1.5
+    assert ("pattern", "late") == C.anti_context_candidates(tab)[0][:2]
+    assert C.anti_context_candidates(pd.DataFrame()) == []
+    with pytest.raises(KeyError):
+        C.blame_by_context(fr, phi, "nope")
+
+
+# ============================================================================================================================
+# sampled Shapley for many components, and the automatic exact/sampled switch
+# ============================================================================================================================
+def _wide_ledger(k, n=160, seed=51, active=("c0", "c1", "c2")):
+    rng = np.random.default_rng(seed)
+    days = pd.bdate_range("2020-01-06", periods=n // 4 + 1)
+    led = C.DecisionLedger()
+    names = [f"c{i}" for i in range(k)]
+    for i in range(n):
+        s = {c: float(rng.standard_normal()) for c in names}
+        y = 0.4 * sum(s[c] for c in active) + 0.5 * rng.standard_normal()
+        d = days[i // 4]
+        led.add(C.Decision(f"w{i:04d}", str(d.date()), str((d + pd.offsets.BDay(5)).date()), s, float(y)))
+    return led, C.WeightedSumCombiner({c: 1.0 for c in names})
+
+
+def test_adaptive_sampling_agrees_with_exact_within_its_standard_error():
+    led, comb = _wide_ledger(8)
+    fr = frame_of(led)
+    co = C.Coalitions(fr, comb, C.Utility.PAYOFF, CFG.neutral)
+    exact = C.shapley_values(co, CFG, np.random.default_rng(0))[0].mean(axis=0)
+    cfg = dataclasses.replace(CFG, shapley_method="sampled", sample_rel_se=0.02, max_orders=4000)
+    phi, info = C.shapley_adaptive(co, cfg, np.random.default_rng(1))
+    assert info.method == "sampled" and info.converged and info.n_orders <= cfg.max_orders
+    assert np.allclose(phi.sum(axis=1), co.v(co.full_mask) - co.v(0))              # efficiency survives sampling
+    assert np.all(np.abs(phi.mean(axis=0) - exact) <= 4 * info.max_se + 1e-12)        # within (4x) its own reported error
+    assert np.array_equal(phi, C.shapley_adaptive(co, cfg, np.random.default_rng(1))[0])   # seeded => reproducible
+
+
+def test_sampling_stops_at_the_budget_cap_and_says_it_did_not_converge():
+    led, _ = _wide_ledger(8)
+    comb = C.FunctionCombiner(lambda S: S["c0"] * S["c1"] + S["c2"] * S["c3"] * (S["c4"] > 0) + S["c5"], "nonadditive")
+    co = C.Coalitions(frame_of(led), comb, C.Utility.PAYOFF, CFG.neutral)
+    cfg = dataclasses.replace(CFG, sample_rel_se=0.0001, min_orders=8, max_orders=40)
+    _, info = C.shapley_adaptive(co, cfg, np.random.default_rng(2))
+    assert info.n_orders <= 40 and not info.converged and info.rel_se > 0.0001
+    assert dataclasses.replace(CFG, max_orders=2, min_orders=8).validate() != []
+
+
+def test_switch_is_automatic_and_recorded_in_the_report():
+    led6 = C.simulate_decisions(200, 53, lambda r, d: 0.4 * d.pattern)
+    rep6 = C.CreditEngine(SUM4, CFG).assess(led6, NOW)
+    assert rep6.shapley_method == "exact" and rep6.shapley_orders == 0 and rep6.shapley_converged
+    led, comb = _wide_ledger(12, n=120)
+    co = C.Coalitions(frame_of(led), comb, C.Utility.PAYOFF, CFG.neutral)
+    assert C.shapley_values_info(co, CFG, np.random.default_rng(0))[2].method == "sampled"
+    forced = dataclasses.replace(CFG, shapley_method="exact")
+    with pytest.raises(ValueError):
+        big, bc = _wide_ledger(15, n=40)
+        C.shapley_values_info(C.Coalitions(frame_of(big), bc, C.Utility.PAYOFF, CFG.neutral), forced, np.random.default_rng(0))
+    assert "Shapley method: exact" in rep6.render_text()
+
+
+def test_fourteen_components_run_end_to_end_and_find_the_planted_three():
+    led, comb = _wide_ledger(14, n=160)
+    cfg = dataclasses.replace(CFG, alpha=0.1, n_perm=150, n_boot=80, sample_rel_se=0.05, max_orders=400)
+    import time
+    t0 = time.time()
+    rep = C.CreditEngine(comb, cfg).assess(led, NOW)
+    assert time.time() - t0 < 60
+    assert rep.shapley_method == "sampled" and rep.shapley_orders > 0 and rep.shapley_max_se > 0
+    assert rep.interactions == ()                                  # dividends (hence pair indices) exist only for exact runs
+    assert {"c0", "c1", "c2"} <= set(rep.earners())
+    assert len(rep.earners()) <= 6
+    assert rep.efficiency_error < 1e-9 and C.validate_report(rep) == []

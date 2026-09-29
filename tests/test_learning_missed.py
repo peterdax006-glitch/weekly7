@@ -335,3 +335,95 @@ def test_invalid_weeks_and_candidates_are_reported():
     errs = bad.validate()
     assert any("resolved_at" in e for e in errs) and any("duplicate cid" in e for e in errs) and any("identity key" in e for e in errs)
     assert M.Week("e", "2020-01-06", "2020-01-13", ()).base_rate() != M.Week("e", "2020-01-06", "2020-01-13", ()).base_rate()
+
+
+# ------------------------------------------------------------------------------------------------ later additions
+def test_synthetic_weeks_are_deterministic_and_planted_only_when_asked():
+    a, b = M.synthetic_weeks(n=10, seed=3), M.synthetic_weeks(n=10, seed=3)
+    assert [c.fwd for w in a for c in w.candidates] == [c.fwd for w in b for c in w.candidates]
+    def region_rate(ws):
+        cs = [c for w in ws for c in w.candidates if c.features["f1"] > 0.7 and c.features["f2"] < 0.35]
+        return float(np.mean([c.fwd >= WINNER for c in cs]))
+    WINNER = M.WINNER
+    assert region_rate(M.synthetic_weeks(n=40, seed=4, planted=True)) > 0.3 > region_rate(M.synthetic_weeks(n=40, seed=4, planted=False))
+
+
+def test_distinction_selfcheck_finds_the_plant_and_nothing_on_null():
+    r = M.distinction_selfcheck(seed=0)
+    assert r["ok"] and r["planted"]["oos_pass"] >= 1 and r["null"]["significant"] == 0
+
+
+def test_rule_confusion_and_backtest_and_combination(planted_weeks):
+    d = M.find_distinctions(M.cohort_frame(planted_weeks[:40], PARAMS), PARAMS, seed=1)[0]
+    rc = M.rule_confusion(d, planted_weeks[41:])
+    assert rc["tp"] + rc["fp"] + rc["fn"] + rc["tn"] == sum(1 for w in planted_weeks[41:] for c in w.candidates if not c.picked)
+    assert rc["lift"] > 1.2 and rc["precision"] > rc["base_rate"]
+    bt = M.promote_backtest(d, planted_weeks[41:], seed=1)
+    summ = M.backtest_summary(bt)
+    assert summ["weeks"] == len(bt) > 5 and summ["mean_gain"] > summ["mean_random"] and summ["max_drawdown"] <= 0.0 and "late" in summ["by_era"]
+    assert M.backtest_summary(M.promote_backtest(d, [], seed=1))["verdict"] == "NO_MATCHES"
+    with pytest.raises(FirewallBreach):
+        M.promote_backtest(d, planted_weeks[41:], now="2019-01-01")
+    found = M.find_distinctions(M.cohort_frame(planted_weeks[:40], PARAMS), PARAMS, seed=1)
+    inc = M.combine_rules(found, planted_weeks[41:])
+    assert inc[0]["new_winners"] >= inc[-1]["new_winners"] and all(0 <= r["precision"] <= 1 for r in inc if r["precision"] == r["precision"])
+
+
+def test_discovery_sensitivity_shows_the_finding_survives_settings(planted_weeks):
+    rows = M.discovery_sensitivity(planted_weeks, PARAMS, "rank_caliper", [4, 6, 10], seed=1)
+    assert len(rows) == 3 and all(r["found"] >= 1 for r in rows)
+    assert all(set(r["top_features"]) & {"f1", "f2"} for r in rows)
+    with pytest.raises(ValueError):
+        M.discovery_sensitivity(planted_weeks, PARAMS, "nope", [1])
+
+
+def test_reason_dynamics_and_tables(planted_weeks):
+    tab = M.rejection_table(planted_weeks[:20])
+    assert len(tab) == sum(len(w.missed()) for w in planted_weeks[:20]) and set(tab["reason"]) <= {r.value for r in RR}
+    assert not M.reason_by_type(planted_weeks[:20]).empty and M.reason_by_type([]).empty
+    curve = M.recovery_curve(planted_weeks[:20])
+    assert curve[-1]["cumulative_share"] == pytest.approx(1.0) and curve[0]["return_missed"] >= curve[-1]["return_missed"]
+    top = M.top_missed(planted_weeks[:20], n=3)
+    assert len(top) == 3 and top[0]["fwd"] >= top[-1]["fwd"] and M.top_missed([]) == []
+    rng = np.random.default_rng(2)
+    early = [dataclasses.replace(w, candidates=tuple(dataclasses.replace(c, timing_blocked=False) for c in w.candidates)) for w in planted_weeks[:25]]
+    late = [dataclasses.replace(w, candidates=tuple(dataclasses.replace(c, timing_blocked=(not c.picked and rng.random() < 0.7)) for c in w.candidates))
+            for w in planted_weeks[25:]]
+    shift = {r["reason"]: r for r in M.reason_shift(early, late, min_n=10)}
+    assert shift["TIMING"]["shift"] > 0.3 and shift["TIMING"]["p"] < 0.001
+    assert M.reason_shift([], []) == []
+
+
+def test_explain_rejection_and_precedence_property():
+    txt = M.explain_rejection(explain(timing_blocked=True))
+    assert "TIMING" in txt and "entry-timing gate" in txt
+    assert "does not support a reason" in M.explain_rejection(explain(rank=None, score=None))
+    assert M.precedence_is_consistent() is True
+
+
+def test_weeks_from_frame_roundtrip_and_cohort_description(planted_weeks):
+    rows = []
+    for w in planted_weeks[:12]:
+        for c in w.candidates:
+            rows.append({"period": w.label, "decided_at": w.decided_at, "resolved_at": w.resolved_at, "cid": c.cid, "fwd": c.fwd, "picked": c.picked,
+                         "score": c.score, "rank": c.rank, "era": w.era, "kind": c.kind, "confidence": c.confidence,
+                         "filters_hit": ",".join(c.filters_hit), **c.features})
+    ws = M.weeks_from_frame(pd.DataFrame(rows), k=8)
+    assert len(ws) == 12 and ws[0].candidates[0].features == planted_weeks[0].candidates[0].features and ws[0].era == "early"
+    assert [w.label for w in ws] == [w.label for w in planted_weeks[:12]]
+    with pytest.raises(ValueError):
+        M.weeks_from_frame(pd.DataFrame({"period": [1]}))
+    desc = M.describe_cohorts(M.cohort_frame(planted_weeks, PARAMS))
+    assert desc["n_a"] == desc["n_b"] > 0 and set(desc["by_era"]) == {"early", "late"} and M.describe_cohorts(pd.DataFrame())["n_a"] == 0
+
+
+def test_params_validation_and_summaries(planted_weeks):
+    assert M.validate_params(PARAMS) == []
+    assert len(M.validate_params(dataclasses.replace(PARAMS, alpha=0.9, n_perm=5, band=0.5, embargo=0))) == 4
+    s = M.week_summary(planted_weeks[0])
+    assert s["candidates"] == 60 and s["picked"] == 8 and s["missed"] + round(s["catch_rate"] * s["winners"]) == s["winners"]
+    wk = M.winners_by_kind(planted_weeks)
+    assert wk["other"]["winners"] > 0 and 0.0 <= wk["other"]["catch_rate"] <= 1.0 and M.winners_by_kind([]) == {}
+    with pytest.raises(ValueError):
+        M.RejectionAnalyzer().explain_missed  # attribute access is fine; explain on a picked candidate is not
+        M.RejectionAnalyzer().explain(cand(picked=True), WEEK)

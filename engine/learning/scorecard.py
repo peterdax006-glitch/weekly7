@@ -787,3 +787,148 @@ def scorecard_markdown(card: LearningScorecard, decision: ClaimDecision | None =
     text = "\n".join(L)
     assert_claim_ok(text.replace(d.statement(card), ""), d)
     return text
+
+
+def scorecard_diff(old: LearningScorecard, new: LearningScorecard):
+    """Field-by-field table of two cards: both values and whether the intervals separate, and in which direction. Untested on either
+    side is shown as such. This is the table behind compare_scorecards, for reports."""
+    import pandas as pd
+    rows = []
+    for f in _HIGHER_BETTER + _LOWER_BETTER:
+        a, b = getattr(old, f), getattr(new, f)
+        state = "untested"
+        if a.measured and b.measured and all(math.isfinite(x) for x in (a.lo, a.hi, b.lo, b.hi)):
+            up = (b.lo > a.hi) if f in _HIGHER_BETTER else (b.hi < a.lo)
+            down = (b.hi < a.lo) if f in _HIGHER_BETTER else (b.lo > a.hi)
+            state = "better" if up else "worse" if down else "same"
+        rows.append({"field": f, old.learner_version: a.value, new.learner_version: b.value, "state": state})
+    return pd.DataFrame(rows)
+
+
+def missing_for_claim(card: LearningScorecard) -> list[str]:
+    """What still has to be run or measured before the gate could pass: the blocking checks that failed for lack of evidence rather than
+    for evidence against. A to-do list, not a verdict."""
+    d = gate_improvement_claim(card)
+    need = {"controls_present", "memoriser_seen", "leak_seen", "learner_leak_clean", "tier_measured", "another_context", "stability", "scorecard_valid"}
+    return [c.message for c in d.checks if c.blocking and not c.ok and c.name in need]
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# section 47 completion: each of the 19 fields is tied to the control that makes it reportable
+# ---------------------------------------------------------------------------------------------------------------
+# field -> (controls whose evidence it needs, extra condition name). A field is only 'claimable' as an improvement when it is measured
+# AND every control it depends on was run and behaves as it must. 'own' means the field is its own evidence (a gap or a status).
+FIELD_CONTROLS = {
+    "baseline_performance": ("A_no_learning",), "post_learning_performance": ("A_no_learning", "D_random_learner"),
+    "same_year_gain": ("A_no_learning", "D_random_learner", "C_identity_memoriser"),
+    "cross_year_gain": ("A_no_learning", "D_random_learner", "C_identity_memoriser", "E_leaky_learner"),
+    "cross_regime_gain": ("A_no_learning", "D_random_learner", "C_identity_memoriser"),
+    "cross_stock_gain": ("A_no_learning", "D_random_learner", "C_identity_memoriser"),
+    "transfer_ratio": ("C_identity_memoriser",), "risk_change": ("A_no_learning",), "drawdown_change": ("A_no_learning",),
+    "band_share": ("A_no_learning", "D_random_learner"), "movement_performance": ("D_random_learner",),
+    "direction_performance": ("D_random_learner",), "mover_performance": ("D_random_learner",),
+    "calibration": (), "memorization_gap": ("C_identity_memoriser",), "identity_gap": ("C_identity_memoriser",),
+    "future_leak_status": ("E_leaky_learner",), "stability": ("A_no_learning",), "compute_cost": (),
+}
+
+
+@dataclass(frozen=True)
+class FieldClaim:
+    field: str
+    measured: bool
+    controls_needed: tuple
+    controls_missing: tuple        # needed but not run / not behaving
+    may_claim_improved: bool
+    reason: str
+
+
+def _control_ok(card: LearningScorecard, name: str) -> bool:
+    c = card.controls.get(name)
+    if c is None or not c.gain.measured:
+        return False
+    if name == "A_no_learning":
+        return c.gain.lo <= 0 <= c.gain.hi                      # must be flat
+    if name in ("C_identity_memoriser", "E_leaky_learner"):
+        return c.detected is True                               # the planted defect must have been seen
+    return True
+
+
+def field_claims(card: LearningScorecard) -> dict:
+    """For each of the 19 section-47 fields: is it measured, which controls does it depend on, which of them are missing or misbehaving,
+    and therefore may the field be described as an improvement. Fields with no control dependency (calibration, compute cost) need a
+    reference instead: calibration must beat the base-rate Brier noted in its own text, compute cost is a fact, never an improvement."""
+    out = {}
+    for f in SECTION_47_FIELDS:
+        v = getattr(card, f)
+        if isinstance(v, LeakStatus):
+            measured = v != LeakStatus.UNAUDITED
+        elif isinstance(v, ComputeCost):
+            measured = v.measured
+        else:
+            measured = v.measured
+        need = FIELD_CONTROLS[f]
+        missing = tuple(n for n in need if not _control_ok(card, n))
+        if f == "compute_cost":
+            ok, why = False, "a cost is a fact, never an improvement"
+        elif f == "future_leak_status":
+            ok, why = card.future_leak_status == LeakStatus.CLEAN and not missing, "clean status counts only if the leak control was caught"
+        elif not measured:
+            ok, why = False, "not measured"
+        elif missing:
+            ok, why = False, "controls missing or misbehaving: " + ", ".join(missing)
+        elif isinstance(v, Measured):
+            ok, why = (v.significantly_positive if f not in ("calibration", "memorization_gap", "identity_gap") else (v.hi < 0 if f == "calibration" else not (v.lo > 0))), "interval-based"
+        else:
+            ok, why = False, "no claim form"
+        out[f] = FieldClaim(f, measured, need, missing, bool(ok), why)
+    return out
+
+
+def refuse_unsupported_field_claims(card: LearningScorecard, text: str) -> list[str]:
+    """Scan free text for a field name paired with 'improved' / 'improvement' / 'better' (same sentence). Returns the fields the text
+    claims an improvement in although the card does not allow it; an empty list means the text is within the evidence."""
+    claims = field_claims(card)
+    bad = []
+    for sentence in re.split(r"[.;\n]", text):
+        s = sentence.lower()
+        if not re.search(r"(?<!not )(?<!no )\b(improved|improvement|better|gain)\b", s):
+            continue
+        for f, c in claims.items():
+            if (f.replace("_", " ") in s or f in s) and not c.may_claim_improved:
+                bad.append(f)
+    return sorted(set(bad))
+
+
+def calibration_control(p, y) -> Measured:
+    """The control for the calibration field: Brier skill against always predicting the base rate. Positive skill with an interval is what
+    a calibration 'improvement' has to show; the value is skill (higher is better), the note carries both Brier scores."""
+    from .. import pattern_reliability as PR
+    p, y = np.asarray(p, float), np.asarray(y, float)
+    if len(p) < 30 or len(p) != len(y):
+        return Measured.untested("fewer than 30 samples")
+    ref = np.full(len(y), y.mean())
+    rng = np.random.default_rng(0)
+    skills = []
+    for _ in range(300):
+        i = rng.integers(0, len(p), len(p))
+        b0 = PR.brier(np.full(len(i), y[i].mean()), y[i])
+        skills.append(1 - PR.brier(p[i], y[i]) / b0 if b0 > 0 else np.nan)
+    skills = np.array([s for s in skills if np.isfinite(s)])
+    sk = 1 - PR.brier(p, y) / PR.brier(ref, y) if PR.brier(ref, y) > 0 else float("nan")
+    if len(skills) < 20 or not np.isfinite(sk):
+        return Measured.untested("degenerate outcomes")
+    return Measured(float(sk), float(np.quantile(skills, 0.025)), float(np.quantile(skills, 0.975)), len(p), MStatus.MEASURED,
+                    f"Brier skill vs base rate; Brier {PR.brier(p, y):.4f} vs base-rate {PR.brier(ref, y):.4f}")
+
+
+def claim_matrix(card: LearningScorecard):
+    """The 19 fields as a table: measured, controls needed, controls missing, and whether an improvement may be claimed for each."""
+    import pandas as pd
+    rows = [{"field": f, "measured": c.measured, "controls_needed": ",".join(c.controls_needed), "controls_missing": ",".join(c.controls_missing),
+             "may_claim_improved": c.may_claim_improved, "reason": c.reason} for f, c in field_claims(card).items()]
+    return pd.DataFrame(rows)
+
+
+def claimable_fields(card: LearningScorecard) -> list[str]:
+    """Names of the fields for which the card supports the word 'improved'. Usually a strict subset of what was measured."""
+    return [f for f, c in field_claims(card).items() if c.may_claim_improved]

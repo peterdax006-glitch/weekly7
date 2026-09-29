@@ -576,3 +576,201 @@ def test_lesson_kind_bridge_uses_the_existing_vocabulary():
     assert PM.lesson_kind(build(FC.RISK_ERROR)[2]) == "oversized_loser"
     assert PM.lesson_kind(build(FC.MEASUREMENT_ERROR)[2]) is None
     assert PM.lesson_kind(build(FC.FALSE_PATTERN)[2]) == "bad_entry"
+
+
+# ------------------------------------------------------------------------------------------------ later additions
+def test_timing_detector_reads_an_adverse_gap_correctly_for_both_sides():
+    """A long is hurt by an upward gap (it pays more); a short by a downward one. Getting the sign wrong blames the wrong trade."""
+    long_adverse = trade(side=1, signal_ret=0.06, entry_gap=0.08, end_ret_from_fill=1.06 / 1.08 - 1, exit_ret=1.06 / 1.08 - 1, pnl=-0.0195)
+    short_adverse = trade(side=-1, signal_ret=-0.06, entry_gap=-0.08, end_ret_from_fill=0.94 / 0.92 - 1, exit_ret=0.94 / 0.92 - 1, pnl=-0.0225)
+    long_fine = trade(side=1, signal_ret=0.06, entry_gap=-0.08, end_ret_from_fill=1.06 / 0.92 - 1, exit_ret=-0.02, pnl=-0.0205)
+    for t, expect in ((long_adverse, True), (short_adverse, True), (long_fine, False)):
+        r = F.detect_timing(t, F.FailureEnv(), F.FailureParams())
+        assert any("gap ate" in e.note for e in r.evidence) is expect
+
+
+def test_threshold_sensitivity_finds_the_decision_boundary():
+    t, env = F.planted_case(FC.SELECTION_ERROR, 0)
+    sweep = F.threshold_sensitivity(t, env, NOW, "accept", [0.3, 0.6, 0.9, 0.99])
+    assert sweep[0]["cause"] == "SELECTION_ERROR" and sweep[-1]["cause"] == "UNKNOWN" and any(r["flipped"] for r in sweep)
+    with pytest.raises(ValueError):
+        F.threshold_sensitivity(t, env, NOW, "no_such_field", [1])
+    b = F.boundary_cases([F.planted_case(FC.SELECTION_ERROR, 0), F.planted_case(FC.UNKNOWN, 0)], NOW, "accept", [0.3, 0.6, 0.9, 0.99])
+    assert b["boundary_share"] == 0.5 and F.boundary_cases([], NOW, "accept", [0.5])["n"] == 0
+
+
+def test_audit_detectors_gives_one_row_per_detector():
+    t, env = F.planted_case(FC.RISK_ERROR, 0)
+    rows = F.audit_detectors(F.LossClassifier(), t, env, NOW)
+    assert [r["id"] for r in rows] == ["D02", "D03", "D04", "D05", "D06", "D07", "D08", "D09"]
+    risk = next(r for r in rows if r["detector"] == "risk")
+    assert risk["ran"] and "RISK_ERROR" in risk["causes"] and risk["max_support"] > 0.9
+    with pytest.raises(FirewallBreach):
+        F.audit_detectors(F.LossClassifier(), t, env, "2019-12-30")
+
+
+def test_averaged_decomposition_is_order_free_and_still_additive():
+    t = trade(signal_ret=-0.01, end_ret_from_fill=-0.01, exit_ret=-0.01, entry_gap=0.0, pnl=-0.0105, dir_prob=0.6, exp_move=0.07)
+    av = S.decompose_averaged(t)
+    d = S.decompose(t)
+    assert sum(v for k, v in av.items() if k != "residual") + d.promise + av["residual"] == pytest.approx(d.pnl)
+    assert av["selection"] == pytest.approx((S.decompose(t).selection + S.decompose(t, order="direction_first").selection) / 2)
+
+
+def test_error_rate_drift_detects_a_subsystem_that_breaks_midway():
+    rng = np.random.default_rng(11)
+    ts = []
+    for i in range(120):
+        broken = i >= 60 and rng.random() < 0.8
+        if broken:
+            gap = 0.06
+            end = 1.05 / (1 + gap) - 1
+            ts.append(trade(rid=f"d{i}", signal_ret=0.05, entry_gap=gap, end_ret_from_fill=end, exit_ret=end, pnl=end - 0.0005, exp_move=0.04))
+        else:
+            ts.append(trade(rid=f"d{i}", signal_ret=0.06, entry_gap=0.0, end_ret_from_fill=0.06, exit_ret=0.06, pnl=0.0595, exp_move=0.05))
+    r = S.error_rate_drift(ts, seed=1)
+    assert r["subsystems"]["TIMING"]["drifting"] and r["subsystems"]["TIMING"]["diff"] > 0.6 and not r["subsystems"]["SELECTION"]["drifting"]
+    assert S.error_rate_drift(ts[:10])["verdict"] == "INSUFFICIENT_DATA"
+
+
+def test_blame_by_context_shows_conditional_failure():
+    rng = np.random.default_rng(12)
+    ts = []
+    for i in range(90):
+        hi = i % 3 == 2                                         # timing losses only when volatility is high
+        vol = float(3.0 + rng.random()) if hi else float(rng.random())
+        if hi:
+            gap = 0.07
+            end = 1.05 / (1 + gap) - 1
+            ts.append(trade(rid=f"c{i}", signal_ret=0.05, entry_gap=gap, end_ret_from_fill=end, exit_ret=end, pnl=end - 0.0005, exp_move=0.04, context={"m_vol": vol}))
+        else:
+            ts.append(trade(rid=f"c{i}", signal_ret=0.004, entry_gap=0.0, end_ret_from_fill=0.004, exit_ret=-0.02, pnl=-0.0205, exp_move=0.07, context={"m_vol": vol}))
+    r = S.blame_by_context(ts, "m_vol", bins=3)
+    lead = [max(b["blame"].items(), key=lambda kv: kv[1])[0] for b in r["table"]]
+    assert r["primary_changes_with_context"] and lead[-1] == "TIMING" and lead[0] == "SELECTION"
+    assert S.blame_by_context(ts, "m_nothing")["verdict"] == "INSUFFICIENT_DATA"
+
+
+def test_co_failure_and_improvement_potential_and_focus():
+    ts = [S.planted_trade(f, s) for f in (Subsystem.TIMING, Subsystem.SELECTION, Subsystem.EXIT) for s in range(12)]
+    ts = [dataclasses.replace(t, rid=f"{t.rid}-{i}") for i, t in enumerate(ts)]
+    cf = S.co_failure(ts)
+    assert cf["n"] == 36 and 0.0 <= cf["max_abs"] <= 1.0
+    ip = S.improvement_potential(ts)
+    assert ip["largest"] in ("TIMING", "SELECTION", "EXIT") and all(v >= 0 for v in ip["uplift"].values())
+    focus = S.subsystem_focus(ts, seed=1)
+    assert focus and focus[0]["vs_mean"] >= focus[-1]["vs_mean"]
+    assert S.subsystem_focus(ts[:5]) == [] and S.improvement_potential([])["verdict"] == "INSUFFICIENT_DATA"
+    assert "subsystem scorecard" in S.render_scorecard(S.subsystem_scorecard(ts))
+
+
+def test_the_decomposition_recovers_every_planted_fault():
+    r = S.decomposition_selfcheck(seeds=(0, 1, 2, 3, 4))
+    assert r["recovery"] == 1.0 and set(r["by_fault"]) == {s.value for s in Subsystem}
+    with pytest.raises(ValueError):
+        S.planted_trade("NOPE")
+
+
+def test_exit_alternatives_sizing_and_reports():
+    ts = [trade(rid=f"x{i}", mfe=0.08, pnl=-0.02) for i in range(10)] + [trade(rid=f"y{i}", mfe=0.01, pnl=0.01) for i in range(10)]
+    alt = S.exit_alternatives(ts, targets=(0.05,))
+    assert alt[0]["touched"] == 10 and alt[0]["uplift_upper_bound"] > 0.02 and S.exit_alternatives([trade()]) == []
+    sized = [trade(rid=f"z{i}", weight=0.05 + 0.01 * i, target_weight=0.1, pnl=-0.003 * i if i > 10 else 0.002) for i in range(30)]
+    rep = S.sizing_report(sized)
+    assert rep["weight_pnl_corr"] < 0 and rep["n"] == 30 and S.sizing_report(sized[:5])["verdict"] == "INSUFFICIENT_DATA"
+
+
+def test_params_validation_and_explain_and_tables():
+    assert S.validate_params(S.SeparationParams()) == []
+    assert len(S.validate_params(S.SeparationParams(min_blame=0.0, noise_alpha=0.9, boot=5, min_direction_n=2))) == 4
+    d = S.decompose(S.planted_trade(Subsystem.TIMING, 0))
+    txt = S.explain_decomposition(d)
+    assert "the fill (overnight gap) cost money" in txt and "promised" in txt
+    tab = S.attribution_table([S.planted_trade(f, 0) for f in Subsystem])
+    assert list(tab["primary"]) == [S.attribute(S.planted_trade(f, 0)).primary.value for f in Subsystem]
+    led = S.SubsystemLedger()
+    for i, f in enumerate(list(Subsystem) * 4):
+        led.add(dataclasses.replace(S.planted_trade(f, i), rid=f"led{i}"))
+    assert 0.2 <= S.blame_concentration(led)["herfindahl"] <= 1.0 and S.learning_targets(led, min_taught=2)
+    empty = S.blame_concentration(S.SubsystemLedger())["herfindahl"]
+    assert empty != empty
+
+
+def test_label_vs_arithmetic_measures_wrong_teaching():
+    clf = F.LossClassifier()
+    pairs = []
+    for i in range(10):    # an adverse-gap loss that a label blames on SELECTION: label says SELECTION, arithmetic says TIMING
+        t = S.planted_trade(Subsystem.TIMING, i)
+        c = clf.classify(t, F.FailureEnv(), NOW)
+        pairs.append((t, F.Classification(**{**c.__dict__, "cause": FC.SELECTION_ERROR, "unknown_state": None, "confidence": 0.8})))
+    r = S.label_vs_arithmetic(pairs)
+    assert r["n"] == 10 and r["agreement"] == 0.0 and r["table"]["SELECTION_ERROR"]["TIMING"] == 10
+
+
+def test_selection_of_losses_for_review_prefers_big_and_novel():
+    big_common = [trade(rid=f"bc{i}", pnl=-0.10, pattern_ids=("P",)) for i in range(5)]
+    small_novel = trade(rid="sn", pnl=-0.06, pattern_ids=("Q",))
+    picked = PM.select_for_postmortem(big_common + [small_novel, trade(rid="win", pnl=0.05)], budget=3)
+    assert "sn" in [t.rid for t in picked] and "win" not in [t.rid for t in picked] and len(picked) == 3
+    assert PM.select_for_postmortem([], 5) == [] and PM.select_for_postmortem(big_common, 0) == []
+
+
+def test_recurrence_separates_a_systematic_mode_from_one_event():
+    _, _, base_pm = build(FC.WEAKENING_EFFECT)
+    systematic = [dataclasses.replace(base_pm, pid=f"s{i}", period=f"p{i}") for i in range(5)]
+    one_event = [dataclasses.replace(build(FC.RISK_ERROR)[2], pid=f"e{i}", period="only") for i in range(5)]
+    rec = PM.recurrence(systematic + one_event, min_periods=3)
+    assert len(rec) == 1 and rec[0]["cause"] == "WEAKENING_EFFECT" and rec[0]["n_periods"] == 5 and rec[0]["streak"] == 5
+    assert PM.recurrence([]) == []
+
+
+def test_hypothesis_outcomes_keep_failures_and_block_reproposal():
+    h = build(FC.WEAKENING_EFFECT)[2].what_should_change[0]
+    out = PM.HypothesisOutcomes()
+    assert out.propose(h) and out.state(h.hid) == "PROPOSED"
+    out.record(h.hid, "FAIL", "oos lift 0.9 on 12 periods")
+    assert out.state(h.hid) == "TESTED_FAIL" and out.propose(h) is False
+    with pytest.raises(ValueError):
+        out.reopen(h.hid, "")
+    out.reopen(h.hid, "new regime data")
+    assert out.state(h.hid) == "PROPOSED" and out.history(h.hid)[-1].startswith("REOPENED")
+    with pytest.raises(KeyError):
+        out.record("nope", "PASS", "x")
+    with pytest.raises(ValueError):
+        out.record(h.hid, "MAYBE", "x")
+    with pytest.raises(ValueError):
+        out.record(h.hid, "PASS", "")
+    assert out.counts()["PROPOSED"] == 1
+
+
+def test_export_replay_coverage_and_conflicts():
+    t, env, pm = build(FC.REVERSAL)
+    md = PM.export_markdown(pm)
+    for heading in ("What was believed", "Supporting evidence", "Knowledge that should not have", "Condition that invalidated the belief", "Confidence in this explanation"):
+        assert heading in md
+    assert PM.replay_check(pm, t, env, NOW) == []
+    assert PM.replay_check(pm, dataclasses.replace(t, pnl=-0.0501), env, NOW)          # a different trade cannot reproduce it
+    cov = PM.loss_coverage([t, trade(rid="unreviewed", pnl=-0.5)], [pm])
+    assert cov["n_losses"] == 2 and cov["coverage"] == 0.5 and cov["by_size"][0]["coverage"] == 0.0
+    book = PM.HypothesisBook()
+    a = F.Hypothesis("h1", "gate pattern P1 while flat", Subsystem.SELECTION, DecisionEffect.PATTERN_WEIGHTING, FC.REVERSAL, ("t",), target="P1")
+    b = F.Hypothesis("h2", "promote pattern P1 in calm regimes", Subsystem.SELECTION, DecisionEffect.PATTERN_WEIGHTING, FC.REVERSAL, ("t",), target="P1")
+    for h in (a, b):
+        book._h[h.hid] = PM.HypothesisRecord(h)
+    assert PM.hypothesis_conflicts(book) == [("P1", "h1", "h2")]
+
+
+def test_store_views(tmp_path):
+    store = PM.PostmortemStore(tmp_path / "s.jsonl")
+    uses = [PM.KnowledgeUse(know("KG", epistemic=Epistemic.GATED))]
+    for i, c in enumerate((FC.RISK_ERROR, FC.REVERSAL, FC.RISK_ERROR)):
+        t, env = F.planted_case(c, i, rid=f"sv{i}")
+        store.append(PM.PostmortemBuilder(code_hash="x").build(t, env, NOW, uses))
+    assert len(PM.query_store(store, cause="RISK_ERROR")) == 2 and len(PM.query_store(store, min_confidence=0.99)) == 0
+    hs = PM.hypotheses_in_store(store)
+    assert hs and all(v["n_periods"] >= 1 for v in hs.values())
+    assert PM.knowledge_flag_history(store)["KG"]["BLOCK"] == 3
+    assert PM.severity_counts(store)["BLOCK"] == 3 and sum(PM.period_counts(store).values()) == 3
+    assert set(PM.confidence_by_cause(store)) == {"RISK_ERROR", "REVERSAL"} and PM.hypothesis_effect_mix(store)
+    first = PM.load_postmortem(store.bodies()[0]).what_should_change[0]
+    assert len(PM.dedupe_hypotheses([first] * 3)) == 1

@@ -450,6 +450,16 @@ class Arena:
     def status(self) -> dict[str, HypStatus]:
         return dict(self._status)
 
+    def alive(self) -> list[str]:
+        """Hypotheses still in contention (everything not eliminated; equivalents count as one live group)."""
+        return [h for h, s in self._status.items() if s != HypStatus.ELIMINATED]
+
+    def describe(self) -> str:
+        w = self.weights()
+        top = sorted(w.items(), key=lambda kv: -kv[1])[:3]
+        tail = "separated" if self.separated() else "unresolved: " + self.undecided_reason()
+        return f"{self.relation_id}: {len(self.alive())}/{len(self.ids)} alive after {self.n_seen} rows; leading {', '.join(f'{k} ({v:.2f})' for k, v in top)}; {tail}"
+
     def separated(self) -> bool:
         """True only when the leader beats every non-equivalent rival by the separation bar on discriminating rows."""
         lead = self.ids.index(self.leader())
@@ -825,3 +835,63 @@ def mixture_calibration(arena: Arena) -> dict:
     verdict = "CALIBRATED" if ks.pvalue >= 0.05 else ("OVERCONFIDENT" if tails > 0.10 else "UNDERCONFIDENT" if middle > 0.55 else "MISCALIBRATED")
     return {"n": int(len(p)), "ks_stat": float(ks.statistic), "ks_p": float(ks.pvalue), "tail_share": tails,
             "middle_share": middle, "verdict": verdict}
+
+
+# ------------------------------------------------------------------------------------------------ calibration tools
+def boundary_field(signal: str, df: pd.DataFrame, bsets: Iterable[Any], now, proxies: Sequence[str] = (), y_col: str = "y",
+                   batch: int = 20, cfg: ArenaConfig = ArenaConfig()) -> Arena:
+    """Run a competition whose field is the standard set PLUS one conditional story per accepted learned boundary.  This is how
+    boundary learning feeds knowledge competition: boundaries propose, the arena decides whether 'only inside this region' beats
+    'everywhere' and 'not at all'."""
+    specs = [null_spec(), causal_spec(signal)] + [proxy_spec(p) for p in proxies]
+    seen = set()
+    for bs in bsets:
+        for b in getattr(bs, "boundaries", ()):
+            sp = conditional_from_boundary(signal, b)
+            if sp.hyp_id not in seen and b.feature in df.columns:
+                seen.add(sp.hyp_id)
+                specs.append(sp)
+    arena = Arena(f"field:{signal}", specs, y_col, cfg)
+    run_arena(arena, df, batch, now)
+    return arena
+
+
+def rows_to_separate_curve(truth: str, seeds: Sequence[int] = tuple(range(8)), n: int = 600, batch: int = 20, effect: float = 0.03,
+                           cfg: ArenaConfig = ArenaConfig(), gates=(("liq", ">", 0.0), ("trend", ">", 0.0))) -> dict:
+    """How many observations does it take before the planted explanation is declared the separated winner (and is it the RIGHT
+    one)?  Runs one arena per seed on synthetic_world(truth) and records the first step at which winner() is set.  The wrong-winner
+    count is the competition's false-declaration rate on this world."""
+    want = {"causal": "H_causal", "proxy": "H_proxy_vol", "liq": "H_cond_liq>0", "trend": "H_cond_trend>0", "null": "H_null"}[truth]
+    rows, wrong, never = [], 0, 0
+    for sd in seeds:
+        df = synthetic_world(truth, n=n, seed=sd, effect=effect)
+        a = Arena("cal", standard_field("a", ["vol"], list(gates)), cfg=cfg)
+        first = None
+        for s in range(0, n, batch):
+            a.step(df.iloc[s:s + batch], "2100-01-01")
+            if first is None and a.winner() is not None:
+                first = min(s + batch, n)
+                wrong += int(a.winner() != want)
+                break
+        if first is None:
+            never += 1
+        else:
+            rows.append(first)
+    return {"truth": truth, "n_seeds": len(seeds), "rows_median": float(np.median(rows)) if rows else float("nan"),
+            "rows_max": float(max(rows)) if rows else float("nan"), "wrong_winner": wrong, "never_separated": never}
+
+
+def hypothesis_card(arena: Arena, hyp_id: str) -> dict:
+    """Everything the arena knows about one explanation: its structure, standing, fitted numbers and record against the leader."""
+    if hyp_id not in arena.ids:
+        raise CompetitionError(f"unknown hypothesis {hyp_id!r}")
+    j = arena.ids.index(hyp_id)
+    lead = arena.ids.index(arena.leader())
+    m = arena._models[j]
+    sep, llr, nd = (True, 0.0, 0.0) if j == lead else arena._sep(lead, j)
+    return {"hyp_id": hyp_id, "family": str(arena.specs[j].family), "description": arena.specs[j].description,
+            "status": str(arena._status[hyp_id]), "weight": arena.weights()[hyp_id], "units": arena.specs[j].rule_spec().units(),
+            "fitted": m.fitted, "coefficients": [float(b) for b in m.beta], "sd_inside": m.sd_in, "sd_outside": m.sd_out,
+            "outside_mean": m.out_mean, "log_score": float(arena._cum[j]), "log_bf_leader_over_it": float(llr),
+            "discriminating_rows": float(nd), "separated_from_leader": bool(sep),
+            "equivalent_to": arena.indistinguishable_from(hyp_id)}

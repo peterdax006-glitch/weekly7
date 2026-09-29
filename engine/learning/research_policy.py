@@ -1250,13 +1250,15 @@ class DiscountedAllocator(TargetAllocator):
         return math.sqrt(2.0 * math.log(n + 2.0) / (self.f_trials[t] + 1.0))
 
 
-def cusum_shift(series: Sequence[float], target_mean: float | None = None, k: float = 0.5, h: float = 4.0) -> dict:
-    """Two-sided CUSUM on a standardised series: detects a shift in a target's yield. Returns the first alarm index (or None)
-    and the direction. `k` is the allowance in sd units, `h` the decision threshold. Needs >= 8 points for a scale estimate."""
+def cusum_shift(series: Sequence[float], target_mean: float | None = None, k: float = 0.75, h: float = 5.0) -> dict:
+    """Two-sided CUSUM on a standardised series: detects a shift in a target's yield. The reference mean and scale come from
+    the FIRST HALF of the series (at least 8 points), so a shift is only detectable after it: estimating them from a short
+    window inflates false alarms (measured: a 10-point reference alarmed on pure noise). `k` is the allowance in sd units, `h`
+    the decision threshold. Needs >= 12 points. Returns the first alarm index (or None) and the direction."""
     x = np.asarray(series, float)
-    if len(x) < 8:
+    if len(x) < 12:
         return {"alarm": None, "direction": None, "n": len(x), "verdict": "INSUFFICIENT"}
-    base = x[: max(4, len(x) // 3)]
+    base = x[: max(8, len(x) // 2)]
     mu = float(base.mean()) if target_mean is None else float(target_mean)
     sd = float(base.std(ddof=1)) or 1e-9
     hi = lo = 0.0
@@ -1777,3 +1779,517 @@ def allocation_table(a: Allocation) -> str:
             lines.append(f"{t.value:<20} {s:6.1%} {a.minutes.get(t.value, 0.0):8.1f}")
     lines.append(f"explore {a.explore_share:.1%}  exploit {a.exploit_share:.1%}")
     return "\n".join(lines)
+
+
+# ==================================================================================================================
+# Part 5: explanation of allocations, outcome distribution of a plan, second pass, expiry, planted-world tuning
+# ==================================================================================================================
+
+def starving_targets(history: Sequence[RealisedGain], now, days: float = 60.0, open_targets: Iterable[str] | None = None) -> list:
+    """Targets that have had no experiment for `days` although they are open. The allocator's floors should prevent this;
+    this is the independent check that they did."""
+    cut = to_ts(now)
+    last: dict = {}
+    for g in history:
+        t = g.target.value
+        if t not in last or to_ts(g.when) > to_ts(last[t]):
+            last[t] = g.when
+    targets = list(open_targets) if open_targets is not None else [t.value for t in TARGETS]
+    out = []
+    for t in targets:
+        if t not in last:
+            out.append({"target": t, "days_since": None, "never_run": True})
+        else:
+            d = (cut - to_ts(last[t])).total_seconds() / 86400.0
+            if d > days:
+                out.append({"target": t, "days_since": d, "never_run": False})
+    return out
+
+
+def explain_allocation(alloc: Allocation, allocator: TargetAllocator, seed: int, pressure: Mapping, meta: MetaAdvice | None = None) -> list:
+    """Why each target got its share: the Thompson yield draw, the UCB bonus, the open-work pressure, and the trial history.
+    Recomputes the draws with the same seed so the numbers are the ones the allocation actually used."""
+    meta = meta or MetaAdvice.empty()
+    rng = np.random.default_rng(seed)
+    pmax = max([float(pressure.get(t.value, 0.0)) for t in TARGETS] + [1e-12]) or 1.0
+    rows = []
+    for t in TARGETS:
+        if t.value not in alloc.open_targets:
+            rows.append({"target": t.value, "share": 0.0, "note": "closed: no open work"})
+            continue
+        y = allocator.yield_draw(t, rng, meta)
+        s = allocator.stats[t]
+        rows.append({"target": t.value, "share": alloc.shares[t.value], "yield_draw": y, "ucb_bonus": allocator.ucb_bonus(t),
+                     "pressure": float(pressure.get(t.value, 0.0)) / pmax, "trials": s.trials, "useful": s.useful,
+                     "at_floor": abs(alloc.shares[t.value] - allocator.cfg.explore_floor) < 1e-9,
+                     "at_cap": t in EXPLOIT_TARGETS and abs(alloc.shares[t.value] - allocator.cfg.exploit_cap) < 1e-9})
+    return sorted(rows, key=lambda r: -r["share"])
+
+
+def success_probability(c: Candidate, allocator: TargetAllocator | None = None) -> float:
+    """P(this experiment is useful) as far as the policy can say: the target's observed useful rate shrunk toward 0.3 when
+    an allocator with history is given; 0.3 otherwise. A coarse prior, used only for plan-level outcome simulation."""
+    if allocator is None:
+        return 0.3
+    s = allocator.stats[c.target]
+    return (s.useful + 0.3 * 4.0) / (s.trials + 4.0)
+
+
+def plan_outcome_distribution(plan: ResearchPlan, allocator: TargetAllocator | None = None, seed: int = 0, n_sim: int = 2000) -> dict:
+    """Monte Carlo of what a plan is likely to deliver: expected number of useful results, P(at least one), P(nothing
+    useful), from independent Bernoulli trials at each selected experiment's success probability. A plan whose P(nothing) is
+    high should be widened or diversified even when its expected value looks fine."""
+    probs = np.array([success_probability(s.candidate, allocator) for s in plan.selection.selected], float)
+    if probs.size == 0:
+        return {"n_experiments": 0, "expected_useful": 0.0, "p_at_least_one": 0.0, "p_nothing": 1.0}
+    rng = np.random.default_rng(seed)
+    draws = rng.random((n_sim, probs.size)) < probs
+    k = draws.sum(axis=1)
+    return {"n_experiments": int(probs.size), "expected_useful": float(k.mean()), "p_at_least_one": float((k >= 1).mean()),
+            "p_nothing": float((k == 0).mean()), "p_at_least_half": float((k >= probs.size / 2).mean())}
+
+
+def second_pass(plan: ResearchPlan, minutes_actually_used: float, budget: ComputeBudget) -> Selection:
+    """After a round, experiments finished early leave minutes unspent. Re-run the greedy fill over the plan's deferred
+    candidates with what is left, respecting RAM and real-data limits. Work-conserving: idle compute is waste."""
+    left = max(0.0, budget.cpu_minutes - minutes_actually_used)
+    pool = [s for s, _ in plan.selection.deferred if not s.blocked and s.priority > 0]
+    taken, used = [], 0.0
+    real_left = max(0, budget.real_data_slots - sum(1 for s in plan.selection.selected if s.candidate.cost.real_data))
+    for s in sorted(pool, key=lambda s: -s.priority / max(s.candidate.cost.cpu_minutes, 1.0)):
+        c = s.candidate.cost
+        ok, _ = budget.admits(c)
+        if not ok or used + c.cpu_minutes > left + EPS:
+            continue
+        if c.real_data:
+            if real_left <= 0:
+                continue
+            real_left -= 1
+        taken.append(s)
+        used += c.cpu_minutes
+    rest = tuple((s, "still does not fit") for s, _ in plan.selection.deferred if s not in taken)
+    by_t: dict = {}
+    for s in taken:
+        by_t[s.candidate.target.value] = by_t.get(s.candidate.target.value, 0.0) + s.candidate.cost.cpu_minutes
+    return Selection(tuple(taken), rest, used, by_t)
+
+
+def expire_candidates(cands: Sequence[Candidate], now, max_age_days: float = 120.0) -> tuple:
+    """(kept, expired): candidates whose triggering evidence is older than max_age_days are expired, not deleted. A question
+    nobody has refreshed in four months is a question the world may have answered."""
+    cut = to_ts(now)
+    kept, gone = [], []
+    for c in cands:
+        age = (cut - to_ts(c.created_at)).total_seconds() / 86400.0
+        (gone if age > max_age_days else kept).append(c)
+    return kept, gone
+
+
+def tune_on_planted(worlds: Sequence[Mapping], configs: Sequence[PolicyConfig], seeds: Sequence[int], rounds: int = 30,
+                    budget_minutes: float = 100.0) -> list:
+    """Compare policy configurations on PLANTED worlds only (each world is a dict of hidden per-target yields). Returns one
+    row per config with mean efficiency (bits earned / oracle bits) and the worst world. This is the only place tuning is
+    allowed: never tune a policy against the real experiment log, because then the log is no longer an evaluation."""
+    if not worlds or not configs or not seeds:
+        raise ValueError("need at least one world, config and seed")
+    rows = []
+    for i, cfg in enumerate(configs):
+        eff = []
+        for w in worlds:
+            e = [simulate_allocation(w, rounds, budget_minutes, s, cfg, "bandit")["efficiency"] for s in seeds]
+            eff.append(float(np.mean(e)))
+        rows.append({"config_index": i, "config_hash": stable_hash(cfg), "mean_efficiency": float(np.mean(eff)),
+                     "worst_world_efficiency": float(np.min(eff)), "exploit_cap": cfg.exploit_cap, "explore_floor": cfg.explore_floor})
+    return sorted(rows, key=lambda r: -r["mean_efficiency"])
+
+
+def policy_regret_vs_baselines(true_yield: Mapping, rounds: int, budget_minutes: float, seeds: Sequence[int]) -> dict:
+    """Mean efficiency of bandit / uniform / exploit_only over several seeds on one planted world, and whether the bandit
+    beat both baselines in every seed (the property a policy must show before it is allowed to run real compute)."""
+    out = {}
+    for pol in ("bandit", "uniform", "exploit_only"):
+        out[pol] = [simulate_allocation(true_yield, rounds, budget_minutes, s, policy=pol)["total_bits"] for s in seeds]
+    beat = [b > max(u, e) for b, u, e in zip(out["bandit"], out["uniform"], out["exploit_only"])]
+    return {"mean_bits": {k: float(np.mean(v)) for k, v in out.items()}, "bandit_wins": int(sum(beat)), "seeds": len(seeds),
+            "bandit_beats_both_every_seed": bool(all(beat))}
+
+
+# ==================================================================================================================
+# Part 6: propensities and round logs, marginal value of compute, policy health
+# ==================================================================================================================
+
+def estimate_propensities(allocator: TargetAllocator, pressure: Mapping, seed: int, n_draws: int = 400, meta: MetaAdvice | None = None) -> dict:
+    """The allocator is stochastic (Thompson draws), so 'the probability it funds target T' is not a number it hands out.
+    It is the average share over many seeds. Off-policy evaluation needs it: without propensities the log cannot be reweighted."""
+    tot = {t.value: 0.0 for t in TARGETS}
+    for i in range(n_draws):
+        a = allocator.allocate(1.0, pressure, seed * 1_000_003 + i, meta)
+        for k, v in a.shares.items():
+            tot[k] += v
+    return {k: v / n_draws for k, v in tot.items()}
+
+
+@dataclass(frozen=True)
+class RoundLog:
+    """One planning round as it happened: enough to audit it and to reweight it off-policy later."""
+    round_id: str
+    when: str
+    seed: int
+    budget_minutes: float
+    shares: Mapping
+    propensities: Mapping
+    selected: tuple
+    config_hash: str
+
+
+class RoundLedger:
+    """Append-only jsonl of RoundLogs. Reads are as-of: a round logged at/after `now` does not exist yet."""
+
+    def __init__(self, path=None):
+        self.path = Path(path) if path else None
+        self.rows: list = []
+        self.bad = 0
+        if self.path and self.path.exists():
+            for line in self.path.read_text(encoding="utf-8").splitlines():
+                if line.strip():
+                    try:
+                        d = json.loads(line)
+                        self.rows.append(RoundLog(**{**d, "selected": tuple(d["selected"])}))
+                    except (ValueError, KeyError, TypeError):
+                        self.bad += 1
+
+    def log(self, plan: ResearchPlan, seed: int, budget_minutes: float, propensities: Mapping, cfg: PolicyConfig) -> RoundLog:
+        if any(r.round_id == stable_hash([str(plan.now), seed]) for r in self.rows):
+            raise ValueError("this round (same time and seed) is already logged")
+        row = RoundLog(stable_hash([str(plan.now), seed]), str(plan.now), seed, float(budget_minutes),
+                       {k: float(v) for k, v in plan.allocation.shares.items()}, {k: float(v) for k, v in propensities.items()},
+                       plan.selection.ids(), stable_hash(cfg))
+        self.rows.append(row)
+        if self.path:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            with open(self.path, "a", encoding="utf-8", newline="\n") as f:
+                f.write(json.dumps({**row.__dict__, "selected": list(row.selected)}) + "\n")
+        return row
+
+    def as_of(self, now) -> list:
+        cut = to_ts(now)
+        return [r for r in self.rows if to_ts(r.when) < cut]
+
+    def logged_choices(self, history: Sequence[RealisedGain], now, floor: float = 0.02) -> list:
+        """Join executed experiments to the round that scheduled them (by candidate id) and emit LoggedChoices for IPS. The
+        propensity is floored at `floor` so a near-never-funded target cannot create absurd weights."""
+        by_cid = {}
+        for r in self.as_of(now):
+            for cid in r.selected:
+                by_cid[cid] = r
+        out = []
+        for g in history:
+            r = by_cid.get(g.cid)
+            if r is None:
+                continue
+            out.append(LoggedChoice(g.target, max(r.propensities.get(g.target.value, 0.0), floor), g.realised_bits))
+        return out
+
+
+def marginal_value_of_compute(policy: "ResearchPolicy", candidates: Sequence[Candidate], ctx: PolicyContext, base_budget: ComputeBudget,
+                              multipliers: Sequence[float] = (1.0, 1.5, 2.0, 3.0), seed: int = 0) -> list:
+    """What would MORE compute buy? Plans the same candidates at increasing budgets and reports total EIG (bits) selected, the
+    extra bits per extra minute, and how many candidates are still deferred. If the curve is flat, asking for more compute is
+    pointless; if it is steep, the bottleneck is compute and not ideas."""
+    rows = []
+    prev_bits, prev_min = None, None
+    for m in multipliers:
+        b = replace(base_budget, cpu_minutes=base_budget.cpu_minutes * m)
+        plan = policy.plan(candidates, ctx, b, seed)
+        bits = sum(s.eig_bits for s in plan.selection.selected)
+        mins = plan.selection.used_minutes
+        rows.append({"multiplier": m, "budget_minutes": b.cpu_minutes, "used_minutes": mins, "selected": len(plan.selection.selected),
+                     "total_bits": bits, "deferred": len(plan.selection.deferred),
+                     "extra_bits_per_extra_minute": None if prev_bits is None or mins <= prev_min + EPS else (bits - prev_bits) / (mins - prev_min)})
+        prev_bits, prev_min = bits, mins
+    return rows
+
+
+def policy_health(policy: "ResearchPolicy", now, open_targets: Iterable[str] | None = None) -> dict:
+    """One list of everything that should worry the owner about the policy right now: exploit-heavy spend, a collapsed
+    allocation, targets never run, badly miscalibrated EIG, and a recent regret that is large against the best target."""
+    problems = []
+    audit = audit_spend(policy.history, policy.cfg.spend_window, policy.cfg.exploit_cap)
+    if audit["violation"]:
+        problems.append(f"recent spend is {audit['exploit_share_minutes']:.0%} known-reliable tuning")
+    ent = allocation_entropy(policy.history)
+    if ent["collapsed"]:
+        problems.append(f"allocation collapsed onto {ent['targets_used_recently']} of {ent['targets_used_ever']} targets")
+    starved = starving_targets(policy.history, now, open_targets=open_targets) if policy.history else []
+    never = [s["target"] for s in starved if s["never_run"]]
+    if policy.history and never:
+        problems.append(f"never run: {', '.join(never)}")
+    for t, r in policy.calibrator.report().items():
+        if r["n"] >= 5 and r["verdict"] != "roughly calibrated":
+            problems.append(f"EIG for {t} {r['verdict']} (scale {r['scale']:.2f})")
+    reg = regret_report(policy.history)
+    if reg.get("n", 0) >= 10 and reg["oracle_bits"] > 0 and reg["regret_bits"] / reg["oracle_bits"] > 0.5:
+        problems.append(f"half of the achievable information was left on the table (best in hindsight: {reg['best_target_in_hindsight']})")
+    return {"n_history": len(policy.history), "problems": problems, "healthy": not problems, "entropy": ent, "audit": audit,
+            "label": LABEL}
+
+
+# ==================================================================================================================
+# Part 7: maintenance of reliable knowledge, backlog pressure and machine-aware budgets
+# ==================================================================================================================
+
+@dataclass(frozen=True)
+class ReliableItem:
+    """A piece of knowledge currently trusted in production. Maintenance, not tuning, is what it needs: is it STILL true?"""
+    knowledge_id: str
+    last_verified: str
+    reliability: float                              # 0..1 current
+    stake: float                                    # 0..1 how much decision value depends on it
+    half_life_days: float = 180.0                   # how fast this kind of knowledge goes stale (meta-learning supplies it)
+
+    def check(self) -> list:
+        errs = []
+        if not (0.0 <= self.reliability <= 1.0 and 0.0 <= self.stake <= 1.0):
+            errs.append(f"{self.knowledge_id}: reliability/stake outside [0,1]")
+        if self.half_life_days <= 0:
+            errs.append(f"{self.knowledge_id}: non-positive half-life")
+        return errs
+
+
+def verification_urgency(item: ReliableItem, now) -> float:
+    """Chance the item has silently gone stale since it was last verified, times what is at stake if it has:
+    (1 - 0.5 ** (age / half_life)) x stake x (1 - 0.5 x reliability). A young, low-stake, highly reliable item scores near 0."""
+    age = (to_ts(now) - to_ts(item.last_verified)).total_seconds() / 86400.0
+    if age < 0:
+        raise FirewallBreach(f"{item.knowledge_id}: verified at {item.last_verified}, after now={now}")
+    p_stale = 1.0 - 0.5 ** (age / item.half_life_days)
+    return float(p_stale * item.stake * (1.0 - 0.5 * item.reliability))
+
+
+def maintenance_schedule(items: Sequence[ReliableItem], now, minutes_available: float, minutes_per_check: float = 8.0,
+                         min_urgency: float = 0.02) -> dict:
+    """Which reliable items to re-verify this round, most urgent first, within the minutes the allocator gave KNOWN_RELIABLE.
+    Items under `min_urgency` are left alone (verifying everything all the time is the exploit trap). Returns the schedule,
+    what was skipped for lack of minutes and what was skipped as not urgent."""
+    for it in items:
+        errs = it.check()
+        if errs:
+            raise ValueError("; ".join(errs))
+    scored = sorted(((verification_urgency(i, now), i) for i in items), key=lambda t: (-t[0], t[1].knowledge_id))
+    n_fit = int(minutes_available // max(minutes_per_check, EPS))
+    due = [(u, i) for u, i in scored if u >= min_urgency]
+    return {"schedule": [{"knowledge_id": i.knowledge_id, "urgency": u} for u, i in due[:n_fit]],
+            "skipped_no_minutes": [i.knowledge_id for _, i in due[n_fit:]],
+            "skipped_not_urgent": [i.knowledge_id for u, i in scored if u < min_urgency], "minutes_used": min(len(due), n_fit) * minutes_per_check}
+
+
+def backlog_pressure(open_items: Iterable[Mapping], now, half_life_days: float = 45.0) -> dict:
+    """Open-work pressure per research target for the allocator, from a backlog of open items {target, magnitude, since}. Older
+    unresolved items press HARDER (a contradiction open for months is a debt), but with diminishing returns: the weight is
+    magnitude x (1 + log1p(age / half_life)). Targets with no open items are absent (the allocator treats absent as closed)."""
+    cut = to_ts(now)
+    out: dict = {}
+    for it in open_items:
+        age = (cut - to_ts(it["since"])).total_seconds() / 86400.0
+        if age < 0:
+            raise FirewallBreach(f"backlog item since {it['since']} is after now={now}")
+        t = ResearchTarget.parse(it["target"]).value
+        out[t] = out.get(t, 0.0) + float(it.get("magnitude", 0.5)) * (1.0 + math.log1p(age / half_life_days))
+    return out
+
+
+def budget_from_machine(cpu_minutes: float, ram_free_gb: float | None = None, real_data_slots: int = 1, safety_ram_gb: float = 2.5) -> ComputeBudget:
+    """A ComputeBudget from the machine as it is NOW. CONTEXT rule 10: the machine is shared, so free RAM under the safety
+    margin means no real-data job at all (slots forced to 0). `ram_free_gb=None` asks psutil; if psutil is unavailable the
+    budget assumes NO free RAM rather than plenty (failing closed)."""
+    if ram_free_gb is None:
+        try:
+            import psutil
+            ram_free_gb = psutil.virtual_memory().available / 1e9
+        except Exception:
+            ram_free_gb = 0.0
+    slots = real_data_slots if ram_free_gb >= safety_ram_gb else 0
+    return ComputeBudget(cpu_minutes=cpu_minutes, ram_gb_free=float(ram_free_gb), safety_ram_gb=safety_ram_gb, real_data_slots=slots)
+
+
+def contradiction_debt(items: Iterable[Mapping], now) -> float:
+    """Total unresolved-contradiction burden: sum over open contradictions of strength x age in days / 30. One number the
+    scorecard can track over time; it should fall when the system is resolving contradictions faster than it finds them."""
+    cut = to_ts(now)
+    tot = 0.0
+    for it in items:
+        age = (cut - to_ts(it["since"])).total_seconds() / 86400.0
+        if age < 0:
+            raise FirewallBreach(f"contradiction since {it['since']} is after now={now}")
+        tot += float(it.get("strength", 0.5)) * age / 30.0
+    return tot
+
+
+# ------------------------------------------------------------------------------------------------ successive halving
+
+@dataclass(frozen=True)
+class HalvingResult:
+    survivors: tuple
+    rounds: tuple                                   # per round: (n_alive, budget_per_arm, best_score)
+    total_cost: float
+    eliminated: Mapping                             # arm -> round index at which it was dropped
+
+
+def successive_halving(arms: Sequence[str], evaluate: Callable[[str, float], float], min_budget: float, total_budget: float,
+                       eta: int = 2) -> HalvingResult:
+    """Spend compute on many cheap looks and keep the best 1/eta each round, doubling (x eta) the per-arm budget for the
+    survivors. Use when one question has several variants (parameter settings, feature subsets) and only the best deserves a
+    full-length run. `evaluate(arm, budget)` returns a score to MAXIMISE at that budget; deterministic in its arguments is the
+    caller's duty (seed inside). Stops when one arm remains or the budget cannot fund another round."""
+    if not arms or eta < 2 or min_budget <= 0 or total_budget < min_budget * len(arms):
+        raise ValueError("need arms, eta >= 2, positive budgets and enough budget for one look at every arm")
+    alive = list(arms)
+    per_arm = float(min_budget)
+    spent = 0.0
+    rounds, dropped = [], {}
+    r = 0
+    while True:
+        cost = per_arm * len(alive)
+        if spent + cost > total_budget + EPS:
+            break
+        scores = {a: float(evaluate(a, per_arm)) for a in alive}
+        spent += cost
+        ranked = sorted(alive, key=lambda a: (-scores[a], a))
+        rounds.append((len(alive), per_arm, scores[ranked[0]]))
+        if len(alive) == 1:
+            break
+        keep = max(1, len(alive) // eta)
+        for a in ranked[keep:]:
+            dropped[a] = r
+        alive = ranked[:keep]
+        per_arm *= eta
+        r += 1
+    return HalvingResult(tuple(alive), tuple(rounds), spent, dropped)
+
+
+# ==================================================================================================================
+# Part 8: measured run costs, registry-driven overfit penalty, cache-inventory data availability
+# ==================================================================================================================
+
+_DURATION_KEYS = ("runtime_seconds", "duration_s", "elapsed_s", "wall_seconds", "seconds")
+
+
+def row_minutes(row: Mapping) -> float | None:
+    """Measured wall minutes of one experiment-log row, or None when it recorded no duration. Non-positive and non-finite
+    values are treated as not recorded (a zero-second run is a logging artefact, not a free experiment)."""
+    for k in _DURATION_KEYS:
+        v = row.get(k)
+        if isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) and v > 0:
+            return float(v) / 60.0
+    return None
+
+
+class MeasuredCosts:
+    """Compute costs learned from what runs REALLY took (state/experiments.jsonl durations) instead of the planner's priors.
+    Per key (the row's event or template) the median measured minutes is blended with the prior by n / (n + k): one measured
+    run moves the estimate a little, ten move it a lot. Rows are used only if dated strictly before `now`."""
+
+    def __init__(self, prior_strength: float = 3.0):
+        self.k = prior_strength
+        self.minutes: dict = {}
+
+    def add_rows(self, rows: Iterable[Mapping], now) -> dict:
+        cut = to_ts(now)
+        used = skipped = 0
+        for r in rows:
+            m = row_minutes(r)
+            stamp = r.get("t") or r.get("timestamp")
+            key = str(r.get("template") or r.get("event") or "")
+            if m is None or not key or not stamp:
+                skipped += 1
+                continue
+            try:
+                if to_ts(stamp) >= cut:
+                    skipped += 1
+                    continue
+            except Exception:
+                skipped += 1
+                continue
+            self.minutes.setdefault(key, []).append(m)
+            used += 1
+        return {"used": used, "skipped": skipped, "keys": len(self.minutes)}
+
+    def estimate(self, key: str, prior_minutes: float) -> tuple:
+        """(minutes, n_measured). With no measurement the prior is returned unchanged and n is 0."""
+        xs = sorted(self.minutes.get(key, []))
+        if not xs:
+            return prior_minutes, 0
+        med = xs[len(xs) // 2] if len(xs) % 2 else 0.5 * (xs[len(xs) // 2 - 1] + xs[len(xs) // 2])
+        w = len(xs) / (len(xs) + self.k)
+        return w * med + (1 - w) * prior_minutes, len(xs)
+
+    def apply(self, c: Candidate) -> Candidate:
+        """The candidate with cpu/wall minutes replaced by the measured-blend estimate for its template (config['template'])."""
+        key = str(c.config.get("template", ""))
+        est, n = self.estimate(key, c.cost.cpu_minutes)
+        if n == 0:
+            return c
+        ratio = est / max(c.cost.cpu_minutes, EPS)
+        return replace(c, cost=replace(c.cost, cpu_minutes=est, wall_minutes=c.cost.wall_minutes * ratio))
+
+
+def registry_overfit_risk(tags: Sequence[str], registry, now) -> tuple:
+    """Overfit-proneness of a candidate from the failed-learner registry (duck-typed: `as_of(now)` rows with mechanism_tags,
+    failure_mode, generalization). Each overlapping failed learner adds risk: 0.35 when it failed by memorisation/overfit/
+    leakage, 0.2 otherwise, x1.5 when the failure generalised, combined as 1 - prod(1 - r). Returns (risk in [0,1], reasons)."""
+    want = set(tags)
+    keep = 1.0
+    why = []
+    for r in registry.as_of(now):
+        shared = want & set(r.mechanism_tags)
+        if not shared:
+            continue
+        base = 0.35 if str(r.failure_mode) in ("MEMORISATION", "OVERFIT", "LEAKAGE") else 0.2
+        if str(r.generalization) == "GENERALIZED":
+            base *= 1.5
+        base *= len(shared) / len(want)
+        keep *= 1.0 - min(base, 0.9)
+        why.append(f"{r.learner} ({r.failure_mode}) shares {sorted(shared)}")
+    return 1.0 - keep, why
+
+
+def with_registry_overfit(c: Candidate, tags: Sequence[str], registry, now) -> Candidate:
+    """Raise the candidate's own overfit hint to at least the registry-derived risk (never lowers a caller's hint)."""
+    risk, why = registry_overfit_risk(tags, registry, now)
+    if risk <= c.overfit_hint:
+        return c
+    return replace(c, overfit_hint=min(1.0, risk), evidence=tuple(c.evidence) + tuple("overfit-risk: " + w for w in why[:3]))
+
+
+DATASET_ALIASES = {"price_panel": ("prices", "price", "ohlcv", "panel"), "market_context": ("market", "context", "vix", "macro"),
+                   "pattern_ledger": ("pattern", "patterns"), "delisted_history": ("delisted",), "raw_cache_manifest": ("manifest",),
+                   "events": ("events", "edgar", "13d")}
+
+
+def cache_inventory(cache_dir) -> frozenset:
+    """Names of what the cache actually holds: file and directory stems lower-cased, split on separators into tokens. The
+    honest source for 'is this data available?' (read-only listing; nothing is opened, so no RAM is spent)."""
+    p = Path(cache_dir)
+    if not p.exists():
+        return frozenset()
+    out = set()
+    for f in p.iterdir():
+        stem = f.stem.lower()
+        out.add(stem)
+        out.update(t for t in stem.replace("-", "_").split("_") if t)
+    return frozenset(out)
+
+
+def available_datasets(needs: Iterable[str], inventory: frozenset, aliases: Mapping = DATASET_ALIASES) -> frozenset:
+    """Subset of `needs` the inventory can supply: a need is met when its own name or any alias token is present."""
+    ok = set()
+    for n in needs:
+        names = {n.lower(), *aliases.get(n, ())}
+        if names & inventory or any(nm in i for nm in names for i in inventory if len(nm) > 3):
+            ok.add(n)
+    return frozenset(ok)
+
+
+def context_with_inventory(ctx: PolicyContext, cache_dir, all_needs: Iterable[str]) -> PolicyContext:
+    """PolicyContext whose `available_data` is derived from the cache directory instead of asserted by the caller."""
+    return replace(ctx, available_data=available_datasets(all_needs, cache_inventory(cache_dir)))

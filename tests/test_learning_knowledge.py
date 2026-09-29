@@ -524,3 +524,114 @@ def test_registry_audit_finds_orphans_conflicts_and_future():
     dc.assert_no_future([a], NOW)
     with pytest.raises(FirewallBreach):
         dc.assert_no_future([a], "2020-01-02")
+
+
+# ------------------------------------------------------------------ common edits are versions with guards
+
+def test_confidence_failure_relation_edits_create_versions():
+    v1 = base(promotion=Promotion.RESEARCH)
+    v2 = kn.with_confidence(v1, "2020-06-01", "measured usefulness", usefulness=0.9)
+    assert v2.confidence.usefulness == 0.9 and v2.confidence.truth == 0.9 and v1.confidence.usefulness == 0.7
+    v3 = kn.with_confidence(v2, "2020-06-02", "re-mark untested", transfer=None)
+    assert v3.confidence.transfer is None and v3.version == 3
+    with pytest.raises(kn.SchemaError):
+        kn.with_confidence(v1, "2020-06-01", "x", nonsense=0.5)
+    with pytest.raises(kn.SchemaError):
+        kn.with_confidence(v1, "2020-06-01", "x", truth=1.5)                          # invalid value rejected by validation
+    f = kn.with_failure(v1, "2020-07-01", FailureCause.REGIME_CHANGE, Subsystem.SELECTION, "bear market", "ep-9")
+    assert f.failure_explanations[0].cause is FailureCause.REGIME_CHANGE and f.version_reason.startswith("failure explained")
+    with pytest.raises(kn.SchemaError):
+        kn.with_failure(v1, "2020-07-01", FailureCause.REVERSAL)                      # a cause needs a note or evidence
+    assert kn.with_failure(v1, "2020-07-01", FailureCause.UNKNOWN).failure_explanations[0].cause is FailureCause.UNKNOWN
+    r = kn.with_relation(v1, "2020-08-01", "contradicting", "K-other")
+    assert r.relations.contradicting == ("K-other",)
+    with pytest.raises(kn.SchemaError):
+        kn.with_relation(r, "2020-08-02", "contradicting", "K-other")
+    with pytest.raises(kn.SchemaError):
+        kn.with_relation(v1, "2020-08-01", "friend", "K-x")
+    with pytest.raises(kn.SchemaError):
+        kn.with_relation(kn.with_relation(v1, "2020-08-01", "supporting", "K-z"), "2020-08-02", "contradicting", "K-z")
+    assert kn.with_temporal_class(v1, "2020-09-01", "SLOW_DECAY", "half-life fit").temporal_class is TemporalClass.SLOW_DECAY
+
+
+def test_duplicate_lessons_are_reported_not_merged():
+    s = kn.KnowledgeStore()
+    s.add(base(knowledge_id="K-1", promotion=Promotion.RESEARCH))
+    s.add(base(knowledge_id="K-2", promotion=Promotion.RESEARCH))
+    s.add(base(knowledge_id="K-3", promotion=Promotion.RESEARCH, effect=kn.Effect(1, 0.02, 0.001)))
+    assert kn.find_duplicates(s, NOW) == [("K-1", "K-2")] and len(s) == 3
+    assert kn.same_content(s.latest("K-1"), s.latest("K-2")) and not kn.same_content(s.latest("K-1"), s.latest("K-3"))
+    assert kn.find_duplicates(kn.KnowledgeStore(), NOW) == []
+
+
+# ------------------------------------------------------------------ contract: policy, readiness, conflicts, log persistence
+
+def test_policy_can_only_tighten_and_bad_policy_is_refused():
+    k = champ(epistemic=Epistemic.DEGRADED, confidence=Confidence(0.9, 0.7, 0.8, failure_risk=0.4))
+    assert dc.policy_check(k, NOW).allowed
+    strict = dc.ContractPolicy(allow_degraded_in_production=False)
+    v = dc.policy_check(k, NOW, policy=strict)
+    assert not v.allowed and "excludes DEGRADED" in " ".join(v.reasons) and v.effects == ()
+    assert not dc.policy_check(k, NOW, policy=dc.ContractPolicy(max_failure_risk=0.3)).allowed
+    assert not dc.policy_check(k, NOW, policy=dc.ContractPolicy(min_truth=0.95)).allowed
+    assert dc.policy_check(k, NOW, dc.Mode.RESEARCH, strict).allowed                    # research mode is not gated by trading policy
+    with pytest.raises(dc.ContractError):
+        dc.policy_check(k, NOW, policy=dc.ContractPolicy(min_usefulness=2.0))
+    assert dc.DEFAULT_POLICY.as_dict()["min_usefulness"] == 0.5
+
+
+def test_readiness_lists_exactly_what_is_missing():
+    ok = dc.readiness(champ(promotion=Promotion.CHALLENGER), NOW)
+    assert ok["ready"] and ok["missing"] == [] and ok["effects"] == ["RANKING"]
+    weak = base(promotion=Promotion.RESEARCH, decision_effect=(DecisionEffect.NONE,), confidence=Confidence(truth=0.8),
+                epistemic=Epistemic.HYPOTHESIS, lifecycle=Lifecycle.BIRTH)
+    r = dc.readiness(weak, NOW)
+    assert not r["ready"] and any("declare a decision effect" in m for m in r["missing"])
+    assert set(r["untested_confidence"]) == {"usefulness", "current_reliability", "context", "transfer", "failure_risk"}
+    changing = dataclasses.replace(weak, decision_effect=(DecisionEffect.RANKING,))
+    m = dc.readiness(changing, NOW)["missing"]
+    assert any("usefulness was never measured" in x for x in m) and any("not allowed for epistemic HYPOTHESIS" in x for x in m)
+
+
+def test_contributions_conflicts_and_net_direction():
+    R = DecisionEffect.RANKING
+    a, b = champ(knowledge_id="K-a"), champ(knowledge_id="K-b", effect=kn.Effect(-1, 0.004, 0.001))
+    ia, ib = dc.influence(a, {"vix": 30}, NOW), dc.influence(b, {"vix": 30}, NOW)
+    ca, cb = dc.contribution_from(a, ia, R, "s1"), dc.contribution_from(b, ib, R, "s1")
+    assert ca.signed == pytest.approx(0.004) and cb.signed == pytest.approx(-0.004)
+    assert dc.contribution_from(a, ia, DecisionEffect.STOP, "s1") is None                       # effect not permitted
+    assert dc.contribution_from(a, dc.influence(a, {}, NOW), R, "s1") is None                   # silent influence
+    assert dc.conflicting_contributions([ca, cb]) == [("RANKING", "s1", "K-a", "K-b")]
+    assert dc.conflicting_contributions([ca, dataclasses.replace(cb, target="s2")]) == []
+    assert dc.conflicting_contributions([]) == []
+    assert dc.net_direction([ca, cb], R, "s1") == pytest.approx(0.0, abs=1e-12)                 # equal weights, opposite signs
+    assert dc.net_direction([ca], R, "s1") == pytest.approx(0.004) and dc.net_direction([], R, "s1") == 0.0
+    stop_item = dataclasses.replace(a, decision_effect=(DecisionEffect.STOP,))
+    stop = dc.contribution_from(stop_item, dc.influence(stop_item, {"vix": 30}, NOW), DecisionEffect.STOP, "", requested=0.05)
+    assert stop.signed == 0.05
+
+
+def test_decision_log_persistence_refuses_a_tampered_log():
+    log = dc.DecisionLog()
+    log.record_all("D1", [champ(knowledge_id="K-1")], {"vix": 30}, NOW)
+    log.record_all("D2", [champ(knowledge_id="K-1")], {"vix": 30}, "2021-01-05")
+    rows = dc.dump_log(log)
+    assert dc.load_log(rows).verify() == [] and len(dc.load_log(rows)) == 2 and len(dc.load_log([])) == 0
+    rows[0] = {**rows[0], "weight": 0.99}
+    with pytest.raises(dc.ContractError):
+        dc.load_log(rows)
+
+
+def test_production_changes_track_what_started_and_stopped():
+    early = champ(knowledge_id="K-early", provenance=prov(learned="2020-01-01", through="2020-01-01"))
+    late = champ(knowledge_id="K-late", created_at="2020-11-01", provenance=prov(learned="2020-10-31", through="2020-10-31"))
+    gone = champ(knowledge_id="K-gone", provenance=prov(learned="2020-01-01", through="2020-01-01"))
+    items = [early, late, gone]
+    ch = dc.production_changes(items, "2020-06-01", "2021-01-04")
+    assert ch.added == ("K-late",) and ch.removed == () and ch.unchanged == ("K-early", "K-gone") and not ch.is_stable()
+    retired = gone.retire("2020-09-01", "reversed")
+    ch2 = dc.production_changes([early, gone, retired], "2020-06-01", "2021-01-04")
+    assert ch2.removed == ("K-gone",) and "lifecycle RETIRED" in ch2.why_removed[0][1]
+    assert dc.production_changes([], "2020-06-01", "2021-01-04").is_stable()
+    with pytest.raises(FirewallBreach):
+        dc.production_changes(items, "2021-01-04", "2020-06-01")

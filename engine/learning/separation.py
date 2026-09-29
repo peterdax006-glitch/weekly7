@@ -649,3 +649,295 @@ def rolling_blame(trades: Sequence[TradeRecord], window: int = 30, p: Separation
         z = sum(tot.values())
         out.append({k: v / z for k, v in tot.items()} if z > 0 else {})
     return out
+
+
+# ==================================================================================================================
+# symmetric attribution, drift, context dependence, co-failure and potential
+# ==================================================================================================================
+def decompose_averaged(t: TradeRecord, p: SeparationParams | None = None) -> dict[str, float]:
+    """Order-free contributions: the mean of the selection-first and direction-first chains (a two-order Shapley value for
+    the selection/direction pair; timing, exit, risk and cost are order-invariant). Still sums to pnl - promise."""
+    a, b = decompose(t, p, "selection_first"), decompose(t, p, "direction_first")
+    out = {k: (a.parts[k] + b.parts[k]) / 2.0 for k in a.parts}
+    out["residual"] = a.residual
+    return out
+
+
+def error_rate_drift(trades: Sequence[TradeRecord], p: SeparationParams | None = None, seed: int = 0, n_boot: int = 300) -> dict[str, Any]:
+    """Did any subsystem's error rate change between the first and second half of the trades (input order = time order)?
+    Difference of rates with a bootstrap CI; an interval that excludes zero means that subsystem is drifting."""
+    p = p or SeparationParams()
+    ds = [decompose(t, p) for t in trades if _f(t.signal_ret) is not None]
+    if len(ds) < 20:
+        return {"n": len(ds), "verdict": "INSUFFICIENT_DATA"}
+    h = len(ds) // 2
+    rng = np.random.default_rng(seed)
+    out: dict[str, Any] = {"n": len(ds), "subsystems": {}}
+    for s in SUBSYSTEMS:
+        x = np.array([d.contribution(s) < -p.tol for d in ds], dtype=float)
+        a, b = x[:h], x[h:]
+        diffs = [rng.choice(b, len(b)).mean() - rng.choice(a, len(a)).mean() for _ in range(n_boot)]
+        lo, hi = float(np.quantile(diffs, 0.05)), float(np.quantile(diffs, 0.95))
+        out["subsystems"][s.value] = {"first": float(a.mean()), "second": float(b.mean()), "diff": float(b.mean() - a.mean()),
+                                      "ci90": (lo, hi), "drifting": bool(lo > 0 or hi < 0)}
+    return out
+
+
+def blame_by_context(trades: Sequence[TradeRecord], key: str, bins: int = 3, p: SeparationParams | None = None) -> dict[str, Any]:
+    """Blame magnitude per subsystem inside quantile bins of one market-context variable. Reveals conditional failure:
+    e.g. TIMING blame concentrated when volatility is high means the gap problem is a regime problem, not a constant one."""
+    p = p or SeparationParams()
+    rows = [(float(t.context[key]), t) for t in trades if key in t.context and _f(t.context[key]) is not None and _f(t.signal_ret) is not None]
+    if len(rows) < 3 * bins:
+        return {"key": key, "n": len(rows), "verdict": "INSUFFICIENT_DATA"}
+    vals = np.array([r[0] for r in rows])
+    edges = np.quantile(vals, np.linspace(0, 1, bins + 1))
+    table = []
+    for i in range(bins):
+        m = (vals >= edges[i]) & ((vals < edges[i + 1]) if i < bins - 1 else (vals <= edges[i + 1]))
+        tot = {s.value: 0.0 for s in SUBSYSTEMS}
+        n_loss = 0
+        for (v, t), keep in zip(rows, m):
+            if keep and t.pnl < 0:
+                b, mag = blame_vector(decompose(t, p), p)
+                n_loss += 1
+                for k_, w in b.items():
+                    tot[k_] += w * mag
+        table.append({"bin": i, "lo": float(edges[i]), "hi": float(edges[i + 1]), "n": int(m.sum()), "losses": n_loss,
+                      "blame": {k_: v / max(1, n_loss) for k_, v in tot.items()}})
+    lead = [max(r["blame"].items(), key=lambda kv: kv[1])[0] for r in table if r["losses"]]
+    return {"key": key, "n": len(rows), "table": table, "primary_changes_with_context": len(set(lead)) > 1}
+
+
+def co_failure(trades: Sequence[TradeRecord], p: SeparationParams | None = None) -> dict[str, Any]:
+    """Correlation of the per-trade 'subsystem cost money' indicators. Two subsystems that fail together are either sharing a
+    cause (fix that) or being confused by the decomposition (a warning about the chain, not about the subsystems)."""
+    p = p or SeparationParams()
+    ds = [decompose(t, p) for t in trades if _f(t.signal_ret) is not None]
+    if len(ds) < 20:
+        return {"n": len(ds), "verdict": "INSUFFICIENT_DATA"}
+    cols = [s for s in SUBSYSTEMS]
+    M = np.array([[d.contribution(s) < -p.tol for s in cols] for d in ds], dtype=float)
+    keep = [i for i in range(len(cols)) if M[:, i].std() > 0]
+    corr = np.corrcoef(M[:, keep].T) if len(keep) > 1 else np.eye(1)
+    pairs = {}
+    for a in range(len(keep)):
+        for b in range(a + 1, len(keep)):
+            pairs[f"{cols[keep[a]].value}~{cols[keep[b]].value}"] = float(corr[a, b])
+    return {"n": len(ds), "pairs": dict(sorted(pairs.items(), key=lambda kv: -abs(kv[1]))),
+            "max_abs": max((abs(v) for v in pairs.values()), default=0.0)}
+
+
+def improvement_potential(trades: Sequence[TradeRecord], p: SeparationParams | None = None) -> dict[str, Any]:
+    """If each subsystem had done no harm on every trade (its negative contributions removed), how much P&L per trade would
+    have been added? An upper bound on what fixing that subsystem could ever be worth - the priority list for research."""
+    p = p or SeparationParams()
+    ds = [decompose(t, p) for t in trades if _f(t.signal_ret) is not None]
+    if not ds:
+        return {"n": 0, "verdict": "INSUFFICIENT_DATA"}
+    base_mean = float(np.mean([d.pnl for d in ds]))
+    up = {s.value: float(np.mean([counterfactual_pnl(d, s) for d in ds]) - base_mean) for s in SUBSYSTEMS}
+    return {"n": len(ds), "mean_pnl": base_mean, "uplift": dict(sorted(up.items(), key=lambda kv: -kv[1])),
+            "largest": max(up.items(), key=lambda kv: kv[1])[0]}
+
+
+def render_scorecard(sc: Mapping[str, Any]) -> str:
+    """Plain-text view of subsystem_scorecard()."""
+    lines = [f"subsystem scorecard over {sc['n']} trades   IMPLEMENTED - NOT VALIDATED"]
+    for s, r in sc.get("error_rates", {}).items():
+        lines.append(f"  {s:<10} error rate {r:.3f}   mean contribution {sc['mean_contribution'][s]:+.4f}")
+    sel, dr, de = sc.get("selection", {}), sc.get("direction", {}), sc.get("direction_edge", {})
+    lines.append(f"  selection: {sel.get('verdict')} (mean move ratio {sel.get('mean_ratio', float('nan')):.2f}, ranking informative: {sel.get('ranking_informative')})")
+    lines.append(f"  direction: {dr.get('verdict')}; edge check: {de.get('verdict')} (hit rate {de.get('hit_rate', float('nan')):.3f}, noise: {de.get('noise')})")
+    lines.append(f"  exit: {sc.get('exit', {}).get('verdict')}   risk: {sc.get('risk', {}).get('verdict')}   stops: {sc.get('stops', {}).get('verdict')}")
+    return NL.join(lines)
+
+
+# ==================================================================================================================
+# exit and sizing diagnostics, focus ranking, and the decomposition's own planted self-check
+# ==================================================================================================================
+def exit_alternatives(trades: Sequence[TradeRecord], targets: Sequence[float] = (0.03, 0.05, 0.07)) -> list[dict[str, Any]]:
+    """Would a fixed profit target have beaten the exit actually used? For each target T: trades whose best excursion reached
+    T are booked at T (minus cost), others keep their actual result. UPPER BOUND: a touch of T is assumed to fill at T, which
+    a gap can deny. Reported so the EXIT subsystem is judged against alternatives, not against nothing."""
+    rows = [t for t in trades if _f(t.mfe) is not None]
+    if not rows:
+        return []
+    actual = float(np.mean([t.pnl for t in rows]))
+    out = []
+    for T in targets:
+        alt = [(T - t.cost) if float(t.mfe) >= T else float(t.pnl) for t in rows]
+        out.append({"target": T, "n": len(rows), "touched": sum(float(t.mfe) >= T for t in rows), "mean_actual": actual,
+                    "mean_with_target": float(np.mean(alt)), "uplift_upper_bound": float(np.mean(alt)) - actual})
+    return out
+
+
+def sizing_report(trades: Sequence[TradeRecord]) -> dict[str, Any]:
+    """Is size doing harm? Share of total loss carried by the largest 10% of positions, the correlation between weight and
+    pnl (negative = bigger positions did worse), and mean pnl of the big versus the small half."""
+    rows = [(float(t.weight), float(t.pnl)) for t in trades if _f(t.weight) is not None]
+    if len(rows) < 20:
+        return {"n": len(rows), "verdict": "INSUFFICIENT_DATA"}
+    a = np.array(rows)
+    order = np.argsort(-a[:, 0], kind="stable")
+    top = order[:max(1, len(a) // 10)]
+    loss = -a[:, 1].clip(max=0)
+    share = float(loss[top].sum() / loss.sum()) if loss.sum() > 0 else float("nan")
+    corr = float(np.corrcoef(a[:, 0], a[:, 1])[0, 1]) if a[:, 0].std() > 0 and a[:, 1].std() > 0 else float("nan")
+    big, small = a[order[:len(a) // 2], 1], a[order[len(a) // 2:], 1]
+    return {"n": len(a), "top_decile_loss_share": share, "weight_pnl_corr": corr, "mean_pnl_big": float(big.mean()), "mean_pnl_small": float(small.mean()),
+            "verdict": "OVERSIZING_HURTS" if share == share and share > 0.3 and corr == corr and corr < -0.1 else "SIZE_NEUTRAL"}
+
+
+def subsystem_focus(trades: Sequence[TradeRecord], p: SeparationParams | None = None, seed: int = 0, n_boot: int = 300) -> list[dict[str, Any]]:
+    """Which subsystem's error rate stands out from the others? Each subsystem's rate minus the mean of all subsystem rates,
+    with a bootstrap (over trades) CI; 'stands_out' only if the interval clears zero. Ranks where to investigate first."""
+    p = p or SeparationParams()
+    ds = [decompose(t, p) for t in trades if _f(t.signal_ret) is not None]
+    if len(ds) < 20:
+        return []
+    X = np.array([[d.contribution(s) < -p.tol for s in SUBSYSTEMS] for d in ds], dtype=float)
+    rng = np.random.default_rng(seed)
+    diffs = np.empty((n_boot, len(SUBSYSTEMS)))
+    for b in range(n_boot):
+        m = X[rng.integers(0, len(X), len(X))].mean(axis=0)
+        diffs[b] = m - m.mean()
+    pt = X.mean(axis=0) - X.mean(axis=0).mean()
+    out = [{"subsystem": s.value, "rate": float(X[:, i].mean()), "vs_mean": float(pt[i]), "ci90": (float(np.quantile(diffs[:, i], 0.05)), float(np.quantile(diffs[:, i], 0.95))),
+            "stands_out": bool(np.quantile(diffs[:, i], 0.05) > 0)} for i, s in enumerate(SUBSYSTEMS)]
+    return sorted(out, key=lambda r: (-r["vs_mean"], r["subsystem"]))
+
+
+def planted_trade(fault: Subsystem, seed: int = 0) -> TradeRecord:
+    """A synthetic LOSING trade whose only fault is `fault`: the other stages are constructed to have done their job."""
+    fault = Subsystem.parse(fault)
+    rng = np.random.default_rng(seed)
+    j = float(rng.uniform(0.9, 1.1))
+    base = dict(rid=f"plant-{fault.value}-{seed}", decided_at="2019-12-20", resolved_at="2019-12-30", side=1, cost=0.0005, exp_move=0.05,
+                dir_prob=0.6, exp_vol=0.02, weight=0.1, target_weight=0.1)
+    if fault == Subsystem.SELECTION:                       # the stock did not move
+        sig = 0.004 * j
+        return TradeRecord(**base, signal_ret=sig, entry_gap=0.0, end_ret_from_fill=sig, exit_ret=-0.02 * j, pnl=-0.0205 * j, mfe=0.005)
+    if fault == Subsystem.DIRECTION:                       # moved a lot, the other way
+        sig = -0.09 * j
+        return TradeRecord(**base, signal_ret=sig, entry_gap=0.0, end_ret_from_fill=sig, exit_ret=sig, pnl=sig - 0.0005)
+    if fault == Subsystem.TIMING:                          # right stock, right side, the gap ate it
+        gap = 0.08 * j
+        end = 1.06 / (1 + gap) - 1
+        return TradeRecord(**base, signal_ret=0.06, entry_gap=gap, end_ret_from_fill=end, exit_ret=end, pnl=end - 0.0005)
+    if fault == Subsystem.EXIT:                            # right stock, right side, given it all back
+        return TradeRecord(**base, signal_ret=0.06, entry_gap=0.0, end_ret_from_fill=0.06, exit_ret=-0.03 * j, pnl=-0.0305 * j, mfe=0.07)
+    if fault == Subsystem.RISK:                            # stop jumped by a gap
+        sig = -0.20 * j
+        return TradeRecord(**{**base, "exp_move": 0.20, "dir_prob": None}, signal_ret=sig, entry_gap=0.0, end_ret_from_fill=sig, exit_ret=sig,
+                           pnl=sig - 0.0005, stop=0.05, stop_hit=True, stop_fill_ret=sig)
+    raise ValueError(fault)
+
+
+def decomposition_selfcheck(seeds: Sequence[int] = (0, 1, 2, 3)) -> dict[str, Any]:
+    """Does attribute() blame the planted subsystem? For each fault and seed: the primary subsystem (or a teach-set containing
+    it, for RISK/DIRECTION whose losses legitimately implicate a neighbour) and whether the innocent subsystems were protected."""
+    hits, total, detail = 0, 0, {}
+    for f in SUBSYSTEMS:
+        ok = 0
+        for s in seeds:
+            t = planted_trade(f, s)
+            a = attribute(t)
+            good = a.primary == f or f in a.teach
+            ok += good
+            total += 1
+            hits += good
+        detail[f.value] = ok / len(seeds)
+    return {"recovery": hits / total, "by_fault": detail, "n": total}
+
+
+def label_vs_arithmetic(pairs: Sequence[tuple[TradeRecord, Classification]], p: SeparationParams | None = None) -> dict[str, Any]:
+    """How often does the subsystem a cause LABEL would teach agree with the subsystem the arithmetic blames? The complement is
+    the rate at which label-driven learning would have taught the wrong subsystem - the quantity section 23 exists to drive
+    down. Also the cause x arithmetic-primary table."""
+    p = p or SeparationParams()
+    table: dict[str, dict[str, int]] = {}
+    agree = n = 0
+    for t, c in pairs:
+        if not c.named or _f(t.signal_ret) is None:
+            continue
+        a = attribute(t, c, p)
+        if a.primary is None:
+            continue
+        label = CAUSE_SUBSYSTEM.get(c.cause, t.decided_by if c.cause in KNOWLEDGE_CAUSES else None)
+        if label is None:
+            continue
+        n += 1
+        agree += label == a.primary
+        table.setdefault(c.cause.value, {}).setdefault(a.primary.value, 0)
+        table[c.cause.value][a.primary.value] += 1
+    return {"n": n, "agreement": agree / n if n else float("nan"), "table": table}
+
+
+def learning_targets(led: "SubsystemLedger", min_taught: int = 10) -> list[dict[str, Any]]:
+    """Where should the learner spend attention? Subsystems ranked by taught count and mean blame, dropping those taught too
+    rarely to say anything. Joins the ledger's error rates with its teaching counts."""
+    er, bt, tc = led.error_rates(), led.blame_totals(), led.taught_counts()
+    rows = [{"subsystem": s.value, "error_rate": er.get(s.value, 0.0), "blame_total": bt.get(s.value, 0.0), "taught": tc.get(s.value, 0)}
+            for s in SUBSYSTEMS if tc.get(s.value, 0) >= min_taught]
+    return sorted(rows, key=lambda r: (-r["blame_total"], r["subsystem"]))
+
+
+def validate_params(p: SeparationParams) -> list[str]:
+    """Sanity of the separation thresholds; a nonsensical threshold silently changes who gets blamed."""
+    errs = []
+    if not 0.0 < p.min_blame <= 1.0:
+        errs.append("min_blame must be in (0, 1]")
+    if p.tol < 0 or p.residual_tol <= 0:
+        errs.append("tol must be >= 0 and residual_tol > 0")
+    if not 0.0 < p.noise_alpha < 0.5:
+        errs.append("noise_alpha must be in (0, 0.5)")
+    if p.min_direction_n < 10:
+        errs.append("min_direction_n below 10 makes a hit rate meaningless")
+    if p.boot < 50:
+        errs.append("boot below 50 gives unstable intervals")
+    return errs
+
+
+def explain_decomposition(d: Decomposition) -> str:
+    """One trade's money trail in words: what selection promised, then each stage's gain or loss down to the booked pnl."""
+    lines = [f"{d.rid}: promised {d.promise:+.4f}, booked {d.pnl:+.4f} ({d.total_vs_promise:+.4f} versus the promise)"]
+    names = {"selection": "the stock moved {w} than promised", "direction": "the side was {w}", "timing": "the fill (overnight gap) {w}",
+             "exit": "the exit {w}", "risk": "stop slippage {w}", "cost": "costs"}
+    for k, v in d.parts.items():
+        if abs(v) < 5e-5:
+            continue
+        word = {"selection": "more" if v > 0 else "less", "direction": "right" if v >= 0 else "wrong", "timing": "helped" if v > 0 else "cost money",
+                "exit": "helped" if v > 0 else "cost money", "risk": "helped" if v > 0 else "cost money", "cost": ""}[k]
+        lines.append(f"  {v:+.4f}  " + names[k].format(w=word).strip())
+    if abs(d.residual) > 1e-4:
+        lines.append(f"  {d.residual:+.4f}  UNEXPLAINED (books do not reconcile)")
+    if d.sizing_excess < 0:
+        lines.append(f"  {d.sizing_excess:+.4f}  extra portfolio-level loss from oversizing (not in the sum)")
+    return NL.join(lines + [f"  note: {n}" for n in d.notes])
+
+
+def blame_concentration(led: "SubsystemLedger") -> dict[str, float]:
+    """Herfindahl index of the blame shares (1 = one subsystem takes it all, 1/5 = evenly spread) and the top share."""
+    bt = led.blame_totals()
+    tot = sum(bt.values())
+    if tot <= 0:
+        return {"herfindahl": float("nan"), "top_share": float("nan")}
+    shares = [v / tot for v in bt.values()]
+    return {"herfindahl": float(sum(s * s for s in shares)), "top_share": float(max(shares))}
+
+
+def attribution_table(trades: Sequence[TradeRecord], p: SeparationParams | None = None) -> "pd.DataFrame":
+    """Per-trade table: rid, pnl, each stage's contribution, primary blamed subsystem, whether the call is ambiguous and which
+    subsystems were protected. The row-level view behind every ledger number."""
+    import pandas as pd
+    p = p or SeparationParams()
+    rows = []
+    for t in trades:
+        if _f(t.signal_ret) is None:
+            continue
+        d = decompose(t, p)
+        a = attribute(t, None, p, d)
+        rows.append({"rid": t.rid, "pnl": d.pnl, **d.parts, "residual": d.residual, "primary": a.primary.value if a.primary else "",
+                     "ambiguous": a.ambiguous, "protected": ",".join(s.value for s in a.protected), "basis": a.basis})
+    return pd.DataFrame(rows)

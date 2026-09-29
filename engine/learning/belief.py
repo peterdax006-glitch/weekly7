@@ -364,6 +364,7 @@ class BeliefLedger:
         self._evidence: dict[str, dict[str, Evidence]] = {}
         self._states: dict[str, list[BeliefState]] = {}
         self._log: dict[str, list[UpdateRecord]] = {}        # one record per admitted evidence: the audit of every update
+        self._retracted: dict[str, dict[str, tuple[str, str]]] = {}   # subject -> {evidence_id: (reason, when)}
         self.rejected: list[tuple[str, str]] = []            # (evidence_id or '?', reason): kept, never silently dropped
         self.duplicates: int = 0
 
@@ -382,6 +383,7 @@ class BeliefLedger:
         self._evidence[subject] = {}
         self._states[subject] = []
         self._log[subject] = []
+        self._retracted[subject] = {}
 
     def subjects(self) -> list[str]:
         return sorted(self._priors)
@@ -426,7 +428,8 @@ class BeliefLedger:
             self._log[subject].append(update_record(subject, version, pm, ps, seen, e, now, self.cfg))
             seen = seen + [e]
         allev = self._evidence[subject].values()
-        used = [e for e in allev if as_date(e.observed_at) < as_date(now)]
+        gone = self._retracted[subject]
+        used = [e for e in allev if as_date(e.observed_at) < as_date(now) and e.evidence_id not in gone]
         st = _make_state(subject, len(hist) + 1, now, pm, ps, used, self.cfg, hist[-1].state_hash if hist else "")
         hist.append(st)
         return st
@@ -443,8 +446,35 @@ class BeliefLedger:
         ok = [s for s in h if as_date(s.as_of) <= a]
         return ok[-1] if ok else None
 
-    def evidence_for(self, subject: str, as_of=None) -> list[Evidence]:
-        ev = list(self._evidence.get(subject, {}).values())
+    def retract(self, subject: str, evidence_id: str, reason: str, now) -> BeliefState:
+        """Withdraw one evidence record from the belief (e.g. it was later found contaminated or mis-dated).  Nothing is deleted:
+        the record stays in the store, the retraction is logged with its reason and date, every earlier state keeps the evidence it
+        was built on (that is what was believed then), and a NEW state is appended without it."""
+        if subject not in self._priors or evidence_id not in self._evidence[subject]:
+            raise BeliefError(f"unknown evidence {evidence_id!r} for {subject!r}")
+        if evidence_id in self._retracted[subject]:
+            raise BeliefError(f"evidence {evidence_id!r} already retracted")
+        if not reason:
+            raise BeliefError("a retraction needs a reason")
+        hist = self._states[subject]
+        if hist and as_date(now) < as_date(hist[-1].as_of):
+            raise BeliefError("retraction cannot be back-dated")
+        self._retracted[subject][evidence_id] = (reason, as_date(now).isoformat())
+        pm, ps = self._priors[subject]
+        used = [e for e in self._evidence[subject].values()
+                if as_date(e.observed_at) < as_date(now) and e.evidence_id not in self._retracted[subject]]
+        st = _make_state(subject, len(hist) + 1, now, pm, ps, used, self.cfg, hist[-1].state_hash if hist else "")
+        hist.append(st)
+        return st
+
+    def retractions(self, subject: str) -> dict[str, tuple[str, str]]:
+        return dict(self._retracted.get(subject, {}))
+
+    def evidence_for(self, subject: str, as_of=None, include_retracted: bool = False) -> list[Evidence]:
+        """Evidence records (oldest first).  Retracted records are excluded unless asked for: a view built today never trusts
+        what has since been withdrawn, even when asked about a past date."""
+        gone = set() if include_retracted else set(self._retracted.get(subject, {}))
+        ev = [e for e in self._evidence.get(subject, {}).values() if e.evidence_id not in gone]
         if as_of is not None:
             ev = [e for e in ev if as_date(e.observed_at) < as_date(as_of)]
         return sorted(ev, key=lambda e: (e.observed_at, e.evidence_id))
@@ -525,7 +555,9 @@ class BeliefLedger:
         for subj in self.subjects():
             pm, ps = self._priors[subj]
             out.append({"type": "prior", "subject": subj, "mean": pm, "sd": ps})
-            out += [{"type": "evidence", **e.to_dict()} for e in self.evidence_for(subj)]
+            out += [{"type": "evidence", **e.to_dict()} for e in self.evidence_for(subj, include_retracted=True)]
+            out += [{"type": "retraction", "subject": subj, "evidence_id": k, "reason": r, "when": w}
+                    for k, (r, w) in sorted(self._retracted[subj].items())]
             out += [{"type": "state", **s.to_dict()} for s in self._states[subj]]
             out += [{"type": "update", **dc.asdict(u)} for u in self._log[subj]]
         return out
@@ -548,6 +580,8 @@ class BeliefLedger:
             elif t == "state":
                 s = BeliefState.from_dict({k: v for k, v in r.items() if k != "type"})
                 led._states[s.subject].append(s)
+            elif t == "retraction":
+                led._retracted[r["subject"]][r["evidence_id"]] = (r["reason"], r["when"])
             elif t == "update":
                 u = UpdateRecord(**{k: v for k, v in r.items() if k != "type"})
                 led._log[u.subject].append(u)
@@ -846,7 +880,7 @@ def merge_ledgers(a: BeliefLedger, b: BeliefLedger, now) -> BeliefLedger:
             out.register(subj, pm, ps)
     for led in (a, b):
         for subj in led.subjects():
-            ev = led.evidence_for(subj)
+            ev = led.evidence_for(subj)                      # retracted records are not carried into a merge
             if ev:
                 out.update(subj, ev, now)
     return out
@@ -970,3 +1004,59 @@ def explain_heterogeneity(ledger: "BeliefLedger", subject: str, as_of=None, min_
                                             for v, mm, ss in zip(sorted(groups), means, ses)},
                     "Q": Q, "p": p, "explains": p < 0.05})
     return sorted(out, key=lambda r: r["p"])
+
+
+# ------------------------------------------------------------------------------------------------ consumers
+def decision_summary(ledger: BeliefLedger, as_of, level: float = 0.80) -> pd.DataFrame:
+    """One row per subject for the layer that USES beliefs: the effect to plan on (conservative bound), the influence cap, the
+    epistemic status and why, evidence volume, staleness and contradiction share.  Everything is recomputed at `as_of`."""
+    rows = []
+    for subj in ledger.subjects():
+        st = ledger.view(subj, as_of)
+        epi, why = belief_status(st, ledger.cfg)
+        stale = staleness(ledger, subj, as_of)
+        rows.append({"subject": subj, "plan_effect": conservative_effect(st, 1 if st.mean >= 0 else -1, level),
+                     "mean": st.mean, "sd": st.sd, "influence": influence_weight(st, ledger.cfg), "epistemic": str(epi),
+                     "why_not_sure": str(why) if why else "", "n_obs": st.n_obs, "n_evidence": st.n_evidence,
+                     "contra_mass": st.contradiction_mass, "stale": bool(stale["stale"]), "retracted": len(ledger.retractions(subj))})
+    cols = ["subject", "plan_effect", "mean", "sd", "influence", "epistemic", "why_not_sure", "n_obs", "n_evidence", "contra_mass",
+            "stale", "retracted"]
+    return pd.DataFrame(rows, columns=cols)
+
+
+def records_to_support(true_effect: float, se: float, quality: float = 1.0, prior_sd: float = 0.05, target: float = 0.95,
+                       max_records: int = 200, seed: int = 0, n_sims: int = 200) -> dict:
+    """How many evidence records of a given precision and quality does it take, on average, for the belief to reach
+    P(sign right) >= target?  A planning tool: it says how long a claim of a given size will stay a hypothesis, and shows that
+    low-quality evidence slows learning in proportion.  Deterministic in `seed`."""
+    if se <= 0 or not 0 < quality <= 1:
+        raise BeliefError("need se > 0 and 0 < quality <= 1")
+    rng = np.random.default_rng(seed)
+    cfg = BeliefConfig(prior_sd=prior_sd, half_life_days=None, use_random_effects=False)
+    need = []
+    for _ in range(n_sims):
+        x = rng.normal(true_effect, se, max_records)
+        prec0, num, hit = 1.0 / prior_sd ** 2, 0.0, None
+        for k in range(max_records):
+            prec0 += quality / se ** 2
+            num += quality * x[k] / se ** 2
+            m, sd = num / prec0, 1.0 / math.sqrt(prec0)
+            if sps.norm.cdf(abs(m) / sd) >= target:
+                hit = k + 1
+                break
+        need.append(hit if hit is not None else max_records + 1)
+    arr = np.asarray(need, float)
+    return {"median": float(np.median(arr)), "mean": float(arr.mean()), "share_never": float(np.mean(arr > max_records)),
+            "true_effect": true_effect, "se": se, "quality": quality, "cfg_hash": cfg.config_hash()}
+
+
+def evidence_table(ledger: BeliefLedger, subject: str, as_of=None) -> pd.DataFrame:
+    """The evidence behind a belief, one row per record, with the quality it was given and whether it was later retracted."""
+    gone = ledger.retractions(subject)
+    rows = []
+    for e in ledger.evidence_for(subject, as_of, include_retracted=True):
+        rows.append({"evidence_id": e.evidence_id, "observed_at": e.observed_at, "kind": str(e.kind), "estimate": e.estimate,
+                     "se": e.se, "n": e.n, "n_trials": e.n_trials, "quality": e.quality(ledger.cfg), "source": e.source,
+                     "retracted": e.evidence_id in gone, "retraction_reason": gone.get(e.evidence_id, ("", ""))[0]})
+    return pd.DataFrame(rows, columns=["evidence_id", "observed_at", "kind", "estimate", "se", "n", "n_trials", "quality", "source",
+                                       "retracted", "retraction_reason"])

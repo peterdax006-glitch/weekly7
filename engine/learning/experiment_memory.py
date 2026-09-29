@@ -21,7 +21,7 @@ import math
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Iterable, Mapping, Sequence
 
 from engine import experiment_memory as legacy_space
 from engine import registry as legacy_registry
@@ -1027,3 +1027,60 @@ def render_report(ledger: ExperimentLedger, now, limit: int = 20) -> str:
     cal = ledger.prediction_calibration(now)
     lines.append(f"prediction calibration: {cal['verdict']} (n={cal['n']})")
     return "\n".join(lines)
+
+
+# ------------------------------------------------------------------------------------------------ lineage and staleness
+
+def lineage(ledger: ExperimentLedger, experiment_id: str, now) -> dict:
+    """Ancestors (via parent_ids) and descendants of an experiment, as visible at `now`. Follow-up chains are how a line of
+    inquiry is read: what was asked, what it led to. A parent id that does not exist is reported, not ignored."""
+    view = ledger.view(now)
+    if experiment_id not in view:
+        raise KeyError(f"{experiment_id} not visible at {now}")
+    anc, missing, stack = [], [], list(view[experiment_id].parent_ids)
+    while stack:
+        pid = stack.pop()
+        if pid in anc:
+            continue
+        if pid not in view:
+            missing.append(pid)
+            continue
+        anc.append(pid)
+        stack.extend(view[pid].parent_ids)
+    desc, frontier = [], [experiment_id]
+    while frontier:
+        cur = frontier.pop()
+        for r in view.values():
+            if cur in r.parent_ids and r.experiment_id not in desc:
+                desc.append(r.experiment_id)
+                frontier.append(r.experiment_id)
+    return {"ancestors": sorted(anc), "descendants": sorted(desc), "missing_parents": sorted(set(missing))}
+
+
+def stale_answers(ledger: ExperimentLedger, now, current_code_hash_value: str, current_data_hash: str = "") -> list:
+    """Answered experiments whose code hash (or data hash, when given) differs from the current one. Their answers describe
+    a system that no longer exists: not wrong, but not evidence about the present. These are the legitimate RETEST candidates."""
+    out = []
+    for r in ledger.answered(now):
+        why = []
+        if r.experiment.code_hash and current_code_hash_value and r.experiment.code_hash != current_code_hash_value:
+            why.append("code changed")
+        if r.experiment.data_hash and current_data_hash and r.experiment.data_hash != current_data_hash:
+            why.append("data changed")
+        if why:
+            out.append({"experiment_id": r.experiment_id, "question": r.question, "reasons": why, "answered_at": r.recorded_at})
+    return out
+
+
+def unanswered_hypotheses(ledger: ExperimentLedger, now, threshold: float = 0.25) -> list:
+    """Hypotheses that still hold >= threshold posterior mass after an experiment that did not settle them: the open
+    questions inside answered experiments (an ANSWERED record can still leave a live competitor)."""
+    out = []
+    for r in ledger.answered(now):
+        if r.belief_update is None:
+            continue
+        for h in r.competing_hypotheses:
+            p = r.belief_update.posterior.get(h.hid, 0.0)
+            if p >= threshold and h.kind != "null":
+                out.append({"experiment_id": r.experiment_id, "hypothesis": h.statement, "posterior": p})
+    return sorted(out, key=lambda x: -x["posterior"])

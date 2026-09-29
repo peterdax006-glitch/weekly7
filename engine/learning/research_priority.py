@@ -35,8 +35,8 @@ from .research_policy import (Candidate, ComputeBudget, ComputeCost, Factors, In
                               ResearchPlan, ResearchPolicy, ResearchTarget, ScoredCandidate, entropy_bits, gain_from_record)
 
 LABEL = ValidationLabel.NOT_VALIDATED.value
-_DATE_RE = re.compile(r"\b(19|20)\d{2}-\d{2}-\d{2}\b")
-_YEAR_RE = re.compile(r"\b(19[6-9]\d|20[0-4]\d)\b")
+_DATE_RE = re.compile(r"(?<!\d)(19|20)\d{2}-\d{2}-\d{2}(?!\d)")     # \b would miss 'AAPL_2008-09-15': underscore is a word char
+_YEAR_RE = re.compile(r"(?<!\d)(19[6-9]\d|20[0-4]\d)(?!\d)")
 
 
 # ------------------------------------------------------------------------------------------------ signals
@@ -261,6 +261,8 @@ def generic_hypotheses(kind: SignalKind, subject: str) -> tuple:
                                   ("h_stale", "the data is stale or late", "measurement", 0.20)],
         SignalKind.RELIABLE_DRIFT: [("h_stable", "the item remains reliable", "explanation", 0.50), ("h_drifting", "reliability is drifting down", "explanation", 0.30),
                                     ("h_noise", "the drift is noise", "noise", 0.20)]}
+    if kind == SignalKind.FAILURE:
+        return failure_hypotheses({})
     rows = table[kind]
     pri = normalise({h[0]: h[3] for h in rows})
     return tuple(Hypothesis(h[0], f"{h[1]} ({subject})", pri[h[0]], kind=h[2], mechanism_tags=(kind.value.lower(),)) for h in rows)
@@ -964,3 +966,248 @@ def simulate_diagnosis(true_cause: FailureCause, seed: int, max_experiments: int
     lead = max(post, key=post.get)
     return {"true_cause": true_cause.value, "in_hypothesis_set": in_set, "prior": traj[0], "posterior": traj[-1], "trajectory": traj,
             "leading": lead, "diagnosed": lead == true_hid, "confident_wrong": lead != true_hid and post[lead] > 0.6}
+
+
+# ==================================================================================================================
+# Part 3: proposing the plan, queue health, signal ageing and reporting
+# ==================================================================================================================
+
+def age_weighted_magnitude(s: Signal, now, half_life_days: float = 90.0) -> float:
+    """A signal's magnitude discounted by its age: evidence from long ago says less about what to do now. Exponential with the
+    given half-life; a signal dated at/after `now` is refused (it cannot be known yet)."""
+    dt_days = (to_ts(now) - to_ts(s.when)).total_seconds() / 86400.0
+    if dt_days <= 0:
+        raise FirewallBreach(f"signal {s.sid} dated {s.when} is not before now={now}")
+    return s.magnitude * 0.5 ** (dt_days / half_life_days)
+
+
+def dedupe_signals(signals: Iterable[Signal]) -> tuple:
+    """(unique, dropped): identical signals reported by several producers collapse to one by sid; the strongest copy is kept."""
+    best: dict = {}
+    dropped = 0
+    for s in signals:
+        cur = best.get(s.sid)
+        if cur is None:
+            best[s.sid] = s
+        else:
+            dropped += 1
+            if s.magnitude > cur.magnitude:
+                best[s.sid] = s
+    return tuple(sorted(best.values(), key=lambda s: s.sid)), dropped
+
+
+def propose_selected(step: EngineStep, engine: ResearchPriorityEngine, ledger: ExperimentLedger, now, seed: int) -> dict:
+    """Register every SELECTED candidate of a plan in the experiment ledger before it runs. A candidate the ledger refuses
+    as a duplicate is closed in the queue with the verdict as its note (the plan and the memory must never disagree about
+    whether something was already tested). Returns {'proposed': [ids], 'refused': {cid: message}}."""
+    from .experiment_memory import DuplicateExperiment
+    proposed, refused = [], {}
+    for sc in step.plan.selection.selected:
+        bq = engine.built(sc.candidate.cid)
+        if bq is None:
+            refused[sc.candidate.cid] = "no built question for this candidate (was it enqueued outside the engine?)"
+            continue
+        rec = engine.builder.to_experiment_record(bq, now, seed)
+        prior_versions = ledger.history(rec.experiment_id)
+        if prior_versions:
+            refused[sc.candidate.cid] = f"already registered in the ledger as {rec.experiment_id} ({prior_versions[-1].status})"
+            continue
+        try:
+            ledger.propose(rec, now)
+        except DuplicateExperiment as e:
+            it = engine.queue.items.get(sc.candidate.cid)
+            if it is not None:
+                it.status = ItemStatus.OBSOLETE
+                it.note = f"refused by ledger: {e.verdict.message}"
+            refused[sc.candidate.cid] = e.verdict.message
+            continue
+        engine.queue.start(sc.candidate.cid, now)
+        proposed.append(rec.experiment_id)
+    return {"proposed": proposed, "refused": refused}
+
+
+def queue_health(q: ResearchQueue, now, stale_days: float = 60.0) -> dict:
+    """Is the queue still doing its job? Oldest open item, share blocked, share stale, and whether one target dominates."""
+    t = to_ts(now)
+    items = list(q.items.values())
+    open_items = [i for i in items if i.status == ItemStatus.OPEN]
+    blocked = [i for i in items if i.status == ItemStatus.BLOCKED]
+    ages = [(t - to_ts(i.enqueued_at)).total_seconds() / 86400.0 for i in open_items]
+    stale = [i for i in open_items if (t - to_ts(i.last_evidence_at)).total_seconds() / 86400.0 > stale_days]
+    bal = target_balance(q)
+    top_share = max(bal["priority_share_by_target"].values(), default=0.0)
+    problems = []
+    if items and len(blocked) / len(items) > 0.5:
+        problems.append("more than half the queue is blocked")
+    if open_items and len(stale) / len(open_items) > 0.5:
+        problems.append("more than half of the open items are stale")
+    if top_share > 0.7 and len(bal["priority_share_by_target"]) > 1:
+        problems.append(f"one target holds {top_share:.0%} of open priority")
+    return {"n_items": len(items), "open": len(open_items), "blocked": len(blocked), "stale": len(stale), "oldest_open_days": max(ages, default=0.0),
+            "top_target_priority_share": top_share, "problems": problems, "healthy": not problems}
+
+
+def explain_step(step: EngineStep, limit: int = 8) -> str:
+    """Human-readable account of one planning cycle: the questions asked and why, the hypotheses in play, what was chosen."""
+    lines = [f"Research step at {step.now}   [{LABEL}]", f"{len(step.questions)} questions from signals; queue {step.queue_summary}"]
+    for bq in step.built[:limit]:
+        lead = max(bq.hypotheses, key=lambda h: h.prior)
+        lines.append(f"- [{bq.question.target}] {bq.question.text}")
+        lines.append(f"    magnitude {bq.question.magnitude:.2f}, {len(bq.hypotheses)} hypotheses, leading: {lead.statement} ({lead.prior:.0%}); template {bq.template}")
+    lines.append(step.plan.explain(limit))
+    return "\n".join(lines)
+
+
+# ------------------------------------------------------------------------------------------------ ranking stability & decision relevance
+
+def stable_order(previous: Sequence[str], scores: Mapping, margin: float = 0.15) -> list:
+    """Head-of-queue hysteresis. A candidate displaces the incumbent above it only if its score exceeds the incumbent's by
+    `margin` (relative). Stops the top of the queue flip-flopping on every re-score when two items are effectively tied,
+    which would mean starting and abandoning work for no gain. New ids enter by score; vanished ids drop out."""
+    live = {k: v for k, v in scores.items()}
+    order = [k for k in previous if k in live]
+    for k in sorted((k for k in live if k not in order), key=lambda k: -live[k]):
+        pos = len(order)
+        while pos > 0 and live[k] > live[order[pos - 1]] * (1 + margin):
+            pos -= 1
+        order.insert(pos, k)
+    changed = True
+    while changed:
+        changed = False
+        for i in range(len(order) - 1):
+            a, b = order[i], order[i + 1]
+            if live[b] > live[a] * (1 + margin):
+                order[i], order[i + 1] = b, a
+                changed = True
+    return order
+
+
+DECISION_WEIGHT = {"RANKING": 0.9, "SELECTION": 1.0, "POSITION_SIZE": 0.85, "DIRECTION": 0.8, "TIMING": 0.75, "EXIT": 0.7, "STOP": 0.7,
+                   "ABSTENTION": 0.6, "RESEARCH_PRIORITY": 0.4, "PATTERN_WEIGHTING": 0.65, "CONFIDENCE": 0.5, "NONE": 0.1}
+
+
+def decision_relevance(effects: Sequence[str]) -> float:
+    """Relevance of a question by the decisions its answer could change (section 43). The max over effects, so one
+    high-stakes decision is enough; 'NONE' (research knowledge only, may not reach production) is worth little.
+    An empty list is worth nothing: an answer that changes no decision is curiosity."""
+    if not effects:
+        return 0.0
+    unknown = [e for e in effects if str(e) not in DECISION_WEIGHT]
+    if unknown:
+        raise ValueError(f"unknown decision effects: {unknown}")
+    return max(DECISION_WEIGHT[str(e)] for e in effects)
+
+
+SUBSYSTEM_EFFECTS = {"SELECTION": ("SELECTION", "RANKING"), "TIMING": ("TIMING",), "DIRECTION": ("DIRECTION",), "RISK": ("POSITION_SIZE", "STOP"),
+                     "EXIT": ("EXIT", "STOP"), "": ("RESEARCH_PRIORITY",)}
+
+
+def relevance_from_subsystem(subsystem: str, magnitude: float) -> float:
+    """Relevance = half the decision weight of the subsystem's decisions + half the signal magnitude (both in [0, 1])."""
+    effects = SUBSYSTEM_EFFECTS.get(subsystem, SUBSYSTEM_EFFECTS[""])
+    return min(1.0, 0.5 * decision_relevance(effects) + 0.5 * min(max(magnitude, 0.0), 1.0))
+
+
+def queue_pressure(q: ResearchQueue, now) -> dict:
+    """Open-work pressure per target derived from the queue itself, for the allocator: the sum over OPEN items of candidate
+    magnitude weighted by waiting time (older unresolved work presses harder, with diminishing returns)."""
+    cut = to_ts(now)
+    out: dict = {}
+    for i in q.items.values():
+        if i.status != ItemStatus.OPEN:
+            continue
+        age = (cut - to_ts(i.enqueued_at)).total_seconds() / 86400.0
+        w = max(i.candidate.magnitude, 0.05) * (1.0 + math.log1p(max(age, 0.0) / 45.0))
+        t = i.candidate.target.value
+        out[t] = out.get(t, 0.0) + w
+    return out
+
+
+def agenda_markdown(engine: ResearchPriorityEngine, n: int = 10) -> str:
+    """The research agenda as Markdown: the top open questions, their competing hypotheses and priors, and the experiment
+    each would run. What an owner reads to see what the system intends to learn next and why."""
+    lines = [f"# Research agenda   ({LABEL})", ""]
+    for rank, it in enumerate(engine.queue.top(n), 1):
+        bq = engine.built(it.candidate.cid)
+        lines.append(f"## {rank}. {it.candidate.question}")
+        lines.append(f"target **{it.candidate.target.value}**, priority {it.adjusted:.5f}, cost {it.candidate.cost.cpu_minutes:.0f} cpu-min, family `{it.candidate.family}`")
+        if bq is not None:
+            lines.append("")
+            lines += [f"- {h.prior:.0%} {h.statement}" for h in sorted(bq.hypotheses, key=lambda h: -h.prior)]
+            lines.append(f"- experiment: `{bq.template}`")
+        lines.append("")
+    return "\n".join(lines)
+
+
+def signals_from_surprise_rows(rows: Iterable[Mapping], now, z_min: float = 2.5) -> list:
+    """SURPRISE signals from rows {subject, when, expected, observed, sd, subsystem?}. Only |z| >= z_min makes a signal: a
+    surprise smaller than that is what the noise level says will happen every week. sd must be positive; a zero-sd row is an
+    error in the producer, not an infinite surprise."""
+    cut = to_ts(now)
+    out = []
+    for r in rows:
+        if to_ts(r["when"]) >= cut:
+            raise FirewallBreach(f"surprise row dated {r['when']} is not before now={now}")
+        sd = float(r["sd"])
+        if sd <= 0:
+            raise ValueError(f"surprise row for {r.get('subject')} has non-positive sd")
+        z = abs(float(r["observed"]) - float(r["expected"])) / sd
+        if z >= z_min:
+            out.append(make_signal(SignalKind.SURPRISE, r["when"], str(r["subject"]), z, subsystem=str(r.get("subsystem", "")),
+                                   stake=float(r.get("stake", min(1.0, z / 6.0))), n_obs=int(r.get("n_obs", 1))))
+    return out
+
+
+# ------------------------------------------------------------------------------------------------ evolving from experience
+
+@dataclass(frozen=True)
+class ExperienceConfig:
+    family_prior_n: float = 3.0
+    zero_gain_bits: float = 0.02            # realised bits at/below this count as "produced nothing"
+    decay_per_barren_run: float = 0.7        # multiplier per consecutive barren run of a target
+    decay_floor: float = 0.1
+    factor_lo: float = 0.3
+    factor_hi: float = 2.0
+
+
+def barren_streak(history: Sequence, target, cfg: ExperienceConfig | None = None) -> int:
+    """Consecutive most-recent experiments in `target` that produced (almost) nothing. A single useful run resets it to 0."""
+    cfg = cfg or ExperienceConfig()
+    rows = sorted((g for g in history if g.target == target), key=lambda g: g.when)
+    n = 0
+    for g in reversed(rows):
+        if g.realised_bits > cfg.zero_gain_bits:
+            break
+        n += 1
+    return n
+
+
+def experience_factor(item: QueueItem, history: Sequence, cfg: ExperienceConfig | None = None) -> tuple:
+    """(multiplier, reason) for one queue item from what past experiments in its family and target actually returned.
+    Family part: shrunk mean realised bits of the family relative to the global mean, clipped to [factor_lo, factor_hi].
+    Target part: decay**streak for consecutive barren runs in the target. No history means multiplier 1 (no evidence, no change)."""
+    cfg = cfg or ExperienceConfig()
+    if not history:
+        return 1.0, "no experience yet"
+    glob = sum(g.realised_bits for g in history) / len(history)
+    fam = [g.realised_bits for g in history if item.candidate.family and g.family == item.candidate.family]
+    fam_mean = (sum(fam) + cfg.family_prior_n * glob) / (len(fam) + cfg.family_prior_n)
+    ratio = fam_mean / glob if glob > 1e-9 else 1.0
+    f_fam = min(cfg.factor_hi, max(cfg.factor_lo, ratio))
+    streak = barren_streak(history, item.candidate.target, cfg)
+    f_tgt = max(cfg.decay_floor, cfg.decay_per_barren_run ** streak)
+    return f_fam * f_tgt, f"family x{f_fam:.2f} (n={len(fam)}), target barren streak {streak} -> x{f_tgt:.2f}"
+
+
+def experience_rerank(engine: ResearchPriorityEngine, cfg: ExperienceConfig | None = None) -> list:
+    """Re-rank the OPEN queue by realised information gain: multiplies each item's adjusted priority by its experience
+    factor and records why in the item's note. Returns the new top order (ids). Applied after every result, so the queue
+    drifts toward what has paid off and away from targets that keep producing nothing, without ever removing an item."""
+    hist = engine.policy.history
+    for it in engine.queue.items.values():
+        if it.status != ItemStatus.OPEN:
+            continue
+        f, why = experience_factor(it, hist, cfg)
+        it.adjusted *= f
+        it.note = why
+    return [i.candidate.cid for i in engine.queue.top(len(engine.queue.items))]

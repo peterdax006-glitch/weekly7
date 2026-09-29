@@ -19,6 +19,7 @@ Status: IMPLEMENTED - NOT VALIDATED."""
 from __future__ import annotations
 
 import dataclasses
+import datetime as dt
 import math
 from typing import Any, Iterable, Mapping, Sequence
 
@@ -883,3 +884,287 @@ def pair_dataset(cases: Sequence[Situation], outcomes: Sequence[float], n_pairs:
     sc = scale if scale is not None else max(float(np.median(diffs)), 1e-12)
     rows = np.array([[np.nan if c.score is None else c.score for c in compare(cases[i], cases[j], weights).components] for i, j in idx])
     return rows, np.exp(-diffs / sc)
+
+
+# ------------------------------------------------------------------------------------------------ learning field importance
+
+def fit_field_importance(cases: Sequence[Situation], outcomes: Sequence[float], n_pairs: int = 2000, seed: int = 0,
+                         prior: SimilarityWeights = DEFAULT, pseudo_pairs: float = 200.0, floor: float = 0.2,
+                         min_pairs: int = 300) -> tuple[SimilarityWeights, dict[str, float]]:
+    """Which dimensions make two situations behave alike? For random pairs, the correlation between each field's similarity
+    and the closeness of the pair's outcomes is shrunk toward zero by `pseudo_pairs` and turned into a field weight
+    (1 + 4 * shrunk correlation, floored at `floor` so no dimension is silenced by a small sample). Returns the re-weighted
+    SimilarityWeights and the raw per-field correlations. Fewer than `min_pairs` usable pairs returns the prior unchanged."""
+    rng = np.random.default_rng(seed)
+    n = len(cases)
+    y = np.asarray(outcomes, float)
+    if n < 10 or len(y) != n:
+        return prior, {}
+    idx = rng.integers(0, n, size=(n_pairs, 2))
+    idx = idx[idx[:, 0] != idx[:, 1]]
+    if len(idx) < min_pairs:
+        return prior, {}
+    gap = -np.abs(y[idx[:, 0]] - y[idx[:, 1]])
+    S = np.full((len(idx), len(PATHS)), np.nan)
+    for r, (i, j) in enumerate(idx):
+        fs = field_sims(cases[i], cases[j])
+        S[r] = [np.nan if fs[p] is None else fs[p] for p in PATHS]
+    corr: dict[str, float] = {}
+    weights: dict[str, float] = {}
+    for k, p in enumerate(PATHS):
+        ok = ~np.isnan(S[:, k])
+        m = int(ok.sum())
+        if m < min_pairs // 2 or S[ok, k].std() < 1e-9 or gap[ok].std() < 1e-12:
+            continue
+        c = float(np.corrcoef(S[ok, k], gap[ok])[0, 1])
+        corr[p] = round(c, 6)
+        shrunk = c * m / (m + pseudo_pairs)
+        weights[p] = max(1.0 + 4.0 * shrunk, floor)
+    fw = dict(prior.field_weights)
+    fw.update(weights)
+    out = dataclasses.replace(prior, field_weights=tuple(sorted(fw.items())))
+    errs = out.validate()
+    if errs:
+        raise ValueError("; ".join(errs))
+    return out, corr
+
+
+def equivalent_transfer_check(cases: Sequence[Situation], outcomes: Sequence[float], threshold: float = 0.97,
+                              weights: SimilarityWeights = DEFAULT, n_perm: int = 300, seed: int = 0) -> dict[str, Any]:
+    """Equivalent-situation transfer (contract section 15): do situations the similarity calls equivalent actually have more
+    alike outcomes than situations it calls different? Compares the mean |outcome difference| inside leader-clusters with the
+    same statistic under permuted outcomes. lift > 0 with a small p means 'equivalent' carries transferable information."""
+    y = np.asarray(outcomes, float)
+    clusters = [c for c in cluster_situations(cases, threshold, weights) if len(c.members) >= 2]
+    if not clusters or len(y) != len(cases):
+        return {"clusters": len(clusters), "within_gap": float("nan"), "null_gap": float("nan"), "lift": float("nan"), "p": float("nan")}
+
+    def within(v):
+        return float(np.mean([np.abs(v[list(c.members)] - v[list(c.members)].mean()).mean() for c in clusters]))
+    obs = within(y)
+    rng = np.random.default_rng(seed)
+    null = np.array([within(rng.permutation(y)) for _ in range(n_perm)])
+    return {"clusters": len(clusters), "within_gap": obs, "null_gap": float(null.mean()), "lift": float(null.mean() - obs),
+            "p": float((1 + (null <= obs).sum()) / (n_perm + 1))}
+
+
+def weight_sensitivity(query: Situation, cases: Sequence[Situation], k: int = 5, trials: int = 20, seed: int = 0,
+                       concentration: float = 60.0, weights: SimilarityWeights = DEFAULT) -> dict[str, float]:
+    """How much does the top-k depend on the exact component weights? Draws weight vectors from a Dirichlet centred on the
+    current ones and reports the mean top-k overlap with the unperturbed ranking. Near 1 = the neighbours are a property of
+    the data; low = the ranking is an artefact of a weighting nobody can justify to that precision."""
+    if len(cases) < k or k < 1:
+        return {"overlap": float("nan"), "trials": 0}
+    rng = np.random.default_rng(seed)
+    base = {n.index for n in nearest(query, cases, k=k, weights=weights, require_comparable=False)}
+    w0 = np.array([weights.normalised()[c] for c in COMPONENTS])
+    ov = []
+    for _ in range(trials):
+        w = rng.dirichlet(w0 * concentration + 1e-3)
+        alt = SimilarityWeights.from_dict(dict(zip(COMPONENTS, w)), vetoes=weights.vetoes, field_weights=weights.field_weights,
+                                          min_component_coverage=weights.min_component_coverage,
+                                          min_total_coverage=weights.min_total_coverage)
+        got = {n.index for n in nearest(query, cases, k=k, weights=alt, require_comparable=False)}
+        ov.append(len(base & got) / max(len(base), 1))
+    return {"overlap": float(np.mean(ov)), "trials": trials, "min_overlap": float(np.min(ov))}
+
+
+def ranking_table(query: Situation, neighbours: Sequence[Neighbour]) -> list[dict[str, Any]]:
+    """Report rows for a set of neighbours: rank, ref, total, coverage and every stored component score."""
+    rows = []
+    for r, nb in enumerate(neighbours, start=1):
+        row = {"rank": r, "ref": nb.ref, "total": nb.result.total, "coverage": nb.result.coverage, "vetoes": ",".join(nb.result.vetoes)}
+        row.update({c.name: c.score for c in nb.result.components})
+        rows.append(row)
+    return rows
+
+class WeightRegistry:
+    """Versioned, append-only history of similarity weightings. Changing what 'similar' means is itself a learning act and must
+    be time-safe: `in_effect(as_of)` returns the newest version registered strictly BEFORE `as_of`, so a decision can never be
+    made with a weighting that was fitted on outcomes it had not yet seen."""
+
+    def __init__(self, initial: SimilarityWeights = DEFAULT, created=dt.date(1900, 1, 1)):
+        self._versions: list[tuple[dt.date, SimilarityWeights, str]] = [(as_date(created), initial, "initial")]
+
+    def register(self, weights: SimilarityWeights, when, reason: str) -> int:
+        errs = weights.validate()
+        if errs:
+            raise ValueError("; ".join(errs))
+        if not reason:
+            raise ValueError("a weighting change needs a reason")
+        if as_date(when) <= self._versions[-1][0]:
+            raise ValueError("registrations must be strictly later than the previous version")
+        self._versions.append((as_date(when), weights, reason))
+        return len(self._versions) - 1
+
+    def in_effect(self, as_of) -> tuple[int, SimilarityWeights]:
+        d = as_date(as_of)
+        pick = 0
+        for i, (when, _, _) in enumerate(self._versions):
+            if when < d or i == 0:
+                pick = i
+        return pick, self._versions[pick][1]
+
+    def history(self) -> tuple[tuple[int, str, str, str], ...]:
+        return tuple((i, str(w), wt.weights_id(), why) for i, (w, wt, why) in enumerate(self._versions))
+
+    def __len__(self) -> int:
+        return len(self._versions)
+
+
+def component_availability(cases: Sequence[Situation], n_pairs: int = 200, seed: int = 0,
+                           weights: SimilarityWeights = DEFAULT) -> dict[str, float]:
+    """Share of random pairs on which each component could be scored. A component that is rarely available is being
+    renormalised away most of the time and is not really contributing to 'similar'."""
+    rng = np.random.default_rng(seed)
+    n = len(cases)
+    if n < 2:
+        return {}
+    hits = {c: 0 for c in COMPONENTS}
+    for _ in range(n_pairs):
+        i, j = (int(x) for x in rng.choice(n, size=2, replace=False))
+        for c in compare(cases[i], cases[j], weights).components:
+            hits[c.name] += c.score is not None
+    return {c: hits[c] / n_pairs for c in COMPONENTS}
+
+def describe_weights(weights: SimilarityWeights = DEFAULT) -> str:
+    n = weights.normalised()
+    parts = [f"{c} {n[c]:.2f}" for c in sorted(COMPONENTS, key=lambda c: -n[c])]
+    vet = ", ".join(f"{c}<{f:.2f}" for c, f in weights.vetoes) or "none"
+    return f"weights [{', '.join(parts)}]; vetoes {vet}; {len(weights.field_weights)} field weights; id {weights.weights_id()}"
+
+
+def weights_change(old: SimilarityWeights, new: SimilarityWeights) -> dict[str, float]:
+    """Component-by-component change in normalised weight (new - old); the audit line for a re-fit."""
+    a, b = old.normalised(), new.normalised()
+    return {c: round(b[c] - a[c], 6) for c in COMPONENTS if abs(b[c] - a[c]) > 1e-9}
+
+def result_to_record(r: SimilarityResult) -> dict[str, Any]:
+    """Lossless JSON-safe record of a SimilarityResult (component scores, coverage, drivers, vetoes, weights id)."""
+    return {"total": r.total, "coverage": r.coverage, "vetoes": list(r.vetoes), "unknown": None if r.unknown is None else str(r.unknown),
+            "weights_id": r.weights_id,
+            "components": [{"name": c.name, "score": c.score, "coverage": c.coverage, "n_fields": c.n_fields,
+                            "agree": [list(x) for x in c.agree], "differ": [list(x) for x in c.differ]} for c in r.components]}
+
+
+def result_from_record(d: Mapping[str, Any]) -> SimilarityResult:
+    comps = tuple(ComponentScore(c["name"], c["score"], c["coverage"], c["n_fields"], tuple(tuple(x) for x in c["agree"]),
+                                 tuple(tuple(x) for x in c["differ"])) for c in d["components"])
+    if [c.name for c in comps] != list(COMPONENTS):
+        raise ValueError("record does not hold the ten similarity components in order")
+    return SimilarityResult(comps, d["total"], d["coverage"], tuple(d["vetoes"]), None if d["unknown"] is None else Unknown(d["unknown"]),
+                            d["weights_id"])
+
+
+class SimilarityCache:
+    """Bounded memo of compare() keyed by the two situations' exact ids and the weights id. compare is symmetric, so the key
+    is unordered. Purely an optimisation: a hit returns exactly what compare would (tested), never a stale weighting."""
+
+    def __init__(self, maxsize: int = 4096):
+        if maxsize < 1:
+            raise ValueError("maxsize < 1")
+        self.maxsize = maxsize
+        self._d: dict[tuple, SimilarityResult] = {}
+        self.hits = 0
+        self.misses = 0
+
+    def compare(self, a: Situation, b: Situation, weights: SimilarityWeights = DEFAULT) -> SimilarityResult:
+        key = (tuple(sorted((a.exact_id, b.exact_id))), weights.weights_id())
+        got = self._d.get(key)
+        if got is not None:
+            self.hits += 1
+            return got
+        self.misses += 1
+        res = compare(a, b, weights)
+        if len(self._d) >= self.maxsize:
+            self._d.pop(next(iter(self._d)))                   # oldest insertion first
+        self._d[key] = res
+        return res
+
+    def __len__(self) -> int:
+        return len(self._d)
+
+
+def nearest_by_component(query: Situation, cases: Sequence[Situation], component: str, k: int = 5,
+                         weights: SimilarityWeights = DEFAULT) -> list[tuple[int, float]]:
+    """Rank cases by ONE component (e.g. the ten-way answer to 'which past days looked most like this in volatility?').
+    Cases where the component cannot be scored are left out, never ranked last by a made-up value."""
+    if component not in COMPONENTS:
+        raise ValueError(f"unknown component {component!r}")
+    if not len(cases) or k < 1:
+        return []
+    col = SituationMatrix(cases).component_matrix(query, weights)[:, COMPONENTS.index(component)]
+    order = [i for i in np.argsort(-np.nan_to_num(col, nan=-1.0), kind="stable") if not math.isnan(col[i])]
+    return [(int(i), float(col[i])) for i in order[:k]]
+
+
+def partition_by_veto(query: Situation, cases: Sequence[Situation], weights: SimilarityWeights = DEFAULT) -> dict[str, list[int]]:
+    """Split cases into comparable / vetoed / unknown for a query, so a caller can report how much of the history was even
+    eligible before any ranking happened."""
+    out: dict[str, list[int]] = {"comparable": [], "vetoed": [], "unknown": []}
+    if not len(cases):
+        return out
+    tot, _, ok = SituationMatrix(cases).totals(query, weights)
+    for i in range(len(cases)):
+        out["unknown" if math.isnan(tot[i]) else "comparable" if ok[i] else "vetoed"].append(i)
+    return out
+
+def pairwise_totals(cases: Sequence[Situation], weights: SimilarityWeights = DEFAULT) -> np.ndarray:
+    """(N, N) matrix of total similarity between every pair of cases (NaN where the pair is Unknown or vetoed). Symmetric with
+    a unit diagonal wherever a case is comparable to itself."""
+    n = len(cases)
+    out = np.full((n, n), np.nan)
+    if n == 0:
+        return out
+    M = SituationMatrix(cases)
+    for i, c in enumerate(cases):
+        tot, _, ok = M.totals(c, weights)
+        out[i] = np.where(ok, tot, np.nan)
+    return out
+
+
+def stratified_nearest(query: Situation, cases: Sequence[Situation], strata: Sequence[str], per_stratum: int = 2,
+                       weights: SimilarityWeights = DEFAULT) -> list[Neighbour]:
+    """Nearest neighbours taken separately inside each stratum (e.g. each market era), so the answer cannot be five days from
+    one episode when the history holds four independent ones. Strata with fewer than `per_stratum` comparable cases return
+    what they have. Result is ordered by similarity."""
+    if len(strata) != len(cases):
+        raise ValueError("strata and cases differ in length")
+    out: list[Neighbour] = []
+    for s in sorted(set(strata)):
+        idx = [i for i, x in enumerate(strata) if x == s]
+        sub = nearest(query, [cases[i] for i in idx], refs=[str(i) for i in idx], k=per_stratum, weights=weights)
+        out.extend(Neighbour(idx[nb.index], nb.ref, nb.result) for nb in sub)
+    return sorted(out, key=lambda n: (-n.result.total, n.ref))
+
+def explain_neighbours(query: Situation, neighbours: Sequence[Neighbour], top: int = 2) -> str:
+    """One paragraph per neighbour: rank, ref, total similarity, and the fields it matched and missed."""
+    if not neighbours:
+        return "no comparable neighbours"
+    blocks = []
+    for r, nb in enumerate(neighbours, start=1):
+        res = nb.result
+        alike = [f"{p}" for c in res.components for p, _ in c.agree[:1]][:top]
+        unlike = [f"{p}" for c in res.components for p, _ in c.differ[:1]][:top]
+        blocks.append(f"#{r} case {nb.ref}: similarity {res.total:.3f} (coverage {res.coverage:.0%})"
+                      + (f"; alike in {', '.join(alike)}" if alike else "") + (f"; unlike in {', '.join(unlike)}" if unlike else "")
+                      + (f"; VETO {','.join(res.vetoes)}" if res.vetoes else ""))
+    return "\n".join(blocks)
+
+
+def weights_to_record(w: SimilarityWeights) -> dict[str, Any]:
+    return {"values": {c: v for c, v in w.values}, "vetoes": {c: f for c, f in w.vetoes}, "field_weights": {p: v for p, v in w.field_weights},
+            "min_component_coverage": w.min_component_coverage, "min_total_coverage": w.min_total_coverage, "id": w.weights_id()}
+
+
+def weights_from_record(d: Mapping[str, Any]) -> SimilarityWeights:
+    """Rebuilds and re-validates; a record whose stored id no longer matches its content was edited and is refused."""
+    w = SimilarityWeights(values=tuple((c, float(d["values"][c])) for c in COMPONENTS), vetoes=tuple(sorted((c, float(f)) for c, f in d["vetoes"].items())),
+                          field_weights=tuple(sorted((p, float(v)) for p, v in d["field_weights"].items())),
+                          min_component_coverage=float(d["min_component_coverage"]), min_total_coverage=float(d["min_total_coverage"]))
+    errs = w.validate()
+    if errs:
+        raise ValueError("; ".join(errs))
+    if d.get("id") and d["id"] != w.weights_id():
+        raise ValueError("weights record does not match its own id")
+    return w

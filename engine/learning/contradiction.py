@@ -249,6 +249,31 @@ def detect(a: Claim, b: Claim, alpha: float = 0.05, min_n: int = 10) -> Disagree
     return Disagreement(a.knowledge_id, b.knowledge_id, kind, diff, se, z, p, True, shared)
 
 
+def claims_from_evidence(ev: EvidenceSet, sources: Sequence[str] | None = None) -> list[Claim]:
+    """Summarise each source's evidence as a Claim (cluster-robust mean and se, n = independent dates), scoped by the
+    context columns that are constant within the source (a source collected entirely in one regime says so)."""
+    out = []
+    for src in sources or ev.sources():
+        g = ev.frame[ev.frame["source"].astype(str) == src]
+        st = cluster_mean(g["effect"], g["weight"], g["cluster"])
+        scope = tuple(sorted((c, str(g[c].iloc[0])) for c in ev.context_cols if c in g.columns and g[c].astype(str).nunique() == 1))
+        out.append(Claim(str(src), st.mean, st.se if math.isfinite(st.se) and st.se > 0 else float("nan"), st.clusters, scope))
+    return out
+
+
+def disagreement_map(claims: Sequence[Claim]) -> pd.DataFrame:
+    """Pairwise z of the A-B difference for a set of claims (symmetric matrix, 0 on the diagonal, NaN where the scopes
+    cannot be compared), for a glance at where a knowledge base disagrees with itself."""
+    ids = [c.knowledge_id for c in claims]
+    m = pd.DataFrame(0.0, index=ids, columns=ids)
+    for a, b in itertools.combinations(claims, 2):
+        d = detect(a, b)
+        v = float("nan") if d.kind == DisagreementKind.SCOPE_ONLY else d.z
+        m.loc[a.knowledge_id, b.knowledge_id] = v
+        m.loc[b.knowledge_id, a.knowledge_id] = -v if math.isfinite(v) else v
+    return m
+
+
 def triage(claims: Sequence[Claim], alpha: float = 0.05) -> list[Disagreement]:
     """All genuine disagreements among claims, worst first (sign conflicts before magnitude, then |z|)."""
     rank = {DisagreementKind.SIGN_CONFLICT: 0, DisagreementKind.MAGNITUDE_CONFLICT: 1}
@@ -290,6 +315,14 @@ class EvidenceSet:
 
     def through(self) -> str | None:
         return None if not len(self) else self.frame["when"].max().date().isoformat()
+
+    def coverage_matrix(self, col: str, a: str, b: str) -> pd.DataFrame:
+        """Independent dates per (level of `col`) x (source): where each claim's evidence actually sits. A composition
+        confound shows up here as a lopsided table before any statistics are run."""
+        f = self.pair(a, b)
+        if col not in f.columns:
+            raise ContradictionError(f"no context column {col!r}")
+        return f.groupby([f[col].astype(str), f["source"].astype(str)])["cluster"].nunique().unstack(fill_value=0)
 
     def assert_before(self, now):
         n = pd.Timestamp(as_date(now))
@@ -397,6 +430,32 @@ class Investigation:
         dim = "x".join(self.dimension)
         return {dim: [l.level for l in self.levels if not l.disagrees(z_crit)]} if self.dimension else {}
 
+    def estimate_in_context(self, context: Mapping[str, Any]) -> dict[str, Any]:
+        """The sanctioned replacement for an average: what each claim says INSIDE the named context. Only levels the
+        investigation actually measured are answered; anything else is UNKNOWN, never an interpolation. `contested` says
+        whether the two claims still disagree there."""
+        if not self.dimension or not self.levels:
+            return {"state": Unknown.UNKNOWN.value, "reason": "no context split was established for this pair"}
+        try:
+            level = "|".join(str(context[d]) for d in self.dimension)
+        except KeyError as e:
+            return {"state": Unknown.INSUFFICIENT_DATA.value, "reason": f"context lacks {e.args[0]!r}"}
+        hit = next((l for l in self.levels if l.level == level), None)
+        if hit is None:
+            return {"state": Unknown.INSUFFICIENT_DATA.value, "reason": f"level {level!r} was never measured"}
+        return {"state": None, self.a: hit.effect_a, self.b: hit.effect_b, "diff": hit.diff, "z": hit.z,
+                "contested": hit.disagrees(PARAMS["z_crit"]), "level": hit.level}
+
+    def epistemic(self) -> Epistemic:
+        """The state the two claims should carry after this investigation."""
+        return {Verdict.NO_DISAGREEMENT: Epistemic.SUPPORTED, Verdict.RESOLVED_BY_CONTEXT: Epistemic.CONDITIONAL,
+                Verdict.PARTLY_RESOLVED: Epistemic.CONTRADICTED, Verdict.UNRESOLVED: Epistemic.CONTRADICTED,
+                Verdict.SPURIOUS_SPLIT: Epistemic.CONTRADICTED, Verdict.INSUFFICIENT_DATA: Epistemic.UNKNOWN}[self.verdict]
+
+    def summary_line(self) -> str:
+        where = f" via {'x'.join(self.dimension)} ({self.mechanism.lower()}, p_adj {self.p_adj:.2g})" if self.dimension else ""
+        return f"{self.a} vs {self.b}: {self.verdict.value}{where}; overall z {self.overall_z:+.1f}"
+
     def average_hides(self) -> dict[str, float]:
         """How wrong the forbidden average would be: distance from the pooled value to each level's two claims."""
         if not self.levels:
@@ -415,6 +474,47 @@ class Investigation:
             out.append(EdgeProposal(self.a, self.b, Edge.CONTRADICTS.value, 1.0 - min(self.p_adj, 1.0), (), attrs))
         if self.verdict == Verdict.RESOLVED_BY_CONTEXT:
             out.append(EdgeProposal(self.a, self.b, Edge.COMPLEMENTS.value, 1.0 - min(self.p_adj, 1.0), (), attrs))
+        return out
+
+    def to_dict(self) -> dict:
+        """JSON-safe dossier (NaN kept as text so nothing silently becomes 0). `from_dict` restores it exactly."""
+        def num(x):
+            return x if not isinstance(x, float) or math.isfinite(x) else str(x)
+        d = {f.name: getattr(self, f.name) for f in dataclasses.fields(self)}
+        d["verdict"], d["kind"] = self.verdict.value, self.kind.value
+        d["levels"] = [{k: num(v) for k, v in dataclasses.asdict(l).items()} for l in self.levels]
+        d["scoped"] = [{**{k: num(v) for k, v in dataclasses.asdict(c).items()}, "contexts": [list(x) for x in c.contexts]}
+                       for c in self.scoped]
+        d["dimension"], d["residual_levels"] = list(self.dimension), list(self.residual_levels)
+        d["tried"] = [list(t) for t in self.tried]
+        return {k: num(v) for k, v in d.items()}
+
+    @classmethod
+    def from_dict(cls, d: Mapping) -> "Investigation":
+        def f(x):
+            return float(x) if isinstance(x, str) and x in ("nan", "inf", "-inf") else x
+        levels = tuple(LevelResult(**{k: f(v) for k, v in l.items()}) for l in d["levels"])
+        scoped = tuple(ScopedClaim(**{**{k: f(v) for k, v in c.items() if k != "contexts"},
+                                      "contexts": tuple(tuple(x) for x in c["contexts"])}) for c in d["scoped"])
+        kw = {k: f(v) for k, v in d.items() if k not in ("levels", "scoped")}
+        kw.update(verdict=Verdict(d["verdict"]), kind=DisagreementKind(d["kind"]), levels=levels, scoped=scoped,
+                  dimension=tuple(d["dimension"]), residual_levels=tuple(d["residual_levels"]),
+                  tried=tuple((a, b) for a, b in d["tried"]))
+        return cls(**kw)
+
+    def knowledge_updates(self) -> dict[str, dict[str, dict[str, str]]]:
+        """What each side's knowledge object should record so the disagreement stops being averaged away: contexts where
+        the two claims AGREE are shared contexts; contexts where they still disagree go to BOTH as contested
+        anti-contexts until an experiment settles them. Empty when nothing was localised."""
+        if not self.dimension or not self.levels:
+            return {}
+        key = "|".join(self.dimension)
+        agree = {key: sorted(l.level for l in self.levels if not l.disagrees(PARAMS["z_crit"]))}
+        clash = {key: sorted(l.level for l in self.levels if l.disagrees(PARAMS["z_crit"]))}
+        out = {}
+        for kid in (self.a, self.b):
+            out[kid] = {"contexts": {k: "/".join(v) for k, v in agree.items() if v},
+                        "anti_contexts": {k: "/".join(v) for k, v in clash.items() if v}}
         return out
 
     def markdown(self) -> str:
@@ -650,6 +750,90 @@ class Investigator:
             return FailureCause.REVERSAL.value
         return FailureCause.UNKNOWN.value
 
+    def selection_stability(self, a: str, b: str, ev: EvidenceSet, now, reps: int = 40, seed: int = 0,
+                            context_cols: Sequence[str] | None = None) -> dict[str, float]:
+        """How often would the search pick each dimension if the DATES were resampled? A real explanation is chosen
+        almost every time; noise wanders. Cluster bootstrap over the search half, seeded, whole dates kept together."""
+        ev.assert_before(now)
+        rng = np.random.default_rng(seed)
+        early, _ = ev.time_split(a, b)
+        cols = tuple(c for c in (context_cols if context_cols is not None else ev.context_cols) if c in early.columns)
+        edges = self._edges(early, cols)
+        groups = {c: g for c, g in early.groupby("cluster")}
+        days = sorted(groups)
+        if len(days) < self.p["min_clusters"]:
+            return {}
+        counts: dict[str, int] = defaultdict(int)
+        for _ in range(reps):
+            pick = rng.integers(0, len(days), len(days))
+            boot = []
+            for j, i in enumerate(pick):
+                g = groups[days[i]].copy()
+                g["cluster"] = f"{days[i]}#{j}"
+                boot.append(g)
+            frame = pd.concat(boot, ignore_index=True)
+            scored = [sc for sc in (self._score(frame, a, b, (d,), edges, self.p["min_level_clusters"]) for d in cols)
+                      if sc is not None]
+            counts[min(scored, key=lambda x: (x.p, x.dims)).dims[0] if scored else "<none>"] += 1
+        return {k: v / reps for k, v in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))}
+
+    def dimension_table(self, a: str, b: str, ev: EvidenceSet, now, context_cols: Sequence[str] | None = None) -> pd.DataFrame:
+        """Every single-dimension split scored on the search half - both explanations' p-values, the mechanism that won,
+        and the Bonferroni-adjusted p. The table behind an investigation's headline, for people who want to see the losers."""
+        ev.assert_before(now)
+        early, _ = ev.time_split(a, b)
+        cols = tuple(c for c in (context_cols if context_cols is not None else ev.context_cols) if c in early.columns)
+        edges = self._edges(early, cols)
+        rows = []
+        for d in cols:
+            sc = self._score(early, a, b, (d,), edges, self.p["min_level_clusters"])
+            if sc is not None:
+                rows.append({"dimension": d, "levels": len(sc.table), "p_modification": sc.p_het, "p_composition": sc.p_comp,
+                             "mechanism": sc.mechanism, "z_overall": sc.z_overall, "z_stratified": sc.z_adj, "p_best": sc.p})
+        df = pd.DataFrame(rows, columns=["dimension", "levels", "p_modification", "p_composition", "mechanism", "z_overall",
+                                         "z_stratified", "p_best"])
+        if len(df):
+            df["p_adjusted"] = [bonferroni(p, 2 * len(df)) for p in df["p_best"]]
+            df = df.sort_values(["p_best", "dimension"]).reset_index(drop=True)
+        return df
+
+    def residual_scan(self, inv: Investigation, a: str, b: str, ev: EvidenceSet, now) -> dict[str, Investigation]:
+        """After a PARTLY_RESOLVED verdict, ask the same question INSIDE each level that still disagrees: is there a second
+        context that explains what the first left over? The multiple-testing count carries forward, so the bar keeps rising."""
+        ev.assert_before(now)
+        if inv.verdict != Verdict.PARTLY_RESOLVED or not inv.dimension:
+            return {}
+        f = ev.pair(a, b)
+        lv = self._levels(f, inv.dimension, self._edges(f, inv.dimension))
+        out = {}
+        for level in inv.residual_levels:
+            sub = f[lv == level]
+            inner_cols = [c for c in ev.context_cols if c not in inv.dimension]
+            out[level] = self.investigate(a, b, EvidenceSet(sub, inner_cols), now, prior_tries=inv.m_tests,
+                                          context_cols=inner_cols)
+        return out
+
+    def null_calibration(self, a: str, b: str, ev: EvidenceSet, now, reps: int = 20, seed: int = 0,
+                         context_cols: Sequence[str] | None = None) -> dict[str, float]:
+        """False-positive rate of the WHOLE procedure. Source labels are shuffled within each date, which keeps the dates,
+        contexts and noise but destroys any real A-B difference; every rep runs the full investigation and counts how often
+        it still claims a context explains something. Should sit at or below `alpha`; if it does not, the bar is too low."""
+        rng = np.random.default_rng(seed)
+        f = ev.pair(a, b).copy()
+        hits = 0
+        ran = 0
+        for _ in range(reps):
+            g = f.copy()
+            for _, idx in g.groupby("cluster").groups.items():
+                g.loc[idx, "source"] = rng.permutation(g.loc[idx, "source"].to_numpy())
+            inv = self.investigate(a, b, EvidenceSet(g, context_cols if context_cols is not None else ev.context_cols), now)
+            if inv.verdict == Verdict.NO_DISAGREEMENT:
+                continue
+            ran += 1
+            hits += inv.verdict in (Verdict.RESOLVED_BY_CONTEXT, Verdict.PARTLY_RESOLVED)
+        return {"reps": float(reps), "investigated": float(ran), "false_explanations": float(hits),
+                "false_positive_rate": float(hits / reps)}
+
     # ---- planning when the data cannot decide
     def plan(self, a: Claim, b: Claim, candidate_contexts: Mapping[str, Sequence[str]], sigma: float,
              delta: float | None = None) -> dict:
@@ -687,6 +871,7 @@ class ContradictionLedger:
     def __init__(self, path=None):
         self._chain = ChainFile(path, "contra")
         self._entries: list[LedgerEntry] = []
+        self._dossiers: list[dict | None] = []
         self._load()
 
     def _load(self):
@@ -694,6 +879,7 @@ class ContradictionLedger:
             b = line["body"]
             self._entries.append(LedgerEntry(tuple(b["pair"]), b["at"], b["verdict"], b["dimension"], float(b["p_adj"]),
                                              int(b["m_tests"]), b["rows_through"]))
+            self._dossiers.append(b.get("dossier"))
 
     def record(self, inv: Investigation) -> LedgerEntry:
         if inv.verdict == Verdict.INSUFFICIENT_DATA:
@@ -701,10 +887,29 @@ class ContradictionLedger:
         else:
             verdict = inv.verdict.value
         body = {"pair": list(inv.pair), "at": inv.now, "verdict": verdict, "dimension": "x".join(inv.dimension),
-                "p_adj": float(inv.p_adj), "m_tests": int(inv.m_tests), "rows_through": inv.rows_through}
+                "p_adj": float(inv.p_adj), "m_tests": int(inv.m_tests), "rows_through": inv.rows_through,
+                "dossier": inv.to_dict()}
         self._chain.append_many([body])
         self._load()
         return self._entries[-1]
+
+    def dossier(self, pair: Sequence[str], now) -> "Investigation | None":
+        """The full Investigation behind the latest ledger entry for a pair (what was found, not just the verdict)."""
+        key, n = tuple(sorted(pair)), as_date(now)
+        for e, d in zip(reversed(self._entries), reversed(self._dossiers)):
+            if e.pair == key and as_date(e.at) < n and d is not None:
+                return Investigation.from_dict(d)
+        return None
+
+    def markdown(self, now) -> str:
+        pairs = sorted({e.pair for e in self.entries(None, now)})
+        lines = [f"# Contradiction ledger @ {as_date(now)}", "", self.summary(now), "",
+                 "| pair | status | splits tried | last dimension | p_adj | investigated |", "|---|---|---:|---|---:|---|"]
+        for p in pairs:
+            last = self.entries(p, now)[-1]
+            lines.append(f"| {p[0]} vs {p[1]} | {self.status(p, now).value} | {self.tries(p, now)} | {last.dimension or '-'} | "
+                         f"{last.p_adj:.3g} | {last.at} |")
+        return "\n".join(lines)
 
     def entries(self, pair: Sequence[str] | None, now) -> list[LedgerEntry]:
         n = as_date(now)
@@ -774,6 +979,28 @@ class ContradictionLedger:
         for p in pairs:
             cnt[self.status(p, now).value] += 1
         return f"{len(pairs)} investigated pairs @ {as_date(now)}: " + ", ".join(f"{k}={v}" for k, v in sorted(cnt.items()))
+
+
+def next_to_investigate(claims: Sequence[Claim], ledger: ContradictionLedger, now, evidence_through=None,
+                        growth_days: int = 60, alpha: float = 0.05) -> list[dict]:
+    """Research queue over disagreements between claims: genuine conflicts only, sign conflicts first, weighted by how loud
+    the disagreement is and how much evidence stands behind it; pairs already settled (or investigated with no new
+    evidence since) are left alone."""
+    queue = []
+    for d in triage(claims, alpha):
+        pair = (d.a, d.b)
+        st = ledger.status(pair, now)
+        through = evidence_through if evidence_through is not None else now
+        stale = ledger.needs_reinvestigation(pair, now, through, growth_days)
+        if st in (Status.RESOLVED, Status.CLOSED) and not stale:
+            continue
+        if st in (Status.UNRESOLVED_KEEP_BOTH, Status.PARTLY_RESOLVED, Status.NEEDS_DATA) and not stale:
+            continue
+        n = min(c.n for c in claims if c.knowledge_id in pair)
+        prio = abs(d.z) * math.sqrt(max(n, 1)) * (2.0 if d.kind == DisagreementKind.SIGN_CONFLICT else 1.0)
+        queue.append({"a": d.a, "b": d.b, "kind": d.kind.value, "z": d.z, "status": st.value, "priority": prio,
+                      "why": "never investigated" if st == Status.OPEN else "new evidence since last look"})
+    return sorted(queue, key=lambda r: (-r["priority"], r["a"], r["b"]))
 
 
 def investigate_and_record(inv: Investigator, ledger: ContradictionLedger, a: str, b: str, ev: EvidenceSet, now,
