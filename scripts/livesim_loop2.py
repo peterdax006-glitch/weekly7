@@ -198,8 +198,10 @@ while len(st["windows"]) < MAXW:
         print(f"  [{r}] ~7% weeks (5-10% moves) {res.get('in_band', float('nan')):.0%} | avg week {res['mean_week']:+.2%} | swing (sd) {res['sd_week']:.2%} | {res['weeks_ge_7']} weeks >= +7% | "
               f"window {res['year_return']:+.1%} | max DD {res['max_dd']:.0%} | {len(res['adaptations'])} self-adjustments | "
               f"missed winners studied {sum(m['winners'] for m in res['missed_winners'])} | clock {res['ms_per_day']:.0f} ms/day", flush=True)
-        print(f"       gates: re-tester {'OK' if rep else 'MISMATCH'} | future-scramble {'OK' if scram else 'LEAK'}", flush=True)
-        gate_ok &= rep and scram
+        from engine import fill_audit
+        fill_ok, fill_msg = fill_audit.gate(S1, w["opens"], w["closes"])       # C33: next-open fills, proven per fill
+        print(f"       gates: re-tester {'OK' if rep else 'MISMATCH'} | future-scramble {'OK' if scram else 'LEAK'} | {fill_msg}", flush=True)
+        gate_ok &= rep and scram and fill_ok
         st["windows"].append({**{k: v for k, v in res.items() if k not in ("missed_winners",)},
                               "missed_summary": {"winners": sum(m["winners"] for m in res["missed_winners"]),
                                                  "caught": sum(m["caught"] for m in res["missed_winners"]),
