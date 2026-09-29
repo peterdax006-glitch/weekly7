@@ -225,13 +225,24 @@ def regime_frame(market, Ct, rt):
     return df.astype("float32")
 
 
-def labels(stocks: dict, atr: pd.DataFrame, horizon=5, target=0.07, stop_atr=2.0):
-    """Triple-barrier (Part C1) from entry at close t over sessions t+1..t+horizon.
+def labels(stocks: dict, atr: pd.DataFrame, horizon=5, target=0.07, stop_atr=2.0, entry="close"):
+    """Triple-barrier (Part C1) over sessions t+1..t+horizon.
+    entry="close": enter at close t (the original definition; the Live champion was trained on it).
+    entry="open":  enter at the NEXT session's open, which is where every decision actually fills (canon C33). The
+                   close-entry label also rewards the overnight gap from close t to open t+1, which no fill can capture
+                   (PIT audit 2026-09-28: mean |gap| 0.7% per label, 1.3% in 2020). Research uses "open"; Live changes
+                   only through a promoted challenger.
     y_bar: 1 = +target touched first, -1 = stop touched first (ties -> stop), 0 = neither.
-    fwd: close-to-close log return over the horizon."""
+    fwd: log return from the entry price to close t+horizon."""
     C, H, L = stocks["Close"], stocks["High"], stocks["Low"]
-    up = C * (1 + target)
-    dn = C - stop_atr * atr
+    if entry == "open":
+        E = stocks["Open"].shift(-1)                      # filled at the next session's open
+    elif entry == "close":
+        E = C
+    else:
+        raise ValueError(f"entry must be 'close' or 'open', not {entry!r}")
+    up = E * (1 + target)
+    dn = E - stop_atr * atr
     first_up = pd.DataFrame(np.inf, index=C.index, columns=C.columns)
     first_dn = pd.DataFrame(np.inf, index=C.index, columns=C.columns)
     for k in range(horizon, 0, -1):
@@ -240,6 +251,6 @@ def labels(stocks: dict, atr: pd.DataFrame, horizon=5, target=0.07, stop_atr=2.0
         first_dn = first_dn.mask(lk <= dn, k)
     y = pd.DataFrame(0.0, index=C.index, columns=C.columns)
     y = y.mask(first_up < first_dn, 1.0).mask(first_dn <= first_up, -1.0).where(np.isfinite(first_dn) | np.isfinite(first_up), 0.0)
-    fwd = np.log(C.shift(-horizon) / C)
+    fwd = np.log(C.shift(-horizon) / E)
     y = y.where(fwd.notna())
     return y, fwd
