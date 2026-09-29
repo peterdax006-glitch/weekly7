@@ -1065,3 +1065,12 @@ def explain_dormant(book: DormantBook, state: CM.ManagerState, branch_id: str, c
         lines.append(f"  {c.key}: now {snap.get(c.key, 0.0):.2f}, needs >= {c.lo} -> {'MET' if c.satisfied_by(snap) else 'not met'}")
     lines.append(f"  unseen triggers now: {len(trig)}; combined strength {combined_strength(trig):.2f}")
     return lines
+
+
+def reasons_histogram(book: DormantBook) -> dict[str, int]:
+    """How many branches are currently parked per reason (the mix tells where research effort is being lost)."""
+    out: dict[str, int] = {}
+    for r in book.records.values():
+        if r.active:
+            out[r.reason] = out.get(r.reason, 0) + 1
+    return dict(sorted(out.items()))

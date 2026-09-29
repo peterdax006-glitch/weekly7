@@ -1824,39 +1824,42 @@
    "section": "Compute manager",
    "minimum_lines": 1500,
    "upper_lines": 2500,
-   "actual_lines": 2031,
+   "actual_lines": 3109,
    "code_paths": [
-    "engine/learning/compute.py",
-    "engine/resources.py",
     "engine/health.py",
-    "engine/learning/research_policy.py::select_within_budget,successive_halving,sprt_bernoulli,CostModel,ComputeBudget"
+    "engine/learning/compute.py",
+    "engine/learning/research_policy.py::select_within_budget,successive_halving,sprt_bernoulli,CostModel,ComputeBudget",
+    "engine/research/compute_manager.py",
+    "engine/resources.py"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "[mapping 2026-09-29, read-only audit] [partial] 2031/1500 meaningful lines genuinely doing this job. compute 906 + resources 396 + worker health 306 + research_policy compute defs 423. Execution side (deterministic workers, RAM admission, isolation, reconcile) is solid. Missing: research-state machine QUEUED..RETIRED and the five-stage escalation ladder; job_for/run_experiment_process have 0 callers."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C66 wave 1, R14): 1,501; 5-rung escalation ladder, AUDIT for too-good t, direction waits for volatility. | earlier: [mapping 2026-09-29, read-only audit] [partial] 2031/1500 meaningful lines genuinely doing this job. compute 906 + resources 396 + worker health 306 + research_policy compute defs 423. Execution side (deterministic workers, RAM admission, isolation, reconcile) is solid. Missing: research-state machine QUEUED..RETIRED and the five-stage escalation ladder; job_for/run_experiment_process have 0 callers."
   },
   {
    "section": "Experiment value accounting",
    "minimum_lines": 1200,
    "upper_lines": 2000,
-   "actual_lines": 129,
+   "actual_lines": 1203,
    "code_paths": [
     "engine/learning/research_policy.py::RealisedGain,realised_bits,gain_from_record,regret_report,RoundLedger",
-    "engine/learning/scorecard.py::ComputeCost,ComputeMeter"
+    "engine/learning/scorecard.py::ComputeCost,ComputeMeter",
+    "engine/research/value_accounting.py"
    ],
-   "status": "NOT_STARTED",
-   "notes": "[mapping 2026-09-29, read-only audit] [missing] 129/1200 meaningful lines genuinely doing this job. 94 + 35. Realised information bits and compute minutes are recorded; decision_change, risk_change, prediction_change, transfer_change and knowledge_redundancy per job are not."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C66 wave 1, R14): 1,203; realised value vector, PREVENTIVE findings valued, corrections appended, unmeasured never 0. | earlier: [mapping 2026-09-29, read-only audit] [missing] 129/1200 meaningful lines genuinely doing this job. 94 + 35. Realised information bits and compute minutes are recorded; decision_change, risk_change, prediction_change, transfer_change and knowledge_redundancy per job are not."
   },
   {
    "section": "Compute-waste controller",
    "minimum_lines": 800,
    "upper_lines": 1500,
-   "actual_lines": 64,
+   "actual_lines": 805,
    "code_paths": [
+    "engine/learning/research_policy.py::marginal_return_verdict,cusum_shift",
     "engine/learning/research_priority.py::barren_streak,experience_factor,experience_rerank",
-    "engine/learning/research_policy.py::marginal_return_verdict,cusum_shift"
+    "engine/research/waste.py"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "[mapping 2026-09-29, read-only audit] [partial] 64/800 meaningful lines genuinely doing this job. 38 + 26: barren-streak down-ranking and a marginal-return verdict exist. No DORMANT branch state with reason and re-entry triggers for research branches (retirement.py does this for knowledge items and should be reused, not copied)."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C66 wave 1, R14): 805; progress-per-compute, DORMANT with reason, circuit breaker, revival needs a new unseen trigger. | earlier: [mapping 2026-09-29, read-only audit] [partial] 64/800 meaningful lines genuinely doing this job. 38 + 26: barren-streak down-ranking and a marginal-return verdict exist. No DORMANT branch state with reason and re-entry triggers for research branches (retirement.py does this for knowledge items and should be reused, not copied)."
   },
   {
    "section": "Daily market autopsy",

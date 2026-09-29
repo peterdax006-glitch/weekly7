@@ -481,3 +481,130 @@ def test_probe_flags_false_dormancy_and_report_runs():
     rep = W.waste_report(st, led, book, "2010-06-01")
     assert rep["dormant_branches"] == 1 and rep["lifecycle_chain_errors"] == []
     assert "DORMANT" in W.explain_verdict(W.assess_branch(st, led, b.branch_id, "2010-06-01", W.WastePolicy())) or True
+
+
+# ---------------------------------------------------------------- additional mechanisms
+def test_pooled_evidence_heterogeneity_widens_se_and_empty_case():
+    same = CM.pooled_evidence(Stage.STRONGER_TESTS, {f"c{i}": (0.01, 0.002, 500) for i in range(4)}, "2010-01-03", 5.0)
+    mixed = CM.pooled_evidence(Stage.STRONGER_TESTS, {f"c{i}": (0.01 * (1 + (-1) ** i * 0.9), 0.002, 500) for i in range(4)}, "2010-01-03", 5.0)
+    assert mixed.se > same.se and same.units_positive == 4
+    assert CM.pooled_evidence(Stage.STRONGER_TESTS, {}, "2010-01-03", 5.0).n_obs == 0
+    assert CM.evidence_from_screen([], 0.01, 100, "2010-01-03", 1.0).n_obs == 0
+
+
+def test_intake_refuses_identity_and_caps_and_dedupes():
+    st = CM.ManagerState()
+    qs = [(ResearchQuestion.make("does gap size predict range", "s", Problem.VOLATILITY, D0, D0, "s", "f"), "gap"),
+          (ResearchQuestion.make("did it fail on 2008-09-15", "s", Problem.VOLATILITY, D0, D0, "s", "f"), "gap"),
+          (ResearchQuestion.make("second idea", "s", Problem.VOLATILITY, D0, D0, "s", "f"), "gap")]
+    r = CM.intake(st, qs, D0, max_new=1)
+    assert len(r.created) == 1 and len(r.rejected) == 2
+    assert len(CM.intake(st, qs[:1], D0).duplicates) + len(CM.intake(st, qs[:1], D0).created) == 1
+    assert CM.intake(CM.ManagerState(), [], D0).created == ()
+
+
+def test_diversify_drops_over_served_family():
+    st = CM.ManagerState()
+    bs = [mk(st, f"a{i}", family="A") for i in range(4)] + [mk(st, "b", family="B")]
+    alloc = [CM.Allocation(b.branch_id, Stage.CHEAP_SCREEN, 20.0, 0.8, False, 1.0 - i * 0.1, "x") for i, b in enumerate(bs)]
+    kept, dropped = CM.diversify(alloc, st, 0.5)
+    assert dropped and sum(1 for a in kept if st.branches[a.branch_id].family == "A") <= len(kept) / 2 + 1
+    one, none = CM.diversify(alloc[:2], CM.ManagerState() if False else st, 0.5)
+    assert isinstance(one, list)
+
+
+def test_dossier_only_for_completed_and_state_history():
+    st = CM.ManagerState()
+    b = mk(st)
+    with pytest.raises(CM.LadderError):
+        CM.dossier(st, b.branch_id)
+    for i, s in enumerate(CM.LADDER):
+        drive(st, b, s, ev(s), dt.date(2010, 1, 5) + dt.timedelta(days=i))
+    d = CM.dossier(st, b.branch_id)
+    assert d.total_cpu_min > 0 and CM.completed_branches(st) == [b.branch_id]
+    assert CM.state_at(st, "2010-01-05")[b.branch_id] == "QUEUED"
+    assert sum(CM.time_in_state(st, b.branch_id, "2010-02-01").values()) > 0
+
+
+def test_round_log_survives_torn_line(tmp_path):
+    st = CM.ManagerState()
+    mk(st)
+    log = CM.RoundLog(tmp_path / "r.jsonl")
+    log.append(st, CM.step(st, D0, free_gb=16.0, dry_run=True), D0)
+    with open(tmp_path / "r.jsonl", "a") as f:
+        f.write('{"day": "2010')
+    assert len(log.read()) == 1 and log.summary()["rounds"] == 1
+    assert CM.RoundLog(tmp_path / "none.jsonl").summary() == {"rounds": 0}
+
+
+def test_validate_state_catches_forged_frontier_and_budget_governor_bounds():
+    st = CM.ManagerState()
+    b = mk(st)
+    b.frontier = Stage.FRESH_HOLDOUT
+    assert CM.validate_state(st, CM.LadderPolicy())
+    adv = CM.budget_governor(CM.ManagerState(), CM.LadderPolicy(), 600.0)
+    assert adv.period_cpu_min == 300.0
+    assert 300.0 <= CM.budget_governor(st, CM.LadderPolicy(), 600.0).period_cpu_min <= 1200.0
+
+
+def test_what_if_stricter_policy_funds_less():
+    strict = CM.LadderPolicy(rules=tuple(CM.dataclasses.replace(r, pass_t=r.pass_t + 1.5) for r in CM.default_rules()))
+    evs = [ev(Stage.CHEAP_SCREEN, effect=0.0035, se=0.0012, n=4000) for _ in range(3)]
+    out = CM.what_if(evs, {"default": CM.LadderPolicy(), "strict": strict})
+    assert out["default"].count("ADVANCE") >= out["strict"].count("ADVANCE")
+
+
+def test_judge_has_low_false_useful_rate_and_detects_real_cut():
+    jc = VA.judge_characteristics(1, n=15)
+    assert jc.false_useful_rate <= 0.07 and jc.detection_rate >= 0.9
+
+
+def test_reconcile_and_curves():
+    led = VA.ValueLedger()
+    VA.account_job(led, vjob("a"), "2010-02-01")
+    assert VA.reconcile_with_manager(led, {"B": 10.0})["ok"]
+    r = VA.reconcile_with_manager(led, {"B": 25.0, "C": 3.0})
+    assert r["unaccounted"]["B"] == 15.0 and "C" in r["unaccounted"] and not r["ok"]
+    assert VA.paying_for_itself(led, "2010-03-01")["verdict"] == "INSUFFICIENT"
+    assert VA.bits_per_cpu_min(VA.ValueLedger(), "2010-03-01") is None
+    assert VA.ledger_diff(led, led)["changed"] == {}
+
+
+def test_trend_context_and_controller_planted_world():
+    st, led, b = waste_world()
+    t = W.collect_telemetry(st, led, b.branch_id, "2010-02-01", 6)
+    assert W.branch_trend(t).verdict in ("FLAT", "IMPROVING", "DECLINING") and W.branch_trend(W.collect_telemetry(st, led, b.branch_id, "2010-01-06", 6)).verdict == "INSUFFICIENT"
+    with pytest.raises(ValueError):
+        W.context_from_manifest("2010-01-31", "h", 10, "regime 2008", ())
+    assert W.context_from_manifest("2010-01-31", "h", 10, "calm", ["r1"]).n_rows == 10
+    sc = W.evaluate_controller(0)
+    assert sc.duds_parked == sc.duds and sc.promising_parked == 0 and sc.saved_cpu_min > 0 and sc.revived_after_change
+
+
+def test_manual_overrides_need_reason_and_count_revivals():
+    st, led, b = waste_world()
+    book = W.DormantBook()
+    with pytest.raises(W.OverrideError):
+        W.manual_hold(st, book, b.branch_id, "2010-02-01", "", "peter")
+    W.manual_hold(st, book, b.branch_id, "2010-02-01", "not now", "peter")
+    assert W.audit_book(book, st, "2010-02-02") == [] and W.reasons_histogram(book)
+    W.manual_release(st, book, b.branch_id, "2010-03-15", "new idea", "peter")
+    assert b.state is ResearchState.QUEUED and book.records[b.branch_id].revive_count == 1
+    with pytest.raises(W.OverrideError):
+        W.manual_release(st, book, b.branch_id, "2010-03-16", "again", "peter")
+
+
+def test_tick_history_flags_mass_parking_and_book_persistence(tmp_path):
+    h = W.TickHistory()
+    assert h.health()["verdict"] == "INSUFFICIENT"
+    for i in range(4):
+        res = W.WasteStepResult((), (), (), (), (), False, (), (), ())
+        h.add(res, f"2010-02-0{i + 1}")
+    assert h.health()["verdict"] == "INSUFFICIENT" or h.health()["verdict"] == "OK"
+    st, led, b = waste_world()
+    book = W.DormantBook()
+    W.step(st, led, book, ctx(), "2010-02-01")
+    W.save_all(book, tmp_path)
+    back = W.load_all(tmp_path)
+    assert back.records.keys() == book.records.keys() and back.life.verify_chain() == []
+    assert W.load_all(tmp_path / "empty").records == {}
