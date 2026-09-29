@@ -43,3 +43,15 @@
 - [ ] visual/mobile check of explorer/sensitivity2/runs/checklist (not yet viewed in a browser)
 - [ ] CI: site_build.py --verify; optional site_publish.py --interval 300 (no --push)
 - note: pattern bank path state/pattern_bank is B16's guess; align with B03's pattern_bank.py location
+
+## B01 real-cache PIT audit findings (state/research/pit/PIT_AUDIT.md)
+- [!] SURVIVOR-ONLY PANEL: 5,243 tickers, only 2 end before the last date, 100% in current universe.csv - every
+      backtest/sim inherits survivorship bias. Needs delisted history (B13 data_sources delisted registry) - FOUNDATION.
+- [ ] Live decides 15:42-15:44 ET (before close) while sims decide at close and fill next open: live/sim parity gap.
+      Decide: move live to decide-after-close + fill at next open (matches C33), or model the 15:45 decision in sims.
+- [x] analogs.LAG: UNRATE 30, UMCSENT 25, USREC 460 (2026-09-28)
+- [ ] model labels (features.labels) enter at close t; real fill is next open (mean gap +0.05%, abs 0.7%; 2020 1.3%)
+- [ ] insider data: 142 rows filed before trade date, 6 year typos (13, 24) - clean at load
+- [ ] route fills through PITStore.executor(...).fill_next_open + pit.audit_fills; train.py purged_training_set;
+      real pipeline through pit.future_scramble_store
+- features.build is future-invariant (5 cuts, 107k rows, planted shift(-5) caught)
