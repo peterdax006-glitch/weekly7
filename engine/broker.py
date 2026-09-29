@@ -18,12 +18,11 @@ def now():
 
 
 def regular_hours(ts=None) -> bool:
-    """Canon C6: orders only during the regular session (9:30-16:00 ET, weekdays).
-    Holidays are screened by engine.tick before any job runs."""
-    from zoneinfo import ZoneInfo
-    t = (ts or datetime.now(timezone.utc)).astimezone(ZoneInfo("America/New_York"))
-    m = t.hour * 60 + t.minute
-    return t.weekday() < 5 and 9 * 60 + 30 <= m < 16 * 60
+    """Canon C6: orders only during the regular session - NYSE holidays and half-day early closes included.
+    The old weekday 9:30-16:00 rule allowed 1,090 of 140,256 half-hour slots in 2019-26 that were closed (988 holiday,
+    102 half-day afternoons; B13 audit 2026-09-29), relying on engine.tick alone to screen holidays."""
+    from .isolation import strict_session
+    return strict_session(ts or datetime.now(timezone.utc))
 
 
 class OutsideHours(Exception):

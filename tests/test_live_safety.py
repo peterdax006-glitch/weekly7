@@ -88,12 +88,21 @@ def test_calendar_known_dates():
 
 
 def test_hours_firewall_audit_finds_the_holiday_gap():
-    """Defect that exists in the repo today: broker.regular_hours ignores holidays and half days."""
+    """The audit must catch the old defect (weekday 9:30-16:00 only, holidays ignored) - planted here - and the real
+    broker, fixed 2026-09-29 to use the strict NYSE calendar, must now have no unsafe slot."""
+    from types import SimpleNamespace
+    from zoneinfo import ZoneInfo
+
+    def weekday_only(ts=None):
+        t = ts.astimezone(ZoneInfo("America/New_York")); m = t.hour * 60 + t.minute
+        return t.weekday() < 5 and 570 <= m < 960
     ts = [et(2026, 12, 25, 11), et(2026, 11, 27, 14), et(2026, 9, 28, 11), et(2026, 9, 28, 8)]
-    r = I.audit_hours_firewall(broker, ts)
-    assert et(2026, 12, 25, 11).isoformat() in r["unsafe"]
-    assert et(2026, 11, 27, 14).isoformat() in r["unsafe"]
-    assert len(r["unsafe"]) == 2 and r["over_blocked"] == []
+    planted = I.audit_hours_firewall(SimpleNamespace(regular_hours=weekday_only), ts)
+    assert et(2026, 12, 25, 11).isoformat() in planted["unsafe"]
+    assert et(2026, 11, 27, 14).isoformat() in planted["unsafe"]
+    assert len(planted["unsafe"]) == 2 and planted["over_blocked"] == []
+    real = I.audit_hours_firewall(broker, ts)
+    assert real["unsafe"] == [] and real["over_blocked"] == []
 
 
 def test_hours_audit_clean_on_ordinary_week():
