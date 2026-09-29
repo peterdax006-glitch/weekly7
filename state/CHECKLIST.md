@@ -35,7 +35,7 @@ Foundation status per Bible phase (line ranges, tests): `state/build/FOUNDATION.
 - [!] A13 Planted-pattern calibration (engine/planted.py; 64 runs, 8 scenarios): NOT VALIDATED.
   - Pass: strong/weak/negative/pair detection 100%; hallucinated 0% admitted; zero 0%; noise-only 0.4 active/run; P(real)>0.9 bin 86% truly real.
   - FAIL: FDR 15.9% (limit 10%); decaying pattern held 25% (limit 20%).
-  - Also: effect sizes about 25% of truth; regime pattern found 50% and never rescoped; unless pattern untested in 6/8 runs.
+  - Rerun 2026-09-29 on the hardened miner (BH P(real), full-search null, empirical-Bayes effects, content-ordered rows): effect sizes now 0.80-1.17 of truth (was 0.25); regime 62% (was 50%); unless untested 4/8 (was 6/8); noise-only 0.25 active/run. Still FAIL: FDR 18.2%, decaying held 25%.
   - Evidence: state/research/algorithm/planted/report.md
 
 ## Find volatility
