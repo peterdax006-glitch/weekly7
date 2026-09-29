@@ -335,12 +335,22 @@ def fix_activist(universe: pd.DataFrame, since="2011-06-01"):
                     if subj == cik:
                         keep.append(b["acceptanceDateTime"][i])
         return [(t, a) for a in keep]
-    ok = []
+    # checkpoint per company: a run killed at 3,400 of 3,737 (28 Sep 2026) lost ~2 hours of SEC requests.
+    # Progress is keyed by `since` so a different window never reuses stale answers.
+    prog_path = CACHE / f"13d_fix_progress_{since}.json"
+    prog = json.loads(prog_path.read_text()) if prog_path.exists() else {}
+    todo = [t for t in tickers if t not in prog]
+    print(f"  13D fix: {len(prog)} companies already checked, {len(todo)} to go", flush=True)
     with ThreadPoolExecutor(8) as ex:
-        for i, rows in enumerate(ex.map(one, tickers)):
-            ok += rows
+        for i, (t, rows) in enumerate(zip(todo, ex.map(one, todo))):
+            prog[t] = [a for _, a in rows]
+            if i % 50 == 0 or i == len(todo) - 1:
+                tmp = prog_path.with_suffix(".tmp")
+                tmp.write_text(json.dumps(prog))
+                tmp.replace(prog_path)                              # atomic: a kill never leaves half a file
             if i % 100 == 0:
-                print(f"  13D fix {i}/{len(tickers)}", flush=True)
+                print(f"  13D fix {len(prog)}/{len(tickers)}", flush=True)
+    ok = [(t, a) for t, accs in prog.items() for a in accs]
     okset = {(t, pd.Timestamp(a).tz_convert("UTC") if pd.Timestamp(a).tzinfo else pd.Timestamp(a, tz="UTC")) for t, a in ok}
     is_act = ev["kind"].isin(["ACTIVIST", "ACTIVIST_AMEND"])
     keep_mask = ~is_act | pd.Series([(t, a) in okset for t, a in zip(ev["ticker"], ev["accepted"])], index=ev.index)

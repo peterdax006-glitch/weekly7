@@ -43,3 +43,6 @@ that the owner should record.
 10. RAM is shared by ~13 builders plus long experiments. Before launching any real-data run, check free memory
     (`.venv/Scripts/python -c "import psutil;print(psutil.virtual_memory().available/1e9)"`); if under 2.5 GB,
     wait and retry (poll every 60 s, give up after 20 min and report). Use float32, column subsets, seeded ticker samples.
+11. NEVER kill processes by image name (`taskkill /IM python.exe`, `pkill python`): on 2026-09-28 a builder did this
+    and killed every experiment on the machine (a 91%-done SEC job, a movers grid). Kill only a PID you started
+    yourself (record it when you launch). Long jobs must checkpoint so a kill costs minutes, not hours.
