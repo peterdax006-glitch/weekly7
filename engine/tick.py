@@ -16,13 +16,10 @@ def market_open_today(now) -> bool:
     if now.weekday() >= 5:
         return False
     try:
-        import os
-        if os.environ.get("ALPACA_KEY"):
-            from alpaca.trading.client import TradingClient
-            from alpaca.trading.requests import GetCalendarRequest
-            c = TradingClient(os.environ["ALPACA_KEY"], os.environ["ALPACA_SECRET"], paper=True)
-            cal = c.get_calendar(GetCalendarRequest(start=now.date(), end=now.date()))
-            return len(cal) > 0
+        from .broker import get_broker                            # tick is live-side: it schedules the live jobs
+        open_ = get_broker().is_session(now.date())
+        if open_ is not None:
+            return open_
         import yfinance as yf
         d = yf.download("SPY", period="1d", interval="5m", progress=False)
         return len(d) > 0 and d.index[-1].tz_convert(ET).date() == now.date()

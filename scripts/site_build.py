@@ -38,7 +38,7 @@ def default_paths(root=ROOT):
 def _plain():
     """The repo's plain-English indicator names when available; the site still builds without the engine."""
     try:
-        from engine.live import plain
+        from engine.explain import plain
         return plain
     except Exception:
         return None

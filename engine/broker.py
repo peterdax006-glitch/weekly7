@@ -33,6 +33,9 @@ class OutsideHours(Exception):
 class LocalBroker:
     name = "local"
 
+    def is_session(self, day):
+        return None                                               # no calendar source: the caller falls back
+
     def __init__(self):
         if LEDGER.exists():
             self.s = json.loads(LEDGER.read_text())
@@ -77,6 +80,11 @@ class AlpacaBroker:
         from alpaca.trading.client import TradingClient
         self.c = TradingClient(os.environ["ALPACA_KEY"], os.environ["ALPACA_SECRET"], paper=True)
         self.log = K.STATE / "orders.jsonl"
+
+    def is_session(self, day):
+        """Read-only exchange-calendar lookup through the same single paper client."""
+        from alpaca.trading.requests import GetCalendarRequest
+        return len(self.c.get_calendar(GetCalendarRequest(start=day, end=day))) > 0
 
     def account(self, prices=None):
         a = self.c.get_account()

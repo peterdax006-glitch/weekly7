@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import numpy as np, pandas as pd
 from sklearn.tree import DecisionTreeClassifier, _tree
 from engine import config as K, livesim, policy
-from engine.live import plain
+from engine.explain import plain
 
 cycles = json.loads((livesim.DIR / "cycles.json").read_text())["cycles"]
 revealed = [c for c in cycles if c.get("revealed_year")]

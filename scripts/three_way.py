@@ -13,7 +13,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import numpy as np, pandas as pd
 from engine import config as K, adaptive as A
-from engine.live import plain
+from engine.explain import plain
 
 src = open("scripts/livesim_loop2.py", encoding="utf-8").read()
 ns = {"__file__": "scripts/livesim_loop2.py"}

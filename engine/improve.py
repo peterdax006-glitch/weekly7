@@ -61,7 +61,8 @@ def log_experiment(rec, cfg=None, seed=None, **fields):
     missing = [f for f in PHASE0_FIELDS if rec.get(f) is None]
     if missing and rec.get("event") not in _WARNED:
         _WARNED.add(rec.get("event"))
-        print(f"[registry] {rec.get('event')}: Phase 0.2 fields not supplied: {missing}", file=sys.stderr)
+        import warnings
+        warnings.warn(f"[registry] {rec.get('event')}: Phase 0.2 fields not supplied: {missing}", stacklevel=2)
     for f in missing:
         rec[f] = None
     # sha256 over the full record + a random nonce: Python's hash() is salted per process, so the old ids could collide

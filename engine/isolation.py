@@ -25,7 +25,7 @@ from . import config as K
 ET = ZoneInfo("America/New_York")
 
 # ------------------------------------------------------------------ 1. static import audit
-LIVE_MODULES = {"live", "broker"}                  # own broker order paths
+LIVE_MODULES = {"live", "broker", "tick"}          # own broker order paths; tick schedules the live jobs
 BROKER_ORDER_MODULES = {"broker"}                  # anything that can place an order
 GUARD_MODULES = {"isolation"}                      # the guard itself must touch broker to disarm it
 # Documented, reviewed couplings: research modules that lazily import engine.live for path/constant reads only.

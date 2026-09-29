@@ -55,19 +55,23 @@ DEFAULTS = {
     "giant_error": 300,                       # beyond this it cannot be unit-tested piecewise
     "duplicate_min_lines": 8,                 # shorter bodies collide by accident (getters, thin wrappers)
     "test_seconds": 90.0,                     # per test file budget stated in the builder rules
-    "print_allowed": ["data", "edgar", "data_sources"],   # downloaders that report progress to a terminal
-    "live_modules": ["live", "broker"],       # own the broker order path
+    "test_kill_seconds": 300.0,               # a hung test file is killed here so the gate itself always terminates
+    "print_allowed": ["data", "edgar", "data_sources",   # downloaders that report progress to a terminal
+                      "live"],                         # the live jobs' log, read in GitHub Actions
+    "live_modules": ["live", "broker", "tick"],   # own the broker order path; tick schedules the live jobs
     "broker_modules": ["broker"],             # anything that can place an order
     "known_live_couplings": {                 # reviewed research modules that read live paths/constants only
-        "improve": ["live"], "scoring": ["live"], "shadows": ["live"], "site_data": ["live"], "tick": ["live"]},
-    "live_scripts": ["livesim_cycle", "livesim_loop2", "collect_intraday", "smoke"],   # scripts that legitimately drive live
+        "improve": ["live"], "scoring": ["live"], "shadows": ["live"], "site_data": ["live"], "tick": ["live"],
+        "parity_suite": ["live"]},             # research-vs-live parity must call the live feature path (Phase 2)
+    "live_scripts": ["livesim_cycle", "livesim_loop2", "collect_intraday", "smoke",
+                     "data_live_audit"],       # read-only audit of the live broker/hours guards (Phase 28)   # scripts that legitimately drive live
     "wall_clock_allowed": ["live", "broker", "tick", "health", "data", "edgar", "checkpoint", "baseline", "champion",
                            "registry", "experiment_memory", "provenance", "improve", "site_data", "isolation",
                            "livesim", "run_report", "data_sources", "scoring", "shadows"],
     "network_modules": ["requests", "urllib.request", "urllib3", "http.client", "socket", "yfinance", "httpx", "aiohttp",
                         "alpaca", "ftplib", "smtplib", "websocket", "websockets"],
     "data_tokens": ["data/cache", "livesim", "K.CACHE", "CACHE /"],
-    "test_allowed_data": [],                  # test files with a reviewed reason to name the caches
+    "test_allowed_data": ["tests/test_quality_gate.py"],   # plants the protected paths as strings to prove the check fires
     "inventory_fail": ["items_untested", "phases_untested", "config_problems"],   # gap kinds that fail the gate
 }
 
@@ -106,6 +110,7 @@ class Context:
     root: Path
     cfg: dict
     files: dict = field(default_factory=dict)          # group ('engine'|'scripts'|'tests') -> [Source]
+    inventory: object = None                           # optional pre-loaded test_inventory module (tests inject one)
 
     def group(self, name: str) -> list[Source]:
         return self.files.get(name, [])
@@ -264,9 +269,8 @@ def check_import_boundaries(ctx: Context) -> list[Finding]:
             if mod in brokers | live:
                 out.append(Finding("import_boundaries", "error", s.rel, line,
                                    f"research script '{s.module}' imports 'engine.{mod}' (live path)"))
-        for mod, line in _external_imports(s.tree):
-            if _is_order_sdk(mod):
-                out.append(Finding("import_boundaries", "error", s.rel, line, "research script imports the alpaca trading SDK"))
+        for line in sorted({ln for mod, ln in _external_imports(s.tree) if _is_order_sdk(mod)}):
+            out.append(Finding("import_boundaries", "error", s.rel, line, "research script imports the alpaca trading SDK"))
     for cyc in _cycles(graph):
         first = next((s for s in engine_sources(ctx) if s.module == cyc[0]), None)
         out.append(Finding("import_boundaries", "error", first.rel if first else cyc[0], 1,
@@ -335,15 +339,27 @@ def check_bare_except(ctx: Context) -> list[Finding]:
     return out
 
 
+def _main_block_lines(tree) -> set:
+    """Line numbers inside `if __name__ == "__main__":` - a command-line entry point may print; library code may not."""
+    lines = set()
+    for n in tree.body:
+        if isinstance(n, ast.If) and isinstance(n.test, ast.Compare) and isinstance(n.test.left, ast.Name)                 and n.test.left.id == "__name__":
+            for m in ast.walk(n):
+                if hasattr(m, "lineno"):
+                    lines.add(m.lineno)
+    return lines
+
+
 def check_print_debug(ctx: Context) -> list[Finding]:
     out, allowed = [], set(ctx.cfg["print_allowed"])
     for s in engine_sources(ctx):
         if s.tree is None:
             continue
+        cli = _main_block_lines(s.tree)
         for n in ast.walk(s.tree):
             if isinstance(n, ast.Call):
                 name = _dotted(n.func)
-                if name == "print" and s.module not in allowed:
+                if name == "print" and s.module not in allowed and n.lineno not in cli:
                     out.append(Finding("print_debug", "error", s.rel, n.lineno, "print() in engine (use logging or return the value)"))
                 elif name in ("breakpoint", "pdb.set_trace", "ipdb.set_trace"):
                     out.append(Finding("print_debug", "error", s.rel, n.lineno, f"{name}() left in engine"))
@@ -631,7 +647,7 @@ def check_inventory(ctx: Context) -> list[Finding]:
     bible = ctx.root / "BIBLE.md"
     if not bible.exists():
         return [Finding("inventory", "error", "BIBLE.md", 1, "BIBLE.md not found: nothing to inventory against")]
-    inv_mod = _load_inventory(ctx.root)
+    inv_mod = ctx.inventory or _load_inventory(ctx.root)
     inv = inv_mod.run(ctx.root, write=False)
     g, fail, out = inv["gaps"], set(ctx.cfg["inventory_fail"]), []
     for p in g["phases_untested"]:
@@ -660,9 +676,9 @@ def check_tests_pass(ctx: Context) -> list[Finding]:
         t0 = time.time()
         try:
             r = subprocess.run([sys.executable, "-m", "pytest", "-q", "-x", "-p", "no:cacheprovider", str(s.path)],
-                               cwd=ctx.root, capture_output=True, text=True, timeout=budget * 3)
+                               cwd=ctx.root, capture_output=True, text=True, timeout=ctx.cfg["test_kill_seconds"])
         except subprocess.TimeoutExpired:
-            out.append(Finding("tests_pass", "error", s.rel, 1, f"timed out after {budget * 3:.0f}s"))
+            out.append(Finding("tests_pass", "error", s.rel, 1, f"killed after {ctx.cfg['test_kill_seconds']:.0f}s"))
             continue
         dt = time.time() - t0
         if r.returncode != 0:
