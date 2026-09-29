@@ -66,10 +66,11 @@
    "phase": "A FOUNDATION",
    "description": "Define immutable experience records.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
-    "engine/pattern_memory.py::PatternMemory",
+    "engine/learning/archive.py",
     "engine/lessons.py::Episode",
+    "engine/pattern_memory.py::PatternMemory",
     "engine/retester.py::save_archive"
    ],
    "tests": [
@@ -81,9 +82,9 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial] Pattern observations are append-only and hash-chained; decision episodes (lessons.Episode, memory.Memory episodes) are mutable and memory.py evicts at capacity."
+   "last_run": "2026-09-29T11:21:52",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED: immutable L0-L2 experience records on the archive hash chain (S03). | earlier: [partial] Pattern observations are append-only and hash-chained; decision episodes (lessons.Episode, memory.Memory episodes) are mutable and memory.py evicts at capacity."
   },
   {
    "id": "A04",
@@ -750,7 +751,7 @@
    "phase": "C LEARNING",
    "description": "Implement observe stage.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
     "engine/adaptive.py::Session",
     "engine/learning/learner.py",
@@ -764,9 +765,9 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": "2026-09-29T10:52:20",
+   "last_run": "2026-09-29T11:21:51",
    "code_hash": "6c44a0173dc73530",
-   "notes": "IMPLEMENTED — NOT VALIDATED (S12): LegitimateLearner runs all 19 section-4 stages calling the real modules, stage order enforced, firewall at OBSERVE/RETRIEVE/OBSERVE_OUTCOME, frozen (L02). Mini acceptance (planted, seed 3): builder-reported year-B edge +0.012, t +2.43 vs shuffled control 0 picks - NOT yet re-derived (S17b adds a recorded runner). | earlier: [partial] Decisions are recorded by the blind session; no OBSERVE stage of a learning loop."
+   "notes": "IMPLEMENTED — NOT VALIDATED (S12 learner.py stages). | earlier: IMPLEMENTED — NOT VALIDATED (S12): LegitimateLearner runs all 19 section-4 stages calling the real modules, stage order enforced, firewall at OBSERVE/RETRIEVE/OBSERVE_OUTCOME, frozen (L02). Mini acceptance (planted, seed 3): builder-reported year-B edge +0.012, t +2.43 vs shuffled control 0 picks - NOT yet re-derived (S17b adds a recorded runner). | earlier: [partial] Decisions are recorded by the blind session; no OBSERVE stage of a learning loop."
   },
   {
    "id": "C02",
@@ -836,7 +837,7 @@
    "phase": "C LEARNING",
    "description": "Implement expectation formation.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
     "engine/direction.py",
     "engine/learning/learner.py",
@@ -851,16 +852,16 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": "2026-09-29T10:52:20",
+   "last_run": "2026-09-29T11:21:51",
    "code_hash": "6c44a0173dc73530",
-   "notes": "IMPLEMENTED — NOT VALIDATED (S12): LegitimateLearner runs all 19 section-4 stages calling the real modules, stage order enforced, firewall at OBSERVE/RETRIEVE/OBSERVE_OUTCOME, frozen (L02). Mini acceptance (planted, seed 3): builder-reported year-B edge +0.012, t +2.43 vs shuffled control 0 picks - NOT yet re-derived (S17b adds a recorded runner). | earlier: [partial] Expected outcome used only after the fact to classify errors; not recorded before the decision."
+   "notes": "IMPLEMENTED — NOT VALIDATED (S12 learner.py stages). | earlier: IMPLEMENTED — NOT VALIDATED (S12): LegitimateLearner runs all 19 section-4 stages calling the real modules, stage order enforced, firewall at OBSERVE/RETRIEVE/OBSERVE_OUTCOME, frozen (L02). Mini acceptance (planted, seed 3): builder-reported year-B edge +0.012, t +2.43 vs shuffled control 0 picks - NOT yet re-derived (S17b adds a recorded runner). | earlier: [partial] Expected outcome used only after the fact to classify errors; not recorded before the decision."
   },
   {
    "id": "C05",
    "phase": "C LEARNING",
    "description": "Implement decision capture.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
     "engine/adaptive.py::Session",
     "engine/fill_audit.py",
@@ -876,9 +877,9 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": "2026-09-29T10:52:20",
+   "last_run": "2026-09-29T11:21:51",
    "code_hash": "6c44a0173dc73530",
-   "notes": "IMPLEMENTED — NOT VALIDATED (S12): LegitimateLearner runs all 19 section-4 stages calling the real modules, stage order enforced, firewall at OBSERVE/RETRIEVE/OBSERVE_OUTCOME, frozen (L02). Mini acceptance (planted, seed 3): builder-reported year-B edge +0.012, t +2.43 vs shuffled control 0 picks - NOT yet re-derived (S17b adds a recorded runner). | earlier: [partial] Picks and fills captured; confidence, prediction, retrieved memories, abstentions, uncertainty and explanation (section 3 BEFORE record) are not."
+   "notes": "IMPLEMENTED — NOT VALIDATED (S12 learner.py stages). | earlier: IMPLEMENTED — NOT VALIDATED (S12): LegitimateLearner runs all 19 section-4 stages calling the real modules, stage order enforced, firewall at OBSERVE/RETRIEVE/OBSERVE_OUTCOME, frozen (L02). Mini acceptance (planted, seed 3): builder-reported year-B edge +0.012, t +2.43 vs shuffled control 0 picks - NOT yet re-derived (S17b adds a recorded runner). | earlier: [partial] Picks and fills captured; confidence, prediction, retrieved memories, abstentions, uncertainty and explanation (section 3 BEFORE record) are not."
   },
   {
    "id": "C06",
@@ -1015,7 +1016,7 @@
    "phase": "C LEARNING",
    "description": "Implement reliability updating.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
     "engine/learning/learner.py",
     "engine/pattern_reliability.py::walk_forward,health_monitor",
@@ -1029,9 +1030,9 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": "2026-09-29T10:52:20",
+   "last_run": "2026-09-29T11:21:51",
    "code_hash": "6c44a0173dc73530",
-   "notes": "IMPLEMENTED — NOT VALIDATED (S12): LegitimateLearner runs all 19 section-4 stages calling the real modules, stage order enforced, firewall at OBSERVE/RETRIEVE/OBSERVE_OUTCOME, frozen (L02). Mini acceptance (planted, seed 3): builder-reported year-B edge +0.012, t +2.43 vs shuffled control 0 picks - NOT yet re-derived (S17b adds a recorded runner). | earlier: [partial][under-tested] pattern_reliability live-edited by builders; no tests yet."
+   "notes": "IMPLEMENTED — NOT VALIDATED (S12 learner.py stages). | earlier: IMPLEMENTED — NOT VALIDATED (S12): LegitimateLearner runs all 19 section-4 stages calling the real modules, stage order enforced, firewall at OBSERVE/RETRIEVE/OBSERVE_OUTCOME, frozen (L02). Mini acceptance (planted, seed 3): builder-reported year-B edge +0.012, t +2.43 vs shuffled control 0 picks - NOT yet re-derived (S17b adds a recorded runner). | earlier: [partial][under-tested] pattern_reliability live-edited by builders; no tests yet."
   },
   {
    "id": "C12",
@@ -1582,7 +1583,7 @@
    "phase": "E TRANSFER",
    "description": "Same-year rerun harness.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
     "engine/learning/controls.py",
     "engine/learning/same_year.py",
@@ -1604,9 +1605,9 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": "2026-09-29T10:31:19",
+   "last_run": "2026-09-29T11:21:52",
    "code_hash": "6c44a0173dc73530",
-   "notes": "IMPLEMENTED — NOT VALIDATED (S16 pass 2): 5 frozen controls through the real firewalls (no local LeakGuard), real-panel path via make_presentation + audited TimeGate + GateReferee, estimated rerun weight (1-rho)/(1+rho), tier-1/2 recognition AUCs in every run. | earlier: B22 lc1 (29 Sep, real, K=20, 6 windows, C58 time gate): 0/6 windows rising, identity control flat under disguise, reset control flat; harness self-check VALID. S16 same_year.py/controls.py add controls D random + E leaky (pass 2 running). | earlier: [implemented-but-unvalidated] run1->run2 works (self-check VALID); the run 1..N curve (C57) is running (lc1) and being edited by builders."
+   "notes": "IMPLEMENTED — NOT VALIDATED (S16 same_year.py/controls.py; frozen controls with code+config hash). | earlier: IMPLEMENTED — NOT VALIDATED (S16 pass 2): 5 frozen controls through the real firewalls (no local LeakGuard), real-panel path via make_presentation + audited TimeGate + GateReferee, estimated rerun weight (1-rho)/(1+rho), tier-1/2 recognition AUCs in every run. | earlier: B22 lc1 (29 Sep, real, K=20, 6 windows, C58 time gate): 0/6 windows rising, identity control flat under disguise, reset control flat; harness self-check VALID. S16 same_year.py/controls.py add controls D random + E leaky (pass 2 running). | earlier: [implemented-but-unvalidated] run1->run2 works (self-check VALID); the run 1..N curve (C57) is running (lc1) and being edited by builders."
   },
   {
    "id": "E02",
@@ -1729,7 +1730,7 @@
    "phase": "E TRANSFER",
    "description": "Random learner control.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
     "engine/learning/controls.py",
     "engine/learning/same_year.py",
@@ -1746,9 +1747,9 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": "2026-09-29T10:31:19",
+   "last_run": "2026-09-29T11:21:52",
    "code_hash": "6c44a0173dc73530",
-   "notes": "IMPLEMENTED — NOT VALIDATED (S16 pass 2): 5 frozen controls through the real firewalls (no local LeakGuard), real-panel path via make_presentation + audited TimeGate + GateReferee, estimated rerun weight (1-rho)/(1+rho), tier-1/2 recognition AUCs in every run. | earlier: B22 lc1 (29 Sep, real, K=20, 6 windows, C58 time gate): 0/6 windows rising, identity control flat under disguise, reset control flat; harness self-check VALID. S16 same_year.py/controls.py add controls D random + E leaky (pass 2 running). | earlier: [partial] A shuffled-outcome control exists; no random learner (control D) with random updates of equal size."
+   "notes": "IMPLEMENTED — NOT VALIDATED (S16 same_year.py/controls.py; frozen controls with code+config hash). | earlier: IMPLEMENTED — NOT VALIDATED (S16 pass 2): 5 frozen controls through the real firewalls (no local LeakGuard), real-panel path via make_presentation + audited TimeGate + GateReferee, estimated rerun weight (1-rho)/(1+rho), tier-1/2 recognition AUCs in every run. | earlier: B22 lc1 (29 Sep, real, K=20, 6 windows, C58 time gate): 0/6 windows rising, identity control flat under disguise, reset control flat; harness self-check VALID. S16 same_year.py/controls.py add controls D random + E leaky (pass 2 running). | earlier: [partial] A shuffled-outcome control exists; no random learner (control D) with random updates of equal size."
   },
   {
    "id": "E07",
@@ -3728,7 +3729,7 @@
    "phase": "J PRODUCTION INTELLIGENCE",
    "description": "Reliability monitoring.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
     "engine/learning/break_detection.py",
     "engine/learning/champion.py",
@@ -3748,9 +3749,9 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": "2026-09-29T10:26:53",
+   "last_run": "2026-09-29T11:21:52",
    "code_hash": "6c44a0173dc73530",
-   "notes": "IMPLEMENTED — NOT VALIDATED (S15): §10/11/12/46 lifted to any knowledge; known false alarms on steady series (B27 winner's-curse expected effect) - Stage 3 must fix. | earlier: [partial][under-tested]"
+   "notes": "IMPLEMENTED — NOT VALIDATED (S15 reliability.py/health.py). | earlier: IMPLEMENTED — NOT VALIDATED (S15): §10/11/12/46 lifted to any knowledge; known false alarms on steady series (B27 winner's-curse expected effect) - Stage 3 must fix. | earlier: [partial][under-tested]"
   },
   {
    "id": "J08",
@@ -3819,7 +3820,7 @@
    "phase": "J PRODUCTION INTELLIGENCE",
    "description": "Knowledge health.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
     "engine/learning/break_detection.py",
     "engine/learning/champion.py",
@@ -3839,9 +3840,9 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": "2026-09-29T10:26:53",
+   "last_run": "2026-09-29T11:21:52",
    "code_hash": "6c44a0173dc73530",
-   "notes": "IMPLEMENTED — NOT VALIDATED (S15): §10/11/12/46 lifted to any knowledge; known false alarms on steady series (B27 winner's-curse expected effect) - Stage 3 must fix. | earlier: [partial] healthy/suspect/broken only."
+   "notes": "IMPLEMENTED — NOT VALIDATED (S15 reliability.py/health.py). | earlier: IMPLEMENTED — NOT VALIDATED (S15): §10/11/12/46 lifted to any knowledge; known false alarms on steady series (B27 winner's-curse expected effect) - Stage 3 must fix. | earlier: [partial] healthy/suspect/broken only."
   },
   {
    "id": "J12",
@@ -4322,7 +4323,7 @@
    "phase": "L FINAL SCIENTIFIC VALIDATION",
    "description": "No-learning baseline frozen.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
     "engine/baseline.py::freeze_baseline",
     "engine/learning/controls.py",
@@ -4337,17 +4338,18 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": "2026-09-29T10:31:19",
+   "last_run": "2026-09-29T11:21:52",
    "code_hash": "6c44a0173dc73530",
-   "notes": "IMPLEMENTED — NOT VALIDATED (S16 pass 2): 5 frozen controls through the real firewalls (no local LeakGuard), real-panel path via make_presentation + audited TimeGate + GateReferee, estimated rerun weight (1-rho)/(1+rho), tier-1/2 recognition AUCs in every run. | earlier: [partial] Control exists; not frozen as a hashed learning baseline."
+   "notes": "IMPLEMENTED — NOT VALIDATED (S16 same_year.py/controls.py; frozen controls with code+config hash). | earlier: IMPLEMENTED — NOT VALIDATED (S16 pass 2): 5 frozen controls through the real firewalls (no local LeakGuard), real-panel path via make_presentation + audited TimeGate + GateReferee, estimated rerun weight (1-rho)/(1+rho), tier-1/2 recognition AUCs in every run. | earlier: [partial] Control exists; not frozen as a hashed learning baseline."
   },
   {
    "id": "L02",
    "phase": "L FINAL SCIENTIFIC VALIDATION",
    "description": "Legitimate learner frozen.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [
+    "engine/learning/controls.py",
     "engine/learning/learner.py"
    ],
    "tests": [
@@ -4359,16 +4361,16 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": "2026-09-29T10:52:20",
+   "last_run": "2026-09-29T11:21:52",
    "code_hash": "6c44a0173dc73530",
-   "notes": "IMPLEMENTED — NOT VALIDATED (S12): LegitimateLearner runs all 19 section-4 stages calling the real modules, stage order enforced, firewall at OBSERVE/RETRIEVE/OBSERVE_OUTCOME, frozen (L02). Mini acceptance (planted, seed 3): builder-reported year-B edge +0.012, t +2.43 vs shuffled control 0 picks - NOT yet re-derived (S17b adds a recorded runner). | earlier: [missing] No learner has passed; nothing to freeze."
+   "notes": "IMPLEMENTED — NOT VALIDATED: freeze mechanism exists (LearnerChanged / frozen control registry); 'frozen' for the final validation happens in Stage 3. | earlier: IMPLEMENTED — NOT VALIDATED (S12): LegitimateLearner runs all 19 section-4 stages calling the real modules, stage order enforced, firewall at OBSERVE/RETRIEVE/OBSERVE_OUTCOME, frozen (L02). Mini acceptance (planted, seed 3): builder-reported year-B edge +0.012, t +2.43 vs shuffled control 0 picks - NOT yet re-derived (S17b adds a recorded runner). | earlier: [missing] No learner has passed; nothing to freeze."
   },
   {
    "id": "L03",
    "phase": "L FINAL SCIENTIFIC VALIDATION",
    "description": "Memorizer control frozen.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
     "engine/learning/controls.py",
     "engine/learning/same_year.py",
@@ -4382,18 +4384,19 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": "2026-09-29T10:31:19",
+   "last_run": "2026-09-29T11:21:52",
    "code_hash": "6c44a0173dc73530",
-   "notes": "IMPLEMENTED — NOT VALIDATED (S16 pass 2): 5 frozen controls through the real firewalls (no local LeakGuard), real-panel path via make_presentation + audited TimeGate + GateReferee, estimated rerun weight (1-rho)/(1+rho), tier-1/2 recognition AUCs in every run. | earlier: [partial] Not frozen."
+   "notes": "IMPLEMENTED — NOT VALIDATED (S16 same_year.py/controls.py; frozen controls with code+config hash). | earlier: IMPLEMENTED — NOT VALIDATED (S16 pass 2): 5 frozen controls through the real firewalls (no local LeakGuard), real-panel path via make_presentation + audited TimeGate + GateReferee, estimated rerun weight (1-rho)/(1+rho), tier-1/2 recognition AUCs in every run. | earlier: [partial] Not frozen."
   },
   {
    "id": "L04",
    "phase": "L FINAL SCIENTIFIC VALIDATION",
    "description": "Random learner control frozen.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [
     "engine/learning/controls.py",
+    "engine/learning/learner.py",
     "engine/learning/same_year.py"
    ],
    "tests": [
@@ -4403,16 +4406,16 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": "2026-09-29T10:31:19",
+   "last_run": "2026-09-29T11:21:52",
    "code_hash": "6c44a0173dc73530",
-   "notes": "IMPLEMENTED — NOT VALIDATED (S16 pass 2): 5 frozen controls through the real firewalls (no local LeakGuard), real-panel path via make_presentation + audited TimeGate + GateReferee, estimated rerun weight (1-rho)/(1+rho), tier-1/2 recognition AUCs in every run. | earlier: [missing] Random learner control does not exist."
+   "notes": "IMPLEMENTED — NOT VALIDATED: freeze mechanism exists (LearnerChanged / frozen control registry); 'frozen' for the final validation happens in Stage 3. | earlier: IMPLEMENTED — NOT VALIDATED (S16 pass 2): 5 frozen controls through the real firewalls (no local LeakGuard), real-panel path via make_presentation + audited TimeGate + GateReferee, estimated rerun weight (1-rho)/(1+rho), tier-1/2 recognition AUCs in every run. | earlier: [missing] Random learner control does not exist."
   },
   {
    "id": "L05",
    "phase": "L FINAL SCIENTIFIC VALIDATION",
    "description": "Leaky learner control frozen.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
     "engine/learning/controls.py",
     "engine/learning/same_year.py",
@@ -4426,9 +4429,9 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": "2026-09-29T10:31:19",
+   "last_run": "2026-09-29T11:21:52",
    "code_hash": "6c44a0173dc73530",
-   "notes": "IMPLEMENTED — NOT VALIDATED (S16 pass 2): 5 frozen controls through the real firewalls (no local LeakGuard), real-panel path via make_presentation + audited TimeGate + GateReferee, estimated rerun weight (1-rho)/(1+rho), tier-1/2 recognition AUCs in every run. | earlier: [partial] Not frozen."
+   "notes": "IMPLEMENTED — NOT VALIDATED (S16 same_year.py/controls.py; frozen controls with code+config hash). | earlier: IMPLEMENTED — NOT VALIDATED (S16 pass 2): 5 frozen controls through the real firewalls (no local LeakGuard), real-panel path via make_presentation + audited TimeGate + GateReferee, estimated rerun weight (1-rho)/(1+rho), tier-1/2 recognition AUCs in every run. | earlier: [partial] Not frozen."
   },
   {
    "id": "L06",
