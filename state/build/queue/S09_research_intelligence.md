@@ -1,0 +1,6 @@
+# S09_research_intelligence
+Contract sections 31, 35, 36, 37, 38, 51. Checklist G01-G12, C16, C17. Minimum lines: 800+750+900+1,200+500+900 = 5,050.
+Read state/build/CONTEXT.md fully (rules 1-18) and SELF_LEARNING_CONTRACT.md sections 0-4, 58-62, 83, 85 plus the sections below, in full. C63: foundation first - all code + unit tests now, no real-data runs or tuning.
+You own: engine/learning/experiment_memory.py, research_policy.py, research_priority.py, meta_learning.py, failed_learners.py; tests/test_learning_research.py, test_learning_meta.py.
+
+Build: Experiment memory with every section-31 field and duplicate detection ('we already tested this'), built on engine/experiment_memory.py and state/experiments.jsonl. Question and competing-hypothesis generation from surprises, contradictions, failures, missed winners. Information-gain priority function with penalties; exploration vs exploitation across the section-35 targets; compute-aware allocation; an evolving priority queue. Meta-learning about the learning process itself (which discoveries survive OOS, which families overfit, which contexts transfer, which explanations prove right) evaluated out of sample. Failed-learner registry seeded from the real history (state/research, B24's learners, memory bank = memorisation, basis learner = no transfer).

@@ -48,3 +48,23 @@ that the owner should record.
     yourself (record it when you launch). Long jobs must checkpoint so a kill costs minutes, not hours.
 12. Git: never run `git pull --rebase`, `git stash` or `git reset` - other builders' uncommitted work lives in the
     same working tree. You do not commit; the main session (and an auto-snapshot every 15 min) does.
+
+## Self-Learning contract builders (S-series, from 2026-09-29; canon C62 + C63)
+13. THE SPEC is `SELF_LEARNING_CONTRACT.md` (owner contract, verbatim; never edit). Read sections 0-4, 58-62, 83, 85 and every
+    section your task file names, in full. Your task file names the checklist ids (A01..L26) you own.
+14. C63 FOUNDATION FIRST: write ALL the code for your sections now, to at least each section's minimum meaningful line count
+    (section 60) with real mechanisms. Unit tests are part of the code: every module gets tests that run in seconds and include
+    a planted case it must catch plus the empty case. NO real-data runs, no tuning, no perfecting in this wave - that is the
+    next wave. Mark your work "IMPLEMENTED — NOT VALIDATED" (never VALIDATED).
+15. Package: `engine/learning/`. Import the shared vocabulary from `engine.learning.core` (Epistemic, Lifecycle, Promotion,
+    Health, Unknown, FailureCause, Subsystem, TemporalClass, DecisionEffect, Edge, Layer, Provenance, Confidence,
+    KnowledgeLike, FirewallBreach, stable_hash, require_past, current_code_hash). Do NOT edit core.py; if you need a new
+    shared term, define it in your module and list it under INTEGRATION. Do not import other S-builders' modules (they are
+    being written in parallel); work on KnowledgeLike duck types and plain records.
+16. REUSE, don't duplicate: before writing, grep engine/ for the job (e.g. experiment_memory.py, champion.py, health.py,
+    pattern_lifecycle.py, antimemo.py, leak_audit.py, pit.py, isolation.py, repro.py, trust.py, missed_winners.py,
+    checkpoint.py, patterns.py, pattern_memory.py, pattern_reliability.py). Wrap/extend them from your new file; never a
+    parallel copy. Say in your report what existing code you built on.
+17. Types: frozen/slotted dataclasses or explicit classes with validate() - never one giant untyped dict (section 5).
+    Everything time-aware takes `now` and must fail closed (FirewallBreach) on anything dated at/after it.
+18. Report additionally: per contract section, meaningful lines written (non-blank, non-comment) vs the minimum.

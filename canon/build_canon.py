@@ -133,6 +133,8 @@ DIRECTIVES = [
      'also we need to ensure that there is a system in place to ensure all patterns are working so it constantly checks that so we never have patterns that dont exist because the system is forced to find out the why for a pattern stopped to learn how to predict the pattern or disguard it if it truly is just unpredictable,  it should also be careful to know when indicators and the things the system has in not the factor at hand but rather its something no one knows the answer to until it happens'),
     ("C62", "2026-09-29", 'Master Self-Learning Engine contract: the checkoff list; no stopping until it is done (verbatim in SELF_LEARNING_CONTRACT.md, sha256 30a6585f3d1cdf94)',
      'Save this to memory verbatum as your checkoff list you cant stop until its done: [WEEKLY7 MASTER SELF-LEARNING ENGINE contract, stored verbatim in SELF_LEARNING_CONTRACT.md]'),
+    ("C63", "2026-09-29", 'Self-Learning contract: foundation first - write ALL the code before moving on to testing and perfecting',
+     'start working on it, remember foundation first right all the code before you move onto testing and perfecting'),
 ]
 
 def sha(t): return hashlib.sha256(t.encode("utf-8")).hexdigest()

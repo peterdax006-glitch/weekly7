@@ -1,0 +1,6 @@
+# S04_situation_retrieval
+Contract sections 8, 15, 16, 17. Checklist A04, C02, C03, B05-B06 support. Minimum lines: 1,200+1,000+900+1,100 = 4,200.
+Read state/build/CONTEXT.md fully (rules 1-18) and SELF_LEARNING_CONTRACT.md sections 0-4, 58-62, 83, 85 plus the sections below, in full. C63: foundation first - all code + unit tests now, no real-data runs or tuning.
+You own: engine/learning/context.py, situation.py, similarity.py, retrieval.py; tests/test_learning_situation.py, test_learning_retrieval.py.
+
+Build: Identity-free situation representation built only from data at the decision timestamp (market, sector, stock type, volatility, liquidity, trend, breadth, macro with lags, regime, recent shock, correlation structure, horizon, legit seasonality, pattern interaction, position/risk). Context model learning P(outcome|pattern,context) AND P(outcome|pattern,NOT context) with hierarchical pooling (no tiny buckets). Multi-factor similarity with stored component scores and an explanation. Retrieval ranked on the ten section-17 factors with the 'Retrieved K123 because' explanation. Tests: ticker/date/year scrambling leaves situations and retrieval unchanged; a planted context-dependent pattern is retrieved only in its context. Build on engine/features.py, analogs.py, memory.py.

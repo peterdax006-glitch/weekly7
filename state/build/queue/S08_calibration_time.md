@@ -1,0 +1,6 @@
+# S08_calibration_time
+Contract sections 13, 14, 52, 54. Checklist B11 support, C07, J06, J08, J10. Minimum lines: 450+700+500+650 = 2,300.
+Read state/build/CONTEXT.md fully (rules 1-18) and SELF_LEARNING_CONTRACT.md sections 0-4, 58-62, 83, 85 plus the sections below, in full. C63: foundation first - all code + unit tests now, no real-data runs or tuning.
+You own: engine/learning/retirement.py, temporal.py, surprise.py, calibration.py; tests/test_learning_temporal.py, test_learning_calibration.py.
+
+Build: ACTIVE/DEGRADED/DORMANT/RETIRED without deletion; dormant never influences live; recovery requires evidence. Temporal class per item estimated from evidence (persistent, slow/fast decay, episodic, regime/event bound, seasonal, unknown) with expected useful lifetime, its uncertainty, and recovery conditions - no assumed half-life. Surprise: expected vs actual, magnitude, direction, persistence; repeated surprise in similar situations raises research priority. Calibration: reliability diagrams, ECE, drift, per-context calibration, and an influence-reduction rule when overconfident. Do not duplicate engine/pattern_reliability.py or pattern_lifecycle.py (B27 owns pattern breaks/health): work at the generic knowledge level and call them where relevant.

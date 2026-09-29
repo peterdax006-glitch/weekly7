@@ -380,3 +380,9 @@ it should be very long
 > Save this to memory verbatum as your checkoff list you cant stop until its done: [WEEKLY7 MASTER SELF-LEARNING ENGINE contract, stored verbatim in SELF_LEARNING_CONTRACT.md]
 
 `sha256: 668ac101505a57923f0eb5c23f90957812cf6533af19b8f2952ec625010dce00`
+
+## C63 — Self-Learning contract: foundation first - write ALL the code before moving on to testing and perfecting (2026-09-29)
+
+> start working on it, remember foundation first right all the code before you move onto testing and perfecting
+
+`sha256: 7144cec30a56b804c14ccea5fe375d52d5dceb976f62e1d6ba66750f90725e48`

@@ -1,0 +1,6 @@
+# S10_transfer_scoring
+Contract sections 26, 27, 34, 47, 48, 65. Checklist E08-E16, J12-J14, L06-L12 support. Minimum lines: 1,100+400+850+700+500 = 3,550.
+Read state/build/CONTEXT.md fully (rules 1-18) and SELF_LEARNING_CONTRACT.md sections 0-4, 58-62, 83, 85 plus the sections below, in full. C63: foundation first - all code + unit tests now, no real-data runs or tuning.
+You own: engine/learning/transfer.py, transfer_score.py, portfolio_value.py, scorecard.py, learning_curve.py; tests/test_learning_transfer.py, test_learning_scorecard.py.
+
+Build: Cross-year, cross-regime, cross-stock, cross-sector, cross-volatility transfer evaluation; transfer ratio with safe handling of zero/negative denominators and an over-specialised flag; memorisation gap and identity gap; transfer stability. Predictive vs portfolio value decomposition (movement, ranking, selection, direction, timing, risk, portfolio) under the tiered objective (engine/objective.py). Learning scorecard with every section-47 field and a hard refusal to say 'improved' without its controls. Learning curve experience -> future improvement. Multi-dimensional learning delta (section 65). Build on engine/learning_delta.py (read only; B22 is editing it) and engine/objective.py.
