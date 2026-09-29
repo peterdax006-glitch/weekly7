@@ -146,14 +146,19 @@
    "group": "FOUNDATION",
    "description": "Counterfactual information reconstruction implemented",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
     "engine/parity.py",
-    "engine/parity_suite.py"
+    "engine/parity_suite.py",
+    "engine/research/counterfactual.py"
    ],
-   "tests": [],
+   "tests": [
+    "tests/test_research_counterfactual.py"
+   ],
    "evidence": [],
-   "notes": "[mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Counterfactual knowledge reconstruction'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md)."
+   "notes": "IMPLEMENTED — NOT VALIDATED (R03): counterfactual.py 2,002 (min 2,000), 92 tests; PIT Guards at T and at the outcome date, future-invariance digest, ClassificationGate as the only release door, feedback refusal incl. renamed copies. KNOWN DEFECT for Stage 3: on a null world 6/10 seeds were labelled POTENTIALLY_PREDICTABLE from magnitude-only pointers (should be UNKNOWN) - must be calibrated before any use. | earlier: [mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Counterfactual knowledge reconstruction'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
+   "last_run": "2026-09-29T15:24:13",
+   "code_hash": "80564c4ab02a9432"
   },
   {
    "id": "RF10",
@@ -1679,13 +1684,14 @@
    "section": "Counterfactual knowledge reconstruction",
    "minimum_lines": 2000,
    "upper_lines": 3000,
-   "actual_lines": 683,
+   "actual_lines": 2685,
    "code_paths": [
     "engine/parity.py",
-    "engine/parity_suite.py"
+    "engine/parity_suite.py",
+    "engine/research/counterfactual.py"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "[mapping 2026-09-29, read-only audit] [partial] 683/2000 meaningful lines genuinely doing this job. parity 379 + parity_suite 304: STRICT recomputation of every feature family truncated to what existed at a date = reconstruction of the knowledge state at decision time for features. Missing: patterns/memory/macro/event state at T, what-became-known-later diff, confidence_in_classification, and the rule that the classification never feeds the trader."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (R03): counterfactual.py 2,002 (min 2,000), 92 tests; PIT Guards at T and at the outcome date, future-invariance digest, ClassificationGate as the only release door, feedback refusal incl. renamed copies. KNOWN DEFECT for Stage 3: on a null world 6/10 seeds were labelled POTENTIALLY_PREDICTABLE from magnitude-only pointers (should be UNKNOWN) - must be calibrated before any use. | earlier: [mapping 2026-09-29, read-only audit] [partial] 683/2000 meaningful lines genuinely doing this job. parity 379 + parity_suite 304: STRICT recomputation of every feature family truncated to what existed at a date = reconstruction of the knowledge state at decision time for features. Missing: patterns/memory/macro/event state at T, what-became-known-later diff, confidence_in_classification, and the rule that the classification never feeds the trader."
   },
   {
    "section": "Volatility research laboratory",

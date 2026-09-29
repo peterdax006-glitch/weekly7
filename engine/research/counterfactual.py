@@ -2284,8 +2284,8 @@ def make_planted_case(kind: str, seed: int = 0, n_tickers: int = 40, n_days: int
     market["Volume"] = market["Volume"] * 0.0 + 1.0
     old = [{"ticker": t, "kind": "PERIODIC", "accepted": (dates[D - 20] + pd.Timedelta(hours=21)).tz_localize("UTC")} for t in tick[:8]]
     ev = pd.DataFrame(old + events)
-    macro = pd.DataFrame({"date": pd.to_datetime(["2019-11-01", "2019-12-01", "2020-01-01", "2020-02-01", "2020-03-01", "2020-04-01"]),
-                          "series": "cpi", "value": [2.0, 2.1, 2.1, 2.2, 2.3, 2.2]})
+    mdates = pd.date_range("2019-11-01", dates[D], freq="MS")     # monthly through the decision: the scrambler's fabricated rows land after it
+    macro = pd.DataFrame({"date": mdates, "series": "cpi", "value": 2.0 + 0.1 * np.sin(np.arange(len(mdates)))})
     store = store_from_feed_data((stocks, market, ev, None, None), macro=macro)
     peers = tuple(tick[1:9])
     cal = store.cal
