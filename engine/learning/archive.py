@@ -28,6 +28,7 @@ from typing import Any, Iterable, Mapping, Sequence
 
 import numpy as np
 
+from engine import pattern_memory as pm
 from .core import (FailureCause, FirewallBreach, KnowledgeLike, Layer, Provenance, as_date, canonical_json,
                    current_code_hash, stable_hash)
 
@@ -79,7 +80,7 @@ class ArchiveError(RuntimeError):
     """A write was refused or the archive is inconsistent. Never caught-and-continued by callers."""
 
 
-class ChainCorrupt(ArchiveError):
+class ChainCorrupt(ArchiveError, pm.ChainCorrupt):
     """The hash chain failed verification: history was edited, truncated or mangled."""
 
 
@@ -90,126 +91,88 @@ class ImmutabilityViolation(ArchiveError):
 # ------------------------------------------------------------------------------------------- chain storage
 
 class ChainFile:
-    """Append-only, hash-chained line store. Each line: {seq, prev, body, hash}; hash = sha256(prev + canonical(body)).
-    `path=None` keeps the chain in memory (tests, sandboxes). Opening verifies every link and fails closed. A torn final
-    line (a writer died mid-write) refuses further appends until repaired: we never guess at half a record."""
+    """A typed lane on engine.pattern_memory's hash chain (the archive core): lines of kind `kind` are appended to the same
+    append-only, prev-hash-linked, fsynced, cross-process-locked `chain.jsonl` that PatternMemory writes, so the archive,
+    the graph and the contradiction ledger can share ONE chain with pattern evidence (pass the pattern-memory root) or keep
+    their own directory. PatternMemory ignores kinds it does not know, so lanes never disturb each other. Opening verifies
+    every link and fails closed (torn tails included). `root=None` keeps an in-memory chain using the same hash function.
+    Each lane line is {seq (position within the lane), gseq (position in the whole chain), prev, body, hash}."""
 
-    def __init__(self, path: str | os.PathLike | None = None, lock_timeout: float = 30.0):
-        self.path = os.fspath(path) if path is not None else None
-        self.lock_timeout = lock_timeout
-        self._lines: list[dict] = []
-        self._offset = 0
+    def __init__(self, root: str | os.PathLike | None = None, kind: str = "arc", lock_timeout: float = 30.0):
+        self.kind = kind
+        self.root = os.fspath(root) if root is not None else None
+        self._mem_recs: list[dict] = []
         self._last = GENESIS
-        self._consumed = 0
-        self.torn_tail = False
-        if self.path:
-            os.makedirs(os.path.dirname(os.path.abspath(self.path)), exist_ok=True)
-        self.sync()
+        self._cursor = 0
+        self._own = 0
+        self._pm = None
+        if self.root is not None:
+            self._pm = self._guard(lambda: pm.PatternMemory(self.root, {"lock_timeout_s": lock_timeout}))
 
     @staticmethod
-    def link_hash(prev: str, body: Any) -> str:
-        return hashlib.sha256((prev + canonical_json(body)).encode("utf-8")).hexdigest()
+    def _guard(fn):
+        try:
+            return fn()
+        except pm.ChainCorrupt as e:
+            raise ChainCorrupt(str(e)) from e
+
+    def _all(self) -> list[dict]:
+        return self._pm._recs if self._pm is not None else self._mem_recs
+
+    def link_hash(self, prev: str, body: Any) -> str:
+        return pm._hash(prev, {"kind": self.kind, **body})
 
     def __len__(self) -> int:
-        return len(self._lines)
+        return sum(1 for r in self._all() if r["kind"] == self.kind)
 
     @property
     def head(self) -> str:
-        return self._last
+        return self._pm._last if self._pm is not None else self._last
+
+    @property
+    def torn_tail(self) -> bool:
+        return bool(self._pm.torn_tail) if self._pm is not None else False
 
     def sync(self) -> int:
-        """Absorb lines other writers appended since our offset; returns how many were new."""
-        if not self.path or not os.path.exists(self.path):
-            return 0
-        with open(self.path, "rb") as fh:
-            fh.seek(self._offset)
-            data = fh.read()
-        if not data:
-            return 0
-        pieces = data.split(b"\n")
-        tail = pieces.pop()
-        self.torn_tail = bool(tail)
-        added = 0
-        for raw in pieces:
-            if not raw.strip():
-                self._offset += len(raw) + 1
-                continue
-            try:
-                rec = json.loads(raw.decode("utf-8"))
-                seq, prev, body, h = rec["seq"], rec["prev"], rec["body"], rec["hash"]
-            except (ValueError, KeyError, UnicodeDecodeError) as e:
-                raise ChainCorrupt(f"unreadable line at seq {len(self._lines)}: {e}") from e
-            if seq != len(self._lines) or prev != self._last or self.link_hash(prev, body) != h:
-                raise ChainCorrupt(f"chain broken at seq {seq}")
-            self._lines.append(rec)
-            self._last = h
-            self._offset += len(raw) + 1
-            added += 1
-        return added
+        """Absorb records other writers appended; returns how many lane-lines are unread afterwards."""
+        if self._pm is not None:
+            self._guard(self._pm._sync)
+        return sum(1 for r in self._all()[self._cursor:] if r["kind"] == self.kind)
 
-    def append_many(self, bodies: Sequence[Mapping]) -> list[dict]:
-        """Append bodies atomically (one lock, one write, one fsync). Returns the new lines."""
+    def append_many(self, bodies: Sequence[Mapping]) -> None:
+        """Append bodies atomically (one lock, one write, one fsync). Read them back with `take_new`."""
         if not bodies:
-            return []
-        if self.path:
-            from engine.pattern_bank import file_lock
-            with file_lock(self.path + ".lock", self.lock_timeout):
-                self.sync()
-                if self.torn_tail:
-                    raise ChainCorrupt("torn tail: a writer died mid-line; repair the file before appending")
-                new = self._extend(bodies)
-                with open(self.path, "ab") as fh:
-                    fh.write(("\n".join(canonical_json(x) for x in new) + "\n").encode("utf-8"))
-                    fh.flush()
-                    os.fsync(fh.fileno())
-                self._offset = os.path.getsize(self.path)
-                return new
-        return self._extend(bodies)
-
-    def _extend(self, bodies: Sequence[Mapping]) -> list[dict]:
-        new = []
-        for b in bodies:
-            body = json.loads(canonical_json(b))            # round-trip so memory and disk hold the same numbers
-            rec = {"seq": len(self._lines), "prev": self._last, "body": body}
-            rec["hash"] = self.link_hash(self._last, body)
-            self._lines.append(rec)
-            self._last = rec["hash"]
-            new.append(rec)
-        return new
+            return
+        clean = [json.loads(canonical_json(b)) for b in bodies]      # floats rounded once, memory == disk
+        if self._pm is not None:
+            self._guard(lambda: self._pm._append(self.kind, clean))
+            return
+        for b in clean:
+            h = pm._hash(self._last, {"kind": self.kind, **b})
+            self._mem_recs.append({"seq": len(self._mem_recs), "prev": self._last, "kind": self.kind, "body": b, "hash": h})
+            self._last = h
 
     def take_new(self) -> list[dict]:
-        """Lines not yet handed to the owner (own appends plus other writers')."""
-        out = self._lines[self._consumed:]
-        self._consumed = len(self._lines)
+        """Lane lines not yet handed to the owner (own appends plus other writers')."""
+        recs = self._all()
+        out = []
+        for r in recs[self._cursor:]:
+            if r["kind"] == self.kind:
+                out.append({"seq": self._own, "gseq": r["seq"], "prev": r["prev"], "body": r["body"], "hash": r["hash"]})
+                self._own += 1
+        self._cursor = len(recs)
         return out
 
-    def lines(self) -> list[dict]:
-        return list(self._lines)
-
     def verify(self) -> dict:
-        """Re-verify from scratch (from disk when persistent) independent of the in-memory copy."""
-        prev, n = GENESIS, 0
-        if self.path:
-            raw = open(self.path, "rb").read() if os.path.exists(self.path) else b""
-            rows = []
-            for line in raw.split(b"\n")[:-1]:
-                if not line.strip():
-                    continue
-                try:
-                    rows.append(json.loads(line.decode("utf-8")))
-                except (ValueError, UnicodeDecodeError):
-                    return {"ok": False, "records": n, "first_bad_seq": n, "head": prev}
-        else:
-            rows = self._lines
-        for rec in rows:
-            try:
-                ok = rec["seq"] == n and rec["prev"] == prev and self.link_hash(prev, rec["body"]) == rec["hash"]
-            except KeyError:
-                ok = False
-            if not ok:
+        """Re-verify the WHOLE chain from scratch (from disk when persistent), independent of the in-memory copy."""
+        if self._pm is not None:
+            return self._pm.verify()
+        prev = GENESIS
+        for n, rec in enumerate(self._mem_recs):
+            if rec["seq"] != n or rec["prev"] != prev or pm._hash(prev, {"kind": rec["kind"], **rec["body"]}) != rec["hash"]:
                 return {"ok": False, "records": n, "first_bad_seq": n, "head": prev}
-            prev, n = rec["hash"], n + 1
-        return {"ok": True, "records": n, "first_bad_seq": None, "head": prev}
+            prev = rec["hash"]
+        return {"ok": True, "records": len(self._mem_recs), "first_bad_seq": None, "head": prev}
 
 
 # ------------------------------------------------------------------------------------------- records
@@ -484,8 +447,7 @@ class Archive:
     def __init__(self, root: str | os.PathLike | None = None, *, code_hash: str | None = None,
                  forbidden_identities: Iterable[str] = (), created_real: str | None = None):
         self.root = os.fspath(root) if root is not None else None
-        path = os.path.join(self.root, "archive.jsonl") if self.root else None
-        self._chain = ChainFile(path)
+        self._chain = ChainFile(self.root, "arc")
         self._code_hash = code_hash
         self.forbidden = frozenset(str(x).upper() for x in forbidden_identities)
         self._created_real = created_real
@@ -1103,6 +1065,139 @@ def audit_prefix_invariance(arch: Archive, dates: Iterable) -> list[str]:
         if fresh.digest(d) != arch.digest(d):
             bad.append(f"view at {_iso(d)} changed when only earlier-known records were kept")
     return bad
+
+
+# ------------------------------------------------------------------------------------------- read adapters
+# The existing stores stay authoritative; each gets a READ adapter that mirrors what it knew strictly before `now` into the
+# archive layers (idempotent: re-running adds nothing). No sixth store: these only append to the archive's chain lane.
+
+_RETIRING = frozenset({"retired", "discarded", "rejected", "no_gain", "duplicate", "disregarded"})
+_ERROR_CAUSE = {"false_positive": FailureCause.SELECTION_ERROR, "false_negative": FailureCause.SELECTION_ERROR,
+                "noise": FailureCause.FALSE_PATTERN}
+
+
+def _clip01(x: Any) -> float:
+    try:
+        v = float(x)
+    except (TypeError, ValueError):
+        return 0.0
+    return 0.0 if not math.isfinite(v) else min(1.0, max(0.0, v))
+
+
+def adopt_pattern_memory(arch: Archive, mem, now) -> dict[str, int]:
+    """engine.pattern_memory.PatternMemory -> L0 observations (one per key/obs_date, latest run wins, as the store itself
+    de-duplicates) and one L5 pattern per key that has matured evidence. Only observations with mature_date < now."""
+    n = as_date(now)
+    latest: dict[tuple, dict] = {}
+    for r in mem.records("obs"):
+        if as_date(r["mature_date"]) < n:
+            latest[(r["key"], r["obs_date"])] = r
+    counts: Counter = Counter()
+    first: dict[str, ArchiveRecord] = {}
+    for (key, od), r in sorted(latest.items(), key=lambda kv: (kv[0][0], kv[0][1])):
+        rec = arch.log_observation(key, {"effect": r["effect"], "n": r["n"], "t": r["t"], "horizon": r["horizon"],
+                                         "ctx": r.get("ctx") or {}}, od, matured_at=r["mature_date"])
+        counts["observations"] += 1
+        first.setdefault(key, rec)
+    for key, rec in sorted(first.items()):
+        arch.append(layer=Layer.L5_PATTERN, kind="pattern", payload={"label": key, "source": "pattern_memory"},
+                    occurred_at=rec.matured_at, matured_at=rec.matured_at, subject=key, parents=[rec.rec_id])
+        counts["patterns"] += 1
+    return dict(counts)
+
+
+def adopt_pattern_bank(arch: Archive, bank, now) -> dict[str, int]:
+    """engine.pattern_bank.PatternBank.read(now) -> L5 patterns, failure records from each pattern's dated failures, and
+    influence changes when a pattern is retired (influence 0) or restored (1.0) - history is never removed."""
+    counts: Counter = Counter()
+    for r in bank.read(now):
+        pid = str(r["id"])
+        trans = sorted((e for e in r.get("history", []) if e.get("kind") == "transition"), key=lambda e: str(e["as_of"]))
+        if not trans:
+            continue
+        t0 = as_date(trans[0]["as_of"])
+        payload = {"label": str(r.get("name", pid)), "source": "pattern_bank"}
+        if isinstance(r.get("effect"), (int, float)) and math.isfinite(float(r["effect"])):
+            payload["effect"] = float(r["effect"])
+        if isinstance(r.get("scope"), Mapping):
+            payload["scope"] = {str(k): (v if isinstance(v, (str, int, float, bool)) else str(v)) for k, v in r["scope"].items()}
+        arch.append(layer=Layer.L5_PATTERN, kind="pattern", payload=payload, occurred_at=t0, matured_at=t0, subject=pid)
+        counts["patterns"] += 1
+        dead = False
+        for e in trans:
+            to = str(e.get("to", "")).lower()
+            if to in _RETIRING and not dead:
+                arch.retire(pid, f"bank transition to {to}", e["as_of"])
+                dead = True
+                counts["retired"] += 1
+            elif dead and to not in _RETIRING:
+                arch.set_influence(pid, 1.0, f"bank transition to {to}", e["as_of"])
+                dead = False
+                counts["restored"] += 1
+        for f in r.get("failures", []):
+            cause = str(f.get("cause", "UNKNOWN")).upper()
+            cause = cause if cause in {c.value for c in FailureCause} else FailureCause.UNKNOWN.value
+            arch.log_failure(pid, cause, Layer.L5_PATTERN, f["as_of"])
+            counts["failures"] += 1
+    return dict(counts)
+
+
+def adopt_trust_table(arch: Archive, tt, now) -> dict[str, int]:
+    """engine.trust.TrustTable -> one L7 reliability record per (type, indicator) dated at the table's own `now`."""
+    if tt.now is None or as_date(tt.now) >= as_date(now):
+        raise FirewallBreach(f"trust table dated {tt.now} is not before now={as_date(now)}")
+    counts: Counter = Counter()
+    for row in tt.table.itertuples():
+        sub = f"trust:{row.type}:{row.indicator}"
+        arch.append(layer=Layer.L7_VALIDATED, kind="reliability",
+                    payload={"value": _clip01(row.confidence), "n": int(row.n_obs), "reliable": bool(row.reliable),
+                             "reason": str(row.reason)}, occurred_at=tt.now, matured_at=tt.now, subject=sub)
+        counts["reliability"] += 1
+        if not bool(row.reliable):
+            arch.retire(sub, f"trust table marks unreliable: {row.reason}", tt.now)
+            counts["retired"] += 1
+    return dict(counts)
+
+
+def adopt_lessons(arch: Archive, lessons: Iterable, learned_at, now) -> dict[str, int]:
+    """engine.lessons.Lesson objects -> L6 context rules (conditions are thresholds on features, never names). Lessons
+    that are not 'active' are recorded and immediately given influence 0 with their status as the reason."""
+    if as_date(learned_at) >= as_date(now):
+        raise FirewallBreach("lessons learned_at must be before now")
+    counts: Counter = Counter()
+    for L in lessons:
+        payload = {"conds": [[str(f), str(op), float(th)] for f, op, th in L.conds], "direction": int(L.direction),
+                   "factor": float(L.factor), "kind": str(L.kind), "status": str(L.status), "trust": float(L.trust),
+                   "n": int(L.n), "n_weeks": int(L.n_weeks)}
+        arch.append(layer=Layer.L6_CONTEXT_RULE, kind="context_rule", payload=payload, occurred_at=learned_at,
+                    matured_at=learned_at, subject=str(L.lid), contexts={"lesson_kind": str(L.kind)})
+        counts["rules"] += 1
+        if str(L.status) != "active":
+            arch.retire(str(L.lid), f"lesson status {L.status}", learned_at)
+            counts["retired"] += 1
+    return dict(counts)
+
+
+def adopt_memory_lessons(arch: Archive, lessons: Iterable, now, default_date=None) -> dict[str, int]:
+    """engine.memory.Lesson (arm, fingerprint, context, features, outcome_bin, error_type, date) -> L0 observations plus a
+    failure record for mistakes. Coarse dates ('2019Q3') are not real dates, so `default_date` (before now) is used."""
+    counts: Counter = Counter()
+    for L in lessons:
+        d = str(getattr(L, "date", ""))
+        when = d if re.fullmatch(r"\d{4}-\d{2}-\d{2}", d) else default_date
+        if when is None:
+            raise ArchiveError("memory lesson has a coarse date and no default_date was supplied")
+        if as_date(when) >= as_date(now):
+            raise FirewallBreach(f"memory lesson dated {when} is not before now={as_date(now)}")
+        arch.log_observation(str(L.arm), {"fingerprint": str(L.fingerprint), "context": dict(L.context),
+                                          "features": dict(L.features), "outcome_bin": str(L.outcome_bin),
+                                          "error_type": str(L.error_type), "era": str(L.era)}, when)
+        counts["observations"] += 1
+        cause = _ERROR_CAUSE.get(str(L.error_type))
+        if cause is not None:
+            arch.log_failure(str(L.arm), cause, Layer.L2_EPISODE, when)
+            counts["failures"] += 1
+    return dict(counts)
 
 
 def open_default(name: str = "learning_archive") -> Archive:

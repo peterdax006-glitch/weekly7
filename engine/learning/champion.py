@@ -17,14 +17,16 @@ import dataclasses
 import math
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 import numpy as np
 
-from engine.champion import Ledger
+from engine import pattern_stats as PS
+from engine.champion import ChallengerQueue, Ledger
 
-from .core import (DecisionEffect, Epistemic, FailureCause, FirewallBreach, KnowledgeLike, Promotion, Subsystem, as_date,
-                   require_past, stable_hash)
+from .core import (DecisionEffect, Epistemic, FailureCause, FirewallBreach, Health, KnowledgeLike, Promotion, Subsystem, as_date,
+                   require_past)
+from .compute import phash
 from .promotion import PromotionDecision, PromotionEvidence, PromotionGate, write_rejection_report
 
 P = Promotion
@@ -145,19 +147,27 @@ def paired_stats(diffs: Sequence[float]) -> dict:
 # ------------------------------------------------------------------------------------------------ the board
 class KnowledgeBoard:
     def __init__(self, ledger_path: str | Path, gate: PromotionGate | None = None, policy: BoardPolicy | None = None,
-                 report_dir: str | Path | None = None):
+                 report_dir: str | Path | None = None, tried=None, as_of=None):
         self.policy = policy or BoardPolicy()
         errs = self.policy.validate()
         if errs:
             raise BoardError(f"invalid board policy: {errs}")
+        if as_of is None:
+            Path(ledger_path).parent.mkdir(parents=True, exist_ok=True)
         self.ledger = Ledger(ledger_path)
         self.gate = gate or PromotionGate()
         self.report_dir = Path(report_dir) if report_dir else None
+        # waiting list for the challenger slot: engine.champion.ChallengerQueue (priority = PRE-REGISTERED expected gain, never
+        # realised P&L; `tried` is an optional engine.experiment_memory.TriedIndex that refuses repeats and known-bad ideas)
+        self.queue = ChallengerQueue(Path(ledger_path).with_suffix(".queue.json"), tried)
         self.members: dict[str, Member] = {}
         self.champions: dict[str, str] = {}                       # slot key -> member id
         self.decisions: list[dict] = []                           # promotion decisions in order (from the ledger)
         self.last_date: str | None = None
+        self.frozen = as_of is not None                           # a historical view can be read but never written
         for row in self.ledger.rows():                            # crash recovery = replay
+            if as_of is not None and as_date(row["t"]) >= as_date(as_of):
+                break                                             # events are date-ordered, so nothing later can precede
             self._apply(row["event"], row["id"], row["t"], row["detail"])
 
     # ---- event application: the ONLY place state changes ----
@@ -211,6 +221,8 @@ class KnowledgeBoard:
         m.path.append((t, to.value))
 
     def _emit(self, event: str, mid: str, now, **detail) -> None:
+        if self.frozen:
+            raise BoardError("this board is a read-only historical view (board_as_of); it cannot record events")
         t = str(as_date(now))
         if self.last_date is not None and as_date(t) < as_date(self.last_date):
             raise FirewallBreach(f"board event dated {t} precedes the last recorded event {self.last_date}")
@@ -291,6 +303,28 @@ class KnowledgeBoard:
             raise BoardError("a demotion needs a reason")
         self._get(mid, P.CHALLENGER)
         self._emit("demoted", mid, now, reason=reason)
+
+    # ---- waiting list (reuses engine.champion.ChallengerQueue) ----
+    def enqueue(self, mid: str, cfg: Mapping[str, Any], expected_gain: float, now) -> None:
+        """Queue a shadow for the (limited) challenger slots. The expected gain must be stated up front."""
+        self._get(mid, P.SHADOW)
+        self.queue.submit(mid, dict(cfg), expected_gain, str(as_date(now)))
+
+    def next_queued(self, slot: "Slot", now) -> str | None:
+        """Open a challenge for the highest-expected-gain queued shadow in `slot` that qualifies; skip (and keep) those that
+        do not yet. Returns the member id moved to CHALLENGER, or None."""
+        for item in self.queue.order():
+            m = self.members.get(item["id"])
+            if m is None or m.slot != slot.key or m.role != P.SHADOW:
+                continue
+            try:
+                self.open_challenge(m.mid, now)
+            except BoardError:
+                continue
+            self.queue.items = [i for i in self.queue.items if i["id"] != m.mid]
+            self.queue._save()
+            return m.mid
+        return None
 
     # ---- promotion ----
     def head_to_head(self, mid: str, now) -> dict:
@@ -393,7 +427,7 @@ class KnowledgeBoard:
 
     def digest(self) -> str:
         """State fingerprint: identical ledgers give identical digests on any machine."""
-        return stable_hash({mid: [m.slot, m.role.value, m.path] for mid, m in sorted(self.members.items())})
+        return phash({mid: [m.slot, m.role.value, m.path] for mid, m in sorted(self.members.items())})
 
     def invariants(self) -> list[str]:
         """Structural problems; an empty list means the board is consistent. Run after every replay and in tests."""
@@ -433,3 +467,307 @@ class KnowledgeBoard:
         prob = self.invariants()
         lines += ["", "## Invariants", "clean" if not prob else "\n".join(f"- {p}" for p in prob)]
         return "\n".join(lines) + "\n"
+
+
+# ------------------------------------------------------------------------------------------------ analytics over the board
+@dataclass(frozen=True)
+class ShadowSummary:
+    mid: str
+    n: int
+    mean: float
+    sd: float
+    t: float
+    p_one_sided: float
+    hit_rate: float
+    cumulative: float
+    max_relative_drawdown: float       # worst peak-to-trough of the cumulative (candidate - baseline) series
+    recent_mean: float                 # last 10 sessions: is the edge fading?
+    first: str | None
+    last: str | None
+
+
+def _p_one_sided(t: float) -> float:
+    if not math.isfinite(t):
+        return 0.0 if t > 0 else 1.0
+    p2 = float(PS.t_to_p(t))
+    return p2 / 2.0 if t > 0 else 1.0 - p2 / 2.0
+
+
+def shadow_summary(board: KnowledgeBoard, mid: str, now=None) -> ShadowSummary:
+    """Everything the shadow record says, using only sessions strictly before `now`."""
+    m = board._get(mid)
+    obs = [o for o in m.shadow if now is None or as_date(o[0]) < as_date(now)]
+    d = np.array([c - b for _, c, b in obs], float)
+    if d.size == 0:
+        return ShadowSummary(mid, 0, 0.0, 0.0, 0.0, 1.0, float("nan"), 0.0, 0.0, 0.0, None, None)
+    st = paired_stats(d)
+    cum = np.cumsum(d)
+    peak = np.maximum.accumulate(np.concatenate([[0.0], cum]))[1:]
+    return ShadowSummary(mid, st["n"], st["mean"], float(d.std(ddof=1)) if d.size > 1 else 0.0, st["t"], _p_one_sided(st["t"]),
+                         float((d > 0).mean()), float(cum[-1]), float((cum - peak).min()), float(d[-10:].mean()),
+                         obs[0][0], obs[-1][0])
+
+
+def sessions_needed(effect: float, sd: float, alpha: float = 0.05, power: float = 0.8) -> float:
+    """Sessions of paired shadow data needed to detect a mean paired difference `effect` at one-sided `alpha` with `power`:
+    n = ((z_alpha + z_power) * sd / effect)^2. Infinite when the effect is not positive - no amount of data confirms it."""
+    from statistics import NormalDist
+    if not (effect > 0 and sd > 0 and math.isfinite(effect) and math.isfinite(sd)):
+        return math.inf
+    nd = NormalDist()
+    return float(((nd.inv_cdf(1 - alpha) + nd.inv_cdf(power)) * sd / effect) ** 2)
+
+
+def rank_challengers(board: KnowledgeBoard, slot: Slot, now, alpha: float = 0.05) -> list[dict]:
+    """Challengers of one slot ranked by their shadow record against the incumbent. With k challengers the best of k will look
+    good by luck, so p-values are Bonferroni-adjusted across the k (engine.pattern_stats.bonferroni) before any is 'eligible'."""
+    ch = sorted(mid for mid, m in board.members.items() if m.slot == slot.key and m.role == P.CHALLENGER)
+    sums = [shadow_summary(board, mid, now) for mid in ch]
+    if not sums:
+        return []
+    adj = PS.bonferroni([s.p_one_sided for s in sums], len(sums))
+    rows = [{"mid": s.mid, "n": s.n, "mean": s.mean, "t": s.t, "p": s.p_one_sided, "p_adj": float(a),
+             "eligible": bool(a <= alpha and s.mean > 0 and s.n >= board.policy.min_shadow_sessions),
+             "sessions_needed": sessions_needed(s.mean, s.sd, alpha)} for s, a in zip(sums, adj)]
+    return sorted(rows, key=lambda r: (r["p_adj"], -r["mean"], r["mid"]))
+
+
+def effective_champion(board: KnowledgeBoard, effect: DecisionEffect, subsystem: Subsystem | None,
+                       scope_chain: Sequence[str]) -> str | None:
+    """The knowledge that decides for a request: the champion of the MOST SPECIFIC scope in `scope_chain` (ordered specific
+    to general, e.g. ['small_cap', 'equities', 'global']). No champion anywhere -> None, and the caller uses its general rule."""
+    for sc in scope_chain:
+        mid = board.champions.get(Slot(effect, subsystem, sc).key)
+        if mid is not None:
+            return mid
+    return None
+
+
+def scope_conflicts(board: KnowledgeBoard) -> list[tuple[str, str]]:
+    """Pairs (specific champion, general champion) sharing effect and subsystem across different scopes. Legal - the specific
+    one wins in `effective_champion` - but worth a look when the specific one is newer than the general one it overrides."""
+    by: dict[tuple[str, str], list[tuple[str, str]]] = {}
+    for key, mid in board.champions.items():
+        sl = Slot.from_key(key)
+        by.setdefault((sl.effect.value, sl.subsystem.value if sl.subsystem else "-"), []).append((sl.scope, mid))
+    out = []
+    for grp in by.values():
+        general = [mid for sc, mid in grp if sc == "global"]
+        out += [(mid, g) for sc, mid in grp if sc != "global" for g in general]
+    return sorted(out)
+
+
+def review_due(board: KnowledgeBoard, now, max_age_days: int = 90) -> list[dict]:
+    """Champions that have held their slot for more than `max_age_days` since they last (re)entered the role: production
+    knowledge is re-examined on a schedule, not only when it visibly breaks."""
+    out = []
+    for mid in board.production_ids():
+        m = board.members[mid]
+        age = (as_date(now) - as_date(m.since)).days
+        if age > max_age_days:
+            out.append({"mid": mid, "slot": m.slot, "age_days": age, "watch": (m.watch or {}).get("status")})
+    return sorted(out, key=lambda r: -r["age_days"])
+
+
+HEALTH_ACTIONS = {
+    Health.HEALTHY: "none", Health.RECOVERING: "none", Health.DORMANT: "hold",
+    Health.DEGRADING: "review", Health.UNSTABLE: "review",
+    Health.INSUFFICIENT_EVIDENCE: "abstain", Health.UNKNOWN: "abstain",
+    Health.BROKEN: "retire", Health.CONTRADICTED: "retire",
+}
+HEALTH_CAUSE = {Health.BROKEN: FailureCause.WEAKENING_EFFECT, Health.CONTRADICTED: FailureCause.REVERSAL}
+
+
+def apply_health(board: KnowledgeBoard, mid: str, health: Health, now, detail: str = "") -> dict:
+    """React to a knowledge-health verdict (section 46). Only BROKEN and CONTRADICTED change the board: a champion is retired,
+    a challenger demoted to shadow, a shadow retired. DORMANT is deliberately not a failure (section 12 - the conditions may
+    return), DEGRADING and UNSTABLE only flag for review, and UNKNOWN/INSUFFICIENT_EVIDENCE never act (unknown must not become
+    confidence OR condemnation). Returns what was decided."""
+    health = Health.parse(health)
+    m = board._get(mid)
+    action = HEALTH_ACTIONS[health]
+    out = {"mid": mid, "health": health.value, "action": action, "applied": False, "role": m.role.value}
+    if action != "retire" or m.role in (P.RETIRED, P.RESEARCH):
+        return out
+    why = f"health {health.value}" + (f": {detail}" if detail else "")
+    if m.role == P.CHALLENGER:
+        board.demote(mid, now, why)
+    else:
+        board.retire(mid, HEALTH_CAUSE[health], why, now)
+    out.update(applied=True, role=board.members[mid].role.value)
+    return out
+
+
+def slot_status(board: KnowledgeBoard, now) -> list[dict]:
+    """One row per slot ever used: who holds it, for how long, and how many are waiting or gone. Empty slots are listed
+    (decisions there use the general rule) - they are not errors."""
+    rows: dict[str, dict] = {}
+    for mid, m in sorted(board.members.items()):
+        r = rows.setdefault(m.slot, {"slot": m.slot, "champion": None, "tenure_days": None, "challengers": 0, "shadows": 0,
+                                     "research": 0, "retired": 0})
+        key = {P.CHALLENGER: "challengers", P.SHADOW: "shadows", P.RESEARCH: "research", P.RETIRED: "retired"}.get(m.role)
+        if key:
+            r[key] += 1
+    for slot, mid in board.champions.items():
+        rows[slot]["champion"] = mid
+        rows[slot]["tenure_days"] = (as_date(now) - as_date(board.members[mid].since)).days
+    return [rows[k] for k in sorted(rows)]
+
+
+def explain_member(board: KnowledgeBoard, mid: str) -> list[str]:
+    """Human-readable life story of one knowledge version, straight from the hash-chained ledger (why it moved, when, on
+    whose decision id). Shadow observations are summarised, not listed."""
+    board._get(mid)
+    lines, n_obs = [], 0
+    for r in board.ledger.rows():
+        if r["id"] != mid:
+            continue
+        d = r["detail"]
+        if r["event"] in ("shadow_obs", "watch_obs"):
+            n_obs += 1
+            continue
+        if n_obs:
+            lines.append(f"  ... {n_obs} observations")
+            n_obs = 0
+        extra = d.get("reason") or (f"failed {d['failed']}" if d.get("failed") else "") or d.get("decision_id", "")
+        lines.append(f"{r['t']} {r['event']}" + (f": {extra}" if extra else ""))
+    if n_obs:
+        lines.append(f"  ... {n_obs} observations")
+    return lines
+
+
+def promotion_funnel(board: KnowledgeBoard) -> dict:
+    """Counts across the board's life: registered -> shadow -> challenger -> promoted, plus WHY promotions were refused."""
+    ev: dict[str, int] = {}
+    why: dict[str, int] = {}
+    for r in board.ledger.rows():
+        ev[r["event"]] = ev.get(r["event"], 0) + 1
+        if r["event"] == "promotion_refused":
+            for g in r["detail"].get("failed", []):
+                why[g] = why.get(g, 0) + 1
+    return {"events": ev, "refusal_reasons": dict(sorted(why.items(), key=lambda kv: -kv[1])),
+            "attempts": ev.get("promoted", 0) + ev.get("promotion_refused", 0)}
+
+
+def to_snapshot(board: KnowledgeBoard) -> dict:
+    """What a compute worker may know about production knowledge: which versions are champions of which slots, and the board
+    digest. Pass to engine.learning.compute.SnapshotStore.create(..., as_of=board.last_date). Shadows/challengers are absent
+    on purpose - an experiment must not be conditioned on knowledge that has no production weight."""
+    return {"champions": dict(sorted(board.champions.items())), "digest": board.digest(), "as_of": board.last_date}
+
+
+# ------------------------------------------------------------------------------------------------ sequential monitoring
+@dataclass(frozen=True)
+class SequentialVerdict:
+    action: str                 # CONTINUE | READY | ABANDON
+    n: int
+    fraction: float             # information fraction n / max_sessions
+    z: float
+    boundary: float             # efficacy boundary at this fraction
+    reason: str
+
+
+def obrien_fleming_bound(fraction: float, alpha: float = 0.05) -> float:
+    """One-sided O'Brien-Fleming efficacy boundary z_(1-alpha) / sqrt(fraction). Looking at a shadow record every day and
+    promoting at the first t > 1.64 promotes lucky noise about a third of the time; an alpha-spending boundary makes early
+    looks demand far stronger evidence (about 3.3 at 25% information) and costs almost nothing at the final look."""
+    from statistics import NormalDist
+    if not 0.0 < fraction <= 1.0:
+        raise ValueError("information fraction must be in (0, 1]")
+    return NormalDist().inv_cdf(1.0 - alpha) / math.sqrt(fraction)
+
+
+def sequential_verdict(board: KnowledgeBoard, mid: str, now, max_sessions: int = 60, alpha: float = 0.05) -> SequentialVerdict:
+    """Peek-safe reading of a shadow record. READY only when the paired t crosses the O'Brien-Fleming boundary for the
+    information collected so far; ABANDON when harm is already evident or the record is flat past half the budget; otherwise
+    CONTINUE. Uses only sessions strictly before `now`."""
+    if max_sessions < board.policy.min_shadow_sessions:
+        raise ValueError("max_sessions below min_shadow_sessions can never trigger")
+    st = board.shadow_record(mid, now)
+    frac = min(1.0, st["n"] / max_sessions)
+    if st["n"] < board.policy.min_shadow_sessions:
+        return SequentialVerdict("CONTINUE", st["n"], frac, st["t"], math.inf, "too few sessions to look yet")
+    bound = obrien_fleming_bound(frac, alpha)
+    if st["t"] >= bound and st["mean"] > 0:
+        return SequentialVerdict("READY", st["n"], frac, st["t"], bound, "crossed the alpha-spending boundary")
+    if st["t"] < board.policy.shadow_harm_t:
+        return SequentialVerdict("ABANDON", st["n"], frac, st["t"], bound, "shadow record shows harm")
+    if frac >= 0.5 and st["t"] < 0.0:
+        return SequentialVerdict("ABANDON", st["n"], frac, st["t"], bound, "half the budget used and the record is not positive")
+    if frac >= 1.0:
+        return SequentialVerdict("ABANDON", st["n"], frac, st["t"], bound, "full budget used without crossing the boundary")
+    return SequentialVerdict("CONTINUE", st["n"], frac, st["t"], bound, "inconclusive")
+
+
+# ------------------------------------------------------------------------------------------------ context breakdown
+def shadow_by_context(board: KnowledgeBoard, mid: str, labels: Mapping[str, str], now=None, min_n: int = 5) -> dict[str, dict]:
+    """Paired shadow result split by a context label per session date (e.g. regime, volatility bucket). `labels` maps ISO date
+    -> label; sessions with no label are grouped under 'unlabelled' rather than dropped. Groups below `min_n` are reported
+    but marked unreliable."""
+    m = board._get(mid)
+    groups: dict[str, list[float]] = {}
+    for t, c, b in m.shadow:
+        if now is not None and as_date(t) >= as_date(now):
+            continue
+        groups.setdefault(labels.get(str(as_date(t)), "unlabelled"), []).append(c - b)
+    out = {}
+    for lab, d in sorted(groups.items()):
+        st = paired_stats(d)
+        out[lab] = {**st, "sum": float(np.sum(d)), "reliable": st["n"] >= min_n}
+    return out
+
+
+def context_consistency(breakdown: Mapping[str, Mapping[str, float]], concentration: float = 0.6) -> dict:
+    """Is the edge spread across contexts or supplied by one? A challenger whose whole gain comes from a single regime is a
+    regime bet, not general knowledge (it may still be valid as conditional knowledge, but must be scoped as such)."""
+    rel = {k: v for k, v in breakdown.items() if v.get("reliable")}
+    if not rel:
+        return {"contexts": 0, "positive_share": float("nan"), "worst_context": None, "worst_mean": float("nan"), "concentrated": False}
+    pos_sum = sum(v["sum"] for v in rel.values() if v["sum"] > 0)
+    top = max(rel, key=lambda k: rel[k]["sum"])
+    worst = min(rel, key=lambda k: rel[k]["mean"])
+    return {"contexts": len(rel), "positive_share": sum(v["mean"] > 0 for v in rel.values()) / len(rel),
+            "worst_context": worst, "worst_mean": float(rel[worst]["mean"]),
+            "concentrated": bool(len(rel) > 1 and pos_sum > 0 and rel[top]["sum"] / pos_sum > concentration), "top_context": top}
+
+
+# ------------------------------------------------------------------------------------------------ recovery
+RECOVERABLE_CAUSES = frozenset({FailureCause.TEMPORARY_INACTIVITY.value, FailureCause.WRONG_CONTEXT.value,
+                                FailureCause.REGIME_CHANGE.value, "REPLACED"})
+
+
+def recovery_candidates(board: KnowledgeBoard, conditions_returned: Callable[[Member], bool]) -> list[str]:
+    """Retired knowledge whose retirement cause was situational (inactivity, wrong context, regime change, or replacement) and
+    for which the caller's predicate says the enabling conditions are back. A pattern retired as a FALSE_PATTERN or as a
+    REVERSAL is never a candidate: recovery is for knowledge that was true but out of season."""
+    return sorted(mid for mid, m in board.members.items()
+                  if m.role == P.RETIRED and m.cause in RECOVERABLE_CAUSES and conditions_returned(m))
+
+
+def reinstate_recovered(board: KnowledgeBoard, conditions_returned: Callable[[Member], bool], now) -> list[str]:
+    """Move every recovery candidate back to SHADOW (never straight to production - it must re-earn CHALLENGER)."""
+    done = []
+    for mid in recovery_candidates(board, conditions_returned):
+        board.reinstate(mid, now, f"conditions for cause {board.members[mid].cause} have returned")
+        done.append(mid)
+    return done
+
+
+# ------------------------------------------------------------------------------------------------ time travel
+def board_as_of(ledger_path: str | Path, as_of, gate: PromotionGate | None = None) -> KnowledgeBoard:
+    """A read-only board rebuilt from the ledger using ONLY events dated strictly before `as_of`: what was in production on that
+    date. This is the future-memory audit's question - 'could this knowledge have been active when this decision was made?'
+    - answered from the hash-chained record instead of from memory."""
+    return KnowledgeBoard(ledger_path, gate, as_of=as_of)
+
+
+def production_at(ledger_path: str | Path, as_of) -> tuple[str, ...]:
+    return board_as_of(ledger_path, as_of).production_ids()
+
+
+def diff_boards(old: KnowledgeBoard, new: KnowledgeBoard) -> dict:
+    """What changed in production knowledge between two views (typically two dates of the same ledger)."""
+    a, b = dict(old.champions), dict(new.champions)
+    return {"added": sorted(set(b.values()) - set(a.values())), "removed": sorted(set(a.values()) - set(b.values())),
+            "replaced": sorted((a[s], b[s]) for s in a if s in b and a[s] != b[s]),
+            "new_members": sorted(set(new.members) - set(old.members))}

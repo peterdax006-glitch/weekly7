@@ -773,3 +773,102 @@ def combined_influence(kid: str, now, ledger, monitor: "CalibrationMonitor | Non
     tmp = 1.0 if profile is None or life == 0.0 else expected_influence(profile, now, context)
     parts = {"lifecycle": life, "calibration": cal, "temporal": tmp}
     return InfluenceBreakdown(kid, life, cal, tmp, float(life * cal * tmp), min(parts, key=lambda k: (parts[k], k)))
+
+
+# ------------------------------------------------------------------------------------------------- hierarchy, past-only fitting, per-context influence
+
+def context_path(context: str) -> list[str]:
+    """'vol=hi/trend=up' -> ['vol=hi', 'vol=hi/trend=up']: each context inherits from its ancestors, root (global) implied."""
+    parts = [p for p in str(context).split("/") if p]
+    return ["/".join(parts[:i]) for i in range(1, len(parts) + 1)]
+
+
+def hierarchical_gaps(p, y, contexts: Sequence[str], k: float = 30.0) -> dict[str, dict[str, float]]:
+    """Signed gap (predicted - realised) per context with empirical-Bayes shrinkage down the hierarchy: global -> 'vol=hi' ->
+    'vol=hi/trend=up'. Each level keeps n/(n+k) of its own gap and takes the rest from its shrunk parent, so a thin leaf borrows
+    from its neighbourhood instead of trusting 20 forecasts."""
+    p, y = _check_py(p, y)
+    if len(contexts) != len(p):
+        raise ValueError("contexts must align with p")
+    if len(p) == 0:
+        return {}
+    ctx = np.array([str(c) for c in contexts])
+    glob = float(p.mean() - y.mean())
+    out: dict[str, dict[str, float]] = {}
+    for path in sorted({node for c in ctx for node in context_path(c)}, key=lambda s: (s.count("/"), s)):
+        m = np.array([c == path or c.startswith(path + "/") for c in ctx])
+        n = int(m.sum())
+        raw = float(p[m].mean() - y[m].mean())
+        parent = context_path(path)[-2] if "/" in path else None
+        base = out[parent]["shrunk"] if parent else glob
+        out[path] = {"n": n, "raw": raw, "shrunk": n / (n + k) * raw + k / (n + k) * base, "parent": base}
+    return out
+
+
+def context_platt(p, y, contexts: Sequence[str], k: float = 60.0, min_n: int = 40) -> dict[str, tuple[float, float]]:
+    """Per-context logistic recalibration (a, b) shrunk toward the global fit with weight n/(n+k): the context curve is used
+    only as far as its own data support it. Contexts below `min_n` (or one-class) simply get the global curve."""
+    p, y = _check_py(p, y)
+    g = platt_slope(p, y)
+    if not math.isfinite(g["b"]):
+        return {}
+    ctx = np.array([str(c) for c in contexts])
+    out = {}
+    for c in sorted(set(ctx)):
+        m = ctx == c
+        r = platt_slope(p[m], y[m]) if m.sum() >= min_n else {"a": float("nan"), "b": float("nan")}
+        w = m.sum() / (m.sum() + k)
+        out[c] = (g["a"], g["b"]) if not math.isfinite(r["b"]) else (w * r["a"] + (1 - w) * g["a"], w * r["b"] + (1 - w) * g["b"])
+    return out
+
+
+def walk_forward_recalibrate(records: Sequence["CalibrationRecord"], method: str = "platt", min_fit: int = 60) -> tuple[np.ndarray, np.ndarray]:
+    """Past-only recalibration. Each forecast is recalibrated by a map fitted ONLY on records whose outcome had matured before
+    that forecast was made (matured_at < decided_at). Returns (recalibrated p, number of records each map was fitted on);
+    forecasts with fewer than `min_fit` such records keep their raw probability. This is the honest version of 'apply a
+    recalibrator': fitting on the whole log and scoring inside it leaks the answers."""
+    if method not in ("platt", "isotonic"):
+        raise ValueError("method must be platt or isotonic")
+    recs = sorted(records, key=lambda r: (r.decided_at, r.record_id))
+    matured = sorted(records, key=lambda r: r.matured_at)
+    out, used = np.empty(len(recs)), np.zeros(len(recs), int)
+    for i, r in enumerate(recs):
+        cut = as_date(r.decided_at)
+        past = [q for q in matured if as_date(q.matured_at) < cut]
+        used[i] = len(past)
+        pp = np.array([q.predicted for q in past])
+        yy = np.array([q.outcome for q in past], float)
+        if len(past) < min_fit or yy.min() == yy.max():
+            out[i] = r.predicted
+        elif method == "platt":
+            out[i] = float(PlattCalibrator().fit(pp, yy).predict([r.predicted])[0])
+        else:
+            out[i] = float(IsotonicCalibrator().fit(pp, yy).predict([r.predicted])[0])
+    return out, used
+
+
+def context_influence(monitor: "CalibrationMonitor", now, seed: int, k: float = 60.0) -> dict[str, dict[str, float]]:
+    """Influence factor per context: each context runs the same overconfidence rule on its own forecasts, then is blended toward
+    the global factor with weight n/(n+k) (a thin context cannot be punished, or excused, on a handful of forecasts)."""
+    pol = monitor.policy
+    rs = monitor.records(now)
+    if len(rs) < pol.min_n:
+        return {}
+    p = np.array([r.predicted for r in rs])
+    y = np.array([r.outcome for r in rs], float)
+    glob = influence_factor(overconfidence(p, y)["excess"], overconfidence(p, y)["edge_ratio"],
+                            ece_null_pvalue(p, pol.n_bins, ece_equal_mass(p, y, pol.n_bins), np.random.default_rng(seed), pol.n_sim),
+                            platt_slope(p, y)["b_hi"], pol)
+    out = {}
+    for c in sorted({r.context for r in rs if r.context}):
+        sub = [r for r in rs if r.context == c]
+        if len(sub) < pol.min_context_n or len(sub) < 3 * pol.n_bins:
+            continue
+        pc = np.array([r.predicted for r in sub])
+        yc = np.array([r.outcome for r in sub], float)
+        oc = overconfidence(pc, yc)
+        ep = ece_null_pvalue(pc, pol.n_bins, ece_equal_mass(pc, yc, pol.n_bins), np.random.default_rng(seed), pol.n_sim)
+        own = influence_factor(oc["excess"], oc["edge_ratio"], ep, platt_slope(pc, yc)["b_hi"], pol)
+        w = len(sub) / (len(sub) + k)
+        out[c] = {"n": len(sub), "own": own, "global": glob, "influence": float(min(1.0, max(pol.floor, w * own + (1 - w) * glob)))}
+    return out

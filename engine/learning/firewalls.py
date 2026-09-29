@@ -301,6 +301,15 @@ class GateContext:
     inputs: Sequence | None = None             # future_firewall.LearningInput records (optional extra screening)
     test_start: Any = None                     # first date of the evaluated period (enables the purge/embargo check)
     embargo_days: int = 0
+    learned_states: Sequence | None = None     # memory_firewall.LearnedState records (leak channel 4)
+    played: Sequence = ()                      # [{id, real_start, version}] windows and the state version each used
+    registry_records: Sequence | None = None   # experiment-registry records (provenance audit)
+    feature_specs: Sequence | None = None      # future_firewall.FeatureSpec declarations
+    listings: Any = None                       # ticker / list_date / delist_date table for the survivorship check
+    events: Sequence | None = None             # future_firewall.NetworkEvent records of the run
+    cache: Sequence | None = None              # future_firewall.CacheEntry records of the run
+    blind: bool = True
+    sources: Iterable | None = None            # registered data source names
 
     def is_relevant(self, layer: LayerName) -> bool:
         return self.relevant is None or layer in self.relevant
@@ -310,7 +319,7 @@ class GateContext:
 
     def fingerprint(self) -> str:
         return stable_hash({"now": str(as_date(self.now)), "subject": self.subject,
-                            "items": sorted(str(getattr(i, "knowledge_id", i)) for i in (self.items or ())),
+                            "items": sorted(str(field_of(i, "knowledge_id", i)) for i in (self.items or ())),
                             "X": list(self.X.shape) if self.X is not None else None,
                             "experiment": self.experiment.experiment_id if self.experiment else None})
 
@@ -343,6 +352,13 @@ class FirewallLayer:
     def missing(self, ctx: GateContext, what: str) -> tuple[list[Finding], int]:
         return [fail(self.name, "input-missing", ctx.subject,
                      f"{what} not supplied: this layer cannot demonstrate the result is clean")], 0
+
+
+def field_of(obj, name, default=None):
+    """Attribute-or-key access so records may be dataclasses, plain objects or dicts."""
+    if isinstance(obj, Mapping):
+        return obj.get(name, default)
+    return getattr(obj, name, default)
 
 
 def _panel_dates(obj) -> pd.DatetimeIndex:
@@ -426,13 +442,27 @@ class DataFirewall(FirewallLayer):
     """The learning input itself: right shape, no label hiding in the features, no feature that already knows the answer."""
     name = LayerName.DATA
 
+    def _inputs_only(self, ctx):
+        from .future_firewall import check_network_cache, check_revision, check_survivorship
+        out, n = [], 0
+        for res in (check_revision(ctx.inputs, ctx.now), check_survivorship(ctx.inputs, ctx.now, ctx.listings)):
+            out.extend(f for f in res.findings if f.layer == self.name)
+            n += res.n_checked
+        if ctx.events is not None or ctx.cache is not None:
+            res = check_network_cache(ctx.events, ctx.cache, ctx.now, ctx.blind)
+            out.extend(res.findings)
+            n += res.n_checked
+        return out, n
+
     def __init__(self, max_nan_frac: float = 0.5, ic_cap: float = 0.15, copy_corr: float = 0.999, min_dates: int = 2):
         self.max_nan_frac, self.ic_cap, self.copy_corr, self.min_dates = max_nan_frac, ic_cap, copy_corr, min_dates
 
     def inspect(self, ctx):
         X, y, L = ctx.X, ctx.y, self.name
-        if X is None:
+        if X is None and not ctx.inputs:
             return self.missing(ctx, "feature panel X")
+        if X is None:
+            return self._inputs_only(ctx)
         out: list[Finding] = []
         if not len(X):
             return [fail(L, "empty-panel", ctx.subject, "feature panel has no rows")], 0
@@ -497,7 +527,18 @@ class DataFirewall(FirewallLayer):
         except ImportError:
             pass
         out.extend(panel_quality_findings(X, self.name, ctx.subject))
-        return out, len(X)
+        n = len(X)
+        if ctx.inputs:
+            from .future_firewall import check_revision, check_survivorship
+            for res in (check_revision(ctx.inputs, ctx.now), check_survivorship(ctx.inputs, ctx.now, ctx.listings)):
+                out.extend(f for f in res.findings if f.layer == self.name)
+                n += res.n_checked
+        if ctx.events is not None or ctx.cache is not None:
+            from .future_firewall import check_network_cache
+            res = check_network_cache(ctx.events, ctx.cache, ctx.now, ctx.blind)
+            out.extend(res.findings)
+            n += res.n_checked
+        return out, n
 
 
 # ---------------------------------------------------------------- 2 TIME
@@ -508,7 +549,7 @@ class TimeFirewall(FirewallLayer):
     def inspect(self, ctx):
         L, out, n = self.name, [], 0
         now = pd.Timestamp(as_date(ctx.now))
-        if ctx.X is None and ctx.frames is None and ctx.decisions is None:
+        if ctx.X is None and ctx.frames is None and ctx.decisions is None and not ctx.inputs:
             return self.missing(ctx, "any dated data (X, frames or decisions)")
         if ctx.X is not None and len(ctx.X):
             d = _panel_dates(ctx.X)
@@ -568,12 +609,11 @@ class TimeFirewall(FirewallLayer):
                                     f"{int(early.sum())} fills at or before the decision's own close / on a non-session", n=int(early.sum())))
                 if (~cal.is_session(fd)).any():
                     out.append(fail(L, "fill-off-session", ctx.subject, f"{int((~cal.is_session(fd)).sum())} fills on weekends/holidays"))
-        for inp in ctx.inputs or ():
-            ts, av = getattr(inp, "timestamp", None), getattr(inp, "available_at", None)
-            n += 1
-            for label, t in (("timestamp", ts), ("available_at", av)):
-                if t is not None and pd.Timestamp(t) > now:
-                    out.append(fail(L, "input-future", getattr(inp, "name", "?"), f"input {label} {pd.Timestamp(t).date()} is after now"))
+        if ctx.inputs:
+            from .future_firewall import check_availability, check_timestamp
+            for res in (check_timestamp(ctx.inputs, ctx.now), check_availability(ctx.inputs, ctx.now)):
+                out.extend(res.findings)
+                n += res.n_checked
         return out, n
 
 
@@ -586,14 +626,20 @@ class MemoryFirewall(FirewallLayer):
         self.policy = policy
 
     def inspect(self, ctx):
-        if ctx.items is None:
-            return self.missing(ctx, "learned items")
-        from .memory_firewall import audit_store
-        rep = audit_store(ctx.items, ctx.now, store=ctx.store(), sealed_windows=ctx.sealed_windows, policy=self.policy)
-        out = list(rep.findings)
-        if not len(ctx.items):
-            out.append(info(self.name, "empty-memory", ctx.subject, "no learned items in play (nothing to contaminate)"))
-        return out, len(ctx.items)
+        if ctx.items is None and ctx.learned_states is None:
+            return self.missing(ctx, "learned items or learned states")
+        from .memory_firewall import audit_state_lineage, audit_store
+        out, n = [], 0
+        if ctx.items is not None:
+            rep = audit_store(ctx.items, ctx.now, store=ctx.store(), sealed_windows=ctx.sealed_windows, policy=self.policy)
+            out.extend(rep.findings)
+            n += len(ctx.items)
+            if not len(ctx.items):
+                out.append(info(self.name, "empty-memory", ctx.subject, "no learned items in play (nothing to contaminate)"))
+        if ctx.learned_states is not None:
+            out.extend(audit_state_lineage(ctx.learned_states, ctx.played))
+            n += len(ctx.learned_states)
+        return out, n
 
 
 # ---------------------------------------------------------------- 4 IDENTITY
@@ -639,14 +685,23 @@ class ProvenanceFirewall(FirewallLayer):
         self.require_hashes = tuple(require_hashes)
 
     def inspect(self, ctx):
-        if ctx.items is None:
-            return self.missing(ctx, "learned items")
+        if ctx.items is None and ctx.registry_records is None and ctx.feature_specs is None:
+            return self.missing(ctx, "learned items, registry records or feature specs")
         L, out = self.name, []
-        known = {str(getattr(i, "knowledge_id", i)) for i in ctx.store()}
+        known = {str(field_of(i, "knowledge_id", i)) for i in ctx.store()}
         seen: dict[tuple, str] = {}
-        for it in ctx.items:
-            kid = str(getattr(it, "knowledge_id", "?"))
-            prov = getattr(it, "provenance", None)
+        extra = 0
+        if ctx.registry_records is not None:
+            out.extend(registry_findings(ctx.registry_records))
+            extra += len(ctx.registry_records)
+        if ctx.feature_specs is not None:
+            from .future_firewall import check_feature_provenance
+            res = check_feature_provenance(ctx.feature_specs, ctx.now, X=ctx.X, y=ctx.y, registered_sources=ctx.sources)
+            out.extend(res.findings)
+            extra += res.n_checked
+        for it in ctx.items or ():
+            kid = str(field_of(it, "knowledge_id", "?"))
+            prov = field_of(it, "provenance", None)
             if prov is None:
                 out.append(fail(L, "no-provenance", kid, "item carries no provenance"))
                 continue
@@ -662,7 +717,7 @@ class ProvenanceFirewall(FirewallLayer):
                     out.append(fail(L, "parent-unresolved", kid, f"parent {p!r} is not in the store"))
                 if p == kid:
                     out.append(fail(L, "self-parent", kid, "item lists itself as a parent"))
-            key = (kid, getattr(it, "version", None))
+            key = (kid, field_of(it, "version", None))
             fp = stable_hash([prov.learned_at, prov.code_hash, prov.data_hash, prov.experiment_id])
             if key in seen and seen[key] != fp:
                 out.append(fail(L, "version-conflict", kid, f"two different provenances claim version {key[1]}"))
@@ -672,7 +727,7 @@ class ProvenanceFirewall(FirewallLayer):
                     parse_window(s)
                 except (ValueError, KeyError, TypeError):
                     out.append(fail(L, "sealed-window-unparseable", kid, f"sealed window {s!r} cannot be parsed"))
-        return out, len(ctx.items)
+        return out, len(ctx.items or ()) + extra
 
 
 # ---------------------------------------------------------------- 6 EXPERIMENT
@@ -804,11 +859,11 @@ class CodeVersionFirewall(FirewallLayer):
                     out.append(fail(L, "stale-result", ctx.subject, "code on disk no longer matches the recorded code hash"))
         n = 1
         for it in ctx.items or ():
-            prov = getattr(it, "provenance", None)
+            prov = field_of(it, "provenance", None)
             if prov is None:
                 continue
             n += 1
-            h, kid = prov.code_hash, str(getattr(it, "knowledge_id", "?"))
+            h, kid = prov.code_hash, str(field_of(it, "knowledge_id", "?"))
             if cs.known_hashes and h not in cs.known_hashes:
                 out.append(fail(L, "unregistered-code", kid, f"item was built by code {h!r} that was never registered"))
             elif h in cs.known_hashes and prov.created_real and str(cs.known_hashes[h]) > str(prov.created_real):
@@ -885,6 +940,10 @@ class GateLedger:
                 errs.append(f"row {i}: broken chain link")
             if r["chain"] != stable_hash([r["prev"], r["verdict"]["digest"]], 32):
                 errs.append(f"row {i}: chain hash mismatch (row edited)")
+            try:
+                verdict_from_dict(r["verdict"])                       # recomputes the verdict digest from the stored content
+            except (FirewallBreach, KeyError, ValueError) as e:
+                errs.append(f"row {i}: verdict content does not match its digest ({e})")
             prev = r["chain"]
         return errs
 
@@ -1061,3 +1120,148 @@ def assert_gate_can_fail(gate: LearningFirewallGate, clean: GateContext, planted
         raise FirewallBreach("self-check: the gate rejected a known-clean context (over-strict or broken)")
     if gate.evaluate(planted).passed:
         raise FirewallBreach("self-check: the gate accepted a known-planted leak (it cannot fail)")
+
+
+# ---------------------------------------------------------------- provenance audit of experiment records
+def registry_findings(records: Sequence[Mapping], required: Sequence[str] | None = None, min_complete_share: float = 1.0) -> list[Finding]:
+    """Provenance audit (state/research/registry_audit.json, checklist A05 / G01 / K14 / L14): every experiment record must
+    carry the registry's REQUIRED fields (experiment id, git commit, canon hash, config hash, data snapshot, seed, ...).
+    The audit that found 2 of 53 records complete is exactly what this rejects: a learning result whose record has holes
+    cannot be reproduced and so cannot be promoted. Built on engine.registry.REQUIRED / _get / _empty."""
+    from engine.registry import REQUIRED, _empty, _get
+    req = tuple(required) if required is not None else tuple(REQUIRED)
+    L = LayerName.PROVENANCE
+    if records is None:
+        return [fail(L, "registry-missing", "registry", "no experiment records supplied")]
+    if not len(records):
+        return [fail(L, "registry-empty", "registry", "the experiment registry holds no records: nothing shows any experiment was recorded")]
+    out: list[Finding] = []
+    missing_by_field: dict[str, int] = {f: 0 for f in req}
+    complete = 0
+    ids: dict[str, int] = {}
+    for i, r in enumerate(records):
+        miss = [f for f in req if _empty(_get(r, f))]
+        for f in miss:
+            missing_by_field[f] += 1
+        complete += not miss
+        eid = _get(r, "experiment_id")
+        if eid:
+            ids[eid] = ids.get(eid, 0) + 1
+        if miss:
+            out.append(fail(L, "record-incomplete", str(eid or f"record {i}"), f"missing {miss[:6]}{'...' if len(miss) > 6 else ''}", missing=miss))
+    dups = sorted(k for k, v in ids.items() if v > 1)
+    if dups:
+        out.append(fail(L, "duplicate-experiment-id", dups[0], f"{len(dups)} experiment id(s) used by more than one record", n=len(dups)))
+    share = complete / len(records)
+    if share < min_complete_share:
+        worst = sorted(missing_by_field.items(), key=lambda kv: -kv[1])[:4]
+        out.append(fail(L, "registry-incomplete", "registry", f"only {complete} of {len(records)} records ({share:.0%}) carry every required field; "
+                        f"most often missing: {[f'{k} ({v})' for k, v in worst if v]}", complete=complete, total=len(records)))
+    return out
+
+
+# ---------------------------------------------------------------- catalogue of checks (what each layer can and cannot catch)
+@dataclasses.dataclass(frozen=True)
+class CheckSpec:
+    layer: LayerName
+    check: str
+    contract: str                              # contract section / checklist item
+    catches: str
+
+
+def _cs(layer, check, contract, catches):
+    return CheckSpec(layer, check, contract, catches)
+
+
+CATALOG: tuple[CheckSpec, ...] = (
+    _cs(LayerName.DATA, "duplicate-rows", "H01", "the same (date, ticker) twice"),
+    _cs(LayerName.DATA, "forbidden-name", "H05", "a feature named like a label or a future value"),
+    _cs(LayerName.DATA, "label-copy", "H05", "a feature that is (nearly) the label"),
+    _cs(LayerName.DATA, "implausible-ic", "H05", "a single feature with an unbelievable rank IC"),
+    _cs(LayerName.DATA, "infinite-values", "H01", "infinities in the panel"),
+    _cs(LayerName.DATA, "mostly-missing", "H01", "columns that are mostly NaN"),
+    _cs(LayerName.DATA, "back-adjusted-levels", "H01/leak channel 2", "price levels adjusted for later splits"),
+    _cs(LayerName.DATA, "future-listing-columns", "H08/leak channel 8c", "columns for names that list later"),
+    _cs(LayerName.DATA, "column-order-reveals-identity", "H08/leak channel 8c", "real alphabetical column order"),
+    _cs(LayerName.DATA, "absolute-market-level", "H01/leak channel 8c", "an absolute market level that dates the era"),
+    _cs(LayerName.DATA, "survivor-only-panel", "H08/leak channel 1", "a panel with no dead names"),
+    _cs(LayerName.DATA, "network-in-blind-run", "H11/leak channel 7", "network access during a blind run"),
+    _cs(LayerName.DATA, "cache-past-now", "H11", "a cache holding data after the decision date"),
+    _cs(LayerName.TIME, "future-rows", "H01", "feature rows dated after now"),
+    _cs(LayerName.TIME, "label-not-closed", "H01", "training labels that close on/after now"),
+    _cs(LayerName.TIME, "unpurged-overlap", "H01", "training labels reaching into the test period"),
+    _cs(LayerName.TIME, "fill-not-next-session", "H01", "a fill at or before the decision's own close"),
+    _cs(LayerName.TIME, "not-yet-published", "H06", "data used before its publication lag elapsed"),
+    _cs(LayerName.TIME, "impossibly-fast", "H06", "an availability claim faster than physically possible"),
+    _cs(LayerName.MEMORY, "learned-after-now", "H03", "an item learned at/after the decision time"),
+    _cs(LayerName.MEMORY, "saw-future-outcomes", "H03", "an item that saw outcomes at/after now"),
+    _cs(LayerName.MEMORY, "tainted-by-parent", "H03", "an item derived from a future parent"),
+    _cs(LayerName.MEMORY, "saw-sealed-window", "H10", "an item that saw a sealed evaluation window"),
+    _cs(LayerName.MEMORY, "outcome-labels-stored", "H03", "outcome labels stored in a payload"),
+    _cs(LayerName.MEMORY, "answer-lookup-table", "H03", "a table keyed by ticker/date instead of a situation"),
+    _cs(LayerName.MEMORY, "state-trained-on-future-window", "H03/leak channel 4", "learned state fitted on a later window"),
+    _cs(LayerName.MEMORY, "state-trained-on-same-window", "H03/leak channel 4", "learned state fitted on the window being played"),
+    _cs(LayerName.IDENTITY, "collapse", "H11", "skill that collapses when identities change"),
+    _cs(LayerName.IDENTITY, "nondeterministic", "H11", "a learner that disagrees with itself"),
+    _cs(LayerName.PROVENANCE, "hash-missing", "A05", "an item without code/data/config/experiment hashes"),
+    _cs(LayerName.PROVENANCE, "parent-unresolved", "A13", "a parent that is not in the store"),
+    _cs(LayerName.PROVENANCE, "record-incomplete", "G01/K14", "an experiment record missing required fields"),
+    _cs(LayerName.PROVENANCE, "registry-incomplete", "G01/K14", "a registry where most records lack provenance"),
+    _cs(LayerName.EXPERIMENT, "best-of-n", "H10", "the best of many runs reported without correction"),
+    _cs(LayerName.EXPERIMENT, "tuned-on-evaluation", "H10", "fitting or tuning on a sealed evaluation window"),
+    _cs(LayerName.EXPERIMENT, "post-hoc-thresholds", "H10", "thresholds changed after seeing results"),
+    _cs(LayerName.EVALUATION, "not-sealed", "H10", "an evaluation window that was never sealed"),
+    _cs(LayerName.EVALUATION, "train-eval-overlap", "H10", "training and evaluation windows that overlap"),
+    _cs(LayerName.EVALUATION, "state-changed-by-evaluation", "H10", "test results that altered training state"),
+    _cs(LayerName.EVALUATION, "rerun-identified", "H10", "a learner able to tell a disguised rerun"),
+    _cs(LayerName.EVALUATION, "window-burned", "H10", "an evaluation window judged too many times"),
+    _cs(LayerName.CODE_VERSION, "stale-result", "H12/section 62 test 12", "a result from code that has since changed"),
+    _cs(LayerName.CODE_VERSION, "code-edited-mid-run", "H12/section 62 test 12", "source edited while a worker ran"),
+    _cs(LayerName.CODE_VERSION, "unregistered-code", "A13", "a record made by code that was never registered"),
+)
+
+
+def catalogued_checks() -> dict[tuple[str, str], CheckSpec]:
+    return {(c.layer.value, c.check): c for c in CATALOG}
+
+
+def unexercised_checks(verdicts: Iterable[GateVerdict]) -> list[CheckSpec]:
+    """Catalogued checks that NEVER produced a finding across the supplied verdicts. In a corpus that plants each defect,
+    a check that never fires cannot fail - the situation section 62 calls worthless."""
+    seen = {(f.layer.value, f.check) for v in verdicts for f in v.findings()}
+    return [c for c in CATALOG if (c.layer.value, c.check) not in seen]
+
+
+def uncatalogued_findings(verdicts: Iterable[GateVerdict]) -> list[tuple[str, str]]:
+    """Checks that fire but appear in no catalogue entry: undocumented behaviour of the gate."""
+    known = catalogued_checks()
+    return sorted({(f.layer.value, f.check) for v in verdicts for f in v.findings() if (f.layer.value, f.check) not in known})
+
+
+def verdict_from_dict(d: Mapping) -> GateVerdict:
+    """Inverse of GateVerdict.to_dict (for reading the ledger back). Findings keep their evidence; the digest is recomputed
+    and must match the stored one, or the row was edited."""
+    verdicts: dict[LayerName, LayerVerdict] = {}
+    for k, lv in d["layers"].items():
+        fs = tuple(Finding(LayerName(f["layer"]), f["check"], Severity(f["severity"]), f["subject"], f["message"], f.get("evidence") or {})
+                   for f in lv["findings"])
+        verdicts[LayerName(k)] = LayerVerdict(LayerName(k), LayerStatus(lv["status"]), fs, int(lv["n_checked"]))
+    gv = GateVerdict(d["now"], d["subject"], verdicts, d.get("context_fingerprint", ""))
+    if d.get("digest") and gv.digest() != d["digest"]:
+        raise FirewallBreach(f"verdict {d['subject']}@{d['now']} does not match its stored digest (edited or lossy)")
+    return gv
+
+
+def gate_from_names(names: Iterable[str]) -> LearningFirewallGate:
+    """A gate with only the named layers (for tests of one layer in isolation). Unknown names are an error, not ignored."""
+    want = [LayerName(n) for n in names]
+    layers = [layer for layer in default_layers() if layer.name in want]
+    if len(layers) != len(want):
+        raise ValueError(f"unknown layer in {list(names)}")
+    return LearningFirewallGate(layers)
+
+
+def worst_findings(verdict: GateVerdict, n: int = 5) -> list[Finding]:
+    """The most informative failures first: those with numeric evidence, then by layer order."""
+    fs = verdict.findings(Severity.FAIL)
+    return sorted(fs, key=lambda f: (-len(f.evidence), LAYER_ORDER.index(f.layer), f.check))[:n]

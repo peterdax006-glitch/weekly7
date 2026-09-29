@@ -68,3 +68,6 @@ that the owner should record.
 17. Types: frozen/slotted dataclasses or explicit classes with validate() - never one giant untyped dict (section 5).
     Everything time-aware takes `now` and must fail closed (FirewallBreach) on anything dated at/after it.
 18. Report additionally: per contract section, meaningful lines written (non-blank, non-comment) vs the minimum.
+19. ONE RULER for line minimums: `.venv/Scripts/python scripts/contract_lines.py <your files>` (excludes docstrings, comments,
+    blank lines). Report those numbers. A module under its minimum is incomplete (contract section 83) unless you name where
+    the equivalent functionality genuinely lives.

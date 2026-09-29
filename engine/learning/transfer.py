@@ -27,14 +27,18 @@ from __future__ import annotations
 import dataclasses
 import datetime as dt
 import math
+import os
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Callable, Iterable, Mapping, Sequence
 
 import numpy as np
 import pandas as pd
 
-from .core import (Confidence, FirewallBreach, KnowledgeLike, ValidationLabel, _StrEnum, as_date, clip01, require_past,
-                   stable_hash)
+from .core import (Confidence, FirewallBreach, KnowledgeLike, ValidationLabel, _StrEnum, as_date, canonical_json, clip01,
+                   require_past, stable_hash)
+from .. import blind_gates as BG
+from .. import learning_delta as LD
 from . import transfer_score as TS
 
 UNKNOWN_LABEL = "UNKNOWN"
@@ -753,3 +757,482 @@ def harness_selfcheck(seed: int = 0, n_boot: int = 300) -> dict:
         res = cross_validate_transfer(u, fit, now, axes=(Axis.YEAR, Axis.STOCK), seed=seed, n_boot=n_boot, min_units=30)
         out[name] = {ax.value: (r.verdict.label.value, r.ratio.value, r.cross.mean, r.same.mean) for ax, r in res.items()}
     return out
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# interaction between axes: where exactly does the lesson stop working?
+# ---------------------------------------------------------------------------------------------------------------
+def interaction_table(units: pd.DataFrame, scope: TrainingScope, now, ax1: Axis, ax2: Axis, *, seed: int = 0, n_boot: int = 400,
+                      min_units: int = 30, cluster_by: str = "month") -> pd.DataFrame:
+    """Gain on forward, non-replayed units in the four cells familiar/novel on ax1 x familiar/novel on ax2. Shows interactions the
+    marginal report hides: 'transfers to new years in the same regime, fails to new regimes in any year'. Units unlabelled on
+    either axis are excluded (untested, not novel). Cells below min_units are reported with enough=False."""
+    if ax1 == ax2:
+        raise ValueError("choose two different axes")
+    d = prepare_units(units, now, cluster_by=cluster_by)
+    scope.validate(now)
+    m = _masks(d, scope) if len(d) else None
+    rows = []
+    if m is not None:
+        base = (m.fwd & ~m.replay).to_numpy()
+        for f1 in (True, False):
+            for f2 in (True, False):
+                a = (m.fam[ax1] if f1 else m.nov[ax1]).to_numpy()
+                b = (m.fam[ax2] if f2 else m.nov[ax2]).to_numpy()
+                bm = _bm(d, base & a & b, n_boot, seed + 31 * (int(f1) * 2 + int(f2) + 1))
+                rows.append({ax1.value: "familiar" if f1 else "novel", ax2.value: "familiar" if f2 else "novel", "n": bm.n, "gain": bm.mean,
+                             "lo": bm.lo, "hi": bm.hi, "enough": bm.n >= min_units})
+    return pd.DataFrame(rows, columns=[ax1.value, ax2.value, "n", "gain", "lo", "hi", "enough"])
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# distance and time decay
+# ---------------------------------------------------------------------------------------------------------------
+@dataclass(frozen=True)
+class DecayTable:
+    kind: str                       # 'feature-distance' or 'time-since-learning'
+    frame: pd.DataFrame
+    spearman: float                 # rank correlation of per-unit gain with distance / age
+    half_life: float | None         # time decay only: days for the gain to halve (None: no decay found)
+    decays: bool
+
+    def statement(self) -> str:
+        if self.kind == "time-since-learning":
+            if not self.decays:
+                return "no decay of the gain with time since learning detected"
+            return "lesson decays" + (f" with half-life {self.half_life:.0f} days" if self.half_life else "")
+        return ("gain falls as the situation moves away from the training conditions" if self.decays
+                else "gain does not fall with distance from the training conditions")
+
+
+_DECAY_COLS = {"feature-distance": ["bin", "lo_dist", "hi_dist", "n", "gain", "lo", "hi", "enough"],
+               "time-since-learning": ["bin", "days_from", "days_to", "n", "gain", "lo", "hi", "enough"]}
+
+
+def distance_decay(units: pd.DataFrame, train: pd.DataFrame, scope: TrainingScope, now, feature_cols: Sequence[str], *, n_bins: int = 4,
+                   seed: int = 0, n_boot: int = 400, min_units: int = 30, cluster_by: str = "month") -> DecayTable:
+    """Gain against how far a situation's numeric context (e.g. market volatility, trailing return, breadth) lies from the
+    training conditions. Distance = root-mean-square z-score of the features, centred and scaled on the TRAINING units only, so
+    'different market conditions' is measured on a continuum, not only by labels. Forward, non-replayed units only."""
+    from scipy.stats import spearmanr
+    d = prepare_units(units, now, cluster_by=cluster_by)
+    t = prepare_units(train, now, cluster_by=cluster_by)
+    scope.validate(now)
+    for c in feature_cols:
+        if c not in d or c not in t:
+            raise ValueError(f"feature column {c!r} missing from units or train")
+    empty = DecayTable("feature-distance", pd.DataFrame(columns=_DECAY_COLS["feature-distance"]), float("nan"), None, False)
+    if len(d) == 0 or len(t) < 2:
+        return empty
+    cols = list(feature_cols)
+    mu, sd = t[cols].mean(), t[cols].std(ddof=0).replace(0, 1.0)
+    dist = np.sqrt((((d[cols] - mu) / sd) ** 2).mean(axis=1)).to_numpy()
+    m = _masks(d, scope)
+    sel = (m.fwd & ~m.replay).to_numpy() & np.isfinite(dist)
+    if int(sel.sum()) < max(min_units, 2 * n_bins):
+        return empty
+    edges = np.unique(np.quantile(dist[sel], np.linspace(0, 1, n_bins + 1)))
+    idx = np.clip(np.searchsorted(edges, dist, side="right") - 1, 0, len(edges) - 2)
+    rows = []
+    for b in range(len(edges) - 1):
+        bm = _bm(d, sel & (idx == b), n_boot, seed + 53 * (b + 1))
+        rows.append({"bin": b, "lo_dist": float(edges[b]), "hi_dist": float(edges[b + 1]), "n": bm.n, "gain": bm.mean, "lo": bm.lo,
+                     "hi": bm.hi, "enough": bm.n >= min_units})
+    fr = pd.DataFrame(rows)
+    g = d.loc[sel, "gain"]
+    rho = float(spearmanr(dist[sel], g.to_numpy())[0]) if g.std() > 0 else float("nan")
+    ok = fr[fr["enough"]]
+    decays = bool(len(ok) >= 2 and math.isfinite(rho) and rho < -0.03 and ok["gain"].iloc[-1] < ok["gain"].iloc[0] and ok["lo"].iloc[0] > 0)
+    return DecayTable("feature-distance", fr, rho, None, decays)
+
+
+def time_decay(units: pd.DataFrame, scope: TrainingScope, now, *, bin_days: int = 91, seed: int = 0, n_boot: int = 400, min_units: int = 30,
+               cluster_by: str = "month") -> DecayTable:
+    """Gain against time since the learner stopped learning (`learned_through`). Half-life: exponential fit through the bins with
+    a positive gain (at least three); None when the gain does not fall. A short half-life means the lesson is regime- or
+    period-bound and must be re-validated on a schedule rather than trusted forever (section 14 time-aware memory)."""
+    from scipy.stats import spearmanr
+    d = prepare_units(units, now, cluster_by=cluster_by)
+    scope.validate(now)
+    kind = "time-since-learning"
+    if len(d) == 0:
+        return DecayTable(kind, pd.DataFrame(columns=_DECAY_COLS[kind]), float("nan"), None, False)
+    age = (d["date"] - pd.Timestamp(scope.learned_through)).dt.days.to_numpy()
+    m = _masks(d, scope)
+    sel = (m.fwd & ~m.replay).to_numpy()
+    rows = []
+    for b in sorted(set((age[sel] // bin_days).tolist())):
+        bm = _bm(d, sel & (age // bin_days == b), n_boot, seed + 71 * (int(b) + 1))
+        rows.append({"bin": int(b), "days_from": int(b * bin_days), "days_to": int((b + 1) * bin_days), "n": bm.n, "gain": bm.mean,
+                     "lo": bm.lo, "hi": bm.hi, "enough": bm.n >= min_units})
+    fr = pd.DataFrame(rows, columns=_DECAY_COLS[kind])
+    ok = fr[fr["enough"] & (fr["gain"] > 0)]
+    half, decays = None, False
+    if len(ok) >= 3:
+        tmid = (ok["days_from"] + ok["days_to"]).to_numpy() / 2.0
+        slope = np.polyfit(tmid, np.log(ok["gain"].to_numpy()), 1)[0]
+        if slope < 0:
+            half, decays = float(math.log(2) / -slope), True
+    g = d.loc[sel, "gain"]
+    rho = float(spearmanr(age[sel], g.to_numpy())[0]) if sel.sum() > 3 and g.std() > 0 else float("nan")
+    if decays and math.isfinite(rho) and rho > -0.02:
+        half, decays = None, False                    # the bins fell but the unit-level trend does not: do not claim decay
+    return DecayTable(kind, fr, rho, half, decays)
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# walk-forward: a fresh lesson at every origin
+# ---------------------------------------------------------------------------------------------------------------
+@dataclass(frozen=True)
+class WalkForward:
+    table: pd.DataFrame            # one row per origin: cut, n_train, n_test, gain
+    pooled: TS.BootMean
+    stability: TS.TransferStability
+    rolling: TS.RollingStability
+    p_signflip: float
+
+    def gains(self) -> np.ndarray:
+        return self.table["gain"].to_numpy(float)
+
+
+def walk_forward_transfer(units: pd.DataFrame, fit: Fit, now, *, cuts: Sequence | None = None, horizon_days: int = 91, purge_days: int = 0,
+                          min_train_units: int = 200, n_cuts: int = 8, cluster_by: str = "month", n_boot: int = 500, seed: int = 0) -> WalkForward:
+    """Rolling-origin evaluation. At each cut the learner is retrained on units whose outcomes matured before cut - purge_days,
+    then scored on the units decided in [cut, cut + horizon_days). Every test unit is later than everything the learner used, so
+    each origin is a genuine unseen-future test; the series of origin gains is the transfer track record (stability, rolling
+    persistence). `cuts` default to n_cuts evenly spaced decision dates after the first min_train_units matured units."""
+    d = prepare_units(units.assign(learned=units["base"]) if "learned" not in units else units, now, cluster_by=cluster_by)
+    cols = ["cut", "n_train", "n_test", "gain"]
+    empty = WalkForward(pd.DataFrame(columns=cols), TS.cluster_bootstrap_mean([], None), TS.transfer_stability([]), TS.rolling_stability([]), float("nan"))
+    if len(d) == 0:
+        return empty
+    if "alt" not in d:
+        raise ValueError("walk_forward_transfer needs an 'alt' column")
+    if cuts is None:
+        dates = np.array(sorted(d["date"].unique()))
+        first = d.sort_values("mature")["mature"].iloc[min(min_train_units, len(d) - 1)]
+        pool = dates[dates > np.datetime64(first)]
+        cuts = list(pd.to_datetime(pool[np.linspace(0, len(pool) - 1, n_cuts).astype(int)])) if len(pool) else []
+    rows, gains, cls = [], [], []
+    for c in sorted(set(pd.Timestamp(x) for x in cuts)):
+        tr = np.flatnonzero((d["mature"] < c - pd.Timedelta(days=purge_days)).to_numpy())
+        te = np.flatnonzero(((d["date"] >= c) & (d["date"] < c + pd.Timedelta(days=horizon_days))).to_numpy())
+        if len(tr) < min_train_units or len(te) == 0:
+            continue
+        if d.iloc[tr]["mature"].max() >= d.iloc[te]["date"].min():
+            raise FirewallBreach(f"walk-forward cut {c.date()}: a training outcome matured at/after the first test decision")
+        g = _apply(d, fit(d.iloc[tr].copy()), te)
+        rows.append({"cut": c, "n_train": int(len(tr)), "n_test": int(len(te)), "gain": float(g.mean())})
+        gains.append(g)
+        cls.append(d.iloc[te]["cluster"].to_numpy())
+    if not rows:
+        return empty
+    tab = pd.DataFrame(rows, columns=cols)
+    allg, allc = np.concatenate(gains), np.concatenate(cls)
+    return WalkForward(tab, TS.cluster_bootstrap_mean(allg, allc, n_boot=n_boot, seed=seed), TS.transfer_stability(tab["gain"]),
+                       TS.rolling_stability(tab["gain"], window=min(4, max(1, len(tab)))), TS.cluster_signflip_p(allg, allc, seed=seed))
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# per-era and per-item breakdowns, report comparison, persistence
+# ---------------------------------------------------------------------------------------------------------------
+def evaluate_by_era(units: pd.DataFrame, scope: TrainingScope, now, **kw) -> dict:
+    """evaluate_transfer separately per cost/regime era of the unit's date (blind_gates.era_of, reused). An era with too few units
+    is still reported, as INSUFFICIENT_EVIDENCE, never dropped."""
+    d = prepare_units(units, now, cluster_by=kw.get("cluster_by", "month"))
+    era = d["date"].map(BG.era_of) if len(d) else pd.Series([], dtype=str)
+    return {e: evaluate_transfer(d[era == e], scope, now, **kw) for e in sorted(set(era))}
+
+
+def item_transfer_table(units_by_item: Mapping[str, pd.DataFrame], scopes: Mapping[str, TrainingScope], now, *, seed: int = 0, n_boot: int = 300,
+                        min_units: int = 30, method: str = "bh") -> pd.DataFrame:
+    """One row per knowledge item: its unseen-year gain, interval, cluster sign-flip p-value, multiple-testing adjusted q across
+    ALL items tested (a hundred items will show a few 'transferring' by luck), verdict and Confidence.transfer. Items sorted by id."""
+    rows = []
+    for kid in sorted(units_by_item):
+        if kid not in scopes:
+            raise KeyError(f"no training scope for item {kid}")
+        d = prepare_units(units_by_item[kid], now)
+        rep = evaluate_transfer(d, scopes[kid], now, axes=(Axis.YEAR,), seed=seed, n_boot=n_boot, min_units=min_units, ratio_boot=False)
+        r = rep.axes.get(Axis.YEAR)
+        if r is None or not r.tested:
+            rows.append({"item": kid, "n": 0, "gain": float("nan"), "lo": float("nan"), "hi": float("nan"), "p": float("nan"),
+                         "verdict": "INSUFFICIENT_EVIDENCE", "confidence_transfer": None})
+            continue
+        sel = _select(_masks(d, scopes[kid]), Axis.YEAR, "marginal")[2]
+        rows.append({"item": kid, "n": r.cross.n, "gain": r.cross.mean, "lo": r.cross.lo, "hi": r.cross.hi,
+                     "p": TS.cluster_signflip_p(d.loc[sel, "gain"], d.loc[sel, "cluster"], seed=seed), "verdict": r.verdict.label.value,
+                     "confidence_transfer": transfer_confidence(rep)})
+    fr = pd.DataFrame(rows, columns=["item", "n", "gain", "lo", "hi", "p", "verdict", "confidence_transfer"])
+    fr["q"] = TS.adjust_many(fr["p"].to_numpy(float), method) if len(fr) else []
+    return fr
+
+
+def compare_reports(old: TransferReport, new: TransferReport) -> dict:
+    """Per axis: did the unseen-context gain separate (non-overlapping intervals) upward or downward between two learner versions?
+    Untested axes on either side are listed, not compared."""
+    out = {"better": [], "worse": [], "same": [], "untested": []}
+    for ax in sorted(set(old.axes) | set(new.axes), key=lambda a: a.value):
+        a, b = old.axes.get(ax), new.axes.get(ax)
+        if a is None or b is None or not a.tested or not b.tested or not (math.isfinite(a.cross.lo) and math.isfinite(b.cross.lo)):
+            out["untested"].append(ax.value)
+        elif b.cross.lo > a.cross.hi:
+            out["better"].append(ax.value)
+        elif b.cross.hi < a.cross.lo:
+            out["worse"].append(ax.value)
+        else:
+            out["same"].append(ax.value)
+    return out
+
+
+def json_load(path) -> dict:
+    import json
+    return json.loads(Path(path).read_text(encoding="utf-8"))
+
+
+def save_report(report: TransferReport, out_dir, *, cfg=None, seed=None, name: str | None = None) -> dict:
+    """Write <name>.json (record + provenance stamp) and <name>.txt (render) atomically (temp file then replace) and return the
+    paths. Never overwrites a different record under the same name: a report id is content-addressed and part of the default name."""
+    from .. import provenance
+    rec = report.as_record()
+    rec["provenance"] = provenance.stamp(cfg, seed)
+    base = name or f"transfer_{report.now.isoformat()}_{rec['report_id']}"
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    paths = {"json": out / f"{base}.json", "txt": out / f"{base}.txt"}
+    if paths["json"].exists() and json_load(paths["json"]).get("report_id") != rec["report_id"]:
+        raise FileExistsError(f"{paths['json']} holds a different report; choose another name")
+    for key, text in (("json", canonical_json(rec)), ("txt", render_report(report))):
+        tmp = paths[key].with_suffix(paths[key].suffix + ".tmp")
+        tmp.write_bytes(text.encode("utf-8"))                # bytes: no CRLF rewrite on Windows
+        os.replace(tmp, paths[key])
+    return {k: str(v) for k, v in paths.items()}
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# identity scrambling for the unit-table harness (full windows use learning_delta.make_presentation)
+# ---------------------------------------------------------------------------------------------------------------
+def disguised_presentation(window, seed: int):
+    """The audited whole-window disguise: learning_delta.make_presentation with a random (not order-preserving) relabel and a fresh
+    whole-week date shift. A thin pointer so this package does not grow a second disguise."""
+    return LD.make_presentation(window, seed, order_preserving=False)
+
+
+def scrambled_frame(df: pd.DataFrame, seed: int) -> pd.DataFrame:
+    """Unit-table analogue of the disguise: tickers permuted among themselves, dates moved by one common whole-week shift; every
+    feature and outcome untouched. A learner that reads only features is unaffected; one that keys on (ticker, date) is blind."""
+    rng = np.random.default_rng(seed)
+    tick = np.array(sorted(df["ticker"].astype(str).unique()))
+    perm = dict(zip(tick, rng.permutation(tick)))
+    shift = pd.Timedelta(weeks=int(rng.integers(-300, 300)) or 1)
+    out = df.copy()
+    out["ticker"] = out["ticker"].astype(str).map(perm)
+    out["date"] = pd.to_datetime(out["date"]) + shift
+    if "mature" in out:
+        out["mature"] = pd.to_datetime(out["mature"]) + shift
+    return out
+
+
+def identity_probe_units(units: pd.DataFrame, fit: Fit, fold: Fold, now, *, seed: int = 0, on: str = "test") -> pd.DataFrame:
+    """Units with learned (original identities) and learned_disguised (identities scrambled) so evaluate_transfer / identity_gap can
+    report the identity gap. Training is done once on the fold's training units. on='test' scores the held-out units (a memoriser
+    has nothing to recall there, so its gap is ~0 by construction); on='train' scores the situations the learner trained on,
+    which is where identity recall shows: original identities replay the answer, scrambled ones do not."""
+    if on not in ("test", "train"):
+        raise ValueError("on must be 'test' or 'train'")
+    d = prepare_units(units.assign(learned=units["base"]) if "learned" not in units else units, now)
+    predict = fit(d.iloc[fold.train_idx].copy())
+    te = d.iloc[fold.test_idx if on == "test" else fold.train_idx].copy()
+    delta = te["alt"].to_numpy(float) - te["base"].to_numpy(float)
+    w0 = np.asarray(predict(te), float)
+    w1 = np.asarray(predict(scrambled_frame(te, seed)), float)
+    te["learned"] = te["base"] + np.clip(w0, 0, 1) * delta
+    te["learned_disguised"] = te["base"] + np.clip(w1, 0, 1) * delta
+    return te
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# a declarative protocol, so a transfer test is reproducible and versioned
+# ---------------------------------------------------------------------------------------------------------------
+@dataclass(frozen=True)
+class TransferProtocol:
+    """Everything that shapes a transfer evaluation except the data. Frozen and hashed: two reports are comparable only if their
+    protocol fingerprints match, and a threshold cannot be quietly loosened between learner versions."""
+    axes: tuple = ALL_AXES
+    mode: str = "marginal"
+    cluster_by: str = "month"
+    n_boot: int = 600
+    min_units: int = 30
+    min_group_units: int = 10
+    n_stock_groups: int = 8
+    ratio_boot: bool = True
+    seed: int = 0
+
+    def validate(self) -> list[str]:
+        errs = []
+        if self.mode not in ("marginal", "isolated"):
+            errs.append(f"mode {self.mode!r}")
+        if self.cluster_by not in CLUSTER_FORMATS:
+            errs.append(f"cluster_by {self.cluster_by!r}")
+        if not self.axes or any(not isinstance(a, Axis) for a in self.axes):
+            errs.append("axes must be a non-empty tuple of Axis")
+        if self.n_boot < 100:
+            errs.append("n_boot < 100 gives unusable intervals")
+        if self.min_units < 5 or self.min_group_units < 2 or self.n_stock_groups < 2:
+            errs.append("minimum sizes too small to test anything")
+        return errs
+
+    def fingerprint(self) -> str:
+        return stable_hash({**dataclasses.asdict(self), "axes": [a.value for a in self.axes]})
+
+    def run(self, units: pd.DataFrame, scope: TrainingScope, now) -> TransferReport:
+        errs = self.validate()
+        if errs:
+            raise ValueError("invalid protocol: " + "; ".join(errs))
+        return evaluate_transfer(units, scope, now, axes=self.axes, mode=self.mode, cluster_by=self.cluster_by, n_boot=self.n_boot, seed=self.seed,
+                                 min_units=self.min_units, min_group_units=self.min_group_units, n_stock_groups=self.n_stock_groups, ratio_boot=self.ratio_boot)
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# the transfer matrix: which contexts teach which
+# ---------------------------------------------------------------------------------------------------------------
+@dataclass(frozen=True)
+class TransferMatrix:
+    axis: Axis
+    gains: pd.DataFrame            # rows = context trained on, columns = context tested on
+    counts: pd.DataFrame
+    forward: pd.DataFrame          # True where the test context lies wholly after the training context (a legitimate future test)
+    diagonal_note: str
+
+    def summary(self) -> dict:
+        """Diagonal (same context, out of time) against off-diagonal (other context) and the asymmetry of pairs."""
+        g = self.gains
+        labs = list(g.index)
+        diag = np.array([g.loc[a, a] for a in labs if a in g.columns], float)
+        off = [(a, b, g.loc[a, b]) for a in labs for b in g.columns if a != b and np.isfinite(g.loc[a, b])]
+        offv = np.array([v for _, _, v in off], float)
+        fwd = np.array([g.loc[a, b] for a in labs for b in g.columns if a != b and bool(self.forward.loc[a, b]) and np.isfinite(g.loc[a, b])], float)
+        asym = [abs(g.loc[a, b] - g.loc[b, a]) for a in labs for b in labs if a < b and np.isfinite(g.loc[a, b]) and np.isfinite(g.loc[b, a])]
+        worst = min(off, key=lambda t: t[2]) if off else None
+        dm, om = (float(np.nanmean(diag)) if len(diag) and np.isfinite(diag).any() else float("nan")), (float(offv.mean()) if len(offv) else float("nan"))
+        return {"diagonal_mean": dm, "offdiagonal_mean": om, "forward_offdiagonal_mean": float(fwd.mean()) if len(fwd) else float("nan"),
+                "ratio": TS.transfer_ratio(om, dm) if math.isfinite(dm) and math.isfinite(om) else None,
+                "mean_asymmetry": float(np.mean(asym)) if asym else float("nan"),
+                "worst_pair": None if worst is None else {"trained_on": worst[0], "tested_on": worst[1], "gain": float(worst[2])},
+                "share_offdiagonal_positive": float((offv > 0).mean()) if len(offv) else float("nan")}
+
+
+def transfer_matrix(units: pd.DataFrame, fit: Fit, now, axis: Axis = Axis.YEAR, *, min_units: int = 30, max_labels: int = 12,
+                    cluster_by: str = "month") -> TransferMatrix:
+    """Train on ONE context at a time and test on every context. The diagonal is same-context but out of time (train on the earlier
+    half of the context's units, test on the later half); off-diagonal cells train on the whole of context i and test on the
+    whole of context j. For YEAR, cell (i, j) is a legitimate future test only when j > i and i's outcomes matured before j
+    began (marked in `forward`; others are reported but flagged). Cells with fewer than min_units test units are NaN."""
+    d = prepare_units(units.assign(learned=units["base"]) if "learned" not in units else units, now, cluster_by=cluster_by)
+    if "alt" not in d:
+        raise ValueError("transfer_matrix needs an 'alt' column")
+    col = AXIS_COL[axis]
+    labs = sorted(x for x in d[col].astype(str).unique() if x != UNKNOWN_LABEL)[:max_labels]
+    g = pd.DataFrame(np.nan, index=labs, columns=labs)
+    n = pd.DataFrame(0, index=labs, columns=labs)
+    fw = pd.DataFrame(False, index=labs, columns=labs)
+    for a in labs:
+        ia = np.flatnonzero((d[col].astype(str) == a).to_numpy())
+        if len(ia) < 2 * min_units:
+            continue
+        ia = ia[np.argsort(d.iloc[ia]["date"].to_numpy(), kind="mergesort")]
+        half = len(ia) // 2
+        model_full = fit(d.iloc[ia].copy())
+        model_half = fit(d.iloc[ia[:half]].copy())
+        for b in labs:
+            if a == b:
+                te = ia[half:]
+                te = te[(d.iloc[te]["date"] > d.iloc[ia[:half]]["mature"].max()).to_numpy()]      # purge: nothing the model trained on overlaps
+                if len(te) >= min_units:
+                    g.loc[a, b] = float(_apply(d, model_half, te).mean())
+                    n.loc[a, b] = len(te)
+                    fw.loc[a, b] = True
+                continue
+            ib = np.flatnonzero((d[col].astype(str) == b).to_numpy())
+            if len(ib) < min_units:
+                continue
+            g.loc[a, b] = float(_apply(d, model_full, ib).mean())
+            n.loc[a, b] = len(ib)
+            fw.loc[a, b] = bool(axis == Axis.YEAR and d.iloc[ia]["mature"].max() < d.iloc[ib]["date"].min())
+    note = "diagonal: trained on the earlier half of the context, tested on the later half (same context, out of time)"
+    return TransferMatrix(axis, g, n, fw, note)
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# is the drop from same-context to cross-context bigger than chance?
+# ---------------------------------------------------------------------------------------------------------------
+def specialisation_permutation_test(units: pd.DataFrame, scope: TrainingScope, now, axis: Axis = Axis.YEAR, *, n_perm: int = 2000, seed: int = 0,
+                                    cluster_by: str = "month", min_clusters: int = 4) -> dict:
+    """Permutation test of 'the lesson works better in familiar contexts than in novel ones'. Statistic = mean gain on forward
+    familiar units minus mean gain on forward novel units. Under the null the familiar/novel label carries no information, so whole
+    clusters (months) are reassigned between the two groups at random, keeping group sizes. Small p = real specialisation.
+    Untestable (returns p=NaN and a reason) with fewer than min_clusters clusters on either side."""
+    d = prepare_units(units, now, cluster_by=cluster_by)
+    scope.validate(now)
+    if len(d) == 0:
+        return {"stat": float("nan"), "p": float("nan"), "n_perm": 0, "reason": "no units"}
+    fam_fwd, _, nov_fwd, _ = _select(_masks(d, scope), axis, "marginal")
+    sel = fam_fwd | nov_fwd
+    sub = d.loc[sel, ["cluster", "gain"]].assign(fam=fam_fwd[sel])
+    cl = sub.groupby("cluster").agg(s=("gain", "sum"), n=("gain", "size"), fam=("fam", "mean"))
+    is_fam = (cl["fam"] > 0.5).to_numpy()
+    if is_fam.sum() < min_clusters or (~is_fam).sum() < min_clusters:
+        return {"stat": float("nan"), "p": float("nan"), "n_perm": 0, "reason": f"fewer than {min_clusters} clusters on one side"}
+    s, n = cl["s"].to_numpy(), cl["n"].to_numpy(float)
+    stat_of = lambda mask: float(s[mask].sum() / n[mask].sum() - s[~mask].sum() / n[~mask].sum())
+    obs = stat_of(is_fam)
+    rng = np.random.default_rng(seed)
+    k = int(is_fam.sum())
+    hits = 0
+    for _ in range(n_perm):
+        m = np.zeros(len(s), bool)
+        m[rng.choice(len(s), k, replace=False)] = True
+        hits += stat_of(m) >= obs - 1e-15
+    return {"stat": obs, "p": float((hits + 1) / (n_perm + 1)), "n_perm": int(n_perm), "reason": ""}
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# transfer track record across learner versions
+# ---------------------------------------------------------------------------------------------------------------
+class TransferHistory:
+    """Append-only record of transfer reports per learner version, in time order. Detects a newer version that transfers worse than
+    an older one (a regression) and refuses out-of-order or duplicate versions or a changed protocol without saying so."""
+
+    def __init__(self):
+        self._rows: list[tuple] = []          # (version, now, protocol fingerprint, report)
+
+    def __len__(self):
+        return len(self._rows)
+
+    def add(self, version: str, report: TransferReport, protocol: TransferProtocol | None = None) -> None:
+        if any(v == version for v, *_ in self._rows):
+            raise ValueError(f"version {version} already recorded: history is never overwritten")
+        if self._rows and report.now < self._rows[-1][1]:
+            raise FirewallBreach(f"report dated {report.now} precedes the previous one ({self._rows[-1][1]}): history must be in time order")
+        self._rows.append((version, report.now, protocol.fingerprint() if protocol else "", report))
+
+    def trajectory(self, axis: Axis) -> list[tuple]:
+        """[(version, cross-context gain or NaN)] for one axis."""
+        return [(v, r.gain(axis)) for v, _, _, r in self._rows]
+
+    def protocol_changes(self) -> list[str]:
+        out = []
+        for (v0, _, p0, _), (v1, _, p1, _) in zip(self._rows, self._rows[1:]):
+            if p0 and p1 and p0 != p1:
+                out.append(f"{v0} -> {v1}: protocol changed ({p0} -> {p1}); their gains are not comparable")
+        return out
+
+    def regressions(self) -> list[str]:
+        """Consecutive versions where the newer one's unseen-context gain on some axis is significantly lower than the older one's."""
+        out = []
+        for (v0, _, _, r0), (v1, _, _, r1) in zip(self._rows, self._rows[1:]):
+            for ax in r1.axes:
+                cmp_ = compare_reports(r0, r1)
+                if ax.value in cmp_["worse"]:
+                    out.append(f"{v1} transfers worse than {v0} on {ax.value}")
+        return sorted(set(out))

@@ -254,7 +254,7 @@ def test_persistence_reopen_and_second_writer(tmp_path):
 def test_tampering_with_file_fails_closed(tmp_path):
     a = mk(tmp_path / "arch")
     seed(a)
-    p = tmp_path / "arch" / "archive.jsonl"
+    p = tmp_path / "arch" / "chain.jsonl"
     data = p.read_bytes().replace(b"gap_up", b"gap_dn")
     p.write_bytes(data)
     with pytest.raises(A.ChainCorrupt):
@@ -264,7 +264,7 @@ def test_tampering_with_file_fails_closed(tmp_path):
 def test_torn_tail_refuses_append(tmp_path):
     a = mk(tmp_path / "arch")
     seed(a)
-    p = tmp_path / "arch" / "archive.jsonl"
+    p = tmp_path / "arch" / "chain.jsonl"
     with open(p, "ab") as fh:
         fh.write(b'{"seq": 6, "prev": "abc')
     b = mk(tmp_path / "arch")
@@ -276,7 +276,7 @@ def test_torn_tail_refuses_append(tmp_path):
 def test_chain_verify_detects_deleted_middle_line(tmp_path):
     a = mk(tmp_path / "arch")
     seed(a)
-    p = tmp_path / "arch" / "archive.jsonl"
+    p = tmp_path / "arch" / "chain.jsonl"
     lines = p.read_bytes().split(b"\n")
     del lines[2]
     p.write_bytes(b"\n".join(lines))

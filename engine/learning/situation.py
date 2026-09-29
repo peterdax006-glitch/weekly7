@@ -241,7 +241,7 @@ class Block:
     values: tuple[tuple[str, Any], ...]
 
     @classmethod
-    def make(cls, kind: str, **vals) -> "Block":
+    def make(cls, kind: str, /, **vals) -> "Block":
         if kind not in BLOCK_SPECS:
             raise ValueError(f"unknown block {kind!r}")
         names = [s.name for s in BLOCK_SPECS[kind]]
@@ -328,11 +328,16 @@ class Situation:
         b = self._by_kind.get(block)
         return default if b is None else b.get(field, default)
 
-    def bins(self) -> dict[str, str]:
+    @functools.cached_property
+    def _bins(self) -> dict:
         out: dict[str, str] = {}
         for b in self.blocks:
             out.update(b.bins())
         return out
+
+    def bins(self) -> dict[str, str]:
+        """Bucket label of every dimension. Cached and shared: callers must treat the mapping as read-only."""
+        return self._bins
 
     @functools.cached_property
     def situation_id(self) -> str:
@@ -642,6 +647,18 @@ class SituationBuilder:
         errs = self.cfg.validate()
         if errs:
             raise ValueError("SituationConfig invalid: " + "; ".join(errs))
+        self.dropped: dict[str, int] = {}      # dimension -> count of values outside their sanity range, made UNKNOWN
+
+    def _sanitize(self, block: Block) -> Block:
+        """A value outside its sanity range is a data error: it becomes UNKNOWN (None) and is counted, never clipped or kept."""
+        specs = BLOCK_SPECS[block.kind]
+        vals, changed = {}, False
+        for spec, (name, v) in zip(specs, block.values):
+            if v is not None and spec.check(v) is not None:
+                self.dropped[f"{block.kind}.{name}"] = self.dropped.get(f"{block.kind}.{name}", 0) + 1
+                v, changed = None, True
+            vals[name] = v
+        return Block.make(block.kind, **vals) if changed else block
 
     # ---- guards
     def _guard(self, now, asof, what: str) -> None:
@@ -873,7 +890,7 @@ class SituationBuilder:
             "seasonality": self._seasonality(now), "pattern_interaction": pat_block, "position_risk": self._position(portfolio),
         }
         mode = "cross_section" if modes <= {"cross_section"} else "absolute" if modes == {"absolute"} else "mixed"
-        sit = Situation(tuple(blocks[k] for k in BLOCK_ORDER), pat_ids, mode)
+        sit = Situation(tuple(self._sanitize(blocks[k]) for k in BLOCK_ORDER), pat_ids, mode)
         errs = sit.validate()
         if errs:
             raise ValueError("built an invalid Situation: " + "; ".join(errs[:5]))
@@ -1033,3 +1050,202 @@ class SituationLibrary:
             if self.rung_counts(r).get(ladder_key(sit, r), 0) >= min_n:
                 best = r
         return best
+
+
+# ------------------------------------------------------------------------------------------------ input audit (reuse)
+
+# every stock-level feature column of engine.features that the builder reads
+INPUT_COLUMNS = ("r5", "r20", "r60", "mom_12_1", "dist_ma50", "dist_ma200", "dist_52wh", "vol20", "vol_ratio", "atr_pct",
+                 "range_compress", "log_dv", "vol_surge1", "vol_surge5", "max20", "min20", "skew60", "frog", "gap_today",
+                 "ind_mom20", "ind_mom60", "rel_ind20", "rel_ind60", "days_since_earn", "earn_in_week", "news5",
+                 "ev_red_flag", "ev_offering", "ev_shelf", "ev_activist", "ev_agreement")
+
+
+def market_columns() -> tuple[str, ...]:
+    """The market-context columns memory.context_of reads (single source of truth: engine.memory.CTX)."""
+    from engine.memory import CTX
+    return tuple(CTX)
+
+
+def market_columns_missing(row: Mapping[str, Any]) -> list[str]:
+    return [c for c in market_columns() if clean_number(row.get(c)) is None]
+
+
+def identity_proxy_audit(X: pd.DataFrame) -> dict[str, str]:
+    """Columns of a feature panel that could stand in for a ticker or a date (engine.lessons.identity_proxy_columns:
+    almost constant within a ticker, or a monotone function of the calendar). Only columns the builder reads are reported."""
+    from engine.lessons import identity_proxy_columns
+    used = [c for c in X.columns if c in INPUT_COLUMNS or str(c).startswith("m_")]
+    if not used:
+        return {}
+    return identity_proxy_columns(X[used])
+
+
+def panel_input_report(X: pd.DataFrame) -> dict[str, Any]:
+    """What an input panel offers the builder: missing columns, the share of NaN per used column, identity proxies."""
+    have = [c for c in INPUT_COLUMNS if c in X.columns]
+    miss = [c for c in INPUT_COLUMNS if c not in X.columns]
+    nan_share = {c: round(float(X[c].isna().mean()), 4) for c in have}
+    mk = [c for c in market_columns() if c not in X.columns]
+    return {"rows": int(len(X)), "columns_used": len(have), "columns_missing": miss, "market_columns_missing": mk,
+            "nan_share": nan_share, "identity_proxies": identity_proxy_audit(X) if len(X) else {},
+            "usable": len(have) >= 0.5 * len(INPUT_COLUMNS) and not mk}
+
+
+# ------------------------------------------------------------------------------------------------ comparison utilities
+
+@dataclasses.dataclass(frozen=True)
+class SituationDelta:
+    changed: tuple[tuple[str, str, str], ...]        # (path, bucket in a, bucket in b) where the buckets differ
+    unknown: tuple[str, ...]                         # paths unobserved on at least one side
+    pattern_added: tuple[str, ...]
+    pattern_removed: tuple[str, ...]
+
+    @property
+    def n_changed(self) -> int:
+        return len(self.changed)
+
+    def describe(self) -> str:
+        lines = [f"{p}: {x} -> {y}" for p, x, y in self.changed]
+        lines += [f"+pattern {p}" for p in self.pattern_added] + [f"-pattern {p}" for p in self.pattern_removed]
+        return "\n".join(lines) or "no bucket differs"
+
+
+def diff(a: Situation, b: Situation) -> SituationDelta:
+    ba, bb = a.bins(), b.bins()
+    changed = tuple((p, ba[p], bb[p]) for p in all_paths() if ba[p] != bb[p] and ba[p] != "na" and bb[p] != "na")
+    unknown = tuple(p for p in all_paths() if ba[p] == "na" or bb[p] == "na")
+    return SituationDelta(changed, unknown, tuple(sorted(set(b.pattern_ids) - set(a.pattern_ids))),
+                          tuple(sorted(set(a.pattern_ids) - set(b.pattern_ids))))
+
+
+def coarsen(sit: Situation, keep: Iterable[str]) -> Situation:
+    """A lower-resolution copy: every block not in `keep` becomes all-unknown. Used to ask whether knowledge transfers on
+    fewer dimensions (equivalent-situation transfer) without fabricating values for the dropped ones."""
+    keep = set(keep)
+    bad = keep - set(BLOCK_ORDER)
+    if bad:
+        raise ValueError(f"unknown blocks {sorted(bad)}")
+    blocks = tuple(b if b.kind in keep else Block.make(b.kind) for b in sit.blocks)
+    return dataclasses.replace(sit, blocks=blocks, pattern_ids=sit.pattern_ids if "pattern_interaction" in keep else ())
+
+
+def population_shift(a: Sequence[Situation], b: Sequence[Situation], min_share: float = 0.005) -> dict[str, float]:
+    """Population-stability index per dimension between two sets of situations (e.g. two years). PSI > 0.25 is a large shift:
+    knowledge learned on `a` is being applied to a different population on that dimension. Missing buckets are ignored."""
+    out = {}
+    for p in all_paths():
+        ca, cb = {}, {}
+        for s, c in ((a, ca), (b, cb)):
+            for sit in s:
+                lab = sit.bins()[p]
+                if lab != "na":
+                    c[lab] = c.get(lab, 0) + 1
+        na, nb = sum(ca.values()), sum(cb.values())
+        if na < 20 or nb < 20:
+            continue
+        psi = 0.0
+        for lab in set(ca) | set(cb):
+            pa, pb = max(ca.get(lab, 0) / na, min_share), max(cb.get(lab, 0) / nb, min_share)
+            psi += (pa - pb) * math.log(pa / pb)
+        out[p] = round(psi, 6)
+    return out
+
+
+def coverage_report(sits: Sequence[Situation]) -> dict[str, Any]:
+    """Population diagnostics: coverage per block, missing share per dimension, and dimensions that carry no information
+    (a single occupied bucket) - those cannot separate situations and should not be trusted to define context."""
+    if not len(sits):
+        return {"n": 0, "blocks": {}, "missing_share": {}, "degenerate": [], "entropy": {}}
+    paths = all_paths()
+    miss = {p: 0 for p in paths}
+    occ: dict[str, dict[str, int]] = {p: {} for p in paths}
+    for s in sits:
+        for p, lab in s.bins().items():
+            if lab == "na":
+                miss[p] += 1
+            else:
+                occ[p][lab] = occ[p].get(lab, 0) + 1
+    ent = {}
+    for p, c in occ.items():
+        n = sum(c.values())
+        ent[p] = 0.0 if n == 0 else round(-sum(v / n * math.log(v / n) for v in c.values()), 4)
+    return {"n": len(sits), "blocks": {k: round(float(np.mean([s.coverage_by_block()[k] for s in sits])), 4) for k in BLOCK_ORDER},
+            "missing_share": {p: round(m / len(sits), 4) for p, m in miss.items()},
+            "degenerate": [p for p in paths if len(occ[p]) == 1 and miss[p] < len(sits)], "entropy": ent}
+
+
+def hash_label(label: str) -> int:
+    """Stable integer for a bucket label (deterministic across processes, unlike the salted built-in hash)."""
+    h = 1469598103934665603
+    for ch in label.encode("utf-8"):
+        h = ((h ^ ch) * 1099511628211) & 0x7FFFFFFFFFFFFFFF
+    return h
+
+
+def identity_recoverability(sits: Sequence[Situation], labels: Sequence[Any], k: int = 5, seed: int = 0,
+                            n_perm: int = 200) -> dict[str, float]:
+    """Identity memorization control (contract section 15): how well can a nearest-neighbour vote recover a label (ticker,
+    year, date) from the situation alone? Leave-one-out accuracy is compared with chance (the majority-class share) and with
+    a label-permutation null. Clean identity-free situations sit at chance (p ~ uniform); a leaked identity is far above."""
+    n = len(sits)
+    if n < 3 * k or len(labels) != n:
+        return {"n": n, "accuracy": float("nan"), "chance": float("nan"), "lift": float("nan"), "p": float("nan")}
+    paths = all_paths()
+    codes = np.array([[hash_label(s.bins()[p]) for p in paths] for s in sits], dtype=np.int64)
+    na = hash_label("na")
+    y = np.asarray(pd.factorize(pd.Series(list(labels)))[0])
+    both = (codes[:, None, :] != na) & (codes[None, :, :] != na)         # dimensions observed on both sides
+    differ = (codes[:, None, :] != codes[None, :, :]) & both
+    d = differ.sum(axis=2).astype(float) / np.maximum(both.sum(axis=2), 1)
+    np.fill_diagonal(d, np.inf)
+    rng = np.random.default_rng(seed)
+    order = np.argsort(d + rng.random(d.shape) * 1e-9, axis=1)[:, :k]      # seeded tie-break: never row order
+
+    def acc(lab):
+        votes = lab[order]
+        pred = np.array([np.bincount(v).argmax() for v in votes])
+        return float(np.mean(pred == lab))
+    a = acc(y)
+    chance = float(np.bincount(y).max() / n)
+    null = np.array([acc(rng.permutation(y)) for _ in range(n_perm)])
+    return {"n": n, "accuracy": a, "chance": chance, "lift": a - chance, "p": float((1 + (null >= a).sum()) / (n_perm + 1))}
+
+
+# ------------------------------------------------------------------------------------------------ history & serialisation
+
+class SituationStream:
+    """Rolling history of one decision stream's situations, for recent-history similarity. Time must strictly increase and
+    can never pass `now`; the stream keeps timestamps only to enforce order and never exposes them."""
+
+    def __init__(self, maxlen: int = 10):
+        if maxlen < 1:
+            raise ValueError("maxlen < 1")
+        self.maxlen = maxlen
+        self._buf: list[tuple[dt.date, Situation]] = []
+
+    def push(self, when, sit: Situation, now) -> None:
+        if as_date(when) > as_date(now):
+            raise FirewallBreach(f"SituationStream: situation dated {as_date(when)} after now={as_date(now)}")
+        if self._buf and as_date(when) <= self._buf[-1][0]:
+            raise ValueError("SituationStream: timestamps must strictly increase")
+        self._buf.append((as_date(when), sit))
+        del self._buf[:-self.maxlen]
+
+    def history(self, n: int | None = None) -> tuple[Situation, ...]:
+        """Most recent first (index 0 = latest)."""
+        items = [s for _, s in reversed(self._buf)]
+        return tuple(items if n is None else items[:n])
+
+    def __len__(self) -> int:
+        return len(self._buf)
+
+
+def to_json(sit: Situation) -> str:
+    from .core import canonical_json
+    return canonical_json(sit.to_dict())
+
+
+def from_json(text: str) -> Situation:
+    import json
+    return Situation.from_dict(json.loads(text))

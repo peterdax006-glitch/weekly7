@@ -11,9 +11,11 @@ from __future__ import annotations
 
 import dataclasses
 import math
-from typing import Callable, Mapping
+from typing import Callable, Iterable, Mapping
 
-from engine.learning.core import (Epistemic, FirewallBreach, as_date, stable_hash)
+import numpy as np
+
+from engine.learning.core import (Epistemic, FirewallBreach, Health, Lifecycle, as_date, stable_hash)
 
 HISTORICAL, CONTEXT, CURRENT = "HISTORICAL", "CONTEXT", "CURRENT"
 SCOPE_KINDS = (HISTORICAL, CONTEXT, CURRENT)
@@ -120,6 +122,12 @@ class Definition:
     check: Callable[[EvidenceSummary, str, Thresholds], list[str]]
 
 
+def _callable(ev: EvidenceSummary, scope: str, th: Thresholds) -> bool:
+    """True if the evidence justifies SUPPORTED, CONDITIONAL, CONTRADICTED or DEGRADED in this scope."""
+    return (not _def_supported(ev, scope, th) or (bool(ev.works_in) and bool(ev.fails_in) and not _def_conditional(ev, scope, th))
+            or _contradicted(ev, th) or (scope != HISTORICAL and _degraded(ev, th)))
+
+
 def _def_observed(ev, scope, th):
     out = []
     if ev.n_events < 1:
@@ -135,8 +143,8 @@ def _def_hypothesis(ev, scope, th):
         out.append("HYPOTHESIS needs a stated hypothesis")
     if not ev.has_prediction:
         out.append("HYPOTHESIS needs a testable prediction stated before the test")
-    if _confirmed(ev, th) and not _contradicted(ev, th):
-        out.append("confirmed evidence exists: state must be SUPPORTED/CONDITIONAL, not HYPOTHESIS")
+    if _callable(ev, HISTORICAL if scope == HISTORICAL else scope, th):
+        out.append("evidence already justifies a definite state; HYPOTHESIS would understate it")
     return out
 
 
@@ -163,10 +171,18 @@ def _def_conditional(ev, scope, th):
     out = []
     if not ev.works_in:
         out.append("CONDITIONAL needs at least one context where it is confirmed")
-    if scope != CONTEXT and not ev.fails_in:
+    if not ev.fails_in:
         out.append("CONDITIONAL needs a context where it fails; otherwise it is SUPPORTED")
-    if not _confirmed(ev, th):
-        out.append("CONDITIONAL needs confirmed evidence inside the working context")
+    if scope == CONTEXT:
+        if not _confirmed(ev, th):
+            out.append("CONDITIONAL inside a context still needs confirmed evidence there")
+    else:
+        # the whole-sample mean is a blend of working and failing contexts, so it is NOT expected to be confirmed;
+        # what is required is enough data and P(real): the effect is real somewhere.
+        if ev.n_eff < th.min_n_eff:
+            out.append(f"CONDITIONAL needs n_eff >= {th.min_n_eff}, has {ev.n_eff}")
+        if ev.p_real is None or ev.p_real < th.min_p_real:
+            out.append(f"CONDITIONAL needs p_real >= {th.min_p_real}, has {ev.p_real}")
     return out
 
 
@@ -201,7 +217,7 @@ def _def_retired(ev, scope, th):
 
 def _def_unknown(ev, scope, th):
     out = []
-    if _confirmed(ev, th) or _contradicted(ev, th):
+    if _callable(ev, scope, th):
         out.append("evidence is sufficient to make a call; UNKNOWN would hide it")
     return out
 
@@ -237,21 +253,19 @@ def derive_state(ev: EvidenceSummary, scope: str = HISTORICAL, th: Thresholds = 
     bad = ev.check()
     if bad:
         raise EpistemicError("; ".join(bad))
-    if ev.retire_reason:
+    if ev.retire_reason and scope != CONTEXT:               # retirement is a fact about the item, not about one context
         return Epistemic.RETIRED
     if ev.gate_reason:
         return Epistemic.GATED
+    if ev.works_in and ev.fails_in and not _def_conditional(ev, scope, th):
+        return Epistemic.CONDITIONAL                         # contradiction explained by a context is not a contradiction
     if _contradicted(ev, th):
         return Epistemic.CONTRADICTED
     if scope != HISTORICAL and _degraded(ev, th):
         return Epistemic.DEGRADED
-    if ev.works_in and ev.fails_in and _confirmed(ev, th):
-        return Epistemic.CONDITIONAL
     if _confirmed(ev, th) and not ev.fails_in and (ev.contradiction_rate or 0.0) <= th.max_contradiction:
         if scope != CURRENT or (ev.recent_ratio is not None and ev.recent_ratio >= th.degraded_ratio):
             return Epistemic.SUPPORTED
-    if scope == CONTEXT and ev.works_in and _confirmed(ev, th):
-        return Epistemic.CONDITIONAL
     if ev.has_hypothesis and ev.has_prediction:
         return Epistemic.HYPOTHESIS
     if ev.n_events >= 1 and scope == HISTORICAL and not ev.has_hypothesis and ev.n_eff < th.min_n_eff:
@@ -483,3 +497,255 @@ def build_profile(now, historical: EvidenceSummary, per_context: Mapping[str, Ev
     if current is not None:
         prof = prof.apply(CURRENT, "", derive_state(current, CURRENT, th), current, now, "derived", th=th)
     return prof
+
+
+# ---------------------------------------------------------------- turning per-period results into evidence
+
+def _t_stat(x: "np.ndarray") -> float:
+    n = len(x)
+    if n < 2:
+        return 0.0
+    sd = float(np.std(x, ddof=1))
+    return 0.0 if sd == 0 else float(np.mean(x) / (sd / math.sqrt(n)))
+
+
+def _eff_n(x: "np.ndarray") -> float:
+    """Effective sample size under AR(1) autocorrelation: n * (1 - r) / (1 + r), clipped to [1, n]. Overlapping or
+    clustered periods otherwise make thin evidence look thick."""
+    n = len(x)
+    if n < 3 or float(np.std(x)) == 0:
+        return float(n)
+    r = float(np.corrcoef(x[:-1], x[1:])[0, 1])
+    if math.isnan(r):
+        return float(n)
+    r = max(0.0, min(0.95, r))
+    return float(max(1.0, min(n, n * (1 - r) / (1 + r))))
+
+
+def _block_disagreement(x: "np.ndarray", max_blocks: int = 8, min_block: int = 10) -> float | None:
+    """Share of chronological blocks whose mean disagrees with the claimed direction (x is sign-adjusted so positive
+    agrees). Period-by-period disagreement is not used: even a real effect loses individual periods, but it should not lose
+    whole blocks. None when there is too little data for at least two blocks."""
+    k = min(max_blocks, len(x) // min_block)
+    if k < 2:
+        return None
+    return float(np.mean([b.mean() < 0 for b in np.array_split(x, k)]))
+
+
+def summarize_periods(effects: Iterable[float], p_real: float | None = None, direction: int = 1, recent: int = 12,
+                      confirm_from: int | None = None, prior_supported: bool = False, has_hypothesis: bool = True,
+                      has_prediction: bool = True) -> EvidenceSummary:
+    """Build an EvidenceSummary from a time-ordered series of per-period effect estimates (already past `now`).
+
+    `direction` (+1/-1) is the claimed sign; t-statistics are signed so that a positive t always AGREES with the claim.
+    `confirm_from` is the index where out-of-sample evidence starts (t_confirm is measured only on x[confirm_from:]);
+    None means no out-of-sample split exists and t_confirm stays None (never measured, not zero).
+    recent_ratio compares the last `recent` periods with everything before them; reversal_t is the t of the recent
+    window in the OPPOSITE direction; contradiction_rate is the share of periods whose sign disagrees with the claim."""
+    if direction not in (-1, 1):
+        raise EpistemicError("direction must be +1 or -1")
+    x = np.asarray([float(v) for v in effects], dtype=float)
+    if len(x) and not np.all(np.isfinite(x)):
+        raise EpistemicError("non-finite period effect")
+    x = x * direction
+    n = len(x)
+    if n == 0:
+        return EvidenceSummary(has_hypothesis=has_hypothesis, has_prediction=has_prediction, prior_supported=prior_supported)
+    t_disc = _t_stat(x if confirm_from is None else x[:confirm_from])
+    t_conf = None
+    if confirm_from is not None and 0 < confirm_from < n - 1:
+        t_conf = _t_stat(x[confirm_from:])
+    ratio = rev = None
+    if n > recent + 3 and recent >= 3:
+        older, rec = x[:-recent], x[-recent:]
+        base = float(np.mean(older))
+        ratio = float(np.mean(rec) / base) if base > 0 else None
+        rev = -_t_stat(rec)
+    return EvidenceSummary(
+        n_events=n, n_eff=_eff_n(x), t_discovery=t_disc, t_confirm=t_conf, p_real=p_real,
+        contradiction_rate=_block_disagreement(x), recent_ratio=ratio, reversal_t=rev,
+        has_hypothesis=has_hypothesis, has_prediction=has_prediction, prior_supported=prior_supported)
+
+
+def summarize_by_context(effects: Iterable[float], labels: Iterable[str], p_real: float | None = None, direction: int = 1,
+                         th: Thresholds = DEFAULT_THRESHOLDS) -> tuple[EvidenceSummary, dict[str, EvidenceSummary]]:
+    """Whole-sample evidence plus one EvidenceSummary per context label, with works_in/fails_in filled on the whole-sample
+    summary: a context works if its own evidence would be confirmed, fails if it would be contradicted or points the
+    wrong way with enough data. Labels with too little data land in neither list (unknown, not failing)."""
+    x = np.asarray([float(v) for v in effects], dtype=float)
+    lab = np.asarray(list(labels))
+    if len(x) != len(lab):
+        raise EpistemicError("effects and labels differ in length")
+    per, works, fails = {}, [], []
+    for c in sorted(set(lab.tolist())):
+        sub = x[lab == c]
+        ev = summarize_periods(sub, p_real, direction, recent=3, confirm_from=len(sub) // 2 if len(sub) >= 8 else None)
+        ev = dataclasses.replace(ev, works_in=(), fails_in=())
+        per[c] = ev
+        if ev.n_eff < th.min_n_eff / 2:
+            continue
+        if _confirmed(ev, th):
+            works.append(c)
+        elif (ev.t_discovery or 0.0) <= -th.contradicted_t or (ev.contradiction_rate or 0.0) >= th.contradicted_rate:
+            fails.append(c)
+    whole = summarize_periods(x, p_real, direction, confirm_from=len(x) // 2 if len(x) >= 8 else None)
+    return dataclasses.replace(whole, works_in=tuple(works), fails_in=tuple(fails)), per
+
+
+# ---------------------------------------------------------------- diagnostics and replay
+
+def diagnose(ev: EvidenceSummary, scope: str = HISTORICAL, th: Thresholds = DEFAULT_THRESHOLDS) -> dict[str, list[str]]:
+    """For every state: why the evidence does or does not justify it (empty list = justified). Used in reports."""
+    return {s.value: violations(s, ev, scope, th) for s in Epistemic if s in SCOPE_STATES[scope]}
+
+
+def justified_states(ev: EvidenceSummary, scope: str = HISTORICAL, th: Thresholds = DEFAULT_THRESHOLDS) -> list[Epistemic]:
+    return [Epistemic(s) for s, why in diagnose(ev, scope, th).items() if not why]
+
+
+def replay(history: Iterable[TransitionRecord]) -> EpistemicProfile:
+    """Rebuild the scoped state from the transition log alone; equality with the live profile proves the log is complete."""
+    scopes: dict[tuple[str, str], ScopedState] = {}
+    for r in history:
+        scopes[(r.kind, r.key)] = ScopedState(r.kind, r.key, r.to, r.at, r.reason)
+    return EpistemicProfile(tuple(sorted(scopes.values(), key=lambda s: (s.kind, s.key))), tuple(history))
+
+
+def render_history(profile: EpistemicProfile) -> str:
+    rows = []
+    for r in profile.history:
+        where = r.kind + (f"[{r.key}]" if r.key else "")
+        rows.append(f"{r.at}  {where:<22} {(r.frm.value if r.frm else 'START'):>12} -> {r.to.value:<12} {r.reason}")
+    return "\n".join(rows) if rows else "(no transitions)"
+
+
+def weight_over_time(profile: EpistemicProfile, active_contexts: tuple[str, ...] = (),
+                     th: Thresholds = DEFAULT_THRESHOLDS) -> list[tuple[str, float]]:
+    """Decision weight the profile would have granted after each recorded transition (a state trajectory for plotting)."""
+    return [(r.at, replay(profile.history[:i + 1]).usage(active_contexts, th).weight) for i, r in enumerate(profile.history)]
+
+
+# ---------------------------------------------------------------- the four existing state vocabularies -> contract states
+
+@dataclasses.dataclass(frozen=True)
+class StateMapping:
+    """How one state of an existing module reads in the contract's terms. `scope` says which scope the source state
+    speaks about (a health verdict is about the recent window, a lifecycle state about the whole history)."""
+    epistemic: Epistemic
+    lifecycle: Lifecycle | None
+    scope: str
+    health: Health | None = None
+    gate: str = ""                 # for GATED: the gate that holds it
+    retire_reason: str = ""        # for RETIRED
+    note: str = ""
+
+
+_S = StateMapping
+_L = Lifecycle
+
+# engine.pattern_lifecycle.STATES (== engine.pattern_identity.STATES). 'active' already passed that module's long-run /
+# discovery / confirmation / recent tests, which is what SUPPORTED demands; nothing else is promoted here.
+PATTERN_LIFECYCLE: dict[str, StateMapping] = {
+    "candidate": _S(Epistemic.HYPOTHESIS, _L.BIRTH, HISTORICAL, note="mined, untested"),
+    "rejected": _S(Epistemic.RETIRED, _L.RETIRED, HISTORICAL, retire_reason="failed the candidate tests (noise, not a regime loss)"),
+    "duplicate": _S(Epistemic.GATED, _L.DORMANT, HISTORICAL, gate="redundant_with_stronger_pattern"),
+    "no_gain": _S(Epistemic.GATED, _L.DORMANT, HISTORICAL, gate="no_incremental_gain",
+                  note="may still be real (P(real) can be 1.0): the gain gate is order dependent"),
+    "active": _S(Epistemic.SUPPORTED, _L.ACTIVE, HISTORICAL),
+    "watch": _S(Epistemic.DEGRADED, _L.DECAY, CURRENT, note="under observation after a weak window"),
+    "failed": _S(Epistemic.DEGRADED, _L.FAILURE, CURRENT, note="transient: must proceed to cause_search"),
+    "cause_search": _S(Epistemic.DEGRADED, _L.FAILURE, CURRENT, note="cause of failure being searched"),
+    "rescoped": _S(Epistemic.CONDITIONAL, _L.RECOVERY, HISTORICAL, note="works inside a named context only"),
+    "discarded": _S(Epistemic.RETIRED, _L.RETIRED, HISTORICAL, retire_reason="failed and no context explained it"),
+}
+
+# engine.pattern_memory PatternWeight.mode
+PATTERN_MEMORY_MODES: dict[str, StateMapping] = {
+    "universal": _S(Epistemic.SUPPORTED, _L.ACTIVE, HISTORICAL, note="held across many independent periods"),
+    "local": _S(Epistemic.CONDITIONAL, _L.ACTIVE, HISTORICAL, note="holds in some periods only"),
+    "disregarded": _S(Epistemic.UNKNOWN, _L.DORMANT, HISTORICAL, note="no evidence it is real after all tries: not a claim it is false"),
+    "gated": _S(Epistemic.GATED, _L.DORMANT, CURRENT, gate="predicted_unreliable_here", note="kept, switched off in this state"),
+}
+
+# engine.pattern_reliability.VERDICTS (C61: every break ends in a verdict) and HealthLedger status names
+PATTERN_RELIABILITY_VERDICTS: dict[str, StateMapping] = {
+    "EXPLAINED_AND_GATED": _S(Epistemic.CONDITIONAL, _L.RECOVERY, CURRENT, note="break explained by a driver; used outside its bad zone"),
+    "DISCARDED_UNPREDICTABLE": _S(Epistemic.RETIRED, _L.RETIRED, HISTORICAL, retire_reason="broke and no predictor of the break survived"),
+    "PHANTOM_DISCARDED": _S(Epistemic.RETIRED, _L.RETIRED, HISTORICAL, retire_reason="effect was never established (phantom)"),
+    "OPEN": _S(Epistemic.DEGRADED, _L.FAILURE, CURRENT, note="investigation unresolved: cause UNKNOWN is a valid outcome"),
+}
+PATTERN_RELIABILITY_HEALTH: dict[str, StateMapping] = {
+    "unmonitored": _S(Epistemic.UNKNOWN, _L.BIRTH, CURRENT, Health.INSUFFICIENT_EVIDENCE, note="burn-in: no health opinion yet"),
+    "healthy": _S(Epistemic.SUPPORTED, _L.ACTIVE, CURRENT, Health.HEALTHY),
+    "suspect": _S(Epistemic.DEGRADED, _L.DECAY, CURRENT, Health.DEGRADING),
+    "broken": _S(Epistemic.DEGRADED, _L.FAILURE, CURRENT, Health.BROKEN, note="alarm raised; contradicted only if reversal evidence exists"),
+}
+
+# engine.pattern_bank.PRIOR_STATES: a subset of the lifecycle vocabulary, reused as-is
+PATTERN_BANK_PRIOR: dict[str, StateMapping] = {s: PATTERN_LIFECYCLE[s] for s in ("active", "watch", "rescoped", "discarded")}
+
+VOCABULARIES: dict[str, dict[str, StateMapping]] = {
+    "pattern_lifecycle.STATES": PATTERN_LIFECYCLE,
+    "pattern_memory.mode": PATTERN_MEMORY_MODES,
+    "pattern_reliability.VERDICTS": PATTERN_RELIABILITY_VERDICTS,
+    "pattern_reliability.STATUS_NAMES": PATTERN_RELIABILITY_HEALTH,
+    "pattern_bank.PRIOR_STATES": PATTERN_BANK_PRIOR,
+}
+
+
+def map_state(vocabulary: str, state: str) -> StateMapping:
+    """Translate an existing module's state. Unknown states raise: a new state added elsewhere must be mapped on purpose."""
+    try:
+        table = VOCABULARIES[vocabulary]
+    except KeyError:
+        raise EpistemicError(f"unknown vocabulary {vocabulary!r}; known: {sorted(VOCABULARIES)}") from None
+    key = str(state)
+    if key not in table:
+        raise EpistemicError(f"{vocabulary} state {state!r} has no contract mapping; add it to epistemic.VOCABULARIES")
+    return table[key]
+
+
+def mapping_problems() -> list[str]:
+    """Self-consistency of the mapping tables: every mapped state must be legal in its scope and carry the reason its
+    contract state requires (GATED needs a gate, RETIRED needs a reason)."""
+    errs = []
+    for vname, table in VOCABULARIES.items():
+        for name, m in table.items():
+            if m.epistemic not in SCOPE_STATES[m.scope]:
+                errs.append(f"{vname}:{name}: {m.epistemic.value} is not valid in scope {m.scope}")
+            if m.epistemic == Epistemic.GATED and not m.gate:
+                errs.append(f"{vname}:{name}: GATED without a gate name")
+            if m.epistemic == Epistemic.RETIRED and not m.retire_reason:
+                errs.append(f"{vname}:{name}: RETIRED without a reason")
+            if (m.lifecycle == Lifecycle.RETIRED) != (m.epistemic == Epistemic.RETIRED):
+                errs.append(f"{vname}:{name}: lifecycle RETIRED and epistemic RETIRED must go together")
+    return errs
+
+
+def unmapped_states() -> dict[str, list[str]]:
+    """Import the live modules and list states they define that the tables above do not cover (empty dict = complete).
+    Lazy imports keep this module light; a module that cannot be imported is reported, never silently skipped."""
+    found: dict[str, list[str]] = {}
+
+    def gap(vocab: str, names) -> None:
+        miss = sorted(str(n) for n in names if str(n) not in VOCABULARIES[vocab])
+        if miss:
+            found[vocab] = miss
+
+    try:
+        from engine import pattern_lifecycle
+        gap("pattern_lifecycle.STATES", pattern_lifecycle.STATES)
+    except Exception as e:                                      # pragma: no cover - environment specific
+        found["pattern_lifecycle.STATES"] = [f"import failed: {e}"]
+    try:
+        from engine import pattern_bank
+        gap("pattern_bank.PRIOR_STATES", pattern_bank.PRIOR_STATES)
+    except Exception as e:                                      # pragma: no cover
+        found["pattern_bank.PRIOR_STATES"] = [f"import failed: {e}"]
+    try:
+        from engine import pattern_reliability as pr
+        gap("pattern_reliability.VERDICTS", pr.VERDICTS)
+        gap("pattern_reliability.STATUS_NAMES", pr.STATUS_NAMES.values())
+    except Exception as e:                                      # pragma: no cover
+        found["pattern_reliability.VERDICTS"] = [f"import failed: {e}"]
+    return found

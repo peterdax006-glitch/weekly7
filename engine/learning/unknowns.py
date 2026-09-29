@@ -10,6 +10,7 @@ Status: IMPLEMENTED — NOT VALIDATED."""
 from __future__ import annotations
 
 import dataclasses
+import datetime as dt
 import enum
 import math
 from typing import Any, Iterable, Mapping
@@ -233,7 +234,9 @@ def combine(scores: Iterable[UnknownScore], weights: Iterable[float] | None = No
         raise SchemaError("weights must match scores and be non-negative")
     total = sum(w)
     if not sc or total <= 0:
-        return UnknownScore(unknown=unknown_state(subject, now, UnknownReason.NO_DATA)), 0.0
+        act = choose_action(Unknown.INSUFFICIENT_DATA, Availability())
+        return UnknownScore(unknown=UnknownRecord(subject, Unknown.INSUFFICIENT_DATA, (UnknownReason.NO_DATA,), act[0],
+                                                  str(as_date(now)), act[1])), 0.0
     known = [(s.value, x) for s, x in zip(sc, w) if s.is_known]
     kw = sum(x for _, x in known)
     cov = kw / total
@@ -400,3 +403,130 @@ def audit_confidence_laundering(items: Iterable[Any]) -> list[str]:
         if n_eff == 0 and any(abs(float(v) - 0.5) < 1e-12 for v in given.values()):
             out.append(f"{kid}: a 0.5 placeholder without evidence (unknown disguised as a coin flip)")
     return out
+
+
+# ---------------------------------------------------------------- what to do about the unknowns
+
+@dataclasses.dataclass(frozen=True)
+class Stake:
+    """Why resolving an unknown matters: how often it is met and how much a wrong guess would cost."""
+    subject: str
+    frequency: float = 0.0            # decisions per period that touch this item
+    cost_of_error: float = 0.0        # expected loss per wrong decision, in return units
+    cost_to_resolve: float = 1.0      # compute-minutes (or any consistent unit) to resolve
+
+    def value(self) -> float:
+        return self.frequency * self.cost_of_error
+
+
+def rank_unknowns(rows: Iterable[UnknownRecord], stakes: Mapping[str, Stake], now) -> list[tuple[str, float]]:
+    """Order open unknowns by (value at stake / cost to resolve), older first on ties. ABSTAIN rows rank last: nothing
+    is being done about them, so they compete for no resource. Subjects with no declared stake get zero, not a guess."""
+    scored = []
+    for r in rows:
+        if not r.open:
+            continue
+        st = stakes.get(r.subject)
+        if st is None or st.cost_to_resolve <= 0 or r.action == UnknownAction.ABSTAIN:
+            score = 0.0
+        else:
+            score = st.value() / st.cost_to_resolve
+        age = (as_date(now) - as_date(r.since)).days
+        scored.append((r.subject, score, age))
+    scored.sort(key=lambda t: (-t[1], -t[2], t[0]))
+    return [(s, sc) for s, sc, _ in scored]
+
+
+@dataclasses.dataclass(frozen=True)
+class AbstentionBudget:
+    """Abstaining forever is also a failure: a learner that answers UNKNOWN to everything learns nothing. This caps the share
+    of decisions that may abstain and reports when the cap is broken so the cause (thin data, over-strict gate) is examined."""
+    max_share: float = 0.35
+    window: int = 50
+
+    def check(self) -> list[str]:
+        return [] if 0.0 < self.max_share <= 1.0 and self.window >= 5 else ["budget needs 0<max_share<=1 and window>=5"]
+
+    def assess(self, outcomes: Iterable[bool]) -> dict:
+        """outcomes: True where the decision abstained. Returns the rolling worst share and whether the cap held."""
+        xs = [bool(o) for o in outcomes]
+        if not xs:
+            return {"n": 0, "share": None, "worst_window": None, "ok": True, "note": "no decisions yet"}
+        w = min(self.window, len(xs))
+        worst = max(sum(xs[i:i + w]) / w for i in range(len(xs) - w + 1))
+        share = sum(xs) / len(xs)
+        return {"n": len(xs), "share": share, "worst_window": worst, "ok": worst <= self.max_share,
+                "note": "" if worst <= self.max_share else f"abstained on {worst:.0%} of a window (cap {self.max_share:.0%})"}
+
+
+def explain(rec: UnknownRecord) -> str:
+    """One sentence a reviewer can read: what is not known, why, and what will be done (never a probability)."""
+    why = ", ".join(r.value.lower().replace("_", " ") for r in rec.reasons)
+    state = "open" if rec.open else f"closed {rec.resolved_at}: {rec.resolution}"
+    return f"{rec.subject}: {rec.state.value} because {why}; action {rec.action.value} ({rec.action_detail}); {state}"
+
+
+def coverage_report(items: Iterable[Any], now, situation: Mapping[str, Any], min_n_eff: float = 30.0) -> dict:
+    """How much of a knowledge set is decidable in `situation`: known / per-unknown-state counts / share, never a score."""
+    counts: dict[str, int] = {"KNOWN": 0}
+    total = 0
+    for k in items:
+        total += 1
+        rec = assess_knowledge(k, situation, now, min_n_eff)
+        key = "KNOWN" if rec is None else rec.state.value
+        counts[key] = counts.get(key, 0) + 1
+    return {"total": total, "counts": dict(sorted(counts.items())),
+            "known_share": None if total == 0 else counts["KNOWN"] / total}
+
+
+# ---------------------------------------------------------------- bridges and escalation
+
+def facts_from_evidence(ev: Any, subject_contexts: tuple[str, ...] = (), asked_context: str = "", min_n_eff: float = 30.0,
+                        evidence_age_days: int | None = None, max_age_days: int | None = None,
+                        missing_features: tuple[str, ...] = ()) -> UnknownFacts:
+    """UnknownFacts from an epistemic.EvidenceSummary (duck typed). Support and opposition are read from the out-of-sample
+    statistic and the contradiction rate; a statistic never measured leaves the corresponding side None, not 0."""
+    t = getattr(ev, "t_confirm", None)
+    rate = getattr(ev, "contradiction_rate", None)
+    support = None if t is None else min(1.0, max(0.0, t / 4.0))
+    against = None if rate is None else min(1.0, max(0.0, float(rate)))
+    if getattr(ev, "reversal_t", None) is not None:
+        against = max(against or 0.0, min(1.0, max(0.0, ev.reversal_t / 4.0)))
+    return UnknownFacts(n_events=int(ev.n_events), n_eff=float(ev.n_eff), min_n_eff=min_n_eff,
+                        ever_tested=t is not None or bool(getattr(ev, "works_in", ())), tested_contexts=tuple(subject_contexts),
+                        asked_context=asked_context, support=support, against=against,
+                        evidence_age_days=evidence_age_days, max_age_days=max_age_days, missing_features=missing_features)
+
+
+def escalate(rec: UnknownRecord, now, max_open_days: int = 60) -> UnknownRecord:
+    """A COLLECT_DATA / RUN_EXPERIMENT unknown that has stayed open too long is not being resolved by the plan. It escalates
+    to ABSTAIN (the always-safe action) with the reason recorded, instead of quietly waiting while being used."""
+    if not rec.open or rec.action == UnknownAction.ABSTAIN:
+        return rec
+    age = (as_date(now) - as_date(rec.since)).days
+    if age <= max_open_days:
+        return rec
+    return dataclasses.replace(rec, action=UnknownAction.ABSTAIN,
+                               action_detail=f"{rec.action.value} unresolved after {age} days: abstain until it is")
+
+
+def apply_escalations(ledger: "UnknownLedger", now, max_open_days: int = 60) -> list[str]:
+    """Escalate every stale open unknown in the ledger; returns the subjects that changed. Resolution history is kept."""
+    changed = []
+    for r in ledger.open_rows():
+        new = escalate(r, now, max_open_days)
+        if new is not r:
+            ledger.resolve(r.subject, now, str(as_date(now) - dt.timedelta(days=1)), f"escalated to {new.action.value}")
+            ledger.open(dataclasses.replace(new, since=str(as_date(now))))
+            changed.append(r.subject)
+    return changed
+
+
+def ledger_summary(ledger: "UnknownLedger", now) -> dict:
+    """Numbers for a health page: open by state and action, median age, oldest subject, share already resolved."""
+    op = ledger.open_rows()
+    ages = sorted((as_date(now) - as_date(r.since)).days for r in op)
+    resolved = sum(1 for r in ledger.rows() if not r.open)
+    return {"open": len(op), "by_state": ledger.counts(), "by_action": {a: len(s) for a, s in ledger.plan().items() if s},
+            "median_age_days": ages[len(ages) // 2] if ages else None, "oldest": op[0].subject if op else None,
+            "resolved": resolved}

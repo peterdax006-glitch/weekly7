@@ -14,6 +14,7 @@ Time rule (C56): evidence must have matured strictly before `now`; anything else
 from __future__ import annotations
 
 import dataclasses as dc
+import datetime as dt
 import json
 import math
 from typing import Any, Iterable, Mapping, Sequence
@@ -604,28 +605,24 @@ class BetaBelief:
 def partial_pool(estimates: Sequence[float], ses: Sequence[float], min_tau2: float = 0.0) -> dict:
     """Empirical-Bayes shrinkage of many group estimates toward their common mean (contract section 8: no context
     explosion).  Groups with large se are pulled hard toward the pooled mean; precise groups keep their own value.
+    Delegates to engine.pattern_stats.eb_shrink (DerSimonian-Laird tau2); this wrapper only adds a tau2 floor and names.
 
-    Returns pooled mean, between-group variance tau2 (DerSimonian-Laird), shrunk means and each group's shrink weight."""
+    Returns pooled mean `mu`, between-group variance `tau2`, `shrunk` means and `weight_own` (share each group keeps)."""
+    from engine.pattern_stats import eb_shrink
     x = np.asarray(estimates, float)
-    s2 = np.maximum(np.asarray(ses, float), 1e-12) ** 2
-    ok = np.isfinite(x) & np.isfinite(s2)
+    s = np.asarray(ses, float)
+    ok = np.isfinite(x) & np.isfinite(s) & (s > 0)
     if ok.sum() == 0:
         return {"mu": float("nan"), "tau2": float("nan"), "shrunk": np.full(len(x), np.nan), "weight_own": np.full(len(x), np.nan)}
-    w = 1.0 / s2[ok]
-    mu = float((w * x[ok]).sum() / w.sum())
-    if ok.sum() >= 2:
-        Q = float((w * (x[ok] - mu) ** 2).sum())
-        C = float(w.sum() - (w ** 2).sum() / w.sum())
-        tau2 = max(min_tau2, (Q - (ok.sum() - 1)) / C) if C > 0 else min_tau2
-    else:
-        tau2 = min_tau2
-    wr = 1.0 / (s2[ok] + tau2)
-    mu = float((wr * x[ok]).sum() / wr.sum())
+    if ok.sum() == 1:
+        return {"mu": float(x[ok][0]), "tau2": float(min_tau2), "shrunk": x.copy(), "weight_own": np.where(ok, 1.0, np.nan)}
+    r = eb_shrink(x, s, center=None)
+    tau2 = max(float(r["tau2"]), min_tau2)
     own = np.full(len(x), np.nan)
-    own[ok] = tau2 / (tau2 + s2[ok])
+    own[ok] = tau2 / (tau2 + s[ok] ** 2)
     shrunk = np.full(len(x), np.nan)
-    shrunk[ok] = mu + own[ok] * (x[ok] - mu)
-    return {"mu": mu, "tau2": float(tau2), "shrunk": shrunk, "weight_own": own}
+    shrunk[ok] = r["mu"] + own[ok] * (x[ok] - r["mu"])
+    return {"mu": float(r["mu"]), "tau2": tau2, "shrunk": shrunk, "weight_own": own}
 
 
 # ------------------------------------------------------------------------------------------------ self-diagnostics
@@ -881,3 +878,95 @@ class PredictiveCalibration:
         verdict = "OVERCONFIDENT" if (tail > 0.25 and ks.pvalue < 0.05) else "CALIBRATED" if ks.pvalue >= 0.05 else "MISCALIBRATED"
         return {"n": int(len(p)), "ks_stat": float(ks.statistic), "ks_p": float(ks.pvalue), "tail_share": tail,
                 "mean_z": float(np.mean(sps.norm.ppf(np.clip(p, 1e-6, 1 - 1e-6)))), "verdict": verdict}
+
+
+# ------------------------------------------------------------------------------------------------ adapters and decision use
+def evidence_from_pattern_row(row: Mapping, now, *, n_candidates: int = 1, n_disc: int | None = None,
+                              n_conf: int | None = None, source: str = "PatternMiner") -> list[Evidence]:
+    """Two Evidence records from one engine.patterns.PatternMiner row: the DISCOVERY evidence (in-sample, quality-cut and
+    charged for the `n_candidates` searched) and the CONFIRMATION evidence (held-out, full quality).  Rows without a usable
+    t-statistic yield nothing for that stage - a missing stage is untested, not zero.
+
+    Row keys read: key_named (subject), effect, t_disc, t_conf, and optionally end_disc / end_conf (ISO dates the stage's data
+    ended; otherwise `now` minus one day is used, which is conservative only in the sense of never being in the future)."""
+    subj = str(row.get("key_named", row.get("subject", "")))
+    eff = float(row.get("effect", float("nan")))
+    out: list[Evidence] = []
+    default_end = (as_date(now) - dt.timedelta(days=1)).isoformat()
+    for stage, tkey, ekey, kind, nn, trials in (("disc", "t_disc", "end_disc", EvidenceKind.IN_SAMPLE_FIT, n_disc, n_candidates),
+                                                  ("conf", "t_conf", "end_conf", EvidenceKind.OOS_TEST, n_conf, 1)):
+        t = row.get(tkey)
+        if t is None or not math.isfinite(float(t)) or abs(float(t)) < 1e-9 or not math.isfinite(eff):
+            continue
+        end = str(row.get(ekey, default_end))
+        require_past(end, now, f"pattern row {subj} {stage}")
+        se = abs(eff / float(t))
+        out.append(Evidence(subj, end, eff, se, int(nn) if nn else max(int(round((eff / se) ** 2)), 1), kind, n_trials=trials,
+                            source=f"{source}:{stage}"))
+    return out
+
+
+def conservative_effect(state: BeliefState, direction: int = 1, level: float = 0.80) -> float:
+    """The effect a decision should *plan on*: the credible bound on the side of zero (lower bound for a positive claim).
+    Zero when the interval reaches across zero.  Using the posterior mean instead is what turns noise into position size."""
+    lo, hi = state.interval(level)
+    if direction >= 0:
+        return max(lo, 0.0)
+    return min(hi, 0.0)
+
+
+def influence_weight(state: BeliefState, cfg: BeliefConfig = DEFAULT_CFG) -> float:
+    """0..1 cap on how much a decision may lean on this belief: P(sign right) above one half, scaled down by contradictory
+    precision share and by the share of the posterior still owed to the prior.  A single number for one *decision use*; it is
+    not a substitute for the separate real/useful/now answers (engine.learning.questions)."""
+    if state.n_evidence == 0:
+        return 0.0
+    edge = max(0.0, 2.0 * state.prob_sign_right() - 1.0)
+    return float(clip01(edge * (1.0 - state.contradiction_mass) * (1.0 - min(state.shrinkage(), 1.0))))
+
+
+def contradiction_report(ledger: "BeliefLedger", subject: str) -> list[dict]:
+    """The records that contradicted what was believed when they arrived, newest first, with the context they carried."""
+    ev = {e.evidence_id: e for e in ledger.evidence_for(subject)}
+    rows = []
+    for u in ledger.updates(subject):
+        if u.contradiction:
+            e = ev.get(u.evidence_id)
+            rows.append({"observed_at": u.observed_at, "estimate": u.estimate, "believed": u.prior_mean, "z": u.predictive_z,
+                         "shift_in_sd": u.shift_in_sd, "kind": str(e.kind) if e else "", "context": dict(e.context) if e else {},
+                         "source": e.source if e else ""})
+    return sorted(rows, key=lambda r: r["observed_at"], reverse=True)
+
+
+def explain_heterogeneity(ledger: "BeliefLedger", subject: str, as_of=None, min_group: int = 2) -> list[dict]:
+    """Does a context tag explain why the evidence disagrees?  For every context key carried by the evidence, split the records
+    by that key's value, pool each group, and test between-group differences (Cochran Q vs chi-square).  A key that explains the
+    disagreement is a candidate condition for the relation (hand it to boundary learning); heterogeneity with no explaining key
+    stays honestly unexplained."""
+    ev = ledger.evidence_for(subject, as_of)
+    keys = sorted({k for e in ev for k, _ in e.context})
+    out = []
+    for key in keys:
+        groups: dict[str, list[Evidence]] = {}
+        for e in ev:
+            v = dict(e.context).get(key)
+            if v is not None:
+                groups.setdefault(v, []).append(e)
+        groups = {v: g for v, g in groups.items() if len(g) >= min_group}
+        if len(groups) < 2:
+            continue
+        means, ses = [], []
+        for v, g in sorted(groups.items()):
+            w = np.array([e.quality(ledger.cfg) / max(e.se, ledger.cfg.min_se) ** 2 for e in g])
+            x = np.array([e.estimate for e in g])
+            means.append(float((w * x).sum() / w.sum()))
+            ses.append(float(1.0 / math.sqrt(w.sum())))
+        m, s = np.array(means), np.array(ses)
+        wgt = 1.0 / s ** 2
+        mu = float((wgt * m).sum() / wgt.sum())
+        Q = float((wgt * (m - mu) ** 2).sum())
+        p = float(sps.chi2.sf(Q, len(m) - 1))
+        out.append({"key": key, "groups": {v: {"mean": mm, "se": ss, "n_records": len(groups[v])}
+                                            for v, mm, ss in zip(sorted(groups), means, ses)},
+                    "Q": Q, "p": p, "explains": p < 0.05})
+    return sorted(out, key=lambda r: r["p"])

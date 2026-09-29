@@ -600,3 +600,109 @@ def research_questions(tracker: SurpriseTracker, now, top: int = 5) -> list[dict
                     "question": f"why is {pr.cell} repeatedly surprising?" + (f" test a split on '{lead}'" if lead else ""),
                     "suggested_split": lead if lead and lead in parse_cell(pr.cell) else None})
     return out
+
+
+# ------------------------------------------------------------------------------------------------- clusters, half-life, hand-off
+
+def cluster_cells(tracker: SurpriseTracker, now, min_sim: float = 0.5) -> list[list[str]]:
+    """Group similar situations (connected components of the token-similarity graph). Each cluster is one 'kind of situation'
+    whose surprises are pooled, so a surprise that recurs across neighbouring cells is treated as one persistent thing."""
+    cells = tracker.cells(now)
+    parent = {c: c for c in cells}
+
+    def find(c):
+        while parent[c] != c:
+            parent[c] = parent[parent[c]]
+            c = parent[c]
+        return c
+    for c, nbs in auto_similar(tracker, now, min_sim, max_neighbours=len(cells)).items():
+        for o, _ in nbs:
+            parent[find(o)] = find(c)
+    groups: dict[str, list[str]] = {}
+    for c in cells:
+        groups.setdefault(find(c), []).append(c)
+    return sorted((sorted(g) for g in groups.values()), key=lambda g: (-len(g), stable_hash(g, 8)))
+
+
+def surprise_half_life(zs: Sequence[float], days: Sequence[float], max_lag: float = 365.0) -> dict[str, float | None]:
+    """How long does a surprise persist? Fit rho(lag) = rho0 * exp(-lag / tau) to the average product of standardised z over
+    pairs of records at each time lag (grid over tau). half_life = tau * ln 2. None when there is no positive persistence -
+    surprises that do not carry over in time have no half-life, and inventing one would be false precision."""
+    z, d = np.asarray(zs, float), np.asarray(days, float)
+    if len(z) < 8 or float(z.std()) == 0:
+        return {"tau": None, "half_life": None, "rho0": None, "n_pairs": 0}
+    z = (z - z.mean()) / z.std()
+    i, j = np.triu_indices(len(z), 1)
+    lag, prod = np.abs(d[j] - d[i]), z[i] * z[j]
+    keep = lag <= max_lag
+    lag, prod = lag[keep], prod[keep]
+    if len(lag) < 10:
+        return {"tau": None, "half_life": None, "rho0": None, "n_pairs": int(len(lag))}
+    edges = np.quantile(lag, np.linspace(0, 1, 7))
+    idx = np.clip(np.searchsorted(edges, lag, side="right") - 1, 0, 5)
+    xs = np.array([lag[idx == b].mean() for b in range(6) if (idx == b).any()])
+    ys = np.array([prod[idx == b].mean() for b in range(6) if (idx == b).any()])
+    best = (float("inf"), None, None)
+    for tau in np.exp(np.linspace(math.log(3.0), math.log(2000.0), 60)):
+        basis = np.exp(-xs / tau)
+        rho0 = float((basis * ys).sum() / (basis * basis).sum())
+        sse = float(((ys - rho0 * basis) ** 2).sum())
+        if rho0 > 0 and sse < best[0]:
+            best = (sse, float(tau), rho0)
+    if best[1] is None or best[2] < 0.05:
+        return {"tau": None, "half_life": None, "rho0": best[2], "n_pairs": int(len(lag))}
+    return {"tau": best[1], "half_life": best[1] * math.log(2), "rho0": best[2], "n_pairs": int(len(lag))}
+
+
+def cluster_persistence(tracker: SurpriseTracker, cluster: Sequence[str], now) -> dict[str, Any]:
+    """Pooled statistics and surprise half-life of one cluster of similar cells (records in matured order)."""
+    rs = sorted((r for c in cluster for r in tracker.records(now, c)), key=lambda r: (r.matured_at, r.record_id))
+    z = [r.z for r in rs]
+    days = [float(as_date(r.matured_at).toordinal()) for r in rs]
+    hl = surprise_half_life(z, days)
+    return {"cells": list(cluster), "n": len(rs), "mean_z": float(np.mean(z)) if z else 0.0,
+            "big_rate": float(np.mean([abs(v) >= tracker.cfg.z_big for v in z])) if z else 0.0, **hl}
+
+
+@dataclasses.dataclass(frozen=True)
+class FailureHandoff:
+    """Surprise -> failure-learning hand-off (section 9): a hypothesis about the cause, never a verdict. `cause` is UNKNOWN
+    unless the surprise structure discriminates."""
+    cluster: tuple[str, ...]
+    cause: str
+    subsystem: str
+    direction: int
+    confidence: str
+    evidence: Mapping[str, Any]
+    record_ids: tuple[str, ...] = ()
+
+
+def failure_handoffs(tracker: SurpriseTracker, now, min_sim: float = 0.5) -> list[FailureHandoff]:
+    """Turn surprise clusters into FailureCause hypotheses for engine.learning failure modules. Rules: too little data ->
+    INSUFFICIENT_EVIDENCE; a persistent adverse cluster with a long half-life (>= 90 days) -> REGIME_CHANGE; adverse but
+    short-lived -> TEMPORARY_INACTIVITY; big surprises in both directions with no bias -> WRONG_CONTEXT (the context splits
+    the outcomes); a persistent favourable cluster -> SELECTION_ERROR (opportunity missed); otherwise UNKNOWN."""
+    from .core import FailureCause, Subsystem
+    out = []
+    for cl in cluster_cells(tracker, now, min_sim):
+        info = cluster_persistence(tracker, cl, now)
+        rec_ids = tuple(r.record_id for c in cl for r in tracker.records(now, c) if abs(r.z) >= tracker.cfg.z_big)[:20]
+        z = np.array([r.z for c in cl for r in tracker.records(now, c)])
+        if len(z) < tracker.cfg.min_cell_n:
+            cause, conf = FailureCause.INSUFFICIENT_EVIDENCE, "none"
+        else:
+            bias_p = float(2 * sps.norm.sf(abs(z.mean()) * math.sqrt(len(z))))
+            two_sided = (z >= tracker.cfg.z_big).any() and (z <= -tracker.cfg.z_big).any() and info["big_rate"] > 0.15
+            hl = info["half_life"]
+            if bias_p < 0.01 and z.mean() < 0:
+                cause, conf = (FailureCause.REGIME_CHANGE, "medium") if hl and hl >= 90 else \
+                    (FailureCause.TEMPORARY_INACTIVITY, "low")
+            elif bias_p < 0.01 and z.mean() > 0:
+                cause, conf = FailureCause.SELECTION_ERROR, "low"
+            elif two_sided:
+                cause, conf = FailureCause.WRONG_CONTEXT, "low"
+            else:
+                cause, conf = FailureCause.UNKNOWN, "none"
+        out.append(FailureHandoff(tuple(cl), cause.value, Subsystem.SELECTION.value,
+                                  0 if not len(z) else (1 if z.mean() > 0 else -1), conf, info, rec_ids))
+    return out

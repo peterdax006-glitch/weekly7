@@ -18,6 +18,8 @@ import math
 import re
 from typing import Mapping
 
+import numpy as np
+
 from engine.learning.core import DecisionEffect, as_date, require_past, stable_hash
 from engine.learning.knowledge import SchemaError, decode, encode
 
@@ -226,26 +228,25 @@ def standard_hypotheses(subject: str, stated_at: str) -> tuple[Hypothesis, ...]:
 
 
 # Likelihood of seeing each test outcome UNDER each hypothesis. Design priors, not fitted values (UNPROVEN).
+# Rule: a test discriminates ONLY the hypothesis that predicts its failure. Every other hypothesis (H1 included) is given the
+# same likelihood, because a volatility proxy, a redundant feature or a regime-bound effect passes the other tests exactly as
+# a genuine one does - letting passing tests favour H1 over them would count the same evidence twice.
 _H1, _H2, _H3, _H4, _H5, _H6 = CORE_KINDS
+_PASS, _FAIL, _TARGET_PASS, _TARGET_FAIL = 0.85, 0.15, 0.08, 0.92
+
+
+def _table(target: HypKind) -> dict[bool, dict[HypKind, float]]:
+    return {True: {k: (_TARGET_PASS if k is target else _PASS) for k in CORE_KINDS},
+            False: {k: (_TARGET_FAIL if k is target else _FAIL) for k in CORE_KINDS}}
+
+
 TESTS: dict[str, dict[bool, dict[HypKind, float]]] = {
-    "survives_volatility_control": {
-        True: {_H1: .85, _H2: .12, _H3: .60, _H4: .60, _H5: .30, _H6: .50},
-        False: {_H1: .20, _H2: .90, _H3: .50, _H4: .50, _H5: .60, _H6: .50}},
-    "stable_across_regimes": {
-        True: {_H1: .80, _H2: .55, _H3: .10, _H4: .60, _H5: .40, _H6: .30},
-        False: {_H1: .25, _H2: .45, _H3: .90, _H4: .50, _H5: .55, _H6: .70}},
-    "incremental_over_existing": {
-        True: {_H1: .80, _H2: .55, _H3: .60, _H4: .08, _H5: .45, _H6: .55},
-        False: {_H1: .25, _H2: .50, _H3: .50, _H4: .92, _H5: .55, _H6: .50}},
-    "survives_selection_control": {
-        True: {_H1: .85, _H2: .60, _H3: .60, _H4: .60, _H5: .07, _H6: .50},
-        False: {_H1: .15, _H2: .50, _H3: .45, _H4: .50, _H5: .93, _H6: .55}},
-    "sign_consistent_rolling": {
-        True: {_H1: .85, _H2: .60, _H3: .35, _H4: .60, _H5: .40, _H6: .10},
-        False: {_H1: .35, _H2: .50, _H3: .60, _H4: .50, _H5: .60, _H6: .92}},
-    "out_of_sample_confirmed": {
-        True: {_H1: .80, _H2: .55, _H3: .55, _H4: .60, _H5: .15, _H6: .40},
-        False: {_H1: .20, _H2: .50, _H3: .50, _H4: .50, _H5: .85, _H6: .60}},
+    "survives_volatility_control": _table(_H2),
+    "stable_across_regimes": _table(_H3),
+    "incremental_over_existing": _table(_H4),
+    "survives_selection_control": _table(_H5),
+    "out_of_sample_confirmed": _table(_H5),
+    "sign_consistent_rolling": _table(_H6),
 }
 
 
@@ -572,3 +573,233 @@ def scan_causal_leaps(items: list[tuple[str, InterpretationRecord]]) -> list[str
         if words and rec.level() < Level.MECHANISM:
             bad.append(f"{rec.observation.observation_id}: {words} at level {rec.level().name}")
     return bad
+
+
+# ---------------------------------------------------------------- the tests that feed the hypothesis table
+
+@dataclasses.dataclass(frozen=True)
+class ProbeResult:
+    """A named test result with the numbers behind it. passed=None means the test could not be run (never a silent False)."""
+    name: str
+    passed: bool | None
+    detail: str
+    stat: float | None = None
+
+
+def _ols(y: np.ndarray, cols: list[np.ndarray]) -> tuple[np.ndarray, np.ndarray]:
+    """Coefficients and standard errors of y ~ 1 + cols (classical OLS). Rank-deficient designs raise: a control that
+    is collinear with the signal is exactly the proxy case and must not be papered over."""
+    X = np.column_stack([np.ones(len(y))] + cols)
+    n, p = X.shape
+    if n <= p + 2:
+        raise ClaimError(f"too few observations ({n}) for {p} parameters")
+    if np.linalg.matrix_rank(X) < p:
+        raise ClaimError("design is rank deficient (control collinear with signal)")
+    xtx_inv = np.linalg.inv(X.T @ X)
+    beta = xtx_inv @ X.T @ y
+    resid = y - X @ beta
+    s2 = float(resid @ resid) / (n - p)
+    return beta, np.sqrt(np.diag(xtx_inv) * s2)
+
+
+def _clean(*arrs) -> list[np.ndarray]:
+    a = [np.asarray(x, dtype=float) for x in arrs]
+    if len({len(x) for x in a}) != 1:
+        raise ClaimError("arrays differ in length")
+    ok = np.all([np.isfinite(x) for x in a], axis=0)
+    return [x[ok] for x in a]
+
+
+def probe_volatility_control(y, x, vol, min_t: float = 2.0, keep: float = 0.5) -> ProbeResult:
+    """H2: does the signal's effect survive controlling for volatility? Passes if the coefficient keeps `keep` of its raw
+    size AND stays significant. A pure volatility proxy loses both."""
+    y, x, vol = _clean(y, x, vol)
+    try:
+        b0, s0 = _ols(y, [x])
+        b1, s1 = _ols(y, [x, vol])
+    except ClaimError as e:
+        return ProbeResult("survives_volatility_control", None, str(e))
+    if abs(b0[1] / s0[1]) < min_t:
+        return ProbeResult("survives_volatility_control", None, "no significant raw effect to survive the control")
+    t = float(b1[1] / s1[1]) if s1[1] > 0 else 0.0
+    kept = float(b1[1] / b0[1]) if b0[1] != 0 else 0.0
+    ok = abs(t) >= min_t and kept >= keep and np.sign(b1[1]) == np.sign(b0[1])
+    return ProbeResult("survives_volatility_control", bool(ok), f"raw {b0[1]:+.4g}, controlled {b1[1]:+.4g}, kept {kept:.2f}, t {t:.2f}", t)
+
+
+def probe_regime_stability(y, x, regime, min_group: int = 20, alpha: float = 0.01, min_rel_spread: float = 0.3) -> ProbeResult:
+    """H3: is the slope the same in every regime? Cochran Q over per-regime slopes. Fails only if the heterogeneity is both
+    statistically significant (alpha) AND material (slopes differ by more than `min_rel_spread` of the pooled size), or the
+    sign flips - a significant but trivial difference is not regime dependence."""
+    y, x, regime = _clean(y, x, regime)
+    slopes, ses = [], []
+    for r in sorted(set(regime.tolist())):
+        m = regime == r
+        if m.sum() < min_group:
+            continue
+        try:
+            b, s = _ols(y[m], [x[m]])
+        except ClaimError:
+            continue
+        slopes.append(float(b[1]))
+        ses.append(float(s[1]))
+    if len(slopes) < 2:
+        return ProbeResult("stable_across_regimes", None, "fewer than two regimes with enough data")
+    w = 1.0 / np.square(ses)
+    mu = float(np.sum(w * slopes) / np.sum(w))
+    q = float(np.sum(w * (np.array(slopes) - mu) ** 2))
+    p = float(_chi2_sf(q, len(slopes) - 1))
+    flips = len({np.sign(s) for s in slopes}) > 1
+    spread = (max(slopes) - min(slopes)) / abs(mu) if mu != 0 else math.inf
+    stable = not flips and (p >= alpha or spread <= min_rel_spread)
+    return ProbeResult("stable_across_regimes", bool(stable),
+                       f"Q={q:.2f} (p={p:.3f}) over {len(slopes)} regimes; spread {spread:.2f}; sign flip={flips}", p)
+
+
+def _chi2_sf(q: float, k: int) -> float:
+    from scipy import stats
+    return float(stats.chi2.sf(q, k))
+
+
+def probe_incremental(y, x, others: list, min_t: float = 2.0) -> ProbeResult:
+    """H4: does the signal add anything once the features we already have are in the model?"""
+    cols = _clean(y, x, *others)
+    y, x, others = cols[0], cols[1], cols[2:]
+    try:
+        b0, s0 = _ols(y, [x])
+        b, s = _ols(y, [x] + others)
+    except ClaimError as e:
+        return ProbeResult("incremental_over_existing", None if "rank" not in str(e) else False, str(e))
+    if abs(b0[1] / s0[1]) < min_t:
+        return ProbeResult("incremental_over_existing", None, "no significant marginal effect to add anything")
+    t = float(b[1] / s[1]) if s[1] > 0 else 0.0
+    return ProbeResult("incremental_over_existing", bool(abs(t) >= min_t), f"incremental t {t:.2f} after {len(others)} existing features", t)
+
+
+def probe_selection_control(discovery_t: float, holdout_t: float, min_ratio: float = 0.4, min_holdout: float = 1.65) -> ProbeResult:
+    """H5: an effect chosen because it looked good must keep looking good on data that played no part in choosing it.
+    Winner's curse predicts a holdout t well below the discovery t; a real effect shrinks less."""
+    if discovery_t <= 0:
+        return ProbeResult("survives_selection_control", None, "discovery t must be positive (claimed direction)")
+    ratio = holdout_t / discovery_t
+    return ProbeResult("survives_selection_control", bool(holdout_t >= min_holdout and ratio >= min_ratio),
+                       f"holdout t {holdout_t:.2f} vs discovery {discovery_t:.2f} (ratio {ratio:.2f})", ratio)
+
+
+def probe_rolling_sign(y, x, window: int = 60, min_share: float = 0.7) -> ProbeResult:
+    """H6: does the sign of the slope agree across rolling windows? A share below `min_share` means the effect wanders."""
+    y, x = _clean(y, x)
+    if len(y) < 2 * window:
+        return ProbeResult("sign_consistent_rolling", None, f"need >= {2 * window} observations, have {len(y)}")
+    signs = []
+    for i in range(0, len(y) - window + 1, max(1, window // 2)):
+        yy, xx = y[i:i + window], x[i:i + window]
+        if np.std(xx) == 0:
+            continue
+        signs.append(np.sign(np.cov(xx, yy)[0, 1]))
+    if len(signs) < 3:
+        return ProbeResult("sign_consistent_rolling", None, "too few usable windows")
+    signs = np.array(signs)
+    share = float(max(np.mean(signs > 0), np.mean(signs < 0)))
+    return ProbeResult("sign_consistent_rolling", bool(share >= min_share), f"{share:.2f} of {len(signs)} windows share a sign", share)
+
+
+def run_standard_tests(y, x, vol=None, regime=None, others=None, discovery_t: float | None = None,
+                       holdout_t: float | None = None, window: int = 60) -> list[ProbeResult]:
+    """Every test that the supplied inputs allow; the rest are simply absent (not run, not failed)."""
+    out = [probe_rolling_sign(y, x, window)]
+    if vol is not None:
+        out.append(probe_volatility_control(y, x, vol))
+    if regime is not None:
+        out.append(probe_regime_stability(y, x, regime))
+    if others:
+        out.append(probe_incremental(y, x, list(others)))
+    if discovery_t is not None and holdout_t is not None:
+        out.append(probe_selection_control(discovery_t, holdout_t))
+    return out
+
+
+def outcomes_to_results(outcomes: list[ProbeResult]) -> dict[str, bool | None]:
+    return {o.name: o.passed for o in outcomes}
+
+
+def interpret(observation: Observation, relation: StatRelation, outcomes: list[ProbeResult], now, stated_at: str,
+              subject: str = "the pattern", evidence_through=None) -> InterpretationRecord:
+    """End-to-end: open the six hypotheses, attach the relation, run the outcomes through the likelihood table."""
+    rec = open_record(observation, stated_at, subject).with_relation(relation)
+    return rec.with_tests(outcomes_to_results(outcomes), now, evidence_through)
+
+
+# ---------------------------------------------------------------- what to test next, and how belief moved
+
+def outcome_probability(belief: HypothesisSet, test: str) -> float:
+    """Predictive P(test passes) under the current belief: sum over hypotheses of weight * P(pass | hypothesis)."""
+    table = TESTS[test][True]
+    return sum(w * table[HypKind(k)] for k, w in belief.weights if HypKind(k) in table)
+
+
+def expected_information_gain(belief: HypothesisSet, test: str) -> float:
+    """Expected entropy reduction (nats) from running `test` next, computed with the same likelihood table and floor that
+    `update` uses. This is the value of resolving the ambiguity, and feeds the research policy (section 36)."""
+    if test not in TESTS:
+        raise ClaimError(f"unknown test {test!r}")
+    p_pass = outcome_probability(belief, test)
+    h0 = belief.entropy()
+    exp_h = 0.0
+    for outcome, p in ((True, p_pass), (False, 1.0 - p_pass)):
+        if p <= 1e-12:
+            continue
+        table = TESTS[test][outcome]
+        live = {HypKind(k): table.get(HypKind(k), 0.5) for k, _ in belief.weights}
+        post = belief.update(f"__preview_{test}_{outcome}", live, "2999-12-31")
+        exp_h += p * post.entropy()
+    return max(0.0, h0 - exp_h)
+
+
+def next_test(belief: HypothesisSet) -> tuple[str, float] | None:
+    """The not-yet-run test with the highest expected information gain, or None when every test has been used."""
+    used = {e.name for e in belief.log}
+    scored = [(name, expected_information_gain(belief, name)) for name in sorted(TESTS) if name not in used]
+    return max(scored, key=lambda t: (t[1], t[0])) if scored else None
+
+
+def kl_divergence(p: HypothesisSet, q: HypothesisSet) -> float:
+    """KL(p || q) over the shared hypothesis kinds: how far belief moved (0 = unchanged)."""
+    pd_, qd = p.as_dict(), q.as_dict()
+    if set(pd_) != set(qd):
+        raise ClaimError("beliefs cover different hypotheses")
+    return sum(w * math.log(w / qd[k]) for k, w in pd_.items() if w > 0)
+
+
+def belief_shift(before: HypothesisSet, after: HypothesisSet) -> dict:
+    """Summary of a belief update for reports and audits: leader before/after, biggest mover, KL, alive hypotheses."""
+    b, a = before.as_dict(), after.as_dict()
+    move = {k: a[k] - b[k] for k in a}
+    top = max(move, key=lambda k: abs(move[k]))
+    lb, la = before.leading()[0], after.leading()[0]
+    return {"leader_before": lb.value, "leader_after": la.value, "leader_changed": lb != la, "biggest_mover": top,
+            "biggest_move": move[top], "kl": kl_divergence(after, before), "alive_before": before.effective_number(),
+            "alive_after": after.effective_number()}
+
+
+def evidence_ledger(belief: HypothesisSet) -> list[str]:
+    """One readable line per piece of evidence used, in order, with the hypothesis it hurt or helped most."""
+    rows = []
+    for e in belief.log:
+        lik = dict(e.likelihoods)
+        hi, lo = max(lik, key=lik.get), min(lik, key=lik.get)
+        rows.append(f"{e.at} {e.name}: favours {hi} ({lik[hi]:.2f}), hurts {lo} ({lik[lo]:.2f})"
+                    + (f"; evidence through {e.evidence_through}" if e.evidence_through else ""))
+    return rows
+
+
+def unresolved_pairs(belief: HypothesisSet, within: float = 0.15) -> list[tuple[str, str, float]]:
+    """Hypothesis pairs whose weights differ by less than `within`, both above the floor: the ambiguities a next test
+    should target. Sorted by combined weight so the biggest ambiguity is first."""
+    ws = sorted(belief.weights, key=lambda kv: (-kv[1], kv[0]))
+    out = []
+    for i, (a, wa) in enumerate(ws):
+        for b, wb in ws[i + 1:]:
+            if abs(wa - wb) < within and min(wa, wb) > belief.floor * 1.5:
+                out.append((a, b, wa + wb))
+    return sorted(out, key=lambda t: (-t[2], t[0], t[1]))

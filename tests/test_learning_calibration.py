@@ -460,3 +460,92 @@ def test_combined_influence_multiplies_and_names_the_limiting_reason():
     assert C.combined_influence("k", NOW, led, mon).total < b.total
     assert C.combined_influence("nobody", NOW, led, mon).total == 0.0  # unknown to the ledger => no influence
     assert C.combined_influence("k", NOW, led, None).calibration == 1.0
+
+
+# ------------------------------------------------------------------------------------------------- S08 second pass (section 83)
+
+def test_context_path_and_hierarchical_shrinkage():
+    assert C.context_path("a=1/b=2") == ["a=1", "a=1/b=2"] and C.context_path("") == []
+    rng = np.random.default_rng(61)
+    n = 2000
+    ctx = np.array(["vol=hi/trend=up"] * 20 + ["vol=hi/trend=dn"] * 980 + ["vol=lo/trend=up"] * 1000)
+    p = rng.uniform(0.6, 0.9, n)
+    q = np.where(ctx == "vol=hi/trend=up", p - 0.25, p)
+    y = (rng.random(n) < q).astype(float)
+    g = C.hierarchical_gaps(p, y, ctx, k=30)
+    leaf = g["vol=hi/trend=up"]
+    assert leaf["n"] == 20 and abs(leaf["shrunk"]) < abs(leaf["raw"]) and leaf["shrunk"] > 0
+    assert abs(leaf["shrunk"] - leaf["parent"]) < abs(leaf["raw"] - leaf["parent"])          # pulled toward its parent
+    assert g["vol=hi"]["n"] == 1000 and set(g) == {"vol=hi", "vol=hi/trend=up", "vol=hi/trend=dn", "vol=lo", "vol=lo/trend=up"}
+    assert C.hierarchical_gaps([], [], []) == {}
+    with pytest.raises(ValueError):
+        C.hierarchical_gaps([0.5], [1], ["a", "b"])
+
+
+def test_context_platt_shrinks_thin_contexts_to_the_global_curve():
+    rng = np.random.default_rng(62)
+    p = rng.uniform(0.55, 0.95, 3000)
+    ctx = np.array(["big"] * 2900 + ["thin"] * 100)
+    q = np.where(ctx == "thin", 0.5 + 0.1 * (p - 0.5), p)
+    y = (rng.random(3000) < q).astype(float)
+    maps = C.context_platt(p, y, ctx, k=60, min_n=40)
+    g = C.platt_slope(p, y)
+    thin_b, big_b = maps["thin"][1], maps["big"][1]
+    assert thin_b < big_b and thin_b > C.platt_slope(p[ctx == "thin"], y[ctx == "thin"])["b"]     # shrunk, not raw
+    assert abs(big_b - g["b"]) < 0.1
+    below = C.context_platt(p, y, ["x"] * 2990 + ["tiny"] * 10, min_n=40)
+    assert below["tiny"] == pytest.approx((C.platt_slope(p, y)["a"], C.platt_slope(p, y)["b"]))    # under min_n: global
+    assert C.context_platt([0.5] * 5, [1, 0, 1, 0, 1], ["a"] * 5) == {}
+
+
+def _records(p, y, start=dt.date(2024, 1, 1), lag=3):
+    mon = C.CalibrationMonitor()
+    for i, (pi, yi) in enumerate(zip(p, y)):
+        d = start + dt.timedelta(days=i)
+        mon.add(float(pi), int(yi), d, d + dt.timedelta(days=lag), NOW)
+    return mon
+
+
+def test_walk_forward_recalibration_uses_only_matured_records():
+    p, y = forecasts(500, lambda p: 0.5 + 0.4 * (p - 0.5), seed=63)
+    mon = _records(p, y)
+    out, used = C.walk_forward_recalibrate(mon.records(NOW), "platt", min_fit=60)
+    recs = sorted(mon.records(NOW), key=lambda r: (r.decided_at, r.record_id))
+    for i in (0, 100, 300, 499):
+        cut = recs[i].decided_at
+        assert used[i] == sum(1 for r in recs if r.matured_at < cut)                  # never counts an unmatured outcome
+    assert used[0] == 0 and out[0] == recs[0].predicted and used[-1] > 400
+    raw = np.array([r.predicted for r in recs])
+    yy = np.array([r.outcome for r in recs], float)
+    assert C.brier(out[200:], yy[200:]) < C.brier(raw[200:], yy[200:])
+    iso, _ = C.walk_forward_recalibrate(mon.records(NOW), "isotonic", min_fit=60)
+    assert C.brier(iso[200:], yy[200:]) < C.brier(raw[200:], yy[200:])
+    with pytest.raises(ValueError):
+        C.walk_forward_recalibrate([], "bogus")
+    assert C.walk_forward_recalibrate([], "platt")[0].size == 0
+
+
+def test_walk_forward_recalibration_cannot_see_a_future_flip():
+    """Planted look-ahead trap: outcomes AFTER a forecast are inverted. A past-only fit must be unaffected by them."""
+    p, y = forecasts(400, lambda p: p, seed=64)
+    y_flipped = y.copy()
+    y_flipped[300:] = 1 - y_flipped[300:]
+    a, _ = C.walk_forward_recalibrate(_records(p, y).records(NOW), "platt", 60)
+    b, _ = C.walk_forward_recalibrate(_records(p, y_flipped).records(NOW), "platt", 60)
+    assert np.allclose(a[:290], b[:290])                                              # forecasts before the flip are identical
+    assert not np.allclose(a[380:], b[380:])
+
+
+def test_context_influence_blends_own_and_global_factor():
+    rng = np.random.default_rng(65)
+    n = 3000
+    ctx = np.array(["calm", "stress"])[rng.integers(0, 2, n)]
+    p = rng.uniform(0.55, 0.9, n)
+    q = np.where(ctx == "stress", 0.5 + 0.2 * (p - 0.5), p)
+    y = (rng.random(n) < q).astype(float)
+    mon = C.CalibrationMonitor()
+    fill(mon, p, y, ctx=ctx)
+    out = C.context_influence(mon, NOW, seed=0)
+    assert out["stress"]["influence"] < 0.5 and out["calm"]["influence"] > out["stress"]["influence"] + 0.3
+    assert out["stress"]["own"] <= out["stress"]["influence"] <= 1.0
+    assert C.context_influence(C.CalibrationMonitor(), NOW, 0) == {}

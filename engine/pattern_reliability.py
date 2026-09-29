@@ -1,4 +1,4 @@
-"""Bible phases 3, 4 (lifecycle / rescoping), 9, 10 - PATTERN RELIABILITY: learn WHEN a pattern works (canon C60; C56-C59).
+"""Bible phases 3, 4 (lifecycle / rescoping), 9, 10 - PATTERN RELIABILITY: learn WHEN a pattern works (canon C60, C61; C56-C59).
 
 C60: patterns die within a year. The system must (1) find WHAT CHANGED when a pattern flipped or stopped, (2) predict when
 a pattern will be unreliable, and (3) gate it - use it only where predicted reliable - instead of discarding it. A pattern
@@ -18,6 +18,11 @@ whose reliability cannot be predicted and which keeps breaking is disregarded fo
             unpredictable -> disregarded for the period. Nothing is deleted. `LiveGate` + `apply_gate_to_view` plug into
             engine.pattern_memory (B26) so the trader-facing weight is multiplied by the gate.
   evaluate  `evaluate_policies`: always-on vs three discard-after-break baselines vs gated, per era, block-bootstrap CIs.
+  health    C61 `health_monitor`: every pattern re-checked every period against newly matured evidence (CUSUM with a designed
+            false-alarm rate + discounted posterior); healthy / suspect / broken ledger; a broken pattern is never active.
+  investigate  C61 `investigate`: every broken verdict must end EXPLAINED_AND_GATED (a driver that beat the family-wise bar
+            AND predicted later, independent data) or DISCARDED_UNPREDICTABLE. A driver that fails either bar is never
+            reported as the cause: the verdict is 'unknown cause' and its share is tracked (`unknown_cause_share`).
   guards    `audit_context_builder` (truncation test), `scan_context_for_peeking`, `causality_audit` (rerun on truncated
             data must reproduce the prediction): a context that peeks at the next period is caught (C56).
 
@@ -58,6 +63,7 @@ PARAMS = {
     "min_pred_n": 40,           # matured predictions before OOS skill is judged
     "t_pat_lo": 0.0,            # a pattern inherits the pooled skill unless its own matured skill t is below this
     "t_pat": 1.28,              # one-sided per-pattern skill bar (used to label a pattern's skill as individually proven)
+    "t_mem": 3.0,               # MemoryGate bar: date-free rows cannot be clustered by week, so its t is overstated - demand more
     "t_pool": 1.64,             # one-sided pooled skill bar (must pass before ANY pattern is called gateable)
     "ctx_lead": 2,              # rows up to the onset that describe "just before the break"
     "cluster_gap": 4,           # weeks between onsets that still count as one shared event
@@ -798,12 +804,16 @@ def causality_audit(tl, cfg=None, kind="pooled", rows=None, seed=0, atol=1e-9):
     rng = np.random.default_rng(seed)
     poss = np.unique(d["pos"].values)
     pick = rows if rows is not None else sorted(rng.choice(poss, size=min(4, len(poss)), replace=False).tolist())
-    bad = []
+    bad, skipped = [], []
     first = int(d["made_at"].min())
     for r in pick:
         cut = tl.truncate(int(r))
         # the refit schedule is anchored at the first affordable refit: keep it by anchoring on the same start row
-        part = walk_forward(cut, P, kind, start=first)
+        try:
+            part = walk_forward(cut, P, kind, start=first)
+        except ReliabilityError:
+            skipped.append(int(r))                 # too little matured evidence in the truncated copy: nothing to compare
+            continue
         a = d[d["pos"] == r].set_index("pat")["p"]
         b = part.df[part.df["pos"] == r].set_index("pat")["p"]
         common = a.index.intersection(b.index)
@@ -811,7 +821,10 @@ def causality_audit(tl, cfg=None, kind="pooled", rows=None, seed=0, atol=1e-9):
             bad.append(int(r))
     if bad:
         raise LeakError(f"prediction changed when later data was removed at rows {bad}: something read the future")
-    return {"rows_checked": [int(r) for r in pick], "ok": True}
+    checked = [int(r) for r in pick if int(r) not in skipped]
+    if not checked:
+        raise ReliabilityError("causality audit could not compare any row")
+    return {"rows_checked": checked, "skipped": skipped, "ok": True}
 
 
 # ---------------------------------------------------------------- break explanation: what changed? (family-wise controlled)
@@ -1403,17 +1416,22 @@ def verdict_matrix(inv, health, T, patterns):
 
 # ---------------------------------------------------------------- gating: skill test, gate matrices, policies
 def skill_tests(pl, cfg=None):
-    """Expanding, past-only test of whether the model predicts better than the pattern's own trailing hit rate.
-    A row-i entry uses only predictions whose outcome had matured by the close of row i. Returns dict of DataFrames
-    (weeks x patterns): n, t (one-sided evidence, AR(1)-inflated) and the pooled (cross-pattern weekly mean) t series."""
-    P = _cfg(cfg)
-    Pm, Bo, H = pl.wide("p"), pl.wide("base_own"), pl.wide("hold")
-    D = (Bo - H) ** 2 - (Pm - H) ** 2
-    Dav = D.shift(pl.block)
-    n, mean, sd, t = _expanding_stats(Dav)
-    wk = Dav.mean(axis=1).to_frame("pooled")
-    nw, _, _, tw = _expanding_stats(wk)
-    return {"n": n, "t": t, "mean": mean, "pooled_t": tw["pooled"], "pooled_n": nw["pooled"], "D": Dav}
+    """Expanding, past-only test of whether the model predicts better than BOTH simple baselines - the pooled base rate and
+    the pattern's own shrunk trailing hit rate (which on pure noise is worse than the pooled rate, so beating it alone
+    proves nothing). A row-i entry uses only predictions whose outcome had matured by the close of row i. Returns
+    DataFrames (weeks x patterns): n, t (the smaller of the two baselines' AR(1)-inflated t), and the pooled
+    (cross-pattern weekly mean) t series, again the smaller of the two."""
+    Pm, Bo, Bp, H = pl.wide("p"), pl.wide("base_own"), pl.wide("base_pool"), pl.wide("hold")
+    Lm = (Pm - H) ** 2
+    out = {}
+    for tag, B in (("own", Bo), ("pool", Bp)):
+        D = ((B - H) ** 2 - Lm).shift(pl.block)
+        n, mean, sd, t = _expanding_stats(D)
+        nw, _, _, tw = _expanding_stats(D.mean(axis=1).to_frame("pooled"))
+        out[tag] = {"n": n, "t": t, "mean": mean, "pooled_t": tw["pooled"], "pooled_n": nw["pooled"], "D": D}
+    return {"n": out["own"]["n"], "t": np.minimum(out["own"]["t"], out["pool"]["t"]), "mean": out["own"]["mean"],
+            "pooled_t": np.minimum(out["own"]["pooled_t"], out["pool"]["pooled_t"]), "pooled_n": out["own"]["pooled_n"],
+            "by_baseline": out}
 
 
 def gate_matrix(pl, cfg=None, mode=None):
@@ -1493,8 +1511,10 @@ def portfolio_series(tl, W, rows):
         out[k] = np.where(nlive > 0, num / np.maximum(nlive, 1), np.nan)
         used[k] = np.where(wv.sum(1) > 0, num / np.maximum(wv.sum(1), 1e-12), np.nan)
     idx = tl.rets.index
-    return (pd.DataFrame(out, index=idx).iloc[rows], pd.DataFrame(used, index=idx).iloc[rows],
-            pd.DataFrame({k: np.where(live, w.values, np.nan).mean(1) for k, w in W.items()}, index=idx).iloc[rows])
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)          # weeks with no live pattern have no average weight
+        avg = pd.DataFrame({k: np.nanmean(np.where(live, w.values, np.nan), axis=1) for k, w in W.items()}, index=idx)
+    return pd.DataFrame(out, index=idx).iloc[rows], pd.DataFrame(used, index=idx).iloc[rows], avg.iloc[rows]
 
 
 def _metrics(x):
@@ -1702,11 +1722,7 @@ class MemoryGate:
     @classmethod
     def fit(cls, mem, real_now, cfg=None, ctx_cols=None):
         P = _cfg(cfg)
-        sums = []
-        for key in mem.keys():
-            s = mem.timeline_summary(key, real_now)
-            if s is not None and len(s.t) >= 6:
-                sums.append(s)
+        sums = _summaries(mem, real_now, min_obs=6)
         cols = sorted(ctx_cols if ctx_cols is not None else {c for s in sums for c in s.ctx_cols})
         rows = [r for s in sums for r in cls._rows(s, cols)]
         base_cols = list(cls.FEATS) + cols
@@ -1719,7 +1735,7 @@ class MemoryGate:
         base = float(train["hold"].mean())
         d = (base - test["hold"].values) ** 2 - (pt - test["hold"].values) ** 2
         t = float(d.mean() / (d.std(ddof=1) / math.sqrt(len(d)))) if len(d) > 5 and d.std(ddof=1) > 0 else float("nan")
-        proven = bool(np.isfinite(t) and t >= P["t_pool"])
+        proven = bool(np.isfinite(t) and t >= P["t_mem"])
         final = MetaModel("logit", base_cols, P, P["seed"]).fit(df, df["hold"].values, np.arange(len(df)))
         return cls(final, float(df["hold"].mean()), base_cols,
                    {"proven": proven, "t": t, "n_test": int(len(test)), "brier_model": brier(pt, test["hold"].values),
@@ -1742,6 +1758,22 @@ class MemoryGate:
             return 1.0 if p >= thr else 0.0
         w = self.P["soft_width"]
         return float(np.clip((p - (thr - w)) / (2 * w), 0.0, 1.0))
+
+
+def _summaries(mem, real_now, min_obs=6):
+    """Date-free TimelineSummary of every pattern with >= min_obs matured observations, from ONE pass over the matured
+    records (timeline_summary per key would rescan the whole store for each key)."""
+    try:
+        from .pattern_memory import _summary, check_no_future
+        mat = mem._matured(real_now)
+        check_no_future(mat, real_now)
+        by = {}
+        for m in mat:
+            by.setdefault(m["key"], []).append(m)
+        return [_summary(k, v) for k, v in sorted(by.items()) if len(v) >= min_obs]
+    except ImportError:
+        out = [mem.timeline_summary(k, real_now) for k in mem.keys()]
+        return [s for s in out if s is not None and len(s.t) >= min_obs]
 
 
 def timelines_from_memory(mem, real_now, cfg=None):

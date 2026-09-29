@@ -37,9 +37,11 @@ from typing import Callable, Iterable, Mapping, Sequence
 
 import numpy as np
 import pandas as pd
+from scipy import stats
 
 from engine.learning.core import (FailureCause, FirewallBreach, Subsystem, as_date, canonical_json, current_code_hash,
                                   require_past, stable_hash)
+from engine.pattern_stats import bh_qvalues, cluster_bootstrap_ci, permute_within_clusters, week_codes
 
 COMPONENTS = ("pattern", "analog", "memory", "direction", "timing", "risk")
 SIGNAL_COMPONENTS = ("pattern", "analog", "memory", "direction")
@@ -83,13 +85,14 @@ class CreditConfig:
     seed: int = 7
     alpha: float = 0.05
     n_boot: int = 400
-    n_perm: int = 60                   # permutation-null draws per component
+    n_perm: int = 200                  # permutation-null draws per component
     min_decisions: int = 30
     min_groups: int = 8                # distinct weeks
     stability_min: float = 0.80        # share of resamples that must agree in sign with the full sample
     half_agreement_min: bool = True    # the two time halves must not disagree in sign
     context_min_n: int = 15
     blanket_tol: float = 0.25          # relative deviation from equal split below which credit looks "blanket"
+    interaction_min_rel: float = 0.02  # an interaction is material only above this share of the total effect
     interaction_min_share: float = 0.5 # |interaction| share of the total effect above which failure is INTERACTION
     n_perm_orders: int = 200           # permutations for sampled Shapley (only if components > EXACT_LIMIT)
     neutral: Mapping[str, float] = dataclasses.field(default_factory=lambda: dict(NEUTRAL))
@@ -205,9 +208,8 @@ class DecisionLedger:
 
 
 def week_code(asof: Sequence[str]) -> np.ndarray:
-    """ISO year*100+week per decision - the cluster id for bootstraps (a week's decisions share a regime)."""
-    iso = pd.DatetimeIndex([pd.Timestamp(as_date(a)) for a in asof]).isocalendar()
-    return (iso["year"].astype(int) * 100 + iso["week"].astype(int)).to_numpy()
+    """Cluster id per decision (ISO week, engine.pattern_stats.week_codes): a week's decisions share a regime."""
+    return week_codes(pd.DatetimeIndex([pd.Timestamp(as_date(a)) for a in asof]))[0]
 
 
 @dataclasses.dataclass
@@ -254,6 +256,11 @@ class Combiner:
     def __call__(self, S: pd.DataFrame) -> np.ndarray:
         raise NotImplementedError
 
+    def array(self, M: np.ndarray, cols: Sequence[str]) -> np.ndarray:
+        """Same as __call__ on a plain matrix (columns named `cols`); subclasses override it to skip building a DataFrame,
+        which dominates the cost of the permutation null."""
+        return self(pd.DataFrame(M, columns=list(cols)))
+
     def describe(self) -> dict:
         raise NotImplementedError
 
@@ -268,6 +275,14 @@ class WeightedSumCombiner(Combiner):
         for c, w in self.weights.items():
             if c in S:
                 out += float(w) * S[c].to_numpy(dtype=float)
+        return out
+
+    def array(self, M, cols):
+        pos = {c: i for i, c in enumerate(cols)}
+        out = np.zeros(len(M))
+        for c, w in self.weights.items():
+            if c in pos:
+                out += float(w) * M[:, pos[c]]
         return out
 
     def describe(self):
@@ -293,6 +308,19 @@ class StructuredCombiner(Combiner):
             sig = sig * (np.clip(t, 0, 1) if self.soft_gate else (t >= self.gate).astype(float))
         if "risk" in S:
             sig = sig * S["risk"].to_numpy(dtype=float)
+        return sig
+
+    def array(self, M, cols):
+        pos = {c: i for i, c in enumerate(cols)}
+        sig = np.zeros(len(M))
+        for c, w in self.weights.items():
+            if c in pos and c not in ("timing", "risk"):
+                sig += float(w) * M[:, pos[c]]
+        if "timing" in pos:
+            t = M[:, pos["timing"]]
+            sig = sig * (np.clip(t, 0, 1) if self.soft_gate else (t >= self.gate).astype(float))
+        if "risk" in pos:
+            sig = sig * M[:, pos["risk"]]
         return sig
 
     def describe(self):
@@ -332,7 +360,7 @@ class Coalitions:
     def decision(self, mask: int) -> np.ndarray:
         cols = np.array([(mask >> k) & 1 for k in range(self.n_comp)], dtype=bool)
         M = np.where(cols[None, :], self._S, self._neutral[None, :])
-        return self.combiner(pd.DataFrame(M, columns=self.comps))
+        return self.combiner.array(M, self.comps)
 
     def v(self, mask: int) -> np.ndarray:
         if mask not in self._cache:
@@ -438,7 +466,9 @@ def _group_index(codes: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
 
 
 def cluster_bootstrap_mean(values: np.ndarray, codes: np.ndarray, rng: np.random.Generator, n_boot: int) -> np.ndarray:
-    """Bootstrap of the row-weighted mean, resampling whole clusters (weeks). values: (N,) or (N, k) -> (n_boot, k)."""
+    """JOINT bootstrap draws of the row-weighted mean of several columns, resampling whole clusters (weeks) once for all
+    columns. Kept because stability (sign and rank agreement across components) needs the draws themselves, which
+    pattern_stats.cluster_bootstrap_ci (a single interval) does not return. values: (N,) or (N, k) -> (n_boot, k)."""
     v = values.reshape(len(values), -1)
     uniq, inv = _group_index(codes)
     g = len(uniq)
@@ -451,12 +481,16 @@ def cluster_bootstrap_mean(values: np.ndarray, codes: np.ndarray, rng: np.random
 
 def within_group_permutation(codes: np.ndarray, rng: np.random.Generator) -> np.ndarray:
     """Index permutation that shuffles rows only inside their own group (date/week), so a shuffled component keeps its
-    marginal distribution and its date-level regime but loses its link to this decision's outcome."""
-    base = np.argsort(codes, kind="stable")
-    shuffled = np.lexsort((rng.random(len(codes)), codes))
-    perm = np.empty(len(codes), dtype=int)
-    perm[base] = shuffled
-    return perm
+    marginal distribution and its date-level regime but loses its link to this decision's outcome. Built on
+    engine.pattern_stats.permute_within_clusters (dealing an index vector back inside each cluster)."""
+    return permute_within_clusters(np.arange(len(codes)), np.asarray(codes), rng)
+
+
+def cluster_ci(values: np.ndarray, codes: np.ndarray, rng: np.random.Generator, n_boot: int, alpha: float) -> tuple[float, float]:
+    """Week-clustered percentile CI of the mean of `values` via engine.pattern_stats.cluster_bootstrap_ci."""
+    n_cl = int(codes.max()) + 1 if len(codes) else 0
+    return cluster_bootstrap_ci(np.asarray(codes, dtype=np.int64), np.ones(len(values)), np.asarray(values, dtype=float),
+                                np.ones(len(values), dtype=bool), n_cl, rng, reps=n_boot, level=1 - alpha)
 
 
 def _spearman(a: np.ndarray, b: np.ndarray) -> float:
@@ -497,20 +531,23 @@ def half_split_agreement(phi: np.ndarray, dates: np.ndarray) -> dict:
 
 
 def permutation_null(frame: DecisionFrame, combiner: Combiner, cfg: CreditConfig, comp_index: int,
-                     rng: np.random.Generator) -> np.ndarray:
+                     rng: np.random.Generator, base: "Coalitions | None" = None) -> np.ndarray:
     """Null distribution of component `comp_index`'s mean Shapley credit when its inputs are shuffled inside each date.
-    A real component must beat this; a component that only 'wins' because it is present cannot."""
-    comps = list(frame.scores.columns)
+    A real component must beat this; a component that only 'wins' because it is present cannot. Coalitions that do not
+    contain the shuffled component are unaffected by the shuffle, so their values are copied from `base` (half the work)."""
+    n = frame.scores.shape[1]
+    base = base or Coalitions(frame, combiner, cfg.utility, cfg.neutral)
+    keep = [m for m in range(1 << n) if not (m >> comp_index) & 1]
     out = np.empty(cfg.n_perm)
     for b in range(cfg.n_perm):
         perm = within_group_permutation(frame.dates.astype("int64"), rng)
         sc = frame.scores.copy()
         sc.iloc[:, comp_index] = sc.iloc[perm, comp_index].to_numpy()
-        fr = dataclasses.replace(frame, scores=sc)
-        co = Coalitions(fr, combiner, cfg.utility, cfg.neutral)
-        D = harsanyi_dividends(co.all_values()) if len(comps) <= EXACT_LIMIT else None
-        if D is not None:
-            out[b] = shapley_from_dividends(D, len(comps))[:, comp_index].mean()
+        co = Coalitions(dataclasses.replace(frame, scores=sc), combiner, cfg.utility, cfg.neutral)
+        for m in keep:
+            co._cache[m] = base.v(m)
+        if n <= EXACT_LIMIT:
+            out[b] = shapley_from_dividends(harsanyi_dividends(co.all_values()), n)[:, comp_index].mean()
         else:
             out[b] = shapley_sampled(co, max(20, cfg.n_perm_orders // 10), rng)[:, comp_index].mean()
     return out
@@ -542,6 +579,8 @@ class ComponentCredit:
     blame_on_losses: float             # mean Shapley on decisions with negative net utility (negative = harmful)
     verdict: CreditVerdict
     reasons: tuple = ()
+    ablate_verdict: str = ""           # engine.ablation.ablate remove-one verdict (earns_keep/no_effect/harmful/insufficient)
+    ablate_delta: float = float("nan")
 
     def validate(self) -> list[str]:
         errs = []
@@ -562,7 +601,8 @@ class InteractionCredit:
     lo: float
     hi: float
     kind: str                          # SYNERGY / SUBSTITUTES / NONE
-    verdict: str                       # RELIABLE / NOT_DISTINGUISHABLE
+    verdict: str                       # RELIABLE / NOT_DISTINGUISHABLE / IMMATERIAL
+    q: float = float("nan")            # BH q-value over all pairs (15 pairs at 5% would otherwise yield a false 'reliable')
 
 
 @dataclasses.dataclass(frozen=True)
@@ -635,7 +675,7 @@ class CreditReport:
                  f"efficiency error {self.efficiency_error:.2e}"]
         for c in sorted(self.components, key=lambda c: -c.mean_credit):
             lines.append(f"  {c.component:<10}{c.mean_credit:+.5f} [{c.lo:+.5f},{c.hi:+.5f}] loo {c.loo:+.5f} solo {c.solo:+.5f} "
-                         f"share {c.share:5.1%} stab {c.sign_stability:4.2f} p {c.null_p:.3f}  {c.verdict.value}")
+                         f"share {c.share:5.1%} stab {c.sign_stability:4.2f} p {c.null_p:.3f} ablate {c.ablate_verdict}  {c.verdict.value}")
             for r in c.reasons:
                 lines.append(f"      - {r}")
         for i in self.interactions:
@@ -686,9 +726,8 @@ class CreditEngine:
         phi, loo, solo = raw["phi"], raw["loo"], raw["solo"]
         seeds = np.random.SeedSequence(cfg.seed).spawn(6)
         rng_boot, rng_stab, rng_null, rng_int, rng_ctx, _ = [np.random.default_rng(s) for s in seeds]
-        boots = cluster_bootstrap_mean(phi, frame.weeks, rng_boot, cfg.n_boot)
-        lo = np.quantile(boots, cfg.alpha / 2, axis=0)
-        hi = np.quantile(boots, 1 - cfg.alpha / 2, axis=0)
+        ci = [cluster_ci(phi[:, k], frame.weeks, rng_boot, cfg.n_boot, cfg.alpha) for k in range(phi.shape[1])]
+        lo, hi = np.array([c[0] for c in ci]), np.array([c[1] for c in ci])
         stab = stability_across_resamples(phi, frame.weeks, rng_stab, cfg.n_boot)
         half = half_split_agreement(phi, frame.dates)
         n_groups = len(np.unique(frame.weeks))
@@ -696,9 +735,17 @@ class CreditEngine:
         wins, losses = net > 0, net < 0
         mean_phi = phi.mean(axis=0)
         enough = frame.n >= cfg.min_decisions and n_groups >= cfg.min_groups
+        abl = component_ablation(frame, self.combiner, cfg)["table"].set_index("component")
+        if enough and (1.0 / (1 + cfg.n_perm)) * len(comps) > cfg.alpha:
+            raise ValueError(f"n_perm={cfg.n_perm} cannot resolve BH significance across {len(comps)} components at alpha={cfg.alpha}")
+        null_qs = np.full(len(comps), np.nan)
+        if enough:
+            null_ps = np.array([null_p_value(mean_phi[k], permutation_null(frame, self.combiner, cfg, k, rng_null, raw["co"]))
+                                for k in range(len(comps))])
+            null_qs = bh_qvalues(null_ps)
         rows = []
         for k, c in enumerate(comps):
-            null_p = null_p_value(mean_phi[k], permutation_null(frame, self.combiner, cfg, k, rng_null)) if enough else float("nan")
+            null_p = float(null_qs[k]) if enough else float("nan")          # BH-adjusted across components
             reasons, verdict = [], CreditVerdict.NO_DETECTABLE_EFFECT
             if not enough:
                 verdict = CreditVerdict.INSUFFICIENT
@@ -708,7 +755,7 @@ class CreditEngine:
             elif hi[k] < 0 and null_p <= cfg.alpha:
                 verdict = CreditVerdict.BLAMED
             elif lo[k] > 0 or hi[k] < 0:
-                reasons.append(f"interval excludes 0 but is not distinguishable from a shuffled input (p={null_p:.3f})")
+                reasons.append(f"interval excludes 0 but is not distinguishable from a shuffled input (q={null_p:.3f})")
             else:
                 reasons.append("interval spans zero: no credit granted")
             if verdict in (CreditVerdict.EARNS_CREDIT, CreditVerdict.BLAMED):
@@ -723,7 +770,8 @@ class CreditEngine:
                              sign_stability=float(stab["sign"][k]), half_agree=bool(half["agree"][k]),
                              credit_on_wins=float(phi[wins, k].mean()) if wins.any() else float("nan"),
                              blame_on_losses=float(phi[losses, k].mean()) if losses.any() else float("nan"),
-                             verdict=verdict, reasons=tuple(reasons)))
+                             verdict=verdict, reasons=tuple(reasons), ablate_verdict=str(abl.loc[c, "verdict"]),
+                             ablate_delta=float(abl.loc[c, "delta"])))
         earned = np.array([max(r["mean_credit"], 0.0) if r["verdict"] is CreditVerdict.EARNS_CREDIT else 0.0 for r in rows])
         shares = earned / earned.sum() if earned.sum() > 0 else earned
         components = tuple(ComponentCredit(share=float(s), **r) for s, r in zip(shares, rows))
@@ -740,20 +788,30 @@ class CreditEngine:
 
     # ---- interactions
     def _interaction_records(self, raw, comps, frame, rng) -> list[InteractionCredit]:
+        """Pairwise Shapley interaction indices with week-clustered CIs and BH control over all pairs; an interaction is
+        RELIABLE only if q <= alpha AND it is material (>= interaction_min_rel of the total effect)."""
         out = []
         if not raw["pairs"]:
             return out
         keys = list(raw["pairs"])
         M = np.column_stack([raw["pairs"][k] for k in keys])
         boots = cluster_bootstrap_mean(M, frame.weeks, rng, self.cfg.n_boot)
-        lo = np.quantile(boots, self.cfg.alpha / 2, axis=0)
-        hi = np.quantile(boots, 1 - self.cfg.alpha / 2, axis=0)
+        ci = [cluster_ci(M[:, j], frame.weeks, rng, self.cfg.n_boot, self.cfg.alpha) for j in range(M.shape[1])]
         mean = M.mean(axis=0)
+        sd = boots.std(axis=0, ddof=1)
+        # normal-approximation p from the clustered bootstrap SE: the raw bootstrap tail count has a floor of 1/(B+1), too
+        # coarse to survive BH over 15 pairs
+        z = np.where(sd > 1e-15, mean / np.where(sd > 1e-15, sd, 1.0), np.where(np.abs(mean) > 1e-12, np.inf, 0.0))
+        p = 2 * stats.norm.sf(np.abs(z))
+        q = bh_qvalues(p)
+        total = abs(float((raw["v_full"] - raw["v_empty"]).mean()))
+        floor = max(self.cfg.interaction_min_rel * total, 1e-9)
         for j, (a, b) in enumerate(keys):
-            reliable = lo[j] > 0 or hi[j] < 0
+            material = abs(mean[j]) >= floor
+            reliable = q[j] <= self.cfg.alpha and material
+            verdict = "RELIABLE" if reliable else ("IMMATERIAL" if q[j] <= self.cfg.alpha else "NOT_DISTINGUISHABLE")
             kind = "NONE" if not reliable else ("SYNERGY" if mean[j] > 0 else "SUBSTITUTES")
-            out.append(InteractionCredit(comps[a], comps[b], float(mean[j]), float(lo[j]), float(hi[j]), kind,
-                                         "RELIABLE" if reliable else "NOT_DISTINGUISHABLE"))
+            out.append(InteractionCredit(comps[a], comps[b], float(mean[j]), float(ci[j][0]), float(ci[j][1]), kind, verdict, float(q[j])))
         out.sort(key=lambda i: -abs(i.mean))
         return out
 
@@ -808,8 +866,8 @@ class CreditEngine:
                 out.append(KnowledgeCredit(kid, comp, len(vals), float(vals.mean()), float("nan"), float("nan"),
                                            CreditVerdict.INSUFFICIENT))
                 continue
-            b = cluster_bootstrap_mean(vals, frame.weeks[rows], rng, self.cfg.n_boot)[:, 0]
-            lo, hi = np.quantile(b, [self.cfg.alpha / 2, 1 - self.cfg.alpha / 2])
+            _, inv = np.unique(frame.weeks[rows], return_inverse=True)
+            lo, hi = cluster_ci(vals, inv, rng, self.cfg.n_boot, self.cfg.alpha)
             verdict = (CreditVerdict.EARNS_CREDIT if lo > 0 else CreditVerdict.BLAMED if hi < 0
                        else CreditVerdict.NO_DETECTABLE_EFFECT)
             by_ctx = {}
@@ -950,3 +1008,275 @@ def simulate_decisions(n: int, seed: int, truth: Callable[[np.random.Generator, 
         led.add(Decision(f"d{i:05d}", d.date().isoformat(), (d + pd.offsets.BDay(horizon_days)).date().isoformat(),
                          {c: float(r[c]) for c in COMPONENTS}, float(y[i]), {"regime": regime}))
     return led
+
+
+# ---------------------------------------------------------------------------------------------- baseline sensitivity
+class _MarginalCoalitions(Coalitions):
+    """Coalitions whose absent components take per-decision stand-in values instead of a constant."""
+
+    def __init__(self, frame, combiner, utility, stand_in: np.ndarray):
+        super().__init__(frame, combiner, utility, {})
+        self._stand_in = stand_in
+
+    def decision(self, mask: int) -> np.ndarray:
+        cols = np.array([(mask >> k) & 1 for k in range(self.n_comp)], dtype=bool)
+        M = np.where(cols[None, :], self._S, self._stand_in)
+        return self.combiner.array(M, self.comps)
+
+
+def marginal_baseline_credit(frame: DecisionFrame, combiner: Combiner, cfg: CreditConfig, n_draws: int = 8,
+                             seed: int = 0) -> np.ndarray:
+    """Shapley credit when a 'removed' component is replaced by a draw from its own marginal distribution (another
+    decision's value, shuffled inside the week) instead of the neutral constant. The neutral baseline can make a component
+    look useful merely because 0 is a bad stand-in for it; if the two baselines disagree the credit is baseline-dependent.
+    Returns the mean over draws of per-decision phi, shape (N, n)."""
+    rng = np.random.default_rng(seed)
+    n = frame.scores.shape[1]
+    S = frame.scores.to_numpy(dtype=float)
+    total = np.zeros((frame.n, n))
+    for _ in range(n_draws):
+        perm = np.column_stack([within_group_permutation(frame.weeks, rng) for _ in range(n)])
+        sub = np.column_stack([S[perm[:, k], k] for k in range(n)])          # a marginal draw for every component
+        co = _MarginalCoalitions(frame, combiner, cfg.utility, sub)
+        if n <= EXACT_LIMIT:
+            total += shapley_from_dividends(harsanyi_dividends(co.all_values()), n)
+        else:
+            total += shapley_sampled(co, max(20, cfg.n_perm_orders // 10), rng)
+    return total / n_draws
+
+
+def baseline_sensitivity(frame: DecisionFrame, combiner: Combiner, cfg: CreditConfig, phi_neutral: np.ndarray | None = None) -> pd.DataFrame:
+    """Per component: mean credit under the neutral baseline vs the marginal baseline, and whether they agree in sign.
+    Disagreement = the credit is an artefact of what 'removed' means and must not be trusted without a human look."""
+    comps = list(frame.scores.columns)
+    if phi_neutral is None:
+        co = Coalitions(frame, combiner, cfg.utility, cfg.neutral)
+        phi_neutral = shapley_values(co, cfg, np.random.default_rng(cfg.seed))[0]
+    phi_m = marginal_baseline_credit(frame, combiner, cfg, seed=cfg.seed + 5)
+    rows = []
+    for k, c in enumerate(comps):
+        a, b = float(phi_neutral[:, k].mean()), float(phi_m[:, k].mean())
+        rows.append({"component": c, "neutral": a, "marginal": b,
+                     "sign_agrees": bool(np.sign(a) == np.sign(b) or min(abs(a), abs(b)) < 1e-12),
+                     "ratio": (b / a) if abs(a) > 1e-12 else float("nan")})
+    return pd.DataFrame(rows)
+
+
+def utility_sensitivity(frame: DecisionFrame, combiner: Combiner, cfg: CreditConfig) -> pd.DataFrame:
+    """Mean Shapley credit under each utility. A component that earns credit under PAYOFF but not under HIT is being paid for
+    magnitude luck, not for being right. NEG_SQERR treats the decision as a point forecast, so it is only meaningful when the
+    combiner's output is on the outcome's scale - with an arbitrary scale it punishes every noisy component, which is what
+    `robust_*` (all three utilities) then reflects."""
+    comps = list(frame.scores.columns)
+    out = {}
+    for u in Utility:
+        co = Coalitions(frame, combiner, u, cfg.neutral)
+        phi = shapley_values(co, cfg, np.random.default_rng(cfg.seed))[0]
+        cis = [cluster_ci(phi[:, k], frame.weeks, np.random.default_rng(cfg.seed + k), cfg.n_boot, cfg.alpha)
+               for k in range(len(comps))]
+        out[u.value] = [(float(phi[:, k].mean()), cis[k][0] > 0, cis[k][1] < 0) for k in range(len(comps))]
+    rows = []
+    for k, c in enumerate(comps):
+        r = {"component": c}
+        for u, v in out.items():
+            r[f"{u}_mean"], r[f"{u}_pos"], r[f"{u}_neg"] = v[k]
+        r["robust_positive"] = all(out[u.value][k][1] for u in Utility)
+        r["robust_negative"] = all(out[u.value][k][2] for u in Utility)
+        rows.append(r)
+    return pd.DataFrame(rows)
+
+
+# ---------------------------------------------------------------------------------------------- credit over time
+def credit_over_time(frame: DecisionFrame, phi: np.ndarray, freq: str = "Q", min_n: int = 20) -> pd.DataFrame:
+    """Mean credit per component per calendar period. Credit that used to be earned and no longer is (a decaying pattern) is
+    invisible in the pooled mean; this table and `credit_trend` expose it."""
+    comps = list(frame.scores.columns)
+    df = pd.DataFrame(phi, columns=comps)
+    df["_p"] = pd.DatetimeIndex(frame.dates).to_period(freq)
+    g = df.groupby("_p")
+    out = g[comps].mean()
+    out["n"] = g.size()
+    return out[out["n"] >= min_n]
+
+
+def credit_trend(over_time: pd.DataFrame, min_periods: int = 4) -> dict:
+    """Per component: Spearman correlation of period index with period credit, and a DECAYING / IMPROVING / STEADY tag.
+    A tag needs at least `min_periods` periods and |rho| >= 0.7 - a trend claim from three points is not evidence."""
+    comps = [c for c in over_time.columns if c != "n"]
+    res = {}
+    t = np.arange(len(over_time), dtype=float)
+    for c in comps:
+        if len(over_time) < min_periods:
+            res[c] = {"rho": float("nan"), "tag": "INSUFFICIENT"}
+            continue
+        r = _spearman(t, over_time[c].to_numpy(dtype=float))
+        first = float(over_time[c].iloc[: len(over_time) // 2].mean())
+        last = float(over_time[c].iloc[len(over_time) // 2:].mean())
+        tag = "STEADY"
+        if np.isfinite(r) and abs(r) >= 0.7:
+            tag = "DECAYING" if last < first else "IMPROVING"
+        res[c] = {"rho": float(r), "first_half": first, "second_half": last, "tag": tag}
+    return res
+
+
+# ---------------------------------------------------------------------------------------------- power
+def credit_standard_errors(phi: np.ndarray, codes: np.ndarray, rng: np.random.Generator, n_boot: int = 300) -> np.ndarray:
+    return cluster_bootstrap_mean(phi, codes, rng, n_boot).std(axis=0, ddof=1)
+
+
+def minimum_detectable_credit(se: np.ndarray, alpha: float = 0.05, power: float = 0.8) -> np.ndarray:
+    """Smallest true mean credit a two-sided test at `alpha` would detect with `power`, given the clustered standard error.
+    A NO_DETECTABLE_EFFECT verdict is only informative for components whose MDE is small relative to what would matter."""
+    from scipy.stats import norm
+    return (norm.ppf(1 - alpha / 2) + norm.ppf(power)) * np.asarray(se, dtype=float)
+
+
+def power_table(report: CreditReport, frame: DecisionFrame, phi: np.ndarray, seed: int = 0) -> pd.DataFrame:
+    comps = list(frame.scores.columns)
+    se = credit_standard_errors(phi, frame.weeks, np.random.default_rng(seed))
+    mde = minimum_detectable_credit(se, report.config.alpha)
+    rows = []
+    for k, c in enumerate(comps):
+        cc = report.component(c)
+        rows.append({"component": c, "mean_credit": cc.mean_credit, "se": float(se[k]), "mde": float(mde[k]),
+                     "underpowered": bool(cc.verdict is CreditVerdict.NO_DETECTABLE_EFFECT and abs(cc.mean_credit) < mde[k]),
+                     "verdict": cc.verdict.value})
+    return pd.DataFrame(rows)
+
+
+# ---------------------------------------------------------------------------------------------- failure attribution summary
+def failure_attribution_summary(postmortems: Sequence[DecisionCredit]) -> pd.DataFrame:
+    """How the losing decisions distribute over (Subsystem, FailureCause): where the system's mistakes live. UNKNOWN is a
+    legitimate row - the contract says an honest unknown beats a manufactured cause."""
+    rows = [{"subsystem": (p.subsystem.value if p.subsystem else "NONE"), "cause": (p.cause.value if p.cause else "NONE"),
+             "loss": -min(p.net_utility - p.baseline_utility, 0.0)} for p in postmortems if p.cause is not None]
+    if not rows:
+        return pd.DataFrame(columns=["subsystem", "cause", "n", "share", "total_loss"])
+    df = pd.DataFrame(rows)
+    g = df.groupby(["subsystem", "cause"]).agg(n=("loss", "size"), total_loss=("loss", "sum")).reset_index()
+    g["share"] = g["n"] / g["n"].sum()
+    return g.sort_values("total_loss", ascending=False).reset_index(drop=True)
+
+
+# ---------------------------------------------------------------------------------------------- graph edges (F08, F09)
+def credit_edges(report: CreditReport) -> list[tuple[str, str, str, float]]:
+    """(component_a, EDGE, component_b, weight) from reliable interactions: SYNERGY -> COMPLEMENTS (worth more together than
+    apart; F09), SUBSTITUTES -> REDUNDANT_WITH (each covers for the other; F08). Only RELIABLE interactions produce edges."""
+    from engine.learning.core import Edge
+    out = []
+    for i in report.interactions:
+        if i.verdict != "RELIABLE":
+            continue
+        e = Edge.COMPLEMENTS if i.kind == "SYNERGY" else Edge.REDUNDANT_WITH
+        out.append((i.a, e.value, i.b, float(abs(i.mean))))
+    return out
+
+
+# ---------------------------------------------------------------------------------------------- report checks and history
+def validate_report(rep: CreditReport, tol: float = 1e-9) -> list[str]:
+    """Invariants any CreditReport must satisfy; a violation means the attribution machinery, not the market, is wrong."""
+    errs = []
+    if rep.efficiency_error > tol * max(1.0, abs(rep.full_value)):
+        errs.append(f"efficiency violated: credits do not sum to full-minus-base (max gap {rep.efficiency_error:.3e})")
+    if sum(c.share for c in rep.components) > 1 + 1e-9:
+        errs.append("credit shares sum to more than 1")
+    for c in rep.components:
+        errs += c.validate()
+    if any(c.share > 0 for c in rep.components) and rep.blanket:
+        errs.append("blanket credit flagged while shares were granted")
+    if rep.n_decisions == 0 and rep.components:
+        errs.append("components reported for zero decisions")
+    return errs
+
+
+def credit_drift(prev: CreditReport, new: CreditReport) -> pd.DataFrame:
+    """Component-by-component change between two reports: did who earns credit change, and by how much."""
+    rows = []
+    for b in new.components:
+        try:
+            a = prev.component(b.component)
+        except KeyError:
+            rows.append({"component": b.component, "prev": float("nan"), "new": b.mean_credit, "delta": float("nan"),
+                         "verdict_changed": True})
+            continue
+        rows.append({"component": b.component, "prev": a.mean_credit, "new": b.mean_credit,
+                     "delta": b.mean_credit - a.mean_credit, "verdict_changed": a.verdict is not b.verdict})
+    return pd.DataFrame(rows)
+
+
+class CreditLedger:
+    """Append-only JSON-lines history of credit reports with a hash chain, so an edited past is detectable (section 49).
+    Each line: {prev, hash, now, code_hash, report}."""
+
+    def __init__(self, path):
+        import pathlib
+        self.path = pathlib.Path(path)
+
+    def _lines(self) -> list[dict]:
+        import json
+        if not self.path.exists():
+            return []
+        return [json.loads(l) for l in self.path.read_text(encoding="utf-8").splitlines() if l.strip()]
+
+    def append(self, rep: CreditReport) -> str:
+        lines = self._lines()
+        prev = lines[-1]["hash"] if lines else ""
+        if lines and as_date(rep.now) < as_date(lines[-1]["now"]):
+            raise FirewallBreach(f"ledger is chronological: {rep.now} precedes the newest entry")
+        body = json_safe(dataclasses.asdict(rep))
+        h = stable_hash({"prev": prev, "report": body}, 24)
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        with self.path.open("a", encoding="utf-8") as f:
+            f.write(canonical_json({"prev": prev, "hash": h, "now": rep.now, "code_hash": rep.code_hash, "report": body}) + "\n")
+        return h
+
+    def verify(self) -> list[str]:
+        errs, prev = [], ""
+        for i, line in enumerate(self._lines()):
+            if line["prev"] != prev:
+                errs.append(f"line {i}: broken chain")
+            if stable_hash({"prev": line["prev"], "report": line["report"]}, 24) != line["hash"]:
+                errs.append(f"line {i}: content does not match its hash (edited after writing)")
+            prev = line["hash"]
+        return errs
+
+
+def json_safe(obj):
+    """Round-trip through canonical JSON so what is hashed is exactly what is stored (enums, NaN, numpy scalars)."""
+    import json
+    return json.loads(canonical_json(obj))
+
+
+# ---------------------------------------------------------------------------------------------- planted calibration (section 63)
+def planted_scenarios() -> dict:
+    """Truth functions with known answers: name -> (truth(rng, frame), set of components that truly matter)."""
+    return {
+        "single": (lambda r, d: 0.4 * d.pattern, {"pattern"}),
+        "two_independent": (lambda r, d: 0.35 * d.pattern + 0.35 * d.direction, {"pattern", "direction"}),
+        "gated": (lambda r, d: 0.5 * d.pattern * (2 * d.timing - 1), {"pattern", "timing"}),   # pattern is WRONG when the gate is closed
+        "noise_only": (lambda r, d: 0.0 * d.pattern, set()),
+    }
+
+
+def recovery_score(report: CreditReport, truth: set, ignore: Iterable[str] = ()) -> dict:
+    """Precision/recall of EARNS_CREDIT against the planted set. Components in `ignore` (e.g. a gate that only acts through an
+    interaction) are excluded from both sides."""
+    ign = set(ignore)
+    got = set(report.earners()) - ign
+    truth = set(truth) - ign
+    tp = len(got & truth)
+    return {"precision": tp / len(got) if got else 1.0, "recall": tp / len(truth) if truth else 1.0,
+            "false_credit": sorted(got - truth), "missed": sorted(truth - got)}
+
+
+def run_planted_calibration(seed: int = 0, n: int = 700, combiner: Combiner | None = None, cfg: CreditConfig | None = None) -> dict:
+    """Run every planted scenario end to end and report recovery. This is the calibration harness later waves tune against -
+    it is NOT evidence about real data."""
+    combiner = combiner or WeightedSumCombiner({c: 1.0 for c in SIGNAL_COMPONENTS})
+    cfg = cfg or CreditConfig(n_boot=150, n_perm=40)
+    res = {}
+    for name, (fn, truth) in planted_scenarios().items():
+        led = simulate_decisions(n, seed, fn, noise=0.5)
+        rep = CreditEngine(combiner, cfg).assess(led, "2035-01-01")
+        res[name] = recovery_score(rep, truth, ignore=("timing", "risk")) | {"errors": validate_report(rep)}
+    return res

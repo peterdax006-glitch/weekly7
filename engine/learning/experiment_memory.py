@@ -430,6 +430,21 @@ def bayes_update(prior: Mapping[str, float], likelihood: Mapping[str, float]) ->
     return normalise({k: prior[k] * likelihood.get(k, 0.0) for k in prior})
 
 
+def robust_update(prior: Mapping[str, float], likelihood: Mapping[str, float], unknown_hid: str = "", misfit_below: float = 0.12,
+                  leak: float = 0.30) -> tuple:
+    """Bayes update with a MODEL-MISFIT GUARD. When the observed outcome is improbable under EVERY named hypothesis (best
+    likelihood < misfit_below) the hypothesis set is probably incomplete, and a plain Bayes update would crown whichever
+    wrong hypothesis is least wrong. In that case a fraction `leak` of the posterior moves to the explicit UNKNOWN
+    hypothesis (section 9: unknown is an answer). Returns (posterior, misfit_flag). Without an unknown hypothesis it is Bayes."""
+    post = bayes_update(prior, likelihood)
+    best = max(likelihood.values()) if likelihood else 1.0
+    if unknown_hid and unknown_hid in post and best < misfit_below:
+        moved = {k: v * (1 - leak) for k, v in post.items() if k != unknown_hid}
+        moved[unknown_hid] = post[unknown_hid] * (1 - leak) + leak
+        return normalise(moved), True
+    return post, False
+
+
 def predictive_probability(prior: Mapping[str, float], expected: Sequence[ExpectedOutcome], observed: str) -> float:
     return sum(prior.get(o.hid, 0.0) * o.probability for o in expected if o.outcome == observed)
 
@@ -444,7 +459,8 @@ def make_belief_update(rec: ExperimentRecord, observed: str, posterior_belief: s
     hypothesis names the default posterior_belief when none is given."""
     prior = {h.hid: h.prior for h in rec.competing_hypotheses}
     like = outcome_likelihoods(rec.competing_hypotheses, rec.expected_outcomes, observed, smoothing)
-    post = bayes_update(prior, like)
+    unknown = next((h.hid for h in rec.competing_hypotheses if h.cause == FailureCause.UNKNOWN.value or h.hid == "h_unknown"), "")
+    post, _ = robust_update(prior, like, unknown)
     pred = predictive_probability(prior, rec.expected_outcomes, observed)
     bits = -math.log2(max(pred, 1e-9)) if pred > 0 else -math.log2(1e-9)
     lead = max(post, key=post.get)
@@ -486,8 +502,8 @@ class DuplicateVerdict:
 
 
 def infer_space(configs: Iterable[Mapping]) -> "legacy_space.Space":
-    """A Space declared from observed configurations: numeric parameters get their observed range on a 1/50 grid,
-    everything else is categorical over the values seen. Lets the legacy distance be reused without hand-declaring spaces."""
+    """A Space declared from observed configurations: numeric parameters are scaled by their largest magnitude (so distance
+    means relative difference even when only two configs exist), everything else is categorical over the values seen. Lets the legacy distance be reused without hand-declaring spaces."""
     seen: dict = {}
     for c in configs:
         for k, v in c.items():
@@ -496,9 +512,9 @@ def infer_space(configs: Iterable[Mapping]) -> "legacy_space.Space":
     for k, vs in seen.items():
         nums = [v for v in vs if isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)]
         if nums and len(nums) == len(vs):
-            lo, hi = min(nums), max(nums)
-            if hi > lo:
-                spec[k] = (float(lo), float(hi), (hi - lo) / 50.0)
+            m = max(abs(v) for v in nums)
+            if m > 0:                                  # scale by magnitude, not by the (tiny) observed range: 0.80 vs 0.81 is near
+                spec[k] = (-float(m), float(m), float(m) / 50.0)
                 continue
         uniq = []
         for v in vs:
@@ -515,13 +531,77 @@ def config_distance(a: Mapping, b: Mapping, space=None) -> float:
     return sp.distance(sp.snap(dict(a)), sp.snap(dict(b)))
 
 
+# ------------------------------------------------------------------------------------------------ legacy façade
+
+class LegacyBridge:
+    """ONE façade over the two older dedup mechanisms (CONTRACT_MAPPING: 'one façade in engine/learning/experiment_memory.py'):
+    engine.experiment_memory.TriedIndex (search-space index) and engine.registry.ExperimentMemory (twelve-answer lessons,
+    keyed by registry.fingerprint). The ledger consults both when asked 'did we test this?' and mirrors every answered
+    experiment into both, so neither older store can silently disagree with the ledger and no third dedup path exists."""
+
+    def __init__(self, tried_index=None, memory=None):
+        self.tried = tried_index
+        self.memory = memory
+
+    def check(self, config: Mapping) -> list:
+        """[(source, status, blocking, message)] from the older stores for this configuration."""
+        out = []
+        if not config:
+            return out
+        if self.tried is not None:
+            v = self.tried.check(dict(config))
+            if v["verdict"] != "novel":
+                st = {"repeat": DuplicateStatus.SAME_CONFIG_REPEAT, "near_duplicate": DuplicateStatus.NEAR_DUPLICATE,
+                      "known_failure_nearby": DuplicateStatus.KNOWN_FAILURE_NEARBY}[v["verdict"]]
+                out.append(("TriedIndex", st, bool(v["block"]),
+                            f"TriedIndex {v['verdict']}: {v['exact'] or [i for _, i in v['close']]} reasons={v['reasons']}"))
+        if self.memory is not None:
+            h = self.memory.already_tried(dict(config))
+            if h["tried"]:
+                out.append(("registry.ExperimentMemory", DuplicateStatus.SAME_CONFIG_REPEAT if h["blocked"] else DuplicateStatus.NEAR_DUPLICATE,
+                            bool(h["blocked"]), f"registry memory: tried {h['tried']}x {h['ids']} blocked={h['blocked']}"))
+        return out
+
+    @staticmethod
+    def legacy_answers(rec: "ExperimentRecord") -> dict:
+        """The twelve registry answers from a section-31 record. What the record does not hold is stated as such, never invented."""
+        r = rec.result
+        nm = "not measured in this record"
+        metrics = dict(r.metrics) if r and r.metrics else {}
+        return {"what_changed": rec.question, "why_changed": rec.current_belief,
+                "data_used": ", ".join(rec.experiment.windows) or nm, "data_unseen": "; ".join(rec.experiment.controls) or nm,
+                "baseline": rec.current_belief, "improved": json.dumps(metrics, sort_keys=True, default=str) if metrics else (r.kind if r else nm),
+                "worsened": nm, "statistically_meaningful": (f"ci={list(r.ci)}" if r and r.ci else nm),
+                "risk_changed": nm, "survived_another_window": nm,
+                "adopted": bool(r and r.kind == ResultKind.CONFIRMED),
+                "if_rejected_why": (rec.learned[0] if rec.learned else (r.summary if r else "")) or "refuted"}
+
+    def mirror(self, rec: "ExperimentRecord", now) -> dict:
+        """Write an answered experiment into both older stores (idempotent: an id already present is skipped)."""
+        done = {"tried_index": False, "registry_memory": False}
+        if rec.result is None or rec.status not in (ExperimentStatus.ANSWERED, ExperimentStatus.INCONCLUSIVE) or not rec.experiment.config:
+            return done
+        if self.tried is not None and not any(x["experiment_id"] == rec.experiment_id for x in self.tried.rows):
+            outcome = {"CONFIRMED": "adopt", "REFUTED": "reject"}.get(rec.result.kind, "continue_testing")
+            score = rec.result.metrics.get("score") if isinstance(rec.result.metrics, Mapping) else None
+            reason = (rec.learned[0] if rec.learned else rec.result.summary) or "refuted"
+            self.tried.add(rec.experiment_id, dict(rec.experiment.config), outcome, score if isinstance(score, (int, float)) else None,
+                           reason if outcome == "reject" else None, now=now)
+            done["tried_index"] = True
+        if self.memory is not None and not any(e["experiment_id"] == rec.experiment_id for e in self.memory.entries):
+            self.memory.record(rec.experiment_id, dict(rec.experiment.config), self.legacy_answers(rec), now)
+            done["registry_memory"] = True
+        return done
+
+
 # ------------------------------------------------------------------------------------------------ ledger
 
 class ExperimentLedger:
     """Append-only, versioned ledger. propose() writes version 1; each later state change writes a NEW version of the same id.
     Nothing is edited or deleted. `view(now)` is the only way to read: it is the ledger as it stood before `now`."""
 
-    def __init__(self, path=None, near: float = 0.08, question_match: float = 0.72):
+    def __init__(self, path=None, near: float = 0.08, question_match: float = 0.72, bridge: LegacyBridge | None = None):
+        self.bridge = bridge
         self.path = Path(path) if path else None
         self.near = near
         self.question_match = question_match
@@ -567,7 +647,7 @@ class ExperimentLedger:
         and data), near-duplicate configuration, same question already answered, known failure nearby. A genuine change of
         code or data hash on an otherwise identical design downgrades an exact repeat to RETEST_JUSTIFIED."""
         recs = list(self.view(now).values())
-        if not recs:
+        if not recs and (self.bridge is None or design is None or not design.config):
             return DuplicateVerdict(DuplicateStatus.NOVEL, "nothing comparable has been run")
         cfgs = [dict(r.experiment.config) for r in recs] + ([dict(design.config)] if design else [])
         space = infer_space(cfgs) if cfgs else None
@@ -612,12 +692,20 @@ class ExperimentLedger:
                 st = DuplicateStatus.KNOWN_FAILURE_NEARBY
             if rank[st] > rank[worst]:
                 worst = st
+        if self.bridge is not None and design is not None:
+            for source, st, blocking, msg in self.bridge.check(design.config):
+                reasons.append(msg)
+                cand = st if blocking else DuplicateStatus.RETEST_JUSTIFIED if st == DuplicateStatus.NOVEL else worst
+                if blocking and rank[cand] > rank[worst]:
+                    worst = cand
+                elif not blocking and worst == DuplicateStatus.NOVEL:
+                    worst = DuplicateStatus.NOVEL
         if allow_repeat_reason.strip() and worst in DuplicateStatus.BLOCKING and worst != DuplicateStatus.IN_FLIGHT:
             reasons.append(f"repeat allowed by caller: {allow_repeat_reason.strip()}")
             worst = DuplicateStatus.RETEST_JUSTIFIED
         if worst == DuplicateStatus.NOVEL:
-            return DuplicateVerdict(DuplicateStatus.NOVEL, "comparable experiments exist but none answers this question",
-                                    tuple(matches))
+            return DuplicateVerdict(DuplicateStatus.NOVEL, "comparable experiments exist but none answers this question"
+                                    if matches else "nothing comparable has been run", tuple(matches), tuple(reasons))
         top = sorted(matches, key=lambda m: (-m.question_similarity, m.config_distance))[0] if matches else None
         msg = f"we already tested this ({worst})"
         if top:
@@ -689,6 +777,8 @@ class ExperimentLedger:
         if errs:
             raise ValueError("answer incomplete: " + "; ".join(errs))
         self._append(new)
+        if self.bridge is not None:
+            self.bridge.mirror(new, now)
         return new
 
     def fail(self, experiment_id: str, now, reason: str) -> ExperimentRecord:

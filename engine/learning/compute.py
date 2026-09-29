@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import contextlib
 import dataclasses
+import enum
 import json
 import math
 import os
@@ -34,9 +35,10 @@ from typing import Any, Callable, Iterable, Mapping, Sequence
 
 import numpy as np
 
+from engine import repro
 from engine import resources as R
 
-from .core import FirewallBreach, as_date, canonical_json, current_code_hash, require_past, stable_hash
+from .core import FirewallBreach, as_date, canonical_json, current_code_hash, require_past
 
 PENDING, RUNNING, DONE, FAILED, OOM, CRASHED, STALE, SUPERSEDED, GAVE_UP = (
     "PENDING", "RUNNING", "DONE", "FAILED", "OOM", "CRASHED", "STALE", "SUPERSEDED", "GAVE_UP")
@@ -60,6 +62,36 @@ class ClaimError(ComputeError):
 
 class SnapshotError(ComputeError):
     pass
+
+
+# ------------------------------------------------------------------------------------------------ plain data
+def plain(obj: Any) -> Any:
+    """Recursively turn numpy scalars/arrays and float subclasses into plain Python values. engine.learning.core's canonical
+    hasher renders a numpy float as 'np.float64(..)' and then fails to parse it, so anything that may carry numpy numbers
+    (experiment results, evidence records) goes through here before hashing or JSON."""
+    if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
+        return {f.name: plain(getattr(obj, f.name)) for f in dataclasses.fields(obj)}
+    if isinstance(obj, Mapping):
+        return {str(k): plain(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple, set, frozenset)):
+        return [plain(v) for v in obj]
+    if isinstance(obj, np.ndarray):
+        return plain(obj.tolist())
+    if isinstance(obj, np.generic):
+        return plain(obj.item())
+    if isinstance(obj, enum.Enum):
+        return plain(obj.value)
+    if isinstance(obj, bool) or obj is None or isinstance(obj, (int, str)):
+        return obj
+    if isinstance(obj, float):
+        return float(obj)
+    return obj
+
+
+def phash(obj: Any, n: int = 16) -> str:
+    """The repo's one canonical artifact hash (engine.repro.artifact_hash) of the plain form: numpy-safe, and identical for
+    a tuple and the list it round-trips through JSON as. No new hash function is introduced (contract mapping rule)."""
+    return repro.artifact_hash(plain(obj))[:n]
 
 
 # ------------------------------------------------------------------------------------------------ specification
@@ -89,20 +121,20 @@ class ExperimentSpec:
         if not (math.isfinite(self.est_gb) and self.est_gb > 0):
             errs.append("est_gb must be positive")
         try:
-            canonical_json(self.params)
+            canonical_json(plain(self.params))
         except TypeError as e:
             errs.append(f"params not serialisable: {e}")
         return errs
 
     @property
     def key(self) -> str:
-        return stable_hash([self.name, self.params, self.seed, self.as_of, self.snapshot_id, self.data_hash], 20)
+        return phash([self.name, self.params, self.seed, self.as_of, self.snapshot_id, self.data_hash], 20)
 
     def run_key(self, code_hash: str) -> str:
-        return stable_hash([self.key, code_hash], 20)
+        return phash([self.key, code_hash], 20)
 
     def to_dict(self) -> dict:
-        return json.loads(canonical_json(self))
+        return json.loads(canonical_json(plain(self)))
 
     @classmethod
     def from_dict(cls, d: Mapping[str, Any]) -> "ExperimentSpec":
@@ -121,6 +153,8 @@ def classify_failure(exc: BaseException | None = None, returncode: int | None = 
     MemoryError, from the known kill/allocation exit codes and from allocator messages in stderr."""
     if isinstance(exc, MemoryError):
         return OOM
+    if isinstance(exc, TimeoutError):
+        return CRASHED
     text = (stderr or "").lower() + (str(exc).lower() if exc is not None else "")
     if any(t in text for t in OOM_TEXT):
         return OOM
@@ -174,8 +208,8 @@ class SnapshotStore:
 
     def create(self, state: Mapping[str, Any], as_of, code_hash: str = "") -> str:
         """`as_of` is the last date the state contains information from. Returns the snapshot id."""
-        body = {"as_of": str(as_date(as_of)), "state": state, "code_hash": code_hash}
-        sid = stable_hash(body, 20)
+        body = plain({"as_of": str(as_date(as_of)), "state": state, "code_hash": code_hash})
+        sid = phash(body, 20)
         d = self.root / sid
         if (d / "snapshot.json").exists():
             return sid
@@ -191,7 +225,7 @@ class SnapshotStore:
         if not f.is_file():
             raise SnapshotError(f"snapshot {sid} not found")
         doc = json.loads(f.read_text(encoding="utf-8"))
-        if stable_hash(doc["body"], 20) != sid or doc.get("id") != sid:
+        if phash(doc["body"], 20) != sid or doc.get("id") != sid:
             raise SnapshotError(f"snapshot {sid} was altered after creation")
         return doc["body"]
 
@@ -300,9 +334,16 @@ class ExperimentLedger:
             if e["code_hash"] != code_hash:
                 raise ClaimError(f"{key} was submitted under code {e['code_hash']} but the worker runs {code_hash}")
             e["attempts"] += 1
-            e.update(worker=worker_id, heartbeat=float(now))
+            e.update(worker=worker_id, heartbeat=float(now), launched=None)
             self._note(e, now, RUNNING, f"attempt {e['attempts']} by {worker_id}")
             return json.loads(json.dumps(e))
+
+    def mark_launched(self, key: str, now: float) -> None:
+        """The supervisor started a process for this PENDING experiment; do not start another until it claims or the grace passes."""
+        with self._txn() as d:
+            if key not in d or d[key]["state"] != PENDING:
+                raise ComputeError(f"{key} is not PENDING")
+            d[key]["launched"] = float(now)
 
     def heartbeat(self, key: str, now: float) -> None:
         with self._txn() as d:
@@ -390,6 +431,7 @@ class WorkerContext:
     worker_id: str
     attempt: int
     batch_scale: float = 1.0
+    deadline: "Deadline | None" = None
     _ledger: "ExperimentLedger | None" = None
     _clock: Callable[[], float] = time.time
 
@@ -399,9 +441,12 @@ class WorkerContext:
 
     def rng(self, stream: str = "") -> np.random.Generator:
         """A fresh generator per (experiment, stream): independent of worker, order and other streams."""
-        return np.random.default_rng(np.random.SeedSequence([self.seed, int(stable_hash(stream, 8), 16)]))
+        return np.random.default_rng(np.random.SeedSequence([self.seed, int(phash(stream, 8), 16)]))
 
     def beat(self) -> None:
+        """Heartbeat to the ledger and enforce the wall-clock budget, if any: call this inside long loops."""
+        if self.deadline is not None:
+            self.deadline.check(self.spec.name)
         if self._ledger is not None:
             self._ledger.heartbeat(self.spec.key, self._clock())
 
@@ -421,7 +466,7 @@ class WorkerContext:
 def _envelope(spec: ExperimentSpec, result: Any, code_hash: str, worker_id: str, attempt: int, started: float, ended: float) -> dict:
     return {"experiment_key": spec.key, "run_key": spec.run_key(code_hash), "spec": spec.to_dict(), "seed": worker_seed_for(spec),
             "code_hash": code_hash, "data_hash": spec.data_hash, "snapshot_id": spec.snapshot_id, "worker": worker_id,
-            "attempt": attempt, "started": started, "ended": ended, "result": result, "result_hash": stable_hash(result, 20)}
+            "attempt": attempt, "started": started, "ended": ended, "result": plain(result), "result_hash": phash(result, 20)}
 
 
 def attempt_dir(out_root: str | Path, key: str, attempt: int) -> Path:
@@ -430,7 +475,8 @@ def attempt_dir(out_root: str | Path, key: str, attempt: int) -> Path:
 
 def run_worker(spec: ExperimentSpec, fn: Callable[[ExperimentSpec, WorkerContext], Any], ledger: ExperimentLedger,
                store: SnapshotStore | None, out_root: str | Path, worker_id: str, now: float,
-               code_hash: str | None = None, clock: Callable[[], float] = time.time) -> dict:
+               code_hash: str | None = None, clock: Callable[[], float] = time.time, deadline_s: float | None = None,
+               calibrator: "MemoryCalibrator | None" = None) -> dict:
     """Claim, isolate, run, record. Returns {'state', 'result_hash'|'error'}. Every failure path leaves the ledger in a
     consistent state and the attempt directory intact for inspection; nothing is written outside `attempt_dir`."""
     code_hash = code_hash if code_hash is not None else current_code_hash()
@@ -445,19 +491,25 @@ def run_worker(spec: ExperimentSpec, fn: Callable[[ExperimentSpec, WorkerContext
         snap = store.for_experiment(spec) if store is not None else {"as_of": None, "state": {}, "code_hash": ""}
         if store is not None and spec.snapshot_id:
             store.materialize(spec.snapshot_id, adir / "in")
-        ctx = WorkerContext(spec, adir, snap, code_hash, worker_id, attempt, claim.get("batch_scale", 1.0), ledger, clock)
+        ctx = WorkerContext(spec, adir, snap, code_hash, worker_id, attempt, claim.get("batch_scale", 1.0),
+                            Deadline(deadline_s) if deadline_s else None, ledger, clock)
         result = fn(spec, ctx)
-        json.loads(canonical_json(result))                       # a non-serialisable result fails here, not at reconcile
+        json.loads(canonical_json(plain(result)))                 # a non-serialisable result fails here, not at reconcile
         env = _envelope(spec, result, code_hash, worker_id, attempt, started, clock())
         atomic_write_json(adir / "result.json", env)
         (adir / "DONE").write_text(env["result_hash"], encoding="utf-8")     # written last: its presence means result.json is whole
         ledger.complete(spec.key, env["result_hash"], clock())
+        seal_attempt(adir)
+        if calibrator is not None:
+            calibrator.observe(spec.name, claim["est_gb"], R.process_info(os.getpid())["rss_gb"])
         return {"state": DONE, "result_hash": env["result_hash"], "dir": str(adir)}
     except FirewallBreach:
         ledger.fail(spec.key, FAILED, "FirewallBreach: " + traceback.format_exc(limit=1).strip()[-200:], clock())
         raise                                                      # a firewall breach must reach the caller (fail closed)
     except BaseException as e:
         kind = classify_failure(e)
+        if calibrator is not None and kind == OOM:
+            calibrator.observe(spec.name, claim["est_gb"], oom=True)
         (adir / "error.txt").write_text(traceback.format_exc(), encoding="utf-8")
         nxt = ledger.fail(spec.key, kind, f"{type(e).__name__}: {e}"[:300], clock())
         if isinstance(e, (KeyboardInterrupt, SystemExit)):
@@ -475,18 +527,26 @@ class Plan:
 
 
 def plan_launches(ledger: ExperimentLedger, free_gb: float | None, running: int = 0, cores: int | None = None,
-                  reserve_gb: float = R.RESERVE_GB, per_worker_gb: float = R.DEFAULT_JOB_GB) -> Plan:
+                  reserve_gb: float = R.RESERVE_GB, per_worker_gb: float = R.DEFAULT_JOB_GB, now: float | None = None,
+                  grace_s: float = R.RAMP_S) -> Plan:
     """Which PENDING experiments may start now. Deterministic: ordered by (priority, key); memory decides how many run (a
     started experiment's estimate is reserved before the next is considered, so 5 launches cannot each see the same free GB)."""
-    wc = R.worker_count(free_gb, per_worker_gb, cores, reserve_gb)
-    slots = max(0, wc["workers"] - running)
     pend = [(e["spec"]["priority"], k, e) for k, e in ledger.load().items() if e["state"] == PENDING]
     pend.sort(key=lambda t: (t[0], t[1]))
+    if now is not None:                                # launched but not yet claimed: its slot and memory are already spoken for
+        starting = {k: e for _, k, e in pend if e.get("launched") is not None and now - float(e["launched"]) < grace_s}
+        running += len(starting)
+        free_gb = None if free_gb is None else free_gb - sum(e["est_gb"] for e in starting.values())
+        pend = [t for t in pend if t[1] not in starting]
+    wc = R.worker_count(free_gb, per_worker_gb, cores, reserve_gb)
+    # free memory already excludes the RSS of workers that are running, so memory bounds the NEW launches while the core
+    # count bounds the total
+    slots = max(0, min(wc["by_memory"], min(wc["by_cores"], R.MAX_WORKERS) - running))
     launch, held = [], []
     budget = (free_gb or 0.0) - reserve_gb
     for _, key, e in pend:
         if len(launch) >= slots:
-            held.append((key, f"no free worker slot ({wc['limit']})"))
+            held.append((key, f"no free worker slot ({wc['limit']}; {running} running)"))
         elif e["est_gb"] > budget:
             held.append((key, f"needs {e['est_gb']:.1f} GB, {max(0.0, budget):.1f} GB left after reserve"))
         else:
@@ -565,7 +625,7 @@ def reconcile(ledger: ExperimentLedger, out_root: str | Path, current_code_hash_
         spec = ExperimentSpec.from_dict(e["spec"])
         bad = None
         for env in envs:
-            if stable_hash(env["result"], 20) != env["result_hash"]:
+            if phash(env["result"], 20) != env["result_hash"]:
                 bad = ("hash_mismatch", f"{env['_dir']}: result altered after writing")
             elif env["spec"] != spec.to_dict():
                 bad = ("spec_mismatch", f"{env['_dir']}: spec differs from the ledger")
@@ -611,6 +671,267 @@ def compute_report(ledger: ExperimentLedger, rec: Reconciliation | None = None, 
         lines += [f"- rejected {k} [{kind}] {detail}" for k, kind, detail in rec.rejected]
         lines += [f"- orphan {o}" for o in rec.orphans]
     return "\n".join(lines) + "\n"
+
+
+# ------------------------------------------------------------------------------------------------ memory calibration
+class MemoryCalibrator:
+    """Learns how much memory each kind of experiment REALLY needs, so the scheduler stops relying on a guess that has already
+    cost an OOM. Per experiment name it keeps the observed peaks and every OOM; the estimate is the largest of: the caller's
+    default, the biggest peak seen times a safety margin, and (after an OOM) the estimate that died times the growth factor.
+    Persisted as JSON; a corrupt file is treated as empty (calibration is advice, never a gate)."""
+
+    def __init__(self, path: str | Path, margin: float = 1.25, min_obs: int = 3, oom_growth: float = 1.5, cap_gb: float = 8.0):
+        if margin < 1.0 or oom_growth <= 1.0 or min_obs < 1:
+            raise ValueError("margin >= 1, oom_growth > 1, min_obs >= 1 required")
+        self.path, self.margin, self.min_obs, self.oom_growth, self.cap_gb = Path(path), margin, min_obs, oom_growth, cap_gb
+
+    def _load(self) -> dict:
+        d = read_json(self.path, {})
+        return d if isinstance(d, dict) else {}
+
+    def observe(self, name: str, est_gb: float, peak_gb: float | None = None, oom: bool = False) -> None:
+        if not (math.isfinite(est_gb) and est_gb > 0):
+            raise ValueError("est_gb must be positive")
+        if peak_gb is not None and not (math.isfinite(peak_gb) and peak_gb >= 0):
+            raise ValueError("peak_gb must be a non-negative number")
+        with R._lock(self.path):
+            d = self._load()
+            e = d.setdefault(name, {"peaks": [], "ooms": []})
+            if peak_gb is not None:
+                e["peaks"] = (e["peaks"] + [float(peak_gb)])[-50:]
+            if oom:
+                e["ooms"] = (e["ooms"] + [float(est_gb)])[-20:]
+            atomic_write_json(self.path, d)
+
+    def estimate(self, name: str, default_gb: float) -> float:
+        e = self._load().get(name)
+        if not e:
+            return default_gb
+        est = default_gb
+        if len(e["peaks"]) >= self.min_obs:
+            est = max(est, max(e["peaks"]) * self.margin)
+        if e["ooms"]:
+            est = max(est, max(e["ooms"]) * self.oom_growth)
+        return float(min(self.cap_gb, est))
+
+    def report(self) -> dict[str, dict]:
+        return {n: {"n_peaks": len(e["peaks"]), "max_peak_gb": max(e["peaks"], default=None), "n_oom": len(e["ooms"])}
+                for n, e in sorted(self._load().items())}
+
+
+def calibrated(spec: ExperimentSpec, cal: MemoryCalibrator) -> ExperimentSpec:
+    """The spec with its memory estimate replaced by what this kind of experiment has really needed. est_gb is deliberately not
+    part of the experiment key, so recalibrating never makes a finished experiment look new."""
+    return dataclasses.replace(spec, est_gb=cal.estimate(spec.name, spec.est_gb))
+
+
+# ------------------------------------------------------------------------------------------------ building batches
+def expand_grid(name: str, base_params: Mapping[str, Any], grid: Mapping[str, Sequence[Any]], seeds: Sequence[int], as_of: str,
+                **kw: Any) -> list[ExperimentSpec]:
+    """Every combination of `grid` values x `seeds`, in a deterministic order, de-duplicated by experiment key. The same call
+    always returns the same specs (so a restarted run resubmits exactly what it submitted before and the duplicate guard, not
+    luck, prevents rework)."""
+    if not seeds:
+        raise ValueError("at least one seed is required")
+    keys = sorted(grid)
+    combos: list[dict] = [{}]
+    for k in keys:
+        if not len(grid[k]):
+            raise ValueError(f"grid axis {k} is empty")
+        combos = [{**c, k: v} for c in combos for v in grid[k]]
+    out, seen = [], set()
+    for c in combos:
+        for sd in sorted(set(int(s) for s in seeds)):
+            sp = ExperimentSpec(name, {**dict(base_params), **c}, sd, as_of, **kw)
+            errs = sp.validate()
+            if errs:
+                raise ValueError(f"invalid spec in grid: {errs}")
+            if sp.key not in seen:
+                seen.add(sp.key)
+                out.append(sp)
+    return out
+
+
+def shard(specs: Sequence[ExperimentSpec], n_workers: int) -> list[list[ExperimentSpec]]:
+    """Longest-processing-time-first split into `n_workers` bins balanced by memory estimate. Ties break by key, so the same
+    input always gives the same partition regardless of the order specs arrive in."""
+    if n_workers < 1:
+        raise ValueError("n_workers must be >= 1")
+    bins: list[list[ExperimentSpec]] = [[] for _ in range(n_workers)]
+    load = [0.0] * n_workers
+    for sp in sorted(specs, key=lambda s: (-s.est_gb, s.key)):
+        i = min(range(n_workers), key=lambda j: (load[j], j))
+        bins[i].append(sp)
+        load[i] += sp.est_gb
+    return bins
+
+
+# ------------------------------------------------------------------------------------------------ deadlines
+class Deadline:
+    """Wall-clock budget for one experiment. Cooperative: the experiment calls `check()` in its loop; an overrun raises
+    TimeoutError, which the worker records as CRASHED (retryable) rather than hanging the queue forever."""
+
+    def __init__(self, seconds: float, clock: Callable[[], float] = time.monotonic):
+        if not (seconds > 0 and math.isfinite(seconds)):
+            raise ValueError("deadline must be a positive number of seconds")
+        self.seconds, self.clock = float(seconds), clock
+        self.start = clock()
+
+    def remaining(self) -> float:
+        return self.seconds - (self.clock() - self.start)
+
+    def check(self, what: str = "experiment") -> None:
+        if self.remaining() < 0:
+            raise TimeoutError(f"{what} exceeded its {self.seconds:.0f}s budget")
+
+
+# ------------------------------------------------------------------------------------------------ isolation audit
+def seal_attempt(adir: str | Path) -> int:
+    """Make a finished attempt directory read-only so a later process cannot quietly edit a result that was reconciled.
+    Returns the number of files sealed."""
+    n = 0
+    for p in Path(adir).rglob("*"):
+        if p.is_file():
+            os.chmod(p, stat.S_IREAD)
+            n += 1
+    return n
+
+
+def verify_isolation(ledger: ExperimentLedger, out_root: str | Path) -> list[dict]:
+    """Evidence that experiments did not touch each other or shared state: every entry under an experiment folder must be an
+    attempt directory (or the resumable progress file), attempt numbers must not exceed the ledger's count, and a DONE
+    experiment's winning attempt must contain both result and marker. Returns findings; empty means isolated."""
+    root = Path(out_root)
+    led = ledger.load()
+    out = []
+    if not root.is_dir():
+        return out
+    for kd in sorted(p for p in root.iterdir() if p.is_dir()):
+        e = led.get(kd.name)
+        if e is None:
+            continue                                                      # orphans are reconcile()'s finding
+        for child in sorted(kd.iterdir()):
+            if child.is_dir() and child.name.startswith("attempt_"):
+                try:
+                    num = int(child.name.split("_")[1])
+                except ValueError:
+                    out.append({"key": kd.name, "kind": "bad_attempt_name", "detail": child.name})
+                    continue
+                if num > e["attempts"]:
+                    out.append({"key": kd.name, "kind": "phantom_attempt", "detail": f"{child.name} but ledger counts {e['attempts']}"})
+            elif child.name != "progress.json":
+                out.append({"key": kd.name, "kind": "stray_file", "detail": child.name})
+        if e["state"] == DONE:
+            done_dirs = [a for a in kd.glob("attempt_*") if (a / "DONE").is_file()]
+            if not done_dirs:
+                out.append({"key": kd.name, "kind": "done_without_marker", "detail": "ledger DONE but no attempt has a DONE marker"})
+    return out
+
+
+# ------------------------------------------------------------------------------------------------ merge accounting
+class MergeLog:
+    """Which results have already been folded into learning state, and with which result hash. Merging is two-phase so a crash
+    can neither lose nor double-count a result: `plan` says what is new, the caller applies it to ITS state and persists that
+    state, then `commit` records it. A result that was merged and later re-appears with a DIFFERENT hash is a conflict, not an
+    update: the learning state already used the old numbers."""
+
+    def __init__(self, path: str | Path):
+        self.path = Path(path)
+
+    def merged(self) -> dict[str, str]:
+        d = read_json(self.path, {})
+        return d.get("merged", {}) if isinstance(d, dict) else {}
+
+    def plan(self, rec: Reconciliation) -> dict:
+        done = self.merged()
+        new, same, conflict = [], [], []
+        for key, result in sorted(rec.accepted, key=lambda kv: kv[0]):
+            h = phash(result, 20)
+            if key not in done:
+                new.append((key, result, h))
+            elif done[key] == h:
+                same.append(key)
+            else:
+                conflict.append({"key": key, "merged_hash": done[key], "now_hash": h})
+        return {"new": new, "already_merged": same, "conflicts": conflict}
+
+    def commit(self, plan: dict) -> int:
+        if plan["conflicts"]:
+            raise ComputeError(f"refusing to commit with unresolved merge conflicts: {[c['key'] for c in plan['conflicts']]}")
+        with R._lock(self.path):
+            d = read_json(self.path, {}) or {}
+            merged = d.get("merged", {})
+            for key, _, h in plan["new"]:
+                merged[key] = h
+            atomic_write_json(self.path, {"merged": merged, "n": len(merged), "digest": phash(sorted(merged.items()), 20)})
+        return len(plan["new"])
+
+
+def merge_new(rec: Reconciliation, log: MergeLog, reducer: Callable[[Any, str, Any], Any], state: Any) -> tuple[Any, dict]:
+    """Fold only not-yet-merged results into `state`, in key order. Returns (new state, plan). The caller persists the state and
+    THEN calls log.commit(plan); if it crashes in between, the next run sees the same plan and repeats the merge into the
+    state it reloaded from disk, which is exactly right."""
+    plan = log.plan(rec)
+    for key, result, _ in plan["new"]:
+        state = reducer(state, key, result)
+    return state, plan
+
+
+# ------------------------------------------------------------------------------------------------ supervision
+class Supervisor:
+    """One `tick` of the whole compute cycle: mark stale work, recover dead workers, decide what may start, start it. All
+    side effects go through injected callables (`free_fn`, `launcher`, `alive_fn`), so the loop is unit-testable with no
+    processes and, in production, is wired to engine.resources (JobQueue / ProcRegistry). A launched experiment is not
+    launched again until `grace_s` has passed or it has been claimed, so a slow start is not mistaken for a free slot."""
+
+    def __init__(self, ledger: ExperimentLedger, free_fn: Callable[[], float | None], launcher: Callable[[ExperimentSpec], Any],
+                 alive_fn: Callable[[str], bool], code_hash: str, cores: int | None = None, heartbeat_s: float = R.HEARTBEAT_S, grace_s: float = R.RAMP_S,
+                 reserve_gb: float = R.RESERVE_GB):
+        self.ledger, self.free_fn, self.launcher, self.alive_fn = ledger, free_fn, launcher, alive_fn
+        self.code_hash, self.cores = code_hash, cores
+        self.heartbeat_s, self.grace_s, self.reserve_gb = heartbeat_s, grace_s, reserve_gb
+
+    def tick(self, now: float) -> dict:
+        stale = self.ledger.mark_stale(self.code_hash, now)
+        recovered = self.ledger.recover(now, self.alive_fn, self.heartbeat_s)
+        counts = self.ledger.counts()
+        plan = plan_launches(self.ledger, self.free_fn(), counts.get(RUNNING, 0), self.cores, self.reserve_gb, now=now,
+                             grace_s=self.grace_s)
+        launched, failed = [], []
+        for key in plan.launch:
+            spec = self.ledger.spec(key)
+            try:
+                self.launcher(spec)
+                self.ledger.mark_launched(key, now)
+                launched.append(key)
+            except Exception as ex:                                       # a launch that fails is held, never silently dropped
+                failed.append({"key": key, "error": f"{type(ex).__name__}: {ex}"})
+        return {"now": now, "stale": stale, "recovered": recovered, "launched": launched, "launch_failed": failed,
+                "held": list(plan.held), "workers": plan.workers, "limit": plan.limit, "counts": self.ledger.counts()}
+
+
+def experiment_stats(ledger: ExperimentLedger) -> dict[str, dict]:
+    """Per experiment name: runs, success share, mean wall time of successful attempts (from the ledger history), and how
+    often it needed a retry - the numbers the research planner needs to price a proposed experiment."""
+    out: dict[str, dict] = {}
+    for key, e in ledger.load().items():
+        s = out.setdefault(e["spec"]["name"], {"runs": 0, "done": 0, "failed": 0, "gave_up": 0, "retries": 0, "_dur": []})
+        s["runs"] += 1
+        s["done"] += e["state"] == DONE
+        s["gave_up"] += e["state"] == GAVE_UP
+        s["failed"] += e["state"] in (FAILED, OOM, CRASHED, STALE)
+        s["retries"] += max(0, e["attempts"] - 1)
+        start = None
+        for t, st, _ in e["history"]:
+            if st == RUNNING:
+                start = t
+            elif st == DONE and start is not None:
+                s["_dur"].append(t - start)
+    for s in out.values():
+        d = s.pop("_dur")
+        s["success_share"] = s["done"] / s["runs"] if s["runs"] else float("nan")
+        s["mean_seconds"] = float(np.mean(d)) if d else None
+    return dict(sorted(out.items()))
 
 
 # ------------------------------------------------------------------------------------------------ subprocess entry

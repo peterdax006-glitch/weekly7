@@ -23,8 +23,12 @@ from typing import Any, Mapping, Sequence
 
 import numpy as np
 
+from engine import experiment_memory as EM
+from engine import pattern_stats as PS
+
+from .compute import phash
 from .core import (DecisionEffect, Epistemic, FirewallBreach, KnowledgeLike, Promotion, as_date, current_code_hash,
-                   require_past, stable_hash)
+                   require_past)
 
 GATES = ("statistical_validity", "incremental_value", "oos_confirmation", "cross_context_transfer", "risk_acceptance",
          "anti_memorization", "future_information_audit", "reproducibility", "stability", "provenance_completeness")
@@ -105,7 +109,7 @@ class PromotionPolicy:
         return errs
 
     def digest(self) -> str:
-        return stable_hash(self)
+        return phash(self)
 
 
 # ------------------------------------------------------------------------------------------------ evidence records
@@ -209,7 +213,7 @@ class PromotionEvidence:
     stability: StabilityEvidence | None = None
 
     def digest(self) -> str:
-        return stable_hash(self)
+        return phash(self)
 
 
 @dataclass(frozen=True)
@@ -240,7 +244,7 @@ class PromotionDecision:
 
     @property
     def decision_id(self) -> str:
-        return stable_hash([self.knowledge_id, self.version, self.now, self.verdict, self.policy_digest,
+        return phash([self.knowledge_id, self.version, self.now, self.verdict, self.policy_digest,
                             self.evidence_digest, [r.gate + r.status for r in self.results]])
 
     @property
@@ -284,32 +288,28 @@ def t_stat(x: np.ndarray) -> float:
     return m / (sd / math.sqrt(x.size))
 
 
-def one_sided_p(t: float, df: int) -> float:
-    from scipy import stats
-    return float(stats.t.sf(t, max(1, df)))
+def one_sided_p(t: float) -> float:
+    """One-sided normal p of a t-statistic (engine.pattern_stats.t_to_p is the repo's two-sided version; halved on the
+    favourable side). The normal approximation is adequate at the >= 60 effective observations the gate demands."""
+    p2 = float(PS.t_to_p(t))
+    return p2 / 2.0 if t > 0 else 1.0 - p2 / 2.0
 
 
-def adjusted_alpha(alpha: float, n_tests: int, method: str = "sidak") -> float:
-    """Per-test threshold after searching n_tests hypotheses. A pattern that is the best of 5,000 candidates must clear a far
-    higher bar than one that was hypothesised in advance."""
+def adjusted_p(p: float, n_tests: int, method: str = "sidak") -> float:
+    """p after searching n_tests hypotheses. A pattern that is the best of 5,000 candidates must clear a far higher bar than
+    one hypothesised in advance. Bonferroni is engine.pattern_stats.bonferroni; Sidak (exact for independent tests) is the
+    only local formula."""
     n = max(1, int(n_tests))
-    return 1.0 - (1.0 - alpha) ** (1.0 / n) if method == "sidak" else alpha / n
+    if method == "bonferroni":
+        return float(PS.bonferroni([p], n)[0])
+    return float(1.0 - (1.0 - p) ** n)
 
 
 def block_bootstrap_ci(x: np.ndarray, seed: int, n_boot: int = 600, block: int = 4, level: float = 0.95) -> tuple[float, float]:
-    """Circular block bootstrap CI of the mean. Blocks preserve short-range autocorrelation that an iid bootstrap would
-    ignore (overlapping weekly windows make consecutive deltas dependent). Deterministic given `seed`."""
-    n = x.size
-    if n < 2:
-        return (float("nan"), float("nan"))
-    b = max(1, min(block, n))
-    rng = np.random.default_rng(int(seed))
-    n_blocks = math.ceil(n / b)
-    starts = rng.integers(0, n, size=(n_boot, n_blocks))
-    idx = (starts[:, :, None] + np.arange(b)[None, None, :]) % n
-    means = x[idx.reshape(n_boot, -1)[:, :n]].mean(axis=1)
-    lo, hi = np.quantile(means, [(1 - level) / 2, 1 - (1 - level) / 2])
-    return float(lo), float(hi)
+    """Circular-block bootstrap CI of the mean, delegated to engine.experiment_memory.bootstrap_diff (blocks keep the
+    autocorrelation that overlapping weekly windows create). Deterministic given `seed`; NaN pair when n < 2."""
+    r = EM.bootstrap_diff(x, None, n_boot=n_boot, seed=int(seed), block=block, alpha=1.0 - level)
+    return (r["ci_low"], r["ci_high"]) if r["known"] else (float("nan"), float("nan"))
 
 
 def positive_share(x: np.ndarray) -> float:
@@ -355,12 +355,12 @@ def gate_statistical_validity(ev: StatisticalEvidence | None, pol: PromotionPoli
     if not _fin(p):
         if not _fin(ev.t_stat):
             return _missing(g, "p_value or t_stat")
-        p = one_sided_p(float(ev.t_stat), int(max(2, n_eff)) - 1)
-    a = adjusted_alpha(pol.alpha, ev.n_tests_searched, pol.multiplicity)
-    ok = float(p) <= a
-    return _result(g, ok, f"p={float(p):.3g} vs multiplicity-adjusted alpha={a:.3g} ({ev.n_tests_searched} searched)",
-                   {"p": float(p), "alpha_adj": a, "n_eff": n_eff, "n_tests": ev.n_tests_searched},
-                   float((a - float(p)) / a))
+        p = one_sided_p(float(ev.t_stat))
+    p_adj = adjusted_p(float(p), ev.n_tests_searched, pol.multiplicity)
+    ok = p_adj <= pol.alpha
+    return _result(g, ok, f"p={float(p):.3g}, adjusted for {ev.n_tests_searched} searched = {p_adj:.3g} vs alpha={pol.alpha}",
+                   {"p": float(p), "p_adj": p_adj, "n_eff": n_eff, "n_tests": ev.n_tests_searched},
+                   float((pol.alpha - p_adj) / pol.alpha))
 
 
 def gate_incremental_value(ev: IncrementalEvidence | None, pol: PromotionPolicy) -> GateResult:
@@ -733,3 +733,174 @@ def failure_statistics(decisions: Sequence[PromotionDecision]) -> dict:
     return {"n_decisions": n, "promoted": sum(d.promote for d in decisions),
             "by_gate": out, "never_failed": [g for g, c in out.items() if n and c["fail"] + c["missing"] == 0],
             "always_blocked": [g for g, c in out.items() if n and c["fail"] + c["missing"] == n]}
+
+
+# ------------------------------------------------------------------------------------------------ evidence lint
+def validate_evidence(ev: PromotionEvidence, now) -> list[str]:
+    """Structural problems that would make a gate's answer meaningless, found BEFORE gating so the report can say
+    'malformed' instead of 'weak'. Never raises for bad data; returns human-readable findings (empty = well formed)."""
+    out = []
+
+    def bad(name: str, seq) -> None:
+        if seq is not None and len(seq) and not np.isfinite(np.asarray(list(seq), float)).all():
+            out.append(f"{name} contains non-finite values")
+
+    if ev.incremental is not None:
+        bad("incremental.delta_series", ev.incremental.delta_series)
+        if ev.incremental.decision_overlap is not None and not 0.0 <= ev.incremental.decision_overlap <= 1.0:
+            out.append("incremental.decision_overlap outside [0, 1]")
+    if ev.oos is not None:
+        bad("oos.oos_effects", ev.oos.oos_effects)
+        try:
+            ds = [as_date(d) for d in ev.oos.oos_dates]
+            if ds != sorted(ds):
+                out.append("oos.oos_dates are not in time order")
+        except ValueError:
+            out.append("oos.oos_dates contains an unparseable date")
+    if ev.transfer is not None:
+        bad("transfer.context_effects", list(ev.transfer.context_effects.values()))
+        missing_n = sorted(set(ev.transfer.context_effects) - set(ev.transfer.context_n))
+        if missing_n:
+            out.append(f"transfer.context_n missing for {missing_n[:5]}")
+    if ev.risk is not None and ev.risk.catastrophic_count is not None and ev.risk.catastrophic_count < 0:
+        out.append("risk.catastrophic_count is negative")
+    if ev.memorization is not None:
+        for f in ("identity_shuffle_retention", "disguised_rerun_retention", "top_identity_share"):
+            v = getattr(ev.memorization, f)
+            if v is not None and not 0.0 <= v <= 5.0:
+                out.append(f"memorization.{f}={v} is implausible")
+    if ev.stability is not None:
+        bad("stability.period_effects", ev.stability.period_effects)
+        bad("stability.perturbation_effects", ev.stability.perturbation_effects)
+    if ev.repro is not None:
+        bad("repro.reruns", [r.value for r in ev.repro.reruns])
+    if ev.future is not None and ev.future.max_evidence_date is not None:
+        try:
+            if as_date(ev.future.max_evidence_date) >= as_date(now):
+                out.append("future.max_evidence_date is not before now")
+        except ValueError:
+            out.append("future.max_evidence_date unparseable")
+    return out
+
+
+def evidence_completeness(ev: PromotionEvidence) -> dict:
+    """Which evidence members were supplied. A promotion attempt with completeness < 1 cannot pass; the share tells the
+    research planner how much measuring is left."""
+    have = {f.name: getattr(ev, f.name) is not None for f in dataclasses.fields(ev)}
+    return {"share": sum(have.values()) / len(have), "missing": sorted(k for k, v in have.items() if not v)}
+
+
+# ------------------------------------------------------------------------------------------------ decision comparison
+def compare_decisions(a: PromotionDecision, b: PromotionDecision) -> dict:
+    """Gate-by-gate change between two decisions on the same knowledge (e.g. before/after collecting more evidence)."""
+    sa, sb = {r.gate: r.status for r in a.results}, {r.gate: r.status for r in b.results}
+    changed = {g: (sa[g], sb[g]) for g in GATES if sa.get(g) != sb.get(g)}
+    return {"changed": changed, "fixed": sorted(g for g, (x, y) in changed.items() if x != PASS and y == PASS),
+            "regressed": sorted(g for g, (x, y) in changed.items() if x == PASS and y != PASS),
+            "same_policy": a.policy_digest == b.policy_digest, "same_evidence": a.evidence_digest == b.evidence_digest,
+            "same_code": a.code_hash == b.code_hash}
+
+
+def sensitivity(k: Any, ev: PromotionEvidence, now, policy: PromotionPolicy | None = None, code_hash: str | None = None,
+                factors: Sequence[float] = (0.8, 1.25)) -> dict:
+    """Does the verdict depend on knife-edge thresholds? Re-evaluate with every numeric threshold tightened and loosened by
+    each factor (in the stricter/looser direction of THAT threshold). A PROMOTE that flips to BLOCK under a 25% tightening is
+    'fragile' and is reported as such; a BLOCK that flips to PROMOTE only under loosening shows exactly how much a
+    threshold change would have been needed - the temptation to resist (section 1.2: no manual threshold changes after
+    seeing results)."""
+    pol = policy or PromotionPolicy()
+    base = PromotionGate(pol, code_hash).evaluate(k, ev, now)
+    flips = []
+    for name in sorted(set(HIGHER_IS_STRICTER) | set(LOWER_IS_STRICTER)):
+        v = getattr(pol, name)
+        if isinstance(v, bool) or not isinstance(v, (int, float)):
+            continue
+        for f in factors:
+            stricter_up = name in HIGHER_IS_STRICTER
+            nv = v * f if v >= 0 else v / f                          # negative floors move toward/away from zero
+            if isinstance(v, int):
+                nv = int(round(nv))
+            if nv == v:
+                continue
+            direction = "tighter" if ((nv > v) == stricter_up) else "looser"
+            try:
+                d = PromotionGate(dataclasses.replace(pol, **{name: nv}), code_hash).evaluate(k, ev, now)
+            except ValueError:
+                continue
+            if d.verdict != base.verdict:
+                flips.append({"threshold": name, "from": v, "to": nv, "direction": direction, "verdict": d.verdict})
+    return {"base": base.verdict, "flips": flips,
+            "fragile": base.promote and any(f["direction"] == "tighter" for f in flips),
+            "needs_loosening": (not base.promote) and any(f["direction"] == "looser" for f in flips),
+            "robust": not flips}
+
+
+# ------------------------------------------------------------------------------------------------ policy accountability
+HIGHER_IS_STRICTER = frozenset({f.name for f in dataclasses.fields(PromotionPolicy) if f.name.startswith("min_")} |
+                               {"worst_period_floor", "max_drawdown_floor", "cvar05_floor", "worst_transfer_floor"})
+LOWER_IS_STRICTER = frozenset({"alpha", "max_incumbent_overlap", "max_top_identity_share", "max_single_period_share", "max_catastrophic",
+                               "incumbent_risk_tolerance", "determinism_tol", "seed_spread_tol"})
+
+
+def diff_policies(old: PromotionPolicy, new: PromotionPolicy) -> list[dict]:
+    """Every threshold that differs, labelled tighter or looser. Loosening a threshold is the classic way to 'learn' by
+    moving the goalposts, so it is always listed explicitly."""
+    out = []
+    for f in dataclasses.fields(PromotionPolicy):
+        a, b = getattr(old, f.name), getattr(new, f.name)
+        if a == b:
+            continue
+        if f.name in HIGHER_IS_STRICTER:
+            d = "tighter" if b > a else "looser"
+        elif f.name in LOWER_IS_STRICTER:
+            d = "tighter" if b < a else "looser"
+        else:
+            d = "changed"
+        out.append({"field": f.name, "old": a, "new": b, "direction": d})
+    return out
+
+
+class PolicyLog:
+    """Append-only, hash-chained log of the promotion policies in force (engine.champion.Ledger). Loosening a threshold needs a
+    written reason AND is flagged; the log makes 'the gate was quietly relaxed after seeing results' visible in review."""
+
+    def __init__(self, path: str | os.PathLike):
+        from engine.champion import Ledger
+        self.ledger = Ledger(path)
+
+    def current(self) -> PromotionPolicy | None:
+        rows = self.ledger.rows()
+        if not rows:
+            return None
+        d = dict(rows[-1]["detail"]["policy"])
+        d["waivers"] = dict(d.get("waivers") or {})
+        return PromotionPolicy(**d)
+
+    def record(self, policy: PromotionPolicy, now, reason: str = "") -> dict:
+        errs = policy.validate()
+        if errs:
+            raise ValueError(f"invalid policy: {errs}")
+        prev = self.current()
+        changes = diff_policies(prev, policy) if prev is not None else []
+        if not changes and prev is not None:
+            return {"recorded": False, "changes": [], "loosened": []}
+        loosened = [c for c in changes if c["direction"] == "looser"]
+        if loosened and len(reason.strip()) < 20:
+            raise ValueError(f"loosening {[c['field'] for c in loosened]} needs a written reason of at least 20 characters")
+        self.ledger.append("policy", policy.digest(), str(as_date(now)), policy=json.loads(json.dumps(dataclasses.asdict(policy))),
+                           reason=reason, changes=changes)
+        return {"recorded": True, "changes": changes, "loosened": loosened}
+
+    def history(self) -> list[dict]:
+        return [{"t": r["t"], "digest": r["id"], "reason": r["detail"].get("reason", ""),
+                 "loosened": [c["field"] for c in r["detail"].get("changes", []) if c["direction"] == "looser"]}
+                for r in self.ledger.rows()]
+
+    def loosened_since(self, digest: str) -> list[str]:
+        """Fields loosened after the policy `digest` was in force: a promotion decided under `digest` may need re-deciding."""
+        seen, out = False, []
+        for h in self.history():
+            if seen:
+                out += h["loosened"]
+            seen = seen or h["digest"] == digest
+        return sorted(set(out))

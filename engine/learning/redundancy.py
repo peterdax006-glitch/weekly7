@@ -34,6 +34,7 @@ from typing import Iterable, Mapping, Sequence
 import numpy as np
 import pandas as pd
 
+from engine.stops import wilson                       # Wilson interval, reused (not re-implemented)
 from engine.learning.core import (DecisionEffect, Edge, FirewallBreach, Unknown, as_date, canonical_json,
                                   current_code_hash, require_past, stable_hash)
 
@@ -178,7 +179,8 @@ def partial_corr(rx: np.ndarray, ry: np.ndarray, rz: np.ndarray) -> float:
 
 
 def cluster_bootstrap(stat, n: int, codes: np.ndarray, rng: np.random.Generator, n_boot: int) -> np.ndarray:
-    """Bootstrap of stat(row_index) resampling whole clusters (weeks). Returns finite draws only."""
+    """Draws of an arbitrary statistic stat(row_index) under cluster (week) resampling; finite draws only. Needed because the
+    statistics here (rank correlations) are not weighted means, which is all pattern_stats.cluster_bootstrap_ci handles."""
     uniq, inv = np.unique(codes, return_inverse=True)
     members = [np.flatnonzero(inv == g) for g in range(len(uniq))]
     out = []
@@ -189,16 +191,6 @@ def cluster_bootstrap(stat, n: int, codes: np.ndarray, rng: np.random.Generator,
         if np.isfinite(v):
             out.append(v)
     return np.array(out)
-
-
-def wilson(k: int, n: int, z: float = 1.96) -> tuple[float, float]:
-    if n == 0:
-        return (0.0, 1.0)
-    p = k / n
-    den = 1 + z * z / n
-    c = (p + z * z / (2 * n)) / den
-    h = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / den
-    return (max(0.0, c - h), min(1.0, c + h))
 
 
 def jaccard(a: Iterable, b: Iterable) -> float | None:
@@ -381,7 +373,9 @@ class Measurer:
                          "declared, not measured")
 
     # -- operational
-    def operational(self, a: str, b: str) -> KindScore:
+    def operational(self, a: str, b: str, predictive: float | None = None) -> KindScore:
+        """Substitutability at run time = availability fallback x decision-effect overlap x predictive similarity: an item that
+        is merely AVAILABLE when the other is not, but predicts something else, is not a backup."""
         av_a, av_b = np.isfinite(self._sig(a)), np.isfinite(self._sig(b))
         pa, pb = self.profiles.get(a), self.profiles.get(b)
         shared_inputs = sorted(set(pa.inputs) & set(pb.inputs)) if pa and pb else []
@@ -394,7 +388,10 @@ class Measurer:
         fb_ba = float(av_a[out_b].mean()) if out_b.sum() >= self.cfg.min_tail else float("nan")
         fb = [v for v in (fb_ab, fb_ba) if np.isfinite(v)]
         eff = jaccard([e.value for e in pa.decision_effect], [e.value for e in pb.decision_effect]) if pa and pb else 0.0
-        val = float(np.mean(fb)) * float(eff or 0.0)
+        if predictive is None:
+            return KindScore(RedundancyKind.OPERATIONAL, None, int(out_a.sum() + out_b.sum()),
+                             {"shared_inputs": float(len(shared_inputs))}, "predictive similarity untested: cannot call either a backup")
+        val = float(np.mean(fb)) * float(eff or 0.0) * float(predictive)
         return KindScore(RedundancyKind.OPERATIONAL, float(min(1.0, val)), int(out_a.sum() + out_b.sum()),
                          {"fallback_b_when_a_out": fb_ab, "fallback_a_when_b_out": fb_ba,
                           "shared_inputs": float(len(shared_inputs)), "effect_overlap": float(eff or 0.0)})
@@ -546,7 +543,8 @@ class RedundancyAnalyzer:
         m = Measurer(panel, profiles, self.cfg)
         scores = {RedundancyKind.PREDICTIVE: m.predictive(a, b, np.random.default_rng(seeds[0])),
                   RedundancyKind.CONTEXT: m.context(a, b), RedundancyKind.MECHANISTIC: m.mechanistic(a, b),
-                  RedundancyKind.OPERATIONAL: m.operational(a, b), RedundancyKind.RISK: m.risk(a, b)}
+                  RedundancyKind.OPERATIONAL: None, RedundancyKind.RISK: m.risk(a, b)}
+        scores[RedundancyKind.OPERATIONAL] = m.operational(a, b, scores[RedundancyKind.PREDICTIVE].value)
         klass, flags = classify_pair(self.cfg, scores)
         pd_ = scores[RedundancyKind.PREDICTIVE].detail
         subsumed = None
@@ -730,3 +728,141 @@ def planted_panel(seed: int = 0, n: int = 1600, horizon_days: int = 5) -> tuple[
     truth = {frozenset(("base", "dup")): T.TRUE_DUPLICATE, frozenset(("base", "guard")): T.DIFFERENT_PROTECTION,
              frozenset(("base", "hedge")): T.COMPLEMENT, frozenset(("base", "noise")): T.INDEPENDENT}
     return panel, truth
+
+
+# ---------------------------------------------------------------------------------------------- conditional and temporal views
+def conditional_predictive(panel: ObservationPanel, a: str, b: str, cfg: RedundancyConfig | None = None) -> pd.DataFrame:
+    """Predictive redundancy INSIDE each context: n, rank correlation of the two signals, each one's IC, and the partial ICs.
+    Two items that are near-identical in calm markets and unrelated in a crisis are exactly the pair that pooled correlation
+    calls redundant and a regime-aware learner must keep both of."""
+    cfg = cfg or RedundancyConfig()
+    m = Measurer(panel, {}, cfg)
+    sa, sb = m._sig(a), m._sig(b)
+    rows = []
+    for g in sorted(set(m.ctx)):
+        ov = (m.ctx == g) & np.isfinite(sa) & np.isfinite(sb) & np.isfinite(m.y)
+        if ov.sum() < cfg.min_context_n:
+            continue
+        ra, rb, ry = _rank(sa[ov]), _rank(sb[ov]), _rank(m.y[ov])
+        rows.append({"context": g, "n": int(ov.sum()), "rho": _corr(ra, rb), "ic_a": _corr(ra, ry), "ic_b": _corr(rb, ry),
+                     "partial_a": partial_corr(ra, ry, rb), "partial_b": partial_corr(rb, ry, ra)})
+    return pd.DataFrame(rows, columns=["context", "n", "rho", "ic_a", "ic_b", "partial_a", "partial_b"])
+
+
+def redundancy_over_time(panel: ObservationPanel, a: str, b: str, freq: str = "Q", min_n: int = 40) -> pd.DataFrame:
+    """Rank correlation of two items per calendar period. A duplicate that was only ever a duplicate in one era is not one."""
+    sa, sb = panel.signals[a].to_numpy(dtype=float), panel.signals[b].to_numpy(dtype=float)
+    ok = np.isfinite(sa) & np.isfinite(sb)
+    per = panel.dates.to_period(freq)
+    rows = []
+    for p in sorted(set(per[ok])):
+        m = ok & (np.asarray(per) == p)
+        if m.sum() >= min_n:
+            rows.append({"period": str(p), "n": int(m.sum()), "rho": spearman(sa[m], sb[m])})
+    return pd.DataFrame(rows, columns=["period", "n", "rho"])
+
+
+def redundancy_drift(over_time: pd.DataFrame, gap: float = 0.30) -> dict:
+    """max-min of per-period correlation, and whether it exceeds `gap` (then a single pooled number misleads)."""
+    r = over_time["rho"].dropna().to_numpy(dtype=float) if len(over_time) else np.array([])
+    if len(r) < 3:
+        return {"n_periods": int(len(r)), "range": float("nan"), "unstable": None}
+    return {"n_periods": int(len(r)), "range": float(np.ptp(r)), "unstable": bool(np.ptp(r) > gap)}
+
+
+# ---------------------------------------------------------------------------------------------- forward selection
+def forward_select(panel: ObservationPanel, items: Sequence[str], min_gain: float = 0.002, max_items: int | None = None) -> list:
+    """Greedy non-redundant subset: repeatedly add the item with the largest gain in R^2 of rank(y) on ranks of the chosen
+    set, stop when the best gain is below `min_gain` (an in-sample penalty for complexity). Returns
+    [(item, cumulative_r2, gain)]. Items that never get chosen are predictively redundant GIVEN the chosen ones - which is a
+    statement about prediction only; use the pair report before acting on it."""
+    d = panel.signals[list(items)].copy()
+    d["_y"] = panel.y.to_numpy()
+    d = d.dropna()
+    if len(d) < max(30, 5 * len(items)):
+        return []
+    Rk = d.rank()
+    y = Rk["_y"].to_numpy() - Rk["_y"].mean()
+
+    def r2(cols):
+        if not cols:
+            return 0.0
+        X = Rk[cols].to_numpy()
+        X = X - X.mean(axis=0)
+        beta, *_ = np.linalg.lstsq(X, y, rcond=None)
+        return float(1 - ((y - X @ beta) ** 2).sum() / (y ** 2).sum())
+    chosen, cur, out = [], 0.0, []
+    remaining = list(items)
+    while remaining and (max_items is None or len(chosen) < max_items):
+        gains = {c: r2(chosen + [c]) - cur for c in remaining}
+        best = max(gains, key=lambda c: (gains[c], c))
+        if gains[best] < min_gain:
+            break
+        chosen.append(best)
+        remaining.remove(best)
+        cur += gains[best]
+        out.append((best, cur, gains[best]))
+    return out
+
+
+# ---------------------------------------------------------------------------------------------- is retiring one safe?
+def retirement_safety(panel: ObservationPanel, keep: str, drop: str, tail_q: float = 0.10, tolerance: float = 0.15) -> dict:
+    """Simulate following {keep, drop} equally versus following `keep` alone, per date, and compare the mean, the lower-tail
+    mean and the worst date. Retiring `drop` is 'safe' only if the tail does not deteriorate by more than `tolerance`
+    (relative) - the empirical form of 'do not lose the protection'."""
+    m = Measurer(panel, {}, RedundancyConfig())
+    both = (m.date_pnl(keep) + m.date_pnl(drop)) / 2
+    alone = m.date_pnl(keep)
+    idx = both.index.intersection(alone.index)
+    both, alone = both.loc[idx], alone.loc[idx]
+    if len(idx) < 30:
+        return {"safe": None, "reason": "fewer than 30 dates"}
+    k = max(3, int(round(tail_q * len(idx))))
+    tail = lambda s: float(np.sort(s.to_numpy())[:k].mean())
+    tb, ta = tail(both), tail(alone)
+    worse = (tb - ta) / max(abs(tb), 1e-12)                   # positive = alone has the worse tail
+    safe = bool(worse <= tolerance)
+    return {"safe": safe, "mean_both": float(both.mean()), "mean_alone": float(alone.mean()), "tail_both": tb, "tail_alone": ta,
+            "worst_both": float(both.min()), "worst_alone": float(alone.min()), "tail_deterioration": float(worse),
+            "reason": "tail protection preserved" if safe else "removing it would deepen the lower tail"}
+
+
+# ---------------------------------------------------------------------------------------------- report checks
+def validate_report(rep: RedundancyReport) -> list[str]:
+    """Structural invariants: ranges, symmetry of the matrices, edge consistency, no duplicate declared on untested kinds."""
+    errs = []
+    seen = set()
+    for p in rep.pairs:
+        errs += p.validate()
+        key = frozenset((p.a, p.b))
+        if key in seen:
+            errs.append(f"pair {p.a}~{p.b} reported twice")
+        seen.add(key)
+        for src, e, dst, w, _ in p.edges():
+            if not (0.0 <= w <= 1.0):
+                errs.append(f"edge {src}-{e.value}->{dst} weight {w} outside [0,1]")
+            if e is Edge.REDUNDANT_WITH and p.klass is PairClass.COMPLEMENT:
+                errs.append(f"{p.a}~{p.b}: COMPLEMENT pair emitted a REDUNDANT_WITH edge")
+    for k in RedundancyKind:
+        M = rep.matrix(k)
+        if len(M) and not np.allclose(M.fillna(-1).to_numpy(), M.fillna(-1).to_numpy().T):
+            errs.append(f"{k.value} matrix not symmetric")
+    dup_pairs = {frozenset((p.a, p.b)) for p in rep.pairs if p.klass is PairClass.TRUE_DUPLICATE}
+    for cl in rep.clusters:
+        for x, y in itertools.combinations(cl, 2):
+            if frozenset((x, y)) not in dup_pairs and len(cl) == 2:
+                errs.append(f"cluster {cl} lacks its duplicate pair")
+    return errs
+
+
+def run_planted_calibration(seed: int = 0, cfg: RedundancyConfig | None = None) -> dict:
+    """Run the analyzer on the planted panel and compare each pair's class with the truth. Calibration harness, not evidence."""
+    panel, truth = planted_panel(seed)
+    profs = [ItemProfile("base", ("momentum",), ("prices",)), ItemProfile("dup", ("momentum",), ("prices",)),
+             ItemProfile("guard", ("momentum", "stop"), ("prices",)), ItemProfile("hedge", ("flight",), ("vix",)),
+             ItemProfile("noise")]
+    rep = RedundancyAnalyzer(cfg).analyze(panel, profs, "2035-01-01")
+    got = {tuple(sorted(k)): rep.pair(*sorted(k)).klass for k in truth}
+    ok = {tuple(sorted(k)): rep.pair(*sorted(k)).klass is v for k, v in truth.items()}
+    return {"n_correct": sum(ok.values()), "n_pairs": len(ok), "classes": {"~".join(k): v.value for k, v in got.items()},
+            "errors": validate_report(rep), "report": rep}

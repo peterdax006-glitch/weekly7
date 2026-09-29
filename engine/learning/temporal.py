@@ -829,3 +829,100 @@ def profile_table(profiles: Sequence[TemporalProfile]) -> list[dict[str, Any]]:
                      "remaining_lo": p.remaining_lo, "uncertain": p.uncertain, "recovery": [c.description for c in p.recovery],
                      "reason": p.reason})
     return rows
+
+
+# ------------------------------------------------------------------------------------------------- legitimacy and uncertainty checks
+
+def seasonal_legitimacy(series: EffectSeries, active_months: Sequence[int], min_years: int = 3, min_share: float = 0.75,
+                        known_artefacts: Sequence[tuple[int, int]] = ()) -> dict[str, Any]:
+    """Calendar-leak guard for a SEASONAL verdict. A window that merely coincides with one crisis year or a one-off calendar
+    event is not a season. It must (a) recur with the same sign in at least `min_share` of >= `min_years` distinct years,
+    (b) survive leaving each year out in turn (Welch t vs the inactive months stays >= 2), (c) not cover ten or more months,
+    and (d) still hold after `known_artefacts` (year, month) pairs - index rebalances, crisis months - are removed."""
+    act = {int(m) for m in active_months}
+    skip = {(int(a), int(b)) for a, b in known_artefacts}
+    rows = [(as_date(d), float(v)) for d, v in zip(series.dates, series.values) if (as_date(d).year, as_date(d).month) not in skip]
+    ins = [(d, v) for d, v in rows if d.month in act]
+    out = [v for d, v in rows if d.month not in act]
+    years = sorted({d.year for d, _ in ins})
+    res: dict[str, Any] = {"years_seen": len(years), "years_positive": 0, "loo_min_t": float("nan"), "legitimate": False, "reason": ""}
+    if len(act) >= 10:
+        return dict(res, reason="window covers ten or more months: not a season")
+    if len(years) < min_years or len(out) < 3:
+        return dict(res, reason=f"only {len(years)} distinct years of in-season data (need {min_years})")
+    sign = 1.0 if np.mean([v for _, v in ins]) >= 0 else -1.0
+    res["years_positive"] = sum(1 for yr in years if sign * np.mean([v for d, v in ins if d.year == yr]) > 0)
+    ts = []
+    for yr in years:
+        a = np.array([sign * v for d, v in ins if d.year != yr])
+        b = np.array([sign * v for v in out])
+        ts.append(float(sps.ttest_ind(a, b, equal_var=False).statistic) if len(a) > 2 else 0.0)
+    res["loo_min_t"] = min(ts)
+    share = res["years_positive"] / len(years)
+    if share < min_share:
+        return dict(res, reason=f"same sign in only {share:.0%} of years")
+    if res["loo_min_t"] < 2.0:
+        return dict(res, reason="effect depends on a single year (leave-one-year-out t < 2)")
+    return dict(res, legitimate=True, reason="recurs across years and survives leave-one-year-out")
+
+
+def bootstrap_lifetime(profile: TemporalProfile, series: EffectSeries, now, rng: np.random.Generator, n_boot: int = 100,
+                       cfg: TemporalConfig | None = None) -> dict[str, Any]:
+    """Uncertainty of the class and lifetime by residual bootstrap: refit on the fitted curve plus resampled residuals. Reports
+    how often the class is reproduced and quantiles of the lifetime among replicates that classify as a decay. Complements the
+    likelihood-grid interval in the profile: a class that flips often under resampling is not settled."""
+    if not profile.fit or profile.klass not in (TC.PERSISTENT.value, TC.SLOW_DECAY.value, TC.FAST_DECAY.value):
+        raise ValueError("bootstrap_lifetime needs a fitted PERSISTENT or decay profile")
+    series.require_valid(now)
+    y = np.array(series.values, float)
+    pred = np.array([predicted_effect(profile, d) for d in series.dates], float)
+    res = y - pred
+    classes: dict[str, int] = {}
+    lifes = []
+    for _ in range(n_boot):
+        ys = pred + rng.choice(res, size=len(res), replace=True)
+        p = estimate(profile.knowledge_id, EffectSeries(series.dates, tuple(ys), series.ses), now, cfg)
+        classes[p.klass] = classes.get(p.klass, 0) + 1
+        if p.klass in (TC.SLOW_DECAY.value, TC.FAST_DECAY.value) and p.lifetime_days is not None:
+            lifes.append(p.lifetime_days)
+    q = {f"q{int(a * 100):02d}": float(np.quantile(lifes, a)) for a in (0.05, 0.5, 0.95)} if len(lifes) >= 5 else {}
+    return {"n_boot": n_boot, "class_freq": {k: v / n_boot for k, v in sorted(classes.items())},
+            "p_same_class": classes.get(profile.klass, 0) / n_boot, "n_decay": len(lifes), **q}
+
+
+def failure_context_profile(series: EffectSeries, context: Mapping[str, Sequence[float]], fail_quantile: float = 0.35) -> dict[str, Any]:
+    """Separate REGIME-bound from EVENT-bound failure using the market context (m_ columns) AT the failure times. Failure
+    periods are the worst `fail_quantile` of oriented effects. A regime failure lines up with a slow, persistent m_ state and
+    comes in long runs; an event failure comes in short runs tied to the event flags. UNKNOWN when neither is significant."""
+    n = len(series.values)
+    y = np.array(series.values, float)
+    y = y * (1.0 if y.mean() >= 0 else -1.0)
+    fail = y <= np.quantile(y, fail_quantile)
+    closed = fail.copy()                                   # noise splits a regime's bad stretch: bridge gaps of up to 2 bins
+    idx = np.flatnonzero(fail)
+    for a, b in zip(idx, idx[1:]):
+        if 1 < b - a <= 3:
+            closed[a:b + 1] = True
+    runs = [b - a + 1 for a, b in _runs(closed)]
+    mean_run = float(np.mean(runs)) if runs else 0.0
+    best = {"feature": None, "p": 1.0, "corr": 0.0, "autocorr": 0.0}
+    for name, vals in sorted(context.items()):
+        v = np.asarray(vals, float)
+        if not name.startswith("m_") or len(v) != n or v.std() == 0:
+            continue
+        r, p = sps.pointbiserialr(fail.astype(float), v)
+        if np.isfinite(p) and p < best["p"]:
+            ac = float(np.corrcoef(v[:-1], v[1:])[0, 1]) if n > 3 else 0.0
+            best = {"feature": name, "p": float(p), "corr": float(r), "autocorr": ac}
+    ev_p = 1.0
+    if series.events is not None and fail.any() and (~fail).any():
+        ev = np.array(series.events, bool)
+        table = [[int((ev & fail).sum()), int((ev & ~fail).sum())], [int((~ev & fail).sum()), int((~ev & ~fail).sum())]]
+        ev_p = float(sps.fisher_exact(table)[1])
+    if ev_p < 0.01 and ev_p <= best["p"] and mean_run < 2.5:
+        verdict = TC.EVENT_BOUND.value
+    elif best["p"] < 0.01 and best["autocorr"] >= 0.5 and mean_run >= 2.5:
+        verdict = TC.REGIME_BOUND.value
+    else:
+        verdict = TC.UNKNOWN.value
+    return {"verdict": verdict, "mean_failure_run": mean_run, "event_p": ev_p, **{f"ctx_{k}": v for k, v in best.items()}}

@@ -20,14 +20,16 @@ before it and every pattern-history point used is dated strictly before it. Iden
 from __future__ import annotations
 
 import dataclasses
+import json
 import math
 from dataclasses import dataclass, field
-from typing import Any, Callable, Mapping, Sequence
+from typing import Any, Callable, Iterable, Mapping, Sequence
 
 import numpy as np
 
-from engine.learning.core import (FailureCause, FirewallBreach, Subsystem, Unknown, as_date, clip01, require_past,
-                                  stable_hash)
+from engine.learning.core import (DecisionEffect, Epistemic, FailureCause, FirewallBreach, Subsystem, Unknown, as_date, canonical_json,
+                                  clip01,
+                                  require_past, stable_hash)
 
 FC = FailureCause
 CAUSES_ALL = tuple(c for c in FailureCause)
@@ -418,7 +420,7 @@ def detect_timing(t: TradeRecord, env: FailureEnv, p: FailureParams) -> Detector
                        {"side_signal": ss}, "right over the horizon yet a loss was booked"))
     gap = _f(t.entry_gap)
     if gap is not None:
-        gap_cost = -t.side * gap                            # positive when the open was adverse to the position
+        gap_cost = t.side * gap                             # positive when the open moved against the entry (a long pays more, a short receives less)
         if gap_cost > 0:
             share = gap_cost / loss
             ev.append(Evidence("timing", FC.TIMING_ERROR, ramp(share, p.gap_share_lo, 1.0), True, Subsystem.TIMING,
@@ -845,7 +847,7 @@ class LossClassifier:
 
     def __init__(self, params: FailureParams | None = None, detectors: Mapping[str, Callable] | None = None):
         self.params = params or FailureParams()
-        self.detectors = dict(detectors or DETECTORS)
+        self.detectors = dict(DETECTORS if detectors is None else detectors)
         if not self.detectors:
             raise ValueError("a classifier without detectors can only answer INSUFFICIENT_EVIDENCE")
 
@@ -1086,3 +1088,292 @@ def planted_battery(seeds: Sequence[int] = (0, 1, 2), params: FailureParams | No
             pred.append(clf.classify(t, env, now).cause)
             truth.append(c)
     return confusion(pred, truth)
+
+
+# ==================================================================================================================
+# hypotheses, and the two existing lesson systems as PRODUCERS of them (no third lesson type)
+# ==================================================================================================================
+@dataclass(frozen=True)
+class Hypothesis:
+    """A proposed change, never a change. It becomes knowledge only by passing validation elsewhere (sections 44-45).
+    Every producer of failure ideas - postmortems, missed-winner distinctions, engine.lessons.Lesson and
+    engine.memory.Lesson adapters - emits this one type."""
+    hid: str
+    statement: str
+    subsystem: Subsystem
+    decision_effect: DecisionEffect
+    cause: FailureCause
+    test_plan: tuple[str, ...]
+    min_support: int = 20
+    min_periods: int = 6
+    epistemic: Epistemic = Epistemic.HYPOTHESIS
+    production_effect: bool = False
+    target: str = ""                      # knowledge id / parameter family the hypothesis is about (never a ticker)
+    source: str = ""                      # which producer emitted it, e.g. "lessons.Lesson"
+    basis: Mapping[str, Any] = field(default_factory=dict)     # the producer's own evidence, kept for the test plan
+
+    def validate(self) -> list[str]:
+        errs = []
+        if self.epistemic != Epistemic.HYPOTHESIS:
+            errs.append(f"hypothesis {self.hid} has epistemic {self.epistemic} (must be HYPOTHESIS)")
+        if self.production_effect:
+            errs.append(f"hypothesis {self.hid} declares a production effect")
+        if not self.test_plan:
+            errs.append(f"hypothesis {self.hid} has no test plan")
+        if not self.statement:
+            errs.append("hypothesis statement empty")
+        return errs
+
+
+# engine.lessons.KINDS -> (cause, subsystem, effect). The kind names the mistake; we translate, we do not extend the list.
+_LESSON_KIND = {
+    "bad_entry": (FC.SELECTION_ERROR, Subsystem.SELECTION, DecisionEffect.RANKING),
+    "missed_exit": (FC.TIMING_ERROR, Subsystem.EXIT, DecisionEffect.EXIT),
+    "oversized_loser": (FC.RISK_ERROR, Subsystem.RISK, DecisionEffect.POSITION_SIZE),
+    "regime_misread": (FC.REGIME_CHANGE, Subsystem.SELECTION, DecisionEffect.CONFIDENCE),
+    "missed_winner": (FC.SELECTION_ERROR, Subsystem.SELECTION, DecisionEffect.RANKING)}
+# engine.lessons categories that name a cause more precisely than the kind does
+_LESSON_CATEGORY_CAUSE = {"regime_failure": FC.REGIME_CHANGE, "pattern_failure": FC.FALSE_PATTERN}
+_PLAN_ADAPTED = ("re-test the rule on periods later than the ones that produced it, with an embargo",
+                 "compare with the same search on shuffled outcomes (it must not pass at the same rate)")
+
+
+def hypothesis_from_lessons_lesson(lesson: Any) -> Hypothesis | None:
+    """engine.lessons.Lesson (a mined rule over abstract feature conditions) -> a failure hypothesis. Retired/expired
+    lessons produce nothing: a rule that already failed validation is not a hypothesis worth re-testing here."""
+    if getattr(lesson, "status", "active") not in ("active", "provisional", "candidate"):
+        return None
+    kind = getattr(lesson, "kind", "bad_entry")
+    if kind not in _LESSON_KIND:
+        raise ValueError(f"unknown engine.lessons kind {kind!r}")
+    cause, sub, eff = _LESSON_KIND[kind]
+    cause = _LESSON_CATEGORY_CAUSE.get(getattr(lesson, "category", ""), cause)
+    conds = [tuple(c) for c in getattr(lesson, "conds", [])]
+    text = ("down" if getattr(lesson, "direction", -1) < 0 else "up") + "weight when " + " and ".join(
+        f"{f} {op} {float(t):.4g}" for f, op, t in conds) + f" ({kind})"
+    return Hypothesis(
+        hid=stable_hash({"src": "lessons.Lesson", "conds": [list(c) for c in conds], "dir": getattr(lesson, "direction", 0)}, 16),
+        statement=text, subsystem=sub, decision_effect=eff, cause=cause,
+        test_plan=_PLAN_ADAPTED, min_support=int(getattr(lesson, "n", 20) or 20), min_periods=int(getattr(lesson, "n_weeks", 6) or 6),
+        target=text, source="lessons.Lesson",
+        basis={"n": getattr(lesson, "n", None), "n_weeks": getattr(lesson, "n_weeks", None), "delta": getattr(lesson, "delta", None),
+               "val_delta": getattr(lesson, "val_delta", None), "trust": (lesson.trust if hasattr(lesson, "trust") else None)})
+
+
+_MEMORY_ERROR_CAUSE = {"false_positive": (FC.SELECTION_ERROR, Subsystem.SELECTION, DecisionEffect.RANKING),
+                       "false_negative": (FC.SELECTION_ERROR, Subsystem.SELECTION, DecisionEffect.RANKING)}
+
+
+def hypothesis_from_memory_lesson(lesson: Any) -> Hypothesis | None:
+    """engine.memory.Lesson (an episode summary tagged with an error type and shock state) -> a failure hypothesis.
+    'correct', 'noise' and 'unscored' episodes teach nothing: noise is variance, not a failure, and is said so by
+    returning None rather than inventing a cause."""
+    et = getattr(lesson, "error_type", "")
+    if et in ("correct", "noise", "unscored", ""):
+        return None
+    if et not in _MEMORY_ERROR_CAUSE:
+        raise ValueError(f"unknown engine.memory error_type {et!r}")
+    cause, sub, eff = _MEMORY_ERROR_CAUSE[et]
+    shock = getattr(lesson, "shock_state", "none")
+    if shock in ("pre_break", "post_break"):
+        cause, eff = FC.REGIME_CHANGE, DecisionEffect.CONFIDENCE
+    arm = str(getattr(lesson, "arm", ""))
+    text = f"arm {arm}: {et.replace('_', ' ')} episodes recur" + (f" around a {shock.replace('_', ' ')} shock" if shock != "none" else "")
+    return Hypothesis(
+        hid=stable_hash({"src": "memory.Lesson", "arm": arm, "err": et, "shock": shock}, 16), statement=text, subsystem=sub,
+        decision_effect=eff, cause=cause, test_plan=_PLAN_ADAPTED, target=arm, source="memory.Lesson",
+        basis={"reliability": getattr(lesson, "reliability", None), "relevance": getattr(lesson, "relevance", None),
+               "era": getattr(lesson, "era", None), "fingerprint": getattr(lesson, "fingerprint", None)})
+
+
+def hypotheses_from_lessons(lessons: Iterable[Any]) -> list[Hypothesis]:
+    """Dispatch by shape (no import of either module): a `conds` attribute is engine.lessons.Lesson, an `error_type`
+    is engine.memory.Lesson. Duplicates (same content id) collapse; order of first appearance is kept."""
+    out: dict[str, Hypothesis] = {}
+    for l in lessons:
+        if hasattr(l, "conds"):
+            h = hypothesis_from_lessons_lesson(l)
+        elif hasattr(l, "error_type"):
+            h = hypothesis_from_memory_lesson(l)
+        else:
+            raise TypeError(f"{type(l).__name__} is neither an engine.lessons.Lesson nor an engine.memory.Lesson")
+        if h is not None:
+            out.setdefault(h.hid, h)
+    return list(out.values())
+
+
+# ==================================================================================================================
+# adapters from the engine's existing structures (nothing is re-derived: these read what lessons/patterns already hold)
+# ==================================================================================================================
+def trade_to_dict(t: TradeRecord) -> dict:
+    """JSON-safe dict of a trade (enums by value). Round-trips through trade_from_dict."""
+    return json.loads(canonical_json(t))
+
+
+def trade_from_dict(d: Mapping[str, Any]) -> TradeRecord:
+    d = dict(d)
+    d["decided_by"] = Subsystem.parse(d.get("decided_by", Subsystem.SELECTION))
+    for k in ("pattern_ids", "knowledge_ids"):
+        d[k] = tuple(d.get(k, ()))
+    known = {f.name for f in dataclasses.fields(TradeRecord)}
+    extra = set(d) - known
+    if extra:
+        raise ValueError(f"unknown trade fields: {sorted(extra)}")
+    return TradeRecord(**d)
+
+
+def records_from_lessons_frame(frame, X, now, salt: str = "fr", exp_move: float | None = None, exp_vol: float | None = None,
+                               cost: float = 0.0005, decided_by: Subsystem = Subsystem.SELECTION) -> list[TradeRecord]:
+    """Turn the frame that engine.lessons.post_mortem() consumes (index (date, ticker); columns score, y, resolved, taken,
+    optional side / pattern / mae / mfe / stop / weight) into TradeRecords for the loss classifier. Only TAKEN rows that
+    resolved strictly before `now` become records; the ticker survives only inside the salted `rid` hash, and X's
+    market-context (m_) columns become the record's context."""
+    import pandas as pd
+    if frame.empty:
+        return []
+    ctx_cols = [c for c in getattr(X, "columns", []) if str(c).startswith("m_")]
+    out = []
+    score_rank = frame["score"].abs().groupby(level=0).rank(pct=True)
+    for i, (idx, row) in enumerate(frame.iterrows()):
+        if not bool(row.get("taken", True)):
+            continue
+        resolved = pd.Timestamp(row["resolved"])
+        if resolved >= pd.Timestamp(now):
+            continue                                       # not yet known at `now`: never enters a record
+        date, tkr = idx
+        side = int(row["side"]) if "side" in frame.columns and _f(row["side"]) else (1 if float(row["score"]) >= 0 else -1)
+        y = float(row["y"])
+        ctx = {}
+        if ctx_cols and idx in X.index:
+            ctx = {c: float(X.at[idx, c]) for c in ctx_cols if _f(X.at[idx, c]) is not None}
+        pat = row.get("pattern") if "pattern" in frame.columns else None
+        out.append(TradeRecord(
+            rid=stable_hash({"salt": salt, "d": str(date), "t": str(tkr), "s": side}, 14), decided_at=str(pd.Timestamp(date).date()),
+            resolved_at=str(resolved.date()), side=side, pnl=side * y - cost, decided_by=decided_by,
+            weight=_f(row.get("weight")) if "weight" in frame.columns else None, cost=cost, signal_ret=y, end_ret_from_fill=y,
+            exit_ret=y, mfe=_f(row.get("mfe")) if "mfe" in frame.columns else None, mae=_f(row.get("mae")) if "mae" in frame.columns else None,
+            exp_move=exp_move, exp_vol=exp_vol, score=float(row["score"]), rank_pct=float(score_rank.iloc[i]),
+            stop=_f(row.get("stop")) if "stop" in frame.columns else None,
+            pattern_ids=(str(pat),) if pat is not None and str(pat) not in ("nan", "None") else (), context=ctx))
+    return out
+
+
+def pattern_histories_from_effects(effects, patterns, now, on_future: str = "raise") -> dict[str, PatternHistory]:
+    """Build PatternHistory objects from a period x pattern table of side-adjusted effects (index = period end date) and the
+    PatternMiner.patterns frame (columns key_named, p_real, t_disc, t_conf). Fail-closed on time: a period dated at or
+    after `now` raises FirewallBreach (or is dropped when on_future='drop', for callers that pre-trim)."""
+    import pandas as pd
+    if on_future not in ("raise", "drop"):
+        raise ValueError("on_future must be 'raise' or 'drop'")
+    idx = pd.to_datetime(effects.index)
+    late = idx >= pd.Timestamp(as_date(now))
+    if late.any():
+        if on_future == "raise":
+            raise FirewallBreach(f"{int(late.sum())} effect periods are dated at or after now={now}")
+        effects, idx = effects.loc[~late], idx[~late]
+    meta = {}
+    if patterns is not None and len(patterns):
+        for _, r in patterns.iterrows():
+            meta[str(r.get("key_named", r.get("key", "")))] = (_f(r.get("p_real")), _f(r.get("t_disc")), _f(r.get("t_conf")))
+    out = {}
+    for col in effects.columns:
+        e = effects[col].astype(float)
+        keep = e.notna().to_numpy()
+        pr, td, tc = meta.get(str(col), (None, None, None))
+        out[str(col)] = PatternHistory(str(col), tuple(float(v) for v in e.to_numpy()[keep]),
+                                       tuple(str(d.date()) for d in idx[keep]), (), pr, td, tc)
+    return out
+
+
+# ==================================================================================================================
+# how far can the classifier's answers be trusted?
+# ==================================================================================================================
+_JITTER_FIELDS = ("signal_ret", "entry_gap", "end_ret_from_fill", "exit_ret", "mfe", "mae", "exp_move", "exp_vol", "prior_ret", "dir_prob")
+
+
+def robustness(clf: "LossClassifier", t: TradeRecord, env: FailureEnv | None, now, n: int = 40, rel_noise: float = 0.15,
+               seed: int = 0) -> dict[str, Any]:
+    """Re-classify the same loss under small multiplicative jitter of its measured inputs (pnl and dates untouched). A
+    cause that flips under 15% noise on the inputs was never a finding; `stability` is the share of jittered runs that
+    agree with the unjittered answer, `modal` the most common answer."""
+    rng = np.random.default_rng(seed)
+    base_cls = clf.classify(t, env, now)
+    counts: dict[str, int] = {}
+    for _ in range(n):
+        kw = {}
+        for f in _JITTER_FIELDS:
+            v = _f(getattr(t, f))
+            if v is not None:
+                v2 = v * (1.0 + rng.normal(0.0, rel_noise))
+                kw[f] = float(min(1.0, max(0.0, v2))) if f == "dir_prob" else float(v2)
+        c = clf.classify(dataclasses.replace(t, **kw), env, now)
+        counts[c.cause.value] = counts.get(c.cause.value, 0) + 1
+    modal = max(counts.items(), key=lambda kv: (kv[1], kv[0]))
+    return {"base": base_cls.cause.value, "stability": counts.get(base_cls.cause.value, 0) / n, "modal": modal[0],
+            "distribution": dict(sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))), "n": n}
+
+
+def ablate_detectors(params: FailureParams | None, cases: Sequence[tuple[TradeRecord, FailureEnv]], now) -> dict[str, dict[str, Any]]:
+    """Drop one detector at a time and report how many classifications change. A detector whose removal changes nothing is
+    redundant on these cases; one whose removal flips many answers carries the load (and deserves the strongest tests)."""
+    full = LossClassifier(params)
+    ref = [full.classify(t, e, now).cause for t, e in cases]
+    out = {}
+    for name in DETECTORS:
+        sub = {k: v for k, v in DETECTORS.items() if k != name}
+        clf = LossClassifier(params, sub)
+        alt = [clf.classify(t, e, now).cause for t, e in cases]
+        changed = [(a.value, b.value) for a, b in zip(ref, alt) if a != b]
+        out[name] = {"changed": len(changed), "share": len(changed) / len(cases) if cases else float("nan"),
+                     "became": sorted({b for _, b in changed})}
+    return out
+
+
+def confidence_calibration(cls_truth: Sequence[tuple[Classification, FailureCause]]) -> dict[str, Any]:
+    """Is `confidence` honest? For named causes only: bin confidence and compare with the share that was right
+    (planted truth required). Brier and ECE come from pattern_reliability; the table from pattern_stats."""
+    from engine import pattern_reliability as PR
+    from engine import pattern_stats as PS
+    named = [(c, t) for c, t in cls_truth if c.named]
+    if not named:
+        return {"n": 0, "verdict": "NOTHING_NAMED"}
+    p = np.array([c.confidence for c, _ in named])
+    y = np.array([1.0 if c.cause == t else 0.0 for c, t in named])
+    return {"n": len(named), "accuracy": float(y.mean()), "mean_confidence": float(p.mean()), "brier": float(PR.brier(p, y)),
+            "ece": float(PR.ece(p, y)), "table": PS.calibration_table(p, y > 0.5),
+            "verdict": "OVERCONFIDENT" if p.mean() > y.mean() + 0.1 else "UNDERCONFIDENT" if p.mean() < y.mean() - 0.1 else "CALIBRATED"}
+
+
+def explain_classification(c: Classification) -> str:
+    """Plain-language reading of one classification: the named cause and its evidence, or exactly why none was named."""
+    if not c.meaningful:
+        return f"{c.rid}: not analysed ({c.note})"
+    if c.named:
+        lines = [f"{c.rid}: {c.cause.value} (score {c.score:.2f}, confidence {c.confidence:.2f}, {len(c.ran)}/{len(c.ran) + len(c.missing)} detectors ran)"]
+        for e in sorted(c.evidence, key=lambda e: -e.strength):
+            lines.append(f"  + {e.detector}: {e.note} (strength {e.strength:.2f})")
+        for cs in c.scores:
+            if cs.cause == c.cause:
+                lines += [f"  - against: {e.detector}: {e.note} ({e.strength:.2f})" for e in cs.against]
+        if c.secondary:
+            lines.append("  also possible: " + ", ".join(f"{k.value} {v:.2f}" for k, v in c.secondary))
+        return NL.join(lines)
+    why = {Unknown.INSUFFICIENT_DATA: "too few detectors could run", Unknown.CONFLICTED: "two causes are indistinguishable",
+           Unknown.UNKNOWN: "detectors ran and found nothing convincing"}.get(c.unknown_state, "no cause named")
+    lines = [f"{c.rid}: {c.cause.value} - {why}. {c.note}"]
+    for d, m in sorted(c.missing.items()):
+        lines.append(f"  {d} could not run: needs {', '.join(m)}")
+    for k, v in c.secondary:
+        lines.append(f"  weak candidate: {k.value} {v:.2f}")
+    return NL.join(lines)
+
+
+def cause_persistence(ledger: "FailureLedger", window: int = 20) -> dict[str, float]:
+    """For each cause: share among the FIRST `window` meaningful losses minus share among the LAST `window`. Large positive
+    means the cause is fading, large negative that it is emerging - a drifting failure mode changes what to fix."""
+    rows = [c for c, _ in ledger._rows if c.meaningful]
+    if len(rows) < 2 * window:
+        return {}
+    a, b = rows[:window], rows[-window:]
+    causes = sorted({c.cause.value for c in rows})
+    return {k: sum(c.cause.value == k for c in a) / window - sum(c.cause.value == k for c in b) / window for k in causes}

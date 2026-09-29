@@ -760,3 +760,117 @@ def test_investigation_log_is_append_only_and_prevents_reflagging_noise():
         log.record("cell3", "NO_CAUSE_FOUND", d)
     assert log.repeat_offenders(3) == ["cell3"] and len(log) == 3
     assert S.InvestigationLog().last_reviewed("x", NOW) is None
+
+
+# ------------------------------------------------------------------------------------------------- S08 second pass (section 83)
+
+def _monthly(effect_fn, years=5, seed=1, se=0.004):
+    rng = np.random.default_rng(seed)
+    ds, vs = [], []
+    for k in range(years * 12):
+        d = dt.date(2020 + k // 12, k % 12 + 1, 15)
+        ds.append(d.isoformat())
+        vs.append(effect_fn(d) + rng.normal(0, se))
+    return T.EffectSeries(tuple(ds), tuple(vs), tuple([se] * len(ds)))
+
+
+def test_seasonal_legitimacy_accepts_a_recurring_season():
+    s = _monthly(lambda d: 0.03 if d.month in (11, 12) else 0.0)
+    r = T.seasonal_legitimacy(s, [11, 12])
+    assert r["legitimate"] and r["years_seen"] == 5 and r["years_positive"] == 5 and r["loo_min_t"] > 2
+
+
+def test_seasonal_legitimacy_rejects_a_one_off_calendar_event():
+    s = _monthly(lambda d: 0.06 if (d.year, d.month) in ((2022, 11), (2022, 12)) else 0.0)
+    r = T.seasonal_legitimacy(s, [11, 12])
+    assert not r["legitimate"] and ("single year" in r["reason"] or "same sign" in r["reason"])
+
+
+def test_seasonal_legitimacy_artefact_removal_and_guards():
+    s = _monthly(lambda d: 0.05 if d.month == 3 and d.year in (2021, 2022) else (0.05 if (d.year, d.month) == (2023, 3) else 0.0))
+    assert not T.seasonal_legitimacy(s, [3], min_share=0.9, known_artefacts=[(2023, 3)])["legitimate"]
+    assert not T.seasonal_legitimacy(s, list(range(1, 12)))["legitimate"]                    # ten+ months is not a season
+    assert "distinct years" in T.seasonal_legitimacy(_monthly(lambda d: 0.03, years=2), [3])["reason"]
+
+
+def test_bootstrap_lifetime_reproduces_a_clear_class_and_reports_spread():
+    s = series(lambda i, t: 0.05 * math.exp(-t / 90.0), n=48)
+    prof = T.estimate("x", s, NOW)
+    b = T.bootstrap_lifetime(prof, s, NOW, np.random.default_rng(0), n_boot=40)
+    assert b["p_same_class"] > 0.7 and b["n_decay"] >= 20 and b["q05"] <= b["q50"] <= b["q95"]
+    assert T.bootstrap_lifetime(prof, s, NOW, np.random.default_rng(0), n_boot=40) == b        # seeded
+    with pytest.raises(ValueError):
+        T.bootstrap_lifetime(T.estimate("z", series(lambda i, t: 0.0, seed=5), NOW), s, NOW, np.random.default_rng(0))
+
+
+def test_failure_context_separates_regime_from_event_failures():
+    n = 60
+    regs = tuple("bull" if (i // 10) % 2 == 0 else "bear" for i in range(n))
+    slow = np.array([0.0 if r == "bull" else 1.0 for r in regs]) + np.random.default_rng(1).normal(0, 0.05, n)
+    s_reg = series(lambda i, t: 0.03 if regs[i] == "bull" else 0.0, n=n, regimes=regs)
+    r = T.failure_context_profile(s_reg, {"m_vix": slow, "junk": slow})
+    assert r["verdict"] == TC.REGIME_BOUND.value and r["ctx_feature"] == "m_vix" and r["mean_failure_run"] >= 5
+    ev = tuple(bool(i % 7 == 3) for i in range(n))
+    s_ev = series(lambda i, t: 0.0 if ev[i] else 0.03, n=n, events=ev, seed=4)
+    noise = np.random.default_rng(2).normal(0, 1, n)
+    e = T.failure_context_profile(s_ev, {"m_noise": noise}, fail_quantile=0.15)
+    assert e["verdict"] == TC.EVENT_BOUND.value and e["mean_failure_run"] < 2.5
+    flat = T.failure_context_profile(series(lambda i, t: 0.03, n=n, seed=6), {"m_noise": noise})
+    assert flat["verdict"] == TC.UNKNOWN.value
+
+
+def _cluster_tracker(seed=51):
+    rng = np.random.default_rng(seed)
+    tr = S.SurpriseTracker()
+    for c, persist in (("vol=hi|trend=up", True), ("vol=hi|trend=dn", True), ("size=xl|liq=lo", False)):
+        level = 0.0
+        for i in range(60):
+            d = dt.date(2025, 1, 1) + dt.timedelta(days=5 * i)
+            level = 0.9 * level + rng.normal(0, 1) if persist else rng.normal(0, 1)
+            tr.observe(c, 0.0, -abs(level) * 0.0 + level - (1.0 if persist else 0.0), d, d + dt.timedelta(days=1), NOW, scale=1.0)
+    return tr
+
+
+def test_cluster_cells_groups_similar_situations_only():
+    tr = _cluster_tracker()
+    cl = S.cluster_cells(tr, NOW, 0.3)
+    assert ["vol=hi|trend=dn", "vol=hi|trend=up"] in cl and ["size=xl|liq=lo"] in cl
+    assert S.cluster_cells(S.SurpriseTracker(), NOW) == []
+
+
+def test_surprise_half_life_recovers_planted_persistence_and_refuses_noise():
+    rng = np.random.default_rng(52)
+    n, tau = 400, 30.0
+    days = np.arange(n) * 5.0
+    z = np.zeros(n)
+    for i in range(1, n):
+        z[i] = math.exp(-5.0 / tau) * z[i - 1] + rng.normal(0, 1)
+    hl = S.surprise_half_life(z, days)
+    assert hl["half_life"] is not None and 10 < hl["half_life"] < 60          # true tau*ln2 = 20.8
+    assert S.surprise_half_life(rng.normal(0, 1, n), days)["half_life"] is None
+    assert S.surprise_half_life([1, 2, 3], [1, 2, 3])["half_life"] is None
+
+
+def test_cluster_persistence_reports_pooled_half_life():
+    tr = _cluster_tracker()
+    cl = S.cluster_persistence(tr, ["vol=hi|trend=dn", "vol=hi|trend=up"], NOW)
+    assert cl["n"] == 120 and cl["mean_z"] < -0.3 and cl["half_life"] is not None
+
+
+def test_failure_handoff_maps_structure_to_a_cause_hypothesis():
+    from engine.learning.core import FailureCause as FC
+    tr = _cluster_tracker()
+    hs = {tuple(h.cluster): h for h in S.failure_handoffs(tr, NOW, 0.3)}
+    adverse = hs[("vol=hi|trend=dn", "vol=hi|trend=up")]
+    assert adverse.cause in (FC.REGIME_CHANGE.value, FC.TEMPORARY_INACTIVITY.value) and adverse.direction == -1 and adverse.record_ids
+    assert hs[("size=xl|liq=lo",)].cause == FC.UNKNOWN.value                   # noise: no cause invented
+    thin = S.SurpriseTracker()
+    thin.observe("a=1", 0.0, 3.0, "2025-01-01", "2025-01-05", NOW, scale=1.0)
+    assert S.failure_handoffs(thin, NOW)[0].cause == FC.INSUFFICIENT_EVIDENCE.value
+    two = S.SurpriseTracker()
+    rng = np.random.default_rng(53)
+    for i in range(40):
+        d = dt.date(2025, 1, 1) + dt.timedelta(days=4 * i)
+        two.observe("a=1", 0.0, 3.0 * (1 if i % 2 else -1) + rng.normal(0, 0.3), d, d + dt.timedelta(days=1), NOW, scale=1.0)
+    assert S.failure_handoffs(two, NOW)[0].cause == FC.WRONG_CONTEXT.value
+    assert S.failure_handoffs(S.SurpriseTracker(), NOW) == []

@@ -24,7 +24,7 @@ from typing import Any, Iterable, Mapping, Sequence
 
 import numpy as np
 
-from .core import Unknown, stable_hash
+from .core import FirewallBreach, Unknown, as_date, stable_hash
 from .situation import BLOCK_SPECS, FieldSpec, Situation, all_paths, spec_of
 
 COMPONENTS = ("structural", "market", "volatility", "liquidity", "pattern", "regime", "sector", "stock_type",
@@ -46,7 +46,7 @@ COMPONENT_FIELDS: dict[str, tuple[str, ...]] = {
 }
 DEFAULT_WEIGHTS = {"structural": 0.10, "market": 0.14, "volatility": 0.12, "liquidity": 0.06, "pattern": 0.14, "regime": 0.14,
                    "sector": 0.05, "stock_type": 0.08, "recent_history": 0.10, "failure_risk": 0.07}
-DEFAULT_VETOES = {"regime": 0.25}          # component -> floor below which the pair is not comparable
+DEFAULT_VETOES = {"regime": 0.4}          # component -> floor below which the pair is not comparable
 
 
 def expand_fields(patterns: Iterable[str]) -> tuple[str, ...]:
@@ -91,6 +91,7 @@ def jaccard(a: Sequence[str], b: Sequence[str]) -> float | None:
 class SimilarityWeights:
     values: tuple[tuple[str, float], ...] = tuple(DEFAULT_WEIGHTS.items())
     vetoes: tuple[tuple[str, float], ...] = tuple(DEFAULT_VETOES.items())
+    field_weights: tuple[tuple[str, float], ...] = ()      # per-dimension importance inside a component (default 1.0 each)
     min_component_coverage: float = 0.4     # share of a component's fields that must be observed on both sides
     min_total_coverage: float = 0.5         # share of total weight that must be available for a total to exist
 
@@ -109,6 +110,9 @@ class SimilarityWeights:
         for c, f in self.vetoes:
             if c not in COMPONENTS or not 0.0 <= f <= 1.0:
                 errs.append(f"bad veto {c}:{f}")
+        for p, w in self.field_weights:
+            if p not in PATH_INDEX or not math.isfinite(w) or w < 0:
+                errs.append(f"bad field weight {p}:{w}")
         if not 0.0 < self.min_component_coverage <= 1.0 or not 0.0 < self.min_total_coverage <= 1.0:
             errs.append("coverage thresholds outside (0, 1]")
         return errs
@@ -119,7 +123,15 @@ class SimilarityWeights:
         return {k: v / s for k, v in d.items()}
 
     def weights_id(self) -> str:
-        return stable_hash({"w": self.values, "v": self.vetoes, "c": (self.min_component_coverage, self.min_total_coverage)})
+        return stable_hash({"w": self.values, "v": self.vetoes, "f": self.field_weights,
+                            "c": (self.min_component_coverage, self.min_total_coverage)})
+
+    def field_weight(self, path: str) -> float:
+        return dict(self.field_weights).get(path, 1.0)
+
+    def field_vector(self) -> np.ndarray:
+        fw = dict(self.field_weights)
+        return np.array([fw.get(p, 1.0) for p in PATHS], dtype=float)
 
     @classmethod
     def from_dict(cls, w: Mapping[str, float], **kw) -> "SimilarityWeights":
@@ -203,10 +215,13 @@ def _component(name: str, fs: Mapping[str, float | None], paths: Sequence[str], 
     cov = len(scores) / max(n, 1)
     if not scores or cov < cfg.min_component_coverage:
         return ComponentScore(name, None, round(cov, 4), n)
+    w = [cfg.field_weight(p) for p, _ in vals] + ([1.0] if extra is not None else [])
+    if sum(w) <= 0:
+        return ComponentScore(name, None, round(cov, 4), n)
     ordered = sorted(vals, key=lambda kv: kv[1])
     agree = tuple((p, round(v, 3)) for p, v in reversed(ordered) if v >= 0.8)[:3]
     differ = tuple((p, round(v, 3)) for p, v in ordered if v <= 0.4)[:3]
-    return ComponentScore(name, round(float(np.mean(scores)), 6), round(cov, 4), n, agree, differ)
+    return ComponentScore(name, round(float(np.average(scores, weights=w)), 6), round(cov, 4), n, agree, differ)
 
 
 def bin_agreement(a: Situation, b: Situation) -> float | None:
@@ -309,27 +324,34 @@ class SituationMatrix:
         block_means = []
         for kind, specs in BLOCK_SPECS.items():
             cols = [PATH_INDEX[f"{kind}.{s.name}"] for s in specs]
-            with np.errstate(all="ignore"):
-                block_means.append(np.nanmean(F[:, cols], axis=1))
-        with np.errstate(all="ignore"):
-            bm = np.nanmean(np.vstack(block_means), axis=0)
+            sub = F[:, cols]
+            cnt = (~np.isnan(sub)).sum(axis=1)
+            block_means.append(np.where(cnt > 0, np.nansum(sub, axis=1) / np.maximum(cnt, 1), np.nan))
+        stack = np.vstack(block_means)
+        bcnt = (~np.isnan(stack)).sum(axis=0)
+        bm = np.where(bcnt > 0, np.nansum(stack, axis=0) / np.maximum(bcnt, 1), np.nan)
         binfrac = np.where(nboth > 0, agree / np.maximum(nboth, 1), np.nan)
         out[:, 0] = np.where(np.isnan(bm), np.nan, 0.5 * bm + 0.5 * np.where(np.isnan(binfrac), bm, binfrac))
+        fw = weights.field_vector()
         for k, name in enumerate(COMPONENTS[1:], start=1):
             cols = [PATH_INDEX[p] for p in COMPONENT_PATHS[name]]
             sub = F[:, cols]
-            cnt = (~np.isnan(sub)).sum(axis=1).astype(float)
+            present = ~np.isnan(sub)
+            cnt = present.sum(axis=1).astype(float)
+            wcol = fw[cols][None, :]
             total_fields = float(len(cols))
             with np.errstate(all="ignore"):
-                s = np.nansum(sub, axis=1)
+                s = np.nansum(sub * wcol, axis=1)
+            wsum = (present * wcol).sum(axis=1)
             if name == "pattern":
                 jac = np.array([jaccard(q.pattern_ids, p) if (q.pattern_ids or p) else np.nan for p in self.patterns], dtype=float)
                 has = ~np.isnan(jac)
                 s = s + np.where(has, jac, 0.0)
+                wsum = wsum + has
                 cnt = cnt + has
                 total_fields += 1.0
             cov = cnt / total_fields
-            out[:, k] = np.where((cnt > 0) & (cov >= weights.min_component_coverage), s / np.maximum(cnt, 1), np.nan)
+            out[:, k] = np.where((cnt > 0) & (cov >= weights.min_component_coverage) & (wsum > 0), s / np.where(wsum > 0, wsum, 1), np.nan)
         return out
 
     def totals(self, q: Situation, weights: SimilarityWeights = DEFAULT) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -442,7 +464,7 @@ def fit_weights(component_rows: np.ndarray, agreement: np.ndarray, prior: Simila
     if w.sum() <= 0:
         w = w0.copy()
     w = w / w.sum()
-    fitted = SimilarityWeights.from_dict(dict(zip(COMPONENTS, w)), vetoes=prior.vetoes,
+    fitted = SimilarityWeights.from_dict(dict(zip(COMPONENTS, w)), vetoes=prior.vetoes, field_weights=prior.field_weights,
                                          min_component_coverage=prior.min_component_coverage,
                                          min_total_coverage=prior.min_total_coverage)
     return WeightFit(fitted, len(y), r2(w0), r2(w), tuple((c, round(float(w[i] - w0[i]), 6)) for i, c in enumerate(COMPONENTS)))
@@ -519,3 +541,345 @@ def discrimination(cases: Sequence[Situation], outcomes: Sequence[float], seed: 
         if ok.sum() >= 20 and A[ok, k].std() > 1e-9 and g[ok].std() > 1e-9:
             out[c] = round(float(np.corrcoef(A[ok, k], g[ok])[0, 1]), 4)
     return out
+
+
+# ------------------------------------------------------------------------------------------------ recent-history similarity
+
+def compare_with_history(a: Situation, b: Situation, hist_a: Sequence[Situation], hist_b: Sequence[Situation],
+                         weights: SimilarityWeights = DEFAULT, decay: float = 0.6, blend: float = 0.5) -> SimilarityResult:
+    """Like `compare`, but the recent-history component also looks at the last few sessions of each stream (most recent
+    first): the snapshot's recent-history score is blended with an exponentially decayed mean of the aligned earlier
+    snapshots' recent-history scores. Two situations that look alike today but arrived by different paths score lower."""
+    base = compare(a, b, weights)
+    if not 0.0 <= blend <= 1.0 or not 0.0 < decay <= 1.0:
+        raise ValueError("blend must be in [0, 1] and decay in (0, 1]")
+    n = min(len(hist_a), len(hist_b))
+    past = []
+    for i in range(n):
+        r = compare(hist_a[i], hist_b[i], weights)
+        sc = r.score("recent_history")
+        if sc is not None:
+            past.append((decay ** (i + 1), sc))
+    now_sc = base.score("recent_history")
+    if not past:
+        return base
+    path_sc = sum(w * s for w, s in past) / sum(w for w, _ in past)
+    merged = path_sc if now_sc is None else (1 - blend) * now_sc + blend * path_sc
+    comps = tuple(dataclasses.replace(c, score=round(merged, 6), coverage=max(c.coverage, 0.5)) if c.name == "recent_history" else c
+                  for c in base.components)
+    w = weights.normalised()
+    avail = [(c, w[c.name]) for c in comps if c.score is not None]
+    cov = sum(x for _, x in avail)
+    unknown = Unknown.INSUFFICIENT_DATA if cov < weights.min_total_coverage else None
+    total = None if unknown else round(sum(c.score * x for c, x in avail) / cov, 6)
+    floors = dict(weights.vetoes)
+    vetoes = tuple(c.name for c in comps if c.score is not None and c.name in floors and c.score < floors[c.name])
+    return SimilarityResult(comps, total, round(cov, 4), vetoes, unknown, weights.weights_id())
+
+
+# ------------------------------------------------------------------------------------------------ contrast in words
+
+def contrast(a: Situation, b: Situation, weights: SimilarityWeights = DEFAULT) -> str:
+    """Why two situations are or are not alike, in words: the per-component verdict plus the bucket-level differences."""
+    from .situation import diff
+    r = compare(a, b, weights)
+    d = diff(a, b)
+    head = r.explain()
+    if r.unknown is not None:
+        return head
+    lines = [head, f"{d.n_changed} of {len(PATHS)} dimensions fall in different buckets; {len(d.unknown)} unobserved on at least one side."]
+    if d.changed:
+        lines.append("differences: " + "; ".join(f"{p} {x}->{y}" for p, x, y in d.changed[:8]) + (" ..." if d.n_changed > 8 else ""))
+    return "\n".join(lines)
+
+
+# ------------------------------------------------------------------------------------------------ clustering & prototypes
+
+@dataclasses.dataclass(frozen=True)
+class Cluster:
+    members: tuple[int, ...]
+    medoid: int
+    cohesion: float                      # mean pairwise total similarity inside the cluster
+
+
+def cluster_situations(cases: Sequence[Situation], threshold: float = 0.8, weights: SimilarityWeights = DEFAULT) -> list[Cluster]:
+    """Leader clustering into equivalence classes: a case joins the first cluster whose leader it resembles at `threshold`
+    (comparable and not vetoed), else starts its own. Deterministic in input order; the result is sorted by size then leader.
+    The medoid is the member with the highest mean similarity to the rest, the natural prototype of the class."""
+    if not 0.0 < threshold <= 1.0:
+        raise ValueError("threshold must be in (0, 1]")
+    n = len(cases)
+    if n == 0:
+        return []
+    M = SituationMatrix(cases)
+    leaders: list[int] = []
+    groups: list[list[int]] = []
+    for i in range(n):
+        placed = False
+        if leaders:
+            tot, _, ok = M.totals(cases[i], weights)
+            for gi, ld in enumerate(leaders):
+                if ok[ld] and tot[ld] >= threshold:
+                    groups[gi].append(i)
+                    placed = True
+                    break
+        if not placed:
+            leaders.append(i)
+            groups.append([i])
+    out = []
+    for g in groups:
+        if len(g) == 1:
+            out.append(Cluster((g[0],), g[0], 1.0))
+            continue
+        sub = SituationMatrix([cases[i] for i in g])
+        mat = np.full((len(g), len(g)), np.nan)
+        for a, i in enumerate(g):
+            tot, _, _ = sub.totals(cases[i], weights)
+            mat[a] = tot
+        np.fill_diagonal(mat, np.nan)
+        with np.errstate(all="ignore"):
+            means = np.nanmean(mat, axis=1)
+        means = np.where(np.isnan(means), -1.0, means)
+        out.append(Cluster(tuple(g), g[int(np.argmax(means))], float(np.nanmean(mat)) if np.isfinite(mat).any() else 1.0))
+    out.sort(key=lambda c: (-len(c.members), c.members[0]))
+    return out
+
+
+# ------------------------------------------------------------------------------------------------ metric sanity
+
+def triangle_violation_rate(cases: Sequence[Situation], weights: SimilarityWeights = DEFAULT, n_triples: int = 300,
+                            seed: int = 0, slack: float = 0.0) -> dict[str, float]:
+    """With distance = 1 - total, how often is d(a,c) > d(a,b) + d(b,c) + slack? A bounded-similarity built from means of
+    per-field kernels is not a metric; this measures how far from one it is, so nobody relies on transitivity blindly."""
+    rng = np.random.default_rng(seed)
+    n = len(cases)
+    if n < 3:
+        return {"triples": 0, "rate": float("nan"), "worst": float("nan")}
+    viol, worst, m = 0, 0.0, 0
+    for _ in range(n_triples):
+        i, j, k = (int(x) for x in rng.choice(n, size=3, replace=False))
+        t = [compare(cases[x], cases[y], weights).total for x, y in ((i, j), (j, k), (i, k))]
+        if any(v is None for v in t):
+            continue
+        dab, dbc, dac = (1 - v for v in t)
+        m += 1
+        over = dac - (dab + dbc) - slack
+        if over > 1e-12:
+            viol += 1
+            worst = max(worst, over)
+    return {"triples": m, "rate": viol / m if m else float("nan"), "worst": worst}
+
+
+# ------------------------------------------------------------------------------------------------ calibration of similarity
+
+class SimilarityCalibrator:
+    """Monotone (pool-adjacent-violators) map from total similarity to P(outcomes agree). Fit on pairs whose outcomes are
+    known; `predict` then turns a raw similarity into a probability that two such situations behaved alike, so retrieval can
+    say 'transfer evidence' in units of probability instead of an arbitrary index."""
+
+    def __init__(self):
+        self.x = np.array([])
+        self.y = np.array([])
+        self.n = 0
+        self.base_rate = float("nan")
+
+    def fit(self, totals: Sequence[float], agree: Sequence[float], min_n: int = 40) -> "SimilarityCalibrator":
+        t, a = np.asarray(totals, float), np.asarray(agree, float)
+        ok = np.isfinite(t) & np.isfinite(a)
+        t, a = t[ok], a[ok]
+        self.n = len(t)
+        self.base_rate = float(a.mean()) if len(a) else float("nan")
+        if len(t) < min_n:
+            self.x = self.y = np.array([])
+            return self
+        o = np.argsort(t, kind="stable")
+        t, a = t[o], a[o]
+        vals, wts, xs = [], [], []
+        for xv, yv in zip(t, a):                                       # PAV with block merging
+            vals.append(float(yv))
+            wts.append(1.0)
+            xs.append(float(xv))
+            while len(vals) > 1 and vals[-2] > vals[-1]:
+                w = wts[-2] + wts[-1]
+                v = (vals[-2] * wts[-2] + vals[-1] * wts[-1]) / w
+                x = (xs[-2] * wts[-2] + xs[-1] * wts[-1]) / w
+                vals[-2:], wts[-2:], xs[-2:] = [v], [w], [x]
+        self.x, self.y = np.array(xs), np.array(vals)
+        return self
+
+    @property
+    def fitted(self) -> bool:
+        return len(self.x) > 0
+
+    def predict(self, total) -> float | None:
+        """None when unfitted (never a made-up probability)."""
+        if not self.fitted or total is None or not math.isfinite(float(total)):
+            return None
+        return float(np.interp(float(total), self.x, self.y))
+
+    def lift_over_base(self, total) -> float | None:
+        p = self.predict(total)
+        return None if p is None else p - self.base_rate
+
+
+# ------------------------------------------------------------------------------------------------ novelty & skill
+
+def novelty(query: Situation, cases: Sequence[Situation], weights: SimilarityWeights = DEFAULT, seed: int = 0,
+            n_ref: int = 40) -> dict[str, float | bool | None]:
+    """How unlike anything stored is `query`? Compares its best match with the distribution of leave-one-out best matches
+    among the stored cases themselves. A query whose best match is below the 5th percentile of that reference is NOVEL:
+    neighbours exist but none is really similar, and retrieval should abstain rather than hand back the least-bad ones."""
+    n = len(cases)
+    if n < 10:
+        return {"best": None, "reference_p05": None, "novel": None, "n": n}
+    M = SituationMatrix(cases)
+    tot, _, ok = M.totals(query, weights)
+    best = float(np.nanmax(np.where(ok, tot, np.nan))) if ok.any() else 0.0
+    rng = np.random.default_rng(seed)
+    ref = []
+    for i in rng.choice(n, size=min(n_ref, n), replace=False):
+        t, _, o = M.totals(cases[int(i)], weights)
+        t = np.where(o, t, np.nan)
+        t[int(i)] = np.nan
+        if np.isfinite(t).any():
+            ref.append(float(np.nanmax(t)))
+    if len(ref) < 5:
+        return {"best": best, "reference_p05": None, "novel": None, "n": n}
+    p05 = float(np.quantile(ref, 0.05))
+    return {"best": best, "reference_p05": p05, "novel": bool(best < p05), "n": n}
+
+
+def walk_forward_skill(cases: Sequence[Situation], outcomes: Sequence[float], times: Sequence[Any], k: int = 10,
+                       weights: SimilarityWeights = DEFAULT, min_history: int = 50, min_total: float = 0.0,
+                       seed: int = 0) -> dict[str, Any]:
+    """Does 'the k most similar PAST cases predict this case's outcome'? Cases are replayed in time order; each is predicted
+    only from cases matured strictly before it (kernel-weighted by similarity, engine.analog_weighting.kernel_weights).
+    Reports rank skill (Spearman), MSE skill against the trailing-mean forecast (1 - MSE/MSE0), HAC t of the squared-error
+    improvement and a sign-flip p. Negative skill is reported as negative: retrieval must be allowed to FAIL and abstain."""
+    from scipy.stats import spearmanr
+    from .. import analog_weighting as AW
+    n = len(cases)
+    if n != len(outcomes) or n != len(times):
+        raise ValueError("cases, outcomes and times differ in length")
+    y = np.asarray(outcomes, float)
+    day = np.array([as_date(t).toordinal() for t in times])
+    order = np.argsort(day, kind="stable")
+    M = SituationMatrix([cases[i] for i in order])
+    ys, ds = y[order], day[order]
+    pred, actual, base, gain = [], [], [], []
+    for pos in range(n):
+        past = np.where(ds < ds[pos])[0]
+        if len(past) < min_history:
+            continue
+        tot, _, ok = M.totals(cases[order[pos]], weights)
+        cand = [j for j in past if ok[j] and not math.isnan(tot[j]) and tot[j] >= min_total]
+        if len(cand) < max(3, k // 2):
+            continue
+        cand.sort(key=lambda j: (-tot[j], j))
+        top = np.array(cand[:k])
+        wk = np.exp(-(1.0 - tot[top]) * 5.0)
+        wk = wk / wk.sum()
+        p = float((wk * ys[top]).sum())
+        b = float(ys[past].mean())
+        pred.append(p)
+        actual.append(float(ys[pos]))
+        base.append(b)
+        gain.append((ys[pos] - b) ** 2 - (ys[pos] - p) ** 2)
+    m = len(pred)
+    if m < 20:
+        return {"n": m, "spearman": float("nan"), "mse_skill": float("nan"), "hac_t": float("nan"), "p_sign_flip": float("nan"),
+                "status": "INSUFFICIENT_EVIDENCE"}
+    pred, actual, base = np.array(pred), np.array(actual), np.array(base)
+    rho = float(spearmanr(pred, actual)[0]) if pred.std() > 1e-12 and actual.std() > 1e-12 else float("nan")
+    mse0 = float(np.mean((actual - base) ** 2))
+    mse1 = float(np.mean((actual - pred) ** 2))
+    gain = np.array(gain)
+    t = AW.hac_t(gain)
+    p = AW.sign_flip_p(gain, seed=seed)
+    skill = 1 - mse1 / mse0 if mse0 > 0 else float("nan")
+    status = "INSUFFICIENT_EVIDENCE" if m < 40 else "FAILED" if (skill <= 0 or (np.isfinite(rho) and rho <= 0)) else \
+        "PROVEN" if np.isfinite(p) and p < 0.05 else "UNPROVEN"
+    return {"n": m, "spearman": rho, "mse_skill": float(skill), "hac_t": float(t), "p_sign_flip": float(p), "status": status}
+
+
+# ------------------------------------------------------------------------------------------------ time-safe case index
+
+class TemporalCaseIndex:
+    """Cases with the date their outcome matured. Queries take `now`; a case whose outcome is not strictly before `now` is
+    either dropped or raises (fail closed), so an index can never feed a decision an outcome from its own future."""
+
+    def __init__(self, weights: SimilarityWeights = DEFAULT, on_future: str = "raise"):
+        if on_future not in ("raise", "drop"):
+            raise ValueError("on_future must be raise or drop")
+        self.weights = weights
+        self.on_future = on_future
+        self._cases: list[tuple[Situation, Any, float | None, str, str]] = []      # (situation, matured, outcome, ref, episode)
+        self._M: SituationMatrix | None = None
+
+    def add(self, sit: Situation, matured, outcome: float | None = None, ref: str | None = None, episode: str = "") -> None:
+        errs = sit.validate()
+        if errs:
+            raise ValueError("invalid situation: " + "; ".join(errs[:3]))
+        self._cases.append((sit, matured, outcome, ref or str(len(self._cases)), episode))
+        self._M = None
+
+    def __len__(self) -> int:
+        return len(self._cases)
+
+    def _visible(self, now) -> list[int]:
+        vis = []
+        for i, (_, matured, _, ref, _) in enumerate(self._cases):
+            if matured is None or as_date(matured) >= as_date(now):
+                if self.on_future == "raise":
+                    raise FirewallBreach(f"case {ref}: outcome matured {matured} is not before now={as_date(now)}")
+                continue
+            vis.append(i)
+        return vis
+
+    def query(self, sit: Situation, now, k: int = 5, min_total: float = 0.0, max_per_episode: int = 0) -> list[Neighbour]:
+        """k most similar visible cases (comparable, at least `min_total`), with at most `max_per_episode` per episode
+        label when that is positive (a week of near-identical days is one episode, not five independent cases)."""
+        vis = self._visible(now)
+        if not vis or k <= 0:
+            return []
+        if self._M is None or len(self._M) != len(self._cases):
+            self._M = SituationMatrix([c[0] for c in self._cases])
+        tot, _, ok = self._M.totals(sit, self.weights)
+        cand = [i for i in vis if ok[i] and not math.isnan(tot[i]) and tot[i] >= min_total]
+        cand.sort(key=lambda i: (-tot[i], self._cases[i][3]))
+        out, per_ep = [], {}
+        for i in cand:
+            ep = self._cases[i][4]
+            if max_per_episode > 0 and ep:
+                if per_ep.get(ep, 0) >= max_per_episode:
+                    continue
+                per_ep[ep] = per_ep.get(ep, 0) + 1
+            out.append(Neighbour(i, self._cases[i][3], compare(sit, self._cases[i][0], self.weights)))
+            if len(out) == k:
+                break
+        return out
+
+    def expected_outcome(self, sit: Situation, now, k: int = 10, min_total: float = 0.3) -> dict[str, float | int | None]:
+        """Similarity-weighted mean outcome of the visible neighbours that have one, with the effective sample size."""
+        nb = [n for n in self.query(sit, now, k=k, min_total=min_total) if self._cases[n.index][2] is not None]
+        if not nb:
+            return {"mean": None, "n": 0, "n_eff": 0.0}
+        w = np.array([n.result.total for n in nb], float)
+        y = np.array([self._cases[n.index][2] for n in nb], float)
+        return {"mean": float((w * y).sum() / w.sum()), "n": len(nb), "n_eff": float(w.sum() ** 2 / (w ** 2).sum())}
+
+
+def pair_dataset(cases: Sequence[Situation], outcomes: Sequence[float], n_pairs: int = 500, seed: int = 0,
+                 weights: SimilarityWeights = DEFAULT, scale: float | None = None) -> tuple[np.ndarray, np.ndarray]:
+    """(component rows, agreement) for `fit_weights` / the calibrator: agreement = exp(-|y_i - y_j| / scale), scale defaulting
+    to the median absolute outcome difference so 'agree' means closer than a typical pair."""
+    rng = np.random.default_rng(seed)
+    n = len(cases)
+    y = np.asarray(outcomes, float)
+    if n < 3 or len(y) != n:
+        return np.zeros((0, len(COMPONENTS))), np.zeros(0)
+    idx = [tuple(int(v) for v in rng.choice(n, size=2, replace=False)) for _ in range(n_pairs)]
+    diffs = np.array([abs(y[i] - y[j]) for i, j in idx])
+    sc = scale if scale is not None else max(float(np.median(diffs)), 1e-12)
+    rows = np.array([[np.nan if c.score is None else c.score for c in compare(cases[i], cases[j], weights).components] for i, j in idx])
+    return rows, np.exp(-diffs / sc)

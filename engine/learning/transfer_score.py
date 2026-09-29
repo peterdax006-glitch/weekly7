@@ -99,6 +99,12 @@ def bootstrap_draws(values, clusters=None, n_boot=1000, rng=None):
 
 
 def cluster_bootstrap_mean(values, clusters=None, n_boot=1000, level=0.95, seed=0) -> BootMean:
+    """Bootstrap mean CI. Independent units (clusters=None) go through learning_delta.boot_ci (the audited implementation, reused
+    not copied); with clusters the whole cluster is resampled, which boot_ci cannot do."""
+    if clusters is None:
+        from .. import learning_delta as LD
+        m, lo, hi, n = LD.boot_ci(values, n_boot, level, seed)
+        return BootMean(m, lo, hi, n, n)
     draws, m, n, g = bootstrap_draws(values, clusters, n_boot, np.random.default_rng(seed))
     if n == 0:
         return BootMean(float("nan"), float("nan"), float("nan"), 0, 0)
@@ -447,3 +453,71 @@ def classify_transfer(same: BootMean, cross: BootMean, ratio: RatioResult, spec:
                                (f"cross-context gain {cross.mean:+.4g} (CI {cross.lo:+.3g}..{cross.hi:+.3g}); ratio {ratio.reason}",), ratio)
     return TransferVerdict(TransferVerdictLabel.INSUFFICIENT_EVIDENCE, ValidationLabel.INSUFFICIENT_EVIDENCE,
                            ("same-context gain is real but cross-context gain is not distinguishable from zero",), ratio)
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# significance, power, and many-item corrections
+# ---------------------------------------------------------------------------------------------------------------
+def cluster_signflip_p(values, clusters=None, n_perm: int = 4000, seed: int = 0) -> float:
+    """Two-sided p-value that the mean gain is zero, flipping the sign of whole clusters (a cluster's units share one draw of
+    luck, so units are not flipped one by one). Exact enumeration up to 12 clusters, seeded Monte Carlo above. NaN with no data;
+    1.0 when every cluster mean is zero. Reuses learning_delta.signflip_p on the cluster means."""
+    from .. import learning_delta as LD
+    v, cl = _clean(values, clusters)
+    if len(v) == 0:
+        return float("nan")
+    _, inv = np.unique(cl.astype(str), return_inverse=True)
+    sums, cnt = np.bincount(inv, weights=v), np.bincount(inv).astype(float)
+    # weight each cluster mean by its size so that a big cluster counts for what it is worth
+    return LD.signflip_p(sums / cnt * (cnt / cnt.mean()), n_perm=n_perm, seed=seed)
+
+
+@dataclass(frozen=True)
+class Power:
+    n_clusters: int
+    between_cluster_sd: float
+    se: float                  # standard error of the pooled mean gain
+    mde_80: float              # smallest true mean gain detected with 80% power at one-sided 5%
+    observed: float
+    underpowered: bool         # the observed cross-context gain is below the MDE: 'no significant transfer' is not evidence of none
+
+    def statement(self) -> str:
+        return (f"{self.n_clusters} clusters, se {self.se:.4g}: gains below {self.mde_80:.4g} could not have been detected"
+                + ("; the observed gain is inside that blind zone, so a non-significant result says little" if self.underpowered else ""))
+
+
+def power_analysis(values, clusters=None, observed: float | None = None) -> Power:
+    """Minimum detectable gain of the cross-context test, from the between-cluster spread of the data itself: (1.645 + 0.842) x se,
+    the normal approximation for 80% power at a one-sided 5% level. Prevents 'no transfer' being read from a test that had no
+    ability to see transfer. NaNs with fewer than 3 clusters."""
+    v, cl = _clean(values, clusters)
+    if len(v) == 0:
+        return Power(0, float("nan"), float("nan"), float("nan"), float("nan"), True)
+    _, inv = np.unique(cl.astype(str), return_inverse=True)
+    g = int(inv.max()) + 1
+    cm = np.bincount(inv, weights=v) / np.bincount(inv)
+    obs = float(v.mean()) if observed is None else float(observed)
+    if g < 3:
+        return Power(g, float("nan"), float("nan"), float("nan"), obs, True)
+    sd = float(cm.std(ddof=1))
+    se = sd / math.sqrt(g)
+    mde = 2.487 * se
+    return Power(g, sd, se, mde, obs, bool(abs(obs) < mde))
+
+
+def adjust_many(p_values: Sequence[float], method: str = "bh") -> np.ndarray:
+    """Adjusted p-values over many knowledge items / axes tested at once. 'bh' = Benjamini-Hochberg q-values via
+    pattern_stats.bh_qvalues (reused, not copied); 'holm' = pattern_reliability.holm. NaN p-values stay NaN and are not counted."""
+    from .. import pattern_stats as PS, pattern_reliability as PR
+    p = np.asarray(p_values, float)
+    out = np.full(len(p), np.nan)
+    ok = np.isfinite(p)
+    if ok.any():
+        out[ok] = PS.bh_qvalues(p[ok]) if method == "bh" else np.asarray(PR.holm(p[ok]), float)
+    return out
+
+
+def lower_confidence_gain(values, clusters=None, level: float = 0.9, n_boot: int = 800, seed: int = 0) -> float:
+    """One-sided lower bound of the mean gain (cluster bootstrap): the number a cautious consumer should plan on."""
+    b = cluster_bootstrap_mean(values, clusters, n_boot=n_boot, level=2 * level - 1, seed=seed)
+    return b.lo

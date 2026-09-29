@@ -42,6 +42,7 @@ class QuestionConfig:
     min_n: int = 20                       # periods needed before REAL can be answered YES/NO
     min_n_eff: float = 12.0
     min_stability: float = 0.6            # share of era blocks with the full-sample sign
+    robust_t: float = 1.5                 # signed t required after dropping the single strongest era
     n_blocks: int = 4
     equiv_margin: float = 0.001           # |effect| below this counts as 'zero' for evidence of absence
     n_perm: int = 999
@@ -53,6 +54,7 @@ class QuestionConfig:
     max_redundancy: float = 0.9           # |corr| with existing knowledge above which a relation adds nothing
     min_oos_n: int = 12
     recent_window: int = 13
+    min_hist: int = 10                    # periods needed BEFORE the recent window to say what 'expected' is
     min_recent: int = 6
     shortfall_z: float = 2.0
     cusum_k: float = 0.5
@@ -189,24 +191,43 @@ class RealAnswer:
     ci_lo: float
     ci_hi: float
     stability: float                      # share of eras with the full-sample sign
+    robust_t: float                       # weakest t (in the effect's direction) after dropping any single era
     era_means: tuple[float, ...]
     n_trials: int
     reasons: tuple[str, ...]
 
 
+def leave_one_era_out_t(x: np.ndarray, n_blocks: int, lags: int) -> float:
+    """Weakest signed t of the mean once each contiguous era is removed in turn.  An effect that lives in one lucky era
+    collapses here even if the other eras happen to share its sign by chance (a sign count alone cannot see that)."""
+    n = len(x)
+    k = max(1, min(n_blocks, n // 4))
+    if k < 2:
+        return float("nan")
+    full_sign = 1.0 if x.mean() >= 0 else -1.0
+    ts = []
+    for blk in np.array_split(np.arange(n), k):
+        keep = np.setdiff1d(np.arange(n), blk)
+        _, _, t = _nw_mean_se(x[keep], lags)
+        ts.append(full_sign * t if math.isfinite(t) else 0.0)
+    return float(min(ts))
+
+
 def answer_real(rel: RelationEvidence, now, cfg: QuestionConfig = DEFAULT_QCFG, p_family: float | None = None) -> RealAnswer:
-    """Statistical reality.  YES needs an adjusted p below alpha from BOTH the Newey-West and the permutation test AND a
-    sign that holds in most eras.  NO needs enough data and a confidence interval that sits inside the equivalence margin
-    (evidence of absence).  Everything else is UNKNOWN with the reason, never a silent NO."""
+    """Statistical reality.  YES needs an adjusted p below alpha from BOTH the Newey-West and the permutation test, a sign that
+    holds in most eras, and an effect that survives dropping its best era.  NO needs enough data and a confidence interval that
+    sits inside the equivalence margin (evidence of absence).  Everything else is UNKNOWN with the reason, never a silent NO."""
     x = clean_series(rel.effect, now, f"real[{rel.relation_id}]")
     n = len(x)
+    nan = float("nan")
     if n < cfg.min_n:
-        return RealAnswer(Answer.UNKNOWN, Unknown.INSUFFICIENT_DATA, float("nan"), float("nan"), float("nan"), 1.0, 1.0, 1.0,
-                          n, float(n), float("nan"), float("nan"), 0.0, (), rel.n_trials, (f"only {n} periods (< {cfg.min_n})",))
+        return RealAnswer(Answer.UNKNOWN, Unknown.INSUFFICIENT_DATA, nan, nan, nan, 1.0, 1.0, 1.0, n, float(n), nan, nan, 0.0,
+                          nan, (), rel.n_trials, (f"only {n} periods (< {cfg.min_n})",))
     v = x.values
     m, se, t = _nw_mean_se(v, cfg.nw_lags)
     neff = effective_n(v)
-    p_nw = float(2 * sps.norm.sf(abs(t))) if math.isfinite(t) else 1.0
+    from engine.pattern_stats import t_to_p
+    p_nw = float(t_to_p(t)) if math.isfinite(t) else 1.0
     rng = np.random.default_rng(_seed(cfg, rel.relation_id))
     p_perm = block_sign_flip_p(v, cfg.perm_block, cfg.n_perm, rng)
     trials = max(int(rel.n_trials), 1)
@@ -218,24 +239,24 @@ def answer_real(rel: RelationEvidence, now, cfg: QuestionConfig = DEFAULT_QCFG, 
     eras = era_blocks(v, cfg.n_blocks)
     sign = np.sign(m) if m != 0 else 1.0
     stab = float(np.mean([np.sign(e) == sign for e in eras])) if eras else 0.0
-    reasons = []
-    if p_final < cfg.alpha and stab >= cfg.min_stability and neff >= cfg.min_n_eff:
-        return RealAnswer(Answer.YES, None, m, se, t, p_nw, p_perm, p_final, n, neff, lo, hi, stab, tuple(eras), trials,
-                          (f"adj p={p_final:.4f}", f"stable in {stab:.0%} of eras"))
-    if p_final < cfg.alpha and stab < cfg.min_stability:
-        reasons.append(f"significant but sign holds in only {stab:.0%} of eras")
-        return RealAnswer(Answer.UNKNOWN, Unknown.CONFLICTED, m, se, t, p_nw, p_perm, p_final, n, neff, lo, hi, stab,
-                          tuple(eras), trials, tuple(reasons))
-    if p_final < cfg.alpha and neff < cfg.min_n_eff:
-        reasons.append(f"n_eff={neff:.1f} below {cfg.min_n_eff}")
-        return RealAnswer(Answer.UNKNOWN, Unknown.INSUFFICIENT_DATA, m, se, t, p_nw, p_perm, p_final, n, neff, lo, hi, stab,
-                          tuple(eras), trials, tuple(reasons))
+    rob = leave_one_era_out_t(v, cfg.n_blocks, cfg.nw_lags)
+
+    def mk(verdict, unknown, *reasons):
+        return RealAnswer(verdict, unknown, m, se, t, p_nw, p_perm, p_final, n, neff, lo, hi, stab, rob, tuple(eras), trials, tuple(reasons))
+
+    if p_final < cfg.alpha:
+        if stab < cfg.min_stability:
+            return mk(Answer.UNKNOWN, Unknown.CONFLICTED, f"significant but sign holds in only {stab:.0%} of eras")
+        if math.isfinite(rob) and rob < cfg.robust_t:
+            return mk(Answer.UNKNOWN, Unknown.CONFLICTED, f"significant overall but t falls to {rob:.2f} once its best era is dropped: "
+                      "the effect is concentrated in one era")
+        if neff < cfg.min_n_eff:
+            return mk(Answer.UNKNOWN, Unknown.INSUFFICIENT_DATA, f"n_eff={neff:.1f} below {cfg.min_n_eff}")
+        return mk(Answer.YES, None, f"adj p={p_final:.4f}", f"stable in {stab:.0%} of eras", f"t={rob:.2f} without its best era")
     if neff >= cfg.min_n_eff and lo > -cfg.equiv_margin and hi < cfg.equiv_margin:
-        return RealAnswer(Answer.NO, None, m, se, t, p_nw, p_perm, p_final, n, neff, lo, hi, stab, tuple(eras), trials,
-                          (f"CI [{lo:.4f},{hi:.4f}] inside +-{cfg.equiv_margin}",))
-    reasons.append(f"adj p={p_final:.3f} not below {cfg.alpha} but CI [{lo:.4f},{hi:.4f}] too wide to call it absent")
-    return RealAnswer(Answer.UNKNOWN, Unknown.INSUFFICIENT_DATA, m, se, t, p_nw, p_perm, p_final, n, neff, lo, hi, stab,
-                      tuple(eras), trials, tuple(reasons))
+        return mk(Answer.NO, None, f"CI [{lo:.4f},{hi:.4f}] inside +-{cfg.equiv_margin}")
+    return mk(Answer.UNKNOWN, Unknown.INSUFFICIENT_DATA,
+              f"adj p={p_final:.3f} not below {cfg.alpha} but CI [{lo:.4f},{hi:.4f}] too wide to call it absent")
 
 
 # ------------------------------------------------------------------------------------------------ 2. IS IT USEFUL?
@@ -294,7 +315,7 @@ def answer_useful(rel: RelationEvidence, now, cfg: QuestionConfig = DEFAULT_QCFG
     if lo > cfg.gain_margin and tail_bad:
         reasons.append(f"gain vetoed: tail worsens by {-tail / sd_wo:.2f} sd")
         return UsefulAnswer(Answer.NO, None, gain, net, se, lo, hi, win, risk_ratio, tail, rel.redundancy, len(j), tuple(reasons))
-    if hi <= cfg.gain_margin:
+    if hi <= cfg.gain_margin + 1e-9:
         reasons.append("upper bound of gain does not reach the margin: adds nothing material")
         return UsefulAnswer(Answer.NO, None, gain, net, se, lo, hi, win, risk_ratio, tail, rel.redundancy, len(j), tuple(reasons))
     reasons.append("gain CI straddles the margin")
@@ -336,10 +357,9 @@ def answer_useful_now(rel: RelationEvidence, now, cfg: QuestionConfig = DEFAULT_
     if sc in (ScopeStatus.ANTI_HIT, ScopeStatus.OUT_OF_SCOPE):
         return out(Answer.NO, None, [f"today's context is {sc}"])
     w = cfg.recent_window
-    if len(x) < w + cfg.min_n // 2:
-        rec = x.values[-w:] if len(x) else np.array([])
-        if len(rec) < cfg.min_recent:
-            return out(Answer.UNKNOWN, Unknown.INSUFFICIENT_DATA, [f"only {len(rec)} recent periods"], rn=len(rec))
+    if len(x) < w + cfg.min_hist:
+        return out(Answer.UNKNOWN, Unknown.INSUFFICIENT_DATA,
+                   [f"{len(x)} periods: need {w} recent plus {cfg.min_hist} of history to judge what 'expected' is"], rn=min(len(x), w))
     rec = x.values[-w:]
     hist = x.values[:-w] if len(x) > w else x.values
     expected = float(rel.expected_effect) if rel.expected_effect is not None else float(np.mean(hist))
@@ -547,3 +567,178 @@ def format_answers(answers: Sequence[ThreeAnswers]) -> str:
         lines.append(f"{a.relation_id[:25]:<26}{str(a.real.verdict):<9}{str(a.useful.verdict):<9}{str(a.useful_now.verdict):<9}"
                      f"{d.action:<20}{d.reason}")
     return "\n".join(lines)
+
+
+# ------------------------------------------------------------------------------------------------ power: when NOT to answer
+def minimum_detectable_effect(se: float, alpha: float = 0.05, power: float = 0.8, n_trials: int = 1) -> float:
+    """Smallest true per-period effect a test with standard error `se` would detect with the given power after paying for
+    `n_trials` (Bonferroni).  If the effect a claim needs is below this, REAL cannot honestly be answered YES or NO."""
+    z_a = float(sps.norm.ppf(1 - alpha / (2 * max(n_trials, 1))))
+    z_b = float(sps.norm.ppf(power))
+    return (z_a + z_b) * se
+
+
+def power_statement(ans: RealAnswer, cfg: QuestionConfig = DEFAULT_QCFG) -> str:
+    """One honest sentence about what the data could have shown."""
+    if not (math.isfinite(ans.se) and ans.se > 0):
+        return "no estimate: the data could show nothing"
+    mde = minimum_detectable_effect(ans.se, cfg.alpha, 0.8, ans.n_trials)
+    return (f"with se={ans.se:.5f} and {ans.n_trials} candidate(s) searched, effects below {mde:.5f}/period would usually "
+            f"be missed; observed {ans.effect:+.5f}")
+
+
+# ------------------------------------------------------------------------------------------------ building the input record
+def relation_from_frame(relation_id: str, df: pd.DataFrame, effect_col: str, *, with_col: str | None = None,
+                        without_col: str | None = None, n_trials: int = 1, oos_start=None, **kw) -> RelationEvidence:
+    """RelationEvidence from a period-level frame (index = outcome-maturity dates).  Columns not named stay unread, so a
+    frame that also holds future-dated columns cannot leak through here: dates are checked when the question is asked."""
+    if effect_col not in df.columns:
+        raise QuestionError(f"effect column {effect_col!r} missing")
+    wc = df[with_col] if with_col else None
+    woc = df[without_col] if without_col else None
+    if (wc is None) != (woc is None):
+        raise QuestionError("with_col and without_col must be given together")
+    return RelationEvidence(relation_id, df[effect_col], n_trials=n_trials, with_decision=wc, without_decision=woc,
+                            oos_start=oos_start, **kw)
+
+
+def validate_relation(rel: RelationEvidence) -> list[str]:
+    """Static checks on the input record (no `now` needed)."""
+    errs = []
+    if not rel.relation_id:
+        errs.append("empty relation_id")
+    if rel.n_trials < 1:
+        errs.append("n_trials < 1")
+    if rel.effect is None or len(rel.effect) == 0:
+        errs.append("no effect series")
+    if (rel.with_decision is None) != (rel.without_decision is None):
+        errs.append("with/without decision series must come as a pair")
+    if rel.with_decision is not None and rel.oos_start is None:
+        errs.append("decision series given without oos_start")
+    if rel.redundancy is not None and not -1.0 <= rel.redundancy <= 1.0:
+        errs.append("redundancy must be a correlation in [-1, 1]")
+    if rel.cost_per_period < 0:
+        errs.append("negative cost")
+    return errs
+
+
+# ------------------------------------------------------------------------------------------------ narrative
+def explain(t: ThreeAnswers) -> str:
+    """Plain-language account of the three answers and the decision they lead to."""
+    d = disposition(t)
+    r, u, n = t.real, t.useful, t.useful_now
+    lines = [f"{t.relation_id} as of {t.as_of}  ->  {d.action}  ({d.reason})",
+             f"  REAL        {r.verdict}: " + ("; ".join(r.reasons) or "-"),
+             f"  USEFUL      {u.verdict}: " + ("; ".join(u.reasons) or "-"),
+             f"  USEFUL NOW  {n.verdict}: " + ("; ".join(n.reasons) or "-")]
+    lines += [f"  WARNING     {w}" for w in t.inconsistencies()]
+    return "\n".join(lines)
+
+
+# ------------------------------------------------------------------------------------------------ history of answers
+class AnswerLedger:
+    """Append-only record of every ThreeAnswers ever produced, per relation.  The interesting object is the *transition*: a
+    relation whose USEFUL NOW flips from YES to NO is the early signal of decay; one whose REAL flips is a retraction."""
+
+    def __init__(self):
+        self._h: dict[str, list[ThreeAnswers]] = {}
+
+    def add(self, t: ThreeAnswers) -> int:
+        h = self._h.setdefault(t.relation_id, [])
+        if h and as_date(t.as_of) < as_date(h[-1].as_of):
+            raise QuestionError(f"answers for {t.relation_id} must be appended in time order")
+        h.append(t)
+        return len(h)
+
+    def history(self, relation_id: str) -> tuple[ThreeAnswers, ...]:
+        return tuple(self._h.get(relation_id, ()))
+
+    def latest(self, relation_id: str, as_of=None) -> ThreeAnswers | None:
+        h = self._h.get(relation_id, [])
+        if as_of is not None:
+            h = [x for x in h if as_date(x.as_of) <= as_date(as_of)]
+        return h[-1] if h else None
+
+    def relations(self) -> list[str]:
+        return sorted(self._h)
+
+    def transitions(self, relation_id: str) -> list[dict]:
+        """Every change in any of the three verdicts, with the question that changed."""
+        out = []
+        h = self._h.get(relation_id, [])
+        for a, b in zip(h, h[1:]):
+            for name, x, y in (("real", a.real.verdict, b.real.verdict), ("useful", a.useful.verdict, b.useful.verdict),
+                               ("useful_now", a.useful_now.verdict, b.useful_now.verdict)):
+                if x != y:
+                    out.append({"relation": relation_id, "question": name, "from": str(x), "to": str(y), "date": b.as_of})
+        return out
+
+    def flip_rate(self, relation_id: str, question: str = "useful_now") -> float:
+        """Flips per answer.  A verdict that flips constantly is a noisy instrument, not information."""
+        h = self._h.get(relation_id, [])
+        if len(h) < 2:
+            return 0.0
+        vs = [getattr(x, question).verdict for x in h]
+        return sum(1 for a, b in zip(vs, vs[1:]) if a != b) / (len(vs) - 1)
+
+    def decayed(self, since=None) -> list[str]:
+        """Relations that were USEFUL-NOW=YES at some point and are NO at their latest answer."""
+        out = []
+        for rid, h in self._h.items():
+            if since is not None:
+                h = [x for x in h if as_date(x.as_of) >= as_date(since)]
+            vs = [x.useful_now.verdict for x in h]
+            if Answer.YES in vs and vs and vs[-1] == Answer.NO:
+                out.append(rid)
+        return sorted(out)
+
+
+# ------------------------------------------------------------------------------------------------ walk-forward replay
+def truncate_relation(rel: RelationEvidence, cut) -> RelationEvidence:
+    """A copy of `rel` that contains only what was known strictly before `cut` - the input a decision at `cut` could have had."""
+    c = pd.Timestamp(as_date(cut))
+
+    def cut_s(s):
+        if s is None:
+            return None
+        x = pd.Series(s)
+        x.index = pd.to_datetime(x.index)
+        return x[x.index < c]
+
+    return dc.replace(rel, effect=cut_s(rel.effect), with_decision=cut_s(rel.with_decision),
+                      without_decision=cut_s(rel.without_decision))
+
+
+def answers_walkforward(rel: RelationEvidence, cuts: Sequence[Any], engine: QuestionEngine | None = None) -> list[ThreeAnswers]:
+    """Ask the three questions at every cut using only earlier data.  Shows WHEN a relation became recognisably real, useful and
+    current - and when it stopped being current - which a single end-of-history answer hides."""
+    eng = engine or QuestionEngine()
+    return [eng.ask(truncate_relation(rel, c), c) for c in cuts]
+
+
+def time_to_verdict(answers: Sequence[ThreeAnswers], question: str, verdict: Answer = Answer.YES) -> str | None:
+    """as_of of the first answer whose `question` ('real' | 'useful' | 'useful_now') equals `verdict`; None if never."""
+    for a in answers:
+        if getattr(a, question).verdict == verdict:
+            return a.as_of
+    return None
+
+
+def detection_lag(answers: Sequence[ThreeAnswers], onset, question: str = "real") -> int | None:
+    """Days from a known onset (e.g. the date a planted effect began) to the first YES.  None = never detected.  Negative lags
+    mean the answer said YES BEFORE the effect existed - a false alarm the caller must count."""
+    t = time_to_verdict(answers, question)
+    return None if t is None else (as_date(t) - as_date(onset)).days
+
+
+def answers_table(answers: Sequence[ThreeAnswers]) -> pd.DataFrame:
+    """One row per relation with the three verdicts, their key numbers and the resulting action - for reports and dashboards."""
+    rows = []
+    for a in answers:
+        d = disposition(a)
+        rows.append({"relation": a.relation_id, "as_of": a.as_of, "code": a.code, "real": str(a.real.verdict),
+                     "p_final": a.real.p_final, "effect": a.real.effect, "useful": str(a.useful.verdict),
+                     "net_gain": a.useful.net_gain, "useful_now": str(a.useful_now.verdict), "shortfall_z": a.useful_now.shortfall_z,
+                     "scope": a.useful_now.scope, "action": d.action, "size_cap": d.size_multiplier,
+                     "warnings": "; ".join(a.inconsistencies())})
+    return pd.DataFrame(rows)

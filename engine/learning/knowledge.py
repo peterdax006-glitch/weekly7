@@ -21,6 +21,7 @@ import math
 import os
 import types
 import typing
+from collections import Counter
 from collections.abc import Mapping
 from typing import Any, Iterable
 
@@ -204,6 +205,7 @@ class Applicability(str, enum.Enum):
 class ContextSet:
     """A conjunction of conditions. Behaves as a read-only Mapping dimension -> tuple[Condition] (KnowledgeLike)."""
     conditions: tuple[Condition, ...] = ()
+    any_of: bool = False              # False: all conditions must hold (contexts). True: any one suffices (anti-contexts)
 
     def __getitem__(self, dim: str) -> tuple[Condition, ...]:
         got = tuple(c for c in self.conditions if c.dimension == dim)
@@ -240,19 +242,26 @@ class ContextSet:
         return errs
 
     def evaluate(self, situation: Mapping[str, Any]) -> bool | None:
-        """AND of all conditions: False if any is False; None if none is False but some are unknown; else True.
-        An empty set is vacuously True (the item claims no context restriction)."""
-        unknown = False
-        for c in self.conditions:
-            r = c.test(situation.get(c.feature))
-            if r is False:
-                return False
-            unknown = unknown or r is None
-        return None if unknown else True
+        """all_of: False if any is False; None if none is False but some are unknown; else True. An empty set is
+        vacuously True (no restriction). any_of mirrors it: True if any is True; None if none is True but some unknown."""
+        results = [c.test(situation.get(c.feature)) for c in self.conditions]
+        if self.any_of:
+            if not results:
+                return False                     # an empty anti-context excludes nothing
+            return True if any(r is True for r in results) else (None if any(r is None for r in results) else False)
+        if any(r is False for r in results):
+            return False
+        return None if any(r is None for r in results) else True
 
     def implies(self, other: "ContextSet") -> bool:
         """self is at least as narrow as other: every condition of other is implied by some condition of self."""
         return all(any(s.implies(o) for s in self.conditions) for o in other.conditions)
+
+    def excluded_by(self, anti: "ContextSet") -> bool:
+        """True if this (all_of) context lies entirely inside the region `anti` excludes."""
+        if anti.any_of:
+            return any(s.implies(a) for a in anti.conditions for s in self.conditions)
+        return self.implies(anti)
 
     def features(self) -> tuple[str, ...]:
         return tuple(sorted({c.feature for c in self.conditions}))
@@ -523,9 +532,10 @@ class KnowledgeObject:
         errs += self.relations.check(self.knowledge_id)
         for f in self.failure_explanations:
             errs += f.check()
-        if self.contexts.conditions and self.anti_contexts.conditions and (
-                self.contexts.implies(self.anti_contexts) or self.anti_contexts.implies(self.contexts)):
-            errs.append("contexts and anti_contexts cover the same region: the item would exclude itself")
+        if self.contexts.conditions and self.anti_contexts.conditions and self.contexts.excluded_by(self.anti_contexts):
+            errs.append("anti_contexts swallow the whole context: the item would exclude itself everywhere")
+        if self.contexts.any_of:
+            errs.append("contexts must be all_of (a conjunction); any_of is for anti_contexts")
         de = set(self.decision_effect)
         if not de:
             errs.append("decision_effect empty: use (NONE,) for research-only knowledge")
@@ -646,12 +656,9 @@ class KnowledgeObject:
 # ---------------------------------------------------------------- provenance (A05, A13)
 
 def file_hash(path: str | os.PathLike, n: int = 16) -> str:
-    import hashlib
-    h = hashlib.sha256()
-    with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(1 << 20), b""):
-            h.update(chunk)
-    return h.hexdigest()[:n]
+    """Byte hash of a file: engine.repro.file_hash (the repo's one implementation), shortened."""
+    from engine import repro
+    return repro.file_hash(path)[:n]
 
 
 def make_provenance(learned_at, *, data: Any = None, config: Any = None, experiment_id: str = "", run_id: str = "",
@@ -765,44 +772,415 @@ class KnowledgeStore:
         return s
 
 
-# ---------------------------------------------------------------- adapter from the existing pattern miner
+# ---------------------------------------------------------------- adapters from existing knowledge stores
+# Existing stores (pattern_identity.PatternRecord, PatternMiner rows, lessons.Lesson) are PRODUCERS: they keep their own
+# statistics and identity hashes. These adapters read them by duck type (no import of their modules) and never
+# re-derive their numbers. State vocabularies are translated by epistemic.map_state, the single mapping table.
 
-_PATTERN_STATUS = {          # PatternMiner/pattern_lifecycle status -> (epistemic, lifecycle, promotion)
-    "active": (Epistemic.HYPOTHESIS, Lifecycle.ACTIVE, Promotion.RESEARCH),
-    "rescoped": (Epistemic.CONDITIONAL, Lifecycle.RECOVERY, Promotion.RESEARCH),
-    "watch": (Epistemic.DEGRADED, Lifecycle.DECAY, Promotion.RESEARCH),
-    "no_gain": (Epistemic.GATED, Lifecycle.DORMANT, Promotion.RESEARCH),
-    "duplicate": (Epistemic.GATED, Lifecycle.DORMANT, Promotion.RESEARCH),
-    "candidate": (Epistemic.HYPOTHESIS, Lifecycle.BIRTH, Promotion.RESEARCH),
-    "failed": (Epistemic.CONTRADICTED, Lifecycle.FAILURE, Promotion.RESEARCH),
-    "cause_search": (Epistemic.CONTRADICTED, Lifecycle.FAILURE, Promotion.RESEARCH),
-    "discarded": (Epistemic.RETIRED, Lifecycle.RETIRED, Promotion.RETIRED),
-    "rejected": (Epistemic.RETIRED, Lifecycle.RETIRED, Promotion.RETIRED),
-}
+def _dimension_of(feature: str) -> str:
+    """Section-8 dimension for a feature name: m_* are market context, everything else describes the stock."""
+    if feature.startswith("m_"):
+        return "market"
+    for prefix, dim in (("vol", "volatility"), ("atr", "volatility"), ("liq", "liquidity"), ("adv", "liquidity"),
+                        ("sector", "sector"), ("regime", "regime")):
+        if feature.startswith(prefix):
+            return dim
+    return "stock"
+
+
+def _mapped(vocabulary: str, state: str):
+    from engine.learning.epistemic import map_state
+    m = map_state(vocabulary, state)
+    promotion = Promotion.RETIRED if m.epistemic == Epistemic.RETIRED else Promotion.RESEARCH
+    return m, promotion
 
 
 def from_pattern_row(row: Mapping[str, Any], now, provenance: Provenance, n: int = 0, n_eff: float | None = None,
                      decision_effect: tuple[DecisionEffect, ...] = (DecisionEffect.NONE,)) -> KnowledgeObject:
-    """Wrap one PatternMiner.patterns row. Deliberately conservative: a mined pattern enters as a HYPOTHESIS at RESEARCH
-    promotion; only the evidence machinery (epistemic/promotion modules) may raise it. p_real is stored as truth confidence
-    (P(real)), NOT as usefulness or current reliability, which stay untested (section 33)."""
+    """Wrap one PatternMiner.patterns row. p_real is stored as truth confidence (P(real)), NOT as usefulness or current
+    reliability, which stay untested (section 33); the promotion stays RESEARCH - only the promotion gate may raise it."""
     status = str(row.get("status", "candidate"))
-    if status not in _PATTERN_STATUS:
-        raise SchemaError(f"unknown pattern status {status!r}")
-    ep, lc, pr = _PATTERN_STATUS[status]
+    m, promo = _mapped("pattern_lifecycle.STATES", status)
     eff = float(row.get("effect", 0.0) or 0.0)
     t = row.get("t_conf", row.get("t_disc"))
     se = abs(eff) / abs(float(t)) if t not in (None, 0) and not (isinstance(t, float) and math.isnan(t)) else None
     name = str(row.get("key_named", row.get("name", "")))
     p_real = row.get("p_real")
     truth = None if p_real is None or (isinstance(p_real, float) and math.isnan(p_real)) else min(1.0, max(0.0, float(p_real)))
-    if ep == Epistemic.RETIRED:
+    if m.epistemic == Epistemic.RETIRED:
         decision_effect = (DecisionEffect.NONE,)
     obs = f"pattern {name}: mean forward-return effect {eff:+.4f}"
-    k = KnowledgeObject(
+    return KnowledgeObject(
         knowledge_id=derive_id(obs, ContextSet(), source="pattern"), created_at=str(as_date(now)), provenance=provenance,
-        observation=obs, hypothesis=f"{name} predicts forward return", effect=Effect(
-            direction=0 if eff == 0 else (1 if eff > 0 else -1), size=abs(eff), uncertainty=se),
-        confidence=Confidence(truth=truth), evidence=Evidence(sample_size=int(n), effective_sample_size=float(n if n_eff is None else n_eff)),
-        mechanism_tags=("mined_pattern",), decision_effect=decision_effect, epistemic=ep, lifecycle=lc, promotion=pr)
-    return k.assert_valid()
+        observation=obs, hypothesis=f"{name} predicts forward return",
+        effect=Effect(direction=0 if eff == 0 else (1 if eff > 0 else -1), size=abs(eff), uncertainty=se),
+        confidence=Confidence(truth=truth),
+        evidence=Evidence(sample_size=int(n), effective_sample_size=float(n if n_eff is None else n_eff)),
+        mechanism_tags=("mined_pattern",), decision_effect=decision_effect, epistemic=m.epistemic, lifecycle=m.lifecycle or
+        Lifecycle.BIRTH, promotion=promo).assert_valid()
+
+
+def from_pattern_record(rec: Any, now, provenance: Provenance, decision_effect: tuple[DecisionEffect, ...] = (DecisionEffect.NONE,),
+                        n: int | None = None) -> KnowledgeObject:
+    """Wrap a pattern_identity.PatternRecord. Identity is the record's own pattern_hash (`rec.id`), so the same pattern is
+    the same knowledge in both systems. `unless` terms become anti_contexts (ANY of them excludes); a rescoped pattern's
+    Scope becomes a required context. Quantile terms are conditions on the feature's quantile level ('<feature>.q')."""
+    m, promo = _mapped("pattern_lifecycle.STATES", rec.state)
+    expr = rec.expression
+    conds = [Condition(_dimension_of(t.feature), f"{t.feature}.q", "eq", nums=(float(t.level),)) for t in expr.base]
+    anti = [Condition(_dimension_of(t.feature), f"{t.feature}.q", "eq", nums=(float(t.level),)) for t in expr.unless]
+    if rec.scope is not None:
+        s = rec.scope
+        conds.append(Condition("regime", s.context, "between", nums=(float(s.lo), float(s.hi)))
+                     if s.label == "mid" else Condition("regime", s.context, "le" if s.label == "low" else "gt",
+                                                        nums=(float(s.lo if s.label == "low" else s.hi),)))
+    st = dict(rec.stats)
+    eff = float(st.get("effect") if st.get("effect") is not None else (st.get("m_all") or 0.0))
+    t = st.get("t_conf") if st.get("t_conf") is not None else st.get("t_all")
+    n_eff = float(st.get("n_eff") or 0.0)
+    n_rows = int(n if n is not None else (st.get("n_rows") or n_eff))
+    truth = st.get("p_real")
+    last = rec.history[-1][0] if rec.history else str(as_date(now))
+    return KnowledgeObject(
+        knowledge_id="K-" + rec.id, created_at=str(as_date(now)), provenance=provenance,
+        observation=f"pattern {rec.text} on {rec.target} ({rec.transform})", hypothesis=f"{rec.text} predicts {rec.target}",
+        contexts=ContextSet(tuple(conds)), anti_contexts=ContextSet(tuple(anti), any_of=True),
+        effect=Effect(0 if eff == 0 else (1 if eff > 0 else -1), abs(eff),
+                      abs(eff) / abs(t) if t not in (None, 0) and eff else None),
+        confidence=Confidence(truth=None if truth is None else min(1.0, max(0.0, float(truth)))),
+        evidence=Evidence(n_rows, min(float(n_rows), n_eff), None, None, str(as_date(last)) if rec.history else ""),
+        mechanism_tags=("mined_pattern", f"family:{rec.family}"), decision_effect=decision_effect if m.epistemic != Epistemic.RETIRED
+        else (DecisionEffect.NONE,), epistemic=m.epistemic, lifecycle=m.lifecycle or Lifecycle.BIRTH, promotion=promo).assert_valid()
+
+
+_LESSON_EFFECT = {"bad_entry": DecisionEffect.RANKING, "regime_misread": DecisionEffect.RANKING,
+                  "missed_winner": DecisionEffect.RANKING, "oversized_loser": DecisionEffect.POSITION_SIZE,
+                  "missed_exit": DecisionEffect.EXIT}
+_LESSON_SUBSYSTEM = {"bad_entry": Subsystem.TIMING, "regime_misread": Subsystem.SELECTION, "missed_winner": Subsystem.SELECTION,
+                     "oversized_loser": Subsystem.RISK, "missed_exit": Subsystem.EXIT}
+_LESSON_CAUSE = {"regime_failure": FailureCause.REGIME_CHANGE, "pattern_failure": FailureCause.WEAKENING_EFFECT,
+                 "missed_winner": FailureCause.SELECTION_ERROR, "false_positive": FailureCause.SELECTION_ERROR,
+                 "false_negative": FailureCause.SELECTION_ERROR}
+
+
+def from_lesson(lesson: Any, now, provenance: Provenance) -> KnowledgeObject:
+    """Wrap a lessons.Lesson. Its conditions become required contexts; its Beta trust becomes CURRENT RELIABILITY (how much the
+    lesson has earned since birth) and nothing else: the lesson's p-value is not P(real), so truth stays untested. The
+    lesson's declared kind fixes both the decision it may touch and the subsystem that made the mistake (section 23)."""
+    ops = {">": "gt", "<=": "le"}
+    conds = []
+    for f, op, thr in lesson.conds:
+        if op not in ops:
+            raise SchemaError(f"lesson condition operator {op!r} unsupported")
+        conds.append(Condition(_dimension_of(str(f)), str(f), ops[op], nums=(float(thr),)))
+    retired = str(lesson.status) == "retired"
+    delta = float(lesson.delta)
+    t = float(lesson.t) if lesson.t else 0.0
+    fail = () if lesson.category == "ok" else (FailureExplanation(
+        _LESSON_CAUSE.get(lesson.category, FailureCause.UNKNOWN), str(as_date(now)), _LESSON_SUBSYSTEM.get(lesson.kind),
+        f"lesson category {lesson.category}", str(lesson.lid)),)
+    de = (DecisionEffect.NONE,) if retired else (_LESSON_EFFECT.get(lesson.kind, DecisionEffect.NONE),)
+    trust = float(lesson.a) / (float(lesson.a) + float(lesson.b))
+    return KnowledgeObject(
+        knowledge_id="K-L" + stable_hash({"lid": lesson.lid, "conds": [list(c) for c in lesson.conds]}, 12),
+        created_at=str(as_date(now)), provenance=provenance, source_experiences=tuple(str(s) for s in lesson.support[:50]),
+        observation=lesson.describe(), hypothesis=f"decisions in this region earn {delta:+.4f} relative to elsewhere",
+        contexts=ContextSet(tuple(conds)),
+        effect=Effect(0 if delta == 0 else (1 if delta > 0 else -1), abs(delta), abs(delta) / abs(t) if t and delta else None,
+                      "decision_pnl", 5),
+        confidence=Confidence(current_reliability=min(1.0, max(0.0, trust))),
+        evidence=Evidence(int(lesson.n), min(float(lesson.n), float(lesson.n_weeks)), None, None, ""),
+        dynamics=Dynamics(stability=min(1.0, max(0.0, float(lesson.stability)))),
+        mechanism_tags=("lesson", f"kind:{lesson.kind}"), failure_explanations=fail, decision_effect=de,
+        epistemic=Epistemic.RETIRED if retired else Epistemic.HYPOTHESIS,
+        lifecycle=Lifecycle.RETIRED if retired else Lifecycle.ACTIVE,
+        promotion=Promotion.RETIRED if retired else Promotion.RESEARCH).assert_valid()
+
+
+# ---------------------------------------------------------------- reading conditions from text
+
+_COND_RE = None
+
+
+def parse_condition(text: str) -> Condition:
+    """'volatility: vix >= 25' | 'regime: trend in [bull, sideways]' | 'liquidity: adv between 1e6 1e8' -> Condition.
+    The inverse of `Condition.describe` plus the dimension prefix; strict, so a typo cannot silently become a wider context."""
+    global _COND_RE
+    import re
+    if _COND_RE is None:
+        _COND_RE = re.compile(r"^\s*(\w+)\s*:\s*(\w+)\s+(eq|ne|in|not_in|lt|le|gt|ge|between|==|!=|<=|>=|<|>)\s+(.+?)\s*$")
+    m = _COND_RE.match(text)
+    if not m:
+        raise SchemaError(f"cannot parse condition {text!r}")
+    dim, feat, op, rest = m.groups()
+    op = {"==": "eq", "!=": "ne", "<=": "le", ">=": "ge", "<": "lt", ">": "gt"}.get(op, op)
+    rest = rest.strip().strip("[]()")
+    toks = [t.strip().strip("'\"") for t in rest.replace(",", " ").split() if t.strip()]
+    nums, labels = [], []
+    for t in toks:
+        try:
+            nums.append(float(t))
+        except ValueError:
+            labels.append(t)
+    if nums and labels:
+        raise SchemaError(f"condition {text!r} mixes numbers and labels")
+    c = Condition(dim, feat, op, tuple(nums), tuple(labels))
+    errs = c.check()
+    if errs:
+        raise SchemaError(f"{text!r}: " + "; ".join(errs))
+    return c
+
+
+def context_from_text(*parts: str) -> ContextSet:
+    return ContextSet(tuple(parse_condition(p) for p in parts))
+
+
+def context_overlap(a: ContextSet, b: ContextSet, grid: Iterable[Mapping[str, Any]]) -> float:
+    """Jaccard overlap of the situations two contexts accept, measured on a caller-supplied grid of situations (no data
+    is read here). 1.0 means the two contexts are interchangeable on that grid; unknown evaluations count as not accepted."""
+    both = either = 0
+    for s in grid:
+        ia, ib = a.evaluate(s) is True, b.evaluate(s) is True
+        both += ia and ib
+        either += ia or ib
+    return both / either if either else 0.0
+
+
+# ---------------------------------------------------------------- pooling evidence (real statistics, not averaging)
+
+@dataclasses.dataclass(frozen=True)
+class Pooled:
+    effect: Effect
+    q: float                    # Cochran Q
+    i2: float                   # share of variation due to heterogeneity, [0,1]
+    tau2: float                 # between-source variance (0 = fixed effect)
+    k: int
+
+
+def pool_effects(effects: Iterable[Effect], random: bool = True) -> Pooled:
+    """Inverse-variance pooling of effects measured by independent sources (eras, stocks, runs). The DerSimonian-Laird
+    random-effects step widens the uncertainty when sources disagree, so heterogeneous evidence cannot look precise.
+    Effects with no estimated uncertainty cannot be weighted and are refused rather than given an arbitrary weight."""
+    es = list(effects)
+    if not es:
+        raise SchemaError("nothing to pool")
+    if any(e.uncertainty is None or e.uncertainty <= 0 for e in es):
+        raise SchemaError("pooling needs a positive standard error on every effect")
+    if len({(e.unit, e.horizon_days) for e in es}) != 1:
+        raise SchemaError("cannot pool effects in different units or horizons")
+    y = [e.signed for e in es]
+    v = [e.uncertainty ** 2 for e in es]
+    w = [1.0 / x for x in v]
+    mu = sum(wi * yi for wi, yi in zip(w, y)) / sum(w)
+    q = sum(wi * (yi - mu) ** 2 for wi, yi in zip(w, y))
+    k = len(es)
+    tau2 = 0.0
+    if random and k > 1:
+        c = sum(w) - sum(wi * wi for wi in w) / sum(w)
+        tau2 = max(0.0, (q - (k - 1)) / c) if c > 0 else 0.0
+        w = [1.0 / (x + tau2) for x in v]
+        mu = sum(wi * yi for wi, yi in zip(w, y)) / sum(w)
+    se = math.sqrt(1.0 / sum(w))
+    i2 = max(0.0, (q - (k - 1)) / q) if q > 0 and k > 1 else 0.0
+    eff = Effect(0 if abs(mu) < 1e-15 else (1 if mu > 0 else -1), abs(mu), se, es[0].unit, es[0].horizon_days)
+    return Pooled(eff, q, i2, tau2, k)
+
+
+def pool_evidence(items: Iterable[Evidence]) -> Evidence:
+    """Sum of sample sizes; effective size adds too (sources are assumed independent - callers pooling overlapping windows
+    must pass the already-deduplicated evidence); recency/modernity are size-weighted."""
+    its = list(items)
+    if not its:
+        return Evidence()
+    n = sum(e.sample_size for e in its)
+    ne = sum(e.effective_sample_size for e in its)
+
+    def wavg(name):
+        pairs = [(getattr(e, name), e.sample_size) for e in its if getattr(e, name) is not None and e.sample_size > 0]
+        tot = sum(w for _, w in pairs)
+        return sum(v * w for v, w in pairs) / tot if tot else None
+
+    last = max((e.last_evidence_at for e in its if e.last_evidence_at), default="")
+    return Evidence(n, ne, wavg("recency"), wavg("modernity"), last)
+
+
+def recency_score(last_evidence_at: str, now, half_life_days: float = 365.0) -> float:
+    """Exponential decay of evidence age into [0,1]; evidence dated at/after `now` is a leak and raises."""
+    age = (as_date(now) - as_date(last_evidence_at)).days
+    if age <= 0:
+        raise FirewallBreach(f"evidence dated {last_evidence_at} is not before now={now}")
+    return 0.5 ** (age / half_life_days)
+
+
+def modernity_score(evidence_dates: Iterable[str], modern_from: str) -> float | None:
+    ds = [as_date(d) for d in evidence_dates]
+    if not ds:
+        return None
+    cut = as_date(modern_from)
+    return sum(d >= cut for d in ds) / len(ds)
+
+
+# ---------------------------------------------------------------- comparing versions
+
+@dataclasses.dataclass(frozen=True)
+class FieldChange:
+    path: str
+    old: Any
+    new: Any
+
+
+def diff(a: KnowledgeObject, b: KnowledgeObject) -> list[FieldChange]:
+    """Leaf-level differences between two versions (what a version actually changed), ignoring version bookkeeping."""
+    skip = {"version", "parent_hash", "version_reason", "updated_at"}
+    out: list[FieldChange] = []
+
+    def walk(path, x, y):
+        if isinstance(x, dict) and isinstance(y, dict):
+            for k in sorted(set(x) | set(y)):
+                walk(f"{path}.{k}" if path else k, x.get(k), y.get(k))
+        elif x != y:
+            out.append(FieldChange(path, x, y))
+
+    da, db = encode(a), encode(b)
+    for s in skip:
+        da.pop(s, None)
+        db.pop(s, None)
+    walk("", da, db)
+    return out
+
+
+def summarize_change(changes: list[FieldChange]) -> str:
+    if not changes:
+        return "no change"
+    top = sorted({c.path.split(".")[0] for c in changes})
+    return f"{len(changes)} field(s) changed in {', '.join(top)}"
+
+
+# ---------------------------------------------------------------- store queries and audits
+
+def _matches(k: KnowledgeObject, epistemic, lifecycle, promotion, tag, effect) -> bool:
+    return ((epistemic is None or k.epistemic == Epistemic.parse(epistemic))
+            and (lifecycle is None or k.lifecycle == Lifecycle.parse(lifecycle))
+            and (promotion is None or k.promotion == Promotion.parse(promotion))
+            and (tag is None or tag in k.mechanism_tags)
+            and (effect is None or DecisionEffect.parse(effect) in k.decision_effect))
+
+
+def find(store: "KnowledgeStore", now, *, epistemic=None, lifecycle=None, promotion=None, tag=None, effect=None
+         ) -> list[KnowledgeObject]:
+    """Latest versions visible at `now` matching every given filter. Never returns anything from the future."""
+    return [k for k in store.visible(now) if _matches(k, epistemic, lifecycle, promotion, tag, effect)]
+
+
+def audit_future(store: "KnowledgeStore", now) -> list[str]:
+    """Anything in the store that would be a future-memory leak at `now`: knowledge learned or updated on/after it."""
+    bad = []
+    for kid in store.ids():
+        for k in store.history(kid):
+            if as_date(k.updated_at) >= as_date(now):
+                continue                         # a later version does not matter: it is invisible to `as_of(now)`
+            if not k.provenance.could_exist_at(now):
+                bad.append(f"{kid} v{k.version}: learned {k.provenance.learned_at}, outcomes through "
+                           f"{k.provenance.outcomes_seen_through or 'n/a'} - not knowable at {now}")
+    return bad
+
+
+def epistemic_timeline(store: "KnowledgeStore", kid: str) -> list[tuple[int, str, str, str]]:
+    """(version, updated_at, epistemic, reason) per version: how belief in one item moved over time."""
+    return [(k.version, k.updated_at, k.epistemic.value, k.version_reason) for k in store.history(kid)]
+
+
+def lineage(store: "KnowledgeStore", kid: str) -> list[str]:
+    """Ids this item was derived from, transitively (provenance.parents of every version; version tags stripped)."""
+    seen, todo = [], [kid]
+    while todo:
+        cur = todo.pop()
+        for k in store.history(cur):
+            for p in k.provenance.parents + k.relations.parent:
+                pid = p.split("@")[0]
+                if pid != cur and pid not in seen:
+                    seen.append(pid)
+                    todo.append(pid)
+    return sorted(seen)
+
+
+def verify_file(path: str | os.PathLike) -> list[str]:
+    """Integrity check of a dumped store: every line decodes, validates, and chains. Returns findings instead of raising."""
+    errs: list[str] = []
+    try:
+        KnowledgeStore.load(path)
+    except (SchemaError, ChainError) as e:
+        errs.append(str(e))
+    except OSError as e:
+        errs.append(f"cannot read {path}: {e}")
+    return errs
+
+
+def store_stats(store: "KnowledgeStore", now) -> dict[str, Any]:
+    """Counts a health page can show: by epistemic state, lifecycle, promotion, research-only share, version depth."""
+    vis = store.visible(now)
+
+    def by(f):
+        return dict(sorted(Counter(f(k) for k in vis).items()))
+
+    return {"items": len(store), "visible": len(vis),
+            "epistemic": by(lambda k: k.epistemic.value), "lifecycle": by(lambda k: k.lifecycle.value),
+            "promotion": by(lambda k: k.promotion.value),
+            "research_only": sum(1 for k in vis if set(k.decision_effect) <= {DecisionEffect.NONE}),
+            "max_versions": max((len(store.history(i)) for i in store.ids()), default=0)}
+
+
+# ---------------------------------------------------------------- common edits, each one a new version
+
+def with_confidence(k: KnowledgeObject, now, reason: str, **dims: float | None) -> KnowledgeObject:
+    """New version with some confidence dimensions replaced. Dimensions are never derived from one another: passing
+    truth does not touch usefulness. None re-marks a dimension untested."""
+    bad = [d for d in dims if d not in {f.name for f in dataclasses.fields(Confidence)}]
+    if bad:
+        raise SchemaError(f"unknown confidence dimensions {bad}")
+    return k.new_version(now, reason, confidence=dataclasses.replace(k.confidence, **dims))
+
+
+def with_failure(k: KnowledgeObject, now, cause: FailureCause, subsystem: Subsystem | None = None, note: str = "",
+                 evidence_id: str = "") -> KnowledgeObject:
+    """Record why the item failed (section 9). UNKNOWN is an allowed cause; a specific cause needs a note or evidence id."""
+    fe = FailureExplanation(cause, str(as_date(now)), subsystem, note, evidence_id)
+    errs = fe.check()
+    if errs:
+        raise SchemaError("; ".join(errs))
+    return k.new_version(now, f"failure explained: {cause.value}", failure_explanations=k.failure_explanations + (fe,))
+
+
+_RELATION_FIELDS = tuple(f.name for f in dataclasses.fields(Relations))
+
+
+def with_relation(k: KnowledgeObject, now, kind: str, other_id: str, reason: str = "") -> KnowledgeObject:
+    """New version adding one edge (section 18). Adding an existing edge is refused as a no-op rather than duplicated."""
+    if kind not in _RELATION_FIELDS:
+        raise SchemaError(f"unknown relation kind {kind!r}; known: {list(_RELATION_FIELDS)}")
+    cur = getattr(k.relations, kind)
+    if other_id in cur:
+        raise SchemaError(f"{k.knowledge_id} already has {other_id} as {kind}")
+    return k.new_version(now, reason or f"{kind} += {other_id}",
+                         relations=dataclasses.replace(k.relations, **{kind: cur + (other_id,)}))
+
+
+def with_temporal_class(k: KnowledgeObject, now, cls: TemporalClass, reason: str) -> KnowledgeObject:
+    return k.new_version(now, reason, temporal_class=TemporalClass.parse(cls))
+
+
+def find_duplicates(store: "KnowledgeStore", now) -> list[tuple[str, str]]:
+    """Pairs of visible items with identical content_hash (the same lesson learned twice under two ids). Reported, never
+    merged automatically: merging is a redundancy decision (section 21) that needs evidence."""
+    seen: dict[str, str] = {}
+    out = []
+    for k in store.visible(now):
+        h = k.content_hash()
+        if h in seen and seen[h] != k.knowledge_id:
+            out.append((seen[h], k.knowledge_id))
+        seen.setdefault(h, k.knowledge_id)
+    return sorted(out)
+
+
+def same_content(a: KnowledgeObject, b: KnowledgeObject) -> bool:
+    return a.content_hash() == b.content_hash()

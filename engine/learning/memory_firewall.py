@@ -193,12 +193,29 @@ def _looks_like_identity(v) -> bool:
     return False
 
 
-def identity_key_share(mapping: Any) -> tuple[float, int]:
-    """Share of a payload's KEYS that are tickers or dates (or tuples containing them), and how many keys there were."""
-    if not isinstance(mapping, Mapping) or not len(mapping):
-        return 0.0, 0
-    n = len(mapping)
-    return sum(_looks_like_identity(k) for k in mapping) / n, n
+def identity_key_share(mapping: Any, depth: int = 0) -> tuple[float, int]:
+    """Share of a payload's KEYS (at every nesting depth) that are tickers or dates or tuples containing them, and the
+    number of keys inspected. A memorised table hides one level down ({'table': {(ticker, date): value}})."""
+    n, hit = _count_identity_keys(mapping, depth)
+    return (hit / n if n else 0.0), n
+
+
+def _count_identity_keys(obj: Any, depth: int) -> tuple[int, int]:
+    if depth > 6:
+        return 0, 0
+    if isinstance(obj, Mapping):
+        n, hit = len(obj), sum(_looks_like_identity(k) for k in obj)
+        for v in obj.values():
+            a, b = _count_identity_keys(v, depth + 1)
+            n, hit = n + a, hit + b
+        return n, hit
+    if isinstance(obj, (list, tuple)):
+        n = hit = 0
+        for v in obj[:200]:
+            a, b = _count_identity_keys(v, depth + 1)
+            n, hit = n + a, hit + b
+        return n, hit
+    return 0, 0
 
 
 def label_fields(payload: Any, path: str = "payload", depth: int = 0) -> list[str]:
@@ -248,7 +265,7 @@ def could_exist_at(item, now, views: Mapping[str, ItemView] | None = None, env: 
     env = env or MemoryEnvironment()
     v = view(item)
     views = dict(views or {})
-    views.setdefault(v.knowledge_id, v)
+    views[v.knowledge_id] = v                              # the record being judged, not a newer version of the same id
     nowd = as_date(now)
     out: list[Finding] = []
     kid = v.knowledge_id
@@ -372,13 +389,32 @@ class MemoryAuditReport:
                             columns=["knowledge_id", "version", "could_exist", "reasons", "effective_seen"])
 
 
+def views_as_of(items: Iterable, now) -> dict[str, ItemView]:
+    """id -> the version of that id that existed at `now` (newest with learned_at before now; if none, the oldest). Ancestry is
+    resolved through these, so a parent's LATER version cannot taint or excuse a child."""
+    by: dict[str, list[ItemView]] = {}
+    for it in items:
+        try:
+            v = view(it)
+        except FirewallBreach:
+            continue
+        by.setdefault(v.knowledge_id, []).append(v)
+    nowd = as_date(now)
+    out = {}
+    for kid, vs in by.items():
+        vs = sorted(vs, key=lambda x: x.version)
+        past = [x for x in vs if x.learned_at is not None and x.learned_at < nowd]
+        out[kid] = past[-1] if past else vs[0]
+    return out
+
+
 def audit_store(items: Iterable, now, store: Iterable | None = None, sealed_windows: Sequence = (),
                 policy: MemoryPolicy | None = None, env: MemoryEnvironment | None = None) -> MemoryAuditReport:
     """Audit every item at `now`. `store` (default: the items) supplies ancestry. Duplicate (id, version) pairs with
     different content are themselves a finding: history is immutable, so two records cannot share a version."""
     items = list(items)
     pool = list(store) if store is not None else items
-    views: dict[str, ItemView] = {}
+    views = views_as_of(pool, now)
     out: list[Finding] = []
     digests: dict[tuple, str] = {}
     for it in pool:
@@ -392,9 +428,6 @@ def audit_store(items: Iterable, now, store: Iterable | None = None, sealed_wind
         if key in digests and digests[key] != dg:
             out.append(fail(L, "history-rewritten", v.knowledge_id, f"two different records share version {v.version}"))
         digests[key] = dg
-        old = views.get(v.knowledge_id)
-        if old is None or v.version >= old.version:
-            views[v.knowledge_id] = v
     exists = []
     for it in items:
         try:
@@ -412,12 +445,7 @@ def as_of_view(items: Iterable, now, policy: MemoryPolicy | None = None) -> list
     created later are invisible; an id with no admissible version is absent. Retirement is a state of an admissible
     version, so retired items stay visible (retire is not delete)."""
     items = list(items)
-    views = {}
-    for it in items:
-        v = view(it)
-        cur = views.get(v.knowledge_id)
-        if cur is None or v.version >= cur.version:
-            views[v.knowledge_id] = v
+    views = views_as_of(items, now)
     best: dict[str, Any] = {}
     for it in items:
         v = view(it)
@@ -432,10 +460,10 @@ def admissibility_monotone(items: Iterable, nows: Sequence, policy: MemoryPolicy
     Returns violations; a non-empty list means the audit logic itself is inconsistent."""
     items = list(items)
     order = sorted(nows, key=as_date)
-    views = {view(i).knowledge_id: view(i) for i in items}
     seen_ok: set[str] = set()
     bad = []
     for n in order:
+        views = views_as_of(items, n)
         for it in items:
             kid = view(it).knowledge_id
             ok = could_exist_at(it, n, views, None, (), policy).could_exist
@@ -451,7 +479,6 @@ def audit_retrieval_log(log: Iterable[Mapping], items: Iterable, policy: MemoryP
     """Each entry {now, knowledge_id[, version]}: the item retrieved at that time must have been admissible then.
     Catches a retrieval that used a memory built later than the decision it informed."""
     items = list(items)
-    views = {view(i).knowledge_id: view(i) for i in items}
     by = {}
     for i in items:
         v = view(i)
@@ -467,7 +494,7 @@ def audit_retrieval_log(log: Iterable[Mapping], items: Iterable, policy: MemoryP
         if it is None:
             out.append(fail(L, "retrieved-unknown-item", kid, f"entry {n}: retrieved item {kid!r} is not in the store"))
             continue
-        ex = could_exist_at(it, now, views, None, (), policy)
+        ex = could_exist_at(it, now, views_as_of(items, now), None, (), policy)
         if not ex.could_exist:
             out.append(fail(L, "retrieved-before-existence", kid, f"entry {n}: retrieved at {as_date(now)} but {ex.reasons}"))
     return out
@@ -644,3 +671,373 @@ def windows_overlapping(items: Iterable, window) -> list[str]:
         if any(overlap_days(w, window) > 0 for w in v.sealed_windows):
             hits.append(v.knowledge_id)
     return sorted(hits)
+
+
+# ---------------------------------------------------------------- hidden label storage (obfuscated names)
+def payload_numbers(payload: Any, limit: int = 20000, depth: int = 0) -> np.ndarray:
+    """Every finite number found in a payload (nested dicts/lists/arrays/frames), flattened, capped at `limit`."""
+    vals: list[np.ndarray] = []
+    total = [0]
+
+    def take(a):
+        a = np.asarray(a, dtype=float).ravel()
+        a = a[np.isfinite(a)]
+        room = limit - total[0]
+        if room > 0 and len(a):
+            vals.append(a[:room])
+            total[0] += min(len(a), room)
+
+    def walk(o, d):
+        if d > 6 or total[0] >= limit:
+            return
+        if isinstance(o, (bool, np.bool_)):
+            return
+        if isinstance(o, (int, float, np.integer, np.floating)):
+            take([o])
+        elif isinstance(o, (np.ndarray, pd.Series)):
+            if np.asarray(o).dtype.kind in "fiu":
+                take(np.asarray(o))
+        elif isinstance(o, pd.DataFrame):
+            take(o.select_dtypes(include=[np.number]).to_numpy())
+        elif isinstance(o, Mapping):
+            for v in o.values():
+                walk(v, d + 1)
+        elif isinstance(o, (list, tuple)):
+            for v in o:
+                walk(v, d + 1)
+
+    walk(payload, depth)
+    return np.concatenate(vals) if vals else np.array([], dtype=float)
+
+
+def hidden_label_overlap(payload: Any, outcomes: Sequence[float] | pd.Series, decimals: int = 6, min_numbers: int = 20,
+                         max_share: float = 0.3) -> Finding | None:
+    """Catch labels stored under an innocent name: the share of the payload's numbers that appear EXACTLY among the
+    outcome values. Honest statistics (means, thresholds, weights) almost never coincide with raw outcomes to six
+    decimals; a stored answer column does. Returns a FAIL finding or None."""
+    nums = payload_numbers(payload)
+    y = np.asarray(outcomes, dtype=float)
+    y = y[np.isfinite(y)]
+    if len(nums) < min_numbers or len(y) < min_numbers:
+        return None
+    pool = set(np.round(y, decimals).tolist())
+    hit = float(np.mean([round(float(v), decimals) in pool for v in nums]))
+    if hit > max_share:
+        return fail(L, "hidden-label-storage", "payload", f"{hit:.0%} of {len(nums)} payload numbers equal raw outcome values exactly",
+                    share=hit, n_numbers=int(len(nums)))
+    return None
+
+
+# ---------------------------------------------------------------- enforcement: a memory that refuses contaminated writes
+@dataclasses.dataclass(frozen=True)
+class Tombstone:
+    """Retirement marker (section 13: retire is not delete). The item itself stays; this says it is no longer used."""
+    knowledge_id: str
+    retired_at: str
+    reason: str
+
+
+class FirewalledMemory:
+    """An append-only item store that enforces the memory firewall on the way in and on the way out.
+
+    * `add(item, now)` rejects (FirewallBreach) any item that could not exist at `now`, any second record for an existing
+      (id, version), and any record whose parents are not already stored.
+    * `retrieve(now)` returns only what could exist at `now` (newest admissible version per id, not retired at `now`) and
+      logs every retrieval so `audit_retrieval_log` can re-check it later.
+    * Nothing is ever removed: rejected writes go to `quarantine`, retirements are tombstones."""
+
+    def __init__(self, policy: MemoryPolicy | None = None, env: MemoryEnvironment | None = None):
+        self.policy, self.env = policy, env
+        self._items: list = []
+        self._keys: dict[tuple, str] = {}
+        self.tombstones: list[Tombstone] = []
+        self.quarantine: list[tuple[Any, str, tuple[str, ...]]] = []          # (item, rejected_at, reasons)
+        self.log: list[dict] = []
+
+    def __len__(self):
+        return len(self._items)
+
+    def _views(self, now=None) -> dict[str, ItemView]:
+        return views_as_of(self._items, now if now is not None else "9999-12-31")
+
+    def add(self, item, now) -> Existence:
+        v = view(item)
+        key = (v.knowledge_id, v.version)
+        if key in self._keys:
+            self.quarantine.append((item, str(as_date(now)), ("version-exists",)))
+            raise FirewallBreach(f"{key} already stored: history is immutable, write a new version")
+        views = self._views(now)
+        for p in v.parents:
+            if p not in views:
+                self.quarantine.append((item, str(as_date(now)), ("parent-missing",)))
+                raise FirewallBreach(f"{v.knowledge_id}: parent {p!r} is not in the store")
+        ex = could_exist_at(item, now, views, self.env, (), self.policy)
+        if not ex.could_exist:
+            self.quarantine.append((item, str(as_date(now)), ex.reasons))
+            raise FirewallBreach(f"{v.knowledge_id} rejected at now={as_date(now)}: {', '.join(ex.reasons)}")
+        self._items.append(item)
+        self._keys[key] = item_digest(item)
+        return ex
+
+    def retire(self, knowledge_id: str, now, reason: str) -> Tombstone:
+        if knowledge_id not in self._views():
+            raise FirewallBreach(f"cannot retire unknown item {knowledge_id!r}")
+        if not reason:
+            raise FirewallBreach("retirement needs a reason (an unexplained retirement is a lost lesson)")
+        t = Tombstone(knowledge_id, str(as_date(now)), reason)
+        self.tombstones.append(t)
+        return t
+
+    def is_retired(self, knowledge_id: str, now) -> bool:
+        return any(t.knowledge_id == knowledge_id and as_date(t.retired_at) < as_date(now) for t in self.tombstones)
+
+    def retrieve(self, now, predicate: Callable[[Any], bool] | None = None, include_retired: bool = False) -> list:
+        got = []
+        for it in as_of_view(self._items, now, self.policy):
+            kid = view(it).knowledge_id
+            if not include_retired and self.is_retired(kid, now):
+                continue
+            if predicate is None or predicate(it):
+                got.append(it)
+                self.log.append({"now": str(as_date(now)), "knowledge_id": kid, "version": view(it).version})
+        return got
+
+    def audit(self, now) -> MemoryAuditReport:
+        return audit_store(self._items, now, policy=self.policy, env=self.env)
+
+    def snapshot(self, taken_at) -> MemorySnapshot:
+        return snapshot_memory(self._items, taken_at)
+
+    def verify_log(self) -> list[Finding]:
+        return audit_retrieval_log(self.log, self._items, self.policy)
+
+    def requalify(self, now) -> list:
+        """Re-audit quarantined items: an item rejected only because it was too new may be admissible once `now` has
+        moved past its evidence. Returns items that now pass; they are added, and removed from quarantine."""
+        back, keep = [], []
+        for item, when, reasons in self.quarantine:
+            if "version-exists" in reasons or "parent-missing" in reasons:
+                keep.append((item, when, reasons))
+                continue
+            try:
+                self.add(item, now)
+                back.append(item)
+            except FirewallBreach:
+                keep.append((item, when, reasons))
+        self.quarantine = keep
+        return back
+
+
+# ---------------------------------------------------------------- timelines and reports
+def admissibility_timeline(items: Iterable, nows: Sequence, policy: MemoryPolicy | None = None) -> pd.DataFrame:
+    """Rows = decision dates, columns = items, cells = could-exist. Reading it shows exactly when each lesson becomes usable."""
+    items = list(items)
+    order = sorted(nows, key=as_date)
+    data = {}
+    for n in order:
+        vs = views_as_of(items, n)
+        for i in items:
+            data.setdefault(f"{view(i).knowledge_id}@{view(i).version}", []).append(could_exist_at(i, n, vs, None, (), policy).could_exist)
+    return pd.DataFrame(data, index=pd.Index([pd.Timestamp(as_date(n)) for n in order], name="now"))
+
+
+def taint_sources(report: MemoryAuditReport, items: Iterable) -> pd.Series:
+    """Which ancestor taints the most descendants: fix the root, not each child."""
+    views = {view(i).knowledge_id: view(i) for i in items}
+    counts: Counter = Counter()
+    for e in report.existences:
+        if "tainted-by-parent" in e.reasons:
+            anc = ancestry(e.knowledge_id, views)
+            if anc.tainted_by and anc.tainted_by != e.knowledge_id:
+                counts[anc.tainted_by] += 1
+    return pd.Series(dict(counts), dtype=int).sort_values(ascending=False)
+
+
+def existence_markdown(report: MemoryAuditReport, limit: int = 20) -> str:
+    """Reviewer-facing account of an audit: totals, reject reasons, and the first rejected items with their reasons."""
+    n, bad = len(report.existences), len(report.rejected)
+    lines = [f"# Memory firewall audit at now={report.now}",
+             f"{n} items audited, {n - bad} admissible, {bad} rejected (contamination rate {report.contamination_rate:.1%})", ""]
+    for reason, cnt in report.reasons().most_common():
+        lines.append(f"- {reason}: {cnt} item(s)")
+    shown = 0
+    for e in report.existences:
+        if not e.could_exist and shown < limit:
+            lines.append(f"- REJECT {e.knowledge_id} v{e.version}: " + "; ".join(f.message for f in e.findings if f.is_fail))
+            shown += 1
+    lines.append("")
+    lines.append("This audit is IMPLEMENTED - NOT VALIDATED.")
+    return "\n".join(lines)
+
+
+def planted_contamination_suite(make_clean: Callable[[], Any], now) -> dict[str, Existence]:
+    """Self-test: derive one item per known contamination kind from a clean item factory and return each verdict.
+    A clean item must be admitted; every planted variant must be rejected (used by tests and startup self-check)."""
+    clean = make_clean()
+    prov = _get(clean, "provenance")
+    nd = as_date(now)
+    fut = str(nd + dt.timedelta(days=30))
+    variants = {
+        "clean": clean,
+        "learned_in_future": _with_prov(clean, prov, learned_at=fut, outcomes_seen_through=fut),
+        "saw_future_outcomes": _with_prov(clean, prov, outcomes_seen_through=fut),
+        "no_code_hash": _with_prov(clean, prov, code_hash=""),
+        "no_experiment": _with_prov(clean, prov, experiment_id=""),
+    }
+    return {k: could_exist_at(v, now) for k, v in variants.items()}
+
+
+def _with_prov(item, prov, **changes):
+    new = dataclasses.replace(prov, **changes) if dataclasses.is_dataclass(prov) else {**dict(prov), **changes}
+    if dataclasses.is_dataclass(item):
+        return dataclasses.replace(item, provenance=new)
+    out = dict(item)
+    out["provenance"] = new
+    return out
+
+
+# ---------------------------------------------------------------- leak channel 4: learned state trained on the future
+@dataclasses.dataclass(frozen=True)
+class TrainingWindow:
+    """A window a piece of learned state was fitted on, in REAL (referee-side) dates."""
+    window_id: str
+    real_start: str
+    real_end: str
+
+    def bounds(self) -> tuple[pd.Timestamp, pd.Timestamp]:
+        return pd.Timestamp(self.real_start).normalize(), pd.Timestamp(self.real_end).normalize()
+
+
+@dataclasses.dataclass(frozen=True)
+class LearnedState:
+    """State that shapes later decisions without being a KnowledgeObject: a search basis (cfg + meta), tuned defaults, a
+    memory bank. Leak channel 4 (state/research/leak_audit): such state trained on windows from the played window's
+    future, or on the played window itself, is a leak that no per-item provenance would show."""
+    version: str
+    kind: str                                  # basis_cfg | basis_meta | defaults | memory_bank
+    trained_on: tuple[TrainingWindow, ...] = ()
+    tuned_years: tuple[int, ...] = ()          # calendar years whose OUTCOMES chose these defaults
+
+
+def audit_state_lineage(states: Sequence[LearnedState], played: Sequence[Mapping], allow_same_window: bool = False) -> list[Finding]:
+    """`played` = [{id, real_start, version}]: which state version each window was played with. A window's state may be
+    trained only on windows that ENDED before its real start; a rerun of the same real window may not use state trained on
+    its own first run unless the caller explicitly allows it (C54 vs C56). Built on engine.leak_audit.BasisLineage."""
+    from engine.leak_audit import BasisLineage, TrainedOn
+    out: list[Finding] = []
+    lin = BasisLineage()
+    by_version = {}
+    for st in states:
+        try:
+            lin.register(st.version, st.kind, {"tuned_years": st.tuned_years},
+                         [TrainedOn(w.window_id, *w.bounds()) for w in st.trained_on])
+            by_version[st.version] = st
+        except (ValueError, TypeError) as e:
+            out.append(fail(L, "state-window-unparseable", st.version, f"training window dates cannot be read: {e}"))
+    if not states:
+        out.append(info(L, "no-learned-state", "state", "no learned state supplied"))
+    for p in played:
+        if p.get("version") not in by_version:
+            out.append(fail(L, "state-version-unknown", str(p.get("id")), f"played with state version {p.get('version')!r} that has no lineage record"))
+    for v in lin.violations([dict(p) for p in played if p.get("version") in by_version], allow_same_window):
+        st = by_version[v["version"]]
+        start = next(pd.Timestamp(p["real_start"]) for p in played if p["id"] == v["window"])
+        for wid in v["trained_on_late"]:
+            w = next(x for x in st.trained_on if x.window_id == wid)
+            same = w.bounds()[0] == start.normalize()
+            out.append(fail(L, "state-trained-on-same-window" if same else "state-trained-on-future-window", v["window"],
+                            f"state {st.version} was trained on window {wid} ({w.real_start}..{w.real_end}), "
+                            + ("the very window being played" if same else f"which had not ended before {start.date()}"),
+                            state=st.version, trained_on=wid))
+    starts = [pd.Timestamp(p["real_start"]) for p in played if p.get("real_start") is not None]
+    for st in states:
+        if st.tuned_years and starts:
+            from engine.leak_audit import defaults_contamination
+            res = defaults_contamination(st.tuned_years, starts)
+            if res["contaminated_share"] > 0:
+                hit = [s for s in starts if any(y in set(st.tuned_years) for y in range(s.year, (s + pd.DateOffset(months=12)).year + 1))]
+                out.append(fail(L, "defaults-tuned-on-window", st.version,
+                                f"defaults were tuned on outcomes of years {sorted(st.tuned_years)[:6]}; {len(hit)} of {len(starts)} played windows "
+                                "touch those years (in-sample for their own defaults)", share=float(res["contaminated_share"])))
+    return out
+
+
+def eligible_state(states: Sequence[LearnedState], real_start, allow_same_window: bool = False) -> LearnedState | None:
+    """The newest state whose training windows ALL ended before `real_start`; None means 'use the untrained defaults'."""
+    from engine.leak_audit import BasisLineage, TrainedOn
+    lin = BasisLineage()
+    for st in states:
+        lin.register(st.version, st.kind, {}, [TrainedOn(w.window_id, *w.bounds()) for w in st.trained_on])
+    rec = lin.basis_for(real_start, allow_same_window)
+    return next((s for s in states if rec is not None and s.version == rec["version"]), None)
+
+
+def future_training_share(states: Sequence[LearnedState], played: Sequence[Mapping]) -> dict:
+    """Measure of channel 4: over played windows, the mean share of their state's training windows that end on/after the
+    window's start, and the share of played windows touched by at least one such window."""
+    by = {s.version: s for s in states}
+    shares, touched = [], 0
+    for p in played:
+        st = by.get(p.get("version"))
+        if st is None or not st.trained_on:
+            continue
+        start = pd.Timestamp(p["real_start"])
+        late = sum(w.bounds()[1] >= start for w in st.trained_on)
+        shares.append(late / len(st.trained_on))
+        touched += late > 0
+    if not shares:
+        return {"n_played": 0, "mean_future_share": float("nan"), "share_of_windows_touched": float("nan")}
+    return {"n_played": len(shares), "mean_future_share": float(np.mean(shares)), "share_of_windows_touched": touched / len(shares)}
+
+
+# ---------------------------------------------------------------- enforcing causality on a memory bank table
+def causal_bank(bank: pd.DataFrame, window_start, end_col: str = "real_end") -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Split a lesson table into (usable, excluded): a lesson is usable for a window only if its own window ENDED before
+    the window's start. Excluded rows are returned, not dropped silently, so the caller can log what was refused."""
+    if bank is None or not len(bank):
+        return (bank if bank is not None else pd.DataFrame()), pd.DataFrame(columns=getattr(bank, "columns", []))
+    if end_col not in bank:
+        raise FirewallBreach(f"bank has no {end_col} column: its causality cannot be shown")
+    ends = pd.to_datetime(bank[end_col], errors="coerce")
+    ok = (ends < pd.Timestamp(window_start)) & ends.notna()
+    return bank[ok], bank[~ok]
+
+
+def provenance_completeness(items: Iterable) -> pd.DataFrame:
+    """One row per item: which provenance fields are present. Sorting by `n_missing` shows where the audit is blind."""
+    rows = []
+    for it in items:
+        v = view(it)
+        present = {"provenance": v.has_provenance, "learned_at": v.learned_at is not None, "seen_through": v.seen_through is not None,
+                   "code_hash": bool(v.code_hash), "data_hash": bool(v.data_hash), "experiment_id": bool(v.experiment_id),
+                   "sealed_windows": bool(v.sealed_windows)}
+        rows.append({"knowledge_id": v.knowledge_id, **present, "n_missing": sum(not b for b in present.values())})
+    return pd.DataFrame(rows).sort_values("n_missing", ascending=False).reset_index(drop=True) if rows else pd.DataFrame(
+        columns=["knowledge_id", "n_missing"])
+
+
+def snapshot_diff(a: MemorySnapshot, b: MemorySnapshot) -> dict[str, list[str]]:
+    """What changed between two snapshots: added, removed and edited items (edited = same id@version, different content:
+    a violation of immutable history)."""
+    added = sorted(set(b.digests) - set(a.digests))
+    removed = sorted(set(a.digests) - set(b.digests))
+    edited = sorted(k for k in set(a.digests) & set(b.digests) if a.digests[k] != b.digests[k])
+    return {"added": added, "removed": removed, "edited": edited}
+
+
+def plant_future_item(make_clean: Callable[[], Any], now, days_ahead: int = 30):
+    """A copy of a clean item whose evidence matures `days_ahead` days AFTER now: the canonical planted memory leak
+    (section 62 test 7/11). could_exist_at must reject it."""
+    clean = make_clean()
+    prov = _get(clean, "provenance")
+    fut = str(as_date(now) + dt.timedelta(days=days_ahead))
+    return _with_prov(clean, prov, learned_at=fut, outcomes_seen_through=fut)
+
+
+def plant_hidden_answer_table(n: int = 40, seed: int = 0) -> dict:
+    """A payload that is an answer lookup: {(ticker, date): forward return}. `label_fields` cannot see it by name (the values
+    are innocently keyed), `identity_key_share` and `hidden_label_overlap` can."""
+    rng = np.random.default_rng(seed)
+    tickers = [f"T{chr(65 + i % 26)}{chr(65 + (i // 26) % 26)}" for i in range(n)]
+    dates = pd.bdate_range("2019-01-02", periods=n)
+    return {"table": {(t, str(d.date())): float(v) for t, d, v in zip(tickers, dates, rng.normal(0, 0.05, n))}}
