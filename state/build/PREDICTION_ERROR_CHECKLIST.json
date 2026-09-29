@@ -194,66 +194,120 @@
    "group": "CHECKLIST",
    "description": "Checklist L: 5–10% SELECTION CONSTRAINT",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/research/calibration_target.py",
+    "engine/research/exit_research.py",
+    "engine/research/selection_constraint.py",
+    "engine/research/self_correct.py"
+   ],
+   "tests": [
+    "tests/test_research_selection_exits.py"
+   ],
    "evidence": [],
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED (P05, Opus): selection only when predicted realisable gain under the INTENDED exit policy is in +5..+10%; each checklist-M abuse detected (parametrised test) incl. suppressed losers and cherry-picking; learned exit (past-only, decides at the close, fills next open) entered into the existing exits tournament; exits proven identical when the ±1pp target changes + an audit that catches a target-aware exit; honest ±1pp with OOS split; self-correction tests fixes independently and promotes only through the quality gate; PathModel supplies P01's trajectory fields. 31 tests.",
+   "last_run": "2026-09-29T16:44:52",
+   "code_hash": "39566f8d9a0884d1"
   },
   {
    "id": "PEM",
    "group": "CHECKLIST",
    "description": "Checklist M: DO NOT GAME THE 5–10% STATISTIC",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/research/calibration_target.py",
+    "engine/research/exit_research.py",
+    "engine/research/selection_constraint.py",
+    "engine/research/self_correct.py"
+   ],
+   "tests": [
+    "tests/test_research_selection_exits.py"
+   ],
    "evidence": [],
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED (P05, Opus): selection only when predicted realisable gain under the INTENDED exit policy is in +5..+10%; each checklist-M abuse detected (parametrised test) incl. suppressed losers and cherry-picking; learned exit (past-only, decides at the close, fills next open) entered into the existing exits tournament; exits proven identical when the ±1pp target changes + an audit that catches a target-aware exit; honest ±1pp with OOS split; self-correction tests fixes independently and promotes only through the quality gate; PathModel supplies P01's trajectory fields. 31 tests.",
+   "last_run": "2026-09-29T16:44:52",
+   "code_hash": "39566f8d9a0884d1"
   },
   {
    "id": "PEN",
    "group": "CHECKLIST",
    "description": "Checklist N: OPTIMAL EXIT RESEARCH",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/research/calibration_target.py",
+    "engine/research/exit_research.py",
+    "engine/research/selection_constraint.py",
+    "engine/research/self_correct.py"
+   ],
+   "tests": [
+    "tests/test_research_selection_exits.py"
+   ],
    "evidence": [],
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED (P05, Opus): selection only when predicted realisable gain under the INTENDED exit policy is in +5..+10%; each checklist-M abuse detected (parametrised test) incl. suppressed losers and cherry-picking; learned exit (past-only, decides at the close, fills next open) entered into the existing exits tournament; exits proven identical when the ±1pp target changes + an audit that catches a target-aware exit; honest ±1pp with OOS split; self-correction tests fixes independently and promotes only through the quality gate; PathModel supplies P01's trajectory fields. 31 tests.",
+   "last_run": "2026-09-29T16:44:52",
+   "code_hash": "39566f8d9a0884d1"
   },
   {
    "id": "PEO",
    "group": "CHECKLIST",
    "description": "Checklist O: EXIT INDEPENDENCE RULE",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/research/calibration_target.py",
+    "engine/research/exit_research.py",
+    "engine/research/selection_constraint.py",
+    "engine/research/self_correct.py"
+   ],
+   "tests": [
+    "tests/test_research_selection_exits.py"
+   ],
    "evidence": [],
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED (P05, Opus): selection only when predicted realisable gain under the INTENDED exit policy is in +5..+10%; each checklist-M abuse detected (parametrised test) incl. suppressed losers and cherry-picking; learned exit (past-only, decides at the close, fills next open) entered into the existing exits tournament; exits proven identical when the ±1pp target changes + an audit that catches a target-aware exit; honest ±1pp with OOS split; self-correction tests fixes independently and promotes only through the quality gate; PathModel supplies P01's trajectory fields. 31 tests.",
+   "last_run": "2026-09-29T16:44:52",
+   "code_hash": "39566f8d9a0884d1"
   },
   {
    "id": "PEP",
    "group": "CHECKLIST",
    "description": "Checklist P: ±1 PERCENTAGE-POINT CALIBRATION TARGET",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/research/calibration_target.py",
+    "engine/research/exit_research.py",
+    "engine/research/selection_constraint.py",
+    "engine/research/self_correct.py"
+   ],
+   "tests": [
+    "tests/test_research_selection_exits.py"
+   ],
    "evidence": [],
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED (P05, Opus): selection only when predicted realisable gain under the INTENDED exit policy is in +5..+10%; each checklist-M abuse detected (parametrised test) incl. suppressed losers and cherry-picking; learned exit (past-only, decides at the close, fills next open) entered into the existing exits tournament; exits proven identical when the ±1pp target changes + an audit that catches a target-aware exit; honest ±1pp with OOS split; self-correction tests fixes independently and promotes only through the quality gate; PathModel supplies P01's trajectory fields. 31 tests.",
+   "last_run": "2026-09-29T16:44:52",
+   "code_hash": "39566f8d9a0884d1"
   },
   {
    "id": "PEQ",
    "group": "CHECKLIST",
    "description": "Checklist Q: SELF-CORRECTING PREDICTION NETWORK",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/research/calibration_target.py",
+    "engine/research/exit_research.py",
+    "engine/research/selection_constraint.py",
+    "engine/research/self_correct.py"
+   ],
+   "tests": [
+    "tests/test_research_selection_exits.py"
+   ],
    "evidence": [],
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED (P05, Opus): selection only when predicted realisable gain under the INTENDED exit policy is in +5..+10%; each checklist-M abuse detected (parametrised test) incl. suppressed losers and cherry-picking; learned exit (past-only, decides at the close, fills next open) entered into the existing exits tournament; exits proven identical when the ±1pp target changes + an audit that catches a target-aware exit; honest ±1pp with OOS split; self-correction tests fixes independently and promotes only through the quality gate; PathModel supplies P01's trajectory fields. 31 tests.",
+   "last_run": "2026-09-29T16:44:52",
+   "code_hash": "39566f8d9a0884d1"
   },
   {
    "id": "PER",
