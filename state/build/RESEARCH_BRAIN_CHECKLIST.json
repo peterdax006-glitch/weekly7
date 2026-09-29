@@ -1916,27 +1916,29 @@
    "section": "Cross-sectional learning",
    "minimum_lines": 1500,
    "upper_lines": 2500,
-   "actual_lines": 453,
+   "actual_lines": 1908,
    "code_paths": [
     "engine/analogs_sector.py",
-    "engine/trust.py",
-    "engine/learning/situation.py::CrossSection,correlation_structure"
+    "engine/learning/situation.py::CrossSection,correlation_structure",
+    "engine/research/cross_section.py",
+    "engine/trust.py"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "[mapping 2026-09-29, read-only audit] [partial] 453/1500 meaningful lines genuinely doing this job. 151 + 253 + 49. Sector analogs, per-stock-type trust, cross-section block. Missing: stock-vs-cohort decomposition (market/sector/industry/volatility/liquidity/momentum/event cohort) and the stock-specific vs sector vs market-wide label feeding both models."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C66 wave 1, R16 pass 2): 1,504; all seven section-24 cohorts with sequential/solo/Shapley/chance-adjusted shares, per-name drivers, 5-10% and >10% mover driver table; bug fixed: global winsorisation had capped genuine cohort-wide moves. | earlier: [mapping 2026-09-29, read-only audit] [partial] 453/1500 meaningful lines genuinely doing this job. 151 + 253 + 49. Sector analogs, per-stock-type trust, cross-section block. Missing: stock-vs-cohort decomposition (market/sector/industry/volatility/liquidity/momentum/event cohort) and the stock-specific vs sector vs market-wide label feeding both models."
   },
   {
    "section": "Regime-aware research",
    "minimum_lines": 1500,
    "upper_lines": 2500,
-   "actual_lines": 2198,
+   "actual_lines": 3667,
    "code_paths": [
     "engine/learning/context.py",
     "engine/learning/hierarchy.py",
-    "engine/learning/situation.py::classify_regime,PopulationDriftMonitor"
+    "engine/learning/situation.py::classify_regime,PopulationDriftMonitor",
+    "engine/research/regimes.py"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "[mapping 2026-09-29, read-only audit] [partial] 2198/1500 meaningful lines genuinely doing this job. context 1262 + hierarchy 905 + 31. pattern x context (incl. regime) learned both ways with shrinkage. Missing: the full C66 regime list (dispersion, liquidity, trend vs mean-reversion, event-heavy) and discovery of NEW regimes (only a drift monitor and break_detection kmeans)."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C66 wave 1, R16 pass 2): 1,500; twelve named regime monitors, discovery with bootstrap-stability k and Hungarian id matching (two-regime world gives k=2 at every refit, 3 seeds), transitions with lead time and false-alarm rate, pattern x regime random-effects shrinkage. | earlier: [mapping 2026-09-29, read-only audit] [partial] 2198/1500 meaningful lines genuinely doing this job. context 1262 + hierarchy 905 + 31. pattern x context (incl. regime) learned both ways with shrinkage. Missing: the full C66 regime list (dispersion, liquidity, trend vs mean-reversion, event-heavy) and discovery of NEW regimes (only a drift monitor and break_detection kmeans)."
   },
   {
    "section": "Interaction discovery",

@@ -2020,3 +2020,9 @@ def cohort_shares_by_regime(cohort_ledger, monitor: RegimeMonitor, axis: str, no
     cols = [c for c in df.columns if c.startswith("seq_")]
     g = df.groupby("state")[cols].mean().assign(days=df.groupby("state").size())
     return g[g["days"] >= min_days]
+
+
+def active_regimes(state: RegimeState) -> tuple[str, ...]:
+    """Names of the named regimes active on one day, sorted (unknown axes contribute nothing): the compact 'what is the market
+    like today' answer used in reports and as a stable key for grouping days."""
+    return tuple(sorted(n for n, f in regime_flags(state).items() if f))

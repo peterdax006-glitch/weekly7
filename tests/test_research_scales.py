@@ -639,7 +639,7 @@ def test_scope_outcomes_find_planted_continuation_and_not_in_null():
     eff = {(e.scope, e.metric): e for e in lab.outcomes.effects(now)}
     assert eff[("STOCK_SPECIFIC", "continuation")].established() and eff[("STOCK_SPECIFIC", "continuation")].effect > 0.0003
     assert lab.outcomes.prior("STOCK_SPECIFIC", "continuation", now) > 0.0003
-    null_lab, now2 = run_lab_with_outcomes(planted=False, seed=11)
+    null_lab, now2 = run_lab_with_outcomes(n_days=45, planted=False, seed=11)
     assert not any(e.established() for e in null_lab.outcomes.effects(now2) if e.metric == "continuation")
     assert null_lab.outcomes.prior("STOCK_SPECIFIC", "continuation", now2) is None            # unknown, never a 0 default
     assert lab.outcomes.effects(now, replay_years=[2019]) == []                                  # replayed year: hidden
@@ -823,3 +823,159 @@ def test_cohort_lead_lag_distinguishes_continuation_from_reversal():
     assert out == {"continues": "CONTINUES", "reverts": "REVERTS", "none": "UNCLEAR"}
     with pytest.raises(FirewallBreach):
         ll.push("2019-01-01", ret, labels)
+
+
+# ------------------------------------------------------------------------------------------------ section 24: every cohort attributed
+
+SIC9 = [1311, 2811, 2911, 3011, 3211, 3571, 4911, 5411, 6021]        # four manufacturing INDUSTRIES inside one manufacturing SECTOR
+
+
+def cohort_frame(rng, n=270, idio=0.006, market=0.0, shock_mask=None, shock=0.05, shock_stock=None):
+    """Day frame whose cohort columns are independent random draws; `shock_mask(frame, labels)` picks the names given a cohort move."""
+    tick = [f"S{i:03d}" for i in range(n)]
+    sic = np.array([SIC9[i % 9] for i in range(n)])
+    fr = pd.DataFrame({"sic": sic, "vol20": rng.lognormal(-4, 0.3, n), "log_dv": rng.normal(16, 1.5, n), "mom20": rng.normal(0, 0.05, n),
+                       "ev_8k": (rng.random(n) < 0.25).astype(float)}, index=tick)
+    ret = market + rng.normal(0, idio, n)
+    if shock_mask is not None:
+        lab = X.assign_cohorts(fr.assign(ret=0.0), X.CrossConfig(events=("ev_8k",)))
+        ret = ret + shock * shock_mask(fr, lab).to_numpy()
+    if shock_stock is not None:
+        ret[shock_stock[0]] += shock_stock[1]
+    fr["ret"] = ret
+    return fr
+
+
+CFG9 = X.CrossConfig(events=("ev_8k",), min_names=30)
+COHORT_CASES = {                                   # cohort -> which names its planted move hits
+    "sector": lambda fr, lab: (lab["sector"] == "sec_resources").astype(float),
+    "industry": lambda fr, lab: (fr["sic"] == 2811).astype(float),
+    "volatility": lambda fr, lab: (lab["volatility"] == "vol_q5").astype(float),
+    "liquidity": lambda fr, lab: (lab["liquidity"] == "liq_q1").astype(float),
+    "momentum": lambda fr, lab: (lab["momentum"] == "mom_q5").astype(float),
+    "event": lambda fr, lab: (lab["event"] == "ev_live").astype(float),
+}
+
+
+@pytest.mark.parametrize("cohort", sorted(COHORT_CASES))
+def test_planted_move_of_each_cohort_is_attributed_to_that_cohort(cohort):
+    rng = np.random.default_rng(sorted(COHORT_CASES).index(cohort) + 100)
+    fr = cohort_frame(rng, shock_mask=COHORT_CASES[cohort], shock=0.05)
+    full = X.decompose_full(fr, CFG9)
+    attr = X.attribute_moves(full, CFG9)
+    lab = X.assign_cohorts(fr, CFG9)
+    hit = COHORT_CASES[cohort](fr, lab).astype(bool)
+    driver = attr["driver"]
+    # the cohort that was planted is the modal driver of the names it moved, and beats every other cohort's share of the day
+    assert driver[hit].value_counts().index[0] == cohort, driver[hit].value_counts().to_dict()
+    assert (driver[hit] == cohort).mean() > 0.5
+    sh = full.shares()
+    assert max(sh, key=lambda k: sh[k] if k != "idio" else -1) == cohort
+    solo = full.solo_shares()
+    assert max(solo, key=solo.get) in ((cohort, "industry") if cohort == "sector" else (cohort,))       # industry nests in sector: alone, it fits at least as well
+    others = [c for c in COHORT_CASES if c != cohort]
+    assert (driver[~hit].isin(others)).mean() < 0.15                                    # unmoved names are not blamed on a cohort
+    assert full.table.loc[hit, cohort].abs().mean() > 2 * full.table.loc[~hit, cohort].abs().mean()
+
+
+def test_market_and_idiosyncratic_moves_are_attributed_to_market_and_idio():
+    rng = np.random.default_rng(3)
+    day = cohort_frame(rng, market=0.03, idio=0.003)
+    attr = X.attribute_moves(X.decompose_full(day, CFG9), CFG9)
+    assert (attr["driver"] == "market").mean() > 0.8
+    solo = cohort_frame(rng, idio=0.004, shock_stock=(5, 0.25))
+    a2 = X.attribute_moves(X.decompose_full(solo, CFG9), CFG9)
+    assert a2["driver"].iloc[5] == "idio" and a2["share_idio"].iloc[5] > 0.8
+    assert X.scope_of_driver("market") == X.MoveScope.MARKET_WIDE and X.scope_of_driver("industry") == X.MoveScope.SECTOR_SPECIFIC
+    assert X.scope_of_driver("event") == X.MoveScope.COHORT_WIDE and X.scope_of_driver("idio") == X.MoveScope.STOCK_SPECIFIC
+    assert X.scope_of_driver("zzz") == X.MoveScope.UNKNOWN
+
+
+def test_null_day_attributes_no_more_than_chance_to_any_cohort():
+    rng = np.random.default_rng(4)
+    fr = cohort_frame(rng)
+    full = X.decompose_full(fr, CFG9)
+    chance = X.chance_cohort_shares(fr, CFG9, seed=0, n_shuffles=6)
+    sh = full.shares()
+    assert all(abs(sh[k] - chance[k]) < 0.05 for k in COHORT_CASES) and sh["idio"] > 0.85
+    planted = cohort_frame(rng, shock_mask=COHORT_CASES["volatility"], shock=0.03)
+    p = X.decompose_full(planted, CFG9).shares()
+    assert p["volatility"] - chance["volatility"] > 0.1
+
+
+def test_sequential_order_matters_but_shapley_shares_do_not_depend_on_it():
+    rng = np.random.default_rng(6)
+    fr = cohort_frame(rng, shock_mask=COHORT_CASES["volatility"], shock=0.05)
+    fr["log_dv"] = fr["vol20"].rank()                                              # liquidity cohorts are now identical to volatility cohorts
+    fwd = X.decompose_full(fr, CFG9).shares()
+    rev = X.decompose_full(fr, CFG9, order=tuple(reversed(X.COHORT_ORDER))).shares()
+    assert fwd["volatility"] > 5 * max(fwd["liquidity"], 1e-6) and rev["liquidity"] > 5 * max(rev["volatility"], 1e-6)   # first one takes the credit
+    sh = X.shapley_shares(fr, CFG9, n_orders=10, seed=1)
+    assert sh["volatility"] == pytest.approx(sh["liquidity"], rel=0.5) and sh["volatility"] > 0.1
+    assert X.shapley_shares(fr, CFG9, n_orders=10, seed=1) == sh                    # deterministic
+
+
+def test_components_sum_to_the_move_and_shares_to_one():
+    rng = np.random.default_rng(7)
+    fr = cohort_frame(rng, shock_mask=COHORT_CASES["event"], shock=0.03)
+    full = X.decompose_full(fr, CFG9)
+    t = full.table
+    assert np.allclose(t[list(X.COMPONENTS)].sum(axis=1), t["ret"], atol=1e-9)
+    assert sum(full.shares().values()) == pytest.approx(1.0)
+    attr = X.attribute_moves(full, CFG9)
+    shares = attr[[f"share_{c}" for c in X.COMPONENTS]].dropna()
+    assert np.allclose(shares.sum(axis=1), 1.0) and all(v >= -0.05 for v in full.solo_shares().values())   # a shrunk effect may fit slightly worse than nothing
+
+
+def test_full_decomposition_degenerate_cases():
+    rng = np.random.default_rng(8)
+    small = cohort_frame(rng, n=12)
+    full = X.decompose_full(small, CFG9)
+    assert full.status == "INSUFFICIENT_DATA" and not full.usable() and all(v is None for v in full.shares().values())
+    attr = X.attribute_moves(full, CFG9)
+    assert (attr["driver"] == "UNKNOWN").all()
+    led = X.CohortAttributionLedger()
+    assert not led.add("2020-01-02", full) and led.summary().loc["sector", "n"] == 0 and led.dominant_cohort() is None
+    bare = cohort_frame(rng)[["ret"]]
+    b = X.decompose_full(bare, X.CrossConfig())
+    assert b.usable() and (b.table[["sector", "volatility", "event"]].abs().to_numpy() == 0).all() and b.shares()["idio"] == pytest.approx(1.0)
+    with pytest.raises(ValueError):
+        X.decompose_full(cohort_frame(rng).iloc[0:0], CFG9)
+    assert X.cohort_size_bias(full) is None
+
+
+def test_ledger_orders_days_finds_the_dominant_cohort_and_reports_stability():
+    rng = np.random.default_rng(9)
+    led = X.CohortAttributionLedger()
+    days = pd.bdate_range("2020-01-01", periods=24)
+    for d in days:
+        fr = cohort_frame(rng, n=120, shock_mask=COHORT_CASES["momentum"], shock=0.04)
+        full = X.decompose_full(fr, CFG9)
+        assert led.add(d, full, X.chance_cohort_shares(fr, CFG9, 0, 3))
+    assert led.dominant_cohort() == "momentum" and led.summary().loc["momentum", "days_above_chance"] == 1.0
+    with pytest.raises(FirewallBreach):
+        led.add(days[3], full)
+    st = X.attribution_stability(led, min_days=20)
+    assert st["same_top"] and st["top_first"] == "momentum" and st["rank_corr"] > 0.3
+    assert X.attribution_stability(X.CohortAttributionLedger())["rank_corr"] is None
+    assert led.frame(days[10]).shape[0] == 11
+    bias = X.cohort_size_bias(full)
+    assert bias is None or -1.0 <= bias <= 1.0
+
+
+def test_mover_driver_table_and_lab_integration_of_the_attribution():
+    rng = np.random.default_rng(10)
+    fr = cohort_frame(rng, shock_mask=COHORT_CASES["volatility"], shock=0.07, idio=0.004)
+    full = X.decompose_full(fr, CFG9)
+    attr = X.attribute_moves(full, CFG9)
+    tab = X.mover_driver_table(full, attr)
+    assert tab.loc[("5%-10%", "up"), "volatility"] > 20 and tab.loc[("5%-10%", "up"), "n"] == tab.loc[("5%-10%", "up")].iloc[1:].sum()
+    lab = X.CrossSectionLab(CFG9)
+    res = lab.process_day("2020-01-02", fr)
+    assert res.attribution is not None and (res.attribution["driver"] == attr["driver"]).all()
+    assert {"xs_attr_volatility", "xs_attr_idio", "xs_driver_code"} <= set(res.features.columns) and len(lab.cohort_ledger) == 1
+    back = X.CrossSectionLab.from_state(lab.state())
+    assert len(back.cohort_ledger) == 1 and back.content_hash() == lab.content_hash()
+    assert "COHORT ATTRIBUTION" in X.cohort_report(lab)
+    feats = X.attribution_features(full, attr)
+    assert feats.dtypes.eq("float32").all() and feats["xs_driver_code"].max() <= len(X.COMPONENTS)

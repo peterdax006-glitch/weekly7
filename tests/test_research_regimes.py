@@ -717,3 +717,17 @@ def test_adopt_tuned_changes_definitions_only_on_a_real_gain_and_logs_why():
     same, dec2 = R.adopt_tuned(cfg, pd.DataFrame({"q_lo": [0.33, 0.25], "q_hi": [0.67, 0.75], "score": [4.0, 4.5]}))
     assert same is cfg and not dec2["adopted"] and "not 20%" in dec2["reason"]
     assert not R.adopt_tuned(cfg, pd.DataFrame({"q_lo": [0.33], "q_hi": [0.67], "score": [0.0]}))[1]["adopted"] and not R.adopt_tuned(cfg, pd.DataFrame())[1]["adopted"]
+
+
+def test_active_regimes_key_and_cohort_shares_by_regime():
+    dates, rows = world_rows({"vix": 34}, {"vix": 11}, n=300)
+    mon = run_monitor(dates, rows, R.RegimeConfig(min_history=60, refit_every=10_000))
+    assert {"high_vol", "low_vol"} & set(R.active_regimes(mon.states[-1]))
+    assert R.active_regimes(mon.states[0]) == ()
+    led = X.CohortAttributionLedger()
+    rng = np.random.default_rng(0)
+    for d in dates[100:180]:
+        led.add(d, X.decompose_full(pd.DataFrame({"ret": rng.normal(0, 0.01, 60)}, index=[f"S{i}" for i in range(60)]), X.CrossConfig()))
+    tab = R.cohort_shares_by_regime(led, mon, "volatility", dates[-1], min_days=5)
+    assert not tab.empty and tab["days"].sum() <= 80 and "seq_sector" in tab.columns
+    assert R.cohort_shares_by_regime(X.CohortAttributionLedger(), mon, "volatility", dates[-1]).empty

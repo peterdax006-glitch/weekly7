@@ -247,7 +247,7 @@ def robust_center(x: Sequence[float], trim: float = 0.1) -> float:
     return float(sps.trim_mean(a, trim)) if len(a) else float("nan")
 
 
-def loo_group_effect(values: pd.Series, labels: pd.Series, shrink_k: float) -> tuple[pd.Series, pd.Series]:
+def loo_group_effect(values: pd.Series, labels: pd.Series, shrink_k: float, clip_z: float | None = None) -> tuple[pd.Series, pd.Series]:
     """Leave-one-out cohort effect of each element: the mean of the OTHER members, shrunk by (n-1)/(n-1+k) toward zero.
     Returns (effect, others) with others = n-1 (0 for singletons and 'unknown', whose effect is 0.0, not NaN: a name with no
     cohort is simply not adjusted). A stock never contributes to its own benchmark."""
@@ -257,6 +257,13 @@ def loo_group_effect(values: pd.Series, labels: pd.Series, shrink_k: float) -> t
     others = pd.Series(0, index=v.index, dtype="int64")
     if ok.sum() == 0:
         return eff, others
+    if clip_z is not None:
+        # clip each value to its OWN cohort's median +- clip_z global robust sigmas: a lone outlier cannot define its cohort, yet a
+        # cohort that moved together (median shifted) is left whole (a global clip would cap every genuine cohort-wide move)
+        sc = robust_scale(v[ok].to_numpy())
+        if sc > 0:
+            med = v[ok].groupby(labels[ok]).transform("median")
+            v = v.where(~ok, v.clip(lower=med - clip_z * sc, upper=med + clip_z * sc))
     g = v[ok].groupby(labels[ok])
     s, n = g.transform("sum"), g.transform("count")
     denom = (n - 1).where(n > 1)
@@ -338,9 +345,9 @@ def decompose_day(frame: pd.DataFrame, cfg: CrossConfig, labels: pd.DataFrame | 
     mk = pd.Series(m, index=rr.index) if beta is None else m * beta.reindex(rr.index).fillna(1.0)
     e0 = rr - mk
     disp = robust_scale(e0.to_numpy())
-    s_eff, n_sec = loo_group_effect(winsorize(e0, cfg.winsor_z), lb[CohortKind.SECTOR.value], cfg.shrink_k)
+    s_eff, n_sec = loo_group_effect(e0, lb[CohortKind.SECTOR.value], cfg.shrink_k, cfg.winsor_z)
     e1 = e0 - s_eff
-    i_eff, n_ind = loo_group_effect(winsorize(e1, cfg.winsor_z), lb[CohortKind.INDUSTRY.value], cfg.shrink_k)
+    i_eff, n_ind = loo_group_effect(e1, lb[CohortKind.INDUSTRY.value], cfg.shrink_k, cfg.winsor_z)
     e2 = e1 - i_eff
     X, kind_cols = _dummies(lb, STYLE_KINDS)
     style = pd.Series(0.0, index=rr.index)
@@ -1337,7 +1344,7 @@ def compare_cohort_systems(frame: pd.DataFrame, cfg: CrossConfig, discovered: pd
     lab = assign_cohorts(frame, cfg)
     res = {}
     for name, labels in (("sic", lab[CohortKind.SECTOR.value]), ("discovered", discovered.reindex(frame.index).fillna(UNK))):
-        eff, _ = loo_group_effect(winsorize(e0.dropna(), cfg.winsor_z), labels.reindex(e0.dropna().index), cfg.shrink_k)
+        eff, _ = loo_group_effect(e0.dropna(), labels.reindex(e0.dropna().index), cfg.shrink_k, cfg.winsor_z)
         base = float((e0.dropna() ** 2).sum())
         res[name] = None if base <= 0 else 1.0 - float(((e0.dropna() - eff) ** 2).sum()) / base
     res["gain"] = None if res["sic"] is None or res["discovered"] is None else res["discovered"] - res["sic"]
@@ -1807,12 +1814,12 @@ def decompose_full(frame: pd.DataFrame, cfg: CrossConfig, labels: pd.DataFrame |
     solo = {}
     comp = {"market": mk}
     for k in order:
-        eff, cnt = loo_group_effect(winsorize(e, cfg.winsor_z), lb[k.value], cfg.shrink_k)
+        eff, cnt = loo_group_effect(e, lb[k.value], cfg.shrink_k, cfg.winsor_z)
         e = e - eff
         comp[k.value] = eff
         tab.loc[rr.index, f"n_{k.value}"] = cnt
         stage[k.value] = float((e ** 2).sum())
-        solo_eff, _ = loo_group_effect(winsorize(e0, cfg.winsor_z), lb[k.value], cfg.shrink_k)
+        solo_eff, _ = loo_group_effect(e0, lb[k.value], cfg.shrink_k, cfg.winsor_z)
         solo[k.value] = ss0 - float(((e0 - solo_eff) ** 2).sum())
     comp["idio"] = e
     for name, s in comp.items():
