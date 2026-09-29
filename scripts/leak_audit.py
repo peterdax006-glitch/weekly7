@@ -28,7 +28,7 @@ PARTS = OUT / "parts"
 PARTS.mkdir(parents=True, exist_ok=True)
 CACHE = K.CACHE
 SEED = 20260928
-ORDER = ["static", "runtime", "survivorship", "adjusted", "metadata", "fingerprint", "causality", "assemble"]
+ORDER = ["static", "runtime", "defaults", "survivorship", "adjusted", "metadata", "fingerprint", "causality", "assemble"]
 
 
 def wait_for_ram(need_gb=2.5, patience_s=1200):
@@ -162,6 +162,24 @@ def part_static(args):
     bank = pd.DataFrame({"real_end": ["2001-12-31", "2019-06-30"], "arm": 1, "ctx": 0, "outcome": 0.0})
     out["memory_bank_filter_catches_planted_late_row"] = bool(BG.check_memory_bank_causality(bank, "2010-01-01"))
     save_part("static", out)
+
+
+# =====================================================================================================================
+def part_defaults(args):
+    """S18: what the DEFAULT blind path actually is, read from the source (AST) - not from a comment, not from an earlier audit
+    - plus the proofs that push a planted leak through each fix, plus the lineage check over the loop's own state file
+    (state/livesim/loop2.json: the referee's ledger; no sealed window is opened). No caches, no RAM."""
+    facts = L.default_path_facts()
+    proofs = L.run_proofs()
+    sp = K.STATE / "livesim" / "loop2.json"
+    state = json.loads(sp.read_text()) if sp.exists() else None
+    check = L.lineage_state_check(state, facts.get("loop2_cfg_space"), facts.get("meta_default_literal"))
+    out = {"facts": facts, "proofs": proofs, "state_check": check, "state_file": str(sp.relative_to(K.ROOT)) if sp.exists() else None,
+           "state_file_mtime": pd.Timestamp(sp.stat().st_mtime, unit="s").isoformat() if sp.exists() else None}
+    if check:
+        print(f"  [defaults] plays: {len(check['untrained'])} untrained, {len(check['trained'])} trained, {len(check['legacy'])} legacy; "
+              f"violations {len(check['violations'])}, unresolved {len(check['unresolved'])}", flush=True)
+    save_part("defaults", out)
 
 
 # =====================================================================================================================
@@ -551,10 +569,14 @@ def assemble(args):
         print(f"[assemble] parts missing: {miss} - their channels are reported as unmeasured", flush=True)
     A = L.Audit()
     S, V, J, M, F, Cz, R = (P[k] or {} for k in ("static", "survivorship", "adjusted", "metadata", "fingerprint", "causality", "runtime"))
+    D = P["defaults"] or {}
+    facts, proofs, sc = D.get("facts") or {}, D.get("proofs") or {}, D.get("state_check")
+    VD = L.compute_verdicts({k: v for k, v in P.items() if v}, facts, proofs, sc)     # every status below comes from here
+    chan = lambda key, name, status, evidence, **kw: L.Channel(key, name, status, {"computed_verdict": VD[key].as_evidence(), **evidence}, **kw)
 
     # 1 survivorship
     sim = V.get("simulated_vol_basket_drag", {})
-    A.add(L.Channel("1", "Survivorship (universe = today's listings; dead names absent)", L.QUARANTINED if V else L.LEAK, {
+    A.add(chan("1", "Survivorship (universe = today's listings; dead names absent)", VD["1"].status, {
         "panel": V.get("panel"), "names_ending_before_panel_end": V.get("names_ending_before_panel_end"),
         "alive_by_year_1965_1985_2005_2025": {y: V.get("alive_by_year", {}).get(str(y)) for y in (1965, 1985, 2005, 2025)},
         "panel_vs_reference_listed_firms": V.get("panel_vs_reference"), "reference": V.get("reference_us_listed_firms_approx"),
@@ -577,14 +599,16 @@ def assemble(args):
     if isinstance(ns, dict):
         ev2["as_traded_vs_adjusted_150_name_sample"] = {"traded_over_adjusted_price_jan2005": ns.get("traded_over_adjusted_price_jan2005"), "disagreement": ns.get("disagreement"), "share_with_any_split": ns.get("share_with_any_split"),
                                                        "share_with_cum_split_ge_4": ns.get("share_with_cum_split_ge_4"), "by_year": ns.get("by_year")}
-    A.add(L.Channel("2", "Split/dividend back-adjusted prices (levels encode later corporate actions)", L.LEAK, ev2,
+    A.add(chan("2", "Split/dividend back-adjusted prices (levels encode later corporate actions)", VD["2"].status, ev2,
         test="test_level_rule_disagreement_catches_split_and_is_zero_when_unadjusted; test_split_invariant_tradable_ignores_a_later_split_but_price_rank_does_not; test_price_level_drift_detects_back_adjustment",
         fix="engine.leak_audit.split_invariant_tradable ranks 20-day dollar volume only (split-invariant); reconstruct_as_traded + level_rule_disagreement size the effect",
-        hook="engine/features.py build(): in relative mode replace `tradable = (C.rank(axis=1, pct=True) >= rel_q[0]) & (dv20.rank(...) >= rel_q[1]) & C.notna()` with `tradable = leak_audit.split_invariant_tradable(C, V, rel_q[1])`; the non-relative branch (MIN_PRICE=3) is not on the blind path. Every other feature is a ratio and split-invariant; log_dv is rank-normalised in model.normalise.",
+        hook=(("IMPLEMENTED on the default path: livesim.Feed defaults to tradable_rule='split_invariant' and features.build routes it to leak_audit.split_invariant_tradable "
+               "(price-rank clause removed on the Test path; the Live rule keeps it). The non-relative branch is not on the blind path.") if VD["2"].status == L.FIXED else
+              "engine/features.py build(): in relative mode replace `tradable = (C.rank(axis=1, pct=True) >= rel_q[0]) & (dv20.rank(...) >= rel_q[1]) & C.notna()` with `tradable = leak_audit.split_invariant_tradable(C, V, rel_q[1])`; the non-relative branch (MIN_PRICE=3) is not on the blind path. Every other feature is a ratio and split-invariant; log_dv is rank-normalised in model.normalise."),
         measured_on="real caches + Yahoo split sample" if isinstance(ns, dict) else "real caches"))
 
     # 3 metadata
-    A.add(L.Channel("3", "Today's metadata (names, SIC, crypto filter, exchange listing)", L.QUARANTINED if M else L.LEAK, {
+    A.add(chan("3", "Today's metadata (names, SIC, crypto filter, exchange listing)", VD["3"].status, {
         "crypto_matches_in_panel": M.get("crypto_matches_in_panel"), "hard_listed_crypto_tickers_traded_before_2018": M.get("hard_listed_crypto_tickers_traded_before_2018"),
         "not_crypto_inert_on_blind_codes": M.get("not_crypto_on_blind_codes_filters_nothing"), "note": M.get("blind_universe_note"),
         "sic": M.get("sic"), "sic_uses": M.get("sic_uses"), "trader_sees_sic_codes_only_no_names": True},
@@ -594,27 +618,40 @@ def assemble(args):
         measured_on="real caches"))
 
     # 4 learned state
-    calls = S.get("loop2_train_basis_calls", [])
-    open4 = bool(calls) and not any(c["passes_as_of"] for c in calls)
     dc = S.get("defaults_contamination") or {}
-    A.add(L.Channel("4", "Learned state from the future (basis cfg/meta trained on later or same windows; sensitivity-derived defaults)",
-        L.LEAK, {
-        "loop2_train_basis_calls": calls, "loop2_trains_on_all_archived_windows": S.get("loop2_trains_on_all_archived_windows"),
-        "simulated_share_of_basis_training_windows_that_end_after_the_played_window_starts": S.get("basis_future_share_mean"),
-        "simulated_share_of_played_windows_whose_basis_touched_such_a_window": S.get("basis_windows_touched_mean"),
-        "share_of_windows_that_would_fall_back_to_untrained_defaults_under_BasisLineage": S.get("lineage_fallback_to_defaults_share"),
-        "defaults_tuned_on_calendar_years": S.get("sensitivity_tuned_years"), "share_of_possible_windows_in_sample_for_their_defaults": dc.get("contaminated_share"),
-        "memory_bank": "filtered real_end < start in Feed.long_term_memory and re-checked by BG.check_memory_bank_causality: CLEAN",
+    lg = proofs.get("lineage_gate", {})
+    scs = sc or {}
+    A.add(chan("4", "Learned state from the future (basis cfg/meta trained on later or same windows; sensitivity-derived defaults)",
+        VD["4"].status, {
+        "train_basis_calls_in_main(source)": facts.get("loop2_train_basis_calls"),
+        "register_basis_calls_in_main(source)": facts.get("loop2_register_basis_calls"),
+        "training_still_uses_every_archived_window": S.get("loop2_trains_on_all_archived_windows"),
+        "play_calls_missing_a_per_window_basis": facts.get("loop2_play_calls_without_per_id"),
+        "global_basis_reaching_a_play_call": facts.get("loop2_global_basis_reaches_a_play_call"),
+        "real_state_file": {"file": (D.get("state_file")), "modified": D.get("state_file_mtime"), "windows": scs.get("n_windows"), "legacy_windows_(pre-lineage, excluded from headline)": scs.get("legacy"),
+                            "untrained_plays": len(scs.get("untrained", [])), "trained_plays": len(scs.get("trained", [])), "violations": scs.get("violations"), "unresolved": scs.get("unresolved"),
+                            "lineage_versions": scs.get("versions"), "untrained_cfg_mismatch": scs.get("untrained_cfg_mismatch"), "untrained_meta_mismatch": scs.get("untrained_meta_mismatch")},
+        "control_if_the_loop_handed_every_window_the_newest_basis(seeded replay of the draw process)": lg.get("naive_share_of_plays_touched_by_future_training"),
+        "gated_replay": {k: lg.get(k) for k in ("gated_plays_checked", "gated_violations", "gated_share_of_plays_on_untrained_neutral_basis")},
+        "measured_before_the_fix_(static part, old loop design)": {"share_of_played_windows_whose_basis_touched_a_later_window": S.get("basis_windows_touched_mean"),
+                                                                    "mean_future_share_of_training_set": S.get("basis_future_share_mean")},
+        "starting_cfg": "NEUTRAL_CFG = neutral_default_cfg(CFG_SPACE): the middle grid value of every knob, no outcome used" if facts.get("loop2_neutral_cfg_from_neutral_default_cfg") else "NOT data-free",
+        "starting_meta_META_DEFAULT_is_tuned_on_real_outcomes": facts.get("meta_default_data_tuned"),
+        "sensitivity_defaults_calendar_years": S.get("sensitivity_tuned_years"), "share_of_possible_windows_in_sample_for_those_tuned_defaults": dc.get("contaminated_share"),
+        "memory_bank": "filtered real_end < start in Feed.long_term_memory and re-checked by BG.check_memory_bank_causality",
         "memory_bank_planted_late_row_caught": S.get("memory_bank_filter_catches_planted_late_row"),
         "pattern_bank_lessons_analogs_reachable_from_blind_path": S.get("research_only_modules_reachable"),
-        "same_window_rerun": "a rerun of a real window is trained on its own first run's archive (C54 wants learning across reruns, C56 forbids it): BasisLineage(allow_same_window=False) is the strict default"},
-        test="test_current_loop_design_trains_on_windows_from_the_future; test_basis_for_picks_newest_version_trained_only_on_the_past; test_violations_flags_planted_future_training; test_lineage_filter_removes_the_measured_leak; test_defaults_contamination_counts_windows_touching_tuned_years",
-        fix="engine.leak_audit.BasisLineage (referee-side registry: basis_for(real_start) returns only bases trained on windows that ended before), strict_training_windows, neutral_default_cfg (data-free start)",
-        hook="scripts/livesim_loop2.py main(): (a) keep a BasisLineage; after each train_basis() call `lineage.register(version, res.cfg, res.meta, [TrainedOn(id, real_start, real_end) for the windows in wins])` (real dates from SealedYear.start_of(sealed._read()) - referee side only); (b) before run_workers, choose per window `rec = lineage.basis_for(real_start)` and pass rec['cfg'], rec['meta'] (or `neutral_default_cfg(CFG_SPACE)` + META_DEFAULT when None) instead of st['cfg'], st['meta'] - one worker call per distinct basis; (c) replace `st['cfg']` initial defaults with `neutral_default_cfg(CFG_SPACE)`. Owner decision: C54 (learn across reruns) vs C56 for reruns of the same window.",
-        measured_on="loop2 source + seeded simulation of its draw process (state/livesim not read)"))
+        "same_window_rerun": "BasisLineage(allow_same_window=False) is the strict default: a rerun of a real window never plays a basis trained on its own first run (C56 over C54)"},
+        test="test_channel4_verdict_flips_when_the_loop_passes_the_global_basis; test_channel4_verdict_flips_when_the_registered_set_differs_from_the_trained_set; test_lineage_state_check_flags_a_planted_future_trained_play; test_current_loop_design_trains_on_windows_from_the_future; test_violations_flags_planted_future_training; test_lineage_filter_removes_the_measured_leak",
+        fix="scripts/livesim_loop2.py: plan_round (BasisLineage.basis_for(real start), else NEUTRAL_CFG + META_DEFAULT), register_basis (every trained-on window with real dates), run_workers/classify_round per_id; engine.leak_audit.BasisLineage",
+        hook=("Remaining open item: META_DEFAULT (adaptation meta-parameters, used by every untrained play) was set from the sensitivity study (39 windows of real outcomes) and has no data-free "
+              "replacement; every result must carry that label. `train_basis` still takes no `as_of` by design - the gate between training and play is what is proven here. "
+              "Owner decision: C54 (learn across reruns) vs C56 for reruns of the same window.") if VD["4"].status != L.LEAK else
+              ("; ".join(VD["4"].reasons) or "see the failed checks in computed_verdict"),
+        measured_on="loop2 + livesim source (AST), the loop's own state file (referee side; no sealed window opened), seeded replay of its draw process"))
 
     # 5 macro
-    A.add(L.Channel("5", "Macro revisions (FRED current vintage vs first release)", L.CLEAN, {
+    A.add(chan("5", "Macro revisions (FRED current vintage vs first release)", VD["5"].status, {
         "analogs_or_parity_reachable_from_blind_path": bool({"analogs", "parity"} & set(S.get("closure_modules", []))),
         "consumers": "engine/analogs.py and engine/parity.py only (neither is on the blind path)",
         "revised_series_in_macro_parquet": sorted(L.MACRO_REVISED), "unrevised_series": sorted(L.MACRO_UNREVISED),
@@ -633,7 +670,7 @@ def assemble(args):
     GN6 = ("calendar", "levels_raw", "levels_after_hardening", "levels_scrubbed", "market_state", "trader_inputs", "scrubbed_all")
     open6 = [g for g in GN6 if exp.get(g, {}).get("verdict") == "identifiable"]
     trader_ok = exp.get("trader_inputs", {}).get("verdict") == "not identifiable" and hid.get("trader_inputs", {}).get("verdict") == "not identifiable"
-    A.add(L.Channel("6", "Year fingerprints (C55): could the exposed feed identify the real year?", L.QUARANTINED if F else L.LEAK, {
+    A.add(chan("6", "Year fingerprints (C55): could the exposed feed identify the real year?", VD["6"].status, {
         "exposed_window(6y warm-up + 12 months; upper bound, neighbouring windows share warm-up data)": {g: sk(exp, g) for g in GN6},
         "hidden_12_months_only(strict)": {g: sk(hid, g) for g in GN6},
         "shuffled_label_control(must be ~0)": {g: (F.get("exposed_6y_warmup_plus_window__shuffled_control", {}).get(g) or {}).get("skill") for g in GROUPS_NAMES},
@@ -653,7 +690,7 @@ def assemble(args):
 
     # 7 network
     nm = S.get("network_markers", {})
-    A.add(L.Channel("7", "Network (blind worker must have none)", L.CLEAN if (R and not R.get("blocked_network_attempts")) else L.LEAK, {
+    A.add(chan("7", "Network (blind worker must have none)", VD["7"].status, {
         "full_adaptive_window_under_guard": {k: R.get(k) for k in ("sessions", "wall_s", "blocked_network_attempts", "data_cache_files_opened", "state_files_opened", "livesim_state_files_opened", "blind_gate_fails")},
         "network_imports_or_calls_reachable_from_blind_path": {m: [f"{x['kind']}:{x['what']}@{x['line']}" for x in v] for m, v in nm.items()},
         "why_it_matters": "engine.data imports yfinance at import time and exposes update()/download(); edgar/universe use requests; livesim imports data",
@@ -667,11 +704,11 @@ def assemble(args):
     fe = Cz.get("feed_exposure_real_windows", {})
     ti = Cz.get("features_truncation_invariance_2012_sample", {})
     tr = S.get("trader_side_reads", {})
-    A.add(L.Channel("8a", "Text, news, speeches, headlines in served data", L.CLEAN, {
+    A.add(chan("8a", "Text, news, speeches, headlines in served data", VD["8a"].status, {
         "free_text_columns_found": S.get("free_text_columns"), "events_columns": S.get("events_columns"), "insider_columns": S.get("insider_columns"),
         "events_kinds": S.get("events_kinds"), "note": "events carry only ticker/form/accepted/kind; insider forms carry titles of a few words; no prose exists to research"},
         test="test_free_text_columns_finds_a_planted_headline_and_ignores_codes", measured_on="real caches"))
-    A.add(L.Channel("8b", "Feature look-ahead (fast path vs truncated data) and label embargo", L.CLEAN if ti.get("clean") else (L.LEAK if ti else L.LEAK), {
+    A.add(chan("8b", "Feature look-ahead (fast path vs truncated data) and label embargo", VD["8b"].status, {
         "truncation_invariance_real_sample": {k: ti.get(k) for k in ("n_tickers", "n_cuts", "n_features", "clean", "leaky_features", "n_events", "n_insider")},
         "model_embargo_sessions": S.get("model_embargo_sessions"), "label_reach_sessions": S.get("label_reach_sessions"),
         "note": "training rows are only warm-up rows, whose stocks frame ends at `now`: labels past now are NaN and dropped"},
@@ -679,13 +716,15 @@ def assemble(args):
     plain = {k: v.get("plain") for k, v in fe.items()}
     hard = {k: v.get("hardened") for k, v in fe.items()}
     link = {k: {"plain": v.get("plain_rerun_linkability"), "hardened": v.get("hardened_rerun_linkability")} for k, v in fe.items()}
-    A.add(L.Channel("8c", "What the feed shows: real alphabetical column order, columns for future IPOs, absolute SPY level", L.LEAK, {
+    A.add(chan("8c", "What the feed shows: real alphabetical column order, columns for future IPOs, absolute SPY level", VD["8c"].status, {
         "plain_feed": plain, "hardened_feed": hard, "rerun_of_the_same_real_window_(two seals): names re-identified by position / by return correlation": link,
         "cost_bps_and_warmup_are_era_coded": "see channel 6"},
         test="test_plain_feed_shows_real_alphabetical_order_future_ipo_and_absolute_spy; test_hardened_feed_closes_the_three_exposures; test_hardened_feed_changes_no_decision_on_clean_data",
         fix="leak_audit.hardened_feed_class() (columns sorted by code, market prices rebased to 100, names hidden until first price); clean-data decisions bit-identical",
-        hook="scripts/livesim_loop2.py: `livesim.Feed = leak_audit.hardened_feed_class()` before livesim.run (or call leak_audit.hardened_run)", measured_on="three real windows (1975, 1995, 2018)"))
-    A.add(L.Channel("8d", "Files the trader side reads at run time / reachable modules", L.QUARANTINED if (S and R) else L.LEAK, {
+        hook=(("IMPLEMENTED on the default path: livesim.run(hardened=True) builds the feed through blind_feed_class -> leak_audit.hardened_feed_class; the worker passes no opt-out. "
+               "Residual (data, not shape): the same real window re-identifies by return correlation across reruns - see channel 6 and channel 4.") if VD["8c"].status == L.FIXED else
+              "scripts/livesim_loop2.py: `livesim.Feed = leak_audit.hardened_feed_class()` before livesim.run (or call leak_audit.hardened_run)"), measured_on="three real windows (1975, 1995, 2018)"))
+    A.add(chan("8d", "Files the trader side reads at run time / reachable modules", VD["8d"].status, {
         "files_actually_opened_during_a_full_blind_window": {k: R.get(k) for k in ("data_cache_files_opened", "state_files_opened", "livesim_state_files_opened", "other_files_opened")},
         "import_reachable_file_reads_(static, over-approximate: reachable != executed)": {m: [f"{r['function']}: {r['call']}" for r in v] for m, v in tr.items()},
         "not_reachable_from_blind_path": S.get("not_reachable_from_blind_path"),
@@ -693,7 +732,7 @@ def assemble(args):
         test="test_import_closure_follows_lazy_imports_and_finds_reads; test_real_blind_path_reaches_no_pattern_bank_or_lessons",
         fix="static inventory (import_closure, data_access, trader_side_reads); pattern_bank/lessons/analogs/trust are unreachable (tested)",
         hook="engine/policy.py not_crypto(): make the ticker set an argument (empty in blind runs) instead of reading universe.csv", measured_on="static"))
-    A.add(L.Channel("8e", "Universe filters / labels using future volume, ordering by future info, analog fingerprints with full-sample stats", L.CLEAN, {
+    A.add(chan("8e", "Universe filters / labels using future volume, ordering by future info, analog fingerprints with full-sample stats", VD["8e"].status, {
         "tradable": "per-date cross-sectional ranks of price (channel 2) and of trailing 20-day dollar volume (8b: identical when the future is cut off)",
         "ever_column_selection": "features.build keeps tickers tradable at any time in the window; rows exist only on dates they were tradable (8b covers it)",
         "analogs_full_sample_stats": "analog_weighting.pit_moments uses expanding moments; analogs is not on the blind path",
@@ -718,7 +757,7 @@ def main():
     ap.add_argument("--seed", type=int, default=SEED)
     ap.add_argument("--reuse-daily", action="store_true", help="fingerprint part: reuse the cached daily series instead of rebuilding it")
     args = ap.parse_args()
-    fn = {"static": part_static, "runtime": part_runtime, "survivorship": part_survivorship, "adjusted": part_adjusted, "metadata": part_metadata,
+    fn = {"static": part_static, "runtime": part_runtime, "defaults": part_defaults, "survivorship": part_survivorship, "adjusted": part_adjusted, "metadata": part_metadata,
           "fingerprint": part_fingerprint, "causality": part_causality, "assemble": assemble}
     for p in args.parts.split(","):
         t = time.time()

@@ -784,3 +784,167 @@ def test_scorecard_diff_and_the_to_do_list_of_missing_evidence():
     assert len(todo) == 2 and any("risk" in t for t in todo) and any("future-leak" in t for t in todo)
     assert S.missing_for_claim(good_card()) == []
     assert S.scorecard_diff(old, mutate(new, cross_year_gain=S.Measured.untested())).set_index("field").loc["cross_year_gain", "state"] == "untested"
+
+
+# =============================================================================================== section 34 completion
+def test_each_component_can_be_measured_alone_and_matches_the_full_decomposition():
+    p = PV.synthetic_value_panel(seed=1, n_dates=80, move_skill=0.8, score_skill=0.5)
+    full = PV.decompose_value(p, PV.ValueSpec(), NOW, n_boot=80, seed=3)
+    for name in ("predictive_effect", "movement_prediction", "ranking_value", "selection_value", "risk_value", "portfolio_value"):
+        one = PV.measure(name, p, PV.ValueSpec(), NOW, n_boot=80, seed=3)
+        assert one.delta == pytest.approx(full[name].delta) and one.status == full[name].status
+    with pytest.raises(ValueError):
+        PV.measure("charisma", p, PV.ValueSpec(), NOW)
+
+
+def test_waterfall_shows_where_prediction_stops_being_portfolio_value():
+    ok = PV.value_waterfall(PV.synthetic_value_panel(seed=2, n_dates=100, move_skill=0.8), PV.ValueSpec(), NOW, n_boot=100)
+    assert [s.stage for s in ok.stages][0] == "1 prediction" and len(ok.stages) == 6
+    assert ok.stages[0].survives and ok.stages[1].survives and ok.stages[2].survives
+    assert ok.first_loss is None or ok.first_loss in {s.stage for s in ok.stages}
+    assert "survives" in ok.verdict or "lost between" in ok.verdict
+    blind = PV.value_waterfall(PV.synthetic_value_panel(seed=2, n_dates=100), PV.ValueSpec(), NOW, n_boot=100)
+    assert not any(s.survives for s in blind.stages[:3])
+    assert "nothing was gained" in blind.verdict or "NO prediction" in blind.verdict         # never "the gain survives" for a blind signal
+    assert "6 objective" in ok.render()
+    # planted leak: strong prediction and selection, but at k=3 the tiered objective rejects the change (gaming guard: no edge in the weeks)
+    p = PV.synthetic_value_panel(seed=5, n_dates=80, move_skill=0.8, score_skill=0.5)
+    rej = PV.value_waterfall(p, PV.ValueSpec(), NOW, k=3, n_boot=100)
+    st = {s.stage: s for s in rej.stages}
+    assert st["3 selection"].survives and not st["6 objective"].survives
+    assert rej.first_loss is not None and "lost between" in rej.verdict and rej.lost_between[1] == rej.first_loss
+
+
+def test_conversion_summary_counts_prediction_gains_that_never_reached_the_portfolio():
+    decs = [PV.decompose_value(PV.synthetic_value_panel(seed=s, n_dates=80, move_skill=0.8), PV.ValueSpec(), NOW, n_boot=60) for s in (1, 2, 3)]
+    decs.append(PV.decompose_value(PV.synthetic_value_panel(seed=9, n_dates=80), PV.ValueSpec(), NOW, n_boot=60))
+    cs = PV.conversion_summary(decs)
+    assert cs["n"] == 4 and cs["with_prediction_gain"] == 3 and cs["converted"] + cs["lost"] == 3
+    assert np.isnan(PV.conversion_rate(decs[-1])) and PV.conversion_summary([])["rate"] != PV.conversion_summary([])["rate"]
+    sc = PV.significant_components(decs[0])
+    assert sum(len(v) for v in sc.values()) == len(PV.COMPONENTS) and "movement_prediction" in sc["gained"]
+
+
+def test_risk_breakdown_and_timing_split_separate_what_the_single_number_hides():
+    p = PV.synthetic_value_panel(seed=4, n_dates=160, move_skill=0.8)
+    rb = PV.risk_breakdown(p, PV.ValueSpec(), NOW, n_boot=100)
+    assert list(rb["measure"]) == ["worst_5pct_week", "max_drawdown", "catastrophic_weeks", "overshoot_weeks"]
+    assert np.isfinite(rb[["base", "new", "delta", "lo", "hi"]].to_numpy()).all() and (rb["n_windows"] == 6).all()
+    assert PV.risk_breakdown(p.iloc[:200], PV.ValueSpec(), NOW).empty
+    spec = PV.ValueSpec(exposure=("exp_base", "exp_new"))
+    t = PV.timing_split(PV.synthetic_value_panel(seed=5, n_dates=120, timing_skill=1.0, move_skill=0.5), spec, NOW)
+    assert t["available"] and t["total"] == pytest.approx(t["level"] + t["timing"])
+    assert PV.timing_split(p, PV.ValueSpec(), NOW)["available"] is False
+
+
+def test_picked_direction_value_uses_the_picks_and_needs_a_spread_not_only_accuracy():
+    good = PV.picked_direction_value(PV.synthetic_value_panel(seed=6, n_dates=100, move_skill=0.8, dir_skill=0.8), PV.ValueSpec(), NOW, n_boot=100)
+    blind = PV.picked_direction_value(PV.synthetic_value_panel(seed=6, n_dates=100, move_skill=0.8), PV.ValueSpec(), NOW, n_boot=100)
+    assert good["available"] and good["new"]["accuracy"] > 0.9 and good["new"]["spread"] > 0.02 and good["accuracy_vs_coin"].lo > 0
+    assert abs(blind["new"]["accuracy"] - 0.5) < 0.12 and blind["accuracy_vs_coin"].lo < 0.1
+    assert PV.picked_direction_value(PV.synthetic_value_panel(seed=6, n_dates=30).drop(columns=["dir_new"]), PV.ValueSpec(), NOW) == {"available": False}
+
+
+def test_value_by_group_selection_over_luck_and_signal_quality_curve():
+    p = PV.synthetic_value_panel(seed=7, n_dates=90, move_skill=0.8)
+    dates = p.index.get_level_values(0).unique()
+    lab = pd.Series(["a"] * 45 + ["b"] * 30 + ["tiny"] * 15, index=dates)
+    tab = PV.value_by_group(p, PV.ValueSpec(), lab, NOW, min_dates=20, n_boot=60)
+    assert list(tab["group"]) == ["a", "b", "tiny"] and tab.set_index("group").loc["tiny"].isna().all()
+    assert tab.set_index("group").loc["a", "movement_prediction"] > 0.3
+    sol = PV.selection_over_luck(p, PV.ValueSpec(), NOW, n_sims=60)
+    assert sol["new"].beats_luck and not sol["base"].beats_luck and sol["exceeds_luck_spread"] and sol["advantage"] > 0.2
+    curve = PV.signal_quality_needed(p, PV.ValueSpec(), NOW, skills=(0.0, 0.5, 0.9), n_boot=60)
+    assert list(curve["skill"]) == [0.0, 0.5, 0.9] and curve["movement_delta"].is_monotonic_increasing
+    with pytest.raises(ValueError):
+        PV.signal_quality_needed(p.drop(columns=["move_base"]), PV.ValueSpec(), NOW)
+
+
+# =============================================================================================== section 47 completion
+def test_every_one_of_the_19_fields_has_a_control_dependency_and_a_claim_verdict():
+    assert set(S.FIELD_CONTROLS) == set(S.SECTION_47_FIELDS) and len(S.SECTION_47_FIELDS) == 19
+    claims = S.field_claims(good_card())
+    assert set(claims) == set(S.SECTION_47_FIELDS)
+    assert claims["cross_year_gain"].may_claim_improved and claims["future_leak_status"].may_claim_improved
+    assert not claims["compute_cost"].may_claim_improved                  # a cost is a fact
+    assert not claims["identity_gap"].may_claim_improved or claims["identity_gap"].controls_missing == ()
+
+
+@pytest.mark.parametrize("drop,affected", [
+    ("D_random_learner", {"cross_year_gain", "same_year_gain", "band_share", "movement_performance"}),
+    ("C_identity_memoriser", {"cross_year_gain", "transfer_ratio", "memorization_gap"}),
+    ("E_leaky_learner", {"cross_year_gain", "future_leak_status"}),
+    ("A_no_learning", {"baseline_performance", "risk_change", "stability"}),
+])
+def test_removing_a_control_removes_the_claim_from_exactly_the_fields_that_depend_on_it(drop, affected):
+    card = good_card()
+    card = mutate(card, controls={k: v for k, v in card.controls.items() if k != drop})
+    claims = S.field_claims(card)
+    for f in affected:
+        assert not claims[f].may_claim_improved and drop in claims[f].controls_missing, f
+    unaffected = [f for f, c in claims.items() if drop not in S.FIELD_CONTROLS[f] and f != "compute_cost"]
+    assert any(claims[f].may_claim_improved for f in unaffected)
+
+
+def test_a_misbehaving_control_also_withdraws_the_claim():
+    noisy_a = with_control(good_card(), "A_no_learning", gain=M(0.01, 0.008, 0.012))          # the no-learning control moved
+    assert not S.field_claims(noisy_a)["risk_change"].may_claim_improved
+    blind_e = with_control(good_card(), "E_leaky_learner", detected=False)
+    assert not S.field_claims(blind_e)["future_leak_status"].may_claim_improved
+    unaudited = mutate(good_card(), future_leak_status=S.LeakStatus.UNAUDITED)
+    assert not S.field_claims(unaudited)["future_leak_status"].may_claim_improved and not S.field_claims(unaudited)["future_leak_status"].measured
+
+
+def test_text_claiming_improvement_in_a_field_without_its_control_is_refused():
+    card = with_control(good_card(), "E_leaky_learner", detected=False)
+    assert S.refuse_unsupported_field_claims(card, "The cross year gain improved on unseen years.") == ["cross_year_gain"]
+    assert S.refuse_unsupported_field_claims(card, "The cross year gain did not improve, no improvement.") == []
+    assert S.refuse_unsupported_field_claims(good_card(), "The cross year gain improved.") == []
+    assert "compute_cost" in S.refuse_unsupported_field_claims(good_card(), "Compute cost is better now.")
+    assert S.refuse_unsupported_field_claims(good_card(), "Nothing to report.") == []
+
+
+def test_claim_matrix_and_claimable_fields_are_a_strict_subset_of_the_measured_ones():
+    card = mutate(good_card(), risk_change=S.Measured.untested("no weeks"), calibration=M(0.03, 0.02, 0.04))
+    tab = S.claim_matrix(card)
+    assert len(tab) == 19 and not tab.set_index("field").loc["risk_change", "may_claim_improved"]
+    cf = S.claimable_fields(card)
+    assert "risk_change" not in cf and "compute_cost" not in cf and "cross_year_gain" in cf
+    assert set(cf) <= set(tab.loc[tab["measured"], "field"])
+
+
+def test_calibration_control_is_brier_skill_against_the_base_rate():
+    rng = np.random.default_rng(50)
+    p = rng.uniform(0.05, 0.95, 800)
+    y = (rng.random(800) < p).astype(float)
+    good = S.calibration_control(p, y)
+    useless = S.calibration_control(np.full(800, y.mean()), y)
+    assert good.measured and good.lo > 0 and "base-rate" in good.note
+    assert useless.measured and abs(useless.value) < 1e-9
+    assert not S.calibration_control(p[:10], y[:10]).measured and not S.calibration_control(p, np.ones(800)).measured
+
+
+# =============================================================================================== section 48 completion
+def test_curve_series_gives_every_section_48_quantity_against_experience_with_its_own_trend():
+    c = _curve(lambda i: (0.0006 * i + _noise(i), 0.001 * i, 0.0002 * i), knowledge=lambda i: 10 * (i + 1))
+    s = LC.curve_series(c)
+    assert set(s) == set(LC.CURVE_SERIES)
+    x, y, tr = s["transfer_gain"]
+    assert len(x) == len(y) == 14 and tr.rising and s["knowledge_count"][2].rising and s["memorization_gap"][2].rising
+    assert not s["risk"][2].rising and not s["risk"][2].falling
+    nan_curve = LC.LearningCurve("n", [LC.CurvePoint(i, 100 * (i + 1), 5, 1) for i in range(5)])
+    assert len(LC.curve_series(nan_curve)["transfer_gain"][0]) == 0
+    share = LC.validated_share_curve(c)
+    assert len(share) == 14 and share[0] == 0.0 and share[-1] == pytest.approx(6 / 140)
+    assert np.isnan(LC.validated_share_curve(LC.LearningCurve("z", [LC.CurvePoint(0, 1, 0, 0)]))[0])
+
+
+# =============================================================================================== section 65 completion
+def test_every_delta_dimension_carries_a_confidence_interval_and_a_p_value():
+    d = LC.compute_learning_delta(_pairs(mover_hit=0.1, worst5=0.05, in_band=0.1), transfer_deltas=[0.01, 0.012, 0.009, 0.011, 0.01])
+    assert set(d.values) == set(LC.DIMENSIONS) and len(LC.DIMENSIONS) == 8
+    for name in ("movement_delta", "risk_delta", "band_share_delta", "transfer_delta", "direction_delta"):
+        v = d[name]
+        assert v.lo <= v.delta <= v.hi and 0.0 <= v.p_signflip <= 1.0 and v.n >= 5
+    assert d["movement_delta"].p_signflip < 0.05 and d["direction_delta"].p_signflip > 0.5
+    assert d["calibration_delta"].n == 8

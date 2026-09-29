@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import dataclasses
 import datetime as dt
-import enum
 import json
 import os
 import platform
@@ -693,5 +692,23 @@ def assert_bitwise_reproducible(fn: Callable[[dict, int], Mapping], cfg: Mapping
     from engine.repro import run_twice
     rep = run_twice(fn, dict(cfg), seed, required=())
     if not rep["reproducible"]:
-        detail = "; ".join(f"{d['artifact']} at {d['first_difference']}" for d in rep["diagnoses"]) or "; ".join(rep["problems"])
+        detail = "; ".join(f"{d['name']} at {d['first_difference']}" for d in rep["diagnoses"]) or "; ".join(rep["problems"])
         raise FirewallBreach(f"experiment is not bitwise reproducible: {detail}")
+
+
+def require_labelled(result: Mapping) -> str:
+    """Refuse a result that carries no reproducibility label: every learning result must say whether it can be reproduced from
+    its record. Returns the status string; NOT_REPRODUCIBLE results are allowed through (they are marked, not dropped)."""
+    block = result.get("repro") if isinstance(result, Mapping) else None
+    if not isinstance(block, Mapping) or "status" not in block:
+        raise FirewallBreach("result carries no reproducibility label (mark it with ReproVerdict.mark)")
+    return str(block["status"])
+
+
+def hard_labels(verdict: ReproVerdict) -> tuple[ReproLabel, ...]:
+    """The labels that make a result not reproducible (soft notes excluded), in the order found."""
+    return tuple(lab for lab in verdict.labels if lab in HARD_LABELS)
+
+
+def is_reproduced(verdict: ReproVerdict) -> bool:
+    return not hard_labels(verdict)

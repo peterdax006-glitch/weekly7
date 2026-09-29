@@ -66,6 +66,16 @@ PARAMS = {
     "tau_single_frac": 0.50,       # tau when a parent has a single child (cannot be estimated)
     "n_full": 40.0,                # n_eff at which the sample-size cap on sign confidence disappears
     "ci_z": 1.96,
+    # section 19: each level has its OWN override and confidence rule. The deeper the level, the more specific (and the more
+    # numerous, hence the more chance-prone) its rules, so the bar rises: more independent dates, more own-evidence weight,
+    # a tighter family-wise alpha, and more effective sample before sign confidence is uncapped.
+    "level_rules": {
+        1: {"min_clusters": 12, "w_min": 0.35, "alpha": 0.10, "n_full": 40.0},      # market
+        2: {"min_clusters": 12, "w_min": 0.35, "alpha": 0.10, "n_full": 40.0},      # sector
+        3: {"min_clusters": 16, "w_min": 0.40, "alpha": 0.08, "n_full": 50.0},      # stock type
+        4: {"min_clusters": 20, "w_min": 0.45, "alpha": 0.05, "n_full": 60.0},      # volatility
+        5: {"min_clusters": 24, "w_min": 0.50, "alpha": 0.05, "n_full": 80.0},      # specific interaction
+    },
 }
 
 
@@ -241,6 +251,10 @@ class HierarchyEstimate:
 class KnowledgeHierarchy:
     def __init__(self, params: Mapping | None = None, dims: Sequence[str] = DIM_ORDER):
         self.p = {**PARAMS, **(params or {})}
+        self.p["level_rules"] = {int(d): dict(r) for d, r in dict(self.p.get("level_rules", {})).items()}
+        flat = ("min_clusters_override", "w_min", "alpha_override", "n_full")
+        if params and "level_rules" not in params and any(k in params for k in flat):
+            self.p["level_rules"] = {}                       # an explicit flat threshold means "the same at every level"
         bad = validate_params(self.p)
         if bad:
             raise HierarchyError("invalid hierarchy parameters: " + "; ".join(bad))
@@ -333,30 +347,45 @@ class KnowledgeHierarchy:
         dl = _ps.eb_shrink(ms, np.sqrt(vs), center=None)["tau2"]
         return max(float(dl), (P["tau_min_frac"] * sd_root) ** 2)
 
-    def _zcrit(self, k: int) -> float:
-        """Two-sided z after a Sidak correction over the `k` siblings tested together."""
-        return float(sps.norm.isf((1.0 - (1.0 - self.p["alpha_override"]) ** (1.0 / max(k, 1))) / 2.0))
+    def rule(self, depth: int, key: str) -> float:
+        """The threshold `key` in force at a level (depth 1..5); falls back to the flat parameter if a level has no entry."""
+        flat = {"min_clusters": "min_clusters_override", "w_min": "w_min", "alpha": "alpha_override", "n_full": "n_full"}[key]
+        return self.p.get("level_rules", {}).get(depth, {}).get(key, self.p[flat])
 
-    def _gate(self, st: NodeStats, z: float, zc: float, tau2: float, s2: float) -> tuple[bool, str, float]:
+    def level_rules_table(self) -> pd.DataFrame:
+        """The rule set for every level side by side (what a reviewer needs to see that deeper means stricter)."""
+        return pd.DataFrame([{"level": Level(d).name, **{k: self.rule(d, k) for k in ("min_clusters", "w_min", "alpha", "n_full")}}
+                             for d in range(1, len(self.dims) + 1)])
+
+    def _thin(self, path: Path) -> bool:
+        """Too little independent evidence to be judged at its level (so it is left out of every comparison)."""
+        st = self._stats[path]
+        return st.clusters < self.rule(len(path), "min_clusters") or st.n_eff() < self.p["min_n_eff"]
+
+    def _zcrit(self, k: int, depth: int = 1) -> float:
+        """Two-sided z after a Sidak correction over the `k` siblings tested together."""
+        return float(sps.norm.isf((1.0 - (1.0 - self.rule(depth, "alpha")) ** (1.0 / max(k, 1))) / 2.0))
+
+    def _gate(self, st: NodeStats, z: float, zc: float, tau2: float, s2: float, depth: int = 1) -> tuple[bool, str, float]:
         """The three conditions for a node to replace its parent's estimate; returns (ok, reason, own-evidence weight)."""
         P = self.p
-        w = self._weight(st, tau2, s2)
-        if st.clusters < P["min_clusters_override"] or st.n_eff() < P["min_n_eff"]:
+        w = self._weight(st, tau2, s2, depth)
+        if st.clusters < self.rule(depth, "min_clusters") or st.n_eff() < P["min_n_eff"]:
             return False, "too few independent dates", w
-        if w < P["w_min"]:
+        if w < self.rule(depth, "w_min"):
             return False, "own evidence too weak against sibling noise", w
         if abs(z) < zc:
             return False, "not distinguishable from the rest of its parent", w
         return True, "overrides parent", w
 
-    def _weight(self, st: NodeStats, tau2: float, s2: float) -> float:
+    def _weight(self, st: NodeStats, tau2: float, s2: float, depth: int = 1) -> float:
         """Own-evidence weight tau^2/(tau^2+v), capped at G/(G+k0) so a handful of dates can never dominate its own
         posterior even when a wild sibling spread inflates tau^2."""
         v = self._node_var(st, s2)
         if not math.isfinite(v):
             return 0.0
         g = st.clusters
-        return float(min(tau2 / (tau2 + v), g / (g + self.p["min_clusters_override"])))
+        return float(min(tau2 / (tau2 + v), g / (g + self.rule(depth, "min_clusters"))))
 
     def _maximal_qualified(self, path: Path, qual: set) -> list[Path]:
         """Qualified strict descendants with no qualified node between them and `path` (their data covers the deeper ones)."""
@@ -384,16 +413,18 @@ class KnowledgeHierarchy:
                 nxt.extend(kids)
                 if not kids:
                     continue
-                zc, sp, chosen = self._zcrit(len(kids)), self._stats[parent], []
+                zc, sp, chosen = self._zcrit(len(kids), len(kids[0])), self._stats[parent], []
+                thin = [self._stats[k] for k in kids if self._thin(k)]      # cannot be judged, so cannot serve as a reference
                 while True:
                     best = None
                     for k in kids:
                         if k in chosen:
                             continue
-                        comp = sp.minus(self._stats[k], *(self._stats[q] for q in chosen))
+                        comp = sp.minus(self._stats[k], *(self._stats[q] for q in chosen),
+                                        *(t for j, t in zip([x for x in kids if self._thin(x)], thin) if j != k))
                         d, se, _ = contrast(self._stats[k], comp)
                         z = d / se if math.isfinite(se) and se > 0 else 0.0
-                        ok, why, w = self._gate(self._stats[k], z, zc, tau2_of[k], s2)
+                        ok, why, w = self._gate(self._stats[k], z, zc, tau2_of[k], s2, len(k))
                         info[k] = (z, zc, why, w)
                         if ok and (best is None or abs(z) > abs(best[1])):
                             best = (k, z)
@@ -411,11 +442,14 @@ class KnowledgeHierarchy:
             for k in self._children[parent]:
                 if k == q:
                     continue
-                elsewhere += [self._stats[k]] if k in keep else [self._stats[d] for d in self._maximal_qualified(k, keep)]
+                if k in keep or self._thin(k):
+                    elsewhere.append(self._stats[k])
+                else:
+                    elsewhere += [self._stats[d] for d in self._maximal_qualified(k, keep)]
             comp = self._stats[parent].minus(self._stats[q], *elsewhere)
             d_, se, _ = contrast(resid, comp)
             z = d_ / se if math.isfinite(se) and se > 0 else 0.0
-            if resid.clusters < self.p["min_clusters_override"] or abs(z) < self._zcrit(len(self._children[parent])):
+            if resid.clusters < self.rule(len(q), "min_clusters") or abs(z) < self._zcrit(len(self._children[parent]), len(q)):
                 keep.discard(q)
                 why = "explained by its own qualified descendants" if desc else "explained by qualified rules elsewhere in its parent"
                 info[q] = (z, info[q][1], why, info[q][3])
@@ -457,7 +491,7 @@ class KnowledgeHierarchy:
                     rs = st.minus(*(self._stats[d] for d in self._maximal_qualified(k, qual)))
                     m, v = rs.mean(), self._node_var(rs, s2)
                     tau2 = tau2_of[k]
-                    w = self._weight(rs, tau2, s2) if rs.clusters else 0.0
+                    w = self._weight(rs, tau2, s2, len(k)) if rs.clusters else 0.0
                     pm = w * m + (1 - w) * pp.used_mean if rs.clusters else pp.used_mean
                     pv = (w * v + (1 - w) ** 2 * pp.used_var) if math.isfinite(v) else pp.used_var
                     z, zc, why, _ = info.get(k, (0.0, 0.0, "not evaluated", w))
@@ -506,7 +540,7 @@ class KnowledgeHierarchy:
         used = self._post[end.used_path]
         z = self.p["ci_z"]
         p_sign = float(sps.norm.cdf(abs(end.used_mean) / se)) if se > 0 else 1.0
-        cap = min(1.0, used.n_eff / self.p["n_full"])
+        cap = min(1.0, used.n_eff / self.rule(max(len(end.used_path), 1), "n_full"))
         capped = 0.5 + (p_sign - 0.5) * cap
         if end.path != end.used_path:
             notes.append(f"{node_id(end.path)} does not override its parent: {end.reason}")
@@ -563,7 +597,7 @@ class KnowledgeHierarchy:
             return {"clusters_now": float(cur), "clusters_for_override": float("inf"), "extra": float("inf")}
         need_z = max(po.z_needed, 0.0)
         need_g = cur * (need_z / abs(po.z_vs_parent)) ** 2
-        need_g = max(need_g, float(self.p["min_clusters_override"]))
+        need_g = max(need_g, float(self.rule(len(path), "min_clusters")))
         return {"clusters_now": float(cur), "clusters_for_override": float(math.ceil(need_g)),
                 "extra": float(max(0, math.ceil(need_g) - cur))}
 
@@ -597,6 +631,57 @@ class KnowledgeHierarchy:
             po, parent = self._post[p], self._post.get(p[:-1])
             if parent is not None and po.post_mean * parent.used_mean < 0:
                 out.append((p, p[:-1]))
+        return out
+
+    def level_verdicts(self, context: Mapping[str, Any]) -> pd.DataFrame:
+        """For each level on a context's path: the evidence the node has, the threshold THAT LEVEL demands, and the verdict.
+        Shows at a glance which level's rule stopped a distinction (dates, own weight, or lack of difference)."""
+        self._compute()
+        rows, path = [], ()
+        for d in self.dims:
+            v = context.get(d)
+            if v is None:
+                break
+            path = path + ((d, str(v)),)
+            po = self._post.get(path)
+            if po is None:
+                rows.append({"level": Level(len(path)).name, "rule": node_id(path), "verdict": "no history"})
+                break
+            n = len(path)
+            rows.append({"level": po.level.name, "rule": po.id, "dates": po.clusters,
+                         "dates_needed": self.rule(n, "min_clusters"), "own_weight": po.weight_own,
+                         "weight_needed": self.rule(n, "w_min"), "z": po.z_vs_parent, "z_needed": po.z_needed,
+                         "qualifies": po.qualifies, "verdict": po.reason})
+        return pd.DataFrame(rows)
+
+    def sibling_table(self, parent: Path = ()) -> pd.DataFrame:
+        """The children of one rule side by side: their evidence, the shared between-sibling spread tau, each one's pull
+        toward the parent, and which (if any) earned an override. The comparison the selection step actually makes."""
+        self._compute()
+        rows = []
+        for k in sorted(self._children.get(tuple(parent), ())):
+            po = self._post.get(k)
+            if po is None:
+                continue
+            rows.append({"rule": po.id, "dates": po.clusters, "raw_mean": po.raw_mean, "resid_mean": po.resid_mean,
+                         "tau": math.sqrt(po.tau2), "own_weight": po.weight_own, "post_mean": po.post_mean,
+                         "z": po.z_vs_parent, "z_needed": po.z_needed, "qualifies": po.qualifies, "thin": self._thin(k)})
+        return pd.DataFrame(rows)
+
+    def guard_report(self) -> dict[str, dict[str, float]]:
+        """Per level: how many fitted rules were held back by the evidence guard, and the largest raw effect that was
+        NOT allowed to stand (the extreme numbers small samples produced and this level refused to believe)."""
+        self._compute()
+        out: dict[str, dict[str, float]] = {}
+        for lv in Level:
+            if lv == Level.GENERAL:
+                continue
+            held = [po for po in self._post.values() if po.level == lv and not po.qualifies]
+            if not held:
+                continue
+            worst = max(held, key=lambda po: abs(po.raw_mean - self._post[po.path[:-1]].used_mean))
+            out[lv.name] = {"held_back": float(len(held)), "largest_refused_raw": float(worst.raw_mean),
+                            "its_shrunk_value": float(worst.post_mean), "its_dates": float(worst.clusters)}
         return out
 
     def explained_share(self) -> float | None:
@@ -761,6 +846,14 @@ def simulate_panel(seed: int, cells: Sequence[Mapping], n_days: int = 150, rows_
 def validate_params(p: Mapping) -> list[str]:
     """Range checks so a mistyped threshold cannot silently disable the safeguards (e.g. w_min=0 would let anything override)."""
     errs = []
+    for d, r in dict(p.get("level_rules", {})).items():
+        if not isinstance(d, int) or not 1 <= d <= 5:
+            errs.append(f"level_rules key {d!r} is not a level 1..5")
+            continue
+        if not (isinstance(r.get("min_clusters", 12), (int, float)) and r.get("min_clusters", 12) >= 3):
+            errs.append(f"level {d}: min_clusters must be >= 3")
+        if not 0.05 <= r.get("w_min", 0.35) <= 1.0 or not 1e-6 <= r.get("alpha", 0.1) <= 0.5 or r.get("n_full", 40.0) < 1.0:
+            errs.append(f"level {d}: w_min/alpha/n_full out of range")
     rules = {"min_root_clusters": (2, 10 ** 6), "min_clusters_override": (3, 10 ** 6), "min_n_eff": (1.0, 10 ** 6),
              "w_min": (0.05, 1.0), "alpha_override": (1e-6, 0.5), "tau_min_frac": (0.0, 5.0),
              "tau_single_frac": (0.01, 5.0), "n_full": (1.0, 10 ** 6), "ci_z": (0.5, 6.0)}
@@ -769,6 +862,26 @@ def validate_params(p: Mapping) -> list[str]:
         if not isinstance(v, (int, float)) or isinstance(v, bool) or not (lo <= v <= hi):
             errs.append(f"{k}={v!r} outside [{lo}, {hi}]")
     return errs
+
+
+def confidence_curve(rows: pd.DataFrame, context: Mapping[str, Any], now, steps: int = 6, params: Mapping | None = None
+                     ) -> pd.DataFrame:
+    """How a rule's standing grows as dates accumulate: refit on the first 1/steps, 2/steps, ... of the dates and report the
+    dates seen, own weight, the estimate, the sample-capped sign confidence and whether the level's override rule was met.
+    The curve should be flat-and-cautious while the sample is tiny and only then rise; a jump to certainty at 3 dates is a bug."""
+    f = rows.copy()
+    f["when"] = pd.to_datetime(f["when"])
+    days = np.sort(f["when"].unique())
+    out = []
+    for i in range(1, steps + 1):
+        cut = days[min(len(days), max(1, round(len(days) * i / steps))) - 1]
+        h = KnowledgeHierarchy(params).fit(f[f["when"] <= cut], now)
+        e = h.estimate(context)
+        po = h.posterior(e.path) if e.is_known() else None
+        out.append({"step": i, "dates": po.clusters if po else 0, "mean": e.mean, "p_sign_capped": e.p_sign_capped,
+                    "weight_own": po.weight_own if po else None, "overrides": bool(po and po.qualifies),
+                    "state": None if e.state is None else e.state.value})
+    return pd.DataFrame(out)
 
 
 # ------------------------------------------------------------------------------------------- graph integration

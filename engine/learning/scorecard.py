@@ -891,7 +891,7 @@ def refuse_unsupported_field_claims(card: LearningScorecard, text: str) -> list[
     bad = []
     for sentence in re.split(r"[.;\n]", text):
         s = sentence.lower()
-        if not re.search(r"(?<!not )(?<!no )\b(improved|improvement|better|gain)\b", s):
+        if not re.search(r"(?<!not )(?<!no )\b(improved|improvement|better)\b", s):
             continue
         for f, c in claims.items():
             if (f.replace("_", " ") in s or f in s) and not c.may_claim_improved:

@@ -280,6 +280,27 @@ class GraphIssue:
 
 
 @dataclasses.dataclass(frozen=True)
+class DecisionDossier:
+    """Everything the graph knows about one decision, end to end: decision <- knowledge <- (experiments, transfers,
+    failures, origins) and -> outcomes. `gaps` lists what is missing, so an incomplete chain of custody is visible."""
+    decision: str
+    causes: tuple[DecisionCause, ...]
+    experiments: tuple[tuple[str, tuple[ExperimentEvidence, ...]], ...]
+    transfers: tuple[tuple[str, TransferSummary], ...]
+    failures: tuple[tuple[str, tuple[FailureLink, ...]], ...]
+    origins: tuple[tuple[str, tuple[str, ...]], ...]
+    outcomes: tuple[str, ...]
+    gaps: tuple[str, ...]
+
+    @property
+    def complete(self) -> bool:
+        return not self.gaps
+
+
+SECTION_50_QUESTIONS = ("what_caused_decision", "failures_contradicting", "situations_transferred", "experiments_validated")
+
+
+@dataclasses.dataclass(frozen=True)
 class GraphSnapshot:
     now: str
     digest: str
@@ -794,6 +815,32 @@ class KnowledgeGraph:
                 out.append(ExperimentEvidence(exp, sup, e.weight, e.known_at))
         return sorted(out, key=lambda x: (x.known_at, x.experiment_id))
 
+    def ask(self, question: str, node: str, now, **kw):
+        """The four section-50 questions by name, so callers (and reports) cannot mistype one:
+        what_caused_decision(decision) | failures_contradicting(pattern) | situations_transferred(knowledge) |
+        experiments_validated(belief)."""
+        if question not in SECTION_50_QUESTIONS:
+            raise GraphError(f"unknown question {question!r}; expected one of {SECTION_50_QUESTIONS}")
+        return getattr(self, question)(node, now, **kw)
+
+    def decision_dossier(self, decision_id: str, now) -> DecisionDossier:
+        """End-to-end lineage: the decision, the knowledge that caused it, the experiments that back or refute each piece,
+        where each transferred, what failed it, what it was built from, and what happened afterwards."""
+        dl = self.decision_lineage(decision_id, now)
+        ks = [c.knowledge_id for c in dl.causes]
+        exps = tuple((k, tuple(self.experiment_record(k, now))) for k in ks)
+        tr = tuple((k, self.transfer_summary(k, now)) for k in ks)
+        fl = tuple((k, tuple(self.failures_contradicting(k, now))) for k in ks)
+        org = tuple((k, lin.origins) for k, lin in dl.lineages)
+        gaps = []
+        if dl.unsupported:
+            gaps.append("no knowledge behind the decision")
+        gaps += [f"{k}: no experiment" for k, e in exps if not e]
+        gaps += [f"{k}: no recorded origin" for k, o in org if not o]
+        if not dl.outcomes:
+            gaps.append("outcome not yet known")
+        return DecisionDossier(decision_id, dl.causes, exps, tr, fl, org, dl.outcomes, tuple(gaps))
+
     # ------------------------------------------------------------------ lineage (F14, F15)
     def knowledge_lineage(self, knowledge_id: str, now, max_depth: int = 12) -> Lineage:
         """F14: everything a belief was derived from or specialises, nearest first, ending in raw experience/experiments."""
@@ -975,6 +1022,27 @@ class KnowledgeGraph:
                                           for i in sorted(keep, key=lambda x: (t.depth[x], x))],
                 "edges": [{"src": e.src, "dst": e.dst, "rel": e.rel, "weight": e.weight} for e in self.edges(now)
                           if e.src in keep and e.dst in keep]}
+
+    def explain_belief(self, belief_id: str, now) -> str:
+        """One belief's standing in plain text: origin, experiments, transfers, failures, contradictions, redundancy and the
+        decisions that leaned on it - the page a reviewer reads before trusting or retiring it."""
+        nd = self.node_at(belief_id, now)
+        if nd is None or nd.ntype not in _BELIEF:
+            raise GraphError(f"{belief_id} is not a belief known at {as_date(now)}")
+        h = self.health_signals(belief_id, now)
+        lin = self.knowledge_lineage(belief_id, now)
+        used = self.neighbors(belief_id, now, [Link.USED_IN], "out")
+        cons = self.neighbors(belief_id, now, [Edge.CONTRADICTS], "both")
+        lines = [f"{belief_id} ({nd.ntype.value}) as of {as_date(now)}",
+                 f"  origin: {len(lin.origins)} experience/experiment root(s), lineage depth {lin.depth()}",
+                 f"  experiments: {h['experiments_for']} for, {h['experiments_against']} against",
+                 f"  transfer: " + ("never tried" if h["transfer_rate"] is None else
+                                    f"{h['transfer_rate']:.0%} success, lower bound {h['transfer_lower']:.2f}"),
+                 f"  failures: {h['all_failures']} on record, {h['recent_failures']} recent",
+                 f"  contradicted by: {', '.join(sorted(o for o, _ in cons)) or 'nothing'}",
+                 f"  redundant with {h['redundant_with']} other belief(s); {h['dependants']} depend on it",
+                 f"  used in {len(used)} decision(s): {', '.join(sorted(o for o, _ in used)) or 'none'}"]
+        return chr(10).join(lines)
 
     def explain_decision(self, decision_id: str, now) -> str:
         """Plain-English chain of custody for one decision: what it used, where that came from, what happened."""

@@ -1016,6 +1016,73 @@ class Archive:
             raise FirewallBreach(a.summary() + " :: " + "; ".join(f"{f.code}@{f.seq}" for f in a.errors()[:5]))
         return a
 
+    # ---- verify-at-now, snapshot diffing, index recovery
+    def audit_layers(self, now) -> dict[str, dict]:
+        """Verify-at-now, layer by layer: every record a layer view exposes must satisfy the visibility rule on its OWN
+        evidence (matured strictly before now, provenance could exist then, every parent also exposed by its own layer view
+        or an earlier one). Returns {layer: {records, violations: [...]}}; all violation lists empty = the views are clean."""
+        n = as_date(now)
+        exposed: set[str] = set()
+        out: dict[str, dict] = {}
+        for layer in Layer:                                         # L0 first: parents live in lower-or-equal layers
+            recs = self.view(now, layers=[layer])
+            here = {r.rec_id for r in recs}
+            bad = []
+            for r in recs:
+                if not (as_date(r.matured_at) < n and r.provenance.could_exist_at(n)):
+                    bad.append(f"{r.rec_id}: not knowable at {n}")
+                miss = [p for p in r.parents if p not in exposed and p not in here]
+                if miss:
+                    bad.append(f"{r.rec_id}: parent {miss[0]} is not exposed")
+            exposed |= here
+            out[layer.value] = {"records": len(recs), "violations": bad}
+        total = sum(v["records"] for v in out.values())
+        if total != len(self.visible_ids(now)):
+            out["_coverage"] = {"records": total, "violations": ["layer views do not add up to the visible set"]}
+        return out
+
+    def diff_snapshots(self, a: Snapshot, b: Snapshot) -> dict:
+        """What the archive exposed in `b` that it did not in `a` and vice versa. For a later `b` the `removed` list must be
+        empty; `late_arrivals` are records back-filled behind `a`'s date (matured_at precedes a.now but written after a's
+        head) - legitimate, but exactly where a history rewrite would hide."""
+        ia = self.visible_ids(a.now, a.head_seq)
+        ib = self.visible_ids(b.now, b.head_seq)
+        added, removed = sorted(ib - ia), sorted(ia - ib)
+        na = as_date(a.now)
+        late = [i for i in added if self._by_id[i].seq > a.head_seq and as_date(self._by_id[i].matured_at) < na]
+        return {"added": added, "removed": removed, "late_arrivals": late,
+                "influence_changed": self._influence_digest(a.now, a.head_seq) != self._influence_digest(b.now, b.head_seq),
+                "chain_consistent": self.verify_snapshot(a)["ok"] and self.verify_snapshot(b)["ok"]}
+
+    def index_problems(self) -> list[str]:
+        """Compare the live indices with a fresh build from the chain; any difference means an index was damaged."""
+        fresh = ArchiveIndex()
+        for r in self._recs:
+            fresh.add(r)
+        norm = lambda d: {k: sorted(v) for k, v in d.items() if v}
+        bad = []
+        for name in ("tokens", "context", "reliability", "failure", "failure_cause", "contradiction", "recovery"):
+            if norm(getattr(self.index, name)) != norm(getattr(fresh, name)):
+                bad.append(f"{name} index differs from the chain")
+        if self.index.temporal != fresh.temporal:
+            bad.append("temporal index differs from the chain")
+        if self.index.n != fresh.n:
+            bad.append(f"index holds {self.index.n} records, chain holds {fresh.n}")
+        return bad
+
+    def rebuild_indices(self) -> list[str]:
+        """Recover the seven indices from the (verified) chain after corruption; returns the problems that were found.
+        Refuses if the chain itself fails verification - an index can be rebuilt from history, history cannot be rebuilt
+        from an index."""
+        if not self._chain.verify()["ok"]:
+            raise ChainCorrupt("cannot rebuild indices: the chain itself fails verification")
+        before = self.index_problems()
+        self.index = ArchiveIndex()
+        for r in self._recs:
+            self.index.add(r)
+        self._vis_cache.clear()
+        return before
+
     # ---- stats & reports
     def stats(self, now) -> dict:
         vis = self.visible_ids(now)

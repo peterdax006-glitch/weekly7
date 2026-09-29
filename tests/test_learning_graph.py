@@ -831,3 +831,110 @@ def test_ledger_keeps_the_full_dossier_and_renders_markdown(tmp_path):
     assert doc is not None and stable_hash(doc) == stable_hash(res)
     md = led.markdown("2019-02-01")
     assert "A vs B" in md and "PARTLY_RESOLVED" in md and "regime" in md
+
+
+# ------------------------------------------------------------------ contradiction: calibrated permutation null
+
+def test_permutation_null_holds_its_alpha_on_null_worlds_and_fires_on_a_planted_one():
+    cols = ["regime", "nvol", "noise0", "noise1", "noise2"]
+    inv = C.Investigator()
+    ps, fw = [], []
+    for sd in range(5):                      # constant A-B gap, nothing in any context can explain it
+        ev = world(200 + sd, {"bull": 0.02, "bear": 0.02}, {"bull": 0.0, "bear": 0.0}, n_days=110, extra_cols=3)
+        r = inv.permutation_null("A", "B", ev, NOW, reps=30, seed=sd, context_cols=cols)
+        assert r.reps == 30 and r.observed_p >= r.null_quantiles[0] * 0 and 0 < r.p_family <= 1
+        ps.append(r.p_family)
+        fw.append(r.fwer_at_bonferroni)
+    assert sum(p <= 0.05 for p in ps) <= 1                                       # holds alpha (expected 0.3 of 6)
+    assert np.mean(ps) > 0.25 and max(fw) <= 0.2                                # roughly uniform; Bonferroni not anti-conservative
+    real = world(0, {"bull": 0.02, "bear": 0.02}, {"bull": 0.02, "bear": -0.02}, n_days=110, extra_cols=3)
+    hit = inv.permutation_null("A", "B", real, NOW, reps=30, seed=0, context_cols=cols)
+    assert hit.significant(0.05) and hit.p_family <= 2 / 31 and hit.observed_p < hit.threshold
+    again = inv.permutation_null("A", "B", real, NOW, reps=30, seed=0, context_cols=cols)
+    assert again == hit                                                          # seeded: deterministic
+    with pytest.raises(FirewallBreach):
+        inv.permutation_null("A", "B", real, "2018-03-01", reps=5)
+
+
+def test_calibrated_investigation_keeps_real_explanations_and_downgrades_unsupported_ones():
+    inv = C.Investigator()
+    real = world(0, {"bull": 0.02, "bear": 0.02}, {"bull": 0.02, "bear": -0.02}, n_days=110)
+    res, null = C.investigate_calibrated(inv, "A", "B", real, NOW, reps=30)
+    assert res.verdict == C.Verdict.PARTLY_RESOLVED and null.significant()
+    forced = dataclasses.replace(null, p_family=0.5)                      # pretend the null found it unremarkable
+    assert not forced.significant() and forced.p_family > 0.05
+    quiet, none = C.investigate_calibrated(inv, "A", "B", world(3, {"bull": 0.01, "bear": 0.01}, {"bull": 0.01, "bear": 0.01}), NOW)
+    assert quiet.verdict == C.Verdict.NO_DISAGREEMENT and none is None       # nothing to explain, no null computed
+
+
+def test_a_permutation_null_that_disagrees_downgrades_the_verdict(monkeypatch):
+    inv = C.Investigator()
+    real = world(0, {"bull": 0.02, "bear": 0.02}, {"bull": 0.02, "bear": -0.02}, n_days=110)
+    base = inv.permutation_null("A", "B", real, NOW, reps=20)
+    monkeypatch.setattr(C.Investigator, "permutation_null", lambda self, *a, **k: dataclasses.replace(base, p_family=0.6))
+    res, null = C.investigate_calibrated(inv, "A", "B", real, NOW)
+    assert res.verdict == C.Verdict.UNRESOLVED and res.scoped == () and "not trusted" in res.temporal_note and null.p_family == 0.6
+    with pytest.raises(C.ContradictionError):
+        res.pooled()
+
+
+def test_calibration_suite_reports_rejection_rate_with_its_uncertainty():
+    worlds = [("A", "B", world(300 + i, {"bull": 0.02, "bear": 0.02}, {"bull": 0.0, "bear": 0.0}, n_days=90, extra_cols=2))
+              for i in range(4)]
+    out = C.calibration_suite(C.Investigator(), worlds, NOW, reps=20, context_cols=["regime", "noise0", "noise1"])
+    assert out["worlds"] == 4 and 0 <= out["rejection_rate"] <= 0.5 and out["rejection_rate_upper95"] >= out["rejection_rate"]
+    assert out["mean_p_family"] > 0.2 and out["mean_fwer_bonferroni"] <= 0.25
+    assert np.isnan(C.calibration_suite(C.Investigator(), [], NOW)["rejection_rate"])
+
+
+def test_next_step_is_defined_for_every_verdict():
+    inv = C.Investigator().investigate("A", "B", world(0, {"bull": 0.02, "bear": 0.02}, {"bull": 0.02, "bear": -0.02}), NOW)
+    assert "residual_scan" in inv.next_step() and "bear" in inv.next_step()
+    for v in C.Verdict:
+        assert dataclasses.replace(inv, verdict=v).next_step()
+
+
+# ------------------------------------------------------------------ section 50: the four questions by name, and the end-to-end dossier
+
+def test_the_four_section_50_questions_by_name():
+    g = mk_graph()
+    now = "2021-01-01"
+    assert G.SECTION_50_QUESTIONS == ("what_caused_decision", "failures_contradicting", "situations_transferred", "experiments_validated")
+    assert [c.knowledge_id for c in g.ask("what_caused_decision", "d1", now)] == ["k1", "k2"]
+    assert [f.failure_id for f in g.ask("failures_contradicting", "k1", now)] == ["f1"]
+    assert [t.situation_id for t in g.ask("situations_transferred", "k1", now)] == ["s1"]
+    assert [t.situation_id for t in g.ask("situations_transferred", "k1", now, successful=False)] == ["s2"]
+    assert [e.experiment_id for e in g.ask("experiments_validated", "k1", now)] == ["x1"]
+    with pytest.raises(G.GraphError, match="unknown question"):
+        g.ask("who_is_to_blame", "d1", now)
+    # each answers ONLY from what was known before `now`
+    assert g.ask("what_caused_decision", "d1", "2020-06-01") == [] and g.ask("experiments_validated", "k1", "2020-04-15") == []
+    assert g.ask("situations_transferred", "k1", "2020-05-10") == [] and g.ask("failures_contradicting", "k1", "2020-08-01") == []
+
+
+def test_decision_dossier_runs_decision_to_knowledge_to_experiments_to_outcome():
+    g = mk_graph()
+    dos = g.decision_dossier("d1", "2021-01-01")
+    assert [c.knowledge_id for c in dos.causes] == ["k1", "k2"] and dos.outcomes == ("o1",)
+    ex = dict(dos.experiments)
+    assert [(e.experiment_id, e.supports) for e in ex["k1"]] == [("x1", True), ("x2", False)] and ex["k2"] == ()
+    assert dict(dos.transfers)["k1"].rate == 0.5 and [f.failure_id for f in dict(dos.failures)["k1"]] == ["f1"]
+    assert dict(dos.origins)["k1"] == ("e1", "e2") and dict(dos.origins)["k2"] == ("e1", "e2")
+    assert dos.gaps == ("k2: no experiment",) and not dos.complete
+    g.add_edge("k2", "x1", Link.VALIDATED_BY, "2020-08-01")
+    assert g.decision_dossier("d1", "2021-01-01").complete
+    early = g.decision_dossier("d1", "2020-06-05")                       # outcome and later evidence not yet known
+    assert early.outcomes == () and "outcome not yet known" in early.gaps
+    g.add_node("d3", N.DECISION, "2020-07-01")
+    assert g.decision_dossier("d3", "2021-01-01").gaps[0] == "no knowledge behind the decision"
+
+
+def test_explain_belief_summarises_standing_and_refuses_non_beliefs():
+    g = mk_graph()
+    g.add_edge("k1", "k2", Edge.CONTRADICTS, "2020-09-01", weight=0.4)
+    text = g.explain_belief("k1", "2021-01-01")
+    assert "2 experience/experiment root(s)" in text and "1 for, 1 against" in text and "50% success" in text
+    assert "contradicted by: k2" in text and "used in 1 decision(s): d1" in text
+    assert "never tried" in g.explain_belief("k2", "2021-01-01")
+    with pytest.raises(G.GraphError, match="not a belief"):
+        g.explain_belief("d1", "2021-01-01")

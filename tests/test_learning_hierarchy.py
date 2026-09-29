@@ -336,3 +336,98 @@ def test_two_outliers_in_different_branches_are_both_found():
     h = H.KnowledgeHierarchy().fit(df, NOW)
     assert set(h.qualified()) == {BULL_TECH, (("market", "bear"), ("sector", "util"))}
     assert h.estimate({"market": "bear", "sector": "util"}).mean < 0 < h.estimate({"market": "bear", "sector": "energy"}).mean
+
+
+# ------------------------------------------------------------------ per-level rules (section 19: six levels)
+
+def five_level_panel(seed, tiny_depth=None, n_days=160):
+    """Every dimension takes values a/b at random; optionally one TINY cell (5 dates, raw effect +0.08) sits at `tiny_depth`."""
+    rng = np.random.default_rng(seed)
+    rows = []
+    for d in range(n_days):
+        for _ in range(3):
+            v = {dim: rng.choice(["a", "b"]) for dim in H.DIM_ORDER}
+            rows.append({"when": pd.Timestamp("2020-01-01") + pd.Timedelta(days=d), "effect": 0.004 + rng.normal(0, 0.02), **v})
+    df = pd.DataFrame(rows)
+    if tiny_depth:
+        tiny = []
+        for d in range(5):
+            for _ in range(3):
+                v = {dim: "a" for dim in H.DIM_ORDER}
+                v[H.DIM_ORDER[tiny_depth - 1]] = "z"
+                tiny.append({"when": pd.Timestamp("2020-02-01") + pd.Timedelta(days=d), "effect": 0.08 + rng.normal(0, 0.02), **v})
+        df = pd.concat([df, pd.DataFrame(tiny)], ignore_index=True)
+    return df
+
+
+def test_each_level_has_its_own_rules_and_deeper_is_stricter():
+    h = H.KnowledgeHierarchy()
+    t = h.level_rules_table()
+    assert list(t.level) == [l.name for l in H.Level if l != H.Level.GENERAL]
+    assert t.min_clusters.is_monotonic_increasing and t.w_min.is_monotonic_increasing and t.n_full.is_monotonic_increasing
+    assert t.alpha.is_monotonic_decreasing and t.min_clusters.iloc[-1] > t.min_clusters.iloc[0]
+    flat = H.KnowledgeHierarchy({"min_clusters_override": 30})
+    assert set(flat.level_rules_table().min_clusters) == {30}          # an explicit flat threshold applies to every level
+    assert h.rule(2, "n_full") == 40.0 and h.rule(5, "alpha") == 0.05
+    assert H.validate_params({**H.PARAMS, "level_rules": {7: {}}}) and H.validate_params({**H.PARAMS, "level_rules": {2: {"min_clusters": 1}}})
+
+
+@pytest.mark.parametrize("depth", [1, 2, 3, 4, 5])
+def test_tiny_sample_never_gives_extreme_confidence_at_every_level(depth):
+    df = five_level_panel(depth, tiny_depth=depth)
+    h = H.KnowledgeHierarchy().fit(df, NOW)
+    path = tuple((H.DIM_ORDER[i], "a" if i < depth - 1 else "z") for i in range(depth))
+    po = h.posterior(path)
+    assert po is not None and po.clusters == 5 and po.raw_mean > 0.06
+    assert not po.qualifies and po.weight_own <= 5 / (5 + h.rule(depth, "min_clusters")) + 1e-9
+    assert po.post_mean < 0.5 * po.raw_mean                            # pulled well back toward the parent at THIS level
+    ctx = {H.DIM_ORDER[i]: ("a" if i < depth - 1 else "z") for i in range(depth)}
+    e = h.estimate(ctx)
+    assert e.mean < 0.03 and e.p_sign_capped <= e.p_sign + 1e-12 and e.used_path != path
+    assert any("does not override" in n for n in e.notes)
+
+
+def test_a_real_effect_at_each_level_is_only_accepted_with_that_levels_evidence():
+    rng = np.random.default_rng(3)
+    for depth in (1, 3, 5):
+        df = five_level_panel(30 + depth, n_days=360)
+        mask = np.ones(len(df), bool)
+        for i in range(depth):
+            mask &= (df[H.DIM_ORDER[i]] == "a").to_numpy()
+        df.loc[mask, "effect"] += 0.03
+        h = H.KnowledgeHierarchy().fit(df, NOW)
+        path = tuple((H.DIM_ORDER[i], "a") for i in range(depth))
+        po = h.posterior(path)
+        assert po.clusters >= 0.9 * h.rule(depth, "min_clusters")
+        twins = [q for q in h.qualified() if len(q) == depth and q[:-1] == path[:-1]]     # a or its "b" twin carries the split
+        assert twins or po.reason.startswith("explained"), (depth, po.reason)
+
+
+def test_level_verdicts_and_guard_report_show_which_level_refused():
+    df = five_level_panel(4, tiny_depth=3)
+    h = H.KnowledgeHierarchy().fit(df, NOW)
+    ctx = {"market": "a", "sector": "a", "stock_type": "z"}
+    lv = h.level_verdicts(ctx)
+    assert list(lv.level) == ["MARKET", "SECTOR", "STOCK_TYPE"] and lv.iloc[-1]["dates"] == 5
+    assert lv.iloc[-1]["dates_needed"] == h.rule(3, "min_clusters") == 16 and lv.iloc[-1]["verdict"] == "too few independent dates"
+    assert h.level_verdicts({"market": "q"}).iloc[0]["verdict"] == "no history"
+    g = h.guard_report()
+    assert g["STOCK_TYPE"]["largest_refused_raw"] > 0.06 and g["STOCK_TYPE"]["its_shrunk_value"] < 0.5 * g["STOCK_TYPE"]["largest_refused_raw"]
+    assert H.KnowledgeHierarchy().guard_report() == {}
+
+
+def test_confidence_curve_is_cautious_when_small_and_rises_with_dates():
+    df = H.simulate_panel(0, cells(special={("bull", "tech"): 0.02}), n_days=300)
+    cur = H.confidence_curve(df, {"market": "bull", "sector": "tech"}, NOW, steps=30)
+    assert cur.iloc[0].dates < 12 and not cur.iloc[0].overrides and cur.iloc[0].weight_own < 0.5
+    assert bool(cur.iloc[-1].overrides) and cur.iloc[-1].dates > 100
+    assert cur.dates.is_monotonic_increasing and cur.p_sign_capped.iloc[-1] >= cur.p_sign_capped.iloc[0]
+    assert cur.iloc[0].p_sign_capped <= 0.9
+
+
+def test_sibling_table_lists_the_comparison_the_selection_makes():
+    h = H.KnowledgeHierarchy().fit(H.simulate_panel(0, cells(special={("bull", "tech"): 0.02}), n_days=150), NOW)
+    t = h.sibling_table(BULL_TECH[:1])
+    assert list(t.rule) == ["rule:market=bull/sector=energy", "rule:market=bull/sector=tech", "rule:market=bull/sector=util"]
+    assert list(t.qualifies) == [False, True, False] and not t.thin.any() and (t.tau > 0).all()
+    assert h.sibling_table(BULL_TECH).empty

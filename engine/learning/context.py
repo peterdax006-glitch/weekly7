@@ -33,7 +33,7 @@ import numpy as np
 import pandas as pd
 from scipy import stats as sps
 
-from .core import Epistemic, FirewallBreach, Layer, Unknown, as_date, require_past, stable_hash
+from .core import Epistemic, Layer, Unknown, as_date, require_past, stable_hash
 from .. import pattern_stats as PS          # reused: eb_shrink / implied_k / permute_within_clusters / t_to_p / bonferroni / week_codes
 from .situation import POOLING_LADDER, Situation, ladder_key, spec_of
 

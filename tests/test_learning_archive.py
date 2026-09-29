@@ -461,3 +461,67 @@ def test_chainfile_lanes_are_independent_but_share_one_verified_chain(tmp_path):
     assert mem.verify()["ok"] and mem.head != A.GENESIS
     mem._mem_recs[0]["body"]["a"] = 2
     assert not mem.verify()["ok"]                                                # in-memory tampering is caught too
+
+
+# ------------------------------------------------------------------ verify-at-now per layer, snapshot diffing, index recovery
+
+def test_audit_layers_proves_every_layer_view_only_exposes_what_could_exist():
+    a = mk()
+    seed(a)
+    a.log_reliability("p1", 0.6, 10, "2020-05-01", layer=Layer.L5_PATTERN, matured_at="2020-05-02")
+    for now in ("2020-03-09", "2020-03-10", "2020-03-12", "2021-01-01"):
+        rep = a.audit_layers(now)
+        assert set(rep) == {l.value for l in Layer}
+        assert all(v["violations"] == [] for v in rep.values())
+        assert sum(v["records"] for v in rep.values()) == len(a.visible_ids(now))
+    assert a.audit_layers("2020-03-12")["L5_PATTERN"]["records"] == 0 and a.audit_layers("2020-03-13")["L5_PATTERN"]["records"] == 1
+
+
+def test_audit_layers_catches_a_planted_leaking_view():
+    a = mk()
+    seed(a)
+    real = a.visible_ids
+    a.visible_ids = lambda now, max_seq=None: frozenset(list(real(now, max_seq)) + [a.records()[-1].rec_id])
+    rep = a.audit_layers("2020-03-10")
+    assert any("not knowable" in v or "not exposed" in v for lay in rep.values() for v in lay["violations"])
+
+
+def test_diff_snapshots_separates_new_knowledge_from_back_filled_history():
+    a = mk()
+    seed(a)
+    s1 = a.snapshot("2020-04-01", "q1")
+    a.log_reliability("p1", 0.7, 10, "2020-04-10", layer=Layer.L5_PATTERN, matured_at="2020-04-11")
+    a.log_observation("late", {"r": 0.0}, "2020-03-01", matured_at="2020-03-05")         # written later, matured before s1
+    a.set_influence("p1", 0.5, "faded", "2020-04-15")
+    s2 = a.snapshot("2020-05-01", "q2")
+    d = a.diff_snapshots(s1, s2)
+    assert len(d["added"]) == 4 and d["removed"] == [] and len(d["late_arrivals"]) == 1
+    assert d["influence_changed"] and d["chain_consistent"]
+    same = a.diff_snapshots(s1, s1)
+    assert same["added"] == [] and same["removed"] == [] and not same["influence_changed"]
+
+
+def test_damaged_indices_are_detected_and_rebuilt_from_the_chain():
+    a = mk()
+    seed(a)
+    a.log_failure("p1", "WRONG_CONTEXT", Layer.L5_PATTERN, "2020-04-01")
+    assert a.index_problems() == [] and a.rebuild_indices() == []
+    good_hits = a.search("drift", "2021-01-01")
+    a.index.tokens.clear()                                    # corrupt: the retrieval index forgets everything
+    a.index.failure["p1"].clear()
+    a.index.temporal.pop()
+    probs = a.index_problems()
+    assert any("tokens" in p for p in probs) and any("failure index" in p for p in probs) and any("temporal" in p for p in probs)
+    assert a.search("drift", "2021-01-01") == []
+    reported = a.rebuild_indices()
+    assert reported == probs and a.index_problems() == []
+    assert [r.rec_id for r, _ in a.search("drift", "2021-01-01")] == [r.rec_id for r, _ in good_hits]
+    assert len(a.failures("2021-01-01", subject="p1")) == 1
+
+
+def test_index_rebuild_refuses_when_the_chain_itself_is_broken():
+    a = mk()
+    seed(a)
+    a._chain._mem_recs[1]["body"]["what"] = "tampered"
+    with pytest.raises(A.ChainCorrupt, match="cannot rebuild"):
+        a.rebuild_indices()

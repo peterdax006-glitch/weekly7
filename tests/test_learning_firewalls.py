@@ -769,3 +769,17 @@ def test_earliest_use_date_and_bitwise_reproducibility():
     assert R.assert_bitwise_reproducible(lambda c, s: {"v": np.random.default_rng(s).normal(size=3)}, {}, 1) is None
     with pytest.raises(FirewallBreach):
         R.assert_bitwise_reproducible(lambda c, s: {"v": np.random.rand(3)}, {}, 1)
+
+
+def test_require_labelled_results():
+    ok = R.compare(make_rec(), make_rec()).mark({"x": 1})
+    assert R.require_labelled(ok) == "REPRODUCIBLE"
+    assert R.require_labelled(R.compare(make_rec(), make_rec(seed=1)).mark({"x": 1})).startswith("NOT_REPRODUCIBLE")
+    with pytest.raises(FirewallBreach):
+        R.require_labelled({"x": 1})
+
+
+def test_hard_labels_and_is_reproduced():
+    assert R.is_reproduced(R.compare(make_rec(), make_rec()))
+    v = R.compare(make_rec(experiment_id="e"), make_rec(experiment_id="e", seed=2))
+    assert R.hard_labels(v) == (R.ReproLabel.SEED_CHANGED,) and not R.is_reproduced(v)

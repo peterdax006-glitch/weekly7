@@ -23,7 +23,6 @@ scan_information, check_public_release), engine.leak_audit (NetworkGuard, macro_
 from __future__ import annotations
 
 import dataclasses
-import re
 from typing import Any, Callable, Iterable, Mapping, Sequence
 
 import numpy as np

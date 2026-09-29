@@ -394,3 +394,14 @@ def test_retention_summary_and_identity_free_probe(data):
     assert summ["eval"]["n"] == 2 and summ["eval"]["worst"] > 0.8 and summ["both"]["mean"] > 0.8
     assert I.is_identity_free(I.ridge_learner, X, y, Xe)
     assert not I.is_identity_free(I.ticker_mean_learner, X, y, Xe)
+
+
+def test_informative_attacks_lists_only_judged_verdicts(data):
+    rep = run(I.memorizer_learner, data, attacks=("ticker_permutation",), modes=("eval",))
+    assert I.informative_attacks(rep) == ["ticker_permutation[eval]"]
+    assert I.informative_attacks(I.IdentityReport((), 0.0, 0.0, True, 0)) == []
+
+
+def test_collapse_kinds_by_mode(data):
+    rep = run(I.memorizer_learner, data, attacks=("ticker_permutation",), modes=("eval", "both"))
+    assert I.collapse_kinds(rep, "eval") == ["ticker_permutation"] and I.collapse_kinds(rep, "both") == [] and I.any_collapse(rep)

@@ -656,3 +656,116 @@ def test_axis_and_group_tables_and_planning_note_keep_untested_axes_visible():
     note = T.planning_note(r, T.Axis.YEAR, 0.001)
     assert "clusters" in note and T.planning_note(r, T.Axis.REGIME) == ""
     assert TS.verdict_table([{"axis": "X"}]).loc[0, "label"] == ""
+
+
+# ======================================================================================== section 26/27 completion
+def test_over_specialisation_verdict_bootstraps_the_ratio_with_guards():
+    rng = np.random.default_rng(40)
+    cl = np.repeat(np.arange(30), 10)
+    same = rng.normal(0.012, 0.006, 300)
+    v_bad = TS.over_specialisation_verdict(rng.normal(0.0005, 0.006, 300), same, cl, cl, seed=1)
+    v_ok = TS.over_specialisation_verdict(rng.normal(0.0115, 0.006, 300), same, cl, cl, seed=1)
+    assert v_bad.label == "OVER_SPECIALISED" and v_bad.p_below_floor >= 0.95 and v_bad.ratio_hi < TS.RATIO_FLOOR + 0.2
+    assert v_ok.label == "GENERAL" and v_ok.ratio_lo > TS.RATIO_FLOOR
+    mid = TS.over_specialisation_verdict(rng.normal(0.0045, 0.02, 300), rng.normal(0.012, 0.02, 300), cl, cl, seed=1)
+    assert mid.label in ("SUSPECTED", "UNDEFINED")
+    zero_den = TS.over_specialisation_verdict(rng.normal(0.01, 0.006, 300), rng.normal(0.0, 0.02, 300), cl, cl, seed=1)
+    assert zero_den.label == "UNDEFINED" and zero_den.ratio_lo is None and zero_den.denominator_risk > 0.05
+    neg_den = TS.over_specialisation_verdict(rng.normal(-0.01, 0.006, 300), rng.normal(-0.02, 0.006, 300), cl, cl, seed=1)
+    assert neg_den.label == "UNDEFINED"                                  # negative/negative never becomes a good ratio
+    assert TS.over_specialisation_verdict([], [], None, None).label == "UNDEFINED"
+
+
+def test_context_gain_table_gives_every_group_its_own_interval_and_keeps_thin_groups():
+    u, scope = _scored(_world(seed=41, n_years=7), T.rule_learner_fit, 2012)
+    for ax, expect in ((T.Axis.SECTOR, 4), (T.Axis.YEAR, 4), (T.Axis.VOLATILITY, 3), (T.Axis.STOCK_TYPE, 4)):
+        tb = T.context_gain_table(u, scope, NOW, ax, n_boot=100)
+        assert len(tb) >= 1 and list(tb.columns) == T.CONTEXT_GAIN_COLS
+    sec = T.context_gain_table(u, scope, NOW, T.Axis.SECTOR, n_boot=100)
+    assert len(sec) == 4 and sec["familiar"].all() and (sec["lo"] > 0).all() and (sec["p_signflip"] < 0.05).all()
+    yr = T.context_gain_table(u, scope, NOW, T.Axis.YEAR, n_boot=100)
+    assert not yr["familiar"].any()                                       # the forward years were never trained on
+    thin = T.context_gain_table(u, scope, NOW, T.Axis.YEAR, n_boot=100, min_units=10 ** 6)
+    assert thin["gain"].isna().all() and len(thin) == len(yr)
+    assert T.context_gain_table(pd.DataFrame(columns=T.REQUIRED), scope, NOW, T.Axis.YEAR).empty
+
+
+def test_market_condition_gains_use_training_cut_points_and_flag_unreached_bands():
+    rng = np.random.default_rng(42)
+    n = 1200
+    dates = pd.Timestamp("2014-01-06") + pd.to_timedelta(rng.integers(0, 700, n), unit="D")
+    vix = rng.normal(0, 1, n)
+    gain = np.where(vix > 0.5, -0.01, 0.01) + rng.normal(0, 0.003, n)            # the lesson breaks in high-stress conditions
+    fwd = pd.DataFrame({"date": dates, "mature": dates + pd.Timedelta(days=7), "ticker": [f"M{i}" for i in range(n)], "base": 0.0, "learned": gain, "vix": vix})
+    td = pd.Timestamp("2010-01-04") + pd.to_timedelta(rng.integers(0, 700, 500), unit="D")
+    train = pd.DataFrame({"date": td, "mature": td + pd.Timedelta(days=7), "ticker": [f"R{i}" for i in range(500)], "base": 0.0, "learned": 0.0,
+                          "vix": rng.uniform(-1, 0.5, 500)})
+    scope = T.TrainingScope(dt.date(2013, 1, 1))
+    tb = T.market_condition_gains(fwd, train, scope, NOW, ["vix"], n_bins=3, n_boot=100)
+    top = tb[(tb["band"] == 2) & tb["outside_training"]]
+    assert len(top) == 1 and top["gain"].iloc[0] < 0 and top["hi"].iloc[0] < 0      # beyond anything the learner saw, it hurts
+    calm = tb[(tb["band"] == 0) & ~tb["outside_training"]]
+    assert len(calm) == 1 and calm["lo"].iloc[0] > 0
+    with pytest.raises(ValueError):
+        T.market_condition_gains(fwd, train, scope, NOW, ["nope"])
+
+
+def test_full_context_report_counts_contexts_that_gained_and_lost():
+    u, scope = _scored(_world(seed=43, n_years=7), T.rule_learner_fit, 2012)
+    d = T.prepare_units(u, NOW)
+    rep = T.full_context_report(u, scope, NOW, axes=(T.Axis.YEAR, T.Axis.SECTOR, T.Axis.VOLATILITY), n_boot=100)
+    cov = rep["coverage"]
+    assert cov["SECTOR"]["gained"] == 4 and cov["SECTOR"]["lost"] == 0 and cov["SECTOR"]["p_more_gain_than_loss"] < 0.1
+    assert cov["YEAR"]["contexts"] >= 1 and set(rep["tables"]) == {"YEAR", "SECTOR", "VOLATILITY"}
+    bad, sb = _scored(_world(seed=43, n_years=7), T.identity_memoriser_fit, 2012)
+    assert T.full_context_report(bad, sb, NOW, axes=(T.Axis.SECTOR,), n_boot=100)["coverage"]["SECTOR"]["gained"] == 0
+
+
+def test_rule_ledger_derives_status_from_tests_and_orders_them_in_time():
+    led = T.RuleTransferLedger()
+    good = TS.BootMean(0.01, 0.005, 0.015, 500, 20)
+    assert led.status("r1") == "UNTESTED" and led.outstanding("r1") == list(T.REQUIRED_TRANSFER_AXES)
+    for ax in ("YEAR", "REGIME", "STOCK"):
+        led.record("r1", ax, "2029-01-01", good, TS.TransferVerdictLabel.GENERALISES)
+    assert led.status("r1") == "PARTIAL" and led.outstanding("r1") == ["SECTOR", "VOLATILITY", "MARKET_CONDITION"]
+    for ax in ("SECTOR", "VOLATILITY", "MARKET_CONDITION"):
+        led.record("r1", ax, "2029-06-01", good, TS.TransferVerdictLabel.GENERALISES)
+    assert led.status("r1") == "COMPLETE" and led.overdue(NOW, 365) == []
+    assert led.overdue(pd.Timestamp("2031-01-01"), 365) == ["r1"]           # stale tests come due again
+    led.record("r2", "YEAR", "2029-01-01", good, TS.TransferVerdictLabel.OVER_SPECIALISED)
+    assert led.status("r2") == "FAILED" and set(led.summary()["rule"]) == {"r1", "r2"}
+    with pytest.raises(FirewallBreach):
+        led.record("r1", "YEAR", "2028-01-01", good, TS.TransferVerdictLabel.GENERALISES)
+    with pytest.raises(ValueError):
+        led.record("r1", "MOON", "2030-01-01", good, TS.TransferVerdictLabel.GENERALISES)
+    back = T.ledger_from_records(T.ledger_records(led))
+    assert back.status("r1") == "COMPLETE" and back.status("r2") == "FAILED"
+    bad = T.ledger_records(led)[::-1]
+    with pytest.raises(FirewallBreach):
+        T.ledger_from_records([r for r in bad if r["rule"] == "r1"])
+
+
+def test_tracked_gains_from_folds_names_every_section_26_quantity_and_ledger_takes_them():
+    u = _world(seed=44, n_years=6, weeks_per_year=30)
+    tr = T.tracked_gains_from_folds(u, T.rule_learner_fit, NOW, n_boot=120)
+    assert set(tr) >= {"same_year_gain", "cross_year_gain", "cross_regime_gain", "cross_stock_gain", "cross_sector_gain", "cross_volatility_gain"}
+    for k in ("cross_year_gain", "cross_regime_gain", "cross_stock_gain", "cross_sector_gain", "cross_volatility_gain"):
+        assert tr[k]["gain"].lo > 0 and tr[k]["verdict"] == "GENERALISES" and tr[k]["specialisation"].label in ("GENERAL", "UNDEFINED", "SUSPECTED")
+    led = T.RuleTransferLedger()
+    assert T.record_tracked(led, "rule", tr, "2029-01-01") == 5 and led.outstanding("rule") == ["MARKET_CONDITION"]
+    mem = T.tracked_gains_from_folds(u, T.identity_memoriser_fit, NOW, n_boot=120)
+    assert mem["cross_year_gain"]["specialisation"].label in ("OVER_SPECIALISED", "UNDEFINED")
+    led2 = T.RuleTransferLedger()
+    T.record_tracked(led2, "mem", mem, "2029-01-01")
+    assert led2.status("mem") == "FAILED"
+    one_label = u.assign(regime="BULL_CALM")
+    assert T.tracked_gains_from_folds(one_label, T.rule_learner_fit, NOW, n_boot=100)["cross_regime_gain"] is None      # nothing to hold out: untested
+
+
+def test_market_condition_result_reaches_the_ledger_only_with_two_measured_bands():
+    led = T.RuleTransferLedger()
+    ok = pd.DataFrame({"gain": [0.01, 0.012], "lo": [0.005, 0.006], "hi": [0.015, 0.018], "n": [200, 300]})
+    bad = pd.DataFrame({"gain": [0.01, -0.02], "lo": [0.005, -0.03], "hi": [0.015, -0.01], "n": [200, 300]})
+    assert T.record_market_conditions(led, "a", ok, "2029-01-01") and led.latest("a")["MARKET_CONDITION"]["verdict"] == "GENERALISES"
+    assert T.record_market_conditions(led, "b", bad, "2029-01-01") and led.status("b") == "FAILED"
+    assert not T.record_market_conditions(led, "c", ok.iloc[:1], "2029-01-01")

@@ -1043,6 +1043,8 @@ def value_waterfall(panel: pd.DataFrame, spec: ValueSpec, now, *, k: int = 5, co
             first_loss, between = s.stage, (next(x.stage for x in reversed(stages[:i]) if x.survives), s.stage)
     if not any(s.survives for s in stages):
         verdict = "no stage shows a reliable gain: nothing was lost because nothing was gained"
+    elif not any(s.survives for s in stages[:3]):
+        verdict = "a portfolio-level gain appears with NO prediction, ranking or selection gain behind it: treat it as luck or sizing until explained"
     elif first_loss is None:
         verdict = "the gain survives every stage to the tiered objective"
     else:

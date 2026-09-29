@@ -66,9 +66,9 @@ class Audit:
         return ch
 
     def counts(self) -> dict:
-        out = {s: 0 for s in STATUSES}
+        out = {s: 0 for s in STATUSES if s != UNMEASURED}         # UNMEASURED appears only when something was not measured
         for c in self.channels.values():
-            out[c.status] += 1
+            out[c.status] = out.get(c.status, 0) + 1
         return out
 
     def open_leaks(self) -> list[str]:
@@ -84,9 +84,10 @@ class Audit:
         if stamp:
             lines += [f"code {stamp.get('code_hash')} | git {stamp.get('git_commit')} | seed {stamp.get('seed')}", ""]
         c = self.counts()
-        lines += [f"**{len(self.channels)} channels: " + ", ".join(f"{c[s]} {s}" for s in STATUSES) + "**", ""]
+        lines += [f"**{len(self.channels)} channels: " + ", ".join(f"{c[s]} {s}" for s in c) + "**", ""]
         lines += ["LEAK = present in the current default blind path (a tested fix or hook exists where stated); FIXED = closed in the default path; "
-                  "QUARANTINED = cannot be removed from the data, measured, results must carry the stated rule; CLEAN = nothing found, tested.", ""]
+                  "QUARANTINED = cannot be removed from the data, measured, results must carry the stated rule; CLEAN = nothing found, tested; "
+                  "UNMEASURED = a part or source the verdict needs is missing (never read as CLEAN). Statuses are computed by compute_verdicts, not typed.", ""]
         lines += ["| # | channel | status | test |", "|---|---|---|---|"]
         for k, ch in self.channels.items():
             lines.append(f"| {k} | {ch.name} | {ch.status} | {ch.test or '-'} |")
@@ -1152,3 +1153,501 @@ def hardened_run(cfg, run_id, log=print, check_parity=True, adaptive=False, meta
     finally:
         if guard is not None:
             guard.uninstall()
+
+
+# =====================================================================================================================
+# Computed verdicts (S18; contract sections 30, 55, 85; canon C56). A channel's status is DERIVED here from (a) the source of
+# the default blind path (AST, never a grep for a comment), (b) the measurements the parts wrote, and (c) proofs that run a
+# planted leak through the mechanism that is supposed to stop it. Nothing below returns a status typed by hand: an unsafe
+# default flips the answer, and a missing measurement gives UNMEASURED, never CLEAN.
+# =====================================================================================================================
+UNMEASURED = "UNMEASURED"
+STATUSES = (LEAK, CLEAN, FIXED, QUARANTINED, UNMEASURED)
+_SEVERITY = {CLEAN: 0, FIXED: 1, QUARANTINED: 2, UNMEASURED: 3, LEAK: 4}
+_MISSING = object()
+_UNDETERMINED = "<undetermined>"          # a default that is not a literal (or a function that is gone): unknown, never assumed safe
+_SOURCE_FILES = {"livesim": "engine/livesim.py", "loop2": "scripts/livesim_loop2.py", "features": "engine/features.py",
+                 "adaptive": "engine/adaptive.py", "leak_audit": "engine/leak_audit.py"}
+_PLAY_CALLEES = {"run_workers", "classify_round", "worker", "_worker", "run_window", "replay", "run"}
+
+
+def worst_status(*statuses) -> str:
+    """The most severe of several sub-verdicts (LEAK > UNMEASURED > QUARANTINED > FIXED > CLEAN); no input is UNMEASURED."""
+    return max(statuses, key=_SEVERITY.__getitem__) if statuses else UNMEASURED
+
+
+@dataclass(frozen=True)
+class Verdict:
+    """A computed status with the named checks behind it. A check is True (holds), False (fails) or None (could not be
+    evaluated); `reasons` lists, in words, why the status is not better than it is."""
+    status: str
+    checks: dict
+    reasons: tuple = ()
+
+    def __post_init__(self):
+        if self.status not in STATUSES:
+            raise ValueError(f"status must be one of {STATUSES}, not {self.status!r}")
+
+    def as_evidence(self) -> dict:
+        return {"computed_status": self.status, "checks": self.checks, "why_not_better": list(self.reasons)}
+
+
+# ---- AST helpers ----------------------------------------------------------------------------------------------------
+def _find_def(tree, name, cls=None):
+    body = tree.body
+    if cls is not None:
+        holder = next((n for n in body if isinstance(n, ast.ClassDef) and n.name == cls), None)
+        if holder is None:
+            return None
+        body = holder.body
+    return next((n for n in body if isinstance(n, ast.FunctionDef) and n.name == name), None)
+
+
+def _default_of(fn, arg):
+    """Literal default of `arg` in function `fn`, or _MISSING when the function/argument/literal is absent."""
+    if fn is None:
+        return _MISSING
+    a = fn.args
+    pos = a.posonlyargs + a.args
+    defaults = [None] * (len(pos) - len(a.defaults)) + list(a.defaults)
+    for p, d in list(zip(pos, defaults)) + list(zip(a.kwonlyargs, a.kw_defaults)):
+        if p.arg == arg:
+            try:
+                return ast.literal_eval(d) if d is not None else _MISSING
+            except ValueError:
+                return _MISSING
+    return _MISSING
+
+
+def _callee(call) -> str | None:
+    f = getattr(call, "func", None)
+    return f.id if isinstance(f, ast.Name) else f.attr if isinstance(f, ast.Attribute) else None
+
+
+def _calls(node, name):
+    return [n for n in ast.walk(node) if isinstance(n, ast.Call) and _callee(n) == name] if node is not None else []
+
+
+def _kw(call, name):
+    return next((k.value for k in call.keywords if k.arg == name), None)
+
+
+def _has_kw(call, name) -> bool:
+    return any(k.arg == name for k in call.keywords)
+
+
+def _state_ref(node) -> bool:
+    """Does the subtree read st['cfg'] or st['meta'] (the loop's latest global basis)?"""
+    return any(isinstance(n, ast.Subscript) and isinstance(n.value, ast.Name) and n.value.id == "st"
+               and isinstance(n.slice, ast.Constant) and n.slice.value in ("cfg", "meta") for n in ast.walk(node))
+
+
+def _module_assign(tree, name):
+    return next((n for n in tree.body if isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id == name for t in n.targets)), None)
+
+
+def _module_literal(tree, name):
+    n = _module_assign(tree, name)
+    if n is None:
+        return None
+    try:
+        return ast.literal_eval(n.value)
+    except ValueError:
+        return None
+
+
+def _read_sources(root=None, overrides=None) -> dict:
+    root = Path(root) if root else K.ROOT
+    out = {}
+    for key, rel in _SOURCE_FILES.items():
+        if overrides and key in overrides:
+            out[key] = overrides[key]
+            continue
+        p = root / rel
+        out[key] = p.read_text(encoding="utf-8") if p.exists() else None
+    return out
+
+
+def _livesim_facts(tree, text) -> dict:
+    feed_init, pre = _find_def(tree, "__init__", "Feed"), _find_def(tree, "precompute_features", "Feed")
+    parity, bfc, run = _find_def(tree, "parity_test"), _find_def(tree, "blind_feed_class"), _find_def(tree, "run")
+    lit = lambda v: _UNDETERMINED if v is _MISSING else v
+    passes = lambda fn, expect: None if fn is None else any(
+        _kw(c, "tradable_rule") is not None and ast.unparse(_kw(c, "tradable_rule")) == expect for c in _calls(fn, "build"))
+    via = _calls(run, "blind_feed_class")
+    return {"feed_tradable_rule_default": lit(_default_of(feed_init, "tradable_rule")),
+            "precompute_passes_feed_rule": passes(pre, "self.tradable_rule"),
+            "parity_passes_feed_rule": passes(parity, "feed.tradable_rule"),
+            "blind_feed_hardened_default": lit(_default_of(bfc, "hardened")),
+            "blind_feed_returns_hardened_class": None if bfc is None else bool(_calls(bfc, "hardened_feed_class")),
+            "run_hardened_default": lit(_default_of(run, "hardened")),
+            "run_builds_feed_via_blind_feed_class": bool(via) and all(c.args and ast.unparse(c.args[0]) == "hardened" for c in via),
+            "run_builds_plain_feed_directly": None if run is None else bool(_calls(run, "Feed")),
+            "livesim_injects_dead_names": "inject_dead_names" in text}
+
+
+def _loop2_facts(tree) -> dict:
+    main, fresh, plan = _find_def(tree, "main"), _find_def(tree, "fresh_state"), _find_def(tree, "plan_round")
+    worker_fn, inner = _find_def(tree, "worker"), _find_def(tree, "_worker")
+    neutral = _module_assign(tree, "NEUTRAL_CFG")
+    named = lambda node, ident: node is not None and any(isinstance(n, ast.Name) and n.id == ident for n in ast.walk(node))
+    f = {"loop2_cfg_space": _module_literal(tree, "CFG_SPACE"),
+         "loop2_neutral_cfg_from_neutral_default_cfg": bool(neutral is not None and _callee(neutral.value) == "neutral_default_cfg" and "CFG_SPACE" in ast.unparse(neutral.value)),
+         "loop2_fresh_state_starts_neutral": named(fresh, "NEUTRAL_CFG"),
+         "loop2_plan_round_uses_lineage_basis_for": None if plan is None else bool(_calls(plan, "basis_for")),
+         "loop2_plan_round_falls_back_to_neutral": named(plan, "NEUTRAL_CFG"),
+         "loop2_main_plans_each_round": None if main is None else bool(_calls(main, "plan_round")),
+         "loop2_worker_installs_network_guard": bool(worker_fn is not None and _calls(worker_fn, "NetworkGuard") and _calls(worker_fn, "install"))}
+    if main is not None:
+        loops = {name: _calls(main, name) for name in ("run_workers", "classify_round")}
+        f["loop2_play_calls_without_per_id"] = sorted(f"{n}@{c.lineno}" for n, cs in loops.items() for c in cs if not _has_kw(c, "per_id"))
+        f["loop2_n_run_workers_calls"] = len(loops["run_workers"])
+        f["loop2_global_basis_reaches_a_play_call"] = sorted(
+            f"{_callee(c)}@{c.lineno}" for c in ast.walk(main) if isinstance(c, ast.Call) and _callee(c) in _PLAY_CALLEES and not _has_kw(c, "per_id")
+            and any(_state_ref(a) for a in list(c.args) + [k.value for k in c.keywords]))
+        tb, rb = _calls(main, "train_basis"), _calls(main, "register_basis")
+        f["loop2_train_basis_calls"] = [{"line": c.lineno, "kwargs": [k.arg for k in c.keywords], "passes_as_of": _has_kw(c, "as_of"),
+                                         "training_set": ast.unparse(c.args[0]) if c.args else None} for c in tb]
+        f["loop2_register_basis_calls"] = [{"line": c.lineno, "trained_on": ast.unparse(c.args[-1]) if c.args else None} for c in rb]
+        f["loop2_registers_exactly_the_training_set"] = bool(tb and rb and all(r["trained_on"] == f["loop2_train_basis_calls"][0]["training_set"] for r in f["loop2_register_basis_calls"]))
+        head = next((n for n in ast.walk(main) if isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id == "headline" for t in n.targets)), None)
+        f["loop2_headline_excludes_legacy"] = None if head is None else "legacy" in ast.unparse(head.value)
+    runs = [c for c in _calls(inner, "run") if isinstance(c.func, ast.Attribute) and ast.unparse(c.func.value) == "livesim"]
+    f["loop2_worker_runs_livesim_run"] = bool(runs)
+    f["loop2_worker_passes_hardened"] = None if not runs else all(_kw(c, "hardened") is None or ast.unparse(_kw(c, "hardened")) == "True" for c in runs)
+    return f
+
+
+def default_path_facts(root=None, sources: dict | None = None) -> dict:
+    """Facts read from the SOURCE of the default blind path: what the defaults are and whether every call site honours them.
+    `sources` replaces file texts by key (livesim / loop2 / features / adaptive / leak_audit) so a test can flip one default
+    back to the unsafe setting and watch the verdict move. A value of None means "could not be determined"."""
+    src = _read_sources(root, sources)
+    trees = {}
+    for k, text in src.items():
+        try:
+            trees[k] = ast.parse(text) if text is not None else None
+        except SyntaxError:
+            trees[k] = None
+    f: dict = {"sources_parsed": {k: t is not None for k, t in trees.items()}}
+    if trees["livesim"] is not None:
+        f.update(_livesim_facts(trees["livesim"], src["livesim"]))
+    if trees["features"] is not None:
+        build = _find_def(trees["features"], "build")
+        f["features_split_branch_uses_split_invariant_tradable"] = bool(build is not None and any(
+            isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id == "tradable" for t in n.targets)
+            and isinstance(n.value, ast.Call) and _callee(n.value) == "split_invariant_tradable" for n in ast.walk(build)))
+    if trees["leak_audit"] is not None:
+        hf = _find_def(trees["leak_audit"], "hardened_feed_class")
+        f["hardened_class_overrides_tradable_rule"] = None if hf is None else "tradable_rule" in (ast.get_source_segment(src["leak_audit"], hf) or "")
+    if trees["adaptive"] is not None:
+        node = _module_assign(trees["adaptive"], "META_DEFAULT")
+        f["meta_default_literal"] = _module_literal(trees["adaptive"], "META_DEFAULT")
+        f["meta_default_data_tuned"] = None if node is None else "sensitivity study" in (ast.get_source_segment(src["adaptive"], node) or "").lower()
+    if trees["loop2"] is not None:
+        f.update(_loop2_facts(trees["loop2"]))
+    return f
+
+
+# ---- proofs: planted leaks pushed through the real mechanism -------------------------------------------------------------
+def prove_split_invariance(seed: int = 3) -> dict:
+    """Plant a later 20:1 split on a third of the names (price down, volume up, as back-adjustment does). The split-invariant
+    rule features.build uses on the Test path must not change a single tradable cell; the price-rank clause of the Live rule must."""
+    rng = np.random.default_rng(seed)
+    idx = pd.bdate_range("2019-01-01", periods=120)
+    cols = [f"S{i:03d}" for i in range(45)]
+    C = pd.DataFrame(rng.uniform(5, 80, (len(idx), len(cols))), index=idx, columns=cols)
+    V = pd.DataFrame(rng.uniform(2e5, 4e6, C.shape), index=idx, columns=cols)
+    C2, V2 = C.copy(), V.copy()
+    C2.iloc[:, :15] /= 20.0
+    V2.iloc[:, :15] *= 20.0
+    price_rank = lambda X: X.rank(axis=1, pct=True) >= 0.2
+    inv_moved = int((split_invariant_tradable(C, V) != split_invariant_tradable(C2, V2)).to_numpy().sum())
+    live_moved = int((price_rank(C) != price_rank(C2)).to_numpy().sum())
+    return {"split_invariant_cells_changed_by_planted_split": inv_moved, "price_rank_cells_changed_by_planted_split": live_moved,
+            "mechanism_neutralises_planted_leak": inv_moved == 0, "planted_leak_is_real": live_moved > 0}
+
+
+def prove_lineage_gate(n_rounds: int = 14, par: int = 3, seeds=(0, 1, 2, 3)) -> dict:
+    """Replay the loop's draw process (seeded, no sealed file read) twice. NAIVE: every window plays the newest basis, trained
+    on every archived window. GATED: each window plays BasisLineage.basis_for(its real start), then the round's windows join
+    the training set (exactly plan_round + register_basis). A basis leaks when any window it was trained on had not ended
+    when the played window began."""
+    naive_touched, gated_violations, gated_untrained, gated_played = [], 0, [], 0
+    for seed in seeds:
+        rounds = simulate_window_draws(n_rounds, par=par, seed=20260929 + seed)
+        naive_touched.append(basis_future_share(rounds)["share_of_windows_touched"])
+        lin, seen, played = BasisLineage(), [], []
+        for r, rnd in enumerate(rounds):
+            for w in rnd:
+                rec = lin.basis_for(w["start"])
+                played.append({"id": w["id"], "real_start": w["start"], "version": rec["version"] if rec else 0})
+                gated_untrained.append(rec is None)
+            seen += rnd
+            lin.register(r + 1, {}, {}, [TrainedOn(w["id"], w["start"], w["end"]) for w in seen])
+        gated_violations += len(lin.violations(played))
+        gated_played += len(played)
+    return {"naive_share_of_plays_touched_by_future_training": float(np.mean(naive_touched)),
+            "gated_plays_checked": gated_played, "gated_violations": gated_violations,
+            "gated_share_of_plays_on_untrained_neutral_basis": float(np.mean(gated_untrained)),
+            "mechanism_holds": gated_violations == 0, "planted_leak_is_real": float(np.mean(naive_touched)) > 0.0}
+
+
+def prove_network_guard() -> dict:
+    """A DNS lookup under the guard must raise NetworkBlocked before any packet leaves (no network is used by the proof)."""
+    with NetworkGuard() as g:
+        try:
+            socket.getaddrinfo("audit.invalid", 443)
+            blocked = False
+        except NetworkBlocked:
+            blocked = True
+    return {"planted_lookup_blocked": blocked, "guard_recorded_attempt": bool(g.blocked)}
+
+
+def run_proofs() -> dict:
+    return {"split_invariance": prove_split_invariance(), "lineage_gate": prove_lineage_gate(), "network_guard": prove_network_guard()}
+
+
+def lineage_state_check(state: dict | None, cfg_space: dict | None, meta_default: dict | None) -> dict | None:
+    """Audit the loop's own state file (trusted side; it holds real dates only for windows a basis was trained on, and this
+    function never opens a sealed window). For every non-legacy played window: an untrained play must have used exactly the
+    data-free neutral cfg and the default meta; a trained play must use a basis whose training windows all ended before the
+    play began. A trained play whose real start cannot be recovered from the lineage is 'unresolved' (never assumed clean)."""
+    if state is None:
+        return None
+    norm = lambda x: json.loads(json.dumps(x, default=str))
+    windows, lineage = state.get("windows", []), state.get("lineage", [])
+    dates = {i: (pd.Timestamp(a), pd.Timestamp(b)) for v in lineage for i, a, b in v["trained_on"]}
+    by_v = {v["version"]: v for v in lineage}
+    neutral = norm(neutral_default_cfg(cfg_space)) if cfg_space else None
+    out = {"n_windows": len(windows), "legacy": [], "untrained": [], "trained": [], "unresolved": [], "violations": [],
+           "untrained_cfg_mismatch": [], "untrained_meta_mismatch": [], "no_basis_record": [], "versions": [v["version"] for v in lineage]}
+    for w in windows:
+        wid = w.get("run_id") or w.get("window")
+        if w.get("legacy"):
+            out["legacy"].append(wid)
+            continue
+        ver = w.get("basis_version")
+        if ver is None:
+            out["no_basis_record"].append(wid)
+        elif ver == 0 or w.get("untrained_basis"):
+            out["untrained"].append(wid)
+            if neutral is None or norm(w.get("prior_cfg")) != neutral:
+                out["untrained_cfg_mismatch"].append(wid)
+            if meta_default is None:
+                out["untrained_meta_mismatch"].append(wid)
+            else:
+                m = norm(w.get("meta") or {})
+                if any(k in m and m[k] != norm(meta_default[k]) for k in meta_default):
+                    out["untrained_meta_mismatch"].append(wid)
+        else:
+            out["trained"].append(wid)
+            rec, own = by_v.get(ver), dates.get(wid)
+            if rec is None or own is None:
+                out["unresolved"].append(wid)
+            elif any(pd.Timestamp(b) >= own[0] for _, _, b in rec["trained_on"]):
+                out["violations"].append({"window": wid, "version": ver})
+    ids = [{i for i, _, _ in by_v[v]["trained_on"]} for v in sorted(by_v)]
+    out["lineage_is_monotone"] = all(a <= b for a, b in zip(ids, ids[1:]))
+    return out
+
+
+# ---- verdicts -----------------------------------------------------------------------------------------------------------
+def _all(*checks):
+    """True if every check holds, False if any fails, None if none fails but some could not be evaluated."""
+    if any(c is False for c in checks):
+        return False
+    return None if any(c is None for c in checks) else True
+
+
+def _not(v):
+    return None if v is None else not v
+
+
+def _unparsed(facts: dict, *keys) -> list[str]:
+    """Source files a verdict needs that could not be read/parsed (then the verdict is UNMEASURED, never a guess)."""
+    ok = (facts or {}).get("sources_parsed") or {}
+    return [k for k in keys if not ok.get(k)]
+
+
+def verdict_adjusted_prices(facts: dict, proofs: dict, measured: dict | None) -> Verdict:
+    """Channel 2. FIXED only if the default blind path provably reaches the split-invariant rule at every call site AND the
+    planted split is neutralised by it AND the live rule really is moved by that split (else the proof could not fail)."""
+    miss = _unparsed(facts, "livesim", "features", "leak_audit", "loop2")
+    if miss:
+        return Verdict(UNMEASURED, {f"source_{k}_parsed": False for k in miss}, tuple(f"source {k} not readable" for k in miss))
+    sp = (proofs or {}).get("split_invariance", {})
+    rule = facts.get("feed_tradable_rule_default")
+    gate = {"feed_default_is_split_invariant": None if rule in (_UNDETERMINED, "<absent>") or "feed_tradable_rule_default" not in facts else rule == "split_invariant",
+            "precompute_passes_feed_rule": facts.get("precompute_passes_feed_rule"),
+            "parity_passes_feed_rule": facts.get("parity_passes_feed_rule"),
+            "features_branch_calls_split_invariant_tradable": facts.get("features_split_branch_uses_split_invariant_tradable"),
+            "hardened_feed_does_not_override_rule": _not(facts.get("hardened_class_overrides_tradable_rule")),
+            "worker_reaches_feed_through_livesim_run": facts.get("loop2_worker_runs_livesim_run")}
+    proof = {"planted_split_neutralised": sp.get("mechanism_neutralises_planted_leak"), "planted_split_moves_the_live_rule": sp.get("planted_leak_is_real")}
+    checks = {**gate, **proof, "swap_effect_measured_on_real_caches": bool((measured or {}).get("tradable_rule_swap_effect"))}
+    failed = [k for k, v in gate.items() if v is False]
+    if failed:
+        return Verdict(LEAK, checks, tuple(f"default path: {k} is False" for k in failed))
+    if proof["planted_split_neutralised"] is False:
+        return Verdict(LEAK, checks, ("the split-invariant rule changed a tradable cell under a planted split",))
+    if _all(*gate.values(), *proof.values()) is not True:
+        return Verdict(UNMEASURED, checks, tuple(k for k, v in {**gate, **proof}.items() if v is None or v is False))
+    return Verdict(FIXED, checks)
+
+
+def verdict_feed_shape(facts: dict, causality: dict | None) -> Verdict:
+    """Channel 8c. FIXED iff the default path builds the hardened feed AND on real windows the hardened feed shows none of
+    the three exposures AND the plain feed shows at least one (a control: the instrument can see what it claims to close)."""
+    miss = _unparsed(facts, "livesim", "loop2")
+    if miss:
+        return Verdict(UNMEASURED, {f"source_{k}_parsed": False for k in miss}, tuple(f"source {k} not readable" for k in miss))
+    gate = {"blind_feed_hardened_by_default": _all(*(None if facts.get(k) in (_UNDETERMINED, "<absent>") or k not in facts else facts[k] is True
+                                                 for k in ("blind_feed_hardened_default", "run_hardened_default"))),
+            "blind_feed_class_returns_hardened": facts.get("blind_feed_returns_hardened_class"),
+            "run_uses_blind_feed_class": facts.get("run_builds_feed_via_blind_feed_class"),
+            "run_never_builds_plain_feed": _not(facts.get("run_builds_plain_feed_directly")),
+            "worker_does_not_opt_out": facts.get("loop2_worker_passes_hardened")}
+    fe = (causality or {}).get("feed_exposure_real_windows") or {}
+    rows = [v for v in fe.values() if v.get("hardened") and v.get("plain")]
+    hard_clean = (all(abs(r["hardened"]["spy_first_level"] - 100.0) < 1e-6 and abs(r["hardened"]["column_order_vs_real_alpha_rho"]) < 0.3
+                      and r["hardened"]["columns_shown_before_listing"] == 0
+                      and (r.get("hardened_rerun_linkability") or {}).get("share_reidentified_by_column_position", 1.0) < 0.05 for r in rows) if rows else None)
+    plain_sees = (any(r["plain"]["column_order_vs_real_alpha_rho"] > 0.9 or r["plain"]["columns_shown_before_listing"] > 0
+                      or abs(r["plain"]["spy_first_level"] - 100.0) > 1e-6 for r in rows) if rows else None)
+    checks = {**gate, "hardened_feed_shows_none_of_the_three_exposures_on_real_windows": hard_clean,
+              "plain_feed_shows_them_control": plain_sees, "n_real_windows": len(rows)}
+    failed = [k for k, v in gate.items() if v is False]
+    if failed or hard_clean is False:
+        return Verdict(LEAK, checks, tuple(failed) or ("the hardened feed still shows an exposure on a real window",))
+    if _all(*gate.values(), hard_clean, plain_sees) is not True:
+        return Verdict(UNMEASURED, checks, tuple(k for k, v in checks.items() if v is None or v is False))
+    return Verdict(FIXED, checks)
+
+
+def verdict_learned_state(facts: dict, proofs: dict, state_check: dict | None) -> Verdict:
+    """Channel 4. The training call takes no as_of and trains on every archived window, so what is proven is the GATE between
+    training and play: every play call carries a per-window basis, plan_round takes the lineage's past-only basis or the
+    neutral start, the registered training set equals the trained set, and the real state file shows no violation. LEAK when
+    any of that fails. The starting meta defaults were tuned on real outcomes (sensitivity study): that residual has no
+    data-free replacement and caps the verdict at QUARANTINED."""
+    miss = _unparsed(facts, "loop2", "adaptive")
+    if miss:
+        return Verdict(UNMEASURED, {f"source_{k}_parsed": False for k in miss}, tuple(f"source {k} not readable" for k in miss))
+    lg = (proofs or {}).get("lineage_gate", {})
+    calls = facts.get("loop2_train_basis_calls") or []
+    gate = {"main_plans_each_round_from_lineage": _all(facts.get("loop2_main_plans_each_round"), facts.get("loop2_plan_round_uses_lineage_basis_for")),
+            "unseen_start_falls_back_to_neutral_cfg": facts.get("loop2_plan_round_falls_back_to_neutral"),
+            "every_play_call_carries_a_per_window_basis": None if facts.get("loop2_play_calls_without_per_id") is None else (not facts["loop2_play_calls_without_per_id"] and facts.get("loop2_n_run_workers_calls", 0) > 0),
+            "global_basis_reaches_no_play_call": None if facts.get("loop2_global_basis_reaches_a_play_call") is None else not facts["loop2_global_basis_reaches_a_play_call"],
+            "registered_training_set_equals_trained_set": facts.get("loop2_registers_exactly_the_training_set"),
+            "start_cfg_is_data_free": _all(facts.get("loop2_neutral_cfg_from_neutral_default_cfg"), facts.get("loop2_fresh_state_starts_neutral")),
+            "legacy_windows_excluded_from_headline": facts.get("loop2_headline_excludes_legacy")}
+    proof = {"gated_basis_never_trained_on_unended_window": lg.get("mechanism_holds"), "naive_latest_basis_is_touched_control": lg.get("planted_leak_is_real")}
+    sc = state_check
+    real = {"no_trained_play_uses_a_basis_with_unended_training_window": None if sc is None else not sc["violations"],
+            "untrained_plays_used_exactly_the_neutral_cfg": None if sc is None else not sc["untrained_cfg_mismatch"],
+            "untrained_plays_used_the_default_meta": None if sc is None else not sc["untrained_meta_mismatch"],
+            "every_played_window_has_a_basis_record": None if sc is None else not sc["no_basis_record"],
+            "trained_plays_all_resolvable": None if sc is None else not sc["unresolved"],
+            "lineage_monotone_each_version_contains_the_previous": None if sc is None else sc["lineage_is_monotone"]}
+    checks = {**gate, **proof, **real, "state_file_read": sc is not None, "train_basis_calls": calls,
+              "train_basis_passes_as_of": any(c["passes_as_of"] for c in calls), "meta_default_tuned_on_real_outcomes": facts.get("meta_default_data_tuned")}
+    reasons = [f"gate: {k}" for k, v in gate.items() if v is False]
+    reasons += [f"proof: {k}" for k, v in proof.items() if k.startswith("gated") and v is False]
+    reasons += [f"state: {k}" for k, v in real.items() if v is False]
+    if sc is not None and sc["violations"]:
+        reasons.append(f"state: plays whose basis saw a later window: {[v['window'] for v in sc['violations']]}")
+    if reasons:
+        return Verdict(LEAK, checks, tuple(reasons))
+    if _all(*gate.values(), *proof.values(), *real.values()) is not True:
+        return Verdict(UNMEASURED, checks, tuple(k for k, v in {**gate, **proof, **real}.items() if v is None or v is False))
+    if facts.get("meta_default_data_tuned"):
+        return Verdict(QUARANTINED, checks, ("META_DEFAULT (used by every untrained play) was set from the sensitivity study on real outcomes: "
+                                             "a data-tuned starting point with no data-free replacement; results must carry this label",))
+    return Verdict(FIXED, checks)
+
+
+def compute_verdicts(parts: dict, facts: dict, proofs: dict, state_check: dict | None) -> dict[str, Verdict]:
+    """All channel verdicts. `parts` = the measurement parts (static, runtime, survivorship, adjusted, metadata, fingerprint,
+    causality; missing/empty = not measured). Every channel whose measurement is absent is UNMEASURED."""
+    out: dict[str, Verdict] = {}
+    S, R, V, J, M, F, Cz = (parts.get(k) or {} for k in ("static", "runtime", "survivorship", "adjusted", "metadata", "fingerprint", "causality"))
+    unmeasured = lambda *miss: Verdict(UNMEASURED, {f"part_{m}_present": False for m in miss}, tuple(f"part {m} missing" for m in miss))
+
+    if not V:                       # 1: absent (delisted) names cannot be recovered offline; measured => QUARANTINED with the size reported
+        out["1"] = unmeasured("survivorship")
+    else:
+        reg = V.get("registry_rows_with_last_close", 0)
+        share = V.get("dead_names_with_recovered_prices", 0) / reg if reg else 0.0
+        out["1"] = Verdict(CLEAN if share >= 0.95 else QUARANTINED,
+                           {"share_of_registered_dead_names_with_price_history": share, "dead_names_injected_in_default_path": facts.get("livesim_injects_dead_names")},
+                           () if share >= 0.95 else ("delisted names' price history is missing, so the universe is survivors: size measured, not removed",))
+    out["2"] = verdict_adjusted_prices(facts, proofs, J or None)
+    if not M:
+        out["3"] = unmeasured("metadata")
+    else:
+        carried = bool(M.get("hard_listed_crypto_tickers_traded_before_2018") or M.get("crypto_matches_in_panel"))
+        out["3"] = Verdict(QUARANTINED if carried else CLEAN, {"crypto_tickers_in_panel": len(M.get("crypto_matches_in_panel") or []),
+                                                               "filter_inert_on_blind_codes": M.get("not_crypto_on_blind_codes_filters_nothing"), "sic_is_todays_classification": True},
+                           ("the panel holds today's listings, crypto-named names and today's SIC codes; the trader never sees a name",))
+    out["4"] = verdict_learned_state(facts, proofs, state_check)
+    if not S:
+        out["5"] = unmeasured("static")
+    else:
+        reach = sorted({"analogs", "parity"} & set(S.get("closure_modules", [])))
+        out["5"] = Verdict(LEAK if reach else CLEAN, {"revision_prone_consumers_reachable_from_blind_path": reach}, tuple(f"{m} reachable" for m in reach))
+    if not F:
+        out["6"] = unmeasured("fingerprint")
+    else:
+        exp, hid = F.get("exposed_6y_warmup_plus_window", {}), F.get("hidden_12_months_only", {})
+        ident = lambda d: sorted(g for g, r in d.items() if isinstance(r, dict) and r.get("verdict") == "identifiable")
+        ctrl = [r.get("skill") for r in (F.get("exposed_6y_warmup_plus_window__shuffled_control") or {}).values() if isinstance(r, dict) and r.get("skill") is not None]
+        ctrl_ok = bool(ctrl) and max(ctrl) < 0.15
+        trader_open = [v for v, d in (("exposed", exp), ("hidden", hid)) if (d.get("trader_inputs") or {}).get("verdict") == "identifiable"]
+        checks = {"identifiable_groups_exposed_window": ident(exp), "identifiable_groups_hidden_only": ident(hid), "trader_inputs_identifiable_in": trader_open,
+                  "shuffled_label_control_near_zero": ctrl_ok}
+        if not ctrl_ok:
+            out["6"] = Verdict(UNMEASURED, checks, ("the shuffled-label control is not near zero: the probe cannot be trusted",))
+        elif trader_open:
+            out["6"] = Verdict(LEAK, checks, (f"the trader's own inputs identify the year in the {trader_open} view",))
+        elif ident(exp) or ident(hid):
+            out["6"] = Verdict(QUARANTINED, checks, ("levels/calendar identify the year in the exposed frames but the trader consumes only ranks, ratios and m_* context",))
+        else:
+            out["6"] = Verdict(CLEAN, checks)
+    if not R or _unparsed(facts, "loop2"):
+        out["7"] = unmeasured(*(["runtime"] if not R else []), *(["loop2 source"] if _unparsed(facts, "loop2") else []))
+    else:
+        blocked = R.get("blocked_network_attempts") or []
+        checks = {"blocked_attempts_in_a_full_window": len(blocked), "worker_installs_guard": facts.get("loop2_worker_installs_network_guard"),
+                  "guard_blocks_planted_lookup": (proofs or {}).get("network_guard", {}).get("planted_lookup_blocked")}
+        if blocked or checks["worker_installs_guard"] is False or checks["guard_blocks_planted_lookup"] is False:
+            out["7"] = Verdict(LEAK, checks, ("network attempted, or the worker does not install a working guard",))
+        else:
+            out["7"] = Verdict(CLEAN if _all(checks["worker_installs_guard"], checks["guard_blocks_planted_lookup"]) is True else UNMEASURED, checks)
+    if not S:
+        out["8a"] = unmeasured("static")
+    else:
+        ft = {k: v for k, v in (S.get("free_text_columns") or {}).items() if v}
+        out["8a"] = Verdict(LEAK if ft else CLEAN, {"free_text_columns": ft or None}, tuple(f"prose columns in {k}" for k in ft))
+    ti = Cz.get("features_truncation_invariance_2012_sample")
+    if not ti:
+        out["8b"] = unmeasured("causality")
+    else:
+        leaky = sorted(ti.get("leaky_features") or {})
+        out["8b"] = Verdict(CLEAN if ti.get("clean") and not leaky else LEAK,
+                            {"leaky_features": leaky, "n_features": ti.get("n_features"),
+                             "embargo_covers_label_reach": (S.get("model_embargo_sessions") or 0) >= (S.get("label_reach_sessions") or 99)},
+                            tuple(f"look-ahead in {k}" for k in leaky))
+    out["8c"] = verdict_feed_shape(facts, Cz or None)
+    if not S or not R:
+        out["8d"] = unmeasured(*[n for n, p in (("static", S), ("runtime", R)) if not p])
+    else:
+        research, sealed_open, cache = S.get("research_only_modules_reachable") or [], R.get("livesim_state_files_opened") or [], R.get("data_cache_files_opened") or []
+        checks = {"research_only_modules_reachable": research, "sealed_state_files_opened_in_a_window": sealed_open, "cache_files_opened_in_a_window": cache}
+        out["8d"] = Verdict(LEAK if (research or sealed_open) else QUARANTINED if cache else CLEAN, checks,
+                            tuple(research) + tuple(sealed_open) if (research or sealed_open)
+                            else ("the trader side reads today's universe.csv (inert on code names)",) if cache else ())
+    e = out["8b"]                    # 8e (universe filters / labels) rests on the same truncation proof as 8b
+    out["8e"] = Verdict(e.status, {"derived_from": "8b", **e.checks}, e.reasons)
+    return out

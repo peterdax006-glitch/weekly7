@@ -452,6 +452,19 @@ class Investigation:
                 Verdict.PARTLY_RESOLVED: Epistemic.CONTRADICTED, Verdict.UNRESOLVED: Epistemic.CONTRADICTED,
                 Verdict.SPURIOUS_SPLIT: Epistemic.CONTRADICTED, Verdict.INSUFFICIENT_DATA: Epistemic.UNKNOWN}[self.verdict]
 
+    def next_step(self) -> str:
+        """What the loop should do about this pair next (the research hand-off), as one plain sentence."""
+        steps = {
+            Verdict.NO_DISAGREEMENT: "nothing: the claims agree; pooling them is allowed",
+            Verdict.RESOLVED_BY_CONTEXT: f"scope both claims to {'x'.join(self.dimension) or 'the found context'} and re-test out of sample",
+            Verdict.PARTLY_RESOLVED: f"investigate inside {', '.join(self.residual_levels) or 'the leftover levels'} (residual_scan) "
+                                     "or gate both claims out of the contested context",
+            Verdict.UNRESOLVED: "keep both claims, mark them CONTRADICTED, and collect data stratified by the candidate contexts",
+            Verdict.SPURIOUS_SPLIT: "discard the split; it did not replicate later in time; gather more dates before searching again",
+            Verdict.INSUFFICIENT_DATA: "collect more independent dates for both claims (see Investigator.plan)",
+        }
+        return steps[self.verdict]
+
     def summary_line(self) -> str:
         where = f" via {'x'.join(self.dimension)} ({self.mechanism.lower()}, p_adj {self.p_adj:.2g})" if self.dimension else ""
         return f"{self.a} vs {self.b}: {self.verdict.value}{where}; overall z {self.overall_z:+.1f}"
@@ -544,6 +557,23 @@ class DimScore:
 
 
 # ------------------------------------------------------------------------------------------- the investigator
+
+@dataclasses.dataclass(frozen=True)
+class PermutationNull:
+    """Family-wise calibration of the context search. T = the smallest p-value over every dimension tried (the statistic a
+    'best of many' explanation is judged by). The null world keeps every date's noise and the A-B gap but re-deals whole
+    dates' context vectors, destroying any context/effect association."""
+    dims: tuple[str, ...]
+    reps: int
+    observed_p: float
+    p_family: float                   # (1 + #null T <= observed) / (reps + 1): valid whatever the dependence between dims
+    threshold: float                  # the alpha-quantile of the null T: a split must beat this raw p to count
+    fwer_at_bonferroni: float         # how often the Bonferroni bar would have (wrongly) fired in the null worlds
+    null_quantiles: tuple[float, ...] # 1%, 5%, 25%, 50% of null T
+
+    def significant(self, alpha: float = 0.05) -> bool:
+        return self.p_family <= alpha
+
 
 class Investigator:
     def __init__(self, params: Mapping | None = None):
@@ -813,6 +843,35 @@ class Investigator:
                                           context_cols=inner_cols)
         return out
 
+    def permutation_null(self, a: str, b: str, ev: EvidenceSet, now, reps: int = 200, seed: int = 0,
+                         context_cols: Sequence[str] | None = None) -> PermutationNull:
+        """Calibrated family-wise bar from a permutation null (see PermutationNull). Cheap enough for hundreds of shuffles
+        because only the search statistic is recomputed, not the whole investigation. Seeded and deterministic."""
+        ev.assert_before(now)
+        rng = np.random.default_rng(seed)
+        early, _ = ev.time_split(a, b)
+        cols = tuple(c for c in (context_cols if context_cols is not None else ev.context_cols) if c in early.columns)
+        edges = self._edges(early, cols)
+        min_lv = self.p["min_level_clusters"]
+
+        def stat(frame: pd.DataFrame) -> float:
+            ps = [sc.p for sc in (self._score(frame, a, b, (d,), edges, min_lv) for d in cols) if sc is not None]
+            return min(ps) if ps else 1.0
+
+        obs = stat(early)
+        per_date = early.groupby("cluster")[list(cols)].first()
+        null = np.empty(reps)
+        for i in range(reps):
+            shuffled = per_date.iloc[rng.permutation(len(per_date))].set_axis(per_date.index)
+            g = early.copy()
+            for c in cols:
+                g[c] = g["cluster"].map(shuffled[c])
+            null[i] = stat(g)
+        m = 2 * max(len(cols), 1)
+        return PermutationNull(cols, reps, float(obs), float((1 + np.sum(null <= obs)) / (reps + 1)),
+                               float(np.quantile(null, self.p["alpha"])), float(np.mean(null * m < self.p["alpha"])),
+                               tuple(float(np.quantile(null, q)) for q in (0.01, 0.05, 0.25, 0.5)))
+
     def null_calibration(self, a: str, b: str, ev: EvidenceSet, now, reps: int = 20, seed: int = 0,
                          context_cols: Sequence[str] | None = None) -> dict[str, float]:
         """False-positive rate of the WHOLE procedure. Source labels are shuffled within each date, which keeps the dates,
@@ -1001,6 +1060,40 @@ def next_to_investigate(claims: Sequence[Claim], ledger: ContradictionLedger, no
         queue.append({"a": d.a, "b": d.b, "kind": d.kind.value, "z": d.z, "status": st.value, "priority": prio,
                       "why": "never investigated" if st == Status.OPEN else "new evidence since last look"})
     return sorted(queue, key=lambda r: (-r["priority"], r["a"], r["b"]))
+
+
+def calibration_suite(inv: Investigator, worlds: Sequence[tuple[str, str, EvidenceSet]], now, reps: int = 100, seed: int = 0,
+                      context_cols: Sequence[str] | None = None, alpha: float = 0.05) -> dict[str, float]:
+    """Run the permutation null over many worlds that are KNOWN to contain no context effect and report how often the
+    procedure claims one. A calibrated bar rejects about `alpha` of them; the Bonferroni figure shows how conservative the
+    per-investigation rule is by comparison. The harness the next (validation) wave feeds real and planted worlds through."""
+    if not worlds:
+        return {"worlds": 0.0, "rejection_rate": float("nan"), "mean_p_family": float("nan"), "mean_fwer_bonferroni": float("nan")}
+    res = [inv.permutation_null(a, b, ev, now, reps=reps, seed=seed + i, context_cols=context_cols)
+           for i, (a, b, ev) in enumerate(worlds)]
+    ps = np.array([r.p_family for r in res])
+    lo = float(np.mean(ps <= alpha))
+    # binomial upper limit on the rejection rate, so "holds alpha" is a statement with its uncertainty attached
+    upper = float(sps.beta.ppf(0.975, lo * len(ps) + 1, len(ps) - lo * len(ps) + 1)) if len(ps) else float("nan")
+    return {"worlds": float(len(ps)), "rejection_rate": lo, "rejection_rate_upper95": upper, "mean_p_family": float(ps.mean()),
+            "mean_fwer_bonferroni": float(np.mean([r.fwer_at_bonferroni for r in res])), "alpha": alpha,
+            "holds_alpha": bool(upper >= alpha and lo <= max(alpha * 3, 0.2))}
+
+
+def investigate_calibrated(inv: Investigator, a: str, b: str, ev: EvidenceSet, now, prior_tries: int = 0, reps: int = 100,
+                           seed: int = 0, context_cols: Sequence[str] | None = None) -> tuple[Investigation, PermutationNull | None]:
+    """Investigation plus a second, distribution-free opinion: a context explanation is kept only if BOTH the Bonferroni bar
+    and the permutation-null family-wise p agree. If the permutation null disagrees the verdict is downgraded to
+    UNRESOLVED (the pair stays contradicted) and the reason is written into the temporal note. No search, no null."""
+    res = inv.investigate(a, b, ev, now, prior_tries=prior_tries, context_cols=context_cols)
+    if res.verdict not in (Verdict.RESOLVED_BY_CONTEXT, Verdict.PARTLY_RESOLVED):
+        return res, None
+    null = inv.permutation_null(a, b, ev, now, reps=reps, seed=seed, context_cols=context_cols)
+    if null.significant(inv.p["alpha"]):
+        return res, null
+    note = f"permutation null disagrees (family-wise p {null.p_family:.3f}): explanation not trusted"
+    return dataclasses.replace(res, verdict=Verdict.UNRESOLVED, residual_levels=(), scoped=(),
+                               temporal_note=(res.temporal_note + "; " if res.temporal_note else "") + note), null
 
 
 def investigate_and_record(inv: Investigator, ledger: ContradictionLedger, a: str, b: str, ev: EvidenceSet, now,

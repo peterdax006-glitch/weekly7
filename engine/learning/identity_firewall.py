@@ -1017,3 +1017,17 @@ def is_identity_free(learner: Learner, X_train, y_train, X_eval, seed: int = 0, 
     learner's scores once mapped back. True means the learner does not read identity at all."""
     res = label_only_sensitivity(learner, X_train, y_train, X_eval, seed)
     return bool(np.isfinite(res.get("sensitivity", float("nan"))) and res["sensitivity"] <= tol)
+
+
+def informative_attacks(report: IdentityReport) -> list[str]:
+    """Attacks (kind[mode]) whose verdict actually says something: judged OK or COLLAPSE on a baseline with skill."""
+    return sorted(f"{v.kind}[{v.mode}]" for v in report.verdicts if v.status in ("OK", "COLLAPSE"))
+
+
+def collapse_kinds(report: IdentityReport, mode: str | None = None) -> list[str]:
+    """Attack kinds that collapsed, optionally restricted to one mode, sorted and de-duplicated."""
+    return sorted({v.kind for v in report.verdicts if v.status == "COLLAPSE" and (mode is None or v.mode == mode)})
+
+
+def any_collapse(report: IdentityReport) -> bool:
+    return bool(collapse_kinds(report))

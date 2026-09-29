@@ -1014,3 +1014,13 @@ def test_tables_ablation_suite_and_drift_over_time():
     support(part, "Q", 30, 2, "bull_calm")
     old = RT.drift_over_time(RT.Retriever(part), q, [dt.date(2018, 12, 1), dt.date(2019, 6, 1)])
     assert old["dates"] == ["2018-12-01", "2019-06-01"]
+
+
+def test_index_grouping_and_retriever_description():
+    ix = RT.KnowledgeIndex()
+    ix.add_item(KItem("A", decision_effect=(DecisionEffect.STOP, DecisionEffect.EXIT)))
+    ix.add_item(KItem("B", decision_effect=(DecisionEffect.STOP,)))
+    assert RT.index_by_effect(ix) == {"EXIT": ["A"], "STOP": ["A", "B"]}
+    d = RT.describe_retriever(RT.Retriever(ix, monitor=RT.SkillMonitor(min_n=25)))
+    assert "skill monitor (min_n 25)" in d and "current_reliability 0.16" in d and "CHAMPION" in d
+    assert "no skill monitor" in RT.describe_retriever(RT.Retriever(ix))

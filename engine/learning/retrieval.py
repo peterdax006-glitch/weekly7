@@ -41,7 +41,7 @@ from .context import context_gate, contexts_from_knowledge
 from .core import (Confidence, DecisionEffect, Epistemic, FirewallBreach, KnowledgeLike, Lifecycle, Promotion, TemporalClass,
                    Unknown, UnknownAction, as_date, require_past, stable_hash)
 from .similarity import DEFAULT as DEFAULT_SIMILARITY
-from .similarity import SimilarityResult, SimilarityWeights, SituationMatrix, compare
+from .similarity import SimilarityWeights, SituationMatrix
 from .situation import Situation, BLOCK_SPECS
 
 POSITIVE_FACTORS = ("situation_similarity", "context_match", "temporal_relevance", "current_reliability", "transfer_confidence",
@@ -1409,3 +1409,21 @@ def explain_influence(retrieval: Retrieval) -> str:
     top = max(shares.values())
     tag = " (single-item bet)" if top > 0.8 and len(shares) > 1 else ""
     return f"decision weight: {parts}{tag}" + ("" if retrieval.influence else "; WITHHELD, no weight is applied")
+
+
+def index_by_effect(index: KnowledgeIndex) -> dict[str, list[str]]:
+    """Knowledge ids grouped by the decision they can change (contract section 43)."""
+    out: dict[str, list[str]] = {}
+    for it in index.items():
+        for e in it.decision_effect:
+            out.setdefault(str(e), []).append(str(it.knowledge_id))
+    return {k: sorted(v) for k, v in sorted(out.items())}
+
+
+def describe_retriever(retriever: Retriever) -> str:
+    """One line naming the exact configuration behind a retrieval: factor weights, similarity weights id, gates, monitor."""
+    w = retriever.weights.normalised()
+    parts = ", ".join(f"{k} {v:.2f}" for k, v in sorted(w.items(), key=lambda kv: -kv[1]))
+    gates = f"top_k {retriever.cfg.top_k}, min_similarity {retriever.cfg.min_similarity}, promotions {[str(p) for p in retriever.cfg.allowed_promotions]}"
+    mon = "no skill monitor" if retriever.monitor is None else f"skill monitor (min_n {retriever.monitor.min_n})"
+    return f"retriever [{parts}]; similarity {retriever.sim_weights.weights_id()}; {gates}; {mon}"
