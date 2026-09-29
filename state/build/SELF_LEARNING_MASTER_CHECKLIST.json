@@ -3052,81 +3052,90 @@
    "phase": "J PRODUCTION INTELLIGENCE",
    "description": "Champion knowledge.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
-    "engine/champion.py::Board"
+    "engine/champion.py::Board",
+    "engine/learning/champion.py"
    ],
    "tests": [
-    "tests/test_champion.py"
+    "tests/test_champion.py",
+    "tests/test_learning_promotion.py"
    ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial] Champion of configs/models, not knowledge."
+   "last_run": "2026-09-29T09:29:26",
+   "code_hash": "42a303dfffa2e182",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S11 pass 1). champion.py: CHAMPION/CHALLENGER/SHADOW/RETIRED knowledge on engine.champion.Ledger. | earlier: [partial] Champion of configs/models, not knowledge."
   },
   {
    "id": "J02",
    "phase": "J PRODUCTION INTELLIGENCE",
    "description": "Challenger knowledge.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
     "engine/champion.py::ChallengerQueue",
-    "engine/improve.py::spawn_challengers"
+    "engine/improve.py::spawn_challengers",
+    "engine/learning/champion.py"
    ],
    "tests": [
-    "tests/test_champion.py"
+    "tests/test_champion.py",
+    "tests/test_learning_promotion.py"
    ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial][duplicated] Two challenger mechanisms."
+   "last_run": "2026-09-29T09:29:26",
+   "code_hash": "42a303dfffa2e182",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S11 pass 1). champion.py: CHAMPION/CHALLENGER/SHADOW/RETIRED knowledge on engine.champion.Ledger. | earlier: [partial][duplicated] Two challenger mechanisms."
   },
   {
    "id": "J03",
    "phase": "J PRODUCTION INTELLIGENCE",
    "description": "Shadow knowledge.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
+    "engine/learning/champion.py",
     "engine/shadows.py"
    ],
-   "tests": [],
+   "tests": [
+    "tests/test_learning_promotion.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial][under-tested] Shadow baseline portfolios only (44 lines, no test)."
+   "last_run": "2026-09-29T09:29:26",
+   "code_hash": "42a303dfffa2e182",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S11 pass 1). champion.py: CHAMPION/CHALLENGER/SHADOW/RETIRED knowledge on engine.champion.Ledger. | earlier: [partial][under-tested] Shadow baseline portfolios only (44 lines, no test)."
   },
   {
    "id": "J04",
    "phase": "J PRODUCTION INTELLIGENCE",
    "description": "Promotion gate.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
     "engine/champion.py::_check_*",
+    "engine/learning/promotion.py",
     "engine/objective.py::firewall"
    ],
    "tests": [
     "tests/test_champion.py",
+    "tests/test_learning_promotion.py",
     "tests/test_objective.py"
    ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial] 6 of 10 gates; missing anti-memorisation, future-info audit, cross-context transfer, provenance completeness."
+   "last_run": "2026-09-29T09:29:27",
+   "code_hash": "42a303dfffa2e182",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S11 pass 1). promotion.py: all ten section-45 gates, one critical failure blocks, rejection report; each gate has a planted defect test. | earlier: [partial] 6 of 10 gates; missing anti-memorisation, future-info audit, cross-context transfer, provenance completeness."
   },
   {
    "id": "J05",
@@ -4596,24 +4605,26 @@
   {
    "section": "Champion/challenger",
    "minimum_lines": 700,
-   "actual_lines": 429,
+   "actual_lines": 629,
    "code_paths": [
     "engine/champion.py::ChampionError,_atomic_write,_canon,_num,freeze_baseline,load_baseline,vs_baseline,_score,Ledger,Board,default_paths,ChallengerQueue (241)",
     "engine/improve.py::diagnose,spawn_challengers,evaluate,test_and_promote,_replay_score (144)",
+    "engine/learning/champion.py",
     "engine/shadows.py (44)"
    ],
    "status": "IN_PROGRESS",
-   "notes": "UNDER by 271 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial and DUPLICATED: two champion systems (champion.py Board, improve.py test_and_promote) for configs/models; nothing for knowledge objects; no SHADOW knowledge state."
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S11 pass 1). under minimum on the ruler; sent back. | earlier: UNDER by 271 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial and DUPLICATED: two champion systems (champion.py Board, improve.py test_and_promote) for configs/models; nothing for knowledge objects; no SHADOW knowledge state."
   },
   {
    "section": "Promotion gates",
    "minimum_lines": 700,
-   "actual_lines": 66,
+   "actual_lines": 722,
    "code_paths": [
-    "engine/champion.py::_check_gates,_check_evidence,_check_priority,_check_risk,_check_repro,_check_blind,_check_basis (66)"
+    "engine/champion.py::_check_gates,_check_evidence,_check_priority,_check_risk,_check_repro,_check_blind,_check_basis (66)",
+    "engine/learning/promotion.py"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "UNDER by 634 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: 6 of 10 contract gates exist for configs (evidence, risk, repro, blind, basis, tier firewall). Missing anti-memorisation, future-information audit, cross-context transfer, provenance completeness as blocking gates."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S11 pass 1). | earlier: UNDER by 634 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: 6 of 10 contract gates exist for configs (evidence, risk, repro, blind, basis, tier firewall). Missing anti-memorisation, future-information audit, cross-context transfer, provenance completeness as blocking gates."
   },
   {
    "section": "Knowledge health",
@@ -4735,24 +4746,26 @@
   {
    "section": "Compute manager",
    "minimum_lines": 900,
-   "actual_lines": 702,
+   "actual_lines": 817,
    "code_paths": [
-    "engine/resources.py (396)",
-    "engine/health.py (306)"
+    "engine/health.py (306)",
+    "engine/learning/compute.py",
+    "engine/resources.py (396)"
    ],
    "status": "IN_PROGRESS",
-   "notes": "UNDER by 198 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: deterministic seeds, memory-aware queue, stale-code/OOM classification, stale-process report. No isolated learning-state snapshot per worker or result reconciliation into shared knowledge."
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S11 pass 1). under minimum on the ruler; sent back. | earlier: UNDER by 198 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: deterministic seeds, memory-aware queue, stale-code/OOM classification, stale-process report. No isolated learning-state snapshot per worker or result reconciliation into shared knowledge."
   },
   {
    "section": "Continuous execution/checkpointing",
    "minimum_lines": 700,
-   "actual_lines": 517,
+   "actual_lines": 624,
    "code_paths": [
     "engine/checkpoint.py (135)",
+    "engine/learning/checkpoints.py",
     "scripts/livesim_loop2.py (382)"
    ],
    "status": "IN_PROGRESS",
-   "notes": "UNDER by 183 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: checkpoint bundles + resumable outer loop; learning_curve checkpoints per window (lc1/ckpt). No SAVE STATE/NEXT ACTION/CURRENT FAILURES checkpoint for the learning engine."
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S11 pass 1). under minimum on the ruler; sent back. | earlier: UNDER by 183 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: checkpoint bundles + resumable outer loop; learning_curve checkpoints per window (lc1/ckpt). No SAVE STATE/NEXT ACTION/CURRENT FAILURES checkpoint for the learning engine."
   },
   {
    "section": "Reporting/dashboard/inspection",
