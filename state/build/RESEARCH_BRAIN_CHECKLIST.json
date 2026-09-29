@@ -1897,13 +1897,14 @@
    "section": "Multi-scale learning",
    "minimum_lines": 1200,
    "upper_lines": 2000,
-   "actual_lines": 45,
+   "actual_lines": 1251,
    "code_paths": [
     "engine/candles.py",
-    "engine/learning/situation.py::horizon_state"
+    "engine/learning/situation.py::horizon_state",
+    "engine/research/multiscale.py"
    ],
-   "status": "NOT_STARTED",
-   "notes": "[mapping 2026-09-29, read-only audit] [missing] 45/1200 meaningful lines genuinely doing this job. 41 + 4. Daily/weekly/monthly candles and a horizon label. No per-horizon pattern research or cross-horizon transfer test; no intraday history (only a forward collector)."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C66 wave 1, R16): 1,210; explicit horizon per pattern, no assumed cross-horizon transfer (per-session effect must be >=25% of source), C67 ohlc_day intraday scale + 1/2/3/5-session next-path outcomes, minute patterns must declare coverage. | earlier: [mapping 2026-09-29, read-only audit] [missing] 45/1200 meaningful lines genuinely doing this job. 41 + 4. Daily/weekly/monthly candles and a horizon label. No per-horizon pattern research or cross-horizon transfer test; no intraday history (only a forward collector)."
   },
   {
    "section": "Cross-sectional learning",

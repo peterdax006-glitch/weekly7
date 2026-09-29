@@ -1045,3 +1045,79 @@ def test_scope_effect_by_regime_links_cross_section_and_regimes():
     assert not tab.empty and set(tab.index.get_level_values("scope")) >= {"STOCK_SPECIFIC"}
     assert R.scope_effect_by_regime(lab.outcomes, mon, "volatility", now, replay_years=[2019]).empty
     assert R.regime_share_labels(mon, "volatility") == mon.label_map("volatility")
+
+
+# ------------------------------------------------------------------------------------------------ additions: path tables, lead-lag, forecasts
+
+def test_scope_path_table_and_pathbook_find_planted_reversal_of_stock_specific_movers():
+    rng = np.random.default_rng(31)
+    book = X.PathBook(sessions=1)
+    days = pd.bdate_range("2019-01-01", periods=50)
+    for i, d in enumerate(days):
+        idx = [f"S{j}" for j in range(80)]
+        ret = pd.Series(rng.normal(0, 0.01, 80), index=idx)
+        ret.iloc[:10] = rng.choice([-0.07, 0.07], 10)
+        scopes = pd.Series("NO_MOVE", index=idx)
+        scopes.iloc[:10] = "STOCK_SPECIFIC"
+        nxt = pd.DataFrame({"nxt_cont_1": rng.normal(0, 0.005, 80), "nxt_range_1": 1 + rng.normal(0, 0.1, 80)}, index=idx)
+        nxt.iloc[:10, 0] -= 0.02                                               # stock-specific 7% movers reverse
+        tab = X.scope_path_table(scopes, ret, nxt, ("nxt_cont_1", "nxt_range_1"))
+        assert tab.loc[("STOCK_SPECIFIC", "5%-10%"), "n"] == 10
+        book.add(d, tab.drop(columns="n"), d + pd.Timedelta(days=1), d + pd.Timedelta(days=2))
+    now = days[-1] + pd.Timedelta(days=5)
+    s = book.summary(now).set_index(["scope", "outcome"])
+    assert s.loc[("STOCK_SPECIFIC", "nxt_cont_1"), "verdict"] == "ESTABLISHED" and s.loc[("STOCK_SPECIFIC", "nxt_cont_1"), "mean"] < -0.01
+    assert s.loc[("STOCK_SPECIFIC", "nxt_range_1"), "verdict"] == "NOT_ESTABLISHED"
+    assert book.summary(now, replay_years=[2019]).empty
+    with pytest.raises(FirewallBreach):
+        book.add(days[0], tab.drop(columns="n"), days[0], now)
+    assert X.scope_path_table(pd.Series(dtype=object), pd.Series(dtype=float), pd.DataFrame(), ("nxt_cont_1",)).empty
+
+
+def test_cohort_lead_lag_distinguishes_continuation_from_reversal():
+    rng = np.random.default_rng(32)
+    out = {}
+    for name, sign in (("continues", 0.5), ("reverts", -0.5), ("none", 0.0)):
+        ll = X.CohortLeadLag(min_names=40)
+        idx = [f"S{i}" for i in range(120)]
+        grp = np.array(["g%d" % (i % 6) for i in range(120)])
+        labels = pd.DataFrame({"market": "mkt", "sector": grp}, index=idx)
+        effect = {g: 0.0 for g in set(grp)}
+        for d in pd.bdate_range("2019-01-01", periods=80):
+            shock = {g: rng.normal(0, 0.01) for g in set(grp)}
+            ret = pd.Series([sign * effect[g] + shock[g] + rng.normal(0, 0.005) for g in grp], index=idx)
+            ll.push(d, ret, labels)
+            effect = shock
+        out[name] = ll.summary().set_index("cohort").loc["sector", "behaviour"]
+    assert out == {"continues": "CONTINUES", "reverts": "REVERTS", "none": "UNCLEAR"}
+    with pytest.raises(FirewallBreach):
+        ll.push("2019-01-01", ret, labels)
+
+
+def test_regime_forecast_beats_persistence_only_when_dynamics_are_learnable():
+    blocks = [(30, {"vix": 12}), (10, {"vix": 34})]
+    dates, rows = market_rows(500, blocks=blocks, seed=2)
+    mon = run_monitor(dates, rows)
+    fc = R.RegimeForecast(mon, "volatility")
+    p = fc.next_probs()
+    assert p is None or abs(sum(p.values()) - 1.0) < 1e-6
+    skill = fc.brier_skill(min_days=30)
+    assert skill is None or skill == skill
+    assert R.RegimeForecast(R.RegimeMonitor(), "volatility").next_probs() is None
+    assert R.RegimeForecast(R.RegimeMonitor(), "volatility").brier_skill() is None
+
+
+def test_shrinkage_best_axis_and_mover_rates():
+    book, now, _ = fill_book("bound", seed=8)
+    rep = book.report("bound", now)
+    raw = {e.state: e.effect for e in rep.by_state if e.axis == "volatility"}
+    shr = R.shrunk_state_effects(rep, "volatility")
+    assert set(shr) == set(raw) and all(abs(shr[k] - rep.overall.effect) <= abs(raw[k] - rep.overall.effect) + 1e-12 for k in shr)
+    assert R.best_axis(book, "bound", now)[0] == "volatility"
+    nbook, nnow, _ = fill_book("null", seed=8)
+    assert R.best_axis(nbook, "null", nnow) is None and R.shrunk_state_effects(nbook.report("never", nnow), "volatility") == {}
+    dates, rows = market_rows(200, blocks=[(50, {"vix": 12}), (50, {"vix": 34})])
+    mon = run_monitor(dates, rows)
+    counts = {str(d.date()): ((300, 90) if r["vix"] > 25 else (150, 30)) for d, r in zip(dates, rows)}
+    tab = R.mover_rate_by_regime(mon, counts, "volatility", dates[-1] + pd.Timedelta(days=1))
+    assert tab.loc["high_vol", "ratio_5_10"] > tab.loc["low_vol", "ratio_5_10"] and R.mover_rate_by_regime(mon, {}, "volatility", dates[-1]).empty

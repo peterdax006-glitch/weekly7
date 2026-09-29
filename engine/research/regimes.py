@@ -1015,3 +1015,92 @@ def scope_effect_by_regime(outcomes, monitor: RegimeMonitor, axis: str, now, rep
     g = per_day.groupby(["scope", "state"])["cont"].agg(["mean", "count"])
     g.loc[g["count"] < min_days, "mean"] = np.nan
     return g.rename(columns={"count": "days"})
+
+
+# ------------------------------------------------------------------------------------------------ mover rates and shrinkage by regime
+
+def mover_rate_by_regime(monitor: RegimeMonitor, mover_counts: Mapping[str, tuple[int, int]], axis: str, now) -> pd.DataFrame:
+    """Canon C67 link: how many 5-10% (and >10%) movers a day, by regime state. mover_counts = {date: (n_5_10, n_over_10)} per
+    processed day (each day's count is known at its close), n_names = the day's universe size is NOT needed because the
+    counts are compared as shares only via `n_days`. Rows: state; columns: days, mean count per band and the ratio to the
+    all-days mean (>1: this regime produces more movers). Days on/after `now` are ignored."""
+    lab = monitor.label_map(axis)
+    rows = [(lab[d], c[0], c[1]) for d, c in mover_counts.items() if d in lab and as_date(d) < as_date(now)]
+    if not rows:
+        return pd.DataFrame()
+    df = pd.DataFrame(rows, columns=["state", "movers_5_10", "movers_over_10"])
+    g = df.groupby("state").agg(days=("state", "size"), movers_5_10=("movers_5_10", "mean"), movers_over_10=("movers_over_10", "mean"))
+    g["ratio_5_10"] = g["movers_5_10"] / df["movers_5_10"].mean() if df["movers_5_10"].mean() > 0 else np.nan
+    g["ratio_over_10"] = g["movers_over_10"] / df["movers_over_10"].mean() if df["movers_over_10"].mean() > 0 else np.nan
+    return g
+
+
+def shrunk_state_effects(report: PatternRegimeReport, axis: str, strength: float = 4.0) -> dict[str, float | None]:
+    """Empirical-Bayes shrinkage of a pattern's per-state effects toward its overall effect: e_s' = w e_s + (1 - w) e_all with
+    w = precision_s / (precision_s + strength x precision_all... implemented as w = 1 / (1 + strength x se_s^2 / se_all^2).
+    A state with few days (large se) is pulled hard toward the overall effect, so a thin regime cannot claim a large effect. States
+    that could not be measured are omitted."""
+    if report.overall.effect is None or report.overall.se is None or report.overall.se <= 0:
+        return {}
+    out = {}
+    for e in report.by_state:
+        if e.axis != axis or e.effect is None or e.se is None or e.se <= 0:
+            continue
+        w = 1.0 / (1.0 + strength * (e.se ** 2) / (report.overall.se ** 2))
+        out[e.state] = w * e.effect + (1.0 - w) * report.overall.effect
+    return out
+
+
+def best_axis(book: PatternRegimeBook, pattern_id: str, now, replay_years: Iterable[int] = ()) -> tuple[str, float] | None:
+    """The axis along which the pattern's effect differs most (largest |t| among BH-surviving contrasts), or None: which regime
+    dimension the pattern is actually conditional on. Ties break alphabetically."""
+    rep = book.report(pattern_id, now, replay_years)
+    ok = [c for c in rep.contrasts if c.t is not None and c.q_value is not None and c.q_value <= 0.1]
+    if not ok:
+        return None
+    top = max(ok, key=lambda c: (abs(c.t), c.axis))
+    return top.axis, abs(top.t)
+
+
+class RegimeForecast:
+    """One-step-ahead state probabilities from the monitor's own transition counts (Laplace-smoothed toward the marginal so
+    unseen transitions are neither 0 nor 1). Scored with a running Brier skill against 'tomorrow = today', so a forecast that
+    does not beat persistence is visible as such."""
+
+    def __init__(self, monitor: RegimeMonitor, axis: str, smoothing: float = 1.0):
+        self.monitor, self.axis, self.smoothing = monitor, axis, smoothing
+
+    def next_probs(self) -> dict[str, float] | None:
+        tm = transition_matrix(self.monitor, self.axis)
+        if tm.empty:
+            return None
+        cur = self.monitor.states[-1].states.get(self.axis, UNKNOWN_STATE)
+        if cur == UNKNOWN_STATE or cur not in tm.index:
+            return None
+        seq = [s.states.get(self.axis, UNKNOWN_STATE) for s in self.monitor.states]
+        counts = pd.Series([x for x in seq if x != UNKNOWN_STATE]).value_counts(normalize=True)
+        n_from = sum(1 for a, b in zip(seq, seq[1:]) if a == cur and UNKNOWN_STATE not in (a, b))
+        w = n_from / (n_from + self.smoothing)
+        return {st: float(w * tm.loc[cur].get(st, 0.0) + (1 - w) * counts.get(st, 0.0)) for st in counts.index}
+
+    def brier_skill(self, min_days: int = 60) -> float | None:
+        """1 - Brier(model) / Brier(persistence) evaluated walk-forward over the stored states (each day forecast with counts
+        from earlier days only). >0: beats 'same as today'. None with fewer than min_days scored transitions."""
+        seq = [s.states.get(self.axis, UNKNOWN_STATE) for s in self.monitor.states]
+        states = sorted({x for x in seq if x != UNKNOWN_STATE})
+        if len(states) < 2:
+            return None
+        counts: dict[tuple[str, str], int] = {}
+        b_model = b_pers = 0.0
+        n = 0
+        for a, b in zip(seq, seq[1:]):
+            if UNKNOWN_STATE in (a, b):
+                continue
+            tot = sum(counts.get((a, s), 0) for s in states)
+            if tot >= 10:
+                p = {s: (counts.get((a, s), 0) + self.smoothing / len(states)) / (tot + self.smoothing) for s in states}
+                b_model += sum((p[s] - (s == b)) ** 2 for s in states)
+                b_pers += sum(((s == a) - (s == b)) ** 2 for s in states)
+                n += 1
+            counts[(a, b)] = counts.get((a, b), 0) + 1
+        return None if n < min_days or b_pers <= 0 else 1.0 - b_model / b_pers

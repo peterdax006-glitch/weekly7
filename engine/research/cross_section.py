@@ -1600,3 +1600,128 @@ def render_report(lab: CrossSectionLab, now, replay_years: Iterable[int] = ()) -
         lines.append(f"  {e.scope:<16} {e.metric:<12} effect {e.effect if e.effect is None else round(e.effect, 6)}  "
                      f"t {e.t if e.t is None else round(e.t, 2)}  q {e.q_value if e.q_value is None else round(e.q_value, 4)}  {e.verdict}")
     return "\n".join(lines)
+
+
+# ------------------------------------------------------------------------------------------------ canon C67: what did each scope do to the PATH?
+
+PATH_COLUMNS = ("nxt_ret_1", "nxt_cont_1", "nxt_range_1", "nxt_gap_1")
+
+
+def scope_path_table(scopes: pd.Series, day_ret: pd.Series, outcomes: pd.DataFrame, columns: Sequence[str] = PATH_COLUMNS,
+                     bands: Sequence[float] = (0.05, 0.10), min_names: int = 5) -> pd.DataFrame:
+    """For ONE decision day: among the names that moved at least `bands[0]`, the mean of each next-path outcome column
+    (engine.research.multiscale.next_path_outcomes, ticker-indexed for that day) by scope and band. Answers 'did the
+    stock-specific 5-10% movers reverse while the sector-wide ones continued?' one day at a time; ScopeOutcomes aggregates over
+    days with overlap-corrected errors. Groups with fewer than min_names names report NaN. Research-world only (uses the future)."""
+    lo, hi = sorted(bands)[0], sorted(bands)[-1]
+    common = scopes.index.intersection(day_ret.index).intersection(outcomes.index)
+    r = day_ret.reindex(common)
+    big = r.abs() >= lo
+    band = pd.Series(np.where(r.abs() >= hi, f">{hi:.0%}", f"{lo:.0%}-{hi:.0%}"), index=common)
+    cols = [c for c in columns if c in outcomes.columns]
+    df = outcomes.loc[common[big], cols].assign(scope=scopes[common[big]], band=band[big])
+    if df.empty:
+        return pd.DataFrame(columns=cols)
+    g = df.groupby(["scope", "band"])
+    out = g[cols].mean()
+    out.loc[g.size() < min_names, cols] = np.nan
+    out["n"] = g.size()
+    return out
+
+
+class PathBook:
+    """Accumulates scope_path_table over days: per (scope, band, outcome) the day-level means, then a date-clustered mean and
+    overlap-corrected t (BH across all rows). The C67 question 'what does a stock-specific 7% mover do next, versus a sector-wide
+    one' as an established-or-not table. Only matured days, dropped when their year is being replayed."""
+
+    def __init__(self, sessions: int = 1):
+        self.sessions = int(sessions)
+        self._rows: list[tuple] = []
+
+    def __len__(self) -> int:
+        return len(self._rows)
+
+    def add(self, day, table: pd.DataFrame, matured_at, now) -> int:
+        require_past(matured_at, now, "path table")
+        if as_date(matured_at) <= as_date(day):
+            raise FirewallBreach(f"path outcome matures {matured_at} on/before {day}")
+        n = 0
+        for (scope, band), row in table.iterrows():
+            for col in table.columns:
+                if col == "n" or pd.isna(row[col]):
+                    continue
+                v = float(row[col])
+                if col.startswith("nxt_range"):                       # a ratio whose 'no change' is 1: test its log against 0
+                    if v <= 0:
+                        continue
+                    v = math.log(v)
+                self._rows.append((as_date(day).isoformat(), scope, band, col, v, as_date(matured_at).isoformat(), as_date(day).year))
+                n += 1
+        return n
+
+    def summary(self, now, replay_years: Iterable[int] = (), min_days: int = 30, t_bar: float = 2.0, q_bar: float = 0.1) -> pd.DataFrame:
+        ys = {int(y) for y in replay_years}
+        rows = [r for r in self._rows if as_date(r[5]) < as_date(now) and r[6] not in ys]
+        cols = ["scope", "band", "outcome", "mean", "se", "t", "q_value", "n_days", "verdict"]
+        if not rows:
+            return pd.DataFrame(columns=cols)
+        df = pd.DataFrame(rows, columns=["date", "scope", "band", "outcome", "val", "matured", "year"])
+        all_days = pd.Index(sorted(df["date"].unique()))
+        recs = []
+        for (scope, band, outcome), g in df.groupby(["scope", "band", "outcome"]):
+            s = g.set_index("date")["val"]
+            if len(s) < min_days:
+                recs.append([scope, band, outcome, float(s.mean()), None, None, None, len(s), "INSUFFICIENT_DATA"])
+                continue
+            se = hac_se(s.reindex(all_days).to_numpy(), self.sessions - 1)
+            recs.append([scope, band, outcome, float(s.mean()), se, float(s.mean()) / se if se and se > 1e-15 else None, None, len(s), "PENDING"])
+        q = benjamini_hochberg([t_to_p(r[5]) for r in recs])
+        for r, qq in zip(recs, q):
+            if r[8] != "INSUFFICIENT_DATA":
+                r[6] = qq
+                r[8] = "ESTABLISHED" if r[5] is not None and abs(r[5]) >= t_bar and qq is not None and qq <= q_bar else "NOT_ESTABLISHED"
+        return pd.DataFrame(recs, columns=cols)
+
+
+# ------------------------------------------------------------------------------------------------ cohort momentum / reversal
+
+class CohortLeadLag:
+    """Does a cohort's move today predict the cohort's move tomorrow? Per cohort kind, stores the daily cross-sectional rank
+    correlation between the cohort-mean return (each stock gets the mean of its OWN cohort, leave-one-out) today and the stock's
+    return the next day. Positive: cohort moves continue; negative: they revert. Only the per-day IC is kept."""
+
+    def __init__(self, min_names: int = 40):
+        self.min_names = min_names
+        self._prev: tuple[str, pd.Series, pd.DataFrame] | None = None
+        self._ic: dict[str, list[tuple[str, float]]] = {}
+
+    def push(self, day, ret: pd.Series, labels: pd.DataFrame) -> int:
+        """Call once per day in order: scores yesterday's cohort signal against today's return, then stores today's signal."""
+        d = as_date(day).isoformat()
+        if self._prev is not None and d <= self._prev[0]:
+            raise FirewallBreach(f"cohort lead-lag: {d} is not after {self._prev[0]}")
+        n = 0
+        if self._prev is not None:
+            _, sig, _ = self._prev
+            common = sig.index.intersection(ret.index)
+            for kind in sig.columns if isinstance(sig, pd.DataFrame) else []:
+                s = sig.loc[common, kind]
+                ic = FeatureIC._rank_ic(s.to_numpy(dtype="float64"), ret.loc[common].to_numpy(dtype="float64"))
+                if ic is not None and s.notna().sum() >= self.min_names:
+                    self._ic.setdefault(kind, []).append((d, ic))
+                    n += 1
+        sig = pd.DataFrame({k: loo_group_effect(ret, labels[k], 0.0)[0].where(labels[k] != UNK) for k in labels.columns if k != CohortKind.MARKET.value})
+        self._prev = (d, sig, labels)
+        return n
+
+    def summary(self, min_days: int = 30, t_bar: float = 2.0) -> pd.DataFrame:
+        rows = []
+        for kind, v in sorted(self._ic.items()):
+            x = np.array([ic for _, ic in v])
+            if len(x) < min_days:
+                rows.append({"cohort": kind, "mean_ic": float(x.mean()), "t": None, "n_days": len(x), "behaviour": "INSUFFICIENT_DATA"})
+                continue
+            t = float(x.mean() / (x.std(ddof=1) / math.sqrt(len(x)))) if x.std(ddof=1) > 0 else None
+            beh = "UNCLEAR" if t is None or abs(t) < t_bar else ("CONTINUES" if x.mean() > 0 else "REVERTS")
+            rows.append({"cohort": kind, "mean_ic": float(x.mean()), "t": t, "n_days": len(x), "behaviour": beh})
+        return pd.DataFrame(rows, columns=["cohort", "mean_ic", "t", "n_days", "behaviour"])
