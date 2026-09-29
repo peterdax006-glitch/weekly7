@@ -22,7 +22,16 @@ def load():
 def save(d):
     text = json.dumps(d, indent=1, ensure_ascii=False)
     json.loads(text)                                           # validate before write
-    F.write_text(text, encoding="utf-8", newline="\n")
+    import os, time
+    tmp = F.with_suffix(f".tmp{os.getpid()}")
+    tmp.write_text(text, encoding="utf-8", newline="\n")
+    for attempt in range(20):                                  # readers (autorefresh, AV) may hold the file briefly
+        try:
+            os.replace(tmp, F)
+            return
+        except OSError:
+            time.sleep(0.5)
+    raise OSError(f"could not replace {F}; new content left in {tmp}")
 
 
 def merge(old, new):

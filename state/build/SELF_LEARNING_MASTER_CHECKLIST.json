@@ -861,22 +861,24 @@
    "phase": "C LEARNING",
    "description": "Implement credit assignment.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
     "engine/ablation.py",
+    "engine/learning/credit.py",
     "engine/memory_diagnostics.py::factor_attribution,factor_ablation"
    ],
    "tests": [
     "tests/test_ablation.py",
+    "tests/test_learning_credit.py",
     "tests/test_memory_ext.py"
    ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial] Component ablation, not per-decision credit."
+   "last_run": "2026-09-29T09:34:01",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S06). credit.py: ablation.ablate + Shapley with interactions and cluster-bootstrap stability; LOO alone hides duplicates, Shapley shares them. | earlier: [partial] Component ablation, not per-decision credit."
   },
   {
    "id": "C09",
@@ -907,12 +909,14 @@
    "phase": "C LEARNING",
    "description": "Implement belief updating.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
+    "engine/learning/belief.py",
     "engine/pattern_stats.py::eb_shrink",
     "engine/trust.py::TrustTable"
    ],
    "tests": [
+    "tests/test_learning_belief.py",
     "tests/test_pattern_stats.py",
     "tests/test_trust.py"
    ],
@@ -920,9 +924,9 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial] Shrinkage only; no prior -> evidence-strength -> posterior belief record."
+   "last_run": "2026-09-29T09:33:59",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S07). belief.py: prior/evidence strength/posterior/uncertainty/effective n/contradictions; never overwrite."
   },
   {
    "id": "C11",
@@ -950,14 +954,18 @@
    "phase": "C LEARNING",
    "description": "Implement condition discovery.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
-    "engine/pattern_reliability.py::explain_breaks,confirm_driver",
     "engine/candidates.py::context_pair_candidates",
-    "engine/pattern_lifecycle.py (rescoped)"
+    "engine/learning/boundary.py",
+    "engine/learning/competition.py",
+    "engine/pattern_lifecycle.py (rescoped)",
+    "engine/pattern_reliability.py::explain_breaks,confirm_driver"
    ],
    "tests": [
     "tests/test_candidates.py",
+    "tests/test_learning_belief.py",
+    "tests/test_learning_boundary.py",
     "tests/test_pattern_lifecycle.py"
    ],
    "evidence": [
@@ -966,22 +974,26 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial] Regime-conditional planted pattern admitted only 38-50% (I10)."
+   "last_run": "2026-09-29T09:33:59",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S07). boundary.py learns where patterns stop working (conditions + anti-conditions); competition.py keeps rival explanations alive until evidence separates them."
   },
   {
    "id": "C13",
    "phase": "C LEARNING",
    "description": "Implement anti-condition discovery.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
     "engine/candidates.py::unless_candidates",
+    "engine/learning/boundary.py",
+    "engine/learning/competition.py",
     "engine/pattern_reliability.py::explain_breaks"
    ],
    "tests": [
-    "tests/test_candidates.py"
+    "tests/test_candidates.py",
+    "tests/test_learning_belief.py",
+    "tests/test_learning_boundary.py"
    ],
    "evidence": [
     "state/research/algorithm/planted/report_final_seeds100.md"
@@ -989,9 +1001,9 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial] 'unless' patterns admitted directly only 12-25% (I13)."
+   "last_run": "2026-09-29T09:33:59",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S07). boundary.py learns where patterns stop working (conditions + anti-conditions); competition.py keeps rival explanations alive until evidence separates them."
   },
   {
    "id": "C14",
@@ -1931,12 +1943,14 @@
    "phase": "F KNOWLEDGE GRAPH",
    "description": "Redundant-with edges.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
+    "engine/learning/redundancy.py",
     "engine/pattern_stats.py::prune_redundant",
     "engine/patterns.py (duplicate status)"
    ],
    "tests": [
+    "tests/test_learning_credit.py",
     "tests/test_pattern_stats.py"
    ],
    "evidence": [
@@ -1945,25 +1959,29 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial] Redundant patterns are pruned, not linked (the distinction is thrown away)."
+   "last_run": "2026-09-29T09:34:01",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S06). redundancy.py: five redundancy kinds; emits REDUNDANT_WITH / COMPLEMENTS edges instead of pruning. | earlier: [partial] Redundant patterns are pruned, not linked (the distinction is thrown away)."
   },
   {
    "id": "F09",
    "phase": "F KNOWLEDGE GRAPH",
    "description": "Complements edges.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/learning/redundancy.py"
+   ],
+   "tests": [
+    "tests/test_learning_credit.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[missing] No COMPLEMENTS edges; no knowledge graph exists."
+   "last_run": "2026-09-29T09:34:01",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S06). redundancy.py: five redundancy kinds; emits REDUNDANT_WITH / COMPLEMENTS edges instead of pruning. | earlier: [missing] No COMPLEMENTS edges; no knowledge graph exists."
   },
   {
    "id": "F10",
@@ -4386,26 +4404,28 @@
   {
    "section": "Credit assignment",
    "minimum_lines": 1200,
-   "actual_lines": 266,
+   "actual_lines": 1191,
    "code_paths": [
     "engine/ablation.py (171)",
     "engine/direction_ablate.py (69)",
-    "engine/memory_diagnostics.py::factor_ablation (8)",
-    "engine/heavy_tests.py::ablation_across_eras (18)"
+    "engine/heavy_tests.py::ablation_across_eras (18)",
+    "engine/learning/credit.py",
+    "engine/memory_diagnostics.py::factor_ablation (8)"
    ],
    "status": "IN_PROGRESS",
-   "notes": "UNDER by 934 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: component/feature ablation with paired block bootstrap. No per-DECISION credit/blame across pattern/analog/memory/direction/timing/risk components, no interaction or stability of credit."
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S06). 9 lines under minimum on the ruler; sent back for sampled Shapley above 10 components. | earlier: UNDER by 934 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: component/feature ablation with paired block bootstrap. No per-DECISION credit/blame across pattern/analog/memory/direction/timing/risk components, no interaction or stability of credit."
   },
   {
    "section": "Redundancy intelligence",
    "minimum_lines": 600,
-   "actual_lines": 69,
+   "actual_lines": 682,
    "code_paths": [
-    "engine/pattern_stats.py::jaccard,containment,prune_redundant,evidence_order,validation_gain_gate (45)",
-    "engine/antioverfit.py::duplicate_feature_injection (24)"
+    "engine/antioverfit.py::duplicate_feature_injection (24)",
+    "engine/learning/redundancy.py",
+    "engine/pattern_stats.py::jaccard,containment,prune_redundant,evidence_order,validation_gain_gate (45)"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "UNDER by 531 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: predictive redundancy only (row overlap > 0.8 pruned). No context/mechanistic/operational/risk redundancy; pruning deletes the distinction the contract wants learned."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S06). | earlier: UNDER by 531 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: predictive redundancy only (row overlap > 0.8 pruned). No context/mechanistic/operational/risk redundancy; pruning deletes the distinction the contract wants learned."
   },
   {
    "section": "Missed-winner learning",
@@ -4531,20 +4551,23 @@
   {
    "section": "Belief updating",
    "minimum_lines": 800,
-   "actual_lines": 0,
-   "code_paths": [],
-   "status": "NOT_STARTED",
-   "notes": "UNDER by 800 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). missing: no prior/likelihood/posterior per belief. Shrinkage (counted under hierarchy) and pattern_memory re-pooling are not evidence-quality-weighted belief updates."
+   "actual_lines": 808,
+   "code_paths": [
+    "engine/learning/belief.py"
+   ],
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S07)."
   },
   {
    "section": "Real/useful/current separation",
    "minimum_lines": 600,
-   "actual_lines": 144,
+   "actual_lines": 608,
    "code_paths": [
+    "engine/learning/questions.py",
     "engine/pattern_stats.py::p_real,local_fdr,local_fdr_monotone,null_t_distribution,permute_within_clusters,corrected_coincidence,confirmation_factor,split_dates,admission_flags,evaluate_masks,calibration_table (144)"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "UNDER by 456 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: 'is it real' is deep (P(real) calibrated on planted truth); 'useful' = validation_gain_gate/no_gain; 'useful now' = pattern_memory weight. They are three systems, never three fields of one object."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S07)."
   },
   {
    "section": "Portfolio-value learning",
@@ -4592,26 +4615,32 @@
   {
    "section": "Knowledge competition",
    "minimum_lines": 700,
-   "actual_lines": 0,
-   "code_paths": [],
-   "status": "NOT_STARTED",
-   "notes": "UNDER by 700 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). missing."
+   "actual_lines": 702,
+   "code_paths": [
+    "engine/learning/competition.py"
+   ],
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S07)."
   },
   {
    "section": "Complexity control",
    "minimum_lines": 500,
-   "actual_lines": 0,
-   "code_paths": [],
-   "status": "IN_PROGRESS",
-   "notes": "UNDER by 500 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial (0 dedicated lines): Expression.order (pattern_identity, counted under knowledge objects) and 'simpler of near-duplicates' ordering (pattern_stats.evidence_order, counted under redundancy). No incremental-gain-vs-complexity test."
+   "actual_lines": 510,
+   "code_paths": [
+    "engine/learning/complexity.py"
+   ],
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S07)."
   },
   {
    "section": "Boundary learning",
    "minimum_lines": 700,
-   "actual_lines": 0,
-   "code_paths": [],
-   "status": "IN_PROGRESS",
-   "notes": "UNDER by 700 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: confirm_driver's works_when ranges (counted under pattern-break) are boundaries but are not stored as knowledge."
+   "actual_lines": 708,
+   "code_paths": [
+    "engine/learning/boundary.py"
+   ],
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S07). | earlier: UNDER by 700 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: confirm_driver's works_when ranges (counted under pattern-break) are boundaries but are not stored as knowledge."
   },
   {
    "section": "Unknown handling",
@@ -4733,10 +4762,12 @@
   {
    "section": "Disagreement engine",
    "minimum_lines": 650,
-   "actual_lines": 0,
-   "code_paths": [],
-   "status": "NOT_STARTED",
-   "notes": "UNDER by 650 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). missing."
+   "actual_lines": 767,
+   "code_paths": [
+    "engine/learning/disagreement.py"
+   ],
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S06). | earlier: UNDER by 650 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). missing."
   },
   {
    "section": "Calibration",
