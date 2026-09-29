@@ -117,9 +117,9 @@
     "tests/test_research_market_change.py"
    ],
    "evidence": [],
-   "notes": "IMPLEMENTED — NOT VALIDATED (P03): market expectations vs reality (expansion + contraction, each explanation tested with BH, 'candidate selection failed' as an explicit alternative, untestable != unsupported); CUSUM change points on all 13 checklist-I streams with simulated false-alarm calibration; single-stock vs sector vs market scope; early warning; regime-change memory with every W field; forward-only proven (state at t bit-identical when the future is scrambled; a leaky runner fails). DUPLICATE TO FIX: market_expectations keeps its own small hash chain - move onto archive lanes (P06). 43 tests.",
-   "last_run": "2026-09-29T16:58:15",
-   "code_hash": "8e34dfacf700cd5b"
+   "notes": "IMPLEMENTED - NOT VALIDATED (F04 W-15): P03 modules change_points.py, market_expectations.py, regime_memory.py and tests/test_research_market_change.py exist on disk. Unit level only; UNREACHED from the research loop (ledger headline 4). | earlier: IMPLEMENTED — NOT VALIDATED (P03): market expectations vs reality (expansion + contraction, each explanation tested with BH, 'candidate selection failed' as an explicit alternative, untestable != unsupported); CUSUM change points on all 13 checklist-I streams with simulated false-alarm calibration; single-stock vs sector vs market scope; early warning; regime-change memory with every W field; forward-only proven (state at t bit-identical when the future is scrambled; a leaky runner fails). DUPLICATE TO FIX: market_expectations keeps its own small hash chain - move onto archive lanes (P06). 43 tests.",
+   "last_run": "2026-09-29T17:09:01",
+   "code_hash": "cbaafa6c8bdccc08"
   },
   {
    "id": "PEG",
@@ -136,9 +136,9 @@
     "tests/test_research_market_change.py"
    ],
    "evidence": [],
-   "notes": "IMPLEMENTED — NOT VALIDATED (P03): market expectations vs reality (expansion + contraction, each explanation tested with BH, 'candidate selection failed' as an explicit alternative, untestable != unsupported); CUSUM change points on all 13 checklist-I streams with simulated false-alarm calibration; single-stock vs sector vs market scope; early warning; regime-change memory with every W field; forward-only proven (state at t bit-identical when the future is scrambled; a leaky runner fails). DUPLICATE TO FIX: market_expectations keeps its own small hash chain - move onto archive lanes (P06). 43 tests.",
-   "last_run": "2026-09-29T16:58:15",
-   "code_hash": "8e34dfacf700cd5b"
+   "notes": "IMPLEMENTED - NOT VALIDATED (F04 W-15): P03 modules change_points.py, market_expectations.py, regime_memory.py and tests/test_research_market_change.py exist on disk. Unit level only; UNREACHED from the research loop (ledger headline 4). | earlier: IMPLEMENTED — NOT VALIDATED (P03): market expectations vs reality (expansion + contraction, each explanation tested with BH, 'candidate selection failed' as an explicit alternative, untestable != unsupported); CUSUM change points on all 13 checklist-I streams with simulated false-alarm calibration; single-stock vs sector vs market scope; early warning; regime-change memory with every W field; forward-only proven (state at t bit-identical when the future is scrambled; a leaky runner fails). DUPLICATE TO FIX: market_expectations keeps its own small hash chain - move onto archive lanes (P06). 43 tests.",
+   "last_run": "2026-09-29T17:09:01",
+   "code_hash": "cbaafa6c8bdccc08"
   },
   {
    "id": "PEH",
@@ -173,9 +173,9 @@
     "tests/test_research_market_change.py"
    ],
    "evidence": [],
-   "notes": "IMPLEMENTED — NOT VALIDATED (P03): market expectations vs reality (expansion + contraction, each explanation tested with BH, 'candidate selection failed' as an explicit alternative, untestable != unsupported); CUSUM change points on all 13 checklist-I streams with simulated false-alarm calibration; single-stock vs sector vs market scope; early warning; regime-change memory with every W field; forward-only proven (state at t bit-identical when the future is scrambled; a leaky runner fails). DUPLICATE TO FIX: market_expectations keeps its own small hash chain - move onto archive lanes (P06). 43 tests.",
-   "last_run": "2026-09-29T16:58:15",
-   "code_hash": "8e34dfacf700cd5b"
+   "notes": "IMPLEMENTED - NOT VALIDATED (F04 W-15): P03 modules change_points.py, market_expectations.py, regime_memory.py and tests/test_research_market_change.py exist on disk. Unit level only; UNREACHED from the research loop (ledger headline 4). | earlier: IMPLEMENTED — NOT VALIDATED (P03): market expectations vs reality (expansion + contraction, each explanation tested with BH, 'candidate selection failed' as an explicit alternative, untestable != unsupported); CUSUM change points on all 13 checklist-I streams with simulated false-alarm calibration; single-stock vs sector vs market scope; early warning; regime-change memory with every W field; forward-only proven (state at t bit-identical when the future is scrambled; a leaky runner fails). DUPLICATE TO FIX: market_expectations keeps its own small hash chain - move onto archive lanes (P06). 43 tests.",
+   "last_run": "2026-09-29T17:09:01",
+   "code_hash": "cbaafa6c8bdccc08"
   },
   {
    "id": "PEJ",
@@ -348,9 +348,9 @@
     "tests/test_research_market_change.py"
    ],
    "evidence": [],
-   "notes": "IMPLEMENTED — NOT VALIDATED (P03): market expectations vs reality (expansion + contraction, each explanation tested with BH, 'candidate selection failed' as an explicit alternative, untestable != unsupported); CUSUM change points on all 13 checklist-I streams with simulated false-alarm calibration; single-stock vs sector vs market scope; early warning; regime-change memory with every W field; forward-only proven (state at t bit-identical when the future is scrambled; a leaky runner fails). DUPLICATE TO FIX: market_expectations keeps its own small hash chain - move onto archive lanes (P06). 43 tests.",
-   "last_run": "2026-09-29T16:58:15",
-   "code_hash": "8e34dfacf700cd5b"
+   "notes": "IMPLEMENTED - NOT VALIDATED (F04 W-15): P03 modules change_points.py, market_expectations.py, regime_memory.py and tests/test_research_market_change.py exist on disk. Unit level only; UNREACHED from the research loop (ledger headline 4). | earlier: IMPLEMENTED — NOT VALIDATED (P03): market expectations vs reality (expansion + contraction, each explanation tested with BH, 'candidate selection failed' as an explicit alternative, untestable != unsupported); CUSUM change points on all 13 checklist-I streams with simulated false-alarm calibration; single-stock vs sector vs market scope; early warning; regime-change memory with every W field; forward-only proven (state at t bit-identical when the future is scrambled; a leaky runner fails). DUPLICATE TO FIX: market_expectations keeps its own small hash chain - move onto archive lanes (P06). 43 tests.",
+   "last_run": "2026-09-29T17:09:02",
+   "code_hash": "cbaafa6c8bdccc08"
   },
   {
    "id": "PES",
@@ -436,9 +436,9 @@
     "tests/test_research_market_change.py"
    ],
    "evidence": [],
-   "notes": "IMPLEMENTED — NOT VALIDATED (P03): market expectations vs reality (expansion + contraction, each explanation tested with BH, 'candidate selection failed' as an explicit alternative, untestable != unsupported); CUSUM change points on all 13 checklist-I streams with simulated false-alarm calibration; single-stock vs sector vs market scope; early warning; regime-change memory with every W field; forward-only proven (state at t bit-identical when the future is scrambled; a leaky runner fails). DUPLICATE TO FIX: market_expectations keeps its own small hash chain - move onto archive lanes (P06). 43 tests.",
-   "last_run": "2026-09-29T16:58:15",
-   "code_hash": "8e34dfacf700cd5b"
+   "notes": "IMPLEMENTED - NOT VALIDATED (F04 W-15): P03 modules change_points.py, market_expectations.py, regime_memory.py and tests/test_research_market_change.py exist on disk. Unit level only; UNREACHED from the research loop (ledger headline 4). | earlier: IMPLEMENTED — NOT VALIDATED (P03): market expectations vs reality (expansion + contraction, each explanation tested with BH, 'candidate selection failed' as an explicit alternative, untestable != unsupported); CUSUM change points on all 13 checklist-I streams with simulated false-alarm calibration; single-stock vs sector vs market scope; early warning; regime-change memory with every W field; forward-only proven (state at t bit-identical when the future is scrambled; a leaky runner fails). DUPLICATE TO FIX: market_expectations keeps its own small hash chain - move onto archive lanes (P06). 43 tests.",
+   "last_run": "2026-09-29T17:09:02",
+   "code_hash": "cbaafa6c8bdccc08"
   },
   {
    "id": "PEX",
@@ -455,9 +455,9 @@
     "tests/test_research_market_change.py"
    ],
    "evidence": [],
-   "notes": "IMPLEMENTED — NOT VALIDATED (P03): market expectations vs reality (expansion + contraction, each explanation tested with BH, 'candidate selection failed' as an explicit alternative, untestable != unsupported); CUSUM change points on all 13 checklist-I streams with simulated false-alarm calibration; single-stock vs sector vs market scope; early warning; regime-change memory with every W field; forward-only proven (state at t bit-identical when the future is scrambled; a leaky runner fails). DUPLICATE TO FIX: market_expectations keeps its own small hash chain - move onto archive lanes (P06). 43 tests.",
-   "last_run": "2026-09-29T16:58:15",
-   "code_hash": "8e34dfacf700cd5b"
+   "notes": "IMPLEMENTED - NOT VALIDATED (F04 W-15): P03 modules change_points.py, market_expectations.py, regime_memory.py and tests/test_research_market_change.py exist on disk. Unit level only; UNREACHED from the research loop (ledger headline 4). | earlier: IMPLEMENTED — NOT VALIDATED (P03): market expectations vs reality (expansion + contraction, each explanation tested with BH, 'candidate selection failed' as an explicit alternative, untestable != unsupported); CUSUM change points on all 13 checklist-I streams with simulated false-alarm calibration; single-stock vs sector vs market scope; early warning; regime-change memory with every W field; forward-only proven (state at t bit-identical when the future is scrambled; a leaky runner fails). DUPLICATE TO FIX: market_expectations keeps its own small hash chain - move onto archive lanes (P06). 43 tests.",
+   "last_run": "2026-09-29T17:09:02",
+   "code_hash": "cbaafa6c8bdccc08"
   },
   {
    "id": "PEY",
@@ -486,209 +486,329 @@
    "group": "ADVERSARIAL TEST",
    "description": "predictions cannot be rewritten after outcomes",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/research/expectations.py"
+   ],
+   "tests": [
+    "tests/test_research_expectations.py"
+   ],
    "evidence": [],
-   "notes": ""
+   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15): unit test test_rewrite_refused_and_identical_rerecord_idempotent exists. Unit level only: the C68 modules are UNREACHED in the research loop today (ledger headline 4), so the integration run of this property (ledger W-09) is unproven.",
+   "last_run": "2026-09-29T17:08:56",
+   "code_hash": "cbaafa6c8bdccc08"
   },
   {
    "id": "PZ02",
    "group": "ADVERSARIAL TEST",
    "description": "exits cannot be manipulated to improve prediction statistics",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/research/exit_research.py",
+    "engine/research/outcomes.py"
+   ],
+   "tests": [
+    "tests/test_research_selection_exits.py"
+   ],
    "evidence": [],
-   "notes": ""
+   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15): unit test test_each_outcome_abuse_is_detected exists. Unit level only: the C68 modules are UNREACHED in the research loop today (ledger headline 4), so the integration run of this property (ledger W-09) is unproven.",
+   "last_run": "2026-09-29T17:08:57",
+   "code_hash": "cbaafa6c8bdccc08"
   },
   {
    "id": "PZ03",
    "group": "ADVERSARIAL TEST",
    "description": "±1% evaluation does not control selling",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/research/calibration_target.py",
+    "engine/research/exit_research.py"
+   ],
+   "tests": [
+    "tests/test_research_selection_exits.py"
+   ],
    "evidence": [],
-   "notes": ""
+   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15): unit test test_changing_the_calibration_target_leaves_every_exit_identical exists. Unit level only: the C68 modules are UNREACHED in the research loop today (ledger headline 4), so the integration run of this property (ledger W-09) is unproven.",
+   "last_run": "2026-09-29T17:08:57",
+   "code_hash": "cbaafa6c8bdccc08"
   },
   {
    "id": "PZ04",
    "group": "ADVERSARIAL TEST",
    "description": "future information cannot enter error analysis",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/research/error_research.py",
+    "engine/research/expectations.py"
+   ],
+   "tests": [
+    "tests/test_research_expectations.py"
+   ],
    "evidence": [],
-   "notes": ""
+   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15): unit test test_future_information_cannot_enter_error_analysis exists. Unit level only: the C68 modules are UNREACHED in the research loop today (ledger headline 4), so the integration run of this property (ledger W-09) is unproven.",
+   "last_run": "2026-09-29T17:08:57",
+   "code_hash": "cbaafa6c8bdccc08"
   },
   {
    "id": "PZ05",
    "group": "ADVERSARIAL TEST",
    "description": "future information cannot enter regime detection",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/research/change_points.py"
+   ],
+   "tests": [
+    "tests/test_research_market_change.py"
+   ],
    "evidence": [],
-   "notes": ""
+   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15): unit test test_no_retrospective_cheating_scrambling_the_future_leaves_the_past_bit_identical exists. Unit level only: the C68 modules are UNREACHED in the research loop today (ledger headline 4), so the integration run of this property (ledger W-09) is unproven.",
+   "last_run": "2026-09-29T17:08:57",
+   "code_hash": "cbaafa6c8bdccc08"
   },
   {
    "id": "PZ06",
    "group": "ADVERSARIAL TEST",
    "description": "unknowable events are allowed to remain unknowable",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/research/what_changed.py"
+   ],
+   "tests": [
+    "tests/test_research_what_changed.py"
+   ],
    "evidence": [],
-   "notes": ""
+   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15): unit test test_unknowable_outcome_is_preserved_and_proposes_nothing exists. Unit level only: the C68 modules are UNREACHED in the research loop today (ledger headline 4), so the integration run of this property (ledger W-09) is unproven.",
+   "last_run": "2026-09-29T17:08:58",
+   "code_hash": "cbaafa6c8bdccc08"
   },
   {
    "id": "PZ07",
    "group": "ADVERSARIAL TEST",
    "description": "tiny errors do not consume excessive compute",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/research/error_research.py"
+   ],
+   "tests": [
+    "tests/test_research_error_research.py"
+   ],
    "evidence": [],
-   "notes": ""
+   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15): unit test test_tiny_errors_stay_cheap_even_when_statistically_large exists. Unit level only: the C68 modules are UNREACHED in the research loop today (ledger headline 4), so the integration run of this property (ledger W-09) is unproven.",
+   "last_run": "2026-09-29T17:08:58",
+   "code_hash": "cbaafa6c8bdccc08"
   },
   {
    "id": "PZ08",
    "group": "ADVERSARIAL TEST",
    "description": "major errors trigger deeper investigation",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/research/error_research.py"
+   ],
+   "tests": [
+    "tests/test_research_error_research.py"
+   ],
    "evidence": [],
-   "notes": ""
+   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15): unit test test_planted_confident_failure_triggers_deep_investigation_with_all_15_questions exists. Unit level only: the C68 modules are UNREACHED in the research loop today (ledger headline 4), so the integration run of this property (ledger W-09) is unproven.",
+   "last_run": "2026-09-29T17:08:58",
+   "code_hash": "cbaafa6c8bdccc08"
   },
   {
    "id": "PZ09",
    "group": "ADVERSARIAL TEST",
    "description": "repeated errors escalate research priority",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/research/error_research.py"
+   ],
+   "tests": [
+    "tests/test_research_error_research.py"
+   ],
    "evidence": [],
-   "notes": ""
+   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15): unit test test_repeated_expected_8_10_realised_3_6_escalates_monotonically exists. Unit level only: the C68 modules are UNREACHED in the research loop today (ledger headline 4), so the integration run of this property (ledger W-09) is unproven.",
+   "last_run": "2026-09-29T17:08:58",
+   "code_hash": "cbaafa6c8bdccc08"
   },
   {
    "id": "PZ10",
    "group": "ADVERSARIAL TEST",
    "description": "pattern changes can be detected",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/research/pattern_change.py",
+    "engine/research/what_changed.py"
+   ],
+   "tests": [
+    "tests/test_research_what_changed.py"
+   ],
    "evidence": [],
-   "notes": ""
+   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15): unit test test_structural_step_is_caught_and_never_deleted exists. Unit level only: the C68 modules are UNREACHED in the research loop today (ledger headline 4), so the integration run of this property (ledger W-09) is unproven.",
+   "last_run": "2026-09-29T17:08:58",
+   "code_hash": "cbaafa6c8bdccc08"
   },
   {
    "id": "PZ11",
    "group": "ADVERSARIAL TEST",
    "description": "false regime changes do not unnecessarily disable successful patterns",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/research/market_expectations.py",
+    "engine/research/regime_memory.py"
+   ],
+   "tests": [
+    "tests/test_research_market_change.py"
+   ],
    "evidence": [],
-   "notes": ""
+   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15): unit test test_a_false_regime_change_does_not_disable_a_successful_pattern exists. Unit level only: the C68 modules are UNREACHED in the research loop today (ledger headline 4), so the integration run of this property (ledger W-09) is unproven.",
+   "last_run": "2026-09-29T17:08:59",
+   "code_hash": "cbaafa6c8bdccc08"
   },
   {
    "id": "PZ12",
    "group": "ADVERSARIAL TEST",
    "description": "genuinely degraded patterns can reduce influence",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/research/what_changed.py"
+   ],
+   "tests": [
+    "tests/test_research_what_changed.py"
+   ],
    "evidence": [],
-   "notes": ""
+   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15): unit test test_gradual_decay_is_weakening exists. Unit level only: the C68 modules are UNREACHED in the research loop today (ledger headline 4), so the integration run of this property (ledger W-09) is unproven.",
+   "last_run": "2026-09-29T17:08:59",
+   "code_hash": "cbaafa6c8bdccc08"
   },
   {
    "id": "PZ13",
    "group": "ADVERSARIAL TEST",
    "description": "recovered patterns can regain influence",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/research/what_changed.py"
+   ],
+   "tests": [
+    "tests/test_research_what_changed.py"
+   ],
    "evidence": [],
-   "notes": ""
+   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15): unit test test_returning_pattern_after_a_failure_spell exists. Unit level only: the C68 modules are UNREACHED in the research loop today (ledger headline 4), so the integration run of this property (ledger W-09) is unproven.",
+   "last_run": "2026-09-29T17:08:59",
+   "code_hash": "cbaafa6c8bdccc08"
   },
   {
    "id": "PZ14",
    "group": "ADVERSARIAL TEST",
    "description": "market-wide changes can be distinguished from individual-stock anomalies",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/research/what_changed.py"
+   ],
+   "tests": [
+    "tests/test_research_what_changed.py"
+   ],
    "evidence": [],
-   "notes": ""
+   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15): unit test test_single_stock_extreme_day_is_level_four_not_market exists. Unit level only: the C68 modules are UNREACHED in the research loop today (ledger headline 4), so the integration run of this property (ledger W-09) is unproven.",
+   "last_run": "2026-09-29T17:08:59",
+   "code_hash": "cbaafa6c8bdccc08"
   },
   {
    "id": "PZ15",
    "group": "ADVERSARIAL TEST",
    "description": "exit timing is learned independently",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/research/exit_research.py"
+   ],
+   "tests": [
+    "tests/test_research_selection_exits.py"
+   ],
    "evidence": [],
-   "notes": ""
+   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15): unit test test_learned_exit_beats_holding_on_planted_fade_and_never_on_trend exists. Unit level only: the C68 modules are UNREACHED in the research loop today (ledger headline 4), so the integration run of this property (ledger W-09) is unproven.",
+   "last_run": "2026-09-29T17:09:00",
+   "code_hash": "cbaafa6c8bdccc08"
   },
   {
    "id": "PZ16",
    "group": "ADVERSARIAL TEST",
    "description": "the 5–10% selection constraint is enforced",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/research/selection_constraint.py"
+   ],
+   "tests": [
+    "tests/test_research_selection_exits.py"
+   ],
    "evidence": [],
-   "notes": ""
+   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15): unit test test_selection_band_is_realisable_gain_under_intended_policy exists. Unit level only: the C68 modules are UNREACHED in the research loop today (ledger headline 4), so the integration run of this property (ledger W-09) is unproven.",
+   "last_run": "2026-09-29T17:09:00",
+   "code_hash": "cbaafa6c8bdccc08"
   },
   {
    "id": "PZ17",
    "group": "ADVERSARIAL TEST",
    "description": "stocks outside the predicted 5–10% outcome range cannot be selected merely to improve another metric",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/research/selection_constraint.py"
+   ],
+   "tests": [
+    "tests/test_research_selection_exits.py"
+   ],
    "evidence": [],
-   "notes": ""
+   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15): unit test test_cherry_picking_and_target_change_are_refused exists. Unit level only: the C68 modules are UNREACHED in the research loop today (ledger headline 4), so the integration run of this property (ledger W-09) is unproven.",
+   "last_run": "2026-09-29T17:09:00",
+   "code_hash": "cbaafa6c8bdccc08"
   },
   {
    "id": "PZ18",
    "group": "ADVERSARIAL TEST",
    "description": "the system cannot game the ±1% target",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/research/calibration_target.py"
+   ],
+   "tests": [
+    "tests/test_research_selection_exits.py"
+   ],
    "evidence": [],
-   "notes": ""
+   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15): unit test test_target_measured_honestly_achieved_and_not_achieved exists. Unit level only: the C68 modules are UNREACHED in the research loop today (ledger headline 4), so the integration run of this property (ledger W-09) is unproven.",
+   "last_run": "2026-09-29T17:09:00",
+   "code_hash": "cbaafa6c8bdccc08"
   },
   {
    "id": "PZ19",
    "group": "ADVERSARIAL TEST",
    "description": "discoveries must pass out-of-sample validation",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/research/quality_gate.py",
+    "engine/research/self_correct.py"
+   ],
+   "tests": [
+    "tests/test_research_selection_exits.py"
+   ],
    "evidence": [],
-   "notes": ""
+   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15): unit test test_fixes_are_tested_independently_and_promoted_only_through_the_gate exists. Unit level only: the C68 modules are UNREACHED in the research loop today (ledger headline 4), so the integration run of this property (ledger W-09) is unproven.",
+   "last_run": "2026-09-29T17:09:01",
+   "code_hash": "cbaafa6c8bdccc08"
   },
   {
    "id": "PZ20",

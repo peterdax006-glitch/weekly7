@@ -68,6 +68,22 @@ def main():
         print("items:", dict(sorted(c.items())))
         under = [b for b in d["line_budget"] if (b.get("actual_lines") or 0) < b["minimum_lines"]]
         print(f"budget rows under minimum: {len(under)}/{len(d['line_budget'])}")
+        # consistency (F04 findings, 29 Sep): a VALIDATED row must cite at least one EXISTING file, and its notes must not say
+        # it is NOT VALIDATED
+        bad = []
+        for it in d["items"]:
+            if it["status"] != "VALIDATED":
+                continue
+            ev = [e for e in it.get("evidence", []) if isinstance(e, str) and (ROOT / e.split("::")[0]).exists()]
+            if not ev:
+                bad.append(f"{it['id']}: VALIDATED but no evidence path exists on disk")
+            if "NOT VALIDATED" in (it.get("notes") or "").split(" | earlier")[0].upper():
+                bad.append(f"{it['id']}: VALIDATED but its current note says NOT VALIDATED")
+        for b in bad:
+            print("  INCONSISTENT", b)
+        print(f"inconsistent VALIDATED rows: {len(bad)}")
+        if "--strict" in sys.argv:
+            sys.exit(1 if bad else 0)
         return
     if a.status and a.status not in d["allowed_status"]:
         sys.exit(f"status {a.status} not allowed: {d['allowed_status']}")
