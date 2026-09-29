@@ -32,7 +32,7 @@ Foundation status per Bible phase (line ranges, tests): `state/build/FOUNDATION.
 - [~] A10b Rerun anti-memorisation: engine/antimemo.py (B06).
 - [~] A11 Improve-or-discard lifecycle: engine/pattern_lifecycle.py (B03). The planted decaying pattern is still held in 25% of runs (see A13).
 - [~] A12 Additional data: FRED done. Sector ETFs, backup prices and DELISTED HISTORY (now priority, because of survivor bias) are with B13.
-- [~] A13 Planted-pattern calibration: VALIDATED on 8 fresh hold-out seeds (300+; 2026-09-29): all 10 criteria pass - FDR 9.9% (exact truth), decaying pattern 0% held, P(real)>0.9 bin 96% real. Re-verification on the original seeds (100+) with the final code in progress; [x] only when both pass. History:
+- [x] A13 Planted-pattern calibration: VALIDATED on BOTH seed sets with the final code (2026-09-29) - original seeds 100+ (FDR 6.7%, decaying 0% held, P(real)>0.9 bin 97% real) and fresh hold-out seeds 300+ (FDR 9.9%, decaying 0%, 96%); all 10 criteria pass. Evidence: state/research/algorithm/planted/report_final_seeds100.md, report.md (hold-out), data/planted_cal9_holdout.log, data/planted_cal10_origseeds.log. Fixes: exact-truth discovery scoring, decay death rule, Bonferroni-corrected rescue scored at in-scope size. Still open (separate, stricter): tests/test_patterns_integration.py strict xfail - small fast-setting noise panels admit ~0.67 false patterns/run. History:
   - Pass: strong/weak/negative/pair detection 100%; hallucinated 0% admitted; zero 0%; noise-only 0.4 active/run; P(real)>0.9 bin 86% truly real.
   - FAIL: FDR 15.9% (limit 10%); decaying pattern held 25% (limit 20%).
   - Rerun 2026-09-29 on the hardened miner (BH P(real), full-search null, empirical-Bayes effects, content-ordered rows): effect sizes now 0.80-1.17 of truth (was 0.25); regime 62% (was 50%); unless untested 4/8 (was 6/8); noise-only 0.25 active/run. Still FAIL: FDR 18.2%, decaying held 25%.
@@ -67,7 +67,7 @@ Foundation status per Bible phase (line ranges, tests): `state/build/FOUNDATION.
 - [x] T12 Worker health: engine/health.py wired into loop2 (supervise, heartbeat, exclusion report); on real data it correctly EXCLUDED 3 windows whose results held NaN (cause fixed, 8ef3835). Evidence: data/loop2.log, state/livesim/w02*/health2.jsonl.
 - [~] T13 Reproducibility: engine/repro.py. PatternMiner is identical across 2 runs and 2 hash seeds.
 - [~] T14/T15/T16 Label permutation, feature shuffle, ticker permutation: engine/antioverfit.py (tests A-J). On real data the reference evaluator's IC is about 0-0.02 per era, so it cannot be separated from noise.
-- [~] T17 Planted-pattern calibration: same as A13 (hold-out VALIDATED; original-seed confirmation pending).
+- [x] T17 Planted-pattern calibration: same as A13 (VALIDATED on original and hold-out seeds).
 - [x] T18 Fill audit (C33): round 2 proved all 490 fills at the next open (164+142+184) via engine/fill_audit.gate -> pit.audit_fills; 5 planted defects caught in tests.
 
 - [ ] T19 Learning delta (canon C54/C55): the change in results when the same year is rerun after learning, DISGUISED so the system cannot know it is the same year; with no-learning, transfer and memoriser controls. B22 building engine/learning_delta.py. Current evidence (B06): memorisation 0, lessons from other windows -0.19%/wk.
