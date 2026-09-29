@@ -603,3 +603,20 @@ def test_an_identity_free_rule_passes_the_identity_harness(run):
     rep = L.hooks.identity_report(kid)
     assert rep is not None and rep.deterministic and rep.verdicts
     assert rep.collapsed == ()                   # a rule on a quantile cell never needs the identities (8 weeks may be too few to PASS)
+
+
+def test_per_run_curve_records_and_the_registered_harness_worker(tmp_path):
+    """Curve records accumulate per run; a chain of different windows has no paired reruns, so the delta stays INSUFFICIENT (the
+    honest verdict). The harness worker that run_experiment_process launches in a child process is the same callable, run here
+    in-process on a tiny planted world."""
+    from engine.learning import compute as CO
+    path = tmp_path / "curve_records.jsonl"
+    for i, (m, k) in enumerate(((0.001, 2), (0.002, 3), (0.0015, 5))):
+        recs = LH.append_curve_record(path, {"tag": "legit", "run": f"r{i}", "mean_week": m, "knowledge": k})
+    rep = LH.curve_report(recs)
+    assert rep["points"] == 3 and abs(rep["last_same_year_gain"] - 0.0005) < 1e-12 and rep["delta_pairs"] == 0
+    assert LH.curve_report([])["points"] == 0                                                      # empty lineage
+    assert "same_year_harness" in CO.WORKERS
+    spec = CO.ExperimentSpec("same_year_harness", {"n_runs": 1, "weeks": 30, "stocks": 30, "modes": ["fresh_plain"]}, 0, "2011-01-07")
+    out = CO.WORKERS["same_year_harness"](spec, None)
+    assert out["label"] == LH.LABEL and list(out["modes"]) == ["fresh_plain"]

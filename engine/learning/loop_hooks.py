@@ -17,11 +17,16 @@ now runs all of them:
   UPDATE GRAPH       credit.credit_edges, redundancy (masked pairs) -> RedundancyReport edges, knowledge.with_relation,
                      ContradictionMonitor.run_period (via KnowledgeGraph.contradiction_keys)
   UPDATE META        questions.QuestionEngine.ask_many, interpretation.next_test, unknowns.rank_unknowns, complexity budget,
-                     disagreement.DisagreementEngine, portfolio_value.decompose_value, scorecard.scorecard_for_learner -> store
+                     disagreement.DisagreementEngine, portfolio_value.decompose_value, scorecard.scorecard_for_learner -> store,
+                     the learner's cells as PatternMiner rows -> belief.evidence_from_pattern_row -> a staged BeliefLedger
+  PROMOTION          decision_contract.readiness; identity_firewall.IdentityHarness report + the latest valid scorecard
+                     registered with wiring for PromotionGate's learning-claim gate (enforced by default on the learner)
   SELECT RESEARCH    signals_from_health / data_audit / contradiction monitor / unknowns / interpretation; failed_learners
                      check_proposal -> research_priority.propose_selected -> in-loop prospective experiment -> update_from_result
-  (trusted side)     RunGuard: checkpoints.resume_verified / write_interruption and compute.job_for around a test-path run;
-                     run_same_year_harness: the same_year / controls harness as a callable entry.
+  (trusted side)     RunGuard: checkpoints.resume_verified / write_interruption, compute.job_for and run_experiment_process
+                     around a test-path run; run_same_year_harness (the same_year / controls harness as a callable entry, and as
+                     a registered compute worker); per-run curve records -> learning_curve.curve_from_play_records /
+                     delta_from_records.
 
 Everything learned is written under the learner's work directory (`<workdir>/loop/`), so it survives the process.  All ids that
 reach the research engine pass `safe_token`: a knowledge hash can contain a year-like digit run, which the identity firewall
