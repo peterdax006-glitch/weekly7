@@ -114,8 +114,20 @@ def sic_division(sic) -> str:
     return "J"
 
 
+def _ranked(primary: pd.Series, tiebreak=None):
+    """Names by primary score, descending. With `tiebreak` (content, e.g. volatility) exact ties are ordered by it, so
+    the choice does not depend on what the tickers are CALLED (a disguised rerun renamed tickers and moved a year's
+    return from +5% to +23% through name-order tie-breaks; learning-delta probe, 2026-09-29). Without it: the old
+    behaviour (used by Live, which changes only through a promoted challenger)."""
+    if tiebreak is None:
+        return list(primary.sort_values(ascending=False).index)
+    tb = tiebreak.reindex(primary.index).astype(float).fillna(-np.inf).values
+    order = np.lexsort((-tb, -primary.astype(float).values))
+    return list(primary.index[order])
+
+
 def topk_targets(s_ok: pd.Series, held, k=None, exit_q=None, sectors=None, max_per_sector=None,
-                 pick="top", vol=None, pool_q=0.95) -> pd.Series:
+                 pick="top", vol=None, pool_q=0.95, tiebreak=None) -> pd.Series:
     """Equal-weight k names: keep holdings still in the top (1-exit_q) of eligible names, fill the
     rest from the top of the ranking. Shared by backtest and live (what is tested is what trades)."""
     k = k or TOPK["k"]
@@ -125,14 +137,16 @@ def topk_targets(s_ok: pd.Series, held, k=None, exit_q=None, sectors=None, max_p
     if pick == "hivol" and vol is not None:
         # among the top (1-pool_q) by score, rank by volatility: more +7% weeks, still only names with an edge
         pool = q[q >= pool_q].index
+        if tiebreak is not None:
+            tiebreak = s_ok.reindex(pool)                      # hivol: ties in volatility broken by the score
         s_ok = vol.reindex(pool).fillna(0).rename(None)
     if sectors is None or not max_per_sector:
-        fill = [t for t in s_ok.sort_values(ascending=False).index if t not in keep][: k - len(keep)]
+        fill = [t for t in _ranked(s_ok, tiebreak) if t not in keep][: k - len(keep)]
     else:
         count, fill = {}, []
         for t in keep:
             count[sectors.get(t, "?")] = count.get(sectors.get(t, "?"), 0) + 1
-        for t in s_ok.sort_values(ascending=False).index:
+        for t in _ranked(s_ok, tiebreak):
             if len(keep) + len(fill) >= k:
                 break
             sec = sectors.get(t, "?")
@@ -155,7 +169,7 @@ def regime_targets(s_ok, held, cfg, vol, divs, mkt):
     if stress:
         k, pick = cfg.get("stress_k", 3), "hivol"
     t = topk_targets(s_ok, held, k, cfg["exit_q"], divs if cfg["max_per_sector"] else None, cfg["max_per_sector"],
-                     pick=pick, vol=vol, pool_q=cfg["pool_q"])
+                     pick=pick, vol=vol, pool_q=cfg["pool_q"], tiebreak=vol)
     tf = cfg.get("trend_filter")
     ma = mkt.get("m_spy_ma200")
     if not stress and tf is not None and ma is not None and ma == ma and ma < tf:
