@@ -4831,24 +4831,24 @@
   {
    "section": "Contradiction graph",
    "minimum_lines": 850,
-   "actual_lines": 788,
+   "actual_lines": 857,
    "code_paths": [
     "engine/learning/contradiction.py"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S03 pass 1). under minimum on ruler; sent back. | earlier: UNDER by 850 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). missing: no knowledge edges of any type."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (S03 pass 2: calibrated permutation null, per-level hierarchy guards, section-50 queries, verify-at-now layer audit). | earlier: IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S03 pass 1). under minimum on ruler; sent back. | earlier: UNDER by 850 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). missing: no knowledge edges of any type."
   },
   {
    "section": "Knowledge hierarchy",
    "minimum_lines": 900,
-   "actual_lines": 813,
+   "actual_lines": 903,
    "code_paths": [
     "engine/learning/hierarchy.py",
     "engine/pattern_stats.py::shrink_effect,eb_shrink,implied_k (38)",
     "engine/trust.py (253)"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S03 pass 1). under minimum on ruler; sent back. | earlier: UNDER by 609 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: trust tables shrink child type toward parent_key (SIC hierarchy); EB shrinkage of pattern effects. Not the general->market->sector->stock-type->vol->interaction knowledge hierarchy."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (S03 pass 2: calibrated permutation null, per-level hierarchy guards, section-50 queries, verify-at-now layer audit). | earlier: IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S03 pass 1). under minimum on ruler; sent back. | earlier: UNDER by 609 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: trust tables shrink child type toward parent_key (SIC hierarchy); EB shrinkage of pattern effects. Not the general->market->sector->stock-type->vol->interaction knowledge hierarchy."
   },
   {
    "section": "Credit assignment",
@@ -5189,25 +5189,25 @@
   {
    "section": "Knowledge archive",
    "minimum_lines": 1000,
-   "actual_lines": 963,
+   "actual_lines": 1015,
    "code_paths": [
     "engine/learning/archive.py",
     "engine/lessons.py::LessonStore (73)",
     "engine/pattern_memory.py::PatternMemory,_canon,_hash,_num,PatternWeight,TimelineSummary,PatternView,Analytics (351)",
     "engine/trust_store.py::TrustStore,_content_hash (59)"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S03 pass 1). under minimum on ruler; sent back. | earlier: UNDER by 517 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: append-only hash-chained pattern timeline (the right core) + two more stores. No L0-L9 layers; memory.py evicts episodes at capacity (contradicts 'never destroy')."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (S03 pass 2: calibrated permutation null, per-level hierarchy guards, section-50 queries, verify-at-now layer audit). | earlier: IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S03 pass 1). under minimum on ruler; sent back. | earlier: UNDER by 517 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: append-only hash-chained pattern timeline (the right core) + two more stores. No L0-L9 layers; memory.py evicts episodes at capacity (contradicts 'never destroy')."
   },
   {
    "section": "Knowledge graph",
    "minimum_lines": 1000,
-   "actual_lines": 951,
+   "actual_lines": 1002,
    "code_paths": [
     "engine/learning/knowledge_graph.py"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S03 pass 1). under minimum on ruler; sent back. | earlier: UNDER by 1000 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). missing."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (S03 pass 2: calibrated permutation null, per-level hierarchy guards, section-50 queries, verify-at-now layer audit). | earlier: IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S03 pass 1). under minimum on ruler; sent back. | earlier: UNDER by 1000 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). missing."
   },
   {
    "section": "Research priority",
