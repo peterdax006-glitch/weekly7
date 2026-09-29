@@ -123,6 +123,8 @@ DIRECTIVES = [
      'the system should be fully oblivious to any details that would have not been available at the time its operating live so it cant predict the future in any way, double check any way it even might be able to know the future if events or speeches or anything slipped by where the self training could research it that ruins the whole point so ensure it only has live info when testing'),
     ("C57", "2026-09-29", 'Memory persists across runs and eras; the same year rerun many times must keep improving on its patterns (never on stock identities)',
      'well its memory should remain no matter what era it is so if you run the same year twice it should not remember stocks from that era but it should remember the same patterns it delt with last time and the second time it should deal with those patterns better than it did previously, meaning you can run the same year 500 times and it should still be learning from that year because its constantly learning new patterns and memory, the memory its learned in those 500 times should also stay releavent because you are still working with the same year'),
+    ("C58", "2026-09-29", 'Pattern memory always improves and keeps a timeline of when each pattern was seen; nothing from a date that has not yet occurred',
+     'the memory for patterns should always be improved but it should organize timelines for when it noticed different patternsso then it knows how releavant a pattern is to the year its working with but you also need to enforce no cheating so there is not info it can gather from a date that has yet to occur'),
 ]
 
 def sha(t): return hashlib.sha256(t.encode("utf-8")).hexdigest()

@@ -17,7 +17,7 @@ The protocol, per revealed window W (never an unrevealed seal):
                 much tie-break luck alone moves a result);
             (b) TRANSFER: a different revealed year B played with S1 and with S0 (same disguise for both), so what
                 generalises shows up too. A same-year gain far above the transfer gain means the system is recognising
-                the year (market-context fingerprints in memory, say): flagged MEMORISATION;
+                the year (market-context fingerprints in memory, say): labelled SAME_YEAR_LEARNING (memorisation only if the identity-recall control rises, see the curve harness);
             (c) MEMORISER: a planted learner that stores the realised outcome of every snapshot it has seen, keyed by
                 content (never by name or date). It must show a big same-year gain and about zero transfer, otherwise
                 the harness could not see memorisation and its verdicts are declared void.
@@ -230,7 +230,8 @@ def make_presentation(window, seed, order_preserving=True, shift_weeks=(-900, 11
     else:
         raise BlindnessError(f"{window.id}: could not draw a date shift {min_abs_weeks} weeks away from {len(taken)} earlier ones")
     delta = pd.Timedelta(days=7 * w)
-    cmap = _fresh_codes(window.all_codes(), rng, order_preserving, avoid=window.used_codes)
+    width = 5 if len(window.used_codes) + len(window.all_codes()) < 30000 else 7
+    cmap = _fresh_codes(window.all_codes(), rng, order_preserving, avoid=window.used_codes, width=width)
     snaps = {}
     for k, s in window.snaps.items():
         s2 = s.copy()
@@ -918,7 +919,7 @@ def pair_table(recs):
 
 
 def verdict(row, n, noise_max_abs=0.0, min_pairs=3, memo_ratio=0.5):
-    """One label for one metric. MEMORISATION needs the learning effect to be significantly positive AND the transfer
+    """One label for one metric. SAME_YEAR_LEARNING (a same-year gain with little transfer; C57 wants it) needs the learning effect to be significantly positive AND the transfer
     gain to be under `memo_ratio` of it AND the gap CI above zero. GENERALISING needs a significantly positive transfer.
     Fewer than `min_pairs` pairs is INCONCLUSIVE whatever the point estimates say."""
     eff, tr, gap = row["effect"], row["transfer"], row["gap"]
@@ -931,7 +932,7 @@ def verdict(row, n, noise_max_abs=0.0, min_pairs=3, memo_ratio=0.5):
     trans_pos = tr["n"] >= min_pairs and tr["lo"] > 0
     memo = (eff_pos and tr["n"] >= min_pairs and np.isfinite(gap["lo"]) and gap["lo"] > 0 and tr["mean"] < memo_ratio * eff["mean"])
     if memo:
-        return {"label": "MEMORISATION", "why": f"same-year effect {eff['mean']:+.4g} (CI {eff['lo']:+.3g}..{eff['hi']:+.3g}) far above "
+        return {"label": "SAME_YEAR_LEARNING", "why": f"(C57, not memorisation unless the identity control rises) same-year effect {eff['mean']:+.4g} (CI {eff['lo']:+.3g}..{eff['hi']:+.3g}) far above "
                 f"transfer {tr['mean']:+.4g}; gap CI {gap['lo']:+.3g}..{gap['hi']:+.3g}", "notes": notes}
     if trans_pos:
         return {"label": "GENERALISING", "why": f"transfer gain {tr['mean']:+.4g} (CI {tr['lo']:+.3g}..{tr['hi']:+.3g}) above zero", "notes": notes}
@@ -947,7 +948,7 @@ def verdict(row, n, noise_max_abs=0.0, min_pairs=3, memo_ratio=0.5):
 # ---------------------------------------------------------------------------------------------------------------
 def harness_selfcheck(seed=0, n_windows=8, log_fn=None):
     """Three planted learners on synthetic worlds with one shared law. The harness is VALID only if the generaliser is
-    labelled GENERALISING, the memoriser is labelled MEMORISATION (large same-year effect, ~0 transfer), the non-learner
+    labelled GENERALISING, the memoriser is labelled SAME_YEAR_LEARNING (large same-year effect, ~0 transfer), the non-learner
     is NO_EFFECT with zero delta, and a planted leak makes the blindness audit fail."""
     s0 = LearnedState({}, {})
     wins = [synthetic_window(derive_seed(seed, "w", i), f"syn{i:02d}") for i in range(n_windows)]
@@ -967,7 +968,7 @@ def harness_selfcheck(seed=0, n_windows=8, log_fn=None):
             log_fn(f"selfcheck {name}: {res[name]}")
     leak = leak_probe(wins[0], seed)
     res["leak_detected"] = leak
-    ok = (res["generaliser"]["verdict"] == "GENERALISING" and res["memoriser"]["verdict"] == "MEMORISATION"
+    ok = (res["generaliser"]["verdict"] == "GENERALISING" and res["memoriser"]["verdict"] == "SAME_YEAR_LEARNING"
           and res["non_learner"]["verdict"] == "NO_EFFECT" and abs(res["non_learner"]["same"]) < 1e-12 and leak)
     res["valid"] = bool(ok)
     return res
@@ -1139,7 +1140,7 @@ def render_report(summary):
         L.append(f"| {m} | {_f(row['run1_mean'])} | {_f(row['run2_mean'])} | {cell('same')} | {cell('noise')} | {cell('shuffle')} | "
                  f"{cell('effect')} | {cell('transfer')} | {cell('gap')} |")
     L += ["", "Learning effect = same-year delta minus the no-learning rerun delta (disguise noise removed). Gap = learning effect "
-          "minus transfer gain; a gap above zero with transfer near zero is MEMORISATION.", "", "## By era of the learning window", "",
+          "minus transfer gain; a gap above zero with transfer near zero is SAME_YEAR_LEARNING (C57), not memorisation.", "", "## By era of the learning window", "",
           "| era | n | mean_week delta | in_band delta | worst5 delta | transfer mean_week |", "|---|---|---|---|---|---|"]
     for e, r in a["by_era"].items():
         L.append(f"| {e} | {r['n']} | {_f(r['mean_week'])} | {_f(r['in_band'])} | {_f(r['worst5'])} | {_f(r['transfer_mean_week'])} |")
@@ -1177,4 +1178,325 @@ CAVEATS = [
     "The learning windows are the revealed cycle years; their snapshots came from the model that was trained before them, so Run 1 is an "
     "honest blind play, but transfer windows learned from a LATER year are marked anachronistic and are a generalisation test, not a live-time claim.",
     "With few pairs the bootstrap intervals are wide; INCONCLUSIVE is the correct label until they narrow.",
+]
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# repeated-run learning curve (canon C57): the same year, K times, fresh disguise each time, state carried forward
+# ---------------------------------------------------------------------------------------------------------------
+class IdentityRecallPlayer(ReplayPlayer):
+    """Planted identity-recall control on the real adaptive layer: it stores what every (stock code, date) did and, when it
+    meets the same code on the same date again, scores the stock by that stored outcome. Under a fresh disguise it can
+    never meet a code twice; on an UNDISGUISED replay it recalls everything, which proves the control is able to rise."""
+
+    def patch(self, snaps, visible):
+        table = visible.extra.get("id_table") or {}
+        if not table:
+            return snaps
+        out = {}
+        for k, s in snaps.items():
+            r = np.array([table.get(f"{c}|{k}", np.nan) for c in s.index], float)
+            if np.isfinite(r).any():
+                s = s.copy()
+                r = np.nan_to_num(r, nan=0.0)
+                for c in ("mu_raw", "evidence"):
+                    if c in s:
+                        s[c] = r
+                if "p_move" in s:
+                    s["p_move"] = np.abs(r)
+            out[k] = s
+        return out
+
+
+class IdentityRecallLearner:
+    name = "identity_recall"
+
+    def learn(self, state, run, ctx):
+        table = dict(state.extra.get("id_table", {}))
+        for k, s in (run.snaps or {}).items():
+            r = realised_forward(s, k, run.closes)
+            for c, v in zip(s.index, r):
+                if np.isfinite(v):
+                    table[f"{c}|{k}"] = float(v)
+        return LearnedState(dict(state.cfg), dict(state.meta), state.ltm, {**state.extra, "id_table": table},
+                            state.lineage + [f"identity_recall: {len(table)} (code,date) keys"])
+
+
+class SyntheticIdentityPlayer:
+    """Synthetic twin of IdentityRecallPlayer for the cheap world: recalls by 'code|date'."""
+
+    def __init__(self, k=5):
+        self.k = k
+
+    def play(self, pres, visible):
+        table = visible.extra.get("id_table") or {}
+        w = float(visible.extra.get("w", -0.5))
+
+        def sc(s, d):
+            r = np.array([table.get(f"{c}|{d}", np.nan) for c in s.index], float)
+            return np.where(np.isfinite(r), r, w * s["sig"].to_numpy()) if np.isfinite(r).any() else w * s["sig"].to_numpy()
+        return score_weekly(pres.snaps, pres.closes, sc, self.k)
+
+
+def pattern_window(seed, wid, betas=(0.03, 0.02, 0.0, -0.015), n_stocks=40, n_weeks=30, noise=0.03):
+    """Planted-pattern world: forward return = sum_j beta_j * f_j + noise, several features with different true weights.
+    A learner that finds the weights gets better gradually; one that cannot stays at chance."""
+    rng = np.random.default_rng(seed)
+    base = synthetic_window(seed, wid, n_stocks=n_stocks, n_weeks=n_weeks, beta=0.0, noise=noise)
+    F = rng.normal(size=(n_weeks, n_stocks, len(betas)))
+    fwd = F @ np.array(betas) + noise * rng.normal(size=(n_weeks, n_stocks))
+    idx = base.closes.index
+    logp = np.zeros(base.closes.shape)
+    for w in range(n_weeks):
+        i0 = 5 * w + 4
+        for s in range(1, 6):
+            logp[i0 + s] = logp[i0 + s - 1] + np.log1p(fwd[w]) / 5.0
+    logp[5 * n_weeks + 5:] = logp[5 * n_weeks + 4]
+    base.closes = pd.DataFrame(100 * np.exp(logp), index=idx, columns=base.closes.columns)
+    base.opens = base.closes.shift(1).fillna(base.closes.iloc[0])
+    for w, (k, s) in enumerate(sorted(base.snaps.items())):
+        for j in range(len(betas)):
+            s[f"f{j}"] = F[w, :, j]
+        s["sig"] = F[w, :, 0]
+    return base
+
+
+class PatternPlayer:
+    """Scores by a weight vector over the f_j columns held in the learned state (zeros at the start: no pattern known)."""
+
+    def __init__(self, k=5, n_feat=4):
+        self.k, self.n = k, n_feat
+
+    def play(self, pres, visible):
+        w = np.array(visible.extra.get("wvec", np.zeros(self.n)), float)
+        cols = [f"f{j}" for j in range(self.n)]
+        return score_weekly(pres.snaps, pres.closes, lambda s, d: s[cols].to_numpy() @ w + 1e-9 * s["sig"].to_numpy(), self.k)
+
+
+class PatternLearner:
+    """A genuine pattern learner: each run it takes ONE gradient-style step of `lr` toward the least-squares weights of
+    features on realised forward returns. Names and dates never enter; only feature-outcome structure does."""
+    name = "pattern"
+
+    def __init__(self, lr=0.2, n_feat=4):
+        self.lr, self.n = lr, n_feat
+
+    def learn(self, state, run, ctx):
+        cols = [f"f{j}" for j in range(self.n)]
+        X = np.vstack([s[cols].to_numpy() for s in run.snaps.values()])
+        y = np.concatenate([realised_forward(s, d, run.closes) for d, s in run.snaps.items()])
+        ok = np.isfinite(y)
+        w_ols = np.linalg.lstsq(X[ok], y[ok], rcond=None)[0] if ok.sum() > self.n else np.zeros(self.n)
+        w0 = np.array(state.extra.get("wvec", np.zeros(self.n)), float)
+        w1 = w0 + self.lr * (w_ols - w0)
+        return LearnedState(dict(state.cfg), dict(state.meta), state.ltm, {**state.extra, "wvec": w1.tolist()},
+                            state.lineage + [f"pattern: |w-w_ols| {np.linalg.norm(w1 - w_ols):.4f}"])
+
+
+def trim_history(window, keep_codes):
+    """Long curves would grow used_codes without bound (500 runs x thousands of names). Keep the archive names and the most
+    recent presentation's names only; the fresh-code draw still avoids those, and the width grows if the space gets tight."""
+    window.used_codes = set(window.all_codes()) | set(keep_codes)
+    window.used_shifts[:] = window.used_shifts[-400:]
+
+
+def play_curve(window, player, learner, s0, steps, seed, arm="main", reset=False, disguise=True, log_fn=None,
+               resume=None, on_run=None, min_abs_weeks=None):
+    """Play a schedule of (Window, tag) steps in sequence. Before EVERY step: a fresh disguise (new order-preserving code
+    names and a new whole-week date shift; audited like every hand-over), and the learner state carried forward from the
+    previous step (memory is never wiped; `reset=True` is the no-learning control that hands S0 to every run instead).
+    `disguise=False` replays the archive as is (only for the identity-recall control that must be able to rise).
+    Returns {"recs": [...], "state": LearnedState}. `resume` = {"i", "state", "recs", "shifts"} from a checkpoint;
+    `on_run(i, rec, state, shifts)` is called after each step so a caller can persist."""
+    i0, state, recs = (resume["i"], resume["state"], list(resume["recs"])) if resume else (0, s0, [])
+    if resume:
+        window.used_shifts[:] = resume.get("shifts", [])
+    min_w = min_abs_weeks if min_abs_weeks is not None else max(1, min(8, 1500 // (len(steps) + 1)))
+    for i in range(i0, len(steps)):
+        Wi, tag = steps[i]
+        t0 = time.perf_counter()
+        use = s0 if reset else state
+        ctx = LearnContext(Wi.id, Wi.real_start, Wi.real_end, Wi.era)
+        audits = []
+        if disguise:
+            if len(Wi.used_codes) > 20000:
+                trim_history(Wi, [])
+            pres, drec = make_presentation(Wi, derive_seed(seed, Wi.id, arm, i), min_abs_weeks=min_w)
+            run = _audit_and_play(player, Wi, pres, drec, use, f"{arm}{i}", audits)
+        else:
+            pres = archive_presentation(Wi)
+            run = player.play(pres, use.visible())
+        m = run_metrics(run, pres.closes)
+        if not reset:
+            state = learner.learn(state, run, ctx)
+        rec = {"i": i, "tag": tag, "window": Wi.id, "arm": arm, **{k: m[k] for k in METRICS}, "n_weeks": m["n_weeks"],
+               "episodes": state.n_episodes(), "seconds": round(time.perf_counter() - t0, 2),
+               "blindness_ok": all(a["passed"] for a in audits) if audits else None}
+        recs.append(rec)
+        if log_fn:
+            log_fn(f"{arm} {Wi.id} run {i + 1}/{len(steps)} [{tag}]: mean_week {m['mean_week']:+.4f} in_band {m['in_band']:.2f} ({rec['seconds']}s)")
+        if on_run:
+            on_run(i + 1, rec, state, list(Wi.used_shifts))
+    return {"recs": recs, "state": state}
+
+
+def plateau_index(values, win=5, tol=None):
+    """First run index from which the smoothed curve (trailing mean of `win`) stays within `tol` of where it was then.
+    None when the series is too short to say, or never settles. tol defaults to the run-to-run sd / sqrt(win): the size of
+    noise in the smoothed line. A flat series plateaus at its first smoothed point."""
+    v = np.asarray([x for x in values], float)
+    if len(v) < 2 * win or not np.isfinite(v).all():
+        return None
+    sm = np.convolve(v, np.ones(win) / win, mode="valid")
+    tol = float(v.std() / math.sqrt(win)) if tol is None else tol
+    for j in range(len(sm)):
+        if np.abs(sm[j:] - sm[j]).max() <= max(tol, 1e-12):
+            return int(j + win - 1)
+    return None
+
+
+def series_stats(values, seed=0, n_boot=2000, level=0.95, edge=5, win=5):
+    """The curve of one metric: OLS slope per run with a bootstrap CI (resampling runs), last-`edge` minus first-`edge`
+    mean with a bootstrap CI, and the plateau run. Runs of one chain are not independent, so the CIs are a screening
+    guide; the sign-flip p on the edge difference is reported beside them."""
+    v = np.asarray(values, float)
+    ok = np.isfinite(v)
+    x, y = np.arange(len(v))[ok].astype(float), v[ok]
+    n = len(y)
+    out = {"n": int(n), "values": [float(a) for a in v]}
+    if n < 3:
+        out.update({"slope": float("nan"), "slope_lo": float("-inf"), "slope_hi": float("inf"), "first": float("nan"), "last": float("nan"),
+                    "diff": float("nan"), "diff_lo": float("-inf"), "diff_hi": float("inf"), "plateau": None})
+        return out
+    slope = lambda xx, yy: float(np.polyfit(xx, yy, 1)[0]) if len(np.unique(xx)) > 1 and yy.std() > 0 else 0.0
+    rng = np.random.default_rng(seed)
+    idx = rng.integers(0, n, size=(n_boot, n))
+    sl = np.array([slope(x[r], y[r]) for r in idx])
+    e = max(1, min(edge, n // 2))
+    fi, la = y[:e], y[-e:]
+    d = np.array([y[rng.integers(n - e, n, e)].mean() - y[rng.integers(0, e, e)].mean() for _ in range(n_boot)])
+    q = (1 - level) / 2
+    out.update({"slope": slope(x, y), "slope_lo": float(np.quantile(sl, q)), "slope_hi": float(np.quantile(sl, 1 - q)),
+                "first": float(fi.mean()), "last": float(la.mean()), "diff": float(la.mean() - fi.mean()),
+                "diff_lo": float(np.quantile(d, q)), "diff_hi": float(np.quantile(d, 1 - q)), "plateau": plateau_index(y, win),
+                "edge": e})
+    return out
+
+
+def curve_stats(recs, tag="main", seed=0):
+    """series_stats for every comparison metric over the records with `tag`."""
+    sel = [r for r in recs if r["tag"] == tag]
+    return {m: series_stats([r[m] for r in sel], derive_seed(seed, m) % (2 ** 31)) for m in METRICS}
+
+
+def persistence(recs, metric=PRIMARY, edge=5):
+    """Do gains survive other years? Compares the first `edge` main runs, the last `edge` main runs, and the runs of the SAME
+    window played after other years were interleaved ('post'). retained = (post - first) / (last - first)."""
+    val = lambda t: [r[metric] for r in recs if r["tag"] == t and np.isfinite(r[metric])]
+    main, post, other = val("main"), val("post"), val("other")
+    if len(main) < 2 or not post:
+        return {"available": False}
+    e = max(1, min(edge, len(main) // 2))
+    first, last, after = float(np.mean(main[:e])), float(np.mean(main[-e:])), float(np.mean(post))
+    gain = last - first
+    return {"available": True, "first": first, "last": last, "post": after, "other_mean": float(np.mean(other)) if other else float("nan"),
+            "retained": float((after - first) / gain) if abs(gain) > 1e-12 else float("nan"), "gain": gain, "n_post": len(post)}
+
+
+def curve_verdict(main, noise, ident, persist=None, alpha_noise=0.0):
+    """One label per window (C57). `main`/`noise`/`ident` are series_stats of the primary metric of the learning chain, the
+    reset-state control and the identity-recall control run under disguise (None if not run).
+    IDENTITY_LEAK       the identity control rises: stock identity survives the disguise; nothing else may be trusted.
+    VOID                the no-learning control is not flat: disguise noise alone moves the curve.
+    SAME_YEAR_LEARNING  slope and last-vs-first are significantly positive and the controls are flat (what C57 asks for).
+    NO_CURVE            no significant trend.   DEGRADING   significantly negative."""
+    rises = lambda s: s is not None and s["n"] >= 3 and s["slope_lo"] > 0 and s["diff_lo"] > 0
+    if rises(ident):
+        return {"label": "IDENTITY_LEAK", "why": f"identity-recall control rose (slope {ident['slope']:+.3g}/run, CI lo {ident['slope_lo']:+.3g})"}
+    if noise is not None and noise["n"] >= 3 and (noise["slope_lo"] > 0 or noise["slope_hi"] < 0) and abs(noise["slope"]) > alpha_noise:
+        return {"label": "VOID", "why": f"no-learning control is not flat (slope {noise['slope']:+.3g}/run)"}
+    if main["n"] < 6:
+        return {"label": "INCONCLUSIVE", "why": f"only {main['n']} runs"}
+    if rises(main):
+        p = ""
+        if persist and persist.get("available"):
+            p = f"; after other years the window kept {persist['retained']:.0%} of its gain" if np.isfinite(persist["retained"]) else ""
+        pl = f"; plateau at run {main['plateau'] + 1}" if main.get("plateau") is not None else "; no plateau yet"
+        return {"label": "SAME_YEAR_LEARNING", "why": f"slope {main['slope']:+.3g}/run (CI {main['slope_lo']:+.3g}..{main['slope_hi']:+.3g}), "
+                f"last-{main['edge']} minus first-{main['edge']} {main['diff']:+.3g}{pl}{p}"}
+    if main["slope_hi"] < 0 and main["diff_hi"] < 0:
+        return {"label": "DEGRADING", "why": f"slope {main['slope']:+.3g}/run, later runs worse"}
+    return {"label": "NO_CURVE", "why": f"slope {main['slope']:+.3g}/run (CI {main['slope_lo']:+.3g}..{main['slope_hi']:+.3g}) does not clear zero"}
+
+
+def curve_selfcheck(seed=0, K=12, log_fn=None):
+    """The curve harness is VALID only if: (c) the planted-pattern learner rises, (a) the reset control is flat, (b) the
+    identity-recall learner is flat under disguise and rises when the disguise is switched off (so the control CAN rise)."""
+    res = {}
+    W = pattern_window(derive_seed(seed, "pw"), "pat0")
+    sched = [(W, "main")] * K
+    zero = LearnedState({}, {})
+    rise = play_curve(W, PatternPlayer(), PatternLearner(), zero, sched, seed, "main")
+    W.used_shifts.clear()
+    flat = play_curve(W, PatternPlayer(), PatternLearner(), zero, sched, seed, "reset", reset=True)
+    S = synthetic_window(derive_seed(seed, "iw"), "idn0")
+    idc = [(S, "main")] * K
+    disg = play_curve(S, SyntheticIdentityPlayer(), IdentityRecallLearner(), zero, idc, seed, "ident")
+    S.used_shifts.clear()
+    undis = play_curve(S, SyntheticIdentityPlayer(), IdentityRecallLearner(), zero, idc, seed, "ident_raw", disguise=False)
+    st = lambda c: series_stats([r[PRIMARY] for r in c["recs"]], seed)
+    a, b, c_, d = st(rise), st(flat), st(disg), st(undis)
+    res.update({"pattern_slope": a["slope"], "pattern_diff": a["diff"], "reset_slope": b["slope"], "identity_disguised_slope": c_["slope"],
+                "identity_undisguised_slope": d["slope"], "pattern_verdict": curve_verdict(a, b, c_)["label"],
+                "identity_undisguised_verdict": curve_verdict(a, b, d)["label"]})
+    res["valid"] = bool(a["slope_lo"] > 0 and a["diff_lo"] > 0 and abs(b["slope"]) < 1e-12 and abs(c_["slope"]) < 1e-12
+                        and d["slope_lo"] > 0 and res["identity_undisguised_verdict"] == "IDENTITY_LEAK" and res["pattern_verdict"] == "SAME_YEAR_LEARNING")
+    if log_fn:
+        log_fn(f"curve selfcheck: {res}")
+    return res
+
+
+def render_curve_report(summary):
+    """Markdown for the repeated-run curves: the plain answer first, then per-window curves and controls."""
+    L = [f"# Repeated-run learning curve - {summary['tag']}", "",
+         f"Harness self-check (planted pattern learner rises, reset control flat, identity control flat under disguise and rising without it): "
+         f"**{'VALID' if summary['selfcheck']['valid'] else 'INVALID - no verdict may be used'}**", ""]
+    ws = summary["windows"]
+    good = [w for w in ws if w["verdict"]["label"] == "SAME_YEAR_LEARNING"]
+    L += [f"Windows showing a rising same-year curve: {len(good)} of {len(ws)}. Every run used a fresh disguise (new order-preserving codes and "
+          f"a new date shift); memory was carried forward and never wiped.", "",
+          "| window | era | runs | first-5 mean_week | last-5 | diff [CI] | slope/run [CI] | plateau | reset ctrl slope | identity ctrl slope | verdict |",
+          "|---|---|---|---|---|---|---|---|---|---|---|"]
+    f = lambda x: "n/a" if x is None or not np.isfinite(x) else f"{x:+.5f}"
+    for w in ws:
+        m = w["curve"][PRIMARY]
+        rs = w.get("reset_curve", {}).get(PRIMARY, {})
+        ic = w.get("identity_curve", {}).get(PRIMARY, {})
+        L.append(f"| {w['window']} | {w['era']} | {m['n']} | {f(m['first'])} | {f(m['last'])} | {f(m['diff'])} [{f(m['diff_lo'])}, {f(m['diff_hi'])}] | "
+                 f"{f(m['slope'])} [{f(m['slope_lo'])}, {f(m['slope_hi'])}] | {'run ' + str(m['plateau'] + 1) if m.get('plateau') is not None else 'none'} | "
+                 f"{f(rs.get('slope'))} | {f(ic.get('slope'))} | {w['verdict']['label']} |")
+    L += ["", "## Other metrics (slope per run, last-5 minus first-5)", "", "| window | " + " | ".join(METRICS) + " |", "|---|" + "---|" * len(METRICS)]
+    for w in ws:
+        L.append(f"| {w['window']} | " + " | ".join(f"{f(w['curve'][m]['slope'])} / {f(w['curve'][m]['diff'])}" for m in METRICS) + " |")
+    L += ["", "## Do gains persist after other years?", "", "| window | first-5 | last-5 | after 3 other years | retained | other years' mean_week |", "|---|---|---|---|---|---|"]
+    for w in ws:
+        p = w.get("persistence") or {"available": False}
+        if p["available"]:
+            L.append(f"| {w['window']} | {f(p['first'])} | {f(p['last'])} | {f(p['post'])} | {p['retained']:.0%} | {f(p['other_mean'])} |")
+        else:
+            L.append(f"| {w['window']} | n/a | n/a | n/a | n/a | n/a |")
+    L += ["", "## Verdict reasons", ""] + [f"- {w['window']}: {w['verdict']['label']} - {w['verdict']['why']}" for w in ws]
+    L += ["", "## What this does not prove", ""] + [f"- {c}" for c in CURVE_CAVEATS]
+    return "\n".join(L) + "\n"
+
+
+CURVE_CAVEATS = [
+    "The learners that exist in the adaptive replay are the long-term memory bank (and an optional basis search). The pattern bank and "
+    "lessons are not wired into engine.adaptive.replay, so their contribution to a curve is not measured here.",
+    "Runs in one chain share one year's data, so a rising curve is a same-year effect; C57 wants exactly that, but it says nothing on its own "
+    "about other years (the interleaved runs and the transfer test in the pair harness speak to that).",
+    "The memory bank matches on market-context fingerprints that no disguise changes; a curve that rises through them is learning the year's "
+    "patterns, not its stock identities, which is why the identity-recall control (keyed on code and date) is the memorisation test.",
+    "Run-to-run CIs treat runs as exchangeable although they are a chain: read them as a screen, not as exact coverage.",
+    "The replay does not retrain the return model, so improvements that would need model retraining are outside these curves.",
 ]

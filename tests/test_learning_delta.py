@@ -36,7 +36,7 @@ def test_memoriser_is_flagged_with_large_same_year_gain_and_zero_transfer():
     assert m["same"]["lo"] > 0.02
     assert abs(m["transfer"]["mean"]) < 1e-12
     assert m["gap"]["lo"] > 0
-    assert agg["verdict"]["label"] == "MEMORISATION"
+    assert agg["verdict"]["label"] == "SAME_YEAR_LEARNING"
 
 
 def test_non_learner_shows_zero_delta_everywhere():
@@ -64,7 +64,7 @@ def test_harm_is_labelled_harmful():
 def test_selfcheck_is_valid_and_catches_the_leak_probe():
     r = L.harness_selfcheck(seed=4, n_windows=6)
     assert r["valid"] and r["leak_detected"]
-    assert r["memoriser"]["verdict"] == "MEMORISATION" and r["generaliser"]["verdict"] == "GENERALISING"
+    assert r["memoriser"]["verdict"] == "SAME_YEAR_LEARNING" and r["generaliser"]["verdict"] == "GENERALISING"
 
 
 # ------------------------------------------------------------------ disguise and blindness audit
