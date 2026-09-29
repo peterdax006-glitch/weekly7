@@ -356,9 +356,11 @@ def wrap_snaps(snaps, book, X):
     return out
 
 
-def disguise_window(w, seed=0, shift_weeks=(40, 400)):
+def disguise_window(w, seed=0, shift_weeks=(40, 400), kind="both"):
     """A fresh disguise of a whole archived window: every ticker renamed to an opaque code (snapshots, closes, opens and
-    the sector map), every date shifted by a whole number of weeks. Nothing else changes."""
+    the sector map), every date shifted by a whole number of weeks. Nothing else changes.
+    kind: "both", "names" (rename only), "dates" (shift only) or "names_ordered" (rename with an order-preserving code, so
+    alphabetical tie-breaks are unchanged) - to find what a non-invariant system actually keys on."""
     rng = np.random.default_rng(seed)
     tk = sorted(set(w["closes"].columns) | {t for s in w["snaps"].values() for t in s.index})
     alphabet = list("0123456789ABCDEFGHJKLMNPQRSTUVWXYZ")
@@ -366,8 +368,10 @@ def disguise_window(w, seed=0, shift_weeks=(40, 400)):
     while len(codes) < len(tk):
         codes.add("Z" + "".join(rng.choice(alphabet, 6)))
     codes = sorted(codes)
-    tmap = dict(zip(tk, [codes[i] for i in rng.permutation(len(codes))]))
-    shift = pd.Timedelta(days=7 * int(rng.integers(*shift_weeks)))
+    tmap = dict(zip(tk, codes if kind == "names_ordered" else [codes[i] for i in rng.permutation(len(codes))]))
+    if kind == "dates":
+        tmap = {t: t for t in tk}
+    shift = pd.Timedelta(days=7 * int(rng.integers(*shift_weeks))) if kind != "names" and kind != "names_ordered" else pd.Timedelta(0)
     def cols(df):
         df = df.rename(columns=tmap)
         df.index = df.index + shift

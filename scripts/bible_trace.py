@@ -893,7 +893,8 @@ def check_invariants(records: list[dict], root: Path) -> list[str]:
     return bad
 
 
-def build_trace(root: Path, bible: Path | None = None, now: str = "unspecified", research: Path | None = None) -> dict:
+def build_trace(root: Path, bible: Path | None = None, now: str = "unspecified", research: Path | None = None,
+                links_path: Path | None = None) -> dict:
     root = Path(root)
     bible = bible or (root / "BIBLE.md")
     text = read_text(bible)
@@ -913,6 +914,25 @@ def build_trace(root: Path, bible: Path | None = None, now: str = "unspecified",
                             "bible_line": r.line, "bible_claim": r.claim, "needs_real_data": r.needs_real_data, "code": [],
                             "tests": [], "test_functions": [], "evidence": [], "pass_lines": [], "fail_lines": [],
                             "failing_tests": [], "notes": [], "state": None})
+    links, gaps, link_problems = load_links(Path(links_path) if links_path else root / LINKS_REL, {r.id for r in reqs})
+    by_req = {r.id: r for r in reqs}
+    link_report = {"declared": len(links), "honoured": 0, "broken": list(link_problems), "changed": []}
+    for rec in records:
+        if rec["id"] not in links:
+            continue
+        if slices_for(by_req[rec["id"]]) is not None:
+            link_report["broken"].append({"id": rec["id"], "broken": ["derived claim (Phase 38/39): state comes from the requirements it summarises, link a those instead"]})
+            continue
+        ver = verify_link(links[rec["id"]], root)
+        if not ver["ok"]:
+            rec["link"] = "rejected"
+            link_report["broken"].append({"id": rec["id"], "broken": ver["broken"]})
+            continue
+        before = rec["state"]
+        apply_link(rec, by_req[rec["id"]], ver, failing, evidence, idf)
+        link_report["honoured"] += 1
+        if rec["state"] != before:
+            link_report["changed"].append({"id": rec["id"], "from": before, "to": rec["state"]})
     for rec, r in zip(records, reqs):   # second pass: claims about other phases are derived from the first pass
         sl = slices_for(r)
         if sl is not None:
@@ -938,7 +958,199 @@ def build_trace(root: Path, bible: Path | None = None, now: str = "unspecified",
         "failing_tests_cache": {k: sorted(v) for k, v in sorted(failing.items())},
         "index": {"modules": len(mods), "test_files": len(tests), "evidence_files": len(evidence)},
         "invariant_violations": check_invariants(records, root),
+        "links": link_report, "genuine_gaps": genuine_gaps(records, gaps),
     }
+
+
+# --- 4b. explicit, verified links (B20) -----------------------------------------------------------------------------------
+# The heuristic above links by word overlap, so it has false negatives (the code says 'cooldown' in a dict key, the
+# Bible says 'cooldown' in a bullet, and no function name carries either) and false positives. state/build/trace_links.json
+# lets a reviewer who READ the code say which symbol implements which requirement. A link is honoured only when every
+# path, symbol and test in it is proven to exist by parsing the file (ast); any broken part rejects the WHOLE link
+# and reports it, because a half-honoured link would be a claim nobody checked. [x] additionally needs an evidence
+# path that exists: code and a test say "implemented", only an artefact says "it worked".
+LINKS_REL = "state/build/trace_links.json"
+LINK_FIELDS = ("code", "tests", "evidence")
+_symbol_cache: dict[tuple[str, float], set | None] = {}
+
+
+def module_symbols(path: Path) -> set[str] | None:
+    """Every name a link may cite in a Python file: top-level def/class/assignment, 'Class.method', 'Class.attr'.
+    None when the file is missing or does not parse (a link into it is broken, not vacuously fine)."""
+    try:
+        key = (str(path.resolve()), path.stat().st_mtime)
+    except OSError:
+        return None
+    if key in _symbol_cache:
+        return _symbol_cache[key]
+    try:
+        tree = ast.parse(read_text(path))
+    except SyntaxError:
+        _symbol_cache[key] = None
+        return None
+
+    def targets(node):
+        if isinstance(node, ast.Assign):
+            return [t.id for t in node.targets if isinstance(t, ast.Name)]
+        if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+            return [node.target.id]
+        return []
+
+    names: set[str] = set()
+    for node in tree.body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            names.add(node.name)
+            if isinstance(node, ast.ClassDef):
+                for sub in node.body:
+                    if isinstance(sub, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                        names.add(f"{node.name}.{sub.name}")
+                    for t in targets(sub):
+                        names.add(f"{node.name}.{t}")
+        names.update(targets(node))
+    _symbol_cache[key] = names
+    return names
+
+
+def _inside(root: Path, p: str) -> Path | None:
+    """The resolved file for a repo-relative path, or None when it is absolute, climbs out of the repo or does not exist."""
+    if not p or Path(p).is_absolute() or ".." in Path(p).parts:
+        return None
+    full = (root / p).resolve()
+    try:
+        full.relative_to(root.resolve())
+    except ValueError:
+        return None
+    return full if full.exists() else None
+
+
+def _split_ref(ref: str) -> tuple[str, str]:
+    path, _, sym = str(ref).partition("::")
+    return path.strip(), sym.strip()
+
+
+def verify_link(link, root: Path) -> dict:
+    """Check one link entry. Returns {'ok': bool, 'code': [...], 'tests': [...], 'evidence': [...], 'broken': [reasons]}.
+    ok is True only with no broken part AND at least one verified code reference."""
+    out = {"ok": False, "code": [], "tests": [], "evidence": [], "broken": []}
+    if not isinstance(link, dict):
+        out["broken"].append("link is not an object with code/tests/evidence")
+        return out
+    for k in link:
+        if k not in LINK_FIELDS and k != "note":
+            out["broken"].append(f"unknown link field '{k}'")
+    for fld in LINK_FIELDS:
+        v = link.get(fld, [])
+        if not isinstance(v, list) or not all(isinstance(s, str) for s in v):
+            out["broken"].append(f"{fld} must be a list of strings")
+            link = {**link, fld: []}
+    for ref in link.get("code", []):
+        path, sym = _split_ref(ref)
+        f = _inside(root, path)
+        if f is None or f.suffix != ".py":
+            out["broken"].append(f"code file missing: {path or ref!r}")
+        elif not sym:
+            out["broken"].append(f"code reference has no ::symbol: {ref}")
+        elif sym not in (module_symbols(f) or set()):
+            out["broken"].append(f"symbol not found: {path}::{sym}")
+        else:
+            out["code"].append({"module": path, "symbol": sym})
+    for ref in link.get("tests", []):
+        path, sym = _split_ref(ref)
+        f = _inside(root, path)
+        leaf = sym.split(".")[-1]
+        if f is None or f.suffix != ".py" or not path.startswith("tests/"):
+            out["broken"].append(f"test file missing or outside tests/: {path or ref!r}")
+        elif not leaf.startswith("test"):
+            out["broken"].append(f"not a test function: {ref}")
+        elif sym not in (module_symbols(f) or set()):
+            out["broken"].append(f"test not found: {path}::{sym}")
+        else:
+            out["tests"].append(f"{path}::{sym}")
+    for path in link.get("evidence", []):
+        f = _inside(root, path)
+        if f is None:
+            out["broken"].append(f"evidence missing: {path}")
+        elif f.is_file() and f.stat().st_size == 0:
+            out["broken"].append(f"evidence is empty: {path}")
+        elif f.is_dir() and not any(x.is_file() for x in f.rglob("*")):
+            out["broken"].append(f"evidence directory has no files: {path}")
+        else:
+            out["evidence"].append(path)
+    if not link.get("code"):
+        out["broken"].append("link names no code")
+    out["ok"] = not out["broken"] and bool(out["code"])
+    return out
+
+
+def load_links(path: Path, valid_ids: set[str]) -> tuple[dict, dict, list[dict]]:
+    """(links, gaps, problems). Keys starting with '_' are reserved: '_gaps' maps requirement id -> the reviewer's
+    reason it is genuinely missing. A link (or gap) for an id that is not in the Bible is a problem, not a silent no-op."""
+    problems: list[dict] = []
+    if not Path(path).exists():
+        return {}, {}, problems
+    try:
+        raw = json.loads(read_text(Path(path)))
+    except json.JSONDecodeError as e:
+        return {}, {}, [{"id": "*", "broken": [f"trace_links.json is not valid JSON: {e}"]}]
+    if not isinstance(raw, dict):
+        return {}, {}, [{"id": "*", "broken": ["trace_links.json must be an object {req_id: link}"]}]
+    gaps = raw.get("_gaps", {}) if isinstance(raw.get("_gaps", {}), dict) else {}
+    links = {k: v for k, v in raw.items() if not k.startswith("_")}
+    for k in list(links):
+        if k not in valid_ids:
+            problems.append({"id": k, "broken": ["no such requirement id in the Bible"]})
+            del links[k]
+    for k in gaps:
+        if k not in valid_ids:
+            problems.append({"id": k, "broken": ["_gaps names an id that is not in the Bible"]})
+    return links, {k: v for k, v in gaps.items() if k in valid_ids}, problems
+
+
+def apply_link(rec: dict, req: Requirement, ver: dict, failing: dict, evidence: dict, idf: dict) -> dict:
+    """Recompute one record from a VERIFIED link. The link replaces the heuristic's code/tests/evidence for this
+    requirement (an explicit human review outranks a word match) but never a recorded failure:
+      failing linked test or a fail line in linked evidence that speaks to the requirement -> [!]
+      code only -> [~];  code + test -> [?] (nothing shows it worked);  code + test + evidence -> [x]."""
+    rec["heuristic_state"] = rec["state"]
+    code: dict[str, dict] = {}
+    for c in ver["code"]:
+        ent = code.setdefault(c["module"], {"module": c["module"], "score": 1.0, "phase_linked": True, "terms": [], "symbols": []})
+        ent["symbols"].append(c["symbol"])
+    rec.update(code=list(code.values()), tests=sorted({t.split("::")[0] for t in ver["tests"]}), test_functions=list(ver["tests"]),
+               evidence=list(ver["evidence"]), pass_lines=[], fail_lines=[], failing_tests=[], link="honoured")
+    for t in ver["tests"]:
+        f, _, fn = t.partition("::")
+        names = failing.get(f, [])
+        if f in failing and (fn.split(".")[-1] in names or "" in names):
+            rec["failing_tests"].append(t)
+    for ep in ver["evidence"]:
+        ev = evidence.get(ep)
+        if not ev:
+            continue
+        rec["fail_lines"] += [{"path": ep, "line": ln} for ln, toks in ev.fail_lines if speaks_to(req.terms, toks, idf)][:3]
+        rec["pass_lines"] += [{"path": ep, "line": ln} for ln, toks in ev.pass_lines if speaks_to(req.terms, toks, idf)][:3]
+    if rec["fail_lines"] or rec["failing_tests"]:
+        src = rec["fail_lines"][0]["path"] if rec["fail_lines"] else rec["failing_tests"][0]
+        rec["state"], rec["why"] = "[!]", f"linked; failed verdict recorded in {src}"
+    elif not ver["tests"]:
+        rec["state"], rec["why"] = "[~]", "linked code verified; no linked test"
+    elif not ver["evidence"]:
+        rec["state"], rec["why"] = "[?]", "linked code and test verified; no evidence path, so nothing shows it worked"
+    else:
+        rec["state"] = "[x]"
+        rec["why"] = f"linked code {ver['code'][0]['module']}, test {ver['tests'][0]}, evidence {ver['evidence'][0]}"
+    return rec
+
+
+def genuine_gaps(records: list[dict], gaps: dict) -> list[dict]:
+    """Requirements still without any code after links, each with the reviewer's reason ('' = never reviewed).
+    Derived claims (Phases 38-39) are excluded: they are a consequence of other requirements, not a separate gap."""
+    out = []
+    for r in records:
+        if r["state"] == "[ ]" and not r.get("derived"):
+            out.append({"id": r["id"], "phase": r["phase"], "kind": r["kind"], "text": r["text"], "bible_line": r["bible_line"],
+                        "reason": str(gaps.get(r["id"], "")), "reviewed": r["id"] in gaps})
+    return out
 
 
 # --- 5. rendering -------------------------------------------------------------------------------------------------------
@@ -988,6 +1200,21 @@ def render_markdown(tr: dict) -> str:
     L += [f"- {k}.py: {len(v)} pending, e.g. {_trunc(v[0], 100)}" for k, v in tr["integration_pending"].items()] or ["None."]
     L += ["", f"## Trace invariants ({len(tr['invariant_violations'])} violations)", ""]
     L += [f"- {v}" for v in tr["invariant_violations"]] or ["All hold."]
+    lk = tr["links"]
+    L += ["", f"## Explicit links ({lk['honoured']} honoured of {lk['declared']} declared, {len(lk['broken'])} broken)", ""]
+    L += [f"- BROKEN `{b['id']}`: " + "; ".join(b["broken"]) for b in lk["broken"]] or ["No broken links."]
+    if lk["changed"]:
+        c = Counter(f"{x['from']} -> {x['to']}" for x in lk["changed"])
+        L += ["", "State changes caused by honoured links: " + ", ".join(f"{k} x{v}" for k, v in sorted(c.items())), ""]
+    gp = tr["genuine_gaps"]
+    L += ["", f"## Genuine gaps ({len(gp)})", "",
+          "Requirements with no implementing code after explicit links were applied and the code was read. "
+          "A reason means a reviewer confirmed it is missing; 'UNREVIEWED' means the word match found nothing and nobody has checked.", ""]
+    for g in gp:
+        L.append(f"- `{g['id']}` (phase {g['phase']}, Bible line {g['bible_line']}, {g['kind']}): {_trunc(g['text'], 110)} -- "
+                 + (g["reason"] if g["reviewed"] else "UNREVIEWED"))
+    if not gp:
+        L.append("None.")
     L += ["", "## Detail by phase", ""]
     cur = None
     for r in tr["requirements"]:
@@ -1010,6 +1237,7 @@ def main(argv: list[str] | None = None) -> int:
     root = Path(__file__).resolve().parents[1]
     ap.add_argument("--root", default=str(root))
     ap.add_argument("--now", default="", help="label for the report header (default: current UTC date)")
+    ap.add_argument("--links", default=None, help="trace_links.json (default state/build/trace_links.json)")
     ap.add_argument("--out-md", default=None)
     ap.add_argument("--out-json", default=None)
     a = ap.parse_args(argv)
@@ -1017,11 +1245,14 @@ def main(argv: list[str] | None = None) -> int:
     if not a.now:
         import datetime as dt
         a.now = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%MZ")
-    tr = build_trace(r, now=a.now)
+    tr = build_trace(r, now=a.now, links_path=Path(a.links) if a.links else None)
     write_outputs(tr, Path(a.out_md or r / "state" / "build" / "BIBLE_TRACE.md"), Path(a.out_json or r / "state" / "build" / "bible_trace.json"))
     c = tr["summary"]["counts"]
     print("requirements", tr["summary"]["total"], " ".join(f"{k}={v}" for k, v in c.items()))
-    print("invariant violations", len(tr["invariant_violations"]))
+    print("invariant violations", len(tr["invariant_violations"]), " links honoured", tr["links"]["honoured"], "of",
+          tr["links"]["declared"], " broken", len(tr["links"]["broken"]), " genuine gaps", len(tr["genuine_gaps"]))
+    for b in tr["links"]["broken"]:
+        print("BROKEN LINK", b["id"], "; ".join(b["broken"]))
     for i, m in enumerate(tr["top_missing"], 1):
         print(f"{i:2d}. {m['id']} p{m['phase']} {_trunc(m['text'], 110)}")
     return 1 if tr["invariant_violations"] else 0

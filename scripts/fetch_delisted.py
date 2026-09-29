@@ -12,6 +12,7 @@ Sources (all free, no keys):
 Outputs (new delisted_* files only; existing caches are never touched, and guard() refuses any other name):
   data/cache/delisted_events.parquet   classified terminal/continuing Form 25 events, one row per CIK
   data/cache/delisted_map.parquet      cik -> ticker candidates with similarity and how they were found
+  data/cache/delisted_registry.json    DelistedRegistry (terminal exits with a resolved ticker), point-in-time
   data/cache/delisted_prices.parquet   long OHLCV for recovered names, validated by engine.data_sources
   state/research/delisted/report.{md,json}   coverage per era against 3-6%/yr expected attrition
 Checkpoints live in data/cache/delisted_raw/ so an interrupted run resumes without re-downloading."""
@@ -178,7 +179,9 @@ def prices(c, m, max_n, as_of):
     done = {}
     if ck.exists():
         done = {json.loads(l)["cik"]: json.loads(l) for l in ck.read_text().splitlines()}
-    term = c[c["terminal"]].merge(m[["cik", "ticker"]].dropna(), on="cik")
+    good = m[m["ticker"].notna() & (m["sim"].fillna(0) >= 0.85)]
+    good = good[good["ticker"].astype(str).str.fullmatch(r"[A-Z]{1,5}")]          # no foreign suffixes (.KS, .NS, .T)
+    term = c[c["terminal"]].merge(good[["cik", "ticker"]], on="cik")
     todo = term[~term["cik"].isin(done)].head(max_n)
     frames = [pd.read_parquet(RAW / f"px_{k}.parquet") for k in done if (RAW / f"px_{k}.parquet").exists()]
     with open(ck, "a") as f:
@@ -188,12 +191,15 @@ def prices(c, m, max_n, as_of):
             if df is not None and len(df):
                 df = df.assign(ticker=r.ticker)[D.PRICE_COLS]
                 clean, rep = D.validate_prices(df, "yahoo_delisted", as_of, fetched_at=str(datetime.utcnow()))
-                # a live look-alike is not the dead company: it must stop trading near its delist date
-                if rep.ok and len(clean) and clean["date"].max() <= r.delist_date + pd.Timedelta(days=120) \
-                        and clean["date"].max() >= r.delist_date - pd.Timedelta(days=700):
-                    clean = clean.assign(cik=int(r.cik))
-                    clean.to_parquet(RAW / f"px_{int(r.cik)}.parquet")
-                    frames.append(clean)
+                # keep the history up to the exchange delisting (OTC tails are not tradable in the universe) and
+                # require that it really is this company's run: starts long before, reaches the delist date, and is
+                # neither a later re-use of the ticker (SPAC shells) nor a live company (Form 25 for a partial class)
+                cut = clean[clean["date"] <= r.delist_date + pd.Timedelta(days=30)]
+                if rep.ok and len(cut) >= 60 and cut["date"].min() <= r.delist_date - pd.Timedelta(days=250) \
+                        and cut["date"].max() >= r.delist_date - pd.Timedelta(days=45):
+                    cut = cut.assign(cik=int(r.cik), delist_date=r.delist_date)
+                    cut.to_parquet(RAW / f"px_{int(r.cik)}.parquet")
+                    frames.append(cut)
                     ok = True
             f.write(json.dumps({"cik": int(r.cik), "ticker": r.ticker, "ok": ok}) + "\n")
             if i % 100 == 0:
@@ -201,6 +207,16 @@ def prices(c, m, max_n, as_of):
                 print(f"prices {i}/{len(todo)} recovered so far {len(frames)}", flush=True)
     if frames:
         allp = pd.concat(frames, ignore_index=True)
+        ncik = allp.groupby("ticker")["cik"].nunique()
+        amb = sorted(ncik[ncik > 1].index)          # one symbol claimed by two CIKs (reuse, successors): drop, do not guess
+        allp = allp[~allp["ticker"].isin(amb)]
+        survivors = set(pd.read_csv(K.CACHE / "universe.csv")["ticker"])
+        allp["successor_in_panel"] = allp["ticker"].isin(survivors)
+        clean, vrep = D.validate_prices(allp[D.PRICE_COLS], "yahoo_delisted", as_of)
+        if not vrep.ok:
+            sys.exit(f"recovered prices fail validation: {vrep.errors}")
+        print("ambiguous tickers dropped:", amb, "| validation dropped:", vrep.dropped, "| warnings:", len(vrep.warnings))
+        allp = allp.drop_duplicates(["ticker", "date"])
         guard(PX)
         allp.to_parquet(PX)
         print("price rows:", len(allp), "names:", allp["ticker"].nunique())
@@ -214,7 +230,8 @@ def report(c, m, px, failed, seed):
     close = pd.read_parquet(K.CACHE / "stocks_close.parquet")
     alive = close.notna().groupby(close.index.year).any().sum(axis=1)          # names alive in each year (survivors only)
     resolved = set(m.loc[m["ticker"].notna(), "cik"])
-    priced = set(px["cik"]) if len(px) else set()
+    priced_all = set(px["cik"]) if len(px) else set()
+    priced = set(px.loc[~px["successor_in_panel"], "cik"]) if len(px) else set()   # names the survivor panel lacks
     cov = D.attrition_coverage(c, resolved, priced, alive)
     cov = cov.loc[cov.index >= 2000]
     era = cov.groupby(pd.cut(cov.index, [1999, 2004, 2009, 2014, 2019, 2030],
@@ -224,11 +241,19 @@ def report(c, m, px, failed, seed):
     era_tab["priced_share_of_events"] = era_tab["priced"] / era_tab["terminal_events"]
     rep = {"seed": seed, "stamp": provenance.stamp({"from": "fetch_delisted"}, seed), "failed_quarters": failed,
            "status_counts": c["status"].value_counts().to_dict(),
-           "terminal": int(c["terminal"].sum()), "resolved_tickers": len(resolved), "priced_names": len(priced),
+           "terminal": int(c["terminal"].sum()), "resolved_tickers": len(resolved), "priced_names": len(priced), "priced_but_ticker_lives_on": len(priced_all) - len(priced),
+           "resolution_attempted": int(len(m)),
+           "recovery_rate_of_resolved": round(len(priced_all) / max(1, int(m["ticker"].notna().sum())), 3),
            "resolution_via": m["via"].value_counts().to_dict() if len(m) else {},
            "panel_survivors_alive_by_year": alive.to_dict(),
            "by_year": json.loads(cov.round(4).reset_index().rename(columns={"index": "year"}).to_json(orient="records")),
            "by_era": json.loads(era_tab.round(4).reset_index().rename(columns={"index": "era"}).to_json(orient="records"))}
+    tick = dict(zip(m["cik"], m["ticker"].where(m["sim"].fillna(0) >= 0.85)))
+    last = px.sort_values("date").groupby("ticker")["close"].last().to_dict() if len(px) else {}
+    reg = D.to_registry(c, {k: v for k, v in tick.items() if isinstance(v, str)}, last)
+    guard(K.CACHE / "delisted_registry.json")
+    reg.save(K.CACHE / "delisted_registry.json")
+    rep["registry_records"], rep["registry_rejected"] = len(reg.frame()), len(reg.rejected)
     (OUT / "report.json").write_text(json.dumps(rep, indent=1, default=str))
     md = ["# Delisted-company coverage", "", f"terminal exits found (Form 25 + Form 15 / went dark): **{rep['terminal']}**; "
           f"status counts {rep['status_counts']}", f"tickers resolved: {rep['resolved_tickers']} {rep['resolution_via']}; "

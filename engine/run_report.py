@@ -446,3 +446,162 @@ def write_report(rep, out_dir=None, html_dir=None):
     j.write_text(json.dumps(rep, indent=1, sort_keys=True, allow_nan=False), encoding="utf-8")
     t.write_text(render_text(rep), encoding="utf-8")
     return j, t
+
+
+# ==================================================================================================================
+# Phase 36 items the first version left as a bare count or a single number: direction accuracy with its uncertainty
+# and its calibration by confidence (Tier 3), the analog distance distribution, and memory shock events. Each returns a
+# plain dict of numbers or None-filled fields; `extended_sections(run)` gathers them for one run so that
+# build_report's callers can pass the results in through run['memory']['shock_events'] and friends.
+# ==================================================================================================================
+def direction_accuracy_report(pred_dir, actual_ret, confidence=None, bins=(0.5, 0.6, 0.7, 0.8, 0.9, 1.0001), seed=0, n_boot=2000):
+    """Tier 3 'direction accuracy': hit rate of the sign call over calls that had a direction and a non-zero outcome, with
+    a Wilson 95% interval and the excess over always guessing the majority sign (so a 60% rate in a 60%-up sample is not
+    mistaken for skill). With `confidence` (probability of the called side, 0.5-1) accuracy is also reported per bin -
+    the V2 requirement is 80% at 80% confidence, so the rows at/above 0.8 are summarised separately. Undefined cases give
+    None, never 0."""
+    empty = {"n": 0, "accuracy": None, "ci_low": None, "ci_high": None, "majority_baseline": None, "excess": None,
+             "by_confidence": [], "at_or_above_0.8": None}
+    d, r = np.asarray(pred_dir, float), np.asarray(actual_ret, float)
+    if d.shape != r.shape:
+        raise ValueError("pred_dir and actual_ret differ in length")
+    ok = np.isfinite(d) & np.isfinite(r) & (r != 0) & (d != 0)
+    conf = None
+    if confidence is not None:
+        conf = np.asarray(confidence, float)
+        if conf.shape != d.shape:
+            raise ValueError("confidence must align with pred_dir")
+        ok &= np.isfinite(conf)
+    n = int(ok.sum())
+    if n == 0:
+        return empty
+    hit = (np.sign(d[ok]) == np.sign(r[ok]))
+    k = int(hit.sum())
+    z = 1.959964
+    p = k / n
+    den = 1 + z * z / n
+    centre = (p + z * z / (2 * n)) / den
+    half = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / den
+    up = float((r[ok] > 0).mean())
+    maj = max(up, 1 - up)
+    out = {"n": n, "accuracy": p, "ci_low": centre - half, "ci_high": centre + half, "majority_baseline": maj, "excess": p - maj,
+           "beats_majority": bool(centre - half > maj), "by_confidence": [], "at_or_above_0.8": None}
+    if conf is not None:
+        c = conf[ok]
+        edges = list(bins)
+        for lo, hi in zip(edges[:-1], edges[1:]):
+            m = (c >= lo) & (c < hi)
+            if m.any():
+                out["by_confidence"].append({"lo": lo, "hi": min(hi, 1.0), "n": int(m.sum()), "accuracy": float(hit[m].mean()),
+                                             "mean_confidence": float(c[m].mean())})
+        m = c >= 0.8
+        out["at_or_above_0.8"] = ({"n": int(m.sum()), "accuracy": float(hit[m].mean()), "mean_confidence": float(c[m].mean()),
+                                   "meets_80": bool(hit[m].mean() >= 0.8)} if m.any() else None)
+    return out
+
+
+def analog_distance_distribution(distances, edges=None, near=None, far=None):
+    """Analog engine diagnostics: full quantile ladder of the neighbour distances, a fixed-edge histogram, and the share of
+    matches that are 'far'. `distances` may be 1-D (every neighbour of every query) or 2-D (rows = queries, columns =
+    ranked neighbours): the 2-D form also reports nearest-neighbour distance per query and how much worse the k-th
+    neighbour is than the first, which is what shows that the matches are only nominal analogues. near/far default to
+    the 10th/90th percentile of the pooled distances so the shares are relative, not a made-up scale."""
+    out = {"n": 0, "quantiles": None, "histogram": None, "far_share": None, "near_share": None, "nearest": None, "kth_over_first": None}
+    a = np.asarray(distances, float)
+    if a.size == 0:
+        return out
+    flat = a[np.isfinite(a)].ravel()
+    if flat.size == 0:
+        return out
+    out["n"] = int(flat.size)
+    qs = (0, 5, 10, 25, 50, 75, 90, 95, 100)
+    out["quantiles"] = {f"p{q}": float(np.percentile(flat, q)) for q in qs}
+    e = np.asarray(edges, float) if edges is not None else np.linspace(flat.min(), flat.max() if flat.max() > flat.min() else flat.min() + 1, 11)
+    h, e = np.histogram(flat, bins=e)
+    out["histogram"] = {"edges": e.tolist(), "counts": h.tolist(), "outside": int(((flat < e[0]) | (flat > e[-1])).sum())}
+    near = np.percentile(flat, 10) if near is None else near
+    far = np.percentile(flat, 90) if far is None else far
+    out["near_share"], out["far_share"] = float((flat <= near).mean()), float((flat >= far).mean())
+    out["near_threshold"], out["far_threshold"] = float(near), float(far)
+    if a.ndim == 2 and a.shape[1] >= 1:
+        first = a[:, 0]
+        first = first[np.isfinite(first)]
+        if len(first):
+            out["nearest"] = {"median": float(np.median(first)), "p90": float(np.percentile(first, 90)), "max": float(first.max())}
+        if a.shape[1] >= 2:
+            ok = np.isfinite(a[:, 0]) & np.isfinite(a[:, -1]) & (a[:, 0] > 0)
+            if ok.any():
+                out["kth_over_first"] = float(np.median(a[ok, -1] / a[ok, 0]))
+    return out
+
+
+def memory_shock_events(dates, score, z_thr=3.0, min_history=20, cooldown=3, max_events=200):
+    """Memory shock events (Phase 36 MEMORY block): dates where a monitored memory signal jumps far outside its own
+    recent past - e.g. the market-state analog distance, or the weekly count of lessons contradicted. `score` is scored
+    against the rolling mean/std of the PRECEDING observations only (expanding window, no look-ahead: the value at t
+    never enters its own baseline). Consecutive breaches within `cooldown` observations are one event, kept at the
+    largest z. Returns {'count', 'events': [{'date','value','z','direction'}], 'n_scored', 'z_thr'}."""
+    x = np.asarray(score, float)
+    d = list(dates)
+    if len(d) != len(x):
+        raise ValueError("dates and score must align")
+    events, last = [], -10 ** 9
+    n_scored = 0
+    for i in range(len(x)):
+        past = x[:i]
+        past = past[np.isfinite(past)]
+        if len(past) < min_history or not np.isfinite(x[i]):
+            continue
+        n_scored += 1
+        sd = past.std(ddof=1)
+        if sd < 1e-12:
+            continue
+        z = (x[i] - past.mean()) / sd
+        if abs(z) < z_thr:
+            continue
+        ev = {"date": str(pd.Timestamp(d[i]).date()) if not isinstance(d[i], str) else d[i], "value": float(x[i]), "z": float(z),
+              "direction": "up" if z > 0 else "down"}
+        if i - last <= cooldown and events:
+            if abs(z) > abs(events[-1]["z"]):
+                events[-1] = ev
+        else:
+            events.append(ev)
+        last = i
+    return {"count": len(events), "events": events[:max_events], "n_scored": n_scored, "z_thr": z_thr}
+
+
+def extended_sections(run):
+    """Everything above for one run dict (keys: pred_dir, actual_ret, confidence, analog_distances, memory_dates,
+    memory_signal). Missing inputs give None for that section, and the report lists them under UNPROVEN via `missing`."""
+    out = {"direction": None, "analog_distance": None, "shocks": None}
+    if run.get("pred_dir") is not None and run.get("actual_ret") is not None:
+        out["direction"] = direction_accuracy_report(run["pred_dir"], run["actual_ret"], run.get("confidence"))
+    if run.get("analog_distances") is not None:
+        out["analog_distance"] = analog_distance_distribution(run["analog_distances"])
+    if run.get("memory_dates") is not None and run.get("memory_signal") is not None:
+        out["shocks"] = memory_shock_events(run["memory_dates"], run["memory_signal"])
+    return out
+
+
+def render_extended_text(ext):
+    """Text block for `extended_sections` output, in the same plain style as render_text."""
+    L = []
+    d = ext.get("direction")
+    if d and d["n"]:
+        L += ["DIRECTION (Tier 3)", f"  calls: {d['n']}, accuracy {_p(d['accuracy'])} (95% {_p(d['ci_low'])} to {_p(d['ci_high'])})",
+              f"  majority-sign baseline {_p(d['majority_baseline'])}, excess {_p(d['excess'])}, beats majority: {d['beats_majority']}"]
+        L += [f"  confidence {b['lo']:.1f}-{b['hi']:.1f}: n {b['n']}, accuracy {_p(b['accuracy'])}" for b in d["by_confidence"]]
+        hi = d["at_or_above_0.8"]
+        if hi:
+            L.append(f"  at or above 0.8 confidence: n {hi['n']}, accuracy {_p(hi['accuracy'])}, meets 80%: {hi['meets_80']}")
+    a = ext.get("analog_distance")
+    if a and a["n"]:
+        L += ["", "ANALOG DISTANCE", "  quantiles: " + ", ".join(f"{k} {v:.3f}" for k, v in a["quantiles"].items()),
+              f"  far share (>= {a['far_threshold']:.3f}): {_p(a['far_share'])}"]
+        if a["kth_over_first"] is not None:
+            L.append(f"  median (last neighbour / nearest neighbour): {a['kth_over_first']:.2f}")
+    s = ext.get("shocks")
+    if s is not None:
+        L += ["", f"MEMORY SHOCK EVENTS ({s['count']} in {s['n_scored']} scored, |z| >= {s['z_thr']:g})"]
+        L += [f"  {e['date']}: value {e['value']:.4g}, z {e['z']:+.1f} ({e['direction']})" for e in s["events"][:20]]
+    return "\n".join(L) + ("\n" if L else "")

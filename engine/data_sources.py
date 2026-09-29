@@ -633,10 +633,11 @@ def keep_relevant_forms(df: pd.DataFrame) -> pd.DataFrame:
 
 def classify_delistings(events: pd.DataFrame, as_of, window_days: int = 400) -> pd.DataFrame:
     """One row per CIK that ever filed a Form 25, evaluated at its LAST Form 25:
-      deregistered   a Form 15 within [-30, +window_days] days and no annual report filed after the window
-      went_dark      no Form 15, no annual report after the Form 25, and the last one is > window_days before as_of
-      continuing     annual reports keep coming (transfer between exchanges, or a partial-class delisting)
-      too_recent     Form 25 within window_days of as_of, cannot be judged yet
+      continuing     an annual report is filed 60+ days after the last exit filing (a transfer between exchanges or
+                     a partial-class delisting: the company is still a reporting issuer)
+      deregistered   a Form 15 within [-30, +window_days] days and no later annual report
+      went_dark      no Form 15, no later annual report, and the Form 25 is older than window_days
+      too_recent     Form 25 within window_days of as_of with nothing yet to judge it by
     `terminal` is True for deregistered and went_dark. Point-in-time: only events dated <= as_of are read. Columns:
     cik, company, f25_date, f15_date, last_10k_after, status, terminal, announced, delist_date (Form 25 + 10 days,
     an approximation stated here on purpose)."""
@@ -649,13 +650,16 @@ def classify_delistings(events: pd.DataFrame, as_of, window_days: int = 400) -> 
     for r in f25.itertuples():
         d15 = f15[(f15["cik"] == r.cik) & (f15["date"] >= r.date - pd.Timedelta(days=30)) &
                   (f15["date"] <= r.date + pd.Timedelta(days=window_days))]["date"]
-        later = ann[(ann["cik"] == r.cik) & (ann["date"] > r.date + pd.Timedelta(days=window_days))]["date"]
-        if r.date > a - pd.Timedelta(days=window_days):
+        ref = d15.max() if len(d15) else r.date            # an annual report 60+ days after the LAST exit filing
+        later = ann[(ann["cik"] == r.cik) & (ann["date"] > ref + pd.Timedelta(days=60))]["date"]
+        if r.date > a - pd.Timedelta(days=window_days) and not len(d15) and not len(later):
             status = "too_recent"
         elif len(later):
             status = "continuing"
         elif len(d15):
             status = "deregistered"
+        elif r.date > a - pd.Timedelta(days=window_days):
+            status = "too_recent"
         else:
             status = "went_dark"
         rows.append({"cik": r.cik, "company": r.company, "f25_date": r.date,
