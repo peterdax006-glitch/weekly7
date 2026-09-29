@@ -1,0 +1,32 @@
+PID 23500
+[06:21:01] 2600 tickers sampled (seed 7)
+[06:21:04] labels: 1,429,269 rows, mover rate 0.245, ambiguous 3,254
+[06:21:04] panel weekly rows: 801,051 (54 features)
+[06:22:26] mover model:
+    year  n_train  n_test  fitted   train_end  base_rate
+0   2015    76029   44427    True  2014-12-12   0.063897
+1   2016   119578   44411    True  2015-12-11   0.074537
+2   2017   164662   48045    True  2016-12-16   0.082375
+3   2018   212615   52176    True  2017-12-15   0.076918
+4   2019   264673   53161    True  2018-12-14   0.082838
+5   2020   317768   59136    True  2019-12-13   0.084974
+6   2021   375311   69904    True  2020-12-11   0.119957
+7   2022   446130   68393    True  2021-12-17   0.134311
+8   2023   514784   67013    True  2022-12-16   0.148157
+9   2024   581623   71720    True  2023-12-15   0.148031
+10  2025   600000   79519    True  2024-12-13   0.148052
+11  2026   600000   65461    True  2025-12-12   0.154172
+[06:22:27] pool rows 61,200; mover hit rate among rank<=30: 0.726 vs universe base 0.590 (pool)
+[06:23:34] pick30_up_first: walk-forward 67s, 193,374 prediction rows
+[06:23:39] pick30_up_first: 80% question -> 0 cells lower>=0.80 (0 adjusted), controls 0
+[06:25:28] pick30_up_sign: walk-forward 108s, 245,700 prediction rows
+[06:25:34] pick30_up_sign: 80% question -> 0 cells lower>=0.80 (0 adjusted), controls 0
+[06:26:40] pick10_up_first: walk-forward 66s, 69,678 prediction rows
+[06:26:44] pick10_up_first: 80% question -> 0 cells lower>=0.80 (0 adjusted), controls 0
+[06:28:31] pick10_up_sign: walk-forward 107s, 81,900 prediction rows
+[06:28:37] pick10_up_sign: 80% question -> 0 cells lower>=0.80 (0 adjusted), controls 0
+[06:29:55] pick100_up_first: walk-forward 78s, 540,954 prediction rows
+[06:30:05] pick100_up_first: 80% question -> 0 cells lower>=0.80 (0 adjusted), controls 0
+[06:32:20] pick100_up_sign: walk-forward 135s, 819,000 prediction rows
+[06:32:32] pick100_up_sign: 80% question -> 0 cells lower>=0.80 (0 adjusted), controls 0
+[06:32:32] done
