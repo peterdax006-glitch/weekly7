@@ -167,11 +167,33 @@ def _block(stocks, market, ev, ins, ind, tradable, start):
     return X[X["r1"].notna()]
 
 
+INSIDER_DROPPED = {}
+
+
+def clean_insider(ins):
+    """Drop Form 4 rows whose dates cannot be right (PIT audit 2026-09-28: 142 rows filed BEFORE the trade they report,
+    6 trade years like 0013/0024). A trade after its own filing or a trade year before 1990 / after the filing year is a
+    data-entry error; keeping it would place a trade at a wrong point in time. Counts are kept in
+    INSIDER_DROPPED for the audit trail."""
+    if ins is None or ins.empty:
+        return ins
+    f, t = ins["filed"].dt.normalize(), ins["tdate"].dt.normalize()
+    bad_order = t > f
+    bad_year = (ins["tdate"].dt.year < 1990) | (ins["tdate"].dt.year > ins["filed"].dt.year)
+    too_old = (f - t) > pd.Timedelta(days=3 * 366)
+    INSIDER_DROPPED.update(trade_after_filing=int(bad_order.sum()), bad_year=int(bad_year.sum()),
+                           over_3y_late=int((too_old & ~bad_year).sum()))
+    # very late filings (3,415 rows, mostly amendments/annual Form 5) are legitimate: they enter only on their
+    # filing day, so they are counted for the audit but kept
+    return ins[~(bad_order | bad_year)]
+
+
 def _insider_features(ins, dates, tickers, dv20):
     out = {}
     z = pd.DataFrame(0.0, index=dates, columns=tickers, dtype="float32")
     if ins is None or ins.empty:
         return {"ins_buyers30": z, "ins_value30": z, "ins_officer30": z, "ins_opportunistic30": z}
+    ins = clean_insider(ins)
     d = ins[ins["symbol"].isin(tickers)].copy()
     d = d[(d["value"] > 1000) & (d["value"] < 5e8)]          # drop data-entry errors (e.g. $7e15 rows)
     d["day"] = d["filed"].dt.normalize() + pd.Timedelta(days=1)       # filing time unknown -> next day
