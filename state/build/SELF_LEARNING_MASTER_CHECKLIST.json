@@ -1550,13 +1550,16 @@
    "owner": "Claude",
    "status": "IN_PROGRESS",
    "code_paths": [
+    "engine/learning/controls.py",
+    "engine/learning/same_year.py",
     "engine/learning_delta.py::run_pair,play_curve",
     "scripts/learning_curve.py",
     "scripts/learning_delta.py"
    ],
    "tests": [
     "tests/test_learning_curve.py",
-    "tests/test_learning_delta.py"
+    "tests/test_learning_delta.py",
+    "tests/test_learning_same_year.py"
    ],
    "evidence": [
     "state/research/learning_delta/lc1/report.md",
@@ -1567,9 +1570,9 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": "2026-09-29T10:08:36",
+   "last_run": "2026-09-29T10:31:19",
    "code_hash": "6c44a0173dc73530",
-   "notes": "B22 lc1 (29 Sep, real, K=20, 6 windows, C58 time gate): 0/6 windows rising, identity control flat under disguise, reset control flat; harness self-check VALID. S16 same_year.py/controls.py add controls D random + E leaky (pass 2 running). | earlier: [implemented-but-unvalidated] run1->run2 works (self-check VALID); the run 1..N curve (C57) is running (lc1) and being edited by builders."
+   "notes": "IMPLEMENTED — NOT VALIDATED (S16 pass 2): 5 frozen controls through the real firewalls (no local LeakGuard), real-panel path via make_presentation + audited TimeGate + GateReferee, estimated rerun weight (1-rho)/(1+rho), tier-1/2 recognition AUCs in every run. | earlier: B22 lc1 (29 Sep, real, K=20, 6 windows, C58 time gate): 0/6 windows rising, identity control flat under disguise, reset control flat; harness self-check VALID. S16 same_year.py/controls.py add controls D random + E leaky (pass 2 running). | earlier: [implemented-but-unvalidated] run1->run2 works (self-check VALID); the run 1..N curve (C57) is running (lc1) and being edited by builders."
   },
   {
    "id": "E02",
@@ -1580,11 +1583,14 @@
    "code_paths": [
     "engine/antimemo.py::disguise",
     "engine/blind_gates.py::make_ticker_map",
+    "engine/learning/controls.py",
+    "engine/learning/same_year.py",
     "engine/learning_delta.py::make_presentation,audit_presentation"
    ],
    "tests": [
     "tests/test_blind_gates.py",
     "tests/test_learning_delta.py",
+    "tests/test_learning_same_year.py",
     "tests/test_tiebreak.py"
    ],
    "evidence": [
@@ -1595,9 +1601,9 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": "2026-09-29T10:08:36",
+   "last_run": "2026-09-29T10:31:19",
    "code_hash": "6c44a0173dc73530",
-   "notes": "B22 lc1 (29 Sep, real, K=20, 6 windows, C58 time gate): 0/6 windows rising, identity control flat under disguise, reset control flat; harness self-check VALID. S16 same_year.py/controls.py add controls D random + E leaky (pass 2 running). | earlier: IMPLEMENTED — NOT VALIDATED. [contradictory] Codes/dates are disguised and audited, but the same year's numbers are identical, so any numeric memory recognises the rerun (ld2 caveat); year-fingerprint channel 6 QUARANTINED. Section 1.2 forbids 'identifying a disguised rerun as a rerun'."
+   "notes": "IMPLEMENTED — NOT VALIDATED (S16 pass 2): 5 frozen controls through the real firewalls (no local LeakGuard), real-panel path via make_presentation + audited TimeGate + GateReferee, estimated rerun weight (1-rho)/(1+rho), tier-1/2 recognition AUCs in every run. | earlier: B22 lc1 (29 Sep, real, K=20, 6 windows, C58 time gate): 0/6 windows rising, identity control flat under disguise, reset control flat; harness self-check VALID. S16 same_year.py/controls.py add controls D random + E leaky (pass 2 running). | earlier: IMPLEMENTED — NOT VALIDATED. [contradictory] Codes/dates are disguised and audited, but the same year's numbers are identical, so any numeric memory recognises the rerun (ld2 caveat); year-fingerprint channel 6 QUARANTINED. Section 1.2 forbids 'identifying a disguised rerun as a rerun'."
   },
   {
    "id": "E03",
@@ -1606,10 +1612,13 @@
    "owner": "Claude",
    "status": "VALIDATED",
    "code_paths": [
+    "engine/learning/controls.py",
+    "engine/learning/same_year.py",
     "engine/learning_delta.py::NullLearner"
    ],
    "tests": [
-    "tests/test_learning_delta.py::test_non_learner_shows_zero_delta_everywhere"
+    "tests/test_learning_delta.py::test_non_learner_shows_zero_delta_everywhere",
+    "tests/test_learning_same_year.py"
    ],
    "evidence": [
     "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)",
@@ -1620,9 +1629,9 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": "2026-09-29T10:08:36",
+   "last_run": "2026-09-29T10:31:19",
    "code_hash": "6c44a0173dc73530",
-   "notes": "B22 lc1 (29 Sep, real, K=20, 6 windows, C58 time gate): 0/6 windows rising, identity control flat under disguise, reset control flat; harness self-check VALID. S16 same_year.py/controls.py add controls D random + E leaky (pass 2 running). | earlier: [already implemented] Noise control = exactly 0 on 12 real pairs; planted non-learner = NO_EFFECT."
+   "notes": "IMPLEMENTED — NOT VALIDATED (S16 pass 2): 5 frozen controls through the real firewalls (no local LeakGuard), real-panel path via make_presentation + audited TimeGate + GateReferee, estimated rerun weight (1-rho)/(1+rho), tier-1/2 recognition AUCs in every run. | earlier: B22 lc1 (29 Sep, real, K=20, 6 windows, C58 time gate): 0/6 windows rising, identity control flat under disguise, reset control flat; harness self-check VALID. S16 same_year.py/controls.py add controls D random + E leaky (pass 2 running). | earlier: [already implemented] Noise control = exactly 0 on 12 real pairs; planted non-learner = NO_EFFECT."
   },
   {
    "id": "E04",
@@ -1632,10 +1641,13 @@
    "status": "FAILED",
    "code_paths": [
     "engine/learners.py (6 learners)",
+    "engine/learning/controls.py",
+    "engine/learning/same_year.py",
     "engine/learning_delta.py::MemoryBankLearner,BasisLearner"
    ],
    "tests": [
-    "tests/test_learners.py"
+    "tests/test_learners.py",
+    "tests/test_learning_same_year.py"
    ],
    "evidence": [
     "state/research/learners/ls2_replicate/report.md",
@@ -1646,9 +1658,9 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": "2026-09-29T10:08:36",
+   "last_run": "2026-09-29T10:31:19",
    "code_hash": "6c44a0173dc73530",
-   "notes": "B22 lc1 (29 Sep, real, K=20, 6 windows, C58 time gate): 0/6 windows rising, identity control flat under disguise, reset control flat; harness self-check VALID. S16 same_year.py/controls.py add controls D random + E leaky (pass 2 running). | earlier: IMPLEMENTED — FAILED VALIDATION. No learner passes past-only transfer; band_cfg lifts in_band but worsens worst5/max_dd."
+   "notes": "IMPLEMENTED — NOT VALIDATED (S16 pass 2): 5 frozen controls through the real firewalls (no local LeakGuard), real-panel path via make_presentation + audited TimeGate + GateReferee, estimated rerun weight (1-rho)/(1+rho), tier-1/2 recognition AUCs in every run. | earlier: B22 lc1 (29 Sep, real, K=20, 6 windows, C58 time gate): 0/6 windows rising, identity control flat under disguise, reset control flat; harness self-check VALID. S16 same_year.py/controls.py add controls D random + E leaky (pass 2 running). | earlier: IMPLEMENTED — FAILED VALIDATION. No learner passes past-only transfer; band_cfg lifts in_band but worsens worst5/max_dd."
   },
   {
    "id": "E05",
@@ -1657,10 +1669,13 @@
    "owner": "Claude",
    "status": "VALIDATED",
    "code_paths": [
+    "engine/learning/controls.py",
+    "engine/learning/same_year.py",
     "engine/learning_delta.py::MemoriserLearner,IdentityRecallLearner"
    ],
    "tests": [
-    "tests/test_learning_delta.py::test_memoriser_is_flagged_with_large_same_year_gain_and_zero_transfer"
+    "tests/test_learning_delta.py::test_memoriser_is_flagged_with_large_same_year_gain_and_zero_transfer",
+    "tests/test_learning_same_year.py"
    ],
    "evidence": [
     "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)",
@@ -1671,9 +1686,9 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": "2026-09-29T10:08:36",
+   "last_run": "2026-09-29T10:31:19",
    "code_hash": "6c44a0173dc73530",
-   "notes": "B22 lc1 (29 Sep, real, K=20, 6 windows, C58 time gate): 0/6 windows rising, identity control flat under disguise, reset control flat; harness self-check VALID. S16 same_year.py/controls.py add controls D random + E leaky (pass 2 running). | earlier: [already implemented] Planted memoriser flagged MEMORISATION (same-year +0.088, transfer 0)."
+   "notes": "IMPLEMENTED — NOT VALIDATED (S16 pass 2): 5 frozen controls through the real firewalls (no local LeakGuard), real-panel path via make_presentation + audited TimeGate + GateReferee, estimated rerun weight (1-rho)/(1+rho), tier-1/2 recognition AUCs in every run. | earlier: B22 lc1 (29 Sep, real, K=20, 6 windows, C58 time gate): 0/6 windows rising, identity control flat under disguise, reset control flat; harness self-check VALID. S16 same_year.py/controls.py add controls D random + E leaky (pass 2 running). | earlier: [already implemented] Planted memoriser flagged MEMORISATION (same-year +0.088, transfer 0)."
   },
   {
    "id": "E06",
@@ -1682,10 +1697,13 @@
    "owner": "Claude",
    "status": "IN_PROGRESS",
    "code_paths": [
+    "engine/learning/controls.py",
+    "engine/learning/same_year.py",
     "engine/learning_delta.py::aggregate (shuffle ctrl)"
    ],
    "tests": [
-    "tests/test_learning_delta.py"
+    "tests/test_learning_delta.py",
+    "tests/test_learning_same_year.py"
    ],
    "evidence": [
     "state/research/learning_delta/lc1/report.md",
@@ -1694,9 +1712,9 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": "2026-09-29T10:08:36",
+   "last_run": "2026-09-29T10:31:19",
    "code_hash": "6c44a0173dc73530",
-   "notes": "B22 lc1 (29 Sep, real, K=20, 6 windows, C58 time gate): 0/6 windows rising, identity control flat under disguise, reset control flat; harness self-check VALID. S16 same_year.py/controls.py add controls D random + E leaky (pass 2 running). | earlier: [partial] A shuffled-outcome control exists; no random learner (control D) with random updates of equal size."
+   "notes": "IMPLEMENTED — NOT VALIDATED (S16 pass 2): 5 frozen controls through the real firewalls (no local LeakGuard), real-panel path via make_presentation + audited TimeGate + GateReferee, estimated rerun weight (1-rho)/(1+rho), tier-1/2 recognition AUCs in every run. | earlier: B22 lc1 (29 Sep, real, K=20, 6 windows, C58 time gate): 0/6 windows rising, identity control flat under disguise, reset control flat; harness self-check VALID. S16 same_year.py/controls.py add controls D random + E leaky (pass 2 running). | earlier: [partial] A shuffled-outcome control exists; no random learner (control D) with random updates of equal size."
   },
   {
    "id": "E07",
@@ -1705,10 +1723,13 @@
    "owner": "Claude",
    "status": "VALIDATED",
    "code_paths": [
+    "engine/learning/controls.py",
+    "engine/learning/same_year.py",
     "engine/learning_delta.py::LeakyGate,leak_gate_caught,leak_probe"
    ],
    "tests": [
-    "tests/test_learning_delta.py::test_selfcheck_is_valid_and_catches_the_leak_probe"
+    "tests/test_learning_delta.py::test_selfcheck_is_valid_and_catches_the_leak_probe",
+    "tests/test_learning_same_year.py"
    ],
    "evidence": [
     "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)",
@@ -1719,9 +1740,9 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": "2026-09-29T10:08:36",
+   "last_run": "2026-09-29T10:31:19",
    "code_hash": "6c44a0173dc73530",
-   "notes": "B22 lc1 (29 Sep, real, K=20, 6 windows, C58 time gate): 0/6 windows rising, identity control flat under disguise, reset control flat; harness self-check VALID. S16 same_year.py/controls.py add controls D random + E leaky (pass 2 running). | earlier: [already implemented] Leak probe caught = True in every self-check."
+   "notes": "IMPLEMENTED — NOT VALIDATED (S16 pass 2): 5 frozen controls through the real firewalls (no local LeakGuard), real-panel path via make_presentation + audited TimeGate + GateReferee, estimated rerun weight (1-rho)/(1+rho), tier-1/2 recognition AUCs in every run. | earlier: B22 lc1 (29 Sep, real, K=20, 6 windows, C58 time gate): 0/6 windows rising, identity control flat under disguise, reset control flat; harness self-check VALID. S16 same_year.py/controls.py add controls D random + E leaky (pass 2 running). | earlier: [already implemented] Leak probe caught = True in every self-check."
   },
   {
    "id": "E08",
@@ -4269,19 +4290,22 @@
    "owner": "Claude",
    "status": "IN_PROGRESS",
    "code_paths": [
-    "engine/learning_delta.py::NullLearner",
-    "engine/baseline.py::freeze_baseline"
+    "engine/baseline.py::freeze_baseline",
+    "engine/learning/controls.py",
+    "engine/learning/same_year.py",
+    "engine/learning_delta.py::NullLearner"
    ],
    "tests": [
-    "tests/test_baseline.py"
+    "tests/test_baseline.py",
+    "tests/test_learning_same_year.py"
    ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial] Control exists; not frozen as a hashed learning baseline."
+   "last_run": "2026-09-29T10:31:19",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (S16 pass 2): 5 frozen controls through the real firewalls (no local LeakGuard), real-panel path via make_presentation + audited TimeGate + GateReferee, estimated rerun weight (1-rho)/(1+rho), tier-1/2 recognition AUCs in every run. | earlier: [partial] Control exists; not frozen as a hashed learning baseline."
   },
   {
    "id": "L02",
@@ -4308,18 +4332,21 @@
    "owner": "Claude",
    "status": "IN_PROGRESS",
    "code_paths": [
+    "engine/learning/controls.py",
+    "engine/learning/same_year.py",
     "engine/learning_delta.py::MemoriserLearner"
    ],
    "tests": [
-    "tests/test_learning_delta.py"
+    "tests/test_learning_delta.py",
+    "tests/test_learning_same_year.py"
    ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial] Not frozen."
+   "last_run": "2026-09-29T10:31:19",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (S16 pass 2): 5 frozen controls through the real firewalls (no local LeakGuard), real-panel path via make_presentation + audited TimeGate + GateReferee, estimated rerun weight (1-rho)/(1+rho), tier-1/2 recognition AUCs in every run. | earlier: [partial] Not frozen."
   },
   {
    "id": "L04",
@@ -4327,15 +4354,20 @@
    "description": "Random learner control frozen.",
    "owner": "Claude",
    "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "code_paths": [
+    "engine/learning/controls.py",
+    "engine/learning/same_year.py"
+   ],
+   "tests": [
+    "tests/test_learning_same_year.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[missing] Random learner control does not exist."
+   "last_run": "2026-09-29T10:31:19",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (S16 pass 2): 5 frozen controls through the real firewalls (no local LeakGuard), real-panel path via make_presentation + audited TimeGate + GateReferee, estimated rerun weight (1-rho)/(1+rho), tier-1/2 recognition AUCs in every run. | earlier: [missing] Random learner control does not exist."
   },
   {
    "id": "L05",
@@ -4344,18 +4376,21 @@
    "owner": "Claude",
    "status": "IN_PROGRESS",
    "code_paths": [
+    "engine/learning/controls.py",
+    "engine/learning/same_year.py",
     "engine/learning_delta.py::LeakyGate"
    ],
    "tests": [
-    "tests/test_learning_delta.py"
+    "tests/test_learning_delta.py",
+    "tests/test_learning_same_year.py"
    ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial] Not frozen."
+   "last_run": "2026-09-29T10:31:19",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (S16 pass 2): 5 frozen controls through the real firewalls (no local LeakGuard), real-panel path via make_presentation + audited TimeGate + GateReferee, estimated rerun weight (1-rho)/(1+rho), tier-1/2 recognition AUCs in every run. | earlier: [partial] Not frozen."
   },
   {
    "id": "L06",
@@ -5010,14 +5045,16 @@
   {
    "section": "Same-year learning harness",
    "minimum_lines": 1300,
-   "actual_lines": 1277,
+   "actual_lines": 1454,
    "code_paths": [
-    "engine/learning_delta.py::Window,Presentation,DisguiseRecord,Run,Visible,LearnedState,TimeGate,verify_gate_log,LearnContext,derive_seed,_fresh_codes,_shift_bounds,make_presentation,_relabel_frame,archive_presentation,has_token,_texts,_frame_texts,_all_timestamps,audit_presentation,audit_visible,blindness_summary,ReplayPlayer,MemoryBankLearner,BasisLearner,ChainLearner,NullLearner,MemorisingReplayPlayer,MemoriserLearner,synthetic_window,score_weekly,SyntheticPlayer,SyntheticGeneraliser,SyntheticMemoriserPlayer,_audit_and_play,run_pair,harness_selfcheck,leak_probe,revealed_pool,load_window,IdentityRecallPlayer,IdentityRecallLearner,SyntheticIdentityPlayer,LeakyGate,leak_gate_caught (720)",
     "engine/antimemo.py (433)",
+    "engine/learning/controls.py",
+    "engine/learning/same_year.py",
+    "engine/learning_delta.py::Window,Presentation,DisguiseRecord,Run,Visible,LearnedState,TimeGate,verify_gate_log,LearnContext,derive_seed,_fresh_codes,_shift_bounds,make_presentation,_relabel_frame,archive_presentation,has_token,_texts,_frame_texts,_all_timestamps,audit_presentation,audit_visible,blindness_summary,ReplayPlayer,MemoryBankLearner,BasisLearner,ChainLearner,NullLearner,MemorisingReplayPlayer,MemoriserLearner,synthetic_window,score_weekly,SyntheticPlayer,SyntheticGeneraliser,SyntheticMemoriserPlayer,_audit_and_play,run_pair,harness_selfcheck,leak_probe,revealed_pool,load_window,IdentityRecallPlayer,IdentityRecallLearner,SyntheticIdentityPlayer,LeakyGate,leak_gate_caught (720)",
     "scripts/learning_delta.py (124)"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "UNDER by 23 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). depth met but IN_PROGRESS: run1->run2 harness with controls A,B,C,E is VALID on planted worlds; real verdict MEMORISATION / NO_TRANSFER. The run-1..N curve (lc1) is running now. Random learner (control D) missing. Builders are live-editing learning_delta.py."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (S16 pass 2): 5 frozen controls through the real firewalls (no local LeakGuard), real-panel path via make_presentation + audited TimeGate + GateReferee, estimated rerun weight (1-rho)/(1+rho), tier-1/2 recognition AUCs in every run. | earlier: UNDER by 23 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). depth met but IN_PROGRESS: run1->run2 harness with controls A,B,C,E is VALID on planted worlds; real verdict MEMORISATION / NO_TRANSFER. The run-1..N curve (lc1) is running now. Random learner (control D) missing. Builders are live-editing learning_delta.py."
   },
   {
    "section": "Cross-year transfer",

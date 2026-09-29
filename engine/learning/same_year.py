@@ -118,9 +118,11 @@ class RunPanel:
     meta: dict = field(default_factory=dict)
 
     def __post_init__(self):
-        self._slices = {}
+        self._slices, self._yslices = {}, {}
         for d, g in self.X.groupby(level=0, sort=True):
             self._slices[pd.Timestamp(d)] = g.droplevel(0)
+        for d, g in self.y.groupby(level=0, sort=True):
+            self._yslices[pd.Timestamp(d)] = g.droplevel(0)
 
     def __len__(self):
         return len(self.weeks)
@@ -128,7 +130,7 @@ class RunPanel:
     def week(self, i: int) -> tuple:
         disg, real = self.weeks[i]
         Xw = self._slices[disg]
-        yw = self.y.xs(disg, level=0).reindex(Xw.index)
+        yw = self._yslices[disg].reindex(Xw.index)
         return Xw, yw, CT.Moment(disg, i, real)
 
     def excess(self, i: int) -> pd.Series:
@@ -425,7 +427,7 @@ def play_run(control: CT.Control, panel: RunPanel, run: int, guard: FirewallScre
     n = len(panel)
     gains, ics, hits, breaches = np.zeros(n), np.zeros(n), np.zeros(n), []
     reads0 = 0
-    score_rows, excess_rows = [], []
+    score_rows = []
     prev = None
     if control.letter == "E":
         control.attach_oracle(lambda m: (panel.excess(m.week), m.real_ts))
@@ -446,8 +448,7 @@ def play_run(control: CT.Control, panel: RunPanel, run: int, guard: FirewallScre
         gains[i] = float(ex[pos].mean()) if len(pos) else 0.0
         hits[i] = float((ex[pos] > 0).mean()) if len(pos) else 0.0
         ics[i] = rank_ic(scores.to_numpy(dtype=float), ex)
-        score_rows.append(pd.Series(scores.to_numpy(dtype=float), index=pd.MultiIndex.from_product([[mom.disguised], Xw.index], names=["date", "ticker"])))
-        excess_rows.append(pd.Series(ex, index=score_rows[-1].index))
+        score_rows.append((mom.disguised, Xw.index, scores.to_numpy(dtype=float), ex))
         reads0 += len(mom.reads)
         prev = (Xw, yw, mom)
     if prev is not None:
@@ -456,9 +457,13 @@ def play_run(control: CT.Control, panel: RunPanel, run: int, guard: FirewallScre
     control.end_run(run)
     if ref is not None:
         ref.finish()
-    sc = pd.concat(score_rows) if score_rows else None
-    ex_all = pd.concat(excess_rows) if excess_rows else None
-    now = FirewallScreen.now_after(sc.to_frame()) if sc is not None else None
+    sc = ex_all = now = None
+    if score_rows:
+        idx = pd.MultiIndex.from_arrays([np.concatenate([np.full(len(t), d.to_datetime64()) for d, t, _, _ in score_rows]),
+                                         np.concatenate([np.asarray(t, dtype=object) for _, t, _, _ in score_rows])], names=["date", "ticker"])
+        sc = pd.Series(np.concatenate([a for _, _, a, _ in score_rows]), index=idx)
+        ex_all = pd.Series(np.concatenate([e for _, _, _, e in score_rows]), index=idx)
+        now = FirewallScreen.now_after(sc.to_frame())
     return ControlRun(control.letter, run, gains, ics, hits, control.state_size(), guard.summarise(control.letter, breaches, ics, sc, ex_all, now), reads0)
 
 
