@@ -55,3 +55,14 @@
 - [ ] route fills through PITStore.executor(...).fill_next_open + pit.audit_fills; train.py purged_training_set;
       real pipeline through pit.future_scramble_store
 - features.build is future-invariant (5 cuts, 107k rows, planted shift(-5) caught)
+
+## B14 miner hardening (3,600 lines, 109 tests) - accepted; B14 now OWNS engine/patterns.py to integrate
+- decision: P(real) via BH-adjusted p (blueprint sec. 30 outranks code, which used Bonferroni)
+- decision: overlap-robust (HAC) cluster test when rows overlap the label horizon (per-date clustering overstated
+  significance: >20% false rejections on overlapping 5-day returns in synthetic test)
+- finding: panel.parquet has NO candle columns - the 25 candle signals only reach the miner if merged (algo_test.py)
+- finding: m_* context columns were never candidates (weights/scope only); 12 sparse flag features fill 2-4 quintiles
+- regression gate: planted tests + planted_calibration verdict before/after
+
+## B08 exits/stops (43 tests) - sent back for conditional gap model + loss-cap analysis
+- hooks: exits.learn(paths, default_rules(), as_of).apply(paths); stops.walk_forward_stops; stops.fit_gap_model + size_positions
