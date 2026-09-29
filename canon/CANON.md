@@ -210,3 +210,33 @@ i want youto be utilizing all the memory all the time
 > we need a algorithm for advanced self learning system, but we also need the algorithm to have advanced memory knowing how prevelant to make memory based on a variety of factors
 
 `sha256: ec4a6616645bb73d1364d4a16bfeda359657cdbc24d6650362e69703807e35c0`
+
+## C35 — Algorithm project: self-learning pattern system with massive, relevance-weighted memory (2026-09-28)
+
+> memory should always be stored but more recent things, more common trends, more modern fields, more modern situations such as war, effect stuff like that, it should be self learning no just to always learn more to get infinitiely smart over a period of time but figure out how to make it so its best customized to when its running through what memory it says is most important, and what facts are consistent and the self learning should pick up minor details it should pick up the big obvious details, but also the very small changes only a computer would notice like small reversals, momentary reversals, patterns between different time line candles from minute candles to monthly candles, it should pick up thousands of patterns finding even the smallest thing like if something only effects... unless ... then it cancels out, some of the data will be impossible to notice without an extreme system testing pool and thats why we need you to create a massive memory, but to know what memory should be used when, because data from 1962 will probably be rarely relevent but it still could be sometimes, you need to generate it so its not just looking at the patterns from new test results but also so it looks back at its memory to develop patterns getting extrodinarily advanced and doing statistical math to calculate chance of coincidence and chance of it having an effect, finding how big the effect is and adjusting for the size of the effect and if patterns begin to die, they should look for reasons why they died and try to develop a new pattern but even if no new pattern develops a not working pattern should not be used unless you can find the sourse of why its not working, this isnt for you to do though, its for you to build the self learning system that can build a algorithm like this, so now we have test, find volatility, live, and algorithm, everytime test results come back you should review all three tasks that it applies to going through every single one, keeping in mind that we need a lot of tests, so while you work have tests working, starting a new test should be the first thing to do before you make all the changes so you can work and wait for the test simultaniously, dont stop until this is done and save this to your memory file verbatum
+
+`sha256: 1c01305196d3c8fa42decc1b236e650ebe35a8571c3044963315395c00580cf3`
+
+## C36 — Priority: Algorithm, then Find volatility, then minimal direct Test changes (2026-09-28)
+
+> highest priority is algorithm, find volatility and direct changes to test happen below that but we priortize the learning sytem above direct changes to test, only change what is necessarry for task test because algorithm should be able to do most of it
+
+`sha256: bc15718857c59aa87605ba008d4cfae2b5cf1ede99b8c465a40a679a5085bf1f`
+
+## C37 — Algorithm blueprint first: microscopic effects; P(real / hallucinated / coincidence); thousands of patterns; never stops, never learns for no reason (2026-09-28)
+
+> make the bluprint first and structure it aropund the microscopic effects only a computer would notice the calculate the chances of statistical likelyness of the noticed pattern being real, hallucinated, or coincidence, and structure it around being able to learn thousands of patterns and it never stops trying to learn, but also it never learns for no reason
+
+`sha256: 75b9f0d03e5e383811a8873c9642e5566bbcc4e2a435c6a30d4334dece0a8cff`
+
+## C38 — 7% weekly is the goal: below is too low, above is too risky; keep feeding it more data (2026-09-28)
+
+> also make sure that the self learning keeps in mind 7% weekly is the goal so anything below that should be seen as to low and anything above it should be seen as to risky, and you should spend time just giving it more data while you build it so the self learning has more to work with
+
+`sha256: 467fb571aa4137438ee5e467433151bf43e2b5108da5551757b1609b088f3e78`
+
+## C39 — Priority: 7% weekly volatility first, then minimise risk, then raise the share of positive 7% weeks (2026-09-28)
+
+> it should minimize risk as much as possible but 7 % weekly is top priority, try to minimize risk after you achieve that, that should be a fundamental built into the system where as long as most weeks are 7% volatility then the top priority has been met, after that you can increase the percentage of the 7% being positive rather than negative
+
+`sha256: 6054ef2d32f8d4e7b8fa17b140bf9250fc2de18e5dca306a5c99c5056e5590a2`
