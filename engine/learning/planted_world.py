@@ -527,6 +527,16 @@ class PlantedWorld:
         m = self._key_mask(key, weeks)
         return float(self.total_demeaned()[m].mean()) if m.any() else 0.0
 
+    def exact_key_stats(self, key, weeks: tuple | None = None) -> tuple:
+        """(mean exact effect, standard error from row-to-row spread of the planted signal, rows).  A narrow key overlaps the
+        real patterns by chance; the standard error says how much of its exact mean is that overlap wobble."""
+        m = self._key_mask(key, weeks)
+        n = int(m.sum())
+        if n == 0:
+            return 0.0, 0.0, 0
+        v = self.total_demeaned()[m]
+        return float(v.mean()), float(v.std(ddof=1) / np.sqrt(n)) if n > 1 else 0.0, n
+
     def exact_item_effect(self, item_id: str, weeks: tuple | None = None) -> float:
         """Mean of this item's own demeaned contribution over its own rows and weeks."""
         j = [i.item_id for i in self.spec.items].index(item_id)
@@ -781,11 +791,13 @@ class ClaimScore:
         return dataclasses.asdict(self)
 
 
-def score_claims(world: PlantedWorld, claims: Iterable, at_week: int, lookback: int = 13) -> ClaimScore:
+def score_claims(world: PlantedWorld, claims: Iterable, at_week: int, lookback: int = 13, unplanted_min: float = 0.003,
+                 unplanted_window: int = 26) -> ClaimScore:
     """Judge a learner's claimed knowledge set standing at `at_week` against the ledger.  A claim is a TRUE positive when it
     matches an item that is live at `at_week` (and, if the claim gives an effect, with the right sign); a FALSE discovery when
     it matches a trap (noise, duplicate, dead hallucination, hidden or decayed item, wrong sign) or is unparsable.  A claim
-    matching no planted item is judged by the exact realised effect of its rows over the trailing window."""
+    matching no planted item is judged by the exact realised effect of its rows over the trailing `unplanted_window` weeks; it must
+    clear `unplanted_min` and three standard errors (chance overlap with the real patterns is not a pattern) to count as real."""
     if not 0 <= at_week < world.spec.weeks:
         raise IndexError(f"at_week {at_week}")
     cl = [as_claim(c) for c in claims]
@@ -802,15 +814,15 @@ def score_claims(world: PlantedWorld, claims: Iterable, at_week: int, lookback: 
     sc = ClaimScore(at_week, n_claims=len(uniq))
     claimed_ids = set()
     kind_claimed: dict = {}
-    win = (max(0, at_week - lookback + 1), at_week + 1)
+    win = (max(0, at_week - unplanted_window + 1), at_week + 1)
     for c, k in uniq:
         if k is None:
             sc.fp += 1; sc.false_claims.append((c.name, "unparsable")); continue
         it = by_key.get(k)
         if it is None:
-            eff = world.exact_key_effect(k, win)
-            real = abs(eff) >= MIN_ACTIVE and (c.effect is None or np.sign(c.effect) == np.sign(eff))
-            sc.unplanted[c.name] = {"exact_effect": eff, "real": bool(real)}
+            eff, se, _ = world.exact_key_stats(k, win)
+            real = abs(eff) >= unplanted_min and abs(eff) > 3 * se and (c.effect is None or np.sign(c.effect) == np.sign(eff))
+            sc.unplanted[c.name] = {"exact_effect": eff, "se": se, "real": bool(real)}
             if real:
                 sc.tp += 1
             else:
