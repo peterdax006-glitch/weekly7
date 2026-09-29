@@ -1623,14 +1623,15 @@
    "section": "Autonomous research loop",
    "minimum_lines": 2000,
    "upper_lines": 3000,
-   "actual_lines": 980,
+   "actual_lines": 2927,
    "code_paths": [
-    "engine/learning/research_priority.py::ResearchQueue,QueueItem,queue_snapshot,queue_restore,replay_log,propose_selected",
     "engine/learning/checkpoints.py",
-    "engine/learning/learner.py::stage_research,stage_meta"
+    "engine/learning/learner.py::stage_research,stage_meta",
+    "engine/learning/research_priority.py::ResearchQueue,QueueItem,queue_snapshot,queue_restore,replay_log,propose_selected",
+    "engine/research/loop.py"
    ],
    "status": "IN_PROGRESS",
-   "notes": "[mapping 2026-09-29, read-only audit] [partial] 980/2000 meaningful lines genuinely doing this job. 209 (queue) + 719 (checkpoints) + 52 (learner stage_research 24 + stage_meta 28). Research runs only as one stage inside the blind learner's episode; no standalone persistent loop, no cancel/escalate/demote, no concurrent jobs; resume_verified and write_interruption have 0 callers."
+   "notes": "W01: loop.py 2,208 (+controller 596, two_stage 524); static reachability 0 unreached; BUT 24 stages SKIPPED_NO_INPUT on the planted feed and the quality gate never promotes (10 of 14 gates lack evidence) - data does not yet flow end to end. W02 fixing. | earlier: [mapping 2026-09-29, read-only audit] [partial] 980/2000 meaningful lines genuinely doing this job. 209 (queue) + 719 (checkpoints) + 52 (learner stage_research 24 + stage_meta 28). Research runs only as one stage inside the blind learner's episode; no standalone persistent loop, no cancel/escalate/demote, no concurrent jobs; resume_verified and write_interruption have 0 callers."
   },
   {
    "section": "Market-wide observer",

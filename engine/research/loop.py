@@ -1514,6 +1514,12 @@ def st_generate(ctx: Ctx) -> tuple:
     from engine.research import questions as Q
     from engine.research import priority as PRI
     events = list(ctx.state.carry_events) + list(ctx.bus.get("events", []))
+    future = [e for e in events if as_date(e.evidence_through) >= as_date(ctx.now)]
+    if future:
+        ctx.state.memo.setdefault("quarantined_events", []).extend((ctx.now, _event_key(e)) for e in future)
+        ctx.state.carry_events = [e for e in ctx.state.carry_events if e not in future]
+        raise FirewallBreach(f"{len(future)} question event(s) rest on evidence dated on/after now={ctx.now} (quarantined): "
+                             + "; ".join(_event_key(e) for e in future[:3]))
     converted, refused = [], []
     for rq in ctx.bus.get("research_questions", []):
         try:
@@ -2558,7 +2564,8 @@ def step(state: LoopState, rt: Runtime) -> dict | None:
         return None
     resumed = bool(state.done_stages.get(state.cycle))
     if not resumed:
-        state.bus = {}
+        carry = {k: state.bus[k] for k in ("controller_prev",) if state.bus.get(k) is not None}
+        state.bus = carry
         state.done_stages[state.cycle] = []
     state.now = now
     ctx = Ctx(state, rt, now, state.cycle)
@@ -2572,6 +2579,8 @@ def step(state: LoopState, rt: Runtime) -> dict | None:
         if spec.name in state.done_stages[state.cycle]:
             continue
         if spec.name == "report.cycle":
+            k = f"{state.cycle}|{spec.name}"
+            state.exec_count[k] = state.exec_count.get(k, 0) + 1
             rep = cycle_report(state, rt, records)
             records.append(StageRecord(state.cycle, spec.name, spec.phase.value, StageStatus.OK, "", len(records), 1, 0.0, "loop"))
             rep["stages"] = [r.to_dict() for r in records]

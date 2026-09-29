@@ -237,6 +237,7 @@ class ControllerConfig:
     stall_min_minutes: float = 300.0       # spend before a phase can be called STALLED
     stall_ratio: float = 0.2               # realised yield below this share of the prior (upper bound) = negligible
     stalled_multiplier: float = 0.25
+    stalled_cap: float = 0.15              # a STALLED phase may not soak up what capped phases leave over
     loss_weight: float = 0.5               # how strongly the largest loss source's share lifts P6
     z: float = 1.645                       # one-sided 95% bound for 'lower bound clears the target'
     stale_days: int = 120                  # a reading older than this is treated as unmeasured again
@@ -542,6 +543,9 @@ def allocate(state: ControllerState, assessments: Sequence[PhaseAssessment]) -> 
     for a in assessments:
         if a.status == PhaseStatus.BLOCKED:
             lower[a.phase] = upper[a.phase] = cfg.probe_share
+        elif a.status == PhaseStatus.STALLED:
+            lower[a.phase] = max(lower[a.phase], cfg.probe_share)
+            upper[a.phase] = max(lower[a.phase], cfg.stalled_cap)
         elif a.status == PhaseStatus.UNMEASURED:
             lower[a.phase] = max(lower[a.phase], cfg.probe_share)
             upper[a.phase] = max(lower[a.phase], cfg.measure_cap)
@@ -554,7 +558,7 @@ def allocate(state: ControllerState, assessments: Sequence[PhaseAssessment]) -> 
     status = {a.phase: a.status for a in assessments}
     mixed = {}
     for p in PHASES:
-        a = 1.0 if status[p] in (PhaseStatus.REGRESSED, PhaseStatus.BLOCKED) else cfg.smoothing
+        a = 1.0 if status[p] in (PhaseStatus.REGRESSED, PhaseStatus.BLOCKED, PhaseStatus.STALLED) else cfg.smoothing
         mixed[p] = (1 - a) * prev[p] + a * target[p]
     return _bounded_normalise(mixed, lower, upper)
 
