@@ -1610,14 +1610,14 @@
    "section": "Research priority engine",
    "minimum_lines": 1500,
    "upper_lines": 2500,
-   "actual_lines": 1067,
+   "actual_lines": 1951,
    "code_paths": [
     "engine/learning/research_policy.py::PriorityFunction,InfoModel,EigCalibrator,evsi_normal,Factors,Candidate",
     "engine/learning/research_priority.py::ResearchPriorityEngine,decision_relevance,stable_order",
     "engine/research/priority.py"
    ],
    "status": "IMPLEMENTED",
-   "notes": "IMPLEMENTED — NOT VALIDATED (C66 wave 1, R15 after 4 passes): priority.py 1,067 extending learning/research_priority + research_policy (884 mapped); learned priority model beats the literal formula on planted G/H/I worlds; null world not claimed. | earlier: [mapping 2026-09-29, read-only audit] [partial] 884/1500 meaningful lines genuinely doing this job. 142 (research_priority priority/ranking defs) + 742 (research_policy minus compute/diversity/value/waste/health defs). Has EIG, EVSI, feasibility, transfer, overfit (registry_overfit_risk) and redundancy (joint_information) terms plus an EIG calibrator. MISSING: expected_loss_reduction, volatility_value, direction_value factors; validation of the priority model itself out of sample; propose_selected/update_from_result have 0 production callers."
+   "notes": "Section-83 mapping made explicit: priority.py 1,067 + the mapped priority/ranking code it extends in learning/research_priority + research_policy (884, per RESEARCH_MAPPING). | earlier: IMPLEMENTED — NOT VALIDATED (C66 wave 1, R15 after 4 passes): priority.py 1,067 extending learning/research_priority + research_policy (884 mapped); learned priority model beats the literal formula on planted G/H/I worlds; null world not claimed. | earlier: [mapping 2026-09-29, read-only audit] [partial] 884/1500 meaningful lines genuinely doing this job. 142 (research_priority priority/ranking defs) + 742 (research_policy minus compute/diversity/value/waste/health defs). Has EIG, EVSI, feasibility, transfer, overfit (registry_overfit_risk) and redundancy (joint_information) terms plus an EIG calibrator. MISSING: expected_loss_reduction, volatility_value, direction_value factors; validation of the priority model itself out of sample; propose_selected/update_from_result have 0 production callers."
   },
   {
    "section": "Autonomous research loop",
@@ -1801,14 +1801,14 @@
    "section": "Experiment memory",
    "minimum_lines": 1500,
    "upper_lines": 2500,
-   "actual_lines": 1373,
+   "actual_lines": 1867,
    "code_paths": [
     "engine/learning/experiment_memory.py",
     "engine/experiment_memory.py",
     "engine/registry.py"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "[mapping 2026-09-29, read-only audit] [duplicated-risk] 1373/1500 meaningful lines genuinely doing this job. 851 + 293 + 229. Three experiment memories (learning ExperimentLedger, engine tried-index, registry ExperimentMemory) plus compute.ExperimentLedger (execution; same class name). Pre-launch already_tested is wired via improve.py; record_result has 0 callers. Missing C66 fields: data/config hash per record, controls, compute cost, research value, decision impact."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C66 wave 1, R12): experiments.py extends learning/experiment_memory.py (the ONE facade); section-15 dossier with all fields, launch gate (done before? answered? justified replication? what differs?). 69 tests shared with failed_lab. | earlier: [mapping 2026-09-29, read-only audit] [duplicated-risk] 1373/1500 meaningful lines genuinely doing this job. 851 + 293 + 229. Three experiment memories (learning ExperimentLedger, engine tried-index, registry ExperimentMemory) plus compute.ExperimentLedger (execution; same class name). Pre-launch already_tested is wired via improve.py; record_result has 0 callers. Missing C66 fields: data/config hash per record, controls, compute cost, research value, decision impact."
   },
   {
    "section": "Meta-learning",
@@ -1826,12 +1826,12 @@
    "section": "Failed-learner laboratory",
    "minimum_lines": 1200,
    "upper_lines": 2000,
-   "actual_lines": 509,
+   "actual_lines": 1341,
    "code_paths": [
     "engine/learning/failed_learners.py"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "[mapping 2026-09-29, read-only audit] [partial] 509/1200 meaningful lines genuinely doing this job. Registry, dead-end check and six seeded real failures. Module has no production caller (INTEGRATION_AUDIT section 2). Under depth: no class-level counts ('attempted 14 times, 11 overfit') surfaced before a new learner."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C66 wave 1, R12): failed_lab.py extends learning/failed_learners.py; autopsies with a stated basis, learner-class resolution, consult() builds 'attempted N times, k failed because...', material-difference test, 13 seeded failures. | earlier: [mapping 2026-09-29, read-only audit] [partial] 509/1200 meaningful lines genuinely doing this job. Registry, dead-end check and six seeded real failures. Module has no production caller (INTEGRATION_AUDIT section 2). Under depth: no class-level counts ('attempted 14 times, 11 overfit') surfaced before a new learner."
   },
   {
    "section": "Compute manager",
@@ -2085,13 +2085,13 @@
    "section": "Question generator",
    "minimum_lines": 1200,
    "upper_lines": 2000,
-   "actual_lines": 1076,
+   "actual_lines": 1370,
    "code_paths": [
     "engine/learning/research_priority.py::QuestionGenerator,CandidateBuilder,ResearchQuestion,generic_hypotheses,failure_hypotheses",
     "engine/research/questions.py"
    ],
    "status": "IMPLEMENTED",
-   "notes": "IMPLEMENTED — NOT VALIDATED (C66 wave 1, R15 after 4 passes): questions.py 1,076 + research_priority QuestionGenerator it extends (294) - section-83 mapping; per-source criteria and executable tests, structural themes, learned difficulty, too-hard flags, persistence, theme->tree merge. | earlier: [mapping 2026-09-29, read-only audit] [partial] 294/1200 meaningful lines genuinely doing this job. Signals become questions with hypotheses and expected outcomes. Missing: success/failure criteria and test plan per question; C66 question families (contradictions between identical setups, regime survival, 'does this new pattern generalise')."
+   "notes": "Section-83 mapping made explicit: questions.py 1,076 + the QuestionGenerator/CandidateBuilder code it extends in learning/research_priority (294, per RESEARCH_MAPPING). | earlier: IMPLEMENTED — NOT VALIDATED (C66 wave 1, R15 after 4 passes): questions.py 1,076 + research_priority QuestionGenerator it extends (294) - section-83 mapping; per-source criteria and executable tests, structural themes, learned difficulty, too-hard flags, persistence, theme->tree merge. | earlier: [mapping 2026-09-29, read-only audit] [partial] 294/1200 meaningful lines genuinely doing this job. Signals become questions with hypotheses and expected outcomes. Missing: success/failure criteria and test plan per question; C66 question families (contradictions between identical setups, regime survival, 'does this new pattern generalise')."
   },
   {
    "section": "Hypothesis tree",
