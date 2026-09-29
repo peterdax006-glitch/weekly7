@@ -154,6 +154,16 @@ class ExpectationConfig:
         return e
 
 
+_CODE_HASH: list[str] = []
+
+
+def _code_hash() -> str:
+    """current_code_hash() reads and hashes the engine's sources; it cannot change within a run, so it is computed once."""
+    if not _CODE_HASH:
+        _CODE_HASH.append(current_code_hash())
+    return _CODE_HASH[0]
+
+
 def _clean(v: Any) -> float | None:
     try:
         f = float(v)
@@ -405,7 +415,7 @@ class ShiftStat:
 
 def shift_test(x: np.ndarray, n_recent: int, min_reference: int = 20) -> ShiftStat | None:
     """Recent window (last n_recent) against the reference window before it, on a robust reference spread and autocorrelation-
-    adjusted effective sample sizes (t distribution with the recent effective n as df: five periods do not get a normal test).
+    adjusted effective sample sizes (t distribution with the recent count as df: five periods do not get a normal test).
     None when either window is too short - the caller reports UNTESTABLE."""
     x = np.asarray(x, dtype="float64")
     rec, ref = x[-n_recent:], x[:-n_recent]
@@ -417,7 +427,7 @@ def shift_test(x: np.ndarray, n_recent: int, min_reference: int = 20) -> ShiftSt
         return None
     ne_rec, ne_ref = max(1.0, len(rv) * (1 - _rho(fv)) / (1 + _rho(fv))), _eff_n(ref)
     z = (float(rv.mean()) - float(fv.mean())) / (sd * math.sqrt(1.0 / ne_rec + 1.0 / ne_ref))
-    p = float(2 * sps.t.sf(abs(z), df=max(ne_rec - 1.0, 1.0)))
+    p = float(2 * sps.t.sf(abs(z), df=max(len(rv) - 1.0, 2.0)))
     return ShiftStat(float(fv.mean()), float(rv.mean()), sd, float(z), p, len(fv), len(rv))
 
 
@@ -626,21 +636,22 @@ class PrecursorResult:
     quantity: str
     lag: int
     r: float
-    p: float
-    q: float | None
+    p: float                                     # autocorrelation-adjusted analytic p (Bartlett effective n)
+    q: float | None                              # BH q over every probe x lag tested; None when above precursor_q
     replicated: bool
     n: int
+    p_perm: float = 1.0                          # circular-shift null p: a second, distribution-free opinion
 
     @property
     def usable(self) -> bool:
-        return self.replicated and self.q is not None
+        return self.replicated and self.q is not None and self.p_perm <= 0.05
 
 
 def precursor_scan(history: Sequence[MarketObs], target_z: Sequence[float], cfg: ExpectationConfig, seed: int = 0,
                    probes: Sequence[ProbeSpec] = PROBES) -> list[PrecursorResult]:
     """Can the system see the cause BEFORE the next occurrence? For each probe quantity and lag 1..max_lag: the correlation of the
-    quantity at t-lag with the target error z at t, judged against a circular-shift null (autocorrelation preserved, seeded), BH
-    across every probe x lag tested, and required to keep its sign and size in BOTH halves of the sample. `target_z[i]` is the
+    quantity at t-lag with the target error z at t: an autocorrelation-adjusted analytic p (BH across every probe x lag tested),
+    confirmed by a seeded circular-shift null (autocorrelation preserved), and required to keep its sign and size in BOTH halves. `target_z[i]` is the
     error for history[i] (NaN where unresolved). Only complete pairs inside the history are used; nothing after it exists."""
     rng = np.random.default_rng(seed)
     z = np.asarray(target_z, dtype="float64")
@@ -656,14 +667,17 @@ def precursor_scan(history: Sequence[MarketObs], target_z: Sequence[float], cfg:
             a, b = xs[ok], zs[ok]
             r = float(np.corrcoef(a, b)[0, 1])
             null = np.array([abs(np.corrcoef(np.roll(a, int(rng.integers(1, len(a)))), b)[0, 1]) for _ in range(cfg.n_perm)])
-            p = float((1 + np.sum(null >= abs(r))) / (1 + cfg.n_perm))
+            p_perm = float((1 + np.sum(null >= abs(r))) / (1 + cfg.n_perm))
+            rx, rz = _rho(a), _rho(b)
+            n_eff = max(len(a) * (1 - rx * rz) / (1 + rx * rz), 5.0)
+            p = float(2 * sps.t.sf(abs(r) * math.sqrt((n_eff - 2) / max(1 - r * r, 1e-12)), df=n_eff - 2))
             h = len(a) // 2
             r1, r2 = np.corrcoef(a[:h], b[:h])[0, 1], np.corrcoef(a[h:], b[h:])[0, 1]
             rep = bool(np.sign(r1) == np.sign(r2) == np.sign(r) and min(abs(r1), abs(r2)) >= 0.5 * abs(r) and min(abs(r1), abs(r2)) >= 0.1)
-            rows.append((spec, lag, r, p, rep, int(ok.sum())))
+            rows.append((spec, lag, r, p, rep, int(ok.sum()), p_perm))
     qv = benjamini_hochberg([row[3] for row in rows])
-    return [PrecursorResult(s.name, s.quantity, lag, r, p, q if (q is not None and q <= cfg.precursor_q) else None, rep, n_)
-            for (s, lag, r, p, rep, n_), q in zip(rows, qv)]
+    return [PrecursorResult(s.name, s.quantity, lag, r, p, q if (q is not None and q <= cfg.precursor_q) else None, rep, n_, pp)
+            for (s, lag, r, p, rep, n_, pp), q in zip(rows, qv)]
 
 
 # ------------------------------------------------------------------------------------------------ the investigation
@@ -869,7 +883,7 @@ class MarketExpectationEngine:
                 qs.append((q, f, error_scale(self.errors[q], x, self.cfg)[0]))
         if not qs:
             return None, f"fewer than {self.cfg.min_history} observations of any quantity"
-        exp = MarketExpectation(target.isoformat(), d.isoformat(), self.history[-1].date, tuple(qs), len(self.history), current_code_hash(),
+        exp = MarketExpectation(target.isoformat(), d.isoformat(), self.history[-1].date, tuple(qs), len(self.history), _code_hash(),
                                 self.ledger.head())
         exp = dataclasses.replace(exp, digest=exp.compute_digest())
         return self.ledger.append(exp), ""
@@ -889,7 +903,7 @@ class MarketExpectationEngine:
 
     def matured_report(self, rep: InvestigationReport, created_real: str) -> MaturedRecord:
         """Identity-free research-world record of an investigation; reaches the trader only through MaturedRecord.gate(now)."""
-        prov = Provenance(created_real=created_real, learned_at=rep.period, code_hash=current_code_hash(), outcomes_seen_through=rep.period)
+        prov = Provenance(created_real=created_real, learned_at=rep.period, code_hash=_code_hash(), outcomes_seen_through=rep.period)
         payload = {"target": rep.target, "move": rep.move.value, "z": rep.z, "conclusion": rep.conclusion.value,
                    "supported": [p.name for p in rep.supported()], "untestable": list(rep.untestable()),
                    "attribution": rep.selection.attribution.value, "joint_share": rep.joint_share,

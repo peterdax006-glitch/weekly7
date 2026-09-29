@@ -107,22 +107,38 @@
    "group": "CHECKLIST",
    "description": "Checklist F: MARKET EXPECTATION VS MARKET REALITY",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/research/change_points.py",
+    "engine/research/market_expectations.py",
+    "engine/research/regime_memory.py"
+   ],
+   "tests": [
+    "tests/test_research_market_change.py"
+   ],
    "evidence": [],
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED (P03): market expectations vs reality (expansion + contraction, each explanation tested with BH, 'candidate selection failed' as an explicit alternative, untestable != unsupported); CUSUM change points on all 13 checklist-I streams with simulated false-alarm calibration; single-stock vs sector vs market scope; early warning; regime-change memory with every W field; forward-only proven (state at t bit-identical when the future is scrambled; a leaky runner fails). DUPLICATE TO FIX: market_expectations keeps its own small hash chain - move onto archive lanes (P06). 43 tests.",
+   "last_run": "2026-09-29T16:58:15",
+   "code_hash": "8e34dfacf700cd5b"
   },
   {
    "id": "PEG",
    "group": "CHECKLIST",
    "description": "Checklist G: MARKET CONTRACTION RESEARCH",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/research/change_points.py",
+    "engine/research/market_expectations.py",
+    "engine/research/regime_memory.py"
+   ],
+   "tests": [
+    "tests/test_research_market_change.py"
+   ],
    "evidence": [],
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED (P03): market expectations vs reality (expansion + contraction, each explanation tested with BH, 'candidate selection failed' as an explicit alternative, untestable != unsupported); CUSUM change points on all 13 checklist-I streams with simulated false-alarm calibration; single-stock vs sector vs market scope; early warning; regime-change memory with every W field; forward-only proven (state at t bit-identical when the future is scrambled; a leaky runner fails). DUPLICATE TO FIX: market_expectations keeps its own small hash chain - move onto archive lanes (P06). 43 tests.",
+   "last_run": "2026-09-29T16:58:15",
+   "code_hash": "8e34dfacf700cd5b"
   },
   {
    "id": "PEH",
@@ -147,11 +163,19 @@
    "group": "CHECKLIST",
    "description": "Checklist I: CHANGE-POINT DETECTION",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/research/change_points.py",
+    "engine/research/market_expectations.py",
+    "engine/research/regime_memory.py"
+   ],
+   "tests": [
+    "tests/test_research_market_change.py"
+   ],
    "evidence": [],
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED (P03): market expectations vs reality (expansion + contraction, each explanation tested with BH, 'candidate selection failed' as an explicit alternative, untestable != unsupported); CUSUM change points on all 13 checklist-I streams with simulated false-alarm calibration; single-stock vs sector vs market scope; early warning; regime-change memory with every W field; forward-only proven (state at t bit-identical when the future is scrambled; a leaky runner fails). DUPLICATE TO FIX: market_expectations keeps its own small hash chain - move onto archive lanes (P06). 43 tests.",
+   "last_run": "2026-09-29T16:58:15",
+   "code_hash": "8e34dfacf700cd5b"
   },
   {
    "id": "PEJ",
@@ -314,11 +338,19 @@
    "group": "CHECKLIST",
    "description": "Checklist R: EARLY REGIME WARNING SYSTEM",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/research/change_points.py",
+    "engine/research/market_expectations.py",
+    "engine/research/regime_memory.py"
+   ],
+   "tests": [
+    "tests/test_research_market_change.py"
+   ],
    "evidence": [],
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED (P03): market expectations vs reality (expansion + contraction, each explanation tested with BH, 'candidate selection failed' as an explicit alternative, untestable != unsupported); CUSUM change points on all 13 checklist-I streams with simulated false-alarm calibration; single-stock vs sector vs market scope; early warning; regime-change memory with every W field; forward-only proven (state at t bit-identical when the future is scrambled; a leaky runner fails). DUPLICATE TO FIX: market_expectations keeps its own small hash chain - move onto archive lanes (P06). 43 tests.",
+   "last_run": "2026-09-29T16:58:15",
+   "code_hash": "8e34dfacf700cd5b"
   },
   {
    "id": "PES",
@@ -394,22 +426,38 @@
    "group": "CHECKLIST",
    "description": "Checklist W: REGIME-CHANGE MEMORY",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/research/change_points.py",
+    "engine/research/market_expectations.py",
+    "engine/research/regime_memory.py"
+   ],
+   "tests": [
+    "tests/test_research_market_change.py"
+   ],
    "evidence": [],
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED (P03): market expectations vs reality (expansion + contraction, each explanation tested with BH, 'candidate selection failed' as an explicit alternative, untestable != unsupported); CUSUM change points on all 13 checklist-I streams with simulated false-alarm calibration; single-stock vs sector vs market scope; early warning; regime-change memory with every W field; forward-only proven (state at t bit-identical when the future is scrambled; a leaky runner fails). DUPLICATE TO FIX: market_expectations keeps its own small hash chain - move onto archive lanes (P06). 43 tests.",
+   "last_run": "2026-09-29T16:58:15",
+   "code_hash": "8e34dfacf700cd5b"
   },
   {
    "id": "PEX",
    "group": "CHECKLIST",
    "description": "Checklist X: NO RETROSPECTIVE REGIME CHEATING",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/research/change_points.py",
+    "engine/research/market_expectations.py",
+    "engine/research/regime_memory.py"
+   ],
+   "tests": [
+    "tests/test_research_market_change.py"
+   ],
    "evidence": [],
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED (P03): market expectations vs reality (expansion + contraction, each explanation tested with BH, 'candidate selection failed' as an explicit alternative, untestable != unsupported); CUSUM change points on all 13 checklist-I streams with simulated false-alarm calibration; single-stock vs sector vs market scope; early warning; regime-change memory with every W field; forward-only proven (state at t bit-identical when the future is scrambled; a leaky runner fails). DUPLICATE TO FIX: market_expectations keeps its own small hash chain - move onto archive lanes (P06). 43 tests.",
+   "last_run": "2026-09-29T16:58:15",
+   "code_hash": "8e34dfacf700cd5b"
   },
   {
    "id": "PEY",

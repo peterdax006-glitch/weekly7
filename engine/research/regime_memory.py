@@ -31,13 +31,20 @@ from typing import Any, Mapping, Sequence
 
 import numpy as np
 
-from engine.learning.core import FirewallBreach, Provenance, _StrEnum, as_date, current_code_hash, require_past, stable_hash
+from engine.learning.core import FirewallBreach, Provenance, _StrEnum, as_date, current_code_hash, stable_hash
 from engine.research import regimes as RG
 from engine.research.change_points import PRECURSOR_OF, Detection, Scope, ScopeVerdict, exact_digest
 from engine.research.core import MaturedRecord, Namespace
 from engine.research.multiscale import benjamini_hochberg, t_to_p
 
 SCHEMA_VERSION = "regime_memory.v1"
+_CODE_HASH: list[str] = []
+
+
+def _code_hash() -> str:
+    if not _CODE_HASH:
+        _CODE_HASH.append(current_code_hash())
+    return _CODE_HASH[0]
 
 
 class RegimeStatus(_StrEnum):
@@ -672,7 +679,7 @@ class RegimeMemory:
         precursor names. Each is released to the trader only by MaturedRecord.gate(now)."""
         out = []
         for r in self.records(now):
-            prov = Provenance(created_real=prov_created, learned_at=r.detected_at, code_hash=current_code_hash(), outcomes_seen_through=r.detected_at)
+            prov = Provenance(created_real=prov_created, learned_at=r.detected_at, code_hash=_code_hash(), outcomes_seen_through=r.detected_at)
             payload = {"scope": r.scope, "status": self.status(r.record_id).value, "precursors": list(r.precursors()), "latency": r.detection_latency,
                        "confidence": r.confidence, "weakened": list(r.patterns_weakened), "strengthened": list(r.patterns_strengthened),
                        "n_misleading": len(r.misleading_signals)}
@@ -680,7 +687,7 @@ class RegimeMemory:
         return out
 
     def content_hash(self) -> str:
-        return exact_digest([e.digest for e in self._events])
+        return exact_digest([e.compute() for e in self._events])         # recomputed from content, so a rewritten event changes it
 
 
 @dataclasses.dataclass(frozen=True)

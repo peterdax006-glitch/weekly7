@@ -139,3 +139,18 @@
   trader_handoff(record, now) is its only door. trader_view forbids a 'reasons' key even inside MaturedRecord payloads.
 - R19 (partial, sent back): replication.authorize_system_change before any research-derived change reaches the trader,
   passing replayed_years; QualityGate.evaluate before PromotionGate; scorecard priority weights -> research priority.
+
+## C68 (P-series) hooks and fixes queued for P06
+- P01 expectations/outcomes/errors: expectations_from_day(day, PathModel..., ctx, now) -> ExpectationLedger.record(exp, now) before the fill;
+  outcomes.reconstruct -> OutcomeLedger.add after exit; prediction_error.ErrorEngine(tracker=shared SurpriseTracker).step(outcomes, now);
+  store ExpectationLedger.anchor() outside the ledger and verify(anchors) periodically.
+- P02 error_research.step(state, now, records, contexts, priority_state, results, budget, seed) after P01 records mature; Q15 follow-ups
+  -> precursors/discovery; knowability via InvestigationContext.
+- P03 market_expectations.step / change_points.step / regime_memory.step each day; feed_tracker into the shared SurpriseTracker;
+  DUPLICATE: market_expectations has its own small hash chain -> move onto archive ChainFile lanes (like P01's exp68/out68/err68).
+- P04 pattern_change.step daily + mark_investigated; what_changed.step after errors mature; plan_test -> questions; new_trees ->
+  priority; Conclusions reach the trader only via MaturedRecord.gate.
+- P05 two_stage.run_day -> selection_constraint.select/apply_to_positions; exit_research.LearnedExitRule into exits.walk_forward;
+  CommitmentBook().commit at expectation time; calibration_target.evaluate for grading; self_correct.step.
+- CROSS-CUTTING: current_code_hash() re-reads and hashes all engine sources on every call - at least 4 builders hit 0.3 s-40 s
+  slowdowns and cached it locally. Needs ONE canonical per-process cache that still detects on-disk edits (stale-code guard).

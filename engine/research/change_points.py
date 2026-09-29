@@ -21,7 +21,7 @@ SECTOR change, and many sectors alarming (or several market-level streams) is a 
 checklist-R precursors are named signals; regime-layer pressure (engine.research.regimes) joins them as further evidence.
 
 Firewall: everything here is a function of values up to `now`; outputs are MATURED_RESEARCH_STATE until they pass a gate.
-Built on: engine.learning.calibration.change_scan (location refinement), engine.research.regimes (RegimeMonitor history and
+Built on: engine.research.regimes (RegimeMonitor history and
 all_warnings feed the same board), engine.research.multiscale (benjamini_hochberg), engine.research.core, engine.learning.core."""
 from __future__ import annotations
 
@@ -36,7 +36,6 @@ from typing import Any, Mapping, Sequence
 import numpy as np
 from scipy import stats as sps
 
-from engine.learning.calibration import change_scan
 from engine.learning.core import FirewallBreach, _StrEnum, as_date, stable_hash
 from engine.research import regimes as RG
 from engine.research.multiscale import benjamini_hochberg
@@ -109,8 +108,7 @@ class ChangeConfig:
     warmup: int = 40                             # values used to fix the reference; no alarms before it is set
     clip: float = 4.0
     settle: int = 25                             # post-alarm values used to re-baseline; alarms are muted meanwhile
-    scan_window: int = 120                       # recent standardised values searched to locate the change
-    scan_threshold: float = 3.0
+    scan_window: int = 200                       # recent standardised values kept to locate the change
     n_sim: int = 400
     sim_seed: int = 20260929
     scope_window: int = 10                       # steps over which alarms count as 'simultaneous' for scope classification
@@ -324,14 +322,21 @@ class StreamDetector:
         return det
 
     def _locate(self, idx: int, cusum_start: int) -> int:
-        """Where did the new level begin? The CUSUM run start, refined by the mean-shift scan of the buffered values. Both use
-        only values already seen; the answer is clamped to [monitor start, now]."""
+        """Where did the new level begin? Best two-level split of the buffered standardised values, searched from shortly before the
+        CUSUM run start to the alarm (a change only a few steps old is invisible to a whole-history scan that trims its ends). Uses
+        only values already seen; the answer is clamped to [monitor start, alarm]."""
         n = min(idx - self.monitor_start + 1, len(self.zbuf))
         z = np.array(list(self.zbuf)[-n:], dtype="float64")
         first = idx - n + 1
-        _, k = change_scan(z, threshold=self.cfg.scan_threshold)
-        est = first + k if k is not None else cusum_start
-        return int(min(max(est, self.monitor_start, first), idx))
+        lo = max(cusum_start - 15, first + 2)
+        cs = np.cumsum(z)
+        best, arg = -1.0, cusum_start
+        for tau in range(lo, idx - 1):                       # right segment [tau, idx] keeps at least two values
+            k, m = tau - first, len(z) - (tau - first)
+            stat = abs(cs[-1] - cs[k - 1] - (m / k) * cs[k - 1]) / math.sqrt(m * (1 + m / k)) if k > 0 else 0.0
+            if stat > best:
+                best, arg = stat, tau
+        return int(min(max(arg, self.monitor_start, first), idx))
 
     def state(self) -> dict[str, Any]:
         return {"phase": self.phase, "n_seen": self.n_seen, "n_missing": self.n_missing, "warm": list(self.warm),
