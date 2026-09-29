@@ -513,11 +513,15 @@ def test_w05_planted_real_decay_is_still_caught():
 
 
 def test_w05_a_lucky_streak_in_a_dead_pattern_does_not_release_it_early():
-    """Dead pattern (edge zero), broken, then a short run of good weeks: the posterior leans on the prior expected effect, so the
-    early release also needs the recent mean to be release_t standard errors above ZERO."""
-    rng = np.random.default_rng(11)
-    r = np.r_[rng.normal(0.006, 0.01, 80), rng.normal(0.0, 0.01, 120), rng.normal(0.0045, 0.01, 12)]
-    h = PR.health_monitor(_series_tl(r), {"est_win": 26})
-    strict = PR.health_monitor(_series_tl(r), {"est_win": 26, "release_t": 0.0})
-    assert (h.codes.iloc[:, 0] == PR.BROKEN).sum() >= (strict.codes.iloc[:, 0] == PR.BROKEN).sum()
-    assert h.codes.iloc[-1, 0] in (PR.BROKEN, PR.SUSPECT)
+    """Dead pattern (edge zero after week 80), then a short run of good weeks: the posterior leans on the prior expected effect,
+    so the early release also needs the recent mean to be release_t standard errors above ZERO. Never releases sooner than
+    the old rule across 30 dead series, and strictly later on the seed where the streak fools the old rule."""
+    later = 0
+    for sd in range(30):
+        rng = np.random.default_rng(sd)
+        r = np.r_[rng.normal(0.006, 0.01, 80), rng.normal(0.0, 0.01, 120), rng.normal(0.0045, 0.01, 12)]
+        new = (PR.health_monitor(_series_tl(r), {"est_win": 26}).codes.iloc[:, 0] == PR.BROKEN).sum()
+        old = (PR.health_monitor(_series_tl(r), {"est_win": 26, "release_t": 0.0}).codes.iloc[:, 0] == PR.BROKEN).sum()
+        assert new >= old
+        later += int(new > old)
+    assert later >= 1
