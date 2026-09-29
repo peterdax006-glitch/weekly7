@@ -1,0 +1,72 @@
+{
+ "config_sha256": "2a26c49219a502801ee6cfa9efbad5834aca9680dfe66a382b9c5140e1e8b4bb",
+ "created": "2026-09-29T08:14:01+00:00",
+ "files": {
+  "config.json": {
+   "bytes": 866,
+   "sha256": "2a26c49219a502801ee6cfa9efbad5834aca9680dfe66a382b9c5140e1e8b4bb"
+  },
+  "logs/round.txt": {
+   "bytes": 504,
+   "sha256": "cbea10ac7e5c9b344b2d9b5903a262c1d3823281a48872ee3c50c682629696cf"
+  },
+  "metrics.json": {
+   "bytes": 578,
+   "sha256": "9a2c602b67e4730be57a7ff7724913435401d78b7126a567375a75080165e390"
+  },
+  "seeds.json": {
+   "bytes": 81,
+   "sha256": "f6adf669d628e153d2678998ff3551966696f498936ee704f7c3c8f9ef5534d2"
+  },
+  "summary.json": {
+   "bytes": 151,
+   "sha256": "ea845b52e244144e0fe794e28359589c5ad1ee74fe9508a99ec708e119dbd5c0"
+  }
+ },
+ "files_hash": "185f9e4770934fd43fdf9bfc27dd5a9a5b07bd0d2e8e595f3bebc433cb379db1",
+ "provenance": {
+  "bible_sha": "a97ea91862cee371",
+  "blueprint_version": "4.0",
+  "canon_sha": "00bf97d3ae2dcdc2",
+  "code_files": [
+   "engine/__init__.py",
+   "engine/adaptive.py",
+   "engine/basis_search.py",
+   "engine/blind_gates.py",
+   "engine/checkpoint.py",
+   "engine/config.py",
+   "engine/data.py",
+   "engine/features.py",
+   "engine/fill_audit.py",
+   "engine/health.py",
+   "engine/improve.py",
+   "engine/leak_audit.py",
+   "engine/livesim.py",
+   "engine/memory.py",
+   "engine/missed_winners.py",
+   "engine/model.py",
+   "engine/objective.py",
+   "engine/pit.py",
+   "engine/policy.py",
+   "engine/portfolio.py",
+   "engine/provenance.py",
+   "engine/scoring.py",
+   "engine/universe.py",
+   "scripts/livesim_loop2.py"
+  ],
+  "code_hash": "32c942c54dff3d71",
+  "code_mixed": [],
+  "config_hash": "7ce625ee06c6a129",
+  "data_snapshot": "171ba8ba728ee713",
+  "git_commit": "5148746bc9ba348ca0f827ad33b2280cde62fdb8",
+  "seed": {
+   "basis_search_seed": 3,
+   "windows": [
+    "w03a",
+    "w03b",
+    "w03c"
+   ]
+  }
+ },
+ "run_id": "loop2_round003_20260929T081401"
+}

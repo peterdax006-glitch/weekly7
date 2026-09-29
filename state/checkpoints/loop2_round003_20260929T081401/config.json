@@ -1,0 +1,49 @@
+{
+ "basis": 0,
+ "cfg": {
+  "brake": 0.15,
+  "exit_q": 0.8,
+  "k": 3,
+  "liq_q": 0.2,
+  "max_per_sector": 2,
+  "pick": "top",
+  "pool_q": 0.7,
+  "rebalance_weeks": 2,
+  "stress_k": 3,
+  "stress_thr": 1.0,
+  "trend_filter": -0.05,
+  "trend_gross": 0.5,
+  "vol_filter": true,
+  "w_model": 1.0,
+  "w_mom": 0.2,
+  "w_move": 0.5
+ },
+ "meta": {
+  "adaptive_knobs": [
+   "w_model",
+   "liq_q",
+   "k",
+   "pool_q",
+   "w_move",
+   "w_mom"
+  ],
+  "cooldown": 3,
+  "det_max": 0.5,
+  "det_min_weeks": 6,
+  "dial_on": false,
+  "half_life": 6,
+  "ic_beta": 0.5,
+  "ic_clip": 1.0,
+  "knob_cooldown": 0,
+  "max_switches": null,
+  "mem_score_errors": true,
+  "mem_use_dates": false,
+  "min_improve": 0.0,
+  "min_weeks": 4,
+  "prior_weeks": 8,
+  "revert_drop": 0.03,
+  "revert_fast": null,
+  "revert_lockout": 0,
+  "switch_z": 2.0
+ }
+}
