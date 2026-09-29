@@ -100,8 +100,29 @@ def data_snapshot():
 PROCESS_START = __import__("time").time()
 
 
+_NORM_CACHE: dict = {}
+
+
 def _norm(path):
-    return Path(path).read_bytes().replace(bytes([13, 10]), bytes([10]))
+    """File bytes with CRLF folded to LF. Cached by (mtime_ns, size): an edited file is re-read on the very next call, so the
+    stale-code guard is unaffected, but unchanged files are not re-read on every stamp (the whole-engine re-read cost
+    0.3-40 s per call across several builders on 29 Sep)."""
+    p = Path(path)
+    st = p.stat()
+    key = str(p)
+    hit = _NORM_CACHE.get(key)
+    # "racy" guard (as git does): an equal-size rewrite inside one timestamp tick keeps (mtime, size) unchanged, so a file
+    # modified in the last RACY_S seconds is never served from the cache (test_hash_changes_when_a_loaded_file_changes).
+    fresh = __import__("time").time() - st.st_mtime < RACY_S
+    if hit and not fresh and hit[0] == st.st_mtime_ns and hit[1] == st.st_size:
+        return hit[2]
+    data = p.read_bytes().replace(bytes([13, 10]), bytes([10]))
+    if not fresh:
+        _NORM_CACHE[key] = (st.st_mtime_ns, st.st_size, data)
+    return data
+
+
+RACY_S = 2.0
 
 
 def loaded_code():
@@ -112,13 +133,21 @@ def loaded_code():
         f = getattr(m, "__file__", None)
         if not f:
             continue
-        try:
-            rel = Path(f).resolve().relative_to(ROOT)
-        except ValueError:
-            continue
-        if rel.suffix == ".py" and rel.parts[0] in ("engine", "scripts"):
-            out.add(rel.as_posix())
+        rel = _REL_CACHE.get(f, _MISS)
+        if rel is _MISS:                                 # Path.resolve() on ~1,600 modules cost ~0.18 s per stamp (29 Sep);
+            try:                                          # a module's file never moves within a process, so resolve it once
+                r = Path(f).resolve().relative_to(ROOT)
+                rel = r.as_posix() if r.suffix == ".py" and r.parts[0] in ("engine", "scripts") else None
+            except ValueError:
+                rel = None
+            _REL_CACHE[f] = rel
+        if rel:
+            out.add(rel)
     return sorted(out)
+
+
+_REL_CACHE: dict = {}
+_MISS = object()
 
 
 def code_hash(files=None):
