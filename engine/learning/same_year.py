@@ -38,6 +38,7 @@ from engine.learning.learning_curve import CurvePoint, LearningCurve, Trend, tre
 from engine.learning.planted_world import CANARY_PREFIX, PlantedWorld, assert_no_canary, reidentify
 
 GUARD_GATE = CT.MemoryGate("guard")
+MAX_SHIFT_YEARS = 60
 MODES = ("fresh_perturbed", "fresh_plain", "kept")
 
 
@@ -72,7 +73,7 @@ class PerturbConfig:
 
     @staticmethod
     def standard() -> "PerturbConfig":
-        return PerturbConfig(sub_universe=0.7, vol_sd=0.2, week_jitter=3, feature_noise=0.5, market_noise=1.5, common_mode_sd=0.05)
+        return PerturbConfig(sub_universe=0.7, vol_sd=0.5, week_jitter=3, feature_noise=0.5, market_noise=1.5, common_mode_sd=0.05)
 
     def scaled(self, s: float) -> "PerturbConfig":
         """Every perturbation at s times its standard strength (s=0 -> off); the frontier sweeps this."""
@@ -147,7 +148,7 @@ def make_run_panel(world: PlantedWorld, run: int, seed: int, cfg: PerturbConfig 
     if mode == "kept":
         X, y = _clean_frames(world)
         return RunPanel(X, y, [(pd.Timestamp(d), pd.Timestamp(d)) for d in real_dates], {"mode": mode, "run": run})
-    shift_years = int(_rng(seed, run, 1).integers(1, 9))
+    shift_years = 1 + int(_rng(seed, 1).permutation(MAX_SHIFT_YEARS)[run % MAX_SHIFT_YEARS])       # distinct across runs (audit_disguises checks)
     re = reidentify(world, seed=int(_rng(seed, run, 2).integers(0, 2 ** 31)), tickers=True, shift_years=shift_years, shuffle_rows=True)
     X, y = _clean_frames(re.world)
     disguised = list(re.world.dates)
@@ -187,7 +188,8 @@ def _perturb(X: pd.DataFrame, y: pd.Series, cfg: PerturbConfig, seed: int, run: 
         bucket = pd.Series(np.searchsorted(edges, vol.to_numpy()), index=vol.index)
         logf = pd.Series(_rng(seed, run, 13).normal(0.0, cfg.vol_sd, len(vol)), index=vol.index)
         logf = logf - logf.groupby(bucket).transform("mean")             # mean-zero inside each volatility bucket
-        y = wk_mean + dev * np.exp(logf.reindex(tick).to_numpy())
+        scaled = dev * np.exp(logf.reindex(tick).to_numpy())
+        y = wk_mean + (scaled - scaled.groupby(level=0).transform("mean"))     # the market's weekly return is left exactly as it was
         meta["vol_sd"] = cfg.vol_sd
     if cfg.common_mode_sd > 0:
         shock = pd.Series(_rng(seed, run, 14).normal(0.0, cfg.common_mode_sd, W), index=sorted(set(dates)))
@@ -387,6 +389,29 @@ def paired_gap(a_runs: Sequence[ControlRun], b_runs: Sequence[ControlRun], *, se
     A, B = stacked(a_runs[:m]), stacked(b_runs[:m])
     n = min(A.shape[1], B.shape[1])
     return block_bootstrap_mean((A[:, :n] - B[:, :n]).mean(0), seed=seed)
+
+
+def slope_ci(G: np.ndarray, *, seed: int = 0, n_boot: int = 400, block: int = 4, level: float = 0.95) -> Gap:
+    """Slope of per-run mean gain against run index (per run), with a moving-block bootstrap over WEEKS (the same weeks are resampled
+    for every run, so the run-to-run pairing is kept). `G` is runs x weeks. Needs >= 4 runs for an interval."""
+    G = np.asarray(G, float)
+    R, n = G.shape if G.ndim == 2 else (0, 0)
+    x = np.arange(R, dtype=float)
+
+    def slope(m):
+        return float(np.polyfit(x, m, 1)[0]) if R >= 2 and m.std() > 0 else 0.0
+    if R < 4 or n < 4:
+        return Gap(slope(G.mean(1)) if R >= 2 else float("nan"), float("-inf"), float("inf"), R)
+    rng = np.random.default_rng(seed)
+    b = max(1, min(block, n))
+    starts = np.arange(n - b + 1)
+    out = np.empty(n_boot)
+    for i in range(n_boot):
+        picks = rng.choice(starts, size=int(math.ceil(n / b)))
+        idx = np.concatenate([np.arange(s, s + b) for s in picks])[:n]
+        out[i] = slope(G[:, idx].mean(1))
+    q = (1 - level) / 2
+    return Gap(slope(G.mean(1)), float(np.quantile(out, q)), float(np.quantile(out, 1 - q)), R)
 
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -741,15 +766,25 @@ class SameYearHarness:
             c.add(CurvePoint(r.run + 1, exp, r.state_size, 0, same_year_gain=r.gain))
         return c
 
-    def curve_trend(self, mode: str, letter: str) -> Trend:
+    def curve_trend(self, mode: str, letter: str) -> Gap:
+        """Slope of the control's per-run gain over runs (per run) with a week-block bootstrap interval; .positive means rising."""
+        return slope_ci(stacked(self.results[mode].runs[letter]), seed=self.cfg.seed)
+
+    def library_trend(self, mode: str, letter: str) -> Trend:
+        """The same curve through learning_curve.trend (Theil-Sen over points), for the shared report format."""
         cv = self.curve(mode, letter)
-        x, y = cv.column("experience_count"), cv.column("same_year_gain")
-        return trend(x, y, seed=self.cfg.seed, n_boot=200, n_perm=1000)
+        return trend(cv.column("experience_count"), cv.column("same_year_gain"), seed=self.cfg.seed, n_boot=200, n_perm=1000)
 
     # -- gaps
     def memorisation_gap(self, letter: str) -> Gap:
-        """Gain with identities kept minus gain with identities disguised (late runs, paired by run)."""
-        return paired_gap(self.results["kept"].late(letter, self.cfg.late_share), self.results["fresh_perturbed"].late(letter, self.cfg.late_share),
+        """Gain with identities kept minus gain with identities disguised but numbers untouched (late runs, paired by run). Comparing
+        against fresh_plain, not fresh_perturbed, isolates identity: the perturbations cost information for everybody."""
+        return paired_gap(self.results["kept"].late(letter, self.cfg.late_share), self.results["fresh_plain"].late(letter, self.cfg.late_share),
+                          seed=self.cfg.seed)
+
+    def perturbation_price(self, letter: str) -> Gap:
+        """What the perturbations cost a control: gain under fresh_plain minus gain under fresh_perturbed (late runs)."""
+        return paired_gap(self.results["fresh_plain"].late(letter, self.cfg.late_share), self.results["fresh_perturbed"].late(letter, self.cfg.late_share),
                           seed=self.cfg.seed)
 
     def identity_gap(self, mode: str = "kept") -> Gap:
@@ -767,7 +802,7 @@ class SameYearHarness:
     # -- judgement
     def judge(self) -> Judgement:
         cfg = self.cfg
-        need = {"fresh_perturbed", "kept"}
+        need = set(MODES)
         if not need <= set(self.results):
             raise RuntimeError(f"judge() needs modes {sorted(need)} to have been run")
         fp, kept = self.results["fresh_perturbed"], self.results["kept"]
@@ -791,9 +826,9 @@ class SameYearHarness:
             void.append("the harness cannot see the identity memoriser (C's kept-vs-disguised gap is not positive)")
         trend_d = self.curve_trend("fresh_perturbed", "D")
         facts["D_trend"] = dataclasses.asdict(trend_d)
-        if trend_d.rising:
+        if trend_d.positive:
             void.append("the random learner D shows a rising curve")
-        a_gain = block_bootstrap_mean(stacked(fp.runs["A"]).mean(0), seed=cfg.seed)
+        a_gain = block_bootstrap_mean(stacked(fp.runs["A"]).mean(0), seed=cfg.seed, level=0.99)      # 99%: a pure lottery must not void the harness by chance
         facts["A_gain"] = dataclasses.asdict(a_gain)
         if a_gain.n >= 4 and not a_gain.includes_zero:
             void.append("the no-learning control A has a non-zero gain")
@@ -803,14 +838,15 @@ class SameYearHarness:
         tr_b = self.curve_trend("fresh_perturbed", "B")
         gap_b = self.memorisation_gap("B")
         facts.update({"B_beats_A": dataclasses.asdict(beat), "B_trend": dataclasses.asdict(tr_b), "B_memorisation_gap": dataclasses.asdict(gap_b),
-                      "identity_gap_C_minus_B": dataclasses.asdict(self.identity_gap("kept"))})
+                      "identity_gap_C_minus_B": dataclasses.asdict(self.identity_gap("kept")),
+                      "B_perturbation_price": dataclasses.asdict(self.perturbation_price("B"))})
         reasons = []
         if not beat.positive:
             return Judgement(Verdict.NO_LEARNING, ["B does not beat the no-learning floor with a positive interval"], facts)
         tol = cfg.gap_tolerance * max(beat.mean, 1e-9)
         if gap_b.positive and gap_b.mean > tol:
             return Judgement(Verdict.MEMORISING, [f"B's memorisation gap {gap_b.mean:.5f} exceeds {cfg.gap_tolerance:.0%} of its gain"], facts)
-        if not tr_b.rising:
+        if not tr_b.positive:
             reasons.append("B beats A but its curve over runs is not (yet) rising with a positive interval")
         return Judgement(Verdict.LEARNING, reasons or ["B beats A, rises over runs and does not need identities"], facts)
 
@@ -824,7 +860,7 @@ class SameYearHarness:
             for L in CT.LETTERS:
                 g = res.gains(L)
                 tr = self.curve_trend(mode, L) if len(g) >= 4 else None
-                lines.append(f"| {L} | " + " | ".join(f"{v:+.4f}" for v in g) + f" | {tr.slope:+.4f} | {sum(r.guard.flagged for r in res.runs[L])}/{len(g)} |"
+                lines.append(f"| {L} | " + " | ".join(f"{v:+.4f}" for v in g) + f" | {tr.mean:+.5f} | {sum(r.guard.flagged for r in res.runs[L])}/{len(g)} |"
                              if tr else f"| {L} | " + " | ".join(f"{v:+.4f}" for v in g) + " | n/a | - |")
             lines.append("")
         return "\n".join(lines)
@@ -832,3 +868,79 @@ class SameYearHarness:
     def fingerprint(self) -> str:
         return stable_hash({"code": current_code_hash(), "controls": {L: fc.record.as_dict() for L, fc in self.frozen.items()},
                             "cfg": dataclasses.asdict(self.cfg), "world": self.world.content_hash()})
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# section 65: the multi-dimensional learning delta of the rerun chain
+# ---------------------------------------------------------------------------------------------------------------
+BAND_PROXY = 0.005      # planted-world stand-in for 'a week inside the target band': a top-k excess gain of at least +0.5%
+
+
+def run_metrics(run: ControlRun) -> dict:
+    """Metrics of one pass in the vocabulary of learning_curve.SOURCE_METRIC (planted-world proxies, not the 7% band)."""
+    g = run.gains
+    if len(g) == 0:
+        return {}
+    cum = np.cumsum(g)
+    return {"mean_week": float(g.mean()), "in_band": float((g >= BAND_PROXY).mean()), "worst5": float(np.quantile(g, 0.05)),
+            "max_dd": float((cum - np.maximum.accumulate(cum)).min()), "pos_share": float((g > 0).mean()),
+            "dir_hit": float((run.ics > 0).mean()), "mover_hit": float(run.hits.mean())}
+
+
+def harness_learning_delta(h: "SameYearHarness", letter: str = "B", mode: str = "fresh_perturbed", *, seed: int = 0, n_boot: int = 400):
+    """learning_delta = later runs - run 1 of the same control, on every section-65 dimension (transfer and calibration stay UNTESTED:
+    a same-year chain measures neither, and a positive same-year delta alone never proves learning). Pairs share their run-1 'before',
+    so they are not independent; the interval is therefore wide by design of the bootstrap, and still only a same-year statement."""
+    from engine.learning.learning_curve import compute_learning_delta
+    runs = h.results[mode].runs[letter]
+    pairs = [{"before": run_metrics(runs[0]), "after": run_metrics(r)} for r in runs[1:]]
+    return compute_learning_delta(pairs, seed=seed, n_boot=n_boot, min_pairs=max(2, len(pairs) // 2))
+
+
+def delta_statements(h: "SameYearHarness", mode: str = "fresh_perturbed") -> dict:
+    """One honest sentence per control about its same-year delta across all dimensions."""
+    return {L: harness_learning_delta(h, L, mode).statement() for L in CT.LETTERS}
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# the disguised-rerun mechanism audit (E02) and the serialisable record
+# ---------------------------------------------------------------------------------------------------------------
+def audit_disguises(panels: Sequence[RunPanel]) -> list[str]:
+    """Problems that would let a player recognise a rerun BY IDENTITY (the numeric tier is the probe's job): a code reused between
+    runs, a date shift repeated, a disguised date equal to a real one, or the row order following code order."""
+    problems = []
+    seen_codes: dict = {}
+    shifts: dict = {}
+    for k, p in enumerate(panels):
+        codes = set(p.X.index.get_level_values(1))
+        for prev, c in seen_codes.items():
+            over = codes & c
+            if over:
+                problems.append(f"runs {prev} and {k} share {len(over)} ticker codes")
+        seen_codes[k] = codes
+        sh = p.meta.get("shift_days")
+        if sh is not None:
+            if sh in shifts:
+                problems.append(f"runs {shifts[sh]} and {k} use the same date shift ({sh} days)")
+            shifts[sh] = k
+        same_date = sum(d == r for d, r in p.weeks)
+        if same_date:
+            problems.append(f"run {k}: {same_date} disguised dates equal their real dates")
+        first = p.X.groupby(level=0, sort=True).head(1).index.get_level_values(1)
+        if len(first) > 4 and list(first) == sorted(first):
+            problems.append(f"run {k}: row order follows code order (a tie-break would leak identity)")
+    return problems
+
+
+def record_of(h: "SameYearHarness") -> dict:
+    """JSON-able summary of a finished harness: per mode and control the per-run gains, the guard flags, the verdict and hashes."""
+    rec = {"label": ValidationLabel.NOT_VALIDATED.value, "fingerprint": h.fingerprint(), "config": dataclasses.asdict(h.cfg), "modes": {}}
+    for mode, res in h.results.items():
+        rec["modes"][mode] = {L: {"gains": [round(float(r.gain), 8) for r in runs], "ic": [round(float(r.ics.mean()), 6) for r in runs],
+                                  "flagged": [bool(r.guard.flagged) for r in runs], "state_size": [int(r.state_size) for r in runs]}
+                              for L, runs in res.runs.items()}
+    if set(MODES) <= set(h.results):
+        j = h.judge()
+        rec["judgement"] = j.as_record()
+    rec["id"] = stable_hash(rec)
+    return rec

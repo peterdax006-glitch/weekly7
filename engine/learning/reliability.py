@@ -27,6 +27,7 @@ from typing import Any, Mapping, Sequence
 import numpy as np
 import pandas as pd
 from scipy import stats as sps
+from scipy.special import expit
 
 from engine import pattern_reliability as PR
 
@@ -444,7 +445,7 @@ def decide(state: ReliabilityState, cfg=None, in_context: bool = True) -> Reliab
     if s.context_match == "out":
         why.append("today is outside the item's stated contexts (or inside an anti-context)")
         return ReliabilityDecision("STANDBY", 0.0, "none", tuple(why))
-    if s.current_reliability < P["current_lo"] and (risk >= P["risk_hi"] or s.truth >= P["truth_hi"]):
+    if s.current_reliability < P["current_lo"]:
         why.append(f"current reliability {s.current_reliability:.2f} below {P['current_lo']}")
         if s.truth >= P["truth_hi"]:
             why.append(f"historical truth {s.truth:.2f} is high, so it is watched for recovery rather than retired")
@@ -530,6 +531,7 @@ class ReliabilityScore:
     ece: float
     predictive: bool
     verdict: str
+    skill_recalibrated: float = float("nan")      # Brier skill after a logistic recalibration fitted on the first half
 
     def as_dict(self) -> dict:
         return dataclasses.asdict(self)
@@ -570,9 +572,42 @@ def walk_forward_reliability(values: Sequence[float], start: int = 60, step: int
     lo, hi = float(np.nanquantile(boots, 0.05)), float(np.nanquantile(boots, 0.95))
     b, bb = PR.brier(df["p"], df["y"]), PR.brier(df["base"], df["y"])
     skill = 1.0 - b / bb if bb > 1e-12 else float("nan")
-    predictive = bool(lo > 0.5 and skill > 0)
-    verdict = "informative" if predictive else ("no better than the base rate" if not (skill > 0) else "AUC interval includes chance")
-    return ReliabilityScore(n, float(a), lo, hi, b, bb, float(skill), PR.ece(df["p"], df["y"]), predictive, verdict), df
+    half = n // 2
+    a0, a1 = platt_fit(df["p"].values[:half], df["y"].values[:half])
+    pr2 = expit(a0 + a1 * _logit(df["p"].values[half:]))
+    b2, bb2 = PR.brier(pr2, df["y"].values[half:]), PR.brier(df["base"].values[half:], df["y"].values[half:])
+    skill2 = 1.0 - b2 / bb2 if bb2 > 1e-12 else float("nan")
+    predictive = bool(lo > 0.5)
+    if not predictive:
+        verdict = "AUC interval includes chance: current_reliability does not rank what happens next"
+    elif skill > 0:
+        verdict = "informative"
+    else:
+        verdict = "ranks what happens next but is over-confident as a probability (raw Brier worse than the base rate)"
+    return ReliabilityScore(n, float(a), lo, hi, b, bb, float(skill), PR.ece(df["p"], df["y"]), predictive, verdict,
+                            float(skill2)), df
+
+
+def _logit(p, eps: float = 1e-4):
+    p = np.clip(np.asarray(p, float), eps, 1.0 - eps)
+    return np.log(p / (1.0 - p))
+
+
+def platt_fit(p: np.ndarray, y: np.ndarray, iters: int = 40, ridge: float = 1e-3) -> tuple[float, float]:
+    """(intercept, slope) of a logistic recalibration y ~ sigmoid(a + b * logit(p)) by ridge-damped Newton steps."""
+    z = _logit(p)
+    y = np.asarray(y, float)
+    a, b = 0.0, 1.0
+    for _ in range(iters):
+        q = expit(a + b * z)
+        g = np.array([(q - y).sum(), ((q - y) * z).sum()]) + ridge * np.array([a, b - 1.0])
+        w = q * (1.0 - q)
+        H = np.array([[w.sum(), (w * z).sum()], [(w * z).sum(), (w * z * z).sum()]]) + ridge * np.eye(2)
+        step = np.linalg.solve(H, g)
+        a, b = a - step[0], b - step[1]
+        if float(np.abs(step).max()) < 1e-8:
+            break
+    return float(a), float(b)
 
 
 def calibration_table(scored: pd.DataFrame, bins: int = 5) -> pd.DataFrame:

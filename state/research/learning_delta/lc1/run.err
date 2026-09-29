@@ -1,0 +1,11 @@
+Traceback (most recent call last):
+  File "C:\Users\Peter\weekly7\scripts\learning_curve.py", line 187, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "C:\Users\Peter\weekly7\scripts\learning_curve.py", line 173, in main
+    (out / "report.md").write_text(L.render_curve_report(summary), encoding="utf-8")
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Peter\weekly7\engine\learning_delta.py", line 1714, in render_curve_report
+    ic = w.get("identity_curve", {}).get(PRIMARY, {})
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'get'

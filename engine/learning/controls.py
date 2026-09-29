@@ -111,6 +111,40 @@ def week_key_stats(X: pd.DataFrame, y: pd.Series, cols: list[str]) -> tuple[np.n
     return ind.sum(0), ind.T @ ye, ind.T @ (ye * ye), len(X)
 
 
+def cell_z(rec: dict, min_n: float = 5.0) -> np.ndarray:
+    """z-score of every key's mean excess return in one week's record (NaN where the key had too few rows)."""
+    n, s, ss = rec["n"], rec["s"], rec["ss"]
+    with np.errstate(divide="ignore", invalid="ignore"):
+        mean = np.where(n > 0, s / n, 0.0)
+        var = np.maximum(np.where(n > 0, ss / n - mean ** 2, 0.0), 1e-12)
+        z = mean / np.sqrt(var / np.maximum(n, 1))
+    return np.where(n >= min_n, z, np.nan)
+
+
+def estimate_rerun_weight(prev: list, cur: list, fallback: float, min_cells: int = 200, w_min: float = 0.02) -> tuple:
+    """Effective extra information of a rerun, from the between-run correlation of the evidence (pseudo-replication).
+    For the same real week, the per-key z-scores of two runs are correlated because they share the year's returns. Two estimates whose
+    noise correlates by rho carry (1+rho)/2 of the variance of one, so a rerun adds (1-rho)/(1+rho) of a fresh sample. rho is measured on
+    the keys that show no signal in either run (|pooled t| < 2 over the run), so the year's true patterns, which are SHARED signal and not
+    shared noise, do not inflate it. Fewer than `min_cells` matched cells -> (fallback, nan): not enough to estimate, the stated constant."""
+    a = {pd.Timestamp(r["obs"]): r for r in prev}
+    pairs = [(a[pd.Timestamp(r["obs"])], r) for r in cur if pd.Timestamp(r["obs"]) in a]
+    if len(pairs) < 4:
+        return fallback, float("nan")
+    za = np.array([cell_z(p) for p, _ in pairs])
+    zb = np.array([cell_z(c) for _, c in pairs])
+    with np.errstate(invalid="ignore"):
+        ta = np.nansum(za, 0) / np.sqrt(np.maximum(np.sum(~np.isnan(za), 0), 1))
+        tb = np.nansum(zb, 0) / np.sqrt(np.maximum(np.sum(~np.isnan(zb), 0), 1))
+    quiet = (np.abs(ta) < 2.0) & (np.abs(tb) < 2.0)
+    u, v = za[:, quiet].ravel(), zb[:, quiet].ravel()
+    ok = ~(np.isnan(u) | np.isnan(v))
+    if ok.sum() < min_cells or np.std(u[ok]) < 1e-12 or np.std(v[ok]) < 1e-12:
+        return fallback, float("nan")
+    rho = float(np.clip(np.corrcoef(u[ok], v[ok])[0, 1], 0.0, 0.999))
+    return float(np.clip((1.0 - rho) / (1.0 + rho), w_min, 1.0)), rho
+
+
 class KeyEvidence:
     """Ledger of week-level key sums with the C58 date filter built in.
 
@@ -118,8 +152,20 @@ class KeyEvidence:
     usable only once their own mature date is <= the real 'now' being decided, so run k+1 at week t never sees run k's week t or
     later. `advance` refuses to move real time backwards inside a run."""
 
-    def __init__(self, n_keys: int):
+    def __init__(self, n_keys: int, prior_weight: float | str = 1.0, fallback_weight: float = 0.35):
+        auto = prior_weight == "auto"
+        if not auto and not 0.0 < float(prior_weight) <= 1.0:
+            raise ValueError("prior_weight must be in (0, 1] or 'auto'")
+        if not 0.0 < fallback_weight <= 1.0:
+            raise ValueError("fallback_weight must be in (0, 1]")
         self.K = int(n_keys)
+        self.auto = auto
+        self.fallback_weight = float(fallback_weight)
+        # a rerun of a week is not an independent sample of it: prior-run evidence counts for less. 'auto' estimates how much less from the
+        # between-run correlation of the evidence (see estimate_rerun_weight); the fallback applies until two finished runs exist.
+        self.prior_weight = self.fallback_weight if auto else float(prior_weight)
+        self.rho_history: list = []
+        self._prev_cur: list = []
         self._prior = {"mature": np.zeros(0, "datetime64[ns]"), "obs": np.zeros(0, "datetime64[ns]"), "n": np.zeros((0, self.K)),
                        "s": np.zeros((0, self.K)), "ss": np.zeros((0, self.K))}
         self._cur: list = []
@@ -132,9 +178,23 @@ class KeyEvidence:
     def __len__(self):
         return len(self._prior["mature"]) + len(self._cur)
 
+    def prior_table(self) -> pd.DataFrame:
+        """The prior-run evidence as a dated table (obs_real / mature_real), the shape the audited TimeGate in learning_delta serves."""
+        return pd.DataFrame({"obs_real": pd.to_datetime(self._prior["obs"]), "mature_real": pd.to_datetime(self._prior["mature"]),
+                             "k": np.arange(len(self._prior["obs"]))})
+
+    def prior_count(self) -> int:
+        """How many prior-run records have been released to the estimates so far in this run."""
+        return int(self._ptr)
+
     def begin_run(self):
         """Fold the finished run into the prior set (sorted by mature date) and reset the running sums."""
+        if self.auto and self._cur and self._prev_cur:
+            w, rho = estimate_rerun_weight(self._prev_cur, self._cur, self.fallback_weight)
+            self.prior_weight = w
+            self.rho_history.append(rho)
         if self._cur:
+            self._prev_cur = list(self._cur)
             add = {k: np.array([r[k] for r in self._cur]) for k in ("mature", "obs", "n", "s", "ss")}
             add["mature"] = add["mature"].astype("datetime64[ns]")
             add["obs"] = add["obs"].astype("datetime64[ns]")
@@ -155,9 +215,9 @@ class KeyEvidence:
         end = int(np.searchsorted(m, np.datetime64(now), side="right"))     # mature <= now
         if end > self._ptr:
             sl = slice(self._ptr, end)
-            self.N += self._prior["n"][sl].sum(0)
-            self.S += self._prior["s"][sl].sum(0)
-            self.SS += self._prior["ss"][sl].sum(0)
+            self.N += self.prior_weight * self._prior["n"][sl].sum(0)
+            self.S += self.prior_weight * self._prior["s"][sl].sum(0)
+            self.SS += self.prior_weight * self._prior["ss"][sl].sum(0)
             top = pd.Timestamp(self._prior["obs"][sl].max())
             self.newest_obs = top if self.newest_obs is None else max(self.newest_obs, top)
             self.used_prior += end - self._ptr
@@ -184,6 +244,9 @@ class KeyEvidence:
 
     def current_records(self) -> list:
         return list(self._cur)
+
+    def evidence(self):
+        return self
 
 
 class PatternMemoryGate:
@@ -284,6 +347,10 @@ class Control:
     def state_size(self) -> int:
         return 0
 
+    def evidence(self):
+        """The KeyEvidence ledger behind this control's date filter, or None if it keeps none (used by the time-gate referee)."""
+        return getattr(self, "ev", None)
+
     def describe(self) -> dict:
         return {"letter": self.letter, "name": self.name, "state_size": self.state_size(), "config": dict(self.config)}
 
@@ -312,7 +379,7 @@ class EvidenceLearner(Control):
     below a multiple-testing t bar ignored, keys the PatternMemory has disregarded switched off. Carries memory across runs."""
     letter, name = "B", "evidence_learner"
 
-    DEFAULTS = {"t_thr": 2.5, "min_n": 30, "use_memory_veto": True, "shrink": 1.0}
+    DEFAULTS = {"t_thr": 2.5, "min_n": 30, "use_memory_veto": True, "shrink": 1.0, "prior_weight": "auto", "prior_weight_fallback": 0.35}
 
     def __init__(self, config: Mapping | None = None, seed: int = 0):
         super().__init__({**self.DEFAULTS, **(config or {})}, seed)
@@ -326,7 +393,7 @@ class EvidenceLearner(Control):
         if self.cols is None:
             self.cols = feature_columns(X)
             self.names = key_names(self.cols)
-            self.ev = KeyEvidence(len(self.names))
+            self.ev = KeyEvidence(len(self.names), self.config["prior_weight"], self.config["prior_weight_fallback"])
             self.pmg = PatternMemoryGate(self.names) if self.config["use_memory_veto"] else None
 
     def begin_run(self, run_id):
@@ -423,6 +490,9 @@ class LegitimateLearner(Control):
 
     def state_size(self):
         return self.inner.state_size()
+
+    def evidence(self):
+        return self.inner.evidence()
 
 
 class IdentityMemoriser(Control):
@@ -547,10 +617,10 @@ def _code_bits(code: types.CodeType) -> list:
     return [code.co_code.hex(), consts, list(code.co_names), list(code.co_varnames)]
 
 
-def _class_bits(base, only_module: str | None) -> list:
+def _class_bits(base, controls_only: bool) -> list:
     parts = []
     for b in base.__mro__:
-        if b is object or (only_module is not None and b.__module__ != only_module):
+        if b is object or (controls_only and not issubclass(b, Control)):
             continue
         for name, val in sorted(vars(b).items()):
             fn = val.__func__ if isinstance(val, (classmethod, staticmethod)) else val
@@ -567,16 +637,16 @@ def foreign_fingerprint(obj) -> str:
         return ""
     if isinstance(obj, types.FunctionType):
         return stable_hash(_code_bits(obj.__code__), 24)
-    return stable_hash(_class_bits(obj, None), 24)
+    return stable_hash(_class_bits(obj, False), 24)
 
 
 def code_fingerprint(cls, factory: Callable | None = None) -> str:
     """Hash of the bytecode of every function the class defines or inherits from this module (plus the module helpers it calls and
     any plug-in), so patching a method at run time changes it, not only editing the file."""
-    parts = _class_bits(cls, __name__)
+    parts = _class_bits(cls, True)
     for extra in getattr(cls, "FROZEN_WITH", ()):
-        parts.append(_class_bits(extra, __name__))
-    for helper in (week_key_stats, quintile_codes, feature_columns, key_names, KeyEvidence.advance, KeyEvidence.add,
+        parts.append(_class_bits(extra, True))
+    for helper in (week_key_stats, quintile_codes, feature_columns, key_names, cell_z, estimate_rerun_weight, KeyEvidence.advance, KeyEvidence.add,
                    KeyEvidence.begin_run, KeyEvidence.estimates, PatternMemoryGate.vetoed, PatternMemoryGate.record_run):
         parts.append([helper.__name__, _code_bits(helper.__code__)])
     parts.append(foreign_fingerprint(factory))
