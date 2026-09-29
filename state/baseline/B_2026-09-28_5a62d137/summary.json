@@ -1,0 +1,86 @@
+{
+ "baseline_id": "B_2026-09-28_5a62d137",
+ "metric_names": [
+  "best_week",
+  "blind_cycles",
+  "blind_mean_week",
+  "blind_weeks_ge_7",
+  "blind_year_return",
+  "cost_total",
+  "max_dd",
+  "mean_week",
+  "median_week",
+  "pct_ge_7",
+  "pct_le_m7",
+  "turnover",
+  "walk_forward_blend",
+  "walk_forward_blend_t",
+  "walk_forward_evidence",
+  "walk_forward_model",
+  "weeks",
+  "win_weeks",
+  "worst_week"
+ ],
+ "note": "Phase 0.4 immutable baseline frozen at session-2 takeover; survivor-biased metrics",
+ "sources": {
+  "historical_test": {
+   "experiment_id": null,
+   "t": "2026-09-28T19:01:53",
+   "variant": "v9_goal_nostop"
+  },
+  "livesim_cycle": {
+   "n": 39,
+   "runs": [
+    "r01a",
+    "r01b",
+    "r01c",
+    "r02a",
+    "r02b",
+    "r02c",
+    "r03a",
+    "r03b",
+    "r03c",
+    "r04a",
+    "r04b",
+    "r04c",
+    "r05a",
+    "r05b",
+    "r05c",
+    "r06a",
+    "r06b",
+    "r06c",
+    "r07a",
+    "r07b",
+    "r07c",
+    "r08a",
+    "r08b",
+    "r08c",
+    "r09a",
+    "r09b",
+    "r09c",
+    "r10a",
+    "r10b",
+    "r10c",
+    "r11a",
+    "r11b",
+    "r11c",
+    "r12a",
+    "r12b",
+    "r12c",
+    "r13a",
+    "r13b",
+    "r13c"
+   ]
+  },
+  "walk_forward": {
+   "t": "2026-09-28T18:52:18"
+  }
+ },
+ "unmeasured": {
+  "analog_results": "no source in experiments.jsonl",
+  "direction_accuracy": "no source in experiments.jsonl",
+  "missed_winners": "no source in experiments.jsonl",
+  "mover_accuracy": "no source in experiments.jsonl",
+  "pattern_results": "no source in experiments.jsonl"
+ }
+}

@@ -11,7 +11,7 @@ Foundation status per Bible phase (line ranges, tests): `state/build/FOUNDATION.
 - [x] P0.1 Canon integrity. Evidence: `canon/build_canon.py --verify` (52 directives); `engine/provenance.verify_integrity()` checks the canon and the Bible and fails closed (tests/test_provenance.py: a tampered Bible raises).
 - [~] P0.2 Experiment registry with provenance. `log_experiment` stamps code_hash (the modules the run loaded), code_mixed, git commit, canon/Bible hashes, blueprint version, config hash, data snapshot, seed, and all Phase 0.2 fields (missing ones warned); sha256 ids. Registry audit of the historic 53 records: 0 complete, 2 with provenance (append-only; fixed going forward). Open: older writers pass no cfg/seed.
 - [~] P0.3 Checkpoint bundle per major run: engine/checkpoint.py (write/verify; tampered, deleted and added files detected). Not yet called by the major-run scripts.
-- [~] P0.4 Immutable baseline snapshot: engine/baseline.py (freeze/verify/diff_vs_baseline). Not yet frozen for the champion.
+- [x] P0.4 Immutable baseline snapshot. Frozen 2026-09-28 23:25: state/baseline/B_2026-09-28_5a62d137 (Live champion + Test basis v1, 19 registry metrics, whole-engine code hash, data snapshot); verify() ok, no drift. Unmeasured at freeze (no registry source): mover/pattern/analog/missed-winner/direction metrics.
 
 ## Algorithm
 - [~] A1 Candles and micro-signals. tests/test_candles.py: 12 pass, including point-in-time truncation with a NaN-aware control that must fail on a peeking feature.

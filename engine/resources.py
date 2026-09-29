@@ -354,12 +354,13 @@ class JobQueue:
     returns a log of decisions, including every reason a job was held - a silent hold is a silently dead job."""
 
     def __init__(self, registry, free_fn=None, launcher=None, rss_fn=None, per_worker_gb=DEFAULT_JOB_GB, reserve_gb=RESERVE_GB,
-                 max_workers=MAX_WORKERS, ramp_s=RAMP_S, cores=None, log_dir=None):
+                 max_workers=MAX_WORKERS, ramp_s=RAMP_S, cores=None, log_dir=None, info=process_info):
         self.registry = registry
         self.free_fn = free_fn or (lambda: memory_gb()[0])
         self.launcher = launcher or (lambda job: default_launcher(job, (Path(log_dir) / f"{job.job_id}.log") if log_dir else None))
         self.rss_fn = rss_fn or (lambda pid: process_info(pid)["rss_gb"])
         self.per_worker_gb, self.reserve_gb, self.max_workers, self.ramp_s, self.cores = per_worker_gb, reserve_gb, max_workers, ramp_s, cores
+        self.info = info
         self.pending = []
         self._seq = 0
 
@@ -393,7 +394,7 @@ class JobQueue:
 
     def tick(self, now):
         log = []
-        reap_dead(self.registry, now)
+        reap_dead(self.registry, now, info=self.info)
         while self.pending:
             running = self.registry.running()
             room = self.headroom_gb(now)

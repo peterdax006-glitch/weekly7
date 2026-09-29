@@ -1,0 +1,48 @@
+{
+ "live_champion": {
+  "champion": "top-4 equal weight, keep while top 20%, weekly, -8% brake, max 2 per sector (v1.2; v1.3 rolled back)",
+  "min_dv": 20000000.0,
+  "trained_through": "2026-09-25",
+  "version": "1.2.1",
+  "vol_filter": true,
+  "w_model": 0.5,
+  "w_options": 0.15
+ },
+ "test_basis": {
+  "cfg": {
+   "brake": null,
+   "exit_q": 0.8,
+   "k": 2,
+   "liq_q": 0.0,
+   "max_per_sector": null,
+   "pick": "hivol",
+   "pool_q": 0.7,
+   "rebalance_weeks": 1,
+   "stress_k": 2,
+   "stress_thr": null,
+   "trend_filter": null,
+   "trend_gross": 0.0,
+   "vol_filter": false,
+   "w_model": 1.0
+  },
+  "meta": {
+   "adaptive_knobs": [
+    "w_model",
+    "liq_q",
+    "k",
+    "pool_q",
+    "w_move",
+    "w_mom"
+   ],
+   "cooldown": 3,
+   "half_life": 6,
+   "ic_beta": 0.5,
+   "ic_clip": 1.0,
+   "min_weeks": 4,
+   "prior_weeks": 8,
+   "revert_drop": 0.03,
+   "switch_z": 2.0
+  },
+  "version": 1
+ }
+}

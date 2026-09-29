@@ -2,7 +2,7 @@
 
 ## B01 pit (engine/pit.py, 49 tests)
 - [ ] future_scramble_store(pipeline, store, as_of) over real PatternMiner / Memory / adaptive outputs
-- [ ] backtest.py + livesim.py: fills via PITStore.executor(as_of).fill_next_open; run pit.audit_fills on results
+- [~] (loop2 fills proven per fill by engine/fill_audit.gate -> pit.audit_fills; backtest.py not yet) backtest.py + livesim.py: fills via PITStore.executor(as_of).fill_next_open; run pit.audit_fills on results
 - [ ] train.py: pit.purged_training_set(X, y, as_of, horizon, cal) instead of ad-hoc label cutting
 - note: Saturday filing -> strict next session needs busday roll='backward'
 
@@ -16,12 +16,12 @@
 
 ## B12 registry/checkpoint/champion/run_report
 - [x] improve.log_experiment ids -> sha256 (done 2026-09-28)
-- [ ] log_experiment writes outcome, reason, metrics
+- [x] log_experiment writes outcome, reason, metrics (+ all Phase 0.2 fields; 2026-09-28)
 - [ ] major runs call checkpoint.write_checkpoint, run_report.build_report/write_report; Board.promote replaces improve.py promotion
 
 ## B12 second pass (engine/baseline.py, engine/experiment_memory.py, scripts/audit_registry.py; 82 tests)
 - [x] log_experiment writes outcome/reason/metrics + Phase 0.2 fields (2026-09-28)
-- [ ] freeze the baseline once with the champion cfg: baseline.freeze(...)
+- [x] freeze the baseline once with the champion cfg: state/baseline/B_2026-09-28_5a62d137 (2026-09-28)
 - [ ] live trader: Board.record_shadow_session daily, shadow_review after each session
 - [ ] experiment_memory.check() before launching grid/loop candidates
 - audit (real 53 records): 0 complete, 2 with provenance -> fixed going forward only; history stays as-is (append-only)
@@ -33,7 +33,7 @@
 
 ## B09 objective/timeline/basis (54 tests)
 - note: adaptive.py reads meta det_max / det_min_weeks not in META_DEFAULT (B15 to add)
-- [ ] adaptive weekly step: merge timeline.cfg_overrides(timeline.step(...)) (needs gross-weight scale)
+- [x] (B15: dial hook in Session, meta dial_on, off by default; dial failed its real gate so it stays off) adaptive weekly step: merge timeline.cfg_overrides(timeline.step(...)) (needs gross-weight scale)
 
 ## B10 blind gates/retester/health (84 tests)
 - real-cache: 40 seals 0 overlap; disguise 0 failures/12 windows; look-ahead probe 6/6 honest pass, 6/6 peeking caught
@@ -50,8 +50,8 @@
 - [ ] Live decides 15:42-15:44 ET (before close) while sims decide at close and fill next open: live/sim parity gap.
       Decide: move live to decide-after-close + fill at next open (matches C33), or model the 15:45 decision in sims.
 - [x] analogs.LAG: UNRATE 30, UMCSENT 25, USREC 460 (2026-09-28)
-- [ ] model labels (features.labels) enter at close t; real fill is next open (mean gap +0.05%, abs 0.7%; 2020 1.3%)
-- [ ] insider data: 142 rows filed before trade date, 6 year typos (13, 24) - clean at load
+- [x] (2026-09-28: features.labels(entry='open'); Test uses it via livesim label_entry; Live unchanged) model labels (features.labels) enter at close t; real fill is next open (mean gap +0.05%, abs 0.7%; 2020 1.3%)
+- [x] (2026-09-28: features.clean_insider drops 146 impossible rows; tests/test_insider_clean.py) insider data: 142 rows filed before trade date, 6 year typos (13, 24) - clean at load
 - [ ] route fills through PITStore.executor(...).fill_next_open + pit.audit_fills; train.py purged_training_set;
       real pipeline through pit.future_scramble_store
 - features.build is future-invariant (5 cuts, 107k rows, planted shift(-5) caught)
@@ -71,17 +71,17 @@
 - [x] loop2: objective.evaluate, BasisSearch via train_basis(), gates intact, seeded search, archive_dirs skips _ dirs
       (my _w01c_original backup had been trained on twice)
 - real-system basis search (39 windows, 155 replays): OOS in-band 22%, risk -0.31; nothing adopted
-- [ ] dial on real replays: pending (state/research/timeline_basis/dial_offline_seed0.json)
-- [ ] adaptive.py: META_DEFAULT det_max/det_min_weeks; dial hook (sent to B15)
+- [x] dial on real replays: DONE - FAILS its gate (in-band 22% -> 14%); not adopted (state/research/timeline_basis/dial_offline_seed0.json)
+- [x] adaptive.py: META_DEFAULT det_max/det_min_weeks; dial hook off by default (B15, 171 tests)
 
 ## B17 quality gate (70 tests) - gate findings to fix (baseline state/quality/baseline.json)
-- [ ] import boundaries: parity_suite -> engine.live; tick.py -> alpaca.trading; research scripts data_live_audit,
+- [x] (2026-09-28: engine/explain.py; tick live-side; reviewed couplings; gate PASS) import boundaries: parity_suite -> engine.live; tick.py -> alpaca.trading; research scripts data_live_audit,
       patterns, replay_year, three_way, site_build import engine.live/broker (move plain/explain helpers to a neutral module)
-- [ ] print() in engine: improve, live, universe
-- [ ] engine/repro.py seeds global RNGs; tests/test_repro.py draws from them
-- [ ] mutable default scripts/antioverfit_real.py:43; tests/test_livesim_gates.py:172 has no assert
+- [x] print() in engine: improve -> warnings; live allowed (job log); universe in __main__ (gate exempts CLI blocks)
+- [x] (reasoned exemption: the probe must touch global RNG to detect it) engine/repro.py seeds global RNGs; tests/test_repro.py draws from them
+- [x] (both fixed) mutable default scripts/antioverfit_real.py:43; tests/test_livesim_gates.py:172 has no assert
 - [x] A6 collector test (tests/test_collect_intraday.py, 2026-09-28)
-- [ ] CI: quality_gate.py --baseline state/quality/baseline.json
+- [x] CI: quality_gate.py --baseline state/quality/baseline.json (.github/workflows/ci.yml)
 
 ## B04 pattern_movers + heavy_tests (52 tests) - accepted; real run in progress (state/research/heavy_algo_real_run.log)
 - hook: Find volatility uses PatternMoverModel(cfg).fit(X, y, now).features(Xday, as_of) -> pat_dir, pat_mov, p_move, deployed
