@@ -4837,7 +4837,7 @@
   {
    "section": "Cross-year transfer",
    "minimum_lines": 1100,
-   "actual_lines": 939,
+   "actual_lines": 1109,
    "code_paths": [
     "engine/learners.py (739)",
     "engine/learning/transfer.py",
@@ -4845,18 +4845,18 @@
     "scripts/learner_search.py (212)"
    ],
    "status": "FAILED",
-   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S10 pass 1). under minimum; sent back. | earlier: UNDER by 59 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). IMPLEMENTED — FAILED VALIDATION: 6 cross-year learners, past-only pairs; none passes (ls3_s11); ls2_replicate learner self-check INVALID. Cross-regime/stock/sector/volatility transfer not built."
+   "notes": "IMPLEMENTED — NOT VALIDATED (S10 pass 2: per-axis CIs, rule transfer ledger, over-specialisation CI, value waterfall, 19 field controls, curve series). | earlier: IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S10 pass 1). under minimum; sent back. | earlier: UNDER by 59 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). IMPLEMENTED — FAILED VALIDATION: 6 cross-year learners, past-only pairs; none passes (ls3_s11); ls2_replicate learner self-check INVALID. Cross-regime/stock/sector/volatility transfer not built."
   },
   {
    "section": "Transfer scoring",
    "minimum_lines": 400,
-   "actual_lines": 380,
+   "actual_lines": 413,
    "code_paths": [
     "engine/learning/transfer_score.py",
     "engine/learning_delta.py::headline_transfer,verdict,aggregate,_col,pair_table,signflip_p,boot_ci (126)"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S10 pass 1). under minimum; sent back. | earlier: UNDER by 274 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: gap = learning effect - transfer with CIs. transfer_ratio (with zero/negative denominator safeguards) and over-specialisation flag are not computed."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (S10 pass 2: per-axis CIs, rule transfer ledger, over-specialisation CI, value waterfall, 19 field controls, curve series). | earlier: IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S10 pass 1). under minimum; sent back. | earlier: UNDER by 274 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: gap = learning effect - transfer with CIs. transfer_ratio (with zero/negative denominator safeguards) and over-specialisation flag are not computed."
   },
   {
    "section": "Memory firewall",
@@ -4936,14 +4936,14 @@
   {
    "section": "Portfolio-value learning",
    "minimum_lines": 850,
-   "actual_lines": 701,
+   "actual_lines": 855,
    "code_paths": [
     "engine/learning/portfolio_value.py",
     "engine/objective.py (193)",
     "engine/pattern_movers.py (636)"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S10 pass 1). under minimum; sent back. | earlier: UNDER by 21 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: tiered objective and pattern->movers ablation. No per-knowledge breakdown of predictive/ ranking/selection/direction/timing/risk/portfolio value."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (S10 pass 2: per-axis CIs, rule transfer ledger, over-specialisation CI, value waterfall, 19 field controls, curve series). | earlier: IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S10 pass 1). under minimum; sent back. | earlier: UNDER by 21 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: tiered objective and pattern->movers ablation. No per-knowledge breakdown of predictive/ ranking/selection/direction/timing/risk/portfolio value."
   },
   {
    "section": "Exploration/exploitation",
@@ -5075,25 +5075,25 @@
   {
    "section": "Learning scorecard",
    "minimum_lines": 700,
-   "actual_lines": 610,
+   "actual_lines": 701,
    "code_paths": [
     "engine/learning/scorecard.py",
     "engine/learning_delta.py::pick_hits,max_drawdown,run_metrics,metric_delta,render_report (106)"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S10 pass 1). under minimum; sent back. | earlier: UNDER by 594 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: 8 metrics with noise/shuffle/transfer controls per learner. Missing cross-regime/stock gains, transfer ratio, calibration, identity gap, future-leak status, stability, compute cost in one versioned card."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (S10 pass 2: per-axis CIs, rule transfer ledger, over-specialisation CI, value waterfall, 19 field controls, curve series). | earlier: IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S10 pass 1). under minimum; sent back. | earlier: UNDER by 594 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: 8 metrics with noise/shuffle/transfer controls per learner. Missing cross-regime/stock gains, transfer ratio, calibration, identity gap, future-leak status, stability, compute cost in one versioned card."
   },
   {
    "section": "Learning curve",
    "minimum_lines": 500,
-   "actual_lines": 490,
+   "actual_lines": 503,
    "code_paths": [
     "engine/learning/learning_curve.py",
     "engine/learning_delta.py::play_curve,plateau_index,slope_perm_p,alpha_bar,series_stats,perm_budget,curve_stats,persistence,curve_verdict,curve_selfcheck,render_curve_report (194)",
     "scripts/learning_curve.py (152)"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S10 pass 1). under minimum; sent back. | earlier: UNDER by 154 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). in progress: builders are live-editing; lc1 real run is mid-flight. Tracks gain vs rerun count; not yet knowledge count / validated knowledge / transfer gain / memorisation gap against experience."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (S10 pass 2: per-axis CIs, rule transfer ledger, over-specialisation CI, value waterfall, 19 field controls, curve series). | earlier: IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S10 pass 1). under minimum; sent back. | earlier: UNDER by 154 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). in progress: builders are live-editing; lc1 real run is mid-flight. Tracks gain vs rerun count; not yet knowledge count / validated knowledge / transfer gain / memorisation gap against experience."
   },
   {
    "section": "Knowledge archive",
