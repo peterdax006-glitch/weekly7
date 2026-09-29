@@ -1740,13 +1740,14 @@
    "section": "Conditional accuracy frontier",
    "minimum_lines": 1500,
    "upper_lines": 2500,
-   "actual_lines": 155,
+   "actual_lines": 1511,
    "code_paths": [
+    "engine/direction.py::direction_accuracy,wilson,reliability_bins,ece",
     "engine/direction_features.py::frontier,frontier_table,calibration_table,era_table,eighty_question",
-    "engine/direction.py::direction_accuracy,wilson,reliability_bins,ece"
+    "engine/research/frontier.py"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "[mapping 2026-09-29, read-only audit] [partial] 155/1500 meaningful lines genuinely doing this job. 92 + 63. Coverage->accuracy with week-clustered CIs, calibration, era table and the 80% question exist. Missing per coverage level: independent-observation count, stock count, sector and regime stability, multiplicity adjustment across coverage cells as a reusable object."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C66 wave 1, R09): 1,511; coverage grid 100% to 0.1% with week-cluster CIs, effective-n Wilson, multiplicity-adjusted bounds, calibration, stability, purged walk-forward, transfer; the 80% answer over 10 criteria, able to say 'No reliable 80% directional region has been found.' | earlier: [mapping 2026-09-29, read-only audit] [partial] 155/1500 meaningful lines genuinely doing this job. 92 + 63. Coverage->accuracy with week-clustered CIs, calibration, era table and the 80% question exist. Missing per coverage level: independent-observation count, stock count, sector and regime stability, multiplicity adjustment across coverage cells as a reusable object."
   },
   {
    "section": "Winner/loser symmetry",
