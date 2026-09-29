@@ -1,0 +1,184 @@
+    37s 42 windows, adaptive=False, basis v1
+    46s [1/42] r01a base +0.515%/wk, 2557 episodes, wrapper parity True
+    48s [2/42] r01b base -0.222%/wk, 126 episodes, wrapper parity True
+    52s [3/42] r01c base +1.805%/wk, 598 episodes
+    55s [4/42] r02a base +1.868%/wk, 646 episodes
+    57s [5/42] r02b base +2.950%/wk, 522 episodes
+    62s [6/42] r02c base -0.882%/wk, 1868 episodes
+    64s [7/42] r03a base +1.160%/wk, 234 episodes
+    66s [8/42] r03b base +1.636%/wk, 522 episodes
+    74s [9/42] r03c base -1.184%/wk, 3526 episodes
+    76s [10/42] r04a base +0.144%/wk, 214 episodes
+    81s [11/42] r04b base -0.583%/wk, 1838 episodes
+    87s [12/42] r04c base +0.371%/wk, 2681 episodes
+    90s [13/42] r05a base -0.648%/wk, 962 episodes
+    92s [14/42] r05b base +1.107%/wk, 249 episodes
+    96s [15/42] r05c base +1.965%/wk, 1392 episodes
+    97s [16/42] r06a base +0.322%/wk, 129 episodes
+   100s [17/42] r06b base +2.211%/wk, 675 episodes
+   107s [18/42] r06c base +0.149%/wk, 3030 episodes
+   118s [19/42] r07a base -0.076%/wk, 3976 episodes
+   122s [20/42] r07b base -0.635%/wk, 1161 episodes
+   124s [21/42] r07c base -0.178%/wk, 218 episodes
+   126s [22/42] r08a base -0.100%/wk, 245 episodes
+   128s [23/42] r08b base +1.354%/wk, 251 episodes
+   129s [24/42] r08c base +0.680%/wk, 126 episodes
+   131s [25/42] r09a base +2.545%/wk, 382 episodes
+   140s [26/42] r09b base -0.374%/wk, 2952 episodes
+   154s [27/42] r09c base +0.316%/wk, 4431 episodes
+   164s [28/42] r10a base +2.936%/wk, 3191 episodes
+   171s [29/42] r10b base +1.122%/wk, 1997 episodes
+   177s [30/42] r10c base +1.932%/wk, 2114 episodes
+   180s [31/42] r11a base -0.019%/wk, 420 episodes
+   185s [32/42] r11b base +1.054%/wk, 1691 episodes
+   187s [33/42] r11c base +0.703%/wk, 131 episodes
+   190s [34/42] r12a base +0.585%/wk, 646 episodes
+   192s [35/42] r12b base +1.136%/wk, 546 episodes
+   196s [36/42] r12c base +1.596%/wk, 884 episodes
+   200s [37/42] r13a base +0.822%/wk, 1017 episodes
+   208s [38/42] r13b base +0.072%/wk, 2567 episodes
+   214s [39/42] r13c base +0.106%/wk, 2103 episodes
+   216s [40/42] w01a base +0.632%/wk, 131 episodes
+   218s [41/42] w01b base +0.598%/wk, 132 episodes
+   225s [42/42] w01c base +0.892%/wk, 2449 episodes
+   232s fold 0: other-windows book has 22 lessons
+   240s fold 1: other-windows book has 16 lessons
+   247s fold 2: other-windows book has 19 lessons
+   254s fold 3: other-windows book has 16 lessons
+   261s fold 4: other-windows book has 14 lessons
+   268s fold 5: other-windows book has 15 lessons
+   275s   r01a: a -0.303% b +0.240% c +0.240% (lessons a/b 22/2, picks changed a/b/c 40/50/50)
+   277s   r01b: a -0.079% b +0.000% c +0.000% (lessons a/b 16/0, picks changed a/b/c 7/0/0)
+   281s   r01c: a +0.302% b -0.632% c -0.632% (lessons a/b 19/1, picks changed a/b/c 19/5/5)
+   284s   r02a: a -0.827% b +0.000% c +0.000% (lessons a/b 16/0, picks changed a/b/c 42/0/0)
+   288s   r02b: a -0.408% b +0.000% c +0.000% (lessons a/b 14/3, picks changed a/b/c 22/0/0)
+   293s   r02c: a -0.898% b +0.000% c +0.000% (lessons a/b 15/1, picks changed a/b/c 26/0/0)
+   296s   r03a: a -0.286% b +0.000% c +0.000% (lessons a/b 22/0, picks changed a/b/c 33/0/0)
+   299s   r03b: a -0.044% b +0.000% c +0.000% (lessons a/b 16/0, picks changed a/b/c 7/0/0)
+   306s   r03c: a +0.180% b +0.000% c +0.000% (lessons a/b 19/5, picks changed a/b/c 32/0/0)
+   309s   r04a: a -0.249% b +0.000% c +0.000% (lessons a/b 16/0, picks changed a/b/c 39/0/0)
+   315s   r04b: a -0.136% b -0.271% c -0.271% (lessons a/b 14/4, picks changed a/b/c 37/14/14)
+   321s   r04c: a -0.683% b -1.014% c -1.014% (lessons a/b 15/3, picks changed a/b/c 29/37/37)
+   325s   r05a: a -0.018% b +0.000% c +0.000% (lessons a/b 22/1, picks changed a/b/c 13/0/0)
+   328s   r05b: a +0.149% b +0.000% c +0.000% (lessons a/b 16/0, picks changed a/b/c 11/0/0)
+   333s   r05c: a +0.807% b +0.614% c +0.614% (lessons a/b 19/2, picks changed a/b/c 20/42/42)
+   335s   r06a: a -0.169% b +0.000% c +0.000% (lessons a/b 16/0, picks changed a/b/c 28/0/0)
+   339s   r06b: a -0.257% b +0.000% c +0.000% (lessons a/b 14/0, picks changed a/b/c 27/0/0)
+   345s   r06c: a -0.296% b -0.642% c -0.642% (lessons a/b 15/8, picks changed a/b/c 49/52/52)
+   351s   r07a: a +0.071% b +0.302% c +0.302% (lessons a/b 22/6, picks changed a/b/c 33/52/52)
+   355s   r07b: a -0.079% b -0.768% c -0.768% (lessons a/b 16/1, picks changed a/b/c 4/4/4)
+   358s   r07c: a +0.627% b +0.000% c +0.000% (lessons a/b 19/0, picks changed a/b/c 32/0/0)
+   361s   r08a: a +0.427% b +0.000% c +0.000% (lessons a/b 16/0, picks changed a/b/c 30/0/0)
+   364s   r08b: a +0.874% b +0.201% c +0.201% (lessons a/b 14/2, picks changed a/b/c 34/6/6)
+   367s   r08c: a -0.118% b +0.000% c +0.000% (lessons a/b 15/0, picks changed a/b/c 7/0/0)
+   370s   r09a: a -0.718% b +0.233% c +0.233% (lessons a/b 22/2, picks changed a/b/c 30/23/23)
+   376s   r09b: a -0.407% b +0.000% c +0.000% (lessons a/b 16/4, picks changed a/b/c 13/0/0)
+   384s   r09c: a -0.327% b +0.000% c +0.000% (lessons a/b 19/2, picks changed a/b/c 17/0/0)
+   391s   r10a: a +0.000% b -0.067% c -0.067% (lessons a/b 16/4, picks changed a/b/c 0/29/29)
+   398s   r10b: a -0.557% b +0.000% c +0.000% (lessons a/b 14/3, picks changed a/b/c 39/0/0)
+   404s   r10c: a -1.159% b -0.949% c -0.949% (lessons a/b 15/3, picks changed a/b/c 31/1/1)
+   408s   r11a: a -0.438% b +0.000% c +0.000% (lessons a/b 22/0, picks changed a/b/c 27/0/0)
+   414s   r11b: a -0.407% b +0.000% c +0.000% (lessons a/b 16/3, picks changed a/b/c 20/0/0)
+   417s   r11c: a +0.337% b +0.000% c +0.000% (lessons a/b 19/0, picks changed a/b/c 36/0/0)
+   421s   r12a: a +1.619% b +0.000% c +0.000% (lessons a/b 16/0, picks changed a/b/c 36/0/0)
+   425s   r12b: a +0.908% b +0.000% c +0.000% (lessons a/b 14/0, picks changed a/b/c 28/0/0)
+   429s   r12c: a +0.080% b +0.343% c +0.343% (lessons a/b 15/2, picks changed a/b/c 13/21/21)
+   434s   r13a: a -0.026% b +0.000% c +0.000% (lessons a/b 22/0, picks changed a/b/c 4/0/0)
+   440s   r13b: a -0.421% b -0.790% c -0.790% (lessons a/b 16/6, picks changed a/b/c 26/39/39)
+   446s   r13c: a -0.084% b +0.000% c +0.000% (lessons a/b 19/6, picks changed a/b/c 17/0/0)
+   451s   w01a: a -0.051% b +0.000% c +0.000% (lessons a/b 16/0, picks changed a/b/c 27/0/0)
+   454s   w01b: a -0.372% b +0.000% c +0.000% (lessons a/b 14/0, picks changed a/b/c 14/0/0)
+   460s   w01c: a -0.171% b +0.234% c +0.234% (lessons a/b 15/5, picks changed a/b/c 14/25/25)
+   461s positive control: RecallControl (memorises winning rows)
+   467s [1/42] r01a base +0.515%/wk, 2557 episodes
+   468s [2/42] r01b base -0.222%/wk, 126 episodes
+   471s [3/42] r01c base +1.805%/wk, 598 episodes
+   473s [4/42] r02a base +1.868%/wk, 646 episodes
+   475s [5/42] r02b base +2.950%/wk, 522 episodes
+   480s [6/42] r02c base -0.882%/wk, 1868 episodes
+   482s [7/42] r03a base +1.160%/wk, 234 episodes
+   484s [8/42] r03b base +1.636%/wk, 522 episodes
+   492s [9/42] r03c base -1.184%/wk, 3526 episodes
+   493s [10/42] r04a base +0.144%/wk, 214 episodes
+   498s [11/42] r04b base -0.583%/wk, 1838 episodes
+   505s [12/42] r04c base +0.371%/wk, 2681 episodes
+   507s [13/42] r05a base -0.648%/wk, 962 episodes
+   508s [14/42] r05b base +1.107%/wk, 249 episodes
+   512s [15/42] r05c base +1.965%/wk, 1392 episodes
+   513s [16/42] r06a base +0.322%/wk, 129 episodes
+   515s [17/42] r06b base +2.211%/wk, 675 episodes
+   521s [18/42] r06c base +0.149%/wk, 3030 episodes
+   528s [19/42] r07a base -0.076%/wk, 3976 episodes
+   531s [20/42] r07b base -0.635%/wk, 1161 episodes
+   533s [21/42] r07c base -0.178%/wk, 218 episodes
+   534s [22/42] r08a base -0.100%/wk, 245 episodes
+   535s [23/42] r08b base +1.354%/wk, 251 episodes
+   537s [24/42] r08c base +0.680%/wk, 126 episodes
+   539s [25/42] r09a base +2.545%/wk, 382 episodes
+   545s [26/42] r09b base -0.374%/wk, 2952 episodes
+   555s [27/42] r09c base +0.316%/wk, 4431 episodes
+   562s [28/42] r10a base +2.936%/wk, 3191 episodes
+   568s [29/42] r10b base +1.122%/wk, 1997 episodes
+   573s [30/42] r10c base +1.932%/wk, 2114 episodes
+   575s [31/42] r11a base -0.019%/wk, 420 episodes
+   579s [32/42] r11b base +1.054%/wk, 1691 episodes
+   581s [33/42] r11c base +0.703%/wk, 131 episodes
+   583s [34/42] r12a base +0.585%/wk, 646 episodes
+   585s [35/42] r12b base +1.136%/wk, 546 episodes
+   588s [36/42] r12c base +1.596%/wk, 884 episodes
+   590s [37/42] r13a base +0.822%/wk, 1017 episodes
+   596s [38/42] r13b base +0.072%/wk, 2567 episodes
+   601s [39/42] r13c base +0.106%/wk, 2103 episodes
+   603s [40/42] w01a base +0.632%/wk, 131 episodes
+   604s [41/42] w01b base +0.598%/wk, 132 episodes
+   610s [42/42] w01c base +0.892%/wk, 2449 episodes
+   610s fold 0: other-windows book has ? lessons
+   612s fold 1: other-windows book has ? lessons
+   613s fold 2: other-windows book has ? lessons
+   615s fold 3: other-windows book has ? lessons
+   616s fold 4: other-windows book has ? lessons
+   618s fold 5: other-windows book has ? lessons
+   624s   r01a: a +0.000% b +5.139% c +0.000% (lessons a/b 0/0, picks changed a/b/c 0/51/0)
+   628s   r01b: a +0.138% b +1.505% c +0.000% (lessons a/b 0/0, picks changed a/b/c 32/31/0)
+   631s   r01c: a +0.000% b +4.590% c +0.000% (lessons a/b 0/0, picks changed a/b/c 0/41/0)
+   635s   r02a: a +0.000% b +4.079% c +0.000% (lessons a/b 0/0, picks changed a/b/c 0/40/0)
+   639s   r02b: a -0.137% b +3.398% c +0.000% (lessons a/b 0/0, picks changed a/b/c 7/38/0)
+   643s   r02c: a +0.000% b +5.368% c +0.000% (lessons a/b 0/0, picks changed a/b/c 0/46/0)
+   647s   r03a: a +0.000% b +3.608% c +0.000% (lessons a/b 0/0, picks changed a/b/c 0/47/0)
+   650s   r03b: a -0.566% b +4.403% c +0.000% (lessons a/b 0/0, picks changed a/b/c 15/44/0)
+   657s   r03c: a +0.000% b +10.727% c +0.000% (lessons a/b 0/0, picks changed a/b/c 0/50/0)
+   660s   r04a: a -0.162% b +4.538% c +0.000% (lessons a/b 0/0, picks changed a/b/c 48/40/0)
+   665s   r04b: a -0.167% b +3.238% c +0.000% (lessons a/b 0/0, picks changed a/b/c 10/40/0)
+   672s   r04c: a +0.116% b +4.835% c +0.000% (lessons a/b 0/0, picks changed a/b/c 36/50/0)
+   676s   r05a: a +0.000% b +4.484% c +0.000% (lessons a/b 0/0, picks changed a/b/c 0/45/0)
+   679s   r05b: a -0.092% b +3.184% c +0.000% (lessons a/b 0/0, picks changed a/b/c 6/45/0)
+   684s   r05c: a +0.000% b +9.162% c +0.000% (lessons a/b 0/0, picks changed a/b/c 0/44/0)
+   687s   r06a: a -0.096% b +1.414% c +0.000% (lessons a/b 0/0, picks changed a/b/c 33/26/0)
+   691s   r06b: a -0.127% b +4.248% c +0.000% (lessons a/b 0/0, picks changed a/b/c 4/44/0)
+   698s   r06c: a -0.467% b +5.183% c +0.000% (lessons a/b 0/0, picks changed a/b/c 25/52/0)
+   705s   r07a: a +0.487% b +6.278% c +0.000% (lessons a/b 0/0, picks changed a/b/c 28/53/0)
+   710s   r07b: a +0.000% b +9.479% c +0.000% (lessons a/b 0/0, picks changed a/b/c 0/52/0)
+   713s   r07c: a -0.446% b +5.553% c +0.000% (lessons a/b 0/0, picks changed a/b/c 20/43/0)
+   717s   r08a: a +0.000% b +3.989% c +0.000% (lessons a/b 0/0, picks changed a/b/c 0/43/0)
+   720s   r08b: a +0.491% b +3.594% c +0.000% (lessons a/b 0/0, picks changed a/b/c 16/42/0)
+   723s   r08c: a +0.000% b +1.134% c +0.000% (lessons a/b 0/0, picks changed a/b/c 0/36/0)
+   726s   r09a: a +0.088% b +4.331% c +0.000% (lessons a/b 0/0, picks changed a/b/c 5/47/0)
+   733s   r09b: a +0.000% b +4.381% c +0.000% (lessons a/b 0/0, picks changed a/b/c 0/48/0)
+   742s   r09c: a +0.000% b +8.803% c +0.000% (lessons a/b 0/0, picks changed a/b/c 0/52/0)
+   748s   r10a: a +0.000% b +5.714% c +0.000% (lessons a/b 0/0, picks changed a/b/c 0/50/0)
+   754s   r10b: a +0.000% b +8.670% c +0.000% (lessons a/b 0/0, picks changed a/b/c 0/51/0)
+   758s   r10c: a +0.000% b +7.153% c +0.000% (lessons a/b 0/0, picks changed a/b/c 0/47/0)
+   761s   r11a: a +0.000% b +4.436% c +0.000% (lessons a/b 0/0, picks changed a/b/c 0/42/0)
+   765s   r11b: a -0.929% b +5.268% c +0.000% (lessons a/b 0/0, picks changed a/b/c 42/47/0)
+   768s   r11c: a -0.474% b +2.593% c +0.000% (lessons a/b 0/0, picks changed a/b/c 41/44/0)
+   772s   r12a: a +0.000% b +4.122% c +0.000% (lessons a/b 0/0, picks changed a/b/c 0/46/0)
+   776s   r12b: a +0.000% b +4.408% c +0.000% (lessons a/b 0/0, picks changed a/b/c 0/42/0)
+   780s   r12c: a +0.000% b +4.827% c +0.000% (lessons a/b 0/0, picks changed a/b/c 0/47/0)
+   783s   r13a: a +0.000% b +4.375% c +0.000% (lessons a/b 0/0, picks changed a/b/c 0/44/0)
+   789s   r13b: a +0.000% b +7.086% c +0.000% (lessons a/b 0/0, picks changed a/b/c 0/51/0)
+   795s   r13c: a -0.172% b +4.492% c +0.000% (lessons a/b 0/0, picks changed a/b/c 19/49/0)
+   798s   w01a: a +0.000% b +1.742% c +0.000% (lessons a/b 0/0, picks changed a/b/c 0/37/0)
+   802s   w01b: a +0.000% b +1.650% c +0.000% (lessons a/b 0/0, picks changed a/b/c 0/35/0)
+   808s   w01c: a +0.000% b +6.012% c +0.000% (lessons a/b 0/0, picks changed a/b/c 0/52/0)
+   985s saved lesson book version 1 (15 lessons)
+{"gain_a": -0.000872225155953033, "gain_b": -0.0007136499452100145, "gain_c": -0.0007136499452100153, "b_minus_c": 6.995685446275517e-19, "memorised": 0, "with_lessons": 24, "control_b_minus_c": 0.0483794643562427, "seconds": 985}

@@ -115,6 +115,10 @@ DIRECTIVES = [
      'save everything at all that happens in a single large file so that i can switch claude accounts and still just point them to one file for them to fully catch up, call the file/folder Masterstock'),
     ("C53", "2026-09-28", 'Handoff files current at any moment (session switch may come without notice)',
      'make sure my files are fully updated because i may need to switch claude sessions sometime soon so that needs to stay up to date for any given moment'),
+    ("C54", "2026-09-29", 'The learning system is the product: judge a test by how results CHANGE when the same year is run again',
+     'remember you arent as focused on the system as you are the learning system meaning when a test comes back its less about the results you see that time, but the changes in the results the second time you run the same year'),
+    ("C55", "2026-09-29", 'The rerun of a year must be disguised: the system must not know it is the same year',
+     '(it should not be aware its the same year however)'),
 ]
 
 def sha(t): return hashlib.sha256(t.encode("utf-8")).hexdigest()

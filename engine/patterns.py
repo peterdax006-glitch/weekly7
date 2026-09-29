@@ -324,6 +324,11 @@ class PatternMiner:
         # look for WHY a pattern died: a context tercile where it still holds (cluster tests, never row-level t)
         R["scope"] = None
         if ctx is not None:
+            # the search tries 3 terciles of every context column; the recent-evidence bar is Bonferroni-corrected for
+            # that many tries (with |t| >= 2 and 9 tries a dead pattern was "rescued" by chance, 2026-09-29)
+            from scipy.stats import norm as _norm
+            n_tries = 3 * ctx.shape[1]
+            rescue_t = max(P.get("rescue_min_t", 2.0), float(_norm.ppf(1 - 0.025 / max(n_tries, 1))))
             for i in R.index[R["status"] == "failed"][:100]:
                 mask = lazy[i]
                 sgn = np.sign(R.at[i, "m_all"])
@@ -341,12 +346,22 @@ class PatternMiner:
                         # ...and it must not itself have DECAYED: the recent in-scope effect may not fall significantly
                         # short of the in-scope long-run effect (else a persistent context - a fear tercile that lines
                         # up with the pre-decay years - "rescues" a dead pattern; planted calibration, 2026-09-29)
+                        # (burden on the rescued form: in a tercile the recent SE is ~1.7x larger, so "not significantly
+                        # smaller" alone passes a dead pattern; it must also keep at least half its in-scope size now)
                         se_rr = abs(rr[0] / rr[1]) if rr[1] else np.inf
-                        not_decayed = (abs(a[0]) - abs(rr[0])) / se_rr < P.get("decay_z", 2.5)
-                        if (np.sign(a[0]) == sgn and abs(a[1]) >= 2 and np.sign(rr[0]) == sgn and abs(rr[1]) >= 1
+                        not_decayed = ((abs(a[0]) - abs(rr[0])) / se_rr < P.get("decay_z", 2.5)
+                                       and abs(rr[0]) >= P.get("rescue_min_ratio", 0.5) * abs(a[0]))
+                        # recent in-scope evidence must be REAL, |t| >= 2 (was 1): with |t| >= 1 two dead patterns
+                        # (exact true in-scope recent effect -0.12% and +0.01%) were rescued and held at -0.7%
+                        if (np.sign(a[0]) == sgn and abs(a[1]) >= 2 and np.sign(rr[0]) == sgn
+                                and abs(rr[1]) >= rescue_t
                                 and np.sign(dsc[0]) == sgn and np.sign(cnf[0]) == sgn and not_decayed):
                             R.at[i, "status"] = "rescoped"
                             R.at[i, "scope"] = (ci, lab, float(lo_), float(hi_))
+                            # score the rescued form at its IN-SCOPE size (with the pattern's own shrinkage ratio), not
+                            # at the unscoped long-run effect it failed with
+                            ratio = R.at[i, "effect"] / R.at[i, "m_all"] if R.at[i, "m_all"] else 0.0
+                            R.at[i, "effect"] = float(a[0]) * float(np.clip(ratio, 0.0, 1.0))
                             break
                     if R.at[i, "status"] == "rescoped":
                         break

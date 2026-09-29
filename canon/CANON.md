@@ -326,3 +326,15 @@ it should be very long
 > make sure my files are fully updated because i may need to switch claude sessions sometime soon so that needs to stay up to date for any given moment
 
 `sha256: 02da1fde3a349b43fe6dba91a0e02cd52617b12fac57a5c7a2e92c2fecd0faf9`
+
+## C54 — The learning system is the product: judge a test by how results CHANGE when the same year is run again (2026-09-29)
+
+> remember you arent as focused on the system as you are the learning system meaning when a test comes back its less about the results you see that time, but the changes in the results the second time you run the same year
+
+`sha256: c3e1526b06fa1e653acad2abf4b1b02a3ff4bab00b73cd6332767937177c5c9f`
+
+## C55 — The rerun of a year must be disguised: the system must not know it is the same year (2026-09-29)
+
+> (it should not be aware its the same year however)
+
+`sha256: 2c55539235ea64d27da526dc03710c0169e036fd42db45c0f3fc7c9515371941`

@@ -1,0 +1,14 @@
+# B22_learning_delta
+Canon C54/C55 (read them in canon/CANON.md - the owner's TOP priority). Bible phases 11, 21-23, 45. Estimated code: 1,500-3,000 lines (a requirement).
+You own: engine/learning_delta.py, scripts/learning_delta.py, tests/test_learning_delta.py, state/research/learning_delta/. You may ADD a function to engine/livesim.py for re-sealing a revealed window under a new disguise (keep every existing behaviour and test passing).
+
+The product is the LEARNING system. Build the harness that measures it:
+1. Pick revealed Test windows (state/livesim/cycles.json revealed_year entries and revealed loop2 windows; NEVER unrevealed seals).
+2. Run 1: the system plays window W blind with its current learned state S0 (basis cfg/meta, long-term memory bank, pattern bank, lessons as they exist).
+3. Learn: let the system's own learning mechanisms update from Run 1 (memory bank episodes, basis update, lessons) -> S1. The harness must not hand-tune anything.
+4. Run 2: the SAME real year re-sealed under a NEW disguise - new ticker code names (order-preserving codes: alphabetical tie-breaks matter), new date shift, new seal - played with S1. The system must not be able to know it is the same year (C55): assert it receives no window id, real date or real ticker, and log a blindness audit.
+5. Learning delta = Run2 - Run1 per window on: weekly mean, share of weeks in the 5-10% band, worst-5% week, max drawdown, positive-week share, direction and mover hit rates; aggregate with bootstrap CIs across windows.
+6. Controls, all required: (a) no-learning rerun: Run 2 with S0 and a fresh disguise, so disguise noise alone is measured; (b) TRANSFER: after learning on W, play a DIFFERENT unseen revealed year with S1 vs S0. Generalised learning shows up here too; a same-year delta far above the transfer delta means the system is recognising the year (e.g. via market-context fingerprints in memory) - flag it as MEMORISATION; (c) a memoriser control that must show a large same-year gain and ~0 transfer, proving the harness can see memorisation.
+7. Compute cheaply where possible: replays of archived snapshots (engine/adaptive.replay via scripts/livesim_loop2.load_window/run_window) for the adaptive layer, full livesim runs only where model retraining is part of the learning. Check free RAM (>= 2.5 GB) before real runs; launch long real runs DETACHED (PowerShell Start-Process) with checkpoints so a session switch cannot kill them.
+8. Output state/research/learning_delta/<tag>/summary.json + report.md with provenance (engine.provenance.stamp) and a registry record (engine.improve.log_experiment with metrics, gates, outcome, reason).
+Tests: synthetic worlds where (i) a learner that truly generalises shows delta > 0 on both same-year and transfer; (ii) a memoriser is flagged; (iii) a non-learner shows delta ~0; (iv) the blindness audit fails if a window id or real date leaks. Never run git; never kill processes by name.

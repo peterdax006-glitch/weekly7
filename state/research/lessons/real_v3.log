@@ -1,0 +1,4 @@
+rows 187,855 weeks 507 tickers 400 [2017-01-06 .. 2026-09-18] 14s
+A 2017-01-01..  B 2019-01-01..: lessons 3 kept 1 impA +0.059% impDisA +0.059% impB -0.146% finalB +0.023% C +0.000% nullmax +0.411% [64s]
+A 2019-01-01..  B 2021-01-01..: lessons 6 kept 0 impA -0.259% impDisA -0.259% impB -0.208% finalB +0.000% C +0.000% nullmax -0.033% [121s]
+{"pairs": 2, "lessons": 9, "kept": 1, "mean_final_B": 0.0001155416170756022, "mean_holdout_C": 0.0, "pairs_beating_null": 0, "mean_memorisation_gap": 0.0, "seconds": 121}

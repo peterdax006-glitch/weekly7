@@ -1,0 +1,31 @@
+     6s 12 windows, adaptive=True, basis v1
+    57s [1/12] r01a base +0.205%/wk, 2534 episodes, wrapper parity True
+    70s [2/12] r01b base -0.122%/wk, 126 episodes, wrapper parity True
+    84s [3/12] r01c base +1.805%/wk, 598 episodes
+   101s [4/12] r02a base +1.868%/wk, 646 episodes
+   111s [5/12] r02b base +2.797%/wk, 520 episodes
+   129s [6/12] r02c base -1.127%/wk, 1869 episodes
+   139s [7/12] r03a base +0.870%/wk, 234 episodes
+   149s [8/12] r03b base +1.636%/wk, 522 episodes
+   191s [9/12] r03c base -1.184%/wk, 3526 episodes
+   198s [10/12] r04a base +0.144%/wk, 214 episodes
+   216s [11/12] r04b base -0.982%/wk, 1834 episodes
+   233s [12/12] r04c base +0.371%/wk, 2681 episodes
+   234s fold 0: other-windows book has 6 lessons
+   235s fold 1: other-windows book has 10 lessons
+   237s fold 2: other-windows book has 9 lessons
+   237s fold 3: other-windows book has 6 lessons
+   325s   r01a: a -0.473% b +0.575% c +0.575% (lessons a/b 6/2, picks changed a/b/c 50/51/51)
+   350s   r01b: a -0.076% b +0.000% c +0.000% (lessons a/b 10/0, picks changed a/b/c 37/0/0)
+   398s   r01c: a -0.693% b -0.632% c -0.632% (lessons a/b 9/1, picks changed a/b/c 37/5/5)
+   447s   r02a: a +0.000% b +0.000% c +0.000% (lessons a/b 6/0, picks changed a/b/c 0/0/0)
+   493s   r02b: a -0.104% b +0.000% c +0.000% (lessons a/b 6/3, picks changed a/b/c 13/0/0)
+   586s   r02c: a -0.780% b +1.413% c +1.413% (lessons a/b 10/2, picks changed a/b/c 41/30/30)
+   639s   r03a: a -0.286% b +0.000% c +0.000% (lessons a/b 9/0, picks changed a/b/c 47/0/0)
+   688s   r03b: a +0.000% b +0.000% c +0.000% (lessons a/b 6/0, picks changed a/b/c 0/0/0)
+   861s   r03c: a +0.123% b +0.000% c +0.000% (lessons a/b 6/5, picks changed a/b/c 32/0/0)
+   888s   r04a: a -0.195% b +0.000% c +0.000% (lessons a/b 10/0, picks changed a/b/c 46/0/0)
+   955s   r04b: a -0.432% b +0.000% c +0.000% (lessons a/b 9/3, picks changed a/b/c 29/0/0)
+  1025s   r04c: a +0.220% b -0.987% c -0.987% (lessons a/b 6/3, picks changed a/b/c 7/42/42)
+  1169s saved lesson book version 3 (9 lessons)
+{"gain_a": -0.002245365374178133, "gain_b": 0.0002943309430444055, "gain_c": 0.0002943309430444055, "b_minus_c": 0.0, "memorised": 0, "with_lessons": 7, "control_b_minus_c": null, "seconds": 1169}

@@ -1,0 +1,9 @@
+rows 187,855 weeks 507 tickers 400 [2017-01-06 .. 2026-09-18] 20s
+A 2017-01-01..  B 2018-01-01..: lessons 2 kept 1 impA +0.044% impDisA +0.044% impB +0.103% finalB +0.103% C -0.004% nullmax +0.000% [68s]
+A 2018-01-01..  B 2019-01-01..: lessons 5 kept 0 impA +0.065% impDisA +0.065% impB +0.090% finalB +0.000% C +0.000% nullmax +0.385% [118s]
+A 2019-01-01..  B 2020-01-01..: lessons 2 kept 0 impA +0.038% impDisA +0.038% impB -0.465% finalB +0.000% C +0.000% nullmax +0.076% [177s]
+A 2020-01-01..  B 2021-01-01..: lessons 7 kept 1 impA +0.484% impDisA +0.484% impB -0.672% finalB +0.115% C +0.054% nullmax +0.272% [243s]
+A 2021-01-01..  B 2022-01-01..: lessons 4 kept 0 impA -0.226% impDisA -0.226% impB -0.215% finalB +0.000% C +0.000% nullmax +0.201% [295s]
+A 2022-01-01..  B 2023-01-01..: lessons 7 kept 2 impA -0.003% impDisA -0.003% impB -0.207% finalB +0.247% C +0.094% nullmax +0.415% [345s]
+A 2023-01-01..  B 2024-01-01..: lessons 6 kept 2 impA +0.194% impDisA +0.194% impB +0.133% finalB +0.065% C +0.000% nullmax +0.289% [397s]
+{"pairs": 7, "lessons": 33, "kept": 6, "mean_final_B": 0.0007563820907047819, "mean_holdout_C": 0.00020549470906729234, "pairs_beating_null": 2, "mean_memorisation_gap": 0.0, "seconds": 397}

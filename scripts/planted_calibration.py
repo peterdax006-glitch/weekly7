@@ -48,13 +48,17 @@ def report_md(summary, verdict, secs):
 
 
 def main():
-    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    argv = sys.argv[1:]
+    if "--seed-base" in argv:
+        k = argv.index("--seed-base"); argv = argv[:k] + argv[k + 2:]
+    args = [a for a in argv if not a.startswith("--")]
     seeds = int(args[0]) if args else 8
     workers = int(args[1]) if len(args) > 1 else 4
     names = [s.name for s in PL.scenarios()]
     if "--quick" in sys.argv:
         names = ["standard", "noise_only"]
-    jobs = [(n, 100 + i) for n in names for i in range(seeds)]
+    base = int(sys.argv[sys.argv.index("--seed-base") + 1]) if "--seed-base" in sys.argv else 100
+    jobs = [(n, base + i) for n in names for i in range(seeds)]   # --seed-base N: fresh hold-out seeds
     t0 = time.perf_counter()
     runs = []
     with ProcessPoolExecutor(max_workers=workers) as ex:

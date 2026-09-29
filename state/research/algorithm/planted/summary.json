@@ -96,7 +96,8 @@
       "median_effect_ratio": 0.648210913159531,
       "sign_accuracy": 1.0,
       "status_counts": {
-       "no_gain": 7,
+       "no_gain": 2,
+       "discarded": 5,
        "rejected": 1
       }
      },
@@ -795,7 +796,8 @@
       "sign_accuracy": 1.0,
       "status_counts": {
        "rescoped": 2,
-       "no_gain": 6
+       "discarded": 4,
+       "no_gain": 2
       }
      },
      "zero": {
@@ -810,9 +812,9 @@
       }
      }
     },
-    "active_per_run": 17.875,
+    "active_per_run": 17.75,
     "false_active_per_run": 3.25,
-    "false_discovery_rate": 0.18181818181818182,
+    "false_discovery_rate": 0.18309859154929578,
     "rejection_rate_of_bad_plants": 0.9166666666666666,
     "calibration": {
      "bins": {
@@ -846,8 +848,8 @@
      "ece": 0.16978320964749538,
      "n": 4312
     },
-    "false_active_per_run_true": 1.25,
-    "false_discovery_rate_true": 0.06993006993006994,
+    "false_active_per_run_true": 1.125,
+    "false_discovery_rate_true": 0.06338028169014084,
     "calibration_true": {
      "bins": {
       "(-0.01, 0.2]": {
@@ -922,12 +924,12 @@
     "pass": true
    },
    "fdr": {
-    "value": 0.06993006993006994,
+    "value": 0.06338028169014084,
     "rule": "false_discovery_rate <= 0.10 (exact truth)",
     "pass": true
    },
    "fdr_by_condition": {
-    "value": 0.18181818181818182,
+    "value": 0.18309859154929578,
     "rule": "reported only (legacy definition)",
     "pass": true
    },
