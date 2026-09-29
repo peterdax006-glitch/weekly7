@@ -1,0 +1,37 @@
+23:58:10 learning delta 'ld1' seed 1, code 89a698fc9ebfcec3
+23:58:17 selfcheck generaliser: {'verdict': 'GENERALISING', 'same': 0.062142998821041295, 'effect': 0.062142998821041295, 'transfer': 0.06478317466436043}
+23:58:23 selfcheck memoriser: {'verdict': 'MEMORISATION', 'same': 0.08776374466129674, 'effect': 0.08776374466129674, 'transfer': 0.0}
+23:58:28 selfcheck non_learner: {'verdict': 'NO_EFFECT', 'same': 0.0, 'effect': 0.0, 'transfer': 0.0}
+23:58:28 39 revealed windows in the pool
+23:58:28 free RAM 2.43 GB < 2.5 GB; waiting
+23:59:28 free RAM 0.91 GB < 2.5 GB; waiting
+00:00:28 free RAM 0.59 GB < 2.5 GB; waiting
+00:01:28 free RAM 1.98 GB < 2.5 GB; waiting
+00:02:28 free RAM 1.41 GB < 2.5 GB; waiting
+00:06:45 pair r09c->r04b: mean_week +0.0032 -> +0.0032 (193.68s)
+00:06:45 free RAM 1.38 GB < 2.5 GB; waiting
+00:07:45 free RAM 0.72 GB < 2.5 GB; waiting
+00:08:45 free RAM 2.27 GB < 2.5 GB; waiting
+00:09:45 free RAM 2.19 GB < 2.5 GB; waiting
+00:10:45 free RAM 0.60 GB < 2.5 GB; waiting
+00:11:45 free RAM 1.84 GB < 2.5 GB; waiting
+00:12:45 free RAM 2.43 GB < 2.5 GB; waiting
+00:14:34 pair r04a->r09a: mean_week -0.0036 -> +0.0011 (47.92s)
+00:15:27 pair r08b->r13a: mean_week +0.0259 -> +0.0259 (52.15s)
+00:16:18 pair r06b->r05a: mean_week +0.0219 -> +0.0193 (50.36s)
+00:18:43 pair r01a->r09c: mean_week +0.0051 -> +0.0089 (143.21s)
+00:19:39 pair r03a->r02c: mean_week +0.0128 -> +0.0131 (54.89s)
+00:20:32 pair r03b->r06b: mean_week +0.0174 -> +0.0192 (51.94s)
+00:23:02 pair r06c->r07a: mean_week +0.0015 -> +0.0015 (148.0s)
+00:23:57 pair r06a->r06c: mean_week +0.0021 -> +0.0014 (53.72s)
+00:25:57 pair r02a->r10a: mean_week +0.0157 -> +0.0183 (118.87s)
+00:25:57 free RAM 1.63 GB < 2.5 GB; waiting
+00:29:24 pair r10b->r03c: mean_week +0.0045 -> +0.0217 (145.3s)
+00:30:41 pair r07b->r04c: mean_week -0.0069 -> -0.0069 (74.78s)
+00:33:49 pair r09c->r04b: mean_week +0.0032 -> +0.1650 (186.36s)
+00:34:45 pair r04a->r09a: mean_week -0.0036 -> +0.0492 (55.97s)
+00:34:45 free RAM 0.65 GB < 2.5 GB; waiting
+00:35:45 free RAM 1.91 GB < 2.5 GB; waiting
+00:37:33 pair r08b->r13a: mean_week +0.0259 -> +0.0564 (46.26s)
+00:38:22 pair r06b->r05a: mean_week +0.0219 -> +0.0768 (48.3s)
+00:38:23 done: verdict MEMORISATION - same-year effect +0.002269 (CI +6.76e-05..+0.00544) far above transfer -0.0003211; gap CI +0.000124..+0.00585
