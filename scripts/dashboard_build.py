@@ -228,8 +228,14 @@ def s_trace(d):
             ["Id", "Phase", "Requirement"], [[e(str(x.get("id"))), str(x.get("phase")), e(str(x.get("text")))] for x in tm[:10]])
     fails = t.get("failing_tests_cache") or {}
     if fails:
-        body += f"<h3>Failing tests on record ({sum(len(v) for v in fails.values())})</h3>" + table(
-            ["File", "Failing tests"], [[e(f), e(", ".join(v))] for f, v in sorted(fails.items())])
+        # parametrised ids carry their parameters, and safety tests are parametrised WITH planted secrets and sealed
+        # marks (they exist to prove the guard fires) - show test names only. The list is pytest's last-failed cache,
+        # which can be stale; say so.
+        import re as _re
+        names = {f: sorted({_re.sub(r"\[.*\]$", "", x) for x in v}) for f, v in fails.items()}
+        body += (f"<h3>Failing tests on record ({sum(len(v) for v in names.values())})</h3>"
+                 "<p class=\"note\">From pytest's last-failed cache, which can be stale; CI is the authority.</p>"
+                 + table(["File", "Failing tests"], [[e(f), e(", ".join(v))] for f, v in sorted(names.items())]))
     pend = t.get("integration_pending") or {}
     if pend:
         body += f'<p class="note">{sum(len(v) for v in pend.values())} integration hooks are still pending across {len(pend)} modules.</p>'

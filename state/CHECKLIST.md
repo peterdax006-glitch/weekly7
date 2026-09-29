@@ -56,8 +56,8 @@ Foundation status per Bible phase (line ranges, tests): `state/build/FOUNDATION.
 - [~] T4 Weekly self-adjustment (fires 0–2 times per window).
 - [x] T5 Insider leak protection (parity 0.0 on 4 windows × 8 days with insider data on).
 - [~] T6 13D correctness (fix running).
-- [~] T7 Pattern Explorer: rebuilt as docs/explorer.html from state artefacts (B16, audit clean). Visual check pending.
-- [~] T8 Sensitivity page: docs/sensitivity2.html (28 settings, 106 values; 2 pass the |t|≥3.5 bar). Visual check pending.
+- [x] T7 Pattern Explorer: docs/explorer.html generated from state artefacts (B16, 29 tests); viewed live on GitHub Pages at phone width 390px on 2026-09-29 - renders, no horizontal page overflow (375<=390), no console errors except a missing favicon; now shows the long-term bank (11 hash-chained versions from the newest research bank until a production bank exists). Content refreshes each rebuild.
+- [x] T8 Sensitivity page: docs/sensitivity2.html (28 settings, 106 values; 2 pass |t|>=3.5; losing values shown); viewed live at phone width 390px on 2026-09-29 - renders, no horizontal overflow. Also dashboard.html (safety-audited: it refused to publish while planted test secrets leaked in via pytest's cache - fixed).
 - [x] T9 Re-tester parity. Round 2 (2026-09-28): re-tester OK on 3/3 windows under the provenance/stale-code gate; engine/retester.py (0.5% relative, code hash first). Evidence: data/loop2_run3.log.
   - Provenance now records the modules a run loaded and any mid-run edits; the loop reruns stale windows.
   - engine/retester.py (B10): 0.5% relative tolerance, code hash compared first.
