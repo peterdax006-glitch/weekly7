@@ -351,7 +351,8 @@ def test_import_closure_of_the_trader_path_never_reaches_the_curator_or_this_mod
     live = (ROOT / "engine" / "livesim.py").read_text(encoding="utf-8")
     tree = ast.parse(live)
     run = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "run")
-    assert "hook_factory" in [a.arg for a in run.args.args] and run.args.defaults[-1].value is None
+    names = [a.arg for a in run.args.args]
+    assert "hook_factory" in names and run.args.defaults[names.index("hook_factory") - len(names)].value is None
     imported = [n.module or "" for n in ast.walk(tree) if isinstance(n, ast.ImportFrom)] +                [a.name for n in ast.walk(tree) if isinstance(n, ast.Import) for a in n.names]
     assert imported and not [m for m in imported if "test_path" in m or "curator" in m]
 

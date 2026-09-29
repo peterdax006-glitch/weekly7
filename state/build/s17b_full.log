@@ -38,4 +38,169 @@
 ........................................................................ [ 72%]
 ........................................................................ [ 74%]
 ..........F............................................................. [ 76%]
-.......................................
+........................................................................ [ 78%]
+........................................................................ [ 80%]
+........................................................................ [ 82%]
+........................................................................ [ 84%]
+........................................................................ [ 86%]
+........................................................................ [ 88%]
+.........................................................F.............. [ 90%]
+.............................x.......................................... [ 92%]
+........................................................................ [ 93%]
+........................................................................ [ 95%]
+........................................................................ [ 97%]
+........................................................................ [ 99%]
+...........                                                              [100%]
+================================== FAILURES ===================================
+_ test_import_closure_of_the_trader_path_never_reaches_the_curator_or_this_module _
+
+    def test_import_closure_of_the_trader_path_never_reaches_the_curator_or_this_module():
+        assert TV.assert_trader_path_clean() > 20
+        closure = TV.trader_closure()
+        assert "engine.learning.curator" not in closure and "engine.learning.test_path" not in closure
+        assert "engine.learning.learner" in closure and "engine.livesim" in closure
+        bad = TV.trader_path_violations(entries=["engine/learning/test_path.py"])            # the trusted file itself DOES reach the curator
+        assert bad and any("curator" in v.target.lower() for v in bad)
+        live = (ROOT / "engine" / "livesim.py").read_text(encoding="utf-8")
+        tree = ast.parse(live)
+        run = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "run")
+>       assert "hook_factory" in [a.arg for a in run.args.args] and run.args.defaults[-1].value is None
+E       AssertionError: assert ('hook_factory' in ['cfg', 'run_id', 'log', 'check_parity', 'adaptive', 'hook_factory', ...] and True is None)
+E        +  where True = <ast.Constant object at 0x000001A01A449B40>.value
+
+tests\test_learning_test_path.py:354: AssertionError
+____________________ test_shrink_effect_matches_the_miner _____________________
+
+fitted = (                         f0        f1  ...  m_breadth  m_dispersion
+date       ticker                      ...       ...: 12000, dtype: float64, Timestamp('2019-12-02 00:00:00'), <engine.patterns.PatternMiner object at 0x000001A01EE4B2D0>)
+
+    def test_shrink_effect_matches_the_miner(fitted):
+        X, y, now, m = fitted
+        R = m.patterns
+>       assert S.shrink_effect(R["m_all"].values, R["n_eff"].values, 400) == pytest.approx(R["effect"].values, rel=1e-12)
+E       AssertionError: assert array([ 3.059...21797740e-03]) == approx([0.010...52 ± 1.0e-12])
+E         
+E         comparison failed. Mismatched elements: 330 / 330:
+E         Max absolute difference: 0.009021786297750217
+E         Max relative difference: 3.2915194833066987
+E         Index  | Obtained                | Expected                         
+E         (0,)   | 0.0030598076290096095   | 0.01035473163779587 ± 1.0e-12    
+E         (1,)   | 0.0012559915298580118   | 0.004220345011889267 ± 1.0e-12   ...
+E         
+E         ...Full output truncated (328 lines hidden), use '-vv' to show
+
+tests\test_pattern_stats.py:349: AssertionError
+============================== warnings summary ===============================
+tests/integration/test_pipeline_features_miner.py::test_score_ranks_out_of_sample_future_returns
+  C:\Users\Peter\weekly7\engine\patterns.py:382: UserWarning: [learning.wiring] sink redundancy failed (GraphError: node cd_pos q4 & cd_upwick q0: version dated 2016-12-02 is older than the latest 2018-06-15); the old path continued
+    wiring.on_redundancy(R["key_named"].astype(str).tolist(), dup, _redundancy_masks, now, P["redundancy_overlap"])
+
+tests/test_antimemo_archive.py: 14 warnings
+tests/test_learning_same_year.py: 145 warnings
+  C:\Users\Peter\weekly7\.venv\Lib\site-packages\numpy\lib\_function_base_impl.py:3023: RuntimeWarning: invalid value encountered in divide
+    c /= stddev[:, None]
+
+tests/test_antimemo_archive.py: 14 warnings
+tests/test_learning_same_year.py: 145 warnings
+  C:\Users\Peter\weekly7\.venv\Lib\site-packages\numpy\lib\_function_base_impl.py:3024: RuntimeWarning: invalid value encountered in divide
+    c /= stddev[None, :]
+
+tests/test_blind_gates.py: 4 warnings
+tests/test_leak_audit.py: 10 warnings
+tests/test_learning_test_path.py: 2 warnings
+  C:\Users\Peter\weekly7\.venv\Lib\site-packages\pyarrow\compute.py:230: FutureWarning: Specifying null_placement in RankOptions is deprecated as of 25.0.0. Specify null_placement per sort_key instead.
+    return options_class(*args, **kwargs)
+
+tests/test_exits.py::test_training_window_limits_to_recent_weeks_and_log_writes_provenance
+  C:\Users\Peter\weekly7\engine\exits.py:556: UserWarning: [registry] exit_walk_forward: Phase 0.2 fields not supplied: ['window_ids', 'train_range', 'validation_range', 'test_range', 'metrics', 'gates']
+    log_experiment({"event": event, "report": rep.to_dict("records"), "n_folds": len(wf.fold_choices)}, cfg, seed)
+
+tests/test_learning_firewalls.py::test_data_layer_catches_label_copy_duplicates_and_inf
+  C:\Users\Peter\weekly7\.venv\Lib\site-packages\numpy\lib\_nanfunctions_impl.py:1845: RuntimeWarning: invalid value encountered in subtract
+    np.subtract(arr, avg, out=arr, casting='unsafe', where=where)
+
+tests/test_learning_firewalls.py::test_data_layer_catches_label_copy_duplicates_and_inf
+  C:\Users\Peter\weekly7\.venv\Lib\site-packages\pandas\core\nanops.py:1028: RuntimeWarning: invalid value encountered in subtract
+    sqr = _ensure_numeric((avg - values) ** 2)
+
+tests/test_learning_identity_firewall.py::test_harness_input_validation_and_degenerate_cases
+tests/test_learning_identity_firewall.py::test_harness_input_validation_and_degenerate_cases
+tests/test_miner_tuning.py::test_noise_adopts_nothing
+tests/test_miner_tuning.py::test_noise_adopts_nothing
+  C:\Users\Peter\weekly7\.venv\Lib\site-packages\numpy\_core\fromnumeric.py:3824: RuntimeWarning: Mean of empty slice
+    return _methods._mean(a, axis=axis, dtype=dtype,
+
+tests/test_learning_identity_firewall.py::test_harness_input_validation_and_degenerate_cases
+tests/test_learning_identity_firewall.py::test_harness_input_validation_and_degenerate_cases
+tests/test_miner_tuning.py::test_noise_adopts_nothing
+tests/test_miner_tuning.py::test_noise_adopts_nothing
+  C:\Users\Peter\weekly7\.venv\Lib\site-packages\numpy\_core\_methods.py:142: RuntimeWarning: invalid value encountered in scalar divide
+    ret = ret.dtype.type(ret / rcount)
+
+tests/test_learning_same_year.py::test_canary_column_is_a_breach
+tests/test_learning_same_year.py::test_canary_column_is_a_breach
+  C:\Users\Peter\weekly7\engine\learning\future_firewall.py:201: UserWarning: Could not infer format, so each element will be parsed individually, falling back to `dateutil`. To ensure parsing is consistent and as-expected, please specify a format.
+    return pd.DatetimeIndex(pd.to_datetime(lvl, errors="coerce"))
+
+tests/test_live_safety.py::test_orders_pass_when_open_control
+  C:\Users\Peter\weekly7\.venv\Lib\site-packages\websockets\legacy\__init__.py:6: DeprecationWarning: websockets.legacy is deprecated; see https://websockets.readthedocs.io/en/stable/howto/upgrade.html for upgrade instructions
+    warnings.warn(  # deprecated in 14.0 - 2024-11-09
+
+tests/test_parity.py::test_honest_features_pass_strict_and_live
+tests/test_parity_suite.py::test_every_family_passes_every_check
+  C:\Users\Peter\weekly7\tests\test_parity.py:35: Pandas4Warning: Sorting by default when concatenating all DatetimeIndex is deprecated.  In the future, pandas will respect the default of `sort=False`. Specify `sort=True` or `sort=False` to silence this message. If you see this warnings when not directly calling concat, report a bug to pandas.
+    macro = pd.concat([
+
+tests/test_parity.py::test_drift_flags_a_shifted_feature_only
+tests/test_parity.py::test_drift_flags_a_shifted_feature_only
+tests/test_parity.py::test_firewall_end_to_end
+tests/test_parity.py::test_firewall_end_to_end
+  C:\Users\Peter\weekly7\.venv\Lib\site-packages\scipy\stats\_axis_nan_policy.py:592: RuntimeWarning: ks_2samp: Exact calculation unsuccessful. Switching to method=asymp.
+    res = hypotest_fun_out(*samples, **kwds)
+
+tests/test_pattern_movers.py::test_rolling_ablation_requires_majority_and_enough_origins
+  C:\Users\Peter\weekly7\engine\patterns.py:382: UserWarning: [learning.wiring] sink redundancy failed (GraphError: node f0 q4 & f7 q3 unless f4 q0: version dated 2013-05-06 is older than the latest 2014-03-24); the old path continued
+    wiring.on_redundancy(R["key_named"].astype(str).tolist(), dup, _redundancy_masks, now, P["redundancy_overlap"])
+
+tests/test_retester.py::test_every_component_catches_a_planted_defect[<lambda>-holdings0]
+  C:\Users\Peter\weekly7\tests\test_retester.py:67: ChainedAssignmentError: A value is being set on a copy of a DataFrame or Series through chained assignment.
+  Such chained assignment never works to update the original DataFrame or Series, because the intermediate object on which we are setting values always behaves as a copy (due to Copy-on-Write).
+  
+  Try using '.loc[row_indexer, col_indexer] = value' instead, to perform the assignment in a single step.
+  
+  See the documentation for a more detailed explanation: https://pandas.pydata.org/pandas-docs/stable/user_guide/copy_on_write.html#chained-assignment
+    (lambda r: r["holdings"].__setitem__("weight", r["holdings"]["weight"] * 1.02), "holdings"),
+
+tests/test_retester.py::test_every_component_catches_a_planted_defect[<lambda>-holdings1]
+  C:\Users\Peter\weekly7\tests\test_retester.py:68: ChainedAssignmentError: A value is being set on a copy of a DataFrame or Series through chained assignment.
+  Such chained assignment never works to update the original DataFrame or Series, because the intermediate object on which we are setting values always behaves as a copy (due to Copy-on-Write).
+  
+  Try using '.loc[row_indexer, col_indexer] = value' instead, to perform the assignment in a single step.
+  
+  See the documentation for a more detailed explanation: https://pandas.pydata.org/pandas-docs/stable/user_guide/copy_on_write.html#chained-assignment
+    (lambda r: r["holdings"].__setitem__("ticker", r["holdings"]["ticker"].replace("S0003", "S0009")), "holdings"),
+
+tests/test_retester.py::test_every_component_catches_a_planted_defect[<lambda>-trades1]
+  C:\Users\Peter\weekly7\tests\test_retester.py:70: ChainedAssignmentError: A value is being set on a copy of a DataFrame or Series through chained assignment.
+  Such chained assignment never works to update the original DataFrame or Series, because the intermediate object on which we are setting values always behaves as a copy (due to Copy-on-Write).
+  
+  Try using '.loc[row_indexer, col_indexer] = value' instead, to perform the assignment in a single step.
+  
+  See the documentation for a more detailed explanation: https://pandas.pydata.org/pandas-docs/stable/user_guide/copy_on_write.html#chained-assignment
+    (lambda r: r["trades"].__setitem__("price", r["trades"]["price"] * 1.01), "trades"),
+
+tests/test_retester.py::test_every_component_catches_a_planted_defect[<lambda>-scores]
+  C:\Users\Peter\weekly7\tests\test_retester.py:71: ChainedAssignmentError: A value is being set on a copy of a DataFrame or Series through chained assignment.
+  Such chained assignment never works to update the original DataFrame or Series, because the intermediate object on which we are setting values always behaves as a copy (due to Copy-on-Write).
+  
+  Try using '.loc[row_indexer, col_indexer] = value' instead, to perform the assignment in a single step.
+  
+  See the documentation for a more detailed explanation: https://pandas.pydata.org/pandas-docs/stable/user_guide/copy_on_write.html#chained-assignment
+    (lambda r: r["scores"].__setitem__("score", r["scores"]["score"].iloc[::-1].values), "scores"),
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_learning_test_path.py::test_import_closure_of_the_trader_path_never_reaches_the_curator_or_this_module
+FAILED tests/test_pattern_stats.py::test_shrink_effect_matches_the_miner - As...
+2 failed, 3752 passed, 1 xfailed, 360 warnings in 1552.70s (0:25:52)
+EXIT 1

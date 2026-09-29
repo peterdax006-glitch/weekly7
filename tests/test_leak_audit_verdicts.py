@@ -294,4 +294,6 @@ def test_status_vocabulary_and_worst_of():
 
 def test_verdict_evidence_is_json_serialisable():
     v = verdicts(parts_ok())
-    json.dumps({k: L._jsonable(x.as_evidence()) for k, x in v.items()}, default=str)
+    text = json.dumps({k: L._jsonable(x.as_evidence()) for k, x in v.items()}, default=str)
+    back = json.loads(text)
+    assert set(back) == set(v) and all(isinstance(e, dict) and e for e in back.values())   # every channel survives, none empty
