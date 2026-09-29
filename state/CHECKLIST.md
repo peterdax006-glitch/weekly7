@@ -70,7 +70,7 @@ Foundation status per Bible phase (line ranges, tests): `state/build/FOUNDATION.
 - [x] T17 Planted-pattern calibration: same as A13 (VALIDATED on original and hold-out seeds).
 - [x] T18 Fill audit (C33): round 2 proved all 490 fills at the next open (164+142+184) via engine/fill_audit.gate -> pit.audit_fills; 5 planted defects caught in tests.
 
-- [ ] T19 Learning delta (canon C54/C55): the change in results when the same year is rerun after learning, DISGUISED so the system cannot know it is the same year; with no-learning, transfer and memoriser controls. B22 building engine/learning_delta.py. Current evidence (B06): memorisation 0, lessons from other windows -0.19%/wk.
+- [~] T19 Learning delta (canon C54/C55): harness BUILT (engine/learning_delta.py, B22, 30 tests: generaliser/memoriser/non-learner worlds, blindness audit, no-learning + transfer + memoriser controls). Real probe: disguise with order-preserving codes reproduces Run 1 exactly; memoriser +8.6% same-year / 0 transfer (harness sees memorisation); memory-bank learner +0.2% same-year, +0.25% transfer. Random-rename noise floor (name-order tie-breaks) FIXED in policy (tests/test_tiebreak.py). Real run ld1 pending RAM -> state/research/learning_delta/ld1/.
 - [ ] T20 Future-leak audit (canon C56): the system only ever sees what was available live at that moment - survivorship, split-adjusted prices, today's metadata, learned state from later years, macro revisions, year fingerprints, network. B23 auditing every channel.
 
 ## Live
