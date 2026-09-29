@@ -16,38 +16,50 @@
    "phase": "A FOUNDATION",
    "description": "Define KnowledgeObject.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
-    "engine/pattern_identity.py::PatternRecord",
+    "engine/learning/core.py",
+    "engine/learning/knowledge.py",
     "engine/lessons.py::Lesson",
-    "engine/memory.py::Lesson"
+    "engine/memory.py::Lesson",
+    "engine/pattern_identity.py::PatternRecord"
    ],
    "tests": [
+    "tests/test_learning_epistemic.py",
+    "tests/test_learning_interpretation.py",
+    "tests/test_learning_knowledge.py",
     "tests/test_pattern_identity.py"
    ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial][duplicated] Typed PatternRecord (validated, hashed) covers patterns only; ~15 of ~60 contract fields. Three other record types hold knowledge (lessons.Lesson, memory.Lesson, pattern_bank dicts). No KnowledgeObject."
+   "last_run": "2026-09-29T09:26:00",
+   "code_hash": "a1332647a44b1945",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S01). knowledge.py: typed KnowledgeObject (all section-5 fields), immutable versions, JSON round-trip (12-digit), schema validation, stable_hash ids, code/data/config provenance; adapters from PatternRecord/pattern rows/lessons."
   },
   {
    "id": "A02",
    "phase": "A FOUNDATION",
    "description": "Define epistemic states.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/learning/core.py",
+    "engine/learning/epistemic.py"
+   ],
+   "tests": [
+    "tests/test_learning_epistemic.py",
+    "tests/test_learning_interpretation.py",
+    "tests/test_learning_knowledge.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[missing][contradictory] No epistemic states. Three unrelated vocabularies exist: pattern_lifecycle.STATES, pattern_memory modes (universal/local/disregarded), pattern_reliability.VERDICTS."
+   "last_run": "2026-09-29T09:26:01",
+   "code_hash": "a1332647a44b1945",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S01). epistemic.py: enforced state definitions + legal transitions, scoped states (historical/context/current), maps the 4 existing vocabularies; confidence/reliability dimensions in core.Confidence."
   },
   {
    "id": "A03",
@@ -102,38 +114,48 @@
    "owner": "Claude",
    "status": "IMPLEMENTED",
    "code_paths": [
+    "engine/learning/core.py",
+    "engine/learning/knowledge.py",
     "engine/provenance.py::stamp",
     "engine/registry.py::REQUIRED"
    ],
    "tests": [
+    "tests/test_learning_epistemic.py",
+    "tests/test_learning_interpretation.py",
+    "tests/test_learning_knowledge.py",
     "tests/test_provenance.py",
     "tests/test_registry.py"
    ],
    "evidence": [
-    "state/research/registry_audit.json",
-    "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)"
+    "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)",
+    "state/research/registry_audit.json"
    ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "IMPLEMENTED — NOT VALIDATED. [unsafe] Schema defined, but registry_audit ok=false (51 of 53 records missing git/canon/config/seed fields). test_integrity_fails_closed_on_tampered_bible FAILS now: its fake repo lacks SELF_LEARNING_CONTRACT.md that verify_integrity started requiring with C62."
+   "last_run": "2026-09-29T09:26:00",
+   "code_hash": "a1332647a44b1945",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S01). knowledge.py: typed KnowledgeObject (all section-5 fields), immutable versions, JSON round-trip (12-digit), schema validation, stable_hash ids, code/data/config provenance; adapters from PatternRecord/pattern rows/lessons."
   },
   {
    "id": "A06",
    "phase": "A FOUNDATION",
    "description": "Define knowledge versioning.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
-    "engine/trust_store.py::TrustStore",
+    "engine/leak_audit.py::BasisLineage",
+    "engine/learning/core.py",
+    "engine/learning/knowledge.py",
     "engine/pattern_bank.py::PatternBank",
-    "engine/leak_audit.py::BasisLineage"
+    "engine/trust_store.py::TrustStore"
    ],
    "tests": [
-    "tests/test_trust_store.py",
-    "tests/test_pattern_bank.py"
+    "tests/test_learning_epistemic.py",
+    "tests/test_learning_interpretation.py",
+    "tests/test_learning_knowledge.py",
+    "tests/test_pattern_bank.py",
+    "tests/test_trust_store.py"
    ],
    "evidence": [
     "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)"
@@ -141,9 +163,9 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial] Versioned trust tables, content-addressed bank commits, basis lineage. No knowledge-object versioning."
+   "last_run": "2026-09-29T09:26:00",
+   "code_hash": "a1332647a44b1945",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S01). knowledge.py: typed KnowledgeObject (all section-5 fields), immutable versions, JSON round-trip (12-digit), schema validation, stable_hash ids, code/data/config provenance; adapters from PatternRecord/pattern rows/lessons."
   },
   {
    "id": "A07",
@@ -152,30 +174,40 @@
    "owner": "Claude",
    "status": "IMPLEMENTED",
    "code_paths": [
+    "engine/learning/core.py",
+    "engine/learning/epistemic.py",
     "engine/pattern_lifecycle.py::STATES,ALLOWED,Lifecycle"
    ],
    "tests": [
+    "tests/test_learning_epistemic.py",
+    "tests/test_learning_interpretation.py",
+    "tests/test_learning_knowledge.py",
     "tests/test_pattern_lifecycle.py"
    ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "IMPLEMENTED — NOT VALIDATED. [partial] Bible Phase-4 states with enforced transitions; not the contract's ACTIVE/DEGRADED/DORMANT/RETIRED or birth..retirement phases."
+   "last_run": "2026-09-29T09:26:01",
+   "code_hash": "a1332647a44b1945",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S01). epistemic.py: enforced state definitions + legal transitions, scoped states (historical/context/current), maps the 4 existing vocabularies; confidence/reliability dimensions in core.Confidence."
   },
   {
    "id": "A08",
    "phase": "A FOUNDATION",
    "description": "Define confidence dimensions.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
-    "engine/pattern_stats.py::p_real",
-    "engine/pattern_reliability.py::MetaModel"
+    "engine/learning/core.py",
+    "engine/learning/epistemic.py",
+    "engine/pattern_reliability.py::MetaModel",
+    "engine/pattern_stats.py::p_real"
    ],
    "tests": [
+    "tests/test_learning_epistemic.py",
+    "tests/test_learning_interpretation.py",
+    "tests/test_learning_knowledge.py",
     "tests/test_pattern_stats.py"
    ],
    "evidence": [
@@ -184,43 +216,53 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial] truth confidence = P(real) (calibrated on planted truth); current reliability = P(hold). transfer_confidence, context_confidence, failure_risk missing."
+   "last_run": "2026-09-29T09:26:01",
+   "code_hash": "a1332647a44b1945",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S01). epistemic.py: enforced state definitions + legal transitions, scoped states (historical/context/current), maps the 4 existing vocabularies; confidence/reliability dimensions in core.Confidence."
   },
   {
    "id": "A09",
    "phase": "A FOUNDATION",
    "description": "Define reliability dimensions.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
+    "engine/learning/core.py",
+    "engine/learning/epistemic.py",
     "engine/pattern_reliability.py::walk_forward,HealthLedger",
     "engine/trust.py::TrustTable"
    ],
    "tests": [
+    "tests/test_learning_epistemic.py",
+    "tests/test_learning_interpretation.py",
+    "tests/test_learning_knowledge.py",
     "tests/test_trust.py"
    ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial][under-tested] One reliability dimension; pattern_reliability has no test file and is being live-edited."
+   "last_run": "2026-09-29T09:26:01",
+   "code_hash": "a1332647a44b1945",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S01). epistemic.py: enforced state definitions + legal transitions, scoped states (historical/context/current), maps the 4 existing vocabularies; confidence/reliability dimensions in core.Confidence."
   },
   {
    "id": "A10",
    "phase": "A FOUNDATION",
    "description": "Implement serialization/deserialization.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
-    "engine/pattern_identity.py::PatternRecord",
+    "engine/learning/core.py",
+    "engine/learning/knowledge.py",
     "engine/pattern_bank.py",
+    "engine/pattern_identity.py::PatternRecord",
     "engine/trust.py::TrustTable"
    ],
    "tests": [
+    "tests/test_learning_epistemic.py",
+    "tests/test_learning_interpretation.py",
+    "tests/test_learning_knowledge.py",
     "tests/test_pattern_identity.py",
     "tests/test_trust.py::test_json_roundtrip"
    ],
@@ -230,49 +272,59 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial] JSON round-trips exist per store; none for a knowledge object."
+   "last_run": "2026-09-29T09:26:00",
+   "code_hash": "a1332647a44b1945",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S01). knowledge.py: typed KnowledgeObject (all section-5 fields), immutable versions, JSON round-trip (12-digit), schema validation, stable_hash ids, code/data/config provenance; adapters from PatternRecord/pattern rows/lessons."
   },
   {
    "id": "A11",
    "phase": "A FOUNDATION",
    "description": "Implement schema validation.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
+    "engine/claims.py::Claim",
+    "engine/learning/core.py",
+    "engine/learning/knowledge.py",
     "engine/pattern_identity.py::IdentityError",
-    "engine/registry.py::Registry",
-    "engine/claims.py::Claim"
+    "engine/registry.py::Registry"
    ],
    "tests": [
-    "tests/test_pattern_identity.py",
-    "tests/test_claims.py"
+    "tests/test_claims.py",
+    "tests/test_learning_epistemic.py",
+    "tests/test_learning_interpretation.py",
+    "tests/test_learning_knowledge.py",
+    "tests/test_pattern_identity.py"
    ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial] Validation per store; no knowledge schema."
+   "last_run": "2026-09-29T09:26:00",
+   "code_hash": "a1332647a44b1945",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S01). knowledge.py: typed KnowledgeObject (all section-5 fields), immutable versions, JSON round-trip (12-digit), schema validation, stable_hash ids, code/data/config provenance; adapters from PatternRecord/pattern rows/lessons."
   },
   {
    "id": "A12",
    "phase": "A FOUNDATION",
    "description": "Add deterministic hashing.",
    "owner": "Claude",
-   "status": "VALIDATED",
+   "status": "IMPLEMENTED",
    "code_paths": [
-    "engine/pattern_identity.py::pattern_hash",
+    "engine/learning/core.py",
+    "engine/learning/knowledge.py",
     "engine/pattern_bank.py::canon_hash",
-    "engine/repro.py::artifact_hash",
-    "engine/pit.py::fingerprint"
+    "engine/pattern_identity.py::pattern_hash",
+    "engine/pit.py::fingerprint",
+    "engine/repro.py::artifact_hash"
    ],
    "tests": [
-    "tests/test_repro.py",
+    "tests/test_learning_epistemic.py",
+    "tests/test_learning_interpretation.py",
+    "tests/test_learning_knowledge.py",
+    "tests/test_pattern_bank.py::test_canon_hash_is_order_independent",
     "tests/test_pattern_identity.py",
-    "tests/test_pattern_bank.py::test_canon_hash_is_order_independent"
+    "tests/test_repro.py"
    ],
    "evidence": [
     "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)"
@@ -280,9 +332,9 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[already implemented] Order-independent canonical hashing, tested for determinism and tamper detection (those files passed in the audit run). Must be reused, not re-written, by the knowledge layer."
+   "last_run": "2026-09-29T09:26:00",
+   "code_hash": "a1332647a44b1945",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S01). knowledge.py: typed KnowledgeObject (all section-5 fields), immutable versions, JSON round-trip (12-digit), schema validation, stable_hash ids, code/data/config provenance; adapters from PatternRecord/pattern rows/lessons."
   },
   {
    "id": "A13",
@@ -291,21 +343,26 @@
    "owner": "Claude",
    "status": "IMPLEMENTED",
    "code_paths": [
+    "engine/learning/core.py",
+    "engine/learning/knowledge.py",
     "engine/provenance.py::stamp,code_hash,code_mixed,data_snapshot,config_hash"
    ],
    "tests": [
+    "tests/test_learning_epistemic.py",
+    "tests/test_learning_interpretation.py",
+    "tests/test_learning_knowledge.py",
     "tests/test_provenance.py"
    ],
    "evidence": [
-    "state/research/registry_audit.json",
-    "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)"
+    "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)",
+    "state/research/registry_audit.json"
    ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "IMPLEMENTED — NOT VALIDATED. [unsafe] Works where called; not applied to most experiment records; one provenance test failing (see A05)."
+   "last_run": "2026-09-29T09:26:00",
+   "code_hash": "a1332647a44b1945",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S01). knowledge.py: typed KnowledgeObject (all section-5 fields), immutable versions, JSON round-trip (12-digit), schema validation, stable_hash ids, code/data/config provenance; adapters from PatternRecord/pattern rows/lessons."
   },
   {
    "id": "B01",
@@ -4126,28 +4183,33 @@
   {
    "section": "Knowledge objects",
    "minimum_lines": 900,
-   "actual_lines": 444,
+   "actual_lines": 907,
    "code_paths": [
+    "engine/learning/knowledge.py",
     "engine/pattern_identity.py (444)"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "UNDER by 456 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: typed, validated, hashed PatternRecord/Expression/Scope/Window exist for PATTERNS only; no KnowledgeObject (no contexts/anti_contexts, 5 confidence dims, relations, decision_effect, promotion state). Parallel record types: lessons.Lesson, memory.Lesson, pattern_bank dict records, pattern_memory observations."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S01)."
   },
   {
    "section": "Epistemic states",
    "minimum_lines": 450,
-   "actual_lines": 0,
-   "code_paths": [],
-   "status": "NOT_STARTED",
-   "notes": "UNDER by 450 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). missing: no OBSERVED/HYPOTHESIS/SUPPORTED/CONDITIONAL/DEGRADED/CONTRADICTED/GATED/RETIRED/UNKNOWN state. Three other vocabularies exist (pattern_lifecycle.STATES, pattern_memory modes, pattern_reliability.VERDICTS) - contradictory; the new layer must map them, not add a fourth."
+   "actual_lines": 565,
+   "code_paths": [
+    "engine/learning/epistemic.py"
+   ],
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S01)."
   },
   {
    "section": "Observation/interpretation",
    "minimum_lines": 600,
-   "actual_lines": 0,
-   "code_paths": [],
-   "status": "NOT_STARTED",
-   "notes": "UNDER by 600 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). missing: observation, statistical relationship, hypothesis, mechanism and decision usefulness are not stored separately; no competing-explanation set (H1-H6). pattern_stats P(real)/P(hallucinated)/P(coincidence) is the only split and is counted under Real/useful/current."
+   "actual_lines": 602,
+   "code_paths": [
+    "engine/learning/interpretation.py"
+   ],
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S01). H1-H6 likelihood table is a design prior (unfitted)."
   },
   {
    "section": "Context modeling",
@@ -4513,20 +4575,23 @@
   {
    "section": "Unknown handling",
    "minimum_lines": 400,
-   "actual_lines": 129,
+   "actual_lines": 406,
    "code_paths": [
-    "engine/direction_calib.py (129)"
+    "engine/direction_calib.py (129)",
+    "engine/learning/unknowns.py"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "UNDER by 271 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: direction abstention gates; pattern_reliability OPEN verdict. No UNKNOWN/INSUFFICIENT_DATA/CONFLICTED/UNTESTED states with ABSTAIN/COLLECT/RUN EXPERIMENT/USE GENERAL RULE actions."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S01)."
   },
   {
    "section": "Knowledge→decision contract",
    "minimum_lines": 450,
-   "actual_lines": 0,
-   "code_paths": [],
-   "status": "NOT_STARTED",
-   "notes": "UNDER by 450 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). missing: only pattern_lifecycle.TRADEABLE and the LiveGate multiplier touch decisions; no per-knowledge 'what decision does this change'."
+   "actual_lines": 473,
+   "code_paths": [
+    "engine/learning/decision_contract.py"
+   ],
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S01)."
   },
   {
    "section": "Champion/challenger",

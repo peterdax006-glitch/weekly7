@@ -30,6 +30,7 @@ def merge(old, new):
 
 
 def main():
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")   # section names contain '→'; a cp1252 console crashed before save
     ap = argparse.ArgumentParser()
     ap.add_argument("kind", choices=["item", "budget", "summary"])
     ap.add_argument("keys", nargs="*")
