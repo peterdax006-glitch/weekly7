@@ -23,9 +23,7 @@ trader except through MaturedRecord.gate(now); see precursors.py for the release
 from __future__ import annotations
 
 import dataclasses
-import datetime as dt
 import json
-import math
 from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping, Sequence
 
@@ -702,7 +700,8 @@ class Plant:
 def synthetic_bars(n_names: int = 120, n_days: int = 260, seed: int = 0, start: str = "2019-01-02", plant: Plant = Plant(),
                    mover_rate: float = 0.012, sigma_range: tuple[float, float] = (0.010, 0.018)) -> tuple[dict[str, pd.DataFrame], dict[str, Any]]:
     """Seeded OHLCV world. Returns (bars, truth); truth lists every planted (date index, name index, side) so a test can score a detector against
-    exact ground truth. Movers arrive at random (rate `mover_rate` per name-day, 5.5-9.5% both ways) whether or not anything is planted."""
+    exact ground truth. Movers arrive independently at random (rate `mover_rate` per name-day, 5.5-9.5% both ways, no refractory period, so
+    the null world has no hidden dependence on a name's history) whether or not anything is planted."""
     if n_names < 2 or n_days < 30:
         raise EpisodeError("synthetic world needs >= 2 names and >= 30 sessions")
     rng = np.random.default_rng(seed)
@@ -714,15 +713,11 @@ def synthetic_bars(n_names: int = 120, n_days: int = 260, seed: int = 0, start: 
     base_v = np.exp(rng.normal(13.8, 0.6, n_names))
     V = base_v * np.exp(rng.normal(0.0, 0.25, (n_days, n_names)))
     quiet = np.zeros((n_days, n_names), bool)
-    last_event = np.full(n_names, -100)
     events = []
     for t in range(12, n_days - 8):
         for j in np.flatnonzero(rng.random(n_names) < mover_rate):
-            if t - last_event[j] < 9:
-                continue
             side = 1 if rng.random() < 0.5 else -1
             mag = rng.uniform(0.055, 0.095)
-            last_event[j] = t
             r[t, j] = side * mag
             V[t, j] *= 2.0
             planted_pre = False
@@ -835,15 +830,16 @@ def bars_health(bars: Mapping[str, pd.DataFrame], cfg: EpisodeConfig = EpisodeCo
     return out
 
 
-def episode_digest(eps: pd.DataFrame, decimals: int = 9) -> str:
-    """Order-independent content hash of an episode frame (block-local `ti`/`nj` excluded), for run-equality checks."""
+def episode_digest(eps: pd.DataFrame, digits: int = 9) -> str:
+    """Order-independent content hash of an episode frame (block-local `ti`/`nj` excluded), for run-equality checks. Floats are compared to
+    `digits` significant figures (rolling windows started at different rows differ in the last bits) and -0.0 is read as 0.0."""
     if len(eps) == 0:
         return stable_hash([], 16)
     cols = [c for c in eps.columns if c not in ("ti", "nj")]
     d = eps[cols].copy()
     for c in cols:
         if pd.api.types.is_float_dtype(d[c]):
-            d[c] = d[c].round(decimals)
+            d[c] = [f"{v + 0.0:.{digits}g}" for v in d[c].to_numpy()]
     d = d.sort_values(["date", "ticker"]).reset_index(drop=True)
     return stable_hash([[str(v) for v in row] for row in d.itertuples(index=False, name=None)], 16)
 

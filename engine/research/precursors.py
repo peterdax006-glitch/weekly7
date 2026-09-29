@@ -28,13 +28,12 @@ from __future__ import annotations
 
 import dataclasses
 import hashlib
-import inspect
 import json
 import math
 import os
 import zlib
 from pathlib import Path
-from typing import Any, Callable, Iterable, Mapping, Sequence
+from typing import Any, Callable, Iterable, Iterator, Mapping, Sequence
 
 import numpy as np
 import pandas as pd
@@ -44,13 +43,13 @@ from engine import candles as CANDLES
 from engine import features as FEATURES
 from engine.learning.checkpoints import _atomic_text
 from engine.learning.core import Health, Provenance, current_code_hash
-from engine.learning.trader_view import string_reasons
+from engine.learning.trader_view import assert_trader_safe, string_reasons
 from engine.research import episode_paths as EP
 from engine.research import episodes as EPI
-from engine.research.core import (FirewallBreach, GateVerdict, Knowability, MaturedRecord, Namespace, Problem, ResearchQuestion, _StrEnum, as_date,
+from engine.research.core import (FirewallBreach, Knowability, MaturedRecord, Namespace, Problem, ResearchQuestion, _StrEnum, as_date,
                                   require_past, stable_hash)
 from engine.research.discovery import TrialLedger
-from engine.research.episodes import (CoverageBook, EpisodeConfig, EpisodeError, Grid, Unit, UnitRecord, build_grid, era_of, lens_band_side)
+from engine.research.episodes import (CoverageBook, EpisodeConfig, Grid, Unit, UnitRecord, build_grid, era_of, lens_band_side)
 
 NAMESPACE = Namespace.MATURED_RESEARCH
 ANCHORS = ("pre", "post")
@@ -230,7 +229,8 @@ class PrecursorSpec:
     def fingerprint(self) -> str:
         try:
             code = self.fn.__code__
-            blob = code.co_code + repr(code.co_consts).encode() + repr(code.co_names).encode()
+            free = repr([c.cell_contents for c in (self.fn.__closure__ or ())]).encode()     # closures share bytecode: their contents tell them apart
+            blob = code.co_code + repr(code.co_consts).encode() + repr(code.co_names).encode() + free
         except AttributeError:
             blob = repr(self.fn).encode()
         return hashlib.sha256(self.name.encode() + blob + repr(self.lags).encode()).hexdigest()[:16]
@@ -1127,6 +1127,12 @@ class Candidate:
         return Candidate(**d)
 
 
+def alpha_id(prefix: str, obj: Any, n: int = 12) -> str:
+    """Content-derived identifier written in letters only. A hex hash can contain digit runs that read as a year or a date to the trader-view
+    screen (about one id in fifty), so ids are re-encoded a-p."""
+    return prefix + "".join(chr(ord("a") + int(ch, 16)) for ch in stable_hash(obj, n))
+
+
 def problem_of(comp: str) -> Problem:
     """Which of the owner's objectives a comparison serves: knowing WHETHER it moves (volatility), which way it goes next (direction), what
     the stock will cost (loss avoidance)."""
@@ -1261,7 +1267,7 @@ def evaluate_evidence(store: EvidenceStore, ledger: TrialLedger, rules: Evidence
             status = CandidateStatus.HYPOTHESIS
         else:
             status = CandidateStatus.CANDIDATE
-        cid = "PC" + stable_hash({"k": x["key"], "f": x["feature"]}, 12)
+        cid = alpha_id("pc", {"k": x["key"], "f": x["feature"]})
         lens, typ, comp, anchor = split_key(x["key"])
         years = tuple(sorted({cluster_year(int(c), cfg.cluster_months) for c in ids}))
         text = describe(x["key"], x["feature"], fam, x["effect"], x["t"])
@@ -1302,6 +1308,7 @@ def as_matured_record(c: Candidate, created_real: str, code_hash: str, data_hash
     payload = {"kind": "mover_precursor", "candidate_id": c.candidate_id, "status": str(c.status), "lens": c.lens, "type": c.type,
                "comparison": c.comparison, "anchor": c.anchor, "feature": c.feature, "direction": c.direction, "effect": c.effect, "t": c.t,
                "q": c.q, "decision_effect": "NONE", "text": c.text}
+    assert_trader_safe(payload, f"candidate {c.candidate_id} payload")
     return MaturedRecord(c.candidate_id, c.matured_at, payload, prov)
 
 
@@ -1389,6 +1396,7 @@ class LabState:
     candidates: dict[str, Candidate] = dataclasses.field(default_factory=dict)
     history: dict[str, list[list]] = dataclasses.field(default_factory=dict)
     market: dict[str, list[dict[str, Any]]] = dataclasses.field(default_factory=dict)
+    daily: dict[str, pd.DataFrame] = dataclasses.field(default_factory=dict)      # per-session mover counts of each slice-year (first lens only)
     notes: list[str] = dataclasses.field(default_factory=list)
     eval_seq: int = 0
     commit_seq: int = 0
@@ -1436,20 +1444,50 @@ class LabStore:
         _atomic_text(self.dir / f"ledger_{seq}.json", led)
         cand = json.dumps({"candidates": {k: v.to_dict() for k, v in sorted(st.candidates.items())}, "history": st.history}, sort_keys=True)
         _atomic_text(self.dir / f"candidates_{seq}.json", cand)
+        cnt_sha = self._save_counts(st, self.dir / f"counts_{seq}.npz")
         body = {"seq": seq, "cfg": st.cfg.digest(), "ecfg": st.ecfg.digest(), "pcfg": st.pcfg.digest(), "rules": st.rules.digest(),
                 "coverage": st.book.to_dict(), "market": st.market, "notes": st.notes[-200:], "eval_seq": st.eval_seq,
                 "last_eval_digest": st.last_eval_digest, "next_eval_at": st.next_eval_at,
                 "files": {"evidence": [f"evidence_{seq}.npz", ev_sha], "ledger": [f"ledger_{seq}.json", hashlib.sha256(led.encode()).hexdigest()],
-                          "candidates": [f"candidates_{seq}.json", hashlib.sha256(cand.encode()).hexdigest()]}}
+                          "candidates": [f"candidates_{seq}.json", hashlib.sha256(cand.encode()).hexdigest()],
+                          "counts": [f"counts_{seq}.npz", cnt_sha]}}
         _atomic_text(self.manifest_path, json.dumps({"hash": stable_hash(body, 24), "body": body}, sort_keys=True))
         st.commit_seq = seq
-        for p in list(self.dir.glob("evidence_*.npz")) + list(self.dir.glob("ledger_*.json")) + list(self.dir.glob("candidates_*.json")):
+        for p in list(self.dir.glob("evidence_*.npz")) + list(self.dir.glob("ledger_*.json")) + list(self.dir.glob("candidates_*.json"))                 + list(self.dir.glob("counts_*.npz")):
             n = int(p.stem.split("_")[1])
             if n != seq:
                 p.unlink(missing_ok=True)
         for p in self.dir.glob("*.tmp*"):
             p.unlink(missing_ok=True)
         return seq
+
+    @staticmethod
+    def _save_counts(st: LabState, path: Path) -> str:
+        arrays: dict[str, np.ndarray] = {}
+        meta: dict[str, Any] = {"units": []}
+        for i, uid in enumerate(sorted(st.daily)):
+            d = st.daily[uid]
+            arrays[f"d{i}"] = d.index.values.astype("datetime64[D]").astype(np.int64)
+            arrays[f"v{i}"] = d.to_numpy(np.int64)
+            meta["units"].append({"uid": uid, "columns": list(d.columns)})
+        arrays["meta"] = np.frombuffer(json.dumps(meta).encode(), dtype=np.uint8)
+        tmp = path.with_name(path.name + f".tmp{os.getpid()}")
+        with open(tmp, "wb") as f:
+            np.savez(f, **arrays)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, path)
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+
+    @staticmethod
+    def _load_counts(path: Path, sha: str) -> dict[str, pd.DataFrame]:
+        raw = path.read_bytes()
+        if hashlib.sha256(raw).hexdigest() != sha:
+            raise LabError(f"{path.name} fails its checksum")
+        z = np.load(path, allow_pickle=False)
+        meta = json.loads(bytes(z["meta"]).decode())
+        return {m["uid"]: pd.DataFrame(z[f"v{i}"], index=pd.DatetimeIndex(z[f"d{i}"].astype("datetime64[D]").astype("datetime64[ns]")),
+                                       columns=m["columns"]) for i, m in enumerate(meta["units"])}
 
     def load(self, cfg: LabConfig = LabConfig(), ecfg: EpisodeConfig = EpisodeConfig(), pcfg: EP.PathConfig = EP.PathConfig(),
              rules: EvidenceRules = EvidenceRules(), registry: PrecursorRegistry | None = None) -> LabState:
@@ -1472,6 +1510,7 @@ class LabStore:
         st = LabState(cfg, ecfg, pcfg, rules, registry if registry is not None else default_registry(), CoverageBook.from_dict(body["coverage"]), ev,
                       TrialLedger.from_dict(json.loads((self.dir / files["ledger"][0]).read_text(encoding="utf-8"))))
         c = json.loads((self.dir / files["candidates"][0]).read_text(encoding="utf-8"))
+        st.daily = self._load_counts(self.dir / files["counts"][0], files["counts"][1])
         st.candidates = {k: Candidate.from_dict(v) for k, v in c["candidates"].items()}
         st.history = c["history"]
         st.market, st.notes = body["market"], list(body["notes"])
@@ -1577,6 +1616,8 @@ def commit_unit(state: LabState, out: UnitOutcome) -> None:
             state.market[uid] = out.market_rows
             state.ledger.register(f"mkt-{uid}", out.record.finished_real, [f"{uid}|{r['count']}|{r['state']}" for r in out.market_rows],
                                   [r["p"] for r in out.market_rows], ["market_state"] * len(out.market_rows), f"unit:{uid}")
+        if out.counts is not None and len(out.counts) and out.unit.lens == state.cfg.lenses[0]:
+            state.daily[out.unit.uid] = out.counts.astype(np.int64)
         if out.info.get("missing"):
             state.notes.append(f"{out.unit.uid}: features without data: {','.join(sorted(out.info['missing']))}")
     except Exception:
@@ -1754,6 +1795,9 @@ def redundancy_groups(F: np.ndarray, columns: Sequence[str], threshold: float = 
     return sorted([sorted(g) for g in groups.values() if len(g) > 1])
 
 
+DECOY_PREFIX = "nullprobe_"                        # not "decoy_": the trader-view screen reads "dec" + digit as a month-day date
+
+
 def _hash_uniform(ordinals: np.ndarray, tick_codes: np.ndarray, seed: int) -> np.ndarray:
     """Deterministic pseudo-random uniform in [0, 1) for each (session, name): an integer hash of the date ordinal and a per-ticker code."""
     x = (ordinals.astype(np.uint64)[:, None] * np.uint64(2654435761) + tick_codes.astype(np.uint64)[None, :] * np.uint64(40503)
@@ -1774,7 +1818,7 @@ def decoy_spec(idx: int, seed: int = 0, lags: Sequence[int] = (0, 1, 2)) -> Prec
         k = np.array([zlib.crc32(str(t).encode()) for t in c.g.tickers], dtype=np.int64)
         return _hash_uniform(o, k, seed * 1009 + idx)
     fn.__doc__ = f"decoy {idx}: noise, must never be a discovery"
-    return PrecursorSpec(f"decoy_{idx}", "decoy", fn, tuple(lags), fn.__doc__)
+    return PrecursorSpec(f"{DECOY_PREFIX}{idx}", "decoy", fn, tuple(lags), fn.__doc__)
 
 
 def registry_with_decoys(n_decoys: int = 3, seed: int = 0, audit: bool = True) -> PrecursorRegistry:
@@ -1789,9 +1833,9 @@ def decoy_report(state: LabState) -> dict[str, Any]:
     count is near screen_q times the eligible count."""
     tests = tracked = promoted = 0
     for key, cell in state.evidence.cells.items():
-        tests += sum(1 for f in cell.features if f.startswith("decoy_"))
+        tests += sum(1 for f in cell.features if f.startswith(DECOY_PREFIX))
     for c in state.candidates.values():
-        if c.feature.startswith("decoy_"):
+        if c.feature.startswith(DECOY_PREFIX):
             tracked += 1
             promoted += int(c.status == CandidateStatus.CANDIDATE)
     return {"decoy_tests": tests, "decoy_tracked": tracked, "decoy_promoted": promoted,
@@ -1920,3 +1964,80 @@ def release(state: LabState, now, replay_windows: Sequence[tuple[Any, Any]] = ()
     year being replayed in disguise. Wraps release_candidates with this state's provenance."""
     return release_candidates(state.candidates, now, replay_windows, created_real or str(as_date(now)), current_code_hash(), state.evidence.digest(),
                               state.cfg.digest(), state.cfg.seed)
+
+
+# ------------------------------------------------------------------------------------------------------------------ the always-on job
+@dataclasses.dataclass
+class TickReport:
+    tick: int
+    now: str
+    done: list[str]
+    waiting: list[str]
+    idle: bool
+    new_years: int
+    fraction_done: float
+    candidates: int
+    ledger_looks: int
+    evaluated: bool
+
+
+class AlwaysOn:
+    """The job the wave-2 research loop schedules through compute_manager: every tick it (1) learns of any newly available years, (2) runs up to
+    `units_per_tick` unfinished units, least-covered first, committing after each, and (3) evaluates on the doubling schedule. A tick that has
+    nothing to do says so (idle=True) and costs almost nothing, so the job can simply be called forever; new years, new sessions or a wider
+    precursor registry make it busy again. It never redoes finished work and never runs a unit on a year that is not final."""
+
+    def __init__(self, state: LabState, loader: Loader, store: LabStore | None = None, context_fn: ContextFn | None = None,
+                 years_fn: Callable[[Any], Iterable[int]] | None = None, units_per_tick: int = 1):
+        if units_per_tick < 1:
+            raise LabError("units_per_tick must be >= 1")
+        self.state, self.loader, self.store, self.context_fn = state, loader, store, context_fn
+        self.years_fn, self.units_per_tick = years_fn, int(units_per_tick)
+        self.ticks = 0
+        self.idle_ticks = 0
+
+    def tick(self, now) -> TickReport:
+        self.ticks += 1
+        new = self.state.book.extend_years(self.years_fn(now)) if self.years_fn is not None else 0
+        rep = step(self.state, now, self.loader, self.units_per_tick, self.store, self.context_fn)
+        idle = not rep.done
+        self.idle_ticks = self.idle_ticks + 1 if idle else 0
+        return TickReport(self.ticks, str(as_date(now)), rep.done, rep.waiting, idle, new, rep.coverage["fraction_done"], rep.candidates,
+                          self.state.ledger.total_trials, rep.evaluation is not None)
+
+    def run(self, now_fn: Callable[[], Any], max_ticks: int | None = None, stop: Callable[[], bool] = lambda: False,
+            stop_after_idle: int | None = None) -> Iterator[TickReport]:
+        """Yield one TickReport per tick until `stop()`, `max_ticks`, or `stop_after_idle` consecutive idle ticks."""
+        n = 0
+        while (max_ticks is None or n < max_ticks) and not stop():
+            r = self.tick(now_fn())
+            n += 1
+            yield r
+            if stop_after_idle is not None and self.idle_ticks >= stop_after_idle:
+                return
+
+    def coverage(self) -> dict[str, Any]:
+        return self.state.book.report(self.state.registry.columns())
+
+
+# ------------------------------------------------------------------------------------------------------------------ the 'hundreds a day' ledger
+def universe_counts(state: LabState, year: int) -> pd.DataFrame:
+    """Whole-universe mover counts per session for one year: the slices' counts added up (each name lives in exactly one slice)."""
+    parts = [d for uid, d in sorted(state.daily.items()) if Unit.parse(uid).year == year]
+    return EPI.merge_counts(parts)
+
+
+def hundreds_by_year(state: LabState, minimum: int = 100, measure: str = "c2c") -> pd.DataFrame:
+    """For each finished year: median daily movers per direction in the 5-10% band, the share of sessions with at least `minimum` of them, and
+    the same for the >10% band. The owner's premise (hundreds a day) is a number here, per year, on the universe actually swept."""
+    rows = []
+    for y in state.book.years:
+        c = universe_counts(state, y)
+        if len(c) == 0:
+            continue
+        r = EPI.hundreds_report(c, minimum, measure)
+        rows.append({"year": y, "sessions": r["days"], "universe_median": r["universe_median"],
+                     "median_up_5_10": r["median"].get(f"{measure}_up_5_10", float("nan")), "median_dn_5_10": r["median"].get(f"{measure}_dn_5_10", float("nan")),
+                     "share_days_both_sides_at_least": r["both_sides_share_days_at_least"],
+                     "median_gt10": float(c[[k for k in c.columns if k.startswith(measure + "_") and k.endswith("gt10")]].sum(axis=1).median())})
+    return pd.DataFrame(rows, columns=["year", "sessions", "universe_median", "median_up_5_10", "median_dn_5_10", "share_days_both_sides_at_least", "median_gt10"])

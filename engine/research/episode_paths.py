@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import dataclasses
 import math
-from typing import Any, Mapping, Sequence
+from typing import Any, Sequence
 
 import numpy as np
 import pandas as pd
