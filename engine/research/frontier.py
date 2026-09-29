@@ -43,6 +43,7 @@ from engine.learning.core import FirewallBreach, Provenance, as_date, canonical_
 from engine.learning.scorecard import Measured, MStatus
 from engine.learning.trader_view import assert_trader_safe
 from engine.research.core import MaturedRecord, Namespace
+from engine.research.interactions import TrialLedger
 
 NOT_FOUND_SENTENCE = "No reliable 80% directional region has been found."
 DEFAULT_COVERAGES = (1.0, 0.75, 0.50, 0.25, 0.10, 0.05, 0.025, 0.01, 0.005, 0.001)
@@ -1157,23 +1158,53 @@ class TestEntry:
     count: int = 1                        # number of tests this entry stands for (a block of screened-out tests has p = 1)
 
 
-class TestLedger:
-    """Every hypothesis test ever run in a sweep, kept for good. Adjusted significance always uses the CUMULATIVE count, so the
-    bar rises as the search grows and a p = 0.01 found on the 5,000th look is not celebrated as if it were the first.
-    Entries are append-only; re-logging the same test_id keeps the first p (a test cannot be re-rolled until it passes)."""
+@dataclass(frozen=True)
+class _TrialRef:
+    """The one attribute TrialLedger.register reads from a trial."""
+    trial_id: str
+
+
+class TestLedger(TrialLedger):
+    """The ONE cumulative multiple-testing ledger is engine.research.interactions.TrialLedger: it counts every combination ever tested per data
+    key (here the test FAMILY), so m_total only grows. I chose it over pattern_memory's tries ledger because its counts are keyed by an explicit
+    data key and survive extended data, which is what a 24/7 sweep over growing history needs. This subclass adds the one thing TrialLedger does
+    not hold, the p-value of each test, plus screened-out blocks (searched but never scored, each counted as p = 1), so BH and Bonferroni
+    can be computed over the whole search. The search size (`len`, `m_total`) comes from TrialLedger; nothing is counted twice.
+    Re-logging a test_id keeps the FIRST p (a test cannot be re-rolled until it passes)."""
     __test__ = False                      # not a pytest class
 
     def __init__(self, path: str | Path | None = None):
+        super().__init__()
         self.path = Path(path) if path else None
         self._entries: dict[str, TestEntry] = {}
+        self._null: dict[str, int] = {}
         if self.path and self.path.exists():
             for line in self.path.read_text(encoding="utf-8").splitlines():
                 if line.strip():
                     e = TestEntry(**json.loads(line))
-                    self._entries.setdefault(e.test_id, e)
+                    self._replay(e)
+
+    def _replay(self, e: TestEntry) -> None:
+        if e.test_id in self._entries or e.test_id in self._null:
+            return
+        if e.count == 1:
+            self._entries[e.test_id] = e
+            self.register(e.family, [_TrialRef(e.test_id)])
+        else:
+            self._null[e.test_id] = e.count
+            self._entries[e.test_id] = e
+
+    def _persist(self, e: TestEntry) -> None:
+        if self.path:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            with self.path.open("a", encoding="utf-8") as fh:
+                fh.write(json.dumps(dataclasses.asdict(e), sort_keys=True) + NL)
 
     def __len__(self) -> int:
-        return sum(e.count for e in self._entries.values())
+        return sum(self.m_total(f) for f in self.families()) + sum(self._null.values())
+
+    def families(self) -> dict[str, int]:
+        return {f: self.m_total(f) for f in self._seen}
 
     def log_null(self, test_id: str, family: str, count: int, matured_through, now) -> None:
         """Register `count` tests that were examined but screened out (each counts as p = 1): the search size is part of the price."""
@@ -1181,11 +1212,8 @@ class TestLedger:
         if count <= 0 or test_id in self._entries:
             return
         e = TestEntry(test_id, family, 1.0, str(as_date(now)), str(as_date(matured_through)), int(count))
-        self._entries[test_id] = e
-        if self.path:
-            self.path.parent.mkdir(parents=True, exist_ok=True)
-            with self.path.open("a", encoding="utf-8") as fh:
-                fh.write(json.dumps(dataclasses.asdict(e), sort_keys=True) + NL)
+        self._replay(e)
+        self._persist(e)
 
     def log(self, test_id: str, family: str, p: float, matured_through, now) -> TestEntry:
         """Record one test. `matured_through` (newest outcome date used) must be strictly before `now`, else FirewallBreach."""
@@ -1195,25 +1223,15 @@ class TestLedger:
         if test_id in self._entries:
             return self._entries[test_id]
         e = TestEntry(test_id, family, float(p), str(as_date(now)), str(as_date(matured_through)))
-        self._entries[test_id] = e
-        if self.path:
-            self.path.parent.mkdir(parents=True, exist_ok=True)
-            with self.path.open("a", encoding="utf-8") as fh:
-                fh.write(json.dumps(dataclasses.asdict(e), sort_keys=True) + NL)
+        self._replay(e)
+        self._persist(e)
         return e
 
     def entries(self, family: str | None = None) -> list[TestEntry]:
         return [e for e in self._entries.values() if family is None or e.family == family]
 
-    def families(self) -> dict[str, int]:
-        out: dict[str, int] = {}
-        for e in self._entries.values():
-            out[e.family] = out.get(e.family, 0) + 1
-        return out
-
     def bonferroni(self, test_id: str) -> float:
-        e = self._entries[test_id]
-        return float(min(1.0, e.p * len(self)))
+        return float(min(1.0, self._entries[test_id].p * len(self)))
 
     def bh_adjusted(self) -> dict[str, float]:
         """Benjamini-Hochberg q-values over EVERY test in the ledger, counting screened-out blocks as p = 1 tests
@@ -1241,7 +1259,7 @@ class TestLedger:
         n = len(self)
         if n == 0:
             return {"n": 0, "observed": 0, "expected": 0.0, "p": math.nan}
-        obs = sum(e.count for e in self._entries.values() if e.p <= alpha and e.count == 1)
+        obs = sum(1 for e in self._entries.values() if e.count == 1 and e.p <= alpha)
         return {"n": n, "observed": obs, "expected": alpha * n, "p": float(sps.binom.sf(obs - 1, n, alpha))}
 
     def digest(self) -> str:

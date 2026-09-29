@@ -51,6 +51,7 @@ from engine.learning.core import (DecisionEffect, Epistemic, FailureCause, Firew
 from engine.learning.trader_view import assert_trader_safe
 from engine.research.core import Knowability, MaturedRecord, MoveCategory, Namespace
 from engine.research.frontier import CoverageTracker, TestLedger, design_effect, week_codes
+from engine.research.loss_pipeline import LossRiskBank as _SharedLossBank, RiskEntry as _RiskEntry
 
 NL = chr(10)
 WINNER = float(base_missed.WINNER)
@@ -112,7 +113,7 @@ class MissKind(str, enum.Enum):
     SUPPRESSED = "SUPPRESSED"         # not fired while a risk context (high vol / low liquidity / event) was present
 
 
-class LossKind(str, enum.Enum):
+class RiskKind(str, enum.Enum):
     WRONG_DIRECTION_CONTEXT = "WRONG_DIRECTION_CONTEXT"
     LARGE_LOSS_CONTEXT = "LARGE_LOSS_CONTEXT"
     GAP_RISK = "GAP_RISK"
@@ -124,15 +125,15 @@ class LossKind(str, enum.Enum):
 
 
 LOSS_KIND_CAUSE = {                               # what section-9 cause a loss context most often points at
-    LossKind.WRONG_DIRECTION_CONTEXT: FailureCause.WRONG_CONTEXT, LossKind.LARGE_LOSS_CONTEXT: FailureCause.RISK_ERROR,
-    LossKind.GAP_RISK: FailureCause.RISK_ERROR, LossKind.LIQUIDITY_TRAP: FailureCause.RISK_ERROR,
-    LossKind.EVENT_RISK: FailureCause.UNKNOWN, LossKind.REGIME_SHIFT_RISK: FailureCause.REGIME_CHANGE,
-    LossKind.VOL_BLOWUP: FailureCause.RISK_ERROR, LossKind.REVERSAL_RISK: FailureCause.REVERSAL}
+    RiskKind.WRONG_DIRECTION_CONTEXT: FailureCause.WRONG_CONTEXT, RiskKind.LARGE_LOSS_CONTEXT: FailureCause.RISK_ERROR,
+    RiskKind.GAP_RISK: FailureCause.RISK_ERROR, RiskKind.LIQUIDITY_TRAP: FailureCause.RISK_ERROR,
+    RiskKind.EVENT_RISK: FailureCause.UNKNOWN, RiskKind.REGIME_SHIFT_RISK: FailureCause.REGIME_CHANGE,
+    RiskKind.VOL_BLOWUP: FailureCause.RISK_ERROR, RiskKind.REVERSAL_RISK: FailureCause.REVERSAL}
 
-CASE_LOSS_KIND = {CaseKind.WRONG_DIRECTION: LossKind.WRONG_DIRECTION_CONTEXT, CaseKind.LARGE_LOSS: LossKind.LARGE_LOSS_CONTEXT,
-                  CaseKind.REGIME_TRANSITION: LossKind.REGIME_SHIFT_RISK, CaseKind.EXTERNAL_EVENT: LossKind.EVENT_RISK,
-                  CaseKind.HIGH_VOL_FAILURE: LossKind.VOL_BLOWUP, CaseKind.LOW_LIQUIDITY_FAILURE: LossKind.LIQUIDITY_TRAP,
-                  CaseKind.EPISODE_REVERSED: LossKind.REVERSAL_RISK, CaseKind.NEAR_MISS: LossKind.WRONG_DIRECTION_CONTEXT}
+CASE_LOSS_KIND = {CaseKind.WRONG_DIRECTION: RiskKind.WRONG_DIRECTION_CONTEXT, CaseKind.LARGE_LOSS: RiskKind.LARGE_LOSS_CONTEXT,
+                  CaseKind.REGIME_TRANSITION: RiskKind.REGIME_SHIFT_RISK, CaseKind.EXTERNAL_EVENT: RiskKind.EVENT_RISK,
+                  CaseKind.HIGH_VOL_FAILURE: RiskKind.VOL_BLOWUP, CaseKind.LOW_LIQUIDITY_FAILURE: RiskKind.LIQUIDITY_TRAP,
+                  CaseKind.EPISODE_REVERSED: RiskKind.REVERSAL_RISK, CaseKind.NEAR_MISS: RiskKind.WRONG_DIRECTION_CONTEXT}
 
 
 # ==================================================================================================================
@@ -1046,7 +1047,7 @@ class LossRiskItem:
     `context` is identity-free (bucket names only - never a ticker, date or year)."""
     risk_id: str
     pattern_id: str                          # "*" = market-wide (across every pattern)
-    kind: LossKind
+    kind: RiskKind
     context: tuple[tuple[str, str], ...]
     measure: str                             # "large_loss" or "wrong_way"
     n: int
@@ -1118,7 +1119,7 @@ class LossRiskItem:
     @classmethod
     def from_dict(cls, d: Mapping[str, Any]) -> "LossRiskItem":
         d = dict(d)
-        d["kind"], d["epistemic"], d["lifecycle"], d["cause"] = LossKind(d["kind"]), Epistemic(d["epistemic"]), Lifecycle(d["lifecycle"]), FailureCause(d["cause"])
+        d["kind"], d["epistemic"], d["lifecycle"], d["cause"] = RiskKind(d["kind"]), Epistemic(d["epistemic"]), Lifecycle(d["lifecycle"]), FailureCause(d["cause"])
         d["effects"] = tuple(DecisionEffect(e) for e in d["effects"])
         d["context"] = tuple((str(a), str(b)) for a, b in d["context"])
         pv = dict(d["provenance"])
@@ -1131,11 +1132,15 @@ def make_risk_id(pattern_id: str, context: Sequence[tuple[str, str]], measure: s
     return "LR" + stable_hash({"p": pattern_id, "c": sorted(context), "m": measure}, 12)
 
 
-class LossRiskBank:
-    """Append-only store of LossRiskItems. It shares no code path, id space or file with the opportunity bank; `independence_audit` proves that.
-    Every write needs `now` and refuses an item whose evidence is not strictly older than `now`; every read is a point-in-time read."""
+class LossRiskBank(_SharedLossBank):
+    """The ONE loss-risk bank: it IS engine.research.loss_pipeline.LossRiskBank (append-only RiskEntry versions, gated by maturity, disjointness
+    check) extended for categorical loss CONTEXTS. Each item is stored as a RiskEntry of kind 'context' (so loss_pipeline's own risk_score, which
+    reads only kind 'condition', is untouched) and the extra fields a RiskEntry has no slot for (context tuple, effects, lifecycle, holdout result)
+    live in `_items`, keyed by the same id. There is no second store of entries. An optional hash-chained jsonl log makes it resumable.
+    Every write needs `now` and refuses evidence not strictly older than `now`; every read is a point-in-time read."""
 
     def __init__(self, path: str | Path | None = None):
+        super().__init__()
         self.path = Path(path) if path else None
         self._items: dict[str, LossRiskItem] = {}
         self._log: list[dict[str, Any]] = []
@@ -1143,14 +1148,24 @@ class LossRiskBank:
         if self.path and self.path.exists():
             self._load()
 
-    def __len__(self) -> int:
-        return len(self._items)
-
     def __contains__(self, risk_id: str) -> bool:
         return risk_id in self._items
 
     def get(self, risk_id: str) -> LossRiskItem:
         return self._items[risk_id]
+
+    @staticmethod
+    def as_entry(it: LossRiskItem) -> _RiskEntry:
+        """Map an item onto the shared RiskEntry: signal = the context string, sign +1, n_ctrl = exposed calls in the context."""
+        sig = it.pattern_id + "|" + "&".join(f"{k}={v}" for k, v in it.context)
+        val = it.oos_rate / it.base_rate if it.oos_confirmed and it.base_rate > 0 and math.isfinite(it.oos_rate) else None
+        return _RiskEntry(it.risk_id, "context", sig, 1, it.cause.value, it.losses, it.n, it.loss_rate, it.base_rate, it.relative_risk, it.p, it.q, 0,
+                          it.mean_loss, val, Epistemic.RETIRED if it.lifecycle == Lifecycle.RETIRED else it.epistemic, 0, it.matured_at,
+                          it.provenance.code_hash)
+
+    def _store(self, it: LossRiskItem) -> None:
+        self.upsert(self.as_entry(it))
+        self._items[it.risk_id] = it
 
     def _append(self, op: str, item: LossRiskItem, now, extra: Mapping[str, Any] | None = None) -> None:
         rec = {"op": op, "at": str(as_date(now)), "item": item.as_dict(), "extra": dict(extra or {}), "prev": self._prev}
@@ -1172,7 +1187,7 @@ class LossRiskBank:
         old = self._items.get(item.risk_id)
         if old is not None and as_date(item.matured_at) <= as_date(old.matured_at):
             return "stale"
-        self._items[item.risk_id] = item
+        self._store(item)
         self._append("supersede" if old is not None else "add", item, now)
         return "superseded" if old is not None else "added"
 
@@ -1193,7 +1208,7 @@ class LossRiskBank:
         return sorted(out, key=lambda i: (-i.weight(), i.risk_id))
 
     def query(self, now, context: Mapping[str, str], pattern_id: str | None = None, min_weight: float = 0.0) -> list[LossRiskItem]:
-        """Items that apply to a situation described by bucket names, ordered by weight. ACTIVE / GROWTH / PEAK items only."""
+        """Items that apply to a situation described by bucket names, ordered by weight. ACTIVE / GROWTH / PEAK / BIRTH items only."""
         live = (Lifecycle.ACTIVE, Lifecycle.GROWTH, Lifecycle.PEAK, Lifecycle.BIRTH)
         return [i for i in self.items(now, live, pattern_id) if i.matches(context, pattern_id) and i.weight() >= min_weight]
 
@@ -1201,11 +1216,11 @@ class LossRiskBank:
         """Retire (never delete): the item stays readable for audit but no longer answers queries."""
         it = self._items[risk_id]
         new = dataclasses.replace(it, lifecycle=Lifecycle.RETIRED, epistemic=Epistemic.RETIRED, notes=(it.notes + " | " if it.notes else "") + f"retired: {reason}")
-        self._items[risk_id] = new
+        self._store(new)
         self._append("retire", new, now, {"reason": reason})
         return new
 
-    def history(self, risk_id: str | None = None) -> list[dict[str, Any]]:
+    def audit_log(self, risk_id: str | None = None) -> list[dict[str, Any]]:
         return [r for r in self._log if risk_id is None or r["item"]["risk_id"] == risk_id]
 
     def verify_chain(self) -> bool:
@@ -1225,8 +1240,7 @@ class LossRiskBank:
                 raise FirewallBreach(f"loss-risk bank file {self.path} fails its hash chain")
             self._prev = rec["hash"]
             self._log.append(rec)
-            it = LossRiskItem.from_dict(rec["item"])
-            self._items[it.risk_id] = it
+            self._store(LossRiskItem.from_dict(rec["item"]))
 
     def summary(self, now) -> dict[str, Any]:
         its = self.items(now)
@@ -1241,6 +1255,10 @@ def independence_audit(bank: LossRiskBank, opportunity_ids: Iterable[str] = (), 
     """Problems that would make the loss bank not independent of the opportunity bank. Empty list = independent."""
     problems = []
     opp = set(opportunity_ids)
+    try:
+        bank.assert_disjoint(opp)                       # loss_pipeline's own disjointness check, on the shared storage
+    except FirewallBreach as e:
+        problems.append(str(e))
     shared = opp & set(bank._items)
     if shared:
         problems.append(f"{len(shared)} ids appear in both banks")
@@ -1295,29 +1313,29 @@ def descriptors(f: pd.DataFrame, cfg: SymmetryConfig, gap_thr: float = 0.05) -> 
     return out
 
 
-def kind_for_context(context: Sequence[tuple[str, str]], measure: str) -> LossKind:
+def kind_for_context(context: Sequence[tuple[str, str]], measure: str) -> RiskKind:
     d = dict(context)
     if d.get("vol") == "high":
-        return LossKind.VOL_BLOWUP
+        return RiskKind.VOL_BLOWUP
     if d.get("liquidity") == "low":
-        return LossKind.LIQUIDITY_TRAP
+        return RiskKind.LIQUIDITY_TRAP
     if d.get("gap") == "big":
-        return LossKind.GAP_RISK
+        return RiskKind.GAP_RISK
     if d.get("transition") == "transition":
-        return LossKind.REGIME_SHIFT_RISK
+        return RiskKind.REGIME_SHIFT_RISK
     if d.get("event") == "event":
-        return LossKind.EVENT_RISK
+        return RiskKind.EVENT_RISK
     if d.get("episode") == "reversed":
-        return LossKind.REVERSAL_RISK
-    return LossKind.WRONG_DIRECTION_CONTEXT if measure == "wrong_way" else LossKind.LARGE_LOSS_CONTEXT
+        return RiskKind.REVERSAL_RISK
+    return RiskKind.WRONG_DIRECTION_CONTEXT if measure == "wrong_way" else RiskKind.LARGE_LOSS_CONTEXT
 
 
-def effects_for_kind(kind: LossKind) -> tuple[DecisionEffect, ...]:
+def effects_for_kind(kind: RiskKind) -> tuple[DecisionEffect, ...]:
     """What decision a loss context should change: liquidity and gap risk shrink size, event risk abstains, volatility widens stops."""
-    return {LossKind.LIQUIDITY_TRAP: (DecisionEffect.POSITION_SIZE, DecisionEffect.ABSTENTION), LossKind.GAP_RISK: (DecisionEffect.POSITION_SIZE,),
-            LossKind.EVENT_RISK: (DecisionEffect.ABSTENTION, DecisionEffect.TIMING), LossKind.VOL_BLOWUP: (DecisionEffect.POSITION_SIZE, DecisionEffect.STOP),
-            LossKind.REGIME_SHIFT_RISK: (DecisionEffect.POSITION_SIZE, DecisionEffect.CONFIDENCE),
-            LossKind.REVERSAL_RISK: (DecisionEffect.EXIT, DecisionEffect.TIMING)}.get(kind, (DecisionEffect.POSITION_SIZE, DecisionEffect.CONFIDENCE))
+    return {RiskKind.LIQUIDITY_TRAP: (DecisionEffect.POSITION_SIZE, DecisionEffect.ABSTENTION), RiskKind.GAP_RISK: (DecisionEffect.POSITION_SIZE,),
+            RiskKind.EVENT_RISK: (DecisionEffect.ABSTENTION, DecisionEffect.TIMING), RiskKind.VOL_BLOWUP: (DecisionEffect.POSITION_SIZE, DecisionEffect.STOP),
+            RiskKind.REGIME_SHIFT_RISK: (DecisionEffect.POSITION_SIZE, DecisionEffect.CONFIDENCE),
+            RiskKind.REVERSAL_RISK: (DecisionEffect.EXIT, DecisionEffect.TIMING)}.get(kind, (DecisionEffect.POSITION_SIZE, DecisionEffect.CONFIDENCE))
 
 
 # ==================================================================================================================
@@ -2348,3 +2366,258 @@ def loss_first_report(lib: LibrarySymmetry, bank: LossRiskBank, now) -> str:
         L.append(f"  caution {it.risk_id} {it.kind.value} x{it.relative_risk:.2f} ({'confirmed' if it.oos_confirmed else 'unconfirmed'})")
     L.append(f"  orphan movers (no pattern called them right): {lib.orphans.get('orphan_share', math.nan):.3f}")
     return NL.join(L)
+
+
+# ==================================================================================================================
+# symmetry over time: a pattern whose loss side is getting worse loses trust
+# ==================================================================================================================
+@dataclass(frozen=True)
+class WindowStat:
+    index: int
+    calls: int
+    hit: float
+    big_loss_rate: float
+    wrong_way_rate: float
+    mean_dir_ret: float
+    long_hit: float
+    short_hit: float
+
+
+@dataclass(frozen=True)
+class LossTrend:
+    """Trend of the loss-side behaviour of one pattern across consecutive equal-week windows."""
+    pattern_id: str
+    windows: tuple[WindowStat, ...]
+    tau_big_loss: float
+    p_big_loss: float                  # one-sided p that the large-loss rate is RISING (Kendall)
+    tau_wrong_way: float
+    p_wrong_way: float
+    tau_hit: float
+    p_hit_falling: float               # one-sided p that the hit rate is FALLING
+    early_late_big_loss: tuple[float, float]
+    verdict: str                       # WORSENING / STABLE / IMPROVING / UNTESTED
+
+
+def _kendall_one_sided(y: Sequence[float], rising: bool) -> tuple[float, float]:
+    """Kendall tau of y against time and the one-sided p in the requested direction; (nan, 1.0) below 4 finite points."""
+    yy = np.array([v for v in y if math.isfinite(v)], float)
+    if len(yy) < 4 or np.ptp(yy) == 0:
+        return math.nan, 1.0
+    r = sps.kendalltau(np.arange(len(yy)), yy)
+    tau, p2 = float(r.statistic), float(r.pvalue)
+    p = p2 / 2 if (tau > 0) == rising else 1.0 - p2 / 2
+    return tau, float(min(max(p, 0.0), 1.0))
+
+
+def loss_trend(sf: SymFrame, pattern_id: str, n_windows: int = 6, min_calls: int = 20, alpha: float = 0.10) -> LossTrend:
+    """Split the pattern's calls into `n_windows` blocks of equal week counts, in time order, and test whether large losses / wrong-way calls
+    are rising or hit rate falling. WORSENING needs a significant trend in a loss measure AND the late windows worse than the early ones by
+    a visible margin; anything with too few windows carrying `min_calls` is UNTESTED, never STABLE."""
+    f = sf.of(pattern_id)
+    calls = f[f["fired"]].sort_values("date")
+    nan = math.nan
+    if calls.empty:
+        return LossTrend(pattern_id, (), nan, 1.0, nan, 1.0, nan, 1.0, (nan, nan), "UNTESTED")
+    order = {w: i for i, w in enumerate(calls.groupby("wk")["date"].min().sort_values().index)}
+    rank = calls["wk"].map(order).to_numpy()
+    edges = np.linspace(0, len(order), n_windows + 1)
+    win = np.clip(np.searchsorted(edges, rank, side="right") - 1, 0, n_windows - 1)
+    stats: list[WindowStat] = []
+    for i in range(n_windows):
+        g = calls[win == i]
+        if len(g) < min_calls:
+            continue
+        lg, sg = g[g["call"] > 0], g[g["call"] < 0]
+        stats.append(WindowStat(i, len(g), float(g["hit"].mean()), float(g["big_loss"].mean()), float(g["wrong_way"].mean()), float(g["dir_ret"].mean()),
+                                float(lg["hit"].mean()) if len(lg) else nan, float(sg["hit"].mean()) if len(sg) else nan))
+    if len(stats) < 4:
+        return LossTrend(pattern_id, tuple(stats), nan, 1.0, nan, 1.0, nan, 1.0, (nan, nan), "UNTESTED")
+    tau_l, p_l = _kendall_one_sided([w.big_loss_rate for w in stats], True)
+    tau_w, p_w = _kendall_one_sided([w.wrong_way_rate for w in stats], True)
+    tau_h, p_h = _kendall_one_sided([w.hit for w in stats], False)
+    half = len(stats) // 2
+    early = float(np.mean([w.big_loss_rate for w in stats[:half]]))
+    late = float(np.mean([w.big_loss_rate for w in stats[-half:]]))
+    hit_drop = float(np.mean([w.hit for w in stats[:half]]) - np.mean([w.hit for w in stats[-half:]]))
+    worse = (p_l <= alpha and late > early + 0.01) or (p_w <= alpha and hit_drop > 0.05) or (p_h <= alpha and hit_drop > 0.08)
+    better = (p_l >= 1 - alpha and late < early - 0.01) or (p_h >= 1 - alpha and hit_drop < -0.05)
+    return LossTrend(pattern_id, tuple(stats), tau_l, p_l, tau_w, p_w, tau_h, p_h, (early, late), "WORSENING" if worse else "IMPROVING" if better else "STABLE")
+
+
+def trend_adjusted_trust(ps: PatternSymmetry, trend: LossTrend) -> TrustDecision:
+    """Downgrade, never upgrade: a TRUSTED pattern whose loss side is WORSENING becomes NOT_TRUSTED; an UNTESTED trend on a TRUSTED pattern makes it
+    UNKNOWN (trust that cannot be tracked is not trust). Patterns already NOT_TRUSTED or UNKNOWN keep their verdict and gain the reason."""
+    td = ps.trust
+    if trend.verdict == "WORSENING":
+        note = f"loss side worsening over time (large-loss rate {trend.early_late_big_loss[0]:.3f} -> {trend.early_late_big_loss[1]:.3f})"
+        return TrustDecision(Trust.NOT_TRUSTED, td.passed, td.failed + (note,), td.untested)
+    if trend.verdict == "UNTESTED" and td.verdict == Trust.TRUSTED:
+        return TrustDecision(Trust.UNKNOWN, td.passed, td.failed, td.untested + ("loss trend untested",))
+    return td
+
+
+@dataclass(frozen=True)
+class SymmetryGateInput:
+    """What the research quality gate (engine.research section 42) consumes for one pattern: a GateVerdict plus the reasons that produced it.
+    PROMOTE is only possible for a TRUSTED pattern with a non-worsening loss side and no failing critical slice."""
+    pattern_id: str
+    verdict: Any                       # engine.research.core.GateVerdict
+    trust: Trust
+    critical_failures: tuple[str, ...]
+    open_questions: tuple[str, ...]
+    trend: str
+
+    def as_dict(self) -> dict[str, Any]:
+        return {"pattern_id": self.pattern_id, "verdict": str(self.verdict), "trust": self.trust.value, "critical_failures": list(self.critical_failures),
+                "open_questions": list(self.open_questions), "trend": self.trend}
+
+
+CRITICAL_SLICES = (CaseKind.WRONG_DIRECTION, CaseKind.LARGE_LOSS, CaseKind.REGIME_TRANSITION, CaseKind.EXTERNAL_EVENT, CaseKind.LOW_LIQUIDITY_FAILURE,
+                   CaseKind.HIGH_VOL_FAILURE)
+
+
+def gate_input(ps: PatternSymmetry, trend: LossTrend | None = None) -> SymmetryGateInput:
+    """Symmetry-aware trust decision in the quality gate's own vocabulary (GateVerdict). Critical failures -> FAILED (or QUARANTINED when the only
+    failure is a loss-limit breach the pattern could be sized around); UNKNOWN trust -> NEEDS_MORE_EVIDENCE; a worsening loss side -> QUARANTINED."""
+    from engine.research.core import GateVerdict
+    td = trend_adjusted_trust(ps, trend) if trend is not None else ps.trust
+    crit = tuple(s.kind.value for s in ps.slices if s.kind in CRITICAL_SLICES and s.status == SliceStatus.FAILS)
+    open_q = tuple(s.kind.value for s in ps.slices if s.kind in CRITICAL_SLICES and s.status == SliceStatus.UNTESTED) + td.untested
+    tv = trend.verdict if trend is not None else "UNTESTED"
+    if td.verdict == Trust.TRUSTED and not crit:
+        v = GateVerdict.PROMOTE
+    elif tv == "WORSENING":
+        v = GateVerdict.QUARANTINED
+    elif crit and set(crit) <= {CaseKind.LARGE_LOSS.value, CaseKind.LOW_LIQUIDITY_FAILURE.value, CaseKind.HIGH_VOL_FAILURE.value} and ps.hit_lo > 0.5:
+        v = GateVerdict.QUARANTINED                    # works, but only if sized around a known loss context (the bank supplies the size)
+    elif crit or td.verdict == Trust.NOT_TRUSTED:
+        v = GateVerdict.FAILED
+    else:
+        v = GateVerdict.NEEDS_MORE_EVIDENCE
+    return SymmetryGateInput(ps.pattern_id, v, td.verdict, crit, open_q, tv)
+
+
+def gate_inputs(lib: LibrarySymmetry, sf: SymFrame, n_windows: int = 6) -> list[SymmetryGateInput]:
+    """Gate inputs for every pattern in the library, each with its own loss trend."""
+    return [gate_input(p, loss_trend(sf, p.pattern_id, n_windows)) for p in lib.patterns]
+
+
+def symmetry_timeline(sf: SymFrame, pattern_id: str, n_windows: int = 6) -> pd.DataFrame:
+    """Window-by-window table of a pattern's winner-side and loser-side behaviour (for reports and health checks)."""
+    t = loss_trend(sf, pattern_id, n_windows)
+    return pd.DataFrame([dataclasses.asdict(w) for w in t.windows])
+
+
+# ==================================================================================================================
+# regime-transition and external-event slices, in depth (section 12)
+# ==================================================================================================================
+@dataclass(frozen=True)
+class EventSliceDetail:
+    kind: CaseKind
+    inside_calls: int
+    outside_calls: int
+    hit_inside: float
+    hit_outside: float
+    big_loss_inside: float
+    big_loss_outside: float
+    long_hit_inside: float
+    short_hit_inside: float
+    adverse_direction: str            # which side suffers more inside: LONG / SHORT / BOTH / NONE
+    lift_in_loss_rate: float
+    p_more_losses: float
+
+
+def event_slice_detail(f: pd.DataFrame, kind: CaseKind, cfg: SymmetryConfig) -> EventSliceDetail:
+    """Deeper look at the two context slices most patterns break in: regime transitions and external events. Reports which side (long or short)
+    suffers, the lift in large-loss rate, and a one-sided test that losses are more common inside."""
+    if kind not in (CaseKind.REGIME_TRANSITION, CaseKind.EXTERNAL_EVENT):
+        raise ValueError("event_slice_detail handles REGIME_TRANSITION and EXTERNAL_EVENT only")
+    nan = math.nan
+    calls = f[f["fired"]]
+    if not slice_available(f, kind) or calls.empty:
+        return EventSliceDetail(kind, 0, len(calls), nan, nan, nan, nan, nan, nan, "NONE", nan, 1.0)
+    m = slice_mask(calls, kind)
+    ins, out = calls[m], calls[~m]
+    if len(ins) == 0 or len(out) == 0:
+        return EventSliceDetail(kind, len(ins), len(out), nan, nan, nan, nan, nan, nan, "NONE", nan, 1.0)
+    lg, sg = ins[ins["call"] > 0], ins[ins["call"] < 0]
+    bl_in, bl_out = float(ins["big_loss"].mean()), float(out["big_loss"].mean())
+    ni = effective_n(ins["big_loss"].to_numpy(float), ins["wk"].to_numpy(), len(ins))
+    no = effective_n(out["big_loss"].to_numpy(float), out["wk"].to_numpy(), len(out))
+    p = two_prop_p(bl_in * ni, ni, bl_out * no, no, "greater")
+    lh_out = float(out[out["call"] > 0]["hit"].mean()) if (out["call"] > 0).any() else nan
+    sh_out = float(out[out["call"] < 0]["hit"].mean()) if (out["call"] < 0).any() else nan
+    lh = float(lg["hit"].mean()) if len(lg) >= 5 else nan
+    sh = float(sg["hit"].mean()) if len(sg) >= 5 else nan
+    lose_long = math.isfinite(lh) and math.isfinite(lh_out) and lh < lh_out - cfg.slice_drop
+    lose_short = math.isfinite(sh) and math.isfinite(sh_out) and sh < sh_out - cfg.slice_drop
+    adverse = "BOTH" if lose_long and lose_short else "LONG" if lose_long else "SHORT" if lose_short else "NONE"
+    return EventSliceDetail(kind, len(ins), len(out), float(ins["hit"].mean()), float(out["hit"].mean()), bl_in, bl_out, lh, sh, adverse,
+                            bl_in / bl_out if bl_out > 0 else (math.inf if bl_in > 0 else 1.0), p)
+
+
+def event_slice_report(sf: SymFrame) -> pd.DataFrame:
+    """Regime-transition and external-event detail for every pattern, one row per (pattern, slice)."""
+    rows = []
+    for pid in sf.patterns():
+        f = sf.of(pid)
+        for k in (CaseKind.REGIME_TRANSITION, CaseKind.EXTERNAL_EVENT):
+            d = event_slice_detail(f, k, sf.cfg)
+            rows.append(dict(pattern_id=pid, slice=k.value, **{n: (v.value if isinstance(v, enum.Enum) else v) for n, v in dataclasses.asdict(d).items() if n != "kind"}))
+    return pd.DataFrame(rows)
+
+
+# ==================================================================================================================
+# bank health: is each stored risk still showing up in fresh data?
+# ==================================================================================================================
+@dataclass(frozen=True)
+class ItemHealth:
+    risk_id: str
+    stored_rate: float
+    fresh_rate: float
+    fresh_exposed: int
+    fresh_base: float
+    p_still_elevated: float
+    status: str                       # HEALTHY / FADING / GONE / UNTESTED
+
+
+def bank_health(bank: LossRiskBank, sf: SymFrame, now, min_exposed: int = 30) -> list[ItemHealth]:
+    """For every live item, re-measure its loss rate on rows that matured AFTER the item was written (and before `now`). HEALTHY: still
+    significantly above the fresh base rate. FADING: elevated but not provably. GONE: at or below base. UNTESTED: too little fresh exposure
+    (silence is never health). Read-only: revalidate_item / retire act on the result."""
+    vis = sf.matured_before(now)
+    out = []
+    for it in bank.items(now, (Lifecycle.ACTIVE, Lifecycle.GROWTH, Lifecycle.PEAK, Lifecycle.BIRTH)):
+        fresh = vis.frame[vis.frame["matured_at"] > pd.Timestamp(as_date(it.matured_at))]
+        f = fresh if it.pattern_id == "*" else fresh[fresh["pattern_id"] == it.pattern_id]
+        e, loss = _exposed(f, it.measure, vis.cfg.large_loss)
+        desc = descriptors(e, vis.cfg) if len(e) else {}
+        if not len(e) or not all(d in desc for d, _ in it.context):
+            out.append(ItemHealth(it.risk_id, it.loss_rate, math.nan, 0, math.nan, 1.0, "UNTESTED"))
+            continue
+        m = np.ones(len(e), bool)
+        for d, v in it.context:
+            m &= (desc[d].reindex(e.index) == v).to_numpy()
+        n_in, n_out = int(m.sum()), int((~m).sum())
+        if n_in < min_exposed or n_out < min_exposed:
+            out.append(ItemHealth(it.risk_id, it.loss_rate, math.nan, n_in, math.nan, 1.0, "UNTESTED"))
+            continue
+        k, k_out = int(loss[m].sum()), int(loss[~m].sum())
+        p = two_prop_p(k, n_in, k_out, n_out, "greater")
+        rate, base = k / n_in, k_out / n_out
+        status = "HEALTHY" if p <= 0.10 and rate > base else "FADING" if rate > base else "GONE"
+        out.append(ItemHealth(it.risk_id, it.loss_rate, rate, n_in, base, p, status))
+    return out
+
+
+def health_counts(health: Sequence[ItemHealth]) -> dict[str, int]:
+    """Status histogram of a bank_health result, with every status present so a missing key can never be read as zero risk of decay."""
+    out = {k: 0 for k in ("HEALTHY", "FADING", "GONE", "UNTESTED")}
+    for h in health:
+        out[h.status] += 1
+    return out
+
+
+def stale_items(health: Sequence[ItemHealth]) -> list[str]:
+    """Ids whose risk has gone (candidates for revalidate_item / retire); FADING and UNTESTED are kept, not guessed about."""
+    return [h.risk_id for h in health if h.status == "GONE"]

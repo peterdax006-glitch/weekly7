@@ -1754,10 +1754,12 @@
    "section": "Winner/loser symmetry",
    "minimum_lines": 2000,
    "upper_lines": 3000,
-   "actual_lines": 0,
-   "code_paths": [],
-   "status": "NOT_STARTED",
-   "notes": "[mapping 2026-09-29, read-only audit] [missing] 0/2000 meaningful lines genuinely doing this job. No per-pattern TP/FP/TN/FN on winners AND losers, no loss-risk knowledge bank separate from the opportunity bank. Blocks: pattern_stats, failure.py, boundary.py anti-conditions."
+   "actual_lines": 2002,
+   "code_paths": [
+    "engine/research/symmetry.py"
+   ],
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C66 wave 1, R09 pass 2): 2,002; TP/FP/TN/FN in winner and loser space, missed winners/losers by reason, 12 case slices incl. C67 episodes, loss-side trend downgrades trust, gate_inputs for the quality gate; ONE loss-risk bank (subclasses loss_pipeline's) and ONE test ledger (subclasses interactions.TrialLedger). | earlier: [mapping 2026-09-29, read-only audit] [missing] 0/2000 meaningful lines genuinely doing this job. No per-pattern TP/FP/TN/FN on winners AND losers, no loss-risk knowledge bank separate from the opportunity bank. Blocks: pattern_stats, failure.py, boundary.py anti-conditions."
   },
   {
    "section": "Pattern discovery",
