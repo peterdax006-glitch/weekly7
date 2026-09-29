@@ -168,3 +168,27 @@ i want youto be utilizing all the memory all the time
 > the indicators you should be watching and the triggers should be custom to the stock you should have a learning system on what is the most trusting for what type of stock and not just based on the sector, but the size, the current cultural trend ect for it, it should be very detailed, but first you need to ensure you are watching the right stocks before you get to invested in indicators, but if useful and if patterens helps you can also use indicators for helping you find what stocks to pick
 
 `sha256: 4afba00ac29da137d1e427972bae3623cf9afe0341156a7668b452fe81c440fa`
+
+## C28 — Three projects: live (little attention), test, finding volatility (2026-09-28)
+
+> right now there should be three projects, live, test, and finding volatility, then the last one will change to consistently finding which ones will be positive, we should give little attention to the live, and instead give our attention to improving the self learning on test and correctly finding the volatile stocks
+
+`sha256: 7090435bf15f3971bb6819a647924fd307b445bb43393bfa43091d24eb050cd7`
+
+## C29 — Continuous heavy-test / find-pattern / change-code cycle (2026-09-28)
+
+> we should be constantly adjusting the code to make the testing and the finding volatile stocks work better to improve those numbers running through a heavy test, find pattern, change code cycle
+
+`sha256: 241c70cd6473e6e348a580daf942b2770e73bdc98884a44f857da6e89834f89a`
+
+## C30 — Test: three-way pattern study (picked+won, picked+lost, missed winners) (2026-09-28)
+
+> talking to the testing task: find the pattern in what succeeded that the system picked, what failed that the system picked, and what succeeded that the system didnt pick, and then identify the thing that needs to be motified to get us closer to our goal, feel free to incoperate the find volatility system to find volatile stocks, but that still isnt complete and you still need to find patterns in the indicators, volume, quantity, net worth ect
+
+`sha256: 06e274a59bbf2b6d0286e545d888f5d433a94a897b82e115cd98e93b9f5c01db`
+
+## C31 — Test objective: first 7%, second accuracy (2026-09-28)
+
+> the test should keep adjusting first keeping in mind 7% then second keeping in mind accuracy of success
+
+`sha256: 9ae25a08800dceea899971b8de159bb56cacd202813ba26d8e89d6f40c3ab2cc`

@@ -20,7 +20,8 @@ VOL_TARGET = 0.15
 CFG_SPACE = {"k": [1, 1, 2, 2, 3, 4], "exit_q": [0.5, 0.7, 0.8, 0.9], "rebalance_weeks": [1, 1, 2], "brake": [None, None, 0.15],
              "max_per_sector": [None, 2], "w_model": [0.85, 1.0, 1.0], "pick": ["hivol", "hivol", "top"], "pool_q": [0.3, 0.5, 0.7, 0.9, 0.95],
              "liq_q": [0.0, 0.0, 0.2], "vol_filter": [False, False, True], "stress_thr": [None, 1.0, 1.05], "stress_k": [2, 3, 4],
-             "trend_filter": [None, -0.05], "trend_gross": [0.0, 0.5]}
+             "trend_filter": [None, -0.05], "trend_gross": [0.0, 0.5],
+             "w_move": [0.0, 0.3, 0.5, 0.7], "w_mom": [0.0, 0.2, 0.4]}
 META_SPACE = {"half_life": [3, 6, 12], "prior_weeks": [4, 8, 16], "switch_z": [1.5, 2.0, 3.0], "min_weeks": [3, 6],
               "cooldown": [2, 4], "revert_drop": [0.02, 0.04, 0.08], "ic_beta": [0.0, 0.5, 1.0, 2.0],
               "det_max": [0.0, 0.25, 0.5], "det_min_weeks": [4, 8]}
@@ -49,6 +50,7 @@ def run_window(w, cfg, meta):
     r = S.result()
     wk = np.array(S.weeks)
     r["sd_week"] = float(wk.std()) if len(wk) > 1 else 0.0
+    r["win_weeks"] = float((wk > 0).mean()) if len(wk) else 0.5
     return r
 
 
@@ -58,9 +60,9 @@ def objective(rows, phase):
     worst = min(r["max_dd"] for r in rows)
     if worst < -0.99:                                       # only floor left (C22): not a total wipe-out
         return -9.0, mw, sd, worst
-    if phase == "volatility":                               # C21/C22: weekly swings toward ~15% (+/-200% a year), keep the mean
-        return -abs(sd - VOL_TARGET) * 10 + mw * 20, mw, sd, worst
-    return mw + (-5.0 if sd < 0.10 else 0.0), mw, sd, worst  # direction phase: raise the mean, keep the big swings
+    # C31: first the weekly average toward +7%, second the accuracy (share of winning weeks)
+    acc = float(np.mean([r.get("win_weeks", 0.5) for r in rows]))
+    return mw + 0.004 * (acc - 0.5), mw, sd, worst
 
 
 def worker(run_id, cfg, meta):

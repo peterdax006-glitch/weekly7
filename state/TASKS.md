@@ -1,14 +1,22 @@
-# Weekly7: all open workstreams
+# Weekly7: three projects (canon C28)
 
-Every item is checked at each status report (per the owner's request: none may be forgotten).
+Attention: **Test** and **Finding volatility** get the effort; **Live** runs on its own and only gets attention if it breaks.
 
-| # | Workstream | Canon | Status | Next step |
-|---|---|---|---|---|
-| 1 | **Live $1,000 Alpaca paper account** (GitHub Actions, trading hours only) | C1, C2, C6 | Running; equity $1,000.87, holding BNY/TEVA/GS/VRSN (v1.2 conservative) | Monitor daily; a git-collision fix went into the workflow on 28 Sep |
-| 2 | **Self-adjusting blind loop** (code names now fixed per sealed window) (random 12-month windows; weekly self-training; training basis retrained each round; ±200% volatility target) | C9–C22 | Archives being rebuilt without insider data, then loop2 restarts automatically | Report each round: gates, basis changes, reveals |
-| 3 | **Movers project**: 10 weekly ±10% movers → 95% → direction (bet only at ≥80% calibrated confidence; skip unpredictable events) → exit → stop (losers never worse than −20%, aim −10%) → 8 of 10 finish +10% | C23, C24 | **Step 1**: 73% average hit rate across 13 blind windows (95%+ in 3); future-scramble gate PASSES | Raise the weak windows to 95%; do not start step 2 until 95% holds consistently |
-| 4 | Pattern Explorer + Sensitivity pages | C13, C14 | Published; auto-publisher was stopped by the memory reaper | Refresh after loop rounds (manual publish until the owner asks for the auto-publisher back) |
-| 5 | OPEN LEAK: insider features fast vs live path | C18 | Sims run without insider data (fail-safe); root cause not yet found | Find the mechanism, fix, prove with parity, then re-enable |
-| 6 | SEC refresh + 13D attribution fix (stopped by the memory reaper) | — | Not restarted | Restart when memory allows (after loop2 archives rebuild) |
-| 7 | Live system upgrade from simulation findings | — | Not started; live stays v1.2 until the owner decides | Present options once loop2 or movers produce a validated edge |
-| 8 | Stop hook for Tico | — | Removed from settings on 28 Sep | Done |
+## 1. Live (low attention)
+- $1,000 Alpaca paper account traded by GitHub Actions during trading hours only (C6). Conservative v1.2 rules.
+- Last seen: equity $1,000.87 (BNY / TEVA / GS / VRSN). Workflow collision fix applied 28 Sep.
+- Action only on failure. An upgrade from the simulation findings waits for the owner's decision.
+
+## 2. Test: self-learning blind simulation (high attention)
+- Random sealed 12-month windows 1965–2025 (C19), disguised dates and tickers, lockstep clock (C11, C12).
+- Pre-season self-training (C17) plus weekly self-adjustment with guards (C15, C16), learning from missed winners (C20).
+- Training basis retrained each round; volatility-first toward ±200% years (C21, C22).
+- Gates every round: parity, re-tester match, future-scramble (C18).
+- Now: archives rebuilding with stable code names and without insider data; loop2 restarts automatically.
+- Sub-items: insider-feature leak root cause (sims run without insider data until fixed); SEC filings refresh and 13D fix; Pattern Explorer and Sensitivity pages refreshed from Test results.
+
+## 3. Finding volatility → later: finding which will be positive (high attention)
+- Step 1 (now): each week, 10 stocks expected to move ±10%; target 95% correct (C23). Best so far (widest universe): 84.7% average top-10 accuracy (95%+ in 5 of 13 windows); with a 92% confidence bar, 97.0% accuracy at 6.2 picks a week. Future-scramble gate passes.
+- Experiments run in parallel at full memory (C25, C26): universe width, model size, stock-type inputs (C27).
+- Step 2 (only after 95%): direction, betting only at ≥80% calibrated confidence and skipping unpredictable events (C24), with per-stock-type indicator trust tables (C27).
+- Steps 3–4: exact exit and exact stop (losers never worse than −20%, aim −10%). Goal: 8 of 10 finish +10%, consistently in every era, without cheating.

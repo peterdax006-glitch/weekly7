@@ -26,12 +26,12 @@ META_DEFAULT = {
     "ic_clip": 1.0,          # weights stay within prior x [1-clip, 1+clip]
     # what the sensitivity study (C14) found worth adapting: w_model and liq_q significant+consistent;
     # k is the volatility lever (C21); pool_q slight. Everything else measured as noise.
-    "adaptive_knobs": ["w_model", "liq_q", "k", "pool_q"],
+    "adaptive_knobs": ["w_model", "liq_q", "k", "pool_q", "w_move", "w_mom"],
 }
 STEPS = {"k": [1, 2, 3, 4, 6, 8, 12, 16], "exit_q": [0.5, 0.6, 0.7, 0.8, 0.9, 0.95], "w_model": [0.0, 0.2, 0.3, 0.5, 0.7, 0.85, 1.0],
          "pool_q": [0.3, 0.5, 0.7, 0.8, 0.9, 0.95, 0.98, 0.99], "liq_q": [0.0, 0.2, 0.3, 0.5, 0.7, 0.85],
          "stress_thr": [None, 0.9, 0.95, 1.0, 1.05, 1.1], "brake": [None, 0.03, 0.05, 0.08, 0.12, 0.2],
-         "rebalance_weeks": [1, 2, 3, 4]}
+         "rebalance_weeks": [1, 2, 3, 4], "w_move": [0.0, 0.3, 0.5, 0.7], "w_mom": [0.0, 0.2, 0.4]}
 
 
 class TimeFence(Exception):
@@ -52,6 +52,13 @@ def pick(p, cfg, held, divs, det=None):
     if cfg.get("ew"):
         p = p.assign(evidence=policy.evidence_from(p, cfg["ew"]))
     s = policy.score(p, cfg["w_model"])
+    # C30 paths: big-mover probability (volatility finder) and momentum continuation (strong stocks near highs)
+    wm, wo = cfg.get("w_move", 0.0), cfg.get("w_mom", 0.0)
+    if wm > 0 and "p_move" in p:
+        s = (1 - wm) * s + wm * p["p_move"].rank(pct=True)
+    if wo > 0 and "e_dist_52wh" in p and "r5" in p:
+        mom = (p["e_dist_52wh"].rank(pct=True) + p["r5"].rank(pct=True)) / 2
+        s = (1 - wo) * s + wo * mom
     if det is not None and cfg.get("det_w", 0) > 0:
         s = (1 - cfg["det_w"]) * s + cfg["det_w"] * det.reindex(s.index).rank(pct=True).fillna(0.5)
     mkt = {c: float(p[c].iloc[0]) for c in p.columns if c.startswith("m_")}

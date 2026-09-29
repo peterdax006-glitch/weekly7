@@ -50,6 +50,12 @@ def run_window(rid, variant=None, scramble_after=None, save=True):
         run_window.cut_day = cut_day
     feed.precompute_features(rel_q=tuple(v.get("rel_q", (0.2, 0.4))))
     X = feed._X
+    if v.get("stock_type"):                             # C27: explicit stock-type inputs (sector group, size, price level)
+        from engine import policy
+        div = {t: policy.sic_division(c) for t, c in zip(feed.sic["ticker"], feed.sic["sic"])}
+        tick = X.index.get_level_values(1)
+        X = X.assign(sector_div=[float(ord(div.get(t, "?")[0]) - 64) for t in tick],
+                     price_level=feed._stocks["Close"].stack(future_stack=True).reindex(X.index).values)
     cols = [c for c in X.columns if not c.startswith(DROP)]
     S = feed._stocks
     up, dn, cl = labels(S)
@@ -74,7 +80,23 @@ def run_window(rid, variant=None, scramble_after=None, save=True):
     base_rate_train = float(y[ok].mean())
     # ---- hidden window: predict each week, evaluate after the week ----
     rows = []
-    for d in week_ends(sessions[sessions >= first]):
+    refit = int(v.get("refit_weeks", 0))
+    hidden_weeks = week_ends(sessions[sessions >= first])
+    for wi, d in enumerate(hidden_weeks):
+        if refit and wi and wi % refit == 0:
+            # C15/C16/C29: re-train on everything whose 5-session label window has CLOSED by today
+            closed_to = sessions[max(0, sessions.get_loc(d) - H - 1)]
+            train_days = [x for x in week_ends(sessions[sessions <= closed_to]) if x >= warm[0]]
+            Xt2 = X[dates.isin(train_days)][cols]
+            y2 = touch.stack(future_stack=True).reindex(Xt2.index)
+            ok2 = y2.notna().values
+            R2 = Xt2[ok2].groupby(level=0).rank(pct=True)
+            for c in cols:
+                if c.startswith("m_"):
+                    R2[c] = Xt2[ok2][c]
+            clf = lgb.LGBMClassifier(objective="binary", subsample=0.8, subsample_freq=1, colsample_bytree=0.7,
+                                     random_state=7, verbose=-1, **model_v)
+            clf.fit(R2, y2[ok2])
         Xd = X.xs(d, level=0)[cols]
         Rd = Xd.rank(pct=True)
         for c in cols:

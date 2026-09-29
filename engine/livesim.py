@@ -214,13 +214,50 @@ class BlindTrader:
         ok = y.notna().values & f.notna().values
         return model.fit_models(model.normalise(Xt)[ok], y[ok], f[ok], fast=True), int(ok.sum())
 
-    def snapshot_from(self, m, X, day):
+    def _fit_mover(self, X, stocks, until_idx):
+        """C30: the volatility finder inside Test - P(stock touches +/-10% within 5 sessions), trained only on
+        warm-up weeks whose label window closed before until_idx."""
+        import lightgbm as lgb
+        C, Hh, L = stocks["Close"], stocks["High"], stocks["Low"]
+        hi = pd.concat([Hh.shift(-k) for k in range(1, 6)]).groupby(level=0).max()
+        lo = pd.concat([L.shift(-k) for k in range(1, 6)]).groupby(level=0).min()
+        touch = ((hi / C - 1 >= 0.10) | (lo / C - 1 <= -0.10)).astype(float)
+        ud = pd.DatetimeIndex(sorted(X.index.get_level_values(0).unique()))
+        ud = ud[ud <= until_idx]
+        ud = ud[: max(1, len(ud) - 6)]
+        wk = [d for i, d in enumerate(ud[:-1]) if ud[i + 1].isocalendar().week != d.isocalendar().week]
+        cols = [c for c in X.columns if not c.startswith(("ins_", "ev_activist"))]
+        Xt = X[X.index.get_level_values(0).isin(wk)][cols]
+        y = touch.stack(future_stack=True).reindex(Xt.index)
+        ok = y.notna().values
+        Rt = Xt[ok].groupby(level=0).rank(pct=True)
+        for c in cols:
+            if c.startswith("m_"):
+                Rt[c] = Xt[ok][c]
+        clf = lgb.LGBMClassifier(objective="binary", n_estimators=300, num_leaves=31, min_child_samples=200,
+                                 learning_rate=0.05, subsample=0.8, subsample_freq=1, colsample_bytree=0.7,
+                                 random_state=7, verbose=-1)
+        clf.fit(Rt, y[ok])
+        return {"clf": clf, "cols": cols}
+
+    def _p_move(self, mv, Xd, day):
+        xr = Xd.xs(day, level=0)[mv["cols"]]
+        R = xr.rank(pct=True)
+        for c in mv["cols"]:
+            if c.startswith("m_"):
+                R[c] = xr[c]
+        return mv["clf"].predict_proba(R)[:, 1]
+
+    def snapshot_from(self, m, X, day, mv=None):
         Xd = X.xs(day, level=0, drop_level=False)
         if Xd.empty:
             return None
         xr = Xd.xs(day, level=0)
         R = model.normalise(Xd).xs(day, level=0).reindex(columns=m["cols"])
         p = pd.DataFrame({"mu_raw": m["reg"].predict(R)}, index=R.index)
+        mv = mv if mv is not None else getattr(self, "mv", None)
+        if mv is not None:
+            p["p_move"] = self._p_move(mv, Xd, day)
         for c in policy.EVIDENCE_FEATS:
             if c in R:
                 p[f"e_{c}"] = R[c].values
@@ -234,16 +271,18 @@ class BlindTrader:
         X, atr = self.feed.features_until_now()
         now = self.feed.now
         self.m, self.train_rows = self._fit(X, stocks, atr, now)
+        self.mv = self._fit_mover(X, stocks, now)
         # pre-season study (C17): a second model that stops 18 months earlier, so the last 18 warm-up months
         # are out-of-sample for it; candidate settings are judged there, quarter by quarter
         if self.adaptive:
             cut = now - pd.DateOffset(months=18)
             m2, _ = self._fit(X, stocks, atr, cut)
+            mv2 = self._fit_mover(X, stocks, cut)
             closes = stocks["Close"]
             wdays = closes.loc[cut:now].index
             for i, d in enumerate(wdays[:-1]):
                 if wdays[i + 1].isocalendar().week != d.isocalendar().week:
-                    sn = self.snapshot_from(m2, X, d)
+                    sn = self.snapshot_from(m2, X, d, mv=mv2)
                     if sn is not None:
                         self.warm_snaps[str(d.date())] = sn
             wclose = closes.loc[cut:now]

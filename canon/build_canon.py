@@ -63,6 +63,14 @@ DIRECTIVES = [
      "when one project ends close everything you can to clear up memory then start a new one"),
     ("C27", "2026-09-28", "Per-stock-type learned indicators and triggers (after picking the right stocks)",
      "the indicators you should be watching and the triggers should be custom to the stock you should have a learning system on what is the most trusting for what type of stock and not just based on the sector, but the size, the current cultural trend ect for it, it should be very detailed, but first you need to ensure you are watching the right stocks before you get to invested in indicators, but if useful and if patterens helps you can also use indicators for helping you find what stocks to pick"),
+    ("C28", "2026-09-28", "Three projects: live (little attention), test, finding volatility",
+     "right now there should be three projects, live, test, and finding volatility, then the last one will change to consistently finding which ones will be positive, we should give little attention to the live, and instead give our attention to improving the self learning on test and correctly finding the volatile stocks"),
+    ("C29", "2026-09-28", "Continuous heavy-test / find-pattern / change-code cycle",
+     "we should be constantly adjusting the code to make the testing and the finding volatile stocks work better to improve those numbers running through a heavy test, find pattern, change code cycle"),
+    ("C30", "2026-09-28", "Test: three-way pattern study (picked+won, picked+lost, missed winners)",
+     "talking to the testing task: find the pattern in what succeeded that the system picked, what failed that the system picked, and what succeeded that the system didnt pick, and then identify the thing that needs to be motified to get us closer to our goal, feel free to incoperate the find volatility system to find volatile stocks, but that still isnt complete and you still need to find patterns in the indicators, volume, quantity, net worth ect"),
+    ("C31", "2026-09-28", "Test objective: first 7%, second accuracy",
+     "the test should keep adjusting first keeping in mind 7% then second keeping in mind accuracy of success"),
 ]
 
 def sha(t): return hashlib.sha256(t.encode("utf-8")).hexdigest()
