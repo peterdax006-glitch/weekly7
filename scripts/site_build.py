@@ -26,9 +26,21 @@ PAGES = {"explorer.html": "explorer", "sensitivity2.html": "sensitivity2", "chec
 MANIFEST_REL = Path("state") / "research" / "site" / "manifest.json"
 
 
+def bank_path(root):
+    """The production bank (state/pattern_bank) if one exists; otherwise the newest research bank (a real-data run of
+    engine.pattern_bank under state/research/pattern_bank/bank_v*) so the Explorer is not blank while no production
+    pipeline writes one yet."""
+    prod = root / "state" / "pattern_bank"
+    if prod.is_dir() and any(prod.glob("bank_v*.json")):
+        return prod
+    runs = sorted((root / "state" / "research" / "pattern_bank").glob("bank_v*"))
+    runs = [r for r in runs if r.is_dir() and any(r.glob("bank_v*.json"))]
+    return runs[-1] if runs else prod
+
+
 def default_paths(root=ROOT):
     root = Path(root)
-    return {"algo": root / "state" / "research" / "algorithm", "bank": root / "state" / "pattern_bank",
+    return {"algo": root / "state" / "research" / "algorithm", "bank": bank_path(root),
             "sens": root / "state" / "research" / "sensitivity.json", "sens_pub": root / "docs" / "sensitivity.json",
             "checklist": root / "state" / "CHECKLIST.md", "registry": root / "state" / "experiments.jsonl",
             "cycles": root / "state" / "livesim" / "cycles.json", "reports": root / "state" / "reports",

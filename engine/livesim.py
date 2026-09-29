@@ -481,6 +481,46 @@ class BlindTrader:
         return [{"session": d, "names": n} for d, n in self.session.decisions]
 
 
+def order_preserving_codes(names, seed, prefix="Q", width=5):
+    """Fresh code names for `names` that keep their sorted order: the k-th smallest name gets the k-th smallest of a
+    random draw of distinct numbers, zero-padded so string order equals numeric order. Any tie-break that sorts by
+    ticker (Session._trade sorts by (weight, code)) then resolves exactly as it did under the previous names, so a
+    rerun differs from the first run only through what the system learned (canon C54/C55)."""
+    names = sorted(names)
+    if len(names) > 10 ** width:
+        raise ValueError(f"{len(names)} names do not fit {width}-digit codes")
+    nums = np.sort(np.random.default_rng(seed).choice(10 ** width, size=len(names), replace=False))
+    return {n: f"{prefix}{int(k):0{width}d}" for n, k in zip(names, nums)}
+
+
+def reseal_window(src_id, new_id, seed, revealed, sealed_at=None, shift_weeks=(8000, 11000)):
+    """Seal an already REVEALED window again under a new disguise (canon C55): same real months, a new secret shift
+    (so new dates and, through Feed, new code names) and a new digest. `revealed` must be True: the caller asserts the
+    source window's true period has been revealed through the RevealGate; an unrevealed source is refused, so this can
+    never expose a live seal. The new shift differs from the source's by at least 8 whole weeks. Returns the record."""
+    if not revealed:
+        raise PermissionError(f"{src_id} is not revealed; a live seal is never re-sealed")
+    src = json.loads((DIR / f"sealed_{src_id}.json").read_text())
+    path = DIR / f"sealed_{new_id}.json"
+    if path.exists():
+        raise FileExistsError(f"{path.name} already exists; a seal is never overwritten")
+    rng = np.random.default_rng(seed)
+    for _ in range(1000):
+        shift = 7 * int(rng.integers(*shift_weeks))
+        if abs(shift - src["shift_days"]) >= 56:
+            break
+    else:
+        raise RuntimeError("could not draw a shift far enough from the source shift")
+    start = SealedYear.start_of(src)
+    rec = {"start": str(start.date()), "shift_days": shift, "sealed_at": str(pd.Timestamp(sealed_at or pd.Timestamp.now())),
+           "seed_tag": new_id, "resealed_from_revealed": True}
+    rec["digest"] = BG.seal_digest(rec)
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(rec))
+    os.replace(tmp, path)
+    return rec
+
+
 def parity_test(feed, n_days=2, seed=None):
     """Leakage guard for the fast path: recompute features the slow, strictly-live way (history up to that
     day only) on random days and require them to equal the precomputed rows. Any mismatch = abort."""
