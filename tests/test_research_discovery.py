@@ -2,6 +2,7 @@
 proves a null. IMPLEMENTED — NOT VALIDATED: unit tests, no real-data run."""
 import dataclasses
 import math
+import re
 
 import numpy as np
 import pandas as pd
@@ -14,7 +15,7 @@ from engine.research import discovery_sources as DS
 from engine.research.core import GateVerdict, MaturedRecord
 
 
-def world(n_t=40, n_d=420, seed=1, plant=0.0, extras=True, beta_spread=0.0):
+def world(n_t=30, n_d=420, seed=1, plant=0.0, extras=True, beta_spread=0.0):
     """Random-walk bars. plant>0: a volume spike on day t lifts day t+1's return by `plant` (relvol family should find it)."""
     rng = np.random.default_rng(seed)
     dates = pd.bdate_range("2019-01-01", periods=n_d)
@@ -509,8 +510,7 @@ def test_streaming_screen_equals_one_shot_and_keeps_only_exceptions(planted):
     assert frame["t"].iloc[0] > 2 and ss.rows_seen > 0
     worst = ss.exceptions(0, 1)
     assert 0 < len(worst) <= 5 and all(float(w.split("|")[2]) < 0.05 for w in worst)
-    with pytest.raises(D.DiscoveryError):
-        D.StreamingScreen([D.Cand(PI.Expression.parse("a q0 unless b q1"), "unless", ())])
+    D.StreamingScreen([D.Cand(PI.Expression.parse("a q0 unless b q1"), "unless", ())])       # exceptions are supported
     with pytest.raises(D.DiscoveryError):
         ss.add_chunk(next(DS.year_chunks(loader, [2019], 5, ["price"], SCFG))[1], pd.Series(dtype=float))
 
@@ -637,7 +637,7 @@ def test_recurrence_requires_years_eras_and_the_whole_search_multiplicity():
     good = {f"{y}|0|price@all": (0.004, 0.0012) for y in (1996, 2004, 2012, 2019)}
     st = unit_state(good)
     for i in range(3000):
-        st.ledger.times_tested[f"n{i}"] = 1
+        st.ledger.register("bulk", [D._TrialRef(f"n{i}")])
     (r,) = D.recurrence_table(st)
     assert r.n_years == 4 and r.n_eras >= 3 and r.agree_share == 1.0 and r.m_patterns == 3000
     assert D.judge_recurrence(r, CFG).verdict == "RECURS"
@@ -682,20 +682,18 @@ def test_sweep_is_resumable_least_covered_first_and_tracks_coverage(planted, tmp
     cfg = D.SweepConfig(years=(2019, 2020), n_slices=2, families=("relvol", "price"), cohorts=("all",), min_names=8)
     sw, st = D.DiscoverySweep.resume(cfg, engine(), tmp_path / "sw")
     load, last = slice_loader(planted), planted.bars["date"].max()
-    assert len(sw.pending(last)) == 8 and sw.next_family(last) in ("relvol", "price")
-    reps = sw.run(st, load, last, max_units=3)
-    assert len(sw.book.records) == 3 and len(reps) <= 3 and (tmp_path / "sw" / "coverage.json").exists()
+    assert len(sw.pending(last)) == 4 and sw.years_before(last) == 2020 and sw.next_family(last) in ("relvol", "price")
+    reps = sw.run(st, load, last, max_units=2)
+    assert len(sw.book.records) == 2 and len(reps) <= 2 and (tmp_path / "sw" / "coverage.json").exists()
     done = set(sw.book.records)
     sw2, st2 = D.DiscoverySweep.resume(cfg, engine(), tmp_path / "sw")             # "killed": everything reloaded from disk
     assert set(sw2.book.records) == done and st2.steps == st.steps and st2.ledger.total_trials == st.ledger.total_trials
     sw2.run(st2, load, last, max_units=8)
-    assert set(sw2.book.records) > done
+    assert set(sw2.book.records) > done and sw2.pending(last) == []          # the unfinished 2020 is not a unit yet
     cov = sw2.coverage(last)
     assert set(cov["by_family"]) == {"relvol", "price"} and cov["least_covered_family"] in cov["by_family"] and 0 < cov["fraction_done"] <= 1
     assert D.audit_state(st2) == [] and "SWEEP" in D.sweep_report(sw2, st2, last)
-    finished = {u.uid for u in sw2.book.all_units() if sw2.book.is_done(u, (sw2.tag,), sw2.data_through(last))}
-    assert finished.isdisjoint({u.uid for u in sw2.pending(last)})               # finished units are never handed out again
-
+    
 
 def test_sweep_thin_universe_and_bad_config(planted):
     with pytest.raises(D.DiscoveryError):
@@ -793,3 +791,264 @@ def test_seed_stability_reports_overlap_between_seeds():
     w = world(plant=0.02, seed=9, extras=False)
     rep = D.seed_stability(lambda sd: D.DiscoveryEngine(dataclasses.replace(CFG, seed=sd), SCFG, audit=False), w, "2020-09-01", ["relvol"], (1, 2))
     assert 0.0 <= rep["min_jaccard"] <= rep["mean_jaccard"] <= 1.0 and len(rep["sizes"]) == 2
+
+
+# ================================================================== life after discovery
+def small_panel(seed=0, n_d=260, n_t=30, effect=None):
+    """Noise panel with two features f, g and optional planted effect on 'f q4'. Returns (panel, analyzer, cfg)."""
+    rng = np.random.default_rng(seed)
+    dates = pd.bdate_range("2020-01-01", periods=n_d)
+    idx = pd.MultiIndex.from_product([dates, [f"S{i:02d}" for i in range(n_t)]], names=["date", "ticker"])
+    X = pd.DataFrame({"f": rng.normal(size=len(idx)), "g": rng.normal(size=len(idx))}, index=idx)
+    y = pd.Series(rng.normal(0, 0.02, len(idx)), index=idx)
+    if effect:
+        y = y + plant_mask(X, effect)
+    cfg = dataclasses.replace(CFG, holdout_frac=0.0, min_weeks=20)
+    panel = D.Panel.build(X, y, dates[-1] + pd.Timedelta(days=40), cfg, matured_at=pd.Series(dates[-1], index=idx), on_immature="drop")
+    return panel, D.Analyzer(panel, ["f", "g"], {}, cfg), cfg
+
+
+def plant_mask(X, effect):
+    r = X["f"].groupby(level=0).rank(pct=True)
+    return np.where(r > 0.8, effect, 0.0)
+
+
+def test_redundant_columns_collapse_copies_but_not_independent_columns():
+    rng = np.random.default_rng(0)
+    a = rng.normal(size=3000)
+    X = pd.DataFrame({"a": a, "a_copy": a * 3 + 1, "a_noisy": a + rng.normal(0, 0.01, 3000), "b": rng.normal(size=3000)})
+    X.loc[:200, "a_copy"] = np.nan
+    drop = D.redundant_columns(X, 0.98)
+    assert set(drop) == {"a_copy", "a_noisy"} and set(drop.values()) == {"a"} and D.redundant_columns(X, 1.0) == {}
+    assert D.redundant_columns(X[["b"]]) == {}
+
+
+def test_panel_health_reports_thin_weeks_and_constants():
+    panel, _, _ = small_panel()
+    panel.X["const"] = 1.0
+    h = D.panel_health(panel)
+    assert h["constant_features"] == ["const"] and h["weeks"] == panel.n_wk and h["rows_per_week_min"] > 0 and h["thin_weeks"] == 0
+
+
+def test_bootstrap_ci_covers_the_truth_and_refuses_thin_data():
+    rng = np.random.default_rng(1)
+    sw = np.full(60, 20.0)
+    sy = sw * rng.normal(0.01, 0.004, 60)
+    lo, hi = D.bootstrap_effect_ci(sy, sw, np.ones(60, bool), np.random.default_rng(2))
+    assert lo < 0.01 < hi and hi - lo < 0.006
+    assert D.bootstrap_effect_ci(sy[:5], sw[:5], np.ones(5, bool), np.random.default_rng(0)) is None
+
+
+def test_decay_per_block_sign():
+    def val(means):
+        return D.ValidationResult(tuple(D.BlockStat(k, m, 2.0, 20) for k, m in enumerate(means)), None, None, None, None, 0, len(means), 0.0)
+    assert D.decay_per_block(val([0.01, 0.005, 0.0]), 0.01, 1) < -0.4
+    assert abs(D.decay_per_block(val([0.01, 0.01, 0.01]), 0.01, 1)) < 1e-9
+    assert D.decay_per_block(val([-0.01, -0.005]), 0.01, -1) < 0 and D.decay_per_block(val([0.01]), 0.01, 1) is None
+
+
+def test_stability_selection_separates_a_broad_effect_from_a_two_week_fluke():
+    rng = np.random.default_rng(3)
+    n_wk = 60
+    SW = np.full((2, n_wk), 25.0)
+    real = SW[0] * rng.normal(0.004, 0.003, n_wk)
+    fluke = SW[1] * rng.normal(0.0, 0.003, n_wk)
+    fluke[[10, 11]] += SW[1][[10, 11]] * 0.05
+    f = D.stability_selection(np.vstack([real, fluke]), SW, np.ones(n_wk, bool), 1, n_sub=60, seed=1)
+    assert f[0] > 0.8 and f[1] < 0.5 and D.stability_selection(np.empty((0, n_wk)), np.empty((0, n_wk)), np.ones(n_wk, bool), 1).size == 0
+
+
+def test_shrunk_effects_pull_a_noisy_screen_to_zero_and_keep_a_strong_one():
+    rng = np.random.default_rng(4)
+    ses = np.full(200, 0.002)
+    noise = rng.normal(0, 0.002, 200)
+    post = D.shrunk_effects(noise, ses)
+    assert np.abs(post).max() < 0.5 * np.abs(noise).max()
+    strong = noise.copy()
+    strong[:5] = 0.02
+    assert D.shrunk_effects(strong, ses)[:5].min() > 0.012
+    assert D.shrunk_effects(np.array([0.01]), np.array([np.nan]))[0] == 0.01
+
+
+def test_parent_comparison_flags_a_pair_that_is_just_its_better_half():
+    rng = np.random.default_rng(5)
+    dates = pd.bdate_range("2020-01-01", periods=300)
+    idx = pd.MultiIndex.from_product([dates, [f"S{i:02d}" for i in range(40)]], names=["date", "ticker"])
+    X = pd.DataFrame({"f": rng.normal(size=len(idx)), "g": rng.normal(size=len(idx))}, index=idx)
+    y = pd.Series(rng.normal(0, 0.02, len(idx)) + plant_mask(X, 0.01), index=idx)          # the effect lives in f alone
+    cfg = dataclasses.replace(CFG, holdout_frac=0.0, min_weeks=20)
+    panel = D.Panel.build(X, y, dates[-1] + pd.Timedelta(days=40), cfg, matured_at=pd.Series(dates[-1], index=idx), on_immature="drop")
+    an = D.Analyzer(panel, ["f", "g"], {}, cfg)
+    pt, who = D.parent_comparison(an, PI.Expression.parse("f q4 & g q4"), 1)
+    assert pt is not None and pt < 1.0 and who == "f q4"                       # g adds nothing beyond f
+    assert D.parent_comparison(an, PI.Expression.parse("f q4"), 1) == (None, "")
+    ok, _ = D.parent_comparison(an, PI.Expression.parse("f q4 & g q4"), -1)
+    assert ok is not None
+
+
+def test_jackknife_flags_an_effect_carried_by_one_stock():
+    rng = np.random.default_rng(6)
+    dates = pd.bdate_range("2020-01-01", periods=260)
+    idx = pd.MultiIndex.from_product([dates, [f"S{i:02d}" for i in range(30)]], names=["date", "ticker"])
+    X = pd.DataFrame({"f": rng.normal(size=len(idx))}, index=idx)
+    y = pd.Series(rng.normal(0, 0.02, len(idx)), index=idx)
+    hot = idx.get_level_values(1) == "S07"
+    X.loc[hot, "f"] = 5.0                                                     # one stock always in the top quintile ...
+    y[hot] += 0.02                                                            # ... and always up
+    cfg = dataclasses.replace(CFG, holdout_frac=0.0, min_weeks=20)
+    panel = D.Panel.build(X, y, dates[-1] + pd.Timedelta(days=40), cfg, matured_at=pd.Series(dates[-1], index=idx), on_immature="drop")
+    an = D.Analyzer(panel, ["f"], {}, cfg)
+    ctl = an.controls(an.mask(PI.Expression.parse("f q4")), 3.0, 1)
+    assert ctl.jackknife_min_t is not None and ctl.jackknife_min_t < 1.5 and {"name_concentration", "fragile"} & set(ctl.flags)
+
+
+def test_contradictions_linked_once_and_retirement_needs_age_and_no_confirmation(planted_run):
+    src = planted_run[0]
+    store = KN.KnowledgeStore()
+    for kid in src.store.ids():
+        store.add(src.store.latest(kid))
+    st = D.DiscoveryState(store=store, dossiers=dict(src.dossiers), ledger=src.ledger)
+    panel, an, _ = small_panel()
+    d = next(iter(st.dossiers.values()))
+    a = dataclasses.replace(d, pattern_id=d.pattern_id, text="f q4", direction=1, verdict=GateVerdict.NEEDS_MORE_EVIDENCE)
+    b = dataclasses.replace(d, pattern_id="Pother", text="f q4 unless g q0", direction=-1, verdict=GateVerdict.NEEDS_MORE_EVIDENCE)
+    st.dossiers = {a.pattern_id: a, "Pother": b}
+    kb = dataclasses.replace(store.latest("K-" + a.pattern_id), knowledge_id="K-Pother")
+    store.add(kb)
+    pairs = D.find_contradictions(an, st, 0.5)
+    assert len(pairs) == 1 and pairs[0][2] > 0.5
+    assert D.link_contradictions(st, pairs, "2021-03-01") == 2 and D.link_contradictions(st, pairs, "2021-03-02") == 0
+    assert "K-Pother" in store.latest("K-" + a.pattern_id).relations.contradicting and store.verify() == []
+    failed = dataclasses.replace(b, verdict=GateVerdict.FAILED)
+    st.dossiers["Pother"] = failed
+    assert D.retire_failed(st, "2021-03-05", min_age_days=180) == 0            # too young
+    assert D.retire_failed(st, "2022-06-01", min_age_days=180) == 1
+    assert store.latest("K-Pother").epistemic == Epistemic.RETIRED and len(store.history("K-Pother")) >= 2
+    st.dossiers["Pother"] = dataclasses.replace(failed, confirmations=1)
+    assert D.retire_failed(st, "2023-06-01") == 0
+
+
+def test_plan_budget_keeps_a_floor_for_every_family_and_respects_wealth():
+    st = D.DiscoveryState()
+    st.families = {"good": D.FamilyRecord(trials=100, survivors=30), "bad": D.FamilyRecord(trials=1000, survivors=0)}
+    for _ in range(20):
+        st.ledger.confirm("bad", False)
+    plan = D.plan_budget(st, ["good", "bad", "new"], 3000)
+    assert sum(plan.values()) == 3000 and plan["good"] > plan["bad"] and min(plan.values()) >= 300
+    st.wealth.wealth = 0.0
+    assert D.plan_budget(st, ["good"], 1000) == {"good": 0} and D.plan_budget(st, [], 10) == {}
+
+
+def test_dossier_changes_names_moved_fields_and_refuses_strangers(planted_run):
+    st, _ = planted_run
+    d = next(iter(st.dossiers.values()))
+    d2 = dataclasses.replace(d, truth=0.123, verdict=GateVerdict.FAILED, run_id="other")
+    ch = {f for f, _, _ in D.dossier_changes(d, d2)}
+    assert ch == {"truth", "verdict"}
+    with pytest.raises(D.DiscoveryError):
+        D.dossier_changes(d, dataclasses.replace(d, pattern_id="Pz"))
+    assert D.dossier_changes(d, d) == []
+
+
+def test_markdown_and_family_pair_table_and_cross_target(planted_run):
+    st, _ = planted_run
+    md = D.discovery_markdown(st, top=5)
+    assert md.startswith("# Pattern discovery") and "| pattern |" in md
+    fp = D.family_pair_table(st)
+    assert list(fp.columns) == ["families", "patterns", "surviving"] and fp["patterns"].sum() > 0
+    d = next(iter(st.dossiers.values()))
+    two = D.DiscoveryState(dossiers={"P1": dataclasses.replace(d, pattern_id="P1", target="excess_5d", direction=1),
+                                     "P2": dataclasses.replace(d, pattern_id="P2", target="abs_move_5d", direction=1),
+                                     "P3": dataclasses.replace(d, pattern_id="P3", text="zzz q0", target="excess_5d")})
+    ct = D.cross_target_table(two)
+    assert len(ct) == 1 and ct["n_targets"].iloc[0] == 2 and D.cross_target_table(D.DiscoveryState()).empty
+
+
+def test_rescoped_candidates_and_open_questions_are_identity_free(planted_run):
+    st, _ = planted_run
+    d = next(iter(st.dossiers.values()))
+    cells = (D.ContextCell("m_regime__regime_state", "low", (0, 1), 0.01, 3.5, 30), D.ContextCell("m_regime__regime_state", "high", (3, 4), -0.01, -3.0, 30))
+    d2 = dataclasses.replace(d, pattern_id="Pctx", text="price__ret_5 q0", direction=1, verdict=GateVerdict.NEEDS_MORE_EVIDENCE, contexts=cells,
+                             context_feature="m_regime__regime_state", context_dependence=0.8,
+                             failure_conditions=(D.FailureCondition("m_regime__regime_state", (3, 4), "flip", -0.01, -3.0, 30),), decay=-0.5)
+    s2 = D.DiscoveryState(dossiers={"Pctx": d2})
+    cands = D.rescoped_candidates(s2)
+    assert {c.text for c in cands} == {"m_regime__regime_state q0 & price__ret_5 q0", "m_regime__regime_state q1 & price__ret_5 q0"}
+    assert all(c.origin == "rescope" for c in cands)
+    qs = D.open_questions(s2, "2021-01-01", created_real="2026-01-01T00:00:00+00:00")
+    assert len(qs) >= 3 and all(q.text and not re.search(r"\d{4}-\d{2}", q.text) and "T0" not in q.text for q in qs)
+    assert len({q.question_id for q in qs}) == len(qs) and D.rescoped_candidates(D.DiscoveryState()) == []
+
+
+def test_inputs_from_wide_and_normalisers():
+    dates = pd.bdate_range("2020-01-01", periods=5)
+    blocks = {k: pd.DataFrame(np.arange(10.0).reshape(5, 2) + 1, index=dates, columns=["A", "B"]) for k in ("Open", "High", "Low", "Close", "Volume")}
+    blocks["Close"].iloc[2, 1] = np.nan
+    inp = D.inputs_from_wide(blocks)
+    assert len(inp.bars) == 9 and inp.validate() == []
+    with pytest.raises(D.DiscoveryError):
+        D.inputs_from_wide({"Open": blocks["Open"]})
+    e = D.earnings_table(pd.DataFrame({"ticker": ["A", "A", "B"], "date": ["2020-01-10", "2020-01-10", None], "ann": ["2020-01-01", "2020-01-01", None],
+                                       "s": ["1.5", "x", "2"]}), announced_col="ann", surprise_col="s")
+    assert len(e) == 1 and e.attrs["dropped_undated"] == 1
+    with pytest.raises(D.DiscoveryError):
+        D.earnings_table(pd.DataFrame({"ticker": ["A"], "date": ["2020-01-10"], "ann": ["2020-02-01"]}), announced_col="ann")
+    f = D.filings_table(pd.DataFrame({"ticker": ["A"], "filed_at": ["2020-03-02"], "acc": ["2020-03-02 17:30"], "form": ["8-K"]}), accepted_col="acc")
+    assert f["filed_at"].iloc[0] == pd.Timestamp("2020-03-03")               # accepted after the close: public next session
+    with pytest.raises(D.DiscoveryError):
+        D.filings_table(pd.DataFrame({"ticker": ["A"], "filed_at": ["2020-03-05"], "acc": ["2020-03-02 10:00"]}), accepted_col="acc")
+    i = D.insiders_table(pd.DataFrame({"ticker": ["A", "A"], "filed_at": ["2020-01-02", "2020-01-03"], "value": [100, 50], "side": ["B", "Sell"]}), side_col="side")
+    assert i["value"].tolist() == [100.0, -50.0]
+    with pytest.raises(D.DiscoveryError):
+        D.insiders_table(pd.DataFrame({"ticker": ["A"]}))
+
+
+def test_feature_report_and_triples_in_the_search(planted):
+    fb = DS.build_features(planted, ["relvol", "price"], SCFG)
+    rep = D.feature_report(fb)
+    assert set(rep["family"]) == {"relvol", "price"} and (rep["columns"] > 0).all()
+    st = D.DiscoveryState()
+    e = D.DiscoveryEngine(dataclasses.replace(CFG, max_triples=20, triple_top_pairs=5), SCFG, audit=False)
+    rep = e.step(st, "2020-09-01", planted, families=["relvol", "price"])
+    assert rep.generated > 0 and any(k for k in st.ledger.times_tested)
+    assert D.DiscoveryConfig(max_triples=-1).validate() and D.DiscoveryConfig(feature_corr_max=0.2).validate()
+
+
+def test_replicate_across_years_files_fixed_hypotheses_once_per_year(planted):
+    st = D.DiscoveryState()
+    e = engine()
+    e.step(st, "2020-09-01", planted, families=["relvol", "price"])
+    surviving = [d for d in st.dossiers.values() if d.verdict == GateVerdict.NEEDS_MORE_EVIDENCE]
+    assert surviving
+    out = D.replicate_across_years(st, slice_loader(planted), [2019, 2020], CFG, ["relvol", "price"], SCFG, now="2020-08-01")
+    assert out["patterns"] == len(surviving) and out["years"] == 2
+    filed = {k for ev in st.unit_evidence.values() for k in ev}
+    assert all(k.endswith("|stream|replication") for k in filed)
+    first = out["estimates"]
+    assert D.replicate_across_years(st, slice_loader(planted), [2019, 2020], CFG, ["relvol", "price"], SCFG, now="2020-08-01")["estimates"] == 0 < first
+    assert D.replicate_across_years(D.DiscoveryState(), slice_loader(planted), [2019], CFG)["patterns"] == 0
+
+
+def test_service_tick_runs_units_and_never_releases(planted, tmp_path):
+    cfg = D.SweepConfig(years=(2019,), n_slices=1, families=("relvol",), min_names=8)
+    sw, st = D.DiscoverySweep.resume(cfg, engine(), tmp_path / "svc")
+    svc = D.DiscoveryService(sw, st, precursor_source=lambda: ["relvol__rvol_1 q4"], units_per_tick=1)
+    out = svc.tick("2020-08-01", slice_loader(planted), last_date=planted.bars["date"].max())
+    assert out["units_run"] == 1 and out["audit"] == [] and out["pending"] == 0 and (tmp_path / "svc" / "coverage.json").exists()
+    assert D.release_filter(st, "2021-01-01") == [] and isinstance(svc.questions, list)
+    assert svc.tick("2020-08-02", slice_loader(planted), last_date=planted.bars["date"].max())["units_run"] == 0
+
+
+def test_there_is_one_ledger_discovery_extends_the_interactions_one():
+    from engine.research import interactions as IL
+    assert issubclass(D.TrialLedger, IL.TrialLedger)
+    led = D.TrialLedger()
+    assert led.register("keyA", [D._TrialRef("a"), D._TrialRef("b")]) == 2                     # the base call form still works
+    q = led.register("run1", "2020-01-01", ["a", "c"], [0.01, 0.4], ["f", "f"], "keyA")        # the discovery form (also what precursors calls)
+    assert len(q) == 2 and led.m_total("keyA") == 3 and led.distinct_trials == 3 and led.looks("keyA") == 4 and led.runs == 1
+    assert len(led) == 1                                                                       # only c is new, and only new tests hold a p-value
+    back = D.TrialLedger.from_dict(led.to_dict())
+    assert back.m_total("keyA") == 3 and back.verify() == [] and back.total_trials == led.total_trials
+    plain = IL.TrialLedger()
+    plain.register("k", [D._TrialRef("z")])
+    assert D.TrialLedger.from_dict(plain.to_dict()).m_total("k") == 1                           # a base-format dict loads too

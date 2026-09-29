@@ -786,6 +786,72 @@ def f_volprice(w: Wide, inp: SourceInputs, cfg: SourceConfig) -> dict:
             "volume_price_divergence": np.sign(r.rolling(5, min_periods=4).sum()) * -np.sign(v.rolling(5, min_periods=4).mean() / v.rolling(21, min_periods=15).mean() - 1.0)}
 
 
+def f_residual(w: Wide, inp: SourceInputs, cfg: SourceConfig) -> dict:
+    """Idiosyncratic behaviour: what is left of a stock's move after the market and its own beta, and how persistent that is. Beta is a
+    trailing 63-session estimate through the PREVIOUS close, so today's return never sets the beta that explains it."""
+    r, m = w.ret, w.mkt_ret
+    var_m = m.rolling(63, min_periods=40).var().shift(1)
+    beta = r.rolling(63, min_periods=40).cov(m).shift(1).div(var_m.where(var_m > 0), axis=0)
+    resid = r - beta.mul(m, axis=0)
+    r21 = resid.rolling(21, min_periods=15).sum()
+    r63 = resid.rolling(63, min_periods=40).sum()
+    sd = resid.rolling(63, min_periods=40).std()
+    return {"resid_1": resid, "resid_5": resid.rolling(5, min_periods=4).sum(), "resid_21": r21, "resid_63_skip21": r63 - r21,
+            "resid_z_21": r21 / (sd * math.sqrt(21.0)).where(sd > 0), "resid_vol_63": sd * ANNUAL,
+            "resid_share_of_move": resid.abs().rolling(21, min_periods=15).mean() / r.abs().rolling(21, min_periods=15).mean().where(lambda x: x > 0),
+            "resid_autocorr_21": resid.rolling(21, min_periods=15).corr(resid.shift(1))}
+
+
+def f_seasonality(w: Wide, inp: SourceInputs, cfg: SourceConfig) -> dict:
+    """A stock's own calendar habits estimated only from the past: the expanding mean return on the same weekday and in the same calendar
+    month, excluding the current session, expressed relative to the stock's overall mean so a drift is not read as a habit."""
+    r = w.ret
+    out = {}
+    wd = pd.Series(w.dates.dayofweek, index=w.dates)
+    mo = pd.Series(w.dates.month, index=w.dates)
+    for name, key in (("weekday", wd), ("month", mo)):
+        hab = pd.DataFrame(np.nan, index=r.index, columns=r.columns)
+        for v in sorted(key.unique()):
+            rows = (key == v).to_numpy()
+            sub = r[rows]
+            prior_mean = sub.expanding(min_periods=8).mean().shift(1)     # earlier occurrences of this weekday / month only
+            hab.loc[rows] = prior_mean.to_numpy()
+        allmean = r.expanding(min_periods=60).mean().shift(1)
+        out[f"{name}_habit"] = hab - allmean
+    out["weekday_habit_abs"] = out["weekday_habit"].abs()
+    return out
+
+
+def f_extremes(w: Wide, inp: SourceInputs, cfg: SourceConfig) -> dict:
+    """Where the close sits against its recent extremes and how many sessions have passed since they were set."""
+    c, h, l = w.close, w.high, w.low
+    idx = pd.DataFrame(np.arange(w.n, dtype=float)[:, None].repeat(len(w.tickers), axis=1), index=c.index, columns=c.columns)
+    out = {}
+    for n in (10, 20, 60):
+        hi, lo = h.rolling(n, min_periods=int(n * 0.7)).max(), l.rolling(n, min_periods=int(n * 0.7)).min()
+        out[f"pos_in_range_{n}"] = ((c - lo) / (hi - lo).where(hi > lo))
+        if n in (20, 60):
+            out[f"days_since_high_{n}"] = (idx - idx.where(h >= hi).ffill()).clip(upper=float(n))
+    out["new_high_20"] = (h >= h.rolling(20, min_periods=14).max()).astype(float).where(c.notna())
+    out["new_low_20"] = (l <= l.rolling(20, min_periods=14).min()).astype(float).where(c.notna())
+    out["failed_breakout_5"] = ((h.shift(1) >= h.rolling(20, min_periods=14).max().shift(2)) & (c < c.shift(1))).astype(float).where(c.notna())
+    return out
+
+
+def f_persistence(w: Wide, inp: SourceInputs, cfg: SourceConfig) -> dict:
+    """Cross-sectional persistence: does a stock keep the rank it had, and does its rank change predict more of the same (market-wide
+    statistics of that are the m_* columns)."""
+    r5 = w.close.pct_change(5, fill_method=None)
+    rk = r5.rank(axis=1, pct=True)
+    prev = rk.shift(5)
+    chg = rk - prev
+    rho = rk.corrwith(prev, axis=1)
+    return {"rank_5": rk, "rank_change_5": chg, "rank_stability_21": rk.rolling(21, min_periods=15).std(),
+            "top_quintile_days_21": (rk >= 0.8).astype(float).where(rk.notna()).rolling(21, min_periods=15).sum(),
+            "bottom_quintile_days_21": (rk <= 0.2).astype(float).where(rk.notna()).rolling(21, min_periods=15).sum(),
+            "m_rank_persistence": rho, "m_rank_persistence_21": rho.rolling(21, min_periods=15).mean()}
+
+
 # ------------------------------------------------------------------------------------------------------- the registry
 @dataclasses.dataclass(frozen=True)
 class FamilySpec:
@@ -834,6 +900,10 @@ FAMILIES: dict[str, FamilySpec] = {s.name: s for s in (
     FamilySpec("candles", f_candles, (), _A.KNOWN_BEFORE_EVENT, "single- and multi-bar candle shapes"),
     FamilySpec("drawdown", f_drawdown, (), _A.KNOWN_BEFORE_EVENT, "depth, age and recovery of the drawdown from the 252-day peak"),
     FamilySpec("leadlag", f_leadlag, (), _A.KNOWN_BEFORE_EVENT, "group and market returns of prior sessions and the stock's relative move"),
+    FamilySpec("residual", f_residual, (), _A.KNOWN_BEFORE_EVENT, "market- and beta-adjusted moves, their size and persistence"),
+    FamilySpec("seasonality", f_seasonality, (), _A.KNOWN_BEFORE_EVENT, "the stock's own weekday and month habits, from the past only"),
+    FamilySpec("extremes", f_extremes, (), _A.KNOWN_BEFORE_EVENT, "position in the 10/20/60-day range, new highs and lows, failed breakouts"),
+    FamilySpec("persistence", f_persistence, (), _A.KNOWN_BEFORE_EVENT, "cross-sectional rank stability and rank change"),
     FamilySpec("volprice", f_volprice, (), _A.KNOWN_BEFORE_EVENT, "VWAP distance, volume-weighted momentum, price-volume divergence"),
 )}
 DERIVED_FAMILIES = ("learned",)                   # built from other families' columns, never from raw inputs

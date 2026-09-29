@@ -50,6 +50,7 @@ from engine.learning.core import (canonical_json, Confidence, DecisionEffect, Ep
                                   TemporalClass, current_code_hash)
 from engine.learning.trader_view import string_reasons
 from engine.research import discovery_sources as DS
+from engine.research import interactions as _IL
 from engine.research.core import (FirewallBreach, GateVerdict, MaturedRecord, Namespace, as_date, require_past, stable_hash)
 from engine.research.discovery_sources import N_LEVELS, Quantiles, quantise_panel
 
@@ -75,6 +76,9 @@ class DiscoveryConfig:
     top_singles: int = 30
     max_pairs: int = 1500
     max_unless: int = 200
+    max_triples: int = 60                # three-term conjunctions grown from the strongest pairs (each pays the complexity bar)
+    triple_top_pairs: int = 10
+    feature_corr_max: float = 0.98       # near-duplicate columns above this |Spearman| are collapsed to one before searching
     unless_top_pairs: int = 20
     random_pair_frac: float = 0.25
     null_reps: int = 5
@@ -89,6 +93,8 @@ class DiscoveryConfig:
     max_week_share: float = 0.25
     ticker_effect_min_ratio: float = 0.5
     min_independent: int = 30
+    min_stability: float = 0.5
+    min_parent_t: float = 0.0            # a conjunction must beat (parent minus itself) on validation weeks at least this t
     min_p_real: float = 0.5
     min_transfer: float = 0.4
     z_val: float = 1.28
@@ -114,6 +120,8 @@ class DiscoveryConfig:
             e.append("shortlist_p in (0, 0.2] and shortlist_q in (0, 1]")
         if self.null not in ("stock_shift", "week_shuffle", "both"):
             e.append("null must be stock_shift, week_shuffle or both")
+        if self.max_triples < 0 or self.triple_top_pairs < 0 or not 0.5 <= self.feature_corr_max <= 1.0:
+            e.append("max_triples and triple_top_pairs >= 0; feature_corr_max in [0.5, 1]")
         if self.target not in DS.TARGETS:
             e.append(f"target must be one of {DS.TARGETS}")
         if self.min_weeks < 20 or self.min_rows < 30:
@@ -368,33 +376,51 @@ class RunEntry:
     hash: str
 
 
-class TrialLedger:
-    """Every candidate ever tested by any discovery run, kept so that no pattern is judged against its own run alone.
+@dataclasses.dataclass(frozen=True)
+class _TrialRef:
+    """The one attribute interactions.TrialLedger.register reads from a trial."""
+    trial_id: str
 
-    The pool holds one p-value per DISTINCT (pattern identity, data window) - re-running an identical search on identical data
-    adds no new trial, but the same pattern on a different or longer window is a new look and counts. A new batch's q-value is
-    Benjamini-Hochberg against the whole pool plus itself (a deliberately conservative ranking: the monotone step of BH would
-    only lower q). Runs are hash-chained, so a history that was edited or reordered is detected by `verify`."""
+
+class TrialLedger(_IL.TrialLedger):
+    """The ONE cumulative multiple-testing ledger is engine.research.interactions.TrialLedger (it counts every combination ever tested per
+    data key and is what frontier.TestLedger also extends). This subclass adds what discovery needs on top and nothing that duplicates it:
+    the p-value of each distinct test (so BH runs over the whole search, keeping the FIRST p a test earned), a hash-chained log of runs,
+    per-family trial and revalidation records, and cumulative q-values.
+
+    Counting is the base class's: a test is (pattern id, data key); re-running an identical search on identical data adds a LOOK but no
+    new distinct test, the same pattern on a longer or different window is a new test. `register` accepts both call forms - the base
+    `(data_key, trials)` and the discovery form `(run_id, now, ids, p, families, data_key)` that engine.research.precursors uses."""
 
     def __init__(self):
+        super().__init__()
         self._pool = np.empty(0, dtype=float)
-        self._keys: set[str] = set()
-        self.runs: list[RunEntry] = []
+        self.run_log: list[RunEntry] = []
         self.family_trials: dict[str, int] = {}
         self.family_confirmed: dict[str, int] = {}
         self.family_failed: dict[str, int] = {}
-        self.times_tested: dict[str, int] = {}
 
     def __len__(self) -> int:
         return len(self._pool)
 
     @property
     def total_trials(self) -> int:
-        return int(sum(r.n_trials for r in self.runs))
+        """Every look ever taken (a repeated look counts)."""
+        return int(sum(sum(v.values()) for v in self._seen.values()))
 
     @property
     def distinct_trials(self) -> int:
-        return len(self._pool)
+        """Distinct (pattern, data window) tests: the multiplicity every correction divides by."""
+        return int(sum(len(v) for v in self._seen.values()))
+
+    @property
+    def times_tested(self) -> dict[str, int]:
+        """Looks per pattern id across all data keys (read-only view of the base ledger's counts)."""
+        out: dict[str, int] = {}
+        for book in self._seen.values():
+            for i, n in book.items():
+                out[i] = out.get(i, 0) + n
+        return out
 
     def cumulative_q(self, p_new: Sequence[float]) -> np.ndarray:
         """q-value of each new p against pool + batch. Empty batch -> empty array."""
@@ -407,37 +433,44 @@ class TrialLedger:
         rank = np.searchsorted(pool, p, side="right") + np.searchsorted(batch, p, side="right")
         return np.minimum(1.0, p * m / np.maximum(rank, 1))
 
-    def register(self, run_id: str, now, ids: Sequence[str], p: Sequence[float], families: Sequence[str], data_key: str) -> np.ndarray:
+    def register(self, *args, **kw):
+        """Base form `register(data_key, trials)` -> distinct count; discovery form `register(run_id, now, ids, p, families, data_key)`
+        -> cumulative q-values (see record_run)."""
+        if len(args) + len(kw) <= 2:
+            return super().register(*args, **kw)
+        return self.record_run(*args, **kw)
+
+    def record_run(self, run_id: str, now, ids: Sequence[str], p: Sequence[float], families: Sequence[str], data_key: str) -> np.ndarray:
         """Account a batch and return its cumulative q-values. `ids`, `p`, `families` align; untestable candidates must be passed
         with p = 1.0 (a candidate that was generated but too thin to test is still a step of the search)."""
         if not (len(ids) == len(p) == len(families)):
             raise DiscoveryError("ledger batch arrays must align")
-        if any(r.run_id == run_id for r in self.runs):
+        if any(r.run_id == run_id for r in self.run_log):
             raise DiscoveryError(f"run {run_id!r} already registered")
         parr = np.asarray(p, dtype=float)
         if parr.size and (np.isnan(parr).any() or (parr < 0).any() or (parr > 1).any()):
             raise DiscoveryError("p-values must lie in [0, 1]")
         q = self.cumulative_q(parr)
-        add_p, new_keys = [], 0
+        known = self._seen.get(data_key, {})
+        add_p, fresh = [], set()
         by_fam: dict[str, int] = {}
         for i, pi, f in zip(ids, parr, families):
-            k = stable_hash({"id": i, "d": data_key}, 12)
             by_fam[f] = by_fam.get(f, 0) + 1
-            self.times_tested[i] = self.times_tested.get(i, 0) + 1
-            if k not in self._keys:
-                self._keys.add(k)
+            if i not in known and i not in fresh:
+                fresh.add(i)
                 add_p.append(pi)
-                new_keys += 1
+        super().register(data_key, [_TrialRef(i) for i in ids])
+        self.runs += 1
         if add_p:
             self._pool = np.concatenate([self._pool, np.asarray(add_p)])
         for f, n in by_fam.items():
             self.family_trials[f] = self.family_trials.get(f, 0) + n
-        prev = self.runs[-1].hash if self.runs else ""
+        prev = self.run_log[-1].hash if self.run_log else ""
         digest = stable_hash([round(float(x), 9) for x in parr], 12)
-        body = {"run": run_id, "now": str(as_date(now)), "n": len(parr), "new": new_keys, "fam": sorted(by_fam.items()),
+        body = {"run": run_id, "now": str(as_date(now)), "n": len(parr), "new": len(add_p), "fam": sorted(by_fam.items()),
                 "p": digest, "prev": prev}
-        self.runs.append(RunEntry(run_id, str(as_date(now)), len(parr), new_keys, tuple(sorted(by_fam.items())),
-                                  float(parr.min()) if parr.size else 1.0, digest, prev, stable_hash(body, 20)))
+        self.run_log.append(RunEntry(run_id, str(as_date(now)), len(parr), len(add_p), tuple(sorted(by_fam.items())),
+                                     float(parr.min()) if parr.size else 1.0, digest, prev, stable_hash(body, 20)))
         return q
 
     def confirm(self, family: str, ok: bool) -> None:
@@ -456,7 +489,7 @@ class TrialLedger:
 
     def verify(self) -> list[str]:
         errs, prev = [], ""
-        for r in self.runs:
+        for r in self.run_log:
             body = {"run": r.run_id, "now": r.now, "n": r.n_trials, "new": r.n_new_keys, "fam": sorted(r.by_family), "p": r.p_digest,
                     "prev": prev}
             if r.prev_hash != prev:
@@ -464,22 +497,20 @@ class TrialLedger:
             if stable_hash(body, 20) != r.hash:
                 errs.append(f"run {r.run_id}: content does not match its hash")
             prev = r.hash
-        if len(self._pool) != sum(r.n_new_keys for r in self.runs):
+        if len(self._pool) != sum(r.n_new_keys for r in self.run_log):
             errs.append("pool size disagrees with the runs' new-key counts")
         return errs
 
     def to_dict(self) -> dict:
-        return {"pool": [round(float(x), 9) for x in self._pool], "keys": sorted(self._keys),
-                "runs": [dataclasses.asdict(r) for r in self.runs], "ft": self.family_trials, "fc": self.family_confirmed,
-                "ff": self.family_failed, "tt": self.times_tested}
+        return {**super().to_dict(), "pool": [round(float(x), 9) for x in self._pool], "log": [dataclasses.asdict(r) for r in self.run_log],
+                "ft": self.family_trials, "fc": self.family_confirmed, "ff": self.family_failed}
 
     @classmethod
     def from_dict(cls, d: Mapping) -> "TrialLedger":
-        t = cls()
-        t._pool = np.asarray(d["pool"], dtype=float)
-        t._keys = set(d["keys"])
-        t.runs = [RunEntry(**{**r, "by_family": tuple(tuple(x) for x in r["by_family"])}) for r in d["runs"]]
-        t.family_trials, t.family_confirmed, t.family_failed, t.times_tested = d["ft"], d["fc"], d["ff"], d["tt"]
+        t = super().from_dict(d)
+        t._pool = np.asarray(d.get("pool", []), dtype=float)
+        t.run_log = [RunEntry(**{**r, "by_family": tuple(tuple(x) for x in r["by_family"])}) for r in d.get("log", [])]
+        t.family_trials, t.family_confirmed, t.family_failed = dict(d.get("ft", {})), dict(d.get("fc", {})), dict(d.get("ff", {}))
         bad = t.verify()
         if bad:
             raise DiscoveryError("ledger failed verification on load: " + "; ".join(bad))
@@ -704,6 +735,26 @@ class Screener:
                     add(self._mk([a, b], [], "random_pair"))
         return out
 
+    def triples(self, ranked_pairs: Sequence[Cand], seen: set[str]) -> list[Cand]:
+        """Third terms added to the strongest pairs. Deeper conjunctions are where noise fits best, so they are few, drawn from the
+        pairs already ranked on the discovery window, counted in the ledger, and held to the complexity bar in the verdict."""
+        cfg, out = self.cfg, []
+        universe = [PI.Term(c, l) for c in self.cols for l in cfg.single_levels]
+        if cfg.max_triples <= 0 or not universe:
+            return out
+        for base in ranked_pairs[: cfg.triple_top_pairs]:
+            for _ in range(max(1, cfg.max_triples // max(cfg.triple_top_pairs, 1)) * 3):
+                if len(out) >= cfg.max_triples:
+                    return out
+                e = universe[int(self.rng.integers(len(universe)))]
+                if e.feature in base.expr.features:
+                    continue
+                c = self._mk(list(base.expr.base) + [e], [], "triple")
+                if c is not None and c.text not in seen:
+                    seen.add(c.text)
+                    out.append(c)
+        return out
+
     def exceptions(self, ranked_pairs: Sequence[Cand], seen: set[str]) -> list[Cand]:
         cfg, out = self.cfg, []
         universe = [PI.Term(c, l) for c in self.cols for l in (0, N_LEVELS - 1)]
@@ -743,7 +794,8 @@ class Screener:
             tested = np.concatenate([tested, ptested])
         two = [i for i, c in enumerate(cands) if len(c.expr.base) == 2]
         ranked = sorted(two, key=lambda i: (-abs(st["t"][i]) * tested[i], cands[i].text))
-        exc = self.exceptions([cands[i] for i in ranked if tested[i]], seen)
+        top_pairs = [cands[i] for i in ranked if tested[i]]
+        exc = self.exceptions(top_pairs, seen) + self.triples(top_pairs, seen)
         if exc:
             eSY, eSW = self.evaluate(exc, y)
             est, etested = self._stats(eSY, eSW)
@@ -791,9 +843,6 @@ class StreamingScreen:
     day (so a chunk is self-contained) or, for m_* columns, carried through TsQuantiler so the levels equal a one-pass build."""
 
     def __init__(self, cands: Sequence[Cand], n_weeks_hint: int = 4096, keep_worst: int = 5, min_names: int = 5):
-        for c in cands:
-            if c.expr.unless:
-                raise DiscoveryError("StreamingScreen covers singles and pairs; exceptions are evaluated on the shortlist")
         self.cands = list(cands)
         self.cols = sorted({f for c in cands for f in c.expr.features})
         self.min_names = min_names
@@ -861,6 +910,8 @@ class StreamingScreen:
             m = np.ones(len(yc), bool)
             for t in c.expr.base:
                 m &= cols[t.feature] == t.level
+            for e in c.expr.unless:
+                m &= (cols[e.feature] != e.level) & (cols[e.feature] >= 0)
             if not m.any():
                 continue
             self.week_sum_y[i] += np.bincount(wpos[m], weights=yc[m], minlength=n_wk)
@@ -1027,6 +1078,13 @@ class Dossier:
     verdict: GateVerdict
     reasons: tuple[str, ...]
     confirmations: int = 0
+    effect_ci: tuple[float, float] | None = None       # block-bootstrap interval of the validation-window mean (out of sample)
+    decay: float | None = None                         # validation-block slope in units of the discovery effect per block
+    stability: float | None = None                     # share of discovery-week subsamples in which it stays significant in its sign
+    m_shrunk: float | None = None                      # empirical-Bayes posterior mean of the discovery effect (winner's curse removed)
+    target: str = ""                                   # outcome tag it explains (target_horizon)
+    parent_t: float | None = None                      # smallest signed t of child vs (parent minus child) on validation weeks
+    hardest_parent: str = ""
     namespace: Namespace = Namespace.MATURED_RESEARCH
 
     def digest(self) -> str:
@@ -1268,6 +1326,10 @@ class Analyzer:
                 worst.append(s.t * direction)
         return float(min(worst)) if worst else None
 
+    def effect_ci(self, m: np.ndarray) -> tuple[float, float] | None:
+        sy, sw = weekly_sums(m & self.p.fit_rows, self.p.y, self.p.wk, self.p.n_wk)
+        return bootstrap_effect_ci(sy, sw, self.p.sel_val(), np.random.default_rng(self.cfg.seed), block=self.cfg.lags + 1)
+
     # -- reliability, temporal shape, complexity, impact
     def reliability(self, m: np.ndarray, direction: int) -> float | None:
         sy, sw = weekly_sums(m & self.p.fit_rows, self.p.y, self.p.wk, self.p.n_wk)
@@ -1316,7 +1378,8 @@ class Analyzer:
 
 # ----------------------------------------------------------------------------------------------------- verdict and record
 def decide(cfg: DiscoveryConfig, t_disc: float, truth: float | None, val: ValidationResult, ev: EvidenceCounts, ctl: ControlResult,
-           transfer: TransferProfile, cx: ComplexityAudit, direction: int, family_ok: bool) -> tuple[GateVerdict, tuple[str, ...]]:
+           transfer: TransferProfile, cx: ComplexityAudit, direction: int, family_ok: bool, stability: float | None = None,
+           parent_t: float | None = None) -> tuple[GateVerdict, tuple[str, ...]]:
     """Section 42: never PROMOTE from discovery. QUARANTINED beats FAILED beats NEEDS_MORE_EVIDENCE; UNKNOWN when validation is
     impossible (no populated validation block), which is different from failing it."""
     reasons: list[str] = []
@@ -1341,6 +1404,10 @@ def decide(cfg: DiscoveryConfig, t_disc: float, truth: float | None, val: Valida
         reasons.append(f"transfer {transfer.transfer:.2f} < {cfg.min_transfer}")
     if cx.earns is False:
         reasons.append("complexity has not earned its place")
+    if parent_t is not None and parent_t < cfg.min_parent_t:
+        reasons.append(f"adds nothing over its parent (t {parent_t:+.2f} < {cfg.min_parent_t})")
+    if stability is not None and stability < cfg.min_stability:
+        reasons.append(f"unstable: significant in only {stability:.0%} of week subsamples")
     if val.i2 is not None and val.i2 > 0.75:
         reasons.append("validation periods disagree strongly (I2 > 0.75)")
     return GateVerdict.NEEDS_MORE_EVIDENCE, tuple(reasons or ["awaiting fresh-data confirmation"])
@@ -1386,7 +1453,7 @@ def to_knowledge(d: Dossier, expr: PI.Expression, now, prov: Provenance, cfg: Di
     if v.pooled_mean is not None and v.pooled_se:
         effect = KN.Effect(d.direction, abs(v.pooled_mean), float(v.pooled_se), cfg.tag, cfg.horizon)
     else:
-        effect = KN.Effect(d.direction, abs(d.m_disc), None, cfg.tag, cfg.horizon)
+        effect = KN.Effect(d.direction, abs(d.m_shrunk if d.m_shrunk else d.m_disc), None, cfg.tag, cfg.horizon)
     tp = d.transfer
     fail_rate = float(d.failed_periods / max(1, v.n_blocks + 2))
     risk = float(np.clip(0.5 * fail_rate + 0.5 * (1.0 - (d.reliability if d.reliability is not None else 0.5)), 0.0, 1.0))
@@ -1688,6 +1755,10 @@ class DiscoveryEngine:
             return self._close(state, now_ts, run_id, chosen, skipped, bad, 0, 0, 0, 0, 0, 0, 0, {}, {}, halted or "no admissible family")
         fb = DS.build_features(inp, want, self.source_cfg)
         keep = [c for c in fb.X.columns if fb.X[c].notna().mean() >= 0.3 and fb.X[c].nunique(dropna=True) > 1]
+        dup = redundant_columns(fb.X[keep], cfg.feature_corr_max, seed=cfg.seed)
+        if dup:
+            keep = [c for c in keep if c not in dup]
+            skipped["duplicate_columns"] = f"{len(dup)} collapsed onto a near-identical column"
         y, matured = DS.target_labels(inp.bars, cfg.target, cfg.horizon, now_ts)
         if label_hook is not None:
             y = label_hook(y, fb.X[keep])
@@ -1710,7 +1781,7 @@ class DiscoveryEngine:
             self._merge_extra(res, sc, list(extra_cands))
         prim = [self._primary(c, fb.family_of) for c in res.cands]
         data_key = stable_hash({"fp": inp.fingerprint(), "w": panel.windows()["train"], "cols": keep, "h": cfg.horizon, "s": cfg.seed})
-        res.q_cum = state.ledger.register(run_id, now_ts, res.trial_ids, res.disc["p"], prim, data_key)
+        res.q_cum = state.ledger.record_run(run_id, now_ts, res.trial_ids, res.disc["p"], prim, data_key)
         alpha = state.wealth.per_test_alpha(len(res.cands))
         cand_idx = self._shortlist(res, sc)
         verdicts: dict[str, int] = {}
@@ -1719,8 +1790,10 @@ class DiscoveryEngine:
         code_hash = current_code_hash() or "unknown"          # once per step: hashing the loaded modules is slow
         exprs = {res.cands[i].id(cfg.tag): res.cands[i].expr for i in cand_idx}
         overlaps = known_overlaps(an, state, exprs, overlap=cfg.redundancy_overlap) if state.dossiers else {}
-        for i in cand_idx:
-            d, expr = self._dossier(state, panel, an, res, i, run_id, now_ts, fb, seen_thr)
+        stab = stability_selection(res.SY[cand_idx], res.SW[cand_idx], panel.sel_train, cfg.lags, seed=cfg.seed) if cand_idx else []
+        shr = shrunk_effects(res.disc["mean"], res.disc["se"])
+        for j, i in enumerate(cand_idx):
+            d, expr = self._dossier(state, panel, an, res, i, run_id, now_ts, fb, seen_thr, stab[j], shr[i])
             verdicts[d.verdict.value] = verdicts.get(d.verdict.value, 0) + 1
             if unit_id and d.validation.pooled_mean is not None and d.validation.pooled_se:
                 state.unit_evidence.setdefault(d.pattern_id, {})[unit_id] = [float(d.validation.pooled_mean), float(d.validation.pooled_se),
@@ -1802,7 +1875,8 @@ class DiscoveryEngine:
         return [order[j] for j in kept]
 
     def _dossier(self, state: DiscoveryState, panel: Panel, an: Analyzer, res: ScreenResult, i: int, run_id: str, now: pd.Timestamp,
-                 fb: DS.FeatureBuild, seen: pd.Timestamp) -> tuple[Dossier, PI.Expression]:
+                 fb: DS.FeatureBuild, seen: pd.Timestamp, stability: float | None = None,
+                 shrunk_mean: float | None = None) -> tuple[Dossier, PI.Expression]:
         cfg = self.cfg
         cand = res.cands[i]
         m = an.mask(cand.expr)
@@ -1817,14 +1891,18 @@ class DiscoveryEngine:
             hs = an.stat(m, an.sel_all, rows=panel.holdout_rows, min_weeks=cfg.context_min_weeks)
             hold = hs.t if hs.n_weeks >= cfg.context_min_weeks else None
         p_h, q_c = float(res.p_halluc[i]), float(res.q_cum[i])
-        truth = float(np.clip((1.0 - max(p_h, q_c)) * val.conf_factor, 0.0, 1.0)) if val.pooled_t is not None else None
+        pt, parent = parent_comparison(an, cand.expr, direction, cfg.context_min_weeks)
+        stab = None if stability is None else float(stability)
+        base_truth = (1.0 - max(p_h, q_c)) * val.conf_factor * (1.0 if stab is None else 0.5 + 0.5 * min(1.0, stab))
+        truth = float(np.clip(base_truth, 0.0, 1.0)) if val.pooled_t is not None else None
+        shrunk = None if shrunk_mean is None else float(shrunk_mean)
         rate, excess, ex = an.counterexamples(m, direction)
         ctl = an.controls(m, t_disc, direction)
         overall = an.stat(m, an.sel_all).mean
         fails = an.failure_conditions(cells, direction, overall)
         fam = tuple(sorted({fb.family_of.get(f, "miner") for f in cand.expr.features}))
         cx = an.complexity(cand.expr.text, val.pooled_t, direction)
-        verdict, reasons = decide(cfg, t_disc, truth, val, ev, ctl, tp, cx, direction, True)     # inadmissible families are never built
+        verdict, reasons = decide(cfg, t_disc, truth, val, ev, ctl, tp, cx, direction, True, stab, pt)     # inadmissible families are never built
         failed_periods = sum(1 for b in val.blocks if b.n_weeks >= cfg.context_min_weeks and b.mean * direction <= 0)
         d = Dossier(
             pattern_id=cand.id(cfg.tag), text=cand.expr.text, origin=cand.origin, families=fam, run_id=run_id,
@@ -1834,7 +1912,9 @@ class DiscoveryEngine:
             reliability=an.reliability(m, direction), transfer=tp, context_dependence=dep, context_feature=dep_feat, contexts=cells,
             failure_conditions=fails, failed_periods=failed_periods, counter_rate=rate, counter_excess=excess, counterexamples=ex,
             complexity=cx, impact=an.impact(fam, val, direction), controls=ctl,
-            temporal=an.temporal(val, m_disc, direction), verdict=verdict, reasons=reasons)
+            temporal=an.temporal(val, m_disc, direction), verdict=verdict, reasons=reasons, effect_ci=an.effect_ci(m),
+            decay=decay_per_block(val, m_disc, direction), stability=stab, m_shrunk=shrunk, target=cfg.tag,
+            parent_t=pt, hardest_parent=parent)
         return d, cand.expr
 
     # -- fresh-data revalidation: the only road from HYPOTHESIS to SUPPORTED
@@ -1959,7 +2039,7 @@ def discovery_report(state: DiscoveryState, top: int = 15) -> str:
     """Plain-text account of what is known, how much was tried to find it, and how little of it is trusted."""
     tot = state.ledger.total_trials
     cov = coverage_report(state)
-    lines = [f"DISCOVERY REPORT (MATURED_RESEARCH_STATE): {len(state.dossiers)} patterns, {tot} trials over {len(state.ledger.runs)} runs "
+    lines = [f"DISCOVERY REPORT (MATURED_RESEARCH_STATE): {len(state.dossiers)} patterns, {tot} trials over {len(state.ledger.run_log)} runs "
              f"({state.ledger.distinct_trials} distinct).",
              f"A lucky best of {max(state.ledger.distinct_trials, 2)} null candidates reaches |t| {state.ledger.expected_best_null_t():.2f}.",
              f"Families visited {len(cov['visited'])}/{len(DS.ALL_FAMILY_NAMES)}; never visited: {', '.join(cov['never_visited']) or 'none'}."]
@@ -2330,12 +2410,14 @@ class DiscoverySweep:
         self.book.save(self.dir / "coverage.json")          # book last: a kill in between re-runs a unit, never skips one
 
     # -- what to do next
-    def data_through(self, last_date) -> dict[int, str]:
+    def years_before(self, last_date) -> int:
+        """Years that are units right now: every year strictly before the year of the newest session, plus that year itself once it has
+        closed (its last December sessions are in). A year still arriving is not a unit yet (CoverageBook.pending(years_before=...))."""
         last = pd.Timestamp(as_date(last_date))
-        return {y: str(min(pd.Timestamp(year=y, month=12, day=31), last).date()) for y in self.cfg.years if pd.Timestamp(year=y, month=1, day=1) <= last}
+        return last.year + 1 if last >= pd.Timestamp(year=last.year, month=12, day=24) else last.year
 
     def pending(self, last_date, limit: int | None = None):
-        return self.book.pending(features=(self.tag,), data_through=self.data_through(last_date), limit=limit)
+        return self.book.pending(features=(self.tag,), limit=limit, years_before=self.years_before(last_date))
 
     def next_family(self, last_date) -> str | None:
         """Family of the least-covered pending unit (for callers that only want the direction of travel)."""
@@ -2353,7 +2435,7 @@ class DiscoverySweep:
         dates = pd.to_datetime(inp.bars["date"])
         last = dates.max() if len(dates) else start
         through = min(pd.Timestamp(last), end)
-        complete = bool(pd.Timestamp(last) >= end)
+        complete = True
         rec = dict(uid=unit.uid, through=str(through.date()), complete=complete, n_days=int(dates[(dates >= start) & (dates <= end)].nunique()),
                    n_names=len(names), features_done=(self.tag,), config_digest=self.tag[5:], code_hash="")
         if len(names) < self.cfg.min_names:
@@ -2398,16 +2480,16 @@ class DiscoverySweep:
     def coverage(self, last_date=None) -> dict[str, Any]:
         """Where the search has and has not been: by family, cohort, year and era, plus thin/unusable units and the pending count."""
         from engine.research.episodes import Unit, era_of
-        dt_ = self.data_through(last_date) if last_date is not None else None
+        yb = self.years_before(last_date) if last_date is not None else None
         rep = self.book.report((self.tag,))
         by_f: dict[str, list[int]] = {}
         by_c: dict[str, list[int]] = {}
         by_era: dict[int, list[int]] = {}
         thin = unusable = 0
         for u in self.book.all_units():
-            if dt_ is not None and u.year not in dt_:
+            if yb is not None and u.year >= yb:
                 continue
-            done = int(self.book.is_done(u, (self.tag,), dt_))
+            done = int(self.book.is_done(u, (self.tag,)))
             f, c = u.lens.split("@")
             for tab, key in ((by_f, f), (by_c, c), (by_era, int(era_of(pd.DatetimeIndex([pd.Timestamp(year=u.year, month=6, day=1)]))[0]))):
                 tab.setdefault(key, [0, 0])
@@ -2641,3 +2723,489 @@ def explain(state: DiscoveryState, pid: str) -> str:
         lines.append("  not trusted because: " + "; ".join(d.reasons))
     lines += [f"  e.g. {c.date} {c.ticker}: {c.outcome:+.4f} ({c.z:+.1f} sd)" for c in d.counterexamples[:3]]
     return "\n".join(lines)
+
+
+# ======================================================================================================================
+# Life after discovery: redundancy between columns and between findings, contradictions, decay, retirement, budgets, reports
+# ======================================================================================================================
+def redundant_columns(X: pd.DataFrame, threshold: float = 0.98, sample: int = 20_000, seed: int = 0) -> dict[str, str]:
+    """Near-duplicate feature columns (|Spearman| >= threshold on a seeded row sample), as {dropped: keeper}. Two columns that carry the
+    same information are one hypothesis tested twice: keeping both inflates the multiple-testing count for nothing and lets one
+    idea occupy two shortlist slots. The keeper is the column with fewer gaps, ties by name (never by position)."""
+    if threshold >= 1.0 or X.shape[1] < 2:
+        return {}
+    rows = X.sample(n=min(sample, len(X)), random_state=seed) if len(X) > sample else X
+    order = sorted(X.columns, key=lambda c: (float(X[c].isna().mean()), c))
+    corr = rows[order].rank().corr(min_periods=max(30, len(rows) // 20)).abs().to_numpy()
+    kept: list[int] = []
+    out: dict[str, str] = {}
+    for j, c in enumerate(order):
+        hit = next((i for i in kept if corr[i, j] >= threshold), None)
+        if hit is None:
+            kept.append(j)
+        else:
+            out[c] = order[hit]
+    return out
+
+
+def panel_health(panel: Panel) -> dict[str, Any]:
+    """Facts about a panel that decide whether a screen on it means anything: rows per week (thin weeks), missing rate per feature,
+    constant columns, and how much of the panel is reserved. Nothing here reads outcomes."""
+    per_week = np.bincount(panel.wk, minlength=panel.n_wk)
+    miss = panel.X.isna().mean()
+    return {"weeks": panel.n_wk, "rows": len(panel.y), "rows_per_week_min": int(per_week.min()), "rows_per_week_median": float(np.median(per_week)),
+            "thin_weeks": int((per_week < 0.25 * np.median(per_week)).sum()), "features": panel.X.shape[1],
+            "features_over_half_missing": sorted(miss[miss > 0.5].index.tolist()),
+            "constant_features": sorted(c for c in panel.X.columns if panel.X[c].nunique(dropna=True) <= 1),
+            "reserved_stock_share": float(panel.holdout_rows.mean()), "train_weeks": int(panel.sel_train.sum()),
+            "validation_weeks": [int(s.sum()) for s in panel.sel_blocks]}
+
+
+def bootstrap_effect_ci(sy: np.ndarray, sw: np.ndarray, sel: np.ndarray, rng: np.random.Generator, reps: int = 400, block: int = 2,
+                        level: float = 0.95) -> tuple[float, float] | None:
+    """Moving-block bootstrap of the pooled mean over the populated weeks in `sel` (blocks keep the serial dependence that overlapping
+    forward windows create). None when fewer than 8 weeks are populated. The interval, not the point estimate, is what a small effect's
+    claim rests on."""
+    idx = np.flatnonzero(sel & (sw > 0))
+    n = len(idx)
+    if n < 8:
+        return None
+    y, w = sy[idx], sw[idx]
+    b = max(1, min(block, n))
+    starts = rng.integers(0, n - b + 1, size=(reps, int(math.ceil(n / b))))
+    take = (starts[:, :, None] + np.arange(b)[None, None, :]).reshape(reps, -1)[:, :n]
+    means = y[take].sum(axis=1) / w[take].sum(axis=1)
+    a = (1.0 - level) / 2.0
+    return float(np.quantile(means, a)), float(np.quantile(means, 1.0 - a))
+
+
+def decay_per_block(val: ValidationResult, m_train: float, direction: int) -> float | None:
+    """Least-squares slope of the direction-signed validation-block means, in units of the discovery effect per block (0 = steady, -1 =
+    loses its whole size each block). None with fewer than two populated blocks. A pattern can validate and still be fading."""
+    pts = [(b.block, b.mean * direction) for b in val.blocks if b.n_weeks > 0]
+    if len(pts) < 2 or m_train == 0:
+        return None
+    x, y = np.array([p[0] for p in pts], dtype=float), np.array([p[1] for p in pts])
+    x = x - x.mean()
+    return float((x * (y - y.mean())).sum() / (x * x).sum() / abs(m_train))
+
+
+def dossier_changes(old: Dossier, new: Dossier) -> list[tuple[str, Any, Any]]:
+    """Scalar fields that moved between two dossiers of the same pattern: what a re-test actually changed."""
+    if old.pattern_id != new.pattern_id:
+        raise DiscoveryError("dossiers are of different patterns")
+    out = []
+    for f in dataclasses.fields(Dossier):
+        a, b = getattr(old, f.name), getattr(new, f.name)
+        if f.name in ("run_id", "discovered_at", "windows", "counterexamples", "contexts"):
+            continue
+        if isinstance(a, (int, float, str, bool)) or a is None or isinstance(a, GateVerdict):
+            same = (a == b) or (isinstance(a, float) and isinstance(b, float) and math.isnan(a) and math.isnan(b))
+            if not same:
+                out.append((f.name, a, b))
+        elif a != b:
+            out.append((f.name, "…", "…"))
+    return out
+
+
+def find_contradictions(an: Analyzer, state: DiscoveryState, min_jaccard: float = 0.5, max_known: int = 300) -> list[tuple[str, str, float]]:
+    """Pairs of non-failed patterns that fire on largely the same rows yet claim opposite directions. Both cannot be right about the same
+    rows; the pair is returned (a, b, jaccard) so the knowledge store can record CONTRADICTS and the question generator can ask why."""
+    live = [(pid, d) for pid, d in sorted(state.dossiers.items()) if d.verdict not in (GateVerdict.FAILED,)][:max_known]
+    masks = {}
+    for pid, d in live:
+        try:
+            e = PI.Expression.parse(d.text)
+        except PI.IdentityError:
+            continue
+        if all(f in an.codes for f in e.features):
+            masks[pid] = an.mask(e)
+    out = []
+    ids = sorted(masks)
+    for i, a in enumerate(ids):
+        for b in ids[i + 1:]:
+            if state.dossiers[a].direction != state.dossiers[b].direction:
+                jac = PS.jaccard(masks[a], masks[b])
+                if jac >= min_jaccard:
+                    out.append((a, b, float(jac)))
+    return out
+
+
+def link_contradictions(state: DiscoveryState, pairs: Sequence[tuple[str, str, float]], now) -> int:
+    """Record each pair as CONTRADICTS on both knowledge objects (new versions; idempotent). Contradiction lowers neither object's stored
+    truth by itself - it is evidence about the pair, resolved by fresh data - but it is on the record for the graph and the question generator."""
+    now_ts = pd.Timestamp(as_date(now))
+    n = 0
+    for a, b, _ in pairs:
+        for x, y in ((a, b), (b, a)):
+            k = state.store.latest("K-" + x)
+            if k is None or "K-" + y in k.relations.contradicting:
+                continue
+            rel = dataclasses.replace(k.relations, contradicting=tuple(sorted(set(k.relations.contradicting) | {"K-" + y})))
+            state.store.add(k.new_version(max(now_ts, pd.Timestamp(k.updated_at)), f"contradicts {y}", relations=rel))
+            n += 1
+    return n
+
+
+def retire_failed(state: DiscoveryState, now, min_age_days: int = 180) -> int:
+    """Retire findings that failed validation, or were contradicted, and have stayed that way for `min_age_days` without a single
+    confirmation. Retirement is a new version and never a deletion; the failure explanation stays on the record."""
+    now_ts = pd.Timestamp(as_date(now))
+    n = 0
+    for pid, d in sorted(state.dossiers.items()):
+        k = state.store.latest("K-" + pid)
+        if k is None or k.epistemic == Epistemic.RETIRED or d.confirmations > 0:
+            continue
+        if k.epistemic != Epistemic.CONTRADICTED and d.verdict != GateVerdict.FAILED:
+            continue
+        if (now_ts - pd.Timestamp(k.updated_at)).days < min_age_days:
+            continue
+        state.store.add(k.retire(now_ts, "failed validation and never confirmed", FailureCause.FALSE_PATTERN))
+        n += 1
+    return n
+
+
+def plan_budget(state: DiscoveryState, families: Sequence[str], total: int, floor_frac: float = 0.3) -> dict[str, int]:
+    """Split a candidate budget across families: `floor_frac` of it evenly (every family keeps being looked at), the rest by smoothed
+    survivor yield discounted by the family's own false-discovery record. Capped by what the alpha wealth can pay for at a useful level."""
+    if not families or total <= 0:
+        return {f: 0 for f in families}
+    total = min(int(total), state.wealth.max_trials(1e-5)) if state.wealth.max_trials(1e-5) > 0 else 0
+    w = {}
+    for f in families:
+        r = state.families.get(f, FamilyRecord())
+        w[f] = max(1e-6, (r.survivors + 1.0) / (r.trials + 10.0) * (1.0 - state.ledger.family_fdr(f)))
+    z = sum(w.values())
+    even = int(total * floor_frac) // len(families)
+    out = {f: even + int((total - even * len(families)) * w[f] / z) for f in families}
+    left = total - sum(out.values())
+    for f in sorted(families, key=lambda f: (-w[f], f))[:max(left, 0)]:
+        out[f] += 1
+    return out
+
+
+def discovery_markdown(state: DiscoveryState, top: int = 20) -> str:
+    """A shareable research note: the ledger's honesty line first, then each surviving pattern with what it cost to find it."""
+    pol = small_effect_policy(state.ledger)
+    lines = ["# Pattern discovery", "",
+             f"{len(state.dossiers)} patterns from {state.ledger.total_trials} trials ({state.ledger.distinct_trials} distinct); "
+             f"the ledger's BH threshold is p <= {pol.p_threshold:.2e}, so about {pol.expected_false:.1f} chance passes are expected.", ""]
+    rank = sorted(state.dossiers.values(), key=lambda d: (d.verdict != GateVerdict.NEEDS_MORE_EVIDENCE, -(d.truth or 0.0), d.text))[:top]
+    lines += ["| pattern | verdict | dir | t disc | truth | transfer | independent | notes |", "|---|---|---|---|---|---|---|---|"]
+    for d in rank:
+        tr = "n/a" if d.transfer.transfer is None else f"{d.transfer.transfer:.2f}"
+        tt = "n/a" if d.truth is None else f"{d.truth:.2f}"
+        lines.append(f"| {d.text} | {d.verdict.value} | {d.direction:+d} | {d.t_disc:+.2f} | {tt} | {tr} | {d.evidence.independent} | "
+                     f"{'; '.join(d.reasons)[:80]} |")
+    return "\n".join(lines)
+
+
+# ======================================================================================================================
+# Stability, shrinkage, questions, rescoping, real-data adapter, and the single service tick the research loop calls
+# ======================================================================================================================
+def stability_selection(SY: np.ndarray, SW: np.ndarray, sel: np.ndarray, lags: int | None, n_sub: int = 40, frac: float = 0.5,
+                        t_bar: float = 2.0, seed: int = 0, min_weeks: int = 6) -> np.ndarray:
+    """Meinshausen-Buhlmann style selection frequency straight from the weekly sums (no data re-read): in each of `n_sub` random
+    subsamples of `frac` of the discovery weeks, is the candidate still significant IN ITS OWN SIGN? A pattern carried by a handful of weeks
+    is selected in few subsamples; a real one in most. Returns one frequency per candidate row."""
+    SY, SW = np.atleast_2d(SY), np.atleast_2d(SW)
+    full = weekly_stats_matrix(SY, SW, sel, lags, min_weeks)
+    sign = np.sign(full["mean"])
+    weeks = np.flatnonzero(sel)
+    rng = np.random.default_rng(seed)
+    hits = np.zeros(len(SY))
+    k = max(int(len(weeks) * frac), min_weeks)
+    for _ in range(n_sub):
+        pick = np.zeros(SY.shape[1], bool)
+        pick[np.sort(rng.choice(weeks, size=min(k, len(weeks)), replace=False))] = True
+        st = weekly_stats_matrix(SY, SW, pick, lags, min_weeks)
+        hits += (st["t"] * sign >= t_bar)
+    return hits / n_sub
+
+
+def shrunk_effects(means: np.ndarray, ses: np.ndarray) -> np.ndarray:
+    """Empirical-Bayes posterior means of every tested effect (engine.pattern_stats.eb_shrink): the tau^2 is learned from the whole
+    screen, so a screen that returns mostly noise learns a tiny tau and shrinks everything hard. The winner's curse, corrected."""
+    ok = np.isfinite(ses) & (ses > 0) & np.isfinite(means)
+    post = np.asarray(means, dtype=float).copy()
+    if ok.sum() >= 2:
+        post[ok] = PS.eb_shrink(np.asarray(means)[ok], np.asarray(ses)[ok], center=0.0)["post_mean"]
+    return post
+
+
+def family_pair_table(state: DiscoveryState) -> pd.DataFrame:
+    """Which pairs of source families produce conjunctions that survive: are the survivors within one family (a single idea measured
+    twice) or across families (information one family lacks)?"""
+    rows: dict[tuple[str, ...], list[int]] = {}
+    for d in state.dossiers.values():
+        if len(d.families) < 2 and len(PI.Expression.parse(d.text).features) < 2:
+            continue
+        key = d.families if len(d.families) > 1 else (d.families[0], d.families[0])
+        rec = rows.setdefault(tuple(key), [0, 0])
+        rec[0] += 1
+        rec[1] += d.verdict == GateVerdict.NEEDS_MORE_EVIDENCE
+    return pd.DataFrame([{"families": " x ".join(k), "patterns": v[0], "surviving": v[1]} for k, v in sorted(rows.items())],
+                        columns=["families", "patterns", "surviving"])
+
+
+def rescoped_candidates(state: DiscoveryState, min_t: float = 2.0, limit: int = 30) -> list[Cand]:
+    """Why do patterns break? For findings that depend significantly on one market-context feature, propose the pattern restricted to the
+    levels of that feature where it held (or, for a FAILED one, where it held while it failed elsewhere). They are ordinary candidates:
+    tested on the next step, paid for in the ledger, never assumed."""
+    out, seen = [], set()
+    for pid, d in sorted(state.dossiers.items()):
+        if not d.context_feature or d.context_dependence is None or d.context_dependence < 0.3:
+            continue
+        good = [c for c in d.contexts if c.t * d.direction >= min_t and c.n_weeks >= 8]
+        if not good:
+            continue
+        try:
+            base = PI.Expression.parse(d.text)
+        except PI.IdentityError:
+            continue
+        if any(t.feature == d.context_feature for t in base.base):
+            continue
+        for c in good:
+            for lv in range(c.levels[0], c.levels[1] + 1):
+                try:
+                    e = PI.Expression.make(list(base.base) + [PI.Term(d.context_feature, lv)], base.unless)
+                except PI.IdentityError:
+                    continue
+                if e.text not in seen and len(out) < limit:
+                    seen.add(e.text)
+                    out.append(Cand(e, "rescope", d.families))
+    return out
+
+
+def open_questions(state: DiscoveryState, now, created_real: str | None = None) -> list:
+    """Research questions the discovery record itself raises, as identity-free engine.research.core.ResearchQuestion objects for the
+    agenda: patterns that validate but have not recurred in another era, findings that depend on context, patterns that faded, and
+    contradictions. Text carries pattern expressions only - no ticker, no date."""
+    from engine.research.core import Problem, ResearchQuestion
+    created = created_real or dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
+    through = max((d.outcomes_seen_through for d in state.dossiers.values()), default=str(as_date(now)))
+    qs = []
+    rec = {r.pattern_id: r for r in recurrence_table(state)}
+    for pid, d in sorted(state.dossiers.items()):
+        if d.verdict == GateVerdict.NEEDS_MORE_EVIDENCE:
+            r = rec.get(pid)
+            if r is None or r.n_eras < 2:
+                qs.append(ResearchQuestion.make(f"Does '{d.text}' hold in an era it was not discovered in?", "discovery", Problem.VOLATILITY
+                                                if d.target.startswith(("abs_move", "range_exp")) else Problem.DIRECTION, created, through,
+                                                "same sign and t >= 2 in an independent era", "opposite sign or t < 1 in every other era"))
+            if d.decay is not None and d.decay < -0.3:
+                qs.append(ResearchQuestion.make(f"Why is '{d.text}' fading across validation blocks?", "discovery", Problem.RESEARCH_PROCESS, created,
+                                                through, "an identified change explains the decay", "no candidate cause survives a test"))
+        if d.context_feature and d.context_dependence is not None and d.context_dependence >= 0.3:
+            qs.append(ResearchQuestion.make(f"Is the effect of '{d.text}' confined to particular levels of {d.context_feature}?", "discovery",
+                                            Problem.CONSISTENCY, created, through, "rescoped pattern holds where the whole did not",
+                                            "rescoped pattern is no stronger than the whole"))
+        if d.failure_conditions and d.verdict != GateVerdict.FAILED:
+            f = d.failure_conditions[0]
+            qs.append(ResearchQuestion.make(f"What makes '{d.text}' stop working when {f.feature} is in levels {f.levels[0]}-{f.levels[1]}?",
+                                            "break", Problem.LOSS_AVOIDANCE, created, through, "a mechanism predicts the failure out of sample",
+                                            "the failure does not recur"))
+    return sorted({q.question_id: q for q in qs}.values(), key=lambda q: q.question_id)
+
+
+def inputs_from_wide(blocks: Mapping[str, pd.DataFrame], sectors: Mapping[str, str] | None = None, **tables: pd.DataFrame | None
+                     ) -> DS.SourceInputs:
+    """Adapter from engine.research.episodes.load_bars (wide Open/High/Low/Close/Volume blocks, dates x tickers) to SourceInputs. Rows
+    where the close is missing are dropped (a halted session is absent, not zero); nothing is filled."""
+    need = ("Open", "High", "Low", "Close", "Volume")
+    miss = [k for k in need if k not in blocks]
+    if miss:
+        raise DiscoveryError(f"wide blocks missing {miss}")
+    long = pd.concat({k.lower(): blocks[k].stack() for k in need}, axis=1).dropna(subset=["close"]).reset_index()
+    long.columns = ["date", "ticker", "open", "high", "low", "close", "volume"]
+    long["volume"] = long["volume"].fillna(0.0)
+    for c in ("open", "high", "low"):
+        long[c] = long[c].fillna(long["close"])
+    return DS.SourceInputs(long, sectors, **tables)
+
+
+def feature_report(fb: DS.FeatureBuild) -> pd.DataFrame:
+    """Per source family: columns, share missing, constant columns, and the availability class - the audit trail for 'what was searched'."""
+    rows = []
+    for f in fb.families():
+        cols = fb.columns_of(f)
+        sub = fb.X[cols]
+        rows.append({"family": f, "columns": len(cols), "missing_share": float(sub.isna().mean().mean()),
+                     "constant": int((sub.nunique(dropna=True) <= 1).sum()), "availability": str(fb.availability[cols[0]])})
+    return pd.DataFrame(rows, columns=["family", "columns", "missing_share", "constant", "availability"])
+
+
+class DiscoveryService:
+    """The one object the research loop drives in the 24/7 mode (rule 25). `tick(now, loader)` does, in order: take a few least-covered
+    sweep units, fold cross-year recurrence into the knowledge store, link contradictions, retire what failed and never confirmed,
+    refresh the open questions, and checkpoint. It never releases anything: the trader-facing road is `release_filter` behind the curator."""
+
+    def __init__(self, sweep: DiscoverySweep, state: DiscoveryState, precursor_source: Callable[[], Iterable[Any]] | None = None,
+                 units_per_tick: int = 2):
+        self.sweep, self.state, self.units_per_tick = sweep, state, units_per_tick
+        self.precursor_source = precursor_source or (lambda: ())
+        self.questions: list = []
+        self.last: dict[str, Any] = {}
+
+    def tick(self, now, loader: Callable[[pd.Timestamp, pd.Timestamp], DS.SourceInputs], last_date=None) -> dict[str, Any]:
+        last = last_date if last_date is not None else now
+        reps = self.sweep.run(self.state, loader, last, max_units=self.units_per_tick, precursors=list(self.precursor_source()))
+        pol = small_effect_policy(self.state.ledger)
+        rec = apply_recurrence(self.state, now, self.sweep.engine.cfg, pol)
+        retired = retire_failed(self.state, now)
+        self.questions = open_questions(self.state, now)
+        self.last = {"units_run": len(reps), "recurrence": rec, "retired": retired, "questions": len(self.questions),
+                     "pending": len(self.sweep.pending(last)), "audit": audit_state(self.state)}
+        self.sweep.checkpoint(self.state)
+        return self.last
+
+
+# ======================================================================================================================
+# Replication across years (streamed), conjunction-earns-its-place, cross-outcome consistency, input normalisers
+# ======================================================================================================================
+def year_stats(ss: StreamingScreen, i: int, lags: int | None, min_weeks: int = 8) -> dict[int, WeeklyStat]:
+    """Per-ISO-year weekly statistic of streamed candidate i. Years with fewer than `min_weeks` populated weeks are omitted."""
+    keys = np.asarray(ss.week_keys)
+    out = {}
+    for yr in sorted({int(k) // 100 for k in keys}):
+        sel = (keys // 100) == yr
+        st = weekly_stat(ss.week_sum_y[i], ss.week_sum_w[i], sel, lags, min_weeks)
+        if st.n_weeks >= min_weeks:
+            out[yr] = st
+    return out
+
+
+def replicate_across_years(state: DiscoveryState, loader: Callable[[pd.Timestamp, pd.Timestamp], DS.SourceInputs], years: Sequence[int],
+                           cfg: DiscoveryConfig, families: Sequence[str] | None = None, source_cfg: DS.SourceConfig = DS.DEFAULT_SOURCE_CONFIG,
+                           now=None, verdicts: Sequence[GateVerdict] = (GateVerdict.NEEDS_MORE_EVIDENCE,), max_patterns: int = 200) -> dict[str, int]:
+    """Take the surviving patterns, stream the years one at a time with exactly their expressions (no new search, so no new selection),
+    and file each year's estimate as unit evidence tagged 'stream'. Years in which a pattern was itself discovered are skipped, so no
+    year is counted twice. This is where a small effect earns or loses its recurrence: fixed hypotheses, many years, small memory."""
+    pids = [pid for pid, d in sorted(state.dossiers.items()) if d.verdict in verdicts][:max_patterns]
+    cands = []
+    for pid in pids:
+        try:
+            e = PI.Expression.parse(state.dossiers[pid].text)
+        except PI.IdentityError:
+            continue
+        cands.append((pid, Cand(e, "replication", state.dossiers[pid].families)))
+    if not cands:
+        return {"patterns": 0, "estimates": 0, "years": 0}
+    need = sorted({f.split("__")[0].removeprefix("m_") for _, c in cands for f in c.expr.features} | set(families or ()))
+    ss, _ = stream_screen(loader, years, [c for _, c in cands], cfg.horizon, need, source_cfg, now)
+    filed = 0
+    for i, (pid, c) in enumerate(cands):
+        own = {_unit_year(u) for u in state.unit_evidence.get(pid, {})} | {int(state.dossiers[pid].windows["train"][0][:4])}
+        for yr, st in year_stats(ss, i, cfg.lags).items():
+            if yr in own or not math.isfinite(st.se) or st.se <= 0:
+                continue
+            state.unit_evidence.setdefault(pid, {})[f"{yr}|stream|{c.origin}"] = [float(st.mean), float(st.se), float(state.dossiers[pid].direction),
+                                                                                    float(st.t)]
+            filed += 1
+    return {"patterns": len(cands), "estimates": filed, "years": len(list(years))}
+
+
+def parent_comparison(an: "Analyzer", expr: PI.Expression, direction: int, min_weeks: int = 8) -> tuple[float | None, str]:
+    """Does a conjunction add anything over what it is made from? For each simpler expression (one term dropped) compare, week by week
+    on the VALIDATION weeks, the outcome where the child holds against the outcome where the parent holds but the child does not. Returns
+    the smallest direction-signed t over the parents and the parent that was hardest to beat ('' for a single term). A pair that is
+    just its better half plus noise fails here even when its own t is large."""
+    parents = expr.parents()
+    if not parents:
+        return None, ""
+    child = an.mask(expr)
+    worst, who = None, ""
+    sel = an.p.sel_val()
+    for par in parents:
+        pm = an.mask(par)
+        rest = pm & ~child
+        cy, cw = weekly_sums(child & an.p.fit_rows, an.p.y, an.p.wk, an.p.n_wk)
+        ry, rw = weekly_sums(rest & an.p.fit_rows, an.p.y, an.p.wk, an.p.n_wk)
+        both = sel & (cw > 0) & (rw > 0)
+        if both.sum() < min_weeks:
+            continue
+        diff = cy[both] / cw[both] - ry[both] / rw[both]
+        w = np.minimum(cw[both], rw[both])
+        mu = float((w * diff).sum() / w.sum())
+        sd = float(np.sqrt(((w * (diff - mu) ** 2).sum() / w.sum()) / max(both.sum() - 1, 1)))
+        t = mu / sd if sd > 0 else 0.0
+        if worst is None or t * direction < worst:
+            worst, who = float(t * direction), par.text
+    return worst, who
+
+
+def cross_target_table(state: DiscoveryState) -> pd.DataFrame:
+    """The same expression judged against different outcomes and horizons (their ids differ by target tag): direction of the excess move,
+    size of the absolute move, range expansion, continuation. A mechanism that shows up in several consistent outcomes is worth more than
+    one that shows up in a single one; disagreement between them is itself a finding."""
+    rows = [{"text": d.text, "target": d.target or "?", "direction": d.direction, "t_disc": d.t_disc, "truth": d.truth, "verdict": d.verdict.value}
+            for d in state.dossiers.values()]
+    if not rows:
+        return pd.DataFrame(columns=["text", "n_targets", "targets", "signs_agree_on_excess", "best_truth"])
+    df = pd.DataFrame(rows)
+    out = []
+    for text, g in df.groupby("text"):
+        if g["target"].nunique() < 2:
+            continue
+        ex = g[g["target"].str.startswith("excess")]
+        out.append({"text": text, "n_targets": int(g["target"].nunique()), "targets": ",".join(sorted(g["target"].unique())),
+                    "signs_agree_on_excess": bool(ex["direction"].nunique() == 1) if len(ex) > 1 else None,
+                    "best_truth": float(g["truth"].max()) if g["truth"].notna().any() else None})
+    return pd.DataFrame(out, columns=["text", "n_targets", "targets", "signs_agree_on_excess", "best_truth"])
+
+
+# ------------------------------------------------------------------------------------------- normalisers for real tables
+def earnings_table(df: pd.DataFrame, date_col: str = "date", announced_col: str | None = None, surprise_col: str | None = None,
+                   ticker_col: str = "ticker") -> pd.DataFrame:
+    """Normalise an earnings-calendar frame to (ticker, date[, announced_at, surprise]). A row whose announcement is dated AFTER the event
+    it announces is a data error (it would let the calendar look ahead) and raises; rows without a date are dropped and counted in attrs."""
+    if date_col not in df.columns or ticker_col not in df.columns:
+        raise DiscoveryError(f"earnings frame needs {ticker_col} and {date_col}")
+    out = pd.DataFrame({"ticker": df[ticker_col].astype(str), "date": pd.to_datetime(df[date_col], errors="coerce")})
+    if announced_col:
+        out["announced_at"] = pd.to_datetime(df[announced_col], errors="coerce")
+        if (out["announced_at"] > out["date"]).any():
+            raise DiscoveryError("earnings announced after the event date: the calendar would look ahead")
+    if surprise_col:
+        out["surprise"] = pd.to_numeric(df[surprise_col], errors="coerce")
+    n = int(out["date"].isna().sum())
+    out = out.dropna(subset=["date"]).drop_duplicates(["ticker", "date"]).reset_index(drop=True)
+    out.attrs["dropped_undated"] = n
+    return out
+
+
+def filings_table(df: pd.DataFrame, filed_col: str = "filed_at", form_col: str | None = "form", ticker_col: str = "ticker",
+                  accepted_col: str | None = None) -> pd.DataFrame:
+    """Normalise SEC-style filings to (ticker, filed_at[, form]). When an acceptance timestamp is given it is used in preference to the
+    filing date (a filing accepted after the close is public only the next session); a filing date that precedes its acceptance
+    date is impossible and raises."""
+    if filed_col not in df.columns or ticker_col not in df.columns:
+        raise DiscoveryError(f"filings frame needs {ticker_col} and {filed_col}")
+    filed = pd.to_datetime(df[filed_col], errors="coerce")
+    if accepted_col:
+        acc = pd.to_datetime(df[accepted_col], errors="coerce")
+        if (acc.dt.normalize() < filed.dt.normalize()).any():
+            raise DiscoveryError("a filing was accepted before its own filing date")
+        after_close = acc.dt.hour >= 16
+        filed = acc.dt.normalize() + pd.to_timedelta(after_close.astype(int), unit="D")
+    out = pd.DataFrame({"ticker": df[ticker_col].astype(str), "filed_at": filed})
+    if form_col and form_col in df.columns:
+        out["form"] = df[form_col].astype(str)
+    return out.dropna(subset=["filed_at"]).drop_duplicates().reset_index(drop=True)
+
+
+def insiders_table(df: pd.DataFrame, filed_col: str = "filed_at", value_col: str = "value", ticker_col: str = "ticker",
+                   insider_col: str | None = "insider", side_col: str | None = None) -> pd.DataFrame:
+    """Normalise insider transactions to (ticker, filed_at, value[, insider]) with a SIGNED value (buys positive). A side column
+    ('B'/'S'/'buy'/'sell') signs an unsigned value; the filing date, not the transaction date, is what the market could see."""
+    for c in (filed_col, value_col, ticker_col):
+        if c not in df.columns:
+            raise DiscoveryError(f"insider frame needs {c}")
+    val = pd.to_numeric(df[value_col], errors="coerce").abs() if side_col else pd.to_numeric(df[value_col], errors="coerce")
+    if side_col:
+        sell = df[side_col].astype(str).str.lower().str[0].isin(["s"])
+        val = val.where(~sell, -val)
+    out = pd.DataFrame({"ticker": df[ticker_col].astype(str), "filed_at": pd.to_datetime(df[filed_col], errors="coerce"), "value": val})
+    if insider_col and insider_col in df.columns:
+        out["insider"] = df[insider_col].astype(str)
+    return out.dropna(subset=["filed_at", "value"]).reset_index(drop=True)

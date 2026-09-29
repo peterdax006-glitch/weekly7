@@ -96,7 +96,7 @@ class RegimeConfig:
     k_max: int = 5
     min_silhouette: float = 0.25
     min_cluster_share: float = 0.05
-    clip_z: float = 4.0                       # standardised discovery features are clipped so one spike cannot own a cluster
+    clip_z: float = 6.0                       # standardised discovery features are clipped so one spike cannot own a cluster
     min_stability: float = 0.6                # adjusted Rand agreement of bootstrap refits with the full fit
     stability_boots: int = 6
     stability_tol: float = 0.05               # take the smallest k within this of the best stability
@@ -453,7 +453,10 @@ class DiscoveredRegimes:
             self.fits.append(fit)
             return fit
         center = np.median(X, axis=0)
-        scale = np.array([robust_scale(X[:, j]) or float(X[:, j].std()) or 1.0 for j in range(X.shape[1])])
+        # scale = std of the 1st-99th percentile winsorised column: a MAD collapses when one regime holds most days (the other regime is
+        # then 15 'sigmas' away and clipping would flatten it), while winsorising still stops a single spike from owning the scale
+        lo, hi = np.percentile(X, 1, axis=0), np.percentile(X, 99, axis=0)
+        scale = np.array([float(np.clip(X[:, j], lo[j], hi[j]).std()) or 1.0 for j in range(X.shape[1])])
         Z = np.clip((X - center) / scale, -self.cfg.clip_z, self.cfg.clip_z)
         cands = []
         for k in range(2, self.cfg.k_max + 1):
@@ -841,14 +844,19 @@ class RegimeStepResult:
     verdicts: Mapping[str, str]
     gates: Mapping[str, Any]
     changes: tuple[RegimeChange, ...]
+    active: tuple[str, ...] = ()                       # the named regimes (of the twelve) active today
+    warnings: tuple["EarlyWarning", ...] = ()          # axes under pressure toward a pole they are not yet in
+    unhealthy: tuple[str, ...] = ()                    # axes failing axis_health(): distrust verdicts that lean on them
+    discovery_stability: float | None = None
 
 
 def step(monitor: RegimeMonitor, book: PatternRegimeBook, now, market_row: Mapping[str, Any],
          pattern_effects: Iterable[tuple[str, Any, float, Any]] = (), replay_years: Iterable[int] = (),
-         gate_patterns: Iterable[str] = ()) -> RegimeStepResult:
+         gate_patterns: Iterable[str] = (), named: "NamedRegimeMonitor | None" = None) -> RegimeStepResult:
     """ONE research-loop step at `now`: file each matured pattern effect under the regime that held on ITS decision date
     (pattern_effects = [(pattern_id, decision_date, effect, matured_at)]), classify today's regime from the past, refresh verdicts
-    and gates for gate_patterns, and report persisted regime changes. Nothing dated at/after `now` is read."""
+    and gates for gate_patterns, and report persisted regime changes, the active named regimes (via `named`, built on demand),
+    live early warnings and unhealthy axes. Nothing dated at/after `now` is read."""
     by_date = {s.date: s for s in monitor.states}
     added = 0
     for pid, ddate, eff, matured in pattern_effects:
@@ -858,8 +866,12 @@ def step(monitor: RegimeMonitor, book: PatternRegimeBook, now, market_row: Mappi
     today = monitor.process(now, market_row, now)
     verdicts = {p: book.report(p, now, replay_years).verdict.value for p in book.patterns()}
     gates = {p: book.regime_gate(p, today, now, replay_years) for p in gate_patterns}
+    named = named or NamedRegimeMonitor(monitor)
+    named.update()
+    fits = [f for f in monitor.discovery.fits if f.status == "ACCEPTED"]
     return RegimeStepResult(today.date, today.states, today.composite, today.discovered, monitor.discovery.status(), added,
-                            verdicts, gates, tuple(detect_changes(monitor.states)))
+                            verdicts, gates, tuple(detect_changes(monitor.states)), tuple(named.active()), tuple(all_warnings(monitor)),
+                            tuple(sorted(unhealthy_axes(monitor))), fits[-1].stability if fits else None)
 
 
 def render_report(monitor: RegimeMonitor, book: PatternRegimeBook, now, replay_years: Iterable[int] = ()) -> str:
@@ -1192,3 +1204,819 @@ class RegimeForecast:
                 n += 1
             counts[(a, b)] = counts.get((a, b), 0) + 1
         return None if n < min_days or b_pers <= 0 else 1.0 - b_model / b_pers
+
+
+# ------------------------------------------------------------------------------------------------ every section-25 regime, explicitly
+
+@dataclasses.dataclass(frozen=True)
+class RegimeDef:
+    """One of the twelve regimes the contract names, with its own definition. The definition is relative to the indicator's own PAST
+    (a quantile band or a robust-sigma band), never a fixed level, so it moves when the market does."""
+    name: str
+    axis: str
+    state: str
+    indicator: str
+    meaning: str
+
+
+def _defs() -> tuple[RegimeDef, ...]:
+    text = {
+        "bull": "SPY/200-day-average above +band robust sigmas of its own past (market above its long trend)",
+        "bear": "SPY/200-day-average below -band robust sigmas of its own past (market below its long trend)",
+        "high_vol": "VIX (else trailing realised volatility) above its own past 67th percentile",
+        "low_vol": "VIX (else trailing realised volatility) below its own past 33rd percentile",
+        "high_dispersion": "cross-sectional return spread above its own past 67th percentile",
+        "low_dispersion": "cross-sectional return spread below its own past 33rd percentile",
+        "high_liquidity": "market dollar volume above its own past 67th percentile",
+        "low_liquidity": "market dollar volume below its own past 33rd percentile",
+        "trend": "variance ratio VR(5)-1 of recent market returns above +band robust sigmas of its own past (returns persist)",
+        "mean_reversion": "variance ratio VR(5)-1 of recent market returns below -band robust sigmas of its own past (returns revert)",
+        "event_heavy": "share of names with a live event above its own past 67th percentile",
+        "event_light": "share of names with a live event below its own past 33rd percentile",
+    }
+    out = []
+    for a in AXES:
+        for st in (a.hi_state, a.lo_state):
+            out.append(RegimeDef(st, a.name, st, a.indicator, text[st]))
+    return tuple(out)
+
+
+NAMED_REGIMES: tuple[RegimeDef, ...] = _defs()
+NAMED_BY_NAME = {r.name: r for r in NAMED_REGIMES}
+assert len(NAMED_REGIMES) == 12
+
+
+def regime_flags(state: RegimeState) -> dict[str, bool | None]:
+    """The twelve regimes as booleans for one day. None = that axis is UNKNOWN (never False: not-known is not not-in-it). NEUTRAL
+    on an axis makes both of its regimes False."""
+    out: dict[str, bool | None] = {}
+    for r in NAMED_REGIMES:
+        st = state.states.get(r.axis, UNKNOWN_STATE)
+        out[r.name] = None if st == UNKNOWN_STATE else st == r.state
+    return out
+
+
+@dataclasses.dataclass(frozen=True)
+class RegimeEpisode:
+    name: str
+    start: str
+    end: str | None                            # None while the regime is still active
+    days: int
+
+
+class NamedRegimeMonitor:
+    """Explicit monitor of every one of the twelve regimes on top of a RegimeMonitor: which are active now, when each began,
+    every past episode, and how often and how long each occurs. update() is incremental and idempotent; it reads only states the
+    monitor has already classified from the past."""
+
+    def __init__(self, monitor: RegimeMonitor):
+        self.monitor = monitor
+        self._seen = 0
+        self._open: dict[str, tuple[str, int]] = {}
+        self._episodes: dict[str, list[RegimeEpisode]] = {r.name: [] for r in NAMED_REGIMES}
+        self._active_days: dict[str, int] = {r.name: 0 for r in NAMED_REGIMES}
+        self._known_days: dict[str, int] = {r.name: 0 for r in NAMED_REGIMES}
+        self._last_end: dict[str, str] = {}
+
+    def update(self) -> int:
+        n = 0
+        for st in self.monitor.states[self._seen:]:
+            for name, flag in regime_flags(st).items():
+                if flag is not None:
+                    self._known_days[name] += 1
+                if flag:
+                    self._active_days[name] += 1
+                    if name not in self._open:
+                        self._open[name] = (st.date, 0)
+                    self._open[name] = (self._open[name][0], self._open[name][1] + 1)
+                elif name in self._open:
+                    start, days = self._open.pop(name)
+                    self._episodes[name].append(RegimeEpisode(name, start, st.date, days))
+                    self._last_end[name] = st.date
+            n += 1
+        self._seen = len(self.monitor.states)
+        return n
+
+    def process(self, date, row: Mapping[str, Any], now=None) -> dict[str, bool | None]:
+        st = self.monitor.process(date, row, now)
+        self.update()
+        return regime_flags(st)
+
+    def active(self) -> list[str]:
+        return sorted(self._open)
+
+    def episodes(self, name: str, include_open: bool = True) -> list[RegimeEpisode]:
+        eps = list(self._episodes[name])
+        if include_open and name in self._open:
+            eps.append(RegimeEpisode(name, self._open[name][0], None, self._open[name][1]))
+        return eps
+
+    def summary(self) -> pd.DataFrame:
+        rows = []
+        for r in NAMED_REGIMES:
+            eps = self.episodes(r.name)
+            lens = [e.days for e in eps]
+            known = self._known_days[r.name]
+            rows.append({"regime": r.name, "axis": r.axis, "known_days": known, "active_days": self._active_days[r.name],
+                         "share": self._active_days[r.name] / known if known else None, "episodes": len(eps),
+                         "mean_len": float(np.mean(lens)) if lens else None, "longest": max(lens) if lens else 0,
+                         "active_now": r.name in self._open})
+        return pd.DataFrame(rows).set_index("regime")
+
+    def exclusive_violations(self) -> list[tuple[str, str, str]]:
+        """Days on which both regimes of an axis were active: (date, hi, lo). Must always be empty; a non-empty list is a bug."""
+        out = []
+        for st in self.monitor.states:
+            fl = regime_flags(st)
+            for a in AXES:
+                if fl[a.hi_state] and fl[a.lo_state]:
+                    out.append((st.date, a.hi_state, a.lo_state))
+        return out
+
+    def boundary(self, name: str) -> tuple[float, float] | None:
+        """(low, high) cut-offs of the regime's axis as they stand now, computed from the monitor's own past. None until there is
+        enough history. Answers 'what would it take to enter this regime today'."""
+        r = NAMED_BY_NAME[name]
+        spec = AXIS_BY_NAME[r.axis]
+        past = self.monitor.history.series(spec.indicator)
+        cfg = self.monitor.cfg
+        if len(past) < cfg.min_history:
+            return None
+        if spec.mode == "signed":
+            s = robust_scale(past)
+            return (-cfg.band * s, cfg.band * s) if s > 0 else None
+        return float(np.quantile(past, cfg.q_lo)), float(np.quantile(past, cfg.q_hi))
+
+    def distance_to_entry(self, name: str) -> float | None:
+        """Signed distance of the latest indicator value from the regime's entry cut-off, in the indicator's units: <= 0 means
+        already inside (a hi regime: value above the cut; a lo regime: below it)."""
+        r = NAMED_BY_NAME[name]
+        b = self.boundary(name)
+        if b is None or not self.monitor.history.days:
+            return None
+        v = self.monitor.history.days[-1][1].get(r.indicator)
+        if v is None or not math.isfinite(v):
+            return None
+        hi_regime = r.state == AXIS_BY_NAME[r.axis].hi_state
+        return (b[1] - v) if hi_regime else (v - b[0])
+
+
+# ------------------------------------------------------------------------------------------------ transition detection and lead time
+
+@dataclasses.dataclass(frozen=True)
+class TransitionEvent:
+    """A persisted move of one axis into a pole state, and whether pressure on the indicator warned of it beforehand."""
+    axis: str
+    flip_index: int
+    flip_date: str
+    before: str
+    after: str
+    warned_index: int | None
+    lead_days: int | None                     # flip_index - warned_index; None = no advance warning (or the warning came from the flip itself)
+
+
+@dataclasses.dataclass(frozen=True)
+class EarlyWarning:
+    axis: str
+    date: str
+    toward: str
+    z: float
+
+
+def indicator_pressure(values: np.ndarray, fast: int = 5, slow: int = 30) -> np.ndarray:
+    """Shift statistic per day: mean of the last `fast` values minus mean of the `slow` values before them, over its standard
+    error (a two-sample z with the slow window's spread). Row t uses values[: t + 1] only. NaN until fast + slow values exist or
+    when the slow window is constant."""
+    v = np.asarray(values, dtype="float64")
+    out = np.full(len(v), np.nan)
+    for t in range(fast + slow - 1, len(v)):
+        f, s = v[t - fast + 1: t + 1], v[t - fast - slow + 1: t - fast + 1]
+        if not (np.isfinite(f).all() and np.isfinite(s).all()):
+            continue
+        sd = s.std(ddof=1)
+        if sd <= 1e-12:
+            continue
+        out[t] = (f.mean() - s.mean()) / (sd * math.sqrt(1.0 / fast + 1.0 / slow))
+    return out
+
+
+def _axis_arrays(monitor: RegimeMonitor, axis: str) -> tuple[np.ndarray, list[str], list[str]]:
+    spec = AXIS_BY_NAME[axis]
+    by_date = {d: v for d, v in monitor.history.days}
+    dates = [s.date for s in monitor.states if s.date in by_date]
+    vals = np.array([by_date[d].get(spec.indicator) if by_date[d].get(spec.indicator) is not None else np.nan for d in dates], dtype="float64")
+    states = [monitor.states[i].states.get(axis, UNKNOWN_STATE) for i, s in enumerate(monitor.states) if s.date in by_date]
+    return vals, states, dates
+
+
+def current_warning(monitor: RegimeMonitor, axis: str, fast: int = 5, slow: int = 30, z_bar: float = 3.0) -> EarlyWarning | None:
+    """Is the axis's indicator being pushed toward a pole it is not yet in, as of the latest processed day? Past-only."""
+    spec = AXIS_BY_NAME[axis]
+    vals, states, dates = _axis_arrays(monitor, axis)
+    if len(vals) < fast + slow or states[-1] == UNKNOWN_STATE:
+        return None
+    z = indicator_pressure(vals, fast, slow)[-1]
+    if not np.isfinite(z) or abs(z) < z_bar:
+        return None
+    toward = spec.hi_state if z > 0 else spec.lo_state
+    return None if states[-1] == toward else EarlyWarning(axis, dates[-1], toward, float(z))
+
+
+def transition_events(monitor: RegimeMonitor, axis: str, fast: int = 5, slow: int = 30, z_bar: float = 3.0,
+                      lookback: int = 25, min_persist: int = 3) -> list[TransitionEvent]:
+    """Retrospective (research-side) evaluation: every persisted move into a pole state, and how many days before the flip the
+    indicator pressure toward that pole began and stayed on (a run of consecutive warning days ending at or before the flip).
+    lead_days = 0 or None means the flip was not foreshadowed."""
+    spec = AXIS_BY_NAME[axis]
+    vals, states, dates = _axis_arrays(monitor, axis)
+    press = indicator_pressure(vals, fast, slow)
+    events = []
+    for i in range(1, len(states)):
+        after, before = states[i], states[i - 1]
+        if UNKNOWN_STATE in (after, before) or after == before or after not in (spec.hi_state, spec.lo_state):
+            continue
+        if any(s != after for s in states[i: i + min_persist]) or len(states[i: i + min_persist]) < min_persist:
+            continue
+        sign = 1.0 if after == spec.hi_state else -1.0
+        j = i - 1
+        first = None
+        while j >= max(i - lookback, 0) and np.isfinite(press[j]) and sign * press[j] >= z_bar and states[j] != after:
+            first = j
+            j -= 1
+        events.append(TransitionEvent(axis, i, dates[i], before, after, first, None if first is None else i - first))
+    return events
+
+
+def false_alarm_rate(monitor: RegimeMonitor, axis: str, fast: int = 5, slow: int = 30, z_bar: float = 3.0, horizon: int = 25) -> float | None:
+    """Share of warning episodes (a run of consecutive pressure days toward a pole the axis is not in) NOT followed by entry into
+    that pole within `horizon` days. None when there were no warnings at all."""
+    spec = AXIS_BY_NAME[axis]
+    vals, states, _ = _axis_arrays(monitor, axis)
+    press = indicator_pressure(vals, fast, slow)
+    runs = []
+    i = 0
+    while i < len(press):
+        if np.isfinite(press[i]) and abs(press[i]) >= z_bar and states[i] != UNKNOWN_STATE:
+            tgt = spec.hi_state if press[i] > 0 else spec.lo_state
+            j = i
+            while j + 1 < len(press) and np.isfinite(press[j + 1]) and (press[j + 1] > 0) == (press[i] > 0) and abs(press[j + 1]) >= z_bar:
+                j += 1
+            if states[i] != tgt:
+                runs.append((i, j, tgt))
+            i = j + 1
+        else:
+            i += 1
+    if not runs:
+        return None
+    misses = sum(1 for i, j, tgt in runs if not any(s == tgt for s in states[i: j + horizon + 1]))
+    return misses / len(runs)
+
+
+@dataclasses.dataclass(frozen=True)
+class LeadTimeEstimate:
+    axis: str
+    n_events: int
+    n_warned: int
+    hit_rate: float | None
+    median_lead: float | None
+    lead_iqr: tuple[float, float] | None
+    false_alarm_rate: float | None
+
+
+def lead_time_estimate(monitor: RegimeMonitor, axis: str, fast: int = 5, slow: int = 30, z_bar: float = 3.0, lookback: int = 25) -> LeadTimeEstimate:
+    """How much notice does indicator pressure give before this axis flips into a pole? Median lead over the warned events, the
+    share of events warned at all, and the false-alarm rate of the warning rule. The estimate is only as good as the number of
+    events: fewer than 3 warned events report no median (None), never a guess."""
+    ev = transition_events(monitor, axis, fast, slow, z_bar, lookback)
+    warned = [e.lead_days for e in ev if e.lead_days]
+    med = float(np.median(warned)) if len(warned) >= 3 else None
+    iqr = (float(np.percentile(warned, 25)), float(np.percentile(warned, 75))) if len(warned) >= 3 else None
+    return LeadTimeEstimate(axis, len(ev), len(warned), len(warned) / len(ev) if ev else None, med, iqr,
+                            false_alarm_rate(monitor, axis, fast, slow, z_bar))
+
+
+def all_warnings(monitor: RegimeMonitor, **kw) -> list[EarlyWarning]:
+    """Current early warnings across all axes (past-only, latest day)."""
+    return [w for a in AXES if (w := current_warning(monitor, a.name, **kw)) is not None]
+
+
+# ------------------------------------------------------------------------------------------------ regime features for the models
+
+COMPOSITE_CODES = {"unknown": 0, "bull_calm": 1, "bull_volatile": 2, "correction_calm": 3, "bear_volatile": 4, "stress": 5}
+
+
+def regime_feature_frame(monitor: RegimeMonitor, fast: int = 5, slow: int = 30, z_bar: float = 3.0) -> pd.DataFrame:
+    """Date-indexed feature table of the whole regime picture, point in time (row t uses only days <= t): one 0/1/NaN column per
+    named regime (NaN = axis unknown), the days the axis has been in its state, the composite label code, and per axis a
+    pressure code (+1 pushed toward the hi pole, -1 toward the lo pole, 0 none). For the curator / models, never handed to the
+    trader raw (use trader_regime_row)."""
+    if not monitor.states:
+        return pd.DataFrame()
+    rows = {}
+    for st in monitor.states:
+        r = {n: (np.nan if f is None else float(f)) for n, f in regime_flags(st).items()}
+        r.update({f"dwell_{a}": float(d) for a, d in st.dwell.items()})
+        r["composite_code"] = float(COMPOSITE_CODES.get(st.composite, 0))
+        rows[st.date] = r
+    df = pd.DataFrame.from_dict(rows, orient="index")
+    for spec in AXES:
+        vals, states, dates = _axis_arrays(monitor, spec.name)
+        press = indicator_pressure(vals, fast, slow)
+        code = np.where(np.isfinite(press) & (np.abs(press) >= z_bar), np.sign(press), 0.0)
+        toward = np.where(code > 0, spec.hi_state, np.where(code < 0, spec.lo_state, ""))
+        already = np.array([s == t for s, t in zip(states, toward)])
+        df[f"pressure_{spec.name}"] = pd.Series(np.where(already, 0.0, code), index=dates)
+    return df
+
+
+# ------------------------------------------------------------------------------------------------ two-way pattern x regime
+
+def two_way_effects(book: PatternRegimeBook, pattern_id: str, axis_a: str, axis_b: str, now, replay_years: Iterable[int] = (),
+                    t_bar: float = T_BAR) -> list[dict[str, Any]]:
+    """Joint-cell effects of a pattern (state of axis A x state of axis B) against the additive prediction from the two one-way
+    effects: interaction = cell - (overall + (a - overall) + (b - overall)). The interactions are shrunk toward zero with a
+    random-effects estimate of their spread, so a thin cell cannot claim a large interaction. This is where 'works only in
+    high volatility AND low liquidity' shows up when neither one-way effect explains it."""
+    df = book.frame(pattern_id, now, replay_years)
+    if df.empty or axis_a not in df.columns or axis_b not in df.columns:
+        return []
+    days = pd.Index(sorted(df["date"].unique()))
+    overall = book._effect(df, "all", "all", days)
+    if overall.effect is None:
+        return []
+    one = {}
+    for ax in (axis_a, axis_b):
+        for st in df[ax].unique():
+            if st != UNKNOWN_STATE:
+                one[(ax, st)] = book._effect(df, ax, st, days)
+    cells = []
+    for sa in sorted(x for x in df[axis_a].unique() if x != UNKNOWN_STATE):
+        for sb in sorted(x for x in df[axis_b].unique() if x != UNKNOWN_STATE):
+            sub = df[(df[axis_a] == sa) & (df[axis_b] == sb)].assign(_all="all")
+            e = book._effect(sub, "_all", "all", days)
+            ea, eb = one[(axis_a, sa)], one[(axis_b, sb)]
+            if e.effect is None or e.se is None or ea.effect is None or eb.effect is None:
+                cells.append({"a": sa, "b": sb, "n_days": e.n_days, "effect": e.effect, "additive": None, "interaction": None,
+                              "shrunk_interaction": None, "t": None, "established": False})
+                continue
+            add = overall.effect + (ea.effect - overall.effect) + (eb.effect - overall.effect)
+            cells.append({"a": sa, "b": sb, "n_days": e.n_days, "effect": e.effect, "additive": add, "interaction": e.effect - add,
+                          "se": e.se, "shrunk_interaction": None, "t": None, "established": False})
+    meas = [c for c in cells if c["interaction"] is not None]
+    if len(meas) >= 2:
+        y = np.array([c["interaction"] for c in meas])
+        w = np.array([1.0 / c["se"] ** 2 for c in meas])
+        mu0 = 0.0
+        q = float((w * (y - mu0) ** 2).sum())
+        tau2 = max(0.0, (q - len(meas)) / float(w.sum()) * len(meas)) if w.sum() > 0 else 0.0
+        for c in meas:
+            b = tau2 / (tau2 + c["se"] ** 2)
+            c["shrunk_interaction"] = b * c["interaction"]
+            se_post = math.sqrt(b * c["se"] ** 2)
+            c["t"] = c["shrunk_interaction"] / se_post if se_post > 1e-15 else 0.0
+            c["established"] = abs(c["t"]) >= t_bar
+    return cells
+
+
+# ------------------------------------------------------------------------------------------------ patterns break at regime changes?
+
+def effect_after_transitions(book: PatternRegimeBook, monitor: RegimeMonitor, pattern_id: str, axis: str, now, window: int = 10,
+                             replay_years: Iterable[int] = (), min_days: int = 20) -> dict[str, Any]:
+    """Contract section 14 x 25: does a pattern weaken right after the market changes state on `axis`? Days within `window` days
+    after a persisted transition versus all other days: mean effect in each, and the difference with an overlap-corrected error.
+    A pattern that only fails in the weeks after regime changes is a candidate for 'gate off during transitions'."""
+    df = book.frame(pattern_id, now, replay_years)
+    ev = transition_events(monitor, axis)
+    if df.empty or not ev:
+        return {"n_post": 0, "n_other": len(df), "diff": None, "t": None, "verdict": "INSUFFICIENT_DATA"}
+    dates = [s.date for s in monitor.states]
+    post = set()
+    for e in ev:
+        post.update(dates[e.flip_index: e.flip_index + window])
+    flag = df["date"].isin(post)
+    if flag.sum() < min_days or (~flag).sum() < min_days:
+        return {"n_post": int(flag.sum()), "n_other": int((~flag).sum()), "diff": None, "t": None, "verdict": "INSUFFICIENT_DATA"}
+    days = pd.Index(sorted(df["date"].unique()))
+    a = book._effect(df[flag].assign(_all="all"), "_all", "all", days)
+    b = book._effect(df[~flag].assign(_all="all"), "_all", "all", days)
+    if a.se is None or b.se is None:
+        return {"n_post": a.n_days, "n_other": b.n_days, "diff": None, "t": None, "verdict": "INSUFFICIENT_DATA"}
+    diff = a.effect - b.effect
+    t = diff / math.sqrt(a.se ** 2 + b.se ** 2)
+    verdict = "WEAKER_AFTER_TRANSITIONS" if t <= -T_BAR else "STRONGER_AFTER_TRANSITIONS" if t >= T_BAR else "NO_DIFFERENCE"
+    return {"n_post": a.n_days, "n_other": b.n_days, "post": a.effect, "other": b.effect, "diff": diff, "t": t, "verdict": verdict}
+
+
+def verdict_by_era(book: PatternRegimeBook, pattern_id: str, now, era_edges: Sequence[Any], replay_years: Iterable[int] = ()) -> dict[str, str]:
+    """The pattern x regime verdict re-derived inside each era ([e0, e1), [e1, e2) ...). A pattern whose verdict changes from era to
+    era (BOUND in one, UNIVERSAL in another) is not settled: the regime dependence itself is unstable."""
+    rows = book._rows.get(pattern_id, [])
+    edges = [as_date(e).isoformat() for e in era_edges]
+    out = {}
+    for i, (a, b) in enumerate(zip(edges[:-1], edges[1:])):
+        sub = PatternRegimeBook(book.sessions, book.min_days)
+        sub._rows = {pattern_id: [r for r in rows if a <= r[0] < b]}
+        out[f"era{i}"] = sub.report(pattern_id, now, replay_years).verdict.value
+    return out
+
+
+def regime_dependence_stable(verdicts: Mapping[str, str]) -> bool | None:
+    """True if every era with a verdict agrees; None if fewer than two eras were decidable (INSUFFICIENT_DATA is not a verdict)."""
+    v = [x for x in verdicts.values() if x != Verdict.INSUFFICIENT_DATA.value]
+    return None if len(v) < 2 else len(set(v)) == 1
+
+
+# ------------------------------------------------------------------------------------------------ monitor self-checks
+
+@dataclasses.dataclass(frozen=True)
+class AxisHealth:
+    axis: str
+    unknown_share: float
+    flips_per_100: float                      # state changes per 100 known days: high = flickering axis
+    dominant_share: float                     # share of known days in the single most common state: ~1 = a stuck axis
+    issues: tuple[str, ...]
+
+
+def axis_health(monitor: RegimeMonitor, max_flips: float = 12.0, max_dominant: float = 0.9, max_unknown: float = 0.5) -> list[AxisHealth]:
+    """Is each axis behaving like a regime? An axis that flips every few days is measuring noise; one that sits in a single state is
+    measuring nothing (its thresholds are wrong or the indicator is dead); one that is mostly UNKNOWN has a broken input. Reported
+    per axis; the research loop should distrust any pattern verdict built on an unhealthy axis."""
+    out = []
+    n = len(monitor.states)
+    for spec in AXES:
+        seq = [s.states.get(spec.name, UNKNOWN_STATE) for s in monitor.states]
+        known = [x for x in seq if x != UNKNOWN_STATE]
+        unk = 1.0 - len(known) / n if n else 1.0
+        flips = sum(1 for a, b in zip(known, known[1:]) if a != b)
+        fl = 100.0 * flips / max(len(known) - 1, 1)
+        dom = max((known.count(x) for x in set(known)), default=0) / len(known) if known else 0.0
+        issues = []
+        if unk > max_unknown:
+            issues.append("MOSTLY_UNKNOWN")
+        if known and fl > max_flips:
+            issues.append("FLICKERING")
+        if known and dom > max_dominant:
+            issues.append("STUCK")
+        out.append(AxisHealth(spec.name, unk, fl, dom, tuple(issues)))
+    return out
+
+
+def unhealthy_axes(monitor: RegimeMonitor, **kw) -> set[str]:
+    return {h.axis for h in axis_health(monitor, **kw) if h.issues}
+
+
+def definition_agreement(monitor: RegimeMonitor) -> pd.DataFrame:
+    """The named states are one definition among many. For each quantile-mode axis, re-classify every day with an alternative rule
+    (past mean +- 0.5 past standard deviations instead of past terciles) and report the share of days on which the two rules
+    agree about hi / neutral / lo. Low agreement means the axis is a matter of definition and its patterns should be distrusted."""
+    rows = []
+    for spec in AXES:
+        if spec.mode != "quantile":
+            continue
+        past: list[float] = []
+        same = tot = 0
+        base = [s.states.get(spec.name, UNKNOWN_STATE) for s in monitor.states]
+        for (d, v), st in zip(monitor.history.days, base):
+            x = v.get(spec.indicator)
+            if x is not None and math.isfinite(x) and len(past) >= monitor.cfg.min_history and st != UNKNOWN_STATE:
+                mu, sd = float(np.mean(past)), float(np.std(past))
+                alt = spec.hi_state if x > mu + 0.5 * sd else spec.lo_state if x < mu - 0.5 * sd else NEUTRAL
+                same += alt == st
+                tot += 1
+            if x is not None and math.isfinite(x):
+                past.append(x)
+        rows.append({"axis": spec.name, "days": tot, "agreement": same / tot if tot else None})
+    return pd.DataFrame(rows)
+
+
+# ------------------------------------------------------------------------------------------------ discovered regimes: meaning and history
+
+def describe_discovered(discovery: DiscoveredRegimes) -> dict[str, dict[str, str]]:
+    """Plain-language reading of each discovered regime: for every feature the cluster centre versus the middle of all centres
+    ('high' / 'low' / 'mid' by half a fit-scale unit). A discovered regime is only useful if a person can say what it is."""
+    if discovery.centroids is None or not discovery.ids:
+        return {}
+    raw = discovery.centroids * discovery.scale + discovery.center
+    mid = raw.mean(axis=0)
+    out = {}
+    for i, rid in enumerate(discovery.ids):
+        d = {}
+        for j, f in enumerate(discovery.FEATURES):
+            z = (raw[i, j] - mid[j]) / discovery.scale[j]
+            d[f] = "high" if z > 0.5 else "low" if z < -0.5 else "mid"
+        out[rid] = d
+    return out
+
+
+def refit_history(discovery: DiscoveredRegimes) -> dict[str, Any]:
+    """Stability of the discovery over its refits: status counts, the sequence of k among ACCEPTED fits, whether that k ever
+    changed, how many distinct ids appeared beyond the largest k (id churn), and the mean centroid drift of inherited ids."""
+    fits = discovery.fits
+    acc = [f for f in fits if f.status == "ACCEPTED"]
+    ids = {i for f in acc for i in f.ids}
+    ks = [f.k for f in acc]
+    costs = [f.match_cost for f in acc if f.match_cost is not None]
+    return {"n_fits": len(fits), "status": dict(pd.Series([f.status for f in fits]).value_counts()) if fits else {},
+            "k_sequence": ks, "k_changed": len(set(ks)) > 1, "id_churn": max(len(ids) - max(ks, default=0), 0),
+            "mean_drift": float(np.mean(costs)) if costs else None,
+            "mean_stability": float(np.mean([f.stability for f in acc])) if acc else None}
+
+
+def discovered_transition_matrix(monitor: RegimeMonitor) -> pd.DataFrame:
+    """Row-normalised day-to-day transitions between discovered regimes (known days only)."""
+    seq = [s.discovered for s in monitor.states]
+    counts: dict[tuple[str, str], int] = {}
+    for a, b in zip(seq, seq[1:]):
+        if UNKNOWN_STATE not in (a, b):
+            counts[(a, b)] = counts.get((a, b), 0) + 1
+    if not counts:
+        return pd.DataFrame()
+    m = pd.Series(counts).unstack(fill_value=0)
+    return m.div(m.sum(axis=1), axis=0)
+
+
+# ------------------------------------------------------------------------------------------------ pattern x regime: prediction and ranking
+
+def regime_adjusted_effect(book: PatternRegimeBook, pattern_id: str, state: RegimeState, now, replay_years: Iterable[int] = ()) -> dict[str, Any]:
+    """Predicted effect of the pattern in TODAY's full regime: the overall effect plus, for every axis whose state is known, the
+    pooled (shrunk) deviation of that state from the overall effect. Additive by construction; use two_way_effects to check for
+    interactions. Axes whose state is unknown or unmeasured contribute nothing and are listed as unused."""
+    rep = book.report(pattern_id, now, replay_years)
+    if rep.overall.effect is None:
+        return {"effect": None, "used": [], "unused": [], "verdict": rep.verdict.value}
+    total, used, unused = rep.overall.effect, [], []
+    for spec in AXES:
+        cur = state.states.get(spec.name, UNKNOWN_STATE)
+        p = next((x for x in rep.pooled.get(spec.name, ()) if x.state == cur), None)
+        if cur == UNKNOWN_STATE or p is None:
+            unused.append(spec.name)
+            continue
+        total += p.effect - rep.overall.effect
+        used.append(spec.name)
+    return {"effect": total, "used": used, "unused": unused, "verdict": rep.verdict.value}
+
+
+def rank_by_regime_dependence(book: PatternRegimeBook, now, replay_years: Iterable[int] = ()) -> pd.DataFrame:
+    """One row per pattern: verdict, its most discriminating axis, the between-state spread (tau) on that axis, the share of held-out
+    volatility regimes it transfers to (leave-one-regime-out) and its overall t. The table the research loop reads to decide which
+    patterns must be gated by regime and which may be treated as universal."""
+    rows = []
+    for pid in book.patterns():
+        rep = book.report(pid, now, replay_years)
+        ba = best_axis(book, pid, now, replay_years)
+        loro = unseen_regime_transfer(book, pid, "volatility", now, replay_years)
+        rows.append({"pattern": pid, "verdict": rep.verdict.value, "best_axis": ba[0] if ba else None,
+                     "axis_t": ba[1] if ba else None, "tau": math.sqrt(rep.tau2[ba[0]]) if ba and ba[0] in rep.tau2 else None,
+                     "transfer_share": (sum(r["transfers"] for r in loro) / len(loro)) if loro else None, "overall_t": rep.overall.t})
+    return pd.DataFrame(rows).set_index("pattern") if rows else pd.DataFrame()
+
+
+def universal_claims_audit(book: PatternRegimeBook, claims: Iterable[str], now, replay_years: Iterable[int] = ()) -> list[str]:
+    """Patterns someone is treating as universal (claims) that the book does NOT support as UNIVERSAL. The contract: a pattern that
+    works in one regime must not be treated as universal. Returns the offending ids, sorted."""
+    return sorted(p for p in claims if book.report(p, now, replay_years).verdict != Verdict.UNIVERSAL)
+
+
+# ------------------------------------------------------------------------------------------------ how long do regimes last?
+
+def survival_curve(named: NamedRegimeMonitor, name: str, horizon: int = 120) -> pd.Series:
+    """Kaplan-Meier probability that an episode of the regime lasts at least d days, d = 1..horizon, from the monitor's own past
+    episodes. The still-open episode is right-censored, not counted as finished. Empty when the regime never occurred."""
+    eps = named.episodes(name)
+    if not eps:
+        return pd.Series(dtype="float64")
+    durations = np.array([e.days for e in eps])
+    observed = np.array([e.end is not None for e in eps])
+    surv, s = {}, 1.0
+    for d in range(1, horizon + 1):
+        at_risk = int((durations >= d).sum())
+        ended = int(((durations == d) & observed).sum())
+        if at_risk > 0:
+            s *= 1.0 - ended / at_risk
+        surv[d] = s
+    return pd.Series(surv)
+
+
+def expected_remaining(named: NamedRegimeMonitor, name: str, age: int, horizon: int = 250) -> float | None:
+    """Expected further days in the regime given it has already lasted `age` days: the area under S(d)/S(age) beyond age from the
+    Kaplan-Meier curve. None when fewer than 3 episodes or when the curve never falls below the age (all episodes longer)."""
+    if len(named.episodes(name)) < 3:
+        return None
+    s = survival_curve(named, name, horizon)
+    if s.empty or age < 1 or age > horizon or s.loc[age] <= 0:
+        return None
+    tail = s.loc[age + 1:] / s.loc[age]
+    return float(tail.sum()) if len(tail) else 0.0
+
+
+def axis_persistence_test(monitor: RegimeMonitor, seed: int = 0, n_shuffles: int = 100) -> dict[str, float | None]:
+    """Does each axis behave like a REGIME (states persist) or like a coin? Observed mean run length over the same states shuffled
+    in time, per axis. Near 1: the labels are noise. The contract's 'do not hard-code' cuts both ways: an axis that does not
+    persist is not a regime and should not be conditioned on."""
+    out = {}
+    for spec in AXES:
+        seq = [s.states.get(spec.name, UNKNOWN_STATE) for s in monitor.states]
+        out[spec.name] = dwell_ratio([x for x in seq if x != UNKNOWN_STATE], seed, n_shuffles)[0]
+    return out
+
+
+def shock_days(monitor: RegimeMonitor, axis: str, z_bar: float = 5.0) -> list[str]:
+    """Days on which the axis's indicator jumped by more than z_bar robust sigmas of its own day-to-day changes: a shock, not a
+    drift. Shocks are where regimes can change without any advance pressure (lead time zero)."""
+    vals, _states, dates = _axis_arrays(monitor, axis)
+    d = np.diff(vals)
+    s = robust_scale(d[np.isfinite(d)])
+    if s <= 0:
+        return []
+    return [dates[i + 1] for i in range(len(d)) if np.isfinite(d[i]) and abs(d[i]) > z_bar * s]
+
+
+# ------------------------------------------------------------------------------------------------ combinations of regimes
+
+def cooccurrence(monitor: RegimeMonitor, regime_a: str, regime_b: str) -> dict[str, float | None]:
+    """How often two named regimes are active together: P(b | a), P(b) and the lift P(b|a) / P(b) over days where both axes are
+    known. Lift near 1: independent; well above 1: they travel together (bear and high_vol), so conditioning on both double
+    counts one thing."""
+    a, b = NAMED_BY_NAME[regime_a], NAMED_BY_NAME[regime_b]
+    both = na = nb = n = 0
+    for st in monitor.states:
+        fa, fb = regime_flags(st)[regime_a], regime_flags(st)[regime_b]
+        if fa is None or fb is None:
+            continue
+        n += 1
+        na += fa
+        nb += fb
+        both += fa and fb
+    if n == 0 or na == 0 or nb == 0:
+        return {"n": n, "p_b_given_a": None, "p_b": None, "lift": None}
+    p_b, p_ba = nb / n, both / na
+    return {"n": n, "p_b_given_a": p_ba, "p_b": p_b, "lift": p_ba / p_b}
+
+
+def joint_state_table(monitor: RegimeMonitor, axis_a: str = "direction", axis_b: str = "volatility") -> pd.DataFrame:
+    """Days in every (state of A, state of B) cell, known days only: which combined regimes the history actually contains. A cell
+    with few days cannot carry a verdict for any pattern, whatever the one-way tables say."""
+    f = monitor.frame()
+    if f.empty:
+        return pd.DataFrame()
+    sub = f[(f[axis_a] != UNKNOWN_STATE) & (f[axis_b] != UNKNOWN_STATE)]
+    return pd.crosstab(sub[axis_a], sub[axis_b]) if len(sub) else pd.DataFrame()
+
+
+def regime_report_card(monitor: RegimeMonitor, named: NamedRegimeMonitor | None = None) -> str:
+    """Plain-text card: axis health, persistence ratios, twelve-regime occupancy, discovery history and any live early warnings.
+    Everything is a diagnostic of the monitor itself, so a reader can see when it is not to be trusted."""
+    named = named or NamedRegimeMonitor(monitor)
+    named.update()
+    lines = [f"REGIME CARD  days {len(monitor.states)}  discovery {monitor.discovery.status()}"]
+    for h in axis_health(monitor):
+        lines.append(f"  axis {h.axis:<11} unknown {h.unknown_share:.2f}  flips/100 {h.flips_per_100:.1f}  dominant {h.dominant_share:.2f}  {list(h.issues)}")
+    lines.append("  persistence ratio: " + ", ".join(f"{k}:{'n/a' if v is None else round(v, 2)}" for k, v in axis_persistence_test(monitor).items()))
+    lines.extend("  " + ln for ln in named.summary().round(3).to_string().splitlines())
+    lines.extend(f"  WARNING {w.axis} -> {w.toward} (z {w.z:.1f})" for w in all_warnings(monitor))
+    return "\n".join(lines)
+
+
+# ------------------------------------------------------------------------------------------------ not final truths: tune and test the definitions
+
+def _replay_states(monitor: RegimeMonitor, spec: AxisSpec, cfg: RegimeConfig) -> list[str]:
+    """Re-classify the stored indicator history for one axis under a given config, past-only per day, hysteresis on."""
+    past: list[float] = []
+    prev, out = None, []
+    for _, v in monitor.history.days:
+        x = v.get(spec.indicator)
+        st = classify_axis(spec, x, np.array(past), prev, cfg)
+        out.append(st)
+        prev = st if st != UNKNOWN_STATE else prev
+        if x is not None and math.isfinite(x):
+            past.append(x)
+    return out
+
+
+def tune_quantiles(monitor: RegimeMonitor, axis: str, grid: Sequence[tuple[float, float]] = ((0.2, 0.8), (0.25, 0.75), (0.33, 0.67), (0.4, 0.6)),
+                   seed: int = 0, min_state_share: float = 0.1) -> pd.DataFrame:
+    """The 33/67 cut-offs are a default, not a truth. For each candidate pair on a quantile-mode axis: the share of days in each pole,
+    the persistence ratio of the resulting labels (observed run length over shuffled) and a score = ratio when both poles hold at
+    least min_state_share of the days, else 0 (a regime that almost never happens cannot be studied). The pair with the best score
+    is the data's preference; the research loop may adopt it through RegimeConfig, never silently."""
+    spec = AXIS_BY_NAME[axis]
+    if spec.mode != "quantile":
+        raise ValueError(f"{axis} is a signed axis; tune its band instead")
+    rows = []
+    for q_lo, q_hi in grid:
+        states = [x for x in _replay_states(monitor, spec, dataclasses.replace(monitor.cfg, q_lo=q_lo, q_hi=q_hi)) if x != UNKNOWN_STATE]
+        if len(states) < 30:
+            rows.append({"q_lo": q_lo, "q_hi": q_hi, "n": len(states), "hi_share": None, "lo_share": None, "persistence": None, "score": 0.0})
+            continue
+        hi, lo = states.count(spec.hi_state) / len(states), states.count(spec.lo_state) / len(states)
+        ratio = dwell_ratio(states, seed, 60)[0]
+        rows.append({"q_lo": q_lo, "q_hi": q_hi, "n": len(states), "hi_share": hi, "lo_share": lo, "persistence": ratio,
+                     "score": float(ratio) if ratio is not None and min(hi, lo) >= min_state_share else 0.0})
+    return pd.DataFrame(rows)
+
+
+def axis_information(monitor: RegimeMonitor, axis: str, returns: pd.Series, now) -> dict[str, float | None]:
+    """Does the axis's state today say anything about tomorrow's market? Spearman correlation between the ordinal state code (-1 lo,
+    0 neutral, +1 hi) and the NEXT day's absolute return (volatility information) and signed return (direction information), with
+    the number of days. Only days whose next return is strictly before `now`. An axis that informs neither is a label, not a regime."""
+    f = monitor.frame()
+    if f.empty or axis not in f.columns:
+        return {"n": 0, "abs_ic": None, "signed_ic": None}
+    r = returns.copy()
+    r.index = pd.DatetimeIndex(r.index).strftime("%Y-%m-%d")
+    nxt = r.shift(-1)
+    end = pd.Series(list(r.index[1:]) + [None], index=r.index)
+    code = f[axis].map(lambda s: np.nan if s == UNKNOWN_STATE else STATE_CODE[s])
+    df = pd.DataFrame({"code": code, "nxt": nxt.reindex(f.index), "end": end.reindex(f.index)}).dropna()
+    df = df[df["end"].map(lambda d: as_date(d) < as_date(now))]
+    if len(df) < 30 or df["code"].nunique() < 2:
+        return {"n": int(len(df)), "abs_ic": None, "signed_ic": None}
+    return {"n": int(len(df)), "abs_ic": float(df["code"].corr(df["nxt"].abs(), method="spearman")),
+            "signed_ic": float(df["code"].corr(df["nxt"], method="spearman"))}
+
+
+def regime_diagnostics(monitor: RegimeMonitor, returns: pd.Series, now) -> pd.DataFrame:
+    """One row per axis: health issues, persistence ratio, definition agreement and next-day information. The table that says which
+    of the six axes are worth conditioning patterns on. Identity-free."""
+    health = {h.axis: h for h in axis_health(monitor)}
+    pers = axis_persistence_test(monitor)
+    agree = agreement_by_axis(monitor)
+    rows = []
+    for spec in AXES:
+        info = axis_information(monitor, spec.name, returns, now)
+        rows.append({"axis": spec.name, "issues": ",".join(health[spec.name].issues), "persistence": pers[spec.name],
+                     "agreement": agree.get(spec.name), "abs_ic": info["abs_ic"], "signed_ic": info["signed_ic"], "n": info["n"]})
+    return pd.DataFrame(rows).set_index("axis")
+
+
+def agreement_by_axis(monitor: RegimeMonitor) -> dict[str, float | None]:
+    """definition_agreement as a plain dict (signed axes have no alternative definition here and are absent)."""
+    da = definition_agreement(monitor)
+    return {r["axis"]: r["agreement"] for _, r in da.iterrows()} if not da.empty else {}
+
+
+# ------------------------------------------------------------------------------------------------ knowledge about the regimes themselves
+
+def monitor_records(monitor: RegimeMonitor, now, discovery_only: bool = False) -> list[MaturedRecord]:
+    """Identity-free MaturedRecords of what the monitor has learned about its own definitions (axis persistence, health, discovery
+    stability), for the curator. No date, year or ticker in a payload; maturity is the last processed day, which must be strictly
+    before `now`. Records built on an unhealthy axis say so in their payload instead of being left out."""
+    if not monitor.states:
+        return []
+    through = monitor.states[-1].date
+    require_past(through, now, "regime monitor")
+    prov = Provenance(created_real=str(as_date(now)), learned_at=through, code_hash=current_code_hash(), outcomes_seen_through=through)
+    recs = []
+    if not discovery_only:
+        pers, health = axis_persistence_test(monitor), {h.axis: h for h in axis_health(monitor)}
+        for spec in AXES:
+            payload = {"axis": spec.name, "persistence": clean_number(pers[spec.name]), "issues": list(health[spec.name].issues),
+                       "flips_per_100": clean_number(health[spec.name].flips_per_100)}
+            recs.append(MaturedRecord("RM" + stable_hash([spec.name, through], 10), through, payload, prov, Namespace.MATURED_RESEARCH))
+    hist = refit_history(monitor.discovery)
+    dpay = {"axis": "discovered", "status": monitor.discovery.status(), "n_fits": hist["n_fits"], "k_changed": hist["k_changed"],
+            "id_churn": hist["id_churn"], "mean_stability": clean_number(hist["mean_stability"])}
+    recs.append(MaturedRecord("RM" + stable_hash(["discovered", through], 10), through, dpay, prov, Namespace.MATURED_RESEARCH))
+    return recs
+
+
+def rebuild_named(monitor: RegimeMonitor) -> NamedRegimeMonitor:
+    """A NamedRegimeMonitor reconstructed from a monitor's stored states (e.g. after RegimeMonitor.from_state), so the twelve-regime
+    episode history never has to be persisted separately: it is a pure function of the states."""
+    named = NamedRegimeMonitor(monitor)
+    named.update()
+    return named
+
+
+def adopt_tuned(cfg: RegimeConfig, tuning: pd.DataFrame, min_gain: float = 0.2) -> tuple[RegimeConfig, dict[str, Any]]:
+    """Turn a tune_quantiles table into a NEW config, only if the best pair beats the config's current pair by min_gain (relative)
+    on the persistence score; otherwise return cfg unchanged. Returns (config, decision) - the decision records the old and new
+    pairs, their scores and why, so a change of definition is an explicit, logged act, never a silent drift. One quantile pair
+    applies to every quantile-mode axis, so tune on the axis you care about and check the others with tune_quantiles too."""
+    if tuning.empty or tuning["score"].max() <= 0:
+        return cfg, {"adopted": False, "reason": "no candidate with populated, persistent poles"}
+    cur = tuning[(tuning["q_lo"].round(6) == round(cfg.q_lo, 6)) & (tuning["q_hi"].round(6) == round(cfg.q_hi, 6))]
+    cur_score = float(cur["score"].iloc[0]) if len(cur) else 0.0
+    best = tuning.loc[tuning["score"].idxmax()]
+    if cur_score > 0 and best["score"] < (1.0 + min_gain) * cur_score:
+        return cfg, {"adopted": False, "reason": f"best {best['score']:.2f} is not {min_gain:.0%} above current {cur_score:.2f}",
+                     "current": (cfg.q_lo, cfg.q_hi)}
+    new = dataclasses.replace(cfg, q_lo=float(best["q_lo"]), q_hi=float(best["q_hi"]))
+    errs = new.validate()
+    if errs:
+        return cfg, {"adopted": False, "reason": "; ".join(errs)}
+    return new, {"adopted": True, "from": (cfg.q_lo, cfg.q_hi), "to": (new.q_lo, new.q_hi), "old_score": cur_score, "new_score": float(best["score"]),
+                 "config_hash": stable_hash(dataclasses.asdict(new), 12)}
+
+
+def cohort_shares_by_regime(cohort_ledger, monitor: RegimeMonitor, axis: str, now, min_days: int = 15) -> pd.DataFrame:
+    """Section 24 x 25: which cohort explains the day's moves, by regime state (engine.research.cross_section.CohortAttributionLedger,
+    duck-typed on .frame(now)). Rows: state; columns: mean sequential share per cohort plus the day count. States with fewer than
+    min_days days are left out. 'Sector moves matter in calm markets, the market itself in stress' would show up here."""
+    df = cohort_ledger.frame(now)
+    if df.empty:
+        return pd.DataFrame()
+    df = df.assign(state=df["date"].map(monitor.label_map(axis))).dropna(subset=["state"])
+    cols = [c for c in df.columns if c.startswith("seq_")]
+    g = df.groupby("state")[cols].mean().assign(days=df.groupby("state").size())
+    return g[g["days"] >= min_days]

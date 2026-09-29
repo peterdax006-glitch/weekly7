@@ -1,4 +1,4 @@
-"""Tests for engine.research.multiscale, cross_section and regimes (RESEARCH_BRAIN_CONTRACT sections 23, 24, 25; canon C67).
+"""Tests for engine.research.multiscale and cross_section (RESEARCH_BRAIN_CONTRACT sections 23, 24; canon C67). Regimes: test_research_regimes.py.
 Synthetic data only. Each mechanism has a planted case it must catch, a null case where it must find nothing, and the empty case."""
 import numpy as np
 import pandas as pd
@@ -7,11 +7,38 @@ import pytest
 from engine.learning.core import FirewallBreach
 from engine.research import cross_section as X
 from engine.research import multiscale as M
-from engine.research import regimes as R
 from engine.research.core import Horizon
 
 
 # ------------------------------------------------------------------------------------------------ multiscale fixtures
+
+
+"""Tests for engine.research.multiscale and cross_section (RESEARCH_BRAIN_CONTRACT sections 23, 24; canon C67). Regimes: test_research_regimes.py.
+Synthetic data only. Each mechanism has a planted case it must catch, a null case where it must find nothing, and the empty case."""
+
+
+import numpy as np
+
+
+import pandas as pd
+
+
+import pytest
+
+
+from engine.learning.core import FirewallBreach
+
+
+from engine.research import cross_section as X
+
+
+from engine.research import multiscale as M
+
+
+
+
+from engine.research.core import Horizon
+
 
 def make_panel(n=420, k=40, seed=1, lag_effects=(0.0012,) * 5, p=0.15):
     """Random-walk closes plus a flag whose effect is added to the returns of sessions t+1.. (one entry per lag)."""
@@ -32,8 +59,6 @@ def make_panel(n=420, k=40, seed=1, lag_effects=(0.0012,) * 5, p=0.15):
 def fmap(close, opn, keys, now):
     return M.forward_map(close, keys, now, opn)
 
-
-# ------------------------------------------------------------------------------------------------ multiscale: horizons
 
 def test_horizon_table_valid_and_parse():
     assert M.validate_table() == []
@@ -73,8 +98,6 @@ def test_intraday_inventory_ignores_today_and_missing_folder(tmp_path):
     cov = M.minute_coverage("2026-07-08", tmp_path)["5m"]
     assert cov.sessions == 2 and not cov.supports_span(1.0) and cov.supports_span(0.005)
 
-
-# ------------------------------------------------------------------------------------------------ multiscale: labels and effects
 
 def test_forward_returns_never_read_data_after_now():
     close, opn, _, dates = make_panel(n=120)
@@ -138,8 +161,6 @@ def test_permutation_p_separates_planted_from_null():
     assert p_real is not None and p_real < 0.05 and p_null > 0.05
     assert M.block_permutation_p(fl, fw, "5d", dates[-1], n_perm=60, seed=0, calendar=dates) == p_real       # deterministic
 
-
-# ------------------------------------------------------------------------------------------------ multiscale: transfer
 
 def test_reversal_is_caught_as_no_transfer():
     close, opn, fl, dates = make_panel(lag_effects=(0.006, -0.004, -0.004, -0.004, -0.004), seed=5)
@@ -256,8 +277,6 @@ def test_untested_transfers_become_research_questions():
     assert qs and "2015" not in qs[0].text and M.ledger_health(led, now)["no_horizon"] == []
 
 
-# ------------------------------------------------------------------------------------------------ multiscale: scale diagnostics
-
 def test_variance_ratio_and_hurst_separate_trending_from_reverting():
     rng = np.random.default_rng(0)
     e = rng.normal(0, 1, 3000)
@@ -310,8 +329,6 @@ def test_capturable_split_finds_all_overnight_effect():
     ov, it = M.session_components(O, C, dates[-1])
     assert ov.shape == C.shape and it.iloc[0].notna().all()
 
-
-# ------------------------------------------------------------------------------------------------ multiscale: canon C67 OHLC scale
 
 def hand_bars():
     dates = pd.bdate_range("2020-01-01", periods=4)
@@ -428,8 +445,6 @@ def test_horizon_move_scale_grows_like_sqrt():
         M.horizon_move_scale(close, (0,), close.index[-1])
 
 
-# ------------------------------------------------------------------------------------------------ cross-section fixtures
-
 SIC = [1311, 2834, 3571, 4911, 5411, 6021]
 
 
@@ -500,8 +515,6 @@ def test_loo_effect_excludes_the_stock_itself_and_shrinks_small_cohorts():
     assert abs(eff2["a"]) < abs(eff["a"])
     assert X.winsorize(pd.Series([0.0, 0.1, -0.1, 0.05, 50.0]), 4).max() < 5
 
-
-# ------------------------------------------------------------------------------------------------ cross-section: decomposition and scope
 
 def test_planted_sector_move_labelled_sector_specific_and_not_market():
     rng = np.random.default_rng(1)
@@ -592,8 +605,6 @@ def test_process_day_order_and_now_firewall():
     with pytest.raises(FirewallBreach):
         lab.history.push(X.DayStat("2020-01-01", 0.0, 0.01, {}, {}))
 
-
-# ------------------------------------------------------------------------------------------------ cross-section: outcomes and features
 
 _LAB_CACHE = {}
 
@@ -769,286 +780,6 @@ def test_share_ledger_and_sector_rotation():
     assert rot.rank_persistence(1)[1] > 0.5 and rot.leaders(1)[0][0].startswith("sec_")
 
 
-# ------------------------------------------------------------------------------------------------ regimes fixtures
-
-def market_rows(n=400, seed=0, blocks=None):
-    """Daily market summaries. blocks: list of (length, dict of overrides) cycled; base is a calm market."""
-    rng = np.random.default_rng(seed)
-    dates = pd.bdate_range("2018-01-01", periods=n)
-    rows, pos = [], 0
-    blocks = blocks or [(n, {})]
-    i = 0
-    while pos < n:
-        length, ov = blocks[i % len(blocks)]
-        for _ in range(min(length, n - pos)):
-            vol = ov.get("vol", 0.008)
-            rows.append({"ret": rng.normal(ov.get("drift", 0.0003), vol), "vix": ov.get("vix", 15) + rng.normal(0, 0.8),
-                         "dispersion": ov.get("disp", 0.012) * (1 + rng.normal(0, 0.05)), "dollar_volume": 1e10 * (1 + rng.normal(0, 0.03)) * ov.get("dv", 1.0),
-                         "event_share": float(np.clip(ov.get("ev", 0.1) + rng.normal(0, 0.01), 0, 1)), "breadth": ov.get("breadth", 0.55) + rng.normal(0, 0.03)})
-        pos += length
-        i += 1
-    return dates, rows[:n]
-
-
-def run_monitor(dates, rows, cfg=None):
-    mon = R.RegimeMonitor(cfg or R.RegimeConfig(min_history=40, refit_every=30))
-    for d, r in zip(dates, rows):
-        mon.process(d, r)
-    return mon
-
-
-def test_config_and_market_row_validation():
-    assert R.RegimeConfig().validate() == []
-    assert R.RegimeConfig(q_lo=0.7, q_hi=0.3).validate() and R.RegimeConfig(persistence_window=10).validate()
-    with pytest.raises(ValueError):
-        R.RegimeMonitor(R.RegimeConfig(k_max=1))
-    assert R.validate_market_row({"vix": 20}) and R.validate_market_row({"ret": 0.9}) and R.validate_market_row({"ret": 0.01, "event_share": 2})
-    assert R.validate_market_row({"ret": 0.01, "dispersion": 0.01}) == []
-
-
-def test_axes_start_unknown_then_follow_planted_volatility_blocks():
-    dates, rows = market_rows(360, blocks=[(60, {"vix": 12, "vol": 0.005}), (60, {"vix": 32, "vol": 0.02})])
-    mon = run_monitor(dates, rows)
-    f = mon.frame()
-    assert (f["volatility"].iloc[:39] == "unknown").all()
-    late = f["volatility"].iloc[180:]
-    calm_days, storm_days = late.iloc[[i for i in range(len(late)) if (i + 180) % 120 < 60]], late.iloc[[i for i in range(len(late)) if (i + 180) % 120 >= 60]]
-    assert (storm_days == "high_vol").mean() > 0.9 and (calm_days == "low_vol").mean() > 0.9
-    assert set(f["composite"]) >= {"stress"} or "bear_volatile" in set(f["composite"]) or len(set(f["composite"])) > 1
-
-
-def test_hysteresis_stops_threshold_grazing_from_flipping_state():
-    spec = R.AXIS_BY_NAME["volatility"]
-    past = np.linspace(10, 30, 200)
-    cfg = R.RegimeConfig()
-    hi_cut = float(np.quantile(past, cfg.q_hi))
-    assert R.classify_axis(spec, hi_cut - 0.01, past, "high_vol", cfg) == "high_vol"         # inside the margin: keep
-    assert R.classify_axis(spec, hi_cut - 0.01, past, "low_vol", cfg) == R.NEUTRAL
-    assert R.classify_axis(spec, hi_cut + 1, past, None, cfg) == "high_vol"
-    assert R.classify_axis(spec, None, past, None, cfg) == R.UNKNOWN_STATE
-    assert R.classify_axis(spec, 20.0, past[:10], None, cfg) == R.UNKNOWN_STATE
-    assert R.classify_axis(spec, 20.0, np.full(100, 5.0), None, cfg) == R.UNKNOWN_STATE      # no spread: unknown, not a state
-
-
-def test_character_axis_reads_trend_vs_mean_reversion():
-    rng = np.random.default_rng(3)
-    e = rng.normal(0, 0.008, 700)
-    trend, mr = np.zeros(700), np.zeros(700)
-    for i in range(1, 700):
-        trend[i] = 0.35 * trend[i - 1] + e[i]
-        mr[i] = -0.35 * mr[i - 1] + e[i]
-    dates = pd.bdate_range("2018-01-01", periods=700)
-    out = {}
-    for name, series in (("trend", trend), ("mr", mr)):
-        mon = R.RegimeMonitor(R.RegimeConfig(min_history=60))
-        for d, r in zip(dates, series):
-            mon.process(d, {"ret": float(r)})
-        out[name] = mon.history.series("persistence").mean()
-    assert out["trend"] > 0.1 > -0.1 > out["mr"]
-
-
-def test_monitor_refuses_future_and_out_of_order_days_and_bad_rows():
-    dates, rows = market_rows(60)
-    mon = R.RegimeMonitor(R.RegimeConfig(min_history=40))
-    mon.process(dates[0], rows[0])
-    with pytest.raises(FirewallBreach):
-        mon.process(dates[0], rows[1])
-    with pytest.raises(FirewallBreach):
-        mon.process(dates[5], rows[1], now=dates[2])
-    with pytest.raises(ValueError):
-        mon.process(dates[1], {"vix": 20})
-    assert mon.rejected_days == 1 and R.RegimeMonitor().frame().empty and R.RegimeMonitor().occupancy().empty
-
-
-def test_indicators_use_only_the_past_plus_today():
-    dates, rows = market_rows(150)
-    a = run_monitor(dates[:100], rows[:100])
-    poisoned = [dict(r) for r in rows]
-    for r in poisoned[100:]:
-        r["ret"], r["vix"] = 0.3, 99.0
-    b = run_monitor(dates[:100], poisoned[:100])
-    assert a.content_hash() == b.content_hash()
-
-
-# ------------------------------------------------------------------------------------------------ regimes: discovery
-
-def test_discovery_accepts_persistent_regimes_and_rejects_noise():
-    blocks = [(70, {"vol": 0.006, "disp": 0.010, "ev": 0.05, "breadth": 0.6, "vix": 13}), (70, {"vol": 0.02, "disp": 0.03, "ev": 0.3, "breadth": 0.35, "vix": 35})]
-    dates, rows = market_rows(560, seed=1, blocks=blocks)
-    mon = run_monitor(dates, rows, R.RegimeConfig(min_history=60, refit_every=60, dwell_ratio_min=2.0))
-    acc = [f for f in mon.discovery.fits if f.status == "ACCEPTED"]
-    assert acc and any(f.k == 2 for f in acc) and all(f.dwell_ratio > 3 for f in acc)
-    labels = [s.discovered for s in mon.states if s.discovered != "unknown"]
-    assert len(set(labels)) >= 2 and R.dwell_ratio(labels, 0)[0] > 3
-    rng = np.random.default_rng(2)
-    noise_rows = [{"ret": rng.normal(0, 0.01), "vix": 15 + rng.normal(0, 3), "dispersion": 0.012 + rng.normal(0, 0.003), "dollar_volume": 1e10 * (1 + rng.normal(0, 0.1)),
-                   "event_share": float(np.clip(0.1 + rng.normal(0, 0.05), 0, 1)), "breadth": 0.5 + rng.normal(0, 0.1)} for _ in range(560)]
-    nmon = run_monitor(dates, noise_rows, R.RegimeConfig(min_history=60, refit_every=60))
-    assert not any(f.status == "ACCEPTED" for f in nmon.discovery.fits) and nmon.discovery.status() in ("NO_STRUCTURE", "REJECTED_NOISE")
-    assert all(s.discovered == "unknown" for s in nmon.states)
-
-
-def test_dwell_ratio_edge_cases_and_run_lengths():
-    assert R.run_lengths(list("aabccc")) == [2, 1, 3] and R.run_lengths([]) == []
-    assert R.dwell_ratio(list("ab" * 3), 0) == (None, None) and R.dwell_ratio(["a"] * 40, 0) == (None, None)
-    rand = list(np.random.default_rng(0).choice(["a", "b"], 200))
-    assert R.dwell_ratio(rand, 0)[0] == pytest.approx(1.0, abs=0.25)
-    assert R.dwell_ratio(["a"] * 50 + ["b"] * 50, 0)[0] > 5
-
-
-def test_discovered_ids_stay_stable_across_refits():
-    blocks = [(70, {"vol": 0.006, "disp": 0.010, "ev": 0.05, "breadth": 0.6, "vix": 13}), (70, {"vol": 0.02, "disp": 0.03, "ev": 0.3, "breadth": 0.35, "vix": 35})]
-    dates, rows = market_rows(300, seed=4, blocks=blocks)
-    mon = run_monitor(dates, rows, R.RegimeConfig(min_history=60, refit_every=1000))
-    disc = mon.discovery
-    first = disc.refit()
-    assert first.status == "ACCEPTED" and len(first.ids) == first.k
-    again = disc.refit()                                                     # same data, second refit: ids must be inherited
-    assert again.ids == first.ids and disc.assign(disc.vectors[-1][1]) in first.ids
-
-
-def test_monitor_state_roundtrip_and_occupancy():
-    dates, rows = market_rows(200, blocks=[(50, {"vix": 12}), (50, {"vix": 30})])
-    mon = run_monitor(dates, rows)
-    back = R.RegimeMonitor.from_state(mon.state())
-    assert back.content_hash() == mon.content_hash()
-    occ = mon.occupancy()
-    assert set(occ["axis"]) == {a.name for a in R.AXES} and occ.groupby("axis")["share"].sum().round(6).eq(1.0).all()
-    tm = R.transition_matrix(mon, "volatility")
-    assert tm.sum(axis=1).round(6).eq(1.0).all() and R.stay_probability(mon, "volatility", "high_vol") > 0.8
-    assert R.expected_dwell(mon, "volatility")["high_vol"] > 5
-    with pytest.raises(ValueError):
-        R.RegimeMonitor.from_state({"schema": "x"})
-
-
-# ------------------------------------------------------------------------------------------------ regimes: pattern x regime
-
-def fake_state(date, vol="high_vol", liq="high_liquidity", disc="unknown"):
-    return R.RegimeState(str(date.date()), {"volatility": vol, "liquidity": liq, "direction": "unknown", "dispersion": "unknown",
-                                            "character": "unknown", "events": "unknown"}, {}, {}, "unknown", disc)
-
-
-def fill_book(kind, seed=0, n=420, book=None, pid=None):
-    """Daily pattern effects filed under alternating 20-day volatility blocks and a random liquidity state."""
-    rng = np.random.default_rng(seed)
-    book = book or R.PatternRegimeBook(sessions=1, min_days=30)
-    dates = pd.bdate_range("2018-01-01", periods=n)
-    now = dates[-1] + pd.Timedelta(days=30)
-    for i, d in enumerate(dates):
-        vol = "high_vol" if (i // 20) % 2 == 0 else "low_vol"
-        liq = "high_liquidity" if rng.random() < 0.5 else "low_liquidity"
-        base = {"universal": 0.004, "bound": 0.006 if vol == "high_vol" else 0.0, "reversing": 0.005 if vol == "high_vol" else -0.005, "null": 0.0}[kind]
-        book.add(pid or kind, d, base + rng.normal(0, 0.003), d + pd.Timedelta(days=2), now, fake_state(d, vol, liq))
-    return book, now, dates
-
-
-def test_regime_bound_pattern_is_not_universal_and_is_gated_off_where_it_fails():
-    book, now, dates = fill_book("bound")
-    rep = book.report("bound", now)
-    assert rep.verdict == R.Verdict.REGIME_BOUND and "volatility" in rep.bound_axes and "liquidity" not in rep.bound_axes
-    assert "high_vol" in rep.good_states["volatility"] and "low_vol" in rep.bad_states["volatility"]
-    assert book.regime_gate("bound", fake_state(dates[0], "high_vol"), now)["allowed"] is True
-    assert book.regime_gate("bound", fake_state(dates[0], "low_vol"), now)["allowed"] is False
-    unknown = R.RegimeState("x", {"volatility": "unknown"}, {}, {}, "unknown")
-    assert book.regime_gate("bound", unknown, now)["allowed"] is None                    # unknown regime: abstain, not allow
-    assert R.regime_weights(book, fake_state(dates[0], "low_vol"), now) == {"bound": 0.0}
-
-
-def test_universal_null_and_reversing_patterns_are_told_apart():
-    for kind, want in (("universal", R.Verdict.UNIVERSAL), ("null", R.Verdict.NOT_ESTABLISHED), ("reversing", R.Verdict.REGIME_REVERSING)):
-        book, now, _ = fill_book(kind, seed=3)
-        assert book.report(kind, now).verdict == want, kind
-    book, now, dates = fill_book("universal", seed=3)
-    assert book.regime_gate("universal", fake_state(dates[0], "low_vol"), now)["allowed"] is True
-
-
-def test_unseen_regime_transfer_fails_for_bound_pattern_and_passes_for_universal():
-    book, now, _ = fill_book("bound", seed=5)
-    res = {r["held_out"]: r for r in R.unseen_regime_transfer(book, "bound", "volatility", now)}
-    assert res["low_vol"]["verdict"] in ("FAILS", "UNTESTED") and not res["low_vol"]["transfers"]
-    ubook, unow, _ = fill_book("universal", seed=5)
-    assert all(r["transfers"] for r in R.unseen_regime_transfer(ubook, "universal", "volatility", unow))
-    assert R.unseen_regime_transfer(ubook, "nope", "volatility", unow) == [] and R.unseen_regime_transfer(ubook, "universal", "zzz", unow) == []
-
-
-def test_book_firewalls_and_empty_cases():
-    book = R.PatternRegimeBook(sessions=1, min_days=30)
-    d = pd.Timestamp("2020-01-02")
-    with pytest.raises(FirewallBreach):
-        book.add("p", d, 0.01, d + pd.Timedelta(days=2), d + pd.Timedelta(days=2), fake_state(d))          # matures ON now
-    with pytest.raises(FirewallBreach):
-        book.add("p", d, 0.01, d, d + pd.Timedelta(days=9), fake_state(d))                                 # not after decision
-    assert book.add("p", d, float("nan"), d + pd.Timedelta(days=1), d + pd.Timedelta(days=9), fake_state(d)) is False
-    assert book.report("p", d + pd.Timedelta(days=9)).verdict == R.Verdict.INSUFFICIENT_DATA
-    assert book.report("never", d).verdict == R.Verdict.INSUFFICIENT_DATA and book.matured_records(d) == []
-    b2, now, dates = fill_book("bound", seed=6)
-    with pytest.raises(FirewallBreach):
-        b2.add("bound", dates[-1] + pd.Timedelta(days=1), 0.0, now, now, fake_state(dates[-1]))
-    assert b2.report("bound", now, replay_years=[2018, 2019]).verdict == R.Verdict.INSUFFICIENT_DATA     # every year replayed: nothing visible
-    recs = b2.matured_records(now)
-    assert recs and recs[0].gate(now + pd.Timedelta(days=1))["bound_axes"] == ["volatility"] and "2018" not in str(recs[0].payload)
-    assert R.PatternRegimeBook.from_state(b2.state()).report("bound", now).verdict == b2.report("bound", now).verdict
-
-
-def test_coverage_gaps_and_questions():
-    book, now, _ = fill_book("bound", seed=7, n=200)
-    gaps = R.coverage_gaps(book, now, min_days=10_000)
-    assert ("bound", "direction", "bull", 0) in gaps and gaps == sorted(gaps, key=lambda g: (g[3], g[0], g[1], g[2]))
-    qs = R.coverage_questions(gaps, "2026-09-29", "2020-01-01", limit=3)
-    assert len(qs) == 3 and "2018" not in qs[0].text
-
-
-def test_changes_trader_row_and_step_end_to_end():
-    dates, rows = market_rows(300, blocks=[(80, {"vix": 12, "vol": 0.005}), (80, {"vix": 32, "vol": 0.02})])
-    mon = run_monitor(dates[:299], rows[:299])
-    ch = R.detect_changes(mon.states, min_persist=5)
-    assert any(c.axis == "volatility" and c.after == "high_vol" for c in ch) and R.detect_changes([]) == []
-    qs = R.regime_questions(ch, "2026-09-29", "2020-01-01")
-    assert qs and "2018" not in qs[0].text
-    row = R.trader_regime_row(mon.states[-1])
-    assert row["rg_volatility"] in (-1.0, 0.0, 1.0) and all(k.startswith("rg_") for k in row)
-    assert R.trader_regime_row(mon.states[0]) == {}                                                         # nothing known yet: nothing shown
-    book = R.PatternRegimeBook(sessions=1, min_days=10)
-    eff = [("p", dates[i], 0.004, dates[i] + pd.Timedelta(days=2)) for i in range(100, 200)]
-    res = R.step(mon, book, dates[299], rows[299], [e for e in eff if e[3] < dates[299]], gate_patterns=["p"])
-    assert res.n_added == 100 and res.states["volatility"] != "unknown" and "p" in res.verdicts and res.gates["p"]["allowed"] in (True, False, None)
-    assert "REGIMES" in R.render_report(mon, book, dates[299])
-
-
-def test_axis_diagnostics_are_computable_and_honest():
-    dates, rows = market_rows(400, blocks=[(60, {"vix": 12, "vol": 0.005, "ev": 0.05}), (60, {"vix": 32, "vol": 0.02, "ev": 0.4})])
-    mon = run_monitor(dates, rows)
-    sens = R.threshold_sensitivity(mon)
-    assert set(sens["axis"]) == {"volatility", "dispersion", "liquidity", "events"} and (sens["changed_share"].dropna() >= 0).all()
-    assoc = R.axis_association(mon)
-    assert assoc.loc["volatility", "events"] > 0.5                                       # the planted blocks move both axes together
-    assert R.axis_association(R.RegimeMonitor()).empty and R.discovered_vs_named(R.RegimeMonitor()) == {}
-    d2, r2 = market_rows(400, blocks=[(200, {"vix": 12}), (200, {"vix": 34})])
-    brk = R.indicator_breaks(run_monitor(d2, r2))
-    assert len(brk["vol"]) >= 1 and brk["vol"][0] > str(d2[195].date())
-    assert R.cusum_break([0.0] * 10) == [] and R.cusum_break([0.0, 1.0] * 5 + [0.0, 1.0] * 5) == []
-    shifted = list(np.random.default_rng(0).normal(0, 1, 60)) + list(np.random.default_rng(1).normal(6, 1, 60))
-    assert R.cusum_break(shifted) and R.cusum_break(shifted)[0] >= 60
-    prof = R.state_return_profile(mon, pd.Series([r["ret"] for r in rows], index=dates), "volatility", dates[-1])
-    assert prof.loc["high_vol", "std"] > prof.loc["low_vol", "std"]
-    assert R.state_return_profile(R.RegimeMonitor(), pd.Series(dtype=float), "volatility", dates[-1]).empty
-
-
-def test_scope_effect_by_regime_links_cross_section_and_regimes():
-    lab, now = run_lab_with_outcomes()
-    days = pd.bdate_range("2019-01-01", periods=60)
-    mon = R.RegimeMonitor(R.RegimeConfig(min_history=40))
-    rng = np.random.default_rng(1)
-    for d in days:
-        mon.process(d, {"ret": float(rng.normal(0, 0.01)), "vix": 15.0 + float(rng.normal(0, 3))})
-    tab = R.scope_effect_by_regime(lab.outcomes, mon, "volatility", now, min_days=3)
-    assert not tab.empty and set(tab.index.get_level_values("scope")) >= {"STOCK_SPECIFIC"}
-    assert R.scope_effect_by_regime(lab.outcomes, mon, "volatility", now, replay_years=[2019]).empty
-    assert R.regime_share_labels(mon, "volatility") == mon.label_map("volatility")
-
-
-# ------------------------------------------------------------------------------------------------ additions: path tables, lead-lag, forecasts
-
 def test_scope_path_table_and_pathbook_find_planted_reversal_of_stock_specific_movers():
     rng = np.random.default_rng(31)
     book = X.PathBook(sessions=1)
@@ -1092,32 +823,3 @@ def test_cohort_lead_lag_distinguishes_continuation_from_reversal():
     assert out == {"continues": "CONTINUES", "reverts": "REVERTS", "none": "UNCLEAR"}
     with pytest.raises(FirewallBreach):
         ll.push("2019-01-01", ret, labels)
-
-
-def test_regime_forecast_beats_persistence_only_when_dynamics_are_learnable():
-    blocks = [(30, {"vix": 12}), (10, {"vix": 34})]
-    dates, rows = market_rows(500, blocks=blocks, seed=2)
-    mon = run_monitor(dates, rows)
-    fc = R.RegimeForecast(mon, "volatility")
-    p = fc.next_probs()
-    assert p is None or abs(sum(p.values()) - 1.0) < 1e-6
-    skill = fc.brier_skill(min_days=30)
-    assert skill is None or skill == skill
-    assert R.RegimeForecast(R.RegimeMonitor(), "volatility").next_probs() is None
-    assert R.RegimeForecast(R.RegimeMonitor(), "volatility").brier_skill() is None
-
-
-def test_shrinkage_best_axis_and_mover_rates():
-    book, now, _ = fill_book("bound", seed=8)
-    rep = book.report("bound", now)
-    raw = {e.state: e.effect for e in rep.by_state if e.axis == "volatility"}
-    shr = R.shrunk_state_effects(rep, "volatility")
-    assert set(shr) == set(raw) and all(abs(shr[k] - rep.overall.effect) <= abs(raw[k] - rep.overall.effect) + 1e-12 for k in shr)
-    assert R.best_axis(book, "bound", now)[0] == "volatility"
-    nbook, nnow, _ = fill_book("null", seed=8)
-    assert R.best_axis(nbook, "null", nnow) is None and R.shrunk_state_effects(nbook.report("never", nnow), "volatility") == {}
-    dates, rows = market_rows(200, blocks=[(50, {"vix": 12}), (50, {"vix": 34})])
-    mon = run_monitor(dates, rows)
-    counts = {str(d.date()): ((300, 90) if r["vix"] > 25 else (150, 30)) for d, r in zip(dates, rows)}
-    tab = R.mover_rate_by_regime(mon, counts, "volatility", dates[-1] + pd.Timedelta(days=1))
-    assert tab.loc["high_vol", "ratio_5_10"] > tab.loc["low_vol", "ratio_5_10"] and R.mover_rate_by_regime(mon, {}, "volatility", dates[-1]).empty

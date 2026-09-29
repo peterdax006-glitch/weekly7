@@ -1371,6 +1371,7 @@ class DayResult:
     style_spreads: Mapping[str, float]
     health: DayHealth
     excess: Mapping[str, float | None]
+    attribution: pd.DataFrame | None = None
 
 
 class CrossSectionLab:
@@ -1396,6 +1397,7 @@ class CrossSectionLab:
         self.rotation = SectorRotation()
         self.health_failures: dict[str, int] = {}
         self.idiovol = IdioVol()
+        self.cohort_ledger = CohortAttributionLedger()
         self.discovered = DiscoveredCohorts(seed=0)
         self._longwin: deque[tuple[str, pd.Series]] = deque(maxlen=long_window)
         self.refit_every = refit_every
@@ -1435,12 +1437,17 @@ class CrossSectionLab:
         feats = scope_features(dec, scopes, labels, self.history) if dec.usable() else pd.DataFrame(index=frame.index)
         turnover = cohort_turnover(self._prev_labels, labels)
         excess: dict[str, float | None] = {}
+        attr = None
         if dec.usable():
             self._retwin.append((d.isoformat(), dec.table["ret"].astype("float32")))
             win = pd.DataFrame({k: v for k, v in self._retwin}).T
             feats = pd.concat([feats, relative_strength_features(win, labels, self.rs_windows), self.idiovol.features(dec.table["idio"])], axis=1)
             if self.days % self.refit_every == 1 and len(self._longwin) >= self.discovered.min_days:
                 self.discovered.fit(pd.DataFrame({k: v for k, v in self._longwin}).T)        # past days only: today is appended below
+            full = decompose_full(frame, self.cfg, labels, beta)
+            attr = attribute_moves(full, self.cfg)
+            feats = pd.concat([feats, attribution_features(full, attr)], axis=1)
+            self.cohort_ledger.add(d, full, chance_cohort_shares(frame, self.cfg, null_seed, n_shuffles, beta) if null_seed is not None else None)
             if self.discovered.fitted():
                 feats["xs_rel_discovered"] = loo_deviation(dec.table["ret"], self.discovered.labels(frame.index)).astype("float32")
             self._longwin.append((d.isoformat(), dec.table["ret"].astype("float32")))
@@ -1463,7 +1470,7 @@ class CrossSectionLab:
             self._prev_scope = scopes.scope
         self._prev_labels = labels
         return DayResult(d.isoformat(), dec, scopes, feats, labels, turnover, small_cohorts(labels, self.cfg.min_cohort), spreads,
-                         health, excess)
+                         health, excess, attr if dec.usable() else None)
 
     def settle(self, day, fwd: pd.Series, matured_at, now) -> int:
         """Attach a realised forward return to the scopes decided on `day`. Refused unless matured_at is strictly before `now`."""
@@ -1503,7 +1510,7 @@ class CrossSectionLab:
                 "last_date": self.last_date,
                 "history": [dataclasses.asdict(s) for s in self.history.days],
                 "outcomes": [list(r) for r in self.outcomes._rows], "feature_ic": [list(r) for r in self.feature_ic._rows],
-                "shares": list(self.share_ledger._rows), "health_failures": dict(self.health_failures),
+                "shares": list(self.share_ledger._rows), "cohort_rows": list(self.cohort_ledger._rows), "health_failures": dict(self.health_failures),
                 "beta": {"sxy": self.beta.sxy.to_dict(), "n": self.beta.n.to_dict(), "smm": self.beta.smm}}
 
     @classmethod
@@ -1517,6 +1524,7 @@ class CrossSectionLab:
         lab.outcomes._rows = [tuple(r) for r in st["outcomes"]]
         lab.feature_ic._rows = [tuple(r) for r in st.get("feature_ic", [])]
         lab.share_ledger._rows = list(st.get("shares", []))
+        lab.cohort_ledger._rows = list(st.get("cohort_rows", []))
         lab.health_failures = dict(st.get("health_failures", {}))
         b = st.get("beta", {})
         lab.beta.sxy = pd.Series(b.get("sxy", {}), dtype="float64")
@@ -1725,3 +1733,284 @@ class CohortLeadLag:
             beh = "UNCLEAR" if t is None or abs(t) < t_bar else ("CONTINUES" if x.mean() > 0 else "REVERTS")
             rows.append({"cohort": kind, "mean_ic": float(x.mean()), "t": t, "n_days": len(x), "behaviour": beh})
         return pd.DataFrame(rows, columns=["cohort", "mean_ic", "t", "n_days", "behaviour"])
+
+
+# ------------------------------------------------------------------------------------------------ every section-24 cohort, one component each
+
+COHORT_ORDER = (CohortKind.SECTOR, CohortKind.INDUSTRY, CohortKind.VOLATILITY, CohortKind.LIQUIDITY, CohortKind.MOMENTUM, CohortKind.EVENT)
+COMPONENTS = (CohortKind.MARKET.value,) + tuple(k.value for k in COHORT_ORDER) + ("idio",)
+
+
+@dataclasses.dataclass(frozen=True)
+class FullDecomposition:
+    """ret = market + sector + industry + volatility + liquidity + momentum + event + idio, each cohort a leave-one-out, shrunk,
+    winsorised effect estimated on what the previous levels left. table columns are COMPONENTS plus ret and n_<cohort> (cohort
+    sizes behind each effect). stage_ss[level] is the sum of squares left AFTER removing that level (level 'market' first);
+    solo_ss[cohort] is the sum of squares that cohort removes ON ITS OWN from the market-adjusted move (order-free)."""
+    table: pd.DataFrame
+    market: float
+    dispersion: float
+    order: tuple[str, ...]
+    stage_ss: Mapping[str, float]
+    solo_ss: Mapping[str, float]
+    n: int
+    status: str = "OK"
+
+    def usable(self) -> bool:
+        return self.status == "OK" and self.n > 0
+
+    def shares(self) -> dict[str, float | None]:
+        """Sequential variance share of the market-adjusted move explained by each cohort (in this order) and by idio; sums to 1.
+        A share can be negative (a shrunk effect that fits worse than nothing) - kept, not clipped."""
+        if not self.usable():
+            return {c: None for c in (*self.order, "idio")}
+        prev = self.stage_ss["market"]
+        if prev <= 0:
+            return {c: None for c in (*self.order, "idio")}
+        out = {}
+        for c in self.order:
+            out[c] = (prev - self.stage_ss[c]) / self.stage_ss["market"]
+            prev = self.stage_ss[c]
+        out["idio"] = prev / self.stage_ss["market"]
+        return out
+
+    def solo_shares(self) -> dict[str, float | None]:
+        base = self.stage_ss.get("market", 0.0)
+        return {c: (None if not self.usable() or base <= 0 else self.solo_ss[c] / base) for c in self.order}
+
+
+def decompose_full(frame: pd.DataFrame, cfg: CrossConfig, labels: pd.DataFrame | None = None, beta: pd.Series | None = None,
+                   order: Sequence[CohortKind] = COHORT_ORDER) -> FullDecomposition:
+    """Full seven-cohort decomposition of one day (market, sector, industry, volatility, liquidity, momentum, event cohorts).
+    Every cohort is estimated the same way (leave-one-out shrunk mean of the winsorised remainder), so cohorts are comparable;
+    the order only decides who gets credit for shared variance, which is why solo_ss and shapley_shares exist."""
+    errs = [e for e in validate_day_frame(frame, cfg) if "missing (cohort" not in e]
+    if any("return column" in e or "empty" in e or "no finite" in e or "duplicate" in e for e in errs):
+        raise ValueError("bad day frame: " + "; ".join(errs))
+    lab = labels if labels is not None else assign_cohorts(frame, cfg)
+    r = pd.to_numeric(frame[cfg.ret], errors="coerce")
+    r = r.where(np.isfinite(r))
+    ok = r.notna()
+    names = tuple(k.value for k in order)
+    cols = ["ret", *COMPONENTS] + [f"n_{n}" for n in names]
+    tab = pd.DataFrame(np.nan, index=frame.index, columns=cols)
+    tab["ret"] = r
+    if ok.sum() < cfg.min_names:
+        return FullDecomposition(tab, float("nan"), float("nan"), names, {}, {}, int(ok.sum()), "INSUFFICIENT_DATA")
+    rr, lb = r[ok], lab.loc[ok[ok].index]
+    m = robust_center(rr.to_numpy())
+    mk = pd.Series(m, index=rr.index) if beta is None else m * beta.reindex(rr.index).fillna(1.0)
+    e = rr - mk
+    e0 = e.copy()
+    ss0 = float((e0 ** 2).sum())
+    stage = {"market": ss0}
+    solo = {}
+    comp = {"market": mk}
+    for k in order:
+        eff, cnt = loo_group_effect(winsorize(e, cfg.winsor_z), lb[k.value], cfg.shrink_k)
+        e = e - eff
+        comp[k.value] = eff
+        tab.loc[rr.index, f"n_{k.value}"] = cnt
+        stage[k.value] = float((e ** 2).sum())
+        solo_eff, _ = loo_group_effect(winsorize(e0, cfg.winsor_z), lb[k.value], cfg.shrink_k)
+        solo[k.value] = ss0 - float(((e0 - solo_eff) ** 2).sum())
+    comp["idio"] = e
+    for name, s in comp.items():
+        tab.loc[rr.index, name] = s
+    return FullDecomposition(tab, m, robust_scale(e0.to_numpy()), names, stage, solo, int(len(rr)))
+
+
+def shapley_shares(frame: pd.DataFrame, cfg: CrossConfig, n_orders: int = 12, seed: int = 0, beta: pd.Series | None = None) -> dict[str, float | None]:
+    """Order-free cohort shares: the sequential shares averaged over random orderings of the six cohorts (a Monte Carlo Shapley
+    value). Two cohorts that overlap split the shared variance instead of the first one taking it. Deterministic in `seed`."""
+    labels = assign_cohorts(frame, cfg)
+    rng = np.random.default_rng(seed)
+    acc: dict[str, list[float]] = {}
+    for _ in range(int(n_orders)):
+        perm = [COHORT_ORDER[i] for i in rng.permutation(len(COHORT_ORDER))]
+        sh = decompose_full(frame, cfg, labels, beta, perm).shares()
+        for k, v in sh.items():
+            if v is not None:
+                acc.setdefault(k, []).append(v)
+    return {k: (float(np.mean(v)) if v else None) for k, v in acc.items()}
+
+
+def chance_cohort_shares(frame: pd.DataFrame, cfg: CrossConfig, seed: int, n_shuffles: int = 10, beta: pd.Series | None = None) -> dict[str, float | None]:
+    """Mean sequential share of each cohort when ALL cohort labels are shuffled among names: what each cohort 'explains' by luck
+    on this day's universe and cohort sizes. Subtract from the real shares for an honest attribution."""
+    lab = assign_cohorts(frame, cfg)
+    rng = np.random.default_rng(seed)
+    acc: dict[str, list[float]] = {}
+    for _ in range(int(n_shuffles)):
+        perm = rng.permutation(len(lab))
+        sh = lab.copy()
+        for c in lab.columns:
+            if c != CohortKind.MARKET.value:
+                sh[c] = lab[c].to_numpy()[perm]
+        for k, v in decompose_full(frame, cfg, sh, beta).shares().items():
+            if v is not None:
+                acc.setdefault(k, []).append(v)
+    return {k: (float(np.mean(v)) if v else None) for k, v in acc.items()}
+
+
+def attribute_moves(full: FullDecomposition, cfg: CrossConfig) -> pd.DataFrame:
+    """Per-name residual attribution: each component's share of the name's total attributed |move| and the DRIVER - the component
+    with the largest share if it reaches cfg.share_bar, else MIXED; names below the quiet threshold are NO_MOVE. driver is one of
+    COMPONENTS ('market', 'sector', ..., 'event', 'idio'). This is the 'why did THIS stock move' answer for every §24 cohort."""
+    t = full.table
+    cols = [f"share_{c}" for c in COMPONENTS]
+    if not full.usable():
+        out = pd.DataFrame(np.nan, index=t.index, columns=cols)
+        out["driver"] = "UNKNOWN"
+        out["driver_share"] = np.nan
+        return out
+    absc = t[list(COMPONENTS)].abs()
+    tot = absc.sum(axis=1)
+    sh = absc.div(tot.where(tot > 0), axis=0)
+    sh.columns = cols
+    top = sh.to_numpy().max(axis=1)
+    arg = np.array(COMPONENTS, dtype=object)[np.nan_to_num(sh.to_numpy(), nan=-1.0).argmax(axis=1)]
+    driver = pd.Series(np.where(top >= cfg.share_bar, arg, "MIXED"), index=t.index, dtype=object)
+    scale = math.sqrt(full.market ** 2 + full.dispersion ** 2)
+    driver[t["ret"].abs() < cfg.quiet_z * scale] = "NO_MOVE"
+    driver[t["ret"].isna() | tot.isna() | (tot <= 0)] = "UNKNOWN"
+    sh["driver"] = driver
+    sh["driver_share"] = top
+    return sh
+
+
+class CohortAttributionLedger:
+    """Per-day sequential, solo and (optionally) chance-adjusted shares of every cohort, so 'which cohort structure explains the
+    moves' is answered across days, not from one. Days must be added in order."""
+
+    def __init__(self) -> None:
+        self._rows: list[dict[str, Any]] = []
+
+    def __len__(self) -> int:
+        return len(self._rows)
+
+    def add(self, day, full: FullDecomposition, chance: Mapping[str, float | None] | None = None) -> bool:
+        if not full.usable():
+            return False
+        sh, solo = full.shares(), full.solo_shares()
+        if any(v is None for v in sh.values()):
+            return False
+        d = as_date(day).isoformat()
+        if self._rows and d <= self._rows[-1]["date"]:
+            raise FirewallBreach(f"cohort ledger: {d} is not after {self._rows[-1]['date']}")
+        row: dict[str, Any] = {"date": d}
+        for c in (*full.order, "idio"):
+            row[f"seq_{c}"] = float(sh[c])
+            row[f"excess_{c}"] = None if not chance or chance.get(c) is None else float(sh[c] - chance[c])
+        for c in full.order:
+            row[f"solo_{c}"] = float(solo[c])
+        self._rows.append(row)
+        return True
+
+    def frame(self, now=None) -> pd.DataFrame:
+        df = pd.DataFrame(self._rows)
+        if now is not None and not df.empty:
+            df = df[df["date"].map(lambda d: as_date(d) <= as_date(now))]
+        return df
+
+    def summary(self, now=None) -> pd.DataFrame:
+        """Per cohort: mean sequential and solo share, mean excess over chance and the share of days it beats chance."""
+        df = self.frame(now)
+        rows = []
+        for c in (*(k.value for k in COHORT_ORDER), "idio"):
+            if df.empty:
+                rows.append({"cohort": c, "seq": None, "solo": None, "excess": None, "days_above_chance": None, "n": 0})
+                continue
+            ex = df[f"excess_{c}"].dropna() if f"excess_{c}" in df else pd.Series(dtype=float)
+            rows.append({"cohort": c, "seq": float(df[f"seq_{c}"].mean()), "solo": float(df[f"solo_{c}"].mean()) if f"solo_{c}" in df else None,
+                         "excess": float(ex.mean()) if len(ex) else None, "days_above_chance": float((ex > 0).mean()) if len(ex) else None,
+                         "n": int(len(df))})
+        return pd.DataFrame(rows).set_index("cohort")
+
+    def dominant_cohort(self, now=None) -> str | None:
+        """The cohort with the largest mean excess-over-chance share (falling back to solo share when no chance was recorded)."""
+        s = self.summary(now)
+        col = "excess" if s["excess"].notna().any() else "solo"
+        s = s.drop(index="idio", errors="ignore")
+        return None if s.empty or s[col].notna().sum() == 0 else str(s[col].idxmax())
+
+
+def attribution_features(full: FullDecomposition, attr: pd.DataFrame) -> pd.DataFrame:
+    """Model-facing columns per name: the signed contribution of every component (xs_attr_<component>) and the driver as an
+    ordinal code (xs_driver_code: index into COMPONENTS, -1 MIXED, -2 NO_MOVE, NaN UNKNOWN). float32, ticker-indexed, no identity."""
+    out = pd.DataFrame(index=full.table.index)
+    for c in COMPONENTS:
+        out[f"xs_attr_{c}"] = full.table[c]
+    code = attr["driver"].map({**{c: float(i) for i, c in enumerate(COMPONENTS)}, "MIXED": -1.0, "NO_MOVE": -2.0})
+    out["xs_driver_code"] = code
+    return out.astype("float32")
+
+
+def mover_driver_table(full: FullDecomposition, attr: pd.DataFrame, bands: Sequence[float] = (0.05, 0.10)) -> pd.DataFrame:
+    """Canon C67 x section 24: of the names that moved 5-10% and more than 10% (up and down), which cohort DROVE each move?
+    Rows: band x direction; columns: driver counts over COMPONENTS plus MIXED / NO_MOVE. A 5-10% mover driven by its volatility
+    cohort and one driven by its own news are different objects with different futures."""
+    lo, hi = sorted(bands)[0], sorted(bands)[-1]
+    r = full.table["ret"]
+    edges = {f"{lo:.0%}-{hi:.0%}": (r.abs() >= lo) & (r.abs() < hi), f">{hi:.0%}": r.abs() >= hi}
+    kinds = [*COMPONENTS, "MIXED", "NO_MOVE", "UNKNOWN"]
+    rows = []
+    for band, mask in edges.items():
+        for direction, dmask in (("up", r > 0), ("down", r < 0)):
+            sel = attr["driver"][mask & dmask]
+            rows.append({"band": band, "direction": direction, "n": int(len(sel)), **{k: int((sel == k).sum()) for k in kinds}})
+    return pd.DataFrame(rows).set_index(["band", "direction"])
+
+
+def cohort_report(lab: "CrossSectionLab", now=None) -> str:
+    """Plain-text per-cohort attribution report (identity-free): mean sequential / solo / excess-over-chance share of every cohort."""
+    s = lab.cohort_ledger.summary(now)
+    lines = [f"COHORT ATTRIBUTION  days {len(lab.cohort_ledger)}  dominant {lab.cohort_ledger.dominant_cohort(now)}"]
+    lines.extend("  " + ln for ln in s.round(4).to_string().splitlines())
+    return chr(10).join(lines)
+
+
+def attribution_stability(ledger: CohortAttributionLedger, now=None, min_days: int = 20) -> dict[str, Any]:
+    """Is the ranking of cohorts by explanatory share a property of the market or of the sample? Ranks the six cohorts by mean
+    solo share in the first and second half of the ledger and reports their Spearman correlation and whether the top cohort is the
+    same in both halves. None when fewer than min_days days."""
+    df = ledger.frame(now)
+    if len(df) < min_days:
+        return {"n_days": int(len(df)), "rank_corr": None, "same_top": None, "top_first": None, "top_second": None}
+    cols = [f"solo_{k.value}" for k in COHORT_ORDER]
+    half = len(df) // 2
+    a, b = df.iloc[:half][cols].mean(), df.iloc[half:][cols].mean()
+    corr = float(a.rank().corr(b.rank()))
+    return {"n_days": int(len(df)), "rank_corr": None if math.isnan(corr) else corr, "same_top": bool(a.idxmax() == b.idxmax()),
+            "top_first": a.idxmax().removeprefix("solo_"), "top_second": b.idxmax().removeprefix("solo_")}
+
+
+def cohort_size_bias(full: FullDecomposition) -> float | None:
+    """Correlation, across cohort kinds, between the mean cohort size behind an effect and the share the cohort explains. A high
+    positive value warns that big cohorts win by averaging out noise rather than by carrying information (shrinkage reduces but
+    does not remove this). None with fewer than four cohorts measured."""
+    if not full.usable():
+        return None
+    sh = full.shares()
+    xs, ys = [], []
+    for k in full.order:
+        n = full.table[f"n_{k}"].dropna()
+        if len(n) and sh.get(k) is not None:
+            xs.append(float(n.mean()))
+            ys.append(float(sh[k]))
+    if len(xs) < 4 or np.std(xs) <= 0 or np.std(ys) <= 0:
+        return None
+    return float(np.corrcoef(xs, ys)[0, 1])
+
+
+def scope_of_driver(driver: str) -> MoveScope:
+    """Map a §24 driver (component name) onto the coarse MoveScope a scope-based consumer understands, so the two vocabularies
+    never disagree: market -> MARKET_WIDE, sector/industry -> SECTOR_SPECIFIC, the four style cohorts -> COHORT_WIDE, idio ->
+    STOCK_SPECIFIC, MIXED/NO_MOVE/UNKNOWN unchanged."""
+    if driver == CohortKind.MARKET.value:
+        return MoveScope.MARKET_WIDE
+    if driver in (CohortKind.SECTOR.value, CohortKind.INDUSTRY.value):
+        return MoveScope.SECTOR_SPECIFIC
+    if driver in tuple(k.value for k in STYLE_KINDS):
+        return MoveScope.COHORT_WIDE
+    return {"idio": MoveScope.STOCK_SPECIFIC, "MIXED": MoveScope.MIXED, "NO_MOVE": MoveScope.NO_MOVE}.get(driver, MoveScope.UNKNOWN)
