@@ -404,3 +404,9 @@ it should be very long
 > [WEEKLY7 AUTONOMOUS DEEP-RESEARCH SELF-LEARNING ENGINE, MASTER BUILD PROMPT v1.0, stored verbatim in RESEARCH_BRAIN_CONTRACT.md; sent as the new master checklist after the owner said 'let me know when they finish that and i will create another master checklist for you']
 
 `sha256: 1ca00f11b6a91b3dc33d5ec920b34d4ffa9981cb2a49c5f476ffc3c386a9b85e`
+
+## C67 — Mover-episode deep research: every day study hundreds of 5-10% movers and what they did next (consolidated, expanded, stopped, spiked, reversed) - 24/7 deep research on tons of stocks for even the smallest predictable patterns (2026-09-29)
+
+> it should be designed so it looks at hundereds of stocks in a day that were 5-10% volatile, it should also see the ones that were volatile then consolidated or were volatile durring the day and got way more volatile or stopped or spiked the next day or if it reversed the next day, it should look at hundereds of stocks olike that and do ai deep research 24/7 on tons and tons of stocks to find even the smallest patterns it couldve predicted
+
+`sha256: 88108b77f02dd166b3c3f6da841e10eed3435be8aa571d083ba2b6e92a0e06bb`

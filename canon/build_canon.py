@@ -141,6 +141,8 @@ DIRECTIVES = [
      'we arent worrying about the live one until the test self learning one is perfected'),
     ("C66", "2026-09-29", 'Autonomous Deep-Research Self-Learning Engine build prompt v1.0: the new master checklist (verbatim in RESEARCH_BRAIN_CONTRACT.md, sha256 787fd48cdb3cb11f)',
      "[WEEKLY7 AUTONOMOUS DEEP-RESEARCH SELF-LEARNING ENGINE, MASTER BUILD PROMPT v1.0, stored verbatim in RESEARCH_BRAIN_CONTRACT.md; sent as the new master checklist after the owner said 'let me know when they finish that and i will create another master checklist for you']"),
+    ("C67", "2026-09-29", 'Mover-episode deep research: every day study hundreds of 5-10% movers and what they did next (consolidated, expanded, stopped, spiked, reversed) - 24/7 deep research on tons of stocks for even the smallest predictable patterns',
+     'it should be designed so it looks at hundereds of stocks in a day that were 5-10% volatile, it should also see the ones that were volatile then consolidated or were volatile durring the day and got way more volatile or stopped or spiked the next day or if it reversed the next day, it should look at hundereds of stocks olike that and do ai deep research 24/7 on tons and tons of stocks to find even the smallest patterns it couldve predicted'),
 ]
 
 def sha(t): return hashlib.sha256(t.encode("utf-8")).hexdigest()
