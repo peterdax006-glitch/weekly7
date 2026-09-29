@@ -11,6 +11,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 F = ROOT / "state" / "build" / "SELF_LEARNING_MASTER_CHECKLIST.json"
+if "--addition" in sys.argv:                                   # the C68 addition checklist
+    sys.argv.remove("--addition")
+    F = ROOT / "state" / "build" / "PREDICTION_ERROR_CHECKLIST.json"
 if "--research" in sys.argv:                                   # the C66 checklist (RESEARCH_BRAIN_CHECKLIST.json), same rules
     sys.argv.remove("--research")
     F = ROOT / "state" / "build" / "RESEARCH_BRAIN_CHECKLIST.json"

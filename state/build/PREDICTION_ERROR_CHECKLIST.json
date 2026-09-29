@@ -49,22 +49,34 @@
    "group": "CHECKLIST",
    "description": "Checklist D: ERROR-SIZE-BASED RESEARCH",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/research/error_research.py"
+   ],
+   "tests": [
+    "tests/test_research_error_research.py"
+   ],
    "evidence": [],
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED (P02): intensity = error x confidence x repeatability x value x significance feeding the EXISTING priority engine; confident-wrong 15-question investigation (unanswered stays unanswered); error-pattern escalation with materiality gate; depth ledger; 11 self-research questions. 26 tests.",
+   "last_run": "2026-09-29T16:36:35",
+   "code_hash": "39566f8d9a0884d1"
   },
   {
    "id": "PEE",
    "group": "CHECKLIST",
    "description": "Checklist E: CONFIDENT-WRONG DETECTOR",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/research/error_research.py"
+   ],
+   "tests": [
+    "tests/test_research_error_research.py"
+   ],
    "evidence": [],
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED (P02): intensity = error x confidence x repeatability x value x significance feeding the EXISTING priority engine; confident-wrong 15-question investigation (unanswered stays unanswered); error-pattern escalation with materiality gate; depth ledger; 11 self-research questions. 26 tests.",
+   "last_run": "2026-09-29T16:36:35",
+   "code_hash": "39566f8d9a0884d1"
   },
   {
    "id": "PEF",
@@ -214,33 +226,51 @@
    "group": "CHECKLIST",
    "description": "Checklist S: REPEATED ERROR ESCALATION",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/research/error_research.py"
+   ],
+   "tests": [
+    "tests/test_research_error_research.py"
+   ],
    "evidence": [],
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED (P02): intensity = error x confidence x repeatability x value x significance feeding the EXISTING priority engine; confident-wrong 15-question investigation (unanswered stays unanswered); error-pattern escalation with materiality gate; depth ledger; 11 self-research questions. 26 tests.",
+   "last_run": "2026-09-29T16:36:35",
+   "code_hash": "39566f8d9a0884d1"
   },
   {
    "id": "PET",
    "group": "CHECKLIST",
    "description": "Checklist T: SELF-RESEARCH LOOP",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/research/error_research.py"
+   ],
+   "tests": [
+    "tests/test_research_error_research.py"
+   ],
    "evidence": [],
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED (P02): intensity = error x confidence x repeatability x value x significance feeding the EXISTING priority engine; confident-wrong 15-question investigation (unanswered stays unanswered); error-pattern escalation with materiality gate; depth ledger; 11 self-research questions. 26 tests.",
+   "last_run": "2026-09-29T16:36:35",
+   "code_hash": "39566f8d9a0884d1"
   },
   {
    "id": "PEU",
    "group": "CHECKLIST",
    "description": "Checklist U: COMPUTE ALLOCATION",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/research/error_research.py"
+   ],
+   "tests": [
+    "tests/test_research_error_research.py"
+   ],
    "evidence": [],
-   "notes": ""
+   "notes": "IMPLEMENTED — NOT VALIDATED (P02): intensity = error x confidence x repeatability x value x significance feeding the EXISTING priority engine; confident-wrong 15-question investigation (unanswered stays unanswered); error-pattern escalation with materiality gate; depth ledger; 11 self-research questions. 26 tests.",
+   "last_run": "2026-09-29T16:36:35",
+   "code_hash": "39566f8d9a0884d1"
   },
   {
    "id": "PEV",
