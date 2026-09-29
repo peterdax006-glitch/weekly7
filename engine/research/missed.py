@@ -74,8 +74,8 @@ CRITERIA = ("magnitude", "predictability", "confidence", "information", "pattern
 class Params:
     mover_lo: float = 0.05                 # C67: the 5-10% band of movers whose next-day path is studied (hundreds per day)
     path_min_n: int = 30
-    move_thr: float = WINNER               # a move at/above this is a winner (Bible: the +7% week)
-    loss_thr: float = WINNER               # a move at/below minus this is a loser
+    move_thr: float = 0.05                 # C67: 5-10% and >10% movers both count; magnitude criterion separates the tiers
+    loss_thr: float = 0.05
     top_frac: float = 0.005                # the largest moves also include this share of the cross-section per side
     top_cap: int = 60                      # ...but at most this many rows per side are kept as exceptions
     keep_near: int = 40                    # near-band rows kept per day so near misses survive the reduction
@@ -867,7 +867,7 @@ def assess(o: MoveObs, view: LiftView, p: Params) -> KnowabilityReport:
 def to_matured_record(rep: KnowabilityReport, prov: Provenance, matured_at: str) -> MaturedRecord:
     """The only exit from the auditor: a MaturedRecord that the trader side can read only through gate(now)."""
     payload = {"kind": "knowability", "cid": rep.cid, "direction": rep.direction, "knowability": str(rep.knowability),
-               "confidence": rep.confidence_in_classification, "p_mover": rep.p_mover, "lift": rep.lift, "reasons": list(rep.reasons)}
+               "confidence": rep.confidence_in_classification, "p_mover": rep.p_mover, "lift": rep.lift, "n_notes": len(rep.reasons)}
     return MaturedRecord("KR" + stable_hash({"c": rep.cid, "d": rep.decided_at, "k": str(rep.knowability)}, 12), matured_at, payload, prov)
 
 

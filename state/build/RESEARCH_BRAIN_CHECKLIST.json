@@ -92,28 +92,38 @@
    "group": "FOUNDATION",
    "description": "Missed-winner research implemented",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
+    "engine/learning/missed_winners.py",
     "engine/missed_winners.py",
-    "engine/learning/missed_winners.py"
+    "engine/research/missed.py"
    ],
-   "tests": [],
+   "tests": [
+    "tests/test_research_missed.py"
+   ],
    "evidence": [],
-   "notes": "[mapping 2026-09-29, read-only audit] [partial] Missed winners: detector + RejectionAnalyzer exist; RejectionAnalyzer hook is dead in production. See line_budget row 'Missed opportunity engine'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md)."
+   "notes": "IMPLEMENTED — NOT VALIDATED (C66 wave 1, R06): missed.py 1,782 + the engine/learning/missed_winners.py it extends (1,017) = 2,799 on the ruler; section-83 mapping: rejection reasons and rank-band distinctions live in the extended module. 62 tests. | earlier: [mapping 2026-09-29, read-only audit] [partial] Missed winners: detector + RejectionAnalyzer exist; RejectionAnalyzer hook is dead in production. See line_budget row 'Missed opportunity engine'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
+   "last_run": "2026-09-29T15:22:11",
+   "code_hash": "80564c4ab02a9432"
   },
   {
    "id": "RF07",
    "group": "FOUNDATION",
    "description": "Missed-loser research implemented",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [
+    "engine/learning/missed_winners.py",
     "engine/missed_winners.py",
-    "engine/learning/missed_winners.py"
+    "engine/research/missed.py"
    ],
-   "tests": [],
+   "tests": [
+    "tests/test_research_missed.py"
+   ],
    "evidence": [],
-   "notes": "[mapping 2026-09-29, read-only audit] [partial] No missed-LOSER code anywhere (grep 'missed_loser' empty). See line_budget row 'Missed opportunity engine'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md)."
+   "notes": "IMPLEMENTED — NOT VALIDATED (C66 wave 1, R06): missed.py 1,782 + the engine/learning/missed_winners.py it extends (1,017) = 2,799 on the ruler; section-83 mapping: rejection reasons and rank-band distinctions live in the extended module. 62 tests. | earlier: [mapping 2026-09-29, read-only audit] [partial] No missed-LOSER code anywhere (grep 'missed_loser' empty). See line_budget row 'Missed opportunity engine'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
+   "last_run": "2026-09-29T15:22:11",
+   "code_hash": "80564c4ab02a9432"
   },
   {
    "id": "RF08",
@@ -1642,13 +1652,14 @@
    "section": "Missed opportunity engine",
    "minimum_lines": 1800,
    "upper_lines": 2800,
-   "actual_lines": 1443,
+   "actual_lines": 3257,
    "code_paths": [
+    "engine/learning/missed_winners.py",
     "engine/missed_winners.py",
-    "engine/learning/missed_winners.py"
+    "engine/research/missed.py"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "[mapping 2026-09-29, read-only audit] [partial] 1443/1800 meaningful lines genuinely doing this job. engine/missed_winners 458 + learning/missed_winners 985 (excl. discover_interactions, credited to interaction). Missed WINNERS only (>=7% gainers, weekly). MISSED LOSERS absent; ranking by predictability/information availability/novelty/loss-reduction absent; MissedLedger.observe hook dead (adaptive.py calls add())."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C66 wave 1, R06): missed.py 1,782 + the engine/learning/missed_winners.py it extends (1,017) = 2,799 on the ruler; section-83 mapping: rejection reasons and rank-band distinctions live in the extended module. 62 tests. | earlier: [mapping 2026-09-29, read-only audit] [partial] 1443/1800 meaningful lines genuinely doing this job. engine/missed_winners 458 + learning/missed_winners 985 (excl. discover_interactions, credited to interaction). Missed WINNERS only (>=7% gainers, weekly). MISSED LOSERS absent; ranking by predictability/information availability/novelty/loss-reduction absent; MissedLedger.observe hook dead (adaptive.py calls add())."
   },
   {
    "section": "Knowability/external-factor engine",
