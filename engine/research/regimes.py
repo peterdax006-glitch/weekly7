@@ -96,6 +96,11 @@ class RegimeConfig:
     k_max: int = 5
     min_silhouette: float = 0.25
     min_cluster_share: float = 0.05
+    clip_z: float = 4.0                       # standardised discovery features are clipped so one spike cannot own a cluster
+    min_stability: float = 0.6                # adjusted Rand agreement of bootstrap refits with the full fit
+    stability_boots: int = 6
+    stability_tol: float = 0.05               # take the smallest k within this of the best stability
+    max_match: float = 1.5                    # centroid distance (robust sigmas per feature) beyond which an old id is not inherited
 
     def validate(self) -> list[str]:
         errs = []
@@ -361,10 +366,26 @@ def dwell_ratio(labels: Sequence[Any], seed: int, n_shuffles: int = 100) -> tupl
     return obs / float(sims.mean()), (obs - float(sims.mean())) / sd if sd > 0 else None
 
 
+def cluster_stability(Z: np.ndarray, ref_labels: np.ndarray, k: int, seed: int, n_boot: int = 6, frac: float = 0.7) -> float:
+    """Mean adjusted Rand index between the reference clustering and clusterings refit on random 70% subsamples (every point then
+    assigned to its nearest subsample centroid). 1.0: the same partition however the days are sampled; near 0: the partition is
+    an accident of the sample."""
+    from sklearn.metrics import adjusted_rand_score
+    rng = np.random.default_rng(seed + 7919)
+    n = len(Z)
+    scores = []
+    for _ in range(int(n_boot)):
+        keep = rng.choice(n, max(k * 5, int(frac * n)), replace=False)
+        _lab, cent, _ = kmeans(Z[keep], k, int(rng.integers(1 << 30)), n_init=3)
+        assigned = ((Z[:, None, :] - cent[None, :, :]) ** 2).sum(axis=2).argmin(axis=1)
+        scores.append(adjusted_rand_score(ref_labels, assigned))
+    return float(np.mean(scores)) if scores else 0.0
+
+
 @dataclasses.dataclass(frozen=True)
 class DiscoveryFit:
-    """One refit. status: ACCEPTED (persistent clusters), NO_STRUCTURE (silhouette too low for any k >= 2), REJECTED_NOISE (clusters
-    exist but do not persist in time), TOO_LITTLE_DATA."""
+    """One refit. status: ACCEPTED (stable, persistent clusters), NO_STRUCTURE (silhouette too low for any k >= 2), UNSTABLE (clusters
+    change with the sample), REJECTED_NOISE (clusters exist but do not persist in time), TOO_LITTLE_DATA."""
     fitted_through: str
     k: int
     status: str
@@ -372,13 +393,18 @@ class DiscoveryFit:
     dwell_ratio: float | None
     sizes: tuple[int, ...]
     ids: tuple[str, ...]
+    stability: float | None = None
+    match_cost: float | None = None
 
 
 class DiscoveredRegimes:
     """Unsupervised regimes from the market state vector, past-only. observe() stores today's vector AFTER assign() used the
     centroids fitted before today, and refits every refit_every days on the stored past."""
 
-    FEATURES = ("ret_mean20", "vol", "dispersion", "log_dv_chg", "event_share", "breadth", "persistence")
+    # ret_mean20 and persistence are left out on purpose: drift is noise at this scale and the variance-ratio is a slow, heteroskedasticity-
+    # sensitive statistic that (measured) pulled k-means onto partitions unrelated to the volatility / dispersion / event / breadth regimes.
+    # Trend and mean-reversion have their own axes.
+    FEATURES = ("vol", "dispersion", "log_dv_chg", "event_share", "breadth")
 
     def __init__(self, cfg: RegimeConfig, seed: int = 0):
         self.cfg = cfg
@@ -393,12 +419,11 @@ class DiscoveredRegimes:
         self._since = 0
 
     def vector(self, row: Mapping[str, Any], values: Mapping[str, float | None], hist: IndicatorHistory) -> np.ndarray | None:
-        rets = list(hist.rets)[-19:] + [float(row["ret"])]
         dvs = hist.series("log_dv")
-        dv, vol = values.get("log_dv"), values.get("vol")
-        parts = [float(np.mean(rets)) if len(rets) >= 5 else None, vol, values.get("dispersion"),
+        dv = values.get("log_dv")
+        parts = [values.get("vol"), values.get("dispersion"),
                  (dv - float(np.median(dvs[-60:]))) if dv is not None and len(dvs) >= 20 else None,
-                 values.get("event_share"), clean_number(row.get("breadth")), values.get("persistence")]
+                 values.get("event_share"), clean_number(row.get("breadth"))]
         if any(p is None for p in parts):
             return None
         return np.array(parts, dtype="float64")
@@ -406,7 +431,7 @@ class DiscoveredRegimes:
     def assign(self, vec: np.ndarray | None) -> str:
         if vec is None or self.centroids is None:
             return UNKNOWN_STATE
-        z = (vec - self.center) / self.scale
+        z = np.clip((vec - self.center) / self.scale, -self.cfg.clip_z, self.cfg.clip_z)
         return self.ids[int(((self.centroids - z) ** 2).sum(axis=1).argmin())]
 
     def observe(self, date, vec: np.ndarray | None, hist: IndicatorHistory) -> None:
@@ -419,7 +444,8 @@ class DiscoveredRegimes:
             self.refit()
 
     def refit(self) -> DiscoveryFit:
-        """Choose k by silhouette on standardised past vectors; accept only persistent, non-trivial clusters."""
+        """Choose k by BOOTSTRAP STABILITY (not raw fit), gate on silhouette and persistence, then inherit ids by Hungarian
+        matching of centroids to the previous fit. A cluster count that changes when 30% of the days are dropped is not a regime count."""
         d0 = self.vectors[-1][0]
         X = np.array([v for _, v in self.vectors])
         if len(X) < self.cfg.min_history:
@@ -428,56 +454,64 @@ class DiscoveredRegimes:
             return fit
         center = np.median(X, axis=0)
         scale = np.array([robust_scale(X[:, j]) or float(X[:, j].std()) or 1.0 for j in range(X.shape[1])])
-        Z = (X - center) / scale
-        cands: list = []
+        Z = np.clip((X - center) / scale, -self.cfg.clip_z, self.cfg.clip_z)
+        cands = []
         for k in range(2, self.cfg.k_max + 1):
             lab, cent, _ = kmeans(Z, k, self.seed, n_init=8)
-            sizes = np.bincount(lab, minlength=k)
-            if sizes.min() < self.cfg.min_cluster_share * len(Z):
+            if np.bincount(lab, minlength=k).min() < self.cfg.min_cluster_share * len(Z):
                 continue
             sil = silhouette(Z, lab, seed=self.seed)
-            if sil is not None:
-                cands.append((sil, k, lab, cent))
-        # parsimony: the smallest k whose silhouette is within 10% of the best (extra clusters that add little are noise-splitting)
-        best = None
-        if cands:
-            top = max(c[0] for c in cands)
-            best = min((c for c in cands if c[0] >= 0.9 * top), key=lambda c: c[1])
-        if best is None or best[0] < self.cfg.min_silhouette:
-            fit = DiscoveryFit(d0, 1, "NO_STRUCTURE", None if best is None else best[0], None, (len(Z),), ())
+            if sil is not None and sil >= self.cfg.min_silhouette:
+                cands.append((cluster_stability(Z, lab, k, self.seed, self.cfg.stability_boots), sil, k, lab, cent))
+        if not cands:
             self.centroids, self.ids = None, ()
+            fit = DiscoveryFit(d0, 1, "NO_STRUCTURE", None, None, (len(Z),), ())
             self.fits.append(fit)
             return fit
-        sil, k, lab, cent = best
+        top = max(c[0] for c in cands)
+        if top < self.cfg.min_stability:
+            self.centroids, self.ids = None, ()
+            fit = DiscoveryFit(d0, 1, "UNSTABLE", max(c[1] for c in cands), None, (len(Z),), (), top)
+            self.fits.append(fit)
+            return fit
+        stab, sil, k, lab, cent = min((c for c in cands if c[0] >= top - self.cfg.stability_tol), key=lambda c: c[2])
         ratio, _z = dwell_ratio(list(lab), self.seed)
+        sizes = tuple(int(x) for x in np.bincount(lab, minlength=k))
         if ratio is None or ratio < self.cfg.dwell_ratio_min:
-            fit = DiscoveryFit(d0, k, "REJECTED_NOISE", sil, ratio, tuple(int(s) for s in np.bincount(lab, minlength=k)), ())
             self.centroids, self.ids = None, ()
+            fit = DiscoveryFit(d0, k, "REJECTED_NOISE", sil, ratio, sizes, (), stab)
             self.fits.append(fit)
             return fit
-        ids = self._match(cent, center, scale)
+        ids, cost = self._match(cent, center, scale)
         self.centroids, self.ids, self.center, self.scale = cent, ids, center, scale
-        fit = DiscoveryFit(d0, k, "ACCEPTED", sil, ratio, tuple(int(s) for s in np.bincount(lab, minlength=k)), ids)
+        fit = DiscoveryFit(d0, k, "ACCEPTED", sil, ratio, sizes, ids, stab, cost)
         self.fits.append(fit)
         return fit
 
-    def _match(self, cent: np.ndarray, center: np.ndarray, scale: np.ndarray) -> tuple[str, ...]:
-        """Keep an old regime's id when a new centroid (compared in raw feature space) is the nearest unclaimed one; new ones get new ids."""
+    def _match(self, cent: np.ndarray, center: np.ndarray, scale: np.ndarray) -> tuple[tuple[str, ...], float | None]:
+        """Optimal (Hungarian) one-to-one matching of the new centroids to the previous fit's, compared in raw feature space in
+        units of the new scale. A pair closer than 3/4 of the old fit's smallest inter-centroid distance (max_match when the old fit
+        had one cluster) inherits the old id; the rest get new ids.
+        Returns (ids, mean matched distance or None when nothing was matched)."""
+        from scipy.optimize import linear_sum_assignment
         raw_new = cent * scale + center
         ids: list[str | None] = [None] * len(cent)
+        costs = []
         if self.centroids is not None and self.ids:
             raw_old = self.centroids * self.scale + self.center
-            pairs = sorted(((float((((raw_new[i] - raw_old[j]) / scale) ** 2).sum()), i, j) for i in range(len(raw_new)) for j in range(len(raw_old))))
-            used_old = set()
-            for dist, i, j in pairs:
-                if ids[i] is None and j not in used_old and dist < 4.0 * len(scale):
+            dist = np.sqrt((((raw_new[:, None, :] - raw_old[None, :, :]) / scale) ** 2).mean(axis=2))
+            old_d = np.sqrt((((raw_old[:, None, :] - raw_old[None, :, :]) / scale) ** 2).mean(axis=2))
+            # a centroid may drift, but never farther than 3/4 of the way to its nearest sibling (else it could be the sibling)
+            limit = 0.75 * float(old_d[old_d > 0].min()) if (old_d > 0).any() else self.cfg.max_match
+            for i, j in zip(*linear_sum_assignment(dist)):
+                if dist[i, j] <= limit:
                     ids[i] = self.ids[j]
-                    used_old.add(j)
+                    costs.append(float(dist[i, j]))
         for i in range(len(ids)):
             if ids[i] is None:
                 ids[i] = f"disc_{self._next_id}"
                 self._next_id += 1
-        return tuple(ids)
+        return tuple(ids), (float(np.mean(costs)) if costs else None)
 
     def status(self) -> str:
         return self.fits[-1].status if self.fits else "NOT_FITTED"
@@ -537,6 +571,49 @@ class Contrast:
 
 
 @dataclasses.dataclass(frozen=True)
+class PooledState:
+    """One state's effect after shrinking toward the axis's pooled effect (random-effects, DerSimonian-Laird). weight is the
+    share of the state's OWN estimate kept (1 = no shrinkage); se is the posterior standard error."""
+    axis: str
+    state: str
+    raw_effect: float
+    raw_se: float
+    effect: float
+    se: float
+    weight: float
+
+    @property
+    def t(self) -> float | None:
+        return self.effect / self.se if self.se > 1e-15 else None
+
+    def established(self, t_bar: float = T_BAR) -> bool:
+        return self.t is not None and abs(self.t) >= t_bar
+
+
+def pool_states(effects: Sequence[StateEffect]) -> tuple[list[PooledState], float, float | None]:
+    """Random-effects pooling of one axis's per-state effects. Returns (pooled states, tau2, pooled mean). tau2 is the
+    method-of-moments between-state variance: 0 when the states agree within their errors (everything is pulled to the pooled
+    mean), large when they truly differ (little shrinkage). A thin state (large se) always moves furthest. Fewer than two
+    measured states: nothing to pool, ([], 0.0, None)."""
+    ms = [e for e in effects if e.effect is not None and e.se is not None and e.se > 0]
+    if len(ms) < 2:
+        return [], 0.0, None
+    w = np.array([1.0 / e.se ** 2 for e in ms])
+    y = np.array([e.effect for e in ms])
+    mu = float((w * y).sum() / w.sum())
+    q = float((w * (y - mu) ** 2).sum())
+    denom = float(w.sum() - (w ** 2).sum() / w.sum())
+    tau2 = max(0.0, (q - (len(ms) - 1)) / denom) if denom > 0 else 0.0
+    var_mu = 1.0 / float(w.sum())
+    out = []
+    for e in ms:
+        b = tau2 / (tau2 + e.se ** 2)
+        out.append(PooledState(e.axis, e.state, e.effect, e.se, mu + b * (e.effect - mu),
+                               math.sqrt(b * e.se ** 2 + (1 - b) ** 2 * var_mu), b))
+    return out, tau2, mu
+
+
+@dataclasses.dataclass(frozen=True)
 class PatternRegimeReport:
     pattern_id: str
     verdict: Verdict
@@ -546,6 +623,8 @@ class PatternRegimeReport:
     bound_axes: tuple[str, ...]
     good_states: Mapping[str, tuple[str, ...]]        # axis -> states where the effect is established with the overall sign
     bad_states: Mapping[str, tuple[str, ...]]         # axis -> states where it is absent or opposite (measured, enough data)
+    pooled: Mapping[str, tuple["PooledState", ...]] = dataclasses.field(default_factory=dict)   # empirical-Bayes view per axis
+    tau2: Mapping[str, float] = dataclasses.field(default_factory=dict)       # between-state variance per axis
 
     def table(self) -> pd.DataFrame:
         return pd.DataFrame([dataclasses.asdict(e) for e in self.by_state])
@@ -627,11 +706,20 @@ class PatternRegimeBook:
         bound = tuple(sorted({c.axis for c in sig}))
         good: dict[str, tuple[str, ...]] = {}
         bad: dict[str, tuple[str, ...]] = {}
+        pooled: dict[str, tuple[PooledState, ...]] = {}
+        tau2: dict[str, float] = {}
         osign = overall.sign
         for axis in axes:
             ms = [e for e in by_state if e.axis == axis and e.t is not None]
-            g = tuple(e.state for e in ms if e.established(t_bar) and e.sign == osign)
-            b = tuple(e.state for e in ms if not e.established(t_bar) or e.sign != osign)
+            ps, tau2[axis], _mu = pool_states([e for e in by_state if e.axis == axis])
+            if ps:
+                pooled[axis] = tuple(ps)
+                # judged on the SHRUNK effects: a thin state cannot be 'good' on a lucky estimate or 'bad' on an unlucky one
+                g = tuple(p.state for p in ps if p.established(t_bar) and (p.effect > 0) == (osign > 0))
+                b = tuple(p.state for p in ps if not (p.established(t_bar) and (p.effect > 0) == (osign > 0)))
+            else:
+                g = tuple(e.state for e in ms if e.established(t_bar) and e.sign == osign)
+                b = tuple(e.state for e in ms if not e.established(t_bar) or e.sign != osign)
             if g:
                 good[axis] = g
             if b:
@@ -648,7 +736,7 @@ class PatternRegimeBook:
             verdict = Verdict.UNIVERSAL
         else:
             verdict = Verdict.INSUFFICIENT_DATA         # established once, but too few regimes measured to call it universal
-        return PatternRegimeReport(pattern_id, verdict, overall, tuple(by_state), tuple(contrasts), bound, good, bad)
+        return PatternRegimeReport(pattern_id, verdict, overall, tuple(by_state), tuple(contrasts), bound, good, bad, pooled, tau2)
 
     def regime_gate(self, pattern_id: str, state: RegimeState, now, replay_years: Iterable[int] = ()) -> dict[str, Any]:
         """Should the pattern be used in TODAY's regime? allowed True / False / None (None = abstain: unmeasured or unknown).

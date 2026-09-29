@@ -14,16 +14,16 @@ from engine.research import discovery_sources as DS
 from engine.research.core import GateVerdict, MaturedRecord
 
 
-def world(n_t=40, n_d=420, seed=1, plant=0.0, extras=True):
+def world(n_t=40, n_d=420, seed=1, plant=0.0, extras=True, beta_spread=0.0):
     """Random-walk bars. plant>0: a volume spike on day t lifts day t+1's return by `plant` (relvol family should find it)."""
     rng = np.random.default_rng(seed)
     dates = pd.bdate_range("2019-01-01", periods=n_d)
     tk = [f"T{i:03d}" for i in range(n_t)]
-    mk = rng.normal(0.0002, 0.007, n_d)
+    mk = rng.normal(0.0, 0.007, n_d)
     frames = []
     for i, t in enumerate(tk):
         spike = rng.random(n_d) < 0.08
-        r = mk * rng.uniform(0.7, 1.3) + rng.normal(0, 0.012, n_d)
+        r = mk * (1.0 + beta_spread * rng.uniform(-1, 1)) + rng.normal(0, 0.012, n_d)
         r[1:] += plant * spike[:-1]
         c = 50 * np.exp(np.cumsum(r))
         o = np.r_[c[0], c[:-1]]
@@ -521,3 +521,275 @@ def test_patternminer_wrapper_supplies_candidates_that_are_still_judged():
     y = pd.Series(np.where(X["a"] > 0.8, 0.01, 0.0) + np.random.default_rng(2).normal(0, 0.02, 1500), index=X.index)
     cands, table, n = D.mine_with_patternminer(X, y, "2020-06-01", ["a", "b"], {"min_n": 30, "max_pairs": 20, "max_unless": 5, "null_reps": 1})
     assert n >= 0 and all(c.origin == "miner" for c in cands)
+
+
+# ================================================================== C67: sweep, cohorts, precursors, strict accounting
+from engine import pattern_identity as PI          # noqa: E402
+
+
+def cohort_ok(r, name):
+    return [bool(x) for x in D.cohort_mask(r, name)]
+
+
+def unit_state(effects_by_unit, direction=1):
+    st = D.DiscoveryState()
+    st.unit_evidence["Ptest"] = {u: [m, se, direction, 3.0] for u, (m, se) in effects_by_unit.items()}
+    return st
+
+
+def slice_loader(inp):
+    bars = inp.bars
+
+    def load(a, b):
+        d = pd.to_datetime(bars["date"])
+        return dataclasses.replace(inp, bars=bars[(d >= a) & (d <= b)])
+    return load
+
+
+def test_new_families_pass_pit_audit_and_targets_mature(planted):
+    assert DS.audit_pit(planted, ["movers", "candles", "drawdown", "leadlag", "volprice"], SCFG) == []
+    for kind in DS.TARGETS:
+        y, m = DS.target_labels(planted.bars, kind, 5, now="2020-06-01")
+        assert len(y) > 0 and (m < pd.Timestamp("2020-06-01")).all() and float(y.groupby(level=0).mean().abs().max()) < 1e-9
+    with pytest.raises(DS.SourceError):
+        DS.target_labels(planted.bars, "nonsense", 5)
+
+
+def test_range_target_sees_the_path_not_just_the_endpoint():
+    dates = pd.bdate_range("2020-01-01", periods=30)
+    rows = []
+    for t, spike in (("A", True), ("B", False)):
+        c = np.full(30, 100.0)
+        h, l = c * 1.001, c * 0.999
+        if spike:
+            h[5] = 130.0                                    # a spike inside the window that closes back at 100
+        rows.append(pd.DataFrame(dict(date=dates, ticker=t, open=c, high=h, low=l, close=c, volume=1e6)))
+    bars = pd.concat(rows)
+    y, _ = DS.target_labels(bars, "range_exp", 5)
+    assert y.xs("A", level=1).loc[dates[2]] > 0.1 and y.xs("B", level=1).loc[dates[2]] < -0.1
+    assert DS.target_labels(bars, "excess", 5)[0].abs().max() < 1e-9
+
+
+def test_cohort_bands_and_restriction(planted):
+    r = np.array([0.06, -0.07, 0.03, 0.12, -0.15, np.nan, 0.01])
+    assert cohort_ok(r, "mover_5_10") == [True, True, False, False, False, False, False]
+    assert cohort_ok(r, "mover_up_5_10") == [True, False, False, False, False, False, False]
+    assert cohort_ok(r, "mover_down_5_10") == [False, True, False, False, False, False, False]
+    assert cohort_ok(r, "mover_gt10") == [False, False, False, True, True, False, False]
+    assert cohort_ok(r, "quiet") == [False, False, False, False, False, False, True]
+    with pytest.raises(D.DiscoveryError):
+        D.cohort_mask(r, "wat")
+    fb = DS.build_features(planted, ["relvol"], SCFG)
+    y, m = DS.forward_labels(planted.bars, 5)
+    p = D.Panel.build(fb.X, y, pd.Timestamp("2020-08-03"), CFG, m, on_immature="drop")
+    with pytest.raises(D.DiscoveryError):
+        D.restrict_cohort(p, "mover_5_10")                  # needs the price family
+
+
+def test_cohort_step_only_learns_from_cohort_rows(planted):
+    st = D.DiscoveryState()
+    e = engine()
+    rep = e.step(st, "2020-09-01", planted, families=["relvol"], cohort="quiet")
+    assert rep.tested > 0 and D.audit_state(st) == []
+    with pytest.raises(D.DiscoveryError):
+        e.step(D.DiscoveryState(), "2020-09-01", planted, families=["relvol"], cohort="mover_gt10")     # no such rows in this world
+
+
+def test_strict_accounting_gets_stricter_with_the_search():
+    small, big = D.TrialLedger(), D.TrialLedger()
+    rng = np.random.default_rng(0)
+    small.register("a", "2020-01-01", [f"s{i}" for i in range(30)], rng.random(30), ["f"] * 30, "w")
+    for r in range(40):
+        big.register(f"r{r}", "2020-01-01", [f"b{r}_{i}" for i in range(100)], rng.random(100), ["f"] * 100, f"w{r}")
+    ps, pb = D.small_effect_policy(small, ses={"x": 0.002}), D.small_effect_policy(big, ses={"x": 0.002})
+    assert pb.p_threshold < ps.p_threshold and pb.z_required > ps.z_required and pb.mde_at_se["x"] > ps.mde_at_se["x"]
+    assert pb.pi0 <= 1.0 and not pb.admits(0.01)
+    assert D.storey_pi0([0.5] * 10) == 1.0 and D.bh_threshold([]) == 0.0
+    assert D.bh_threshold([0.001] * 5 + [0.9] * 95, 0.05) == 0.001
+
+
+def test_power_and_mde_are_consistent():
+    se, thr = 0.002, 1e-4
+    mde = D.minimum_detectable_effect(se, thr, 0.8)
+    assert D.power_at(mde, se, thr) == pytest.approx(0.8, abs=0.01) and D.power_at(0.0, se, thr) < 2e-4
+    assert D.minimum_detectable_effect(0.0, thr) == float("inf") and D.power_at(1.0, float("inf"), thr) == 0.0
+
+
+def test_precursor_intake_groups_reports_bad_and_is_judged_like_any_candidate(planted):
+    class Rec:                                              # duck type standing in for R21's record
+        expression = "relvol__rvol_1 q4"
+        cohort = "all"
+        episode_type = "up_5_10"
+        source = "R21"
+    items = [Rec(), "relvol__rvol_1 q4", {"expression": "price__ret_5 q0", "cohort": "quiet"}, "garbage!!", {"text": "x q1", "cohort": "moon"}, {}]
+    groups, bad = D.precursor_candidates(items)
+    assert [c.text for c in groups["all"]] == ["relvol__rvol_1 q4"] and groups["quiet"][0].origin == "precursor" and len(bad) == 3
+    st = D.DiscoveryState()
+    ghost = D.Cand(PI.Expression.parse("nope__x q4"), "precursor", ())
+    rep = engine().step(st, "2020-09-01", planted, families=["relvol", "price"], extra_cands=groups["all"] + [ghost])
+    assert "precursor:nope__x q4" in rep.skipped
+    pid = groups["all"][0].id(CFG.tag)
+    assert pid in st.dossiers and st.dossiers[pid].verdict != GateVerdict.PROMOTE
+    assert st.ledger.times_tested[pid] >= 1 and D.audit_state(st) == []
+
+
+def test_recurrence_requires_years_eras_and_the_whole_search_multiplicity():
+    good = {f"{y}|0|price@all": (0.004, 0.0012) for y in (1996, 2004, 2012, 2019)}
+    st = unit_state(good)
+    for i in range(3000):
+        st.ledger.times_tested[f"n{i}"] = 1
+    (r,) = D.recurrence_table(st)
+    assert r.n_years == 4 and r.n_eras >= 3 and r.agree_share == 1.0 and r.m_patterns == 3000
+    assert D.judge_recurrence(r, CFG).verdict == "RECURS"
+    weak = unit_state({f"{y}|0|price@all": (0.003, 0.0016) for y in (2012, 2013, 2014)})       # one era only
+    assert D.judge_recurrence(D.recurrence_table(weak)[0], CFG).verdict == "PENDING"
+    mixed = unit_state({"2001|0|p@all": (0.004, 0.001), "2005|0|p@all": (-0.004, 0.001), "2010|0|p@all": (0.004, 0.001),
+                        "2015|0|p@all": (-0.004, 0.001)})
+    assert D.judge_recurrence(D.recurrence_table(mixed)[0], CFG).verdict == "PENDING"
+    rev = unit_state({f"{y}|0|price@all": (-0.004, 0.0012) for y in (1996, 2004, 2012, 2019)})
+    assert D.judge_recurrence(D.recurrence_table(rev)[0], CFG).verdict == "REVERSED"
+
+
+def test_same_year_units_are_not_counted_as_independent_years():
+    one_year = unit_state({f"2015|{s}|price@all": (0.004, 0.0013) for s in range(6)})
+    (r,) = D.recurrence_table(one_year)
+    assert r.n_units == 6 and r.n_years == 1 and D.judge_recurrence(r, CFG).verdict == "PENDING"
+    assert D.recurrence(D.DiscoveryState(), "nothing", 10) is None and D.recurrence_table(D.DiscoveryState()) == []
+
+
+def test_apply_recurrence_supports_but_never_promotes_and_release_needs_it(planted_run):
+    src = planted_run[0]
+    store = KN.KnowledgeStore()
+    for kid in src.store.ids():
+        store.add(src.store.latest(kid))
+    st = D.DiscoveryState(store=store, dossiers=dict(src.dossiers), ledger=src.ledger)
+    hyp = next(k for k in (store.latest(i) for i in store.ids()) if k.epistemic == Epistemic.HYPOTHESIS)
+    pid = hyp.knowledge_id[2:]
+    dr = float(st.dossiers[pid].direction)
+    st.unit_evidence[pid] = {f"{y}|0|price@all": [0.004 * dr, 0.0012, dr, 3.0] for y in (1996, 2004, 2012, 2019)}
+    assert D.release_filter(st, "2022-01-01") == []                       # a mined hypothesis is never released
+    out = D.apply_recurrence(st, "2021-01-01", CFG)
+    assert out["supported"] == 1
+    k = store.latest(hyp.knowledge_id)
+    assert k.epistemic == Epistemic.SUPPORTED and k.promotion == Promotion.RESEARCH and k.decision_effect == (DecisionEffect.NONE,)
+    assert D.apply_recurrence(st, "2021-01-02", CFG)["supported"] == 0 and store.verify() == []
+    rel = D.release_filter(st, "2022-01-01")
+    assert [r.record_id for r in rel] == [hyp.knowledge_id] and rel[0].gate("2022-01-01")["epistemic"] == "SUPPORTED"
+    assert D.release_filter(st, "2022-01-01", replay_windows=[(st.dossiers[pid].windows["train"][0], "2030-01-01")]) == []
+
+
+def test_sweep_is_resumable_least_covered_first_and_tracks_coverage(planted, tmp_path):
+    cfg = D.SweepConfig(years=(2019, 2020), n_slices=2, families=("relvol", "price"), cohorts=("all",), min_names=8)
+    sw, st = D.DiscoverySweep.resume(cfg, engine(), tmp_path / "sw")
+    load, last = slice_loader(planted), planted.bars["date"].max()
+    assert len(sw.pending(last)) == 8 and sw.next_family(last) in ("relvol", "price")
+    reps = sw.run(st, load, last, max_units=3)
+    assert len(sw.book.records) == 3 and len(reps) <= 3 and (tmp_path / "sw" / "coverage.json").exists()
+    done = set(sw.book.records)
+    sw2, st2 = D.DiscoverySweep.resume(cfg, engine(), tmp_path / "sw")             # "killed": everything reloaded from disk
+    assert set(sw2.book.records) == done and st2.steps == st.steps and st2.ledger.total_trials == st.ledger.total_trials
+    sw2.run(st2, load, last, max_units=8)
+    assert set(sw2.book.records) > done
+    cov = sw2.coverage(last)
+    assert set(cov["by_family"]) == {"relvol", "price"} and cov["least_covered_family"] in cov["by_family"] and 0 < cov["fraction_done"] <= 1
+    assert D.audit_state(st2) == [] and "SWEEP" in D.sweep_report(sw2, st2, last)
+    finished = {u.uid for u in sw2.book.all_units() if sw2.book.is_done(u, (sw2.tag,), sw2.data_through(last))}
+    assert finished.isdisjoint({u.uid for u in sw2.pending(last)})               # finished units are never handed out again
+
+
+def test_sweep_thin_universe_and_bad_config(planted):
+    with pytest.raises(D.DiscoveryError):
+        D.DiscoverySweep(D.SweepConfig(years=(2019,), cohorts=("moon",)), engine())
+    with pytest.raises(D.DiscoveryError):
+        D.DiscoverySweep(D.SweepConfig(years=(), n_slices=0), engine())
+    cfg = D.SweepConfig(years=(2019,), n_slices=1, families=("price",), min_names=500)
+    sw = D.DiscoverySweep(cfg, engine())
+    st = D.DiscoveryState()
+    assert sw.run(st, slice_loader(planted), planted.bars["date"].max()) == []
+    (rec,) = sw.book.records.values()
+    assert rec.band_counts == {"thin_universe": 1} and st.steps == 0 and sw.pending(planted.bars["date"].max()) == []
+
+
+def test_sweep_steps_may_run_out_of_calendar_order(planted):
+    st = D.DiscoveryState()
+    e = engine()
+    e.step(st, "2020-09-01", planted, families=["price"], ordered=False)
+    e.step(st, "2020-06-01", planted, families=["price"], ordered=False)
+    assert st.steps == 2 and st.store.verify() == []
+    with pytest.raises(FirewallBreach):
+        e.step(st, "2020-05-01", planted, families=["price"])
+
+
+def test_stock_shift_null_keeps_each_stocks_values_but_breaks_alignment():
+    rng = np.random.default_rng(0)
+    tk = np.repeat(np.array(["A", "B", "C"]), 100)
+    y = np.concatenate([np.arange(100.0), 1000 + np.arange(100.0), 5000 + rng.normal(size=100)])
+    out = D.shift_within_stocks(y, tk, np.random.default_rng(1), 10)
+    for t in "ABC":
+        assert sorted(out[tk == t]) == sorted(y[tk == t])
+    assert (out != y).mean() > 0.9
+    short = D.shift_within_stocks(np.arange(6.0), np.array(list("aabbcc")), np.random.default_rng(0), 20)
+    assert sorted(short) == list(range(6))
+
+
+def test_calibrated_p_is_never_more_optimistic_than_the_null():
+    null = np.linspace(0, 3, 1000)
+    p = D.calibrated_p(np.array([1e-9, 0.5, 1e-9]), np.array([2.9, 0.1, 8.0]), null)
+    assert p[0] > 5e-3 and p[1] >= 0.5 and p[2] == pytest.approx(1.0 / 1001)
+    assert D.calibrated_p(np.array([0.01]), np.array([3.0]), np.array([1.0]))[0] == 0.01
+
+
+def test_null_calibration_reports_no_trusted_findings_in_a_null_world(null):
+    nc = D.null_calibration(engine(), null, "2020-09-01", ["relvol", "price", "volatility"], n_runs=2)
+    assert nc.runs == 2 and nc.generated > 0 and nc.trusted == 0 and nc.trusted_rate == 0.0 and 0.0 <= nc.false_discovery_rate <= 1.0
+
+
+def test_power_curve_recovers_a_planted_effect_and_not_a_zero_one():
+    w = world(plant=0.0, seed=8, extras=False)
+    pts = D.power_curve(engine(), w, "2020-09-01", ["relvol", "price"], "relvol__rvol_1 q4", [0.0, 0.008])
+    assert not pts[0].found and pts[1].found and pts[1].t_disc > 4
+    neg = D.power_curve(engine(), w, "2020-09-01", ["relvol", "price"], "relvol__rvol_1 q4", [-0.008])
+    assert neg[0].found
+
+
+def test_known_overlaps_flags_a_rediscovery_under_another_name(planted_run):
+    st, _ = planted_run
+    rng = np.random.default_rng(3)
+    dates = pd.bdate_range("2020-01-01", periods=200)
+    idx = pd.MultiIndex.from_product([dates, [f"S{i:02d}" for i in range(30)]], names=["date", "ticker"])
+    X = pd.DataFrame({"f": rng.normal(size=len(idx)), "g": rng.normal(size=len(idx))}, index=idx)
+    y = pd.Series(rng.normal(0, 0.02, len(idx)), index=idx)
+    cfg = dataclasses.replace(CFG, holdout_frac=0.0, min_weeks=20)
+    panel = D.Panel.build(X, y, dates[-1] + pd.Timedelta(days=40), cfg, matured_at=pd.Series(dates[-1], index=idx), on_immature="drop")
+    an = D.Analyzer(panel, ["f", "g"], {}, cfg)
+    d = next(iter(st.dossiers.values()))
+    known = dataclasses.replace(d, pattern_id="Pknown", text="f q4")
+    s2 = D.DiscoveryState(dossiers={"Pknown": known})
+    out = D.known_overlaps(an, s2, {"Pnew": PI.Expression.parse("f q4"), "Pother": PI.Expression.parse("g q0")})
+    assert out == {"Pnew": ("K-Pknown",)}
+    assert D.known_overlaps(an, D.DiscoveryState(), {"Pnew": PI.Expression.parse("f q4")}) == {}
+
+
+def test_tabulations_and_explain_on_a_real_run(planted_run):
+    st, _ = planted_run
+    yt = D.family_yield_table(st)
+    assert {"family", "trials", "survivors", "fdr"} <= set(yt.columns) and yt["trials"].sum() == st.ledger.total_trials
+    assert D.era_breakdown(st)["n"].sum() == len(st.dossiers)
+    pid = next(iter(st.dossiers))
+    text = D.explain(st, pid)
+    assert st.dossiers[pid].text in text and "validation" in text and "decision impact" in text and D.explain(st, "nope").endswith("unknown")
+    assert D.era_breakdown(D.DiscoveryState()).empty
+
+
+def test_sweep_horizons_are_distinct_outcomes_with_distinct_ids(planted):
+    st = D.DiscoveryState()
+    reps = D.sweep_horizons(engine(), st, "2020-09-01", planted, [1, 5], families=["relvol"], targets=["excess", "abs_move"])
+    assert len(reps) == 4 and st.steps == 4 and st.ledger.times_tested and D.audit_state(st) == []
+    assert CFG.tag == "excess_5d" and dataclasses.replace(CFG, target="abs_move", horizon=1).tag == "abs_move_1d"
+    assert D.DiscoveryConfig(target="wat").validate()
+
+
+def test_seed_stability_reports_overlap_between_seeds():
+    w = world(plant=0.02, seed=9, extras=False)
+    rep = D.seed_stability(lambda sd: D.DiscoveryEngine(dataclasses.replace(CFG, seed=sd), SCFG, audit=False), w, "2020-09-01", ["relvol"], (1, 2))
+    assert 0.0 <= rep["min_jaccard"] <= rep["mean_jaccard"] <= 1.0 and len(rep["sizes"]) == 2

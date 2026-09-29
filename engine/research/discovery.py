@@ -77,7 +77,8 @@ class DiscoveryConfig:
     max_unless: int = 200
     unless_top_pairs: int = 20
     random_pair_frac: float = 0.25
-    null_reps: int = 3
+    null_reps: int = 5
+    null: str = "both"                   # stock_shift (stock series rotated in time) | week_shuffle (shuffled inside each week) | both (union, conservative)
     hac_lags: int | None = None          # None = ceil(horizon / 5)
     shortlist_p: float = 0.02
     shortlist_q: float = 0.25
@@ -111,6 +112,8 @@ class DiscoveryConfig:
             e.append(f"single_levels must be non-empty levels in 0..{N_LEVELS - 1}")
         if not 0 < self.shortlist_p <= 0.2 or not 0 < self.shortlist_q <= 1:
             e.append("shortlist_p in (0, 0.2] and shortlist_q in (0, 1]")
+        if self.null not in ("stock_shift", "week_shuffle", "both"):
+            e.append("null must be stock_shift, week_shuffle or both")
         if self.target not in DS.TARGETS:
             e.append(f"target must be one of {DS.TARGETS}")
         if self.min_weeks < 20 or self.min_rows < 30:
@@ -508,6 +511,34 @@ class AlphaWealth:
         return self.wealth
 
 
+def shift_within_stocks(y: np.ndarray, tickers: np.ndarray, rng: np.random.Generator, min_shift: int = 20) -> np.ndarray:
+    """Null outcomes that keep each stock's own history (drift, volatility clustering, autocorrelation) but sever its link to the features:
+    every stock's outcome series is rotated in time by a random amount of at least `min_shift` rows. Shuffling inside a week does not do
+    this - a feature that merely selects the same stocks for months would look 'significant' against a null with no stock persistence."""
+    y = np.asarray(y, dtype=float)
+    out = y.copy()
+    order = np.argsort(tickers, kind="stable")
+    cuts = np.flatnonzero(np.r_[True, tickers[order][1:] != tickers[order][:-1], True])
+    for a, b in zip(cuts[:-1], cuts[1:]):
+        idx = order[a:b]
+        n = len(idx)
+        if n < 2 * min_shift + 2:
+            out[idx] = y[idx][rng.permutation(n)]
+            continue
+        out[idx] = np.roll(y[idx], int(rng.integers(min_shift, n - min_shift)))
+    return out
+
+
+def calibrated_p(p_param: np.ndarray, t: np.ndarray, null_t: np.ndarray) -> np.ndarray:
+    """Never more optimistic than the null: the parametric p is raised to the empirical exceedance rate of |t| in the null distribution
+    (add-one, so it can never be 0). This is what makes the p-values entering the cumulative ledger honest about persistence."""
+    n = np.sort(np.asarray(null_t, dtype=float))
+    if n.size < 2:
+        return np.asarray(p_param, dtype=float)
+    ge = n.size - np.searchsorted(n, np.abs(np.asarray(t, dtype=float)), side="left")
+    return np.maximum(np.asarray(p_param, dtype=float), (1.0 + ge) / (1.0 + n.size))
+
+
 # ------------------------------------------------------------------------------------------------ candidate screening
 @dataclasses.dataclass(frozen=True)
 class Cand:
@@ -564,6 +595,7 @@ class Screener:
         self.codes = {c: q.codes[fit, j] for j, c in enumerate(q.features)}
         self.y = panel.y[fit]
         self.wk = panel.wk[fit]
+        self.tk = panel.tickers[fit]
         self.rng = np.random.default_rng(cfg.seed)
 
     # -- evaluation of a candidate list -> weekly sums
@@ -690,55 +722,66 @@ class Screener:
                     out.append(c)
         return out
 
-    def run(self) -> ScreenResult:
+    def _search(self, y: np.ndarray) -> tuple[list[Cand], np.ndarray, np.ndarray, dict, np.ndarray]:
+        """The whole staged search against outcome vector `y`: singles, pairs from the strongest singles, exceptions on the strongest
+        pairs. Later stages are chosen from earlier stages' statistics, so the search itself manufactures large |t|; the null must
+        repeat it, not merely re-test the final list."""
         cfg = self.cfg
         seen: set[str] = set()
         cands = self.singles()
         seen.update(c.text for c in cands)
-        SY, SW = self.evaluate(cands, self.y)
+        SY, SW = self.evaluate(cands, y)
         st, tested = self._stats(SY, SW)
         order = np.argsort(-np.abs(st["t"]) * tested, kind="mergesort")
-        pool = []
-        for i in order[: cfg.top_singles]:
-            if tested[i]:
-                pool.append(cands[int(i)].expr.base[0])
+        pool = [cands[int(i)].expr.base[0] for i in order[: cfg.top_singles] if tested[i]]
         pairs = self.pairs(pool, seen)
         if pairs:
-            pSY, pSW = self.evaluate(pairs, self.y)
+            pSY, pSW = self.evaluate(pairs, y)
             pst, ptested = self._stats(pSY, pSW)
             cands, SY, SW = cands + pairs, np.vstack([SY, pSY]), np.vstack([SW, pSW])
             st = {k: np.concatenate([st[k], pst[k]]) for k in st}
             tested = np.concatenate([tested, ptested])
-        n_stock_pairs = [i for i, c in enumerate(cands) if len(c.expr.base) == 2]
-        ranked = sorted(n_stock_pairs, key=lambda i: (-abs(st["t"][i]) * tested[i], cands[i].text))
+        two = [i for i, c in enumerate(cands) if len(c.expr.base) == 2]
+        ranked = sorted(two, key=lambda i: (-abs(st["t"][i]) * tested[i], cands[i].text))
         exc = self.exceptions([cands[i] for i in ranked if tested[i]], seen)
         if exc:
-            eSY, eSW = self.evaluate(exc, self.y)
+            eSY, eSW = self.evaluate(exc, y)
             est, etested = self._stats(eSY, eSW)
             cands, SY, SW = cands + exc, np.vstack([SY, eSY]), np.vstack([SW, eSW])
             st = {k: np.concatenate([st[k], est[k]]) for k in st}
             tested = np.concatenate([tested, etested])
-        null_t = self._null(cands, SW, tested)
+        return cands, SY, SW, st, tested
+
+    def run(self) -> ScreenResult:
+        cfg = self.cfg
+        cands, SY, SW, st, tested = self._search(self.y)
+        null_t = self._null()
         real_t = np.sort(np.abs(st["t"][tested])) if tested.any() else np.array([0.0])
         ph = np.array([PS.local_fdr(abs(t), null_t, real_t) if ok else 1.0 for t, ok in zip(st["t"], tested)])
+        st["p"] = np.where(tested, calibrated_p(st["p"], st["t"], null_t), 1.0)
         ids = [c.id(cfg.tag) for c in cands]
-        fam_of_col = self.fam_of_col
-        return ScreenResult(cands, SY, SW, st, tested, null_t, ph, np.ones(len(cands)), ids, fam_of_col, len(cands))
+        return ScreenResult(cands, SY, SW, st, tested, null_t, ph, np.ones(len(cands)), ids, self.fam_of_col, len(cands))
 
-    def _null(self, cands: Sequence[Cand], SW: np.ndarray, tested: np.ndarray) -> np.ndarray:
-        """|t| of the same candidates when outcomes are shuffled inside each week (their link to the features destroyed, every
-        week's own level and spread kept). Only candidates that were testable in the real run contribute."""
-        if not tested.any():
-            return np.array([0.0])
-        sub = [c for c, ok in zip(cands, tested) if ok]
+    def _null(self) -> np.ndarray:
+        """|t| of every testable candidate when the WHOLE search is re-run on outcomes that no longer belong to these features: each stock's
+        series rotated in time (keeps stock persistence) and shuffled inside each week (keeps week structure), unioned. Because the search
+        is repeated, the null includes the selection effect of choosing pairs and exceptions by their own statistics."""
         out = []
-        for r in range(self.cfg.null_reps):
-            rng = np.random.default_rng(self.cfg.seed * 1000 + r)
-            yp = PS.permute_within_clusters(self.y, self.wk, rng)
-            SYp, SWp = self.evaluate(sub, yp)
-            st = weekly_stats_matrix(SYp, SWp, self.p.sel_train, self.cfg.lags, self.cfg.min_active_weeks)
-            out.append(np.abs(st["t"]))
-        return np.sort(np.concatenate(out))
+        modes = ("stock_shift", "week_shuffle") if self.cfg.null == "both" else (self.cfg.null,)
+        saved = self.rng
+        try:
+            for r in range(self.cfg.null_reps):
+                for mode in modes:
+                    rng = np.random.default_rng(self.cfg.seed * 1000 + r)
+                    yp = (shift_within_stocks(self.y, self.tk, rng, max(self.cfg.horizon * 4, 20)) if mode == "stock_shift"
+                          else PS.permute_within_clusters(self.y, self.wk, rng))
+                    self.rng = np.random.default_rng(self.cfg.seed * 7919 + r)
+                    _, _, _, st, tested = self._search(yp)
+                    out.append(np.abs(st["t"][tested]))
+        finally:
+            self.rng = saved
+        allt = np.concatenate(out) if out else np.array([])
+        return np.sort(allt) if allt.size else np.array([0.0])
 
 
 # ------------------------------------------------------------------------------------------------ streaming screen
@@ -1564,8 +1607,8 @@ def release_filter(state: DiscoveryState, now, replay_windows: Sequence[tuple[An
     out = []
     for kid in state.store.ids():
         k = state.store.as_of(kid, now)
-        if k is None or k.epistemic not in (Epistemic.HYPOTHESIS, Epistemic.SUPPORTED, Epistemic.CONDITIONAL):
-            continue
+        if k is None or k.epistemic not in (Epistemic.SUPPORTED, Epistemic.CONDITIONAL):
+            continue       # a mined HYPOTHESIS is never released: only what recurred or survived fresh data
         d = state.dossiers.get(kid[2:])
         if d is None or d.verdict not in (GateVerdict.NEEDS_MORE_EVIDENCE, GateVerdict.PROMOTE):
             continue
@@ -1732,6 +1775,7 @@ class DiscoveryEngine:
         eSY, eSW = sc.evaluate(extra, sc.y)
         est, etest = sc._stats(eSY, eSW)
         res.cands, res.SY, res.SW = res.cands + extra, np.vstack([res.SY, eSY]), np.vstack([res.SW, eSW])
+        est["p"] = np.where(etest, calibrated_p(est["p"], est["t"], res.null_t), 1.0)
         res.disc = {k: np.concatenate([res.disc[k], est[k]]) for k in res.disc}
         res.tested = np.concatenate([res.tested, etest])
         real_t = np.sort(np.abs(res.disc["t"][res.tested])) if res.tested.any() else np.array([0.0])
@@ -2291,7 +2335,7 @@ class DiscoverySweep:
         return {y: str(min(pd.Timestamp(year=y, month=12, day=31), last).date()) for y in self.cfg.years if pd.Timestamp(year=y, month=1, day=1) <= last}
 
     def pending(self, last_date, limit: int | None = None):
-        return self.book.pending((self.tag,), self.data_through(last_date), limit)
+        return self.book.pending(features=(self.tag,), data_through=self.data_through(last_date), limit=limit)
 
     def next_family(self, last_date) -> str | None:
         """Family of the least-covered pending unit (for callers that only want the direction of travel)."""
@@ -2466,7 +2510,7 @@ class NullCalibration:
 
 
 def null_calibration(engine: "DiscoveryEngine", inputs: DS.SourceInputs, now, families: Sequence[str], n_runs: int = 3,
-                     seed: int = 0) -> NullCalibration:
+                     seed: int = 0, trust_at: float = 0.9) -> NullCalibration:
     """Run the whole pipeline on outcome-shuffled labels, n_runs times, each on a fresh state. The rate at which it still reports a
     surviving finding is the engine's own false-discovery rate on this data - the number the research brain's health check needs and
     that no amount of reading the code can supply."""
@@ -2475,7 +2519,7 @@ def null_calibration(engine: "DiscoveryEngine", inputs: DS.SourceInputs, now, fa
         st = DiscoveryState()
         rep = engine.step(st, now, inputs, families=list(families), label_hook=lambda y, X, r=r: shuffle_within_dates(y, seed * 1000 + r))
         ok = [d for d in st.dossiers.values() if d.verdict == GateVerdict.NEEDS_MORE_EVIDENCE]
-        tr = [d for d in ok if (d.truth or 0.0) >= engine.cfg.min_p_real]
+        tr = [d for d in ok if (d.truth or 0.0) >= trust_at]
         surv += bool(ok)
         trusted += bool(tr)
         nsurv += len(ok)
@@ -2499,15 +2543,18 @@ def power_curve(engine: "DiscoveryEngine", inputs: DS.SourceInputs, now, familie
     """Plant effects of increasing size on a known expression and record whether discovery recovers it with the right sign and does not
     reject it. The smallest planted effect that is found bounds what 'small patterns' the search can actually see."""
     out = []
-    pid = PI.pattern_id(PI.Expression.parse(expr_text), "xs_quintile", engine.cfg.tag)
+    want_terms = set(str(t) for t in PI.Expression.parse(expr_text).base)
     for e in effects:
         st = DiscoveryState()
         engine.step(st, now, inputs, families=list(families), label_hook=plant_effect(expr_text, e, seed))
-        d = st.dossiers.get(pid)
         want = 1 if e > 0 else -1
-        found = d is not None and d.direction == want and d.verdict in (GateVerdict.NEEDS_MORE_EVIDENCE, GateVerdict.UNKNOWN)
-        out.append(PowerPoint(float(e), bool(found), None if d is None else d.truth, None if d is None else d.t_disc,
-                              "not_shortlisted" if d is None else d.verdict.value))
+        # a stronger conjunction that contains the planted condition is the same discovery, better expressed
+        hits = [d for d in st.dossiers.values() if want_terms <= set(str(t) for t in PI.Expression.parse(d.text).base) and d.direction == want
+                and not PI.Expression.parse(d.text).unless]
+        ok = [d for d in hits if d.verdict in (GateVerdict.NEEDS_MORE_EVIDENCE, GateVerdict.UNKNOWN)]
+        best = max(ok or hits, key=lambda d: abs(d.t_disc), default=None)
+        out.append(PowerPoint(float(e), bool(ok), None if best is None else best.truth, None if best is None else best.t_disc,
+                              "not_shortlisted" if best is None else best.verdict.value))
     return out
 
 

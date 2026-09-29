@@ -143,6 +143,7 @@ class Target:
     condition: Condition | None = None
     pattern: str = ""
     priority: float = 0.0
+    conjunction: Any = None                         # a Conjunction (multi-feature failure region), when the target is one
 
     def check(self) -> list:
         errs = []
@@ -354,6 +355,8 @@ def targets_from_predictions(day: DayInput, now, min_rows: int = 6) -> list:
                            day.matured_through, len(fails) / len(rs), 0.6, 20.0, 0.8, PRI.expected_loss_avoided(min(share, 1.0), 0.5, 0.5, 0.6), pattern=pat))
         for c in find_failure_conditions(rs)[:2]:
             out.append(condition_target(pat, c, day.matured_through, share))
+        for cj in [c for c in find_conjunctions(rs) if len(c.terms) >= 2][:2]:
+            out.append(conjunction_target(pat, cj, day.matured_through, share))
         wins = [r for r in rs if r.correct]
         if wins and len(wins) / len(rs) >= 0.7:
             out.append(_mk("win", pat, f"Are the {len(wins)} wins of {pat} explained by a condition that will recur?",
@@ -513,8 +516,11 @@ def run_day(day: DayInput, now, ledger: TargetLedger | None = None, state: PRI.P
         if why:
             blocked.append((t.target_id, why))
             continue
-        if t.condition is not None and t.pattern:
-            v = evaluate_condition(t.condition, t.pattern, day.pattern_history, now, seed=seed)
+        if (t.condition is not None or t.conjunction is not None) and t.pattern:
+            if t.conjunction is not None:
+                v = evaluate_conjunction(t.conjunction, t.pattern, day.pattern_history, now, seed=seed)
+            else:
+                v = evaluate_condition(t.condition, t.pattern, day.pattern_history, now, seed=seed)
             if v.verdict == GateVerdict.PROMOTE:
                 ledger.record(t, "PROMOTED", now, v.reason, n_obs.get(t.pattern, 0))
                 promoted.append((t.target_id, v))
@@ -930,7 +936,7 @@ class TrackedCondition:
             return
         self.days_seen.add(day)
         for r in rows:
-            if r.pattern != self.pattern or self.cond.feature not in r.features:
+            if r.pattern != self.pattern or not all(f in r.features for f in _cond_features(self.cond)):
                 continue
             fail = not r.correct
             if self.cond.holds(r.features):
@@ -956,6 +962,18 @@ class TrackedCondition:
         return self.llr / hi
 
 
+def _cond_features(c) -> tuple:
+    """Feature names a single- or multi-feature condition reads (a row missing any of them cannot be classified inside/outside)."""
+    return tuple(c.features) if hasattr(c, "features") else (c.feature,)
+
+
+def _cond_signature(c) -> list:
+    """Stable identity of a frozen condition: its thresholds, so the same region opened twice is one tracker."""
+    if hasattr(c, "terms"):
+        return sorted([t.feature, t.op, round(t.threshold, 6)] for t in c.terms)
+    return [c.feature, c.op, round(c.threshold, 6)]
+
+
 class OpenConditionTracker:
     """Follows every open failure-condition across days. `update(day_rows, now)` feeds each new matured day to every tracked
     condition exactly once; conditions close on evidence, never by the calendar alone (expiry is UNDECIDED)."""
@@ -966,13 +984,13 @@ class OpenConditionTracker:
         self.events: list = []                       # (day, tid, event)
 
     def open(self, t: Target, day: str, now) -> TrackedCondition | None:
-        if t.condition is None or not t.pattern:
+        c = t.condition if t.condition is not None else t.conjunction
+        if c is None or not t.pattern:
             return None
         require_past(day, now, "tracked condition")
-        tid = "tc_" + stable_hash([t.pattern, t.condition.feature, t.condition.op, round(t.condition.threshold, 6)], 10)
+        tid = "tc_" + stable_hash([t.pattern, _cond_signature(c)], 10)
         if tid in self.items:
             return self.items[tid]
-        c = t.condition
         p1 = 0.5 * (c.rate_in + max(c.rate_out, 0.0)) if c.rate_in > c.rate_out else c.rate_in
         tc = TrackedCondition(tid, t.pattern, c, str(day), p1, self.max_days)
         self.items[tid] = tc
@@ -1022,7 +1040,11 @@ class OpenConditionTracker:
         for tid, t in sorted(self.items.items()):
             d = {k: getattr(t, k) for k in ("tid", "pattern", "opened", "p1", "max_days", "alpha", "beta", "n_in", "fail_in", "n_out", "fail_out", "llr",
                                            "state", "closed", "history")}
-            d["cond"] = [t.cond.feature, t.cond.op, t.cond.threshold, t.cond.n_in, t.cond.fail_in, t.cond.n_out, t.cond.fail_out, t.cond.p_value]
+            c = t.cond
+            if isinstance(c, Conjunction):
+                d["cond"] = {"terms": [[x.feature, x.op, x.threshold] for x in c.terms], "n": [c.n_in, c.fail_in, c.n_out, c.fail_out, c.p_value]}
+            else:
+                d["cond"] = [c.feature, c.op, c.threshold, c.n_in, c.fail_in, c.n_out, c.fail_out, c.p_value]
             d["days_seen"] = sorted(t.days_seen)
             rows.append(d)
         return json.dumps({"max_days": self.max_days, "items": rows, "events": self.events}, sort_keys=True)
@@ -1032,7 +1054,11 @@ class OpenConditionTracker:
         d = json.loads(text)
         tr = cls(d["max_days"])
         for r in d["items"]:
-            cond = Condition(*r["cond"])
+            if isinstance(r["cond"], dict):
+                n = r["cond"]["n"]
+                cond = Conjunction(tuple(Term(*x) for x in r["cond"]["terms"]), int(n[0]), int(n[1]), int(n[2]), int(n[3]), float(n[4]))
+            else:
+                cond = Condition(*r["cond"])
             tc = TrackedCondition(r["tid"], r["pattern"], cond, r["opened"], r["p1"], r["max_days"], r["alpha"], r["beta"], r["n_in"], r["fail_in"],
                                   r["n_out"], r["fail_out"], r["llr"], set(r["days_seen"]), r["state"], r["closed"], [tuple(h) for h in r["history"]])
             tr.items[tc.tid] = tc
@@ -1177,7 +1203,7 @@ def run_autopsy_day(entries: Sequence[AutopsyEntry], now, ledger: TargetLedger, 
     rep = run_day(day, now, ledger, state, seed)
     through = day.matured_through
     for t in rep.targets:
-        if t.condition is not None:
+        if t.condition is not None or t.conjunction is not None:
             tracker.open(t, through, now)
     tracker.update([dr for dr in history], now)
     for tid in tracker.by_state(TrackState.CONFIRMED):
@@ -1561,18 +1587,38 @@ def _atoms(rows: Sequence[PredictionRow], feats: Sequence[str], n_thr: int) -> l
 
 
 def find_conjunctions(rows: Sequence[PredictionRow], max_terms: int = 3, beam: int = 6, n_thr: int = 5, min_fail: int = 3, min_side: int = 3,
-                      alpha: float = 0.05, q: float = 0.10, min_gain: float = 2.0) -> list:
+                      alpha: float = 0.05, q: float = 0.10, min_gain: float = 2.0, max_atoms: int | None = 40, max_evals: int = 40000,
+                      stats: dict | None = None) -> list:
     """Beam search for failure regions built from up to `max_terms` features. Every candidate evaluated is counted, and each
     p-value is Bonferroni-corrected by that count (the search itself is a multiple-comparison machine). A term is only added if it
     lowers the p-value by at least `min_gain`x AND raises the inside failure rate (no decorative terms); different features only. The
-    survivors are then filtered with Benjamini-Hochberg at level q. Scattered failures return []."""
+    survivors are then filtered with Benjamini-Hochberg at level q. Scattered failures return [].
+
+    SCALE GUARD: the full search is O(atoms x beam x depth x rows). `max_atoms` pre-screens the atoms by their own one-term association
+    (hypergeometric p) and keeps the best; `max_evals` hard-stops the search. The pre-screen is itself a search, so ALL atoms screened
+    count toward the multiplicity correction. Known limit: a pair whose members have no marginal association (an XOR pattern) can be
+    screened out; raise `max_atoms` to trade time for that coverage. `stats` (if given) is filled with the atoms seen and kept, the
+    candidates evaluated, and whether the eval budget cut the search."""
     rows = list(rows)
     fails = sum(1 for r in rows if not r.correct)
     if fails < min_fail or len(rows) - fails < 1:
         return []
     feats = sorted(set.intersection(*[set(r.features) for r in rows]))
     atoms = _atoms(rows, feats, n_thr)
+    n_all = len(atoms)
+    screened = 0
+    if max_atoms is not None and len(atoms) > max_atoms:
+        scored = []
+        for a in atoms:
+            m = [a.holds(r.features) for r in rows]
+            p1, n_in, f_in, n_out, f_out = _tail_p(rows, m)
+            screened += 1
+            good = n_in >= min_side and n_out >= min_side and f_in >= 1 and f_in / max(n_in, 1) > f_out / max(n_out, 1)
+            scored.append((p1 if good else 2.0, a.feature, a.op, a.threshold, a))
+        scored.sort(key=lambda t: t[:4])
+        atoms = [t[4] for t in scored[:max_atoms] if t[0] <= 1.0]
     evaluated = 0
+    cut = False
     frontier = [((), [True] * len(rows), 1.0, 0.0)]
     finished: list = []
     for depth in range(max_terms):
@@ -1582,6 +1628,9 @@ def find_conjunctions(rows: Sequence[PredictionRow], max_terms: int = 3, beam: i
             for a in atoms:
                 if a.feature in used:
                     continue
+                if evaluated >= max_evals:
+                    cut = True
+                    break
                 m = [mk and a.holds(r.features) for mk, r in zip(mask, rows)]
                 p, n_in, f_in, n_out, f_out = _tail_p(rows, m)
                 evaluated += 1
@@ -1598,7 +1647,9 @@ def find_conjunctions(rows: Sequence[PredictionRow], max_terms: int = 3, beam: i
         finished += cand[:beam]
         if not frontier:
             break
-    tried = max(evaluated, 1)
+    tried = max(evaluated + screened, 1)
+    if stats is not None:
+        stats.update({"atoms_all": n_all, "atoms_kept": len(atoms), "screened": screened, "evaluated": evaluated, "tried": tried, "cut_by_budget": cut})
     kept = [c for c in finished if c[2] * tried <= alpha]
     seen, uniq = set(), []
     for c in sorted(kept, key=lambda c: (c[2], len(c[0]))):
@@ -1664,6 +1715,7 @@ def evaluate_conjunction(conj: Conjunction, pattern: str, history: Sequence[Pred
 
 def conjunction_target(pattern: str, conj: Conjunction, evidence_through: str, loss_share: float = 0.0) -> Target:
     loss = PRI.expected_loss_avoided(min(loss_share, 1.0), 0.5, 0.6, 0.6) if loss_share > 0 else None
-    return _mk("failure_condition", pattern, f"Does {conj.text(pattern)}, and does that hold out of sample?", conj.text(pattern),
-               "fix every threshold; measure failure rate inside vs outside on unseen days and against a placebo split", Problem.LOSS_AVOIDANCE,
-               evidence_through, conj.rate_in, 0.7, 20.0, 1.2, loss, None, pattern)
+    t = _mk("failure_condition", pattern, f"Does {conj.text(pattern)}, and does that hold out of sample?", conj.text(pattern),
+            "fix every threshold; measure failure rate inside vs outside on unseen days and against a placebo split", Problem.LOSS_AVOIDANCE,
+            evidence_through, conj.rate_in, 0.7, 20.0, 1.2, loss, None, pattern)
+    return replace(t, conjunction=conj)

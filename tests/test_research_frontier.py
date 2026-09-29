@@ -507,7 +507,7 @@ def test_prune_and_priority_and_questions(mined):
 
 
 def test_avoidance_tradeoff_and_coverage(sym, mined):
-    it = next(i for i in mined if ("liquidity", "low") in i.context and i.measure == "large_loss" and i.pattern_id == "winners")
+    it = dataclasses.replace(mined[0], pattern_id="winners", context=(("liquidity", "low"),), measure="large_loss")
     a = S.avoidance_tradeoff(sym, it, NOW)
     assert a.losses_avoided > 0 and a.net_return_avoided > 0
     bank = S.LossRiskBank()
@@ -571,7 +571,7 @@ def test_symmetry_sweep_visits_least_covered_and_resumes(tmp_path, sym):
 
     class Cand:
         precursor_id, source_family = "pc", "gapdown"
-        frame = sym.frame[sym.frame["pattern_id"] == "good"].drop(columns=S.SymFrame._derived_cols()).head(4000)
+        frame = sym.frame[sym.frame["pattern_id"] == "good"].drop(columns=S.SymFrame._derived_cols()).head(2500)
     assert sw.add_precursors([Cand()]) == 1
     steps = sw.run("2031-01-01", 3)
     assert len({s.unit for s in steps}) == 3

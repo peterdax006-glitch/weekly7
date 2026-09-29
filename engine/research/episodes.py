@@ -221,7 +221,8 @@ def build_grid(bars: Mapping[str, pd.DataFrame], cfg: EpisodeConfig = EpisodeCon
         span = H - L
         loc = np.where(valid, np.where(span > 0, (C - L) / np.where(span > 0, span, 1.0), 0.5), np.nan)
         broken = valid & ((H < L - 1e-9) | (H < np.maximum(O, C) - 1e-9) | (L > np.minimum(O, C) + 1e-9))
-        suspect = valid & (broken | (np.abs(c2c) > cfg.max_move) | (np.abs(gap) > cfg.max_move) | (rng > 2 * cfg.max_move))
+        suspect = valid & (broken | (np.abs(c2c) > cfg.max_move) | (np.abs(gap) > cfg.max_move) | (rng > 2 * cfg.max_move)
+                          | split_like_mask(c2c, o2c, gap))
         sig = pd.DataFrame(c2c).rolling(cfg.vol_window, min_periods=cfg.vol_min).std().to_numpy()
         sigma = np.full_like(sig, np.nan)
         sigma[1:] = sig[:-1]
@@ -545,7 +546,7 @@ class Unit:
 @dataclasses.dataclass
 class UnitRecord:
     """What a finished unit produced. `features_done` lets a later, wider feature set extend a unit without redoing its old features;
-    `through` is the last session covered, so an in-progress year can be extended when new sessions arrive."""
+    `through` is the last session of the year that was analysed. A unit is only ever run on a year whose sessions are all final (complete)."""
     uid: str
     through: str
     complete: bool
@@ -572,7 +573,7 @@ class UnitRecord:
 class CoverageBook:
     """The sweep's memory of what is done. `pending` orders unfinished units least-covered first: by how much of that year is done, then how
     much of that lens, then that slice, then a stable hash (so the order never depends on set iteration or a random seed). A unit that is
-    done for the requested features and whose year is closed is never returned again."""
+    done for the requested features is never returned again."""
 
     def __init__(self, years: Sequence[int], n_slices: int = 4, lenses: Sequence[str] = ("c2c", "rng", "o2c", "gap")):
         if not years or n_slices < 1 or not lenses:
@@ -590,27 +591,21 @@ class CoverageBook:
         self.years = sorted(set(self.years) | set(new))
         return len(new)
 
-    def is_done(self, u: Unit, features: Sequence[str] = (), data_through: Mapping[int, str] | None = None) -> bool:
+    def is_done(self, u: Unit, features: Sequence[str] = ()) -> bool:
         r = self.records.get(u.uid)
-        if r is None:
-            return False
-        if not set(features) <= set(r.features_done):
-            return False
-        if r.complete:
-            return True
-        lim = (data_through or {}).get(u.year)
-        return lim is not None and as_date(r.through) >= as_date(lim)
+        return r is not None and set(features) <= set(r.features_done)
 
-    def pending(self, features: Sequence[str] = (), data_through: Mapping[int, str] | None = None, limit: int | None = None) -> list[Unit]:
+    def pending(self, features: Sequence[str] = (), limit: int | None = None, years_before: int | None = None) -> list[Unit]:
+        """Unfinished units, least-covered first. `years_before` keeps only years strictly earlier than that year (a year whose data is
+        still arriving is not yet a unit)."""
         done_y, done_l, done_s = {}, {}, {}
-        for uid, r in self.records.items():
+        for uid in self.records:
             u = Unit.parse(uid)
-            if self.is_done(u, features, data_through):
+            if self.is_done(u, features):
                 done_y[u.year] = done_y.get(u.year, 0) + 1
                 done_l[u.lens] = done_l.get(u.lens, 0) + 1
                 done_s[u.slice_id] = done_s.get(u.slice_id, 0) + 1
-        todo = [u for u in self.all_units() if not self.is_done(u, features, data_through)
-                and (data_through is None or u.year in data_through)]
+        todo = [u for u in self.all_units() if not self.is_done(u, features) and (years_before is None or u.year < years_before)]
         todo.sort(key=lambda u: (done_y.get(u.year, 0), done_l.get(u.lens, 0), done_s.get(u.slice_id, 0), stable_hash(u.uid, 8)))
         return todo[:limit] if limit else todo
 
@@ -619,13 +614,13 @@ class CoverageBook:
         if u.year not in self.years or not (0 <= u.slice_id < self.n_slices) or u.lens not in self.lenses:
             raise EpisodeError(f"unit {rec.uid} is outside this coverage book")
         old = self.records.get(rec.uid)
-        if old is not None and not rec.complete and as_date(rec.through) <= as_date(old.through) and set(rec.features_done) <= set(old.features_done):
-            raise EpisodeError(f"unit {rec.uid} would be recorded again with no new sessions or features")
+        if old is not None and set(rec.features_done) <= set(old.features_done):
+            raise EpisodeError(f"unit {rec.uid} would be recorded again with no new feature")
         self.records[rec.uid] = rec
 
-    def fraction_done(self, features: Sequence[str] = (), data_through: Mapping[int, str] | None = None) -> float:
-        us = [u for u in self.all_units() if data_through is None or u.year in data_through]
-        return sum(self.is_done(u, features, data_through) for u in us) / len(us) if us else 1.0
+    def fraction_done(self, features: Sequence[str] = ()) -> float:
+        us = self.all_units()
+        return sum(self.is_done(u, features) for u in us) / len(us) if us else 1.0
 
     def report(self, features: Sequence[str] = (), thin: int = 200) -> dict[str, Any]:
         by_year: dict[int, dict[str, int]] = {}
@@ -785,3 +780,162 @@ def assert_no_future(eps: pd.DataFrame, now) -> None:
     """Fail closed if any episode row is dated at or after `now`: an episode is only known once its move day has closed."""
     if len(eps) and as_date(pd.Timestamp(eps["date"].max())) >= as_date(now):
         raise FirewallBreach(f"episode dated {pd.Timestamp(eps['date'].max()).date()} is not strictly before now={as_date(now)}")
+
+
+# ------------------------------------------------------------------------------------------------------------------ data health
+SPLIT_RATIOS = (2, 3, 4, 5, 10, 20)
+
+
+def split_like_mask(c2c: np.ndarray, o2c: np.ndarray, gap: np.ndarray, tol: float = 0.02, body_max: float = 0.05) -> np.ndarray:
+    """Corporate-action signature: the previous close is followed by a bar that sits at (almost exactly) 1/k or k times that close for a whole-number
+    k, and the move happened at the open (gap ~ close move, small body). Such a bar is a stock split or reverse split in an unadjusted feed, not a
+    mover. Ratios like 3-for-2 are left alone: they are indistinguishable from a genuine 33% move."""
+    hit = np.zeros(c2c.shape, bool)
+    with np.errstate(invalid="ignore"):
+        at_open = (np.abs(o2c) < body_max) & (np.abs(gap - c2c) < body_max)
+        for k in SPLIT_RATIOS:
+            for r in (1.0 / k - 1.0, k - 1.0):
+                hit |= np.abs(c2c - r) <= tol
+    return hit & at_open
+
+
+def bars_health(bars: Mapping[str, pd.DataFrame], cfg: EpisodeConfig = EpisodeConfig(), stale_run: int = 5, gap_days: int = 6) -> dict[str, Any]:
+    """Data-quality census of a block of bars, run before a unit's counts are trusted. Reports (and lists as issues) misaligned frames, missing
+    closes, stale prices (a close that does not change for `stale_run` sessions with no volume), impossible bars, split-like jumps, and calendar
+    holes wider than `gap_days` days. It counts; it never repairs."""
+    bad = check_bars(bars)
+    out: dict[str, Any] = {"issues": list(bad), "sessions": 0, "names": 0}
+    if bad:
+        return out
+    C = bars["Close"]
+    out["sessions"], out["names"] = int(C.shape[0]), int(C.shape[1])
+    if C.shape[0] == 0 or C.shape[1] == 0:
+        out["issues"].append("empty block")
+        return out
+    g = build_grid(bars, cfg)
+    out["missing_close_share"] = float(1.0 - np.isfinite(g.C).mean())
+    out["glitch_bars"] = int(g.suspect.sum())
+    out["split_like_bars"] = int(split_like_mask(g.c2c, g.o2c, g.gap).sum())
+    out["nonpositive_bars"] = int(((g.O <= 0) | (g.H <= 0) | (g.L <= 0) | (g.C <= 0)).sum())
+    same = np.zeros(g.C.shape, bool)
+    same[1:] = (g.C[1:] == g.C[:-1]) & np.isfinite(g.C[1:])
+    run = pd.DataFrame(same.astype(float)).rolling(stale_run).sum().to_numpy()
+    quiet = (g.V == 0) if g.V is not None else np.ones(g.C.shape, bool)
+    out["stale_bars"] = int(((run >= stale_run) & quiet).sum())
+    if len(g.dates) > 1:
+        span = np.diff(g.dates.values).astype("timedelta64[D]").astype(int)
+        out["calendar_holes"] = int((span > gap_days).sum())
+        out["longest_hole_days"] = int(span.max())
+    out["volume_present_share"] = float(np.isfinite(g.V).mean()) if g.V is not None else 0.0
+    for name, ok in (("missing closes above 20%", out["missing_close_share"] > 0.2), ("glitch bars present", out["glitch_bars"] > 0),
+                     ("split-like jumps present", out["split_like_bars"] > 0), ("calendar holes present", out.get("calendar_holes", 0) > 0),
+                     ("no volume", out["volume_present_share"] == 0.0)):
+        if ok:
+            out["issues"].append(name)
+    return out
+
+
+def episode_digest(eps: pd.DataFrame, decimals: int = 9) -> str:
+    """Order-independent content hash of an episode frame (block-local `ti`/`nj` excluded), for run-equality checks."""
+    if len(eps) == 0:
+        return stable_hash([], 16)
+    cols = [c for c in eps.columns if c not in ("ti", "nj")]
+    d = eps[cols].copy()
+    for c in cols:
+        if pd.api.types.is_float_dtype(d[c]):
+            d[c] = d[c].round(decimals)
+    d = d.sort_values(["date", "ticker"]).reset_index(drop=True)
+    return stable_hash([[str(v) for v in row] for row in d.itertuples(index=False, name=None)], 16)
+
+
+# ------------------------------------------------------------------------------------------------------------------ what the episodes look like
+def repeat_movers(eps: pd.DataFrame, lens: str = "c2c", window: int = 5) -> dict[str, float]:
+    """How often a mover was itself preceded by another episode of the same name within `window` sessions. If the answer is large, episodes are
+    not independent draws and every count of them must be clustered by name as well as by date."""
+    if len(eps) == 0:
+        return {"episodes": 0, "repeat_share": float("nan"), "median_gap": float("nan")}
+    band, _ = lens_band_side(eps, lens)
+    d = eps[band > 0][["date", "ticker"]].copy()
+    if len(d) == 0:
+        return {"episodes": 0, "repeat_share": float("nan"), "median_gap": float("nan")}
+    sess = {v: i for i, v in enumerate(sorted(d["date"].unique()))}
+    d["s"] = d["date"].map(sess)
+    d = d.sort_values(["ticker", "s"])
+    gap = d.groupby("ticker")["s"].diff()
+    return {"episodes": int(len(d)), "repeat_share": float((gap <= window).mean()), "median_gap": float(gap.dropna().median()) if gap.notna().any() else float("nan")}
+
+
+def concentration_report(eps: pd.DataFrame, lens: str = "c2c", top: int = 10) -> dict[str, float]:
+    """Are the episodes spread across the universe or produced by a few names? Herfindahl index of episodes across tickers (1/N is perfectly
+    even), the share owned by the top-k names and the number of distinct names."""
+    if len(eps) == 0:
+        return {"names": 0, "herfindahl": float("nan"), "top_share": float("nan"), "even_herfindahl": float("nan")}
+    band, _ = lens_band_side(eps, lens)
+    n = eps.loc[band > 0, "ticker"].value_counts()
+    if n.empty:
+        return {"names": 0, "herfindahl": float("nan"), "top_share": float("nan"), "even_herfindahl": float("nan")}
+    p = n / n.sum()
+    return {"names": int(len(n)), "herfindahl": float((p ** 2).sum()), "top_share": float(p.head(top).sum()), "even_herfindahl": float(1.0 / len(n))}
+
+
+def rate_by_era(counts: pd.DataFrame, columns: Sequence[str] | None = None, edges: Sequence[int] = ERA_EDGES) -> pd.DataFrame:
+    """Episodes per 1,000 tradable names per day, by era. A band whose rate swings by an order of magnitude between eras is a different phenomenon
+    in each, and a pooled precursor estimate for it is suspect."""
+    if len(counts) == 0:
+        return pd.DataFrame()
+    cols = list(columns) if columns is not None else [c for c in counts.columns if c.split("_")[0] in {m.value for m in Measure}]
+    era = era_of(counts.index, edges)
+    rate = counts[cols].div(counts["n_names"].replace(0, np.nan), axis=0) * 1000.0
+    rate["era"] = era
+    return rate.groupby("era").mean()
+
+
+def year_summary(bars: Mapping[str, pd.DataFrame], cfg: EpisodeConfig = EpisodeConfig(), minimum: int = 100) -> dict[str, Any]:
+    """One-shot descriptive summary of a block: data health, the 'hundreds a day' check, band totals, repeat and concentration measures. Pure
+    counting: nothing here is a finding."""
+    blk = run_in_memory(bars, cfg)
+    return {"health": bars_health(bars, cfg), "hundreds": hundreds_report(blk.counts, minimum), "band_totals": band_totals(blk.counts),
+            "repeat": repeat_movers(blk.episodes), "concentration": concentration_report(blk.episodes), "episodes": int(len(blk.episodes))}
+
+
+# ------------------------------------------------------------------------------------------------------------------ resumable stream
+def stream_state(st: EpisodeStream) -> dict[str, Any]:
+    """Serialisable snapshot of a stream (buffer, emitted and fed dates) so an interrupted long run resumes without re-reading old sessions."""
+    buf = None
+    if st.buf is not None:
+        buf = {k: {"index": [str(x.date()) for x in v.index], "columns": [str(c) for c in v.columns], "values": v.to_numpy(np.float64).tolist()}
+               for k, v in st.buf.items()}
+    return {"cfg": dataclasses.asdict(st.cfg), "emitted": None if st.emitted is None else str(st.emitted.date()),
+            "fed": None if st.fed is None else str(st.fed.date()), "sessions_seen": st.sessions_seen, "buf": buf}
+
+
+def restore_stream(state: Mapping[str, Any], on_block: BlockFn | None = None, extra_warm: int = 0, extra_future: int = 0) -> EpisodeStream:
+    """Rebuild a stream from `stream_state`. The configuration must be the one the snapshot was taken under."""
+    cfg = EpisodeConfig(**{**state["cfg"], "horizons": tuple(state["cfg"]["horizons"]), "measures": tuple(state["cfg"]["measures"])})
+    st = EpisodeStream(cfg, on_block, extra_warm, extra_future)
+    if state["buf"] is not None:
+        st.buf = {k: pd.DataFrame(np.array(v["values"], dtype=np.float64).reshape(len(v["index"]), len(v["columns"])),
+                                  index=pd.DatetimeIndex(v["index"]), columns=v["columns"]) for k, v in state["buf"].items()}
+    st.emitted = None if state["emitted"] is None else pd.Timestamp(state["emitted"])
+    st.fed = None if state["fed"] is None else pd.Timestamp(state["fed"])
+    st.sessions_seen = int(state["sessions_seen"])
+    return st
+
+
+def save_stream(st: EpisodeStream, path) -> str:
+    """Atomic snapshot to disk with an embedded content hash; returns the hash."""
+    body = stream_state(st)
+    h = stable_hash(body, 20)
+    _atomic_text(Path(path), json.dumps({"hash": h, "body": body}))
+    return h
+
+
+def load_stream(path, on_block: BlockFn | None = None, extra_warm: int = 0, extra_future: int = 0) -> EpisodeStream:
+    try:
+        raw = json.loads(Path(path).read_text(encoding="utf-8"))
+        body, h = raw["body"], raw["hash"]
+    except (OSError, ValueError, KeyError) as e:
+        raise EpisodeError(f"stream snapshot unreadable: {e}") from e
+    if stable_hash(body, 20) != h:
+        raise EpisodeError("stream snapshot fails its content hash")
+    return restore_stream(body, on_block, extra_warm, extra_future)

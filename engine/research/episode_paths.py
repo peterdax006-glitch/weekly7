@@ -24,6 +24,7 @@ only records whose matured_at is strictly before `now` may be handed on (episode
 from __future__ import annotations
 
 import dataclasses
+import math
 from typing import Any, Mapping, Sequence
 
 import numpy as np
@@ -196,7 +197,9 @@ def classify_window(side: np.ndarray, sigma: np.ndarray, r1: np.ndarray, net: np
 def label_paths(grid: Grid, eps: pd.DataFrame, pc: PathConfig = PathConfig(), horizons: Sequence[int] | None = None) -> pd.DataFrame:
     """Path labels for every episode row (same order and length as `eps`). Columns:
        gap_type, r1, r1z, gap1z, tr_t, rr1, intraday_path, matured_at,
-       and per horizon h: cls_h, ok_h, net_h, netz_h, rr_h, mfe_h, mae_h  (signed: positive = the move's own direction)."""
+       and per horizon h: cls_h, ok_h, net_h, netz_h, rr_h, mfe_h, mae_h, tmfe_h (session of the best favourable excursion),
+       retrig_h (True when the window itself contains another move of at least the lower band edge - the path is then partly a NEW episode)
+       (signed: positive = the move's own direction)."""
     pc.require_valid()
     hs = tuple(horizons) if horizons is not None else grid.cfg.horizons
     if list(hs) != sorted(set(hs)) or hs[0] < 1:
@@ -204,7 +207,7 @@ def label_paths(grid: Grid, eps: pd.DataFrame, pc: PathConfig = PathConfig(), ho
     n = len(eps)
     cols = ["gap_type", "r1", "r1z", "gap1z", "tr_t", "rr1", "intraday_path", "matured_at"]
     for h in hs:
-        cols += [f"cls_{h}", f"ok_{h}", f"net_{h}", f"netz_{h}", f"rr_{h}", f"mfe_{h}", f"mae_{h}"]
+        cols += [f"cls_{h}", f"ok_{h}", f"net_{h}", f"netz_{h}", f"rr_{h}", f"mfe_{h}", f"mae_{h}", f"tmfe_{h}", f"retrig_{h}"]
     if n == 0:
         return pd.DataFrame({c: pd.Series(dtype=object if c in ("gap_type", "intraday_path") or c.startswith("cls_") else "float64") for c in cols})
     ti, nj = eps["ti"].to_numpy(), eps["nj"].to_numpy()
@@ -228,6 +231,7 @@ def label_paths(grid: Grid, eps: pd.DataFrame, pc: PathConfig = PathConfig(), ho
         out["rr1"] = rr1
         out["intraday_path"] = classify_intraday(rr1, pc)
         trs = np.stack([fw.tr(k) for k in range(1, Hmax + 1)], axis=1)               # (n, Hmax)
+        dret = fw.C[:, 1:] / fw.C[:, :-1] - 1.0                                      # raw daily returns after the move day
         cum = side_lens[:, None] * (fw.C[:, 1:] / c_t[:, None] - 1.0)                # signed net move after k sessions
         hi_exc = side_lens[:, None] * (np.where(side[:, None] > 0, fw.H[:, 1:], fw.L[:, 1:]) / c_t[:, None] - 1.0)
         lo_exc = side_lens[:, None] * (np.where(side[:, None] > 0, fw.L[:, 1:], fw.H[:, 1:]) / c_t[:, None] - 1.0)
@@ -245,6 +249,8 @@ def label_paths(grid: Grid, eps: pd.DataFrame, pc: PathConfig = PathConfig(), ho
         out[f"rr_{h}"] = np.where(window_ok, ratio, np.nan)
         out[f"mfe_{h}"] = np.where(window_ok, mfe / sigma, np.nan)
         out[f"mae_{h}"] = np.where(window_ok, mae / sigma, np.nan)
+        out[f"tmfe_{h}"] = np.where(window_ok, np.argmax(np.where(np.isfinite(hi_exc[:, :h]), hi_exc[:, :h], -np.inf), axis=1) + 1, np.nan)
+        out[f"retrig_{h}"] = window_ok & np.any(np.abs(dret[:, :h]) >= grid.cfg.lo, axis=1)
         out[f"cls_{h}"] = classify_window(side, sigma, np.where(window_ok, r1, np.nan), np.where(window_ok, net, np.nan),
                                           np.where(window_ok, ratio, np.nan), h, pc, window_ok)
         seen_end = np.where(window_ok, fw.date[:, h], seen_end)
@@ -357,6 +363,80 @@ def paths_report(ep: pd.DataFrame, lens: str = "c2c", horizons: Sequence[int] = 
     gt = gap_table(ep)
     rep["gap"] = gt.to_dict("records") if len(gt) else []
     return rep
+
+
+# ------------------------------------------------------------------------------------------------------------------ profiles and sensitivity
+def daily_profile(grid: Grid, eps: pd.DataFrame, days: int | None = None) -> np.ndarray:
+    """(episodes x days) signed daily close-to-close returns after the move day, in units of the name's own sigma (positive = the move's
+    direction). NaN where a session or bar is missing. The raw material of 'what does an average 7% mover do over the next week'."""
+    n = len(eps)
+    days = int(days if days is not None else grid.cfg.max_horizon)
+    if n == 0:
+        return np.zeros((0, days))
+    fw = gather_forward(grid, eps["ti"].to_numpy(), eps["nj"].to_numpy(), days)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        dret = fw.C[:, 1:] / fw.C[:, :-1] - 1.0
+        return eps["side"].to_numpy(float)[:, None] * dret / eps["sigma"].to_numpy()[:, None]
+
+
+def mean_profile(profile: np.ndarray, mask: np.ndarray | None = None) -> pd.DataFrame:
+    """Mean and standard error of the cumulative signed path by day (in sigma), over the episodes in `mask` that have the full window."""
+    if profile.shape[0] == 0:
+        return pd.DataFrame(columns=["day", "n", "mean_cum", "se_cum"])
+    p = profile if mask is None else profile[mask]
+    full = np.isfinite(p).all(axis=1)
+    p = p[full]
+    if len(p) == 0:
+        return pd.DataFrame(columns=["day", "n", "mean_cum", "se_cum"])
+    cum = np.cumsum(p, axis=1)
+    return pd.DataFrame({"day": np.arange(1, cum.shape[1] + 1), "n": len(p), "mean_cum": cum.mean(0),
+                         "se_cum": cum.std(0, ddof=1) / math.sqrt(len(p)) if len(p) > 1 else np.nan})
+
+
+def label_sensitivity(grid: Grid, eps: pd.DataFrame, pc: PathConfig = PathConfig(), factor: float = 0.2, horizon: int = 1) -> dict[str, Any]:
+    """How much do labels move when every threshold is nudged by +-`factor`? Rebuilds the labels with all sigma multiples and ratios scaled up
+    and down and reports the share of episodes whose class changes. A taxonomy whose classes flip under a 20% nudge is measuring the
+    threshold, not the market, and any precursor found against it inherits that fragility."""
+    base = label_paths(grid, eps, pc, (horizon,))[f"cls_{horizon}"].to_numpy()
+    out: dict[str, Any] = {"n": int(len(base)), "horizon": horizon, "changed": {}}
+    for tag, m in (("tighter", 1.0 + factor), ("looser", 1.0 - factor)):
+        q = dataclasses.replace(pc, spike_k=pc.spike_k * m, reverse_k=pc.reverse_k * m, cont_k=pc.cont_k * m, stop_k=min(pc.stop_k * m, pc.spike_k * m * 0.99),
+                                expand_ratio=pc.expand_ratio * m, contract_ratio=min(pc.contract_ratio * (2.0 - m), pc.expand_ratio * m * 0.99))
+        alt = label_paths(grid, eps, q.require_valid(), (horizon,))[f"cls_{horizon}"].to_numpy()
+        diff = alt != base
+        out["changed"][tag] = float(diff.mean()) if len(base) else float("nan")
+        out.setdefault("by_class", {})[tag] = {c: float(diff[base == c].mean()) for c in CLASS_ORDER if (base == c).any()}
+    return out
+
+
+def binomial_excess(k: int, n: int, base_rate: float) -> dict[str, float]:
+    """Exact two-sided binomial test of a subgroup's class share against the base rate. Descriptive only: episodes on the same day are not
+    independent, so this p-value is a screen, never evidence (evidence is the clustered contrast in precursors.py)."""
+    from scipy import stats as sps
+    if n <= 0 or not (0.0 < base_rate < 1.0):
+        return {"share": float("nan"), "p": float("nan"), "lift": float("nan")}
+    return {"share": k / n, "p": float(sps.binomtest(int(k), int(n), float(base_rate)).pvalue), "lift": (k / n) / base_rate}
+
+
+def class_significance(ep: pd.DataFrame, lens: str, horizon: int, min_n: int = 30) -> pd.DataFrame:
+    """For each episode type and class: its share, the pooled base share, lift and the exact binomial screen. Types with fewer than `min_n`
+    observable episodes are skipped."""
+    col, ok = f"cls_{horizon}", f"ok_{horizon}"
+    if len(ep) == 0 or col not in ep:
+        return pd.DataFrame(columns=["type", "cls", "n", "k", "share", "base", "lift", "p_screen"])
+    band, side = lens_band_side(ep, lens)
+    d = pd.DataFrame({"type": [type_name(b, s, lens) for b, s in zip(band, side)], "cls": ep[col].to_numpy()})[(band > 0) & ep[ok].to_numpy()]
+    if len(d) == 0:
+        return pd.DataFrame(columns=["type", "cls", "n", "k", "share", "base", "lift", "p_screen"])
+    base = d["cls"].value_counts(normalize=True)
+    rows = []
+    for typ, g in d.groupby("type"):
+        if len(g) < min_n:
+            continue
+        for cls, k in g["cls"].value_counts().items():
+            r = binomial_excess(int(k), len(g), float(base[cls]))
+            rows.append({"type": typ, "cls": cls, "n": len(g), "k": int(k), "share": r["share"], "base": float(base[cls]), "lift": r["lift"], "p_screen": r["p"]})
+    return pd.DataFrame(rows, columns=["type", "cls", "n", "k", "share", "base", "lift", "p_screen"])
 
 
 # ------------------------------------------------------------------------------------------------------------------ planted paths
