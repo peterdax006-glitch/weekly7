@@ -39,8 +39,15 @@ def _w(p, o):
     p.write_text(json.dumps(o, indent=1, default=float))
 
 
-def log_experiment(rec):
-    rec = {"t": datetime.utcnow().isoformat(timespec="seconds"), **rec}
+def log_experiment(rec, cfg=None, seed=None):
+    """Append-only registry (Bible Phase 0): every record carries provenance; nothing is ever overwritten."""
+    from .provenance import stamp
+    rec = {"t": datetime.utcnow().isoformat(timespec="seconds"), **stamp(cfg, seed), **rec}
+    # sha256 over the full record + a random nonce: Python's hash() is salted per process, so the old ids could collide
+    # across runs (found by the B12 registry audit, 2026-09-28)
+    import hashlib, uuid
+    body = json.dumps(rec, sort_keys=True, default=str) + uuid.uuid4().hex
+    rec.setdefault("experiment_id", "E" + hashlib.sha256(body.encode()).hexdigest()[:16])
     with open(REG, "a") as f:
         f.write(json.dumps(rec, default=float) + "\n")
 

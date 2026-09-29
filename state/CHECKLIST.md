@@ -26,7 +26,7 @@ Nothing is marked `[x]` merely because code exists. Work continues until every b
 - [ ] A10b Rerun anti-memorisation test
 - [~] A11 Improve-or-discard lifecycle (built; unit tests pending)
 - [~] A12 Additional data (FRED done; sector ETFs, backup price source and delisted history pending)
-- [ ] A13 Planted-pattern calibration
+- [~] A13 Planted-pattern calibration. 8 seeds after the evidence-ordered gate fix: recovery strong/weak/negative 100%, regime-only 75%; 1 false active in 8 runs (~5 active/run). Before the fix: 75/75/50/25%, 38.6 active/run. OPEN (logged, foundation first): P(real) 0.8-0.9 bin only 53% truly real; the 0.9-1.0 bin is 96%. Evidence: data/planted_cal2.log, state/research/algorithm/planted_calibration.json
 
 ## Find volatility
 - [~] V1 95% mover target where enough candidates exist (84.7% average; 95%+ in 5–6 of 13; ~97% at the 92% bar on 5–6 picks a week)
@@ -45,7 +45,7 @@ Nothing is marked `[x]` merely because code exists. Work continues until every b
 - [~] T6 13D correctness (fix running)
 - [~] T7 Pattern Explorer (published; stale)
 - [~] T8 Sensitivity page (published; stale)
-- [!] T9 Re-tester parity (w01c mismatch: live 43.0% vs replay 62.7%; reproduction test running)
+- [~] T9 Re-tester parity. w01c cause FOUND: engine/memory.py was edited (21:10) while the worker ran (result 21:14); fresh-process rerun = replay = 0.6271, pre-season identical, ltm identical. Fix: results carry provenance.code_hash; the gate reruns stale-code windows and refuses to judge if the loop itself is stale. Needs one clean round to validate.
 - [~] T10 Future scramble (passes every window so far; automated per round)
 - [~] T11 Time fence (Session and Adapter raise on future prices; feed-level fence pending)
 - [~] T12 Worker health (crashed workers excluded and reported; timeouts and out-of-memory reports pending)
@@ -53,7 +53,7 @@ Nothing is marked `[x]` merely because code exists. Work continues until every b
 - [ ] T14 Label permutation
 - [ ] T15 Feature shuffle
 - [ ] T16 Ticker permutation
-- [ ] T17 Planted-pattern calibration (same as A13)
+- [~] T17 Planted-pattern calibration (same as A13; tests/test_planted_patterns.py 6/6 pass)
 
 ## Live
 - [ ] L1 Upgrade only after a validated research edge (owner decision)
