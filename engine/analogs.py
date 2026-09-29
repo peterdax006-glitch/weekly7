@@ -13,7 +13,10 @@ import pandas as pd
 from . import config as K, data
 
 # publication lags (sessions) so a value is only used once it was public
-LAG = {"CPIAUCSL": 35, "UNRATE": 25, "INDPRO": 35, "UMCSENT": 20, "USREC": 120, "NFCI": 7, "STLFSI4": 7}
+# publication lag in SESSIONS after the observation date. Audited 2026-09-28 (scripts/pit_audit_real.py): UNRATE at 25
+# and UMCSENT at 20 were ~1 session early on 10-20% of months; USREC is set retroactively when NBER dates a turning
+# point 6-21 months later, so a 120-session lag leaked future recession calls - 460 sessions (~22 months) is safe.
+LAG = {"CPIAUCSL": 35, "UNRATE": 30, "INDPRO": 35, "UMCSENT": 25, "USREC": 460, "NFCI": 7, "STLFSI4": 7}
 
 
 def fingerprints():
