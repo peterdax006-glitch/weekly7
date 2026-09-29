@@ -135,6 +135,8 @@ DIRECTIVES = [
      'Save this to memory verbatum as your checkoff list you cant stop until its done: [WEEKLY7 MASTER SELF-LEARNING ENGINE contract, stored verbatim in SELF_LEARNING_CONTRACT.md]'),
     ("C63", "2026-09-29", 'Self-Learning contract: foundation first - write ALL the code before moving on to testing and perfecting',
      'start working on it, remember foundation first right all the code before you move onto testing and perfecting'),
+    ("C64", "2026-09-29", 'Blind trader, knowing curator: the running system never knows the year and gets info day by day as it became available; memory is filed under the real year it operated in; relative memory is a separate hidden system that knows the year and prioritises memory automatically where the system cannot see',
+     'how i want it is while its running the system should not know the year and it should only have access to the live data at the time and as the year progresses it gains access to more info so it gets info on a daily basis based on when info was available, and when it all gets saved to memory it saves in the file as the year it operated in, now the relative memory is still important but that should be a seperate system where the system doesnt know the year, but the workings behind the system know the year so it prioritzies different memory but the system itself doesnt know that, that all happens in a automatic spot it cant see'),
 ]
 
 def sha(t): return hashlib.sha256(t.encode("utf-8")).hexdigest()
