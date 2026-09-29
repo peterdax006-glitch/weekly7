@@ -117,3 +117,11 @@
   scripts/learning_curve* records -> learning_curve.delta_from_records / curve_from_play_records.
 - S11 pass 2: compute.run_experiment_process for real workers; checkpoints.resume_verified at every resume; write_interruption on shutdown.
   CAVEAT: current_code_hash() moves while builders edit engine/, so real launches will be refused as stale until edits stop - by design.
+- S15 break/health: lifecycle.apply_to_ledger -> retirement gate; health.inputs_from_knowledge + epistemic_proposals (caller writes new versions);
+  reliability.contexts_from_condition turns validated break conditions into contexts/anti_contexts. KNOWN: B27 health monitor
+  false-alarms on stationary series (expected effect from a shrunk early mean = winner's curse) - fix in Stage 3.
+- S19 curator (C64): the trusted runner calls Curator.run_day(date, m_state, k) once per simulated day; the trader gets ONLY TraderDay;
+  EVERY trader-side memory read must go through the Curator; run trader_view.assert_trader_path_clean() in CI; choose the store root
+  (proposal: state/learning/curator/). FIX: archive.py _YEAR regex misses AAPL_2008 - use trader_view's digit-only lookarounds.
+  DESIGN GAP: release weights sum to 1, so a lone weak memory reads as weight 1.0 - pass a coarse calibrated strength band too
+  (era-free) so the trader cannot over-rely on a weak memory.
