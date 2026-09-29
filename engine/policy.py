@@ -31,14 +31,21 @@ def score(P: pd.DataFrame, w_model=None) -> pd.Series:
     return (w * mr + (1 - w) * P["evidence"]).rename("score")
 
 
-def not_crypto(index) -> pd.Series:
-    """Canon C11: crypto is off limits, everywhere a stock can be picked."""
+def crypto_set() -> set:
+    """Real tickers that are crypto by canon C11 (hard list plus crypto-named companies in the universe file)."""
     from .universe import CRYPTO_TICKERS, CRYPTO_NAME
     global _CRYPTO
     if "_CRYPTO" not in globals():
         u = pd.read_csv(K.CACHE / "universe.csv")
         _CRYPTO = set(CRYPTO_TICKERS) | set(u.loc[u["name"].str.contains(CRYPTO_NAME, na=False), "ticker"])
-    return pd.Series([t not in _CRYPTO for t in index], index=index)
+    return _CRYPTO
+
+
+def not_crypto(index) -> pd.Series:
+    """Canon C11: crypto is off limits, everywhere a stock can be picked. (Blind runs see code names, so this is inert
+    there; the blind Feed removes crypto tickers from the universe BEFORE disguising - see livesim.Feed.)"""
+    c = crypto_set()
+    return pd.Series([t not in c for t in index], index=index)
 
 
 def eligible(xr: pd.DataFrame, params=None) -> pd.Series:

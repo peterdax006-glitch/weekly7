@@ -273,3 +273,82 @@ def test_fit_passes_label_entry_to_the_labeller(monkeypatch, entry):
     with pytest.raises(RuntimeError, match="captured"):
         t._fit(None, {}, None, None)
     assert seen == {"entry": entry}
+
+
+# ---------------------------------------------------------------- canon C56 rulings 1, 3, 6 on the Feed
+def test_no_crypto_ticker_reaches_a_blind_run(home):
+    """Real tickers are filtered BEFORE disguising: planted crypto names are in the caches, none is in the feed or its map."""
+    rec = seal_file(home)
+    st, mk, ev, ins, sic = make_data(rec["start"])
+    n0 = len(st["Close"].columns)
+    for extra in ("COIN", "MSTR", "MARA"):
+        st = {f: v.assign(**{extra: v.iloc[:, 0] * 1.1}) for f, v in st.items()}
+        sic = pd.concat([sic, pd.DataFrame({"ticker": [extra], "sic": [6199]})])
+    feed = livesim.Feed(livesim.SealedYear("t1"), data=(st, mk, ev, ins, sic))
+    assert feed.dropped_crypto == ["COIN", "MARA", "MSTR"]
+    assert not {"COIN", "MSTR", "MARA"} & set(feed._map) and len(feed._map) == n0 == feed._stocks["Close"].shape[1]
+    assert "COIN" not in set(feed.sic["ticker"])
+    plain = livesim.Feed(livesim.SealedYear("t1"), data=(st, mk, ev, ins, sic), drop_crypto=False)      # planted: without the filter they get in
+    assert {"COIN", "MSTR", "MARA"} <= set(plain._map)
+
+
+def test_blind_runs_use_the_hardened_feed_by_default(home, monkeypatch):
+    H, plain = livesim.blind_feed_class(), livesim.blind_feed_class(False)
+    assert plain is livesim.Feed and H is not livesim.Feed and issubclass(H, livesim.Feed)
+    picked = []
+
+    def spy(hardened=True):
+        picked.append(hardened)
+        raise RuntimeError("stop after the choice")
+    monkeypatch.setattr(livesim, "blind_feed_class", spy)
+    seal_file(home)
+    with pytest.raises(RuntimeError, match="stop after"):
+        livesim.run({}, "t1", log=lambda *a: None)
+    assert picked == [True]
+
+
+def test_feed_defaults_to_the_split_invariant_rule_and_passes_it_to_the_feature_build(home, monkeypatch):
+    from engine import features
+    seen = []
+    real = features.build
+
+    def spy(*a, **k):
+        seen.append(k.get("tradable_rule"))
+        return real(*a, **k)
+    monkeypatch.setattr(features, "build", spy)
+    rec = seal_file(home)
+    st, mk, ev, ins, sic = make_data(rec["start"], n=10)
+    st["Volume"] = st["Close"] * 0 + 1e6
+    ins = ins.assign(owner_cik="1", value=5e4, relation="officer", title="ceo")
+    ev = ev.assign(form="8-K")
+    feed = livesim.Feed(livesim.SealedYear("t1"), data=(st, mk, ev, ins, sic))
+    feed.precompute_features()
+    assert feed.tradable_rule == "split_invariant" and seen == ["split_invariant"]
+
+
+def test_features_tradable_rule_default_is_live_behaviour_and_split_invariant_ignores_a_later_split():
+    from engine import features
+    idx = pd.bdate_range("2015-01-01", periods=420)
+    rng = np.random.default_rng(4)
+    close = pd.DataFrame(40 * np.exp(rng.normal(0, 0.02, (420, 30)).cumsum(0)), index=idx, columns=[f"T{i:02d}" for i in range(30)])
+    vol = pd.DataFrame(1e6 * (1 + rng.random((420, 30))), index=idx, columns=close.columns)
+    mk = pd.DataFrame({"SPY": 100 * np.exp(rng.normal(0, 0.01, 420).cumsum()), "^VIX": 20.0}, index=idx)
+
+    def build(c, v, rule):
+        stocks = {"Close": c, "Open": c, "High": c * 1.01, "Low": c * 0.99, "Volume": v}
+        ev = pd.DataFrame({"ticker": [], "accepted": pd.DatetimeIndex([], tz="UTC"), "kind": [], "form": []})
+        X, _ = features.build(stocks, {"Close": mk}, ev, None, pd.DataFrame({"ticker": list(c.columns), "sic": 3570}), start="2015-09-01",
+                              relative=True, tradable_rule=rule)
+        return set(X.index)
+    base = build(close, vol, None)
+    assert build(close, vol, "default") == base                          # Live's rule unchanged, spelled either way
+    c2, v2 = close.copy(), vol.copy()
+    c2.iloc[:, :10] /= 20.0                                              # a later 20:1 split rewrites 10 names' history
+    v2.iloc[:, :10] *= 20.0
+    assert build(c2, v2, "split_invariant") == build(close, vol, "split_invariant")
+    assert build(c2, v2, None) != base                                   # the default rule reacts to the split: that is the leak
+    with pytest.raises(ValueError):
+        build(close, vol, "nonsense")
+    with pytest.raises(ValueError):
+        features.build({"Close": close, "Volume": vol, "High": close, "Low": close, "Open": close}, {"Close": mk}, None, None,
+                       pd.DataFrame({"ticker": [], "sic": []}), relative=False, tradable_rule="split_invariant")

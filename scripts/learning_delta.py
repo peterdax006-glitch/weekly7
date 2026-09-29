@@ -38,9 +38,17 @@ def read_state0():
 
 
 def state_for(W, st, bank):
-    """S0 for window W: the current basis and the part of the long-term bank that ended before W began (C34)."""
-    return L.LearnedState(dict(st["cfg"]), dict(st["meta"]), L.causal_bank(bank, W.real_start),
-                          lineage=[f"S0 basis v{st['version']}"])
+    """S0 for window W (canon C56): the newest basis trained ONLY on windows that ended before W began (BasisLineage), else the
+    neutral untrained start; plus the part of the long-term bank that ended before W began (C34)."""
+    from engine import leak_audit as LA
+    import scripts.livesim_loop2 as LP2                         # noqa: E402 - heavy import kept lazy
+    lin = LP2.lineage_from_state(st)
+    rec = lin.basis_for(W.real_start)
+    if rec is None:
+        cfg, meta, tag = dict(LP2.NEUTRAL_CFG), dict(LP2.A.META_DEFAULT), "S0 UNTRAINED neutral basis"
+    else:
+        cfg, meta, tag = dict(rec["cfg"]), dict(rec["meta"]), f"S0 basis v{rec['version']} (past-only)"
+    return L.LearnedState(cfg, meta, L.causal_bank(bank, W.real_start), lineage=[tag])
 
 
 def basis_train_fn(pool, seed, n_extra=4):
@@ -135,7 +143,7 @@ def main():
     (out / "report.md").write_text(L.render_report(summary), encoding="utf-8")
     m = agg["metrics"][L.PRIMARY]
     log_experiment({"event": "learning_delta", "tag": a.tag, "n_pairs": len(recs), "verdict": agg["verdict"]["label"],
-                    "metrics": {"same_year_delta_mean_week": m["same"]["mean"], "learning_effect": m["effect"]["mean"],
+                    "metrics": {"HEADLINE_transfer_delta_mean_week_past_only": agg["headline"]["metrics"][L.PRIMARY]["mean"], "same_year_delta_mean_week": m["same"]["mean"], "learning_effect": m["effect"]["mean"],
                                 "transfer": m["transfer"]["mean"], "noise": m["noise"]["mean"]},
                     "gates": {"selfcheck_valid": sc["valid"], "memoriser_seen_on_real": memo_ok, "blindness_failures": n_failed},
                     "window_ids": [w["id"] for w, _ in pairs], "outcome": "continue_testing", "reason": agg["verdict"]["why"]},

@@ -339,3 +339,127 @@ def test_main_orders_supervision_gates_basis_and_reveal():
     assert pos == sorted(pos), dict(zip(order, pos))
     assert "subprocess.Popen" not in src and "p.wait()" not in src        # no unsupervised children
     assert 'livesim.SealedYear(w["run_id"]).reveal()' not in src        # no ungated reveal
+
+
+# ---------------------------------------------------------------- canon C56 rulings: neutral start, past-only lineage, THIN, guard
+from engine import leak_audit as LA
+
+
+def test_start_basis_is_the_data_free_neutral_one_not_the_sensitivity_defaults(L):
+    assert L.st["cfg"] == LA.neutral_default_cfg(L.CFG_SPACE) == L.NEUTRAL_CFG
+    assert L.st["version"] == 0 and L.st["lineage"] == [] and L.st["meta"] == L.A.META_DEFAULT
+    assert L.st["cfg"]["pick"] == "top" and L.st["cfg"]["k"] == 3         # the old start was pick=hivol, k=2
+
+
+def test_a_pre_lineage_state_file_is_reset_and_its_windows_marked_legacy(L):
+    old = {"windows": [{"run_id": "w01a", "mean_week": 0.01}], "version": 7, "cfg": {"k": 2, "pick": "hivol"}, "meta": {"x": 1}, "phase": "direction"}
+    new = L.migrate_state(old)
+    assert new["cfg"] == L.NEUTRAL_CFG and new["version"] == 0 and new["lineage"] == [] and new["phase"] == "direction"
+    assert new["windows"][0]["legacy"] is True and new["legacy_basis_version"] == 7
+    assert L.migrate_state(new) is new                                       # idempotent
+
+
+def _span_table():
+    T = pd.Timestamp
+    return {"a": (T("1990-01-01"), T("1990-12-31")), "b": (T("2000-01-01"), T("2000-12-31")), "c": (T("2010-01-01"), T("2010-12-31")),
+            "d": (T("1985-01-01"), T("1985-12-31"))}
+
+
+def test_plan_round_uses_only_bases_trained_on_windows_that_ended_before_and_reports_untrained(L):
+    span = lambda r: _span_table()[r]
+    lin = LA.BasisLineage()
+    state = {"lineage": []}
+    L.register_basis(state, lin, 1, {"k": 1}, {"m": 1}, [{"id": "a"}], span=span)          # trained on 1990
+    L.register_basis(state, lin, 2, {"k": 2}, {"m": 2}, [{"id": "a"}, {"id": "b"}], span=span)  # trained on 1990 and 2000
+    plan = L.plan_round(["c", "b", "d"], lin, span=span)
+    assert plan["c"]["version"] == 2 and not plan["c"]["untrained"] and plan["c"]["cfg"] == {"k": 2}
+    assert plan["b"]["version"] == 1 and plan["b"]["cfg"] == {"k": 1}                      # v2 saw 2000 itself: not allowed to play 2000
+    assert plan["d"]["untrained"] and plan["d"]["version"] == 0 and plan["d"]["cfg"] == L.NEUTRAL_CFG   # 1985: everything trained is its future
+    assert lin.violations([{"id": r, "real_start": span(r)[0], "version": p["version"]} for r, p in plan.items() if p["version"]]) == []
+    s = L.round_summary(3, plan, ["c", "d"], {"d"})
+    assert s["n_untrained"] == 1 and s["untrained_basis"] == ["d"] and s["thin"] == ["d"] and s["n_played"] == 2
+    json.dumps(state)                                                                       # the lineage is persisted in the state file
+    assert state["lineage"][1]["trained_on"] == [["a", "1990-01-01", "1990-12-31"], ["b", "2000-01-01", "2000-12-31"]]
+
+
+def test_lineage_round_trips_through_the_state_file(L):
+    span = lambda r: _span_table()[r]
+    lin, state = LA.BasisLineage(), {"lineage": []}
+    L.register_basis(state, lin, 1, {"k": 1}, {}, [{"id": "a"}], span=span)
+    back = L.lineage_from_state(json.loads(json.dumps(state)))
+    assert back.basis_for("2005-01-01")["version"] == 1 and back.basis_for("1989-01-01") is None
+
+
+def test_planted_future_trained_basis_would_be_caught_by_the_lineage_audit(L):
+    span = lambda r: _span_table()[r]
+    lin, state = LA.BasisLineage(), {"lineage": []}
+    L.register_basis(state, lin, 1, {"k": 1}, {}, [{"id": "c"}], span=span)                 # trained on 2010
+    bad = lin.violations([{"id": "a", "real_start": span("a")[0], "version": 1}])           # a 1990 window handed the 2010-trained basis
+    assert bad and bad[0]["trained_on_late"] == ["c"]
+
+
+def test_run_workers_and_classify_round_take_a_basis_per_window(L, sandbox, monkeypatch):
+    seen = {}
+
+    def fake_supervise(cmd, log_path, wid, *a, **k):
+        seen[wid] = (json.loads(cmd[-2]), json.loads(cmd[-1]))
+        return 0, "exit"
+    per = {"w1a": ({"k": 1}, {"m": 1}), "w1b": ({"k": 2}, {"m": 2})}
+    L.run_workers(["w1a", "w1b"], {"k": 9}, {"m": 9}, supervise=fake_supervise, per_id=per)
+    assert seen == {"w1a": ({"k": 1}, {"m": 1}), "w1b": ({"k": 2}, {"m": 2})}
+    for rid, (c, m) in per.items():                                        # each worker is judged against ITS OWN basis
+        monkeypatch.setattr(L.livesim, "run", fake_run(GOOD_WEEKS if rid == "w1a" else GOOD_WEEKS[::-1], []))
+        L.worker(rid, c, m)
+    rep = L.classify_round(["w1a", "w1b"], {"k": 9}, {"m": 9}, root=sandbox, stale_check=lambda r: False, per_id=per)
+    assert rep["included"] == ["w1a", "w1b"]
+    wrong = L.classify_round(["w1a", "w1b"], {"k": 9}, {"m": 9}, root=sandbox, stale_check=lambda r: False)
+    assert wrong["included"] == [] and {e["status"] for e in wrong["excluded"]} == {"INVALID"}
+
+
+def test_load_window_tags_thin_universes_and_the_result_carries_n_names(L, sandbox, monkeypatch):
+    for name, n in (("thin", 30), ("wide", 600)):
+        dd = sandbox / f"x_{name}"
+        dd.mkdir()
+        idx = pd.date_range("2190-01-03", periods=3)
+        pd.DataFrame(np.ones((3, n)), index=idx, columns=[f"S{i:04d}" for i in range(n)]).to_parquet(dd / "closes_v2.parquet")
+        pd.DataFrame({"ticker": ["S0000"], "sic": [3570]}).to_parquet(dd / "sic.parquet")
+        (dd / "meta.json").write_text(json.dumps({"cost_bps": 10}))
+        pd.DataFrame({"a": [1]}).to_parquet(dd / "wsnap_2190-01-03.parquet")
+    t, w = L.load_window(sandbox / "x_thin"), L.load_window(sandbox / "x_wide")
+    assert (t["n_names"], t["thin"], w["n_names"], w["thin"]) == (30, True, 600, False)
+    run_fake_worker(L, monkeypatch, rid="w71a")
+    res = json.loads((sandbox / "w71a" / "result2.json").read_text())
+    assert res["n_names"] == 1 and res["thin"] is True                     # the fake world has one name: THIN
+
+
+def test_main_excludes_thin_windows_from_basis_training_and_headline_averages():
+    src = SRC.read_text(encoding="utf-8")
+    assert 'wins = [w for w in loaded if not w["thin"]]' in src
+    assert 'headline = [w for w in st["windows"] if not w.get("thin") and not w.get("legacy")]' in src
+    assert 'register_basis(st, lineage, st["version"]' in src and "UNTRAINED basis" in src
+    assert src.index("plan = plan_round(ids, lineage)") < src.index("run_workers(ids, st") < src.index("res = train_basis(wins")
+
+
+def test_worker_runs_with_the_network_closed_and_reopens_it_after(L, sandbox, monkeypatch):
+    import socket
+    from engine import data as data_mod
+    seen = {}
+
+    def run(*a, **k):
+        try:
+            socket.getaddrinfo("query1.finance.yahoo.com", 443)
+            seen["net"] = "open"
+        except LA.NetworkBlocked:
+            seen["net"] = "blocked"
+        try:
+            data_mod.update("stocks")
+            seen["refresh"] = "ran"
+        except LA.NetworkBlocked:
+            seen["refresh"] = "blocked"
+        return fake_run(GOOD_WEEKS, [])(*a, **k)
+    monkeypatch.setattr(L.livesim, "run", run)
+    real_update = data_mod.update
+    L.worker("w72a", CFG, META)
+    assert seen == {"net": "blocked", "refresh": "blocked"}
+    assert data_mod.update is real_update                                 # the poison is lifted, and the socket guard too
+    socket.getaddrinfo("localhost", 80)

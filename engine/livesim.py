@@ -78,14 +78,18 @@ class SealedYear:
 class Feed:
     """The only door between the real past and the trader."""
 
-    def __init__(self, sealed: SealedYear, warmup_years=6, use_insider=True, data=None, enforce=True):
+    def __init__(self, sealed: SealedYear, warmup_years=6, use_insider=True, data=None, enforce=True, drop_crypto=True,
+                 tradable_rule="split_invariant"):
         """`data` = (stocks, market, events, insider, sic) replaces the real caches (synthetic windows in tests).
         `enforce=False` skips the Phase 21/22 gates and the ledger; it exists only so a test can prove that a clean
-        run is bit-identical with and without them."""
+        run is bit-identical with and without them. `drop_crypto` removes canon-C11 crypto tickers from the universe BEFORE
+        disguising (real tickers at load). `tradable_rule` is passed to features.build: the Test path uses the split-invariant
+        rule (canon C56: adjusted price levels encode later splits)."""
         s = sealed._read()                                     # the feed may know; the trader never does
         start, self._shift = SealedYear.start_of(s), pd.Timedelta(days=s["shift_days"])
         Y = start.year
         self.enforce, self.gate_findings, self._sealed = enforce, [], sealed
+        self.tradable_rule = tradable_rule
         if enforce:
             self.gate_findings += sealed.audit(first_worker_start=pd.Timestamp.now())
             self._raise_on_fail(self.gate_findings)
@@ -101,6 +105,9 @@ class Feed:
         lo, hi = start - pd.DateOffset(years=w), start + pd.DateOffset(months=12) - pd.Timedelta(days=1)
         C = stocks["Close"].loc[lo:hi]
         live_cols = C.columns[C.loc[start:hi].notna().any()]    # names that trade in the hidden window
+        crypto = policy.crypto_set() if drop_crypto else set()
+        self.dropped_crypto = sorted(c for c in live_cols if c in crypto)
+        live_cols = live_cols[~live_cols.isin(crypto)]           # C11: crypto never reaches the disguise (real tickers here)
         rng = np.random.default_rng(s["shift_days"] * 7919 + 17)   # code names fixed per sealed window (reproducible)
         codes = [f"S{n:04d}" for n in rng.permutation(len(live_cols))]
         self._map = dict(zip(live_cols, codes))
@@ -171,7 +178,7 @@ class Feed:
     def precompute_features(self, rel_q=(0.2, 0.4)):
         ev, ins = self._events, self._insider
         X, atr = features.build(self._stocks, self._market, ev, ins, self.sic,
-                                start=str(self.sessions[0].date()), relative=True, rel_q=rel_q)
+                                start=str(self.sessions[0].date()), relative=True, rel_q=rel_q, tradable_rule=self.tradable_rule)
         self._X, self._atr = X, atr
 
     def features_today(self):
@@ -532,7 +539,8 @@ def parity_test(feed, n_days=2, seed=None):
         feed.i = feed.sessions.get_loc(d)
         stocks, market = feed.history()
         ev, ins = feed.filings()
-        slow, _ = features.build(stocks, market, ev, ins, feed.sic, start=str(feed.now.date()), relative=True)
+        slow, _ = features.build(stocks, market, ev, ins, feed.sic, start=str(feed.now.date()), relative=True,
+                                 tradable_rule=feed.tradable_rule)
         a = slow.xs(feed.now, level=0).sort_index()
         b = feed.features_today().xs(feed.now, level=0).reindex(index=a.index, columns=a.columns)
         diff = (a - b).abs().where(~(a.isna() & b.isna()), 0.0)
@@ -562,9 +570,18 @@ def drive(feed, on_tick):
     return time.perf_counter() - feed.t_start
 
 
-def run(cfg, run_id, log=print, check_parity=True, adaptive=False, meta=None):
+def blind_feed_class(hardened=True):
+    """The Feed class blind runs use: the hardened one (columns sorted by code, market prices rebased, names hidden until
+    they list - engine.leak_audit, canon C56) unless a caller asks for the plain one."""
+    if hardened:
+        from .leak_audit import hardened_feed_class
+        return hardened_feed_class()
+    return Feed
+
+
+def run(cfg, run_id, log=print, check_parity=True, adaptive=False, meta=None, hardened=True):
     sealed = SealedYear(run_id)
-    feed = Feed(sealed)
+    feed = blind_feed_class(hardened)(sealed)
     t = time.perf_counter()
     feed.precompute_features()
     log(f"  feature service ready in {time.perf_counter() - t:.0f}s")

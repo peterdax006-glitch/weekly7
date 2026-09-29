@@ -44,12 +44,22 @@ def _days_since(flag: pd.DataFrame, cap=400) -> pd.DataFrame:
 
 
 def build(stocks: dict, market: dict, ev: pd.DataFrame, ins: pd.DataFrame, sic: pd.DataFrame,
-          start="2013-01-01", chunk=500, relative=False, rel_q=(0.2, 0.4)):
+          start="2013-01-01", chunk=500, relative=False, rel_q=(0.2, 0.4), tradable_rule=None):
     """Cross-sectional pieces (industry momentum, regime) on the whole universe, then the
-    per-stock features in ticker chunks so memory stays bounded (~50 wide frames per chunk)."""
+    per-stock features in ticker chunks so memory stays bounded (~50 wide frames per chunk).
+    tradable_rule: None/'default' = the rule Live uses (price-rank AND dollar-volume rank in relative mode); 'split_invariant'
+    = dollar-volume rank only (Test path, engine.leak_audit.split_invariant_tradable)."""
     C, H, L, V = stocks["Close"], stocks["High"], stocks["Low"], stocks["Volume"]
     dv20 = (C * V).rolling(20, min_periods=15).median()
-    if relative:
+    if tradable_rule not in (None, "default", "split_invariant"):
+        raise ValueError(f"tradable_rule must be None/'default' or 'split_invariant', not {tradable_rule!r}")
+    if tradable_rule == "split_invariant" and not relative:
+        raise ValueError("tradable_rule='split_invariant' needs relative=True")
+    if relative and tradable_rule == "split_invariant":
+        # Test path (canon C56): back-adjusted prices encode later splits, so no price LEVEL enters the universe rule
+        from .leak_audit import split_invariant_tradable
+        tradable = split_invariant_tradable(C, V, rel_q[1])
+    elif relative:
         # any-era filters (canon C10: 1976-2025): split-adjusted prices and 1980s dollar volumes make fixed
         # thresholds meaningless, so keep names above the day's 20th price and 40th dollar-volume percentile
         tradable = (C.rank(axis=1, pct=True) >= rel_q[0]) & (dv20.rank(axis=1, pct=True) >= rel_q[1]) & C.notna()

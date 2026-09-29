@@ -859,6 +859,31 @@ def aggregate(recs, seed=0, n_boot=2000):
         out["verdict"]["notes"].append(f"the learning effect ({ef:+.5f}) is smaller than the tie-break luck floor ({fl:.5f}) that a random "
                                        "relabel alone produces; any system that reads code-name order can fake a delta of that size")
     out["verdict_in_band"] = verdict(out["metrics"]["in_band"], out["n_pairs"], out["noise_max_abs"]["in_band"])
+    out["headline"] = headline_transfer(recs, seed, n_boot)
+    return out
+
+
+def headline_transfer(recs, seed=0, n_boot=2000, min_pairs=3):
+    """Owner ruling (C54 vs C56): the HEADLINE learning number is the TRANSFER delta - what learning does for years it has
+    not seen. Past-only: only pairs whose transfer window starts AFTER the learning window ended count, so learning never
+    used the future of the year it is applied to. The same-year disguised delta (aggregate()['metrics'][m]['same']) is
+    reported second, with its caveat."""
+    have = [r for r in recs if "transfer_s0" in r and "transfer_s1" in r]
+    past = [r for r in have if not r.get("transfer_anachronistic", True)]
+    out = {"n_with_transfer": len(have), "n_past_only": len(past), "n_dropped_anachronistic": len(have) - len(past), "metrics": {}}
+    for m in METRICS:
+        v = _col(past, "transfer_s0", "transfer_s1", m)
+        mean, lo, hi, n = boot_ci(v, n_boot, seed=derive_seed(seed, m, "headline") % (2 ** 31))
+        out["metrics"][m] = {"mean": mean, "lo": lo, "hi": hi, "n": n, "p_signflip": signflip_p(v, seed=derive_seed(seed, m, "headline", "p") % (2 ** 31))}
+    t = out["metrics"][PRIMARY]
+    if t["n"] < min_pairs:
+        out["verdict"] = {"label": "INCONCLUSIVE", "why": f"only {t['n']} past-only transfer pairs (< {min_pairs})"}
+    elif t["lo"] > 0:
+        out["verdict"] = {"label": "TRANSFER_POSITIVE", "why": f"learning raised weekly mean on unseen later years by {t['mean']:+.4g} (CI {t['lo']:+.3g}..{t['hi']:+.3g})"}
+    elif t["hi"] < 0:
+        out["verdict"] = {"label": "TRANSFER_NEGATIVE", "why": f"learning lowered weekly mean on unseen later years: {t['mean']:+.4g} (CI {t['lo']:+.3g}..{t['hi']:+.3g})"}
+    else:
+        out["verdict"] = {"label": "NO_TRANSFER", "why": f"transfer CI {t['lo']:+.3g}..{t['hi']:+.3g} contains zero"}
     return out
 
 
@@ -1083,8 +1108,21 @@ def render_report(summary):
     """Markdown report: verdict first, then the table the owner reads (C54), controls, per-era, blindness and caveats."""
     a, sc = summary["aggregate"], summary["selfcheck"]
     v = a["verdict"]
-    L = [f"# Learning delta - {summary['tag']}", "",
-         f"Verdict on weekly mean: **{v['label']}** - {v['why']}",
+    h = a.get("headline")
+    L = [f"# Learning delta - {summary['tag']}", ""]
+    if h:
+        t = h["metrics"][PRIMARY]
+        L += ["## HEADLINE: transfer delta (learning applied to unseen years, past-only)", "",
+              f"**{h['verdict']['label']}** - {h['verdict']['why']}", "",
+              f"Weekly-mean transfer delta {_f(t['mean'])} [{_f(t['lo'])}, {_f(t['hi'])}] over {t['n']} past-only pairs "
+              f"({h['n_dropped_anachronistic']} of {h['n_with_transfer']} transfer pairs dropped because the learning window came AFTER the "
+              f"transfer year); sign-flip p {_f(t['p_signflip'])}.",
+              "Other metrics: " + "; ".join(f"{m} {_f(r['mean'])}" for m, r in h["metrics"].items() if m != PRIMARY), "",
+              "## Second: same-year disguised delta (C54/C55) - read with the caveat below", "",
+              "Caveat: the same real year replayed under a new disguise is the same numbers with new labels. Any stored numeric memory "
+              "recognises it (the paths are identical), so this delta can be memorisation, not learning; owner to rule (C54 vs C56). "
+              "It is not the headline.", ""]
+    L += [f"Same-year verdict on weekly mean: **{v['label']}** - {v['why']}",
          f"Verdict on share of weeks in the 5-10% band: **{a['verdict_in_band']['label']}** - {a['verdict_in_band']['why']}", ""]
     for n in v["notes"] + a["verdict_in_band"]["notes"]:
         L.append(f"- NOTE: {n}")

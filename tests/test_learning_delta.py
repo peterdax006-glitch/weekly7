@@ -328,3 +328,40 @@ def test_effect_below_the_tie_break_luck_floor_is_called_out():
         r["run2_noise"]["mean_week"] = r["run1"]["mean_week"]
     v = L.aggregate(recs, 1)["verdict"]
     assert any("tie-break luck floor" in n for n in v["notes"])
+
+
+# ------------------------------------------------------------------ owner ruling: the headline is the past-only TRANSFER delta
+def _past_only(recs, flags=None):
+    for i, r in enumerate(recs):
+        r["transfer_anachronistic"] = False if flags is None else flags[i]
+    return recs
+
+
+def test_headline_is_past_only_transfer_and_drops_anachronistic_pairs():
+    recs = _past_only(_recs(L.SyntheticPlayer(), L.SyntheticGeneraliser(), n=5))
+    h = L.aggregate(recs, 1)["headline"]
+    assert h["n_past_only"] == 5 and h["verdict"]["label"] == "TRANSFER_POSITIVE" and h["metrics"]["mean_week"]["lo"] > 0
+    two = _past_only(recs, [True, True, True, False, False])          # learned from a LATER year than the one it is applied to
+    h2 = L.aggregate(two, 1)["headline"]
+    assert h2["n_past_only"] == 2 and h2["n_dropped_anachronistic"] == 3 and h2["verdict"]["label"] == "INCONCLUSIVE"
+
+
+def test_headline_does_not_reward_a_memoriser_but_the_same_year_row_still_shows_it():
+    recs = _past_only(_recs(L.SyntheticMemoriserPlayer(), L.MemoriserLearner(), n=5))
+    agg = L.aggregate(recs, 1)
+    assert agg["headline"]["verdict"]["label"] == "NO_TRANSFER"
+    assert agg["metrics"]["mean_week"]["same"]["lo"] > 0.02            # second number: big, and exactly the memorisation signature
+
+
+def test_report_puts_the_transfer_headline_before_the_same_year_delta_with_its_caveat():
+    recs = _past_only(_recs(L.SyntheticPlayer(), L.SyntheticGeneraliser(), n=4))
+    summ = {"tag": "t", "learner": "x", "basis_version": 1, "aggregate": L.aggregate(recs, 1), "selfcheck": L.harness_selfcheck(seed=2, n_windows=6),
+            "memoriser_control": None, "blindness": {"n_audits": 1, "n_failed": 0}, "caveats": L.CAVEATS}
+    txt = L.render_report(summ)
+    assert txt.index("HEADLINE: transfer delta") < txt.index("Second: same-year disguised delta") < txt.index("Same-year verdict")
+    assert "can be memorisation" in txt and "TRANSFER_POSITIVE" in txt
+
+
+def test_headline_with_no_pairs_is_inconclusive_not_a_crash():
+    h = L.headline_transfer([])
+    assert h["verdict"]["label"] == "INCONCLUSIVE" and h["n_past_only"] == 0 and np.isnan(h["metrics"]["mean_week"]["mean"])

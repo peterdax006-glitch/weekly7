@@ -9,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import numpy as np, pandas as pd
 from engine import config as K, livesim, policy, adaptive as A, objective as O, basis_search as B
 from engine import blind_gates, health, provenance
+from engine import leak_audit as LA
 from engine.improve import log_experiment
 
 DIR = livesim.DIR
@@ -19,6 +20,7 @@ PAR, SCREEN_N, N_CAND = 3, 10, 24
 MODEL_SEED = 7                    # random_state of every model the trader fits; recorded as the worker seed
 WORKER_TIMEOUT_S, WORKER_MEM_MB, WORKER_HEARTBEAT_S, BEAT_EVERY_S = 3 * 3600, 6000, 900, 30
 WORKER_FILES = ("result2.json", "blind_audit2.json", "health2.jsonl")
+THIN_NAMES = 500                  # a window whose universe holds fewer names is THIN (survivor panel, canon C56): reported apart
 
 # C22: the owner wants +/-200% years -> weekly swings near 15%. Aggressive settings dominate the search.
 VOL_TARGET = 0.15
@@ -29,13 +31,29 @@ CFG_SPACE = {"k": [1, 1, 2, 2, 3, 4], "exit_q": [0.5, 0.7, 0.8, 0.9], "rebalance
              "w_move": [0.0, 0.3, 0.5, 0.7], "w_mom": [0.0, 0.2, 0.4]}
 META_SPACE = B.META_SPACE          # single source (engine/basis_search.py); tests pin it to the Bible Phase 19 list
 
-st = json.loads(STATE.read_text()) if STATE.exists() else {
-    "windows": [], "version": 1,
-    # starting defaults from the sensitivity study: model only (+0.32%/wk, t=3.8), lower liquidity floor
-    "cfg": {"k": 2, "exit_q": 0.8, "rebalance_weeks": 1, "brake": None, "max_per_sector": None, "w_model": 1.0,
-            "pick": "hivol", "pool_q": 0.7, "liq_q": 0.0, "vol_filter": False, "stress_thr": None, "stress_k": 2,
-            "trend_filter": None, "trend_gross": 0.0},
-    "meta": dict(A.META_DEFAULT), "phase": "volatility"}
+# C56: the starting basis is data-free (the middle grid value of every knob), never the sensitivity-study defaults, which
+# were tuned on the outcomes of 37 real years (80% of possible windows are in-sample for them).
+NEUTRAL_CFG = LA.neutral_default_cfg(CFG_SPACE)
+
+
+def fresh_state():
+    return {"windows": [], "version": 0, "cfg": dict(NEUTRAL_CFG), "meta": dict(A.META_DEFAULT), "phase": "volatility",
+            "lineage": [], "rounds": []}
+
+
+def migrate_state(st):
+    """A state file written before the lineage existed carries a basis trained on windows of unknown real order and
+    defaults from the sensitivity study: reset to the neutral start and mark every old window legacy (kept, but excluded from
+    headline averages)."""
+    if "lineage" in st:
+        return st
+    old = st.get("windows", [])
+    st = {**fresh_state(), "windows": [{**w, "legacy": True} for w in old], "legacy_basis_version": st.get("version"),
+          "legacy_cfg": st.get("cfg"), "phase": st.get("phase", "volatility")}
+    return st
+
+
+st = migrate_state(json.loads(STATE.read_text())) if STATE.exists() else fresh_state()
 save = lambda: STATE.write_text(json.dumps(st, indent=1, default=str))
 
 
@@ -46,7 +64,8 @@ def load_window(a):
     opens = pd.read_parquet(a / "opens_v2.parquet") if (a / "opens_v2.parquet").exists() else None
     ltm = pd.read_parquet(a / "ltm.parquet") if (a / "ltm.parquet").exists() else None
     sc = pd.read_parquet(a / "sic.parquet")
-    return {"id": a.name, "snaps": ws, "closes": closes, "opens": opens, "ltm": ltm, "bps": json.loads((a / "meta.json").read_text())["cost_bps"],
+    n_names = int(closes.iloc[0].notna().sum()) if len(closes) else 0
+    return {"id": a.name, "n_names": n_names, "thin": n_names < THIN_NAMES, "snaps": ws, "closes": closes, "opens": opens, "ltm": ltm, "bps": json.loads((a / "meta.json").read_text())["cost_bps"],
             "divs": {t: policy.sic_division(x) for t, x in zip(sc["ticker"], sc["sic"])}}
 
 
@@ -94,6 +113,52 @@ def as_search_window(w):
     return {**w, "end": w["closes"].index[-1]}
 
 
+def real_span(run_id):
+    """(real start, real end) of a window: referee side only - the trader never sees a real date."""
+    st0 = livesim.SealedYear.start_of(livesim.SealedYear(run_id)._read())
+    return st0, blind_gates.window_end(st0)
+
+
+def lineage_from_state(state):
+    """The BasisLineage recorded in the state file (versions >= 1; version 0 is the neutral start and is never registered)."""
+    lin = LA.BasisLineage()
+    for v in state.get("lineage", []):
+        lin.register(v["version"], v["cfg"], v["meta"], [LA.TrainedOn(i, pd.Timestamp(a), pd.Timestamp(b)) for i, a, b in v["trained_on"]])
+    return lin
+
+
+def plan_round(ids, lineage, span=real_span):
+    """Per window, the basis it plays with: the newest version trained ONLY on windows that ended before this window's real start
+    (canon C56), else the neutral untrained start. Returns {id: {cfg, meta, version, untrained, real_start}}."""
+    out = {}
+    for r in ids:
+        start, _ = span(r)
+        rec = lineage.basis_for(start)
+        if rec is None:
+            out[r] = {"cfg": dict(NEUTRAL_CFG), "meta": dict(A.META_DEFAULT), "version": 0, "untrained": True, "real_start": start}
+        else:
+            out[r] = {"cfg": rec["cfg"], "meta": rec["meta"], "version": rec["version"], "untrained": False, "real_start": start}
+    return out
+
+
+def register_basis(state, lineage, version, cfg, meta, wins, span=real_span):
+    """Record a newly adopted basis with every window it was trained on (real dates), in memory and in the state file."""
+    trained = []
+    for w in wins:
+        a, b = span(w["id"])
+        trained.append([w["id"], str(a.date()), str(b.date())])
+    lineage.register(version, cfg, meta, [LA.TrainedOn(i, pd.Timestamp(a), pd.Timestamp(b)) for i, a, b in trained])
+    state["lineage"].append({"version": version, "cfg": cfg, "meta": meta, "trained_on": trained})
+
+
+def round_summary(rnd, plan, done, thin_ids):
+    """Per-round accounting asked for by the owner: how many played windows used an untrained basis, and which were THIN."""
+    played = [r for r in plan if r in done]
+    un = [r for r in played if plan[r]["untrained"]]
+    return {"round": rnd, "windows": played, "untrained_basis": un, "n_untrained": len(un), "n_played": len(played),
+            "versions": {r: plan[r]["version"] for r in played}, "thin": [r for r in played if r in thin_ids]}
+
+
 def train_basis(wins, cfg, meta, seed, evaluate=None, as_of=None, config=None):
     """Phase 19 outer step: 24 random configs screened on 10 random archived windows, top 3 (+ incumbent) confirmed on all,
     adopted only through the firewall + held-out bootstrap (engine.basis_search). `evaluate` defaults to run_window."""
@@ -133,7 +198,20 @@ def _heartbeat(wl, stop):
 def worker(run_id, cfg, meta):
     """One sealed window on the live clock. Reports through health.WorkerLog (start, config, window, seed, heartbeat every
     30 s, complete). The Phase 21/22 audit of the run must pass BEFORE anything is archived: on failure the worker
-    records `invalid` and writes no result, so its window is excluded (and never enters the long-term memory bank)."""
+    records `invalid` and writes no result, so its window is excluded (and never enters the long-term memory bank).
+    Canon C56: the network is closed for the whole worker (a socket guard plus the data-refresh functions poisoned) before
+    anything else runs; the guard is lifted on exit so an in-process caller (a test) gets its network back."""
+    guard = LA.NetworkGuard().install()
+    from engine import data as _data
+    unpoison = LA.poison(_data, ["update", "download"])
+    try:
+        _worker(run_id, cfg, meta)
+    finally:
+        unpoison()
+        guard.uninstall()
+
+
+def _worker(run_id, cfg, meta):
     a = DIR / run_id
     a.mkdir(exist_ok=True)
     for f in ("result2.json", "blind_audit2.json"):
@@ -197,6 +275,9 @@ def _archive(run_id, cfg, meta, feed, trader, wall, a, wl):
     r["in_band"] = float(band.mean()) if len(wk) else 0.0
     r["pos_in_band"] = float((wk[band] > 0).mean()) if band.any() else 0.0
     r["weekly_returns"] = [float(x) for x in wk]
+    n_names = int(feed._stocks["Close"].loc[feed.first_live].notna().sum())     # names with a price when the window opens
+    r["n_names"], r["thin"] = n_names, n_names < THIN_NAMES
+    r["dropped_crypto"] = len(getattr(feed, "dropped_crypto", []))
     r["provenance"] = provenance.stamp({"cfg": cfg, "meta": meta}, seed=run_id)
     r.update({"window": run_id, "seed": MODEL_SEED, "run_id": run_id, "prior_cfg": cfg, "meta": meta, "preseason": trader.preseason, "clock_s": wall,
               "ms_per_day": 1000 * wall / max(1, len(trader.session.days)), "used_cfg": trader.cfg})
@@ -204,12 +285,14 @@ def _archive(run_id, cfg, meta, feed, trader, wall, a, wl):
     wl.done(a / "result2.json", code=provenance.code_stamp())
 
 
-def run_workers(ids, cfg, meta, supervise=health.supervise):
-    """One supervised child per window (timeout, memory ceiling, heartbeat), all in parallel; worker stdout is inherited."""
+def run_workers(ids, cfg, meta, supervise=health.supervise, per_id=None):
+    """One supervised child per window (timeout, memory ceiling, heartbeat), all in parallel; worker stdout is inherited.
+    `per_id` = {window: (cfg, meta)} gives each window its own past-only basis (canon C56); without it all share cfg/meta."""
     out = {}
 
     def launch(r):
-        out[r] = supervise([sys.executable, "-u", str(SRC_FILE), "--worker", r, json.dumps(cfg), json.dumps(meta)],
+        c, m = per_id[r] if per_id else (cfg, meta)
+        out[r] = supervise([sys.executable, "-u", str(SRC_FILE), "--worker", r, json.dumps(c), json.dumps(m)],
                            DIR / r / "health2.jsonl", r, WORKER_TIMEOUT_S, WORKER_MEM_MB, WORKER_HEARTBEAT_S, stdout="inherit")
     threads = [threading.Thread(target=launch, args=(r,)) for r in ids]
     [t.start() for t in threads]
@@ -217,13 +300,13 @@ def run_workers(ids, cfg, meta, supervise=health.supervise):
     return out
 
 
-def classify_round(ids, cfg, meta, rnd=None, root=None, stale_check=None):
+def classify_round(ids, cfg, meta, rnd=None, root=None, stale_check=None, per_id=None):
     """Phase 24: classify every worker; anything not OK is EXCLUDED (never replaced, reused or averaged)."""
     root = Path(root) if root else DIR
     stale_check = stale_check or (lambda row: provenance.stale({k: row.get(k) for k in ("code_hash", "code_files", "code_mixed")}))
-    want = expected_config(cfg, meta)
     workers = {}
     for r in ids:
+        want = expected_config(*per_id[r]) if per_id else expected_config(cfg, meta)
         rp = root / r / "result2.json"
         try:
             res = json.loads(rp.read_text()) if rp.exists() else None
@@ -249,19 +332,24 @@ def reveal_round(run_ids, adjustments_locked, sealed=None):
 
 
 def main():
+    lineage = lineage_from_state(st)
     rnd = len(st["windows"]) // PAR + 1
     while len(st["windows"]) < MAXW:
         ids = [f"w{rnd:02d}{x}" for x in "abc"[:PAR]]
         for r in ids:
             livesim.SealedYear(r)                                # sealed one at a time: no duplicate draws
-        print(f"\n=== round {rnd} ({st['phase']} phase): {PAR} sealed 12-month windows, basis v{st['version']} ===", flush=True)
+        plan = plan_round(ids, lineage)                          # C56: each window's basis is trained on windows that ended before it began
+        per_id = {r: (p["cfg"], p["meta"]) for r, p in plan.items()}
+        print(f"\n=== round {rnd} ({st['phase']} phase): {PAR} sealed 12-month windows, latest basis v{st['version']}; "
+              f"{sum(p['untrained'] for p in plan.values())} of {PAR} windows play the UNTRAINED neutral basis "
+              f"(basis versions used: {[p['version'] for p in plan.values()]}) ===", flush=True)
         t0 = time.perf_counter()
         for r in ids:
             (DIR / r).mkdir(exist_ok=True)
             reset_worker_files(DIR / r)
-        run_workers(ids, st["cfg"], st["meta"])
+        run_workers(ids, st["cfg"], st["meta"], per_id=per_id)
         print(f"  round wall time {time.perf_counter() - t0:.0f}s", flush=True)
-        report = classify_round(ids, st["cfg"], st["meta"], rnd)
+        report = classify_round(ids, st["cfg"], st["meta"], rnd, per_id=per_id)
         for attempt in range(2):                                 # a worker that outlived a code edit is rerun, not judged
             stale_ids = [e["worker"] for e in report["excluded"] if e["status"] == health.STALE]
             if not stale_ids:
@@ -269,8 +357,8 @@ def main():
             for r in stale_ids:
                 print(f"  [{r}] STALE CODE - rerunning the window under current code", flush=True)
                 reset_worker_files(DIR / r)
-            run_workers(stale_ids, st["cfg"], st["meta"])
-            report = classify_round(ids, st["cfg"], st["meta"], rnd)
+            run_workers(stale_ids, st["cfg"], st["meta"], per_id=per_id)
+            report = classify_round(ids, st["cfg"], st["meta"], rnd, per_id=per_id)
         for e in report["excluded"]:
             print(f"  [{e['worker']}] EXCLUDED {e['status']}: {e['why']}", flush=True)
         done = [r for r in ids if r in report["included"]]     # only included workers are ever averaged
@@ -318,11 +406,15 @@ def main():
                                                      "caught": sum(m["caught"] for m in res["missed_winners"]),
                                                      "detector_final_weight": (res["missed_winners"][-1]["detector_weight"]
                                                                                if res["missed_winners"] else 0)},
-                                  "basis_version": st["version"], "phase": st["phase"]})
+                                  "basis_version": plan[r]["version"], "untrained_basis": plan[r]["untrained"], "thin": w["thin"],
+                                  "n_names": w["n_names"], "phase": st["phase"]})
         if not gate_ok:
             save(); print("  ANTI-CHEAT GATE FAILED - stopping before any retraining", flush=True); break
         # ---- train the training basis on every window with weekly snapshots ----
-        wins = [load_window(a) for a in archive_dirs(DIR)]
+        loaded = [load_window(a) for a in archive_dirs(DIR)]
+        wins = [w for w in loaded if not w["thin"]]               # THIN windows (survivor universes) never train a basis
+        thin_ids = {w["id"] for w in loaded if w["thin"]}
+        print(f"  basis training set: {len(wins)} windows ({len(thin_ids)} THIN excluded: {sorted(thin_ids)})", flush=True)
         t1 = time.perf_counter()
         res = train_basis(wins, st["cfg"], st["meta"], seed=1000 * st["version"] + rnd)
         inc, win_ = res.incumbent.confirm, res.winner.confirm
@@ -331,20 +423,28 @@ def main():
         if res.adopted:
             st["version"] += 1
             st["cfg"], st["meta"] = res.cfg, res.meta
+            register_basis(st, lineage, st["version"], res.cfg, res.meta, wins)   # every trained-on window, with its real dates
             print(f"  NEW BASIS v{st['version']}: weeks in band {inc.t1:.0%} -> {win_.t1:.0%}, risk {inc.risk:+.3f} -> {win_.risk:+.3f} "
                   f"({res.reason})", flush=True)
             print(f"     defaults {res.cfg}", flush=True)
             print(f"     adaptation {res.meta}", flush=True)
         else:
             print(f"  kept basis v{st['version']} (weeks in band {inc.t1:.0%}, risk {inc.risk:+.3f}): {res.reason}", flush=True)
-        fresh = [w["mean_week"] for w in st["windows"]]
-        if st["phase"] == "volatility" and np.mean(fresh[-6:]) >= 0.01:
+        headline = [w for w in st["windows"] if not w.get("thin") and not w.get("legacy")]      # THIN and pre-lineage windows reported apart
+        fresh = [w["mean_week"] for w in headline]
+        thin_rows = [w["mean_week"] for w in st["windows"] if w.get("thin") and not w.get("legacy")]
+        summ = round_summary(rnd, plan, done, thin_ids)
+        st["rounds"].append(summ)
+        if st["phase"] == "volatility" and fresh and np.mean(fresh[-6:]) >= 0.01:
             st["phase"] = "direction"
         # the basis decision above is final: only now may the true periods be revealed (RevealGate, Phase 21)
         for w, y in zip(st["windows"][-len(done):], reveal_round([w["run_id"] for w in st["windows"][-len(done):]], True).values()):
             w["revealed"] = y
         print("  revealed:", {w["run_id"]: w["revealed"] for w in st["windows"][-len(done):]}, flush=True)
-        print(f"  running average over {len(fresh)} fresh windows: {np.mean(fresh):+.2%}/week (target +7.00%)", flush=True)
+        print(f"  round {rnd}: {summ['n_untrained']} of {summ['n_played']} windows used an UNTRAINED basis; THIN windows this round: {summ['thin']}", flush=True)
+        print(f"  running average over {len(fresh)} headline windows (THIN and legacy excluded): "
+              f"{(np.mean(fresh) if fresh else float('nan')):+.2%}/week (target +7.00%); THIN windows apart: "
+              f"{len(thin_rows)} at {(np.mean(thin_rows) if thin_rows else float('nan')):+.2%}/week", flush=True)
         seed = 1000 * st["version"] + rnd
         log_experiment({**res.to_record(), "event": "loop2_basis_search", "round": rnd},
                        cfg={"cfg": st["cfg"], "meta": st["meta"]}, seed=seed, outcome="adopt" if res.adopted else "reject",
@@ -355,7 +455,9 @@ def main():
         metrics = {w["run_id"]: {k: w.get(k) for k in ("mean_week", "in_band", "sd_week", "max_dd", "year_return")} for w in rw}
         # Phase 0.2: the round record carries every field; Phase 0.3: each round is bundled as a checkpoint
         log_experiment({"event": "loop2_round", "round": rnd, "basis": st["version"], "phase": st["phase"],
-                        "fresh_avg": float(np.mean(fresh))}, cfg={"cfg": st["cfg"], "meta": st["meta"]}, seed=seed,
+                        "fresh_avg": float(np.mean(fresh)) if fresh else None, "n_untrained_basis": summ["n_untrained"],
+                        "untrained_windows": summ["untrained_basis"], "thin_windows": summ["thin"]},
+                       cfg={"cfg": st["cfg"], "meta": st["meta"]}, seed=seed,
                        window_ids=[w["run_id"] for w in rw], metrics=metrics,
                        gates={w["run_id"]: "passed re-tester, future-scramble, fill audit" for w in rw},
                        outcome="continue_testing", reason="blind Test round (measurement)",
@@ -366,12 +468,12 @@ def main():
             checkpoint_run(f"loop2_round{rnd:03d}", {"cfg": st["cfg"], "meta": st["meta"], "basis": st["version"]},
                            metrics, {"basis_search_seed": seed, "windows": [w["run_id"] for w in rw]},
                            {"round": rnd, "adopted": bool(res.adopted), "reason": str(res.reason),
-                            "fresh_avg": float(np.mean(fresh))},
+                            "fresh_avg": float(np.mean(fresh)) if fresh else None, "n_untrained": summ["n_untrained"]},
                            logs={"round.txt": "\n".join(f"{w['run_id']}: {metrics[w['run_id']]}" for w in rw)})
         except Exception as e:                                    # a checkpoint failure is reported, never fatal
             print(f"  checkpoint failed: {e}", flush=True)
         save()
-        if any(w["mean_week"] >= 0.07 for w in st["windows"][-len(done):]):
+        if any(w["mean_week"] >= 0.07 and not w.get("thin") for w in st["windows"][-len(done):]):
             print("TARGET REACHED", flush=True); break
         rnd += 1
 
