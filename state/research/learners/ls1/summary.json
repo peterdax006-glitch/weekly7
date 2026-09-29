@@ -3257,5 +3257,11 @@
   "config_hash": "4ca4f7a9c7f8fc37",
   "data_snapshot": "171ba8ba728ee713",
   "seed": 1
- }
+ },
+ "memoriser_control": {
+  "sees_memorisation": true,
+  "same": 0.04096892619463015,
+  "transfer": 0.0
+ },
+ "valid": true
 }

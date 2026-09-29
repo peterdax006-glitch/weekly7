@@ -1,0 +1,2 @@
+C:\Users\Peter\weekly7\scripts\learner_search.py:239: UserWarning: [registry] learner_search: Phase 0.2 fields not supplied: ['train_range', 'validation_range', 'test_range', 'metrics', 'gates']
+  log_experiment({"event": "learner_search", "tag": a.tag, "learners": list(all_recs), "passed": passed, "valid": valid,

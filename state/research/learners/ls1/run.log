@@ -1,0 +1,94 @@
+01:34:47 learner search 'ls1' seed 1, code 3ccb0c73d0f03222
+01:34:53 selfcheck generaliser: {'verdict': 'GENERALISING', 'same': 0.062142998821041295, 'effect': 0.062142998821041295, 'transfer': 0.06478317466436043}
+01:34:59 selfcheck memoriser: {'verdict': 'MEMORISATION', 'same': 0.08776374466129674, 'effect': 0.08776374466129674, 'transfer': 0.0}
+01:35:04 selfcheck non_learner: {'verdict': 'NO_EFFECT', 'same': 0.0, 'effect': 0.0, 'transfer': 0.0}
+01:35:26 learner selfcheck band/band_pool: {'want': 'learns', 'ok': True, 'transfer': 0.10555555555555553, 'lo': 0.03888888888888888, 'hi': 0.16666666666666663, 'pairs_changed': 6}
+01:35:51 learner selfcheck lesson/lessons: {'want': 'learns', 'ok': True, 'transfer': 0.006975252009517369, 'lo': 0.004635593783802737, 'hi': 0.009314910235232, 'pairs_changed': 4}
+01:36:06 learner selfcheck null/band_pool: {'want': 'idle', 'ok': True, 'transfer': 0.0, 'lo': 0.0, 'hi': 0.0, 'pairs_changed': 0}
+01:36:21 learner selfcheck flip/lessons: {'want': 'idle', 'ok': True, 'transfer': 0.0, 'lo': 0.0, 'hi': 0.0, 'pairs_changed': 0}
+01:36:21 42 revealed windows; 12 past-only pairs: r01a->r06c, r06c->r03c, r12b->r12a, r08b->r11a, r11a->r03b, r10a->r07a, w02c->r05a, w02a->r02c, r13c->r01a, r10c->r13c, r05c->r11b, r03c->r09c
+01:38:36 pair r01a->r06c: mean_week -0.0014 -> -0.0014 (132.79s)
+01:40:28 pair r06c->r03c: mean_week +0.0058 -> +0.0058 (109.89s)
+01:41:11 pair r12b->r12a: mean_week +0.0050 -> +0.0088 (42.89s)
+01:41:39 pair r08b->r11a: mean_week +0.0063 -> +0.0044 (27.1s)
+01:42:10 pair r11a->r03b: mean_week -0.0039 -> +0.0022 (30.58s)
+01:44:32 pair r10a->r07a: mean_week +0.0010 -> +0.0010 (139.92s)
+01:45:13 pair w02c->r05a: mean_week +0.0030 -> +0.0079 (40.5s)
+01:46:26 pair w02a->r02c: mean_week +0.0042 -> +0.0042 (71.96s)
+01:47:53 pair r13c->r01a: mean_week -0.0005 -> -0.0005 (86.11s)
+01:49:22 pair r10c->r13c: mean_week +0.0024 -> +0.0024 (88.02s)
+01:50:28 pair r05c->r11b: mean_week +0.0195 -> +0.0195 (64.35s)
+01:53:16 pair r03c->r09c: mean_week -0.0007 -> -0.0021 (166.58s)
+01:53:17 band_cfg: transfer in_band +0.01107 [+0.00160, +0.02204]
+01:56:00 pair r01a->r06c: mean_week -0.0014 -> -0.0014 (161.64s)
+01:57:55 pair r06c->r03c: mean_week +0.0058 -> +0.0058 (113.79s)
+01:58:29 pair r12b->r12a: mean_week +0.0050 -> +0.0050 (33.21s)
+01:58:56 pair r08b->r11a: mean_week +0.0063 -> +0.0063 (26.55s)
+01:59:27 pair r11a->r03b: mean_week -0.0039 -> -0.0039 (30.61s)
+02:01:47 pair r10a->r07a: mean_week +0.0010 -> +0.0010 (138.64s)
+02:02:26 pair w02c->r05a: mean_week +0.0030 -> +0.0030 (37.38s)
+02:03:37 pair w02a->r02c: mean_week +0.0042 -> +0.0042 (70.98s)
+02:05:04 pair r13c->r01a: mean_week -0.0005 -> -0.0005 (85.29s)
+02:06:32 pair r10c->r13c: mean_week +0.0024 -> +0.0024 (86.8s)
+02:07:35 pair r05c->r11b: mean_week +0.0195 -> +0.0195 (62.51s)
+02:09:47 pair r03c->r09c: mean_week -0.0007 -> -0.0007 (129.69s)
+02:09:47 band_pool: transfer in_band +0.00000 [+0.00000, +0.00000]
+02:11:28 pair r01a->r06c: mean_week -0.0014 -> -0.0014 (99.91s)
+02:13:24 pair r06c->r03c: mean_week +0.0058 -> +0.0058 (114.18s)
+02:13:59 pair r12b->r12a: mean_week +0.0050 -> +0.0050 (34.03s)
+02:14:31 pair r08b->r11a: mean_week +0.0063 -> +0.0063 (31.64s)
+02:14:31 free RAM 2.18 GB < 2.5 GB; waiting
+02:15:31 free RAM 1.50 GB < 2.5 GB; waiting
+02:17:11 pair r11a->r03b: mean_week -0.0039 -> -0.0039 (38.98s)
+02:19:46 pair r10a->r07a: mean_week +0.0010 -> +0.0010 (153.09s)
+02:20:32 pair w02c->r05a: mean_week +0.0030 -> +0.0030 (45.23s)
+02:21:47 pair w02a->r02c: mean_week +0.0042 -> +0.0042 (73.73s)
+02:23:20 pair r13c->r01a: mean_week -0.0005 -> -0.0005 (91.73s)
+02:24:54 pair r10c->r13c: mean_week +0.0024 -> +0.0024 (92.59s)
+02:26:00 pair r05c->r11b: mean_week +0.0195 -> +0.0195 (65.65s)
+02:28:22 pair r03c->r09c: mean_week -0.0007 -> -0.0007 (140.44s)
+02:28:23 regime_map: transfer in_band +0.00000 [+0.00000, +0.00000]
+02:31:11 pair r01a->r06c: mean_week -0.0014 -> -0.0014 (166.52s)
+02:33:07 pair r06c->r03c: mean_week +0.0058 -> +0.0058 (114.65s)
+02:33:41 pair r12b->r12a: mean_week +0.0050 -> +0.0050 (33.27s)
+02:34:08 pair r08b->r11a: mean_week +0.0063 -> +0.0063 (26.85s)
+02:34:41 pair r11a->r03b: mean_week -0.0039 -> -0.0039 (32.07s)
+02:37:02 pair r10a->r07a: mean_week +0.0010 -> +0.0010 (139.76s)
+02:37:40 pair w02c->r05a: mean_week +0.0030 -> +0.0030 (37.01s)
+02:38:52 pair w02a->r02c: mean_week +0.0042 -> +0.0042 (71.22s)
+02:40:19 pair r13c->r01a: mean_week -0.0005 -> -0.0005 (85.29s)
+02:41:47 pair r10c->r13c: mean_week +0.0024 -> +0.0024 (86.89s)
+02:42:50 pair r05c->r11b: mean_week +0.0195 -> +0.0195 (62.8s)
+02:45:03 pair r03c->r09c: mean_week -0.0007 -> -0.0007 (130.99s)
+02:45:03 lessons: transfer mean_week +0.00000 [+0.00000, +0.00000]
+02:46:55 pair r01a->r06c: mean_week -0.0014 -> -0.0014 (110.67s)
+02:49:04 pair r06c->r03c: mean_week +0.0058 -> +0.0058 (126.82s)
+02:49:43 pair r12b->r12a: mean_week +0.0050 -> +0.0050 (38.5s)
+02:50:13 pair r08b->r11a: mean_week +0.0063 -> +0.0063 (29.42s)
+02:50:48 pair r11a->r03b: mean_week -0.0039 -> -0.0039 (34.42s)
+02:53:31 pair r10a->r07a: mean_week +0.0010 -> +0.0010 (161.49s)
+02:54:15 pair w02c->r05a: mean_week +0.0030 -> +0.0030 (43.54s)
+02:55:38 pair w02a->r02c: mean_week +0.0042 -> +0.0042 (81.28s)
+02:57:21 pair r13c->r01a: mean_week -0.0005 -> -0.0005 (101.83s)
+02:59:03 pair r10c->r13c: mean_week +0.0024 -> +0.0024 (101.57s)
+03:00:17 pair r05c->r11b: mean_week +0.0195 -> +0.0195 (72.8s)
+03:02:53 pair r03c->r09c: mean_week -0.0007 -> -0.0007 (153.56s)
+03:02:53 mover_use: transfer in_band +0.00000 [+0.00000, +0.00000]
+03:04:37 pair r01a->r06c: mean_week -0.0014 -> -0.0014 (102.95s)
+03:06:37 pair r06c->r03c: mean_week +0.0058 -> +0.0058 (117.59s)
+03:07:13 pair r12b->r12a: mean_week +0.0050 -> +0.0050 (35.59s)
+03:07:41 pair r08b->r11a: mean_week +0.0063 -> +0.0063 (27.57s)
+03:08:13 pair r11a->r03b: mean_week -0.0039 -> -0.0039 (31.85s)
+03:10:47 pair r10a->r07a: mean_week +0.0010 -> +0.0010 (152.49s)
+03:11:28 pair w02c->r05a: mean_week +0.0030 -> +0.0030 (40.06s)
+03:12:45 pair w02a->r02c: mean_week +0.0042 -> +0.0042 (75.62s)
+03:14:21 pair r13c->r01a: mean_week -0.0005 -> -0.0005 (94.6s)
+03:15:57 pair r10c->r13c: mean_week +0.0024 -> +0.0024 (94.94s)
+03:17:06 pair r05c->r11b: mean_week +0.0195 -> +0.0195 (67.74s)
+03:19:32 pair r03c->r09c: mean_week -0.0007 -> -0.0007 (144.28s)
+03:19:32 chain: transfer in_band +0.00000 [+0.00000, +0.00000]
+03:21:03 pair r01a->r06c: mean_week -0.0014 -> +0.0552 (89.73s)
+03:22:48 pair r06c->r03c: mean_week +0.0058 -> +0.0673 (102.8s)
+03:23:22 pair r12b->r12a: mean_week +0.0050 -> +0.0347 (33.78s)
+03:23:49 pair r08b->r11a: mean_week +0.0063 -> +0.0224 (26.91s)
+03:23:50 done: passing learners ['band_cfg']; valid True
