@@ -1,0 +1,2 @@
+C:\Users\Peter\weekly7\scripts\learning_delta.py:137: UserWarning: [registry] learning_delta: Phase 0.2 fields not supplied: ['train_range', 'validation_range', 'test_range']
+  log_experiment({"event": "learning_delta", "tag": a.tag, "n_pairs": len(recs), "verdict": agg["verdict"]["label"],

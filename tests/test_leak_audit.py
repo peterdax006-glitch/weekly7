@@ -678,3 +678,36 @@ def test_hardened_run_closes_the_network_for_the_whole_window_and_reopens_it_aft
     srv = _server()
     socket.create_connection(("127.0.0.1", srv.getsockname()[1]), timeout=2).close()   # the guard is gone after the run
     srv.close()
+
+
+def _two_seals(home, cls):
+    rec1 = BG.seal_window([], 7, "2026-01-01", tag="a")
+    rec2 = BG.seal_window([], 8, "2026-01-02", tag="b")
+    rec2["start"], rec2["digest"] = rec1["start"], None
+    rec2["digest"] = BG.seal_digest(rec2)
+    (home / "sealed_a.json").write_text(json.dumps(rec1))
+    (home / "sealed_b.json").write_text(json.dumps(rec2))
+    data = make_data(rec1["start"], n=60)
+    return cls(livesim.SealedYear("a"), data=data), cls(livesim.SealedYear("b"), data=data)
+
+
+def test_rerun_of_the_same_window_is_linkable_by_position_on_the_plain_feed_and_not_on_the_hardened_one(home):
+    a, b = _two_seals(home, livesim.Feed)
+    r = L.rerun_linkability(a, b)
+    assert r["share_reidentified_by_column_position"] > 0.95           # same real order in both runs: the rerun announces itself
+    assert r["same_shown_dates"] is False and r["same_code_names"] < 0.2  # dates and code names differ, as the disguise promises
+    assert r["share_reidentified_by_return_correlation"] == 1.0        # the paths themselves are identical: inherent, memory must exclude it
+    ha, hb = _two_seals(home, L.hardened_feed_class())
+    rh = L.rerun_linkability(ha, hb)
+    assert rh["share_reidentified_by_column_position"] < 0.2
+    assert rh["share_reidentified_by_return_correlation"] == 1.0
+
+
+def test_rerun_linkability_of_disjoint_names_is_empty():
+    class F:
+        _stocks = {"Close": pd.DataFrame({"S1": [1.0, 2, 3]}, index=pd.bdate_range("2100-01-03", periods=3))}
+        _map = {"AAA": "S1"}
+        sessions = pd.bdate_range("2100-01-03", periods=3)
+    class G(F):
+        _map = {"BBB": "S1"}
+    assert L.rerun_linkability(F(), G()) == {"n_names": 0}

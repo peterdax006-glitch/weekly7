@@ -126,7 +126,7 @@ def _jsonable(o):
     return o
 
 
-def _short(v, n=420):
+def _short(v, n=1500):
     s = json.dumps(_jsonable(v), default=str) if isinstance(v, (dict, list, tuple, pd.Series, pd.DataFrame)) else str(v)
     return s if len(s) <= n else s[:n] + " ..."
 
@@ -1050,6 +1050,40 @@ def feed_exposure(feed) -> dict:
             "column_order_vs_real_alpha_rho": _spearman(range(len(reals)), pd.Series(reals).rank(method="first")),
             "columns_shown_before_listing": empty_now, "n_columns": int(close.shape[1]),
             "cost_bps": getattr(feed, "cost_bps", None), "warmup_sessions_before_window": int(feed.i + 1)}
+
+
+def rerun_linkability(feed_a, feed_b, max_names: int = 400, seed: int = 0) -> dict:
+    """C55 at the feed level: two disguised runs of the SAME real window (different seals). How many names can an observer
+    re-identify across them (a) by column POSITION (plain Feed keeps the real alphabetical order in both runs) and (b) by the
+    correlation of their daily returns over the hidden window (always possible: the data is the same, only labels and dates
+    differ - so any stored numeric memory of the first run recognises the second, which is why learned state must exclude
+    it). Ground truth from the two code maps, which only the audit reads."""
+    ca, cb = feed_a._stocks["Close"], feed_b._stocks["Close"]
+    inv_a = {c: r for r, c in feed_a._map.items()}
+    common = [c for c in ca.columns if inv_a[c] in feed_b._map and feed_b._map[inv_a[c]] in cb.columns]
+    if not common:
+        return {"n_names": 0}
+    rng = np.random.default_rng(seed)
+    if len(common) > max_names:
+        common = list(rng.choice(common, size=max_names, replace=False))
+    truth = {a: feed_b._map[inv_a[a]] for a in common}
+    k = min(len(ca), len(cb))
+    ra = np.log(ca[common].iloc[-k:] / ca[common].iloc[-k:].shift(1)).iloc[1:]
+    rb = np.log(cb.iloc[-k:] / cb.iloc[-k:].shift(1)).iloc[1:]
+    A = ra.fillna(0.0).to_numpy(dtype="float64")
+    B = rb.fillna(0.0).to_numpy(dtype="float64")
+    A = (A - A.mean(0)) / np.where(A.std(0) > 0, A.std(0), 1.0)
+    B = (B - B.mean(0)) / np.where(B.std(0) > 0, B.std(0), 1.0)
+    best = (A.T @ B).argmax(axis=1)
+    cols_b = list(rb.columns)
+    by_ret = float(np.mean([cols_b[j] == truth[a] for a, j in zip(common, best)]))
+    pos_a = {c: i for i, c in enumerate(ca.columns)}
+    pos_b = {c: i for i, c in enumerate(cb.columns)}
+    n_a, n_b = len(ca.columns), len(cb.columns)
+    by_pos = float(np.mean([abs(pos_a[a] / max(1, n_a - 1) - pos_b[truth[a]] / max(1, n_b - 1)) < 1.0 / max(1, min(n_a, n_b)) * 0.5 + 1e-12 for a in common]))
+    same_dates = bool((feed_a.sessions[:5] == feed_b.sessions[:5]).all())
+    return {"n_names": len(common), "share_reidentified_by_column_position": by_pos, "share_reidentified_by_return_correlation": by_ret,
+            "same_shown_dates": same_dates, "same_code_names": sum(feed_a._map[r] == feed_b._map.get(r) for r in feed_a._map) / max(1, len(feed_a._map))}
 
 
 def hardened_feed_class():

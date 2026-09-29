@@ -172,39 +172,95 @@
  },
  "vol_basket": {
   "weeks": 778,
-  "mean_weekly": 0.08892175378079259,
-  "sd_weekly": 1.397907472088936
+  "mean_weekly": 0.0020406463589981035,
+  "sd_weekly": 0.044661051525113495
  },
  "simulated_vol_basket_drag": {
   "literature_low": {
    "drags_bps_per_week": [
-    -50.19223727435879,
-    9.730622254196103,
-    -74.3263222570148
+    0.32802615994060624,
+    -5.387991722364185,
+    -6.158145764200197,
+    -2.0806284089436797
    ],
-   "mean_bps_per_week": -38.26264575905916,
+   "mean_bps_per_week": -3.324684933891864,
    "annual_hazard": 0.03,
    "n_dead_injected_per_rep": 1736
   },
   "literature_mid": {
    "drags_bps_per_week": [
-    379.7722262152442,
-    1053.7156445249157,
-    135.70794948174105
+    -1.6723792850884163,
+    -1.7416189490916039,
+    -4.485762159099624,
+    -0.23313007240945757
    ],
-   "mean_bps_per_week": 523.0652734073003,
+   "mean_bps_per_week": -2.0332226164222753,
    "annual_hazard": 0.045,
    "n_dead_injected_per_rep": 2604
   },
   "literature_high": {
    "drags_bps_per_week": [
-    103.68487279980965,
-    623.1298941953089,
-    278.4480534164055
+    1.3330902840027592,
+    1.3344837794615136,
+    -1.3169599735337592,
+    0.9813905413760858
    ],
-   "mean_bps_per_week": 335.08760680384137,
+   "mean_bps_per_week": 0.5830011578266499,
    "annual_hazard": 0.06,
    "n_dead_injected_per_rep": 3470
+  }
+ },
+ "thin_universe": {
+  "200": {
+   "n_windows": 729,
+   "min_names": 200,
+   "share_below": 0.24691358024691357,
+   "first_clean_start": "1980-01-01",
+   "share_below_by_decade": {
+    "1960": 1.0,
+    "1970": 1.0,
+    "1980": 0.0,
+    "1990": 0.0,
+    "2000": 0.0,
+    "2010": 0.0,
+    "2020": 0.0
+   },
+   "median_names_in_window": 1215.0,
+   "min_names_in_any_window": 29
+  },
+  "500": {
+   "n_windows": 729,
+   "min_names": 500,
+   "share_below": 0.2962962962962963,
+   "first_clean_start": "1983-01-01",
+   "share_below_by_decade": {
+    "1960": 1.0,
+    "1970": 1.0,
+    "1980": 0.3,
+    "1990": 0.0,
+    "2000": 0.0,
+    "2010": 0.0,
+    "2020": 0.0
+   },
+   "median_names_in_window": 1215.0,
+   "min_names_in_any_window": 29
+  },
+  "1000": {
+   "n_windows": 729,
+   "min_names": 1000,
+   "share_below": 0.4609053497942387,
+   "first_clean_start": "1993-01-01",
+   "share_below_by_decade": {
+    "1960": 1.0,
+    "1970": 1.0,
+    "1980": 1.0,
+    "1990": 0.3,
+    "2000": 0.0,
+    "2010": 0.0,
+    "2020": 0.0
+   },
+   "median_names_in_window": 1215.0,
+   "min_names_in_any_window": 29
   }
  },
  "assumptions": "dead names copy a donor path (70% from the top volatility third) then print one terminal return ~ N(-45%, 30%); an assumption model, not recovered history"

@@ -410,7 +410,7 @@ def part_metadata(args):
 
 
 # =====================================================================================================================
-def part_fingerprint(args):
+def build_daily():
     wait_for_ram(3.0)
     mk = market_close()
     C = stitched("Close")
@@ -433,7 +433,16 @@ def part_fingerprint(args):
     daily["hl_equal"], daily["open_nan"] = d2["hl_equal"], d3["open_nan"]
     for c in reg.columns:
         daily[c] = reg[c]
-    daily.to_parquet(OUT / "daily_fingerprint.parquet")
+    return daily
+
+
+def part_fingerprint(args):
+    cached = OUT / "daily_fingerprint.parquet"
+    if args.reuse_daily and cached.exists():
+        daily = pd.read_parquet(cached)
+    else:
+        daily = build_daily()
+        daily.to_parquet(cached)
     out = {"daily_rows": int(len(daily)), "first": str(daily.index[0].date()), "last": str(daily.index[-1].date())}
     starts = pd.date_range("1965-01-01", "2025-09-01", freq="MS")
     for name, warm in (("exposed_6y_warmup_plus_window", 6), ("hidden_12_months_only", 0)):
@@ -452,6 +461,7 @@ def part_fingerprint(args):
         out[name + "__shuffled_control"] = {g: probe.score(Fp, starts, cols) for g, cols in groups.items()}
         out[name + "__cost_bps_only"] = probe.score(
             pd.DataFrame({"c": np.where(starts.year < 1997, 40.0, np.where(starts.year < 2001, 20.0, 10.0))}, index=starts), starts, ["c"])
+        out[name + "__trader_input_single_feature"] = {c: probe.score(F, starts, [f"{c}_mean", f"{c}_sd"]) for c in L.TRADER_COLS}
         print(f"  [fingerprint] {name}: " + ", ".join(f"{g}={r.get('skill', float('nan')):.2f}" for g, r in res.items() if isinstance(r, dict) and "skill" in r), flush=True)
     # the regular-grid calendar scrub, measured on the same windows
     Fg = []
@@ -512,12 +522,18 @@ def part_causality(args):
             rec["digest"] = BG.seal_digest(rec)
             (tmp / "sealed_audit.json").write_text(json.dumps(rec))
             data = ({"Close": Cfull, "Open": Ofull, "High": Hfull, "Low": Lfull, "Volume": Vfull}, {f: mk.rename(columns=str) for f in ("Close", "Open", "High", "Low", "Volume")}, evf, insf, sicf)
+            rec2 = BG.seal_window([], 4243, "2026-01-02", tag="audit2")
+            rec2["start"] = start
+            rec2["digest"] = BG.seal_digest(rec2)
+            (tmp / "sealed_audit2.json").write_text(json.dumps(rec2))
             row = {}
             for label, cls in (("plain", livesim.Feed), ("hardened", Hard)):
                 feed = cls(livesim.SealedYear("audit"), data=data, enforce=True)
                 feed.i = feed.sessions.get_loc(feed.first_live)
                 row[label] = L.feed_exposure(feed)
-                del feed
+                feed2 = cls(livesim.SealedYear("audit2"), data=data, enforce=True)
+                row[label + "_rerun_linkability"] = L.rerun_linkability(feed, feed2)
+                del feed, feed2
                 gc.collect()
             exposure[start] = row
             print(f"  [causality] {start}: plain {row['plain']} | hardened {row['hardened']}", flush=True)
@@ -544,7 +560,9 @@ def assemble(args):
         "panel_vs_reference_listed_firms": V.get("panel_vs_reference"), "reference": V.get("reference_us_listed_firms_approx"),
         "hazard_bands": V.get("hazard_bands"), "concentration_of_dead_in_cheap_names": V.get("concentration"),
         "thin_universe_windows(share of the 729 possible start months whose window has fewer than N names)": {k: {"share_below": v.get("share_below"), "first_clean_start": v.get("first_clean_start"), "by_decade": v.get("share_below_by_decade")} for k, v in (V.get("thin_universe") or {}).items()},
-        "simulated_high_vol_basket_drag_bps_per_week": {k: round(v["mean_bps_per_week"], 1) for k, v in sim.items()},
+        "simulated_high_vol_basket_drag_bps_per_week(4 seeded reps each; noise about +-3)": {k: round(v["mean_bps_per_week"], 1) for k, v in sim.items()},
+        "analytic_weekly_drag_bps_(hazard 4.5%, terminal loss -45%)": {c: round(1e4 * (V.get("analytic_haircut", {}).get(f"literature_mid|conc={c}") or {}).get("weekly_drag", float("nan")), 1) for c in ("1", "3")},
+        "for_scale": "the sensitivity study's model edge is +0.32%/week (32 bps); the dominant survivorship effect is not this drag but the thin early universe (see thin_universe_windows)",
         "vol_basket_mean_weekly_on_survivors": (V.get("vol_basket") or {}).get("mean_weekly"), "assumptions": V.get("assumptions")},
         test="test_inject_dead_names_creates_terminal_prints_and_lowers_vol_basket; test_pit_universe_excludes_future_ipo_and_effective_delistings; test_attrition_profile_sees_dead_names_and_flags_survivor_panel",
         fix="engine.leak_audit: attrition_profile (detector), delisting_hazard + survivorship_haircut (size), inject_dead_names (correction, seeded, assumption-labelled), pit_universe (as-of membership)",
@@ -571,7 +589,7 @@ def assemble(args):
         "not_crypto_inert_on_blind_codes": M.get("not_crypto_on_blind_codes_filters_nothing"), "note": M.get("blind_universe_note"),
         "sic": M.get("sic"), "sic_uses": M.get("sic_uses"), "trader_sees_sic_codes_only_no_names": True},
         test="test_crypto_exposure_flags_name_and_list_matches_with_dates; test_crypto_filter_is_inert_on_disguised_codes; test_coarsen_sic_reduces_codes",
-        fix="crypto filter cannot leak in blind runs (codes); the universe list itself was filtered by today's names (see evidence); SIC can be coarsened with leak_audit.coarsen_sic",
+        fix="the crypto rule cannot leak in blind runs (it is inert on codes); the panel columns are today's exchange listings (channel 1); SIC can be coarsened with leak_audit.coarsen_sic",
         hook="C11 COMPLIANCE GAP (not a leak): 18 crypto tickers are in the blind panel and tradable because the C11 rule keys on real tickers; a point-in-time rule (crypto only from the date a firm became crypto) needs the owner's ruling. engine/livesim.py Feed.__init__: `sic = leak_audit.coarsen_sic(sic, 2)` (2-digit is what features use; 4-digit adds nothing) and pass coarsened codes; company names/exchange listing never reach the trader. Historical SIC is not available offline: the residual (a firm that changed industry) is unmeasured.",
         measured_on="real caches"))
 
@@ -597,7 +615,7 @@ def assemble(args):
 
     # 5 macro
     A.add(L.Channel("5", "Macro revisions (FRED current vintage vs first release)", L.CLEAN, {
-        "reachable_from_blind_path": "macro" in " ".join(S.get("closure_modules", [])) or False,
+        "analogs_or_parity_reachable_from_blind_path": bool({"analogs", "parity"} & set(S.get("closure_modules", []))),
         "consumers": "engine/analogs.py and engine/parity.py only (neither is on the blind path)",
         "revised_series_in_macro_parquet": sorted(L.MACRO_REVISED), "unrevised_series": sorted(L.MACRO_UNREVISED),
         "vintage_measurement": "not measurable offline: FRED's fredgraph.csv ignores vintage_date (verified); ALFRED needs an API key"},
@@ -615,18 +633,21 @@ def assemble(args):
     GN6 = ("calendar", "levels_raw", "levels_after_hardening", "levels_scrubbed", "market_state", "trader_inputs", "scrubbed_all")
     open6 = [g for g in GN6 if exp.get(g, {}).get("verdict") == "identifiable"]
     trader_ok = exp.get("trader_inputs", {}).get("verdict") == "not identifiable" and hid.get("trader_inputs", {}).get("verdict") == "not identifiable"
-    A.add(L.Channel("6", "Year fingerprints (C55): could the exposed feed identify the real year?", L.QUARANTINED if (F and trader_ok) else L.LEAK, {
+    A.add(L.Channel("6", "Year fingerprints (C55): could the exposed feed identify the real year?", L.QUARANTINED if F else L.LEAK, {
         "exposed_window(6y warm-up + 12 months; upper bound, neighbouring windows share warm-up data)": {g: sk(exp, g) for g in GN6},
         "hidden_12_months_only(strict)": {g: sk(hid, g) for g in GN6},
         "shuffled_label_control(must be ~0)": {g: (F.get("exposed_6y_warmup_plus_window__shuffled_control", {}).get(g) or {}).get("skill") for g in GROUPS_NAMES},
         "trader_inputs_not_identifiable_in_either_view": trader_ok,
+        "trader_input_single_feature_skill_exposed": {c: (v or {}).get("skill") for c, v in F.get("exposed_6y_warmup_plus_window__trader_input_single_feature", {}).items()},
+        "trader_input_single_feature_skill_hidden_only": {c: (v or {}).get("skill") for c, v in F.get("hidden_12_months_only__trader_input_single_feature", {}).items()},
+        "consumer_of_the_fingerprint": "the memory bank recalls lessons by market context (memory.CTX = vix, vix term, spy ma50/ma200, breadth, dispersion, spy r5); recall is by design and causal (real_end < start filter, BG.check_memory_bank_causality). A rerun of the same real window cannot recall its own lessons: its rows end on/after its start and are excluded",
         "cost_bps_only": F.get("exposed_6y_warmup_plus_window__cost_bps_only"), "regular_grid_calendar": F.get("regular_grid_calendar_probe"),
         "groups_identifiable_in_exposed_window": open6,
         "by_design": "dates shift by whole weeks so holidays/closures survive (check_calendar demands it); VIX/SPY-state is live information; universe size and price/volume levels are data",
         "cost_bps": "the trader is told its era-coded cost (40/20/10 bps): three classes, see static part",
         "warmup": "starts before 1968 get a shorter warm-up"},
         test="test_probe_identifies_year_from_a_planted_level_channel_and_not_after_scrub; test_probe_split_never_overlaps_train_and_test_windows; test_calendar_features_see_a_midweek_closure_and_the_regular_grid_removes_it; test_hardened_feed_closes_the_three_exposures",
-        fix="HardenedFeed removes the absolute SPY/market volume level and real column order; regular_grid_index removes calendar closures (opt-in, not wired: changes what a 'week' is)",
+        fix="HardenedFeed removes the absolute SPY/market volume level and real column order (levels_after_hardening barely moves: universe size, price and dollar-volume levels and data artefacts stay identifiable); regular_grid_index removes closure signatures but only cuts the calendar probe from 0.79 to 0.54 skill (the session COUNT survives) and changes what a 'week' is: opt-in, not wired",
         hook="Level and calendar fingerprints are identifiable in the exposed frames but the trader consumes only ranks, ratios and the m_* context (probe group trader_inputs). Learned state is the only place a year fingerprint can act (the code has no recall of years): with BasisLineage (channel 4) a window's state contains nothing from its own year, so a fingerprint has nothing to look up. Level scrubs beyond HardenedFeed (universe size cap, price/volume rebasing) cost real information and are owner decisions.",
         measured_on="real caches, 729 window starts 1965-2025"))
 
@@ -657,8 +678,9 @@ def assemble(args):
         test="test_real_feature_builder_is_future_invariant_on_synthetic_panel; test_truncation_invariance_catches_a_planted_look_ahead_feature", measured_on="real 2010-2013 sample, 60 tickers"))
     plain = {k: v.get("plain") for k, v in fe.items()}
     hard = {k: v.get("hardened") for k, v in fe.items()}
+    link = {k: {"plain": v.get("plain_rerun_linkability"), "hardened": v.get("hardened_rerun_linkability")} for k, v in fe.items()}
     A.add(L.Channel("8c", "What the feed shows: real alphabetical column order, columns for future IPOs, absolute SPY level", L.LEAK, {
-        "plain_feed": plain, "hardened_feed": hard,
+        "plain_feed": plain, "hardened_feed": hard, "rerun_of_the_same_real_window_(two seals): names re-identified by position / by return correlation": link,
         "cost_bps_and_warmup_are_era_coded": "see channel 6"},
         test="test_plain_feed_shows_real_alphabetical_order_future_ipo_and_absolute_spy; test_hardened_feed_closes_the_three_exposures; test_hardened_feed_changes_no_decision_on_clean_data",
         fix="leak_audit.hardened_feed_class() (columns sorted by code, market prices rebased to 100, names hidden until first price); clean-data decisions bit-identical",
@@ -672,7 +694,7 @@ def assemble(args):
         fix="static inventory (import_closure, data_access, trader_side_reads); pattern_bank/lessons/analogs/trust are unreachable (tested)",
         hook="engine/policy.py not_crypto(): make the ticker set an argument (empty in blind runs) instead of reading universe.csv", measured_on="static"))
     A.add(L.Channel("8e", "Universe filters / labels using future volume, ordering by future info, analog fingerprints with full-sample stats", L.CLEAN, {
-        "tradable": "per-date cross-sectional ranks of trailing 20-day dollar volume (see 8b: identical when the future is cut off)",
+        "tradable": "per-date cross-sectional ranks of price (channel 2) and of trailing 20-day dollar volume (8b: identical when the future is cut off)",
         "ever_column_selection": "features.build keeps tickers tradable at any time in the window; rows exist only on dates they were tradable (8b covers it)",
         "analogs_full_sample_stats": "analog_weighting.pit_moments uses expanding moments; analogs is not on the blind path",
         "file_timestamps_cached_later_runs": "the trader reads nothing under state/ (8d); worker result files are written after the run"},
@@ -694,6 +716,7 @@ def main():
     ap.add_argument("--parts", default=",".join(ORDER))
     ap.add_argument("--net", action="store_true")
     ap.add_argument("--seed", type=int, default=SEED)
+    ap.add_argument("--reuse-daily", action="store_true", help="fingerprint part: reuse the cached daily series instead of rebuilding it")
     args = ap.parse_args()
     fn = {"static": part_static, "runtime": part_runtime, "survivorship": part_survivorship, "adjusted": part_adjusted, "metadata": part_metadata,
           "fingerprint": part_fingerprint, "causality": part_causality, "assemble": assemble}

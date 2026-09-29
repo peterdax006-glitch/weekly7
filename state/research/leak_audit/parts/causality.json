@@ -4,7 +4,7 @@
   "n_cuts": 3,
   "leaky_features": {},
   "clean": true,
-  "seconds": 1.9658429622650146,
+  "seconds": 1.788170337677002,
   "n_tickers": 60,
   "n_events": 1235,
   "n_insider": 312
@@ -19,6 +19,13 @@
     "cost_bps": 40,
     "warmup_sessions_before_window": 1515
    },
+   "plain_rerun_linkability": {
+    "n_names": 171,
+    "share_reidentified_by_column_position": 1.0,
+    "share_reidentified_by_return_correlation": 0.9941520467836257,
+    "same_shown_dates": false,
+    "same_code_names": 0.005847953216374269
+   },
    "hardened": {
     "spy_first_level": 100.0,
     "column_order_vs_real_alpha_rho": -0.17728178174574605,
@@ -26,6 +33,13 @@
     "n_columns": 171,
     "cost_bps": 40,
     "warmup_sessions_before_window": 1515
+   },
+   "hardened_rerun_linkability": {
+    "n_names": 171,
+    "share_reidentified_by_column_position": 0.005847953216374269,
+    "share_reidentified_by_return_correlation": 0.9941520467836257,
+    "same_shown_dates": false,
+    "same_code_names": 0.005847953216374269
    }
   },
   "1995-06-01": {
@@ -37,6 +51,13 @@
     "cost_bps": 40,
     "warmup_sessions_before_window": 1518
    },
+   "plain_rerun_linkability": {
+    "n_names": 400,
+    "share_reidentified_by_column_position": 1.0,
+    "share_reidentified_by_return_correlation": 1.0,
+    "same_shown_dates": false,
+    "same_code_names": 0.0032102728731942215
+   },
    "hardened": {
     "spy_first_level": 100.0,
     "column_order_vs_real_alpha_rho": -0.021085783509074436,
@@ -44,6 +65,13 @@
     "n_columns": 1246,
     "cost_bps": 40,
     "warmup_sessions_before_window": 1518
+   },
+   "hardened_rerun_linkability": {
+    "n_names": 400,
+    "share_reidentified_by_column_position": 0.0075,
+    "share_reidentified_by_return_correlation": 1.0,
+    "same_shown_dates": false,
+    "same_code_names": 0.0032102728731942215
    }
   },
   "2018-03-01": {
@@ -55,6 +83,13 @@
     "cost_bps": 10,
     "warmup_sessions_before_window": 1510
    },
+   "plain_rerun_linkability": {
+    "n_names": 400,
+    "share_reidentified_by_column_position": 1.0,
+    "share_reidentified_by_return_correlation": 1.0,
+    "same_shown_dates": false,
+    "same_code_names": 0.0
+   },
    "hardened": {
     "spy_first_level": 100.0,
     "column_order_vs_real_alpha_rho": -0.007468139537587451,
@@ -62,6 +97,13 @@
     "n_columns": 3347,
     "cost_bps": 10,
     "warmup_sessions_before_window": 1510
+   },
+   "hardened_rerun_linkability": {
+    "n_names": 400,
+    "share_reidentified_by_column_position": 0.0,
+    "share_reidentified_by_return_correlation": 1.0,
+    "same_shown_dates": false,
+    "same_code_names": 0.0
    }
   }
  }

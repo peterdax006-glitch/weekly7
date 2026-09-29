@@ -203,7 +203,7 @@
   "WULF"
  ],
  "not_crypto_on_blind_codes_filters_nothing": true,
- "blind_universe_note": "load_universe() (nasdaqtraded.txt, today) removed crypto-named tickers before any panel was built; in blind runs policy.not_crypto sees code names and is inert",
+ "blind_universe_note": "the panel columns (universe.csv) still hold the crypto-named/hard-listed tickers above; the C11 crypto rule is applied only at pick time by policy.not_crypto on REAL tickers, so in blind runs (code names) it is inert and those names are tradable",
  "sic": {
   "rows": 5247,
   "source": "SEC company_tickers / submissions, CURRENT classification",
