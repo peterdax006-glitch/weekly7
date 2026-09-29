@@ -90,7 +90,7 @@ def learner_selfcheck(seed=0):
     (null) and a world whose law flips sign with the year (flip) must leave the learner idle. Returns a dict and a valid flag."""
     res = {}
     loose = LR.GateParams(guard_worst5_tol=-0.2)             # a hotter pool has a worse worst week by construction in the band world
-    for world, name, want, kw in (("band", "band_pool", "learns", dict(n_pairs=6, n_weeks=30, gp=loose)),
+    for world, name, want, kw in (("band", "band_pool", "learns", dict(n_pairs=8, n_weeks=40, gp=loose)),
                                   ("lesson", "lessons", "learns", dict(n_pairs=4)), ("null", "band_pool", "idle", dict(n_pairs=4)),
                                   ("flip", "lessons", "idle", dict(n_pairs=4))):
         recs, lrn, _ = LR.planted_pairs(world, name, n_hist=10, seed=seed, **kw)

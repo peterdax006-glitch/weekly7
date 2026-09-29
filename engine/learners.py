@@ -508,6 +508,7 @@ class GateParams:
     min_oos: int = 3
     guard_mean_tol: float = -0.0003    # cost allowed on mean weekly return (per week)
     guard_worst5_tol: float = -0.01    # ... and on the worst-5% week
+    fwer: float = 0.05          # family-wise error rate of the best-of-many search (see familywise_t)
 
 
 @dataclass
@@ -564,10 +565,28 @@ class Scored:
     guard_mean: float
     guard_worst5: float
     guard_ok: bool
+    crit: float = 0.0          # family-wise t threshold the gate applied (best-of-many correction)
 
     @property
     def adoptable(self):
         return self.gate.passed and self.guard_ok and self.gate.shrunk > 0
+
+
+def familywise_t(deltas, gp, n_perm=1000, seed=0):
+    """Best-of-many correction. Searching M candidates and keeping the best inflates t: with ~50 candidates the best of pure noise
+    reaches t ~ 2.5 routinely (seen in the planted flip world, seed 7). The critical t is the (1 - fwer) quantile of the MAXIMUM t over
+    all candidates when each year's delta is sign-flipped at random (the same flips for every candidate, so their correlation is
+    kept). A candidate must beat it. Returns 0 with fewer than two candidates or years."""
+    D = [np.nan_to_num(np.asarray(d, float)) for d in deltas]
+    if len(D) < 2 or len(D[0]) < 3:
+        return 0.0
+    D = np.array(D)
+    n = D.shape[1]
+    signs = np.random.default_rng(seed).choice([-1.0, 1.0], size=(n_perm, n))
+    m = signs @ D.T / n                                          # (perm, cand)
+    var = np.maximum((np.sum(D * D, axis=1)[None, :] - n * m * m) / (n - 1), 1e-18)
+    t = m / np.sqrt(var / n)
+    return float(np.quantile(t.max(axis=1), 1 - gp.fwer))
 
 
 def score_candidates(book, ids, base, cands, metric, gp=GateParams(), sub=None):
@@ -581,14 +600,16 @@ def score_candidates(book, ids, base, cands, metric, gp=GateParams(), sub=None):
     b_m = np.array([series_metric(base_r[w][masks[w]], metric) for w in use])
     b_mean = np.array([series_metric(base_r[w][masks[w]], "mean_week") for w in use])
     b_w5 = np.array([series_metric(base_r[w][masks[w]], "worst5") for w in use])
-    out = []
+    rows = []
     for c in cands:
         r = {w: book.returns(w, c) for w in use}
         dm = np.array([series_metric(r[w][masks[w]], metric) for w in use]) - b_m
         gm = float(np.mean([series_metric(r[w][masks[w]], "mean_week") for w in use] - b_mean))
         g5 = float(np.mean([series_metric(r[w][masks[w]], "worst5") for w in use] - b_w5))
-        g = gate(dm, gp)
-        out.append(Scored(c, g, gm, g5, gm >= gp.guard_mean_tol and g5 >= gp.guard_worst5_tol))
+        rows.append((c, dm, gm, g5))
+    crit = familywise_t([r[1] for r in rows], gp)
+    gpc = replace(gp, t_min=max(gp.t_min, crit))
+    out = [Scored(c, gate(dm, gpc), gm, g5, gm >= gp.guard_mean_tol and g5 >= gp.guard_worst5_tol, crit) for c, dm, gm, g5 in rows]
     out.sort(key=lambda s: -s.gate.shrunk)
     return out
 
