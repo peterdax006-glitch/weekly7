@@ -5557,12 +5557,15 @@
   {
    "section": "Integration/refactoring/type safety",
    "minimum_lines": 4000,
-   "actual_lines": 605,
+   "actual_lines": 1539,
    "code_paths": [
-    "engine/adaptive.py (605)"
+    "engine/adaptive.py",
+    "engine/adaptive.py (605)",
+    "engine/learning/test_path.py",
+    "engine/learning/wiring.py"
    ],
    "status": "IN_PROGRESS",
-   "notes": "UNDER by 3395 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). under-depth: adaptive.Adapter is the only place learned state reaches decisions in the blind path. No engine/learning package, no loop that wires OBSERVE..SELECT NEXT QUESTION, several parallel stores to unify."
+   "notes": "S17a landed (wiring.py, mypy clean, CI); S17b still running. | earlier: UNDER by 3395 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). under-depth: adaptive.Adapter is the only place learned state reaches decisions in the blind path. No engine/learning package, no loop that wires OBSERVE..SELECT NEXT QUESTION, several parallel stores to unify."
   }
  ]
 }

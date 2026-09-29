@@ -346,7 +346,11 @@ def test_p_real_blueprint_bh_is_never_stricter_than_bonferroni_and_zero_on_sign_
 def test_shrink_effect_matches_the_miner(fitted):
     X, y, now, m = fitted
     R = m.patterns
-    assert S.shrink_effect(R["m_all"].values, R["n_eff"].values, 400) == pytest.approx(R["effect"].values, rel=1e-12)
+    # the k-rule column is exactly the helper; since 6a14d14 the REPORTED effect is the empirical-Bayes one by design
+    assert S.shrink_effect(R["m_all"].values, R["n_eff"].values, 400) == pytest.approx(R["effect_k"].values, rel=1e-12)
+    assert m.p["effect_method"] == "eb"
+    assert R["effect"].values == pytest.approx(R["effect_eb"].values, rel=1e-12)
+    assert not np.allclose(R["effect_eb"].values, R["effect_k"].values)   # the two rules really differ, so the check bites
     assert S.shrink_effect(0.02, 0.0, 400) == 0.0                     # no evidence, no effect
 
 
