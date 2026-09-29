@@ -1710,8 +1710,8 @@ def render_curve_report(summary):
     f = lambda x: "n/a" if x is None or not np.isfinite(x) else f"{x:+.5f}"
     for w in ws:
         m = w["curve"][PRIMARY]
-        rs = w.get("reset_curve", {}).get(PRIMARY, {})
-        ic = w.get("identity_curve", {}).get(PRIMARY, {})
+        rs = (w.get("reset_curve") or {}).get(PRIMARY, {})
+        ic = (w.get("identity_curve") or {}).get(PRIMARY, {})
         L.append(f"| {w['window']} | {w['era']} | {m['n']} | {f(m['first'])} | {f(m['last'])} | {f(m['diff'])} [{f(m['diff_lo'])}, {f(m['diff_hi'])}] | "
                  f"{f(m['slope'])} [{f(m['slope_lo'])}, {f(m['slope_hi'])}] | {'run ' + str(m['plateau'] + 1) if m.get('plateau') is not None else 'none'} | "
                  f"{f(rs.get('slope'))} | {f(ic.get('slope'))} | {m.get('perm_p', float('nan')):.2g} | {w['verdict']['label']} |")

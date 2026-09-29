@@ -64,12 +64,12 @@ def others_for(W, eligible, seed, k=N_OTHER):
     return take
 
 
-def run_arm(name, entry, steps_spec, player, learner, s0_fn, out, code, seed, arm, reset=False, disguise=True, min_ram=2.5):
+def run_arm(name, entry, steps_spec, player, learner, s0_fn, out, code, seed, arm, reset=False, disguise=True, min_ram=2.5, trust_done=False):
     """One chain with per-run checkpoints. steps_spec = [(entry, tag)]; windows are loaded once per distinct id."""
     ck = out / "ckpt" / f"{name}.pkl"
     ck.parent.mkdir(parents=True, exist_ok=True)
     done = out / "ckpt" / f"{name}.done.json"
-    if done.exists() and json.loads(done.read_text()).get("code") == code.get("code_hash"):
+    if done.exists() and (trust_done or json.loads(done.read_text()).get("code") == code.get("code_hash")):
         return json.loads(done.read_text())
     wins = {}
     for e, _ in steps_spec:
@@ -110,6 +110,7 @@ def main():
     ap.add_argument("--identity-windows", type=int, default=2)
     ap.add_argument("--identity-K", type=int, default=8)
     ap.add_argument("--min-ram", type=float, default=2.5)
+    ap.add_argument("--finalize", action="store_true", help="rebuild summary/report from finished chains without rerunning (they keep the code hash that played them)")
     a = ap.parse_args()
     out = OUT / a.tag
     (out / "ckpt").mkdir(parents=True, exist_ok=True)
@@ -135,14 +136,14 @@ def main():
         steps = [(e, "main")] * a.K + [(o, "other") for o in others] + [(e, "post")] * N_POST
         log(f"=== window {e['id']} ({e['real_start'].year}), {len(steps)} runs, other years {[o['id'] for o in others]}")
         r = {"entry": e, "others": [o["id"] for o in others]}
-        r["main"] = run_arm(f"{e['id']}_main", e, steps, player, learner, s0_fn, out, code, a.seed, "main", min_ram=a.min_ram)
-        r["reset"] = run_arm(f"{e['id']}_reset", e, [(e, "main")] * a.K, player, learner, s0_fn, out, code, a.seed, "reset", reset=True, min_ram=a.min_ram)
+        r["main"] = run_arm(f"{e['id']}_main", e, steps, player, learner, s0_fn, out, code, a.seed, "main", min_ram=a.min_ram, trust_done=a.finalize)
+        r["reset"] = run_arm(f"{e['id']}_reset", e, [(e, "main")] * a.K, player, learner, s0_fn, out, code, a.seed, "reset", reset=True, min_ram=a.min_ram, trust_done=a.finalize)
         if wi < a.identity_windows:
             zero = lambda e=e: L.LearnedState(dict(st["cfg"]), dict(st["meta"]), None)
             ik = [(e, "main")] * a.identity_K
-            r["ident"] = run_arm(f"{e['id']}_ident", e, ik, L.IdentityRecallPlayer(), L.IdentityRecallLearner(), zero, out, code, a.seed, "ident", min_ram=a.min_ram)
+            r["ident"] = run_arm(f"{e['id']}_ident", e, ik, L.IdentityRecallPlayer(), L.IdentityRecallLearner(), zero, out, code, a.seed, "ident", min_ram=a.min_ram, trust_done=a.finalize)
             r["ident_raw"] = run_arm(f"{e['id']}_identraw", e, ik, L.IdentityRecallPlayer(), L.IdentityRecallLearner(), zero, out, code, a.seed,
-                                     "identraw", disguise=False, min_ram=a.min_ram)
+                                     "identraw", disguise=False, min_ram=a.min_ram, trust_done=a.finalize)
         results[e["id"]] = r
         log(f"window {e['id']} done: mean_week run1 {r['main']['recs'][0]['mean_week']:+.4f} -> run{a.K} {r['main']['recs'][a.K - 1]['mean_week']:+.4f}; "
             f"reset {r['reset']['recs'][0]['mean_week']:+.4f} -> {r['reset']['recs'][-1]['mean_week']:+.4f}")
