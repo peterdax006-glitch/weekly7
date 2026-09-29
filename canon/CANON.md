@@ -392,3 +392,9 @@ it should be very long
 > how i want it is while its running the system should not know the year and it should only have access to the live data at the time and as the year progresses it gains access to more info so it gets info on a daily basis based on when info was available, and when it all gets saved to memory it saves in the file as the year it operated in, now the relative memory is still important but that should be a seperate system where the system doesnt know the year, but the workings behind the system know the year so it prioritzies different memory but the system itself doesnt know that, that all happens in a automatic spot it cant see
 
 `sha256: 1facfc4f7e3d76135f2c9e9987838415f8b208117f35298315b8450f7b7ccc60`
+
+## C65 — Live is parked: no work on the Live account until the Test self-learning system is perfected (2026-09-29)
+
+> we arent worrying about the live one until the test self learning one is perfected
+
+`sha256: 4cf73f8e1f5be5cf1d46f0d3cda3e6d6880ce5adaa71e80783c466456452a59f`
