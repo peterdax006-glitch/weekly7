@@ -18,7 +18,7 @@ Governing documents: `canon/CANON.md` (owner directives, verbatim) > `BIBLE.md` 
 | `backtest` | 253 | 0 | Daily event-driven backtest of the full pipeline (Blueprint Part H1) plus the baselines. |
 | `baseline` | 154 | 2 | Bible Phase 0.4: the immutable baseline snapshot, and the comparison of any later run against it. |
 | `basis_search` | 318 | 2 | Outer training-basis search (Bible PHASE 19; canon C11, C15-C21, C34, C39). |
-| `blind_gates` | 643 | 5 | Bible Phases 21 and 22 (canons C11, C19, C33): blind-simulator hardening gates and the blind clock. |
+| `blind_gates` | 643 | 6 | Bible Phases 21 and 22 (canons C11, C19, C33): blind-simulator hardening gates and the blind clock. |
 | `broker` | 124 | 3 | Execution (Blueprint Part F). Two interchangeable brokers: |
 | `candidates` | 567 | 2 | Bible Phase 3.1 - candidate generation for the pattern miner (canons C35, C37, C43). |
 | `candles` | 50 | 3 | Multi-timeframe candle features (canon C35): daily, weekly (5 sessions) and monthly (21 sessions) candles and small-print signals - momentary reversals, inside days, engulfing, str |
@@ -44,12 +44,12 @@ Governing documents: `canon/CANON.md` (owner directives, verbatim) > `BIBLE.md` 
 | `heavy_tests` | 676 | 2 | Bible Phase 7 (heavy algorithm testing), with Phase 34 controls and the Phase 36 provenance block. |
 | `improve` | 368 | 2 | The self-improvement engine (Blueprint Part M, canon C5). |
 | `isolation` | 521 | 2 | Live/research separation and live safety audits (Bible PHASE 28; checklist L2-L5). |
-| `leak_audit` | 1658 | 3 | Future-leak audit of the blind Test path (Bible PHASES 1, 2, 21, 26; canon C56 "only information available live at that moment" and C55 "the rerun of a year must be disguised"). |
+| `leak_audit` | 1658 | 4 | Future-leak audit of the blind Test path (Bible PHASES 1, 2, 21, 26; canon C56 "only information available live at that moment" and C55 "the rerun of a year must be disguised"). |
 | `learners` | 1013 | 1 | Generalising learners (Bible Phases 11, 21-23, 45; canon C54, C55, C56). |
 | `learning_delta` | 1742 | 5 | Learning-delta harness (Bible Phases 11, 21-23, 45; canon C54 and C55). |
 | `lessons` | 815 | 5 | Bible Phase 10 - lesson memory / learning from mistakes. |
 | `live` | 251 | 2 | Live jobs (Blueprint Part F). Entry: python -m engine.live <job> |
-| `livesim` | 608 | 4 | Blind live-clock simulation of a random hidden year (canon C11). |
+| `livesim` | 608 | 5 | Blind live-clock simulation of a random hidden year (canon C11). |
 | `memory` | 638 | 7 | Factor-weighted episodic memory for the self-learning system (Bible Phase 9, canon C34). |
 | `memory_diagnostics` | 384 | 1 | Why did this memory count? Diagnostics for the factor-weighted memory (Bible Phase 9, canon C34). |
 | `miner_tuning` | 177 | 1 | A7 (canon C34-C37, blueprint: the Algorithm tunes itself): walk-forward self-tuning of the pattern miner's own settings. The system - not a person - decides how fast memory fades ( |
@@ -357,7 +357,7 @@ Bible Phases 21 and 22 (canons C11, C19, C33): blind-simulator hardening gates a
 - `def check_decisions_use_recorded_info(decisions, ledger_entries)` - Every decision date must have a ledger entry made at or before it (decide -> record, never decide blind of the record). decisions: iterable of dates.
 - `def check_label_alignment(features_dates, label_dates, horizon_sessions, sessions)` - A training row dated d may use its label only once the label's window has fully closed: label_date must be at least `horizon_sessions` sessions after the featur
 
-Tests: `tests/test_blind_gates.py`, `tests/test_leak_audit.py`, `tests/test_learning_delta.py`, `tests/test_livesim_gates.py`, `tests/test_livesim_loop2.py`
+Tests: `tests/test_blind_gates.py`, `tests/test_leak_audit.py`, `tests/test_learning_delta.py`, `tests/test_learning_test_path.py`, `tests/test_livesim_gates.py`, `tests/test_livesim_loop2.py`
 
 ## engine.broker
 
@@ -925,7 +925,7 @@ Future-leak audit of the blind Test path (Bible PHASES 1, 2, 21, 26; canon C56 "
 - `def verdict_learned_state(facts, proofs, state_check)` - Channel 4. The training call takes no as_of and trains on every archived window, so what is proven is the GATE between training and play: every play call carrie
 - `def compute_verdicts(parts, facts, proofs, state_check)` - All channel verdicts. `parts` = the measurement parts (static, runtime, survivorship, adjusted, metadata, fingerprint, causality; missing/empty = not measured).
 
-Tests: `tests/test_leak_audit.py`, `tests/test_leak_audit_verdicts.py`, `tests/test_livesim_loop2.py`
+Tests: `tests/test_leak_audit.py`, `tests/test_leak_audit_verdicts.py`, `tests/test_learning_test_path.py`, `tests/test_livesim_loop2.py`
 
 ## engine.learners
 
@@ -1103,7 +1103,7 @@ Blind live-clock simulation of a random hidden year (canon C11).
 - `def blind_feed_class(hardened)` - The Feed class blind runs use: the hardened one (columns sorted by code, market prices rebased, names hidden until they list - engine.leak_audit, canon C56) unl
 - `def run(cfg, run_id, log, check_parity, adaptive, meta, hardened, hook_factory)` - `hook_factory(feed, trader)` (optional, canon C64) builds a side runner once the warm-up is done; its `on_tick()` is called after the trader's own on_tick on ev
 
-Tests: `tests/test_leak_audit.py`, `tests/test_learning_delta.py`, `tests/test_livesim_gates.py`, `tests/test_livesim_loop2.py`
+Tests: `tests/test_leak_audit.py`, `tests/test_learning_delta.py`, `tests/test_learning_test_path.py`, `tests/test_livesim_gates.py`, `tests/test_livesim_loop2.py`
 
 ## engine.memory
 

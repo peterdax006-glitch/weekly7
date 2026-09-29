@@ -1,0 +1,49 @@
+....................E
+=================================== ERRORS ====================================
+_ ERROR at setup of test_every_session_ticks_the_clock_and_the_window_stays_clean _
+
+tmp_path_factory = TempPathFactory(_given_basetemp=None, _trace=<pluggy._tracing.TagTracerSub object at 0x00000196ACA65290>, _basetemp=WindowsPath('C:/Users/Peter/AppData/Local/Temp/pytest-of-Peter/pytest-482'), _retention_count=3, _retention_policy='all')
+
+    @pytest.fixture(scope="module")
+    def window_a(tmp_path_factory):
+        mp = pytest.MonkeyPatch()
+        try:
+>           yield play(tmp_path_factory.mktemp("a"), 9000, mp)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_learning_test_path.py:537: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_learning_test_path.py:517: in play
+    runner.curator.file(future_item(), "2023-06-05", 2023, state, matured_at="2023-06-12", reliability=0.9)
+engine\learning\curator.py:445: in file
+    require_past(matured, self.now, "memory being filed")
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+when = datetime.date(2023, 6, 12), now = datetime.date(2022, 4, 29)
+what = 'memory being filed'
+
+    def require_past(when, now, what: str = "record") -> None:
+        """Fail closed if `when` is not strictly before `now` (an outcome that matures ON `now` is not yet known)."""
+        if when is None or now is None:
+            raise FirewallBreach(f"{what}: missing timestamp (when={when}, now={now})")
+        if as_date(when) >= as_date(now):
+>           raise FirewallBreach(f"{what}: dated {when} is not strictly before now={now}")
+E           engine.learning.core.FirewallBreach: memory being filed: dated 2023-06-12 is not strictly before now=2022-04-29
+
+engine\learning\core.py:233: FirewallBreach
+============================== warnings summary ===============================
+tests/test_learning_test_path.py::test_every_session_ticks_the_clock_and_the_window_stays_clean
+  C:\Users\Peter\weekly7\.venv\Lib\site-packages\pyarrow\compute.py:230: FutureWarning: Specifying null_placement in RankOptions is deprecated as of 25.0.0. Specify null_placement per sort_key instead.
+    return options_class(*args, **kwargs)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+============================= slowest 5 durations =============================
+10.89s call     tests/test_learning_test_path.py::test_import_closure_of_the_trader_path_never_reaches_the_curator_or_this_module
+5.76s setup    tests/test_learning_test_path.py::test_every_session_ticks_the_clock_and_the_window_stays_clean
+0.16s call     tests/test_learning_test_path.py::test_transfer_test_runs_once_per_item_not_once_per_row
+0.09s call     tests/test_learning_test_path.py::test_cached_transfer_still_refuses_a_case_from_the_future
+0.04s call     tests/test_learning_test_path.py::test_daydata_refuses_another_days_panel_and_unmatured_labels
+=========================== short test summary info ===========================
+ERROR tests/test_learning_test_path.py::test_every_session_ticks_the_clock_and_the_window_stays_clean
+!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!
+20 passed, 1 warning, 1 error in 19.96s

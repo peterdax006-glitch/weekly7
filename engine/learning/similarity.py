@@ -119,8 +119,8 @@ class SimilarityWeights:
                 errs.append(f"bad field weight {p}:{w}")
         if not 0.0 < self.min_component_coverage <= 1.0 or not 0.0 < self.min_total_coverage <= 1.0:
             errs.append("coverage thresholds outside (0, 1]")
-        if not 0.0 < self.coverage_factor <= 1.0 or not 0.0 < self.coverage_floor <= min(self.min_component_coverage, self.min_total_coverage):
-            errs.append("coverage_factor outside (0, 1] or coverage_floor above a threshold")
+        if not 0.0 < self.coverage_factor <= 1.0 or not 0.0 < self.coverage_floor <= 1.0:
+            errs.append("coverage_factor or coverage_floor outside (0, 1]")
         return errs
 
     def thresholds(self, observed_share):
