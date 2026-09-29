@@ -17,9 +17,9 @@ def one(job):
     sc_name, seed = job
     from engine.patterns import PatternMiner
     sc = next(s for s in PL.scenarios() if s.name == sc_name)
-    X, y, _ = PL.generate(sc, seed=seed)
+    X, y, truth = PL.generate(sc, seed=seed)
     M = PatternMiner(MINER).fit(X, y, now=X.index.get_level_values(0).max())
-    r = PL.score_run(M.patterns, sc)
+    r = PL.score_run(M.patterns, sc, X=X, truth=truth)
     r["seed"] = seed
     return r
 

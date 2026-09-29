@@ -137,3 +137,28 @@ def test_verdict_passes_a_perfect_summary_and_fails_one_flaw():
     bad = PL.score_run(pd.concat([P, fake_patterns([("f9 q0", "active", 0.01, 0.9)])]).drop_duplicates("key_named", keep="last"), sc)
     v2 = PL.verdict(PL.summarise([bad] * 3 + runs[3:]))
     assert not v2["validated"] and not v2["criteria"]["hallucinated_rejected"]["pass"]
+
+
+def test_exact_truth_counts_demeaning_side_effects_as_real_and_noise_as_false():
+    """f0 top fifth +3%: after per-week demeaning the rest of f0 truly LOSES ~0.75% - a real effect the old
+    condition-overlap rule called a false discovery. A noise feature's pattern must still count as false, and a real
+    effect claimed with the WRONG sign must count as false (the check can fail)."""
+    sc = small([PL.Plant("s", "strong", (("f0", 4),), 0.03)], noise_sd=0.01, week_sd=0.0, sector_sd=0.0)
+    X, y, truth = PL.generate(sc, seed=21)
+    P = fake_patterns([("f0 q4", "active", 0.029, 0.99),      # the plant
+                       ("f0 q1", "active", -0.007, 0.95),     # demeaning side effect, right sign
+                       ("f7 q2", "active", 0.004, 0.9),       # pure noise feature
+                       ("f0 q2", "active", +0.007, 0.9)])     # real side effect, WRONG sign
+    r = PL.score_run(P, sc, X=X, truth=truth)
+    assert set(r["false_active_true"]) == {"f7 q2", "f0 q2"}
+    assert "f0 q1" in r["false_active"]                        # the legacy rule got this one wrong
+    te = PL.true_recent_effects([PL.parse_named("f0 q4"), PL.parse_named("f0 q1")], X, truth)
+    assert te[0] == pytest.approx(0.03 * 0.8, abs=0.004) and te[1] == pytest.approx(-0.0075, abs=0.002)
+
+
+def test_verdict_prefers_exact_truth_when_present():
+    sc = PL.Scenario("standard", PL.standard_plants())
+    X, y, truth = PL.generate(PL.Scenario("standard", PL.standard_plants(), weeks=80, stocks=120), seed=3)
+    r = PL.score_run(fake_patterns([("f0 q4", "active", 0.012, 0.99)]), sc, X=X, truth=truth)
+    v = PL.verdict(PL.summarise([r]))
+    assert "exact truth" in v["criteria"]["fdr"]["rule"] and "fdr_by_condition" in v["criteria"]

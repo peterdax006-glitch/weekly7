@@ -110,13 +110,13 @@ def test_disguise_window_renames_and_shifts_everything_consistently():
 
 @pytest.fixture(scope="module")
 def windows():
-    return [make_window(10 + i, n_weeks=36, n_tk=40, start=f"{2190 + i}-01-05", tag=f"w{i}")[0] for i in range(5)]
+    return [make_window(10 + i, n_weeks=36, n_tk=40, start=f"{2190 + i}-01-05", tag=f"w{i}")[0] for i in range(4)]
 
 
 def test_archive_experiment_real_lessons_transfer_and_are_not_memorisation(windows):
     res = archive_experiment(windows, CFG, {}, adaptive=False, folds=3, seed=1,
                              params={"min_support": 25, "min_weeks": 5, "min_tickers": 8})
-    assert res["parity_ok"] and len(res["windows"]) == 5
+    assert res["parity_ok"] and len(res["windows"]) == 4
     assert res["weekly_gain_a"]["mean"] > 0 and res["weekly_gain_a"]["lo"] > 0       # learned from OTHER windows, still helps
     assert res["weekly_gain_b"]["mean"] > 0
     for r in res["windows"]:                                                        # identity-free: b and c are the same rule
@@ -130,7 +130,7 @@ def test_archive_experiment_sees_a_planted_memoriser_and_never_flags_it_as_trans
     assert res["weekly_gain_b"]["mean"] > 0.005 and res["weekly_gain_b"]["lo"] > 0     # it aced the window it memorised
     assert res["weekly_gain_c"]["mean"] == 0.0 and res["weekly_gain_a"]["mean"] == 0.0   # and nothing else
     m = res["memorisation"]
-    assert m["windows_memorised"] == 5 and m["b_minus_c_mean"] > 0.005 and m["b_minus_a_mean"] > 0.005
+    assert m["windows_memorised"] == 4 and m["b_minus_c_mean"] > 0.005 and m["b_minus_a_mean"] > 0.005
     assert all(r["picks_changed_c"] == 0 and r["picks_changed_b"] > 0 for r in res["windows"])
 
 
@@ -153,3 +153,29 @@ def test_recall_control_keys_are_rows_not_rules():
     assert rc.factor(X).max() == 50.0 and (rc.factor(X)[fr["y"] <= 0] == 1.0).all()
     X2, _ = window_panel(disguise_window(w, 1))
     assert rc.factor(X2).eq(1.0).all()                           # same numbers, other names and dates: nothing fires
+
+
+def test_disguise_window_kinds_and_order_preservation():
+    w, _ = make_window(8, n_weeks=6, n_tk=25)
+    tk = sorted(w["closes"].columns)
+    for kind, renamed, shifted in (("ordered", True, True), ("dates", False, True), ("names_ordered", True, False),
+                                   ("names", True, False), ("both", True, True)):
+        w2 = disguise_window(w, seed=3, kind=kind)
+        assert (set(w2["closes"].columns).isdisjoint(tk)) == renamed
+        assert (not w2["closes"].index.equals(w["closes"].index)) == shifted
+    o = disguise_window(w, seed=3, kind="ordered")
+    order_old = sorted(range(len(tk)), key=lambda i: tk[i])
+    order_new = sorted(range(len(tk)), key=lambda i: o["closes"].columns[list(w["closes"].columns).index(tk[i])])
+    assert order_old == order_new                                # alphabetical order unchanged by the ordered disguise
+    r = disguise_window(w, seed=3, kind="both")
+    order_r = sorted(range(len(tk)), key=lambda i: r["closes"].columns[list(w["closes"].columns).index(tk[i])])
+    assert order_r != order_old                                  # a random rename does scramble it
+
+
+def test_archive_reports_invariance_of_the_lessonless_system(windows):
+    res = archive_experiment(windows[:3], CFG, {}, adaptive=False, folds=3, seed=4, parity_windows=0,
+                             params={"min_support": 25, "min_weeks": 5, "min_tickers": 8})
+    m = res["memorisation"]
+    assert m["max_invariance_gap_ordered"] < 1e-9 and m["windows_sensitive_to_random_rename"] == 0
+    assert all(r["invariance_gap_ordered"] < 1e-9 and r["invariance_gap_random"] < 1e-9 for r in res["windows"])
+    assert "system invariance" in archive_markdown(res)

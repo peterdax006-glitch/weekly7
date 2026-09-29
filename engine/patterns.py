@@ -312,6 +312,14 @@ class PatternMiner:
         # detectable on the planted data because per-date demeaning leaves every non-plant cell with a nonzero baseline;
         # a shortfall rule was tried and changed nothing there, so it is not shipped unvalidated)
         dying = R["confirmed"] & R["m_recent"].notna() & (np.sign(R["m_recent"]) != np.sign(R["m_all"])) & (R["t_recent"].abs() >= 1.5)
+        # decay (C43, 2026-09-29): same sign but the recent effect has shrunk SIGNIFICANTLY below the long-run effect the
+        # pattern would be scored at. Planted decaying pattern: long-run -0.7%, recent -0.25%, shortfall ~3 SE - it was
+        # being held at 6x its true recent size. Measured against the recent SE, not "near zero", so the demeaning
+        # baseline (every non-plant cell carries a small offset) does not hide it.
+        shortfall = (R["m_all"].abs() - R["m_recent"].abs()) / R["se_recent"].where(R["se_recent"] > 0)
+        decayed = R["confirmed"] & R["m_recent"].notna() & (np.sign(R["m_recent"]) == np.sign(R["m_all"])) \
+            & (shortfall >= P.get("decay_z", 2.5))
+        dying = dying | decayed.fillna(False)
         R["status"] = np.where(~R["confirmed"], "rejected", np.where(dying, "failed", "active"))   # C43
         # look for WHY a pattern died: a context tercile where it still holds (cluster tests, never row-level t)
         R["scope"] = None
@@ -330,8 +338,13 @@ class PatternMiner:
                         # discovery half, confirmation half and the recent stretch all agree (C43)
                         dsc = ctest(sub & disc, yv) if (sub & disc).sum() >= 30 else (0, 0, 0)
                         cnf = ctest(sub & conf, yv) if (sub & conf).sum() >= 30 else (0, 0, 0)
+                        # ...and it must not itself have DECAYED: the recent in-scope effect may not fall significantly
+                        # short of the in-scope long-run effect (else a persistent context - a fear tercile that lines
+                        # up with the pre-decay years - "rescues" a dead pattern; planted calibration, 2026-09-29)
+                        se_rr = abs(rr[0] / rr[1]) if rr[1] else np.inf
+                        not_decayed = (abs(a[0]) - abs(rr[0])) / se_rr < P.get("decay_z", 2.5)
                         if (np.sign(a[0]) == sgn and abs(a[1]) >= 2 and np.sign(rr[0]) == sgn and abs(rr[1]) >= 1
-                                and np.sign(dsc[0]) == sgn and np.sign(cnf[0]) == sgn):
+                                and np.sign(dsc[0]) == sgn and np.sign(cnf[0]) == sgn and not_decayed):
                             R.at[i, "status"] = "rescoped"
                             R.at[i, "scope"] = (ci, lab, float(lo_), float(hi_))
                             break

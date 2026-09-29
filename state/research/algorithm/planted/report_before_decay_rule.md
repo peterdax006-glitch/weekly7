@@ -1,6 +1,6 @@
 # Planted-pattern calibration (Bible Phase 25)
 
-**Verdict: NOT VALIDATED** (64 runs, 155s)
+**Verdict: NOT VALIDATED** (64 runs, 111s)
 
 | criterion | value | rule | pass |
 |---|---|---|---|
@@ -11,9 +11,8 @@
 | decaying_not_held | 0.250 | false_admission_rate <= 0.2 | NO |
 | zero_rejected | 0.000 | false_admission_rate <= 0.1 | yes |
 | noise_only_quiet | 0.250 | active_per_run <= 1.0 | yes |
-| fdr | 0.070 | false_discovery_rate <= 0.10 (exact truth) | yes |
-| fdr_by_condition | 0.182 | reported only (legacy definition) | yes |
-| p_real_top_bin | 0.972 | P(real) in (0.9,1] truly real >= 0.85 (exact truth) | yes |
+| fdr | 0.182 | false_discovery_rate <= 0.10 | NO |
+| p_real_top_bin | 0.851 | P(real) in (0.9,1] truly real >= 0.85 | yes |
 
 ## heavy_tails (8 runs)
 
@@ -22,7 +21,7 @@ active/run 16.2, false active/run 2.12, FDR 13.1%, P(real) Brier 0.2224584974791
 | plant | kind | should admit | rate | via child | effect ratio | sign ok | statuses |
 |---|---|---|---|---|---|---|---|
 | strong | strong | True | 1.00 | 0.00 | 0.81 | 1.0 | {'active': 8} |
-| weak | weak | True | 1.00 | 0.00 | 1.12 | 1.0 | {'active': 6, 'rescoped': 2} |
+| weak | weak | True | 1.00 | 0.00 | 1.12 | 1.0 | {'active': 8} |
 | negative | negative | True | 1.00 | 0.00 | 0.77 | 1.0 | {'active': 8} |
 | regime | regime | True | 0.50 | 0.12 | 0.18 | 1.0 | {'rejected': 4, 'active': 4} |
 | pair | pair | True | 1.00 | 0.00 | 0.94 | 1.0 | {'active': 8} |
@@ -144,11 +143,11 @@ active/run 17.9, false active/run 3.25, FDR 18.2%, P(real) Brier 0.2213350774582
 | strong | strong | True | 1.00 | 0.00 | 0.8 | 1.0 | {'active': 8} |
 | weak | weak | True | 1.00 | 0.00 | 1.17 | 1.0 | {'active': 8} |
 | negative | negative | True | 1.00 | 0.00 | 0.83 | 1.0 | {'active': 8} |
-| regime | regime | True | 0.62 | 0.25 | 0.21 | 1.0 | {'rejected': 3, 'active': 3, 'rescoped': 2} |
+| regime | regime | True | 0.62 | 0.25 | 0.21 | 1.0 | {'rejected': 3, 'active': 5} |
 | pair | pair | True | 1.00 | 0.00 | 0.95 | 1.0 | {'active': 8} |
 | unless | unless | True | 0.25 | 0.75 | 0.92 | 1.0 | {'not_tested': 4, 'duplicate': 2, 'active': 2} |
 | hallucinated | hallucinated | False | 0.00 | 0.50 | 0.35 | 1.0 | {'rejected': 7, 'no_gain': 1} |
-| decaying | decaying | False | 0.25 | 0.50 | 0.65 | 1.0 | {'rescoped': 2, 'no_gain': 6} |
+| decaying | decaying | False | 0.25 | 0.50 | 0.65 | 1.0 | {'active': 2, 'no_gain': 6} |
 | zero | zero | False | 0.00 | 0.25 | None | None | {'rejected': 8} |
 
 P(real) reliability:

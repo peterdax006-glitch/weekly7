@@ -359,8 +359,10 @@ def wrap_snaps(snaps, book, X):
 def disguise_window(w, seed=0, shift_weeks=(40, 400), kind="both"):
     """A fresh disguise of a whole archived window: every ticker renamed to an opaque code (snapshots, closes, opens and
     the sector map), every date shifted by a whole number of weeks. Nothing else changes.
-    kind: "both", "names" (rename only), "dates" (shift only) or "names_ordered" (rename with an order-preserving code, so
-    alphabetical tie-breaks are unchanged) - to find what a non-invariant system actually keys on."""
+    kind: "both" (random rename + shift), "ordered" (order-preserving rename + shift: alphabetical tie-breaks unchanged),
+    "names", "dates", "names_ordered" - to find what a non-invariant system actually keys on. FINDING (2026-09): the
+    adaptive replay is exactly invariant to date shifts and order-preserving renames but NOT to arbitrary renames, so the
+    archive experiment disguises with kind="ordered" and reports the random-rename sensitivity separately."""
     rng = np.random.default_rng(seed)
     tk = sorted(set(w["closes"].columns) | {t for s in w["snaps"].values() for t in s.index})
     alphabet = list("0123456789ABCDEFGHJKLMNPQRSTUVWXYZ")
@@ -368,10 +370,10 @@ def disguise_window(w, seed=0, shift_weeks=(40, 400), kind="both"):
     while len(codes) < len(tk):
         codes.add("Z" + "".join(rng.choice(alphabet, 6)))
     codes = sorted(codes)
-    tmap = dict(zip(tk, codes if kind == "names_ordered" else [codes[i] for i in rng.permutation(len(codes))]))
+    tmap = dict(zip(tk, codes if kind in ("names_ordered", "ordered") else [codes[i] for i in rng.permutation(len(codes))]))
     if kind == "dates":
         tmap = {t: t for t in tk}
-    shift = pd.Timedelta(days=7 * int(rng.integers(*shift_weeks))) if kind != "names" and kind != "names_ordered" else pd.Timedelta(0)
+    shift = pd.Timedelta(days=7 * int(rng.integers(*shift_weeks))) if kind in ("both", "ordered", "dates") else pd.Timedelta(0)
     def cols(df):
         df = df.rename(columns=tmap)
         df.index = df.index + shift
@@ -469,15 +471,20 @@ def archive_experiment(windows, cfg, meta, adaptive=False, learner=None, params=
         bb = learner([s["item"]])
         Sa = _arm(w, X, book_a[fold_of[i]], cfg, meta, adaptive)
         Sb = _arm(w, X, bb, cfg, meta, adaptive)
-        w2 = disguise_window(w, seed=seed * 1000 + i)
+        w2 = disguise_window(w, seed=seed * 1000 + i, kind="ordered")
         X2, _ = window_panel(w2)
         base2 = _arm(w2, X2, None, cfg, meta, adaptive)
+        wr = disguise_window(w, seed=seed * 1000 + 500 + i, kind="both")               # random rename: sensitivity probe
+        Xr, _ = window_panel(wr)
+        base_r = _arm(wr, Xr, None, cfg, meta, adaptive)
         Sc = _arm(w2, X2, bb, cfg, meta, adaptive)
-        wk = {k: _weeks(v) for k, v in dict(base=base, a=Sa, b=Sb, c_base=base2, c=Sc).items()}
+        wk = {k: _weeks(v) for k, v in dict(base=base, a=Sa, b=Sb, c_base=base2, c=Sc, r_base=base_r).items()}
         n_l = lambda bk: len(bk.items()) if hasattr(bk, "items") and callable(bk.items) else 0
         row = {"window": w["id"], "weeks": int(len(wk["base"])), "base": float(wk["base"].mean()),
                "gain_a": float((wk["a"] - wk["base"]).mean()), "gain_b": float((wk["b"] - wk["base"]).mean()),
                "gain_c": float((wk["c"] - wk["c_base"]).mean()),
+               "invariance_gap_ordered": float(np.abs(wk["c_base"] - wk["base"]).max()),
+               "invariance_gap_random": float(np.abs(wk["r_base"] - wk["base"]).max()),
                "lessons_a": n_l(book_a[fold_of[i]]), "lessons_b": n_l(bb),
                "picks_changed_a": sum(x != y for x, y in zip(Sa.decisions, base.decisions)),
                "picks_changed_b": sum(x != y for x, y in zip(Sb.decisions, base.decisions)),
@@ -500,7 +507,9 @@ def archive_experiment(windows, cfg, meta, adaptive=False, learner=None, params=
                            "b_minus_c_ci": [float(np.quantile(mem_c, .05)), float(np.quantile(mem_c, .95))] if len(mem_c) else [0, 0],
                            "b_minus_a_mean": float(mem_a.mean()) if len(mem_a) else 0.0,
                            "windows_memorised": int(sum(r["memorisation_b_minus_c"] > 1e-9 and r["gain_b"] > 0 for r in rows)),
-                           "windows_with_lessons": int(sum(r["lessons_b"] > 0 for r in rows))}
+                           "windows_with_lessons": int(sum(r["lessons_b"] > 0 for r in rows)),
+                           "max_invariance_gap_ordered": float(max((r["invariance_gap_ordered"] for r in rows), default=0.0)),
+                           "windows_sensitive_to_random_rename": int(sum(r["invariance_gap_random"] > 1e-9 for r in rows))}
     return out
 
 
@@ -514,6 +523,8 @@ def archive_markdown(res, title="Phase 11 on the Test archive"):
     m = res["memorisation"]
     L += [f"- memorisation (b - c): {f(m['b_minus_c_mean'])} (90% CI {f(m['b_minus_c_ci'][0])} .. {f(m['b_minus_c_ci'][1])}); "
           f"(b - a): {f(m['b_minus_a_mean'])}; windows memorised: {m['windows_memorised']} of {m['windows_with_lessons']} with lessons",
+          f"- system invariance (no lessons): max weekly gap under an order-preserving disguise {m['max_invariance_gap_ordered']:.2e}; "
+          f"windows whose no-lesson result changes under an arbitrary rename: {m['windows_sensitive_to_random_rename']} of {len(res['windows'])}",
           "", "| window | base/wk | a | b | c | b-c | lessons a/b | picks changed a/b/c |", "|---|---|---|---|---|---|---|---|"]
     for r in res["windows"]:
         L.append(f"| {r['window']} | {f(r['base'])} | {f(r['gain_a'])} | {f(r['gain_b'])} | {f(r['gain_c'])} | "

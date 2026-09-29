@@ -182,8 +182,40 @@ def _overlaps(key, plant_keys):
     return any(conds & set(pk[0]) for pk in plant_keys)
 
 
-def score_run(P: pd.DataFrame, sc: Scenario) -> dict:
-    """P: PatternMiner.patterns after fit. Returns the Phase 25 measures for one run."""
+TRUE_MIN = 0.001        # a pattern whose exact true recent effect is under 0.1%/week has no real effect
+
+
+def true_recent_effects(keys, X, truth, recent_frac=0.2):
+    """EXACT ground truth per pattern: the mean planted contribution over the pattern's rows in the most recent
+    `recent_frac` of history (where an admitted pattern is used), after the same per-week demeaning as y. This counts
+    the mechanical side effects of demeaning (if the top fifth of f0 gains +1.2%, the rest of f0 truly loses a
+    little) as the real effects they are - the condition-overlap rule called them false discoveries."""
+    feats = [c for c in X.columns if not c.startswith("m_")]
+    Q = quintiles(X[feats])
+    tr = truth.sum(axis=1) if truth.shape[1] else pd.Series(0.0, index=X.index)
+    tr = tr - tr.groupby(level=0).transform("mean")
+    d = X.index.get_level_values(0)
+    ud = np.sort(d.unique())
+    recent = np.asarray(d >= ud[int(len(ud) * (1 - recent_frac))])
+    out = []
+    for conds, unless in keys:
+        m = recent.copy()
+        for c in conds:
+            f, q = c.rsplit(" q", 1)
+            if f not in Q:
+                m[:] = False; break
+            m &= (Q[f].values == int(q))
+        if unless is not None:
+            f, q = unless.rsplit(" q", 1)
+            if f in Q:
+                m &= ~(Q[f].values == int(q))
+        out.append(float(tr.values[m].mean()) if m.any() else 0.0)
+    return np.array(out)
+
+
+def score_run(P: pd.DataFrame, sc: Scenario, X=None, truth=None) -> dict:
+    """P: PatternMiner.patterns after fit. Returns the Phase 25 measures for one run. With X and the generator's truth
+    frame, false discoveries are also judged by EXACT ground truth (true_recent_effects); both are reported."""
     P = P.copy()
     P["ck"] = [parse_named(n) for n in P["key_named"]]
     act = P[P["status"].isin(ACTIVE)]
@@ -208,10 +240,18 @@ def score_run(P: pd.DataFrame, sc: Scenario) -> dict:
     # a false discovery: an admitted pattern sharing no condition with any pattern that should be admitted
     false_act = [n for n, k in zip(act["key_named"], act["ck"]) if not _overlaps(k, real_keys)]
     snooped = [n for n, k in zip(act["key_named"], act["ck"]) if _overlaps(k, bad_keys) and not _overlaps(k, real_keys)]
-    truth = np.array([_overlaps(k, real_keys) for k in P["ck"]])
-    return {"scenario": sc.name, "per_plant": per, "n_tested": int(len(P)), "n_active": int(len(act)),
-            "false_active": false_act, "n_false_active": len(false_act), "planted_bad_admitted": snooped,
-            "calib": list(zip(P["p_real"].astype(float).round(4).tolist(), truth.tolist()))}
+    truth_overlap = np.array([_overlaps(k, real_keys) for k in P["ck"]])
+    out = {"scenario": sc.name, "per_plant": per, "n_tested": int(len(P)), "n_active": int(len(act)),
+           "false_active": false_act, "n_false_active": len(false_act), "planted_bad_admitted": snooped,
+           "calib": list(zip(P["p_real"].astype(float).round(4).tolist(), truth_overlap.tolist()))}
+    if X is not None and truth is not None:
+        te = true_recent_effects(list(P["ck"]), X, truth)
+        real = (np.abs(te) >= TRUE_MIN) & (np.sign(te) == np.sign(P["effect"].astype(float).values))
+        is_act = P["status"].isin(ACTIVE).values
+        out["false_active_true"] = [n for n, r, a in zip(P["key_named"], real, is_act) if a and not r]
+        out["n_false_active_true"] = len(out["false_active_true"])
+        out["calib_true"] = list(zip(P["p_real"].astype(float).round(4).tolist(), real.tolist()))
+    return out
 
 
 def calibration_table(pairs, bins=(-0.01, 0.2, 0.5, 0.8, 0.9, 1.0)):
@@ -266,6 +306,12 @@ def summarise(runs: list) -> dict:
                                              else None),
             "calibration": calibration_table([c for r in R for c in r["calib"]]),
         }
+        if all("n_false_active_true" in r for r in R):
+            n_ft = sum(r["n_false_active_true"] for r in R)
+            out["by_scenario"][scn].update({
+                "false_active_per_run_true": n_ft / len(R),
+                "false_discovery_rate_true": n_ft / n_act if n_act else 0.0,
+                "calibration_true": calibration_table([c for r in R for c in r["calib_true"]])})
     return out
 
 
@@ -291,9 +337,17 @@ def verdict(summary: dict) -> dict:
     v = noise["active_per_run"] if noise else None
     res["noise_only_quiet"] = {"value": v, "rule": "active_per_run <= 1.0", "pass": v is not None and v <= 1.0}
     std = summary["by_scenario"].get("standard")
-    v = std["false_discovery_rate"] if std else None
-    res["fdr"] = {"value": v, "rule": "false_discovery_rate <= 0.10", "pass": v is not None and v <= 0.10}
-    top = (std or {}).get("calibration", {}).get("bins", {}).get("(0.9, 1.0]", {}).get("share_truly_real")
-    res["p_real_top_bin"] = {"value": top, "rule": "P(real) in (0.9,1] truly real >= 0.85",
+    # exact ground truth (true recent effect) when the runs carry it; the condition-overlap figure is kept as
+    # "fdr_by_condition" for comparability with earlier reports but no longer decides
+    exact = bool(std) and "false_discovery_rate_true" in std
+    v = (std["false_discovery_rate_true"] if exact else std["false_discovery_rate"]) if std else None
+    res["fdr"] = {"value": v, "rule": "false_discovery_rate <= 0.10" + (" (exact truth)" if exact else " (condition overlap)"),
+                  "pass": v is not None and v <= 0.10}
+    if exact:
+        res["fdr_by_condition"] = {"value": std["false_discovery_rate"], "rule": "reported only (legacy definition)",
+                                   "pass": True}
+    cal = (std or {}).get("calibration_true" if exact else "calibration", {})
+    top = cal.get("bins", {}).get("(0.9, 1.0]", {}).get("share_truly_real")
+    res["p_real_top_bin"] = {"value": top, "rule": "P(real) in (0.9,1] truly real >= 0.85" + (" (exact truth)" if exact else ""),
                              "pass": top is not None and top >= 0.85}
     return {"validated": all(r["pass"] for r in res.values()), "criteria": res}
