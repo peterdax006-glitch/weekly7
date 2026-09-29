@@ -252,6 +252,24 @@ def winner_type(p0, t):
     return "other"
 
 
+def winner_types(p0):
+    """winner_type for every row of p0 at once (same rules, same order of precedence). The per-name version recomputes the
+    cross-sectional quantiles for each name, which costs seconds on a 3,000-name snapshot; the learning sinks call this."""
+    def col(c):
+        if c not in p0:
+            return pd.Series(np.nan, index=p0.index)
+        v = pd.to_numeric(p0[c], errors="coerce").astype(float)
+        return v.where(np.isfinite(v))
+    out = pd.Series("other", index=p0.index, dtype=object)
+    fast = col("vol20") > p0["vol20"].quantile(0.8) if "vol20" in p0 else pd.Series(False, index=p0.index)
+    mom = col("e_dist_52wh") > p0["e_dist_52wh"].quantile(0.8) if "e_dist_52wh" in p0 else pd.Series(False, index=p0.index)
+    event = (col("e_ear") > 0.85) | (col("ear") > 0)
+    illq = (col("log_dv") < p0["log_dv"].quantile(0.25)) if "log_dv" in p0 and p0["log_dv"].notna().any() else pd.Series(False, index=p0.index)
+    for mask, name in ((fast, "fast_mover"), (mom, "momentum"), (event, "event"), (illq, "illiquid")):   # lowest precedence first
+        out[mask.fillna(False).to_numpy(bool)] = name
+    return out
+
+
 def missed_profile(p0, picked, missed, feats=None):
     """Mean rank-feature of the missed winners minus that of the picks: where the system's blind spot sits."""
     feats = feats or DET_FEATS

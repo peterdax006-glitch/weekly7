@@ -14,6 +14,14 @@ function here; the function turns the old structure into the new vocabulary and 
   production readers of a weight    -> champion.KnowledgeBoard.weight                   (effective_weight)
   promotion of a learning claim     -> scorecard.gate_improvement_claim + LearningFirewallGate + IdentityHarness
                                                                                         (promotion_gate / require_promotion)
+S21b (29 Sep: the audit found five of the hooks above in code production never runs; scripts/reachability.py now checks the call
+graph, not the text):
+  adaptive.Adapter closed weeks     -> MissedLedger.observe -> on_missed_week (week_of: vectorised), on_post_mortem one decision later
+  adaptive.Session.result           -> on_session_end -> Memory.export_lessons -> on_lessons
+  improve.log_experiment (decided)  -> on_memory_entry(version_existing=True): the Phase-30 answers as a new ledger version
+  improve.weekly / loop2 worker     -> configure_production(lane): sinks persist under state/learning/hub/<lane>/, board weights apply
+  PromotionGate.evaluate            -> on_knowledge_promotion: every learned promotion is a learning claim (record | enforce)
+  LessonBook.adjust (decision run)  -> effective_weight(run=) + end_decision_run -> champion.audit_decision_sources
 
 Design rules
   * SINKS OBSERVE, GATES DECIDE. A sink hook (everything except promotion_gate/require_promotion) can never break the caller:
@@ -397,12 +405,38 @@ def on_session_end(memory: Any) -> int:
 
 
 # ================================================================================================================== missed winners
+def week_of(decided: Any, p0: pd.DataFrame, fwd: pd.Series, picked: Sequence[Any], score: pd.Series | None = None, k: int = 10,
+            thr: float = MW.WINNER, resolved_at: str | None = None, era: str = "", salt: str = "mw") -> MW.Week:
+    """learning.missed_winners.week_from_base, vectorised over the cross-section (the Test loop hands it ~3,000 names a week; the
+    per-name version costs seconds per week). Same candidates, ids, features, ranks and kinds - tests hold the two equal - for the
+    case the adapter uses (every name eligible, no extra decision trail)."""
+    from engine import missed_winners as base
+    feats = [c for c in base.DET_FEATS if c in p0.columns]
+    R = MW.cross_rank(p0, feats)[feats].to_numpy(dtype=float) if feats else np.empty((len(p0), 0))
+    f = fwd.reindex(p0.index).astype(float).to_numpy() if fwd is not None else np.full(len(p0), np.nan)
+    sc = score.reindex(p0.index).astype(float).to_numpy() if score is not None else None
+    rk = score.rank(ascending=False, method="first").reindex(p0.index).to_numpy(dtype=float) if score is not None else None
+    kinds = base.winner_types(p0).to_numpy()
+    pk = set(picked)
+    ds = str(decided)
+    cands = []
+    for i, tkr in enumerate(p0.index):
+        cands.append(MW.Candidate(
+            cid=stable_hash({"s": salt, "d": ds, "t": str(tkr)}, 12), features={c: float(R[i, j]) for j, c in enumerate(feats)},
+            fwd=float(f[i]) if np.isfinite(f[i]) else None, picked=tkr in pk,
+            score=float(sc[i]) if sc is not None and np.isfinite(sc[i]) else None,
+            rank=int(rk[i]) if rk is not None and np.isfinite(rk[i]) else None, eligible=True, filters_hit=(), kind=str(kinds[i])))
+    d0 = as_date(decided)
+    return MW.Week(label=stable_hash({"s": salt, "d": ds}, 8), decided_at=str(d0),
+                   resolved_at=str(resolved_at or d0 + pd.Timedelta(days=7).to_pytimedelta()), candidates=tuple(cands), k=k, thr=thr, era=era)
+
+
 @sink("missed_week")
 def on_missed_week(decided: Any, closed: Any, p0: pd.DataFrame, fwd: pd.Series, picked: Sequence[Any], score: pd.Series | None = None,
                    era: str = "", thr: float = MW.WINNER, k: int = 10) -> int:
     """A closed adapter week -> learning MissedLearningLedger.add_week (WHY each winner was rejected). `decided` is the decision date,
     `closed` the date the outcome matured. Returns the number of rejections explained."""
-    week = MW.week_from_base(decided, p0, fwd, list(picked), score=score, k=k, thr=thr, resolved_at=str(as_date(closed)), era=era)
+    week = week_of(decided, p0, fwd, list(picked), score=score, k=k, thr=thr, resolved_at=str(as_date(closed)), era=era)
     errs = week.validate()
     if errs:
         raise ValueError("; ".join(errs[:3]))
@@ -465,13 +499,50 @@ def on_experiment(rec: Mapping[str, Any], registry_path: str | Path) -> str:
 
 
 @sink("memory_entry")
-def on_memory_entry(experiment_id: str, change: Mapping[str, Any], answers: Mapping[str, Any], now: Any, registry_path: str | Path) -> str:
-    """registry.ExperimentMemory.record -> the same facade, so the two experiment stores agree (adapter: no old behaviour changes)."""
+def on_memory_entry(experiment_id: str, change: Mapping[str, Any], answers: Mapping[str, Any], now: Any, registry_path: str | Path,
+                    version_existing: bool = False) -> str:
+    """registry.ExperimentMemory.record -> the same facade, so the two experiment stores agree (adapter: no old behaviour changes).
+    version_existing (S21b, improve.log_experiment - the path production really runs): the decided experiment is already in the
+    ledger, so its Phase-30 answers are written as a NEW VERSION of that same record (append-only; never a second experiment)."""
+    led = HUB.ledger_for(registry_path)
+    hist = led.history(experiment_id) if version_existing else []
+    if version_existing and not hist:
+        return "absent"                          # the record never reached the ledger (its own sink failed): nothing to version
+    if hist:
+        cur = hist[-1]
+        if "phase30" in cur.tags:
+            return "skipped"
+        verdict = "adopted" if answers.get("adopted") else "rejected"
+        why = answers.get("why_changed") if answers.get("adopted") else answers.get("if_rejected_why")
+        learned = tuple(cur.learned) + (f"{verdict}: {answers.get('what_changed') or cur.question}" + (f" - {why}" if why else ""),)
+        tags = tuple(cur.tags) + ("phase30",) + tuple(f"{k}={answers[k]}" for k in ("data_used", "data_unseen") if k in answers)
+        missing = tuple(m for m in cur.legacy_missing if m != "learned")
+        led._append(cur.with_(version=cur.version + 1, recorded_at=cur.recorded_at, learned=learned, tags=tags, legacy_missing=missing))
+        HUB.delivered["memory_versions"] += 1
+        return "versioned"
     row = {"experiment_id": f"{experiment_id}:memory", "config": dict(change), "question": str(answers.get("what_changed") or answers.get("why_changed") or "experiment"),
            "outcome": "adopt" if answers.get("adopted") else "reject", "reason": str(answers.get("if_rejected_why") or answers.get("why_changed") or ""),
            "t": str(now)}
     out = EM.import_legacy(HUB.ledger_for(registry_path), [row])
     return "added" if out["added"] else "skipped"
+
+
+def memory_answers(rec: Mapping[str, Any]) -> dict[str, Any]:
+    """The Phase-30 answers a decided registry record really carries (adopted, what/why changed, the rejection reason, the windows and
+    metrics it was judged on). Questions the record does not answer are ABSENT, never filled with a placeholder: the ledger marks
+    them NOT RECORDED rather than pretending they were asked."""
+    oc = str(rec.get("outcome") or "").lower()
+    if oc not in ("adopt", "reject"):
+        raise ValueError(f"only a decided record (adopt/reject) is a memory entry, not outcome {oc!r}")
+    out: dict[str, Any] = {"adopted": oc == "adopt", "what_changed": _question_of(rec)}
+    reason = rec.get("reason")
+    if reason:
+        out["why_changed" if oc == "adopt" else "if_rejected_why"] = str(reason)
+    for src, dst in (("window_ids", "data_used"), ("test_range", "data_unseen")):
+        v = rec.get(src)
+        if v not in (None, "", [], {}):
+            out[dst] = v
+    return out
 
 
 def pre_launch(question: str, config: Mapping[str, Any], now: Any, registry_path: str | Path, seed: int | None = 7,
@@ -618,31 +689,37 @@ def _scope_chain(scope: str) -> list[str]:
 
 
 def deciding_member(kid: str) -> str | None:
-    """The board member of `kid` that decides for its slot, found the way production must find it: effective_champion over the
-    member's scope chain (its own scope, then global). None when no member of `kid` is the effective champion (or no board)."""
-    from .champion import Slot, effective_champion
+    """The board member of `kid` that carries decision weight (role CHAMPION; KnowledgeBoard.weight is the authority). None when no
+    member of `kid` is a champion, or no board is configured."""
     b = HUB.board
     if b is None:
         return None
     for mid, m in sorted(b.members.items()):
-        if m.knowledge_id != kid:
-            continue
-        slot = Slot.from_key(m.slot)
-        if effective_champion(b, slot.effect, slot.subsystem, _scope_chain(slot.scope)) == mid:
+        if m.knowledge_id == kid and b.weight(mid) > 0:
             return mid
     return None
 
 
+def champion_of(effect: Any, subsystem: Any, scope: str) -> str | None:
+    """champion.effective_champion for a production request: the most specific champion along (scope, global). None = no champion
+    anywhere, and the caller uses its general rule (neutral with no board)."""
+    from .champion import effective_champion
+    if HUB.board is None:
+        return None
+    found: str | None = effective_champion(HUB.board, effect, subsystem, _scope_chain(scope))
+    return found
+
+
 def board_weight(kid: str) -> float | None:
-    """The board's decision weight for a knowledge id: 1 if one of its members is the effective champion of its slot, 0 if it is
-    registered but not deciding (shadow, challenger, retired, or shadowed by a more specific champion), None if the board has never
-    heard of it (or no board is configured)."""
+    """The board's decision weight for a knowledge id: 1 if any of its members is a champion, 0 if it is registered but not one,
+    None if the board has never heard of it (or no board is configured)."""
     b = HUB.board
     if b is None:
         return None
-    if not any(m.knowledge_id == kid for m in b.members.values()):
+    mine = [mid for mid, m in b.members.items() if m.knowledge_id == kid]
+    if not mine:
         return None
-    return 1.0 if deciding_member(kid) is not None else 0.0
+    return max(b.weight(mid) for mid in mine)
 
 
 def effective_weight(kid: str, legacy_weight: float, run: str | None = None) -> float:
@@ -676,7 +753,14 @@ def end_decision_run(run: str) -> list[dict[str, Any]]:
     used = HUB.used.pop(run, set())
     if HUB.board is None:
         return []
+    from .champion import Slot
     bad: list[dict[str, Any]] = audit_decision_sources(HUB.board, {run: sorted(used)})
+    flagged = {str(v["mid"]) for v in bad}
+    for mid in sorted(used - flagged):             # a champion that is not the EFFECTIVE champion of its slot decided out of turn
+        slot = Slot.from_key(HUB.board.members[mid].slot)
+        eff = champion_of(slot.effect, slot.subsystem, slot.scope)
+        if eff != mid:
+            bad.append({"decision": run, "mid": mid, "problem": f"not the effective champion of {slot.key} (that is {eff})"})
     HUB.delivered["decision_runs_audited"] += 1
     HUB.source_violations.extend(bad)
     for v in bad:

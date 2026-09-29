@@ -49,6 +49,7 @@ from . import failure as FL
 from . import firewalls as FW
 from . import knowledge as KN
 from . import knowledge_graph as KG
+from . import loop_hooks as LH
 from . import meta_learning as ML
 from . import missed_winners as MW
 from . import postmortem as PM
@@ -173,9 +174,10 @@ class LearnerConfig:
     audit_weeks: int = 12
     transfer_every: int = 16
     similarity: SM.SimilarityWeights | None = None
+    hooks: LH.HookConfig = LH.HookConfig()
 
     def validate(self) -> list[str]:
-        errs = []
+        errs = [f"hooks: {e}" for e in self.hooks.validate()]
         if self.horizon_days < 1:
             errs.append("horizon_days < 1")
         if self.top_n < 1:
@@ -391,6 +393,9 @@ class LegitimateLearner:
         self.meta_update = None
         self.research_step = None
         self.counters: dict[str, int] = {}
+        # ---- every other learning module, each called from the stage that owns it (loop_hooks.py); persisted under workdir/loop
+        self.hooks = LH.LoopHooks(self, c.hooks, self.workdir / "loop")
+        self.experiments = self.hooks.experiments
 
     # ------------------------------------------------------------------------------------------------ guards
     def freeze(self) -> "LegitimateLearner":
@@ -429,7 +434,7 @@ class LegitimateLearner:
     def _admit(self, now, subject: str, **kw) -> None:
         """The firewall gate (contract 55) at a stage that consumes data or memory; a failed layer stops the step."""
         ctx = FW.GateContext(now=now, subject=subject, **kw)
-        self.gate.admit(ctx)
+        self.hooks.note_gate(self.gate.admit(ctx), now)
 
     # ------------------------------------------------------------------------------------------------ candidate patterns
     def _candidate_features(self, panel: pd.DataFrame) -> tuple[str, ...]:
@@ -506,7 +511,7 @@ class LegitimateLearner:
         with self._stage(ep, Stage.RETRIEVE) as box:
             visible = self.store.visible(ep.now)
             lineage = [k for kid in self.store.ids() for k in self.store.history(kid) if k.visible_at(ep.now)]
-            self._admit(ep.now, "retrieve", items=list(visible), all_items=lineage,
+            self._admit(ep.now, "retrieve", items=list(visible), all_items=lineage, knowledge_store=self.store,
                         relevant=frozenset({FW.LayerName.MEMORY}))
             n_items = 0
             for r in ep.rows:
@@ -525,11 +530,12 @@ class LegitimateLearner:
         st = self.tracker.state(kid, now, ctx_now)
         dec = RL.decide(st)
         w = dec.weight
-        if self.retirement.known(kid):
-            w *= self.retirement.influence(kid, now, st.current_reliability)
-        prof = self.temporal.get(kid, now)
-        if prof is not None:
-            w *= TP.expected_influence(prof, now)
+        if self.retirement.known(kid):                  # lifecycle x calibration x temporal (calibration.combined_influence)
+            w *= self.hooks.influence(kid, now, ctx_now, st.current_reliability)
+        else:
+            prof = self.temporal.get(kid, now)
+            if prof is not None:
+                w *= TP.expected_influence(prof, now)
         return float(max(0.0, min(1.0, w))), dec.action
 
     def stage_assess(self, ep: _Episode) -> None:
@@ -569,10 +575,11 @@ class LegitimateLearner:
                         continue
                     pid = self._pid_of[kid]
                     est = self.context.estimate(pid, r.situation, ep.now, self.cfg.seed) if self.context.n_obs(pid) >= self.cfg.min_context_obs else None
-                    e = est.expected if est is not None and est.expected is not None else sup_edge
+                    shr = self.hooks.shrunk_expectation(kid, r.situation) if est is None or est.expected is None else None
+                    e = est.expected if est is not None and est.expected is not None else shr[0] if shr is not None else sup_edge
                     if e is None:
                         continue
-                    se = est.se if est is not None and est.se is not None else scale
+                    se = (est.se if est is not None and est.se is not None else shr[1] if shr is not None and shr[1] > 0 else scale)
                     num += w * e
                     den += w
                     var += (w * se) ** 2
@@ -605,6 +612,7 @@ class LegitimateLearner:
                 out.append(self._row_decision(r, slot_of[i], id(r) in chosen, len(chosen)))
                 r.decision = out[-1]
             ep.rows.sort(key=lambda r: r.decision.slot)
+            self.hooks.on_decide(ep)
             if ep.track:
                 self._log_influence(ep, out)
                 self.decisions.extend(sorted(out, key=lambda d: d.slot))
@@ -622,7 +630,7 @@ class LegitimateLearner:
         if key not in self._allow_cache:
             if len(self._allow_cache) > 512:
                 self._allow_cache.clear()
-            self._allow_cache[key] = DC.check(k, now).allowed
+            self._allow_cache[key] = self.hooks.contract_allows(k, now)
         return self._allow_cache[key]
 
     def _row_decision(self, r: _Row, slot: int, long: bool, n_long: int) -> RowDecision:
@@ -747,6 +755,7 @@ class LegitimateLearner:
             if self._tick % self.cfg.credit_every == 0 and len(self.credit_ledger) >= cc.min_decisions:
                 eng = CR.CreditEngine(CR.WeightedSumCombiner({"pattern": 1.0}), cc)
                 self.credit_reports.append(eng.assess(self.credit_ledger, now))
+            self.hooks.after_credit(ep, now)
             box["n"], box["note"] = n, f"{blamed} trades attributed"
 
     # ------------------------------------------------------------------------------------------------ 10. UPDATE BELIEFS
@@ -806,6 +815,7 @@ class LegitimateLearner:
                 pm = PM.build_postmortem(t, cls, SP.attribute(t, cls), env, now, uses, salt="learner", code_hash=self.code_hash)
                 self.postmortems.append(pm)
                 self.hypotheses.add(pm, t.loss)
+                self.hooks.on_failure(t, cls, pm, max(x.matured for x in ep.rows))
                 self._failure_rows.append({"knowledge_id": _safe(t.knowledge_ids[0]) if t.knowledge_ids else "none",
                                            "kid": t.knowledge_ids[0] if t.knowledge_ids else "", "when": t.resolved_at,
                                            "loss_share": min(1.0, t.loss / 0.05), "subsystem": str(cls.top_subsystem() or ""),
@@ -861,6 +871,7 @@ class LegitimateLearner:
                         if rule.confirmed and rule.role == "CONTEXT" and self.rules.add(rule, now):
                             found += 1
                     found += self._learn_boundaries(pid, now)
+            self.hooks.after_conditions(ep, now)
             box["n"], box["note"] = len(obs), f"{found} new conditions"
 
     def _learn_boundaries(self, pid: str, now) -> int:
@@ -946,6 +957,7 @@ class LegitimateLearner:
                         self.temporal.add(TP.estimate(kid, ser, now))
                 if len(self.calibration.records(now)) >= self.calibration.policy.min_n:
                     self.calibration_last = self.calibration.assess(now, self.cfg.seed)
+            self.hooks.after_reliability(ep, now)
             box["n"] = n
 
     def _retire_check(self, kid: str, pid: str, dirn: int, now) -> None:
@@ -1073,6 +1085,7 @@ class LegitimateLearner:
                 return
         elif m.role == Promotion.CHALLENGER and len(m.shadow) >= self._min_sessions_for_gate() and self._tick % self.cfg.discover_every == 0:
             k = self.store.get(kid, m.version)                # the board gates the exact version it registered
+            self.hooks.readiness(self.store.latest(kid), now)
             res = self.board.attempt_promotion(k, self._promotion_evidence(kid, pid, now, learned), now)
             self._gate_log.append((kid, res["promoted"], tuple(res["decision"].critical_failures)))
             if res["promoted"]:
@@ -1312,6 +1325,7 @@ class LegitimateLearner:
                 else:
                     g.add_edge(cn, kid, KG.Edge.CAUSES_FAILURE_OF, matured)
                 n_edges += 1
+            self.hooks.after_graph(ep, now)
             box["n"], box["note"] = n_edges, f"{len(g.nodes(now))} nodes visible"
 
     # ------------------------------------------------------------------------------------------------ 18. UPDATE META-KNOWLEDGE
@@ -1343,6 +1357,7 @@ class LegitimateLearner:
             if self._tick % self.cfg.meta_every == 0:
                 self.meta_update = self.meta.update(now, self.cfg.seed)
                 self.meta_advice = self.meta_update.advice
+            self.hooks.after_meta(ep, now)
             box["n"] = added
 
     # ------------------------------------------------------------------------------------------------ 19. SELECT NEXT RESEARCH QUESTION
@@ -1352,6 +1367,7 @@ class LegitimateLearner:
         with self._stage(ep, Stage.SELECT_RESEARCH) as box:
             if self.experiments is None:
                 self.experiments = EM.ExperimentLedger()
+            learned = max(r.matured for r in ep.rows)
             recent = [r for r in self.surprise.records(now) if abs(r.z) >= 2.0][-8:]
             sig = RPR.signals_from_surprise_rows(
                 [{"subject": _safe(r.cell), "when": r.matured_at, "expected": r.expected, "observed": r.actual, "sd": r.scale,
@@ -1363,11 +1379,14 @@ class LegitimateLearner:
                 key = stable_hash(sorted(w.situation.situation_id for w in winners), 10)
                 sig += RPR.signals_from_missed_winners([{"situation_key": _safe(f"missed-{key}"), "when": max(r.matured for r in ep.rows),
                                                          "gain_share": min(1.0, len(winners) / len(ep.rows)), "n_obs": len(winners)}], now)
+            sig += self.hooks.research_signals(learned, now)
             budget = RP.ComputeBudget(cpu_minutes=self.cfg.cpu_minutes, ram_gb_free=8.0)
             step = self.research.step(sig, self.experiments, budget, now, self.cfg.seed, meta=self.meta_advice)
             self.next_questions = tuple(q.text for q in step.questions[:5])
             self.research_step = step
-            box["n"], box["note"] = len(sig), f"{len(step.questions)} questions, queue {step.queue_summary}"
+            closed = self.hooks.close_research(step, learned, now)
+            box["n"], box["note"] = len(sig), (f"{len(step.questions)} questions, {len(closed['proposed'])} proposed, "
+                                               f"{len(closed['answered'])} answered, queue {step.queue_summary}")
 
     # ------------------------------------------------------------------------------------------------ orchestration
     def decide_batch(self, now, panel: pd.DataFrame, track: bool = True) -> _Episode:
@@ -1418,6 +1437,7 @@ class LegitimateLearner:
         self.summaries[i] = dataclasses.replace(self.summaries[i], learned=True, matured_on=max(r.matured for r in ep.rows),
                                                 mean_edge_long=float(np.mean(longs)) if longs else None)
         self.last_learned_on = max(r.matured for r in ep.rows)
+        self.hooks.maybe_persist(now)
         return self.summaries[i]
 
     def ready(self, ep: _Episode, now) -> bool:
@@ -1461,7 +1481,7 @@ class LegitimateLearner:
                 "refusals": list(self._refusals)[-10:], "counters": dict(self.counters), "n_credit_reports": len(self.credit_reports),
                 "n_postmortems": len(self.postmortems.bodies()), "open_hypotheses": len(self.hypotheses),
                 "contradicting_pairs": len(self._contradicts), "questions": list(self.next_questions),
-                "influence_log_ok": not self.decision_log.verify()}
+                "influence_log_ok": not self.decision_log.verify(), "hooks": self.hooks.report()}
 
 
 class _CachedRetriever(RV.Retriever):

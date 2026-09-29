@@ -37,6 +37,7 @@ WAIVABLE = frozenset(set(GATES) - CRITICAL - {"incremental_value"})       # tran
 PASS, FAIL, MISSING, NA = "PASS", "FAIL", "MISSING", "NOT_APPLICABLE"
 RISK_FREE_EFFECTS = frozenset({DecisionEffect.RESEARCH_PRIORITY})          # changes what is studied, never what is held
 PROMOTABLE_EPISTEMIC = (Epistemic.SUPPORTED, Epistemic.CONDITIONAL)
+LEARNING_CLAIM_MODES = ("off", "record", "enforce")
 IDENTITY_TOKENS = re.compile(r"(^|_)(ticker|symbol|cusip|isin|permno|date|year|day|week|month|id|name|sedol)(_|$)", re.I)
 
 
@@ -598,12 +599,18 @@ class PromotionGate:
     """Runs the ten gates and returns an immutable decision. Stateless apart from its policy and the code hash it audits
     reruns against, so the same inputs always give the same decision id (section 56)."""
 
-    def __init__(self, policy: PromotionPolicy | None = None, code_hash: str | None = None):
+    def __init__(self, policy: PromotionPolicy | None = None, code_hash: str | None = None, learning_claim: str = "record"):
         self.policy = policy or PromotionPolicy()
         errs = self.policy.validate()
         if errs:
             raise ValueError(f"invalid promotion policy: {errs}")
         self.code_hash = code_hash if code_hash is not None else current_code_hash()
+        if learning_claim not in LEARNING_CLAIM_MODES:
+            raise ValueError(f"learning_claim must be one of {LEARNING_CLAIM_MODES}, not {learning_claim!r}")
+        # S21b: every evaluation of learned knowledge registers its evidence with the wiring hub and runs the composite learning-claim
+        # gate (scorecard + firewalls + identity). 'record' keeps the verdict beside the decision; 'enforce' makes it an eleventh,
+        # critical gate; 'off' skips it (for the gate's own unit tests of the ten gates in isolation).
+        self.learning_claim = learning_claim
 
     def applicable(self, gate: str, effects: Sequence[DecisionEffect]) -> tuple[bool, str]:
         """(applies, reason). Only non-critical gates can be waived; risk does not apply to pure research-priority knowledge."""
@@ -658,9 +665,31 @@ class PromotionGate:
                 results.append(GateResult(name, NA, name in CRITICAL, why))
             else:
                 results.append(self._run(name, table[name]))
+        if self.learning_claim != "off":
+            results.extend(self._learning_claim(k, now))
         blocked = bool(pre) or any(not r.ok for r in results)
         return PromotionDecision(str(getattr(k, "knowledge_id", "?")), int(getattr(k, "version", 0)), str(as_date(now)),
                                  "BLOCK" if blocked else "PROMOTE", tuple(results), tuple(pre), pol.digest(), ev.digest(), self.code_hash)
+
+
+    def _learning_claim(self, k: Any, now) -> list[GateResult]:
+        """Register this promotion with engine.learning.wiring and run its composite gate. In 'record' mode the verdict is persisted by
+        the hub and nothing is added to the decision (a crash is recorded there too); in 'enforce' mode it is returned as the critical
+        'learning_claim' gate, and a verdict that could not be produced is a FAIL (fail closed)."""
+        from . import wiring                                   # lazy: wiring imports champion, which imports this module
+        try:
+            v = wiring.on_knowledge_promotion(k, now)
+        except FirewallBreach:
+            raise
+        except Exception as e:                                 # noqa: BLE001
+            wiring.HUB.record_error("knowledge_promotion", e)
+            if self.learning_claim == "enforce":
+                return [GateResult("learning_claim", FAIL, True, f"learning-claim gate could not run: {type(e).__name__}: {e}")]
+            return []
+        if self.learning_claim != "enforce":
+            return []
+        detail = "scorecard, firewalls and identity all pass" if v.allowed else "; ".join(v.blockers)
+        return [GateResult("learning_claim", PASS if v.allowed else FAIL, True, detail, {"verdict": v.digest()})]
 
 
 # ------------------------------------------------------------------------------------------------ rejection report
@@ -675,6 +704,8 @@ REMEDIATION = {
     "reproducibility": "rerun with the current code on two or more seeds, repeating one seed to prove determinism",
     "stability": "run sub-period and parameter-perturbation checks; the effect must not hinge on one period",
     "provenance_completeness": "fill the missing provenance fields from the experiment record",
+    "learning_claim": "register the learner's scorecard and identity-harness report (wiring.register_scorecard / register_identity) "
+                      "and make sure the knowledge could exist at the decision date",
 }
 
 
@@ -732,7 +763,7 @@ def failure_statistics(decisions: Sequence[PromotionDecision]) -> dict:
     for d in decisions:
         for r in d.results:
             key = {PASS: "pass", FAIL: "fail", MISSING: "missing", NA: "na"}[r.status]
-            out[r.gate][key] += 1
+            out.setdefault(r.gate, {"fail": 0, "missing": 0, "pass": 0, "na": 0})[key] += 1   # + learning_claim when enforced
     return {"n_decisions": n, "promoted": sum(d.promote for d in decisions),
             "by_gate": out, "never_failed": [g for g, c in out.items() if n and c["fail"] + c["missing"] == 0],
             "always_blocked": [g for g, c in out.items() if n and c["fail"] + c["missing"] == n]}
@@ -797,7 +828,7 @@ def evidence_completeness(ev: PromotionEvidence) -> dict:
 def compare_decisions(a: PromotionDecision, b: PromotionDecision) -> dict:
     """Gate-by-gate change between two decisions on the same knowledge (e.g. before/after collecting more evidence)."""
     sa, sb = {r.gate: r.status for r in a.results}, {r.gate: r.status for r in b.results}
-    changed = {g: (sa[g], sb[g]) for g in GATES if sa.get(g) != sb.get(g)}
+    changed = {g: (sa.get(g), sb.get(g)) for g in (*GATES, "learning_claim") if sa.get(g) != sb.get(g)}
     return {"changed": changed, "fixed": sorted(g for g, (x, y) in changed.items() if x != PASS and y == PASS),
             "regressed": sorted(g for g, (x, y) in changed.items() if x == PASS and y != PASS),
             "same_policy": a.policy_digest == b.policy_digest, "same_evidence": a.evidence_digest == b.evidence_digest,

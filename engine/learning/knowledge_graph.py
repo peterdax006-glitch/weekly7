@@ -751,6 +751,13 @@ class KnowledgeGraph:
     def contradiction_pairs(self, now) -> list[tuple[str, str]]:
         return [(e.src, e.dst) for e in self.edges(now, Edge.CONTRADICTS)]
 
+    def contradiction_keys(self, now) -> list[tuple[str, str]]:
+        """Every pair that has EVER carried a CONTRADICTS edge known strictly before `now`, retracted ones included (a resolved
+        contradiction keeps its history); the public read the contradiction monitor needs instead of the private edge map."""
+        n = as_date(now)
+        rel = Edge.CONTRADICTS.value
+        return sorted({(k[0], k[1]) for k, vs in self._edges.items() if k[2] == rel and any(as_date(v.known_at) < n for v in vs)})
+
     def impact_analysis(self, node: str, now, max_depth: int = 8) -> dict[str, list[str]]:
         """What would be affected if this belief were retired: dependants, specialisations, and decisions that used it."""
         dep = self.traverse(node, now, DEPENDENCY_RELS, "in", max_depth).nodes()[1:]

@@ -77,6 +77,12 @@ def log_experiment(rec, cfg=None, seed=None, **fields):
     with open(REG, "a") as f:
         f.write(json.dumps(rec, default=float) + "\n")
     wiring.on_experiment(rec, REG)                     # mirror into the ExperimentLedger facade (sink: cannot break this write)
+    if str(rec.get("outcome")).lower() in ("adopt", "reject"):
+        # S21b: a DECIDED experiment is the production Phase-30 memory entry (registry.ExperimentMemory is never built outside tests);
+        # its answers are what the record says, nothing is filled in
+        params = rec.get("model_params")
+        wiring.on_memory_entry(rec["experiment_id"], params if isinstance(params, dict) else {}, wiring.memory_answers(rec), rec["t"], REG,
+                                version_existing=True)
 
 
 def n_trials():
@@ -329,6 +335,8 @@ def recalibrate(stocks):
 # ---------------- 7. weekly driver ----------------
 def weekly():
     from .data import load
+    from .learning import wiring
+    wiring.configure_production("improve")             # S21b: sinks persist under state/learning/hub/improve; the board scales weights
     stocks = load("stocks")
     meta = _j(META, {"version": "1.0", "w_model": 0.5, "w_options": 0.15})
     S = load_scores()

@@ -331,6 +331,7 @@ class LessonBook:
         self.lessons = {}
         self.tick_n = 0
         self.rejected_mining = {}          # reason -> count, for the report
+        self._runs = 0                     # decision runs made through adjust() (names each run for the board source audit)
 
     # ---- episodes
     def record(self, episodes):
@@ -535,13 +536,14 @@ class LessonBook:
     def active(self):
         return [L for L in self.lessons.values() if L.status == "active"]
 
-    def factor(self, X):
-        """Multiplier per row from every active lesson that applies; each is pulled toward 1 by (1 - trust weight)."""
+    def factor(self, X, run=None):
+        """Multiplier per row from every active lesson that applies; each is pulled toward 1 by (1 - trust weight).
+        run: the decision run this factor feeds (adjust() passes one) so the board members that carried weight are audited."""
         f = np.ones(len(X))
         for L in self.active():
             if L.action != "reweight":
                 continue
-            w = _wiring().effective_weight(L.lid, L.weight())      # S17a ADAPTER: board-scaled only for registered knowledge
+            w = _wiring().effective_weight(L.lid, L.weight(), run)  # S17a ADAPTER: board-scaled only for registered knowledge
             if w > 0:
                 f[L.mask(X)] *= 1.0 + w * (L.factor - 1.0)
         lo, hi = self.p["factor_clip"]
@@ -563,7 +565,13 @@ class LessonBook:
         return d
 
     def adjust(self, score, X):
-        return score * self.factor(X).reindex(score.index).to_numpy()
+        """A decision run: the lesson factors re-weight `score`. Afterwards (S21b) the knowledge that carried weight is audited
+        against the board: only champions may have influenced it (neutral when no board is configured)."""
+        self._runs += 1
+        run = f"lessons.adjust:{self._runs}"
+        out = score * self.factor(X, run).reindex(score.index).to_numpy()
+        _wiring().end_decision_run(run)
+        return out
 
     def tick(self, n=1):
         """Advance the book's own clock; lessons older than their ttl expire."""

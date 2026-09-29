@@ -44,8 +44,8 @@ jobs:
         run: python -m mypy
       - name: Trader path cannot reach the curator (C64/C65 blind separation)
         run: python -c "from engine.learning import trader_view as T; print(T.assert_trader_path_clean(), 'modules inspected')"
-      - name: Every declared learning hook is really called by the old engine
-        run: python -c "from engine.learning import wiring as W; m = W.unwired_hooks(); assert not m, m; print('all', len(W.HOOKS), 'hooks connected')"
+      - name: Every learning module and hook is reachable from the production entry points (call graph, not text; C65 live parked)
+        run: python scripts/reachability.py --fail-on all --json state/research/reachability/report.json
       - name: Contract line report (one ruler, section 60; report only, never gates)
         run: python scripts/contract_lines.py | tail -80
       - name: Test suite
