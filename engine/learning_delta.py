@@ -267,6 +267,14 @@ def archive_presentation(window):
 # ---------------------------------------------------------------------------------------------------------------
 # blindness audit (C55)
 # ---------------------------------------------------------------------------------------------------------------
+def has_token(text, tokens, min_len=2):
+    """True when any token occurs in `text` as a whole alphanumeric token (a short id inside a hex hash is not a leak)."""
+    for t in tokens:
+        if t and len(t) >= min_len and re.search(r"(?<![A-Za-z0-9])" + re.escape(t) + r"(?![A-Za-z0-9])", text):
+            return True
+    return False
+
+
 def _texts(obj, depth=0):
     """Every string reachable in a small nested structure (keys, values, attrs, index and column names)."""
     if depth > 4:
@@ -324,7 +332,7 @@ def audit_presentation(pres, window, rec, visible=None, kind="run2", order_prese
     if pres.opens is not None:
         strings += list(_frame_texts(pres.opens))
     for t in strings:
-        if any(f and f in t for f in forbidden if len(f) >= 2):
+        if has_token(t, forbidden):
             fail(f"an identifying token appears in what the player can read: {t[:60]!r}")
             break
     codes = set(pres.closes.columns)
@@ -388,13 +396,13 @@ def audit_visible(vis, window, kind="run2"):
     text = "\n".join(list(_texts(vis.cfg)) + list(_texts(vis.meta)) + list(_texts(vis.extra))
                      + (list(map(str, vis.ltm["arm"].unique()[:5000])) if vis.ltm is not None and len(vis.ltm) else []))
     forbidden = {window.id} | set(window.real_tickers)
-    if any(f in text for f in forbidden if len(f) >= 2):
+    if has_token(text, forbidden):
         out.append(BG.Finding(g, "fail", f"[{kind}] the learned state contains the window id or a real ticker"))
     years = {window.real_start.year, window.real_end.year}
     for y in sorted(years):
-        if re.search(rf"{y}", text):
+        if re.search(rf"\b{y}\b", text):
             out.append(BG.Finding(g, "fail", f"[{kind}] the learned state mentions the real year {y}"))
-    if re.search(r"real_end|real_start|window", " ".join(map(str, vis.extra.keys()))):
+    if re.search(r"real_|window|run_id|test_id|hidden|sealed|seed_year|tick|symbol", " ".join(map(str, vis.extra.keys())), re.I):
         out.append(BG.Finding(g, "fail", f"[{kind}] the learned state carries a window or real-date field"))
     return out
 
@@ -625,17 +633,17 @@ def synthetic_window(seed, wid, n_stocks=40, n_weeks=30, beta=0.02, noise=0.03, 
     fwd = beta * sig + noise * rng.normal(size=(n_weeks, n_stocks))
     logp = np.zeros((len(sessions), n_stocks))
     for w in range(n_weeks):
-        i0 = 5 * w
+        i0 = 5 * w + 4                                       # decisions on a week's last session (a Friday)
         step = np.log1p(fwd[w]) / 5.0
         for s in range(1, 6):
             logp[i0 + s] = logp[i0 + s - 1] + step
-    logp[5 * n_weeks + 1:] = logp[5 * n_weeks]
+    logp[5 * n_weeks + 5:] = logp[5 * n_weeks + 4]
     closes = pd.DataFrame(100 * np.exp(logp), index=sessions, columns=codes)
     opens = closes.shift(1).fillna(closes.iloc[0])
     ctx = rng.normal(size=(n_weeks, 6))
     snaps = {}
     for w in range(n_weeks):
-        d = sessions[5 * w]
+        d = sessions[5 * w + 4]
         df = pd.DataFrame({"sig": sig[w], "mu_raw": sig[w], "p_move": rng.uniform(size=n_stocks),
                            "evidence": sig[w], "vol20": rng.uniform(0.1, 0.5, n_stocks), "max20": rng.uniform(0.0, 0.2, n_stocks),
                            "log_dv": rng.uniform(15, 20, n_stocks), "ev_red_flag": 0.0, "ev_offering": 0.0,
@@ -823,6 +831,10 @@ def aggregate(recs, seed=0, n_boot=2000):
             mean, lo, hi, n = boot_ci(v, n_boot, seed=derive_seed(seed, m, name) % (2 ** 31))
             row[name] = {"mean": mean, "lo": lo, "hi": hi, "n": n,
                          "share_pos": float(np.mean([x > 0 for x in v if np.isfinite(x)])) if any(np.isfinite(x) for x in v) else float("nan")}
+        for name in ("same", "effect", "transfer"):
+            v = {"same": same, "effect": eff, "transfer": trans}[name]
+            row[name]["p_signflip"] = signflip_p(v, seed=derive_seed(seed, m, name, "p") % (2 ** 31))
+        row["luck_floor"] = float(np.nanmean(np.abs(shuf))) if len(shuf) else float("nan")
         row["run1_mean"] = float(np.nanmean([r["run1"][m] for r in recs])) if recs else float("nan")
         row["run2_mean"] = float(np.nanmean([r["run2"][m] for r in recs])) if recs else float("nan")
         out["metrics"][m] = row
@@ -833,10 +845,51 @@ def aggregate(recs, seed=0, n_boot=2000):
                             "transfer_mean_week": float(np.nanmean(_col(sub, "transfer_s0", "transfer_s1", "mean_week"))) if any("transfer_s0" in r for r in sub) else float("nan")}
     out["noise_max_abs"] = {m: float(np.nanmax(np.abs(_col(recs, "run1", "run2_noise", m)))) if _col(recs, "run1", "run2_noise", m) else float("nan")
                             for m in METRICS}
+    out["by_bank"] = {}
+    for label, sub in (("empty_bank", [r for r in recs if r["s0_episodes"] == 0]), ("with_bank", [r for r in recs if r["s0_episodes"] > 0])):
+        if sub:
+            out["by_bank"][label] = {"n": len(sub), "mean_week_same": float(np.nanmean(_col(sub, "run1", "run2", "mean_week"))),
+                                     "mean_week_transfer": float(np.nanmean(_col(sub, "transfer_s0", "transfer_s1", "mean_week")))
+                                     if any("transfer_s0" in r for r in sub) else float("nan")}
     out["anachronistic_share"] = float(np.mean([r.get("transfer_anachronistic", False) for r in recs if "transfer_s0" in r])) if any("transfer_s0" in r for r in recs) else float("nan")
     out["verdict"] = verdict(out["metrics"][PRIMARY], out["n_pairs"], out["noise_max_abs"][PRIMARY])
+    fl = out["metrics"][PRIMARY].get("luck_floor")
+    ef = out["metrics"][PRIMARY]["effect"]["mean"]
+    if fl is not None and np.isfinite(fl) and np.isfinite(ef) and abs(ef) < fl:
+        out["verdict"]["notes"].append(f"the learning effect ({ef:+.5f}) is smaller than the tie-break luck floor ({fl:.5f}) that a random "
+                                       "relabel alone produces; any system that reads code-name order can fake a delta of that size")
     out["verdict_in_band"] = verdict(out["metrics"]["in_band"], out["n_pairs"], out["noise_max_abs"]["in_band"])
     return out
+
+
+def signflip_p(x, n_perm=4000, seed=0):
+    """Two-sided sign-flip permutation p-value that the mean of paired deltas is zero (no distributional assumption).
+    Exact enumeration for up to 12 pairs, seeded Monte Carlo above. NaN with no data; 1.0 when every delta is zero."""
+    a = np.asarray([v for v in x if np.isfinite(v)], float)
+    if len(a) == 0:
+        return float("nan")
+    obs = abs(a.mean())
+    if obs == 0:
+        return 1.0
+    if len(a) <= 12:
+        signs = np.array([[1 if (i >> j) & 1 else -1 for j in range(len(a))] for i in range(2 ** len(a))])
+    else:
+        signs = np.random.default_rng(seed).choice([-1, 1], size=(n_perm, len(a)))
+    perm = np.abs((signs * a).mean(axis=1))
+    return float((perm >= obs - 1e-15).mean())
+
+
+def pair_table(recs):
+    """One row per pair for the CSV and the report: the window, its era, and the primary metric on every play."""
+    rows = []
+    for r in recs:
+        row = {"window": r["window"], "transfer": r.get("transfer"), "era": r["era"], "s0_episodes": r["s0_episodes"],
+               "s1_episodes": r["s1_episodes"], "anachronistic": r.get("transfer_anachronistic")}
+        for k in ("run1", "run2", "run2_noise", "run2_shuffle", "transfer_s0", "transfer_s1"):
+            for m in ("mean_week", "in_band", "worst5"):
+                row[f"{k}.{m}"] = r[k][m] if k in r else float("nan")
+        rows.append(row)
+    return pd.DataFrame(rows)
 
 
 def verdict(row, n, noise_max_abs=0.0, min_pairs=3, memo_ratio=0.5):
@@ -1052,6 +1105,18 @@ def render_report(summary):
           "| era | n | mean_week delta | in_band delta | worst5 delta | transfer mean_week |", "|---|---|---|---|---|---|"]
     for e, r in a["by_era"].items():
         L.append(f"| {e} | {r['n']} | {_f(r['mean_week'])} | {_f(r['in_band'])} | {_f(r['worst5'])} | {_f(r['transfer_mean_week'])} |")
+    if a["by_bank"]:
+        L += ["", "## By size of the starting memory bank", "", "| S0 bank | n | same-year mean_week delta | transfer mean_week delta |", "|---|---|---|---|"]
+        for k, r in a["by_bank"].items():
+            L.append(f"| {k} | {r['n']} | {_f(r['mean_week_same'])} | {_f(r['mean_week_transfer'])} |")
+    pm = a["metrics"][PRIMARY]
+    L += ["", f"Sign-flip p-values on mean_week: same-year {_f(pm['same']['p_signflip'])}, learning effect {_f(pm['effect']['p_signflip'])}, "
+          f"transfer {_f(pm['transfer']['p_signflip'])}. Tie-break luck floor (mean |random relabel - run 1|): {_f(pm['luck_floor'])}."]
+    if summary.get("pair_rows"):
+        L += ["", "## Per pair (mean_week)", "", "| window | era | bank | run1 | run2 | noise ctrl | transfer S0 | transfer S1 |", "|---|---|---|---|---|---|---|---|"]
+        for r in summary["pair_rows"]:
+            L.append(f"| {r['window']} | {r['era']} | {r['s0_episodes']} | {_f(r['run1.mean_week'])} | {_f(r['run2.mean_week'])} | "
+                     f"{_f(r['run2_noise.mean_week'])} | {_f(r['transfer_s0.mean_week'])} | {_f(r['transfer_s1.mean_week'])} |")
     mem = summary.get("memoriser_control")
     if mem:
         mm = mem["aggregate"]["metrics"][PRIMARY]

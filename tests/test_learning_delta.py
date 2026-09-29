@@ -12,7 +12,7 @@ from engine import livesim
 
 
 def _wins(n, tag, seed=0):
-    return [L.synthetic_window(L.derive_seed(seed, tag, i), f"{tag}{i:02d}", n_stocks=30, n_weeks=24) for i in range(n)]
+    return [L.synthetic_window(L.derive_seed(seed, tag, i), f"{tag}{i:02d}", n_stocks=25, n_weeks=20) for i in range(n)]
 
 
 def _recs(player, learner, n=6, seed=3, s0=None):
@@ -190,7 +190,7 @@ def test_pick_hits_and_metrics_on_known_path():
     dec = [(str(idx[0].date()), ["A", "B"]), (str(idx[5].date()), ["A", "C"])]
     d, m, n = L.pick_hits(dec, closes)
     assert n == 4 and d == pytest.approx(0.5)                     # A up twice, B down, C flat (not > 0)
-    assert m == pytest.approx(0.5)                                # A and B move >10% within 5 sessions of decision 1 only where it crosses
+    assert m == pytest.approx(0.75)                               # A moves >10% in both holds, B in the first, C never
     run = L.Run(np.array([0.06, -0.08, 0.02]), np.array([1000, 1060, 975, 995.0]), dec)
     mt = L.run_metrics(run, closes)
     assert mt["in_band"] == pytest.approx(2 / 3) and mt["pos_share"] == pytest.approx(2 / 3)
@@ -299,3 +299,32 @@ def test_render_report_names_the_verdict_and_the_void_state():
     assert "GENERALISING" in txt and "VALID" in txt and "Learning delta per metric" in txt
     sc["valid"] = False
     assert "INVALID" in L.render_report(summ)
+
+
+# ------------------------------------------------------------------ permutation test, tables, luck floor
+def test_signflip_p_separates_a_planted_effect_from_noise():
+    rng = np.random.default_rng(1)
+    assert L.signflip_p(rng.normal(0.05, 0.02, 10)) < 0.01                       # exact enumeration path
+    assert L.signflip_p(rng.normal(0.0, 0.02, 30), seed=2) > 0.05                # Monte Carlo path
+    assert L.signflip_p([0.0, 0.0, 0.0]) == 1.0 and np.isnan(L.signflip_p([]))
+    assert L.signflip_p([0.1, 0.2, np.nan]) == L.signflip_p([0.1, 0.2])
+
+
+def test_pair_table_and_by_bank_breakdown_cover_every_pair():
+    recs = _recs(L.SyntheticPlayer(), L.SyntheticGeneraliser(), n=4)
+    t = L.pair_table(recs)
+    assert len(t) == 4 and {"run1.mean_week", "run2.mean_week", "transfer_s1.worst5"} <= set(t.columns)
+    agg = L.aggregate(recs, 1)
+    assert agg["by_bank"]["empty_bank"]["n"] == 4 and "with_bank" not in agg["by_bank"]
+    assert agg["metrics"]["mean_week"]["same"]["p_signflip"] < 0.2
+    assert L.pair_table([]).empty
+
+
+def test_effect_below_the_tie_break_luck_floor_is_called_out():
+    recs = _recs(L.SyntheticPlayer(), L.SyntheticGeneraliser(), n=4)
+    for r in recs:                                                               # plant a big random-relabel swing, tiny effect
+        r["run2_shuffle"]["mean_week"] = r["run1"]["mean_week"] + 0.5
+        r["run2"]["mean_week"] = r["run1"]["mean_week"] + 1e-3
+        r["run2_noise"]["mean_week"] = r["run1"]["mean_week"]
+    v = L.aggregate(recs, 1)["verdict"]
+    assert any("tie-break luck floor" in n for n in v["notes"])

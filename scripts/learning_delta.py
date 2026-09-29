@@ -124,7 +124,9 @@ def main():
     if not sc["valid"] or memo_ok is False:
         agg["verdict"] = {"label": "VOID", "why": "harness self-check or the real-window memoriser control failed; verdict withheld",
                           "notes": []}
-    summary = {"tag": a.tag, "seed": a.seed, "learner": getattr(learner, "name", "?"), "basis_version": st["version"],
+    table = L.pair_table(recs)
+    table.to_csv(out / "pairs.csv", index=False)
+    summary = {"tag": a.tag, "pair_rows": json.loads(table.to_json(orient="records")), "seed": a.seed, "learner": getattr(learner, "name", "?"), "basis_version": st["version"],
                "provenance": provenance.stamp({"cfg": st["cfg"], "meta": st["meta"]}, seed=a.seed),
                "selfcheck": sc, "aggregate": agg, "memoriser_control": {"aggregate": magg, "sees_memorisation": memo_ok} if magg else None,
                "blindness": {"n_audits": n_audits, "n_failed": n_failed}, "caveats": L.CAVEATS,
