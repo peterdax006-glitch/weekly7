@@ -39,15 +39,15 @@ Foundation status per Bible phase (line ranges, tests): `state/build/FOUNDATION.
   - Evidence: state/research/algorithm/planted/report.md
 
 ## Find volatility
-- [~] V1 95% mover target. Best is `_irf` at 85.6% top-10 (97.4% at the 92% bar on 5.6 picks/week); `_i` is 84.7%. The ab/ad/abad/st variants are within ±0.3 pt, so no gain. Survivor-biased.
-- [~] V2 Direction at ≥80% calibrated confidence: engine/direction.py (B07). Stacked model; Platt/isotonic calibration on a later block; Brier, log loss, ECE and reliability; the gate abstains unless calibration is proven out of sample. Real-data study in progress.
+- [~] V1 95% mover target. Best is `_irf` at 85.6% top-10 (97.4% at the 92% bar on 5.6 picks/week); `_i` is 84.7%. The ab/ad/abad/st variants are within ±0.3 pt, so no gain. Survivor-biased. End-to-end pipeline (V5 run, 2013-2026): picks touch +-10% within the week 57.9% (CI 55.8-60.2%) vs a 14.6% base rate; weeks with 10 candidates above the 95% threshold: 0.1% - the 95% target is not reachable with current inputs.
+- [~] V2 Direction at ≥80% calibrated confidence: engine/direction.py (B07). Stacked model; Platt/isotonic calibration on a later block; Brier, log loss, ECE and reliability; the gate abstains unless calibration is proven out of sample. Real-data study in progress. End-to-end (V5 run): gate opened in 0 of 716 weeks (coverage 0); movers-only direction accuracy 47.5%.
 - [x] V2b Per-stock-type trust tables: engine/trust.py + trust_store.py (versioned, drift monitor; B07, 44 tests). Real walk-forward: no type carries direction skill. EVALUATED - NOT ADOPTED (neutral weights). Evidence: state/research/direction/, docs/trust_report_direction.html.
 - [x] V3 Exit learner: engine/exits.py (B08). Real walk-forward (19,304 positions, 2005-2022): out-of-sample gain CIs straddle 0, chosen rule flips between folds; pattern-failure exits carry no information (z~1). EVALUATED - NOT ADOPTED: exits stay week-end. Evidence: state/research/exits_stops/, state/research/pattern_fail/.
 - [x] V4 Stop/risk learner: engine/stops.py + engine/gaprisk.py (B08, 51 tests). Stops cut P(loss>20%) 3.3% -> 1.2% but gaps leave a -73% worst loss; the conditional gap model is calibrated (5.2%/1.06% exceedance vs 5%/1%); holding the -20% cap at 1% needs dropping ~41% of positions (loss-cap filter). Evidence: state/research/gaprisk/. The -20% GOAL itself is tracked under V5.
   - Stops cut P(loss>20%) from 3.3% to 1.2%, but the worst loss is still -73% because of overnight gaps.
   - The gap model is miscalibrated: 11-16% of nights beyond its 95% tail, against a 5% target.
   - A conditional gap model is being built.
-- [~] V5 8 of 10 at +10% across blind eras: engine/fv_pipeline.py (B19; 23 tests: reaches 8/10 when direction is knowable, abstains on noise). Real run (scripts/fv_eval.py run1) in progress.
+- [~] V5 8 of 10 at +10% across blind eras: TARGET NOT MET. Real walk-forward run (engine/fv_pipeline.py, 300 tickers, 716 weeks 2013-2026, 56 origins; future-scramble audit identical on 195 decisions): the direction gate (80%) never opens in any era, so the full pipeline takes no bets (share10 lower bound 0.00 < 0.80). Movers-only: 15% of picks finish >= +10%, +0.34%/wk mean (CI -0.05..+0.72), worst single position -71%. Evidence: state/research/fv/run1/report.md.
 
 ## Test
 - [x] T1 Archive (39 windows rebuilt with the move signal, insider data and opening prices; regen logs).
