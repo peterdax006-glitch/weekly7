@@ -1,0 +1,19 @@
+{
+ "code_hash": "8aa5f116824cd66a",
+ "code_files": [
+  "engine/__init__.py",
+  "engine/config.py",
+  "engine/direction.py",
+  "engine/direction_features.py",
+  "engine/provenance.py",
+  "scripts/direction_research.py"
+ ],
+ "code_mixed": [],
+ "git_commit": "fff96b85daa8d0055b7fa1ff60b6e72ce82e19cb+dirty",
+ "canon_sha": "00bf97d3ae2dcdc2",
+ "bible_sha": "a97ea91862cee371",
+ "blueprint_version": "4.0",
+ "config_hash": "a09c073167d024dc",
+ "data_snapshot": "171ba8ba728ee713",
+ "seed": 7
+}
