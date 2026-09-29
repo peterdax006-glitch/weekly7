@@ -97,7 +97,7 @@ class SimilarityWeights:
     min_total_coverage: float = 0.5         # share of total weight that must be available for a total to exist
     coverage_aware: bool = True             # scale both thresholds down when the pair itself observes few fields (see thresholds)
     coverage_factor: float = 0.9            # share of the sparser side's observed fields the overlap must cover
-    coverage_floor: float = 0.1             # never accept less than this: one accidental field must not make two cases comparable
+    coverage_floor: float = 0.25            # never accept less than this share of the weight: a lone block must not make two cases comparable
 
     def as_dict(self) -> dict[str, float]:
         return dict(self.values)
@@ -1201,7 +1201,7 @@ def weights_from_record(d: Mapping[str, Any]) -> SimilarityWeights:
                           field_weights=tuple(sorted((p, float(v)) for p, v in d["field_weights"].items())),
                           min_component_coverage=float(d["min_component_coverage"]), min_total_coverage=float(d["min_total_coverage"]),
                           coverage_aware=bool(d.get("coverage_aware", True)), coverage_factor=float(d.get("coverage_factor", 0.9)),
-                          coverage_floor=float(d.get("coverage_floor", 0.1)))
+                          coverage_floor=float(d.get("coverage_floor", 0.25)))
     errs = w.validate()
     if errs:
         raise ValueError("; ".join(errs))

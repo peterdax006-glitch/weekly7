@@ -2,7 +2,13 @@
 rounds the loop trains the training basis (starting defaults + adaptation meta-parameters). No manual
 changes mid-test (C16). Anti-cheat gates every round (C18). Volatility-first while below 1%/week (C21).
 
-usage: livesim_loop2.py [max_windows]"""
+usage: livesim_loop2.py [max_windows] [--learner legit|off]
+
+--learner legit (canon C64, default off until Stage 3 validation): every worker also runs the LegitimateLearner as a SHADOW decider
+behind engine.learning.test_path - the trader sees only the curator's TraderDay plus the hardened feed, what it learns is filed under
+the real year on the trusted side. The traded path (adaptive.Session) is unchanged, so the re-tester, future-scramble, fill audit,
+RevealGate, per-round checkpoint and basis lineage all judge exactly what they judged before. The learner's report is stored under
+`legit` in result2.json; its own gates (trader path clean, no date-like release, intact store chains) exclude a window on failure."""
 import json, sys, time, subprocess, glob, threading
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -16,6 +22,22 @@ DIR = livesim.DIR
 SRC_FILE = Path(__file__).resolve()
 STATE = DIR / "loop2.json"
 MAXW = int(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1].isdigit() else 60
+
+
+def learner_flag(argv):
+    """The --learner mode named on the command line: 'off' (default) or 'legit'. Anything else is refused, never guessed."""
+    if "--learner" not in argv:
+        return "off"
+    i = argv.index("--learner")
+    mode = argv[i + 1] if i + 1 < len(argv) else ""
+    if mode not in ("off", "legit"):
+        raise SystemExit(f"--learner must be 'legit' or 'off', not {mode!r}")
+    return mode
+
+
+LEARNER = learner_flag(sys.argv)
+LEARNER_ARGS = ["--learner", LEARNER] if LEARNER != "off" else []
+CURATOR_ROOT = K.STATE / "learning" / "curator"       # one hash-chained lane per REAL year, shared by every window (trusted side only)
 PAR, SCREEN_N, N_CAND = 3, 10, 24
 MODEL_SEED = 7                    # random_state of every model the trader fits; recorded as the worker seed
 WORKER_TIMEOUT_S, WORKER_MEM_MB, WORKER_HEARTBEAT_S, BEAT_EVERY_S = 3 * 3600, 6000, 900, 30
@@ -221,9 +243,15 @@ def _worker(run_id, cfg, meta):
     stop = threading.Event()
     threading.Thread(target=_heartbeat, args=(wl, stop), daemon=True).start()
     try:
+        hook = None
+        if LEARNER == "legit":
+            from engine.learning import test_path as TP
+            hook = TP.hook_factory(TP.PathConfig(store_root=str(CURATOR_ROOT), seed=MODEL_SEED))
         feed, trader, sealed, wall = livesim.run(cfg, run_id, log=lambda *x: print(f"[{run_id}]", *x, flush=True),
-                                                 adaptive=True, meta=meta)
+                                                 adaptive=True, meta=meta, hook_factory=hook)
         findings = feed.audit()
+        if trader.hook is not None:
+            findings += [blind_gates.Finding(f.gate, f.severity, f.message) for f in trader.hook.findings()]
         blind_gates.save_report(findings, a / "blind_audit2.json")
         bad = [f for f in findings if f.severity == "fail"]
         if bad:
@@ -279,6 +307,8 @@ def _archive(run_id, cfg, meta, feed, trader, wall, a, wl):
     r["n_names"], r["thin"] = n_names, n_names < THIN_NAMES
     r["dropped_crypto"] = len(getattr(feed, "dropped_crypto", []))
     r["provenance"] = provenance.stamp({"cfg": cfg, "meta": meta}, seed=run_id)
+    if getattr(trader, "hook", None) is not None:
+        r["legit"] = trader.hook.report()                                # the shadow learner's own record; never part of the traded result
     r.update({"window": run_id, "seed": MODEL_SEED, "run_id": run_id, "prior_cfg": cfg, "meta": meta, "preseason": trader.preseason, "clock_s": wall,
               "ms_per_day": 1000 * wall / max(1, len(trader.session.days)), "used_cfg": trader.cfg})
     (a / "result2.json").write_text(json.dumps(r, default=str))
@@ -292,7 +322,7 @@ def run_workers(ids, cfg, meta, supervise=health.supervise, per_id=None):
 
     def launch(r):
         c, m = per_id[r] if per_id else (cfg, meta)
-        out[r] = supervise([sys.executable, "-u", str(SRC_FILE), "--worker", r, json.dumps(c), json.dumps(m)],
+        out[r] = supervise([sys.executable, "-u", str(SRC_FILE), "--worker", r, json.dumps(c), json.dumps(m), *LEARNER_ARGS],
                            DIR / r / "health2.jsonl", r, WORKER_TIMEOUT_S, WORKER_MEM_MB, WORKER_HEARTBEAT_S, stdout="inherit")
     threads = [threading.Thread(target=launch, args=(r,)) for r in ids]
     [t.start() for t in threads]
@@ -379,7 +409,8 @@ def main():
                     break
                 print(f"  [{r}] STALE CODE (code {pv.get('code_hash')}, edited mid-run: {pv.get('code_mixed')}, now "
                       f"{provenance.code_hash(pv.get('code_files'))}) - rerunning the window under current code", flush=True)
-                subprocess.run([sys.executable, "-u", __file__, "--worker", r, json.dumps(res["prior_cfg"]), json.dumps(res["meta"])])
+                subprocess.run([sys.executable, "-u", __file__, "--worker", r, json.dumps(res["prior_cfg"]), json.dumps(res["meta"]),
+                                *LEARNER_ARGS])
             else:
                 print(f"  [{r}] still stale after reruns (code is changing) - excluded", flush=True)
                 done.remove(r); continue

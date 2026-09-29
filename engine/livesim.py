@@ -579,7 +579,10 @@ def blind_feed_class(hardened=True):
     return Feed
 
 
-def run(cfg, run_id, log=print, check_parity=True, adaptive=False, meta=None, hardened=True):
+def run(cfg, run_id, log=print, check_parity=True, adaptive=False, meta=None, hardened=True, hook_factory=None):
+    """`hook_factory(feed, trader)` (optional, canon C64) builds a side runner once the warm-up is done; its `on_tick()` is called
+    after the trader's own on_tick on every session, inside the same lockstep pass, and it is left on `trader.hook`. This module
+    only calls it: the runner lives in a trusted script, so nothing on the trader's import path can reach the curator."""
     sealed = SealedYear(run_id)
     feed = blind_feed_class(hardened)(sealed)
     t = time.perf_counter()
@@ -593,5 +596,13 @@ def run(cfg, run_id, log=print, check_parity=True, adaptive=False, meta=None, ha
     log(f"  warm-up: {len(feed.sessions)} sessions visible, {feed.i + 1} of them before the hidden year; training ...")
     trader.train()
     log(f"  model ready ({trader.train_rows:,} rows, {trader.t_model:.0f}s). Clock starts at {feed.now.date()} (disguised).")
-    wall = drive(feed, trader.on_tick)
+    on_tick = trader.on_tick
+    trader.hook = None
+    if hook_factory is not None:
+        trader.hook = hook_factory(feed, trader)
+
+        def on_tick():
+            trader.on_tick()
+            trader.hook.on_tick()
+    wall = drive(feed, on_tick)
     return feed, trader, sealed, wall
