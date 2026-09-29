@@ -191,7 +191,10 @@ def spawn_challengers(F, meta):
         if ch:
             ch.update({"id": f"CH{len(C) + 1:03d}", "finding": key, "created": today, "status": "testing"})
             C.append(ch)
-            log_experiment({"event": "challenger_created", **ch, "evidence": f["last_detail"]})
+            log_experiment({"event": "challenger_created", **ch, "evidence": f["last_detail"]}, cfg=ch.get("change"), seed=7,
+                           outcome="continue_testing", reason=f"challenger for finding {key}: {ch.get('desc', ch.get('kind'))}",
+                           window_ids=["live-shadow"], train_range="live history", validation_range="live shadow",
+                           test_range="live shadow", metrics={}, gates={})
     _w(CHAL, C)
     return C
 
@@ -250,10 +253,16 @@ def test_and_promote(C, meta, stocks):
             meta["version"] = _bump(meta.get("version", "1.0"))
             ch.update({"status": "promoted", "promoted": datetime.utcnow().strftime("%Y-%m-%d"), "previous": prev,
                        "version": meta["version"]})
-            log_experiment({"event": "promoted", "id": ch["id"], "version": meta["version"], **ch["live"]})
+            log_experiment({"event": "promoted", "id": ch["id"], "version": meta["version"], **ch["live"]}, cfg=ch.get("change"),
+                           seed=7, outcome="adopt", reason="live shadow beat the champion (z-test)", metrics=ch["live"],
+                           gates={"live_shadow_z": True}, window_ids=["live-shadow"], train_range="live history",
+                           validation_range="live shadow", test_range="live (forward)")
         elif len(d) >= 3 * MIN_LIVE_DAYS and z < 0:
             ch["status"] = "rejected"
-            log_experiment({"event": "rejected", "id": ch["id"], **ch["live"]})
+            log_experiment({"event": "rejected", "id": ch["id"], **ch["live"]}, cfg=ch.get("change"), seed=7, outcome="reject",
+                           reason="live shadow lost to the champion", metrics=ch["live"], gates={"live_shadow_z": False},
+                           window_ids=["live-shadow"], train_range="live history", validation_range="live shadow",
+                           test_range="live shadow")
     # tripwire: a promoted champion must keep beating what it replaced
     for ch in C:
         if ch["status"] == "promoted" and ch["kind"] != "config":
@@ -262,10 +271,15 @@ def test_and_promote(C, meta, stocks):
             if len(d) >= TRIPWIRE_DAYS:
                 if d.mean() > 0 and d.mean() / (d.std(ddof=1) + 1e-9) * np.sqrt(len(d)) > 1.0:
                     meta.update(ch["previous"]); ch["status"] = "rolled_back"
-                    log_experiment({"event": "rolled_back", "id": ch["id"], "gain_of_old": float(d.mean())})
+                    log_experiment({"event": "rolled_back", "id": ch["id"], "gain_of_old": float(d.mean())}, cfg=ch.get("previous"),
+                                   seed=7, outcome="reject", reason="tripwire: the replaced rule kept winning",
+                                   metrics={"gain_of_old": float(d.mean())}, gates={"tripwire": False}, window_ids=["live"],
+                                   train_range="live", validation_range="tripwire", test_range="live")
                 else:
                     ch["status"] = "confirmed"
-                    log_experiment({"event": "confirmed", "id": ch["id"]})
+                    log_experiment({"event": "confirmed", "id": ch["id"]}, cfg=ch.get("change"), seed=7, outcome="adopt",
+                                   reason="tripwire passed", metrics={"gain_of_old": float(d.mean())}, gates={"tripwire": True},
+                                   window_ids=["live"], train_range="live", validation_range="tripwire", test_range="live")
     _w(CHAL, C)
     return C
 
@@ -307,7 +321,10 @@ def weekly():
     for ch in C:
         if ch["status"] == "testing" and ch["kind"] == "recalibrate" and recalibrate(stocks):
             ch["status"] = "promoted"; meta["version"] = _bump(meta.get("version", "1.0"))
-            log_experiment({"event": "promoted", "id": ch["id"], "version": meta["version"], "note": "recalibrated"})
+            log_experiment({"event": "promoted", "id": ch["id"], "version": meta["version"], "note": "recalibrated"},
+                           cfg={"kind": "recalibrate"}, seed=7, outcome="adopt", reason="recalibration passed",
+                           metrics={}, gates={"recalibrate": True}, window_ids=["live"], train_range="live history",
+                           validation_range="recalibration check", test_range="live (forward)")
     C = test_and_promote(C, meta, stocks)
     _w(CHAL, C)
     _w(META, meta)
