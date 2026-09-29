@@ -345,9 +345,31 @@ def main():
             w["revealed"] = y
         print("  revealed:", {w["run_id"]: w["revealed"] for w in st["windows"][-len(done):]}, flush=True)
         print(f"  running average over {len(fresh)} fresh windows: {np.mean(fresh):+.2%}/week (target +7.00%)", flush=True)
-        log_experiment({**res.to_record(), "event": "loop2_basis_search", "round": rnd})
+        seed = 1000 * st["version"] + rnd
+        log_experiment({**res.to_record(), "event": "loop2_basis_search", "round": rnd},
+                       cfg={"cfg": st["cfg"], "meta": st["meta"]}, seed=seed, outcome="adopt" if res.adopted else "reject",
+                       reason=str(res.reason), window_ids=[w["run_id"] for w in st["windows"]],
+                       train_range="revealed Test windows", validation_range="basis_search held-out windows",
+                       test_range="next round's fresh sealed windows")
+        rw = st["windows"][-len(done):]
+        metrics = {w["run_id"]: {k: w.get(k) for k in ("mean_week", "in_band", "sd_week", "max_dd", "year_return")} for w in rw}
+        # Phase 0.2: the round record carries every field; Phase 0.3: each round is bundled as a checkpoint
         log_experiment({"event": "loop2_round", "round": rnd, "basis": st["version"], "phase": st["phase"],
-                        "fresh_avg": float(np.mean(fresh)), "windows": [w["run_id"] for w in st["windows"][-len(done):]]})
+                        "fresh_avg": float(np.mean(fresh))}, cfg={"cfg": st["cfg"], "meta": st["meta"]}, seed=seed,
+                       window_ids=[w["run_id"] for w in rw], metrics=metrics,
+                       gates={w["run_id"]: "passed re-tester, future-scramble, fill audit" for w in rw},
+                       outcome="continue_testing", reason="blind Test round (measurement)",
+                       train_range="history before each sealed year", validation_range="pre-season nested split",
+                       test_range="the sealed 12-month windows")
+        try:
+            from engine.checkpoint import checkpoint_run
+            checkpoint_run(f"loop2_round{rnd:03d}", {"cfg": st["cfg"], "meta": st["meta"], "basis": st["version"]},
+                           metrics, {"basis_search_seed": seed, "windows": [w["run_id"] for w in rw]},
+                           {"round": rnd, "adopted": bool(res.adopted), "reason": str(res.reason),
+                            "fresh_avg": float(np.mean(fresh))},
+                           logs={"round.txt": "\n".join(f"{w['run_id']}: {metrics[w['run_id']]}" for w in rw)})
+        except Exception as e:                                    # a checkpoint failure is reported, never fatal
+            print(f"  checkpoint failed: {e}", flush=True)
         save()
         if any(w["mean_week"] >= 0.07 for w in st["windows"][-len(done):]):
             print("TARGET REACHED", flush=True); break
