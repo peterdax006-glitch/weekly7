@@ -1,0 +1,690 @@
+{
+ "seed": 0,
+ "train": [
+  "r03a",
+  "r08c",
+  "r12a",
+  "r08a",
+  "r01c",
+  "r02a",
+  "r13a",
+  "r11a",
+  "r12b",
+  "r05c",
+  "r10c",
+  "r12c",
+  "r08b",
+  "r03b",
+  "r11c",
+  "r06a",
+  "r07c",
+  "r06b",
+  "r01b",
+  "r02b",
+  "r09a",
+  "r04b",
+  "r06c",
+  "r04a"
+ ],
+ "test": [
+  "r11b",
+  "r04c",
+  "r05b",
+  "r07a",
+  "r13c",
+  "r10b",
+  "r01a",
+  "r02c",
+  "r05a",
+  "r07b",
+  "r10a",
+  "r03c",
+  "r13b",
+  "r09b",
+  "r09c"
+ ],
+ "variants_tried": 5,
+ "chosen": {
+  "target": 0.07,
+  "trail": 8,
+  "ewma_half": 4.0,
+  "w_vol": 0.45,
+  "w_prog": 0.2,
+  "w_fc": 0.2,
+  "w_reg": 0.15,
+  "gain": 3.0,
+  "deadband": 0.1,
+  "max_step": 0.35,
+  "over_limit": 0.4,
+  "k_bounds": [
+   1,
+   6
+  ],
+  "exposure_bounds": [
+   0.5,
+   1.0
+  ],
+  "pool_bounds": [
+   0.3,
+   0.95
+  ],
+  "brake_dd": 0.15,
+  "brake_release": 3,
+  "brake_exposure": 0.5,
+  "brake_level": 0.15
+ },
+ "gate": "FAIL: no reliable improvement (worse on tier1 (weeks in band); bootstrap lower bound -0.079); risk deteriorated (risk -0.312 -> -0.248, max DD -73% -> -62%); train gain -0.038 did not carry to test -0.046; not stable across eras (per-era gain [-0.017, -0.091, -0.031])",
+ "checks": {
+  "improvement": false,
+  "risk": false,
+  "no_overfit": false,
+  "stable_eras": false
+ },
+ "numbers": {
+  "gain_train": -0.038370827285921616,
+  "gain_test": -0.04614175133043057,
+  "boot_lo": -0.07877358490566037,
+  "era_gain": [
+   -0.017198838896952097,
+   -0.0906386066763425,
+   -0.030587808417997096
+  ],
+  "base_key": [
+   9,
+   0,
+   0
+  ],
+  "dial_key": [
+   6,
+   0,
+   0
+  ],
+  "params": {
+   "target": 0.07,
+   "trail": 8,
+   "ewma_half": 4.0,
+   "w_vol": 0.45,
+   "w_prog": 0.2,
+   "w_fc": 0.2,
+   "w_reg": 0.15,
+   "gain": 3.0,
+   "deadband": 0.1,
+   "max_step": 0.35,
+   "over_limit": 0.4,
+   "k_bounds": [
+    1,
+    6
+   ],
+   "exposure_bounds": [
+    0.5,
+    1.0
+   ],
+   "pool_bounds": [
+    0.3,
+    0.95
+   ],
+   "brake_dd": 0.15,
+   "brake_release": 3,
+   "brake_exposure": 0.5,
+   "brake_level": 0.15
+  }
+ },
+ "train_base": {
+  "key": [
+   9,
+   0,
+   0
+  ],
+  "in_band": 0.2371,
+  "over_band": 0.119,
+  "risk": -0.312,
+  "pos_in_band": 0.5362,
+  "tier1_reached": false,
+  "wiped": false,
+  "n_windows": 24
+ },
+ "train_dial": {
+  "key": [
+   7,
+   0,
+   0
+  ],
+  "in_band": 0.1713,
+  "over_band": 0.0643,
+  "risk": -0.2153,
+  "pos_in_band": 0.5808,
+  "tier1_reached": false,
+  "wiped": false,
+  "n_windows": 24
+ },
+ "test_base": {
+  "key": [
+   9,
+   0,
+   0
+  ],
+  "in_band": 0.221,
+  "over_band": 0.114,
+  "risk": -0.3116,
+  "pos_in_band": 0.527,
+  "tier1_reached": false,
+  "wiped": false,
+  "n_windows": 15
+ },
+ "test_dial": {
+  "key": [
+   6,
+   0,
+   0
+  ],
+  "in_band": 0.1432,
+  "over_band": 0.0506,
+  "risk": -0.2481,
+  "pos_in_band": 0.4279,
+  "tier1_reached": false,
+  "wiped": false,
+  "n_windows": 15
+ },
+ "test_by_era_base": {
+  "2180": {
+   "key": [
+    5,
+    0,
+    0
+   ],
+   "in_band": 0.1428,
+   "over_band": 0.0947,
+   "risk": -0.2041,
+   "pos_in_band": 0.7321,
+   "tier1_reached": false,
+   "wiped": false,
+   "n_windows": 2
+  },
+  "2184": {
+   "key": [
+    13,
+    0,
+    0
+   ],
+   "in_band": 0.2642,
+   "over_band": 0.0,
+   "risk": -0.1117,
+   "pos_in_band": 0.6429,
+   "tier1_reached": false,
+   "wiped": false,
+   "n_windows": 1
+  },
+  "2185": {
+   "key": [
+    6,
+    0,
+    0
+   ],
+   "in_band": 0.1346,
+   "over_band": 0.0,
+   "risk": -0.1242,
+   "pos_in_band": 0.4286,
+   "tier1_reached": false,
+   "wiped": false,
+   "n_windows": 1
+  },
+  "2186": {
+   "key": [
+    8,
+    0,
+    0
+   ],
+   "in_band": 0.25,
+   "over_band": 0.1731,
+   "risk": -0.3004,
+   "pos_in_band": 0.3077,
+   "tier1_reached": false,
+   "wiped": false,
+   "n_windows": 1
+  },
+  "2188": {
+   "key": [
+    1,
+    0,
+    0
+   ],
+   "in_band": 0.1698,
+   "over_band": 0.283,
+   "risk": -0.4276,
+   "pos_in_band": 0.5556,
+   "tier1_reached": false,
+   "wiped": false,
+   "n_windows": 1
+  },
+  "2191": {
+   "key": [
+    7,
+    0,
+    0
+   ],
+   "in_band": 0.1731,
+   "over_band": 0.0577,
+   "risk": -0.1546,
+   "pos_in_band": 0.7778,
+   "tier1_reached": false,
+   "wiped": false,
+   "n_windows": 1
+  },
+  "2195": {
+   "key": [
+    16,
+    0,
+    0
+   ],
+   "in_band": 0.3462,
+   "over_band": 0.0769,
+   "risk": -0.2733,
+   "pos_in_band": 0.5556,
+   "tier1_reached": false,
+   "wiped": false,
+   "n_windows": 1
+  },
+  "2197": {
+   "key": [
+    14,
+    0,
+    0
+   ],
+   "in_band": 0.3462,
+   "over_band": 0.1346,
+   "risk": -0.3032,
+   "pos_in_band": 0.5,
+   "tier1_reached": false,
+   "wiped": false,
+   "n_windows": 1
+  },
+  "2205": {
+   "key": [
+    12,
+    0,
+    0
+   ],
+   "in_band": 0.3585,
+   "over_band": 0.2075,
+   "risk": -0.3642,
+   "pos_in_band": 0.3158,
+   "tier1_reached": false,
+   "wiped": false,
+   "n_windows": 1
+  },
+  "2213": {
+   "key": [
+    3,
+    0,
+    0
+   ],
+   "in_band": 0.2075,
+   "over_band": 0.3019,
+   "risk": -0.3874,
+   "pos_in_band": 0.5455,
+   "tier1_reached": false,
+   "wiped": false,
+   "n_windows": 1
+  },
+  "2214": {
+   "key": [
+    13,
+    0,
+    0
+   ],
+   "in_band": 0.3269,
+   "over_band": 0.1538,
+   "risk": -0.323,
+   "pos_in_band": 0.4118,
+   "tier1_reached": false,
+   "wiped": false,
+   "n_windows": 1
+  },
+  "2223": {
+   "key": [
+    3,
+    0,
+    0
+   ],
+   "in_band": 0.0755,
+   "over_band": 0.0377,
+   "risk": -0.1482,
+   "pos_in_band": 0.5,
+   "tier1_reached": false,
+   "wiped": false,
+   "n_windows": 1
+  },
+  "2227": {
+   "key": [
+    9,
+    0,
+    0
+   ],
+   "in_band": 0.1887,
+   "over_band": 0.0377,
+   "risk": -0.188,
+   "pos_in_band": 0.4,
+   "tier1_reached": false,
+   "wiped": false,
+   "n_windows": 1
+  },
+  "2229": {
+   "key": [
+    8,
+    0,
+    0
+   ],
+   "in_band": 0.1887,
+   "over_band": 0.0566,
+   "risk": -0.1575,
+   "pos_in_band": 0.5,
+   "tier1_reached": false,
+   "wiped": false,
+   "n_windows": 1
+  }
+ },
+ "test_by_era_dial": {
+  "2180": {
+   "key": [
+    8,
+    0,
+    0
+   ],
+   "in_band": 0.1711,
+   "over_band": 0.0379,
+   "risk": -0.1893,
+   "pos_in_band": 0.487,
+   "tier1_reached": false,
+   "wiped": false,
+   "n_windows": 2
+  },
+  "2184": {
+   "key": [
+    7,
+    0,
+    0
+   ],
+   "in_band": 0.1509,
+   "over_band": 0.0377,
+   "risk": -0.102,
+   "pos_in_band": 0.75,
+   "tier1_reached": false,
+   "wiped": false,
+   "n_windows": 1
+  },
+  "2185": {
+   "key": [
+    3,
+    0,
+    0
+   ],
+   "in_band": 0.0769,
+   "over_band": 0.0192,
+   "risk": -0.1118,
+   "pos_in_band": 0.25,
+   "tier1_reached": false,
+   "wiped": false,
+   "n_windows": 1
+  },
+  "2186": {
+   "key": [
+    8,
+    0,
+    0
+   ],
+   "in_band": 0.1923,
+   "over_band": 0.0577,
+   "risk": -0.2063,
+   "pos_in_band": 0.4,
+   "tier1_reached": false,
+   "wiped": false,
+   "n_windows": 1
+  },
+  "2188": {
+   "key": [
+    8,
+    0,
+    0
+   ],
+   "in_band": 0.2264,
+   "over_band": 0.1321,
+   "risk": -0.2559,
+   "pos_in_band": 0.5,
+   "tier1_reached": false,
+   "wiped": false,
+   "n_windows": 1
+  },
+  "2191": {
+   "key": [
+    2,
+    0,
+    0
+   ],
+   "in_band": 0.0577,
+   "over_band": 0.0192,
+   "risk": -0.0998,
+   "pos_in_band": 0.3333,
+   "tier1_reached": false,
+   "wiped": false,
+   "n_windows": 1
+  },
+  "2195": {
+   "key": [
+    5,
+    0,
+    0
+   ],
+   "in_band": 0.1154,
+   "over_band": 0.0385,
+   "risk": -0.2195,
+   "pos_in_band": 0.5,
+   "tier1_reached": false,
+   "wiped": false,
+   "n_windows": 1
+  },
+  "2197": {
+   "key": [
+    3,
+    0,
+    0
+   ],
+   "in_band": 0.0962,
+   "over_band": 0.0577,
+   "risk": -0.1866,
+   "pos_in_band": 0.4,
+   "tier1_reached": false,
+   "wiped": false,
+   "n_windows": 1
+  },
+  "2205": {
+   "key": [
+    10,
+    0,
+    0
+   ],
+   "in_band": 0.2075,
+   "over_band": 0.0377,
+   "risk": -0.2724,
+   "pos_in_band": 0.0,
+   "tier1_reached": false,
+   "wiped": false,
+   "n_windows": 1
+  },
+  "2213": {
+   "key": [
+    7,
+    0,
+    0
+   ],
+   "in_band": 0.2075,
+   "over_band": 0.1321,
+   "risk": -0.2142,
+   "pos_in_band": 0.6364,
+   "tier1_reached": false,
+   "wiped": false,
+   "n_windows": 1
+  },
+  "2214": {
+   "key": [
+    7,
+    0,
+    0
+   ],
+   "in_band": 0.1538,
+   "over_band": 0.0192,
+   "risk": -0.1789,
+   "pos_in_band": 0.25,
+   "tier1_reached": false,
+   "wiped": false,
+   "n_windows": 1
+  },
+  "2223": {
+   "key": [
+    3,
+    0,
+    0
+   ],
+   "in_band": 0.0755,
+   "over_band": 0.0189,
+   "risk": -0.1192,
+   "pos_in_band": 0.25,
+   "tier1_reached": false,
+   "wiped": false,
+   "n_windows": 1
+  },
+  "2227": {
+   "key": [
+    3,
+    0,
+    0
+   ],
+   "in_band": 0.0943,
+   "over_band": 0.0566,
+   "risk": -0.2662,
+   "pos_in_band": 0.8,
+   "tier1_reached": false,
+   "wiped": false,
+   "n_windows": 1
+  },
+  "2229": {
+   "key": [
+    6,
+    0,
+    0
+   ],
+   "in_band": 0.1509,
+   "over_band": 0.0566,
+   "risk": -0.1518,
+   "pos_in_band": 0.375,
+   "tier1_reached": false,
+   "wiped": false,
+   "n_windows": 1
+  }
+ },
+ "test_mean_k": 2.9087584439785696,
+ "test_mean_exposure": 0.724630794316329,
+ "test_brake_share": 0.32191940368041,
+ "per_window_in_band": [
+  [
+   0.151,
+   0.208
+  ],
+  [
+   0.135,
+   0.135
+  ],
+  [
+   0.264,
+   0.151
+  ],
+  [
+   0.135,
+   0.077
+  ],
+  [
+   0.25,
+   0.192
+  ],
+  [
+   0.17,
+   0.226
+  ],
+  [
+   0.173,
+   0.058
+  ],
+  [
+   0.346,
+   0.115
+  ],
+  [
+   0.346,
+   0.096
+  ],
+  [
+   0.358,
+   0.208
+  ],
+  [
+   0.208,
+   0.208
+  ],
+  [
+   0.327,
+   0.154
+  ],
+  [
+   0.075,
+   0.075
+  ],
+  [
+   0.189,
+   0.094
+  ],
+  [
+   0.189,
+   0.151
+  ]
+ ],
+ "provenance": {
+  "code_hash": "29be96fd9a9c9f09",
+  "code_files": [
+   "engine/__init__.py",
+   "engine/adaptive.py",
+   "engine/basis_search.py",
+   "engine/blind_gates.py",
+   "engine/config.py",
+   "engine/data.py",
+   "engine/features.py",
+   "engine/improve.py",
+   "engine/livesim.py",
+   "engine/memory.py",
+   "engine/missed_winners.py",
+   "engine/model.py",
+   "engine/objective.py",
+   "engine/policy.py",
+   "engine/portfolio.py",
+   "engine/provenance.py",
+   "engine/scoring.py",
+   "engine/timeline.py",
+   "engine/universe.py",
+   "scripts/basis_offline.py",
+   "scripts/dial_offline.py"
+  ],
+  "code_mixed": [
+   "engine/adaptive.py",
+   "engine/features.py",
+   "engine/livesim.py",
+   "engine/memory.py",
+   "engine/missed_winners.py"
+  ],
+  "git_commit": "fa476d2c705263cb70f6e3a60a18999b0b9cc6ef+dirty",
+  "canon_sha": "83225f36953ff54a",
+  "bible_sha": "a97ea91862cee371",
+  "blueprint_version": "4.0",
+  "config_hash": "7f3deefff5cc184b",
+  "data_snapshot": "5f94924cad053ffd",
+  "seed": 0
+ },
+ "seconds": 956.2
+}

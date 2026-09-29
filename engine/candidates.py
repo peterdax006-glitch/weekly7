@@ -269,9 +269,13 @@ def top_terms(scores: Mapping[str, float], k: int) -> list:
 
 
 def top_pair_candidates(terms: Sequence[Term], uni: Universe, target: str = "excess_5d") -> list:
-    """All cross-feature pairs among the strongest single terms (two levels of one feature is empty, so skipped)."""
+    """All cross-feature pairs among the strongest single terms (two levels of one feature is empty, so skipped).
+    Ordered by RANK SUM of the two terms (strongest-with-strongest first), so a pair budget smaller than the pool keeps
+    the top-k x top-k square instead of only the first few terms crossed with everything."""
+    idx = sorted(((i + j, i, j) for i, j in itertools.combinations(range(len(terms)), 2)))
     out = []
-    for a, b in itertools.combinations(terms, 2):
+    for _, i, j in idx:
+        a, b = terms[i], terms[j]
         if a.feature == b.feature:
             continue
         out.append(_cand(Expression.make([a, b]), uni, "pair", "top_pair", target))

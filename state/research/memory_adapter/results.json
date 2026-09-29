@@ -1,0 +1,122 @@
+{
+ "stamp": {
+  "code_hash": "2f1ce924e7eee219",
+  "code_files": [
+   "engine/__init__.py",
+   "engine/config.py",
+   "engine/memory.py",
+   "engine/memory_diagnostics.py",
+   "engine/missed_winners.py",
+   "engine/provenance.py",
+   "scripts/run_b15_memory_adapter.py"
+  ],
+  "code_mixed": [],
+  "git_commit": "25360d5abe39ef3d70caf9c85efea76a478d30da+dirty",
+  "canon_sha": "83225f36953ff54a",
+  "bible_sha": "a97ea91862cee371",
+  "blueprint_version": "4.0",
+  "config_hash": "e09c1c801a65fbee",
+  "data_snapshot": "5f94924cad053ffd",
+  "seed": 0
+ },
+ "weeks": 507,
+ "first": "2017-01-06",
+ "last": "2026-09-18",
+ "missed_winners": {
+  "weeks_scored": 506,
+  "alone": {
+   "ic": -0.01594145587098171,
+   "ic_t": -1.5802746675811992,
+   "prec_at_k": 0.17964426877470357,
+   "base_rate": 0.07867028808953619
+  },
+  "base": {
+   "ic": 0.018969899269951424,
+   "prec_at_k": 0.08260869565217391
+  },
+  "with_base": {
+   "ic": 0.018969899269951424,
+   "prec_at_k": 0.08260869565217391,
+   "ic_uplift": 0.0,
+   "ic_uplift_ci": [
+    0.0,
+    0.0
+   ],
+   "prec_uplift": 0.0,
+   "p_uplift": 1.0,
+   "mean_weight": 0.0,
+   "final_weight": 0.0
+  },
+  "shuffled_detector": {
+   "ic": 0.0012377898943463264,
+   "prec_at_k": 0.08043478260869566,
+   "collapsed": true
+  },
+  "future_scrambled": {
+   "pre_cut_identical": true,
+   "post_cut_ic": 0.00905735576708176,
+   "post_cut_t": 1.933568543921356
+  },
+  "suspicious": false,
+  "verdict": false,
+  "control": {
+   "mean": 0.00011290566919451088,
+   "q95": 0.0007666620314381945,
+   "p_vs_control": 0.6363636363636364
+  },
+  "calibration": {
+   "raw": {
+    "n": 69468,
+    "brier": 0.2188875550351712,
+    "brier_skill": -2.0048738714645005,
+    "logloss": 0.6285891707139745
+   },
+   "corrected": {
+    "n": 69468,
+    "brier": 0.07097000588508459,
+    "brier_skill": 0.025728455382005633,
+    "logloss": 0.2635669798758038
+   },
+   "base_rate": 0.0791011688835147
+  }
+ },
+ "memory": {
+  "records": 4773,
+  "weeks": 507,
+  "walk_forward": {
+   "n": 4723,
+   "mse": 0.031423265440893855,
+   "mse_zero": 0.027045637057843804,
+   "skill": -0.16186079749896098,
+   "hit_rate": 0.5011645140800339,
+   "ic": -0.02889257446969848,
+   "ci": [
+    -0.2049411736834784,
+    -0.1210079574539484
+   ]
+  },
+  "calibration_slope": -0.20104479753884985,
+  "positive_block_share": 0.0,
+  "nested_tune": {
+   "chosen": 1000000.0,
+   "test_skill_chosen": -0.0020843800745806718,
+   "test_skill_default": -0.11101091930545892,
+   "helped": true
+  },
+  "eviction_regret": {
+   "50": {
+    "skill_unbounded": -0.16186079749896098,
+    "skill_capped": -0.22293450619687216,
+    "regret": 0.06107370869791118,
+    "capacity": 50
+   },
+   "200": {
+    "skill_unbounded": -0.16186079749896098,
+    "skill_capped": -0.3258219117202077,
+    "regret": 0.1639611142212467,
+    "capacity": 200
+   }
+  }
+ },
+ "seconds": 530
+}

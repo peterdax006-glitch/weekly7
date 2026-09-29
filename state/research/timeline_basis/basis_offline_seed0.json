@@ -1,0 +1,265 @@
+{
+ "seed": 0,
+ "windows": 39,
+ "train_windows": 24,
+ "test_windows": 15,
+ "as_of": "2180-10-20 00:00:00",
+ "excluded": [
+  "w01a",
+  "w01b",
+  "w01c"
+ ],
+ "search": {
+  "n_start": 12,
+  "n_screen": 8,
+  "n_top": 2
+ },
+ "search_result": {
+  "event": "basis_search",
+  "adopted": false,
+  "reason": "no confirmed candidate beat the incumbent",
+  "n_windows": 25,
+  "n_screen": 8,
+  "n_evals": 155,
+  "incumbent": {
+   "key": [
+    9,
+    0,
+    0
+   ],
+   "t1": 0.23293178519593613,
+   "risk": -0.31018779843281036,
+   "t3": 0.5291955794463535
+  },
+  "winner": {
+   "key": [
+    9,
+    0,
+    0
+   ],
+   "t1": 0.23293178519593613,
+   "risk": -0.31018779843281036,
+   "t3": 0.5291955794463535
+  },
+  "changed": [],
+  "confirmed": [
+   {
+    "cfg": {
+     "k": 2,
+     "exit_q": 0.8,
+     "rebalance_weeks": 1,
+     "brake": null,
+     "max_per_sector": null,
+     "w_model": 1.0,
+     "pick": "hivol",
+     "pool_q": 0.7,
+     "liq_q": 0.0,
+     "vol_filter": false,
+     "stress_thr": null,
+     "stress_k": 2,
+     "trend_filter": null,
+     "trend_gross": 0.0
+    },
+    "adjusted": 15.713547140836397,
+    "boot_lo": NaN,
+    "verdict": ""
+   },
+   {
+    "cfg": {
+     "k": 2,
+     "exit_q": 0.9,
+     "rebalance_weeks": 2,
+     "brake": null,
+     "max_per_sector": 2,
+     "w_model": 1.0,
+     "pick": "hivol",
+     "pool_q": 0.7,
+     "liq_q": 0.0,
+     "vol_filter": false,
+     "stress_thr": 1.05,
+     "stress_k": 4,
+     "trend_filter": -0.05,
+     "trend_gross": 0.5,
+     "w_move": 0.7,
+     "w_mom": 0.2
+    },
+    "adjusted": 18.03423946209408,
+    "boot_lo": -0.02563391103901648,
+    "verdict": "firewall ok but only 47% of windows improved on the deciding tier"
+   },
+   {
+    "cfg": {
+     "k": 2,
+     "exit_q": 0.7,
+     "rebalance_weeks": 1,
+     "brake": 0.15,
+     "max_per_sector": 2,
+     "w_model": 0.85,
+     "pick": "top",
+     "pool_q": 0.95,
+     "liq_q": 0.0,
+     "vol_filter": false,
+     "stress_thr": 1.0,
+     "stress_k": 3,
+     "trend_filter": null,
+     "trend_gross": 0.0,
+     "w_move": 0.7,
+     "w_mom": 0.4
+    },
+    "adjusted": 17.3898681401799,
+    "boot_lo": -0.03789165884060446,
+    "verdict": "firewall ok but only 53% of windows improved on the deciding tier"
+   }
+  ]
+ },
+ "adopted_cfg": {
+  "k": 2,
+  "exit_q": 0.8,
+  "rebalance_weeks": 1,
+  "brake": null,
+  "max_per_sector": null,
+  "w_model": 1.0,
+  "pick": "hivol",
+  "pool_q": 0.7,
+  "liq_q": 0.0,
+  "vol_filter": false,
+  "stress_thr": null,
+  "stress_k": 2,
+  "trend_filter": null,
+  "trend_gross": 0.0
+ },
+ "adopted_meta_changes": [],
+ "oos": {
+  "incumbent": {
+   "key": [
+    9,
+    0,
+    0
+   ],
+   "in_band": 0.2235,
+   "over_band": 0.1127,
+   "risk": -0.3116,
+   "pos_in_band": 0.5256,
+   "tier1_reached": false,
+   "wiped": false,
+   "n_windows": 15
+  },
+  "adopted": {
+   "key": [
+    9,
+    0,
+    0
+   ],
+   "in_band": 0.2235,
+   "over_band": 0.1127,
+   "risk": -0.3116,
+   "pos_in_band": 0.5256,
+   "tier1_reached": false,
+   "wiped": false,
+   "n_windows": 15
+  },
+  "firewall": "no measurable gain on any tier",
+  "per_window_in_band": [
+   [
+    0.17,
+    0.17
+   ],
+   [
+    0.135,
+    0.135
+   ],
+   [
+    0.264,
+    0.264
+   ],
+   [
+    0.135,
+    0.135
+   ],
+   [
+    0.25,
+    0.25
+   ],
+   [
+    0.17,
+    0.17
+   ],
+   [
+    0.173,
+    0.173
+   ],
+   [
+    0.346,
+    0.346
+   ],
+   [
+    0.346,
+    0.346
+   ],
+   [
+    0.396,
+    0.396
+   ],
+   [
+    0.208,
+    0.208
+   ],
+   [
+    0.327,
+    0.327
+   ],
+   [
+    0.075,
+    0.075
+   ],
+   [
+    0.17,
+    0.17
+   ],
+   [
+    0.189,
+    0.189
+   ]
+  ],
+  "mean_week": [
+   0.001909399877413689,
+   0.001909399877413689
+  ]
+ },
+ "provenance": {
+  "code_hash": "1bdf5c9997310e97",
+  "code_files": [
+   "engine/__init__.py",
+   "engine/adaptive.py",
+   "engine/basis_search.py",
+   "engine/blind_gates.py",
+   "engine/config.py",
+   "engine/data.py",
+   "engine/features.py",
+   "engine/improve.py",
+   "engine/livesim.py",
+   "engine/missed_winners.py",
+   "engine/model.py",
+   "engine/objective.py",
+   "engine/policy.py",
+   "engine/portfolio.py",
+   "engine/provenance.py",
+   "engine/scoring.py",
+   "scripts/basis_offline.py"
+  ],
+  "code_mixed": [
+   "engine/adaptive.py",
+   "engine/features.py",
+   "engine/livesim.py",
+   "engine/missed_winners.py"
+  ],
+  "git_commit": "6d682388f9611549a916a4eae3a9b65f94707722+dirty",
+  "canon_sha": "83225f36953ff54a",
+  "bible_sha": "a97ea91862cee371",
+  "blueprint_version": "4.0",
+  "config_hash": "4ca4f7a9c7f8fc37",
+  "data_snapshot": "5f94924cad053ffd",
+  "seed": 0
+ },
+ "seconds": 940.7
+}

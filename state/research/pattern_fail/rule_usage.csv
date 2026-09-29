@@ -1,0 +1,5 @@
+kind,rule,folds,share
+pat_neg,week_end,4,0.8
+pat_neg,time_4,1,0.2
+pat_pos,trail_9,3,0.6
+pat_pos,week_end,2,0.4

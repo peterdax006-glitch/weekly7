@@ -1,0 +1,115 @@
+{
+ "code_hash": "7e4998525f06c2ee",
+ "code_files": [
+  "engine/__init__.py",
+  "engine/config.py",
+  "engine/exits.py",
+  "engine/gaprisk.py",
+  "engine/provenance.py",
+  "engine/stops.py",
+  "scripts/run_exits_stops.py",
+  "scripts/run_gaprisk.py"
+ ],
+ "code_mixed": [
+  "engine/stops.py"
+ ],
+ "git_commit": "70e4b542f7233f944add180c21d0c7b2d08755e1+dirty",
+ "canon_sha": "83225f36953ff54a",
+ "bible_sha": "a97ea91862cee371",
+ "blueprint_version": "4.0",
+ "config_hash": "d26d9296a4c9d51f",
+ "data_snapshot": "5f94924cad053ffd",
+ "seed": 7,
+ "data_quality": {
+  "rows": 19325,
+  "dropped_inconsistent_bar": 0,
+  "dropped_gap_gt60pct": 21
+ },
+ "positions": 19304,
+ "coverage_summary": [
+  {
+   "model": "conditional_evt",
+   "prob": 0.95,
+   "exceed_rate": 0.051520593869731804,
+   "target": 0.050000000000000044,
+   "worst_era_ratio": 1.6582633053221274,
+   "eras_within_1.5x": 0.9375,
+   "eras": 16
+  },
+  {
+   "model": "conditional_evt",
+   "prob": 0.99,
+   "exceed_rate": 0.010572318007662835,
+   "target": 0.010000000000000009,
+   "worst_era_ratio": 2.464985994397757,
+   "eras_within_1.5x": 0.8125,
+   "eras": 16
+  },
+  {
+   "model": "conditional_evt_uncalibrated",
+   "prob": 0.95,
+   "exceed_rate": 0.054501915708812264,
+   "target": 0.050000000000000044,
+   "worst_era_ratio": 1.545454545454544,
+   "eras_within_1.5x": 0.875,
+   "eras": 16
+  },
+  {
+   "model": "conditional_evt_uncalibrated",
+   "prob": 0.99,
+   "exceed_rate": 0.010859674329501915,
+   "target": 0.010000000000000009,
+   "worst_era_ratio": 2.054154995331464,
+   "eras_within_1.5x": 0.8125,
+   "eras": 16
+  },
+  {
+   "model": "old_per_ticker",
+   "prob": 0.95,
+   "exceed_rate": 0.07351532567049808,
+   "target": 0.050000000000000044,
+   "worst_era_ratio": 3.218604651162788,
+   "eras_within_1.5x": 0.625,
+   "eras": 16
+  },
+  {
+   "model": "old_per_ticker",
+   "prob": 0.99,
+   "exceed_rate": 0.02121647509578544,
+   "target": 0.010000000000000009,
+   "worst_era_ratio": 6.031746031746026,
+   "eras_within_1.5x": 0.5,
+   "eras": 16
+  }
+ ],
+ "event_diagnostics": {
+  "expected_flag_share": 0.09148363033568173,
+  "realized_event_week_share": 0.07138416908412765,
+  "expected_given_realized": 0.3686502177068215,
+  "big_gap_10pct_positions": 389,
+  "big_gap_share_in_expected_event_weeks": 0.17737789203084833,
+  "big_gap_rate_event_week": 0.039071347678369193,
+  "big_gap_rate_normal_week": 0.018246094195461283
+ },
+ "loss_cap_20": {
+  "required_avoidance_1pct": {
+   "feasible": true,
+   "p_cut": 0.40950999999999993,
+   "kept_share": 0.5886613984674329,
+   "p_breach": 0.008034170649852537,
+   "p_hi": 0.009888226962556266,
+   "base_rate": 0.033105842911877396
+  },
+  "required_avoidance_2pct": {
+   "feasible": true,
+   "p_cut": 0.40950999999999993,
+   "kept_share": 0.6755866858237548,
+   "p_breach": 0.017368187859991138,
+   "p_hi": 0.019947945757273152,
+   "base_rate": 0.033105842911877396
+  },
+  "base_breach": 0.033105842911877396,
+  "weight_cap_for_3pct_portfolio_hit": 0.15
+ },
+ "seconds": 307.4
+}

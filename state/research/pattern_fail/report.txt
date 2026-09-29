@@ -1,0 +1,5 @@
+Exit learner, out of sample vs plain week-end exit (tiered objective, not raw return)
+     pat_neg: n=2605 weeks=121 verdict=same; mean week -0.68% -> -0.70%; in-band 12% -> 12%; worst-5% week -15.67% -> -15.05%; gain -0.01% [-0.32%, +0.31%]
+     pat_pos: n=197 weeks=20 verdict=better; mean week +1.34% -> +0.88%; in-band 20% -> 30%; worst-5% week -15.61% -> -13.92%; gain -0.46% [-2.54%, +1.60%]
+         ALL: n=2802 weeks=121 verdict=same; mean week -0.62% -> -0.66%; in-band 12% -> 12%; worst-5% week -15.60% -> -14.73%; gain -0.04% [-0.38%, +0.31%]
+latest rules: pat_neg=week_end, pat_pos=week_end

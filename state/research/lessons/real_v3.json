@@ -1,0 +1,574 @@
+{
+ "stamp": {
+  "code_hash": "dc425f7a373c998b",
+  "code_files": [
+   "engine/__init__.py",
+   "engine/antimemo.py",
+   "engine/config.py",
+   "engine/lessons.py",
+   "engine/provenance.py",
+   "scripts/lessons_real.py"
+  ],
+  "code_mixed": [],
+  "git_commit": "6d682388f9611549a916a4eae3a9b65f94707722+dirty",
+  "canon_sha": "83225f36953ff54a",
+  "bible_sha": "a97ea91862cee371",
+  "blueprint_version": "4.0",
+  "config_hash": "9766716753adf70d",
+  "data_snapshot": "5f94924cad053ffd",
+  "seed": 0
+ },
+ "cfg": {
+  "k": 5,
+  "cost": 0.0005,
+  "horizon_days": 8,
+  "n_disguises": 2,
+  "boot": 300,
+  "block": 4,
+  "long_only": true,
+  "null_reps": 3
+ },
+ "tickers_sampled": 400,
+ "pairs": [
+  {
+   "lesson_count": 3,
+   "identity_invariant": true,
+   "invariance_max_diff": 0.0,
+   "improvement_A": 0.0005918325139926035,
+   "improvement_A_disguised": 0.0005918325139926035,
+   "improvement_B": -0.0014623129935491658,
+   "degradation_B": 0.0014623129935491658,
+   "baseline_A": 0.003455203180129711,
+   "baseline_B": 0.007502574557349796,
+   "b_selection_note": "B is used to reject lessons; holdout_C (when a window C is given) is the unbiased figure",
+   "memorisation_gap": 0.0,
+   "improvement_A_names_only": 0.0005918325139926035,
+   "improvement_A_dates_only": 0.0005918325139926035,
+   "book_summary": [
+    {
+     "lid": "ab51eab7dde2",
+     "rule": "downweight x0.5 when m_dispersion > 0.01994 [false_negative]",
+     "n": 4151,
+     "weeks": 40,
+     "tickers": 371,
+     "delta": -0.00632,
+     "t": -6.51,
+     "trust": 0.95,
+     "status": "active"
+    },
+    {
+     "lid": "d0547c9bef9d",
+     "rule": "upweight x1.5 when days_to_earn <= 27 and vol20 > 0.01736 [false_negative]",
+     "n": 672,
+     "weeks": 57,
+     "tickers": 225,
+     "delta": 0.01287,
+     "t": 4.64,
+     "trust": 0.95,
+     "status": "active"
+    },
+    {
+     "lid": "a9ec07882724",
+     "rule": "upweight x1.5 when m_dispersion <= 0.01818 and dist_ma50 <= -0.0487 [false_negative]",
+     "n": 493,
+     "weeks": 43,
+     "tickers": 201,
+     "delta": 0.00573,
+     "t": 2.66,
+     "trust": 0.95,
+     "status": "active"
+    }
+   ],
+   "episode_categories": {
+    "ok": 6497,
+    "false_negative": 3241,
+    "missed_winner": 604,
+    "false_positive": 122,
+    "regime_failure": 34
+   },
+   "mining_rejections": {
+    "tiny_effect": 130,
+    "too_broad": 26,
+    "unstable": 9,
+    "not_validated": 1,
+    "pair_no_gain": 3,
+    "fdr": 17,
+    "redundant": 6
+   },
+   "era_B": {
+    "2019": {
+     "n": 52,
+     "improvement": 0.000467,
+     "base": 0.003775,
+     "with": 0.004241
+    },
+    "2020": {
+     "n": 53,
+     "improvement": 0.0,
+     "base": 0.01116,
+     "with": 0.01116
+    }
+   },
+   "type_B": [
+    {
+     "type": "high",
+     "rows": 20823,
+     "picks_base": 147,
+     "picks_with": 165,
+     "mean_pick_pnl_base": 0.02099,
+     "mean_pick_pnl_with": 0.018705,
+     "picks_changed": 18
+    },
+    {
+     "type": "low",
+     "rows": 6447,
+     "picks_base": 215,
+     "picks_with": 202,
+     "mean_pick_pnl_base": 0.001347,
+     "mean_pick_pnl_with": 0.001774,
+     "picks_changed": 25
+    },
+    {
+     "type": "mid",
+     "rows": 10630,
+     "picks_base": 163,
+     "picks_with": 158,
+     "mean_pick_pnl_base": 0.003458,
+     "mean_pick_pnl_with": 0.003896,
+     "picks_changed": 21
+    }
+   ],
+   "holdout_C": {
+    "mean": 0.0,
+    "lo": 0.0,
+    "hi": 0.0,
+    "p_harm": 1.0,
+    "n": 104,
+    "harmed": false
+   },
+   "null_control": {
+    "null_improvements": [
+     0.004107262881902548,
+     0.0012659613902752222,
+     0.002991496714261861
+    ],
+    "null_mean": 0.00278824032881321,
+    "null_max": 0.004107262881902548,
+    "real_improvement_A": 0.0005918325139926035,
+    "p_value": 1.0,
+    "exceeds_null": false
+   },
+   "accepted_lessons": [
+    "a9ec07882724"
+   ],
+   "rejected_lessons": [
+    {
+     "lid": "ab51eab7dde2",
+     "reason": "no_gain_A",
+     "A": 0.0,
+     "A_disguised": 0.0,
+     "B": 0.0
+    },
+    {
+     "lid": "d0547c9bef9d",
+     "reason": "no_support_B",
+     "A": 0.0007340590541179373,
+     "A_disguised": 0.0007340590541179373,
+     "B": -0.0017472993759881884
+    }
+   ],
+   "per_lesson": {
+    "ab51eab7dde2": {
+     "A": {
+      "mean": 0.0,
+      "lo": 0.0,
+      "hi": 0.0,
+      "p_harm": 1.0,
+      "n": 104
+     },
+     "A_dis": {
+      "mean": 0.0,
+      "min": 0.0
+     },
+     "B": {
+      "mean": 0.0,
+      "lo": 0.0,
+      "hi": 0.0,
+      "p_harm": 1.0,
+      "n": 105
+     }
+    },
+    "d0547c9bef9d": {
+     "A": {
+      "mean": 0.0007340590541179373,
+      "lo": -0.0019130870929131138,
+      "hi": 0.004035884256546316,
+      "p_harm": 0.75,
+      "n": 104
+     },
+     "A_dis": {
+      "mean": 0.0007340590541179373,
+      "min": 0.0007340590541179373
+     },
+     "B": {
+      "mean": -0.0017472993759881884,
+      "lo": -0.006278734615870883,
+      "hi": 0.001692184039524625,
+      "p_harm": 0.21333333333333335,
+      "n": 105
+     }
+    },
+    "a9ec07882724": {
+     "A": {
+      "mean": 0.00157144321845128,
+      "lo": 0.00019239975282779086,
+      "hi": 0.0035941066650243907,
+      "p_harm": 0.9666666666666667,
+      "n": 104
+     },
+     "A_dis": {
+      "mean": 0.00157144321845128,
+      "min": 0.00157144321845128
+     },
+     "B": {
+      "mean": 0.0002310832341512044,
+      "lo": -0.00035216868491399854,
+      "hi": 0.0008299760988780433,
+      "p_harm": 0.66,
+      "n": 105
+     }
+    }
+   },
+   "final_improvement_A": 0.00157144321845128,
+   "final_improvement_A_disguised": 0.00157144321845128,
+   "final_improvement_B": 0.0002310832341512044,
+   "verdict": "kept",
+   "window_A": [
+    "2017-01-01",
+    "2019-01-01"
+   ],
+   "window_B": [
+    "2019-01-01",
+    "2021-01-01"
+   ],
+   "window_C": [
+    "2021-01-01",
+    "2023-01-01"
+   ],
+   "proxy_excluded": {}
+  },
+  {
+   "lesson_count": 6,
+   "identity_invariant": true,
+   "invariance_max_diff": 0.0,
+   "improvement_A": -0.002592056251707531,
+   "improvement_A_disguised": -0.002592056251707531,
+   "improvement_B": -0.0020761873859625603,
+   "degradation_B": 0.0020761873859625603,
+   "baseline_A": 0.007502574557349796,
+   "baseline_B": -0.0005155744644311754,
+   "b_selection_note": "B is used to reject lessons; holdout_C (when a window C is given) is the unbiased figure",
+   "memorisation_gap": 0.0,
+   "improvement_A_names_only": -0.002592056251707531,
+   "improvement_A_dates_only": -0.002592056251707531,
+   "book_summary": [
+    {
+     "lid": "3ba2743411ba",
+     "rule": "upweight x1.5 when m_spy_ma200 <= 0.0498 and m_spy_r5 <= -0.009645 [false_negative]",
+     "n": 1457,
+     "weeks": 13,
+     "tickers": 381,
+     "delta": 0.02535,
+     "t": 9.48,
+     "trust": 0.95,
+     "status": "active"
+    },
+    {
+     "lid": "0793f162d596",
+     "rule": "downweight x0.5 when gap_today > 0.003163 [false_negative]",
+     "n": 4163,
+     "weeks": 92,
+     "tickers": 397,
+     "delta": -0.01022,
+     "t": -8.14,
+     "trust": 0.95,
+     "status": "active"
+    },
+    {
+     "lid": "d3caadda6078",
+     "rule": "downweight x0.5 when atr_pct <= 0.01987 and m_spy_ma200 > 0.07304 [false_negative]",
+     "n": 808,
+     "weeks": 38,
+     "tickers": 208,
+     "delta": -0.013,
+     "t": -8.49,
+     "trust": 0.95,
+     "status": "active"
+    },
+    {
+     "lid": "485537d61841",
+     "rule": "downweight x0.5 when dist_52wh > -0.04386 [false_negative]",
+     "n": 948,
+     "weeks": 88,
+     "tickers": 270,
+     "delta": -0.00964,
+     "t": -5.74,
+     "trust": 0.95,
+     "status": "active"
+    },
+    {
+     "lid": "741422b4e9e8",
+     "rule": "upweight x1.5 when vol20 > 0.02419 [false_negative]",
+     "n": 1894,
+     "weeks": 92,
+     "tickers": 361,
+     "delta": 0.00977,
+     "t": 4.14,
+     "trust": 0.95,
+     "status": "active"
+    },
+    {
+     "lid": "64fa8c75241b",
+     "rule": "upweight x1.5 when days_to_earn <= 27 [false_negative]",
+     "n": 1048,
+     "weeks": 80,
+     "tickers": 301,
+     "delta": 0.00547,
+     "t": 2.84,
+     "trust": 0.922,
+     "status": "active"
+    }
+   ],
+   "episode_categories": {
+    "ok": 6648,
+    "false_negative": 4162,
+    "missed_winner": 805,
+    "false_positive": 142,
+    "regime_failure": 24
+   },
+   "mining_rejections": {
+    "too_broad": 68,
+    "not_validated": 11,
+    "tiny_effect": 45,
+    "unstable": 10,
+    "pair_no_gain": 5,
+    "fdr": 9,
+    "redundant": 37
+   },
+   "holdout_C": {
+    "mean": 0.0,
+    "lo": 0.0,
+    "hi": 0.0,
+    "p_harm": 1.0,
+    "n": 104,
+    "harmed": false
+   },
+   "null_control": {
+    "null_improvements": [
+     -0.0015553944451468325,
+     -0.00032879363922845773,
+     -0.002274807861873082
+    ],
+    "null_mean": -0.0013863319820827905,
+    "null_max": -0.00032879363922845773,
+    "real_improvement_A": -0.002592056251707531,
+    "p_value": 1.0,
+    "exceeds_null": false
+   },
+   "accepted_lessons": [],
+   "rejected_lessons": [
+    {
+     "lid": "3ba2743411ba",
+     "reason": "no_gain_A",
+     "A": 0.0,
+     "A_disguised": 0.0,
+     "B": 0.0
+    },
+    {
+     "lid": "0793f162d596",
+     "reason": "no_gain_A",
+     "A": -0.00043397097360520123,
+     "A_disguised": -0.00043397097360520123,
+     "B": -0.0004386049050551197
+    },
+    {
+     "lid": "d3caadda6078",
+     "reason": "harms_B",
+     "A": 0.0005373290606907438,
+     "A_disguised": 0.0005373290606907438,
+     "B": -0.0011144252923818735
+    },
+    {
+     "lid": "485537d61841",
+     "reason": "harms_B",
+     "A": 0.00097723506745838,
+     "A_disguised": 0.00097723506745838,
+     "B": -0.002940087937391721
+    },
+    {
+     "lid": "741422b4e9e8",
+     "reason": "no_gain_A",
+     "A": -0.0004018024035862517,
+     "A_disguised": -0.0004018024035862517,
+     "B": -0.0011100355249184825
+    },
+    {
+     "lid": "64fa8c75241b",
+     "reason": "no_gain_A",
+     "A": -0.0035711095446632024,
+     "A_disguised": -0.0035711095446632024,
+     "B": -0.0011314346240117006
+    }
+   ],
+   "per_lesson": {
+    "3ba2743411ba": {
+     "A": {
+      "mean": 0.0,
+      "lo": 0.0,
+      "hi": 0.0,
+      "p_harm": 1.0,
+      "n": 105
+     },
+     "A_dis": {
+      "mean": 0.0,
+      "min": 0.0
+     },
+     "B": {
+      "mean": 0.0,
+      "lo": 0.0,
+      "hi": 0.0,
+      "p_harm": 1.0,
+      "n": 104
+     }
+    },
+    "0793f162d596": {
+     "A": {
+      "mean": -0.00043397097360520123,
+      "lo": -0.00330769237450191,
+      "hi": 0.0024528683934892936,
+      "p_harm": 0.44,
+      "n": 105
+     },
+     "A_dis": {
+      "mean": -0.00043397097360520123,
+      "min": -0.00043397097360520123
+     },
+     "B": {
+      "mean": -0.0004386049050551197,
+      "lo": -0.004290860696480825,
+      "hi": 0.002485972333412905,
+      "p_harm": 0.3466666666666667,
+      "n": 104
+     }
+    },
+    "d3caadda6078": {
+     "A": {
+      "mean": 0.0005373290606907438,
+      "lo": -0.00032182087217058424,
+      "hi": 0.001335433091436114,
+      "p_harm": 0.81,
+      "n": 105
+     },
+     "A_dis": {
+      "mean": 0.0005373290606907438,
+      "min": 0.0005373290606907438
+     },
+     "B": {
+      "mean": -0.0011144252923818735,
+      "lo": -0.002056192784355237,
+      "hi": -0.00045923842833592293,
+      "p_harm": 0.0,
+      "n": 104
+     }
+    },
+    "485537d61841": {
+     "A": {
+      "mean": 0.00097723506745838,
+      "lo": -0.0009912278992789132,
+      "hi": 0.0028642153172265916,
+      "p_harm": 0.8033333333333333,
+      "n": 105
+     },
+     "A_dis": {
+      "mean": 0.00097723506745838,
+      "min": 0.00097723506745838
+     },
+     "B": {
+      "mean": -0.002940087937391721,
+      "lo": -0.005322583667360819,
+      "hi": -0.001361470480377857,
+      "p_harm": 0.0033333333333333335,
+      "n": 104
+     }
+    },
+    "741422b4e9e8": {
+     "A": {
+      "mean": -0.0004018024035862517,
+      "lo": -0.0031831495250974388,
+      "hi": 0.002199007891473316,
+      "p_harm": 0.31,
+      "n": 105
+     },
+     "A_dis": {
+      "mean": -0.0004018024035862517,
+      "min": -0.0004018024035862517
+     },
+     "B": {
+      "mean": -0.0011100355249184825,
+      "lo": -0.004899268958431025,
+      "hi": 0.0027279716156996215,
+      "p_harm": 0.27,
+      "n": 104
+     }
+    },
+    "64fa8c75241b": {
+     "A": {
+      "mean": -0.0035711095446632024,
+      "lo": -0.007090617145810808,
+      "hi": 0.00015873459407261624,
+      "p_harm": 0.056666666666666664,
+      "n": 105
+     },
+     "A_dis": {
+      "mean": -0.0035711095446632024,
+      "min": -0.0035711095446632024
+     },
+     "B": {
+      "mean": -0.0011314346240117006,
+      "lo": -0.004846633202754534,
+      "hi": 0.0019767636404587697,
+      "p_harm": 0.28,
+      "n": 104
+     }
+    }
+   },
+   "final_improvement_A": 0.0,
+   "final_improvement_A_disguised": 0.0,
+   "final_improvement_B": 0.0,
+   "verdict": "none_kept",
+   "window_A": [
+    "2019-01-01",
+    "2021-01-01"
+   ],
+   "window_B": [
+    "2021-01-01",
+    "2023-01-01"
+   ],
+   "window_C": [
+    "2023-01-01",
+    "2025-01-01"
+   ],
+   "proxy_excluded": {}
+  }
+ ],
+ "summary": {
+  "pairs": 2,
+  "lessons": 9,
+  "kept": 1,
+  "mean_final_B": 0.0001155416170756022,
+  "mean_holdout_C": 0.0,
+  "pairs_beating_null": 0,
+  "mean_memorisation_gap": 0.0,
+  "seconds": 121
+ }
+}

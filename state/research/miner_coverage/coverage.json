@@ -1,17 +1,20 @@
 {
  "provenance": {
-  "code_hash": "1bd7ab02290f9be7",
+  "code_hash": "b5213e6e64431be1",
   "code_files": [
    "engine/__init__.py",
    "engine/candidates.py",
    "engine/candles.py",
    "engine/config.py",
    "engine/pattern_identity.py",
+   "engine/pattern_stats.py",
    "engine/provenance.py",
    "scripts/miner_coverage.py"
   ],
-  "code_mixed": [],
-  "git_commit": "5f87b2b9f2b41a196d6adfa0cc76999cca73cf19+dirty",
+  "code_mixed": [
+   "scripts/miner_coverage.py"
+  ],
+  "git_commit": "",
   "canon_sha": "83225f36953ff54a",
   "bible_sha": "a97ea91862cee371",
   "blueprint_version": "4.0",
@@ -102,6 +105,79 @@
   "seeds": 20,
   "min_pairs_per_feature_over_seeds": 38,
   "problems": [],
-  "ok": true
+  "ok": true,
+  "occupancy": {
+   "rows": 1644064,
+   "features_below_5_levels": [
+    "earn_in_week",
+    "ev_activist",
+    "ev_activist_amend",
+    "ev_agreement",
+    "ev_offering",
+    "ev_red_flag",
+    "ev_shelf",
+    "ins_buyers30",
+    "ins_officer30",
+    "ins_opportunistic30",
+    "ins_value30",
+    "news5"
+   ],
+   "levels_occupied": {
+    "earn_in_week": 4,
+    "ev_activist": 2,
+    "ev_activist_amend": 2,
+    "ev_agreement": 2,
+    "ev_offering": 2,
+    "ev_red_flag": 2,
+    "ev_shelf": 2,
+    "ins_buyers30": 2,
+    "ins_officer30": 2,
+    "ins_opportunistic30": 2,
+    "ins_value30": 2,
+    "news5": 4
+   }
+  },
+  "stats_compare": {
+   "rows": 148696,
+   "dates": 522,
+   "tickers": 400,
+   "patterns_tested": 548,
+   "date_bh": {
+    "n_tested": 538,
+    "fdr_pass": 207,
+    "p_real_ge_0.8": 159,
+    "median_abs_t_disc": 1.8571804392936762,
+    "max_abs_t_disc": 6.6045794032640055,
+    "null_t_95": 1.9570776315650362,
+    "tau2": 6.643142010706704e-06
+   },
+   "date_bonferroni": {
+    "n_tested": 538,
+    "fdr_pass": 207,
+    "p_real_ge_0.8": 63,
+    "median_abs_t_disc": 1.8571804392936762,
+    "max_abs_t_disc": 6.6045794032640055,
+    "null_t_95": 1.9570776315650362,
+    "tau2": 6.643142010706704e-06
+   },
+   "hac4_bh": {
+    "n_tested": 538,
+    "fdr_pass": 15,
+    "p_real_ge_0.8": 39,
+    "median_abs_t_disc": 1.3270275549646406,
+    "max_abs_t_disc": 4.743468227364531,
+    "null_t_95": 2.0949925695592144,
+    "tau2": 5.280332880185535e-06
+   },
+   "hac4_bonferroni": {
+    "n_tested": 538,
+    "fdr_pass": 15,
+    "p_real_ge_0.8": 2,
+    "median_abs_t_disc": 1.3270275549646406,
+    "max_abs_t_disc": 4.743468227364531,
+    "null_t_95": 2.0949925695592144,
+    "tau2": 5.280332880185535e-06
+   }
+  }
  }
 }
