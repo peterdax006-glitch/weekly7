@@ -92,6 +92,13 @@ class Window:
     def era(self):
         return BG.era_of(self.real_start)
 
+    @property
+    def archive_offset(self):
+        """simulated date - real date for the ARCHIVED presentation (trusted side only). The first archived session is the first
+        session on or after the real start, so this is exact to within the few days between a window start and its first
+        trading day; a disguise adds its own whole-week shift on top."""
+        return pd.Timestamp(self.closes.index.min()) - self.real_start
+
 
 @dataclass(frozen=True)
 class Presentation:
@@ -132,22 +139,48 @@ class Visible:
     meta: dict
     ltm: pd.DataFrame | None
     extra: dict
+    at: dict = field(default_factory=dict)      # name -> callable(simulated day) served by a trusted TimeGate (C58); no real dates in it
 
 
 @dataclass
 class LearnedState:
     cfg: dict
     meta: dict
-    ltm: pd.DataFrame | None = None        # arm, ctx, outcome + harness-only real_end, source
+    ltm: pd.DataFrame | None = None        # arm, ctx, outcome + harness-only real_end, source, obs_real, mature_real
     extra: dict = field(default_factory=dict)
     lineage: list = field(default_factory=list)
+    records: pd.DataFrame | None = None    # other dated evidence (pattern statistics) with obs_real / mature_real
+    ledger: dict = field(default_factory=lambda: {"runs": 0, "tests": 0})    # candidate patterns ever tried (multiple-testing bar)
 
-    def visible(self):
+    def derive(self, **kw):
+        """A copy with the named fields replaced. Every learner goes through this, so no field is dropped by accident."""
+        base = dict(cfg=dict(self.cfg), meta=dict(self.meta), ltm=self.ltm, extra=dict(self.extra), lineage=list(self.lineage),
+                    records=self.records, ledger=dict(self.ledger))
+        base.update(kw)
+        return LearnedState(**base)
+
+    def make_gates(self, offset, gate_cls=None):
+        """Trusted-side time gates over the dated tables of this state. `offset` = simulated date - real date for the
+        presentation about to be played."""
+        gate_cls = gate_cls or TimeGate
+        g = {}
+        if self.ltm is not None and len(self.ltm):
+            g["ltm"] = gate_cls(self.ltm, offset, list(VISIBLE_LTM_COLS))
+        if self.records is not None and len(self.records):
+            g["records"] = gate_cls(self.records, offset, [c for c in self.records.columns if c not in ("obs_real", "mature_real", "real_end", "source")])
+        return g
+
+    def visible(self, gates=None):
+        """What a player sees. Without gates (legacy/control use) the whole long-term bank is handed over as data. With gates
+        (C58) the bank and records are reachable ONLY through per-day callables that release evidence whose outcome had
+        matured by that simulated day's real date."""
+        cfg, meta = json.loads(json.dumps(self.cfg, default=str)), json.loads(json.dumps(self.meta, default=str))
+        if gates is not None:
+            return Visible(cfg, meta, None, dict(self.extra), {k: g.serve for k, g in gates.items()})
         ltm = None
         if self.ltm is not None and len(self.ltm):
             ltm = self.ltm[list(VISIBLE_LTM_COLS)].reset_index(drop=True).copy()
-        return Visible(json.loads(json.dumps(self.cfg, default=str)), json.loads(json.dumps(self.meta, default=str)), ltm,
-                       dict(self.extra))
+        return Visible(cfg, meta, ltm, dict(self.extra))
 
     def fingerprint(self):
         h = hashlib.sha256(json.dumps({"cfg": self.cfg, "meta": self.meta}, sort_keys=True, default=str).encode())
@@ -162,6 +195,56 @@ class LearnedState:
 
     def n_episodes(self):
         return 0 if self.ltm is None else len(self.ltm)
+
+
+class TimeGate:
+    """Trusted-side filter for C58 (nothing from a date that has not yet occurred, including earlier runs of the same year).
+    A row is usable at simulated day t only when its outcome had MATURED by t's real date (mature_real <= t - offset; the
+    observation date is never later than maturity). Rows without dates fall back to their window's real_end (usable only once
+    that whole window is over). Every call is logged with the row ids it released, so verify_gate_log can re-derive the rule
+    independently of the gate. The player only sees `serve(day)`; real dates never leave this class. Engine-side twin of
+    the timeline store in engine/pattern_memory.py."""
+
+    def __init__(self, table, offset, cols):
+        t = table.copy()
+        end = pd.to_datetime(t["real_end"]) if "real_end" in t else pd.Series(pd.NaT, index=t.index)
+        mature = pd.to_datetime(t["mature_real"]) if "mature_real" in t else end
+        t["mature_real"] = mature.fillna(end)                       # an undated row is usable only after its whole window is over
+        t["obs_real"] = (pd.to_datetime(t["obs_real"]) if "obs_real" in t else t["mature_real"]).fillna(t["mature_real"])
+        if t["mature_real"].isna().any():
+            raise ValueError("a memory row has no date at all; it cannot be time-gated, so it is not admitted")
+        t = t.sort_values("mature_real", kind="mergesort").reset_index(drop=True)
+        t["_rid"] = np.arange(len(t))
+        self.t, self.offset, self.cols = t, pd.Timedelta(offset), list(cols)
+        self._m = t["mature_real"].to_numpy()
+        self.calls = []
+
+    def _select(self, day):
+        real = pd.Timestamp(day) - self.offset
+        return self.t.iloc[:int(np.searchsorted(self._m, np.datetime64(real), side="right"))]
+
+    def serve(self, day):
+        rows = self._select(day)
+        self.calls.append((str(pd.Timestamp(day).date()), rows["_rid"].to_numpy().copy()))
+        return rows[self.cols + ["_rid"]]
+
+
+def verify_gate_log(gates, name="gate"):
+    """Independent C58 check on what the gates actually released: every released row must have obs_real and mature_real at or
+    before the real date of the simulated day it was released for. Returns findings ('fail' on any leak)."""
+    out = []
+    for gname, g in gates.items():
+        for day, rids in g.calls:
+            if not len(rids):
+                continue
+            real = pd.Timestamp(day) - g.offset
+            rows = g.t.iloc[rids]
+            late = (rows["mature_real"] > real) | (rows["obs_real"] > real)
+            if late.any():
+                out.append(BG.Finding("time-gate", "fail", f"[{name}] {gname}: {int(late.sum())} of {len(rids)} rows released for "
+                                      f"{day} come from after that moment (latest {rows['mature_real'].max().date()} real vs {real.date()})"))
+                break
+    return out
 
 
 @dataclass(frozen=True)
@@ -491,16 +574,49 @@ class ReplayPlayer:
     def patch(self, snaps, visible):
         return snaps
 
+    def _gated(self, snaps, pres, visible):
+        """engine.adaptive.replay with the long-term bank served through the trusted TimeGate: before every decision the
+        memory holds exactly the carried episodes whose outcomes had matured by that simulated day (C58)."""
+        from . import adaptive as A
+        from .memory import _arm_parse
+        S = A.Session(visible.cfg, pres.divs, pres.bps, adaptive=True, meta=visible.meta, long_term=None)
+        mem, applied, dec = S.adapter.mem, 0, {pd.Timestamp(k): v for k, v in snaps.items()}
+        sessions, opens = pres.closes.index, pres.opens
+        serve = visible.at.get("ltm")
+        for i, d in enumerate(sessions):
+            nxt_new = i + 1 >= len(sessions) or sessions[i + 1].isocalendar().week != d.isocalendar().week
+            snap = dec.get(d) if S.needs_snapshot(nxt_new) else None
+            if snap is not None and serve is not None:
+                rows = serve(d).drop(columns="_rid")
+                if len(rows) < applied:                                          # a gate must only ever grow; rebuild if not
+                    keep = [j for j, e in enumerate(mem.ep) if not e[4]]
+                    mem.ep, mem.info = [mem.ep[j] for j in keep], [mem.info[j] for j in keep]
+                    mem._reindex()
+                    applied = 0
+                for r in rows.iloc[applied:].itertuples(index=False):
+                    mem._add((_arm_parse(r.arm), -1e6, np.asarray(r.ctx, dtype=float), float(r.outcome), 1),
+                             {"date": None, "era": None, "exp": None, "err": None})
+                if len(rows) > applied:
+                    mem._fit_scale()
+                applied = len(rows)
+            S.on_day(d, pres.closes.loc[d], pres.closes.loc[:d], nxt_new, snap, opens.loc[d] if opens is not None and d in opens.index else None)
+        return S
+
     def play(self, pres, visible):
         snaps = self.patch({k: v for k, v in pres.snaps.items()}, visible)
-        S = self.replay(visible.cfg, snaps, pres.closes, pres.bps, pres.divs, adaptive=True, meta=visible.meta,
-                        opens=pres.opens, long_term=visible.ltm)
+        if visible.at:
+            S = self._gated(snaps, pres, visible)
+        else:
+            S = self.replay(visible.cfg, snaps, pres.closes, pres.bps, pres.divs, adaptive=True, meta=visible.meta,
+                            opens=pres.opens, long_term=visible.ltm)
         res = S.result()
         eq = np.array([1000.0] + [v for _, v in S.days], float)             # Session starts with $1,000
         ep = S.adapter.mem.export() if S.adapter is not None else None
+        own = [e for e in S.adapter.mem.ep if not e[4]] if S.adapter is not None else []
         return Run(np.array(S.weeks, float), eq, [(d, list(n)) for d, n in S.decisions], ep,
                    {"n_adaptations": len(res.get("adaptations", [])), "audit_digest": res.get("audit_digest"),
-                    "audit_len": res.get("audit_len")}, snaps=snaps, closes=pres.closes)
+                    "audit_len": res.get("audit_len"), "ep_weeks": [float(e[1]) for e in own],
+                    "n_candidates": len({repr(e[0]) for e in own})}, snaps=snaps, closes=pres.closes)
 
 
 class MemoryBankLearner:
@@ -512,12 +628,17 @@ class MemoryBankLearner:
 
     def learn(self, state, run, ctx):
         ep = run.episodes
-        new = LearnedState(dict(state.cfg), dict(state.meta), state.ltm, dict(state.extra), list(state.lineage))
+        new = state.derive()
         if ep is None or not len(ep):
             new.lineage.append(f"{self.name}: no episodes to add")
             return new
         add = ep[list(VISIBLE_LTM_COLS)].copy()
         add["real_end"] = str(ctx.real_end.date())
+        off, wk, dates = run.extra.get("offset"), run.extra.get("ep_weeks"), [pd.Timestamp(d) for d, _ in run.decisions]
+        if off is not None and wk is not None and len(wk) == len(add) and dates:
+            w = np.clip(np.asarray(wk, int), 1, len(dates) - 1)                # week w closed decision w-1 -> w (adaptive._learn)
+            add["obs_real"] = [dates[j - 1] - off for j in w]
+            add["mature_real"] = [dates[j] - off for j in w]
         add["source"] = ctx.window_id
         new.ltm = add if state.ltm is None or not len(state.ltm) else pd.concat([state.ltm, add], ignore_index=True)
         if self.max_rows and len(new.ltm) > self.max_rows:
@@ -535,7 +656,7 @@ class BasisLearner:
         self.train_fn = train_fn
 
     def learn(self, state, run, ctx):
-        new = LearnedState(dict(state.cfg), dict(state.meta), state.ltm, dict(state.extra), list(state.lineage))
+        new = state.derive()
         out = self.train_fn(run, ctx, state)
         if out is None:
             new.lineage.append(f"{self.name}: kept")
@@ -562,7 +683,7 @@ class NullLearner:
     name = "none"
 
     def learn(self, state, run, ctx):
-        return LearnedState(dict(state.cfg), dict(state.meta), state.ltm, dict(state.extra), state.lineage + ["none: unchanged"])
+        return state.derive(lineage=state.lineage + ["none: unchanged"])
 
 
 def snapshot_key(snap, cols=None):
@@ -616,8 +737,7 @@ class MemoriserLearner:
         for k, s in (run.snaps or {}).items():
             r = realised_forward(s, k, run.closes)
             table[snapshot_key(s)] = r
-        extra = {**state.extra, "memo_table": table}
-        return LearnedState(dict(state.cfg), dict(state.meta), state.ltm, extra, state.lineage + [f"memoriser: {len(table)} keys"])
+        return state.derive(extra={**state.extra, "memo_table": table}, lineage=state.lineage + [f"memoriser: {len(table)} keys"])
 
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -708,8 +828,7 @@ class SyntheticGeneraliser:
         x, y = np.concatenate(xs), np.concatenate(ys)
         slope = float((x * y).sum() / ((x * x).sum() + self.prior_n * 1e-6)) if len(x) else 0.0
         w = float(np.sign(slope))                                         # only the direction of the law is kept
-        return LearnedState(dict(state.cfg), dict(state.meta), state.ltm, {**state.extra, "w": w},
-                            state.lineage + [f"generaliser: slope {slope:+.4f}"])
+        return state.derive(extra={**state.extra, "w": w}, lineage=state.lineage + [f"generaliser: slope {slope:+.4f}"])
 
 
 class SyntheticMemoriserPlayer:
@@ -731,49 +850,54 @@ class SyntheticMemoriserPlayer:
 # ---------------------------------------------------------------------------------------------------------------
 # the experiment
 # ---------------------------------------------------------------------------------------------------------------
-def _audit_and_play(player, window, pres, rec, state, kind, log):
-    vis = state.visible()
-    findings = audit_presentation(pres, window, rec, vis, kind)
+def _audit_and_play(player, window, pres, rec, state, kind, log, gated=True, gate_cls=None, order_required=True):
+    """Audit the hand-over (presentation + state), play it, and audit what the trusted time gates released (C58). `rec` None
+    means the archived presentation (Run 1). Returns the Run with extra['offset'] (simulated - real) set for the learner."""
+    offset = window.archive_offset + pd.Timedelta(days=0 if rec is None else rec.shift_days)
+    gates = state.make_gates(offset, gate_cls) if gated else None
+    vis = state.visible(gates)
+    findings = (audit_visible(vis, window, kind) if rec is None else
+                audit_presentation(pres, window, rec, vis, kind, order_preserving_required=order_required))
     summ = blindness_summary(findings)
     log.append({"run": kind, **summ})
     if not summ["passed"]:
         raise BlindnessError("; ".join(summ["fails"]))
-    return player.play(pres, vis)
+    run = player.play(pres, vis)
+    run.extra["offset"] = offset
+    if gates:
+        leaks = verify_gate_log(gates, kind)
+        log[-1]["time_gate"] = {"calls": sum(len(g.calls) for g in gates.values()), "leaks": [str(x) for x in leaks[:4]]}
+        if leaks:
+            log[-1]["passed"] = False
+            raise BlindnessError("; ".join(str(x) for x in leaks[:3]))
+    return run
 
 
-def run_pair(W, B, player, learner, s0, seed, controls=True, log_fn=None):
+def run_pair(W, B, player, learner, s0, seed, controls=True, log_fn=None, gated=True, gate_cls=None):
     """One learning window W (and one transfer window B). Returns a plain-dict record; raises BlindnessError if any
     hand-over fails the audit, so a leaky run never enters an aggregate."""
     t0 = time.perf_counter()
     audits = []
     ctxW = LearnContext(W.id, W.real_start, W.real_end, W.era)
     P1 = archive_presentation(W)
-    f1 = audit_visible(s0.visible(), W, "run1")                # the archive is run 1's presentation; its state is audited
-    audits.append({"run": "run1", **blindness_summary(f1)})
-    if not audits[-1]["passed"]:
-        raise BlindnessError("; ".join(audits[-1]["fails"]))
-    run1 = player.play(P1, s0.visible())
+    kw = {"gated": gated, "gate_cls": gate_cls}
+    run1 = _audit_and_play(player, W, P1, None, s0, "run1", audits, **kw)     # the archive is run 1's presentation
     m1 = run_metrics(run1, P1.closes)
     s1 = learner.learn(s0, run1, ctxW)
     rec = {"window": W.id, "transfer": None if B is None else B.id, "era": W.era, "real_start": str(W.real_start.date()),
            "learner": getattr(learner, "name", type(learner).__name__), "s0_episodes": s0.n_episodes(), "s1_episodes": s1.n_episodes(),
            "s0_fp": s0.fingerprint(), "s1_fp": s1.fingerprint(), "lineage": s1.lineage[-3:], "run1": m1}
     P2, d2 = make_presentation(W, derive_seed(seed, W.id, "run2"))
-    rec["run2"] = run_metrics(_audit_and_play(player, W, P2, d2, s1, "run2", audits), P2.closes)
+    rec["run2"] = run_metrics(_audit_and_play(player, W, P2, d2, s1, "run2", audits, **kw), P2.closes)
     if controls:
         P2c, d2c = make_presentation(W, derive_seed(seed, W.id, "noise"))
-        rec["run2_noise"] = run_metrics(_audit_and_play(player, W, P2c, d2c, s0, "noise", audits), P2c.closes)
+        rec["run2_noise"] = run_metrics(_audit_and_play(player, W, P2c, d2c, s0, "noise", audits, **kw), P2c.closes)
         P2r, d2r = make_presentation(W, derive_seed(seed, W.id, "shuffle"), order_preserving=False)
-        vis = s0.visible()
-        f = audit_presentation(P2r, W, d2r, vis, "shuffle", order_preserving_required=False)
-        audits.append({"run": "shuffle", **blindness_summary(f)})
-        if not audits[-1]["passed"]:
-            raise BlindnessError("; ".join(audits[-1]["fails"]))
-        rec["run2_shuffle"] = run_metrics(player.play(P2r, vis), P2r.closes)
+        rec["run2_shuffle"] = run_metrics(_audit_and_play(player, W, P2r, d2r, s0, "shuffle", audits, order_required=False, **kw), P2r.closes)
     if B is not None:
         PB, dB = make_presentation(B, derive_seed(seed, W.id, B.id, "transfer"))
-        rec["transfer_s0"] = run_metrics(_audit_and_play(player, B, PB, dB, s0, "transfer_s0", audits), PB.closes)
-        rb1 = _audit_and_play(player, B, PB, dB, s1, "transfer_s1", audits)
+        rec["transfer_s0"] = run_metrics(_audit_and_play(player, B, PB, dB, s0, "transfer_s0", audits, **kw), PB.closes)
+        rb1 = _audit_and_play(player, B, PB, dB, s1, "transfer_s1", audits, **kw)
         rec["transfer_s1"] = run_metrics(rb1, PB.closes)
         rec["transfer_anachronistic"] = bool(W.real_end >= B.real_start)     # learned from a year that comes AFTER the transfer year
     rec["blindness"] = audits
@@ -1052,6 +1176,8 @@ def causal_bank(bank, real_start):
         return None
     b = b[list(VISIBLE_LTM_COLS) + ["real_end"]].copy()
     b["source"] = "bank"
+    b["mature_real"] = pd.to_datetime(b["real_end"])          # the old bank records no per-episode dates: usable once its window is over
+    b["obs_real"] = b["mature_real"]
     return b.reset_index(drop=True)
 
 
@@ -1218,8 +1344,7 @@ class IdentityRecallLearner:
             for c, v in zip(s.index, r):
                 if np.isfinite(v):
                     table[f"{c}|{k}"] = float(v)
-        return LearnedState(dict(state.cfg), dict(state.meta), state.ltm, {**state.extra, "id_table": table},
-                            state.lineage + [f"identity_recall: {len(table)} (code,date) keys"])
+        return state.derive(extra={**state.extra, "id_table": table}, lineage=state.lineage + [f"identity_recall: {len(table)} (code,date) keys"])
 
 
 class SyntheticIdentityPlayer:
@@ -1261,36 +1386,61 @@ def pattern_window(seed, wid, betas=(0.03, 0.02, 0.0, -0.015), n_stocks=40, n_we
     return base
 
 
-class PatternPlayer:
-    """Scores by a weight vector over the f_j columns held in the learned state (zeros at the start: no pattern known)."""
+PATTERN_PRIOR = (-0.03, -0.02, 0.0, 0.015)     # a plausible but WRONG belief about the planted pattern (opposite signs)
 
-    def __init__(self, k=5, n_feat=4):
-        self.k, self.n = k, n_feat
+
+class PatternPlayer:
+    """Scores by a weight vector over the f_j columns. The vector is a blend of a prior (wrong at the start) and a ridge fit
+    to the evidence the gate has released for this simulated day; the more earlier runs contributed matured evidence, the
+    more weight the fit gets (`lr` per run). Nothing else, and no name or date, enters."""
+
+    def __init__(self, k=5, n_feat=4, lr=0.25, prior=PATTERN_PRIOR, lam=30.0):
+        self.k, self.n, self.lr, self.prior, self.lam = k, n_feat, lr, np.array(prior, float), lam
+
+    def weights(self, visible, day):
+        serve = visible.at.get("records")
+        r = serve(day) if serve is not None else None
+        if r is None or not len(r):
+            return self.prior.copy()
+        XtX = np.sum(np.stack(r["xtx"].to_list()), axis=0)
+        Xty = np.sum(np.stack(r["xty"].to_list()), axis=0)
+        fit = np.linalg.solve(XtX + self.lam * np.eye(self.n), Xty)
+        a = 1.0 - (1.0 - self.lr) ** int(r["run"].nunique())
+        return a * fit / max(np.linalg.norm(fit), 1e-12) * np.linalg.norm(self.prior) + (1 - a) * self.prior
 
     def play(self, pres, visible):
-        w = np.array(visible.extra.get("wvec", np.zeros(self.n)), float)
         cols = [f"f{j}" for j in range(self.n)]
-        return score_weekly(pres.snaps, pres.closes, lambda s, d: s[cols].to_numpy() @ w + 1e-9 * s["sig"].to_numpy(), self.k)
+        return score_weekly(pres.snaps, pres.closes, lambda s, d: s[cols].to_numpy() @ self.weights(visible, d) + 1e-9 * s["sig"].to_numpy(), self.k)
 
 
 class PatternLearner:
-    """A genuine pattern learner: each run it takes ONE gradient-style step of `lr` toward the least-squares weights of
-    features on realised forward returns. Names and dates never enter; only feature-outcome structure does."""
+    """A genuine pattern learner. After a run it records, for every week the run saw, the sufficient statistics of features
+    against the realised forward return (X'X, X'y), dated by when that outcome matured (the close 5 sessions after the
+    decision). The gate releases them only from that moment on (C58); names and dates never enter the statistics."""
     name = "pattern"
+    n_candidates_per_run = 4                       # one candidate weight per feature is searched every run
 
-    def __init__(self, lr=0.2, n_feat=4):
-        self.lr, self.n = lr, n_feat
+    def __init__(self, n_feat=4, horizon=5):
+        self.n, self.horizon = n_feat, horizon
+        self.n_candidates_per_run = n_feat
 
     def learn(self, state, run, ctx):
         cols = [f"f{j}" for j in range(self.n)]
-        X = np.vstack([s[cols].to_numpy() for s in run.snaps.values()])
-        y = np.concatenate([realised_forward(s, d, run.closes) for d, s in run.snaps.items()])
-        ok = np.isfinite(y)
-        w_ols = np.linalg.lstsq(X[ok], y[ok], rcond=None)[0] if ok.sum() > self.n else np.zeros(self.n)
-        w0 = np.array(state.extra.get("wvec", np.zeros(self.n)), float)
-        w1 = w0 + self.lr * (w_ols - w0)
-        return LearnedState(dict(state.cfg), dict(state.meta), state.ltm, {**state.extra, "wvec": w1.tolist()},
-                            state.lineage + [f"pattern: |w-w_ols| {np.linalg.norm(w1 - w_ols):.4f}"])
+        off, idx = run.extra["offset"], run.closes.index
+        rows = []
+        for d, s in sorted(run.snaps.items()):
+            t = pd.Timestamp(d)
+            y = realised_forward(s, d, run.closes, self.horizon)
+            ok = np.isfinite(y)
+            if not ok.any() or t not in idx:
+                continue
+            i = idx.get_loc(t)
+            X = s[cols].to_numpy()[ok]
+            rows.append({"xtx": X.T @ X, "xty": X.T @ y[ok], "n": int(ok.sum()), "run": int(state.ledger["runs"]),
+                         "obs_real": t - off, "mature_real": idx[min(i + self.horizon, len(idx) - 1)] - off})
+        new = pd.DataFrame(rows)
+        rec = new if state.records is None or not len(state.records) else pd.concat([state.records, new], ignore_index=True)
+        return state.derive(records=rec, lineage=state.lineage + [f"pattern: +{len(new)} dated weeks"])
 
 
 def trim_history(window, keep_codes):
@@ -1301,7 +1451,7 @@ def trim_history(window, keep_codes):
 
 
 def play_curve(window, player, learner, s0, steps, seed, arm="main", reset=False, disguise=True, log_fn=None,
-               resume=None, on_run=None, min_abs_weeks=None):
+               resume=None, on_run=None, min_abs_weeks=None, gated=True, gate_cls=None):
     """Play a schedule of (Window, tag) steps in sequence. Before EVERY step: a fresh disguise (new order-preserving code
     names and a new whole-week date shift; audited like every hand-over), and the learner state carried forward from the
     previous step (memory is never wiped; `reset=True` is the no-learning control that hands S0 to every run instead).
@@ -1312,6 +1462,7 @@ def play_curve(window, player, learner, s0, steps, seed, arm="main", reset=False
     if resume:
         window.used_shifts[:] = resume.get("shifts", [])
     min_w = min_abs_weeks if min_abs_weeks is not None else max(1, min(8, 1500 // (len(steps) + 1)))
+    per_run_tests = int(getattr(learner, "n_candidates_per_run", 0))
     for i in range(i0, len(steps)):
         Wi, tag = steps[i]
         t0 = time.perf_counter()
@@ -1322,22 +1473,25 @@ def play_curve(window, player, learner, s0, steps, seed, arm="main", reset=False
             if len(Wi.used_codes) > 20000:
                 trim_history(Wi, [])
             pres, drec = make_presentation(Wi, derive_seed(seed, Wi.id, arm, i), min_abs_weeks=min_w)
-            run = _audit_and_play(player, Wi, pres, drec, use, f"{arm}{i}", audits)
+            run = _audit_and_play(player, Wi, pres, drec, use, f"{arm}{i}", audits, gated=gated, gate_cls=gate_cls)
         else:
             pres = archive_presentation(Wi)
             run = player.play(pres, use.visible())
+            run.extra["offset"] = Wi.archive_offset
         m = run_metrics(run, pres.closes)
         if not reset:
             state = learner.learn(state, run, ctx)
+            tried = int(run.extra.get("n_candidates", 0)) + per_run_tests
+            state = state.derive(ledger={"runs": state.ledger["runs"] + 1, "tests": state.ledger["tests"] + tried})
         rec = {"i": i, "tag": tag, "window": Wi.id, "arm": arm, **{k: m[k] for k in METRICS}, "n_weeks": m["n_weeks"],
-               "episodes": state.n_episodes(), "seconds": round(time.perf_counter() - t0, 2),
+               "episodes": state.n_episodes(), "tests_so_far": state.ledger["tests"], "seconds": round(time.perf_counter() - t0, 2),
                "blindness_ok": all(a["passed"] for a in audits) if audits else None}
         recs.append(rec)
         if log_fn:
             log_fn(f"{arm} {Wi.id} run {i + 1}/{len(steps)} [{tag}]: mean_week {m['mean_week']:+.4f} in_band {m['in_band']:.2f} ({rec['seconds']}s)")
         if on_run:
             on_run(i + 1, rec, state, list(Wi.used_shifts))
-    return {"recs": recs, "state": state}
+    return {"recs": recs, "state": state, "tests": state.ledger["tests"]}
 
 
 def plateau_index(values, win=5, tol=None):
@@ -1355,7 +1509,34 @@ def plateau_index(values, win=5, tol=None):
     return None
 
 
-def series_stats(values, seed=0, n_boot=2000, level=0.95, edge=5, win=5):
+def slope_perm_p(values, n_perm=20000, seed=0, chunk=100000):
+    """Two-sided permutation p-value of the OLS slope against run index (order of runs shuffled), (hits+1)/(n+1). Its floor is
+    1/(n_perm+1), so the caller sizes n_perm from the multiple-testing bar it must be able to clear."""
+    y = np.asarray([v for v in values if np.isfinite(v)], float)
+    n = len(y)
+    if n < 3 or y.std() == 0:
+        return 1.0
+    x = np.arange(n, dtype=float)
+    xc = x - x.mean()
+    obs = abs(float((xc * y).sum() / (xc * xc).sum()))
+    rng = np.random.default_rng(seed)
+    hits, done = 0, 0
+    while done < n_perm:
+        m = min(chunk, n_perm - done)
+        perm = np.argsort(rng.random((m, n)), axis=1)
+        sl = np.abs((y[perm] * xc).sum(axis=1) / (xc * xc).sum())
+        hits += int((sl >= obs - 1e-15).sum())
+        done += m
+    return float((hits + 1) / (n_perm + 1))
+
+
+def alpha_bar(n_tests, alpha=0.05):
+    """Bonferroni bar over EVERY candidate pattern ever tried across runs (repeated search on one year's data is still
+    search). 0 tests counts as one."""
+    return float(alpha / max(1, int(n_tests)))
+
+
+def series_stats(values, seed=0, n_boot=2000, level=0.95, edge=5, win=5, n_perm=20000):
     """The curve of one metric: OLS slope per run with a bootstrap CI (resampling runs), last-`edge` minus first-`edge`
     mean with a bootstrap CI, and the plateau run. Runs of one chain are not independent, so the CIs are a screening
     guide; the sign-flip p on the edge difference is reported beside them."""
@@ -1379,14 +1560,20 @@ def series_stats(values, seed=0, n_boot=2000, level=0.95, edge=5, win=5):
     out.update({"slope": slope(x, y), "slope_lo": float(np.quantile(sl, q)), "slope_hi": float(np.quantile(sl, 1 - q)),
                 "first": float(fi.mean()), "last": float(la.mean()), "diff": float(la.mean() - fi.mean()),
                 "diff_lo": float(np.quantile(d, q)), "diff_hi": float(np.quantile(d, 1 - q)), "plateau": plateau_index(y, win),
-                "edge": e})
+                "edge": e, "perm_p": slope_perm_p(y, n_perm, derive_seed(seed, "perm") % (2 ** 31)), "n_perm": int(n_perm)})
     return out
 
 
-def curve_stats(recs, tag="main", seed=0):
-    """series_stats for every comparison metric over the records with `tag`."""
+def perm_budget(n_tests, alpha=0.05, cap=2_000_000):
+    """Permutations needed for the slope test to be able to clear the Bonferroni bar (about 20 x 1/bar), capped."""
+    return int(min(cap, max(20000, math.ceil(20 / alpha_bar(n_tests, alpha)))))
+
+
+def curve_stats(recs, tag="main", seed=0, n_tests=0):
+    """series_stats for every comparison metric over the records with `tag`; the permutation test is sized to the bar."""
     sel = [r for r in recs if r["tag"] == tag]
-    return {m: series_stats([r[m] for r in sel], derive_seed(seed, m) % (2 ** 31)) for m in METRICS}
+    npm = perm_budget(n_tests)
+    return {m: series_stats([r[m] for r in sel], derive_seed(seed, m) % (2 ** 31), n_perm=npm if m == PRIMARY else 20000) for m in METRICS}
 
 
 def persistence(recs, metric=PRIMARY, edge=5):
@@ -1403,20 +1590,37 @@ def persistence(recs, metric=PRIMARY, edge=5):
             "retained": float((after - first) / gain) if abs(gain) > 1e-12 else float("nan"), "gain": gain, "n_post": len(post)}
 
 
-def curve_verdict(main, noise, ident, persist=None, alpha_noise=0.0):
+def curve_verdict(main, noise, ident, persist=None, alpha_noise=0.0, n_tests=0):
     """One label per window (C57). `main`/`noise`/`ident` are series_stats of the primary metric of the learning chain, the
     reset-state control and the identity-recall control run under disguise (None if not run).
+    UNPROVEN_AFTER_CORRECTION  rises, but not past the Bonferroni bar over every candidate pattern tried across runs.
     IDENTITY_LEAK       the identity control rises: stock identity survives the disguise; nothing else may be trusted.
     VOID                the no-learning control is not flat: disguise noise alone moves the curve.
     SAME_YEAR_LEARNING  slope and last-vs-first are significantly positive and the controls are flat (what C57 asks for).
     NO_CURVE            no significant trend.   DEGRADING   significantly negative."""
     rises = lambda s: s is not None and s["n"] >= 3 and s["slope_lo"] > 0 and s["diff_lo"] > 0
-    if rises(ident):
+    noise_sd = float(np.std(noise["values"])) if noise is not None and noise["n"] >= 3 else 0.0
+
+    def leaks(x):
+        """Identity may not gain AT ALL: a step up after the first run (not a slow trend) already proves recall, so the test is the
+        later-run median above run 1 by more than three sd of the no-learning control."""
+        if x is None or x["n"] < 3:
+            return False
+        v = np.asarray(x["values"], float)
+        v = v[np.isfinite(v)]
+        return bool(len(v) >= 3 and np.median(v[1:]) - v[0] > 3 * noise_sd + 1e-9)
+    if leaks(ident):
         return {"label": "IDENTITY_LEAK", "why": f"identity-recall control rose (slope {ident['slope']:+.3g}/run, CI lo {ident['slope_lo']:+.3g})"}
     if noise is not None and noise["n"] >= 3 and (noise["slope_lo"] > 0 or noise["slope_hi"] < 0) and abs(noise["slope"]) > alpha_noise:
         return {"label": "VOID", "why": f"no-learning control is not flat (slope {noise['slope']:+.3g}/run)"}
     if main["n"] < 6:
         return {"label": "INCONCLUSIVE", "why": f"only {main['n']} runs"}
+    if rises(main) and n_tests:
+        bar = alpha_bar(n_tests)
+        if main.get("perm_p", 0.0) >= bar:
+            return {"label": "UNPROVEN_AFTER_CORRECTION", "why": f"slope {main['slope']:+.3g}/run rises before correction, but permutation p "
+                    f"{main.get('perm_p', float('nan')):.2g} does not clear the bar {bar:.2g} for {n_tests} candidate patterns tried across runs "
+                    f"(the p-value can resolve down to {1 / (main.get('n_perm', 1) + 1):.1g})"}
     if rises(main):
         p = ""
         if persist and persist.get("available"):
@@ -1427,6 +1631,37 @@ def curve_verdict(main, noise, ident, persist=None, alpha_noise=0.0):
     if main["slope_hi"] < 0 and main["diff_hi"] < 0:
         return {"label": "DEGRADING", "why": f"slope {main['slope']:+.3g}/run, later runs worse"}
     return {"label": "NO_CURVE", "why": f"slope {main['slope']:+.3g}/run (CI {main['slope_lo']:+.3g}..{main['slope_hi']:+.3g}) does not clear zero"}
+
+
+class LeakyGate(TimeGate):
+    """Planted defect for the self-check and tests: a memory that ignores the maturity rule and releases EVERYTHING it holds
+    at every simulated day (later-in-the-year evidence leaking into earlier dates)."""
+
+    def _select(self, day):
+        return self.t
+
+
+def leak_gate_caught(seed=0, K=4):
+    """True when a leaky memory is stopped by the C58 audit AND the leak would have paid (so the audit is not catching a
+    harmless thing): the leaky run must be better than the honest one on the same evidence."""
+    W = pattern_window(derive_seed(seed, "lk"), "leak0")
+    honest = play_curve(W, PatternPlayer(), PatternLearner(), LearnedState({}, {}), [(W, "main")] * K, seed, "honest")
+    W.used_shifts.clear()
+    try:
+        play_curve(W, PatternPlayer(), PatternLearner(), honest["state"], [(W, "main")], seed, "leaky", gate_cls=LeakyGate)
+    except BlindnessError as e:
+        stopped = "time-gate" in str(e) or "after that moment" in str(e)
+    else:
+        stopped = False
+    W.used_shifts.clear()
+    # what the leak would have bought: rerun the last step ungated by the maturity rule, without the audit
+    st = honest["state"]
+    off = W.archive_offset
+    pres, rec = make_presentation(W, derive_seed(seed, "lk2"))
+    off2 = off + pd.Timedelta(days=rec.shift_days)
+    honest_run = PatternPlayer().play(pres, st.visible(st.make_gates(off2)))
+    leaky_run = PatternPlayer().play(pres, st.visible(st.make_gates(off2, LeakyGate)))
+    return bool(stopped and leaky_run.weekly.mean() > honest_run.weekly.mean())
 
 
 def curve_selfcheck(seed=0, K=12, log_fn=None):
@@ -1449,8 +1684,9 @@ def curve_selfcheck(seed=0, K=12, log_fn=None):
     res.update({"pattern_slope": a["slope"], "pattern_diff": a["diff"], "reset_slope": b["slope"], "identity_disguised_slope": c_["slope"],
                 "identity_undisguised_slope": d["slope"], "pattern_verdict": curve_verdict(a, b, c_)["label"],
                 "identity_undisguised_verdict": curve_verdict(a, b, d)["label"]})
-    res["valid"] = bool(a["slope_lo"] > 0 and a["diff_lo"] > 0 and abs(b["slope"]) < 1e-12 and abs(c_["slope"]) < 1e-12
-                        and d["slope_lo"] > 0 and res["identity_undisguised_verdict"] == "IDENTITY_LEAK" and res["pattern_verdict"] == "SAME_YEAR_LEARNING")
+    res["leak_gate_caught"] = leak_gate_caught(seed)
+    res["valid"] = bool(res["leak_gate_caught"] and a["slope_lo"] > 0 and a["diff_lo"] > 0 and abs(b["slope"]) < 1e-12 and abs(c_["slope"]) < 1e-12
+                        and d["slope"] > 0 and res["identity_undisguised_verdict"] == "IDENTITY_LEAK" and res["pattern_verdict"] == "SAME_YEAR_LEARNING")
     if log_fn:
         log_fn(f"curve selfcheck: {res}")
     return res
