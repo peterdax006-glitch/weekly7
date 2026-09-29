@@ -883,11 +883,13 @@
    "phase": "C LEARNING",
    "description": "Implement blame assignment.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
+    "engine/learning/separation.py",
     "engine/lessons.py::classify_kind,_counterfactual"
    ],
    "tests": [
+    "tests/test_learning_failure.py",
     "tests/test_lessons.py"
    ],
    "evidence": [
@@ -896,9 +898,9 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial] 5 lesson kinds with a counterfactual; learned lessons hurt on the real archive (D15)."
+   "last_run": "2026-09-29T09:30:30",
+   "code_hash": "42a303dfffa2e182",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S05). separation.py: additive pnl decomposition selection/direction/timing/exit/risk, blame + lesson routing. | earlier: [partial] 5 lesson kinds with a counterfactual; learned lessons hurt on the real archive (D15)."
   },
   {
    "id": "C10",
@@ -1082,11 +1084,13 @@
    "phase": "D FAILURE LEARNING",
    "description": "Loss classifier.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
+    "engine/learning/failure.py",
     "engine/lessons.py::classify_kind,CATEGORIES"
    ],
    "tests": [
+    "tests/test_learning_failure.py",
     "tests/test_lessons.py"
    ],
    "evidence": [
@@ -1095,22 +1099,24 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial] 5 kinds vs the 14 contract causes (no FALSE_PATTERN/REGIME_CHANGE/MEASUREMENT_ERROR/UNKNOWN...)."
+   "last_run": "2026-09-29T09:30:30",
+   "code_hash": "42a303dfffa2e182",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S05). failure.py: loss classifier over all FailureCause values, detectors D02-D09, UNKNOWN/INSUFFICIENT_EVIDENCE/CONFLICTED never forced; 12 planted causes named, synthetic only. | earlier: [partial] 5 kinds vs the 14 contract causes (no FALSE_PATTERN/REGIME_CHANGE/MEASUREMENT_ERROR/UNKNOWN...)."
   },
   {
    "id": "D02",
    "phase": "D FAILURE LEARNING",
    "description": "Selection failure detector.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
+    "engine/learning/failure.py",
     "engine/lessons.py (bad_entry)",
     "engine/memory.py::classify_error",
     "engine/missed_winners.py::why_missed"
    ],
    "tests": [
+    "tests/test_learning_failure.py",
     "tests/test_lessons.py",
     "tests/test_missed_winners.py"
    ],
@@ -1118,43 +1124,47 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial]"
+   "last_run": "2026-09-29T09:30:30",
+   "code_hash": "42a303dfffa2e182",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S05). failure.py: loss classifier over all FailureCause values, detectors D02-D09, UNKNOWN/INSUFFICIENT_EVIDENCE/CONFLICTED never forced; 12 planted causes named, synthetic only. | earlier: [partial]"
   },
   {
    "id": "D03",
    "phase": "D FAILURE LEARNING",
    "description": "Timing failure detector.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
-    "engine/lessons.py (missed_exit)",
-    "engine/exits.py"
+    "engine/exits.py",
+    "engine/learning/failure.py",
+    "engine/lessons.py (missed_exit)"
    ],
    "tests": [
-    "tests/test_exits.py"
+    "tests/test_exits.py",
+    "tests/test_learning_failure.py"
    ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial] No entry-timing detector."
+   "last_run": "2026-09-29T09:30:30",
+   "code_hash": "42a303dfffa2e182",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S05). failure.py: loss classifier over all FailureCause values, detectors D02-D09, UNKNOWN/INSUFFICIENT_EVIDENCE/CONFLICTED never forced; 12 planted causes named, synthetic only. | earlier: [partial] No entry-timing detector."
   },
   {
    "id": "D04",
    "phase": "D FAILURE LEARNING",
    "description": "Direction failure detector.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
     "engine/direction.py",
+    "engine/learning/failure.py",
     "engine/learning_delta.py::pick_hits (dir_hit)"
    ],
    "tests": [
-    "tests/test_direction.py"
+    "tests/test_direction.py",
+    "tests/test_learning_failure.py"
    ],
    "evidence": [
     "state/research/learning_delta/ld1/report.md"
@@ -1162,32 +1172,34 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial] Direction hit rate measured; not attributed per loss."
+   "last_run": "2026-09-29T09:30:30",
+   "code_hash": "42a303dfffa2e182",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S05). failure.py: loss classifier over all FailureCause values, detectors D02-D09, UNKNOWN/INSUFFICIENT_EVIDENCE/CONFLICTED never forced; 12 planted causes named, synthetic only. | earlier: [partial] Direction hit rate measured; not attributed per loss."
   },
   {
    "id": "D05",
    "phase": "D FAILURE LEARNING",
    "description": "Risk failure detector.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
-    "engine/lessons.py (oversized_loser)",
     "engine/gaprisk.py",
+    "engine/learning/failure.py",
+    "engine/lessons.py (oversized_loser)",
     "engine/stops.py"
    ],
    "tests": [
     "tests/test_gaprisk.py",
+    "tests/test_learning_failure.py",
     "tests/test_stops.py"
    ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial]"
+   "last_run": "2026-09-29T09:30:30",
+   "code_hash": "42a303dfffa2e182",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S05). failure.py: loss classifier over all FailureCause values, detectors D02-D09, UNKNOWN/INSUFFICIENT_EVIDENCE/CONFLICTED never forced; 12 planted causes named, synthetic only. | earlier: [partial]"
   },
   {
    "id": "D06",
@@ -1196,12 +1208,14 @@
    "owner": "Claude",
    "status": "IMPLEMENTED",
    "code_paths": [
+    "engine/learning/failure.py",
     "engine/pattern_lifecycle.py::detect_failure",
-    "engine/patterns.py (death)",
+    "engine/pattern_movers.py",
     "engine/pattern_reliability.py::break_states,find_breaks",
-    "engine/pattern_movers.py"
+    "engine/patterns.py (death)"
    ],
    "tests": [
+    "tests/test_learning_failure.py",
     "tests/test_pattern_lifecycle.py",
     "tests/test_pattern_movers.py"
    ],
@@ -1212,41 +1226,46 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "IMPLEMENTED — NOT VALIDATED. Planted decaying patterns are not held (miner level); live break detection (pattern_reliability) is untested."
+   "last_run": "2026-09-29T09:30:30",
+   "code_hash": "42a303dfffa2e182",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S05). failure.py: loss classifier over all FailureCause values, detectors D02-D09, UNKNOWN/INSUFFICIENT_EVIDENCE/CONFLICTED never forced; 12 planted causes named, synthetic only. | earlier: IMPLEMENTED — NOT VALIDATED. Planted decaying patterns are not held (miner level); live break detection (pattern_reliability) is untested."
   },
   {
    "id": "D07",
    "phase": "D FAILURE LEARNING",
    "description": "Context failure detector.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
+    "engine/learning/failure.py",
     "engine/pattern_reliability.py::driver_table,explain_breaks"
    ],
-   "tests": [],
+   "tests": [
+    "tests/test_learning_failure.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial][under-tested] Live-edited; no tests."
+   "last_run": "2026-09-29T09:30:30",
+   "code_hash": "42a303dfffa2e182",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S05). failure.py: loss classifier over all FailureCause values, detectors D02-D09, UNKNOWN/INSUFFICIENT_EVIDENCE/CONFLICTED never forced; 12 planted causes named, synthetic only. | earlier: [partial][under-tested] Live-edited; no tests."
   },
   {
    "id": "D08",
    "phase": "D FAILURE LEARNING",
    "description": "Regime failure detector.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
-    "engine/lessons.py (regime_misread)",
     "engine/antioverfit.py::regime_split",
+    "engine/learning/failure.py",
+    "engine/lessons.py (regime_misread)",
     "engine/pattern_reliability.py::planted_world('regime')"
    ],
    "tests": [
-    "tests/test_antioverfit.py"
+    "tests/test_antioverfit.py",
+    "tests/test_learning_failure.py"
    ],
    "evidence": [
     "state/research/antioverfit/real_v1/summary.txt"
@@ -1254,24 +1273,26 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial]"
+   "last_run": "2026-09-29T09:30:30",
+   "code_hash": "42a303dfffa2e182",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S05). failure.py: loss classifier over all FailureCause values, detectors D02-D09, UNKNOWN/INSUFFICIENT_EVIDENCE/CONFLICTED never forced; 12 planted causes named, synthetic only. | earlier: [partial]"
   },
   {
    "id": "D09",
    "phase": "D FAILURE LEARNING",
    "description": "Measurement failure detector.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
-    "engine/pit.py::IntegrityError",
+    "engine/data_sources.py",
+    "engine/learning/failure.py",
     "engine/parity.py",
-    "engine/data_sources.py"
+    "engine/pit.py::IntegrityError"
    ],
    "tests": [
-    "tests/test_pit.py",
-    "tests/test_parity.py"
+    "tests/test_learning_failure.py",
+    "tests/test_parity.py",
+    "tests/test_pit.py"
    ],
    "evidence": [
     "state/research/pit/PIT_AUDIT.md"
@@ -1279,27 +1300,30 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial] Data-quality checks exist; not a loss-cause detector."
+   "last_run": "2026-09-29T09:30:30",
+   "code_hash": "42a303dfffa2e182",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S05). failure.py: loss classifier over all FailureCause values, detectors D02-D09, UNKNOWN/INSUFFICIENT_EVIDENCE/CONFLICTED never forced; 12 planted causes named, synthetic only. | earlier: [partial] Data-quality checks exist; not a loss-cause detector."
   },
   {
    "id": "D10",
    "phase": "D FAILURE LEARNING",
    "description": "Unknown failure state.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
+    "engine/learning/failure.py",
     "engine/pattern_reliability.py::VERDICTS(OPEN),unknown_cause_share"
    ],
-   "tests": [],
+   "tests": [
+    "tests/test_learning_failure.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial][under-tested] UNKNOWN exists only for pattern breaks."
+   "last_run": "2026-09-29T09:30:30",
+   "code_hash": "42a303dfffa2e182",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S05). failure.py: loss classifier over all FailureCause values, detectors D02-D09, UNKNOWN/INSUFFICIENT_EVIDENCE/CONFLICTED never forced; 12 planted causes named, synthetic only. | earlier: [partial][under-tested] UNKNOWN exists only for pattern breaks."
   },
   {
    "id": "D11",
@@ -1342,9 +1366,11 @@
    "owner": "Claude",
    "status": "FAILED",
    "code_paths": [
+    "engine/learning/missed_winners.py",
     "engine/missed_winners.py::MissedWinnerDetector,why_missed,walk_forward,evaluate"
    ],
    "tests": [
+    "tests/test_learning_missed.py",
     "tests/test_missed_winners.py"
    ],
    "evidence": [
@@ -1353,30 +1379,32 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "IMPLEMENTED — FAILED VALIDATION. Real 2017-2026: detector uplift 0 (verdict false, p_vs_control 0.64)."
+   "last_run": "2026-09-29T09:30:31",
+   "code_hash": "42a303dfffa2e182",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S05). learning/missed_winners.py: 10 rejection reasons, rank-band-matched distinction discovery with family-wise permutation p, OOS hook with shuffled-label null. | earlier: IMPLEMENTED — FAILED VALIDATION. Real 2017-2026: detector uplift 0 (verdict false, p_vs_control 0.64)."
   },
   {
    "id": "D14",
    "phase": "D FAILURE LEARNING",
    "description": "Counterfactual distinction discovery.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
-    "engine/missed_winners.py::missed_profile",
-    "engine/lessons.py::_counterfactual"
+    "engine/learning/missed_winners.py",
+    "engine/lessons.py::_counterfactual",
+    "engine/missed_winners.py::missed_profile"
    ],
    "tests": [
+    "tests/test_learning_missed.py",
     "tests/test_missed_winners.py"
    ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial] Profiles, no OOS-validated separating distinction."
+   "last_run": "2026-09-29T09:30:31",
+   "code_hash": "42a303dfffa2e182",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S05). learning/missed_winners.py: 10 rejection reasons, rank-band-matched distinction discovery with family-wise permutation p, OOS hook with shuffled-label null. | earlier: [partial] Profiles, no OOS-validated separating distinction."
   },
   {
    "id": "D15",
@@ -4236,13 +4264,14 @@
   {
    "section": "Failure learning",
    "minimum_lines": 1100,
-   "actual_lines": 507,
+   "actual_lines": 1106,
    "code_paths": [
+    "engine/learning/failure.py",
     "engine/lessons.py::LessonBook,Lesson,_welch,kind_report (368)",
     "engine/pattern_reliability.py::investigate,investigation_invariants,unknown_cause_share,verdict_matrix,_onset_zone_bad (139)"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "UNDER by 593 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: LessonBook learns from 5 lesson kinds (not the 14 contract causes); pattern_reliability investigate() gives EXPLAINED_AND_GATED/DISCARDED/PHANTOM/OPEN. Real validation FAILED: lessons from other windows cost -0.188%/wk (state/research/lessons/archive_v2.md)."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S05). | earlier: UNDER by 593 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: LessonBook learns from 5 lesson kinds (not the 14 contract causes); pattern_reliability investigate() gives EXPLAINED_AND_GATED/DISCARDED/PHANTOM/OPEN. Real validation FAILED: lessons from other windows cost -0.188%/wk (state/research/lessons/archive_v2.md)."
   },
   {
    "section": "Pattern-break engine",
@@ -4381,33 +4410,36 @@
   {
    "section": "Missed-winner learning",
    "minimum_lines": 1000,
-   "actual_lines": 431,
+   "actual_lines": 1009,
    "code_paths": [
+    "engine/learning/missed_winners.py",
     "engine/missed_winners.py (431)"
    ],
    "status": "FAILED",
-   "notes": "UNDER by 569 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). IMPLEMENTED — FAILED VALIDATION: detector + why_missed + walk-forward with controls; real run uplift 0 (memory_adapter/results.json verdict false). Reasons list is shorter than contract's 10; no OOS-validated distinction discovery."
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S05). | earlier: UNDER by 569 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). IMPLEMENTED — FAILED VALIDATION: detector + why_missed + walk-forward with controls; real run uplift 0 (memory_adapter/results.json verdict false). Reasons list is shorter than contract's 10; no OOS-validated distinction discovery."
   },
   {
    "section": "Selection/timing/risk separation",
    "minimum_lines": 700,
-   "actual_lines": 34,
+   "actual_lines": 701,
    "code_paths": [
+    "engine/learning/separation.py",
     "engine/lessons.py::classify_kind,_counterfactual (22)",
     "engine/memory.py::classify_error (12)"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "UNDER by 666 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). under-depth: lesson kinds split entry/exit/size/regime; no explicit selection vs timing vs direction vs risk vs exit attribution that routes the lesson to one subsystem."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S05). | earlier: UNDER by 666 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). under-depth: lesson kinds split entry/exit/size/regime; no explicit selection vs timing vs direction vs risk vs exit attribution that routes the lesson to one subsystem."
   },
   {
    "section": "Loss postmortems",
    "minimum_lines": 800,
-   "actual_lines": 88,
+   "actual_lines": 813,
    "code_paths": [
+    "engine/learning/postmortem.py",
     "engine/lessons.py::post_mortem,Episode (88)"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "UNDER by 712 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). under-depth: post_mortem builds episodes; lacks the 13 required fields (what was believed, why, supporting/contradicting evidence, missing/invalidating condition, confidence in explanation). Lessons feed decisions directly as reweights - contract says a postmortem must first become a hypothesis."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S05). | earlier: UNDER by 712 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). under-depth: post_mortem builds episodes; lacks the 13 required fields (what was believed, why, supporting/contradicting evidence, missing/invalidating condition, confidence in explanation). Lessons feed decisions directly as reweights - contract says a postmortem must first become a hypothesis."
   },
   {
    "section": "Same-year learning harness",

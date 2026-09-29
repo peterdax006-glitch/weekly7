@@ -89,3 +89,18 @@
 - bug sent to B14: score() uses full CTX list vs fitted subset for regime scopes
 
 ## A7 self-tuning (main session): engine/miner_tuning.py, scripts/miner_tune_real.py (7 tests); real run: data/tune_move0.log
+
+## C62 contract wave 1 (S-series, 29 Sep 2026) - hooks to apply in wave-2 integration (S17), not before all code exists (C63)
+- S01 knowledge: promotion/health/archive call decision_contract.check, policy_check, readiness; firewalls use
+  KnowledgeStore.as_of + audit_future; failure/credit/experiment_memory call with_failure, with_relation, DecisionLog;
+  research policy uses interpretation.next_test + unknowns.rank_unknowns. Shared terms Level/HypKind/Mode/Applicability live in S01 modules.
+- S05 failure: engine/lessons.py post_mortem() -> failure.records_from_lessons_frame(frame, X, now) -> LossClassifier().classify;
+  LessonBook.learn() + memory.py lesson store -> failure.hypotheses_from_lessons; engine/missed_winners.py MissedLedger.add
+  call site -> learning.missed_winners.week_from_base(...) -> MissedLearningLedger.add_week. Shared types: failure.Hypothesis,
+  learning.missed_winners.RejectionReason.
+- S08 time/calibration: RetirementLedger.evaluate/attempt_recovery consume B27 health verdicts via retirement.Evidence
+  (temporal.to_evidence builds it); calibration.combined_influence(kid, now, ledger, monitor, profile) at the decision contract;
+  SurpriseTracker.research_priority/research_questions -> research priority.
+- S11 production: production readers call KnowledgeBoard.weight + effective_champion; audit_decision_sources after each decision
+  run; compute.job_for wraps an experiment as engine.resources.Job.
+- S14 planted world: scoring PatternMiner output via planted_world.as_claim (key_named/effect duck-typing); no hook needed.
