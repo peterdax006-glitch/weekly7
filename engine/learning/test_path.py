@@ -36,6 +36,7 @@ import pandas as pd
 from .core import FirewallBreach, TemporalClass, as_date, stable_hash
 from .curator import Curator, RelevanceConfig
 from .learner import EpisodeSummary, LearnerConfig, LegitimateLearner
+from .loop_hooks import RunGuard, run_same_year_harness, safe_token
 from .trader_view import (CURATOR_SYMBOLS, STORE_MARKERS, TraderDay, TraderRelease, assert_trader_safe, find_violations, opaque_token,
                           release_year_hits)
 
@@ -66,6 +67,8 @@ class PathConfig:
     features: tuple[str, ...] = DEFAULT_FEATURES
     min_feature_coverage: float = 0.9    # a candidate feature must be observed on this share of the warm-up rows to be shown at all
     check_path: bool = True              # run trader_view.assert_trader_path_clean when a runner is built
+    learn_root: str | None = None        # where the learner persists what it learns (None: <store_root>/../loop, or a temp dir)
+    checkpoint_every: int = 20           # sessions between progress checkpoints of the run (checkpoints.CheckpointStore)
 
     def validate(self) -> list[str]:
         errs = []
@@ -85,6 +88,8 @@ class PathConfig:
             errs.append("no candidate features")
         if not 0.0 < self.min_feature_coverage <= 1.0:
             errs.append("min_feature_coverage outside (0, 1]")
+        if self.checkpoint_every < 1:
+            errs.append("checkpoint_every < 1")
         return errs
 
     def digest(self) -> str:
@@ -402,7 +407,18 @@ class PathRunner:
         if not self.features:
             raise ValueError("no candidate feature is observed on the warm-up rows: the learner would see nothing")
         self.dropped_features = tuple(c for c in self.cfg.features if c not in self.features)
-        self.learner = learner or make_learner(self.cfg, learner_workdir, code_hash_fn, features=self.features)
+        self.run_key = safe_token(stable_hash([self.cfg.digest(), str(getattr(getattr(feed, "_sealed", None), "run_id", "")),
+                                               str(pd.Timestamp(feed.now).date())], 12))
+        self.learn_root = self._learn_root(learner_workdir)
+        self.learner = learner or make_learner(self.cfg, self.learn_root, code_hash_fn, features=self.features)
+        # section 58 around the run: resume only same-code progress, checkpoint on a cadence, an interruption record on failure,
+        # and the run described as a compute Job so a scheduler can relaunch it in its own process (trusted side only)
+        self.guard = None
+        if self.learn_root is not None:
+            self.guard = RunGuard(Path(self.learn_root) / "run", self.run_key, self.learner.code_hash, self.cfg.checkpoint_every)
+            self.guard.job("test_path", {"config": self.cfg.digest(), "run": self.run_key}, self.cfg.seed, feed.now)
+            self.resume = self.guard.start(feed.now)
+        self._finalised = False
         self.trader = PathTrader(self.learner, self.cfg)
         self.book = OutcomeBook(self.cfg.horizon_sessions)
         self.filer = MemoryFiler(self.curator, self.clock, self.cfg)
@@ -413,6 +429,21 @@ class PathRunner:
         self.release_hits: dict[str, int] = {}
         self._names: pd.Index | None = None
         self.preroll_days = self._preroll()
+
+    def _learn_root(self, workdir) -> str | None:
+        """The learner's persistent home: explicit workdir > cfg.learn_root > a sibling of the curator store. Named by an opaque
+        run key (digits mapped to letters) so no folder on the trader's side can name a year."""
+        if workdir is not None:
+            return str(workdir)
+        if self.cfg.learn_root is not None:
+            return str(Path(self.cfg.learn_root) / self.run_key)
+        if self.cfg.store_root is not None:
+            return str(Path(self.cfg.store_root).parent / "loop" / self.run_key)
+        return None
+
+    def same_year(self, world, n_runs: int = 6, seed: int | None = None) -> dict:
+        """The same_year / controls harness (C54/C55) as an entry the runner can call on a planted world or a window source."""
+        return run_same_year_harness(world, n_runs=n_runs, seed=self.cfg.seed if seed is None else seed)
 
     # ---- inputs
     def _m_state(self, X: pd.DataFrame) -> dict[str, float]:
@@ -452,6 +483,17 @@ class PathRunner:
 
     # ---- the daily clock
     def on_tick(self) -> DayResult:
+        try:
+            res = self._on_tick()
+        except BaseException as e:                     # write what section 58 demands, then fail as before (never swallowed)
+            if self.guard is not None:
+                self.guard.interrupted(self.feed.now, f"{type(e).__name__}: {e}")
+            raise
+        if self.guard is not None:
+            self.guard.tick(self.feed.now, self.counts)
+        return res
+
+    def _on_tick(self) -> DayResult:
         feed = self.feed
         now = pd.Timestamp(feed.now)
         Xtoday = feed.features_today()
@@ -522,7 +564,21 @@ class PathRunner:
             out.append(BG.Finding("legit-no-decisions", "warn", "the learner never had a decision day"))
         return out
 
+    def finalise(self) -> dict:
+        """Persist everything the learner learned and write a closing checkpoint; idempotent, called by report()."""
+        if self._finalised:
+            return {}
+        self._finalised = True
+        out = {}
+        if self.learner.last_learned_on is not None:
+            out = self.learner.hooks.maybe_persist(pd.Timestamp(self.feed.now), force=True)
+        if self.guard is not None:
+            self.guard.store.save(str(pd.Timestamp(self.feed.now).date()), "test_path", "done: read the report", self.learner.code_hash,
+                                  notes={"day": str(self.guard.n), "final": "1"})
+        return out
+
     def report(self) -> dict:
+        self.finalise()
         L = self.learner
         rep = L.report()
         picks_by_day = [len(r.picks) for r in self.results if r.decided and not r.skipped]
@@ -539,7 +595,10 @@ class PathRunner:
                 "release_date_hits": dict(self.release_hits),
                 "learner": {"episodes": rep["episodes"], "learned": rep["learned"], "knowledge": rep["knowledge"],
                             "skill": {k: v for k, v in dict(rep["skill"]).items() if isinstance(v, (int, float, str, bool, type(None)))},
-                            "refusals": len(rep["refusals"]), "influence_log_ok": rep["influence_log_ok"]},
+                            "refusals": len(rep["refusals"]), "influence_log_ok": rep["influence_log_ok"],
+                            "hooks": {k: v for k, v in rep["hooks"].items() if k in ("fired", "rows", "open_experiments", "persisted")}},
+                "run": None if self.guard is None else {"key": self.run_key, "resume": self.resume, "job": self.guard.spec.key,
+                                                        "checkpoints": len(self.guard.store.sequences())},
                 "findings": [f"{f.severity}:{f.gate}:{f.message}" for f in self.findings()]}
 
 

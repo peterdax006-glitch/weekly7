@@ -76,7 +76,7 @@ Governing documents: `canon/CANON.md` (owner directives, verbatim) > `BIBLE.md` 
 | `registry` | 290 | 7 | Bible Phase 0.2 + Phase 30: read-side of the experiment registry and the experiment memory. |
 | `replay` | 174 | 0 | Live-as-if replays of any year 1976-2025 (canon C9, C10). |
 | `repro` | 360 | 1 | Bible Phase 33 (required reproducibility); serves the deterministic-experiment canon. |
-| `resources` | 516 | 2 | Bible Phase 44 (resource management), Phase 43 (priority when compute is limited): a memory-aware job runner. |
+| `resources` | 516 | 3 | Bible Phase 44 (resource management), Phase 43 (priority when compute is limited): a memory-aware job runner. |
 | `retester` | 492 | 1 | Bible Phase 23 (canons C11, C19): the re-tester. Replays an archived blind window and demands it reproduces the original run within 0.5%. |
 | `run_report` | 607 | 2 | Bible Phase 36: the required machine-readable and human-readable report after each major run. |
 | `scoring` | 65 | 0 | Universe-wide prediction scoring (Blueprint Part H2 level 3, Part M1 'Selection'/'Forecast'). |
@@ -1733,7 +1733,7 @@ Bible Phase 44 (resource management), Phase 43 (priority when compute is limited
 - `def worker_health(registry, now, heartbeat_s, per_worker_gb, free_fn, info)` - One dict for the dashboard and the run report: memory, recommended workers, every running job with its age, RSS and heartbeat age, and the stale findings. Nothi
 - `def wait_for_memory(need_gb, free_fn, poll_s, give_up_s, sleep, clock)` - The builders' rule 10 as code: poll until `need_gb` is free; give up after give_up_s. Returns (ok, free_gb).
 
-Tests: `tests/test_dashboard.py`, `tests/test_resources.py`
+Tests: `tests/test_dashboard.py`, `tests/test_learning_reachability_loop.py`, `tests/test_resources.py`
 
 ## engine.retester
 

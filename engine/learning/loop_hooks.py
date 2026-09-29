@@ -127,7 +127,7 @@ class HookConfig:
     every_value: int = 26
     every_persist: int = 8
     every_kcredit: int = 8
-    kcredit_top: int = 6
+    kcredit_top: int = 4
     kcredit_min: int = 40
     redundancy_overlap: float = 0.6
     max_rows: int = 20000
@@ -414,7 +414,7 @@ class LoopHooks:
             sc = {self.token(k): float(contrib.get(k, 0.0)) for k in top}
             sc["rest"] = float(sum(v for k, v in contrib.items() if k not in top))
             ledger.add(CR.Decision(did, asof, mat, sc, out, {"ctx": ctx}, {c: {self.safe.get(c, c): 1.0} for c in comps if c != "rest"}))
-        cfg = CR.CreditConfig(n_boot=self.cfg.boot, n_perm=max(20, self.cfg.boot // 3), min_decisions=self.cfg.kcredit_min, min_groups=6,
+        cfg = CR.CreditConfig(n_boot=self.cfg.boot, n_perm=20 * len(comps), min_decisions=self.cfg.kcredit_min, min_groups=6,   # BH-resolvable
                               neutral={c: 0.0 for c in comps}, seed=self.seed)
         eng = CR.CreditEngine(CR.WeightedSumCombiner({c: 1.0 for c in comps}), cfg)
         rep = eng.assess(ledger, now)
@@ -652,7 +652,10 @@ class LoopHooks:
 
     # ------------------------------------------------------------------------------------------------ UPDATE GRAPH
     def after_graph(self, ep, now) -> None:
-        learned = self._learned(ep)
+        self.graph_step(self._learned(ep), now)
+
+    def graph_step(self, learned: str, now) -> None:
+        """Credit edges, contradiction relations, redundancy on its cadence, and the contradiction monitor's period run."""
         g = self.L.graph
         for rep in self.kcredit_reports[-1:]:
             for a, rel, b, w in CR.credit_edges(rep):
@@ -717,12 +720,11 @@ class LoopHooks:
         rep = RD.RedundancyAnalyzer(RD.RedundancyConfig(seed=self.seed, n_boot=max(20, self.cfg.boot // 2))).analyze(panel, profiles, now)
         self.redundancy_last = rep
         self._fire("redundancy_analyze")
-        for pr in rep.pairs:
-            for src, edge, dst, w, why in pr.edges():
-                ka, kb = self.safe.get(src, src), self.safe.get(dst, dst)
-                self.L.graph.add_edge(ka, kb, edge, learned, weight=float(min(1.0, max(0.0, w))), evidence=(why[:40],))
-                self._relate(ka, "redundant" if edge == Edge.REDUNDANT_WITH else "complementary", kb, learned, why)
-                self._fire("redundancy_edges")
+        for src, edge, dst, w, why in rep.edges():
+            ka, kb = self.safe.get(src, src), self.safe.get(dst, dst)
+            self.L.graph.add_edge(ka, kb, edge, learned, weight=float(min(1.0, max(0.0, w))), evidence=(why[:40],))
+            self._relate(ka, "redundant" if edge == Edge.REDUNDANT_WITH else "complementary", kb, learned, why)
+            self._fire("redundancy_edges")
 
     # ------------------------------------------------------------------------------------------------ UPDATE META
     def after_meta(self, ep, now) -> None:
@@ -1042,7 +1044,7 @@ class LoopHooks:
         os.replace(tmp, r / "beliefs.jsonl")
         _atomic_write(r / "decision_log.json", canonical_json(DC.dump_log(L.decision_log)))
         _atomic_write(r / "research_queue.json", RPR.queue_snapshot(L.research.queue))
-        _atomic_write(r / "health.json", canonical_json(HE.export_book(self.health.book)))
+        _atomic_write(r / "health.json", json.dumps(HE.export_book(self.health.book), sort_keys=True))   # exact floats: ids re-derive
         _atomic_write(r / "breaks.json", canonical_json(self.breaks.ledger._rows))
         _atomic_write(r / "unknowns.json", canonical_json(self.unknowns.to_dict()))
         _atomic_write(r / "graph.json", canonical_json(L.graph.to_records(pd.Timestamp(as_date(now)) + pd.Timedelta(days=1))))
