@@ -14,9 +14,9 @@ Foundation status per Bible phase (line ranges, tests): `state/build/FOUNDATION.
 - [x] P0.4 Immutable baseline snapshot. Frozen 2026-09-28 23:25: state/baseline/B_2026-09-28_5a62d137 (Live champion + Test basis v1, 19 registry metrics, whole-engine code hash, data snapshot); verify() ok, no drift. Unmeasured at freeze (no registry source): mover/pattern/analog/missed-winner/direction metrics.
 
 ## Algorithm
-- [~] A1 Candles and micro-signals. tests/test_candles.py: 12 pass, including point-in-time truncation with a NaN-aware control that must fail on a peeking feature.
-- [~] A2 Pattern miner. Redundancy and gain gate now ordered by evidence (ordering by raw effect hid P(real)=1.0 patterns). Bit-reproducible across runs and PYTHONHASHSEED (B11). Hardening library (B14: identity, statistics, candidates).
-- [~] A2b Week-clustered statistics, permutation null, P(real), redundancy pruning, validation gate.
+- [x] A1 Candles and micro-signals. tests/test_candles.py 12 pass (point-in-time truncation with a NaN-aware control); real-cache parity 60 tickers x 12 dates, candles family strict-vs-batch + future-invariance + gappy data: 0 failures (state/research/parity/latest.json, 2026-09-29).
+- [x] A2 Pattern miner: validated by Phase 25 on original and hold-out seeds (A13); bit-reproducible across runs and hash seeds (B11); ticker-name invariant (tests/integration disguise test); 154 miner tests.
+- [x] A2b Week-clustered/HAC statistics, full-search permutation null, BH P(real), redundancy pruning, validation gate: engine/pattern_stats.py matches the miner on 100+ real patterns (B14); P(real)>0.9 bin 96-97% truly real in Phase 25 (exact truth).
 - [~] A3 Heavy tests across eras.
   - Movement patterns (test 2020+): IC 0.383, t 38.5; 56 active of 4,382; null t95 1.93 vs real 42.8.
   - Direction: 2017 v1 IC 0.010; 2020 v1 0.042; 2022 v2 0.006; 2020 v2 nothing passed.
@@ -30,7 +30,7 @@ Foundation status per Bible phase (line ranges, tests): `state/build/FOUNDATION.
 - [~] A9 Timeline dial and yearly pacing: engine/timeline.py (B09). On the real-cache proxy the dial fails its gate; integration via livesim_loop2 in progress.
 - [~] A10 Lesson memory: engine/lessons.py (B06).
 - [~] A10b Rerun anti-memorisation: engine/antimemo.py (B06).
-- [~] A11 Improve-or-discard lifecycle: engine/pattern_lifecycle.py (B03). The planted decaying pattern is still held in 25% of runs (see A13).
+- [x] A11 Improve-or-discard lifecycle: decaying pattern 0% held on both seed sets (decay death rule + Bonferroni-corrected rescue at in-scope size, C43); regime patterns correctly rescoped; engine/pattern_lifecycle.py + bank integrity on real data (B03, 53 tests).
 - [~] A12 Additional data: FRED done. Sector ETFs, backup prices and DELISTED HISTORY (now priority, because of survivor bias) are with B13.
 - [x] A13 Planted-pattern calibration: VALIDATED on BOTH seed sets with the final code (2026-09-29) - original seeds 100+ (FDR 6.7%, decaying 0% held, P(real)>0.9 bin 97% real) and fresh hold-out seeds 300+ (FDR 9.9%, decaying 0%, 96%); all 10 criteria pass. Evidence: state/research/algorithm/planted/report_final_seeds100.md, report.md (hold-out), data/planted_cal9_holdout.log, data/planted_cal10_origseeds.log. Fixes: exact-truth discovery scoring, decay death rule, Bonferroni-corrected rescue scored at in-scope size. Still open (separate, stricter): tests/test_patterns_integration.py strict xfail - small fast-setting noise panels admit ~0.67 false patterns/run. History:
   - Pass: strong/weak/negative/pair detection 100%; hallucinated 0% admitted; zero 0%; noise-only 0.4 active/run; P(real)>0.9 bin 86% truly real.
@@ -62,11 +62,11 @@ Foundation status per Bible phase (line ranges, tests): `state/build/FOUNDATION.
   - Provenance now records the modules a run loaded and any mid-run edits; the loop reruns stale windows.
   - engine/retester.py (B10): 0.5% relative tolerance, code hash compared first.
   - Needs one clean round.
-- [~] T10 Future scramble. Passes every window so far. tests/test_session.py includes a peeking-rule control that must fail it; the blind_gates look-ahead probe caught 6/6.
-- [~] T11 Time fence. The Session raises on future prices (tested); engine/pit.py adds a Guard and a hash-chained audit log; features.build is future-invariant on real data (5 cuts, 107k rows).
+- [x] T10 Future scramble: OK on every window incl. round 2 (3/3, 2026-09-28); tests/test_session.py peeking-rule control fails it as required; blind_gates look-ahead probe 6/6 honest pass + 6/6 peeker caught (state/research/blind_gates/results.json).
+- [x] T11 Time fence: Session raises on future prices (tested); pit.Guard with hash-chained audit log (55 tests); features.build future-invariant on real data (5 cuts, 107k rows) and real-cache parity 60x12 with future-invariance per family: 0 failures. (The WIDER future-knowledge audit of C56 is T20.)
 - [x] T12 Worker health: engine/health.py wired into loop2 (supervise, heartbeat, exclusion report); on real data it correctly EXCLUDED 3 windows whose results held NaN (cause fixed, 8ef3835). Evidence: data/loop2.log, state/livesim/w02*/health2.jsonl.
-- [~] T13 Reproducibility: engine/repro.py. PatternMiner is identical across 2 runs and 2 hash seeds.
-- [~] T14/T15/T16 Label permutation, feature shuffle, ticker permutation: engine/antioverfit.py (tests A-J). On real data the reference evaluator's IC is about 0-0.02 per era, so it cannot be separated from noise.
+- [x] T13 Reproducibility: PatternMiner identical across 2 runs and 2 PYTHONHASHSEEDs; reference evaluator reproducible; re-tester faithful replay PASS on 819 items; Session tie-order made hash-seed independent (B15); final report reproducibility audit PASS (state/reports/final_report.json).
+- [x] T14/T15/T16 Label permutation, feature shuffle, ticker permutation: engine/antioverfit.py battery (tests A-J, planted defects caught) run on real data (state/research/antioverfit/real_v1). Real finding recorded: the reference evaluator's IC (~0-0.02) cannot be separated from its permutation null - the battery works; the signal is not there.
 - [x] T17 Planted-pattern calibration: same as A13 (VALIDATED on original and hold-out seeds).
 - [x] T18 Fill audit (C33): round 2 proved all 490 fills at the next open (164+142+184) via engine/fill_audit.gate -> pit.audit_fills; 5 planted defects caught in tests.
 
@@ -75,7 +75,7 @@ Foundation status per Bible phase (line ranges, tests): `state/build/FOUNDATION.
 
 ## Live
 - [ ] L1 Upgrade only after a validated research edge (owner decision).
-- [~] L2 Paper-only safeguards (paper=True hard-coded; formal tests in B13).
+- [x] L2 Paper-only safeguards: paper=True in the single broker client (engine/broker.py) and tick; tests/test_live_safety.py + audit: paper-only clients broker.py True, tick.py True; 0 credential reads outside the live side (state/research/data_live_safety/report.md).
 - [~] L3 Trading-hours firewall: FIXED 2026-09-29 - broker.regular_hours now uses the strict NYSE calendar (holidays + half days; it had allowed 1,090 closed slots); tests/test_broker_hours.py. Open: live decides at 15:42 ET vs sims at the close (owner decision).
-- [~] L4 Broker safety audit (B13).
-- [~] L5 Research/live isolation test: engine/isolation.py (B13).
+- [x] L4 Broker safety audit: scripts/data_live_audit.py (state/research/data_live_safety/report.md): the one defect found (holidays/half days allowed) FIXED 2026-09-29 with tests/test_broker_hours.py; the one research->Live write path (improve.test_and_promote, Bonferroni-gated) recorded as a reviewed exception, audit fails on any second writer.
+- [x] L5 Research/live isolation: engine/isolation.py + quality gate import_boundaries PASS (research never imports the live order path; engine/explain.py split out); tests/test_isolation.py pass; CI runs the gate on every push.
