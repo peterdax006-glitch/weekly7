@@ -89,3 +89,8 @@ that the owner should record.
     call it. List it under INTEGRATION. Reachability is proven in wave 2 by scripts/reachability.py, which must reach your module.
 26. Ruler: `.venv/Scripts/python scripts/contract_lines.py <your files>`. Report counts against your brief's minimum. Scratch
     files must use unique names in your own scratchpad (never shared /tmp names - builders clobbered each other before).
+27. From state/build/RESEARCH_MAPPING.md (read your row): research that uses hindsight runs on the TRUSTED (curator) side,
+    never inside the blind learner. Research filed under a real year must NEVER be released while that same year is being
+    replayed in disguise (the same-year rerun leak). Market-wide work must STREAM year by year: ~38M name-days (~8 GB float32)
+    will not fit, so keep exception rows only, with one point-in-time snapshot per day. Do not grow the known duplicates
+    (4 mover models, 3 pattern stores, 2 break engines, 3 experiment ledgers, 7 firewalls): extend the one the mapping names.

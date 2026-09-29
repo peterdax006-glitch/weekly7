@@ -16,22 +16,29 @@
    "group": "FOUNDATION",
    "description": "Research priority engine implemented",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning/research_priority.py::ResearchPriorityEngine,decision_relevance,stable_order",
+    "engine/learning/research_policy.py::PriorityFunction,InfoModel,EigCalibrator,evsi_normal,Factors,Candidate"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Research priority engine'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md)."
   },
   {
    "id": "RF02",
    "group": "FOUNDATION",
    "description": "Autonomous research scheduler implemented",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning/research_priority.py::ResearchQueue,QueueItem,queue_snapshot,queue_restore,replay_log,propose_selected",
+    "engine/learning/checkpoints.py",
+    "engine/learning/learner.py::stage_research,stage_meta"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Autonomous research loop'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md)."
   },
   {
    "id": "RF03",
@@ -39,43 +46,60 @@
    "description": "Market-wide observation layer implemented",
    "owner": "Claude",
    "status": "NOT_STARTED",
-   "code_paths": [],
+   "code_paths": [
+    "engine/learning/missed_winners.py::week_from_base,Week,Candidate",
+    "engine/fv_pipeline.py::Panel,build_panel",
+    "engine/missed_winners.py::MissedLedger"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] [missing] See line_budget row 'Market-wide observer'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md)."
   },
   {
    "id": "RF04",
    "group": "FOUNDATION",
    "description": "Winner research implemented",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning/failure.py",
+    "engine/learning/postmortem.py",
+    "engine/learning/separation.py",
+    "engine/learning/credit.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] [partial] Winner side = credit.py credit assignment on own decisions only; no market-wide winner study. See line_budget row 'Winner/loser research'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md)."
   },
   {
    "id": "RF05",
    "group": "FOUNDATION",
    "description": "Loser research implemented",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning/failure.py",
+    "engine/learning/postmortem.py",
+    "engine/learning/separation.py",
+    "engine/learning/credit.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] [partial] Loss pipeline exists for own trades (failure/postmortem/separation, wired via lessons.post_mortem); market-wide losers not studied. See line_budget row 'Winner/loser research'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md)."
   },
   {
    "id": "RF06",
    "group": "FOUNDATION",
    "description": "Missed-winner research implemented",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/missed_winners.py",
+    "engine/learning/missed_winners.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] [partial] Missed winners: detector + RejectionAnalyzer exist; RejectionAnalyzer hook is dead in production. See line_budget row 'Missed opportunity engine'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md)."
   },
   {
    "id": "RF07",
@@ -83,10 +107,13 @@
    "description": "Missed-loser research implemented",
    "owner": "Claude",
    "status": "NOT_STARTED",
-   "code_paths": [],
+   "code_paths": [
+    "engine/missed_winners.py",
+    "engine/learning/missed_winners.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] [partial] No missed-LOSER code anywhere (grep 'missed_loser' empty). See line_budget row 'Missed opportunity engine'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md)."
   },
   {
    "id": "RF08",
@@ -94,120 +121,172 @@
    "description": "Knowability engine implemented",
    "owner": "Claude",
    "status": "NOT_STARTED",
-   "code_paths": [],
+   "code_paths": [
+    "engine/pit.py",
+    "engine/edgar.py",
+    "engine/learning/future_firewall.py",
+    "engine/learning/unknowns.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] [missing] See line_budget row 'Knowability/external-factor engine'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md)."
   },
   {
    "id": "RF09",
    "group": "FOUNDATION",
    "description": "Counterfactual information reconstruction implemented",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/parity.py",
+    "engine/parity_suite.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Counterfactual knowledge reconstruction'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md)."
   },
   {
    "id": "RF10",
    "group": "FOUNDATION",
    "description": "Volatility laboratory implemented",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/fv_pipeline.py::MoverStage,Panel,build_panel,certify_threshold,mover_report",
+    "engine/pattern_movers.py",
+    "engine/direction_features.py::mover_walk_forward,select_picks,weekly_labels",
+    "scripts/movers.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] [duplicated-risk] See line_budget row 'Volatility research laboratory'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md)."
   },
   {
    "id": "RF11",
    "group": "FOUNDATION",
    "description": "Direction laboratory implemented",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/direction.py",
+    "engine/direction_calib.py",
+    "engine/direction_ablate.py",
+    "engine/direction_features.py",
+    "engine/fv_pipeline.py::DirectionStage",
+    "scripts/direction_research.py",
+    "scripts/direction_study.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Direction research laboratory'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md)."
   },
   {
    "id": "RF12",
    "group": "FOUNDATION",
    "description": "Conditional accuracy frontier implemented",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/direction_features.py::frontier,frontier_table,calibration_table,era_table,eighty_question",
+    "engine/direction.py::direction_accuracy,wilson,reliability_bins,ece"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Conditional accuracy frontier'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md)."
   },
   {
    "id": "RF13",
    "group": "FOUNDATION",
    "description": "Pattern discovery expansion implemented",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/patterns.py",
+    "engine/candidates.py",
+    "engine/pattern_stats.py",
+    "engine/pattern_identity.py",
+    "engine/pattern_bank.py",
+    "engine/pattern_lifecycle.py",
+    "engine/pattern_memory.py",
+    "engine/pattern_memory_eval.py",
+    "engine/learning/knowledge.py",
+    "engine/planted.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] [duplicated-risk] See line_budget row 'Pattern discovery'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md)."
   },
   {
    "id": "RF14",
    "group": "FOUNDATION",
    "description": "Pattern-break research integrated",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning/break_detection.py",
+    "engine/pattern_reliability.py",
+    "engine/learning/boundary.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] [duplicated-risk] See line_budget row 'Pattern-break research integration'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md)."
   },
   {
    "id": "RF15",
    "group": "FOUNDATION",
    "description": "Experiment memory integrated",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning/experiment_memory.py",
+    "engine/experiment_memory.py",
+    "engine/registry.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] [duplicated-risk] See line_budget row 'Experiment memory'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md)."
   },
   {
    "id": "RF16",
    "group": "FOUNDATION",
    "description": "Meta-learning integrated",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning/meta_learning.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Meta-learning'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md)."
   },
   {
    "id": "RF17",
    "group": "FOUNDATION",
    "description": "Failed-learner registry integrated",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning/failed_learners.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Failed-learner laboratory'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md)."
   },
   {
    "id": "RF18",
    "group": "FOUNDATION",
    "description": "Compute manager implemented",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning/compute.py",
+    "engine/resources.py",
+    "engine/health.py",
+    "engine/learning/research_policy.py::select_within_budget,successive_halving,sprt_bernoulli,CostModel,ComputeBudget"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Compute manager'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md)."
   },
   {
    "id": "RF19",
@@ -215,21 +294,27 @@
    "description": "Experiment-value accounting implemented",
    "owner": "Claude",
    "status": "NOT_STARTED",
-   "code_paths": [],
+   "code_paths": [
+    "engine/learning/research_policy.py::RealisedGain,realised_bits,gain_from_record,regret_report,RoundLedger",
+    "engine/learning/scorecard.py::ComputeCost,ComputeMeter"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] [missing] See line_budget row 'Experiment value accounting'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md)."
   },
   {
    "id": "RF20",
    "group": "FOUNDATION",
    "description": "Compute-waste controller implemented",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning/research_priority.py::barren_streak,experience_factor,experience_rerank",
+    "engine/learning/research_policy.py::marginal_return_verdict,cusum_shift"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Compute-waste controller'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md)."
   },
   {
    "id": "RF21",
@@ -237,21 +322,28 @@
    "description": "Daily autopsy implemented",
    "owner": "Claude",
    "status": "NOT_STARTED",
-   "code_paths": [],
+   "code_paths": [
+    "engine/learning/reports.py",
+    "engine/learning/surprise.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] [missing] See line_budget row 'Daily market autopsy'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md)."
   },
   {
    "id": "RF22",
    "group": "FOUNDATION",
    "description": "Daily research generator implemented",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning/research_priority.py::signals_from_*",
+    "engine/learning/surprise.py",
+    "engine/learning/contradiction_monitor.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Daily research target generator'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md)."
   },
   {
    "id": "RF23",
@@ -259,98 +351,134 @@
    "description": "Multi-scale research implemented",
    "owner": "Claude",
    "status": "NOT_STARTED",
-   "code_paths": [],
+   "code_paths": [
+    "engine/candles.py",
+    "engine/learning/situation.py::horizon_state"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] [missing] See line_budget row 'Multi-scale learning'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md)."
   },
   {
    "id": "RF24",
    "group": "FOUNDATION",
    "description": "Cross-sectional research implemented",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/analogs_sector.py",
+    "engine/trust.py",
+    "engine/learning/situation.py::CrossSection,correlation_structure"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Cross-sectional learning'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md)."
   },
   {
    "id": "RF25",
    "group": "FOUNDATION",
    "description": "Regime research implemented",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning/context.py",
+    "engine/learning/hierarchy.py",
+    "engine/learning/situation.py::classify_regime,PopulationDriftMonitor"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Regime-aware research'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md)."
   },
   {
    "id": "RF26",
    "group": "FOUNDATION",
    "description": "Interaction discovery implemented",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning/complexity.py",
+    "engine/learning/missed_winners.py::discover_interactions",
+    "engine/learning/break_detection.py::interaction_scan",
+    "engine/pattern_movers.py::interaction_table",
+    "engine/candidates.py (pairs, A and B UNLESS C)"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] [duplicated-risk] See line_budget row 'Interaction discovery'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md)."
   },
   {
    "id": "RF27",
    "group": "FOUNDATION",
    "description": "Knowledge graph integrated",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning/knowledge_graph.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Knowledge graph'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md)."
   },
   {
    "id": "RF28",
    "group": "FOUNDATION",
    "description": "Knowledge-to-decision bridge integrated",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning/decision_contract.py",
+    "engine/learning/champion.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Knowledge-to-decision bridge'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md)."
   },
   {
    "id": "RF29",
    "group": "FOUNDATION",
    "description": "Research/trader firewall integrated",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning/trader_view.py",
+    "engine/learning/curator.py",
+    "engine/learning/test_path.py",
+    "engine/learning/firewalls.py",
+    "engine/learning/future_firewall.py",
+    "engine/learning/memory_firewall.py",
+    "engine/learning/identity_firewall.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] [duplicated-risk] See line_budget row 'Research/trader firewall integration'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md)."
   },
   {
    "id": "RF30",
    "group": "FOUNDATION",
    "description": "Replication system implemented",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning/transfer.py",
+    "engine/learning/transfer_score.py",
+    "engine/learning/promotion.py::RerunRecord,ReproEvidence,gate_reproducibility"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Research replication system'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md)."
   },
   {
    "id": "RF31",
    "group": "FOUNDATION",
    "description": "Unknown-cause system integrated",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning/unknowns.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Unknown-cause system'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md)."
   },
   {
    "id": "RF32",
@@ -358,263 +486,330 @@
    "description": "Research-health system implemented",
    "owner": "Claude",
    "status": "NOT_STARTED",
-   "code_paths": [],
+   "code_paths": [
+    "engine/learning/research_priority.py::queue_health",
+    "engine/learning/research_policy.py::audit_spend,allocation_entropy,policy_health"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] [missing] See line_budget row 'Research-brain health'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md)."
   },
   {
    "id": "RF33",
    "group": "FOUNDATION",
    "description": "Research-diversity system implemented",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning/research_policy.py::TargetAllocator,DiscountedAllocator,project_box_simplex,apply_family_caps,greedy_diverse_batch,starving_targets"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Research diversity controller'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md)."
   },
   {
    "id": "RF34",
    "group": "FOUNDATION",
    "description": "Scientific long-term memory integrated",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning/archive.py",
+    "engine/learning/interpretation.py",
+    "engine/learning/belief.py",
+    "engine/learning/epistemic.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Scientific long-term memory integration'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md)."
   },
   {
    "id": "RF35",
    "group": "FOUNDATION",
    "description": "Question generator implemented",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning/research_priority.py::QuestionGenerator,CandidateBuilder,ResearchQuestion,generic_hypotheses,failure_hypotheses"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Question generator'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md)."
   },
   {
    "id": "RF36",
    "group": "FOUNDATION",
    "description": "Hypothesis tree implemented",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning/competition.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Hypothesis tree'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md)."
   },
   {
    "id": "RF37",
    "group": "FOUNDATION",
    "description": "Promotion quality gate implemented",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning/promotion.py",
+    "engine/champion.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Quality/promotion gate'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md)."
   },
   {
    "id": "RT01",
    "group": "TESTING",
    "description": "Unit tests complete",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "tests/test_learning_*.py (37 files)"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] Unit tests exist for the C62 modules the C66 rows build on; none for new C66 modules (none written yet)."
   },
   {
    "id": "RT02",
    "group": "TESTING",
    "description": "Integration tests complete",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "tests/test_learning_integration.py",
+    "tests/test_learning_reachability_loop.py",
+    "tests/test_learning_reachability_system.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] Integration tests cover the C62 loop; none cover research brain -> learner -> decision."
   },
   {
    "id": "RT03",
    "group": "TESTING",
    "description": "Planted volatility world passes",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/fv_pipeline.py::synthetic_bars",
+    "tests/test_fv_pipeline.py",
+    "tests/test_pattern_movers.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] Synthetic event/mover worlds exist for the mover model; no planted volatility world run through a volatility LAB with competing hypotheses."
   },
   {
    "id": "RT04",
    "group": "TESTING",
    "description": "Planted direction world passes",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/direction_features.py::plant_signal",
+    "tests/test_direction_features.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] Planted direction is recovered by the existing direction harness (state/research/direction2/run1/report.md: planted:gbm 0.919 at 3-5% coverage); not yet through the C66 direction lab."
   },
   {
    "id": "RT05",
    "group": "TESTING",
    "description": "Planted failure-regime world passes",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning/planted_world.py",
+    "tests/test_learning_planted_world.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] Planted worlds have conditions in/out of state; no planted failure REGIME the research brain must discover."
   },
   {
    "id": "RT06",
    "group": "TESTING",
    "description": "Null world does not generate fake signal",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning/meta_learning.py::null_control",
+    "engine/learning/missed_winners.py::null_control",
+    "engine/planted.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] Null/shuffled controls exist per module; no end-to-end null world for the research brain."
   },
   {
    "id": "RT07",
    "group": "TESTING",
    "description": "Future-leak tests pass",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "tests/test_learning_future_firewall.py",
+    "tests/test_leak_audit.py",
+    "tests/test_learning_test_path.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] Trader-side future-leak tests exist; research-side planted leaks (future pattern status, future experiment result) missing."
   },
   {
    "id": "RT08",
    "group": "TESTING",
    "description": "Identity-leak tests pass",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "tests/test_learning_identity_firewall.py",
+    "tests/test_tiebreak.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] Identity firewall tests exist for C62; not for research-brain outputs."
   },
   {
    "id": "RT09",
    "group": "TESTING",
    "description": "Year-recognition tests pass",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "tests/test_learning_curator.py",
+    "tests/test_leak_audit_verdicts.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] Year fingerprint tests exist for trader/curator; research outputs released to the trader untested."
   },
   {
    "id": "RT10",
    "group": "TESTING",
    "description": "Memorization controls pass",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "tests/test_learning_same_year.py",
+    "tests/test_antimemo.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] Memoriser vs learner controls exist (controls.py); not applied to research-brain discoveries."
   },
   {
    "id": "RT11",
    "group": "TESTING",
    "description": "Same-year controls pass",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "tests/test_learning_same_year.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] Same-year harness with five frozen controls exists (planted only)."
   },
   {
    "id": "RT12",
    "group": "TESTING",
    "description": "Cross-year transfer tests pass",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "tests/test_learning_transfer.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] Transfer axes unit-tested on planted data only."
   },
   {
    "id": "RT13",
    "group": "TESTING",
    "description": "Cross-stock transfer tests pass",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "tests/test_learning_transfer.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] As RT12."
   },
   {
    "id": "RT14",
    "group": "TESTING",
    "description": "Cross-sector transfer tests pass",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "tests/test_learning_transfer.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] As RT12."
   },
   {
    "id": "RT15",
    "group": "TESTING",
    "description": "Cross-regime transfer tests pass",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "tests/test_learning_transfer.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] As RT12."
   },
   {
    "id": "RT16",
    "group": "TESTING",
    "description": "Research-priority tests pass",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "tests/test_learning_research.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] test_informative_experiment_outranks_uninformative_one and bandit-concentrates-on-planted-best-target are close to section 46G; not the C66 A-vs-B world with learned priority."
   },
   {
    "id": "RT17",
    "group": "TESTING",
    "description": "Compute-allocation tests pass",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "tests/test_learning_compute.py",
+    "tests/test_learning_research.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] Budget/knapsack/RAM tests exist; no escalation-ladder tests."
   },
   {
    "id": "RT18",
    "group": "TESTING",
    "description": "Compute-waste tests pass",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "tests/test_learning_research.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] Exploit-only spend audit tested; no branch-with-negligible-gains -> DORMANT test (46I)."
   },
   {
    "id": "RT19",
@@ -625,73 +820,87 @@
    "code_paths": [],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] No symmetry engine."
   },
   {
    "id": "RT20",
    "group": "TESTING",
    "description": "Unknown-cause tests pass",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "tests/test_learning_epistemic.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] UNKNOWN-as-state tests exist; no forced-labelling (unknown-rate) test."
   },
   {
    "id": "RT21",
    "group": "TESTING",
    "description": "Replication tests pass",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "tests/test_learning_promotion.py",
+    "tests/test_repro.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] Reproducibility tested; independent replication requirement not."
   },
   {
    "id": "RT22",
    "group": "TESTING",
    "description": "Promotion gates pass",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "tests/test_learning_promotion.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] Ten gates tested; C66 calibration/complexity/failure gates and QUARANTINED/NEEDS_MORE_EVIDENCE outcomes missing."
   },
   {
    "id": "RS01",
    "group": "SCIENTIFIC VALIDATION",
    "description": "Volatility prediction measured OOS",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "VALIDATED",
+   "code_paths": [
+    "engine/fv_pipeline.py",
+    "engine/heavy_tests.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] Artefacts: state/research/fv/run1/report.md (walk-forward, 56 origins: mover hit 57.9% [90% CI 55.8-60.2] vs base 14.6%) and state/research/heavy_algo/H9b8e5c64e6b5a404.md (OOS movement AUC 0.733). Survivor-only price panel (RG04): pre-C66 code, must be re-measured by the C66 lab with delisted names."
   },
   {
    "id": "RS02",
    "group": "SCIENTIFIC VALIDATION",
    "description": "Volatility calibration measured",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/fv_pipeline.py::MoverStage"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] Only an aggregate predicted 52.5% vs realised 57.9% (state/research/fv/run1/report.md); no reliability diagram / ECE for mover probabilities on disk."
   },
   {
    "id": "RS03",
    "group": "SCIENTIFIC VALIDATION",
    "description": "Volatility coverage measured",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/fv_pipeline.py::certify_threshold"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] Coverage at the tau95 certification threshold only (0.1% of weeks have >=10 qualified names); no coverage curve."
   },
   {
    "id": "RS04",
@@ -702,271 +911,334 @@
    "code_paths": [],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] No knowability classifier."
   },
   {
    "id": "RS05",
    "group": "SCIENTIFIC VALIDATION",
    "description": "Direction measured only on the relevant predicted-mover universe",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "VALIDATED",
+   "code_paths": [
+    "engine/direction_features.py",
+    "scripts/direction_research.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] Artefact: state/research/direction2/run1/report.md - direction scored on picks of a walk-forward mover model (pool 100, picks 10/30/100, test 2018-2026). Survivor-only price panel (RG04): pre-C66 code, must be re-measured by the C66 lab with delisted names."
   },
   {
    "id": "RS06",
    "group": "SCIENTIFIC VALIDATION",
    "description": "Direction accuracy measured",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "VALIDATED",
+   "code_paths": [
+    "engine/direction_features.py",
+    "scripts/direction_research.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] Artefact: state/research/direction2/run1/ (accuracy ~0.51 at 100% coverage, all models vs random/shuffled controls). Survivor-only price panel (RG04): pre-C66 code, must be re-measured by the C66 lab with delisted names."
   },
   {
    "id": "RS07",
    "group": "SCIENTIFIC VALIDATION",
    "description": "Direction calibration measured",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "VALIDATED",
+   "code_paths": [
+    "engine/direction_features.py::calibration_table",
+    "engine/direction.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] Artefacts: state/research/direction2/run1/calibration_pick*.csv; state/research/direction/summary.json (Brier = base rate, ECE per era). Survivor-only price panel (RG04): pre-C66 code, must be re-measured by the C66 lab with delisted names."
   },
   {
    "id": "RS08",
    "group": "SCIENTIFIC VALIDATION",
    "description": "Direction coverage frontier measured",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "VALIDATED",
+   "code_paths": [
+    "engine/direction_features.py::frontier,frontier_table"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] Artefact: state/research/direction2/run1/frontier_pick*.csv (c=1..100% with 95% CIs over weeks). Survivor-only price panel (RG04): pre-C66 code, must be re-measured by the C66 lab with delisted names."
   },
   {
    "id": "RS09",
    "group": "SCIENTIFIC VALIDATION",
    "description": "80% question evaluated honestly",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "VALIDATED",
+   "code_paths": [
+    "engine/direction_features.py::eighty_question"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] Artefact: state/research/direction2/run1/run1.log: 0 cells with lower CI >= 0.80 in 6 configurations, controls 0, planted signal recovered. Honest 'no reliable 80% region found'. Survivor-only price panel (RG04): pre-C66 code, must be re-measured by the C66 lab with delisted names."
   },
   {
    "id": "RS10",
    "group": "SCIENTIFIC VALIDATION",
    "description": "Loss reduction measured",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "VALIDATED",
+   "code_paths": [
+    "engine/stops.py",
+    "engine/gaprisk.py",
+    "scripts/run_exits_stops.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] Artefact: state/research/exits_stops/report.txt (OOS: P(loss>20%) 3.26% -> 1.22%, expected loss -4.05% -> -3.77%). Survivor-only price panel (RG04): pre-C66 code, must be re-measured by the C66 lab with delisted names."
   },
   {
    "id": "RS11",
    "group": "SCIENTIFIC VALIDATION",
    "description": "Worst-case behavior measured",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "VALIDATED",
+   "code_paths": [
+    "engine/stops.py",
+    "engine/fv_pipeline.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] Artefacts: state/research/exits_stops/report.txt (worst -76.1% -> -73.2%), state/research/fv/run1/report.md (worst_position -70.7%). Survivor-only price panel (RG04): pre-C66 code, must be re-measured by the C66 lab with delisted names."
   },
   {
    "id": "RS12",
    "group": "SCIENTIFIC VALIDATION",
    "description": "Tail risk measured",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "VALIDATED",
+   "code_paths": [
+    "engine/gaprisk.py",
+    "scripts/run_gaprisk.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] Artefact: state/research/gaprisk/summary.json (EVT tail exceedance 5.15% vs 5% target, per-era coverage). Survivor-only price panel (RG04): pre-C66 code, must be re-measured by the C66 lab with delisted names."
   },
   {
    "id": "RS13",
    "group": "SCIENTIFIC VALIDATION",
    "description": "Pattern transfer measured",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/heavy_tests.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] state/research/heavy_algo/H9b8e5c64e6b5a404.md measures OOS across eras/regimes (pattern_survival 0.28); unseen stocks/sectors not measured."
   },
   {
    "id": "RS14",
    "group": "SCIENTIFIC VALIDATION",
    "description": "Pattern-break prediction measured",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "VALIDATED",
+   "code_paths": [
+    "engine/pattern_reliability.py",
+    "scripts/pattern_reliability_study.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] Artefact: state/research/pattern_reliability/report.md: walk-forward reliability prediction, skill -0.20% (AUC 0.498) - measured, and negative. Survivor-only price panel (RG04): pre-C66 code, must be re-measured by the C66 lab with delisted names."
   },
   {
    "id": "RS15",
    "group": "SCIENTIFIC VALIDATION",
    "description": "Research-policy transfer measured",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning/research_policy.py::policy_regret_vs_baselines"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] Synthetic only; no research-policy transfer measurement."
   },
   {
    "id": "RS16",
    "group": "SCIENTIFIC VALIDATION",
    "description": "Meta-learning transfer measured",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning/meta_learning.py::meta_generalisation"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] Synthetic only."
   },
   {
    "id": "RS17",
    "group": "SCIENTIFIC VALIDATION",
    "description": "Failed-learner memory demonstrated useful",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning/failed_learners.py::seed_history"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] Six real failures seeded; usefulness never demonstrated."
   },
   {
    "id": "RS18",
    "group": "SCIENTIFIC VALIDATION",
    "description": "Research compute efficiency measured",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning/compute.py::compute_report",
+    "engine/learning/scorecard.py::ComputeMeter"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] Compute is metered; efficiency (information per compute) never measured."
   },
   {
    "id": "RA01",
    "group": "AUTONOMOUS OPERATION",
    "description": "System generates its own research questions",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning/research_priority.py::QuestionGenerator"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] Planted-world only: learner.stage_research runs as a SHADOW behind livesim_loop2 --learner legit; state/learning/curator/ does not exist (never run on real data)."
   },
   {
    "id": "RA02",
    "group": "AUTONOMOUS OPERATION",
    "description": "System ranks research questions",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning/research_priority.py::ResearchPriorityEngine",
+    "engine/learning/research_policy.py::PriorityFunction"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] Planted-world only: learner.stage_research runs as a SHADOW behind livesim_loop2 --learner legit; state/learning/curator/ does not exist (never run on real data)."
   },
   {
    "id": "RA03",
    "group": "AUTONOMOUS OPERATION",
    "description": "System allocates compute",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning/research_policy.py::select_within_budget",
+    "engine/learning/compute.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] Plans are made; compute.job_for/run_experiment_process have 0 callers."
   },
   {
    "id": "RA04",
    "group": "AUTONOMOUS OPERATION",
    "description": "System runs experiments",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning/compute.py::run_experiment_process"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] Execution machinery exists; the research engine never launches an experiment (propose_selected 0 callers)."
   },
   {
    "id": "RA05",
    "group": "AUTONOMOUS OPERATION",
    "description": "System records results",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning/experiment_memory.py::ExperimentLedger"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] import_legacy path wired via improve.log_experiment; record_result 0 callers."
   },
   {
    "id": "RA06",
    "group": "AUTONOMOUS OPERATION",
    "description": "System remembers failures",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning/failed_learners.py",
+    "engine/learning/experiment_memory.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] failed_learners has no production caller."
   },
   {
    "id": "RA07",
    "group": "AUTONOMOUS OPERATION",
    "description": "System remembers successes",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning/experiment_memory.py",
+    "engine/learning/archive.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] Planted-world only: learner.stage_research runs as a SHADOW behind livesim_loop2 --learner legit; state/learning/curator/ does not exist (never run on real data)."
   },
   {
    "id": "RA08",
    "group": "AUTONOMOUS OPERATION",
    "description": "System studies winners",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning/credit.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] Own decisions only."
   },
   {
    "id": "RA09",
    "group": "AUTONOMOUS OPERATION",
    "description": "System studies losers",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning/failure.py",
+    "engine/lessons.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] Own trades only, via lessons.post_mortem -> wiring."
   },
   {
    "id": "RA10",
    "group": "AUTONOMOUS OPERATION",
    "description": "System studies missed winners",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/missed_winners.py",
+    "engine/learning/missed_winners.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] Detector runs in adaptive; learning hook dead."
   },
   {
    "id": "RA11",
@@ -977,194 +1249,237 @@
    "code_paths": [],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] No missed-loser code."
   },
   {
    "id": "RA12",
    "group": "AUTONOMOUS OPERATION",
    "description": "System investigates pattern breaks",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning/break_detection.py",
+    "engine/pattern_reliability.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] Investigations exist but are not scheduled by the research engine."
   },
   {
    "id": "RA13",
    "group": "AUTONOMOUS OPERATION",
    "description": "System identifies unknown causes",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning/unknowns.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] Planted-world only: learner.stage_research runs as a SHADOW behind livesim_loop2 --learner legit; state/learning/curator/ does not exist (never run on real data)."
   },
   {
    "id": "RA14",
    "group": "AUTONOMOUS OPERATION",
    "description": "System promotes validated knowledge",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning/promotion.py",
+    "engine/improve.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] Gate runs only when claims_learning=True, which no challenger sets (INTEGRATION_AUDIT)."
   },
   {
    "id": "RA15",
    "group": "AUTONOMOUS OPERATION",
    "description": "System downgrades broken knowledge",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning/retirement.py",
+    "engine/learning/health.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] Retirement evaluated in learner; health->retirement path missing."
   },
   {
    "id": "RA16",
    "group": "AUTONOMOUS OPERATION",
    "description": "System detects wasted research",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning/research_priority.py::barren_streak",
+    "engine/learning/research_policy.py::marginal_return_verdict"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] Planted-world only: learner.stage_research runs as a SHADOW behind livesim_loop2 --learner legit; state/learning/curator/ does not exist (never run on real data)."
   },
   {
    "id": "RA17",
    "group": "AUTONOMOUS OPERATION",
    "description": "System redirects compute",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning/research_policy.py::TargetAllocator"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] Planted-world only: learner.stage_research runs as a SHADOW behind livesim_loop2 --learner legit; state/learning/curator/ does not exist (never run on real data)."
   },
   {
    "id": "RA18",
    "group": "AUTONOMOUS OPERATION",
    "description": "System learns which research methods work",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning/meta_learning.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] Planted-world only: learner.stage_research runs as a SHADOW behind livesim_loop2 --learner legit; state/learning/curator/ does not exist (never run on real data)."
   },
   {
    "id": "RA19",
    "group": "AUTONOMOUS OPERATION",
    "description": "System continuously generates the next research agenda",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning/research_priority.py::agenda_markdown"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] Planted-world only: learner.stage_research runs as a SHADOW behind livesim_loop2 --learner legit; state/learning/curator/ does not exist (never run on real data)."
   },
   {
    "id": "RA20",
    "group": "AUTONOMOUS OPERATION",
    "description": "System can run indefinitely with checkpoints and recovery",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning/checkpoints.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] resume_verified / write_interruption have 0 callers."
   },
   {
    "id": "RG01",
    "group": "FINAL GATE",
    "description": "No critical future-information pathway exists",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/leak_audit.py",
+    "engine/learning/future_firewall.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] Blind Test path audited (C56); research-brain pathways do not exist yet, so unaudited."
   },
   {
    "id": "RG02",
    "group": "FINAL GATE",
    "description": "No hidden year information reaches the trader",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning/trader_view.py",
+    "engine/learning/curator.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] assert_trader_path_clean runs in CI for the C64 trader; must be extended to engine/research outputs."
   },
   {
    "id": "RG03",
    "group": "FINAL GATE",
    "description": "No stock-identity memorization pathway remains",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning/identity_firewall.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] As RG02."
   },
   {
    "id": "RG04",
    "group": "FINAL GATE",
    "description": "No survivor-only evaluation remains where it affects conclusions",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "scripts/fetch_delisted.py",
+    "engine/data_sources.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] CURRENTLY VIOLATED: every RS artefact above is survivor-only; delisted fetch exists but is not in the evaluated panel."
   },
   {
    "id": "RG05",
    "group": "FINAL GATE",
    "description": "No major research result depends on a single lucky experiment",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning/promotion.py",
+    "engine/learning/transfer.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] Reproducibility gate exists; replication requirement does not."
   },
   {
    "id": "RG06",
    "group": "FINAL GATE",
    "description": "No major promoted knowledge lacks OOS evidence",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning/promotion.py::gate_oos_confirmation"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] Gate exists; nothing has been promoted."
   },
   {
    "id": "RG07",
    "group": "FINAL GATE",
    "description": "No major promoted knowledge lacks provenance",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/provenance.py",
+    "engine/registry.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] C62 mapping: registry audit shows most legacy experiment records lack provenance."
   },
   {
    "id": "RG08",
    "group": "FINAL GATE",
    "description": "No critical failure is silently ignored",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/learning/checkpoints.py::apply_escalations"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] Escalation exists; no research-brain failure census."
   },
   {
    "id": "RG09",
@@ -1175,7 +1490,7 @@
    "code_paths": [],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] Experiment value accounting is missing."
   },
   {
    "id": "RG10",
@@ -1186,7 +1501,7 @@
    "code_paths": [],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] No C66 code written yet to audit."
   },
   {
    "id": "RG11",
@@ -1197,7 +1512,7 @@
    "code_paths": [],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] Checked at the end of the build."
   },
   {
    "id": "RG12",
@@ -1208,29 +1523,33 @@
    "code_paths": [],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] Checked at the end of the build."
   },
   {
    "id": "RG13",
    "group": "FINAL GATE",
    "description": "Full contract checklist is reconciled",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "state/build/SELF_LEARNING_MASTER_CHECKLIST.json"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] C62 checklist exists and is being reconciled."
   },
   {
    "id": "RG14",
    "group": "FINAL GATE",
    "description": "Full autonomous-research checklist is reconciled",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "state/build/RESEARCH_MAPPING.md"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] First mapping pass (this audit)."
   },
   {
    "id": "RG15",
@@ -1241,18 +1560,18 @@
    "code_paths": [],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] This is a self-audit, not the independent audit."
   },
   {
    "id": "RG16",
    "group": "FINAL GATE",
    "description": "Masterstock contains the complete state",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IN_PROGRESS",
    "code_paths": [],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] Masterstock records C66 as received; not the complete state."
   },
   {
    "id": "RG17",
@@ -1263,7 +1582,7 @@
    "code_paths": [],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] Blocked on all of the above."
   }
  ],
  "line_budget": [
@@ -1271,334 +1590,474 @@
    "section": "Research priority engine",
    "minimum_lines": 1500,
    "upper_lines": 2500,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED",
-   "notes": ""
+   "actual_lines": 884,
+   "code_paths": [
+    "engine/learning/research_priority.py::ResearchPriorityEngine,decision_relevance,stable_order",
+    "engine/learning/research_policy.py::PriorityFunction,InfoModel,EigCalibrator,evsi_normal,Factors,Candidate"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "[mapping 2026-09-29, read-only audit] [partial] 884/1500 meaningful lines genuinely doing this job. 142 (research_priority priority/ranking defs) + 742 (research_policy minus compute/diversity/value/waste/health defs). Has EIG, EVSI, feasibility, transfer, overfit (registry_overfit_risk) and redundancy (joint_information) terms plus an EIG calibrator. MISSING: expected_loss_reduction, volatility_value, direction_value factors; validation of the priority model itself out of sample; propose_selected/update_from_result have 0 production callers."
   },
   {
    "section": "Autonomous research loop",
    "minimum_lines": 2000,
    "upper_lines": 3000,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED",
-   "notes": ""
+   "actual_lines": 980,
+   "code_paths": [
+    "engine/learning/research_priority.py::ResearchQueue,QueueItem,queue_snapshot,queue_restore,replay_log,propose_selected",
+    "engine/learning/checkpoints.py",
+    "engine/learning/learner.py::stage_research,stage_meta"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "[mapping 2026-09-29, read-only audit] [partial] 980/2000 meaningful lines genuinely doing this job. 209 (queue) + 719 (checkpoints) + 52 (learner stage_research 24 + stage_meta 28). Research runs only as one stage inside the blind learner's episode; no standalone persistent loop, no cancel/escalate/demote, no concurrent jobs; resume_verified and write_interruption have 0 callers."
   },
   {
    "section": "Market-wide observer",
    "minimum_lines": 1500,
    "upper_lines": 2500,
-   "actual_lines": null,
-   "code_paths": [],
+   "actual_lines": 0,
+   "code_paths": [
+    "engine/learning/missed_winners.py::week_from_base,Week,Candidate",
+    "engine/fv_pipeline.py::Panel,build_panel",
+    "engine/missed_winners.py::MissedLedger"
+   ],
    "status": "NOT_STARTED",
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] [missing] 0/1500 meaningful lines genuinely doing this job. Nothing builds a per-day universe record with categories A-I. Reusable blocks only (not credited): week_from_base keeps picked and non-picked candidates; fv_pipeline.Panel is the weekly universe panel."
   },
   {
    "section": "Winner/loser research",
    "minimum_lines": 2500,
    "upper_lines": 4000,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED",
-   "notes": ""
+   "actual_lines": 3888,
+   "code_paths": [
+    "engine/learning/failure.py",
+    "engine/learning/postmortem.py",
+    "engine/learning/separation.py",
+    "engine/learning/credit.py"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "[mapping 2026-09-29, read-only audit] [partial] 3888/2500 meaningful lines genuinely doing this job. failure 1110 + postmortem 813 + separation 707 + credit 1258. The loss classifier asks exactly the C66 section-5 questions (selection/direction/timing/exit/risk/regime/data/external/pattern/unknown) but only for the system's OWN resolved trades. Market-wide winners/losers it did not hold are never studied; winner research is credit assignment only."
   },
   {
    "section": "Missed opportunity engine",
    "minimum_lines": 1800,
    "upper_lines": 2800,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED",
-   "notes": ""
+   "actual_lines": 1443,
+   "code_paths": [
+    "engine/missed_winners.py",
+    "engine/learning/missed_winners.py"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "[mapping 2026-09-29, read-only audit] [partial] 1443/1800 meaningful lines genuinely doing this job. engine/missed_winners 458 + learning/missed_winners 985 (excl. discover_interactions, credited to interaction). Missed WINNERS only (>=7% gainers, weekly). MISSED LOSERS absent; ranking by predictability/information availability/novelty/loss-reduction absent; MissedLedger.observe hook dead (adaptive.py calls add())."
   },
   {
    "section": "Knowability/external-factor engine",
    "minimum_lines": 2500,
    "upper_lines": 4000,
-   "actual_lines": null,
-   "code_paths": [],
+   "actual_lines": 0,
+   "code_paths": [
+    "engine/pit.py",
+    "engine/edgar.py",
+    "engine/learning/future_firewall.py",
+    "engine/learning/unknowns.py"
+   ],
    "status": "NOT_STARTED",
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] [missing] 0/2500 meaningful lines genuinely doing this job. No PREDICTABLE..DATA_FAILURE classifier and no known-before/after/simultaneous/uncertain/unavailable labelling. Building blocks (credited elsewhere): pit.py availability dates and publication lags, edgar accepted timestamps, future_firewall input dating, unknowns.py."
   },
   {
    "section": "Counterfactual knowledge reconstruction",
    "minimum_lines": 2000,
    "upper_lines": 3000,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED",
-   "notes": ""
+   "actual_lines": 683,
+   "code_paths": [
+    "engine/parity.py",
+    "engine/parity_suite.py"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "[mapping 2026-09-29, read-only audit] [partial] 683/2000 meaningful lines genuinely doing this job. parity 379 + parity_suite 304: STRICT recomputation of every feature family truncated to what existed at a date = reconstruction of the knowledge state at decision time for features. Missing: patterns/memory/macro/event state at T, what-became-known-later diff, confidence_in_classification, and the rule that the classification never feeds the trader."
   },
   {
    "section": "Volatility research laboratory",
    "minimum_lines": 3000,
    "upper_lines": 4500,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED",
-   "notes": ""
+   "actual_lines": 1188,
+   "code_paths": [
+    "engine/fv_pipeline.py::MoverStage,Panel,build_panel,certify_threshold,mover_report",
+    "engine/pattern_movers.py",
+    "engine/direction_features.py::mover_walk_forward,select_picks,weekly_labels",
+    "scripts/movers.py"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "[mapping 2026-09-29, read-only audit] [duplicated-risk] 1188/3000 meaningful lines genuinely doing this job. fv_pipeline mover defs 298 + pattern_movers 618 (excl. interaction_table) + direction_features mover defs 64 + scripts/movers.py 208. FOUR mover models exist (fv_pipeline.MoverStage, pattern_movers.MoverModel/PatternMoverModel, direction_features.mover_walk_forward, scripts/movers.py). No competing-hypothesis program (H1-H9+), no per-sector/stock transfer. The lab must pick ONE champion mover model and make the rest challengers."
   },
   {
    "section": "Direction research laboratory",
    "minimum_lines": 3000,
    "upper_lines": 4500,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED",
-   "notes": ""
+   "actual_lines": 1106,
+   "code_paths": [
+    "engine/direction.py",
+    "engine/direction_calib.py",
+    "engine/direction_ablate.py",
+    "engine/direction_features.py",
+    "engine/fv_pipeline.py::DirectionStage",
+    "scripts/direction_research.py",
+    "scripts/direction_study.py"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "[mapping 2026-09-29, read-only audit] [partial] 1106/3000 meaningful lines genuinely doing this job. direction 192 (excl. accuracy/reliability helpers) + direction_calib 129 + direction_ablate 69 + direction_features non-frontier/non-mover 193 + fv DirectionStage 51 + direction_research 212 + direction_study 260. Already scores direction on PREDICTED movers with random/shuffled/leak/planted controls. Missing: hypothesis families as competing objects, gating on volatility evidence, integration with the research queue."
   },
   {
    "section": "Conditional accuracy frontier",
    "minimum_lines": 1500,
    "upper_lines": 2500,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED",
-   "notes": ""
+   "actual_lines": 155,
+   "code_paths": [
+    "engine/direction_features.py::frontier,frontier_table,calibration_table,era_table,eighty_question",
+    "engine/direction.py::direction_accuracy,wilson,reliability_bins,ece"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "[mapping 2026-09-29, read-only audit] [partial] 155/1500 meaningful lines genuinely doing this job. 92 + 63. Coverage->accuracy with week-clustered CIs, calibration, era table and the 80% question exist. Missing per coverage level: independent-observation count, stock count, sector and regime stability, multiplicity adjustment across coverage cells as a reusable object."
   },
   {
    "section": "Winner/loser symmetry",
    "minimum_lines": 2000,
    "upper_lines": 3000,
-   "actual_lines": null,
+   "actual_lines": 0,
    "code_paths": [],
    "status": "NOT_STARTED",
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] [missing] 0/2000 meaningful lines genuinely doing this job. No per-pattern TP/FP/TN/FN on winners AND losers, no loss-risk knowledge bank separate from the opportunity bank. Blocks: pattern_stats, failure.py, boundary.py anti-conditions."
   },
   {
    "section": "Pattern discovery",
    "minimum_lines": 4000,
    "upper_lines": 6000,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED",
-   "notes": ""
+   "actual_lines": 4632,
+   "code_paths": [
+    "engine/patterns.py",
+    "engine/candidates.py",
+    "engine/pattern_stats.py",
+    "engine/pattern_identity.py",
+    "engine/pattern_bank.py",
+    "engine/pattern_lifecycle.py",
+    "engine/pattern_memory.py",
+    "engine/pattern_memory_eval.py",
+    "engine/learning/knowledge.py",
+    "engine/planted.py"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "[mapping 2026-09-29, read-only audit] [duplicated-risk] 4632/4000 meaningful lines genuinely doing this job. 401+407+502+444+384+477+597+249+907+264. Miner, candidate universe, BH/permutation statistics, identity hashing, lifecycle and the formal KnowledgeObject all exist, but PatternMiner rows never become KnowledgeObjects (evidence_from_pattern_row 0 callers) and THREE pattern stores exist (pattern_bank, pattern_memory, learning archive). New sources (filings/insider/breadth/dispersion/correlation/liquidity as candidates) are partial."
   },
   {
    "section": "Pattern-break research integration",
    "minimum_lines": 2000,
    "upper_lines": 3000,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED",
-   "notes": ""
+   "actual_lines": 3558,
+   "code_paths": [
+    "engine/learning/break_detection.py",
+    "engine/pattern_reliability.py",
+    "engine/learning/boundary.py"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "[mapping 2026-09-29, read-only audit] [duplicated-risk] 3558/2000 meaningful lines genuinely doing this job. break_detection 1271 (excl. interaction_scan) + pattern_reliability 1576 + boundary 711. Two parallel 'what changed when it broke' engines (engine/pattern_reliability C60 and learning/break_detection C62). Real result on disk: reliability NOT predictable (skill -0.2%). Not scheduled by the research engine (signals_from_health 0 callers)."
   },
   {
    "section": "Experiment memory",
    "minimum_lines": 1500,
    "upper_lines": 2500,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED",
-   "notes": ""
+   "actual_lines": 1373,
+   "code_paths": [
+    "engine/learning/experiment_memory.py",
+    "engine/experiment_memory.py",
+    "engine/registry.py"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "[mapping 2026-09-29, read-only audit] [duplicated-risk] 1373/1500 meaningful lines genuinely doing this job. 851 + 293 + 229. Three experiment memories (learning ExperimentLedger, engine tried-index, registry ExperimentMemory) plus compute.ExperimentLedger (execution; same class name). Pre-launch already_tested is wired via improve.py; record_result has 0 callers. Missing C66 fields: data/config hash per record, controls, compute cost, research value, decision impact."
   },
   {
    "section": "Meta-learning",
    "minimum_lines": 2500,
    "upper_lines": 4000,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED",
-   "notes": ""
+   "actual_lines": 1213,
+   "code_paths": [
+    "engine/learning/meta_learning.py"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "[mapping 2026-09-29, read-only audit] [partial] 1213/2500 meaningful lines genuinely doing this job. Eight meta questions with walk-forward OOS and a null control; wired only inside learner.stage_meta. Missing: validation-method yield, which datasets create false discoveries, research-question -> decision-change learning, era/stock/regime survival reported for research processes."
   },
   {
    "section": "Failed-learner laboratory",
    "minimum_lines": 1200,
    "upper_lines": 2000,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED",
-   "notes": ""
+   "actual_lines": 509,
+   "code_paths": [
+    "engine/learning/failed_learners.py"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "[mapping 2026-09-29, read-only audit] [partial] 509/1200 meaningful lines genuinely doing this job. Registry, dead-end check and six seeded real failures. Module has no production caller (INTEGRATION_AUDIT section 2). Under depth: no class-level counts ('attempted 14 times, 11 overfit') surfaced before a new learner."
   },
   {
    "section": "Compute manager",
    "minimum_lines": 1500,
    "upper_lines": 2500,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED",
-   "notes": ""
+   "actual_lines": 2031,
+   "code_paths": [
+    "engine/learning/compute.py",
+    "engine/resources.py",
+    "engine/health.py",
+    "engine/learning/research_policy.py::select_within_budget,successive_halving,sprt_bernoulli,CostModel,ComputeBudget"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "[mapping 2026-09-29, read-only audit] [partial] 2031/1500 meaningful lines genuinely doing this job. compute 906 + resources 396 + worker health 306 + research_policy compute defs 423. Execution side (deterministic workers, RAM admission, isolation, reconcile) is solid. Missing: research-state machine QUEUED..RETIRED and the five-stage escalation ladder; job_for/run_experiment_process have 0 callers."
   },
   {
    "section": "Experiment value accounting",
    "minimum_lines": 1200,
    "upper_lines": 2000,
-   "actual_lines": null,
-   "code_paths": [],
+   "actual_lines": 129,
+   "code_paths": [
+    "engine/learning/research_policy.py::RealisedGain,realised_bits,gain_from_record,regret_report,RoundLedger",
+    "engine/learning/scorecard.py::ComputeCost,ComputeMeter"
+   ],
    "status": "NOT_STARTED",
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] [missing] 129/1200 meaningful lines genuinely doing this job. 94 + 35. Realised information bits and compute minutes are recorded; decision_change, risk_change, prediction_change, transfer_change and knowledge_redundancy per job are not."
   },
   {
    "section": "Compute-waste controller",
    "minimum_lines": 800,
    "upper_lines": 1500,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED",
-   "notes": ""
+   "actual_lines": 64,
+   "code_paths": [
+    "engine/learning/research_priority.py::barren_streak,experience_factor,experience_rerank",
+    "engine/learning/research_policy.py::marginal_return_verdict,cusum_shift"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "[mapping 2026-09-29, read-only audit] [partial] 64/800 meaningful lines genuinely doing this job. 38 + 26: barren-streak down-ranking and a marginal-return verdict exist. No DORMANT branch state with reason and re-entry triggers for research branches (retirement.py does this for knowledge items and should be reused, not copied)."
   },
   {
    "section": "Daily market autopsy",
    "minimum_lines": 1500,
    "upper_lines": 2500,
-   "actual_lines": null,
-   "code_paths": [],
+   "actual_lines": 0,
+   "code_paths": [
+    "engine/learning/reports.py",
+    "engine/learning/surprise.py"
+   ],
    "status": "NOT_STARTED",
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] [missing] 0/1500 meaningful lines genuinely doing this job. No daily autopsy. reports.py Builder and surprise.py are reusable infrastructure (not credited)."
   },
   {
    "section": "Daily research target generator",
    "minimum_lines": 1500,
    "upper_lines": 2500,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED",
-   "notes": ""
+   "actual_lines": 898,
+   "code_paths": [
+    "engine/learning/research_priority.py::signals_from_*",
+    "engine/learning/surprise.py",
+    "engine/learning/contradiction_monitor.py"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "[mapping 2026-09-29, read-only audit] [partial] 898/1500 meaningful lines genuinely doing this job. 91 + 537 + 270. Signals from surprise/failure/missed-winner rows feed the queue in the learner; health, data-audit and contradiction signals have 0 callers. Missing sources: losses as market-wide events, missed losers, volatility clusters, new regimes, understudied sectors/conditions; the 'Pattern X fails when dispersion > D' hypothesis template."
   },
   {
    "section": "Multi-scale learning",
    "minimum_lines": 1200,
    "upper_lines": 2000,
-   "actual_lines": null,
-   "code_paths": [],
+   "actual_lines": 45,
+   "code_paths": [
+    "engine/candles.py",
+    "engine/learning/situation.py::horizon_state"
+   ],
    "status": "NOT_STARTED",
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] [missing] 45/1200 meaningful lines genuinely doing this job. 41 + 4. Daily/weekly/monthly candles and a horizon label. No per-horizon pattern research or cross-horizon transfer test; no intraday history (only a forward collector)."
   },
   {
    "section": "Cross-sectional learning",
    "minimum_lines": 1500,
    "upper_lines": 2500,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED",
-   "notes": ""
+   "actual_lines": 453,
+   "code_paths": [
+    "engine/analogs_sector.py",
+    "engine/trust.py",
+    "engine/learning/situation.py::CrossSection,correlation_structure"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "[mapping 2026-09-29, read-only audit] [partial] 453/1500 meaningful lines genuinely doing this job. 151 + 253 + 49. Sector analogs, per-stock-type trust, cross-section block. Missing: stock-vs-cohort decomposition (market/sector/industry/volatility/liquidity/momentum/event cohort) and the stock-specific vs sector vs market-wide label feeding both models."
   },
   {
    "section": "Regime-aware research",
    "minimum_lines": 1500,
    "upper_lines": 2500,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED",
-   "notes": ""
+   "actual_lines": 2198,
+   "code_paths": [
+    "engine/learning/context.py",
+    "engine/learning/hierarchy.py",
+    "engine/learning/situation.py::classify_regime,PopulationDriftMonitor"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "[mapping 2026-09-29, read-only audit] [partial] 2198/1500 meaningful lines genuinely doing this job. context 1262 + hierarchy 905 + 31. pattern x context (incl. regime) learned both ways with shrinkage. Missing: the full C66 regime list (dispersion, liquidity, trend vs mean-reversion, event-heavy) and discovery of NEW regimes (only a drift monitor and break_detection kmeans)."
   },
   {
    "section": "Interaction discovery",
    "minimum_lines": 2000,
    "upper_lines": 3000,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED",
-   "notes": ""
+   "actual_lines": 592,
+   "code_paths": [
+    "engine/learning/complexity.py",
+    "engine/learning/missed_winners.py::discover_interactions",
+    "engine/learning/break_detection.py::interaction_scan",
+    "engine/pattern_movers.py::interaction_table",
+    "engine/candidates.py (pairs, A and B UNLESS C)"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "[mapping 2026-09-29, read-only audit] [duplicated-risk] 592/2000 meaningful lines genuinely doing this job. complexity 510 + 32 + 32 + 18. Interactions are searched in four places with four different multiple-testing treatments. Needs one interaction search with a global search-size ledger, shuffled controls, cross-year/cross-stock holdout."
   },
   {
    "section": "Knowledge graph",
    "minimum_lines": 1500,
    "upper_lines": 2500,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED",
-   "notes": ""
+   "actual_lines": 1008,
+   "code_paths": [
+    "engine/learning/knowledge_graph.py"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "[mapping 2026-09-29, read-only audit] [partial] 1008/1500 meaningful lines genuinely doing this job. Typed graph with section-18 edges. Missing node types: regimes, events, learners, research questions, experiments-as-questions; 'unanswered relationship' discovery; KnowledgeGraph.contradiction_keys was never added (INTEGRATION_AUDIT)."
   },
   {
    "section": "Knowledge-to-decision bridge",
    "minimum_lines": 1000,
    "upper_lines": 1800,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED",
-   "notes": ""
+   "actual_lines": 1188,
+   "code_paths": [
+    "engine/learning/decision_contract.py",
+    "engine/learning/champion.py"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "[mapping 2026-09-29, read-only audit] [partial] 1188/1000 meaningful lines genuinely doing this job. 476 + 712. 'What decision does this change?' is enforced only in learner._contract_allows; policy_check/readiness/effective_champion have 0 callers. Missing outputs: volatility ranking, research priority, data priority; explicit 'informational only' value record for discoveries."
   },
   {
    "section": "Research/trader firewall integration",
    "minimum_lines": 2000,
    "upper_lines": 3000,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED",
-   "notes": ""
+   "actual_lines": 5544,
+   "code_paths": [
+    "engine/learning/trader_view.py",
+    "engine/learning/curator.py",
+    "engine/learning/test_path.py",
+    "engine/learning/firewalls.py",
+    "engine/learning/future_firewall.py",
+    "engine/learning/memory_firewall.py",
+    "engine/learning/identity_firewall.py"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "[mapping 2026-09-29, read-only audit] [duplicated-risk] 5544/2000 meaningful lines genuinely doing this job. 554+673+509+1140+1003+910+755 (leak_audit 1210, pit 1030, isolation 376, blind_gates 462 not credited). Seven overlapping firewalls exist for the C62/C64 trader. No MATURED_RESEARCH_STATE namespace, no research-side planted leaks (future pattern status, future experiment result). Add as a layer of firewalls.LearningFirewallGate, not a ninth parallel firewall."
   },
   {
    "section": "Research replication system",
    "minimum_lines": 1000,
    "upper_lines": 1800,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED",
-   "notes": ""
+   "actual_lines": 1568,
+   "code_paths": [
+    "engine/learning/transfer.py",
+    "engine/learning/transfer_score.py",
+    "engine/learning/promotion.py::RerunRecord,ReproEvidence,gate_reproducibility"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "[mapping 2026-09-29, read-only audit] [partial] 1568/1000 meaningful lines genuinely doing this job. 1109 + 413 + 46. Fresh-year/regime/stock/sector evaluation and rerun records exist. Missing: a replication requirement object (which combination of fresh period/stocks/seed/regime/control) that is learned and documented, and the rule that one lucky experiment cannot change production."
   },
   {
    "section": "Unknown-cause system",
    "minimum_lines": 1000,
    "upper_lines": 1800,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED",
-   "notes": ""
+   "actual_lines": 409,
+   "code_paths": [
+    "engine/learning/unknowns.py"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "[mapping 2026-09-29, read-only audit] [partial] 409/1000 meaningful lines genuinely doing this job. UNKNOWN as a non-numeric first-class state with actions. Missing: UNKNOWN_CAUSE rate by regime/volatility/sector/confidence and the check that a falling unknown rate is not forced labelling. pattern_reliability UNKNOWN_CAUSE verdict is separate vocabulary."
   },
   {
    "section": "Self-improvement scorecard",
    "minimum_lines": 1000,
    "upper_lines": 1800,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED",
-   "notes": ""
+   "actual_lines": 1205,
+   "code_paths": [
+    "engine/learning/scorecard.py",
+    "engine/learning/learning_curve.py"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "[mapping 2026-09-29, read-only audit] [partial] 1205/1000 meaningful lines genuinely doing this job. 701 + 504. Claim gate and learning curve exist. Missing C66 fields: volatility precision/recall/ranking/coverage, direction accuracy-at-coverage, avoidable-loss rate, experiments replicated, duplicate experiments avoided, branches escalated/abandoned."
   },
   {
    "section": "Research-brain health",
    "minimum_lines": 1200,
    "upper_lines": 2000,
-   "actual_lines": null,
-   "code_paths": [],
+   "actual_lines": 92,
+   "code_paths": [
+    "engine/learning/research_priority.py::queue_health",
+    "engine/learning/research_policy.py::audit_spend,allocation_entropy,policy_health"
+   ],
    "status": "NOT_STARTED",
-   "notes": ""
+   "notes": "[mapping 2026-09-29, read-only audit] [missing] 92/1200 meaningful lines genuinely doing this job. 18 + 74. Spend concentration and allocation entropy only. Missing: duplicate rate, false discovery rate, replication/transfer rate of the researcher, easy-question bias, abandonment of hard questions."
   },
   {
    "section": "Research diversity controller",
    "minimum_lines": 1000,
    "upper_lines": 1800,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED",
-   "notes": ""
+   "actual_lines": 340,
+   "code_paths": [
+    "engine/learning/research_policy.py::TargetAllocator,DiscountedAllocator,project_box_simplex,apply_family_caps,greedy_diverse_batch,starving_targets"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "[mapping 2026-09-29, read-only audit] [partial] 340/1000 meaningful lines genuinely doing this job. Adaptive box-simplex allocation with floors/caps and exploration. ResearchTarget lacks VOLATILITY, DIRECTION, RISK/LOSS and PATTERN_BREAK targets that C66 section 38 names."
   },
   {
    "section": "Scientific long-term memory integration",
    "minimum_lines": 1500,
    "upper_lines": 2500,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED",
-   "notes": ""
+   "actual_lines": 3009,
+   "code_paths": [
+    "engine/learning/archive.py",
+    "engine/learning/interpretation.py",
+    "engine/learning/belief.py",
+    "engine/learning/epistemic.py"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "[mapping 2026-09-29, read-only audit] [partial] 3009/1500 meaningful lines genuinely doing this job. 1034 + 602 + 808 + 565. Hash-chained layered archive, observation != interpretation, evidence-set belief chains. Missing: the query 'why do you believe X / what would make you stop' assembled across archive+belief+experiment lineage+graph, and 'what replaced it'."
   },
   {
    "section": "Question generator",
    "minimum_lines": 1200,
    "upper_lines": 2000,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED",
-   "notes": ""
+   "actual_lines": 294,
+   "code_paths": [
+    "engine/learning/research_priority.py::QuestionGenerator,CandidateBuilder,ResearchQuestion,generic_hypotheses,failure_hypotheses"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "[mapping 2026-09-29, read-only audit] [partial] 294/1200 meaningful lines genuinely doing this job. Signals become questions with hypotheses and expected outcomes. Missing: success/failure criteria and test plan per question; C66 question families (contradictions between identical setups, regime survival, 'does this new pattern generalise')."
   },
   {
    "section": "Hypothesis tree",
    "minimum_lines": 1000,
    "upper_lines": 1800,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED",
-   "notes": ""
+   "actual_lines": 702,
+   "code_paths": [
+    "engine/learning/competition.py"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "[mapping 2026-09-29, read-only audit] [partial] 702/1000 meaningful lines genuinely doing this job. Competing explanations stay alive until evidence separates them. No tree (question -> hypothesis -> test/counterexample -> unknown branch) and no branch-killing/redirect; experiment_memory Hypothesis/bayes_update are flat."
   },
   {
    "section": "Quality/promotion gate",
    "minimum_lines": 1000,
    "upper_lines": 1800,
-   "actual_lines": null,
-   "code_paths": [],
-   "status": "NOT_STARTED",
-   "notes": ""
+   "actual_lines": 1072,
+   "code_paths": [
+    "engine/learning/promotion.py",
+    "engine/champion.py"
+   ],
+   "status": "IN_PROGRESS",
+   "notes": "[mapping 2026-09-29, read-only audit] [partial] 1072/1000 meaningful lines genuinely doing this job. 748 + 324. Ten fail-closed gates. Missing vs C66 section 42: calibration gate, complexity gate (complexity.py exists, not called), failure-behaviour gate, replication (not reproducibility) gate, and outcomes QUARANTINED / NEEDS_MORE_EVIDENCE / UNKNOWN."
   }
  ]
 }
