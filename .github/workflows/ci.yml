@@ -36,6 +36,8 @@ jobs:
         run: |
           python canon/build_canon.py --verify
           python -c "from engine import provenance; provenance.verify_integrity(); print('integrity ok')"
+      - name: Architecture doc matches the code (Bible 39.0.30)
+        run: python scripts/arch_doc.py --check
       - name: Quality gate (static, against the reviewed baseline)
         run: python scripts/quality_gate.py --baseline state/quality/baseline.json
       - name: Test suite
