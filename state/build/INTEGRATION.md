@@ -18,3 +18,22 @@
 - [x] improve.log_experiment ids -> sha256 (done 2026-09-28)
 - [ ] log_experiment writes outcome, reason, metrics
 - [ ] major runs call checkpoint.write_checkpoint, run_report.build_report/write_report; Board.promote replaces improve.py promotion
+
+## B12 second pass (engine/baseline.py, engine/experiment_memory.py, scripts/audit_registry.py; 82 tests)
+- [x] log_experiment writes outcome/reason/metrics + Phase 0.2 fields (2026-09-28)
+- [ ] freeze the baseline once with the champion cfg: baseline.freeze(...)
+- [ ] live trader: Board.record_shadow_session daily, shadow_review after each session
+- [ ] experiment_memory.check() before launching grid/loop candidates
+- audit (real 53 records): 0 complete, 2 with provenance -> fixed going forward only; history stays as-is (append-only)
+
+## Ownership transfers (2026-09-28)
+- engine/memory.py, engine/adaptive.py -> B15 (asked to add Session.fills for the fill audit)
+- engine/livesim.py, scripts/check_retester.py, scripts/livesim_cycle.py -> B10 (apply blind-gate/retester/health hooks)
+- scripts/livesim_loop2.py -> B09 (objective.evaluate + BasisSearch; keep provenance + fill_audit gates)
+
+## B09 objective/timeline/basis (54 tests)
+- note: adaptive.py reads meta det_max / det_min_weeks not in META_DEFAULT (B15 to add)
+- [ ] adaptive weekly step: merge timeline.cfg_overrides(timeline.step(...)) (needs gross-weight scale)
+
+## B10 blind gates/retester/health (84 tests)
+- real-cache: 40 seals 0 overlap; disguise 0 failures/12 windows; look-ahead probe 6/6 honest pass, 6/6 peeking caught
