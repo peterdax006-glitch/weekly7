@@ -1722,18 +1722,19 @@
    "section": "Direction research laboratory",
    "minimum_lines": 3000,
    "upper_lines": 4500,
-   "actual_lines": 1106,
+   "actual_lines": 4275,
    "code_paths": [
     "engine/direction.py",
-    "engine/direction_calib.py",
     "engine/direction_ablate.py",
+    "engine/direction_calib.py",
     "engine/direction_features.py",
     "engine/fv_pipeline.py::DirectionStage",
+    "engine/research/direction_lab.py",
     "scripts/direction_research.py",
     "scripts/direction_study.py"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "[mapping 2026-09-29, read-only audit] [partial] 1106/3000 meaningful lines genuinely doing this job. direction 192 (excl. accuracy/reliability helpers) + direction_calib 129 + direction_ablate 69 + direction_features non-frontier/non-mover 193 + fv DirectionStage 51 + direction_research 212 + direction_study 260. Already scores direction on PREDICTED movers with random/shuffled/leak/planted controls. Missing: hypothesis families as competing objects, gating on volatility evidence, integration with the research queue."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C66 wave 1, R08): 3,001; direction ONLY on the volatility model's walk-forward picks behind a DirectionGate; 15 section-10 hypotheses vs six comparators with max-T family-wise p and winner's-curse shrinkage; NO_RELIABLE_SIGNAL is the default outcome; honest 80% statement with power. Truncation test caught two of its own features reading the future (fixed). 55 tests. | earlier: [mapping 2026-09-29, read-only audit] [partial] 1106/3000 meaningful lines genuinely doing this job. direction 192 (excl. accuracy/reliability helpers) + direction_calib 129 + direction_ablate 69 + direction_features non-frontier/non-mover 193 + fv DirectionStage 51 + direction_research 212 + direction_study 260. Already scores direction on PREDICTED movers with random/shuffled/leak/planted controls. Missing: hypothesis families as competing objects, gating on volatility evidence, integration with the research queue."
   },
   {
    "section": "Conditional accuracy frontier",

@@ -538,3 +538,262 @@ def test_self_check_and_determinism_on_tiny_worlds():
     assert DL.determinism_check(inp, NOW, cfg, DL.DirectionGate(30))["identical"]
     with pytest.raises(ValueError):
         DL.synthetic_inputs(world="nope")
+
+
+# ------------------------------------------------------------------ second wave: placebo, pooling, ledger, registry, pre-registration
+def _panel(n_weeks=200, per=40, seed=0, lag_leak=False):
+    rng = np.random.default_rng(seed)
+    dates = np.repeat(pd.bdate_range("2010-01-01", periods=n_weeks, freq="W-FRI").values, per)
+    tick = np.tile([f"T{i}" for i in range(per)], n_weeks)
+    n = len(dates)
+    x = rng.normal(size=n)
+    up = (rng.uniform(size=n) < 1 / (1 + np.exp(-1.0 * x))).astype(float)
+    pool = pd.DataFrame(dict(date=pd.DatetimeIndex(dates), ticker=tick, up=up))
+    if lag_leak:                                     # the feature is the PREVIOUS week outcome of the same ticker
+        prev = pool.assign(k=np.arange(n)).sort_values(["ticker", "date"])
+        x = prev.groupby("ticker")["up"].shift(1).fillna(0.5).to_numpy()[np.argsort(prev["k"].to_numpy())]
+        x = x + rng.normal(0, 0.01, n)
+    return pool, pd.DataFrame(dict(x=x))
+
+
+def test_lead_lag_profile_separates_forecast_from_contaminated():
+    pool, M = _panel(seed=1)
+    v = DL.profile_verdict(DL.lead_lag_profile(M, pool, "x"))
+    assert v["kind"] == "forecast"
+    pool2, M2 = _panel(seed=2, lag_leak=True)
+    prof = DL.lead_lag_profile(M2, pool2, "x", lags=(-2, -1, 0, 1)).set_index("lag")
+    assert prof.loc[-1, "t"] != prof.loc[0, "t"]
+    assert DL.lead_lag_profile(M.iloc[:5], pool.iloc[:5], "x").empty and DL.profile_verdict(pd.DataFrame())["kind"] == "unknown"
+
+
+def test_time_shuffle_control_has_small_t_while_real_column_has_large():
+    pool, M = _panel(seed=3)
+    M["noise"] = np.random.default_rng(0).normal(size=len(M))
+    real = DL.feature_ic_table(M, pool).set_index("column")
+    ctl = DL.time_shuffle_control(M, pool, n_rep=3)
+    assert real.loc["x", "t"] > 6 and ctl["max_abs_t"] < 4.5 and ctl["n_tests"] == 6
+    assert np.isnan(DL.time_shuffle_control(M.iloc[:0], pool.iloc[:0])["max_abs_t"])
+
+
+def test_random_effects_flags_heterogeneous_and_reports_prediction_interval():
+    same = DL.random_effects([0.02] * 6, [1e-5] * 6)
+    assert same["tau2"] == pytest.approx(0.0) and same["p_negative_year"] < 0.01
+    mixed = DL.random_effects([0.06, 0.05, -0.04, -0.05, 0.07, -0.06], [1e-5] * 6)
+    assert mixed["i2"] > 0.9 and mixed["pred_lo"] < 0 < mixed["pred_hi"] and mixed["p_negative_year"] > 0.2
+    assert np.isnan(DL.random_effects([0.1], [1e-4])["tau2"]) and DL.random_effects([], [])["k"] == 0
+
+
+def test_posterior_helpers_and_label_noise():
+    small_b = DL.beta_posterior(5, 5)
+    assert small_b["lo"] < 0.7 and DL.prob_accuracy_above(5, 5) < 0.8 and DL.prob_accuracy_above(90, 100, 0.6) > 0.99
+    assert DL.label_noise_attenuation(0.02, 0.0) == 0.02 and DL.label_noise_attenuation(0.02, 0.25) == pytest.approx(0.005)
+    with pytest.raises(ValueError):
+        DL.label_noise_attenuation(0.02, 0.5)
+    assert DL.weeks_needed(0.02) > DL.weeks_needed(0.05) > 0
+    with pytest.raises(ValueError):
+        DL.weeks_needed(0.0)
+
+
+def test_evidence_ledger_is_anytime_valid_and_ignores_repeats():
+    led = DL.EvidenceLedger(0.05)
+    for i in range(6):
+        led.update("h", 0.02, f"k{i}")
+    assert led.rejects("h") and led.looks["h"] == 6
+    before = led.value("h")
+    led.update("h", 0.02, "k0")                                     # identical key: not new evidence
+    assert led.value("h") == before
+    rng = np.random.default_rng(0)
+    rej = 0
+    for t in range(300):
+        l = DL.EvidenceLedger(0.05)
+        for i in range(10):
+            l.update("h", rng.uniform(), f"{t}-{i}")
+            if l.rejects("h"):
+                rej += 1
+                break
+    assert rej / 300 <= 0.10
+    assert DL.EvidenceLedger().table().empty and DL.EvidenceLedger().value("x") == 1.0
+    with pytest.raises(ValueError):
+        DL.EvidenceLedger(kappa=1.5)
+
+
+def test_registry_refuses_duplicates_and_redundant_specs_and_counts_active():
+    reg = DL.HypothesisRegistry()
+    assert reg.active_count == 15
+    clone = DL._spec("momentum_again", "momentum", ["r20", "r60", "r120", "mom_12_1"], "same thing", 1, ["r60"])
+    with pytest.raises(ValueError):
+        reg.add(clone, "because")
+    with pytest.raises(ValueError):
+        reg.add(DL.OPEN_SPECS[0], "")
+    hid = reg.add(DL.OPEN_SPECS[0], "overnight flow")
+    assert hid.startswith("H") and reg.active_count == 16
+    reg.retire("insider", "no data")
+    assert reg.active_count == 15 and "insider" not in reg.active()
+    assert "sector_behavior" in reg.coverage_gaps(["r5"]) and reg.retired["insider"] == "no data"
+    out = DL.load_open_specs(DL.HypothesisRegistry(), ["r5"])
+    assert all(v == "inputs not in the panel" for v in out.values())
+
+
+def test_preregistration_freezes_the_criterion():
+    pr = DL.PreRegistration.make("reversal", "reversal:linear", 0.05, 0.005, "2018-12-31", 26, "2019-06-01")
+    assert pr.verify()
+    tampered = dataclasses.replace(pr, min_skill=0.0)
+    assert not tampered.verify()
+    res = _res(best_tag="reversal:linear")
+    assert pr.evaluate(res, 40, "2019-01-07")["replicated"]
+    with pytest.raises(FirewallBreach):
+        tampered.evaluate(res, 40, "2019-01-07")
+    stale = pr.evaluate(res, 40, "2018-06-01")
+    assert not stale["replicated"] and any("independent" in r for r in stale["reasons"])
+    assert not pr.evaluate(_res(best_tag="other"), 40, "2019-02-01")["replicated"]
+    with pytest.raises(ValueError):
+        DL.PreRegistration.make("h", "t", 0.05, 0.0, "2019-07-01", 26, "2019-06-01")
+
+
+def test_return_rank_selection_stability_and_frontier_monotonicity():
+    rng = np.random.default_rng(0)
+    n, per = 4000, 40
+    dates = np.repeat(pd.bdate_range("2015-01-01", periods=n // per, freq="W-FRI").values, per)
+    fwd = rng.normal(0, 0.05, n)
+    p = np.clip(0.5 + 2.0 * fwd + rng.normal(0, 0.05, n), 0.02, 0.98)
+    pred = pd.DataFrame(dict(row=np.arange(n), date=dates, year=2015, model="m", p=p, up=(fwd > 0).astype(float), q=rng.uniform(size=n), p0=0.5))
+    r = DL.return_rank_test(pred, pd.DataFrame(dict(fwd=fwd)), "m", 100)
+    assert r["ic"] > 0.3 and r["spread_bp"] > 100 and r["lo_bp"] > 0
+    y = (fwd > 0).astype(float)
+    W = pd.DataFrame({"good": p, "junk": np.full(n, 0.5), "junk2": np.clip(0.5 + rng.normal(0, 0.05, n), 0.02, 0.98)})
+    info = pd.DataFrame(dict(date=dates, up=y, p0=0.5))
+    st = DL.selection_stability(W, info, 60)
+    assert st["cell"].iloc[0] == "good" and st["win_share"].iloc[0] > 0.9
+    ft = pd.DataFrame(dict(model="m", segcol=None, seg=None, cov_target=[0.01, 0.05, 0.25, 1.0], n=[40, 200, 900, 4000], acc=[0.9, 0.8, 0.65, 0.55]))
+    m = DL.frontier_monotone_check(ft, "m")
+    assert m["rho"] < -0.9 and m["tightest_is_best"] and not m["flat"]
+    flat = ft.assign(acc=[0.51, 0.5, 0.505, 0.5])
+    assert DL.frontier_monotone_check(flat, "m")["flat"] and np.isnan(DL.frontier_monotone_check(ft.iloc[:1], "m")["rho"])
+
+
+def test_jackknife_and_placebo_shift_and_pick_overlap():
+    rng = np.random.default_rng(1)
+    n_w, per = 60, 40
+    dates = np.repeat(pd.bdate_range("2015-01-01", periods=n_w, freq="W-FRI").values, per)
+    up = (rng.uniform(size=n_w * per) < 0.5).astype(float)
+    p = np.where(up > 0, 0.6, 0.4)
+    p[:3 * per] = np.where(up[:3 * per] > 0, 0.99, 0.01)            # three lucky weeks carry an outsized share
+    pred = pd.DataFrame(dict(row=np.arange(n_w * per), date=dates, year=2015, model="m", p=p, up=up, q=1.0, p0=0.5))
+    jk = DL.jackknife_weeks(pred, "m", (1, 3))
+    assert jk["share_kept"].iloc[1] < jk["share_kept"].iloc[0] <= 1.0
+    pl = DL.placebo_date_shift(pred, "m", 1)
+    assert pl["skill_true"] > 0.1 > pl["skill_placebo"] and pl["lo"] > 0
+    pool = pd.DataFrame(dict(date=pd.DatetimeIndex(dates), ticker=np.tile([f"T{i}" for i in range(per)], n_w), pick=True))
+    ov = DL.pick_overlap(pool)
+    assert ov["overlap"] == pytest.approx(1.0) and ov["tickers"] == per
+    assert DL.jackknife_weeks(pred.iloc[:10], "m").empty
+
+
+def test_honest_blend_does_not_beat_equal_weights_on_pure_noise():
+    rng = np.random.default_rng(0)
+    n = 4000
+    y = (rng.uniform(size=n) < 0.5).astype(float)
+    W = pd.DataFrame({f"c{i}": np.clip(0.5 + rng.normal(0, 0.04, n), 0.02, 0.98) for i in range(4)})
+    info = pd.DataFrame(dict(date=pd.bdate_range("2010-01-01", periods=n, freq="B"), up=y))
+    b = DL.honest_blend(W, info)
+    assert b["ok"] and b["skill_fitted"] < 0.002 and b["skill_single"] < 0.002
+    W["real"] = np.where(y > 0, 0.62, 0.38)
+    assert DL.honest_blend(W, info)["skill_fitted"] > 0.05 and not DL.honest_blend(W[["c0"]], info)["ok"]
+
+
+def test_sector_neutralize_removes_group_mean_and_truncation_catches_future_read():
+    pool = pd.DataFrame(dict(date=pd.to_datetime(["2015-01-02"] * 6), sector=list("aaabbb")))
+    M = pd.DataFrame(dict(f=[1.0, 2, 3, 10, 20, 30]))
+    out = DL.sector_neutralize(M, pool)
+    assert out["f"].tolist() == [-1, 0, 1, -10, 0, 10]
+    inp = small("null", 2)
+    cfg = cfg_small()
+    ok = DL.truncation_test(inp, cfg, NOW, "2014-01-01")
+    assert ok["ok"] and ok["rows"] > 0 and ok["columns"] > 10
+    orig = DL.derive_features
+
+    def leaky(Xp, pool, ps=None):                                    # a column centred on the panel-wide mean: reads later rows
+        d = orig(Xp, pool, ps)
+        d["r5"] = d["r5"] - d["r5"].mean()
+        return d
+    DL.derive_features = leaky
+    try:
+        bad = DL.truncation_test(inp, cfg, NOW, "2014-01-01")
+    finally:
+        DL.derive_features = orig
+    assert not bad["ok"] and any(o["column"] == "r5" for o in bad["offenders"])
+
+
+def test_audit_pool_catches_structure_errors():
+    inp = small("null", 2)
+    pool = DL.ConditionalUniverse(cfg_small()).build(inp, NOW).pool
+    assert DL.audit_pool(pool)["ok"]
+    bad = pool.copy()
+    bad.loc[bad.index[0], "entry_date"] = bad["date"].iloc[0]
+    assert not DL.audit_pool(bad)["ok"]
+    dup = pd.concat([pool, pool.iloc[:3]])
+    assert not DL.audit_pool(dup)["ok"] and DL.audit_pool(pool.iloc[0:0])["ok"]
+
+
+def test_disclosures_baselines_and_arithmetic():
+    inp = small("null", 2)
+    pool = DL.ConditionalUniverse(cfg_small()).build(inp, NOW).pool
+    s = DL.survivorship_disclosure(pool)
+    assert s["survivor_only_suspected"] and s["ended_early"] == 0                        # the synthetic panel never loses a name
+    dropped = pool[~((pool["ticker"] == "S001") & (pool["date"] > pd.Timestamp("2013-01-01")))]
+    assert DL.survivorship_disclosure(dropped)["ended_early"] == 1
+    la = DL.label_ambiguity_report(inp.labels)
+    assert 0 < la["mover_rate"] < 1 and DL.label_ambiguity_report(inp.labels.iloc[0:0])["rows"] == 0
+    Xd = DL.derive_features(inp.X.reindex(pool.index), pool)
+    bt = DL.baseline_table(Xd, pool, (2014, 2015))
+    assert len(bt) >= 4 and (bt["edge"].abs() < 0.05).all()
+    e = DL.expected_false_leads(15, 0.25, 0.05)
+    assert e["expected_weak"] == pytest.approx(0.1875) and e["expected_candidate"] < e["expected_weak"]
+    with pytest.raises(ValueError):
+        DL.expected_false_leads(0, 0.2, 0.05)
+    ad = DL.segment_adequacy(pool)
+    assert {"seg", "reg", "sector"} <= set(ad["factor"]) and (ad["weeks_needed"] > 0).all()
+
+
+def test_multiplicity_price_cell_evidence_and_recommendation(null_report, planted_report):
+    a, b = DL.multiplicity_price(1), DL.multiplicity_price(500)
+    assert b["z_crit"] > a["z_crit"] and b["p_any_unadjusted"] > 0.99
+    ce = DL.cell_evidence(34, 40, design_effect=1.0, n_cells=200)
+    assert ce["rate"] == 0.85 and ce["adjusted_lo"] < ce["wilson_lo"] and not ce["reaches_gate"]
+    assert DL.cell_evidence(950, 1000, n_cells=10)["reaches_gate"]
+    with pytest.raises(ValueError):
+        DL.cell_evidence(5, 0)
+    rec, why = DL.recommendation(null_report)
+    assert rec in (DL.Recommendation.NOT_USABLE, DL.Recommendation.RESEARCH_ONLY) and why
+    assert DL.recommendation(planted_report)[0] is not DL.Recommendation.NOT_USABLE
+    closed = DL.DirectionLab(cfg_small(), DL.DirectionGate(10 ** 6)).run(small("null", 1), NOW)
+    assert DL.recommendation(closed)[0] is DL.Recommendation.VOID
+    for rep in (null_report, planted_report, closed):
+        bs = DL.blind_summary(rep)
+        assert "recommendation" in bs and not any(k in bs for k in ("date", "year", "ticker"))
+    assert "direction_lab" in DL.summary_line(null_report) and DL.by_outcome(null_report)
+
+
+def test_state_roundtrip_health_summaries_and_next_experiments(null_report, planted_report):
+    st = DL.LabState()
+    st.ledger = DL.EvidenceLedger()
+    DL.feed_ledger(st.ledger, planted_report)
+    st.runs, st.history = 1, [dict()]
+    back = DL.state_from_dict(DL.state_to_dict(st))
+    assert back.ledger.log_e == st.ledger.log_e and back.digest() == st.digest()
+    d = DL.state_to_dict(st)
+    d["null_streak"] = 50
+    with pytest.raises(ValueError):
+        DL.state_from_dict(d)
+    h = DL.lab_health(null_report)
+    assert h["gate_open"] and h["controls_pass"]
+    closed = DL.DirectionLab(cfg_small(), DL.DirectionGate(10 ** 6)).run(small("null", 1), NOW)
+    hp = DL.lab_health(closed)
+    assert not hp["healthy"] and not hp["nulls_count_as_evidence"]
+    a, b = DL.report_to_dict(null_report), DL.report_to_dict(planted_report)
+    cmp = DL.compare_summaries(a, b)
+    assert len(cmp) == 15 and DL.compare_reports(null_report, planted_report).shape[0] == 15
+    ne = DL.next_experiments(planted_report, st)
+    assert ne and ne == sorted(ne, key=lambda r: -r["per_minute"])
+    assert DL.next_experiments(closed)[0]["action"] == "improve_volatility_evidence"
+    assert "reversal" in DL.format_dossier(DL.evidence_dossier(planted_report, "reversal"))

@@ -585,7 +585,7 @@ def derive_features(Xp: pd.DataFrame, pool: pd.DataFrame, pattern_score: pd.Seri
             out["combo_gap_vol"] = gap * lv
     cl, ic = _f(d, "close_loc"), _f(d, "intraday20")
     if cl is not None and ic is not None:
-        out["path_efficiency"] = (cl - cl.median()) * ic
+        out["path_efficiency"] = (cl - 0.5) * ic                 # fixed midpoint: a panel median would read later dates
     gap = _f(d, "gap_today")
     if gap is not None:
         if "xs_close_loc" in out:
@@ -601,7 +601,7 @@ def derive_features(Xp: pd.DataFrame, pool: pd.DataFrame, pattern_score: pd.Seri
         out["combo_news_reg"] = n5 * reg
     vix = _f(d, "m_vix")
     if vix is not None and r5 is not None:
-        out["vix_x_r5"] = (vix - vix.median()) * r5
+        out["vix_x_r5"] = (vix - 20.0) * r5                        # fixed long-run VIX level, not a panel median (that reads later dates)
     if pattern_score is not None:
         out["miner"] = pattern_score.reindex(d.index).astype("float64")
     ext = pd.DataFrame(out, index=d.index)
@@ -2857,7 +2857,7 @@ def lead_lag_profile(M: pd.DataFrame, pool: pd.DataFrame, column: str, lags: Seq
     return pd.DataFrame(rows, columns=cols)
 
 
-def profile_verdict(profile: pd.DataFrame, t_crit: float = 2.0) -> dict[str, Any]:
+def profile_verdict(profile: pd.DataFrame, t_crit: float = 2.0, t_crit_neg: float = 3.5) -> dict[str, Any]:
     """Reads a lead_lag_profile: 'forecast' when lag 0 is significant and no negative lag is, 'contaminated' when a negative lag is
     significant with the same sign (the feature knows the past outcome), 'trait' when every lag carries the same sign and size,
     'none' when nothing is significant."""
@@ -2865,7 +2865,7 @@ def profile_verdict(profile: pd.DataFrame, t_crit: float = 2.0) -> dict[str, Any
         return dict(kind="unknown", detail="no lag-0 estimate")
     p = profile.set_index("lag")
     t0 = p.loc[0, "t"]
-    neg = [l for l in p.index if l < 0 and np.isfinite(p.loc[l, "t"]) and abs(p.loc[l, "t"]) > t_crit]
+    neg = [l for l in p.index if l < 0 and np.isfinite(p.loc[l, "t"]) and abs(p.loc[l, "t"]) > t_crit_neg]      # stricter: several negative lags are tried
     pos = [l for l in p.index if l > 0 and np.isfinite(p.loc[l, "t"]) and abs(p.loc[l, "t"]) > t_crit]
     if not np.isfinite(t0) or abs(t0) <= t_crit:
         return dict(kind="none" if not neg else "contaminated", detail=f"lag-0 t {t0:.2f}", lags=neg)
@@ -3857,7 +3857,7 @@ def state_from_dict(d: Mapping[str, Any]) -> LabState:
 
 
 OPEN_SPECS: tuple[HypothesisSpec, ...] = (
-    _spec("overnight_drift", "overnight versus intraday returns", ["overnight20", "intraday20", "gap_today", "close_loc"],
+    _spec("overnight_drift", "overnight versus intraday returns", ["overnight20", "intraday20", "atr_pct", "m_vix_chg5", "rel_ind20"],
           "Overnight returns carry the informed order flow and intraday returns the noise; their difference may sign the next week.", 0),
     _spec("earnings_proximity", "earnings proximity", ["days_to_earn", "earn_in_week", "days_since_earn", "ear_volsurge"],
           "The days around a release change both the size and the sign asymmetry of the coming move.", 0, min_columns=2),
