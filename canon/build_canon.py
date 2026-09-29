@@ -143,6 +143,8 @@ DIRECTIVES = [
      "[WEEKLY7 AUTONOMOUS DEEP-RESEARCH SELF-LEARNING ENGINE, MASTER BUILD PROMPT v1.0, stored verbatim in RESEARCH_BRAIN_CONTRACT.md; sent as the new master checklist after the owner said 'let me know when they finish that and i will create another master checklist for you']"),
     ("C67", "2026-09-29", 'Mover-episode deep research: every day study hundreds of 5-10% movers and what they did next (consolidated, expanded, stopped, spiked, reversed) - 24/7 deep research on tons of stocks for even the smallest predictable patterns',
      'it should be designed so it looks at hundereds of stocks in a day that were 5-10% volatile, it should also see the ones that were volatile then consolidated or were volatile durring the day and got way more volatile or stopped or spiked the next day or if it reversed the next day, it should look at hundereds of stocks olike that and do ai deep research 24/7 on tons and tons of stocks to find even the smallest patterns it couldve predicted'),
+    ("C68", "2026-09-29", 'Master checklist ADDITION: prediction error -> market change -> self-calibration -> adaptive exit intelligence (verbatim in PREDICTION_ERROR_ADDITION.md, sha256 45207d5d6e740c2f); extends C66, replaces nothing',
+     'i have an addition to the master checklist: [WEEKLY7 MASTER CHECKLIST ADDITION, stored verbatim in PREDICTION_ERROR_ADDITION.md]'),
 ]
 
 def sha(t): return hashlib.sha256(t.encode("utf-8")).hexdigest()
