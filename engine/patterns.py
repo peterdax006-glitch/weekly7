@@ -237,7 +237,13 @@ class PatternMiner:
                         break
         R.loc[R["status"] == "failed", "status"] = "discarded"      # C43: never hold a failed pattern
         # redundancy: patterns firing on nearly the same rows are one idea - keep the strongest
-        R = R.reindex(R["effect"].abs().sort_values(ascending=False).index)
+        # order by EVIDENCE, not raw effect: a small noisy child ("f0 q4 & f7 q2") has a bigger effect by chance than
+        # its parent single and would otherwise be kept first and block the parent (planted calibration, 2026-09-28).
+        # Simpler first (single < pair < unless), then combined |t| across discovery and confirmation.
+        nm = R["key_named"].astype(str)
+        R["_order_k"] = nm.str.count(" & ") + 2 * nm.str.contains(" unless ", regex=False).astype(int)
+        R["_order_t"] = -(R["t_disc"].abs().fillna(0) + R["t_conf"].abs().fillna(0))
+        R = R.sort_values(["_order_k", "_order_t"], kind="mergesort").drop(columns=["_order_k", "_order_t"])
         R["duplicate_of"] = None
         sub = rng.choice(len(yv), min(len(yv), 200_000), replace=False)
         kept = []

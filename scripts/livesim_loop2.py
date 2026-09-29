@@ -140,6 +140,8 @@ def worker(run_id, cfg, meta):
     r["in_band"] = float(band.mean()) if len(wk) else 0.0
     r["pos_in_band"] = float((wk[band] > 0).mean()) if band.any() else 0.0
     r["weekly_returns"] = [float(x) for x in wk]
+    from engine import provenance
+    r["provenance"] = provenance.stamp({"cfg": cfg, "meta": meta}, seed=run_id)
     r.update({"run_id": run_id, "prior_cfg": cfg, "meta": meta, "preseason": trader.preseason, "clock_s": wall,
               "ms_per_day": 1000 * wall / max(1, len(trader.session.days)), "used_cfg": trader.cfg})
     (a / "result2.json").write_text(json.dumps(r, default=str))
@@ -166,8 +168,21 @@ while len(st["windows"]) < MAXW:
         print("  no window finished - stopping", flush=True); break
     # ---- anti-cheat gates (C18) ----
     gate_ok = True
-    for r in done:
-        res = json.loads((DIR / r / "result2.json").read_text())
+    from engine import provenance
+    if provenance.stale(provenance.CODE_HASH_AT_IMPORT):
+        # the loop itself runs old code: its replays would judge the workers with the wrong rules
+        save(); print("  engine code changed since the loop started - restart the loop (no gate judged on mixed code)", flush=True); break
+    for r in list(done):
+        for attempt in range(2):                             # a worker that outlived a code edit is rerun, not judged
+            res = json.loads((DIR / r / "result2.json").read_text())
+            if not provenance.stale(res.get("provenance", {}).get("code_hash")):
+                break
+            print(f"  [{r}] STALE CODE (result from code {res.get('provenance', {}).get('code_hash')}, now "
+                  f"{provenance.code_hash()}) - rerunning the window under current code", flush=True)
+            subprocess.run([sys.executable, "-u", __file__, "--worker", r, json.dumps(res["prior_cfg"]), json.dumps(res["meta"])])
+        else:
+            print(f"  [{r}] still stale after reruns (code is changing) - excluded", flush=True)
+            done.remove(r); continue
         w = load_window(DIR / r)
         re = run_window(w, res["used_cfg"], res["meta"])
         rep = abs(re["year_return"] - res["year_return"]) < 0.005
