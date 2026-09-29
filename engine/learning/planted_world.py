@@ -454,7 +454,7 @@ class PlantedWorld:
         self.y = y_raw - y_raw.groupby(level=0).transform("mean")           # excess return: what a ranker is judged on
         self._Q = P.quintiles(X[self.feature_columns()])
         self.ledger = ledger if ledger is not None else _build_ledger(spec, X, self._Q, week_idx, self.dates)
-        self._tot_dm = None
+        self._tot_dm: np.ndarray | None = None
 
     # ------------------------------------------------------------ columns
     def feature_columns(self) -> list[str]:
@@ -519,6 +519,7 @@ class PlantedWorld:
         if self._tot_dm is None:
             tot = pd.Series(self.contrib.sum(axis=1) if self.contrib.size else np.zeros(len(self.X)), index=self.X.index)
             self._tot_dm = (tot - tot.groupby(level=0).transform("mean")).to_numpy()
+        assert self._tot_dm is not None
         return self._tot_dm
 
     def exact_key_effect(self, key, weeks: tuple | None = None) -> float:
@@ -941,7 +942,9 @@ class ConditionScore:
 
 def _true_state(world: PlantedWorld, it: Item) -> np.ndarray:
     if it.kind == UNLESS:                                   # effect ON when the exception does not hold
+        assert it.unless is not None
         return world._Q[it.unless[0]].to_numpy() != it.unless[1]
+    assert it.gate is not None
     return it.gate.mask(world.X, world._Q)
 
 
@@ -996,6 +999,7 @@ def oracle_claims(world: PlantedWorld, at_week: int, lookback: int = 13) -> list
         eff = float(s["true_effect"].iloc[-1]) if len(s) else it.effect
         cond = None
         if it.kind == UNLESS:
+            assert it.unless is not None
             cond = ("q", it.unless[0], (it.unless[1],))
         elif it.gate is not None:
             cond = it.gate.spec()

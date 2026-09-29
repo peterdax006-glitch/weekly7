@@ -23,12 +23,13 @@ import types
 import typing
 from collections import Counter
 from collections.abc import Mapping
-from typing import Any, Iterable
+from typing import Any, Iterable, cast
 
 from engine.learning.core import (Confidence, DecisionEffect, Epistemic, FailureCause, FirewallBreach, Lifecycle,
                                   Promotion, Provenance, Subsystem, TemporalClass, as_date, canonical_json,
                                   current_code_hash, stable_hash)
 from engine.learning.epistemic import EpistemicProfile
+from engine.learning.memory_firewall import canonical_parents
 
 SCHEMA_VERSION = 1
 DIMENSIONS = ("market", "sector", "stock", "stock_type", "volatility", "liquidity", "regime", "time")   # section 8
@@ -57,7 +58,7 @@ def decode(tp: Any, v: Any, path: str = "$") -> Any:
     org = typing.get_origin(tp)
     try:
         if org in (typing.Union, types.UnionType):
-            args = [a for a in typing.get_args(tp) if a is not type(None)]
+            args: Any = [a for a in typing.get_args(tp) if a is not type(None)]
             return decode(args[0], v, path)
         if org is tuple:
             args = typing.get_args(tp)
@@ -115,7 +116,7 @@ class Condition:
     labels: tuple[str, ...] = ()
 
     def check(self) -> list[str]:
-        errs = []
+        errs: list[str] = []
         if self.dimension not in DIMENSIONS:
             errs.append(f"unknown context dimension {self.dimension!r}")
         if not self.feature:
@@ -146,7 +147,7 @@ class Condition:
         if x is None or (isinstance(x, float) and math.isnan(x)):
             return None
         if self.op in ("eq", "in", "ne", "not_in"):
-            vals = self.labels if self.labels else self.nums
+            vals: Any = self.labels if self.labels else self.nums
             hit = (str(x) in vals) if self.labels else (isinstance(x, (int, float)) and any(abs(float(x) - n) < 1e-12 for n in vals))
             return hit if self.op in ("eq", "in") else not hit
         try:
@@ -158,7 +159,7 @@ class Condition:
         n = self.nums[0]
         return {"lt": v < n, "le": v <= n, "gt": v > n, "ge": v >= n}[self.op]
 
-    def extent(self) -> tuple[str, Any]:
+    def extent(self) -> tuple[Any, ...]:
         """('set', frozenset, negated) or ('range', lo, hi): the region of feature space this condition accepts."""
         if self.op in ("eq", "in"):
             return ("set", frozenset(self.labels or self.nums), False)
@@ -314,7 +315,7 @@ class Effect:
         return None if iv is None else (iv[0] > 0 or iv[1] < 0)
 
     def check(self) -> list[str]:
-        errs = []
+        errs: list[str] = []
         if self.direction not in (-1, 0, 1):
             errs.append("effect.direction must be -1, 0 or +1")
         if not isinstance(self.size, (int, float)) or math.isnan(self.size) or self.size < 0:
@@ -339,7 +340,7 @@ class Evidence:
     last_evidence_at: str = ""
 
     def check(self) -> list[str]:
-        errs = []
+        errs: list[str] = []
         if self.sample_size < 0 or self.effective_sample_size < 0 or math.isnan(self.effective_sample_size):
             errs.append("sample sizes must be >= 0")
         if self.effective_sample_size > self.sample_size + 1e-9:
@@ -362,7 +363,7 @@ class Dynamics:
     recovery_rate: float | None = None
 
     def check(self) -> list[str]:
-        errs = []
+        errs: list[str] = []
         for f in dataclasses.fields(self):
             _unit(f.name, getattr(self, f.name), errs)
         return errs
@@ -377,7 +378,7 @@ class TransferScores:
     cross_regime: float | None = None
 
     def check(self) -> list[str]:
-        errs = []
+        errs: list[str] = []
         for f in dataclasses.fields(self):
             _unit(f.name, getattr(self, f.name), errs)
         return errs
@@ -424,7 +425,7 @@ class FailureExplanation:
     evidence_id: str = ""
 
     def check(self) -> list[str]:
-        errs = []
+        errs: list[str] = []
         try:
             as_date(self.at)
         except ValueError:
@@ -444,7 +445,7 @@ class ActionPolicy:
     note: str = ""
 
     def check(self) -> list[str]:
-        errs = []
+        errs: list[str] = []
         if not 0.0 < self.weight_cap <= 1.0:
             errs.append("action_policy.weight_cap must be in (0,1]")
         _unit("action_policy.min_reliability", self.min_reliability, errs)
@@ -634,8 +635,7 @@ class KnowledgeObject:
             if as_date(learned_at) < as_date(prov.learned_at):
                 raise FirewallBreach("learned_at cannot move backwards")
             prov = dataclasses.replace(prov, learned_at=learned_at)
-        me = f"{self.knowledge_id}@v{self.version}"
-        prov = dataclasses.replace(prov, parents=tuple(dict.fromkeys(prov.parents + (me,))))
+        prov = dataclasses.replace(prov, parents=canonical_parents(self.knowledge_id, prov.parents))
         nxt = dataclasses.replace(self, version=self.version + 1, updated_at=str(as_date(now)), parent_hash=self.record_hash(),
                                   version_reason=reason, provenance=prov, **changes)
         if nxt.content_hash() == self.content_hash():
@@ -835,7 +835,7 @@ def from_pattern_record(rec: Any, now, provenance: Provenance, decision_effect: 
                      if s.label == "mid" else Condition("regime", s.context, "le" if s.label == "low" else "gt",
                                                         nums=(float(s.lo if s.label == "low" else s.hi),)))
     st = dict(rec.stats)
-    eff = float(st.get("effect") if st.get("effect") is not None else (st.get("m_all") or 0.0))
+    eff = float(cast(float, st.get("effect")) if st.get("effect") is not None else (st.get("m_all") or 0.0))
     t = st.get("t_conf") if st.get("t_conf") is not None else st.get("t_all")
     n_eff = float(st.get("n_eff") or 0.0)
     n_rows = int(n if n is not None else (st.get("n_rows") or n_eff))
@@ -969,7 +969,7 @@ def pool_effects(effects: Iterable[Effect], random: bool = True) -> Pooled:
     if len({(e.unit, e.horizon_days) for e in es}) != 1:
         raise SchemaError("cannot pool effects in different units or horizons")
     y = [e.signed for e in es]
-    v = [e.uncertainty ** 2 for e in es]
+    v = [cast(float, e.uncertainty) ** 2 for e in es]
     w = [1.0 / x for x in v]
     mu = sum(wi * yi for wi, yi in zip(w, y)) / sum(w)
     q = sum(wi * (yi - mu) ** 2 for wi, yi in zip(w, y))

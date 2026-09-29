@@ -29,7 +29,7 @@ import os
 import tempfile
 import types
 from dataclasses import dataclass, field
-from typing import Any, Callable, Mapping
+from typing import Any, Callable, Mapping, cast
 
 import numpy as np
 import pandas as pd
@@ -412,7 +412,7 @@ class EvidenceLearner(Control):
 
     def update_vector(self, X, y) -> np.ndarray:
         """B's raw per-key update from one matured week (the quantity D matches in magnitude)."""
-        n, s, _, _ = week_key_stats(X, y, self.cols)
+        n, s, _, _ = week_key_stats(X, y, cast(list[str], self.cols))
         return np.where(n > 0, s / np.maximum(n, 1), 0.0)
 
     def observe(self, X, y, moment, now):
@@ -426,8 +426,8 @@ class EvidenceLearner(Control):
         self.ev.add(obs, n, s, ss)
 
     def _weights(self, real_now) -> np.ndarray:
-        mean, t = self.ev.estimates()
-        ok = (np.abs(t) >= self.config["t_thr"]) & (self.ev.N >= self.config["min_n"])
+        mean, t = cast(KeyEvidence, self.ev).estimates()
+        ok = (np.abs(t) >= self.config["t_thr"]) & (cast(KeyEvidence, self.ev).N >= self.config["min_n"])
         w = np.where(ok, mean * self.config["shrink"], 0.0)
         if self.pmg is not None and ok.any():
             veto = self.pmg.vetoed(real_now)
@@ -754,8 +754,8 @@ class ControlRegistry:
 
 def standard_controls(seed_free: bool = True, overrides: Mapping | None = None, legit_factory: Callable | None = None) -> dict:
     """The five controls exactly as frozen for the same-year experiment."""
-    ov = overrides or {}
-    cfg = {"A": {}, "B": {"t_thr": 2.5, "min_n": 30, "use_memory_veto": True}, "C": {"mode": "ticker_date"}, "D": {"lr": 1.0},
+    ov: Mapping[str, Any] = overrides or {}
+    cfg: dict[str, dict[str, Any]] = {"A": {}, "B": {"t_thr": 2.5, "min_n": 30, "use_memory_veto": True}, "C": {"mode": "ticker_date"}, "D": {"lr": 1.0},
            "E": {"noise": 0.5}}
     return {L: FrozenControl(CONTROL_CLASSES[L], {**cfg[L], **ov.get(L, {})}, factory=legit_factory if L == "B" else None)
             for L in LETTERS}

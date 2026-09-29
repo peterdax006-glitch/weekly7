@@ -409,6 +409,11 @@ def answer_useful_now(rel: RelationEvidence, now, cfg: QuestionConfig = DEFAULT_
 class ThreeAnswers:
     """Real / useful / useful-now for one relation.  Deliberately not a number: no __float__, no ordering, no `score`."""
     __slots__ = ("relation_id", "as_of", "real", "useful", "useful_now")
+    relation_id: str
+    as_of: str
+    real: RealAnswer
+    useful: UsefulAnswer
+    useful_now: UsefulNowAnswer
 
     def __init__(self, relation_id: str, as_of: str, real: RealAnswer, useful: UsefulAnswer, useful_now: UsefulNowAnswer):
         object.__setattr__(self, "relation_id", relation_id)

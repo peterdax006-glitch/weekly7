@@ -221,7 +221,10 @@ class UnknownScore:
         return float(self)
 
     def or_action(self) -> float | UnknownAction:
-        return self.value if self.unknown is None else self.unknown.action
+        if self.unknown is None:
+            assert self.value is not None
+            return self.value
+        return self.unknown.action
 
 
 def combine(scores: Iterable[UnknownScore], weights: Iterable[float] | None = None, min_coverage: float = 0.6,
@@ -237,11 +240,11 @@ def combine(scores: Iterable[UnknownScore], weights: Iterable[float] | None = No
         act = choose_action(Unknown.INSUFFICIENT_DATA, Availability())
         return UnknownScore(unknown=UnknownRecord(subject, Unknown.INSUFFICIENT_DATA, (UnknownReason.NO_DATA,), act[0],
                                                   str(as_date(now)), act[1])), 0.0
-    known = [(s.value, x) for s, x in zip(sc, w) if s.is_known]
+    known = [(s.value, x) for s, x in zip(sc, w) if s.is_known and s.value is not None]
     kw = sum(x for _, x in known)
     cov = kw / total
     if cov < min_coverage or kw <= 0:
-        states = {s.unknown.state for s in sc if not s.is_known}
+        states = {s.unknown.state for s in sc if s.unknown is not None and not s.is_known}
         if states == {Unknown.CONFLICTED}:
             st, why = Unknown.CONFLICTED, UnknownReason.EVIDENCE_CONFLICT
         elif states == {Unknown.UNTESTED}:

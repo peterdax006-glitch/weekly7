@@ -264,7 +264,8 @@ class FailedLearnerRegistry:
     def verify_evidence(self, root, now) -> dict:
         """Which evidence files exist on disk. A record whose evidence is missing is marked UNVERIFIED, not deleted."""
         base = Path(root)
-        present, missing = [], []
+        present: list[tuple[str, str]] = []
+        missing: list[tuple[str, str]] = []
         for r in self.as_of(now):
             for p in r.evidence_paths:
                 (present if (base / p).exists() else missing).append((r.learner, p))

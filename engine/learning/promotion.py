@@ -19,7 +19,7 @@ import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Mapping, Sequence, TypeGuard, cast, overload
 
 import numpy as np
 
@@ -266,6 +266,10 @@ class PromotionDecision:
 
 
 # ------------------------------------------------------------------------------------------------ statistics
+@overload
+def _clean(x: Sequence[float], what: str) -> np.ndarray: ...
+@overload
+def _clean(x: Sequence[float] | None, what: str) -> np.ndarray | None: ...
 def _clean(x: Sequence[float] | None, what: str) -> np.ndarray | None:
     """Series as a float array, or None when absent. A non-finite value raises: NaN is not a zero return."""
     if x is None:
@@ -321,7 +325,7 @@ def rel_spread(v: np.ndarray) -> float:
     return float((v.max() - v.min()) / scale)
 
 
-def _fin(v) -> bool:
+def _fin(v) -> TypeGuard[float]:
     return v is not None and not isinstance(v, bool) and math.isfinite(float(v))
 
 
@@ -423,13 +427,13 @@ def gate_cross_context_transfer(ev: TransferEvidence | None, pol: PromotionPolic
     worst = float(vals.min() / ev.home_effect) if ev.home_effect > 0 else float("nan")
     ok = (share >= pol.min_transfer_positive_share and ratio >= pol.min_transfer_ratio and worst >= pol.worst_transfer_floor)
     return _result(g, ok, f"{share:.0%} of {len(away)} away contexts positive, median transfer ratio {ratio:.2f}, worst {worst:.2f}x home",
-                   {"positive_share": share, "median_ratio": ratio, "worst_ratio": worst, "worst_context": min(away, key=away.get)},
+                   {"positive_share": share, "median_ratio": ratio, "worst_ratio": worst, "worst_context": min(away, key=lambda c: away[c])},
                    _margin(ratio, pol.min_transfer_ratio) if math.isfinite(ratio) else -1.0)
 
 
 def gate_risk_acceptance(ev: RiskEvidence | None, pol: PromotionPolicy) -> GateResult:
     g = "risk_acceptance"
-    if ev is None or not all(_fin(v) for v in (ev.worst_period, ev.max_drawdown, ev.cvar05)) or ev.catastrophic_count is None:
+    if ev is None or not (_fin(ev.worst_period) and _fin(ev.max_drawdown) and _fin(ev.cvar05)) or ev.catastrophic_count is None:
         return _missing(g, "worst period, max drawdown, CVaR5 and catastrophic count")
     if ev.n_periods < pol.min_risk_periods:
         return _result(g, False, f"risk measured on {ev.n_periods} periods < {pol.min_risk_periods}", {}, _margin(ev.n_periods, pol.min_risk_periods))
@@ -823,7 +827,7 @@ def sensitivity(k: Any, ev: PromotionEvidence, now, policy: PromotionPolicy | No
                 continue
             direction = "tighter" if ((nv > v) == stricter_up) else "looser"
             try:
-                d = PromotionGate(dataclasses.replace(pol, **{name: nv}), code_hash).evaluate(k, ev, now)
+                d = PromotionGate(dataclasses.replace(pol, **{name: cast(Any, nv)}), code_hash).evaluate(k, ev, now)
             except ValueError:
                 continue
             if d.verdict != base.verdict:

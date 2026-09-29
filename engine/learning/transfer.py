@@ -234,7 +234,7 @@ def scope_from_knowledge(items: Sequence[KnowledgeLike], train: pd.DataFrame, no
     if not items:
         raise ValueError("no knowledge items")
     lt = None
-    bag = {c: set() for c in ("year", "regime", "sector", "vol_bucket", "stock_type", "ticker")}
+    bag: dict[str, set[str]] = {c: set() for c in ("year", "regime", "sector", "vol_bucket", "stock_type", "ticker")}
     for it in items:
         bad = KnowledgeLike.conforms(it)
         if bad:
@@ -972,7 +972,7 @@ def item_transfer_table(units_by_item: Mapping[str, pd.DataFrame], scopes: Mappi
 def compare_reports(old: TransferReport, new: TransferReport) -> dict:
     """Per axis: did the unseen-context gain separate (non-overlapping intervals) upward or downward between two learner versions?
     Untested axes on either side are listed, not compared."""
-    out = {"better": [], "worse": [], "same": [], "untested": []}
+    out: dict[str, list[str]] = {"better": [], "worse": [], "same": [], "untested": []}
     for ax in sorted(set(old.axes) | set(new.axes), key=lambda a: a.value):
         a, b = old.axes.get(ax), new.axes.get(ax)
         if a is None or b is None or not a.tested or not b.tested or not (math.isfinite(a.cross.lo) and math.isfinite(b.cross.lo)):

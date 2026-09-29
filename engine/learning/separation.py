@@ -26,16 +26,27 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from typing import Any, Iterable, Mapping, Sequence
+from typing import TYPE_CHECKING, Any, Iterable, Mapping, Sequence
 
 import numpy as np
 
 from engine.learning.core import FailureCause, Subsystem, clip01, require_past, stable_hash
 from engine.learning.failure import Classification, TradeRecord, _f
 
+if TYPE_CHECKING:
+    import pandas as pd
+
 FC = FailureCause
 SUBSYSTEMS = tuple(Subsystem)
 NL = chr(10)
+
+
+def _num(x: float | None) -> float:
+    """float(x) for a field a caller has already checked is present (float(None) raises TypeError; so does this)."""
+    if x is None:
+        raise TypeError("float() argument must be a string or a real number, not 'NoneType'")
+    return float(x)
+
 
 # which subsystem a failure CAUSE normally teaches when the arithmetic does not object. Pattern/context/regime causes
 # describe knowledge used by the decider, so they teach whoever decided (route() substitutes trade.decided_by).
@@ -121,7 +132,7 @@ def decompose(t: TradeRecord, p: SeparationParams | None = None, order: str = "s
             notes.append("end_ret_from_fill derived from signal_ret and entry_gap")
     a = abs(sig)
     selection_known = _f(t.exp_move) is not None
-    promise = float(t.exp_move) if selection_known else a
+    promise = _num(t.exp_move) if selection_known else a
     v2 = t.side * sig
     if order == "selection_first":                        # movement first, then whether the side was right
         sel = a - promise
@@ -141,15 +152,15 @@ def decompose(t: TradeRecord, p: SeparationParams | None = None, order: str = "s
     exit_total = gross_exit - v3
     risk = 0.0
     if t.stop_hit and _f(t.stop) is not None and _f(t.stop_fill_ret) is not None:
-        risk = min(0.0, float(t.stop_fill_ret) + float(t.stop))          # side-adjusted fill worse than the stop level
+        risk = min(0.0, _num(t.stop_fill_ret) + _num(t.stop))          # side-adjusted fill worse than the stop level
     exit_only = exit_total - risk
     cost = -float(t.cost)
     residual = float(t.pnl) - (promise + sel + dirn + timing + exit_only + risk + cost)
     if abs(residual) > p.residual_tol:
         notes.append(f"residual {residual:.4f} exceeds tolerance: the books do not reconcile (measurement fault)")
     sizing = 0.0
-    if _f(t.weight) is not None and _f(t.target_weight) and t.target_weight > 0 and t.pnl < 0:
-        sizing = float(t.pnl) * max(0.0, float(t.weight) / float(t.target_weight) - 1.0)
+    if _f(t.weight) is not None and _f(t.target_weight) and _num(t.target_weight) > 0 and t.pnl < 0:
+        sizing = float(t.pnl) * max(0.0, _num(t.weight) / _num(t.target_weight) - 1.0)
     owner = Subsystem.DIRECTION if _f(t.dir_prob) is not None else Subsystem.SELECTION
     return Decomposition(t.rid, promise, float(t.pnl), sel, dirn, timing, exit_only, risk, cost, residual, sizing,
                          selection_known, owner, tuple(notes))
@@ -400,11 +411,11 @@ class SubsystemLedger:
             idx = rng.integers(0, len(mat), len(mat))
             tot = mat[idx].sum(axis=0)
             draws.append(tot / tot.sum() if tot.sum() > 0 else np.zeros(len(SUBSYSTEMS)))
-        draws = np.array(draws)
+        draws_arr = np.array(draws)
         lo, hi = (1 - level) / 2, 1 - (1 - level) / 2
         pt = mat.sum(axis=0)
         pt = pt / pt.sum() if pt.sum() > 0 else pt
-        return {s.value: (float(pt[i]), float(np.quantile(draws[:, i], lo)), float(np.quantile(draws[:, i], hi)))
+        return {s.value: (float(pt[i]), float(np.quantile(draws_arr[:, i], lo)), float(np.quantile(draws_arr[:, i], hi)))
                 for i, s in enumerate(SUBSYSTEMS)}
 
     def by_tag(self, tag: str) -> dict[str, dict[str, float]]:
@@ -471,7 +482,7 @@ def order_sensitivity(trades: Sequence[TradeRecord], p: SeparationParams | None 
 def selection_report(trades: Sequence[TradeRecord], bins: int = 5) -> dict[str, Any]:
     """Selection promises movement. By rank bucket: mean realised/expected move and the shortfall rate; and the slope of
     realised on expected move (1.0 = calibrated promise, well below 1.0 = selection over-promises)."""
-    rows = [(float(t.rank_pct), abs(float(t.signal_ret)), float(t.exp_move)) for t in trades
+    rows = [(_num(t.rank_pct), abs(_num(t.signal_ret)), _num(t.exp_move)) for t in trades
             if _f(t.rank_pct) is not None and _f(t.signal_ret) is not None and _f(t.exp_move)]
     if len(rows) < 2 * bins:
         return {"n": len(rows), "verdict": "INSUFFICIENT_DATA"}
@@ -524,8 +535,8 @@ def timing_policy_curve(trades: Sequence[TradeRecord], gaps: Sequence[float] = (
     out = []
     total = float(sum(t.pnl for t in rows))
     for g in gaps:
-        skipped = [t for t in rows if t.side * float(t.entry_gap) > g]
-        kept = [t for t in rows if t.side * float(t.entry_gap) <= g]
+        skipped = [t for t in rows if t.side * _num(t.entry_gap) > g]
+        kept = [t for t in rows if t.side * _num(t.entry_gap) <= g]
         sp = float(sum(t.pnl for t in skipped))
         out.append({"gap": g, "n": len(rows), "skipped": len(skipped), "skipped_pnl": sp, "kept_pnl": float(sum(t.pnl for t in kept)),
                     "net_change": -sp, "winners_skipped": sum(t.pnl > 0 for t in skipped),
@@ -539,9 +550,9 @@ def stop_effectiveness(trades: Sequence[TradeRecord], slip_tol: float = 0.25) ->
     hit = [t for t in trades if t.stop_hit and _f(t.stop) is not None and _f(t.stop_fill_ret) is not None]
     if not hit:
         return {"n": 0, "verdict": "NO_STOPS_HIT"}
-    slip = np.array([max(0.0, -float(t.stop) - float(t.stop_fill_ret)) for t in hit])
-    gapped = slip > slip_tol * np.array([float(t.stop) for t in hit])
-    held = [t.side * float(t.end_ret_from_fill) - t.cost for t in hit if _f(t.end_ret_from_fill) is not None]
+    slip = np.array([max(0.0, -_num(t.stop) - _num(t.stop_fill_ret)) for t in hit])
+    gapped = slip > slip_tol * np.array([_num(t.stop) for t in hit])
+    held = [t.side * _num(t.end_ret_from_fill) - t.cost for t in hit if _f(t.end_ret_from_fill) is not None]
     actual = [float(t.pnl) for t in hit if _f(t.end_ret_from_fill) is not None]
     diff = float(np.mean(np.array(actual) - np.array(held))) if held else float("nan")
     return {"n": len(hit), "mean_slip": float(slip.mean()), "gapped_share": float(gapped.mean()), "max_slip": float(slip.max()),
@@ -552,10 +563,10 @@ def stop_effectiveness(trades: Sequence[TradeRecord], slip_tol: float = 0.25) ->
 def exit_report(trades: Sequence[TradeRecord], mfe_min: float = 0.03) -> dict[str, Any]:
     """Exit quality: among trades that were ever well ahead (mfe >= mfe_min), how much was given back and how many
     round-tripped into a loss. A high round-trip share with the ENTRY fine is an exit problem, not a selection one."""
-    ahead = [t for t in trades if _f(t.mfe) is not None and t.mfe >= mfe_min]
+    ahead = [t for t in trades if _f(t.mfe) is not None and _num(t.mfe) >= mfe_min]
     if not ahead:
         return {"n_ahead": 0, "verdict": "NEVER_AHEAD"}
-    give = np.array([float(t.mfe) - float(t.pnl) for t in ahead])
+    give = np.array([_num(t.mfe) - float(t.pnl) for t in ahead])
     rt = np.array([t.pnl < 0 for t in ahead])
     return {"n_ahead": len(ahead), "mean_giveback": float(give.mean()), "median_giveback": float(np.median(give)),
             "round_trip_share": float(rt.mean()), "verdict": "LEAKY_EXITS" if rt.mean() > 0.25 else "EXITS_OK"}
@@ -564,8 +575,8 @@ def exit_report(trades: Sequence[TradeRecord], mfe_min: float = 0.03) -> dict[st
 def risk_report(trades: Sequence[TradeRecord], risk_z: float = 2.5) -> dict[str, Any]:
     """Risk quality in the units the risk model uses: losses in expected-sigma units, the share beyond `risk_z` (a well
     calibrated model puts about 1% there), oversizing frequency, and the worst loss."""
-    z = np.array([-float(t.pnl) / float(t.exp_vol) for t in trades if _f(t.exp_vol) and t.pnl < 0])
-    over = [float(t.weight) / float(t.target_weight) - 1.0 for t in trades if _f(t.weight) is not None and _f(t.target_weight)]
+    z = np.array([-float(t.pnl) / _num(t.exp_vol) for t in trades if _f(t.exp_vol) and t.pnl < 0])
+    over = [_num(t.weight) / _num(t.target_weight) - 1.0 for t in trades if _f(t.weight) is not None and _f(t.target_weight)]
     if len(z) == 0 and not over:
         return {"n": 0, "verdict": "INSUFFICIENT_DATA"}
     tail = float((z >= risk_z).mean()) if len(z) else float("nan")
@@ -692,7 +703,7 @@ def blame_by_context(trades: Sequence[TradeRecord], key: str, bins: int = 3, p: 
         return {"key": key, "n": len(rows), "verdict": "INSUFFICIENT_DATA"}
     vals = np.array([r[0] for r in rows])
     edges = np.quantile(vals, np.linspace(0, 1, bins + 1))
-    table = []
+    table: list[dict[str, Any]] = []
     for i in range(bins):
         m = (vals >= edges[i]) & ((vals < edges[i + 1]) if i < bins - 1 else (vals <= edges[i + 1]))
         tot = {s.value: 0.0 for s in SUBSYSTEMS}
@@ -766,8 +777,8 @@ def exit_alternatives(trades: Sequence[TradeRecord], targets: Sequence[float] = 
     actual = float(np.mean([t.pnl for t in rows]))
     out = []
     for T in targets:
-        alt = [(T - t.cost) if float(t.mfe) >= T else float(t.pnl) for t in rows]
-        out.append({"target": T, "n": len(rows), "touched": sum(float(t.mfe) >= T for t in rows), "mean_actual": actual,
+        alt = [(T - t.cost) if _num(t.mfe) >= T else float(t.pnl) for t in rows]
+        out.append({"target": T, "n": len(rows), "touched": sum(_num(t.mfe) >= T for t in rows), "mean_actual": actual,
                     "mean_with_target": float(np.mean(alt)), "uplift_upper_bound": float(np.mean(alt)) - actual})
     return out
 
@@ -775,7 +786,7 @@ def exit_alternatives(trades: Sequence[TradeRecord], targets: Sequence[float] = 
 def sizing_report(trades: Sequence[TradeRecord]) -> dict[str, Any]:
     """Is size doing harm? Share of total loss carried by the largest 10% of positions, the correlation between weight and
     pnl (negative = bigger positions did worse), and mean pnl of the big versus the small half."""
-    rows = [(float(t.weight), float(t.pnl)) for t in trades if _f(t.weight) is not None]
+    rows = [(_num(t.weight), float(t.pnl)) for t in trades if _f(t.weight) is not None]
     if len(rows) < 20:
         return {"n": len(rows), "verdict": "INSUFFICIENT_DATA"}
     a = np.array(rows)
@@ -813,7 +824,7 @@ def planted_trade(fault: Subsystem, seed: int = 0) -> TradeRecord:
     fault = Subsystem.parse(fault)
     rng = np.random.default_rng(seed)
     j = float(rng.uniform(0.9, 1.1))
-    base = dict(rid=f"plant-{fault.value}-{seed}", decided_at="2019-12-20", resolved_at="2019-12-30", side=1, cost=0.0005, exp_move=0.05,
+    base: dict[str, Any] = dict(rid=f"plant-{fault.value}-{seed}", decided_at="2019-12-20", resolved_at="2019-12-30", side=1, cost=0.0005, exp_move=0.05,
                 dir_prob=0.6, exp_vol=0.02, weight=0.1, target_weight=0.1)
     if fault == Subsystem.SELECTION:                       # the stock did not move
         sig = 0.004 * j

@@ -27,7 +27,7 @@ from __future__ import annotations
 import dataclasses
 import datetime as dt
 import math
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any, Iterable, Mapping, Sequence, cast
 
 import numpy as np
 import pandas as pd
@@ -112,6 +112,47 @@ class Condition:
         return cls(path, (str(m),))
 
 
+def _universe(path: str) -> tuple[str, ...]:
+    if path.startswith(PATTERN_HAS):
+        return ("no", "yes")
+    lab = ordered_labels(path)
+    if lab is None:
+        return tuple(spec_of(path).levels)
+    return lab
+
+
+def _bucket_span(path: str, label: str) -> tuple[float, float]:
+    """[lo, hi) of a numeric bucket label 'b<i>' (bucket i holds bins[i-1] <= v < bins[i])."""
+    bins = spec_of(path).bins
+    i = int(label[1:])
+    return (bins[i - 1] if i > 0 else -math.inf), (bins[i] if i < len(bins) else math.inf)
+
+
+def _accepted_buckets(c: Any) -> set[str]:
+    """Buckets (on the feature's own axis) that a typed knowledge.Condition accepts."""
+    path = c.feature
+    uni = _universe(path)
+    op = c.op
+    if op in ("eq", "in", "ne", "not_in"):
+        if c.labels:
+            hit = {str(x) for x in c.labels}
+        else:
+            spec = spec_of(path)
+            if spec.kind != "num":
+                raise ValueError(f"{path}: numeric values on a non-numeric dimension")
+            hit = {spec.bin_of(x) for x in c.nums}
+        bad = hit - set(uni)
+        if bad:
+            raise ValueError(f"{path}: unknown buckets {sorted(bad)}; expected some of {list(uni)}")
+        return set(uni) - hit if op in ("ne", "not_in") else hit
+    if spec_of(path).kind != "num":
+        raise ValueError(f"{path}: numeric bound {op} on a non-numeric dimension")
+    lo_b, hi_b = {"lt": (-math.inf, c.nums[0] if c.nums else math.nan), "le": (-math.inf, c.nums[0] if c.nums else math.nan),
+                  "gt": (c.nums[0] if c.nums else math.nan, math.inf), "ge": (c.nums[0] if c.nums else math.nan, math.inf),
+                  "between": (c.nums[0] if c.nums else math.nan, c.nums[-1] if c.nums else math.nan)}[op]
+    return {b for b in uni if lo_b <= _bucket_span(path, b)[0] and _bucket_span(path, b)[1] <= hi_b}
+
+
 @dataclasses.dataclass(frozen=True)
 class ContextSpec:
     """Conjunction of conditions on distinct dimensions. The empty spec matches everything."""
@@ -155,6 +196,32 @@ class ContextSpec:
     @classmethod
     def from_mapping(cls, m: Mapping[str, Any] | None) -> "ContextSpec":
         return cls(tuple(Condition.from_mapping(p, v) for p, v in sorted((m or {}).items())))
+
+    @classmethod
+    def from_typed(cls, cs: Any) -> "ContextSpec":
+        """Bucket spec of a typed knowledge.ContextSet (Condition objects with dimension / feature / op / nums / labels).
+        Every typed condition is first expanded to the set of buckets it accepts on its feature's own axis, then the conditions on
+        one feature are intersected (all_of) or united (any_of); a typed set that cannot be a conjunction of bucket conditions
+        (any_of over several features) or that accepts nothing raises ValueError instead of being silently widened.
+        Numeric bounds accept a bucket only when the WHOLE bucket lies inside the bound, so a typed context never matches more
+        than it says."""
+        conds = tuple(getattr(cs, "conditions", ()) or ())
+        any_of = bool(getattr(cs, "any_of", False))
+        by: dict[str, set[str]] = {}
+        for c in conds:
+            acc = _accepted_buckets(c)
+            if c.feature in by:
+                by[c.feature] = (by[c.feature] | acc) if any_of else (by[c.feature] & acc)
+            else:
+                by[c.feature] = acc
+        if any_of and len(by) > 1:
+            raise ValueError("an any_of context over several features is a disjunction: it has no conjunctive bucket form")
+        out = []
+        for path, acc in sorted(by.items()):
+            if not acc:
+                raise ValueError(f"typed context on {path!r} accepts no bucket")
+            out.append(Condition(path, tuple(sorted(acc))))
+        return cls(tuple(out))
 
     def with_condition(self, c: Condition) -> "ContextSpec":
         return ContextSpec(tuple(x for x in self.conditions if x.path != c.path) + (c,))
@@ -408,7 +475,7 @@ class _Index:
         ns = np.array([a.n for a in cells], dtype=float)
         ses = np.sqrt(self.var / ns)
         eb = PS.eb_shrink(means, ses, center=None)          # DerSimonian-Laird tau^2 across the bucket means (shared code)
-        k = PS.implied_k(eb["tau2"], ses, ns)
+        k = PS.implied_k(eb["tau2"], ses, ns)  # type: ignore[arg-type]  # pattern_stats converts arrays with _as_float
         return cfg.k_max if not math.isfinite(k) else float(np.clip(k, cfg.k_min, cfg.k_max))
 
 
@@ -589,7 +656,7 @@ class ContextModel:
         if inn.sum() < cfg.min_n or out.sum() < cfg.min_n:
             return None
         s_in, s_out = CellStats.of(ix.y[inn], ix.w[inn], cfg.min_n), CellStats.of(ix.y[out], ix.w[out], cfg.min_n)
-        diff = s_in.mean - s_out.mean
+        diff = cast(float, s_in.mean) - cast(float, s_out.mean)
         if abs(diff) < cfg.min_effect:
             return None
         t_hold = None
@@ -662,7 +729,9 @@ class ContextModel:
                                    "no observations of this pattern: UNTESTED")
         exp_l, se_l, p_l, trail, used, n_used = self.ladder_estimate(pattern_id, sit, now)
         rules = [r for r in self.rules(pattern_id, now, seed) if r.confirmed]
-        inn, outs, unk = [], [], []
+        inn: list[ContextRule] = []
+        outs: list[ContextRule] = []
+        unk: list[ContextRule] = []
         for r in rules:
             m = r.spec.matches(sit)
             (unk if m is None else inn if m else outs).append(r)
@@ -676,9 +745,9 @@ class ContextModel:
             side = chosen.stats_in if chosen in inn else chosen.stats_out
             base = trail[0].shrunk_mean
             k = self.cfg.rule_shrink
-            expected = (side.n * side.mean + k * base) / (side.n + k)
+            expected = (side.n * cast(float, side.mean) + k * base) / (side.n + k)
             se = math.sqrt((side.var if side.var is not None else ix.var) / (side.n + k))
-            p_hit = (side.hit * side.n + 0.5 * k) / (side.n + k)
+            p_hit = (cast(float, side.hit) * side.n + 0.5 * k) / (side.n + k)
             source = "rule"
         lines = [f"pattern {pattern_id}: expected edge {expected:+.4f} +/- {se:.4f} via {source}"]
         for s in trail:
@@ -690,7 +759,7 @@ class ContextModel:
             lines.append("  " + ("IN context: " if chosen in inn else "OUTSIDE context: ") + chosen.describe())
         for r in unk:
             lines.append(f"  rule {r.rule_id} cannot be evaluated: a needed dimension is unobserved")
-        return ContextEstimate(pattern_id, float(expected), float(se), float(p_hit), source, None, trail, used,
+        return ContextEstimate(pattern_id, float(cast(float, expected)), float(cast(float, se)), float(cast(float, p_hit)), source, None, trail, used,
                                tuple(r.rule_id for r in inn), tuple(r.rule_id for r in outs), tuple(r.rule_id for r in unk),
                                n_used, "\n".join(lines))
 
@@ -724,7 +793,7 @@ class ContextModel:
         F, p = sps.f_oneway(*[np.array(v) for v in groups.values()])
         return {"Q": float(F), "df": len(groups) - 1, "p": float(p), "groups": len(groups)}
 
-    def tiny_bucket_audit(self, pattern_id: str, now) -> dict[int, dict[str, int]]:
+    def tiny_bucket_audit(self, pattern_id: str, now) -> dict[int, dict[str, float]]:
         """Per ladder rung: buckets, tiny buckets (< min_n) and the share of observations sitting in tiny buckets."""
         ix = self._index(pattern_id, now)
         if ix is None:
@@ -767,9 +836,9 @@ class ContextModel:
                 pooled.append(m)
                 raw.append(raw_est)
                 ys.append(o.outcome)
-        ys = np.array(ys)
-        return {"pooled_mse": float(np.mean((np.array(pooled) - ys) ** 2)), "raw_mse": float(np.mean((np.array(raw) - ys) ** 2)),
-                "n": int(len(ys))}
+        ys_a = np.array(ys)
+        return {"pooled_mse": float(np.mean((np.array(pooled) - ys_a) ** 2)), "raw_mse": float(np.mean((np.array(raw) - ys_a) ** 2)),
+                "n": int(len(ys_a))}
 
     # ---- drift & export
     def drift_check(self, rule: ContextRule, later: Sequence[Obs], now) -> dict[str, Any]:
@@ -808,7 +877,14 @@ class ContextModel:
 
 def contexts_from_knowledge(k: Any) -> tuple[ContextSpec, ContextSpec]:
     """(context, anti-context) specs of any KnowledgeLike object, from its `contexts` / `anti_contexts` mappings."""
-    return ContextSpec.from_mapping(getattr(k, "contexts", None)), ContextSpec.from_mapping(getattr(k, "anti_contexts", None))
+    return _spec_of_field(getattr(k, "contexts", None)), _spec_of_field(getattr(k, "anti_contexts", None))
+
+
+def _spec_of_field(field: Any) -> ContextSpec:
+    """A `contexts` field is either the plain {path: {"in": [...]}} mapping or a typed knowledge.ContextSet; both give a spec."""
+    if field is not None and hasattr(field, "conditions") and hasattr(field, "any_of"):
+        return ContextSpec.from_typed(field)
+    return ContextSpec.from_mapping(field)
 
 
 def context_gate(sit: Situation, k: Any) -> tuple[bool | None, str]:
@@ -915,14 +991,14 @@ def compare_estimators(model: ContextModel, pattern_id: str, now, folds: int = 5
         return {"n": len(obs), "flat": float("nan"), "ladder": float("nan"), "ridge": float("nan"), "raw": float("nan")}
     rng = np.random.default_rng(seed)
     fold = rng.integers(0, folds, size=len(obs))
-    err = {"flat": [], "ladder": [], "ridge": [], "raw": []}
+    err: dict[str, list[float]] = {"flat": [], "ladder": [], "ridge": [], "raw": []}
     for f in range(folds):
         tr = [o for o, g in zip(obs, fold) if g != f]
         te = [o for o, g in zip(obs, fold) if g == f]
         sub = ContextModel(model.cfg)
         sub.add_many(tr)
         rc = RidgeContext(min_n=model.cfg.min_n).fit(tr, now, seed)
-        ix = sub._index(pattern_id, now)
+        ix = cast(_Index, sub._index(pattern_id, now))
         a0 = ix.rung_acc[0][()]
         flat = a0.s1 / (a0.sw + ix.k[0])
         for o in te:
@@ -934,7 +1010,7 @@ def compare_estimators(model: ContextModel, pattern_id: str, now, folds: int = 5
                     break
                 raw = acc.mean
             for name, val in (("flat", flat), ("ladder", ladder), ("ridge", rc.predict(o.situation)), ("raw", raw)):
-                err[name].append((o.outcome - val) ** 2)
+                err[name].append((o.outcome - cast(float, val)) ** 2)
     return {"n": len(obs), **{k: float(np.mean(v)) for k, v in err.items()}}
 
 
@@ -957,12 +1033,12 @@ def context_skill(model: ContextModel, pattern_id: str, now, blocks: int = 5) ->
         cutoff = max(as_date(o.matured) for o in tr) + dt.timedelta(days=1)
         sub = ContextModel(model.cfg)
         sub.add_many(tr)
-        ix = sub._index(pattern_id, cutoff)
+        ix = cast(_Index, sub._index(pattern_id, cutoff))
         a0 = ix.rung_acc[0][()]
         flat = a0.s1 / (a0.sw + ix.k[0])
         for o in te:
             ctx, _, _, _, _, _ = sub.ladder_estimate(pattern_id, o.situation, cutoff)
-            e_ctx.append((o.outcome - ctx) ** 2)
+            e_ctx.append((o.outcome - cast(float, ctx)) ** 2)
             e_flat.append((o.outcome - flat) ** 2)
         used += 1
     if not e_ctx:
@@ -1313,10 +1389,10 @@ def outcome_distribution(model: ContextModel, pattern_id: str, spec: ContextSpec
     if ix is None:
         return {"in": dict(empty), "out": dict(empty), "unobserved": 0}
     m = [spec.matches(o.situation) for o in ix.obs]
-    res = {}
+    res: dict[str, Any] = {}
     for name, sel in (("in", [x is True for x in m]), ("out", [x is False for x in m])):
-        sel = np.array(sel)
-        y, w = ix.y[sel], ix.w[sel]
+        sel_mask = np.array(sel)
+        y, w = ix.y[sel_mask], ix.w[sel_mask]
         if len(y) == 0:
             res[name] = dict(empty)
             continue
@@ -1400,7 +1476,8 @@ def summarize_pattern(model: ContextModel, pattern_id: str, now, seed: int = 0) 
     if ix is None:
         return {"pattern_id": pattern_id, "n": 0, "status": Unknown.UNTESTED}
     rules = [r for r in model.rules(pattern_id, now, seed) if r.confirmed]
-    ctx, anti = {}, {}
+    ctx: dict[str, Any] = {}
+    anti: dict[str, Any] = {}
     for r in rules:
         (ctx if r.role == "CONTEXT" else anti)[r.rule_id] = r.spec.to_mapping()
     het = model.heterogeneity(pattern_id, now)
@@ -1451,7 +1528,7 @@ def predict_interval(model: ContextModel, pattern_id: str, sit: Situation, now, 
     if est.expected is None or ix is None or ix.n < 5:
         return {"lo": None, "hi": None, "expected": None, "unknown": est.unknown or Unknown.INSUFFICIENT_DATA}
     z = float(sps.norm.ppf(0.5 + level / 2))
-    sd = math.sqrt(max(ix.var, 0.0) + est.se ** 2)
+    sd = math.sqrt(max(ix.var, 0.0) + cast(float, est.se) ** 2)
     return {"lo": est.expected - z * sd, "hi": est.expected + z * sd, "expected": est.expected, "sd": sd, "unknown": None}
 
 def rule_stability(model: ContextModel, pattern_id: str, now, n_runs: int = 6, frac: float = 0.8, seed: int = 0) -> dict[str, Any]:
@@ -1480,13 +1557,13 @@ def regime_table(model: ContextModel, now, path: str = "regime.label") -> list[d
     quick look that shows whether a pattern behaves the same across regimes before any rule is learned."""
     rows = []
     for pid in model.patterns():
-        ix = model._index(pid, now)
+        ix = cast(_Index, model._index(pid, now))
         by: dict[str, list[float]] = {}
         for lab, y in zip(ix.labels, ix.y):
             by.setdefault(lab.get(path, "na"), []).append(float(y))
-        for lab, ys in sorted(by.items()):
+        for bucket, ys in sorted(by.items()):
             a = np.array(ys)
-            rows.append({"pattern": pid, "bucket": lab, "n": len(a), "mean": float(a.mean()), "hit": float((a > 0).mean()),
+            rows.append({"pattern": pid, "bucket": bucket, "n": len(a), "mean": float(a.mean()), "hit": float((a > 0).mean()),
                          "reliable": len(a) >= model.cfg.min_n})
     return rows
 
@@ -1498,7 +1575,7 @@ def outcome_bin_table(model: ContextModel, pattern_id: str, spec: ContextSpec, n
     ix = model._index(pattern_id, now)
     if ix is None:
         return {"in": {}, "out": {}, "tv": None, "n_in": 0, "n_out": 0}
-    counts = {"in": {}, "out": {}}
+    counts: dict[str, dict[Any, float]] = {"in": {}, "out": {}}
     for o, y in zip(ix.obs, ix.y):
         m = spec.matches(o.situation)
         if m is None:

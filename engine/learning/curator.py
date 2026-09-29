@@ -417,7 +417,8 @@ class Curator:
         feats = body.get("features") or {}
         if not isinstance(feats, Mapping) or not feats:
             raise FirewallBreach("memory has no features left to file")
-        lean, horizon = body.get("lean"), body.get("horizon")
+        lean: Any = body.get("lean")
+        horizon: Any = body.get("horizon")
         kind = body.get("kind", "pattern")
         given = item.get("item_id") if isinstance(item, Mapping) else None
         clean_id = body.get("item_id")
@@ -722,7 +723,7 @@ def transform_report(frame: pd.DataFrame, target: pd.Series, lookback: int = 126
     last = frame.index.max() - pd.DateOffset(months=months)
     starts = pd.DatetimeIndex(sorted({d.replace(day=1) for d in frame.index if d <= last}))
     probe = FingerprintProbe(seed=seed, n_trees=n_trees)
-    res = {}
+    res: dict[str, dict[str, Any]] = {}
     for name, fr in (("raw", raw), ("relative", rel.dropna(how="all"))):
         st = starts[starts >= fr.index.min()] if len(fr) else starts
         F = window_summary(fr, st, months)

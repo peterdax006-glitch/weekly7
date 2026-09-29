@@ -1,5 +1,5 @@
 {
- "exit_code": 0,
+ "exit_code": 1,
  "stats": {
   "syntax": {
    "seconds": 0.0,
@@ -7,79 +7,79 @@
    "warnings": 0
   },
   "import_boundaries": {
-   "seconds": 0.942,
+   "seconds": 2.992,
    "errors": 0,
    "warnings": 0
   },
   "bare_except": {
-   "seconds": 0.321,
+   "seconds": 1.231,
    "errors": 0,
-   "warnings": 3
+   "warnings": 9
   },
   "print_debug": {
-   "seconds": 0.346,
-   "errors": 0,
+   "seconds": 1.328,
+   "errors": 2,
    "warnings": 0
   },
   "network_in_tests": {
-   "seconds": 0.407,
-   "errors": 0,
+   "seconds": 1.242,
+   "errors": 14,
    "warnings": 0
   },
   "tests_touch_data": {
-   "seconds": 0.213,
-   "errors": 0,
+   "seconds": 0.622,
+   "errors": 13,
    "warnings": 0
   },
   "randomness": {
-   "seconds": 1.103,
-   "errors": 0,
+   "seconds": 3.449,
+   "errors": 4,
    "warnings": 0
   },
   "wall_clock": {
-   "seconds": 0.268,
+   "seconds": 1.099,
    "errors": 0,
-   "warnings": 2
+   "warnings": 9
   },
   "test_hygiene": {
-   "seconds": 0.388,
-   "errors": 0,
+   "seconds": 1.144,
+   "errors": 1,
    "warnings": 0
   },
   "mutable_defaults": {
-   "seconds": 0.504,
+   "seconds": 1.567,
    "errors": 0,
    "warnings": 0
   },
   "hidden_global_state": {
-   "seconds": 0.323,
+   "seconds": 1.13,
+   "errors": 0,
+   "warnings": 2
+  },
+  "giant_functions": {
+   "seconds": 1.369,
+   "errors": 0,
+   "warnings": 6
+  },
+  "duplicates": {
+   "seconds": 9.866,
    "errors": 0,
    "warnings": 1
   },
-  "giant_functions": {
-   "seconds": 0.486,
-   "errors": 0,
-   "warnings": 3
-  },
-  "duplicates": {
-   "seconds": 3.847,
-   "errors": 0,
-   "warnings": 0
-  },
   "magic_constants": {
-   "seconds": 0.689,
+   "seconds": 2.461,
    "errors": 0,
-   "warnings": 47
+   "warnings": 87
   },
   "module_docstrings": {
-   "seconds": 0.002,
+   "seconds": 0.0,
    "errors": 0,
-   "warnings": 12
+   "warnings": 22
   },
   "inventory": {
-   "seconds": 1.022,
+   "seconds": 2.763,
    "errors": 0,
-   "warnings": 3
+   "warnings": 34
   }
  },
  "findings": [
@@ -88,6 +88,27 @@
    "severity": "warning",
    "path": "engine/data.py",
    "line": 62,
+   "msg": "'except Exception' with an empty body swallows every failure silently"
+  },
+  {
+   "check": "bare_except",
+   "severity": "warning",
+   "path": "engine/learners.py",
+   "line": 470,
+   "msg": "'except Exception' with an empty body swallows every failure silently"
+  },
+  {
+   "check": "bare_except",
+   "severity": "warning",
+   "path": "engine/learning/research_policy.py",
+   "line": 1344,
+   "msg": "'except Exception' with an empty body swallows every failure silently"
+  },
+  {
+   "check": "bare_except",
+   "severity": "warning",
+   "path": "engine/learning/scorecard.py",
+   "line": 148,
    "msg": "'except Exception' with an empty body swallows every failure silently"
   },
   {
@@ -105,11 +126,60 @@
    "msg": "'except Exception' with an empty body swallows every failure silently"
   },
   {
+   "check": "bare_except",
+   "severity": "warning",
+   "path": "engine/resources.py",
+   "line": 47,
+   "msg": "'except Exception' with an empty body swallows every failure silently"
+  },
+  {
+   "check": "bare_except",
+   "severity": "warning",
+   "path": "engine/resources.py",
+   "line": 61,
+   "msg": "'except Exception' with an empty body swallows every failure silently"
+  },
+  {
+   "check": "bare_except",
+   "severity": "warning",
+   "path": "engine/resources.py",
+   "line": 437,
+   "msg": "'except Exception' with an empty body swallows every failure silently"
+  },
+  {
+   "check": "duplicates",
+   "severity": "warning",
+   "path": "scripts/fv_eval.py",
+   "line": 36,
+   "msg": "wait_for_ram duplicates wait_for_ram in scripts/direction_research.py:42"
+  },
+  {
    "check": "giant_functions",
    "severity": "warning",
    "path": "engine/patterns.py",
-   "line": 128,
-   "msg": "fit is 221 lines (review above 120)"
+   "line": 131,
+   "msg": "fit is 271 lines (review above 120)"
+  },
+  {
+   "check": "giant_functions",
+   "severity": "warning",
+   "path": "scripts/bible_trace.py",
+   "line": 197,
+   "msg": "parse_bible is 149 lines (review above 120)"
+  },
+  {
+   "check": "giant_functions",
+   "severity": "warning",
+   "path": "scripts/leak_audit.py",
+   "line": 565,
+   "msg": "assemble is 189 lines (review above 120)"
+  },
+  {
+   "check": "giant_functions",
+   "severity": "warning",
+   "path": "scripts/livesim_loop2.py",
+   "line": 334,
+   "msg": "main is 145 lines (review above 120)"
   },
   {
    "check": "giant_functions",
@@ -123,7 +193,14 @@
    "severity": "warning",
    "path": "scripts/run_analogs_ext.py",
    "line": 75,
-   "msg": "main is 163 lines (review above 120)"
+   "msg": "main is 165 lines (review above 120)"
+  },
+  {
+   "check": "hidden_global_state",
+   "severity": "warning",
+   "path": "engine/learning/knowledge.py",
+   "line": 908,
+   "msg": "'global _COND_RE' mutates module state"
   },
   {
    "check": "hidden_global_state",
@@ -154,6 +231,223 @@
    "msg": "test file maps to no Bible phase or checklist item"
   },
   {
+   "check": "inventory",
+   "severity": "warning",
+   "path": "tests/test_leak_audit_verdicts.py",
+   "line": 1,
+   "msg": "test file maps to no Bible phase or checklist item"
+  },
+  {
+   "check": "inventory",
+   "severity": "warning",
+   "path": "tests/test_learning_archive.py",
+   "line": 1,
+   "msg": "test file maps to no Bible phase or checklist item"
+  },
+  {
+   "check": "inventory",
+   "severity": "warning",
+   "path": "tests/test_learning_belief.py",
+   "line": 1,
+   "msg": "test file maps to no Bible phase or checklist item"
+  },
+  {
+   "check": "inventory",
+   "severity": "warning",
+   "path": "tests/test_learning_boundary.py",
+   "line": 1,
+   "msg": "test file maps to no Bible phase or checklist item"
+  },
+  {
+   "check": "inventory",
+   "severity": "warning",
+   "path": "tests/test_learning_break.py",
+   "line": 1,
+   "msg": "test file maps to no Bible phase or checklist item"
+  },
+  {
+   "check": "inventory",
+   "severity": "warning",
+   "path": "tests/test_learning_calibration.py",
+   "line": 1,
+   "msg": "test file maps to no Bible phase or checklist item"
+  },
+  {
+   "check": "inventory",
+   "severity": "warning",
+   "path": "tests/test_learning_credit.py",
+   "line": 1,
+   "msg": "test file maps to no Bible phase or checklist item"
+  },
+  {
+   "check": "inventory",
+   "severity": "warning",
+   "path": "tests/test_learning_curator.py",
+   "line": 1,
+   "msg": "test file maps to no Bible phase or checklist item"
+  },
+  {
+   "check": "inventory",
+   "severity": "warning",
+   "path": "tests/test_learning_curve.py",
+   "line": 1,
+   "msg": "test file maps to no Bible phase or checklist item"
+  },
+  {
+   "check": "inventory",
+   "severity": "warning",
+   "path": "tests/test_learning_disagreement.py",
+   "line": 1,
+   "msg": "test file maps to no Bible phase or checklist item"
+  },
+  {
+   "check": "inventory",
+   "severity": "warning",
+   "path": "tests/test_learning_epistemic.py",
+   "line": 1,
+   "msg": "test file maps to no Bible phase or checklist item"
+  },
+  {
+   "check": "inventory",
+   "severity": "warning",
+   "path": "tests/test_learning_future_firewall.py",
+   "line": 1,
+   "msg": "test file maps to no Bible phase or checklist item"
+  },
+  {
+   "check": "inventory",
+   "severity": "warning",
+   "path": "tests/test_learning_graph.py",
+   "line": 1,
+   "msg": "test file maps to no Bible phase or checklist item"
+  },
+  {
+   "check": "inventory",
+   "severity": "warning",
+   "path": "tests/test_learning_health.py",
+   "line": 1,
+   "msg": "test file maps to no Bible phase or checklist item"
+  },
+  {
+   "check": "inventory",
+   "severity": "warning",
+   "path": "tests/test_learning_hierarchy.py",
+   "line": 1,
+   "msg": "test file maps to no Bible phase or checklist item"
+  },
+  {
+   "check": "inventory",
+   "severity": "warning",
+   "path": "tests/test_learning_identity_firewall.py",
+   "line": 1,
+   "msg": "test file maps to no Bible phase or checklist item"
+  },
+  {
+   "check": "inventory",
+   "severity": "warning",
+   "path": "tests/test_learning_interpretation.py",
+   "line": 1,
+   "msg": "test file maps to no Bible phase or checklist item"
+  },
+  {
+   "check": "inventory",
+   "severity": "warning",
+   "path": "tests/test_learning_knowledge.py",
+   "line": 1,
+   "msg": "test file maps to no Bible phase or checklist item"
+  },
+  {
+   "check": "inventory",
+   "severity": "warning",
+   "path": "tests/test_learning_learner.py",
+   "line": 1,
+   "msg": "test file maps to no Bible phase or checklist item"
+  },
+  {
+   "check": "inventory",
+   "severity": "warning",
+   "path": "tests/test_learning_meta.py",
+   "line": 1,
+   "msg": "test file maps to no Bible phase or checklist item"
+  },
+  {
+   "check": "inventory",
+   "severity": "warning",
+   "path": "tests/test_learning_missed.py",
+   "line": 1,
+   "msg": "test file maps to no Bible phase or checklist item"
+  },
+  {
+   "check": "inventory",
+   "severity": "warning",
+   "path": "tests/test_learning_planted_world.py",
+   "line": 1,
+   "msg": "test file maps to no Bible phase or checklist item"
+  },
+  {
+   "check": "inventory",
+   "severity": "warning",
+   "path": "tests/test_learning_promotion.py",
+   "line": 1,
+   "msg": "test file maps to no Bible phase or checklist item"
+  },
+  {
+   "check": "inventory",
+   "severity": "warning",
+   "path": "tests/test_learning_reports.py",
+   "line": 1,
+   "msg": "test file maps to no Bible phase or checklist item"
+  },
+  {
+   "check": "inventory",
+   "severity": "warning",
+   "path": "tests/test_learning_retrieval.py",
+   "line": 1,
+   "msg": "test file maps to no Bible phase or checklist item"
+  },
+  {
+   "check": "inventory",
+   "severity": "warning",
+   "path": "tests/test_learning_temporal.py",
+   "line": 1,
+   "msg": "test file maps to no Bible phase or checklist item"
+  },
+  {
+   "check": "inventory",
+   "severity": "warning",
+   "path": "tests/test_learning_transfer.py",
+   "line": 1,
+   "msg": "test file maps to no Bible phase or checklist item"
+  },
+  {
+   "check": "inventory",
+   "severity": "warning",
+   "path": "tests/test_learning_types.py",
+   "line": 1,
+   "msg": "test file maps to no Bible phase or checklist item"
+  },
+  {
+   "check": "inventory",
+   "severity": "warning",
+   "path": "tests/test_pattern_memory.py",
+   "line": 1,
+   "msg": "test file maps to no Bible phase or checklist item"
+  },
+  {
+   "check": "inventory",
+   "severity": "warning",
+   "path": "tests/test_pattern_reliability.py",
+   "line": 1,
+   "msg": "test file maps to no Bible phase or checklist item"
+  },
+  {
+   "check": "inventory",
+   "severity": "warning",
+   "path": "tests/test_tiebreak.py",
+   "line": 1,
+   "msg": "test file maps to no Bible phase or checklist item"
+  },
+  {
    "check": "magic_constants",
    "severity": "warning",
    "path": "engine/adaptive.py",
@@ -178,14 +472,14 @@
    "check": "magic_constants",
    "severity": "warning",
    "path": "engine/basis_search.py",
-   "line": 16,
+   "line": 19,
    "msg": "META_SPACE has no comment saying why it has this value"
   },
   {
    "check": "magic_constants",
    "severity": "warning",
    "path": "engine/basis_search.py",
-   "line": 21,
+   "line": 24,
    "msg": "CFG_SPACE has no comment saying why it has this value"
   },
   {
@@ -317,6 +611,20 @@
   {
    "check": "magic_constants",
    "severity": "warning",
+   "path": "engine/direction_features.py",
+   "line": 33,
+   "msg": "COVERAGES has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/direction_features.py",
+   "line": 34,
+   "msg": "GRID has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
    "path": "engine/exits.py",
    "line": 26,
    "msg": "CATASTROPHE has no comment saying why it has this value"
@@ -345,8 +653,253 @@
   {
    "check": "magic_constants",
    "severity": "warning",
+   "path": "engine/leak_audit.py",
+   "line": 745,
+   "msg": "MACRO_LAG_DAYS has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/learners.py",
+   "line": 47,
+   "msg": "BAND has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/learners.py",
+   "line": 997,
+   "msg": "PLANTED_BASE has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/learning/archive.py",
+   "line": 38,
+   "msg": "GENESIS has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/learning/archive.py",
+   "line": 39,
+   "msg": "MAX_PAYLOAD_BYTES has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/learning/archive.py",
+   "line": 40,
+   "msg": "MAX_DEPTH has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/learning/belief.py",
+   "line": 29,
+   "msg": "Z90 has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/learning/failure.py",
+   "line": 37,
+   "msg": "NL has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/learning/health.py",
+   "line": 38,
+   "msg": "SEVERITY has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/learning/health.py",
+   "line": 40,
+   "msg": "TRUST_WEIGHT has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/learning/learner.py",
+   "line": 99,
+   "msg": "DECISION_STAGES has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/learning/learner.py",
+   "line": 100,
+   "msg": "LEARNING_STAGES has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/learning/learning_curve.py",
+   "line": 388,
+   "msg": "TIER_OF_DIM has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/learning/meta_learning.py",
+   "line": 38,
+   "msg": "Z95 has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/learning/missed_winners.py",
+   "line": 43,
+   "msg": "NL has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/learning/portfolio_value.py",
+   "line": 42,
+   "msg": "TIER_OF has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/learning/postmortem.py",
+   "line": 38,
+   "msg": "NL has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/learning/reports.py",
+   "line": 38,
+   "msg": "ROOT has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/learning/reports.py",
+   "line": 63,
+   "msg": "LABEL_ORDER has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/learning/research_policy.py",
+   "line": 33,
+   "msg": "LN2 has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/learning/research_policy.py",
+   "line": 34,
+   "msg": "EPS has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/learning/research_priority.py",
+   "line": 440,
+   "msg": "TEMPLATES has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/learning/research_priority.py",
+   "line": 453,
+   "msg": "SUBSYSTEM_WEIGHT has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/learning/research_priority.py",
+   "line": 1085,
+   "msg": "DECISION_WEIGHT has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/learning/retrieval.py",
+   "line": 52,
+   "msg": "DEFAULT_FACTOR_WEIGHTS has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/learning/retrieval.py",
+   "line": 55,
+   "msg": "LIFECYCLE_SAFETY has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/learning/retrieval.py",
+   "line": 57,
+   "msg": "EPISTEMIC_SAFETY has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/learning/retrieval.py",
+   "line": 324,
+   "msg": "TEMPORAL_HALF_LIFE_DAYS has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/learning/separation.py",
+   "line": 41,
+   "msg": "NL has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/learning/similarity.py",
+   "line": 48,
+   "msg": "DEFAULT_WEIGHTS has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/learning/trader_view.py",
+   "line": 58,
+   "msg": "EPOCH_RANGES has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/learning/trader_view.py",
+   "line": 60,
+   "msg": "MAX_DEPTH has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/learning/trader_view.py",
+   "line": 61,
+   "msg": "MAX_NODES has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/learning/trader_view.py",
+   "line": 321,
+   "msg": "MAX_HORIZON has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
    "path": "engine/lessons.py",
-   "line": 32,
+   "line": 34,
+   "msg": "TRAIL_KEEP has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/lessons.py",
+   "line": 38,
    "msg": "DEFAULTS has no comment saying why it has this value"
   },
   {
@@ -360,8 +913,15 @@
    "check": "magic_constants",
    "severity": "warning",
    "path": "engine/memory.py",
-   "line": 67,
+   "line": 68,
    "msg": "OUTCOME_EDGES has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/miner_tuning.py",
+   "line": 22,
+   "msg": "SPACE has no comment saying why it has this value"
   },
   {
    "check": "magic_constants",
@@ -408,6 +968,13 @@
   {
    "check": "magic_constants",
    "severity": "warning",
+   "path": "engine/pattern_memory_eval.py",
+   "line": 24,
+   "msg": "FIT_GRID has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
    "path": "engine/pattern_stats.py",
    "line": 27,
    "msg": "STAT_DEFAULT has no comment saying why it has this value"
@@ -430,7 +997,7 @@
    "check": "magic_constants",
    "severity": "warning",
    "path": "engine/planted.py",
-   "line": 272,
+   "line": 318,
    "msg": "CRITERIA has no comment saying why it has this value"
   },
   {
@@ -439,6 +1006,13 @@
    "path": "engine/replay.py",
    "line": 19,
    "msg": "CHAMPION has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/resources.py",
+   "line": 34,
+   "msg": "HEARTBEAT_S has no comment saying why it has this value"
   },
   {
    "check": "magic_constants",
@@ -479,7 +1053,7 @@
    "check": "magic_constants",
    "severity": "warning",
    "path": "engine/timeline.py",
-   "line": 173,
+   "line": 230,
    "msg": "DIAL_SPACE has no comment saying why it has this value"
   },
   {
@@ -493,6 +1067,69 @@
    "check": "module_docstrings",
    "severity": "warning",
    "path": "engine/edgar.py",
+   "line": 1,
+   "msg": "docstring does not say which Bible phase/canon it serves"
+  },
+  {
+   "check": "module_docstrings",
+   "severity": "warning",
+   "path": "engine/learning/competition.py",
+   "line": 1,
+   "msg": "docstring does not say which Bible phase/canon it serves"
+  },
+  {
+   "check": "module_docstrings",
+   "severity": "warning",
+   "path": "engine/learning/complexity.py",
+   "line": 1,
+   "msg": "docstring does not say which Bible phase/canon it serves"
+  },
+  {
+   "check": "module_docstrings",
+   "severity": "warning",
+   "path": "engine/learning/core.py",
+   "line": 1,
+   "msg": "docstring does not say which Bible phase/canon it serves"
+  },
+  {
+   "check": "module_docstrings",
+   "severity": "warning",
+   "path": "engine/learning/decision_contract.py",
+   "line": 1,
+   "msg": "docstring does not say which Bible phase/canon it serves"
+  },
+  {
+   "check": "module_docstrings",
+   "severity": "warning",
+   "path": "engine/learning/disagreement.py",
+   "line": 1,
+   "msg": "docstring does not say which Bible phase/canon it serves"
+  },
+  {
+   "check": "module_docstrings",
+   "severity": "warning",
+   "path": "engine/learning/epistemic.py",
+   "line": 1,
+   "msg": "docstring does not say which Bible phase/canon it serves"
+  },
+  {
+   "check": "module_docstrings",
+   "severity": "warning",
+   "path": "engine/learning/interpretation.py",
+   "line": 1,
+   "msg": "docstring does not say which Bible phase/canon it serves"
+  },
+  {
+   "check": "module_docstrings",
+   "severity": "warning",
+   "path": "engine/learning/knowledge.py",
+   "line": 1,
+   "msg": "docstring does not say which Bible phase/canon it serves"
+  },
+  {
+   "check": "module_docstrings",
+   "severity": "warning",
+   "path": "engine/learning/unknowns.py",
    "line": 1,
    "msg": "docstring does not say which Bible phase/canon it serves"
   },
@@ -555,6 +1192,13 @@
   {
    "check": "module_docstrings",
    "severity": "warning",
+   "path": "tests/test_lessons.py",
+   "line": 1,
+   "msg": "test file has no docstring saying what it proves"
+  },
+  {
+   "check": "module_docstrings",
+   "severity": "warning",
    "path": "tests/test_registry.py",
    "line": 1,
    "msg": "test file has no docstring saying what it proves"
@@ -565,6 +1209,251 @@
    "path": "tests/test_run_report.py",
    "line": 1,
    "msg": "test file has no docstring saying what it proves"
+  },
+  {
+   "check": "network_in_tests",
+   "severity": "error",
+   "path": "tests/test_leak_audit.py",
+   "line": 4,
+   "msg": "test imports network module 'socket'"
+  },
+  {
+   "check": "network_in_tests",
+   "severity": "error",
+   "path": "tests/test_leak_audit.py",
+   "line": 122,
+   "msg": "test calls socket.create_connection()"
+  },
+  {
+   "check": "network_in_tests",
+   "severity": "error",
+   "path": "tests/test_leak_audit.py",
+   "line": 127,
+   "msg": "test calls socket.create_connection()"
+  },
+  {
+   "check": "network_in_tests",
+   "severity": "error",
+   "path": "tests/test_leak_audit.py",
+   "line": 129,
+   "msg": "test calls socket.getaddrinfo()"
+  },
+  {
+   "check": "network_in_tests",
+   "severity": "error",
+   "path": "tests/test_leak_audit.py",
+   "line": 132,
+   "msg": "test calls socket.create_connection()"
+  },
+  {
+   "check": "network_in_tests",
+   "severity": "error",
+   "path": "tests/test_leak_audit.py",
+   "line": 140,
+   "msg": "test calls socket.create_connection()"
+  },
+  {
+   "check": "network_in_tests",
+   "severity": "error",
+   "path": "tests/test_leak_audit.py",
+   "line": 142,
+   "msg": "test calls socket.getaddrinfo()"
+  },
+  {
+   "check": "network_in_tests",
+   "severity": "error",
+   "path": "tests/test_leak_audit.py",
+   "line": 666,
+   "msg": "test calls socket.getaddrinfo()"
+  },
+  {
+   "check": "network_in_tests",
+   "severity": "error",
+   "path": "tests/test_leak_audit.py",
+   "line": 679,
+   "msg": "test calls socket.create_connection()"
+  },
+  {
+   "check": "network_in_tests",
+   "severity": "error",
+   "path": "tests/test_learning_future_firewall.py",
+   "line": 6,
+   "msg": "test imports network module 'socket'"
+  },
+  {
+   "check": "network_in_tests",
+   "severity": "error",
+   "path": "tests/test_learning_future_firewall.py",
+   "line": 413,
+   "msg": "test calls socket.getaddrinfo()"
+  },
+  {
+   "check": "network_in_tests",
+   "severity": "error",
+   "path": "tests/test_livesim_loop2.py",
+   "line": 444,
+   "msg": "test imports network module 'socket'"
+  },
+  {
+   "check": "network_in_tests",
+   "severity": "error",
+   "path": "tests/test_livesim_loop2.py",
+   "line": 450,
+   "msg": "test calls socket.getaddrinfo()"
+  },
+  {
+   "check": "network_in_tests",
+   "severity": "error",
+   "path": "tests/test_livesim_loop2.py",
+   "line": 465,
+   "msg": "test calls socket.getaddrinfo()"
+  },
+  {
+   "check": "print_debug",
+   "severity": "error",
+   "path": "engine/learning/compute.py",
+   "line": 1200,
+   "msg": "print() in engine (use logging or return the value)"
+  },
+  {
+   "check": "print_debug",
+   "severity": "error",
+   "path": "engine/learning/compute.py",
+   "line": 1208,
+   "msg": "print() in engine (use logging or return the value)"
+  },
+  {
+   "check": "randomness",
+   "severity": "error",
+   "path": "engine/learning/reproducibility.py",
+   "line": 523,
+   "msg": "stdlib global RNG call random.seed()"
+  },
+  {
+   "check": "randomness",
+   "severity": "error",
+   "path": "engine/learning/reproducibility.py",
+   "line": 524,
+   "msg": "legacy global numpy RNG call np.random.seed()"
+  },
+  {
+   "check": "randomness",
+   "severity": "error",
+   "path": "tests/test_learning_firewalls.py",
+   "line": 624,
+   "msg": "legacy global numpy RNG call np.random.rand()"
+  },
+  {
+   "check": "randomness",
+   "severity": "error",
+   "path": "tests/test_learning_firewalls.py",
+   "line": 771,
+   "msg": "legacy global numpy RNG call np.random.rand()"
+  },
+  {
+   "check": "test_hygiene",
+   "severity": "error",
+   "path": "tests/test_leak_audit_verdicts.py",
+   "line": 295,
+   "msg": "test_verdict_evidence_is_json_serialisable: nothing in it can fail (no assert/raises/approx)"
+  },
+  {
+   "check": "tests_touch_data",
+   "severity": "error",
+   "path": "tests/test_dashboard.py",
+   "line": 171,
+   "msg": "test path names a protected location: 'state/livesim/anything.json'"
+  },
+  {
+   "check": "tests_touch_data",
+   "severity": "error",
+   "path": "tests/test_dashboard.py",
+   "line": 173,
+   "msg": "test path names a protected location: 'data/cache/prices.parquet'"
+  },
+  {
+   "check": "tests_touch_data",
+   "severity": "error",
+   "path": "tests/test_leak_audit.py",
+   "line": 201,
+   "msg": "test reads config.CACHE (the real caches)"
+  },
+  {
+   "check": "tests_touch_data",
+   "severity": "error",
+   "path": "tests/test_leak_audit.py",
+   "line": 204,
+   "msg": "test path names a protected location: 'data/cache/sic.parquet'"
+  },
+  {
+   "check": "tests_touch_data",
+   "severity": "error",
+   "path": "tests/test_leak_audit_verdicts.py",
+   "line": 252,
+   "msg": "test path names a protected location: 'state/livesim/loop2.json'"
+  },
+  {
+   "check": "tests_touch_data",
+   "severity": "error",
+   "path": "tests/test_learning_curator.py",
+   "line": 620,
+   "msg": "test path names a protected location: 'data/cache/AAPL_2008-09-15.parquet'"
+  },
+  {
+   "check": "tests_touch_data",
+   "severity": "error",
+   "path": "tests/test_learning_curator.py",
+   "line": 622,
+   "msg": "test path names a protected location: 'data/cache/prices.parquet'"
+  },
+  {
+   "check": "tests_touch_data",
+   "severity": "error",
+   "path": "tests/test_learning_curator.py",
+   "line": 623,
+   "msg": "test path names a protected location: 'data/cache/prices.parquet'"
+  },
+  {
+   "check": "tests_touch_data",
+   "severity": "error",
+   "path": "tests/test_learning_future_firewall.py",
+   "line": 407,
+   "msg": "test path names a protected location: 'data/cache/ok'"
+  },
+  {
+   "check": "tests_touch_data",
+   "severity": "error",
+   "path": "tests/test_learning_future_firewall.py",
+   "line": 407,
+   "msg": "test path names a protected location: 'data/cache/secret.parquet'"
+  },
+  {
+   "check": "tests_touch_data",
+   "severity": "error",
+   "path": "tests/test_learning_future_firewall.py",
+   "line": 408,
+   "msg": "test path names a protected location: 'data/cache/ok'"
+  },
+  {
+   "check": "tests_touch_data",
+   "severity": "error",
+   "path": "tests/test_learning_future_firewall.py",
+   "line": 408,
+   "msg": "test path names a protected location: 'data/cache/ok/x'"
+  },
+  {
+   "check": "tests_touch_data",
+   "severity": "error",
+   "path": "tests/test_livesim_loop2.py",
+   "line": 17,
+   "msg": "test path names a protected location: 'The loop module, imported with livesim.DIR pointed at a temp'"
+  },
+  {
+   "check": "wall_clock",
+   "severity": "warning",
+   "path": "engine/learning/compute.py",
+   "line": 1211,
+   "msg": "time.time() in research code: take an explicit now/as_of instead"
   },
   {
    "check": "wall_clock",
@@ -579,8 +1468,88 @@
    "path": "engine/pattern_bank.py",
    "line": 76,
    "msg": "time.time() in research code: take an explicit now/as_of instead"
+  },
+  {
+   "check": "wall_clock",
+   "severity": "warning",
+   "path": "engine/resources.py",
+   "line": 129,
+   "msg": "time.time() in research code: take an explicit now/as_of instead"
+  },
+  {
+   "check": "wall_clock",
+   "severity": "warning",
+   "path": "engine/resources.py",
+   "line": 138,
+   "msg": "time.time() in research code: take an explicit now/as_of instead"
+  },
+  {
+   "check": "wall_clock",
+   "severity": "warning",
+   "path": "engine/resources.py",
+   "line": 143,
+   "msg": "time.time() in research code: take an explicit now/as_of instead"
+  },
+  {
+   "check": "wall_clock",
+   "severity": "warning",
+   "path": "engine/resources.py",
+   "line": 177,
+   "msg": "time.time() in research code: take an explicit now/as_of instead"
+  },
+  {
+   "check": "wall_clock",
+   "severity": "warning",
+   "path": "engine/resources.py",
+   "line": 197,
+   "msg": "time.time() in research code: take an explicit now/as_of instead"
+  },
+  {
+   "check": "wall_clock",
+   "severity": "warning",
+   "path": "engine/resources.py",
+   "line": 214,
+   "msg": "time.time() in research code: take an explicit now/as_of instead"
   }
  ],
- "failing": [],
- "stale_baseline": []
+ "failing": [
+  "network_in_tests|tests/test_leak_audit.py|test imports network module 'socket'",
+  "network_in_tests|tests/test_leak_audit.py|test calls socket.create_connection()",
+  "network_in_tests|tests/test_leak_audit.py|test calls socket.create_connection()",
+  "network_in_tests|tests/test_leak_audit.py|test calls socket.getaddrinfo()",
+  "network_in_tests|tests/test_leak_audit.py|test calls socket.create_connection()",
+  "network_in_tests|tests/test_leak_audit.py|test calls socket.create_connection()",
+  "network_in_tests|tests/test_leak_audit.py|test calls socket.getaddrinfo()",
+  "network_in_tests|tests/test_leak_audit.py|test calls socket.getaddrinfo()",
+  "network_in_tests|tests/test_leak_audit.py|test calls socket.create_connection()",
+  "network_in_tests|tests/test_learning_future_firewall.py|test imports network module 'socket'",
+  "network_in_tests|tests/test_learning_future_firewall.py|test calls socket.getaddrinfo()",
+  "network_in_tests|tests/test_livesim_loop2.py|test imports network module 'socket'",
+  "network_in_tests|tests/test_livesim_loop2.py|test calls socket.getaddrinfo()",
+  "network_in_tests|tests/test_livesim_loop2.py|test calls socket.getaddrinfo()",
+  "print_debug|engine/learning/compute.py|print() in engine (use logging or return the value)",
+  "print_debug|engine/learning/compute.py|print() in engine (use logging or return the value)",
+  "randomness|engine/learning/reproducibility.py|stdlib global RNG call random.seed()",
+  "randomness|engine/learning/reproducibility.py|legacy global numpy RNG call np.random.seed()",
+  "randomness|tests/test_learning_firewalls.py|legacy global numpy RNG call np.random.rand()",
+  "randomness|tests/test_learning_firewalls.py|legacy global numpy RNG call np.random.rand()",
+  "test_hygiene|tests/test_leak_audit_verdicts.py|test_verdict_evidence_is_json_serialisable: nothing in it can fail (no assert/raises/approx)",
+  "tests_touch_data|tests/test_dashboard.py|test path names a protected location: 'state/livesim/anything.json'",
+  "tests_touch_data|tests/test_dashboard.py|test path names a protected location: 'data/cache/prices.parquet'",
+  "tests_touch_data|tests/test_leak_audit.py|test reads config.CACHE (the real caches)",
+  "tests_touch_data|tests/test_leak_audit.py|test path names a protected location: 'data/cache/sic.parquet'",
+  "tests_touch_data|tests/test_leak_audit_verdicts.py|test path names a protected location: 'state/livesim/loop2.json'",
+  "tests_touch_data|tests/test_learning_curator.py|test path names a protected location: 'data/cache/AAPL_2008-09-15.parquet'",
+  "tests_touch_data|tests/test_learning_curator.py|test path names a protected location: 'data/cache/prices.parquet'",
+  "tests_touch_data|tests/test_learning_curator.py|test path names a protected location: 'data/cache/prices.parquet'",
+  "tests_touch_data|tests/test_learning_future_firewall.py|test path names a protected location: 'data/cache/ok'",
+  "tests_touch_data|tests/test_learning_future_firewall.py|test path names a protected location: 'data/cache/secret.parquet'",
+  "tests_touch_data|tests/test_learning_future_firewall.py|test path names a protected location: 'data/cache/ok'",
+  "tests_touch_data|tests/test_learning_future_firewall.py|test path names a protected location: 'data/cache/ok/x'",
+  "tests_touch_data|tests/test_livesim_loop2.py|test path names a protected location: 'The loop module, imported with livesim.DIR pointed at a temp'"
+ ],
+ "stale_baseline": [
+  "giant_functions|engine/patterns.py|fit is 221 lines (review above 120)",
+  "giant_functions|scripts/run_analogs_ext.py|main is 163 lines (review above 120)"
+ ]
 }

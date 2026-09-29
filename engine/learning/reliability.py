@@ -149,7 +149,7 @@ def posterior_positive(m: float, sd: float, n_eff: float, rho: float, prior_mean
     return float(sps.norm.cdf((post - threshold) * math.sqrt(prec))), float(post)
 
 
-def truth_confidence(values: Sequence[float], cfg=None) -> tuple[float | None, dict]:
+def truth_confidence(values: Sequence[float] | np.ndarray, cfg=None) -> tuple[float | None, dict]:
     """Is the effect real? P(long-run mean outcome > 0) under a skeptical zero-centred prior. None below `min_n` effective
     observations. Returns (value, detail) - detail carries the shrunk effect the other dimensions compare against."""
     P = _cfg(cfg)
@@ -163,7 +163,7 @@ def truth_confidence(values: Sequence[float], cfg=None) -> tuple[float | None, d
     return float(p), {"n_eff": n_adj, "effect": post, "sd": sd, "rho": rho}
 
 
-def current_reliability(values: Sequence[float], truth_detail: Mapping[str, float], cfg=None) -> tuple[float | None, dict]:
+def current_reliability(values: Sequence[float] | np.ndarray, truth_detail: Mapping[str, float], cfg=None) -> tuple[float | None, dict]:
     """Is it delivering now? P(recent effect >= current_frac x the long-run effect), the recent effect having fast-decaying
     memory and a prior centred on the long-run effect. If the long-run effect is not positive the bar is zero."""
     P = _cfg(cfg)
@@ -179,7 +179,7 @@ def current_reliability(values: Sequence[float], truth_detail: Mapping[str, floa
     return float(p), {"n_eff": n_eff, "recent_effect": post, "bar": bar}
 
 
-def transfer_confidence(values: Sequence[float], domains: Sequence[Any], cfg=None) -> tuple[float | None, dict]:
+def transfer_confidence(values: Sequence[float] | np.ndarray, domains: Sequence[Any] | np.ndarray, cfg=None) -> tuple[float | None, dict]:
     """Will it hold in a domain it has not seen? Random-effects view: the domain means (years, regimes, sectors) are draws from
     a population; P(a new draw > 0) = t-CDF of the mean over the between-domain spread. Needs `min_domains` domains of at
     least `min_domain_n` observations each - otherwise UNTESTED, because transfer cannot be inferred from a single domain."""
@@ -224,7 +224,7 @@ def match_context(spec: Mapping[str, Any] | None, ctx_now: Mapping[str, Any] | N
     return verdict
 
 
-def context_confidence(hist_ctx: pd.DataFrame | None, values: Sequence[float], ctx_now: Mapping[str, Any] | None, cfg=None) -> tuple[float | None, dict]:
+def context_confidence(hist_ctx: pd.DataFrame | None, values: Sequence[float] | np.ndarray, ctx_now: Mapping[str, Any] | None, cfg=None) -> tuple[float | None, dict]:
     """Does it work in a context like today's? Recency- and distance-weighted P(outcome > 0) over the `knn` nearest historical
     contexts (standardised numeric columns), shrunk toward the item's own base rate with `ctx_prior` pseudo-observations. None
     when today's context is missing a column or fewer than `knn` outcomes exist."""
@@ -257,7 +257,7 @@ def context_confidence(hist_ctx: pd.DataFrame | None, values: Sequence[float], c
     return float(p), {"k_eff": k_eff, "p_local": p_local, "base": base, "distance_median": float(np.median(np.sqrt(d2[near])))}
 
 
-def cusum_stress(values: Sequence[float], truth_detail: Mapping[str, float], cfg=None) -> float:
+def cusum_stress(values: Sequence[float] | np.ndarray, truth_detail: Mapping[str, float], cfg=None) -> float:
     """Downward CUSUM over the last `stress_window` outcomes against the shrunk long-run effect, as a share of its alarm
     threshold (0 = calm, 1 = at the alarm). 0 when the item has no positive long-run effect to fall short of."""
     P = _cfg(cfg)
@@ -274,7 +274,7 @@ def cusum_stress(values: Sequence[float], truth_detail: Mapping[str, float], cfg
     return float(S / h)
 
 
-def break_history(values: Sequence[float]) -> tuple[int, int]:
+def break_history(values: Sequence[float] | np.ndarray) -> tuple[int, int]:
     """(number of breaks, periods spent in the working state) of the item's own history by the causal state machine."""
     x = _finite(values)
     if len(x) < 30:
@@ -283,7 +283,7 @@ def break_history(values: Sequence[float]) -> tuple[int, int]:
     return int(len(ev)), int((states.iloc[:, 0].values == 1).sum())
 
 
-def failure_risk(values: Sequence[float], truth: float | None, truth_detail: Mapping[str, float], current: float | None, cfg=None) -> tuple[float | None, dict]:
+def failure_risk(values: Sequence[float] | np.ndarray, truth: float | None, truth_detail: Mapping[str, float], current: float | None, cfg=None) -> tuple[float | None, dict]:
     """P(a break within `horizon` periods) = 1 - exp(-hazard x horizon x exp(beta x stress)). The hazard is (breaks + a0) /
     (working periods + b0), a gamma-prior rate so an item with no history is not given zero risk; stress is the CUSUM share.
     Floored at 1 - truth for an effect not yet established (a phantom is a break waiting to be noticed). None when there is
@@ -786,7 +786,7 @@ def leave_one_domain_out(values: Sequence[float], domains: Sequence[Any], cfg=No
 
 # ------------------------------------------------------------------------------------------------- learning where it works
 
-def context_reliability_map(hist_ctx: pd.DataFrame, values: Sequence[float], n_bins: int = 4) -> pd.DataFrame:
+def context_reliability_map(hist_ctx: pd.DataFrame, values: Sequence[float] | np.ndarray, n_bins: int = 4) -> pd.DataFrame:
     """For every context column: quantile bins, and in each the number of outcomes, mean, hit rate and t. The raw material for
     'it works when...'. Bins with fewer than 5 outcomes are kept and reported with NaN t."""
     y = np.asarray(values, float)
@@ -808,7 +808,7 @@ def context_reliability_map(hist_ctx: pd.DataFrame, values: Sequence[float], n_b
     return pd.DataFrame(rows, columns=["column", "bin", "lo", "hi", "n", "mean", "hit", "t"])
 
 
-def context_heterogeneity(hist_ctx: pd.DataFrame, values: Sequence[float], n_bins: int = 4) -> pd.DataFrame:
+def context_heterogeneity(hist_ctx: pd.DataFrame, values: Sequence[float] | np.ndarray, n_bins: int = 4) -> pd.DataFrame:
     """Does the outcome differ across the bins of each context column? One-way F test per column, Holm-adjusted across the
     columns searched. Columns with a significant adjusted p are the ones worth stating as contexts."""
     y = np.asarray(values, float)
@@ -979,7 +979,8 @@ def explain_update(prev: ReliabilityState | None, cur: ReliabilityState, new_rec
 def state_from_dict(d: Mapping[str, Any]) -> ReliabilityState:
     """Inverse of ReliabilityState.as_dict (state_id is recomputed and must match if present)."""
     fields = {f.name for f in dataclasses.fields(ReliabilityState)}
-    st = ReliabilityState(**{k: (tuple(v) if k == "notes" else v) for k, v in d.items() if k in fields})
+    kw: dict[str, Any] = {k: (tuple(v) if k == "notes" else v) for k, v in d.items() if k in fields}
+    st = ReliabilityState(**kw)
     if "state_id" in d and d["state_id"] != st.state_id:
         raise ValueError("state_id mismatch: record was altered")
     return st
@@ -1049,7 +1050,7 @@ def bootstrap_state(frame: pd.DataFrame, now, n_boot: int = 100, block: int = 8,
     if n < 2 * block:
         return {"point": base, "intervals": {}, "n": n}
     rng = np.random.default_rng(seed)
-    draws = {d: [] for d in DIMS}
+    draws: dict[str, list] = {d: [] for d in DIMS}
     for _ in range(n_boot):
         starts = rng.integers(0, n - block + 1, size=math.ceil(n / block))
         idx = np.concatenate([np.arange(s, s + block) for s in starts])[:n]
@@ -1101,7 +1102,8 @@ def decision_sensitivity(state: ReliabilityState, cfg=None, delta: float = 0.1) 
         if v is None:
             continue
         for sign in (-1, 1):
-            moved = dataclasses.replace(state, **{d: float(min(max(v + sign * delta, 0.0), 1.0))})
+            changed: dict[str, Any] = {d: float(min(max(v + sign * delta, 0.0), 1.0))}
+            moved = dataclasses.replace(state, **changed)
             dec = decide(moved, cfg)
             if dec.action != base.action:
                 out.append({"dimension": d, "shift": sign * delta, "from": base.action, "to": dec.action})
@@ -1152,7 +1154,7 @@ def dimension_history(states: Sequence[ReliabilityState]) -> pd.DataFrame:
         for d in DIMS:
             v = getattr(s, d)
             row[d] = np.nan if v is None else v
-            p = None if prev is None else getattr(prev, d)
+            p: float | None = None if prev is None else getattr(prev, d)
             row[f"d_{d}"] = np.nan if (v is None or p is None) else v - p
         rows.append(row)
         prev = s

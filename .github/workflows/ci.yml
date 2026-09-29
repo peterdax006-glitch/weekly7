@@ -25,7 +25,7 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
-      - run: pip install -r requirements.txt pytest
+      - run: pip install -r requirements.txt pytest mypy
       - name: Universe list (crypto filter reads it; no prices are needed by the tests)
         env:
           GH_TOKEN: ${{ github.token }}
@@ -40,5 +40,13 @@ jobs:
         run: python scripts/arch_doc.py --check
       - name: Quality gate (static, against the reviewed baseline)
         run: python scripts/quality_gate.py --baseline state/quality/baseline.json
+      - name: Type check the learning package (mypy, config in pyproject.toml; wiring.py is strict)
+        run: python -m mypy
+      - name: Trader path cannot reach the curator (C64/C65 blind separation)
+        run: python -c "from engine.learning import trader_view as T; print(T.assert_trader_path_clean(), 'modules inspected')"
+      - name: Every declared learning hook is really called by the old engine
+        run: python -c "from engine.learning import wiring as W; m = W.unwired_hooks(); assert not m, m; print('all', len(W.HOOKS), 'hooks connected')"
+      - name: Contract line report (one ruler, section 60; report only, never gates)
+        run: python scripts/contract_lines.py | tail -80
       - name: Test suite
         run: python -m pytest -q -p no:cacheprovider --durations=15

@@ -27,7 +27,7 @@ import math
 import re
 from collections import Counter, defaultdict
 from pathlib import Path
-from typing import Any, Callable, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence, cast
 
 import numpy as np
 
@@ -185,12 +185,12 @@ class ReportContext:
             return self._raw[name]
         p = self.path_of(name)
         if not p.exists():
-            out = (None, Source(name, str(p), "MISSING"))
+            out: tuple[Any, Source] = (None, Source(name, str(p), "MISSING"))
         else:
             try:
                 text = p.read_text(encoding="utf-8")
                 if p.suffix == ".jsonl":
-                    obj = []
+                    obj: Any = []
                     for i, line in enumerate(text.splitlines(), 1):
                         if line.strip():
                             try:
@@ -733,6 +733,7 @@ def report_k04(ctx: ReportContext, claims: Sequence[str] = ()) -> Report:
         if card is None or not card.identity_gap.measured:
             return b.none("neither identity-attack verdicts nor a scorecard identity gap exist: the learner's dependence on names/dates is not known")
     else:
+        assert rec is not None  # verdicts came from rec
         b.fact("base_ic", num(rec.get("base_ic")))
         b.fact("deterministic", bool(rec.get("deterministic")))
         b.fact("attacks", len(verdicts))
@@ -758,7 +759,7 @@ def report_k04(ctx: ReportContext, claims: Sequence[str] = ()) -> Report:
         g = tr["identity"]
         b.table("Transfer report identity gap (familiar identity minus novel identity)", ("gap", "lo", "hi", "flagged"),
                 [(fmt(g.get("gap"), 5, True), fmt(g.get("lo"), 5, True), fmt(g.get("hi"), 5, True), g.get("flagged"))])
-    dep = bool(verdicts) and (b.facts.get("collapsed_under") or not rec.get("deterministic"))
+    dep = bool(verdicts) and (b.facts.get("collapsed_under") or not (rec or {}).get("deterministic"))
     ig_bad = card is not None and card.identity_gap.measured and card.identity_gap.lo > 0
     if dep or ig_bad:
         return b.build("FAIL", f"Identity dependence found: collapsed under {b.facts.get('collapsed_under') or 'the scorecard identity gap'}", claims=claims)
@@ -1080,7 +1081,7 @@ def report_k09(ctx: ReportContext, claims: Sequence[str] = ()) -> Report:
     else:
         b.lost("no rejection-reason table in the artefact")
     if dists:
-        passed = [d for d in dists if str(d.get("verdict")) == "PASS"]
+        passed: Any = [d for d in dists if str(d.get("verdict")) == "PASS"]
         b.fact("distinctions_passed_out_of_sample", len(passed))
         b.table("Distinctions between missed winners and picks (out-of-sample verdict)", ("rule", "lift", "mean gain", "p", "excess vs random", "weeks", "verdict"),
                 [(d.get("description") or d.get("did"), fmt(d.get("lift"), 2), fmt(d.get("mean_gain"), 5, True), fmt(d.get("p_value"), 4),
@@ -1173,7 +1174,7 @@ ALIASES = {"decision_impact": ("decision_impact", "decision_value", "stake"), "f
 
 
 def _factor(item: Mapping, name: str) -> float:
-    src = item.get("factors") if isinstance(item.get("factors"), Mapping) else item
+    src = cast(Mapping, item.get("factors") if isinstance(item.get("factors"), Mapping) else item)
     for a in ALIASES[name]:
         if fin(src.get(a)):
             return min(1.0, max(0.0, num(src[a])))
@@ -1203,7 +1204,7 @@ def research_priority_dashboard(ctx: ReportContext, top: int = 15) -> dict:
     if not items:
         rec.update(status=UNMEASURED, reason=f"artefact queue is {s.status}" + (f" ({s.error})" if s.error else ""), ranked=[], targets={}, evolution=[])
     else:
-        ranked = []
+        ranked: list[dict[str, Any]] = []
         for it in items:
             p, missing, how = priority_of(it)
             ranked.append({"id": str(it.get("id") or it.get("qid") or stable_hash(it, 8)), "question": defang(it.get("question") or it.get("text", "")),
@@ -1274,7 +1275,7 @@ def report_k12(ctx: ReportContext, claims: Sequence[str] = ()) -> Report:
         surv = sum(1 for d in resolved if d["survived_oos"])
         b.fact("out_of_sample_survival_rate", share(surv, len(resolved)))
         b.fact("out_of_sample_survival_wilson", list(wilson_interval(surv, len(resolved))))
-        fam = defaultdict(lambda: [0, 0])
+        fam: defaultdict[str, list[int]] = defaultdict(lambda: [0, 0])
         for d in resolved:
             fam[str(d.get("family"))][1] += 1
             fam[str(d.get("family"))][0] += int(bool(d["survived_oos"]))
@@ -1303,7 +1304,7 @@ def report_k12(ctx: ReportContext, claims: Sequence[str] = ()) -> Report:
         b.fact("explanations_named", len(named))
         b.fact("explanation_precision", share(len(right), len(named)))
         b.fact("explanation_precision_wilson", list(wilson_interval(len(right), len(named))))
-        per = defaultdict(lambda: [0, 0])
+        per: defaultdict[Any, list[int]] = defaultdict(lambda: [0, 0])
         for e in named:
             per[e["predicted_cause"]][1] += 1
             per[e["predicted_cause"]][0] += int(e["predicted_cause"] == e.get("verified_cause"))
@@ -1423,7 +1424,7 @@ def provenance_findings(rec: Mapping, now: dt.date) -> list[str]:
         return ["no provenance block"]
     names = {f.name for f in dataclasses.fields(Provenance)}
     try:
-        p = Provenance(**{k: (tuple(v) if isinstance(v, list) else v) for k, v in pv.items() if k in names})
+        p = Provenance(**cast(dict[str, Any], {k: (tuple(v) if isinstance(v, list) else v) for k, v in pv.items() if k in names}))
     except TypeError as e:
         return [f"provenance malformed: {e}"]
     out = p.check()
@@ -1485,10 +1486,10 @@ def report_k14(ctx: ReportContext, claims: Sequence[str] = ()) -> Report:
         b.fact("scorecard_versions", len(cards))
         b.fact("scorecard_code_hashes", dict(cc))
         b.fact("scorecard_versions_without_seed", sum(1 for c in cards if c.get("seed") is None))
-        ch = {str(c.get("controls_hash")) for c in cards if c.get("controls_hash")}
-        b.fact("control_epochs", len(ch))
-        if len(ch) > 1:
-            findings.append(("scorecards", f"the control learners changed {len(ch) - 1} time(s): gains before and after are not comparable"))
+        ctl_hashes = {str(c.get("controls_hash")) for c in cards if c.get("controls_hash")}
+        b.fact("control_epochs", len(ctl_hashes))
+        if len(ctl_hashes) > 1:
+            findings.append(("scorecards", f"the control learners changed {len(ctl_hashes) - 1} time(s): gains before and after are not comparable"))
         for c in cards:
             if c.get("seed") is None or not c.get("code_hash"):
                 findings.append((str(c.get("learner_version")), "scorecard without seed or code hash"))

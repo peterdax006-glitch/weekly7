@@ -18,9 +18,12 @@ import datetime as dt
 import json
 import math
 from collections import Counter, defaultdict, deque
-from typing import Any, Iterable, Mapping, Sequence
+from typing import TYPE_CHECKING, Any, Iterable, Mapping, Sequence, cast
 
 import numpy as np
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 from .archive import ArchiveError, ChainFile, _identity_errors
 from .core import Edge, FirewallBreach, _StrEnum, as_date, canonical_json, stable_hash
@@ -781,7 +784,7 @@ class KnowledgeGraph:
         found: dict[str, FailureLink] = {}
         for rel, direction in ((Edge.CAUSES_FAILURE_OF, "in"), (Edge.CONTRADICTS, "both")):
             for other, e in self.neighbors(pattern_id, now, [rel], direction):
-                nd = self.node_at(other, now)
+                nd = cast(Node, self.node_at(other, now))
                 if nd.ntype == NodeType.FAILURE or (include_beliefs and nd.ntype in _BELIEF and rel == Edge.CONTRADICTS):
                     cause = nd.attrs.get("cause", e.attrs.get("cause", "UNKNOWN"))
                     prev = found.get(other)
@@ -851,7 +854,7 @@ class KnowledgeGraph:
         for nid in t.nodes()[1:]:
             frm, rel = t.parent[nid]
             e = self.edge_at((frm, nid, rel), now)
-            nd = self.node_at(nid, now)
+            nd = cast(Node, self.node_at(nid, now))
             steps.append(LineageStep(nid, nd.ntype.value, t.depth[nid], rel, e.weight if e else 0.0, nd.known_at))
         leaves = tuple(sorted(s.node_id for s in steps if s.ntype in (NodeType.EXPERIENCE.value, NodeType.EXPERIMENT.value)
                               and not self.neighbors(s.node_id, now, LINEAGE_RELS, "out")))
@@ -976,7 +979,7 @@ class KnowledgeGraph:
     def transfer_table(self, now) -> "pd.DataFrame":
         """Knowledge x situation grid of transfer results (1 = transferred, 0 = failed to, NaN = never tried)."""
         import pandas as pd
-        rows = {}
+        rows: dict[Any, Any] = {}
         for k in self.nodes(now):
             if k.ntype not in (NodeType.KNOWLEDGE, NodeType.PATTERN):
                 continue
@@ -1018,7 +1021,7 @@ class KnowledgeGraph:
         """The induced sub-graph within `radius` hops (both directions), as plain data for inspection pages."""
         t = self.traverse(node, now, rels, "both", radius)
         keep = set(t.depth)
-        return {"center": node, "nodes": [{"id": i, "type": self.node_at(i, now).ntype.value, "depth": t.depth[i]}
+        return {"center": node, "nodes": [{"id": i, "type": cast(Node, self.node_at(i, now)).ntype.value, "depth": t.depth[i]}
                                           for i in sorted(keep, key=lambda x: (t.depth[x], x))],
                 "edges": [{"src": e.src, "dst": e.dst, "rel": e.rel, "weight": e.weight} for e in self.edges(now)
                           if e.src in keep and e.dst in keep]}
@@ -1064,7 +1067,7 @@ class KnowledgeGraph:
         """Most central nodes by PageRank (what the rest of the knowledge leans on), optionally of one type."""
         t = NodeType.parse(ntype) if ntype else None
         pr = self.pagerank(now)
-        rows = [(n, v) for n, v in pr.items() if t is None or self.node_at(n, now).ntype == t]
+        rows = [(n, v) for n, v in pr.items() if t is None or cast(Node, self.node_at(n, now)).ntype == t]
         return sorted(rows, key=lambda kv: (-kv[1], kv[0]))[:top]
 
     def path_explanation(self, src: str, dst: str, now, rels: Iterable | None = None, max_depth: int = 6) -> str:
@@ -1098,7 +1101,7 @@ class KnowledgeGraph:
         relationship was recorded wrongly. Reported by `audit` as a warning."""
         sup = {frozenset((e.src, e.dst)) for e in self.edges(now, Edge.SUPPORTS)}
         con = {frozenset((e.src, e.dst)) for e in self.edges(now, Edge.CONTRADICTS)}
-        return sorted(tuple(sorted(p)) for p in sup & con)
+        return sorted(cast(tuple[str, str], tuple(sorted(p))) for p in sup & con)
 
     def rootless_lineages(self, now) -> list[str]:
         """Beliefs whose derivation chain never reaches an experience or experiment: provenance that ends in thin air."""
@@ -1121,7 +1124,7 @@ class KnowledgeGraph:
     def ancestors_of_type(self, node: str, ntype: NodeType | str, now, rels: Iterable = LINEAGE_RELS) -> list[str]:
         """Everything of one node type upstream of `node` (e.g. every EXPERIENCE a pattern was ultimately built from)."""
         t = NodeType.parse(ntype)
-        return sorted(n for n in self.ancestors(node, now, rels).depth if n != node and self.node_at(n, now).ntype == t)
+        return sorted(n for n in self.ancestors(node, now, rels).depth if n != node and cast(Node, self.node_at(n, now)).ntype == t)
 
     def to_records(self, now) -> dict:
         """Portable, deterministic dump of the live graph at `now` (for inspection pages and cross-machine comparison)."""
@@ -1172,7 +1175,7 @@ class KnowledgeGraph:
         for r in self.find_cycles(now):
             issues.append(GraphIssue("CYCLE", "error", r, "acyclic relation contains a cycle"))
         for a, b in self.contradiction_pairs(now):
-            e = self.edge_at((a, b, Edge.CONTRADICTS.value), now)
+            e = cast(GraphEdge, self.edge_at((a, b, Edge.CONTRADICTS.value), now))
             if not e.attrs.get("context") and not e.attrs.get("investigated"):
                 issues.append(GraphIssue("UNINVESTIGATED_CONTRADICTION", "warn", f"{a}<->{b}",
                                          "no explaining context recorded (never average; investigate)"))

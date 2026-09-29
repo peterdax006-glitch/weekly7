@@ -449,7 +449,9 @@ class BoundaryLearner:
                 continue
             scanners[c] = (sc, keep)
             ok_cols.append(c)
-            obs[c] = sc.best(e_all[keep])
+            best = sc.best(e_all[keep])
+            assert best is not None                # an empty scanner was skipped above
+            obs[c] = best
         # circular-shift permutation null of the whole scan (shifts of the edge relative to ALL features together)
         nulls = {c: np.empty(cfg.n_perm) for c in ok_cols}
         lo = max(1, int(cfg.min_shift_frac * n))
@@ -465,7 +467,8 @@ class BoundaryLearner:
         raw_p = np.array([(1 + np.sum(nulls[c] >= abs(obs[c].t) - 1e-12)) / (cfg.n_perm + 1) for c in ok_cols]) if ok_cols else np.array([])
         from engine.pattern_reliability import holm
         adj = holm(raw_p) if len(raw_p) > 1 else raw_p
-        accepted, rejected = [], []
+        accepted: list[Boundary] = []
+        rejected: list[Boundary] = []
         for j, c in enumerate(ok_cols):
             b = self._assemble(pattern_id, c, kinds.get(c, BoundaryKind.THRESHOLD), d, edge_col, obs[c], float(raw_p[j]),
                                float(adj[j]), now, overall)

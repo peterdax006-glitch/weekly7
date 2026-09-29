@@ -203,7 +203,7 @@ def assess(inputs: Sequence[HealthInput], as_of, cfg=None, research: Sequence[Re
     hl = PR.health_monitor(tl, {"arl0": P["arl0"], "half_life": P["half_life"], "est_win": P["est_win"]},
                            expected={c: inp.expected_effect for c, inp in zip(names, inputs) if inp.expected_effect is not None})
     last = len(tl.rets) - 1
-    by_item = {}
+    by_item: dict[str, list] = {}
     for r in research:
         if r.active():
             for k in r.item_ids:
@@ -478,7 +478,7 @@ def build_dashboard(book: HealthBook, as_of, research: Sequence[ResearchAssignme
     recs = book.snapshot(as_of)
     prev = {r.knowledge_id: book.previous(r.knowledge_id, as_of) for r in recs}
     entries = {r.knowledge_id: _entry(r, prev[r.knowledge_id], P["change_tol"]) for r in recs}
-    sec = {name: [] for name in ("trusted", "recovering", "degrading", "unstable", "broken", "contradicted", "dormant",
+    sec: dict[str, list] = {name: [] for name in ("trusted", "recovering", "degrading", "unstable", "broken", "contradicted", "dormant",
                                  "insufficient_evidence", "unknown")}
     key = {Health.HEALTHY: "trusted", Health.RECOVERING: "recovering", Health.DEGRADING: "degrading", Health.UNSTABLE: "unstable",
            Health.BROKEN: "broken", Health.CONTRADICTED: "contradicted", Health.DORMANT: "dormant",
@@ -816,7 +816,7 @@ def dwell_summary(book: HealthBook) -> pd.DataFrame:
 
 def worst_offenders(book: HealthBook, top: int = 5) -> list[dict]:
     """Items ranked by the share of their assessments spent in the failing states (BROKEN / CONTRADICTED / UNSTABLE / DEGRADING)."""
-    rows = []
+    rows: list[dict[str, Any]] = []
     for k in book.items():
         h = book.history(k)
         bad = sum(r.state in LOSING for r in h)

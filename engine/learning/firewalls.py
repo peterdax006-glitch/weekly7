@@ -903,7 +903,8 @@ class LearningFirewallGate:
     def filter_items(self, ctx: GateContext) -> tuple[list, list]:
         """Split ctx.items into (admitted, rejected) by the memory/provenance layers, one item at a time. Rejected items
         are returned, never deleted (section 13: retire is not delete)."""
-        good, bad = [], []
+        good: list = []
+        bad: list = []
         for it in ctx.items or ():
             sub = dataclasses.replace(ctx, items=[it], relevant=frozenset({LayerName.MEMORY, LayerName.PROVENANCE}))
             (good if self.evaluate(sub).passed else bad).append(it)
@@ -970,7 +971,7 @@ def summarize_layers(verdicts: Iterable[GateVerdict]) -> pd.DataFrame:
 def planted_leak_probe(gate: LearningFirewallGate, clean: GateContext, mutations: Mapping[str, Callable[[GateContext], GateContext]]) -> dict:
     """Prove the gate can fail: the clean context must pass, and every planted mutation must be rejected by at least the
     layer it targets. Returns {mutation: {'rejected': bool, 'layers': [...]}} plus 'clean_passed'."""
-    out = {"clean_passed": gate.evaluate(clean).passed}
+    out: dict[str, Any] = {"clean_passed": gate.evaluate(clean).passed}
     for name, mut in mutations.items():
         v = gate.evaluate(mut(clean))
         out[name] = {"rejected": not v.passed, "layers": [k.value for k in v.failed_layers]}
@@ -1417,7 +1418,7 @@ def run_corpus(gate: LearningFirewallGate | None = None) -> dict:
     A non-empty `missed` means a firewall layer no longer catches a defect it is supposed to."""
     gate = gate or LearningFirewallGate()
     clean = reference_context()
-    out = {"clean_passed": gate.evaluate(clean).passed}
+    out: dict[str, Any] = {"clean_passed": gate.evaluate(clean).passed}
     missed, by_layer = [], {}
     for name, mut in planted_corpus().items():
         v = gate.evaluate(mut(clean))

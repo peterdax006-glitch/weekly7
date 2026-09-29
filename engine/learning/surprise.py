@@ -435,6 +435,7 @@ def persistence_profile(tracker: SurpriseTracker, cell: str, now) -> dict[str, A
     big = [r for r in rs if r.magnitude >= tracker.cfg.z_big]
     signs = [r.direction for r in big]
     runs: list[int] = []
+    prev: Any = None
     for s in signs:
         if runs and s == prev:
             runs[-1] += 1
@@ -642,7 +643,7 @@ def surprise_half_life(zs: Sequence[float], days: Sequence[float], max_lag: floa
     idx = np.clip(np.searchsorted(edges, lag, side="right") - 1, 0, 5)
     xs = np.array([lag[idx == b].mean() for b in range(6) if (idx == b).any()])
     ys = np.array([prod[idx == b].mean() for b in range(6) if (idx == b).any()])
-    best = (float("inf"), None, None)
+    best: tuple[float, Any, Any] = (float("inf"), None, None)
     for tau in np.exp(np.linspace(math.log(3.0), math.log(2000.0), 60)):
         basis = np.exp(-xs / tau)
         rho0 = float((basis * ys).sum() / (basis * basis).sum())

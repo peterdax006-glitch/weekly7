@@ -63,7 +63,10 @@ def _hash(*parts, salt=""):
 
 
 def _p_two_sided(t):
-    return 2.0 * (1.0 - _N.cdf(abs(t))) if np.isfinite(t) else 1.0
+    """S17a ADAPTER: the shared implementation (engine.pattern_memory.p_two_sided, erfc form, equal to the normal-cdf form to 1e-15);
+    the only local rule kept is that a non-finite statistic is p = 1, never NaN."""
+    from .pattern_memory import p_two_sided
+    return p_two_sided(t) if np.isfinite(t) else 1.0
 
 
 # ------------------------------------------------------------------ identity guards

@@ -44,7 +44,7 @@ ABSTRACT_LAYERS = frozenset({Layer.L4_HYPOTHESIS, Layer.L5_PATTERN, Layer.L6_CON
                              Layer.L8_POLICY})
 _ISO = re.compile(r"\d{4}-\d{2}-\d{2}")
 _YEAR = re.compile(r"(?<!\d)(?:19|20)\d{2}(?!\d)")               # digit-only lookarounds (as trader_view): "AAPL_2008" is a year
-_HEXID = re.compile(r"[0-9a-f]{12,}")                       # content hashes contain digit runs by chance; not years
+_HEXID = re.compile(r"\b[0-9a-f]{12,}\b")                  # content hashes contain digit runs by chance; not years
 
 
 def _has_year(s: str) -> bool:
@@ -650,9 +650,11 @@ class Archive:
         payload = {"knowledge_id": str(k.knowledge_id), "version": int(k.version), "epistemic": str(k.epistemic),
                    "lifecycle": str(k.lifecycle), "promotion": str(k.promotion),
                    "confidence": dataclasses.asdict(conf) if dataclasses.is_dataclass(conf) else dict(conf),
-                   "contexts": {str(a): _plain(b) for a, b in dict(k.contexts).items()},
-                   "anti_contexts": {str(a): _plain(b) for a, b in dict(k.anti_contexts).items()},
+                   "contexts": _context_field(k.contexts), "anti_contexts": _context_field(k.anti_contexts),
                    "decision_effect": [str(e) for e in k.decision_effect]}
+        for name in ("contexts", "anti_contexts"):                    # a typed ContextSet is also kept exactly, as recorded
+            if _is_typed_context(getattr(k, name)):
+                payload[name + "_typed"] = _typed_context_plain(getattr(k, name))
         return self.append(layer=Layer.L7_VALIDATED, kind="knowledge", payload=payload, occurred_at=occurred_at,
                            matured_at=matured_at, subject=str(k.knowledge_id), parents=parents, provenance=k.provenance,
                            **kw)
@@ -1114,6 +1116,29 @@ class Archive:
         return "\n".join(lines)
 
 
+def _is_typed_context(field: Any) -> bool:
+    return field is not None and hasattr(field, "conditions") and hasattr(field, "any_of")
+
+
+def _typed_context_plain(cs: Any) -> dict:
+    return {"any_of": bool(getattr(cs, "any_of", False)),
+            "conditions": [{"dimension": c.dimension, "feature": c.feature, "op": c.op, "nums": [float(x) for x in c.nums],
+                            "labels": [str(x) for x in c.labels]} for c in cs.conditions]}
+
+
+def _context_field(field: Any) -> dict:
+    """Payload form of a contexts field: the plain {path: {"in": [...]}} mapping the readers (context.py, reliability.py) use.
+    A typed knowledge.ContextSet is converted through context.ContextSpec.from_typed (numeric bounds keep only the buckets they
+    fully cover); one that has no bucket form is refused rather than stored as an empty, i.e. universal, context."""
+    if _is_typed_context(field):
+        from .context import ContextSpec
+        try:
+            return ContextSpec.from_typed(field).to_mapping()
+        except ValueError as e:
+            raise ArchiveError(f"typed context cannot be archived as buckets: {e}") from e
+    return {str(a): _plain(b) for a, b in dict(field).items()}
+
+
 def _plain(x: Any) -> Any:
     if isinstance(x, Mapping):
         return {str(k): _plain(v) for k, v in x.items()}
@@ -1190,7 +1215,7 @@ def adopt_pattern_bank(arch: Archive, bank, now) -> dict[str, int]:
         if not trans:
             continue
         t0 = as_date(trans[0]["as_of"])
-        payload = {"label": str(r.get("name", pid)), "source": "pattern_bank"}
+        payload: dict[str, Any] = {"label": str(r.get("name", pid)), "source": "pattern_bank"}
         if isinstance(r.get("effect"), (int, float)) and math.isfinite(float(r["effect"])):
             payload["effect"] = float(r["effect"])
         if isinstance(r.get("scope"), Mapping):

@@ -601,7 +601,7 @@ def correlation_structure(returns: pd.DataFrame, column, now, market_col=None, w
     """Correlation structure of the universe as of `now`: average pair correlation, share of variance on the first
     principal component, and the named column's correlation/beta to the market column. Rows after `now` raise.
     Uses at most the last `window` rows, needs `min_obs` complete rows; otherwise every value is None (UNKNOWN)."""
-    empty = {"avg_pair_corr": None, "top_eig_share": None, "corr_to_mkt": None, "beta": None}
+    empty: dict[str, float | None] = {"avg_pair_corr": None, "top_eig_share": None, "corr_to_mkt": None, "beta": None}
     if returns is None or returns.empty:
         return empty
     now_d = as_date(now)
@@ -1135,7 +1135,8 @@ def population_shift(a: Sequence[Situation], b: Sequence[Situation], min_share: 
     knowledge learned on `a` is being applied to a different population on that dimension. Missing buckets are ignored."""
     out = {}
     for p in all_paths():
-        ca, cb = {}, {}
+        ca: dict[str, int] = {}
+        cb: dict[str, int] = {}
         for s, c in ((a, ca), (b, cb)):
             for sit in s:
                 lab = sit.bins()[p]

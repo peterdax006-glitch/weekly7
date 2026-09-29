@@ -27,7 +27,7 @@ from __future__ import annotations
 import dataclasses
 import math
 from dataclasses import dataclass, field
-from typing import Mapping, Sequence
+from typing import Any, Mapping, Sequence, cast
 
 import numpy as np
 import pandas as pd
@@ -378,7 +378,8 @@ def simulate_weekly(p: pd.DataFrame, spec: ValueSpec, arm: int, k: int, rng: np.
     e = p[spec.exposure[arm]].groupby(level=0).first().reindex(gross.index).clip(0, 1) if spec.exposure else pd.Series(1.0, index=gross.index)
     if spec.cost_mode == "turnover":
         names = picks[picks].groupby(level=0).apply(lambda s: set(s.index.get_level_values(1)))
-        prev, churn = set(), []
+        prev: set[Any] = set()
+        churn: list[float] = []
         for d in gross.index:
             cur = names.get(d, set())
             churn.append(1.0 if not prev else 1 - len(cur & prev) / max(1, len(cur)))
@@ -435,7 +436,7 @@ def decompose_value(panel: pd.DataFrame, spec: ValueSpec, now, *, k: int = 5, mo
 
     # 1 predictive effect + incremental IC
     if have(spec.score):
-        b, n = spec.score
+        b, n = cast(tuple, spec.score)
         ic_b, ic_n = per_date_rank_corr(p[b], fwd, min_names), per_date_rank_corr(p[n], fwd, min_names)
         inc = incremental_ic(p[b], p[n], fwd, min_names)
         c = _paired("predictive_effect", ic_b, ic_n, n_boot, sd(), min_dates, note=f"rank IC vs forward return; incremental IC of new over base {float(inc.mean()):+.4f}")
@@ -445,7 +446,7 @@ def decompose_value(panel: pd.DataFrame, spec: ValueSpec, now, *, k: int = 5, mo
 
     # 2 movement prediction: IC to |fwd| (the AUC for movers is folded into the note)
     if have(spec.move):
-        b, n = spec.move
+        b, n = cast(tuple, spec.move)
         ic_b, ic_n = per_date_rank_corr(p[b], absf, min_names), per_date_rank_corr(p[n], absf, min_names)
         auc_b, auc_n = per_date_auc(p[b], mover, min_names), per_date_auc(p[n], mover, min_names)
         comps["movement_prediction"] = _paired("movement_prediction", ic_b, ic_n, n_boot, sd(), min_dates,
@@ -480,7 +481,7 @@ def decompose_value(panel: pd.DataFrame, spec: ValueSpec, now, *, k: int = 5, mo
             base_rate = up.groupby(level=0).transform("mean")
             b0 = (base_rate - up) ** 2
             skill = lambda col: 1 - ((m[col].clip(0, 1) - up) ** 2).groupby(level=0).mean() / b0.groupby(level=0).mean().replace(0, np.nan)
-            sb, sn = skill(spec.direction[0]), skill(spec.direction[1])
+            sb, sn = skill(cast(tuple, spec.direction)[0]), skill(cast(tuple, spec.direction)[1])
             comps["direction_value"] = _paired("direction_value", sb, sn, n_boot, sd(), min_dates,
                                                note=f"Brier skill vs the movers' base rate ({float(up.mean()):.3f} up)")
         else:
@@ -490,8 +491,8 @@ def decompose_value(panel: pd.DataFrame, spec: ValueSpec, now, *, k: int = 5, mo
 
     # 6 timing value
     if spec.exposure and have(spec.exposure) and weeks is not None:
-        full = p.loc[picks[1], spec.fwd].groupby(level=0).mean().reindex(common)
-        eb = p[spec.exposure[0]].groupby(level=0).first().reindex(common)
+        full = p.loc[cast(tuple, picks)[1], spec.fwd].groupby(level=0).mean().reindex(common)
+        eb = p[cast(tuple, spec.exposure)[0]].groupby(level=0).first().reindex(common)
         en = p[spec.exposure[1]].groupby(level=0).first().reindex(common)
         if len(common) >= min_dates:
             cb, cn = timing_cov(eb, full), timing_cov(en, full)
@@ -722,7 +723,9 @@ def attribute_signals(panel: pd.DataFrame, spec: ValueSpec, now, *, k: int = 5, 
     for name, (m, s_) in {"bb": ("b", "b"), "nb": ("n", "b"), "bn": ("b", "n"), "nn": ("n", "n")}.items():
         p["_sig_" + name] = (rk(spec.move[src[m]]) + rk(spec.score[src[s_]])) / 2
     rel = relevance(p[spec.fwd])
-    out, weeks_by, rows_by = {}, {}, {}
+    out: dict[str, Any] = {}
+    weeks_by: dict[str, Any] = {}
+    rows_by: dict[str, Any] = {}
     for name in ("bb", "nb", "bn", "nn"):
         sp = dataclasses.replace(spec, pick="score", score=("_sig_" + name, "_sig_" + name), exposure=None, direction_mode="none")
         wk, pk = simulate_weekly(p, sp, 0, k, np.random.default_rng(seed + 11), cost_bps=cost_bps, min_names=min_names)
@@ -939,7 +942,7 @@ def component_table(dec: ValueDecomposition) -> pd.DataFrame:
 def compare_decompositions(a: ValueDecomposition, b: ValueDecomposition) -> dict:
     """Component by component: did the delta of `b` separate from the delta of `a` (non-overlapping intervals)? Used to compare two
     learner versions on the same panel. Unmeasured components on either side are listed, never compared."""
-    out = {"better": [], "worse": [], "same": [], "unmeasured": []}
+    out: dict[str, list[str]] = {"better": [], "worse": [], "same": [], "unmeasured": []}
     for n in COMPONENTS:
         ca, cb = a[n], b[n]
         if ca.status != STATUS_MEASURED or cb.status != STATUS_MEASURED or not all(math.isfinite(x) for x in (ca.lo, ca.hi, cb.lo, cb.hi)):
@@ -1048,7 +1051,7 @@ def value_waterfall(panel: pd.DataFrame, spec: ValueSpec, now, *, k: int = 5, co
     elif first_loss is None:
         verdict = "the gain survives every stage to the tiered objective"
     else:
-        verdict = f"predictive value is lost between {between[0]} and {between[1]}"
+        verdict = f"predictive value is lost between {cast(tuple, between)[0]} and {cast(tuple, between)[1]}"
     return ValueWaterfall(tuple(stages), first_loss, between, verdict)
 
 
@@ -1070,7 +1073,7 @@ def risk_breakdown(panel: pd.DataFrame, spec: ValueSpec, now, *, k: int = 5, cos
     cols = ["measure", "base", "new", "delta", "lo", "hi", "n_windows"]
     if len(rb) < 2 or len(rb) != len(rn):
         return pd.DataFrame(columns=cols)
-    rows = []
+    rows: list[dict[str, Any]] = []
     for name, key, sign in (("worst_5pct_week", "worst5", 1.0), ("max_drawdown", "max_dd", 1.0), ("catastrophic_weeks", "cat_rate", -1.0), ("overshoot_weeks", "over_band", -1.0)):
         b, n = np.array([r[key] for r in rb]), np.array([r[key] for r in rn])
         d = sign * (n - b)
@@ -1115,7 +1118,7 @@ def picked_direction_value(panel: pd.DataFrame, spec: ValueSpec, now, *, k: int 
     if spec.direction is None or any(c not in panel for c in spec.direction):
         return {"available": False}
     p = check_panel(panel, spec, now)
-    out = {"available": True}
+    out: dict[str, Any] = {"available": True}
     for arm, tag in ((0, "base"), (1, "new")):
         picks = top_k_picks(pick_signal(p, spec, arm), k, np.random.default_rng(seed + 11), min_names)
         q = p[picks]
@@ -1180,7 +1183,7 @@ def signal_quality_needed(panel: pd.DataFrame, spec: ValueSpec, now, *, skills: 
 
 def significant_components(dec: ValueDecomposition) -> dict:
     """Components split by what their interval says: gained, lost, unchanged, unmeasured. Never summed: eight different currencies."""
-    out = {"gained": [], "lost": [], "unchanged": [], "unmeasured": []}
+    out: dict[str, list[str]] = {"gained": [], "lost": [], "unchanged": [], "unmeasured": []}
     for n in COMPONENTS:
         c = dec[n]
         key = "unmeasured" if c.status != STATUS_MEASURED else "gained" if c.significant_gain else "lost" if c.significant_loss else "unchanged"

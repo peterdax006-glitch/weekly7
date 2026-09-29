@@ -24,7 +24,7 @@ import dataclasses
 import itertools
 import math
 from collections import defaultdict
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any, Iterable, Mapping, Sequence, cast
 
 import numpy as np
 import pandas as pd
@@ -409,7 +409,7 @@ class Investigation:
 
     @property
     def pair(self) -> tuple[str, str]:
-        return tuple(sorted((self.a, self.b)))
+        return cast(tuple[str, str], tuple(sorted((self.a, self.b))))
 
     @property
     def conflicted(self) -> bool:
@@ -662,7 +662,7 @@ class Investigator:
         f = ev.pair(a, b)
         n_iso = as_date(now).isoformat()
         sa, sb = _stat(f, a), _stat(f, b)
-        base = dict(a=a, b=b, now=n_iso, overall_a=sa.mean if sa.clusters else float("nan"),
+        base: dict[str, Any] = dict(a=a, b=b, now=n_iso, overall_a=sa.mean if sa.clusters else float("nan"),
                     overall_b=sb.mean if sb.clusters else float("nan"), rows_through=ev.through() or "")
         if sa.clusters < P["min_clusters"] or sb.clusters < P["min_clusters"]:
             return Investigation(verdict=Verdict.INSUFFICIENT_DATA, kind=DisagreementKind.INSUFFICIENT,
@@ -702,7 +702,7 @@ class Investigator:
         if best is None:
             return Investigation(verdict=Verdict.UNRESOLVED, m_tests=m + prior_tries, temporal_note=note, tried=tried, **base)
         p_adj = bonferroni(best.p, m + prior_tries)
-        common = dict(dimension=best.dims, p_raw=best.p, p_adj=p_adj, m_tests=m + prior_tries, temporal_note=note,
+        common: dict[str, Any] = dict(dimension=best.dims, p_raw=best.p, p_adj=p_adj, m_tests=m + prior_tries, temporal_note=note,
                       tried=tried, mechanism=best.mechanism, z_adjusted=best.z_adj, p_composition=best.p_comp, **base)
         if p_adj >= P["alpha"]:
             return Investigation(verdict=Verdict.UNRESOLVED, cause_hint=self._hint(note, None), **common)

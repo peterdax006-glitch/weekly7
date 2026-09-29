@@ -18,7 +18,7 @@ from __future__ import annotations
 import dataclasses
 import enum
 import math
-from typing import Any, Mapping, Sequence
+from typing import Any, Mapping, Sequence, Union
 
 import numpy as np
 import pandas as pd
@@ -29,7 +29,7 @@ from engine import pattern_reliability as PR
 from .core import FailureCause, FirewallBreach, Lifecycle, as_date, stable_hash
 from .retirement import Evidence, RetirementLedger, State, Verdict, series_evidence
 
-PARAMS = {
+PARAMS: dict[str, Any] = {
     "window": 26, "peak_se": 2.0, "birth_n": 13, "est_n": 26, "t_est": 2.0,
     "peak_frac": 0.85,          # PEAK while the trailing effect is at least this share of the best it ever was
     "decay_frac": 0.60,         # DECAY when the trailing effect falls under this share of the peak
@@ -44,6 +44,9 @@ PARAMS = {
     "link_frac": 0.5, "link_alpha": 0.05, "ridge": 1.0, "pre_frac": 0.5, "min_pre": 30,
 }
 FAMILIES = ("regime", "market", "sector", "volatility", "liquidity", "interaction")
+
+
+FloatSeq = Union[Sequence[float], np.ndarray]     # callers hold either; every consumer converts with np.asarray
 
 
 def _cfg(cfg) -> dict:
@@ -286,7 +289,7 @@ class LifecycleMachine:
         return m
 
 
-def trace(values: Sequence[float], cfg=None, exposure: Sequence[bool] | None = None, retired_from: int | None = None) -> LifecycleTrace:
+def trace(values: FloatSeq, cfg=None, exposure: Sequence[bool] | None = None, retired_from: int | None = None) -> LifecycleTrace:
     """Causal lifecycle stage of an item for every row. `exposure[i]` False means the item did not fire at row i (its outcome is
     NaN); a run of `dormant_after` such rows makes it DORMANT until it fires again. `retired_from` is the row an external gate
     retired it; nothing after that row is anything but RETIRED (recovery then needs the ledger's revival gate)."""
@@ -321,7 +324,7 @@ def retire_proposal(tr: LifecycleTrace, cfg=None) -> dict:
             "why": f"{run} consecutive rows in FAILURE/DORMANT" if run else "not currently failed or dormant"}
 
 
-def decay_half_life(effect: Sequence[float], peak_index: int, grid: Sequence[float] = tuple(range(4, 157, 4))) -> dict:
+def decay_half_life(effect: FloatSeq, peak_index: int, grid: Sequence[float] = tuple(range(4, 157, 4))) -> dict:
     """Fit effect[t] = c + (peak - c) * 0.5 ** ((t - peak_index) / h) after the peak by grid search over h (rows), c free by least
     squares at each h. Returns h and the fit R-squared; a decay that is really a step (best h tiny or R-squared low) says so."""
     e = np.asarray(effect, float)[peak_index:]
@@ -412,7 +415,7 @@ class ShapeFit:
     n: int
 
 
-def classify_shape(y: Sequence[float], cfg=None, seed: int = 0) -> ShapeFit:
+def classify_shape(y: FloatSeq, cfg=None, seed: int = 0) -> ShapeFit:
     """Constant vs trend vs step for the outcome segment `y` (oldest first), by BIC with a margin, gated by a block-permutation
     p-value on the best BIC gain (so noise is called RANDOM even when a step 'fits'). Ties between trend and step go to the
     simpler trend unless the step wins by `trend_bias` BIC points."""
@@ -473,7 +476,7 @@ class LinkFit:
     columns: tuple
 
 
-def test_links(y: Sequence[float], families: Mapping[str, pd.DataFrame | None], n_pre: int, cfg=None, seed: int = 0) -> list[LinkFit]:
+def test_links(y: FloatSeq, families: Mapping[str, pd.DataFrame | None], n_pre: int, cfg=None, seed: int = 0) -> list[LinkFit]:
     """Score every context family against the decline in `y` (rows aligned with each family's frame; the first n_pre rows are
     the stretch where the item still worked). p = share of block-permuted context rows that explain the fall as well as the
     real ones do, so a family with many columns cannot win by having more knobs than the others' null."""
@@ -768,7 +771,7 @@ def forecast_life(effect: Sequence[float], peak_index: int, bar: float = 0.0, ho
             "why": "" if base is not None else "the fitted decay levels off above the bar"}
 
 
-def segment_history(values: Sequence[float], cfg=None, max_segments: int = 6) -> list[dict]:
+def segment_history(values: FloatSeq, cfg=None, max_segments: int = 6) -> list[dict]:
     """Binary segmentation of the outcome history into stretches of different mean (each split must beat a BIC margin and leave
     `min_seg` rows each side). Describes an item's life as 'strong, then weak, then strong again' without any lifecycle
     labels, and gives the lifecycle trace something independent to be compared with."""
@@ -821,12 +824,12 @@ def survival_by_age(traces: Mapping[str, LifecycleTrace], step: int = 13) -> pd.
         events.append(f is not None)
     if not ages:
         return pd.DataFrame(columns=["age", "at_risk", "events", "survival"])
-    ages, events = np.array(ages), np.array(events)
+    ages_a, events_a = np.array(ages), np.array(events)
     rows, surv = [], 1.0
-    for a in range(0, int(ages.max()) + step, step):
+    for a in range(0, int(ages_a.max()) + step, step):
         lo, hi = a, a + step
-        at_risk = int((ages >= lo).sum())
-        d = int(((ages >= lo) & (ages < hi) & events).sum())
+        at_risk = int((ages_a >= lo).sum())
+        d = int(((ages_a >= lo) & (ages_a < hi) & events_a).sum())
         if at_risk:
             surv *= 1.0 - d / at_risk
         rows.append({"age": lo, "at_risk": at_risk, "events": d, "survival": surv})

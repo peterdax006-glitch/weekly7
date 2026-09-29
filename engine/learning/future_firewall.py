@@ -23,7 +23,7 @@ scan_information, check_public_release), engine.leak_audit (NetworkGuard, macro_
 from __future__ import annotations
 
 import dataclasses
-from typing import Any, Callable, Iterable, Mapping, Sequence
+from typing import Any, Callable, Iterable, Mapping, Sequence, cast
 
 import numpy as np
 import pandas as pd
@@ -205,7 +205,7 @@ def frame_dates(frame) -> pd.DatetimeIndex:
 
 # ---------------------------------------------------------------- 1 timestamp
 def check_timestamp(inputs: Sequence[LearningInput], now) -> CheckResult:
-    L, out, now_t = CHECK_LAYER["timestamp"], [], _ts(as_date(now))
+    L, out, now_t = CHECK_LAYER["timestamp"], [], cast(Any, _ts(as_date(now)))
     for inp in inputs:
         kind = inp.parsed_kind()
         if kind is None:
@@ -232,7 +232,7 @@ def check_timestamp(inputs: Sequence[LearningInput], now) -> CheckResult:
 
 # ---------------------------------------------------------------- 2 availability
 def check_availability(inputs: Sequence[LearningInput], now, rules: Mapping[InputKind, AvailabilityRule] | None = None) -> CheckResult:
-    L, out, now_t = CHECK_LAYER["availability"], [], _ts(as_date(now))
+    L, out, now_t = CHECK_LAYER["availability"], [], cast(Any, _ts(as_date(now)))
     rules = rules or DEFAULT_RULES
     for inp in inputs:
         kind = inp.parsed_kind()
@@ -289,7 +289,7 @@ def lag_findings(effective, available, kind: InputKind, name: str = "series", ru
 
 # ---------------------------------------------------------------- 3 revision
 def check_revision(inputs: Sequence[LearningInput], now, unrevised_ok: Iterable[str] = ()) -> CheckResult:
-    L, out, now_t = CHECK_LAYER["revision"], [], _ts(as_date(now))
+    L, out, now_t = CHECK_LAYER["revision"], [], cast(Any, _ts(as_date(now)))
     ok = set(unrevised_ok)
     for inp in inputs:
         kind = inp.parsed_kind()
@@ -325,7 +325,7 @@ def check_survivorship(inputs: Sequence[LearningInput], now, listings: pd.DataFr
                        expected_annual_attrition: float = 0.03, min_names: int = 30, min_years: float = 2.0) -> CheckResult:
     """Universe checks. `listings` has ticker, list_date, delist_date (NaT while alive). Without listings the check falls
     back to a panel heuristic on any PRICE input: a wide close panel in which nobody ever disappears is survivor-only."""
-    L, out, now_t = CHECK_LAYER["survivorship"], [], _ts(as_date(now))
+    L, out, now_t = CHECK_LAYER["survivorship"], [], cast(Any, _ts(as_date(now)))
     n = 0
     if listings is not None:
         need = {"ticker", "list_date", "delist_date"}
@@ -392,7 +392,7 @@ def check_survivorship(inputs: Sequence[LearningInput], now, listings: pd.DataFr
 def check_feature_provenance(specs: Sequence[FeatureSpec] | None, now, columns: Sequence[str] | None = None,
                              registered_sources: Iterable[str] | None = None, X: pd.DataFrame | None = None,
                              y: pd.Series | None = None, ic_cap: float = 0.15) -> CheckResult:
-    L, out, now_t = CHECK_LAYER["feature_provenance"], [], _ts(as_date(now))
+    L, out, now_t = CHECK_LAYER["feature_provenance"], [], cast(Any, _ts(as_date(now)))
     if specs is None:
         return CheckResult("feature_provenance", True, (fail(L, "specs-missing", "features", "no feature specs supplied: provenance unknown"),), 0)
     by_name = {s.name: s for s in specs}
@@ -484,7 +484,7 @@ class CacheEntry:
 
 def check_network_cache(events: Sequence[NetworkEvent] | None, cache: Sequence[CacheEntry] | None, now,
                         blind: bool = True, sealed_dir=None) -> CheckResult:
-    L, out, now_t = CHECK_LAYER["network_cache"], [], _ts(as_date(now))
+    L, out, now_t = CHECK_LAYER["network_cache"], [], cast(Any, _ts(as_date(now)))
     if events is None or cache is None:
         return CheckResult("network_cache", True, (fail(L, "logs-missing", "io", "network and cache logs not supplied: cannot show the run was closed "
                                                         "to outside information"),), 0)
@@ -567,10 +567,10 @@ class FutureFirewall:
                 return CheckResult(check, False, (fail(CHECK_LAYER[check], "check-error", check, f"{type(e).__name__}: {e}"),))
 
         results = {
-            "timestamp": need_inputs("timestamp", lambda: check_timestamp(inputs, now)),
-            "availability": need_inputs("availability", lambda: check_availability(inputs, now, self.rules)),
-            "revision": need_inputs("revision", lambda: check_revision(inputs, now)),
-            "survivorship": need_inputs("survivorship", lambda: check_survivorship(inputs, now, listings, self.attr)),
+            "timestamp": need_inputs("timestamp", lambda: check_timestamp(cast(Sequence[LearningInput], inputs), now)),
+            "availability": need_inputs("availability", lambda: check_availability(cast(Sequence[LearningInput], inputs), now, self.rules)),
+            "revision": need_inputs("revision", lambda: check_revision(cast(Sequence[LearningInput], inputs), now)),
+            "survivorship": need_inputs("survivorship", lambda: check_survivorship(cast(Sequence[LearningInput], inputs), now, listings, self.attr)),
             "feature_provenance": check_feature_provenance(specs, now, registered_sources=registered_sources, X=X, y=y, ic_cap=self.ic_cap),
             "memory_provenance": check_memory_provenance(items, now, store, sealed_windows),
             "code_version": check_code_version(code, items),
@@ -631,7 +631,7 @@ def input_digest(inputs: Sequence[LearningInput]) -> str:
 
 def firewall_selfcheck(fw: FutureFirewall, clean_kwargs: Mapping[str, Any], mutations: Mapping[str, Callable[[dict], dict]], now) -> dict:
     """The firewall must pass a clean bundle and reject every planted mutation of it; returns which checks fired."""
-    res = {"clean": fw.screen(now, **clean_kwargs).passed}
+    res: dict[str, Any] = {"clean": fw.screen(now, **clean_kwargs).passed}
     for name, mut in mutations.items():
         v = fw.screen(now, **mut(dict(clean_kwargs)))
         res[name] = {"rejected": not v.passed, "checks": list(v.failed_checks)}
@@ -739,7 +739,7 @@ class RevisionLedger:
 
     def as_of(self, series: str, obs_date, now) -> float | None:
         """Newest release of the observation that was public by `now`; None if it was not yet released."""
-        n = _ts(as_date(now))
+        n: Any = _ts(as_date(now))
         known = [(r, v) for r, v in self._for(series, obs_date) if r <= n]
         return known[-1][1] if known else None
 
@@ -765,18 +765,18 @@ class RevisionLedger:
         at `now` and equals a LATER release is a proven future-vintage leak."""
         L = CHECK_LAYER["revision"]
         out: list[Finding] = []
-        n = _ts(as_date(now))
+        n: Any = _ts(as_date(now))
         for ob, v in used.items():
-            if _ts(ob) is None or _ts(ob) > n:
+            if _ts(ob) is None or cast(Any, _ts(ob)) > n:
                 out.append(fail(L, "observation-after-now", series, f"observation {ob} is after now"))
                 continue
             known = self.as_of(series, ob, now)
             if known is None:
-                out.append(fail(L, "used-unreleased-value", series, f"{_ts(ob).date()}: value used before any release was public"))
+                out.append(fail(L, "used-unreleased-value", series, f"{cast(Any, _ts(ob)).date()}: value used before any release was public"))
             elif abs(float(v) - known) > tol:
                 later = [x for r, x in self._for(series, ob) if r > n and abs(x - float(v)) <= tol]
                 out.append(fail(L, "used-future-vintage" if later else "value-not-in-any-vintage", series,
-                                f"{_ts(ob).date()}: used {float(v):.6g} but the value public at {n.date()} was {known:.6g}"))
+                                f"{cast(Any, _ts(ob)).date()}: used {float(v):.6g} but the value public at {n.date()} was {known:.6g}"))
         return out
 
 
@@ -860,11 +860,11 @@ def lint_feature_source(src: str) -> list[LintHit]:
                 arg = node.args[0] if node.args else kw.get("periods")
                 if arg is not None and _neg_const(arg):
                     add(f"negative-{fn}", node)
-            if fn == "rolling" and isinstance(kw.get("center"), ast.Constant) and kw["center"].value is True:
+            if fn == "rolling" and isinstance(kw.get("center"), ast.Constant) and cast(ast.Constant, kw["center"]).value is True:
                 add("centered-window", node)
             if fn in _BACKFILL_CALLS or fn == "interpolate":
                 add("backfill" if fn != "interpolate" else "interpolate", node)
-            if fn == "fillna" and isinstance(kw.get("method"), ast.Constant) and str(kw["method"].value) in _BACKFILL_CALLS:
+            if fn == "fillna" and isinstance(kw.get("method"), ast.Constant) and str(cast(ast.Constant, kw["method"]).value) in _BACKFILL_CALLS:
                 add("backfill", node)
             if fn == "roll" and isinstance(node.func.value, ast.Name) and node.func.value.id in ("np", "numpy"):
                 sh = node.args[1] if len(node.args) > 1 else kw.get("shift")
@@ -1222,7 +1222,7 @@ def boundary_margins(inputs: Sequence[LearningInput], now, rules: Mapping[InputK
 
 def rules_from_registry(reg: SourceRegistry, base: Mapping[InputKind, AvailabilityRule] | None = None) -> dict[str, AvailabilityRule]:
     """Per-source rules (source name -> AvailabilityRule) from a registry, falling back to the kind defaults."""
-    return {n: reg.rule_for(n) for n in sorted(reg.names())}
+    return {n: cast(AvailabilityRule, reg.rule_for(n)) for n in sorted(reg.names())}
 
 
 def input_manifest(inputs: Sequence[LearningInput], now) -> dict:
@@ -1241,7 +1241,7 @@ def input_manifest(inputs: Sequence[LearningInput], now) -> dict:
 
 
 # ---------------------------------------------------------------- can the firewall fail? (startup self-check)
-def _selfcheck_bundle(now: pd.Timestamp, seed: int = 0) -> dict:
+def _selfcheck_bundle(now: pd.Timestamp, seed: int = 0) -> dict[str, Any]:
     """A small bundle that passes all eight checks: flat as-traded prices with exits, a vintage-stamped macro series, a mature
     label, declared features, one clean memory item, matching code, and empty IO logs."""
     rng = np.random.default_rng(seed)
@@ -1270,7 +1270,7 @@ def future_selfcheck(now="2019-12-31", seed: int = 0) -> dict:
     n = pd.Timestamp(now)
     fw = FutureFirewall()
     base = _selfcheck_bundle(n, seed)
-    plants = {
+    plants: dict[str, Any] = {
         "timestamp": {"inputs": [LearningInput("x", InputKind.PRICE, timestamp=n + pd.Timedelta(days=5))]},
         "availability": {"inputs": [LearningInput("f", InputKind.FUNDAMENTAL, timestamp=n - pd.Timedelta(days=3))]},
         "revision": {"inputs": [LearningInput("m", InputKind.MACRO, timestamp=n - pd.Timedelta(days=60), available_at=n - pd.Timedelta(days=30))]},
@@ -1282,7 +1282,7 @@ def future_selfcheck(now="2019-12-31", seed: int = 0) -> dict:
         "code_version": {"code": CodeState(recorded={"code_hash": "c", "code_files": ["a.py"], "code_mixed": []}, current_hash="other")},
         "network_cache": {"events": [NetworkEvent("network", "example.com")]},
     }
-    out = {"clean_passed": fw.screen(n, **base).passed, "missed": []}
+    out: dict[str, Any] = {"clean_passed": fw.screen(n, **base).passed, "missed": []}
     for check, over in plants.items():
         v = fw.screen(n, **{**base, **over})
         if check not in v.failed_checks:

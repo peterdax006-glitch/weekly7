@@ -505,8 +505,8 @@ class LegitimateLearner:
         """C03. Knowledge that could exist at `now`, ranked for each situation.  Abstains (influence=False) without proven skill."""
         with self._stage(ep, Stage.RETRIEVE) as box:
             visible = self.store.visible(ep.now)
-            lineage = [_gate_view(k) for kid in self.store.ids() for k in self.store.history(kid) if k.visible_at(ep.now)]
-            self._admit(ep.now, "retrieve", items=[_gate_view(k) for k in visible], all_items=lineage,
+            lineage = [k for kid in self.store.ids() for k in self.store.history(kid) if k.visible_at(ep.now)]
+            self._admit(ep.now, "retrieve", items=list(visible), all_items=lineage,
                         relevant=frozenset({FW.LayerName.MEMORY}))
             n_items = 0
             for r in ep.rows:
@@ -1474,32 +1474,13 @@ class _CachedRetriever(RV.Retriever):
         return self._wid
 
 
-def _gate_view(k: KN.KnowledgeObject) -> KN.KnowledgeObject:
-    """The memory firewall resolves ancestry by bare knowledge id; knowledge.py records parents as 'id@vN' (and a new version
-    lists its own predecessor).  The copy handed to the gate names parents by bare id and drops self-references, so the audit
-    walks real lineage instead of reporting every revised item as its own missing ancestor.  (INTEGRATION: see report.)"""
-    parents = tuple(dict.fromkeys(p.split("@")[0] for p in k.provenance.parents if p.split("@")[0] != k.knowledge_id))
-    return dataclasses.replace(k, provenance=dataclasses.replace(k.provenance, parents=parents))
-
-
-def context_mapping(cs: KN.ContextSet) -> dict[str, dict]:
-    """A ContextSet as the plain {path: {"in": [labels], "not": bool}} mapping that context.py, retrieval.py and the archive read
-    (the typed ContextSet is what the knowledge object stores; these consumers were written against the mapping form)."""
-    out: dict[str, dict] = {}
-    for c in cs.conditions:
-        if c.op in ("in", "eq", "not_in", "ne") and c.labels:
-            out[c.feature] = {"in": list(c.labels), **({"not": True} if c.op in ("not_in", "ne") else {})}
-    return out
-
-
 class _Indexed:
-    """A KnowledgeObject as the retrieval index holds it: identical, plus the pattern id the retriever's activity gate reads and
-    the contexts in the mapping form the retriever reads."""
-    __slots__ = ("_k", "pattern_id", "contexts", "anti_contexts")
+    """A KnowledgeObject as the retrieval index holds it: identical (typed ContextSets included, which context.py and
+    archive.put_knowledge now read directly), plus the pattern id the retriever's activity gate reads."""
+    __slots__ = ("_k", "pattern_id")
 
     def __init__(self, k: KN.KnowledgeObject, pattern_id: str):
         self._k, self.pattern_id = k, pattern_id
-        self.contexts, self.anti_contexts = context_mapping(k.contexts), context_mapping(k.anti_contexts)
 
     def __getattr__(self, name):
         return getattr(self._k, name)

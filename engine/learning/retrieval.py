@@ -33,7 +33,7 @@ import dataclasses
 import datetime as dt
 import functools
 import math
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any, Iterable, Mapping, Sequence, cast
 
 import numpy as np
 
@@ -398,6 +398,7 @@ class Retriever:
         self.weights = weights or RetrievalWeights()
         self.cfg = config or RetrievalConfig()
         self.sim_weights = sim_weights
+        self._te_cache: dict[tuple, tuple[dict, Any]] = {}
         for errs in (self.weights.validate(), self.cfg.validate(), sim_weights.validate()):
             if errs:
                 raise ValueError("; ".join(errs))
@@ -453,10 +454,25 @@ class Retriever:
         """The item's recorded transfer confidence, else one derived from its own support outcomes (flagged as derived)."""
         if item.confidence.transfer is not None:
             return FactorValue("transfer_confidence", item.confidence.transfer, "recorded")
-        te = transfer_evidence(self.index, kid, now, self.sim_weights)
+        te = self._transfer_evidence_cached(kid, now)
         if te["verdict"] in ("TRANSFERS", "NARROW", "FAILS_TO_TRANSFER"):
             return FactorValue("transfer_confidence", te["score"], f"derived from support cases: {te['verdict']}, far/near edge {te['ratio']:.2f}")
         return FactorValue("transfer_confidence", None, f"never measured ({te['verdict']})")
+
+    def _transfer_evidence_cached(self, kid: str, now) -> dict[str, Any]:
+        """transfer_evidence is quadratic in the support cases; it depends only on the (append-only) cases and the similarity
+        weights, so it is computed once per (item, case count) instead of once per row. The past-only check still runs on every
+        call against `now`: a cached result never lets a case that matured at/after `now` through."""
+        cases = [c for c in self.index.support(kid) if c.outcome is not None]
+        key = (kid, len(cases), self.sim_weights.weights_id())
+        hit = self._te_cache.get(key)
+        if hit is None:
+            hit = self._te_cache[key] = (transfer_evidence(self.index, kid, now, self.sim_weights),
+                                         max((as_date(c.matured) for c in cases), default=None))
+        te, newest = hit
+        if newest is not None:
+            require_past(newest, now, f"support case of {kid}")
+        return te
 
     def _contradiction(self, kid: str, reliability: dict[str, float], pool: set[str]) -> tuple[float, str]:
         best, who = 0.0, ""
@@ -473,7 +489,7 @@ class Retriever:
     def _base_score(self, factors: Mapping[str, FactorValue]) -> tuple[float, list[str]]:
         w = self.weights.normalised()
         untested = [n for n in POSITIVE_FACTORS if factors[n].value is None and w[n] > 0]
-        tot = sum(w[n] * (factors[n].value if factors[n].value is not None else self.cfg.unknown_prior) for n in POSITIVE_FACTORS)
+        tot = sum(w[n] * (cast(float, factors[n].value) if factors[n].value is not None else self.cfg.unknown_prior) for n in POSITIVE_FACTORS)
         return tot - self.cfg.unknown_cap_per_factor * len(untested), untested
 
     def retrieve(self, sit: Situation, now, decision_effect: DecisionEffect | None = None, k: int | None = None) -> Retrieval:
@@ -488,9 +504,9 @@ class Retriever:
         for item in self.index.items():
             kid = str(item.knowledge_id)
             reliability[kid] = item.confidence.current_reliability if item.confidence.current_reliability is not None else 0.5
-            why = self._admissible(item, sit, now, decision_effect)
-            if why:
-                rejected.append(Rejection(kid, tuple(why)))
+            why_rej = self._admissible(item, sit, now, decision_effect)
+            if why_rej:
+                rejected.append(Rejection(kid, tuple(why_rej)))
                 continue
             try:
                 factors, _, applies = self._factors(item, sit, now)
@@ -514,7 +530,7 @@ class Retriever:
                 flags.append("context-unobservable")
             cand.append((kid, factors, base, untested, flags))
         pool = {c[0] for c in cand}
-        scored = []
+        scored: list[list[Any]] = []
         for kid, factors, base, untested, flags in cand:
             pen, note = self._contradiction(kid, reliability, pool)
             factors = dict(factors)
@@ -757,7 +773,7 @@ class SkillMonitor:
         from .. import analog_weighting as AW
         rows = [(e, r) for m, e, r in self._done if as_date(m) < as_date(now)]
         n = len(rows)
-        base = {"n": n, "mean_edge": None, "hit_rate": None, "spearman": None, "hac_t": None, "p": None, "status": "INSUFFICIENT_EVIDENCE"}
+        base: dict[str, Any] = {"n": n, "mean_edge": None, "hit_rate": None, "spearman": None, "hac_t": None, "p": None, "status": "INSUFFICIENT_EVIDENCE"}
         if n < self.min_n:
             return base
         e = np.array([x for x, _ in rows])
@@ -789,17 +805,17 @@ def combine(retrieval: Retrieval, index: KnowledgeIndex | None = None) -> dict[s
     items (so duplicates do not vote twice); disagreement is the weighted spread and the share of weight on the majority
     sign. Items without outcome evidence do not vote. The result carries `influence` from the retrieval it came from."""
     vote = [(i, i.expected_edge) for i in retrieval.items if i.expected_edge is not None]
-    out = {"expected": None, "n_votes": len(vote), "disagreement": None, "majority_share": None, "influence": retrieval.influence}
+    out: dict[str, Any] = {"expected": None, "n_votes": len(vote), "disagreement": None, "majority_share": None, "influence": retrieval.influence}
     if not vote:
         return out
-    w = []
+    w_list: list[float] = []
     for pos, (i, _) in enumerate(vote):
         disc = 1.0
         if index is not None:
             for j, _ in vote[:pos]:
                 disc *= 1.0 - index.redundancies(i.knowledge_id).get(j.knowledge_id, 0.0)
-        w.append(max(i.score, 0.0) * disc)
-    w = np.array(w)
+        w_list.append(max(i.score, 0.0) * disc)
+    w = np.array(w_list)
     e = np.array([x for _, x in vote])
     if w.sum() <= 0:
         return out
@@ -1191,8 +1207,8 @@ def factor_predictiveness(retrievals: Sequence[Retrieval], outcomes: Sequence[Ma
                     cols[f].append(np.nan if v is None else v)
     out: dict[str, float] = {}
     y = np.array(ys, float)
-    for f, v in cols.items():
-        x = np.array(v, float)
+    for f, col_vals in cols.items():
+        x = np.array(col_vals, float)
         ok = ~np.isnan(x)
         if ok.sum() >= 15 and x[ok].std() > 1e-12 and y[ok].std() > 1e-12:
             out[f] = round(float(spearmanr(x[ok], y[ok])[0]), 4)

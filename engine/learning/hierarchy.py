@@ -26,7 +26,7 @@ import enum
 import json
 import math
 from collections import defaultdict
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any, Iterable, Mapping, Sequence, cast
 
 import numpy as np
 import pandas as pd
@@ -322,7 +322,7 @@ class KnowledgeHierarchy:
         return len(f)
 
     def fit(self, rows: pd.DataFrame, now) -> "KnowledgeHierarchy":
-        self.__init__(self.p, self.dims)
+        self.__init__(self.p, self.dims)  # type: ignore[misc]  # deliberate in-place reset
         self.update(rows, now)
         return self
 
@@ -413,7 +413,8 @@ class KnowledgeHierarchy:
                 nxt.extend(kids)
                 if not kids:
                     continue
-                zc, sp, chosen = self._zcrit(len(kids), len(kids[0])), self._stats[parent], []
+                zc, sp = self._zcrit(len(kids), len(kids[0])), self._stats[parent]
+                chosen: list[Path] = []
                 thin = [self._stats[k] for k in kids if self._thin(k)]      # cannot be judged, so cannot serve as a reference
                 while True:
                     best = None
@@ -637,7 +638,8 @@ class KnowledgeHierarchy:
         """For each level on a context's path: the evidence the node has, the threshold THAT LEVEL demands, and the verdict.
         Shows at a glance which level's rule stopped a distinction (dates, own weight, or lack of difference)."""
         self._compute()
-        rows, path = [], ()
+        rows: list[dict[str, Any]] = []
+        path: Path = ()
         for d in self.dims:
             v = context.get(d)
             if v is None:
@@ -775,7 +777,7 @@ def compare_predictors(train: pd.DataFrame, test: pd.DataFrame, now_train, param
         raise HierarchyError("training data too thin for a general rule")
     ctxs = _row_paths(test, h.dims)
     y = pd.to_numeric(test["effect"]).to_numpy(float)
-    preds = {"general": [], "raw_cell": [], "shrunk_cell": [], "used": []}
+    preds: dict[str, list[Any]] = {"general": [], "raw_cell": [], "shrunk_cell": [], "used": []}
     for c in ctxs:
         e = h.estimate(c)
         deepest = h._post[e.path]
@@ -814,7 +816,7 @@ def early_late_sign_agreement(rows: pd.DataFrame, now, params: Mapping | None = 
     a = KnowledgeHierarchy(params).fit(f[f["when"] < cut], now)
     b = KnowledgeHierarchy(params).fit(f[f["when"] >= cut], now)
     qual = a.qualified()
-    same = [np.sign(a.posterior(p).post_mean) == np.sign(b.posterior(p).post_mean) for p in qual if b.posterior(p) is not None]
+    same = [np.sign(cast(Posterior, a.posterior(p)).post_mean) == np.sign(cast(Posterior, b.posterior(p)).post_mean) for p in qual if b.posterior(p) is not None]
     return float(np.mean(same)) if same else None
 
 

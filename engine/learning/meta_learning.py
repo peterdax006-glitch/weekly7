@@ -24,7 +24,7 @@ import json
 import math
 from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import Callable, Iterable, Mapping, Sequence
+from typing import Any, Callable, Iterable, Mapping, Sequence
 
 import numpy as np
 from scipy.stats import rankdata
@@ -88,7 +88,7 @@ def shrunk_rate(successes: int, n: int, prior: tuple) -> float:
     return (successes + prior[0]) / (n + prior[0] + prior[1])
 
 
-def auc(scores: Sequence[float], labels: Sequence[int]) -> float | None:
+def auc(scores: Sequence[float] | np.ndarray, labels: Sequence[int] | np.ndarray) -> float | None:
     """Mann-Whitney AUC with tie handling; None if one class is absent."""
     y = np.asarray(labels, int)
     s = np.asarray(scores, float)
@@ -99,19 +99,19 @@ def auc(scores: Sequence[float], labels: Sequence[int]) -> float | None:
     return float((ranks[y == 1].sum() - pos * (pos + 1) / 2.0) / (pos * neg))
 
 
-def brier(p: Sequence[float], y: Sequence[int]) -> float:
+def brier(p: Sequence[float] | np.ndarray, y: Sequence[int] | np.ndarray) -> float:
     p = np.asarray(p, float)
     y = np.asarray(y, float)
     return float(np.mean((p - y) ** 2)) if len(y) else float("nan")
 
 
-def log_loss(p: Sequence[float], y: Sequence[int], eps: float = 1e-6) -> float:
-    p = np.clip(np.asarray(p, float), eps, 1 - eps)
-    y = np.asarray(y, float)
-    return float(-np.mean(y * np.log(p) + (1 - y) * np.log(1 - p))) if len(y) else float("nan")
+def log_loss(p: Sequence[float] | np.ndarray, y: Sequence[int] | np.ndarray, eps: float = 1e-6) -> float:
+    pc = np.clip(np.asarray(p, float), eps, 1 - eps)
+    yf = np.asarray(y, float)
+    return float(-np.mean(yf * np.log(pc) + (1 - yf) * np.log(1 - pc))) if len(yf) else float("nan")
 
 
-def paired_bootstrap(a: Sequence[float], b: Sequence[float], seed: int, n_boot: int = 2000, alpha: float = 0.05) -> dict:
+def paired_bootstrap(a: Sequence[float] | np.ndarray, b: Sequence[float] | np.ndarray, seed: int, n_boot: int = 2000, alpha: float = 0.05) -> dict:
     """Mean of (a - b) with a percentile interval, resampling pairs. Deterministic in `seed`."""
     d = np.asarray(a, float) - np.asarray(b, float)
     n = len(d)
@@ -440,9 +440,9 @@ def decay_report(recs: Sequence[DecayRecord], seed: int = 0) -> dict:
     for r in recs:
         by.setdefault(r.memory_type, []).append(r)
     fits = {k: decay_fit(k, v, seed) for k, v in by.items()}
-    fits = {k: f for k, f in fits.items() if f is not None}
-    rapid = sorted((k for k, f in fits.items() if f.lam_lo > 0 and f.half_life_days < 365), key=lambda k: fits[k].half_life_days)
-    return {"fits": fits, "rapid_decay": rapid, "n": len(recs)}
+    fits_ok = {k: f for k, f in fits.items() if f is not None}
+    rapid = sorted((k for k, f in fits_ok.items() if f.lam_lo > 0 and f.half_life_days < 365), key=lambda k: fits_ok[k].half_life_days)
+    return {"fits": fits_ok, "rapid_decay": rapid, "n": len(recs)}
 
 
 def yield_report(recs: Sequence[YieldRecord], min_n: int = 3) -> dict:
@@ -807,7 +807,7 @@ class PlattRecalibrator:
         p = np.clip(np.asarray(p, float), 1e-4, 1 - 1e-4)
         return np.log(p / (1 - p))
 
-    def fit(self, p: Sequence[float], y: Sequence[int], l2: float = 0.5) -> "PlattRecalibrator":
+    def fit(self, p: Sequence[float] | np.ndarray, y: Sequence[int] | np.ndarray, l2: float = 0.5) -> "PlattRecalibrator":
         p = np.asarray(p, float)
         y = np.asarray(y, float)
         self.n = len(y)
@@ -818,11 +818,11 @@ class PlattRecalibrator:
         self.a, self.b = float(w[0]), float(w[1])
         return self
 
-    def transform(self, p: Sequence[float]) -> np.ndarray:
+    def transform(self, p: Sequence[float] | np.ndarray) -> np.ndarray:
         return sigmoid(self.a * self._logit(p) + self.b)
 
 
-def reliability_bins(p: Sequence[float], y: Sequence[int], bins: int = 5) -> list:
+def reliability_bins(p: Sequence[float] | np.ndarray, y: Sequence[int] | np.ndarray, bins: int = 5) -> list:
     """Predicted vs observed survival per probability bin, with the count and a Wilson interval on the observed rate."""
     p = np.asarray(p, float)
     y = np.asarray(y, int)
@@ -838,13 +838,13 @@ def reliability_bins(p: Sequence[float], y: Sequence[int], bins: int = 5) -> lis
     return out
 
 
-def expected_calibration_error(p: Sequence[float], y: Sequence[int], bins: int = 5) -> float:
+def expected_calibration_error(p: Sequence[float] | np.ndarray, y: Sequence[int] | np.ndarray, bins: int = 5) -> float:
     rows = reliability_bins(p, y, bins)
     n = sum(r["n"] for r in rows)
     return float(sum(r["n"] * abs(r["predicted"] - r["observed"]) for r in rows) / n) if n else float("nan")
 
 
-def precision_at_k(scores: Sequence[float], y: Sequence[int], k: int) -> float | None:
+def precision_at_k(scores: Sequence[float] | np.ndarray, y: Sequence[int] | np.ndarray, k: int) -> float | None:
     """Share of the k highest-scored discoveries that survived. The meta-learner's practical use is triage: which few to test first."""
     if k < 1 or len(scores) < k:
         return None
@@ -852,7 +852,7 @@ def precision_at_k(scores: Sequence[float], y: Sequence[int], k: int) -> float |
     return float(np.asarray(y, float)[order].mean())
 
 
-def decile_lift(scores: Sequence[float], y: Sequence[int], n_groups: int = 5) -> list:
+def decile_lift(scores: Sequence[float] | np.ndarray, y: Sequence[int] | np.ndarray, n_groups: int = 5) -> list:
     """Survival rate by score quantile group, best group first, and lift versus the overall rate."""
     s = np.asarray(scores, float)
     yy = np.asarray(y, float)
@@ -865,7 +865,7 @@ def decile_lift(scores: Sequence[float], y: Sequence[int], n_groups: int = 5) ->
             for i, ix in enumerate(parts)]
 
 
-def triage_value(scores: Sequence[float], y: Sequence[int], skip_fraction: float, cost_per_test: float = 1.0, value_per_survivor: float = 10.0) -> dict:
+def triage_value(scores: Sequence[float] | np.ndarray, y: Sequence[int] | np.ndarray, skip_fraction: float, cost_per_test: float = 1.0, value_per_survivor: float = 10.0) -> dict:
     """Counterfactual: if the lowest-scored `skip_fraction` of discoveries had NOT been OOS-tested, how much compute is saved
     and how many real survivors are lost? Net value = saved compute - lost survivors x value. Positive net value is the only
     reason a survival model deserves to influence what gets tested."""
@@ -954,10 +954,10 @@ class SurvivalDrift:
         self.cum_dn += x - self.mean + self.delta
         self.max_dn = max(self.max_dn, self.cum_dn)
         if self.n >= 10 and self.cum_up - self.min_up > self.lam:
-            self.__init__(self.delta, self.lam)
+            self.__init__(self.delta, self.lam)  # type: ignore[misc]  # in-place reset of the detector state
             return "RATE_UP"
         if self.n >= 10 and self.max_dn - self.cum_dn > self.lam:
-            self.__init__(self.delta, self.lam)
+            self.__init__(self.delta, self.lam)  # type: ignore[misc]  # in-place reset of the detector state
             return "RATE_DOWN"
         return None
 
@@ -1230,7 +1230,7 @@ def meta_learning_curve(store: MetaStore, checkpoints: Sequence[str], seed: int 
     only records resolved before it. A rising skill (baseline Brier minus model Brier) with checkpoints is the evidence that
     the meta-learner is learning; a flat or falling curve says its lessons do not accumulate."""
     cfg = cfg or MetaConfig()
-    rows = []
+    rows: list[dict[str, Any]] = []
     for cp in checkpoints:
         s = store.as_of(cp)
         res = walk_forward_survival(s.discoveries, cp, seed, cfg.folds, cfg.min_train, cfg.min_test, certified_real=cfg.certified_real)
@@ -1265,7 +1265,7 @@ def self_check(seed: int = 0) -> dict:
       future_labels_ignored records resolved after `now` change nothing
       overfit_family_found  the planted bad family is reported as overfitting, the good one is not
       synthetic_never_validated  certified_real=False can never return VALIDATED"""
-    out = {}
+    out: dict[str, Any] = {}
     sig = synthetic_discoveries(400, seed)
     st = MetaStore()
     st.extend(sig)
@@ -1441,7 +1441,7 @@ def leave_one_family_out(recs: Sequence[DiscoveryRecord], seed: int = 0, l2: flo
     (the best a features-free predictor could know). Positive skill in most held-out families means the features carry a
     lesson that generalises; skill only inside seen families is family memorisation, the failure the contract warns about."""
     lab = [r for r in recs if r.survived_oos is not None]
-    out = {}
+    out: dict[str, Any] = {}
     for fam in sorted({r.family for r in lab}):
         test = [r for r in lab if r.family == fam]
         train = [r for r in lab if r.family != fam]
@@ -1521,7 +1521,7 @@ def stale_discount(a: MetaAdvice, now, half_life_days: float = 365.0) -> MetaAdv
     return replace(a, n_observations=int(a.n_observations * 0.5 ** (age / half_life_days)))
 
 
-def spearman(x: Sequence[float], y: Sequence[float]) -> float | None:
+def spearman(x: Sequence[float] | np.ndarray, y: Sequence[float] | np.ndarray) -> float | None:
     if len(x) < 3 or len(x) != len(y):
         return None
     rx, ry = rankdata(x), rankdata(y)

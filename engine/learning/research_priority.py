@@ -24,7 +24,7 @@ import math
 import re
 from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import Iterable, Mapping, Sequence
+from typing import Iterable, Mapping, Sequence, cast
 
 import numpy as np
 
@@ -218,7 +218,7 @@ def failure_hypotheses(profile: Mapping, top_k: int = 5, unknown_floor: float = 
         for cause, m in mult.items():
             score[cause] *= m ** min(1.0, strength)
     ranked = sorted(score, key=lambda c: -score[c])
-    keep = [c for c in ranked if c not in (FailureCause.UNKNOWN,)][:top_k]
+    keep = cast(list[FailureCause], [c for c in ranked if c not in (FailureCause.UNKNOWN,)][:top_k])
     for c in (FailureCause.FALSE_PATTERN,):
         if c not in keep:
             keep[-1] = c
@@ -963,7 +963,7 @@ def simulate_diagnosis(true_cause: FailureCause, seed: int, max_experiments: int
         cur = tuple(replace(h, prior=post[h.hid]) for h in hyps)
         post, _ = robust_update(post, outcome_likelihoods(cur, expected, outcome), ids[FailureCause.UNKNOWN.value])
         traj.append(post[true_hid])
-    lead = max(post, key=post.get)
+    lead = max(post, key=lambda k: post[k])
     return {"true_cause": true_cause.value, "in_hypothesis_set": in_set, "prior": traj[0], "posterior": traj[-1], "trajectory": traj,
             "leading": lead, "diagnosed": lead == true_hid, "confident_wrong": lead != true_hid and post[lead] > 0.6}
 

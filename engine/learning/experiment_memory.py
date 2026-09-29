@@ -21,7 +21,7 @@ import math
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterable, Mapping, Sequence
+from typing import Any, Iterable, Mapping, Sequence, cast
 
 from engine import experiment_memory as legacy_space
 from engine import registry as legacy_registry
@@ -508,7 +508,7 @@ def infer_space(configs: Iterable[Mapping]) -> "legacy_space.Space":
     for c in configs:
         for k, v in c.items():
             seen.setdefault(k, []).append(v)
-    spec = {}
+    spec: dict[str, Any] = {}
     for k, vs in seen.items():
         nums = [v for v in vs if isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)]
         if nums and len(nums) == len(vs):
@@ -545,7 +545,7 @@ class LegacyBridge:
 
     def check(self, config: Mapping) -> list:
         """[(source, status, blocking, message)] from the older stores for this configuration."""
-        out = []
+        out: list[tuple[str, str, bool, str]] = []
         if not config:
             return out
         if self.tried is not None:
@@ -900,7 +900,7 @@ def legacy_to_record(row: Mapping, index: int) -> ExperimentRecord:
     oc = str(row.get("outcome") or "").lower()
     status = _LEGACY_OUTCOME_STATUS.get(oc, ExperimentStatus.INCONCLUSIVE)
     kind = ResultKind.CONFIRMED if oc == "adopt" else ResultKind.REFUTED if oc == "reject" else ResultKind.MIXED
-    metrics = row.get("metrics") if isinstance(row.get("metrics"), dict) else {}
+    metrics = cast(dict, row.get("metrics") if isinstance(row.get("metrics"), dict) else {})
     result = ExperimentResult(kind=kind, outcome=oc or "unknown",
                               metrics={k: float(v) for k, v in metrics.items() if isinstance(v, (int, float)) and math.isfinite(v)},
                               observed_at=stamp, summary=str(row.get("reason") or NOT_RECORDED))

@@ -20,7 +20,7 @@ import enum
 import json
 import math
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any, Iterable, Mapping, Sequence, cast
 
 from .core import (DecisionEffect, Epistemic, FailureCause, FirewallBreach, Health, Lifecycle, as_date,
                    canonical_json, require_past, stable_hash)
@@ -558,7 +558,7 @@ class RetirementLedger:
         lines = [f"RETIREMENT LEDGER as of {as_date(now)} - IMPLEMENTED - NOT VALIDATED", f"counts: {self.counts(now)}",
                  f"health: {self.health(now)}"]
         for kid, s in sorted(self.states_at(now).items()):
-            last = self.last_transition(kid, now)
+            last = cast(Transition, self.last_transition(kid, now))
             lines.append(f"  {kid}: {s} since {last.at} ({last.kind}: {last.reason})")
         return "\n".join(lines)
 
@@ -592,7 +592,7 @@ class RecoveryIndex:
             matched = tuple(c.key for c in conds if c.satisfied_by(context))
             if not matched:
                 continue
-            last = self.ledger.last_transition(kid, now)
+            last = cast(Transition, self.ledger.last_transition(kid, now))
             days = (as_date(now) - as_date(last.at)).days
             frac = len(matched) / len(conds)
             prio = frac * (0.5 if s is State.RETIRED else 1.0)

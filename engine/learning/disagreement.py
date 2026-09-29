@@ -26,7 +26,7 @@ import dataclasses
 import enum
 import itertools
 import math
-from typing import Mapping, Sequence
+from typing import Any, Mapping, Sequence
 
 import numpy as np
 import pandas as pd
@@ -279,11 +279,11 @@ def find_events(sf: StanceFrame, cfg: DisagreementConfig, mechanisms: Mapping[st
 # ---------------------------------------------------------------------------------------------- who was right
 def benjamini_hochberg(p: Sequence[float]) -> np.ndarray:
     """BH q-values via engine.pattern_stats.bh_qvalues; NaN p-values stay NaN and do not count toward the number of tests."""
-    p = np.asarray(p, dtype=float)
-    q = np.full(len(p), np.nan)
-    ok = np.isfinite(p)
+    pa = np.asarray(p, dtype=float)
+    q = np.full(len(pa), np.nan)
+    ok = np.isfinite(pa)
     if ok.any():
-        q[ok] = bh_qvalues(p[ok])
+        q[ok] = bh_qvalues(pa[ok])
     return q
 
 
@@ -499,7 +499,7 @@ def predictive_test(sf: StanceFrame, cfg: DisagreementConfig, target: str, rng: 
     adj = cc[late] - pd.Series(lab[late]).map(shift).fillna(cc[early].mean()).to_numpy(dtype=float)
     a = auc(adj, pos_class) if len(late) >= 30 else 0.5
     # permutation null: shuffle the target inside each week (keeps the calendar structure, breaks the link)
-    perm_stats = []
+    perm_stats: Any = []
     for _ in range(cfg.n_perm):
         pi = permute_within_clusters(np.arange(len(idx)), w, rng)
         perm_stats.append(spearman(cc, tt[pi]))
@@ -781,7 +781,8 @@ class DisagreementEngine:
         for e in events:
             reasons[e.reason.value] = reasons.get(e.reason.value, 0) + 1
         preds = tuple(predictive_test(sf, cfg, t, seeds[0]) for t in ("abs_move", "consensus_wrong"))
-        rules, ev = (), None
+        rules: tuple[ArbitrationRule, ...] = ()
+        ev = None
         if known.sum() >= 4 * cfg.min_predictive_n:
             train, test = sf.time_split(cfg.train_frac)
             cut = test.dates.min() if test.n else None
@@ -856,7 +857,7 @@ def resolution_value(sf: StanceFrame, cfg: DisagreementConfig) -> dict:
     maj = np.where(cons == 0, 0.5, (cons * y > 0).astype(float))
     per_src = {c: float((S[m, j] * y > 0)[np.abs(S[m, j]) > cfg.deadband].mean()) for j, c in enumerate(sf.sources)
                if (np.abs(S[m, j]) > cfg.deadband).any()}
-    best = max(per_src, key=per_src.get)
+    best = max(per_src, key=lambda c: per_src[c])
     oracle = float(((S[m] * y[:, None] > 0) & (np.abs(S[m]) > cfg.deadband)).any(axis=1).mean())
     return {"n": n, "majority_vote": float(maj.mean()), "best_single_hindsight": per_src[best], "best_source": best,
             "oracle_ceiling": oracle, "headroom": oracle - float(maj.mean()), "verdict": "OK"}

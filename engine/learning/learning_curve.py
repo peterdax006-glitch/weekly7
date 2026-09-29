@@ -22,7 +22,7 @@ import dataclasses
 import datetime as dt
 import math
 from dataclasses import dataclass
-from typing import Mapping, Sequence
+from typing import Any, Mapping, Sequence
 
 import numpy as np
 
@@ -221,7 +221,7 @@ def saturation_fit(x, y, *, min_points: int = 6) -> Saturation | None:
     sst = float(((y - y.mean()) ** 2).sum())
     lin = np.polyfit(x, y, 1)
     sse_lin = float(((y - np.polyval(lin, x)) ** 2).sum())
-    best = None
+    best: Any = None
     for tau in np.geomspace(span / 25, span * 4, 60):
         b = 1 - np.exp(-(x - x0) / tau)
         A = np.column_stack([np.ones_like(x), b])
@@ -229,6 +229,7 @@ def saturation_fit(x, y, *, min_points: int = 6) -> Saturation | None:
         sse = float(((y - A @ coef) ** 2).sum())
         if best is None or sse < best[0]:
             best = (sse, tau, coef)
+    assert best is not None
     sse, tau, (c, a) = best
     fitted_now = c + a * (1 - math.exp(-span / tau))
     pref = "saturating" if a > 0 and sse < 0.7 * sse_lin else "linear"

@@ -30,6 +30,7 @@ from __future__ import annotations
 import dataclasses
 import functools
 import json
+import re
 import threading
 import warnings
 from collections import Counter
@@ -147,6 +148,7 @@ class Hub:
             self.decisions: list[PromotionVerdict] = []
             self._worker: WorkerConfig | None = None
             self._persisted: dict[str, set[str]] = {}
+            self._backfilled: set[str] = set()
 
     # ---- bookkeeping
     def record_error(self, hook: str, exc: BaseException) -> None:
@@ -180,15 +182,24 @@ class Hub:
             seen.add(key)
             return True
 
-    def ledger_for(self, registry_path: str | Path) -> EM.ExperimentLedger:
+    def ledger_for(self, registry_path: str | Path, backfill: bool = False) -> EM.ExperimentLedger:
         """The ONE facade ledger of a state directory: experiment_ledger.jsonl beside whichever legacy file (experiments.jsonl,
-        the experiment-memory file) is being mirrored, so every old writer lands in the same place."""
+        the experiment-memory file) is being mirrored, so every old writer lands in the same place. With `backfill`, the first
+        call per process also imports every row already in `registry_path` (ids dedupe), so 'have we tested this' knows the whole
+        history and not only what this process wrote - including rows written by processes running older code."""
         path = Path(registry_path).with_name("experiment_ledger.jsonl")
         key = str(path)
         with self._lock:
             if key not in self._ledgers:
                 self._ledgers[key] = EM.ExperimentLedger(path)
-            return self._ledgers[key]
+            led = self._ledgers[key]
+            if backfill and key not in self._backfilled:
+                self._backfilled.add(key)
+                rows, bad = read_jsonl(Path(registry_path))
+                self.delivered["backfill_bad_lines"] += bad
+                if rows:
+                    self.delivered["ledger_rows"] += EM.import_legacy(led, [legacy_row(r) for r in rows])["added"]
+            return led
 
 
 HUB = Hub()
@@ -327,17 +338,44 @@ def _question_of(rec: Mapping[str, Any]) -> str:
     return str(rec.get("question") or rec.get("desc") or rec.get("reason") or rec.get("event") or "experiment")
 
 
+def legacy_row(rec: Mapping[str, Any]) -> dict[str, Any]:
+    """A registry record as the row experiment_memory.legacy_to_record reads: the design config is `model_params` (what the writer
+    passed as cfg) and the question is the challenger description when there is one, else the event or reason."""
+    row = dict(rec)
+    params = rec.get("model_params")
+    if isinstance(params, Mapping):
+        row["config"] = dict(params)
+    row["question"] = _question_of(rec)
+    return row
+
+
+def read_jsonl(path: Path) -> tuple[list[dict[str, Any]], int]:
+    """(rows, bad_line_count) of a JSON-lines file; a missing file is ([], 0) and a malformed line is counted, never fatal."""
+    if not path.exists():
+        return [], 0
+    rows: list[dict[str, Any]] = []
+    bad = 0
+    for ln in path.read_bytes().decode("utf-8", errors="replace").split("\n"):
+        if not ln.strip():
+            continue
+        try:
+            obj = json.loads(ln)
+        except ValueError:
+            bad += 1
+            continue
+        if isinstance(obj, dict):
+            rows.append(obj)
+        else:
+            bad += 1
+    return rows, bad
+
+
 @sink("experiment")
 def on_experiment(rec: Mapping[str, Any], registry_path: str | Path) -> str:
     """improve.log_experiment -> the ExperimentLedger facade (a legacy row is imported honestly: fields the old writer never captured
     are marked NOT RECORDED). Returns the ledger status of the row ('added' or 'skipped')."""
-    cfg = rec.get("model_params") if isinstance(rec.get("model_params"), Mapping) else None
-    row = dict(rec)
-    if cfg is not None:
-        row["config"] = dict(cfg)
-    row["question"] = _question_of(rec)
-    led = HUB.ledger_for(registry_path)
-    out = EM.import_legacy(led, [row])
+    led = HUB.ledger_for(registry_path, backfill=True)
+    out = EM.import_legacy(led, [legacy_row(rec)])
     HUB.delivered["ledger_rows"] += out["added"]
     return "added" if out["added"] else "skipped"
 
@@ -361,7 +399,7 @@ def pre_launch(question: str, config: Mapping[str, Any], now: Any, registry_path
         return None
     HUB.calls["pre_launch"] += 1
     try:
-        led = HUB.ledger_for(registry_path)
+        led = HUB.ledger_for(registry_path, backfill=True)
         design = EM.DesignSpec(config=dict(config), seed=seed, code_hash=code_hash or current_code_hash(), data_hash=data_hash)
         return led.already_tested(question, design, now)
     except Exception as e:                                        # noqa: BLE001
@@ -385,7 +423,8 @@ def repro_dict(rec: Mapping[str, Any]) -> dict[str, Any] | None:
         if HUB._worker is None:
             HUB._worker = capture_worker()
         seed = rec.get("seed")
-        r = make_record(rec.get("model_params") if isinstance(rec.get("model_params"), Mapping) else {},
+        params = rec.get("model_params")
+        r = make_record(params if isinstance(params, Mapping) else {},
                         int(seed) if isinstance(seed, (int, float, str)) and str(seed).lstrip("-").isdigit() else None,
                         data=str(rec.get("data_snapshot") or ""), memory_hash=str(rec.get("memory_hash") or UNRECORDED),
                         experiment_id=str(rec.get("experiment_id") or "") or None, code_hash=str(rec.get("code_hash") or ""),
@@ -543,19 +582,42 @@ def promotion_allowed(challenger: Mapping[str, Any], now: Any) -> PromotionVerdi
 
 
 # ================================================================================================================== health of the wiring itself
-HOOKS: dict[str, tuple[str, str]] = {
-    "post_mortem": ("engine/lessons.py post_mortem", "failure classifications + hypotheses"),
-    "lessons": ("engine/lessons.py LessonBook.learn / learn_by_kind; engine/memory.py export_lessons", "failure hypotheses"),
-    "missed_week": ("engine/missed_winners.py MissedLedger.observe", "why-rejected ledger"),
-    "experiment": ("engine/improve.py log_experiment", "ExperimentLedger facade row"),
-    "memory_entry": ("engine/registry.py ExperimentMemory.record", "ExperimentLedger facade row"),
-    "pre_launch": ("engine/improve.py spawn_challengers", "already-tested verdict"),
-    "repro": ("engine/improve.py log_experiment", "ReproRecord on the registry record"),
-    "registry_audit": ("engine/registry.py Registry.audit", "provenance findings"),
-    "redundancy": ("engine/patterns.py PatternMiner.fit", "REDUNDANT_WITH edges"),
-    "weight": ("engine/lessons.py LessonBook.factor / advice", "board-scaled weight"),
-    "promotion_gate": ("engine/improve.py test_and_promote", "composite promotion verdict"),
+@dataclasses.dataclass(frozen=True)
+class Hook:
+    """One declared seam: which wiring function an old file must call, where, and what it delivers."""
+    function: str
+    sites: tuple[str, ...]                # repo-relative files that must contain a call to wiring.<function>
+    delivers: str
+
+
+HOOKS: dict[str, Hook] = {
+    "post_mortem": Hook("on_post_mortem", ("engine/lessons.py",), "failure classifications + hypotheses"),
+    "lessons": Hook("on_lessons", ("engine/lessons.py", "engine/memory.py"), "failure hypotheses"),
+    "missed_week": Hook("on_missed_week", ("engine/missed_winners.py",), "why-rejected ledger"),
+    "experiment": Hook("on_experiment", ("engine/improve.py",), "ExperimentLedger facade row"),
+    "memory_entry": Hook("on_memory_entry", ("engine/registry.py",), "ExperimentLedger facade row"),
+    "pre_launch": Hook("pre_launch", ("engine/improve.py",), "already-tested verdict"),
+    "repro": Hook("repro_dict", ("engine/improve.py",), "ReproRecord on the registry record"),
+    "registry_audit": Hook("registry_audit", ("engine/registry.py",), "provenance findings"),
+    "redundancy": Hook("on_redundancy", ("engine/patterns.py",), "REDUNDANT_WITH edges"),
+    "weight": Hook("effective_weight", ("engine/lessons.py",), "board-scaled weight"),
+    "promotion_gate": Hook("promotion_allowed", ("engine/improve.py",), "composite promotion verdict"),
 }
+
+
+def unwired_hooks(root: str | Path | None = None, hooks: Mapping[str, Hook] | None = None) -> list[str]:
+    """Static check: every declared hook must be CALLED (`wiring.<function>(` or `_wiring().<function>(`) in each of its site files. Returns 'name @ file' for each
+    missing call. An empty list means every declared seam is really connected; a hook that is declared but never called is exactly
+    the silent integration gap this module exists to prevent."""
+    base = Path(root) if root else Path(__file__).resolve().parents[2]
+    missing = []
+    for name, h in (hooks if hooks is not None else HOOKS).items():
+        for site in h.sites:
+            f = base / site
+            text = f.read_text(encoding="utf-8") if f.exists() else ""
+            if not re.search(r"wiring(?:\(\))?\." + re.escape(h.function) + r"\(", text):
+                missing.append(f"{name} @ {site}")
+    return missing
 
 
 def hook_report() -> dict[str, Any]:
@@ -564,6 +626,38 @@ def hook_report() -> dict[str, Any]:
             "silent_hooks": sorted(h for h in HOOKS if HUB.calls[h] == 0), "hypotheses": len(HUB.hypotheses),
             "failures_classified": len(HUB.failure_ledger), "failure_unknown_rate": HUB.failure_ledger.unknown_rate(),
             "rejections": len(HUB.missed.rows), "graph_edges": len(HUB.graph.edges("2100-01-01")), "decisions": len(HUB.decisions)}
+
+
+def state_digest() -> str:
+    """Deterministic fingerprint of everything the sinks hold (hypothesis ids, classification counts by cause, rejection reasons,
+    graph size, ledger sizes). Two runs on the same inputs must give the same digest; a digest that moves between identical runs means
+    a sink is reading a clock, an unseeded draw or dictionary order."""
+    with HUB._lock:
+        rej = sorted((str(r["period"]), str(r["reason"]), str(r["kind"])) for r in HUB.missed.rows)
+        return stable_hash({"hypotheses": sorted(HUB.hypotheses), "failures": HUB.failure_ledger.cause_counts(),
+                            "n_failures": len(HUB.failure_ledger), "rejections": rej,
+                            "edges": sorted((e.src, e.dst, e.rel) for e in HUB.graph.edges("2100-01-01")),
+                            "ledgers": sorted(len(led) for led in HUB._ledgers.values())})
+
+
+def audit_hub(now: Any) -> list[str]:
+    """Cross-check the sinks' own invariants; [] means clean. Every hypothesis validates and names no date; the failure ledger holds
+    exactly the losses that were classified (once each); the redundancy graph passes its integrity audit at `now`; no facade ledger
+    dropped a line it could not parse. This is the read-back that proves the sinks are consistent, not merely non-empty."""
+    from . import archive as AR
+    issues: list[str] = []
+    for hid, h in sorted(HUB.hypotheses.items()):
+        issues += [f"hypothesis {hid}: {e}" for e in h.validate()]
+        text = f"{h.statement} {h.target}"
+        if AR._ISO.search(text) or AR._has_year(text):
+            issues.append(f"hypothesis {hid}: names a date or year")
+    issues += [f"graph {i.code} @ {i.where}" for i in HUB.graph.audit(now) if i.severity == "error"]
+    if len(HUB.failure_ledger) != len(HUB._classified):
+        issues.append(f"failure ledger holds {len(HUB.failure_ledger)} classifications for {len(HUB._classified)} classified losses")
+    for path, led in sorted(HUB._ledgers.items()):
+        if led.unparseable:
+            issues.append(f"ledger {path}: {led.unparseable} unparseable line(s)")
+    return issues
 
 
 def assert_hooks_healthy(required: Iterable[str] = ()) -> None:

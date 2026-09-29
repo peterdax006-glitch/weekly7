@@ -23,7 +23,7 @@ import dataclasses
 import json
 import math
 from dataclasses import dataclass, field
-from typing import Any, Callable, Iterable, Mapping, Sequence
+from typing import Any, Callable, Iterable, Mapping, Sequence, TypeGuard, cast
 
 import numpy as np
 
@@ -49,6 +49,11 @@ def _f(x) -> float | None:
     except (TypeError, ValueError):
         return None
     return None if math.isnan(v) or math.isinf(v) else v
+
+
+def _ok(x) -> TypeGuard[float]:
+    """True when `_f(x)` is a real number (narrows the argument for the type checker)."""
+    return _f(x) is not None
 
 
 def ramp(x: float, lo: float, hi: float) -> float:
@@ -374,11 +379,11 @@ def evaluate_contexts(k: Any, ctx: Mapping[str, float]) -> ContextVerdict:
 def detect_selection(t: TradeRecord, env: FailureEnv, p: FailureParams) -> DetectorResult:
     """Selection promised a stock that MOVES ~exp_move. If it did not move, selection erred - whichever way it went."""
     ev: list[Evidence] = []
-    if _f(t.exp_move) is not None and _f(t.signal_ret) is not None:
+    if _ok(t.exp_move) and _ok(t.signal_ret):
         ratio = abs(t.signal_ret) / max(float(t.exp_move), 1e-9)
         if ratio < p.sel_ratio_hi:
             s = ramp(p.sel_ratio_hi - ratio, 0.0, p.sel_ratio_hi - p.sel_ratio_lo)
-            if _f(t.rank_pct) is not None:                  # a top-ranked pick that stalled is a worse ranking error
+            if _ok(t.rank_pct):                  # a top-ranked pick that stalled is a worse ranking error
                 s *= 0.7 + 0.3 * float(t.rank_pct)
             ev.append(Evidence("selection", FC.SELECTION_ERROR, s, True, Subsystem.SELECTION,
                                {"move_ratio": ratio, "exp_move": t.exp_move, "realised_move": abs(t.signal_ret)},
@@ -388,7 +393,7 @@ def detect_selection(t: TradeRecord, env: FailureEnv, p: FailureParams) -> Detec
                                {"move_ratio": ratio}, "the stock moved at least as much as promised"))
         return DetectorResult("selection", True, (), tuple(ev))
     sd = _f(env.universe_sd)
-    if _f(t.signal_ret) is not None and _f(t.universe_ret) is not None and sd and sd > 0:
+    if _ok(t.signal_ret) and _ok(t.universe_ret) and sd and sd > 0:
         z = t.side * (t.signal_ret - t.universe_ret) / sd
         if z <= -p.sel_rel_z:
             ev.append(Evidence("selection", FC.SELECTION_ERROR, ramp(-z, p.sel_rel_z, p.sel_rel_z + 2.0), True,
@@ -408,7 +413,7 @@ def detect_timing(t: TradeRecord, env: FailureEnv, p: FailureParams) -> Detector
     if miss:
         return DetectorResult("timing", False, miss)
     ev: list[Evidence] = []
-    ss = t.side_signal
+    ss = cast(float, t.side_signal)                         # _missing() above guarantees signal_ret is measured
     if ss <= p.dir_min_move:
         # the idea was not right over the horizon, so this is not a timing problem
         ev.append(Evidence("timing", FC.TIMING_ERROR, 0.8, False, Subsystem.TIMING,
@@ -426,12 +431,12 @@ def detect_timing(t: TradeRecord, env: FailureEnv, p: FailureParams) -> Detector
             ev.append(Evidence("timing", FC.TIMING_ERROR, ramp(share, p.gap_share_lo, 1.0), True, Subsystem.TIMING,
                                {"gap_cost": gap_cost, "loss_share": share}, "the overnight gap ate the trade"))
     reg = _f(t.best_entry_ret)
-    if reg is not None and _f(t.end_ret_from_fill) is not None:
+    if reg is not None and _ok(t.end_ret_from_fill):
         regret = reg - t.side * t.end_ret_from_fill
         if regret >= p.timing_regret:
             ev.append(Evidence("timing", FC.TIMING_ERROR, ramp(regret, p.timing_regret, 3 * p.timing_regret), True,
                                Subsystem.TIMING, {"entry_regret": regret}, "a much better entry existed in the window"))
-    if t.stop_hit and _f(t.end_ret_from_fill) is not None and t.side * t.end_ret_from_fill > p.dir_min_move:
+    if t.stop_hit and _ok(t.end_ret_from_fill) and t.side * t.end_ret_from_fill > p.dir_min_move:
         ev.append(Evidence("timing", FC.TIMING_ERROR, ramp(t.side * t.end_ret_from_fill, p.dir_min_move, 0.06), True,
                            Subsystem.EXIT, {"recovered_after_stop": t.side * t.end_ret_from_fill},
                            "stopped out, then the position recovered (shake-out)"))
@@ -460,14 +465,14 @@ def detect_direction(t: TradeRecord, env: FailureEnv, p: FailureParams) -> Detec
     miss = _missing(t, "signal_ret")
     if miss:
         return DetectorResult("direction", False, miss)
-    ss = t.side_signal
+    ss = cast(float, t.side_signal)                         # _missing() above guarantees signal_ret is measured
     ev: list[Evidence] = []
     if ss > -p.dir_min_move:
         ev.append(Evidence("direction", None, ramp(ss, 0.0, 0.05), False, Subsystem.DIRECTION,
                            {"side_signal": ss}, "the stock moved the way the side said (or barely moved)"))
         return DetectorResult("direction", True, (), tuple(ev))
     facts: dict[str, Any] = {"side_signal": ss}
-    sb = surprise_bits(_f(t.dir_prob), t.signal_ret > 0)
+    sb = surprise_bits(_f(t.dir_prob), cast(float, t.signal_ret) > 0)
     if sb is not None:
         facts["surprise_bits"] = sb
     ev.append(Evidence("direction", None, ramp(-ss, p.dir_min_move, 4 * p.dir_min_move), True, Subsystem.DIRECTION,
@@ -486,12 +491,12 @@ def detect_direction(t: TradeRecord, env: FailureEnv, p: FailureParams) -> Detec
 def detect_risk(t: TradeRecord, env: FailureEnv, p: FailureParams) -> DetectorResult:
     have_vol = _f(t.exp_vol) is not None
     have_stop = _f(t.stop) is not None and t.stop_hit and _f(t.stop_fill_ret) is not None
-    have_w = _f(t.weight) is not None and _f(t.target_weight) is not None and t.target_weight > 0
+    have_w = _ok(t.weight) and _ok(t.target_weight) and t.target_weight > 0
     if not (have_vol or have_stop or have_w):
         return DetectorResult("risk", False, ("exp_vol|stop|weight",))
     ev: list[Evidence] = []
     if have_vol:
-        z = t.loss / float(t.exp_vol)
+        z = t.loss / float(cast(float, t.exp_vol))
         if z >= p.risk_z:
             ev.append(Evidence("risk", FC.RISK_ERROR, ramp(z, p.risk_z, p.risk_z + 2.5), True, Subsystem.RISK,
                                {"loss_sigma": z}, "the loss was a tail event the risk model should have bounded"))
@@ -499,13 +504,14 @@ def detect_risk(t: TradeRecord, env: FailureEnv, p: FailureParams) -> DetectorRe
             ev.append(Evidence("risk", FC.RISK_ERROR, ramp(1.5 - z, 0.0, 1.0) * 0.8, False, Subsystem.RISK,
                                {"loss_sigma": z}, "the loss was within expected volatility"))
     if have_stop:
-        slip = (-float(t.stop)) - float(t.stop_fill_ret)     # how much worse than the stop level the fill was
-        if slip > p.stop_slip_tol * float(t.stop):
-            ev.append(Evidence("risk", FC.RISK_ERROR, ramp(slip / float(t.stop), p.stop_slip_tol, 1.5), True,
+        stop_lvl = cast(float, t.stop)
+        slip = (-float(stop_lvl)) - float(cast(float, t.stop_fill_ret))     # how much worse than the stop level the fill was
+        if slip > p.stop_slip_tol * float(stop_lvl):
+            ev.append(Evidence("risk", FC.RISK_ERROR, ramp(slip / float(stop_lvl), p.stop_slip_tol, 1.5), True,
                                Subsystem.RISK, {"stop": t.stop, "fill": t.stop_fill_ret, "slippage": slip},
                                "a gap jumped the stop: the stop did not cap the loss"))
     if have_w:
-        over = t.weight / t.target_weight - 1.0
+        over = cast(float, t.weight) / cast(float, t.target_weight) - 1.0
         if over > p.oversize_tol:
             ev.append(Evidence("risk", FC.RISK_ERROR, ramp(over, p.oversize_tol, 1.5), True, Subsystem.RISK,
                                {"oversize": over}, "position was larger than the plan allowed"))
@@ -565,7 +571,7 @@ def pattern_verdicts(h: PatternHistory, p: FailureParams, now=None) -> tuple[lis
                             "the effect is decaying with a significant downward trend"))
     if ok_before and abs(rec_t) < p.inactive_t and rec_mean < base_mean * p.weak_frac and (trend_t > -p.trend_t or eps):
         trig = list(h.triggers[-k:]) if h.triggers else []
-        quiet = bool(trig) and sum(trig) <= max(1, 0.25 * np.mean(h.triggers[:-k])) * k if h.triggers else False
+        quiet = bool(trig) and sum(trig) <= max(1.0, 0.25 * float(np.mean(h.triggers[:-k]))) * k if h.triggers else False
         s = 0.25 + 0.2 * min(eps, 3) + (0.15 if quiet else 0.0)
         out.append(Evidence("pattern", FC.TEMPORARY_INACTIVITY, s, True, Subsystem.SELECTION,
                             {"pattern": pid, "prior_recoveries": eps, "recent_t": rec_t, "quiet_triggers": quiet},
@@ -727,14 +733,14 @@ def detect_measurement(t: TradeRecord, env: FailureEnv, p: FailureParams) -> Det
         if abs(gap) >= p.gap_absurd:
             ev.append(Evidence("measurement", FC.MEASUREMENT_ERROR, ramp(abs(gap), p.gap_absurd, 1.5 * p.gap_absurd), True, None,
                                {"entry_gap": gap}, "an overnight gap this large is more likely a data artefact"))
-    if gap is not None and _f(t.signal_ret) is not None and _f(t.end_ret_from_fill) is not None:
+    if gap is not None and _ok(t.signal_ret) and _ok(t.end_ret_from_fill):
         checked += 1
         implied = (1 + gap) * (1 + t.end_ret_from_fill) - 1
         err = abs(implied - t.signal_ret)
         if err > p.recon_tol:
             ev.append(Evidence("measurement", FC.MEASUREMENT_ERROR, ramp(err, p.recon_tol, 10 * p.recon_tol), True, None,
                                {"reconcile_error": err}, "gap x fill-to-end return does not reproduce the decision-to-end return"))
-    if _f(t.exit_ret) is not None:
+    if _ok(t.exit_ret):
         checked += 1
         recon = t.side * t.exit_ret - float(t.cost)
         err = abs(recon - t.pnl)
@@ -857,7 +863,7 @@ class LossClassifier:
             return False, "not a loss"
         if t.loss < p.min_loss:
             return False, f"loss {t.loss:.4f} below the {p.min_loss} floor"
-        if _f(t.exp_vol) is not None and t.loss < p.noise_z * float(t.exp_vol):
+        if _ok(t.exp_vol) and t.loss < p.noise_z * float(t.exp_vol):
             return False, "loss inside expected volatility: variance, not a failure"
         return True, ""
 
@@ -1010,7 +1016,7 @@ def planted_case(cause: FailureCause, seed: int = 0, rid: str = "") -> tuple[Tra
     is kept quiet so that the classifier is tested on one mechanism at a time. The trade resolves 2019-12-30, so any
     `now` after that is legitimate; pattern histories end before the decision."""
     rng = np.random.default_rng(seed)
-    base = dict(rid=rid or f"planted-{cause.value}-{seed}", decided_at="2019-12-20", resolved_at="2019-12-30", side=1,
+    base: dict[str, Any] = dict(rid=rid or f"planted-{cause.value}-{seed}", decided_at="2019-12-20", resolved_at="2019-12-30", side=1,
                 pnl=-0.0515, weight=0.10, target_weight=0.10, signal_ret=-0.05, entry_gap=0.001,
                 end_ret_from_fill=-0.0510, exit_ret=-0.0510, mfe=0.005, mae=-0.055, exp_move=0.07, exp_vol=0.03,
                 dir_prob=0.52, rank_pct=0.9, universe_ret=0.0, pattern_ids=("P1",), knowledge_ids=("K1",),
@@ -1018,7 +1024,7 @@ def planted_case(cause: FailureCause, seed: int = 0, rid: str = "") -> tuple[Tra
     hist = {"P1": _mk_history("P1", _healthy_history(rng), p_real=0.95, t_disc=4.0, t_conf=3.0)}
     ref = ContextReference({"m_vol": 0.0, "m_trend": 0.0}, {"m_vol": 1.0, "m_trend": 1.0})
     know = {"K1": _Know({"m_vol": (-2.0, 2.0)}, {"m_trend": (3.0, None)})}
-    env = dict(patterns=hist, context_ref=ref, knowledge=know, universe_sd=0.04)
+    env: dict[str, Any] = dict(patterns=hist, context_ref=ref, knowledge=know, universe_sd=0.04)
     if cause == FC.UNKNOWN:
         base.update(exp_vol=0.03)                                        # plain wrong-way move, everything healthy
     elif cause == FC.SELECTION_ERROR:
@@ -1300,7 +1306,7 @@ def robustness(clf: "LossClassifier", t: TradeRecord, env: FailureEnv | None, no
     base_cls = clf.classify(t, env, now)
     counts: dict[str, int] = {}
     for _ in range(n):
-        kw = {}
+        kw: dict[str, Any] = {}
         for f in _JITTER_FIELDS:
             v = _f(getattr(t, f))
             if v is not None:
@@ -1359,7 +1365,7 @@ def explain_classification(c: Classification) -> str:
             lines.append("  also possible: " + ", ".join(f"{k.value} {v:.2f}" for k, v in c.secondary))
         return NL.join(lines)
     why = {Unknown.INSUFFICIENT_DATA: "too few detectors could run", Unknown.CONFLICTED: "two causes are indistinguishable",
-           Unknown.UNKNOWN: "detectors ran and found nothing convincing"}.get(c.unknown_state, "no cause named")
+           Unknown.UNKNOWN: "detectors ran and found nothing convincing"}.get(cast(Unknown, c.unknown_state), "no cause named")
     lines = [f"{c.rid}: {c.cause.value} - {why}. {c.note}"]
     for d, m in sorted(c.missing.items()):
         lines.append(f"  {d} could not run: needs {', '.join(m)}")
@@ -1388,7 +1394,8 @@ def threshold_sensitivity(t: TradeRecord, env: FailureEnv | None, now, field_nam
         raise ValueError(f"FailureParams has no field {field_name!r}")
     out, prev = [], None
     for v in grid:
-        c = LossClassifier(dataclasses.replace(base_p, **{field_name: v})).classify(t, env, now)
+        overrides: dict[str, Any] = {field_name: v}
+        c = LossClassifier(dataclasses.replace(base_p, **overrides)).classify(t, env, now)
         out.append({field_name: v, "cause": c.cause.value, "score": round(c.score, 4), "flipped": prev is not None and c.cause.value != prev})
         prev = c.cause.value
     return out

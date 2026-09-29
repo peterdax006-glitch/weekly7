@@ -17,7 +17,7 @@ from __future__ import annotations
 import dataclasses
 import datetime as dt
 import math
-from typing import Any, Callable, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence, cast
 
 import numpy as np
 from scipy import stats as sps
@@ -99,7 +99,7 @@ def from_outcomes(dates: Sequence[Any], values: Sequence[float], now, period_day
         out_v.append(float(vals.mean()))
         out_s.append(float(vals.std(ddof=1) / math.sqrt(len(vals))) if len(vals) > 1 else float("nan"))
         if regimes is not None:
-            labs = [c[3] for c in chunk]
+            labs = cast(list[str], [c[3] for c in chunk])
             out_r.append(max(sorted(set(labs)), key=labs.count))
         if events is not None:
             out_e.append(sum(1 for c in chunk if c[4]) * 2 > len(chunk))
@@ -232,7 +232,7 @@ def _wquantile(x: np.ndarray, p: np.ndarray, q: float) -> float:
     o = np.argsort(x)
     cx, cp = x[o], np.cumsum(p[o])
     cp = cp / cp[-1]
-    return float(cx[min(np.searchsorted(cp, q), len(cx) - 1)])
+    return float(cx[min(int(np.searchsorted(cp, q)), len(cx) - 1)])
 
 
 def _runs(mask: np.ndarray) -> list[tuple[int, int]]:
@@ -251,22 +251,22 @@ def _runs(mask: np.ndarray) -> list[tuple[int, int]]:
 
 def _group_fit(y, w, labels: Sequence[Any], klass: TC, name: str, n: int, phi: float, min_per: int = 2):
     """Piecewise-constant model with one mean per label. Labels with fewer than `min_per` bins are pooled into '_rare'."""
-    labels = np.array([str(x) for x in labels])
-    uniq, counts = np.unique(labels, return_counts=True)
-    keep = {u for u, c in zip(uniq, counts) if c >= min_per}
-    labels = np.array([x if x in keep else "_rare" for x in labels])
-    uniq = [u for u in np.unique(labels)]
+    lab_s = np.array([str(x) for x in labels])
+    uniq0, counts = np.unique(lab_s, return_counts=True)
+    keep = {u for u, c in zip(uniq0, counts) if c >= min_per}
+    labs = np.array([x if x in keep else "_rare" for x in lab_s])
+    uniq = [u for u in np.unique(labs)]
     if len(uniq) < 2 or len(uniq) > max(2, n // 3):
         return None
     chi2, means = 0.0, {}
     for u in uniq:
-        m = labels == u
+        m = labs == u
         mu = float((w[m] * y[m]).sum() / w[m].sum())
         chi2 += float((w[m] * (y[m] - mu) ** 2).sum())
         means[u] = mu
-    se = {u: 1.0 / math.sqrt(float(w[labels == u].sum() / phi)) for u in uniq}
+    se = {u: 1.0 / math.sqrt(float(w[labs == u].sum() / phi)) for u in uniq}
     return ModelFit(name, klass.value, len(uniq), chi2, _bic(chi2, len(uniq), n, phi),
-                    {"means": means, "se": se, "labels": labels.tolist()})
+                    {"means": means, "se": se, "labels": labs.tolist()})
 
 
 def _phase_labels(dates: Sequence[dt.date]) -> list[str]:
@@ -414,7 +414,7 @@ def _season_replicates(y, ds) -> bool:
     for m in range(1, 13):
         a, b = y[(ph == m) & (yr % 2 == 0)], y[(ph == m) & (yr % 2 == 1)]
         if len(a) and len(b):
-            A.append(a.mean()), B.append(b.mean())
+            A.append(a.mean()); B.append(b.mean())
     if len(A) < 6:
         return False
     r, _ = sps.spearmanr(A, B)
@@ -775,7 +775,7 @@ def kaplan_meier(durations: Sequence[float], ended: Sequence[bool]) -> KMCurve:
         s *= 1.0 - d_i / n_i
         if n_i > d_i:
             gw += d_i / (n_i * (n_i - d_i))
-        times.append(float(t)), surv.append(float(s)), ses.append(float(s * math.sqrt(gw))), risk.append(n_i)
+        times.append(float(t)); surv.append(float(s)); ses.append(float(s * math.sqrt(gw))); risk.append(n_i)
     return KMCurve(tuple(times), tuple(surv), tuple(ses), tuple(risk), int(len(d)), int(e.sum()))
 
 
@@ -789,9 +789,9 @@ def profile_lifetimes(memory: "TemporalMemory", as_of, born: Mapping[str, Any]) 
             continue
         age = float((as_date(as_of) - as_date(b)).days)
         if p.lifetime_days is not None and p.klass in (TC.SLOW_DECAY.value, TC.FAST_DECAY.value) and age >= p.lifetime_days:
-            dur.append(float(p.lifetime_days)), ended.append(True)
+            dur.append(float(p.lifetime_days)); ended.append(True)
         else:
-            dur.append(age), ended.append(False)
+            dur.append(age); ended.append(False)
     return dur, ended
 
 
@@ -905,7 +905,7 @@ def failure_context_profile(series: EffectSeries, context: Mapping[str, Sequence
             closed[a:b + 1] = True
     runs = [b - a + 1 for a, b in _runs(closed)]
     mean_run = float(np.mean(runs)) if runs else 0.0
-    best = {"feature": None, "p": 1.0, "corr": 0.0, "autocorr": 0.0}
+    best: dict[str, Any] = {"feature": None, "p": 1.0, "corr": 0.0, "autocorr": 0.0}
     for name, vals in sorted(context.items()):
         v = np.asarray(vals, float)
         if not name.startswith("m_") or len(v) != n or v.std() == 0:

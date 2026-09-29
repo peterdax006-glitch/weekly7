@@ -17,7 +17,7 @@ import dataclasses
 import math
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence, cast
 
 import numpy as np
 
@@ -200,14 +200,17 @@ class KnowledgeBoard:
                 del self.champions[m.slot]
             self._move(m, P.RETIRED, t, d.get("reason", ""), cause=d.get("cause", ""))
         elif event == "watch_obs":
+            assert m.watch is not None
             m.watch["obs"].append((t, float(d["new"]), float(d["old"])))
         elif event == "watch_confirmed":
+            assert m.watch is not None
             m.watch["status"] = "confirmed"
         elif event == "rolled_back":
             pred = self.members[d["restored"]]
             self._move(m, P.RETIRED, t, f"rolled back: {d['reason']}", cause="ROLLED_BACK")
             self._move(pred, P.CHAMPION, t, f"restored after rollback of {mid}", rollback=True)
             self.champions[m.slot] = pred.mid
+            assert m.watch is not None
             m.watch["status"] = "rolled_back"
         else:
             raise BoardError(f"unknown ledger event {event!r}")
@@ -388,6 +391,7 @@ class KnowledgeBoard:
         w = self.members[mid].watch if mid else None
         if not w or w["status"] != "pending":
             return {"status": (w or {}).get("status", "none")}
+        assert mid is not None                     # w is only set when a champion exists
         pol = self.policy
         st = paired_stats([n - o for _, n, o in w["obs"]])
         if st["n"] < pol.watch_sessions:
@@ -499,7 +503,7 @@ def shadow_summary(board: KnowledgeBoard, mid: str, now=None) -> ShadowSummary:
     d = np.array([c - b for _, c, b in obs], float)
     if d.size == 0:
         return ShadowSummary(mid, 0, 0.0, 0.0, 0.0, 1.0, float("nan"), 0.0, 0.0, 0.0, None, None)
-    st = paired_stats(d)
+    st = paired_stats(cast(Any, d))
     cum = np.cumsum(d)
     peak = np.maximum.accumulate(np.concatenate([[0.0], cum]))[1:]
     return ShadowSummary(mid, st["n"], st["mean"], float(d.std(ddof=1)) if d.size > 1 else 0.0, st["t"], _p_one_sided(st["t"]),

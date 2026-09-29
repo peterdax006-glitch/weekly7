@@ -29,7 +29,7 @@ import dataclasses
 import enum
 import itertools
 import math
-from typing import Iterable, Mapping, Sequence
+from typing import Iterable, Mapping, Sequence, cast
 
 import numpy as np
 import pandas as pd
@@ -541,10 +541,13 @@ class RedundancyAnalyzer:
             raise ValueError("a pair needs two different items")
         seeds = np.random.SeedSequence([self.cfg.seed, _stable_int(a), _stable_int(b)]).spawn(2)
         m = Measurer(panel, profiles, self.cfg)
-        scores = {RedundancyKind.PREDICTIVE: m.predictive(a, b, np.random.default_rng(seeds[0])),
+        raw: dict[RedundancyKind, KindScore | None] = {RedundancyKind.PREDICTIVE: m.predictive(a, b, np.random.default_rng(seeds[0])),
                   RedundancyKind.CONTEXT: m.context(a, b), RedundancyKind.MECHANISTIC: m.mechanistic(a, b),
                   RedundancyKind.OPERATIONAL: None, RedundancyKind.RISK: m.risk(a, b)}
-        scores[RedundancyKind.OPERATIONAL] = m.operational(a, b, scores[RedundancyKind.PREDICTIVE].value)
+        pred_s = raw[RedundancyKind.PREDICTIVE]
+        assert pred_s is not None
+        raw[RedundancyKind.OPERATIONAL] = m.operational(a, b, pred_s.value)
+        scores = cast(dict[RedundancyKind, KindScore], raw)
         klass, flags = classify_pair(self.cfg, scores)
         pd_ = scores[RedundancyKind.PREDICTIVE].detail
         subsumed = None
@@ -557,7 +560,8 @@ class RedundancyAnalyzer:
         era = m.era_stability(a, b, np.random.default_rng(seeds[1])) if scores[RedundancyKind.PREDICTIVE].value is not None else None
         if era is False:
             flags.append("predictive redundancy differs between the early and late halves")
-        if scores[RedundancyKind.MECHANISTIC].value is not None and scores[RedundancyKind.MECHANISTIC].value >= self.cfg.high \
+        mech_v = scores[RedundancyKind.MECHANISTIC].value
+        if mech_v is not None and mech_v >= self.cfg.high \
                 and (scores[RedundancyKind.PREDICTIVE].value or 0) < self.cfg.low:
             flags.append("claims the same mechanism but does not predict alike: one claim is wrong")
         op = scores[RedundancyKind.OPERATIONAL]
@@ -609,8 +613,8 @@ class RedundancyAnalyzer:
         latest = (panel.dates.max() + pd.Timedelta(days=panel.horizon_days))
         require_past(latest, now, "newest observation outcome")
         pairs = tuple(self.analyze_pair(panel, profiles, a, b) for a, b in itertools.combinations(items, 2))
-        for p in pairs:
-            errs = p.validate()
+        for pr in pairs:
+            errs = pr.validate()
             if errs:
                 raise ValueError("; ".join(errs))
         clusters = duplicate_clusters(pairs)
@@ -791,7 +795,8 @@ def forward_select(panel: ObservationPanel, items: Sequence[str], min_gain: floa
         X = X - X.mean(axis=0)
         beta, *_ = np.linalg.lstsq(X, y, rcond=None)
         return float(1 - ((y - X @ beta) ** 2).sum() / (y ** 2).sum())
-    chosen, cur, out = [], 0.0, []
+    chosen: list[str] = []
+    cur, out = 0.0, []
     remaining = list(items)
     while remaining and (max_items is None or len(chosen) < max_items):
         gains = {c: r2(chosen + [c]) - cur for c in remaining}

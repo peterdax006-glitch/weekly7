@@ -957,7 +957,7 @@ def loss_coverage(trades: Sequence[TradeRecord], pms: Sequence[Postmortem], bins
     losses = sorted((t for t in trades if t.pnl < 0), key=lambda t: t.pnl)
     if not losses:
         return {"n_losses": 0, "coverage": float("nan")}
-    out = {"n_losses": len(losses), "coverage": sum(t.rid in have for t in losses) / len(losses), "by_size": []}
+    out: dict[str, Any] = {"n_losses": len(losses), "coverage": sum(t.rid in have for t in losses) / len(losses), "by_size": []}
     step = max(1, len(losses) // bins)
     for i in range(0, len(losses), step):
         chunk = losses[i:i + step]

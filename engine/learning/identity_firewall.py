@@ -25,7 +25,7 @@ IMPLEMENTED - NOT VALIDATED."""
 from __future__ import annotations
 
 import dataclasses
-from typing import Any, Callable, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence, cast
 
 import numpy as np
 import pandas as pd
@@ -247,7 +247,7 @@ def _move_content(X, y, blocks: list[np.ndarray], order: Sequence[int], kind: st
         if len(a) != len(b) or len(ua) != len(ub):
             continue
         # align date j-th of the source block with date j-th of the target block, tickers by name within the date
-        src_pos = {}
+        src_pos: dict[Any, int] | None = {}
         for du_a, du_b in zip(ua, ub):
             ra = a[np.asarray(d[a] == du_a)]
             rb = b[np.asarray(d[b] == du_b)]
@@ -257,7 +257,7 @@ def _move_content(X, y, blocks: list[np.ndarray], order: Sequence[int], kind: st
                 src_pos = None
                 break
             for r, t in zip(ra, ta):
-                src_pos[r] = int(tb[t])
+                cast(dict, src_pos)[r] = int(tb[t])
         if not src_pos:
             continue
         for tgt, src in src_pos.items():
@@ -665,7 +665,7 @@ def label_only_sensitivity(learner: Learner, X_train, y_train, X_eval, seed: int
         return {"sensitivity": float("nan"), "note": "too few tickers to shuffle"}
     s = learner(X_train, y_train, t.X, seed).astype(float)
     back = pd.Series(np.nan, index=X_eval.index)
-    pos = t.inverse_rows
+    pos = cast(np.ndarray, t.inverse_rows)
     ok = ~pd.isna(pos)
     back.iloc[pos[ok].astype(int)] = s.to_numpy()[ok]
     both = pd.DataFrame({"a": base, "b": back}).dropna()
@@ -847,7 +847,9 @@ def run_battery(learner: Learner, X_train, y_train, X_eval, y_eval, seeds: Seque
     run_kw = {k: harness_kw.pop(k) for k in ("sector_columns", "groups") if k in harness_kw}
     reps = []
     for sd in seeds:
-        h = IdentityHarness(lambda a, b, c, s, _l=learner: _l(a, b, c, s), seed=int(sd), **harness_kw)
+        def _wrapped(a, b, c, s, _l=learner):
+            return _l(a, b, c, s)
+        h = IdentityHarness(_wrapped, seed=int(sd), **harness_kw)
         reps.append(h.run(X_train, y_train, X_eval, y_eval, **run_kw))
     return BatteryResult(tuple(reps), tuple(int(s) for s in seeds))
 
@@ -937,7 +939,7 @@ def cross_identity_transfer(learner: Learner, X: pd.DataFrame, y: pd.Series, see
     def part(rows):
         return X[rows], y.reindex(X.index)[rows]
     Xtr, ytr = part(dmask & tmask)
-    out = {"n_train": int(len(Xtr))}
+    out: dict[str, Any] = {"n_train": int(len(Xtr))}
     for name, rows in (("time", ~dmask & tmask), ("stock", dmask & ~tmask), ("both", ~dmask & ~tmask)):
         Xe, ye = part(rows)
         if not len(Xe):
@@ -984,7 +986,7 @@ def harness_selfcheck(seed: int = 0, n_dates: int = 40, n_names: int = 18, boot:
     half = dates[n_dates // 2]
     tr = np.asarray(X.index.get_level_values(0) < half)
     Xtr, ytr, Xte, yte = X[tr], y[tr], X[~tr], y[~tr]
-    kw = dict(attacks=("ticker_permutation", "date_permutation"), modes=("eval",), boot=boot, seed=seed)
+    kw: dict[str, Any] = dict(attacks=("ticker_permutation", "date_permutation"), modes=("eval",), boot=boot, seed=seed)
     out = {}
     out["memorizer"] = IdentityHarness(memorizer_learner, **kw).run(X, y, X, y)
     out["ticker_mean"] = IdentityHarness(ticker_mean_learner, **kw).run(Xtr, ytr, Xte, yte)

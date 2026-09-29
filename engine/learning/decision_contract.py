@@ -14,7 +14,7 @@ import dataclasses
 import enum
 import math
 from collections import Counter
-from typing import Any, Iterable, Mapping
+from typing import Any, Iterable, Mapping, cast
 
 from engine.learning.core import (DecisionEffect, Epistemic, FirewallBreach, Lifecycle, Promotion, as_date, stable_hash)
 from engine.learning.epistemic import DEFAULT_THRESHOLDS
@@ -157,6 +157,7 @@ def check(k: Any, now, mode: Mode = Mode.PRODUCTION, min_usefulness: float = 0.5
 
     gates: list[str] = []                      # the trading-side gates
     if mode != Mode.RESEARCH and not dead and life not in LIFECYCLE_ACTIVE:
+        assert life is not None                # `dead` is empty only when life is not None
         gates.append(f"lifecycle {life.value} has not reached an active stage")
     promo = getattr(k, "promotion", None)
     if promo not in PROMOTION_FOR_MODE[mode]:
@@ -274,7 +275,8 @@ class RegistryAudit:
 
 
 def split(items: Iterable[Any], now, mode: Mode = Mode.PRODUCTION) -> tuple[list[tuple[Any, Verdict]], list[tuple[Any, Verdict]]]:
-    allowed, refused = [], []
+    allowed: list[tuple[Any, Verdict]] = []
+    refused: list[tuple[Any, Verdict]] = []
     for k in items:
         v = check(k, now, mode)
         (allowed if v.allowed else refused).append((k, v))
@@ -334,7 +336,7 @@ class Contribution:
     target: str = ""                 # candidate id / pattern id the nudge applies to; "" = whole decision
 
 
-LIMITS = {"rank_max_share": 0.5,     # knowledge may move a rank score by at most half its base spread
+LIMITS: dict[str, Any] = {"rank_max_share": 0.5,     # knowledge may move a rank score by at most half its base spread
           "size_floor": 0.0, "size_cap": 2.0,
           "stop_may_loosen": False}  # a learned item may only TIGHTEN a stop, never widen it (loss cap, section 43 safety)
 
@@ -501,7 +503,7 @@ def readiness(k: Any, now, min_usefulness: float = 0.5) -> dict:
     missing: list[str] = []
     if not declared_effects(k):
         missing.append("declare a decision effect (what decision does it change?)")
-    proxy = dataclasses.replace(k, promotion=Promotion.CHAMPION) if dataclasses.is_dataclass(k) else k
+    proxy = dataclasses.replace(cast(Any, k), promotion=Promotion.CHAMPION) if dataclasses.is_dataclass(k) else k
     v = check(proxy, now, Mode.PRODUCTION, min_usefulness)
     missing += [r for r in v.reasons if not r.startswith("research-only")]
     conf = getattr(k, "confidence", None)
@@ -527,12 +529,13 @@ def conflicting_contributions(contribs: Iterable[Contribution]) -> list[tuple[st
     for c in contribs:
         if c.weight > 0 and c.signed != 0:
             by.setdefault((c.effect.value, c.target), []).append(c)
-    out = []
+    out: list[tuple[str, str, str, str]] = []
     for (eff, tgt), cs in sorted(by.items()):
         for i, a in enumerate(cs):
             for b in cs[i + 1:]:
                 if (a.signed > 0) != (b.signed > 0):
-                    out.append((eff, tgt, *sorted((a.knowledge_id, b.knowledge_id))))
+                    ida, idb = sorted((a.knowledge_id, b.knowledge_id))
+                    out.append((eff, tgt, ida, idb))
     return sorted(set(out))
 
 

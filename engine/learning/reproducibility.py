@@ -554,9 +554,9 @@ def config_order_invariant(fn: Callable[[dict, int], Mapping], cfg: Mapping, see
     return a == b
 
 
-def diff_records(a: ReproRecord, b: ReproRecord) -> dict[str, tuple[Any, Any]]:
+def diff_records(a: ReproRecord, b: ReproRecord) -> dict[str, Any]:
     """Field-level difference between two records (worker shown as its own diff), for the report."""
-    out: dict[str, tuple[Any, Any]] = {}
+    out: dict[str, Any] = {}
     for c in COMPONENTS:
         if c == "worker":
             wd = a.worker.diff(b.worker)
@@ -590,7 +590,7 @@ class ExperimentManifest:
         p = Path(path)
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_bytes(json.dumps(d, sort_keys=True, indent=1).encode("utf-8"))            # binary: no CRLF rewriting on Windows
-        return d["digest"]
+        return str(d["digest"])
 
     @classmethod
     def load(cls, path) -> "ExperimentManifest":

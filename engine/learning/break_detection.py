@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import dataclasses
 import math
-from typing import Any, Callable, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence, cast
 
 import numpy as np
 import pandas as pd
@@ -845,7 +845,7 @@ def threshold_stability(design: Design, values: np.ndarray, cond: Condition, row
     """How the OOS verdict moves when each cut is nudged by a fraction of the column's spread. A condition that only passes
     at its exact fitted cut is a curve fit, and shows up here as passes flipping."""
     P = _cfg(cfg)
-    out = []
+    out: list[dict] = []
     if not getattr(cond, "terms", ()):
         return out                        # a fitted state has no single cut to nudge
     for s in shifts:
@@ -952,7 +952,7 @@ def explain_break(item: ItemSeries, as_of=None, cfg=None, seed: int = 0) -> Brea
     n_tested = int(sum(1 for c in design.X.columns if design.tags[c].causal))
     power = detectable_smd(len(pops.success), len(pops.failed), n_tested, P["alpha"])
     comps = tuple(composition_shift(design, g, pops, P["n_perm"], seed + 7) for g in item.compositions)
-    cands = propose_conditions(design, values, disc_rows, table, fam, P)
+    cands: list[tuple[Any, float]] = propose_conditions(design, values, disc_rows, table, fam, P)
     cands = cands + propose_state_conditions(design, values, disc_rows, table, fam, P, seed)
     if not cands:
         return _empty(item, as_of, "UNKNOWN",
@@ -1151,7 +1151,7 @@ def event_study(design: Design, episodes: Sequence[Episode], columns: Sequence[s
         x = X[c].values.astype(float)
         sd = np.nanstd(x)
         z = (x - np.nanmean(x)) / sd if sd > 1e-12 else np.zeros_like(x)
-        row = {"column": c}
+        row: dict[Any, Any] = {"column": c}
         for off in range(-window, window + 1):
             vals = [z[e.onset + off] for e in episodes if 0 <= e.onset + off < n]
             row[off] = float(np.mean(vals)) if vals else float("nan")
@@ -1182,7 +1182,7 @@ def era_consistency(design: Design, pops: Populations, columns: Sequence[str], n
     out = []
     for c in columns:
         x = design.X[c].values.astype(float)
-        row = {"column": c}
+        row: dict[str, Any] = {"column": c}
         for k in range(n_eras):
             s = pops.success[(pops.success >= edges[k]) & (pops.success < edges[k + 1])]
             f = pops.failed[(pops.failed >= edges[k]) & (pops.failed < edges[k + 1])]
@@ -1522,7 +1522,7 @@ def explanation_stability(item: ItemSeries, as_ofs: Sequence[Any], cfg=None, see
     """Explain the same item at several dates and see whether the story holds still. Reports the status at each date, how often
     the top condition column is the same, and how often the verdict is UNKNOWN. A cause that changes every time new data
     arrives was probably never a cause."""
-    rows = []
+    rows: list[dict[str, Any]] = []
     for i, a in enumerate(as_ofs):
         try:
             ex = explain_break(item, a, cfg, seed + i)
@@ -1589,7 +1589,7 @@ def dossier_text(ex: BreakExplanation, dossier: Mapping[str, Any]) -> str:
     """The out-of-sample harness result as plain language."""
     if not dossier:
         return f"{ex.item_id}: no condition to test ({ex.status})"
-    lines = [f"{ex.item_id}: {ex.condition.describe()}", f"robust: {dossier['robust']}"]
+    lines = [f"{ex.item_id}: {cast(Condition, ex.condition).describe()}", f"robust: {dossier['robust']}"]
     for w in dossier["walk_forward"]:
         lines.append(f"- walk-forward gate on {w['column']}: gain {w['gain']:+.3%} per period (90% CI {w['gain_lo']:+.3%} to "
                      f"{w['gain_hi']:+.3%}), {w['n_refits']} refits, cut instability {w['cut_instability']:.2f}")

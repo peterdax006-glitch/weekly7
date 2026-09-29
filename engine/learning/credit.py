@@ -871,7 +871,7 @@ class CreditEngine:
     def _interaction_records(self, raw, comps, frame, rng) -> list[InteractionCredit]:
         """Pairwise Shapley interaction indices with week-clustered CIs and BH control over all pairs; an interaction is
         RELIABLE only if q <= alpha AND it is material (>= interaction_min_rel of the total effect)."""
-        out = []
+        out: list[InteractionCredit] = []
         if not raw["pairs"]:
             return out
         keys = list(raw["pairs"])
@@ -984,11 +984,11 @@ class CreditEngine:
             inter_share = 0.0
         failed = net < 0
         if not failed:
-            top = max(credit, key=credit.get) if any(v != 0 for v in credit.values()) else None
+            top = max(credit, key=lambda k: credit[k]) if any(v != 0 for v in credit.values()) else None
             return DecisionCredit(decision_id, float(raw["v_full"][0]), float(raw["v_empty"][0]), credit, loo, inter_share,
                                   top, COMPONENT_SUBSYSTEM.get(top) if top else None, None,
                                   "not a failure relative to doing nothing" if top else "no component moved the decision")
-        worst = min(credit, key=credit.get)
+        worst = min(credit, key=lambda k: credit[k])
         if abs(credit[worst]) < 1e-15:
             return DecisionCredit(decision_id, float(raw["v_full"][0]), float(raw["v_empty"][0]), credit, loo, inter_share,
                                   None, None, FailureCause.UNKNOWN, "loss with no component holding measurable blame")
@@ -1159,8 +1159,8 @@ def utility_sensitivity(frame: DecisionFrame, combiner: Combiner, cfg: CreditCon
     rows = []
     for k, c in enumerate(comps):
         r = {"component": c}
-        for u, v in out.items():
-            r[f"{u}_mean"], r[f"{u}_pos"], r[f"{u}_neg"] = v[k]
+        for uname, v in out.items():
+            r[f"{uname}_mean"], r[f"{uname}_pos"], r[f"{uname}_neg"] = v[k]
         r["robust_positive"] = all(out[u.value][k][1] for u in Utility)
         r["robust_negative"] = all(out[u.value][k][2] for u in Utility)
         rows.append(r)

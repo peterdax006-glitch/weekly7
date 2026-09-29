@@ -21,7 +21,7 @@ import json
 import math
 from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import Callable, Iterable, Mapping, Sequence
+from typing import Any, Callable, Iterable, Mapping, Sequence, cast
 
 import numpy as np
 from scipy.special import digamma, gammaln
@@ -1048,7 +1048,7 @@ def joint_information(prior: Mapping[str, float], likelihoods: Sequence[Mapping[
     return max(0.0, h_prior - exp_post)
 
 
-def candidate_likelihood(c: Candidate) -> tuple:
+def candidate_likelihood(c: Candidate) -> tuple | None:
     """(prior, likelihood) of a discrete-model candidate, or None if it has no discrete model."""
     if c.info.kind != "discrete":
         return None
@@ -1144,7 +1144,7 @@ def factor_elasticity(policy: "ResearchPolicy", c: Candidate, ctx: PolicyContext
     """d log(priority) / d log(factor) by finite differences for each of the five multiplicative factors: which lever
     moves this candidate's priority most. Factors at their floor or ceiling report None (no room to move)."""
     base = policy.priority.score(c, ctx, budget).priority
-    out = {}
+    out: dict[str, Any] = {}
     for name in ("uncertainty", "relevance", "transfer_potential", "feasibility", "decision_value"):
         v = getattr(c.factors, name)
         up = min(1.0, v * (1 + delta))
@@ -1184,7 +1184,8 @@ def ips_estimate(log: Sequence[LoggedChoice], new_shares: Mapping[str, float], c
     target tells us nothing about it, and pretending otherwise is how off-policy estimates lie."""
     if not log:
         return {"n": 0, "ips": float("nan"), "snips": float("nan"), "ess": 0.0}
-    w, r = [], []
+    w: Any = []
+    r: Any = []
     for c in log:
         if c.propensity <= 0:
             raise ValueError("zero-propensity choice in the log: off-policy estimate undefined")
@@ -1460,7 +1461,8 @@ def schedule_with_dependencies(scored: Sequence[ScoredCandidate], requires: Mapp
     prerequisite is not in the set are DEFERRED with the missing id, not run blind. A cycle raises: two experiments that
     each need the other's result cannot both be planned."""
     by_id = {s.candidate.cid: s for s in scored}
-    deferred, indeg, graph = [], {}, {}
+    deferred, indeg = [], {}
+    graph: dict[Any, list] = {}
     for cid, s in by_id.items():
         reqs = list(requires.get(cid, ()))
         missing = [r for r in reqs if r not in by_id]
@@ -1569,7 +1571,7 @@ def self_check(seed: int = 0) -> dict:
       bandit_beats_exploit   the allocator earns more than exploit-only in a world where exploitation is barren
       informative_beats_flat an experiment that discriminates hypotheses outranks one that cannot
       budget_respected       nothing selected exceeds the round's minutes or the RAM ceiling"""
-    results = {}
+    results: dict[str, Any] = {}
     pol = ResearchPolicy()
     now = "2026-01-10"
     base = Candidate("c_base", "q", ResearchTarget.FAILURE, "2026-01-01", info=InfoModel("normal", {"n_now": 10, "n_new": 30}))
@@ -1688,7 +1690,7 @@ def regret_report(history: Sequence[RealisedGain], window: int = 50) -> dict:
     for g in rows:
         by.setdefault(g.target.value, []).append(g.realised_bits)
     means = {k: sum(v) / len(v) for k, v in by.items()}
-    best = max(means, key=means.get)
+    best = max(means, key=lambda k: means[k])
     got = sum(g.realised_bits for g in rows)
     return {"n": len(rows), "best_target_in_hindsight": best, "best_mean_bits": means[best], "achieved_bits": got,
             "oracle_bits": means[best] * len(rows), "regret_bits": means[best] * len(rows) - got,
@@ -1878,7 +1880,8 @@ def expire_candidates(cands: Sequence[Candidate], now, max_age_days: float = 120
     """(kept, expired): candidates whose triggering evidence is older than max_age_days are expired, not deleted. A question
     nobody has refreshed in four months is a question the world may have answered."""
     cut = to_ts(now)
-    kept, gone = [], []
+    kept: list = []
+    gone: list = []
     for c in cands:
         age = (cut - to_ts(c.created_at)).total_seconds() / 86400.0
         (gone if age > max_age_days else kept).append(c)
@@ -2005,7 +2008,7 @@ def marginal_value_of_compute(policy: "ResearchPolicy", candidates: Sequence[Can
         mins = plan.selection.used_minutes
         rows.append({"multiplier": m, "budget_minutes": b.cpu_minutes, "used_minutes": mins, "selected": len(plan.selection.selected),
                      "total_bits": bits, "deferred": len(plan.selection.deferred),
-                     "extra_bits_per_extra_minute": None if prev_bits is None or mins <= prev_min + EPS else (bits - prev_bits) / (mins - prev_min)})
+                     "extra_bits_per_extra_minute": None if prev_bits is None or mins <= cast(float, prev_min) + EPS else (bits - prev_bits) / (mins - cast(float, prev_min))})
         prev_bits, prev_min = bits, mins
     return rows
 

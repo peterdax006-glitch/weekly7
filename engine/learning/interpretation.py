@@ -16,7 +16,7 @@ import dataclasses
 import enum
 import math
 import re
-from typing import Mapping
+from typing import Any, Mapping, cast
 
 import numpy as np
 
@@ -406,7 +406,7 @@ class DecisionUsefulness:
 
     @property
     def z(self) -> float | None:
-        return None if not self.measured or not self.se else self.incremental_value / self.se
+        return None if not self.measured or not self.se else cast(float, self.incremental_value) / self.se
 
     def check(self) -> list[str]:
         errs = []
@@ -691,7 +691,7 @@ def probe_rolling_sign(y, x, window: int = 60, min_share: float = 0.7) -> ProbeR
     y, x = _clean(y, x)
     if len(y) < 2 * window:
         return ProbeResult("sign_consistent_rolling", None, f"need >= {2 * window} observations, have {len(y)}")
-    signs = []
+    signs: Any = []
     for i in range(0, len(y) - window + 1, max(1, window // 2)):
         yy, xx = y[i:i + window], x[i:i + window]
         if np.std(xx) == 0:
@@ -787,7 +787,7 @@ def evidence_ledger(belief: HypothesisSet) -> list[str]:
     rows = []
     for e in belief.log:
         lik = dict(e.likelihoods)
-        hi, lo = max(lik, key=lik.get), min(lik, key=lik.get)
+        hi, lo = max(lik, key=lik.__getitem__), min(lik, key=lik.__getitem__)
         rows.append(f"{e.at} {e.name}: favours {hi} ({lik[hi]:.2f}), hurts {lo} ({lik[lo]:.2f})"
                     + (f"; evidence through {e.evidence_through}" if e.evidence_through else ""))
     return rows

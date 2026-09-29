@@ -167,9 +167,10 @@ def test_new_version_links_and_never_mutates_parent():
     v2 = v1.new_version("2020-06-01", "more evidence", evidence=kn.Evidence(300, 140.0, 0.9, 0.7, "2020-05-30"))
     assert (v2.version, v2.parent_hash, v2.knowledge_id) == (2, h1, v1.knowledge_id)
     assert v1.record_hash() == h1 and v1.evidence.sample_size == 200
-    assert f"{v1.knowledge_id}@v1" in v2.provenance.parents
+    assert v2.provenance.parents == ()                      # canonical: bare ids only, a predecessor of the same id is not an ancestor
+    assert v2.parent_hash == h1
     assert [c.path for c in kn.diff(v1, v2)] == ["evidence.effective_sample_size", "evidence.last_evidence_at",
-                                                 "evidence.recency", "evidence.sample_size", "provenance.parents"]
+                                                 "evidence.recency", "evidence.sample_size"]
     assert "evidence" in kn.summarize_change(kn.diff(v1, v2))
 
 

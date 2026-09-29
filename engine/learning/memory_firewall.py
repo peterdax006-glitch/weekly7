@@ -22,7 +22,7 @@ import dataclasses
 import datetime as dt
 import re
 from collections import Counter
-from typing import Any, Callable, Iterable, Mapping, Sequence
+from typing import Any, Callable, Iterable, Mapping, Sequence, cast
 
 import numpy as np
 import pandas as pd
@@ -109,6 +109,18 @@ class ItemView:
     provenance_errors: tuple[str, ...]
 
 
+def bare_id(ref) -> str:
+    """The canonical parent reference: the bare knowledge id.  Older writers recorded 'id@vN'; the version is dropped because
+    ancestry is resolved as-of `now` (views_as_of picks the version that existed then), which is the safe reading."""
+    return str(ref).split("@", 1)[0]
+
+
+def canonical_parents(kid, parents) -> tuple[str, ...]:
+    """Parents in canonical form: bare ids, in first-seen order, without duplicates and without a self-reference (a new version
+    lists its predecessor, which is the same id; that is not an ancestor)."""
+    return tuple(dict.fromkeys(b for b in (bare_id(p) for p in parents or ()) if b and b != str(kid)))
+
+
 def view(item) -> ItemView:
     kid = _get(item, "knowledge_id")
     if kid is None or kid == "":
@@ -121,7 +133,8 @@ def view(item) -> ItemView:
                    code_hash=str(_get(prov, "code_hash", "") or ""), data_hash=str(_get(prov, "data_hash", "") or ""),
                    config_hash=str(_get(prov, "config_hash", "") or ""), experiment_id=str(_get(prov, "experiment_id", "") or ""),
                    outcomes_seen_through=str(_get(prov, "outcomes_seen_through", "") or ""),
-                   sealed_windows=tuple(_get(prov, "sealed_windows", ()) or ()), parents=tuple(_get(prov, "parents", ()) or ()))
+                   sealed_windows=tuple(_get(prov, "sealed_windows", ()) or ()),
+                   parents=canonical_parents(kid, _get(prov, "parents", ()) or ()))
     try:
         errs = tuple(p.check())
     except (ValueError, TypeError) as e:
@@ -129,7 +142,7 @@ def view(item) -> ItemView:
     learned = _d(p.learned_at)
     seen = _d(p.outcomes_seen_through) or learned
     return ItemView(str(kid), int(_get(item, "version", 0) or 0), True, p.created_real, learned, seen, p.code_hash, p.data_hash,
-                    p.experiment_id, tuple(str(x) for x in p.parents), p.sealed_windows,
+                    p.experiment_id, p.parents, p.sealed_windows,
                     _get(item, "contexts", {}) or {}, _get(item, "anti_contexts", {}) or {}, _get(item, "payload"), errs)
 
 
@@ -431,11 +444,11 @@ def audit_store(items: Iterable, now, store: Iterable | None = None, sealed_wind
     exists = []
     for it in items:
         try:
-            e = could_exist_at(it, now, views, env, sealed_windows, policy)
+            ex = could_exist_at(it, now, views, env, sealed_windows, policy)
         except FirewallBreach as err:
-            e = Existence("?", 0, False, (fail(L, "unidentifiable-item", "?", str(err)),))
-        exists.append(e)
-        out.extend(e.findings)
+            ex = Existence("?", 0, False, (fail(L, "unidentifiable-item", "?", str(err)),))
+        exists.append(ex)
+        out.extend(ex.findings)
     return MemoryAuditReport(str(as_date(now)), tuple(exists), tuple(out))
 
 
@@ -479,7 +492,7 @@ def audit_retrieval_log(log: Iterable[Mapping], items: Iterable, policy: MemoryP
     """Each entry {now, knowledge_id[, version]}: the item retrieved at that time must have been admissible then.
     Catches a retrieval that used a memory built later than the decision it informed."""
     items = list(items)
-    by = {}
+    by: dict[tuple[str, int | None], Any] = {}
     for i in items:
         v = view(i)
         by[(v.knowledge_id, v.version)] = i
@@ -626,7 +639,7 @@ def _artifact_key(obj):
 # ---------------------------------------------------------------- summaries
 def contamination_by_layer(report: MemoryAuditReport) -> pd.DataFrame:
     """Reject reasons ranked, with how many distinct items each touched."""
-    rows = {}
+    rows: dict[str, set[str]] = {}
     for e in report.existences:
         for r in set(e.reasons):
             rows.setdefault(r, set()).add(e.knowledge_id)
@@ -833,7 +846,7 @@ def admissibility_timeline(items: Iterable, nows: Sequence, policy: MemoryPolicy
     """Rows = decision dates, columns = items, cells = could-exist. Reading it shows exactly when each lesson becomes usable."""
     items = list(items)
     order = sorted(nows, key=as_date)
-    data = {}
+    data: dict[str, list[bool]] = {}
     for n in order:
         vs = views_as_of(items, n)
         for i in items:
@@ -978,7 +991,7 @@ def future_training_share(states: Sequence[LearnedState], played: Sequence[Mappi
     by = {s.version: s for s in states}
     shares, touched = [], 0
     for p in played:
-        st = by.get(p.get("version"))
+        st = by.get(cast(str, p.get("version")))
         if st is None or not st.trained_on:
             continue
         start = pd.Timestamp(p["real_start"])
@@ -1066,7 +1079,7 @@ def audit_retirements(items: Iterable, tombstones: Iterable[Tombstone], now, ret
         seen.setdefault(t.knowledge_id, t.retired_at)
     for e in retrieval_log:
         kid, when = e.get("knowledge_id"), _d(e.get("now"))
-        if kid in seen and when is not None and _d(seen[kid]) is not None and when > _d(seen[kid]):
+        if kid in seen and when is not None and _d(seen[kid]) is not None and when > cast(dt.date, _d(seen[kid])):
             out.append(fail(L, "retired-item-retrieved", str(kid), f"retrieved on {when}, after its retirement on {seen[kid]}"))
     return out
 

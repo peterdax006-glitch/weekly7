@@ -27,7 +27,7 @@ import time
 import traceback
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Iterable, Mapping, Sequence
+from typing import Any, Callable, Iterable, Mapping, Sequence, cast
 
 from engine import checkpoint as bundle
 
@@ -174,7 +174,7 @@ class CheckpointStore:
 
     def latest_valid(self) -> tuple[ExecutionState | None, list[int]]:
         """The newest checkpoint that verifies, plus the newer sequence numbers that were skipped as corrupt."""
-        skipped = []
+        skipped: list[int] = []
         for seq in reversed(self.sequences()):
             try:
                 return self.read(seq), skipped
@@ -277,7 +277,8 @@ def topological_order(tasks: Sequence[Task]) -> list[Task]:
         missing = [d for d in t.depends if d not in by]
         if missing:
             raise ValueError(f"task {t.name} depends on unknown {missing}")
-    out, state = [], {}
+    out: list[Task] = []
+    state: dict[str, int] = {}
 
     def visit(n: str, stack: tuple[str, ...]) -> None:
         if state.get(n) == 2:
@@ -642,9 +643,9 @@ def count_meaningful_lines(path: str | Path, include_docstrings: bool = True) ->
         for node in ast.walk(ast.parse(src)):
             if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)) and node.body:
                 first = node.body[0]
-                if isinstance(first, ast.Expr) and isinstance(getattr(first, "value", None), ast.Constant) \
+                if isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant) \
                         and isinstance(first.value.value, str):
-                    lines.difference_update(range(first.lineno, first.end_lineno + 1))
+                    lines.difference_update(range(first.lineno, cast(int, first.end_lineno) + 1))
     return len(lines)
 
 
@@ -732,7 +733,7 @@ def repair_latest(store: CheckpointStore) -> int | None:
 
 def timeline(store: CheckpointStore) -> list[dict]:
     """One row per valid checkpoint: how the run progressed (tasks completed, open failures, what it planned next)."""
-    rows = []
+    rows: list[dict] = []
     for q in store.sequences():
         try:
             st = store.read(q)

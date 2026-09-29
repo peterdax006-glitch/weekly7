@@ -551,7 +551,7 @@ class BeliefLedger:
 
     # ---- persistence (append-only event records)
     def to_records(self) -> list[dict]:
-        out = [{"type": "config", "config": dc.asdict(self.cfg)}]
+        out: list[dict[str, Any]] = [{"type": "config", "config": dc.asdict(self.cfg)}]
         for subj in self.subjects():
             pm, ps = self._priors[subj]
             out.append({"type": "prior", "subject": subj, "mean": pm, "sd": ps})

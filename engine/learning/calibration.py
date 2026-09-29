@@ -235,7 +235,9 @@ class IsotonicCalibrator:
         # blocks of (value, weight, right-edge x); merge backwards while monotonicity is violated
         bv, bw, bx = [], [], []
         for v, w, x in zip(ys, np.ones(len(ys)), xs):
-            bv.append(v), bw.append(w), bx.append(x)
+            bv.append(v)
+            bw.append(w)
+            bx.append(x)
             while len(bv) > 1 and bv[-2] > bv[-1]:
                 w2 = bw[-2] + bw[-1]
                 bv[-2] = (bv[-2] * bw[-2] + bv[-1] * bw[-1]) / w2

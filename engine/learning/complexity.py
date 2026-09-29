@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import dataclasses as dc
 import math
-from typing import Iterable, Mapping, Sequence
+from typing import Any, Iterable, Mapping, Sequence
 
 import numpy as np
 import pandas as pd
@@ -229,7 +229,7 @@ def compare(simple: Candidate, cmplx: Candidate, cfg: ComplexityConfig = DEFAULT
             if len(idx) >= 3:
                 fold_gains.append(float(idx.mean()))
     transfer = float(np.mean([g >= 0 for g in fold_gains])) if fold_gains else float("nan")
-    cv = (float(np.std(fold_gains, ddof=1)) / abs(np.mean(fold_gains))) if len(fold_gains) >= 2 and abs(np.mean(fold_gains)) > 1e-12 else float("nan")
+    cv: Any = (float(np.std(fold_gains, ddof=1)) / abs(np.mean(fold_gains))) if len(fold_gains) >= 2 and abs(np.mean(fold_gains)) > 1e-12 else float("nan")
     worst_fold = float(min(fold_gains)) if fold_gains else float("nan")
     rob = float("nan")
     if cmplx.folds is not None and len(fold_gains) >= 2:
@@ -244,7 +244,7 @@ def compare(simple: Candidate, cmplx: Candidate, cfg: ComplexityConfig = DEFAULT
     tail_change = _tail(j["c"].values, cfg.tail_frac) - _tail(j["s"].values, cfg.tail_frac)
     sd_s = float(j["s"].std(ddof=1)) or 1e-12
     # optimism: how much of the complex rule's in-sample score evaporates OOS relative to the simple rule
-    opt = float("nan")
+    opt: Any = float("nan")
     if cmplx.in_sample is not None and simple.in_sample is not None:
         gap_c = cmplx.in_sample - float(j["c"].mean())
         gap_s = simple.in_sample - float(j["s"].mean())
@@ -380,7 +380,7 @@ def calibrate_kappa(n_obs: int = 200, extra_units: Sequence[int] = (1, 2, 4), al
     rate table so the choice is auditable."""
     rng = np.random.default_rng(seed)
     half = n_obs // 2
-    ts = {u: [] for u in extra_units}
+    ts: dict[int, list[float]] = {u: [] for u in extra_units}
     for u in extra_units:
         for _ in range(sims):
             X = rng.normal(size=(n_obs, u))
@@ -490,7 +490,7 @@ def verdict_by_era(simple: Candidate, cmplx: Candidate, cfg: ComplexityConfig = 
     """Run the comparison inside each of `n_eras` contiguous eras.  Complexity that earns its place in one era and loses in
     the others is regime luck (or a regime condition worth learning) - the caller must know which."""
     j = _paired(cmplx.oos.astype(float), simple.oos.astype(float))
-    out = []
+    out: list[dict[str, Any]] = []
     if len(j) < n_eras * cfg.min_periods:
         return out
     for k, ix in enumerate(np.array_split(np.arange(len(j)), n_eras)):

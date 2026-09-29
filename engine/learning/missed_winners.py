@@ -44,6 +44,13 @@ NL = chr(10)
 WINNER = base.WINNER
 
 
+def _fwd(x: float | None) -> float:
+    """float(x) for a forward return the caller has already checked is present (None raises TypeError, as before)."""
+    if x is None:
+        raise TypeError("forward return is missing")
+    return float(x)
+
+
 class RejectionReason(str, enum.Enum):
     WRONG_RANKING = "WRONG_RANKING"
     WRONG_CONFIDENCE = "WRONG_CONFIDENCE"
@@ -167,7 +174,7 @@ class Week:
 
     def base_rate(self) -> float:
         known = [c for c in self.candidates if c.fwd is not None]
-        return float(np.mean([c.fwd >= self.thr for c in known])) if known else float("nan")
+        return float(np.mean([_fwd(c.fwd) >= self.thr for c in known])) if known else float("nan")
 
 
 def cross_rank(df: pd.DataFrame, cols: Sequence[str]) -> pd.DataFrame:
@@ -301,7 +308,9 @@ class RejectionAnalyzer:
 def filter_tradeoff(weeks: Sequence[Week], filter_name: str, now=None) -> dict[str, Any]:
     """What one filter cost and saved. Among candidates it removed: the winners foregone (count, mean return) against the
     losers avoided (count, mean loss). A filter 'over-aggressive' in one missed winner may be excellent overall."""
-    win_r, lose_r, n_hit, n_wk = [], [], 0, 0
+    win_r: list[float] = []
+    lose_r: list[float] = []
+    n_hit, n_wk = 0, 0
     for w in weeks:
         if now is not None:
             require_past(w.resolved_at, now, f"week {w.label}")
@@ -311,7 +320,7 @@ def filter_tradeoff(weeks: Sequence[Week], filter_name: str, now=None) -> dict[s
         n_wk += 1
         n_hit += len(hit)
         for c in hit:
-            (win_r if c.fwd >= w.thr else lose_r).append(c.fwd)
+            (win_r if _fwd(c.fwd) >= w.thr else lose_r).append(_fwd(c.fwd))
     if n_hit == 0:
         return {"filter": filter_name, "removed": 0, "verdict": "NEVER_FIRED"}
     foregone = float(np.sum(win_r)) if win_r else 0.0
@@ -380,7 +389,7 @@ def cohort_frame(weeks: Sequence[Week], p: MissedParams, now=None, feats: Sequen
     return df[list(META_COLS) + keep]
 
 
-def cohort_balance(df: pd.DataFrame) -> dict[str, float]:
+def cohort_balance(df: pd.DataFrame) -> dict[str, Any]:
     """How comparable are the two cohorts on the selection score? A rank AUC far from 0.5 means a 'distinction' may only be
     the score in disguise."""
     from engine import pattern_reliability as PR
@@ -434,7 +443,8 @@ class Distinction:
 def _build_conditions(df: pd.DataFrame, feats: Sequence[str], p: MissedParams) -> tuple[np.ndarray, list[tuple[Cond, ...]]]:
     """Label-free matrix of candidate rules (thresholds come from pooled quantiles, never from the labels), so the
     permutation test can re-score the SAME family under shuffled labels."""
-    cols, meta = [], []
+    cols: list[np.ndarray] = []
+    meta: list[tuple[Cond, ...]] = []
     thr_of = {f: np.unique(np.quantile(df[f].to_numpy(dtype=float), p.grid)) for f in feats}
     for f in feats:
         for t in thr_of[f]:
@@ -582,10 +592,10 @@ def validate_distinction(d: Distinction, test_weeks: Sequence[Week], p: MissedPa
         if not nonp or not picks:
             continue
         np_n += len(nonp)
-        np_wins += sum(c.fwd >= w.thr for c in nonp)
+        np_wins += sum(_fwd(c.fwd) >= w.thr for c in nonp)
         match = [c for c in nonp if d.apply(c.features)]
         sel += len(match)
-        hits += sum(c.fwd >= w.thr for c in match)
+        hits += sum(_fwd(c.fwd) >= w.thr for c in match)
         if not match:
             continue
         m = min(p.swap_n, len(match), len(picks))
@@ -643,7 +653,8 @@ def walk_forward_distinctions(weeks: Sequence[Week], p: MissedParams | None = No
         for w in ws:
             require_past(w.resolved_at, now, f"week {w.label}")
     res: list[tuple[Distinction, OOSResult]] = []
-    folds, era_stat = 0, {}
+    folds = 0
+    era_stat: dict[str, tuple[int, int]] = {}
     start = train_min
     while start + p.embargo + fold_len <= len(ws):
         train, test = ws[:start], ws[start + p.embargo:start + p.embargo + fold_len]
@@ -669,7 +680,7 @@ def shuffle_labels(weeks: Sequence[Week], rng: np.random.Generator) -> list[Week
     for w in weeks:
         cs = list(w.candidates)
         known = [i for i, c in enumerate(cs) if c.fwd is not None]
-        vals = rng.permutation([cs[i].fwd for i in known])
+        vals = rng.permutation([_fwd(cs[i].fwd) for i in known])
         for i, v in zip(known, vals):
             cs[i] = Candidate(**{**c_dict(cs[i]), "fwd": float(v)})
         out.append(Week(w.label, w.decided_at, w.resolved_at, tuple(cs), w.k, w.thr, w.era, w.interactions))
@@ -890,7 +901,7 @@ def distinction_by_era(d: Distinction, weeks: Sequence[Week]) -> dict[str, dict[
             continue
         a = acc.setdefault(w.era or "-", [[0, 0, 0, 0]])[0]          # [rule_n, rule_wins, all_n, all_wins]
         for c in nonp:
-            win = int(c.fwd >= w.thr)
+            win = int(_fwd(c.fwd) >= w.thr)
             a[2] += 1
             a[3] += win
             if d.apply(c.features):
@@ -1013,7 +1024,7 @@ def promote_backtest(d: Distinction, weeks: Sequence[Week], swap_n: int = 3, see
         rows.append({"period": w.label, "era": w.era, "kind": kinds.iloc[0] if len(kinds) else "other", "n_swap": m,
                      "gain": float(np.mean([c.fwd for c in inn]) - np.mean([c.fwd for c in out])),
                      "random_gain": float(np.mean([c.fwd for c in rnd]) - np.mean([c.fwd for c in out])),
-                     "winners_in": int(sum(c.fwd >= w.thr for c in inn)), "winners_out": int(sum(c.fwd >= w.thr for c in out))})
+                     "winners_in": int(sum(_fwd(c.fwd) >= w.thr for c in inn)), "winners_out": int(sum(_fwd(c.fwd) >= w.thr for c in out))})
     return pd.DataFrame(rows, columns=["period", "era", "kind", "n_swap", "gain", "random_gain", "winners_in", "winners_out"])
 
 
@@ -1110,7 +1121,7 @@ def distinction_selfcheck(seed: int = 0, params: MissedParams | None = None) -> 
     """Planted vs null in one call: the search must find and out-of-sample-confirm the planted rule and must NOT
     significantly report anything on the null. Foundation self-check only - not a validation on real data."""
     p = params or MissedParams(n_perm=120, n_boot=60, boot=400, min_test_weeks=5)
-    out = {}
+    out: dict[str, Any] = {}
     for tag, planted in (("planted", True), ("null", False)):
         ws = synthetic_weeks(planted=planted, seed=seed + (0 if planted else 1))
         found = find_distinctions(cohort_frame(ws[:40], p), p, seed)
@@ -1154,13 +1165,13 @@ def recovery_curve(weeks: Sequence[Week], analyzer: RejectionAnalyzer | None = N
     for w in weeks:
         cmap = {c.cid: c for c in w.candidates}
         for r in analyzer.explain_missed(w):
-            ret[r.primary.value] = ret.get(r.primary.value, 0.0) + float(cmap[r.cid].fwd)
+            ret[r.primary.value] = ret.get(r.primary.value, 0.0) + _fwd(cmap[r.cid].fwd)
             cnt[r.primary.value] = cnt.get(r.primary.value, 0) + 1
     total = sum(ret.values())
     out, cum = [], 0.0
-    for r, v in sorted(ret.items(), key=lambda kv: (-kv[1], kv[0])):
+    for reason, v in sorted(ret.items(), key=lambda kv: (-kv[1], kv[0])):
         cum += v
-        out.append({"reason": r, "n": cnt[r], "return_missed": v, "cumulative_share": cum / total if total else float("nan")})
+        out.append({"reason": reason, "n": cnt[reason], "return_missed": v, "cumulative_share": cum / total if total else float("nan")})
     return out
 
 
@@ -1206,7 +1217,7 @@ def describe_cohorts(df: pd.DataFrame) -> dict[str, Any]:
     """Sizes of the two cohorts overall, by era and by winner type - the first thing to read before trusting a distinction."""
     if df.empty:
         return {"n_a": 0, "n_b": 0}
-    out = {"n_a": int((df["group"] == 1).sum()), "n_b": int((df["group"] == 0).sum()), "periods": int(df["period"].nunique())}
+    out: dict[str, Any] = {"n_a": int((df["group"] == 1).sum()), "n_b": int((df["group"] == 0).sum()), "periods": int(df["period"].nunique())}
     for col in ("era", "kind"):
         out["by_" + col] = {str(k): {"a": int(((g["group"] == 1)).sum()), "b": int(((g["group"] == 0)).sum())} for k, g in df.groupby(col)}
     return out
@@ -1250,7 +1261,7 @@ def precedence_is_consistent(analyzer: RejectionAnalyzer | None = None) -> bool:
     every subset of a candidate's flags; True means the ordering rule holds."""
     analyzer = analyzer or RejectionAnalyzer()
     week = Week("w", "2020-01-06", "2020-01-13", (), k=10, interactions=(("f1", "f2"),))
-    flags = [dict(filters_hit=("risk_x",), eligible=False), dict(dir_side=-1, selection_side=1), dict(timing_blocked=True),
+    flags: list[dict[str, Any]] = [dict(filters_hit=("risk_x",), eligible=False), dict(dir_side=-1, selection_side=1), dict(timing_blocked=True),
              dict(anti_context=True), dict(reliability=0.01), dict(confidence=0.01)]
     for mask in range(1, 1 << len(flags)):
         kw: dict[str, Any] = dict(features={"f1": 0.8, "f2": 0.8}, rank=11)
@@ -1293,6 +1304,6 @@ def winners_by_kind(weeks: Sequence[Week]) -> dict[str, dict[str, float]]:
             if c.picked:
                 caught[c.kind] += 1
             else:
-                acc[c.kind].append(float(c.fwd))
+                acc[c.kind].append(_fwd(c.fwd))
     return {k: {"winners": len(v) + caught[k], "caught": caught[k], "catch_rate": caught[k] / (len(v) + caught[k]),
                 "mean_missed_ret": float(np.mean(v)) if v else float("nan")} for k, v in sorted(acc.items())}

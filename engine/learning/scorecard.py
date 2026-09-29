@@ -25,7 +25,7 @@ import re
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Mapping, Sequence
+from typing import Any, Mapping, Sequence
 
 import numpy as np
 
@@ -289,7 +289,7 @@ class LearningScorecard:
         return out
 
     def as_record(self) -> dict:
-        rec = {"learner_version": self.learner_version, "now": self.now.isoformat(), "code_hash": self.code_hash, "data_hash": self.data_hash,
+        rec: dict[str, Any] = {"learner_version": self.learner_version, "now": self.now.isoformat(), "code_hash": self.code_hash, "data_hash": self.data_hash,
                "config_hash": self.config_hash, "controls_hash": self.controls_hash, "seed": self.seed, "label": self.label.value, "transfer_verdict": self.transfer_verdict,
                "curve_verdict": self.curve_verdict}
         for f in SECTION_47_FIELDS + ("learning_gain",):
@@ -678,7 +678,7 @@ class ControlSuite:
     memorization_gap: Measured
     identity_gap: Measured
     leak: LeakStatus
-    fold_axis: object                # transfer.AxisResult of the learner
+    fold_axis: Any                 # transfer.AxisResult of the learner
     n_fits: int
 
 
@@ -726,7 +726,7 @@ def control_code_hashes() -> dict:
     """Hash of the source of each control learner, so 'the controls did not change' is checkable, not assumed (WP4: frozen)."""
     import inspect
     from . import transfer as T
-    fns = {"A_no_learning": no_learning_fit, "C_identity_memoriser": T.identity_memoriser_fit, "D_random_learner": T.random_learner_fit,
+    fns: dict[str, Any] = {"A_no_learning": no_learning_fit, "C_identity_memoriser": T.identity_memoriser_fit, "D_random_learner": T.random_learner_fit,
            "E_leaky_learner": leaky_learner_fit, "probe": outcome_dependence_probe}
     return {n: stable_hash(inspect.getsource(f)) for n, f in sorted(fns.items())}
 
@@ -739,7 +739,7 @@ def scorecard_for_learner(units, learner_fit, *, learner_version: str, now, code
     with ComputeMeter() as meter:
         suite = run_controls(units, learner_fit, now, seed=seed, n_boot=n_boot, min_units=min_units)
         d = T.prepare_units(units.assign(learned=units["base"]) if "learned" not in units else units, now)
-        extra = {}
+        extra: dict[str, Measured] = {}
         for ax, name in ((T.Axis.STOCK, "cross_stock_gain"), (T.Axis.REGIME, "cross_regime_gain")):
             folds = T.make_folds(d, ax, seed=seed)
             if folds:
@@ -750,7 +750,7 @@ def scorecard_for_learner(units, learner_fit, *, learner_version: str, now, code
         post = (Measured.point(float(base_m.value + suite.learning_gain.value), suite.learning_gain.n, "baseline + held-out gain")
                 if suite.learning_gain.measured and base_m.measured else Measured.untested("no held-out gain"))
         ratio = ax_b.ratio
-        card_kw = dict(same_year_gain=Measured.from_boot(ax_b.same, "trained model replayed on its own years"), cross_year_gain=suite.learning_gain,
+        card_kw: dict[str, Any] = dict(same_year_gain=Measured.from_boot(ax_b.same, "trained model replayed on its own years"), cross_year_gain=suite.learning_gain,
                        transfer_ratio=(Measured(ratio.value, ax_b.ratio_ci.lo if ax_b.ratio_ci and ax_b.ratio_ci.lo is not None else float("nan"),
                                                 ax_b.ratio_ci.hi if ax_b.ratio_ci and ax_b.ratio_ci.hi is not None else float("nan"), ax_b.cross.n,
                                                 MStatus.MEASURED, ratio.reason) if ratio.value is not None else Measured.undefined(f"{ratio.status.value}: {ratio.reason}")),
@@ -908,7 +908,7 @@ def calibration_control(p, y) -> Measured:
         return Measured.untested("fewer than 30 samples")
     ref = np.full(len(y), y.mean())
     rng = np.random.default_rng(0)
-    skills = []
+    skills: Any = []
     for _ in range(300):
         i = rng.integers(0, len(p), len(p))
         b0 = PR.brier(np.full(len(i), y[i].mean()), y[i])

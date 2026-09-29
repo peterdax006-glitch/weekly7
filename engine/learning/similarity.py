@@ -21,7 +21,7 @@ from __future__ import annotations
 import dataclasses
 import datetime as dt
 import math
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any, Iterable, Mapping, Sequence, cast
 
 import numpy as np
 
@@ -74,11 +74,11 @@ def field_similarity(spec: FieldSpec, a, b) -> float | None:
     if spec.kind == "num":
         return math.exp(-abs(float(a) - float(b)) / spec.scale)
     if spec.kind == "ord":
-        return 1.0 - spec.distance(a, b) / 2.0
+        return 1.0 - cast(float, spec.distance(a, b)) / 2.0
     return 1.0 if a == b else 0.0
 
 
-def jaccard(a: Sequence[str], b: Sequence[str]) -> float | None:
+def jaccard(a: Iterable[str], b: Iterable[str]) -> float | None:
     """Overlap of two pattern-id sets; None when both are empty (no evidence either way)."""
     sa, sb = set(a), set(b)
     if not sa and not sb:
@@ -95,6 +95,9 @@ class SimilarityWeights:
     field_weights: tuple[tuple[str, float], ...] = ()      # per-dimension importance inside a component (default 1.0 each)
     min_component_coverage: float = 0.4     # share of a component's fields that must be observed on both sides
     min_total_coverage: float = 0.5         # share of total weight that must be available for a total to exist
+    coverage_aware: bool = True             # scale both thresholds down when the pair itself observes few fields (see thresholds)
+    coverage_factor: float = 0.9            # share of the sparser side's observed fields the overlap must cover
+    coverage_floor: float = 0.1             # never accept less than this: one accidental field must not make two cases comparable
 
     def as_dict(self) -> dict[str, float]:
         return dict(self.values)
@@ -116,7 +119,25 @@ class SimilarityWeights:
                 errs.append(f"bad field weight {p}:{w}")
         if not 0.0 < self.min_component_coverage <= 1.0 or not 0.0 < self.min_total_coverage <= 1.0:
             errs.append("coverage thresholds outside (0, 1]")
+        if not 0.0 < self.coverage_factor <= 1.0 or not 0.0 < self.coverage_floor <= min(self.min_component_coverage, self.min_total_coverage):
+            errs.append("coverage_factor outside (0, 1] or coverage_floor above a threshold")
         return errs
+
+    def thresholds(self, observed_share):
+        """(component, total) coverage thresholds for a pair whose sparser side observes `observed_share` of all fields.
+        Fixed thresholds (0.4 / 0.5) made EVERY pair non-comparable when only ~25% of fields are observed (the overlap can never
+        reach half the weight), so a sparse learner saw no neighbours at all.  Coverage-aware: the overlap need only cover
+        `coverage_factor` of what the sparser side saw, capped by the configured threshold and never below `coverage_floor`.
+        Works on scalars and arrays; with coverage_aware=False it returns the configured thresholds unchanged."""
+        if not self.coverage_aware:
+            return self.min_component_coverage, self.min_total_coverage
+        o = np.asarray(observed_share, dtype=float)
+        scaled = np.maximum(self.coverage_factor * o, self.coverage_floor)
+        comp = np.minimum(self.min_component_coverage, scaled)
+        tot = np.minimum(self.min_total_coverage, scaled)
+        if o.ndim == 0:
+            return float(comp), float(tot)
+        return comp, tot
 
     def normalised(self) -> dict[str, float]:
         d = self.as_dict()
@@ -125,7 +146,7 @@ class SimilarityWeights:
 
     def weights_id(self) -> str:
         return stable_hash({"w": self.values, "v": self.vetoes, "f": self.field_weights,
-                            "c": (self.min_component_coverage, self.min_total_coverage)})
+                            "c": (self.min_component_coverage, self.min_total_coverage, self.coverage_aware, self.coverage_factor, self.coverage_floor)})
 
     def field_weight(self, path: str) -> float:
         return dict(self.field_weights).get(path, 1.0)
@@ -187,7 +208,7 @@ class SimilarityResult:
         if self.unknown is not None:
             return f"not comparable: {self.unknown} (only {self.coverage:.0%} of the similarity weight is observable)"
         lines = [f"similarity {self.total:.3f} (coverage {self.coverage:.0%})"]
-        for c in sorted((c for c in self.components if c.score is not None), key=lambda c: -c.score):
+        for c in sorted((c for c in self.components if c.score is not None), key=lambda c: -cast(float, c.score)):
             lines.append(f"- {c.name} {c.score:.2f}")
             if c.agree:
                 lines.append("    alike: " + ", ".join(f"{p} ({s:.2f})" for p, s in c.agree[:top]))
@@ -209,12 +230,12 @@ def field_sims(a: Situation, b: Situation) -> dict[str, float | None]:
 
 
 def _component(name: str, fs: Mapping[str, float | None], paths: Sequence[str], cfg: SimilarityWeights,
-               extra: float | None = None) -> ComponentScore:
-    vals = [(p, fs[p]) for p in paths if fs.get(p) is not None]
+               extra: float | None = None, min_cov: float | None = None) -> ComponentScore:
+    vals: list[tuple[str, float]] = [(p, cast(float, fs[p])) for p in paths if fs.get(p) is not None]
     n = len(paths) + (1 if extra is not None or name == "pattern" else 0)
     scores = [v for _, v in vals] + ([extra] if extra is not None else [])
     cov = len(scores) / max(n, 1)
-    if not scores or cov < cfg.min_component_coverage:
+    if not scores or cov < (cfg.min_component_coverage if min_cov is None else min_cov):
         return ComponentScore(name, None, round(cov, 4), n)
     w = [cfg.field_weight(p) for p, _ in vals] + ([1.0] if extra is not None else [])
     if sum(w) <= 0:
@@ -236,7 +257,7 @@ def structural_score(a: Situation, b: Situation, fs: Mapping[str, float | None])
     """Overall shape: mean of per-block similarity (so a block with many fields does not dominate) blended with bucket agreement."""
     per_block = []
     for kind, specs in BLOCK_SPECS.items():
-        v = [fs[f"{kind}.{s.name}"] for s in specs if fs[f"{kind}.{s.name}"] is not None]
+        v: list[float] = [cast(float, fs[f"{kind}.{s.name}"]) for s in specs if fs[f"{kind}.{s.name}"] is not None]
         if v:
             per_block.append(float(np.mean(v)))
     if not per_block:
@@ -245,27 +266,34 @@ def structural_score(a: Situation, b: Situation, fs: Mapping[str, float | None])
     return 0.5 * float(np.mean(per_block)) + 0.5 * (ba if ba is not None else float(np.mean(per_block)))
 
 
+def _observed_share(s: Situation) -> float:
+    """Share of all similarity fields a situation observes."""
+    return sum(s.get(p) is not None for p in PATHS) / max(len(PATHS), 1)
+
+
 def compare(a: Situation, b: Situation, weights: SimilarityWeights = DEFAULT) -> SimilarityResult:
     """Full multi-factor comparison with component scores and explanation. Symmetric in (a, b)."""
     errs = weights.validate()
     if errs:
         raise ValueError("invalid SimilarityWeights: " + "; ".join(errs))
     fs = field_sims(a, b)
+    obs = min(_observed_share(a), _observed_share(b))
+    min_comp, min_tot = weights.thresholds(obs)
     comps = []
     st = structural_score(a, b, fs)
     comps.append(ComponentScore("structural", None if st is None else round(st, 6), 1.0 if st is not None else 0.0, len(PATHS)))
     for name in COMPONENTS[1:]:
         extra = jaccard(a.pattern_ids, b.pattern_ids) if name == "pattern" else None
-        comps.append(_component(name, fs, COMPONENT_PATHS[name], weights, extra))
+        comps.append(_component(name, fs, COMPONENT_PATHS[name], weights, extra, min_comp))
     w = weights.normalised()
     avail = [(c, w[c.name]) for c in comps if c.score is not None]
     cov = sum(x for _, x in avail)
     unknown = None
     total = None
-    if cov < weights.min_total_coverage:
+    if cov < min_tot:
         unknown = Unknown.INSUFFICIENT_DATA
     else:
-        total = round(sum(c.score * x for c, x in avail) / cov, 6)
+        total = round(sum(cast(float, c.score) * x for c, x in avail) / cov, 6)
     floors = dict(weights.vetoes)
     vetoes = tuple(c.name for c in comps if c.score is not None and c.name in floors and c.score < floors[c.name])
     return SimilarityResult(tuple(comps), total, round(cov, 4), vetoes, unknown, weights.weights_id())
@@ -286,6 +314,7 @@ class SituationMatrix:
                 if v is None:
                     continue
                 self.X[i, j] = float(v) if spec.kind == "num" else float(spec.levels.index(v))
+        self.observed = (~np.isnan(self.X)).mean(axis=1) if n else np.zeros(0)
         self.patterns = tuple(frozenset(s.pattern_ids) for s in self.situations)
         self.bin_codes = np.array([[hash_bin(s.bins()[p]) for p in PATHS] for s in self.situations], dtype=np.int64) \
             if n else np.zeros((0, len(PATHS)), dtype=np.int64)
@@ -334,6 +363,7 @@ class SituationMatrix:
         binfrac = np.where(nboth > 0, agree / np.maximum(nboth, 1), np.nan)
         out[:, 0] = np.where(np.isnan(bm), np.nan, 0.5 * bm + 0.5 * np.where(np.isnan(binfrac), bm, binfrac))
         fw = weights.field_vector()
+        min_comp, _ = weights.thresholds(np.minimum(self.observed, SituationMatrix([q]).observed[0]))
         for k, name in enumerate(COMPONENTS[1:], start=1):
             cols = [PATH_INDEX[p] for p in COMPONENT_PATHS[name]]
             sub = F[:, cols]
@@ -345,14 +375,14 @@ class SituationMatrix:
                 s = np.nansum(sub * wcol, axis=1)
             wsum = (present * wcol).sum(axis=1)
             if name == "pattern":
-                jac = np.array([jaccard(q.pattern_ids, p) if (q.pattern_ids or p) else np.nan for p in self.patterns], dtype=float)
+                jac = np.array([cast(float, jaccard(q.pattern_ids, p)) if (q.pattern_ids or p) else np.nan for p in self.patterns], dtype=float)
                 has = ~np.isnan(jac)
                 s = s + np.where(has, jac, 0.0)
                 wsum = wsum + has
                 cnt = cnt + has
                 total_fields += 1.0
             cov = cnt / total_fields
-            out[:, k] = np.where((cnt > 0) & (cov >= weights.min_component_coverage) & (wsum > 0), s / np.where(wsum > 0, wsum, 1), np.nan)
+            out[:, k] = np.where((cnt > 0) & (cov >= min_comp) & (wsum > 0), s / np.where(wsum > 0, wsum, 1), np.nan)
         return out
 
     def totals(self, q: Situation, weights: SimilarityWeights = DEFAULT) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -362,8 +392,9 @@ class SituationMatrix:
         wv = np.array([w[c] for c in COMPONENTS])
         avail = ~np.isnan(M)
         cov = (avail * wv[None, :]).sum(axis=1)
+        _, min_tot = weights.thresholds(np.minimum(self.observed, SituationMatrix([q]).observed[0]))
         with np.errstate(all="ignore"):
-            tot = np.where(cov >= weights.min_total_coverage, np.nansum(M * wv[None, :], axis=1) / np.where(cov > 0, cov, 1), np.nan)
+            tot = np.where(cov >= min_tot, np.nansum(M * wv[None, :], axis=1) / np.where(cov > 0, cov, 1), np.nan)
         ok = ~np.isnan(tot)
         for c, floor in weights.vetoes:
             col = M[:, COMPONENTS.index(c)]
@@ -413,12 +444,12 @@ def nearest(query: Situation, cases: Sequence[Situation], refs: Sequence[str] | 
             def mmr(i):
                 pen = max((1.0 if cases[i].situation_id == cases[j].situation_id else 0.0 for j in chosen), default=0.0)
                 return (1 - diversity) * tot[i] - diversity * pen
-            best = None
+            best: int | None = None
             for i in sorted(pool, key=lambda i: refs[i]):          # ties resolve to the smaller ref
                 if best is None or mmr(i) > mmr(best) + 1e-12:
                     best = i
-            chosen.append(best)
-            pool.remove(best)
+            chosen.append(cast(int, best))
+            pool.remove(cast(int, best))
     return [Neighbour(i, refs[i], compare(query, cases[i], weights)) for i in chosen]
 
 
@@ -467,7 +498,8 @@ def fit_weights(component_rows: np.ndarray, agreement: np.ndarray, prior: Simila
     w = w / w.sum()
     fitted = SimilarityWeights.from_dict(dict(zip(COMPONENTS, w)), vetoes=prior.vetoes, field_weights=prior.field_weights,
                                          min_component_coverage=prior.min_component_coverage,
-                                         min_total_coverage=prior.min_total_coverage)
+                                         min_total_coverage=prior.min_total_coverage, coverage_aware=prior.coverage_aware,
+                                         coverage_factor=prior.coverage_factor, coverage_floor=prior.coverage_floor)
     return WeightFit(fitted, len(y), r2(w0), r2(w), tuple((c, round(float(w[i] - w0[i]), 6)) for i, c in enumerate(COMPONENTS)))
 
 
@@ -499,7 +531,7 @@ def consistency_report(cases: Sequence[Situation], weights: SimilarityWeights = 
     """Properties a similarity must have: self-similarity 1, symmetry, range [0,1], scalar/vector agreement."""
     rng = np.random.default_rng(seed)
     n = len(cases)
-    rep = {"self_min": 1.0, "asym_max": 0.0, "range_ok": True, "vector_gap_max": 0.0, "pairs": 0}
+    rep: dict[str, Any] = {"self_min": 1.0, "asym_max": 0.0, "range_ok": True, "vector_gap_max": 0.0, "pairs": 0}
     if n == 0:
         return rep
     for c in cases[: min(n, 20)]:
@@ -571,8 +603,8 @@ def compare_with_history(a: Situation, b: Situation, hist_a: Sequence[Situation]
     w = weights.normalised()
     avail = [(c, w[c.name]) for c in comps if c.score is not None]
     cov = sum(x for _, x in avail)
-    unknown = Unknown.INSUFFICIENT_DATA if cov < weights.min_total_coverage else None
-    total = None if unknown else round(sum(c.score * x for c, x in avail) / cov, 6)
+    unknown = Unknown.INSUFFICIENT_DATA if cov < weights.thresholds(min(_observed_share(a), _observed_share(b)))[1] else None
+    total = None if unknown else round(sum(cast(float, c.score) * x for c, x in avail) / cov, 6)
     floors = dict(weights.vetoes)
     vetoes = tuple(c.name for c in comps if c.score is not None and c.name in floors and c.score < floors[c.name])
     return SimilarityResult(comps, total, round(cov, 4), vetoes, unknown, weights.weights_id())
@@ -662,7 +694,7 @@ def triangle_violation_rate(cases: Sequence[Situation], weights: SimilarityWeigh
         t = [compare(cases[x], cases[y], weights).total for x, y in ((i, j), (j, k), (i, k))]
         if any(v is None for v in t):
             continue
-        dab, dbc, dac = (1 - v for v in t)
+        dab, dbc, dac = (1 - cast(float, v) for v in t)
         m += 1
         over = dac - (dab + dbc) - slack
         if over > 1e-12:
@@ -767,7 +799,10 @@ def walk_forward_skill(cases: Sequence[Situation], outcomes: Sequence[float], ti
     order = np.argsort(day, kind="stable")
     M = SituationMatrix([cases[i] for i in order])
     ys, ds = y[order], day[order]
-    pred, actual, base, gain = [], [], [], []
+    pred: Any = []
+    actual: Any = []
+    base: Any = []
+    gain: Any = []
     for pos in range(n):
         past = np.where(ds < ds[pos])[0]
         if len(past) < min_history:
@@ -848,7 +883,8 @@ class TemporalCaseIndex:
         tot, _, ok = self._M.totals(sit, self.weights)
         cand = [i for i in vis if ok[i] and not math.isnan(tot[i]) and tot[i] >= min_total]
         cand.sort(key=lambda i: (-tot[i], self._cases[i][3]))
-        out, per_ep = [], {}
+        out = []
+        per_ep: dict[Any, int] = {}
         for i in cand:
             ep = self._cases[i][4]
             if max_per_episode > 0 and ep:
@@ -963,7 +999,8 @@ def weight_sensitivity(query: Situation, cases: Sequence[Situation], k: int = 5,
         w = rng.dirichlet(w0 * concentration + 1e-3)
         alt = SimilarityWeights.from_dict(dict(zip(COMPONENTS, w)), vetoes=weights.vetoes, field_weights=weights.field_weights,
                                           min_component_coverage=weights.min_component_coverage,
-                                          min_total_coverage=weights.min_total_coverage)
+                                          min_total_coverage=weights.min_total_coverage, coverage_aware=weights.coverage_aware,
+                                          coverage_factor=weights.coverage_factor, coverage_floor=weights.coverage_floor)
         got = {n.index for n in nearest(query, cases, k=k, weights=alt, require_comparable=False)}
         ov.append(len(base & got) / max(len(base), 1))
     return {"overlap": float(np.mean(ov)), "trials": trials, "min_overlap": float(np.min(ov))}
@@ -1135,7 +1172,7 @@ def stratified_nearest(query: Situation, cases: Sequence[Situation], strata: Seq
         idx = [i for i, x in enumerate(strata) if x == s]
         sub = nearest(query, [cases[i] for i in idx], refs=[str(i) for i in idx], k=per_stratum, weights=weights)
         out.extend(Neighbour(idx[nb.index], nb.ref, nb.result) for nb in sub)
-    return sorted(out, key=lambda n: (-n.result.total, n.ref))
+    return sorted(out, key=lambda n: (-cast(float, n.result.total), n.ref))
 
 def explain_neighbours(query: Situation, neighbours: Sequence[Neighbour], top: int = 2) -> str:
     """One paragraph per neighbour: rank, ref, total similarity, and the fields it matched and missed."""
@@ -1154,14 +1191,17 @@ def explain_neighbours(query: Situation, neighbours: Sequence[Neighbour], top: i
 
 def weights_to_record(w: SimilarityWeights) -> dict[str, Any]:
     return {"values": {c: v for c, v in w.values}, "vetoes": {c: f for c, f in w.vetoes}, "field_weights": {p: v for p, v in w.field_weights},
-            "min_component_coverage": w.min_component_coverage, "min_total_coverage": w.min_total_coverage, "id": w.weights_id()}
+            "min_component_coverage": w.min_component_coverage, "min_total_coverage": w.min_total_coverage,
+            "coverage_aware": w.coverage_aware, "coverage_factor": w.coverage_factor, "coverage_floor": w.coverage_floor, "id": w.weights_id()}
 
 
 def weights_from_record(d: Mapping[str, Any]) -> SimilarityWeights:
     """Rebuilds and re-validates; a record whose stored id no longer matches its content was edited and is refused."""
     w = SimilarityWeights(values=tuple((c, float(d["values"][c])) for c in COMPONENTS), vetoes=tuple(sorted((c, float(f)) for c, f in d["vetoes"].items())),
                           field_weights=tuple(sorted((p, float(v)) for p, v in d["field_weights"].items())),
-                          min_component_coverage=float(d["min_component_coverage"]), min_total_coverage=float(d["min_total_coverage"]))
+                          min_component_coverage=float(d["min_component_coverage"]), min_total_coverage=float(d["min_total_coverage"]),
+                          coverage_aware=bool(d.get("coverage_aware", True)), coverage_factor=float(d.get("coverage_factor", 0.9)),
+                          coverage_floor=float(d.get("coverage_floor", 0.1)))
     errs = w.validate()
     if errs:
         raise ValueError("; ".join(errs))

@@ -30,7 +30,7 @@ import time
 import traceback
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Iterable, Mapping, Sequence
+from typing import Any, Callable, Iterable, Mapping, Sequence, cast
 
 import numpy as np
 
@@ -369,7 +369,7 @@ class ExperimentLedger:
             if e["state"] != RUNNING:
                 continue
             silent = now - float(e.get("heartbeat") or 0.0) > heartbeat_s
-            gone = not alive(e.get("worker"))
+            gone = not alive(cast(str, e.get("worker")))
             if gone or silent:
                 why = "worker gone" if gone else f"silent {now - float(e['heartbeat']):.0f}s"
                 found.append({"key": key, "why": why, "next": self.fail(key, CRASHED, why, now)})
@@ -535,7 +535,8 @@ def plan_launches(ledger: ExperimentLedger, free_gb: float | None, running: int 
     # free memory already excludes the RSS of workers that are running, so memory bounds the NEW launches while the core
     # count bounds the total
     slots = max(0, min(wc["by_memory"], min(wc["by_cores"], R.MAX_WORKERS) - running))
-    launch, held = [], []
+    launch: list[str] = []
+    held: list[tuple[str, str]] = []
     budget = (free_gb or 0.0) - reserve_gb
     for _, key, e in pend:
         if len(launch) >= slots:
@@ -796,7 +797,7 @@ def verify_isolation(ledger: ExperimentLedger, out_root: str | Path) -> list[dic
     experiment's winning attempt must contain both result and marker. Returns findings; empty means isolated."""
     root = Path(out_root)
     led = ledger.load()
-    out = []
+    out: list[dict[str, Any]] = []
     if not root.is_dir():
         return out
     for kd in sorted(p for p in root.iterdir() if p.is_dir()):
@@ -955,7 +956,8 @@ def dependency_order(specs: Sequence[ExperimentSpec]) -> list[ExperimentSpec]:
     by key. A dependency that is neither in the batch nor already known, or a cycle, is an error - a graph that can never
     finish must be refused up front, not discovered after hours of compute."""
     by = {s.key: s for s in specs}
-    out, state = [], {}
+    out: list[ExperimentSpec] = []
+    state: dict[str, int] = {}
 
     def visit(k: str, stack: tuple[str, ...]) -> None:
         if state.get(k) == 2:

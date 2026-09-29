@@ -718,7 +718,7 @@ class CompetitionBook:
 
     def settled(self) -> dict[str, str]:
         """Relations whose competition has a separated winner -> the winning hypothesis id."""
-        return {rid: a.winner() for rid, a in self.arenas.items() if a.winner() is not None}
+        return {rid: w for rid, a in self.arenas.items() if (w := a.winner()) is not None}
 
     def unresolved(self) -> list[str]:
         return sorted(rid for rid, a in self.arenas.items() if a.winner() is None)
