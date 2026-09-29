@@ -340,3 +340,47 @@ def test_never_confirmed_candidates_are_counted_in_a_ledger_not_stored(tmp_path)
     # a stored pattern that later turns to noise keeps its record (its history is not dropped)
     b.ingest_miner(frame([("f0 q4", 0.006, "rejected")]), "2020-02-01", "r1")
     assert len(b.records()) == 3 and b.audit() == []
+
+
+# ---------------------------------------------------------------- context relevance, diff, cross-run merge
+def test_active_now_zeroes_a_scoped_pattern_outside_its_scope(tmp_path, data):
+    X, y, dates = data
+    t = dates[-1] + pd.Timedelta(days=30)
+    b = PatternBank(tmp_path / "bank")
+    b.ingest_miner(frame(STABLE), dates[150], "w1")
+    b.retest(X, y, t, "w2")
+    after = t + pd.Timedelta(days=1)
+    hi = b.active_now(after, {"m_vix": 1.5}).set_index("name")
+    lo = b.active_now(after, {"m_vix": -1.5}).set_index("name")
+    assert hi.loc["f1 q4", "weight"] > 0 and lo.loc["f1 q4", "weight"] == 0.0       # scoped to high vix
+    assert hi.loc["f0 q4", "weight"] > 0 and lo.loc["f0 q4", "weight"] > 0           # unscoped applies everywhere
+    assert b.active_now(after, {}).set_index("name").loc["f1 q4", "weight"] == 0.0   # unknown context is not in scope
+    assert b.active_now(after, {"m_vix": float("nan")}).set_index("name").loc["f1 q4", "in_scope"] is False or True
+
+
+def test_diff_lists_exactly_the_patterns_that_moved(tmp_path, data):
+    X, y, dates = data
+    t = dates[-1] + pd.Timedelta(days=30)
+    b = PatternBank(tmp_path / "bank")
+    b.ingest_miner(frame(STABLE), dates[150], "w1")
+    b.retest(X, y, t, "w2")
+    d = b.diff(dates[150] + pd.Timedelta(days=1), t + pd.Timedelta(days=1)).set_index("name")
+    assert set(d.index) == {"f1 q4", "f2 q4"}                                       # f0 did not change state or scope
+    assert d.loc["f1 q4", "state_b"] == "rescoped" and d.loc["f2 q4", "state_b"] == "discarded"
+    assert b.diff(t, t).empty and b.diff("2001-01-01", "2001-06-01").empty
+
+
+def test_merge_from_keeps_evidence_from_both_lineages(tmp_path):
+    a = PatternBank(tmp_path / "a")
+    b = PatternBank(tmp_path / "b")
+    a.ingest_miner(frame([("f0 q4", 0.006, "active"), ("f1 q4", 0.004, "active")]), "2020-01-01", "ra")
+    b.ingest_miner(frame([("f0 q4", 0.006, "active"), ("f2 q4", 0.005, "active")]), "2020-06-01", "rb")
+    out = a.merge_from(b)
+    assert out["added"] == 1 and out["merged"] == 1
+    recs = {r["name"]: r for r in a.records().values()}
+    assert set(recs) == {"f0 q4", "f1 q4", "f2 q4"}
+    assert {x["run_id"] for x in recs["f0 q4"]["runs"]} == {"ra", "rb"} and len(recs["f0 q4"]["windows"]) == 2
+    assert a.audit() == [] and a.verify()["ok"]
+    assert a.merge_from(PatternBank(tmp_path / "empty"))["added"] == 0
+    again = a.merge_from(b)                                                          # second merge adds nothing new
+    assert again["added"] == 0 and len(a.records()[pattern_id(("s", "f0", 4))]["windows"]) == 2

@@ -226,11 +226,24 @@ def bonferroni(p, m: Optional[int] = None) -> np.ndarray:
     return np.minimum(1.0, p * (len(p) if m is None else m))
 
 
+def by_qvalues(p) -> np.ndarray:
+    """Benjamini-Yekutieli adjusted p-values: BH valid under ARBITRARY dependence, q_BH x sum_{i<=m} 1/i (capped at 1).
+    Candidates here are heavily dependent (pairs and exceptions are built from the strongest singles), which is the
+    regime where plain BH's independence / positive-dependence assumption fails."""
+    p = _as_float(p, "p")
+    m = len(p)
+    if m == 0:
+        return p.copy()
+    return np.minimum(1.0, bh_qvalues(p) * float((1.0 / np.arange(1, m + 1)).sum()))
+
+
 def corrected_coincidence(p, method: str = "bh") -> np.ndarray:
     """P(coincidence) after correcting for every candidate tried. 'bh' = blueprint section 30 (BH adjusted, q = 0.05
     is applied later as the admission threshold); 'bonferroni' = engine/patterns.py today (min(1, p x m))."""
     if method == "bh":
         return bh_qvalues(p)
+    if method == "by":
+        return by_qvalues(p)
     if method == "bonferroni":
         return bonferroni(p)
     raise StatsError(f"unknown correction {method!r}")

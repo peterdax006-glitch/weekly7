@@ -6,13 +6,15 @@ import json, sys, time
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import numpy as np, pandas as pd
-from engine import config as K, livesim, policy
+from engine import config as K, livesim, policy, blind_gates, health, provenance
 from engine.improve import log_experiment
 
 DIR = livesim.DIR
 STATE = DIR / "cycles.json"
 MAX = int(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1].isdigit() else 10
 TARGET = 0.07
+MODEL_SEED = 7                    # random_state of every model the trader fits; recorded as the worker seed
+WORKER_TIMEOUT_S, WORKER_MEM_MB, WORKER_HEARTBEAT_S, BEAT_EVERY_S = 3 * 3600, 6000, 900, 30
 SPACE = {"k": [2, 3, 4, 5, 6, 8, 12], "exit_q": [0.5, 0.6, 0.7, 0.8, 0.9], "rebalance_weeks": [1, 2, 4], "brake": [None, 0.05, 0.08, 0.12],
          "max_per_sector": [None, 2], "w_model": [0.3, 0.5, 0.7], "pick": ["top", "hivol"],
          "pool_q": [0.9, 0.95, 0.98], "liq_q": [0.3, 0.5, 0.7], "vol_filter": [True, False],
@@ -67,7 +69,8 @@ def replay_variant(cfg, snaps, closes, cost_bps, divs):
             wk += 1
     e = pd.Series(eq)
     return {"mean_week": float(np.mean(weeks)), "weeks_ge_7": int(sum(w >= 0.07 for w in weeks)),
-            "year_return": float(e.iloc[-1] / K.START_CASH - 1), "max_dd": float((e / e.cummax() - 1).min())}
+            "year_return": float(e.iloc[-1] / K.START_CASH - 1), "max_dd": float((e / e.cummax() - 1).min()),
+            "weekly_returns": {f"w{i:03d}": float(w) for i, w in enumerate(weeks)}}
 
 
 def examine(feed, trader):
@@ -97,7 +100,7 @@ def examine(feed, trader):
         if not nxt:
             continue
         seg = closes.loc[sdate:nxt[0]["week_end"]]
-        top = snap["score"].nlargest(20).index
+        top = policy.score(snap, trader.cfg["w_model"]).nlargest(20).index      # snapshots hold the inputs, not the score
         r = (seg.iloc[-1] / seg.iloc[0] - 1).reindex(top).dropna()
         held = [t for t in trader.picks if t["session"] == sdate]
         held = set(held[0]["names"]) if held else set()
@@ -118,20 +121,60 @@ def examine(feed, trader):
     }
 
 
+def _heartbeat(wl, stop):
+    while not stop.wait(BEAT_EVERY_S):
+        wl.beat()
+
+
 def worker(run_id, cfg):
-    """One sealed hidden year: live-clock run, blind diagnosis, archive. Never reveals the year."""
-    feed, trader, sealed, wall = livesim.run(cfg, run_id, log=lambda *a: print(f"[{run_id}]", *a, flush=True))
-    sessions = len(trader.days)
-    diag = examine(feed, trader)
+    """One sealed hidden year: live-clock run, blind diagnosis, archive. Never reveals the year.
+    Reports through health.WorkerLog (start, config, window, seed, memory, heartbeat, complete). If the Phase 21/22
+    audit of the run fails, no result.json is written and the worker records `invalid`: its window is excluded."""
+    import threading
     arch = DIR / run_id
     arch.mkdir(exist_ok=True)
+    for stale_file in ("result.json", "blind_audit.json"):
+        if (arch / stale_file).exists():
+            (arch / stale_file).unlink()                     # an older run's result must never stand in for this one
+    wl = health.WorkerLog(arch / "health.jsonl", run_id)
+    wl.begin(json.loads(json.dumps(cfg, default=str)), run_id, MODEL_SEED, code=provenance.code_stamp())
+    stop = threading.Event()
+    threading.Thread(target=_heartbeat, args=(wl, stop), daemon=True).start()
+    try:
+        feed, trader, sealed, wall = livesim.run(cfg, run_id, log=lambda *a: print(f"[{run_id}]", *a, flush=True))
+        findings = feed.audit()
+        blind_gates.save_report(findings, arch / "blind_audit.json")
+        bad = [f for f in findings if f.severity == "fail"]
+        if bad:
+            wl.emit("invalid", why="blind gates failed: " + "; ".join(str(f) for f in bad[:3]))
+            print(f"[{run_id}] BLIND GATES FAILED - window excluded: {bad[0]}", flush=True)
+            return
+        feed.ledger.save(arch / "ledger.json")
+        _archive(run_id, cfg, feed, trader, wall, arch, wl)
+    finally:
+        stop.set()
+
+
+def _archive(run_id, cfg, feed, trader, wall, arch, wl):
+    sessions = len(trader.days)
+    diag = examine(feed, trader)
     feed._stocks["Close"].loc[feed.first_live:].to_parquet(arch / "closes.parquet")
+    feed._stocks["Open"].loc[feed.first_live:].to_parquet(arch / "opens_v2.parquet")     # C33: the re-tester fills at these
     for k, v in trader.snaps.items():
         v.to_parquet(arch / f"snap_{k}.parquet")
     (arch / "meta.json").write_text(json.dumps({"cost_bps": feed.cost_bps}))
     feed.sic.to_parquet(arch / "sic.parquet")
+    weekly = {f"w{i:03d}": float(x["ret"]) for i, x in enumerate(trader.weeks)}
+    problems = health.validate_result({"window": run_id, "seed": MODEL_SEED, "weekly_returns": weekly}, run_id, MODEL_SEED)
+    if problems:
+        wl.emit("invalid", why="; ".join(problems))
+        print(f"[{run_id}] result failed validation - window excluded: {problems}", flush=True)
+        return
     (arch / "result.json").write_text(json.dumps({"run_id": run_id, "config": cfg, "diagnosis": diag, "clock_seconds": wall,
-                                                  "sessions": sessions, "ms_per_day": 1000 * wall / sessions}, default=float))
+                                                  "sessions": sessions, "ms_per_day": 1000 * wall / sessions,
+                                                  "window": run_id, "seed": MODEL_SEED, "weekly_returns": weekly,
+                                                  "provenance": provenance.stamp({"cfg": cfg}, seed=MODEL_SEED)}, default=float))
+    wl.done(arch / "result.json", code=provenance.code_stamp())
 
 
 if len(sys.argv) > 2 and sys.argv[1] == "--worker":
@@ -147,10 +190,34 @@ while len(st["cycles"]) < MAX:
     t0 = time.perf_counter()
     for r in ids:                  # seal one at a time here: parallel workers can't see each other's draw
         livesim.SealedYear(r)
-    procs = [subprocess.Popen([sys.executable, "-u", __file__, "--worker", r, json.dumps(st["config"])]) for r in ids]
-    codes = [p.wait() for p in procs]
+    import threading
+    for r in ids:
+        (DIR / r).mkdir(exist_ok=True)
+        (DIR / r / "health.jsonl").unlink(missing_ok=True)       # a new round never inherits an old log
+    sup = {}
+
+    def launch(r):
+        sup[r] = health.supervise([sys.executable, "-u", __file__, "--worker", r, json.dumps(st["config"])],
+                                  DIR / r / "health.jsonl", r, WORKER_TIMEOUT_S, WORKER_MEM_MB, WORKER_HEARTBEAT_S,
+                                  stdout="inherit")
+    threads = [threading.Thread(target=launch, args=(r,)) for r in ids]
+    [t.start() for t in threads]
+    [t.join() for t in threads]
     print(f"  round wall time {time.perf_counter() - t0:.0f}s", flush=True)
-    done = [r for r, c in zip(ids, codes) if c == 0 and (DIR / r / "result.json").exists()]
+    # Phase 24: every worker is classified; anything not OK is EXCLUDED - never replaced, never reused, never averaged
+    expect_cfg = json.loads(json.dumps(st["config"], default=str))
+    workers = {}
+    for r in ids:
+        rp = DIR / r / "result.json"
+        workers[r] = {"log": health.read_log(DIR / r / "health.jsonl"), "config": expect_cfg, "window": r, "seed": MODEL_SEED,
+                      "result": json.loads(rp.read_text()) if rp.exists() else None}
+    report = health.exclusion_report(workers, stale_check=lambda row: provenance.stale(
+        {k: row.get(k) for k in ("code_hash", "code_files", "code_mixed")}))
+    health.write_report(report, DIR / f"round_{rnd:02d}_health.json")
+    for e in report["excluded"]:
+        print(f"  [{e['worker']}] EXCLUDED {e['status']}: {e['why']}", flush=True)
+    done = [r for r in ids if r in report["included"]]
+    assert not health.check_no_silent_replacement(report, done)
     for r in done:
         res = json.loads((DIR / r / "result.json").read_text())
         d = res["diagnosis"]
@@ -166,9 +233,11 @@ while len(st["cycles"]) < MAX:
     # gate: the re-tester must reproduce every live run, or adjustments would be judged on a different system
     chk = subprocess.run([sys.executable, "scripts/check_retester.py"], capture_output=True, text=True)
     print("  re-tester check:", " | ".join(l for l in chk.stdout.splitlines() if l.strip()), flush=True)
-    if chk.returncode != 0:
+    if chk.returncode == 1:
         print("  RE-TESTER MISMATCH - stopping before any adjustment", flush=True)
         break
+    if chk.returncode == 2:
+        print("  WARNING: the re-tester verified nothing (every archive stale or unstamped); continuing", flush=True)
     # ---- adjust across EVERY hidden year played so far ----
     years = []
     for c in st["cycles"]:
@@ -203,8 +272,11 @@ while len(st["cycles"]) < MAX:
     else:
         print(f"  kept v{st['version']}: nothing beat it across {len(years)} hidden years ({base[1]:+.2%}/week)", flush=True)
     # reveal only now, after the adjustment is locked in
+    gate = blind_gates.RevealGate(window_label="")           # Phase 21: refuse the answer until everything is closed
+    gate.lock_adjustments()
+    gate.predictions_recorded = gate.trades_completed = gate.learning_finalized = True
     for c in st["cycles"][-len(done):]:
-        c["revealed_year"] = livesim.SealedYear(c["run_id"]).reveal()
+        c["revealed_year"] = livesim.SealedYear(c["run_id"]).reveal(gate)
         log_experiment({"event": "livesim_cycle", "run_id": c["run_id"], "year": c["revealed_year"],
                         "mean_week": c["diagnosis"]["mean_week"], "weeks_ge_7": c["diagnosis"]["weeks_ge_7"],
                         "year_return": c["diagnosis"]["year_return"], "market": c["diagnosis"]["market_year_return"],

@@ -438,3 +438,163 @@ def test_sweep_finds_the_better_half_life_after_a_regime_change():
     t = D.sweep(rec, "mem_half_life", [1.0, 4.0, 1e6], {"mem_shrink": 0.0, "mem_shock_k": 1e9}).set_index("mem_half_life")
     assert t.loc[4.0, "skill"] > t.loc[1e6, "skill"]                   # forgetting helps when the world changed
     assert D.walk_forward_skill([], None)[1]["n"] == 0
+
+
+# --- era distance, ranking arms, absorbing banks -------------------------------------------------------------------
+def test_era_gap_counts_eras_apart_and_unknown_is_none():
+    assert MM.era_gap("financial_crisis", "financial_crisis") == 0
+    assert MM.era_gap("financial_crisis", "pandemic_2020_21") == 2
+    assert MM.era_gap("unknown", "financial_crisis") is None and MM.era_gap(None, None) is None
+
+
+def test_era_decay_makes_neighbouring_eras_count_more_than_distant_ones():
+    M = Memory({"mem_era_decay": 0.5, "mem_half_life": 1e12, "mem_shrink": 0.0})
+    M.record("a", 0, Z, 0.01, date="2005-06-01")        # expansion_2003_07: 3 eras from pandemic
+    M.record("a", 1, Z, 0.01, date="2015-06-01")        # zero_rates: 1 era away
+    M.record("a", 2, Z, 0.01, date="2021-06-01")        # pandemic: same era
+    M.set_clock("2021-09-01")
+    w = [M.weight(e, 2, Z) for e in M.ep]
+    assert w[2] == pytest.approx(1.0) and w[1] == pytest.approx(0.5) and w[0] == pytest.approx(0.125)
+
+
+def test_era_decay_overrides_era_other_and_never_discounts_unknown_eras():
+    M = Memory({"mem_era_decay": 0.5, "mem_era_other": 0.01, "mem_half_life": 1e12})
+    M.record("a", 0, Z, 0.01, date="2015-06-01", era="made_up_era")
+    M.record("a", 1, Z, 0.01, date="2021-06-01")
+    M.set_clock("2021-09-01")
+    assert M.weight(M.ep[0], 1, Z) == pytest.approx(M.weight(M.ep[1], 1, Z))
+
+
+def test_rank_arms_orders_by_z_lists_thin_arms_last_and_is_stable_on_ties():
+    M = Memory({"mem_shrink": 0.0, "mem_shock_k": 1e9})
+    rng = np.random.default_rng(0)
+    for w in range(12):
+        M.record("good", w, Z, 0.03 + rng.normal(0, 0.002))
+        M.record("bad", w, Z, -0.03 + rng.normal(0, 0.002))
+        M.record("tie_b", w, Z, 0.0 + (0.01 if w % 2 else -0.01))
+        M.record("tie_a", w, Z, 0.0 + (0.01 if w % 2 else -0.01))
+    M.record("thin", 0, Z, 0.5)
+    t = M.rank_arms(["thin", "bad", "tie_b", "good", "tie_a", "unseen"], 12, Z, min_n_eff=4)
+    assert t["arm"].iloc[0] == "good" and t["usable"].iloc[:4].all() and not t["usable"].iloc[4:].any()
+    assert set(t["arm"].iloc[4:]) == {"thin", "unseen"} and (t["z"].iloc[4:] == 0).all()
+    i, j = list(t["arm"]).index("tie_a"), list(t["arm"]).index("tie_b")
+    assert abs(t["z"][i] - t["z"][j]) < 1e-9 and i < j                      # equal scores fall back to alphabetical
+
+
+def test_absorb_is_idempotent_discounts_as_long_term_and_skips_bad_rows():
+    src = Memory()
+    for w in range(6):
+        src.record(("knob", "k", 2, 3), w, ctx(w), 0.01 * w, date="2012-01-02")
+    bank = src.export()
+    bad = pd.concat([bank, pd.DataFrame({"arm": [repr("x")], "ctx": [[0.0, 1.0]], "outcome": [0.1]}),
+                     pd.DataFrame({"arm": [repr("y")], "ctx": [list(Z)], "outcome": [float("nan")]})], ignore_index=True)
+    M = Memory()
+    assert M.absorb(bad) == 6 and M.absorb(bad) == 0                        # second absorb adds nothing
+    assert all(e[4] == 1 for e in M.ep) and M.info[0]["era"] == "zero_rates_2010_19"
+    assert M.estimate(("knob", "k", 2, 3), 0, Z)[2] > 0
+
+
+def test_absorb_respects_capacity_and_per_arm_capacity():
+    src = Memory()
+    for w in range(30):
+        src.record("a", w, Z, 0.01)
+        src.record("b", w, Z, 0.02)
+    M = Memory({"mem_arm_capacity": 5, "mem_capacity": 8})
+    M.absorb(src.export())
+    assert len(M) <= 8 and sum(1 for e in M.ep if e[0] == "a") <= 5
+
+
+# --- statistics of the diagnostics ---------------------------------------------------------------------------------
+def test_skill_ci_covers_the_point_estimate_and_excludes_zero_for_a_real_signal_not_for_noise():
+    df, s = D.walk_forward_skill(regime_stream(150), {"mem_bandwidth": 0.5, "mem_shrink": 1.0, "mem_shock_k": 1e9})
+    lo, hi = D.skill_ci(df, seed=1)
+    assert lo < s["skill"] < hi and lo > 0.3
+    rng = np.random.default_rng(3)
+    noise = [("a", float(w), ctx(rng.normal()), float(rng.normal(0, 0.02))) for w in range(150)]
+    dn, sn = D.walk_forward_skill(noise, {"mem_shrink": 6.0})
+    lo2, hi2 = D.skill_ci(dn, seed=1)
+    assert lo2 < 0.05 and np.isnan(D.skill_ci(dn.head(3))[0])                      # too short for a block bootstrap: NaN
+
+
+def test_calibration_slope_positive_for_signal_and_table_is_ordered():
+    df, _ = D.walk_forward_skill(regime_stream(200), {"mem_bandwidth": 0.5, "mem_shrink": 1.0, "mem_shock_k": 1e9})
+    t, slope = D.calibration_table(df, bins=4)
+    assert slope > 0.5 and t["n"].sum() == len(df)
+    assert (t["outcome"].iloc[:2] < 0).all() and (t["outcome"].iloc[2:] > 0).all() and (t["share_positive"].iloc[-1] > 0.9)
+    empty, s = D.calibration_table(df.head(3))
+    assert empty.empty and np.isnan(s)
+
+
+def test_nested_tune_helps_out_of_sample_when_the_world_changes_and_says_no_on_stationary_noise():
+    changing = stream(120, seed=7, arms=("a",), regime_at=40, sd=0.003, shift=-0.05)
+    r = D.nested_tune(changing, {"mem_half_life": [1.0, 3.0, 1e6]}, {"mem_shrink": 0.0, "mem_shock_k": 1e9, "mem_half_life": 1e6}, split=0.5)
+    assert r["chosen"] in (1.0, 3.0) and r["helped"] and r["test_skill_chosen"] > r["test_skill_default"]
+    rng = np.random.default_rng(11)
+    noise = [("a", float(w), Z, float(rng.normal(0.0, 0.02))) for w in range(160)]
+    r2 = D.nested_tune(noise, {"mem_half_life": [1.0, 2.0, 1e6]}, {"mem_half_life": 1e6}, split=0.5)
+    assert r2["chosen"] == 1e6 and r2["helped"] is False                     # on noise the best memory is the longest; no fake gain
+
+
+def test_arm_timeline_shows_belief_lagging_a_break_then_catching_up():
+    rec = stream(80, seed=2, arms=("a",), regime_at=40, sd=0.003, shift=-0.05)
+    t = D.arm_timeline(rec, "a", {"mem_shock_k": 1.0, "mem_shrink": 0.0})
+    assert t["belief"].iloc[:35].mean() > 0.005 and t["belief"].iloc[-3:].mean() < t["belief"].iloc[:35].mean()
+    assert t["broken"].iloc[-1] and set(t.columns) == {"week", "belief", "se", "n_eff", "broken", "outcome"}
+    assert D.arm_timeline(rec, "nope").empty
+
+
+def test_stability_by_block_separates_an_all_period_edge_from_a_one_period_edge():
+    good = D.walk_forward_skill(regime_stream(240), {"mem_bandwidth": 0.5, "mem_shrink": 1.0, "mem_shock_k": 1e9})[0]
+    t, share = D.stability_by_block(good, 4)
+    assert share == 1.0 and len(t) == 4
+    lopsided = good.copy()
+    lopsided.loc[lopsided.index[len(good) // 2:], "pred"] = -lopsided.loc[lopsided.index[len(good) // 2:], "pred"]
+    _, share2 = D.stability_by_block(lopsided, 4)
+    assert share2 <= 0.5 and np.isnan(D.stability_by_block(good.head(5))[1])
+
+
+# --- per-kind half-life ----------------------------------------------------------------------------------------------
+def test_arm_kind_reads_the_family_of_a_tuple_arm():
+    assert MM.arm_kind(("knob", "k", 2, 3)) == "knob" and MM.arm_kind(("ic", "frog")) == "ic"
+    assert MM.arm_kind("plain") == "other" and MM.arm_kind(()) == "other" and MM.arm_kind((3, 4)) == "other"
+
+
+def test_kind_half_life_fades_knob_and_ic_arms_at_different_speeds():
+    M = Memory({"mem_half_life": 8.0, "mem_kind_half_life": {"knob": 2.0, "ic": 32.0}})
+    for arm in (("knob", "k", 2, 3), ("ic", "frog"), "other"):
+        M.record(arm, 0, Z, 0.01)
+    w = {e[0]: M.weight(e, 8, Z) for e in M.ep}
+    assert w[("knob", "k", 2, 3)] == pytest.approx(0.5 ** (8 / 2.0)) and w[("ic", "frog")] == pytest.approx(0.5 ** (8 / 32.0))
+    assert w["other"] == pytest.approx(0.5)                                # arms with no override keep the global half-life
+
+
+def test_kind_half_life_unset_is_identical_to_the_global_half_life():
+    a, b = Memory({"mem_half_life": 5.0}), Memory({"mem_half_life": 5.0, "mem_kind_half_life": {}})
+    for M in (a, b):
+        for w in range(10):
+            M.record(("knob", "k", 2, 3), w, Z, 0.01 * w)
+    assert a.estimate(("knob", "k", 2, 3), 10, Z) == b.estimate(("knob", "k", 2, 3), 10, Z)
+
+
+def test_kind_half_life_drives_eviction_too():
+    M = Memory({"mem_capacity": 6, "mem_kind_half_life": {"knob": 1.0}, "mem_shock_k": 1e9})
+    for w in range(6):
+        M.record(("ic", "a"), w, Z, 0.01)
+    for w in range(6, 9):
+        M.record(("knob", "k", 2, 3), w, Z, 0.01)
+    kinds = sorted(MM.arm_kind(e[0]) for e in M.ep)
+    assert len(M) == 6 and kinds.count("knob") + kinds.count("ic") == 6
+    assert D.factor_ablation(stream(30, seed=1), {"mem_kind_half_life": {"a": 1.0}}).shape[0] == 8
+
+
+def test_ancient_evidence_does_not_underflow_to_nan():
+    """Half-life 1 week and ~1,000 weeks of age: every weight is ~1e-300 (representable), but w**2 underflows to 0 and
+    n_eff became 0/0. The estimate must stay finite and equal what the same data gives with a scale-free weighting."""
+    M = Memory({"mem_half_life": 1.0, "mem_shrink": 0.0, "mem_shock_k": 1e9})
+    for w in range(5):
+        M.record("a", w, Z, 0.02 + 0.001 * w)
+    d = M.estimate_detail("a", 1004.0, Z)
+    assert 0 < d["sum_w"] < 1e-290
+    assert np.isfinite(d["mean"]) and np.isfinite(d["se"]) and d["n_eff"] > 1
+    assert 0.02 < d["mean"] < 0.024
+    assert D._shrunk(np.array([1e-300, 2e-300, 1e-300]), np.array([1.0, 2.0, 3.0]), 0.0)[2] > 1

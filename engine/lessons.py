@@ -26,6 +26,12 @@ from statistics import NormalDist
 import numpy as np
 import pandas as pd
 
+KINDS = ("bad_entry", "missed_exit", "oversized_loser", "regime_misread", "missed_winner")
+# what each kind's lesson can DO. Only score re-weighting is applied by adjust(); size and exit repairs live outside the
+# score, so those lessons are advisories (advice()) that the policy owner can wire to sizing / exit rules.
+KIND_ACTION = {"bad_entry": "reweight", "regime_misread": "reweight", "missed_winner": "reweight",
+               "oversized_loser": "advisory:cap_size", "missed_exit": "advisory:tighten_exit"}
+TRAIL_KEEP = 50
 CATEGORIES = ("losing_decision", "false_positive", "false_negative", "missed_winner", "pattern_failure",
               "regime_failure", "ok")
 FORBIDDEN_KEYS = {"ticker", "symbol", "date", "asof", "as_of", "day", "permno", "cusip", "isin", "name", "id"}
@@ -36,7 +42,8 @@ DEFAULTS = {
     "ttl": 400, "trust_decay": 0.98, "trust_floor": 0.35, "min_uses": 10, "max_lessons": 25,
     "overlap_max": 0.8, "pair_gain": 1.2, "top_single_for_pairs": 8, "prior_n": 10.0,
     "loss_thr": 0.01, "untaken_frac": 0.3, "cost": 0.0005, "regime_z": 2.0, "factor_clip": (0.25, 2.0),
-    "proxy_within_ticker": 0.02, "proxy_date_corr": 0.95,
+    "proxy_within_ticker": 0.02, "proxy_date_corr": 0.95, "min_rate_delta": 0.04, "support_keep": 25,
+    "oversize_mult": 1.5, "mfe_min": 0.03, "giveback": 0.03,
 }
 _N = NormalDist()
 
@@ -114,10 +121,13 @@ class Episode:
     counterfactual: dict
     origin: dict = field(default_factory=dict)       # hashed week/ticker, ONLY for counting distinct episodes
     seq: int = 0                                     # resolution order within the batch (not a date)
+    kind: str = "none"                               # one of KINDS for a mistake, else "none"
 
     def __post_init__(self):
         if self.category not in CATEGORIES:
             raise ValueError(f"unknown category {self.category!r}")
+        if self.kind != "none" and self.kind not in KINDS:
+            raise ValueError(f"unknown kind {self.kind!r}")
         for name in ("features", "context", "decision", "outcome"):
             _check_no_identity(getattr(self, name), name)
 
@@ -146,15 +156,36 @@ def _situation(ctx, ref_mu, ref_sd, side, category):
     return "|".join(bits + ["long" if side > 0 else "short", category])
 
 
+def classify_kind(category, taken, pnl, p, mfe=None, weight=None, weight_med=None):
+    """Mistake kind for one decision, or "none". Precedence for a losing taken decision:
+      regime_misread   the context was outside anything seen before (category regime_failure)
+      oversized_loser  the position was much bigger than the frame's median position
+      missed_exit      it was well ahead at some point (mfe >= mfe_min) and gave back >= giveback before the close
+      bad_entry        anything else that lost (it never worked, or the path is unknown)
+    An untaken winner is a missed_winner."""
+    if not taken:
+        return "missed_winner" if category in ("missed_winner", "false_negative") else "none"
+    if category == "ok":
+        return "none"
+    if category == "regime_failure":
+        return "regime_misread"
+    if weight is not None and weight_med and np.isfinite(weight) and weight >= p["oversize_mult"] * weight_med:
+        return "oversized_loser"
+    if mfe is not None and np.isfinite(mfe) and mfe >= p["mfe_min"] and mfe - pnl >= p["giveback"]:
+        return "missed_exit"
+    return "bad_entry"
+
+
 def post_mortem(frame, X, now, params=None, seed=0, salt="lessons"):
     """Post-mortem generator.
 
     frame: DataFrame indexed (date, ticker) with columns score, y (forward return), resolved (Timestamp when y became
-    known), taken (bool); optional side, pattern, mae, stop. X: feature panel on the same index; `m_` columns are the
+    known), taken (bool); optional side, pattern, mae, mfe, stop, weight. X: feature panel on the same index; `m_` columns are the
     market context. Only rows with resolved <= now are used. Returns a list of Episodes.
     Categories: taken loss -> regime_failure (context far from its earlier reference), else pattern_failure (its pattern
     loses on average in this frame), else false_positive (high-ranked) / losing_decision; untaken winner ->
-    missed_winner (was high-ranked) / false_negative (scored low); everything else ok."""
+    missed_winner (was high-ranked) / false_negative (scored low); everything else ok. Each episode also gets a `kind`
+    (classify_kind): bad_entry, missed_exit (needs mfe), oversized_loser (needs weight), regime_misread, missed_winner."""
     p = {**DEFAULTS, **(params or {})}
     if frame.empty:
         return []
@@ -181,6 +212,7 @@ def post_mortem(frame, X, now, params=None, seed=0, salt="lessons"):
         tk = taken & f["pattern"].notna()
         pat_mean = pnl_if[tk].groupby(f.loc[tk, "pattern"]).mean().to_dict()
     order = f["resolved"].rank(method="first").astype(int) - 1
+    wmed = float(f.loc[taken, "weight"].median()) if "weight" in f and taken.any() else None
     Xf = X.loc[f.index]
     out = []
     for i, idx in enumerate(f.index):
@@ -206,6 +238,8 @@ def post_mortem(frame, X, now, params=None, seed=0, salt="lessons"):
         mae = float(f["mae"].iloc[i]) if "mae" in f else None
         stop = float(f["stop"].iloc[i]) if "stop" in f else None
         sc = float(f["score"].iloc[i])
+        kind = classify_kind(cat, tk_, pnl, p, float(f["mfe"].iloc[i]) if "mfe" in f else None,
+                             float(f["weight"].iloc[i]) if "weight" in f else None, wmed)
         out.append(Episode(
             eid=_hash(salt, dt, tkr, s, tk_), situation=_situation(ctx, mu, sd, s, cat), features=feats,
             context=ctx, decision={"taken": float(tk_), "side": s, "score": sc, "rank_pct": rp},
@@ -213,7 +247,7 @@ def post_mortem(frame, X, now, params=None, seed=0, salt="lessons"):
             confidence=float(min(1.0, abs(sc) / (float(f["score"].abs().max()) + 1e-12))),
             counterfactual=_counterfactual(tk_, s, float(f["y"].iloc[i]), pnl, p["cost"], mae, stop),
             origin={"week": _hash(salt, *pd.Timestamp(dt).isocalendar()[:2]), "tk": _hash(salt, tkr)},
-            seq=int(order.iloc[i])))
+            seq=int(order.iloc[i]), kind=kind))
     return out
 
 
@@ -239,6 +273,14 @@ class Lesson:
     uses: int = 0
     status: str = "active"
     stability: float = 1.0       # share of chronological blocks in which the effect had the same sign
+    kind: str = "bad_entry"      # the mistake kind this lesson answers
+    action: str = "reweight"     # "reweight" (applied to scores) or "advisory:<what>" (reported, not applied)
+    support: list = field(default_factory=list)      # ids of the episodes that support it (first support_keep)
+    trail: list = field(default_factory=list)        # evidence trail: what happened to it and why, newest last
+
+    def note(self, event, tick, **kw):
+        self.trail.append({"event": event, "tick": tick, **kw})
+        del self.trail[:-TRAIL_KEEP]
 
     @property
     def trust(self):
@@ -289,25 +331,43 @@ class LessonBook:
     def category_counts(self):
         return pd.Series([e.category for e in self.episodes.values()], dtype=object).value_counts().to_dict()
 
-    def _arrays(self):
-        eps = sorted(self.episodes.values(), key=lambda e: e.seq)
-        names = sorted({k for e in eps for k in {**e.features, **e.context}})
-        F = np.array([[({**e.features, **e.context}).get(k, np.nan) for k in names] for e in eps], float)
-        F = F.reshape(len(eps), len(names))
-        pnl = np.array([e.pnl for e in eps], float)
-        return eps, names, F, pnl, pd.factorize(np.array([e.origin["week"] for e in eps], dtype=object))[0], \
-            pd.factorize(np.array([e.origin["tk"] for e in eps], dtype=object))[0]
-
     # ---- generalisation
     def learn(self):
-        """Mine lessons from the stored episodes; returns the list of NEW lessons. Existing lessons keep their trust."""
+        """Mine pnl lessons from ALL stored episodes (regions where decisions earn less/more than elsewhere); returns
+        the NEW lessons. Existing lessons keep their trust. See learn_by_kind() for the mistake-kind mining."""
+        eps = sorted(self.episodes.values(), key=lambda e: e.seq)
+        chosen, names = self._mine(eps, lambda e: e.pnl, None, self.p["min_abs_delta"])
+        return self._materialise(chosen, names, eps, None, "reweight")
+
+    def learn_by_kind(self, kinds=None):
+        """One mining pass per mistake kind. For each kind the outcome is an indicator (the episode WAS that kind of
+        mistake) over the episodes that could have made it - taken decisions for the four decision-time kinds, untaken
+        candidates for missed_winner - and a lesson is a region where that mistake rate is elevated. Regions must pass
+        every gate learn() applies (support, distinct weeks and names, stability, validation, FDR, residual). Returns
+        {kind: [new lessons]}. Kinds that can only be repaired outside the score (size, exit) become advisories."""
+        out = {}
+        for kind in kinds or KINDS:
+            taken_side = 0.0 if kind == "missed_winner" else 1.0
+            eps = sorted((e for e in self.episodes.values() if e.decision.get("taken") == taken_side), key=lambda e: e.seq)
+            chosen, names = self._mine(eps, lambda e, k=kind: float(e.kind == k), 1, self.p["min_rate_delta"])
+            out[kind] = self._materialise(chosen, names, eps, kind, KIND_ACTION[kind])
+        return out
+
+    def _mine(self, eps, value_fn, want_sign, min_delta):
+        """Candidate conditions (feature quantile cuts and pairs) -> gates -> BH over everything tried -> greedy
+        residual selection. want_sign restricts to regions whose outcome is higher (+1) / lower (-1) than elsewhere."""
         p = self.p
         self.rejected_mining = {}
-        eps, names, F, pnl, wk, tk = self._arrays()
+        rows = [{**e.features, **e.context} for e in eps]
+        names = sorted({k for r in rows for k in r})
         n = len(eps)
-        if n < 2 * p["min_support"]:
+        if n < 2 * p["min_support"] or not names:
             self.rejected_mining["too_few_episodes"] = n
-            return []
+            return [], names
+        F = np.array([[r.get(k, np.nan) for k in names] for r in rows], float).reshape(n, len(names))
+        pnl = np.array([value_fn(e) for e in eps], float)
+        wk = pd.factorize(np.array([e.origin["week"] for e in eps], dtype=object))[0]
+        tk = pd.factorize(np.array([e.origin["tk"] for e in eps], dtype=object))[0]
         split = int(n * (1 - p["val_frac"]))
         cands = []                                              # (feature idx, op, thr)
         for j in range(F.shape[1]):
@@ -319,9 +379,9 @@ class LessonBook:
                 cands += [(j, ">", q), (j, "<=", q)]
         if not cands:
             self.rejected_mining["no_candidates"] = 1
-            return []
+            return [], names
         M = np.column_stack([(F[:, j] > t) if op == ">" else (F[:, j] <= t) for j, op, t in cands])
-        found = self._score_masks(M, pnl, wk, tk, split, [(c,) for c in cands])
+        found = self._score_masks(M, pnl, wk, tk, split, [(c,) for c in cands], min_delta)
         # pairs of the strongest same-direction singles: a conjunction must beat both parents by pair_gain
         top = sorted(found, key=lambda r: -abs(r["t"]))[: p["top_single_for_pairs"]]
         pair_masks, pair_conds = [], []
@@ -335,7 +395,7 @@ class LessonBook:
         n_tests = len(cands) + len(pair_masks)
         allr = list(found)
         if pair_masks:
-            for r in self._score_masks(np.column_stack(pair_masks), pnl, wk, tk, split, pair_conds):
+            for r in self._score_masks(np.column_stack(pair_masks), pnl, wk, tk, split, pair_conds, min_delta):
                 par = [x for x in top if x["conds"][0] in r["conds"]]
                 if abs(r["delta"]) >= p["pair_gain"] * max(abs(x["delta"]) for x in par):
                     allr.append(r)
@@ -349,30 +409,40 @@ class LessonBook:
                 cut = k
         if len(allr) > cut:
             self.rejected_mining["fdr"] = len(allr) - cut
-        chosen = self._greedy_residual(allr[:cut], pnl, wk, tk, split)
-        if cut > len(chosen):
-            self.rejected_mining["redundant"] = cut - len(chosen)
-        cats = np.array([e.category for e in eps])
+        pool = [r for r in allr[:cut] if want_sign is None or np.sign(r["delta"]) == want_sign]
+        chosen = self._greedy_residual(pool, pnl, wk, tk, split, min_delta)
+        if len(pool) > len(chosen):
+            self.rejected_mining["redundant"] = len(pool) - len(chosen)
+        for r in chosen:
+            idx = np.flatnonzero(r["mask"])
+            r["support"] = [eps[i].eid for i in idx[:p["support_keep"]]]
+            r["cats"] = pd.Series([eps[i].kind if eps[i].kind != "none" else eps[i].category
+                                   for i in idx if eps[i].category != "ok"], dtype=object)
+        return chosen, names
+
+    def _materialise(self, chosen, names, eps, kind, action):
+        p = self.p
         new = []
         for r in chosen:
-            mk = r["mask"]
-            mist = pd.Series(cats[mk & (cats != "ok")])
-            cat = mist.value_counts().index[0] if len(mist) else "ok"
-            direction = int(np.sign(r["delta"]))
+            direction = (-1 if kind != "missed_winner" else 1) if kind else int(np.sign(r["delta"]))
+            top = r["cats"].value_counts().index[0] if len(r["cats"]) else "ok"
+            k = kind or (top if top in KINDS else "bad_entry")
             trust0 = float(np.clip(_N.cdf(r["t_val"]), 0.05, 0.95))
             conds = [(names[j], op, float(t)) for j, op, t in r["conds"]]
-            lid = _hash("lesson", conds, direction)
+            lid = _hash("lesson", conds, direction, k)
             if lid in self.lessons:
                 continue
-            L = Lesson(lid, conds, direction, p["up"] if direction > 0 else p["down"], cat, int(mk.sum()),
+            L = Lesson(lid, conds, direction, p["up"] if direction > 0 else p["down"], top, int(r["mask"].sum()),
                        r["n_weeks"], r["n_tickers"], float(r["delta"]), float(r["t"]), float(r["p"]),
                        float(r["val_delta"]), trust0 * p["prior_n"], (1 - trust0) * p["prior_n"], self.tick_n, p["ttl"],
-                       stability=float(r["stability"]))
+                       stability=float(r["stability"]), kind=k, action=action, support=list(r["support"]))
+            L.note("mined", self.tick_n, n=L.n, delta=round(L.delta, 6), t=round(L.t, 2), p=float(f"{L.p:.3g}"),
+                   stability=L.stability, val_delta=round(L.val_delta, 6), trust=round(L.trust, 3))
             self.lessons[lid] = L
             new.append(L)
         return new
 
-    def _greedy_residual(self, pool, pnl, wk, tk, split):
+    def _greedy_residual(self, pool, pnl, wk, tk, split, min_delta):
         """Forward selection among the FDR survivors. After each pick, its region is removed from the data and every
         remaining candidate is re-scored on what is left, so a condition that only looks good because it is the
         complement of an already-chosen bad region ("f2 low is better" beside "f2 high loses") has no residual effect
@@ -385,7 +455,7 @@ class LessonBook:
         while left and len(chosen) < p["max_lessons"]:
             M = np.column_stack([r["mask"] for r in left])[active]
             sp = int(np.searchsorted(np.flatnonzero(active), split))
-            res = self._score_masks(M, pnl[active], wk[active], tk[active], sp, [r["conds"] for r in left])
+            res = self._score_masks(M, pnl[active], wk[active], tk[active], sp, [r["conds"] for r in left], min_delta)
             ok = []
             for r in res:
                 orig = next(o for o in left if o["conds"] == r["conds"])
@@ -402,10 +472,11 @@ class LessonBook:
         self.rejected_mining = saved
         return chosen
 
-    def _score_masks(self, M, pnl, wk, tk, split, conds):
+    def _score_masks(self, M, pnl, wk, tk, split, conds, min_delta=None):
         """Welch effect of each condition (inside vs outside) on all data and on the later validation slice; the
         gates (support, distinctness, size, validation) each count what they reject."""
         p = self.p
+        min_delta = p["min_abs_delta"] if min_delta is None else min_delta
         n = len(pnl)
         Mf = M.astype(float)
         n1, s1, ss1 = Mf.sum(0), Mf.T @ pnl, Mf.T @ pnl ** 2
@@ -431,7 +502,7 @@ class LessonBook:
                 reason = "support"
             elif nw < p["min_weeks"] or nt < p["min_tickers"]:
                 reason = "not_distinct"            # one week or one name is an episode, not a lesson
-            elif abs(d[c]) < p["min_abs_delta"]:
+            elif abs(d[c]) < min_delta:
                 reason = "tiny_effect"
             elif n1[c] > p["max_cover"] * n:
                 reason = "too_broad"               # a lesson is a specific situation; the complement of one is not
@@ -455,11 +526,27 @@ class LessonBook:
         """Multiplier per row from every active lesson that applies; each is pulled toward 1 by (1 - trust weight)."""
         f = np.ones(len(X))
         for L in self.active():
+            if L.action != "reweight":
+                continue
             w = L.weight()
             if w > 0:
                 f[L.mask(X)] *= 1.0 + w * (L.factor - 1.0)
         lo, hi = self.p["factor_clip"]
         return pd.Series(np.clip(f, lo, hi), index=X.index)
+
+    def advice(self, X):
+        """Advisory lessons (size / exit) that fire on each row: DataFrame of row -> kind, action, lesson id, weight.
+        Not applied by adjust(); the sizing and exit rules decide what to do with it."""
+        rows = []
+        for L in self.active():
+            if L.action.startswith("advisory") and L.weight() > 0:
+                for i in np.flatnonzero(L.mask(X)):
+                    rows.append({"row": i, "kind": L.kind, "action": L.action, "lid": L.lid, "weight": L.weight()})
+        if not rows:
+            return pd.DataFrame(columns=["kind", "action", "lid", "weight"], index=X.index[:0])
+        d = pd.DataFrame(rows)
+        d.index = X.index[d.pop("row").to_numpy()]
+        return d
 
     def adjust(self, score, X):
         return score * self.factor(X).reindex(score.index).to_numpy()
@@ -470,6 +557,7 @@ class LessonBook:
         for L in self.lessons.values():
             if L.status == "active" and self.tick_n - L.born_tick > L.ttl:
                 L.status = "expired"
+                L.note("expired", self.tick_n, age=self.tick_n - L.born_tick)
 
     def feedback(self, X, pnl):
         """Update trust from realised outcomes (pnl: Series aligned to X, e.g. side*y - cost for every candidate).
@@ -483,8 +571,10 @@ class LessonBook:
             d = self.p["trust_decay"]
             L.a, L.b = L.a * d + helped, L.b * d + (1 - helped)
             L.uses += 1
+            L.note("feedback", self.tick_n, helped=bool(helped), trust=round(L.trust, 3))
             if L.uses >= self.p["min_uses"] and L.trust < self.p["trust_floor"]:
                 L.status = "retired"
+                L.note("retired", self.tick_n, why="trust below floor", trust=round(L.trust, 3))
 
     # ---- ageing: re-test old lessons on episodes they have never seen, then mine the new ones
     def revalidate(self, episodes):
@@ -517,6 +607,7 @@ class LessonBook:
             if z < -p["reval_retire_z"]:
                 L.status = "retired"; action = "retired"
             L.uses += 1
+            L.note("revalidated", self.tick_n, action=action, z=round(z, 2), n=n_in, delta=round(float(d[0]), 6))
             report.append({"lid": L.lid, "n": n_in, "delta": float(d[0]), "z": z, "action": action})
         return report
 
@@ -589,6 +680,113 @@ class LessonBook:
         return [{"lid": L.lid, "rule": L.describe(), "n": L.n, "weeks": L.n_weeks, "tickers": L.n_tickers,
                  "delta": round(L.delta, 5), "t": round(L.t, 2), "trust": round(L.trust, 3), "status": L.status}
                 for L in self.lessons.values()]
+
+
+def kind_report(episodes):
+    """Post-mortem summary per mistake kind: how many, what they cost, what the best alternative would have been, and
+    the most common abstract situations (never names or dates)."""
+    rows = []
+    eps = list(episodes)
+    for k in KINDS:
+        e = [x for x in eps if x.kind == k]
+        cf = pd.Series([x.counterfactual.get("best") for x in e], dtype=object).value_counts()
+        sit = pd.Series([x.situation.rsplit("|", 2)[0] for x in e], dtype=object).value_counts()
+        rows.append({"kind": k, "n": len(e), "mean_pnl": float(np.mean([x.pnl for x in e])) if e else np.nan,
+                     "total_regret": float(sum(x.counterfactual.get("regret", 0.0) for x in e)),
+                     "best_alternative": cf.index[0] if len(cf) else None,
+                     "top_situations": list(sit.index[:3])})
+    return pd.DataFrame(rows)
+
+
+class LessonStore:
+    """Versioned, append-only persistence of a LessonBook: state/lessons/vNNNN.json (+ vNNNN.episodes.jsonl).
+    Each version records its parent's hash and its own content hash, and load() verifies both, so a silently edited
+    or truncated file is refused. Nothing is written at import; nothing is ever overwritten."""
+
+    def __init__(self, root=None):
+        if root is None:
+            from . import config as K
+            root = K.STATE / "lessons"
+        self.root = Path(root)
+
+    def versions(self):
+        return sorted(int(f.stem[1:]) for f in self.root.glob("v[0-9][0-9][0-9][0-9].json")) if self.root.exists() else []
+
+    @staticmethod
+    def _sha(payload):
+        keep = {k: payload[k] for k in ("version", "parent", "note", "book")}
+        return hashlib.sha256(json.dumps(keep, sort_keys=True, default=float).encode()).hexdigest()
+
+    def _path(self, v, suffix=".json"):
+        return self.root / f"v{v:04d}{suffix}"
+
+    def save(self, book, note="", episodes=True, stamp=None):
+        """Write the next version; returns its number. stamp: optional provenance dict (engine.provenance.stamp)."""
+        self.root.mkdir(parents=True, exist_ok=True)
+        vs = self.versions()
+        v = (vs[-1] + 1) if vs else 1
+        parent = json.loads(self._path(vs[-1]).read_text(encoding="utf-8"))["sha"] if vs else None
+        payload = {"version": v, "parent": parent, "note": note, "book": json.loads(book.to_json())}
+        payload["sha"] = self._sha(payload)
+        payload["stamp"] = stamp
+        if self._path(v).exists():
+            raise FileExistsError(self._path(v))
+        if episodes and book.episodes:
+            with open(self._path(v, ".episodes.jsonl"), "w", encoding="utf-8") as f:
+                for e in sorted(book.episodes.values(), key=lambda e: e.seq):
+                    f.write(json.dumps(asdict(e), default=float) + "\n")
+        self._path(v).write_text(json.dumps(payload, default=float), encoding="utf-8")
+        return v
+
+    def _read(self, version):
+        vs = self.versions()
+        if not vs:
+            raise FileNotFoundError(f"no lesson versions in {self.root}")
+        v = vs[-1] if version is None else version
+        payload = json.loads(self._path(v).read_text(encoding="utf-8"))
+        if payload["sha"] != self._sha(payload):
+            raise ValueError(f"lesson version {v} fails its content hash")
+        if v > 1 and payload["parent"] != json.loads(self._path(v - 1).read_text(encoding="utf-8"))["sha"]:
+            raise ValueError(f"lesson version {v} does not chain to version {v - 1}")
+        return v, payload
+
+    def load(self, version=None, params=None):
+        """The book at `version` (default latest), integrity-checked, with its episodes when they were saved."""
+        v, payload = self._read(version)
+        book = LessonBook.from_json(json.dumps(payload["book"]), params)
+        ep = self._path(v, ".episodes.jsonl")
+        if ep.exists():
+            for line in ep.read_text(encoding="utf-8").splitlines():
+                d = json.loads(line)
+                book.episodes[d["eid"]] = Episode(**d)
+        return book
+
+    def history(self):
+        out = []
+        for v in self.versions():
+            _, pl = self._read(v)
+            out.append({"version": v, "note": pl["note"], "sha": pl["sha"][:12], "lessons": len(pl["book"]["lessons"]),
+                        "active": sum(1 for x in pl["book"]["lessons"] if x["status"] == "active")})
+        return out
+
+    def diff(self, a, b):
+        """What changed between two versions: lessons added and removed, and, for those in both, changes of status,
+        trust (rounded to 0.001) and number of uses."""
+        la = {x["lid"]: x for x in self._read(a)[1]["book"]["lessons"]}
+        lb = {x["lid"]: x for x in self._read(b)[1]["book"]["lessons"]}
+        tr = lambda x: round(x["a"] / (x["a"] + x["b"]), 3)
+        changed = {}
+        for lid in la.keys() & lb.keys():
+            d = {}
+            if la[lid]["status"] != lb[lid]["status"]:
+                d["status"] = (la[lid]["status"], lb[lid]["status"])
+            if tr(la[lid]) != tr(lb[lid]):
+                d["trust"] = (tr(la[lid]), tr(lb[lid]))
+            if la[lid]["uses"] != lb[lid]["uses"]:
+                d["uses"] = (la[lid]["uses"], lb[lid]["uses"])
+            if d:
+                changed[lid] = d
+        return {"added": sorted(lb.keys() - la.keys()), "removed": sorted(la.keys() - lb.keys()), "changed": changed}
 
 
 def audit_identity(book, tickers=(), dates=()):

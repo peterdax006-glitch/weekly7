@@ -188,12 +188,13 @@ class StopRule(Rule):
     fail_exit: bool = False
     skip_tail: float | None = None   # if set, positions whose learned gap tail exceeds this are not traded (cash)
     gap: GapModel | None = None
+    gap_model_fn: object = None      # optional fit_fn(train) -> model with .tail(p), e.g. gaprisk.conditional_gap_factory
 
     def dist(self, p: Paths) -> np.ndarray:
         raise NotImplementedError
 
     def _fit_gap(self, train: Paths):
-        return fit_gap_model(train)
+        return self.gap_model_fn(train) if self.gap_model_fn is not None else fit_gap_model(train)
 
     def fit(self, train: Paths):
         import copy

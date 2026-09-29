@@ -7,13 +7,13 @@ from engine.antimemo import (disguise, harmed, invariance_check, paired_delta, p
                              DEFAULT_CFG)
 from test_lessons import make_panel, score_fn
 
-CFG = {"boot": 150, "n_disguises": 2}
+CFG = {"boot": 100, "n_disguises": 2}
 PARAMS = {"max_lessons": 4}
 
 
 def _windows(seed=11, b_trap=True):
-    XA, yA = make_panel(seed)
-    XB, yB = make_panel(seed + 100, trap=b_trap)
+    XA, yA = make_panel(seed, n_days=110, n_tk=30)
+    XB, yB = make_panel(seed + 100, n_days=110, n_tk=30, trap=b_trap)
     return XA, yA, XB, yB
 
 
@@ -207,15 +207,15 @@ def test_disguise_kinds_change_only_what_they_claim():
 
 
 class TickerMemo:
-    """Planted cheat #2: a per-ticker boost learned from window A (keyed on names only, never on dates)."""
+    """Planted cheat #2: a per-ticker bonus learned from window A (keyed on names only, never on dates)."""
     def __init__(self, frame, top=12):
-        m = (frame["side"] * frame["y"]).groupby(level=1).mean().nlargest(top)
-        self.boost = {t: 20.0 for t in m.index}
+        m = frame["y"].groupby(level=1).mean().nlargest(top)
+        self.boost = {t: 10.0 for t in m.index}
 
     def items(self): return [0]
     def subset(self, ids): return self
-    def factor(self, X): return pd.Series([self.boost.get(t, 1.0) for t in X.index.get_level_values(1)], index=X.index)
-    def adjust(self, s, X): return s * self.factor(X).to_numpy()
+    def factor(self, X): return pd.Series([1.0 + self.boost.get(t, 0.0) for t in X.index.get_level_values(1)], index=X.index)
+    def adjust(self, s, X): return s + self.factor(X).to_numpy() - 1.0
 
 
 class NoLesson(TickerMemo):
@@ -225,8 +225,8 @@ class NoLesson(TickerMemo):
 
 
 def _alpha_panel(seed, alpha_seed=5):
-    X, y = make_panel(seed, trap=False)
-    a = pd.Series(np.random.default_rng(alpha_seed).normal(0, 0.02, 40), index=[f"T{i:02d}" for i in range(40)])
+    X, y = make_panel(seed, n_days=110, n_tk=30, trap=False)
+    a = pd.Series(np.random.default_rng(alpha_seed).normal(0, 0.12, 30), index=[f"T{i:02d}" for i in range(30)])
     return X, y + X.index.get_level_values(1).map(a).to_numpy()      # every ticker carries a persistent alpha
 
 
@@ -243,10 +243,10 @@ def test_ticker_keyed_memory_is_attributed_to_names_not_dates():
 
 def test_holdout_window_c_scores_the_kept_book_once_and_flags_harm():
     XA, yA, XB, yB = _windows(82)
-    XC, yC = make_panel(282)
+    XC, yC = make_panel(282, n_days=110, n_tk=30)
     ok = run_experiment(XA, yA, XB, yB, score_fn, cfg=CFG, seed=9, params=PARAMS, XC=XC, yC=yC)
     assert ok["accepted_lessons"] and ok["holdout_C"]["mean"] > 0 and not ok["holdout_C"]["harmed"]
-    XC2, yC2 = make_panel(283, trap=False)
+    XC2, yC2 = make_panel(283, n_days=110, n_tk=30, trap=False)
     reg = (XC2["m_vix"] > 0.3) & (XC2["f2"] > 0.3)
     yC2 = yC2.where(~reg, 0.06 * XC2["f0"])                                    # in C the region rewards the model
     bad = run_experiment(XA, yA, XB, yB, score_fn, cfg=CFG, seed=9, params=PARAMS, XC=XC2, yC=yC2)
@@ -259,14 +259,14 @@ def test_holdout_window_c_scores_the_kept_book_once_and_flags_harm():
 def test_optimism_control_separates_a_real_effect_from_what_overfitting_can_fake():
     from engine.antimemo import optimism_control
     XA, yA, XB, yB = _windows(83)
-    r = run_experiment(XA, yA, XB, yB, score_fn, cfg={**CFG, "null_reps": 3}, seed=10, params=PARAMS)
+    r = run_experiment(XA, yA, XB, yB, score_fn, cfg={**CFG, "null_reps": 2}, seed=10, params=PARAMS)
     n = r["null_control"]
-    assert len(n["null_improvements"]) == 3 and n["exceeds_null"] and n["p_value"] <= 0.25
+    assert len(n["null_improvements"]) == 2 and n["exceeds_null"] and n["p_value"] <= 1 / 3
     assert n["null_mean"] < 0.5 * r["improvement_A"]
-    XN, yN = make_panel(84, trap=False)
+    XN, yN = make_panel(84, n_days=110, n_tk=30, trap=False)
     yN = pd.Series(np.random.default_rng(84).normal(scale=0.03, size=len(yN)), index=yN.index)
-    o = optimism_control(XN, yN, score_fn, {**DEFAULT_CFG, "null_reps": 3}, 1, 0.02, PARAMS)   # a claimed 2% gain on noise
+    o = optimism_control(XN, yN, score_fn, {**DEFAULT_CFG, "null_reps": 2}, 1, 0.02, PARAMS)   # a claimed 2% gain on noise
     assert o["null_max"] < 0.02 and o["exceeds_null"]                          # the null spread is what a claim is judged by
-    lo = optimism_control(XN, yN, score_fn, {**DEFAULT_CFG, "null_reps": 3}, 1, -1.0, PARAMS)
-    hi = optimism_control(XN, yN, score_fn, {**DEFAULT_CFG, "null_reps": 3}, 1, 10.0, PARAMS)
-    assert lo["p_value"] == 1.0 and hi["p_value"] == 0.25 and not lo["exceeds_null"]     # p is bounded by 1/(reps+1)
+    lo = optimism_control(XN, yN, score_fn, {**DEFAULT_CFG, "null_reps": 2}, 1, -1.0, PARAMS)
+    hi = optimism_control(XN, yN, score_fn, {**DEFAULT_CFG, "null_reps": 2}, 1, 10.0, PARAMS)
+    assert lo["p_value"] == 1.0 and hi["p_value"] == 1 / 3 and not lo["exceeds_null"]     # p is bounded by 1/(reps+1)

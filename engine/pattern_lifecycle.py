@@ -37,7 +37,7 @@ PANEL_MIN_DATES = 40
 LIFE_DEFAULT = {"disc_frac": 0.7, "recent_frac": 0.2, "min_obs": 3, "min_recent_weeks": 12, "min_recent_scope": 8,
                 "fail_t": 1.5, "watch_ratio": 0.25, "max_watch": 3, "t_long": 2.0, "t_half": 0.5, "t_recent": 1.0,
                 "min_scope_weeks": 30, "min_year_hit": 0.6, "min_years": 3, "min_year_weeks": 4,
-                "horizon_days": 7, "revive": True}
+                "horizon_days": 7, "revive": True, "scope_null_reps": 20, "scope_null_max": 0.15, "seed": 7}
 TESTS = ("long_run", "discovery", "confirmation", "recent", "sign_consistency")
 
 
@@ -153,13 +153,14 @@ class Panel:
         out[ok] = sm[ok] / cnt[ok]
         return out
 
-    def scope_dates(self, scope):
+    def scope_dates(self, scope, ctx=None):
         """Boolean over dates: is the market context inside the scope's tercile band."""
+        ctx = self.ctx if ctx is None else ctx
         if scope is None:
             return np.ones(len(self.dates), bool)
-        if scope["col"] not in self.ctx:
+        if scope["col"] not in ctx:
             return None
-        v = self.ctx[scope["col"]].values.astype(float)
+        v = ctx[scope["col"]].values.astype(float)
         with np.errstate(invalid="ignore"):
             if scope["label"] == "low":
                 return v <= scope["lo"]
@@ -347,34 +348,53 @@ class Lifecycle:
             self._move(rec, "discarded", as_of, rec["discard_reason"], ev)
 
     # ----- data-driven review
-    def cause_search(self, panel, rec, as_of):
-        """Search context terciles for a form of the pattern that survives all five tests. Returns
-        {'scope': dict|None, 'tried': [...], 'reason': str}. The adjusted p multiplies by the scopes actually tried."""
-        means = panel.means(rec["names"])
-        if means is None:
-            return {"scope": None, "tried": [], "reason": "pattern features unavailable in this panel"}
-        sign = self._sign(rec, means)
-        if not len(panel.ctx.columns):
-            return {"scope": None, "tried": [], "reason": "no market-context columns to split on"}
+    def _scope_scan(self, means, panel, sign, ctx, cur):
+        """Try every context tercile; return (tried rows, passing [(signed t, row, tests)])."""
         tried, passing = [], []
-        cur = rec["scope"] or {}
-        for col in panel.ctx.columns:
-            v = panel.ctx[col].values.astype(float)
+        for col in ctx.columns:
+            v = ctx[col].values.astype(float)
             fin = np.isfinite(v)
             if fin.sum() < 3 * self.p["min_scope_weeks"]:
                 continue
             lo, hi = (float(x) for x in np.quantile(v[fin], [1 / 3, 2 / 3]))
             for lab in ("low", "mid", "high"):
                 sc = {"col": col, "label": lab, "lo": lo, "hi": hi}
-                sel = panel.scope_dates(sc) & fin
+                sel = panel.scope_dates(sc, ctx) & fin
                 if sel.sum() < self.p["min_scope_weeks"] or (col, lab) == (cur.get("col"), cur.get("label")):
                     continue
                 r = run_tests(means, panel, sign, sel, self.p)
-                row = {"scope": sc, "weeks": int(sel.sum()), "t_long": r["stats"]["long_run"]["t"],
-                       "failed": r["failed"]}
+                row = {"scope": sc, "weeks": int(sel.sum()), "t_long": r["stats"]["long_run"]["t"], "failed": r["failed"]}
                 tried.append(row)
                 if r["pass"]:
                     passing.append((sign * r["stats"]["long_run"]["t"], row, r))
+        return tried, passing
+
+    def scope_null_rate(self, means, panel, sign, rec_id, cur=None):
+        """How often does the SAME scan find a passing scope when the context is meaningless? The per-date context rows
+        are permuted (seeded per pattern), which keeps each column's distribution and breaks its link to outcomes.
+        Returns (p_null, hits, reps); p_null = (hits + 1) / (reps + 1), so it is never 0."""
+        reps = int(self.p["scope_null_reps"])
+        if reps <= 0:
+            return None, 0, 0
+        rng = np.random.default_rng(int(hashlib.sha1(f"{rec_id}|{self.p['seed']}".encode()).hexdigest()[:8], 16))
+        hits = 0
+        for _ in range(reps):
+            shuf = panel.ctx.iloc[rng.permutation(len(panel.ctx))].set_axis(panel.ctx.index)
+            hits += bool(self._scope_scan(means, panel, sign, shuf, cur or {})[1])
+        return (hits + 1) / (reps + 1), hits, reps
+
+    def cause_search(self, panel, rec, as_of):
+        """Search context terciles for a form of the pattern that survives all five tests AND a permutation null (a scan
+        that would have found a scope in shuffled context as often is not a cause). Returns
+        {'scope': dict|None, 'tried': [...], 'reason': str, 'evidence': {...}}."""
+        means = panel.means(rec["names"])
+        if means is None:
+            return {"scope": None, "tried": [], "reason": "pattern features unavailable in this panel"}
+        sign = self._sign(rec, means)
+        if not len(panel.ctx.columns):
+            return {"scope": None, "tried": [], "reason": "no market-context columns to split on"}
+        cur = rec["scope"] or {}
+        tried, passing = self._scope_scan(means, panel, sign, panel.ctx, cur)
         if not tried:
             return {"scope": None, "tried": [], "reason": "no context tercile had enough weeks to test"}
         if not passing:
@@ -385,9 +405,15 @@ class Lifecycle:
         passing.sort(key=lambda x: -x[0])
         _, row, r = passing[0]
         st = r["stats"]["long_run"]
-        return {"scope": row["scope"], "tried": tried, "reason": "",
-                "evidence": {"t_long": st["t"], "m_long": st["m"], "weeks": row["weeks"], "n_tried": len(tried),
-                             "p_adj": min(1.0, _p_two_sided(st["t"], st["n"]) * len(tried))}}
+        p_null, hits, reps = self.scope_null_rate(means, panel, sign, rec["id"], cur)
+        ev = {"t_long": st["t"], "m_long": st["m"], "weeks": row["weeks"], "n_tried": len(tried),
+              "p_adj": min(1.0, _p_two_sided(st["t"], st["n"]) * len(tried)), "p_null": p_null, "null_hits": hits,
+              "null_reps": reps}
+        if p_null is not None and p_null > self.p["scope_null_max"]:
+            return {"scope": None, "tried": tried, "evidence": ev,
+                    "reason": f"a scope passed but shuffled context finds one {hits}/{reps} times (p_null={p_null:.2f}); "
+                              "not accepted as a cause"}
+        return {"scope": row["scope"], "tried": tried, "reason": "", "evidence": ev}
 
     @staticmethod
     def _sign(rec, means):
@@ -531,3 +557,26 @@ class Lifecycle:
 
     def log_frame(self):
         return pd.DataFrame(self.log)
+
+    def transition_matrix(self):
+        """Counts of every logged move, rows = from-state ('start' for creation), columns = to-state."""
+        L = self.log_frame()
+        if L.empty or "kind" not in L:
+            return pd.DataFrame(0, index=["start"], columns=list(STATES))
+        T = L[L["kind"] == "transition"].assign(frm=lambda d: d["frm"].fillna("start"))
+        return pd.crosstab(T["frm"], T["to"]).reindex(columns=list(STATES), fill_value=0)
+
+    def report(self):
+        """Audit summary: state counts, transition matrix, discard reasons (grouped), failure causes and rescope
+        scopes. Every number is recomputed from the records and the log."""
+        L = self.log_frame()
+        tr = L[L["kind"] == "transition"] if len(L) else L
+        grp = lambda xs: pd.Series(list(xs), dtype=object).value_counts().to_dict()
+        return {"states": {k: v for k, v in self.counts().items() if v}, "transitions": int(len(tr)),
+                "notes": int((L["kind"] == "note").sum()) if len(L) else 0,
+                "matrix": self.transition_matrix().to_dict(),
+                "discard_reasons": grp(str(r["discard_reason"]).split(" (")[0] for r in self.records.values()
+                                       if r["state"] == "discarded"),
+                "failure_causes": grp(f["reason"].split(" (")[0] for r in self.records.values() for f in r["failures"]),
+                "scopes": grp(f"{r['scope']['col']}:{r['scope']['label']}" for r in self.records.values() if r["scope"]),
+                "invariant_violations": self.invariants()}

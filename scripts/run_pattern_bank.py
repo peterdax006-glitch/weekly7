@@ -133,7 +133,7 @@ def main():
         new = {"era_end": str(T.date()), "bank_version": ing["version"], "patterns_in_bank": len(recs),
                "retest": summ, "miner": {kk: v for kk, v in M.report.items() if isinstance(v, (int, float))},
                "states": counts, "trusted": int(len(bank.trusted(after))),
-               "median_trust_active": float(S[S["state"] == "active"]["trust"].median()) if (S["state"] == "active").any() else None,
+               "median_trust_active": float(S[S["state"] == "active"]["trust"].median()) if len(S) and (S["state"] == "active").any() else None,
                "seconds": round(time.time() - step)}
         disc = [r for r in recs if r["state"] == "discarded"]
         new["discard_reasons"] = pd.Series([str(r["discard_reason"]).split(" (")[0] for r in disc]).value_counts().head(5).to_dict()
@@ -161,6 +161,7 @@ def main():
              f"{len(X):,} weekly rows, {len(pick)} tickers, seed {a.seed}. Bank versions: {bank.head()[0]}. "
              f"Integrity ok: {res['verify']['ok']}. Audit problems: {len(res['audit'])}. "
              f"Past reads unchanged: {all(stable.values())}.", "", "## Out-of-sample sign persistence (next era, unseen)", "",
+             "t-statistics treat patterns as independent; overlapping patterns are not, so they are optimistic.", "",
              "| state | patterns | mean signed weekly excess | t | hit rate |", "|---|---|---|---|---|"]
     lines += [f"| {r['state']} | {r['patterns']} | {r['mean_signed_weekly']:+.5f} | {r['t'] and round(r['t'], 2)} | {r['mean_hit_rate']:.3f} |"
               for r in res["oos_by_state"]]

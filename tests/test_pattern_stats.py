@@ -16,7 +16,8 @@ from engine.patterns import PatternMiner, _t_to_p, _wstats
 
 FEATS = [f"f{i}" for i in range(6)]
 CTX = ["m_vix", "m_vix_term", "m_spy_ma200", "m_breadth", "m_dispersion"]
-MINER_PARAMS = {"max_pairs": 260, "max_unless": 40, "null_reps": 1, "min_n": 120, "max_rows": 10 ** 9}
+MINER_PARAMS = {"max_pairs": 260, "max_unless": 40, "null_reps": 1, "min_n": 120, "max_rows": 10 ** 9, "p_method": "bonferroni",
+                "hac_lags": 0}          # the pre-Phase-3 behaviour, so equivalence with the library is exact
 
 
 def make_panel(n_dates=240, n_tick=50, seed=0, effect=0.012):
@@ -80,8 +81,8 @@ def test_t_to_p_agrees_with_patterns_and_is_exact_in_the_tail():
     for t in (0.0, 0.5, 1.96, 3.0, -4.2, 7.0):
         assert S.t_to_p(t) == pytest.approx(_t_to_p(t), abs=1e-12)
     assert S.t_to_p(1.959964) == pytest.approx(0.05, abs=1e-6)
-    assert _t_to_p(12.0) == 0.0                     # the miner's formula rounds to exactly zero here...
-    assert 0.0 < S.t_to_p(12.0) < 1e-30            # ...the library keeps the tail
+    assert math.erf(12.0 / math.sqrt(2)) == 1.0     # the pre-Phase-3 formula 1 - erf(x) rounded to exactly zero here...
+    assert 0.0 < S.t_to_p(12.0) < 1e-30            # ...the library keeps the tail (and patterns._t_to_p now uses it)
     assert S.norm_cdf(0.0) == pytest.approx(0.5)
     assert S.norm_cdf(np.array([-1.96, 1.96])).tolist() == pytest.approx([0.025, 0.975], abs=1e-4)
 
@@ -657,3 +658,51 @@ def test_era_weights_apply_only_to_microstructure_sensitive_patterns():
         S.era_weight(d, {"jurassic": 1.0})
     with pytest.raises(S.StatsError):
         S.era_weight(d, {"decimal": -1.0})
+
+
+# ------------------------------------------------------------------ the miner's own integration of the library
+def test_miner_detects_overlap_from_date_spacing_and_switches_the_standard_error():
+    daily = PatternMiner({"horizon": 5})
+    assert daily._overlap(np.sort(pd.bdate_range("2020-01-01", periods=100).values)) == {"spacing": 1.0, "hac_lags": 8}
+    two = np.sort(pd.bdate_range("2020-01-01", periods=100)[::2].values)
+    assert daily._overlap(two) == {"spacing": 2.0, "hac_lags": 4}
+    weekly = np.sort(pd.bdate_range("2020-01-01", periods=300)[::5].values)
+    assert daily._overlap(weekly) == {"spacing": 5.0, "hac_lags": 0}
+    assert PatternMiner({"hac_lags": 3})._overlap(weekly)["hac_lags"] == 3
+    assert PatternMiner({"hac_lags": 0})._overlap(np.sort(pd.bdate_range("2020-01-01", periods=50).values))["hac_lags"] == 0
+
+
+def test_miner_on_overlapping_daily_rows_is_more_conservative_than_per_date_clustering():
+    X, y = make_panel(n_dates=240, n_tick=40, seed=4)
+    now = X.index.get_level_values(0).max()
+    fwd = y.groupby(level=0).mean().rolling(5).sum().shift(-4).fillna(0.0)            # market-wide 5-day overlapping outcome
+    y5 = y * 0.2 + fwd.reindex(X.index.get_level_values(0)).values
+    base = {"max_pairs": 120, "max_unless": 20, "null_reps": 1, "min_n": 120, "p_method": "bonferroni"}
+    naive = PatternMiner({**base, "hac_lags": 0}).fit(X, y5, now)
+    robust = PatternMiner(base).fit(X, y5, now)
+    assert robust.report["hac_lags"] == 8 and naive.report["hac_lags"] == 0
+    assert robust.patterns["t_disc"].abs().median() < naive.patterns["t_disc"].abs().median()
+    assert (robust.patterns["n_eff"] <= naive.patterns["n_eff"] + 1e-9).all()        # overlap shrinks the evidence
+
+
+def test_rows_after_now_are_ignored_by_the_miner():
+    """PLANTED DEFECT: a huge fake effect dated after `now` must not change anything the miner learns."""
+    X, y = make_panel(n_dates=200, n_tick=40, seed=5)
+    dates = X.index.get_level_values(0)
+    now = dates.unique()[150]
+    base = {"max_pairs": 100, "max_unless": 20, "null_reps": 1, "min_n": 120, "hac_lags": 0}
+    a = PatternMiner(base).fit(X, y, now)
+    y_leaky = y.copy()
+    y_leaky[dates > now] += 5.0 * (X["f3"][dates > now] > 0)
+    b = PatternMiner(base).fit(X, y_leaky, now)
+    assert b.report["rows_after_now_dropped"] == int((dates > now).sum())
+    pd.testing.assert_frame_equal(a.patterns.drop(columns=["scope"]), b.patterns.drop(columns=["scope"]))
+
+
+def test_miner_bh_default_admits_at_least_what_bonferroni_admits():
+    X, y = make_panel(n_dates=240, n_tick=50, seed=6)
+    now = X.index.get_level_values(0).max()
+    base = {**MINER_PARAMS, "hac_lags": 0}
+    bo = PatternMiner({**base, "p_method": "bonferroni"}).fit(X, y, now)
+    bh = PatternMiner({**base, "p_method": "bh"}).fit(X, y, now)
+    assert (bh.patterns["p_real"].values >= bo.patterns["p_real"].values - 1e-12).all()

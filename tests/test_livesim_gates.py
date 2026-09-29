@@ -171,7 +171,11 @@ def test_shift_that_changes_weekdays_blocks_the_feed(home):
 
 def test_enforce_off_skips_the_gates(home):
     rec = seal_file(home, shift_days=7 * 9000 + 1)
-    livesim.Feed(livesim.SealedYear("t1"), data=make_data(rec["start"]), enforce=False)
+    with pytest.raises(livesim.BlindGateError):                     # control: the same seal is refused when enforced
+        livesim.Feed(livesim.SealedYear("t1"), data=make_data(rec["start"]), enforce=True)
+    feed = livesim.Feed(livesim.SealedYear("t1"), data=make_data(rec["start"]), enforce=False)
+    assert feed.gate_findings == [] and feed.enforce is False       # no audit ran, so nothing was recorded
+    assert len(feed.clock.sessions) > 200 and feed.ledger.entries == []
 
 
 def test_legacy_seal_warns_but_runs(home):
@@ -238,3 +242,34 @@ def test_information_sources_never_exceed_the_session(home):
         feed.i = feed.sessions.get_loc(feed.first_live) + off
         cut = feed.now + livesim.CLOSE_UTC
         assert all(v is None or pd.Timestamp(v) <= cut for v in feed._information_sources().values())
+
+
+# ---------------- C33 label entry (the model target changes on purpose; the clock/gate determinism above is unaffected)
+class _F:
+    sic = pd.DataFrame({"ticker": ["S0001"], "sic": [3570]})
+
+
+def test_label_entry_defaults_to_open_and_is_not_a_policy_knob():
+    t = livesim.BlindTrader(_F(), {"k": 4})
+    assert t.label_entry == "open" and "label_entry" not in t.cfg
+    t = livesim.BlindTrader(_F(), {"k": 4, "label_entry": "close"})
+    assert t.label_entry == "close" and t.cfg == {"k": 4}                         # taken out of cfg before Session sees it
+    assert livesim.BlindTrader(_F(), {"k": 4}, meta={"label_entry": "close"}).label_entry == "close"
+    assert livesim.BlindTrader(_F(), {"k": 4, "label_entry": "open"}, meta={"label_entry": "close"}).label_entry == "open"
+    with pytest.raises(ValueError, match="label_entry"):
+        livesim.BlindTrader(_F(), {"label_entry": "midday"})
+
+
+@pytest.mark.parametrize("entry", ["open", "close"])
+def test_fit_passes_label_entry_to_the_labeller(monkeypatch, entry):
+    seen = {}
+
+    def spy(stocks, atr, **kw):
+        seen.update(kw)
+        raise RuntimeError("captured")
+
+    monkeypatch.setattr(livesim.features, "labels", spy)
+    t = livesim.BlindTrader(_F(), {"k": 4}, meta={"label_entry": entry})
+    with pytest.raises(RuntimeError, match="captured"):
+        t._fit(None, {}, None, None)
+    assert seen == {"entry": entry}

@@ -239,7 +239,7 @@ def test_model_refuses_lookahead_inputs():
     with pytest.raises(ValueError, match="after as_of"):
         m.features(X[d == ud[50]], as_of=ud[45])
     with pytest.raises(ValueError, match="precedes"):
-        m.features(X[d == ud[41]], as_of=ud[30])
+        m.features(X[d == ud[30]], as_of=ud[30])
     with pytest.raises(RuntimeError):
         pm.PatternMoverModel(CFG).features(X[d == ud[41]], as_of=ud[41])
 
@@ -248,3 +248,45 @@ def test_bank_overlap():
     a = pm.Bank(["f0"], [], [], ["x", "y"], np.zeros(2), [None] * 2)
     b = pm.Bank(["f0"], [], [], ["y", "z"], np.zeros(2), [None] * 2)
     assert abs(pm.bank_overlap(a, b) - 1 / 3) < 1e-12 and np.isnan(pm.bank_overlap(pm.Bank([], []), pm.Bank([], [])))
+
+
+def test_incremental_lr_test_sees_information_the_base_lacks_and_not_when_it_has_it():
+    rng = np.random.default_rng(1)
+    n_d, n_s = 60, 120
+    dc = np.repeat(np.arange(n_d), n_s)
+    z = rng.standard_normal(len(dc))                     # what the pattern score knows
+    hidden = rng.standard_normal(len(dc))                # something only the base model knows
+    lab = rng.random(len(dc)) < 1 / (1 + np.exp(-(-1.4 + 0.9 * z + 0.9 * hidden)))
+    pf = pd.DataFrame({"pat_mov": z, "pat_dir": rng.standard_normal(len(dc)), "pat_fire": rng.integers(0, 4, len(dc))})
+    base_blind = 1 / (1 + np.exp(-(-1.4 + 0.9 * hidden)))                       # base lacks z
+    base_full = 1 / (1 + np.exp(-(-1.4 + 0.9 * hidden + 0.9 * z)))              # base already has z
+    a = pm.incremental_lr_test(base_blind, pf, lab, dc, np.random.default_rng(0))
+    b = pm.incremental_lr_test(base_full, pf, lab, dc, np.random.default_rng(0))
+    assert a["p_perm"] < 0.05 and a["coef_mov"] > 0.3 and a["lr"] > 10 * max(b["lr"], 1.0)
+    assert b["p_perm"] > 0.05
+    assert np.isnan(pm.incremental_lr_test(base_full[:50], pf.iloc[:50], lab[:50], dc[:50], np.random.default_rng(0))["lr"])
+
+
+def test_pattern_importance_is_high_for_the_planted_arm_and_low_for_controls(planted_result):
+    imp = planted_result["pattern_importance"]
+    assert imp["real"] > 0.3 and imp["real"] > 3 * imp["controls_mean"]
+    assert planted_result["incremental_lr"]["p_perm"] < 0.05
+    assert planted_result["detectable_gain"] < planted_result["gain_vs_base"]["base+pattern"]
+
+
+def test_gain_by_group_splits_gain_by_regime_and_ignores_thin_groups():
+    dates = pd.bdate_range("2015-01-05", periods=80)
+    diff = pd.Series(np.where(np.arange(80) % 2 == 0, 0.03, -0.01), index=dates)
+    tags = pd.DataFrame({"vol": np.where(np.arange(80) % 2 == 0, "high_vol", "low_vol"), "trend": ["bull"] * 76 + ["bear"] * 4}, index=dates)
+    t = pm.gain_by_group(diff, tags).set_index(["family", "group"])
+    assert t.loc[("vol", "high_vol"), "gain"] > 0 > t.loc[("vol", "low_vol"), "gain"]
+    assert ("trend", "bear") not in t.index and t.loc[("trend", "bull"), "dates"] == 76
+    assert pm.gain_by_group(pd.Series([0.1, 0.2]), tags).empty
+
+
+def test_ablation_passes_regime_tags_through(planted):
+    from engine import heavy_tests as ht
+    X, y, split = planted
+    r = pm.run_ablation(X, y, split, {**CFG, "n_controls": 1, "noise_mined": False}, seed=3, tags=ht.regime_tags(X))
+    assert r["ok"] and isinstance(r["daily_diff_real_vs_base"].index, pd.DatetimeIndex)
+    assert len(r["gain_by_group"]) == 0 or {"family", "group", "gain"} <= set(r["gain_by_group"].columns)

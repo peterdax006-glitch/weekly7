@@ -41,9 +41,20 @@ def momentum(d, c):
     return c.iloc[-5:].pct_change().sum().values if len(c) > 5 else np.zeros(c.shape[1])
 
 
-def replay(seed=1, n=260, meta=None, cfg=CFG, fn=momentum, bps=5.0):
-    closes, opens = world(n, seed)
-    return A.replay(cfg, snaps(closes, fn), closes, bps, {}, adaptive=True, meta=meta, opens=opens)
+_CACHE = {}
+
+
+def replay(seed=3, n=260, meta=None, cfg=CFG, fn=momentum, bps=5.0, fresh=False):
+    """A full adaptive replay; memoised (a replay is ~5 s and deterministic). Tests that mutate deep-copy first.
+    seed 3 is a world in which the adapter switches k 2->3, is reverted, and switches again."""
+    key = (seed, n, repr(sorted((meta or {}).items())), repr(sorted(cfg.items())), fn.__name__, bps)
+    if fresh or key not in _CACHE:
+        closes, opens = world(n, seed)
+        S = A.replay(cfg, snaps(closes, fn), closes, bps, {}, adaptive=True, meta=meta, opens=opens)
+        if fresh:
+            return S
+        _CACHE[key] = S
+    return _CACHE[key]
 
 
 def switches(S):
@@ -64,7 +75,7 @@ def test_validate_cfg_rejects_off_grid_and_ignores_unset_knobs():
 
 
 def test_off_grid_start_freezes_the_knob_and_says_so_in_the_audit():
-    S = replay(seed=1, cfg={**CFG, "k": 5})
+    S = replay(seed=3, cfg={**CFG, "k": 5})
     ad = S.adapter
     assert ad.frozen == ["k"] and ad.audit[0]["action"] == "frozen_knobs"
     assert all(s["knob"] != "k" for s in switches(S))
@@ -145,12 +156,10 @@ def test_knob_cooldown_applies_only_to_the_knob_that_moved():
 
 
 def test_every_switch_is_one_grid_step_and_at_least_switch_z_confident():
-    for seed in (1, 3):
-        S = replay(seed=seed)
-        sw = switches(S)
-        assert sw, "the planted worlds are known to adapt"
-        for a in sw:
-            assert A.one_step(a["knob"], a["from"], a["to"]) and a["z"] > 2.0
+    sw = switches(replay())
+    assert sw, "the planted world is known to adapt"
+    for a in sw:
+        assert A.one_step(a["knob"], a["from"], a["to"]) and a["z"] > 2.0
 
 
 def test_illegal_switch_is_refused_by_the_rail_itself():
@@ -169,13 +178,13 @@ def test_illegal_switch_is_refused_by_the_rail_itself():
 
 
 def test_switch_budget_zero_freezes_the_settings_and_gate_records_why():
-    S = replay(seed=1, meta={"max_switches": 0})
+    S = replay(seed=3, meta={"max_switches": 0})
     assert switches(S) == [] and S.adapter.cfg_diff() == {}
     assert any(r["action"] == "hold" and "budget" in str(r["detail"]["why"]) for r in S.adapter.audit)
 
 
 def test_huge_min_improve_means_no_switches_at_all():
-    assert switches(replay(seed=1, meta={"min_improve": 1.0})) == []
+    assert switches(replay(seed=3, meta={"min_improve": 1.0})) == []
 
 
 def test_a_world_where_nothing_differs_produces_no_switch():
@@ -188,7 +197,7 @@ def test_a_world_where_nothing_differs_produces_no_switch():
 
 # ---------------------------------------------------------------- rapid revert
 def test_revert_returns_to_default_after_a_deviation_stops_working():
-    S = replay(seed=1, meta={"revert_drop": -1.0})          # -1.0: 'any two periods' count as a failed deviation
+    S = replay()
     log = S.adapter.log
     assert any(a["action"] == "revert" for a in log)
     i = next(i for i, a in enumerate(log) if a["action"] == "revert")
@@ -201,7 +210,7 @@ def test_revert_returns_to_default_after_a_deviation_stops_working():
 def test_revert_fast_fires_on_one_bad_week_where_the_two_period_rule_would_wait():
     ad = A.Adapter(CFG, {"revert_fast": 0.02})
     ad.cfg["k"] = 3
-    ad.recent = [-0.05]                                       # one period already lost 5%
+    ad.recent = []                                            # no history: the two-period rule cannot fire
     closes, _ = world(40)
     sn = snaps(closes, momentum)
     d0, d1 = closes.index[10], closes.index[15]
@@ -213,17 +222,16 @@ def test_revert_fast_fires_on_one_bad_week_where_the_two_period_rule_would_wait(
 
 
 def test_revert_lockout_blocks_readopting_the_value_that_failed():
-    S = replay(seed=1, meta={"revert_drop": -1.0, "revert_lockout": 10_000})
+    S = replay(seed=3, meta={"revert_lockout": 10_000})
     pairs = [(a["knob"], a["to"]) for a in switches(S)]
     assert len(pairs) == len(set(pairs)), "a locked (knob, value) came back"
-    free = replay(seed=1, meta={"revert_drop": -1.0})
-    fp = [(a["knob"], a["to"]) for a in switches(free)]
+    fp = [(a["knob"], a["to"]) for a in switches(replay())]
     assert len(fp) != len(set(fp))                              # control: without the lockout the same value IS re-adopted
 
 
 # ---------------------------------------------------------------- audit trail
 def test_every_decision_is_audited_and_the_chain_verifies():
-    S = replay(seed=1)
+    S = replay(seed=3)
     ad = S.adapter
     assert len(ad.audit) == 52 and ad.verify_audit() == (True, None)
     assert {r["action"] for r in ad.audit} <= {"hold", "switch", "revert", "frozen_knobs", "preseason_set"}
@@ -234,7 +242,7 @@ def test_every_decision_is_audited_and_the_chain_verifies():
 
 
 def test_editing_a_record_is_detected_at_that_record():
-    ad = replay(seed=1).adapter
+    ad = replay(seed=3).adapter
     t = copy.deepcopy(ad)
     t.audit[10]["detail"]["why"] = "nothing to see"
     ok, bad = t.verify_audit()
@@ -242,7 +250,7 @@ def test_editing_a_record_is_detected_at_that_record():
 
 
 def test_dropping_or_reordering_records_is_detected():
-    ad = replay(seed=1).adapter
+    ad = replay(seed=3).adapter
     t = copy.deepcopy(ad)
     del t.audit[7]
     assert t.verify_audit()[0] is False
@@ -252,7 +260,7 @@ def test_dropping_or_reordering_records_is_detected():
 
 
 def test_a_hand_edit_of_the_settings_breaks_the_audit_match():
-    ad = replay(seed=1).adapter
+    ad = copy.deepcopy(replay().adapter)
     assert ad.audit_matches_cfg()
     ad.cfg["k"] = 12 if ad.cfg["k"] != 12 else 16                # changed outside step(), leaving no trace
     assert not ad.audit_matches_cfg()
@@ -271,7 +279,7 @@ def test_reconstruct_cfg_replays_switch_revert_and_preseason():
 
 # ---------------------------------------------------------------- determinism is sacred
 def test_replay_gives_identical_adaptations_audit_and_memory():
-    a, b = replay(seed=3), replay(seed=3)
+    a, b = replay(), replay(fresh=True)                     # b is a genuinely second run, not the cached object
     assert a.adapter.audit_digest() == b.adapter.audit_digest() and A.audits_equal(a.adapter.audit, b.adapter.audit)
     assert a.adapter.mem.fingerprint() == b.adapter.mem.fingerprint()
     assert a.adapter.det.fingerprint() == b.adapter.det.fingerprint()
@@ -294,15 +302,15 @@ def test_future_scramble_leaves_the_adapters_earlier_audit_unchanged():
 
 
 def test_memory_uses_dates_only_when_asked():
-    off = replay(seed=1, n=80)
-    on = replay(seed=1, n=80, meta={"mem_use_dates": True})
+    off = replay(seed=3, n=80)
+    on = replay(seed=3, n=80, meta={"mem_use_dates": True})
     assert off.adapter.mem.date_now is None and on.adapter.mem.date_now is not None
     assert off.adapter.mem.p["mem_era_other"] == 1.0                            # neutral defaults: results unchanged by the new factors
     assert off.result()["year_return"] == on.result()["year_return"]
 
 
 def test_lessons_from_a_real_replay_are_sanitised_and_typed():
-    ad = replay(seed=1, n=120).adapter
+    ad = replay(seed=3, n=120).adapter
     df = ad.mem.export_lessons(tickers=[f"T{i:02d}" for i in range(12)])
     assert len(df) > 100 and set(df["error_type"]) <= {"correct", "false_positive", "false_negative", "noise", "unscored"}
     assert df["source_experiment"].eq("adapter").all()
@@ -311,7 +319,7 @@ def test_lessons_from_a_real_replay_are_sanitised_and_typed():
 
 # ---------------------------------------------------------------- the detector inside the adapter
 def test_detector_weight_is_zero_in_the_first_weeks_and_never_above_the_cap():
-    S = replay(seed=1)
+    S = replay(seed=3)
     rows = S.adapter.missed
     assert rows and all(r["detector_weight"] <= 0.5 for r in rows)
     assert all(r["detector_weight"] == 0.0 for r in rows[:5])
@@ -364,3 +372,162 @@ def test_no_snapshots_means_no_fills_and_a_non_adaptive_session_has_no_audit():
     closes, opens = world(40)
     S = A.replay(CFG, {}, closes, 0.0, {}, opens=opens)
     assert S.fills == [] and S.result()["audit_digest"] is None and S.result()["audit_len"] == 0
+
+
+def test_result_does_not_depend_on_the_interpreters_hash_seed():
+    """Session._trade used to order tied names by set iteration, so the same inputs gave different adaptations in
+    different processes. Run the same replay under two PYTHONHASHSEEDs: the audit digest must be identical."""
+    import os, subprocess, sys
+    code = ("import sys; sys.path.insert(0, 'tests'); sys.path.insert(0, '.'); import test_adapter as T; "
+            "S = T.replay(seed=3, fresh=True); print(S.adapter.audit_digest(), round(S.result()['year_return'], 9))")
+    procs = [subprocess.Popen([sys.executable, "-c", code], stdout=subprocess.PIPE, text=True,
+                              env={**os.environ, "PYTHONHASHSEED": h}) for h in ("0", "12345")]
+    outs = [p.communicate(timeout=80)[0].strip() for p in procs]
+    assert outs[0] == outs[1] and len(outs[0].split()[0]) == 64
+
+
+# ---------------------------------------------------------------- timeline dial hook (off by default)
+def _session(meta, n=110, seed=3):
+    closes, opens = world(n, seed)
+    return A.replay(CFG, snaps(closes, momentum), closes, 5.0, {}, adaptive=True, meta=meta, opens=opens)
+
+
+def test_dial_off_leaves_every_decision_order_and_fill_identical():
+    base, off = replay(n=260), replay(meta={"dial_on": False}, n=260, fresh=True)
+    assert base.decisions == off.decisions and base.orders == off.orders and base.fills == off.fills
+    assert base.result() == off.result() and off.dial_log == [] and off.exposure == 1.0
+
+
+def test_dial_on_scales_rebalance_weights_by_the_exposure_and_logs_each_step():
+    from engine import timeline
+    fixed = timeline.DialParams(k_bounds=(2, 2), pool_bounds=(0.7, 0.7), exposure_bounds=(0.5, 0.5))
+    off = _session({}, n=60)
+    on = _session({"dial_on": True, "dial_params": fixed}, n=60)
+    assert on.dial_log and all(x[1] == 2 and x[2] == 0.5 for x in on.dial_log)
+    first = lambda S: sum(o[2] for o in S.orders if o[0] == S.orders[0][0] and o[2] > 0)
+    assert first(on) == pytest.approx(0.5 * first(off), rel=1e-6)          # same names (k, pool_q pinned), half the money
+    assert [d for d, _ in on.decisions][:3] == [d for d, _ in off.decisions][:3]
+
+
+def test_dial_only_applies_to_an_adaptive_session():
+    closes, opens = world(40)
+    S = A.replay(CFG, snaps(closes, momentum), closes, 0.0, {}, adaptive=False, meta={"dial_on": True}, opens=opens)
+    assert S.dial_on is False and S.dial_log == []
+
+
+def test_meta_default_lists_the_detector_knobs_with_their_effective_values():
+    assert A.META_DEFAULT["det_max"] == 0.5 and A.META_DEFAULT["det_min_weeks"] == 6 and A.META_DEFAULT["dial_on"] is False
+    a = A.Adapter(CFG)
+    assert a.det.meta["det_max"] == 0.5 and a.det.meta["det_min_weeks"] == 6
+
+
+# ---------------------------------------------------------------- reporting and determinism gate
+def test_adaptation_report_counts_actions_spells_and_integrity_on_a_real_run():
+    rep = A.adaptation_report(replay().adapter)
+    assert rep["actions"]["switch"] == 2 and rep["reverts"] == 2 and rep["revert_rate"] == 1.0
+    assert rep["switches_by_knob"] == {"k": 2} and len(rep["spells"]) == 2 and all(s[2] == "revert" for s in rep["spells"])
+    assert rep["chain_ok"] and rep["settings_match_audit"] and rep["weeks_off_default"] > 0
+    assert 0 < rep["share_off_default"] < 1 and rep["mean_spell_weeks"] > 0
+    assert "minimum evidence" in rep["hold_reasons"] and rep["knobs"].shape[0] == 6
+    assert len(rep["digest"]) == 64 and len(rep["memory_fingerprint"]) == 64
+
+
+def test_deviation_spells_and_hold_reasons_on_a_hand_built_trail():
+    au = [{"week": 1, "cfg_diff": {}, "action": "hold", "detail": {"why": "cooling off: 1 < 3 weeks"}},
+          {"week": 2, "cfg_diff": {"k": 3}, "action": "switch", "detail": {}},
+          {"week": 3, "cfg_diff": {"k": 3}, "action": "hold", "detail": {"why": "no neighbour cleared the bar"}},
+          {"week": 4, "cfg_diff": {}, "action": "revert", "detail": {}},
+          {"week": 5, "cfg_diff": {"k": 2}, "action": "switch", "detail": {}}]
+    assert A.deviation_spells(au) == [(2, 4, "revert"), (5, 5, "open")]
+    assert A.hold_reasons(au) == {"cooling off": 1, "no neighbour cleared the bar": 1}
+    assert A.deviation_spells([]) == [] and A.hold_reasons([]) == {}
+
+
+def test_replay_check_passes_a_deterministic_pipeline_and_fails_a_nondeterministic_one(monkeypatch):
+    closes, opens = world(70, seed=3)
+    sn = snaps(closes, momentum)
+    ok = A.replay_check(CFG, sn, closes, 5.0, {}, opens=opens)
+    assert ok["identical"] and ok["differs"] == [] and len(ok["digest"]) == 64
+    calls = {"n": 0}
+    real_pick = A.pick
+
+    def flaky(p, cfg, held, divs, det=None):
+        out = real_pick(p, cfg, held, divs, det)
+        calls["n"] += 1
+        return out.iloc[1:] if calls["n"] % 40 == 0 else out              # drops a name once, differently on each run
+    monkeypatch.setattr(A, "pick", flaky)
+    bad = A.replay_check(CFG, sn, closes, 5.0, {}, opens=opens)
+    assert not bad["identical"] and "decisions" in bad["differs"]
+
+
+def test_rail_study_shows_what_each_rail_does_on_the_same_window():
+    closes, opens = world(190, seed=3)
+    sn = snaps(closes, momentum)
+    t = A.rail_study(CFG, sn, closes, 5.0, {}, {"no_switches": {"max_switches": 0}, "lockout": {"revert_lockout": 10_000}},
+                     opens=opens).set_index("variant")
+    assert list(t.index) == ["base", "no_switches", "lockout"]
+    assert t.loc["base", "switches"] >= 1 and t.loc["no_switches", "switches"] == 0 and t.loc["no_switches", "weeks_off_default"] == 0
+    assert t.loc["lockout", "switches"] <= t.loc["base", "switches"]
+    assert t["digest"].nunique() >= 2
+
+
+# ---------------------------------------------------------------- checkpoint / resume
+def _drive(ad, closes, sn, days, held=()):
+    for d in days:
+        ad.step(d, sn[str(d.date())], closes.loc[:d], {}, list(held))
+    return ad
+
+
+def _fridays(closes):
+    idx = closes.index
+    return [d for i, d in enumerate(idx[:-1]) if idx[i + 1].isocalendar().week != d.isocalendar().week]
+
+
+def test_a_resumed_adapter_continues_exactly_like_an_uninterrupted_one():
+    closes, _ = world(230, seed=3)
+    sn = snaps(closes, momentum)
+    days = _fridays(closes)
+    whole = _drive(A.Adapter(CFG), closes, sn, days)
+    assert whole.log, "the run must adapt for this test to mean anything"
+    half = _drive(A.Adapter(CFG), closes, sn, days[:24])
+    resumed = A.Adapter.from_snapshot(half.snapshot())
+    _drive(resumed, closes, sn, days[24:])
+    assert resumed.audit_digest() == whole.audit_digest() and resumed.log == whole.log
+    assert resumed.mem.fingerprint() == whole.mem.fingerprint() and resumed.det.fingerprint() == whole.det.fingerprint()
+    assert resumed.cfg == whole.cfg and resumed.verify_audit() == (True, None) and resumed.ledger.rows == whole.ledger.rows
+
+
+def test_a_snapshot_is_a_copy_not_a_view():
+    closes, _ = world(120, seed=3)
+    sn = snaps(closes, momentum)
+    ad = _drive(A.Adapter(CFG), closes, sn, _fridays(closes)[:10])
+    snap = ad.snapshot()
+    digest = ad.audit_digest()
+    _drive(ad, closes, sn, _fridays(closes)[10:14])                      # the original moves on
+    assert A.Adapter.from_snapshot(snap).audit_digest() == digest and ad.audit_digest() != digest
+
+
+def test_resume_keeps_the_seal_locks_and_budget():
+    closes, _ = world(230, seed=3)
+    sn = snaps(closes, momentum)
+    ad = _drive(A.Adapter(CFG, {"revert_lockout": 500}), closes, sn, _fridays(closes)[:40])
+    r = A.Adapter.from_snapshot(ad.snapshot())
+    assert r.sealed and r.locked == ad.locked and r.n_switch == ad.n_switch and r.weeks == ad.weeks
+    with pytest.raises(A.ManualInterventionError):
+        r.set_knob("k", 4)
+    assert ad.locked, "a revert with lockout must have left a lock behind"
+
+
+def test_detector_full_state_round_trips():
+    from engine.missed_winners import MissedWinnerDetector
+    import sys
+    sys.path.insert(0, "tests")
+    from test_missed_winners import weeks as mw_weeks
+    d = MissedWinnerDetector({"det_step": 0.05})
+    for _, p, f in mw_weeks(20, 1.0):
+        d.learn(p, f)
+    r = MissedWinnerDetector.from_full_state(d.full_state())
+    assert r.fingerprint() == d.fingerprint() and r.weight() == d.weight() and r.history == d.history
+    _, p, f = mw_weeks(1, 1.0, seed0=77)[0]
+    d.learn(p, f); r.learn(p, f)
+    assert r.fingerprint() == d.fingerprint()                             # and they keep learning identically

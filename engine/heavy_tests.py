@@ -13,6 +13,7 @@ with that fixed miner; dates are never reused to choose parameters.  Determinist
 and the null shuffles.  Panel convention: X indexed (date, ticker), market columns start `m_`; y is forward return."""
 import hashlib
 import json
+import pickle
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -210,13 +211,18 @@ def _score_block(bank, Xt, y_t, cfg, thr, mov_bank, prev_top, rng):
     return rows, prev_top, dcode, yex
 
 
-def walk_forward(X, y, cfg=None, seed=7, null=False, eras=None):
+def walk_forward(X, y, cfg=None, seed=7, null=False, eras=None, cache_dir=None):
     """One seed's rolling-origin walk-forward -> {frame (one row per test date), origins, patterns}.
     null=True shuffles outcomes within each date first: the whole pipeline then has nothing to find, so whatever
-    IC it reports is the harness's own false-positive level."""
+    IC it reports is the harness's own false-positive level.
+    cache_dir: each origin's result is saved there (keyed by config, seed, null flag, origin and the data
+    fingerprint) so a killed multi-hour run resumes without refitting finished origins; a cached run is identical
+    to an uncached one because every origin draws from its own seeded generator."""
     c = {**HEAVY_DEFAULT, **(cfg or {})}
     c["miner"] = {**HEAVY_DEFAULT["miner"], **((cfg or {}).get("miner") or {})}
-    rng = np.random.default_rng([seed, 4242])
+    fp = data_fingerprint(X, y) if cache_dir is not None else None
+    if cache_dir is not None:
+        Path(cache_dir).mkdir(parents=True, exist_ok=True)
     dts = X.index.get_level_values(0)
     if null:
         dc, _ = pm._date_codes(X.index)
@@ -224,11 +230,26 @@ def walk_forward(X, y, cfg=None, seed=7, null=False, eras=None):
     sched = origin_schedule(dts.unique(), c)
     cc = pm.ctx_cols_of(X)
     frames, org_rows, pat_rows, prev_top, prev_names = [], [], [], None, None
-    for _, o in sched.iterrows():
+    for oi, (_, o) in enumerate(sched.iterrows()):
+        cache_file = None
+        if cache_dir is not None:
+            from .provenance import config_hash
+            key = config_hash({"c": c, "seed": seed, "null": null, "origin": str(o["origin"]), "fp": fp, "eras": eras})
+            cache_file = Path(cache_dir) / f"wf_{key}.pkl"
+            if cache_file.exists():
+                got = pickle.loads(cache_file.read_bytes())
+                if got is None:                                   # origin was skipped last time too
+                    continue
+                frames.extend(got["rows"]); org_rows.append(got["org"]); pat_rows.append(got["chk"])
+                prev_top, prev_names = got["prev_top"], got["prev_names"]
+                continue
+        rng = np.random.default_rng([seed, 4242, oi])
         in_tr = (dts >= o["train_start"]) & (dts <= o["train_end"]) & y.notna().to_numpy()
         in_te = (dts >= o["test_start"]) & (dts <= o["test_end"]) & y.notna().to_numpy()
         Xtr, ytr, Xte, yte = X[in_tr], y[in_tr], X[in_te], y[in_te]
         if len(Xte) < c["min_rows_date"] or len(Xtr) < 1000:
+            if cache_file is not None:
+                cache_file.write_bytes(pickle.dumps(None))
             continue
         p = {**c["miner"], "seed": seed}
         M = PatternMiner(p).fit(Xtr, pm.demeaned(ytr), now=o["train_end"])
@@ -238,7 +259,8 @@ def walk_forward(X, y, cfg=None, seed=7, null=False, eras=None):
             Mm = PatternMiner(p).fit(Xtr, pm.demeaned_abs(ytr), now=o["train_end"])
             mov_bank = pm.bank_from_miner(Mm, cc)
         thr = float(np.quantile(ytr.abs().to_numpy(), c["mover_q"]))
-        rows, prev_top, dcode, yex = _score_block(bank, Xte, yte, c, thr, mov_bank, prev_top, rng)
+        rows, new_top, dcode, yex = _score_block(bank, Xte, yte, c, thr, mov_bank, prev_top, rng)
+        prev_top = new_top
         for r in rows:
             r.update(origin=o["origin"], seed=seed, age_weeks=(r["date"] - o["train_end"]).days / 7)
         frames.extend(rows)
@@ -246,16 +268,19 @@ def walk_forward(X, y, cfg=None, seed=7, null=False, eras=None):
         names = set(bank.names)
         surv = np.nan if prev_names is None or not prev_names else len(prev_names & names) / len(prev_names)
         union = len(prev_names | names) if prev_names is not None else 0
-        org_rows.append({**o.to_dict(), "seed": seed, "n_live": len(bank), "n_live_movement": 0 if mov_bank is None else len(mov_bank),
+        org = ({**o.to_dict(), "seed": seed, "n_live": len(bank), "n_live_movement": 0 if mov_bank is None else len(mov_bank),
                          "tested": M.report.get("tested", 0), "fdr_pass": M.report.get("fdr_pass", 0),
                          "null_t_95": M.report.get("null_t_95pct", np.nan), "real_t_95": M.report.get("real_t_95pct", np.nan),
                          "gate_corr": M.report.get("gate_corr_confirm", np.nan),
                          "survival_next": np.nan, "jaccard_prev": (len(prev_names & names) / union) if union else np.nan,
                          "kept_from_prev": surv, "oos_checked": int(chk["checked"].sum()), "oos_held": int(chk["held"].sum()),
                          "oos_wrong_sign": int(chk["wrong_sign"].sum())})
+        org_rows.append(org)
         prev_names = names
         chk["origin"], chk["seed"] = o["origin"], seed
         pat_rows.append(chk)
+        if cache_file is not None:
+            cache_file.write_bytes(pickle.dumps({"rows": rows, "org": org, "chk": chk, "prev_top": prev_top, "prev_names": prev_names}))
     frame = pd.DataFrame(frames)
     origins = pd.DataFrame(org_rows)
     if len(origins):
@@ -449,13 +474,13 @@ def _combine_seeds(runs):
 
 
 def run_heavy(X, y, cfg=None, seeds=(7, 11, 13), null_seeds=(101,), n_hidden=20, hidden_len=26, eras=None,
-              gates=None, out_dir=None, log=False):
+              gates=None, out_dir=None, log=False, cache_dir=None):
     """The full Phase 7 run.  Returns a summary dict with every table and the verdict; optionally writes the
     machine- and human-readable report and logs the experiment."""
     c = {**HEAVY_DEFAULT, **(cfg or {})}
     c["miner"] = {**HEAVY_DEFAULT["miner"], **((cfg or {}).get("miner") or {})}
     diag = validate_panel(X, y)
-    runs = [walk_forward(X, y, c, s, eras=eras) for s in seeds]
+    runs = [walk_forward(X, y, c, s, eras=eras, cache_dir=cache_dir) for s in seeds]
     runs = [r for r in runs if len(r["frame"])]
     if not runs:
         return {"ok": False, "reason": "no origin had enough history", "diagnostics": diag, "verdict": {"pass": False, "gates": {}}}
@@ -476,7 +501,7 @@ def run_heavy(X, y, cfg=None, seeds=(7, 11, 13), null_seeds=(101,), n_hidden=20,
     hidden = hidden_windows(frame, n_hidden, hidden_len, seeds[0])
     nulls = []
     for ns in null_seeds:
-        nr = walk_forward(X, y, c, ns, null=True, eras=eras)
+        nr = walk_forward(X, y, c, ns, null=True, eras=eras, cache_dir=cache_dir)
         if len(nr["frame"]):
             st = series_stats(nr["frame"]["rank_ic"], c["nw_lag"])
             nulls.append({"seed": ns, "rank_ic": st["mean"], "t_nw": st["t_nw"], "live_mean": float(nr["origins"]["n_live"].mean())})
@@ -581,7 +606,7 @@ def _fmt(v):
 def _md_table(df, cols=None):
     if df is None or len(df) == 0:
         return "(none)\n"
-    d = df.reset_index()
+    d = df if isinstance(df.index, pd.RangeIndex) and df.index.name is None else df.reset_index()
     cols = cols or list(d.columns)
     lines = ["| " + " | ".join(cols) + " |", "|" + "---|" * len(cols)]
     for _, r in d.iterrows():

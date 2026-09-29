@@ -311,3 +311,76 @@ def test_cause_search_skips_a_scope_that_already_failed(data):
     rec["scope"] = first["scope"]
     second = life.cause_search(panel, rec, as_of)
     assert second["scope"] is None or (second["scope"]["col"], second["scope"]["label"]) != ("m_vix", "high")
+
+
+# ---------------------------------------------------------------- scope permutation null
+def noise_context_panel(seed, weeks=300, stocks=100, nf=30, nctx=7):
+    """Thirty patterns that all reverse in a random ~half of late weeks, with seven context columns that are pure noise:
+    any 'cause' the search finds is a false one."""
+    rng = np.random.default_rng(seed)
+    dates = pd.bdate_range("2012-01-02", periods=weeks * 5)[::5]
+    idx = pd.MultiIndex.from_product([dates, [f"T{i:03d}" for i in range(stocks)]], names=["date", "ticker"])
+    X = pd.DataFrame(rng.standard_normal((len(idx), nf)), index=idx, columns=[f"f{i}" for i in range(nf)])
+    for c in range(nctx):
+        X[f"m_c{c}"] = pd.Series(rng.standard_normal(weeks), index=dates).reindex(idx.get_level_values(0)).values
+    y = pd.Series(rng.normal(0, 0.05, len(idx)), index=idx) + np.repeat(rng.normal(0, 0.02, weeks), stocks)
+    q = X[[f"f{i}" for i in range(nf)]].groupby(level=0).rank(pct=True) >= 0.8
+    late = np.repeat(np.arange(weeks), stocks) >= int(weeks * 0.75)
+    for i in range(nf):
+        y += q[f"f{i}"] * np.where(late & np.repeat(rng.random(weeks) < 0.55, stocks), -0.03, 0.012)
+    return X, y, dates
+
+
+def test_false_rescope_rate_on_meaningless_context_is_low():
+    X, y, dates = noise_context_panel(1)
+    as_of = dates[-1] + pd.Timedelta(days=30)
+    life = Lifecycle()
+    life.ingest(frame([(f"f{i} q4", 0.005, "active") for i in range(30)]), as_of)
+    out = life.review(Panel.build(X, y, as_of), as_of)
+    assert out["failed"] >= 28                                                  # the planted reversal is detected
+    assert life.counts()["rescoped"] <= 3                                       # measured 1 of 30; a cause is not conjured
+    assert life.counts()["discarded"] >= 26 and life.invariants() == []
+    rep = life.report()
+    assert rep["failure_causes"] and sum(rep["discard_reasons"].values()) == life.counts()["discarded"]
+
+
+def test_null_gate_rejects_a_scope_when_shuffled_context_finds_one_as_often(data):
+    X, y, dates = data
+    as_of = dates[-1] + pd.Timedelta(days=30)
+    panel = Panel.build(X, y, as_of)
+    real = seeded(as_of)
+    rec = real.records[pattern_id(("s", "f1", 4))]
+    found = real.cause_search(panel, rec, as_of)
+    assert found["scope"] is not None and found["evidence"]["p_null"] <= 0.15 and found["evidence"]["null_reps"] == 20
+    strict = seeded(as_of, {"scope_null_max": 0.0})                             # nothing can beat p_null = 1/21
+    rec2 = strict.records[pattern_id(("s", "f1", 4))]
+    refused = strict.cause_search(panel, rec2, as_of)
+    assert refused["scope"] is None and "shuffled context" in refused["reason"]
+    strict.review(panel, as_of)
+    assert "not accepted as a cause" in strict.records[pattern_id(("s", "f1", 4))]["discard_reason"]
+    off = seeded(as_of, {"scope_null_reps": 0})
+    ev = off.cause_search(panel, off.records[pattern_id(("s", "f1", 4))], as_of)["evidence"]
+    assert ev["p_null"] is None and ev["null_reps"] == 0                        # gate can be switched off, and says so
+
+
+def test_null_gate_is_deterministic(data):
+    X, y, dates = data
+    as_of = dates[-1] + pd.Timedelta(days=30)
+    panel = Panel.build(X, y, as_of)
+    a, b = seeded(as_of), seeded(as_of)
+    ra = a.cause_search(panel, a.records[pattern_id(("s", "f1", 4))], as_of)["evidence"]
+    rb = b.cause_search(panel, b.records[pattern_id(("s", "f1", 4))], as_of)["evidence"]
+    assert ra == rb
+
+
+def test_transition_matrix_and_report_agree_with_the_log(data):
+    X, y, dates = data
+    as_of = dates[-1] + pd.Timedelta(days=30)
+    life = seeded(as_of)
+    life.review(Panel.build(X, y, as_of), as_of)
+    M = life.transition_matrix()
+    assert M.loc["start", "candidate"] == 3 and M.loc["candidate", "active"] == 3
+    assert M.loc["active", "failed"] == 2 and M.loc["failed", "cause_search"] == 2
+    assert M.loc["cause_search", "rescoped"] == 1 and M.loc["cause_search", "discarded"] == 1
+    assert int(M.values.sum()) == life.report()["transitions"]
+    assert Lifecycle().transition_matrix().values.sum() == 0 and Lifecycle().report()["transitions"] == 0

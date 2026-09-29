@@ -181,6 +181,18 @@ class MissedWinnerDetector:
     def fingerprint(self):
         return hashlib.sha256(json.dumps(self.state_dict(), sort_keys=True).encode()).hexdigest()
 
+    def full_state(self):
+        """Everything needed to resume learning exactly where it stopped (state_dict() is the compact fingerprint view)."""
+        return {**self.state_dict(), "meta": dict(self.meta), "history": [dict(h) for h in self.history], "missing": dict(self.missing)}
+
+    @classmethod
+    def from_full_state(cls, st):
+        d = cls(st["meta"], extra_features=[f for f in st["feats"] if f not in DET_FEATS])
+        d.coef, d.bias = np.asarray(st["coef"], dtype=float), float(st["bias"])
+        d.skill, d.n, d._w = list(st["skill"]), int(st["n"]), float(st["w"])
+        d.history, d.missing = [dict(h) for h in st["history"]], dict(st["missing"])
+        return d
+
 
 # ==================================================================================================================
 # the descriptive side: what did the winners we did not pick look like, and why were they missed
@@ -322,7 +334,7 @@ def _scramble_returns(fwd, rng):
     return pd.Series(rng.normal(0, sd if sd > 0 else 0.05, len(fwd)), index=fwd.index)
 
 
-def walk_forward(weeks, meta=None, mode="honest", seed=0, k=10, thr=WINNER, cut=None):
+def walk_forward(weeks, meta=None, mode="honest", seed=0, k=10, thr=WINNER, cut=None, collect=None):
     """Run the detector through `weeks` = [(date, p0, fwd), ...] in date order and score every out-of-sample week.
 
     mode
@@ -331,6 +343,7 @@ def walk_forward(weeks, meta=None, mode="honest", seed=0, k=10, thr=WINNER, cut=
                           This is the 'shuffled-winners' control: any uplift it shows is luck.
       pred_shuffled     - the honest model's predictions permuted across names (shuffled detector)
       future_scrambled  - every outcome after index `cut` (default: the middle week) is noise
+    collect: optional list; each scored week appends (date, prediction Series, label Series) for calibration studies.
     Returns a DataFrame, one row per scored week: date, ic_det, ic_base, ic_blend, prec/ret at k for detector alone,
     base alone and blend, weight_used (what the detector had EARNED before this week), base_rate."""
     if mode not in ("honest", "label_shuffled", "pred_shuffled", "future_scrambled"):
@@ -351,12 +364,15 @@ def walk_forward(weeks, meta=None, mode="honest", seed=0, k=10, thr=WINNER, cut=
             pr = det.predict(p)
             if mode == "pred_shuffled":
                 pr = pd.Series(rng.permutation(pr.values), index=pr.index)
+            if collect is not None:
+                collect.append((date, pr, (f >= thr).astype(float)))
             base = _base_score(p)
             w = det.weight()
             bl = _blend(base, pr, w)
             row = {"date": date, "weight_used": w, "base_rate": float((f >= thr).mean()),
                    "ic_det": rank_ic(pr, f), "ic_base": rank_ic(base, f), "ic_blend": rank_ic(bl, f)}
-            for tag, sc in (("det", pr), ("base", base), ("blend", bl)):
+            vol = p["vol20"] if "vol20" in p else pd.Series(0.0, index=p.index)     # the trivial 'pick the wild ones' ranking
+            for tag, sc in (("det", pr), ("base", base), ("blend", bl), ("vol", vol)):
                 pk, rk = _topk_metrics(sc, f, k, thr)
                 row[f"prec_{tag}"], row[f"ret_{tag}"] = pk, rk
             rows.append(row)
@@ -365,7 +381,7 @@ def walk_forward(weeks, meta=None, mode="honest", seed=0, k=10, thr=WINNER, cut=
             learn_y = pd.Series(rng.permutation(f.values), index=f.index)
         det.learn(p, learn_y)
     cols = ["date", "weight_used", "base_rate", "ic_det", "ic_base", "ic_blend", "prec_det", "ret_det", "prec_base",
-            "ret_base", "prec_blend", "ret_blend"]
+            "ret_base", "prec_blend", "ret_blend", "prec_vol", "ret_vol"]
     out = pd.DataFrame(rows, columns=cols)
     out.attrs["fingerprint"] = det.fingerprint()
     out.attrs["final_weight"] = det.weight()
@@ -415,8 +431,11 @@ def evaluate(weeks, meta=None, seed=0, n_controls=20, k=10, thr=WINNER):
     if hon.empty:
         out.update(verdict=False, reason="no weeks scored")
         return out
+    # a detector that only re-discovers volatility has precision above the base rate and no return skill: compare with
+    # simply ranking by vol20 (prec_vol) before believing it learned anything else
     out["alone"] = {"ic": float(hon["ic_det"].mean()), "ic_t": _t(hon["ic_det"]), "prec_at_k": float(hon["prec_det"].mean()),
-                    "base_rate": float(hon["base_rate"].mean())}
+                    "base_rate": float(hon["base_rate"].mean()), "prec_vol_only": float(hon["prec_vol"].mean()),
+                    "ret_at_k": float(hon["ret_det"].mean()), "ret_vol_only": float(hon["ret_vol"].mean())}
     out["base"] = {"ic": float(hon["ic_base"].mean()), "prec_at_k": float(hon["prec_base"].mean())}
     dif = hon["ic_blend"] - hon["ic_base"]
     dprec = hon["prec_blend"] - hon["prec_base"]
@@ -450,13 +469,111 @@ def evaluate(weeks, meta=None, seed=0, n_controls=20, k=10, thr=WINNER):
     return out
 
 
+def calibration(prob, y, bins=10):
+    """How honest are the probabilities? Brier score against the constant base-rate forecast (skill > 0 = better than
+    knowing only the base rate), log loss, and a reliability table (mean predicted vs observed rate per probability bin).
+    Note the detector up-weights winners in training, so raw probabilities run high; see prior_correct()."""
+    p = np.clip(np.asarray(prob, dtype=float), 1e-6, 1 - 1e-6)
+    y = np.asarray(y, dtype=float)
+    ok = np.isfinite(p) & np.isfinite(y)
+    p, y = p[ok], y[ok]
+    if len(y) < bins * 2:
+        return {"n": int(len(y)), "brier": float("nan"), "brier_skill": float("nan"), "logloss": float("nan"),
+                "table": pd.DataFrame(columns=["bin", "pred", "obs", "n"])}
+    base = y.mean()
+    brier, brier0 = float(((p - y) ** 2).mean()), float(((base - y) ** 2).mean())
+    q = pd.qcut(pd.Series(p).rank(method="first"), bins, labels=False)
+    g = pd.DataFrame({"p": p, "y": y, "q": q}).groupby("q")
+    tab = pd.DataFrame({"bin": sorted(g.groups), "pred": g["p"].mean().to_numpy(), "obs": g["y"].mean().to_numpy(), "n": g.size().to_numpy()})
+    return {"n": int(len(y)), "brier": brier, "brier_skill": 1 - brier / brier0 if brier0 > 0 else 0.0,
+            "logloss": float(-(y * np.log(p) + (1 - y) * np.log(1 - p)).mean()), "table": tab}
+
+
+def prior_correct(prob, base_rate, trained_rate=0.5):
+    """Undo the class re-weighting: the model was trained as if winners were `trained_rate` of names; the real share is
+    `base_rate`. Shifts the logit by log-odds difference so the probabilities can be read as probabilities."""
+    p = np.clip(np.asarray(prob, dtype=float), 1e-9, 1 - 1e-9)
+    shift = np.log(base_rate / (1 - base_rate)) - np.log(trained_rate / (1 - trained_rate))
+    return 1 / (1 + np.exp(-(np.log(p / (1 - p)) + shift)))
+
+
+def detector_calibration(weeks, meta=None, thr=WINNER, seed=0):
+    """Out-of-sample probability calibration over a walk-forward run: raw and prior-corrected."""
+    col = []
+    walk_forward(weeks, meta, "honest", seed, 10, thr, collect=col)
+    if not col:
+        return {"raw": calibration([], []), "corrected": calibration([], []), "base_rate": float("nan")}
+    prob = np.concatenate([c[1].to_numpy() for c in col])
+    y = np.concatenate([c[2].to_numpy() for c in col])
+    br = float(y.mean())
+    corr = prior_correct(prob, br) if 0 < br < 1 else prob
+    return {"raw": calibration(prob, y), "corrected": calibration(corr, y), "base_rate": br}
+
+
+def topk_curve(weeks, meta=None, ks=(5, 10, 20, 40), thr=WINNER, seed=0):
+    """Precision at several k for detector alone, base alone and the blend, averaged over out-of-sample weeks, next to
+    the base rate. Shows whether the detector helps at the top of the list (where money is) or only in the middle."""
+    rows = []
+    for k in ks:
+        r = walk_forward(weeks, meta, "honest", seed, k, thr)
+        if r.empty:
+            continue
+        rows.append({"k": k, "det": float(r["prec_det"].mean()), "base": float(r["prec_base"].mean()),
+                     "blend": float(r["prec_blend"].mean()), "base_rate": float(r["base_rate"].mean()),
+                     "ret_det": float(r["ret_det"].mean()), "ret_base": float(r["ret_base"].mean())})
+    return pd.DataFrame(rows, columns=["k", "det", "base", "blend", "base_rate", "ret_det", "ret_base"])
+
+
+def evaluate_by_group(weeks, group_of, meta=None, thr=WINNER, seed=0, k=10):
+    """Out-of-sample skill split by a label per week (era, stress regime, quarter ...). group_of(date) -> label.
+    A detector whose edge lives in a single group is a regime artefact; this is where that shows."""
+    r = walk_forward(weeks, meta, "honest", seed, k, thr)
+    if r.empty:
+        return pd.DataFrame(columns=["group", "weeks", "ic_det", "ic_base", "prec_det", "prec_base", "base_rate", "mean_weight"])
+    r = r.assign(group=[group_of(d) for d in r["date"]])
+    g = r.groupby("group")
+    return pd.DataFrame({"weeks": g.size(), "ic_det": g["ic_det"].mean(), "ic_base": g["ic_base"].mean(), "prec_det": g["prec_det"].mean(),
+                         "prec_base": g["prec_base"].mean(), "base_rate": g["base_rate"].mean(),
+                         "mean_weight": g["weight_used"].mean()}).reset_index()
+
+
+def coef_stability(weeks, meta=None, warm=8):
+    """Does the detector keep learning the same thing? Coefficient of every feature after each learned week (after
+    `warm` weeks): mean, sd, and the share of weeks with the majority sign. Noise flips signs; a real effect does not."""
+    det = MissedWinnerDetector(meta)
+    hist = []
+    for _, p, f in weeks:
+        if det.learn(p, f) is not None and det.n > warm:
+            hist.append(det.coef.copy())
+    if not hist:
+        return pd.DataFrame(columns=["feature", "mean", "sd", "sign_share"])
+    H = np.array(hist)
+    sgn = np.sign(H)
+    share = np.maximum((sgn > 0).mean(axis=0), (sgn < 0).mean(axis=0))
+    return pd.DataFrame({"feature": det.feats, "mean": H.mean(axis=0), "sd": H.std(axis=0), "sign_share": share}).sort_values(
+        "mean", key=np.abs, ascending=False).reset_index(drop=True)
+
+
+def threshold_sweep(weeks, thresholds=(0.03, 0.05, 0.07, 0.10), meta=None, seed=0, k=10):
+    """How sensitive is the detector to the definition of a winner? One walk-forward per threshold."""
+    rows = []
+    for th in thresholds:
+        r = walk_forward(weeks, {**(meta or {}), "det_winner": th}, "honest", seed, k, th)
+        if r.empty:
+            continue
+        rows.append({"threshold": th, "ic": float(r["ic_det"].mean()), "prec": float(r["prec_det"].mean()),
+                     "base_rate": float(r["base_rate"].mean()), "final_weight": float(r.attrs["final_weight"])})
+    return pd.DataFrame(rows, columns=["threshold", "ic", "prec", "base_rate", "final_weight"])
+
+
 def summary_text(res):
     """Human-readable verdict for the run report."""
     if not res.get("weeks_scored"):
         return "missed-winner evaluation: no weeks scored"
     a, b, w, c = res["alone"], res["base"], res["with_base"], res["control"]
     lines = [f"weeks scored {res['weeks_scored']}",
-             f"detector alone   IC {a['ic']:+.3f} (t {a['ic_t']:+.1f})  precision@k {a['prec_at_k']:.3f} vs base rate {a['base_rate']:.3f}",
+             f"detector alone   IC {a['ic']:+.3f} (t {a['ic_t']:+.1f})  precision@k {a['prec_at_k']:.3f} vs base rate {a['base_rate']:.3f}"
+             f" vs vol20-only {a.get('prec_vol_only', float('nan')):.3f}",
              f"base             IC {b['ic']:+.3f}  precision@k {b['prec_at_k']:.3f}",
              f"detector + base  IC {w['ic']:+.3f}  uplift {w['ic_uplift']:+.4f} CI [{w['ic_uplift_ci'][0]:+.4f}, {w['ic_uplift_ci'][1]:+.4f}]"
              f"  p {w['p_uplift']:.3f}  mean weight {w['mean_weight']:.3f}",

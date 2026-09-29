@@ -295,3 +295,37 @@ def test_compare_reports_flags_regressions(summary):
     cur = {**summary, "verdict": {"gates": {**summary["verdict"]["gates"], "mean_ic": {"pass": False, "value": 0, "need": ""}}}}
     flags = ht.compare_reports(worse, cur)
     assert any("mean_ic" in f for f in flags) and any("overall rank IC fell" in f for f in flags) and any("era" in f for f in flags)
+
+
+def test_checkpoint_resume_matches_uncached_run_and_skips_finished_origins(planted, tmp_path, monkeypatch):
+    X, y = planted
+    cfg = {**CFG, "movement": False}
+    plain = ht.walk_forward(X, y, cfg, seed=3)
+    fits = {"n": 0}
+    real_fit = ht.PatternMiner.fit
+
+    def counting(self, *a, **k):
+        fits["n"] += 1
+        return real_fit(self, *a, **k)
+    monkeypatch.setattr(ht.PatternMiner, "fit", counting)
+    first = ht.walk_forward(X, y, cfg, seed=3, cache_dir=tmp_path)
+    n_first = fits["n"]
+    assert n_first == len(plain["origins"]) and len(list(tmp_path.glob("wf_*.pkl"))) >= n_first
+    second = ht.walk_forward(X, y, cfg, seed=3, cache_dir=tmp_path)
+    assert fits["n"] == n_first                                          # nothing refitted
+    cols = ["date", "rank_ic", "top_excess", "turnover"]
+    for other in (first, second):
+        pd.testing.assert_frame_equal(plain["frame"][cols], other["frame"][cols])
+        pd.testing.assert_frame_equal(plain["origins"][["origin", "n_live", "kept_from_prev", "oos_held"]],
+                                      other["origins"][["origin", "n_live", "kept_from_prev", "oos_held"]])
+
+
+def test_cache_is_keyed_by_config_seed_and_null_flag(planted, tmp_path):
+    X, y = planted
+    cfg = {**CFG, "movement": False}
+    a = ht.walk_forward(X, y, cfg, seed=3, cache_dir=tmp_path)
+    n = len(list(tmp_path.glob("wf_*.pkl")))
+    ht.walk_forward(X, y, cfg, seed=3, null=True, cache_dir=tmp_path)
+    assert len(list(tmp_path.glob("wf_*.pkl"))) == 2 * n                 # a null run never reuses the real cache
+    ht.walk_forward(X, y, {**cfg, "topk": 5}, seed=3, cache_dir=tmp_path)
+    assert len(list(tmp_path.glob("wf_*.pkl"))) == 3 * n

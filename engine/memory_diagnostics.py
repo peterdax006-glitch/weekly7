@@ -21,7 +21,7 @@ from .memory import CTX, Memory, scan_lessons
 
 FACTORS = ("recency", "similarity", "source", "shock", "era", "modernity")
 # what to set so a factor becomes a no-op (used by ablation)
-_OFF = {"recency": {"mem_half_life": 1e12}, "similarity": {"mem_bandwidth": 1e12}, "source": {"mem_prior_scale": 1.0},
+_OFF = {"recency": {"mem_half_life": 1e12, "mem_kind_half_life": None}, "similarity": {"mem_bandwidth": 1e12}, "source": {"mem_prior_scale": 1.0},
         "shock": {"mem_shock_cut": 1.0}, "era": {"mem_era_other": 1.0}, "modernity": {"mem_modern_half_life": None},
         "shrinkage": {"mem_shrink": 0.0}}
 
@@ -31,6 +31,9 @@ def _shrunk(w, x, shrink, min_var=1e-8):
     sw = w.sum()
     if not len(w) or sw <= 0:
         return 0.0, np.inf, 0.0
+    if w.max() < 1e-100:                      # same underflow guard as Memory.estimate_detail
+        w = w / w.max()
+        sw = w.sum()
     n_eff = sw ** 2 / (w ** 2).sum()
     mean = float((w * x).sum() / (sw + shrink * w.mean()))
     var = float((w * (x - (w * x).sum() / sw) ** 2).sum() / sw)
@@ -247,3 +250,100 @@ def report(mem, week_now=None, ctx_now=None, arms=None, top=3):
     for a in arms:
         lines.append(explain(mem, a, now, ctx)["text"])
     return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# is the skill real, is the memory calibrated, does tuning survive out of sample
+# ---------------------------------------------------------------------------------------------------------------
+def skill_ci(df, n=1000, seed=0, level=0.95, block=4):
+    """Block-bootstrap interval for the walk-forward skill (1 - MSE/MSE0), resampling runs of `block` consecutive steps
+    so serial correlation in outcomes is not mistaken for many independent weeks. df from walk_forward_skill()."""
+    if len(df) < 2 * block:
+        return (float("nan"), float("nan"))
+    rng = np.random.default_rng(seed)
+    err = ((df["pred"] - df["outcome"]) ** 2).to_numpy()
+    zero = (df["outcome"] ** 2).to_numpy()
+    m = len(df)
+    starts = np.arange(0, m - block + 1)
+    nb = int(np.ceil(m / block))
+    out = np.empty(n)
+    for i in range(n):
+        ix = (rng.choice(starts, nb)[:, None] + np.arange(block)).ravel()[:m]
+        z = zero[ix].mean()
+        out[i] = 1 - err[ix].mean() / z if z > 0 else 0.0
+    a = (1 - level) / 2
+    return float(np.quantile(out, a)), float(np.quantile(out, 1 - a))
+
+
+def calibration_table(df, bins=5):
+    """Do bigger predictions come with bigger outcomes? Bin walk-forward predictions into quantiles; per bin the mean
+    prediction, the mean outcome, the share positive and the count. A calibrated memory has slope ~1 (shrinkage makes
+    it < 1 on purpose: the report says by how much). Returns (table, slope of outcome on prediction)."""
+    if len(df) < bins * 2 or df["pred"].nunique() < 2:
+        return pd.DataFrame(columns=["bin", "pred", "outcome", "share_positive", "n"]), float("nan")
+    q = pd.qcut(df["pred"].rank(method="first"), bins, labels=False)
+    g = df.groupby(q)
+    t = pd.DataFrame({"bin": sorted(g.groups), "pred": g["pred"].mean().to_numpy(), "outcome": g["outcome"].mean().to_numpy(),
+                      "share_positive": g["outcome"].apply(lambda s: float((s > 0).mean())).to_numpy(), "n": g.size().to_numpy()})
+    x, y = df["pred"].to_numpy(), df["outcome"].to_numpy()
+    vx = ((x - x.mean()) ** 2).sum()
+    return t, float(((x - x.mean()) * (y - y.mean())).sum() / vx) if vx > 0 else float("nan")
+
+
+def nested_tune(records, grid, params=None, split=0.6, warmup=5, min_gain=0.0):
+    """Honest tuning of one memory parameter. `grid` = {param: [values]}. The best value is chosen on the first `split`
+    of the stream by walk-forward skill and then scored, untouched, on the rest; the default is scored there too.
+    Returns {chosen, train_table, test_skill_chosen, test_skill_default, helped}: 'helped' is True only if the tuned
+    value beats the default OUT OF SAMPLE by more than min_gain - tuning that only wins in-sample is reported as such."""
+    cut = int(len(records) * split)
+    head, tail = records[:cut], records[cut:]
+    (name, values), = grid.items()
+    train = sweep(head, name, values, params, warmup)
+    best = values[int(np.argmax(train["skill"].to_numpy()))]        # ties go to the earlier value in the grid
+
+    def test_skill(v):
+        # the tail is scored with the memory already holding the head: a real deployment sees earlier data too
+        M = Memory({**(params or {}), name: v})
+        seen, se, y = {}, [], []
+        for i, (arm, wk, ctx, out) in enumerate(records):
+            n = seen.get(arm, 0)
+            if i >= cut and n >= warmup:
+                se.append(M.estimate(arm, wk, ctx)[0]); y.append(out)
+            M.record(arm, wk, ctx, out)
+            seen[arm] = n + 1
+        if not y:
+            return float("nan")
+        se, y = np.array(se), np.array(y)
+        return float(1 - ((se - y) ** 2).mean() / (y ** 2).mean()) if (y ** 2).mean() > 0 else 0.0
+    default_v = (params or {}).get(name, Memory().p.get(name))
+    s_best, s_def = test_skill(best), test_skill(default_v)
+    return {"chosen": best, "train_table": train, "test_skill_chosen": s_best, "test_skill_default": s_def,
+            "helped": bool(np.isfinite(s_best) and np.isfinite(s_def) and s_best - s_def > min_gain)}
+
+
+def arm_timeline(records, arm, params=None):
+    """Walk-forward trace of one arm: at each of its outcomes, what the memory believed BEFORE seeing it, with the
+    effective sample, whether a break had been flagged, and the realised value. For plotting how belief tracks reality."""
+    M = Memory(params)
+    rows = []
+    for a, wk, ctx, y in records:
+        if a == arm:
+            d = M.estimate_detail(arm, wk, ctx)
+            rows.append({"week": wk, "belief": d["mean"], "se": d["se"] if np.isfinite(d["se"]) else np.nan,
+                         "n_eff": d["n_eff"], "broken": arm in M.breaks, "outcome": y})
+        M.record(a, wk, ctx, y)
+    return pd.DataFrame(rows, columns=["week", "belief", "se", "n_eff", "broken", "outcome"])
+
+
+def stability_by_block(df, blocks=4):
+    """Skill inside consecutive blocks of the walk-forward run. A memory that only works in one stretch shows one good
+    block and the rest near zero; returns a DataFrame and the share of blocks with positive skill."""
+    if len(df) < blocks * 3:
+        return pd.DataFrame(columns=["block", "n", "skill"]), float("nan")
+    rows = []
+    for i, ix in enumerate(np.array_split(np.arange(len(df)), blocks)):
+        b = df.iloc[ix]
+        z = float((b["outcome"] ** 2).mean())
+        rows.append({"block": i, "n": len(b), "skill": 1 - float(((b["pred"] - b["outcome"]) ** 2).mean()) / z if z > 0 else 0.0})
+    t = pd.DataFrame(rows)
+    return t, float((t["skill"] > 0).mean())

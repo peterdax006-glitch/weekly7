@@ -594,3 +594,140 @@ class ProvenanceLedger:
     def latest(self, source: str) -> dict | None:
         hits = [r for r in self._lines() if r.get("source") == source]
         return hits[-1] if hits else None
+
+
+# ------------------------------------------------------------------ EDGAR-derived delisting events (pure logic; the
+# network fetch lives in scripts/fetch_delisted.py so tests never touch it)
+F25_FORMS = ("25", "25-NSE", "25-NSE/A")
+F15_PREFIX = ("15-12B", "15-12G", "15-15D", "15F")
+ANNUAL_PREFIX = ("10-K", "10K")
+DELIST_LAG_DAYS = 10          # exchange delistings take effect ~10 days after the Form 25 is filed (Rule 12d2-2)
+
+
+def parse_form_idx(text: str) -> pd.DataFrame:
+    """Parse an EDGAR full-index form.idx / form.gz body into columns form, company, cik, date, path. Column
+    offsets come from the header line, so a shifted layout is read correctly; unparseable rows are dropped."""
+    lines = text.splitlines()
+    hdr = next((i for i, l in enumerate(lines) if l.startswith("Form Type") and "CIK" in l), None)
+    if hdr is None:
+        return pd.DataFrame(columns=["form", "company", "cik", "date", "path"])
+    h = lines[hdr]
+    c1, c2, c3, c4 = h.index("Company Name"), h.index("CIK"), h.index("Date Filed"), h.index("File Name")
+    rows = []
+    for l in lines[hdr + 2:]:
+        if len(l) < c4:
+            continue
+        rows.append((l[:c1].strip(), l[c1:c2].strip(), l[c2:c3].strip(), l[c3:c4].strip(), l[c4:].strip()))
+    df = pd.DataFrame(rows, columns=["form", "company", "cik", "date", "path"])
+    df["cik"] = pd.to_numeric(df["cik"].where(df["cik"].str.fullmatch(r"\d{1,10}")), errors="coerce")  # "inf" is not a CIK
+    df["date"] = pd.to_datetime(df["date"], errors="coerce")
+    return df.dropna(subset=["cik", "date"]).astype({"cik": "int64"}).reset_index(drop=True)
+
+
+def keep_relevant_forms(df: pd.DataFrame) -> pd.DataFrame:
+    """Only the forms the delisting logic needs: Form 25 family, Form 15 family, annual reports."""
+    f = df["form"]
+    m = f.isin(F25_FORMS) | f.str.startswith(F15_PREFIX) | f.str.startswith(ANNUAL_PREFIX)
+    return df[m].reset_index(drop=True)
+
+
+def classify_delistings(events: pd.DataFrame, as_of, window_days: int = 400) -> pd.DataFrame:
+    """One row per CIK that ever filed a Form 25, evaluated at its LAST Form 25:
+      deregistered   a Form 15 within [-30, +window_days] days and no annual report filed after the window
+      went_dark      no Form 15, no annual report after the Form 25, and the last one is > window_days before as_of
+      continuing     annual reports keep coming (transfer between exchanges, or a partial-class delisting)
+      too_recent     Form 25 within window_days of as_of, cannot be judged yet
+    `terminal` is True for deregistered and went_dark. Point-in-time: only events dated <= as_of are read. Columns:
+    cik, company, f25_date, f15_date, last_10k_after, status, terminal, announced, delist_date (Form 25 + 10 days,
+    an approximation stated here on purpose)."""
+    a = pd.Timestamp(as_of)
+    e = events[events["date"] <= a]
+    f25 = e[e["form"].isin(F25_FORMS)].sort_values("date").groupby("cik").tail(1)
+    f15 = e[e["form"].str.startswith(F15_PREFIX)]
+    ann = e[e["form"].str.startswith(ANNUAL_PREFIX)]
+    rows = []
+    for r in f25.itertuples():
+        d15 = f15[(f15["cik"] == r.cik) & (f15["date"] >= r.date - pd.Timedelta(days=30)) &
+                  (f15["date"] <= r.date + pd.Timedelta(days=window_days))]["date"]
+        later = ann[(ann["cik"] == r.cik) & (ann["date"] > r.date + pd.Timedelta(days=window_days))]["date"]
+        if r.date > a - pd.Timedelta(days=window_days):
+            status = "too_recent"
+        elif len(later):
+            status = "continuing"
+        elif len(d15):
+            status = "deregistered"
+        else:
+            status = "went_dark"
+        rows.append({"cik": r.cik, "company": r.company, "f25_date": r.date,
+                     "f15_date": d15.min() if len(d15) else pd.NaT,
+                     "last_10k_after": later.max() if len(later) else pd.NaT, "status": status,
+                     "terminal": status in ("deregistered", "went_dark"), "announced": r.date,
+                     "delist_date": r.date + pd.Timedelta(days=DELIST_LAG_DAYS)})
+    return pd.DataFrame(rows, columns=["cik", "company", "f25_date", "f15_date", "last_10k_after", "status",
+                                       "terminal", "announced", "delist_date"])
+
+
+_SUFFIX = ("INC", "CORP", "CORPORATION", "CO", "COMPANY", "LTD", "LIMITED", "LLC", "LP", "PLC", "HOLDINGS", "GROUP",
+           "THE", "DE", "NEW", "TRUST")
+
+
+def clean_name(n: str) -> str:
+    import re
+    n = re.sub(r"[^A-Z0-9 ]", " ", str(n).upper().replace("&", " AND "))
+    toks = [t for t in n.split() if t not in _SUFFIX]
+    return " ".join(toks)
+
+
+def name_similarity(a: str, b: str) -> float:
+    """0..1 similarity of two company names after cleaning; vendor names are truncated ('Lehman Brothers Holdings
+    Capita'), so the shorter is compared with the same-length prefix of the longer."""
+    from difflib import SequenceMatcher
+    x, y = clean_name(a), clean_name(b)
+    if not x or not y:
+        return 0.0
+    n = min(len(x), len(y))
+    return SequenceMatcher(None, x[:n], y[:n]).ratio() * (0.5 + 0.5 * n / max(len(x), len(y)))
+
+
+def pick_symbol(company: str, quotes: list[dict], min_sim: float = 0.75) -> dict | None:
+    """Choose the search hit whose name best matches `company` (equities only). None when nothing clears min_sim:
+    an unresolved ticker is honest, a wrong ticker would attach another company's prices."""
+    best, score = None, 0.0
+    for q in quotes:
+        if q.get("quoteType", "EQUITY") not in ("EQUITY", None):
+            continue
+        s = name_similarity(company, q.get("longname") or q.get("shortname") or "")
+        if s > score:
+            best, score = q, s
+    return {"symbol": best["symbol"], "sim": score, "name": best.get("shortname")} if best and score >= min_sim else None
+
+
+def to_registry(classified: pd.DataFrame, tickers: dict[int, str], prices_last: dict[str, float] | None = None) -> DelistedRegistry:
+    """Terminal delistings with a resolved ticker -> DelistedRegistry (source 'edgar_form25')."""
+    reg = DelistedRegistry()
+    for r in classified[classified["terminal"]].itertuples():
+        t = tickers.get(r.cik)
+        if not t:
+            continue
+        reg.add({"ticker": t, "delist_date": r.delist_date, "announced": r.announced, "reason": "other",
+                 "last_close": (prices_last or {}).get(t), "source": f"edgar_form25:{r.status}"})
+    return reg
+
+
+def attrition_coverage(classified: pd.DataFrame, resolved: set[int], priced: set[int], alive_by_year: pd.Series,
+                       lo: float = 0.03, hi: float = 0.06) -> pd.DataFrame:
+    """Per delisting year: terminal Form-25 events found, how many got a ticker, how many got prices, and the
+    expected count band (lo..hi x names alive that year, the usual 3-6%/yr attrition). `found_vs_low/high` are
+    events/expected; a value far below 1 means the source is missing whole classes of exits, far above means the
+    Form 25 family is counting non-equity securities."""
+    t = classified[classified["terminal"]].copy()
+    t["year"] = t["delist_date"].dt.year
+    g = t.groupby("year")
+    out = pd.DataFrame({"terminal_events": g.size(), "resolved": g.apply(lambda x: int(x["cik"].isin(resolved).sum())),
+                        "priced": g.apply(lambda x: int(x["cik"].isin(priced).sum()))})
+    out["alive"] = alive_by_year.reindex(out.index)
+    out["expected_low"], out["expected_high"] = out["alive"] * lo, out["alive"] * hi
+    out["found_vs_low"], out["found_vs_high"] = out["terminal_events"] / out["expected_low"], \
+        out["terminal_events"] / out["expected_high"]
+    out["priced_vs_low"] = out["priced"] / out["expected_low"]
+    return out

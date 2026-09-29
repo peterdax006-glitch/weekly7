@@ -302,3 +302,76 @@ def test_ledger_needs_min_weeks_before_giving_a_t():
     for i in range(3):
         L.add(str(i), 5, 3, {"vol20": 0.5})
     assert np.isnan(L.summary(min_weeks=4)["t"].iloc[0])
+
+
+# ---------------------------------------------------------------- calibration and breakdowns
+def test_calibration_beats_base_rate_only_for_informative_probabilities():
+    rng = np.random.default_rng(0)
+    p = rng.uniform(0.02, 0.6, 4000)
+    y = (rng.uniform(size=4000) < p).astype(float)                      # p is the true probability
+    good = W.calibration(p, y)
+    flat = W.calibration(np.full(4000, y.mean()), y)
+    assert good["brier_skill"] > 0.05 and abs(flat["brier_skill"]) < 1e-6
+    t = good["table"]
+    assert np.allclose(t["pred"], t["obs"], atol=0.05)
+    assert W.calibration([0.5], [1.0])["table"].empty
+
+
+def test_prior_correct_restores_the_base_rate():
+    rng = np.random.default_rng(1)
+    raw = np.clip(rng.beta(4, 4, 5000), 0.01, 0.99)                      # a model trained as if winners were 50% of names
+    fixed = W.prior_correct(raw, 0.1)
+    assert raw.mean() == pytest.approx(0.5, abs=0.02) and fixed.mean() < 0.2
+    assert np.allclose(W.prior_correct(raw, 0.5), raw)                   # no shift when the training rate is the real rate
+
+
+def test_detector_calibration_on_a_planted_signal_is_informative_after_prior_correction():
+    r = W.detector_calibration(weeks(40, 1.0), seed=0)
+    assert r["corrected"]["brier_skill"] > r["raw"]["brier_skill"]       # raw probabilities run high, correction fixes it
+    assert r["corrected"]["brier_skill"] > 0.02
+    assert np.isnan(W.detector_calibration([week(1, 1.0, n=10)])["base_rate"])
+
+
+def test_topk_curve_precision_beats_base_rate_at_every_k_with_a_signal():
+    t = W.topk_curve(weeks(30, 1.0), ks=(5, 20))
+    assert list(t["k"]) == [5, 20] and (t["det"] > t["base_rate"] * 1.3).all()
+    assert (t["ret_det"] > t["ret_base"]).all()
+
+
+def test_evaluate_by_group_localises_an_edge_to_the_half_that_has_it():
+    ws = weeks(30, 1.0) + weeks(30, 0.0, seed0=900)
+    first_half = {w[0] for w in ws[:30]}
+    g = W.evaluate_by_group(ws, lambda d: "signal" if d in first_half else "noise").set_index("group")
+    assert g.loc["signal", "ic_det"] > 0.1 and abs(g.loc["noise", "ic_det"]) < 0.08
+    assert W.evaluate_by_group([week(1, 1.0, n=10)], lambda d: "x").empty
+
+
+def test_coef_stability_marks_the_planted_features_as_stable_and_noise_as_unstable():
+    t = W.coef_stability(weeks(40, 1.0)).set_index("feature")
+    assert t.loc["e_max20", "sign_share"] > 0.95 and t.loc["vol20", "sign_share"] > 0.95
+    noise = W.coef_stability(weeks(40, 0.0, seed0=50)).set_index("feature")
+    assert noise["sign_share"].drop(["e_max20", "vol20"]).mean() < 0.9
+    assert W.coef_stability([week(1, 1.0, n=10)]).empty
+
+
+def test_threshold_sweep_returns_one_row_per_definition_of_a_winner():
+    t = W.threshold_sweep(weeks(25, 1.0), thresholds=(0.04, 0.10))
+    assert list(t["threshold"]) == [0.04, 0.10] and t.loc[0, "base_rate"] > t.loc[1, "base_rate"]
+
+
+def test_a_detector_that_only_rediscovers_volatility_is_shown_next_to_the_vol_only_ranking():
+    """Winners come from wild stocks but wildness carries no direction: precision@k beats the base rate while rank IC
+    stays ~0, and the evaluation must expose that the detector is no better than sorting by vol20."""
+    def vol_week(seed, n=N):
+        rng = np.random.default_rng(seed)
+        idx = pd.Index([f"S{i:03d}" for i in range(n)], name="ticker")
+        p = pd.DataFrame({c: rng.normal(size=n) for c in DET_FEATS}, index=idx)
+        sd = 0.02 + 0.08 * p["vol20"].rank(pct=True)                    # wild names move more, in either direction
+        return pd.Timestamp("2020-01-03") + pd.Timedelta(weeks=seed), p, pd.Series(rng.normal(0, sd), index=idx)
+    ws = [vol_week(i) for i in range(45)]
+    r = W.walk_forward(ws, seed=0)
+    assert r["prec_det"].mean() > r["base_rate"].mean() * 1.5 and abs(r["ic_det"].mean()) < 0.08
+    assert r["prec_det"].mean() == pytest.approx(r["prec_vol"].mean(), abs=0.06)     # it learned volatility and nothing more
+    res = W.evaluate(ws, None, seed=1, n_controls=4)
+    assert res["alone"]["prec_vol_only"] > res["alone"]["base_rate"] and res["verdict"] is False
+    assert "vol20-only" in W.summary_text(res)

@@ -345,7 +345,7 @@ class MoverModel:
             import lightgbm as lgb
             self.m = lgb.LGBMClassifier(n_estimators=80, learning_rate=0.06, num_leaves=8, min_child_samples=100,
                                         subsample=0.8, subsample_freq=1, colsample_bytree=0.8, random_state=self.seed,
-                                        n_jobs=2, deterministic=True, force_row_wise=True, verbose=-1)
+                                        n_jobs=1, deterministic=True, force_row_wise=True, verbose=-1)
             self.m.fit(F.to_numpy(), label)
         else:
             self.m = fit_logit(F.to_numpy(), label)
@@ -466,7 +466,7 @@ def _direction_accuracy(pat_dir, y_ex, label, frac=0.2):
     return acc, n, float((acc - 0.5) / np.sqrt(0.25 / n)) if n else np.nan
 
 
-def run_ablation(X, y, split, cfg=None, seed=7, test_end=None):
+def run_ablation(X, y, split, cfg=None, seed=7, test_end=None, tags=None):
     """Phase 6 / 34: the six-arm out-of-sample comparison at one origin.  Returns per-arm metrics, paired daily-AUC
     differences and the deploy decision.  `split` is the first test date; nothing at or after it is used to learn."""
     c = {**ABL_DEFAULT, **(cfg or {})}
@@ -499,15 +499,12 @@ def run_ablation(X, y, split, cfg=None, seed=7, test_end=None):
     real_f = pattern_features(dir_b, mov_b, Xf); real_t = pattern_features(dir_b, mov_b, Xt)
     Xf_all, Xt_all = Xf, Xt
 
-    def fit_eval(name, Ftr, Fte):
+    arms, daily, probas, models = {}, {}, {}, {}
+    def add(name, Ftr, Fte):
         mdl = MoverModel(c["model"], seed).fit(Ftr, lab_f)
         p = mdl.predict(Fte)
-        met, da = _metrics(p, lab_t, yt_abs, dct, c["topk_frac"])
-        return met, da, p
-
-    arms, daily, probas = {}, {}, {}
-    def add(name, Ftr, Fte):
-        arms[name], daily[name], probas[name] = fit_eval(name, Ftr, Fte)
+        arms[name], daily[name] = _metrics(p, lab_t, yt_abs, dct, c["topk_frac"])
+        probas[name], models[name] = p, (mdl, list(Ftr.columns))
 
     if c["base_cols"] is not None:              # the mover model's own inputs; the miner still sees all of X
         Xf, Xt = Xf[list(c["base_cols"])], Xt[list(c["base_cols"])]
@@ -539,12 +536,17 @@ def run_ablation(X, y, split, cfg=None, seed=7, test_end=None):
 
     gain = {k: arms[k]["auc_daily"] - arms["base"]["auc_daily"] for k in arms}
     diff = (daily["base+pattern"] - daily["base"]).dropna()
+    diff.index = pd.DatetimeIndex(_date_codes(Xt.index)[1][diff.index.to_numpy()])     # date codes -> dates
     boot = block_bootstrap_mean(diff.values, c["block"], c["boot"], np.random.default_rng([seed, 5]))
     acc, n_acc, z_acc = _direction_accuracy(real_t["pat_dir"].values, yt_ex, lab_t)
     cal = MovementCalibrator().fit(real_f, lab_f)
     cal_p = cal.predict(real_t)
     cal_auc = daily_auc(cal_p, lab_t, dct)
     inter = interaction_table(probas["base"], real_t["pat_mov"].values, lab_t, dct)
+    lr = incremental_lr_test(probas["base"], real_t, lab_t, dct, np.random.default_rng([seed, 23]))
+    imp_real = pattern_importance(*models["base+pattern"])
+    imp_ctrl = [pattern_importance(*models[n]) for n in fam["random"] + fam["shuffled"] + fam["scrambled"]]
+    by_reg = gain_by_group(diff, tags) if tags is not None else pd.DataFrame()
     res = {"ok": True, "split": str(pd.Timestamp(split).date()), "seed": seed, "mover_threshold": thr,
            "n_train_miner": int(len(ym)), "n_train_model": int(len(yf)), "n_test": int(len(yt)),
            "mover_rate_test": float(lab_t.mean()), "arms": arms, "gain_vs_base": gain, "families": fam,
@@ -555,6 +557,8 @@ def run_ablation(X, y, split, cfg=None, seed=7, test_end=None):
            "calibrated_movement_auc": float(cal_auc.mean()) if len(cal_auc) else np.nan,
            "interaction": {"synergy_top": inter["synergy_top"], "rank_corr": inter["rank_corr"], "base_rate": inter["base_rate"]},
            "attribution": attribute(mov_b, Xt_all, lab_t, yt_ex, max_loo=25) if len(mov_b) else pd.DataFrame(),
+           "incremental_lr": lr, "pattern_importance": {"real": imp_real, "controls_mean": float(np.mean(imp_ctrl)) if imp_ctrl else np.nan},
+           "detectable_gain": detectable_gain(diff.values, c["block"]), "gain_by_group": by_reg,
            "daily_diff_real_vs_base": diff}
     res.update(decide(res, c))
     return res
@@ -709,6 +713,76 @@ def bank_overlap(a, b):
     """Jaccard overlap of two banks' pattern names - how much of the pattern set survives a refit."""
     sa, sb = set(a.names), set(b.names)
     return len(sa & sb) / len(sa | sb) if (sa | sb) else np.nan
+
+
+# ------------------------------------------------------------------ incremental information, importance, regimes
+def _fit_logit_offset(Z, y, offset, l2=1e-3, iters=40):
+    """Logistic regression with a fixed offset (the existing model's logit) -> (coef, log-likelihood)."""
+    b = np.zeros(Z.shape[1])
+    R = np.eye(Z.shape[1]) * l2; R[0, 0] = 0
+    for _ in range(iters):
+        p = 1 / (1 + np.exp(-np.clip(offset + Z @ b, -30, 30)))
+        g = Z.T @ (p - y) + R @ b
+        H = (Z * (p * (1 - p))[:, None]).T @ Z + R + 1e-9 * np.eye(len(b))
+        step = np.linalg.solve(H, g)
+        b -= step
+        if np.abs(step).max() < 1e-8:
+            break
+    p = np.clip(1 / (1 + np.exp(-np.clip(offset + Z @ b, -30, 30))), 1e-12, 1 - 1e-12)
+    return b, float((y * np.log(p) + (1 - y) * np.log(1 - p)).sum())
+
+
+def incremental_lr_test(base_p, pat_feats, label, dcode, rng, n_perm=60):
+    """Do the pattern columns explain movement that the existing mover model's probability does not?  Likelihood-ratio
+    statistic of [intercept + pattern columns] against [intercept] with the mover model's logit held as an offset.
+    Rows within a date are correlated, so the p-value comes from date-scrambled pattern columns (same shape, wrong
+    timing), not from the chi-square table."""
+    y = np.asarray(label, float)
+    bp = np.clip(np.asarray(base_p, float), 1e-6, 1 - 1e-6)
+    off = np.log(bp / (1 - bp))
+    F = np.c_[pat_feats["pat_mov"].to_numpy(), np.abs(pat_feats["pat_dir"].to_numpy()), pat_feats["pat_fire"].to_numpy()]
+    if len(y) < 200 or F.std(axis=0).max() == 0:
+        return {"lr": np.nan, "p_perm": np.nan, "coef_mov": np.nan}
+    sd = F.std(axis=0); sd[sd == 0] = 1.0
+    F = (F - F.mean(axis=0)) / sd
+    Z0 = np.ones((len(y), 1))
+    _, ll0 = _fit_logit_offset(Z0, y, off)
+
+    def lr_of(Fm):
+        b, ll = _fit_logit_offset(np.c_[np.ones(len(y)), Fm], y, off)
+        return 2 * (ll - ll0), b
+    lr, b = lr_of(F)
+    null = []
+    for _ in range(n_perm):
+        Fp = np.column_stack([scramble_dates(F[:, j], dcode, rng) for j in range(F.shape[1])])
+        null.append(lr_of(Fp)[0])
+    return {"lr": float(lr), "p_perm": float((1 + sum(v >= lr for v in null)) / (1 + n_perm)), "coef_mov": float(b[1])}
+
+
+def pattern_importance(model, columns):
+    """Share of the mover model's split gain carried by the pattern columns (0 for models without importances)."""
+    if model.const is not None or model.kind != "lgbm":
+        return 0.0
+    g = model.m.booster_.feature_importance(importance_type="gain").astype(float)
+    if g.sum() <= 0:
+        return 0.0
+    return float(sum(v for v, c in zip(g, columns) if c.startswith("pat_")) / g.sum())
+
+
+def gain_by_group(daily_diff, tags):
+    """Daily AUC gain of mover+pattern over mover alone, split by market regime tag.  `daily_diff` is the date-indexed
+    series run_ablation returns; `tags` a date-indexed frame such as heavy_tests.regime_tags."""
+    d = pd.Series(daily_diff)
+    if not isinstance(d.index, pd.DatetimeIndex):
+        return pd.DataFrame()
+    rows = []
+    t = tags.reindex(d.index)
+    for fam in t.columns:
+        for grp, v in d.groupby(t[fam].fillna("unk")):
+            if grp != "unk" and len(v) >= 8:
+                rows.append({"family": fam, "group": grp, "dates": int(len(v)), "gain": float(v.mean()),
+                             "share_positive": float((v > 0).mean())})
+    return pd.DataFrame(rows)
 
 
 # ------------------------------------------------------------------ the deployable object

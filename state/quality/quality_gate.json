@@ -1,79 +1,586 @@
 {
- "exit_code": 1,
+ "exit_code": 0,
  "stats": {
-  "import_boundaries": {
-   "seconds": 1.13,
-   "errors": 8,
+  "syntax": {
+   "seconds": 0.0,
+   "errors": 0,
    "warnings": 0
+  },
+  "import_boundaries": {
+   "seconds": 0.942,
+   "errors": 0,
+   "warnings": 0
+  },
+  "bare_except": {
+   "seconds": 0.321,
+   "errors": 0,
+   "warnings": 3
+  },
+  "print_debug": {
+   "seconds": 0.346,
+   "errors": 0,
+   "warnings": 0
+  },
+  "network_in_tests": {
+   "seconds": 0.407,
+   "errors": 0,
+   "warnings": 0
+  },
+  "tests_touch_data": {
+   "seconds": 0.213,
+   "errors": 0,
+   "warnings": 0
+  },
+  "randomness": {
+   "seconds": 1.103,
+   "errors": 0,
+   "warnings": 0
+  },
+  "wall_clock": {
+   "seconds": 0.268,
+   "errors": 0,
+   "warnings": 2
+  },
+  "test_hygiene": {
+   "seconds": 0.388,
+   "errors": 0,
+   "warnings": 0
+  },
+  "mutable_defaults": {
+   "seconds": 0.504,
+   "errors": 0,
+   "warnings": 0
+  },
+  "hidden_global_state": {
+   "seconds": 0.323,
+   "errors": 0,
+   "warnings": 1
+  },
+  "giant_functions": {
+   "seconds": 0.486,
+   "errors": 0,
+   "warnings": 3
+  },
+  "duplicates": {
+   "seconds": 3.847,
+   "errors": 0,
+   "warnings": 0
+  },
+  "magic_constants": {
+   "seconds": 0.689,
+   "errors": 0,
+   "warnings": 47
+  },
+  "module_docstrings": {
+   "seconds": 0.002,
+   "errors": 0,
+   "warnings": 12
+  },
+  "inventory": {
+   "seconds": 1.022,
+   "errors": 0,
+   "warnings": 3
   }
  },
  "findings": [
   {
-   "check": "import_boundaries",
-   "severity": "error",
-   "path": "engine/parity_suite.py",
-   "line": 257,
-   "msg": "research module 'parity_suite' imports live module 'engine.live' (not in known_live_couplings)"
+   "check": "bare_except",
+   "severity": "warning",
+   "path": "engine/data.py",
+   "line": 62,
+   "msg": "'except Exception' with an empty body swallows every failure silently"
   },
   {
-   "check": "import_boundaries",
-   "severity": "error",
-   "path": "engine/parity_suite.py",
-   "line": 412,
-   "msg": "research module 'parity_suite' imports live module 'engine.live' (not in known_live_couplings)"
+   "check": "bare_except",
+   "severity": "warning",
+   "path": "engine/repro.py",
+   "line": 207,
+   "msg": "'except Exception' with an empty body swallows every failure silently"
   },
   {
-   "check": "import_boundaries",
-   "severity": "error",
-   "path": "engine/tick.py",
-   "line": 21,
-   "msg": "alpaca trading SDK imported outside the broker module"
+   "check": "bare_except",
+   "severity": "warning",
+   "path": "engine/repro.py",
+   "line": 213,
+   "msg": "'except Exception' with an empty body swallows every failure silently"
   },
   {
-   "check": "import_boundaries",
-   "severity": "error",
-   "path": "engine/tick.py",
-   "line": 22,
-   "msg": "alpaca trading SDK imported outside the broker module"
+   "check": "giant_functions",
+   "severity": "warning",
+   "path": "engine/patterns.py",
+   "line": 128,
+   "msg": "fit is 221 lines (review above 120)"
   },
   {
-   "check": "import_boundaries",
-   "severity": "error",
-   "path": "scripts/data_live_audit.py",
+   "check": "giant_functions",
+   "severity": "warning",
+   "path": "scripts/movers.py",
    "line": 37,
-   "msg": "research script 'data_live_audit' imports 'engine.broker' (live path)"
+   "msg": "run_window is 152 lines (review above 120)"
   },
   {
-   "check": "import_boundaries",
-   "severity": "error",
-   "path": "scripts/patterns.py",
-   "line": 12,
-   "msg": "research script 'patterns' imports 'engine.live' (live path)"
+   "check": "giant_functions",
+   "severity": "warning",
+   "path": "scripts/run_analogs_ext.py",
+   "line": 75,
+   "msg": "main is 163 lines (review above 120)"
   },
   {
-   "check": "import_boundaries",
-   "severity": "error",
-   "path": "scripts/replay_year.py",
-   "line": 18,
-   "msg": "research script 'replay_year' imports 'engine.live' (live path)"
+   "check": "hidden_global_state",
+   "severity": "warning",
+   "path": "engine/policy.py",
+   "line": 37,
+   "msg": "'global _CRYPTO' mutates module state"
   },
   {
-   "check": "import_boundaries",
-   "severity": "error",
-   "path": "scripts/three_way.py",
+   "check": "inventory",
+   "severity": "warning",
+   "path": "tests/test_audit_registry.py",
+   "line": 1,
+   "msg": "test file maps to no Bible phase or checklist item"
+  },
+  {
+   "check": "inventory",
+   "severity": "warning",
+   "path": "tests/test_direction_study.py",
+   "line": 1,
+   "msg": "test file maps to no Bible phase or checklist item"
+  },
+  {
+   "check": "inventory",
+   "severity": "warning",
+   "path": "tests/test_fill_audit.py",
+   "line": 1,
+   "msg": "test file maps to no Bible phase or checklist item"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/adaptive.py",
+   "line": 61,
+   "msg": "STEPS has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/antimemo.py",
+   "line": 23,
+   "msg": "DEFAULT_CFG has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/antioverfit.py",
+   "line": 31,
+   "msg": "TOL has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/basis_search.py",
    "line": 16,
-   "msg": "research script 'three_way' imports 'engine.live' (live path)"
+   "msg": "META_SPACE has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/basis_search.py",
+   "line": 21,
+   "msg": "CFG_SPACE has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/candidates.py",
+   "line": 43,
+   "msg": "CAND_DEFAULT has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/champion.py",
+   "line": 33,
+   "msg": "DEFAULT_POLICY has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/config.py",
+   "line": 17,
+   "msg": "START_CASH has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/config.py",
+   "line": 18,
+   "msg": "WEEKLY_TARGET has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/config.py",
+   "line": 28,
+   "msg": "MAX_WEIGHT has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/config.py",
+   "line": 29,
+   "msg": "MAX_SECTOR has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/config.py",
+   "line": 30,
+   "msg": "MAX_SQUEEZE has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/config.py",
+   "line": 31,
+   "msg": "MAX_EARNINGS_HOLDS has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/config.py",
+   "line": 34,
+   "msg": "REBALANCE_BAND has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/config.py",
+   "line": 38,
+   "msg": "BANK_EXPOSURE has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/config.py",
+   "line": 39,
+   "msg": "BRAKE_LEVEL has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/config.py",
+   "line": 40,
+   "msg": "BRAKE_EXPOSURE has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/config.py",
+   "line": 41,
+   "msg": "MAX_CATCHUP has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/config.py",
+   "line": 42,
+   "msg": "REGIME_GROSS has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/config.py",
+   "line": 46,
+   "msg": "TIME_STOP_DAYS has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/config.py",
+   "line": 47,
+   "msg": "PARTIAL_TAKE has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/config.py",
+   "line": 51,
+   "msg": "COST_BPS_ILLIQUID has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/direction.py",
+   "line": 20,
+   "msg": "EPS has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/exits.py",
+   "line": 26,
+   "msg": "CATASTROPHE has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/heavy_tests.py",
+   "line": 31,
+   "msg": "HEAVY_DEFAULT has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/improve.py",
+   "line": 30,
+   "msg": "MIN_LIVE_DAYS has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/improve.py",
+   "line": 31,
+   "msg": "TRIPWIRE_DAYS has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/lessons.py",
+   "line": 32,
+   "msg": "DEFAULTS has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/memory.py",
+   "line": 34,
+   "msg": "MEM_DEFAULT has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/memory.py",
+   "line": 67,
+   "msg": "OUTCOME_EDGES has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/model.py",
+   "line": 14,
+   "msg": "EMBARGO has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/model.py",
+   "line": 15,
+   "msg": "TRAIN_YEARS has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/pattern_bank.py",
+   "line": 23,
+   "msg": "BANK_DEFAULT has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/pattern_identity.py",
+   "line": 26,
+   "msg": "ID_LEN has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/pattern_identity.py",
+   "line": 27,
+   "msg": "N_LEVELS has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/pattern_lifecycle.py",
+   "line": 37,
+   "msg": "LIFE_DEFAULT has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/pattern_stats.py",
+   "line": 27,
+   "msg": "STAT_DEFAULT has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/pattern_stats.py",
+   "line": 30,
+   "msg": "VAR_FLOOR has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/pattern_stats.py",
+   "line": 504,
+   "msg": "RELEVANCE_DEFAULT has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/planted.py",
+   "line": 272,
+   "msg": "CRITERIA has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/replay.py",
+   "line": 19,
+   "msg": "CHAMPION has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/retester.py",
+   "line": 24,
+   "msg": "TOL has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/retester.py",
+   "line": 25,
+   "msg": "ABS_FLOOR has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/run_report.py",
+   "line": 18,
+   "msg": "BAND has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/run_report.py",
+   "line": 19,
+   "msg": "CATASTROPHE has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/scoring.py",
+   "line": 13,
+   "msg": "H has no comment saying why it has this value"
+  },
+  {
+   "check": "magic_constants",
+   "severity": "warning",
+   "path": "engine/timeline.py",
+   "line": 173,
+   "msg": "DIAL_SPACE has no comment saying why it has this value"
+  },
+  {
+   "check": "module_docstrings",
+   "severity": "warning",
+   "path": "engine/data.py",
+   "line": 1,
+   "msg": "docstring does not say which Bible phase/canon it serves"
+  },
+  {
+   "check": "module_docstrings",
+   "severity": "warning",
+   "path": "engine/edgar.py",
+   "line": 1,
+   "msg": "docstring does not say which Bible phase/canon it serves"
+  },
+  {
+   "check": "module_docstrings",
+   "severity": "warning",
+   "path": "engine/policy.py",
+   "line": 1,
+   "msg": "docstring does not say which Bible phase/canon it serves"
+  },
+  {
+   "check": "module_docstrings",
+   "severity": "warning",
+   "path": "engine/tick.py",
+   "line": 1,
+   "msg": "docstring does not say which Bible phase/canon it serves"
+  },
+  {
+   "check": "module_docstrings",
+   "severity": "warning",
+   "path": "engine/universe.py",
+   "line": 1,
+   "msg": "docstring does not say which Bible phase/canon it serves"
+  },
+  {
+   "check": "module_docstrings",
+   "severity": "warning",
+   "path": "tests/test_audit_registry.py",
+   "line": 1,
+   "msg": "test file has no docstring saying what it proves"
+  },
+  {
+   "check": "module_docstrings",
+   "severity": "warning",
+   "path": "tests/test_baseline.py",
+   "line": 1,
+   "msg": "test file has no docstring saying what it proves"
+  },
+  {
+   "check": "module_docstrings",
+   "severity": "warning",
+   "path": "tests/test_champion.py",
+   "line": 1,
+   "msg": "test file has no docstring saying what it proves"
+  },
+  {
+   "check": "module_docstrings",
+   "severity": "warning",
+   "path": "tests/test_checkpoint.py",
+   "line": 1,
+   "msg": "test file has no docstring saying what it proves"
+  },
+  {
+   "check": "module_docstrings",
+   "severity": "warning",
+   "path": "tests/test_experiment_memory.py",
+   "line": 1,
+   "msg": "test file has no docstring saying what it proves"
+  },
+  {
+   "check": "module_docstrings",
+   "severity": "warning",
+   "path": "tests/test_registry.py",
+   "line": 1,
+   "msg": "test file has no docstring saying what it proves"
+  },
+  {
+   "check": "module_docstrings",
+   "severity": "warning",
+   "path": "tests/test_run_report.py",
+   "line": 1,
+   "msg": "test file has no docstring saying what it proves"
+  },
+  {
+   "check": "wall_clock",
+   "severity": "warning",
+   "path": "engine/options.py",
+   "line": 21,
+   "msg": "date.today() in research code: take an explicit now/as_of instead"
+  },
+  {
+   "check": "wall_clock",
+   "severity": "warning",
+   "path": "engine/pattern_bank.py",
+   "line": 76,
+   "msg": "time.time() in research code: take an explicit now/as_of instead"
   }
  ],
- "failing": [
-  "import_boundaries|engine/parity_suite.py|research module 'parity_suite' imports live module 'engine.live' (not in known_live_couplings)",
-  "import_boundaries|engine/parity_suite.py|research module 'parity_suite' imports live module 'engine.live' (not in known_live_couplings)",
-  "import_boundaries|engine/tick.py|alpaca trading SDK imported outside the broker module",
-  "import_boundaries|engine/tick.py|alpaca trading SDK imported outside the broker module",
-  "import_boundaries|scripts/data_live_audit.py|research script 'data_live_audit' imports 'engine.broker' (live path)",
-  "import_boundaries|scripts/patterns.py|research script 'patterns' imports 'engine.live' (live path)",
-  "import_boundaries|scripts/replay_year.py|research script 'replay_year' imports 'engine.live' (live path)",
-  "import_boundaries|scripts/three_way.py|research script 'three_way' imports 'engine.live' (live path)"
- ],
+ "failing": [],
  "stale_baseline": []
 }

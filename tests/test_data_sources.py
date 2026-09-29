@@ -354,3 +354,77 @@ def test_provenance_ledger_chain_detects_tamper_and_refuses_failed(tmp_path):
     _, bad = D.validate_prices(make_prices().drop(columns=["close"]), "x", AS_OF)
     with pytest.raises(ValueError):
         led.append(bad)
+
+
+# ---- EDGAR-derived delistings (pure logic; network is in scripts/fetch_delisted.py)
+IDX = """Description:           Master Index of EDGAR Dissemination Feed by Form Type
+Last Data Received:    March 31, 2009
+
+Form Type   Company Name                                                  CIK         Date Filed  File Name
+--------------------------------------------------------------------------------------------------------------------------------------------
+25               ADHEREX TECHNOLOGIES INC                                      1211583     2009-01-20  edgar/data/1211583/0001193125-09-008152.txt
+25-NSE           AMEN PROPERTIES INC                                           1037599     2009-02-23  edgar/data/1037599/0001157523-09-001490.txt
+15-12G           ADHEREX TECHNOLOGIES INC                                      1211583     2009-02-10  edgar/data/1211583/x.txt
+10-K             APPLE INC                                                     320193      2009-11-01  edgar/data/320193/y.txt
+8-K              APPLE INC                                                     320193      2009-11-02  edgar/data/320193/z.txt
+10-K             WEIRD CO                                                      inf         2009-11-01  edgar/data/1/bad.txt
+10-K             BADDATE CO                                                    555         not-a-date  edgar/data/1/bad2.txt
+"""
+
+
+def test_parse_form_idx_and_relevant_filter():
+    df = D.parse_form_idx(IDX)
+    assert len(df) == 5 and df["cik"].dtype == "int64"          # the "inf" CIK and the bad date are dropped
+    keep = D.keep_relevant_forms(df)
+    assert sorted(keep["form"]) == ["10-K", "15-12G", "25", "25-NSE"]
+    assert D.parse_form_idx("nothing here").empty
+
+
+def ev(rows):
+    return pd.DataFrame(rows, columns=["form", "company", "cik", "date"]).assign(date=lambda d: pd.to_datetime(d["date"]))
+
+
+def test_classify_delistings_statuses():
+    rows = [("25", "DEAD INC", 1, "2010-03-01"), ("15-12G", "DEAD INC", 1, "2010-03-20"),        # deregistered
+            ("25-NSE", "MOVER INC", 2, "2010-03-01"), ("10-K", "MOVER INC", 2, "2012-03-01"),     # transfer: keeps filing
+            ("25", "DARK INC", 3, "2010-03-01"),                                                  # nothing after
+            ("25", "NEW INC", 4, "2024-06-01"),                                                   # too recent
+            ("25", "PARTIAL INC", 5, "2005-01-01"), ("10-K", "PARTIAL INC", 5, "2008-01-01"),
+            ("25", "PARTIAL INC", 5, "2015-01-01"), ("15-12B", "PARTIAL INC", 5, "2015-01-10")]  # last F25 is terminal
+    c = D.classify_delistings(ev(rows), "2024-12-31").set_index("cik")
+    assert c["status"].to_dict() == {1: "deregistered", 2: "continuing", 3: "went_dark", 4: "too_recent",
+                                     5: "deregistered"}
+    assert c["terminal"].to_dict() == {1: True, 2: False, 3: True, 4: False, 5: True}
+    assert c.loc[1, "delist_date"] == pd.Timestamp("2010-03-11") and c.loc[1, "announced"] == pd.Timestamp("2010-03-01")
+
+
+def test_classify_is_point_in_time():
+    rows = [("25", "X", 1, "2010-03-01"), ("15-12G", "X", 1, "2010-04-01"), ("10-K", "X", 1, "2013-01-01")]
+    early = D.classify_delistings(ev(rows), "2012-01-01").iloc[0]
+    late = D.classify_delistings(ev(rows), "2014-01-01").iloc[0]
+    assert early["status"] == "deregistered" and late["status"] == "continuing"      # the later 10-K is invisible early
+    assert D.classify_delistings(ev(rows).iloc[0:0], "2014-01-01").empty
+
+
+def test_name_similarity_and_symbol_pick():
+    assert D.clean_name("Lehman Brothers Holdings Inc.") == "LEHMAN BROTHERS"
+    assert D.name_similarity("LEHMAN BROTHERS HOLDINGS INC", "Lehman Brothers Holdings Capita") > 0.75
+    assert D.name_similarity("ENRON CORP", "Enron Oil & Gas") < 0.75
+    assert D.name_similarity("", "X") == 0.0
+    q = [{"symbol": "LEHKQ", "shortname": "Lehman Brothers Holdings Capita", "quoteType": "EQUITY"},
+         {"symbol": "ETF1", "shortname": "Lehman Brothers Holdings Fund", "quoteType": "ETF"}]
+    assert D.pick_symbol("LEHMAN BROTHERS HOLDINGS INC", q)["symbol"] == "LEHKQ"
+    assert D.pick_symbol("ENRON CORP", [{"symbol": "EOG", "shortname": "EOG Resources"}]) is None   # wrong name: none
+
+
+def test_to_registry_and_attrition_coverage():
+    rows = [("25", f"CO{i}", i, f"{2010 + i % 2}-03-01") for i in range(1, 9)] + \
+           [("15-12G", f"CO{i}", i, f"{2010 + i % 2}-03-20") for i in range(1, 9)]
+    c = D.classify_delistings(ev(rows), "2020-01-01")
+    reg = D.to_registry(c, {1: "AAA", 2: "BBB", 3: "CCC"}, {"AAA": 4.2})
+    assert len(reg.frame()) == 3 and reg.rows["AAA"][0]["last_close"] == 4.2
+    assert reg.is_delisted("AAA", "2011-06-01") and not reg.is_delisted("AAA", "2010-03-05")   # PIT holds
+    alive = pd.Series({2010: 100, 2011: 100})
+    cov = D.attrition_coverage(c, resolved={1, 2, 3, 4}, priced={1, 2}, alive_by_year=alive)
+    assert cov["terminal_events"].sum() == 8 and cov["resolved"].sum() == 4 and cov["priced"].sum() == 2
+    assert cov.loc[2010, "expected_low"] == 3.0 and cov.loc[2010, "found_vs_high"] == pytest.approx(4 / 6.0)

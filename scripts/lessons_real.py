@@ -82,27 +82,32 @@ def main():
           f"[{d.min().date()} .. {d.max().date()}] {time.time() - t0:.0f}s", flush=True)
     edges = pd.date_range(d.min().normalize().replace(month=1, day=1), d.max(), freq=f"{a.era_years}YS")
     wins = [(lo, hi) for lo, hi in zip(edges[:-1], edges[1:]) if ((d >= lo) & (d < hi)).sum() > 500]
-    cfg = {"k": 5, "cost": 0.0005, "horizon_days": 8, "n_disguises": 2, "boot": 300, "block": 4, "long_only": True}
+    cfg = {"k": 5, "cost": 0.0005, "horizon_days": 8, "n_disguises": 2, "boot": 300, "block": 4, "long_only": True, "null_reps": 3}
     out = {"stamp": stamp(cfg, a.seed), "cfg": cfg, "tickers_sampled": a.tickers, "pairs": []}
-    for i in range(len(wins) - 1):
-        (alo, ahi), (blo, bhi) = wins[i], wins[i + 1]
+    for i in range(len(wins) - 2):
+        (alo, ahi), (blo, bhi), (clo, chi) = wins[i], wins[i + 1], wins[i + 2]
         m = lambda lo, hi: (d >= lo) & (d < hi)
         XA, yA, XB, yB = X[m(alo, ahi)], y[m(alo, ahi)], X[m(blo, bhi)], y[m(blo, bhi)]
+        XC, yC = X[m(clo, chi)], y[m(clo, chi)]                       # never used for a decision: the honest figure
         label = tercile_labeller(XA["atr_pct"])
         cols, bad = usable_features(XA)
-        r = run_experiment(XA, yA, XB, yB, score_fn, cfg=cfg, seed=a.seed + i, type_fn=lambda Z: label(Z["atr_pct"]))
+        r = run_experiment(XA, yA, XB, yB, score_fn, cfg=cfg, seed=a.seed + i, type_fn=lambda Z: label(Z["atr_pct"]), XC=XC, yC=yC)
         r.pop("final_book", None)
         r["window_A"], r["window_B"] = [str(alo.date()), str(ahi.date())], [str(blo.date()), str(bhi.date())]
+        r["window_C"] = [str(clo.date()), str(chi.date())]
         r["proxy_excluded"] = bad
         out["pairs"].append(r)
         print(f"A {r['window_A'][0]}..  B {r['window_B'][0]}..: lessons {r['lesson_count']} kept {len(r['accepted_lessons'])} "
               f"impA {r['improvement_A'] * 100:+.3f}% impDisA {r['improvement_A_disguised'] * 100:+.3f}% "
               f"impB {r['improvement_B'] * 100:+.3f}% finalB {r['final_improvement_B'] * 100:+.3f}% "
+              f"C {r['holdout_C']['mean'] * 100:+.3f}% nullmax {r['null_control']['null_max'] * 100:+.3f}% "
               f"[{time.time() - t0:.0f}s]", flush=True)
     kept = sum(len(p["accepted_lessons"]) for p in out["pairs"])
     total = sum(p["lesson_count"] for p in out["pairs"])
     out["summary"] = {"pairs": len(out["pairs"]), "lessons": total, "kept": kept,
                       "mean_final_B": float(np.mean([p["final_improvement_B"] for p in out["pairs"]])) if out["pairs"] else None,
+                      "mean_holdout_C": float(np.mean([p["holdout_C"]["mean"] for p in out["pairs"]])) if out["pairs"] else None,
+                      "pairs_beating_null": sum(p["null_control"]["exceeds_null"] for p in out["pairs"]),
                       "mean_memorisation_gap": float(np.mean([p["memorisation_gap"] for p in out["pairs"]])) if out["pairs"] else None,
                       "seconds": round(time.time() - t0)}
     dest = K.STATE / "research" / "lessons"

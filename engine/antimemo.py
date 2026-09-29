@@ -290,6 +290,229 @@ def optimism_control(XA, yA, score_fn, cfg, seed, real_improvement_A, params=Non
             "exceeds_null": bool(real_improvement_A > v.max())}
 
 
+# ------------------------------------------------------------------ Phase 11 on the real Test archive
+# A "window" is what scripts/livesim_loop2.load_window returns: weekly snapshots (ticker x columns), closes, opens,
+# cost, sector divisions. Lessons are applied by WRAPPING the snapshot scores before adaptive.replay sees them
+# (engine/adaptive.py is untouched): mu_raw is replaced by score_percentile * lesson_factor, and the policy re-ranks it.
+def snap_features(snap):
+    """Numeric features of one weekly snapshot, plus score = percentile rank of the model's mu_raw."""
+    f = snap.select_dtypes("number").drop(columns=["mu_raw"], errors="ignore").astype("float64")
+    f["score"] = snap["mu_raw"].rank(pct=True).astype("float64")
+    return f
+
+
+def window_panel(w, horizon=5):
+    """(X, Y) for one window. X: features on a (date, ticker) index. Y: y = close(t+horizon)/open(t+1) - 1 (bought at the
+    next session's open, canon C33), mfe / mae = best / worst close on the way. NaN where the window ends first."""
+    C = w["closes"].astype("float64")
+    O = (w["opens"] if w["opens"] is not None else w["closes"]).astype("float64")
+    sess = C.index
+    xs, ys = [], []
+    for ds, snap in sorted(w["snaps"].items()):
+        d = pd.Timestamp(ds)
+        f = snap_features(snap)
+        f.index = pd.MultiIndex.from_arrays([[d] * len(f), f.index], names=["date", "ticker"])
+        i = int(sess.searchsorted(d))
+        tk = snap.index
+        if i + horizon < len(sess):
+            entry = O.iloc[i + 1].reindex(tk)
+            path = C.iloc[i + 1:i + horizon + 1].reindex(columns=tk)
+            y = pd.DataFrame({"y": path.iloc[-1] / entry - 1, "mfe": (path.max() / entry - 1).clip(lower=0),
+                              "mae": (path.min() / entry - 1).clip(upper=0)})
+        else:
+            y = pd.DataFrame(np.nan, index=tk, columns=["y", "mfe", "mae"])
+        y.index = f.index
+        xs.append(f)
+        ys.append(y)
+    return pd.concat(xs), pd.concat(ys)
+
+
+def archive_frame(X, Y, decisions, resolve_days=8):
+    """Candidate frame for post_mortem: base score, outcome, and whether the REAL replayed system held the name
+    (decisions: Session.decisions, a list of (date string, tickers))."""
+    held = {pd.Timestamp(d): set(t) for d, t in decisions}
+    idx = X.index
+    taken = np.array([tk in held.get(d, ()) for d, tk in idx])
+    fr = pd.DataFrame({"score": X["score"].to_numpy(), "y": Y["y"].to_numpy(), "mfe": Y["mfe"].to_numpy(),
+                       "mae": Y["mae"].to_numpy(), "taken": taken, "side": 1.0,
+                       "resolved": idx.get_level_values(0) + pd.Timedelta(days=resolve_days)}, index=idx)
+    return fr[fr["y"].notna()]
+
+
+def wrap_snaps(snaps, book, X):
+    """Snapshots whose mu_raw is score-percentile x lesson factor (factor 1 when book is None, which leaves the policy's
+    ordering exactly as before). X: the window's panel from window_panel."""
+    out = {}
+    by_date = X.groupby(level=0).indices
+    for ds, snap in snaps.items():
+        d = pd.Timestamp(ds)
+        Xd = X.iloc[by_date[d]]
+        fac = book.factor(Xd).to_numpy() if book is not None else 1.0
+        s = snap.copy()
+        s["mu_raw"] = Xd["score"].to_numpy() * fac
+        out[ds] = s
+    return out
+
+
+def disguise_window(w, seed=0, shift_weeks=(40, 400)):
+    """A fresh disguise of a whole archived window: every ticker renamed to an opaque code (snapshots, closes, opens and
+    the sector map), every date shifted by a whole number of weeks. Nothing else changes."""
+    rng = np.random.default_rng(seed)
+    tk = sorted(set(w["closes"].columns) | {t for s in w["snaps"].values() for t in s.index})
+    alphabet = list("0123456789ABCDEFGHJKLMNPQRSTUVWXYZ")
+    codes = set()
+    while len(codes) < len(tk):
+        codes.add("Z" + "".join(rng.choice(alphabet, 6)))
+    codes = sorted(codes)
+    tmap = dict(zip(tk, [codes[i] for i in rng.permutation(len(codes))]))
+    shift = pd.Timedelta(days=7 * int(rng.integers(*shift_weeks)))
+    def cols(df):
+        df = df.rename(columns=tmap)
+        df.index = df.index + shift
+        return df
+    return {**w, "id": f"{w['id']}~dis{seed}", "closes": cols(w["closes"]),
+            "opens": cols(w["opens"]) if w["opens"] is not None else None,
+            "snaps": {str((pd.Timestamp(k) + shift).date()): s.rename(index=tmap) for k, s in w["snaps"].items()},
+            "divs": {tmap.get(t, t): v for t, v in w["divs"].items()}}
+
+
+class RecallControl:
+    """POSITIVE CONTROL for the archive experiment: a deliberately memorising "lesson book" that boosts every
+    (date, ticker) row that won in its training window. It must beat baseline on the window it memorised and fail
+    everywhere its keys do not exist (other windows, renamed/shifted rerun) - proving the harness can see memorisation."""
+    def __init__(self, frames, thresh=0.02, boost=50.0):
+        self.keys = {i for fr in frames for i in fr.index[(fr["y"] > thresh).to_numpy()]}
+        self.boost = boost
+
+    def factor(self, X):
+        return pd.Series([self.boost if i in self.keys else 1.0 for i in X.index], index=X.index)
+
+
+def default_archive_learner(params=None, seed=0):
+    """items: [{"episodes": [...], "frame": DataFrame}] -> a LessonBook mined by pnl and by mistake kind."""
+    def learn(items):
+        b = LessonBook(params, seed)
+        for it in items:
+            b.record(it["episodes"])
+        b.learn()
+        b.learn_by_kind()
+        return b
+    return learn
+
+
+def recall_learner(items):
+    return RecallControl([it["frame"] for it in items])
+
+
+def _arm(w, X, book, cfg, meta, adaptive):
+    from . import adaptive as A
+    snaps = wrap_snaps(w["snaps"], book, X)
+    S = A.replay(cfg, snaps, w["closes"], w["bps"], w["divs"], adaptive=adaptive, meta=meta, opens=w["opens"],
+                 long_term=w["ltm"])
+    return S
+
+
+def _weeks(S):
+    return np.asarray(S.weeks, float)
+
+
+def _stat(diffs, seed, boot=400, block=4):
+    """paired_delta on a plain array of weekly differences."""
+    s = pd.Series(np.asarray(diffs, float))
+    return paired_delta(s, s * 0.0, seed=seed, boot=boot, block=block)
+
+
+def archive_experiment(windows, cfg, meta, adaptive=False, learner=None, params=None, folds=6, seed=0,
+                       post_params=None, progress=None, parity_windows=2):
+    """Phase 11 on real archived windows, through adaptive.replay. Per window:
+       base  the window replayed with no lessons (also proves the wrapper alone changes nothing: parity)
+       a     lessons learned from OTHER windows only (leave-one-fold-out)
+       b     lessons learned from THIS window, replayed on it          <- the memorisation arm
+       c     the same lessons replayed on this window disguised (tickers renamed, dates shifted) against its own base
+    A rule that learned a pattern gains the same in b and c; a memoriser gains in b only. Report per window the weekly
+    mean improvement of each arm, the memorisation gaps (b - c) and (b - a), and bootstrap CIs over weeks."""
+    from . import adaptive as A
+    learner = learner or default_archive_learner(params, seed)
+    pp = {**{"untaken_frac": 0.03}, **(post_params or {})}
+    say = progress or (lambda *_: None)
+    stash = []
+    for n, w in enumerate(windows):
+        X, Y = window_panel(w)
+        base = _arm(w, X, None, cfg, meta, adaptive)
+        parity = None
+        if n < parity_windows:
+            raw = A.replay(cfg, w["snaps"], w["closes"], w["bps"], w["divs"], adaptive=adaptive, meta=meta,
+                           opens=w["opens"], long_term=w["ltm"])
+            parity = bool(np.allclose(_weeks(raw), _weeks(base)) and raw.decisions == base.decisions)
+        fr = archive_frame(X, Y, base.decisions)
+        eps = post_mortem(fr, X, fr["resolved"].max() if len(fr) else pd.Timestamp("1970-01-01"), pp, seed + n)
+        stash.append({"w": w, "X": X, "base": base, "item": {"episodes": eps, "frame": fr}, "parity": parity})
+        say(f"[{n + 1}/{len(windows)}] {w['id']} base {_weeks(base).mean():+.3%}/wk, {len(eps)} episodes"
+            + ("" if parity is None else f", wrapper parity {parity}"))
+    fold_of = [i % folds for i in range(len(stash))]
+    book_a = {}
+    for f in sorted(set(fold_of)):
+        book_a[f] = learner([s["item"] for i, s in enumerate(stash) if fold_of[i] != f])
+        say(f"fold {f}: other-windows book has {len(book_a[f].items()) if hasattr(book_a[f], 'items') else '?'} lessons")
+    rows = []
+    for i, s in enumerate(stash):
+        w, X, base = s["w"], s["X"], s["base"]
+        bb = learner([s["item"]])
+        Sa = _arm(w, X, book_a[fold_of[i]], cfg, meta, adaptive)
+        Sb = _arm(w, X, bb, cfg, meta, adaptive)
+        w2 = disguise_window(w, seed=seed * 1000 + i)
+        X2, _ = window_panel(w2)
+        base2 = _arm(w2, X2, None, cfg, meta, adaptive)
+        Sc = _arm(w2, X2, bb, cfg, meta, adaptive)
+        wk = {k: _weeks(v) for k, v in dict(base=base, a=Sa, b=Sb, c_base=base2, c=Sc).items()}
+        n_l = lambda bk: len(bk.items()) if hasattr(bk, "items") and callable(bk.items) else 0
+        row = {"window": w["id"], "weeks": int(len(wk["base"])), "base": float(wk["base"].mean()),
+               "gain_a": float((wk["a"] - wk["base"]).mean()), "gain_b": float((wk["b"] - wk["base"]).mean()),
+               "gain_c": float((wk["c"] - wk["c_base"]).mean()),
+               "lessons_a": n_l(book_a[fold_of[i]]), "lessons_b": n_l(bb),
+               "picks_changed_a": sum(x != y for x, y in zip(Sa.decisions, base.decisions)),
+               "picks_changed_b": sum(x != y for x, y in zip(Sb.decisions, base.decisions)),
+               "picks_changed_c": sum(x != y for x, y in zip(Sc.decisions, base2.decisions)),
+               "_d_a": wk["a"] - wk["base"], "_d_b": wk["b"] - wk["base"], "_d_c": wk["c"] - wk["c_base"]}
+        row["memorisation_b_minus_c"] = row["gain_b"] - row["gain_c"]
+        row["memorisation_b_minus_a"] = row["gain_b"] - row["gain_a"]
+        rows.append(row)
+        say(f"  {w['id']}: a {row['gain_a']:+.3%} b {row['gain_b']:+.3%} c {row['gain_c']:+.3%} "
+            f"(lessons a/b {row['lessons_a']}/{row['lessons_b']}, picks changed a/b/c "
+            f"{row['picks_changed_a']}/{row['picks_changed_b']}/{row['picks_changed_c']})")
+    out = {"windows": [{k: v for k, v in r.items() if not k.startswith("_")} for r in rows],
+           "parity_ok": all(s["parity"] for s in stash if s["parity"] is not None), "adaptive": adaptive}
+    for arm in ("a", "b", "c"):
+        d = np.concatenate([r[f"_d_{arm}"] for r in rows]) if rows else np.array([])
+        out[f"weekly_gain_{arm}"] = _stat(d, seed + ord(arm))
+    mem_c = np.array([r["memorisation_b_minus_c"] for r in rows])
+    mem_a = np.array([r["memorisation_b_minus_a"] for r in rows])
+    out["memorisation"] = {"b_minus_c_mean": float(mem_c.mean()) if len(mem_c) else 0.0,
+                           "b_minus_c_ci": [float(np.quantile(mem_c, .05)), float(np.quantile(mem_c, .95))] if len(mem_c) else [0, 0],
+                           "b_minus_a_mean": float(mem_a.mean()) if len(mem_a) else 0.0,
+                           "windows_memorised": int(sum(r["memorisation_b_minus_c"] > 1e-9 and r["gain_b"] > 0 for r in rows)),
+                           "windows_with_lessons": int(sum(r["lessons_b"] > 0 for r in rows))}
+    return out
+
+
+def archive_markdown(res, title="Phase 11 on the Test archive"):
+    f = lambda v: f"{v * 100:+.3f}%"
+    L = [f"# {title}", "", f"adaptive replay: {res['adaptive']}  |  wrapper parity: {res['parity_ok']}", ""]
+    for arm, what in (("a", "lessons from other windows only"), ("b", "lessons from the same window"),
+                      ("c", "same window, renamed and shifted")):
+        s = res[f"weekly_gain_{arm}"]
+        L.append(f"- arm {arm} ({what}): {f(s['mean'])} per week over {s['n']} weeks, 90% CI {f(s['lo'])} .. {f(s['hi'])}")
+    m = res["memorisation"]
+    L += [f"- memorisation (b - c): {f(m['b_minus_c_mean'])} (90% CI {f(m['b_minus_c_ci'][0])} .. {f(m['b_minus_c_ci'][1])}); "
+          f"(b - a): {f(m['b_minus_a_mean'])}; windows memorised: {m['windows_memorised']} of {m['windows_with_lessons']} with lessons",
+          "", "| window | base/wk | a | b | c | b-c | lessons a/b | picks changed a/b/c |", "|---|---|---|---|---|---|---|---|"]
+    for r in res["windows"]:
+        L.append(f"| {r['window']} | {f(r['base'])} | {f(r['gain_a'])} | {f(r['gain_b'])} | {f(r['gain_c'])} | "
+                 f"{f(r['memorisation_b_minus_c'])} | {r['lessons_a']}/{r['lessons_b']} | "
+                 f"{r['picks_changed_a']}/{r['picks_changed_b']}/{r['picks_changed_c']} |")
+    return "\n".join(L)
+
+
 def report_markdown(res, title="Anti-memorisation experiment"):
     """Human-readable report of one run: the Bible's required outputs first, then why each lesson was kept or rejected."""
     f = lambda v: f"{v * 100:+.3f}%"

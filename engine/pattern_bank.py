@@ -202,6 +202,17 @@ def view_record(rec, cutoff):
     return out
 
 
+def scope_contains(scope, ctx):
+    """Is the context dict inside a tercile scope. Unscoped patterns always apply; a missing/NaN value never does."""
+    if scope is None:
+        return True
+    v = ctx.get(scope["col"])
+    if v is None or not np.isfinite(v):
+        return False
+    return (v <= scope["lo"]) if scope["label"] == "low" else (v > scope["hi"]) if scope["label"] == "high" \
+        else (scope["lo"] < v <= scope["hi"])
+
+
 def _window(rec, run_id, source, as_of):
     """An evidence window exists only for a check made AT this as_of; a stale last_validation is not re-counted."""
     lv = rec.get("last_validation")
@@ -407,6 +418,49 @@ class PatternBank:
         return pd.DataFrame({"names": [recs[i]["names"] for i in S["id"]], "effect": S["effect"].values,
                              "p_real": [recs[i]["discovery"].get("p_real") for i in S["id"]],
                              "state": S["state"].values, "trust": S["trust"].values}).reset_index(drop=True)
+
+    def active_now(self, as_of, ctx_today):
+        """Current relevance in context: tradeable patterns weighted by trust, with a scoped pattern counting only when
+        today's market context (dict column -> value) lies inside its scope. A missing context column means out of scope
+        (we cannot show the pattern applies today), never in."""
+        T = self.trusted(as_of)
+        if T.empty:
+            return T.assign(in_scope=[], weight=[])
+        ins = [scope_contains(sc, ctx_today) for sc in T["scope"]]
+        return T.assign(in_scope=ins, weight=[t if i else 0.0 for t, i in zip(T["trust"], ins)])
+
+    def diff(self, as_of_a, as_of_b):
+        """What changed between two reads: patterns new, gone (never - audit), or whose state / scope / trust moved."""
+        A = self.summary(as_of_a).set_index("id") if len(self.summary(as_of_a)) else pd.DataFrame()
+        B = self.summary(as_of_b).set_index("id") if len(self.summary(as_of_b)) else pd.DataFrame()
+        rows = []
+        for rid in sorted(set(A.index if len(A) else []) | set(B.index if len(B) else [])):
+            a = A.loc[rid] if len(A) and rid in A.index else None
+            b = B.loc[rid] if len(B) and rid in B.index else None
+            sa, sb = (None if a is None else a["state"]), (None if b is None else b["state"])
+            ca, cb = (None if a is None else a["scope"]), (None if b is None else b["scope"])
+            if sa != sb or ca != cb:
+                rows.append({"id": rid, "name": (b if b is not None else a)["name"], "state_a": sa, "state_b": sb,
+                             "scope_a": ca, "scope_b": cb, "trust_a": None if a is None else a["trust"],
+                             "trust_b": None if b is None else b["trust"]})
+        return pd.DataFrame(rows, columns=["id", "name", "state_a", "state_b", "scope_a", "scope_b", "trust_a", "trust_b"])
+
+    def merge_from(self, other, run_id="merge"):
+        """Fold another bank (a different run lineage, e.g. a parallel experiment) into this one as one new version.
+        Records merge by the same union rule as a commit, so evidence from both lineages survives; noise ledgers union."""
+        if other.head()[0] == 0:
+            return {"version": self.head()[0], "added": 0, "merged": 0}
+        theirs = other.head()[1]
+        with file_lock(self.lock_path, self.p["lock_timeout_s"], self.p["lock_stale_s"]):
+            _, payload, digest = self.head()
+            top = max(self.versions() or [0])
+            recs = copy.deepcopy(payload["records"])
+            added = sum(rid not in recs for rid in theirs["records"])
+            for rid, r in theirs["records"].items():
+                recs[rid] = merge_records(recs.get(rid), copy.deepcopy(r))
+            noise = {**theirs.get("noise", {}), **payload.get("noise", {})}
+            self._write({"schema": SCHEMA, "version": top + 1, "parent": digest, "records": recs, "noise": noise})
+            return {"version": top + 1, "added": added, "merged": len(theirs["records"]) - added}
 
     def history(self, pattern_id, as_of=None):
         """Full dated transition history of one pattern (for audit), optionally as an earlier window saw it."""

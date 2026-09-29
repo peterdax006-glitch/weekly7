@@ -1,3 +1,4 @@
+import json
 """Phase 10 lesson memory: planted trap is learned, one-offs and identity proxies are not, trust/expiry work."""
 import numpy as np
 import pandas as pd
@@ -264,21 +265,22 @@ def _episodes(seed, **kw):
 
 
 def test_stability_gate_rejects_an_effect_confined_to_one_stretch_of_time():
-    X, y = make_panel(70, trap=False)
-    d = X.index.get_level_values(0)
-    early = d < d.unique()[55]
-    region = early & (X["m_vix"] > 0).to_numpy() & (X["f2"] > 0).to_numpy()
-    late_region = (~early) & (X["m_vix"] > 0).to_numpy() & (X["f2"] > 0).to_numpy()
-    y = y.where(~region, -0.10 * X["f0"]).where(~late_region, 0.05 * X["f0"])   # strong early, then it reverses
-    fr = base_frame(X, y)
-    eps = post_mortem(fr, X, fr["resolved"].max(), seed=70)
-    strict, lax = LessonBook(seed=1), LessonBook({"stab_min": 0.0}, seed=1)
-    for b in (strict, lax):
-        b.record(eps)
-        b.learn()
-    assert strict.rejected_mining.get("unstable", 0) > 0
-    assert min((l.stability for l in lax.lessons.values()), default=1.0) < 0.75     # the lax book kept a one-stretch rule
-    assert all(l.stability >= 0.75 for l in strict.lessons.values())
+    rng = np.random.default_rng(7)
+    n = 2000
+    steady = rng.random(n) < 0.3                                    # loses in every stretch of time
+    fleeting = rng.random(n) < 0.3                                  # loses only early, then earns a little
+    pnl = rng.normal(0, 0.03, n)
+    pnl[steady] -= 0.02
+    early = np.arange(n) < 400
+    pnl[fleeting & early] -= 0.05
+    pnl[fleeting & ~early] += 0.004
+    b = LessonBook()
+    M = np.column_stack([steady, fleeting])
+    wk, tk = rng.integers(0, 80, n), rng.integers(0, 60, n)
+    out = b._score_masks(M, pnl, wk, tk, int(n * 0.65), [["steady"], ["fleeting"]])
+    assert [r["conds"] for r in out] == [["steady"]] and out[0]["stability"] == 1.0
+    assert b.rejected_mining.get("unstable", 0) == 1                # the fleeting rule died on stability, not on size
+    assert LessonBook({"stab_min": 0.0})._score_masks(M, pnl, wk, tk, int(n * 0.65), [["steady"], ["fleeting"]])[0]["stability"] == 1.0
 
 
 def test_revalidation_confirms_a_lesson_that_still_holds_and_retires_one_that_reversed():
@@ -335,3 +337,135 @@ def test_diagnostics_flags_opposite_lessons_on_overlapping_rows():
     assert dg["conflicts"] and dg["conflicts"][0]["rows"] == int((X["f0"] > 1.0).sum())
     assert dg["coverage"]["far"] == 0.0 and 0 < dg["rows_touched"] < 1
     assert LessonBook().diagnostics(X)["conflicts"] == []
+
+
+# ------------------------------------------------------------------ mistake kinds, evidence trail, versioned store
+def _kind_frame(seed=90, k=15, n_days=120, n_tk=36):
+    """Panel plus frame with planted kind structure: taken rows with f1 > 0.5 are 3x oversized; taken losers with
+    f3 > 0.5 are (otherwise) bad entries; untaken rows with f2 < -0.5 are winners the score ignored."""
+    from engine.antimemo import play_window
+    X, y = make_panel(seed, n_days=n_days, n_tk=n_tk, trap=False)
+    rng = np.random.default_rng(seed)
+    y = y.where(~(X["f3"] > 0.5), -0.05 * np.sign(X["f0"]) + rng.normal(scale=0.03, size=len(X)))
+    _, fr = play_window(X, y, score_fn, None, k=k, collect_frame=True)
+    fr["weight"] = np.where(X.loc[fr.index, "f1"].to_numpy() > 0.5, 0.3, 0.1)
+    fr["mfe"] = 0.0
+    win = (~fr["taken"]) & (X.loc[fr.index, "f2"].to_numpy() < -0.5)
+    fr.loc[win, "y"] = fr.loc[win, "side"] * (np.abs(fr.loc[win, "y"]) + 0.04)     # untaken winners the model did not rank
+    return X, fr
+
+
+def test_classify_kind_precedence_and_untaken_winner():
+    from engine.lessons import classify_kind, DEFAULTS
+    p = DEFAULTS
+    assert classify_kind("regime_failure", True, -0.05, p, mfe=0.1, weight=9, weight_med=1) == "regime_misread"
+    assert classify_kind("false_positive", True, -0.05, p, mfe=0.1, weight=9, weight_med=1) == "oversized_loser"
+    assert classify_kind("false_positive", True, -0.05, p, mfe=0.08, weight=1, weight_med=1) == "missed_exit"
+    assert classify_kind("false_positive", True, -0.05, p, mfe=0.01, weight=1, weight_med=1) == "bad_entry"
+    assert classify_kind("false_positive", True, -0.05, p) == "bad_entry"          # path unknown: entry is the default
+    assert classify_kind("ok", True, 0.05, p, mfe=0.1) == "none"
+    assert classify_kind("false_negative", False, 0.05, p) == classify_kind("missed_winner", False, 0.05, p) == "missed_winner"
+    assert classify_kind("ok", False, -0.03, p) == "none"
+    with pytest.raises(ValueError):
+        Episode(eid="e", situation="s", features={}, context={}, decision={}, outcome={"pnl": 0.0}, category="ok",
+                confidence=0.0, counterfactual={}, kind="vibes")
+
+
+def test_post_mortem_labels_every_kind_and_the_report_counts_them():
+    from engine.lessons import kind_report, KINDS
+    X, fr = _kind_frame()
+    fr.loc[fr["taken"] & (X.loc[fr.index, "f0"].to_numpy() > 1.5) & (fr["weight"] < 0.2), "mfe"] = 0.09    # ran, then gave back
+    eps = post_mortem(fr, X, fr["resolved"].max(), params={"untaken_frac": 1.0}, seed=1)
+    rep = kind_report(eps).set_index("kind")
+    assert list(rep.index) == list(KINDS)
+    assert (rep["n"][["bad_entry", "missed_exit", "oversized_loser", "missed_winner"]] > 0).all()
+    assert rep.loc["oversized_loser", "mean_pnl"] < 0 and rep.loc["missed_winner", "mean_pnl"] > 0
+    assert rep.loc["missed_winner", "best_alternative"] == "take" and rep.loc["bad_entry", "top_situations"]
+    assert sum(e.kind == "oversized_loser" for e in eps) == sum(1 for e in eps if e.kind == "oversized_loser" and e.decision["taken"] == 1.0)
+    assert not any(e.kind != "none" and e.category == "ok" for e in eps)
+
+
+def test_learn_by_kind_finds_each_planted_region_with_the_right_action():
+    X, fr = _kind_frame()
+    eps = post_mortem(fr, X, fr["resolved"].max(), params={"untaken_frac": 0.5}, seed=2)
+    b = LessonBook({"min_support": 30}, seed=2)
+    b.record(eps)
+    got = b.learn_by_kind()
+    by = {k: [l for l in v] for k, v in got.items()}
+    assert any(c[0] == "f1" and c[1] == ">" for l in by["oversized_loser"] for c in l.conds)
+    assert all(l.action == "advisory:cap_size" and l.direction == -1 for l in by["oversized_loser"])
+    assert any(c[0] == "f2" and c[1] == "<=" for l in by["missed_winner"] for c in l.conds)
+    assert all(l.action == "reweight" and l.direction == 1 for l in by["missed_winner"])
+    assert any(c[0] == "f3" for l in by["bad_entry"] for c in l.conds)
+    # advisories never move a score; reweight lessons do
+    s = X["f0"]
+    adv_only = b.subset([l.lid for l in by["oversized_loser"]])
+    assert adv_only.factor(X).eq(1.0).all() and len(adv_only.advice(X)) > 0
+    assert set(adv_only.advice(X)["kind"]) == {"oversized_loser"}
+    assert b.subset([l.lid for l in by["missed_winner"]]).factor(X).max() > 1.0
+    assert LessonBook().advice(X).empty
+
+
+def test_lessons_carry_kind_support_trust_expiry_and_an_evidence_trail():
+    X, fr = _kind_frame(91)
+    eps = post_mortem(fr, X, fr["resolved"].max(), params={"untaken_frac": 0.5}, seed=3)
+    b = LessonBook({"min_support": 30, "ttl": 5}, seed=3)
+    b.record(eps)
+    b.learn_by_kind()
+    L = next(l for l in b.lessons.values() if l.action == "reweight")
+    assert L.kind in ("bad_entry", "missed_winner", "regime_misread") and 0 < L.trust < 1 and L.ttl == 5
+    assert 0 < len(L.support) <= 25 and all(s in b.episodes for s in L.support)
+    assert L.trail[0]["event"] == "mined" and L.trail[0]["n"] == L.n and L.trail[0]["tick"] == 0
+    d = X.index.get_level_values(0).unique()
+    for day in d[:80]:                                                         # a long feedback history stays bounded
+        Xd = X[X.index.get_level_values(0) == day]
+        b.feedback(Xd, pd.Series(np.where(L.mask(Xd), -L.direction * 0.001, 0.0), index=Xd.index))
+    assert 0 < len(L.trail) <= 50 and L.trail[-1]["event"] in ("feedback", "retired")
+    b.tick(6)
+    assert {t["event"] for t in L.trail} >= {"mined", "feedback"} and (L.status == "expired" or L.status == "retired")
+    assert json.loads(b.to_json())["lessons"][0]["kind"] in __import__("engine.lessons", fromlist=["KINDS"]).KINDS
+
+
+def test_store_versions_chain_load_diff_and_refuse_tampering(tmp_path):
+    from engine.lessons import LessonStore
+    X, fr = _kind_frame(92)
+    eps = post_mortem(fr, X, fr["resolved"].max(), params={"untaken_frac": 0.5}, seed=4)
+    b = LessonBook({"min_support": 30}, seed=4)
+    b.record(eps)
+    b.learn_by_kind()
+    st = LessonStore(tmp_path / "lessons")
+    assert st.versions() == [] and not (tmp_path / "lessons").exists()          # constructing writes nothing
+    v1 = st.save(b, note="first")
+    L = next(iter(b.lessons.values()))
+    L.status = "retired"
+    L.a += 3
+    b.learn()
+    v2 = st.save(b, note="after retirement")
+    assert (v1, v2) == (1, 2) and [h["note"] for h in st.history()] == ["first", "after retirement"]
+    got = st.load(1)
+    assert len(got.episodes) == len(b.episodes) and np.allclose(got.factor(X), st.load(1).factor(X))
+    d = st.diff(1, 2)
+    assert L.lid in d["changed"] and d["changed"][L.lid]["status"] == ("active", "retired")
+    assert d["removed"] == [] and isinstance(d["added"], list)
+    assert st.diff(1, 1) == {"added": [], "removed": [], "changed": {}}
+    assert st.load().lessons[L.lid].status == "retired"                          # default = latest
+    f2 = tmp_path / "lessons" / "v0002.json"
+    f2.write_text(f2.read_text().replace('"retired"', '"active"', 1), encoding="utf-8")   # silent edit
+    with pytest.raises(ValueError, match="content hash"):
+        st.load(2)
+    with pytest.raises(FileNotFoundError):
+        LessonStore(tmp_path / "nothing").load()
+    st.load(1)                                                                   # earlier versions still verify
+
+
+def test_store_rejects_a_broken_chain(tmp_path):
+    from engine.lessons import LessonStore
+    st = LessonStore(tmp_path)
+    b = LessonBook()
+    st.save(b, "a")
+    st.save(b, "b")
+    st.save(b, "c")
+    (tmp_path / "v0002.json").unlink()                                           # a version goes missing
+    (tmp_path / "v0002.json").write_text((tmp_path / "v0003.json").read_text().replace('"version": 3', '"version": 2'))
+    with pytest.raises(ValueError):
+        st.load(3)

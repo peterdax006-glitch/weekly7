@@ -74,10 +74,65 @@ def occupancy(uni, groups):
     return qm.occupancy(), len(df)
 
 
+def free_gb():
+    import psutil
+    return psutil.virtual_memory().available / 1e9
+
+
+def real_stats_compare(uni, group, n_tickers, seed, n_pairs):
+    """One real row group, a seeded ticker sample: run the library's whole section-30 pipeline four ways (per-date vs
+    overlap-robust standard error x BH vs Bonferroni P(real)) and count what each would admit. This measures the two
+    places the library deliberately differs from engine/patterns.py; it is a measurement, not a tuning."""
+    import pyarrow.parquet as pq
+    from engine import pattern_stats as S
+    pf = pq.ParquetFile(K.CACHE / "panel.parquet")
+    cols = [c for c in uni.engine + uni.context if c in pf.schema.names]
+    df = pf.read_row_group(min(group, pf.num_row_groups - 1), columns=cols + ["date", "ticker"]).to_pandas()
+    if "date" in df.columns:
+        df = df.set_index(["date", "ticker"])
+    df = df.astype("float32")
+    tick = np.sort(df.index.get_level_values(1).unique().values)
+    keep = set(np.random.default_rng(seed).choice(tick, min(n_tickers, len(tick)), replace=False))
+    df = df[df.index.get_level_values(1).isin(keep)]
+    r1 = df["r1"].unstack()                                           # dates x tickers, daily log return
+    fwd = sum(r1.shift(-k) for k in range(1, 6))                      # 5-day forward return, overlapping by construction
+    fwd = fwd.sub(fwd.mean(axis=1), axis=0)                           # excess of the day's cross-section
+    y = fwd.stack(future_stack=True).reindex(df.index)
+    ok = y.notna().values
+    df, y = df[ok], y[ok]
+    qm = C.quantise(df, uni.restrict(df.columns), min_history=60)
+    feats = [f for f in qm.features if not f.startswith("m_")]
+    cs = C.CandidateSet()
+    cs.extend(c for c in C.single_candidates(C.Universe(tuple(f for f in uni.engine if f in feats), (), ())))
+    cs.extend(C.random_pair_candidates(C.Universe(tuple(f for f in uni.engine if f in feats), (), ()), n_pairs,
+                                       np.random.default_rng(seed)))
+    masks, names = [], []
+    for c in cs:
+        m = qm.mask(c.expression)
+        if m.sum() >= 300:
+            masks.append(m); names.append(c.text)
+    dates = df.index.get_level_values(0)
+    now = dates.max()
+    w = S.relevance(dates, now, params={"half_life_years": 4.0})
+    out = {"rows": int(len(df)), "dates": int(dates.nunique()), "tickers": len(keep), "patterns_tested": len(masks)}
+    for label, lags, method in (("date_bh", None, "bh"), ("date_bonferroni", None, "bonferroni"),
+                                ("hac4_bh", 4, "bh"), ("hac4_bonferroni", 4, "bonferroni")):
+        R = S.evaluate_masks(masks, y.values.astype(float), w, dates, {"min_n": 300, "p_method": method,
+                                                                          "null_reps": 2}, seed=seed, names=names, hac_lags=lags)
+        out[label] = {"n_tested": int(len(R)), "fdr_pass": int(R["fdr_pass"].sum()),
+                      "p_real_ge_0.8": int(((R["p_real"] >= 0.8) & (np.sign(R["m_conf"]) == np.sign(R["m_disc"]))).sum()),
+                      "median_abs_t_disc": float(R["t_disc"].abs().median()), "max_abs_t_disc": float(R["t_disc"].abs().max()),
+                      "null_t_95": R.attrs.get("null_t_95"), "tau2": R.attrs.get("tau2")}
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--seeds", type=int, default=20)
     ap.add_argument("--occupancy-groups", type=int, default=0, help="0 = skip the real-data occupancy check")
+    ap.add_argument("--stats-group", type=int, default=-1, help="row group for the real-data statistics comparison; -1 = skip")
+    ap.add_argument("--stats-tickers", type=int, default=400)
+    ap.add_argument("--stats-pairs", type=int, default=500)
     ap.add_argument("--out", default=str(K.STATE / "research" / "miner_coverage"))
     a = ap.parse_args()
     out = Path(a.out)
@@ -119,6 +174,16 @@ def main():
         summary["occupancy"] = {"rows": nrows, "features_below_5_levels": thin["feature"].tolist(),
                                 "levels_occupied": {r.feature: int(r.levels_occupied) for r in thin.itertuples()}}
         occ.to_csv(out / "occupancy.csv", index=False)
+    if a.stats_group >= 0:
+        for _ in range(20):                                  # RAM is shared with long experiments: wait, then give up
+            if free_gb() >= 2.5:
+                break
+            import time
+            time.sleep(60)
+        if free_gb() < 2.5:
+            summary["stats_compare"] = {"skipped": "free memory stayed under 2.5 GB for 20 minutes"}
+        else:
+            summary["stats_compare"] = real_stats_compare(uni, a.stats_group, a.stats_tickers, 7, a.stats_pairs)
     rep["table"].to_csv(out / "coverage_table.csv", index=False)
     by_seed.to_csv(out / "reach_by_seed.csv", index=False)
     (out / "coverage.json").write_text(json.dumps({"provenance": provenance.stamp({"seeds": a.seeds}, 7),

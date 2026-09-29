@@ -459,7 +459,8 @@ def new_record(expression, transform="xs_quintile", target="excess_5d", discover
 
 # ---------------------------------------------------------------- the miner bridge
 def records_from_miner(patterns: pd.DataFrame, feats: Sequence[str], ctx_cols: Sequence[str], dates: pd.DatetimeIndex,
-                       transform: str = "xs_quintile", target: str = "excess_5d", disc_frac: float = 0.7) -> list:
+                       transform: str = "xs_quintile", target: str = "excess_5d", disc_frac: float = 0.7,
+                       transform_of=None) -> list:
     """Turn a PatternMiner.patterns table into records, deriving the discovery/validation windows the same way fit()
     splits them (earlier 70% of unique dates vs the rest). Rows whose key cannot be expressed are skipped and counted
     by the caller through len(); a duplicate identity keeps its strongest row (highest |t_disc| + |t_conf|)."""
@@ -479,7 +480,7 @@ def records_from_miner(patterns: pd.DataFrame, feats: Sequence[str], ctx_cols: S
         state = STATUS_ALIASES.get(str(row.get("status", "candidate")), str(row.get("status", "candidate")))
         scope = Scope.from_miner(row.get("scope"), ctx_cols) if state == "rescoped" else None
         state = state if state in STATES else "candidate"
-        rec = PatternRecord(expr, transform, target, "", disc, val, scope, stats, state,
+        rec = PatternRecord(expr, transform_of(expr) if transform_of else transform, target, "", disc, val, scope, stats, state,
                             duplicate_of=(row.get("duplicate_of") if isinstance(row.get("duplicate_of"), str) else None))
         strength = abs(stats.get("t_disc") or 0.0) + abs(stats.get("t_conf") or 0.0)
         if rec.id not in best or strength > best[rec.id][0]:

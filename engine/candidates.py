@@ -284,12 +284,14 @@ def _pair_space(features: Sequence[str]):
 
 
 def random_pair_candidates(uni: Universe, n: int, rng: np.random.Generator, exclude: Optional[set] = None,
-                           target: str = "excess_5d") -> list:
+                           target: str = "excess_5d", empty: Optional[set] = None) -> list:
     """n distinct random pairs drawn WITHOUT replacement from the whole pair space (feature pairs x 25 level combos),
     skipping any id in `exclude`. engine.patterns draws with replacement and then de-duplicates, silently returning
-    fewer than asked; here the count is honoured until the space is exhausted."""
+    fewer than asked; here the count is honoured until the space is exhausted. `empty` = {(feature, level)} holding no
+    testable rows: a pair containing one can never pass the miner's gate, so the budget is not spent on it."""
     combos, size = _pair_space(uni.all)
     exclude = exclude or set()
+    empty = empty or set()
     out, seen = [], set()
     if n <= 0 or size == 0:
         return out
@@ -299,6 +301,8 @@ def random_pair_candidates(uni: Universe, n: int, rng: np.random.Generator, excl
             break
         pi, lv = divmod(int(flat), N_LEVELS * N_LEVELS)
         (fa, fb), (qa, qb) = combos[pi], divmod(lv, N_LEVELS)
+        if (fa, qa) in empty or (fb, qb) in empty:
+            continue
         cand = _cand(Expression.make([Term(fa, qa), Term(fb, qb)]), uni, "pair", "random_pair", target)
         if cand.id in exclude or cand.id in seen:
             continue
@@ -309,10 +313,12 @@ def random_pair_candidates(uni: Universe, n: int, rng: np.random.Generator, excl
 
 def unless_candidates(ranked_pairs: Sequence[Expression], uni: Universe, rng: np.random.Generator,
                       top_pairs: int = 40, thirds: int = 15, levels: Sequence[int] = (0, 4), max_total: int = 600,
-                      target: str = "excess_5d") -> list:
+                      target: str = "excess_5d", empty: Optional[set] = None) -> list:
     """'A AND B UNLESS C': for each of the strongest pairs, `thirds` randomly chosen third features, each excluded at
-    the given extreme levels. The third feature must differ from both pair features."""
+    the given extreme levels. The third feature must differ from both pair features. An exception on an empty level
+    (`empty`) excludes nothing, so it would only duplicate its parent pair and is skipped."""
     out = []
+    empty = empty or set()
     feats = list(uni.all)
     for pair in ranked_pairs[:top_pairs]:
         if len(pair.base) != 2 or pair.unless:
@@ -324,6 +330,8 @@ def unless_candidates(ranked_pairs: Sequence[Expression], uni: Universe, rng: np
             for q3 in levels:
                 if len(out) >= max_total:
                     return out
+                if (f3, q3) in empty:
+                    continue
                 out.append(_cand(Expression.make(pair.base, [Term(f3, q3)]), uni, "unless", "unless", target))
     return out
 
@@ -365,8 +373,10 @@ class CandidateGenerator:
     """Stages mirror the miner: singles are tested first, their scores pick the pair pool, pair scores pick the
     exception bases. Each stage is a pure function of (universe, seed, scores) so a run can be replayed exactly."""
 
-    def __init__(self, universe: Universe, params: Optional[dict] = None, target: str = "excess_5d"):
+    def __init__(self, universe: Universe, params: Optional[dict] = None, target: str = "excess_5d",
+                 empty: Optional[set] = None):
         self.uni = universe
+        self.empty = set(empty or ())
         self.p = {**CAND_DEFAULT, **(params or {})}
         self.target = target
         self.rng = np.random.default_rng(self.p["seed"])       # one stream, consumed in a fixed stage order
@@ -388,14 +398,14 @@ class CandidateGenerator:
         top = top[: max(0, self.p["max_pairs"] - floor)]
         self.set.extend(top)
         n_rand = max(0, self.p["max_pairs"] - len(top))
-        rnd = random_pair_candidates(self.uni, n_rand, self.rng, set(self.set.ids()), self.target)
+        rnd = random_pair_candidates(self.uni, n_rand, self.rng, set(self.set.ids()), self.target, self.empty)
         self.set.extend(rnd)
         return top + rnd
 
     def stage_unless(self, pair_scores: Mapping[str, float]) -> list:
         ranked = [Expression.parse(t) for t, _ in sorted(pair_scores.items(), key=lambda kv: (-abs(kv[1]), kv[0]))]
         c = unless_candidates(ranked, self.uni, self.rng, self.p["unless_top_pairs"], self.p["unless_thirds"],
-                              self.p["unless_levels"], self.p["max_unless"], self.target)
+                              self.p["unless_levels"], self.p["max_unless"], self.target, self.empty)
         self.set.extend(c)
         return c
 

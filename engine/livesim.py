@@ -7,16 +7,28 @@ Feed        owns the real data. Shows the trader a disguised world: dates shifte
             one trading session per tick, and the next tick is released the instant the trader
             acknowledges the last one (lockstep - as fast as the trader can keep up, never ahead).
 SimBroker   fills at the current session's close with era costs; never sees the future.
-BlindTrader the live system (features -> model -> policy) driven only through the feed."""
-import json, secrets, threading, queue, time
+BlindTrader the live system (features -> model -> policy) driven only through the feed.
+
+Phases 21-22 (engine/blind_gates.py) are enforced here, not just available: the seal is drawn and digested by
+blind_gates.seal_window and audited when a Feed is built; the Feed refuses to start when the disguise (constant
+week-multiple shift, bijective code names, no real ticker or date visible, unchanged holiday calendar) fails its gates;
+every served filing and memory row is checked as public before use; and the lockstep clock is a BlindClock that
+requires one complete pass per session and writes a hash-chained InformationLedger entry (what information existed,
+and when it came from) for every tick. Gate failures raise BlindGateError; nothing is silently repaired."""
+import json, os, secrets, threading, queue, time
 import numpy as np
 import pandas as pd
 
-from . import config as K, data, features, model, policy
+from . import config as K, data, features, model, policy, blind_gates as BG
 
 DIR = K.STATE / "livesim"
 DIR.mkdir(parents=True, exist_ok=True)
 FIRST_YEAR, LAST_YEAR = 1965, 2025
+CLOSE_UTC = pd.Timedelta(hours=20, minutes=30)      # a filing accepted by this time is public at the session close
+
+
+class BlindGateError(RuntimeError):
+    """A Phase 21/22 gate failed: the window was not honestly blind, so no result from it may be used."""
 
 
 class SealedYear:
@@ -27,12 +39,12 @@ class SealedYear:
         self.path = DIR / f"sealed_{run_id}.json"
         if not self.path.exists():
             used = [self.start_of(json.loads(f.read_text())) for f in DIR.glob("sealed_*.json")]
-            months = pd.date_range(f"{FIRST_YEAR}-01-01", "2025-09-01", freq="MS")
-            # prefer windows that overlap no played window by more than half (keeps coverage spread out)
-            fresh = [m for m in months if all(abs((m - u).days) > 183 for u in used)] or list(months)
-            start = fresh[secrets.randbelow(len(fresh))]
-            weeks = 8000 + secrets.randbelow(3000)            # 2100s-2150s, a multiple of 7 days keeps weekdays
-            self.path.write_text(json.dumps({"start": str(start.date()), "shift_days": 7 * weeks}))
+            # random start month, 12 consecutive months, preferring windows that overlap no played window by more than
+            # half a year; shift of 8000-11000 whole weeks (2100s-2150s, weekdays kept). The seed is secret entropy.
+            rec = BG.seal_window(used, secrets.randbits(63), str(pd.Timestamp.now()), tag=run_id)
+            tmp = self.path.with_suffix(".tmp")
+            tmp.write_text(json.dumps(rec))
+            os.replace(tmp, self.path)                        # the seal appears whole or not at all
 
     @staticmethod
     def start_of(d):
@@ -41,7 +53,23 @@ class SealedYear:
     def _read(self):
         return json.loads(self.path.read_text())
 
-    def reveal(self):
+    def audit(self, first_worker_start=None):
+        """Phase 21 findings for this seal: 12 consecutive months, digest unaltered, sealed before the first worker,
+        overlap with other windows. Seals written before the digest existed are legacy: their sealing order cannot be
+        proven, which is reported as a warning rather than blocking every older window. Overlap is a warning too
+        (seal_window falls back to the least-overlapping months when the calendar is crowded)."""
+        rec = self._read()
+        if "digest" not in rec:
+            return [BG.Finding("seal", "warn", "legacy seal (no digest or sealed_at): sealing order is not provable")]
+        others = [self.start_of(json.loads(f.read_text())) for f in DIR.glob("sealed_*.json") if f != self.path]
+        return [BG.Finding(f.gate, "warn" if "overlaps" in f.message else f.severity, f.message)
+                for f in BG.check_seal(rec, others, first_worker_start)]
+
+    def reveal(self, gate=None):
+        """The true period. With a `blind_gates.RevealGate` the answer is refused until adjustments are locked, all
+        predictions recorded, all trades completed and all learning finalized (Phase 21)."""
+        if gate is not None:
+            gate.reveal()
         st = self.start_of(self._read())
         end = st + pd.DateOffset(months=12) - pd.Timedelta(days=1)
         return f"{st:%b %Y} - {end:%b %Y}"
@@ -50,12 +78,25 @@ class SealedYear:
 class Feed:
     """The only door between the real past and the trader."""
 
-    def __init__(self, sealed: SealedYear, warmup_years=6, use_insider=True):
+    def __init__(self, sealed: SealedYear, warmup_years=6, use_insider=True, data=None, enforce=True):
+        """`data` = (stocks, market, events, insider, sic) replaces the real caches (synthetic windows in tests).
+        `enforce=False` skips the Phase 21/22 gates and the ledger; it exists only so a test can prove that a clean
+        run is bit-identical with and without them."""
         s = sealed._read()                                     # the feed may know; the trader never does
         start, self._shift = SealedYear.start_of(s), pd.Timedelta(days=s["shift_days"])
         Y = start.year
-        from .replay import _all_prices
-        stocks, market = _all_prices()
+        self.enforce, self.gate_findings, self._sealed = enforce, [], sealed
+        if enforce:
+            self.gate_findings += sealed.audit(first_worker_start=pd.Timestamp.now())
+            self._raise_on_fail(self.gate_findings)
+        if data is None:
+            from .replay import _all_prices
+            stocks, market = _all_prices()
+            ev_all = pd.read_parquet(K.CACHE / "events.parquet")
+            ins_all = pd.read_parquet(K.CACHE / "insider.parquet")
+            sic_all = pd.read_parquet(K.CACHE / "sic.parquet")
+        else:
+            stocks, market, ev_all, ins_all, sic_all = data
         w = min(warmup_years, (start - pd.Timestamp("1962-01-01")).days // 365)
         lo, hi = start - pd.DateOffset(years=w), start + pd.DateOffset(months=12) - pd.Timedelta(days=1)
         C = stocks["Close"].loc[lo:hi]
@@ -66,13 +107,13 @@ class Feed:
         self._stocks = {f: self._disguise(v.loc[lo:hi, live_cols]) for f, v in stocks.items()}
         mk = {f: v.loc[lo:hi, [c for c in ("SPY", "^VIX", "^VIX3M") if c in v]] for f, v in market.items()}
         self._market = {f: self._shift_index(v) for f, v in mk.items()}
-        ev = pd.read_parquet(K.CACHE / "events.parquet")
+        ev = ev_all
         ev = ev[ev["ticker"].isin(self._map) & (ev["accepted"] >= lo.tz_localize("UTC")) & (ev["accepted"] <= hi.tz_localize("UTC"))].copy()
         ev["ticker"] = ev["ticker"].map(self._map)
         ev["accepted"] = ev["accepted"] + self._shift
         ev = ev[~ev["kind"].isin(["ACTIVIST", "ACTIVIST_AMEND"])]   # 13D attribution under repair
         self._events = ev.sort_values("accepted")
-        ins = pd.read_parquet(K.CACHE / "insider.parquet")
+        ins = ins_all
         ins = ins[ins["symbol"].isin(self._map) & (ins["filed"] >= lo) & (ins["filed"] <= hi)].copy()
         ins["symbol"] = ins["symbol"].map(self._map)
         for c in ("filed", "tdate"):
@@ -80,7 +121,7 @@ class Feed:
         # Insider data re-enabled 28 Sep 2026: the parity leak was the routine-insider rule keyed per insider instead
         # of per insider-and-company (fixed in features.py; parity proven on 4 windows x 8 days).
         self._insider = ins if use_insider else ins.iloc[0:0]
-        sic = pd.read_parquet(K.CACHE / "sic.parquet")
+        sic = sic_all
         sic = sic[sic["ticker"].isin(self._map)].copy()
         sic["ticker"] = sic["ticker"].map(self._map)
         self.sic = sic[["ticker", "sic"]]                        # industry codes are timeless
@@ -90,7 +131,14 @@ class Feed:
         self.i = days.get_loc(self.first_live) - 1               # clock starts at the end of the warm-up
         self.cost_bps = 40 if Y < 1997 else 20 if Y < 2001 else 10
         self._q_tick, self._q_ack = queue.Queue(1), queue.Queue(1)
-        self.ticks, self.t_start = 0, None
+        self.ticks, self.acks, self.t_start = 0, 0, None
+        self.error = None                                        # a clock-thread failure, re-raised in the trader thread
+        self._processed = False
+        # Phase 22: the clock covers the sessions the trader will be ticked through, one full pass each
+        self.clock = BG.BlindClock(days[self.i + 1:])
+        self.ledger = BG.InformationLedger()
+        if enforce:
+            self._gate_disguise(stocks["Close"].loc[lo:hi, live_cols].index, days)
 
     def _shift_index(self, df):
         df = df.copy()
@@ -101,6 +149,23 @@ class Feed:
         df = self._shift_index(df)
         df.columns = [self._map[c] for c in df.columns]
         return df
+
+    def _gate_disguise(self, real_index, shown_index):
+        """Phase 21 disguise gates on what the trader will be shown. Fatal on any failure except duplicate price paths
+        (real data can hold two listings with identical history; that is reported, not fatal)."""
+        f = BG.check_shift(self._shift.days, real_index, shown_index)
+        f += BG.check_ticker_map(self._map)
+        f += BG.check_disguised_frame(self._stocks["Close"], self._map, real_dates_known=real_index)
+        f += BG.check_calendar(real_index, shown_index)
+        f += [BG.Finding(x.gate, "warn", x.message) for x in BG.check_disguise_signature(self._stocks["Close"])]
+        self.gate_findings += f
+        self._raise_on_fail(f)
+
+    @staticmethod
+    def _raise_on_fail(findings):
+        bad = [x for x in findings if x.severity == "fail"]
+        if bad:
+            raise BlindGateError("; ".join(str(x) for x in bad[:5]))
 
     # ---- feature service: computed once, served one session at a time (proven equal to live by parity_test) ----
     def precompute_features(self, rel_q=(0.2, 0.4)):
@@ -126,6 +191,8 @@ class Feed:
         b = pd.read_parquet(bank)
         start = self.first_live - self._shift                    # real start date, known only to the feed
         b = b[pd.to_datetime(b["real_end"]) < start]
+        if self.enforce:                                         # C34 causality, checked on what is actually returned
+            self._raise_on_fail(BG.check_memory_bank_causality(b, start))
         return b[["arm", "ctx", "outcome"]].reset_index(drop=True) if len(b) else None
 
     def real_end(self):
@@ -142,8 +209,11 @@ class Feed:
         return cut(self._stocks), cut(self._market)
 
     def filings(self):
-        t = self.now.tz_localize("UTC") + pd.Timedelta(hours=20, minutes=30)    # public by this session's close
-        return self._events[self._events["accepted"] <= t], self._insider[self._insider["filed"] <= self.now]
+        t = self.now.tz_localize("UTC") + CLOSE_UTC                              # public by this session's close
+        ev, ins = self._events[self._events["accepted"] <= t], self._insider[self._insider["filed"] <= self.now]
+        if self.enforce:
+            self._raise_on_fail(BG.check_public_release(ev, t) + BG.check_public_release(ins, self.now, "filed"))
+        return ev, ins
 
     def price(self, code):
         return float(self._stocks["Close"].iloc[self.i].get(code, np.nan))
@@ -161,19 +231,86 @@ class Feed:
 
     # ---- the clock: lockstep, never ahead of the trader ----
     def run_clock(self):
+        """Lockstep: tick n+1 is released only after the trader acknowledged tick n. A clock failure (ledger, order,
+        gate) is stored and re-raised in the trader thread by wait_tick/ack; a daemon thread that just died would
+        leave the trader blocked forever."""
         self.t_start = time.perf_counter()
-        while not self.done():
-            self.i += 1
-            self.ticks += 1
-            self._q_tick.put(self.now)
-            self._q_ack.get()                                  # wait for the trader, then tick again at once
-        self._q_tick.put(None)
+        try:
+            while not self.done():
+                if self.ticks != self.acks:
+                    raise BG.ClockViolation(f"clock ahead of the trader: tick {self.ticks + 1} before ack {self.ticks}")
+                self.i += 1
+                self.ticks += 1
+                if self.enforce:
+                    self.clock.begin_session()
+                    self._processed = False
+                self._q_tick.put(self.now)
+                self._q_ack.get()                              # wait for the trader, then tick again at once
+                if self.error is not None:
+                    return
+        except Exception as e:                                 # noqa: BLE001 - relayed to the trader thread
+            self.error = e
+        finally:
+            self._q_tick.put(None)
 
     def wait_tick(self):
-        return self._q_tick.get()
+        t = self._q_tick.get()
+        if self.error is not None:
+            raise self.error
+        return t
+
+    def mark_processed(self):
+        """The trader calls this once it has handled the session it was ticked for."""
+        self._processed = True
 
     def ack(self):
+        """Acknowledge the current tick. Under enforcement this closes the session: the trader must have processed it,
+        every applicable clock step is then completed in order (steps 1-7 run inside adaptive.Session.on_day; the
+        clock verifies the pass is whole and the week steps happen only on a week's last session) and the exact
+        information available is written to the ledger (step 8). A violation is raised to the trader AND stops the
+        clock."""
+        try:
+            if self.enforce:
+                if not self._processed:
+                    raise BG.ClockViolation(f"session {self.now.date()} acknowledged before it was processed")
+                for name in BG.STEPS[:-1]:
+                    if name in BG.WEEK_ONLY and not self.clock.is_week_end():
+                        continue
+                    self.clock.step(name)
+                self.ledger.record(self.now + CLOSE_UTC, self._information_sources(), {"week_end": bool(self.clock.is_week_end())})
+                self.clock.step("record_information")
+        except Exception as e:                                 # noqa: BLE001 - stop the clock, then raise here too
+            self.error = e
+            self._q_ack.put(True)
+            raise
+        self.acks += 1
         self._q_ack.put(True)
+
+    def _information_sources(self):
+        """Latest source timestamp of everything the trader can see right now, taken from the served data itself
+        (independent of filings(), which filters the same way): prices, market series, filings, insider forms."""
+        now = self.now
+        lo = max(0, self.i - 1)
+        src = {"close": self._stocks["Close"].index[lo:self.i + 1].max(), "open": self._stocks["Open"].index[lo:self.i + 1].max()}
+        for f, v in self._market.items():
+            src[f"market_{f.lower()}"] = v.index[lo:self.i + 1].max()
+        acc = self._events["accepted"]                          # sorted by accepted
+        k = acc.searchsorted(now.tz_localize("UTC") + CLOSE_UTC, side="right")
+        src["filing"] = acc.iloc[k - 1].tz_convert(None) if k else None
+        filed = self._insider["filed"]
+        vis = filed[filed <= now]
+        src["insider"] = vis.max() if len(vis) else None
+        return src
+
+    def audit(self):
+        """Every Phase 21/22 finding for the finished run: seal, disguise, ledger chain and coverage of decisions.
+        Callers must treat any 'fail' as an excluded result."""
+        f = list(self.gate_findings)
+        f += BG.verify_ledger(self.ledger.entries)
+        n_sessions = len(self.clock.sessions)
+        if len(self.ledger.entries) != n_sessions:
+            f.append(BG.Finding("ledger-coverage", "fail", f"{len(self.ledger.entries)} ledger entries for {n_sessions} sessions"))
+        return f
 
 
 class SimBroker:
@@ -207,6 +344,12 @@ class BlindTrader:
         from . import adaptive as A
         self.A = A
         self.feed, self.cfg, self.fast, self.adaptive, self.meta = feed, dict(cfg), fast, adaptive, meta
+        # C33: the model target is measured from the next session's open, where every decision fills. "close" (the old
+        # target, which also rewards the overnight gap) is kept so the loop can compare; it is a knob of the trader,
+        # not of the policy, so it is taken out of cfg before cfg reaches adaptive.Session.
+        self.label_entry = self.cfg.pop("label_entry", None) or (meta or {}).get("label_entry") or "open"
+        if self.label_entry not in ("open", "close"):
+            raise ValueError(f"label_entry must be 'open' or 'close', not {self.label_entry!r}")
         self.m = None
         self.snaps, self.warm_snaps = {}, {}
         self.t_model = self.t_features = 0.0
@@ -215,7 +358,7 @@ class BlindTrader:
         self.preseason = None
 
     def _fit(self, X, stocks, atr, until_idx):
-        yb, fw = features.labels(stocks, atr)
+        yb, fw = features.labels(stocks, atr, entry=self.label_entry)
         d = X.index.get_level_values(0)
         ud = pd.DatetimeIndex(sorted(d.unique()))
         ud = ud[ud <= until_idx]
@@ -322,6 +465,7 @@ class BlindTrader:
         closes_to_now = self.feed.history()[0]["Close"]
         S.on_day(now, self.feed.prices(), closes_to_now, week_end, snap if S.needs_snapshot(week_end) else None,
                  self.feed._stocks["Open"].iloc[self.feed.i])
+        self.feed.mark_processed()
 
     # views for the diagnosis code
     @property
@@ -361,6 +505,23 @@ def parity_test(feed, n_days=2, seed=None):
     return worst
 
 
+def drive(feed, on_tick):
+    """Run the lockstep clock against `on_tick` until the window ends; returns wall seconds. A gate or clock failure
+    raised in either thread surfaces here."""
+    clock = threading.Thread(target=feed.run_clock, daemon=True)
+    clock.start()
+    while True:
+        t = feed.wait_tick()
+        if t is None:
+            break
+        on_tick()
+        feed.ack()
+    clock.join(timeout=5)
+    if feed.error is not None:
+        raise feed.error
+    return time.perf_counter() - feed.t_start
+
+
 def run(cfg, run_id, log=print, check_parity=True, adaptive=False, meta=None):
     sealed = SealedYear(run_id)
     feed = Feed(sealed)
@@ -375,13 +536,5 @@ def run(cfg, run_id, log=print, check_parity=True, adaptive=False, meta=None):
     log(f"  warm-up: {len(feed.sessions)} sessions visible, {feed.i + 1} of them before the hidden year; training ...")
     trader.train()
     log(f"  model ready ({trader.train_rows:,} rows, {trader.t_model:.0f}s). Clock starts at {feed.now.date()} (disguised).")
-    clock = threading.Thread(target=feed.run_clock, daemon=True)
-    clock.start()
-    while True:
-        t = feed.wait_tick()
-        if t is None:
-            break
-        trader.on_tick()
-        feed.ack()
-    wall = time.perf_counter() - feed.t_start
+    wall = drive(feed, trader.on_tick)
     return feed, trader, sealed, wall
