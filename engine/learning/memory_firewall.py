@@ -581,8 +581,8 @@ def audit_bank_frame(bank: pd.DataFrame | None, now, learned_col: str = "learned
             for f in check_memory_bank_causality(bank, nowd):
                 if f.severity == "fail":
                     out.append(fail(L, "bank-window-end", "bank", f.message))
-        except ImportError:
-            pass
+        except ImportError as e:                 # fail CLOSED (C69 audit, 29 Sep): an unchecked bank must block, never pass
+            out.append(fail(L, "bank-causality-check-missing", "bank", f"engine.blind_gates unavailable ({e}); window-end causality unchecked"))
     return out
 
 

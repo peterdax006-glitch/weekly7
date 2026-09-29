@@ -524,8 +524,8 @@ class DataFirewall(FirewallLayer):
             for f in scan_information(recs):
                 if f.severity == "fail" and not any(x.check == "forbidden-name" and str(x.subject) in f.message for x in out):
                     out.append(fail(L, "forbidden-field", ctx.subject, f.message))
-        except ImportError:
-            pass
+        except ImportError as e:                 # fail CLOSED (C69 audit, 29 Sep): a missing scanner must block, never skip
+            out.append(fail(L, "forbidden-field-scanner-missing", ctx.subject, f"engine.blind_gates unavailable ({e}); field scan could not run"))
         out.extend(panel_quality_findings(X, self.name, ctx.subject))
         n = len(X)
         if ctx.inputs:

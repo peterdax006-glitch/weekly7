@@ -1190,8 +1190,8 @@ def st_cross_section(ctx: Ctx) -> tuple:
     lab = ctx.mod_state("cross_section", ex.get("make", CS.CrossSectionLab))
     days = ex["days"] if "days" in ex else [(ctx.now, ex["day_frame"], ex.get("settle", ()))]
     res, n = None, 0
-    for day, frame, settle in days:
-        res = CS.step(lab, day, frame, settle, ex.get("null_seed"), n_shuffles=3)
+    for i, (day, frame, settle) in enumerate(days):         # the shuffled-null control runs on the newest session of the batch
+        res = CS.step(lab, day, frame, settle, ex.get("null_seed") if i == len(days) - 1 else None, n_shuffles=3)
         n += int(res.n_names)
     if res is None:
         raise NoInput("every offered session was already processed")
@@ -1457,7 +1457,8 @@ def st_discovery(ctx: Ctx) -> tuple:
     st = ctx.mod_state("discovery", DI.DiscoveryState)
     eng = ctx.handle("discovery_engine", ex["engine_factory"]) if ex.get("engine_factory") else None
     rep = DI.step(st, ctx.now, ex["inputs"], engine=eng)
-    return 1, len(getattr(rep, "new", ()) or ()), ""
+    new = getattr(rep, "new", ()) or ()
+    return 1, new if isinstance(new, int) else len(new), ""
 
 
 def st_interactions(ctx: Ctx) -> tuple:
@@ -2178,7 +2179,7 @@ def st_replication(ctx: Ctx) -> tuple:
         from engine.research import replication as RP
     except ImportError as e:
         raise MissingModule("replication") from e
-    led = ctx.mod_state("replication", RP.ReplicationLedger)
+    led = ctx.mod_state("replication", _replication_ledger)
     known = set(led.discoveries())
     added = 0
     for key in ctx.bus.get("validated", []):
@@ -2211,44 +2212,55 @@ def st_replication(ctx: Ctx) -> tuple:
 
 
 def st_quality_and_knowledge(ctx: Ctx) -> tuple:
-    """A branch that COMPLETED the ladder goes through quality_gate.step with the evidence the loop can honestly supply (point-in-
-    time design, clean control, out-of-sample rungs, replication assessment); only PROMOTE files it as knowledge for the firewall.
-    Anything else stays research-only with its verdict recorded (never promoted on a missing input)."""
+    """A branch that COMPLETED the ladder goes through quality_gate.step with the FULL evidence bundle (engine.research.evidence:
+    statistics, out-of-sample, identity, transfer, risk, calibration, complexity, failure behaviour, reproducibility, replication in
+    the ONE ledger, the future-information audit, provenance). Only PROMOTE files it as knowledge for the firewall; anything else
+    stays research-only with its verdict and blocking gates recorded (never promoted on a missing input)."""
     try:
         from engine.research import quality_gate as QG
     except ImportError as e:
         raise MissingModule("quality_gate") from e
+    from engine.research import evidence as EV
     done = [k for k in ctx.bus.get("validated", []) if (ctx.state.jobs[k].result or {}).get("action") == "COMPLETE"]
     if not done:
         raise NoInput("no branch completed the ladder this cycle")
     store = ctx.mod_state("quarantine", QG.QuarantineStore)
-    assessed = ctx.bus.get("replication_assessments", {})
-    cands = []
+    led = ctx.mod_state("replication", _replication_ledger)
+    sci = set(ctx.state.memo.get("science_items", []))
+    graph_nodes = ctx.state.memo.get("graph_patterns", {})
+    bundles, by_key = [], {}
     for key in done:
         rec = ctx.state.jobs[key]
         r = rec.result
-        did = f"D{rec.branch_id}"
-        repl = assessed.get(did)                          # missing = 'not supplied' to the gate, never a pass
-        evd = QG.QualityEvidence(
-            pit=QG.PITEvidence(decision_time="close", label_horizon_days=ctx.state.cfg.experiment.horizon_days, train_end=rec.seen_through or rec.cutoff,
-                               first_test_start=rec.seen_through or rec.cutoff, fills_next_open=True, newest_evidence=r["data_through"]),
-            leak=QG.LeakEvidence(audit_ran=True, planted_probe_caught=None, outcomes_after_now=0),
-            replication=repl, outputs_probabilities=False, changes_risk_decisions=False,
-            justification=(f"{rec.feature}: ladder COMPLETE, integration delta {r.get('integration_delta')}",),
-            provenance=_prov(ctx, r["data_through"]))
-        cands.append(QG.Candidate(did, evd))
-    rep = QG.step(cands, ctx.now, store=store)
+        spec = EV.FindingSpec(f"D{rec.branch_id}", rec.feature, 1.0 if float(r.get("sign", 1.0)) >= 0 else -1.0, rec.problem,
+                              n_tests_searched=max(1, len(ctx.state.screened)),
+                              has_falsifier=graph_nodes.get(f"{rec.problem.lower()}:{rec.feature}") in sci,
+                              experiment_id=key[:16], run_id=ctx.state.cfg.run_id, seed=int(rec.task.get("seed", 0)))
+        b = EV.assemble(ctx.obs.matured, spec, ctx.now, code_hash=ctx.rt.code_hash, data_hash=ctx.obs.data_hash,
+                        created_real=ctx.created_real(), ledger=led)
+        bundles.append(b)
+        by_key[key] = b
+    rep = EV.gate(bundles, ctx.now, ctx.rt.code_hash, store=store)
     promoted = set(rep.promoted)
+    verdicts = EV.verdicts(rep)
     filed = 0
     for key in done:
         rec = ctx.state.jobs[key]
         did = f"D{rec.branch_id}"
-        verdict = next((str(d.verdict) for d in rep.decisions if getattr(d, "subject_id", "") == did), "UNKNOWN")
-        ctx.state.lineage.add("GATE", did, ctx.cycle, ctx.now, verdict=verdict)
+        b = by_key[key]
+        ctx.state.lineage.add("GATE", did, ctx.cycle, ctx.now, verdict=verdicts.get(did, "UNKNOWN"),
+                              blocking=sorted(EV.blocking(rep, did)), missing=sorted(b.missing))
         ctx.state.lineage.link(f"RESULT:{key}", f"GATE:{did}", "gated")
+        ctx.bus.setdefault("gate_verdicts", {})[did] = {"verdict": verdicts.get(did, "UNKNOWN"), "blocking": EV.blocking(rep, did),
+                                                         "missing": dict(b.missing), "feature": rec.feature}
         if did in promoted:
             filed += _file_knowledge(ctx, rec)
-    return len(done), filed, f"verdicts {dict(rep.funnel) if hasattr(rep, 'funnel') else {}}"
+    return len(done), filed, f"verdicts {verdicts}"
+
+
+def _replication_ledger():
+    from engine.research import replication as RP
+    return RP.ReplicationLedger()
 
 
 def _file_knowledge(ctx: Ctx, rec: JobRecord) -> int:

@@ -71,6 +71,7 @@ class FeedConfig:
     min_dollar_vol: float = 2e6
     max_knowability_moves: int = 10        # new moves classified per cycle (the module's history is immutable, so each move once)
     max_counterfactual_events: int = 3     # counterfactual costs ~0.3 s per event and is not incremental
+    multiscale_lookback: int = 130        # sessions the multiscale ledger re-reads each call (its cost grows with the window)
     cs_min_history: int = 15               # cross-section lab history before it speaks (sessions)
     frontier_boot: int = 60
     symmetry_min_n: int = 20
@@ -88,6 +89,8 @@ class FeedConfig:
             errs.append("history_years >= 0, bar_lookback >= 80 and warm_weeks >= 0 required")
         if self.max_knowability_moves < 1 or self.max_counterfactual_events < 1:
             errs.append("per-cycle caps must be >= 1")
+        if self.frontier_boot < 50:
+            errs.append("frontier_boot must be >= 50 (engine.research.frontier refuses fewer)")
         return errs
 
 
@@ -457,6 +460,12 @@ def audit_stage_input(stage: str, payload: Any, now, depth: int = 0) -> int:
     checked = 0
     if depth > 4 or payload is None:
         return 0
+    if isinstance(payload, (pd.Timestamp, dt.datetime, dt.date, np.datetime64)):
+        d = pd.Timestamp(payload)
+        d = d.tz_convert("UTC").tz_localize(None) if d.tzinfo else d
+        if d.normalize() >= n:
+            raise FirewallBreach(f"{stage}: a dated value {d.date()} is at/after now {n.date()}")
+        return 1
     m = _max_date(payload)
     if m is not None:
         checked += 1
@@ -712,7 +721,7 @@ def b_cross_section(feed: "WorldFeed", ctx) -> dict:
 def b_multiscale(feed: "WorldFeed", ctx) -> dict:
     """Multiscale inputs: pattern flags (single-session movers, volume spikes) as (date, ticker) booleans, and the close / open
     panels, all strictly before now."""
-    w = feed.store.bars_before(ctx.now, min(feed.cfg.bar_lookback, 260))
+    w = feed.store.bars_before(ctx.now, min(feed.cfg.bar_lookback, feed.cfg.multiscale_lookback))
     C, O, V = w.bars["Close"], w.bars["Open"], w.bars["Volume"]
     if len(C) < 40:
         raise NoInput("fewer than 40 sessions of bars")

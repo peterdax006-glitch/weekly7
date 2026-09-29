@@ -315,8 +315,8 @@ def check_revision(inputs: Sequence[LearningInput], now, unrevised_ok: Iterable[
                 for _, r in risk.iterrows():
                     if bool(r["revised"]) and v is None and inp.name not in ok:
                         out.append(fail(L, "revised-macro-column", f"{inp.name}.{r['series']}", f"{r['series']}: {r['reason']}"))
-            except ImportError:
-                pass
+            except ImportError as e:             # fail CLOSED (C69 audit, 29 Sep): unknown revision risk must block, never pass
+                out.append(fail(L, "revision-screen-missing", inp.name, f"engine.leak_audit unavailable ({e}); macro revision risk unknown"))
     return CheckResult("revision", True, tuple(out), len(inputs))
 
 
