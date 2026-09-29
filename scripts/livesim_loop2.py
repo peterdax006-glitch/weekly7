@@ -169,16 +169,17 @@ while len(st["windows"]) < MAXW:
     # ---- anti-cheat gates (C18) ----
     gate_ok = True
     from engine import provenance
-    if provenance.stale(provenance.CODE_HASH_AT_IMPORT):
+    if provenance.stale(provenance.code_stamp()):
         # the loop itself runs old code: its replays would judge the workers with the wrong rules
         save(); print("  engine code changed since the loop started - restart the loop (no gate judged on mixed code)", flush=True); break
     for r in list(done):
         for attempt in range(2):                             # a worker that outlived a code edit is rerun, not judged
             res = json.loads((DIR / r / "result2.json").read_text())
-            if not provenance.stale(res.get("provenance", {}).get("code_hash")):
+            pv = res.get("provenance", {})
+            if not provenance.stale(pv):
                 break
-            print(f"  [{r}] STALE CODE (result from code {res.get('provenance', {}).get('code_hash')}, now "
-                  f"{provenance.code_hash()}) - rerunning the window under current code", flush=True)
+            print(f"  [{r}] STALE CODE (code {pv.get('code_hash')}, edited mid-run: {pv.get('code_mixed')}, now "
+                  f"{provenance.code_hash(pv.get('code_files'))}) - rerunning the window under current code", flush=True)
             subprocess.run([sys.executable, "-u", __file__, "--worker", r, json.dumps(res["prior_cfg"]), json.dumps(res["meta"])])
         else:
             print(f"  [{r}] still stale after reruns (code is changing) - excluded", flush=True)

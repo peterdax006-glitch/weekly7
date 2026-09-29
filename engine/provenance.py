@@ -63,30 +63,64 @@ def data_snapshot():
     return hashlib.sha256("|".join(parts).encode()).hexdigest()[:16]
 
 
-CODE_FILES = ("engine/*.py", "scripts/livesim_loop2.py")
+PROCESS_START = __import__("time").time()
 
 
-def code_hash():
-    """Hash of the code that decides results, read from disk NOW (engine + the Test loop)."""
-    h = hashlib.sha256()
-    for pat in CODE_FILES:
-        for f in sorted(ROOT.glob(pat)):
-            h.update(f.name.encode()); h.update(f.read_bytes().replace(bytes([13, 10]), bytes([10])))
+def _norm(path):
+    return Path(path).read_bytes().replace(bytes([13, 10]), bytes([10]))
+
+
+def loaded_code():
+    """Repo source files this process has actually imported (engine.*, scripts), as repo-relative paths. A result
+    depends on these and only these - a builder adding an unrelated engine file must not make it stale."""
+    out = set()
+    for m in list(__import__("sys").modules.values()):
+        f = getattr(m, "__file__", None)
+        if not f:
+            continue
+        try:
+            rel = Path(f).resolve().relative_to(ROOT)
+        except ValueError:
+            continue
+        if rel.suffix == ".py" and rel.parts[0] in ("engine", "scripts"):
+            out.add(rel.as_posix())
+    return sorted(out)
+
+
+def code_hash(files=None):
+    """Hash of the given repo files as they are on disk NOW (default: the modules this process loaded)."""
+    h = __import__("hashlib").sha256()
+    for rel in (files if files is not None else loaded_code()):
+        f = ROOT / rel
+        h.update(rel.encode())
+        h.update(_norm(f) if f.exists() else b"<missing>")
     return h.hexdigest()[:16]
 
 
-# the code THIS process imported. A background run that outlives an edit keeps running the old code; comparing this
-# with code_hash() later tells a stale-code result from a genuine parity failure (T9, w01c, 2026-09-28).
-CODE_HASH_AT_IMPORT = code_hash()
+def code_mixed(files=None):
+    """Loaded files edited after this process started: the process may be running code that is no longer on disk
+    (w01c, 2026-09-28: memory.py was edited mid-run and the result could not be reproduced)."""
+    return [rel for rel in (files if files is not None else loaded_code())
+            if (ROOT / rel).exists() and (ROOT / rel).stat().st_mtime > PROCESS_START]
+
+
+def code_stamp():
+    files = loaded_code()
+    return {"code_hash": code_hash(files), "code_files": files, "code_mixed": code_mixed(files)}
 
 
 def stale(recorded):
-    """True when a result was produced by code other than what is on disk now."""
-    return recorded is None or recorded != code_hash()
+    """True when a result cannot be trusted to come from the code on disk now. `recorded` is a provenance dict
+    (or a bare legacy code_hash string, which is always treated as stale: it covered unrelated files)."""
+    if not isinstance(recorded, dict) or "code_files" not in recorded:
+        return True
+    if recorded.get("code_mixed"):
+        return True
+    return recorded.get("code_hash") != code_hash(recorded["code_files"])
 
 
 def stamp(cfg=None, seed=None):
-    return {"code_hash": CODE_HASH_AT_IMPORT, "git_commit": git_commit(), "canon_sha": _sha("canon/canon.lock.json")[:16] if _sha("canon/canon.lock.json") else None,
+    return {**code_stamp(), "git_commit": git_commit(), "canon_sha": _sha("canon/canon.lock.json")[:16] if _sha("canon/canon.lock.json") else None,
             "bible_sha": _sha("canon/bible.lock.json")[:16] if _sha("canon/bible.lock.json") else None,
             "blueprint_version": BLUEPRINT_VERSION, "config_hash": config_hash(cfg) if cfg is not None else None,
             "data_snapshot": data_snapshot(), "seed": seed}

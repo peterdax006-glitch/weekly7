@@ -39,10 +39,31 @@ def _w(p, o):
     p.write_text(json.dumps(o, indent=1, default=float))
 
 
-def log_experiment(rec, cfg=None, seed=None):
-    """Append-only registry (Bible Phase 0): every record carries provenance; nothing is ever overwritten."""
+_WARNED = set()
+PHASE0_FIELDS = ("window_ids", "model_params", "train_range", "validation_range", "test_range", "metrics", "gates",
+                 "outcome", "reason")
+
+
+def log_experiment(rec, cfg=None, seed=None, **fields):
+    """Append-only registry (Bible Phase 0.2): every record carries provenance; nothing is ever overwritten.
+    fields: the Phase 0.2 descriptors (window_ids, model_params, train/validation/test_range, metrics, gates, outcome,
+    reason). A measurement that decides nothing is recorded as outcome "continue_testing" with that reason - never as a
+    silent blank. Fields a writer does not supply stay null (the registry audit reports them) and are named once on
+    stderr so the writer gets fixed rather than the gap hidden."""
     from .provenance import stamp
-    rec = {"t": datetime.utcnow().isoformat(timespec="seconds"), **stamp(cfg, seed), **rec}
+    import sys
+    rec = {"t": datetime.utcnow().isoformat(timespec="seconds"), **stamp(cfg, seed), **rec, **fields}
+    if cfg is not None:
+        rec.setdefault("model_params", cfg)
+    if "outcome" not in rec:
+        rec["outcome"] = "continue_testing"
+        rec.setdefault("reason", "measurement only; no adoption decision recorded")
+    missing = [f for f in PHASE0_FIELDS if rec.get(f) is None]
+    if missing and rec.get("event") not in _WARNED:
+        _WARNED.add(rec.get("event"))
+        print(f"[registry] {rec.get('event')}: Phase 0.2 fields not supplied: {missing}", file=sys.stderr)
+    for f in missing:
+        rec[f] = None
     # sha256 over the full record + a random nonce: Python's hash() is salted per process, so the old ids could collide
     # across runs (found by the B12 registry audit, 2026-09-28)
     import hashlib, uuid
