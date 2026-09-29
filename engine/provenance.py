@@ -43,6 +43,12 @@ def verify_integrity():
         got = hashlib.sha256((ROOT / "BIBLE.md").read_text(encoding="utf-8").rstrip("\n").encode("utf-8")).hexdigest()
         if got != want:
             raise IntegrityError("BIBLE.md altered")
+    cl = ROOT / "canon" / "contract.lock.json"               # the owner's Self-Learning contract (C62), same rule
+    if cl.exists():
+        want = json.loads(cl.read_text(encoding="utf-8"))["sha256"]
+        got = hashlib.sha256((ROOT / "SELF_LEARNING_CONTRACT.md").read_text(encoding="utf-8").rstrip("\n").encode("utf-8")).hexdigest()
+        if got != want:
+            raise IntegrityError("SELF_LEARNING_CONTRACT.md altered")
     return True
 
 
