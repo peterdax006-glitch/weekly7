@@ -519,7 +519,10 @@ def test_fix(fix: CandidateFix, frame: pd.DataFrame, now, cfg: SelfCorrectConfig
             eff_by_week = pd.Series(gain).groupby(week).mean()
             ins = float((_abs_err(train["predicted"].to_numpy(float), train) - _abs_err(pred(train), train)).mean())
     e = eff_by_week.to_numpy(float)
-    per = tuple(str(pd.Period(p, "W-FRI").end_time.date()) for p in eff_by_week.index)
+    # a week's evidence exists once its LAST outcome has matured - labelling it by the calendar week's end could date it after `now`
+    # (a Friday not yet reached), which the gate's provenance check rightly refuses (found wiring P06 into the loop)
+    last_mat = pd.Series(pd.to_datetime(test["matured_at"]).to_numpy()).groupby(week).max()
+    per = tuple(str(pd.Timestamp(last_mat[p]).date()) for p in eff_by_week.index)
     years = tuple(sorted({int(y) for y in pd.to_datetime(train["date"]).dt.year}))
     return FixResult(fix.name, fix.component, str(split.date()), years, len(train), len(test), per, tuple(float(x) for x in e), ins,
                      float(e.mean()), float(PR.t_stat(e)), tuple(reruns), dg)

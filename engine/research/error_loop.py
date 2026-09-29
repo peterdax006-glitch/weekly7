@@ -56,7 +56,8 @@ import numpy as np
 import pandas as pd
 
 from engine import exits as EX
-from engine.learning.core import Provenance, as_date, canonical_json, current_code_hash, require_past, stable_hash
+from engine.learning.archive import GENESIS
+from engine.learning.core import Provenance, as_date, canonical_json, stable_hash
 from engine.learning.surprise import SurpriseTracker
 from engine.research import calibration_target as CT
 from engine.research import change_points as CP
@@ -238,6 +239,10 @@ class PipelineLedger:
     def keys(self) -> list[str]:
         return sorted(self._last)
 
+    def can_add(self, key: str, step: str) -> bool:
+        prev = self._last.get(key)
+        return prev is None or _ORDER[step] >= _ORDER[prev[1]]
+
     def verify(self, anchors: Sequence[str] = ()) -> dict:
         rep = self.lane.verify(anchors)
         for k in self.keys():
@@ -253,6 +258,10 @@ class PipelineLedger:
         for _, s in self._last.values():
             out[s] = out.get(s, 0) + 1
         return dict(sorted(out.items(), key=lambda kv: _ORDER[kv[0]]))
+
+
+def can_record(pipe: PipelineLedger, key: str, step: str) -> bool:
+    return pipe.can_add(key, step)
 
 
 # ================================================================================================================ state
@@ -303,6 +312,11 @@ class C68State:
     market_through: str = ""
     daily: dict = dataclasses.field(default_factory=lambda: {"dates": [], "q": {}, "error_z": []})
     warnings: list = dataclasses.field(default_factory=list)        # (date, level, scope)
+    active: tuple = ()                                              # checklist-R precursors firing at the last session
+    last_scope: str = "NONE"
+    exited: list = dataclasses.field(default_factory=list)          # (policy id, Paths) of the newest exits: the independence audit
+    depth_of: dict = dataclasses.field(default_factory=dict)        # pid -> checklist-D research tier (NONE / CHEAP / STANDARD / DEEP)
+    pending_err_z: list = dataclasses.field(default_factory=list)   # (date the error became known, z) awaiting the next session
     production: dict = dataclasses.field(default_factory=lambda: {"name": "incumbent", "since": "", "window_share": 1.0,
                                                                    "extra_features": ()})
     corrections: list = dataclasses.field(default_factory=list)
@@ -339,6 +353,8 @@ class Ledgers:
     pipe: PipelineLedger
 
     def heads(self) -> dict:
+        """Head hashes to keep OUTSIDE the ledgers. All C68 ledgers are lanes of ONE chain under <root>/c68, so each head proves the
+        whole chain up to it; they are kept per ledger so a report can say which writer came last."""
         return {"expectations": self.expectations.anchor(), "outcomes": self.outcomes.head, "errors": self.errors.lane.head,
                 "book": self.book._cf.head, "pipe": self.pipe.head}
 
@@ -823,19 +839,47 @@ def market_day(bv: BarView, t: int, err_z: Sequence[float]) -> CP.DayInputs:
     r = R[t]
     ok = np.isfinite(r)
     win = R[max(1, t - 19): t + 1].T
+    win = win[np.isfinite(win).all(1)]
     ez = np.asarray([z for z in err_z if math.isfinite(z)], float)
     return CP.DayInputs(returns_window=win if win.shape[1] >= 10 else None, day_abs_move=float(np.mean(np.abs(r[ok]))) if ok.sum() >= 5 else None,
                         dispersion=float(np.std(r[ok])) if ok.sum() >= 5 else None, breadth_up=float(np.mean(r[ok] > 0)) if ok.sum() >= 5 else None,
                         error_z=ez if len(ez) else None)
 
 
+def sector_volatility(bv: BarView, t: int, min_names: int = 4) -> dict:
+    """Per sector, log mean |return| of the session: a market-wide volatility change moves every sector's stream at once (evidence
+    for the MARKET-wide scope), a sector change moves one."""
+    r = bv.returns()[t]
+    out = {}
+    for sec in sorted(set(bv.sector.tolist())):
+        x = r[(bv.sector == sec) & np.isfinite(r)]
+        if len(x) >= min_names and np.mean(np.abs(x)) > 0:
+            out[str(sec)] = float(math.log(np.mean(np.abs(x))))
+    return out
+
+
 def unit_values(bv: BarView, t: int) -> dict:
-    """Per-name stream: the trailing 5-session standardised return (a sudden single-name break persists in it for a week)."""
+    """Per-name stream: the size of the session's IDIOSYNCRATIC move, |return - market return| over its trailing 60-session sd (from
+    sessions before t only). Serially independent under the null, so the calibrated CUSUM keeps its false-alarm rate; a name that
+    enters its own turbulent state (a single-stock anomaly) shifts it for as long as the state lasts."""
     R = bv.returns()
-    lo = max(1, t - 60)
-    sd = np.nanstd(R[lo:t - 4], axis=0) if t - 4 > lo + 10 else np.full(R.shape[1], np.nan)
-    z5 = np.nansum(R[t - 4:t + 1], axis=0) / (sd * math.sqrt(5)) if t >= 5 else np.full(R.shape[1], np.nan)
-    return {f"u:{i}": (float(v) if math.isfinite(v) else None) for i, v in enumerate(z5)}
+    with np.errstate(invalid="ignore", divide="ignore"):
+        mr = np.r_[np.nan, bv.market[1:] / bv.market[:-1] - 1.0]
+        E = R - mr[:, None]
+        lo = max(1, t - 60)
+        sd = np.nanstd(E[lo:t], axis=0) if t - lo >= 20 else np.full(R.shape[1], np.nan)
+        a = np.abs(E[t]) / sd
+    # |z| of a normal return is half-normal; its normal score Phi^-1(2 Phi(|z|) - 1) is N(0,1) again, which is what the CUSUM's
+    # threshold was calibrated on (a raw |z| stream false-alarms several times too often)
+    from scipy.stats import norm
+    u = np.clip(2.0 * norm.cdf(np.where(np.isfinite(a), a, 0.0)) - 1.0, 1e-9, 1 - 1e-9)
+    z = np.where(np.isfinite(a), norm.ppf(u), np.nan)
+    return {unit_id(tk): (float(v) if math.isfinite(v) else None) for tk, v in zip(bv.tickers, z)}
+
+
+def unit_id(ticker: str) -> str:
+    """A stable, identity-free stream name for one instrument (the research world may know the name; the stream label need not)."""
+    return "u:" + stable_hash(str(ticker), 10)
 
 
 def market_obs(bv: BarView, t_end: int, horizon: int) -> ME.MarketObs | None:
@@ -873,12 +917,18 @@ def market_obs(bv: BarView, t_end: int, horizon: int) -> ME.MarketObs | None:
     return ME.MarketObs(str(bv.sessions[t_end].date()), {k: v for k, v in vals.items() if v is None or math.isfinite(v)})
 
 
-def _err_z_by_day(led: Ledgers, now) -> dict[str, list]:
+def _err_z_by_day(st: C68State, days: Sequence[str]) -> dict[str, list]:
+    """Standardised return errors placed on the first session at/after the day the SYSTEM learned them (the cycle that computed
+    them), never on their earlier maturity date: the early-warning stream may only see an error once the error engine had it."""
     out: dict[str, list] = {}
-    for rep in led.errors.reports(now):
-        z = rep["return"].z
-        if z is not None and math.isfinite(z):
-            out.setdefault(rep.matured_at, []).append(float(z))
+    keep = []
+    for known, z in st.pending_err_z:
+        d = next((x for x in days if x >= known), None)
+        if d is None:
+            keep.append((known, z))
+        else:
+            out.setdefault(d, []).append(z)
+    st.pending_err_z = keep
     return out
 
 
@@ -889,22 +939,24 @@ def st_market(ctx: LP.Ctx) -> tuple:
     led = _ledgers(ctx, st)
     cfg = st.cfg
     bv = _bars(ctx)
-    ez = _err_z_by_day(led, ctx.now)
     new_days, alarms = 0, 0
     start = 25
     if st.ews_through:
         start = max(start, int(bv.sessions.searchsorted(pd.Timestamp(st.ews_through), side="right")))
-    unit_sector = {f"u:{i}": str(s) for i, s in enumerate(bv.sector)}
+    ez = _err_z_by_day(st, [str(d.date()) for d in bv.sessions[start:]])
+    unit_sector = {unit_id(t): str(s) for t, s in zip(bv.tickers, bv.sector)}
     ew = None
     for t in range(start, bv.T):
         day = str(bv.sessions[t].date())
         di = market_day(bv, t, ez.get(day, ()))
         vals, tg, _ = CP.build_streams(di)
+        for sec, v in sector_volatility(bv, t).items():
+            vals[f"sector_vol:{sec}"], tg[f"sector_vol:{sec}"] = v, CP.Target.VOLATILITY
         ew = CP.step(st.ews, day, vals, tg, unit_values=unit_values(bv, t), unit_sector=unit_sector, unit_target=CP.Target.VOLATILITY)
         st.warnings.append((day, ew.level.value, ew.scope.scope.value))
         d = st.daily
         d["dates"].append(day)
-        for q in ("volatility", "dispersion", "breadth", "correlation"):
+        for q in [k for k in vals if k in ("volatility", "dispersion", "breadth", "correlation") or k.startswith("sector_vol:")]:
             d["q"].setdefault(q, [np.nan] * (len(d["dates"]) - 1)).append(np.nan if vals.get(q) is None else float(vals[q]))
         for q in d["q"]:
             if len(d["q"][q]) < len(d["dates"]):
@@ -937,10 +989,14 @@ def st_market(ctx: LP.Ctx) -> tuple:
         st.market_through = day
         n_market += 1
         t_end = t
-    dets = [x for x in st.ews.market.detections if x.alarm_date in set(st.daily["dates"])]
+    days = set(st.daily["dates"])
+    dets = [x for x in st.ews.market.detections if x.alarm_date in days and x.change_date in days]
     ev = RM.RegimeEvidence(tuple(st.daily["dates"]), tuple(dets), {k: list(v) for k, v in st.daily["q"].items()},
                            {p: _aligned(f["effect"], st.daily["dates"]) for p, f in _patterns(ctx, st)[0].items()}, tuple(st.daily["error_z"]))
-    ms = RM.step(st.memory, ctx.now, ev, scope=ew.scope if ew is not None else None, active_precursors=ew.fired() if ew is not None else ())
+    if ew is not None:
+        st.active = tuple(ew.fired())
+        st.last_scope = ew.scope.scope.value
+    ms = RM.step(st.memory, ctx.now, ev, scope=ew.scope if ew is not None else None, active_precursors=st.active)
     if not new_days and not n_market:
         raise LP.NoInput("no new session before now")
     return _run(st, ctx, "c68.market_regime", new_days + n_market, alarms + len(ms.new_records),
@@ -967,7 +1023,7 @@ def st_patterns(ctx: LP.Ctx) -> tuple:
     recs = st.memory.records(ctx.now)
     latest = recs[-1] if recs else None
     status = st.memory.status(latest.record_id) if latest is not None else None
-    adv = st.memory.advice(st.warnings and () or (), ctx.now)
+    adv = st.memory.advice(st.active, ctx.now)
     changed = 0
     for v in rep.verdicts:
         p = v.pattern_id
@@ -1052,9 +1108,24 @@ def path_data(bv: BarView, p: Position, pos0: int, exit_pos: int, exit_price: fl
 
 
 def run_exit(rule: EX.Rule, P: EX.Paths) -> EX.ExitResult:
-    """THE exit of every C68 position: the committed learned policy on the realised path. Its inputs are the path and the rule -
-    no prediction, expectation, target or tolerance exists in this call (checklist O)."""
+    """One learned-policy exit on realised paths. Its inputs are the path and the rule - no prediction, expectation, target or
+    tolerance exists in this call (checklist O)."""
     return rule.run(P)
+
+
+def decide_exits(st: C68State, items: Sequence[tuple[str, EX.Paths]]) -> list[EX.ExitResult]:
+    """THE exit decision of every C68 position: the policy each position was COMMITTED under, run on its realised path. The state it
+    is given also holds the +-1pp evaluation target; `exit_independence` re-runs this very function under other targets and demands
+    bit-identical exits, so a future edit that lets the target leak into an exit is caught."""
+    return [run_exit(st.policies[pid], P) for pid, P in items]
+
+
+def _concat(results: Sequence[EX.ExitResult]) -> EX.ExitResult:
+    z = np.zeros(0)
+    if not results:
+        return EX.ExitResult(z, z, z.astype(int), z.astype(int), z, 0)
+    cat = lambda f: np.concatenate([getattr(r, f) for r in results])      # noqa: E731
+    return EX.ExitResult(cat("net"), cat("gross"), cat("days"), cat("reason"), cat("stop_overshoot"), results[0].D)
 
 
 def st_outcomes(ctx: LP.Ctx) -> tuple:
@@ -1074,8 +1145,8 @@ def st_outcomes(ctx: LP.Ctx) -> tuple:
         if got is None:
             continue
         P, pos0 = got
-        rule = st.policies[p.policy_id]
-        res = run_exit(rule, P)
+        res = decide_exits(st, [(p.policy_id, P)])[0]
+        st.exited = (st.exited + [(p.policy_id, P)])[-40:]
         days = int(res.days[0])
         exit_pos = pos0 + days - 1
         exp = led.expectations.get(pid)
@@ -1095,6 +1166,7 @@ def st_outcomes(ctx: LP.Ctx) -> tuple:
         del st.pending[pid]
         done += 1
     reports = led.errors.step(led.outcomes, ctx.now)
+    st.pending_err_z += [(str(as_date(ctx.now)), float(r["return"].z)) for r in reports if r["return"].z is not None and math.isfinite(r["return"].z)]
     for rep in reports:
         led.pipe.add(rep.prediction_id, "ERROR", ctx.now, {k: v for k, v in rep.vector().items()})
         led.pipe.add(rep.prediction_id, "CLASSIFIED", ctx.now, {"diagnosis": list(rep.diagnosis), "confident_wrong": rep.confident_wrong,
@@ -1196,10 +1268,10 @@ def investigation_context(st: C68State, exp: XP.Expectation, out: OC.OutcomeReco
     after = v.profile.recent_reliability if v is not None else None
     fc = st.forecasts.get(exp.decided_at, {})
     rl = st.realised.get(exp.decided_at, {})
-    same = [t for t, f in fc.items() if f.get("sector") == exp.sector_regime or False]
-    miss = [np.sign(rl[t][0] - fc[t]["median"]) for t in fc if t in rl and math.isfinite(fc[t]["median"])]
-    share = float(np.mean(np.array(miss) == np.sign(out.exit_return - exp.predicted_return))) if len(miss) >= 5 else None
-    del same
+    sector = fc.get(exp.subject, {}).get("sector")
+    miss = [np.sign(rl[t][0] - fc[t]["median"]) for t in fc
+            if t in rl and t != exp.subject and fc[t].get("sector") == sector and math.isfinite(fc[t]["median"])]
+    share = float(np.mean(np.array(miss) == np.sign(out.exit_return - exp.predicted_return))) if len(miss) >= 3 else None
     return ER.InvestigationContext(feature_shifts=shifts, pattern_reliability_before=before, pattern_reliability_after=after,
                                    overriding_pattern=None, interaction_change_z=None,
                                    vol_ratio=float(out.realized_vol / exp.predicted_volatility) if math.isfinite(out.realized_vol) and exp.predicted_volatility > 0 else None,
@@ -1242,6 +1314,22 @@ def st_what_changed(ctx: LP.Ctx) -> tuple:
         inv = st.wcs.investigations.get(cid)
         if inv is None:
             continue
+        exp = led.expectations.get(pid)
+        for p in exp.patterns:
+            if p in frames and any(p in str(e) for f in inv.findings if f.level == WC.Level.PATTERN for e in f.evidence):
+                st.pcs.mark_investigated(p)
+        tid = inv.conclusion.test.tree_id if inv.conclusion and inv.conclusion.test.kind == "HYPOTHESIS_TREE" else ""
+        tree = st.wcs.trees.get(tid) if tid else None
+        text = tree.nodes[tree.root].text if tree is not None else ""
+        if tree is not None and tid not in forest.trees and not forest.find_similar(text):
+            try:
+                forest.add(tree)
+                trees += 1
+            except HT.TreeError:
+                st.count("trees_refused")
+        if not can_record(led.pipe, pid, "CAUSE"):
+            st.count("late_investigation")                   # its research was queued first; the investigation still counts
+            continue
         fired = [f.level.value for f in inv.findings if f.fired]
         led.pipe.add(pid, "CAUSE", ctx.now, {"significant": inv.significant, "fired": fired, "explained": inv.explained_share,
                                              "cause": inv.conclusion.cause if inv.conclusion else "insignificant error"})
@@ -1249,25 +1337,13 @@ def st_what_changed(ctx: LP.Ctx) -> tuple:
             continue
         led.pipe.add(pid, "KNOWABILITY", ctx.now, {"class": inv.knowability.klass.value, "basis": inv.knowability.basis,
                                                    "reasons": list(inv.knowability.reasons)})
-        exp = led.expectations.get(pid)
         led.pipe.add(pid, "PATTERN_REGIME", ctx.now, {"patterns": {p: st.verdicts.get(p, "?") for p in exp.patterns},
                                                       "influence": {p: st.influence.get(p, 1.0) for p in exp.patterns},
                                                       "regime_records": len(st.memory.records(ctx.now)),
                                                       "warning": st.warnings[-1][1] if st.warnings else "NONE"})
-        for p in exp.patterns:
-            if p in frames and any(p in str(e) for f in inv.findings if f.level == WC.Level.PATTERN for e in f.evidence):
-                st.pcs.mark_investigated(p)
-        tid = inv.conclusion.test.tree_id if inv.conclusion and inv.conclusion.test.kind == "HYPOTHESIS_TREE" else ""
-        if tid and tid in st.wcs.trees:
-            tree = st.wcs.trees[tid]
-            if tid not in forest.trees and not forest.find_similar(tree.question):
-                try:
-                    forest.add(tree)
-                    trees += 1
-                except HT.TreeError:
-                    st.count("trees_refused")
+        if tree is not None:
             led.pipe.add(pid, "HYPOTHESIS", ctx.now, {"tree": tid, "claim": next((c for c, cl in st.wcs.claims.items() if cid in cl.origin_cases), ""),
-                                                      "question": tree.question[:160]})
+                                                      "question": text[:160]})
     st.count("investigations", len(rep.investigated))
     return _run(st, ctx, "c68.what_changed", len(todo), len(rep.investigated),
                 f"classes {dict(rep.by_class)}; {len(rep.preserved_unknowable)} unknowable preserved; {trees} tree(s) into the loop forest; "
@@ -1296,13 +1372,14 @@ def st_error_research(ctx: LP.Ctx) -> tuple:
     rep = ER.step(st.er, ctx.now, records, st.contexts, priority_state=None, created_real=ctx.created_real())
     events = ctx.bus.setdefault("events", [])
     rqs = ctx.bus.setdefault("research_questions", [])
-    by_obs = {o: st.er.intensities[o] for o in st.er.intensities}
+    by_obs = dict(st.er.intensities)
+    book = st.er.book.records(ctx.now)
     ranked = sorted(rep.items, key=lambda i: (-float(i.value.decision_value or 0.0), i.item_id))[: cfg.max_events]
     n_ev = 0
     for item in ranked:
         cell = st.er.item_cells.get(item.item_id, "all")
         subject = f"prediction error {cell}"[:150]
-        obs = [o for o, c in _obs_cells(st).items() if c == cell] if "|" in cell or "=" in cell else []
+        obs = [o.obs_id for o in book if (o.cell() or "all") == cell or cell in o.groups()]
         its = [by_obs[o] for o in obs if o in by_obs]
         mag = max([_magnitude(i, cfg.research_cfg) for i in its], default=float(min(1.0, (item.value.decision_value or 0.0))))
         cw = any(i.confident_wrong for i in its) or item.family.endswith("confident_wrong")
@@ -1322,16 +1399,10 @@ def st_error_research(ctx: LP.Ctx) -> tuple:
     for mr in st.market.reports[st.counters.get("market_reports_sent", 0):]:
         rqs.extend(ME.investigation_questions(mr, ctx.created_real(), mr.period))
     st.counters["market_reports_sent"] = len(st.market.reports)
-    for o in rep.confident_wrong:
-        led.pipe.add(o, "CAUSE", ctx.now, {"confident_wrong": True, "answered": st.er.investigations[o].answered_share}) \
-            if led.pipe.last_step(o) in ("ERROR", "CLASSIFIED") else None
+    for o, it in st.er.intensities.items():
+        st.depth_of[o] = it.tier.value
     return _run(st, ctx, "c68.error_research", rep.ingested, n_ev + len(rep.self_questions),
                 f"{rep.summary()}; {n_ev} question event(s), {len(rep.self_questions)} self-research question(s)")
-
-
-def _obs_cells(st: C68State) -> dict:
-    return {o: st.er.book._obs[o].cell() or "all" for o in getattr(st.er.book, "_obs", {})} if hasattr(st.er.book, "_obs") else \
-        {r.obs_id: r.cell() or "all" for r in st.er.book.records("9999-12-31")}
 
 
 def _last_matured(st: C68State, now) -> str:
@@ -1360,8 +1431,13 @@ def st_depth(ctx: LP.Ctx) -> tuple:
             pst.external_multipliers["r_" + qid] = m
             damped += 1
         for pid in st.subject_pids.get(qo.subject, []):
-            if led.pipe.last_step(pid) in ("ERROR", "CLASSIFIED", "CAUSE", "KNOWABILITY", "PATTERN_REGIME", "HYPOTHESIS"):
-                led.pipe.add(pid, "RESEARCH", ctx.now, {"question": qid, "priority": float(qo.priority), "multiplier": m})
+            # research is recorded only once the prediction's own investigation is done (or it was too small to investigate), so
+            # the trail reads error -> cause -> knowability -> pattern/regime -> hypothesis -> research, never the other way round
+            if pid in st.investigated and led.pipe.last_step(pid) in ("CLASSIFIED", "CAUSE", "KNOWABILITY", "PATTERN_REGIME", "HYPOTHESIS"):
+                cw = st.er.investigations.get(pid)
+                led.pipe.add(pid, "RESEARCH", ctx.now, {"question": qid, "priority": float(qo.priority), "multiplier": m,
+                                                        "tier": st.depth_of.get(pid, "?"),
+                                                        "confident_wrong_answered": None if cw is None else cw.answered_share})
     return _run(st, ctx, "c68.research_depth", len(ours), damped, f"{len(ours)} C68 question(s) in the loop's queue, {damped} damped")
 
 
@@ -1444,8 +1520,12 @@ def st_validate(ctx: LP.Ctx) -> tuple:
     if len(fr) < 2 * cfg.self_correct.min_rows:
         raise LP.NoInput(f"only {len(fr)} matured forecasts (< {2 * cfg.self_correct.min_rows}) for self-correction")
     fixes = candidate_fixes(cfg)
-    base = QG.QualityEvidence(provenance=Provenance(ctx.created_real(), str(fr["matured_at"].max()), ctx.rt.code_hash,
-                                                    run_id=ctx.state.cfg.run_id, outcomes_seen_through=str(fr["matured_at"].max())))
+    through = str(fr["matured_at"].max())
+    base = QG.QualityEvidence(provenance=Provenance(ctx.created_real(), through, ctx.rt.code_hash,
+                                                    data_hash=stable_hash(fr[["date", "matured_at", "predicted", "realised"]].to_numpy().tolist(), 16),
+                                                    config_hash=stable_hash(dataclasses.asdict(cfg.self_correct), 12),
+                                                    experiment_id=f"c68.self_correct|{as_date(ctx.now)}", run_id=ctx.state.cfg.run_id,
+                                                    seed=cfg.seed, outcomes_seen_through=through))
     try:
         rep = SCX.step(fr, fixes, ctx.now, base=base, policy=QG.QualityPolicy(code_hash=ctx.rt.code_hash), cfg=cfg.self_correct)
     except ValueError as e:
@@ -1457,7 +1537,7 @@ def st_validate(ctx: LP.Ctx) -> tuple:
         key = f"FIX:{r.fix}"
         if led.pipe.last_step(key) is None:
             led.pipe.add(key, "OOS_TEST", ctx.now, {"mean_effect": r.mean_effect, "t": r.t, "weeks": len(r.oos_effects), "split": r.split},
-                         parents=[p for p in led.errors._reports][:50])
+                         parents=[r.prediction_id for r in led.errors.reports(ctx.now)][-50:])
         verdict = "PROMOTED" if r.fix in rep.promoted else "REJECTED"
         if led.pipe.last_step(key) in ("OOS_TEST", "MODEL_UPDATE", "VALIDATION"):
             if led.pipe.last_step(key) == "OOS_TEST":
@@ -1524,34 +1604,19 @@ def verify_all(st: C68State, led: Ledgers) -> list[str]:
     return probs
 
 
-def exit_independence(st: C68State, bv: BarView, now) -> XR.IndependenceReport | None:
-    """Checklist O on this loop's own exits: the committed policies re-run under different evaluation targets must give bit-identical
-    exits (the procedure never sees a target, so any difference would be a planted defect)."""
-    if not st.exit_records:
-        return None
-    recent = st.exit_records[-20:]
-    items = []
-    for r in recent:
-        pol = st.policies.get(r.exit_policy_id)
-        exp_day = next((d for d, fc in st.forecasts.items() if False), None)
-        del exp_day
-        if pol is not None:
-            items.append((r, pol))
-    if not items:
-        return None
+INDEPENDENCE_TARGETS = (CT.Target(0.05, 0.5, name="pm5pp_50"), CT.Target(0.002, 0.95, name="pm02pp_95"))
 
-    def run(target):
-        nets, days, reasons = [], [], []
-        for r, pol in items:
-            rows = [x for x in st.forecasts.values()]
-            del rows
-            res = run_exit(pol, r._paths) if hasattr(r, "_paths") else None
-            if res is not None:
-                nets.append(res.net), days.append(res.days), reasons.append(res.reason)
-        z = np.zeros(0)
-        return EX.ExitResult(np.concatenate(nets) if nets else z, np.concatenate(nets) if nets else z,
-                             np.concatenate(days) if days else z.astype(int), np.concatenate(reasons) if reasons else z.astype(int), z, 0)
-    return XR.exit_independence_audit(run, [st.cfg.target, CT.Target(0.05, 0.5, name="pm5pp_50")])
+
+def exit_independence(st: C68State, decide: Callable = None) -> XR.IndependenceReport | None:
+    """Checklist O on this loop's own exits: the newest exited positions re-decided by THE exit function (`decide_exits`, or a
+    stand-in a test plants) under the configured +-1pp target and two very different ones. Any difference in an exit day, reason or
+    return means the exit read the target."""
+    if not st.exited:
+        return None
+    decide = decide or decide_exits
+    targets = [st.cfg.target, *INDEPENDENCE_TARGETS]
+    return XR.exit_independence_audit(lambda t: _concat(decide(dataclasses.replace(st, cfg=dataclasses.replace(st.cfg, target=t)), st.exited)),
+                                      targets)
 
 
 def st_audit(ctx: LP.Ctx) -> tuple:
@@ -1564,8 +1629,14 @@ def st_audit(ctx: LP.Ctx) -> tuple:
     if probs:
         st.count("tamper_detected")
         raise XP.LedgerTampered("; ".join(probs[:6]))
+    ind = exit_independence(st)
+    if ind is not None:
+        st.independence.append({"now": ctx.now, "identical": ind.identical, "n_targets": ind.n_targets, "differing": list(ind.differing)})
+        if not ind.identical:
+            st.count("exit_read_target")
+            raise FirewallBreach(f"exit decisions changed with the evaluation target ({', '.join(ind.differing)}): checklist O violated")
     for k, h in led.heads().items():
-        if not st.anchors or (st.anchors[-1][0] != ctx.cycle or k not in [a[1] for a in st.anchors if a[0] == ctx.cycle]):
+        if h != GENESIS and not any(a[1] == k and a[2] == h for a in st.anchors[-20:]):
             st.anchors.append((ctx.cycle, k, h))
     st.anchors = st.anchors[-500:]
     cal = CT.evaluate(led.book, st.exit_records, ctx.now, st.cfg.target, st.cfg.seed)
@@ -1600,6 +1671,83 @@ def cycle_report(ctx: LP.Ctx, st: C68State, led: Ledgers, cal: CT.CalibrationRep
             "regime_records": [{"id": r.record_id, "scope": r.scope, "detected": r.detected_at, "status": st.memory.status(r.record_id).value,
                                 "weakened": list(r.patterns_weakened)} for r in st.memory.records(ctx.now)],
             "identification": ident, "stage_runs": [r for r in st.runs if r["cycle"] == ctx.cycle]}
+
+
+# ================================================================================================================ the planted C68 world
+@dataclasses.dataclass(frozen=True)
+class C68Plant:
+    """A seeded world whose C68 mechanisms are KNOWN (World.truth names them), so the pipeline can be scored against exact truth:
+      trend episodes   a name in a trend drifts +`drift` per session with higher volatility; its trailing 20-session return reveals it
+                       (the genuine, knowable pattern 'mom_r20_top' and a realisable gain inside the 5-10% band)
+      false alarm      a market-wide volatility burst of `burst_len` sessions at `false_alarm` of the sample while the trend pattern keeps
+                       working: a regime alarm that must NOT switch the pattern off
+      regime switch    from `switch` to `recover` the drift is gone and market volatility is higher: a genuine market-wide change that must
+                       degrade the pattern; from `recover` on the drift is back (volatility stays high): the pattern must regain influence
+                       detected forward in time and must degrade the pattern
+      shock            one name gaps down `shock_size` at `shock` with no information item anywhere and stays turbulent for
+                       `distress_len` sessions: an unknowable single-stock anomaly that must stay a SINGLE-STOCK finding"""
+    n_names: int = 40
+    n_days: int = 440
+    seed: int = 0
+    n_sectors: int = 5
+    drift: float = 0.016
+    base_sigma: tuple = (0.008, 0.014)
+    start_p: float = 1 / 60
+    stop_p: float = 1 / 30
+    switch: float = 0.70
+    recover: float = 0.82
+    false_alarm: float = 0.62
+    burst_len: int = 12
+    burst_mult: float = 2.5
+    shock: float = 0.655
+    shock_size: float = -0.18
+    shock_name: int = 7
+    distress_len: int = 20
+    distress_mult: float = 3.0
+    market_vol: float = 0.006
+    post_switch_vol: float = 2.2
+
+
+def plant_world(pc: C68Plant = C68Plant()) -> FD.World:
+    rng = np.random.default_rng(pc.seed)
+    T, n = pc.n_days, pc.n_names
+    if n < 10 or T < 300:
+        raise ValueError("the C68 world needs >= 10 names and >= 300 sessions")
+    dates = pd.bdate_range("2016-01-04", periods=T)
+    tick = [f"W{j:03d}" for j in range(n)]
+    base = rng.uniform(*pc.base_sigma, n)
+    state = np.zeros((T, n), bool)
+    s = rng.random(n) < 0.15
+    for t in range(T):
+        s = (s | ((~s) & (rng.random(n) < pc.start_p))) & ~(s & (rng.random(n) < pc.stop_p))
+        state[t] = s
+    sw, f0, ts = int(T * pc.switch), int(T * pc.false_alarm), int(T * pc.shock)
+    mvol = np.full(T, pc.market_vol)
+    mvol[sw:] *= pc.post_switch_vol
+    mvol[f0:f0 + pc.burst_len] *= pc.burst_mult
+    m = rng.normal(0, 1, T) * mvol
+    sig = base[None, :] * np.where(state, 1.4, 1.0) * np.sqrt(mvol / pc.market_vol)[:, None]
+    sig[ts:ts + pc.distress_len, pc.shock_name] *= pc.distress_mult
+    mu = np.where(state, pc.drift, 0.0)
+    rc = int(T * pc.recover)
+    mu[sw:rc] = 0.0
+    r = np.clip(mu + m[:, None] + rng.normal(0, 1, (T, n)) * sig, -0.3, 0.3)
+    r[ts, pc.shock_name] += pc.shock_size
+    p0 = np.exp(rng.uniform(math.log(10), math.log(120), n))
+    C = p0 * np.exp(np.cumsum(np.log1p(r), axis=0))
+    prev = np.vstack([C[:1] / (1 + r[:1]), C[:-1]])
+    gf = rng.uniform(0.0, 0.4, (T, n))
+    gf[ts, pc.shock_name] = 1.0
+    O = prev * (1.0 + r * gf)
+    wick = np.abs(rng.normal(0, 1, (2, T, n))) * sig * 0.5
+    H = np.maximum(O, C) * (1 + wick[0])
+    L = np.minimum(O, C) * (1 - np.minimum(wick[1], 0.5))
+    V = np.exp(rng.normal(15.0, 0.4, n)) * np.exp(rng.normal(0, 0.25, (T, n)))
+    bars = {k: pd.DataFrame(v, index=dates, columns=tick) for k, v in zip(FD.BAR_FIELDS, (O, H, L, C, V))}
+    sectors = {t: f"SEC{j % pc.n_sectors}" for j, t in enumerate(tick)}
+    truth = {"pattern": "mom_r20_top", "switch": str(dates[sw].date()), "recover": str(dates[min(rc, T - 1)].date()), "false_alarm": (str(dates[f0].date()), str(dates[f0 + pc.burst_len - 1].date())),
+             "shock": (tick[pc.shock_name], str(dates[ts].date())), "trend_share": float(state.mean()), "survivor_free": True, "seed": pc.seed}
+    return FD.World(bars, None, None, None, sectors, {}, FD.market_proxy(bars), truth)
 
 
 # ================================================================================================================ registration
@@ -1638,7 +1786,7 @@ def unregister() -> None:
 def stage_table(reports: Sequence[Mapping[str, Any]]) -> pd.DataFrame:
     """The per-stage run table of the C68 stages over loop cycle reports: cycle, stage, status, in, out, note."""
     rows = [{"cycle": r.get("cycle"), "stage": s["stage"], "status": s["status"], "in": s.get("n_in"), "out": s.get("n_out"),
-             "note": s.get("note", "")[:160]} for r in reports for s in r.get("stages", []) if str(s.get("stage", "")).startswith("c68.")]
+             "note": str(s.get("reason", ""))[:160]} for r in reports for s in r.get("stages", []) if str(s.get("stage", "")).startswith("c68.")]
     return pd.DataFrame(rows, columns=["cycle", "stage", "status", "in", "out", "note"])
 
 

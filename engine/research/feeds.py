@@ -732,7 +732,9 @@ def b_multiscale(feed: "WorldFeed", ctx) -> dict:
         s = f.stack()
         s.index.names = ["date", "ticker"]
         flags[name] = s.astype(bool)
-    return {"flags": flags, "close": C, "open": O}
+    # each flag's DESIGN horizon is declared (next session): left undeclared, the ledger declares the measured home, which can move
+    # between calls and then refuses the re-declaration (observed on the planted run after ~50 cycles)
+    return {"flags": flags, "close": C, "open": O, "declared": {k: "1d" for k in flags}}
 
 
 def _info_items(w: World, ticker: str, lo: pd.Timestamp, hi: pd.Timestamp, now) -> list:

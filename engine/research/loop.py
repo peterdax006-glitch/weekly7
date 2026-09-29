@@ -1271,7 +1271,7 @@ def st_multiscale(ctx: Ctx) -> tuple:
         raise MissingModule("multiscale") from e
     ex = ctx.extra("surprises.multiscale", "pattern flags and a close-price panel (multiscale inputs)")
     led = ctx.mod_state("multiscale", MS.ScaleLedger)
-    res = MS.step(led, ctx.now, ex["flags"], ex["close"], ex.get("open"))
+    res = MS.step(led, ctx.now, ex["flags"], ex["close"], ex.get("open"), declared=ex.get("declared"))
     _records(ctx).extend(led.matured_records(ctx.now))
     return len(ex["flags"]), 1, str(type(res).__name__)
 
@@ -2341,8 +2341,9 @@ def st_quality_and_knowledge(ctx: Ctx) -> tuple:
         rec = ctx.state.jobs[key]
         did = f"D{rec.branch_id}"
         b = by_key[key]
-        ctx.state.lineage.add("GATE", did, ctx.cycle, ctx.now, verdict=verdicts.get(did, "UNKNOWN"),
-                              blocking=sorted(EV.blocking(rep, did)), missing=sorted(b.missing))
+        ctx.state.lineage.add("GATE", did, ctx.cycle, ctx.now, verdict=verdicts.get(did, "UNKNOWN"), feature=rec.feature,
+                              problem=rec.problem, blocking=EV.blocking(rep, did), missing=dict(b.missing),
+                              effect_test=b.parts.get("effect_test"), effect_train=b.parts.get("effect_train"))
         ctx.state.lineage.link(f"RESULT:{key}", f"GATE:{did}", "gated")
         ctx.bus.setdefault("gate_verdicts", {})[did] = {"verdict": verdicts.get(did, "UNKNOWN"), "blocking": EV.blocking(rep, did),
                                                          "missing": dict(b.missing), "feature": rec.feature}

@@ -515,3 +515,31 @@ def test_failure_cause_bridge_never_guesses(stepped):
         fc = BR.failure_cause_of(inv)
         assert (fc == BR.FailureCause.UNKNOWN or fc == BR.FailureCause.INSUFFICIENT_EVIDENCE) or inv.verdict == BR.Verdict.EXPLAINED
     assert sum(BR.unknown_kinds(st).values()) == len(st.investigations)
+
+
+# ---------------------------------------------------------------- W-05: the cross-check uses the placebo-controlled engine
+class _Inv:
+    """Just what agreement_with_engine reads from an Investigation."""
+    rule = None
+    verdict = "UNKNOWN"
+
+
+def test_w05_agreement_check_refuses_a_placebo_only_explanation(monkeypatch):
+    item = make_item("precursor", seed=0)
+    cfg = {"bd": FAST}
+    bare = bd.explain_break(item, last(item), {**bd.PARAMS, **FAST}, 0)
+    if not bare.explained:
+        pytest.skip("planted precursor not explained by the bare engine under FAST settings")
+    ok = BR.agreement_with_engine(_Inv(), item, last(item), cfg, 0)
+    assert ok["engine_status"] == "EXPLAINED" and ok["engine_columns"]              # a real link survives the placebo bar
+    orig = bd.explain_break
+
+    def rigged(it, as_of=None, cfg=None, seed=0):
+        out = orig(it, as_of, cfg, seed)
+        if it is not item:                                                            # every shifted-context placebo looks as strong as the real one
+            return dataclasses.replace(out, best_t=bare.oos.t_diff + 1.0)
+        return out
+    monkeypatch.setattr(bd, "explain_break", rigged)
+    assert bd.explain_break(item, last(item), {**bd.PARAMS, **FAST}, 0).explained     # the OLD call site would still have said EXPLAINED
+    ag = BR.agreement_with_engine(_Inv(), item, last(item), cfg, 0)
+    assert ag["engine_status"] == "UNKNOWN" and ag["engine_columns"] == () and not ag["both_explain"]

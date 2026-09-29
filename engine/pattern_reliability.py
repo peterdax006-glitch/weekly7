@@ -84,6 +84,10 @@ PARAMS = {
     "effect_shrink": 0.7,       # expected effect = shrink x burn-in mean (winner's-curse guard) ...
     "effect_lcb_z": 0.5,        # ... capped at the burn-in mean minus this many standard errors (the pattern was picked BECAUSE its
                                 #     burn-in looked good, so the raw mean is an upper estimate of its true effect: W-05)
+    "oos_lag": 13,              # cross-fit: a healthy week joins the OOS estimate only this many weeks after it happened, so the estimate
+                                #     that sets the bar is disjoint from the recent window the monitor is judging (W-05)
+    "oos_min": 26,              # healthy post-burn-in weeks needed before the OOS estimate replaces the burn-in one
+    "oos_z": 0.5,               # the OOS expected effect = OOS mean minus this many standard errors (no selection bias left to shrink)
     "effect_floor": 0.2,        # ... but never below this share of the burn-in mean (a positive effect must stay positive)
     "arl0": 500,                # target average weeks between false alarms of the sequential test, per pattern
     "k_floor": 0.08,            # CUSUM reference value floor (in sd units)
@@ -1121,6 +1125,7 @@ class HealthLedger:
     h: pd.Series                 # alarm threshold per pattern
     events: pd.DataFrame         # broken episodes: pattern, detect, onset, recover, phantom
     params: dict
+    mu_path: pd.DataFrame = None  # expected effect actually used each week (burn-in estimate, then the cross-fitted OOS one)
 
     def status(self, pos):
         return self.codes.iloc[pos].map(STATUS_NAMES)
@@ -1163,6 +1168,7 @@ def health_monitor(tl, cfg=None, expected=None, as_of=None):
     rec = np.full((T, N), np.nan)
     sdm = np.full((T, N), np.nan)
     mu0s = np.full(N, np.nan)
+    mup = np.full((T, N), np.nan)
     hs = np.full(N, np.nan)
     events = []
     lam = 0.5 ** (1.0 / P["half_life"])
@@ -1176,6 +1182,8 @@ def health_monitor(tl, cfg=None, expected=None, as_of=None):
         exp_ = None if expected is None else expected.get(tl.patterns[j])
         est, mu0, h, k, mu_rel = False, np.nan, np.nan, np.nan, np.nan
         S, broken, cur, ok_run = 0.0, False, None, 0
+        est_i, mu_cap, mu_lo = 0, np.nan, np.nan
+        oc, om, om2 = 0, 0.0, 0.0                      # Welford accumulators of the cross-fitted OOS sample
         A = W = Q = 0.0
         cnt, m1, m2 = 0, 0.0, 0.0
         for i in range(f + 1, min(T, last)):
@@ -1197,6 +1205,8 @@ def health_monitor(tl, cfg=None, expected=None, as_of=None):
                     mu0 = float(exp_) if exp_ is not None else expected_effect(m1, sd_run, cnt, P)
                     mu_rel = mu0 if exp_ is not None else P["effect_shrink"] * m1     # release bar: the full shrunk effect, not the lower bound
                     sd0 = sd_run
+                    est_i, mu_cap, mu_lo = i, max(m1, mu0), P["effect_floor"] * m1
+                    oc, om, om2 = 0, 0.0, 0.0
                     k = max(0.5 * mu0 / sd0, P["k_floor"])
                     kk = round(k, 3)
                     if kk not in hcache:
@@ -1213,6 +1223,16 @@ def health_monitor(tl, cfg=None, expected=None, as_of=None):
                         events.append(cur)
                     codes[i, j], sdm[i, j] = BROKEN, sd_run
                     continue
+            kx = i - 1 - P["oos_lag"]
+            if exp_ is None and kx >= est_i and codes[kx, j] == HEALTHY and np.isfinite(R[kx, j]):
+                oc += 1                                 # week kx was judged healthy BEFORE its return arrived, and is now old enough
+                dx = R[kx, j] - om
+                om += dx / oc
+                om2 += dx * (R[kx, j] - om)
+                if oc >= P["oos_min"]:
+                    se_o = math.sqrt(om2 / (oc - 1) / oc)
+                    mu0 = float(min(mu_cap, max(mu_lo, om - P["oos_z"] * se_o)))
+            mup[i, j] = mu0
             sd = max(sd_run, 0.25 * math.sqrt(m2 / (cnt - 1)))
             if np.isfinite(r):
                 S = max(0.0, S + (mu0 - r) / sd - k)
@@ -1246,7 +1266,7 @@ def health_monitor(tl, cfg=None, expected=None, as_of=None):
     return HealthLedger(pd.DataFrame(codes, index=idx, columns=cols), pd.DataFrame(cus, index=idx, columns=cols),
                         pd.DataFrame(pw, index=idx, columns=cols), pd.DataFrame(rec, index=idx, columns=cols),
                         pd.Series(mu0s, index=cols), pd.DataFrame(sdm, index=idx, columns=cols), pd.Series(hs, index=cols),
-                        ev, P)
+                        ev, P, pd.DataFrame(mup, index=idx, columns=cols))
 
 
 def false_alarm_budget(h, n_pattern_weeks):

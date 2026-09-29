@@ -2116,10 +2116,10 @@ def events_prefix_stable(item: BD.ItemSeries, early, late, cfg=None) -> list[str
 
 
 def agreement_with_engine(inv: Investigation, item: BD.ItemSeries, now, cfg=None, seed: int = 0) -> dict:
-    """Cross-check against the one break engine (`explain_break`): does its validated condition use the same column or the same
+    """Cross-check against the one break engine (`explain_break_controlled`, with its shifted-placebo bar): does its validated condition use the same column or the same
     dimension as this module's rule? Agreement from two different searches is evidence; disagreement is reported, not hidden."""
     P = _cfg(cfg)
-    ex = BD.explain_break(item, now, _bd_cfg(P), seed)
+    ex = BD.explain_break_controlled(item, now, _bd_cfg(P), seed)
     engine_cols = tuple(t.column for t in ex.condition.terms) if ex.condition is not None else ()
     engine_dims = tuple(ex.condition.dimensions) if ex.condition is not None else ()
     mine = inv.rule.column if inv.rule else None
