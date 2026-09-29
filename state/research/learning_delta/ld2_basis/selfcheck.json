@@ -1,0 +1,22 @@
+{
+ "generaliser": {
+  "verdict": "GENERALISING",
+  "same": 0.06371166868631606,
+  "effect": 0.06371166868631606,
+  "transfer": 0.06360896366809213
+ },
+ "memoriser": {
+  "verdict": "MEMORISATION",
+  "same": 0.08847679970186503,
+  "effect": 0.08847679970186503,
+  "transfer": 0.0
+ },
+ "non_learner": {
+  "verdict": "NO_EFFECT",
+  "same": 0.0,
+  "effect": 0.0,
+  "transfer": 0.0
+ },
+ "leak_detected": true,
+ "valid": true
+}
