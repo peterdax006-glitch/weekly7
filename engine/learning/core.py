@@ -196,7 +196,7 @@ def _canon(obj: Any) -> Any:
     if isinstance(obj, float):
         if math.isnan(obj) or math.isinf(obj):
             return str(obj)                               # JSON has no NaN; keep it visible, never silently 0
-        return float(repr(round(obj, 12)))
+        return round(float(obj), 12)                      # float() first: np.float64 repr is 'np.float64(..)' in numpy 2
     if isinstance(obj, (dt.datetime, dt.date)):
         return obj.isoformat()
     if hasattr(obj, "item") and callable(obj.item):       # numpy scalars

@@ -19,6 +19,8 @@ from typing import Any, Iterable, Mapping, Sequence
 import numpy as np
 from scipy import stats as sps
 
+from engine import pattern_stats
+
 from .core import FirewallBreach, Health, as_date, canonical_json, require_past, stable_hash
 
 NOMINAL_BIG_RATE = 2 * (1 - sps.norm.cdf(2.0))         # share of |z| >= 2 under pure expected noise (~4.6%)
@@ -85,20 +87,12 @@ def binary_z(p_expected: float, outcome: int) -> float:
 
 
 def benjamini_hochberg(pvals: Sequence[float], q: float = 0.10) -> list[bool]:
-    """FDR control across cells: many cells are tested at once, so a raw p<0.05 would flag noise cells by the dozen."""
-    m = len(pvals)
-    if m == 0:
+    """FDR control across cells (many cells are tested at once, so raw p<0.05 would flag noise cells by the dozen).
+    Delegates to engine.pattern_stats.bh_reject - the audited step-up rule the miner also uses; NaN p counts as 1."""
+    if len(pvals) == 0:
         return []
-    order = np.argsort(pvals, kind="stable")
-    thresh = -1
-    for rank, idx in enumerate(order, start=1):
-        if pvals[idx] <= q * rank / m:
-            thresh = rank
-    keep = [False] * m
-    for rank, idx in enumerate(order, start=1):
-        if rank <= thresh:
-            keep[idx] = True
-    return keep
+    clean = [1.0 if not math.isfinite(float(v)) else float(v) for v in pvals]
+    return [bool(x) for x in pattern_stats.bh_reject(clean, q)]
 
 
 @dataclasses.dataclass(frozen=True)
@@ -187,13 +181,12 @@ class SurpriseTracker:
         cut = as_date(decided_at)
         pool = [r for r in self._recs if as_date(r.matured_at) < cut and r.kind == "continuous"]
         cellp = [r for r in pool if cell is not None and r.cell == cell]
-        for src, rs in (("history", cellp if len(cellp) >= self.cfg.min_history else pool),):
-            if len(rs) >= self.cfg.min_history:
-                errs = np.array([(r.actual - r.expected) for r in rs])
-                mad = float(np.median(np.abs(errs - np.median(errs))))
-                sc = 1.4826 * mad
-                if sc > 0:
-                    return sc, src
+        rs = cellp if len(cellp) >= self.cfg.min_history else pool
+        if len(rs) >= self.cfg.min_history:
+            errs = np.array([(r.actual - r.expected) for r in rs])
+            sc = 1.4826 * float(np.median(np.abs(errs - np.median(errs))))
+            if sc > 0:
+                return sc, "history"
         return self.cfg.default_scale, "default"
 
     # ---- observe
@@ -218,7 +211,7 @@ class SurpriseTracker:
                            knowledge_ids)
 
     def _store(self, cell, kind, decided_at, matured_at, expected, actual, scale, src, z, kids) -> SurpriseRecord:
-        rid = stable_hash([cell, kind, str(as_date(decided_at)), str(as_date(matured_at)), round(expected, 10), round(actual, 10),
+        rid = stable_hash([cell, kind, str(as_date(decided_at)), str(as_date(matured_at)), round(float(expected), 10), round(float(actual), 10),
                            sorted(kids)], 16)
         if rid in self._ids:
             raise ValueError(f"duplicate surprise record {rid}: the same expectation was already recorded")
@@ -382,3 +375,228 @@ class SurpriseTracker:
         for p in self.research_priority(now)[:top]:
             lines.append(f"  priority {p.score:.2f}  {p.reason}")
         return "\n".join(lines)
+
+
+# ------------------------------------------------------------------------------------------------- similar situations
+
+def parse_cell(cell: str) -> frozenset[str]:
+    """A cell key is a '|'-joined context signature such as 'vol=high|trend=up|size=small'. Tokens are compared as sets, so
+    two cells are similar by the context they share, never by any identity."""
+    return frozenset(t for t in str(cell).split("|") if t)
+
+
+def cell_similarity(a: str, b: str) -> float:
+    """Jaccard similarity of context tokens, in [0, 1]. 1.0 only for identical signatures."""
+    ta, tb = parse_cell(a), parse_cell(b)
+    if not ta and not tb:
+        return 0.0
+    return len(ta & tb) / len(ta | tb)
+
+
+def auto_similar(tracker: SurpriseTracker, now, min_sim: float = 0.5, max_neighbours: int = 8) -> dict[str, list[tuple[str, float]]]:
+    """Neighbour map for `research_priority` built from the cells' own signatures, so repeated surprises across SIMILAR situations
+    raise priority without the caller hand-listing neighbours. Deterministic: ties on similarity break by content hash."""
+    cells = tracker.cells(now)
+    out: dict[str, list[tuple[str, float]]] = {}
+    for c in cells:
+        nb = [(o, cell_similarity(c, o)) for o in cells if o != c]
+        nb = [(o, s) for o, s in nb if s >= min_sim]
+        nb.sort(key=lambda x: (-x[1], stable_hash(x[0], 8)))
+        if nb:
+            out[c] = nb[:max_neighbours]
+    return out
+
+
+def rollup(tracker: SurpriseTracker, now, drop: str) -> dict[str, CellStats]:
+    """Aggregate to parent cells by dropping one context dimension (e.g. drop='size'): a surprise that only shows up once the
+    cells are pooled is a surprise about the dimension that was dropped being irrelevant - or about the pooled context."""
+    groups: dict[str, list[SurpriseRecord]] = {}
+    for r in tracker.records(now):
+        toks = sorted(t for t in parse_cell(r.cell) if not t.startswith(drop + "="))
+        groups.setdefault("|".join(toks), []).append(r)
+    out = {}
+    for parent, rs in sorted(groups.items()):
+        if not parent:
+            continue
+        sub = SurpriseTracker(tracker.cfg)
+        for r in rs:
+            sub._recs.append(dataclasses.replace(r, cell=parent))
+        st = sub.cell_stats(parent, now)
+        if st:
+            out[parent] = st
+    return out
+
+
+def persistence_profile(tracker: SurpriseTracker, cell: str, now) -> dict[str, Any]:
+    """Run structure of surprises in one cell: how long do same-direction big surprises last, and is the longest run longer
+    than independence would produce? A run of k same-sign big surprises among m big ones has probability about 2 * 0.5**k
+    under no memory, so a long run is evidence that the surprise is one persistent thing rather than several accidents."""
+    rs = tracker.records(now, cell)
+    big = [r for r in rs if r.magnitude >= tracker.cfg.z_big]
+    signs = [r.direction for r in big]
+    runs: list[int] = []
+    for s in signs:
+        if runs and s == prev:
+            runs[-1] += 1
+        else:
+            runs.append(1)
+        prev = s
+    longest = max(runs) if runs else 0
+    chance = min(1.0, len(big) * 0.5 ** longest) if longest else 1.0
+    return {"cell": cell, "n": len(rs), "big": len(big), "runs": runs, "longest_run": longest,
+            "longest_run_chance": chance, "persistent": bool(longest >= 4 and chance < 0.05),
+            "direction": (1 if sum(signs) > 0 else -1) if signs and sum(signs) != 0 else 0}
+
+
+def summary_table(tracker: SurpriseTracker, now) -> list[dict[str, Any]]:
+    """One row per cell, everything a reviewer needs: counts, bias, big-surprise rate, persistence, last big surprise."""
+    rows = []
+    for st in tracker.all_stats(now):
+        per = persistence_profile(tracker, st.cell, now)
+        rows.append({"cell": st.cell, "n": st.n, "mean_z": st.mean_z, "big_rate": st.big_rate, "bias_p": st.bias_p,
+                     "rate_p": st.rate_p, "longest_run": per["longest_run"], "persistent": per["persistent"],
+                     "last_big_at": st.last_big_at})
+    return sorted(rows, key=lambda r: (r["bias_p"], stable_hash(r["cell"], 8)))
+
+
+# ------------------------------------------------------------------------------------------------- charts and skill
+
+def ewma_chart(tracker: SurpriseTracker, cell: str, now, lam: float = 0.2, width: float = 3.0) -> dict[str, Any]:
+    """EWMA control chart of |z| for one cell: a slow rise in how surprised we are is caught earlier than by single records.
+    Control limit: expected |z| under noise (sqrt(2/pi)) plus `width` steady-state standard deviations of the EWMA."""
+    zs = [abs(r.z) for r in tracker.records(now, cell)]
+    if not 0 < lam <= 1:
+        raise ValueError("lam must be in (0, 1]")
+    if len(zs) < tracker.cfg.min_cell_n:
+        return {"n": len(zs), "alarm_index": None, "ewma": [], "limit": None}
+    mu0 = math.sqrt(2 / math.pi)
+    sd0 = math.sqrt(1 - 2 / math.pi)
+    limit = mu0 + width * sd0 * math.sqrt(lam / (2 - lam))
+    e, series, alarm = mu0, [], None
+    for i, z in enumerate(zs):
+        e = lam * z + (1 - lam) * e
+        series.append(e)
+        if alarm is None and e > limit:
+            alarm = i
+    return {"n": len(zs), "alarm_index": alarm, "ewma": series, "limit": limit}
+
+
+def expectation_skill(tracker: SurpriseTracker, now, kind: str = "continuous") -> dict[str, float]:
+    """Are the EXPECTATIONS themselves informative? Regress actual on expected across all resolved records. A slope near 1 and
+    intercept near 0 mean expected outcomes track reality; a slope near 0 means the expectations carry no information, and
+    every 'surprise' is then just the outcome itself."""
+    rs = [r for r in tracker.records(now) if r.kind == kind]
+    if len(rs) < 10:
+        return {"n": len(rs), "slope": float("nan"), "intercept": float("nan"), "corr": float("nan"), "p": float("nan")}
+    e = np.array([r.expected for r in rs])
+    a = np.array([r.actual for r in rs])
+    if float(np.ptp(e)) < 1e-12:
+        return {"n": len(rs), "slope": float("nan"), "intercept": float("nan"), "corr": float("nan"), "p": float("nan")}
+    fit = sps.linregress(e, a)
+    return {"n": len(rs), "slope": float(fit.slope), "intercept": float(fit.intercept), "corr": float(fit.rvalue),
+            "p": float(fit.pvalue)}
+
+
+def direction_table(tracker: SurpriseTracker, now) -> list[dict[str, Any]]:
+    """Per cell: does the system tend to be pleasantly or unpleasantly surprised? Asymmetry matters: repeated UNDER-performance
+    in a context is a lesson about the item, repeated OVER-performance is a missed opportunity (section 22)."""
+    rows = []
+    for st in tracker.all_stats(now):
+        rows.append({"cell": st.cell, "n": st.n, "mean_z": st.mean_z, "under": st.under_n, "over": st.over_n,
+                     "tilt": (st.over_n - st.under_n) / st.n, "bias_p": st.bias_p})
+    return sorted(rows, key=lambda r: (r["bias_p"], stable_hash(r["cell"], 8)))
+
+
+# ------------------------------------------------------------------------------------------------- investigation log
+
+INVESTIGATION_STATES = ("OPEN", "EXPLAINED", "NO_CAUSE_FOUND", "SUPERSEDED")
+
+
+@dataclasses.dataclass(frozen=True)
+class InvestigationEntry:
+    seq: int
+    cell: str
+    state: str
+    at: str
+    note: str
+
+
+class InvestigationLog:
+    """Append-only record of what was done about each flagged cell, so the same surprise is not re-raised every day and a
+    cell that keeps surprising after being 'explained' is visible as such. Nothing is edited; a new entry supersedes."""
+
+    def __init__(self):
+        self._e: list[InvestigationEntry] = []
+
+    def record(self, cell: str, state: str, at, note: str = "") -> InvestigationEntry:
+        if state not in INVESTIGATION_STATES:
+            raise ValueError(f"unknown investigation state {state}")
+        if self._e and as_date(at) < as_date(self._e[-1].at):
+            raise FirewallBreach("investigation entries must be recorded in date order")
+        e = InvestigationEntry(len(self._e), cell, state, as_date(at).isoformat(), note)
+        self._e.append(e)
+        return e
+
+    def current(self, cell: str, as_of) -> InvestigationEntry | None:
+        rel = [e for e in self._e if e.cell == cell and as_date(e.at) < as_date(as_of)]
+        return rel[-1] if rel else None
+
+    def last_reviewed(self, cell: str, as_of) -> str | None:
+        e = self.current(cell, as_of)
+        return e.at if e else None
+
+    def pending(self, tracker: SurpriseTracker, now) -> list[Investigation]:
+        """Investigations worth acting on: never reviewed, or flagged again by records that matured after the last review."""
+        out = []
+        for inv in tracker.investigations(now):
+            last = self.last_reviewed(inv.cell, now)
+            if last is None:
+                out.append(inv)
+                continue
+            newer = [r for r in tracker.records(now, inv.cell) if as_date(r.matured_at) > as_date(last)]
+            if len(newer) >= tracker.cfg.min_cell_n and sum(1 for r in newer if r.magnitude >= tracker.cfg.z_big) >= 2:
+                out.append(dataclasses.replace(inv, reason=inv.reason + f" (re-flagged after review on {last})"))
+        return out
+
+    def repeat_offenders(self, min_entries: int = 3) -> list[str]:
+        """Cells investigated and closed at least `min_entries` times without the surprises stopping."""
+        counts: dict[str, int] = {}
+        for e in self._e:
+            if e.state in ("EXPLAINED", "NO_CAUSE_FOUND"):
+                counts[e.cell] = counts.get(e.cell, 0) + 1
+        return sorted(c for c, n in counts.items() if n >= min_entries)
+
+    def __len__(self) -> int:
+        return len(self._e)
+
+
+def discriminating_tokens(tracker: SurpriseTracker, now, min_cells: int = 2) -> list[dict[str, Any]]:
+    """Which context tokens (e.g. 'vol=high') travel with the surprises? For each token, compare the pooled mean |z| of cells
+    that contain it with cells that do not (Welch t on cell-level mean |z|). Ranking the tokens tells the research queue WHICH
+    condition to split on first - it turns 'this area surprises us' into 'test a condition on this dimension'."""
+    stats = [s for s in tracker.all_stats(now) if s.n >= tracker.cfg.min_cell_n]
+    tokens = sorted({t for s in stats for t in parse_cell(s.cell)})
+    rows = []
+    for tok in tokens:
+        a = np.array([s.mean_abs_z for s in stats if tok in parse_cell(s.cell)])
+        b = np.array([s.mean_abs_z for s in stats if tok not in parse_cell(s.cell)])
+        if len(a) < min_cells or len(b) < min_cells:
+            continue
+        t, p = sps.ttest_ind(a, b, equal_var=False)
+        rows.append({"token": tok, "cells_with": len(a), "cells_without": len(b), "mean_abs_z_with": float(a.mean()),
+                     "mean_abs_z_without": float(b.mean()), "t": float(t) if np.isfinite(t) else 0.0,
+                     "p": float(p) if np.isfinite(p) else 1.0})
+    return sorted(rows, key=lambda r: (r["p"], -abs(r["t"]), r["token"]))
+
+
+def research_questions(tracker: SurpriseTracker, now, top: int = 5) -> list[dict[str, Any]]:
+    """Turn the priority list into concrete questions for the research policy (section 51): the cell, why it ranks, and the
+    condition token most associated with surprise across cells (the suggested split)."""
+    suggested = discriminating_tokens(tracker, now)
+    lead = suggested[0]["token"] if suggested and suggested[0]["p"] < 0.10 else None
+    out = []
+    for pr in tracker.research_priority(now, auto_similar(tracker, now))[:top]:
+        out.append({"cell": pr.cell, "priority": pr.score, "why": pr.reason,
+                    "question": f"why is {pr.cell} repeatedly surprising?" + (f" test a split on '{lead}'" if lead else ""),
+                    "suggested_split": lead if lead and lead in parse_cell(pr.cell) else None})
+    return out

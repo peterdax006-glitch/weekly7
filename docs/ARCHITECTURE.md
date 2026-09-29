@@ -46,11 +46,11 @@ Governing documents: `canon/CANON.md` (owner directives, verbatim) > `BIBLE.md` 
 | `isolation` | 521 | 2 | Live/research separation and live safety audits (Bible PHASE 28; checklist L2-L5). |
 | `leak_audit` | 1154 | 2 | Future-leak audit of the blind Test path (Bible PHASES 1, 2, 21, 26; canon C56 "only information available live at that moment" and C55 "the rerun of a year must be disguised"). |
 | `learners` | 1013 | 1 | Generalising learners (Bible Phases 11, 21-23, 45; canon C54, C55, C56). |
-| `learning_delta` | 1742 | 3 | Learning-delta harness (Bible Phases 11, 21-23, 45; canon C54 and C55). |
-| `lessons` | 801 | 3 | Bible Phase 10 - lesson memory / learning from mistakes. |
+| `learning_delta` | 1742 | 4 | Learning-delta harness (Bible Phases 11, 21-23, 45; canon C54 and C55). |
+| `lessons` | 801 | 4 | Bible Phase 10 - lesson memory / learning from mistakes. |
 | `live` | 251 | 2 | Live jobs (Blueprint Part F). Entry: python -m engine.live <job> |
 | `livesim` | 597 | 4 | Blind live-clock simulation of a random hidden year (canon C11). |
-| `memory` | 636 | 4 | Factor-weighted episodic memory for the self-learning system (Bible Phase 9, canon C34). |
+| `memory` | 636 | 5 | Factor-weighted episodic memory for the self-learning system (Bible Phase 9, canon C34). |
 | `memory_diagnostics` | 384 | 1 | Why did this memory count? Diagnostics for the factor-weighted memory (Bible Phase 9, canon C34). |
 | `miner_tuning` | 177 | 1 | A7 (canon C34-C37, blueprint: the Algorithm tunes itself): walk-forward self-tuning of the pattern miner's own settings. The system - not a person - decides how fast memory fades ( |
 | `missed_winners` | 601 | 2 | Missed-winner detector and its evaluation (Bible Phase 14, canon C20). |
@@ -1037,7 +1037,7 @@ Learning-delta harness (Bible Phases 11, 21-23, 45; canon C54 and C55).
 - `def curve_selfcheck(seed, K, log_fn)` - The curve harness is VALID only if: (c) the planted-pattern learner rises, (a) the reset control is flat, (b) the identity-recall learner is flat under disguise
 - `def render_curve_report(summary)` - Markdown for the repeated-run curves: the plain answer first, then per-window curves and controls.
 
-Tests: `tests/test_learners.py`, `tests/test_learning_curve.py`, `tests/test_learning_delta.py`
+Tests: `tests/test_learners.py`, `tests/test_learning_curve.py`, `tests/test_learning_delta.py`, `tests/test_learning_situation.py`
 
 ## engine.lessons
 
@@ -1055,7 +1055,7 @@ Bible Phase 10 - lesson memory / learning from mistakes.
 - `class LessonStore [versions(self), save(self, book, note, episodes, stamp), load(self, version, params), history(self), diff(self, a, b)]` - Versioned, append-only persistence of a LessonBook: state/lessons/vNNNN.json (+ vNNNN.episodes.jsonl). Each version records its parent's hash and its own conten
 - `def audit_identity(book, tickers, dates)` - Ticker strings, date strings or identity-named features found in the serialised lessons (empty = clean).
 
-Tests: `tests/test_antimemo.py`, `tests/test_antimemo_archive.py`, `tests/test_lessons.py`
+Tests: `tests/test_antimemo.py`, `tests/test_antimemo_archive.py`, `tests/test_learning_failure.py`, `tests/test_lessons.py`
 
 ## engine.live
 
@@ -1109,7 +1109,7 @@ Factor-weighted episodic memory for the self-learning system (Bible Phase 9, can
 - `def scan_lessons(lessons, tickers, window_ids, exact_outcomes)` - Leak scan of a lesson table/list (Phase 9.2). Returns findings: [(row, field, why)]. Empty = clean. tickers / window_ids: identifiers that must appear nowhere; 
 - `class Memory [set_clock(self, date, era), record(self, arm, week, ctx, outcome, date, era, source_experiment, expected), retention_score(self, i, week_ref), half_life(self, arm), factors(self, e, week_now, ctx_now, info), weight(self, e, week_now, ctx_now), estimate_detail(self, arm, week_now, ctx_now), estimate(self, arm, week_now, ctx_now), ...]`
 
-Tests: `tests/test_adapter.py`, `tests/test_basis_search.py`, `tests/test_memory.py`, `tests/test_memory_ext.py`
+Tests: `tests/test_adapter.py`, `tests/test_basis_search.py`, `tests/test_learning_failure.py`, `tests/test_memory.py`, `tests/test_memory_ext.py`
 
 ## engine.memory_diagnostics
 

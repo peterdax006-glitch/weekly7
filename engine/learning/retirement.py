@@ -59,14 +59,25 @@ TERMINAL_CAUSES = frozenset({FailureCause.FALSE_PATTERN, FailureCause.MEASUREMEN
 # causes that mean it may come back: park it as DORMANT with recovery conditions
 PARKING_CAUSES = frozenset({FailureCause.TEMPORARY_INACTIVITY, FailureCause.REGIME_CHANGE, FailureCause.WRONG_CONTEXT})
 
-# state names of engine/pattern_lifecycle.STATES -> generic states (None = not yet a live item)
+# engine/pattern_lifecycle.STATES -> generic states (None = not yet a live item). The vocabulary is OWNED by pattern_lifecycle;
+# this table only maps it, and `pattern_states_covered()` fails closed if that vocabulary gains or loses a state.
 PATTERN_STATE_MAP = {"candidate": None, "rejected": State.RETIRED, "duplicate": State.RETIRED, "no_gain": State.RETIRED,
                      "active": State.ACTIVE, "watch": State.DEGRADED, "failed": State.DEGRADED, "cause_search": State.DEGRADED,
                      "rescoped": State.DEGRADED, "discarded": State.RETIRED}
 
 
+def pattern_states_covered() -> list[str]:
+    """Differences between pattern_lifecycle.STATES and the map (empty = in sync). Imported lazily so this module still loads
+    while pattern_lifecycle is being edited by another builder."""
+    from engine import pattern_lifecycle as PL
+    return sorted(set(PL.STATES) ^ set(PATTERN_STATE_MAP))
+
+
 def adapt_pattern_state(name: str) -> State | None:
     """Map a pattern_lifecycle state to the generic four-state view (no deletion: 'discarded' is RETIRED, kept)."""
+    drift = pattern_states_covered()
+    if drift:
+        raise FirewallBreach(f"pattern_lifecycle vocabulary changed; retirement map out of date for {drift}")
     if name not in PATTERN_STATE_MAP:
         raise ValueError(f"unknown pattern lifecycle state {name!r}")
     return PATTERN_STATE_MAP[name]

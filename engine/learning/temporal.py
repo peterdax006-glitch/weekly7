@@ -150,6 +150,7 @@ class TemporalProfile:
     recovery: tuple[RecoveryCondition, ...] = ()
     burst_days: float | None = None
     gap_days: float | None = None
+    fit: Mapping[str, float] = dataclasses.field(default_factory=dict)     # parameters needed to forecast (see predicted_effect)
 
     def validate(self) -> list[str]:
         errs = []
@@ -377,6 +378,7 @@ def estimate(knowledge_id: str, series: EffectSeries, now, cfg: TemporalConfig |
         fits.append(ep)
     scores = {f.name: round(f.bic, 3) for f in fits}
     by_name = {f.name: f for f in fits}
+    fitinfo = {"s": s, "t0": float(ds[0].toordinal()), "level": mu * s}
     best_any = min(fits, key=lambda f: f.bic)
     if by_name["zero"].bic - best_any.bic < cfg.min_delta_bic:
         return _unknown(knowledge_id, now, n, span, "no detectable effect in the evidence series (zero model not beaten by "
@@ -384,18 +386,24 @@ def estimate(knowledge_id: str, series: EffectSeries, now, cfg: TemporalConfig |
     const = by_name["constant"]
     cands = sorted((f for f in fits if f.klass not in ("ZERO", TC.PERSISTENT.value)), key=lambda f: f.bic)
     if not cands or const.bic - cands[0].bic < cfg.min_delta_bic:
-        prof_p = _persistent_profile(knowledge_id, now, n, span, ds, t, y, w, taus, chi_c, phi, cfg, scores, s)
-        return prof_p
+        return _with_fit(_persistent_profile(knowledge_id, now, n, span, ds, t, y, w, taus, chi_c, phi, cfg, scores, s), fitinfo)
     win = cands[0]
     rivals = [f for f in cands[1:] if f.klass != win.klass and f.bic - win.bic < cfg.rival_delta_bic]
     if rivals:
         return _unknown(knowledge_id, now, n, span, "ambiguous: " + ", ".join(f.name for f in [win] + rivals)
                         + " explain the series about equally well", scores, [f.name for f in [win] + rivals], win.name)
     if win.klass == "DECAY":
-        return _decay_out(knowledge_id, now, n, span, ds, phi, cfg, scores, prof[win.name], win.name)
+        d = win.detail
+        return _with_fit(_decay_out(knowledge_id, now, n, span, ds, phi, cfg, scores, prof[win.name], win.name),
+                         dict(fitinfo, tau=d['tau'], a=d['a'] * s, c=d['c'] * s))
     if win.klass == TC.EPISODIC.value:
-        return _episodic_profile(knowledge_id, now, n, span, t, win, cfg, scores)
-    return _group_profile(knowledge_id, now, n, span, ds, y, w, phi, win, cfg, scores, s)
+        return _with_fit(_episodic_profile(knowledge_id, now, n, span, t, win, cfg, scores), dict(fitinfo, on=win.detail['on'] * s,
+                                                                                              off=win.detail['off'] * s))
+    return _with_fit(_group_profile(knowledge_id, now, n, span, ds, y, w, phi, win, cfg, scores, s), fitinfo)
+
+
+def _with_fit(p: TemporalProfile, info: Mapping[str, float]) -> TemporalProfile:
+    return dataclasses.replace(p, fit=dict(info))
 
 
 def _season_replicates(y, ds) -> bool:
@@ -640,3 +648,184 @@ def describe(p: TemporalProfile) -> str:
         f" [{p.lifetime_lo:.0f}, {'inf' if p.lifetime_hi is None else format(p.lifetime_hi, '.0f')}]"
     rec = "; recovery: " + ", ".join(c.description for c in p.recovery) if p.recovery else ""
     return f"{p.knowledge_id}: {p.klass}, useful lifetime {life}{lo}{rec} - {p.reason} - IMPLEMENTED - NOT VALIDATED"
+
+
+# ------------------------------------------------------------------------------------------------- forecasting and recovery
+
+def predicted_effect(profile: TemporalProfile, on_date, context: Mapping[str, Any] | None = None) -> float | None:
+    """The effect the learned temporal model expects on `on_date`, in the item's own sign convention; None when the class
+    gives no forecast (EPISODIC bursts are unpredictable by construction, UNKNOWN by definition). Decays extrapolate their
+    fitted curve, PERSISTENT its level, conditional classes the mean of the active vs the inactive groups given `context`."""
+    k, f = profile.klass, profile.fit
+    if not f:
+        return None
+    if k == TC.PERSISTENT.value:
+        return float(f["level"])
+    if k in (TC.SLOW_DECAY.value, TC.FAST_DECAY.value):
+        age = as_date(on_date).toordinal() - f["t0"]
+        return float(f["c"] + f["a"] * math.exp(-max(age, 0.0) / f["tau"]))
+    if k in (TC.REGIME_BOUND.value, TC.EVENT_BOUND.value, TC.SEASONAL.value):
+        ctx = dict(context or {})
+        if k == TC.SEASONAL.value:
+            ctx.setdefault("month", as_date(on_date).month)
+        active = any(c.satisfied_by(ctx) for c in profile.recovery)
+        vals = [v for g, v in profile.group_effects.items() if (g in profile.active_groups) == active and g != "_rare"]
+        return float(np.mean(vals)) if vals else None
+    return None
+
+
+@dataclasses.dataclass(frozen=True)
+class RecoveryTest:
+    n: int
+    mean_excess: float                       # mean of (observed - forecast) in the item's own sign
+    z_excess: float                          # how many standard errors the recent evidence sits above the decayed forecast
+    mean_observed: float
+    z_observed: float
+    recovered: bool
+    reason: str
+
+
+def recovery_test(profile: TemporalProfile, recent: EffectSeries, now, z_min: float = 2.0,
+                  context: Mapping[str, Any] | None = None) -> RecoveryTest:
+    """Has an item that the temporal model says should have faded (or gone quiet) come back? Recent evidence must be BOTH
+    significantly positive on its own AND significantly above what the fitted decay forecasts - otherwise the 'recovery' is just
+    the tail of the same decay. `recent` must contain only periods after `profile.as_of`."""
+    recent.require_valid(now)
+    keep = [i for i, d in enumerate(recent.dates) if as_date(d) > as_date(profile.as_of)]
+    if len(keep) < 3 or recent.ses is None:
+        return RecoveryTest(len(keep), 0.0, 0.0, 0.0, 0.0, False, "fewer than 3 periods after the profile date, or no standard errors")
+    vals = np.array([recent.values[i] for i in keep], float)
+    ses = np.maximum(np.array([recent.ses[i] for i in keep], float), 1e-12)
+    pred = [predicted_effect(profile, recent.dates[i], context) for i in keep]
+    sign = profile.fit.get("s", 1.0) if profile.fit else 1.0
+    base = np.array([0.0 if q is None else q for q in pred], float)
+    if not profile.fit:
+        base = np.zeros(len(keep))
+    w = 1.0 / ses ** 2
+    se = 1.0 / math.sqrt(float(w.sum()))
+    obs_mean = float((w * vals * sign).sum() / w.sum())
+    exc_mean = float((w * (vals - base) * sign).sum() / w.sum())
+    zo, ze = obs_mean / se, exc_mean / se
+    ok = zo >= z_min and ze >= z_min
+    why = ("recent evidence is significantly positive and above the decay forecast" if ok else
+           "recent evidence does not beat the decay forecast" if zo >= z_min else "recent evidence is not significantly positive")
+    return RecoveryTest(len(keep), exc_mean, ze, obs_mean, zo, bool(ok), why)
+
+
+def to_evidence(series: EffectSeries, since, now):
+    """Bridge to the retirement gates: summarise a temporal series over (since, now) as a retirement.Evidence (each period
+    counts as one observation weighted by its own precision)."""
+    from .retirement import Evidence
+    lo, hi = as_date(since), as_date(now)
+    idx = [i for i, d in enumerate(series.dates) if lo < as_date(d) < hi]
+    if not idx or series.ses is None:
+        return Evidence(0, 0.0, 0.0, str(lo), str(lo), None, "temporal")
+    v = np.array([series.values[i] for i in idx], float)
+    w = 1.0 / np.maximum(np.array([series.ses[i] for i in idx], float), 1e-12) ** 2
+    return Evidence(len(idx), float((w * v).sum() / w.sum()), float(1.0 / math.sqrt(w.sum())), series.dates[idx[0]],
+                    series.dates[idx[-1]], None, "temporal")
+
+
+# ------------------------------------------------------------------------------------------------- lifetimes across items
+
+@dataclasses.dataclass(frozen=True)
+class KMCurve:
+    times: tuple[float, ...]
+    survival: tuple[float, ...]
+    se: tuple[float, ...]                    # Greenwood standard errors
+    at_risk: tuple[int, ...]
+    n: int
+    n_events: int
+
+    def at(self, t: float) -> float:
+        s = 1.0
+        for ti, si in zip(self.times, self.survival):
+            if ti <= t:
+                s = si
+            else:
+                break
+        return s
+
+    def quantile(self, q: float) -> float | None:
+        """Smallest time by which a share q of items has ended; None when the curve never falls that far (censored)."""
+        for ti, si in zip(self.times, self.survival):
+            if 1.0 - si >= q:
+                return ti
+        return None
+
+    def median(self) -> float | None:
+        return self.quantile(0.5)
+
+
+def kaplan_meier(durations: Sequence[float], ended: Sequence[bool]) -> KMCurve:
+    """Survival of knowledge items: durations in days from birth to failure (ended=True) or to `now` for items still working
+    (ended=False, censored). Treating still-alive items as failures, or dropping them, both bias lifetimes short/long; this
+    does neither. The curve is the data-driven prior for a new item of the same family - no fixed half-life assumed."""
+    d = np.asarray(durations, float)
+    e = np.asarray(ended, bool)
+    if len(d) != len(e):
+        raise ValueError("durations and ended differ in length")
+    if len(d) and (d < 0).any():
+        raise ValueError("negative duration")
+    times, surv, ses, risk = [], [], [], []
+    s, gw = 1.0, 0.0
+    for t in np.unique(d[e]):
+        n_i = int((d >= t).sum())
+        d_i = int(((d == t) & e).sum())
+        s *= 1.0 - d_i / n_i
+        if n_i > d_i:
+            gw += d_i / (n_i * (n_i - d_i))
+        times.append(float(t)), surv.append(float(s)), ses.append(float(s * math.sqrt(gw))), risk.append(n_i)
+    return KMCurve(tuple(times), tuple(surv), tuple(ses), tuple(risk), int(len(d)), int(e.sum()))
+
+
+def profile_lifetimes(memory: "TemporalMemory", as_of, born: Mapping[str, Any]) -> tuple[list[float], list[bool]]:
+    """Durations for `kaplan_meier` from a TemporalMemory: an item whose newest profile has a finite lifetime and whose age
+    exceeds it has ENDED at that lifetime; every other item is censored at its current age. `born` maps id -> birth date."""
+    dur, ended = [], []
+    for kid, b in sorted(born.items()):
+        p = memory.get(kid, as_of)
+        if p is None:
+            continue
+        age = float((as_date(as_of) - as_date(b)).days)
+        if p.lifetime_days is not None and p.klass in (TC.SLOW_DECAY.value, TC.FAST_DECAY.value) and age >= p.lifetime_days:
+            dur.append(float(p.lifetime_days)), ended.append(True)
+        else:
+            dur.append(age), ended.append(False)
+    return dur, ended
+
+
+# ------------------------------------------------------------------------------------------------- diagnostics
+
+def class_stability(knowledge_id: str, series: EffectSeries, now, cfg: TemporalConfig | None = None, n_cuts: int = 5) -> dict:
+    """Walk-forward stability: re-estimate the class with only the data available at each of `n_cuts` earlier cut dates (never
+    later data) and report the class sequence. A class that flips as data arrives is a class we do not know yet."""
+    series.require_valid(now)
+    n = len(series.dates)
+    cfg = cfg or TemporalConfig()
+    cuts = sorted({int(round(n * f)) for f in np.linspace(0.5, 1.0, n_cuts)})
+    seq = []
+    for c in cuts:
+        if c < cfg.min_bins:
+            continue
+        sub = EffectSeries(series.dates[:c], series.values[:c], None if series.ses is None else series.ses[:c],
+                           None if series.regimes is None else series.regimes[:c], None if series.events is None else series.events[:c])
+        cut_date = as_date(series.dates[c - 1]) + dt.timedelta(days=1)
+        seq.append((cut_date.isoformat(), estimate(knowledge_id, sub, cut_date, cfg).klass))
+    classes = [k for _, k in seq]
+    flips = sum(1 for a, b in zip(classes, classes[1:]) if a != b)
+    final = classes[-1] if classes else TC.UNKNOWN.value
+    agree = sum(1 for k in classes if k == final) / len(classes) if classes else 0.0
+    return {"sequence": seq, "flips": flips, "final": final, "agreement_with_final": agree,
+            "stable": bool(classes) and flips <= 1 and agree >= 0.6}
+
+
+def profile_table(profiles: Sequence[TemporalProfile]) -> list[dict[str, Any]]:
+    """Flat rows for reports/dashboards, sorted by id so two runs print identically."""
+    rows = []
+    for p in sorted(profiles, key=lambda q: q.knowledge_id):
+        rows.append({"id": p.knowledge_id, "class": p.klass, "n_bins": p.n_bins, "span_days": p.span_days,
+                     "tau_days": p.tau_days, "lifetime_days": p.lifetime_days, "lifetime_lo": p.lifetime_lo,
+                     "remaining_lo": p.remaining_lo, "uncertain": p.uncertain, "recovery": [c.description for c in p.recovery],
+                     "reason": p.reason})
+    return rows
