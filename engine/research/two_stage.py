@@ -289,6 +289,7 @@ class TwoStage:
         self.knowledge = KnowledgeView.empty()
         self.report: FitReport | None = None
         self.dir_cols: tuple = ()
+        self.last_oos: pd.DataFrame | None = None           # the walk-forward predicted-mover block (research side: direction lab)
 
     # -------------------------------------------------------------------------------------- fit
     def fit(self, history: pd.DataFrame, now, knowledge: KnowledgeView | None = None) -> FitReport:
@@ -308,6 +309,7 @@ class TwoStage:
                         float("nan"), float("nan"))
         self.vol_model = self.dir_model = self.calibrator = None
         self.gate, self.dir_cols = None, dir_feats
+        self.last_oos = None
         if len(F) == 0 or not vol_feats:
             rep.notes.append("no matured rows or no derivable volatility feature: the chain abstains")
             self.report = rep
@@ -327,6 +329,7 @@ class TwoStage:
                     pA = mA.forecast(late.drop(columns=_forbidden(late.columns)), late.index.get_level_values(0).max())["p_move"]
                     oos = late.assign(**{"p_TS": pA.to_numpy()})
                     rep.wf_rows = len(oos)
+                    self.last_oos = oos
         m = VL.VolatilityModel.fit(F, now, hyp, self.lab_cfg, self.fit_cfg,
                                    calib_oos=oos[["p_TS", "touch", "end"]] if oos is not None else None)
         rep.vol_ok = bool(m.fitted.ok)

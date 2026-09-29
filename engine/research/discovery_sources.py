@@ -1152,7 +1152,49 @@ def forward_labels(bars: pd.DataFrame, horizon: int, now=None) -> tuple[pd.Serie
     return y.sort_index(), matured.sort_index()
 
 
-TARGETS = ("excess", "abs_move", "range_exp", "continuation")
+TARGETS = ("excess", "abs_move", "range_exp", "continuation", "resid")
+BETA_WINDOW = 63
+BLUME = 0.0                  # weight on 1.0 in the adjusted beta. 0 = raw: shrinking toward 1 would leave a share of the beta exposure in the "neutral" outcome
+
+
+def past_betas(close: pd.DataFrame, window: int = BETA_WINDOW, min_periods: int | None = None, blume: float = BLUME) -> pd.DataFrame:
+    """Market-model beta of each stock against the equal-weight universe return, estimated on the trailing `window` sessions THROUGH each
+    date (the outcome starts the next session, so nothing after the signal date enters), then Blume-adjusted. NaN until enough history."""
+    ret = close.pct_change(fill_method=None)
+    mkt = ret.mean(axis=1)
+    mp = min_periods or max(20, int(window * 0.65))
+    var = mkt.rolling(window, min_periods=mp).var()
+    raw = ret.rolling(window, min_periods=mp).cov(mkt).div(var.where(var > 0), axis=0)
+    return (1.0 - blume) * raw + blume
+
+
+def residual_labels(bars: pd.DataFrame, horizon: int, now=None, window: int = BETA_WINDOW) -> tuple[pd.Series, pd.Series]:
+    """Beta-neutral outcome: the forward return open(t+1) -> close(t+h) minus beta_t times the universe's return over the SAME window, then
+    minus that date's cross-sectional mean. A pattern that merely selects high- or low-beta names earns a raw excess in a trending market
+    and nothing here. Rows without a past-only beta are absent. Same maturity rule as every other label."""
+    if horizon < 1:
+        raise SourceError("horizon must be >= 1 session")
+    b = bars.copy()
+    b["date"] = pd.to_datetime(b["date"])
+    b["ticker"] = b["ticker"].astype(str)
+    op = b.pivot(index="date", columns="ticker", values="open").sort_index().astype(float)
+    cl = b.pivot(index="date", columns="ticker", values="close").sort_index().astype(float)
+    raw = cl.shift(-horizon) / op.shift(-1) - 1.0
+    beta = past_betas(cl, window)
+    res = (raw - beta.mul(raw.mean(axis=1), axis=0)).where(raw.notna() & beta.notna())
+    return _stack_labels(res.sub(res.mean(axis=1), axis=0), cl, horizon, now)
+
+
+def _stack_labels(val: pd.DataFrame, close: pd.DataFrame, horizon: int, now) -> tuple[pd.Series, pd.Series]:
+    """(dates x tickers) outcome -> (y, matured_at) on a (date, ticker) index, dropping missing and, with `now`, rows not matured before it."""
+    y = val.stack().dropna().rename("y")
+    y.index.names = ["date", "ticker"]
+    exit_date = pd.Series(close.index, index=close.index).shift(-horizon)
+    matured = pd.Series(exit_date.reindex(y.index.get_level_values(0)).to_numpy(), index=y.index, name="matured_at")
+    if now is not None:
+        ok = (matured < pd.Timestamp(as_date(now))).to_numpy()
+        y, matured = y[ok], matured[ok]
+    return y.sort_index(), matured.sort_index()
 
 
 def target_labels(bars: pd.DataFrame, kind: str, horizon: int, now=None) -> tuple[pd.Series, pd.Series]:
@@ -1162,11 +1204,14 @@ def target_labels(bars: pd.DataFrame, kind: str, horizon: int, now=None) -> tupl
       abs_move      |that return|                                 how far it goes either way (volatility, objective 1)
       range_exp     (max high - min low over t+1..t+h) / close(t)  path range: stocks that expand vs stocks that go quiet
       continuation  that return times the sign of day t's own return   follow-through (+) vs reversal (-) after a move
+      resid         excess after removing past-only beta times the universe's same-window return (beta-neutral)
     Returns (y, matured_at); with `now`, only rows whose exit session is strictly before it."""
     if kind not in TARGETS:
         raise SourceError(f"unknown target {kind!r}; known: {TARGETS}")
     if kind == "excess":
         return forward_labels(bars, horizon, now)
+    if kind == "resid":
+        return residual_labels(bars, horizon, now)
     if horizon < 1:
         raise SourceError("horizon must be >= 1 session")
     b = bars.copy()
@@ -1184,14 +1229,7 @@ def target_labels(bars: pd.DataFrame, kind: str, horizon: int, now=None) -> tupl
         fmin = lo.shift(-1)[::-1].rolling(horizon, min_periods=horizon).min()[::-1]
         val = (fmax - fmin) / cl
     val = val.where(raw.notna())
-    y = val.sub(val.mean(axis=1), axis=0).stack().dropna().rename("y")
-    y.index.names = ["date", "ticker"]
-    exit_date = pd.Series(cl.index, index=cl.index).shift(-horizon)
-    matured = pd.Series(exit_date.reindex(y.index.get_level_values(0)).to_numpy(), index=y.index, name="matured_at")
-    if now is not None:
-        ok = (matured < pd.Timestamp(as_date(now))).to_numpy()
-        y, matured = y[ok], matured[ok]
-    return y.sort_index(), matured.sort_index()
+    return _stack_labels(val.sub(val.mean(axis=1), axis=0), cl, horizon, now)
 
 
 # --------------------------------------------------------------------------------------------------- the PIT audit

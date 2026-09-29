@@ -15,12 +15,12 @@ from engine.research import discovery_sources as DS
 from engine.research.core import GateVerdict, MaturedRecord
 
 
-def world(n_t=30, n_d=420, seed=1, plant=0.0, extras=True, beta_spread=0.0):
+def world(n_t=30, n_d=420, seed=1, plant=0.0, extras=True, beta_spread=0.0, drift=0.0):
     """Random-walk bars. plant>0: a volume spike on day t lifts day t+1's return by `plant` (relvol family should find it)."""
     rng = np.random.default_rng(seed)
     dates = pd.bdate_range("2019-01-01", periods=n_d)
     tk = [f"T{i:03d}" for i in range(n_t)]
-    mk = rng.normal(0.0, 0.007, n_d)
+    mk = rng.normal(drift, 0.007, n_d)
     frames = []
     for i, t in enumerate(tk):
         spike = rng.random(n_d) < 0.08
@@ -1092,7 +1092,9 @@ def test_fresh_holdout_does_not_confirm_a_null_pattern():
     nullw = world(n_t=30, n_d=760, seed=12, plant=0.0, extras=False)
     st = D.DiscoveryState()
     engine().step(st, "2020-01-01", nullw, families=["relvol", "price"])
-    if not any(d.verdict == GateVerdict.NEEDS_MORE_EVIDENCE for d in st.dossiers.values()):
-        return                                              # nothing survived discovery in the null draw: the desired outcome
+    survivors = [p for p, d in st.dossiers.items() if d.verdict == GateVerdict.NEEDS_MORE_EVIDENCE]
     out = D.fresh_holdout_test(st, D.restore_vault(st), "fresh2021", slice_loader(nullw), [2021], CFG, SCFG, now="2022-06-01")
-    assert out["opened"] > 0 and out["confirmed"] <= max(1, out["opened"] // 4)
+    assert out["opened"] == len(survivors) and set(st.holdout) == set(survivors)            # exactly the survivors, whether none or several
+    if not survivors:
+        assert out == {"opened": 0, "confirmed": 0, "reversed": 0, "inconclusive": 0, "skipped_overlap": 0} and st.holdout == {}
+    assert out["confirmed"] <= max(1, out["opened"] // 4)

@@ -94,6 +94,10 @@ class DiscoveryConfig:
     ticker_effect_min_ratio: float = 0.5
     min_independent: int = 30
     min_stability: float = 0.5
+    beta_control: bool = True            # score every pattern on beta-neutral outcomes too and flag beta proxies
+    beta_window: int = 63
+    beta_min_t: float = 1.0              # a pattern whose beta-neutral t (in its own sign) is below this is a beta proxy ...
+    beta_min_ratio: float = 0.5          # ... or whose beta-neutral effect is under this share of its raw effect
     min_parent_t: float = 0.0            # a conjunction must beat (parent minus itself) on validation weeks at least this t
     min_p_real: float = 0.5
     min_transfer: float = 0.4
@@ -122,6 +126,8 @@ class DiscoveryConfig:
             e.append("null must be stock_shift, week_shuffle or both")
         if self.max_triples < 0 or self.triple_top_pairs < 0 or not 0.5 <= self.feature_corr_max <= 1.0:
             e.append("max_triples and triple_top_pairs >= 0; feature_corr_max in [0.5, 1]")
+        if self.beta_window < 20 or self.beta_min_ratio < 0:
+            e.append("beta_window >= 20 and beta_min_ratio >= 0")
         if self.target not in DS.TARGETS:
             e.append(f"target must be one of {DS.TARGETS}")
         if self.min_weeks < 20 or self.min_rows < 30:
@@ -258,6 +264,8 @@ class Panel:
     cfg: DiscoveryConfig
     report: dict
     sector: np.ndarray | None = None
+    y_resid: np.ndarray | None = None       # beta-neutral outcome aligned to the rows (0 where unavailable; see resid_ok)
+    resid_ok: np.ndarray | None = None
     _q: dict = dataclasses.field(default_factory=dict)
 
     @classmethod
@@ -330,6 +338,12 @@ class Panel:
 
     def sel_val(self) -> np.ndarray:
         return np.any(self.sel_blocks, axis=0)
+
+    def with_resid(self, y_resid: pd.Series) -> "Panel":
+        """Attach the beta-neutral outcome (reindexed to this panel's rows; rows without one are marked unavailable, never zero-filled into a mean)."""
+        r = y_resid.reindex(self.X.index).to_numpy(dtype=float)
+        ok = np.isfinite(r)
+        return dataclasses.replace(self, y_resid=np.where(ok, r, 0.0), resid_ok=ok)
 
     def quantiles(self, cols: Sequence[str]) -> Quantiles:
         need = [c for c in cols if c not in self._q]
@@ -1019,6 +1033,8 @@ class ControlResult:
     max_week_share: float
     flags: tuple[str, ...]
     jackknife_min_t: float | None = None
+    resid_ratio: float | None = None       # effect on beta-neutral outcomes / effect on raw excess outcomes
+    resid_t: float | None = None           # direction-signed t of the effect on beta-neutral outcomes
 
 
 @dataclasses.dataclass(frozen=True)
@@ -1308,7 +1324,14 @@ class Analyzer:
         jk = self.jackknife(m, direction, cnt.index[:3].tolist(), np.argsort(-np.abs(sy))[:3])
         if jk is not None and raw.t * direction >= 2.0 and jk <= 1.0:
             flags.append("fragile")
-        return ControlResult(ratio, name_share, week_share, tuple(flags), jk)
+        r_ratio = r_t = None
+        if self.p.y_resid is not None:
+            rs = self.stat(m, self.sel_all, rows=self.p.fit_rows & self.p.resid_ok, y=self.p.y_resid)
+            if rs.n_weeks >= self.cfg.context_min_weeks and raw.mean != 0:
+                r_ratio, r_t = float(rs.mean * direction / (raw.mean * direction)), float(rs.t * direction)
+                if raw.t * direction >= 2.0 and (r_t < self.cfg.beta_min_t or r_ratio < self.cfg.beta_min_ratio):
+                    flags.append("beta_proxy")
+        return ControlResult(ratio, name_share, week_share, tuple(flags), jk, r_ratio, r_t)
 
     def jackknife(self, m: np.ndarray, direction: int, names: Sequence[str], weeks: Sequence[int]) -> float | None:
         """Smallest direction-signed t after deleting, one at a time, each of the most influential stocks and weeks. A pattern that is
@@ -1387,7 +1410,7 @@ def decide(cfg: DiscoveryConfig, t_disc: float, truth: float | None, val: Valida
         return GateVerdict.QUARANTINED, ("source family failed the point-in-time audit",)
     if ctl.flags:
         reasons += [f"control: {f}" for f in ctl.flags]
-        if {"implausible_t", "name_concentration", "week_concentration", "ticker_effect", "fragile"} & set(ctl.flags):
+        if {"implausible_t", "name_concentration", "week_concentration", "ticker_effect", "fragile", "beta_proxy"} & set(ctl.flags):
             return GateVerdict.QUARANTINED, tuple(reasons)
     if val.pooled_t is None:
         return GateVerdict.UNKNOWN, ("no validation block had enough weeks to test",)
@@ -1767,6 +1790,11 @@ class DiscoveryEngine:
         if label_hook is not None:
             y = label_hook(y, fb.X[keep])
         panel = Panel.build(fb.X[keep], y, now_ts, cfg, matured, inp.sectors)
+        if cfg.beta_control and cfg.target == "excess":
+            yr, _ = DS.residual_labels(inp.bars, cfg.horizon, now_ts, cfg.beta_window)
+            if label_hook is not None:
+                yr = label_hook(yr, fb.X[keep])
+            panel = panel.with_resid(yr)
         if cohort != "all":
             panel = restrict_cohort(panel, cohort)
         an = Analyzer(panel, keep, fb.family_of, cfg)

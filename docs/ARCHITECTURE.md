@@ -60,7 +60,7 @@ Governing documents: `canon/CANON.md` (owner directives, verbatim) > `BIBLE.md` 
 | `parity` | 496 | 2 | Bible Phase 2: feature/parity firewall (canon: no look-ahead; the fast path must reproduce the strict live path). |
 | `parity_suite` | 422 | 1 | Bible Phase 2 (parity firewall), all feature families. `engine.parity` is the harness; this module points it at every place a model input is made, each through the REAL production  |
 | `pattern_bank` | 495 | 2 | Bible Phase 5 - long-term pattern bank (canon C43; "no pattern is trusted forever, none deleted for one bad regime"). |
-| `pattern_identity` | 588 | 4 | Bible Phase 3.2 - pattern identity (canons C35, C37, C43). |
+| `pattern_identity` | 588 | 5 | Bible Phase 3.2 - pattern identity (canons C35, C37, C43). |
 | `pattern_lifecycle` | 582 | 4 | Bible Phase 4 - pattern lifecycle state machine (canon C43: never hold a failed pattern). |
 | `pattern_memory` | 789 | 5 | Bible phases 4, 5, 9 - TIMELINE PATTERN MEMORY (canon C55, C56, C57, C58, C59, C60). |
 | `pattern_memory_eval` | 341 | 1 | Bible phases 4, 5, 9 - walk-forward evaluation helpers for the timeline pattern memory (canon C57-C60). |
@@ -1325,7 +1325,7 @@ Bible Phase 3.2 - pattern identity (canons C35, C37, C43).
 - `def records_to_prior(records)` - The `prior` table PatternMiner.fit(prior=...) re-tests: only usable patterns with a miner-shaped key.
 - `class PatternBook [get(self, pid), add(self, rec), by_state(self, *states), find_expression(self, text, transform, target), counts(self), to_json(self), from_json(s), digest(self), ...]` - Records keyed by id. Adding an identity that already exists merges (newer record wins, history is preserved and the two audit trails are unioned in date order) 
 
-Tests: `tests/test_candidates.py`, `tests/test_pattern_identity.py`, `tests/test_patterns_integration.py`, `tests/test_research_discovery.py`
+Tests: `tests/test_candidates.py`, `tests/test_pattern_identity.py`, `tests/test_patterns_integration.py`, `tests/test_research_discovery.py`, `tests/test_research_discovery_beta.py`
 
 ## engine.pattern_lifecycle
 

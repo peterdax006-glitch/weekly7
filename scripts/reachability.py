@@ -49,7 +49,9 @@ PRODUCTION_ENTRIES: dict[str, str] = {
     "scripts/check_retester.py": "Phase 23 gate: every Test run must be reproduced by the re-tester",
     "scripts/learning_report.py": "the learning reports K01-K15 and the section-46 health dashboard data",
     "scripts/dashboard_build.py": "the one-page status board built from the Test system's state",
+    "scripts/research_loop.py": "the C66 trusted-side autonomous research loop (engine.research.loop, every section-3 stage)",
 }
+RESEARCH_PKG = "engine.research"
 PARKED = {"engine.live": "C65", "engine.tick": "C65", "engine.broker": "C65"}      # Live is parked: never followed from production
 LEARNING_PKG = "engine.learning"
 MAIN_GUARD = "__main__"
@@ -608,8 +610,9 @@ class Checker:
         have = {h.source for h in self.hooks}
         return [i for i in ids if i not in have and i != "S14"]         # S14 declared "no hook needed"
 
-    def report(self) -> dict:
-        mv, hv = self.module_verdicts(), self.hook_verdicts()
+    def report(self, packages: Sequence[str] = (LEARNING_PKG,)) -> dict:
+        mv = [v for pkg in packages for v in self.module_verdicts(pkg)]
+        hv = self.hook_verdicts()
         count = lambda vs: {s: sum(v.status == s for v in vs) for s in ("REACHED", "RESEARCH-ONLY", "UNREACHED")}
         return {"production_entries": {self.mods[m].rel: why for m, why in sorted(self.production.items())},
                 "missing_entries": self.missing_entries, "parked": sorted(PARKED),
@@ -649,8 +652,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     ap.add_argument("--json", default="")
     ap.add_argument("--fail-on", default="all", choices=("hooks", "modules", "all", "none"))
     ap.add_argument("--show", default="research", choices=("research", "all"))
+    ap.add_argument("--package", action="append", default=None,
+                    help=f"module package(s) to judge (default {LEARNING_PKG}; add {RESEARCH_PKG} for the C66 research brain)")
     a = ap.parse_args(argv)
-    rep = Checker(Path(a.root)).report()
+    rep = Checker(Path(a.root)).report(tuple(a.package or (LEARNING_PKG,)))
     print(render(rep, "all" if a.show == "all" else "not-reached"))
     if a.json:
         Path(a.json).parent.mkdir(parents=True, exist_ok=True)
