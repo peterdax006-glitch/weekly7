@@ -40,13 +40,14 @@ def load_window(a):
     a = Path(a)
     ws = {f.stem[6:]: pd.read_parquet(f) for f in sorted(a.glob("wsnap_*.parquet"))}
     closes = pd.read_parquet(a / ("closes_v2.parquet" if (a / "closes_v2.parquet").exists() else "closes.parquet"))
+    opens = pd.read_parquet(a / "opens_v2.parquet") if (a / "opens_v2.parquet").exists() else None
     sc = pd.read_parquet(a / "sic.parquet")
-    return {"id": a.name, "snaps": ws, "closes": closes, "bps": json.loads((a / "meta.json").read_text())["cost_bps"],
+    return {"id": a.name, "snaps": ws, "closes": closes, "opens": opens, "bps": json.loads((a / "meta.json").read_text())["cost_bps"],
             "divs": {t: policy.sic_division(x) for t, x in zip(sc["ticker"], sc["sic"])}}
 
 
 def run_window(w, cfg, meta):
-    S = A.replay(cfg, w["snaps"], w["closes"], w["bps"], w["divs"], adaptive=True, meta=meta)
+    S = A.replay(cfg, w["snaps"], w["closes"], w["bps"], w["divs"], adaptive=True, meta=meta, opens=w["opens"])
     r = S.result()
     wk = np.array(S.weeks)
     r["sd_week"] = float(wk.std()) if len(wk) > 1 else 0.0
@@ -74,6 +75,7 @@ def worker(run_id, cfg, meta):
     a = DIR / run_id
     a.mkdir(exist_ok=True)
     feed._stocks["Close"].loc[feed.first_live:].to_parquet(a / "closes_v2.parquet")
+    feed._stocks["Open"].loc[feed.first_live:].to_parquet(a / "opens_v2.parquet")
     for k, v in trader.snaps.items():
         v.to_parquet(a / f"wsnap_{k}.parquet")
     for k, v in trader.warm_snaps.items():
@@ -114,10 +116,10 @@ while len(st["windows"]) < MAXW:
         w = load_window(DIR / r)
         re = run_window(w, res["used_cfg"], res["meta"])
         rep = abs(re["year_return"] - res["year_return"]) < 0.005
-        S1 = A.replay(res["used_cfg"], w["snaps"], w["closes"], w["bps"], w["divs"], adaptive=True, meta=res["meta"])
+        S1 = A.replay(res["used_cfg"], w["snaps"], w["closes"], w["bps"], w["divs"], adaptive=True, meta=res["meta"], opens=w["opens"])
         cut = w["closes"].index[len(w["closes"]) // 2]
         S2 = A.replay(res["used_cfg"], w["snaps"], w["closes"], w["bps"], w["divs"], adaptive=True, meta=res["meta"],
-                      scramble_after=cut, seed=len(r))
+                      scramble_after=cut, seed=len(r), opens=w["opens"])
         before = lambda S: [d for d in S.decisions if pd.Timestamp(d[0]) <= cut]
         scram = before(S1) == before(S2)
         print(f"  [{r}] avg week {res['mean_week']:+.2%} | swing (sd) {res['sd_week']:.2%} | {res['weeks_ge_7']} weeks >= +7% | "

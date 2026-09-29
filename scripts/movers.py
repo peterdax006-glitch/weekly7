@@ -19,11 +19,14 @@ DROP = ("ev_activist",)                             # insider leak fixed 28 Sep;
 
 
 def labels(stocks):
-    C, Hh, L = stocks["Close"], stocks["High"], stocks["Low"]
+    """Canon C33: a pick decided after day t's close can only be bought at day t+1's OPEN. Moves are measured
+    from that entry over sessions t+1..t+5 (regular hours only)."""
+    C, Hh, L, O = stocks["Close"], stocks["High"], stocks["Low"], stocks["Open"]
+    entry = O.shift(-1)
     hi = pd.concat([Hh.shift(-k) for k in range(1, H + 1)]).groupby(level=0).max()
     lo = pd.concat([L.shift(-k) for k in range(1, H + 1)]).groupby(level=0).min()
-    up, dn = hi / C - 1, lo / C - 1
-    close = C.shift(-H) / C - 1
+    up, dn = hi / entry - 1, lo / entry - 1
+    close = C.shift(-H) / entry - 1
     return up, dn, close
 
 
@@ -83,6 +86,13 @@ def run_window(rid, variant=None, scramble_after=None, save=True):
                              random_state=7, verbose=-1, **model_v)
     clf.fit(Rt, y[ok])
     base_rate_train = float(y[ok].mean())
+    reg = None
+    if v.get("magnitude"):                              # also predict HOW FAR it swings (max of |high|, |low| move)
+        swing = np.maximum(up, -dn).clip(upper=1.0)
+        ys = swing.stack(future_stack=True).reindex(Xt.index)[ok]
+        reg = lgb.LGBMRegressor(objective="huber", alpha=0.1, subsample=0.8, subsample_freq=1, colsample_bytree=0.7,
+                                random_state=7, verbose=-1, **model_v)
+        reg.fit(Rt, ys.fillna(0))
     # ---- hidden window: predict each week, evaluate after the week ----
     rows = []
     refit = int(v.get("refit_weeks", 0))
@@ -108,6 +118,10 @@ def run_window(rid, variant=None, scramble_after=None, save=True):
             if c.startswith("m_"):
                 Rd[c] = Xd[c]
         p = pd.Series(clf.predict_proba(Rd)[:, 1], index=Rd.index)
+        if reg is not None:                             # blend: rank of P(touch) and rank of predicted swing
+            mag = pd.Series(reg.predict(Rd), index=Rd.index)
+            p = 0.5 * p.rank(pct=True) + 0.5 * mag.rank(pct=True)
+            p = p * clf.predict_proba(Rd)[:, 1].max() if False else p
         # outcomes (read only for evaluation, after the week)
         o = pd.DataFrame({"prob": p, "up": up.loc[d].reindex(p.index), "dn": dn.loc[d].reindex(p.index),
                           "close": cl.loc[d].reindex(p.index)})

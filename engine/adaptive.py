@@ -314,12 +314,13 @@ class Session:
         self.cash, self.pos = start_cash, {}
         self.week_start, self.capped, self.wk = start_cash, False, 0
         self.days, self.weeks, self.decisions, self.orders, self.week_rows = [], [], [], [], []
+        self.pending = None
 
     def equity(self, px):
         return self.cash + sum(q * px[t] for t, q in self.pos.items() if np.isfinite(px.get(t, np.nan)))
 
     def needs_snapshot(self, next_is_new_week):
-        return (next_is_new_week and self.wk % self.cfg.get("rebalance_weeks", 1) == 0) or not self.pos
+        return (next_is_new_week and self.wk % self.cfg.get("rebalance_weeks", 1) == 0) or (not self.pos and self.pending is None)
 
     def _trade(self, target, px, val, day, reason):
         for t in sorted(set(self.pos) | set(target.index), key=lambda c: target.get(c, 0.0)):
@@ -335,9 +336,21 @@ class Session:
             if abs(self.pos[t]) * pr < 0.5:
                 self.pos.pop(t)
 
-    def on_day(self, day, px, closes_to_now, next_is_new_week, snap=None):
+    def on_day(self, day, px, closes_to_now, next_is_new_week, snap=None, px_open=None):
+        """Canon C33: decisions use information up to today's close, so they are executed at the NEXT session's
+        open (regular hours only; never after-hours or weekends). px_open = today's opening prices."""
         if closes_to_now is not None and closes_to_now.index.max() > day:
             raise TimeFence(f"session handed prices after {day}")
+        # 1) morning: fill yesterday's decision at today's open
+        if self.pending is not None:
+            target, reason, as_weights = self.pending
+            fill = px_open if px_open is not None else px
+            val_open = self.equity(fill)
+            if not as_weights:                          # brake: scale the current holdings by a factor
+                target = pd.Series({t: q * fill.get(t, np.nan) / val_open for t, q in self.pos.items()}) * target
+            self._trade(target, fill, val_open, day, reason)
+            self.pending = None
+        # 2) after the close: look at the day and decide for tomorrow's open
         val = self.equity(px)
         wr = val / self.week_start - 1
         if snap is not None:
@@ -348,11 +361,10 @@ class Session:
             else:
                 det = None
             target = pick(snap, self.cfg, held, self.divs, det)
-            self._trade(target, px, val, day, "rebalance" if held else "initial build")
+            self.pending = (target, "rebalance" if held else "initial build", True)
             self.decisions.append((str(day.date()), sorted(target.index)))
         elif not self.capped and self.cfg.get("brake") and wr <= -self.cfg["brake"]:
-            target = pd.Series({t: q * px[t] / val for t, q in self.pos.items()}) * self.P.TOPK["brake_exposure"]
-            self._trade(target, px, val, day, f"weekly brake ({wr:.1%})")
+            self.pending = (self.P.TOPK["brake_exposure"], f"weekly brake ({wr:.1%})", False)
             self.capped = True
         val = self.equity(px)
         self.days.append((str(day.date()), float(val)))
@@ -371,7 +383,7 @@ class Session:
                 "adaptations": self.adapter.log if self.adapter else [], "missed_winners": self.adapter.missed if self.adapter else []}
 
 
-def replay(default_cfg, snaps, closes, cost_bps, divs, adaptive=False, meta=None, scramble_after=None, seed=0):
+def replay(default_cfg, snaps, closes, cost_bps, divs, adaptive=False, meta=None, scramble_after=None, seed=0, opens=None):
     """Re-tester: drives the SAME Session through an archived window.
     scramble_after: anti-cheat test - replace every price after this date with noise; decisions up to that
     date must not change (if they do, something looked into the future)."""
@@ -379,7 +391,11 @@ def replay(default_cfg, snaps, closes, cost_bps, divs, adaptive=False, meta=None
         closes = closes.astype("float64").copy()
         rng = np.random.default_rng(seed)
         m = closes.index > pd.Timestamp(scramble_after)
-        closes.loc[m] = closes.loc[m].values * np.exp(rng.normal(0, 0.2, closes.loc[m].shape))
+        noise = np.exp(rng.normal(0, 0.2, closes.loc[m].shape))
+        closes.loc[m] = closes.loc[m].values * noise
+        if opens is not None:
+            opens = opens.astype("float64").copy()
+            opens.loc[m] = opens.loc[m].values * noise
     S = Session(default_cfg, divs, cost_bps, adaptive=adaptive, meta=meta)
     dec = {pd.Timestamp(k): v for k, v in snaps.items()}
     sessions = closes.index
@@ -388,5 +404,6 @@ def replay(default_cfg, snaps, closes, cost_bps, divs, adaptive=False, meta=None
         snap = dec.get(d) if S.needs_snapshot(nxt_new) else None
         if snap is None and S.needs_snapshot(nxt_new) and not S.pos:
             snap = None
-        S.on_day(d, closes.loc[d], closes.loc[:d], nxt_new, snap)
+        S.on_day(d, closes.loc[d], closes.loc[:d], nxt_new, snap,
+                 opens.loc[d] if opens is not None and d in opens.index else None)
     return S

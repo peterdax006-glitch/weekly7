@@ -73,6 +73,8 @@ DIRECTIVES = [
      "the test should keep adjusting first keeping in mind 7% then second keeping in mind accuracy of success"),
     ("C32", "2026-09-28", "Checkoff list; any method or free tool; all RAM; don't stop until done",
      "treat this as a checkoff list and feel free to motify anything or look at anything in a new way or download any free tools to achieve the ultimate objective but tread this as a checkoff list and utilize all the RAM and dont stop until the list is done"),
+    ("C33", "2026-09-28", "No cheating; never after-market or weekend trading",
+     "ensure there is both no  cheating and never any after market trading or weekend trading"),
 ]
 
 def sha(t): return hashlib.sha256(t.encode("utf-8")).hexdigest()

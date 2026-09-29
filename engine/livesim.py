@@ -218,9 +218,10 @@ class BlindTrader:
         warm-up weeks whose label window closed before until_idx."""
         import lightgbm as lgb
         C, Hh, L = stocks["Close"], stocks["High"], stocks["Low"]
+        entry = stocks["Open"].shift(-1)                                   # C33: bought at the next open
         hi = pd.concat([Hh.shift(-k) for k in range(1, 6)]).groupby(level=0).max()
         lo = pd.concat([L.shift(-k) for k in range(1, 6)]).groupby(level=0).min()
-        touch = ((hi / C - 1 >= 0.10) | (lo / C - 1 <= -0.10)).astype(float)
+        touch = ((hi / entry - 1 >= 0.10) | (lo / entry - 1 <= -0.10)).astype(float)
         ud = pd.DatetimeIndex(sorted(X.index.get_level_values(0).unique()))
         ud = ud[ud <= until_idx]
         ud = ud[: max(1, len(ud) - 6)]
@@ -304,7 +305,8 @@ class BlindTrader:
             if snap is not None:
                 self.snaps[str(now.date())] = snap
         closes_to_now = self.feed.history()[0]["Close"]
-        S.on_day(now, self.feed.prices(), closes_to_now, week_end, snap if S.needs_snapshot(week_end) else None)
+        S.on_day(now, self.feed.prices(), closes_to_now, week_end, snap if S.needs_snapshot(week_end) else None,
+                 self.feed._stocks["Open"].iloc[self.feed.i])
 
     # views for the diagnosis code
     @property
