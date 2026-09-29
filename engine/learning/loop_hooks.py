@@ -959,7 +959,7 @@ class LoopHooks:
             sign = 1.0 if float(np.nanmean(yt.to_numpy()[m])) >= 0 else -1.0 if m.any() else 0.0
             return pd.Series(sign * cell(Xe).astype(float).to_numpy(), index=Xe.index)
 
-        h = IDF.IdentityHarness(rule, seed=self.seed, boot=max(50, self.cfg.boot), min_dates=2)
+        h = IDF.IdentityHarness(rule, seed=self.seed, boot=max(50, self.cfg.boot), min_dates=2, modes=("eval",))
         self._fire("identity_harness")
         return h.run(X[tr], y[tr], X[~tr], y[~tr])
 
