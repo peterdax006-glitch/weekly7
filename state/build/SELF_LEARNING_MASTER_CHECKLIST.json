@@ -350,11 +350,19 @@
    "status": "IMPLEMENTED",
    "code_paths": [
     "engine/learning/core.py",
+    "engine/learning/firewalls.py",
+    "engine/learning/future_firewall.py",
+    "engine/learning/identity_firewall.py",
     "engine/learning/knowledge.py",
+    "engine/learning/memory_firewall.py",
+    "engine/learning/reproducibility.py",
     "engine/provenance.py::stamp,code_hash,code_mixed,data_snapshot,config_hash"
    ],
    "tests": [
     "tests/test_learning_epistemic.py",
+    "tests/test_learning_firewalls.py",
+    "tests/test_learning_future_firewall.py",
+    "tests/test_learning_identity_firewall.py",
     "tests/test_learning_interpretation.py",
     "tests/test_learning_knowledge.py",
     "tests/test_provenance.py"
@@ -366,9 +374,9 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": "2026-09-29T09:26:00",
-   "code_hash": "a1332647a44b1945",
-   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S01). knowledge.py: typed KnowledgeObject (all section-5 fields), immutable versions, JSON round-trip (12-digit), schema validation, stable_hash ids, code/data/config provenance; adapters from PatternRecord/pattern rows/lessons. | earlier (mapping): IMPLEMENTED — NOT VALIDATED. [unsafe] Works where called; not applied to most experiment records; one provenance test failing (see A05)."
+   "last_run": "2026-09-29T09:45:50",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S02). 8 independent fail-closed layers; named tests detect leak channels 2, 4, 8c and the registry audit failure; channels 1, 3, 6, 8a, 8e have no firewall check yet. Detection is not closure: S18 closes channels at the source. | earlier: IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S01). knowledge.py: typed KnowledgeObject (all section-5 fields), immutable versions, JSON round-trip (12-digit), schema validation, stable_hash ids, code/data/config provenance; adapters from PatternRecord/pattern rows/lessons. | earlier (mapping): IMPLEMENTED — NOT VALIDATED. [unsafe] Works where called; not applied to most experiment records; one provenance test failing (see A05)."
   },
   {
    "id": "B01",
@@ -2657,21 +2665,29 @@
    "owner": "Claude",
    "status": "IMPLEMENTED",
    "code_paths": [
+    "engine/learning/firewalls.py",
+    "engine/learning/future_firewall.py",
+    "engine/learning/identity_firewall.py",
+    "engine/learning/memory_firewall.py",
+    "engine/learning/reproducibility.py",
     "engine/pit.py (PITStore, Guard, purged_training_set)"
    ],
    "tests": [
+    "tests/test_learning_firewalls.py",
+    "tests/test_learning_future_firewall.py",
+    "tests/test_learning_identity_firewall.py",
     "tests/test_pit.py"
    ],
    "evidence": [
-    "state/research/pit/PIT_AUDIT.md",
-    "state/research/leak_audit/report.md"
+    "state/research/leak_audit/report.md",
+    "state/research/pit/PIT_AUDIT.md"
    ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "IMPLEMENTED — NOT VALIDATED. [unsafe] Firewall and real-cache audit exist; channels 2 (back-adjusted prices) and 8c (feed shape) are LEAK."
+   "last_run": "2026-09-29T09:45:50",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S02). 8 independent fail-closed layers; named tests detect leak channels 2, 4, 8c and the registry audit failure; channels 1, 3, 6, 8a, 8e have no firewall check yet. Detection is not closure: S18 closes channels at the source. | earlier: IMPLEMENTED — NOT VALIDATED. [unsafe] Firewall and real-cache audit exist; channels 2 (back-adjusted prices) and 8c (feed shape) are LEAK."
   },
   {
    "id": "H02",
@@ -2733,26 +2749,34 @@
    "owner": "Claude",
    "status": "IMPLEMENTED",
    "code_paths": [
-    "engine/blind_gates.py::check_ticker_map,check_disguised_frame",
     "engine/antioverfit.py::ticker_permutation,date_disguise",
+    "engine/blind_gates.py::check_ticker_map,check_disguised_frame",
+    "engine/learning/firewalls.py",
+    "engine/learning/future_firewall.py",
+    "engine/learning/identity_firewall.py",
+    "engine/learning/memory_firewall.py",
+    "engine/learning/reproducibility.py",
     "engine/learning_delta.py::audit_presentation"
    ],
    "tests": [
-    "tests/test_blind_gates.py",
     "tests/test_antioverfit.py",
+    "tests/test_blind_gates.py",
+    "tests/test_learning_firewalls.py",
+    "tests/test_learning_future_firewall.py",
+    "tests/test_learning_identity_firewall.py",
     "tests/test_tiebreak.py"
    ],
    "evidence": [
-    "state/research/lessons/archive_v2.md",
+    "state/research/antioverfit/real_v1/summary.txt",
     "state/research/leak_audit/report.md",
-    "state/research/antioverfit/real_v1/summary.txt"
+    "state/research/lessons/archive_v2.md"
    ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "IMPLEMENTED — NOT VALIDATED. No-lesson results invariant under rename (0 of 45 windows change); year fingerprint QUARANTINED; name-order tie-breaks leaked 3x historically."
+   "last_run": "2026-09-29T09:45:50",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S02). 8 independent fail-closed layers; named tests detect leak channels 2, 4, 8c and the registry audit failure; channels 1, 3, 6, 8a, 8e have no firewall check yet. Detection is not closure: S18 closes channels at the source. | earlier: IMPLEMENTED — NOT VALIDATED. No-lesson results invariant under rename (0 of 45 windows change); year fingerprint QUARANTINED; name-order tie-breaks leaked 3x historically."
   },
   {
    "id": "H05",
@@ -2761,24 +2785,32 @@
    "owner": "Claude",
    "status": "IMPLEMENTED",
    "code_paths": [
-    "engine/provenance.py::verify_integrity,stale",
     "engine/claims.py::ClaimBook",
+    "engine/learning/firewalls.py",
+    "engine/learning/future_firewall.py",
+    "engine/learning/identity_firewall.py",
+    "engine/learning/memory_firewall.py",
+    "engine/learning/reproducibility.py",
+    "engine/provenance.py::verify_integrity,stale",
     "engine/retester.py::compare_provenance"
    ],
    "tests": [
-    "tests/test_provenance.py",
-    "tests/test_claims.py"
+    "tests/test_claims.py",
+    "tests/test_learning_firewalls.py",
+    "tests/test_learning_future_firewall.py",
+    "tests/test_learning_identity_firewall.py",
+    "tests/test_provenance.py"
    ],
    "evidence": [
-    "state/research/registry_audit.json",
-    "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)"
+    "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)",
+    "state/research/registry_audit.json"
    ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "IMPLEMENTED — NOT VALIDATED. [unsafe] See A05 (failing test, incomplete registry)."
+   "last_run": "2026-09-29T09:45:50",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S02). 8 independent fail-closed layers; named tests detect leak channels 2, 4, 8c and the registry audit failure; channels 1, 3, 6, 8a, 8e have no firewall check yet. Detection is not closure: S18 closes channels at the source. | earlier: IMPLEMENTED — NOT VALIDATED. [unsafe] See A05 (failing test, incomplete registry)."
   },
   {
    "id": "H06",
@@ -2787,11 +2819,19 @@
    "owner": "Claude",
    "status": "VALIDATED",
    "code_paths": [
-    "engine/provenance.py::code_hash,code_mixed,stale",
-    "engine/health.py::classify"
+    "engine/health.py::classify",
+    "engine/learning/firewalls.py",
+    "engine/learning/future_firewall.py",
+    "engine/learning/identity_firewall.py",
+    "engine/learning/memory_firewall.py",
+    "engine/learning/reproducibility.py",
+    "engine/provenance.py::code_hash,code_mixed,stale"
    ],
    "tests": [
     "tests/test_health.py::test_stale_code_worker",
+    "tests/test_learning_firewalls.py",
+    "tests/test_learning_future_firewall.py",
+    "tests/test_learning_identity_firewall.py",
     "tests/test_provenance.py::test_record_goes_stale_after_edit"
    ],
    "evidence": [
@@ -2800,9 +2840,9 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[already implemented] Section-62 Test 12 equivalent: a code edit makes a worker result stale and it is excluded (tests passed in the audit run)."
+   "last_run": "2026-09-29T09:45:50",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S02). 8 independent fail-closed layers; named tests detect leak channels 2, 4, 8c and the registry audit failure; channels 1, 3, 6, 8a, 8e have no firewall check yet. Detection is not closure: S18 closes channels at the source. | earlier: [already implemented] Section-62 Test 12 equivalent: a code edit makes a worker result stale and it is excluded (tests passed in the audit run)."
   },
   {
    "id": "H07",
@@ -2811,11 +2851,19 @@
    "owner": "Claude",
    "status": "IMPLEMENTED",
    "code_paths": [
+    "engine/edgar.py",
     "engine/leak_audit.py::pit_macro,macro_revision_risk",
-    "engine/edgar.py"
+    "engine/learning/firewalls.py",
+    "engine/learning/future_firewall.py",
+    "engine/learning/identity_firewall.py",
+    "engine/learning/memory_firewall.py",
+    "engine/learning/reproducibility.py"
    ],
    "tests": [
-    "tests/test_leak_audit.py"
+    "tests/test_leak_audit.py",
+    "tests/test_learning_firewalls.py",
+    "tests/test_learning_future_firewall.py",
+    "tests/test_learning_identity_firewall.py"
    ],
    "evidence": [
     "state/research/leak_audit/report.md"
@@ -2823,9 +2871,9 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "IMPLEMENTED — NOT VALIDATED. Macro revisions CLEAN (channel 5); split back-adjustment (a revision of history) is channel 2 LEAK."
+   "last_run": "2026-09-29T09:45:50",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S02). 8 independent fail-closed layers; named tests detect leak channels 2, 4, 8c and the registry audit failure; channels 1, 3, 6, 8a, 8e have no firewall check yet. Detection is not closure: S18 closes channels at the source. | earlier: IMPLEMENTED — NOT VALIDATED. Macro revisions CLEAN (channel 5); split back-adjustment (a revision of history) is channel 2 LEAK."
   },
   {
    "id": "H08",
@@ -2835,11 +2883,19 @@
    "status": "IMPLEMENTED",
    "code_paths": [
     "engine/leak_audit.py::inject_dead_names,survivorship_haircut,pit_universe",
+    "engine/learning/firewalls.py",
+    "engine/learning/future_firewall.py",
+    "engine/learning/identity_firewall.py",
+    "engine/learning/memory_firewall.py",
+    "engine/learning/reproducibility.py",
     "engine/pit.py::survivorship_report",
     "scripts/fetch_delisted.py"
    ],
    "tests": [
     "tests/test_leak_audit.py",
+    "tests/test_learning_firewalls.py",
+    "tests/test_learning_future_firewall.py",
+    "tests/test_learning_identity_firewall.py",
     "tests/test_pit.py"
    ],
    "evidence": [
@@ -2848,9 +2904,9 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "IMPLEMENTED — NOT VALIDATED. [unsafe] Panel is survivor-only; channel 1 QUARANTINED (measured, not removed)."
+   "last_run": "2026-09-29T09:45:50",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S02). 8 independent fail-closed layers; named tests detect leak channels 2, 4, 8c and the registry audit failure; channels 1, 3, 6, 8a, 8e have no firewall check yet. Detection is not closure: S18 closes channels at the source. | earlier: IMPLEMENTED — NOT VALIDATED. [unsafe] Panel is survivor-only; channel 1 QUARANTINED (measured, not removed)."
   },
   {
    "id": "H09",
@@ -2860,10 +2916,18 @@
    "status": "VALIDATED",
    "code_paths": [
     "engine/health.py::exclusion_report,classify",
+    "engine/learning/firewalls.py",
+    "engine/learning/future_firewall.py",
+    "engine/learning/identity_firewall.py",
+    "engine/learning/memory_firewall.py",
+    "engine/learning/reproducibility.py",
     "engine/resources.py::stale_report"
    ],
    "tests": [
     "tests/test_health.py::test_stale_code_worker",
+    "tests/test_learning_firewalls.py",
+    "tests/test_learning_future_firewall.py",
+    "tests/test_learning_identity_firewall.py",
     "tests/test_resources.py::test_stale_report_finds_every_planted_kind_and_only_those"
    ],
    "evidence": [
@@ -2872,9 +2936,9 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[already implemented] Planted stale/crashed/OOM workers are excluded; tests passed."
+   "last_run": "2026-09-29T09:45:50",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S02). 8 independent fail-closed layers; named tests detect leak channels 2, 4, 8c and the registry audit failure; channels 1, 3, 6, 8a, 8e have no firewall check yet. Detection is not closure: S18 closes channels at the source. | earlier: [already implemented] Planted stale/crashed/OOM workers are excluded; tests passed."
   },
   {
    "id": "H10",
@@ -2884,22 +2948,30 @@
    "status": "IMPLEMENTED",
    "code_paths": [
     "engine/blind_gates.py::seal_window,RevealGate,check_seal",
+    "engine/learning/firewalls.py",
+    "engine/learning/future_firewall.py",
+    "engine/learning/identity_firewall.py",
+    "engine/learning/memory_firewall.py",
+    "engine/learning/reproducibility.py",
     "engine/learning_delta.py::revealed_pool,causal_bank"
    ],
    "tests": [
     "tests/test_blind_gates.py",
-    "tests/test_learning_delta.py::test_revealed_pool_never_lists_an_unrevealed_window"
+    "tests/test_learning_delta.py::test_revealed_pool_never_lists_an_unrevealed_window",
+    "tests/test_learning_firewalls.py",
+    "tests/test_learning_future_firewall.py",
+    "tests/test_learning_identity_firewall.py"
    ],
    "evidence": [
-    "state/research/leak_audit/report.md",
-    "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)"
+    "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)",
+    "state/research/leak_audit/report.md"
    ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "IMPLEMENTED — NOT VALIDATED. [unsafe] Sealing works; the loop's basis learning still trains on evaluation-era windows (channel 4)."
+   "last_run": "2026-09-29T09:45:50",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S02). 8 independent fail-closed layers; named tests detect leak channels 2, 4, 8c and the registry audit failure; channels 1, 3, 6, 8a, 8e have no firewall check yet. Detection is not closure: S18 closes channels at the source. | earlier: IMPLEMENTED — NOT VALIDATED. [unsafe] Sealing works; the loop's basis learning still trains on evaluation-era windows (channel 4)."
   },
   {
    "id": "H11",
@@ -2908,12 +2980,20 @@
    "owner": "Claude",
    "status": "IMPLEMENTED",
    "code_paths": [
+    "engine/isolation.py::research_mode",
     "engine/leak_audit.py::NetworkGuard,FileAccessRecorder,import_closure",
-    "engine/isolation.py::research_mode"
+    "engine/learning/firewalls.py",
+    "engine/learning/future_firewall.py",
+    "engine/learning/identity_firewall.py",
+    "engine/learning/memory_firewall.py",
+    "engine/learning/reproducibility.py"
    ],
    "tests": [
+    "tests/test_isolation.py",
     "tests/test_leak_audit.py",
-    "tests/test_isolation.py"
+    "tests/test_learning_firewalls.py",
+    "tests/test_learning_future_firewall.py",
+    "tests/test_learning_identity_firewall.py"
    ],
    "evidence": [
     "state/research/leak_audit/report.md"
@@ -2921,22 +3001,30 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "IMPLEMENTED — NOT VALIDATED. Network CLEAN (channel 7); run-time file reads QUARANTINED (channel 8d)."
+   "last_run": "2026-09-29T09:45:50",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S02). 8 independent fail-closed layers; named tests detect leak channels 2, 4, 8c and the registry audit failure; channels 1, 3, 6, 8a, 8e have no firewall check yet. Detection is not closure: S18 closes channels at the source. | earlier: IMPLEMENTED — NOT VALIDATED. Network CLEAN (channel 7); run-time file reads QUARANTINED (channel 8d)."
   },
   {
    "id": "H12",
    "phase": "H FIREWALLS",
    "description": "Fail-closed behavior.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
-    "engine/pit.py::FailClosed",
+    "engine/learning/firewalls.py",
+    "engine/learning/future_firewall.py",
+    "engine/learning/identity_firewall.py",
+    "engine/learning/memory_firewall.py",
+    "engine/learning/reproducibility.py",
+    "engine/learning_delta.py::BlindnessError",
     "engine/pattern_memory.py::LeakError",
-    "engine/learning_delta.py::BlindnessError"
+    "engine/pit.py::FailClosed"
    ],
    "tests": [
+    "tests/test_learning_firewalls.py",
+    "tests/test_learning_future_firewall.py",
+    "tests/test_learning_identity_firewall.py",
     "tests/test_pit.py"
    ],
    "evidence": [
@@ -2945,9 +3033,9 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial][unsafe] Fail-closed exceptions exist per module; open LEAK channels are reported, not blocked."
+   "last_run": "2026-09-29T09:45:50",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S02). 8 independent fail-closed layers; named tests detect leak channels 2, 4, 8c and the registry audit failure; channels 1, 3, 6, 8a, 8e have no firewall check yet. Detection is not closure: S18 closes channels at the source. | earlier: [partial][unsafe] Fail-closed exceptions exist per module; open LEAK channels are reported, not blocked."
   },
   {
    "id": "I01",
@@ -4861,43 +4949,46 @@
   {
    "section": "Memory firewall",
    "minimum_lines": 900,
-   "actual_lines": 196,
+   "actual_lines": 905,
    "code_paths": [
-    "engine/pattern_memory.py::check_no_future,scan_for_dates,validate_key,audit_prefix_invariance (72)",
+    "engine/blind_gates.py::check_memory_bank_causality (10)",
+    "engine/leak_audit.py::TrainedOn,simulate_window_draws,basis_future_share,BasisLineage,strict_training_windows,defaults_contamination (75)",
+    "engine/learning/memory_firewall.py",
+    "engine/lessons.py::audit_identity (9)",
     "engine/memory.py::scan_lessons,_scrub_arm (28)",
     "engine/memory_diagnostics.py::leak_check (2)",
-    "engine/lessons.py::audit_identity (9)",
-    "engine/blind_gates.py::check_memory_bank_causality (10)",
-    "engine/leak_audit.py::TrainedOn,simulate_window_draws,basis_future_share,BasisLineage,strict_training_windows,defaults_contamination (75)"
+    "engine/pattern_memory.py::check_no_future,scan_for_dates,validate_key,audit_prefix_invariance (72)"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "UNDER by 704 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial and UNSAFE: guards exist per store, but leak_audit channel 4 (learned state trained on future/same windows) is LEAK in the default loop. No universal 'could this item exist at timestamp T' audit."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S02). | earlier: UNDER by 704 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial and UNSAFE: guards exist per store, but leak_audit channel 4 (learned state trained on future/same windows) is LEAK in the default loop. No universal 'could this item exist at timestamp T' audit."
   },
   {
    "section": "Identity firewall",
    "minimum_lines": 750,
-   "actual_lines": 236,
+   "actual_lines": 753,
    "code_paths": [
     "engine/antioverfit.py::_relabel_tickers,_swap_ticker_histories,ticker_permutation,date_disguise (46)",
     "engine/blind_gates.py::make_ticker_map,check_shift,check_ticker_map,check_disguised_frame,check_disguise_signature,scan_text_for_leaks (78)",
-    "engine/leak_audit.py::FingerprintProbe,fingerprint_verdict,rerun_linkability,feed_exposure,hardened_feed_class (112)"
+    "engine/leak_audit.py::FingerprintProbe,fingerprint_verdict,rerun_linkability,feed_exposure,hardened_feed_class (112)",
+    "engine/learning/identity_firewall.py"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "UNDER by 514 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: ticker permutation, date disguise, year-fingerprint probe, rerun linkability. Missing stock/sector/episode substitution and sequence scrambling. Channel 6 (year fingerprint) QUARANTINED, 8c LEAK."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S02). | earlier: UNDER by 514 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: ticker permutation, date disguise, year-fingerprint probe, rerun linkability. Missing stock/sector/episode substitution and sequence scrambling. Channel 6 (year fingerprint) QUARANTINED, 8c LEAK."
   },
   {
    "section": "Future-information firewall",
    "minimum_lines": 1000,
-   "actual_lines": 2116,
+   "actual_lines": 1003,
    "code_paths": [
-    "engine/pit.py (1030)",
+    "engine/fill_audit.py (32)",
+    "engine/leak_audit.py::Channel,Audit,NetworkBlocked,NetworkGuard,poison,network_markers,_engine_imports,import_closure,data_access,FileAccessRecorder,trader_side_reads,free_text_columns,macro_revision_risk,pit_macro,truncation_invariance,attrition_profile,delisting_hazard,survivorship_haircut,inject_dead_names,pit_universe,price_level_drift,cum_future_split_factor,reconstruct_as_traded,level_rule_disagreement (371)",
+    "engine/learning/future_firewall.py",
     "engine/parity.py (379)",
     "engine/parity_suite.py (304)",
-    "engine/fill_audit.py (32)",
-    "engine/leak_audit.py::Channel,Audit,NetworkBlocked,NetworkGuard,poison,network_markers,_engine_imports,import_closure,data_access,FileAccessRecorder,trader_side_reads,free_text_columns,macro_revision_risk,pit_macro,truncation_invariance,attrition_profile,delisting_hazard,survivorship_haircut,inject_dead_names,pit_universe,price_level_drift,cum_future_split_factor,reconstruct_as_traded,level_rule_disagreement (371)"
+    "engine/pit.py (1030)"
    ],
    "status": "FAILED",
-   "notes": "MET (meaningful = non-blank, non-comment, non-docstring lines of the listed code). IMPLEMENTED — FAILED VALIDATION: depth met; real audit 12 channels = 3 LEAK, 4 QUARANTINED (state/research/leak_audit/report.md). Not fail-closed for the three LEAK channels in the default blind path."
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S02). | earlier: MET (meaningful = non-blank, non-comment, non-docstring lines of the listed code). IMPLEMENTED — FAILED VALIDATION: depth met; real audit 12 channels = 3 LEAK, 4 QUARANTINED (state/research/leak_audit/report.md). Not fail-closed for the three LEAK channels in the default blind path."
   },
   {
    "section": "Experiment memory",
@@ -5166,25 +5257,27 @@
   {
    "section": "Learning firewalls",
    "minimum_lines": 1100,
-   "actual_lines": 666,
+   "actual_lines": 1121,
    "code_paths": [
     "engine/blind_gates.py::Finding,passed,_fail,window_end,overlap_days,seal_digest,seal_window,check_seal,check_no_overlap_across,check_sealed_before_workers,warmup_years_available,check_warmup,RevealGate,check_reveal_order,ClockViolation,BlindClock,scan_information,check_fill_timing,lookahead_probe,_same,truncate,audit_run,save_report,era_of,coverage_report,check_coverage,check_public_release (290)",
-    "engine/isolation.py (376)"
+    "engine/isolation.py (376)",
+    "engine/learning/firewalls.py"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "UNDER by 434 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: blind-window sealing/reveal/clock gates and live/research isolation. The 8 layers are not one promotion-blocking chain; EXPERIMENT and EVALUATION firewalls for learning results do not exist as such."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S02). | earlier: UNDER by 434 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial: blind-window sealing/reveal/clock gates and live/research isolation. The 8 layers are not one promotion-blocking chain; EXPERIMENT and EVALUATION firewalls for learning results do not exist as such."
   },
   {
    "section": "Reproducibility",
    "minimum_lines": 500,
-   "actual_lines": 739,
+   "actual_lines": 501,
    "code_paths": [
-    "engine/repro.py (296)",
+    "engine/learning/reproducibility.py",
     "engine/provenance.py (92)",
+    "engine/repro.py (296)",
     "engine/retester.py (351)"
    ],
    "status": "IMPLEMENTED",
-   "notes": "MET (meaningful = non-blank, non-comment, non-docstring lines of the listed code). IMPLEMENTED — NOT VALIDATED for learning experiments: hashes of code/config/data/seed exist; memory snapshot and worker configuration are not part of the learning-run key; 51 of 53 audited registry records lack the fields."
+   "notes": "IMPLEMENTED — NOT VALIDATED (C63 foundation wave; S02). | earlier: MET (meaningful = non-blank, non-comment, non-docstring lines of the listed code). IMPLEMENTED — NOT VALIDATED for learning experiments: hashes of code/config/data/seed exist; memory snapshot and worker configuration are not part of the learning-run key; 51 of 53 audited registry records lack the fields."
   },
   {
    "section": "Compute manager",
