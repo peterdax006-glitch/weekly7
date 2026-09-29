@@ -240,3 +240,35 @@ i want youto be utilizing all the memory all the time
 > it should minimize risk as much as possible but 7 % weekly is top priority, try to minimize risk after you achieve that, that should be a fundamental built into the system where as long as most weeks are 7% volatility then the top priority has been met, after that you can increase the percentage of the 7% being positive rather than negative
 
 `sha256: 6054ef2d32f8d4e7b8fa17b140bf9250fc2de18e5dca306a5c99c5056e5590a2`
+
+## C40 — Master blueprint, in Downloads, very long (2026-09-28)
+
+> make me a master blueprint
+put it in file downloads
+it should be very long
+
+`sha256: 42e5e767736c94d3776ea6b26fbc3c81916d13ec3c8a460ce07f61f0aa1c0bf7`
+
+## C41 — Rare-analog memory: notice when today resembles the one other time something happened; every data point knows its date and relevance (2026-09-28)
+
+> the algorithm should be so advanced that if there was only one other time in history that a certain stock market problem had ever occured like a bubble pop or a sector disapear or a sector arise, or even something very small most humans would never find it but a small thing only happened one other time in history, the self learning should notice the simalarity, the self learning should also know what year all data points occured to know what coordinates with what, and how relavent data points are to today
+
+`sha256: 13d13bd767f609872724be3dc8c880b8dcbb0af6370941676d1017a3f4ee3adb`
+
+## C42 — 7% average over a year; timeline-aware caution/aggression without cheating; learn from mistakes so a rerun would not repeat them (by pattern, not by memorised answers) (2026-09-28)
+
+> it should be so advanced that it aims for the average of 7% a week over the course of a year, but it also notices the timelines to be more cautious or more aggressive without cheating by investigating what timeline it is, and if it messes up on a test, then it should self learn so if we run the same test again it wouldn't mess up the second time, in fact you should give that a try where it doesnt remember oh yeah now i need to pick this stock, but oh yeah, i noticed a time where this pattern caused this to happen so im going to try something else instead
+
+`sha256: 2b029efbf2487325e8254dc531bfbb45cc5aed751ee8c7d9ffe0884a52399fff`
+
+## C43 — Never hold a failed pattern: improve it until consistent up to that point, or discard it (2026-09-28)
+
+> we should never hold onto a pattern that failed, the pattern either needs to be improved to something that would be consistent up to that point or disguarded
+
+`sha256: 08b3c5965edace7a307223bc7172c357be587254c44c1c934de9244d75be04a6`
+
+## C44 — Master blueprint covers every detail, including undiscussed and uncertain ones (2026-09-28)
+
+> make sure the master blueprint literally covers every detail from every single thing the system looks at to what should be built in to what the system can learn on its own, to how risky to be ect every single little detail in the master blueprint, even the details we havent discussed that you know the answer to or even things you dont know 100% how it will work yet
+
+`sha256: 8c70a208c82ef435a024798fddb4cc31695c0c2cebee83df86f4e6a05e7fce4f`

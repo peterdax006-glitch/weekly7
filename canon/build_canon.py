@@ -87,6 +87,16 @@ DIRECTIVES = [
      'also make sure that the self learning keeps in mind 7% weekly is the goal so anything below that should be seen as to low and anything above it should be seen as to risky, and you should spend time just giving it more data while you build it so the self learning has more to work with'),
     ("C39", "2026-09-28", 'Priority: 7% weekly volatility first, then minimise risk, then raise the share of positive 7% weeks',
      'it should minimize risk as much as possible but 7 % weekly is top priority, try to minimize risk after you achieve that, that should be a fundamental built into the system where as long as most weeks are 7% volatility then the top priority has been met, after that you can increase the percentage of the 7% being positive rather than negative'),
+    ("C40", "2026-09-28", 'Master blueprint, in Downloads, very long',
+     'make me a master blueprint\nput it in file downloads\nit should be very long'),
+    ("C41", "2026-09-28", 'Rare-analog memory: notice when today resembles the one other time something happened; every data point knows its date and relevance',
+     'the algorithm should be so advanced that if there was only one other time in history that a certain stock market problem had ever occured like a bubble pop or a sector disapear or a sector arise, or even something very small most humans would never find it but a small thing only happened one other time in history, the self learning should notice the simalarity, the self learning should also know what year all data points occured to know what coordinates with what, and how relavent data points are to today'),
+    ("C42", "2026-09-28", '7% average over a year; timeline-aware caution/aggression without cheating; learn from mistakes so a rerun would not repeat them (by pattern, not by memorised answers)',
+     "it should be so advanced that it aims for the average of 7% a week over the course of a year, but it also notices the timelines to be more cautious or more aggressive without cheating by investigating what timeline it is, and if it messes up on a test, then it should self learn so if we run the same test again it wouldn't mess up the second time, in fact you should give that a try where it doesnt remember oh yeah now i need to pick this stock, but oh yeah, i noticed a time where this pattern caused this to happen so im going to try something else instead"),
+    ("C43", "2026-09-28", 'Never hold a failed pattern: improve it until consistent up to that point, or discard it',
+     'we should never hold onto a pattern that failed, the pattern either needs to be improved to something that would be consistent up to that point or disguarded'),
+    ("C44", "2026-09-28", "Master blueprint covers every detail, including undiscussed and uncertain ones",
+     'make sure the master blueprint literally covers every detail from every single thing the system looks at to what should be built in to what the system can learn on its own, to how risky to be ect every single little detail in the master blueprint, even the details we havent discussed that you know the answer to or even things you dont know 100% how it will work yet'),
 ]
 
 def sha(t): return hashlib.sha256(t.encode("utf-8")).hexdigest()

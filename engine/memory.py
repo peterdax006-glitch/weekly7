@@ -31,8 +31,10 @@ class Memory:
         self.cusum = {}                      # arm -> (pos, neg, mean, var, n)
         self.scale = None
         if long_term is not None and len(long_term):
+            import ast
             for r in long_term.itertuples(index=False):
-                self.ep.append((r.arm, -1e6, np.asarray(r.ctx, dtype=float), float(r.outcome), 1))
+                arm = ast.literal_eval(r.arm) if isinstance(r.arm, str) else r.arm      # stored as text
+                self.ep.append((arm, -1e6, np.asarray(r.ctx, dtype=float), float(r.outcome), 1))
             self._fit_scale()
 
     def _fit_scale(self):
@@ -95,4 +97,5 @@ class Memory:
 
     def export(self):
         """This window's own episodes, for the long-term bank."""
-        return pd.DataFrame([{"arm": a, "ctx": list(c), "outcome": o} for a, _, c, o, s in self.ep if s == 0])
+        return pd.DataFrame([{"arm": repr(a), "ctx": [float(x) for x in c], "outcome": float(o)}
+                             for a, _, c, o, s in self.ep if s == 0])

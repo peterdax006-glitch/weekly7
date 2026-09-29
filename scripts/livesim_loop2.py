@@ -116,7 +116,17 @@ def worker(run_id, cfg, meta):
         ep["real_end"] = feed.real_end()
         ep["window"] = run_id
         bank = DIR / "memory_bank.parquet"
-        (pd.concat([pd.read_parquet(bank), ep]) if bank.exists() else ep).to_parquet(bank)
+        import os
+        lock = str(bank) + ".lock"
+        for _ in range(600):                          # three workers finish together: one writer at a time
+            try:
+                fd = os.open(lock, os.O_CREAT | os.O_EXCL); os.close(fd); break
+            except FileExistsError:
+                time.sleep(0.5)
+        try:
+            (pd.concat([pd.read_parquet(bank), ep]) if bank.exists() else ep).to_parquet(bank)
+        finally:
+            os.remove(lock)
     for k, v in trader.snaps.items():
         v.to_parquet(a / f"wsnap_{k}.parquet")
     for k, v in trader.warm_snaps.items():

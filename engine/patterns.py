@@ -211,11 +211,11 @@ class PatternMiner:
         R["effect"] = R["m_all"] * R["n_eff"] / (R["n_eff"] + self.p["shrink_k"])        # shrunk by evidence
         # death: the latest stretch contradicts the long-run effect
         dying = R["confirmed"] & R["m_recent"].notna() & (np.sign(R["m_recent"]) != np.sign(R["m_all"])) & (R["t_recent"].abs() >= 1.5)
-        R["status"] = np.where(~R["confirmed"], "rejected", np.where(dying, "benched", "active"))
+        R["status"] = np.where(~R["confirmed"], "rejected", np.where(dying, "failed", "active"))   # C43
         # look for WHY a pattern died: a context tercile where it still holds both long-run and recently
         R["scope"] = None
         if ctx is not None:
-            for i in R.index[R["status"] == "benched"][:50]:
+            for i in R.index[R["status"] == "failed"][:100]:
                 mask = self._mask_from_key(R.at[i, "key"], Q, feats)
                 sgn = np.sign(R.at[i, "m_all"])
                 for ci in range(ctx.shape[1]):
@@ -224,12 +224,18 @@ class PatternMiner:
                     for lab, cm in (("low", cv <= lo_), ("mid", (cv > lo_) & (cv <= hi_)), ("high", cv > hi_)):
                         a = _wstats(w[mask & cm], yv[mask & cm]) if (mask & cm).sum() >= self.p["min_n"] // 2 else (0, 0, 0)
                         rr = _wstats(w[mask & cm & rec], yv[mask & cm & rec]) if (mask & cm & rec).sum() >= 30 else (0, 0, 0)
-                        if np.sign(a[0]) == sgn and abs(a[1]) >= 2 and np.sign(rr[0]) == sgn and abs(rr[1]) >= 1:
+                        # improved form must be consistent through the WHOLE history up to now: long-run,
+                        # discovery half, confirmation half and the recent stretch all agree (C43)
+                        dsc = _wstats(w[mask & cm & disc], yv[mask & cm & disc]) if (mask & cm & disc).sum() >= 30 else (0, 0, 0)
+                        cnf = _wstats(w[mask & cm & conf], yv[mask & cm & conf]) if (mask & cm & conf).sum() >= 30 else (0, 0, 0)
+                        if (np.sign(a[0]) == sgn and abs(a[1]) >= 2 and np.sign(rr[0]) == sgn and abs(rr[1]) >= 1
+                                and np.sign(dsc[0]) == sgn and np.sign(cnf[0]) == sgn):
                             R.at[i, "status"] = "rescoped"
                             R.at[i, "scope"] = (ci, lab, float(lo_), float(hi_))
                             break
                     if R.at[i, "status"] == "rescoped":
                         break
+        R.loc[R["status"] == "failed", "status"] = "discarded"      # C43: never hold a failed pattern
         # redundancy: patterns firing on nearly the same rows are one idea - keep the strongest
         R = R.reindex(R["effect"].abs().sort_values(ascending=False).index)
         R["duplicate_of"] = None

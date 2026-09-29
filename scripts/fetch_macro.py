@@ -20,7 +20,7 @@ for sid, name in SERIES.items():
     for attempt in range(3):
         try:
             r = requests.get(f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={sid}", timeout=60,
-                             headers={"User-Agent": "Weekly7 research"})
+                             headers={"User-Agent": "curl/8.9.1", "Accept": "*/*"})
             if r.status_code == 200 and r.text.startswith(("observation_date", "DATE")):
                 df = pd.read_csv(io.StringIO(r.text))
                 df.columns = ["date", sid]
