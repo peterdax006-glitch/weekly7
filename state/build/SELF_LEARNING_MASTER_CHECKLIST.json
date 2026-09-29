@@ -1539,24 +1539,25 @@
    "status": "IN_PROGRESS",
    "code_paths": [
     "engine/learning_delta.py::run_pair,play_curve",
-    "scripts/learning_delta.py",
-    "scripts/learning_curve.py"
+    "scripts/learning_curve.py",
+    "scripts/learning_delta.py"
    ],
    "tests": [
-    "tests/test_learning_delta.py",
-    "tests/test_learning_curve.py"
+    "tests/test_learning_curve.py",
+    "tests/test_learning_delta.py"
    ],
    "evidence": [
+    "state/research/learning_delta/lc1/report.md",
+    "state/research/learning_delta/lc1/run.log (running)",
     "state/research/learning_delta/ld1/report.md",
-    "state/research/learning_delta/ld2_basis/report.md",
-    "state/research/learning_delta/lc1/run.log (running)"
+    "state/research/learning_delta/ld2_basis/report.md"
    ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[implemented-but-unvalidated] run1->run2 works (self-check VALID); the run 1..N curve (C57) is running (lc1) and being edited by builders."
+   "last_run": "2026-09-29T10:08:36",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "B22 lc1 (29 Sep, real, K=20, 6 windows, C58 time gate): 0/6 windows rising, identity control flat under disguise, reset control flat; harness self-check VALID. S16 same_year.py/controls.py add controls D random + E leaky (pass 2 running). | earlier: [implemented-but-unvalidated] run1->run2 works (self-check VALID); the run 1..N curve (C57) is running (lc1) and being edited by builders."
   },
   {
    "id": "E02",
@@ -1565,25 +1566,26 @@
    "owner": "Claude",
    "status": "IMPLEMENTED",
    "code_paths": [
-    "engine/learning_delta.py::make_presentation,audit_presentation",
     "engine/antimemo.py::disguise",
-    "engine/blind_gates.py::make_ticker_map"
+    "engine/blind_gates.py::make_ticker_map",
+    "engine/learning_delta.py::make_presentation,audit_presentation"
    ],
    "tests": [
-    "tests/test_learning_delta.py",
     "tests/test_blind_gates.py",
+    "tests/test_learning_delta.py",
     "tests/test_tiebreak.py"
    ],
    "evidence": [
-    "state/research/learning_delta/ld2_basis/report.md",
-    "state/research/leak_audit/report.md"
+    "state/research/leak_audit/report.md",
+    "state/research/learning_delta/lc1/report.md",
+    "state/research/learning_delta/ld2_basis/report.md"
    ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "IMPLEMENTED — NOT VALIDATED. [contradictory] Codes/dates are disguised and audited, but the same year's numbers are identical, so any numeric memory recognises the rerun (ld2 caveat); year-fingerprint channel 6 QUARANTINED. Section 1.2 forbids 'identifying a disguised rerun as a rerun'."
+   "last_run": "2026-09-29T10:08:36",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "B22 lc1 (29 Sep, real, K=20, 6 windows, C58 time gate): 0/6 windows rising, identity control flat under disguise, reset control flat; harness self-check VALID. S16 same_year.py/controls.py add controls D random + E leaky (pass 2 running). | earlier: IMPLEMENTED — NOT VALIDATED. [contradictory] Codes/dates are disguised and audited, but the same year's numbers are identical, so any numeric memory recognises the rerun (ld2 caveat); year-fingerprint channel 6 QUARANTINED. Section 1.2 forbids 'identifying a disguised rerun as a rerun'."
   },
   {
    "id": "E03",
@@ -1598,16 +1600,17 @@
     "tests/test_learning_delta.py::test_non_learner_shows_zero_delta_everywhere"
    ],
    "evidence": [
+    "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)",
+    "state/research/learning_delta/lc1/report.md",
     "state/research/learning_delta/ld1/report.md",
-    "state/research/learning_delta/ld2_basis/report.md",
-    "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)"
+    "state/research/learning_delta/ld2_basis/report.md"
    ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[already implemented] Noise control = exactly 0 on 12 real pairs; planted non-learner = NO_EFFECT."
+   "last_run": "2026-09-29T10:08:36",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "B22 lc1 (29 Sep, real, K=20, 6 windows, C58 time gate): 0/6 windows rising, identity control flat under disguise, reset control flat; harness self-check VALID. S16 same_year.py/controls.py add controls D random + E leaky (pass 2 running). | earlier: [already implemented] Noise control = exactly 0 on 12 real pairs; planted non-learner = NO_EFFECT."
   },
   {
    "id": "E04",
@@ -1623,16 +1626,17 @@
     "tests/test_learners.py"
    ],
    "evidence": [
-    "state/research/learners/ls3_s11/report.md",
     "state/research/learners/ls2_replicate/report.md",
+    "state/research/learners/ls3_s11/report.md",
+    "state/research/learning_delta/lc1/report.md",
     "state/research/learning_delta/ld2_basis/report.md"
    ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "IMPLEMENTED — FAILED VALIDATION. No learner passes past-only transfer; band_cfg lifts in_band but worsens worst5/max_dd."
+   "last_run": "2026-09-29T10:08:36",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "B22 lc1 (29 Sep, real, K=20, 6 windows, C58 time gate): 0/6 windows rising, identity control flat under disguise, reset control flat; harness self-check VALID. S16 same_year.py/controls.py add controls D random + E leaky (pass 2 running). | earlier: IMPLEMENTED — FAILED VALIDATION. No learner passes past-only transfer; band_cfg lifts in_band but worsens worst5/max_dd."
   },
   {
    "id": "E05",
@@ -1647,16 +1651,17 @@
     "tests/test_learning_delta.py::test_memoriser_is_flagged_with_large_same_year_gain_and_zero_transfer"
    ],
    "evidence": [
+    "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)",
+    "state/research/learning_delta/lc1/report.md",
     "state/research/learning_delta/ld1/report.md",
-    "state/research/learning_delta/ld2_basis/report.md",
-    "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)"
+    "state/research/learning_delta/ld2_basis/report.md"
    ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[already implemented] Planted memoriser flagged MEMORISATION (same-year +0.088, transfer 0)."
+   "last_run": "2026-09-29T10:08:36",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "B22 lc1 (29 Sep, real, K=20, 6 windows, C58 time gate): 0/6 windows rising, identity control flat under disguise, reset control flat; harness self-check VALID. S16 same_year.py/controls.py add controls D random + E leaky (pass 2 running). | earlier: [already implemented] Planted memoriser flagged MEMORISATION (same-year +0.088, transfer 0)."
   },
   {
    "id": "E06",
@@ -1671,14 +1676,15 @@
     "tests/test_learning_delta.py"
    ],
    "evidence": [
+    "state/research/learning_delta/lc1/report.md",
     "state/research/learning_delta/ld1/report.md"
    ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial] A shuffled-outcome control exists; no random learner (control D) with random updates of equal size."
+   "last_run": "2026-09-29T10:08:36",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "B22 lc1 (29 Sep, real, K=20, 6 windows, C58 time gate): 0/6 windows rising, identity control flat under disguise, reset control flat; harness self-check VALID. S16 same_year.py/controls.py add controls D random + E leaky (pass 2 running). | earlier: [partial] A shuffled-outcome control exists; no random learner (control D) with random updates of equal size."
   },
   {
    "id": "E07",
@@ -1693,16 +1699,17 @@
     "tests/test_learning_delta.py::test_selfcheck_is_valid_and_catches_the_leak_probe"
    ],
    "evidence": [
+    "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)",
+    "state/research/learning_delta/lc1/report.md",
     "state/research/learning_delta/ld1/report.md",
-    "state/research/learning_delta/ld2_basis/report.md",
-    "pytest run 2026-09-29 (mapping audit): 170 passed, 1 failed (test_provenance::test_integrity_fails_closed_on_tampered_bible)"
+    "state/research/learning_delta/ld2_basis/report.md"
    ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[already implemented] Leak probe caught = True in every self-check."
+   "last_run": "2026-09-29T10:08:36",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "B22 lc1 (29 Sep, real, K=20, 6 windows, C58 time gate): 0/6 windows rising, identity control flat under disguise, reset control flat; harness self-check VALID. S16 same_year.py/controls.py add controls D random + E leaky (pass 2 running). | earlier: [already implemented] Leak probe caught = True in every self-check."
   },
   {
    "id": "E08",
@@ -2696,15 +2703,15 @@
    "owner": "Claude",
    "status": "FAILED",
    "code_paths": [
+    "engine/antioverfit.py::future_scramble",
     "engine/leak_audit.py",
-    "engine/pit.py::future_scramble",
     "engine/parity.py",
-    "engine/antioverfit.py::future_scramble"
+    "engine/pit.py::future_scramble"
    ],
    "tests": [
     "tests/test_leak_audit.py",
-    "tests/test_pit.py",
-    "tests/test_parity.py"
+    "tests/test_parity.py",
+    "tests/test_pit.py"
    ],
    "evidence": [
     "state/research/leak_audit/report.md"
@@ -2712,9 +2719,9 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "IMPLEMENTED — FAILED VALIDATION. [unsafe] Audit works (planted leaks caught) but 3 of 12 channels are LEAK in the default blind path - not fail-closed."
+   "last_run": "2026-09-29T10:08:18",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "Recomputed 29 Sep (S18): 1 LEAK (channel 6, year identifiable from m_* context - awaiting owner ruling), 2 FIXED (2, 8c), 4 QUARANTINED (1 survivorship, 3 metadata, 4 learned-state residual META_DEFAULT, 8d), 5 CLEAN. Stays FAILED while any channel is LEAK. | earlier: IMPLEMENTED — FAILED VALIDATION. [unsafe] Audit works (planted leaks caught) but 3 of 12 channels are LEAK in the default blind path - not fail-closed."
   },
   {
    "id": "H03",
@@ -2723,14 +2730,14 @@
    "owner": "Claude",
    "status": "FAILED",
    "code_paths": [
-    "engine/pattern_memory.py::check_no_future",
     "engine/blind_gates.py::check_memory_bank_causality",
+    "engine/leak_audit.py::BasisLineage,strict_training_windows",
     "engine/learning_delta.py::causal_bank",
-    "engine/leak_audit.py::BasisLineage,strict_training_windows"
+    "engine/pattern_memory.py::check_no_future"
    ],
    "tests": [
-    "tests/test_pattern_memory.py",
-    "tests/test_leak_audit.py"
+    "tests/test_leak_audit.py",
+    "tests/test_pattern_memory.py"
    ],
    "evidence": [
     "state/research/leak_audit/report.md"
@@ -2738,9 +2745,9 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "IMPLEMENTED — FAILED VALIDATION. [unsafe] Channel 4 LEAK: basis cfg/meta trained on future or same windows in the current loop; the lineage filter exists but is not the default."
+   "last_run": "2026-09-29T10:08:18",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "Channel 4 now QUARANTINED (was LEAK): play gate proven (lineage basis_for or neutral start; 0 violations in the real state file), train_basis itself ungated; META_DEFAULT came from a real-outcome sensitivity study (no data-free replacement). | earlier: IMPLEMENTED — FAILED VALIDATION. [unsafe] Channel 4 LEAK: basis cfg/meta trained on future or same windows in the current loop; the lineage filter exists but is not the default."
   },
   {
    "id": "H04",
@@ -3850,28 +3857,36 @@
    "phase": "J PRODUCTION INTELLIGENCE",
    "description": "Research priority dashboard.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/learning/reports.py",
+    "scripts/learning_report.py"
+   ],
+   "tests": [
+    "tests/test_learning_reports.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[missing]"
+   "last_run": "2026-09-29T10:08:35",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (S13): reports.py generates K01-K15 + J15 + health dashboards from artefacts, UNMEASURED when missing, claim words gated. | earlier: [missing]"
   },
   {
    "id": "K01",
    "phase": "K REPORTING",
    "description": "Learning curve report.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
-    "engine/learning_delta.py::render_curve_report"
+    "engine/learning/reports.py",
+    "engine/learning_delta.py::render_curve_report",
+    "scripts/learning_report.py"
    ],
    "tests": [
-    "tests/test_learning_curve.py"
+    "tests/test_learning_curve.py",
+    "tests/test_learning_reports.py"
    ],
    "evidence": [
     "state/research/learning_delta/lc1/run.log (running)"
@@ -3879,9 +3894,9 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial] Report code exists; no report on disk yet."
+   "last_run": "2026-09-29T10:08:35",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (S13): reports.py generates K01-K15 + J15 + health dashboards from artefacts, UNMEASURED when missing, claim words gated. | earlier: [partial] Report code exists; no report on disk yet."
   },
   {
    "id": "K02",
@@ -3890,22 +3905,25 @@
    "owner": "Claude",
    "status": "IMPLEMENTED",
    "code_paths": [
+    "engine/learning/reports.py",
     "engine/learning_delta.py::render_report",
-    "scripts/learner_search.py"
+    "scripts/learner_search.py",
+    "scripts/learning_report.py"
    ],
    "tests": [
-    "tests/test_learning_delta.py"
+    "tests/test_learning_delta.py",
+    "tests/test_learning_reports.py"
    ],
    "evidence": [
-    "state/research/learning_delta/ld2_basis/report.md",
-    "state/research/learners/ls3_s11/report.md"
+    "state/research/learners/ls3_s11/report.md",
+    "state/research/learning_delta/ld2_basis/report.md"
    ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "IMPLEMENTED — NOT VALIDATED. Cross-year transfer only; no regime/stock/sector sections."
+   "last_run": "2026-09-29T10:08:35",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (S13): reports.py generates K01-K15 + J15 + health dashboards from artefacts, UNMEASURED when missing, claim words gated. | earlier: IMPLEMENTED — NOT VALIDATED. Cross-year transfer only; no regime/stock/sector sections."
   },
   {
    "id": "K03",
@@ -3914,10 +3932,13 @@
    "owner": "Claude",
    "status": "IMPLEMENTED",
    "code_paths": [
-    "engine/learning_delta.py::render_report"
+    "engine/learning/reports.py",
+    "engine/learning_delta.py::render_report",
+    "scripts/learning_report.py"
    ],
    "tests": [
-    "tests/test_learning_delta.py"
+    "tests/test_learning_delta.py",
+    "tests/test_learning_reports.py"
    ],
    "evidence": [
     "state/research/learning_delta/ld1/report.md",
@@ -3926,9 +3947,9 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "IMPLEMENTED — NOT VALIDATED. "
+   "last_run": "2026-09-29T10:08:35",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (S13): reports.py generates K01-K15 + J15 + health dashboards from artefacts, UNMEASURED when missing, claim words gated. | earlier: IMPLEMENTED — NOT VALIDATED. "
   },
   {
    "id": "K04",
@@ -3937,10 +3958,13 @@
    "owner": "Claude",
    "status": "IMPLEMENTED",
    "code_paths": [
-    "engine/antimemo.py::archive_markdown"
+    "engine/antimemo.py::archive_markdown",
+    "engine/learning/reports.py",
+    "scripts/learning_report.py"
    ],
    "tests": [
-    "tests/test_antimemo_archive.py"
+    "tests/test_antimemo_archive.py",
+    "tests/test_learning_reports.py"
    ],
    "evidence": [
     "state/research/lessons/archive_v2.md"
@@ -3948,83 +3972,101 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "IMPLEMENTED — NOT VALIDATED. Lessons archive only."
+   "last_run": "2026-09-29T10:08:35",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (S13): reports.py generates K01-K15 + J15 + health dashboards from artefacts, UNMEASURED when missing, claim words gated. | earlier: IMPLEMENTED — NOT VALIDATED. Lessons archive only."
   },
   {
    "id": "K05",
    "phase": "K REPORTING",
    "description": "Knowledge health report.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
+    "engine/learning/reports.py",
+    "engine/memory_diagnostics.py::report",
     "engine/pattern_reliability.py::render_report",
-    "engine/memory_diagnostics.py::report"
+    "scripts/learning_report.py"
    ],
-   "tests": [],
+   "tests": [
+    "tests/test_learning_reports.py"
+   ],
    "evidence": [
     "state/research/pattern_memory/report.md"
    ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial]"
+   "last_run": "2026-09-29T10:08:35",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (S13): reports.py generates K01-K15 + J15 + health dashboards from artefacts, UNMEASURED when missing, claim words gated. | earlier: [partial]"
   },
   {
    "id": "K06",
    "phase": "K REPORTING",
    "description": "Failure report.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
-    "scripts/run_pattern_fail.py",
-    "engine/lessons.py::kind_report"
+    "engine/learning/reports.py",
+    "engine/lessons.py::kind_report",
+    "scripts/learning_report.py",
+    "scripts/run_pattern_fail.py"
    ],
-   "tests": [],
+   "tests": [
+    "tests/test_learning_reports.py"
+   ],
    "evidence": [
     "state/research/pattern_fail/report.txt"
    ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial]"
+   "last_run": "2026-09-29T10:08:35",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (S13): reports.py generates K01-K15 + J15 + health dashboards from artefacts, UNMEASURED when missing, claim words gated. | earlier: [partial]"
   },
   {
    "id": "K07",
    "phase": "K REPORTING",
    "description": "Recovery report.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/learning/reports.py",
+    "scripts/learning_report.py"
+   ],
+   "tests": [
+    "tests/test_learning_reports.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[missing]"
+   "last_run": "2026-09-29T10:08:35",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (S13): reports.py generates K01-K15 + J15 + health dashboards from artefacts, UNMEASURED when missing, claim words gated. | earlier: [missing]"
   },
   {
    "id": "K08",
    "phase": "K REPORTING",
    "description": "Contradiction report.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/learning/reports.py",
+    "scripts/learning_report.py"
+   ],
+   "tests": [
+    "tests/test_learning_reports.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[missing]"
+   "last_run": "2026-09-29T10:08:35",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (S13): reports.py generates K01-K15 + J15 + health dashboards from artefacts, UNMEASURED when missing, claim words gated. | earlier: [missing]"
   },
   {
    "id": "K09",
@@ -4033,10 +4075,13 @@
    "owner": "Claude",
    "status": "IMPLEMENTED",
    "code_paths": [
+    "engine/learning/reports.py",
     "engine/missed_winners.py::summary_text",
+    "scripts/learning_report.py",
     "scripts/run_b15_memory_adapter.py"
    ],
    "tests": [
+    "tests/test_learning_reports.py",
     "tests/test_missed_winners.py"
    ],
    "evidence": [
@@ -4045,22 +4090,25 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "IMPLEMENTED — NOT VALIDATED. "
+   "last_run": "2026-09-29T10:08:35",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (S13): reports.py generates K01-K15 + J15 + health dashboards from artefacts, UNMEASURED when missing, claim words gated. | earlier: IMPLEMENTED — NOT VALIDATED. "
   },
   {
    "id": "K10",
    "phase": "K REPORTING",
    "description": "Experiment-memory report.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
+    "engine/experiment_memory.py::answer_coverage",
+    "engine/learning/reports.py",
     "scripts/audit_registry.py",
-    "engine/experiment_memory.py::answer_coverage"
+    "scripts/learning_report.py"
    ],
    "tests": [
-    "tests/test_audit_registry.py"
+    "tests/test_audit_registry.py",
+    "tests/test_learning_reports.py"
    ],
    "evidence": [
     "state/research/registry_audit.json"
@@ -4068,54 +4116,67 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial]"
+   "last_run": "2026-09-29T10:08:35",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (S13): reports.py generates K01-K15 + J15 + health dashboards from artefacts, UNMEASURED when missing, claim words gated. | earlier: [partial]"
   },
   {
    "id": "K11",
    "phase": "K REPORTING",
    "description": "Research-priority report.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/learning/reports.py",
+    "scripts/learning_report.py"
+   ],
+   "tests": [
+    "tests/test_learning_reports.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[missing]"
+   "last_run": "2026-09-29T10:08:35",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (S13): reports.py generates K01-K15 + J15 + health dashboards from artefacts, UNMEASURED when missing, claim words gated. | earlier: [missing]"
   },
   {
    "id": "K12",
    "phase": "K REPORTING",
    "description": "Meta-learning report.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/learning/reports.py",
+    "scripts/learning_report.py"
+   ],
+   "tests": [
+    "tests/test_learning_reports.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[missing]"
+   "last_run": "2026-09-29T10:08:35",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (S13): reports.py generates K01-K15 + J15 + health dashboards from artefacts, UNMEASURED when missing, claim words gated. | earlier: [missing]"
   },
   {
    "id": "K13",
    "phase": "K REPORTING",
    "description": "Promotion/rejection report.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
     "engine/champion.py::Ledger",
-    "engine/improve.py::report"
+    "engine/improve.py::report",
+    "engine/learning/reports.py",
+    "scripts/learning_report.py"
    ],
    "tests": [
-    "tests/test_champion.py"
+    "tests/test_champion.py",
+    "tests/test_learning_reports.py"
    ],
    "evidence": [
     "state/research/learners/ls3_s11/report.md"
@@ -4123,9 +4184,9 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[partial]"
+   "last_run": "2026-09-29T10:08:35",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (S13): reports.py generates K01-K15 + J15 + health dashboards from artefacts, UNMEASURED when missing, claim words gated. | earlier: [partial]"
   },
   {
    "id": "K14",
@@ -4134,40 +4195,48 @@
    "owner": "Claude",
    "status": "IMPLEMENTED",
    "code_paths": [
+    "engine/learning/reports.py",
     "scripts/audit_registry.py",
     "scripts/leak_audit.py",
+    "scripts/learning_report.py",
     "scripts/pit_audit_real.py"
    ],
    "tests": [
-    "tests/test_audit_registry.py"
+    "tests/test_audit_registry.py",
+    "tests/test_learning_reports.py"
    ],
    "evidence": [
-    "state/research/registry_audit.json",
     "state/research/leak_audit/report.md",
-    "state/research/pit/PIT_AUDIT.md"
+    "state/research/pit/PIT_AUDIT.md",
+    "state/research/registry_audit.json"
    ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "IMPLEMENTED — NOT VALIDATED. Reports exist; their verdicts fail (registry ok=false, 3 LEAK channels)."
+   "last_run": "2026-09-29T10:08:35",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (S13): reports.py generates K01-K15 + J15 + health dashboards from artefacts, UNMEASURED when missing, claim words gated. | earlier: IMPLEMENTED — NOT VALIDATED. Reports exist; their verdicts fail (registry ok=false, 3 LEAK channels)."
   },
   {
    "id": "K15",
    "phase": "K REPORTING",
    "description": "Full learning-system report.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/learning/reports.py",
+    "scripts/learning_report.py"
+   ],
+   "tests": [
+    "tests/test_learning_reports.py"
+   ],
    "evidence": [],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "[missing] scripts/final_report.py is the Bible Phase-46 trading report, not a learning-system report."
+   "last_run": "2026-09-29T10:08:35",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "IMPLEMENTED — NOT VALIDATED (S13): reports.py generates K01-K15 + J15 + health dashboards from artefacts, UNMEASURED when missing, claim words gated. | earlier: [missing] scripts/final_report.py is the Bible Phase-46 trading report, not a learning-system report."
   },
   {
    "id": "L01",
@@ -4271,21 +4340,22 @@
    "owner": "Claude",
    "status": "IMPLEMENTED",
    "code_paths": [
-    "scripts/learning_delta.py",
-    "scripts/learning_curve.py"
+    "scripts/learning_curve.py",
+    "scripts/learning_delta.py"
    ],
    "tests": [],
    "evidence": [
+    "state/research/learning_delta/lc1/report.md",
+    "state/research/learning_delta/lc1/run.log (running)",
     "state/research/learning_delta/ld1/report.md",
-    "state/research/learning_delta/ld2_basis/report.md",
-    "state/research/learning_delta/lc1/run.log (running)"
+    "state/research/learning_delta/ld2_basis/report.md"
    ],
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "IMPLEMENTED — NOT VALIDATED. run1->run2 measured (MEMORISATION); the run 1..N curve is in flight; must be re-measured on the frozen learner."
+   "last_run": "2026-09-29T10:08:36",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "B22 lc1 (29 Sep, real, K=20, 6 windows, C58 time gate): 0/6 windows rising, identity control flat under disguise, reset control flat; harness self-check VALID. S16 same_year.py/controls.py add controls D random + E leaky (pass 2 running). | earlier: IMPLEMENTED — NOT VALIDATED. run1->run2 measured (MEMORISATION); the run 1..N curve is in flight; must be re-measured on the frozen learner."
   },
   {
    "id": "L07",
@@ -4418,9 +4488,9 @@
    "minimum_lines": null,
    "actual_lines": null,
    "validation_result": null,
-   "last_run": null,
-   "code_hash": null,
-   "notes": "IMPLEMENTED — FAILED VALIDATION. 3 LEAK, 4 QUARANTINED channels."
+   "last_run": "2026-09-29T10:08:18",
+   "code_hash": "6c44a0173dc73530",
+   "notes": "Recomputed 29 Sep (S18): 1 LEAK (channel 6, year identifiable from m_* context - awaiting owner ruling), 2 FIXED (2, 8c), 4 QUARANTINED (1 survivorship, 3 metadata, 4 learned-state residual META_DEFAULT, 8d), 5 CLEAN. Stays FAILED while any channel is LEAK. | earlier: IMPLEMENTED — FAILED VALIDATION. 3 LEAK, 4 QUARANTINED channels."
   },
   {
    "id": "L14",
@@ -5306,16 +5376,20 @@
   {
    "section": "Reporting/dashboard/inspection",
    "minimum_lines": 1500,
-   "actual_lines": 1166,
+   "actual_lines": 2069,
    "code_paths": [
-    "scripts/dashboard_build.py (395)",
-    "scripts/final_report.py (212)",
-    "engine/run_report.py::tier1,tier2,tier3,build_report,render_text,render_html,write_report,decide,unproven_list (202)",
     "engine/claims.py (302)",
-    "engine/pattern_reliability.py::render_report (55)"
+    "engine/learning/reports.py",
+    "engine/pattern_reliability.py::render_report (55)",
+    "engine/run_report.py::tier1,tier2,tier3,build_report,render_text,render_html,write_report,decide,unproven_list (202)",
+    "scripts/dashboard_build.py",
+    "scripts/dashboard_build.py (395)",
+    "scripts/final_report.py",
+    "scripts/final_report.py (212)",
+    "scripts/learning_report.py"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "UNDER by 334 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial and MISDIRECTED: reporting infra is trading/foundation-facing; of K01-K15 only learning-delta, transfer and memorisation reports exist. site_* pages (~1,250 lines) not counted: public explanation site."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (S13): reports.py generates K01-K15 + J15 + health dashboards from artefacts, UNMEASURED when missing, claim words gated. | earlier: UNDER by 334 (meaningful = non-blank, non-comment, non-docstring lines of the listed code). partial and MISDIRECTED: reporting infra is trading/foundation-facing; of K01-K15 only learning-delta, transfer and memorisation reports exist. site_* pages (~1,250 lines) not counted: public explanation site."
   },
   {
    "section": "Test infrastructure for the above",
