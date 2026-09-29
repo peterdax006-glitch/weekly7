@@ -1,0 +1,42 @@
+name: ci
+# Bible Phases 31-33: every push runs the canon/Bible integrity check, the static quality gate (against its reviewed
+# baseline, so nothing NEW can hide) and the whole pytest suite. Research code only: no secrets, no orders.
+on:
+  push:
+    branches: [main]
+    paths: ["engine/**", "scripts/**", "tests/**", "canon/**", "BIBLE.md", "pyproject.toml", "requirements.txt",
+            ".github/workflows/ci.yml"]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt pytest
+      - name: Universe list (crypto filter reads it; no prices are needed by the tests)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p data/cache
+          gh release download data-cache --dir data/cache --pattern universe.csv --clobber || echo "no universe.csv"
+      - name: Canon and Bible integrity (fail closed)
+        run: |
+          python canon/build_canon.py --verify
+          python -c "from engine import provenance; provenance.verify_integrity(); print('integrity ok')"
+      - name: Quality gate (static, against the reviewed baseline)
+        run: python scripts/quality_gate.py --baseline state/quality/baseline.json
+      - name: Test suite
+        run: python -m pytest -q -p no:cacheprovider --durations=15
