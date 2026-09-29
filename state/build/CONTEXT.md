@@ -94,3 +94,15 @@ that the owner should record.
     replayed in disguise (the same-year rerun leak). Market-wide work must STREAM year by year: ~38M name-days (~8 GB float32)
     will not fit, so keep exception rows only, with one point-in-time snapshot per day. Do not grow the known duplicates
     (4 mover models, 3 pattern stores, 2 break engines, 3 experiment ledgers, 7 firewalls): extend the one the mapping names.
+
+## Prediction-error addition builders (P-series, canon C68)
+28. THE SPEC is `PREDICTION_ERROR_ADDITION.md` (owner, verbatim; never edit). It is an ADDITION to C66: read its header and the
+    checklists your brief names in full, plus its COMPLETION REQUIREMENT and FINAL PRINCIPLE. Package `engine/research/`.
+    EXTEND the existing surprise (engine/learning/surprise.py), calibration, experiment memory, research priority, break research,
+    regimes, knowability, winners/losers, observer, exits (engine/exits.py, engine/stops.py) - never a second system. Research
+    depth feeds the EXISTING priority/compute_manager (no second scheduler). Non-negotiables: an expectation recorded before a
+    prediction is IMMUTABLE (hash-chained; any later rewrite is detected and refused); exits are decided by the learned exit
+    policy ONLY - the ±1pp target is evaluation, never an input to any exit or hold decision (prove it with a test that perturbs
+    the target and shows identical exits); unknowable outcomes stay unknowable; regime/change detection runs forward in time
+    with only data available at each step (a test must show the detector's decision at t is identical when all data after t is
+    scrambled). C63: code + unit tests only.
