@@ -590,7 +590,15 @@
     }
    },
    "design_metric": "in_band",
-   "n": 16
+   "n": 16,
+   "tiered": {
+    "design_ok": true,
+    "harms": [
+     "worst5",
+     "max_dd"
+    ],
+    "passed": false
+   }
   },
   "band_pool": {
    "aggregate": {
@@ -1112,7 +1120,12 @@
     }
    },
    "design_metric": "in_band",
-   "n": 16
+   "n": 16,
+   "tiered": {
+    "design_ok": false,
+    "harms": [],
+    "passed": false
+   }
   },
   "regime_map": {
    "aggregate": {
@@ -1634,7 +1647,12 @@
     }
    },
    "design_metric": "in_band",
-   "n": 16
+   "n": 16,
+   "tiered": {
+    "design_ok": false,
+    "harms": [],
+    "passed": false
+   }
   },
   "lessons": {
    "aggregate": {
@@ -2156,7 +2174,12 @@
     }
    },
    "design_metric": "mean_week",
-   "n": 16
+   "n": 16,
+   "tiered": {
+    "design_ok": false,
+    "harms": [],
+    "passed": false
+   }
   },
   "mover_use": {
    "aggregate": {
@@ -2678,7 +2701,539 @@
     }
    },
    "design_metric": "in_band",
-   "n": 16
+   "n": 16,
+   "tiered": {
+    "design_ok": false,
+    "harms": [],
+    "passed": false
+   }
+  },
+  "chain": {
+   "aggregate": {
+    "n_pairs": 16,
+    "metrics": {
+     "mean_week": {
+      "same": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 16,
+       "share_pos": 0.0,
+       "p_signflip": 1.0
+      },
+      "noise": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 16,
+       "share_pos": 0.0
+      },
+      "shuffle": {
+       "mean": 0.0002326263854805958,
+       "lo": 4.1268926518367736e-05,
+       "hi": 0.00047257630211481623,
+       "n": 16,
+       "share_pos": 0.5625
+      },
+      "effect": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 16,
+       "share_pos": 0.0,
+       "p_signflip": 1.0
+      },
+      "transfer": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 16,
+       "share_pos": 0.0,
+       "p_signflip": 1.0
+      },
+      "gap": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 16,
+       "share_pos": 0.0
+      },
+      "luck_floor": 0.0002531455362609587,
+      "run1_mean": 0.0037085156184314023,
+      "run2_mean": 0.0037085156184314023
+     },
+     "in_band": {
+      "same": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 16,
+       "share_pos": 0.0,
+       "p_signflip": 1.0
+      },
+      "noise": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 16,
+       "share_pos": 0.0
+      },
+      "shuffle": {
+       "mean": 0.0012246008708272846,
+       "lo": -0.010658563134978233,
+       "hi": 0.013175798258345426,
+       "n": 16,
+       "share_pos": 0.1875
+      },
+      "effect": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 16,
+       "share_pos": 0.0,
+       "p_signflip": 1.0
+      },
+      "transfer": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 16,
+       "share_pos": 0.0,
+       "p_signflip": 1.0
+      },
+      "gap": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 16,
+       "share_pos": 0.0
+      },
+      "luck_floor": 0.013062409288824385,
+      "run1_mean": 0.16536647314949202,
+      "run2_mean": 0.16536647314949202
+     },
+     "worst5": {
+      "same": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 16,
+       "share_pos": 0.0,
+       "p_signflip": 1.0
+      },
+      "noise": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 16,
+       "share_pos": 0.0
+      },
+      "shuffle": {
+       "mean": 0.0009347711094285574,
+       "lo": -0.0014759743221826234,
+       "hi": 0.004326335284414039,
+       "n": 16,
+       "share_pos": 0.5
+      },
+      "effect": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 16,
+       "share_pos": 0.0,
+       "p_signflip": 1.0
+      },
+      "transfer": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 16,
+       "share_pos": 0.0,
+       "p_signflip": 1.0
+      },
+      "gap": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 16,
+       "share_pos": 0.0
+      },
+      "luck_floor": 0.0024102303253518277,
+      "run1_mean": -0.05613468699382353,
+      "run2_mean": -0.05613468699382353
+     },
+     "max_dd": {
+      "same": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 16,
+       "share_pos": 0.0,
+       "p_signflip": 1.0
+      },
+      "noise": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 16,
+       "share_pos": 0.0
+      },
+      "shuffle": {
+       "mean": 0.007664284623346729,
+       "lo": -0.0009867476333784294,
+       "hi": 0.023082169064787376,
+       "n": 16,
+       "share_pos": 0.3125
+      },
+      "effect": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 16,
+       "share_pos": 0.0,
+       "p_signflip": 1.0
+      },
+      "transfer": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 16,
+       "share_pos": 0.0,
+       "p_signflip": 1.0
+      },
+      "gap": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 16,
+       "share_pos": 0.0
+      },
+      "luck_floor": 0.008651032256725213,
+      "run1_mean": -0.23324389110040658,
+      "run2_mean": -0.23324389110040658
+     },
+     "pos_share": {
+      "same": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 16,
+       "share_pos": 0.0,
+       "p_signflip": 1.0
+      },
+      "noise": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 16,
+       "share_pos": 0.0
+      },
+      "shuffle": {
+       "mean": -0.0012246008708272776,
+       "lo": -0.007143505079825821,
+       "hi": 0.004744761429607975,
+       "n": 16,
+       "share_pos": 0.0625
+      },
+      "effect": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 16,
+       "share_pos": 0.0,
+       "p_signflip": 1.0
+      },
+      "transfer": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 16,
+       "share_pos": 0.0,
+       "p_signflip": 1.0
+      },
+      "gap": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 16,
+       "share_pos": 0.0
+      },
+      "luck_floor": 0.005941582002902748,
+      "run1_mean": 0.5273947750362844,
+      "run2_mean": 0.5273947750362844
+     },
+     "dir_hit": {
+      "same": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 16,
+       "share_pos": 0.0,
+       "p_signflip": 1.0
+      },
+      "noise": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 16,
+       "share_pos": 0.0
+      },
+      "shuffle": {
+       "mean": 0.0013414642115300059,
+       "lo": -0.003682010542276437,
+       "hi": 0.007008966358952646,
+       "n": 16,
+       "share_pos": 0.1875
+      },
+      "effect": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 16,
+       "share_pos": 0.0,
+       "p_signflip": 1.0
+      },
+      "transfer": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 16,
+       "share_pos": 0.0,
+       "p_signflip": 1.0
+      },
+      "gap": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 16,
+       "share_pos": 0.0
+      },
+      "luck_floor": 0.005935342599268038,
+      "run1_mean": 0.5320081403254575,
+      "run2_mean": 0.5320081403254575
+     },
+     "mover_hit": {
+      "same": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 16,
+       "share_pos": 0.0,
+       "p_signflip": 1.0
+      },
+      "noise": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 16,
+       "share_pos": 0.0
+      },
+      "shuffle": {
+       "mean": -0.0008671746966703131,
+       "lo": -0.004521205343573767,
+       "hi": 0.0030266883990156986,
+       "n": 16,
+       "share_pos": 0.1875
+      },
+      "effect": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 16,
+       "share_pos": 0.0,
+       "p_signflip": 1.0
+      },
+      "transfer": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 16,
+       "share_pos": 0.0,
+       "p_signflip": 1.0
+      },
+      "gap": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 16,
+       "share_pos": 0.0
+      },
+      "luck_floor": 0.004088987605983221,
+      "run1_mean": 0.17497609794241473,
+      "run2_mean": 0.17497609794241473
+     },
+     "year_return": {
+      "same": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 16,
+       "share_pos": 0.0,
+       "p_signflip": 1.0
+      },
+      "noise": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 16,
+       "share_pos": 0.0
+      },
+      "shuffle": {
+       "mean": 0.020225037641459324,
+       "lo": 0.0042223991517881445,
+       "hi": 0.03940628851643247,
+       "n": 16,
+       "share_pos": 0.5
+      },
+      "effect": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 16,
+       "share_pos": 0.0,
+       "p_signflip": 1.0
+      },
+      "transfer": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 16,
+       "share_pos": 0.0,
+       "p_signflip": 1.0
+      },
+      "gap": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 16,
+       "share_pos": 0.0
+      },
+      "luck_floor": 0.02152873595926145,
+      "run1_mean": 0.20589427904555563,
+      "run2_mean": 0.20589427904555563
+     }
+    },
+    "by_era": {
+     "2001+": {
+      "n": 6,
+      "mean_week": 0.0,
+      "in_band": 0.0,
+      "worst5": 0.0,
+      "transfer_mean_week": 0.0
+     },
+     "pre1997": {
+      "n": 10,
+      "mean_week": 0.0,
+      "in_band": 0.0,
+      "worst5": 0.0,
+      "transfer_mean_week": 0.0
+     }
+    },
+    "noise_max_abs": {
+     "mean_week": 0.0,
+     "in_band": 0.0,
+     "worst5": 0.0,
+     "max_dd": 0.0,
+     "pos_share": 0.0,
+     "dir_hit": 0.0,
+     "mover_hit": 0.0,
+     "year_return": 0.0
+    },
+    "by_bank": {
+     "with_bank": {
+      "n": 16,
+      "mean_week_same": 0.0,
+      "mean_week_transfer": 0.0
+     }
+    },
+    "anachronistic_share": 0.0,
+    "verdict": {
+     "label": "NO_EFFECT",
+     "why": "effect CI +0..+0 and transfer CI contain zero",
+     "notes": [
+      "the learning effect (+0.00000) is smaller than the tie-break luck floor (0.00025) that a random relabel alone produces; any system that reads code-name order can fake a delta of that size"
+     ]
+    },
+    "verdict_in_band": {
+     "label": "NO_EFFECT",
+     "why": "effect CI +0..+0 and transfer CI contain zero",
+     "notes": []
+    },
+    "headline": {
+     "n_with_transfer": 16,
+     "n_past_only": 16,
+     "n_dropped_anachronistic": 0,
+     "metrics": {
+      "mean_week": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 16,
+       "p_signflip": 1.0
+      },
+      "in_band": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 16,
+       "p_signflip": 1.0
+      },
+      "worst5": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 16,
+       "p_signflip": 1.0
+      },
+      "max_dd": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 16,
+       "p_signflip": 1.0
+      },
+      "pos_share": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 16,
+       "p_signflip": 1.0
+      },
+      "dir_hit": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 16,
+       "p_signflip": 1.0
+      },
+      "mover_hit": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 16,
+       "p_signflip": 1.0
+      },
+      "year_return": {
+       "mean": 0.0,
+       "lo": 0.0,
+       "hi": 0.0,
+       "n": 16,
+       "p_signflip": 1.0
+      }
+     },
+     "verdict": {
+      "label": "NO_TRANSFER",
+      "why": "transfer CI +0..+0 contains zero"
+     }
+    }
+   },
+   "design_metric": "in_band",
+   "n": 16,
+   "tiered": {
+    "design_ok": false,
+    "harms": [],
+    "passed": false
+   }
   }
  },
  "provenance": {
@@ -2709,5 +3264,11 @@
   "config_hash": "9f60add393a08e7c",
   "data_snapshot": "171ba8ba728ee713",
   "seed": 11
- }
+ },
+ "memoriser_control": {
+  "sees_memorisation": true,
+  "same": 0.02891297997341982,
+  "transfer": 0.0
+ },
+ "valid": true
 }
