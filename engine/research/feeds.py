@@ -43,7 +43,7 @@ from engine.research.core import FirewallBreach, as_date, stable_hash
 LABEL = "IMPLEMENTED - NOT VALIDATED"
 BAR_FIELDS = ("Open", "High", "Low", "Close", "Volume")
 MARKET_COLS = ("SPY", "^VIX", "^VIX3M")
-C68_SLOT = "c68.predictions"
+C68_SLOT = "c68"                                  # namespaced key: loop Ctx.namespace("c68")
 FEED_STAGES = ("observe.observer", "observe.autopsy", "evaluate.frontier", "evaluate.symmetry", "surprises.cross_section",
                "surprises.multiscale", "missed.knowability", "missed.counterfactual", "breaks.break_research", "questions.discovery",
                "questions.interactions", "questions.precursors", "questions.targets")
@@ -973,7 +973,7 @@ def c68_inputs(feed: "WorldFeed", ctx) -> dict:
     exp, paths = [], []
     for dec in _decisions(ctx):
         t = dec.table
-        if len(t) == 0:
+        if len(t) == 0 or as_date(dec.decided_at) >= as_date(ctx.now):      # research side: decisions made strictly before now
             continue
         e = t[[c for c in ("p_move", "p_up", "side", "mover", "mag_q90") if c in t]].copy()
         e["decided_at"] = dec.decided_at
@@ -1013,6 +1013,17 @@ BUILDERS: dict[str, Callable] = {
     "questions.targets": b_targets,
     C68_SLOT: c68_inputs,
 }
+
+
+def register_builder(key: str, fn: Callable, replace: bool = False) -> None:
+    """PUBLIC. Add a builder `fn(feed, ctx) -> dict` under a stage name or a namespaced key (e.g. 'c68.errors') so a registered loop
+    stage (engine.research.loop.register_stage) gets its per-day inputs from this feed without editing it. Its output passes the same
+    fail-closed audit; raise feeds.NoInput for 'nothing new'."""
+    if not key or not callable(fn):
+        raise ValueError("register_builder needs a key and a callable fn(feed, ctx) -> dict")
+    if key in BUILDERS and not replace and BUILDERS[key] is not fn:
+        raise ValueError(f"a builder for {key!r} exists; pass replace=True to swap it")
+    BUILDERS[key] = fn
 
 
 # ================================================================================================================ planted leaks

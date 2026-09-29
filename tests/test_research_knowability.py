@@ -680,3 +680,15 @@ def test_calibration_detects_planted_overconfidence():
         book.confirm(f"m{i}", "PREDICTABLE" if i < 8 else "UNKNOWN", "2031-01-01", "review")
     s = K.calibration_summary(book)
     assert s["ece"] > 0.4 and s["overconfident"] == pytest.approx(0.6)
+
+
+def test_w04_null_world_never_reaches_potentially_predictable():
+    """40 null worlds through the move-level cascade: no PREDICTABLE / POTENTIALLY_PREDICTABLE label may appear (needs >= 2
+    independent channels), and single-channel WEAKLY_PREDICTABLE stays under 20% (measured 4/40 = 10%; the price channel alone
+    cannot be told from a lucky placebo day, so weak labels are the class with the least trust). Planted classes still hold."""
+    import collections
+    c = collections.Counter(K.classify_move(K.planted_inputs("UNKNOWN", sd)).classification.value for sd in range(200, 240))
+    assert c["PREDICTABLE"] == 0 and c["POTENTIALLY_PREDICTABLE"] == 0
+    assert c["WEAKLY_PREDICTABLE"] <= 8 and c["UNKNOWN"] >= 32
+    for k in ("PREDICTABLE", "POTENTIALLY_PREDICTABLE", "WEAKLY_PREDICTABLE"):
+        assert all(K.classify_move(K.planted_inputs(k, sd)).classification.value == k for sd in range(200, 206))

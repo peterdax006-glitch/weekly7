@@ -291,6 +291,40 @@ def _outcome_abuses(c: Commitment, o: ExitRecord) -> list[Abuse]:
 
 
 # ------------------------------------------------------------------------------------------------ honest measurement (checklist P)
+# THE canonical +-1pp statistic (C69 duplication audit, P06): every "within tolerance of the prediction" test in the repo is `within`
+# and every share / interval / verdict over such hits is `share_verdict`. engine.research.prediction_error.honest_tolerance is an
+# ADAPTER over these two (it re-labels the verdict for its ErrorReports); it computes nothing of its own.
+TOL_EPS = 1e-12
+
+
+def within(realised: float, predicted: float, tolerance: float) -> bool:
+    """The one definition of a hit: |realised - predicted| <= tolerance (a float-noise epsilon, never a widened band)."""
+    return bool(math.isfinite(realised) and math.isfinite(predicted) and abs(realised - predicted) <= tolerance + TOL_EPS)
+
+
+def share_verdict(hits: Sequence[bool], n_unresolved: int = 0, goal: float = DEFAULT_TARGET.goal_share, min_n: int = DEFAULT_TARGET.min_n,
+                  level: float = DEFAULT_TARGET.level) -> dict:
+    """Share of hits with its Wilson interval, the worst case that counts `n_unresolved` matured-but-unscored predictions as misses,
+    and the verdict: EMPTY / INSUFFICIENT_SAMPLE (below min_n: reported, never judged) / ACHIEVED (lower bound >= goal) /
+    NOT_ACHIEVED (with `clear_miss` when even the upper bound is below the goal)."""
+    if n_unresolved < 0:
+        raise ValueError("n_unresolved must be >= 0")
+    h = np.asarray(list(hits), bool)
+    n, k = len(h), int(h.sum())
+    lo, hi = wilson(k, n, _z(level)) if n else (0.0, 1.0)
+    if n == 0:
+        status = Status.EMPTY
+    elif n < min_n:
+        status = Status.INSUFFICIENT_SAMPLE
+    elif lo >= goal:
+        status = Status.ACHIEVED
+    else:
+        status = Status.NOT_ACHIEVED
+    return {"hits": k, "n": n, "share": (k / n) if n else None, "lo": float(lo), "hi": float(hi), "n_unresolved": int(n_unresolved),
+            "worst_case": (k / (n + n_unresolved)) if n + n_unresolved else None, "goal": goal, "status": status,
+            "clear_miss": bool(n and hi < goal)}
+
+
 @dataclass(frozen=True)
 class Share:
     n: int
@@ -372,7 +406,7 @@ def naive_share(matured: Sequence[Commitment], outs: Mapping[str, ExitRecord], t
         if not past:
             continue
         n += 1
-        hits += abs(o.realised - float(np.median(past))) <= tolerance
+        hits += within(o.realised, float(np.median(past)), tolerance)
     return hits / n if n else None
 
 
@@ -385,13 +419,12 @@ def evaluate(book: CommitmentBook, outcomes: Iterable[ExitRecord], now, target: 
     if errs:
         raise ValueError("invalid target: " + "; ".join(errs))
     abuses, matured, outs = audit(book, outcomes, now, target, sample, cohort)
-    tol = target.tolerance + 1e-12
     hits_all, hits_res, periods_all, periods_res, errs_res = [], [], [], [], []
     oos_hits, oos_periods = [], []
     groups: dict[str, list[tuple[bool, str]]] = {}
     for c in matured:
         o = outs.get(c.pred_id)
-        hit = o is not None and abs(o.realised - c.predicted) <= tol
+        hit = o is not None and within(o.realised, c.predicted, target.tolerance)
         hits_all.append(hit)
         periods_all.append(c.recorded_at)
         groups.setdefault(c.cohort or "-", []).append((hit, c.recorded_at))
@@ -420,7 +453,7 @@ def evaluate(book: CommitmentBook, outcomes: Iterable[ExitRecord], now, target: 
         status = Status.NOT_ACHIEVED
     rep = CalibrationReport(str(as_date(now)), target, status, len(book.commitments(now)), len(matured), len(outs), n_unres, A, O, R,
                             float(e.mean()) if len(e) else float("nan"), float(np.abs(e).mean()) if len(e) else float("nan"),
-                            naive_share(matured, outs, tol), required_n(O.share if O.n else A.share, target.goal_share, target.level),
+                            naive_share(matured, outs, target.tolerance), required_n(O.share if O.n else A.share, target.goal_share, target.level),
                             tuple(abuses), by, "")
     return dataclasses.replace(rep, headline=headline(rep))
 
@@ -450,7 +483,7 @@ def trend(book: CommitmentBook, outcomes: Iterable[ExitRecord], now, target: Tar
     abuses, matured, outs = audit(book, outcomes, now, target)
     if not matured:
         return pd.DataFrame(columns=["period", "n", "share", "lo", "hi", "oos_n"])
-    rows = [(pd.Timestamp(as_date(c.recorded_at)).to_period(freq), (c.pred_id in outs) and abs(outs[c.pred_id].realised - c.predicted) <= target.tolerance + 1e-12, c.oos)
+    rows = [(pd.Timestamp(as_date(c.recorded_at)).to_period(freq), (c.pred_id in outs) and within(outs[c.pred_id].realised, c.predicted, target.tolerance), c.oos)
             for c in matured]
     df = pd.DataFrame(rows, columns=["period", "hit", "oos"])
     out = []
@@ -467,7 +500,7 @@ def tolerance_profile(book: CommitmentBook, outcomes: Iterable[ExitRecord], now,
     abuses, matured, outs = audit(book, outcomes, now, DEFAULT_TARGET)
     rows = []
     for t in tolerances:
-        hits = [(c.pred_id in outs) and abs(outs[c.pred_id].realised - c.predicted) <= t + 1e-12 for c in matured]
+        hits = [(c.pred_id in outs) and within(outs[c.pred_id].realised, c.predicted, t) for c in matured]
         rows.append({"tolerance": t, "n": len(hits), "share": float(np.mean(hits)) if hits else float("nan")})
     return pd.DataFrame(rows)
 

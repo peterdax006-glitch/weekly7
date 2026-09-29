@@ -81,7 +81,10 @@ PARAMS = {
     # C61 pattern health monitor and forced investigation
     "explain_meta": ("age", "crowd", "share"),   # pattern-meta drivers that can CAUSE a break (own hit rate is a symptom)
     "est_win": 26,              # matured weeks after first use that set the pattern's expected effect (no earlier)
-    "effect_shrink": 0.7,       # expected effect = shrink x burn-in mean (winner's-curse guard)
+    "effect_shrink": 0.7,       # expected effect = shrink x burn-in mean (winner's-curse guard) ...
+    "effect_lcb_z": 1.0,        # ... capped at the burn-in mean minus this many standard errors (the pattern was picked BECAUSE its
+                                #     burn-in looked good, so the raw mean is an upper estimate of its true effect: W-05)
+    "effect_floor": 0.2,        # ... but never below this share of the burn-in mean (a positive effect must stay positive)
     "arl0": 500,                # target average weeks between false alarms of the sequential test, per pattern
     "k_floor": 0.08,            # CUSUM reference value floor (in sd units)
     "half_life": 13,            # weeks: discounted posterior that the pattern still works
@@ -1075,6 +1078,15 @@ def confirm_driver(tl, driver, cut_lo, cut_hi, works_when, lo_row, hi_row, cfg=N
 
 
 # ---------------------------------------------------------------- C61: pattern health monitor (no phantom patterns)
+def expected_effect(mean, sd, n, P):
+    """Winner's-curse-safe expected effect of a pattern that was established on `n` burn-in weeks (W-05). The pattern was
+    selected because that stretch looked good, so its mean over-states the effect that will persist. Take the smaller of the
+    shrunk mean and a lower confidence bound (mean - z se), and keep it a fixed share of the mean at least so it stays
+    positive. An expected effect set too high makes a healthy, stationary pattern look like it is decaying."""
+    se = sd / math.sqrt(max(int(n), 1))
+    return float(max(P["effect_floor"] * mean, min(P["effect_shrink"] * mean, mean - P["effect_lcb_z"] * se)))
+
+
 def cusum_threshold(k, arl0):
     """Alarm threshold h (in sd units) of a one-sided CUSUM with reference value k whose in-control average run length is
     `arl0` observations (Siegmund's approximation, solved by bisection)."""
@@ -1130,7 +1142,8 @@ class HealthLedger:
 
 def health_monitor(tl, cfg=None, expected=None, as_of=None):
     """Re-check every pattern every period against newly matured evidence (C61).
-    Expected effect: mu0 = effect_shrink x mean signed return over the matured weeks since the pattern's first row, once
+    Expected effect: mu0 = expected_effect(...) - the smaller of effect_shrink x the mean and its lower confidence bound (the
+    pattern was picked for looking good, so the raw mean is inflated) - over the matured weeks since the pattern's first row, once
     at least `est_win` of them exist and the effect is established (mean > 0 with t >= t_work); or `expected[pattern]` if the
     discoverer supplies one. A pattern whose effect is not (yet) established is a PHANTOM: BROKEN and switched off until
     the evidence establishes it. Sequential tests against mu0, per pattern:
@@ -1179,7 +1192,7 @@ def health_monitor(tl, cfg=None, expected=None, as_of=None):
                 tst = m1 / (sd_run / math.sqrt(cnt))
                 if exp_ is not None or (m1 > 0.05 * sd_run and tst >= P["t_work"]):
                     est = True
-                    mu0 = float(exp_) if exp_ is not None else P["effect_shrink"] * m1
+                    mu0 = float(exp_) if exp_ is not None else expected_effect(m1, sd_run, cnt, P)
                     sd0 = sd_run
                     k = max(0.5 * mu0 / sd0, P["k_floor"])
                     kk = round(k, 3)

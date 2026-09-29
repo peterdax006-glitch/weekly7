@@ -134,12 +134,15 @@ class CounterfactualConfig:
     return_tolerance: float = 0.02         # tolerated gap between the spec's realised return and the audited one
     top_k_per_day: int = 25
     sample_rate: float = 0.1
+    null_alpha: float = 0.05               # a price pointer must beat this tail of the same-day peer null to count (W-04)
+    null_min_peers: int = 20               # fewer peers than this cannot calibrate a null -> price pointers count for nothing
+    null_max_peers: int = 120              # seeded cap on peers scored per (day, direction); cost is shared by the day's events
     event_weights: tuple[tuple[str, float], ...] = (
         ("EARN", 1.0), ("RESTATEMENT", 0.95), ("BANKRUPTCY", 0.95), ("DELIST_NOTICE", 0.9), ("LATE_FILING", 0.7),
         ("AUDITOR_CHANGE", 0.6), ("ACQ_DONE", 0.9), ("OFFERING", 0.8), ("SHELF", 0.5), ("UNREG_SALE", 0.5),
         ("AGREEMENT", 0.8), ("ACTIVIST", 0.7), ("ACTIVIST_AMEND", 0.5), ("PERIODIC", 0.3))
     default_event_weight: float = 0.4
-    version: str = "cf1"
+    version: str = "cf2"
 
     def weight_of(self, kind) -> float:
         return dict(self.event_weights).get(str(kind).upper(), self.default_event_weight)
@@ -160,6 +163,8 @@ class CounterfactualConfig:
                 errs.append(f"{name} outside [0, 1]")
         if self.min_history > self.lookback:
             errs.append("min_history exceeds lookback")
+        if not 0.0 < self.null_alpha < 1.0 or self.null_min_peers < 2 or self.null_max_peers < self.null_min_peers:
+            errs.append("null_alpha must be in (0, 1) and 2 <= null_min_peers <= null_max_peers")
         return errs
 
 
@@ -1292,6 +1297,101 @@ def score_evidence(ev: Sequence[Evidence], cfg: CounterfactualConfig | None = No
             "n_supporting_domains": float(len(domains)), "strongest": float(strongest)}
 
 
+# ------------------------------------------------------------------------------------------------ calibrated null (W-04)
+
+PRICE_DOMAINS = (Domain.TECHNICAL, Domain.VOLUME, Domain.PRICE, Domain.CROSS_SECTION, Domain.MARKET_STATE)
+
+
+class _PriceView:
+    """The slice of a KnowledgeState that collect_evidence reads for a peer: price-derived domains only. A peer has no
+    filings, patterns or memories attached, so the null it supplies is a null for PRICE pointers and nothing else."""
+
+    def __init__(self, values: Mapping[tuple[Domain, str], float]):
+        self._v = dict(values)
+
+    def value(self, domain: Domain, name: str, default=None):
+        return self._v.get((domain, name), default)
+
+    def by_domain(self, domain: Domain) -> tuple:
+        return ()
+
+
+def _peer_view(snap: DaySnapshot, ticker: str, cfg: CounterfactualConfig) -> _PriceView | None:
+    tech, _ = technical_state(snap, ticker, cfg)
+    if not tech:
+        return None
+    vals: dict[tuple[Domain, str], float] = {}
+    place = {Domain.PRICE: ("close", "r1", "r5", "r20", "r60", "gap_today"), Domain.VOLUME: ("volume", "vol_surge1", "vol_surge5", "log_dv"),
+             Domain.TECHNICAL: ("vol20", "vol60", "vol_ratio", "max20", "min20", "dist_ma50", "dist_ma200", "dist_52wh", "skew60",
+                                "rsi14", "streak", "atr_pct", "range_compress", "squeeze_rank")}
+    for dom, names in place.items():
+        for k in names:
+            if k in tech:
+                vals[(dom, k)] = tech[k]
+    if ticker in snap.xs.index:
+        for col in ("vol20", "log_dv", "max20", "vol_surge5", "r5", "r20"):
+            p = snap.cs.pct(col, snap.xs.at[ticker, col]) if snap.cs.has(col) else None
+            if p is not None:
+                vals[(Domain.CROSS_SECTION, f"{col}_rank")] = p
+    for k, v in snap.market_row.items():
+        vals[(Domain.MARKET_STATE, k)] = v
+    return _PriceView(vals)
+
+
+def price_null_scores(snap: DaySnapshot, event: EventSpec, cfg: CounterfactualConfig | None = None) -> np.ndarray:
+    """Combined price-pointer score of OTHER names on the same decision close, asked with the event's direction. This is what
+    'a typical stock looked like that evening' scores, so a pointer only counts when it beats it. Deterministic: peers are a
+    seeded sample keyed on the day. Cached on the snapshot per direction (the day's events share it). Reads the snapshot
+    only, so it cannot see past the close."""
+    cfg = cfg or CounterfactualConfig()
+    cache = snap.__dict__.setdefault("_null_cache", {})
+    key = (int(event.direction), cfg.null_max_peers)
+    if key not in cache:
+        peers = sorted(t for t in snap.frames.get(snap.srcs.close, pd.DataFrame()).columns if t != event.ticker)
+        rng = np.random.default_rng(int(stable_hash(f"{snap.decision_ts.date()}|{key}", 8), 16) % (2 ** 32))
+        if len(peers) > cfg.null_max_peers:
+            peers = [peers[i] for i in sorted(rng.choice(len(peers), cfg.null_max_peers, replace=False))]
+        probe = dataclasses.replace(event, model_score=None)
+        out = []
+        for t in peers:
+            view = _peer_view(snap, t, cfg)
+            if view is not None:
+                out.append(score_evidence(collect_evidence(view, probe, cfg), cfg)["combined"])
+        cache[key] = np.asarray(out, dtype=float)
+    return cache[key]
+
+
+def calibrate_pointers(snap: DaySnapshot, event: EventSpec, ev: Sequence[Evidence], scores: Mapping[str, float],
+                       cfg: CounterfactualConfig | None = None) -> tuple[dict[str, float], list[str]]:
+    """W-04. Price-derived pointers (technical / volume / price / cross-section / market state) point at a move only when their
+    combined score beats the same-day peer null at `null_alpha` (one-sided permutation p, (1+#null>=obs)/(n+1)). Evidence that
+    is not a price pattern (a filing, a learned pattern, a scheduled catalyst, a model score) keeps its own standing when it is
+    at least min_pointer. When neither holds the pointers are treated as noise: combined and strongest are zeroed, exactly as
+    the existing sub-threshold rule does, so the ladder falls to EXTERNAL / UNAVAILABLE / UNKNOWN. Too few peers to calibrate
+    fails closed. Returns (scores with `null_p`/`combined_raw` added, notes)."""
+    cfg = cfg or CounterfactualConfig()
+    out = dict(scores)
+    out["combined_raw"] = float(scores["combined"])
+    price = [e for e in ev if e.domain in PRICE_DOMAINS]
+    other = [e for e in ev if e.domain not in PRICE_DOMAINS and e.agrees is not False]
+    other_strong = max((e.strength for e in other), default=0.0) >= cfg.min_pointer
+    if scores["combined"] < cfg.weak or not ev:
+        out["null_p"] = 1.0
+        return out, []
+    null = price_null_scores(snap, event, cfg)
+    obs = score_evidence(price, cfg)["combined"]
+    if len(null) < cfg.null_min_peers:
+        p, note = 1.0, f"only {len(null)} peers to calibrate a null (< {cfg.null_min_peers}): price pointers cannot be shown to beat chance"
+    else:
+        p = (1.0 + float((null >= obs - 1e-12).sum())) / (len(null) + 1.0)
+        note = f"price pointers combined {obs:.2f} vs {len(null)} same-day peers: p={p:.3f}"
+    out["null_p"] = float(p)
+    if p <= cfg.null_alpha or other_strong:
+        return out, ([note] if p <= cfg.null_alpha else [])
+    out["combined"], out["strongest"] = 0.0, 0.0
+    return out, [note + f" > alpha {cfg.null_alpha}: treated as noise (a typical stock looks like this)"]
+
+
 # ------------------------------------------------------------------------------------------------ classification
 
 
@@ -1443,10 +1543,11 @@ def assess_event(store: pit.PITStore, snap: DaySnapshot, event: EventSpec, now, 
     state, side = reconstruct_state(snap, event, providers, cfg)
     audit = audit_event(store, snap, event, state, side, as_of, providers, cfg)
     ev = collect_evidence(state, event, cfg)
-    scores = score_evidence(ev, cfg)
+    scores, null_notes = calibrate_pointers(snap, event, ev, score_evidence(ev, cfg), cfg)
     would = available_evidence_items(state, ev, cfg.weak / 2)
     relevant = tuple(would) + tuple(i for i in audit.unavailable)
     kn, notes = classify_knowability(state, scores, audit, cfg, relevant)
+    notes = list(notes) + null_notes
     extra: list[str] = []
     if providers.classifier is not None:
         bundle = {"state": state, "scores": dict(scores), "evidence": ev, "attribution": audit.attribution, "baseline": kn}

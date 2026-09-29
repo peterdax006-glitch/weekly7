@@ -149,7 +149,7 @@ def test_c68_slot_builds_expectations_and_realised_paths(short_run):
     feed, state, rt, reps = short_run
     rt.obs = feed.observe(state.now)
     ctx = LP.Ctx(state, rt, state.now, state.cycle)
-    out = FD.c68_inputs(feed, ctx)
+    out = ctx.namespace(FD.C68_SLOT)                                           # the namespaced per-day inputs a registered stage reads
     e, p = out["expectations"], out["realised_paths"]
     assert {"p_move", "p_up", "side", "decided_at"} <= set(e.columns) and len(e) > 0
     assert len(p) and (pd.to_datetime(p["resolved_at"]) < pd.Timestamp(state.now)).all()
@@ -293,16 +293,19 @@ LONG = os.environ.get("W7_LONG_TESTS") == "1"
 
 
 @pytest.mark.integration
-@pytest.mark.skipif(not LONG, reason="long end-to-end run: set W7_LONG_TESTS=1 (about 4-6 minutes)")
+@pytest.mark.skipif(not LONG, reason="long end-to-end run: set W7_LONG_TESTS=1 (several minutes)")
 def test_section47_end_to_end_on_the_rich_planted_world(tmp_path):
     """(a) data reaches every stage (none starved; after warm-up no feed stage skips), (b) the planted genuine pattern goes question ->
     experiment -> replication -> quality gate PROMOTE -> firewall -> live release -> two-stage decision change -> outcome measured ->
     new question, (c) the planted coincidence is never promoted, (d) nothing reached a stage from the future."""
     world = FD.planted_world(FD.PlantConfig(vol_state_sd=0.07))
     feed = FD.WorldFeed(FD.InMemorySource(world), FD.FeedConfig(first_decision="2018-06-01"))
-    state, rt, _ = LP.open_loop(feed, tmp_path, loop_cfg(), sweeps=feed.sweeps(), clock=CLOCK)
+    # smallest useful effect = per-date AUC 0.60 (the planted pattern is far stronger): the fresh holdout then needs ~9 fresh weeks
+    # for its required power instead of ~30 at AUC 0.55 (fresh_needed); nothing else is relaxed
+    cfg = loop_cfg(experiment=LP.ExperimentConfig(min_effect=0.10))
+    state, rt, _ = LP.open_loop(feed, tmp_path, cfg, sweeps=feed.sweeps(), clock=CLOCK)
     reps, promoted_at = [], None
-    for _ in range(40):
+    for _ in range(60):
         rep = LP.step(state, rt)
         if rep is None:
             break
@@ -334,3 +337,65 @@ def test_section47_end_to_end_on_the_rich_planted_world(tmp_path):
     assert state.lineage.section47_chains()
     # (c) the coincidence never promoted
     assert not (filed & set(world.truth["noise"]))
+
+
+# ============================================================================================================ registered stages (P06 hook)
+def test_registered_stage_runs_is_checkpointed_and_resumes(small_world, tmp_path):
+    """register_stage inserts an extra stage with the built-in semantics: it runs in place, reads a namespaced feed input built by a
+    registered builder, is SKIPPED_NO_INPUT when that input is empty, is checkpointed, and a loop killed right after it resumes
+    without running it again; a resume in a process that lacks the stage is refused."""
+    calls = []
+
+    def dummy_builder(feed, ctx):
+        if ctx.cycle == 1:
+            raise FD.NoInput("nothing for the dummy on cycle 1")
+        return {"n": ctx.cycle + 1, "as_of": str(pd.Timestamp(ctx.now) - pd.Timedelta(days=1))}
+
+    def dummy_stage(ctx):
+        ex = ctx.namespace("w02test.dummy")
+        calls.append((ctx.cycle, ex["n"]))
+        return ex["n"], 1, "dummy ran"
+    FD.register_builder("w02test.dummy", dummy_builder, replace=True)
+    LP.register_stage("w02test.dummy", dummy_stage, after="missed.knowability")
+    try:
+        with pytest.raises(ValueError):
+            LP.register_stage("w02test.dummy", lambda c: (0, 0, ""), after="observe.panel")        # a different fn: refused
+        with pytest.raises(ValueError):
+            LP.register_stage("w02test.other", dummy_stage, after="report.cycle")
+        names = LP.STAGE_NAMES
+        assert names.index("w02test.dummy") == names.index("missed.knowability") + 1
+        quiet = tuple(n for n in LP.BUILTIN_STAGES if n not in ("observe.panel", "missed.knowability", "report.cycle"))
+        cfg = loop_cfg(checkpoint="stage", disabled=quiet, cadence={})
+        feed = FD.WorldFeed(FD.InMemorySource(small_world), SMALL_FEED)
+        with pytest.raises(KeyboardInterrupt):
+            LP.run(feed, tmp_path, cfg, max_cycles=3, clock=CLOCK, kill_after="0|w02test.dummy")
+        assert calls == [(0, 1)]
+        state, reps = LP.run(FD.WorldFeed(FD.InMemorySource(small_world), SMALL_FEED), tmp_path, cfg, max_cycles=3, clock=CLOCK)
+        assert calls == [(0, 1), (2, 3)]                                      # cycle 0 not re-run; cycle 1 had no input
+        by = {r["cycle"]: {s["stage"]: s for s in r["stages"]} for r in reps}
+        assert by[1]["w02test.dummy"]["status"] == "SKIPPED_NO_INPUT" and by[2]["w02test.dummy"]["status"] == "OK"
+        assert state.exec_count["0|w02test.dummy"] == 1 and "w02test.dummy" in state.memo["stage_table"]
+    finally:
+        LP.unregister_stage("w02test.dummy")
+        FD.BUILDERS.pop("w02test.dummy", None)
+    with pytest.raises(RuntimeError, match="not registered in this process"):      # the stage is gone: resuming would skip it
+        LP.open_loop(FD.WorldFeed(FD.InMemorySource(small_world), SMALL_FEED), tmp_path, loop_cfg(checkpoint="stage"), clock=CLOCK)
+
+
+def test_filed_knowledge_survives_a_checkpoint(small_world, tmp_path):
+    """Planted defect found by the end-to-end run: filed knowledge is deep-frozen (read-only mappings) and the first promoted finding
+    made every later checkpoint fail. It must round-trip through the checkpoint and still be releasable."""
+    from engine.research.core import Stage
+    feed = FD.WorldFeed(FD.InMemorySource(small_world), SMALL_FEED)
+    state, rt, _ = LP.open_loop(feed, tmp_path, loop_cfg(checkpoint="stage"), clock=CLOCK)
+    now = feed.dates()[3]
+    rt.obs = feed.observe(now)
+    ctx = LP.Ctx(state, rt, now, 0)
+    through = str((pd.Timestamp(now) - pd.Timedelta(days=10)).date())
+    rec = LP.JobRecord("KEY", "BR1", "Q1", "r_Q1", "VOLATILITY", "lv20", Stage.INTEGRATION.value, through, through, now, 0, {},
+                       result={"data_through": through, "sign": 1.0, "effect": 0.2})
+    assert LP._file_knowledge(ctx, rec) == 1
+    rt.checkpointer.save(state, CODE, "cycle 0", "test")
+    loaded, _ = rt.checkpointer.load(CODE)
+    assert loaded is not None and loaded.knowledge == state.knowledge
+    assert list(loaded.modules["firewall"].store.ids()) == list(state.modules["firewall"].store.ids())

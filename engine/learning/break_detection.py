@@ -74,6 +74,8 @@ PARAMS = {
     "peek_auc": 0.78, "peek_rho": 0.55, "peek_ratio": 1.8, "peek_hard_rho": 0.9,
     "wf_step": 13, "wf_min_train": 60,
     "boot": 400, "boot_block": 6,
+    "placebo_n": 12,                # shifted-placebo runs behind an EXPLAINED verdict (family-wise control, W-05)
+    "placebo_alpha": 0.10,          # the real condition must out-score the placebos: (1 + #placebos as strong) / (n + 1) <= this
 }
 PHRASES = {"regime": "the market regime", "volatility": "the volatility level", "liquidity": "market liquidity",
            "trend": "the market trend", "breadth": "market breadth", "macro": "the macro backdrop",
@@ -881,6 +883,8 @@ class BreakExplanation:
     candidates_tried: int
     detectable_smd: float = float("nan")      # smallest standardised difference this sample could have detected (power)
     compositions: tuple = ()
+    best_t: float = float("-inf")             # largest out-of-sample t of any candidate condition tried (-inf: none reached the test)
+    placebo: tuple = ()                       # (runs, runs at least as strong, p) of the shifted-placebo control, when it was run
 
     @property
     def explained(self) -> bool:
@@ -903,9 +907,9 @@ class BreakExplanation:
 
 
 def _empty(item, as_of, status, why, summary=(), n_s=0, n_f=0, n_conf=0, n_tested=0, eps=(), sym=(), tried=0, power=float("nan"),
-           comps=()):
+           comps=(), best_t=float("-inf")):
     return BreakExplanation(item.item_id, str(as_of), status, FailureCause.UNKNOWN, None, None, None, why, tuple(summary),
-                            tuple(sym), n_s, n_f, n_conf, n_tested, tuple(eps), tried, power, tuple(comps))
+                            tuple(sym), n_s, n_f, n_conf, n_tested, tuple(eps), tried, power, tuple(comps), best_t)
 
 
 def explain_break(item: ItemSeries, as_of=None, cfg=None, seed: int = 0) -> BreakExplanation:
@@ -963,12 +967,13 @@ def explain_break(item: ItemSeries, as_of=None, cfg=None, seed: int = 0) -> Brea
     padj = PR.holm([t.p_one for t in tests])
     tests = [evaluate_condition(c, design.X, values, conf_rows, P, p_override=float(pa)) for (c, _), pa in zip(cands, padj)]
     good = [(c, t) for (c, _), t in zip(cands, tests) if t.passes]
+    best_t = float(max((t.t_diff for t in tests), default=float("-inf")))
     if not good:
         return _empty(item, as_of, "UNKNOWN",
                       f"{len(cands)} candidate condition(s) survived discovery but none held out of sample "
                       f"({'; '.join(t.why for t in tests)}); cause unknown (smallest standardised difference detectable here: "
                       f"{power:.2f})", summary, len(pops.success), len(pops.failed),
-                      len(conf_rows), n_tested, eps, symptoms, len(cands), power, comps)
+                      len(conf_rows), n_tested, eps, symptoms, len(cands), power, comps, best_t)
     cond, test = max(good, key=lambda z: z[1].gain)
     dim = cond.dimensions[0] if cond.dimensions else "feature_distribution"
     cause = CAUSE_BY_DIMENSION.get(dim, FailureCause.WRONG_CONTEXT)
@@ -978,7 +983,7 @@ def explain_break(item: ItemSeries, as_of=None, cfg=None, seed: int = 0) -> Brea
             f"{test.mean_in:+.3%} where it holds ({test.n_in} rows) vs {test.mean_out:+.3%} elsewhere ({test.n_out} rows).")
     return BreakExplanation(item.item_id, str(as_of), "EXPLAINED", cause, sub.value if sub else None, cond, test, stmt,
                             tuple(summary), symptoms, len(pops.success), len(pops.failed), len(conf_rows), n_tested,
-                            tuple(eps), len(cands), power, comps)
+                            tuple(eps), len(cands), power, comps, best_t)
 
 
 # ------------------------------------------------------------------------------------------------- placebo control and cross-item events
@@ -996,9 +1001,51 @@ def shifted_placebo(item: ItemSeries, shift: int) -> ItemSeries:
     return ItemSeries(item.item_id, fr, item.columns, nb, comps)
 
 
-def placebo_false_condition_rate(item: ItemSeries, as_of=None, n: int = 12, cfg=None, seed: int = 0) -> dict:
+def placebo_shifts(T: int, n: int, seed: int) -> list[int]:
+    """`n` distinct circular shifts, each at least T/4 rows from zero and from T (so the shifted context is out of step with
+    the outcomes by a quarter of the history or more), drawn deterministically from the seed."""
+    rng = np.random.default_rng(seed)
+    lo, hi = T // 4, 3 * T // 4
+    pool = np.arange(lo, max(hi, lo + 1))
+    return [int(x) for x in rng.choice(pool, size=min(n, len(pool)), replace=False)]
+
+
+def explain_break_controlled(item: ItemSeries, as_of=None, cfg=None, seed: int = 0) -> BreakExplanation:
+    """explain_break plus the family-wise shifted-placebo bar (W-05). A condition that survives the out-of-sample test is
+    then asked the question the test cannot answer alone: would the same pipeline have produced an equally strong condition
+    from this item's outcomes with the context circularly shifted (so any real link is destroyed)? `placebo_n` shifts are run;
+    the verdict stays EXPLAINED only when (1 + #placebos whose best out-of-sample t is at least the real one) / (n + 1) is at
+    most `placebo_alpha`. The placebos are only run for an explained verdict, so the control costs nothing on the (majority
+    of) items that are UNKNOWN anyway. Anything else is demoted to UNKNOWN with the reason recorded."""
+    P = _cfg(cfg)
+    ex = explain_break(item, as_of, cfg, seed)
+    if not ex.explained:
+        return ex
+    n = int(P["placebo_n"])
+    strong = 0
+    runs = 0
+    for i, sh in enumerate(placebo_shifts(len(item.frame), n, seed + 991)):
+        try:
+            pl = explain_break(shifted_placebo(item, sh), as_of, cfg, seed=seed + 1000 + i)
+        except FirewallBreach:
+            continue
+        runs += 1
+        strong += int(pl.best_t >= ex.oos.t_diff)
+    p = (1.0 + strong) / (runs + 1.0)
+    if runs < 2 or p <= P["placebo_alpha"]:
+        return dataclasses.replace(ex, placebo=(runs, strong, float(p)))
+    why = (f"{item.item_id}: the condition held out of sample (t {ex.oos.t_diff:.2f}) but {strong} of {runs} shifted-context placebos "
+           f"found one at least as strong (p={p:.2f} > {P['placebo_alpha']}); treated as a chance condition, cause unknown")
+    return dataclasses.replace(_empty(item, as_of, "UNKNOWN", why, ex.dimension_summary, ex.n_success, ex.n_failed, ex.n_confirm,
+                                      ex.n_tested, ex.episodes, ex.symptoms, ex.candidates_tried, ex.detectable_smd, ex.compositions,
+                                      ex.best_t), placebo=(runs, strong, float(p)))
+
+
+def placebo_false_condition_rate(item: ItemSeries, as_of=None, n: int = 12, cfg=None, seed: int = 0, controlled: bool = True) -> dict:
     """Fraction of placebo runs that still produce an EXPLAINED verdict. It is the empirical false-condition rate of the
-    whole pipeline on this item; it must sit near or under the configured alpha for the engine to be trusted."""
+    whole pipeline on this item; it must sit near or under the configured alpha for the engine to be trusted. `controlled`
+    measures the pipeline as shipped (explain_break_controlled); False measures the bare explain_break."""
+    explain = explain_break_controlled if controlled else explain_break
     rng = np.random.default_rng(seed)
     T = len(item.frame)
     hits = 0
@@ -1006,7 +1053,7 @@ def placebo_false_condition_rate(item: ItemSeries, as_of=None, n: int = 12, cfg=
     for i in range(n):
         sh = int(rng.integers(T // 4, 3 * T // 4))
         try:
-            r = explain_break(shifted_placebo(item, sh), as_of, cfg, seed=seed + i)
+            r = explain(shifted_placebo(item, sh), as_of, cfg, seed=seed + i)
             statuses[r.status] = statuses.get(r.status, 0) + 1
             hits += int(r.explained)
         except FirewallBreach:
@@ -1279,7 +1326,7 @@ def pooled_explain(items: Sequence[ItemSeries], as_of=None, cfg=None, seed: int 
     exps, refused = [], []
     for i, it in enumerate(items):
         try:
-            exps.append(explain_break(it, as_of, cfg, seed + i))
+            exps.append(explain_break_controlled(it, as_of, cfg, seed + i))
         except FirewallBreach as err:
             refused.append({"item_id": it.item_id, "why": str(err)})
     broken = [e for e in exps if e.status in ("EXPLAINED", "UNKNOWN")]
@@ -1462,7 +1509,7 @@ def run_planted_study(make_item_fn: Callable[[int], tuple], n: int = 10, cfg=Non
     for i in range(n):
         item, truth = make_item_fn(i)
         try:
-            ex = explain_break(item, None, cfg, seed + i)
+            ex = explain_break_controlled(item, None, cfg, seed + i)
         except FirewallBreach:
             rows.append({"i": i, "truth": truth, "status": "LEAK_REFUSED", "correct": False, "fabricated": False})
             continue
@@ -1497,7 +1544,7 @@ class BreakEngine:
         out = []
         for i, (kid, item) in enumerate(sorted(self.items.items())):
             try:
-                ex = explain_break(item, as_of, self.cfg, self.seed + i)
+                ex = explain_break_controlled(item, as_of, self.cfg, self.seed + i)
             except FirewallBreach as err:
                 self.refused.append({"item_id": kid, "as_of": str(as_of), "why": str(err)})
                 continue

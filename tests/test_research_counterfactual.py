@@ -867,3 +867,78 @@ def test_entrypoints_are_exposed():
 def test_unknown_planted_kind_is_refused():
     with pytest.raises(ValueError):
         cf.make_planted_case("nonsense")
+
+
+# ---------------------------------------------------------------------------------------------------- W-04 calibrated null
+
+PRED = {Knowability.PREDICTABLE, Knowability.POTENTIALLY_PREDICTABLE, Knowability.WEAKLY_PREDICTABLE}
+NULL_SEEDS = range(100, 124)           # 24 independent null worlds
+
+
+def _label(kind, seed, cfg=None):
+    c = case(kind, seed)
+    return cf.step(c.store, [c.event], c.now, c.providers, cfg=cfg)[0]
+
+
+def test_w04_null_world_false_label_rate_is_bounded():
+    """24 null worlds (an untraceable jump). The calibrated null lets ~alpha of them through by construction; the bound is
+    the 99.6th binomial percentile of Binomial(24, 0.05) = 4. Before the fix 15 of these 24 read as predictable."""
+    labels = [_label("unknown", sd).knowability for sd in NULL_SEEDS]
+    false = sum(k in PRED for k in labels)
+    assert false <= 4, f"{false}/24 null worlds labelled predictable"
+    assert sum(k == Knowability.UNKNOWN for k in labels) >= 20
+
+
+def test_w04_old_behaviour_would_fail_the_bound():
+    """A null gate with alpha ~1 admits every pointer: that is the pre-fix behaviour, and it breaks the bound above."""
+    off = cf.CounterfactualConfig(null_alpha=0.999)
+    false = sum(_label("unknown", sd, off).knowability in PRED for sd in NULL_SEEDS)
+    assert false >= 10
+
+
+def test_w04_planted_precursor_is_still_found():
+    found = [_label("precursor", sd).knowability for sd in range(1, 9)]
+    assert sum(k == Knowability.PREDICTABLE for k in found) >= 7
+    assert all(_label("precursor", sd).scores["null_p"] <= CFG.null_alpha for sd in range(1, 9))
+
+
+def test_w04_other_planted_causes_unchanged():
+    assert _label("external", 1).knowability == Knowability.EXTERNALLY_CAUSED
+    assert _label("news", 1).knowability == Knowability.INFORMATIONALLY_UNAVAILABLE
+
+
+def test_w04_magnitude_only_pointer_needs_to_beat_the_null():
+    """A synthetic score: strong magnitude-only price evidence on a day where every peer looks the same is noise."""
+    c = case("unknown", 100)
+    snap = cf.build_snapshot(c.store, c.event.decision_ts)
+    ev = [cf.Evidence(cf.Domain.TECHNICAL, "range_squeeze", 0.6, cf.Channel.MAGNITUDE, None, "")]
+    null = cf.price_null_scores(snap, c.event)
+    assert len(null) >= CFG.null_min_peers
+    scores = cf.score_evidence(ev)
+    out, notes = cf.calibrate_pointers(snap, c.event, ev, scores)
+    assert out["combined_raw"] == scores["combined"]
+    if out["null_p"] > CFG.null_alpha:
+        assert out["combined"] == 0.0 and out["strongest"] == 0.0 and notes
+    # non-price evidence (a scheduled catalyst) keeps its standing whatever the price null says
+    ev2 = ev + [cf.Evidence(cf.Domain.EVENT, "scheduled:EARN", 0.5, cf.Channel.TIMING, None, "")]
+    out2, _ = cf.calibrate_pointers(snap, c.event, ev2, cf.score_evidence(ev2))
+    assert out2["combined"] > 0.0
+
+
+def test_w04_null_is_deterministic_and_peer_starved_day_fails_closed():
+    c = case("unknown", 100)
+    snap = cf.build_snapshot(c.store, c.event.decision_ts)
+    a = cf.price_null_scores(snap, c.event)
+    snap2 = cf.build_snapshot(c.store, c.event.decision_ts)
+    assert np.array_equal(a, cf.price_null_scores(snap2, c.event))
+    ev = [cf.Evidence(cf.Domain.TECHNICAL, "range_squeeze", 0.6, cf.Channel.MAGNITUDE, None, "")]
+    starved = cf.CounterfactualConfig(null_min_peers=len(a) + 1, null_max_peers=len(a) + 1)
+    out, notes = cf.calibrate_pointers(snap, c.event, ev, cf.score_evidence(ev), starved)
+    assert out["combined"] == 0.0 and out["null_p"] == 1.0 and "calibrate" in notes[0]
+    empty, n0 = cf.calibrate_pointers(snap, c.event, [], cf.score_evidence([]))
+    assert empty["combined"] == 0.0 and n0 == []
+
+
+def test_w04_config_rejects_bad_null_settings():
+    assert cf.CounterfactualConfig(null_alpha=1.5).check()
+    assert cf.CounterfactualConfig(null_min_peers=50, null_max_peers=10).check()

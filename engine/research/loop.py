@@ -38,6 +38,7 @@ question -> knowledge -> decision) and reports. Public entry: `step(state, runti
 from __future__ import annotations
 
 import concurrent.futures as cf
+import copyreg
 import dataclasses
 import datetime as dt
 import hashlib
@@ -48,6 +49,7 @@ import pickle
 import re
 import time
 import traceback
+import types
 from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping, Protocol, Sequence
 
@@ -279,6 +281,22 @@ class FrameFeed:
         dh = stable_hash({"n": len(mat), "through": str(ends[ends < n].max()) if len(mat) else "", "cols": list(mat.columns)}, 16)
         ex = dict(self._extras(str(as_date(now)), mat)) if self._extras else {}
         return Observation(str(as_date(now)), mat, pit.frame, ex, dh)
+
+
+def world_feed(source: str = "planted", years: Sequence[int] = (), sample: int | None = 300, plant: Mapping | None = None,
+               feed: Mapping | None = None):
+    """The W02 data feed (engine.research.feeds.WorldFeed): bars (+ events / insider / macro / sectors) -> EVERY stage's inputs per
+    simulated day, streamed year by year. 'planted' = the rich planted world with known mechanisms; 'real' = the real-cache adapter
+    (C63: code only, not yet run on the real files). Use `feed.sweeps()` as the loop's always-on sweeps."""
+    from engine.research import feeds as FD
+    fc = FD.FeedConfig(**dict(feed or {}))
+    if source == "planted":
+        return FD.planted_feed(FD.PlantConfig(**dict(plant or {})), fc)
+    if source == "real":
+        if not years:
+            raise ValueError("the real-cache feed needs the years to stream")
+        return FD.real_cache_feed(years, fc, sample=sample)
+    raise ValueError(f"unknown feed source {source!r} (planted | real)")
 
 
 # ================================================================================================================ lineage
@@ -814,6 +832,19 @@ class Runtime:
 
 
 # ================================================================================================================ checkpoints
+def make_mappingproxy(d: dict):
+    return types.MappingProxyType(d)
+
+
+def _reduce_mappingproxy(m):
+    return (make_mappingproxy, (dict(m),))
+
+
+# W02: filed knowledge is deep-frozen (engine.research.namespaces.deep_freeze -> MappingProxyType), which pickle refuses, so the first
+# promoted finding made every later checkpoint fail. A read-only proxy is saved as a read-only proxy of a copy of its contents.
+copyreg.pickle(types.MappingProxyType, _reduce_mappingproxy)
+
+
 class Checkpointer:
     """engine.learning.checkpoints.CheckpointStore holds the execution record (cycle, completed stages, next action, current experiment,
     code hash, failures) and names the pickled loop state as an artifact with its sha256, so a torn or edited state file is refused and
@@ -905,6 +936,11 @@ class Ctx:
         if not ex:
             raise NoInput(f"the feed supplies no {what}")
         return dict(ex)
+
+    def namespace(self, ns: str) -> dict:
+        """Extra per-day inputs the feed carries under a namespaced key (e.g. 'c68': per-prediction expectations and realised paths),
+        for registered stages. Built lazily like any stage input; absent or empty -> NoInput (the stage is SKIPPED_NO_INPUT)."""
+        return self.extra(ns, f"inputs under the {ns!r} namespace")
 
     def handle(self, name: str, factory: Callable[[], Any]) -> Any:
         """A transient per-process object a stage reuses across cycles (never checkpointed: engines, stores)."""
@@ -1768,12 +1804,13 @@ def st_run(ctx: Ctx) -> tuple:
     from engine.research import compute_manager as CM
     ms = ctx.state.modules.get("compute_manager")
     launched = ctx.bus.get("launched", [])
-    if not launched or ms is None:
-        raise NoInput("nothing was launched this cycle")
+    held = ctx.state.memo.setdefault("held_for_fresh_data", {})
+    if (not launched and not held) or ms is None:
+        raise NoInput("nothing was launched this cycle and nothing is waiting for fresh data")
     obs = ctx.obs
     cutoff = ctx.evidence_date()
     ec = ctx.state.cfg.experiment
-    n = 0
+    n = _release_held(ctx, ms, held, cutoff)
     for bid in launched:
         b = ms.branches[bid]
         key = b.in_flight
@@ -1805,11 +1842,67 @@ def st_run(ctx: Ctx) -> tuple:
         if not feat:
             _refuse_job(ctx, ms, rec, "no derivable feature for the question: nothing is guessed")
             continue
+        if b.frontier.value in (Stage.FRESH_HOLDOUT.value, Stage.INTEGRATION.value):
+            k, need = fresh_dates(obs.matured, task.seen_through), fresh_needed(task, ec, b, _ladder_policy(ctx))
+            if k < need:                                  # W02: a holdout needs data the branch never saw; wait for it, never park
+                held[key] = task.to_dict()
+                rec.error = f"waiting for fresh data: {k} of {need} matured dates after {task.seen_through or 'the start'}"
+                ctx.state.count("held_for_fresh_data")
+                continue
         st = ctx.rt.executor.submit(spec, task, obs.matured, obs.data_hash, ctx.now)
         rec.state = JobState.DONE if st == C.DONE else JobState.RUNNING if st == "RUNNING" else JobState.FAILED
         rec.attempts += 1
         n += 1
     return len(launched), n, f"mode {ctx.state.cfg.mode}; {ctx.rt.executor.running()} still running"
+
+
+def fresh_dates(matured: pd.DataFrame, seen_through: str) -> int:
+    """Matured decision dates strictly after the newest date a branch's earlier rungs used: the fresh holdout's sample."""
+    if len(matured) == 0:
+        return 0
+    d = pd.to_datetime(pd.unique(matured.index.get_level_values(0)))
+    return int((d > pd.Timestamp(as_date(seen_through))).sum()) if seen_through else int(len(d))
+
+
+def fresh_needed(task: ExperimentTask, ec: ExperimentConfig, branch=None, policy=None) -> int:
+    """Fresh dates a holdout / integration rung waits for: the configured minimum; the sample the ladder planned after an underpowered
+    run (a REPEAT's `n_planned`); and the sample that gives the rung its required power at the smallest useful effect, with the
+    per-date spread the branch measured on its earlier rungs. Waiting costs no compute; running earlier only produces an
+    underpowered result that the ladder must park as INFEASIBLE (observed on the planted world: 5 fresh dates, power 0.13)."""
+    need = max(int(ec.fresh_min_dates), int(task.n_planned or 0))
+    if branch is not None and policy is not None:
+        from engine.learning.research_policy import required_n
+        sds = [float(r["se"]) * math.sqrt(float(r["n_obs"])) for r in getattr(branch, "runs", [])
+               if r.get("se") not in (None, "") and r.get("n_obs") and float(r["n_obs"]) >= 2 and float(r["se"]) > 0]
+        if sds:
+            rule = policy.rule(Stage(task.stage))
+            need = max(need, int(required_n(policy.min_effect, max(sds[-3:]), policy.alpha, rule.min_power)))
+    return need
+
+
+def _release_held(ctx: Ctx, ms, held: dict, cutoff: str) -> int:
+    """Holdout / integration rungs launched before enough fresh data existed run as soon as it does, on the data of THIS cycle (the
+    cutoff moves forward; the rung, its seed and its seen_through do not). A branch that moved on or was cancelled drops its hold."""
+    n = 0
+    ec = ctx.state.cfg.experiment
+    for key in sorted(held):
+        t = held[key]
+        rec = ctx.state.jobs.get(key)
+        b = ms.branches.get(t["branch_id"])
+        if rec is None or b is None or b.in_flight != key or rec.state != JobState.SUBMITTED:
+            held.pop(key)
+            continue
+        if fresh_dates(ctx.obs.matured, t["seen_through"]) < fresh_needed(ExperimentTask(**t), ec, b, _ladder_policy(ctx)):
+            continue
+        task = ExperimentTask(**{**t, "cutoff": cutoff})
+        rec.cutoff, rec.task, rec.error = cutoff, task.to_dict(), ""
+        st = ctx.rt.executor.submit(ctx.rt.executor.ledger.spec(key), task, ctx.obs.matured, ctx.obs.data_hash, ctx.now)
+        rec.state = JobState.DONE if st == C.DONE else JobState.RUNNING if st == "RUNNING" else JobState.FAILED
+        rec.attempts += 1
+        held.pop(key)
+        ctx.state.count("released_from_hold")
+        n += 1
+    return n
 
 
 def _refuse_job(ctx: Ctx, ms, rec: JobRecord, why: str) -> None:
@@ -2515,6 +2608,48 @@ STAGES: tuple[StageSpec, ...] = (
     StageSpec("report.cycle", LoopPhase.REPORT, st_report, "loop"),
 )
 STAGE_NAMES = tuple(s.name for s in STAGES)
+BUILTIN_STAGES = STAGE_NAMES
+_REGISTERED: dict[str, StageSpec] = {}
+
+
+def register_stage(name: str, fn: Callable[["Ctx"], tuple], after: str, phase: LoopPhase | None = None, module: str = "") -> StageSpec:
+    """PUBLIC. Insert an extra stage into every cycle right after the stage `after` (e.g. the C68 prediction-error stages of
+    engine/research/error_loop.py), with the built-in semantics: run_stage classifies it (OK / SKIPPED_NO_INPUT via NoInput /
+    SKIPPED_MISSING_MODULE via MissingModule / REFUSED_LEAK via FirewallBreach / FAILED), it is checkpointed after it runs, a resumed
+    cycle never re-runs it, and it can be disabled or given a cadence by name. `fn(ctx)` returns (n_in, n_out, note); feed inputs
+    reach it through ctx.extra(key) or ctx.namespace(ns). Registering the same name with the same function again is a no-op (module
+    re-import); a different function under a registered name, an unknown `after` or a slot after the report is refused."""
+    global STAGES, STAGE_NAMES
+    if not name or not isinstance(name, str) or not callable(fn):
+        raise ValueError("register_stage needs a name and a callable fn(ctx) -> (n_in, n_out, note)")
+    if name in _REGISTERED:
+        if _REGISTERED[name].fn is fn or getattr(_REGISTERED[name].fn, "__qualname__", 1) == getattr(fn, "__qualname__", 2):
+            return _REGISTERED[name]
+        raise ValueError(f"stage {name!r} is already registered with a different function")
+    if name in STAGE_NAMES:
+        raise ValueError(f"{name!r} is a built-in stage")
+    if after not in STAGE_NAMES or after == "report.cycle":
+        raise ValueError(f"cannot insert after {after!r}: it must be an existing stage before report.cycle")
+    i = STAGE_NAMES.index(after)
+    spec = StageSpec(name, phase or STAGES[i].phase, fn, module or getattr(fn, "__module__", "registered"))
+    STAGES = STAGES[:i + 1] + (spec,) + STAGES[i + 1:]
+    STAGE_NAMES = tuple(x.name for x in STAGES)
+    _REGISTERED[name] = spec
+    return spec
+
+
+def unregister_stage(name: str) -> None:
+    """Remove a registered (never a built-in) stage; tests use it to leave the stage table as they found it."""
+    global STAGES, STAGE_NAMES
+    if name not in _REGISTERED:
+        raise ValueError(f"{name!r} is not a registered stage")
+    del _REGISTERED[name]
+    STAGES = tuple(x for x in STAGES if x.name != name)
+    STAGE_NAMES = tuple(x.name for x in STAGES)
+
+
+def registered_stages() -> tuple[str, ...]:
+    return tuple(n for n in STAGE_NAMES if n in _REGISTERED)
 
 
 # ================================================================================================================ running
@@ -2584,9 +2719,10 @@ def recover_jobs(state: LoopState, rt: Runtime) -> dict:
     not: then it is re-queued (ledger requeue after marking the dead attempt) and re-run on the same inputs, never skipped."""
     ex = rt.executor
     out = {"reconciled": 0, "requeued": 0, "lost": 0}
+    held = state.memo.get("held_for_fresh_data", {})
     for rec in state.jobs.values():
-        if rec.state not in (JobState.RUNNING, JobState.SUBMITTED):
-            continue
+        if rec.state not in (JobState.RUNNING, JobState.SUBMITTED) or rec.key in held:
+            continue                                     # a held rung is waiting for data, not lost: st_run releases it
         ls = ex.ledger_state(rec.key)
         if ls == C.DONE:
             rec.state = JobState.DONE
@@ -2686,8 +2822,13 @@ def open_loop(feed: Feed, root: str | Path, cfg: LoopConfig | None = None, sweep
     if state is None:
         state = new_state(cfg)
     else:
+        lost = [n for n in state.memo.get("stage_table", ()) if n not in STAGE_NAMES]
+        if lost:
+            raise RuntimeError(f"the checkpoint was written with stages {lost} that are not registered in this process: register them "
+                               "(import their module) before resuming, or the resumed cycle would silently skip them")
         state = dataclasses.replace(state, cfg=dataclasses.replace(cfg, run_id=state.cfg.run_id))
         info["recovered"] = recover_jobs(state, rt)
+    state.memo["stage_table"] = list(STAGE_NAMES)
     return state, rt, info
 
 

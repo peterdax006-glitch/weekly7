@@ -22,8 +22,10 @@ from typing import Any, Iterable, Mapping, Sequence
 
 import numpy as np
 
+from engine.learning.calibration import wilson                       # noqa: F401 - re-exported; the one Wilson interval
 from engine.learning.core import as_date, canonical_json, require_past, stable_hash
 from engine.learning.surprise import SurpriseTracker, binary_z
+from engine.research import calibration_target as CT
 from engine.research.expectations import Expectation, LedgerTampered, SealedLane
 from engine.research.outcomes import OutcomeLedger, OutcomeReconstruction
 
@@ -173,7 +175,7 @@ def _return_error(exp: Expectation, out: OutcomeReconstruction, cfg: ErrorConfig
     err = out.exit_return - exp.predicted_return
     detail = {"exit_return_error": err, "peak_vs_prediction": out.max_return - exp.predicted_return,
               "mfe_error": out.mfe - exp.mfe, "mae_error": out.mae - exp.mae, "pit": exp.distribution.cdf(out.exit_return),
-              "pinball_loss": exp.distribution.pinball(out.exit_return), "within_tol": abs(err) <= cfg.tol,
+              "pinball_loss": exp.distribution.pinball(out.exit_return), "within_tol": CT.within(out.exit_return, exp.predicted_return, cfg.tol),
               "in_band_predicted": exp.prob_in_band(), "in_band_actual": bool(0.05 <= out.exit_return <= 0.10)}
     return _comp("return", exp.predicted_return, out.exit_return, scale, detail)
 
@@ -272,12 +274,12 @@ def diagnose(exp: Expectation, out: OutcomeReconstruction, comps: Mapping, cfg: 
     tol = cfg.tol
     tags.append("DIRECTION_CORRECT" if out.exit_return > 0 else "DIRECTION_WRONG")
     d = comps["return"].detail
-    if out.exit_return - exp.predicted_return < -tol:
-        tags.append("EXIT_RETURN_BELOW_PREDICTION")
-    elif out.exit_return - exp.predicted_return > tol:
-        tags.append("EXIT_RETURN_ABOVE_PREDICTION")
-    else:
+    if CT.within(out.exit_return, exp.predicted_return, tol):
         tags.append("EXIT_RETURN_WITHIN_TOLERANCE")
+    elif out.exit_return < exp.predicted_return:
+        tags.append("EXIT_RETURN_BELOW_PREDICTION")
+    else:
+        tags.append("EXIT_RETURN_ABOVE_PREDICTION")
     if d["peak_vs_prediction"] > tol:
         tags.append("OPPORTUNITY_LARGER_THAN_PREDICTED")
     elif out.max_return < exp.predicted_return - tol:
@@ -446,35 +448,19 @@ def confidence_reliability(reports: Sequence[ErrorReport], bins: int = 5) -> dic
     return {"n": len(rows), "bins": out, "ece": float(ece), "overconfidence": float(allc.mean() - allh.mean())}
 
 
-def wilson(k: int, n: int, z: float = 1.96) -> tuple[float, float]:
-    if n <= 0:
-        return 0.0, 1.0
-    p = k / n
-    den = 1 + z * z / n
-    mid = (p + z * z / (2 * n)) / den
-    half = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / den
-    return max(0.0, mid - half), min(1.0, mid + half)
-
-
 def honest_tolerance(reports: Sequence[ErrorReport], n_unscored: int = 0, cfg: ErrorConfig | None = None) -> dict:
-    """How often the realised return landed within +-tol of the prediction, over EVERY matured prediction: `n_unscored`
-    predictions that matured but could not be reconstructed count in the denominator of `worst_case_rate`. The verdict needs
-    both a big enough sample and a Wilson lower bound above the target; otherwise it says what it cannot conclude."""
+    """ADAPTER over the canonical +-1pp statistic (engine.research.calibration_target.within / share_verdict): the hit flags were
+    set by CT.within when each report was computed, and the share, Wilson interval, worst case (`n_unscored` matured-but-
+    unreconstructable predictions count as misses) and verdict all come from CT.share_verdict. Only the verdict names are this
+    module's own. The anti-gaming headline (commitments, suppressed losers, cherry-picking) is calibration_target.evaluate."""
     cfg = cfg or ErrorConfig()
-    k = sum(1 for r in reports if r.components["return"].detail["within_tol"])
-    n = len(reports)
-    lo, hi = wilson(k, n)
-    if n < cfg.min_scored:
-        verdict = "INSUFFICIENT_SAMPLE"
-    elif lo >= cfg.target_rate:
-        verdict = "TARGET_MET"
-    elif hi < cfg.target_rate:
-        verdict = "TARGET_NOT_MET"
-    else:
-        verdict = "NOT_DEMONSTRATED"
-    return {"hits": k, "n": n, "rate": (k / n) if n else None, "wilson_low": lo, "wilson_high": hi, "n_unscored": n_unscored,
-            "worst_case_rate": (k / (n + n_unscored)) if n + n_unscored else None, "tol": cfg.tol, "target": cfg.target_rate,
-            "verdict": verdict}
+    sv = CT.share_verdict([bool(r.components["return"].detail["within_tol"]) for r in reports], n_unscored, cfg.target_rate,
+                          cfg.min_scored, 0.95)
+    names = {CT.Status.EMPTY: "INSUFFICIENT_SAMPLE", CT.Status.INSUFFICIENT_SAMPLE: "INSUFFICIENT_SAMPLE", CT.Status.ACHIEVED: "TARGET_MET"}
+    verdict = names.get(sv["status"]) or ("TARGET_NOT_MET" if sv["clear_miss"] else "NOT_DEMONSTRATED")
+    return {"hits": sv["hits"], "n": sv["n"], "rate": sv["share"], "wilson_low": sv["lo"], "wilson_high": sv["hi"], "n_unscored": n_unscored,
+            "worst_case_rate": sv["worst_case"], "tol": cfg.tol, "target": cfg.target_rate, "verdict": verdict,
+            "canonical": "engine.research.calibration_target.share_verdict"}
 
 
 def by_group(reports: Sequence[ErrorReport], exps: Mapping[str, Expectation], key, component: str = "return") -> dict:

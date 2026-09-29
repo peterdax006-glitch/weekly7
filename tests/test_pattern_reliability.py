@@ -459,3 +459,56 @@ def test_live_gate_gates_in_the_bad_regime_and_uses_only_matured_evidence():
     lg2 = PR.LiveGate(PR.Timelines(tl.rets.copy().assign(**{p: tl.rets[p].where(np.arange(520) < 420, 9.9)}), tl.ctx, {}, tl.first_pos),
                       cfg, as_of=420)                                                       # rewrite the future: the gate cannot notice
     assert lg2.p_hold(p, {**up, "m_regime": 2.0}) == pytest.approx(good)
+
+
+# ---------------------------------------------------------------- W-05: winner's curse in the expected effect
+def _stationary_false_alarms(cfg, seeds=range(500, 540), T=400, n=8):
+    events = monitored = flagged = total = 0
+    for sd in seeds:
+        mu = (0.006, 0.003, 0.0015)[sd % 3]                           # strong, medium and weak stationary edges
+        tl = PR.planted_world("healthy", seed=sd, n_weeks=T, n_patterns=n, mu=mu)
+        h = PR.health_monitor(tl, cfg)
+        real = h.events[~h.events["phantom"].astype(bool)]
+        events += len(real)
+        monitored += int((h.codes.values > 0).sum())
+        flagged += real["pattern"].nunique()
+        total += n
+    return events, monitored, flagged, total
+
+
+def test_w05_stationary_series_false_alarm_rate_is_bounded_over_40_worlds():
+    """320 stationary patterns whose edge never changes. The pattern is picked because its burn-in looked good, so the raw burn-in
+    mean over-states the true edge; the lower-bound expected effect stops that from reading as decay. Measured: 95/320 patterns
+    flagged (151 alarms, 0.63 of the nominal budget) before, 53/320 (79 alarms, 0.33) after."""
+    events, monitored, flagged, total = _stationary_false_alarms(None)
+    budget = monitored / PR.PARAMS["arl0"]
+    assert total == 320 and monitored > 100_000
+    assert events <= 0.40 * budget
+    assert flagged / total <= 0.20
+
+
+def test_w05_old_winners_curse_expected_effect_would_fail_those_bounds():
+    events, monitored, flagged, total = _stationary_false_alarms({"effect_lcb_z": -1e9})      # the shrunk mean alone (old rule)
+    assert events > 0.40 * monitored / PR.PARAMS["arl0"] and flagged / total > 0.20
+
+
+def test_w05_expected_effect_is_a_lower_bound_and_stays_positive():
+    P = PR.PARAMS
+    lo = PR.expected_effect(0.010, 0.010, 26, P)                                             # mean 0.010, se 0.00196
+    assert lo == pytest.approx(min(0.7 * 0.010, 0.010 - 0.010 / math.sqrt(26)))
+    assert PR.expected_effect(0.010, 0.010, 26, P) < PR.expected_effect(0.010, 0.010, 400, P)   # more evidence, less discount
+    thin = PR.expected_effect(0.002, 0.010, 26, P)                                            # t ~ 1: bound would be ~0
+    assert thin == pytest.approx(P["effect_floor"] * 0.002) and thin > 0
+    assert PR.expected_effect(0.0, 0.01, 30, P) == 0.0                                         # nothing established, nothing expected
+
+
+def test_w05_planted_real_decay_is_still_caught():
+    caught, n, delays = 0, 0, []
+    for sd in range(600, 610):
+        tl = PR.planted_world("phantom", seed=sd, n_weeks=400, n_patterns=8, mu=0.004)       # edge vanishes at week 100
+        h = PR.health_monitor(tl)
+        ev = h.events[~h.events["phantom"].astype(bool) & (h.events["detect"] > 100)].sort_values("detect").groupby("pattern").first()
+        caught += len(ev)
+        n += 8
+        delays += list(ev["detect"] - 100)
+    assert caught >= 0.9 * n and np.median(delays) <= 60
