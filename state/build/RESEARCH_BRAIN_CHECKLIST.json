@@ -1951,24 +1951,26 @@
    "section": "Knowledge graph",
    "minimum_lines": 1500,
    "upper_lines": 2500,
-   "actual_lines": 1008,
+   "actual_lines": 2405,
    "code_paths": [
-    "engine/learning/knowledge_graph.py"
+    "engine/learning/knowledge_graph.py",
+    "engine/research/research_graph.py"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "[mapping 2026-09-29, read-only audit] [partial] 1008/1500 meaningful lines genuinely doing this job. Typed graph with section-18 edges. Missing node types: regimes, events, learners, research questions, experiments-as-questions; 'unanswered relationship' discovery; KnowledgeGraph.contradiction_keys was never added (INTEGRATION_AUDIT)."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C66 wave 1, R18): research_graph 1,397 extending learning/knowledge_graph (no second graph); 17 node kinds, 24 roles, 14 gap kinds -> identity-free questions. | earlier: [mapping 2026-09-29, read-only audit] [partial] 1008/1500 meaningful lines genuinely doing this job. Typed graph with section-18 edges. Missing node types: regimes, events, learners, research questions, experiments-as-questions; 'unanswered relationship' discovery; KnowledgeGraph.contradiction_keys was never added (INTEGRATION_AUDIT)."
   },
   {
    "section": "Knowledge-to-decision bridge",
    "minimum_lines": 1000,
    "upper_lines": 1800,
-   "actual_lines": 1188,
+   "actual_lines": 2194,
    "code_paths": [
+    "engine/learning/champion.py",
     "engine/learning/decision_contract.py",
-    "engine/learning/champion.py"
+    "engine/research/decision_bridge.py"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "[mapping 2026-09-29, read-only audit] [partial] 1188/1000 meaningful lines genuinely doing this job. 476 + 712. 'What decision does this change?' is enforced only in learner._contract_allows; policy_check/readiness/effective_champion have 0 callers. Missing outputs: volatility ranking, research priority, data priority; explicit 'informational only' value record for discoveries."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C66 wave 1, R18): 1,006; routes each discovery to DECISION_CHANGING/SHADOW_ONLY/PRIORITY/INFORMATIONAL/REFUSED; credit only from realised matured change; same-year release refused. | earlier: [mapping 2026-09-29, read-only audit] [partial] 1188/1000 meaningful lines genuinely doing this job. 476 + 712. 'What decision does this change?' is enforced only in learner._contract_allows; policy_check/readiness/effective_champion have 0 callers. Missing outputs: volatility ranking, research priority, data priority; explicit 'informational only' value record for discoveries."
   },
   {
    "section": "Research/trader firewall integration",
@@ -2057,15 +2059,16 @@
    "section": "Scientific long-term memory integration",
    "minimum_lines": 1500,
    "upper_lines": 2500,
-   "actual_lines": 3009,
+   "actual_lines": 4511,
    "code_paths": [
     "engine/learning/archive.py",
-    "engine/learning/interpretation.py",
     "engine/learning/belief.py",
-    "engine/learning/epistemic.py"
+    "engine/learning/epistemic.py",
+    "engine/learning/interpretation.py",
+    "engine/research/science_memory.py"
    ],
-   "status": "IN_PROGRESS",
-   "notes": "[mapping 2026-09-29, read-only audit] [partial] 3009/1500 meaningful lines genuinely doing this job. 1034 + 602 + 808 + 565. Hash-chained layered archive, observation != interpretation, evidence-set belief chains. Missing: the query 'why do you believe X / what would make you stop' assembled across archive+belief+experiment lineage+graph, and 'what replaced it'."
+   "status": "IMPLEMENTED",
+   "notes": "IMPLEMENTED — NOT VALIDATED (C66 wave 1, R18): 1,502; hash-chained; why_believe / what_would_stop with citations; falsifiers declared up front and never loosened after a failure. | earlier: [mapping 2026-09-29, read-only audit] [partial] 3009/1500 meaningful lines genuinely doing this job. 1034 + 602 + 808 + 565. Hash-chained layered archive, observation != interpretation, evidence-set belief chains. Missing: the query 'why do you believe X / what would make you stop' assembled across archive+belief+experiment lineage+graph, and 'what replaced it'."
   },
   {
    "section": "Question generator",
