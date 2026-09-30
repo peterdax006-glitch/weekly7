@@ -1091,6 +1091,61 @@
    ],
    "failed": {},
    "counters": {}
+  },
+  {
+   "cycle": 124,
+   "now": "2019-09-27",
+   "knowledge": [
+    "lv20",
+    "vol_over_mkt",
+    "xs_atr_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 125,
+   "now": "2019-10-04",
+   "knowledge": [
+    "lv20",
+    "vol_over_mkt",
+    "xs_atr_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 126,
+   "now": "2019-10-11",
+   "knowledge": [
+    "lv20",
+    "vol_over_mkt",
+    "xs_atr_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 127,
+   "now": "2019-10-18",
+   "knowledge": [
+    "lv20",
+    "vol_over_mkt",
+    "xs_atr_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 128,
+   "now": "2019-10-25",
+   "knowledge": [
+    "lv20",
+    "vol_over_mkt",
+    "xs_atr_rank"
+   ],
+   "failed": {},
+   "counters": {}
   }
  ],
  "provenance": {
@@ -1280,8 +1335,8 @@
    "filed_at": "2018-01-19",
    "effect": 0.300698290926,
    "branch": "BR2d20b91b1f58",
-   "post_effect": 0.34918641270402023,
-   "post_n": 85
+   "post_effect": 0.3499347851675392,
+   "post_n": 90
   },
   "Kd6d4209130d5ff": {
    "feature": "lv20",
@@ -1290,8 +1345,8 @@
    "filed_at": "2018-12-21",
    "effect": 0.338164857152,
    "branch": "BR4bf25527d88c",
-   "post_effect": 0.3606474588549198,
-   "post_n": 37
+   "post_effect": 0.3608867038778295,
+   "post_n": 42
   },
   "K13d6ecf410bc4f": {
    "feature": "xs_atr_rank",
@@ -1299,10 +1354,12 @@
    "problem": "VOLATILITY",
    "filed_at": "2019-08-30",
    "effect": 0.381002905449,
-   "branch": "BR5224b8909968"
+   "branch": "BR5224b8909968",
+   "post_effect": 0.39699961285327134,
+   "post_n": 6
   }
  },
- "seconds": 7996.0,
+ "seconds": 8338.7,
  "truth": {
   "genuine": [
    "lv20",
