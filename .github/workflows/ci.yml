@@ -4,7 +4,7 @@ name: ci
 on:
   push:
     branches: [main]
-    paths: ["engine/**", "scripts/**", "tests/**", "canon/**", "BIBLE.md", "SELF_LEARNING_CONTRACT.md", "RESEARCH_BRAIN_CONTRACT.md", "PREDICTION_ERROR_ADDITION.md", "TEN_HOUR_EXECUTION_CHECKLIST.md", "state/build/*_CHECKLIST.json", "pyproject.toml", "requirements.txt",
+    paths: ["engine/**", "scripts/**", "tests/**", "canon/**", "BIBLE.md", "SELF_LEARNING_CONTRACT.md", "RESEARCH_BRAIN_CONTRACT.md", "PREDICTION_ERROR_ADDITION.md", "TEN_HOUR_EXECUTION_CHECKLIST.md", "ULTIMATE_MASTER_PROMPT.md", "state/build/*_CHECKLIST.json", "pyproject.toml", "requirements.txt",
             ".github/workflows/ci.yml"]
   workflow_dispatch: {}
 

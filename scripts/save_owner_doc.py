@@ -41,12 +41,22 @@ def find(marker, must):
     return found
 
 
-def boxes(text, prefix):
-    items, sec, n = [], "PREAMBLE", 0
+def boxes(text, prefix, any_heading=False):
+    """'* [ ]' boxes grouped by '# N. TITLE' sections; with any_heading (30 Sep, the C75 prompt uses '# PHASE N — ...' and
+    '## 1A — ...' headings) every '#'/'##'/'###' heading starts a group, nested under the last top-level heading."""
+    items, sec, n, top = [], "PREAMBLE", 0, ""
     for line in text.splitlines():
         s = re.match(r"^# (\d+)\. (.+)$", line)
-        if s:
+        if s and not any_heading:
             sec = f"{s.group(1)}. {s.group(2).strip()}"
+            continue
+        h = re.match(r"^(#{1,3}) (.+)$", line) if any_heading else None
+        if h:
+            title = h.group(2).strip()
+            if len(h.group(1)) == 1:
+                top, sec = title, title
+            else:
+                sec = f"{top} / {title}" if top else title
             continue
         b = re.match(r"^\s*(?:\d+\. )?\[ \] (.+)$", line.replace("* [ ]", "[ ]", 1)) or re.match(r"^\s*\* \[ \] (.+)$", line)
         if b:
@@ -60,33 +70,35 @@ def main():
     ap = argparse.ArgumentParser()
     for a in ("marker", "must", "file", "lock", "canon", "prev_canon", "title", "said", "memory", "checklist", "prefix", "summary"):
         ap.add_argument("--" + a, required=True)
+    ap.add_argument("--date", default="2026-09-29")
+    ap.add_argument("--any-heading", action="store_true")
     a = ap.parse_args()
     text = find(a.marker, a.must)
     h = hashlib.sha256(text.encode("utf-8")).hexdigest()
     pathlib.Path(a.file).write_text(text + "\n", encoding="utf-8", newline="\n")
-    pathlib.Path(a.lock).write_text(json.dumps({"sha256": h, "chars": len(text), "saved": "2026-09-29", "file": a.file}, indent=1),
+    pathlib.Path(a.lock).write_text(json.dumps({"sha256": h, "chars": len(text), "saved": a.date, "file": a.file}, indent=1),
                                     encoding="utf-8", newline="\n")
     p = pathlib.Path("canon/build_canon.py"); s = p.read_text(encoding="utf-8")
     if f'("{a.canon}"' not in s:
         end = s.index("\n]\n", s.index(f'("{a.prev_canon}"'))
         title = f"{a.title} (verbatim in {a.file}, sha256 {h[:16]})"
         body = f"{a.said} [{a.marker}, stored verbatim in {a.file}]"
-        s = s[:end + 1] + f'    ("{a.canon}", "2026-09-29", {title!r},\n     {body!r}),\n' + s[end + 1:]
+        s = s[:end + 1] + f'    ("{a.canon}", "{a.date}", {title!r},\n     {body!r}),\n' + s[end + 1:]
         compile(s, "build_canon.py", "exec"); p.write_text(s, encoding="utf-8", newline="\n")
-    items = boxes(text, a.prefix)
+    items = boxes(text, a.prefix, a.any_heading)
     out = pathlib.Path(a.checklist)
     if not out.exists():
-        out.write_text(json.dumps({"contract_sha256": h, "created": "2026-09-29", "allowed_status":
+        out.write_text(json.dumps({"contract_sha256": h, "created": a.date, "allowed_status":
             ["NOT_STARTED", "IN_PROGRESS", "IMPLEMENTED", "TESTING", "VALIDATED", "FAILED", "BLOCKED", "SCIENTIFIC_LIMITATION"],
             "items": items, "line_budget": []}, indent=1, ensure_ascii=False), encoding="utf-8", newline="\n")
     (MEM / f"{a.memory}.md").write_text(f"""---
 name: {a.memory}
-description: {a.canon} (29 Sep 2026) - {a.summary}, VERBATIM (sha256 {h[:12]}); {len(items)} checkboxes
+description: {a.canon} ({a.date}) - {a.summary}, VERBATIM (sha256 {h[:12]}); {len(items)} checkboxes
 metadata:
   type: project
 ---
 
-The owner sent this on 2026-09-29 ({a.said!r}). Canon {a.canon}. Repo copy weekly7/{a.file} (sha256 {h}; {a.lock}).
+The owner sent this on {a.date} ({a.said!r}). Canon {a.canon}. Repo copy weekly7/{a.file} (sha256 {h}; {a.lock}).
 Machine checklist: weekly7/{a.checklist} ({len(items)} boxes, grouped by section).
 Related: [[weekly7-research-brain-contract-verbatim]], [[weekly7-prediction-error-addition-verbatim]], [[weekly7-wired-means-reachable]].
 

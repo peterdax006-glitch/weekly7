@@ -452,3 +452,9 @@ it should be very long
 > every simulation should have hundreds of noice and dozens of patterns
 
 `sha256: 53f5fee330fb7aea2d87d41d7744d42071beda2fd4cc9cc77a0f5ca772e06b2f`
+
+## C75 — Ultimate master build, test, perfect and completion prompt: the new master checklist (union of C62, C66, C67, C68 and the real-pattern-vs-noise benchmark; phases 0-17 and the final completion gate) (verbatim in ULTIMATE_MASTER_PROMPT.md, sha256 905d019937895d46) (2026-09-30)
+
+> I have a new master checklist for you to follow: [WEEKLY7 — ULTIMATE MASTER BUILD, TEST, PERFECT & COMPLETION PROMPT, stored verbatim in ULTIMATE_MASTER_PROMPT.md]
+
+`sha256: b4820918f2648127346fc07ab1bd975f41a26be8cdb9c7e621327331b9d3099f`

@@ -93,6 +93,7 @@ def test_integrity_fails_closed_on_tampered_bible(tmp_path, monkeypatch):
     shutil.copy(real / "RESEARCH_BRAIN_CONTRACT.md", tmp_path / "RESEARCH_BRAIN_CONTRACT.md")
     shutil.copy(real / "PREDICTION_ERROR_ADDITION.md", tmp_path / "PREDICTION_ERROR_ADDITION.md")
     shutil.copy(real / "TEN_HOUR_EXECUTION_CHECKLIST.md", tmp_path / "TEN_HOUR_EXECUTION_CHECKLIST.md")
+    shutil.copy(real / "ULTIMATE_MASTER_PROMPT.md", tmp_path / "ULTIMATE_MASTER_PROMPT.md")
     monkeypatch.setattr(P, "ROOT", tmp_path)
     assert P.verify_integrity() is True
     (tmp_path / "BIBLE.md").write_text((tmp_path / "BIBLE.md").read_text(encoding="utf-8") + "\nextra rule\n", encoding="utf-8")
@@ -109,6 +110,7 @@ def test_integrity_fails_closed_on_tampered_or_missing_contract(tmp_path, monkey
     shutil.copy(real / "RESEARCH_BRAIN_CONTRACT.md", tmp_path / "RESEARCH_BRAIN_CONTRACT.md")
     shutil.copy(real / "PREDICTION_ERROR_ADDITION.md", tmp_path / "PREDICTION_ERROR_ADDITION.md")
     shutil.copy(real / "TEN_HOUR_EXECUTION_CHECKLIST.md", tmp_path / "TEN_HOUR_EXECUTION_CHECKLIST.md")
+    shutil.copy(real / "ULTIMATE_MASTER_PROMPT.md", tmp_path / "ULTIMATE_MASTER_PROMPT.md")
     monkeypatch.setattr(P, "ROOT", tmp_path)
     assert P.verify_integrity() is True
     c = tmp_path / "SELF_LEARNING_CONTRACT.md"

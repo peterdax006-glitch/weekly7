@@ -157,6 +157,8 @@ DIRECTIVES = [
      'or how close the system was anyway'),
     ("C74", "2026-09-30", 'Benchmark scale: every simulation contains hundreds of noise patterns and dozens of real patterns',
      'every simulation should have hundreds of noice and dozens of patterns'),
+    ("C75", "2026-09-30", 'Ultimate master build, test, perfect and completion prompt: the new master checklist (union of C62, C66, C67, C68 and the real-pattern-vs-noise benchmark; phases 0-17 and the final completion gate) (verbatim in ULTIMATE_MASTER_PROMPT.md, sha256 905d019937895d46)',
+     'I have a new master checklist for you to follow: [WEEKLY7 — ULTIMATE MASTER BUILD, TEST, PERFECT & COMPLETION PROMPT, stored verbatim in ULTIMATE_MASTER_PROMPT.md]'),
 ]
 
 def sha(t): return hashlib.sha256(t.encode("utf-8")).hexdigest()
