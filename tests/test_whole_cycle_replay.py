@@ -4,7 +4,7 @@ The research loop is run on the W02 planted world (small config) from scratch tw
 compared: the cycle reports, the filed knowledge, the lineage graph, the loop state inside every checkpoint, the checkpoint records, the
 compute ledger and the experiment result envelopes. Then a run is killed mid-cycle, resumed from its checkpoint in a 'new process'
 (fresh feed, fresh runtime) and compared with the uninterrupted run. Then the seed is changed and something must differ (the test can
-fail). Modes: inline and thread executors.
+fail). Modes: inline here, thread in test_whole_cycle_replay_threads.py.
 
 What is removed before comparing, and why each is legitimately wall-clock / process-specific (nothing else is removed):
   seconds            StageRecord.seconds = time.perf_counter() around a stage (engine/research/loop.py run_stage)
@@ -25,6 +25,7 @@ import hashlib
 import json
 import pickle
 import re
+import shutil
 import warnings
 from pathlib import Path
 
@@ -32,6 +33,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from engine.learning.checkpoints import StaleState
 from engine.research import feeds as FD
 from engine.research import loop as LP
 from engine.research import two_stage as TS
@@ -226,6 +228,7 @@ def assert_same(a: dict, b: dict, what: str):
     assert not bad, f"{what} differ:\n  " + "\n  ".join(bad)
 
 
+
 # ============================================================================================================== fixtures
 @pytest.fixture(scope="module")
 def base(world, tmp_path_factory):
@@ -235,11 +238,33 @@ def base(world, tmp_path_factory):
     return root / "r", state, reps
 
 
+@pytest.fixture(scope="module")
+def repeat(world, tmp_path_factory):
+    """The same configuration run again from scratch in a different folder."""
+    root = tmp_path_factory.mktemp("repeat") / "r"
+    state, reps = run_loop(world, root)
+    return root, state, reps
+
+
+@pytest.fixture(scope="module")
+def killed_mid_cycle(world, tmp_path_factory):
+    """A run killed inside cycle 1, its folder left exactly as the crash left it; tests copy it before resuming."""
+    root = tmp_path_factory.mktemp("killed") / "r"
+    with pytest.raises(KeyboardInterrupt):
+        run_loop(world, root, kill_after=KILL_AT)
+    return root
+
+
+def _copy(src: Path, dst: Path) -> Path:
+    shutil.copytree(src, dst)
+    return dst
+
+
 # ============================================================================================================== replay
-def test_same_seed_from_scratch_replays_byte_identically(world, base, tmp_path):
+def test_same_seed_from_scratch_replays_byte_identically(base, repeat):
     root0, state0, _ = base
-    state1, reps1 = run_loop(world, tmp_path / "r")
-    s0, s1 = snapshot(root0, state0), snapshot(tmp_path / "r", state1)
+    root1, state1, _ = repeat
+    s0, s1 = snapshot(root0, state0), snapshot(root1, state1)
     assert s0["knowledge"] is not None and s0["lineage"] and s0["reports"] and s0["checkpoint_states"]      # the comparison has content
     for part in ("reports", "knowledge", "lineage", "state", "checkpoint_states", "checkpoint_records", "ledger", "results"):
         assert_same(s0[part], s1[part], part)
@@ -252,20 +277,22 @@ def test_same_seed_from_scratch_replays_byte_identically(world, base, tmp_path):
 def test_the_loop_did_real_work_so_equality_is_not_vacuous(base):
     _, state, reps = base
     assert len(state.jobs) > 0 and len(state.questions) > 0 and len(state.lineage.nodes) > 10
-    assert any(r["launched"] for r in reps) and sum(r["status_counts"].get("OK", 0) + r["status_counts"].get("ok", 0) for r in reps) > 20
+    assert any(r["launched"] for r in reps) and sum(r["status_counts"].get("OK", 0) for r in reps) > 20
 
 
-def test_a_different_seed_changes_something(world, base, tmp_path):
-    """The equality above can fail: the loop seed feeds its experiments; a different one must change a result or the plan."""
+def test_a_different_seed_changes_something(base, world, tmp_path):
+    """The equality above can fail: the loop seed feeds its experiments; a different one must change a result, the ledger or a report."""
     root0, state0, _ = base
-    state1, _ = run_loop(world, tmp_path / "r", seed=7)
+    state1, _ = run_loop(world, tmp_path / "r", cycles=1, seed=7)
     s0, s1 = snapshot(root0, state0), snapshot(tmp_path / "r", state1)
-    changed = [p for p in ("reports", "knowledge", "lineage", "ledger", "results", "state") if diff_paths(s0[p], s1[p], limit=1)]
+    one = {"cycle_00000.json": s0["reports"]["cycle_00000.json"]}                      # seed 0's first cycle vs seed 7's only cycle
+    changed = [p for p, a, b in (("reports", one, s1["reports"]), ("results", s0["results"], s1["results"]),
+                                 ("ledger", s0["ledger"], s1["ledger"])) if diff_paths(a, b, limit=1)]
     assert changed, "seed 0 and seed 7 left identical artefacts: the seed does not reach the loop (or the comparison is blind)"
 
 
-def test_a_planted_wall_clock_leak_is_caught(world, base, tmp_path):
-    """Planted defect: corrupt one float in a copy of the snapshot - the comparison must report the exact path."""
+def test_a_planted_difference_is_caught_with_its_exact_path(base):
+    """Planted defect: corrupt one number in a copy of the snapshot - the comparison must report the exact path."""
     root0, state0, _ = base
     s0 = snapshot(root0, state0)
     bad = json.loads(json.dumps(s0["reports"]))
@@ -274,9 +301,8 @@ def test_a_planted_wall_clock_leak_is_caught(world, base, tmp_path):
     assert diff_paths(s0["reports"], bad) == [f"/{name}/knowledge: {str(s0['reports'][name]['knowledge'])!r} != {str(bad[name]['knowledge'])!r}"]
 
 
-def test_the_wall_clock_fields_are_the_only_thing_the_normaliser_removes(base):
-    """Null: the raw files DO differ between runs in exactly the listed fields - checked by confirming the normaliser is the identity on
-    a tree that carries none of them, and removes them where present."""
+def test_the_normaliser_removes_only_the_listed_wall_clock_fields():
+    """Null: it is the identity on a tree that carries none of them, and removes them where present."""
     tree = {"a": [1, {"seconds": 0.3, "b": 2}], "worker": "w9", "note": "attempt 1 by w123", "resume": {"x": 1}}
     assert strip_wall(tree) == {"a": [1, {"b": 2}], "note": "attempt 1 by w<pid>"}
     plain = {"a": [1, {"b": 2}], "c": "d"}
@@ -292,19 +318,18 @@ def test_empty_feed_replays_to_nothing(tmp_path):
 
 
 # ============================================================================================================== crash recovery
-def _resume_and_compare(world, base, root, kill_at, cycles_after):
+def _resume_and_compare(base, world, root, cycles_after):
     root0, state0, reps0 = base
-    with pytest.raises(KeyboardInterrupt):
-        run_loop(world, root, kill_after=kill_at)
-    assert (root / "checkpoints" / "INTERRUPTED.json").exists()                   # section 58: the interruption is recorded
-    state1, reps1 = run_loop(world, root, cycles=cycles_after, fresh=False)      # new process, same folder
-    return state0, state1, reps0, reps1, snapshot(root0, state0), snapshot(root, state1)
+    state1, reps1 = run_loop(world, root, cycles=cycles_after, fresh=False)      # new process (new feed, new runtime), same folder
+    return state1, reps0, reps1, snapshot(root0, state0), snapshot(root, state1)
 
 
-def test_killed_mid_cycle_and_resumed_run_equals_the_uninterrupted_run(world, base, tmp_path):
+def test_killed_mid_cycle_and_resumed_run_equals_the_uninterrupted_run(world, base, killed_mid_cycle, tmp_path):
     """Kill inside cycle 1 (after missed.knowability), restart as a new process from the checkpoint, finish cycle 1: the final state,
     reports, knowledge, lineage and every checkpoint equal the run that was never interrupted, and no stage ran twice."""
-    state0, state1, _, reps1, s0, s1 = _resume_and_compare(world, base, tmp_path / "r", KILL_AT, 1)
+    root = _copy(killed_mid_cycle, tmp_path / "r")
+    assert (root / "checkpoints" / "INTERRUPTED.json").exists()                   # section 58: the interruption is recorded
+    state1, _, reps1, s0, s1 = _resume_and_compare(base, world, root, 1)
     assert state1.cycle == CYCLES and [r["cycle"] for r in reps1] == [1]
     assert all(v == 1 for v in state1.exec_count.values()), {k: v for k, v in state1.exec_count.items() if v != 1}
     for part in ("reports", "knowledge", "lineage", "state", "checkpoint_states", "checkpoint_records", "ledger", "results"):
@@ -316,20 +341,20 @@ def test_killed_mid_cycle_and_resumed_run_equals_the_uninterrupted_run(world, ba
                    "(len(done) < len(STAGES) is False), hands out the NEXT date, step() sees done_stages non-empty = 'resumed', runs no stage "
                    "and burns that decision date: the resumed run never researches it. Flips to XPASS when fixed.")
 def test_killed_after_the_last_stage_of_a_cycle_loses_no_decision_date(world, base, tmp_path):
-    state0, state1, reps0, reps1, s0, s1 = _resume_and_compare(world, base, tmp_path / "r", "0|report.cycle", 2)
+    root = tmp_path / "r"
+    with pytest.raises(KeyboardInterrupt):
+        run_loop(world, root, cycles=1, kill_after="0|report.cycle")
+    _, reps0, reps1, s0, s1 = _resume_and_compare(base, world, root, 2)
     dates0 = [r["now"] for r in reps0]
-    done = sorted(json.loads(p.read_text("utf-8"))["now"] for p in (tmp_path / "r" / "reports").glob("cycle_*.json"))
+    done = sorted(json.loads(p.read_text("utf-8"))["now"] for p in (root / "reports").glob("cycle_*.json"))
     assert done == dates0, f"resumed run researched {done}, the uninterrupted run {dates0}"
     for part in ("reports", "knowledge", "lineage"):
         assert_same(s0[part], s1[part], f"resumed vs uninterrupted {part}")
 
 
-def test_resume_from_the_wrong_code_is_refused_not_replayed(world, tmp_path):
+def test_resume_from_the_wrong_code_is_refused_not_replayed(world, killed_mid_cycle, tmp_path):
     """Null/planted: a checkpoint written by other code must not be silently replayed (fail closed, C75 2C)."""
-    root = tmp_path / "r"
-    with pytest.raises(KeyboardInterrupt):
-        run_loop(world, root, kill_after=KILL_AT)
-    from engine.learning.checkpoints import StaleState
+    root = _copy(killed_mid_cycle, tmp_path / "r")
     feed, sweeps = _feed(world)
     with pytest.raises(StaleState, match="other-code"):
         LP.open_loop(feed, root, loop_cfg(code_hash="other-code"), sweeps=sweeps, clock=CLOCK)
@@ -339,9 +364,8 @@ def test_resume_from_the_wrong_code_is_refused_not_replayed(world, tmp_path):
 @pytest.mark.xfail(strict=True, reason="engine/research/namespaces.py:434 ResearchStore.token = stable_hash({..., 'id': id(self)}): a memory "
                    "address, so the token differs between identical runs and is persisted in the checkpoint. Flips to XPASS (strict -> fail) "
                    "when the token becomes a function of (namespace, name) only; then drop the ResearchStore exclusion in canon().")
-def test_research_store_token_is_reproducible(world, base, tmp_path):
-    root0, state0, _ = base
-    state1, _ = run_loop(world, tmp_path / "r", cycles=1)
+def test_research_store_token_is_reproducible(base, repeat):
+    state0, state1 = base[1], repeat[1]
     t0 = {k: m.store.token for k, m in state0.modules.items() if hasattr(m, "store") and hasattr(m.store, "token")}
     t1 = {k: m.store.token for k, m in state1.modules.items() if hasattr(m, "store") and hasattr(m.store, "token")}
     assert t0 and t0 == t1
@@ -349,10 +373,10 @@ def test_research_store_token_is_reproducible(world, base, tmp_path):
 
 @pytest.mark.xfail(strict=True, reason="Provenance.created_real is datetime.now() in frontier.py:1507, symmetry.py:1534, counterfactual.py:500, "
                    "volatility_lab.py:1698 (and knowledge.py:675 by default), ignoring the loop's injected Runtime.clock (Ctx.created_real()). "
-                   "Flips to XPASS when they take the clock; then drop created_real from WALL exclusions in canon().")
+                   "Flips to XPASS when they take the clock; then drop created_real from the exclusions in canon().")
 def test_every_record_is_stamped_with_the_injected_clock(base):
     global KEEP_CREATED_REAL
-    _, state0, _ = base
+    state0 = base[1]
     KEEP_CREATED_REAL = True
     try:
         c = json.dumps(canon(_scrub_state(state0)), default=str)
@@ -361,33 +385,3 @@ def test_every_record_is_stamped_with_the_injected_clock(base):
     stamps = set(re.findall(r'"created_real": "([^"]+)"', c))
     injected = dt.datetime.fromtimestamp(CLOCK(), dt.timezone.utc).isoformat(timespec="seconds")
     assert stamps and stamps <= {injected}, sorted(stamps)[:5]
-
-
-# ============================================================================================================== thread executor
-@pytest.fixture(scope="module")
-def thread_runs(world, tmp_path_factory):
-    root = tmp_path_factory.mktemp("thr")
-    out = []
-    for i in range(2):
-        st, reps = run_loop(world, root / f"r{i}", mode="thread", max_workers=2)
-        out.append((root / f"r{i}", st, reps))
-    return out
-
-
-def test_thread_mode_replays_identically_to_itself(thread_runs):
-    (r0, s0, _), (r1, s1, _) = thread_runs
-    a, b = snapshot(r0, s0), snapshot(r1, s1)
-    for part in ("reports", "knowledge", "lineage", "state", "checkpoint_records", "ledger", "results"):
-        assert_same(a[part], b[part], f"thread vs thread {part}")
-
-
-def test_thread_mode_computes_the_same_experiments_as_inline_mode(base, thread_runs):
-    """Thread mode harvests jobs a stage later by design (the cycle continues while they run), so the lineage and plan legitimately differ
-    from inline. What must not differ: an experiment both modes ran (same key) has the same result envelope body."""
-    root0, state0, _ = base
-    r1, s1, _ = thread_runs[0]
-    a, b = snapshot(root0, state0)["results"], snapshot(r1, s1)["results"]
-    common = sorted(set(a) & set(b))
-    assert common, "the two modes ran no experiment in common"
-    for k in common:
-        assert_same(a[k], b[k], f"inline vs thread result {k}")
