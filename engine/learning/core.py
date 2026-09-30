@@ -267,10 +267,12 @@ class Provenance:
 
 
 def current_code_hash() -> str:
-    """The loaded engine's code hash (engine.provenance.stamp); falls back to hashing this package if unavailable."""
+    """The engine's code identity: a hash of every engine source file on disk (engine.provenance.engine_tree_hash). It does not
+    depend on which modules happen to be loaded (C75 Phase 0: it used to, and identical results disagreed); falls back to hashing
+    this package if provenance is unavailable."""
     try:
         from engine import provenance
-        return provenance.stamp({}, None).get("code_hash", "")
+        return provenance.engine_tree_hash()
     except Exception:
         import pathlib
         h = hashlib.sha256()

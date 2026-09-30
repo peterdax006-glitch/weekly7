@@ -28,231 +28,324 @@
    "group": "PHASE 0 — INVENTORY AND BASELINE / Checklist",
    "description": "Read every machine checklist.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "VALIDATED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/build/C75_PHASE0_MAPPING.md"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Phase 0 process box evidenced by the F20 audit: all five machine checklists read in full (C62 191, C66 114, C68 64, C69 366, C75 302); counts in mapping section 2",
+   "last_run": "2026-09-30T12:38:39",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "UM003",
    "group": "PHASE 0 — INVENTORY AND BASELINE / Checklist",
    "description": "Read current Masterstock.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "VALIDATED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/build/C75_PHASE0_MAPPING.md"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Phase 0 process box evidenced by the F20 audit: Masterstock START HERE (30 Sep 00:30 + 11:00 addendum) and JOURNAL.md from 29 Sep 16:00 to 30 Sep 11:37 read; findings in mapping sections 5-9",
+   "last_run": "2026-09-30T12:38:39",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "UM004",
    "group": "PHASE 0 — INVENTORY AND BASELINE / Checklist",
    "description": "Read current research mapping.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "VALIDATED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/build/C75_PHASE0_MAPPING.md",
+    "state/build/RESEARCH_MAPPING.md"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Phase 0 process box evidenced by the F20 audit: RESEARCH_MAPPING.md read; its 'extend, not duplicate' table re-checked in the duplicates section",
+   "last_run": "2026-09-30T12:38:39",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "UM005",
    "group": "PHASE 0 — INVENTORY AND BASELINE / Checklist",
    "description": "Read current integration audit.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "VALIDATED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/build/C75_PHASE0_MAPPING.md",
+    "state/build/EXECUTION_LEDGER.md",
+    "state/build/INTEGRATION_AUDIT.md"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Phase 0 process box evidenced by the F20 audit: INTEGRATION_AUDIT.md (superseded by the ledger) and EXECUTION_LEDGER.md read; stale parts listed",
+   "last_run": "2026-09-30T12:38:39",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "UM006",
    "group": "PHASE 0 — INVENTORY AND BASELINE / Checklist",
    "description": "Read current failure/open-problem list.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "VALIDATED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/build/C75_PHASE0_MAPPING.md"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Phase 0 process box evidenced by the F20 audit: all 29 C75 section-4 items checked against code/tests/artefacts (section 4 table)",
+   "last_run": "2026-09-30T12:38:40",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "UM007",
    "group": "PHASE 0 — INVENTORY AND BASELINE / Checklist",
    "description": "Inspect current Git state.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "VALIDATED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/build/C75_PHASE0_MAPPING.md",
+    "state/build/evidence/c75_phase0/start_commit.txt"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Phase 0 process box evidenced by the F20 audit: git state recorded (baseline section): start 0c8c6aa3, HEAD moved to 8980bba during Phase 0, uncommitted engine/research edits listed",
+   "last_run": "2026-09-30T12:38:40",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "UM008",
    "group": "PHASE 0 — INVENTORY AND BASELINE / Checklist",
    "description": "Verify contract hashes.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "VALIDATED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/build/C75_PHASE0_MAPPING.md",
+    "state/build/evidence/c75_phase0/hashes_provenance.txt"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Phase 0 process box evidenced by the F20 audit: canon build --verify: 75 directives ok; provenance.verify_integrity() True (re-run by this audit)",
+   "last_run": "2026-09-30T12:38:41",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "UM009",
    "group": "PHASE 0 — INVENTORY AND BASELINE / Checklist",
    "description": "Verify provenance.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "VALIDATED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/build/C75_PHASE0_MAPPING.md",
+    "state/build/evidence/c75_phase0/hashes_provenance.txt"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Phase 0 process box evidenced by the F20 audit: verify_integrity True; research-loop runs carry provenance.json; legacy registry provenance 3.8% (stale audit) recorded as open",
+   "last_run": "2026-09-30T12:38:41",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "UM010",
    "group": "PHASE 0 — INVENTORY AND BASELINE / Checklist",
    "description": "Verify current test baseline.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "VALIDATED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/build/C75_PHASE0_MAPPING.md",
+    "state/build/evidence/c75_phase0/full_suite.txt"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Phase 0 process box evidenced by the F20 audit: test baseline MEASURED and RED - 1 failed (test_learning_credit.py::test_determinism_and_seed_sensitivity, deterministic), 5,783 passed, 6 skipped, 1 xfailed",
+   "last_run": "2026-09-30T12:38:45",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "UM011",
    "group": "PHASE 0 — INVENTORY AND BASELINE / Checklist",
    "description": "Verify current line-budget baseline.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "VALIDATED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/build/C75_PHASE0_MAPPING.md"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Phase 0 process box evidenced by the F20 audit: line budgets recomputed on the ruler (baseline section): no row genuinely under minimum; stored actual_lines stale on 55 rows",
+   "last_run": "2026-09-30T12:38:41",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "UM012",
    "group": "PHASE 0 — INVENTORY AND BASELINE / Checklist",
    "description": "Verify current reachability baseline.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "VALIDATED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/build/C75_PHASE0_MAPPING.md",
+    "state/build/evidence/c75_phase0/reachability.txt"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Phase 0 process box evidenced by the F20 audit: default mode 64/64 modules, hooks 69 REACHED/7 RESEARCH-ONLY/0 UNREACHED; --package engine.research exit 1 (pattern_benchmark UNREACHED)",
+   "last_run": "2026-09-30T12:38:42",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "UM013",
    "group": "PHASE 0 — INVENTORY AND BASELINE / Checklist",
    "description": "Verify current type-check baseline.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "VALIDATED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/build/C75_PHASE0_MAPPING.md",
+    "state/build/evidence/c75_phase0/mypy.txt"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Phase 0 process box evidenced by the F20 audit: baseline MEASURED and RED: repo-config mypy 87-91 errors in learner/same_year/test_path(/contradiction_monitor) once the ignore_errors block is removed; engine/research 928 errors without config",
+   "last_run": "2026-09-30T12:38:42",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "UM014",
    "group": "PHASE 0 — INVENTORY AND BASELINE / Checklist",
    "description": "Create a frozen starting snapshot.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IN_PROGRESS",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/build/evidence/c75_phase0/start_commit.txt"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Phase 0 process box evidenced by the F20 audit: only a start commit id exists; HEAD moved (auto-snapshot 8980bba) and engine/research + pyproject.toml were edited during Phase 0 - no frozen snapshot",
+   "last_run": "2026-09-30T12:38:42",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "UM015",
    "group": "PHASE 0 — INVENTORY AND BASELINE / Checklist",
    "description": "Map every C62 item.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "VALIDATED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/build/C75_PHASE0_MAPPING.md"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Phase 0 process box evidenced by the F20 audit: every C62 item mapped (191 rows)",
+   "last_run": "2026-09-30T12:38:42",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "UM016",
    "group": "PHASE 0 — INVENTORY AND BASELINE / Checklist",
    "description": "Map every C66 item.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "VALIDATED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/build/C75_PHASE0_MAPPING.md"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Phase 0 process box evidenced by the F20 audit: every C66 item mapped (114 rows)",
+   "last_run": "2026-09-30T12:38:43",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "UM017",
    "group": "PHASE 0 — INVENTORY AND BASELINE / Checklist",
    "description": "Map every C67 requirement.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "VALIDATED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/build/C75_PHASE0_MAPPING.md"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Phase 0 process box evidenced by the F20 audit: every C67 requirement mapped (C67-01..C67-20)",
+   "last_run": "2026-09-30T12:38:43",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "UM018",
    "group": "PHASE 0 — INVENTORY AND BASELINE / Checklist",
    "description": "Map every C68 item.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "VALIDATED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/build/C75_PHASE0_MAPPING.md"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Phase 0 process box evidenced by the F20 audit: every C68 item mapped (64 rows)",
+   "last_run": "2026-09-30T12:38:43",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "UM019",
    "group": "PHASE 0 — INVENTORY AND BASELINE / Checklist",
    "description": "Map every new benchmark requirement.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "VALIDATED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/build/C75_PHASE0_MAPPING.md"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Phase 0 process box evidenced by the F20 audit: every benchmark requirement mapped (3A-3N, Fw8-10, Ph6/7/8/15, C70-C74)",
+   "last_run": "2026-09-30T12:38:44",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "UM020",
    "group": "PHASE 0 — INVENTORY AND BASELINE / Checklist",
    "description": "Identify duplicates.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "VALIDATED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/build/C75_PHASE0_MAPPING.md"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Phase 0 process box evidenced by the F20 audit: duplicates table",
+   "last_run": "2026-09-30T12:38:44",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "UM021",
    "group": "PHASE 0 — INVENTORY AND BASELINE / Checklist",
    "description": "Identify missing functionality.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "VALIDATED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/build/C75_PHASE0_MAPPING.md"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Phase 0 process box evidenced by the F20 audit: missing functionality list",
+   "last_run": "2026-09-30T12:38:44",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "UM022",
    "group": "PHASE 0 — INVENTORY AND BASELINE / Checklist",
    "description": "Identify existing systems that must be extended rather than duplicated.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "VALIDATED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/build/C75_PHASE0_MAPPING.md"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Phase 0 process box evidenced by the F20 audit: extend-not-duplicate list",
+   "last_run": "2026-09-30T12:38:44",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "UM023",

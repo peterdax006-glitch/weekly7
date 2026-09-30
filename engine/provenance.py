@@ -160,6 +160,15 @@ def code_hash(files=None):
     return h.hexdigest()[:16]
 
 
+def engine_tree_hash():
+    """Hash of EVERY engine source file on disk (engine/**/*.py), independent of what this process has imported. C75 Phase 0
+    (30 Sep): current_code_hash() used the loaded-module hash, so two identical results computed before and after another
+    import carried different code hashes (test_learning_credit::test_determinism_and_seed_sensitivity). Files are read through
+    the (mtime, size) cache, so repeated calls are cheap and an edit is seen on the next call."""
+    files = sorted(p.relative_to(ROOT).as_posix() for p in (ROOT / "engine").rglob("*.py") if "__pycache__" not in p.parts)
+    return code_hash(files)
+
+
 def code_mixed(files=None):
     """Loaded files edited after this process started: the process may be running code that is no longer on disk
     (w01c, 2026-09-28: memory.py was edited mid-run and the result could not be reproduced)."""

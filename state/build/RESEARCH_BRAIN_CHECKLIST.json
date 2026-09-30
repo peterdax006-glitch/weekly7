@@ -16,7 +16,7 @@
    "group": "FOUNDATION",
    "description": "Research priority engine implemented",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/learning/research_policy.py::PriorityFunction,InfoModel,EigCalibrator,evsi_normal,Factors,Candidate",
     "engine/learning/research_priority.py::ResearchPriorityEngine,decision_relevance,stable_order",
@@ -25,17 +25,19 @@
    "tests": [
     "tests/test_research_priority.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Research priority engine'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
-   "last_run": "2026-09-29T17:08:46",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_research_priority.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | earlier: IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Research priority engine'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
+   "last_run": "2026-09-30T12:37:56",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RF02",
    "group": "FOUNDATION",
    "description": "Autonomous research scheduler implemented",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/learning/checkpoints.py",
     "engine/learning/learner.py::stage_research,stage_meta",
@@ -47,17 +49,19 @@
    "tests": [
     "tests/test_research_loop.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. 24 of 51 loop stages were SKIPPED_NO_INPUT in the ledger's planted run; data does not yet flow. | earlier: [mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Autonomous research loop'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
-   "last_run": "2026-09-29T17:08:46",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_research_loop.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | note '24 of 51 stages SKIPPED_NO_INPUT' is stale: W02 fed every stage; in the clean loops only c68.what_changed and c68.research_depth stay SKIPPED 129/129 (F18 fixed research_depth feed, what_changed still starved) | earlier: IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. 24 of 51 loop stages were SKIPPED_NO_INPUT in the ledger's planted run; data does not yet flow. | earlier: [mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Autonomous research loop'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
+   "last_run": "2026-09-30T12:37:56",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RF03",
    "group": "FOUNDATION",
    "description": "Market-wide observation layer implemented",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/fv_pipeline.py::Panel,build_panel",
     "engine/learning/missed_winners.py::week_from_base,Week,Candidate",
@@ -67,17 +71,19 @@
    "tests": [
     "tests/test_research_observer.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [missing] See line_budget row 'Market-wide observer'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
-   "last_run": "2026-09-29T17:08:47",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_research_observer.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | earlier: IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [missing] See line_budget row 'Market-wide observer'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
+   "last_run": "2026-09-30T12:37:56",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RF04",
    "group": "FOUNDATION",
    "description": "Winner research implemented",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/learning/credit.py",
     "engine/learning/failure.py",
@@ -88,17 +94,19 @@
    "tests": [
     "tests/test_research_winners_losers.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [partial] Winner side = credit.py credit assignment on own decisions only; no market-wide winner study. See line_budget row 'Winner/loser research'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
-   "last_run": "2026-09-29T17:08:47",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_research_winners_losers.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | earlier: IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [partial] Winner side = credit.py credit assignment on own decisions only; no market-wide winner study. See line_budget row 'Winner/loser research'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
+   "last_run": "2026-09-30T12:37:56",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RF05",
    "group": "FOUNDATION",
    "description": "Loser research implemented",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/learning/credit.py",
     "engine/learning/failure.py",
@@ -110,17 +118,19 @@
    "tests": [
     "tests/test_research_winners_losers.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [partial] Loss pipeline exists for own trades (failure/postmortem/separation, wired via lessons.post_mortem); market-wide losers not studied. See line_budget row 'Winner/loser research'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
-   "last_run": "2026-09-29T17:08:47",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_research_winners_losers.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | earlier: IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [partial] Loss pipeline exists for own trades (failure/postmortem/separation, wired via lessons.post_mortem); market-wide losers not studied. See line_budget row 'Winner/loser research'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
+   "last_run": "2026-09-30T12:37:57",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RF06",
    "group": "FOUNDATION",
    "description": "Missed-winner research implemented",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/learning/missed_winners.py",
     "engine/missed_winners.py",
@@ -129,17 +139,19 @@
    "tests": [
     "tests/test_research_missed.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED — NOT VALIDATED (C66 wave 1, R06): missed.py 1,782 + the engine/learning/missed_winners.py it extends (1,017) = 2,799 on the ruler; section-83 mapping: rejection reasons and rank-band distinctions live in the extended module. 62 tests. | earlier: [mapping 2026-09-29, read-only audit] [partial] Missed winners: detector + RejectionAnalyzer exist; RejectionAnalyzer hook is dead in production. See line_budget row 'Missed opportunity engine'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
-   "last_run": "2026-09-29T15:22:11",
-   "code_hash": "80564c4ab02a9432"
+   "evidence": [
+    "tests/test_research_missed.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | earlier: IMPLEMENTED — NOT VALIDATED (C66 wave 1, R06): missed.py 1,782 + the engine/learning/missed_winners.py it extends (1,017) = 2,799 on the ruler; section-83 mapping: rejection reasons and rank-band distinctions live in the extended module. 62 tests. | earlier: [mapping 2026-09-29, read-only audit] [partial] Missed winners: detector + RejectionAnalyzer exist; RejectionAnalyzer hook is dead in production. See line_budget row 'Missed opportunity engine'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
+   "last_run": "2026-09-30T12:37:57",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RF07",
    "group": "FOUNDATION",
    "description": "Missed-loser research implemented",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/learning/missed_winners.py",
     "engine/missed_winners.py",
@@ -148,17 +160,19 @@
    "tests": [
     "tests/test_research_missed.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED — NOT VALIDATED (C66 wave 1, R06): missed.py 1,782 + the engine/learning/missed_winners.py it extends (1,017) = 2,799 on the ruler; section-83 mapping: rejection reasons and rank-band distinctions live in the extended module. 62 tests. | earlier: [mapping 2026-09-29, read-only audit] [partial] No missed-LOSER code anywhere (grep 'missed_loser' empty). See line_budget row 'Missed opportunity engine'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
-   "last_run": "2026-09-29T15:22:11",
-   "code_hash": "80564c4ab02a9432"
+   "evidence": [
+    "tests/test_research_missed.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | earlier: IMPLEMENTED — NOT VALIDATED (C66 wave 1, R06): missed.py 1,782 + the engine/learning/missed_winners.py it extends (1,017) = 2,799 on the ruler; section-83 mapping: rejection reasons and rank-band distinctions live in the extended module. 62 tests. | earlier: [mapping 2026-09-29, read-only audit] [partial] No missed-LOSER code anywhere (grep 'missed_loser' empty). See line_budget row 'Missed opportunity engine'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
+   "last_run": "2026-09-30T12:37:57",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RF08",
    "group": "FOUNDATION",
    "description": "Knowability engine implemented",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/edgar.py",
     "engine/learning/future_firewall.py",
@@ -169,17 +183,19 @@
    "tests": [
     "tests/test_research_knowability.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [missing] See line_budget row 'Knowability/external-factor engine'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
-   "last_run": "2026-09-29T17:08:47",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_research_knowability.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | earlier: IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [missing] See line_budget row 'Knowability/external-factor engine'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
+   "last_run": "2026-09-30T12:37:57",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RF09",
    "group": "FOUNDATION",
    "description": "Counterfactual information reconstruction implemented",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/parity.py",
     "engine/parity_suite.py",
@@ -188,17 +204,19 @@
    "tests": [
     "tests/test_research_counterfactual.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED — NOT VALIDATED (R03): counterfactual.py 2,002 (min 2,000), 92 tests; PIT Guards at T and at the outcome date, future-invariance digest, ClassificationGate as the only release door, feedback refusal incl. renamed copies. KNOWN DEFECT for Stage 3: on a null world 6/10 seeds were labelled POTENTIALLY_PREDICTABLE from magnitude-only pointers (should be UNKNOWN) - must be calibrated before any use. | earlier: [mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Counterfactual knowledge reconstruction'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
-   "last_run": "2026-09-29T15:24:13",
-   "code_hash": "80564c4ab02a9432"
+   "evidence": [
+    "tests/test_research_counterfactual.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | KNOWN DEFECT (reduced): counterfactual null false labels 15/24 -> 1/24 (F02) | earlier: IMPLEMENTED — NOT VALIDATED (R03): counterfactual.py 2,002 (min 2,000), 92 tests; PIT Guards at T and at the outcome date, future-invariance digest, ClassificationGate as the only release door, feedback refusal incl. renamed copies. KNOWN DEFECT for Stage 3: on a null world 6/10 seeds were labelled POTENTIALLY_PREDICTABLE from magnitude-only pointers (should be UNKNOWN) - must be calibrated before any use. | earlier: [mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Counterfactual knowledge reconstruction'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
+   "last_run": "2026-09-30T12:37:58",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RF10",
    "group": "FOUNDATION",
    "description": "Volatility laboratory implemented",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/direction_features.py::mover_walk_forward,select_picks,weekly_labels",
     "engine/fv_pipeline.py::MoverStage,Panel,build_panel,certify_threshold,mover_report",
@@ -210,17 +228,19 @@
    "tests": [
     "tests/test_research_volatility.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [duplicated-risk] See line_budget row 'Volatility research laboratory'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
-   "last_run": "2026-09-29T17:08:48",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_research_volatility.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | earlier: IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [duplicated-risk] See line_budget row 'Volatility research laboratory'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
+   "last_run": "2026-09-30T12:37:58",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RF11",
    "group": "FOUNDATION",
    "description": "Direction laboratory implemented",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/direction.py",
     "engine/direction_ablate.py",
@@ -234,17 +254,19 @@
    "tests": [
     "tests/test_research_direction.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Direction research laboratory'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
-   "last_run": "2026-09-29T17:08:48",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_research_direction.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | earlier: IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Direction research laboratory'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
+   "last_run": "2026-09-30T12:37:58",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RF12",
    "group": "FOUNDATION",
    "description": "Conditional accuracy frontier implemented",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/direction.py::direction_accuracy,wilson,reliability_bins,ece",
     "engine/direction_features.py::frontier,frontier_table,calibration_table,era_table,eighty_question",
@@ -253,17 +275,19 @@
    "tests": [
     "tests/test_research_frontier.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Conditional accuracy frontier'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
-   "last_run": "2026-09-29T17:08:48",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_research_frontier.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | earlier: IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Conditional accuracy frontier'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
+   "last_run": "2026-09-30T12:37:59",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RF13",
    "group": "FOUNDATION",
    "description": "Pattern discovery expansion implemented",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/candidates.py",
     "engine/learning/knowledge.py",
@@ -282,17 +306,20 @@
     "tests/test_research_discovery.py",
     "tests/test_research_discovery_beta.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [duplicated-risk] See line_budget row 'Pattern discovery'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
-   "last_run": "2026-09-29T17:08:48",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_research_discovery.py",
+    "tests/test_research_discovery_beta.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | earlier: IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [duplicated-risk] See line_budget row 'Pattern discovery'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
+   "last_run": "2026-09-30T12:37:59",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RF14",
    "group": "FOUNDATION",
    "description": "Pattern-break research integrated",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/learning/boundary.py",
     "engine/learning/break_detection.py",
@@ -302,17 +329,19 @@
    "tests": [
     "tests/test_research_breaks.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [duplicated-risk] See line_budget row 'Pattern-break research integration'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
-   "last_run": "2026-09-29T17:08:49",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_research_breaks.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | earlier: IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [duplicated-risk] See line_budget row 'Pattern-break research integration'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
+   "last_run": "2026-09-30T12:37:59",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RF15",
    "group": "FOUNDATION",
    "description": "Experiment memory integrated",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/experiment_memory.py",
     "engine/learning/experiment_memory.py",
@@ -322,17 +351,19 @@
    "tests": [
     "tests/test_research_experiments.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [duplicated-risk] See line_budget row 'Experiment memory'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
-   "last_run": "2026-09-29T17:08:49",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_research_experiments.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | earlier: IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [duplicated-risk] See line_budget row 'Experiment memory'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
+   "last_run": "2026-09-30T12:37:59",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RF16",
    "group": "FOUNDATION",
    "description": "Meta-learning integrated",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/learning/meta_learning.py",
     "engine/research/meta_research.py"
@@ -340,17 +371,19 @@
    "tests": [
     "tests/test_research_meta.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED — NOT VALIDATED (C66 wave 1, R13). | earlier: [mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Meta-learning'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
-   "last_run": "2026-09-29T15:27:47",
-   "code_hash": "80564c4ab02a9432"
+   "evidence": [
+    "tests/test_research_meta.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | earlier: IMPLEMENTED — NOT VALIDATED (C66 wave 1, R13). | earlier: [mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Meta-learning'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
+   "last_run": "2026-09-30T12:38:00",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RF17",
    "group": "FOUNDATION",
    "description": "Failed-learner registry integrated",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/learning/failed_learners.py",
     "engine/research/failed_lab.py"
@@ -358,17 +391,19 @@
    "tests": [
     "tests/test_research_experiments.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Failed-learner laboratory'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
-   "last_run": "2026-09-29T17:08:49",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_research_experiments.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | earlier: IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Failed-learner laboratory'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
+   "last_run": "2026-09-30T12:38:00",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RF18",
    "group": "FOUNDATION",
    "description": "Compute manager implemented",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/health.py",
     "engine/learning/compute.py",
@@ -379,17 +414,19 @@
    "tests": [
     "tests/test_research_compute.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Compute manager'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
-   "last_run": "2026-09-29T17:08:49",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_research_compute.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | earlier: IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Compute manager'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
+   "last_run": "2026-09-30T12:38:00",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RF19",
    "group": "FOUNDATION",
    "description": "Experiment-value accounting implemented",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/learning/research_policy.py::RealisedGain,realised_bits,gain_from_record,regret_report,RoundLedger",
     "engine/learning/scorecard.py::ComputeCost,ComputeMeter",
@@ -398,17 +435,19 @@
    "tests": [
     "tests/test_research_compute.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [missing] See line_budget row 'Experiment value accounting'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
-   "last_run": "2026-09-29T17:08:50",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_research_compute.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | earlier: IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [missing] See line_budget row 'Experiment value accounting'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
+   "last_run": "2026-09-30T12:38:01",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RF20",
    "group": "FOUNDATION",
    "description": "Compute-waste controller implemented",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/learning/research_policy.py::marginal_return_verdict,cusum_shift",
     "engine/learning/research_priority.py::barren_streak,experience_factor,experience_rerank",
@@ -417,17 +456,19 @@
    "tests": [
     "tests/test_research_compute.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Compute-waste controller'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
-   "last_run": "2026-09-29T17:08:50",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_research_compute.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | earlier: IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Compute-waste controller'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
+   "last_run": "2026-09-30T12:38:01",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RF21",
    "group": "FOUNDATION",
    "description": "Daily autopsy implemented",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/learning/reports.py",
     "engine/learning/surprise.py",
@@ -436,17 +477,19 @@
    "tests": [
     "tests/test_research_observer.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [missing] See line_budget row 'Daily market autopsy'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
-   "last_run": "2026-09-29T17:08:50",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_research_observer.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | earlier: IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [missing] See line_budget row 'Daily market autopsy'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
+   "last_run": "2026-09-30T12:38:01",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RF22",
    "group": "FOUNDATION",
    "description": "Daily research generator implemented",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/learning/contradiction_monitor.py",
     "engine/learning/research_priority.py::signals_from_*",
@@ -456,17 +499,19 @@
    "tests": [
     "tests/test_research_priority.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Daily research target generator'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
-   "last_run": "2026-09-29T17:08:50",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_research_priority.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | earlier: IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Daily research target generator'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
+   "last_run": "2026-09-30T12:38:01",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RF23",
    "group": "FOUNDATION",
    "description": "Multi-scale research implemented",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/candles.py",
     "engine/learning/situation.py::horizon_state",
@@ -475,17 +520,19 @@
    "tests": [
     "tests/test_research_scales.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [missing] See line_budget row 'Multi-scale learning'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
-   "last_run": "2026-09-29T17:08:51",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_research_scales.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | earlier: IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [missing] See line_budget row 'Multi-scale learning'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
+   "last_run": "2026-09-30T12:38:02",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RF24",
    "group": "FOUNDATION",
    "description": "Cross-sectional research implemented",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/analogs_sector.py",
     "engine/learning/situation.py::CrossSection,correlation_structure",
@@ -495,17 +542,19 @@
    "tests": [
     "tests/test_research_scales.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Cross-sectional learning'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
-   "last_run": "2026-09-29T17:08:51",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_research_scales.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | earlier: IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Cross-sectional learning'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
+   "last_run": "2026-09-30T12:38:02",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RF25",
    "group": "FOUNDATION",
    "description": "Regime research implemented",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/learning/context.py",
     "engine/learning/hierarchy.py",
@@ -515,17 +564,19 @@
    "tests": [
     "tests/test_research_regimes.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Regime-aware research'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
-   "last_run": "2026-09-29T17:08:51",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_research_regimes.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | earlier: IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Regime-aware research'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
+   "last_run": "2026-09-30T12:38:02",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RF26",
    "group": "FOUNDATION",
    "description": "Interaction discovery implemented",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/candidates.py (pairs, A and B UNLESS C)",
     "engine/learning/break_detection.py::interaction_scan",
@@ -537,17 +588,19 @@
    "tests": [
     "tests/test_research_interactions.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [duplicated-risk] See line_budget row 'Interaction discovery'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
-   "last_run": "2026-09-29T17:08:51",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_research_interactions.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | earlier: IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [duplicated-risk] See line_budget row 'Interaction discovery'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
+   "last_run": "2026-09-30T12:38:03",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RF27",
    "group": "FOUNDATION",
    "description": "Knowledge graph integrated",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/learning/knowledge_graph.py",
     "engine/research/research_graph.py"
@@ -555,17 +608,19 @@
    "tests": [
     "tests/test_research_graph.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Knowledge graph'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
-   "last_run": "2026-09-29T17:08:52",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_research_graph.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | earlier: IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Knowledge graph'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
+   "last_run": "2026-09-30T12:38:03",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RF28",
    "group": "FOUNDATION",
    "description": "Knowledge-to-decision bridge integrated",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/learning/champion.py",
     "engine/learning/decision_contract.py",
@@ -574,17 +629,19 @@
    "tests": [
     "tests/test_research_graph.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Knowledge-to-decision bridge'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
-   "last_run": "2026-09-29T17:08:52",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_research_graph.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | earlier: IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Knowledge-to-decision bridge'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
+   "last_run": "2026-09-30T12:38:03",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RF29",
    "group": "FOUNDATION",
    "description": "Research/trader firewall integrated",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/learning/curator.py",
     "engine/learning/firewalls.py",
@@ -599,17 +656,19 @@
    "tests": [
     "tests/test_research_firewall.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [duplicated-risk] See line_budget row 'Research/trader firewall integration'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
-   "last_run": "2026-09-29T17:08:52",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_research_firewall.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | earlier: IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [duplicated-risk] See line_budget row 'Research/trader firewall integration'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
+   "last_run": "2026-09-30T12:38:03",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RF30",
    "group": "FOUNDATION",
    "description": "Replication system implemented",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/learning/promotion.py::RerunRecord,ReproEvidence,gate_reproducibility",
     "engine/learning/transfer.py",
@@ -619,17 +678,19 @@
    "tests": [
     "tests/test_research_gate.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Research replication system'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
-   "last_run": "2026-09-29T17:08:52",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_research_gate.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | earlier: IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Research replication system'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
+   "last_run": "2026-09-30T12:38:04",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RF31",
    "group": "FOUNDATION",
    "description": "Unknown-cause system integrated",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/learning/unknowns.py",
     "engine/research/unknown_cause.py"
@@ -637,17 +698,19 @@
    "tests": [
     "tests/test_research_knowability.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Unknown-cause system'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
-   "last_run": "2026-09-29T17:08:53",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_research_knowability.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | earlier: IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Unknown-cause system'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
+   "last_run": "2026-09-30T12:38:04",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RF32",
    "group": "FOUNDATION",
    "description": "Research-health system implemented",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/learning/research_policy.py::audit_spend,allocation_entropy,policy_health",
     "engine/learning/research_priority.py::queue_health",
@@ -656,17 +719,19 @@
    "tests": [
     "tests/test_research_health.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [missing] See line_budget row 'Research-brain health'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
-   "last_run": "2026-09-29T17:08:53",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_research_health.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | earlier: IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [missing] See line_budget row 'Research-brain health'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
+   "last_run": "2026-09-30T12:38:04",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RF33",
    "group": "FOUNDATION",
    "description": "Research-diversity system implemented",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/learning/research_policy.py::TargetAllocator,DiscountedAllocator,project_box_simplex,apply_family_caps,greedy_diverse_batch,starving_targets",
     "engine/research/diversity.py"
@@ -674,17 +739,19 @@
    "tests": [
     "tests/test_research_health.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Research diversity controller'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
-   "last_run": "2026-09-29T17:08:53",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_research_health.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | earlier: IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Research diversity controller'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
+   "last_run": "2026-09-30T12:38:04",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RF34",
    "group": "FOUNDATION",
    "description": "Scientific long-term memory integrated",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/learning/archive.py",
     "engine/learning/belief.py",
@@ -695,17 +762,19 @@
    "tests": [
     "tests/test_research_graph.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Scientific long-term memory integration'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
-   "last_run": "2026-09-29T17:08:53",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_research_graph.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | earlier: IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Scientific long-term memory integration'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
+   "last_run": "2026-09-30T12:38:05",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RF35",
    "group": "FOUNDATION",
    "description": "Question generator implemented",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/learning/research_priority.py::QuestionGenerator,CandidateBuilder,ResearchQuestion,generic_hypotheses,failure_hypotheses",
     "engine/research/questions.py"
@@ -713,17 +782,19 @@
    "tests": [
     "tests/test_research_priority.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Question generator'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
-   "last_run": "2026-09-29T17:08:53",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_research_priority.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | earlier: IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Question generator'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
+   "last_run": "2026-09-30T12:38:05",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RF36",
    "group": "FOUNDATION",
    "description": "Hypothesis tree implemented",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/learning/competition.py",
     "engine/research/hypothesis_tree.py"
@@ -731,17 +802,19 @@
    "tests": [
     "tests/test_research_priority.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Hypothesis tree'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
-   "last_run": "2026-09-29T17:08:54",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_research_priority.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | earlier: IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Hypothesis tree'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
+   "last_run": "2026-09-30T12:38:05",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RF37",
    "group": "FOUNDATION",
    "description": "Promotion quality gate implemented",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/champion.py",
     "engine/learning/promotion.py",
@@ -750,10 +823,12 @@
    "tests": [
     "tests/test_research_gate.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Quality/promotion gate'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
-   "last_run": "2026-09-29T17:08:54",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_research_gate.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | earlier: IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] [partial] See line_budget row 'Quality/promotion gate'. No C66-specific code yet; existing C62/Bible code must be EXTENDED (RESEARCH_MAPPING.md).",
+   "last_run": "2026-09-30T12:38:06",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RT01",
@@ -781,7 +856,7 @@
    "group": "TESTING",
    "description": "Integration tests complete",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "TESTING",
    "code_paths": [
     "tests/test_learning_integration.py",
     "tests/test_learning_reachability_loop.py",
@@ -791,17 +866,22 @@
     "tests/test_research_dataflow.py",
     "tests/test_research_loop.py"
    ],
-   "evidence": [],
-   "notes": "IN_PROGRESS (F04 W-15): tests/test_research_loop.py (23 tests) and test_research_dataflow.py exist; stale note said none. Full chain question->decision->outcome not yet proven end to end (ledger W-01). | earlier: [mapping 2026-09-29, read-only audit] Integration tests cover the C62 loop; none cover research brain -> learner -> decision.",
-   "last_run": "2026-09-29T17:08:55",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_c68_adversarial.py",
+    "tests/test_learning_integration.py",
+    "tests/test_research_dataflow.py",
+    "tests/test_research_loop.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): loop-level integration tests exist (research loop, data flow, C68 through the loop); planted world only; the research loop has never run with --source real (scripts/research_loop.py: 'only the planted source has been run') | earlier: IN_PROGRESS (F04 W-15): tests/test_research_loop.py (23 tests) and test_research_dataflow.py exist; stale note said none. Full chain question->decision->outcome not yet proven end to end (ledger W-01). | earlier: [mapping 2026-09-29, read-only audit] Integration tests cover the C62 loop; none cover research brain -> learner -> decision.",
+   "last_run": "2026-09-30T12:38:06",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RT03",
    "group": "TESTING",
    "description": "Planted volatility world passes",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "TESTING",
    "code_paths": [
     "engine/fv_pipeline.py::synthetic_bars",
     "engine/research/evidence.py",
@@ -813,25 +893,30 @@
     "tests/test_regate_sequential.py"
    ],
    "evidence": [
-    "state/research/regate_sequential/SUMMARY_final_loops.md"
+    "state/research/regate_sequential/SUMMARY_final_loops.md",
+    "tests/test_regate_sequential.py"
    ],
-   "notes": "IN_PROGRESS (30 Sep): full loop at DEFAULT settings on the final code files genuine volatility knowledge on 4/6 planted seeds (47-109 cycles), 0 false; 2 seeds end at NEEDS_MORE_EVIDENCE. Not all seeds pass yet (F14 on December looks and the failure-episode floor). | earlier: [mapping 2026-09-29, read-only audit] Synthetic event/mover worlds exist for the mover model; no planted volatility world run through a volatility LAB with competing hypotheses.",
-   "last_run": "2026-09-30T03:15:29",
-   "code_hash": "c53be43f67f8c296"
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): clean full loops: genuine volatility knowledge on 5/6 planted seeds, 0 false (SUMMARY_clean_loops.md); one seed files nothing; planted world only; the research loop has never run with --source real (scripts/research_loop.py: 'only the planted source has been run') | earlier: IN_PROGRESS (30 Sep): full loop at DEFAULT settings on the final code files genuine volatility knowledge on 4/6 planted seeds (47-109 cycles), 0 false; 2 seeds end at NEEDS_MORE_EVIDENCE. Not all seeds pass yet (F14 on December looks and the failure-episode floor). | earlier: [mapping 2026-09-29, read-only audit] Synthetic event/mover worlds exist for the mover model; no planted volatility world run through a volatility LAB with competing hypotheses.",
+   "last_run": "2026-09-30T12:38:06",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RT04",
    "group": "TESTING",
    "description": "Planted direction world passes",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "TESTING",
    "code_paths": [
     "engine/direction_features.py::plant_signal",
     "tests/test_direction_features.py"
    ],
    "tests": [],
-   "evidence": [],
-   "notes": "[mapping 2026-09-29, read-only audit] Planted direction is recovered by the existing direction harness (state/research/direction2/run1/report.md: planted:gbm 0.919 at 3-5% coverage); not yet through the C66 direction lab."
+   "evidence": [
+    "tests/test_research_direction.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): direction lab unit tests recover planted skill and are calibrated under the null (test_max_t_permutation_finds_planted_skill_and_is_calibrated_under_null); not run as a planted world through the loop; planted world only; the research loop has never run with --source real (scripts/research_loop.py: 'only the planted source has been run') | earlier: [mapping 2026-09-29, read-only audit] Planted direction is recovered by the existing direction harness (state/research/direction2/run1/report.md: planted:gbm 0.919 at 3-5% coverage); not yet through the C66 direction lab.",
+   "last_run": "2026-09-30T12:38:06",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RT05",
@@ -852,7 +937,7 @@
    "group": "TESTING",
    "description": "Null world does not generate fake signal",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "TESTING",
    "code_paths": [
     "engine/learning/meta_learning.py::null_control",
     "engine/learning/missed_winners.py::null_control",
@@ -865,197 +950,254 @@
     "tests/test_regate_sequential.py"
    ],
    "evidence": [
-    "state/research/regate_sequential/SUMMARY_final_loops.md"
+    "state/research/regate_sequential/SUMMARY_final_loops.md",
+    "tests/test_regate_sequential.py"
    ],
-   "notes": "IN_PROGRESS (30 Sep): null worlds produced no knowledge in 3/3 full default loops (129 cycles each); sequential gate 0/21 coincidence/null promoted (F12); C68 fixes null 0/6 (F11, F13). Awaiting the C69 independent-proof phase before VALIDATED. | earlier: [mapping 2026-09-29, read-only audit] Null/shuffled controls exist per module; no end-to-end null world for the research brain.",
-   "last_run": "2026-09-30T03:15:30",
-   "code_hash": "c53be43f67f8c296"
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): null worlds file nothing: 3/3 full loops (129 cycles), gate 0/30 coincidence/null; planted world only; the research loop has never run with --source real (scripts/research_loop.py: 'only the planted source has been run') | earlier: IN_PROGRESS (30 Sep): null worlds produced no knowledge in 3/3 full default loops (129 cycles each); sequential gate 0/21 coincidence/null promoted (F12); C68 fixes null 0/6 (F11, F13). Awaiting the C69 independent-proof phase before VALIDATED. | earlier: [mapping 2026-09-29, read-only audit] Null/shuffled controls exist per module; no end-to-end null world for the research brain.",
+   "last_run": "2026-09-30T12:38:07",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RT07",
    "group": "TESTING",
    "description": "Future-leak tests pass",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "TESTING",
    "code_paths": [
-    "tests/test_learning_future_firewall.py",
     "tests/test_leak_audit.py",
+    "tests/test_learning_future_firewall.py",
     "tests/test_learning_test_path.py"
    ],
    "tests": [],
-   "evidence": [],
-   "notes": "[mapping 2026-09-29, read-only audit] Trader-side future-leak tests exist; research-side planted leaks (future pattern status, future experiment result) missing."
+   "evidence": [
+    "tests/test_feature_leak_audit.py",
+    "tests/test_leak_closure.py",
+    "tests/test_research_firewall.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): research-side planted leaks refused (R01), W-11 same-year/hindsight replay tests, truncation feature audit in CI; planted world only; the research loop has never run with --source real (scripts/research_loop.py: 'only the planted source has been run') | earlier: [mapping 2026-09-29, read-only audit] Trader-side future-leak tests exist; research-side planted leaks (future pattern status, future experiment result) missing.",
+   "last_run": "2026-09-30T12:38:07",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RT08",
    "group": "TESTING",
    "description": "Identity-leak tests pass",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "TESTING",
    "code_paths": [
     "tests/test_learning_identity_firewall.py",
     "tests/test_tiebreak.py"
    ],
    "tests": [],
-   "evidence": [],
-   "notes": "[mapping 2026-09-29, read-only audit] Identity firewall tests exist for C62; not for research-brain outputs."
+   "evidence": [
+    "tests/test_learning_identity_firewall.py",
+    "tests/test_research_episodes.py",
+    "tests/test_research_firewall.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): identity screens on research outputs tested (e.g. test_candidate_text_and_records_are_identity_free_and_gated); planted world only; the research loop has never run with --source real (scripts/research_loop.py: 'only the planted source has been run') | earlier: [mapping 2026-09-29, read-only audit] Identity firewall tests exist for C62; not for research-brain outputs.",
+   "last_run": "2026-09-30T12:38:07",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RT09",
    "group": "TESTING",
    "description": "Year-recognition tests pass",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "TESTING",
    "code_paths": [
-    "tests/test_learning_curator.py",
-    "tests/test_leak_audit_verdicts.py"
+    "tests/test_leak_audit_verdicts.py",
+    "tests/test_learning_curator.py"
    ],
    "tests": [],
-   "evidence": [],
-   "notes": "[mapping 2026-09-29, read-only audit] Year fingerprint tests exist for trader/curator; research outputs released to the trader untested."
+   "evidence": [
+    "tests/test_leak_closure.py",
+    "tests/test_learning_curator.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): W-11 tests: nothing filed under the replayed year is released; hash ids mapped to letters; planted world only; the research loop has never run with --source real (scripts/research_loop.py: 'only the planted source has been run') | earlier: [mapping 2026-09-29, read-only audit] Year fingerprint tests exist for trader/curator; research outputs released to the trader untested.",
+   "last_run": "2026-09-30T12:38:08",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RT10",
    "group": "TESTING",
    "description": "Memorization controls pass",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "TESTING",
    "code_paths": [
-    "tests/test_learning_same_year.py",
-    "tests/test_antimemo.py"
+    "tests/test_antimemo.py",
+    "tests/test_learning_same_year.py"
    ],
    "tests": [],
-   "evidence": [],
-   "notes": "[mapping 2026-09-29, read-only audit] Memoriser vs learner controls exist (controls.py); not applied to research-brain discoveries."
+   "evidence": [
+    "tests/test_c68_fix_promote.py",
+    "tests/test_research_gate.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): identity (memoriser) gate is a DEFAULT_CRITICAL gate of research/quality_gate.py; test_a_name_memorising_fix_is_quarantined_by_the_identity_harness; planted world only; the research loop has never run with --source real (scripts/research_loop.py: 'only the planted source has been run') | earlier: [mapping 2026-09-29, read-only audit] Memoriser vs learner controls exist (controls.py); not applied to research-brain discoveries.",
+   "last_run": "2026-09-30T12:38:08",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RT11",
    "group": "TESTING",
    "description": "Same-year controls pass",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "TESTING",
    "code_paths": [
     "tests/test_learning_same_year.py"
    ],
    "tests": [],
-   "evidence": [],
-   "notes": "[mapping 2026-09-29, read-only audit] Same-year harness with five frozen controls exists (planted only)."
+   "evidence": [
+    "tests/test_learning_same_year.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): same-year harness with 5 frozen controls, planted only; planted world only; the research loop has never run with --source real (scripts/research_loop.py: 'only the planted source has been run') | earlier: [mapping 2026-09-29, read-only audit] Same-year harness with five frozen controls exists (planted only).",
+   "last_run": "2026-09-30T12:38:08",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RT12",
    "group": "TESTING",
    "description": "Cross-year transfer tests pass",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "TESTING",
    "code_paths": [
     "tests/test_learning_transfer.py"
    ],
    "tests": [],
-   "evidence": [],
-   "notes": "[mapping 2026-09-29, read-only audit] Transfer axes unit-tested on planted data only."
+   "evidence": [
+    "tests/test_learning_transfer.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): transfer axes unit-tested on planted data; planted world only; the research loop has never run with --source real (scripts/research_loop.py: 'only the planted source has been run') | earlier: [mapping 2026-09-29, read-only audit] Transfer axes unit-tested on planted data only.",
+   "last_run": "2026-09-30T12:38:08",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RT13",
    "group": "TESTING",
    "description": "Cross-stock transfer tests pass",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "TESTING",
    "code_paths": [
     "tests/test_learning_transfer.py"
    ],
    "tests": [],
-   "evidence": [],
-   "notes": "[mapping 2026-09-29, read-only audit] As RT12."
+   "evidence": [
+    "tests/test_learning_transfer.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): as RT12; planted world only; the research loop has never run with --source real (scripts/research_loop.py: 'only the planted source has been run') | earlier: [mapping 2026-09-29, read-only audit] As RT12.",
+   "last_run": "2026-09-30T12:38:09",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RT14",
    "group": "TESTING",
    "description": "Cross-sector transfer tests pass",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "TESTING",
    "code_paths": [
     "tests/test_learning_transfer.py"
    ],
    "tests": [],
-   "evidence": [],
-   "notes": "[mapping 2026-09-29, read-only audit] As RT12."
+   "evidence": [
+    "tests/test_learning_transfer.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): as RT12; planted world only; the research loop has never run with --source real (scripts/research_loop.py: 'only the planted source has been run') | earlier: [mapping 2026-09-29, read-only audit] As RT12.",
+   "last_run": "2026-09-30T12:38:09",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RT15",
    "group": "TESTING",
    "description": "Cross-regime transfer tests pass",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "TESTING",
    "code_paths": [
     "tests/test_learning_transfer.py"
    ],
    "tests": [],
-   "evidence": [],
-   "notes": "[mapping 2026-09-29, read-only audit] As RT12."
+   "evidence": [
+    "tests/test_learning_transfer.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): as RT12; planted world only; the research loop has never run with --source real (scripts/research_loop.py: 'only the planted source has been run') | earlier: [mapping 2026-09-29, read-only audit] As RT12.",
+   "last_run": "2026-09-30T12:38:09",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RT16",
    "group": "TESTING",
    "description": "Research-priority tests pass",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "TESTING",
    "code_paths": [
     "tests/test_learning_research.py"
    ],
    "tests": [],
-   "evidence": [],
-   "notes": "[mapping 2026-09-29, read-only audit] test_informative_experiment_outranks_uninformative_one and bandit-concentrates-on-planted-best-target are close to section 46G; not the C66 A-vs-B world with learned priority."
+   "evidence": [
+    "tests/test_research_priority.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): priority tests exist; not the C66 A-vs-B learned-priority world; planted world only; the research loop has never run with --source real (scripts/research_loop.py: 'only the planted source has been run') | earlier: [mapping 2026-09-29, read-only audit] test_informative_experiment_outranks_uninformative_one and bandit-concentrates-on-planted-best-target are close to section 46G; not the C66 A-vs-B world with learned priority.",
+   "last_run": "2026-09-30T12:38:10",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RT17",
    "group": "TESTING",
    "description": "Compute-allocation tests pass",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "TESTING",
    "code_paths": [
     "tests/test_learning_compute.py",
     "tests/test_learning_research.py"
    ],
    "tests": [],
-   "evidence": [],
-   "notes": "[mapping 2026-09-29, read-only audit] Budget/knapsack/RAM tests exist; no escalation-ladder tests."
+   "evidence": [
+    "tests/test_research_compute.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): escalation ladder tests exist (test_full_ladder_pass..., test_planted_ladder_nulls_die_cheap_real_effects_survive) - stale note said none; planted world only; the research loop has never run with --source real (scripts/research_loop.py: 'only the planted source has been run') | earlier: [mapping 2026-09-29, read-only audit] Budget/knapsack/RAM tests exist; no escalation-ladder tests.",
+   "last_run": "2026-09-30T12:38:10",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RT18",
    "group": "TESTING",
    "description": "Compute-waste tests pass",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "TESTING",
    "code_paths": [
     "tests/test_learning_research.py"
    ],
    "tests": [],
-   "evidence": [],
-   "notes": "[mapping 2026-09-29, read-only audit] Exploit-only spend audit tested; no branch-with-negligible-gains -> DORMANT test (46I)."
+   "evidence": [
+    "tests/test_research_compute.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): test_barren_expensive_branch_goes_dormant_with_reason_and_lifecycle exists - stale note said no DORMANT test; planted world only; the research loop has never run with --source real (scripts/research_loop.py: 'only the planted source has been run') | earlier: [mapping 2026-09-29, read-only audit] Exploit-only spend audit tested; no branch-with-negligible-gains -> DORMANT test (46I).",
+   "last_run": "2026-09-30T12:38:10",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RT19",
    "group": "TESTING",
    "description": "Winner/loser symmetry tests pass",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/research/symmetry.py"
    ],
    "tests": [
     "tests/test_research_symmetry.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] No symmetry engine.",
-   "last_run": "2026-09-29T17:08:55",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_research_symmetry.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): symmetry tests; planted world only; the research loop has never run with --source real (scripts/research_loop.py: 'only the planted source has been run') | earlier: IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] No symmetry engine.",
+   "last_run": "2026-09-30T12:38:10",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RT20",
    "group": "TESTING",
    "description": "Unknown-cause tests pass",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "TESTING",
    "code_paths": [
     "engine/research/unknown_cause.py",
     "tests/test_learning_epistemic.py"
@@ -1063,17 +1205,20 @@
    "tests": [
     "tests/test_research_knowability.py"
    ],
-   "evidence": [],
-   "notes": "IN_PROGRESS (F04 W-15): unknown_cause.py forced-label detector and its tests exist (R02); stale note said none. Knowability null-world defect open (ledger W-04). | earlier: [mapping 2026-09-29, read-only audit] UNKNOWN-as-state tests exist; no forced-labelling (unknown-rate) test.",
-   "last_run": "2026-09-29T17:08:55",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_research_counterfactual.py",
+    "tests/test_research_knowability.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): unknown-cause / forced-label tests; null residual defect reduced (F02); planted world only; the research loop has never run with --source real (scripts/research_loop.py: 'only the planted source has been run') | earlier: IN_PROGRESS (F04 W-15): unknown_cause.py forced-label detector and its tests exist (R02); stale note said none. Knowability null-world defect open (ledger W-04). | earlier: [mapping 2026-09-29, read-only audit] UNKNOWN-as-state tests exist; no forced-labelling (unknown-rate) test.",
+   "last_run": "2026-09-30T12:38:11",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RT21",
    "group": "TESTING",
    "description": "Replication tests pass",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "TESTING",
    "code_paths": [
     "engine/research/replication.py",
     "tests/test_learning_promotion.py",
@@ -1082,17 +1227,19 @@
    "tests": [
     "tests/test_research_gate.py"
    ],
-   "evidence": [],
-   "notes": "IN_PROGRESS (F04 W-15): replication.py and tests/test_research_gate.py exist; stale note said replication missing. Never yet PROMOTEd a planted genuine effect through the loop (ledger W-06). | earlier: [mapping 2026-09-29, read-only audit] Reproducibility tested; independent replication requirement not.",
-   "last_run": "2026-09-29T17:08:55",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_research_gate.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): replication tests incl. test_single_lucky_experiment_cannot_change_system; replication now reaches PROMOTE in loops (F12); planted world only; the research loop has never run with --source real (scripts/research_loop.py: 'only the planted source has been run') | earlier: IN_PROGRESS (F04 W-15): replication.py and tests/test_research_gate.py exist; stale note said replication missing. Never yet PROMOTEd a planted genuine effect through the loop (ledger W-06). | earlier: [mapping 2026-09-29, read-only audit] Reproducibility tested; independent replication requirement not.",
+   "last_run": "2026-09-30T12:38:11",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RT22",
    "group": "TESTING",
    "description": "Promotion gates pass",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "TESTING",
    "code_paths": [
     "engine/research/evidence.py",
     "engine/research/quality_gate.py",
@@ -1100,18 +1247,20 @@
    ],
    "tests": [],
    "evidence": [
-    "state/research/regate_sequential/SUMMARY_final_loops.md"
+    "state/research/regate_sequential/SUMMARY_final_loops.md",
+    "tests/test_regate_sequential.py",
+    "tests/test_research_gate.py"
    ],
-   "notes": "IN_PROGRESS (30 Sep): every item filed in the final-code loops passed the real gate with OOS evidence (sequential alpha-spending plan); no forced verdicts. | earlier: [mapping 2026-09-29, read-only audit] Ten gates tested; C66 calibration/complexity/failure gates and QUARANTINED/NEEDS_MORE_EVIDENCE outcomes missing.",
-   "last_run": "2026-09-30T03:15:30",
-   "code_hash": "c53be43f67f8c296"
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): every filed item passed the real gate with OOS evidence (planted); planted world only; the research loop has never run with --source real (scripts/research_loop.py: 'only the planted source has been run') | earlier: IN_PROGRESS (30 Sep): every item filed in the final-code loops passed the real gate with OOS evidence (sequential alpha-spending plan); no forced verdicts. | earlier: [mapping 2026-09-29, read-only audit] Ten gates tested; C66 calibration/complexity/failure gates and QUARANTINED/NEEDS_MORE_EVIDENCE outcomes missing.",
+   "last_run": "2026-09-30T12:38:11",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RS01",
    "group": "SCIENTIFIC VALIDATION",
    "description": "Volatility prediction measured OOS",
    "owner": "Claude",
-   "status": "VALIDATED",
+   "status": "IMPLEMENTED",
    "code_paths": [
     "engine/fv_pipeline.py",
     "engine/heavy_tests.py"
@@ -1121,9 +1270,9 @@
     "state/research/fv/run1/report.md",
     "state/research/heavy_algo/H9b8e5c64e6b5a404.md"
    ],
-   "notes": "SURVIVOR_ONLY (F04 W-03, 2026-09-29): measured on the price panel that holds only names still trading today; delisted names are absent (RG04 currently violated), so this result is an upper-bound estimate, NOT final evidence, and must be re-measured on a delisted-inclusive panel before it can support any conclusion. | earlier: [mapping 2026-09-29, read-only audit] Artefacts: state/research/fv/run1/report.md (walk-forward, 56 origins: mover hit 57.9% [90% CI 55.8-60.2] vs base 14.6%) and state/research/heavy_algo/H9b8e5c64e6b5a404.md (OOS movement AUC 0.733). Survivor-only price panel (RG04): pre-C66 code, must be re-measured by the C66 lab with delisted names.",
-   "last_run": "2026-09-29T17:10:23",
-   "code_hash": "cbaafa6c8bdccc08"
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): SURVIVOR-ONLY panel (C75 s4 open problem; C66 RG04 violated; leak channel 1 QUARANTINED): a measured result on the survivor panel is an upper bound with an unresolved blocking defect, so Firewall 2 cannot call it VALIDATED; measured by legacy scripts, not the C66 labs (ledger W-17) | earlier: SURVIVOR_ONLY (F04 W-03, 2026-09-29): measured on the price panel that holds only names still trading today; delisted names are absent (RG04 currently violated), so this result is an upper-bound estimate, NOT final evidence, and must be re-measured on a delisted-inclusive panel before it can support any conclusion. | earlier: [mapping 2026-09-29, read-only audit] Artefacts: state/research/fv/run1/report.md (walk-forward, 56 origins: mover hit 57.9% [90% CI 55.8-60.2] vs base 14.6%) and state/research/heavy_algo/H9b8e5c64e6b5a404.md (OOS movement AUC 0.733). Survivor-only price panel (RG04): pre-C66 code, must be re-measured by the C66 lab with delisted names.",
+   "last_run": "2026-09-30T12:38:11",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RS02",
@@ -1173,7 +1322,7 @@
    "group": "SCIENTIFIC VALIDATION",
    "description": "Direction measured only on the relevant predicted-mover universe",
    "owner": "Claude",
-   "status": "VALIDATED",
+   "status": "IMPLEMENTED",
    "code_paths": [
     "engine/direction_features.py",
     "scripts/direction_research.py"
@@ -1182,16 +1331,16 @@
    "evidence": [
     "state/research/direction2/run1/report.md"
    ],
-   "notes": "SURVIVOR_ONLY (F04 W-03, 2026-09-29): measured on the price panel that holds only names still trading today; delisted names are absent (RG04 currently violated), so this result is an upper-bound estimate, NOT final evidence, and must be re-measured on a delisted-inclusive panel before it can support any conclusion. | earlier: [mapping 2026-09-29, read-only audit] Artefact: state/research/direction2/run1/report.md - direction scored on picks of a walk-forward mover model (pool 100, picks 10/30/100, test 2018-2026). Survivor-only price panel (RG04): pre-C66 code, must be re-measured by the C66 lab with delisted names.",
-   "last_run": "2026-09-29T17:10:24",
-   "code_hash": "cbaafa6c8bdccc08"
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): SURVIVOR-ONLY panel (C75 s4 open problem; C66 RG04 violated; leak channel 1 QUARANTINED): a measured result on the survivor panel is an upper bound with an unresolved blocking defect, so Firewall 2 cannot call it VALIDATED; measured by legacy scripts, not the C66 labs (ledger W-17) | earlier: SURVIVOR_ONLY (F04 W-03, 2026-09-29): measured on the price panel that holds only names still trading today; delisted names are absent (RG04 currently violated), so this result is an upper-bound estimate, NOT final evidence, and must be re-measured on a delisted-inclusive panel before it can support any conclusion. | earlier: [mapping 2026-09-29, read-only audit] Artefact: state/research/direction2/run1/report.md - direction scored on picks of a walk-forward mover model (pool 100, picks 10/30/100, test 2018-2026). Survivor-only price panel (RG04): pre-C66 code, must be re-measured by the C66 lab with delisted names.",
+   "last_run": "2026-09-30T12:38:12",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RS06",
    "group": "SCIENTIFIC VALIDATION",
    "description": "Direction accuracy measured",
    "owner": "Claude",
-   "status": "VALIDATED",
+   "status": "IMPLEMENTED",
    "code_paths": [
     "engine/direction_features.py",
     "scripts/direction_research.py"
@@ -1201,16 +1350,16 @@
     "state/research/direction2/run1/calibration_pick10_up_first.csv",
     "state/research/direction2/run1/report.md"
    ],
-   "notes": "SURVIVOR_ONLY (F04 W-03, 2026-09-29): measured on the price panel that holds only names still trading today; delisted names are absent (RG04 currently violated), so this result is an upper-bound estimate, NOT final evidence, and must be re-measured on a delisted-inclusive panel before it can support any conclusion. | earlier: [mapping 2026-09-29, read-only audit] Artefact: state/research/direction2/run1/ (accuracy ~0.51 at 100% coverage, all models vs random/shuffled controls). Survivor-only price panel (RG04): pre-C66 code, must be re-measured by the C66 lab with delisted names.",
-   "last_run": "2026-09-29T17:10:24",
-   "code_hash": "cbaafa6c8bdccc08"
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): SURVIVOR-ONLY panel (C75 s4 open problem; C66 RG04 violated; leak channel 1 QUARANTINED): a measured result on the survivor panel is an upper bound with an unresolved blocking defect, so Firewall 2 cannot call it VALIDATED; measured by legacy scripts, not the C66 labs (ledger W-17) | earlier: SURVIVOR_ONLY (F04 W-03, 2026-09-29): measured on the price panel that holds only names still trading today; delisted names are absent (RG04 currently violated), so this result is an upper-bound estimate, NOT final evidence, and must be re-measured on a delisted-inclusive panel before it can support any conclusion. | earlier: [mapping 2026-09-29, read-only audit] Artefact: state/research/direction2/run1/ (accuracy ~0.51 at 100% coverage, all models vs random/shuffled controls). Survivor-only price panel (RG04): pre-C66 code, must be re-measured by the C66 lab with delisted names.",
+   "last_run": "2026-09-30T12:38:12",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RS07",
    "group": "SCIENTIFIC VALIDATION",
    "description": "Direction calibration measured",
    "owner": "Claude",
-   "status": "VALIDATED",
+   "status": "IMPLEMENTED",
    "code_paths": [
     "engine/direction.py",
     "engine/direction_features.py::calibration_table"
@@ -1220,16 +1369,16 @@
     "state/research/direction/summary.json",
     "state/research/direction2/run1/calibration_pick10_up_first.csv"
    ],
-   "notes": "SURVIVOR_ONLY (F04 W-03, 2026-09-29): measured on the price panel that holds only names still trading today; delisted names are absent (RG04 currently violated), so this result is an upper-bound estimate, NOT final evidence, and must be re-measured on a delisted-inclusive panel before it can support any conclusion. | earlier: [mapping 2026-09-29, read-only audit] Artefacts: state/research/direction2/run1/calibration_pick*.csv; state/research/direction/summary.json (Brier = base rate, ECE per era). Survivor-only price panel (RG04): pre-C66 code, must be re-measured by the C66 lab with delisted names.",
-   "last_run": "2026-09-29T17:10:24",
-   "code_hash": "cbaafa6c8bdccc08"
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): SURVIVOR-ONLY panel (C75 s4 open problem; C66 RG04 violated; leak channel 1 QUARANTINED): a measured result on the survivor panel is an upper bound with an unresolved blocking defect, so Firewall 2 cannot call it VALIDATED; measured by legacy scripts, not the C66 labs (ledger W-17) | earlier: SURVIVOR_ONLY (F04 W-03, 2026-09-29): measured on the price panel that holds only names still trading today; delisted names are absent (RG04 currently violated), so this result is an upper-bound estimate, NOT final evidence, and must be re-measured on a delisted-inclusive panel before it can support any conclusion. | earlier: [mapping 2026-09-29, read-only audit] Artefacts: state/research/direction2/run1/calibration_pick*.csv; state/research/direction/summary.json (Brier = base rate, ECE per era). Survivor-only price panel (RG04): pre-C66 code, must be re-measured by the C66 lab with delisted names.",
+   "last_run": "2026-09-30T12:38:12",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RS08",
    "group": "SCIENTIFIC VALIDATION",
    "description": "Direction coverage frontier measured",
    "owner": "Claude",
-   "status": "VALIDATED",
+   "status": "IMPLEMENTED",
    "code_paths": [
     "engine/direction_features.py::frontier,frontier_table"
    ],
@@ -1237,16 +1386,16 @@
    "evidence": [
     "state/research/direction2/run1/frontier_pick10_up_first.csv"
    ],
-   "notes": "SURVIVOR_ONLY (F04 W-03, 2026-09-29): measured on the price panel that holds only names still trading today; delisted names are absent (RG04 currently violated), so this result is an upper-bound estimate, NOT final evidence, and must be re-measured on a delisted-inclusive panel before it can support any conclusion. | earlier: [mapping 2026-09-29, read-only audit] Artefact: state/research/direction2/run1/frontier_pick*.csv (c=1..100% with 95% CIs over weeks). Survivor-only price panel (RG04): pre-C66 code, must be re-measured by the C66 lab with delisted names.",
-   "last_run": "2026-09-29T17:10:24",
-   "code_hash": "cbaafa6c8bdccc08"
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): SURVIVOR-ONLY panel (C75 s4 open problem; C66 RG04 violated; leak channel 1 QUARANTINED): a measured result on the survivor panel is an upper bound with an unresolved blocking defect, so Firewall 2 cannot call it VALIDATED; measured by legacy scripts, not the C66 labs (ledger W-17) | earlier: SURVIVOR_ONLY (F04 W-03, 2026-09-29): measured on the price panel that holds only names still trading today; delisted names are absent (RG04 currently violated), so this result is an upper-bound estimate, NOT final evidence, and must be re-measured on a delisted-inclusive panel before it can support any conclusion. | earlier: [mapping 2026-09-29, read-only audit] Artefact: state/research/direction2/run1/frontier_pick*.csv (c=1..100% with 95% CIs over weeks). Survivor-only price panel (RG04): pre-C66 code, must be re-measured by the C66 lab with delisted names.",
+   "last_run": "2026-09-30T12:38:13",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RS09",
    "group": "SCIENTIFIC VALIDATION",
    "description": "80% question evaluated honestly",
    "owner": "Claude",
-   "status": "VALIDATED",
+   "status": "IMPLEMENTED",
    "code_paths": [
     "engine/direction_features.py::eighty_question"
    ],
@@ -1254,16 +1403,16 @@
    "evidence": [
     "state/research/direction2/run1/report.md"
    ],
-   "notes": "SURVIVOR_ONLY (F04 W-03, 2026-09-29): measured on the price panel that holds only names still trading today; delisted names are absent (RG04 currently violated), so this result is an upper-bound estimate, NOT final evidence, and must be re-measured on a delisted-inclusive panel before it can support any conclusion. | earlier: [mapping 2026-09-29, read-only audit] Artefact: state/research/direction2/run1/run1.log: 0 cells with lower CI >= 0.80 in 6 configurations, controls 0, planted signal recovered. Honest 'no reliable 80% region found'. Survivor-only price panel (RG04): pre-C66 code, must be re-measured by the C66 lab with delisted names.",
-   "last_run": "2026-09-29T17:10:25",
-   "code_hash": "cbaafa6c8bdccc08"
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): SURVIVOR-ONLY panel (C75 s4 open problem; C66 RG04 violated; leak channel 1 QUARANTINED): a measured result on the survivor panel is an upper bound with an unresolved blocking defect, so Firewall 2 cannot call it VALIDATED; measured by legacy scripts, not the C66 labs (ledger W-17) | earlier: SURVIVOR_ONLY (F04 W-03, 2026-09-29): measured on the price panel that holds only names still trading today; delisted names are absent (RG04 currently violated), so this result is an upper-bound estimate, NOT final evidence, and must be re-measured on a delisted-inclusive panel before it can support any conclusion. | earlier: [mapping 2026-09-29, read-only audit] Artefact: state/research/direction2/run1/run1.log: 0 cells with lower CI >= 0.80 in 6 configurations, controls 0, planted signal recovered. Honest 'no reliable 80% region found'. Survivor-only price panel (RG04): pre-C66 code, must be re-measured by the C66 lab with delisted names.",
+   "last_run": "2026-09-30T12:38:13",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RS10",
    "group": "SCIENTIFIC VALIDATION",
    "description": "Loss reduction measured",
    "owner": "Claude",
-   "status": "VALIDATED",
+   "status": "IMPLEMENTED",
    "code_paths": [
     "engine/gaprisk.py",
     "engine/stops.py",
@@ -1273,16 +1422,16 @@
    "evidence": [
     "state/research/exits_stops/report.txt"
    ],
-   "notes": "SURVIVOR_ONLY (F04 W-03, 2026-09-29): measured on the price panel that holds only names still trading today; delisted names are absent (RG04 currently violated), so this result is an upper-bound estimate, NOT final evidence, and must be re-measured on a delisted-inclusive panel before it can support any conclusion. | earlier: [mapping 2026-09-29, read-only audit] Artefact: state/research/exits_stops/report.txt (OOS: P(loss>20%) 3.26% -> 1.22%, expected loss -4.05% -> -3.77%). Survivor-only price panel (RG04): pre-C66 code, must be re-measured by the C66 lab with delisted names.",
-   "last_run": "2026-09-29T17:10:25",
-   "code_hash": "cbaafa6c8bdccc08"
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): SURVIVOR-ONLY panel (C75 s4 open problem; C66 RG04 violated; leak channel 1 QUARANTINED): a measured result on the survivor panel is an upper bound with an unresolved blocking defect, so Firewall 2 cannot call it VALIDATED; measured by legacy scripts, not the C66 labs (ledger W-17) | earlier: SURVIVOR_ONLY (F04 W-03, 2026-09-29): measured on the price panel that holds only names still trading today; delisted names are absent (RG04 currently violated), so this result is an upper-bound estimate, NOT final evidence, and must be re-measured on a delisted-inclusive panel before it can support any conclusion. | earlier: [mapping 2026-09-29, read-only audit] Artefact: state/research/exits_stops/report.txt (OOS: P(loss>20%) 3.26% -> 1.22%, expected loss -4.05% -> -3.77%). Survivor-only price panel (RG04): pre-C66 code, must be re-measured by the C66 lab with delisted names.",
+   "last_run": "2026-09-30T12:38:13",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RS11",
    "group": "SCIENTIFIC VALIDATION",
    "description": "Worst-case behavior measured",
    "owner": "Claude",
-   "status": "VALIDATED",
+   "status": "IMPLEMENTED",
    "code_paths": [
     "engine/fv_pipeline.py",
     "engine/stops.py"
@@ -1292,16 +1441,16 @@
     "state/research/exits_stops/report.txt",
     "state/research/fv/run1/report.md"
    ],
-   "notes": "SURVIVOR_ONLY (F04 W-03, 2026-09-29): measured on the price panel that holds only names still trading today; delisted names are absent (RG04 currently violated), so this result is an upper-bound estimate, NOT final evidence, and must be re-measured on a delisted-inclusive panel before it can support any conclusion. | earlier: [mapping 2026-09-29, read-only audit] Artefacts: state/research/exits_stops/report.txt (worst -76.1% -> -73.2%), state/research/fv/run1/report.md (worst_position -70.7%). Survivor-only price panel (RG04): pre-C66 code, must be re-measured by the C66 lab with delisted names.",
-   "last_run": "2026-09-29T17:10:25",
-   "code_hash": "cbaafa6c8bdccc08"
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): SURVIVOR-ONLY panel (C75 s4 open problem; C66 RG04 violated; leak channel 1 QUARANTINED): a measured result on the survivor panel is an upper bound with an unresolved blocking defect, so Firewall 2 cannot call it VALIDATED; measured by legacy scripts, not the C66 labs (ledger W-17) | earlier: SURVIVOR_ONLY (F04 W-03, 2026-09-29): measured on the price panel that holds only names still trading today; delisted names are absent (RG04 currently violated), so this result is an upper-bound estimate, NOT final evidence, and must be re-measured on a delisted-inclusive panel before it can support any conclusion. | earlier: [mapping 2026-09-29, read-only audit] Artefacts: state/research/exits_stops/report.txt (worst -76.1% -> -73.2%), state/research/fv/run1/report.md (worst_position -70.7%). Survivor-only price panel (RG04): pre-C66 code, must be re-measured by the C66 lab with delisted names.",
+   "last_run": "2026-09-30T12:38:13",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RS12",
    "group": "SCIENTIFIC VALIDATION",
    "description": "Tail risk measured",
    "owner": "Claude",
-   "status": "VALIDATED",
+   "status": "IMPLEMENTED",
    "code_paths": [
     "engine/gaprisk.py",
     "scripts/run_gaprisk.py"
@@ -1310,9 +1459,9 @@
    "evidence": [
     "state/research/gaprisk/summary.json"
    ],
-   "notes": "SURVIVOR_ONLY (F04 W-03, 2026-09-29): measured on the price panel that holds only names still trading today; delisted names are absent (RG04 currently violated), so this result is an upper-bound estimate, NOT final evidence, and must be re-measured on a delisted-inclusive panel before it can support any conclusion. | earlier: [mapping 2026-09-29, read-only audit] Artefact: state/research/gaprisk/summary.json (EVT tail exceedance 5.15% vs 5% target, per-era coverage). Survivor-only price panel (RG04): pre-C66 code, must be re-measured by the C66 lab with delisted names.",
-   "last_run": "2026-09-29T17:10:25",
-   "code_hash": "cbaafa6c8bdccc08"
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): SURVIVOR-ONLY panel (C75 s4 open problem; C66 RG04 violated; leak channel 1 QUARANTINED): a measured result on the survivor panel is an upper bound with an unresolved blocking defect, so Firewall 2 cannot call it VALIDATED; measured by legacy scripts, not the C66 labs (ledger W-17) | earlier: SURVIVOR_ONLY (F04 W-03, 2026-09-29): measured on the price panel that holds only names still trading today; delisted names are absent (RG04 currently violated), so this result is an upper-bound estimate, NOT final evidence, and must be re-measured on a delisted-inclusive panel before it can support any conclusion. | earlier: [mapping 2026-09-29, read-only audit] Artefact: state/research/gaprisk/summary.json (EVT tail exceedance 5.15% vs 5% target, per-era coverage). Survivor-only price panel (RG04): pre-C66 code, must be re-measured by the C66 lab with delisted names.",
+   "last_run": "2026-09-30T12:38:14",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RS13",
@@ -1332,7 +1481,7 @@
    "group": "SCIENTIFIC VALIDATION",
    "description": "Pattern-break prediction measured",
    "owner": "Claude",
-   "status": "VALIDATED",
+   "status": "IMPLEMENTED",
    "code_paths": [
     "engine/pattern_reliability.py",
     "scripts/pattern_reliability_study.py"
@@ -1341,9 +1490,9 @@
    "evidence": [
     "state/research/pattern_reliability/report.md"
    ],
-   "notes": "SURVIVOR_ONLY (F04 W-03, 2026-09-29): measured on the price panel that holds only names still trading today; delisted names are absent (RG04 currently violated), so this result is an upper-bound estimate, NOT final evidence, and must be re-measured on a delisted-inclusive panel before it can support any conclusion. | earlier: [mapping 2026-09-29, read-only audit] Artefact: state/research/pattern_reliability/report.md: walk-forward reliability prediction, skill -0.20% (AUC 0.498) - measured, and negative. Survivor-only price panel (RG04): pre-C66 code, must be re-measured by the C66 lab with delisted names.",
-   "last_run": "2026-09-29T17:10:26",
-   "code_hash": "cbaafa6c8bdccc08"
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): SURVIVOR-ONLY panel (C75 s4 open problem; C66 RG04 violated; leak channel 1 QUARANTINED): a measured result on the survivor panel is an upper bound with an unresolved blocking defect, so Firewall 2 cannot call it VALIDATED; measured by legacy scripts, not the C66 labs (ledger W-17) | earlier: SURVIVOR_ONLY (F04 W-03, 2026-09-29): measured on the price panel that holds only names still trading today; delisted names are absent (RG04 currently violated), so this result is an upper-bound estimate, NOT final evidence, and must be re-measured on a delisted-inclusive panel before it can support any conclusion. | earlier: [mapping 2026-09-29, read-only audit] Artefact: state/research/pattern_reliability/report.md: walk-forward reliability prediction, skill -0.20% (AUC 0.498) - measured, and negative. Survivor-only price panel (RG04): pre-C66 code, must be re-measured by the C66 lab with delisted names.",
+   "last_run": "2026-09-30T12:38:14",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RS15",
@@ -1403,67 +1552,102 @@
    "group": "AUTONOMOUS OPERATION",
    "description": "System generates its own research questions",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "TESTING",
    "code_paths": [
     "engine/learning/research_priority.py::QuestionGenerator"
    ],
    "tests": [],
-   "evidence": [],
-   "notes": "[mapping 2026-09-29, read-only audit] Planted-world only: learner.stage_research runs as a SHADOW behind livesim_loop2 --learner legit; state/learning/curator/ does not exist (never run on real data)."
+   "evidence": [
+    "state/research/regate_sequential/f12_default_s0/reports/cycle_00128.json",
+    "tests/test_regate_sequential.py",
+    "tests/test_research_dataflow.py",
+    "tests/test_research_loop.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): questions.generate OK 129/129, 1,539 questions (s0); planted world only; the research loop has never run with --source real (scripts/research_loop.py: 'only the planted source has been run') | earlier: [mapping 2026-09-29, read-only audit] Planted-world only: learner.stage_research runs as a SHADOW behind livesim_loop2 --learner legit; state/learning/curator/ does not exist (never run on real data).",
+   "last_run": "2026-09-30T12:38:14",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RA02",
    "group": "AUTONOMOUS OPERATION",
    "description": "System ranks research questions",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "TESTING",
    "code_paths": [
-    "engine/learning/research_priority.py::ResearchPriorityEngine",
-    "engine/learning/research_policy.py::PriorityFunction"
+    "engine/learning/research_policy.py::PriorityFunction",
+    "engine/learning/research_priority.py::ResearchPriorityEngine"
    ],
    "tests": [],
-   "evidence": [],
-   "notes": "[mapping 2026-09-29, read-only audit] Planted-world only: learner.stage_research runs as a SHADOW behind livesim_loop2 --learner legit; state/learning/curator/ does not exist (never run on real data)."
+   "evidence": [
+    "state/research/regate_sequential/f12_default_s0/reports/cycle_00128.json",
+    "tests/test_regate_sequential.py",
+    "tests/test_research_dataflow.py",
+    "tests/test_research_loop.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): gain.priority OK 129/129; planted world only; the research loop has never run with --source real (scripts/research_loop.py: 'only the planted source has been run') | earlier: [mapping 2026-09-29, read-only audit] Planted-world only: learner.stage_research runs as a SHADOW behind livesim_loop2 --learner legit; state/learning/curator/ does not exist (never run on real data).",
+   "last_run": "2026-09-30T12:38:15",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RA03",
    "group": "AUTONOMOUS OPERATION",
    "description": "System allocates compute",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "TESTING",
    "code_paths": [
-    "engine/learning/research_policy.py::select_within_budget",
-    "engine/learning/compute.py"
+    "engine/learning/compute.py",
+    "engine/learning/research_policy.py::select_within_budget"
    ],
    "tests": [],
-   "evidence": [],
-   "notes": "[mapping 2026-09-29, read-only audit] Plans are made; compute.job_for/run_experiment_process have 0 callers."
+   "evidence": [
+    "state/research/regate_sequential/f12_default_s0/reports/cycle_00128.json",
+    "tests/test_regate_sequential.py",
+    "tests/test_research_dataflow.py",
+    "tests/test_research_loop.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): allocate.compute OK 129/129 - note '0 callers' stale; planted world only; the research loop has never run with --source real (scripts/research_loop.py: 'only the planted source has been run') | earlier: [mapping 2026-09-29, read-only audit] Plans are made; compute.job_for/run_experiment_process have 0 callers.",
+   "last_run": "2026-09-30T12:38:15",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RA04",
    "group": "AUTONOMOUS OPERATION",
    "description": "System runs experiments",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "TESTING",
    "code_paths": [
     "engine/learning/compute.py::run_experiment_process"
    ],
    "tests": [],
-   "evidence": [],
-   "notes": "[mapping 2026-09-29, read-only audit] Execution machinery exists; the research engine never launches an experiment (propose_selected 0 callers)."
+   "evidence": [
+    "state/research/regate_sequential/f12_default_s0/reports/cycle_00128.json",
+    "tests/test_regate_sequential.py",
+    "tests/test_research_dataflow.py",
+    "tests/test_research_loop.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): run.experiments OK 129/129, 305 results - note 'never launches' stale; planted world only; the research loop has never run with --source real (scripts/research_loop.py: 'only the planted source has been run') | earlier: [mapping 2026-09-29, read-only audit] Execution machinery exists; the research engine never launches an experiment (propose_selected 0 callers).",
+   "last_run": "2026-09-30T12:38:15",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RA05",
    "group": "AUTONOMOUS OPERATION",
    "description": "System records results",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "TESTING",
    "code_paths": [
     "engine/learning/experiment_memory.py::ExperimentLedger"
    ],
    "tests": [],
-   "evidence": [],
-   "notes": "[mapping 2026-09-29, read-only audit] import_legacy path wired via improve.log_experiment; record_result 0 callers."
+   "evidence": [
+    "state/research/regate_sequential/f12_default_s0/reports/cycle_00128.json",
+    "tests/test_regate_sequential.py",
+    "tests/test_research_dataflow.py",
+    "tests/test_research_loop.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): learn.memory OK, 304 recorded - note 'record_result 0 callers' stale; planted world only; the research loop has never run with --source real (scripts/research_loop.py: 'only the planted source has been run') | earlier: [mapping 2026-09-29, read-only audit] import_legacy path wired via improve.log_experiment; record_result 0 callers.",
+   "last_run": "2026-09-30T12:38:16",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RA06",
@@ -1472,118 +1656,173 @@
    "owner": "Claude",
    "status": "IN_PROGRESS",
    "code_paths": [
-    "engine/learning/failed_learners.py",
-    "engine/learning/experiment_memory.py"
+    "engine/learning/experiment_memory.py",
+    "engine/learning/failed_learners.py"
    ],
    "tests": [],
-   "evidence": [],
-   "notes": "[mapping 2026-09-29, read-only audit] failed_learners has no production caller."
+   "evidence": [
+    "state/research/regate_sequential/f12_default_s0/reports/cycle_00128.json",
+    "tests/test_regate_sequential.py",
+    "tests/test_research_dataflow.py",
+    "tests/test_research_loop.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): experiment memory records failures, but priorities.failed_lab ran OK with 0 output in 129/129 cycles (OK-with-zero-out = C69 s31 shallow); planted world only; the research loop has never run with --source real (scripts/research_loop.py: 'only the planted source has been run') | earlier: [mapping 2026-09-29, read-only audit] failed_learners has no production caller.",
+   "last_run": "2026-09-30T12:38:16",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RA07",
    "group": "AUTONOMOUS OPERATION",
    "description": "System remembers successes",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "TESTING",
    "code_paths": [
-    "engine/learning/experiment_memory.py",
-    "engine/learning/archive.py"
+    "engine/learning/archive.py",
+    "engine/learning/experiment_memory.py"
    ],
    "tests": [],
-   "evidence": [],
-   "notes": "[mapping 2026-09-29, read-only audit] Planted-world only: learner.stage_research runs as a SHADOW behind livesim_loop2 --learner legit; state/learning/curator/ does not exist (never run on real data)."
+   "evidence": [
+    "state/research/regate_sequential/f12_default_s0/reports/cycle_00128.json",
+    "tests/test_regate_sequential.py",
+    "tests/test_research_dataflow.py",
+    "tests/test_research_loop.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): learn.science_memory OK 129/129; planted world only; the research loop has never run with --source real (scripts/research_loop.py: 'only the planted source has been run') | earlier: [mapping 2026-09-29, read-only audit] Planted-world only: learner.stage_research runs as a SHADOW behind livesim_loop2 --learner legit; state/learning/curator/ does not exist (never run on real data).",
+   "last_run": "2026-09-30T12:38:16",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RA08",
    "group": "AUTONOMOUS OPERATION",
    "description": "System studies winners",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "TESTING",
    "code_paths": [
     "engine/learning/credit.py"
    ],
    "tests": [],
-   "evidence": [],
-   "notes": "[mapping 2026-09-29, read-only audit] Own decisions only."
+   "evidence": [
+    "state/research/regate_sequential/f12_default_s0/reports/cycle_00128.json",
+    "tests/test_regate_sequential.py",
+    "tests/test_research_dataflow.py",
+    "tests/test_research_loop.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): failures.winners_losers OK 127/129 (669 out); planted world only; the research loop has never run with --source real (scripts/research_loop.py: 'only the planted source has been run') | earlier: [mapping 2026-09-29, read-only audit] Own decisions only.",
+   "last_run": "2026-09-30T12:38:16",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RA09",
    "group": "AUTONOMOUS OPERATION",
    "description": "System studies losers",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "TESTING",
    "code_paths": [
     "engine/learning/failure.py",
     "engine/lessons.py"
    ],
    "tests": [],
-   "evidence": [],
-   "notes": "[mapping 2026-09-29, read-only audit] Own trades only, via lessons.post_mortem -> wiring."
+   "evidence": [
+    "state/research/regate_sequential/f12_default_s0/reports/cycle_00128.json",
+    "tests/test_regate_sequential.py",
+    "tests/test_research_dataflow.py",
+    "tests/test_research_loop.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): failures.loss_pipeline OK 127/129; planted world only; the research loop has never run with --source real (scripts/research_loop.py: 'only the planted source has been run') | earlier: [mapping 2026-09-29, read-only audit] Own trades only, via lessons.post_mortem -> wiring.",
+   "last_run": "2026-09-30T12:38:17",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RA10",
    "group": "AUTONOMOUS OPERATION",
    "description": "System studies missed winners",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "TESTING",
    "code_paths": [
-    "engine/missed_winners.py",
-    "engine/learning/missed_winners.py"
+    "engine/learning/missed_winners.py",
+    "engine/missed_winners.py"
    ],
    "tests": [],
-   "evidence": [],
-   "notes": "[mapping 2026-09-29, read-only audit] Detector runs in adaptive; learning hook dead."
+   "evidence": [
+    "state/research/regate_sequential/f12_default_s0/reports/cycle_00128.json",
+    "tests/test_regate_sequential.py",
+    "tests/test_research_dataflow.py",
+    "tests/test_research_loop.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): missed.missed OK 127/129 - note 'learning hook dead' stale; planted world only; the research loop has never run with --source real (scripts/research_loop.py: 'only the planted source has been run') | earlier: [mapping 2026-09-29, read-only audit] Detector runs in adaptive; learning hook dead.",
+   "last_run": "2026-09-30T12:38:17",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RA11",
    "group": "AUTONOMOUS OPERATION",
    "description": "System studies missed losers",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/research/missed.py"
    ],
    "tests": [
     "tests/test_research_missed.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] No missed-loser code.",
-   "last_run": "2026-09-29T17:08:54",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "state/research/regate_sequential/f12_default_s0/reports/cycle_00128.json",
+    "tests/test_regate_sequential.py",
+    "tests/test_research_dataflow.py",
+    "tests/test_research_loop.py",
+    "tests/test_research_missed.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): missed.missed covers missed losers (R06); planted world only; the research loop has never run with --source real (scripts/research_loop.py: 'only the planted source has been run') | earlier: IMPLEMENTED - NOT VALIDATED (F04 ledger W-15, 2026-09-29): module and unit tests exist on disk; unit-level only, no real-data result. Row corrected from stale NOT_STARTED/IN_PROGRESS. | earlier: [mapping 2026-09-29, read-only audit] No missed-loser code.",
+   "last_run": "2026-09-30T12:38:17",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RA12",
    "group": "AUTONOMOUS OPERATION",
    "description": "System investigates pattern breaks",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "TESTING",
    "code_paths": [
     "engine/learning/break_detection.py",
     "engine/pattern_reliability.py"
    ],
    "tests": [],
-   "evidence": [],
-   "notes": "[mapping 2026-09-29, read-only audit] Investigations exist but are not scheduled by the research engine."
+   "evidence": [
+    "state/research/regate_sequential/f12_default_s0/reports/cycle_00128.json",
+    "tests/test_regate_sequential.py",
+    "tests/test_research_dataflow.py",
+    "tests/test_research_loop.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): breaks.break_research OK 129/129 - note 'not scheduled' stale; planted world only; the research loop has never run with --source real (scripts/research_loop.py: 'only the planted source has been run') | earlier: [mapping 2026-09-29, read-only audit] Investigations exist but are not scheduled by the research engine.",
+   "last_run": "2026-09-30T12:38:18",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RA13",
    "group": "AUTONOMOUS OPERATION",
    "description": "System identifies unknown causes",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "TESTING",
    "code_paths": [
     "engine/learning/unknowns.py"
    ],
    "tests": [],
-   "evidence": [],
-   "notes": "[mapping 2026-09-29, read-only audit] Planted-world only: learner.stage_research runs as a SHADOW behind livesim_loop2 --learner legit; state/learning/curator/ does not exist (never run on real data)."
+   "evidence": [
+    "state/research/regate_sequential/f12_default_s0/reports/cycle_00128.json",
+    "tests/test_regate_sequential.py",
+    "tests/test_research_dataflow.py",
+    "tests/test_research_loop.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): missed.unknown_cause OK 129/129; planted world only; the research loop has never run with --source real (scripts/research_loop.py: 'only the planted source has been run') | earlier: [mapping 2026-09-29, read-only audit] Planted-world only: learner.stage_research runs as a SHADOW behind livesim_loop2 --learner legit; state/learning/curator/ does not exist (never run on real data).",
+   "last_run": "2026-09-30T12:38:18",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RA14",
    "group": "AUTONOMOUS OPERATION",
    "description": "System promotes validated knowledge",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "TESTING",
    "code_paths": [
     "engine/improve.py",
     "engine/learning/promotion.py",
@@ -1594,25 +1833,36 @@
     "tests/test_regate_sequential.py"
    ],
    "evidence": [
-    "state/research/regate_sequential/SUMMARY_final_loops.md"
+    "state/research/regate_sequential/SUMMARY_final_loops.md",
+    "state/research/regate_sequential/f12_default_s0/reports/cycle_00128.json",
+    "tests/test_regate_sequential.py",
+    "tests/test_research_dataflow.py",
+    "tests/test_research_loop.py"
    ],
-   "notes": "IN_PROGRESS (30 Sep): full loop at DEFAULT settings on the final code files genuine volatility knowledge on 4/6 planted seeds (47-109 cycles), 0 false; 2 seeds end at NEEDS_MORE_EVIDENCE. Not all seeds pass yet (F14 on December looks and the failure-episode floor). | earlier: [mapping 2026-09-29, read-only audit] Gate runs only when claims_learning=True, which no challenger sets (INTEGRATION_AUDIT).",
-   "last_run": "2026-09-30T03:15:29",
-   "code_hash": "c53be43f67f8c296"
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): 5/6 planted seeds file genuine knowledge through the real gate, 0 false; planted world only; the research loop has never run with --source real (scripts/research_loop.py: 'only the planted source has been run') | earlier: IN_PROGRESS (30 Sep): full loop at DEFAULT settings on the final code files genuine volatility knowledge on 4/6 planted seeds (47-109 cycles), 0 false; 2 seeds end at NEEDS_MORE_EVIDENCE. Not all seeds pass yet (F14 on December looks and the failure-episode floor). | earlier: [mapping 2026-09-29, read-only audit] Gate runs only when claims_learning=True, which no challenger sets (INTEGRATION_AUDIT).",
+   "last_run": "2026-09-30T12:38:18",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RA15",
    "group": "AUTONOMOUS OPERATION",
    "description": "System downgrades broken knowledge",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "TESTING",
    "code_paths": [
-    "engine/learning/retirement.py",
-    "engine/learning/health.py"
+    "engine/learning/health.py",
+    "engine/learning/retirement.py"
    ],
    "tests": [],
-   "evidence": [],
-   "notes": "[mapping 2026-09-29, read-only audit] Retirement evaluated in learner; health->retirement path missing."
+   "evidence": [
+    "state/research/regate_sequential/f12_default_s0/reports/cycle_00128.json",
+    "tests/test_regate_sequential.py",
+    "tests/test_research_dataflow.py",
+    "tests/test_research_loop.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): c68.pattern_change changes influence (z12 degrade -> 0, z13 recovery); breaks.knowledge watches filed knowledge; planted world only; the research loop has never run with --source real (scripts/research_loop.py: 'only the planted source has been run') | earlier: [mapping 2026-09-29, read-only audit] Retirement evaluated in learner; health->retirement path missing.",
+   "last_run": "2026-09-30T12:38:18",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RA16",
@@ -1621,140 +1871,185 @@
    "owner": "Claude",
    "status": "IN_PROGRESS",
    "code_paths": [
-    "engine/learning/research_priority.py::barren_streak",
-    "engine/learning/research_policy.py::marginal_return_verdict"
+    "engine/learning/research_policy.py::marginal_return_verdict",
+    "engine/learning/research_priority.py::barren_streak"
    ],
    "tests": [],
-   "evidence": [],
-   "notes": "[mapping 2026-09-29, read-only audit] Planted-world only: learner.stage_research runs as a SHADOW behind livesim_loop2 --learner legit; state/learning/curator/ does not exist (never run on real data)."
+   "evidence": [
+    "state/research/regate_sequential/f12_default_s0/reports/cycle_00128.json",
+    "tests/test_regate_sequential.py",
+    "tests/test_research_dataflow.py",
+    "tests/test_research_loop.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): priorities.waste OK but 0 output in 129/129 cycles on s0/s3 (never flagged waste in a loop); dormancy unit-tested only; planted world only; the research loop has never run with --source real (scripts/research_loop.py: 'only the planted source has been run') | earlier: [mapping 2026-09-29, read-only audit] Planted-world only: learner.stage_research runs as a SHADOW behind livesim_loop2 --learner legit; state/learning/curator/ does not exist (never run on real data).",
+   "last_run": "2026-09-30T12:38:19",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RA17",
    "group": "AUTONOMOUS OPERATION",
    "description": "System redirects compute",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "TESTING",
    "code_paths": [
     "engine/learning/research_policy.py::TargetAllocator"
    ],
    "tests": [],
-   "evidence": [],
-   "notes": "[mapping 2026-09-29, read-only audit] Planted-world only: learner.stage_research runs as a SHADOW behind livesim_loop2 --learner legit; state/learning/curator/ does not exist (never run on real data)."
+   "evidence": [
+    "state/research/regate_sequential/f12_default_s0/reports/cycle_00128.json",
+    "tests/test_regate_sequential.py",
+    "tests/test_research_dataflow.py",
+    "tests/test_research_loop.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): allocate.controller OK 129/129 (shifts compute between volatility/direction); planted world only; the research loop has never run with --source real (scripts/research_loop.py: 'only the planted source has been run') | earlier: [mapping 2026-09-29, read-only audit] Planted-world only: learner.stage_research runs as a SHADOW behind livesim_loop2 --learner legit; state/learning/curator/ does not exist (never run on real data).",
+   "last_run": "2026-09-30T12:38:19",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RA18",
    "group": "AUTONOMOUS OPERATION",
    "description": "System learns which research methods work",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "TESTING",
    "code_paths": [
     "engine/learning/meta_learning.py"
    ],
    "tests": [],
-   "evidence": [],
-   "notes": "[mapping 2026-09-29, read-only audit] Planted-world only: learner.stage_research runs as a SHADOW behind livesim_loop2 --learner legit; state/learning/curator/ does not exist (never run on real data)."
+   "evidence": [
+    "state/research/regate_sequential/f12_default_s0/reports/cycle_00128.json",
+    "tests/test_regate_sequential.py",
+    "tests/test_research_dataflow.py",
+    "tests/test_research_loop.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): priorities.meta_research OK 33/33 cadence runs; RS16 transfer UNMEASURED; planted world only; the research loop has never run with --source real (scripts/research_loop.py: 'only the planted source has been run') | earlier: [mapping 2026-09-29, read-only audit] Planted-world only: learner.stage_research runs as a SHADOW behind livesim_loop2 --learner legit; state/learning/curator/ does not exist (never run on real data).",
+   "last_run": "2026-09-30T12:38:19",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RA19",
    "group": "AUTONOMOUS OPERATION",
    "description": "System continuously generates the next research agenda",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "TESTING",
    "code_paths": [
     "engine/learning/research_priority.py::agenda_markdown"
    ],
    "tests": [],
-   "evidence": [],
-   "notes": "[mapping 2026-09-29, read-only audit] Planted-world only: learner.stage_research runs as a SHADOW behind livesim_loop2 --learner legit; state/learning/curator/ does not exist (never run on real data)."
+   "evidence": [
+    "state/research/regate_sequential/f12_default_s0/reports/cycle_00128.json",
+    "tests/test_regate_sequential.py",
+    "tests/test_research_dataflow.py",
+    "tests/test_research_loop.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): questions + trees + priority every cycle; planted world only; the research loop has never run with --source real (scripts/research_loop.py: 'only the planted source has been run') | earlier: [mapping 2026-09-29, read-only audit] Planted-world only: learner.stage_research runs as a SHADOW behind livesim_loop2 --learner legit; state/learning/curator/ does not exist (never run on real data).",
+   "last_run": "2026-09-30T12:38:20",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RA20",
    "group": "AUTONOMOUS OPERATION",
    "description": "System can run indefinitely with checkpoints and recovery",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "TESTING",
    "code_paths": [
     "engine/learning/checkpoints.py"
    ],
    "tests": [],
-   "evidence": [],
-   "notes": "[mapping 2026-09-29, read-only audit] resume_verified / write_interruption have 0 callers."
+   "evidence": [
+    "state/research/regate_sequential/f12_default_s0/reports/cycle_00128.json",
+    "tests/test_regate_sequential.py",
+    "tests/test_research_dataflow.py",
+    "tests/test_research_loop.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): kill/resume invariant tested (test_research_loop.py, test_a_loop_killed_mid_cycle_resumes...); resume_verified/write_interruption now called from loop.py - note '0 callers' stale; longest run 129 cycles; planted world only; the research loop has never run with --source real (scripts/research_loop.py: 'only the planted source has been run') | earlier: [mapping 2026-09-29, read-only audit] resume_verified / write_interruption have 0 callers.",
+   "last_run": "2026-09-30T12:38:20",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RG01",
    "group": "FINAL GATE",
    "description": "No critical future-information pathway exists",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "FAILED",
    "code_paths": [
     "engine/leak_audit.py",
     "engine/learning/future_firewall.py"
    ],
    "tests": [],
    "evidence": [],
-   "notes": "[mapping 2026-09-29, read-only audit] Blind Test path audited (C56); research-brain pathways do not exist yet, so unaudited."
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): leak audit 30 Sep: channel 6 LEAK (year identifiable from m_* context), 4 QUARANTINED | earlier: [mapping 2026-09-29, read-only audit] Blind Test path audited (C56); research-brain pathways do not exist yet, so unaudited.",
+   "last_run": "2026-09-30T12:38:20",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RG02",
    "group": "FINAL GATE",
    "description": "No hidden year information reaches the trader",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "FAILED",
    "code_paths": [
-    "engine/learning/trader_view.py",
-    "engine/learning/curator.py"
+    "engine/learning/curator.py",
+    "engine/learning/trader_view.py"
    ],
    "tests": [],
    "evidence": [],
-   "notes": "[mapping 2026-09-29, read-only audit] assert_trader_path_clean runs in CI for the C64 trader; must be extended to engine/research outputs."
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): channel 6 = year information is present in the exposed feed (answered by C64 design, not closed) | earlier: [mapping 2026-09-29, read-only audit] assert_trader_path_clean runs in CI for the C64 trader; must be extended to engine/research outputs.",
+   "last_run": "2026-09-30T12:38:20",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RG03",
    "group": "FINAL GATE",
    "description": "No stock-identity memorization pathway remains",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "TESTING",
    "code_paths": [
     "engine/learning/identity_firewall.py"
    ],
    "tests": [],
    "evidence": [],
-   "notes": "[mapping 2026-09-29, read-only audit] As RG02."
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): identity firewall + quality-gate identity gate tested; no stock-identity pathway found by the audit (8e CLEAN) | earlier: [mapping 2026-09-29, read-only audit] As RG02.",
+   "last_run": "2026-09-30T12:38:21",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RG04",
    "group": "FINAL GATE",
    "description": "No survivor-only evaluation remains where it affects conclusions",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "FAILED",
    "code_paths": [
-    "scripts/fetch_delisted.py",
-    "engine/data_sources.py"
+    "engine/data_sources.py",
+    "scripts/fetch_delisted.py"
    ],
    "tests": [],
    "evidence": [],
-   "notes": "[mapping 2026-09-29, read-only audit] CURRENTLY VIOLATED: every RS artefact above is survivor-only; delisted fetch exists but is not in the evaluated panel."
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): CURRENTLY VIOLATED: 5,247-name panel, 1 name ends early; 77 delisted names priced | earlier: [mapping 2026-09-29, read-only audit] CURRENTLY VIOLATED: every RS artefact above is survivor-only; delisted fetch exists but is not in the evaluated panel.",
+   "last_run": "2026-09-30T12:38:21",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RG05",
    "group": "FINAL GATE",
    "description": "No major research result depends on a single lucky experiment",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "TESTING",
    "code_paths": [
     "engine/learning/promotion.py",
     "engine/learning/transfer.py"
    ],
    "tests": [],
    "evidence": [],
-   "notes": "[mapping 2026-09-29, read-only audit] Reproducibility gate exists; replication requirement does not."
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): replication gate: test_single_lucky_experiment_cannot_change_system | earlier: [mapping 2026-09-29, read-only audit] Reproducibility gate exists; replication requirement does not.",
+   "last_run": "2026-09-30T12:38:21",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RG06",
    "group": "FINAL GATE",
    "description": "No major promoted knowledge lacks OOS evidence",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "TESTING",
    "code_paths": [
     "engine/learning/promotion.py::gate_oos_confirmation",
     "engine/research/evidence.py",
@@ -1764,9 +2059,9 @@
    "evidence": [
     "state/research/regate_sequential/SUMMARY_final_loops.md"
    ],
-   "notes": "IN_PROGRESS (30 Sep): every item filed in the final-code loops passed the real gate with OOS evidence (sequential alpha-spending plan); no forced verdicts. | earlier: [mapping 2026-09-29, read-only audit] Gate exists; nothing has been promoted.",
-   "last_run": "2026-09-30T03:15:30",
-   "code_hash": "c53be43f67f8c296"
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): planted: every filed item passed OOS gate; real: nothing promoted | earlier: IN_PROGRESS (30 Sep): every item filed in the final-code loops passed the real gate with OOS evidence (sequential alpha-spending plan); no forced verdicts. | earlier: [mapping 2026-09-29, read-only audit] Gate exists; nothing has been promoted.",
+   "last_run": "2026-09-30T12:38:22",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RG07",
@@ -1800,17 +2095,19 @@
    "group": "FINAL GATE",
    "description": "No research branch consumes large compute without value accounting",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "TESTING",
    "code_paths": [
     "engine/research/value_accounting.py"
    ],
    "tests": [
     "tests/test_research_compute.py"
    ],
-   "evidence": [],
-   "notes": "IN_PROGRESS (F04 W-15): value_accounting.py exists; the guarantee that NO branch escapes accounting is unproven because the loop has never run with persistence. | earlier: [mapping 2026-09-29, read-only audit] Experiment value accounting is missing.",
-   "last_run": "2026-09-29T17:08:56",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_research_compute.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): learn.value OK every cycle; value_accounting tested | earlier: IN_PROGRESS (F04 W-15): value_accounting.py exists; the guarantee that NO branch escapes accounting is unproven because the loop has never run with persistence. | earlier: [mapping 2026-09-29, read-only audit] Experiment value accounting is missing.",
+   "last_run": "2026-09-30T12:38:22",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "RG10",

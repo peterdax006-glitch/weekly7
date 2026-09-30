@@ -120,3 +120,13 @@ def test_integrity_fails_closed_on_tampered_or_missing_contract(tmp_path, monkey
         c.unlink()
     with pytest.raises(P.IntegrityError):
         P.verify_integrity()
+
+
+def test_engine_tree_hash_does_not_depend_on_what_is_imported():
+    """C75 Phase 0: current_code_hash() changed as more modules were imported, so identical results disagreed."""
+    import importlib
+    from engine.learning.core import current_code_hash
+    a = current_code_hash()
+    importlib.import_module("engine.research.hypothesis_tree")          # load more engine modules
+    importlib.import_module("engine.research.symmetry")
+    assert current_code_hash() == a == P.engine_tree_hash() and len(a) == 16

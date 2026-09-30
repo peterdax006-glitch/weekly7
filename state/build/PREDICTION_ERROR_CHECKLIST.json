@@ -16,7 +16,7 @@
    "group": "CHECKLIST",
    "description": "Checklist A: IMMUTABLE PRE-PREDICTION EXPECTATION",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/research/expectations.py",
     "engine/research/outcomes.py",
@@ -25,17 +25,19 @@
    "tests": [
     "tests/test_research_expectations.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED — NOT VALIDATED (P01): frozen hash-chained expectations (rewrite/late/future refused, forged chain caught), whole-path outcome reconstruction after maturity only, ten separate error components with no total (exit error independent of the return predictor and of the ±1pp tolerance), honest_tolerance with Wilson CI; schema compatible with P02 (tested). GAP: no model yet supplies the trajectory fields (path_model) - P05/P06.",
-   "last_run": "2026-09-29T16:39:44",
-   "code_hash": "39566f8d9a0884d1"
+   "evidence": [
+    "tests/test_research_expectations.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | BLOCKER for VALIDATED: in the default W02 planted loop evaluate.two_stage takes 0 positions in 129/129 cycles (NOT_PREDICTED_MOVER / OUT_OF_BAND / LOW_CONFIDENCE / SHORT_DISABLED), so no expectation/outcome/error is produced there | earlier: IMPLEMENTED — NOT VALIDATED (P01): frozen hash-chained expectations (rewrite/late/future refused, forged chain caught), whole-path outcome reconstruction after maturity only, ten separate error components with no total (exit error independent of the return predictor and of the ±1pp tolerance), honest_tolerance with Wilson CI; schema compatible with P02 (tested). GAP: no model yet supplies the trajectory fields (path_model) - P05/P06.",
+   "last_run": "2026-09-30T12:38:22",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "PEB",
    "group": "CHECKLIST",
    "description": "Checklist B: COMPLETE OUTCOME RECONSTRUCTION",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/research/expectations.py",
     "engine/research/outcomes.py",
@@ -44,17 +46,19 @@
    "tests": [
     "tests/test_research_expectations.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED — NOT VALIDATED (P01): frozen hash-chained expectations (rewrite/late/future refused, forged chain caught), whole-path outcome reconstruction after maturity only, ten separate error components with no total (exit error independent of the return predictor and of the ±1pp tolerance), honest_tolerance with Wilson CI; schema compatible with P02 (tested). GAP: no model yet supplies the trajectory fields (path_model) - P05/P06.",
-   "last_run": "2026-09-29T16:39:44",
-   "code_hash": "39566f8d9a0884d1"
+   "evidence": [
+    "tests/test_research_expectations.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | BLOCKER for VALIDATED: in the default W02 planted loop evaluate.two_stage takes 0 positions in 129/129 cycles (NOT_PREDICTED_MOVER / OUT_OF_BAND / LOW_CONFIDENCE / SHORT_DISABLED), so no expectation/outcome/error is produced there | earlier: IMPLEMENTED — NOT VALIDATED (P01): frozen hash-chained expectations (rewrite/late/future refused, forged chain caught), whole-path outcome reconstruction after maturity only, ten separate error components with no total (exit error independent of the return predictor and of the ±1pp tolerance), honest_tolerance with Wilson CI; schema compatible with P02 (tested). GAP: no model yet supplies the trajectory fields (path_model) - P05/P06.",
+   "last_run": "2026-09-30T12:38:22",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "PEC",
    "group": "CHECKLIST",
    "description": "Checklist C: PREDICTION ERROR ENGINE",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/research/expectations.py",
     "engine/research/outcomes.py",
@@ -63,51 +67,57 @@
    "tests": [
     "tests/test_research_expectations.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED — NOT VALIDATED (P01): frozen hash-chained expectations (rewrite/late/future refused, forged chain caught), whole-path outcome reconstruction after maturity only, ten separate error components with no total (exit error independent of the return predictor and of the ±1pp tolerance), honest_tolerance with Wilson CI; schema compatible with P02 (tested). GAP: no model yet supplies the trajectory fields (path_model) - P05/P06.",
-   "last_run": "2026-09-29T16:39:44",
-   "code_hash": "39566f8d9a0884d1"
+   "evidence": [
+    "tests/test_research_expectations.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | BLOCKER for VALIDATED: in the default W02 planted loop evaluate.two_stage takes 0 positions in 129/129 cycles (NOT_PREDICTED_MOVER / OUT_OF_BAND / LOW_CONFIDENCE / SHORT_DISABLED), so no expectation/outcome/error is produced there | earlier: IMPLEMENTED — NOT VALIDATED (P01): frozen hash-chained expectations (rewrite/late/future refused, forged chain caught), whole-path outcome reconstruction after maturity only, ten separate error components with no total (exit error independent of the return predictor and of the ±1pp tolerance), honest_tolerance with Wilson CI; schema compatible with P02 (tested). GAP: no model yet supplies the trajectory fields (path_model) - P05/P06.",
+   "last_run": "2026-09-30T12:38:23",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "PED",
    "group": "CHECKLIST",
    "description": "Checklist D: ERROR-SIZE-BASED RESEARCH",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/research/error_research.py"
    ],
    "tests": [
     "tests/test_research_error_research.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED — NOT VALIDATED (P02): intensity = error x confidence x repeatability x value x significance feeding the EXISTING priority engine; confident-wrong 15-question investigation (unanswered stays unanswered); error-pattern escalation with materiality gate; depth ledger; 11 self-research questions. 26 tests.",
-   "last_run": "2026-09-29T16:36:35",
-   "code_hash": "39566f8d9a0884d1"
+   "evidence": [
+    "tests/test_research_error_research.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | earlier: IMPLEMENTED — NOT VALIDATED (P02): intensity = error x confidence x repeatability x value x significance feeding the EXISTING priority engine; confident-wrong 15-question investigation (unanswered stays unanswered); error-pattern escalation with materiality gate; depth ledger; 11 self-research questions. 26 tests.",
+   "last_run": "2026-09-30T12:38:23",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "PEE",
    "group": "CHECKLIST",
    "description": "Checklist E: CONFIDENT-WRONG DETECTOR",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/research/error_research.py"
    ],
    "tests": [
     "tests/test_research_error_research.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED — NOT VALIDATED (P02): intensity = error x confidence x repeatability x value x significance feeding the EXISTING priority engine; confident-wrong 15-question investigation (unanswered stays unanswered); error-pattern escalation with materiality gate; depth ledger; 11 self-research questions. 26 tests.",
-   "last_run": "2026-09-29T16:36:35",
-   "code_hash": "39566f8d9a0884d1"
+   "evidence": [
+    "tests/test_research_error_research.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | earlier: IMPLEMENTED — NOT VALIDATED (P02): intensity = error x confidence x repeatability x value x significance feeding the EXISTING priority engine; confident-wrong 15-question investigation (unanswered stays unanswered); error-pattern escalation with materiality gate; depth ledger; 11 self-research questions. 26 tests.",
+   "last_run": "2026-09-30T12:38:23",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "PEF",
    "group": "CHECKLIST",
    "description": "Checklist F: MARKET EXPECTATION VS MARKET REALITY",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/research/change_points.py",
     "engine/research/market_expectations.py",
@@ -116,17 +126,19 @@
    "tests": [
     "tests/test_research_market_change.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 W-15): P03 modules change_points.py, market_expectations.py, regime_memory.py and tests/test_research_market_change.py exist on disk. Unit level only; UNREACHED from the research loop (ledger headline 4). | earlier: IMPLEMENTED — NOT VALIDATED (P03): market expectations vs reality (expansion + contraction, each explanation tested with BH, 'candidate selection failed' as an explicit alternative, untestable != unsupported); CUSUM change points on all 13 checklist-I streams with simulated false-alarm calibration; single-stock vs sector vs market scope; early warning; regime-change memory with every W field; forward-only proven (state at t bit-identical when the future is scrambled; a leaky runner fails). DUPLICATE TO FIX: market_expectations keeps its own small hash chain - move onto archive lanes (P06). 43 tests.",
-   "last_run": "2026-09-29T17:09:01",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_research_market_change.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | note 'UNREACHED from the research loop' is stale: P06 registered c68.market_regime (OK 129/129 in the clean loops) and reachability shows all 13 C68 modules REACHED | earlier: IMPLEMENTED - NOT VALIDATED (F04 W-15): P03 modules change_points.py, market_expectations.py, regime_memory.py and tests/test_research_market_change.py exist on disk. Unit level only; UNREACHED from the research loop (ledger headline 4). | earlier: IMPLEMENTED — NOT VALIDATED (P03): market expectations vs reality (expansion + contraction, each explanation tested with BH, 'candidate selection failed' as an explicit alternative, untestable != unsupported); CUSUM change points on all 13 checklist-I streams with simulated false-alarm calibration; single-stock vs sector vs market scope; early warning; regime-change memory with every W field; forward-only proven (state at t bit-identical when the future is scrambled; a leaky runner fails). DUPLICATE TO FIX: market_expectations keeps its own small hash chain - move onto archive lanes (P06). 43 tests.",
+   "last_run": "2026-09-30T12:38:24",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "PEG",
    "group": "CHECKLIST",
    "description": "Checklist G: MARKET CONTRACTION RESEARCH",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/research/change_points.py",
     "engine/research/market_expectations.py",
@@ -135,17 +147,19 @@
    "tests": [
     "tests/test_research_market_change.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 W-15): P03 modules change_points.py, market_expectations.py, regime_memory.py and tests/test_research_market_change.py exist on disk. Unit level only; UNREACHED from the research loop (ledger headline 4). | earlier: IMPLEMENTED — NOT VALIDATED (P03): market expectations vs reality (expansion + contraction, each explanation tested with BH, 'candidate selection failed' as an explicit alternative, untestable != unsupported); CUSUM change points on all 13 checklist-I streams with simulated false-alarm calibration; single-stock vs sector vs market scope; early warning; regime-change memory with every W field; forward-only proven (state at t bit-identical when the future is scrambled; a leaky runner fails). DUPLICATE TO FIX: market_expectations keeps its own small hash chain - move onto archive lanes (P06). 43 tests.",
-   "last_run": "2026-09-29T17:09:01",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_research_market_change.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | note 'UNREACHED from the research loop' is stale: P06 registered c68.market_regime (OK 129/129 in the clean loops) and reachability shows all 13 C68 modules REACHED | earlier: IMPLEMENTED - NOT VALIDATED (F04 W-15): P03 modules change_points.py, market_expectations.py, regime_memory.py and tests/test_research_market_change.py exist on disk. Unit level only; UNREACHED from the research loop (ledger headline 4). | earlier: IMPLEMENTED — NOT VALIDATED (P03): market expectations vs reality (expansion + contraction, each explanation tested with BH, 'candidate selection failed' as an explicit alternative, untestable != unsupported); CUSUM change points on all 13 checklist-I streams with simulated false-alarm calibration; single-stock vs sector vs market scope; early warning; regime-change memory with every W field; forward-only proven (state at t bit-identical when the future is scrambled; a leaky runner fails). DUPLICATE TO FIX: market_expectations keeps its own small hash chain - move onto archive lanes (P06). 43 tests.",
+   "last_run": "2026-09-30T12:38:24",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "PEH",
    "group": "CHECKLIST",
    "description": "Checklist H: PATTERN CHANGE DETECTION",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/research/pattern_change.py",
     "engine/research/what_changed.py"
@@ -153,17 +167,19 @@
    "tests": [
     "tests/test_research_what_changed.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED — NOT VALIDATED (P04): per-pattern reliability profile + 9-way change classification (never deleted, investigate first), ten-level what-changed tree ending CAUSE->...->TEST with pre-outcome detectability, five-way knowability (unknowable preserved), 11-step discovery testing via replication + quality gate; forward-time scramble test passes. 51 tests.",
-   "last_run": "2026-09-29T16:44:18",
-   "code_hash": "39566f8d9a0884d1"
+   "evidence": [
+    "tests/test_research_what_changed.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | earlier: IMPLEMENTED — NOT VALIDATED (P04): per-pattern reliability profile + 9-way change classification (never deleted, investigate first), ten-level what-changed tree ending CAUSE->...->TEST with pre-outcome detectability, five-way knowability (unknowable preserved), 11-step discovery testing via replication + quality gate; forward-time scramble test passes. 51 tests.",
+   "last_run": "2026-09-30T12:38:24",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "PEI",
    "group": "CHECKLIST",
    "description": "Checklist I: CHANGE-POINT DETECTION",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/research/change_points.py",
     "engine/research/market_expectations.py",
@@ -172,17 +188,19 @@
    "tests": [
     "tests/test_research_market_change.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 W-15): P03 modules change_points.py, market_expectations.py, regime_memory.py and tests/test_research_market_change.py exist on disk. Unit level only; UNREACHED from the research loop (ledger headline 4). | earlier: IMPLEMENTED — NOT VALIDATED (P03): market expectations vs reality (expansion + contraction, each explanation tested with BH, 'candidate selection failed' as an explicit alternative, untestable != unsupported); CUSUM change points on all 13 checklist-I streams with simulated false-alarm calibration; single-stock vs sector vs market scope; early warning; regime-change memory with every W field; forward-only proven (state at t bit-identical when the future is scrambled; a leaky runner fails). DUPLICATE TO FIX: market_expectations keeps its own small hash chain - move onto archive lanes (P06). 43 tests.",
-   "last_run": "2026-09-29T17:09:01",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_research_market_change.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | note 'UNREACHED from the research loop' is stale: P06 registered c68.market_regime (OK 129/129 in the clean loops) and reachability shows all 13 C68 modules REACHED | earlier: IMPLEMENTED - NOT VALIDATED (F04 W-15): P03 modules change_points.py, market_expectations.py, regime_memory.py and tests/test_research_market_change.py exist on disk. Unit level only; UNREACHED from the research loop (ledger headline 4). | earlier: IMPLEMENTED — NOT VALIDATED (P03): market expectations vs reality (expansion + contraction, each explanation tested with BH, 'candidate selection failed' as an explicit alternative, untestable != unsupported); CUSUM change points on all 13 checklist-I streams with simulated false-alarm calibration; single-stock vs sector vs market scope; early warning; regime-change memory with every W field; forward-only proven (state at t bit-identical when the future is scrambled; a leaky runner fails). DUPLICATE TO FIX: market_expectations keeps its own small hash chain - move onto archive lanes (P06). 43 tests.",
+   "last_run": "2026-09-30T12:38:24",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "PEJ",
    "group": "CHECKLIST",
    "description": "Checklist J: \"WHAT CHANGED?\" INVESTIGATION TREE",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/research/pattern_change.py",
     "engine/research/what_changed.py"
@@ -190,17 +208,19 @@
    "tests": [
     "tests/test_research_what_changed.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED — NOT VALIDATED (P04): per-pattern reliability profile + 9-way change classification (never deleted, investigate first), ten-level what-changed tree ending CAUSE->...->TEST with pre-outcome detectability, five-way knowability (unknowable preserved), 11-step discovery testing via replication + quality gate; forward-time scramble test passes. 51 tests.",
-   "last_run": "2026-09-29T16:44:18",
-   "code_hash": "39566f8d9a0884d1"
+   "evidence": [
+    "tests/test_research_what_changed.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | earlier: IMPLEMENTED — NOT VALIDATED (P04): per-pattern reliability profile + 9-way change classification (never deleted, investigate first), ten-level what-changed tree ending CAUSE->...->TEST with pre-outcome detectability, five-way knowability (unknowable preserved), 11-step discovery testing via replication + quality gate; forward-time scramble test passes. 51 tests.",
+   "last_run": "2026-09-30T12:38:25",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "PEK",
    "group": "CHECKLIST",
    "description": "Checklist K: KNOWABILITY CLASSIFICATION",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/research/pattern_change.py",
     "engine/research/what_changed.py"
@@ -208,17 +228,19 @@
    "tests": [
     "tests/test_research_what_changed.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED — NOT VALIDATED (P04): per-pattern reliability profile + 9-way change classification (never deleted, investigate first), ten-level what-changed tree ending CAUSE->...->TEST with pre-outcome detectability, five-way knowability (unknowable preserved), 11-step discovery testing via replication + quality gate; forward-time scramble test passes. 51 tests.",
-   "last_run": "2026-09-29T16:44:18",
-   "code_hash": "39566f8d9a0884d1"
+   "evidence": [
+    "tests/test_research_what_changed.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | earlier: IMPLEMENTED — NOT VALIDATED (P04): per-pattern reliability profile + 9-way change classification (never deleted, investigate first), ten-level what-changed tree ending CAUSE->...->TEST with pre-outcome detectability, five-way knowability (unknowable preserved), 11-step discovery testing via replication + quality gate; forward-time scramble test passes. 51 tests.",
+   "last_run": "2026-09-30T12:38:25",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "PEL",
    "group": "CHECKLIST",
    "description": "Checklist L: 5–10% SELECTION CONSTRAINT",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/research/calibration_target.py",
     "engine/research/exit_research.py",
@@ -228,17 +250,19 @@
    "tests": [
     "tests/test_research_selection_exits.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED — NOT VALIDATED (P05, Opus): selection only when predicted realisable gain under the INTENDED exit policy is in +5..+10%; each checklist-M abuse detected (parametrised test) incl. suppressed losers and cherry-picking; learned exit (past-only, decides at the close, fills next open) entered into the existing exits tournament; exits proven identical when the ±1pp target changes + an audit that catches a target-aware exit; honest ±1pp with OOS split; self-correction tests fixes independently and promotes only through the quality gate; PathModel supplies P01's trajectory fields. 31 tests.",
-   "last_run": "2026-09-29T16:44:52",
-   "code_hash": "39566f8d9a0884d1"
+   "evidence": [
+    "tests/test_research_selection_exits.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | earlier: IMPLEMENTED — NOT VALIDATED (P05, Opus): selection only when predicted realisable gain under the INTENDED exit policy is in +5..+10%; each checklist-M abuse detected (parametrised test) incl. suppressed losers and cherry-picking; learned exit (past-only, decides at the close, fills next open) entered into the existing exits tournament; exits proven identical when the ±1pp target changes + an audit that catches a target-aware exit; honest ±1pp with OOS split; self-correction tests fixes independently and promotes only through the quality gate; PathModel supplies P01's trajectory fields. 31 tests.",
+   "last_run": "2026-09-30T12:38:25",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "PEM",
    "group": "CHECKLIST",
    "description": "Checklist M: DO NOT GAME THE 5–10% STATISTIC",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/research/calibration_target.py",
     "engine/research/exit_research.py",
@@ -248,17 +272,19 @@
    "tests": [
     "tests/test_research_selection_exits.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED — NOT VALIDATED (P05, Opus): selection only when predicted realisable gain under the INTENDED exit policy is in +5..+10%; each checklist-M abuse detected (parametrised test) incl. suppressed losers and cherry-picking; learned exit (past-only, decides at the close, fills next open) entered into the existing exits tournament; exits proven identical when the ±1pp target changes + an audit that catches a target-aware exit; honest ±1pp with OOS split; self-correction tests fixes independently and promotes only through the quality gate; PathModel supplies P01's trajectory fields. 31 tests.",
-   "last_run": "2026-09-29T16:44:52",
-   "code_hash": "39566f8d9a0884d1"
+   "evidence": [
+    "tests/test_research_selection_exits.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | earlier: IMPLEMENTED — NOT VALIDATED (P05, Opus): selection only when predicted realisable gain under the INTENDED exit policy is in +5..+10%; each checklist-M abuse detected (parametrised test) incl. suppressed losers and cherry-picking; learned exit (past-only, decides at the close, fills next open) entered into the existing exits tournament; exits proven identical when the ±1pp target changes + an audit that catches a target-aware exit; honest ±1pp with OOS split; self-correction tests fixes independently and promotes only through the quality gate; PathModel supplies P01's trajectory fields. 31 tests.",
+   "last_run": "2026-09-30T12:38:26",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "PEN",
    "group": "CHECKLIST",
    "description": "Checklist N: OPTIMAL EXIT RESEARCH",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/research/calibration_target.py",
     "engine/research/exit_research.py",
@@ -268,17 +294,19 @@
    "tests": [
     "tests/test_research_selection_exits.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED — NOT VALIDATED (P05, Opus): selection only when predicted realisable gain under the INTENDED exit policy is in +5..+10%; each checklist-M abuse detected (parametrised test) incl. suppressed losers and cherry-picking; learned exit (past-only, decides at the close, fills next open) entered into the existing exits tournament; exits proven identical when the ±1pp target changes + an audit that catches a target-aware exit; honest ±1pp with OOS split; self-correction tests fixes independently and promotes only through the quality gate; PathModel supplies P01's trajectory fields. 31 tests.",
-   "last_run": "2026-09-29T16:44:52",
-   "code_hash": "39566f8d9a0884d1"
+   "evidence": [
+    "tests/test_research_selection_exits.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | earlier: IMPLEMENTED — NOT VALIDATED (P05, Opus): selection only when predicted realisable gain under the INTENDED exit policy is in +5..+10%; each checklist-M abuse detected (parametrised test) incl. suppressed losers and cherry-picking; learned exit (past-only, decides at the close, fills next open) entered into the existing exits tournament; exits proven identical when the ±1pp target changes + an audit that catches a target-aware exit; honest ±1pp with OOS split; self-correction tests fixes independently and promotes only through the quality gate; PathModel supplies P01's trajectory fields. 31 tests.",
+   "last_run": "2026-09-30T12:38:26",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "PEO",
    "group": "CHECKLIST",
    "description": "Checklist O: EXIT INDEPENDENCE RULE",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/research/calibration_target.py",
     "engine/research/exit_research.py",
@@ -288,17 +316,19 @@
    "tests": [
     "tests/test_research_selection_exits.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED — NOT VALIDATED (P05, Opus): selection only when predicted realisable gain under the INTENDED exit policy is in +5..+10%; each checklist-M abuse detected (parametrised test) incl. suppressed losers and cherry-picking; learned exit (past-only, decides at the close, fills next open) entered into the existing exits tournament; exits proven identical when the ±1pp target changes + an audit that catches a target-aware exit; honest ±1pp with OOS split; self-correction tests fixes independently and promotes only through the quality gate; PathModel supplies P01's trajectory fields. 31 tests.",
-   "last_run": "2026-09-29T16:44:52",
-   "code_hash": "39566f8d9a0884d1"
+   "evidence": [
+    "tests/test_research_selection_exits.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | earlier: IMPLEMENTED — NOT VALIDATED (P05, Opus): selection only when predicted realisable gain under the INTENDED exit policy is in +5..+10%; each checklist-M abuse detected (parametrised test) incl. suppressed losers and cherry-picking; learned exit (past-only, decides at the close, fills next open) entered into the existing exits tournament; exits proven identical when the ±1pp target changes + an audit that catches a target-aware exit; honest ±1pp with OOS split; self-correction tests fixes independently and promotes only through the quality gate; PathModel supplies P01's trajectory fields. 31 tests.",
+   "last_run": "2026-09-30T12:38:26",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "PEP",
    "group": "CHECKLIST",
    "description": "Checklist P: ±1 PERCENTAGE-POINT CALIBRATION TARGET",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/research/calibration_target.py",
     "engine/research/exit_research.py",
@@ -308,17 +338,19 @@
    "tests": [
     "tests/test_research_selection_exits.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED — NOT VALIDATED (P05, Opus): selection only when predicted realisable gain under the INTENDED exit policy is in +5..+10%; each checklist-M abuse detected (parametrised test) incl. suppressed losers and cherry-picking; learned exit (past-only, decides at the close, fills next open) entered into the existing exits tournament; exits proven identical when the ±1pp target changes + an audit that catches a target-aware exit; honest ±1pp with OOS split; self-correction tests fixes independently and promotes only through the quality gate; PathModel supplies P01's trajectory fields. 31 tests.",
-   "last_run": "2026-09-29T16:44:52",
-   "code_hash": "39566f8d9a0884d1"
+   "evidence": [
+    "tests/test_research_selection_exits.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | earlier: IMPLEMENTED — NOT VALIDATED (P05, Opus): selection only when predicted realisable gain under the INTENDED exit policy is in +5..+10%; each checklist-M abuse detected (parametrised test) incl. suppressed losers and cherry-picking; learned exit (past-only, decides at the close, fills next open) entered into the existing exits tournament; exits proven identical when the ±1pp target changes + an audit that catches a target-aware exit; honest ±1pp with OOS split; self-correction tests fixes independently and promotes only through the quality gate; PathModel supplies P01's trajectory fields. 31 tests.",
+   "last_run": "2026-09-30T12:38:26",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "PEQ",
    "group": "CHECKLIST",
    "description": "Checklist Q: SELF-CORRECTING PREDICTION NETWORK",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/research/calibration_target.py",
     "engine/research/exit_research.py",
@@ -328,17 +360,19 @@
    "tests": [
     "tests/test_research_selection_exits.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED — NOT VALIDATED (P05, Opus): selection only when predicted realisable gain under the INTENDED exit policy is in +5..+10%; each checklist-M abuse detected (parametrised test) incl. suppressed losers and cherry-picking; learned exit (past-only, decides at the close, fills next open) entered into the existing exits tournament; exits proven identical when the ±1pp target changes + an audit that catches a target-aware exit; honest ±1pp with OOS split; self-correction tests fixes independently and promotes only through the quality gate; PathModel supplies P01's trajectory fields. 31 tests.",
-   "last_run": "2026-09-29T16:44:52",
-   "code_hash": "39566f8d9a0884d1"
+   "evidence": [
+    "tests/test_research_selection_exits.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | earlier: IMPLEMENTED — NOT VALIDATED (P05, Opus): selection only when predicted realisable gain under the INTENDED exit policy is in +5..+10%; each checklist-M abuse detected (parametrised test) incl. suppressed losers and cherry-picking; learned exit (past-only, decides at the close, fills next open) entered into the existing exits tournament; exits proven identical when the ±1pp target changes + an audit that catches a target-aware exit; honest ±1pp with OOS split; self-correction tests fixes independently and promotes only through the quality gate; PathModel supplies P01's trajectory fields. 31 tests.",
+   "last_run": "2026-09-30T12:38:27",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "PER",
    "group": "CHECKLIST",
    "description": "Checklist R: EARLY REGIME WARNING SYSTEM",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/research/change_points.py",
     "engine/research/market_expectations.py",
@@ -347,68 +381,76 @@
    "tests": [
     "tests/test_research_market_change.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 W-15): P03 modules change_points.py, market_expectations.py, regime_memory.py and tests/test_research_market_change.py exist on disk. Unit level only; UNREACHED from the research loop (ledger headline 4). | earlier: IMPLEMENTED — NOT VALIDATED (P03): market expectations vs reality (expansion + contraction, each explanation tested with BH, 'candidate selection failed' as an explicit alternative, untestable != unsupported); CUSUM change points on all 13 checklist-I streams with simulated false-alarm calibration; single-stock vs sector vs market scope; early warning; regime-change memory with every W field; forward-only proven (state at t bit-identical when the future is scrambled; a leaky runner fails). DUPLICATE TO FIX: market_expectations keeps its own small hash chain - move onto archive lanes (P06). 43 tests.",
-   "last_run": "2026-09-29T17:09:02",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_research_market_change.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | note 'UNREACHED from the research loop' is stale: P06 registered c68.market_regime (OK 129/129 in the clean loops) and reachability shows all 13 C68 modules REACHED | earlier: IMPLEMENTED - NOT VALIDATED (F04 W-15): P03 modules change_points.py, market_expectations.py, regime_memory.py and tests/test_research_market_change.py exist on disk. Unit level only; UNREACHED from the research loop (ledger headline 4). | earlier: IMPLEMENTED — NOT VALIDATED (P03): market expectations vs reality (expansion + contraction, each explanation tested with BH, 'candidate selection failed' as an explicit alternative, untestable != unsupported); CUSUM change points on all 13 checklist-I streams with simulated false-alarm calibration; single-stock vs sector vs market scope; early warning; regime-change memory with every W field; forward-only proven (state at t bit-identical when the future is scrambled; a leaky runner fails). DUPLICATE TO FIX: market_expectations keeps its own small hash chain - move onto archive lanes (P06). 43 tests.",
+   "last_run": "2026-09-30T12:38:27",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "PES",
    "group": "CHECKLIST",
    "description": "Checklist S: REPEATED ERROR ESCALATION",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/research/error_research.py"
    ],
    "tests": [
     "tests/test_research_error_research.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED — NOT VALIDATED (P02): intensity = error x confidence x repeatability x value x significance feeding the EXISTING priority engine; confident-wrong 15-question investigation (unanswered stays unanswered); error-pattern escalation with materiality gate; depth ledger; 11 self-research questions. 26 tests.",
-   "last_run": "2026-09-29T16:36:35",
-   "code_hash": "39566f8d9a0884d1"
+   "evidence": [
+    "tests/test_research_error_research.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | earlier: IMPLEMENTED — NOT VALIDATED (P02): intensity = error x confidence x repeatability x value x significance feeding the EXISTING priority engine; confident-wrong 15-question investigation (unanswered stays unanswered); error-pattern escalation with materiality gate; depth ledger; 11 self-research questions. 26 tests.",
+   "last_run": "2026-09-30T12:38:27",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "PET",
    "group": "CHECKLIST",
    "description": "Checklist T: SELF-RESEARCH LOOP",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/research/error_research.py"
    ],
    "tests": [
     "tests/test_research_error_research.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED — NOT VALIDATED (P02): intensity = error x confidence x repeatability x value x significance feeding the EXISTING priority engine; confident-wrong 15-question investigation (unanswered stays unanswered); error-pattern escalation with materiality gate; depth ledger; 11 self-research questions. 26 tests.",
-   "last_run": "2026-09-29T16:36:35",
-   "code_hash": "39566f8d9a0884d1"
+   "evidence": [
+    "tests/test_research_error_research.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | earlier: IMPLEMENTED — NOT VALIDATED (P02): intensity = error x confidence x repeatability x value x significance feeding the EXISTING priority engine; confident-wrong 15-question investigation (unanswered stays unanswered); error-pattern escalation with materiality gate; depth ledger; 11 self-research questions. 26 tests.",
+   "last_run": "2026-09-30T12:38:27",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "PEU",
    "group": "CHECKLIST",
    "description": "Checklist U: COMPUTE ALLOCATION",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/research/error_research.py"
    ],
    "tests": [
     "tests/test_research_error_research.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED — NOT VALIDATED (P02): intensity = error x confidence x repeatability x value x significance feeding the EXISTING priority engine; confident-wrong 15-question investigation (unanswered stays unanswered); error-pattern escalation with materiality gate; depth ledger; 11 self-research questions. 26 tests.",
-   "last_run": "2026-09-29T16:36:35",
-   "code_hash": "39566f8d9a0884d1"
+   "evidence": [
+    "tests/test_research_error_research.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | earlier: IMPLEMENTED — NOT VALIDATED (P02): intensity = error x confidence x repeatability x value x significance feeding the EXISTING priority engine; confident-wrong 15-question investigation (unanswered stays unanswered); error-pattern escalation with materiality gate; depth ledger; 11 self-research questions. 26 tests.",
+   "last_run": "2026-09-30T12:38:28",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "PEV",
    "group": "CHECKLIST",
    "description": "Checklist V: EVERY DISCOVERY MUST BE TESTABLE",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/research/pattern_change.py",
     "engine/research/what_changed.py"
@@ -416,17 +458,19 @@
    "tests": [
     "tests/test_research_what_changed.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED — NOT VALIDATED (P04): per-pattern reliability profile + 9-way change classification (never deleted, investigate first), ten-level what-changed tree ending CAUSE->...->TEST with pre-outcome detectability, five-way knowability (unknowable preserved), 11-step discovery testing via replication + quality gate; forward-time scramble test passes. 51 tests.",
-   "last_run": "2026-09-29T16:44:18",
-   "code_hash": "39566f8d9a0884d1"
+   "evidence": [
+    "tests/test_research_what_changed.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | earlier: IMPLEMENTED — NOT VALIDATED (P04): per-pattern reliability profile + 9-way change classification (never deleted, investigate first), ten-level what-changed tree ending CAUSE->...->TEST with pre-outcome detectability, five-way knowability (unknowable preserved), 11-step discovery testing via replication + quality gate; forward-time scramble test passes. 51 tests.",
+   "last_run": "2026-09-30T12:38:28",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "PEW",
    "group": "CHECKLIST",
    "description": "Checklist W: REGIME-CHANGE MEMORY",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/research/change_points.py",
     "engine/research/market_expectations.py",
@@ -435,17 +479,19 @@
    "tests": [
     "tests/test_research_market_change.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 W-15): P03 modules change_points.py, market_expectations.py, regime_memory.py and tests/test_research_market_change.py exist on disk. Unit level only; UNREACHED from the research loop (ledger headline 4). | earlier: IMPLEMENTED — NOT VALIDATED (P03): market expectations vs reality (expansion + contraction, each explanation tested with BH, 'candidate selection failed' as an explicit alternative, untestable != unsupported); CUSUM change points on all 13 checklist-I streams with simulated false-alarm calibration; single-stock vs sector vs market scope; early warning; regime-change memory with every W field; forward-only proven (state at t bit-identical when the future is scrambled; a leaky runner fails). DUPLICATE TO FIX: market_expectations keeps its own small hash chain - move onto archive lanes (P06). 43 tests.",
-   "last_run": "2026-09-29T17:09:02",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_research_market_change.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | note 'UNREACHED from the research loop' is stale: P06 registered c68.market_regime (OK 129/129 in the clean loops) and reachability shows all 13 C68 modules REACHED | earlier: IMPLEMENTED - NOT VALIDATED (F04 W-15): P03 modules change_points.py, market_expectations.py, regime_memory.py and tests/test_research_market_change.py exist on disk. Unit level only; UNREACHED from the research loop (ledger headline 4). | earlier: IMPLEMENTED — NOT VALIDATED (P03): market expectations vs reality (expansion + contraction, each explanation tested with BH, 'candidate selection failed' as an explicit alternative, untestable != unsupported); CUSUM change points on all 13 checklist-I streams with simulated false-alarm calibration; single-stock vs sector vs market scope; early warning; regime-change memory with every W field; forward-only proven (state at t bit-identical when the future is scrambled; a leaky runner fails). DUPLICATE TO FIX: market_expectations keeps its own small hash chain - move onto archive lanes (P06). 43 tests.",
+   "last_run": "2026-09-30T12:38:28",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "PEX",
    "group": "CHECKLIST",
    "description": "Checklist X: NO RETROSPECTIVE REGIME CHEATING",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/research/change_points.py",
     "engine/research/market_expectations.py",
@@ -454,17 +500,19 @@
    "tests": [
     "tests/test_research_market_change.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 W-15): P03 modules change_points.py, market_expectations.py, regime_memory.py and tests/test_research_market_change.py exist on disk. Unit level only; UNREACHED from the research loop (ledger headline 4). | earlier: IMPLEMENTED — NOT VALIDATED (P03): market expectations vs reality (expansion + contraction, each explanation tested with BH, 'candidate selection failed' as an explicit alternative, untestable != unsupported); CUSUM change points on all 13 checklist-I streams with simulated false-alarm calibration; single-stock vs sector vs market scope; early warning; regime-change memory with every W field; forward-only proven (state at t bit-identical when the future is scrambled; a leaky runner fails). DUPLICATE TO FIX: market_expectations keeps its own small hash chain - move onto archive lanes (P06). 43 tests.",
-   "last_run": "2026-09-29T17:09:02",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_research_market_change.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | note 'UNREACHED from the research loop' is stale: P06 registered c68.market_regime (OK 129/129 in the clean loops) and reachability shows all 13 C68 modules REACHED | earlier: IMPLEMENTED - NOT VALIDATED (F04 W-15): P03 modules change_points.py, market_expectations.py, regime_memory.py and tests/test_research_market_change.py exist on disk. Unit level only; UNREACHED from the research loop (ledger headline 4). | earlier: IMPLEMENTED — NOT VALIDATED (P03): market expectations vs reality (expansion + contraction, each explanation tested with BH, 'candidate selection failed' as an explicit alternative, untestable != unsupported); CUSUM change points on all 13 checklist-I streams with simulated false-alarm calibration; single-stock vs sector vs market scope; early warning; regime-change memory with every W field; forward-only proven (state at t bit-identical when the future is scrambled; a leaky runner fails). DUPLICATE TO FIX: market_expectations keeps its own small hash chain - move onto archive lanes (P06). 43 tests.",
+   "last_run": "2026-09-30T12:38:29",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "PEY",
    "group": "CHECKLIST",
    "description": "Checklist Y: FULL ERROR-TO-IMPROVEMENT PIPELINE",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/research/error_loop.py"
    ],
@@ -472,17 +520,20 @@
     "tests/test_c68_adversarial.py",
     "tests/test_research_error_loop.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (P06, 29 Sep): 10 C68 stages registered in the research loop; every checklist-Z bullet is a test run through the real loop (22 adversarial + 17 loop tests pass). Planted only (C63). No fix has reached PROMOTE through the real gate (W-06).",
-   "last_run": "2026-09-29T19:09:49",
-   "code_hash": "c53be43f67f8c296"
+   "evidence": [
+    "tests/test_c68_adversarial.py",
+    "tests/test_research_error_loop.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | earlier: IMPLEMENTED - NOT VALIDATED (P06, 29 Sep): 10 C68 stages registered in the research loop; every checklist-Z bullet is a test run through the real loop (22 adversarial + 17 loop tests pass). Planted only (C63). No fix has reached PROMOTE through the real gate (W-06).",
+   "last_run": "2026-09-30T12:38:29",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "PEZ",
    "group": "CHECKLIST",
    "description": "Checklist Z: FINAL INTEGRATION TESTS",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/research/error_loop.py"
    ],
@@ -490,34 +541,40 @@
     "tests/test_c68_adversarial.py",
     "tests/test_research_error_loop.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (P06, 29 Sep): 10 C68 stages registered in the research loop; every checklist-Z bullet is a test run through the real loop (22 adversarial + 17 loop tests pass). Planted only (C63). No fix has reached PROMOTE through the real gate (W-06).",
-   "last_run": "2026-09-29T19:09:49",
-   "code_hash": "c53be43f67f8c296"
+   "evidence": [
+    "tests/test_c68_adversarial.py",
+    "tests/test_research_error_loop.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | earlier: IMPLEMENTED - NOT VALIDATED (P06, 29 Sep): 10 C68 stages registered in the research loop; every checklist-Z bullet is a test run through the real loop (22 adversarial + 17 loop tests pass). Planted only (C63). No fix has reached PROMOTE through the real gate (W-06).",
+   "last_run": "2026-09-30T12:38:29",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "PZ01",
    "group": "ADVERSARIAL TEST",
    "description": "predictions cannot be rewritten after outcomes",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/research/expectations.py"
    ],
    "tests": [
     "tests/test_research_expectations.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15): unit test test_rewrite_refused_and_identical_rerecord_idempotent exists. Unit level only: the C68 modules are UNREACHED in the research loop today (ledger headline 4), so the integration run of this property (ledger W-09) is unproven.",
-   "last_run": "2026-09-29T17:08:56",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_c68_adversarial.py",
+    "tests/test_research_expectations.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | note 'unit level only / UNREACHED' is stale: tests/test_c68_adversarial.py runs this bullet through the REAL research loop on error_loop.plant_world (P06) | earlier: IMPLEMENTED - NOT VALIDATED (F04 ledger W-15): unit test test_rewrite_refused_and_identical_rerecord_idempotent exists. Unit level only: the C68 modules are UNREACHED in the research loop today (ledger headline 4), so the integration run of this property (ledger W-09) is unproven.",
+   "last_run": "2026-09-30T12:38:29",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "PZ02",
    "group": "ADVERSARIAL TEST",
    "description": "exits cannot be manipulated to improve prediction statistics",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/research/exit_research.py",
     "engine/research/outcomes.py"
@@ -525,17 +582,20 @@
    "tests": [
     "tests/test_research_selection_exits.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15): unit test test_each_outcome_abuse_is_detected exists. Unit level only: the C68 modules are UNREACHED in the research loop today (ledger headline 4), so the integration run of this property (ledger W-09) is unproven.",
-   "last_run": "2026-09-29T17:08:57",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_c68_adversarial.py",
+    "tests/test_research_selection_exits.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | note 'unit level only / UNREACHED' is stale: tests/test_c68_adversarial.py runs this bullet through the REAL research loop on error_loop.plant_world (P06) | earlier: IMPLEMENTED - NOT VALIDATED (F04 ledger W-15): unit test test_each_outcome_abuse_is_detected exists. Unit level only: the C68 modules are UNREACHED in the research loop today (ledger headline 4), so the integration run of this property (ledger W-09) is unproven.",
+   "last_run": "2026-09-30T12:38:30",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "PZ03",
    "group": "ADVERSARIAL TEST",
    "description": "±1% evaluation does not control selling",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/research/calibration_target.py",
     "engine/research/exit_research.py"
@@ -543,17 +603,20 @@
    "tests": [
     "tests/test_research_selection_exits.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15): unit test test_changing_the_calibration_target_leaves_every_exit_identical exists. Unit level only: the C68 modules are UNREACHED in the research loop today (ledger headline 4), so the integration run of this property (ledger W-09) is unproven.",
-   "last_run": "2026-09-29T17:08:57",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_c68_adversarial.py",
+    "tests/test_research_selection_exits.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | note 'unit level only / UNREACHED' is stale: tests/test_c68_adversarial.py runs this bullet through the REAL research loop on error_loop.plant_world (P06) | earlier: IMPLEMENTED - NOT VALIDATED (F04 ledger W-15): unit test test_changing_the_calibration_target_leaves_every_exit_identical exists. Unit level only: the C68 modules are UNREACHED in the research loop today (ledger headline 4), so the integration run of this property (ledger W-09) is unproven.",
+   "last_run": "2026-09-30T12:38:30",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "PZ04",
    "group": "ADVERSARIAL TEST",
    "description": "future information cannot enter error analysis",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/research/error_research.py",
     "engine/research/expectations.py"
@@ -561,102 +624,120 @@
    "tests": [
     "tests/test_research_expectations.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15): unit test test_future_information_cannot_enter_error_analysis exists. Unit level only: the C68 modules are UNREACHED in the research loop today (ledger headline 4), so the integration run of this property (ledger W-09) is unproven.",
-   "last_run": "2026-09-29T17:08:57",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_c68_adversarial.py",
+    "tests/test_research_expectations.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | note 'unit level only / UNREACHED' is stale: tests/test_c68_adversarial.py runs this bullet through the REAL research loop on error_loop.plant_world (P06) | earlier: IMPLEMENTED - NOT VALIDATED (F04 ledger W-15): unit test test_future_information_cannot_enter_error_analysis exists. Unit level only: the C68 modules are UNREACHED in the research loop today (ledger headline 4), so the integration run of this property (ledger W-09) is unproven.",
+   "last_run": "2026-09-30T12:38:30",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "PZ05",
    "group": "ADVERSARIAL TEST",
    "description": "future information cannot enter regime detection",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/research/change_points.py"
    ],
    "tests": [
     "tests/test_research_market_change.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15): unit test test_no_retrospective_cheating_scrambling_the_future_leaves_the_past_bit_identical exists. Unit level only: the C68 modules are UNREACHED in the research loop today (ledger headline 4), so the integration run of this property (ledger W-09) is unproven.",
-   "last_run": "2026-09-29T17:08:57",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_c68_adversarial.py",
+    "tests/test_research_market_change.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | note 'unit level only / UNREACHED' is stale: tests/test_c68_adversarial.py runs this bullet through the REAL research loop on error_loop.plant_world (P06) | earlier: IMPLEMENTED - NOT VALIDATED (F04 ledger W-15): unit test test_no_retrospective_cheating_scrambling_the_future_leaves_the_past_bit_identical exists. Unit level only: the C68 modules are UNREACHED in the research loop today (ledger headline 4), so the integration run of this property (ledger W-09) is unproven.",
+   "last_run": "2026-09-30T12:38:30",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "PZ06",
    "group": "ADVERSARIAL TEST",
    "description": "unknowable events are allowed to remain unknowable",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/research/what_changed.py"
    ],
    "tests": [
     "tests/test_research_what_changed.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15): unit test test_unknowable_outcome_is_preserved_and_proposes_nothing exists. Unit level only: the C68 modules are UNREACHED in the research loop today (ledger headline 4), so the integration run of this property (ledger W-09) is unproven.",
-   "last_run": "2026-09-29T17:08:58",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_c68_adversarial.py",
+    "tests/test_research_what_changed.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | note 'unit level only / UNREACHED' is stale: tests/test_c68_adversarial.py runs this bullet through the REAL research loop on error_loop.plant_world (P06) | earlier: IMPLEMENTED - NOT VALIDATED (F04 ledger W-15): unit test test_unknowable_outcome_is_preserved_and_proposes_nothing exists. Unit level only: the C68 modules are UNREACHED in the research loop today (ledger headline 4), so the integration run of this property (ledger W-09) is unproven.",
+   "last_run": "2026-09-30T12:38:31",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "PZ07",
    "group": "ADVERSARIAL TEST",
    "description": "tiny errors do not consume excessive compute",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/research/error_research.py"
    ],
    "tests": [
     "tests/test_research_error_research.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15): unit test test_tiny_errors_stay_cheap_even_when_statistically_large exists. Unit level only: the C68 modules are UNREACHED in the research loop today (ledger headline 4), so the integration run of this property (ledger W-09) is unproven.",
-   "last_run": "2026-09-29T17:08:58",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_c68_adversarial.py",
+    "tests/test_research_error_research.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | note 'unit level only / UNREACHED' is stale: tests/test_c68_adversarial.py runs this bullet through the REAL research loop on error_loop.plant_world (P06) | earlier: IMPLEMENTED - NOT VALIDATED (F04 ledger W-15): unit test test_tiny_errors_stay_cheap_even_when_statistically_large exists. Unit level only: the C68 modules are UNREACHED in the research loop today (ledger headline 4), so the integration run of this property (ledger W-09) is unproven.",
+   "last_run": "2026-09-30T12:38:31",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "PZ08",
    "group": "ADVERSARIAL TEST",
    "description": "major errors trigger deeper investigation",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/research/error_research.py"
    ],
    "tests": [
     "tests/test_research_error_research.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15): unit test test_planted_confident_failure_triggers_deep_investigation_with_all_15_questions exists. Unit level only: the C68 modules are UNREACHED in the research loop today (ledger headline 4), so the integration run of this property (ledger W-09) is unproven.",
-   "last_run": "2026-09-29T17:08:58",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_c68_adversarial.py",
+    "tests/test_research_error_research.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | note 'unit level only / UNREACHED' is stale: tests/test_c68_adversarial.py runs this bullet through the REAL research loop on error_loop.plant_world (P06) | earlier: IMPLEMENTED - NOT VALIDATED (F04 ledger W-15): unit test test_planted_confident_failure_triggers_deep_investigation_with_all_15_questions exists. Unit level only: the C68 modules are UNREACHED in the research loop today (ledger headline 4), so the integration run of this property (ledger W-09) is unproven.",
+   "last_run": "2026-09-30T12:38:31",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "PZ09",
    "group": "ADVERSARIAL TEST",
    "description": "repeated errors escalate research priority",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/research/error_research.py"
    ],
    "tests": [
     "tests/test_research_error_research.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15): unit test test_repeated_expected_8_10_realised_3_6_escalates_monotonically exists. Unit level only: the C68 modules are UNREACHED in the research loop today (ledger headline 4), so the integration run of this property (ledger W-09) is unproven.",
-   "last_run": "2026-09-29T17:08:58",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_c68_adversarial.py",
+    "tests/test_research_error_research.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | note 'unit level only / UNREACHED' is stale: tests/test_c68_adversarial.py runs this bullet through the REAL research loop on error_loop.plant_world (P06) | earlier: IMPLEMENTED - NOT VALIDATED (F04 ledger W-15): unit test test_repeated_expected_8_10_realised_3_6_escalates_monotonically exists. Unit level only: the C68 modules are UNREACHED in the research loop today (ledger headline 4), so the integration run of this property (ledger W-09) is unproven.",
+   "last_run": "2026-09-30T12:38:32",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "PZ10",
    "group": "ADVERSARIAL TEST",
    "description": "pattern changes can be detected",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/research/pattern_change.py",
     "engine/research/what_changed.py"
@@ -664,17 +745,20 @@
    "tests": [
     "tests/test_research_what_changed.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15): unit test test_structural_step_is_caught_and_never_deleted exists. Unit level only: the C68 modules are UNREACHED in the research loop today (ledger headline 4), so the integration run of this property (ledger W-09) is unproven.",
-   "last_run": "2026-09-29T17:08:58",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_c68_adversarial.py",
+    "tests/test_research_what_changed.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | note 'unit level only / UNREACHED' is stale: tests/test_c68_adversarial.py runs this bullet through the REAL research loop on error_loop.plant_world (P06) | earlier: IMPLEMENTED - NOT VALIDATED (F04 ledger W-15): unit test test_structural_step_is_caught_and_never_deleted exists. Unit level only: the C68 modules are UNREACHED in the research loop today (ledger headline 4), so the integration run of this property (ledger W-09) is unproven.",
+   "last_run": "2026-09-30T12:38:32",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "PZ11",
    "group": "ADVERSARIAL TEST",
    "description": "false regime changes do not unnecessarily disable successful patterns",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/research/market_expectations.py",
     "engine/research/regime_memory.py"
@@ -682,136 +766,160 @@
    "tests": [
     "tests/test_research_market_change.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15): unit test test_a_false_regime_change_does_not_disable_a_successful_pattern exists. Unit level only: the C68 modules are UNREACHED in the research loop today (ledger headline 4), so the integration run of this property (ledger W-09) is unproven.",
-   "last_run": "2026-09-29T17:08:59",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_c68_adversarial.py",
+    "tests/test_research_market_change.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | note 'unit level only / UNREACHED' is stale: tests/test_c68_adversarial.py runs this bullet through the REAL research loop on error_loop.plant_world (P06) | earlier: IMPLEMENTED - NOT VALIDATED (F04 ledger W-15): unit test test_a_false_regime_change_does_not_disable_a_successful_pattern exists. Unit level only: the C68 modules are UNREACHED in the research loop today (ledger headline 4), so the integration run of this property (ledger W-09) is unproven.",
+   "last_run": "2026-09-30T12:38:32",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "PZ12",
    "group": "ADVERSARIAL TEST",
    "description": "genuinely degraded patterns can reduce influence",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/research/what_changed.py"
    ],
    "tests": [
     "tests/test_research_what_changed.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15): unit test test_gradual_decay_is_weakening exists. Unit level only: the C68 modules are UNREACHED in the research loop today (ledger headline 4), so the integration run of this property (ledger W-09) is unproven.",
-   "last_run": "2026-09-29T17:08:59",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_c68_adversarial.py",
+    "tests/test_research_what_changed.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | note 'unit level only / UNREACHED' is stale: tests/test_c68_adversarial.py runs this bullet through the REAL research loop on error_loop.plant_world (P06) | earlier: IMPLEMENTED - NOT VALIDATED (F04 ledger W-15): unit test test_gradual_decay_is_weakening exists. Unit level only: the C68 modules are UNREACHED in the research loop today (ledger headline 4), so the integration run of this property (ledger W-09) is unproven.",
+   "last_run": "2026-09-30T12:38:32",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "PZ13",
    "group": "ADVERSARIAL TEST",
    "description": "recovered patterns can regain influence",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/research/what_changed.py"
    ],
    "tests": [
     "tests/test_research_what_changed.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15): unit test test_returning_pattern_after_a_failure_spell exists. Unit level only: the C68 modules are UNREACHED in the research loop today (ledger headline 4), so the integration run of this property (ledger W-09) is unproven.",
-   "last_run": "2026-09-29T17:08:59",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_c68_adversarial.py",
+    "tests/test_research_what_changed.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | note 'unit level only / UNREACHED' is stale: tests/test_c68_adversarial.py runs this bullet through the REAL research loop on error_loop.plant_world (P06) | earlier: IMPLEMENTED - NOT VALIDATED (F04 ledger W-15): unit test test_returning_pattern_after_a_failure_spell exists. Unit level only: the C68 modules are UNREACHED in the research loop today (ledger headline 4), so the integration run of this property (ledger W-09) is unproven.",
+   "last_run": "2026-09-30T12:38:33",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "PZ14",
    "group": "ADVERSARIAL TEST",
    "description": "market-wide changes can be distinguished from individual-stock anomalies",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/research/what_changed.py"
    ],
    "tests": [
     "tests/test_research_what_changed.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15): unit test test_single_stock_extreme_day_is_level_four_not_market exists. Unit level only: the C68 modules are UNREACHED in the research loop today (ledger headline 4), so the integration run of this property (ledger W-09) is unproven.",
-   "last_run": "2026-09-29T17:08:59",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_c68_adversarial.py",
+    "tests/test_research_what_changed.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | note 'unit level only / UNREACHED' is stale: tests/test_c68_adversarial.py runs this bullet through the REAL research loop on error_loop.plant_world (P06) | earlier: IMPLEMENTED - NOT VALIDATED (F04 ledger W-15): unit test test_single_stock_extreme_day_is_level_four_not_market exists. Unit level only: the C68 modules are UNREACHED in the research loop today (ledger headline 4), so the integration run of this property (ledger W-09) is unproven.",
+   "last_run": "2026-09-30T12:38:33",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "PZ15",
    "group": "ADVERSARIAL TEST",
    "description": "exit timing is learned independently",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/research/exit_research.py"
    ],
    "tests": [
     "tests/test_research_selection_exits.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15): unit test test_learned_exit_beats_holding_on_planted_fade_and_never_on_trend exists. Unit level only: the C68 modules are UNREACHED in the research loop today (ledger headline 4), so the integration run of this property (ledger W-09) is unproven.",
-   "last_run": "2026-09-29T17:09:00",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_c68_adversarial.py",
+    "tests/test_research_selection_exits.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | note 'unit level only / UNREACHED' is stale: tests/test_c68_adversarial.py runs this bullet through the REAL research loop on error_loop.plant_world (P06) | earlier: IMPLEMENTED - NOT VALIDATED (F04 ledger W-15): unit test test_learned_exit_beats_holding_on_planted_fade_and_never_on_trend exists. Unit level only: the C68 modules are UNREACHED in the research loop today (ledger headline 4), so the integration run of this property (ledger W-09) is unproven.",
+   "last_run": "2026-09-30T12:38:33",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "PZ16",
    "group": "ADVERSARIAL TEST",
    "description": "the 5–10% selection constraint is enforced",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/research/selection_constraint.py"
    ],
    "tests": [
     "tests/test_research_selection_exits.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15): unit test test_selection_band_is_realisable_gain_under_intended_policy exists. Unit level only: the C68 modules are UNREACHED in the research loop today (ledger headline 4), so the integration run of this property (ledger W-09) is unproven.",
-   "last_run": "2026-09-29T17:09:00",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_c68_adversarial.py",
+    "tests/test_research_selection_exits.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | note 'unit level only / UNREACHED' is stale: tests/test_c68_adversarial.py runs this bullet through the REAL research loop on error_loop.plant_world (P06) | earlier: IMPLEMENTED - NOT VALIDATED (F04 ledger W-15): unit test test_selection_band_is_realisable_gain_under_intended_policy exists. Unit level only: the C68 modules are UNREACHED in the research loop today (ledger headline 4), so the integration run of this property (ledger W-09) is unproven.",
+   "last_run": "2026-09-30T12:38:34",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "PZ17",
    "group": "ADVERSARIAL TEST",
    "description": "stocks outside the predicted 5–10% outcome range cannot be selected merely to improve another metric",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/research/selection_constraint.py"
    ],
    "tests": [
     "tests/test_research_selection_exits.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15): unit test test_cherry_picking_and_target_change_are_refused exists. Unit level only: the C68 modules are UNREACHED in the research loop today (ledger headline 4), so the integration run of this property (ledger W-09) is unproven.",
-   "last_run": "2026-09-29T17:09:00",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_c68_adversarial.py",
+    "tests/test_research_selection_exits.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | note 'unit level only / UNREACHED' is stale: tests/test_c68_adversarial.py runs this bullet through the REAL research loop on error_loop.plant_world (P06) | earlier: IMPLEMENTED - NOT VALIDATED (F04 ledger W-15): unit test test_cherry_picking_and_target_change_are_refused exists. Unit level only: the C68 modules are UNREACHED in the research loop today (ledger headline 4), so the integration run of this property (ledger W-09) is unproven.",
+   "last_run": "2026-09-30T12:38:34",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "PZ18",
    "group": "ADVERSARIAL TEST",
    "description": "the system cannot game the ±1% target",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/research/calibration_target.py"
    ],
    "tests": [
     "tests/test_research_selection_exits.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15): unit test test_target_measured_honestly_achieved_and_not_achieved exists. Unit level only: the C68 modules are UNREACHED in the research loop today (ledger headline 4), so the integration run of this property (ledger W-09) is unproven.",
-   "last_run": "2026-09-29T17:09:00",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_c68_adversarial.py",
+    "tests/test_research_selection_exits.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | note 'unit level only / UNREACHED' is stale: tests/test_c68_adversarial.py runs this bullet through the REAL research loop on error_loop.plant_world (P06) | earlier: IMPLEMENTED - NOT VALIDATED (F04 ledger W-15): unit test test_target_measured_honestly_achieved_and_not_achieved exists. Unit level only: the C68 modules are UNREACHED in the research loop today (ledger headline 4), so the integration run of this property (ledger W-09) is unproven.",
+   "last_run": "2026-09-30T12:38:34",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "PZ19",
    "group": "ADVERSARIAL TEST",
    "description": "discoveries must pass out-of-sample validation",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/research/quality_gate.py",
     "engine/research/self_correct.py"
@@ -819,17 +927,20 @@
    "tests": [
     "tests/test_research_selection_exits.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F04 ledger W-15): unit test test_fixes_are_tested_independently_and_promoted_only_through_the_gate exists. Unit level only: the C68 modules are UNREACHED in the research loop today (ledger headline 4), so the integration run of this property (ledger W-09) is unproven.",
-   "last_run": "2026-09-29T17:09:01",
-   "code_hash": "cbaafa6c8bdccc08"
+   "evidence": [
+    "tests/test_c68_adversarial.py",
+    "tests/test_research_selection_exits.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | note 'unit level only / UNREACHED' is stale: tests/test_c68_adversarial.py runs this bullet through the REAL research loop on error_loop.plant_world (P06) | earlier: IMPLEMENTED - NOT VALIDATED (F04 ledger W-15): unit test test_fixes_are_tested_independently_and_promoted_only_through_the_gate exists. Unit level only: the C68 modules are UNREACHED in the research loop today (ledger headline 4), so the integration run of this property (ledger W-09) is unproven.",
+   "last_run": "2026-09-30T12:38:34",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "PZ20",
    "group": "ADVERSARIAL TEST",
    "description": "the learner improves only when evidence justifies improvement",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/research/error_loop.py",
     "engine/research/error_research.py",
@@ -841,11 +952,14 @@
     "tests/test_research_error_loop.py"
    ],
    "evidence": [
-    "state/research/c68_fix_promote/f11_rates_n60"
+    "state/research/c68_fix_promote/f11_rates_n60",
+    "tests/test_c68_adversarial.py",
+    "tests/test_c68_fix_promote.py",
+    "tests/test_research_error_loop.py"
    ],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F11, 30 Sep): planted fix promoted by the real gate on its own evidence 3/6 seeds, null twin 0/6 (FAILED out_of_sample at all 43 checks), flip 3/4 with both pre-flip promotions rolled back 5-6 months after; escalation on pattern and 'all' lenses with BH 0.10 (~10/100 noise books). Weak: flip seed 0 promoted on stale evidence and not rolled back. Planted only (C63). | earlier: IN_PROGRESS (P06, 29 Sep): promote/rollback paths tested only by forcing the gate verdict; no fix reached PROMOTE on its own evidence yet.",
-   "last_run": "2026-09-30T00:21:46",
-   "code_hash": "c53be43f67f8c296"
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | BLOCKER for VALIDATED: in the default W02 planted loop evaluate.two_stage takes 0 positions in 129/129 cycles (NOT_PREDICTED_MOVER / OUT_OF_BAND / LOW_CONFIDENCE / SHORT_DISABLED), so no expectation/outcome/error is produced there | earlier: IMPLEMENTED - NOT VALIDATED (F11, 30 Sep): planted fix promoted by the real gate on its own evidence 3/6 seeds, null twin 0/6 (FAILED out_of_sample at all 43 checks), flip 3/4 with both pre-flip promotions rolled back 5-6 months after; escalation on pattern and 'all' lenses with BH 0.10 (~10/100 noise books). Weak: flip seed 0 promoted on stale evidence and not rolled back. Planted only (C63). | earlier: IN_PROGRESS (P06, 29 Sep): promote/rollback paths tested only by forcing the gate verdict; no fix reached PROMOTE on its own evidence yet.",
+   "last_run": "2026-09-30T12:38:35",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "PC01",
@@ -891,62 +1005,83 @@
    "group": "COMPLETION",
    "description": "No future leakage exists.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "FAILED",
    "code_paths": [],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): no future leakage: the computed leak audit still has 1 LEAK (channel 6) - C68-specific future tests pass (z04, z05)",
+   "last_run": "2026-09-30T12:38:35",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "PC05",
    "group": "COMPLETION",
    "description": "Deterministic replay works.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IN_PROGRESS",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "tests/test_research_error_loop.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): kill/resume invariant tested (test_a_loop_killed_mid_cycle_resumes_without_redoing_or_skipping_a_c68_stage); no replay-equality test of a whole cycle",
+   "last_run": "2026-09-30T12:38:35",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "PC06",
    "group": "COMPLETION",
    "description": "Prediction expectations are immutable.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "tests/test_c68_adversarial.py",
+    "tests/test_research_expectations.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): NOT_STARTED is stale: z01 + rewrite/forged-chain tests pass through the loop. BLOCKER for VALIDATED: in the default W02 world the two-stage chain takes 0 positions in 129/129 cycles, so c68.expectations records 0 expectations there (only error_loop.plant_world carries positions)",
+   "last_run": "2026-09-30T12:38:35",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "PC07",
    "group": "COMPLETION",
    "description": "Error analysis works at stock, sector, market, pattern, and regime levels.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "tests/test_c68_adversarial.py",
+    "tests/test_research_what_changed.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): NOT_STARTED is stale: what_changed ten-level tree (market->sector->peer->stock) tested, z14. BLOCKER: c68.what_changed SKIPPED_NO_INPUT 129/129 in every clean default loop (no positions)",
+   "last_run": "2026-09-30T12:38:36",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "PC08",
    "group": "COMPLETION",
    "description": "Exit learning works independently of prediction calibration.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "tests/test_c68_adversarial.py",
+    "tests/test_research_selection_exits.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): NOT_STARTED is stale: z03/z15 (exits identical when the +-1pp target changes) pass through the loop. BLOCKER: the learned exit controls no real (livesim) exit",
+   "last_run": "2026-09-30T12:38:36",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "PC09",
    "group": "COMPLETION",
    "description": "The 5–10% selection constraint is enforced.",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/research/two_stage.py"
    ],
@@ -954,28 +1089,35 @@
     "tests/test_c68_adversarial.py",
     "tests/test_research_error_loop.py"
    ],
-   "evidence": [],
-   "notes": "IMPLEMENTED - NOT VALIDATED (P06): band gate inside the two_stage funnel + idempotent apply_band_gate.",
-   "last_run": "2026-09-29T19:09:49",
-   "code_hash": "c53be43f67f8c296"
+   "evidence": [
+    "tests/test_c68_adversarial.py",
+    "tests/test_research_error_loop.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | BLOCKER for VALIDATED: in the default W02 planted loop evaluate.two_stage takes 0 positions in 129/129 cycles (NOT_PREDICTED_MOVER / OUT_OF_BAND / LOW_CONFIDENCE / SHORT_DISABLED), so no expectation/outcome/error is produced there | earlier: IMPLEMENTED - NOT VALIDATED (P06): band gate inside the two_stage funnel + idempotent apply_band_gate.",
+   "last_run": "2026-09-30T12:38:36",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "PC10",
    "group": "COMPLETION",
    "description": "The ±1% target is measured honestly.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "tests/test_c68_adversarial.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): NOT_STARTED is stale: z18 + honest_tolerance/Wilson CI tests; one canonical +-1pp statistic (test_one_pm1pp_statistic_calibration_target_is_canonical)",
+   "last_run": "2026-09-30T12:38:37",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "PC11",
    "group": "COMPLETION",
    "description": "Confident failures trigger deeper investigation.",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/research/error_loop.py",
     "engine/research/error_research.py",
@@ -986,18 +1128,20 @@
     "tests/test_c68_fix_promote.py"
    ],
    "evidence": [
-    "state/research/c68_fix_promote/f11_rates_n60"
+    "state/research/c68_fix_promote/f11_rates_n60",
+    "tests/test_c68_adversarial.py",
+    "tests/test_c68_fix_promote.py"
    ],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F11, 30 Sep): planted fix promoted by the real gate on its own evidence 3/6 seeds, null twin 0/6 (FAILED out_of_sample at all 43 checks), flip 3/4 with both pre-flip promotions rolled back 5-6 months after; escalation on pattern and 'all' lenses with BH 0.10 (~10/100 noise books). Weak: flip seed 0 promoted on stale evidence and not rolled back. Planted only (C63).",
-   "last_run": "2026-09-30T00:21:46",
-   "code_hash": "c53be43f67f8c296"
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | BLOCKER for VALIDATED: in the default W02 planted loop evaluate.two_stage takes 0 positions in 129/129 cycles (NOT_PREDICTED_MOVER / OUT_OF_BAND / LOW_CONFIDENCE / SHORT_DISABLED), so no expectation/outcome/error is produced there | earlier: IMPLEMENTED - NOT VALIDATED (F11, 30 Sep): planted fix promoted by the real gate on its own evidence 3/6 seeds, null twin 0/6 (FAILED out_of_sample at all 43 checks), flip 3/4 with both pre-flip promotions rolled back 5-6 months after; escalation on pattern and 'all' lenses with BH 0.10 (~10/100 noise books). Weak: flip seed 0 promoted on stale evidence and not rolled back. Planted only (C63).",
+   "last_run": "2026-09-30T12:38:37",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "PC12",
    "group": "COMPLETION",
    "description": "Repeated errors produce escalating research priority.",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [
     "engine/research/error_loop.py",
     "engine/research/error_research.py",
@@ -1008,51 +1152,70 @@
     "tests/test_c68_fix_promote.py"
    ],
    "evidence": [
-    "state/research/c68_fix_promote/f11_rates_n60"
+    "state/research/c68_fix_promote/f11_rates_n60",
+    "tests/test_c68_adversarial.py",
+    "tests/test_c68_fix_promote.py"
    ],
-   "notes": "IMPLEMENTED - NOT VALIDATED (F11, 30 Sep): planted fix promoted by the real gate on its own evidence 3/6 seeds, null twin 0/6 (FAILED out_of_sample at all 43 checks), flip 3/4 with both pre-flip promotions rolled back 5-6 months after; escalation on pattern and 'all' lenses with BH 0.10 (~10/100 noise books). Weak: flip seed 0 promoted on stale evidence and not rolled back. Planted only (C63).",
-   "last_run": "2026-09-30T00:21:46",
-   "code_hash": "c53be43f67f8c296"
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): C75 Firewall 2: 'Unit test exists = tested'. Relevant tests exist (they import this item's code) and passed in the 30 Sep full suite; no evidence of intended behaviour, so TESTED, not VALIDATED. | BLOCKER for VALIDATED: in the default W02 planted loop evaluate.two_stage takes 0 positions in 129/129 cycles (NOT_PREDICTED_MOVER / OUT_OF_BAND / LOW_CONFIDENCE / SHORT_DISABLED), so no expectation/outcome/error is produced there | earlier: IMPLEMENTED - NOT VALIDATED (F11, 30 Sep): planted fix promoted by the real gate on its own evidence 3/6 seeds, null twin 0/6 (FAILED out_of_sample at all 43 checks), flip 3/4 with both pre-flip promotions rolled back 5-6 months after; escalation on pattern and 'all' lenses with BH 0.10 (~10/100 noise books). Weak: flip seed 0 promoted on stale evidence and not rolled back. Planted only (C63).",
+   "last_run": "2026-09-30T12:38:37",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "PC13",
    "group": "COMPLETION",
    "description": "Regime-change detection has forward-time validation.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "tests/test_c68_adversarial.py",
+    "tests/test_f13_stale_promotion.py",
+    "tests/test_research_market_change.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): NOT_STARTED is stale: scrambled-future bit-identical tests (z05, test_change_detection_on_fix_gains_is_forward_only)",
+   "last_run": "2026-09-30T12:38:37",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "PC14",
    "group": "COMPLETION",
    "description": "Knowable and unknowable causes are distinguished.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "tests/test_c68_adversarial.py",
+    "tests/test_research_what_changed.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): NOT_STARTED is stale: z06 unknowable preserved; knowability owns the five-way map",
+   "last_run": "2026-09-30T12:38:38",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "PC15",
    "group": "COMPLETION",
    "description": "Research discoveries are validated out of sample.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/research/c68_fix_promote/f11_rates_n60",
+    "tests/test_c68_fix_promote.py",
+    "tests/test_f13_stale_promotion.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): NOT_STARTED is stale: F11/F13 fixes promoted only on their own OOS evidence (3/6 planted, null 0/6)",
+   "last_run": "2026-09-30T12:38:38",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "PC16",
    "group": "COMPLETION",
    "description": "The system demonstrably learns from prediction errors.",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "TESTING",
    "code_paths": [
     "engine/research/error_loop.py",
     "engine/research/self_correct.py"
@@ -1061,10 +1224,16 @@
     "tests/test_c68_adversarial.py",
     "tests/test_research_error_loop.py"
    ],
-   "evidence": [],
-   "notes": "IN_PROGRESS (P06, 29 Sep): promote/rollback paths tested only by forcing the gate verdict; no fix reached PROMOTE on its own evidence yet.",
-   "last_run": "2026-09-29T19:09:49",
-   "code_hash": "c53be43f67f8c296"
+   "evidence": [
+    "state/research/c68_fix_promote/f11_rates_n60",
+    "tests/test_c68_adversarial.py",
+    "tests/test_c68_fix_promote.py",
+    "tests/test_f13_stale_promotion.py",
+    "tests/test_research_error_loop.py"
+   ],
+   "notes": "F20 C75 Phase 0 independent audit (30 Sep): IN_PROGRESS note 'no fix reached PROMOTE on its own evidence' is stale: F11 promoted a planted fix on its own evidence (3/6 seeds; null 0/6); F13 fixed stale-evidence promotion. Planted only | earlier: IN_PROGRESS (P06, 29 Sep): promote/rollback paths tested only by forcing the gate verdict; no fix reached PROMOTE on its own evidence yet.",
+   "last_run": "2026-09-30T12:38:38",
+   "code_hash": "437567ef180b5d76"
   },
   {
    "id": "PC17",
