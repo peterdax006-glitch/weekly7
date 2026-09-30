@@ -1,0 +1,308 @@
+{
+ "label": "IMPLEMENTED - NOT VALIDATED",
+ "summary": {
+  "n_seeds": 1,
+  "n_improved": 1,
+  "n_invalid": 0,
+  "n_identity_invariant": 1,
+  "mean_improvement_vs_none": 0.02120942746729343,
+  "mean_improvement_vs_none_all_seeds": 0.02120942746729343,
+  "mean_improvement_vs_control": 0.02120942746729343,
+  "total_changed_without_knowledge": 0,
+  "null_seeds": 0,
+  "null_false_improvements": 0,
+  "null_changed_decisions": 0,
+  "null_production": 0,
+  "planted_true_items_by_stage": {
+   "acted on, right side": 2,
+   "admitted, not usable at the probe": 2
+  },
+  "false_degrades": 2,
+  "correct_degrades": 1,
+  "null_degrades": 0,
+  "false_degrades_by_kind": {
+   "decaying": 0,
+   "negative": 0,
+   "regime": 2,
+   "strong": 0
+  },
+  "weeks_not_active_by_kind": {
+   "decaying": [
+    100
+   ],
+   "negative": [
+    0
+   ],
+   "regime": [
+    172
+   ],
+   "strong": [
+    0
+   ]
+  }
+ },
+ "seeds": [
+  {
+   "seed": 7,
+   "world": "planted",
+   "learning_claim": "record",
+   "seconds": 4521.7,
+   "years": 5,
+   "weeks": 260,
+   "retire_window": 16,
+   "degrades": {
+    "false_degrades": 2,
+    "correct_degrades": 1,
+    "unknown_degrades": 2,
+    "false_degrade_share": 0.667,
+    "items": {
+     "decaying": {
+      "kind": "decaying",
+      "degrades": 1,
+      "false_degrades": 0,
+      "recoveries": 0,
+      "dormant": 1,
+      "weeks_not_active": 100,
+      "registered_week": 18
+     },
+     "negative": {
+      "kind": "negative",
+      "degrades": 0,
+      "false_degrades": 0,
+      "recoveries": 0,
+      "dormant": 0,
+      "weeks_not_active": 0,
+      "registered_week": 7
+     },
+     "regime": {
+      "kind": "regime",
+      "degrades": 2,
+      "false_degrades": 2,
+      "recoveries": 1,
+      "dormant": 2,
+      "weeks_not_active": 172,
+      "registered_week": 39
+     },
+     "strong": {
+      "kind": "strong",
+      "degrades": 0,
+      "false_degrades": 0,
+      "recoveries": 0,
+      "dormant": 0,
+      "weeks_not_active": 0,
+      "registered_week": 17
+     }
+    }
+   },
+   "evidence": {
+    "cards": 14,
+    "valid": 0,
+    "allowed": 0,
+    "first_allowed": null,
+    "first_valid": null,
+    "last_now": "2010-11-12",
+    "last_blockers": [],
+    "last_refusal": "E_leaky_learner: 'detected' must be recorded (was the planted defect seen?)",
+    "last_untested": [
+     "post_learning_performance",
+     "same_year_gain",
+     "cross_year_gain",
+     "transfer_ratio",
+     "movement_performance",
+     "direction_performance",
+     "mover_performance",
+     "memorization_gap",
+     "identity_gap",
+     "future_leak_status",
+     "stability"
+    ]
+   },
+   "last_attempts": {
+    "f0:q0": [
+     "oos_confirmation"
+    ],
+    "f0:q4": [],
+    "f1:q0": [],
+    "f1:q4": [],
+    "f2:q4": [],
+    "f5:q4": []
+   },
+   "improved": true,
+   "verdict": "IMPROVED",
+   "items": 6,
+   "production": 4,
+   "learned_weeks": 260,
+   "probe_weeks": 52,
+   "lesson": {
+    "n_long": 260,
+    "n_with_knowledge": 530,
+    "mean_edge": 0.02120942746729343,
+    "t_stat": 5.981965852931942,
+    "hit_rate": 0.65
+   },
+   "control": {
+    "n_long": 0,
+    "n_with_knowledge": 0,
+    "mean_edge": null,
+    "t_stat": null,
+    "hit_rate": null
+   },
+   "improvement_vs_none": 0.02120942746729343,
+   "improvement_vs_control": 0.02120942746729343,
+   "identity_invariant": true,
+   "changed": 530,
+   "changed_with_knowledge": 530,
+   "changed_without_knowledge": 0,
+   "truth": {
+    "claims": 6,
+    "true_positive": 5,
+    "false_positive": 1,
+    "recall": 1.0,
+    "false_discovery_rate": 0.167
+   },
+   "skill": {
+    "status": "PROVEN",
+    "n": 4161,
+    "mean_edge": 0.012043,
+    "p": 0.0004997501249375312
+   },
+   "trace": [
+    {
+     "item": "strong",
+     "kind": "strong",
+     "pattern": "f0:q4",
+     "planted_sign": 1,
+     "belief_mean": 0.01437,
+     "born": true,
+     "role": "CHAMPION",
+     "lifecycle": "ACTIVE",
+     "contract": true,
+     "skill": "PROVEN",
+     "weighted_rows": 339,
+     "long_rows": 258,
+     "mean_expected": 0.02063,
+     "outcome": 0.02051,
+     "stage": "acted on, right side",
+     "why": ""
+    },
+    {
+     "item": "negative",
+     "kind": "negative",
+     "pattern": "f1:q4",
+     "planted_sign": -1,
+     "belief_mean": -0.01206,
+     "born": true,
+     "role": "CHAMPION",
+     "lifecycle": "ACTIVE",
+     "contract": true,
+     "skill": "PROVEN",
+     "weighted_rows": 191,
+     "long_rows": 2,
+     "mean_expected": -0.00998,
+     "outcome": 0.00258,
+     "stage": "acted on, right side",
+     "why": ""
+    },
+    {
+     "item": "regime",
+     "kind": "regime",
+     "pattern": "f2:q4",
+     "planted_sign": 1,
+     "belief_mean": 0.007,
+     "born": true,
+     "role": "CHAMPION",
+     "lifecycle": "DEGRADED",
+     "contract": false,
+     "skill": "PROVEN",
+     "weighted_rows": 0,
+     "long_rows": 0,
+     "mean_expected": null,
+     "outcome": null,
+     "stage": "admitted, not usable at the probe",
+     "why": "contract allows=False, retrieval skill PROVEN, lifecycle DEGRADED"
+    },
+    {
+     "item": "decaying",
+     "kind": "decaying",
+     "pattern": "f5:q4",
+     "planted_sign": 1,
+     "belief_mean": 0.00544,
+     "born": true,
+     "role": "CHAMPION",
+     "lifecycle": "DEGRADED",
+     "contract": false,
+     "skill": "PROVEN",
+     "weighted_rows": 0,
+     "long_rows": 0,
+     "mean_expected": null,
+     "outcome": null,
+     "stage": "admitted, not usable at the probe",
+     "why": "contract allows=False, retrieval skill PROVEN, lifecycle DEGRADED"
+    },
+    {
+     "item": "noise_a",
+     "kind": "noise",
+     "pattern": "f3:q4",
+     "planted_sign": 0,
+     "belief_mean": 0.00142,
+     "born": false,
+     "role": null,
+     "lifecycle": null,
+     "contract": null,
+     "skill": "PROVEN",
+     "weighted_rows": 0,
+     "long_rows": 0,
+     "mean_expected": null,
+     "outcome": null,
+     "stage": "never found",
+     "why": "no supported belief became knowledge"
+    },
+    {
+     "item": "noise_b",
+     "kind": "noise",
+     "pattern": "f4:q0",
+     "planted_sign": 0,
+     "belief_mean": 0.00061,
+     "born": false,
+     "role": null,
+     "lifecycle": null,
+     "contract": null,
+     "skill": "PROVEN",
+     "weighted_rows": 0,
+     "long_rows": 0,
+     "mean_expected": null,
+     "outcome": null,
+     "stage": "never found",
+     "why": "no supported belief became knowledge"
+    }
+   ],
+   "counters": {
+    "predictions": 4193,
+    "shadow_only_predictions": 1295,
+    "evidence_cards_refused": 14,
+    "retirement_degrade": 5,
+    "retirement_dormant": 5,
+    "recovered_to_probation": 5,
+    "retirement_revert": 4,
+    "recovered_after_probation": 1
+   },
+   "gate_blockers": [
+    "anti_memorization",
+    "oos_confirmation",
+    "statistical_validity"
+   ],
+   "notes": []
+  }
+ ],
+ "provenance": {
+  "code_hash": "44cc7fb9f6086889",
+  "code_mixed": [],
+  "git_commit": "4338632d74e3fb87c98eaef7bb841829167b1139+dirty",
+  "canon_sha": "fef7cdf0a1501c3d",
+  "bible_sha": "a97ea91862cee371",
+  "blueprint_version": "4.0",
+  "config_hash": "d012d56d034fe507",
+  "data_snapshot": "171ba8ba728ee713",
+  "seed": 7
+ }
+}
