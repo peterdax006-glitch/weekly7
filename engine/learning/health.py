@@ -138,7 +138,8 @@ class HealthRecord:
 
     @property
     def record_id(self) -> str:
-        return stable_hash([self.knowledge_id, self.as_of, self.state.value, self.flags, dict(self.evidence)], 16)
+        # hash the evidence as it is persisted (_clean: NaN/inf -> null), else a reload hashes null where the original hashed "nan"
+        return stable_hash([self.knowledge_id, self.as_of, self.state.value, self.flags, _clean(dict(self.evidence))], 16)
 
     @property
     def epistemic(self) -> Epistemic:

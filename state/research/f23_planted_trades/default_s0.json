@@ -1,0 +1,768 @@
+{
+ "world": "default",
+ "seed": 0,
+ "code_hash": "2c78c0096d30cc0c",
+ "resume": "START_FRESH",
+ "cycles": [
+  {
+   "cycle": 0,
+   "now": "2017-05-12",
+   "stages": {
+    "observe.panel": "OK",
+    "observe.observer": "SKIPPED_NO_INPUT",
+    "observe.autopsy": "SKIPPED_NO_INPUT",
+    "update.experiment_memory": "OK",
+    "update.firewall_release": "SKIPPED_NO_INPUT",
+    "c68.selection_policy": "OK",
+    "evaluate.two_stage": "OK",
+    "c68.expectations": "OK",
+    "evaluate.volatility_lab": "OK",
+    "evaluate.direction_lab": "OK",
+    "evaluate.frontier": "OK",
+    "evaluate.symmetry": "OK",
+    "surprises.feature_screen": "OK",
+    "surprises.cross_section": "OK",
+    "surprises.regimes": "OK",
+    "c68.market_regime": "OK",
+    "c68.pattern_change": "OK",
+    "surprises.multiscale": "OK",
+    "failures.decision_losses": "SKIPPED_NO_INPUT",
+    "c68.outcomes_errors": "SKIPPED_NO_INPUT",
+    "c68.what_changed": "SKIPPED_NO_INPUT",
+    "c68.error_research": "OK",
+    "failures.winners_losers": "SKIPPED_NO_INPUT",
+    "failures.loss_pipeline": "SKIPPED_NO_INPUT",
+    "missed.missed": "SKIPPED_NO_INPUT",
+    "missed.knowability": "OK",
+    "missed.unknown_cause": "OK",
+    "missed.counterfactual": "OK",
+    "breaks.knowledge": "SKIPPED_NO_INPUT",
+    "breaks.break_research": "OK",
+    "questions.discovery": "OK",
+    "questions.interactions": "OK",
+    "questions.precursors": "OK",
+    "questions.targets": "SKIPPED_NO_INPUT",
+    "questions.research_graph": "OK",
+    "questions.generate": "OK",
+    "c68.research_depth": "OK",
+    "hypotheses.trees": "OK",
+    "gain.priority": "OK",
+    "allocate.controller": "OK",
+    "allocate.diversity": "OK",
+    "allocate.compute": "OK",
+    "run.experiments": "OK",
+    "validate.harvest": "OK",
+    "controls.compare": "OK",
+    "learn.ladder": "OK",
+    "learn.memory": "OK",
+    "learn.value": "OK",
+    "learn.science_memory": "OK",
+    "learn.replication": "OK",
+    "learn.quality_gate": "SKIPPED_NO_INPUT",
+    "c68.validate_promote": "SKIPPED_NO_INPUT",
+    "learn.decision_bridge": "SKIPPED_NO_INPUT",
+    "priorities.waste": "OK",
+    "priorities.brain_health": "OK",
+    "priorities.meta_research": "OK",
+    "priorities.failed_lab": "OK",
+    "priorities.scorecard": "SKIPPED_NO_INPUT",
+    "priorities.stale": "OK",
+    "c68.monitor_audit": "OK",
+    "sweeps.background": "OK",
+    "report.cycle": "OK"
+   },
+   "reasons": {
+    "c68.selection_policy": "policy Lc2badb8d (threshold -0.0044); gain model fitted n=2612 base in-band 0.075; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00",
+    "evaluate.two_stage": "gate open",
+    "c68.expectations": "no position on 2017-05-12: {'NOT_PREDICTED_MOVER': 40, 'LOW_CONFIDENCE': 3, 'OUT_OF_BAND': 2}",
+    "c68.outcomes_errors": "0 open position(s), none resolved before now",
+    "c68.what_changed": "no newly matured error to investigate (upstream: 0 position(s) ever, 0 open, 0 matured, 0 error report(s); band gate eligible 0/45 forecast(s))",
+    "c68.error_research": "2017-05-12: 0 new errors, tiers {'NONE': 0, 'CHEAP': 0, 'STANDARD': 0, 'DEEP': 0}, 0 confident-wrong, 0 escalated groups, 0 jobs (0 cpu-min requested); 0 questi",
+    "questions.generate": "31 merged, 0 refused, 0 already answered",
+    "c68.research_depth": "2 C68 question(s) in the loop's queue, 0 damped",
+    "learn.decision_bridge": "no new knowledge to route"
+   },
+   "positions": [],
+   "abstentions": {
+    "NOT_PREDICTED_MOVER": 40,
+    "LOW_CONFIDENCE": 3,
+    "OUT_OF_BAND": 2
+   },
+   "knowledge": []
+  },
+  {
+   "cycle": 1,
+   "now": "2017-05-19",
+   "stages": {
+    "observe.panel": "OK",
+    "observe.observer": "SKIPPED_NO_INPUT",
+    "observe.autopsy": "SKIPPED_NO_INPUT",
+    "update.experiment_memory": "OK",
+    "update.firewall_release": "SKIPPED_NO_INPUT",
+    "c68.selection_policy": "OK",
+    "evaluate.two_stage": "OK",
+    "c68.expectations": "OK",
+    "evaluate.volatility_lab": "SKIPPED_CADENCE",
+    "evaluate.direction_lab": "SKIPPED_CADENCE",
+    "evaluate.frontier": "OK",
+    "evaluate.symmetry": "OK",
+    "surprises.feature_screen": "SKIPPED_CADENCE",
+    "surprises.cross_section": "OK",
+    "surprises.regimes": "OK",
+    "c68.market_regime": "OK",
+    "c68.pattern_change": "OK",
+    "surprises.multiscale": "OK",
+    "failures.decision_losses": "SKIPPED_NO_INPUT",
+    "c68.outcomes_errors": "SKIPPED_NO_INPUT",
+    "c68.what_changed": "SKIPPED_NO_INPUT",
+    "c68.error_research": "OK",
+    "failures.winners_losers": "SKIPPED_NO_INPUT",
+    "failures.loss_pipeline": "SKIPPED_NO_INPUT",
+    "missed.missed": "SKIPPED_NO_INPUT",
+    "missed.knowability": "OK",
+    "missed.unknown_cause": "OK",
+    "missed.counterfactual": "OK",
+    "breaks.knowledge": "SKIPPED_NO_INPUT",
+    "breaks.break_research": "OK",
+    "questions.discovery": "SKIPPED_CADENCE",
+    "questions.interactions": "SKIPPED_CADENCE",
+    "questions.precursors": "OK",
+    "questions.targets": "SKIPPED_NO_INPUT",
+    "questions.research_graph": "OK",
+    "questions.generate": "OK",
+    "c68.research_depth": "OK",
+    "hypotheses.trees": "OK",
+    "gain.priority": "OK",
+    "allocate.controller": "OK",
+    "allocate.diversity": "OK",
+    "allocate.compute": "OK",
+    "run.experiments": "OK",
+    "validate.harvest": "OK",
+    "controls.compare": "OK",
+    "learn.ladder": "OK",
+    "learn.memory": "OK",
+    "learn.value": "OK",
+    "learn.science_memory": "OK",
+    "learn.replication": "OK",
+    "learn.quality_gate": "SKIPPED_NO_INPUT",
+    "c68.validate_promote": "SKIPPED_NO_INPUT",
+    "learn.decision_bridge": "SKIPPED_NO_INPUT",
+    "priorities.waste": "OK",
+    "priorities.brain_health": "OK",
+    "priorities.meta_research": "SKIPPED_CADENCE",
+    "priorities.failed_lab": "OK",
+    "priorities.scorecard": "SKIPPED_CADENCE",
+    "priorities.stale": "OK",
+    "c68.monitor_audit": "OK",
+    "sweeps.background": "OK",
+    "report.cycle": "OK"
+   },
+   "reasons": {
+    "c68.selection_policy": "policy L438cb078 (threshold -0.0041); gain model fitted n=2657 base in-band 0.075; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00",
+    "evaluate.two_stage": "gate open",
+    "c68.expectations": "no position on 2017-05-19: {'NOT_PREDICTED_MOVER': 39, 'LOW_CONFIDENCE': 5}",
+    "c68.outcomes_errors": "0 open position(s), none resolved before now",
+    "c68.what_changed": "no newly matured error to investigate (upstream: 0 position(s) ever, 0 open, 0 matured, 0 error report(s); band gate eligible 0/89 forecast(s))",
+    "c68.error_research": "2017-05-19: 0 new errors, tiers {'NONE': 0, 'CHEAP': 0, 'STANDARD': 0, 'DEEP': 0}, 0 confident-wrong, 0 escalated groups, 0 jobs (0 cpu-min requested); 0 questi",
+    "questions.generate": "1 merged, 0 refused, 0 already answered",
+    "c68.research_depth": "1 C68 question(s) in the loop's queue, 0 damped",
+    "learn.decision_bridge": "no new knowledge to route"
+   },
+   "positions": [],
+   "abstentions": {
+    "NOT_PREDICTED_MOVER": 39,
+    "LOW_CONFIDENCE": 5
+   },
+   "knowledge": []
+  },
+  {
+   "cycle": 2,
+   "now": "2017-05-26",
+   "stages": {
+    "observe.panel": "OK",
+    "observe.observer": "OK",
+    "observe.autopsy": "OK",
+    "update.experiment_memory": "OK",
+    "update.firewall_release": "SKIPPED_NO_INPUT",
+    "c68.selection_policy": "OK",
+    "evaluate.two_stage": "OK",
+    "c68.expectations": "OK",
+    "evaluate.volatility_lab": "SKIPPED_CADENCE",
+    "evaluate.direction_lab": "SKIPPED_CADENCE",
+    "evaluate.frontier": "OK",
+    "evaluate.symmetry": "OK",
+    "surprises.feature_screen": "SKIPPED_CADENCE",
+    "surprises.cross_section": "OK",
+    "surprises.regimes": "OK",
+    "c68.market_regime": "OK",
+    "c68.pattern_change": "OK",
+    "surprises.multiscale": "OK",
+    "failures.decision_losses": "SKIPPED_NO_INPUT",
+    "c68.outcomes_errors": "OK",
+    "c68.what_changed": "SKIPPED_NO_INPUT",
+    "c68.error_research": "SKIPPED_NO_INPUT",
+    "failures.winners_losers": "OK",
+    "failures.loss_pipeline": "OK",
+    "missed.missed": "OK",
+    "missed.knowability": "OK",
+    "missed.unknown_cause": "OK",
+    "missed.counterfactual": "OK",
+    "breaks.knowledge": "SKIPPED_NO_INPUT",
+    "breaks.break_research": "OK",
+    "questions.discovery": "SKIPPED_CADENCE",
+    "questions.interactions": "SKIPPED_CADENCE",
+    "questions.precursors": "OK",
+    "questions.targets": "OK",
+    "questions.research_graph": "OK",
+    "questions.generate": "OK",
+    "c68.research_depth": "SKIPPED_NO_INPUT",
+    "hypotheses.trees": "OK",
+    "gain.priority": "OK",
+    "allocate.controller": "OK",
+    "allocate.diversity": "OK",
+    "allocate.compute": "OK",
+    "run.experiments": "OK",
+    "validate.harvest": "OK",
+    "controls.compare": "OK",
+    "learn.ladder": "OK",
+    "learn.memory": "OK",
+    "learn.value": "OK",
+    "learn.science_memory": "OK",
+    "learn.replication": "OK",
+    "learn.quality_gate": "SKIPPED_NO_INPUT",
+    "c68.validate_promote": "SKIPPED_NO_INPUT",
+    "learn.decision_bridge": "SKIPPED_NO_INPUT",
+    "priorities.waste": "OK",
+    "priorities.brain_health": "OK",
+    "priorities.meta_research": "SKIPPED_CADENCE",
+    "priorities.failed_lab": "OK",
+    "priorities.scorecard": "SKIPPED_CADENCE",
+    "priorities.stale": "OK",
+    "c68.monitor_audit": "OK",
+    "sweeps.background": "OK",
+    "report.cycle": "OK"
+   },
+   "reasons": {
+    "c68.selection_policy": "policy L0efe3a52 (threshold -0.0029); gain model fitted n=2702 base in-band 0.071; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00",
+    "evaluate.two_stage": "gate open",
+    "c68.expectations": "no position on 2017-05-26: {'NOT_PREDICTED_MOVER': 39, 'LOW_CONFIDENCE': 3, 'SHORT_DISABLED': 2}",
+    "c68.outcomes_errors": "0 exit(s) by the learned policy, 0 error report(s), 0 unreconstructable, 45 candidate gain(s) resolved",
+    "c68.what_changed": "no newly matured error to investigate (upstream: 0 position(s) ever, 0 open, 0 matured, 0 error report(s); band gate eligible 1/133 forecast(s))",
+    "c68.error_research": "no new matured error, no new repeated surprise and no market investigation to research (upstream: 0 position(s) ever, 0 open, 0 matured, 0 error report(s); band",
+    "questions.generate": "6 merged, 0 refused, 0 already answered",
+    "c68.research_depth": "no new question from a C68 event this cycle (12 new loop question(s), 3 C68 subject(s) ever asked; upstream: 0 position(s) ever, 0 open, 0 matured, 0 error repo",
+    "learn.decision_bridge": "no new knowledge to route"
+   },
+   "positions": [],
+   "abstentions": {
+    "NOT_PREDICTED_MOVER": 39,
+    "LOW_CONFIDENCE": 3,
+    "SHORT_DISABLED": 2
+   },
+   "knowledge": []
+  }
+ ],
+ "truth": {
+  "trend_share": 0.15965346534653466,
+  "n_runs": 201,
+  "genuine_direction": [
+   "rel_r20",
+   "rel_r5"
+  ]
+ },
+ "provenance": {
+  "code_hash": "dcde8287bc2ae145",
+  "code_files": [
+   "engine/__init__.py",
+   "engine/analogs.py",
+   "engine/antioverfit.py",
+   "engine/candidates.py",
+   "engine/candles.py",
+   "engine/checkpoint.py",
+   "engine/config.py",
+   "engine/data.py",
+   "engine/direction.py",
+   "engine/exits.py",
+   "engine/experiment_memory.py",
+   "engine/features.py",
+   "engine/learning/__init__.py",
+   "engine/learning/archive.py",
+   "engine/learning/break_detection.py",
+   "engine/learning/calibration.py",
+   "engine/learning/checkpoints.py",
+   "engine/learning/complexity.py",
+   "engine/learning/compute.py",
+   "engine/learning/context.py",
+   "engine/learning/core.py",
+   "engine/learning/epistemic.py",
+   "engine/learning/experiment_memory.py",
+   "engine/learning/failure.py",
+   "engine/learning/firewalls.py",
+   "engine/learning/health.py",
+   "engine/learning/identity_firewall.py",
+   "engine/learning/knowledge.py",
+   "engine/learning/lifecycle.py",
+   "engine/learning/memory_firewall.py",
+   "engine/learning/promotion.py",
+   "engine/learning/reliability.py",
+   "engine/learning/research_policy.py",
+   "engine/learning/research_priority.py",
+   "engine/learning/retirement.py",
+   "engine/learning/situation.py",
+   "engine/learning/surprise.py",
+   "engine/learning/trader_view.py",
+   "engine/pattern_bank.py",
+   "engine/pattern_identity.py",
+   "engine/pattern_lifecycle.py",
+   "engine/pattern_memory.py",
+   "engine/pattern_movers.py",
+   "engine/pattern_reliability.py",
+   "engine/pattern_stats.py",
+   "engine/patterns.py",
+   "engine/pit.py",
+   "engine/provenance.py",
+   "engine/registry.py",
+   "engine/research/__init__.py",
+   "engine/research/break_research.py",
+   "engine/research/calibration_target.py",
+   "engine/research/change_points.py",
+   "engine/research/controller.py",
+   "engine/research/core.py",
+   "engine/research/cross_section.py",
+   "engine/research/discovery.py",
+   "engine/research/discovery_sources.py",
+   "engine/research/episode_paths.py",
+   "engine/research/episodes.py",
+   "engine/research/error_loop.py",
+   "engine/research/error_research.py",
+   "engine/research/evidence.py",
+   "engine/research/exit_research.py",
+   "engine/research/expectations.py",
+   "engine/research/feeds.py",
+   "engine/research/hypothesis_tree.py",
+   "engine/research/interactions.py",
+   "engine/research/knowability.py",
+   "engine/research/loop.py",
+   "engine/research/market_expectations.py",
+   "engine/research/multiscale.py",
+   "engine/research/outcomes.py",
+   "engine/research/pattern_change.py",
+   "engine/research/precursors.py",
+   "engine/research/prediction_error.py",
+   "engine/research/priority.py",
+   "engine/research/quality_gate.py",
+   "engine/research/regime_memory.py",
+   "engine/research/regimes.py",
+   "engine/research/replication.py",
+   "engine/research/selection_constraint.py",
+   "engine/research/self_correct.py",
+   "engine/research/two_stage.py",
+   "engine/research/vol_hypotheses.py",
+   "engine/research/what_changed.py",
+   "engine/resources.py",
+   "engine/stops.py",
+   "scripts/f23_planted_trades.py"
+  ],
+  "code_mixed": [],
+  "git_commit": "ff93a28c9f3f553ed64fa6432e6d06e5c645115e+dirty",
+  "canon_sha": "c0cbbc40a38a0733",
+  "bible_sha": "a97ea91862cee371",
+  "blueprint_version": "4.0",
+  "config_hash": "fddfb8e2ae0b7a1e",
+  "data_snapshot": "171ba8ba728ee713",
+  "seed": 0
+ },
+ "seconds": 33.2,
+ "stage_table": {
+  "allocate.compute": {
+   "all": {
+    "OK": 3
+   },
+   "after_warmup": {}
+  },
+  "allocate.controller": {
+   "all": {
+    "OK": 3
+   },
+   "after_warmup": {}
+  },
+  "allocate.diversity": {
+   "all": {
+    "OK": 3
+   },
+   "after_warmup": {}
+  },
+  "breaks.break_research": {
+   "all": {
+    "OK": 3
+   },
+   "after_warmup": {}
+  },
+  "breaks.knowledge": {
+   "all": {
+    "SKIPPED_NO_INPUT": 3
+   },
+   "after_warmup": {}
+  },
+  "c68.error_research": {
+   "all": {
+    "OK": 2,
+    "SKIPPED_NO_INPUT": 1
+   },
+   "after_warmup": {}
+  },
+  "c68.expectations": {
+   "all": {
+    "OK": 3
+   },
+   "after_warmup": {}
+  },
+  "c68.market_regime": {
+   "all": {
+    "OK": 3
+   },
+   "after_warmup": {}
+  },
+  "c68.monitor_audit": {
+   "all": {
+    "OK": 3
+   },
+   "after_warmup": {}
+  },
+  "c68.outcomes_errors": {
+   "all": {
+    "SKIPPED_NO_INPUT": 2,
+    "OK": 1
+   },
+   "after_warmup": {}
+  },
+  "c68.pattern_change": {
+   "all": {
+    "OK": 3
+   },
+   "after_warmup": {}
+  },
+  "c68.research_depth": {
+   "all": {
+    "OK": 2,
+    "SKIPPED_NO_INPUT": 1
+   },
+   "after_warmup": {}
+  },
+  "c68.selection_policy": {
+   "all": {
+    "OK": 3
+   },
+   "after_warmup": {}
+  },
+  "c68.validate_promote": {
+   "all": {
+    "SKIPPED_NO_INPUT": 3
+   },
+   "after_warmup": {}
+  },
+  "c68.what_changed": {
+   "all": {
+    "SKIPPED_NO_INPUT": 3
+   },
+   "after_warmup": {}
+  },
+  "controls.compare": {
+   "all": {
+    "OK": 3
+   },
+   "after_warmup": {}
+  },
+  "evaluate.direction_lab": {
+   "all": {
+    "OK": 1,
+    "SKIPPED_CADENCE": 2
+   },
+   "after_warmup": {}
+  },
+  "evaluate.frontier": {
+   "all": {
+    "OK": 3
+   },
+   "after_warmup": {}
+  },
+  "evaluate.symmetry": {
+   "all": {
+    "OK": 3
+   },
+   "after_warmup": {}
+  },
+  "evaluate.two_stage": {
+   "all": {
+    "OK": 3
+   },
+   "after_warmup": {}
+  },
+  "evaluate.volatility_lab": {
+   "all": {
+    "OK": 1,
+    "SKIPPED_CADENCE": 2
+   },
+   "after_warmup": {}
+  },
+  "failures.decision_losses": {
+   "all": {
+    "SKIPPED_NO_INPUT": 3
+   },
+   "after_warmup": {}
+  },
+  "failures.loss_pipeline": {
+   "all": {
+    "SKIPPED_NO_INPUT": 2,
+    "OK": 1
+   },
+   "after_warmup": {}
+  },
+  "failures.winners_losers": {
+   "all": {
+    "SKIPPED_NO_INPUT": 2,
+    "OK": 1
+   },
+   "after_warmup": {}
+  },
+  "gain.priority": {
+   "all": {
+    "OK": 3
+   },
+   "after_warmup": {}
+  },
+  "hypotheses.trees": {
+   "all": {
+    "OK": 3
+   },
+   "after_warmup": {}
+  },
+  "learn.decision_bridge": {
+   "all": {
+    "SKIPPED_NO_INPUT": 3
+   },
+   "after_warmup": {}
+  },
+  "learn.ladder": {
+   "all": {
+    "OK": 3
+   },
+   "after_warmup": {}
+  },
+  "learn.memory": {
+   "all": {
+    "OK": 3
+   },
+   "after_warmup": {}
+  },
+  "learn.quality_gate": {
+   "all": {
+    "SKIPPED_NO_INPUT": 3
+   },
+   "after_warmup": {}
+  },
+  "learn.replication": {
+   "all": {
+    "OK": 3
+   },
+   "after_warmup": {}
+  },
+  "learn.science_memory": {
+   "all": {
+    "OK": 3
+   },
+   "after_warmup": {}
+  },
+  "learn.value": {
+   "all": {
+    "OK": 3
+   },
+   "after_warmup": {}
+  },
+  "missed.counterfactual": {
+   "all": {
+    "OK": 3
+   },
+   "after_warmup": {}
+  },
+  "missed.knowability": {
+   "all": {
+    "OK": 3
+   },
+   "after_warmup": {}
+  },
+  "missed.missed": {
+   "all": {
+    "SKIPPED_NO_INPUT": 2,
+    "OK": 1
+   },
+   "after_warmup": {}
+  },
+  "missed.unknown_cause": {
+   "all": {
+    "OK": 3
+   },
+   "after_warmup": {}
+  },
+  "observe.autopsy": {
+   "all": {
+    "SKIPPED_NO_INPUT": 2,
+    "OK": 1
+   },
+   "after_warmup": {}
+  },
+  "observe.observer": {
+   "all": {
+    "SKIPPED_NO_INPUT": 2,
+    "OK": 1
+   },
+   "after_warmup": {}
+  },
+  "observe.panel": {
+   "all": {
+    "OK": 3
+   },
+   "after_warmup": {}
+  },
+  "priorities.brain_health": {
+   "all": {
+    "OK": 3
+   },
+   "after_warmup": {}
+  },
+  "priorities.failed_lab": {
+   "all": {
+    "OK": 3
+   },
+   "after_warmup": {}
+  },
+  "priorities.meta_research": {
+   "all": {
+    "OK": 1,
+    "SKIPPED_CADENCE": 2
+   },
+   "after_warmup": {}
+  },
+  "priorities.scorecard": {
+   "all": {
+    "SKIPPED_NO_INPUT": 1,
+    "SKIPPED_CADENCE": 2
+   },
+   "after_warmup": {}
+  },
+  "priorities.stale": {
+   "all": {
+    "OK": 3
+   },
+   "after_warmup": {}
+  },
+  "priorities.waste": {
+   "all": {
+    "OK": 3
+   },
+   "after_warmup": {}
+  },
+  "questions.discovery": {
+   "all": {
+    "OK": 1,
+    "SKIPPED_CADENCE": 2
+   },
+   "after_warmup": {}
+  },
+  "questions.generate": {
+   "all": {
+    "OK": 3
+   },
+   "after_warmup": {}
+  },
+  "questions.interactions": {
+   "all": {
+    "OK": 1,
+    "SKIPPED_CADENCE": 2
+   },
+   "after_warmup": {}
+  },
+  "questions.precursors": {
+   "all": {
+    "OK": 3
+   },
+   "after_warmup": {}
+  },
+  "questions.research_graph": {
+   "all": {
+    "OK": 3
+   },
+   "after_warmup": {}
+  },
+  "questions.targets": {
+   "all": {
+    "SKIPPED_NO_INPUT": 2,
+    "OK": 1
+   },
+   "after_warmup": {}
+  },
+  "report.cycle": {
+   "all": {
+    "OK": 3
+   },
+   "after_warmup": {}
+  },
+  "run.experiments": {
+   "all": {
+    "OK": 3
+   },
+   "after_warmup": {}
+  },
+  "surprises.cross_section": {
+   "all": {
+    "OK": 3
+   },
+   "after_warmup": {}
+  },
+  "surprises.feature_screen": {
+   "all": {
+    "OK": 1,
+    "SKIPPED_CADENCE": 2
+   },
+   "after_warmup": {}
+  },
+  "surprises.multiscale": {
+   "all": {
+    "OK": 3
+   },
+   "after_warmup": {}
+  },
+  "surprises.regimes": {
+   "all": {
+    "OK": 3
+   },
+   "after_warmup": {}
+  },
+  "sweeps.background": {
+   "all": {
+    "OK": 3
+   },
+   "after_warmup": {}
+  },
+  "update.experiment_memory": {
+   "all": {
+    "OK": 3
+   },
+   "after_warmup": {}
+  },
+  "update.firewall_release": {
+   "all": {
+    "SKIPPED_NO_INPUT": 3
+   },
+   "after_warmup": {}
+  },
+  "validate.harvest": {
+   "all": {
+    "OK": 3
+   },
+   "after_warmup": {}
+  }
+ },
+ "n_positions": 0,
+ "cycles_with_positions": 0
+}

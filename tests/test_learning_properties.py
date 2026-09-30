@@ -606,7 +606,7 @@ FIELD_LAYERS = {"items": {FW.LayerName.MEMORY, FW.LayerName.PROVENANCE}, "X": {F
                 "code": {FW.LayerName.CODE_VERSION}}
 
 
-REFERENCE_SEEDS = (0, 1, 2, 3, 4, 5, 6, 7, 8, 9)      # seeds 11, 17, 41 trip the data layer's implausible-IC check (a chance draw in the reference panel)
+REFERENCE_SEEDS = tuple(range(60))      # ALL seeds (F22, Firewall 5): 11, 17, 41 used to be excluded because the IC screen false-alarmed
 
 
 class LenientLayer(FW.FirewallLayer):
@@ -699,7 +699,7 @@ def gen_gain(rng):
     if kind == 2:
         return float(rng.choice([1e-12, -1e-12, 1e-300, -1e-300]))
     if kind == 3:
-        return float(rng.choice([1e6, -1e6, 1e150]))
+        return float(rng.choice([1e6, -1e6, 1e150, math.inf, -math.inf]))    # F22: infinities were never drawn (a hidden hard case)
     if kind == 4:
         return math.nan
     return float(rng.normal(0, 0.01))
@@ -719,6 +719,10 @@ def prop_transfer_ratio(rng, stats, impl=None):
         stats["nan"] += 1
         if r.value is not None or r.status != TS.RatioStatus.INSUFFICIENT:
             bad.append("a NaN gain must be INSUFFICIENT with no ratio")
+    elif math.isinf(cross) or math.isinf(same):
+        stats["infinite"] += 1
+        if r.value is not None or r.capped is not None or r.status != TS.RatioStatus.UNDEFINED:
+            bad.append(f"an infinite gain (cross={cross!r} same={same!r}) must be UNDEFINED with no ratio, got {r.status} {r.value}")
     elif not same > TS.EPS_GAIN:
         stats["degenerate_denominator"] += 1
         if r.value is not None:
@@ -961,11 +965,42 @@ def test_a_crashing_property_is_a_failure_and_zero_cases_is_vacuous_not_ok_by_ac
     assert empty.ok and empty.n_cases == 0                       # callers must assert n_cases; the registry always does
 
 
-def test_known_gap_infinite_gain_inputs_are_not_guarded():
-    """Documented finding, not a pass: transfer_ratio guards zero/negative/NaN denominators but an infinite cross-context gain still
-    yields value=inf (capped to +-3). The property with finite inputs holds; this asserts the gap so it is noticed if it is fixed."""
-    r = TS.transfer_ratio(math.inf, 0.01)
-    assert r.value is not None and math.isinf(r.value) and r.capped == TS.RATIO_CAP
+def test_infinite_gain_inputs_are_guarded():
+    """F22 (C75 section 4, 'unguarded infinite transfer ratio'): this test used to ASSERT the bug (inf / 0.01 -> value=inf, capped
+    to +3, i.e. 'superb transfer'). An infinite gain is a broken measurement: no ratio, status UNDEFINED, and the verdict is
+    INSUFFICIENT_EVIDENCE, never GENERALISES."""
+    for cross, same in ((math.inf, 0.01), (-math.inf, 0.01), (0.01, math.inf), (math.inf, math.inf), (math.inf, 0.0), (-math.inf, -math.inf)):
+        r = TS.transfer_ratio(cross, same)
+        assert r.value is None and r.capped is None and r.status == TS.RatioStatus.UNDEFINED, (cross, same, r)
+    r = TS.transfer_ratio(1.7e308, 1.5e-4)                                # finite inputs whose quotient overflows
+    assert r.value is None and r.status == TS.RatioStatus.UNDEFINED
+    big = TS.BootMean(math.inf, math.inf, math.inf, 50, 10)
+    same = TS.BootMean(0.01, 0.005, 0.015, 50, 10)
+    ratio = TS.transfer_ratio(big.mean, same.mean)
+    v = TS.classify_transfer(same, big, ratio, TS.specialisation(same, big, ratio))
+    assert v.label == TS.TransferVerdictLabel.INSUFFICIENT_EVIDENCE, v
+    res = run_property("transfer_ratio", prop_transfer_ratio, 400, seed=3)
+    assert res.ok, res.describe()
+    assert res.stats["infinite"] > 10, "infinite gains must actually be drawn"
+    bad = run_property("transfer_ratio", prop_transfer_ratio, 400, seed=3, impl=naive_ratio)
+    assert not bad.ok                                                       # the unguarded mutant is caught
+
+
+def test_reference_context_passes_on_every_seed_and_a_real_leak_still_fails():
+    """F22 (C75 section 4, 'reference-context IC false alarms'; Firewall 5): seeds 11, 17, 41 were excluded because the data
+    layer's implausible-IC screen fired on the clean reference panel (f1's honest IC ~0.1, se ~0.036 on 40 dates x 20 names,
+    crossed the 0.15 cap by chance). The screen now needs the IC to exceed the cap beyond sampling noise. Every seed must pass,
+    and a planted leak of moderate strength on the SAME small panel must still be rejected."""
+    gate = FW.LearningFirewallGate()
+    failing = [s for s in range(60) if not gate.evaluate(FW.reference_context(seed=s)).passed]
+    assert failing == [], f"clean reference context rejected on seeds {failing}"
+    for s in (11, 17, 41):
+        ref = FW.reference_context(seed=s)
+        rng = np.random.default_rng(s)
+        leak = ref.y.to_numpy() + rng.normal(0, 1.5 * float(ref.y.std()), len(ref.y))      # label + heavy noise: rank IC ~0.5
+        v = gate.evaluate(dataclasses.replace(ref, X=ref.X.assign(f3=leak)))
+        found = [f for f in v.findings() if f.check == "implausible-ic"]
+        assert not v.passed and [f.subject for f in found] == ["f3"], (s, found)
 
 
 def test_whole_file_stays_fast():

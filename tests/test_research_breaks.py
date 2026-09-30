@@ -74,14 +74,14 @@ def test_planted_precursor_is_explained_with_all_six_questions():
 
 def test_breaks_without_a_precursor_are_never_explained():
     n_unknown = 0
-    for seed in (0, 2, 3):
+    for seed in range(10):                                         # F22: all seeds (was (0, 2, 3): seed 1 was left out, it passes)
         item = make_item("random", seed=seed)
         F = BR.build_frame(item, last(item), FAST)
         res, rule = BR.run_ladder(F, seed, stop_early=True)
         verdict = BR.adjudicate(res)[0]
         assert verdict != BR.Verdict.EXPLAINED, [r.brief() for r in res]
         n_unknown += verdict == BR.Verdict.UNKNOWN
-    assert n_unknown >= 2
+    assert n_unknown >= 7
 
 
 def test_null_calibration_counts_placebos_and_none_are_explained():
@@ -528,8 +528,7 @@ def test_w05_agreement_check_refuses_a_placebo_only_explanation(monkeypatch):
     item = make_item("precursor", seed=0)
     cfg = {"bd": FAST}
     bare = bd.explain_break(item, last(item), {**bd.PARAMS, **FAST}, 0)
-    if not bare.explained:
-        pytest.skip("planted precursor not explained by the bare engine under FAST settings")
+    assert bare.explained, "planted precursor not explained by the bare engine under FAST settings"   # F22: was a pytest.skip that hid a regression
     ok = BR.agreement_with_engine(_Inv(), item, last(item), cfg, 0)
     assert ok["engine_status"] == "EXPLAINED" and ok["engine_columns"]              # a real link survives the placebo bar
     orig = bd.explain_break

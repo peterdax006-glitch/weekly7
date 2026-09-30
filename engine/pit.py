@@ -1228,9 +1228,13 @@ def future_invariance(fn, data, cuts=None, n_cuts=4, seed=0, atol=1e-9, rtol=1e-
     return rep
 
 
-def implausible_ic(X: pd.DataFrame, y: pd.Series, cap: float = 0.15, min_dates: int = 20, min_names: int = 10) -> pd.DataFrame:
+def implausible_ic(X: pd.DataFrame, y: pd.Series, cap: float = 0.15, min_dates: int = 20, min_names: int = 10,
+                   z: float = 2.33) -> pd.DataFrame:
     """Per-feature mean daily rank-IC against the label. Honest single features on liquid stocks sit far below 0.1; a
-    mean IC above `cap` is a feature that already knows the answer. Returns every feature with mean_ic, t, n and flag."""
+    mean IC above `cap` is a feature that already knows the answer. Returns every feature with mean_ic, t, n, ic_lo and flag.
+    The flag needs |mean IC| to exceed `cap` BEYOND sampling noise (ic_lo = |mean| - z * se > cap, one-sided 1%): on a small
+    panel (40 dates x 20 names, se ~0.036) an honest IC of 0.1 crossed 0.15 by chance on 3 of 60 seeds (C75 section 4,
+    'reference-context IC false alarms'). A real leak (IC 0.3+ with se of a few hundredths, or a copy with se 0) still flags."""
     yy = y.reindex(X.index)
     rk = X.groupby(level=0).rank(pct=True)
     ry = yy.groupby(level=0).rank(pct=True)
@@ -1241,13 +1245,16 @@ def implausible_ic(X: pd.DataFrame, y: pd.Series, cap: float = 0.15, min_dates: 
         cnt = g.size()
         good = cnt[cnt >= min_names].index
         if len(good) == 0:
-            rows.append(dict(feature=c, mean_ic=np.nan, t=np.nan, n_dates=0, flag=False))
+            rows.append(dict(feature=c, mean_ic=np.nan, t=np.nan, n_dates=0, ic_lo=np.nan, flag=False))
             continue
         ic = g.apply(lambda d: d["a"].corr(d["b"])).loc[good].dropna()
         sd = ic.std(ddof=1) if len(ic) > 1 else np.nan
         t = ic.mean() / (sd / np.sqrt(len(ic))) if sd and sd > 0 else (np.inf if len(ic) > 1 and ic.mean() != 0 else np.nan)
+        se = sd / np.sqrt(len(ic)) if len(ic) > 1 and np.isfinite(sd) else np.nan
+        lo = abs(float(ic.mean())) - z * se if np.isfinite(se) else np.nan
         rows.append(dict(feature=c, mean_ic=float(ic.mean()), t=float(t) if np.isfinite(t) else t,
-                         n_dates=int(len(ic)), flag=bool(len(ic) >= min_dates and abs(ic.mean()) > cap)))
+                         n_dates=int(len(ic)), ic_lo=float(lo),
+                         flag=bool(len(ic) >= min_dates and abs(ic.mean()) > cap and np.isfinite(lo) and lo > cap)))
     return pd.DataFrame(rows).set_index("feature")
 
 

@@ -43,15 +43,14 @@ def test_no_firewall_swallows_an_import_error_silently():
 
 def test_memory_firewall_fails_closed_when_causality_helper_is_missing(block):
     import pandas as pd
+    """F22 (Firewall 5): this test used to look for a `check_*bank*` function that does not exist and pytest.skip() - it had never run.
+    The bank entry is memory_firewall.audit_bank_frame; it is exercised directly, with no skip path."""
     from engine.learning import memory_firewall as MF
-    fn = next((getattr(MF, n) for n in dir(MF) if n.startswith("check_") and "bank" in n), None)
-    if fn is None:
-        pytest.skip("bank check entry not public; covered by the static guard")
-    block("engine.blind_gates")
     bank = pd.DataFrame({"real_end": [pd.Timestamp("2001-01-05")], "learned_at": [pd.Timestamp("2001-01-05")],
                          "outcomes_seen_through": [pd.Timestamp("2001-01-05")]})
-    try:
-        out = fn(bank, pd.Timestamp("2001-02-01"))
-    except TypeError:
-        pytest.skip("signature differs; covered by the static guard")
-    assert any("missing" in str(getattr(f, "check", f)) for f in out)
+    now = pd.Timestamp("2001-02-01")
+    assert not [f for f in MF.audit_bank_frame(bank, now) if f.check == "bank-causality-check-missing"]    # null: helper present
+    block("engine.blind_gates")
+    out = MF.audit_bank_frame(bank, now)
+    missing = [f for f in out if f.check == "bank-causality-check-missing"]
+    assert len(missing) == 1 and missing[0].severity.value == "FAIL", out

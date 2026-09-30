@@ -508,6 +508,20 @@ def test_implausible_ic_flags_only_the_leaking_feature():
     assert r.loc["leak", "mean_ic"] > 0.6
 
 
+def test_implausible_ic_needs_the_excess_to_beat_sampling_noise():
+    """F22 (C75 section 4): on 40 dates x 20 names an honest IC ~0.1 crosses the 0.15 cap by chance (se ~0.036). The flag needs
+    |mean| - 2.33 se > cap; a chance crossing is not flagged, a real moderate leak on the same small panel is."""
+    rng = np.random.default_rng(41)
+    idx = pd.MultiIndex.from_product([pd.bdate_range("2019-01-04", periods=200)[::5], range(20)], names=["date", "ticker"])
+    X = pd.DataFrame({"f1": rng.normal(size=len(idx)), "f2": rng.normal(size=len(idx))}, index=idx)
+    y = pd.Series(0.003 * X["f1"].to_numpy() + rng.normal(0, 0.03, len(idx)), index=idx)
+    X["leak"] = y.to_numpy() + rng.normal(0, 1.5 * float(y.std()), len(idx))
+    r = pit.implausible_ic(X, y)
+    assert r.loc["f1", "mean_ic"] > 0.15 and r.loc["f1", "ic_lo"] < 0.15 and not r.loc["f1", "flag"]   # the seed-41 false alarm
+    assert r.loc["leak", "flag"] and r.loc["leak", "ic_lo"] > 0.15
+    assert pit.implausible_ic(X, y, z=0.0).loc["f1", "flag"]                                           # the old rule fires
+
+
 def test_implausible_ic_degenerate_inputs():
     X, y = _ic_panel(dates=5, names=5)                             # too few names per date
     r = pit.implausible_ic(X, y)

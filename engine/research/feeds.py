@@ -114,6 +114,27 @@ class PlantConfig:
     coincidence_rate: float = 0.05         # extra jump probability per cheap name-day inside it
     insider_rate: float = 0.01
     price_range: tuple = (6.0, 160.0)
+    # F23: the band-eligible mechanism (a knowable-in-advance 5-10% weekly move for a minority of names). A name whose latent
+    # volatility state is HOT (h > trend_hot_sd x the state's stationary sd) may start a directional run (hazard trend_rate per
+    # session, direction a fair coin, geometric length with mean trend_len); during the run the name drifts trend_drift per session
+    # (~7% a week at the default). The run is invisible on its first days and then shows in r5 / r20 (the precursor): the edge is
+    # real but modest because a run ends without warning and most high-r20 names are noise. No hot state (vol_state_sd = 0, the null
+    # world) means no run at all. Drawn from its own seeded stream, so every earlier mechanism of a seed is unchanged.
+    trend_rate: float = 0.02
+    trend_len: float = 40.0
+    trend_drift: float = 0.020
+    trend_hot_sd: float = 0.5
+
+    def validate(self) -> list[str]:
+        errs = []
+        if not 0.0 <= self.trend_rate < 1.0 or self.trend_len < 1.0 or not 0.0 <= self.trend_drift < 0.05:
+            errs.append("trend_rate in [0,1), trend_len >= 1 and trend_drift in [0, 0.05) required")
+        if not 0.0 <= self.vol_persistence < 1.0 or self.vol_state_sd < 0.0:
+            errs.append("vol_persistence in [0,1) and vol_state_sd >= 0 required")
+        return errs
+
+
+NULL_PLANT = {"vol_state_sd": 0.0, "base_sigma": (0.015, 0.015), "coincidence_rate": 0.0, "earnings_shock": 0.0}   # nothing predicts
 
 
 @dataclasses.dataclass(frozen=True)
@@ -223,6 +244,9 @@ def planted_world(pc: PlantConfig = PlantConfig()) -> World:
     n, T = pc.n_names, pc.n_days
     if n < 8 or T < 300:
         raise ValueError("planted world needs >= 8 names and >= 300 sessions")
+    errs = pc.validate()
+    if errs:
+        raise ValueError("; ".join(errs))
     dates = pd.bdate_range(pc.start, periods=T)
     tick = [f"W{j:03d}" for j in range(n)]
     base = rng.uniform(pc.base_sigma[0], pc.base_sigma[1], n)
@@ -247,6 +271,8 @@ def planted_world(pc: PlantConfig = PlantConfig()) -> World:
             r[t, j] += rng.normal(0, pc.earnings_shock)
             V[t, j] *= 3.0
             t += int(pc.earnings_every + rng.integers(-3, 4))
+    drift, runs = trend_runs(h, pc)
+    r = r + drift                      # no re-clip: with the mechanism off the world is bit-identical to the pre-F23 world
     C = p0 * np.exp(np.cumsum(np.log1p(r), axis=0))
     prev = np.vstack([C[:1] / (1 + r[:1]), C[:-1]])
     O = prev * (1.0 + r * rng.uniform(0.0, 0.5, (T, n)))
@@ -270,7 +296,40 @@ def planted_world(pc: PlantConfig = PlantConfig()) -> World:
                                                                                                  "insider_recent"),
              "coincidence_until": str(dates[until - 1].date()), "earnings": [(str(dates[t].date()), tick[j]) for t, j in earn],
              "cheap": [tick[j] for j in np.flatnonzero(cheap)], "seed": pc.seed}
+    if runs:
+        # a run makes |r20| a genuine volatility predictor and r5 / r20 a genuine (modest) direction precursor
+        truth["genuine"] = truth["genuine"] + ("abs_rel_r20",)
+        truth["genuine_direction"] = ("rel_r20", "rel_r5")
+    truth["trend_runs"] = [(str(dates[a].date()), tick[j], int(s), int(k)) for a, j, s, k in runs]
+    truth["trend_share"] = float((drift != 0).mean())
     return World(bars, ev, ins, macro, sectors, sic, market_proxy(bars), truth)
+
+
+def trend_runs(h: np.ndarray, pc: PlantConfig) -> tuple[np.ndarray, list]:
+    """F23: the per-session drift of the directional runs and the runs themselves as (start session, name index, sign, length).
+    A run can start only while the name's volatility state is hot, and only when it is not already running; its length is drawn at
+    the start (geometric) and nothing about it is visible before it moves the price. Seeded on its own stream [seed, 0x7E1D]."""
+    T, n = h.shape
+    drift = np.zeros((T, n))
+    runs: list = []
+    sd_h = pc.vol_state_sd / math.sqrt(1.0 - pc.vol_persistence ** 2) if pc.vol_state_sd > 0 else 0.0
+    if pc.trend_rate <= 0 or pc.trend_drift <= 0 or sd_h <= 0:
+        return drift, runs
+    rg = np.random.default_rng([int(pc.seed), 0x7E1D])
+    hot = h > pc.trend_hot_sd * sd_h
+    left = np.zeros(n, int)
+    sign = np.zeros(n)
+    for t in range(T):
+        u, dirs, lens = rg.random(n), rg.choice([-1.0, 1.0], n), rg.geometric(1.0 / pc.trend_len, n)
+        start = (left == 0) & hot[t] & (u < pc.trend_rate)
+        for j in np.flatnonzero(start):
+            runs.append((t, int(j), int(dirs[j]), int(lens[j])))
+        sign = np.where(start, dirs, sign)
+        left = np.where(start, lens, left)
+        drift[t] = sign * pc.trend_drift
+        left = np.maximum(left - 1, 0)
+        sign = np.where(left == 0, 0.0, sign)
+    return drift, runs
 
 
 # ================================================================================================================ sources
