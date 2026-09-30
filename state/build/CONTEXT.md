@@ -106,3 +106,8 @@ that the owner should record.
     the target and shows identical exits); unknowable outcomes stay unknowable; regime/change detection runs forward in time
     with only data available at each step (a test must show the detector's decision at t is identical when all data after t is
     scrambled). C63: code + unit tests only.
+29. Trader import closure (29 Sep, leak 8d reopened by a lazy import): engine/train.py, engine/backtest.py, engine/livesim.py,
+    engine/adaptive.py, engine/memory.py, engine/leak_audit.py and everything they import are reachable by the blind trader. Never
+    add an import (even inside a function) of patterns, pattern_*, trust*, direction*, lessons, analogs*, curator or research
+    modules there; put such code in a separate module the trader never imports (see engine/scramble_audit.py, engine/score_hooks.py).
+    Check with `python scripts/leak_audit.py --parts static,assemble` (8d must not be LEAK) and tests/test_leak_audit.py.
