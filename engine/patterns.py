@@ -12,6 +12,7 @@ The system, not a person, discovers patterns:
     (consecutive dates share forward-return days) the standard error is overlap-robust (Newey-West on the cluster series),
     otherwise the plain cluster test; Benjamini-Hochberg over EVERY candidate tried; permutation null within date ->
     local false-discovery rate; P(real) = (1 - max(P(hallucinated), BH-corrected P(coincidence))) x Phi(t_confirm);
+    admission also needs the confirmation-block FDR test (F25, _confirmation_fdr: the budget fdr_q is spent out of sample);
     effect = mean x n_eff / (n_eff + k) (or empirical-Bayes shrinkage, `effect_method="eb"`);
   * pattern death: if the most recent stretch contradicts the long-run effect, the pattern is benched; the miner searches
     for the cause - a context tercile in which the CLUSTER-tested pattern still holds long-run, in both halves and recently -
@@ -538,10 +539,15 @@ def _confirmation_fdr(R, P, miner):
     P(hallucinated) = 0). Admission then rested on Phi(|t_conf|) ~ 0.85, a one-sided confirmation p of ~0.15.
 
     Two-stage procedure: stage 1 SCREENS on discovery evidence only (1 - max(P(hallucinated), corrected P(coincidence))
-    >= p_real_min, exactly the discovery half of P(real)); stage 2 tests every screened candidate once on the
-    confirmation dates with a one-sided p (sign must repeat) and applies Benjamini-Hochberg at `confirm_q` (default
-    fdr_q) over the screened family. Confirmation dates are disjoint from the dates that drove the screen, so those
-    p-values are uniform under the null whatever the search did; under a complete null P(any admission) <= confirm_q."""
+    >= p_real_min, exactly the discovery half of P(real)); stage 2 tests screened candidates on the confirmation dates
+    with a one-sided p (sign must repeat), Benjamini-Hochberg at `confirm_q` (default fdr_q), hierarchically: a child
+    no stronger on discovery than a screened ancestor waits for that ancestor to confirm (_deferring_parent). Without
+    the hierarchy one planted single (confirmation p 0.0067) drowned among its 12 screened derivatives. Confirmation
+    dates are disjoint from the dates that drove the screen, so those p-values are uniform under the null whatever the
+    search did; under a complete null P(any admission) <= confirm_q.
+    Measured (240 + 240 noise panels, 2 null reps): false admissions/panel 0.129 / 0.146 -> 0.008 / 0.017; panels with
+    any false admission 7.5% / 10.4% -> 0.4% / 1.25%. Planted suite (8 seeds x 8 scenarios): should-admit plants
+    admitted directly 104 -> 100 (regime 7 -> 4, power_0.002 1 -> 0); admissions false by exact truth 20 -> 7."""
     from .pattern_stats import norm_cdf
     q = P.get("confirm_q")
     q = P["fdr_q"] if q is None else float(q)

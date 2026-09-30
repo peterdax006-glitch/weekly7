@@ -5,3 +5,8 @@
 13:54:22 W00007 heldout tier 3: real 0/18 FP 0 {} 66s
 13:55:21 W00009 development tier 3: real 0/18 FP 2 {'leak': 2} 59s
 13:56:28 W00011 development tier 0: real 0/0 FP 0 {} 67s
+13:57:30 W00013 heldout tier 1: real 1/24 FP 0 {} 62s
+13:58:27 W00015 development tier 1: real 0/19 FP 1 {'proxy': 1} 57s
+13:59:35 W00017 development tier 3: real 0/18 FP 0 {} 68s
+14:00:37 W00019 development tier 1: real 0/20 FP 0 {} 62s
+done

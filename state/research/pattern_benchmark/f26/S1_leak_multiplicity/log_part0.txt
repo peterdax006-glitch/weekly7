@@ -5,3 +5,8 @@
 13:53:43 W00006 heldout tier 0: real 0/0 FP 0 {} 47s
 13:54:46 W00008 development tier 2: real 0/17 FP 0 {} 63s
 13:55:58 W00010 development tier 3: real 1/21 FP 0 {} 72s
+13:57:08 W00012 development tier 3: real 0/16 FP 0 {} 70s
+13:58:11 W00014 development tier 2: real 1/24 FP 0 {} 62s
+13:59:20 W00016 development tier 2: real 0/19 FP 0 {} 69s
+14:00:22 W00018 heldout tier 1: real 0/19 FP 0 {} 62s
+done

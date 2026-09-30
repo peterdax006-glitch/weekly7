@@ -1,0 +1,10 @@
+14:01:05 stage S2_calibration part 0/2 pid 14368 code e8f4cfc95d9da810
+14:02:39 W00000 heldout tier 6: real 0/18 FP 0 {} 94s
+14:03:41 W00002 development tier 3: real 1/18 FP 0 {} 62s
+14:04:50 W00004 heldout tier 3: real 1/21 FP 0 {} 70s
+14:05:46 W00006 heldout tier 0: real 0/0 FP 0 {} 56s
+14:07:01 W00008 development tier 2: real 1/17 FP 0 {} 75s
+14:08:28 W00010 development tier 3: real 1/21 FP 0 {} 87s
+14:09:52 W00012 development tier 3: real 0/16 FP 0 {} 84s
+14:11:10 W00014 development tier 2: real 2/24 FP 0 {} 78s
+14:12:26 W00016 development tier 2: real 1/19 FP 0 {} 75s
