@@ -497,7 +497,8 @@ class CounterfactualReport:
                                   self.auditor_as_of, self.notes], 14)
 
     def provenance(self) -> Provenance:
-        return Provenance(created_real=dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S"), learned_at=self.matured_at,
+        from engine.learning.knowledge import wall_stamp        # F31: the caller's injected clock (real time when none is set)
+        return Provenance(created_real=wall_stamp(), learned_at=self.matured_at,
                           code_hash=self.code_hash or current_code_hash(), outcomes_seen_through=self.auditor_as_of,
                           parents=(self.event.event_id,))
 

@@ -59,6 +59,7 @@ import pandas as pd
 from engine.learning import checkpoints as CK
 from engine.learning import compute as C
 from engine.learning.core import current_code_hash
+from engine.learning.knowledge import provenance_clock
 from engine.research import controller as CT
 from engine.research import two_stage as TS
 from engine.research.core import (ExperimentValue, FirewallBreach, MaturedRecord, Namespace, Problem, Provenance, ResearchQuestion,
@@ -674,6 +675,28 @@ class Executor:
             if exc is not None and isinstance(exc, FirewallBreach):
                 raise exc
         return done
+
+    def settle(self, keys: Sequence[str], timeout: float | None = None) -> list[str]:
+        """F31 (C75 2A): wait - up to `timeout` seconds in total - for exactly the jobs in `keys`, then retire the ones that returned,
+        in the order given. Unlike finished(), what is retired does not depend on thread scheduling: a job not in `keys` is never
+        collected however early it returned, and a job in `keys` is waited for. Returns the keys that are settled (not running)."""
+        fs = [self.futures[k] for k in keys if k in self.futures]
+        if fs:
+            cf.wait(fs, timeout=timeout)
+        out = []
+        for k in keys:
+            f = self.futures.get(k)
+            if f is None:
+                out.append(k)
+                continue
+            if not f.done():
+                continue
+            self.futures.pop(k)
+            exc = f.exception()
+            if exc is not None and isinstance(exc, FirewallBreach):
+                raise exc
+            out.append(k)
+        return out
 
     def running(self) -> int:
         return sum(1 for f in self.futures.values() if not f.done())
@@ -1859,8 +1882,9 @@ def st_run(ctx: Ctx) -> tuple:
         st = ctx.rt.executor.submit(spec, task, obs.matured, obs.data_hash, ctx.now)
         rec.state = JobState.DONE if st == C.DONE else JobState.RUNNING if st == "RUNNING" else JobState.FAILED
         rec.attempts += 1
+        ctx.state.memo.setdefault("submit_cycle", {})[key] = ctx.cycle
         n += 1
-    return len(launched), n, f"mode {ctx.state.cfg.mode}; {ctx.rt.executor.running()} still running"
+    return len(launched), n, f"mode {ctx.state.cfg.mode}; {_outstanding(ctx.state)} submitted, not yet harvested"
 
 
 def fresh_dates(matured: pd.DataFrame, seen_through: str) -> int:
@@ -1906,6 +1930,7 @@ def _release_held(ctx: Ctx, ms, held: dict, cutoff: str) -> int:
         st = ctx.rt.executor.submit(ctx.rt.executor.ledger.spec(key), task, ctx.obs.matured, ctx.obs.data_hash, ctx.now)
         rec.state = JobState.DONE if st == C.DONE else JobState.RUNNING if st == "RUNNING" else JobState.FAILED
         rec.attempts += 1
+        ctx.state.memo.setdefault("submit_cycle", {})[key] = ctx.cycle          # F31: due for harvest in the cycle after this one
         held.pop(key)
         ctx.state.count("released_from_hold")
         n += 1
@@ -1933,9 +1958,19 @@ def st_harvest(ctx: Ctx) -> tuple:
     """Collect finished jobs through compute.reconcile (result hash, spec, seed and code must all verify); every result's data must end
     strictly before now (fail closed) and must carry the fields a rung needs."""
     ex = ctx.rt.executor
-    ex.finished()
-    accepted, rejected = ex.results()
     todo = [r for r in ctx.state.jobs.values() if r.state in (JobState.RUNNING, JobState.DONE, JobState.SUBMITTED)]
+    later = 0
+    if ctx.state.cfg.mode != "inline":
+        # F31 (C75 2A): harvesting "whatever has finished" raced the pool, so identical runs harvested different jobs. The rule is now
+        # a function of the loop state only: a job is due in the cycle after the one that submitted it, and a due job is waited for
+        # (up to the job timeout). Jobs of this cycle keep running, overlapping the rest of the cycle, and are collected next cycle.
+        due = [r for r in todo if _submit_cycle(ctx.state, r) < ctx.cycle]
+        later = len(todo) - len(due)
+        todo = due
+        ex.settle([r.key for r in todo], ctx.state.cfg.job_timeout_s)
+    else:
+        ex.finished()
+    accepted, rejected = ex.results()
     got = []
     for rec in todo:
         if rec.key in accepted:
@@ -1949,7 +1984,19 @@ def st_harvest(ctx: Ctx) -> tuple:
         elif ex.ledger_state(rec.key) in (C.FAILED, C.GAVE_UP, C.OOM, C.CRASHED):
             rec.state, rec.error = JobState.FAILED, f"compute ledger: {ex.ledger_state(rec.key)}"
     ctx.bus["harvested"] = got
-    return len(todo), len(got), f"{ex.running()} still running"
+    waiting = sum(1 for r in todo if r.state in (JobState.RUNNING, JobState.SUBMITTED))
+    return len(todo), len(got), f"{waiting} due still running; {later} submitted this cycle, due next cycle"
+
+
+def _submit_cycle(state: LoopState, rec: JobRecord) -> int:
+    """The cycle whose run stage last handed this job to the executor (a held rung released later is re-dated; a job re-queued by crash
+    recovery keeps the cycle of its original submission, so a resumed run harvests it exactly when the uninterrupted run would)."""
+    return int(state.memo.get("submit_cycle", {}).get(rec.key, rec.cycle))
+
+
+def _outstanding(state: LoopState) -> int:
+    """Jobs handed to the executor and not yet harvested, from the loop state (never from the pool, whose view races the threads)."""
+    return sum(1 for r in state.jobs.values() if r.state == JobState.RUNNING)
 
 
 def st_controls(ctx: Ctx) -> tuple:
@@ -2115,7 +2162,7 @@ def _ledger_record(ctx: Ctx, mem, rec: JobRecord, qo, r: Mapping[str, Any], t: f
     start = str(ctx.obs.matured.index.get_level_values(0).min().date())
     design = EM.DesignSpec(config={"feature": rec.feature, "stage": rec.stage, "problem": rec.problem}, windows=((start, rec.cutoff),),
                            seed=int(rec.task["seed"]), controls=("shuffled_labels",), cost_minutes=float(r.get("cost", 0.0)),
-                           target=rec.problem, data_hash=ctx.obs.data_hash)
+                           target=rec.problem, data_hash=ctx.obs.data_hash, code_hash=ctx.rt.code_hash)   # F31: the run's pinned code
     question = f"{qo.question.text} [rung {rec.stage.lower()}]"
     erec = EM.ExperimentRecord(f"E{rec.key[:16]}", 1, EM.ExperimentStatus.PROPOSED, question, "unknown until tested", qo.hypotheses,
                                EM.Prediction(f"{rec.feature} ranks outcomes at {rec.stage.lower()}", metric=str(r.get("kind", "")), direction="up"),
@@ -2594,7 +2641,7 @@ def st_sweeps(ctx: Ctx) -> tuple:
     specs = ctx.rt.sweep_specs
     if not specs:
         raise NoInput("no always-on sweeps configured")
-    busy = ctx.rt.executor.running() >= ctx.state.cfg.max_workers
+    busy = _outstanding(ctx.state) >= ctx.state.cfg.max_workers          # F31: from the loop state; the pool's view races the threads
     dec = ctx.bus.get("controller")
     share = dec.share(CT.Phase.DISCOVERY) if dec is not None else 0.05
     units = 0 if busy else max(1, int(round(ctx.state.cfg.sweep_units * share / 0.05)))
@@ -2750,7 +2797,8 @@ def run_stage(spec: StageSpec, ctx: Ctx) -> StageRecord:
         return StageRecord(ctx.cycle, spec.name, spec.phase.value, StageStatus.SKIPPED_CADENCE,
                            f"runs every {st.cfg.cadence.get(spec.name)} cycles", 0, 0, 0.0, spec.module)
     try:
-        n_in, n_out, why = spec.fn(ctx)
+        with provenance_clock(ctx.rt.clock):          # F31: every record a stage files is stamped with the loop's injected clock
+            n_in, n_out, why = spec.fn(ctx)
         status = StageStatus.OK
     except FirewallBreach as e:
         n_in, n_out, why, status = 0, 0, f"{type(e).__name__}: {str(e)[:300]}", StageStatus.REFUSED_LEAK
@@ -2820,7 +2868,12 @@ def recover_jobs(state: LoopState, rt: Runtime) -> dict:
 
 def step(state: LoopState, rt: Runtime) -> dict | None:
     """PUBLIC ENTRY. Run (or finish) one cycle at the feed's next decision date. Stages already completed in this cycle (a resumed
-    cycle) are not run again; a checkpoint is written after every stage. Returns the cycle report, or None when the feed has no date."""
+    cycle) are not run again; a checkpoint is written after every stage. Returns the cycle report, or None when the feed has no date.
+    F31: a cycle whose every stage (report included) is checkpointed but whose close was never recorded - a crash between the report
+    and `state.cycle += 1` - is closed here without running anything, and its report is returned; before this, its done stages made
+    the next date look like a resumed cycle, so that date ran no stage and was silently lost."""
+    if _cycle_complete(state):
+        return _close_cycle(state, rt)
     now = _cycle_now(state, rt)
     if now is None:
         return None
@@ -2856,12 +2909,27 @@ def step(state: LoopState, rt: Runtime) -> dict | None:
             rt.checkpointer.save(state, rt.code_hash, f"cycle {state.cycle}", _next_name(spec.name), _in_flight(state))
         if rt.kill_after == f"{state.cycle}|{spec.name}":
             raise KeyboardInterrupt(f"planted kill after {spec.name}")
+    return _close_cycle(state, rt)
+
+
+def _cycle_complete(state: LoopState) -> bool:
+    """Every registered stage of the current cycle is recorded as done (the report was written) but the cycle was not closed."""
+    done = state.done_stages.get(state.cycle)
+    return bool(done) and set(STAGE_NAMES) <= set(done)
+
+
+def _close_cycle(state: LoopState, rt: Runtime) -> dict:
+    """Close the current cycle: advance the counter, carry the controller decision, checkpoint. Idempotent across a crash: it only
+    reads what the report stage's checkpoint already holds, so closing on resume leaves the same state as closing in the first run."""
     report = state.reports[-1]
+    ctrl = state.bus.get("controller")
     state.cycle += 1
-    state.bus = {"controller_prev": ctx.bus.get("controller")} if ctx.bus.get("controller") is not None else {}
+    state.bus = {"controller_prev": ctrl} if ctrl is not None else {}
     rt.obs = None
     if rt.checkpointer is not None and state.cfg.checkpoint in ("stage", "cycle"):
         rt.checkpointer.save(state, rt.code_hash, f"cycle {state.cycle}", "start the next cycle", _in_flight(state))
+    if rt.kill_after == f"{state.cycle - 1}|close":
+        raise KeyboardInterrupt("planted kill after the cycle close")
     return report
 
 

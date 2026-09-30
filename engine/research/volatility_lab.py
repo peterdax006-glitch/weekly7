@@ -1694,8 +1694,8 @@ def to_matured_record(rep: LabReport, now, data_through, seed: int = 0) -> Matur
                "unexplained_share": rep.unexplained.share, "survivor_free": rep.survivor_free, "caveats": list(rep.caveats),
                "status": "IMPLEMENTED - NOT VALIDATED"}
     rid = "VL" + stable_hash([rep.cfg_hash, rep.registry_fingerprint, str(data_through), payload["verdicts"]], 12)
-    import datetime as _dt
-    prov = Provenance(created_real=_dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds"), learned_at=str(as_date(data_through)),
+    from engine.learning.knowledge import wall_stamp            # F31: the caller's injected clock (real time when none is set)
+    prov = Provenance(created_real=wall_stamp(), learned_at=str(as_date(data_through)),
                       code_hash=rep.code_hash or current_code_hash(), data_hash=stable_hash([rep.n_rows, rep.n_dates, str(data_through)], 12),
                       config_hash=rep.cfg_hash, experiment_id="volatility_lab", seed=seed, outcomes_seen_through=str(as_date(data_through)))
     return MaturedRecord(rid, str(as_date(data_through)), payload, prov, Namespace.MATURED_RESEARCH)
@@ -1778,8 +1778,8 @@ def step(state: LabState, now, frame: pd.DataFrame | None = None, max_tasks: int
         payload = {"kind": "volatility_lab_step", "tasks": due, "verdicts": {q: str(r.verdict) for q, r in state.results.items()},
                    "champion": state.score["champion"].hid if state.score else None, "survivor_free": bool(frame.attrs.get("survivor_free", False)),
                    "caveats": list(survivor_caveats(frame)), "status": "IMPLEMENTED - NOT VALIDATED"}
-        import datetime as _dt
-        prov = Provenance(_dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds"), str(through.date()), current_code_hash(), key,
+        from engine.learning.knowledge import wall_stamp as _wall_stamp      # F31: the caller's injected clock
+        prov = Provenance(_wall_stamp(), str(through.date()), current_code_hash(), key,
                           state.cfg.fingerprint(), "volatility_lab.step", "", state.cfg.seed, str(through.date()))
         rec = MaturedRecord("VS" + stable_hash([key, due], 12), str(through.date()), payload, prov, Namespace.MATURED_RESEARCH)
     return StepResult(tuple(due), remaining, rec, "ok" if due else "all tasks already done on this frame")
@@ -2751,8 +2751,8 @@ def step_paths(state: LabState, now, episodes: pd.DataFrame | None) -> StepResul
     state.results["P01"] = res
     state.ran_on["P01"] = key
     through = pd.to_datetime(ep["end"]).max() if len(ep) else pd.Timestamp(as_date(now)) - pd.Timedelta(days=1)
-    import datetime as _dt
-    prov = Provenance(_dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds"), str(through.date()), current_code_hash(), key, state.cfg.fingerprint(),
+    from engine.learning.knowledge import wall_stamp as _wall_stamp      # F31: the caller's injected clock
+    prov = Provenance(_wall_stamp(), str(through.date()), current_code_hash(), key, state.cfg.fingerprint(),
                       "volatility_lab.step_paths", "", state.cfg.seed, str(through.date()))
     payload = {"kind": "volatility_lab_paths", "verdict": str(res.verdict), "skill": res.effect, "skill_lo": res.lo, "dropped_immature": dropped,
                "per_class_auc": dict(res.detail.get("per_class_auc", {})), "status": "IMPLEMENTED - NOT VALIDATED"}

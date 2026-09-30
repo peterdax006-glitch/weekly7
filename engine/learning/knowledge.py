@@ -13,6 +13,8 @@ Reuses: core (vocabulary, hashing, Provenance), epistemic (scoped states), and a
 Status: IMPLEMENTED — NOT VALIDATED."""
 from __future__ import annotations
 
+import contextlib
+import contextvars
 import dataclasses
 import datetime as dt
 import enum
@@ -23,7 +25,7 @@ import types
 import typing
 from collections import Counter
 from collections.abc import Mapping
-from typing import Any, Iterable, cast
+from typing import Any, Callable, Iterable, cast
 
 from engine.learning.core import (Confidence, DecisionEffect, Epistemic, FailureCause, FirewallBreach, Lifecycle,
                                   Promotion, Provenance, Subsystem, TemporalClass, as_date, canonical_json,
@@ -654,6 +656,28 @@ class KnowledgeObject:
 
 
 # ---------------------------------------------------------------- provenance (A05, A13)
+# F31 (C75 2A): Provenance.created_real is wall-clock by definition, but a run that injects its clock (the research loop's
+# Runtime.clock) must get that clock's time in every record it files, or two identical runs differ. The injected clock lives in a
+# context variable set by the caller (`provenance_clock`); with none set - a caller that owns no clock - the real time is used.
+_PROVENANCE_CLOCK: contextvars.ContextVar[Callable[[], float] | None] = contextvars.ContextVar("provenance_clock", default=None)
+
+
+def wall_stamp() -> str:
+    """The created_real stamp: the injected clock's time when a caller set one, else the real UTC time (ISO, seconds)."""
+    clock = _PROVENANCE_CLOCK.get()
+    t = dt.datetime.fromtimestamp(clock(), dt.timezone.utc) if clock is not None else dt.datetime.now(dt.timezone.utc)
+    return t.isoformat(timespec="seconds")
+
+
+@contextlib.contextmanager
+def provenance_clock(clock: Callable[[], float] | None):
+    """Stamp every record created inside the block with `clock()` (epoch seconds). Nests; restores the outer clock on exit."""
+    tok = _PROVENANCE_CLOCK.set(clock)
+    try:
+        yield
+    finally:
+        _PROVENANCE_CLOCK.reset(tok)
+
 
 def file_hash(path: str | os.PathLike, n: int = 16) -> str:
     """Byte hash of a file: engine.repro.file_hash (the repo's one implementation), shortened."""
@@ -672,7 +696,7 @@ def make_provenance(learned_at, *, data: Any = None, config: Any = None, experim
         if isinstance(x, (str, os.PathLike)) and os.path.isfile(x):
             return file_hash(x)
         return stable_hash(x, 16)
-    return Provenance(created_real=created_real or dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
+    return Provenance(created_real=created_real or wall_stamp(),
                       learned_at=str(as_date(learned_at)), code_hash=code_hash or current_code_hash() or "unknown",
                       data_hash=h(data), config_hash=h(config), experiment_id=experiment_id, run_id=run_id, seed=seed,
                       outcomes_seen_through=str(as_date(outcomes_seen_through)) if outcomes_seen_through else "",

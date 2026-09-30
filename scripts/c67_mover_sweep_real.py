@@ -141,7 +141,7 @@ def _md_table(df: pd.DataFrame, floatfmt: str = "{:.3f}", index: bool = True) ->
         cells = []
         for v in r.to_numpy():
             if isinstance(v, (float, np.floating)):
-                cells.append(floatfmt.format(v) if np.isfinite(v) else "nan")
+                cells.append(("{:.0f}".format(v) if float(v).is_integer() and abs(v) >= 1 else floatfmt.format(v)) if np.isfinite(v) else "nan")
             else:
                 cells.append(str(v))
         lines.append("| " + " | ".join(cells) + " |")
@@ -225,6 +225,10 @@ def build_report(a, out: Path, sweep_info: dict | None) -> dict:
     else:
         rep["top_candidates"] = []
     rep["market_state_tests"] = sum(len(v) for v in st.market.values())
+    hashes: dict[str, int] = {}
+    for r in st.book.records.values():
+        hashes[r.code_hash] = hashes.get(r.code_hash, 0) + 1
+    rep["unit_code_hashes"] = hashes                                         # other builders edit engine/ too: more than one hash is expected
     rep["notes_tail"] = st.notes[-10:]
     rep["unmeasured"] = EP.UNMEASURED_FIELDS
     rep["truncation_audit"] = truncation_on_real(a, st) if a.audit_years else []

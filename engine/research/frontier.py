@@ -40,6 +40,7 @@ from scipy import stats as sps
 from engine import direction_calib, pattern_stats
 from engine.learning import calibration as CAL
 from engine.learning.core import FirewallBreach, Provenance, as_date, canonical_json, current_code_hash, require_past, stable_hash
+from engine.learning.knowledge import wall_stamp
 from engine.learning.scorecard import Measured, MStatus
 from engine.learning.trader_view import assert_trader_safe
 from engine.research.core import MaturedRecord, Namespace
@@ -1504,7 +1505,7 @@ def assess(P: Predictions, now, cfg: FrontierConfig | None = None, *, code_hash:
     stab = {c: stability_all(visible, c, cfg) for c in focus}
     ans = answer_80_question(F, tiny, oos, transfers, stab, cfg)
     newest = visible.frame["matured_at"].max() if not visible.empty else pd.Timestamp(as_date(now)) - pd.Timedelta(days=1)
-    prov = Provenance(created_real=dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"), learned_at=str(newest.date()),
+    prov = Provenance(created_real=wall_stamp(), learned_at=str(newest.date()),              # F31: the caller's injected clock
                       code_hash=code_hash or current_code_hash(), data_hash=visible.digest(), config_hash=cfg.digest(),
                       seed=cfg.seed, outcomes_seen_through=str(newest.date()))
     return FrontierReport(str(as_date(now)), cfg.digest(), visible.digest(), F, tuple(tiny), oos, transfers, stab,

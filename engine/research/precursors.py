@@ -22,6 +22,13 @@ owns the second half of the machine (episodes.py detects, episode_paths.py label
                finished work is never redone, an interrupted unit leaves no trace, a wider feature set extends old units instead of repeating them.
   FIREWALL     everything here is MATURED_RESEARCH_STATE. `release` returns MaturedRecord objects whose maturity is strictly before `now` and never
                anything filed under a year that is being replayed in disguise; candidate text carries no date, year or ticker.
+F29 (C75 1C) changes: a unit now computes evidence for its OWN lens only (it used to compute every lens, which with the default four lenses
+added each lens's evidence four times); the sweep WIDENS - once every unit is covered it adds the next built-in precursor family and keeps
+going - and it is judged once more when exhausted (the research loop's three-year planted feed used to finish before its first scheduled
+evaluation and so never produced a candidate); EvalReport.promoted is what the loop turns into questions; grouped steps read each
+(year, slice) once for all lenses; `holdout_check` (untouched later years), `raise_questions` (engine.research.questions.generate) and
+`truncation_audit` (the F09 method at episode level) are the out-of-sample, question and point-in-time checks of the real-data run
+(scripts/c67_mover_sweep_real.py). Real-data results from that run are SURVIVOR_ONLY.
 Built on, not copied: engine.candles (candle structure), engine.features (_days_since, _event_calendar), engine.research.discovery (TrialLedger),
 engine.learning.trader_view (identity screen), engine.learning.checkpoints (atomic write), engine.learning.core (hash, provenance)."""
 from __future__ import annotations

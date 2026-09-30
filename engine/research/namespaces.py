@@ -431,7 +431,9 @@ class NamespaceStore:
 
     def __init__(self, name: str = ""):
         self.name = name or str(self.namespace)
-        self.token = stable_hash({"ns": self.namespace, "name": self.name, "id": id(self)}, 12)
+        # F31 (C75 2A): the token is persisted in loop checkpoints, so it is a function of stable content only (it hashed id(self), a
+        # memory address, and two identical runs disagreed). Two stores of one run differ by namespace, name and class.
+        self.token = stable_hash({"ns": self.namespace, "name": self.name, "kind": type(self).__name__}, 12)
         self._objs: dict[str, InfoObject] = {}
         self._chain: list[StoreEntry] = []
 

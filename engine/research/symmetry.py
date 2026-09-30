@@ -48,6 +48,7 @@ from engine import pattern_stats
 from engine.learning import calibration as CAL
 from engine.learning.core import (DecisionEffect, Epistemic, FailureCause, FirewallBreach, Lifecycle, Provenance, as_date,
                                   current_code_hash, require_past, stable_hash)
+from engine.learning.knowledge import wall_stamp
 from engine.learning.trader_view import assert_trader_safe
 from engine.research.core import Knowability, MaturedRecord, MoveCategory, Namespace
 from engine.research.frontier import CoverageTracker, TestLedger, design_effect, week_codes
@@ -1531,7 +1532,7 @@ def _confirm_and_build(c: Candidate, hold: pd.DataFrame, vis: SymFrame, mc: Mini
     mean_loss = math.nan
     ep = Epistemic.SUPPORTED if conf else Epistemic.HYPOTHESIS
     notes = "" if conf else ("holdout too small to confirm" if conf is None else "not confirmed on the holdout weeks")
-    pv = Provenance(created_real=dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"), learned_at=newest, code_hash=code_hash or current_code_hash(),
+    pv = Provenance(created_real=wall_stamp(), learned_at=newest, code_hash=code_hash or current_code_hash(),
                     data_hash=vis.digest(), config_hash=stable_hash(dataclasses.asdict(mc), 12), seed=mc.seed, outcomes_seen_through=newest)
     return LossRiskItem(make_risk_id(c.pattern_id, c.context, c.measure), c.pattern_id, kind, c.context, c.measure, c.n, c.k, c.rate, c.base, c.rr, lo, hi,
                         mean_loss, c.p, c.q, conf, oos_rate, oos_n, ep, Lifecycle.BIRTH if not conf else Lifecycle.ACTIVE, effects_for_kind(kind),
@@ -1899,7 +1900,7 @@ def step(state: SymmetryState, now, seed: int | None = None, *, code_hash: str |
     mc = state.mc if seed is None else dataclasses.replace(state.mc, seed=int(seed))
     sf = state.all().matured_before(now)
     if sf.empty:
-        prov = Provenance(dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"), str(as_date(now) - dt.timedelta(days=1)), code_hash or current_code_hash())
+        prov = Provenance(wall_stamp(), str(as_date(now) - dt.timedelta(days=1)), code_hash or current_code_hash())
         empty = LibrarySymmetry((), 0, orphan_movers(sf), state.cfg.digest(), "empty")
         return SymmetryReport(str(as_date(now)), empty, (), (), tuple(independence_audit(state.bank, opportunity_ids)), len(state.ledger), 0, prov)
     lib = analyse_library(sf, ledger=state.ledger, now=now)
@@ -1911,7 +1912,7 @@ def step(state: SymmetryState, now, seed: int | None = None, *, code_hash: str |
         if key in strict and state.bank.add(it, now) in ("added", "superseded"):
             added.append(it.risk_id)
     newest = str(sf.frame["matured_at"].max().date())
-    prov = Provenance(dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"), newest, code_hash or current_code_hash(), sf.digest(), state.cfg.digest(),
+    prov = Provenance(wall_stamp(), newest, code_hash or current_code_hash(), sf.digest(), state.cfg.digest(),
                       seed=mc.seed, outcomes_seen_through=newest)
     state.last = lib
     return SymmetryReport(str(as_date(now)), lib, tuple(items), tuple(added), tuple(independence_audit(state.bank, opportunity_ids)), len(state.ledger),

@@ -963,10 +963,12 @@ def sync_to_tried_index(ledger: ExperimentLedger, tried_index, now) -> dict:
 
 def new_record(experiment_id: str, question: str, current_belief: str, hypotheses: Sequence[Hypothesis],
                prediction: Prediction, design: DesignSpec, expected: Sequence[ExpectedOutcome], now,
-               tags: Sequence[str] = (), parent_ids: Sequence[str] = ()) -> ExperimentRecord:
-    """Convenience constructor: stamps the code hash into the design when the caller left it empty."""
+               tags: Sequence[str] = (), parent_ids: Sequence[str] = (), code_hash: str | None = None) -> ExperimentRecord:
+    """Convenience constructor: stamps the code hash into the design when the caller left it empty - the run's configured
+    `code_hash` when one is given (F31: a loop that pins its code identity, e.g. LoopConfig.code_hash, must not be overridden by the
+    engine tree hash, which changes whenever anyone edits engine/), else the engine tree hash (the registry / pre-launch path)."""
     if not design.code_hash:
-        design = dataclasses.replace(design, code_hash=current_code_hash())
+        design = dataclasses.replace(design, code_hash=code_hash or current_code_hash())
     return ExperimentRecord(experiment_id=experiment_id, version=0, status=ExperimentStatus.PROPOSED, question=question,
                             current_belief=current_belief, competing_hypotheses=tuple(hypotheses), prediction=prediction,
                             experiment=design, expected_outcomes=tuple(expected), created_at=_iso(now), recorded_at=_iso(now),
