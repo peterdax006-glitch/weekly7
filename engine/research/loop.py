@@ -2472,7 +2472,9 @@ def st_waste(ctx: Ctx) -> tuple:
     book = ctx.mod_state("waste_book", WA.DormantBook)
     wc = WA.WorldContext(ctx.now, ctx.obs.data_hash, len(ctx.obs.matured))
     res = WA.step(ms, vl, book, wc, ctx.now, ladder=_ladder_policy(ctx), rng_seed=ctx.state.cfg.seed)
-    return len(ms.branches), len(getattr(res, "parked", ()) or ()), ""
+    n_out = sum(len(getattr(res, k, ()) or ()) for k in ("parked", "adopted", "revived"))      # F24: adopted/revived count too
+    return len(ms.branches), n_out, (f"parked {len(getattr(res, 'parked', ()) or ())}, adopted {len(getattr(res, 'adopted', ()) or ())}, "
+                                     f"revived {len(getattr(res, 'revived', ()) or ())}")
 
 
 def st_brain_health(ctx: Ctx) -> tuple:
@@ -2517,8 +2519,11 @@ def st_failed_lab(ctx: Ctx) -> tuple:
     except ImportError as e:
         raise MissingModule("failed_lab") from e
     lab = ctx.mod_state("failed_lab", FL.FailedLearnerLab)
-    rep = FL.step(lab, ctx.now)
-    return 1, len(getattr(rep, "dead_classes", ()) or ()), ""
+    before = len(getattr(lab.registry, "_rows", ()) or ())
+    # F24 (30 Sep): the ladder's failed and infeasible lines are registered here - before, nothing ever reached the lab
+    rep = FL.step(lab, ctx.now, manager=ctx.state.modules.get("compute_manager"))
+    added = len(getattr(lab.registry, "_rows", ()) or ()) - before
+    return 1, added + len(getattr(rep, "dead_classes", ()) or ()), f"{added} failed line(s) registered"
 
 
 def st_scorecard(ctx: Ctx) -> tuple:
