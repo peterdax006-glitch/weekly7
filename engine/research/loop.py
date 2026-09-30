@@ -1194,6 +1194,9 @@ def st_feature_screen(ctx: Ctx) -> tuple:
     n_dates = F.index.get_level_values(0).nunique()
     lab = VL.LabConfig(min_train_dates=max(8, n_dates // 3), test_step_dates=max(2, n_dates // 8), n_boot=100)
     tab = VL.oriented_scan(F, feats, ctx.now, lab)
+    # F26: the gate's multiplicity is the screen's whole search - every feature ever SCORED, not only the ones raised
+    universe = ctx.state.memo.setdefault("screen_universe", [])
+    universe.extend(f for f in feats if f not in set(universe))
     ok = tab[tab["auc"].notna() & tab["lo"].notna()]
     raised = 0
     when = ctx.evidence_date()
@@ -2338,6 +2341,7 @@ def st_quality_and_knowledge(ctx: Ctx) -> tuple:
         looks[did] = int(regate.get(did, {}).get("looks", 0)) + 1          # numbered BEFORE the gate: this look's alpha is fixed now
         spec = EV.FindingSpec(did, rec.feature, 1.0 if float(r.get("sign", 1.0)) >= 0 else -1.0, rec.problem,
                               n_tests_searched=max(1, len(ctx.state.screened)),
+                              n_scanned=len(ctx.state.memo.get("screen_universe", ())),
                               has_falsifier=graph_nodes.get(f"{rec.problem.lower()}:{rec.feature}") in sci,
                               experiment_id=key[:16], run_id=ctx.state.cfg.run_id, seed=int(rec.task.get("seed", 0)))
         b = EV.assemble(ctx.obs.matured, spec, ctx.now, code_hash=ctx.rt.code_hash, data_hash=ctx.obs.data_hash,
@@ -2361,7 +2365,8 @@ def st_quality_and_knowledge(ctx: Ctx) -> tuple:
         elif v == "QUARANTINED":                          # integrity failures are never retried
             why = "quarantined: an integrity gate failed"
         else:                                             # evidence-limited: retired only on measured futility or the evidence horizon
-            why = REGATE_PLAN.futility(b)
+            # F26: retired on measured futility OR after consecutive FAILED looks (NEEDS_MORE_EVIDENCE never counts)
+            why = REGATE_PLAN.retire(b, [h["verdict"] for h in prev.get("history", ())] + [v])
             if why is None and fresh_dates(ctx.obs.matured, first) >= REGATE_PLAN.horizon_dates:
                 why = f"evidence horizon: {REGATE_PLAN.horizon_dates} fresh dates since the first look without a pass"
         history = list(prev.get("history", ())) + [{"look": looks[did], "cycle": ctx.cycle, "at": str(ctx.now), "verdict": v,

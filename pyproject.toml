@@ -17,9 +17,6 @@ test_seconds = 90.0
 # Default mode checks every ANNOTATED function; wiring.py (the integration seam) is held to full strictness below.
 python_version = "3.11"
 files = ["engine/learning", "engine/research"]
-# One module is out of scope for now, NOT ignored: pattern_benchmark.py was being written by another builder (F19) while F21 ran, so its 11
-# errors were left to its owner. Delete this line once it is clean (`python -m mypy engine/research/pattern_benchmark.py` lists them).
-exclude = ['^engine/research/pattern_benchmark\.py$']
 ignore_missing_imports = true          # pandas/scipy/sklearn/lightgbm ship no complete stubs; third-party gaps are not our errors
 follow_imports = "silent"              # errors in engine/*.py (outside the package) are reported by their own owners, not here
 disable_error_code = ["annotation-unchecked"]

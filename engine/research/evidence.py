@@ -379,18 +379,20 @@ def fast_per_date_ic(scores: pd.Series, y: pd.Series, min_names: int = 5) -> pd.
     df = _cell_frame(scores, y)
     if not len(df):
         return pd.Series(dtype=float)
-    g = df.groupby(level=0, sort=True)
-    n, ynu, snu = g["y"].size(), g["y"].nunique(), g["s"].nunique()
-    rs, ry = g["s"].rank(), g["y"].rank()
-    d = df.index.get_level_values(0)
-    dx = rs - rs.groupby(d).transform("mean")
-    dy = ry - ry.groupby(d).transform("mean")
-    sums = pd.DataFrame({"xy": dx * dy, "xx": dx * dx, "yy": dy * dy}).groupby(d, sort=True).sum()
+    codes, uniq = pd.factorize(df.index.get_level_values(0), sort=True)          # integer date codes: no Timestamp iteration
+    S, Y = pd.Series(df["s"].to_numpy(float)), pd.Series(df["y"].to_numpy(float))
+    gs, gy = S.groupby(codes), Y.groupby(codes)
+    n, ynu, snu = gy.size().to_numpy(), gy.nunique().to_numpy(), gs.nunique().to_numpy()
+    rs, ry = gs.rank().to_numpy(float), gy.rank().to_numpy(float)
+    k = len(uniq)
+    cnt = np.bincount(codes, minlength=k).astype(float)
+    dx = rs - (np.bincount(codes, weights=rs, minlength=k) / cnt)[codes]
+    dy = ry - (np.bincount(codes, weights=ry, minlength=k) / cnt)[codes]
+    xy, xx, yy = (np.bincount(codes, weights=w, minlength=k) for w in (dx * dy, dx * dx, dy * dy))
     with np.errstate(invalid="ignore", divide="ignore"):
-        ic = sums["xy"] / np.sqrt(sums["xx"] * sums["yy"])
-    ic = ic.where(snu > 1, 0.0)
+        ic = np.where(snu > 1, xy / np.sqrt(xx * yy), 0.0)
     ok = (n >= min_names) & (ynu > 1)
-    return pd.Series(ic[ok].to_numpy(float), index=ic.index[ok.to_numpy()], dtype=float).sort_index()
+    return pd.Series(ic[ok], index=pd.Index(uniq[ok]), dtype=float).sort_index()
 
 
 def fast_top_k_spread(scores: pd.Series, y: pd.Series, k: int = 5) -> float:
