@@ -9,11 +9,12 @@
    "look": 1,
    "verdict": "FAILED",
    "alpha": 0.03039635509270134,
-   "n_test": 62,
-   "effect_test": 0.3159857861718937,
-   "repl_runs": 4,
-   "repl_i2": 0.8855833043779971,
+   "n_test": 48,
+   "effect_test": 0.320161145010734,
+   "repl_runs": 3,
+   "repl_i2": 0.916717745832082,
    "blocking": [
+    "calibration",
     "failure_behavior",
     "out_of_sample",
     "replication"
@@ -27,20 +28,22 @@
    "role": "coincidence",
    "now": "2017-12-15",
    "look": 1,
-   "verdict": "FAILED",
+   "verdict": "QUARANTINED",
    "alpha": 0.03039635509270134,
-   "n_test": 62,
-   "effect_test": 0.057944354460897865,
-   "repl_runs": 4,
+   "n_test": 48,
+   "effect_test": 0.03490516933371918,
+   "repl_runs": 3,
    "repl_i2": 0.0,
    "blocking": [
     "calibration",
     "complexity",
+    "identity",
+    "leakage",
     "out_of_sample",
     "replication",
     "transfer"
    ],
-   "stopped": ""
+   "stopped": "quarantined"
   },
   {
    "seed": 4,
@@ -51,9 +54,9 @@
    "look": 1,
    "verdict": "QUARANTINED",
    "alpha": 0.03039635509270134,
-   "n_test": 62,
-   "effect_test": 0.011630696641329126,
-   "repl_runs": 4,
+   "n_test": 48,
+   "effect_test": 0.011543454614896401,
+   "repl_runs": 3,
    "repl_i2": 0.0,
    "blocking": [
     "calibration",
@@ -76,10 +79,10 @@
    "look": 2,
    "verdict": "FAILED",
    "alpha": 0.007599088773175335,
-   "n_test": 71,
-   "effect_test": 0.3253736608592563,
-   "repl_runs": 5,
-   "repl_i2": 0.8976098296307229,
+   "n_test": 61,
+   "effect_test": 0.3250582940756871,
+   "repl_runs": 4,
+   "repl_i2": 0.9075396233751352,
    "blocking": [
     "calibration",
     "failure_behavior",
@@ -90,63 +93,19 @@
   {
    "seed": 4,
    "world": "default",
-   "feature": "price_low",
-   "role": "coincidence",
-   "now": "2018-03-16",
-   "look": 2,
+   "feature": "lv20",
+   "role": "genuine",
+   "now": "2018-06-15",
+   "look": 3,
    "verdict": "FAILED",
-   "alpha": 0.007599088773175335,
-   "n_test": 71,
-   "effect_test": 0.04270057283510812,
+   "alpha": 0.0033773727880779263,
+   "n_test": 74,
+   "effect_test": 0.33570609131831813,
    "repl_runs": 5,
-   "repl_i2": 0.0,
-   "blocking": [
-    "calibration",
-    "complexity",
-    "out_of_sample",
-    "replication",
-    "transfer"
-   ],
-   "stopped": ""
-  },
-  {
-   "seed": 4,
-   "world": "default",
-   "feature": "lv20",
-   "role": "genuine",
-   "now": "2018-06-15",
-   "look": 3,
-   "verdict": "FAILED",
-   "alpha": 0.0033773727880779263,
-   "n_test": 80,
-   "effect_test": 0.3345576498666633,
-   "repl_runs": 6,
-   "repl_i2": 0.8634797758481646,
+   "repl_i2": 0.8771344845735972,
    "blocking": [
     "calibration",
     "replication"
-   ],
-   "stopped": ""
-  },
-  {
-   "seed": 4,
-   "world": "default",
-   "feature": "price_low",
-   "role": "coincidence",
-   "now": "2018-06-15",
-   "look": 3,
-   "verdict": "FAILED",
-   "alpha": 0.0033773727880779263,
-   "n_test": 80,
-   "effect_test": 0.04115428180831811,
-   "repl_runs": 6,
-   "repl_i2": 0.0,
-   "blocking": [
-    "calibration",
-    "complexity",
-    "out_of_sample",
-    "replication",
-    "transfer"
    ],
    "stopped": ""
   },
@@ -159,35 +118,13 @@
    "look": 4,
    "verdict": "FAILED",
    "alpha": 0.0018997721932938337,
-   "n_test": 89,
-   "effect_test": 0.3382356153235822,
-   "repl_runs": 7,
-   "repl_i2": 0.8308613873454823,
+   "n_test": 87,
+   "effect_test": 0.3386602205486866,
+   "repl_runs": 6,
+   "repl_i2": 0.846444157198593,
    "blocking": [
     "calibration",
     "replication"
-   ],
-   "stopped": ""
-  },
-  {
-   "seed": 4,
-   "world": "default",
-   "feature": "price_low",
-   "role": "coincidence",
-   "now": "2018-09-14",
-   "look": 4,
-   "verdict": "FAILED",
-   "alpha": 0.0018997721932938337,
-   "n_test": 89,
-   "effect_test": 0.03685382494974372,
-   "repl_runs": 7,
-   "repl_i2": 0.0,
-   "blocking": [
-    "calibration",
-    "complexity",
-    "out_of_sample",
-    "replication",
-    "transfer"
    ],
    "stopped": ""
   },
@@ -200,36 +137,13 @@
    "look": 5,
    "verdict": "FAILED",
    "alpha": 0.0012158542037080534,
-   "n_test": 98,
-   "effect_test": 0.3404302937653126,
-   "repl_runs": 8,
-   "repl_i2": 0.8031751061840906,
+   "n_test": 100,
+   "effect_test": 0.33900730077561925,
+   "repl_runs": 7,
+   "repl_i2": 0.8177855626947858,
    "blocking": [
     "calibration",
-    "out_of_sample",
     "replication"
-   ],
-   "stopped": ""
-  },
-  {
-   "seed": 4,
-   "world": "default",
-   "feature": "price_low",
-   "role": "coincidence",
-   "now": "2018-12-14",
-   "look": 5,
-   "verdict": "FAILED",
-   "alpha": 0.0012158542037080534,
-   "n_test": 98,
-   "effect_test": 0.02649507950888076,
-   "repl_runs": 8,
-   "repl_i2": 0.0,
-   "blocking": [
-    "calibration",
-    "complexity",
-    "out_of_sample",
-    "replication",
-    "transfer"
    ],
    "stopped": ""
   },
@@ -242,39 +156,15 @@
    "look": 6,
    "verdict": "NEEDS_MORE_EVIDENCE",
    "alpha": 0.0008443431970194816,
-   "n_test": 80,
-   "effect_test": 0.35806851859948663,
-   "repl_runs": 9,
-   "repl_i2": 0.7737559302768785,
+   "n_test": 61,
+   "effect_test": 0.35718482163605714,
+   "repl_runs": 8,
+   "repl_i2": 0.7903273634624948,
    "blocking": [
     "failure_behavior",
     "replication"
    ],
    "stopped": ""
-  },
-  {
-   "seed": 4,
-   "world": "default",
-   "feature": "price_low",
-   "role": "coincidence",
-   "now": "2019-03-15",
-   "look": 6,
-   "verdict": "QUARANTINED",
-   "alpha": 0.0008443431970194816,
-   "n_test": 80,
-   "effect_test": 0.010857688898425949,
-   "repl_runs": 9,
-   "repl_i2": 0.0,
-   "blocking": [
-    "calibration",
-    "complexity",
-    "identity",
-    "leakage",
-    "out_of_sample",
-    "replication",
-    "transfer"
-   ],
-   "stopped": "quarantined"
   },
   {
    "seed": 4,
@@ -285,10 +175,10 @@
    "look": 7,
    "verdict": "NEEDS_MORE_EVIDENCE",
    "alpha": 0.0006203337774020681,
-   "n_test": 89,
-   "effect_test": 0.3570365712456181,
-   "repl_runs": 10,
-   "repl_i2": 0.7532739398632627,
+   "n_test": 74,
+   "effect_test": 0.3537886872250186,
+   "repl_runs": 9,
+   "repl_i2": 0.7702886779092349,
    "blocking": [
     "failure_behavior",
     "replication"
@@ -304,19 +194,19 @@
    "look": 8,
    "verdict": "NEEDS_MORE_EVIDENCE",
    "alpha": 0.00047494304832345843,
-   "n_test": 98,
-   "effect_test": 0.3532824146691449,
-   "repl_runs": 11,
-   "repl_i2": 0.7266560682892887,
+   "n_test": 87,
+   "effect_test": 0.35138217591523613,
+   "repl_runs": 10,
+   "repl_i2": 0.7443408662968369,
    "blocking": [
     "failure_behavior"
    ],
    "stopped": ""
   }
  ],
- "seconds": 70.7,
+ "seconds": 29.7,
  "provenance": {
-  "code_hash": "f9560be2abe53159",
+  "code_hash": "39702bfbee7f859b",
   "code_files": [
    "engine/__init__.py",
    "engine/blind_gates.py",
@@ -370,8 +260,10 @@
    "engine/resources.py",
    "engine/stops.py"
   ],
-  "code_mixed": [],
-  "git_commit": "64ddfdd7753610a9580e7b04f9d60970abdb74b5+dirty",
+  "code_mixed": [
+   "engine/research/evidence.py"
+  ],
+  "git_commit": "cac30e7625b7c78c0fe5d3608d58cf7ea64e8b68+dirty",
   "canon_sha": "fef7cdf0a1501c3d",
   "bible_sha": "a97ea91862cee371",
   "blueprint_version": "4.0",

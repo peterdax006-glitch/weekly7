@@ -9,11 +9,12 @@
    "look": 1,
    "verdict": "FAILED",
    "alpha": 0.03039635509270134,
-   "n_test": 61,
-   "effect_test": 0.2828259377361798,
-   "repl_runs": 4,
+   "n_test": 47,
+   "effect_test": 0.29271005088710306,
+   "repl_runs": 3,
    "repl_i2": 0.0,
    "blocking": [
+    "failure_behavior",
     "out_of_sample"
    ],
    "stopped": ""
@@ -27,9 +28,9 @@
    "look": 1,
    "verdict": "QUARANTINED",
    "alpha": 0.03039635509270134,
-   "n_test": 61,
-   "effect_test": -0.016536310733906916,
-   "repl_runs": 4,
+   "n_test": 47,
+   "effect_test": -0.02695898105788536,
+   "repl_runs": 3,
    "repl_i2": 0.0,
    "blocking": [
     "calibration",
@@ -52,9 +53,9 @@
    "look": 1,
    "verdict": "QUARANTINED",
    "alpha": 0.03039635509270134,
-   "n_test": 61,
-   "effect_test": -0.005031858617918296,
-   "repl_runs": 4,
+   "n_test": 47,
+   "effect_test": -0.009623969794120791,
+   "repl_runs": 3,
    "repl_i2": 0.0,
    "blocking": [
     "calibration",
@@ -78,17 +79,17 @@
    "look": 2,
    "verdict": "PROMOTE",
    "alpha": 0.007599088773175335,
-   "n_test": 70,
-   "effect_test": 0.2734918542755451,
-   "repl_runs": 5,
+   "n_test": 60,
+   "effect_test": 0.28195020297316303,
+   "repl_runs": 4,
    "repl_i2": 0.0,
    "blocking": [],
    "stopped": "promoted"
   }
  ],
- "seconds": 18.4,
+ "seconds": 10.6,
  "provenance": {
-  "code_hash": "f9560be2abe53159",
+  "code_hash": "39702bfbee7f859b",
   "code_files": [
    "engine/__init__.py",
    "engine/blind_gates.py",
@@ -142,8 +143,10 @@
    "engine/resources.py",
    "engine/stops.py"
   ],
-  "code_mixed": [],
-  "git_commit": "64ddfdd7753610a9580e7b04f9d60970abdb74b5+dirty",
+  "code_mixed": [
+   "engine/research/evidence.py"
+  ],
+  "git_commit": "cac30e7625b7c78c0fe5d3608d58cf7ea64e8b68+dirty",
   "canon_sha": "fef7cdf0a1501c3d",
   "bible_sha": "a97ea91862cee371",
   "blueprint_version": "4.0",

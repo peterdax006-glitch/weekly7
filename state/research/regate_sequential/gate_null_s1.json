@@ -9,9 +9,9 @@
    "look": 1,
    "verdict": "QUARANTINED",
    "alpha": 0.03039635509270134,
-   "n_test": 28,
-   "effect_test": 0.025520473890039103,
-   "repl_runs": 4,
+   "n_test": 21,
+   "effect_test": 0.016078015815912818,
+   "repl_runs": 2,
    "repl_i2": 0.0,
    "blocking": [
     "calibration",
@@ -34,9 +34,9 @@
    "look": 1,
    "verdict": "QUARANTINED",
    "alpha": 0.03039635509270134,
-   "n_test": 28,
-   "effect_test": 0.022215063947256364,
-   "repl_runs": 4,
+   "n_test": 21,
+   "effect_test": 0.04168016745876752,
+   "repl_runs": 3,
    "repl_i2": 0.0,
    "blocking": [
     "calibration",
@@ -59,9 +59,9 @@
    "look": 1,
    "verdict": "QUARANTINED",
    "alpha": 0.03039635509270134,
-   "n_test": 28,
-   "effect_test": -0.0049614493243077895,
-   "repl_runs": 2,
+   "n_test": 21,
+   "effect_test": 0.014390212863848385,
+   "repl_runs": 3,
    "repl_i2": 0.0,
    "blocking": [
     "calibration",
@@ -77,9 +77,9 @@
    "stopped": "quarantined"
   }
  ],
- "seconds": 11.9,
+ "seconds": 7.6,
  "provenance": {
-  "code_hash": "f9560be2abe53159",
+  "code_hash": "80a686fd39535ba6",
   "code_files": [
    "engine/__init__.py",
    "engine/blind_gates.py",
@@ -134,7 +134,7 @@
    "engine/stops.py"
   ],
   "code_mixed": [],
-  "git_commit": "64ddfdd7753610a9580e7b04f9d60970abdb74b5+dirty",
+  "git_commit": "cac30e7625b7c78c0fe5d3608d58cf7ea64e8b68+dirty",
   "canon_sha": "fef7cdf0a1501c3d",
   "bible_sha": "a97ea91862cee371",
   "blueprint_version": "4.0",

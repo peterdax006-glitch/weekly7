@@ -9,12 +9,11 @@
    "look": 1,
    "verdict": "FAILED",
    "alpha": 0.03039635509270134,
-   "n_test": 62,
-   "effect_test": 0.3515151206816028,
-   "repl_runs": 4,
-   "repl_i2": 0.7522664836236018,
+   "n_test": 48,
+   "effect_test": 0.3578642192129771,
+   "repl_runs": 3,
+   "repl_i2": 0.7578194142069479,
    "blocking": [
-    "failure_behavior",
     "out_of_sample",
     "replication"
    ],
@@ -27,20 +26,23 @@
    "role": "coincidence",
    "now": "2017-12-15",
    "look": 1,
-   "verdict": "FAILED",
+   "verdict": "QUARANTINED",
    "alpha": 0.03039635509270134,
-   "n_test": 62,
-   "effect_test": 0.04392283453746585,
-   "repl_runs": 4,
+   "n_test": 48,
+   "effect_test": 0.004670976446000866,
+   "repl_runs": 3,
    "repl_i2": 0.0,
    "blocking": [
     "calibration",
     "complexity",
+    "failure_behavior",
+    "identity",
+    "leakage",
     "out_of_sample",
     "replication",
     "transfer"
    ],
-   "stopped": ""
+   "stopped": "quarantined"
   },
   {
    "seed": 0,
@@ -51,180 +53,43 @@
    "look": 1,
    "verdict": "QUARANTINED",
    "alpha": 0.03039635509270134,
-   "n_test": 62,
-   "effect_test": -0.005713114176690194,
+   "n_test": 48,
+   "effect_test": -0.002528524291670006,
+   "repl_runs": 3,
+   "repl_i2": 0.0,
+   "blocking": [
+    "calibration",
+    "complexity",
+    "failure_behavior",
+    "identity",
+    "leakage",
+    "out_of_sample",
+    "replication",
+    "reproducibility",
+    "transfer"
+   ],
+   "stopped": "quarantined"
+  },
+  {
+   "seed": 0,
+   "world": "default",
+   "feature": "lv20",
+   "role": "genuine",
+   "now": "2018-03-16",
+   "look": 2,
+   "verdict": "PROMOTE",
+   "alpha": 0.007599088773175335,
+   "n_test": 61,
+   "effect_test": 0.35730929257140376,
    "repl_runs": 4,
-   "repl_i2": 0.0,
-   "blocking": [
-    "calibration",
-    "complexity",
-    "failure_behavior",
-    "identity",
-    "leakage",
-    "out_of_sample",
-    "replication",
-    "transfer"
-   ],
-   "stopped": "quarantined"
-  },
-  {
-   "seed": 0,
-   "world": "default",
-   "feature": "lv20",
-   "role": "genuine",
-   "now": "2018-03-16",
-   "look": 2,
-   "verdict": "NEEDS_MORE_EVIDENCE",
-   "alpha": 0.007599088773175335,
-   "n_test": 71,
-   "effect_test": 0.35314482503674605,
-   "repl_runs": 5,
-   "repl_i2": 0.6879985508918997,
-   "blocking": [
-    "failure_behavior"
-   ],
-   "stopped": ""
-  },
-  {
-   "seed": 0,
-   "world": "default",
-   "feature": "price_low",
-   "role": "coincidence",
-   "now": "2018-03-16",
-   "look": 2,
-   "verdict": "QUARANTINED",
-   "alpha": 0.007599088773175335,
-   "n_test": 71,
-   "effect_test": 0.01584791307503036,
-   "repl_runs": 5,
-   "repl_i2": 0.0,
-   "blocking": [
-    "calibration",
-    "complexity",
-    "identity",
-    "leakage",
-    "out_of_sample",
-    "replication",
-    "transfer"
-   ],
-   "stopped": "quarantined"
-  },
-  {
-   "seed": 0,
-   "world": "default",
-   "feature": "lv20",
-   "role": "genuine",
-   "now": "2018-06-15",
-   "look": 3,
-   "verdict": "NEEDS_MORE_EVIDENCE",
-   "alpha": 0.0033773727880779263,
-   "n_test": 80,
-   "effect_test": 0.34978462302838254,
-   "repl_runs": 6,
-   "repl_i2": 0.6156909384188147,
-   "blocking": [
-    "failure_behavior"
-   ],
-   "stopped": ""
-  },
-  {
-   "seed": 0,
-   "world": "default",
-   "feature": "lv20",
-   "role": "genuine",
-   "now": "2018-09-14",
-   "look": 4,
-   "verdict": "NEEDS_MORE_EVIDENCE",
-   "alpha": 0.0018997721932938337,
-   "n_test": 89,
-   "effect_test": 0.34012957247638903,
-   "repl_runs": 7,
-   "repl_i2": 0.7420930224655046,
-   "blocking": [
-    "failure_behavior"
-   ],
-   "stopped": ""
-  },
-  {
-   "seed": 0,
-   "world": "default",
-   "feature": "lv20",
-   "role": "genuine",
-   "now": "2018-12-14",
-   "look": 5,
-   "verdict": "FAILED",
-   "alpha": 0.0012158542037080534,
-   "n_test": 98,
-   "effect_test": 0.33232688116680065,
-   "repl_runs": 8,
-   "repl_i2": 0.781102092070514,
-   "blocking": [
-    "failure_behavior",
-    "out_of_sample",
-    "replication"
-   ],
-   "stopped": ""
-  },
-  {
-   "seed": 0,
-   "world": "default",
-   "feature": "lv20",
-   "role": "genuine",
-   "now": "2019-03-15",
-   "look": 6,
-   "verdict": "NEEDS_MORE_EVIDENCE",
-   "alpha": 0.0008443431970194816,
-   "n_test": 80,
-   "effect_test": 0.329906967657974,
-   "repl_runs": 9,
-   "repl_i2": 0.7722043038515278,
-   "blocking": [
-    "failure_behavior",
-    "replication"
-   ],
-   "stopped": ""
-  },
-  {
-   "seed": 0,
-   "world": "default",
-   "feature": "lv20",
-   "role": "genuine",
-   "now": "2019-06-14",
-   "look": 7,
-   "verdict": "NEEDS_MORE_EVIDENCE",
-   "alpha": 0.0006203337774020681,
-   "n_test": 89,
-   "effect_test": 0.3307195148864893,
-   "repl_runs": 10,
-   "repl_i2": 0.7556045450153107,
-   "blocking": [
-    "failure_behavior",
-    "replication"
-   ],
-   "stopped": ""
-  },
-  {
-   "seed": 0,
-   "world": "default",
-   "feature": "lv20",
-   "role": "genuine",
-   "now": "2019-09-13",
-   "look": 8,
-   "verdict": "NEEDS_MORE_EVIDENCE",
-   "alpha": 0.00047494304832345843,
-   "n_test": 98,
-   "effect_test": 0.332331203490508,
-   "repl_runs": 11,
-   "repl_i2": 0.7456915863784461,
-   "blocking": [
-    "failure_behavior"
-   ],
-   "stopped": ""
+   "repl_i2": 0.638503777565967,
+   "blocking": [],
+   "stopped": "promoted"
   }
  ],
- "seconds": 49.5,
+ "seconds": 10.8,
  "provenance": {
-  "code_hash": "f9560be2abe53159",
+  "code_hash": "80a686fd39535ba6",
   "code_files": [
    "engine/__init__.py",
    "engine/blind_gates.py",
@@ -279,7 +144,7 @@
    "engine/stops.py"
   ],
   "code_mixed": [],
-  "git_commit": "64ddfdd7753610a9580e7b04f9d60970abdb74b5+dirty",
+  "git_commit": "cac30e7625b7c78c0fe5d3608d58cf7ea64e8b68+dirty",
   "canon_sha": "fef7cdf0a1501c3d",
   "bible_sha": "a97ea91862cee371",
   "blueprint_version": "4.0",

@@ -265,6 +265,21 @@ def test_knowledge_from_the_future_is_refused_at_retrieve(trained, world):
         L.store.as_of("K-future", inp.now) or (_ for _ in ()).throw(FirewallBreach("not visible"))
 
 
+
+def test_missing_feature_values_join_no_pattern_and_never_crash(world):
+    """30 Sep, W-13: the first real-data shadow run crashed in stage_observe ('cannot convert float NaN to integer') - real panels
+    have missing values, planted ones never did. A missing value has no quantile level, so the row joins no pattern of that feature."""
+    L = new_learner()
+    inp = LN.WorldFeed(world).input(1)
+    panel = inp.panel.copy()
+    col = panel.columns[0]
+    panel.iloc[: max(1, len(panel) // 3), 0] = float("nan")
+    ep = L.decide_batch(inp.now, panel)
+    assert len(ep.rows) == len(panel)
+    missing = set(panel.index[panel[col].isna()])
+    assert all(not any(m.startswith(f"{col}:") for m in r.members) for r in ep.rows if r.key in missing)
+
+
 # ------------------------------------------------------------------------------------------------ freeze (L02)
 
 def test_frozen_learner_decides_but_never_learns_and_refuses_if_code_or_config_changes(world):

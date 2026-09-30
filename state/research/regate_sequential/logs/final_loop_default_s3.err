@@ -1,0 +1,100 @@
+C:\Users\Peter\weekly7\engine\research\counterfactual.py:976: Pandas4Warning: Sorting by default when concatenating all DatetimeIndex is deprecated.  In the future, pandas will respect the default of `sort=False`. Specify `sort=True` or `sort=False` to silence this message. If you see this warnings when not directly calling concat, report a bug to pandas.
+  both = pd.concat([ri, rm], axis=1, keys=["i", "m"]).dropna().iloc[-window:]
+C:\Users\Peter\weekly7\engine\research\counterfactual.py:976: Pandas4Warning: Sorting by default when concatenating all DatetimeIndex is deprecated.  In the future, pandas will respect the default of `sort=False`. Specify `sort=True` or `sort=False` to silence this message. If you see this warnings when not directly calling concat, report a bug to pandas.
+  both = pd.concat([ri, rm], axis=1, keys=["i", "m"]).dropna().iloc[-window:]
+C:\Users\Peter\weekly7\engine\research\counterfactual.py:976: Pandas4Warning: Sorting by default when concatenating all DatetimeIndex is deprecated.  In the future, pandas will respect the default of `sort=False`. Specify `sort=True` or `sort=False` to silence this message. If you see this warnings when not directly calling concat, report a bug to pandas.
+  both = pd.concat([ri, rm], axis=1, keys=["i", "m"]).dropna().iloc[-window:]
+C:\Users\Peter\weekly7\.venv\Lib\site-packages\numpy\lib\_function_base_impl.py:3023: RuntimeWarning: invalid value encountered in divide
+  c /= stddev[:, None]
+C:\Users\Peter\weekly7\.venv\Lib\site-packages\numpy\lib\_function_base_impl.py:3024: RuntimeWarning: invalid value encountered in divide
+  c /= stddev[None, :]
+C:\Users\Peter\weekly7\engine\research\counterfactual.py:976: Pandas4Warning: Sorting by default when concatenating all DatetimeIndex is deprecated.  In the future, pandas will respect the default of `sort=False`. Specify `sort=True` or `sort=False` to silence this message. If you see this warnings when not directly calling concat, report a bug to pandas.
+  both = pd.concat([ri, rm], axis=1, keys=["i", "m"]).dropna().iloc[-window:]
+C:\Users\Peter\weekly7\engine\research\counterfactual.py:976: Pandas4Warning: Sorting by default when concatenating all DatetimeIndex is deprecated.  In the future, pandas will respect the default of `sort=False`. Specify `sort=True` or `sort=False` to silence this message. If you see this warnings when not directly calling concat, report a bug to pandas.
+  both = pd.concat([ri, rm], axis=1, keys=["i", "m"]).dropna().iloc[-window:]
+C:\Users\Peter\weekly7\engine\research\counterfactual.py:976: Pandas4Warning: Sorting by default when concatenating all DatetimeIndex is deprecated.  In the future, pandas will respect the default of `sort=False`. Specify `sort=True` or `sort=False` to silence this message. If you see this warnings when not directly calling concat, report a bug to pandas.
+  both = pd.concat([ri, rm], axis=1, keys=["i", "m"]).dropna().iloc[-window:]
+C:\Users\Peter\weekly7\.venv\Lib\site-packages\numpy\lib\_function_base_impl.py:3023: RuntimeWarning: invalid value encountered in divide
+  c /= stddev[:, None]
+C:\Users\Peter\weekly7\.venv\Lib\site-packages\numpy\lib\_function_base_impl.py:3024: RuntimeWarning: invalid value encountered in divide
+  c /= stddev[None, :]
+C:\Users\Peter\weekly7\engine\research\counterfactual.py:976: Pandas4Warning: Sorting by default when concatenating all DatetimeIndex is deprecated.  In the future, pandas will respect the default of `sort=False`. Specify `sort=True` or `sort=False` to silence this message. If you see this warnings when not directly calling concat, report a bug to pandas.
+  both = pd.concat([ri, rm], axis=1, keys=["i", "m"]).dropna().iloc[-window:]
+C:\Users\Peter\weekly7\engine\research\counterfactual.py:976: Pandas4Warning: Sorting by default when concatenating all DatetimeIndex is deprecated.  In the future, pandas will respect the default of `sort=False`. Specify `sort=True` or `sort=False` to silence this message. If you see this warnings when not directly calling concat, report a bug to pandas.
+  both = pd.concat([ri, rm], axis=1, keys=["i", "m"]).dropna().iloc[-window:]
+C:\Users\Peter\weekly7\engine\research\counterfactual.py:976: Pandas4Warning: Sorting by default when concatenating all DatetimeIndex is deprecated.  In the future, pandas will respect the default of `sort=False`. Specify `sort=True` or `sort=False` to silence this message. If you see this warnings when not directly calling concat, report a bug to pandas.
+  both = pd.concat([ri, rm], axis=1, keys=["i", "m"]).dropna().iloc[-window:]
+C:\Users\Peter\weekly7\.venv\Lib\site-packages\numpy\lib\_function_base_impl.py:3023: RuntimeWarning: invalid value encountered in divide
+  c /= stddev[:, None]
+C:\Users\Peter\weekly7\.venv\Lib\site-packages\numpy\lib\_function_base_impl.py:3024: RuntimeWarning: invalid value encountered in divide
+  c /= stddev[None, :]
+C:\Users\Peter\weekly7\engine\research\counterfactual.py:976: Pandas4Warning: Sorting by default when concatenating all DatetimeIndex is deprecated.  In the future, pandas will respect the default of `sort=False`. Specify `sort=True` or `sort=False` to silence this message. If you see this warnings when not directly calling concat, report a bug to pandas.
+  both = pd.concat([ri, rm], axis=1, keys=["i", "m"]).dropna().iloc[-window:]
+C:\Users\Peter\weekly7\engine\research\counterfactual.py:976: Pandas4Warning: Sorting by default when concatenating all DatetimeIndex is deprecated.  In the future, pandas will respect the default of `sort=False`. Specify `sort=True` or `sort=False` to silence this message. If you see this warnings when not directly calling concat, report a bug to pandas.
+  both = pd.concat([ri, rm], axis=1, keys=["i", "m"]).dropna().iloc[-window:]
+C:\Users\Peter\weekly7\engine\research\counterfactual.py:976: Pandas4Warning: Sorting by default when concatenating all DatetimeIndex is deprecated.  In the future, pandas will respect the default of `sort=False`. Specify `sort=True` or `sort=False` to silence this message. If you see this warnings when not directly calling concat, report a bug to pandas.
+  both = pd.concat([ri, rm], axis=1, keys=["i", "m"]).dropna().iloc[-window:]
+C:\Users\Peter\weekly7\.venv\Lib\site-packages\numpy\lib\_function_base_impl.py:3023: RuntimeWarning: invalid value encountered in divide
+  c /= stddev[:, None]
+C:\Users\Peter\weekly7\.venv\Lib\site-packages\numpy\lib\_function_base_impl.py:3024: RuntimeWarning: invalid value encountered in divide
+  c /= stddev[None, :]
+C:\Users\Peter\weekly7\engine\research\counterfactual.py:976: Pandas4Warning: Sorting by default when concatenating all DatetimeIndex is deprecated.  In the future, pandas will respect the default of `sort=False`. Specify `sort=True` or `sort=False` to silence this message. If you see this warnings when not directly calling concat, report a bug to pandas.
+  both = pd.concat([ri, rm], axis=1, keys=["i", "m"]).dropna().iloc[-window:]
+C:\Users\Peter\weekly7\engine\research\counterfactual.py:976: Pandas4Warning: Sorting by default when concatenating all DatetimeIndex is deprecated.  In the future, pandas will respect the default of `sort=False`. Specify `sort=True` or `sort=False` to silence this message. If you see this warnings when not directly calling concat, report a bug to pandas.
+  both = pd.concat([ri, rm], axis=1, keys=["i", "m"]).dropna().iloc[-window:]
+C:\Users\Peter\weekly7\engine\research\counterfactual.py:976: Pandas4Warning: Sorting by default when concatenating all DatetimeIndex is deprecated.  In the future, pandas will respect the default of `sort=False`. Specify `sort=True` or `sort=False` to silence this message. If you see this warnings when not directly calling concat, report a bug to pandas.
+  both = pd.concat([ri, rm], axis=1, keys=["i", "m"]).dropna().iloc[-window:]
+C:\Users\Peter\weekly7\.venv\Lib\site-packages\numpy\lib\_function_base_impl.py:3023: RuntimeWarning: invalid value encountered in divide
+  c /= stddev[:, None]
+C:\Users\Peter\weekly7\.venv\Lib\site-packages\numpy\lib\_function_base_impl.py:3024: RuntimeWarning: invalid value encountered in divide
+  c /= stddev[None, :]
+C:\Users\Peter\weekly7\engine\research\counterfactual.py:976: Pandas4Warning: Sorting by default when concatenating all DatetimeIndex is deprecated.  In the future, pandas will respect the default of `sort=False`. Specify `sort=True` or `sort=False` to silence this message. If you see this warnings when not directly calling concat, report a bug to pandas.
+  both = pd.concat([ri, rm], axis=1, keys=["i", "m"]).dropna().iloc[-window:]
+C:\Users\Peter\weekly7\engine\research\counterfactual.py:976: Pandas4Warning: Sorting by default when concatenating all DatetimeIndex is deprecated.  In the future, pandas will respect the default of `sort=False`. Specify `sort=True` or `sort=False` to silence this message. If you see this warnings when not directly calling concat, report a bug to pandas.
+  both = pd.concat([ri, rm], axis=1, keys=["i", "m"]).dropna().iloc[-window:]
+C:\Users\Peter\weekly7\engine\research\counterfactual.py:976: Pandas4Warning: Sorting by default when concatenating all DatetimeIndex is deprecated.  In the future, pandas will respect the default of `sort=False`. Specify `sort=True` or `sort=False` to silence this message. If you see this warnings when not directly calling concat, report a bug to pandas.
+  both = pd.concat([ri, rm], axis=1, keys=["i", "m"]).dropna().iloc[-window:]
+C:\Users\Peter\weekly7\.venv\Lib\site-packages\numpy\lib\_function_base_impl.py:3023: RuntimeWarning: invalid value encountered in divide
+  c /= stddev[:, None]
+C:\Users\Peter\weekly7\.venv\Lib\site-packages\numpy\lib\_function_base_impl.py:3024: RuntimeWarning: invalid value encountered in divide
+  c /= stddev[None, :]
+C:\Users\Peter\weekly7\engine\research\counterfactual.py:976: Pandas4Warning: Sorting by default when concatenating all DatetimeIndex is deprecated.  In the future, pandas will respect the default of `sort=False`. Specify `sort=True` or `sort=False` to silence this message. If you see this warnings when not directly calling concat, report a bug to pandas.
+  both = pd.concat([ri, rm], axis=1, keys=["i", "m"]).dropna().iloc[-window:]
+C:\Users\Peter\weekly7\engine\research\counterfactual.py:976: Pandas4Warning: Sorting by default when concatenating all DatetimeIndex is deprecated.  In the future, pandas will respect the default of `sort=False`. Specify `sort=True` or `sort=False` to silence this message. If you see this warnings when not directly calling concat, report a bug to pandas.
+  both = pd.concat([ri, rm], axis=1, keys=["i", "m"]).dropna().iloc[-window:]
+C:\Users\Peter\weekly7\engine\research\counterfactual.py:976: Pandas4Warning: Sorting by default when concatenating all DatetimeIndex is deprecated.  In the future, pandas will respect the default of `sort=False`. Specify `sort=True` or `sort=False` to silence this message. If you see this warnings when not directly calling concat, report a bug to pandas.
+  both = pd.concat([ri, rm], axis=1, keys=["i", "m"]).dropna().iloc[-window:]
+C:\Users\Peter\weekly7\.venv\Lib\site-packages\numpy\lib\_function_base_impl.py:3023: RuntimeWarning: invalid value encountered in divide
+  c /= stddev[:, None]
+C:\Users\Peter\weekly7\.venv\Lib\site-packages\numpy\lib\_function_base_impl.py:3024: RuntimeWarning: invalid value encountered in divide
+  c /= stddev[None, :]
+C:\Users\Peter\weekly7\engine\research\counterfactual.py:976: Pandas4Warning: Sorting by default when concatenating all DatetimeIndex is deprecated.  In the future, pandas will respect the default of `sort=False`. Specify `sort=True` or `sort=False` to silence this message. If you see this warnings when not directly calling concat, report a bug to pandas.
+  both = pd.concat([ri, rm], axis=1, keys=["i", "m"]).dropna().iloc[-window:]
+C:\Users\Peter\weekly7\engine\research\counterfactual.py:976: Pandas4Warning: Sorting by default when concatenating all DatetimeIndex is deprecated.  In the future, pandas will respect the default of `sort=False`. Specify `sort=True` or `sort=False` to silence this message. If you see this warnings when not directly calling concat, report a bug to pandas.
+  both = pd.concat([ri, rm], axis=1, keys=["i", "m"]).dropna().iloc[-window:]
+C:\Users\Peter\weekly7\engine\research\counterfactual.py:976: Pandas4Warning: Sorting by default when concatenating all DatetimeIndex is deprecated.  In the future, pandas will respect the default of `sort=False`. Specify `sort=True` or `sort=False` to silence this message. If you see this warnings when not directly calling concat, report a bug to pandas.
+  both = pd.concat([ri, rm], axis=1, keys=["i", "m"]).dropna().iloc[-window:]
+C:\Users\Peter\weekly7\engine\research\counterfactual.py:976: Pandas4Warning: Sorting by default when concatenating all DatetimeIndex is deprecated.  In the future, pandas will respect the default of `sort=False`. Specify `sort=True` or `sort=False` to silence this message. If you see this warnings when not directly calling concat, report a bug to pandas.
+  both = pd.concat([ri, rm], axis=1, keys=["i", "m"]).dropna().iloc[-window:]
+C:\Users\Peter\weekly7\engine\research\counterfactual.py:976: Pandas4Warning: Sorting by default when concatenating all DatetimeIndex is deprecated.  In the future, pandas will respect the default of `sort=False`. Specify `sort=True` or `sort=False` to silence this message. If you see this warnings when not directly calling concat, report a bug to pandas.
+  both = pd.concat([ri, rm], axis=1, keys=["i", "m"]).dropna().iloc[-window:]
+C:\Users\Peter\weekly7\engine\research\counterfactual.py:976: Pandas4Warning: Sorting by default when concatenating all DatetimeIndex is deprecated.  In the future, pandas will respect the default of `sort=False`. Specify `sort=True` or `sort=False` to silence this message. If you see this warnings when not directly calling concat, report a bug to pandas.
+  both = pd.concat([ri, rm], axis=1, keys=["i", "m"]).dropna().iloc[-window:]
+C:\Users\Peter\weekly7\engine\research\counterfactual.py:976: Pandas4Warning: Sorting by default when concatenating all DatetimeIndex is deprecated.  In the future, pandas will respect the default of `sort=False`. Specify `sort=True` or `sort=False` to silence this message. If you see this warnings when not directly calling concat, report a bug to pandas.
+  both = pd.concat([ri, rm], axis=1, keys=["i", "m"]).dropna().iloc[-window:]
+C:\Users\Peter\weekly7\engine\research\counterfactual.py:976: Pandas4Warning: Sorting by default when concatenating all DatetimeIndex is deprecated.  In the future, pandas will respect the default of `sort=False`. Specify `sort=True` or `sort=False` to silence this message. If you see this warnings when not directly calling concat, report a bug to pandas.
+  both = pd.concat([ri, rm], axis=1, keys=["i", "m"]).dropna().iloc[-window:]
+C:\Users\Peter\weekly7\engine\research\counterfactual.py:976: Pandas4Warning: Sorting by default when concatenating all DatetimeIndex is deprecated.  In the future, pandas will respect the default of `sort=False`. Specify `sort=True` or `sort=False` to silence this message. If you see this warnings when not directly calling concat, report a bug to pandas.
+  both = pd.concat([ri, rm], axis=1, keys=["i", "m"]).dropna().iloc[-window:]
+C:\Users\Peter\weekly7\engine\research\counterfactual.py:976: Pandas4Warning: Sorting by default when concatenating all DatetimeIndex is deprecated.  In the future, pandas will respect the default of `sort=False`. Specify `sort=True` or `sort=False` to silence this message. If you see this warnings when not directly calling concat, report a bug to pandas.
+  both = pd.concat([ri, rm], axis=1, keys=["i", "m"]).dropna().iloc[-window:]
+C:\Users\Peter\weekly7\engine\research\counterfactual.py:976: Pandas4Warning: Sorting by default when concatenating all DatetimeIndex is deprecated.  In the future, pandas will respect the default of `sort=False`. Specify `sort=True` or `sort=False` to silence this message. If you see this warnings when not directly calling concat, report a bug to pandas.
+  both = pd.concat([ri, rm], axis=1, keys=["i", "m"]).dropna().iloc[-window:]
+C:\Users\Peter\weekly7\engine\research\counterfactual.py:976: Pandas4Warning: Sorting by default when concatenating all DatetimeIndex is deprecated.  In the future, pandas will respect the default of `sort=False`. Specify `sort=True` or `sort=False` to silence this message. If you see this warnings when not directly calling concat, report a bug to pandas.
+  both = pd.concat([ri, rm], axis=1, keys=["i", "m"]).dropna().iloc[-window:]
+C:\Users\Peter\weekly7\engine\research\counterfactual.py:976: Pandas4Warning: Sorting by default when concatenating all DatetimeIndex is deprecated.  In the future, pandas will respect the default of `sort=False`. Specify `sort=True` or `sort=False` to silence this message. If you see this warnings when not directly calling concat, report a bug to pandas.
+  both = pd.concat([ri, rm], axis=1, keys=["i", "m"]).dropna().iloc[-window:]
+C:\Users\Peter\weekly7\engine\research\counterfactual.py:976: Pandas4Warning: Sorting by default when concatenating all DatetimeIndex is deprecated.  In the future, pandas will respect the default of `sort=False`. Specify `sort=True` or `sort=False` to silence this message. If you see this warnings when not directly calling concat, report a bug to pandas.
+  both = pd.concat([ri, rm], axis=1, keys=["i", "m"]).dropna().iloc[-window:]
+C:\Users\Peter\weekly7\engine\research\counterfactual.py:976: Pandas4Warning: Sorting by default when concatenating all DatetimeIndex is deprecated.  In the future, pandas will respect the default of `sort=False`. Specify `sort=True` or `sort=False` to silence this message. If you see this warnings when not directly calling concat, report a bug to pandas.
+  both = pd.concat([ri, rm], axis=1, keys=["i", "m"]).dropna().iloc[-window:]

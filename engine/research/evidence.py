@@ -62,6 +62,10 @@ class EvidenceConfig:
     fail_frac: float = 0.5               # a failure week delivers less than this share of the rule's typical (mean) effect
     noise_alpha: float = 0.05            # family-wise level: a failure week no further below the mean than the most extreme of the
                                          # n test weeks would fall by chance (Bonferroni over n) is sampling noise
+    align_years: bool = True             # F14: move the train cut to a year end when the boundary would cost unseen years
+    align_min_frac: float = 0.15         # a moved train window's share of dates must stay in [align_min_frac, align_max_frac]
+    align_max_frac: float = 0.55
+    max_failure_rate: float = 0.10       # F14: exposure route of the failure floor - the failure rate's upper bound must be <= this
 
     def validate(self) -> list[str]:
         errs = []
@@ -73,6 +77,10 @@ class EvidenceConfig:
             errs.append("seeds need >= 3 reruns, >= 2 distinct seeds and one repeated seed")
         if self.repl_block < 4:
             errs.append("repl_block >= 4 dates required (a replication run needs periods to speak)")
+        if not 0.05 <= self.align_min_frac <= self.orient_frac <= self.align_max_frac <= 0.6:
+            errs.append("0.05 <= align_min_frac <= orient_frac <= align_max_frac <= 0.6 required")
+        if not 0.0 < self.max_failure_rate <= 0.25:
+            errs.append("max_failure_rate in (0, 0.25] required: 'fails rarely' must mean rarely")
         return errs
 
 
@@ -233,14 +241,46 @@ def per_date_effect(score: pd.Series, y: pd.Series, min_names: int, jitter_seed:
     return pd.Series(out, dtype=float).sort_index()
 
 
+def unseen_dates(years: np.ndarray, c: int) -> int:
+    """Test dates in calendar years with no train date when the first `c` sorted dates train (train years are contiguous, so a test
+    date is unseen exactly when its year is after the last train date's year)."""
+    return int((years[c:] > years[c - 1]).sum()) if 0 < c <= len(years) else 0
+
+
+def train_cut(dates: Sequence, ec: EvidenceConfig) -> tuple[int, bool]:
+    """(number of train dates, moved to a year end?) for the decision dates.
+
+    F14 defect (F12 structural issue a): the train window was the earliest `orient_frac` of dates wherever that fell. The quality gate
+    counts UNSEEN CALENDAR YEARS (years with no train date), so a train window that ran two weeks past 1 January made that whole year
+    'seen': on the planted world (data from April 2016, a sliding three-year frame) every December look cut train in mid-January of
+    the previous year and was left with ONE unseen year, while the June look of the same year had two - the verdict depended on where
+    the calendar boundary fell, not on the evidence. Now the cut is the one, among the fractional cut and every calendar-year end whose
+    train share lies in [align_min_frac, align_max_frac], that leaves the most UNSEEN test dates (dates in years with no train date);
+    ties keep the cut nearest the orient_frac target (the fractional cut itself when it loses nothing). So the cut moves only when the
+    boundary would cost unseen evidence, and then only to the nearest year end: December and June looks see the same unseen years.
+    When no year end qualifies (a frame shorter than about a year and a half) the fractional cut stands and the gate judges the split
+    year as seen - it is never counted as unseen."""
+    uniq = pd.DatetimeIndex(pd.to_datetime(pd.Index(dates))).unique().sort_values()
+    n = len(uniq)
+    k = max(2, int(n * ec.orient_frac))
+    if not ec.align_years or n <= k:
+        return k, False
+    yr = uniq.year.to_numpy()
+    ends = [i + 1 for i in range(n - 1) if yr[i] != yr[i + 1]]                  # train size when the cut is that year's last date
+    cands = [k] + [c for c in ends if ec.align_min_frac * n <= c <= ec.align_max_frac * n and c >= 2 and c != k]
+    best = max(cands, key=lambda c: (unseen_dates(yr, c), -abs(c - k), -c))
+    return best, best != k
+
+
 def split_dates(G: pd.DataFrame, ec: EvidenceConfig) -> tuple[pd.Timestamp, pd.Timestamp, np.ndarray, np.ndarray]:
-    """(train_end, first_test, train mask, test mask): the train window is the earliest `orient_frac` of dates, purged so that every
-    train outcome ended before the first test date and the gap is at least `purge_days` (the section-42 PIT rule)."""
+    """(train_end, first_test, train mask, test mask): the train window is the earliest ~`orient_frac` of dates, moved to a calendar-year
+    end when the boundary would cost unseen evidence (train_cut), purged so that every train outcome ended before the first test date and the gap is at least
+    `purge_days` (the section-42 PIT rule)."""
     d = pd.to_datetime(G.index.get_level_values(0))
     uniq = np.array(sorted(pd.unique(d)))
     if len(uniq) < 8:
         raise ValueError(f"{len(uniq)} dates: too few for a train / test split")
-    k = max(2, int(len(uniq) * ec.orient_frac))
+    k, _ = train_cut(uniq, ec)
     train_end = pd.Timestamp(uniq[k - 1])
     first_test = next((pd.Timestamp(x) for x in uniq[k:] if pd.Timestamp(x) >= train_end + pd.Timedelta(days=ec.purge_days)), None)
     if first_test is None:
@@ -582,6 +622,7 @@ def assemble(frame: pd.DataFrame, spec: FindingSpec, now, *, code_hash: str, dat
     eff_tr = per_date_effect(score[tr], y[tr], cfg.min_names)
     eff_te = per_date_effect(score[te], y[te], cfg.min_names)
     parts.update(train_end=str(train_end.date()), first_test=str(first_test.date()), n_train=len(eff_tr), n_test=len(eff_te),
+                 train_moved_to_year_end=bool(train_cut(G.index.get_level_values(0), cfg)[1]),
                  effect_train=float(eff_tr.mean()) if len(eff_tr) else None, effect_test=float(eff_te.mean()) if len(eff_te) else None)
     through = str(pd.to_datetime(G["end"]).max().date())
     prov = Provenance(created_real, through, code_hash, data_hash, stable_hash(dataclasses.asdict(cfg), 12),
@@ -636,24 +677,87 @@ def _base_columns(feature: str) -> tuple[str, ...]:
     return tuple(VH.required_columns((feature,)))
 
 
+def failure_rate_upper(k: int, n: int, alpha: float) -> float:
+    """One-sided (1 - alpha) Clopper-Pearson upper bound on a failure rate after k failures in n periods (1.0 when n = 0)."""
+    if n <= 0:
+        return 1.0
+    k = int(min(max(k, 0), n))
+    if k >= n:
+        return 1.0
+    from scipy.stats import beta
+    return float(beta.ppf(1.0 - alpha, k + 1, n - k))
+
+
+@dataclasses.dataclass(frozen=True)
+class FailureFloor:
+    """How much failure evidence a finding must show (F14, F12 structural issue b)."""
+    required: int                        # the episode count the failure gate is run with for this finding
+    episodes: int | None
+    periods: int
+    rate_upper: float                    # (1 - alpha) upper bound on the failure rate
+    alpha: float
+    route: str                           # 'episodes' (floor met) | 'exposure' (failures bounded as rare) | 'waiting' | 'missing'
+
+
+def failure_floor(bundle: Bundle, pol, alpha: float, cfg: EvidenceConfig = EvidenceConfig()) -> FailureFloor:
+    """The failure gate asks for `pol.min_failure_episodes` studied failure episodes. F12 found that a very strong genuine effect cannot
+    collect them in time (planted seeds 0 and 4: 3 failure weeks in ~100 test weeks) and waits at NEEDS_MORE_EVIDENCE for ever - it is
+    punished for failing rarely. The requirement is ENOUGH EVIDENCE ABOUT FAILURES, which is met either by the episodes, or by enough
+    exposure that the failure rate is bounded as rare: the one-sided (1 - alpha) Clopper-Pearson upper bound on (episodes / test
+    periods) is at most `cfg.max_failure_rate`. `alpha` is the look's spent alpha (SequentialPlan.alpha_at), so the bound tightens with
+    every look exactly like the statistical gate: repeated looks cannot manufacture 'rare'. Only the episode COUNT is relaxed - the
+    documented conditions, retirement trigger, out-of-scope abstention, perturbation retention and unknown-cause share are still judged,
+    and no other gate (min_effect, the alpha plan, OOS, replication) is touched. A null or weak rule fails in a large share of weeks
+    (below half its typical effect, below zero when it has none), so its bound never reaches the exposure route."""
+    floor = int(pol.min_failure_episodes)
+    fe = getattr(bundle.evidence, "failure", None)
+    o = getattr(bundle.evidence, "oos", None)
+    k = getattr(fe, "n_failure_episodes", None)
+    n = 0
+    if o is not None and o.oos is not None:
+        e = np.asarray(o.oos.oos_effects, dtype=float)
+        n = int(np.isfinite(e).sum())
+    ub = failure_rate_upper(k, n, alpha) if k is not None else 1.0
+    if k is None:
+        return FailureFloor(floor, None, n, ub, float(alpha), "missing")
+    if k >= floor:
+        return FailureFloor(floor, k, n, ub, float(alpha), "episodes")
+    if n >= int(pol.promotion.min_oos_periods) and ub <= cfg.max_failure_rate:
+        return FailureFloor(int(k), k, n, ub, float(alpha), "exposure")
+    return FailureFloor(floor, k, n, ub, float(alpha), "waiting")
+
+
 def gate(bundles: Sequence[Bundle], now, code_hash: str, store=None, looks: Mapping[str, int] | None = None,
-         plan: SequentialPlan | None = None):
+         plan: SequentialPlan | None = None, cfg: EvidenceConfig = EvidenceConfig()):
     """Run engine.research.quality_gate.step on the bundles with the policy pinned to the loop's code hash (reproducibility is judged
     against the code that produced the reruns). Without `looks` it is one fixed-sample gate at the policy's own alpha. With `looks`
     (subject -> look number) every bundle is judged under its look's spent alpha (SequentialPlan); a bundle missing from `looks` is
-    refused (a sequential caller must number every look, or optional stopping creeps back in)."""
+    refused (a sequential caller must number every look, or optional stopping creeps back in). Each bundle's failure-episode floor is
+    `failure_floor` at that alpha (episodes, or exposure bounding the failure rate as rare)."""
     from engine.research import quality_gate as QG
     if looks is None:
-        cands = [QG.Candidate(b.subject_id, b.evidence) for b in bundles]
-        return QG.step(cands, now, policy=QG.QualityPolicy(code_hash=code_hash), store=store)
+        base = QG.QualityPolicy(code_hash=code_hash)
+        groups: dict[tuple, list] = {}
+        for b in bundles:
+            ff = failure_floor(b, base, float(base.promotion.alpha), cfg)
+            groups.setdefault((0, ff.required), []).append(QG.Candidate(b.subject_id, b.evidence))
+        reps = {g: QG.step(c, now, policy=dataclasses.replace(base, min_failure_episodes=g[1]), store=store)
+                for g, c in sorted(groups.items())}
+        dec = {d.subject_id: d for r in reps.values() for d in r.decisions}
+        decisions = tuple(dec[b.subject_id] for b in bundles)
+        return QG.GateReport(str(as_date(now)), decisions, tuple(s for r in reps.values() for s in r.promoted),
+                             tuple(s for r in reps.values() for s in r.newly_quarantined), QG.funnel(list(decisions)))
     plan = plan or SequentialPlan()
     unnumbered = [b.subject_id for b in bundles if b.subject_id not in looks]
     if unnumbered:
         raise ValueError(f"sequential gate: no look number for {unnumbered}")
-    by_look: dict[int, list] = {}
+    by_look: dict[tuple, list] = {}
     for b in bundles:
-        by_look.setdefault(int(looks[b.subject_id]), []).append(QG.Candidate(b.subject_id, b.evidence))
-    reps = {k: QG.step(c, now, policy=plan.quality_policy(k, code_hash), store=store) for k, c in sorted(by_look.items())}
+        k = int(looks[b.subject_id])
+        ff = failure_floor(b, plan.quality_policy(k, code_hash), plan.alpha_at(k), cfg)
+        by_look.setdefault((k, ff.required), []).append(QG.Candidate(b.subject_id, b.evidence))
+    reps = {g: QG.step(c, now, policy=dataclasses.replace(plan.quality_policy(g[0], code_hash), min_failure_episodes=g[1]), store=store)
+            for g, c in sorted(by_look.items())}
     dec = {d.subject_id: d for r in reps.values() for d in r.decisions}
     decisions = tuple(dec[b.subject_id] for b in bundles)
     return QG.GateReport(str(as_date(now)), decisions, tuple(s for r in reps.values() for s in r.promoted),

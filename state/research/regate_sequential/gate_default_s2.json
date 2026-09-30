@@ -9,11 +9,13 @@
    "look": 1,
    "verdict": "FAILED",
    "alpha": 0.03039635509270134,
-   "n_test": 62,
-   "effect_test": 0.3030458801255498,
-   "repl_runs": 4,
-   "repl_i2": 0.0,
+   "n_test": 48,
+   "effect_test": 0.29968855800486177,
+   "repl_runs": 3,
+   "repl_i2": 0.3518871886912706,
    "blocking": [
+    "calibration",
+    "failure_behavior",
     "out_of_sample"
    ],
    "stopped": ""
@@ -27,9 +29,9 @@
    "look": 1,
    "verdict": "QUARANTINED",
    "alpha": 0.03039635509270134,
-   "n_test": 62,
-   "effect_test": 0.019647069378580143,
-   "repl_runs": 4,
+   "n_test": 48,
+   "effect_test": 0.020385404699493348,
+   "repl_runs": 3,
    "repl_i2": 0.0,
    "blocking": [
     "calibration",
@@ -51,10 +53,10 @@
    "look": 1,
    "verdict": "QUARANTINED",
    "alpha": 0.03039635509270134,
-   "n_test": 62,
-   "effect_test": 0.01876725592330563,
-   "repl_runs": 4,
-   "repl_i2": 0.5027893781503318,
+   "n_test": 48,
+   "effect_test": 0.026212751112397795,
+   "repl_runs": 3,
+   "repl_i2": 0.0,
    "blocking": [
     "calibration",
     "complexity",
@@ -62,7 +64,6 @@
     "leakage",
     "out_of_sample",
     "replication",
-    "reproducibility",
     "transfer"
    ],
    "stopped": "quarantined"
@@ -74,13 +75,14 @@
    "role": "genuine",
    "now": "2018-03-16",
    "look": 2,
-   "verdict": "NEEDS_MORE_EVIDENCE",
+   "verdict": "FAILED",
    "alpha": 0.007599088773175335,
-   "n_test": 71,
-   "effect_test": 0.29838649394669564,
-   "repl_runs": 5,
-   "repl_i2": 0.0,
+   "n_test": 61,
+   "effect_test": 0.294955327742498,
+   "repl_runs": 4,
+   "repl_i2": 0.3712265927065061,
    "blocking": [
+    "calibration",
     "failure_behavior"
    ],
    "stopped": ""
@@ -92,19 +94,73 @@
    "role": "genuine",
    "now": "2018-06-15",
    "look": 3,
-   "verdict": "PROMOTE",
+   "verdict": "FAILED",
    "alpha": 0.0033773727880779263,
-   "n_test": 80,
-   "effect_test": 0.2927892104220722,
+   "n_test": 74,
+   "effect_test": 0.29123159900249646,
+   "repl_runs": 5,
+   "repl_i2": 0.3712265927065061,
+   "blocking": [
+    "calibration"
+   ],
+   "stopped": ""
+  },
+  {
+   "seed": 2,
+   "world": "default",
+   "feature": "lv20",
+   "role": "genuine",
+   "now": "2018-09-14",
+   "look": 4,
+   "verdict": "FAILED",
+   "alpha": 0.0018997721932938337,
+   "n_test": 87,
+   "effect_test": 0.2917827932125463,
    "repl_runs": 6,
-   "repl_i2": 0.38519137223998196,
+   "repl_i2": 0.2396605523403355,
+   "blocking": [
+    "calibration"
+   ],
+   "stopped": ""
+  },
+  {
+   "seed": 2,
+   "world": "default",
+   "feature": "lv20",
+   "role": "genuine",
+   "now": "2018-12-14",
+   "look": 5,
+   "verdict": "FAILED",
+   "alpha": 0.0012158542037080534,
+   "n_test": 100,
+   "effect_test": 0.29188244210440667,
+   "repl_runs": 7,
+   "repl_i2": 0.050468285968072964,
+   "blocking": [
+    "calibration"
+   ],
+   "stopped": ""
+  },
+  {
+   "seed": 2,
+   "world": "default",
+   "feature": "lv20",
+   "role": "genuine",
+   "now": "2019-03-15",
+   "look": 6,
+   "verdict": "PROMOTE",
+   "alpha": 0.0008443431970194816,
+   "n_test": 61,
+   "effect_test": 0.27017977859381176,
+   "repl_runs": 8,
+   "repl_i2": 0.0,
    "blocking": [],
    "stopped": "promoted"
   }
  ],
- "seconds": 27.4,
+ "seconds": 21.7,
  "provenance": {
-  "code_hash": "f9560be2abe53159",
+  "code_hash": "39702bfbee7f859b",
   "code_files": [
    "engine/__init__.py",
    "engine/blind_gates.py",
@@ -158,8 +214,10 @@
    "engine/resources.py",
    "engine/stops.py"
   ],
-  "code_mixed": [],
-  "git_commit": "64ddfdd7753610a9580e7b04f9d60970abdb74b5+dirty",
+  "code_mixed": [
+   "engine/research/evidence.py"
+  ],
+  "git_commit": "cac30e7625b7c78c0fe5d3608d58cf7ea64e8b68+dirty",
   "canon_sha": "fef7cdf0a1501c3d",
   "bible_sha": "a97ea91862cee371",
   "blueprint_version": "4.0",

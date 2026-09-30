@@ -9,12 +9,14 @@
    "look": 1,
    "verdict": "FAILED",
    "alpha": 0.03039635509270134,
-   "n_test": 62,
-   "effect_test": 0.2751162632655526,
-   "repl_runs": 4,
-   "repl_i2": 0.6144223791460672,
+   "n_test": 48,
+   "effect_test": 0.288933753384204,
+   "repl_runs": 3,
+   "repl_i2": 0.7615824929100116,
    "blocking": [
-    "out_of_sample"
+    "failure_behavior",
+    "out_of_sample",
+    "replication"
    ],
    "stopped": ""
   },
@@ -27,9 +29,9 @@
    "look": 1,
    "verdict": "QUARANTINED",
    "alpha": 0.03039635509270134,
-   "n_test": 62,
-   "effect_test": -0.011875771502873401,
-   "repl_runs": 4,
+   "n_test": 48,
+   "effect_test": -0.03883459773325299,
+   "repl_runs": 3,
    "repl_i2": 0.0,
    "blocking": [
     "calibration",
@@ -52,13 +54,14 @@
    "look": 1,
    "verdict": "QUARANTINED",
    "alpha": 0.03039635509270134,
-   "n_test": 62,
-   "effect_test": 0.0003679767664748067,
-   "repl_runs": 4,
+   "n_test": 48,
+   "effect_test": -0.0034502515736560928,
+   "repl_runs": 3,
    "repl_i2": 0.0,
    "blocking": [
     "calibration",
     "complexity",
+    "failure_behavior",
     "identity",
     "leakage",
     "out_of_sample",
@@ -75,19 +78,129 @@
    "role": "genuine",
    "now": "2018-03-16",
    "look": 2,
-   "verdict": "PROMOTE",
+   "verdict": "NEEDS_MORE_EVIDENCE",
    "alpha": 0.007599088773175335,
-   "n_test": 71,
-   "effect_test": 0.2752214310373169,
+   "n_test": 61,
+   "effect_test": 0.2852908892465218,
+   "repl_runs": 4,
+   "repl_i2": 0.6851625087085174,
+   "blocking": [
+    "failure_behavior"
+   ],
+   "stopped": ""
+  },
+  {
+   "seed": 3,
+   "world": "default",
+   "feature": "lv20",
+   "role": "genuine",
+   "now": "2018-06-15",
+   "look": 3,
+   "verdict": "NEEDS_MORE_EVIDENCE",
+   "alpha": 0.0033773727880779263,
+   "n_test": 74,
+   "effect_test": 0.2985555001935296,
    "repl_runs": 5,
-   "repl_i2": 0.49166899044972046,
-   "blocking": [],
-   "stopped": "promoted"
+   "repl_i2": 0.5831882977685067,
+   "blocking": [
+    "failure_behavior"
+   ],
+   "stopped": ""
+  },
+  {
+   "seed": 3,
+   "world": "default",
+   "feature": "lv20",
+   "role": "genuine",
+   "now": "2018-09-14",
+   "look": 4,
+   "verdict": "NEEDS_MORE_EVIDENCE",
+   "alpha": 0.0018997721932938337,
+   "n_test": 87,
+   "effect_test": 0.3080638482493827,
+   "repl_runs": 6,
+   "repl_i2": 0.7068699377390916,
+   "blocking": [
+    "failure_behavior"
+   ],
+   "stopped": ""
+  },
+  {
+   "seed": 3,
+   "world": "default",
+   "feature": "lv20",
+   "role": "genuine",
+   "now": "2018-12-14",
+   "look": 5,
+   "verdict": "NEEDS_MORE_EVIDENCE",
+   "alpha": 0.0012158542037080534,
+   "n_test": 100,
+   "effect_test": 0.3118382253089932,
+   "repl_runs": 7,
+   "repl_i2": 0.8379069674847154,
+   "blocking": [
+    "replication"
+   ],
+   "stopped": ""
+  },
+  {
+   "seed": 3,
+   "world": "default",
+   "feature": "lv20",
+   "role": "genuine",
+   "now": "2019-03-15",
+   "look": 6,
+   "verdict": "NEEDS_MORE_EVIDENCE",
+   "alpha": 0.0008443431970194816,
+   "n_test": 61,
+   "effect_test": 0.340358486197106,
+   "repl_runs": 8,
+   "repl_i2": 0.8379069674847154,
+   "blocking": [
+    "replication"
+   ],
+   "stopped": ""
+  },
+  {
+   "seed": 3,
+   "world": "default",
+   "feature": "lv20",
+   "role": "genuine",
+   "now": "2019-06-14",
+   "look": 7,
+   "verdict": "NEEDS_MORE_EVIDENCE",
+   "alpha": 0.0006203337774020681,
+   "n_test": 74,
+   "effect_test": 0.34240488900931076,
+   "repl_runs": 9,
+   "repl_i2": 0.8718391025854887,
+   "blocking": [
+    "replication"
+   ],
+   "stopped": ""
+  },
+  {
+   "seed": 3,
+   "world": "default",
+   "feature": "lv20",
+   "role": "genuine",
+   "now": "2019-09-13",
+   "look": 8,
+   "verdict": "NEEDS_MORE_EVIDENCE",
+   "alpha": 0.00047494304832345843,
+   "n_test": 87,
+   "effect_test": 0.3443393643796958,
+   "repl_runs": 10,
+   "repl_i2": 0.8599475724077308,
+   "blocking": [
+    "replication"
+   ],
+   "stopped": ""
   }
  ],
- "seconds": 19.0,
+ "seconds": 32.5,
  "provenance": {
-  "code_hash": "f9560be2abe53159",
+  "code_hash": "39702bfbee7f859b",
   "code_files": [
    "engine/__init__.py",
    "engine/blind_gates.py",
@@ -141,8 +254,10 @@
    "engine/resources.py",
    "engine/stops.py"
   ],
-  "code_mixed": [],
-  "git_commit": "64ddfdd7753610a9580e7b04f9d60970abdb74b5+dirty",
+  "code_mixed": [
+   "engine/research/evidence.py"
+  ],
+  "git_commit": "cac30e7625b7c78c0fe5d3608d58cf7ea64e8b68+dirty",
   "canon_sha": "fef7cdf0a1501c3d",
   "bible_sha": "a97ea91862cee371",
   "blueprint_version": "4.0",

@@ -502,8 +502,8 @@ class LegitimateLearner:
         return f"{feature}:q{int(level)}"
 
     def _members(self, lv_row: pd.Series) -> tuple[str, ...]:
-        want = set(self.cfg.candidate_levels)
-        return tuple(self.pattern_id(f, int(v)) for f, v in lv_row.items() if int(v) in want)
+        want = set(self.cfg.candidate_levels)                          # a missing value has no level, so it joins no pattern
+        return tuple(self.pattern_id(f, int(v)) for f, v in lv_row.items() if pd.notna(v) and int(v) in want)
 
     def _direction(self, pid: str) -> int:
         st = self.beliefs.current(pid) if pid in self.beliefs.subjects() else None
