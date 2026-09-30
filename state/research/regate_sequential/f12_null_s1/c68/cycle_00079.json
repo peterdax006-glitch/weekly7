@@ -13,9 +13,9 @@
   "outcomes": 0,
   "errors": 0,
   "commitments": 0,
-  "pipeline_events": 1184,
+  "pipeline_events": 1232,
   "pipeline_furthest": {
-   "REJECTED": 296
+   "REJECTED": 308
   }
  },
  "calibration": {

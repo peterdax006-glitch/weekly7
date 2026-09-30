@@ -153,6 +153,7 @@ class C68Config:
     monitor_weeks: int = 26                            # newest post-promotion weeks the monitor judges a promoted fix on
     monitor_min_weeks: int = 8
     rollback_t: float = 2.0                            # the fix's weekly |error| gain over the shadow incumbent at t <= -this: roll back
+    regime: SCX.RegimeConfig = SCX.RegimeConfig()      # F13: promotion evidence from the regime in force; re-validation after a change
 
     def validate(self) -> list[str]:
         errs = []
@@ -174,6 +175,7 @@ class C68Config:
         errs += list(self.fix_evidence.validate())
         if self.monitor_min_weeks < 4 or self.monitor_weeks < self.monitor_min_weeks or self.rollback_t <= 0:
             errs.append("monitor_weeks >= monitor_min_weeks >= 4 and rollback_t > 0 required")
+        errs += list(self.regime.validate())
         return errs
 
 
@@ -1731,6 +1733,21 @@ def _retired(st: C68State) -> dict:
     return st.__dict__.setdefault("retired", {})
 
 
+def _regime_cfg(st: C68State) -> SCX.RegimeConfig:
+    return getattr(st.cfg, "regime", None) or SCX.RegimeConfig()           # a state pickled before F13 gets the default
+
+
+def loop_changes(st: C68State, now) -> list[SCX.ChangeMark]:
+    """The change points the loop's own forward detectors declared before `now` (regime_memory records, built from change_points'
+    early-warning streams by c68.market_regime): the promotion gate and the re-validation of promoted fixes read them, so a detected
+    regime change can never be ignored by a promotion (F13; before it, st_validate never read them)."""
+    mem = getattr(st, "memory", None)
+    if mem is None:
+        return []
+    return [SCX.ChangeMark(f"regime_memory:{r.scope}", str(as_date(r.change_date)), str(as_date(r.detected_at)))
+            for r in mem.records(now)]
+
+
 def st_validate(ctx: LP.Ctx) -> tuple:
     """c68.validate_promote. Checklist Q through the EXISTING validation: diagnose, test every candidate fix alone out of sample, gate
     each through engine.research.quality_gate on its FULL measured evidence (self_correct.full_fix_evidence: identity, leak audit,
@@ -1758,15 +1775,18 @@ def st_validate(ctx: LP.Ctx) -> tuple:
     pol = QG.QualityPolicy(code_hash=ctx.rt.code_hash)
     fec = getattr(cfg, "fix_evidence", SCX.FixEvidenceConfig(retirement_trigger=True))
     live = [x for x in all_fixes if x.name not in retired]
+    rc, changes = _regime_cfg(st), loop_changes(st, ctx.now)
     try:
-        rep = SCX.step(fr, live, ctx.now, base=base, policy=pol, cfg=cfg.self_correct, evidence=fec, n_searched=n_searched)
+        rep = SCX.step(fr, live, ctx.now, base=base, policy=pol, cfg=cfg.self_correct, evidence=fec, n_searched=n_searched, regime=rc,
+                       changes=changes)
     except ValueError as e:
         raise LP.NoInput(f"self-correction could not split the matured forecasts: {e}") from None
     reports = [rep]
     for x in [x for x in all_fixes if x.name in retired]:          # re-tested only on evidence newer than its rollback
         fresh = fr[pd.to_datetime(fr["date"]) > pd.Timestamp(retired[x.name])]
         try:
-            reports.append(SCX.step(fresh, [x], ctx.now, base=base, policy=pol, cfg=cfg.self_correct, evidence=fec, n_searched=n_searched))
+            reports.append(SCX.step(fresh, [x], ctx.now, base=base, policy=pol, cfg=cfg.self_correct, evidence=fec, n_searched=n_searched,
+                                    regime=rc, changes=changes))
         except ValueError:
             st.count("retired_awaiting_fresh_evidence")
     results = [r for rp in reports for r in rp.results]
@@ -1774,13 +1794,20 @@ def st_validate(ctx: LP.Ctx) -> tuple:
     rejected = {k: v for rp in reports for k, v in rp.rejected.items()}
     bundles = {b.fix: b for rp in reports for b in rp.bundles}
     decisions = {d.subject_id: d for rp in reports for d in rp.decisions}
+    checks = {k: c for rp in reports for k, c in rp.regime.items()}
+    held = [k for k, c in checks.items() if not c.ok and (d := decisions.get(f"fix:{k}")) is not None and tuple(d.blocking) == (SCX.REGIME_GATE,)]
+    st.count("promotion_held_by_regime", len(held))           # PROMOTE on every other gate, held because the evidence is stale
     st.corrections.append({"now": ctx.now, "deteriorated": bool(rep.diagnosis.deterioration.detected),
                            "implicated": [c.value for c in rep.diagnosis.implicated], "promoted": list(promoted), "rejected": dict(rejected),
                            "effects": {r.fix: (r.mean_effect, r.t, len(r.oos_effects)) for r in results},
                            "verdicts": {r.fix: decisions[f"fix:{r.fix}"].verdict.value for r in results if f"fix:{r.fix}" in decisions},
                            "blocking": {r.fix: list(decisions[f"fix:{r.fix}"].blocking) for r in results if f"fix:{r.fix}" in decisions},
                            "full_evidence": sorted(k for k, b in bundles.items() if b.full),
-                           "detail": {r.fix: dict(r.detail) for r in results if r.detail}, "production": st.production.get("name")})
+                           "detail": {r.fix: dict(r.detail) for r in results if r.detail}, "production": st.production.get("name"),
+                           "regime": {k: {x: c.to_dict()[x] for x in ("verdict", "regime_start", "post_weeks", "post_t", "stale_share")}
+                                      | {"changes": len(c.changes), "periods": [r.oos_periods[0], r.oos_periods[-1]] if r.oos_periods else []}
+                                      for k, c in checks.items() for r in results if r.fix == k},
+                           "held_by_regime": held})
     st.corrections = st.corrections[-400:]
     for r in results:
         key = fix_key(r.fix, ctx.now)                      # one trail per test of a fix: OOS test -> update proposal -> gate -> verdict
@@ -1794,7 +1821,7 @@ def st_validate(ctx: LP.Ctx) -> tuple:
                                                       "missing": dict(b.missing) if b is not None else {}})
             led.pipe.add(key, "PROMOTED" if r.fix in promoted else "REJECTED", ctx.now, {"gate": rejected.get(r.fix, "PROMOTE")})
     changed = _apply_promotions(st, promoted, {r.fix: r for r in results}, ctx.now)
-    rolled = _monitor(st, fr, ctx.now, led)
+    rolled = _monitor(st, fr, ctx.now, led, changes)
     for cid, v in st.wcs.verdicts.items():
         key = f"CLAIM:{cid}"
         if led.pipe.last_step(key) is None:
@@ -1823,8 +1850,11 @@ def _apply_promotions(st: C68State, promoted: Sequence[str], results: Mapping[st
     cur = st.production
     extras = tuple(dict.fromkeys(tuple(cur.get("extra_features", ())) + tuple(eff_best["extra_features"])))
     name = best if cur.get("name") == "incumbent" else f"{cur['name']}+{best}"
+    r = results.get(best)
     st.production = {"name": name, "since": str(as_date(now)), "key": fix_key(best, now),
-                     "window_share": min(float(cur.get("window_share", 1.0)), float(eff_best["window_share"])), "extra_features": extras}
+                     "window_share": min(float(cur.get("window_share", 1.0)), float(eff_best["window_share"])), "extra_features": extras,
+                     # the weekly OOS gains that justified the promotion: the reference its re-validation is judged against (F13)
+                     "evidence": ([str(x) for x in r.oos_periods], [float(x) for x in r.oos_effects]) if r is not None else ([], [])}
     st.monitoring.append({"fix": best, "since": str(as_date(now)), "production": name, "extra_features": list(extras)})
     st.count("fixes_applied")
     return 1
@@ -1842,29 +1872,43 @@ def monitor_gains(fr: pd.DataFrame, since, weeks: int) -> pd.Series:
     return SCX.weekly(rows.assign(gain=g.to_numpy(float)), "gain").tail(weeks)
 
 
-def _monitor(st: C68State, fr: pd.DataFrame, now, led: Ledgers) -> int:
+def _monitor(st: C68State, fr: pd.DataFrame, now, led: Ledgers, changes: Sequence[SCX.ChangeMark] = ()) -> int:
     """Future monitoring of the production learner (the fix's retirement trigger): the promoted learner and the incumbent it replaced
-    (kept forecasting in the shadow) are compared on the SAME newer matured names, week by week; when the fix's weekly gain over the
-    newest `monitor_weeks` weeks is significantly negative (t <= -rollback_t, >= monitor_min_weeks weeks) the incumbent is restored and
-    the fix retired (it is re-tested only on rows decided after the rollback)."""
+    (kept forecasting in the shadow) are compared on the SAME newer matured names, week by week. Two independent rollback routes:
+      re-validation (F13)  a change point declared after the promotion - by the forward CUSUM on [promotion evidence + live gains] or
+                           by the loop's own detectors (`changes`) - makes the promotion's evidence stale: the fix must re-validate on
+                           post-change weeks alone (self_correct.revalidate) or is rolled back, at most regime.reval_max_weeks
+                           post-change weeks after the change;
+      degradation          the fix's weekly gain over the newest `monitor_weeks` weeks is significantly negative (t <= -rollback_t,
+                           >= monitor_min_weeks weeks).
+    On a rollback the incumbent is restored and the fix retired (it is re-tested only on rows decided after the rollback)."""
     cur = st.production
     if cur.get("name") == "incumbent" or not cur.get("since"):
         return 0
     cfg = st.cfg
-    g = monitor_gains(fr, cur["since"], getattr(cfg, "monitor_weeks", 26))
-    if len(g) < getattr(cfg, "monitor_min_weeks", 8):
+    g_all = monitor_gains(fr, cur["since"], 10 ** 6)
+    ev_d, ev_v = cur.get("evidence") or ([], [])
+    rv = SCX.revalidate(ev_d, ev_v, cur["since"], [str(d.date()) for d in g_all.index], g_all.to_numpy(float), now, changes, _regime_cfg(st))
+    g = g_all.tail(getattr(cfg, "monitor_weeks", 26))
+    t = float(PR.t_stat(g.to_numpy(float))) if len(g) >= 2 else float("nan")
+    degraded = bool(len(g) >= getattr(cfg, "monitor_min_weeks", 8) and t <= -getattr(cfg, "rollback_t", 2.0))
+    if rv.state == "WATCHING" and len(g) < getattr(cfg, "monitor_min_weeks", 8):
         return 0
-    t = float(PR.t_stat(g.to_numpy(float)))
-    roll = bool(t <= -getattr(cfg, "rollback_t", 2.0))
+    roll = degraded or rv.rollback
+    why = "revalidation" if rv.rollback else "degradation" if degraded else ""
     key = cur.get("key") or fix_key(cur["name"], cur["since"])
+    rec = {"t": t, "weeks": int(len(g)), "mean_gain": float(g.mean()) if len(g) else float("nan"), "rolled_back": roll, "why": why,
+           "revalidation": rv.state, "change": rv.change.change_date if rv.change else None,
+           "change_declared": rv.change.alarm_date if rv.change else None, "post_weeks": rv.post_weeks, "post_t": rv.post_t}
     if led.pipe.can_add(key, "MONITORED"):
-        led.pipe.add(key, "MONITORED", now, {"t": t, "weeks": int(len(g)), "mean_gain": float(g.mean()), "rolled_back": roll})
-    st.monitoring.append({"now": str(as_date(now)), "production": cur["name"], "t": t, "weeks": int(len(g)), "rolled_back": roll})
+        led.pipe.add(key, "MONITORED", now, {**rec, "reason": rv.reason})
+    st.monitoring.append({"now": str(as_date(now)), "production": cur["name"], **rec})
     if roll:
         for n in str(cur["name"]).split("+"):
             _retired(st)[n] = str(as_date(now))
         st.production = {"name": "incumbent", "since": str(as_date(now)), "window_share": 1.0, "extra_features": ()}
         st.count("rolled_back")
+        st.count(f"rolled_back_{why}")
         return 1
     return 0
 

@@ -1,0 +1,17 @@
+kind,seed,world,cycles,seconds,validations,promoted_sector_slope,first_promote,promote_count,promoted_other,applied,rolled_back,retired,final_production,last_verdict,last_blocking,last_effect,last_t,picked_weak_sector_share,monitor_min_t,stage_failures,weak_sector,flip_date,post_flip_promotions,promotion_regime,promotion_stale_share,held_by_regime,held_dates,rollback_at,rollback_why,change_declared,rollback_delay_weeks
+flip,0,planted,227,875.0,55,0,,0,,0,0,{},incumbent,FAILED,"out_of_sample,regime_in_force",-0.00013652349232662805,-0.5264596145083007,1.0,,,SEC1,2020-04-20,0,,,1,2020-07-03,,,,
+flip,1,planted,227,735.8,55,1,2019-05-10,1,,1,1,"{""sector_slope"": ""2020-07-31""}",incumbent,FAILED,out_of_sample,-0.00016345032648366423,-0.697030277461229,0.9615384615384616,-1.419160497998241,,SEC1,2020-04-20,0,NO_CHANGE,0.0,0,,2020-07-31,revalidation,2020-07-03,14.6
+flip,2,planted,227,698.1,55,0,,0,,0,0,{},incumbent,FAILED,"out_of_sample,regime_in_force",-0.0007614025108610738,-2.635430215002205,0.9818181818181818,,,SEC1,2020-04-20,0,,,0,,,,,
+flip,3,planted,227,689.3,55,1,2020-02-14,2,,1,1,"{""sector_slope"": ""2020-06-05""}",incumbent,FAILED,out_of_sample,-2.961228453695269e-05,-0.20422599924796647,0.8113207547169812,-0.41864150020329605,,SEC1,2020-04-20,0,NO_CHANGE,0.0,0,,2020-06-05,revalidation,2020-05-29,6.6
+flip,4,planted,227,737.4,55,0,,0,,0,0,{},incumbent,FAILED,"out_of_sample,regime_in_force",-0.000670058270442034,-2.5733575272049447,1.0,,,SEC1,2020-04-20,0,,,0,,,,,
+flip,5,planted,227,712.1,55,1,2019-05-10,2,,1,1,"{""sector_slope"": ""2020-09-25""}",incumbent,FAILED,out_of_sample,-5.397984339918935e-05,-0.1823179095690992,0.9038461538461539,-3.2191202958936675,,SEC1,2020-04-20,0,NO_CHANGE,0.0,0,,2020-09-25,degradation,,22.6
+planted,0,planted,177,627.2,43,1,2020-01-17,2,,1,0,{},sector_slope,NEEDS_MORE_EVIDENCE,"complexity,replication",0.0009738944055652207,5.52136182936915,1.0,2.7454327340675815,,SEC1,,0,NO_CHANGE,0.0,0,,,,,
+planted,1,planted,177,549.9,43,0,,0,,0,0,{},incumbent,NEEDS_MORE_EVIDENCE,replication,0.001059996740402764,6.710912447081989,1.0,,,SEC1,,0,,,0,,,,,
+planted,2,planted,177,507.4,43,0,,0,,0,0,{},incumbent,FAILED,risk,0.0011642914789787794,6.580421199573915,1.0,,,SEC1,,0,,,0,,,,,
+planted,3,planted,177,572.1,43,1,2019-08-30,1,,1,0,{},sector_slope,FAILED,"out_of_sample,transfer,regime_in_force",0.00035129905512819033,1.8843758165023892,1.0,1.5874798762782993,,SEC1,,0,NO_CHANGE,0.0,0,,,,,
+planted,4,planted,177,513.3,43,1,2019-05-10,1,,1,0,{},sector_slope,FAILED,"out_of_sample,regime_in_force",-0.00020847950468490064,-0.9983813226925294,1.0,2.4654890866412207,,SEC1,,0,NO_CHANGE,0.0,2,"2019-06-07,2019-07-05",,,,
+planted,5,planted,177,516.3,43,0,,0,,0,0,{},incumbent,QUARANTINED,leakage,0.0006072566564445174,2.7851043277870833,1.0,,,SEC1,,0,,,0,,,,,
+null,0,null,177,456.7,43,0,,0,,0,0,{},incumbent,FAILED,out_of_sample,-2.2824709465993156e-05,-1.6018492205224482,0.4883720930232558,,,,,0,,,0,,,,,
+null,1,null,177,359.9,43,0,,0,,0,0,{},incumbent,FAILED,out_of_sample,1.012204063532117e-05,0.4159782237320051,0.047619047619047616,,,,,0,,,0,,,,,
+null,2,null,177,347.8,43,0,,0,,0,0,{},incumbent,FAILED,out_of_sample,-5.843318573505129e-05,-1.7014921211135678,0.38095238095238093,,,,,0,,,0,,,,,
+null,3,null,177,368.4,43,0,,0,,0,0,{},incumbent,FAILED,out_of_sample,-7.000895987285305e-05,-1.67515977823973,0.07142857142857142,,,,,0,,,0,,,,,

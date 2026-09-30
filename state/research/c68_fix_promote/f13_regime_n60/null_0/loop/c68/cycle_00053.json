@@ -1,0 +1,127 @@
+{
+ "cycle": 53,
+ "now": "2017-12-29",
+ "label": "IMPLEMENTED - NOT VALIDATED",
+ "counters": {
+  "expectations": 159,
+  "outcomes": 148,
+  "errors": 148,
+  "promotion_held_by_regime": 0
+ },
+ "ledgers": {
+  "expectations": 159,
+  "outcomes": 148,
+  "errors": 148,
+  "commitments": 159,
+  "pipeline_events": 954,
+  "pipeline_furthest": {
+   "EXPECTATION": 11,
+   "CLASSIFIED": 148,
+   "REJECTED": 48
+  }
+ },
+ "calibration": {
+  "now": "2017-12-29",
+  "target": {
+   "tolerance": 0.01,
+   "goal_share": 0.8,
+   "min_n": 200,
+   "min_oos_n": 100,
+   "level": 0.95,
+   "name": "pm1pp_80"
+  },
+  "status": "INSUFFICIENT_SAMPLE",
+  "n_committed": 153,
+  "n_matured": 148,
+  "n_resolved": 148,
+  "n_unresolved": 0,
+  "all_": {
+   "n": 148,
+   "hits": 7,
+   "share": 0.0472972972972973,
+   "lo": 0.023096998492809107,
+   "hi": 0.09440357716856325,
+   "boot_lo": 0.013513513513513514,
+   "boot_hi": 0.08108108108108109
+  },
+  "oos": {
+   "n": 148,
+   "hits": 7,
+   "share": 0.0472972972972973,
+   "lo": 0.023096998492809107,
+   "hi": 0.09440357716856325,
+   "boot_lo": 0.013513513513513514,
+   "boot_hi": 0.08783783783783784
+  },
+  "resolved_only": {
+   "n": 148,
+   "hits": 7,
+   "share": 0.0472972972972973,
+   "lo": 0.023096998492809107,
+   "hi": 0.09440357716856325,
+   "boot_lo": 0.013513513513513514,
+   "boot_hi": 0.08108108108108109
+  },
+  "bias": 0.0060084680435114534,
+  "mae": 0.10434433851078542,
+  "naive_share": 0.04285714285714286,
+  "required_n": null,
+  "abuses": [],
+  "by_cohort": [
+   [
+    "-",
+    {
+     "n": 148,
+     "hits": 7,
+     "share": 0.0472972972972973,
+     "lo": 0.023096998492809107,
+     "hi": 0.09440357716856325,
+     "boot_lo": 0.013513513513513514,
+     "boot_hi": 0.08783783783783784
+    }
+   ]
+  ],
+  "headline": "4.7% of 148 matured predictions landed within +-1pp of the committed prediction (95% CI 2.3%-9.4%); out of sample 4.7% of 148 (CI 2.3%-9.4%, block bootstrap 1.4%-8.8%). Goal 80%: sample too small to judge (need 200 overall and 100 out of sample). A no-skill median forecast scores 4.3% on the same sample."
+ },
+ "influence": {
+  "mom_r20_top": 1.0,
+  "rev_r5_bottom": 1.0,
+  "vol_top": 1.0
+ },
+ "verdicts": {},
+ "guard": {},
+ "production": {
+  "name": "incumbent",
+  "since": "",
+  "window_share": 1.0,
+  "extra_features": []
+ },
+ "regime_records": [],
+ "identification": null,
+ "stage_runs": [
+  {
+   "cycle": 53,
+   "now": "2017-12-29",
+   "stage": "c68.selection_policy",
+   "in": 4000,
+   "out": 1,
+   "note": "policy Lb5d2fd86 (threshold 0.0050); gain model fitted n=4000 base in-band 0.138; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00"
+  },
+  {
+   "cycle": 53,
+   "now": "2017-12-29",
+   "stage": "c68.expectations",
+   "in": 6,
+   "out": 6,
+   "note": "6 expectation(s) frozen before the 2018-01-01 fill"
+  },
+  {
+   "cycle": 53,
+   "now": "2017-12-29",
+   "stage": "c68.outcomes_errors",
+   "in": 4,
+   "out": 4,
+   "note": "4 exit(s) by the learned policy, 4 error report(s), 0 unreconstructable, 60 candidate gain(s) resolved"
+  }
+ ]
+}

@@ -1,0 +1,132 @@
+{
+ "cycle": 213,
+ "now": "2021-01-22",
+ "label": "IMPLEMENTED - NOT VALIDATED",
+ "counters": {
+  "outcomes": 116,
+  "errors": 116,
+  "expectations": 118,
+  "promotion_held_by_regime": 0,
+  "fixes_applied": 1,
+  "rolled_back": 1,
+  "rolled_back_revalidation": 1,
+  "retired_awaiting_fresh_evidence": 1
+ },
+ "ledgers": {
+  "expectations": 118,
+  "outcomes": 116,
+  "errors": 116,
+  "commitments": 118,
+  "pipeline_events": 1426,
+  "pipeline_furthest": {
+   "EXPECTATION": 2,
+   "CLASSIFIED": 116,
+   "REJECTED": 206,
+   "MONITORED": 1
+  }
+ },
+ "calibration": {
+  "now": "2021-01-22",
+  "target": {
+   "tolerance": 0.01,
+   "goal_share": 0.8,
+   "min_n": 200,
+   "min_oos_n": 100,
+   "level": 0.95,
+   "name": "pm1pp_80"
+  },
+  "status": "INSUFFICIENT_SAMPLE",
+  "n_committed": 117,
+  "n_matured": 116,
+  "n_resolved": 116,
+  "n_unresolved": 0,
+  "all_": {
+   "n": 116,
+   "hits": 8,
+   "share": 0.06896551724137931,
+   "lo": 0.03535749065073652,
+   "hi": 0.13020673909033134,
+   "boot_lo": 0.02586206896551724,
+   "boot_hi": 0.1206896551724138
+  },
+  "oos": {
+   "n": 116,
+   "hits": 8,
+   "share": 0.06896551724137931,
+   "lo": 0.03535749065073652,
+   "hi": 0.13020673909033134,
+   "boot_lo": 0.02586206896551724,
+   "boot_hi": 0.12090517241379291
+  },
+  "resolved_only": {
+   "n": 116,
+   "hits": 8,
+   "share": 0.06896551724137931,
+   "lo": 0.03535749065073652,
+   "hi": 0.13020673909033134,
+   "boot_lo": 0.02586206896551724,
+   "boot_hi": 0.11206896551724138
+  },
+  "bias": 0.007780964740372815,
+  "mae": 0.09292905355685903,
+  "naive_share": 0.037383177570093455,
+  "required_n": null,
+  "abuses": [],
+  "by_cohort": [
+   [
+    "-",
+    {
+     "n": 116,
+     "hits": 8,
+     "share": 0.06896551724137931,
+     "lo": 0.03535749065073652,
+     "hi": 0.13020673909033134,
+     "boot_lo": 0.02586206896551724,
+     "boot_hi": 0.1206896551724138
+    }
+   ]
+  ],
+  "headline": "6.9% of 116 matured predictions landed within +-1pp of the committed prediction (95% CI 3.5%-13.0%); out of sample 6.9% of 116 (CI 3.5%-13.0%, block bootstrap 2.6%-12.1%). Goal 80%: sample too small to judge (need 200 overall and 100 out of sample). A no-skill median forecast scores 3.7% on the same sample."
+ },
+ "influence": {
+  "mom_r20_top": 1.0,
+  "rev_r5_bottom": 1.0,
+  "vol_top": 1.0
+ },
+ "verdicts": {},
+ "guard": {},
+ "production": {
+  "name": "incumbent",
+  "since": "2020-07-31",
+  "window_share": 1.0,
+  "extra_features": []
+ },
+ "regime_records": [],
+ "identification": null,
+ "stage_runs": [
+  {
+   "cycle": 213,
+   "now": "2021-01-22",
+   "stage": "c68.selection_policy",
+   "in": 4000,
+   "out": 1,
+   "note": "policy L98326e90 (threshold 0.0005); gain model fitted n=4000 base in-band 0.162; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00"
+  },
+  {
+   "cycle": 213,
+   "now": "2021-01-22",
+   "stage": "c68.expectations",
+   "in": 1,
+   "out": 1,
+   "note": "1 expectation(s) frozen before the 2021-01-25 fill"
+  },
+  {
+   "cycle": 213,
+   "now": "2021-01-22",
+   "stage": "c68.outcomes_errors",
+   "in": 0,
+   "out": 0,
+   "note": "0 exit(s) by the learned policy, 0 error report(s), 0 unreconstructable, 60 candidate gain(s) resolved"
+  }
+ ]
+}

@@ -1,0 +1,127 @@
+{
+ "cycle": 17,
+ "now": "2017-04-21",
+ "label": "IMPLEMENTED - NOT VALIDATED",
+ "counters": {
+  "outcomes": 22,
+  "errors": 22,
+  "expectations": 23,
+  "promotion_held_by_regime": 0
+ },
+ "ledgers": {
+  "expectations": 23,
+  "outcomes": 22,
+  "errors": 22,
+  "commitments": 23,
+  "pipeline_events": 160,
+  "pipeline_furthest": {
+   "EXPECTATION": 1,
+   "CLASSIFIED": 22,
+   "REJECTED": 12
+  }
+ },
+ "calibration": {
+  "now": "2017-04-21",
+  "target": {
+   "tolerance": 0.01,
+   "goal_share": 0.8,
+   "min_n": 200,
+   "min_oos_n": 100,
+   "level": 0.95,
+   "name": "pm1pp_80"
+  },
+  "status": "INSUFFICIENT_SAMPLE",
+  "n_committed": 22,
+  "n_matured": 22,
+  "n_resolved": 22,
+  "n_unresolved": 0,
+  "all_": {
+   "n": 22,
+   "hits": 1,
+   "share": 0.045454545454545456,
+   "lo": 0.00806942762126385,
+   "hi": 0.21798045838657332,
+   "boot_lo": 0.0,
+   "boot_hi": 0.13636363636363635
+  },
+  "oos": {
+   "n": 22,
+   "hits": 1,
+   "share": 0.045454545454545456,
+   "lo": 0.00806942762126385,
+   "hi": 0.21798045838657332,
+   "boot_lo": 0.0,
+   "boot_hi": 0.13636363636363635
+  },
+  "resolved_only": {
+   "n": 22,
+   "hits": 1,
+   "share": 0.045454545454545456,
+   "lo": 0.00806942762126385,
+   "hi": 0.21798045838657332,
+   "boot_lo": 0.0,
+   "boot_hi": 0.13636363636363635
+  },
+  "bias": 0.0009323445279179881,
+  "mae": 0.0925872220965631,
+  "naive_share": 0.07692307692307693,
+  "required_n": null,
+  "abuses": [],
+  "by_cohort": [
+   [
+    "-",
+    {
+     "n": 22,
+     "hits": 1,
+     "share": 0.045454545454545456,
+     "lo": 0.00806942762126385,
+     "hi": 0.21798045838657332,
+     "boot_lo": 0.0,
+     "boot_hi": 0.13636363636363635
+    }
+   ]
+  ],
+  "headline": "4.5% of 22 matured predictions landed within +-1pp of the committed prediction (95% CI 0.8%-21.8%); out of sample 4.5% of 22 (CI 0.8%-21.8%, block bootstrap 0.0%-13.6%). Goal 80%: sample too small to judge (need 200 overall and 100 out of sample). A no-skill median forecast scores 7.7% on the same sample."
+ },
+ "influence": {
+  "mom_r20_top": 1.0,
+  "rev_r5_bottom": 1.0,
+  "vol_top": 1.0
+ },
+ "verdicts": {},
+ "guard": {},
+ "production": {
+  "name": "incumbent",
+  "since": "",
+  "window_share": 1.0,
+  "extra_features": []
+ },
+ "regime_records": [],
+ "identification": null,
+ "stage_runs": [
+  {
+   "cycle": 17,
+   "now": "2017-04-21",
+   "stage": "c68.selection_policy",
+   "in": 3240,
+   "out": 1,
+   "note": "policy Lfafbb71a (threshold -0.0003); gain model fitted n=3240 base in-band 0.161; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00"
+  },
+  {
+   "cycle": 17,
+   "now": "2017-04-21",
+   "stage": "c68.expectations",
+   "in": 1,
+   "out": 1,
+   "note": "1 expectation(s) frozen before the 2017-04-24 fill"
+  },
+  {
+   "cycle": 17,
+   "now": "2017-04-21",
+   "stage": "c68.outcomes_errors",
+   "in": 1,
+   "out": 1,
+   "note": "1 exit(s) by the learned policy, 1 error report(s), 0 unreconstructable, 60 candidate gain(s) resolved"
+  }
+ ]
+}

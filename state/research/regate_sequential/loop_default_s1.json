@@ -1,16 +1,14 @@
 {
  "seed": 1,
  "world": "default",
- "code_hash": "be1414a816a6c370",
+ "code_hash": "b285d7c10d259752",
  "resume": "START_FRESH",
  "cycles": [
   {
    "cycle": 0,
    "now": "2017-05-12",
    "knowledge": [],
-   "failed": {
-    "run.experiments": "ComputeError: attempt directory C:\\Users\\Peter\\weekly7\\state\\research\\regate_sequential\\f12_default_s1\\compute\\out\\2135e9bced25633e9ea6\\attempt_01 exists: two attempts must never share a folder at compute.py:468"
-   },
+   "failed": {},
    "counters": {}
   },
   {
@@ -24,9 +22,7 @@
    "cycle": 2,
    "now": "2017-05-26",
    "knowledge": [],
-   "failed": {
-    "run.experiments": "ComputeError: attempt directory C:\\Users\\Peter\\weekly7\\state\\research\\regate_sequential\\f12_default_s1\\compute\\out\\c734d4d32e551d04f88a\\attempt_01 exists: two attempts must never share a folder at compute.py:468"
-   },
+   "failed": {},
    "counters": {}
   },
   {
@@ -40,9 +36,7 @@
    "cycle": 4,
    "now": "2017-06-09",
    "knowledge": [],
-   "failed": {
-    "run.experiments": "ComputeError: attempt directory C:\\Users\\Peter\\weekly7\\state\\research\\regate_sequential\\f12_default_s1\\compute\\out\\6f84b5c3d69442add85d\\attempt_01 exists: two attempts must never share a folder at compute.py:468"
-   },
+   "failed": {},
    "counters": {}
   },
   {
@@ -70,9 +64,7 @@
    "cycle": 8,
    "now": "2017-07-07",
    "knowledge": [],
-   "failed": {
-    "run.experiments": "ComputeError: attempt directory C:\\Users\\Peter\\weekly7\\state\\research\\regate_sequential\\f12_default_s1\\compute\\out\\7359bffeb3afe8d7ec05\\attempt_01 exists: two attempts must never share a folder at compute.py:468"
-   },
+   "failed": {},
    "counters": {}
   },
   {
@@ -128,9 +120,7 @@
    "cycle": 16,
    "now": "2017-09-01",
    "knowledge": [],
-   "failed": {
-    "run.experiments": "ComputeError: attempt directory C:\\Users\\Peter\\weekly7\\state\\research\\regate_sequential\\f12_default_s1\\compute\\out\\eac4020d230c742c82e2\\attempt_01 exists: two attempts must never share a folder at compute.py:468"
-   },
+   "failed": {},
    "counters": {}
   },
   {
@@ -423,384 +413,592 @@
   {
    "cycle": 58,
    "now": "2018-06-22",
-   "knowledge": [],
+   "knowledge": [
+    "xs_atr_rank"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 59,
    "now": "2018-06-29",
-   "knowledge": [],
+   "knowledge": [
+    "xs_atr_rank"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 60,
    "now": "2018-07-06",
-   "knowledge": [],
+   "knowledge": [
+    "xs_atr_rank"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 61,
    "now": "2018-07-13",
-   "knowledge": [],
+   "knowledge": [
+    "xs_atr_rank"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 62,
    "now": "2018-07-20",
-   "knowledge": [],
+   "knowledge": [
+    "xs_atr_rank"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 63,
    "now": "2018-07-27",
-   "knowledge": [],
+   "knowledge": [
+    "xs_atr_rank"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 64,
    "now": "2018-08-03",
-   "knowledge": [],
+   "knowledge": [
+    "xs_atr_rank"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 65,
    "now": "2018-08-10",
-   "knowledge": [],
+   "knowledge": [
+    "xs_atr_rank"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 66,
    "now": "2018-08-17",
-   "knowledge": [],
+   "knowledge": [
+    "xs_atr_rank"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 67,
    "now": "2018-08-24",
-   "knowledge": [],
+   "knowledge": [
+    "xs_atr_rank"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 68,
    "now": "2018-08-31",
-   "knowledge": [],
+   "knowledge": [
+    "xs_atr_rank"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 69,
    "now": "2018-09-07",
-   "knowledge": [],
+   "knowledge": [
+    "xs_atr_rank"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 70,
    "now": "2018-09-14",
-   "knowledge": [],
+   "knowledge": [
+    "xs_atr_rank"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 71,
    "now": "2018-09-21",
-   "knowledge": [],
+   "knowledge": [
+    "xs_atr_rank"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 72,
    "now": "2018-09-28",
-   "knowledge": [],
+   "knowledge": [
+    "xs_atr_rank"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 73,
    "now": "2018-10-05",
-   "knowledge": [],
+   "knowledge": [
+    "xs_atr_rank"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 74,
    "now": "2018-10-12",
-   "knowledge": [],
+   "knowledge": [
+    "xs_atr_rank"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 75,
    "now": "2018-10-19",
-   "knowledge": [],
+   "knowledge": [
+    "xs_atr_rank"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 76,
    "now": "2018-10-26",
-   "knowledge": [],
+   "knowledge": [
+    "xs_atr_rank"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 77,
    "now": "2018-11-02",
-   "knowledge": [],
+   "knowledge": [
+    "xs_atr_rank"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 78,
    "now": "2018-11-09",
-   "knowledge": [],
+   "knowledge": [
+    "xs_atr_rank"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 79,
    "now": "2018-11-16",
-   "knowledge": [],
+   "knowledge": [
+    "xs_atr_rank"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 80,
    "now": "2018-11-23",
-   "knowledge": [],
+   "knowledge": [
+    "xs_atr_rank"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 81,
    "now": "2018-11-30",
-   "knowledge": [],
+   "knowledge": [
+    "xs_atr_rank"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 82,
    "now": "2018-12-07",
-   "knowledge": [],
+   "knowledge": [
+    "xs_atr_rank"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 83,
    "now": "2018-12-14",
-   "knowledge": [],
+   "knowledge": [
+    "xs_atr_rank"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 84,
    "now": "2018-12-21",
-   "knowledge": [],
+   "knowledge": [
+    "xs_atr_rank"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 85,
    "now": "2018-12-28",
-   "knowledge": [],
+   "knowledge": [
+    "xs_atr_rank"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 86,
    "now": "2019-01-04",
-   "knowledge": [],
+   "knowledge": [
+    "xs_atr_rank"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 87,
    "now": "2019-01-11",
-   "knowledge": [],
+   "knowledge": [
+    "xs_atr_rank"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 88,
    "now": "2019-01-18",
-   "knowledge": [],
+   "knowledge": [
+    "xs_atr_rank"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 89,
    "now": "2019-01-25",
-   "knowledge": [],
+   "knowledge": [
+    "xs_atr_rank"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 90,
    "now": "2019-02-01",
-   "knowledge": [],
+   "knowledge": [
+    "xs_atr_rank"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 91,
    "now": "2019-02-08",
-   "knowledge": [],
+   "knowledge": [
+    "xs_atr_rank"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 92,
    "now": "2019-02-15",
-   "knowledge": [],
+   "knowledge": [
+    "xs_atr_rank"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 93,
    "now": "2019-02-22",
-   "knowledge": [],
+   "knowledge": [
+    "xs_atr_rank"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 94,
    "now": "2019-03-01",
-   "knowledge": [],
+   "knowledge": [
+    "xs_atr_rank"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 95,
    "now": "2019-03-08",
-   "knowledge": [],
+   "knowledge": [
+    "xs_atr_rank"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 96,
    "now": "2019-03-15",
-   "knowledge": [],
+   "knowledge": [
+    "xs_atr_rank"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 97,
    "now": "2019-03-22",
-   "knowledge": [],
+   "knowledge": [
+    "xs_atr_rank"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 98,
    "now": "2019-03-29",
-   "knowledge": [],
+   "knowledge": [
+    "xs_atr_rank"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 99,
    "now": "2019-04-05",
-   "knowledge": [],
+   "knowledge": [
+    "xs_atr_rank"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 100,
    "now": "2019-04-12",
-   "knowledge": [],
+   "knowledge": [
+    "xs_atr_rank"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 101,
    "now": "2019-04-19",
-   "knowledge": [],
+   "knowledge": [
+    "xs_atr_rank"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 102,
    "now": "2019-04-26",
-   "knowledge": [],
+   "knowledge": [
+    "xs_atr_rank",
+    "xs_vol_rank"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 103,
    "now": "2019-05-03",
-   "knowledge": [],
+   "knowledge": [
+    "xs_atr_rank",
+    "xs_vol_rank"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 104,
    "now": "2019-05-10",
-   "knowledge": [],
+   "knowledge": [
+    "xs_atr_rank",
+    "xs_vol_rank"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 105,
    "now": "2019-05-17",
-   "knowledge": [],
+   "knowledge": [
+    "xs_atr_rank",
+    "xs_vol_rank"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 106,
    "now": "2019-05-24",
-   "knowledge": [],
+   "knowledge": [
+    "xs_atr_rank",
+    "xs_vol_rank"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 107,
    "now": "2019-05-31",
-   "knowledge": [],
+   "knowledge": [
+    "xs_atr_rank",
+    "xs_vol_rank"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 108,
    "now": "2019-06-07",
-   "knowledge": [],
+   "knowledge": [
+    "xs_atr_rank",
+    "xs_vol_rank"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 109,
    "now": "2019-06-14",
-   "knowledge": [],
+   "knowledge": [
+    "xs_atr_rank",
+    "xs_vol_rank"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 110,
    "now": "2019-06-21",
-   "knowledge": [],
+   "knowledge": [
+    "xs_atr_rank",
+    "xs_vol_rank"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 111,
    "now": "2019-06-28",
-   "knowledge": [],
+   "knowledge": [
+    "xs_atr_rank",
+    "xs_vol_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 112,
+   "now": "2019-07-05",
+   "knowledge": [
+    "xs_atr_rank",
+    "xs_vol_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 113,
+   "now": "2019-07-12",
+   "knowledge": [
+    "xs_atr_rank",
+    "xs_vol_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 114,
+   "now": "2019-07-19",
+   "knowledge": [
+    "xs_atr_rank",
+    "xs_vol_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 115,
+   "now": "2019-07-26",
+   "knowledge": [
+    "xs_atr_rank",
+    "xs_vol_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 116,
+   "now": "2019-08-02",
+   "knowledge": [
+    "xs_atr_rank",
+    "xs_vol_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 117,
+   "now": "2019-08-09",
+   "knowledge": [
+    "xs_atr_rank",
+    "xs_vol_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 118,
+   "now": "2019-08-16",
+   "knowledge": [
+    "xs_atr_rank",
+    "xs_vol_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 119,
+   "now": "2019-08-23",
+   "knowledge": [
+    "xs_atr_rank",
+    "xs_vol_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 120,
+   "now": "2019-08-30",
+   "knowledge": [
+    "xs_atr_rank",
+    "xs_vol_rank"
+   ],
    "failed": {},
    "counters": {}
   }
  ],
  "provenance": {
-  "code_hash": "be1414a816a6c370",
+  "code_hash": "b285d7c10d259752",
   "code_files": [
    "engine/__init__.py",
    "engine/analogs.py",
@@ -892,7 +1090,7 @@
    "engine/stops.py"
   ],
   "code_mixed": [],
-  "git_commit": "6c6f40ec2e95f7764dacc9be9c796ace42ff52ca+dirty",
+  "git_commit": "1a41b24057f786d9fda96259046a373e5ae93711",
   "canon_sha": "fef7cdf0a1501c3d",
   "bible_sha": "a97ea91862cee371",
   "blueprint_version": "4.0",
@@ -900,9 +1098,89 @@
   "data_snapshot": "171ba8ba728ee713",
   "seed": 1
  },
- "gates": {},
- "knowledge": {},
- "seconds": 8683.5,
+ "gates": {
+  "DBR5224b8909968": {
+   "feature": "xs_atr_rank",
+   "verdict": "PROMOTE",
+   "looks": 2,
+   "retired": "",
+   "history": [
+    {
+     "look": 1,
+     "cycle": 44,
+     "at": "2018-03-16",
+     "verdict": "FAILED",
+     "alpha": 0.03039635509270134,
+     "n_test": 71,
+     "blocking": [
+      "calibration"
+     ]
+    },
+    {
+     "look": 2,
+     "cycle": 58,
+     "at": "2018-06-22",
+     "verdict": "PROMOTE",
+     "alpha": 0.007599088773175335,
+     "n_test": 81,
+     "blocking": []
+    }
+   ],
+   "blocking": {}
+  },
+  "DBRfb5bbfb1ce25": {
+   "feature": "xs_vol_rank",
+   "verdict": "PROMOTE",
+   "looks": 2,
+   "retired": "",
+   "history": [
+    {
+     "look": 1,
+     "cycle": 88,
+     "at": "2019-01-18",
+     "verdict": "NEEDS_MORE_EVIDENCE",
+     "alpha": 0.03039635509270134,
+     "n_test": 74,
+     "blocking": [
+      "failure_behavior"
+     ]
+    },
+    {
+     "look": 2,
+     "cycle": 102,
+     "at": "2019-04-26",
+     "verdict": "PROMOTE",
+     "alpha": 0.007599088773175335,
+     "n_test": 84,
+     "blocking": []
+    }
+   ],
+   "blocking": {}
+  }
+ },
+ "knowledge": {
+  "K13d6ecf410bc4f": {
+   "feature": "xs_atr_rank",
+   "sign": 1.0,
+   "problem": "VOLATILITY",
+   "filed_at": "2018-06-22",
+   "effect": 0.372668579599,
+   "branch": "BR5224b8909968",
+   "post_effect": 0.3763587798204809,
+   "post_n": 60
+  },
+  "Kfed8f6442b5bec": {
+   "feature": "xs_vol_rank",
+   "sign": 1.0,
+   "problem": "VOLATILITY",
+   "filed_at": "2019-04-26",
+   "effect": 0.335153198089,
+   "branch": "BRfb5bbfb1ce25",
+   "post_effect": 0.37782019627520136,
+   "post_n": 16
+  }
+ },
+ "seconds": 6468.1,
  "truth": {
   "genuine": [
    "lv20",

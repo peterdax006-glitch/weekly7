@@ -61,7 +61,7 @@ def loop_config(run_id: str):
     # the C68 stages that do not feed self-correction are switched off to keep a multi-year run cheap; the path under test
     # (policy -> expectations -> outcomes -> validate/promote -> monitor/audit) runs exactly as in production
     off = ("c68.market_regime", "c68.pattern_change", "c68.what_changed", "c68.error_research", "c68.research_depth")
-    return LP.LoopConfig(run_id=run_id, free_gb=12.0, code_hash="f11-c68-fix", checkpoint="off", cadence={"c68.validate_promote": CADENCE},
+    return LP.LoopConfig(run_id=run_id, free_gb=12.0, code_hash="f13-c68-regime", checkpoint="off", cadence={"c68.validate_promote": CADENCE},
                          disabled=tuple(n for n in LP.BUILTIN_STAGES if n not in keep and n != "report.cycle") + off,
                          two_stage=TS.TwoStageConfig(gate_min_weeks=6, min_direction_rows=60, min_calib_rows=20))
 
@@ -88,11 +88,17 @@ def run_one(kind: str, seed: int, root, plant: dict | None = None) -> dict:
     with open(root / "validations.jsonl", "w", encoding="utf-8") as fh:
         for c in vals:
             fh.write(json.dumps({"kind": kind, "seed": seed, **c}, default=str) + "\n")
+    EL.correction_frame(st, "2100-01-01").to_pickle(root / "frame.pkl")      # every matured forecast: gate decisions replay offline
     promo = [c for c in vals if "sector_slope" in c.get("promoted", [])]
     others = sorted({p for c in vals for p in c.get("promoted", []) if p != "sector_slope"})
     last = vals[-1] if vals else {}
     groups = [c.get("detail", {}).get("sector_slope", {}).get("group") for c in vals]
     mon = [m for m in st.monitoring if "t" in m]
+    flip = world.truth.get("weak_until")
+    rb = next((m for m in mon if m.get("rolled_back")), None)
+    first_promo = promo[0]["now"] if promo else None
+    at_promo = (promo[0].get("regime") or {}).get("sector_slope", {}) if promo else {}
+    declared = next((m.get("change_declared") for m in mon if m.get("change_declared")), None)
     return {"kind": kind, "seed": seed, "world": "null" if kind == "null" else "planted", "cycles": cycles, "seconds": round(time.time() - t0, 1),
             "validations": len(vals), "promoted_sector_slope": int(bool(promo)), "first_promote": promo[0]["now"] if promo else None,
             "promote_count": len(promo), "promoted_other": ",".join(others), "applied": int(st.counters.get("fixes_applied", 0)),
@@ -103,7 +109,16 @@ def run_one(kind: str, seed: int, root, plant: dict | None = None) -> dict:
             "last_t": (last.get("effects") or {}).get("sector_slope", (None, None, None))[1],
             "picked_weak_sector_share": float(np.mean([g == "SEC1" for g in groups if g])) if any(groups) else 0.0,
             "monitor_min_t": min((m["t"] for m in mon), default=None), "stage_failures": ";".join(bad[:5]),
-            "weak_sector": world.truth.get("weak_sector"), "flip_date": world.truth.get("weak_until")}
+            "weak_sector": world.truth.get("weak_sector"), "flip_date": flip,
+            # F13: a promotion after the flip is a promotion on evidence that predates the change (the fix is wrong from the flip on)
+            "post_flip_promotions": sum(1 for c in promo if flip and str(c["now"]) > str(flip)),
+            "promotion_regime": at_promo.get("verdict"), "promotion_stale_share": at_promo.get("stale_share"),
+            "held_by_regime": int(st.counters.get("promotion_held_by_regime", 0)),
+            "held_dates": ",".join(str(c["now"]) for c in vals if "sector_slope" in (c.get("held_by_regime") or [])),
+            "rollback_at": rb["now"] if rb else None, "rollback_why": rb.get("why") if rb else None,
+            "change_declared": declared,
+            "rollback_delay_weeks": round((pd.Timestamp(rb["now"]) - pd.Timestamp(flip)).days / 7, 1)
+            if rb and flip and first_promo and str(first_promo) <= str(flip) else None}
 
 
 def _job(args):
@@ -120,6 +135,10 @@ def rates(tab: pd.DataFrame) -> dict:
                   "rollback_rate": float(g["rolled_back"].clip(upper=1).mean()),
                   "first_promote": sorted(x for x in g["first_promote"].dropna()), "last_verdicts": g["last_verdict"].value_counts().to_dict(),
                   "stage_failures": int((g["stage_failures"].fillna("") != "").sum())}
+        if "post_flip_promotions" in g:
+            out[k] |= {"post_flip_promotions": int(g["post_flip_promotions"].sum()), "held_by_regime": int(g["held_by_regime"].sum()),
+                       "rollback_delay_weeks": sorted(float(x) for x in g["rollback_delay_weeks"].dropna()),
+                       "rollback_why": g["rollback_why"].dropna().value_counts().to_dict()}
     return out
 
 
@@ -131,6 +150,7 @@ def main(argv=None) -> int:
     ap.add_argument("--workers", type=int, default=3)
     ap.add_argument("--run", default=time.strftime("run_%Y%m%d_%H%M%S"))
     ap.add_argument("--plant", default="{}", help="JSON overrides of PLANT / FLIP")
+    ap.add_argument("--delay-sims", type=int, default=0, help="also simulate the rollback delay distribution (self_correct.rollback_delay_curve)")
     a = ap.parse_args(argv)
     import psutil
     free = psutil.virtual_memory().available / 1e9
@@ -154,11 +174,16 @@ def main(argv=None) -> int:
     tab.to_csv(out / "rows.csv", index=False)
     rt = rates(tab)
     (out / "rates.json").write_text(json.dumps(rt, indent=1, default=str), encoding="utf-8")
+    if a.delay_sims:
+        from engine.research import self_correct as SCX
+        rt["rollback_delay_curve_snr0.8"] = [dataclasses.asdict(x) for x in SCX.rollback_delay_curve(n_sim=a.delay_sims, seed=0)]
+        (out / "rates.json").write_text(json.dumps(rt, indent=1, default=str), encoding="utf-8")
     cols = ["kind", "seed", "promoted_sector_slope", "first_promote", "promoted_other", "rolled_back", "final_production", "last_verdict",
-            "last_blocking", "last_effect", "last_t", "picked_weak_sector_share"]
+            "last_blocking", "last_effect", "last_t", "picked_weak_sector_share", "post_flip_promotions", "promotion_regime", "held_by_regime",
+            "rollback_at", "rollback_why", "rollback_delay_weeks"]
     lines = ["# C68 fix promotion (F11)", "", "IMPLEMENTED - NOT VALIDATED. Planted worlds only.", "", "| " + " | ".join(cols) + " |",
              "|" + "---|" * len(cols)]
-    lines += ["| " + " | ".join(str(r[c]) for c in cols) + " |" for _, r in tab.iterrows()]
+    lines += ["| " + " | ".join(str(r.get(c)) for c in cols) + " |" for _, r in tab.iterrows()]
     lines += ["", "```", json.dumps(rt, indent=1, default=str), "```"]
     (out / "summary.md").write_text("\n".join(lines), encoding="utf-8")
     print(json.dumps(rt, indent=1, default=str))

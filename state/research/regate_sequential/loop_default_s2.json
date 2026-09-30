@@ -1,16 +1,14 @@
 {
  "seed": 2,
  "world": "default",
- "code_hash": "be1414a816a6c370",
+ "code_hash": "b285d7c10d259752",
  "resume": "START_FRESH",
  "cycles": [
   {
    "cycle": 0,
    "now": "2017-05-12",
    "knowledge": [],
-   "failed": {
-    "run.experiments": "ComputeError: attempt directory C:\\Users\\Peter\\weekly7\\state\\research\\regate_sequential\\f12_default_s2\\compute\\out\\751436a047cfbc165a83\\attempt_01 exists: two attempts must never share a folder at compute.py:468"
-   },
+   "failed": {},
    "counters": {}
   },
   {
@@ -24,9 +22,7 @@
    "cycle": 2,
    "now": "2017-05-26",
    "knowledge": [],
-   "failed": {
-    "run.experiments": "ComputeError: attempt directory C:\\Users\\Peter\\weekly7\\state\\research\\regate_sequential\\f12_default_s2\\compute\\out\\ba6b5fd8b8bc6f8bb1d3\\attempt_01 exists: two attempts must never share a folder at compute.py:468"
-   },
+   "failed": {},
    "counters": {}
   },
   {
@@ -61,9 +57,7 @@
    "cycle": 7,
    "now": "2017-06-30",
    "knowledge": [],
-   "failed": {
-    "run.experiments": "ComputeError: attempt directory C:\\Users\\Peter\\weekly7\\state\\research\\regate_sequential\\f12_default_s2\\compute\\out\\246b6ba9aa9211b60f0b\\attempt_01 exists: two attempts must never share a folder at compute.py:468"
-   },
+   "failed": {},
    "counters": {}
   },
   {
@@ -77,9 +71,7 @@
    "cycle": 9,
    "now": "2017-07-14",
    "knowledge": [],
-   "failed": {
-    "run.experiments": "ComputeError: attempt directory C:\\Users\\Peter\\weekly7\\state\\research\\regate_sequential\\f12_default_s2\\compute\\out\\791a3015ba6f9ec68206\\attempt_01 exists: two attempts must never share a folder at compute.py:468"
-   },
+   "failed": {},
    "counters": {}
   },
   {
@@ -100,9 +92,7 @@
    "cycle": 12,
    "now": "2017-08-04",
    "knowledge": [],
-   "failed": {
-    "run.experiments": "ComputeError: attempt directory C:\\Users\\Peter\\weekly7\\state\\research\\regate_sequential\\f12_default_s2\\compute\\out\\baedde6cfe95010f72df\\attempt_01 exists: two attempts must never share a folder at compute.py:468"
-   },
+   "failed": {},
    "counters": {}
   },
   {
@@ -263,9 +253,7 @@
    "cycle": 35,
    "now": "2018-01-12",
    "knowledge": [],
-   "failed": {
-    "run.experiments": "ComputeError: attempt directory C:\\Users\\Peter\\weekly7\\state\\research\\regate_sequential\\f12_default_s2\\compute\\out\\a761a265be911f545283\\attempt_01 exists: two attempts must never share a folder at compute.py:468"
-   },
+   "failed": {},
    "counters": {}
   },
   {
@@ -855,10 +843,45 @@
    "knowledge": [],
    "failed": {},
    "counters": {}
+  },
+  {
+   "cycle": 120,
+   "now": "2019-08-30",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 121,
+   "now": "2019-09-06",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 122,
+   "now": "2019-09-13",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 123,
+   "now": "2019-09-20",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 124,
+   "now": "2019-09-27",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
   }
  ],
  "provenance": {
-  "code_hash": "be1414a816a6c370",
+  "code_hash": "b285d7c10d259752",
   "code_files": [
    "engine/__init__.py",
    "engine/analogs.py",
@@ -950,7 +973,7 @@
    "engine/stops.py"
   ],
   "code_mixed": [],
-  "git_commit": "6c6f40ec2e95f7764dacc9be9c796ace42ff52ca+dirty",
+  "git_commit": "1a41b24057f786d9fda96259046a373e5ae93711",
   "canon_sha": "fef7cdf0a1501c3d",
   "bible_sha": "a97ea91862cee371",
   "blueprint_version": "4.0",
@@ -958,9 +981,91 @@
   "data_snapshot": "171ba8ba728ee713",
   "seed": 2
  },
- "gates": {},
+ "gates": {
+  "DBR5224b8909968": {
+   "feature": "xs_atr_rank",
+   "verdict": "NEEDS_MORE_EVIDENCE",
+   "looks": 6,
+   "retired": "",
+   "history": [
+    {
+     "look": 1,
+     "cycle": 47,
+     "at": "2018-04-06",
+     "verdict": "FAILED",
+     "alpha": 0.03039635509270134,
+     "n_test": 73,
+     "blocking": [
+      "failure_behavior",
+      "risk"
+     ]
+    },
+    {
+     "look": 2,
+     "cycle": 61,
+     "at": "2018-07-13",
+     "verdict": "FAILED",
+     "alpha": 0.007599088773175335,
+     "n_test": 83,
+     "blocking": [
+      "calibration",
+      "failure_behavior",
+      "risk"
+     ]
+    },
+    {
+     "look": 3,
+     "cycle": 75,
+     "at": "2018-10-19",
+     "verdict": "FAILED",
+     "alpha": 0.0033773727880779263,
+     "n_test": 93,
+     "blocking": [
+      "calibration",
+      "failure_behavior"
+     ]
+    },
+    {
+     "look": 4,
+     "cycle": 89,
+     "at": "2019-01-25",
+     "verdict": "NEEDS_MORE_EVIDENCE",
+     "alpha": 0.0018997721932938337,
+     "n_test": 75,
+     "blocking": [
+      "failure_behavior"
+     ]
+    },
+    {
+     "look": 5,
+     "cycle": 103,
+     "at": "2019-05-03",
+     "verdict": "NEEDS_MORE_EVIDENCE",
+     "alpha": 0.0012158542037080534,
+     "n_test": 84,
+     "blocking": [
+      "failure_behavior"
+     ]
+    },
+    {
+     "look": 6,
+     "cycle": 117,
+     "at": "2019-08-09",
+     "verdict": "NEEDS_MORE_EVIDENCE",
+     "alpha": 0.0008443431970194816,
+     "n_test": 94,
+     "blocking": [
+      "failure_behavior"
+     ]
+    }
+   ],
+   "blocking": {
+    "failure_behavior": "MISSING: only 2 failure episodes studied (< 5)"
+   }
+  }
+ },
  "knowledge": {},
- "seconds": 8701.7,
+ "seconds": 6476.9,
  "truth": {
   "genuine": [
    "lv20",

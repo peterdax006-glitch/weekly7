@@ -1,0 +1,131 @@
+{
+ "cycle": 186,
+ "now": "2020-07-17",
+ "label": "IMPLEMENTED - NOT VALIDATED",
+ "counters": {
+  "expectations": 106,
+  "outcomes": 101,
+  "errors": 101,
+  "fixes_applied": 1
+ },
+ "ledgers": {
+  "expectations": 106,
+  "outcomes": 101,
+  "errors": 101,
+  "commitments": 106,
+  "pipeline_events": 1235,
+  "pipeline_furthest": {
+   "EXPECTATION": 5,
+   "CLASSIFIED": 101,
+   "REJECTED": 179,
+   "PROMOTED": 1
+  }
+ },
+ "calibration": {
+  "now": "2020-07-17",
+  "target": {
+   "tolerance": 0.01,
+   "goal_share": 0.8,
+   "min_n": 200,
+   "min_oos_n": 100,
+   "level": 0.95,
+   "name": "pm1pp_80"
+  },
+  "status": "INSUFFICIENT_SAMPLE",
+  "n_committed": 102,
+  "n_matured": 101,
+  "n_resolved": 101,
+  "n_unresolved": 0,
+  "all_": {
+   "n": 101,
+   "hits": 5,
+   "share": 0.04950495049504951,
+   "lo": 0.02132850988800644,
+   "hi": 0.11069425072968567,
+   "boot_lo": 0.019801980198019802,
+   "boot_hi": 0.09900990099009901
+  },
+  "oos": {
+   "n": 101,
+   "hits": 5,
+   "share": 0.04950495049504951,
+   "lo": 0.02132850988800644,
+   "hi": 0.11069425072968567,
+   "boot_lo": 0.009900990099009901,
+   "boot_hi": 0.0891089108910891
+  },
+  "resolved_only": {
+   "n": 101,
+   "hits": 5,
+   "share": 0.04950495049504951,
+   "lo": 0.02132850988800644,
+   "hi": 0.11069425072968567,
+   "boot_lo": 0.009900990099009901,
+   "boot_hi": 0.0891089108910891
+  },
+  "bias": 0.0018342532723248856,
+  "mae": 0.10319867799507763,
+  "naive_share": 0.1,
+  "required_n": null,
+  "abuses": [],
+  "by_cohort": [
+   [
+    "-",
+    {
+     "n": 101,
+     "hits": 5,
+     "share": 0.04950495049504951,
+     "lo": 0.02132850988800644,
+     "hi": 0.11069425072968567,
+     "boot_lo": 0.019801980198019802,
+     "boot_hi": 0.08935643564356413
+    }
+   ]
+  ],
+  "headline": "5.0% of 101 matured predictions landed within +-1pp of the committed prediction (95% CI 2.1%-11.1%); out of sample 5.0% of 101 (CI 2.1%-11.1%, block bootstrap 1.0%-8.9%). Goal 80%: sample too small to judge (need 200 overall and 100 out of sample). A no-skill median forecast scores 10.0% on the same sample."
+ },
+ "influence": {
+  "mom_r20_top": 1.0,
+  "rev_r5_bottom": 1.0,
+  "vol_top": 1.0
+ },
+ "verdicts": {},
+ "guard": {},
+ "production": {
+  "name": "sector_slope",
+  "since": "2020-07-03",
+  "key": "FIX:sector_slope@2020-07-03",
+  "window_share": 1.0,
+  "extra_features": [
+   "r20_x_SEC1"
+  ]
+ },
+ "regime_records": [],
+ "identification": null,
+ "stage_runs": [
+  {
+   "cycle": 186,
+   "now": "2020-07-17",
+   "stage": "c68.selection_policy",
+   "in": 4000,
+   "out": 1,
+   "note": "policy L88082a96 (threshold 0.0011); gain model fitted n=4000 base in-band 0.149; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00"
+  },
+  {
+   "cycle": 186,
+   "now": "2020-07-17",
+   "stage": "c68.expectations",
+   "in": 4,
+   "out": 4,
+   "note": "4 expectation(s) frozen before the 2020-07-20 fill"
+  },
+  {
+   "cycle": 186,
+   "now": "2020-07-17",
+   "stage": "c68.outcomes_errors",
+   "in": 1,
+   "out": 1,
+   "note": "1 exit(s) by the learned policy, 1 error report(s), 0 unreconstructable, 60 candidate gain(s) resolved"
+  }
+ ]
+}

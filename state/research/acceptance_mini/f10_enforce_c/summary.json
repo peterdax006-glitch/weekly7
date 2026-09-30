@@ -305,7 +305,7 @@
    "seed": 8,
    "world": "planted",
    "learning_claim": "enforce",
-   "seconds": 7983.3,
+   "seconds": 8133.5,
    "years": 5,
    "weeks": 260,
    "retire_window": 16,
@@ -564,7 +564,7 @@
  "provenance": {
   "code_hash": "44cc7fb9f6086889",
   "code_mixed": [],
-  "git_commit": "4338632d74e3fb87c98eaef7bb841829167b1139+dirty",
+  "git_commit": "6c6f40ec2e95f7764dacc9be9c796ace42ff52ca+dirty",
   "canon_sha": "fef7cdf0a1501c3d",
   "bible_sha": "a97ea91862cee371",
   "blueprint_version": "4.0",

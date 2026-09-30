@@ -1,0 +1,126 @@
+{
+ "cycle": 191,
+ "now": "2020-08-21",
+ "label": "IMPLEMENTED - NOT VALIDATED",
+ "counters": {
+  "expectations": 23,
+  "outcomes": 23,
+  "errors": 23,
+  "promotion_held_by_regime": 0
+ },
+ "ledgers": {
+  "expectations": 23,
+  "outcomes": 23,
+  "errors": 23,
+  "commitments": 23,
+  "pipeline_events": 851,
+  "pipeline_furthest": {
+   "CLASSIFIED": 23,
+   "REJECTED": 184
+  }
+ },
+ "calibration": {
+  "now": "2020-08-21",
+  "target": {
+   "tolerance": 0.01,
+   "goal_share": 0.8,
+   "min_n": 200,
+   "min_oos_n": 100,
+   "level": 0.95,
+   "name": "pm1pp_80"
+  },
+  "status": "INSUFFICIENT_SAMPLE",
+  "n_committed": 23,
+  "n_matured": 23,
+  "n_resolved": 23,
+  "n_unresolved": 0,
+  "all_": {
+   "n": 23,
+   "hits": 0,
+   "share": 0.0,
+   "lo": 0.0,
+   "hi": 0.14311661845042686,
+   "boot_lo": 0.0,
+   "boot_hi": 0.0
+  },
+  "oos": {
+   "n": 23,
+   "hits": 0,
+   "share": 0.0,
+   "lo": 0.0,
+   "hi": 0.14311661845042686,
+   "boot_lo": 0.0,
+   "boot_hi": 0.0
+  },
+  "resolved_only": {
+   "n": 23,
+   "hits": 0,
+   "share": 0.0,
+   "lo": 0.0,
+   "hi": 0.14311661845042686,
+   "boot_lo": 0.0,
+   "boot_hi": 0.0
+  },
+  "bias": -0.013278965882750392,
+  "mae": 0.1348451964082273,
+  "naive_share": 0.0,
+  "required_n": null,
+  "abuses": [],
+  "by_cohort": [
+   [
+    "-",
+    {
+     "n": 23,
+     "hits": 0,
+     "share": 0.0,
+     "lo": 0.0,
+     "hi": 0.14311661845042686,
+     "boot_lo": 0.0,
+     "boot_hi": 0.0
+    }
+   ]
+  ],
+  "headline": "0.0% of 23 matured predictions landed within +-1pp of the committed prediction (95% CI 0.0%-14.3%); out of sample 0.0% of 23 (CI 0.0%-14.3%, block bootstrap 0.0%-0.0%). Goal 80%: sample too small to judge (need 200 overall and 100 out of sample). A no-skill median forecast scores 0.0% on the same sample."
+ },
+ "influence": {
+  "mom_r20_top": 1.0,
+  "rev_r5_bottom": 1.0,
+  "vol_top": 1.0
+ },
+ "verdicts": {},
+ "guard": {},
+ "production": {
+  "name": "incumbent",
+  "since": "",
+  "window_share": 1.0,
+  "extra_features": []
+ },
+ "regime_records": [],
+ "identification": null,
+ "stage_runs": [
+  {
+   "cycle": 191,
+   "now": "2020-08-21",
+   "stage": "c68.selection_policy",
+   "in": 4000,
+   "out": 1,
+   "note": "policy L8b4f97d8 (threshold -inf); gain model fitted n=4000 base in-band 0.162; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00"
+  },
+  {
+   "cycle": 191,
+   "now": "2020-08-21",
+   "stage": "c68.expectations",
+   "in": 60,
+   "out": 0,
+   "note": "no position on 2020-08-21: {'NOT_PREDICTED_MOVER': 54, 'OUT_OF_BAND': 6}"
+  },
+  {
+   "cycle": 191,
+   "now": "2020-08-21",
+   "stage": "c68.outcomes_errors",
+   "in": 1,
+   "out": 1,
+   "note": "1 exit(s) by the learned policy, 1 error report(s), 0 unreconstructable, 60 candidate gain(s) resolved"
+  }
+ ]
+}

@@ -1,0 +1,20 @@
+{
+ "flip": {
+  "n": 2,
+  "promote_rate": 1.0,
+  "promoted_seeds": [
+   0,
+   1
+  ],
+  "any_other_fix_promoted": 0,
+  "rollback_rate": 0.5,
+  "first_promote": [
+   "2019-05-10",
+   "2020-07-03"
+  ],
+  "last_verdicts": {
+   "FAILED": 2
+  },
+  "stage_failures": 0
+ }
+}

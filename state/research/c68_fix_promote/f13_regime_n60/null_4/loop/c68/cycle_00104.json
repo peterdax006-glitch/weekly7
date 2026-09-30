@@ -1,0 +1,253 @@
+{
+ "cycle": 104,
+ "now": "2018-12-21",
+ "label": "IMPLEMENTED - NOT VALIDATED",
+ "counters": {
+  "expectations": 83,
+  "outcomes": 78,
+  "errors": 78,
+  "promotion_held_by_regime": 0
+ },
+ "ledgers": {
+  "expectations": 83,
+  "outcomes": 78,
+  "errors": 78,
+  "commitments": 83,
+  "pipeline_events": 800,
+  "pipeline_furthest": {
+   "EXPECTATION": 5,
+   "CLASSIFIED": 78,
+   "REJECTED": 100
+  }
+ },
+ "calibration": {
+  "now": "2018-12-21",
+  "target": {
+   "tolerance": 0.01,
+   "goal_share": 0.8,
+   "min_n": 200,
+   "min_oos_n": 100,
+   "level": 0.95,
+   "name": "pm1pp_80"
+  },
+  "status": "INSUFFICIENT_SAMPLE",
+  "n_committed": 80,
+  "n_matured": 78,
+  "n_resolved": 78,
+  "n_unresolved": 0,
+  "all_": {
+   "n": 78,
+   "hits": 4,
+   "share": 0.05128205128205128,
+   "lo": 0.020121012473896145,
+   "hi": 0.1245667654729449,
+   "boot_lo": 0.01282051282051282,
+   "boot_hi": 0.08974358974358974
+  },
+  "oos": {
+   "n": 78,
+   "hits": 4,
+   "share": 0.05128205128205128,
+   "lo": 0.020121012473896145,
+   "hi": 0.1245667654729449,
+   "boot_lo": 0.01282051282051282,
+   "boot_hi": 0.10256410256410256
+  },
+  "resolved_only": {
+   "n": 78,
+   "hits": 4,
+   "share": 0.05128205128205128,
+   "lo": 0.020121012473896145,
+   "hi": 0.1245667654729449,
+   "boot_lo": 0.01282051282051282,
+   "boot_hi": 0.10256410256410256
+  },
+  "bias": -0.007150502958525544,
+  "mae": 0.09659502089364373,
+  "naive_share": 0.014084507042253521,
+  "required_n": null,
+  "abuses": [],
+  "by_cohort": [
+   [
+    "-",
+    {
+     "n": 78,
+     "hits": 4,
+     "share": 0.05128205128205128,
+     "lo": 0.020121012473896145,
+     "hi": 0.1245667654729449,
+     "boot_lo": 0.01282051282051282,
+     "boot_hi": 0.10256410256410256
+    }
+   ]
+  ],
+  "headline": "5.1% of 78 matured predictions landed within +-1pp of the committed prediction (95% CI 2.0%-12.5%); out of sample 5.1% of 78 (CI 2.0%-12.5%, block bootstrap 1.3%-10.3%). Goal 80%: sample too small to judge (need 200 overall and 100 out of sample). A no-skill median forecast scores 1.4% on the same sample."
+ },
+ "influence": {
+  "mom_r20_top": 1.0,
+  "rev_r5_bottom": 1.0,
+  "vol_top": 1.0
+ },
+ "verdicts": {},
+ "guard": {},
+ "production": {
+  "name": "incumbent",
+  "since": "",
+  "window_share": 1.0,
+  "extra_features": []
+ },
+ "regime_records": [],
+ "identification": {
+  "periods": 9,
+  "trend": {
+   "n_periods": 7,
+   "slope": -0.06687689584801797,
+   "se": 0.125704342384907,
+   "improving": false
+  },
+  "rows": [
+   {
+    "period": "2016Q4",
+    "n_candidates": 120,
+    "n_selected": 18,
+    "base_rate": 0.09166666666666666,
+    "precision": 0.16666666666666666,
+    "precision_lo": 0.05836470400465757,
+    "precision_hi": 0.39222499638359243,
+    "recall": 0.2727272727272727,
+    "lift": 1.8181818181818181,
+    "pending": 0
+   },
+   {
+    "period": "2017Q1",
+    "n_candidates": 780,
+    "n_selected": 39,
+    "base_rate": 0.15384615384615385,
+    "precision": 0.1794871794871795,
+    "precision_lo": 0.08977151811469994,
+    "precision_hi": 0.3266835162444276,
+    "recall": 0.058333333333333334,
+    "lift": 1.1666666666666665,
+    "pending": 0
+   },
+   {
+    "period": "2017Q2",
+    "n_candidates": 780,
+    "n_selected": 7,
+    "base_rate": 0.12692307692307692,
+    "precision": 0.0,
+    "precision_lo": 0.0,
+    "precision_hi": 0.35433884297520657,
+    "recall": 0.0,
+    "lift": 0.0,
+    "pending": 0
+   },
+   {
+    "period": "2017Q3",
+    "n_candidates": 780,
+    "n_selected": 0,
+    "base_rate": 0.17307692307692307,
+    "precision": NaN,
+    "precision_lo": NaN,
+    "precision_hi": NaN,
+    "recall": 0.0,
+    "lift": NaN,
+    "pending": 0
+   },
+   {
+    "period": "2017Q4",
+    "n_candidates": 780,
+    "n_selected": 38,
+    "base_rate": 0.16153846153846155,
+    "precision": 0.15789473684210525,
+    "precision_lo": 0.07443762223722684,
+    "precision_hi": 0.3041712263727689,
+    "recall": 0.047619047619047616,
+    "lift": 0.9774436090225563,
+    "pending": 0
+   },
+   {
+    "period": "2018Q1",
+    "n_candidates": 780,
+    "n_selected": 20,
+    "base_rate": 0.12692307692307692,
+    "precision": 0.2,
+    "precision_lo": 0.0806563532712,
+    "precision_hi": 0.41602172202575993,
+    "recall": 0.04040404040404041,
+    "lift": 1.575757575757576,
+    "pending": 0
+   },
+   {
+    "period": "2018Q2",
+    "n_candidates": 772,
+    "n_selected": 3,
+    "base_rate": 0.16968911917098445,
+    "precision": 0.0,
+    "precision_lo": 0.0,
+    "precision_hi": 0.5615060804490177,
+    "recall": 0.0,
+    "lift": 0.0,
+    "pending": 0
+   },
+   {
+    "period": "2018Q3",
+    "n_candidates": 773,
+    "n_selected": 0,
+    "base_rate": 0.17464424320827943,
+    "precision": NaN,
+    "precision_lo": NaN,
+    "precision_hi": NaN,
+    "recall": 0.0,
+    "lift": NaN,
+    "pending": 0
+   },
+   {
+    "period": "2018Q4",
+    "n_candidates": 590,
+    "n_selected": 4,
+    "base_rate": 0.17457627118644067,
+    "precision": 0.25,
+    "precision_lo": 0.045586062644636216,
+    "precision_hi": 0.6993639475573634,
+    "recall": 0.009708737864077669,
+    "lift": 1.4320388349514563,
+    "pending": 0
+   }
+  ]
+ },
+ "stage_runs": [
+  {
+   "cycle": 104,
+   "now": "2018-12-21",
+   "stage": "c68.selection_policy",
+   "in": 4000,
+   "out": 1,
+   "note": "policy Le61e08fb (threshold 0.0034); gain model fitted n=4000 base in-band 0.142; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00"
+  },
+  {
+   "cycle": 104,
+   "now": "2018-12-21",
+   "stage": "c68.expectations",
+   "in": 3,
+   "out": 3,
+   "note": "3 expectation(s) frozen before the 2018-12-24 fill"
+  },
+  {
+   "cycle": 104,
+   "now": "2018-12-21",
+   "stage": "c68.outcomes_errors",
+   "in": 1,
+   "out": 1,
+   "note": "1 exit(s) by the learned policy, 1 error report(s), 0 unreconstructable, 59 candidate gain(s) resolved"
+  },
+  {
+   "cycle": 104,
+   "now": "2018-12-21",
+   "stage": "c68.validate_promote",
+   "in": 6155,
+   "out": 4,
+   "note": "4 fix(es) tested alone and gated; deterioration: YES (MAE 0.0708 -> 0.0766, p=0.000499); promoted [] (0 applied); production incumbent; rolled back 0"
+  }
+ ]
+}

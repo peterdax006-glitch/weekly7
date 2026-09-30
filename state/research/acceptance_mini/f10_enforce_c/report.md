@@ -2,7 +2,7 @@
 
 Status: IMPLEMENTED - NOT VALIDATED. Planted synthetic world; numbers are produced by `scripts/acceptance_mini.py`, none are typed.
 
-- seeds [7, 8], 50 weeks, 40 stocks, learning_claim `enforce`; code hash `44cc7fb9f6086889`; git `4338632d74e3fb87c98eaef7bb841829167b1139+dirty`
+- seeds [7, 8], 50 weeks, 40 stocks, learning_claim `enforce`; code hash `44cc7fb9f6086889`; git `6c6f40ec2e95f7764dacc9be9c796ace42ff52ca+dirty`
 - improved in 1 of 2 seeds; INVALID verdicts 0; identity-invariant 2; decisions changed without knowledge behind them: 0
 - mean improvement vs no lesson (seeds that picked): 0.010243590705928176; over all seeds (0 where no pick): 0.005121795352964088; vs shuffled-outcome control: 0.010243590705928176
 - null world (no planted truth): 0 seeds, false improvements 0, changed decisions 0, items in production 0
@@ -34,7 +34,7 @@ Section-87 acceptance (miniature)   [IMPLEMENTED - NOT VALIDATED]
   trace noise_b    f4:q0    sign +0: never found (no supported belief became knowledge)
 ```
 
-## seed 8, planted world (7983.3 s)
+## seed 8, planted world (8133.5 s)
 
 ```
 Section-87 acceptance (miniature)   [IMPLEMENTED - NOT VALIDATED]

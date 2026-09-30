@@ -1,0 +1,3 @@
+kind,seed,world,cycles,seconds,validations,promoted_sector_slope,first_promote,promote_count,promoted_other,applied,rolled_back,retired,final_production,last_verdict,last_blocking,last_effect,last_t,picked_weak_sector_share,monitor_min_t,stage_failures,weak_sector,flip_date
+flip,0,planted,227,855.2,55,1,2020-07-03,1,,1,0,{},sector_slope,FAILED,out_of_sample,-0.0007403176937646226,-2.3792805659639074,1.0,-1.5712530503568574,,SEC1,2020-04-20
+flip,1,planted,227,753.0,55,1,2019-05-10,1,,1,1,"{""sector_slope"": ""2020-09-25""}",incumbent,FAILED,out_of_sample,-0.0005413963673611845,-2.21590844481821,0.9423076923076923,-2.3496587285671606,,SEC1,2020-04-20

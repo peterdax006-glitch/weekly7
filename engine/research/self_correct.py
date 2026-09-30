@@ -23,6 +23,11 @@ calls engine.learning.promotion). Nothing here promotes anything by itself.
                            a shuffled-outcome control, its derived band probability, the book it would select (risk), complexity
                            against the incumbent, transfer across eras, failure behaviour. `step(..., evidence=FixEvidenceConfig())`.
     slope_fix              a fix for a slope that differs in one stock type (one within-group interaction, searched honestly).
+    regime_check           (F13, C68 forward-only regimes) always applied by gate_bundles: a fix's weekly OOS gains must come from the
+                           regime in force at `now` (change points from a forward CUSUM on those gains and from the caller's
+                           detectors), or be shown to hold across the change; it only ever makes a verdict stricter.
+    revalidate             (F13) a change declared after a promotion re-opens it: re-validate on post-change weeks or roll back
+                           within `reval_max_weeks`; rollback_delay_curve measures the delay distribution by simulation.
 
 Frame contract (one row per matured prediction; research side): `date` decision date, `matured_at` outcome date, `predicted`,
 `realised`; optional f_* model features, u_* available-but-unused features, m_* market context, `regime`, `sector`, `selected`,
@@ -44,6 +49,7 @@ from engine.learning import complexity as CX
 from engine.learning import promotion as PR
 from engine.learning.core import FirewallBreach, Provenance, _StrEnum, as_date, stable_hash
 from engine.learning.surprise import benjamini_hochberg
+from engine.research import change_points as CP
 from engine.research import quality_gate as QG
 from engine.research.core import Availability, GateVerdict
 
@@ -975,6 +981,278 @@ def _control_column(fix: CandidateFix, P: pd.DataFrame, train: pd.DataFrame, tes
     return out
 
 
+# ------------------------------------------------------------------------------------------------ forward-only regimes of fix evidence (F13)
+# F11 flip seed 0: the planted error stopped at 80% of the sample and the sector-slope fix was PROMOTED eleven weeks later, on ~100
+# weeks of OOS gains of which ~90 predated the stop. Nothing in the gate asked whether the evidence came from the regime in force: the
+# OOS gate reads the whole-window mean, the loop's change detectors (change_points / regime_memory) were never consulted, and the
+# market-level streams they watch do not move when one sector stops giving back its run-up. C68 (forward-only regimes): evidence for
+# a promotion must come from the regime in force at the decision or be shown to hold across the change, and a change detected after a
+# promotion re-opens it. Both are measured here from the fix's OWN weekly OOS gains, with change_points' calibrated CUSUM run forward.
+REGIME_GATE = "regime_in_force"
+
+
+@dataclass(frozen=True)
+class RegimeConfig:
+    # weekly gains, ~3 years per horizon. k = 1.0 targets a shift of ~2 weekly sds (a fix that stops working swings its gain from +mu
+    # to below zero); warmup 30 because a 20-week reference is so noisy the calibrated threshold rose to h = 24.8 (vs 6.7 here)
+    change: CP.ChangeConfig = CP.ChangeConfig(k=1.0, warmup=30, settle=10, horizon=150, scan_window=160)
+    min_post_weeks: int = 8               # weeks inside the regime in force before its evidence can stand alone
+    screen_t: float = 1.64                # the same bar as the OOS screen (FixEvidenceConfig.screen_t): never lower
+    tail_weeks: int = 13                  # newest 3..13 weeks scanned for a turn the CUSUM has not declared yet
+    tail_t: float = -3.0                  # tail mean below the older weeks at z <= this (older weeks' sd): the evidence does not hold
+                                          # across it. A 6-week Welch t with its own variance false-alarmed on a stationary frame
+    reval_min_weeks: int = 6              # post-change weeks before a promoted fix's re-validation can conclude
+    reval_max_weeks: int = 13             # ... and by which it must have re-validated, or it is rolled back (the stated bound)
+
+    def validate(self) -> list[str]:
+        errs = list(self.change.validate())
+        if self.min_post_weeks < 4 or self.tail_weeks < 3 or self.tail_t >= 0 or self.screen_t < 1.64:
+            errs.append("min_post_weeks >= 4, tail_weeks >= 3, tail_t < 0 and screen_t >= 1.64 (never below the OOS screen) required")
+        if not 3 <= self.reval_min_weeks <= self.reval_max_weeks:
+            errs.append("3 <= reval_min_weeks <= reval_max_weeks required")
+        return errs
+
+
+@dataclass(frozen=True)
+class ChangeMark:
+    """One change point the evidence knows about: where the new level began, when it was declared, and by whom."""
+    source: str                           # 'fix_gain' (this module's forward CUSUM) or the caller's (e.g. 'regime_memory:<scope>')
+    change_date: str
+    alarm_date: str
+    direction: int = 0                    # +1 / -1 for a gain stream; 0 = an external change of unstated sign
+
+
+@dataclass(frozen=True)
+class RegimeCheck:
+    fix: str
+    now: str
+    verdict: str                          # NO_CHANGE / HOLDS pass; STALE / TURNING need more evidence; FAILS fails
+    reason: str
+    n_weeks: int
+    changes: tuple[ChangeMark, ...]
+    regime_start: str | None
+    post_weeks: int
+    post_mean: float
+    post_t: float
+    tail_t: float
+    stale_share: float                    # share of the evidence weeks dated before the regime in force began
+
+    @property
+    def ok(self) -> bool:
+        return self.verdict in ("NO_CHANGE", "HOLDS")
+
+    @property
+    def gate_verdict(self) -> GateVerdict:
+        return GateVerdict.PROMOTE if self.ok else GateVerdict.FAILED if self.verdict == "FAILS" else GateVerdict.NEEDS_MORE_EVIDENCE
+
+    def to_dict(self) -> dict:
+        return {"verdict": self.verdict, "reason": self.reason, "weeks": self.n_weeks, "regime_start": self.regime_start,
+                "post_weeks": self.post_weeks, "post_mean": self.post_mean, "post_t": self.post_t, "tail_t": self.tail_t,
+                "stale_share": self.stale_share, "changes": [dataclasses.asdict(c) for c in self.changes]}
+
+
+def gain_changes(dates: Sequence[str], values: Sequence[float], cfg: RegimeConfig = RegimeConfig(), stream: str = "fix_gain") -> list[ChangeMark]:
+    """Change points of one weekly gain series, found by change_points.StreamDetector fed ONE week at a time in date order (a
+    detection at week t is a function of weeks <= t only: change_points.check_no_lookahead's property, re-proved in the tests)."""
+    det = CP.StreamDetector(stream, CP.Target.ERROR_DISTRIBUTION, cfg.change)
+    out = []
+    for d, v in zip(dates, values):
+        x = det.update(d, v)
+        if x is not None:
+            out.append(ChangeMark("fix_gain", x.change_date, x.alarm_date, int(x.direction)))
+    return out
+
+
+def _mean_t(x: np.ndarray) -> tuple[float, float]:
+    x = np.asarray(x, float)
+    if len(x) < 2:
+        return (float(x.mean()) if len(x) else float("nan")), float("nan")
+    return float(x.mean()), float(PR.t_stat(x))
+
+
+def tail_z(tail: np.ndarray, older: np.ndarray) -> float:
+    """z of mean(tail) - mean(older) on the OLDER weeks' sd (a handful of tail weeks cannot estimate their own variance: a Welch t
+    on 6 weeks alarmed on a stationary planted frame); NaN when the older side is too short."""
+    if len(tail) < 1 or len(older) < 8:
+        return float("nan")
+    sd = float(np.std(older, ddof=1))
+    return float((tail.mean() - older.mean()) / (sd * math.sqrt(1.0 / len(tail) + 1.0 / len(older)))) if sd > 0 else float("nan")
+
+
+def tail_scan(v: np.ndarray, max_k: int) -> tuple[float, int]:
+    """The most negative tail_z over the newest k = 3..max_k weeks (each against all older weeks), and its k; (NaN, 0) when the
+    series is too short for any k. Reads only the series handed in (weeks already matured)."""
+    best, arg = float("nan"), 0
+    for k in range(3, min(max_k, len(v) - 8) + 1):
+        z = tail_z(v[-k:], v[:-k])
+        if math.isfinite(z) and not z >= best:
+            best, arg = z, k
+    return best, arg
+
+
+def regime_check(fix: str, dates: Sequence[str], values: Sequence[float], now, external: Sequence[ChangeMark] = (),
+                 cfg: RegimeConfig = RegimeConfig()) -> RegimeCheck:
+    """PUBLIC. Is a fix's OOS evidence drawn from the regime in force at `now`? The regime in force begins at the newest change point
+    known at `now` - declared by the forward CUSUM on the fix's own weekly gains, or handed in by the caller (the loop's
+    change_points / regime_memory) - that lies inside the evidence window. Verdicts:
+      NO_CHANGE  no change inside the window, and the newest `tail_weeks` are not significantly below the rest (no turn under way)
+      TURNING    no declared change, but the newest weeks are significantly worse than the older ones: not shown to hold across it
+      STALE      a change, but fewer than `min_post_weeks` weeks after it: the evidence predates the regime in force
+      HOLDS      the post-change weeks ALONE pass the OOS screen (mean > 0, t >= screen_t)
+      FAILS      they do not: in the regime in force the fix is not shown to work.
+    Weeks dated at/after `now` are a FirewallBreach (the evidence must already exist)."""
+    errs = cfg.validate()
+    if errs:
+        raise ValueError("invalid RegimeConfig: " + "; ".join(errs))
+    d = [str(as_date(x)) for x in dates]
+    v = np.asarray(values, float)
+    if len(d) != len(v):
+        raise ValueError("dates and values differ in length")
+    nd = str(as_date(now))
+    if any(x >= nd for x in d):
+        raise FirewallBreach(f"{fix}: evidence week dated at/after now={nd}")
+    first = d[0] if d else nd
+    marks = gain_changes(d, v, cfg) + [m for m in external if first <= str(m.change_date) and str(m.alarm_date) < nd]
+    marks = sorted(marks, key=lambda m: (m.change_date, m.alarm_date, m.source))
+    start = marks[-1].change_date if marks else None
+    post = v[np.array([x >= start for x in d], bool)] if start is not None and len(d) else np.array([])
+    pm, pt = _mean_t(post)
+    tt, k = tail_scan(v, cfg.tail_weeks)
+    stale = float(np.mean([x < start for x in d])) if start is not None and d else 0.0
+    mk = lambda verdict, why: RegimeCheck(fix, nd, verdict, why, len(v), tuple(marks), start, int(len(post)), pm, pt, tt, stale)  # noqa: E731
+    if start is None:
+        if math.isfinite(tt) and tt <= cfg.tail_t:
+            return mk("TURNING", f"newest {k} weeks below the older {len(v) - k} at z={tt:.2f} <= {cfg.tail_t}: no change declared yet, "
+                                 f"but the evidence is not shown to hold across the turn")
+        return mk("NO_CHANGE", f"no change point in {len(v)} evidence weeks; worst newest-k z={tt:.2f} (k={k})")
+    if len(post) < cfg.min_post_weeks:
+        return mk("STALE", f"change at {start} ({marks[-1].source}, declared {marks[-1].alarm_date}); only {len(post)} week(s) after it "
+                           f"(< {cfg.min_post_weeks}): {stale:.0%} of the evidence predates the regime in force")
+    if not (pm > 0 and math.isfinite(pt) and pt >= cfg.screen_t):
+        return mk("FAILS", f"after the change at {start}: {len(post)} weeks, mean {pm:+.5f}, t={pt:.2f} (< {cfg.screen_t} or mean <= 0): "
+                           f"the fix is not shown to work in the regime in force")
+    tt, k = tail_scan(post, cfg.tail_weeks)                                     # a new turn inside the regime in force
+    if math.isfinite(tt) and tt <= cfg.tail_t:
+        return dataclasses.replace(mk("TURNING", f"after the change at {start} the newest {k} weeks fall below the rest of the regime at "
+                                                 f"z={tt:.2f} <= {cfg.tail_t}"), tail_t=tt)
+    return dataclasses.replace(mk("HOLDS", f"after the change at {start}: {len(post)} weeks, mean {pm:+.5f}, t={pt:.2f} >= {cfg.screen_t}"),
+                               tail_t=tt)
+
+
+def apply_regime(decision: QG.QualityDecision, chk: RegimeCheck) -> QG.QualityDecision:
+    """Merge a regime check into the gate's decision: it can only make it stricter (PROMOTE -> NEEDS_MORE_EVIDENCE / FAILED, a
+    NEEDS_MORE_EVIDENCE -> FAILED); QUARANTINED and UNKNOWN stand. The check is added to the decision's gates either way."""
+    ok = chk.ok
+    state = QG.PASS if ok else (QG.FAIL if chk.verdict == "FAILS" else QG.MISSING)
+    gate = QG.GateOutcome(REGIME_GATE, state, True, chk.reason, {"verdict": chk.verdict, "post_weeks": chk.post_weeks,
+                                                                   "stale_share": chk.stale_share})
+    rank = {GateVerdict.PROMOTE: 0, GateVerdict.NEEDS_MORE_EVIDENCE: 1, GateVerdict.FAILED: 2}
+    verdict = decision.verdict
+    if not ok and verdict in rank and rank[chk.gate_verdict] > rank[verdict]:
+        verdict = chk.gate_verdict
+    blocking = decision.blocking + ((REGIME_GATE,) if not ok else ())
+    reasons = decision.reasons + ((f"{REGIME_GATE}: {chk.reason}",) if not ok else ())
+    return dataclasses.replace(decision, verdict=verdict, gates=decision.gates + (gate,), blocking=blocking, reasons=reasons)
+
+
+@dataclass(frozen=True)
+class Revalidation:
+    """What a change point detected AFTER a promotion does to the promoted fix."""
+    state: str                            # WATCHING (no new change) / REVALIDATING / REVALIDATED / ROLLBACK
+    reason: str
+    change: ChangeMark | None
+    post_weeks: int
+    post_mean: float
+    post_t: float
+
+    @property
+    def rollback(self) -> bool:
+        return self.state == "ROLLBACK"
+
+
+def revalidate(evidence_dates: Sequence[str], evidence_values: Sequence[float], since, live_dates: Sequence[str],
+               live_values: Sequence[float], now, external: Sequence[ChangeMark] = (), cfg: RegimeConfig = RegimeConfig()) -> Revalidation:
+    """PUBLIC. Re-validation of a promoted fix. Its promotion evidence (weekly OOS gains up to `since`) and its live weekly gains over
+    the incumbent kept in the shadow since then form one series, watched by the same forward CUSUM; any change DECLARED after `since`
+    (or an external one declared after it, whose change lies inside the series) means the promotion's evidence predates the regime in
+    force, and the fix must re-validate on post-change weeks alone:
+      post mean <= 0 after reval_min_weeks                       ROLLBACK (it stopped working)
+      post mean > 0 and t >= screen_t after reval_min_weeks      REVALIDATED
+      still neither after reval_max_weeks                        ROLLBACK (not re-validated within the stated bound)
+    So a fix that stops working is rolled back at most reval_max_weeks post-change weeks after the change was declared (plus the
+    caller's cadence). Weeks at/after `now` are a FirewallBreach."""
+    nd, sd = str(as_date(now)), str(as_date(since))
+    ld = [str(as_date(x)) for x in live_dates]
+    lv = np.asarray(live_values, float)
+    ed = [str(as_date(x)) for x in evidence_dates]
+    ev = np.asarray(evidence_values, float)
+    if any(x >= nd for x in ld + ed):
+        raise FirewallBreach(f"re-validation at {nd} handed a week dated at/after it")
+    cut = ld[0] if ld else nd
+    keep = np.array([x < cut for x in ed], bool) if ed else np.array([], bool)
+    dates = [x for x, k in zip(ed, keep) if k] + ld
+    vals = np.concatenate([ev[keep] if len(ev) else ev, lv])
+    first = dates[0] if dates else nd
+    marks = [m for m in gain_changes(dates, vals, cfg) if m.alarm_date > sd]
+    marks += [m for m in external if str(m.alarm_date) > sd and str(m.alarm_date) < nd and str(m.change_date) >= first]
+    if not marks:
+        return Revalidation("WATCHING", "no change declared since the promotion", None, 0, float("nan"), float("nan"))
+    m = max(marks, key=lambda x: (x.change_date, x.alarm_date))
+    post = vals[np.array([x >= m.change_date for x in dates], bool)]
+    pm, pt = _mean_t(post)
+    n = int(len(post))
+    head = f"change at {m.change_date} ({m.source}, declared {m.alarm_date}); {n} post-change week(s), mean {pm:+.5f}, t={pt:.2f}"
+    if n >= cfg.reval_min_weeks and pm <= 0:
+        return Revalidation("ROLLBACK", head + ": the fix stopped working in the regime in force", m, n, pm, pt)
+    if n >= cfg.reval_min_weeks and math.isfinite(pt) and pt >= cfg.screen_t:
+        return Revalidation("REVALIDATED", head + f": re-validated (t >= {cfg.screen_t})", m, n, pm, pt)
+    if n >= cfg.reval_max_weeks:
+        return Revalidation("ROLLBACK", head + f": not re-validated within {cfg.reval_max_weeks} post-change weeks", m, n, pm, pt)
+    return Revalidation("REVALIDATING", head + ": awaiting post-change evidence", m, n, pm, pt)
+
+
+@dataclass(frozen=True)
+class DelayPoint:
+    shift: float                          # post-change gain minus pre-change gain, in weekly-gain sds (negative = the fix got worse)
+    rollback_prob: float                  # within max_weeks after the change
+    median_weeks: float | None
+    p90_weeks: float | None
+    max_weeks_seen: float | None
+    false_rollback: float                 # the same, with no change at all (shift 0 path): rollbacks per run
+
+
+def rollback_delay_curve(cfg: RegimeConfig = RegimeConfig(), snr: float = 0.8, shifts: Sequence[float] = (-1.0, -1.5, -2.0, -3.0),
+                         evidence_weeks: int = 60, pre_weeks: int = 8, max_weeks: int = 52, n_sim: int = 200, seed: int = 0) -> list[DelayPoint]:
+    """The rollback delay distribution by simulation of exactly `revalidate` week by week: a fix promoted on `evidence_weeks` of
+    weekly gains ~ N(snr, 1), live for `pre_weeks` weeks, then its gain shifts by `shift` sds. Delay = weeks from the change to the
+    first ROLLBACK. `false_rollback` runs the same with shift 0 for pre_weeks + max_weeks weeks."""
+    rng = np.random.default_rng(seed)
+    base = pd.Timestamp("2010-01-01")
+    wk = lambda i: str((base + pd.Timedelta(weeks=int(i))).date())                                       # noqa: E731
+
+    def first_rollback(ev: np.ndarray, live: np.ndarray) -> int | None:
+        ed = [wk(i) for i in range(len(ev))]
+        since = wk(len(ev))
+        for j in range(1, len(live) + 1):
+            ld = [wk(len(ev) + 1 + i) for i in range(j)]
+            if revalidate(ed, ev, since, ld, live[:j], wk(len(ev) + 2 + j), cfg=cfg).rollback:
+                return j
+        return None
+    out = []
+    null = [first_rollback(rng.normal(snr, 1, evidence_weeks), rng.normal(snr, 1, pre_weeks + max_weeks)) for _ in range(max(20, n_sim // 4))]
+    fr = float(np.mean([x is not None for x in null]))
+    for sh in shifts:
+        delays = []
+        for _ in range(n_sim):
+            live = np.concatenate([rng.normal(snr, 1, pre_weeks), rng.normal(snr + sh, 1, max_weeks)])
+            j = first_rollback(rng.normal(snr, 1, evidence_weeks), live)
+            if j is not None and j > pre_weeks:
+                delays.append(j - pre_weeks)
+        out.append(DelayPoint(float(sh), len(delays) / n_sim, float(np.median(delays)) if delays else None,
+                              float(np.quantile(delays, 0.9)) if delays else None, float(max(delays)) if delays else None, fr))
+    return out
+
+
 @dataclass(frozen=True)
 class CorrectionReport:
     now: str
@@ -984,6 +1262,7 @@ class CorrectionReport:
     promoted: tuple[str, ...]
     rejected: Mapping[str, str]             # fix -> verdict and blocking gates
     bundles: tuple = ()                     # FixBundle per fix: the evidence the gate saw, and what was missing
+    regime: Mapping[str, RegimeCheck] = field(default_factory=dict)   # fix -> is its evidence from the regime in force (F13)
 
     def summary(self) -> str:
         d = self.diagnosis
@@ -1005,10 +1284,14 @@ class CorrectionReport:
 
 def gate_bundles(fixes: Sequence[CandidateFix], results: Sequence[FixResult], now, base: QG.QualityEvidence | None = None,
                  policy: QG.QualityPolicy | None = None, frame: pd.DataFrame | None = None, cfg: SelfCorrectConfig = SelfCorrectConfig(),
-                 evidence: FixEvidenceConfig | None = None, n_searched: int | None = None):
+                 evidence: FixEvidenceConfig | None = None, n_searched: int | None = None, regime: RegimeConfig = RegimeConfig(),
+                 changes: Sequence[ChangeMark] = ()):
     """Gate every tested fix through engine.research.quality_gate. With `evidence` (and the frame the fixes were tested on) each fix's
     FULL evidence is measured (full_fix_evidence); without it only the cheap measured part plus the caller's `base` audits reach the
-    gate (absent audits = MISSING, never a pass). Multiplicity: the search size is the sum of every fix's own variants."""
+    gate (absent audits = MISSING, never a pass). Multiplicity: the search size is the sum of every fix's own variants.
+    Every decision then passes the regime check (F13, always on): the fix's weekly OOS gains must come from the regime in force at
+    `now` - change points from its own forward CUSUM and the caller's `changes` (the loop's change_points / regime_memory). The
+    check can only make a verdict stricter; its result is in each bundle's parts['regime']."""
     pol = policy or QG.QualityPolicy()
     code = pol.code_hash or PR.current_code_hash()
     ns = int(n_searched or sum(max(1, int(x.n_variants)) for x in fixes))
@@ -1019,9 +1302,21 @@ def gate_bundles(fixes: Sequence[CandidateFix], results: Sequence[FixResult], no
         else:
             bundles.append(FixBundle(x.name, fix_evidence(r, x, ns, now, base, code), {}, {}, full=False))
     rep = QG.step([QG.Candidate(f"fix:{b.fix}", b.evidence) for b in bundles], now, pol)
-    promoted = [d.subject_id.split(":", 1)[1] for d in rep.decisions if d.promote]
-    rejected = {d.subject_id.split(":", 1)[1]: f"{d.verdict.value} ({', '.join(d.blocking)})" for d in rep.decisions if not d.promote}
-    return list(rep.decisions), promoted, rejected, bundles
+    by_fix = {r.fix: r for r in results}
+    decisions = []
+    for d in rep.decisions:
+        name = d.subject_id.split(":", 1)[1]
+        r = by_fix.get(name)
+        if r is not None:
+            chk = regime_check(name, r.oos_periods, r.oos_effects, now, changes, regime)
+            d = apply_regime(d, chk)
+            b = next((b for b in bundles if b.fix == name), None)
+            if b is not None:
+                b.parts["regime"] = chk
+        decisions.append(d)
+    promoted = [d.subject_id.split(":", 1)[1] for d in decisions if d.promote]
+    rejected = {d.subject_id.split(":", 1)[1]: f"{d.verdict.value} ({', '.join(d.blocking)})" for d in decisions if not d.promote}
+    return decisions, promoted, rejected, bundles
 
 
 def gate_fixes(fixes: Sequence[CandidateFix], results: Sequence[FixResult], now, base: QG.QualityEvidence | None = None,
@@ -1032,15 +1327,18 @@ def gate_fixes(fixes: Sequence[CandidateFix], results: Sequence[FixResult], now,
 
 def step(frame: pd.DataFrame, fixes: Sequence[CandidateFix], now, base: QG.QualityEvidence | None = None,
          policy: QG.QualityPolicy | None = None, cfg: SelfCorrectConfig = SelfCorrectConfig(), only_if_deteriorated: bool = False,
-         evidence: FixEvidenceConfig | None = None, n_searched: int | None = None) -> CorrectionReport:
+         evidence: FixEvidenceConfig | None = None, n_searched: int | None = None, regime: RegimeConfig = RegimeConfig(),
+         changes: Sequence[ChangeMark] = ()) -> CorrectionReport:
     """Public entry for the wave-2 loop: diagnose, test each fix alone, gate each through the existing architecture (with `evidence`,
-    on its full measured evidence)."""
+    on its full measured evidence), then through the regime check (evidence from the regime in force; `changes` = the caller's
+    detected change points)."""
     diag = diagnose(frame, now, cfg)
     if only_if_deteriorated and not diag.deterioration.detected:
         return CorrectionReport(str(as_date(now)), diag, (), (), (), {})
     results = test_fixes(fixes, frame, now, cfg)
-    decisions, promoted, rejected, bundles = gate_bundles(fixes, results, now, base, policy, frame, cfg, evidence, n_searched)
-    return CorrectionReport(str(as_date(now)), diag, tuple(results), tuple(decisions), tuple(promoted), rejected, tuple(bundles))
+    decisions, promoted, rejected, bundles = gate_bundles(fixes, results, now, base, policy, frame, cfg, evidence, n_searched, regime, changes)
+    checks = {b.fix: b.parts["regime"] for b in bundles if "regime" in b.parts}
+    return CorrectionReport(str(as_date(now)), diag, tuple(results), tuple(decisions), tuple(promoted), rejected, tuple(bundles), checks)
 
 
 def slope_fix(name: str, features: Sequence[str], group_col: str = "sector", n_groups: int = 1, lam: float = 1.0, min_rows: int = 30,

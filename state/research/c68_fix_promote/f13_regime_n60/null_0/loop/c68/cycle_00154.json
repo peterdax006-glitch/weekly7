@@ -1,0 +1,127 @@
+{
+ "cycle": 154,
+ "now": "2019-12-06",
+ "label": "IMPLEMENTED - NOT VALIDATED",
+ "counters": {
+  "expectations": 242,
+  "outcomes": 241,
+  "errors": 241,
+  "promotion_held_by_regime": 0
+ },
+ "ledgers": {
+  "expectations": 242,
+  "outcomes": 241,
+  "errors": 241,
+  "commitments": 242,
+  "pipeline_events": 1799,
+  "pipeline_furthest": {
+   "EXPECTATION": 1,
+   "CLASSIFIED": 241,
+   "REJECTED": 148
+  }
+ },
+ "calibration": {
+  "now": "2019-12-06",
+  "target": {
+   "tolerance": 0.01,
+   "goal_share": 0.8,
+   "min_n": 200,
+   "min_oos_n": 100,
+   "level": 0.95,
+   "name": "pm1pp_80"
+  },
+  "status": "NOT_ACHIEVED",
+  "n_committed": 241,
+  "n_matured": 241,
+  "n_resolved": 241,
+  "n_unresolved": 0,
+  "all_": {
+   "n": 241,
+   "hits": 17,
+   "share": 0.07053941908713693,
+   "lo": 0.044504517645896746,
+   "hi": 0.1100504298820329,
+   "boot_lo": 0.04149377593360996,
+   "boot_hi": 0.1037344398340249
+  },
+  "oos": {
+   "n": 241,
+   "hits": 17,
+   "share": 0.07053941908713693,
+   "lo": 0.044504517645896746,
+   "hi": 0.1100504298820329,
+   "boot_lo": 0.04149377593360996,
+   "boot_hi": 0.1037344398340249
+  },
+  "resolved_only": {
+   "n": 241,
+   "hits": 17,
+   "share": 0.07053941908713693,
+   "lo": 0.044504517645896746,
+   "hi": 0.1100504298820329,
+   "boot_lo": 0.04149377593360996,
+   "boot_hi": 0.1037344398340249
+  },
+  "bias": 0.0030142034104495164,
+  "mae": 0.09936248534004073,
+  "naive_share": 0.07296137339055794,
+  "required_n": null,
+  "abuses": [],
+  "by_cohort": [
+   [
+    "-",
+    {
+     "n": 241,
+     "hits": 17,
+     "share": 0.07053941908713693,
+     "lo": 0.044504517645896746,
+     "hi": 0.1100504298820329,
+     "boot_lo": 0.04149377593360996,
+     "boot_hi": 0.1037344398340249
+    }
+   ]
+  ],
+  "headline": "7.1% of 241 matured predictions landed within +-1pp of the committed prediction (95% CI 4.5%-11.0%); out of sample 7.1% of 241 (CI 4.5%-11.0%, block bootstrap 4.1%-10.4%). Goal 80%: NOT achieved. A no-skill median forecast scores 7.3% on the same sample."
+ },
+ "influence": {
+  "mom_r20_top": 1.0,
+  "rev_r5_bottom": 1.0,
+  "vol_top": 1.0
+ },
+ "verdicts": {},
+ "guard": {},
+ "production": {
+  "name": "incumbent",
+  "since": "",
+  "window_share": 1.0,
+  "extra_features": []
+ },
+ "regime_records": [],
+ "identification": null,
+ "stage_runs": [
+  {
+   "cycle": 154,
+   "now": "2019-12-06",
+   "stage": "c68.selection_policy",
+   "in": 4000,
+   "out": 1,
+   "note": "policy L51d2c6ac (threshold 0.0092); gain model fitted n=4000 base in-band 0.132; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00"
+  },
+  {
+   "cycle": 154,
+   "now": "2019-12-06",
+   "stage": "c68.expectations",
+   "in": 1,
+   "out": 1,
+   "note": "1 expectation(s) frozen before the 2019-12-09 fill"
+  },
+  {
+   "cycle": 154,
+   "now": "2019-12-06",
+   "stage": "c68.outcomes_errors",
+   "in": 3,
+   "out": 3,
+   "note": "3 exit(s) by the learned policy, 3 error report(s), 0 unreconstructable, 60 candidate gain(s) resolved"
+  }
+ ]
+}
