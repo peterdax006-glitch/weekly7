@@ -72,7 +72,7 @@ Governing documents: `canon/CANON.md` (owner directives, verbatim) > `BIBLE.md` 
 | `planted` | 353 | 2 | Bible Phase 25 (mandatory): planted-pattern calibration. Build synthetic markets whose true patterns are KNOWN, run the full discovery pipeline on them, and measure whether it can  |
 | `policy` | 202 | 5 | The trading policy, shared by the backtest and live trading so that what is tested is what trades. |
 | `portfolio` | 135 | 0 | Portfolio layer (Blueprint Part D + E). |
-| `provenance` | 189 | 3 | Bible Phase 0: provenance for every experiment - git commit, canon hash, Bible hash, blueprint version, config hash, data snapshot, seed - plus a canon/Bible integrity check that f |
+| `provenance` | 189 | 4 | Bible Phase 0: provenance for every experiment - git commit, canon hash, Bible hash, blueprint version, config hash, data snapshot, seed - plus a canon/Bible integrity check that f |
 | `registry` | 290 | 7 | Bible Phase 0.2 + Phase 30: read-side of the experiment registry and the experiment memory. |
 | `replay` | 174 | 0 | Live-as-if replays of any year 1976-2025 (canon C9, C10). |
 | `repro` | 360 | 1 | Bible Phase 33 (required reproducibility); serves the deterministic-experiment canon. |
@@ -1694,7 +1694,7 @@ Bible Phase 0: provenance for every experiment - git commit, canon hash, Bible h
 - `def stale(recorded)` - True when a result cannot be trusted to come from the code on disk now. `recorded` is a provenance dict (or a bare legacy code_hash string, which is always trea
 - `def stamp(cfg, seed)`
 
-Tests: `tests/test_learning_transfer.py`, `tests/test_provenance.py`, `tests/test_retester.py`
+Tests: `tests/test_learning_transfer.py`, `tests/test_provenance.py`, `tests/test_regate_sequential.py`, `tests/test_retester.py`
 
 ## engine.registry
 

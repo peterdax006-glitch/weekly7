@@ -379,6 +379,51 @@ def test_registered_stage_runs_is_checkpointed_and_resumes(small_world, tmp_path
         LP.open_loop(FD.WorldFeed(FD.InMemorySource(small_world), SMALL_FEED), tmp_path, loop_cfg(checkpoint="stage"), clock=CLOCK)
 
 
+def _completed(state, key: str, branch: str, feature: str, through: str, now: str):
+    from engine.research.core import Stage
+    rec = LP.JobRecord(key, branch, "Q1", "r_Q1", "VOLATILITY", feature, Stage.INTEGRATION.value, through, through, now, 0, {},
+                       result={"data_through": through, "sign": 1.0, "effect": 0.2, "action": "COMPLETE"})
+    state.jobs[key] = rec
+    return rec
+
+
+def test_quality_stage_keeps_regating_past_three_looks_and_records_every_look(small_world, tmp_path):
+    """F12 planted defect (W-12): a finding on its fourth look used to be past the hard cap and dropped. Now it is judged at look 4 with
+    alpha_4 (the plan's spending), its GATE node carries the whole look history, and it is only retired on measured grounds: the planted
+    null feature is retired (quarantined or futile), the genuine one is promoted or kept for its next look - never retired for time."""
+    feed = FD.WorldFeed(FD.InMemorySource(small_world), SMALL_FEED)
+    state, rt, _ = LP.open_loop(feed, tmp_path, loop_cfg(checkpoint="off"), clock=CLOCK)
+    now = feed.dates()[-1]
+    rt.obs = feed.observe(now)
+    ctx = LP.Ctx(state, rt, now, 7)
+    old = str((pd.Timestamp(now) - pd.Timedelta(days=200)).date())
+    _completed(state, "KG", "BRG", "lv20", old, now)
+    _completed(state, "KN", "BRN", "insider_recent", old, now)
+    hist = [{"look": k, "cycle": k, "at": old, "verdict": "NEEDS_MORE_EVIDENCE", "alpha": LP.REGATE_PLAN.alpha_at(k)} for k in (1, 2, 3)]
+    state.memo["regate"] = {d: {"key": k, "through": old, "looks": 3, "first_through": old, "history": hist}
+                            for d, k in (("DBRG", "KG"), ("DBRN", "KN"))}
+    n, filed, why = LP.st_quality_and_knowledge(ctx)
+    assert n == 2, why
+    g, z = state.lineage.nodes["GATE:DBRG"], state.lineage.nodes["GATE:DBRN"]
+    assert g["looks"] == 4 and [h["look"] for h in g["history"]] == [1, 2, 3, 4]
+    assert g["history"][-1]["alpha"] == pytest.approx(LP.REGATE_PLAN.alpha_at(4)) and g["alpha_spent"] < LP.REGATE_PLAN.alpha
+    assert g["verdict"] == "PROMOTE" or (state.memo["regate"]["DBRG"]["looks"] == 4 and not g["retired"]), (g["verdict"], g["retired"])
+    assert z["verdict"] != "PROMOTE" and z["retired"] and "DBRN" not in state.memo["regate"], (z["verdict"], z["blocking"])
+    assert not state.counters.get("gate_retired_after_looks")
+    assert filed == (1 if g["verdict"] == "PROMOTE" else 0) and not any(k["feature"] == "insider_recent" for k in state.knowledge.values())
+
+
+def test_quality_stage_with_nothing_due_raises_no_input(small_world, tmp_path):
+    feed = FD.WorldFeed(FD.InMemorySource(small_world), SMALL_FEED)
+    state, rt, _ = LP.open_loop(feed, tmp_path, loop_cfg(checkpoint="off"), clock=CLOCK)
+    now = feed.dates()[-1]
+    rt.obs = feed.observe(now)
+    recent = str(pd.to_datetime(rt.obs.matured.index.get_level_values(0)).max().date())
+    state.memo["regate"] = {"DBRX": {"key": "KX", "through": recent, "looks": 9}}     # looked at this quarter already: not due
+    with pytest.raises(LP.NoInput):
+        LP.st_quality_and_knowledge(LP.Ctx(state, rt, now, 0))
+
+
 def test_filed_knowledge_survives_a_checkpoint(small_world, tmp_path):
     """Planted defect found by the end-to-end run: filed knowledge is deep-frozen (read-only mappings) and the first promoted finding
     made every later checkpoint fail. It must round-trip through the checkpoint and still be releasable."""

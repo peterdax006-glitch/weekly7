@@ -2318,8 +2318,7 @@ def st_quality_and_knowledge(ctx: Ctx) -> tuple:
     regate = ctx.state.memo.setdefault("regate", {})
     n_dates = int(ctx.obs.matured.index.get_level_values(0).nunique()) if len(ctx.obs.matured) else 0
     last_date = ctx.evidence_date()
-    due = [v["key"] for d, v in sorted(regate.items())
-           if fresh_dates(ctx.obs.matured, v["through"]) >= REGATE_NEW_DATES and v["looks"] < REGATE_MAX_LOOKS and v["key"] not in done]
+    due = regate_due(regate, ctx.obs.matured, done)
     done = done + due
     if not done:
         raise NoInput("no branch completed the ladder this cycle and no earlier finding gained a quarter of new evidence")
@@ -2327,53 +2326,85 @@ def st_quality_and_knowledge(ctx: Ctx) -> tuple:
     led = ctx.mod_state("replication", _replication_ledger)
     sci = set(ctx.state.memo.get("science_items", []))
     graph_nodes = ctx.state.memo.get("graph_patterns", {})
-    bundles, by_key = [], {}
+    bundles, by_key, looks = [], {}, {}
     for key in done:
         rec = ctx.state.jobs[key]
         r = rec.result
-        spec = EV.FindingSpec(f"D{rec.branch_id}", rec.feature, 1.0 if float(r.get("sign", 1.0)) >= 0 else -1.0, rec.problem,
+        did = f"D{rec.branch_id}"
+        looks[did] = int(regate.get(did, {}).get("looks", 0)) + 1          # numbered BEFORE the gate: this look's alpha is fixed now
+        spec = EV.FindingSpec(did, rec.feature, 1.0 if float(r.get("sign", 1.0)) >= 0 else -1.0, rec.problem,
                               n_tests_searched=max(1, len(ctx.state.screened)),
                               has_falsifier=graph_nodes.get(f"{rec.problem.lower()}:{rec.feature}") in sci,
                               experiment_id=key[:16], run_id=ctx.state.cfg.run_id, seed=int(rec.task.get("seed", 0)))
         b = EV.assemble(ctx.obs.matured, spec, ctx.now, code_hash=ctx.rt.code_hash, data_hash=ctx.obs.data_hash,
-                        created_real=ctx.created_real(), ledger=led)
+                        created_real=ctx.created_real(), ledger=led, look=looks[did], plan=REGATE_PLAN)
         bundles.append(b)
         by_key[key] = b
-    rep = EV.gate(bundles, ctx.now, ctx.rt.code_hash, store=store)
+    rep = EV.gate(bundles, ctx.now, ctx.rt.code_hash, store=store, looks=looks, plan=REGATE_PLAN)
     promoted = set(rep.promoted)
     verdicts = EV.verdicts(rep)
-    filed = 0
+    filed, retired = 0, {}
     for key in done:
         rec = ctx.state.jobs[key]
         did = f"D{rec.branch_id}"
         b = by_key[key]
-        ctx.state.lineage.add("GATE", did, ctx.cycle, ctx.now, verdict=verdicts.get(did, "UNKNOWN"), feature=rec.feature,
-                              problem=rec.problem, blocking=EV.blocking(rep, did), missing=dict(b.missing),
-                              effect_test=b.parts.get("effect_test"), effect_train=b.parts.get("effect_train"))
-        ctx.state.lineage.link(f"RESULT:{key}", f"GATE:{did}", "gated")
-        ctx.bus.setdefault("gate_verdicts", {})[did] = {"verdict": verdicts.get(did, "UNKNOWN"), "blocking": EV.blocking(rep, did),
-                                                         "missing": dict(b.missing), "feature": rec.feature}
         v = verdicts.get(did, "UNKNOWN")
+        prev = regate.get(did, {})
+        first = prev.get("first_through", last_date)
+        why = None
         if did in promoted:
             filed += _file_knowledge(ctx, rec)
+        elif v == "QUARANTINED":                          # integrity failures are never retried
+            why = "quarantined: an integrity gate failed"
+        else:                                             # evidence-limited: retired only on measured futility or the evidence horizon
+            why = REGATE_PLAN.futility(b)
+            if why is None and fresh_dates(ctx.obs.matured, first) >= REGATE_PLAN.horizon_dates:
+                why = f"evidence horizon: {REGATE_PLAN.horizon_dates} fresh dates since the first look without a pass"
+        history = list(prev.get("history", ())) + [{"look": looks[did], "cycle": ctx.cycle, "at": str(ctx.now), "verdict": v,
+                                                     "alpha": REGATE_PLAN.alpha_at(looks[did]), "n_test": b.parts.get("n_test"),
+                                                     "blocking": sorted(EV.blocking(rep, did))}]
+        ctx.state.lineage.add("GATE", did, ctx.cycle, ctx.now, verdict=v, feature=rec.feature, problem=rec.problem,
+                              blocking=EV.blocking(rep, did), missing=dict(b.missing), effect_test=b.parts.get("effect_test"),
+                              effect_train=b.parts.get("effect_train"), looks=looks[did], alpha_spent=REGATE_PLAN.spent(looks[did]),
+                              history=history, retired=why or "")
+        ctx.state.lineage.link(f"RESULT:{key}", f"GATE:{did}", "gated")
+        ctx.bus.setdefault("gate_verdicts", {})[did] = {"verdict": v, "blocking": EV.blocking(rep, did), "missing": dict(b.missing),
+                                                         "feature": rec.feature, "look": looks[did], "retired": why or ""}
+        if did in promoted or why is not None:
             regate.pop(did, None)
-        elif v != "QUARANTINED":                          # integrity failures are never retried; evidence-limited ones are
-            look = regate.get(did, {"looks": 0})["looks"] + 1
-            regate[did] = {"key": key, "through": last_date, "looks": look, "n_dates": n_dates}
-            if look >= REGATE_MAX_LOOKS:
-                regate.pop(did, None)
-                ctx.state.count("gate_retired_after_looks")
+            if why is not None:
+                retired[did] = why
+                ctx.state.count("gate_retired_quarantined" if v == "QUARANTINED" else
+                                "gate_retired_horizon" if why.startswith("evidence horizon") else "gate_retired_futile")
         else:
-            regate.pop(did, None)
-    return len(done), filed, f"verdicts {verdicts}; {len(due)} re-gated on new evidence"
+            regate[did] = {"key": key, "through": last_date, "looks": looks[did], "n_dates": n_dates, "first_through": first,
+                           "history": history}
+    return len(done), filed, f"verdicts {verdicts}; {len(due)} re-gated on new evidence; retired {retired or 'none'}"
 
 
-# W02: a finding that completed the ladder before enough unseen calendar years existed (the gate needs two) FAILS for lack of time,
-# not for lack of effect. It is looked at again once REGATE_NEW_DATES more decision dates have matured since its last look (a quarter
-# of new weekly evidence), at most REGATE_MAX_LOOKS times in all; every look is recorded on its GATE lineage node, and the bounded
-# number of looks keeps repeated testing from manufacturing a pass.
-REGATE_MAX_LOOKS = 3
+# W02 / F12: a finding that completed the ladder before the gate's evidence could exist (two unseen calendar years, fresh replication
+# quarters, failure episodes) is NEEDS_MORE_EVIDENCE or FAILED for lack of time, not for lack of effect. It is looked at again once
+# REGATE_NEW_DATES more decision dates have matured since its last look (a quarter of new weekly evidence: one new replication block).
+# F12 replaced the old hard cap of three looks - it retired the genuine planted lv20 in W-12 before the evidence it needed could exist -
+# with evidence.SequentialPlan: look k is judged at alpha_k = alpha * 6 / (pi^2 k^2) (sum over all looks <= alpha, so watching longer
+# cannot manufacture a pass), and a finding is retired only on measured futility, quarantine, or the evidence horizon. Every look is
+# recorded on its GATE lineage node (history, alpha spent).
 REGATE_NEW_DATES = 13
+
+
+def _regate_plan():
+    from engine.research import evidence as EV            # evidence imports loop only inside functions: no cycle at load
+    return EV.SequentialPlan()
+
+
+REGATE_PLAN = _regate_plan()
+
+
+def regate_due(regate: Mapping[str, Any], matured: pd.DataFrame, done: Sequence[str] = ()) -> list[str]:
+    """Job keys of earlier findings whose next look is due: REGATE_NEW_DATES fresh matured dates since the last look. No look cap: the
+    sequential plan's alpha spending, not a count of looks, is what keeps repeated looks honest."""
+    return [v["key"] for _, v in sorted(regate.items())
+            if fresh_dates(matured, v["through"]) >= REGATE_NEW_DATES and v["key"] not in done]
 
 
 def _replication_ledger():

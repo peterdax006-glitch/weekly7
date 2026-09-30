@@ -17,14 +17,17 @@ ranks) from the matured research panel, using the modules that own each kind of 
                                 planted corpus AND a candidate-specific planted label leak that the leak screen must catch
   reproducibility               re-computations on repeated and fresh seeds with the current code / data hash (promotion.ReproEvidence)
   replication                   engine.research.replication: a Discovery on half the names in the train window, runs on the OTHER
-                                half in later windows (fresh period + fresh stocks, shuffled-label control), assessed in the ONE ledger
+                                half in every new quarter-block of the test period (fresh period + fresh stocks, shuffled-label
+                                control), accumulated across looks and assessed in the ONE ledger
   calibration                   engine.learning.calibration.PlattCalibrator fitted on train, scored out of sample
   failure behaviour             negative-effect episodes, the contexts that explain them, perturbation retention, retirement trigger,
                                 out-of-scope abstention (probed, not asserted)
   provenance / PIT              engine.learning.core.Provenance fully filled; quality_gate.pit_evidence with the purge gap
 
 No gate is passed by default: anything that cannot be computed is left None (the gate reads None as MISSING) and listed in
-`Bundle.missing` with the reason. Public entry: `assemble(frame, spec, now, ...)`; `gate(bundles, now, ...)` runs the gate."""
+`Bundle.missing` with the reason. Public entry: `assemble(frame, spec, now, ...)`; `gate(bundles, now, ...)` runs the gate.
+Re-gating one finding as its evidence grows (F12) is a sequential design, `SequentialPlan`: look k is judged at an alpha that sums to
+alpha over all looks, and a finding is retired on measured futility, never on a count of looks."""
 from __future__ import annotations
 
 import dataclasses
@@ -51,7 +54,7 @@ class EvidenceConfig:
     top_q: float = 0.80                  # the rule's 'selection' for risk and calibration: its top quintile
     perturb_sd: float = 0.25             # planted data degradation: noise added to the feature, in its own sd units
     identity_boot: int = 100
-    repl_windows: int = 2                # replication windows cut from the out-of-sample years
+    repl_block: int = 13                 # decision dates per replication run: consecutive, non-overlapping quarters of the test period
     repl_min_periods: int = 12
     cal_rows: int = 4000
     seeds: tuple = (1, 1, 2, 3)          # reproducibility reruns: one seed repeated (determinism) and fresh seeds
@@ -68,6 +71,8 @@ class EvidenceConfig:
             errs.append("purge_days >= horizon_days, top_q in [0.5,1), perturb_sd > 0 required")
         if len(self.seeds) < 3 or len(set(self.seeds)) < 2 or len(set(self.seeds)) == len(self.seeds):
             errs.append("seeds need >= 3 reruns, >= 2 distinct seeds and one repeated seed")
+        if self.repl_block < 4:
+            errs.append("repl_block >= 4 dates required (a replication run needs periods to speak)")
         return errs
 
 
@@ -94,6 +99,86 @@ class FindingSpec:
         if self.sign not in (1.0, -1.0):
             errs.append("sign must be +1 or -1")
         return errs
+
+
+@dataclasses.dataclass(frozen=True)
+class SequentialPlan:
+    """F12 (C69 W-06 / W-12): the honest sequential design for re-gating ONE finding as its out-of-sample evidence accumulates.
+
+    W-12 showed the genuine planted pattern (lv20) gated three times and then RETIRED by a hard cap of three looks, although the evidence
+    the gate needs (a second unseen year, enough fresh replication quarters, enough failure episodes) could not exist yet. A look cap
+    kills true effects for lack of time; unlimited looks at a fixed alpha manufacture a pass for a null (optional stopping). Instead:
+
+      alpha spending   look k (k = 1, 2, ...) is judged at alpha_k = alpha * 6 / (pi^2 k^2). The series sums to alpha over infinitely
+                       many looks, so by the union bound the probability that a finding with no effect passes the statistical gate at ANY
+                       look is <= alpha - however long it is watched. The statistical gate's alpha and the OOS t floor become
+                       z(1 - alpha_k) (never below their fixed-sample values: thresholds are only ever raised), and the replication
+                       policy's alpha / CI level tighten the same way (its cumulative assessment is re-read at every look).
+      futility         a finding stops being looked at only on MEASURED grounds: its out-of-sample effect's one-sided upper bound is at
+                       or below the minimum effect with at least the gate's minimum OOS periods, or replication FAILED (a powered
+                       fresh-data refutation and no support). Integrity failures (QUARANTINED) are never retried (the loop's rule).
+      horizon          a compute backstop counted in fresh EVIDENCE, never in looks: `horizon_dates` matured decision dates after the
+                       first look (five years of weekly dates by default), long after the gate's own needs can be met.
+    A true effect's p-value falls exponentially in the sample while alpha_k falls only as 1/k^2, so it is never starved of alpha."""
+    alpha: float = 0.05
+    futility_z: float = 1.645
+    horizon_dates: int = 260
+
+    def validate(self) -> list[str]:
+        errs = []
+        if not 0.0 < self.alpha < 0.5 or self.futility_z <= 0:
+            errs.append("alpha in (0, 0.5) and futility_z > 0 required")
+        if self.horizon_dates < 52:
+            errs.append("horizon_dates >= 52 required: a finding must be allowed at least a year of fresh evidence")
+        return errs
+
+    def alpha_at(self, look: int) -> float:
+        if int(look) < 1:
+            raise ValueError(f"looks are numbered from 1 (got {look})")
+        return float(self.alpha * 6.0 / (math.pi ** 2 * int(look) ** 2))
+
+    def spent(self, looks: int) -> float:
+        """Alpha consumed by the first `looks` looks (always < alpha)."""
+        return float(sum(self.alpha_at(k) for k in range(1, int(looks) + 1)))
+
+    @staticmethod
+    def _z(a: float) -> float:
+        from statistics import NormalDist
+        return float(NormalDist().inv_cdf(1.0 - a))
+
+    def promotion_policy(self, look: int, base=None):
+        from engine.learning import promotion as PR
+        base = base if base is not None else PR.PromotionPolicy()
+        a = min(float(base.alpha), self.alpha_at(look))
+        return dataclasses.replace(base, alpha=a, min_oos_t=max(float(base.min_oos_t), self._z(a)))
+
+    def replication_policy(self, look: int, base=None):
+        from engine.research import replication as RP
+        base = base if base is not None else RP.DEFAULT_POLICY
+        a = min(float(base.alpha), self.alpha_at(look))
+        return dataclasses.replace(base, alpha=a, ci_level=max(float(base.ci_level), 1.0 - 2.0 * a))
+
+    def quality_policy(self, look: int, code_hash: str):
+        from engine.research import quality_gate as QG
+        return QG.QualityPolicy(promotion=self.promotion_policy(look), code_hash=code_hash)
+
+    def futility(self, bundle: "Bundle", min_effect: float = 0.0) -> str | None:
+        """Why this finding should stop being looked at, from measured evidence only; None = keep looking."""
+        from engine.learning import promotion as PR
+        from engine.research import replication as RP
+        ev = bundle.evidence
+        a = getattr(ev, "replication", None)
+        if a is not None and a.status == RP.Status.FAILED:
+            return f"replication FAILED: {a.n_refuting} powered fresh-data refutation(s) and no support"
+        o = getattr(ev, "oos", None)
+        if o is not None and o.oos is not None:
+            e = np.asarray(o.oos.oos_effects, dtype=float)
+            e = e[np.isfinite(e)]
+            if e.size >= PR.PromotionPolicy().min_oos_periods:
+                ub = float(e.mean() + self.futility_z * e.std(ddof=1) / math.sqrt(e.size))
+                if ub <= min_effect:
+                    return f"out-of-sample effect measured absent: upper bound {ub:+.4f} <= {min_effect} over {e.size} periods"
+        return None
 
 
 @dataclasses.dataclass
@@ -346,54 +431,70 @@ def stock_halves(tickers: Sequence[str], salt: str) -> tuple[frozenset, frozense
     return frozenset(a), frozenset(b)
 
 
+def replication_blocks(test_dates: Sequence, after, block: int) -> list[np.ndarray]:
+    """Complete, consecutive, non-overlapping blocks of `block` test dates strictly after `after` (the end of the newest window
+    already in the ledger). A partial block waits for its remaining dates; nothing is ever cut twice."""
+    ted = pd.DatetimeIndex(pd.to_datetime(pd.Index(test_dates))).unique().sort_values()
+    ted = ted[ted > pd.Timestamp(after)].to_numpy()
+    return [ted[k * block:(k + 1) * block] for k in range(len(ted) // block)]
+
+
 def replicate(G: pd.DataFrame, score: pd.Series, y: pd.Series, tr: np.ndarray, te: np.ndarray, spec: FindingSpec, ec: EvidenceConfig,
-              now, code_hash: str, data_hash: str, ledger=None):
-    """Register the finding as a replication.Discovery on half the names in the train window and run it on the OTHER half in
-    `repl_windows` later windows (fresh period + fresh stocks, a regime label per window, a shuffled-label control on the same
-    periods), all in the ONE replication ledger when one is given. Returns (assessment, detail)."""
+              now, code_hash: str, data_hash: str, ledger=None, policy=None):
+    """Register the finding ONCE as a replication.Discovery on half the names in its first train window, then run it on the OTHER half
+    in every complete `repl_block`-date block of the test period that no recorded run covers yet (fresh period + fresh stocks, a regime
+    label per block, a shuffled-label control on the same periods), all in the ONE replication ledger when one is given.
+
+    F12 defect fixed: runs used to be ids '-w0', '-w1' of a two-way split of the CURRENT test window. With a persistent ledger the ids
+    already existed at every later look, so no new run was ever added and the assessment of the first look (W-12: PARTIALLY_REPLICATED,
+    heterogeneity I2 of two runs) was frozen for ever: re-gating could not change the replication verdict whatever time brought.
+    Blocks are now keyed by their first date and only NEW blocks are added, so every look sees the fresh quarters that matured since."""
     from engine.research import replication as RP
     names = G.index.get_level_values(1).astype(str)
     A, B = stock_halves(names, spec.subject_id)
     inA, inB = np.isin(names, list(A)), np.isin(names, list(B))
-    e0 = per_date_effect(score[tr & inA], y[tr & inA], max(4, ec.min_names // 2))
-    if len(e0) < 3 or float(e0.std()) <= 0:
-        return None, {"why": f"{len(e0)} train periods on the discovery half"}
-    d = pd.to_datetime(G.index.get_level_values(0))
-    trd = d[tr]
-    ends = pd.to_datetime(G["end"])
-    did = "E" + spec.subject_id
-    mat0 = str(ends[tr].max().date())
-    mvol = G["m_vol"].groupby(level=0).median() if "m_vol" in G else None
-    disc = RP.Discovery(did, float(e0.mean()), float(e0.std()), int(len(e0)), (str(trd.min().date()), str(trd.max().date())),
-                        ec.horizon_days, A, (spec.seed,), frozenset({"train"}), code_hash, data_hash, mat0, max(1, spec.n_tests_searched))
+    mn = max(4, ec.min_names // 2)
     led = ledger if ledger is not None else RP.ReplicationLedger()
+    did = "E" + spec.subject_id
+    d = pd.to_datetime(G.index.get_level_values(0))
+    ends = pd.to_datetime(G["end"])
     if did not in led.discoveries():
-        led.add_discovery(disc)
-    ted = np.array(sorted(pd.unique(d[te])))
-    chunks = [c for c in np.array_split(ted, ec.repl_windows) if len(c)]
-    runs = []
-    known = {r.run_id for r in led.runs_for(did, now)}
-    for i, c in enumerate(chunks):
+        e0 = per_date_effect(score[tr & inA], y[tr & inA], mn)
+        if len(e0) < 3 or float(e0.std()) <= 0:
+            return None, {"why": f"{len(e0)} train periods on the discovery half"}
+        trd = d[tr]
+        led.add_discovery(RP.Discovery(did, float(e0.mean()), float(e0.std()), int(len(e0)), (str(trd.min().date()), str(trd.max().date())),
+                                       ec.horizon_days, A, (spec.seed,), frozenset({"train"}), code_hash, data_hash, str(ends[tr].max().date()),
+                                       max(1, spec.n_tests_searched)))
+    disc = led.discoveries()[did]
+    prior = led.runs_for(did, now)
+    after = max([pd.Timestamp(r.window[1]) for r in prior]
+                + [pd.Timestamp(disc.window[1]) + pd.Timedelta(days=max(ec.purge_days, disc.horizon_days))])
+    mvol = G["m_vol"].groupby(level=0).median() if "m_vol" in G else None
+    added = 0
+    for c in replication_blocks(d[te], after, ec.repl_block):
         m = te & inB & np.isin(d, c)
-        e = per_date_effect(score[m], y[m], max(4, ec.min_names // 2))
+        e = per_date_effect(score[m], y[m], mn)
         if len(e) < 2:
             continue
-        rng = np.random.default_rng(spec.seed + 100 + i)
+        first = str(pd.Timestamp(c[0]).date())
+        seed = int(stable_hash([spec.subject_id, first], 6), 16) % 1_000_000 + 1000     # a fresh seed per block, never the discovery's
+        rng = np.random.default_rng(seed)
         ys = y[m].groupby(level=0).transform(lambda s: pd.Series(rng.permutation(s.to_numpy()), index=s.index))
-        ctl = per_date_effect(score[m], ys, max(4, ec.min_names // 2)).reindex(e.index).fillna(0.0)
+        ctl = per_date_effect(score[m], ys, mn).reindex(e.index).fillna(0.0)
         regime = "calm"
         if mvol is not None:
             regime = "high_vol" if float(mvol.reindex(c).median()) > float(mvol.median()) else "calm"
         mat = str(ends[m].max().date())
         require_past(mat, now, "replication run")
-        rid = f"{did}-w{i}"
-        run = RP.ReplicationRun(rid, did, (str(pd.Timestamp(c[0]).date()), str(pd.Timestamp(c[-1]).date())), B, spec.seed + 1 + i, regime,
-                                tuple(float(v) for v in e.to_numpy()), tuple(float(v) for v in ctl.to_numpy()), code_hash, data_hash, mat)
-        if rid not in known:
-            led.add_run(run, now)
-        runs.append(run)
-    a = RP.assess(led.discoveries()[did], led.runs_for(did, now), now)
-    return a, {"repl_status": str(a.status), "repl_runs": len(runs), "repl_discovery_periods": int(len(e0))}
+        led.add_run(RP.ReplicationRun(f"{did}-{first}", did, (first, str(pd.Timestamp(c[-1]).date())), B, seed, regime,
+                                      tuple(float(v) for v in e.to_numpy()), tuple(float(v) for v in ctl.to_numpy()), code_hash, data_hash,
+                                      mat), now)
+        added += 1
+    runs = led.runs_for(did, now)
+    a = RP.assess(disc, runs, now, policy) if policy is not None else RP.assess(disc, runs, now)
+    return a, {"repl_status": str(a.status), "repl_runs": len(runs), "repl_runs_added": added, "repl_discovery_periods": int(disc.n_periods),
+               "repl_i2": float(a.pooled.get("i2", 0.0)), "repl_supporting": int(a.n_supporting)}
 
 
 def leakage(G: pd.DataFrame, score: pd.Series, y: pd.Series, spec: FindingSpec, now, train_end, first_test, identity_report,
@@ -435,12 +536,16 @@ def leakage(G: pd.DataFrame, score: pd.Series, y: pd.Series, spec: FindingSpec, 
 
 # ================================================================================================================ the bundle
 def assemble(frame: pd.DataFrame, spec: FindingSpec, now, *, code_hash: str, data_hash: str, created_real: str,
-             cfg: EvidenceConfig = EvidenceConfig(), ledger=None) -> Bundle:
+             cfg: EvidenceConfig = EvidenceConfig(), ledger=None, look: int | None = None, plan: SequentialPlan | None = None) -> Bundle:
     """PUBLIC ENTRY. Every QualityEvidence field for `spec` from the matured research `frame` (rows whose outcome ended strictly
-    before now; a row at/after now is a FirewallBreach, not a filter). Anything not computable stays None and is named in `missing`."""
+    before now; a row at/after now is a FirewallBreach, not a filter). Anything not computable stays None and is named in `missing`.
+    `look` (1, 2, ...) = this is the finding's look-th sequential look: replication is assessed under the plan's spent alpha."""
     from engine.learning.core import Provenance
     from engine.research import quality_gate as QG
     errs = cfg.validate() + spec.validate()
+    if look is not None:
+        plan = plan or SequentialPlan()
+        errs += plan.validate() + ([] if int(look) >= 1 else [f"look must be >= 1 (got {look})"])
     if errs:
         raise ValueError("invalid evidence request: " + "; ".join(errs))
     if len(frame) and (pd.to_datetime(frame["end"]) >= pd.Timestamp(as_date(now))).any():
@@ -487,8 +592,11 @@ def assemble(frame: pd.DataFrame, spec: FindingSpec, now, *, code_hash: str, dat
     fe, p = failure(G, score, y, te, eff_te, rk.worst_period if rk is not None else None, spec, cfg)
     parts.update(p)
     rp = reproducibility(score, y, te, spec, cfg, code_hash, data_hash)
-    repl, p = replicate(G, score, y, tr, te, spec, cfg, now, code_hash, data_hash, ledger)
+    repl, p = replicate(G, score, y, tr, te, spec, cfg, now, code_hash, data_hash, ledger,
+                        plan.replication_policy(look) if look is not None else None)
     parts.update(p)
+    if look is not None:
+        parts.update(look=int(look), alpha_look=plan.alpha_at(look), alpha_spent=plan.spent(look))
     if repl is None:
         missing["replication"] = p.get("why", "not computable")
     feats = {c: None for c in _base_columns(spec.feature)}
@@ -509,12 +617,28 @@ def _base_columns(feature: str) -> tuple[str, ...]:
     return tuple(VH.required_columns((feature,)))
 
 
-def gate(bundles: Sequence[Bundle], now, code_hash: str, store=None):
+def gate(bundles: Sequence[Bundle], now, code_hash: str, store=None, looks: Mapping[str, int] | None = None,
+         plan: SequentialPlan | None = None):
     """Run engine.research.quality_gate.step on the bundles with the policy pinned to the loop's code hash (reproducibility is judged
-    against the code that produced the reruns)."""
+    against the code that produced the reruns). Without `looks` it is one fixed-sample gate at the policy's own alpha. With `looks`
+    (subject -> look number) every bundle is judged under its look's spent alpha (SequentialPlan); a bundle missing from `looks` is
+    refused (a sequential caller must number every look, or optional stopping creeps back in)."""
     from engine.research import quality_gate as QG
-    cands = [QG.Candidate(b.subject_id, b.evidence) for b in bundles]
-    return QG.step(cands, now, policy=QG.QualityPolicy(code_hash=code_hash), store=store)
+    if looks is None:
+        cands = [QG.Candidate(b.subject_id, b.evidence) for b in bundles]
+        return QG.step(cands, now, policy=QG.QualityPolicy(code_hash=code_hash), store=store)
+    plan = plan or SequentialPlan()
+    unnumbered = [b.subject_id for b in bundles if b.subject_id not in looks]
+    if unnumbered:
+        raise ValueError(f"sequential gate: no look number for {unnumbered}")
+    by_look: dict[int, list] = {}
+    for b in bundles:
+        by_look.setdefault(int(looks[b.subject_id]), []).append(QG.Candidate(b.subject_id, b.evidence))
+    reps = {k: QG.step(c, now, policy=plan.quality_policy(k, code_hash), store=store) for k, c in sorted(by_look.items())}
+    dec = {d.subject_id: d for r in reps.values() for d in r.decisions}
+    decisions = tuple(dec[b.subject_id] for b in bundles)
+    return QG.GateReport(str(as_date(now)), decisions, tuple(s for r in reps.values() for s in r.promoted),
+                         tuple(s for r in reps.values() for s in r.newly_quarantined), QG.funnel(list(decisions)))
 
 
 def verdicts(report) -> dict[str, str]:

@@ -1,0 +1,15 @@
+9492 13 ests/test_regate_sequential.py loop --seed 2 --world default
+11048 11 ests/test_regate_sequential.py loop --seed 1 --world default
+11624 245 egate_sequential.py gate --seeds 0 1 2 3 4 5 --world default
+12588 305 ests/test_regate_sequential.py loop --seed 0 --world default
+13900 11 ests/test_regate_sequential.py loop --seed 0 --world default
+15784 11 egate_sequential.py gate --seeds 0 1 2 3 4 5 --world default
+17880 13 ests/test_regate_sequential.py loop --seed 0 --world default
+19272 305 ests/test_regate_sequential.py loop --seed 1 --world default
+21452 13 ts/test_regate_sequential.py gate --seeds 0 1 2 --world null
+21868 305 ests/test_regate_sequential.py loop --seed 2 --world default
+23288 248 ts/test_regate_sequential.py gate --seeds 0 1 2 --world null
+23504 11 ts/test_regate_sequential.py gate --seeds 0 1 2 --world null
+23580 13 ests/test_regate_sequential.py loop --seed 1 --world default
+25308 11 ests/test_regate_sequential.py loop --seed 2 --world default
+25620 13 egate_sequential.py gate --seeds 0 1 2 3 4 5 --world default

@@ -1973,12 +1973,12 @@ class C68Plant:
                        detected forward in time and must degrade the pattern
       shock            one name gaps down `shock_size` at `shock` with no information item anywhere and stays turbulent for
                        `distress_len` sessions: an unknowable single-stock anomaly that must stay a SINGLE-STOCK finding
-      weak sector      (F11, off by default: weak_sector = -1) in ONE stock type (sector `weak_sector`) a trend older than `weak_age`
-                       sessions stalls: its drift is multiplied by `weak_mult` until `weak_until` of the sample and by `weak_after`
-                       from then on. Its trailing 20-session return still shows the trend, so a model with one pooled slope over-predicts
-                       exactly those names, in every year: a GENUINE, knowable, persistent, fixable prediction error (the slope inside
-                       that sector differs). The null twin is the same seed with weak_sector = -1 (identical noise, no error);
-                       weak_after > 1 turns the stall into an acceleration later (a promoted fix that then degrades: rollback)
+      weak sector      (F11, off by default: weak_sector = -1) in ONE stock type (sector `weak_sector`) momentum is crowded: every
+                       session a name gives back `weak_revert` times its trailing 20-session return (until `weak_until` of the
+                       sample, `weak_revert_after` from then on). A model with one pooled r20 slope over-predicts exactly the strong
+                       names of that sector, in every year: a GENUINE, knowable, persistent, fixable prediction error (the r20 slope
+                       inside that sector differs). The null twin is the same seed with weak_sector = -1 (identical draws, no error);
+                       a negative weak_revert_after turns the give-back into acceleration later (a promoted fix that then degrades)
       regime_switch    False removes the switch / recovery (a clean multi-year world for the self-correction proofs)"""
     n_names: int = 40
     n_days: int = 440
@@ -2003,20 +2003,23 @@ class C68Plant:
     post_switch_vol: float = 2.2
     regime_switch: bool = True
     weak_sector: int = -1
-    weak_age: int = 12
-    weak_mult: float = 0.0
+    weak_revert: float = 0.02
     weak_until: float = 1.0
-    weak_after: float = 0.0
+    weak_revert_after: float = 0.02
 
 
-def trend_age(state: np.ndarray) -> np.ndarray:
-    """Sessions each name has been in its current trend (0 outside a trend)."""
-    age = np.zeros(state.shape, int)
-    run = np.zeros(state.shape[1], int)
-    for t in range(state.shape[0]):
-        run = np.where(state[t], run + 1, 0)
-        age[t] = run
-    return age
+def momentum_giveback(r: np.ndarray, names: np.ndarray, k: np.ndarray) -> np.ndarray:
+    """Each session, the chosen names give back k[t] times their trailing 20-session return up to the previous close (a negative
+    k[t] = momentum that accelerates instead). Sequential, because the trailing return includes earlier give-backs; only the past
+    enters each session's adjustment."""
+    r = r.copy()
+    lc = np.zeros((r.shape[0] + 1, r.shape[1]))              # log close relative to the start
+    for t in range(r.shape[0]):
+        if t >= 20:
+            r20 = np.exp(lc[t] - lc[t - 20]) - 1.0
+            r[t] = np.where(names, np.clip(r[t] - k[t] * r20, -0.3, 0.3), r[t])
+        lc[t + 1] = lc[t] + np.log1p(r[t])
+    return r
 
 
 def plant_world(pc: C68Plant = C68Plant()) -> FD.World:
@@ -2024,8 +2027,8 @@ def plant_world(pc: C68Plant = C68Plant()) -> FD.World:
     T, n = pc.n_days, pc.n_names
     if n < 10 or T < 300:
         raise ValueError("the C68 world needs >= 10 names and >= 300 sessions")
-    if pc.weak_sector >= pc.n_sectors or pc.weak_age < 1:
-        raise ValueError("weak_sector must be -1 or a sector index, weak_age >= 1")
+    if pc.weak_sector >= pc.n_sectors:
+        raise ValueError("weak_sector must be -1 or a sector index")
     dates = pd.bdate_range("2016-01-04", periods=T)
     tick = [f"W{j:03d}" for j in range(n)]
     base = rng.uniform(*pc.base_sigma, n)
@@ -2045,11 +2048,10 @@ def plant_world(pc: C68Plant = C68Plant()) -> FD.World:
     rc = int(T * pc.recover) if pc.regime_switch else T
     mu[sw:rc] = np.where(state[sw:rc], pc.post_switch_drift, 0.0)
     wk = int(T * pc.weak_until)
-    if pc.weak_sector >= 0:                    # pure arithmetic on mu: the null twin draws exactly the same random numbers
-        in_sec = (np.arange(n) % pc.n_sectors) == pc.weak_sector
-        mult = np.where(np.arange(T) < wk, pc.weak_mult, pc.weak_after)[:, None]
-        mu = np.where(state & (trend_age(state) > pc.weak_age) & in_sec[None, :], mu * mult, mu)
     r = np.clip(mu + m[:, None] + rng.normal(0, 1, (T, n)) * sig, -0.3, 0.3)
+    if pc.weak_sector >= 0:                    # arithmetic on the drawn returns: the null twin draws exactly the same random numbers
+        r = momentum_giveback(r, (np.arange(n) % pc.n_sectors) == pc.weak_sector,
+                              np.where(np.arange(T) < wk, pc.weak_revert, pc.weak_revert_after))
     r[ts, pc.shock_name] += pc.shock_size
     p0 = np.exp(rng.uniform(math.log(10), math.log(120), n))
     C = p0 * np.exp(np.cumsum(np.log1p(r), axis=0))
