@@ -41,6 +41,8 @@ calls instead of oriented_scan), `session()` / `register` / `unregister_all` (re
 `complexity` / `history_dependent`, `multiplicity_cost`, `raise_rule`, `match` / `score_patterns` / `recall_table`."""
 from __future__ import annotations
 
+import functools
+
 import contextlib
 import dataclasses as dc
 import math
@@ -274,6 +276,11 @@ def _atom(F: pd.DataFrame, a: str) -> pd.Series:
     return pd.Series(np.asarray(VH.DERIVED[a][1](F), float), index=F.index).replace([np.inf, -np.inf], np.nan)
 
 
+def _materialise_for(spec, cfg, F):
+    """VH.DERIVED builder for a registered composite (a named partial instead of a default-argument lambda, for the type checker)."""
+    return materialise(spec, F, cfg)
+
+
 def materialise(spec: FormSpec, F: pd.DataFrame, cfg: FormConfig = FormConfig()) -> pd.Series:
     """The form's values on F's rows (the DERIVED function of the composite). Same definitions as the prescreen matrices."""
     a = _atom(F, spec.atoms[0])
@@ -312,7 +319,7 @@ def register(specs: Iterable[FormSpec], cfg: FormConfig = FormConfig()) -> list[
                 raise KeyError(f"atom {a!r} of {s.name} is not a registered derived feature")
         if s.name not in VH.DERIVED:
             base = tuple(dict.fromkeys(c for a in s.atoms for c in VH.DERIVED[a][0]))
-            VH.DERIVED[s.name] = (base, lambda F, s=s: materialise(s, F, cfg))
+            VH.DERIVED[s.name] = (base, functools.partial(_materialise_for, s, cfg))
             _REGISTERED.add(s.name)
         names.append(s.name)
     return names
@@ -884,7 +891,7 @@ def match(p: Mapping, patterns: Sequence[Mapping], name: str) -> str | None:
     if not cols:
         return None
     spec = parse(name)
-    kind = p.get("kind")
+    kind = str(p.get("kind") or "")
     if spec is None:
         if name not in cols:
             return None
