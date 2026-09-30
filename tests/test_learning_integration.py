@@ -497,7 +497,7 @@ def test_test_and_promote_promotes_a_learning_claim_once_its_evidence_passes(pro
     tr = X.index.get_level_values(0) < half
     job = W.IdentityJob(lambda Xt, yt, Xe, seed: Xe["f1"].astype(float), X[tr], y[tr], X[~tr], y[~tr],
                         attack_kwargs={"episode_substitution": {"block": 8, "frac": 1.0}})
-    W.register_evidence("CH010", W.LearningEvidence(good_card(), clean_ctx(now=dt.date.today().isoformat()), job))
+    W.register_evidence("CH010", W.LearningEvidence(good_card(), clean_ctx(now=dt.datetime.utcnow().date().isoformat()), job))
     meta = {"version": "1.0", "w_model": 0.5}
     C = IMP.test_and_promote([challenger("CH010", claims_learning=True)], meta, None)
     assert C[0]["status"] == "promoted"
