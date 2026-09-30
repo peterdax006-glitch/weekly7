@@ -277,6 +277,39 @@ def test_probation_that_fails_goes_back_to_dormant_and_weak_evidence_never_recov
         RT.window_check(led2, k2, d2, [0.01] * 3, "2009-12-15", 8)
 
 
+def test_retiring_an_item_long_after_its_birth_is_archived_as_learned_at_the_retirement():
+    from engine.learning import belief as BL
+    from engine.learning.core import Lifecycle, Promotion
+    L = T.new_learner()
+    pid = "f9:q4"
+    weekly = [(str((pd.Timestamp("2010-01-01") + pd.Timedelta(days=7 * i)).date()), 0.02, 0.004, 30) for i in range(10)]
+    L._weekly[pid] = weekly
+    L.beliefs.register(pid, 0.0, 0.02)
+    for d, e, se, n in weekly:
+        st = L.beliefs.update(pid, BL.Evidence(pid, d, e, se, n), pd.Timestamp(d) + pd.Timedelta(days=1))
+    L._birth(pid, st, pd.Timestamp(weekly[-1][0]) + pd.Timedelta(days=1), weekly[-1][0])
+    kid = L._kid_of[pid]
+    L._retire_object(kid, "2012-06-01", pd.Timestamp("2012-06-02"))       # two years later: used to raise ArchiveError
+    k = L.store.latest(kid)
+    assert k.lifecycle == Lifecycle.RETIRED and k.promotion == Promotion.RETIRED and k.provenance.learned_at == "2012-06-01"
+    L._retire_object(kid, "2012-06-08", pd.Timestamp("2012-06-09"))       # already retired: nothing written
+    assert L.store.latest(kid).version == k.version
+
+
+def test_a_second_writer_on_the_same_date_is_a_no_change_not_a_crash():
+    led = RT.RetirementLedger(RT.RetirementPolicy(min_n=8, recover_min_n=16))
+    kid = _parked(led)
+    led.transition(kid, RT.State.RETIRED, "2011-06-03", "RETIRE", "window check retired it today")
+    weak = RT.Evidence(20, -0.01, 0.004, "2011-01-07", "2011-05-27")
+    v = led.evaluate(kid, weak, "2011-06-03", apply=True)          # the lifecycle writer, same tick: used to raise RETIRED -> RETIRED
+    assert not v.changes and "already decided" in v.reason
+    led2 = RT.RetirementLedger(RT.RetirementPolicy(min_n=8, recover_min_n=16))
+    led2.register("K", "2009-01-02")
+    led2.transition("K", RT.State.DEGRADED, "2009-06-05", "DEGRADE", "x")
+    assert "flapping" in led2.evaluate("K", weak, "2009-06-08").reason
+    assert led2.settled("K", "2009-07-01") is None and led2.settled("nobody", "2009-07-01") is None
+
+
 # ------------------------------------------------------------------------------------------------ false-degrade study (the evidence)
 
 def test_an_8_week_window_falsely_degrades_a_true_item_and_16_weeks_does_far_less():

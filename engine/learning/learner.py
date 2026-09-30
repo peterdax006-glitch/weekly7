@@ -1300,7 +1300,13 @@ class LegitimateLearner:
         mid = self._mid[kid]
         if self.board.members[mid].role != Promotion.RETIRED:
             self.board.retire(mid, FailureCause.WEAKENING_EFFECT, "retirement gate: evidence no longer supports the item", now)
-        self._put(cur.retire(learned, "retirement gate: evidence no longer supports the item"))
+        # F10: through _revise, not KnowledgeObject.retire: retire() keeps the old provenance.learned_at, and the archive refuses a
+        # version whose evidence (outcomes seen through `learned`) matured after it was "learned" - first reached on a 5-year run,
+        # where a DORMANT item was retired after 730 days.
+        why = "retirement gate: evidence no longer supports the item"
+        self._revise(kid, learned, f"retired: {why}", epistemic=Epistemic.RETIRED, lifecycle=Lifecycle.RETIRED, promotion=Promotion.RETIRED,
+                     failure_explanations=cur.failure_explanations + (KN.FailureExplanation(FailureCause.WEAKENING_EFFECT, str(as_date(learned)), None, why),),
+                     epistemic_profile=KN.EpistemicProfile())
         self._resolved_meta[kid] = False
 
     def stage_store(self, ep: _Episode, now) -> None:
