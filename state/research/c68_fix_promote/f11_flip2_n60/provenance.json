@@ -1,0 +1,17 @@
+{
+ "code_hash": "c62fac3ce1426ac3",
+ "code_files": [
+  "engine/__init__.py",
+  "engine/provenance.py",
+  "scripts/c68_fix_promote.py"
+ ],
+ "code_mixed": [],
+ "git_commit": "bca9496bf9e8b9a9bb501de9514f491bf01d4a7a+dirty",
+ "canon_sha": "fef7cdf0a1501c3d",
+ "bible_sha": "a97ea91862cee371",
+ "blueprint_version": "4.0",
+ "config_hash": "fffde8468e292ea9",
+ "data_snapshot": "171ba8ba728ee713",
+ "seed": null,
+ "label": "IMPLEMENTED - NOT VALIDATED (planted worlds)"
+}

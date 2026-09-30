@@ -4,7 +4,8 @@ is, and is a promoted fix that later degrades rolled back by the real monitor? P
 
 Worlds (engine.research.error_loop.plant_world): 'planted' = one stock type (sector SEC1) gives back part of its 20-session run-up
 every session, so a pooled r20 slope over-predicts its strong names in every year; 'null' = the same seed and draws without it;
-'flip' = planted until `flip_at` of the sample, after which that sector's momentum ACCELERATES (the promoted slope is now wrong).
+'flip' = planted until `flip_at` of the sample, after which that sector's give-back stops (the promoted slope is now wrong;
+a stronger reversal, an ACCELERATING momentum, compounds into exploding prices in this world and was rejected as unrealistic).
 
     .venv/Scripts/python scripts/c68_fix_promote.py --kinds planted,null --seeds 6 --workers 3
     .venv/Scripts/python scripts/c68_fix_promote.py --kinds flip --seeds 1
@@ -33,7 +34,7 @@ OUT = ROOT / "state" / "research" / "c68_fix_promote"
 # The planted effect is sized so the fix's adjustment stays below the firewall's implausible-IC cap (0.15 rank IC against the
 # incumbent's error) while its gain is material (the complexity gate's +-0.0005 equivalence margin): a realistic-size error.
 PLANT = {"n_days": 1150, "n_names": 60, "regime_switch": False, "n_sectors": 3, "sigma": 0.024, "weak_revert": 0.06}
-FLIP = {"n_days": 1400, "flip_at": 0.85, "flip_revert": -0.07}
+FLIP = {"n_days": 1400, "flip_at": 0.8, "flip_revert": 0.0}         # the give-back stops: the promoted slope is now wrong
 CADENCE = 4
 
 

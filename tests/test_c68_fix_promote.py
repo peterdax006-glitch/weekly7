@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import copy
 import dataclasses
+import json
 import os
 import warnings
 
@@ -329,6 +330,12 @@ def test_long_planted_fix_is_promoted_and_the_null_twin_never(tmp_path):
 
 @pytest.mark.skipif(not LONG, reason="long real-loop run: set W7_LONG_TESTS=1")
 def test_long_a_promoted_fix_that_degrades_is_rolled_back(tmp_path):
+    """The flip world: the planted give-back stops at 80% of the sample. Every seed whose fix was promoted BEFORE the flip must be
+    rolled back by the real monitor after it (and not before), and must end retired with the incumbent in production."""
     from scripts import c68_fix_promote as R
-    row = R.run_one("flip", 0, tmp_path / "f0")
-    assert row["promoted_sector_slope"] == 1 and row["rolled_back"] == 1, row
+    rows = [R.run_one("flip", s, tmp_path / f"f{s}") for s in range(4)]
+    before = [r for r in rows if r["first_promote"] and r["first_promote"] < r["flip_date"]]
+    assert before, rows
+    for r in before:
+        assert r["rolled_back"] >= 1 and r["final_production"] == "incumbent", r
+        assert json.loads(r["retired"])["sector_slope"] >= r["flip_date"], r          # rolled back after the flip, not before

@@ -1,0 +1,251 @@
+{
+ "cycle": 100,
+ "now": "2018-11-23",
+ "label": "IMPLEMENTED - NOT VALIDATED",
+ "counters": {
+  "expectations": 49,
+  "outcomes": 49,
+  "errors": 49
+ },
+ "ledgers": {
+  "expectations": 49,
+  "outcomes": 49,
+  "errors": 49,
+  "commitments": 49,
+  "pipeline_events": 629,
+  "pipeline_furthest": {
+   "CLASSIFIED": 49,
+   "REJECTED": 96
+  }
+ },
+ "calibration": {
+  "now": "2018-08-10",
+  "target": {
+   "tolerance": 0.01,
+   "goal_share": 0.8,
+   "min_n": 200,
+   "min_oos_n": 100,
+   "level": 0.95,
+   "name": "pm1pp_80"
+  },
+  "status": "INSUFFICIENT_SAMPLE",
+  "n_committed": 49,
+  "n_matured": 49,
+  "n_resolved": 49,
+  "n_unresolved": 0,
+  "all_": {
+   "n": 49,
+   "hits": 1,
+   "share": 0.02040816326530612,
+   "lo": 0.0036116725898252405,
+   "hi": 0.10693521523391616,
+   "boot_lo": 0.0,
+   "boot_hi": 0.061224489795918366
+  },
+  "oos": {
+   "n": 49,
+   "hits": 1,
+   "share": 0.02040816326530612,
+   "lo": 0.0036116725898252405,
+   "hi": 0.10693521523391616,
+   "boot_lo": 0.0,
+   "boot_hi": 0.061224489795918366
+  },
+  "resolved_only": {
+   "n": 49,
+   "hits": 1,
+   "share": 0.02040816326530612,
+   "lo": 0.0036116725898252405,
+   "hi": 0.10693521523391616,
+   "boot_lo": 0.0,
+   "boot_hi": 0.061224489795918366
+  },
+  "bias": -0.016860238446772934,
+  "mae": 0.10685494423878836,
+  "naive_share": 0.041666666666666664,
+  "required_n": null,
+  "abuses": [],
+  "by_cohort": [
+   [
+    "-",
+    {
+     "n": 49,
+     "hits": 1,
+     "share": 0.02040816326530612,
+     "lo": 0.0036116725898252405,
+     "hi": 0.10693521523391616,
+     "boot_lo": 0.0,
+     "boot_hi": 0.061224489795918366
+    }
+   ]
+  ],
+  "headline": "2.0% of 49 matured predictions landed within +-1pp of the committed prediction (95% CI 0.4%-10.7%); out of sample 2.0% of 49 (CI 0.4%-10.7%, block bootstrap 0.0%-6.1%). Goal 80%: sample too small to judge (need 200 overall and 100 out of sample). A no-skill median forecast scores 4.2% on the same sample."
+ },
+ "influence": {
+  "mom_r20_top": 1.0,
+  "rev_r5_bottom": 1.0,
+  "vol_top": 1.0
+ },
+ "verdicts": {},
+ "guard": {},
+ "production": {
+  "name": "incumbent",
+  "since": "",
+  "window_share": 1.0,
+  "extra_features": []
+ },
+ "regime_records": [],
+ "identification": {
+  "periods": 9,
+  "trend": {
+   "n_periods": 5,
+   "slope": 0.025513753159340756,
+   "se": 0.18569267016645324,
+   "improving": false
+  },
+  "rows": [
+   {
+    "period": "2016Q4",
+    "n_candidates": 120,
+    "n_selected": 1,
+    "base_rate": 0.2,
+    "precision": 0.0,
+    "precision_lo": 0.0,
+    "precision_hi": 0.7934567085261071,
+    "recall": 0.0,
+    "lift": 0.0,
+    "pending": 0
+   },
+   {
+    "period": "2017Q1",
+    "n_candidates": 780,
+    "n_selected": 0,
+    "base_rate": 0.1564102564102564,
+    "precision": NaN,
+    "precision_lo": NaN,
+    "precision_hi": NaN,
+    "recall": 0.0,
+    "lift": NaN,
+    "pending": 0
+   },
+   {
+    "period": "2017Q2",
+    "n_candidates": 780,
+    "n_selected": 0,
+    "base_rate": 0.14358974358974358,
+    "precision": NaN,
+    "precision_lo": NaN,
+    "precision_hi": NaN,
+    "recall": 0.0,
+    "lift": NaN,
+    "pending": 0
+   },
+   {
+    "period": "2017Q3",
+    "n_candidates": 780,
+    "n_selected": 30,
+    "base_rate": 0.14615384615384616,
+    "precision": 0.16666666666666666,
+    "precision_lo": 0.07336434240351683,
+    "precision_hi": 0.33564705185680177,
+    "recall": 0.043859649122807015,
+    "lift": 1.1403508771929822,
+    "pending": 0
+   },
+   {
+    "period": "2017Q4",
+    "n_candidates": 780,
+    "n_selected": 25,
+    "base_rate": 0.15512820512820513,
+    "precision": 0.16,
+    "precision_lo": 0.06403347608577989,
+    "precision_hi": 0.34654013980238163,
+    "recall": 0.03305785123966942,
+    "lift": 1.031404958677686,
+    "pending": 0
+   },
+   {
+    "period": "2018Q1",
+    "n_candidates": 780,
+    "n_selected": 0,
+    "base_rate": 0.14615384615384616,
+    "precision": NaN,
+    "precision_lo": NaN,
+    "precision_hi": NaN,
+    "recall": 0.0,
+    "lift": NaN,
+    "pending": 0
+   },
+   {
+    "period": "2018Q2",
+    "n_candidates": 780,
+    "n_selected": 13,
+    "base_rate": 0.15897435897435896,
+    "precision": 0.23076923076923078,
+    "precision_lo": 0.08179379092465713,
+    "precision_hi": 0.5025687399512693,
+    "recall": 0.024193548387096774,
+    "lift": 1.4516129032258067,
+    "pending": 0
+   },
+   {
+    "period": "2018Q3",
+    "n_candidates": 780,
+    "n_selected": 2,
+    "base_rate": 0.15384615384615385,
+    "precision": 0.0,
+    "precision_lo": 0.0,
+    "precision_hi": 0.6576280471103807,
+    "recall": 0.0,
+    "lift": 0.0,
+    "pending": 0
+   },
+   {
+    "period": "2018Q4",
+    "n_candidates": 360,
+    "n_selected": 0,
+    "base_rate": 0.13333333333333333,
+    "precision": NaN,
+    "precision_lo": NaN,
+    "precision_hi": NaN,
+    "recall": 0.0,
+    "lift": NaN,
+    "pending": 0
+   }
+  ]
+ },
+ "stage_runs": [
+  {
+   "cycle": 100,
+   "now": "2018-11-23",
+   "stage": "c68.selection_policy",
+   "in": 4000,
+   "out": 1,
+   "note": "policy L9cb4d3ae (threshold -inf); gain model fitted n=4000 base in-band 0.160; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00"
+  },
+  {
+   "cycle": 100,
+   "now": "2018-11-23",
+   "stage": "c68.expectations",
+   "in": 60,
+   "out": 0,
+   "note": "no position on 2018-11-23: {'NOT_PREDICTED_MOVER': 54, 'OUT_OF_BAND': 6}"
+  },
+  {
+   "cycle": 100,
+   "now": "2018-11-23",
+   "stage": "c68.outcomes_errors",
+   "in": 0,
+   "out": 0,
+   "note": "0 exit(s) by the learned policy, 0 error report(s), 0 unreconstructable, 60 candidate gain(s) resolved"
+  },
+  {
+   "cycle": 100,
+   "now": "2018-11-23",
+   "stage": "c68.validate_promote",
+   "in": 5940,
+   "out": 4,
+   "note": "4 fix(es) tested alone and gated; deterioration: YES (MAE 0.0688 -> 0.0759, p=2.97e-05); promoted [] (0 applied); production incumbent; rolled back 0"
+  }
+ ]
+}

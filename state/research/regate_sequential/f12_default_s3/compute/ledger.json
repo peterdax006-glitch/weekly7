@@ -1038,6 +1038,54 @@
   "state": "DONE",
   "worker": "w2776"
  },
+ "1b43981f4399e30488fa": {
+  "attempts": 1,
+  "batch_scale": 1.0,
+  "code_hash": "be1414a816a6c370",
+  "est_gb": 1.5,
+  "heartbeat": 1790747419.375901,
+  "history": [
+   [
+    1525392000.0,
+    "PENDING",
+    "submitted"
+   ],
+   [
+    1525392000.0,
+    "RUNNING",
+    "attempt 1 by w24760"
+   ],
+   [
+    1790747419.5606163,
+    "DONE",
+    "result a973b0f1ecb3a84564c1"
+   ]
+  ],
+  "launched": null,
+  "not_before": null,
+  "result_hash": "a973b0f1ecb3a84564c1",
+  "runs": [],
+  "spec": {
+   "after": [],
+   "as_of": "2018-05-04",
+   "data_hash": "",
+   "est_gb": 1.5,
+   "name": "BR4bcdfc816ded_s2",
+   "params": {
+    "branch": "BR4bcdfc816ded",
+    "cpu_min": 30.0,
+    "family": "question:missed_winner",
+    "question": "Q6e8267cda139",
+    "repeat": 0,
+    "stage": "STAGE2_STRONGER_TESTS"
+   },
+   "priority": 2,
+   "seed": 3,
+   "snapshot_id": ""
+  },
+  "state": "DONE",
+  "worker": "w24760"
+ },
  "1ffecf1e53770013cdc3": {
   "attempts": 1,
   "batch_scale": 1.0,
@@ -1090,6 +1138,54 @@
   },
   "state": "PENDING",
   "worker": null
+ },
+ "207c892e3d8e03f3c8e1": {
+  "attempts": 1,
+  "batch_scale": 1.0,
+  "code_hash": "be1414a816a6c370",
+  "est_gb": 0.8,
+  "heartbeat": 1790746736.0569324,
+  "history": [
+   [
+    1518134400.0,
+    "PENDING",
+    "submitted"
+   ],
+   [
+    1518134400.0,
+    "RUNNING",
+    "attempt 1 by w24760"
+   ],
+   [
+    1790746736.228524,
+    "DONE",
+    "result b3a64b652b69e67f78e8"
+   ]
+  ],
+  "launched": null,
+  "not_before": null,
+  "result_hash": "b3a64b652b69e67f78e8",
+  "runs": [],
+  "spec": {
+   "after": [],
+   "as_of": "2018-02-09",
+   "data_hash": "",
+   "est_gb": 0.8,
+   "name": "BR4bb9120f9f6b_s1",
+   "params": {
+    "branch": "BR4bb9120f9f6b",
+    "cpu_min": 20.0,
+    "family": "question:missed_winner",
+    "question": "Q1bbefc7f00ac",
+    "repeat": 0,
+    "stage": "STAGE1_CHEAP_SCREEN"
+   },
+   "priority": 1,
+   "seed": 3,
+   "snapshot_id": ""
+  },
+  "state": "DONE",
+  "worker": "w24760"
  },
  "215ba51898aee5c4d933": {
   "attempts": 1,
@@ -1181,6 +1277,102 @@
     "stage": "STAGE1_CHEAP_SCREEN"
    },
    "priority": 1,
+   "seed": 3,
+   "snapshot_id": ""
+  },
+  "state": "DONE",
+  "worker": "w24760"
+ },
+ "255c51bb71c5a81a3d1d": {
+  "attempts": 1,
+  "batch_scale": 1.0,
+  "code_hash": "be1414a816a6c370",
+  "est_gb": 0.8,
+  "heartbeat": 1790747275.0534444,
+  "history": [
+   [
+    1523577600.0,
+    "PENDING",
+    "submitted"
+   ],
+   [
+    1523577600.0,
+    "RUNNING",
+    "attempt 1 by w24760"
+   ],
+   [
+    1790747275.1932738,
+    "DONE",
+    "result b9e976ea2e9f540fd78c"
+   ]
+  ],
+  "launched": null,
+  "not_before": null,
+  "result_hash": "b9e976ea2e9f540fd78c",
+  "runs": [],
+  "spec": {
+   "after": [],
+   "as_of": "2018-04-13",
+   "data_hash": "",
+   "est_gb": 0.8,
+   "name": "BRf9027c1c51af_s1",
+   "params": {
+    "branch": "BRf9027c1c51af",
+    "cpu_min": 20.0,
+    "family": "question:missed_winner",
+    "question": "Q5ece31202df6",
+    "repeat": 0,
+    "stage": "STAGE1_CHEAP_SCREEN"
+   },
+   "priority": 1,
+   "seed": 3,
+   "snapshot_id": ""
+  },
+  "state": "DONE",
+  "worker": "w24760"
+ },
+ "295259892ed7f6c46909": {
+  "attempts": 1,
+  "batch_scale": 1.0,
+  "code_hash": "be1414a816a6c370",
+  "est_gb": 1.5,
+  "heartbeat": 1790747051.3672369,
+  "history": [
+   [
+    1521158400.0,
+    "PENDING",
+    "submitted"
+   ],
+   [
+    1521158400.0,
+    "RUNNING",
+    "attempt 1 by w24760"
+   ],
+   [
+    1790747051.7688289,
+    "DONE",
+    "result a97f3f05ebea7b743655"
+   ]
+  ],
+  "launched": null,
+  "not_before": null,
+  "result_hash": "a97f3f05ebea7b743655",
+  "runs": [],
+  "spec": {
+   "after": [],
+   "as_of": "2018-03-16",
+   "data_hash": "",
+   "est_gb": 1.5,
+   "name": "BRdda3dd7db371_s2",
+   "params": {
+    "branch": "BRdda3dd7db371",
+    "cpu_min": 30.0,
+    "family": "question:missed_winner",
+    "question": "Q796b07c8774c",
+    "repeat": 0,
+    "stage": "STAGE2_STRONGER_TESTS"
+   },
+   "priority": 2,
    "seed": 3,
    "snapshot_id": ""
   },
@@ -1282,6 +1474,54 @@
   },
   "state": "DONE",
   "worker": "w2776"
+ },
+ "2f9db8197af6ea993522": {
+  "attempts": 1,
+  "batch_scale": 1.0,
+  "code_hash": "be1414a816a6c370",
+  "est_gb": 0.8,
+  "heartbeat": 1790746993.5903137,
+  "history": [
+   [
+    1520553600.0,
+    "PENDING",
+    "submitted"
+   ],
+   [
+    1520553600.0,
+    "RUNNING",
+    "attempt 1 by w24760"
+   ],
+   [
+    1790746994.5721743,
+    "DONE",
+    "result 45596c23f88661767c4a"
+   ]
+  ],
+  "launched": null,
+  "not_before": null,
+  "result_hash": "45596c23f88661767c4a",
+  "runs": [],
+  "spec": {
+   "after": [],
+   "as_of": "2018-03-09",
+   "data_hash": "",
+   "est_gb": 0.8,
+   "name": "BR88580b73a29f_s1",
+   "params": {
+    "branch": "BR88580b73a29f",
+    "cpu_min": 20.0,
+    "family": "question:surprise",
+    "question": "Q400e916da41d",
+    "repeat": 0,
+    "stage": "STAGE1_CHEAP_SCREEN"
+   },
+   "priority": 1,
+   "seed": 3,
+   "snapshot_id": ""
+  },
+  "state": "DONE",
+  "worker": "w24760"
  },
  "2fc582a7f513265e17b2": {
   "attempts": 1,
@@ -1773,6 +2013,54 @@
   "state": "DONE",
   "worker": "w24760"
  },
+ "4039627f228b62d7080f": {
+  "attempts": 1,
+  "batch_scale": 1.0,
+  "code_hash": "be1414a816a6c370",
+  "est_gb": 0.8,
+  "heartbeat": 1790747050.915911,
+  "history": [
+   [
+    1521158400.0,
+    "PENDING",
+    "submitted"
+   ],
+   [
+    1521158400.0,
+    "RUNNING",
+    "attempt 1 by w24760"
+   ],
+   [
+    1790747050.9994924,
+    "DONE",
+    "result 6c15f02623d3f46de733"
+   ]
+  ],
+  "launched": null,
+  "not_before": null,
+  "result_hash": "6c15f02623d3f46de733",
+  "runs": [],
+  "spec": {
+   "after": [],
+   "as_of": "2018-03-16",
+   "data_hash": "",
+   "est_gb": 0.8,
+   "name": "BR92acd61c4654_s1",
+   "params": {
+    "branch": "BR92acd61c4654",
+    "cpu_min": 20.0,
+    "family": "question:surprise",
+    "question": "Qf8bb9388f318",
+    "repeat": 0,
+    "stage": "STAGE1_CHEAP_SCREEN"
+   },
+   "priority": 1,
+   "seed": 3,
+   "snapshot_id": ""
+  },
+  "state": "DONE",
+  "worker": "w24760"
+ },
  "4087974912a63823134a": {
   "attempts": 0,
   "batch_scale": 1.0,
@@ -2103,19 +2391,31 @@
   "worker": "w2776"
  },
  "4577b131936fc33b2a86": {
-  "attempts": 0,
+  "attempts": 1,
   "batch_scale": 1.0,
   "code_hash": "be1414a816a6c370",
   "est_gb": 3.0,
-  "heartbeat": null,
+  "heartbeat": 1790747173.0721414,
   "history": [
    [
     1505433600.0,
     "PENDING",
     "submitted"
+   ],
+   [
+    1522368000.0,
+    "RUNNING",
+    "attempt 1 by w24760"
+   ],
+   [
+    1790747173.3124719,
+    "DONE",
+    "result 50b3ed546caa1803e067"
    ]
   ],
-  "result_hash": null,
+  "launched": null,
+  "not_before": null,
+  "result_hash": "50b3ed546caa1803e067",
   "runs": [],
   "spec": {
    "after": [],
@@ -2135,8 +2435,8 @@
    "seed": 3,
    "snapshot_id": ""
   },
-  "state": "PENDING",
-  "worker": null
+  "state": "DONE",
+  "worker": "w24760"
  },
  "496846495922cfe6d225": {
   "attempts": 1,
@@ -2633,6 +2933,54 @@
   "state": "DONE",
   "worker": "w2776"
  },
+ "51534c8f809028a4d89b": {
+  "attempts": 1,
+  "batch_scale": 1.0,
+  "code_hash": "be1414a816a6c370",
+  "est_gb": 1.5,
+  "heartbeat": 1790747275.6826165,
+  "history": [
+   [
+    1523577600.0,
+    "PENDING",
+    "submitted"
+   ],
+   [
+    1523577600.0,
+    "RUNNING",
+    "attempt 1 by w24760"
+   ],
+   [
+    1790747275.9247272,
+    "DONE",
+    "result 931c1a844c5c97ac3244"
+   ]
+  ],
+  "launched": null,
+  "not_before": null,
+  "result_hash": "931c1a844c5c97ac3244",
+  "runs": [],
+  "spec": {
+   "after": [],
+   "as_of": "2018-04-13",
+   "data_hash": "",
+   "est_gb": 1.5,
+   "name": "BR29fca5d119f7_s2",
+   "params": {
+    "branch": "BR29fca5d119f7",
+    "cpu_min": 30.0,
+    "family": "question:missed_winner",
+    "question": "Q11d1263acca2",
+    "repeat": 0,
+    "stage": "STAGE2_STRONGER_TESTS"
+   },
+   "priority": 2,
+   "seed": 3,
+   "snapshot_id": ""
+  },
+  "state": "DONE",
+  "worker": "w24760"
+ },
  "539660186ee03f525fea": {
   "attempts": 1,
   "batch_scale": 1.0,
@@ -2909,6 +3257,59 @@
   "state": "DONE",
   "worker": "w2776"
  },
+ "5923a95f4be35c7b18d1": {
+  "attempts": 1,
+  "batch_scale": 1.0,
+  "code_hash": "be1414a816a6c370",
+  "est_gb": 0.8,
+  "heartbeat": 1519948800.0,
+  "history": [
+   [
+    1519948800.0,
+    "PENDING",
+    "submitted"
+   ],
+   [
+    1519948800.0,
+    "RUNNING",
+    "attempt 1 by research-loop-refusal"
+   ],
+   [
+    1519948800.0,
+    "FAILED",
+    "refused by the research loop: duplicate design of f3335a72bb on the same data"
+   ],
+   [
+    1519948800.0,
+    "PENDING",
+    "retry after FAILED"
+   ]
+  ],
+  "launched": null,
+  "not_before": null,
+  "result_hash": null,
+  "runs": [],
+  "spec": {
+   "after": [],
+   "as_of": "2018-03-02",
+   "data_hash": "",
+   "est_gb": 0.8,
+   "name": "BRa7a5063ffa40_s1",
+   "params": {
+    "branch": "BRa7a5063ffa40",
+    "cpu_min": 20.0,
+    "family": "question:surprise",
+    "question": "Q7e900e8f6183",
+    "repeat": 0,
+    "stage": "STAGE1_CHEAP_SCREEN"
+   },
+   "priority": 1,
+   "seed": 3,
+   "snapshot_id": ""
+  },
+  "state": "PENDING",
+  "worker": null
+ },
  "5a50506d279f0fa8bcc1": {
   "attempts": 1,
   "batch_scale": 1.0,
@@ -2951,6 +3352,155 @@
     "stage": "STAGE2_STRONGER_TESTS"
    },
    "priority": 2,
+   "seed": 3,
+   "snapshot_id": ""
+  },
+  "state": "DONE",
+  "worker": "w24760"
+ },
+ "5c7977cdea6066e28314": {
+  "attempts": 1,
+  "batch_scale": 1.0,
+  "code_hash": "be1414a816a6c370",
+  "est_gb": 0.8,
+  "heartbeat": 1521763200.0,
+  "history": [
+   [
+    1521763200.0,
+    "PENDING",
+    "submitted"
+   ],
+   [
+    1521763200.0,
+    "RUNNING",
+    "attempt 1 by research-loop-refusal"
+   ],
+   [
+    1521763200.0,
+    "FAILED",
+    "refused by the research loop: duplicate design of 5e02bdd62d on the same data"
+   ],
+   [
+    1521763200.0,
+    "PENDING",
+    "retry after FAILED"
+   ]
+  ],
+  "launched": null,
+  "not_before": null,
+  "result_hash": null,
+  "runs": [],
+  "spec": {
+   "after": [],
+   "as_of": "2018-03-23",
+   "data_hash": "",
+   "est_gb": 0.8,
+   "name": "BR92acd61c4654_s1",
+   "params": {
+    "branch": "BR92acd61c4654",
+    "cpu_min": 20.0,
+    "family": "question:surprise",
+    "question": "Qf8bb9388f318",
+    "repeat": 0,
+    "stage": "STAGE1_CHEAP_SCREEN"
+   },
+   "priority": 1,
+   "seed": 3,
+   "snapshot_id": ""
+  },
+  "state": "PENDING",
+  "worker": null
+ },
+ "5d50881229859f1c2a79": {
+  "attempts": 1,
+  "batch_scale": 1.0,
+  "code_hash": "be1414a816a6c370",
+  "est_gb": 0.8,
+  "heartbeat": 1790746813.8481944,
+  "history": [
+   [
+    1518739200.0,
+    "PENDING",
+    "submitted"
+   ],
+   [
+    1518739200.0,
+    "RUNNING",
+    "attempt 1 by w24760"
+   ],
+   [
+    1790746814.2144969,
+    "DONE",
+    "result 497fca74952f09f94c4d"
+   ]
+  ],
+  "launched": null,
+  "not_before": null,
+  "result_hash": "497fca74952f09f94c4d",
+  "runs": [],
+  "spec": {
+   "after": [],
+   "as_of": "2018-02-16",
+   "data_hash": "",
+   "est_gb": 0.8,
+   "name": "BR4bb9120f9f6b_s1",
+   "params": {
+    "branch": "BR4bb9120f9f6b",
+    "cpu_min": 20.0,
+    "family": "question:missed_winner",
+    "question": "Q1bbefc7f00ac",
+    "repeat": 0,
+    "stage": "STAGE1_CHEAP_SCREEN"
+   },
+   "priority": 1,
+   "seed": 3,
+   "snapshot_id": ""
+  },
+  "state": "DONE",
+  "worker": "w24760"
+ },
+ "5e02bdd62d9a6b2207b7": {
+  "attempts": 1,
+  "batch_scale": 1.0,
+  "code_hash": "be1414a816a6c370",
+  "est_gb": 0.8,
+  "heartbeat": 1790747108.569561,
+  "history": [
+   [
+    1521763200.0,
+    "PENDING",
+    "submitted"
+   ],
+   [
+    1521763200.0,
+    "RUNNING",
+    "attempt 1 by w24760"
+   ],
+   [
+    1790747109.5249288,
+    "DONE",
+    "result 8264dc67919df715d706"
+   ]
+  ],
+  "launched": null,
+  "not_before": null,
+  "result_hash": "8264dc67919df715d706",
+  "runs": [],
+  "spec": {
+   "after": [],
+   "as_of": "2018-03-23",
+   "data_hash": "",
+   "est_gb": 0.8,
+   "name": "BR29fca5d119f7_s1",
+   "params": {
+    "branch": "BR29fca5d119f7",
+    "cpu_min": 20.0,
+    "family": "question:missed_winner",
+    "question": "Q11d1263acca2",
+    "repeat": 0,
+    "stage": "STAGE1_CHEAP_SCREEN"
+   },
+   "priority": 1,
    "seed": 3,
    "snapshot_id": ""
   },
@@ -3110,6 +3660,54 @@
   },
   "state": "PENDING",
   "worker": null
+ },
+ "63ff01921718cae4f9b3": {
+  "attempts": 1,
+  "batch_scale": 1.0,
+  "code_hash": "be1414a816a6c370",
+  "est_gb": 1.5,
+  "heartbeat": 1790746994.9235413,
+  "history": [
+   [
+    1520553600.0,
+    "PENDING",
+    "submitted"
+   ],
+   [
+    1520553600.0,
+    "RUNNING",
+    "attempt 1 by w24760"
+   ],
+   [
+    1790746995.3665378,
+    "DONE",
+    "result 2b3ae888585a59e9cffe"
+   ]
+  ],
+  "launched": null,
+  "not_before": null,
+  "result_hash": "2b3ae888585a59e9cffe",
+  "runs": [],
+  "spec": {
+   "after": [],
+   "as_of": "2018-03-09",
+   "data_hash": "",
+   "est_gb": 1.5,
+   "name": "BRdda3dd7db371_s2",
+   "params": {
+    "branch": "BRdda3dd7db371",
+    "cpu_min": 30.0,
+    "family": "question:missed_winner",
+    "question": "Q796b07c8774c",
+    "repeat": 0,
+    "stage": "STAGE2_STRONGER_TESTS"
+   },
+   "priority": 2,
+   "seed": 3,
+   "snapshot_id": ""
+  },
+  "state": "DONE",
+  "worker": "w24760"
  },
  "65247e34d4d17fdfc9dd": {
   "attempts": 1,
@@ -3733,6 +4331,54 @@
   "state": "DONE",
   "worker": "w2776"
  },
+ "72cc454eb22eda5b4a5c": {
+  "attempts": 1,
+  "batch_scale": 1.0,
+  "code_hash": "be1414a816a6c370",
+  "est_gb": 0.8,
+  "heartbeat": 1790746884.4940906,
+  "history": [
+   [
+    1519344000.0,
+    "PENDING",
+    "submitted"
+   ],
+   [
+    1519344000.0,
+    "RUNNING",
+    "attempt 1 by w24760"
+   ],
+   [
+    1790746884.5824225,
+    "DONE",
+    "result a681de15830ddfe2a710"
+   ]
+  ],
+  "launched": null,
+  "not_before": null,
+  "result_hash": "a681de15830ddfe2a710",
+  "runs": [],
+  "spec": {
+   "after": [],
+   "as_of": "2018-02-23",
+   "data_hash": "",
+   "est_gb": 0.8,
+   "name": "BRdda3dd7db371_s1",
+   "params": {
+    "branch": "BRdda3dd7db371",
+    "cpu_min": 20.0,
+    "family": "question:missed_winner",
+    "question": "Q796b07c8774c",
+    "repeat": 0,
+    "stage": "STAGE1_CHEAP_SCREEN"
+   },
+   "priority": 1,
+   "seed": 3,
+   "snapshot_id": ""
+  },
+  "state": "DONE",
+  "worker": "w24760"
+ },
  "7393b39cc34eaecfaa88": {
   "attempts": 1,
   "batch_scale": 1.0,
@@ -3771,6 +4417,54 @@
     "cpu_min": 20.0,
     "family": "question:pattern_break",
     "question": "Qa3fcbef6a019",
+    "repeat": 0,
+    "stage": "STAGE1_CHEAP_SCREEN"
+   },
+   "priority": 1,
+   "seed": 3,
+   "snapshot_id": ""
+  },
+  "state": "DONE",
+  "worker": "w24760"
+ },
+ "747d1fd6c2c164e1fc1d": {
+  "attempts": 1,
+  "batch_scale": 1.0,
+  "code_hash": "be1414a816a6c370",
+  "est_gb": 0.8,
+  "heartbeat": 1790747366.7470756,
+  "history": [
+   [
+    1524787200.0,
+    "PENDING",
+    "submitted"
+   ],
+   [
+    1524787200.0,
+    "RUNNING",
+    "attempt 1 by w24760"
+   ],
+   [
+    1790747366.8570333,
+    "DONE",
+    "result f5b18f3176afcc4820bb"
+   ]
+  ],
+  "launched": null,
+  "not_before": null,
+  "result_hash": "f5b18f3176afcc4820bb",
+  "runs": [],
+  "spec": {
+   "after": [],
+   "as_of": "2018-04-27",
+   "data_hash": "",
+   "est_gb": 0.8,
+   "name": "BR70caa13ad737_s1",
+   "params": {
+    "branch": "BR70caa13ad737",
+    "cpu_min": 20.0,
+    "family": "question:new_discovery",
+    "question": "Q2a98b2110d01",
     "repeat": 0,
     "stage": "STAGE1_CHEAP_SCREEN"
    },
@@ -4402,6 +5096,102 @@
   "state": "DONE",
   "worker": "w2776"
  },
+ "893ae17234845a2727c0": {
+  "attempts": 1,
+  "batch_scale": 1.0,
+  "code_hash": "be1414a816a6c370",
+  "est_gb": 1.5,
+  "heartbeat": 1790747319.452053,
+  "history": [
+   [
+    1524182400.0,
+    "PENDING",
+    "submitted"
+   ],
+   [
+    1524182400.0,
+    "RUNNING",
+    "attempt 1 by w24760"
+   ],
+   [
+    1790747319.7627904,
+    "DONE",
+    "result d138e60481e251169dfb"
+   ]
+  ],
+  "launched": null,
+  "not_before": null,
+  "result_hash": "d138e60481e251169dfb",
+  "runs": [],
+  "spec": {
+   "after": [],
+   "as_of": "2018-04-20",
+   "data_hash": "",
+   "est_gb": 1.5,
+   "name": "BRf9027c1c51af_s2",
+   "params": {
+    "branch": "BRf9027c1c51af",
+    "cpu_min": 30.0,
+    "family": "question:missed_winner",
+    "question": "Q5ece31202df6",
+    "repeat": 0,
+    "stage": "STAGE2_STRONGER_TESTS"
+   },
+   "priority": 2,
+   "seed": 3,
+   "snapshot_id": ""
+  },
+  "state": "DONE",
+  "worker": "w24760"
+ },
+ "893b44190479576d1458": {
+  "attempts": 1,
+  "batch_scale": 1.0,
+  "code_hash": "be1414a816a6c370",
+  "est_gb": 0.8,
+  "heartbeat": 1790747173.8029351,
+  "history": [
+   [
+    1522368000.0,
+    "PENDING",
+    "submitted"
+   ],
+   [
+    1522368000.0,
+    "RUNNING",
+    "attempt 1 by w24760"
+   ],
+   [
+    1790747174.1341672,
+    "DONE",
+    "result a7145e78ecc92b5244ba"
+   ]
+  ],
+  "launched": null,
+  "not_before": null,
+  "result_hash": "a7145e78ecc92b5244ba",
+  "runs": [],
+  "spec": {
+   "after": [],
+   "as_of": "2018-03-30",
+   "data_hash": "",
+   "est_gb": 0.8,
+   "name": "BR29fca5d119f7_s1",
+   "params": {
+    "branch": "BR29fca5d119f7",
+    "cpu_min": 20.0,
+    "family": "question:missed_winner",
+    "question": "Q11d1263acca2",
+    "repeat": 0,
+    "stage": "STAGE1_CHEAP_SCREEN"
+   },
+   "priority": 1,
+   "seed": 3,
+   "snapshot_id": ""
+  },
+  "state": "DONE",
+  "worker": "w24760"
+ },
  "8b04d163adb640dbdd52": {
   "attempts": 1,
   "batch_scale": 1.0,
@@ -4615,6 +5405,59 @@
   "state": "PENDING",
   "worker": null
  },
+ "8d004245f6ff9d5ac6ea": {
+  "attempts": 1,
+  "batch_scale": 1.0,
+  "code_hash": "be1414a816a6c370",
+  "est_gb": 0.8,
+  "heartbeat": 1518739200.0,
+  "history": [
+   [
+    1518739200.0,
+    "PENDING",
+    "submitted"
+   ],
+   [
+    1518739200.0,
+    "RUNNING",
+    "attempt 1 by research-loop-refusal"
+   ],
+   [
+    1518739200.0,
+    "FAILED",
+    "refused by the research loop: duplicate design of 5d50881229 on the same data"
+   ],
+   [
+    1518739200.0,
+    "PENDING",
+    "retry after FAILED"
+   ]
+  ],
+  "launched": null,
+  "not_before": null,
+  "result_hash": null,
+  "runs": [],
+  "spec": {
+   "after": [],
+   "as_of": "2018-02-16",
+   "data_hash": "",
+   "est_gb": 0.8,
+   "name": "BR59953e11ca2f_s1",
+   "params": {
+    "branch": "BR59953e11ca2f",
+    "cpu_min": 20.0,
+    "family": "question:surprise",
+    "question": "Q0bfa91c5cca3",
+    "repeat": 0,
+    "stage": "STAGE1_CHEAP_SCREEN"
+   },
+   "priority": 1,
+   "seed": 3,
+   "snapshot_id": ""
+  },
+  "state": "PENDING",
+  "worker": null
+ },
  "8da1f26c14cccb13417c": {
   "attempts": 1,
   "batch_scale": 1.0,
@@ -4662,6 +5505,54 @@
   },
   "state": "DONE",
   "worker": "w2776"
+ },
+ "8df439bce65152b606f0": {
+  "attempts": 1,
+  "batch_scale": 1.0,
+  "code_hash": "be1414a816a6c370",
+  "est_gb": 1.5,
+  "heartbeat": 1790746736.433597,
+  "history": [
+   [
+    1518134400.0,
+    "PENDING",
+    "submitted"
+   ],
+   [
+    1518134400.0,
+    "RUNNING",
+    "attempt 1 by w24760"
+   ],
+   [
+    1790746736.9703484,
+    "DONE",
+    "result a1e566ded61080f76362"
+   ]
+  ],
+  "launched": null,
+  "not_before": null,
+  "result_hash": "a1e566ded61080f76362",
+  "runs": [],
+  "spec": {
+   "after": [],
+   "as_of": "2018-02-09",
+   "data_hash": "",
+   "est_gb": 1.5,
+   "name": "BR8d637ae01512_s2",
+   "params": {
+    "branch": "BR8d637ae01512",
+    "cpu_min": 30.0,
+    "family": "question:missed_winner",
+    "question": "Q91162d90a33b",
+    "repeat": 0,
+    "stage": "STAGE2_STRONGER_TESTS"
+   },
+   "priority": 2,
+   "seed": 3,
+   "snapshot_id": ""
+  },
+  "state": "DONE",
+  "worker": "w24760"
  },
  "8e0d50ca9f169be83997": {
   "attempts": 1,
@@ -4758,6 +5649,54 @@
   },
   "state": "DONE",
   "worker": "w2776"
+ },
+ "8fff5d2c396a42367546": {
+  "attempts": 1,
+  "batch_scale": 1.0,
+  "code_hash": "be1414a816a6c370",
+  "est_gb": 1.5,
+  "heartbeat": 1790746885.197876,
+  "history": [
+   [
+    1519344000.0,
+    "PENDING",
+    "submitted"
+   ],
+   [
+    1519344000.0,
+    "RUNNING",
+    "attempt 1 by w24760"
+   ],
+   [
+    1790746885.749725,
+    "DONE",
+    "result 4dad0e16c2853839a383"
+   ]
+  ],
+  "launched": null,
+  "not_before": null,
+  "result_hash": "4dad0e16c2853839a383",
+  "runs": [],
+  "spec": {
+   "after": [],
+   "as_of": "2018-02-23",
+   "data_hash": "",
+   "est_gb": 1.5,
+   "name": "BR4bb9120f9f6b_s2",
+   "params": {
+    "branch": "BR4bb9120f9f6b",
+    "cpu_min": 30.0,
+    "family": "question:missed_winner",
+    "question": "Q1bbefc7f00ac",
+    "repeat": 0,
+    "stage": "STAGE2_STRONGER_TESTS"
+   },
+   "priority": 2,
+   "seed": 3,
+   "snapshot_id": ""
+  },
+  "state": "DONE",
+  "worker": "w24760"
  },
  "934d33a5bf450c64ab3e": {
   "attempts": 1,
@@ -4948,6 +5887,107 @@
   },
   "state": "PENDING",
   "worker": null
+ },
+ "9731c92ce69388b6031a": {
+  "attempts": 1,
+  "batch_scale": 1.0,
+  "code_hash": "be1414a816a6c370",
+  "est_gb": 0.8,
+  "heartbeat": 1520553600.0,
+  "history": [
+   [
+    1520553600.0,
+    "PENDING",
+    "submitted"
+   ],
+   [
+    1520553600.0,
+    "RUNNING",
+    "attempt 1 by research-loop-refusal"
+   ],
+   [
+    1520553600.0,
+    "FAILED",
+    "refused by the research loop: duplicate design of 2f9db8197a on the same data"
+   ],
+   [
+    1520553600.0,
+    "PENDING",
+    "retry after FAILED"
+   ]
+  ],
+  "launched": null,
+  "not_before": null,
+  "result_hash": null,
+  "runs": [],
+  "spec": {
+   "after": [],
+   "as_of": "2018-03-09",
+   "data_hash": "",
+   "est_gb": 0.8,
+   "name": "BRe5bd24e00b8f_s1",
+   "params": {
+    "branch": "BRe5bd24e00b8f",
+    "cpu_min": 20.0,
+    "family": "question:pattern_break",
+    "question": "Q135e6c391f99",
+    "repeat": 0,
+    "stage": "STAGE1_CHEAP_SCREEN"
+   },
+   "priority": 1,
+   "seed": 3,
+   "snapshot_id": ""
+  },
+  "state": "PENDING",
+  "worker": null
+ },
+ "9837769693acd57200fc": {
+  "attempts": 1,
+  "batch_scale": 1.0,
+  "code_hash": "be1414a816a6c370",
+  "est_gb": 0.8,
+  "heartbeat": 1790747225.9921236,
+  "history": [
+   [
+    1522972800.0,
+    "PENDING",
+    "submitted"
+   ],
+   [
+    1522972800.0,
+    "RUNNING",
+    "attempt 1 by w24760"
+   ],
+   [
+    1790747226.0919251,
+    "DONE",
+    "result 18c84cbd52fc9e55826f"
+   ]
+  ],
+  "launched": null,
+  "not_before": null,
+  "result_hash": "18c84cbd52fc9e55826f",
+  "runs": [],
+  "spec": {
+   "after": [],
+   "as_of": "2018-04-06",
+   "data_hash": "",
+   "est_gb": 0.8,
+   "name": "BRf9027c1c51af_s1",
+   "params": {
+    "branch": "BRf9027c1c51af",
+    "cpu_min": 20.0,
+    "family": "question:missed_winner",
+    "question": "Q5ece31202df6",
+    "repeat": 0,
+    "stage": "STAGE1_CHEAP_SCREEN"
+   },
+   "priority": 1,
+   "seed": 3,
+   "snapshot_id": ""
+  },
+  "state": "DONE",
+  "worker": "w24760"
  },
  "98f7251ed92f1b7b0f7f": {
   "attempts": 1,
@@ -5247,6 +6287,54 @@
   "state": "DONE",
   "worker": "w2776"
  },
+ "a2135079e4e71056dccb": {
+  "attempts": 1,
+  "batch_scale": 1.0,
+  "code_hash": "be1414a816a6c370",
+  "est_gb": 1.5,
+  "heartbeat": 1790747226.5340462,
+  "history": [
+   [
+    1522972800.0,
+    "PENDING",
+    "submitted"
+   ],
+   [
+    1522972800.0,
+    "RUNNING",
+    "attempt 1 by w24760"
+   ],
+   [
+    1790747226.8594809,
+    "DONE",
+    "result 0f46ded5143b44019716"
+   ]
+  ],
+  "launched": null,
+  "not_before": null,
+  "result_hash": "0f46ded5143b44019716",
+  "runs": [],
+  "spec": {
+   "after": [],
+   "as_of": "2018-04-06",
+   "data_hash": "",
+   "est_gb": 1.5,
+   "name": "BR29fca5d119f7_s2",
+   "params": {
+    "branch": "BR29fca5d119f7",
+    "cpu_min": 30.0,
+    "family": "question:missed_winner",
+    "question": "Q11d1263acca2",
+    "repeat": 0,
+    "stage": "STAGE2_STRONGER_TESTS"
+   },
+   "priority": 2,
+   "seed": 3,
+   "snapshot_id": ""
+  },
+  "state": "DONE",
+  "worker": "w24760"
+ },
  "a290492851fa2f7f2650": {
   "attempts": 1,
   "batch_scale": 1.0,
@@ -5540,6 +6628,54 @@
   "state": "DONE",
   "worker": "w2776"
  },
+ "ac760d356be334a909b5": {
+  "attempts": 1,
+  "batch_scale": 1.0,
+  "code_hash": "be1414a816a6c370",
+  "est_gb": 1.5,
+  "heartbeat": 1790747419.0426302,
+  "history": [
+   [
+    1525392000.0,
+    "PENDING",
+    "submitted"
+   ],
+   [
+    1525392000.0,
+    "RUNNING",
+    "attempt 1 by w24760"
+   ],
+   [
+    1790747419.2240047,
+    "DONE",
+    "result 89750b0bcdc5efa9b3ea"
+   ]
+  ],
+  "launched": null,
+  "not_before": null,
+  "result_hash": "89750b0bcdc5efa9b3ea",
+  "runs": [],
+  "spec": {
+   "after": [],
+   "as_of": "2018-05-04",
+   "data_hash": "",
+   "est_gb": 1.5,
+   "name": "BR70caa13ad737_s2",
+   "params": {
+    "branch": "BR70caa13ad737",
+    "cpu_min": 30.0,
+    "family": "question:new_discovery",
+    "question": "Q2a98b2110d01",
+    "repeat": 0,
+    "stage": "STAGE2_STRONGER_TESTS"
+   },
+   "priority": 2,
+   "seed": 3,
+   "snapshot_id": ""
+  },
+  "state": "DONE",
+  "worker": "w24760"
+ },
  "ad32b994b44da45c647a": {
   "attempts": 1,
   "batch_scale": 1.0,
@@ -5588,6 +6724,102 @@
   "state": "DONE",
   "worker": "w2776"
  },
+ "b081e2f6f71746fe3c6b": {
+  "attempts": 1,
+  "batch_scale": 1.0,
+  "code_hash": "be1414a816a6c370",
+  "est_gb": 0.8,
+  "heartbeat": 1790747418.1847372,
+  "history": [
+   [
+    1525392000.0,
+    "PENDING",
+    "submitted"
+   ],
+   [
+    1525392000.0,
+    "RUNNING",
+    "attempt 1 by w24760"
+   ],
+   [
+    1790747418.8628347,
+    "DONE",
+    "result beb5eec415ef2d97fc12"
+   ]
+  ],
+  "launched": null,
+  "not_before": null,
+  "result_hash": "beb5eec415ef2d97fc12",
+  "runs": [],
+  "spec": {
+   "after": [],
+   "as_of": "2018-05-04",
+   "data_hash": "",
+   "est_gb": 0.8,
+   "name": "BR5b98a4959f31_s1",
+   "params": {
+    "branch": "BR5b98a4959f31",
+    "cpu_min": 20.0,
+    "family": "question:coverage_gap",
+    "question": "Q1bd2e408d2a3",
+    "repeat": 0,
+    "stage": "STAGE1_CHEAP_SCREEN"
+   },
+   "priority": 1,
+   "seed": 3,
+   "snapshot_id": ""
+  },
+  "state": "DONE",
+  "worker": "w24760"
+ },
+ "b16967f9fef620b36d9c": {
+  "attempts": 1,
+  "batch_scale": 1.0,
+  "code_hash": "be1414a816a6c370",
+  "est_gb": 0.8,
+  "heartbeat": 1790747319.0680573,
+  "history": [
+   [
+    1524182400.0,
+    "PENDING",
+    "submitted"
+   ],
+   [
+    1524182400.0,
+    "RUNNING",
+    "attempt 1 by w24760"
+   ],
+   [
+    1790747319.2134593,
+    "DONE",
+    "result 43e774f216c8ee90fa6f"
+   ]
+  ],
+  "launched": null,
+  "not_before": null,
+  "result_hash": "43e774f216c8ee90fa6f",
+  "runs": [],
+  "spec": {
+   "after": [],
+   "as_of": "2018-04-20",
+   "data_hash": "",
+   "est_gb": 0.8,
+   "name": "BR4bcdfc816ded_s1",
+   "params": {
+    "branch": "BR4bcdfc816ded",
+    "cpu_min": 20.0,
+    "family": "question:missed_winner",
+    "question": "Q6e8267cda139",
+    "repeat": 0,
+    "stage": "STAGE1_CHEAP_SCREEN"
+   },
+   "priority": 1,
+   "seed": 3,
+   "snapshot_id": ""
+  },
+  "state": "DONE",
+  "worker": "w24760"
+ },
  "b26de387cd1345a83499": {
   "attempts": 1,
   "batch_scale": 1.0,
@@ -5635,6 +6867,42 @@
   },
   "state": "DONE",
   "worker": "w24760"
+ },
+ "b28d23e68665b35733a0": {
+  "attempts": 0,
+  "batch_scale": 1.0,
+  "code_hash": "be1414a816a6c370",
+  "est_gb": 3.0,
+  "heartbeat": null,
+  "history": [
+   [
+    1522972800.0,
+    "PENDING",
+    "submitted"
+   ]
+  ],
+  "result_hash": null,
+  "runs": [],
+  "spec": {
+   "after": [],
+   "as_of": "2018-04-06",
+   "data_hash": "",
+   "est_gb": 3.0,
+   "name": "BR7ae01034ffb2_s4",
+   "params": {
+    "branch": "BR7ae01034ffb2",
+    "cpu_min": 120.0,
+    "family": "question:regime_change",
+    "question": "Q866a540f6f3f",
+    "repeat": 1,
+    "stage": "STAGE4_FRESH_HOLDOUT"
+   },
+   "priority": 4,
+   "seed": 3,
+   "snapshot_id": ""
+  },
+  "state": "PENDING",
+  "worker": null
  },
  "b2c979b85526476d335e": {
   "attempts": 1,
@@ -5945,6 +7213,54 @@
   "state": "RUNNING",
   "worker": "w24760"
  },
+ "bcdad0b4bb01c4f307cd": {
+  "attempts": 1,
+  "batch_scale": 1.0,
+  "code_hash": "be1414a816a6c370",
+  "est_gb": 0.8,
+  "heartbeat": 1790747366.1747713,
+  "history": [
+   [
+    1524787200.0,
+    "PENDING",
+    "submitted"
+   ],
+   [
+    1524787200.0,
+    "RUNNING",
+    "attempt 1 by w24760"
+   ],
+   [
+    1790747366.3978956,
+    "DONE",
+    "result d632a0ca7187de428d25"
+   ]
+  ],
+  "launched": null,
+  "not_before": null,
+  "result_hash": "d632a0ca7187de428d25",
+  "runs": [],
+  "spec": {
+   "after": [],
+   "as_of": "2018-04-27",
+   "data_hash": "",
+   "est_gb": 0.8,
+   "name": "BR4bcdfc816ded_s1",
+   "params": {
+    "branch": "BR4bcdfc816ded",
+    "cpu_min": 20.0,
+    "family": "question:missed_winner",
+    "question": "Q6e8267cda139",
+    "repeat": 0,
+    "stage": "STAGE1_CHEAP_SCREEN"
+   },
+   "priority": 1,
+   "seed": 3,
+   "snapshot_id": ""
+  },
+  "state": "DONE",
+  "worker": "w24760"
+ },
  "bd83fbe496064d25acef": {
   "attempts": 1,
   "batch_scale": 1.0,
@@ -6136,6 +7452,54 @@
   },
   "state": "DONE",
   "worker": "w2776"
+ },
+ "c36e751e7cd88bae7e6d": {
+  "attempts": 1,
+  "batch_scale": 1.0,
+  "code_hash": "be1414a816a6c370",
+  "est_gb": 1.5,
+  "heartbeat": 1790747367.2019827,
+  "history": [
+   [
+    1524787200.0,
+    "PENDING",
+    "submitted"
+   ],
+   [
+    1524787200.0,
+    "RUNNING",
+    "attempt 1 by w24760"
+   ],
+   [
+    1790747367.625165,
+    "DONE",
+    "result 31565bf7069ddb24f203"
+   ]
+  ],
+  "launched": null,
+  "not_before": null,
+  "result_hash": "31565bf7069ddb24f203",
+  "runs": [],
+  "spec": {
+   "after": [],
+   "as_of": "2018-04-27",
+   "data_hash": "",
+   "est_gb": 1.5,
+   "name": "BRf9027c1c51af_s2",
+   "params": {
+    "branch": "BRf9027c1c51af",
+    "cpu_min": 30.0,
+    "family": "question:missed_winner",
+    "question": "Q5ece31202df6",
+    "repeat": 0,
+    "stage": "STAGE2_STRONGER_TESTS"
+   },
+   "priority": 2,
+   "seed": 3,
+   "snapshot_id": ""
+  },
+  "state": "DONE",
+  "worker": "w24760"
  },
  "c3ece5d10ed5630cff2e": {
   "attempts": 1,
@@ -6424,6 +7788,59 @@
   },
   "state": "DONE",
   "worker": "w2776"
+ },
+ "c8b987bd8545e683f104": {
+  "attempts": 1,
+  "batch_scale": 1.0,
+  "code_hash": "be1414a816a6c370",
+  "est_gb": 0.8,
+  "heartbeat": 1521158400.0,
+  "history": [
+   [
+    1521158400.0,
+    "PENDING",
+    "submitted"
+   ],
+   [
+    1521158400.0,
+    "RUNNING",
+    "attempt 1 by research-loop-refusal"
+   ],
+   [
+    1521158400.0,
+    "FAILED",
+    "refused by the research loop: duplicate design of 4039627f22 on the same data"
+   ],
+   [
+    1521158400.0,
+    "PENDING",
+    "retry after FAILED"
+   ]
+  ],
+  "launched": null,
+  "not_before": null,
+  "result_hash": null,
+  "runs": [],
+  "spec": {
+   "after": [],
+   "as_of": "2018-03-16",
+   "data_hash": "",
+   "est_gb": 0.8,
+   "name": "BR88580b73a29f_s1",
+   "params": {
+    "branch": "BR88580b73a29f",
+    "cpu_min": 20.0,
+    "family": "question:surprise",
+    "question": "Q400e916da41d",
+    "repeat": 0,
+    "stage": "STAGE1_CHEAP_SCREEN"
+   },
+   "priority": 1,
+   "seed": 3,
+   "snapshot_id": ""
+  },
+  "state": "PENDING",
+  "worker": null
  },
  "c97020e3291061de0185": {
   "attempts": 1,
@@ -7453,6 +8870,59 @@
   "state": "DONE",
   "worker": "w24760"
  },
+ "dfe7bc617cce7a52e36c": {
+  "attempts": 1,
+  "batch_scale": 1.0,
+  "code_hash": "be1414a816a6c370",
+  "est_gb": 0.8,
+  "heartbeat": 1523577600.0,
+  "history": [
+   [
+    1523577600.0,
+    "PENDING",
+    "submitted"
+   ],
+   [
+    1523577600.0,
+    "RUNNING",
+    "attempt 1 by research-loop-refusal"
+   ],
+   [
+    1523577600.0,
+    "FAILED",
+    "refused by the research loop: duplicate design of 255c51bb71 on the same data"
+   ],
+   [
+    1523577600.0,
+    "PENDING",
+    "retry after FAILED"
+   ]
+  ],
+  "launched": null,
+  "not_before": null,
+  "result_hash": null,
+  "runs": [],
+  "spec": {
+   "after": [],
+   "as_of": "2018-04-13",
+   "data_hash": "",
+   "est_gb": 0.8,
+   "name": "BRc5890c940912_s1",
+   "params": {
+    "branch": "BRc5890c940912",
+    "cpu_min": 20.0,
+    "family": "question:new_discovery",
+    "question": "Q29bf13af1139",
+    "repeat": 0,
+    "stage": "STAGE1_CHEAP_SCREEN"
+   },
+   "priority": 1,
+   "seed": 3,
+   "snapshot_id": ""
+  },
+  "state": "PENDING",
+  "worker": null
+ },
  "dff3ecd1075b0a4c1bfc": {
   "attempts": 1,
   "batch_scale": 1.0,
@@ -8209,6 +9679,54 @@
   "state": "PENDING",
   "worker": null
  },
+ "edebf9acdf703fd67849": {
+  "attempts": 1,
+  "batch_scale": 1.0,
+  "code_hash": "be1414a816a6c370",
+  "est_gb": 1.5,
+  "heartbeat": 1790746815.2451308,
+  "history": [
+   [
+    1518739200.0,
+    "PENDING",
+    "submitted"
+   ],
+   [
+    1518739200.0,
+    "RUNNING",
+    "attempt 1 by w24760"
+   ],
+   [
+    1790746816.3154624,
+    "DONE",
+    "result 20c41443a9a531133a01"
+   ]
+  ],
+  "launched": null,
+  "not_before": null,
+  "result_hash": "20c41443a9a531133a01",
+  "runs": [],
+  "spec": {
+   "after": [],
+   "as_of": "2018-02-16",
+   "data_hash": "",
+   "est_gb": 1.5,
+   "name": "BR8d637ae01512_s2",
+   "params": {
+    "branch": "BR8d637ae01512",
+    "cpu_min": 30.0,
+    "family": "question:missed_winner",
+    "question": "Q91162d90a33b",
+    "repeat": 0,
+    "stage": "STAGE2_STRONGER_TESTS"
+   },
+   "priority": 2,
+   "seed": 3,
+   "snapshot_id": ""
+  },
+  "state": "DONE",
+  "worker": "w24760"
+ },
  "ee5346ceb4048ef10cfb": {
   "attempts": 1,
   "batch_scale": 1.0,
@@ -8357,6 +9875,102 @@
   },
   "state": "PENDING",
   "worker": null
+ },
+ "f3335a72bb4bea62364a": {
+  "attempts": 1,
+  "batch_scale": 1.0,
+  "code_hash": "be1414a816a6c370",
+  "est_gb": 0.8,
+  "heartbeat": 1790746940.699228,
+  "history": [
+   [
+    1519948800.0,
+    "PENDING",
+    "submitted"
+   ],
+   [
+    1519948800.0,
+    "RUNNING",
+    "attempt 1 by w24760"
+   ],
+   [
+    1790746940.9230044,
+    "DONE",
+    "result eb99a7542bd41810d596"
+   ]
+  ],
+  "launched": null,
+  "not_before": null,
+  "result_hash": "eb99a7542bd41810d596",
+  "runs": [],
+  "spec": {
+   "after": [],
+   "as_of": "2018-03-02",
+   "data_hash": "",
+   "est_gb": 0.8,
+   "name": "BRdda3dd7db371_s1",
+   "params": {
+    "branch": "BRdda3dd7db371",
+    "cpu_min": 20.0,
+    "family": "question:missed_winner",
+    "question": "Q796b07c8774c",
+    "repeat": 0,
+    "stage": "STAGE1_CHEAP_SCREEN"
+   },
+   "priority": 1,
+   "seed": 3,
+   "snapshot_id": ""
+  },
+  "state": "DONE",
+  "worker": "w24760"
+ },
+ "f3f572a9bf0fdc9a3e16": {
+  "attempts": 1,
+  "batch_scale": 1.0,
+  "code_hash": "be1414a816a6c370",
+  "est_gb": 1.5,
+  "heartbeat": 1790746941.648744,
+  "history": [
+   [
+    1519948800.0,
+    "PENDING",
+    "submitted"
+   ],
+   [
+    1519948800.0,
+    "RUNNING",
+    "attempt 1 by w24760"
+   ],
+   [
+    1790746942.110529,
+    "DONE",
+    "result b37f9f2b0a62013a3d17"
+   ]
+  ],
+  "launched": null,
+  "not_before": null,
+  "result_hash": "b37f9f2b0a62013a3d17",
+  "runs": [],
+  "spec": {
+   "after": [],
+   "as_of": "2018-03-02",
+   "data_hash": "",
+   "est_gb": 1.5,
+   "name": "BR4bb9120f9f6b_s2",
+   "params": {
+    "branch": "BR4bb9120f9f6b",
+    "cpu_min": 30.0,
+    "family": "question:missed_winner",
+    "question": "Q1bbefc7f00ac",
+    "repeat": 0,
+    "stage": "STAGE2_STRONGER_TESTS"
+   },
+   "priority": 2,
+   "seed": 3,
+   "snapshot_id": ""
+  },
+  "state": "DONE",
+  "worker": "w24760"
  },
  "f606387b3c3df63ce5d8": {
   "attempts": 1,
@@ -8602,6 +10216,59 @@
   },
   "state": "DONE",
   "worker": "w2776"
+ },
+ "fb9f8bb1289d971b8590": {
+  "attempts": 1,
+  "batch_scale": 1.0,
+  "code_hash": "be1414a816a6c370",
+  "est_gb": 0.8,
+  "heartbeat": 1522368000.0,
+  "history": [
+   [
+    1522368000.0,
+    "PENDING",
+    "submitted"
+   ],
+   [
+    1522368000.0,
+    "RUNNING",
+    "attempt 1 by research-loop-refusal"
+   ],
+   [
+    1522368000.0,
+    "FAILED",
+    "refused by the research loop: duplicate design of 893b441904 on the same data"
+   ],
+   [
+    1522368000.0,
+    "PENDING",
+    "retry after FAILED"
+   ]
+  ],
+  "launched": null,
+  "not_before": null,
+  "result_hash": null,
+  "runs": [],
+  "spec": {
+   "after": [],
+   "as_of": "2018-03-30",
+   "data_hash": "",
+   "est_gb": 0.8,
+   "name": "BR0653d3a3cd17_s1",
+   "params": {
+    "branch": "BR0653d3a3cd17",
+    "cpu_min": 20.0,
+    "family": "question:new_discovery",
+    "question": "Q7c1b795cd355",
+    "repeat": 0,
+    "stage": "STAGE1_CHEAP_SCREEN"
+   },
+   "priority": 1,
+   "seed": 3,
+   "snapshot_id": ""
+  },
+  "state": "PENDING",
+  "worker": null
  },
  "ffbf24cc4eb2c8ecfc4e": {
   "attempts": 1,

@@ -1,0 +1,125 @@
+{
+ "cycle": 22,
+ "now": "2017-05-26",
+ "label": "IMPLEMENTED - NOT VALIDATED",
+ "counters": {
+  "outcomes": 21,
+  "errors": 21,
+  "expectations": 21
+ },
+ "ledgers": {
+  "expectations": 21,
+  "outcomes": 21,
+  "errors": 21,
+  "commitments": 21,
+  "pipeline_events": 169,
+  "pipeline_furthest": {
+   "CLASSIFIED": 21,
+   "REJECTED": 16
+  }
+ },
+ "calibration": {
+  "now": "2017-05-12",
+  "target": {
+   "tolerance": 0.01,
+   "goal_share": 0.8,
+   "min_n": 200,
+   "min_oos_n": 100,
+   "level": 0.95,
+   "name": "pm1pp_80"
+  },
+  "status": "INSUFFICIENT_SAMPLE",
+  "n_committed": 21,
+  "n_matured": 21,
+  "n_resolved": 21,
+  "n_unresolved": 0,
+  "all_": {
+   "n": 21,
+   "hits": 1,
+   "share": 0.047619047619047616,
+   "lo": 0.008455987809826399,
+   "hi": 0.22669360074122563,
+   "boot_lo": 0.0,
+   "boot_hi": 0.14285714285714285
+  },
+  "oos": {
+   "n": 21,
+   "hits": 1,
+   "share": 0.047619047619047616,
+   "lo": 0.008455987809826399,
+   "hi": 0.22669360074122563,
+   "boot_lo": 0.0,
+   "boot_hi": 0.14285714285714285
+  },
+  "resolved_only": {
+   "n": 21,
+   "hits": 1,
+   "share": 0.047619047619047616,
+   "lo": 0.008455987809826399,
+   "hi": 0.22669360074122563,
+   "boot_lo": 0.0,
+   "boot_hi": 0.14285714285714285
+  },
+  "bias": 0.0004650694739836121,
+  "mae": 0.09463983807082593,
+  "naive_share": 0.05555555555555555,
+  "required_n": null,
+  "abuses": [],
+  "by_cohort": [
+   [
+    "-",
+    {
+     "n": 21,
+     "hits": 1,
+     "share": 0.047619047619047616,
+     "lo": 0.008455987809826399,
+     "hi": 0.22669360074122563,
+     "boot_lo": 0.0,
+     "boot_hi": 0.14285714285714285
+    }
+   ]
+  ],
+  "headline": "4.8% of 21 matured predictions landed within +-1pp of the committed prediction (95% CI 0.8%-22.7%); out of sample 4.8% of 21 (CI 0.8%-22.7%, block bootstrap 0.0%-14.3%). Goal 80%: sample too small to judge (need 200 overall and 100 out of sample). A no-skill median forecast scores 5.6% on the same sample."
+ },
+ "influence": {
+  "mom_r20_top": 1.0,
+  "rev_r5_bottom": 1.0,
+  "vol_top": 1.0
+ },
+ "verdicts": {},
+ "guard": {},
+ "production": {
+  "name": "incumbent",
+  "since": "",
+  "window_share": 1.0,
+  "extra_features": []
+ },
+ "regime_records": [],
+ "identification": null,
+ "stage_runs": [
+  {
+   "cycle": 22,
+   "now": "2017-05-26",
+   "stage": "c68.selection_policy",
+   "in": 3540,
+   "out": 1,
+   "note": "policy L0ea1ccf4 (threshold -0.0058); gain model fitted n=3540 base in-band 0.151; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00"
+  },
+  {
+   "cycle": 22,
+   "now": "2017-05-26",
+   "stage": "c68.expectations",
+   "in": 60,
+   "out": 0,
+   "note": "no position on 2017-05-26: {'NOT_PREDICTED_MOVER': 54, 'OUT_OF_BAND': 6}"
+  },
+  {
+   "cycle": 22,
+   "now": "2017-05-26",
+   "stage": "c68.outcomes_errors",
+   "in": 0,
+   "out": 0,
+   "note": "0 exit(s) by the learned policy, 0 error report(s), 0 unreconstructable, 60 candidate gain(s) resolved"
+  }
+ ]
+}

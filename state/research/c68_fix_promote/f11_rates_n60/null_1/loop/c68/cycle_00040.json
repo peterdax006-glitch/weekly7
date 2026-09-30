@@ -1,0 +1,192 @@
+{
+ "cycle": 40,
+ "now": "2017-09-29",
+ "label": "IMPLEMENTED - NOT VALIDATED",
+ "counters": {
+  "outcomes": 8,
+  "errors": 8,
+  "expectations": 12
+ },
+ "ledgers": {
+  "expectations": 12,
+  "outcomes": 8,
+  "errors": 8,
+  "commitments": 12,
+  "pipeline_events": 192,
+  "pipeline_furthest": {
+   "EXPECTATION": 4,
+   "CLASSIFIED": 8,
+   "REJECTED": 36
+  }
+ },
+ "calibration": {
+  "now": "2017-09-29",
+  "target": {
+   "tolerance": 0.01,
+   "goal_share": 0.8,
+   "min_n": 200,
+   "min_oos_n": 100,
+   "level": 0.95,
+   "name": "pm1pp_80"
+  },
+  "status": "INSUFFICIENT_SAMPLE",
+  "n_committed": 8,
+  "n_matured": 8,
+  "n_resolved": 8,
+  "n_unresolved": 0,
+  "all_": {
+   "n": 8,
+   "hits": 0,
+   "share": 0.0,
+   "lo": 0.0,
+   "hi": 0.32440756488388023,
+   "boot_lo": 0.0,
+   "boot_hi": 0.0
+  },
+  "oos": {
+   "n": 8,
+   "hits": 0,
+   "share": 0.0,
+   "lo": 0.0,
+   "hi": 0.32440756488388023,
+   "boot_lo": 0.0,
+   "boot_hi": 0.0
+  },
+  "resolved_only": {
+   "n": 8,
+   "hits": 0,
+   "share": 0.0,
+   "lo": 0.0,
+   "hi": 0.32440756488388023,
+   "boot_lo": 0.0,
+   "boot_hi": 0.0
+  },
+  "bias": 0.06793558412279085,
+  "mae": 0.11403242710299777,
+  "naive_share": 0.0,
+  "required_n": null,
+  "abuses": [],
+  "by_cohort": [
+   [
+    "-",
+    {
+     "n": 8,
+     "hits": 0,
+     "share": 0.0,
+     "lo": 0.0,
+     "hi": 0.32440756488388023,
+     "boot_lo": 0.0,
+     "boot_hi": 0.0
+    }
+   ]
+  ],
+  "headline": "0.0% of 8 matured predictions landed within +-1pp of the committed prediction (95% CI 0.0%-32.4%); out of sample 0.0% of 8 (CI 0.0%-32.4%, block bootstrap 0.0%-0.0%). Goal 80%: sample too small to judge (need 200 overall and 100 out of sample). A no-skill median forecast scores 0.0% on the same sample."
+ },
+ "influence": {
+  "mom_r20_top": 1.0,
+  "rev_r5_bottom": 1.0,
+  "vol_top": 1.0
+ },
+ "verdicts": {},
+ "guard": {},
+ "production": {
+  "name": "incumbent",
+  "since": "",
+  "window_share": 1.0,
+  "extra_features": []
+ },
+ "regime_records": [],
+ "identification": {
+  "periods": 4,
+  "trend": {
+   "n_periods": 1,
+   "slope": null,
+   "se": null,
+   "improving": null
+  },
+  "rows": [
+   {
+    "period": "2016Q4",
+    "n_candidates": 120,
+    "n_selected": 0,
+    "base_rate": 0.16666666666666666,
+    "precision": NaN,
+    "precision_lo": NaN,
+    "precision_hi": NaN,
+    "recall": 0.0,
+    "lift": NaN,
+    "pending": 0
+   },
+   {
+    "period": "2017Q1",
+    "n_candidates": 780,
+    "n_selected": 0,
+    "base_rate": 0.1423076923076923,
+    "precision": NaN,
+    "precision_lo": NaN,
+    "precision_hi": NaN,
+    "recall": 0.0,
+    "lift": NaN,
+    "pending": 0
+   },
+   {
+    "period": "2017Q2",
+    "n_candidates": 780,
+    "n_selected": 0,
+    "base_rate": 0.1564102564102564,
+    "precision": NaN,
+    "precision_lo": NaN,
+    "precision_hi": NaN,
+    "recall": 0.0,
+    "lift": NaN,
+    "pending": 0
+   },
+   {
+    "period": "2017Q3",
+    "n_candidates": 660,
+    "n_selected": 8,
+    "base_rate": 0.16363636363636364,
+    "precision": 0.125,
+    "precision_lo": 0.02241690886329617,
+    "precision_hi": 0.4708948057698615,
+    "recall": 0.009259259259259259,
+    "lift": 0.7638888888888888,
+    "pending": 0
+   }
+  ]
+ },
+ "stage_runs": [
+  {
+   "cycle": 40,
+   "now": "2017-09-29",
+   "stage": "c68.selection_policy",
+   "in": 4000,
+   "out": 1,
+   "note": "policy Ld961c786 (threshold 0.0013); gain model fitted n=4000 base in-band 0.136; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00"
+  },
+  {
+   "cycle": 40,
+   "now": "2017-09-29",
+   "stage": "c68.expectations",
+   "in": 4,
+   "out": 4,
+   "note": "4 expectation(s) frozen before the 2017-10-02 fill"
+  },
+  {
+   "cycle": 40,
+   "now": "2017-09-29",
+   "stage": "c68.outcomes_errors",
+   "in": 3,
+   "out": 3,
+   "note": "3 exit(s) by the learned policy, 3 error report(s), 0 unreconstructable, 60 candidate gain(s) resolved"
+  },
+  {
+   "cycle": 40,
+   "now": "2017-09-29",
+   "stage": "c68.validate_promote",
+   "in": 2340,
+   "out": 4,
+   "note": "4 fix(es) tested alone and gated; deterioration: no (MAE 0.0721 -> 0.0657, p=0.992); promoted [] (0 applied); production incumbent; rolled back 0"
+  }
+ ]
+}

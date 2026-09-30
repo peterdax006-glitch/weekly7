@@ -1,0 +1,125 @@
+{
+ "cycle": 74,
+ "now": "2018-05-25",
+ "label": "IMPLEMENTED - NOT VALIDATED",
+ "counters": {
+  "expectations": 76,
+  "outcomes": 76,
+  "errors": 76
+ },
+ "ledgers": {
+  "expectations": 76,
+  "outcomes": 76,
+  "errors": 76,
+  "commitments": 76,
+  "pipeline_events": 652,
+  "pipeline_furthest": {
+   "CLASSIFIED": 76,
+   "REJECTED": 68
+  }
+ },
+ "calibration": {
+  "now": "2018-05-11",
+  "target": {
+   "tolerance": 0.01,
+   "goal_share": 0.8,
+   "min_n": 200,
+   "min_oos_n": 100,
+   "level": 0.95,
+   "name": "pm1pp_80"
+  },
+  "status": "INSUFFICIENT_SAMPLE",
+  "n_committed": 76,
+  "n_matured": 76,
+  "n_resolved": 76,
+  "n_unresolved": 0,
+  "all_": {
+   "n": 76,
+   "hits": 4,
+   "share": 0.05263157894736842,
+   "lo": 0.020655429299384284,
+   "hi": 0.12765672575889647,
+   "boot_lo": 0.013157894736842105,
+   "boot_hi": 0.09210526315789473
+  },
+  "oos": {
+   "n": 76,
+   "hits": 4,
+   "share": 0.05263157894736842,
+   "lo": 0.020655429299384284,
+   "hi": 0.12765672575889647,
+   "boot_lo": 0.013157894736842105,
+   "boot_hi": 0.10526315789473684
+  },
+  "resolved_only": {
+   "n": 76,
+   "hits": 4,
+   "share": 0.05263157894736842,
+   "lo": 0.020655429299384284,
+   "hi": 0.12765672575889647,
+   "boot_lo": 0.013157894736842105,
+   "boot_hi": 0.09243421052631548
+  },
+  "bias": -0.004136323693981411,
+  "mae": 0.09593464473265534,
+  "naive_share": 0.014492753623188406,
+  "required_n": null,
+  "abuses": [],
+  "by_cohort": [
+   [
+    "-",
+    {
+     "n": 76,
+     "hits": 4,
+     "share": 0.05263157894736842,
+     "lo": 0.020655429299384284,
+     "hi": 0.12765672575889647,
+     "boot_lo": 0.013157894736842105,
+     "boot_hi": 0.10526315789473684
+    }
+   ]
+  ],
+  "headline": "5.3% of 76 matured predictions landed within +-1pp of the committed prediction (95% CI 2.1%-12.8%); out of sample 5.3% of 76 (CI 2.1%-12.8%, block bootstrap 1.3%-10.5%). Goal 80%: sample too small to judge (need 200 overall and 100 out of sample). A no-skill median forecast scores 1.4% on the same sample."
+ },
+ "influence": {
+  "mom_r20_top": 1.0,
+  "rev_r5_bottom": 1.0,
+  "vol_top": 1.0
+ },
+ "verdicts": {},
+ "guard": {},
+ "production": {
+  "name": "incumbent",
+  "since": "",
+  "window_share": 1.0,
+  "extra_features": []
+ },
+ "regime_records": [],
+ "identification": null,
+ "stage_runs": [
+  {
+   "cycle": 74,
+   "now": "2018-05-25",
+   "stage": "c68.selection_policy",
+   "in": 4000,
+   "out": 1,
+   "note": "policy L38a32377 (threshold -0.0073); gain model fitted n=4000 base in-band 0.149; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00"
+  },
+  {
+   "cycle": 74,
+   "now": "2018-05-25",
+   "stage": "c68.expectations",
+   "in": 59,
+   "out": 0,
+   "note": "no position on 2018-05-25: {'NOT_PREDICTED_MOVER': 53, 'OUT_OF_BAND': 6}"
+  },
+  {
+   "cycle": 74,
+   "now": "2018-05-25",
+   "stage": "c68.outcomes_errors",
+   "in": 0,
+   "out": 0,
+   "note": "0 exit(s) by the learned policy, 0 error report(s), 0 unreconstructable, 59 candidate gain(s) resolved"
+  }
+ ]
+}

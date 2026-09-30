@@ -288,6 +288,97 @@
    "knowledge": [],
    "failed": {},
    "counters": {}
+  },
+  {
+   "cycle": 39,
+   "now": "2018-02-09",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 40,
+   "now": "2018-02-16",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 41,
+   "now": "2018-02-23",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 42,
+   "now": "2018-03-02",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 43,
+   "now": "2018-03-09",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 44,
+   "now": "2018-03-16",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 45,
+   "now": "2018-03-23",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 46,
+   "now": "2018-03-30",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 47,
+   "now": "2018-04-06",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 48,
+   "now": "2018-04-13",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 49,
+   "now": "2018-04-20",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 50,
+   "now": "2018-04-27",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 51,
+   "now": "2018-05-04",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
   }
  ],
  "provenance": {
@@ -393,7 +484,7 @@
  },
  "gates": {},
  "knowledge": {},
- "seconds": 2411.1,
+ "seconds": 4249.0,
  "truth": {
   "genuine": [
    "lv20",

@@ -1,0 +1,36 @@
+{
+ "null": {
+  "n": 6,
+  "promote_rate": 0.0,
+  "promoted_seeds": [],
+  "any_other_fix_promoted": 0,
+  "rollback_rate": 0.0,
+  "first_promote": [],
+  "last_verdicts": {
+   "FAILED": 6
+  },
+  "stage_failures": 0
+ },
+ "planted": {
+  "n": 6,
+  "promote_rate": 0.5,
+  "promoted_seeds": [
+   0,
+   3,
+   4
+  ],
+  "any_other_fix_promoted": 0,
+  "rollback_rate": 0.0,
+  "first_promote": [
+   "2019-05-10",
+   "2019-08-30",
+   "2020-01-17"
+  ],
+  "last_verdicts": {
+   "FAILED": 3,
+   "NEEDS_MORE_EVIDENCE": 2,
+   "QUARANTINED": 1
+  },
+  "stage_failures": 0
+ }
+}
