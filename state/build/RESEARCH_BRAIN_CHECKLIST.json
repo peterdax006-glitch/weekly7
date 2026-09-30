@@ -804,12 +804,20 @@
    "status": "IN_PROGRESS",
    "code_paths": [
     "engine/fv_pipeline.py::synthetic_bars",
+    "engine/research/evidence.py",
+    "engine/research/loop.py",
     "tests/test_fv_pipeline.py",
     "tests/test_pattern_movers.py"
    ],
-   "tests": [],
-   "evidence": [],
-   "notes": "[mapping 2026-09-29, read-only audit] Synthetic event/mover worlds exist for the mover model; no planted volatility world run through a volatility LAB with competing hypotheses."
+   "tests": [
+    "tests/test_regate_sequential.py"
+   ],
+   "evidence": [
+    "state/research/regate_sequential/SUMMARY_final_loops.md"
+   ],
+   "notes": "IN_PROGRESS (30 Sep): full loop at DEFAULT settings on the final code files genuine volatility knowledge on 4/6 planted seeds (47-109 cycles), 0 false; 2 seeds end at NEEDS_MORE_EVIDENCE. Not all seeds pass yet (F14 on December looks and the failure-episode floor). | earlier: [mapping 2026-09-29, read-only audit] Synthetic event/mover worlds exist for the mover model; no planted volatility world run through a volatility LAB with competing hypotheses.",
+   "last_run": "2026-09-30T03:15:29",
+   "code_hash": "c53be43f67f8c296"
   },
   {
    "id": "RT04",
@@ -848,11 +856,20 @@
    "code_paths": [
     "engine/learning/meta_learning.py::null_control",
     "engine/learning/missed_winners.py::null_control",
-    "engine/planted.py"
+    "engine/planted.py",
+    "engine/research/evidence.py"
    ],
-   "tests": [],
-   "evidence": [],
-   "notes": "[mapping 2026-09-29, read-only audit] Null/shuffled controls exist per module; no end-to-end null world for the research brain."
+   "tests": [
+    "tests/test_c68_fix_promote.py",
+    "tests/test_f13_stale_promotion.py",
+    "tests/test_regate_sequential.py"
+   ],
+   "evidence": [
+    "state/research/regate_sequential/SUMMARY_final_loops.md"
+   ],
+   "notes": "IN_PROGRESS (30 Sep): null worlds produced no knowledge in 3/3 full default loops (129 cycles each); sequential gate 0/21 coincidence/null promoted (F12); C68 fixes null 0/6 (F11, F13). Awaiting the C69 independent-proof phase before VALIDATED. | earlier: [mapping 2026-09-29, read-only audit] Null/shuffled controls exist per module; no end-to-end null world for the research brain.",
+   "last_run": "2026-09-30T03:15:30",
+   "code_hash": "c53be43f67f8c296"
   },
   {
    "id": "RT07",
@@ -1077,11 +1094,17 @@
    "owner": "Claude",
    "status": "IN_PROGRESS",
    "code_paths": [
+    "engine/research/evidence.py",
+    "engine/research/quality_gate.py",
     "tests/test_learning_promotion.py"
    ],
    "tests": [],
-   "evidence": [],
-   "notes": "[mapping 2026-09-29, read-only audit] Ten gates tested; C66 calibration/complexity/failure gates and QUARANTINED/NEEDS_MORE_EVIDENCE outcomes missing."
+   "evidence": [
+    "state/research/regate_sequential/SUMMARY_final_loops.md"
+   ],
+   "notes": "IN_PROGRESS (30 Sep): every item filed in the final-code loops passed the real gate with OOS evidence (sequential alpha-spending plan); no forced verdicts. | earlier: [mapping 2026-09-29, read-only audit] Ten gates tested; C66 calibration/complexity/failure gates and QUARANTINED/NEEDS_MORE_EVIDENCE outcomes missing.",
+   "last_run": "2026-09-30T03:15:30",
+   "code_hash": "c53be43f67f8c296"
   },
   {
    "id": "RS01",
@@ -1562,12 +1585,20 @@
    "owner": "Claude",
    "status": "IN_PROGRESS",
    "code_paths": [
+    "engine/improve.py",
     "engine/learning/promotion.py",
-    "engine/improve.py"
+    "engine/research/evidence.py",
+    "engine/research/loop.py"
    ],
-   "tests": [],
-   "evidence": [],
-   "notes": "[mapping 2026-09-29, read-only audit] Gate runs only when claims_learning=True, which no challenger sets (INTEGRATION_AUDIT)."
+   "tests": [
+    "tests/test_regate_sequential.py"
+   ],
+   "evidence": [
+    "state/research/regate_sequential/SUMMARY_final_loops.md"
+   ],
+   "notes": "IN_PROGRESS (30 Sep): full loop at DEFAULT settings on the final code files genuine volatility knowledge on 4/6 planted seeds (47-109 cycles), 0 false; 2 seeds end at NEEDS_MORE_EVIDENCE. Not all seeds pass yet (F14 on December looks and the failure-episode floor). | earlier: [mapping 2026-09-29, read-only audit] Gate runs only when claims_learning=True, which no challenger sets (INTEGRATION_AUDIT).",
+   "last_run": "2026-09-30T03:15:29",
+   "code_hash": "c53be43f67f8c296"
   },
   {
    "id": "RA15",
@@ -1725,11 +1756,17 @@
    "owner": "Claude",
    "status": "IN_PROGRESS",
    "code_paths": [
-    "engine/learning/promotion.py::gate_oos_confirmation"
+    "engine/learning/promotion.py::gate_oos_confirmation",
+    "engine/research/evidence.py",
+    "engine/research/quality_gate.py"
    ],
    "tests": [],
-   "evidence": [],
-   "notes": "[mapping 2026-09-29, read-only audit] Gate exists; nothing has been promoted."
+   "evidence": [
+    "state/research/regate_sequential/SUMMARY_final_loops.md"
+   ],
+   "notes": "IN_PROGRESS (30 Sep): every item filed in the final-code loops passed the real gate with OOS evidence (sequential alpha-spending plan); no forced verdicts. | earlier: [mapping 2026-09-29, read-only audit] Gate exists; nothing has been promoted.",
+   "last_run": "2026-09-30T03:15:30",
+   "code_hash": "c53be43f67f8c296"
   },
   {
    "id": "RG07",
