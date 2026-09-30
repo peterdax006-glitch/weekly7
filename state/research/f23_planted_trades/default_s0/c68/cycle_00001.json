@@ -5,7 +5,7 @@
  "counters": {
   "outcomes": 0,
   "errors": 0,
-  "market_reports_sent": 8
+  "market_reports_sent": 1
  },
  "ledgers": {
   "expectations": 0,
@@ -73,12 +73,12 @@
  },
  "influence": {
   "mom_r20_top": 1.0,
-  "rev_r5_bottom": 1.0,
+  "rev_r5_bottom": 0.5,
   "vol_top": 1.0
  },
  "verdicts": {
-  "mom_r20_top": "RETURNING",
-  "rev_r5_bottom": "NORMAL_VARIANCE",
+  "mom_r20_top": "STRENGTHENING",
+  "rev_r5_bottom": "REGIME_SPECIFIC_FAILURE",
   "vol_top": "NORMAL_VARIANCE"
  },
  "guard": {
@@ -99,33 +99,33 @@
    "cycle": 1,
    "now": "2017-05-19",
    "stage": "c68.selection_policy",
-   "in": 2657,
+   "in": 2609,
    "out": 1,
-   "note": "policy L438cb078 (threshold -0.0041); gain model fitted n=2657 base in-band 0.075; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00"
+   "note": "policy L44261191 (threshold -0.0004); gain model fitted n=2609 base in-band 0.062; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00"
   },
   {
    "cycle": 1,
    "now": "2017-05-19",
    "stage": "c68.expectations",
-   "in": 44,
+   "in": 45,
    "out": 0,
-   "note": "no position on 2017-05-19: {'NOT_PREDICTED_MOVER': 39, 'LOW_CONFIDENCE': 5}"
+   "note": "no position on 2017-05-19: {'NOT_PREDICTED_MOVER': 40, 'SHORT_DISABLED': 4, 'LOW_CONFIDENCE': 1}"
   },
   {
    "cycle": 1,
    "now": "2017-05-19",
    "stage": "c68.market_regime",
    "in": 6,
-   "out": 0,
-   "note": "5 session(s), 0 alarm(s), warning NONE (NONE); 1 market period(s); regime records +0, status changes []"
+   "out": 2,
+   "note": "5 session(s), 2 alarm(s), warning WARNING (MARKET_WIDE_REGIME_CHANGE); 1 market period(s); regime records +0, status changes []"
   },
   {
    "cycle": 1,
    "now": "2017-05-19",
    "stage": "c68.pattern_change",
    "in": 3,
-   "out": 0,
-   "note": "verdicts {'RETURNING': 1, 'NORMAL_VARIANCE': 2}; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00; regime none; 0 to investigate"
+   "out": 1,
+   "note": "verdicts {'STRENGTHENING': 1, 'REGIME_SPECIFIC_FAILURE': 1, 'NORMAL_VARIANCE': 1}; influence mom_r20_top=1.00, rev_r5_bottom=0.50, vol_top=1.00; regime none; 1 to investigate"
   },
   {
    "cycle": 1,

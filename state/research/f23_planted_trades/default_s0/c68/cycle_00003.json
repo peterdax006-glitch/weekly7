@@ -5,18 +5,15 @@
  "counters": {
   "outcomes": 0,
   "errors": 0,
-  "market_reports_sent": 8,
-  "expectations": 2
+  "market_reports_sent": 1
  },
  "ledgers": {
-  "expectations": 2,
+  "expectations": 0,
   "outcomes": 0,
   "errors": 0,
-  "commitments": 2,
-  "pipeline_events": 4,
-  "pipeline_furthest": {
-   "EXPECTATION": 2
-  }
+  "commitments": 0,
+  "pipeline_events": 0,
+  "pipeline_furthest": {}
  },
  "calibration": {
   "now": "2017-05-12",
@@ -80,9 +77,9 @@
   "vol_top": 1.0
  },
  "verdicts": {
-  "mom_r20_top": "RETURNING",
+  "mom_r20_top": "STRENGTHENING",
   "rev_r5_bottom": "NORMAL_VARIANCE",
-  "vol_top": "NOISE"
+  "vol_top": "NORMAL_VARIANCE"
  },
  "guard": {
   "mom_r20_top": "KEEP",
@@ -102,25 +99,25 @@
    "cycle": 3,
    "now": "2017-06-02",
    "stage": "c68.selection_policy",
-   "in": 2746,
+   "in": 2699,
    "out": 1,
-   "note": "policy Laf17e78b (threshold -0.0016); gain model fitted n=2746 base in-band 0.067; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00"
+   "note": "policy Le5086f3d (threshold -0.0008); gain model fitted n=2699 base in-band 0.068; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00"
   },
   {
    "cycle": 3,
    "now": "2017-06-02",
    "stage": "c68.expectations",
-   "in": 2,
-   "out": 2,
-   "note": "2 expectation(s) frozen before the 2017-06-05 fill"
+   "in": 45,
+   "out": 0,
+   "note": "no position on 2017-06-02: {'NOT_PREDICTED_MOVER': 40, 'LOW_CONFIDENCE': 3, 'SHORT_DISABLED': 2}"
   },
   {
    "cycle": 3,
    "now": "2017-06-02",
    "stage": "c68.market_regime",
    "in": 6,
-   "out": 2,
-   "note": "5 session(s), 2 alarm(s), warning WARNING (MARKET_WIDE_REGIME_CHANGE); 1 market period(s); regime records +0, status changes []"
+   "out": 1,
+   "note": "5 session(s), 1 alarm(s), warning NONE (SINGLE_STOCK_ANOMALY); 1 market period(s); regime records +0, status changes []"
   },
   {
    "cycle": 3,
@@ -128,7 +125,7 @@
    "stage": "c68.pattern_change",
    "in": 3,
    "out": 0,
-   "note": "verdicts {'RETURNING': 1, 'NORMAL_VARIANCE': 1, 'NOISE': 1}; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00; regime none; 0 to investigate"
+   "note": "verdicts {'STRENGTHENING': 1, 'NORMAL_VARIANCE': 2}; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00; regime none; 0 to investigate"
   },
   {
    "cycle": 3,
@@ -136,7 +133,7 @@
    "stage": "c68.outcomes_errors",
    "in": 0,
    "out": 0,
-   "note": "0 exit(s) by the learned policy, 0 error report(s), 0 unreconstructable, 44 candidate gain(s) resolved"
+   "note": "0 exit(s) by the learned policy, 0 error report(s), 0 unreconstructable, 45 candidate gain(s) resolved"
   }
  ]
 }

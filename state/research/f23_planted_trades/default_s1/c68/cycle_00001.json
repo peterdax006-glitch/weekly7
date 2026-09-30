@@ -3,19 +3,19 @@
  "now": "2017-05-19",
  "label": "IMPLEMENTED - NOT VALIDATED",
  "counters": {
-  "expectations": 5,
+  "expectations": 2,
   "outcomes": 0,
   "errors": 0,
-  "market_reports_sent": 2
+  "market_reports_sent": 5
  },
  "ledgers": {
-  "expectations": 5,
+  "expectations": 2,
   "outcomes": 0,
   "errors": 0,
-  "commitments": 5,
-  "pipeline_events": 10,
+  "commitments": 2,
+  "pipeline_events": 4,
   "pipeline_furthest": {
-   "EXPECTATION": 5
+   "EXPECTATION": 2
   }
  },
  "calibration": {
@@ -29,7 +29,7 @@
    "name": "pm1pp_80"
   },
   "status": "EMPTY",
-  "n_committed": 2,
+  "n_committed": 1,
   "n_matured": 0,
   "n_resolved": 0,
   "n_unresolved": 0,
@@ -76,7 +76,7 @@
  "verdicts": {
   "mom_r20_top": "NORMAL_VARIANCE",
   "rev_r5_bottom": "STRENGTHENING",
-  "vol_top": "RETURNING"
+  "vol_top": "NORMAL_VARIANCE"
  },
  "guard": {
   "mom_r20_top": "KEEP",
@@ -96,17 +96,17 @@
    "cycle": 1,
    "now": "2017-05-19",
    "stage": "c68.selection_policy",
-   "in": 2701,
+   "in": 2678,
    "out": 1,
-   "note": "policy La0bb8a29 (threshold -0.0101); gain model fitted n=2701 base in-band 0.090; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00"
+   "note": "policy L5b905377 (threshold -0.0067); gain model fitted n=2678 base in-band 0.083; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00"
   },
   {
    "cycle": 1,
    "now": "2017-05-19",
    "stage": "c68.expectations",
-   "in": 3,
-   "out": 3,
-   "note": "3 expectation(s) frozen before the 2017-05-22 fill"
+   "in": 1,
+   "out": 1,
+   "note": "1 expectation(s) frozen before the 2017-05-22 fill"
   },
   {
    "cycle": 1,
@@ -114,7 +114,7 @@
    "stage": "c68.market_regime",
    "in": 6,
    "out": 1,
-   "note": "5 session(s), 1 alarm(s), warning WATCH (UNCLEAR); 1 market period(s); regime records +0, status changes []"
+   "note": "5 session(s), 1 alarm(s), warning WATCH (SINGLE_STOCK_ANOMALY); 1 market period(s); regime records +0, status changes []"
   },
   {
    "cycle": 1,
@@ -122,7 +122,7 @@
    "stage": "c68.pattern_change",
    "in": 3,
    "out": 0,
-   "note": "verdicts {'NORMAL_VARIANCE': 1, 'STRENGTHENING': 1, 'RETURNING': 1}; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00; regime none; 0 to investigate"
+   "note": "verdicts {'NORMAL_VARIANCE': 2, 'STRENGTHENING': 1}; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00; regime none; 0 to investigate"
   }
  ]
 }

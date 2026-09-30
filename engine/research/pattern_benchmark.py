@@ -882,13 +882,26 @@ def _decision_summary(rep, sid: str) -> dict:
 F28_ABLATIONS = ("no_rival", "no_name_units", "no_leak_suspect", "no_f28")
 
 
-def f28_counterfactuals(b, now, code_hash: str, look: int, plan, ecfg) -> dict[str, str]:
+def fired(ev) -> bool:
+    """Did any F28 part object to this evidence (a rival or name-units check not passing, a leak suspicion)?"""
+    from engine.research import quality_gate as QG
+    pol = QG.QualityPolicy(code_hash="cf")
+    o = ev.oos
+    if o is not None and o.statistical is not None:
+        if QG.rival_check(o.rival, pol)[0] != QG.PASS or QG.name_units_check(o.name_units, o.statistical.n_tests_searched, pol)[0] != QG.PASS:
+            return True
+    return bool(ev.leak is not None and ev.leak.suspicions)
+
+
+def f28_counterfactuals(b, now, code_hash: str, look: int, plan, ecfg, verdict: str | None = None) -> dict[str, str]:
     """Verdict of the SAME bundle with each F28 part stripped (rival check, identity units, the leak suspicion tier, all three), gated
     with a fresh quarantine store. In the final-look protocol a candidate is gated once, so these are exactly the verdicts the gate
     would have given without that fix; with several looks they are per-look attributions (ledger / retirement state is shared)."""
     from engine.research import evidence as EV
     ev = b.evidence
     o, lk = ev.oos, ev.leak
+    if verdict is not None and not fired(ev):
+        return {name: verdict for name in F28_ABLATIONS}   # no F28 part objected: stripping one cannot change the verdict
 
     def strip(rival: bool, units: bool, sus: bool):
         e = ev
@@ -974,7 +987,7 @@ def run_system(frame: pd.DataFrame, world_id: str, seed: int, cfg: BenchConfig =
                          rival=b.parts.get("rival"), rival_corr=b.parts.get("rival_corr"), increment_t=b.parts.get("increment_t"),
                          rival_increment_t=b.parts.get("rival_increment_t"), between_share=b.parts.get("between_share"),
                          name_p=b.parts.get("name_p"), leak_suspicions=b.parts.get("leak_suspicions"),
-                         cf=f28_counterfactuals(b, now, code_hash, k, plan, ecfg))
+                         cf=f28_counterfactuals(b, now, code_hash, k, plan, ecfg, d["verdict"]))
                 cands[f]["gate"].append(d)
                 n_gated += 1
                 why = None

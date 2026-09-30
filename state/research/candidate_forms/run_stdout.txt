@@ -92,3 +92,6 @@ skipping 6 held-out seeds in the range (never generated)
 15:12:39 W00003 look 0: singles 25.5s, all: scanned 685012 propose 40.81s oriented 11.7s, early: scanned 650347 propose 20.38s oriented 12.8s
 15:15:19 W00003 look 1: singles 66.4s, all: scanned 685012 propose 41.2s oriented 12.7s, early: scanned 650347 propose 22.56s oriented 16.4s
 15:17:46 W00003 look 2: singles 54.3s, all: scanned 685012 propose 46.02s oriented 13.6s, early: scanned 685012 propose 20.7s oriented 12.6s
+15:19:32 W00003 look 3: singles 50.7s, all: scanned 685012 propose 33.47s oriented 7.2s, early: scanned 685012 propose 9.19s oriented 4.9s
+15:20:54 W00003 look 4: singles 18.8s, all: scanned 685012 propose 17.77s oriented 5.2s, early: scanned 682674 propose 20.42s oriented 20.0s
+15:20:54 W00003N done in 609.0s

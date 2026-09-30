@@ -946,7 +946,7 @@ def false_candidates(key: Mapping, names: Iterable[str]) -> dict:
 def recall_table(rows: Sequence[Mapping], stages: Sequence[str], by: Sequence[str] = ("kind", "band"),
                  detectable_only: bool = True) -> pd.DataFrame:
     """Recall per kind x band (by default only patterns whose TRUE form an oracle could detect: status != UNDETECTABLE)."""
-    R = pd.DataFrame(list(rows))
+    R = rows.copy() if isinstance(rows, pd.DataFrame) else pd.DataFrame(list(rows))
     if R.empty:
         return pd.DataFrame()
     if detectable_only and "status" in R:

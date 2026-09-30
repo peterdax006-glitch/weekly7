@@ -1,0 +1,82 @@
+{
+ "rows": [
+  {
+   "seed": 2,
+   "lift": 1.8,
+   "documented": true,
+   "feature": "ev_sched",
+   "verdict": "FAILED",
+   "leakage": "PASS",
+   "leak_detail": "audit clean and proven able to see a planted leak",
+   "blocking": [
+    "calibration"
+   ],
+   "details": {
+    "replication": "PARTIALLY_REPLICATED: requirement not met: success_share_ok",
+    "calibration": "calibration slope 0.50 (upper bound 0.68) < 0.7: overconfident"
+   },
+   "effect_test": 0.02687942522222935,
+   "leak_z": 8.251039238914327,
+   "documented_notes": 2
+  },
+  {
+   "seed": 2,
+   "lift": 1.8,
+   "documented": true,
+   "feature": "leak_03",
+   "verdict": "QUARANTINED",
+   "leakage": "QUARANTINE",
+   "leak_detail": "leak_03 knows how the coming outcome realises: within date and outcome class its rank correlation with the future magnitude is +0.145 against -0.018 with an already-known past magnitude (z = 8.4 over 305 cells): a value ",
+   "blocking": [
+    "leakage"
+   ],
+   "details": {
+    "leakage": "leak_03 knows how the coming outcome realises: within date and outcome class its rank correlation with the future magnitude is +0.145 against -0.018 with an already-known past magnitude (z = 8.4 over "
+   },
+   "effect_test": 0.1568423967028502,
+   "leak_z": 8.423223258178583,
+   "documented_notes": 0
+  },
+  {
+   "seed": 2,
+   "lift": 1.8,
+   "documented": false,
+   "feature": "ev_sched",
+   "verdict": "QUARANTINED",
+   "leakage": "QUARANTINE",
+   "leak_detail": "ev_sched knows how the coming outcome realises: within date and outcome class its rank correlation with the future magnitude is +0.199 against +0.023 with an already-known past magnitude (z = 8.3 over 266 cells): a value",
+   "blocking": [
+    "leakage"
+   ],
+   "details": {
+    "leakage": "ev_sched knows how the coming outcome realises: within date and outcome class its rank correlation with the future magnitude is +0.199 against +0.023 with an already-known past magnitude (z = 8.3 over",
+    "replication": "PARTIALLY_REPLICATED: requirement not met: success_share_ok",
+    "calibration": "calibration slope 0.50 (upper bound 0.68) < 0.7: overconfident"
+   },
+   "effect_test": 0.02687942522222935,
+   "leak_z": 8.251039238914327,
+   "documented_notes": 0
+  },
+  {
+   "seed": 2,
+   "lift": 1.8,
+   "documented": false,
+   "feature": "leak_03",
+   "verdict": "QUARANTINED",
+   "leakage": "QUARANTINE",
+   "leak_detail": "leak_03 knows how the coming outcome realises: within date and outcome class its rank correlation with the future magnitude is +0.145 against -0.018 with an already-known past magnitude (z = 8.4 over 305 cells): a value ",
+   "blocking": [
+    "leakage"
+   ],
+   "details": {
+    "leakage": "leak_03 knows how the coming outcome realises: within date and outcome class its rank correlation with the future magnitude is +0.145 against -0.018 with an already-known past magnitude (z = 8.4 over "
+   },
+   "effect_test": 0.1568423967028502,
+   "leak_z": 8.423223258178583,
+   "documented_notes": 0
+  }
+ ],
+ "code_hash": "43a242c906e0e3ec",
+ "at": "2026-09-30T15:21:36",
+ "note": "development seeds only; IMPLEMENTED - NOT VALIDATED"
+}

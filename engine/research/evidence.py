@@ -298,11 +298,20 @@ def _design(F: pd.DataFrame, spec: FindingSpec, ec: EvidenceConfig) -> tuple[pd.
 
 
 def per_date_effect(score: pd.Series, y: pd.Series, min_names: int, jitter_seed: int | None = None) -> pd.Series:
-    """Per-date rank AUC - 0.5 (dates with both classes and >= min_names finite rows). `jitter_seed` breaks score ties with a seeded
-    infinitesimal jitter (the only randomness in the measurement; reruns on seeds show it does not matter)."""
+    """Per-date rank AUC - 0.5 (dates with both classes and >= min_names finite rows). `jitter_seed` adds a seeded infinitesimal
+    jitter (the only randomness in the measurement; reruns on seeds show it does not matter).
+
+    F28: the jitter used to be drawn per ROW, so it broke exact ties at random - and a tied score's AUC under random tie-breaking is
+    a different number on every seed (the average-rank AUC only in expectation). A binary feature (a scheduled-event flag, 90% zeros)
+    then failed the reproducibility gate's across-seed spread although nothing about it was irreproducible. The jitter is now drawn per
+    DISTINCT VALUE: equal values stay equal (ties keep their average rank), distinct values are perturbed by ~1e-9."""
     s = score.to_numpy(float)
     if jitter_seed is not None:
-        s = s + np.random.default_rng(jitter_seed).normal(0, 1e-9, len(s))
+        fin = np.isfinite(s)
+        if fin.any():
+            u, inv = np.unique(s[fin], return_inverse=True)
+            s = s.copy()
+            s[fin] = s[fin] + np.random.default_rng(jitter_seed).normal(0, 1e-9, len(u))[inv]
     codes, uniq = pd.factorize(score.index.get_level_values(0), sort=True)
     yy = y.to_numpy(float)
     ok = np.isfinite(s) & np.isfinite(yy)

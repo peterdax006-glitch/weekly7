@@ -1,7 +1,7 @@
 {
  "world": "default",
  "seed": 1,
- "code_hash": "db86d3f3a9925afe",
+ "code_hash": "9b577e73132d6003",
  "resume": "START_FRESH",
  "cycles": [
   {
@@ -72,73 +72,68 @@
     "report.cycle": "OK"
    },
    "reasons": {
-    "c68.selection_policy": "policy Lb67671b1 (threshold -0.0100); gain model fitted n=2655 base in-band 0.090; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00",
+    "c68.selection_policy": "policy L169b2279 (threshold -0.0039); gain model fitted n=2634 base in-band 0.075; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00",
     "evaluate.two_stage": "gate open",
-    "c68.expectations": "2 expectation(s) frozen before the 2017-05-15 fill",
-    "c68.outcomes_errors": "2 open position(s), none resolved before now",
-    "c68.what_changed": "no newly matured error to investigate (upstream: 2 position(s) ever, 2 open, 0 matured, 0 error report(s); band gate eligible 2/46 forecast(s))",
+    "c68.expectations": "1 expectation(s) frozen before the 2017-05-15 fill",
+    "c68.outcomes_errors": "1 open position(s), none resolved before now",
+    "c68.what_changed": "no newly matured error to investigate (upstream: 1 position(s) ever, 1 open, 0 matured, 0 error report(s); band gate eligible 1/44 forecast(s))",
     "c68.error_research": "2017-05-12: 0 new errors, tiers {'NONE': 0, 'CHEAP': 0, 'STANDARD': 0, 'DEEP': 0}, 0 confident-wrong, 0 escalated groups, 0 jobs (0 cpu-min requested); 0 questi",
-    "questions.generate": "7 merged, 0 refused, 0 already answered",
+    "questions.generate": "24 merged, 0 refused, 0 already answered",
     "c68.research_depth": "3 C68 question(s) in the loop's queue, 0 damped",
     "learn.decision_bridge": "no new knowledge to route"
    },
    "positions": [
     {
-     "ticker": "W017",
+     "ticker": "W037",
      "side": 1,
-     "p_up": 0.746474802665451,
-     "gain_pred": 0.0890211565413345,
-     "run": -1
-    },
-    {
-     "ticker": "W042",
-     "side": 1,
-     "p_up": 0.7819768443561501,
-     "gain_pred": 0.061275573776186795,
+     "p_up": 0.7124046886025555,
+     "gain_pred": 0.07543305361668032,
      "run": 1
     }
    ],
    "movers": [
     {
      "ticker": "W000",
-     "reason": "OUT_OF_BAND",
-     "p_up": 0.6120715643192712,
-     "gain_pred": -0.0013596128272508918,
-     "run": 0
-    },
-    {
-     "ticker": "W009",
-     "reason": "OUT_OF_BAND",
-     "p_up": 0.7753330270546684,
-     "gain_pred": 0.048487595728034294,
-     "run": 1
-    },
-    {
-     "ticker": "W017",
-     "reason": "POSITION",
-     "p_up": 0.746474802665451,
-     "gain_pred": 0.0890211565413345,
+     "reason": "SHORT_DISABLED",
+     "p_up": 0.2690293707958161,
+     "gain_pred": NaN,
      "run": -1
     },
     {
-     "ticker": "W037",
+     "ticker": "W009",
+     "reason": "SHORT_DISABLED",
+     "p_up": 0.38835843427489575,
+     "gain_pred": NaN,
+     "run": -1
+    },
+    {
+     "ticker": "W017",
      "reason": "OUT_OF_BAND",
-     "p_up": 0.6585717778349339,
-     "gain_pred": 0.047976479083003155,
+     "p_up": 0.8016759004529677,
+     "gain_pred": 0.1608691173866166,
+     "run": 0
+    },
+    {
+     "ticker": "W025",
+     "reason": "LOW_CONFIDENCE",
+     "p_up": 0.5053328262743929,
+     "gain_pred": NaN,
      "run": 1
     },
     {
-     "ticker": "W042",
+     "ticker": "W037",
      "reason": "POSITION",
-     "p_up": 0.7819768443561501,
-     "gain_pred": 0.061275573776186795,
+     "p_up": 0.7124046886025555,
+     "gain_pred": 0.07543305361668032,
      "run": 1
     }
    ],
    "abstentions": {
-    "NOT_PREDICTED_MOVER": 41,
-    "OUT_OF_BAND": 3,
-    "POSITION": 2
+    "NOT_PREDICTED_MOVER": 39,
+    "SHORT_DISABLED": 2,
+    "OUT_OF_BAND": 1,
+    "LOW_CONFIDENCE": 1,
+    "POSITION": 1
    },
    "knowledge": []
   },
@@ -181,7 +176,7 @@
     "questions.precursors": "OK",
     "questions.targets": "SKIPPED_NO_INPUT",
     "questions.research_graph": "OK",
-    "questions.generate": "OK",
+    "questions.generate": "SKIPPED_NO_INPUT",
     "c68.research_depth": "SKIPPED_NO_INPUT",
     "hypotheses.trees": "OK",
     "gain.priority": "OK",
@@ -210,80 +205,68 @@
     "report.cycle": "OK"
    },
    "reasons": {
-    "c68.selection_policy": "policy La0bb8a29 (threshold -0.0101); gain model fitted n=2701 base in-band 0.090; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00",
+    "c68.selection_policy": "policy L5b905377 (threshold -0.0067); gain model fitted n=2678 base in-band 0.083; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00",
     "evaluate.two_stage": "gate open",
-    "c68.expectations": "3 expectation(s) frozen before the 2017-05-22 fill",
-    "c68.outcomes_errors": "5 open position(s), none resolved before now",
-    "c68.what_changed": "no newly matured error to investigate (upstream: 5 position(s) ever, 5 open, 0 matured, 0 error report(s); band gate eligible 6/92 forecast(s))",
-    "c68.error_research": "no new matured error, no new repeated surprise and no market investigation to research (upstream: 5 position(s) ever, 5 open, 0 matured, 0 error report(s); band",
-    "questions.generate": "0 merged, 0 refused, 0 already answered",
-    "c68.research_depth": "no new question from a C68 event this cycle (1 new loop question(s), 3 C68 subject(s) ever asked; upstream: 5 position(s) ever, 5 open, 0 matured, 0 error repor",
+    "c68.expectations": "1 expectation(s) frozen before the 2017-05-22 fill",
+    "c68.outcomes_errors": "2 open position(s), none resolved before now",
+    "c68.what_changed": "no newly matured error to investigate (upstream: 2 position(s) ever, 2 open, 0 matured, 0 error report(s); band gate eligible 2/88 forecast(s))",
+    "c68.error_research": "no new matured error, no new repeated surprise and no market investigation to research (upstream: 2 position(s) ever, 2 open, 0 matured, 0 error report(s); band",
+    "questions.generate": "no events or module questions this cycle",
+    "c68.research_depth": "no new question from a C68 event this cycle (0 new loop question(s), 3 C68 subject(s) ever asked; upstream: 2 position(s) ever, 2 open, 0 matured, 0 error repor",
     "learn.decision_bridge": "no new knowledge to route"
    },
    "positions": [
     {
-     "ticker": "W003",
+     "ticker": "W037",
      "side": 1,
-     "p_up": 0.8548399256224786,
-     "gain_pred": 0.053497848673492665,
+     "p_up": 0.8457098143895251,
+     "gain_pred": 0.06468672444027328,
      "run": 1
-    },
-    {
-     "ticker": "W009",
-     "side": 1,
-     "p_up": 0.8885823667463181,
-     "gain_pred": 0.07191765136816725,
-     "run": 1
-    },
-    {
-     "ticker": "W017",
-     "side": 1,
-     "p_up": 0.8444425885656089,
-     "gain_pred": 0.06750932819184041,
-     "run": 0
     }
    ],
    "movers": [
     {
-     "ticker": "W003",
-     "reason": "POSITION",
-     "p_up": 0.8548399256224786,
-     "gain_pred": 0.053497848673492665,
-     "run": 1
+     "ticker": "W000",
+     "reason": "SHORT_DISABLED",
+     "p_up": 0.2061251042095257,
+     "gain_pred": NaN,
+     "run": -1
     },
     {
      "ticker": "W009",
-     "reason": "POSITION",
-     "p_up": 0.8885823667463181,
-     "gain_pred": 0.07191765136816725,
-     "run": 1
+     "reason": "SHORT_DISABLED",
+     "p_up": 0.3630655276413906,
+     "gain_pred": NaN,
+     "run": -1
     },
     {
      "ticker": "W016",
-     "reason": "OUT_OF_BAND",
-     "p_up": 0.5875087668708291,
-     "gain_pred": 0.026772413246647947,
+     "reason": "LOW_CONFIDENCE",
+     "p_up": 0.5267890750149384,
+     "gain_pred": NaN,
      "run": 1
     },
     {
      "ticker": "W017",
-     "reason": "POSITION",
-     "p_up": 0.8444425885656089,
-     "gain_pred": 0.06750932819184041,
+     "reason": "OUT_OF_BAND",
+     "p_up": 0.8977239713523392,
+     "gain_pred": 0.1152909971104227,
      "run": 0
     },
     {
-     "ticker": "W040",
-     "reason": "OUT_OF_BAND",
-     "p_up": 0.6984404100963559,
-     "gain_pred": 0.005010601066292787,
-     "run": 0
+     "ticker": "W037",
+     "reason": "POSITION",
+     "p_up": 0.8457098143895251,
+     "gain_pred": 0.06468672444027328,
+     "run": 1
     }
    ],
    "abstentions": {
-    "NOT_PREDICTED_MOVER": 41,
-    "POSITION": 3,
-    "OUT_OF_BAND": 2
+    "NOT_PREDICTED_MOVER": 39,
+    "SHORT_DISABLED": 2,
+    "LOW_CONFIDENCE": 1,
+    "OUT_OF_BAND": 1,
+    "POSITION": 1
    },
    "knowledge": []
   },
@@ -327,7 +310,7 @@
     "questions.targets": "OK",
     "questions.research_graph": "OK",
     "questions.generate": "OK",
-    "c68.research_depth": "OK",
+    "c68.research_depth": "SKIPPED_NO_INPUT",
     "hypotheses.trees": "OK",
     "gain.priority": "OK",
     "allocate.controller": "OK",
@@ -355,87 +338,73 @@
     "report.cycle": "OK"
    },
    "reasons": {
-    "c68.selection_policy": "policy L89da9c70 (threshold -0.0101); gain model fitted n=2747 base in-band 0.091; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00",
+    "c68.selection_policy": "policy L42b2ec69 (threshold -0.0086); gain model fitted n=2722 base in-band 0.088; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00",
     "evaluate.two_stage": "gate open",
-    "c68.expectations": "4 expectation(s) frozen before the 2017-05-29 fill",
-    "c68.outcomes_errors": "2 exit(s) by the learned policy, 2 error report(s), 0 unreconstructable, 46 candidate gain(s) resolved",
-    "c68.what_changed": "classes {'PARTIALLY_PREDICTABLE': 1}; 0 unknowable preserved; 1 tree(s) into the loop forest; 0 waiting",
-    "c68.error_research": "2017-05-26: 2 new errors, tiers {'NONE': 1, 'CHEAP': 1, 'STANDARD': 0, 'DEEP': 0}, 0 confident-wrong, 0 escalated groups, 12 jobs (32 cpu-min requested); 12 que",
-    "questions.generate": "17 merged, 0 refused, 0 already answered",
-    "c68.research_depth": "1 C68 question(s) in the loop's queue, 0 damped",
+    "c68.expectations": "2 expectation(s) frozen before the 2017-05-29 fill",
+    "c68.outcomes_errors": "1 exit(s) by the learned policy, 1 error report(s), 0 unreconstructable, 44 candidate gain(s) resolved",
+    "c68.what_changed": "classes {}; 0 unknowable preserved; 0 tree(s) into the loop forest; 0 waiting",
+    "c68.error_research": "2017-05-26: 1 new errors, tiers {'NONE': 1, 'CHEAP': 0, 'STANDARD': 0, 'DEEP': 0}, 0 confident-wrong, 0 escalated groups, 11 jobs (28 cpu-min requested); 11 que",
+    "questions.generate": "15 merged, 0 refused, 0 already answered",
+    "c68.research_depth": "no new question from a C68 event this cycle (12 new loop question(s), 4 C68 subject(s) ever asked; upstream: 4 position(s) ever, 3 open, 1 matured, 1 error repo",
     "learn.decision_bridge": "no new knowledge to route"
    },
    "positions": [
     {
-     "ticker": "W003",
-     "side": 1,
-     "p_up": 0.78860175502339,
-     "gain_pred": 0.05558585800506163,
-     "run": 1
-    },
-    {
-     "ticker": "W009",
-     "side": 1,
-     "p_up": 0.8779929994262745,
-     "gain_pred": 0.06562276121720917,
-     "run": 1
-    },
-    {
      "ticker": "W016",
      "side": 1,
-     "p_up": 0.7316134681735601,
-     "gain_pred": 0.057714977295287365,
-     "run": 1
-    },
-    {
-     "ticker": "W042",
-     "side": 1,
-     "p_up": 0.8457801720917892,
-     "gain_pred": 0.06552572383812752,
-     "run": 1
-    }
-   ],
-   "movers": [
-    {
-     "ticker": "W003",
-     "reason": "POSITION",
-     "p_up": 0.78860175502339,
-     "gain_pred": 0.05558585800506163,
-     "run": 1
-    },
-    {
-     "ticker": "W009",
-     "reason": "POSITION",
-     "p_up": 0.8779929994262745,
-     "gain_pred": 0.06562276121720917,
-     "run": 1
-    },
-    {
-     "ticker": "W016",
-     "reason": "POSITION",
-     "p_up": 0.7316134681735601,
-     "gain_pred": 0.057714977295287365,
+     "p_up": 0.6029702388651542,
+     "gain_pred": 0.05154666394875229,
      "run": 1
     },
     {
      "ticker": "W017",
-     "reason": "OUT_OF_BAND",
-     "p_up": 0.7485353336911545,
-     "gain_pred": 0.03863787588049199,
+     "side": 1,
+     "p_up": 0.6262022173441527,
+     "gain_pred": 0.05923181528222609,
+     "run": 0
+    }
+   ],
+   "movers": [
+    {
+     "ticker": "W000",
+     "reason": "SHORT_DISABLED",
+     "p_up": 0.22641842698261136,
+     "gain_pred": NaN,
+     "run": -1
+    },
+    {
+     "ticker": "W009",
+     "reason": "SHORT_DISABLED",
+     "p_up": 0.32690091648332126,
+     "gain_pred": NaN,
+     "run": -1
+    },
+    {
+     "ticker": "W016",
+     "reason": "POSITION",
+     "p_up": 0.6029702388651542,
+     "gain_pred": 0.05154666394875229,
+     "run": 1
+    },
+    {
+     "ticker": "W017",
+     "reason": "POSITION",
+     "p_up": 0.6262022173441527,
+     "gain_pred": 0.05923181528222609,
      "run": 0
     },
     {
-     "ticker": "W042",
-     "reason": "POSITION",
-     "p_up": 0.8457801720917892,
-     "gain_pred": 0.06552572383812752,
-     "run": 1
+     "ticker": "W023",
+     "reason": "SHORT_DISABLED",
+     "p_up": 0.40331201043408654,
+     "gain_pred": NaN,
+     "run": 0
     }
    ],
    "abstentions": {
-    "NOT_PREDICTED_MOVER": 41,
-    "POSITION": 4,
-    "OUT_OF_BAND": 1
+    "NOT_PREDICTED_MOVER": 39,
+    "SHORT_DISABLED": 3,
+    "POSITION": 2
    },
    "knowledge": []
   },
@@ -507,4828 +476,59 @@
     "report.cycle": "OK"
    },
    "reasons": {
-    "c68.selection_policy": "policy Lb4576920 (threshold -0.0102); gain model fitted n=2793 base in-band 0.091; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00",
+    "c68.selection_policy": "policy Lf190ef1d (threshold -0.0051); gain model fitted n=2766 base in-band 0.080; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00",
     "evaluate.two_stage": "gate open",
-    "c68.expectations": "2 expectation(s) frozen before the 2017-06-05 fill",
-    "c68.outcomes_errors": "3 exit(s) by the learned policy, 3 error report(s), 0 unreconstructable, 46 candidate gain(s) resolved",
-    "c68.what_changed": "classes {'CURRENTLY_UNEXPLAINED': 1}; 0 unknowable preserved; 1 tree(s) into the loop forest; 0 waiting",
-    "c68.error_research": "2017-06-02: 3 new errors, tiers {'NONE': 2, 'CHEAP': 0, 'STANDARD': 1, 'DEEP': 0}, 0 confident-wrong, 0 escalated groups, 12 jobs (72 cpu-min requested); 12 que",
-    "questions.generate": "19 merged, 0 refused, 0 already answered",
-    "c68.research_depth": "no new question from a C68 event this cycle (12 new loop question(s), 7 C68 subject(s) ever asked; upstream: 11 position(s) ever, 6 open, 5 matured, 5 error rep",
+    "c68.expectations": "1 expectation(s) frozen before the 2017-06-05 fill",
+    "c68.outcomes_errors": "1 exit(s) by the learned policy, 1 error report(s), 0 unreconstructable, 44 candidate gain(s) resolved",
+    "c68.what_changed": "classes {}; 0 unknowable preserved; 0 tree(s) into the loop forest; 0 waiting",
+    "c68.error_research": "2017-06-02: 1 new errors, tiers {'NONE': 1, 'CHEAP': 0, 'STANDARD': 0, 'DEEP': 0}, 0 confident-wrong, 0 escalated groups, 11 jobs (28 cpu-min requested); 11 que",
+    "questions.generate": "20 merged, 0 refused, 0 already answered",
+    "c68.research_depth": "no new question from a C68 event this cycle (12 new loop question(s), 4 C68 subject(s) ever asked; upstream: 5 position(s) ever, 3 open, 2 matured, 2 error repo",
     "learn.decision_bridge": "no new knowledge to route"
    },
    "positions": [
     {
-     "ticker": "W009",
-     "side": 1,
-     "p_up": 0.7803724086905081,
-     "gain_pred": 0.059114344616255254,
-     "run": 1
-    },
-    {
      "ticker": "W016",
      "side": 1,
-     "p_up": 0.7065515279647911,
-     "gain_pred": 0.07837839545224991,
+     "p_up": 0.6394098413683551,
+     "gain_pred": 0.0661542224045088,
      "run": 1
     }
    ],
    "movers": [
     {
      "ticker": "W009",
-     "reason": "POSITION",
-     "p_up": 0.7803724086905081,
-     "gain_pred": 0.059114344616255254,
-     "run": 1
+     "reason": "SHORT_DISABLED",
+     "p_up": 0.2828442985509039,
+     "gain_pred": NaN,
+     "run": -1
     },
     {
      "ticker": "W016",
      "reason": "POSITION",
-     "p_up": 0.7065515279647911,
-     "gain_pred": 0.07837839545224991,
+     "p_up": 0.6394098413683551,
+     "gain_pred": 0.0661542224045088,
      "run": 1
     },
     {
      "ticker": "W017",
-     "reason": "OUT_OF_BAND",
-     "p_up": 0.6135708592033183,
-     "gain_pred": -0.0015693707942788047,
+     "reason": "LOW_CONFIDENCE",
+     "p_up": 0.5025966559869632,
+     "gain_pred": NaN,
      "run": 0
     },
     {
      "ticker": "W023",
-     "reason": "LOW_CONFIDENCE",
-     "p_up": 0.49628727416696045,
+     "reason": "SHORT_DISABLED",
+     "p_up": 0.2936215346406987,
      "gain_pred": NaN,
      "run": 0
     },
     {
      "ticker": "W040",
-     "reason": "OUT_OF_BAND",
-     "p_up": 0.5652340701073691,
-     "gain_pred": 0.0249781218081371,
-     "run": 0
-    }
-   ],
-   "abstentions": {
-    "NOT_PREDICTED_MOVER": 41,
-    "POSITION": 2,
-    "OUT_OF_BAND": 2,
-    "LOW_CONFIDENCE": 1
-   },
-   "knowledge": []
-  },
-  {
-   "cycle": 4,
-   "now": "2017-06-09",
-   "stages": {
-    "observe.panel": "OK",
-    "observe.observer": "OK",
-    "observe.autopsy": "OK",
-    "update.experiment_memory": "OK",
-    "update.firewall_release": "SKIPPED_NO_INPUT",
-    "c68.selection_policy": "OK",
-    "evaluate.two_stage": "OK",
-    "c68.expectations": "OK",
-    "evaluate.volatility_lab": "SKIPPED_CADENCE",
-    "evaluate.direction_lab": "SKIPPED_CADENCE",
-    "evaluate.frontier": "OK",
-    "evaluate.symmetry": "OK",
-    "surprises.feature_screen": "OK",
-    "surprises.cross_section": "OK",
-    "surprises.regimes": "OK",
-    "c68.market_regime": "OK",
-    "c68.pattern_change": "OK",
-    "surprises.multiscale": "OK",
-    "failures.decision_losses": "SKIPPED_NO_INPUT",
-    "c68.outcomes_errors": "OK",
-    "c68.what_changed": "OK",
-    "c68.error_research": "OK",
-    "failures.winners_losers": "OK",
-    "failures.loss_pipeline": "OK",
-    "missed.missed": "OK",
-    "missed.knowability": "OK",
-    "missed.unknown_cause": "OK",
-    "missed.counterfactual": "OK",
-    "breaks.knowledge": "SKIPPED_NO_INPUT",
-    "breaks.break_research": "OK",
-    "questions.discovery": "OK",
-    "questions.interactions": "SKIPPED_CADENCE",
-    "questions.precursors": "OK",
-    "questions.targets": "OK",
-    "questions.research_graph": "OK",
-    "questions.generate": "OK",
-    "c68.research_depth": "OK",
-    "hypotheses.trees": "OK",
-    "gain.priority": "OK",
-    "allocate.controller": "OK",
-    "allocate.diversity": "OK",
-    "allocate.compute": "OK",
-    "run.experiments": "OK",
-    "validate.harvest": "OK",
-    "controls.compare": "OK",
-    "learn.ladder": "OK",
-    "learn.memory": "OK",
-    "learn.value": "OK",
-    "learn.science_memory": "OK",
-    "learn.replication": "OK",
-    "learn.quality_gate": "SKIPPED_NO_INPUT",
-    "c68.validate_promote": "SKIPPED_NO_INPUT",
-    "learn.decision_bridge": "SKIPPED_NO_INPUT",
-    "priorities.waste": "OK",
-    "priorities.brain_health": "OK",
-    "priorities.meta_research": "OK",
-    "priorities.failed_lab": "OK",
-    "priorities.scorecard": "OK",
-    "priorities.stale": "OK",
-    "c68.monitor_audit": "OK",
-    "sweeps.background": "OK",
-    "report.cycle": "OK"
-   },
-   "reasons": {
-    "c68.selection_policy": "policy L00b382f2 (threshold -0.0102); gain model fitted n=2839 base in-band 0.091; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00",
-    "evaluate.two_stage": "gate open",
-    "c68.expectations": "1 expectation(s) frozen before the 2017-06-12 fill",
-    "c68.outcomes_errors": "4 exit(s) by the learned policy, 4 error report(s), 0 unreconstructable, 46 candidate gain(s) resolved",
-    "c68.what_changed": "classes {'CURRENTLY_UNEXPLAINED': 1}; 0 unknowable preserved; 1 tree(s) into the loop forest; 0 waiting",
-    "c68.error_research": "2017-06-09: 4 new errors, tiers {'NONE': 4, 'CHEAP': 0, 'STANDARD': 0, 'DEEP': 0}, 0 confident-wrong, 0 escalated groups, 11 jobs (58 cpu-min requested); 11 que",
-    "questions.generate": "22 merged, 0 refused, 0 already answered",
-    "c68.research_depth": "1 C68 question(s) in the loop's queue, 0 damped",
-    "learn.decision_bridge": "no new knowledge to route"
-   },
-   "positions": [
-    {
-     "ticker": "W016",
-     "side": 1,
-     "p_up": 0.7738273785786978,
-     "gain_pred": 0.05513572989668292,
-     "run": 1
-    }
-   ],
-   "movers": [
-    {
-     "ticker": "W016",
-     "reason": "POSITION",
-     "p_up": 0.7738273785786978,
-     "gain_pred": 0.05513572989668292,
-     "run": 1
-    },
-    {
-     "ticker": "W017",
-     "reason": "OUT_OF_BAND",
-     "p_up": 0.6268281456407935,
-     "gain_pred": -0.017858696074309607,
-     "run": -1
-    },
-    {
-     "ticker": "W022",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.42459923819665724,
-     "gain_pred": NaN,
-     "run": 0
-    },
-    {
-     "ticker": "W023",
      "reason": "LOW_CONFIDENCE",
-     "p_up": 0.4699460417213064,
+     "p_up": 0.5352058539742452,
      "gain_pred": NaN,
-     "run": 0
-    },
-    {
-     "ticker": "W040",
-     "reason": "OUT_OF_BAND",
-     "p_up": 0.6643607984068838,
-     "gain_pred": 0.013747322616526409,
-     "run": 0
-    }
-   ],
-   "abstentions": {
-    "NOT_PREDICTED_MOVER": 41,
-    "OUT_OF_BAND": 2,
-    "POSITION": 1,
-    "SHORT_DISABLED": 1,
-    "LOW_CONFIDENCE": 1
-   },
-   "knowledge": []
-  },
-  {
-   "cycle": 5,
-   "now": "2017-06-16",
-   "stages": {
-    "observe.panel": "OK",
-    "observe.observer": "OK",
-    "observe.autopsy": "OK",
-    "update.experiment_memory": "OK",
-    "update.firewall_release": "SKIPPED_NO_INPUT",
-    "c68.selection_policy": "OK",
-    "evaluate.two_stage": "OK",
-    "c68.expectations": "OK",
-    "evaluate.volatility_lab": "SKIPPED_CADENCE",
-    "evaluate.direction_lab": "SKIPPED_CADENCE",
-    "evaluate.frontier": "OK",
-    "evaluate.symmetry": "OK",
-    "surprises.feature_screen": "SKIPPED_CADENCE",
-    "surprises.cross_section": "OK",
-    "surprises.regimes": "OK",
-    "c68.market_regime": "OK",
-    "c68.pattern_change": "OK",
-    "surprises.multiscale": "OK",
-    "failures.decision_losses": "SKIPPED_NO_INPUT",
-    "c68.outcomes_errors": "OK",
-    "c68.what_changed": "OK",
-    "c68.error_research": "OK",
-    "failures.winners_losers": "OK",
-    "failures.loss_pipeline": "OK",
-    "missed.missed": "OK",
-    "missed.knowability": "OK",
-    "missed.unknown_cause": "OK",
-    "missed.counterfactual": "OK",
-    "breaks.knowledge": "SKIPPED_NO_INPUT",
-    "breaks.break_research": "OK",
-    "questions.discovery": "SKIPPED_CADENCE",
-    "questions.interactions": "SKIPPED_CADENCE",
-    "questions.precursors": "OK",
-    "questions.targets": "OK",
-    "questions.research_graph": "OK",
-    "questions.generate": "OK",
-    "c68.research_depth": "OK",
-    "hypotheses.trees": "OK",
-    "gain.priority": "OK",
-    "allocate.controller": "OK",
-    "allocate.diversity": "OK",
-    "allocate.compute": "OK",
-    "run.experiments": "OK",
-    "validate.harvest": "OK",
-    "controls.compare": "OK",
-    "learn.ladder": "OK",
-    "learn.memory": "OK",
-    "learn.value": "OK",
-    "learn.science_memory": "OK",
-    "learn.replication": "OK",
-    "learn.quality_gate": "SKIPPED_NO_INPUT",
-    "c68.validate_promote": "SKIPPED_NO_INPUT",
-    "learn.decision_bridge": "SKIPPED_NO_INPUT",
-    "priorities.waste": "OK",
-    "priorities.brain_health": "OK",
-    "priorities.meta_research": "SKIPPED_CADENCE",
-    "priorities.failed_lab": "OK",
-    "priorities.scorecard": "SKIPPED_CADENCE",
-    "priorities.stale": "OK",
-    "c68.monitor_audit": "OK",
-    "sweeps.background": "OK",
-    "report.cycle": "OK"
-   },
-   "reasons": {
-    "c68.selection_policy": "policy L306079f7 (threshold -0.0102); gain model fitted n=2885 base in-band 0.091; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00",
-    "evaluate.two_stage": "gate open",
-    "c68.expectations": "1 expectation(s) frozen before the 2017-06-19 fill",
-    "c68.outcomes_errors": "2 exit(s) by the learned policy, 2 error report(s), 0 unreconstructable, 46 candidate gain(s) resolved",
-    "c68.what_changed": "classes {'CURRENTLY_UNEXPLAINED': 1}; 0 unknowable preserved; 1 tree(s) into the loop forest; 0 waiting",
-    "c68.error_research": "2017-06-16: 2 new errors, tiers {'NONE': 1, 'CHEAP': 1, 'STANDARD': 0, 'DEEP': 0}, 0 confident-wrong, 0 escalated groups, 12 jobs (62 cpu-min requested); 12 que",
-    "questions.generate": "20 merged, 0 refused, 0 already answered",
-    "c68.research_depth": "1 C68 question(s) in the loop's queue, 0 damped",
-    "learn.decision_bridge": "no new knowledge to route"
-   },
-   "positions": [
-    {
-     "ticker": "W003",
-     "side": 1,
-     "p_up": 0.8214343945878286,
-     "gain_pred": 0.0594107855623064,
-     "run": 1
-    }
-   ],
-   "movers": [
-    {
-     "ticker": "W003",
-     "reason": "POSITION",
-     "p_up": 0.8214343945878286,
-     "gain_pred": 0.0594107855623064,
-     "run": 1
-    },
-    {
-     "ticker": "W016",
-     "reason": "OUT_OF_BAND",
-     "p_up": 0.6674456819113198,
-     "gain_pred": 0.016277701405148136,
-     "run": 1
-    },
-    {
-     "ticker": "W017",
-     "reason": "OUT_OF_BAND",
-     "p_up": 0.6189864338984944,
-     "gain_pred": -0.014145611985647209,
-     "run": -1
-    },
-    {
-     "ticker": "W022",
-     "reason": "LOW_CONFIDENCE",
-     "p_up": 0.5338200699585497,
-     "gain_pred": NaN,
-     "run": 0
-    },
-    {
-     "ticker": "W023",
-     "reason": "OUT_OF_BAND",
-     "p_up": 0.5760228042711254,
-     "gain_pred": -0.02808334178595963,
-     "run": 0
-    }
-   ],
-   "abstentions": {
-    "NOT_PREDICTED_MOVER": 41,
-    "OUT_OF_BAND": 3,
-    "POSITION": 1,
-    "LOW_CONFIDENCE": 1
-   },
-   "knowledge": []
-  },
-  {
-   "cycle": 6,
-   "now": "2017-06-23",
-   "stages": {
-    "observe.panel": "OK",
-    "observe.observer": "OK",
-    "observe.autopsy": "OK",
-    "update.experiment_memory": "OK",
-    "update.firewall_release": "SKIPPED_NO_INPUT",
-    "c68.selection_policy": "OK",
-    "evaluate.two_stage": "OK",
-    "c68.expectations": "OK",
-    "evaluate.volatility_lab": "SKIPPED_CADENCE",
-    "evaluate.direction_lab": "SKIPPED_CADENCE",
-    "evaluate.frontier": "OK",
-    "evaluate.symmetry": "OK",
-    "surprises.feature_screen": "SKIPPED_CADENCE",
-    "surprises.cross_section": "OK",
-    "surprises.regimes": "OK",
-    "c68.market_regime": "OK",
-    "c68.pattern_change": "OK",
-    "surprises.multiscale": "OK",
-    "failures.decision_losses": "SKIPPED_NO_INPUT",
-    "c68.outcomes_errors": "OK",
-    "c68.what_changed": "OK",
-    "c68.error_research": "OK",
-    "failures.winners_losers": "OK",
-    "failures.loss_pipeline": "OK",
-    "missed.missed": "OK",
-    "missed.knowability": "OK",
-    "missed.unknown_cause": "OK",
-    "missed.counterfactual": "OK",
-    "breaks.knowledge": "SKIPPED_NO_INPUT",
-    "breaks.break_research": "OK",
-    "questions.discovery": "SKIPPED_CADENCE",
-    "questions.interactions": "SKIPPED_CADENCE",
-    "questions.precursors": "OK",
-    "questions.targets": "OK",
-    "questions.research_graph": "OK",
-    "questions.generate": "OK",
-    "c68.research_depth": "OK",
-    "hypotheses.trees": "OK",
-    "gain.priority": "OK",
-    "allocate.controller": "OK",
-    "allocate.diversity": "OK",
-    "allocate.compute": "OK",
-    "run.experiments": "OK",
-    "validate.harvest": "OK",
-    "controls.compare": "OK",
-    "learn.ladder": "OK",
-    "learn.memory": "OK",
-    "learn.value": "OK",
-    "learn.science_memory": "OK",
-    "learn.replication": "OK",
-    "learn.quality_gate": "SKIPPED_NO_INPUT",
-    "c68.validate_promote": "OK",
-    "learn.decision_bridge": "SKIPPED_NO_INPUT",
-    "priorities.waste": "OK",
-    "priorities.brain_health": "OK",
-    "priorities.meta_research": "SKIPPED_CADENCE",
-    "priorities.failed_lab": "OK",
-    "priorities.scorecard": "SKIPPED_CADENCE",
-    "priorities.stale": "OK",
-    "c68.monitor_audit": "OK",
-    "sweeps.background": "OK",
-    "report.cycle": "OK"
-   },
-   "reasons": {
-    "c68.selection_policy": "policy Ldb91e561 (threshold -0.0102); gain model fitted n=2931 base in-band 0.092; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00",
-    "evaluate.two_stage": "gate open",
-    "c68.expectations": "2 expectation(s) frozen before the 2017-06-26 fill",
-    "c68.outcomes_errors": "1 exit(s) by the learned policy, 1 error report(s), 0 unreconstructable, 46 candidate gain(s) resolved",
-    "c68.what_changed": "classes {'CURRENTLY_UNEXPLAINED': 1}; 0 unknowable preserved; 1 tree(s) into the loop forest; 0 waiting",
-    "c68.error_research": "2017-06-23: 1 new errors, tiers {'NONE': 0, 'CHEAP': 0, 'STANDARD': 1, 'DEEP': 0}, 0 confident-wrong, 0 escalated groups, 12 jobs (102 cpu-min requested); 12 qu",
-    "questions.generate": "21 merged, 0 refused, 0 already answered",
-    "c68.research_depth": "1 C68 question(s) in the loop's queue, 0 damped",
-    "learn.decision_bridge": "no new knowledge to route"
-   },
-   "positions": [
-    {
-     "ticker": "W003",
-     "side": 1,
-     "p_up": 0.662490581727401,
-     "gain_pred": 0.05937858660888842,
-     "run": 1
-    },
-    {
-     "ticker": "W042",
-     "side": 1,
-     "p_up": 0.6901182923292324,
-     "gain_pred": 0.06975585016486475,
-     "run": 1
-    }
-   ],
-   "movers": [
-    {
-     "ticker": "W003",
-     "reason": "POSITION",
-     "p_up": 0.662490581727401,
-     "gain_pred": 0.05937858660888842,
-     "run": 1
-    },
-    {
-     "ticker": "W016",
-     "reason": "OUT_OF_BAND",
-     "p_up": 0.6197599600418675,
-     "gain_pred": 0.019388592910330925,
-     "run": 1
-    },
-    {
-     "ticker": "W017",
-     "reason": "OUT_OF_BAND",
-     "p_up": 0.6281021961942238,
-     "gain_pred": -0.005413174140237154,
-     "run": -1
-    },
-    {
-     "ticker": "W022",
-     "reason": "OUT_OF_BAND",
-     "p_up": 0.600904408542263,
-     "gain_pred": -0.037006103741137816,
-     "run": 0
-    },
-    {
-     "ticker": "W042",
-     "reason": "POSITION",
-     "p_up": 0.6901182923292324,
-     "gain_pred": 0.06975585016486475,
-     "run": 1
-    }
-   ],
-   "abstentions": {
-    "NOT_PREDICTED_MOVER": 41,
-    "OUT_OF_BAND": 3,
-    "POSITION": 2
-   },
-   "knowledge": []
-  },
-  {
-   "cycle": 7,
-   "now": "2017-06-30",
-   "stages": {
-    "observe.panel": "OK",
-    "observe.observer": "OK",
-    "observe.autopsy": "OK",
-    "update.experiment_memory": "OK",
-    "update.firewall_release": "SKIPPED_NO_INPUT",
-    "c68.selection_policy": "OK",
-    "evaluate.two_stage": "OK",
-    "c68.expectations": "OK",
-    "evaluate.volatility_lab": "SKIPPED_CADENCE",
-    "evaluate.direction_lab": "SKIPPED_CADENCE",
-    "evaluate.frontier": "OK",
-    "evaluate.symmetry": "OK",
-    "surprises.feature_screen": "SKIPPED_CADENCE",
-    "surprises.cross_section": "OK",
-    "surprises.regimes": "OK",
-    "c68.market_regime": "OK",
-    "c68.pattern_change": "OK",
-    "surprises.multiscale": "OK",
-    "failures.decision_losses": "OK",
-    "c68.outcomes_errors": "OK",
-    "c68.what_changed": "OK",
-    "c68.error_research": "OK",
-    "failures.winners_losers": "OK",
-    "failures.loss_pipeline": "OK",
-    "missed.missed": "OK",
-    "missed.knowability": "OK",
-    "missed.unknown_cause": "OK",
-    "missed.counterfactual": "OK",
-    "breaks.knowledge": "SKIPPED_NO_INPUT",
-    "breaks.break_research": "OK",
-    "questions.discovery": "SKIPPED_CADENCE",
-    "questions.interactions": "SKIPPED_CADENCE",
-    "questions.precursors": "OK",
-    "questions.targets": "OK",
-    "questions.research_graph": "OK",
-    "questions.generate": "OK",
-    "c68.research_depth": "OK",
-    "hypotheses.trees": "OK",
-    "gain.priority": "OK",
-    "allocate.controller": "OK",
-    "allocate.diversity": "OK",
-    "allocate.compute": "OK",
-    "run.experiments": "OK",
-    "validate.harvest": "OK",
-    "controls.compare": "OK",
-    "learn.ladder": "OK",
-    "learn.memory": "OK",
-    "learn.value": "OK",
-    "learn.science_memory": "OK",
-    "learn.replication": "OK",
-    "learn.quality_gate": "SKIPPED_NO_INPUT",
-    "c68.validate_promote": "OK",
-    "learn.decision_bridge": "SKIPPED_NO_INPUT",
-    "priorities.waste": "OK",
-    "priorities.brain_health": "OK",
-    "priorities.meta_research": "SKIPPED_CADENCE",
-    "priorities.failed_lab": "OK",
-    "priorities.scorecard": "SKIPPED_CADENCE",
-    "priorities.stale": "OK",
-    "c68.monitor_audit": "OK",
-    "sweeps.background": "OK",
-    "report.cycle": "OK"
-   },
-   "reasons": {
-    "c68.selection_policy": "policy L29a5d0ff (threshold -0.0104); gain model fitted n=2977 base in-band 0.093; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00",
-    "evaluate.two_stage": "gate open",
-    "c68.expectations": "2 expectation(s) frozen before the 2017-07-03 fill",
-    "c68.outcomes_errors": "1 exit(s) by the learned policy, 1 error report(s), 0 unreconstructable, 46 candidate gain(s) resolved",
-    "c68.what_changed": "classes {}; 0 unknowable preserved; 0 tree(s) into the loop forest; 0 waiting",
-    "c68.error_research": "2017-06-30: 1 new errors, tiers {'NONE': 0, 'CHEAP': 1, 'STANDARD': 0, 'DEEP': 0}, 0 confident-wrong, 0 escalated groups, 12 jobs (85 cpu-min requested); 12 que",
-    "questions.generate": "20 merged, 0 refused, 0 already answered",
-    "c68.research_depth": "2 C68 question(s) in the loop's queue, 0 damped",
-    "learn.decision_bridge": "no new knowledge to route"
-   },
-   "positions": [
-    {
-     "ticker": "W027",
-     "side": 1,
-     "p_up": 0.64305500326866,
-     "gain_pred": 0.062221901656894556,
-     "run": 1
-    },
-    {
-     "ticker": "W042",
-     "side": 1,
-     "p_up": 0.653646198973684,
-     "gain_pred": 0.07828590273519595,
-     "run": 1
-    }
-   ],
-   "movers": [
-    {
-     "ticker": "W003",
-     "reason": "OUT_OF_BAND",
-     "p_up": 0.6470635041204459,
-     "gain_pred": 0.03776826926286037,
-     "run": 1
-    },
-    {
-     "ticker": "W022",
-     "reason": "OUT_OF_BAND",
-     "p_up": 0.6344885947984165,
-     "gain_pred": -0.03588067224733307,
-     "run": 0
-    },
-    {
-     "ticker": "W024",
-     "reason": "OUT_OF_BAND",
-     "p_up": 0.6420815214163247,
-     "gain_pred": 0.04411616037594205,
-     "run": 0
-    },
-    {
-     "ticker": "W027",
-     "reason": "POSITION",
-     "p_up": 0.64305500326866,
-     "gain_pred": 0.062221901656894556,
-     "run": 1
-    },
-    {
-     "ticker": "W042",
-     "reason": "POSITION",
-     "p_up": 0.653646198973684,
-     "gain_pred": 0.07828590273519595,
-     "run": 1
-    }
-   ],
-   "abstentions": {
-    "NOT_PREDICTED_MOVER": 41,
-    "OUT_OF_BAND": 3,
-    "POSITION": 2
-   },
-   "knowledge": []
-  },
-  {
-   "cycle": 8,
-   "now": "2017-07-07",
-   "stages": {
-    "observe.panel": "OK",
-    "observe.observer": "OK",
-    "observe.autopsy": "OK",
-    "update.experiment_memory": "OK",
-    "update.firewall_release": "SKIPPED_NO_INPUT",
-    "c68.selection_policy": "OK",
-    "evaluate.two_stage": "OK",
-    "c68.expectations": "OK",
-    "evaluate.volatility_lab": "SKIPPED_CADENCE",
-    "evaluate.direction_lab": "SKIPPED_CADENCE",
-    "evaluate.frontier": "OK",
-    "evaluate.symmetry": "OK",
-    "surprises.feature_screen": "OK",
-    "surprises.cross_section": "OK",
-    "surprises.regimes": "OK",
-    "c68.market_regime": "OK",
-    "c68.pattern_change": "OK",
-    "surprises.multiscale": "OK",
-    "failures.decision_losses": "OK",
-    "c68.outcomes_errors": "OK",
-    "c68.what_changed": "OK",
-    "c68.error_research": "OK",
-    "failures.winners_losers": "OK",
-    "failures.loss_pipeline": "OK",
-    "missed.missed": "OK",
-    "missed.knowability": "OK",
-    "missed.unknown_cause": "OK",
-    "missed.counterfactual": "OK",
-    "breaks.knowledge": "SKIPPED_NO_INPUT",
-    "breaks.break_research": "OK",
-    "questions.discovery": "OK",
-    "questions.interactions": "OK",
-    "questions.precursors": "OK",
-    "questions.targets": "OK",
-    "questions.research_graph": "OK",
-    "questions.generate": "OK",
-    "c68.research_depth": "OK",
-    "hypotheses.trees": "OK",
-    "gain.priority": "OK",
-    "allocate.controller": "OK",
-    "allocate.diversity": "OK",
-    "allocate.compute": "OK",
-    "run.experiments": "OK",
-    "validate.harvest": "OK",
-    "controls.compare": "OK",
-    "learn.ladder": "OK",
-    "learn.memory": "OK",
-    "learn.value": "OK",
-    "learn.science_memory": "OK",
-    "learn.replication": "OK",
-    "learn.quality_gate": "SKIPPED_NO_INPUT",
-    "c68.validate_promote": "OK",
-    "learn.decision_bridge": "SKIPPED_NO_INPUT",
-    "priorities.waste": "OK",
-    "priorities.brain_health": "OK",
-    "priorities.meta_research": "OK",
-    "priorities.failed_lab": "OK",
-    "priorities.scorecard": "OK",
-    "priorities.stale": "OK",
-    "c68.monitor_audit": "OK",
-    "sweeps.background": "OK",
-    "report.cycle": "OK"
-   },
-   "reasons": {
-    "c68.selection_policy": "policy L426e71a0 (threshold -0.0103); gain model fitted n=3023 base in-band 0.093; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00",
-    "evaluate.two_stage": "gate open",
-    "c68.expectations": "1 expectation(s) frozen before the 2017-07-10 fill",
-    "c68.outcomes_errors": "2 exit(s) by the learned policy, 2 error report(s), 0 unreconstructable, 46 candidate gain(s) resolved",
-    "c68.what_changed": "classes {'CURRENTLY_UNEXPLAINED': 1}; 0 unknowable preserved; 1 tree(s) into the loop forest; 0 waiting",
-    "c68.error_research": "2017-07-07: 2 new errors, tiers {'NONE': 0, 'CHEAP': 1, 'STANDARD': 1, 'DEEP': 0}, 0 confident-wrong, 0 escalated groups, 13 jobs (115 cpu-min requested); 12 qu",
-    "questions.generate": "20 merged, 0 refused, 0 already answered",
-    "c68.research_depth": "2 C68 question(s) in the loop's queue, 0 damped",
-    "learn.decision_bridge": "no new knowledge to route"
-   },
-   "positions": [
-    {
-     "ticker": "W027",
-     "side": 1,
-     "p_up": 0.5875214577561413,
-     "gain_pred": 0.06398594590389516,
-     "run": 1
-    }
-   ],
-   "movers": [
-    {
-     "ticker": "W017",
-     "reason": "OUT_OF_BAND",
-     "p_up": 0.7290177054594466,
-     "gain_pred": -0.0312825754288057,
-     "run": -1
-    },
-    {
-     "ticker": "W019",
-     "reason": "OUT_OF_BAND",
-     "p_up": 0.7617379868897529,
-     "gain_pred": -0.032909549885559275,
-     "run": -1
-    },
-    {
-     "ticker": "W024",
-     "reason": "OUT_OF_BAND",
-     "p_up": 0.6313208101788442,
-     "gain_pred": 0.049228128917855496,
-     "run": 0
-    },
-    {
-     "ticker": "W027",
-     "reason": "POSITION",
-     "p_up": 0.5875214577561413,
-     "gain_pred": 0.06398594590389516,
-     "run": 1
-    },
-    {
-     "ticker": "W042",
-     "reason": "LOW_CONFIDENCE",
-     "p_up": 0.5226639249268353,
-     "gain_pred": NaN,
-     "run": 1
-    }
-   ],
-   "abstentions": {
-    "NOT_PREDICTED_MOVER": 41,
-    "OUT_OF_BAND": 3,
-    "POSITION": 1,
-    "LOW_CONFIDENCE": 1
-   },
-   "knowledge": []
-  },
-  {
-   "cycle": 9,
-   "now": "2017-07-14",
-   "stages": {
-    "observe.panel": "OK",
-    "observe.observer": "OK",
-    "observe.autopsy": "OK",
-    "update.experiment_memory": "OK",
-    "update.firewall_release": "SKIPPED_NO_INPUT",
-    "c68.selection_policy": "OK",
-    "evaluate.two_stage": "OK",
-    "c68.expectations": "OK",
-    "evaluate.volatility_lab": "SKIPPED_CADENCE",
-    "evaluate.direction_lab": "SKIPPED_CADENCE",
-    "evaluate.frontier": "OK",
-    "evaluate.symmetry": "OK",
-    "surprises.feature_screen": "SKIPPED_CADENCE",
-    "surprises.cross_section": "OK",
-    "surprises.regimes": "OK",
-    "c68.market_regime": "OK",
-    "c68.pattern_change": "OK",
-    "surprises.multiscale": "OK",
-    "failures.decision_losses": "OK",
-    "c68.outcomes_errors": "OK",
-    "c68.what_changed": "OK",
-    "c68.error_research": "OK",
-    "failures.winners_losers": "OK",
-    "failures.loss_pipeline": "OK",
-    "missed.missed": "OK",
-    "missed.knowability": "OK",
-    "missed.unknown_cause": "OK",
-    "missed.counterfactual": "OK",
-    "breaks.knowledge": "SKIPPED_NO_INPUT",
-    "breaks.break_research": "OK",
-    "questions.discovery": "SKIPPED_CADENCE",
-    "questions.interactions": "SKIPPED_CADENCE",
-    "questions.precursors": "OK",
-    "questions.targets": "OK",
-    "questions.research_graph": "OK",
-    "questions.generate": "OK",
-    "c68.research_depth": "OK",
-    "hypotheses.trees": "OK",
-    "gain.priority": "OK",
-    "allocate.controller": "OK",
-    "allocate.diversity": "OK",
-    "allocate.compute": "OK",
-    "run.experiments": "OK",
-    "validate.harvest": "OK",
-    "controls.compare": "OK",
-    "learn.ladder": "OK",
-    "learn.memory": "OK",
-    "learn.value": "OK",
-    "learn.science_memory": "OK",
-    "learn.replication": "OK",
-    "learn.quality_gate": "SKIPPED_NO_INPUT",
-    "c68.validate_promote": "OK",
-    "learn.decision_bridge": "SKIPPED_NO_INPUT",
-    "priorities.waste": "OK",
-    "priorities.brain_health": "OK",
-    "priorities.meta_research": "SKIPPED_CADENCE",
-    "priorities.failed_lab": "OK",
-    "priorities.scorecard": "SKIPPED_CADENCE",
-    "priorities.stale": "OK",
-    "c68.monitor_audit": "OK",
-    "sweeps.background": "OK",
-    "report.cycle": "OK"
-   },
-   "reasons": {
-    "c68.selection_policy": "policy Lce70957c (threshold -0.0102); gain model fitted n=3069 base in-band 0.093; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00",
-    "evaluate.two_stage": "gate open",
-    "c68.expectations": "1 expectation(s) frozen before the 2017-07-17 fill",
-    "c68.outcomes_errors": "2 exit(s) by the learned policy, 2 error report(s), 0 unreconstructable, 46 candidate gain(s) resolved",
-    "c68.what_changed": "classes {}; 0 unknowable preserved; 0 tree(s) into the loop forest; 0 waiting",
-    "c68.error_research": "2017-07-14: 2 new errors, tiers {'NONE': 1, 'CHEAP': 1, 'STANDARD': 0, 'DEEP': 0}, 0 confident-wrong, 0 escalated groups, 12 jobs (85 cpu-min requested); 12 que",
-    "questions.generate": "21 merged, 0 refused, 0 already answered",
-    "c68.research_depth": "1 C68 question(s) in the loop's queue, 0 damped",
-    "learn.decision_bridge": "no new knowledge to route"
-   },
-   "positions": [
-    {
-     "ticker": "W009",
-     "side": 1,
-     "p_up": 0.6403015531818186,
-     "gain_pred": 0.05087517216352713,
-     "run": 1
-    }
-   ],
-   "movers": [
-    {
-     "ticker": "W003",
-     "reason": "OUT_OF_BAND",
-     "p_up": 0.6377132588053059,
-     "gain_pred": 0.03805852071497841,
-     "run": 1
-    },
-    {
-     "ticker": "W006",
-     "reason": "OUT_OF_BAND",
-     "p_up": 0.6409406589866655,
-     "gain_pred": -0.00827372924887001,
-     "run": -1
-    },
-    {
-     "ticker": "W009",
-     "reason": "POSITION",
-     "p_up": 0.6403015531818186,
-     "gain_pred": 0.05087517216352713,
-     "run": 1
-    },
-    {
-     "ticker": "W019",
-     "reason": "OUT_OF_BAND",
-     "p_up": 0.6425384998699888,
-     "gain_pred": -0.03727156495928092,
-     "run": -1
-    },
-    {
-     "ticker": "W024",
-     "reason": "OUT_OF_BAND",
-     "p_up": 0.6384950703873735,
-     "gain_pred": 0.033505024533940844,
-     "run": 0
-    }
-   ],
-   "abstentions": {
-    "NOT_PREDICTED_MOVER": 41,
-    "OUT_OF_BAND": 4,
-    "POSITION": 1
-   },
-   "knowledge": []
-  },
-  {
-   "cycle": 10,
-   "now": "2017-07-21",
-   "stages": {
-    "observe.panel": "OK",
-    "observe.observer": "OK",
-    "observe.autopsy": "OK",
-    "update.experiment_memory": "OK",
-    "update.firewall_release": "SKIPPED_NO_INPUT",
-    "c68.selection_policy": "OK",
-    "evaluate.two_stage": "OK",
-    "c68.expectations": "OK",
-    "evaluate.volatility_lab": "SKIPPED_CADENCE",
-    "evaluate.direction_lab": "SKIPPED_CADENCE",
-    "evaluate.frontier": "OK",
-    "evaluate.symmetry": "OK",
-    "surprises.feature_screen": "SKIPPED_CADENCE",
-    "surprises.cross_section": "OK",
-    "surprises.regimes": "OK",
-    "c68.market_regime": "OK",
-    "c68.pattern_change": "OK",
-    "surprises.multiscale": "OK",
-    "failures.decision_losses": "OK",
-    "c68.outcomes_errors": "OK",
-    "c68.what_changed": "OK",
-    "c68.error_research": "OK",
-    "failures.winners_losers": "OK",
-    "failures.loss_pipeline": "OK",
-    "missed.missed": "OK",
-    "missed.knowability": "OK",
-    "missed.unknown_cause": "OK",
-    "missed.counterfactual": "OK",
-    "breaks.knowledge": "SKIPPED_NO_INPUT",
-    "breaks.break_research": "OK",
-    "questions.discovery": "SKIPPED_CADENCE",
-    "questions.interactions": "SKIPPED_CADENCE",
-    "questions.precursors": "OK",
-    "questions.targets": "OK",
-    "questions.research_graph": "OK",
-    "questions.generate": "OK",
-    "c68.research_depth": "SKIPPED_NO_INPUT",
-    "hypotheses.trees": "OK",
-    "gain.priority": "OK",
-    "allocate.controller": "OK",
-    "allocate.diversity": "OK",
-    "allocate.compute": "OK",
-    "run.experiments": "OK",
-    "validate.harvest": "OK",
-    "controls.compare": "OK",
-    "learn.ladder": "OK",
-    "learn.memory": "OK",
-    "learn.value": "OK",
-    "learn.science_memory": "OK",
-    "learn.replication": "OK",
-    "learn.quality_gate": "SKIPPED_NO_INPUT",
-    "c68.validate_promote": "OK",
-    "learn.decision_bridge": "SKIPPED_NO_INPUT",
-    "priorities.waste": "OK",
-    "priorities.brain_health": "OK",
-    "priorities.meta_research": "SKIPPED_CADENCE",
-    "priorities.failed_lab": "OK",
-    "priorities.scorecard": "SKIPPED_CADENCE",
-    "priorities.stale": "OK",
-    "c68.monitor_audit": "OK",
-    "sweeps.background": "OK",
-    "report.cycle": "OK"
-   },
-   "reasons": {
-    "c68.selection_policy": "policy Lb4d2ecbd (threshold -0.0102); gain model fitted n=3115 base in-band 0.092; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00",
-    "evaluate.two_stage": "gate open",
-    "c68.expectations": "no position on 2017-07-21: {'NOT_PREDICTED_MOVER': 41, 'OUT_OF_BAND': 5}",
-    "c68.outcomes_errors": "1 exit(s) by the learned policy, 1 error report(s), 0 unreconstructable, 46 candidate gain(s) resolved",
-    "c68.what_changed": "classes {}; 0 unknowable preserved; 0 tree(s) into the loop forest; 0 waiting",
-    "c68.error_research": "2017-07-21: 1 new errors, tiers {'NONE': 1, 'CHEAP': 0, 'STANDARD': 0, 'DEEP': 0}, 0 confident-wrong, 0 escalated groups, 11 jobs (80 cpu-min requested); 11 que",
-    "questions.generate": "22 merged, 0 refused, 0 already answered",
-    "c68.research_depth": "no new question from a C68 event this cycle (12 new loop question(s), 10 C68 subject(s) ever asked; upstream: 19 position(s) ever, 1 open, 18 matured, 18 error ",
-    "learn.decision_bridge": "no new knowledge to route"
-   },
-   "positions": [],
-   "movers": [
-    {
-     "ticker": "W006",
-     "reason": "OUT_OF_BAND",
-     "p_up": 0.5728841686614412,
-     "gain_pred": -0.0246406430538648,
-     "run": -1
-    },
-    {
-     "ticker": "W017",
-     "reason": "OUT_OF_BAND",
-     "p_up": 0.5938544505488026,
-     "gain_pred": -0.023133106155215365,
-     "run": -1
-    },
-    {
-     "ticker": "W023",
-     "reason": "OUT_OF_BAND",
-     "p_up": 0.6070717363254602,
-     "gain_pred": 0.02136272792395431,
-     "run": 0
-    },
-    {
-     "ticker": "W024",
-     "reason": "OUT_OF_BAND",
-     "p_up": 0.6484675388446546,
-     "gain_pred": 0.04537760961726792,
-     "run": 0
-    },
-    {
-     "ticker": "W037",
-     "reason": "OUT_OF_BAND",
-     "p_up": 0.6045235601087617,
-     "gain_pred": -0.01568343330918371,
-     "run": -1
-    }
-   ],
-   "abstentions": {
-    "NOT_PREDICTED_MOVER": 41,
-    "OUT_OF_BAND": 5
-   },
-   "knowledge": []
-  },
-  {
-   "cycle": 11,
-   "now": "2017-07-28",
-   "stages": {
-    "observe.panel": "OK",
-    "observe.observer": "OK",
-    "observe.autopsy": "OK",
-    "update.experiment_memory": "OK",
-    "update.firewall_release": "SKIPPED_NO_INPUT",
-    "c68.selection_policy": "OK",
-    "evaluate.two_stage": "OK",
-    "c68.expectations": "OK",
-    "evaluate.volatility_lab": "SKIPPED_CADENCE",
-    "evaluate.direction_lab": "SKIPPED_CADENCE",
-    "evaluate.frontier": "OK",
-    "evaluate.symmetry": "OK",
-    "surprises.feature_screen": "SKIPPED_CADENCE",
-    "surprises.cross_section": "OK",
-    "surprises.regimes": "OK",
-    "c68.market_regime": "OK",
-    "c68.pattern_change": "OK",
-    "surprises.multiscale": "OK",
-    "failures.decision_losses": "OK",
-    "c68.outcomes_errors": "OK",
-    "c68.what_changed": "OK",
-    "c68.error_research": "OK",
-    "failures.winners_losers": "OK",
-    "failures.loss_pipeline": "OK",
-    "missed.missed": "OK",
-    "missed.knowability": "OK",
-    "missed.unknown_cause": "OK",
-    "missed.counterfactual": "OK",
-    "breaks.knowledge": "SKIPPED_NO_INPUT",
-    "breaks.break_research": "OK",
-    "questions.discovery": "SKIPPED_CADENCE",
-    "questions.interactions": "SKIPPED_CADENCE",
-    "questions.precursors": "OK",
-    "questions.targets": "OK",
-    "questions.research_graph": "OK",
-    "questions.generate": "OK",
-    "c68.research_depth": "SKIPPED_NO_INPUT",
-    "hypotheses.trees": "OK",
-    "gain.priority": "OK",
-    "allocate.controller": "OK",
-    "allocate.diversity": "OK",
-    "allocate.compute": "OK",
-    "run.experiments": "OK",
-    "validate.harvest": "OK",
-    "controls.compare": "OK",
-    "learn.ladder": "OK",
-    "learn.memory": "OK",
-    "learn.value": "OK",
-    "learn.science_memory": "OK",
-    "learn.replication": "OK",
-    "learn.quality_gate": "SKIPPED_NO_INPUT",
-    "c68.validate_promote": "OK",
-    "learn.decision_bridge": "SKIPPED_NO_INPUT",
-    "priorities.waste": "OK",
-    "priorities.brain_health": "OK",
-    "priorities.meta_research": "SKIPPED_CADENCE",
-    "priorities.failed_lab": "OK",
-    "priorities.scorecard": "SKIPPED_CADENCE",
-    "priorities.stale": "OK",
-    "c68.monitor_audit": "OK",
-    "sweeps.background": "OK",
-    "report.cycle": "OK"
-   },
-   "reasons": {
-    "c68.selection_policy": "policy L4139f2fc (threshold -0.0096); gain model fitted n=3161 base in-band 0.092; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00",
-    "evaluate.two_stage": "gate open",
-    "c68.expectations": "2 expectation(s) frozen before the 2017-07-31 fill",
-    "c68.outcomes_errors": "1 exit(s) by the learned policy, 1 error report(s), 0 unreconstructable, 46 candidate gain(s) resolved",
-    "c68.what_changed": "classes {}; 0 unknowable preserved; 0 tree(s) into the loop forest; 0 waiting",
-    "c68.error_research": "2017-07-28: 1 new errors, tiers {'NONE': 1, 'CHEAP': 0, 'STANDARD': 0, 'DEEP': 0}, 0 confident-wrong, 0 escalated groups, 11 jobs (80 cpu-min requested); 11 que",
-    "questions.generate": "22 merged, 0 refused, 0 already answered",
-    "c68.research_depth": "no new question from a C68 event this cycle (12 new loop question(s), 10 C68 subject(s) ever asked; upstream: 21 position(s) ever, 2 open, 19 matured, 19 error ",
-    "learn.decision_bridge": "no new knowledge to route"
-   },
-   "positions": [
-    {
-     "ticker": "W009",
-     "side": 1,
-     "p_up": 0.6436726865114963,
-     "gain_pred": 0.05412056117168264,
-     "run": 1
-    },
-    {
-     "ticker": "W027",
-     "side": 1,
-     "p_up": 0.5898760662355037,
-     "gain_pred": 0.06372231065831035,
-     "run": 1
-    }
-   ],
-   "movers": [
-    {
-     "ticker": "W006",
-     "reason": "OUT_OF_BAND",
-     "p_up": 0.5727678503837764,
-     "gain_pred": -0.02759006974678132,
-     "run": -1
-    },
-    {
-     "ticker": "W009",
-     "reason": "POSITION",
-     "p_up": 0.6436726865114963,
-     "gain_pred": 0.05412056117168264,
-     "run": 1
-    },
-    {
-     "ticker": "W017",
-     "reason": "OUT_OF_BAND",
-     "p_up": 0.5598938412025741,
-     "gain_pred": -0.02615197717890079,
-     "run": -1
-    },
-    {
-     "ticker": "W023",
-     "reason": "OUT_OF_BAND",
-     "p_up": 0.5877824691815839,
-     "gain_pred": -0.0006626786568756694,
-     "run": -1
-    },
-    {
-     "ticker": "W027",
-     "reason": "POSITION",
-     "p_up": 0.5898760662355037,
-     "gain_pred": 0.06372231065831035,
-     "run": 1
-    }
-   ],
-   "abstentions": {
-    "NOT_PREDICTED_MOVER": 41,
-    "OUT_OF_BAND": 3,
-    "POSITION": 2
-   },
-   "knowledge": []
-  },
-  {
-   "cycle": 12,
-   "now": "2017-08-04",
-   "stages": {
-    "observe.panel": "OK",
-    "observe.observer": "OK",
-    "observe.autopsy": "OK",
-    "update.experiment_memory": "OK",
-    "update.firewall_release": "SKIPPED_NO_INPUT",
-    "c68.selection_policy": "OK",
-    "evaluate.two_stage": "OK",
-    "c68.expectations": "OK",
-    "evaluate.volatility_lab": "SKIPPED_CADENCE",
-    "evaluate.direction_lab": "SKIPPED_CADENCE",
-    "evaluate.frontier": "OK",
-    "evaluate.symmetry": "OK",
-    "surprises.feature_screen": "OK",
-    "surprises.cross_section": "OK",
-    "surprises.regimes": "OK",
-    "c68.market_regime": "OK",
-    "c68.pattern_change": "OK",
-    "surprises.multiscale": "OK",
-    "failures.decision_losses": "OK",
-    "c68.outcomes_errors": "OK",
-    "c68.what_changed": "SKIPPED_NO_INPUT",
-    "c68.error_research": "OK",
-    "failures.winners_losers": "OK",
-    "failures.loss_pipeline": "OK",
-    "missed.missed": "OK",
-    "missed.knowability": "OK",
-    "missed.unknown_cause": "OK",
-    "missed.counterfactual": "OK",
-    "breaks.knowledge": "SKIPPED_NO_INPUT",
-    "breaks.break_research": "OK",
-    "questions.discovery": "OK",
-    "questions.interactions": "SKIPPED_CADENCE",
-    "questions.precursors": "OK",
-    "questions.targets": "OK",
-    "questions.research_graph": "OK",
-    "questions.generate": "OK",
-    "c68.research_depth": "OK",
-    "hypotheses.trees": "OK",
-    "gain.priority": "OK",
-    "allocate.controller": "OK",
-    "allocate.diversity": "OK",
-    "allocate.compute": "OK",
-    "run.experiments": "OK",
-    "validate.harvest": "OK",
-    "controls.compare": "OK",
-    "learn.ladder": "OK",
-    "learn.memory": "OK",
-    "learn.value": "OK",
-    "learn.science_memory": "OK",
-    "learn.replication": "OK",
-    "learn.quality_gate": "SKIPPED_NO_INPUT",
-    "c68.validate_promote": "OK",
-    "learn.decision_bridge": "SKIPPED_NO_INPUT",
-    "priorities.waste": "OK",
-    "priorities.brain_health": "OK",
-    "priorities.meta_research": "OK",
-    "priorities.failed_lab": "OK",
-    "priorities.scorecard": "OK",
-    "priorities.stale": "OK",
-    "c68.monitor_audit": "OK",
-    "sweeps.background": "OK",
-    "report.cycle": "OK"
-   },
-   "reasons": {
-    "c68.selection_policy": "policy L06fb48eb (threshold -0.0094); gain model fitted n=3207 base in-band 0.092; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00",
-    "evaluate.two_stage": "gate open",
-    "c68.expectations": "no position on 2017-08-04: {'NOT_PREDICTED_MOVER': 41, 'LOW_CONFIDENCE': 2, 'OUT_OF_BAND': 2, 'SHORT_DISABLED': 1}",
-    "c68.outcomes_errors": "0 exit(s) by the learned policy, 0 error report(s), 0 unreconstructable, 46 candidate gain(s) resolved",
-    "c68.what_changed": "no newly matured error to investigate (upstream: 21 position(s) ever, 2 open, 19 matured, 19 error report(s); band gate eligible 34/598 forecast(s))",
-    "c68.error_research": "2017-08-04: 0 new errors, tiers {'NONE': 0, 'CHEAP': 0, 'STANDARD': 0, 'DEEP': 0}, 0 confident-wrong, 0 escalated groups, 11 jobs (80 cpu-min requested); 11 que",
-    "questions.generate": "20 merged, 0 refused, 0 already answered",
-    "c68.research_depth": "1 C68 question(s) in the loop's queue, 0 damped",
-    "learn.decision_bridge": "no new knowledge to route"
-   },
-   "positions": [],
-   "movers": [
-    {
-     "ticker": "W006",
-     "reason": "LOW_CONFIDENCE",
-     "p_up": 0.521148797423528,
-     "gain_pred": NaN,
-     "run": 0
-    },
-    {
-     "ticker": "W016",
-     "reason": "OUT_OF_BAND",
-     "p_up": 0.6683284411888623,
-     "gain_pred": 0.03559065042371465,
-     "run": 0
-    },
-    {
-     "ticker": "W017",
-     "reason": "LOW_CONFIDENCE",
-     "p_up": 0.5244108422879433,
-     "gain_pred": NaN,
-     "run": -1
-    },
-    {
-     "ticker": "W019",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.42362303182920874,
-     "gain_pred": NaN,
-     "run": -1
-    },
-    {
-     "ticker": "W023",
-     "reason": "OUT_OF_BAND",
-     "p_up": 0.5551675558714779,
-     "gain_pred": -0.01650931594405382,
-     "run": -1
-    }
-   ],
-   "abstentions": {
-    "NOT_PREDICTED_MOVER": 41,
-    "LOW_CONFIDENCE": 2,
-    "OUT_OF_BAND": 2,
-    "SHORT_DISABLED": 1
-   },
-   "knowledge": []
-  },
-  {
-   "cycle": 13,
-   "now": "2017-08-11",
-   "stages": {
-    "observe.panel": "OK",
-    "observe.observer": "OK",
-    "observe.autopsy": "OK",
-    "update.experiment_memory": "OK",
-    "update.firewall_release": "SKIPPED_NO_INPUT",
-    "c68.selection_policy": "OK",
-    "evaluate.two_stage": "OK",
-    "c68.expectations": "OK",
-    "evaluate.volatility_lab": "OK",
-    "evaluate.direction_lab": "OK",
-    "evaluate.frontier": "OK",
-    "evaluate.symmetry": "OK",
-    "surprises.feature_screen": "SKIPPED_CADENCE",
-    "surprises.cross_section": "OK",
-    "surprises.regimes": "OK",
-    "c68.market_regime": "OK",
-    "c68.pattern_change": "OK",
-    "surprises.multiscale": "OK",
-    "failures.decision_losses": "OK",
-    "c68.outcomes_errors": "OK",
-    "c68.what_changed": "OK",
-    "c68.error_research": "OK",
-    "failures.winners_losers": "OK",
-    "failures.loss_pipeline": "OK",
-    "missed.missed": "OK",
-    "missed.knowability": "OK",
-    "missed.unknown_cause": "OK",
-    "missed.counterfactual": "OK",
-    "breaks.knowledge": "SKIPPED_NO_INPUT",
-    "breaks.break_research": "OK",
-    "questions.discovery": "SKIPPED_CADENCE",
-    "questions.interactions": "SKIPPED_CADENCE",
-    "questions.precursors": "OK",
-    "questions.targets": "OK",
-    "questions.research_graph": "OK",
-    "questions.generate": "OK",
-    "c68.research_depth": "OK",
-    "hypotheses.trees": "OK",
-    "gain.priority": "OK",
-    "allocate.controller": "OK",
-    "allocate.diversity": "OK",
-    "allocate.compute": "OK",
-    "run.experiments": "OK",
-    "validate.harvest": "OK",
-    "controls.compare": "OK",
-    "learn.ladder": "OK",
-    "learn.memory": "OK",
-    "learn.value": "OK",
-    "learn.science_memory": "OK",
-    "learn.replication": "OK",
-    "learn.quality_gate": "SKIPPED_NO_INPUT",
-    "c68.validate_promote": "OK",
-    "learn.decision_bridge": "SKIPPED_NO_INPUT",
-    "priorities.waste": "OK",
-    "priorities.brain_health": "OK",
-    "priorities.meta_research": "SKIPPED_CADENCE",
-    "priorities.failed_lab": "OK",
-    "priorities.scorecard": "SKIPPED_CADENCE",
-    "priorities.stale": "OK",
-    "c68.monitor_audit": "OK",
-    "sweeps.background": "OK",
-    "report.cycle": "OK"
-   },
-   "reasons": {
-    "c68.selection_policy": "policy Lf4996c57 (threshold -0.0092); gain model fitted n=3253 base in-band 0.092; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00",
-    "evaluate.two_stage": "gate open",
-    "c68.expectations": "1 expectation(s) frozen before the 2017-08-14 fill",
-    "c68.outcomes_errors": "2 exit(s) by the learned policy, 2 error report(s), 0 unreconstructable, 46 candidate gain(s) resolved",
-    "c68.what_changed": "classes {'CURRENTLY_UNEXPLAINED': 1}; 0 unknowable preserved; 1 tree(s) into the loop forest; 0 waiting",
-    "c68.error_research": "2017-08-11: 2 new errors, tiers {'NONE': 0, 'CHEAP': 2, 'STANDARD': 0, 'DEEP': 0}, 0 confident-wrong, 0 escalated groups, 13 jobs (90 cpu-min requested); 12 que",
-    "questions.generate": "23 merged, 0 refused, 0 already answered",
-    "c68.research_depth": "2 C68 question(s) in the loop's queue, 0 damped",
-    "learn.decision_bridge": "no new knowledge to route"
-   },
-   "positions": [
-    {
-     "ticker": "W027",
-     "side": 1,
-     "p_up": 0.5781598784203941,
-     "gain_pred": 0.0666632941247806,
-     "run": 1
-    }
-   ],
-   "movers": [
-    {
-     "ticker": "W006",
-     "reason": "LOW_CONFIDENCE",
-     "p_up": 0.5310640855048053,
-     "gain_pred": NaN,
-     "run": 0
-    },
-    {
-     "ticker": "W016",
-     "reason": "OUT_OF_BAND",
-     "p_up": 0.649447052388066,
-     "gain_pred": 0.04785663755619115,
-     "run": 1
-    },
-    {
-     "ticker": "W017",
-     "reason": "LOW_CONFIDENCE",
-     "p_up": 0.5097483683679932,
-     "gain_pred": NaN,
-     "run": -1
-    },
-    {
-     "ticker": "W019",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.325633018643836,
-     "gain_pred": NaN,
-     "run": -1
-    },
-    {
-     "ticker": "W027",
-     "reason": "POSITION",
-     "p_up": 0.5781598784203941,
-     "gain_pred": 0.0666632941247806,
-     "run": 1
-    }
-   ],
-   "abstentions": {
-    "NOT_PREDICTED_MOVER": 41,
-    "LOW_CONFIDENCE": 2,
-    "OUT_OF_BAND": 1,
-    "SHORT_DISABLED": 1,
-    "POSITION": 1
-   },
-   "knowledge": []
-  },
-  {
-   "cycle": 14,
-   "now": "2017-08-18",
-   "stages": {
-    "observe.panel": "OK",
-    "observe.observer": "OK",
-    "observe.autopsy": "OK",
-    "update.experiment_memory": "OK",
-    "update.firewall_release": "SKIPPED_NO_INPUT",
-    "c68.selection_policy": "OK",
-    "evaluate.two_stage": "OK",
-    "c68.expectations": "OK",
-    "evaluate.volatility_lab": "SKIPPED_CADENCE",
-    "evaluate.direction_lab": "SKIPPED_CADENCE",
-    "evaluate.frontier": "OK",
-    "evaluate.symmetry": "OK",
-    "surprises.feature_screen": "SKIPPED_CADENCE",
-    "surprises.cross_section": "OK",
-    "surprises.regimes": "OK",
-    "c68.market_regime": "OK",
-    "c68.pattern_change": "OK",
-    "surprises.multiscale": "OK",
-    "failures.decision_losses": "OK",
-    "c68.outcomes_errors": "OK",
-    "c68.what_changed": "SKIPPED_NO_INPUT",
-    "c68.error_research": "OK",
-    "failures.winners_losers": "OK",
-    "failures.loss_pipeline": "OK",
-    "missed.missed": "OK",
-    "missed.knowability": "OK",
-    "missed.unknown_cause": "OK",
-    "missed.counterfactual": "OK",
-    "breaks.knowledge": "SKIPPED_NO_INPUT",
-    "breaks.break_research": "OK",
-    "questions.discovery": "SKIPPED_CADENCE",
-    "questions.interactions": "SKIPPED_CADENCE",
-    "questions.precursors": "OK",
-    "questions.targets": "OK",
-    "questions.research_graph": "OK",
-    "questions.generate": "OK",
-    "c68.research_depth": "OK",
-    "hypotheses.trees": "OK",
-    "gain.priority": "OK",
-    "allocate.controller": "OK",
-    "allocate.diversity": "OK",
-    "allocate.compute": "OK",
-    "run.experiments": "OK",
-    "validate.harvest": "OK",
-    "controls.compare": "OK",
-    "learn.ladder": "OK",
-    "learn.memory": "OK",
-    "learn.value": "OK",
-    "learn.science_memory": "OK",
-    "learn.replication": "OK",
-    "learn.quality_gate": "SKIPPED_NO_INPUT",
-    "c68.validate_promote": "OK",
-    "learn.decision_bridge": "SKIPPED_NO_INPUT",
-    "priorities.waste": "OK",
-    "priorities.brain_health": "OK",
-    "priorities.meta_research": "SKIPPED_CADENCE",
-    "priorities.failed_lab": "OK",
-    "priorities.scorecard": "SKIPPED_CADENCE",
-    "priorities.stale": "OK",
-    "c68.monitor_audit": "OK",
-    "sweeps.background": "OK",
-    "report.cycle": "OK"
-   },
-   "reasons": {
-    "c68.selection_policy": "policy L1c65de0b (threshold -0.0055); gain model fitted n=3299 base in-band 0.089; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00",
-    "evaluate.two_stage": "gate open",
-    "c68.expectations": "2 expectation(s) frozen before the 2017-08-21 fill",
-    "c68.outcomes_errors": "0 exit(s) by the learned policy, 0 error report(s), 0 unreconstructable, 46 candidate gain(s) resolved",
-    "c68.what_changed": "no newly matured error to investigate (upstream: 24 position(s) ever, 3 open, 21 matured, 21 error report(s); band gate eligible 39/690 forecast(s))",
-    "c68.error_research": "2017-08-18: 0 new errors, tiers {'NONE': 0, 'CHEAP': 0, 'STANDARD': 0, 'DEEP': 0}, 0 confident-wrong, 0 escalated groups, 11 jobs (80 cpu-min requested); 11 que",
-    "questions.generate": "21 merged, 0 refused, 0 already answered",
-    "c68.research_depth": "1 C68 question(s) in the loop's queue, 0 damped",
-    "learn.decision_bridge": "no new knowledge to route"
-   },
-   "positions": [
-    {
-     "ticker": "W027",
-     "side": 1,
-     "p_up": 0.8442079408105579,
-     "gain_pred": 0.06943784793039234,
-     "run": 1
-    },
-    {
-     "ticker": "W042",
-     "side": 1,
-     "p_up": 0.7605567647590619,
-     "gain_pred": 0.05330946198254774,
-     "run": 1
-    }
-   ],
-   "movers": [
-    {
-     "ticker": "W016",
-     "reason": "OUT_OF_BAND",
-     "p_up": 0.7096950263939352,
-     "gain_pred": 0.03351987510218862,
-     "run": 1
-    },
-    {
-     "ticker": "W017",
-     "reason": "LOW_CONFIDENCE",
-     "p_up": 0.4551254754884451,
-     "gain_pred": NaN,
-     "run": -1
-    },
-    {
-     "ticker": "W023",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.4161440598037541,
-     "gain_pred": NaN,
-     "run": -1
-    },
-    {
-     "ticker": "W027",
-     "reason": "POSITION",
-     "p_up": 0.8442079408105579,
-     "gain_pred": 0.06943784793039234,
-     "run": 1
-    },
-    {
-     "ticker": "W042",
-     "reason": "POSITION",
-     "p_up": 0.7605567647590619,
-     "gain_pred": 0.05330946198254774,
-     "run": 1
-    }
-   ],
-   "abstentions": {
-    "NOT_PREDICTED_MOVER": 41,
-    "POSITION": 2,
-    "OUT_OF_BAND": 1,
-    "LOW_CONFIDENCE": 1,
-    "SHORT_DISABLED": 1
-   },
-   "knowledge": []
-  },
-  {
-   "cycle": 15,
-   "now": "2017-08-25",
-   "stages": {
-    "observe.panel": "OK",
-    "observe.observer": "OK",
-    "observe.autopsy": "OK",
-    "update.experiment_memory": "OK",
-    "update.firewall_release": "SKIPPED_NO_INPUT",
-    "c68.selection_policy": "OK",
-    "evaluate.two_stage": "OK",
-    "c68.expectations": "OK",
-    "evaluate.volatility_lab": "SKIPPED_CADENCE",
-    "evaluate.direction_lab": "SKIPPED_CADENCE",
-    "evaluate.frontier": "OK",
-    "evaluate.symmetry": "OK",
-    "surprises.feature_screen": "SKIPPED_CADENCE",
-    "surprises.cross_section": "OK",
-    "surprises.regimes": "OK",
-    "c68.market_regime": "OK",
-    "c68.pattern_change": "OK",
-    "surprises.multiscale": "OK",
-    "failures.decision_losses": "OK",
-    "c68.outcomes_errors": "OK",
-    "c68.what_changed": "OK",
-    "c68.error_research": "OK",
-    "failures.winners_losers": "OK",
-    "failures.loss_pipeline": "OK",
-    "missed.missed": "OK",
-    "missed.knowability": "OK",
-    "missed.unknown_cause": "OK",
-    "missed.counterfactual": "OK",
-    "breaks.knowledge": "SKIPPED_NO_INPUT",
-    "breaks.break_research": "OK",
-    "questions.discovery": "SKIPPED_CADENCE",
-    "questions.interactions": "SKIPPED_CADENCE",
-    "questions.precursors": "OK",
-    "questions.targets": "OK",
-    "questions.research_graph": "OK",
-    "questions.generate": "OK",
-    "c68.research_depth": "OK",
-    "hypotheses.trees": "OK",
-    "gain.priority": "OK",
-    "allocate.controller": "OK",
-    "allocate.diversity": "OK",
-    "allocate.compute": "OK",
-    "run.experiments": "OK",
-    "validate.harvest": "OK",
-    "controls.compare": "OK",
-    "learn.ladder": "OK",
-    "learn.memory": "OK",
-    "learn.value": "OK",
-    "learn.science_memory": "OK",
-    "learn.replication": "OK",
-    "learn.quality_gate": "SKIPPED_NO_INPUT",
-    "c68.validate_promote": "OK",
-    "learn.decision_bridge": "SKIPPED_NO_INPUT",
-    "priorities.waste": "FAILED",
-    "priorities.brain_health": "OK",
-    "priorities.meta_research": "SKIPPED_CADENCE",
-    "priorities.failed_lab": "OK",
-    "priorities.scorecard": "SKIPPED_CADENCE",
-    "priorities.stale": "OK",
-    "c68.monitor_audit": "OK",
-    "sweeps.background": "OK",
-    "report.cycle": "OK"
-   },
-   "reasons": {
-    "c68.selection_policy": "policy Lc1557c72 (threshold -0.0051); gain model fitted n=3345 base in-band 0.088; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00",
-    "evaluate.two_stage": "gate open",
-    "c68.expectations": "1 expectation(s) frozen before the 2017-08-28 fill",
-    "c68.outcomes_errors": "1 exit(s) by the learned policy, 1 error report(s), 0 unreconstructable, 46 candidate gain(s) resolved",
-    "c68.what_changed": "classes {}; 0 unknowable preserved; 0 tree(s) into the loop forest; 0 waiting",
-    "c68.error_research": "2017-08-25: 1 new errors, tiers {'NONE': 0, 'CHEAP': 1, 'STANDARD': 0, 'DEEP': 0}, 0 confident-wrong, 0 escalated groups, 12 jobs (85 cpu-min requested); 12 que",
-    "questions.generate": "21 merged, 0 refused, 0 already answered",
-    "c68.research_depth": "1 C68 question(s) in the loop's queue, 0 damped",
-    "learn.decision_bridge": "no new knowledge to route"
-   },
-   "positions": [
-    {
-     "ticker": "W027",
-     "side": 1,
-     "p_up": 0.8669202912459185,
-     "gain_pred": 0.07028858341065763,
-     "run": 1
-    }
-   ],
-   "movers": [
-    {
-     "ticker": "W010",
-     "reason": "LOW_CONFIDENCE",
-     "p_up": 0.5045674614037633,
-     "gain_pred": NaN,
-     "run": 0
-    },
-    {
-     "ticker": "W012",
-     "reason": "OUT_OF_BAND",
-     "p_up": 0.6254751611004877,
-     "gain_pred": 0.00701484350966214,
-     "run": 0
-    },
-    {
-     "ticker": "W017",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.3909329595907755,
-     "gain_pred": NaN,
-     "run": -1
-    },
-    {
-     "ticker": "W019",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.22979278877788556,
-     "gain_pred": NaN,
-     "run": -1
-    },
-    {
-     "ticker": "W027",
-     "reason": "POSITION",
-     "p_up": 0.8669202912459185,
-     "gain_pred": 0.07028858341065763,
-     "run": 1
-    }
-   ],
-   "abstentions": {
-    "NOT_PREDICTED_MOVER": 41,
-    "SHORT_DISABLED": 2,
-    "LOW_CONFIDENCE": 1,
-    "OUT_OF_BAND": 1,
-    "POSITION": 1
-   },
-   "knowledge": []
-  },
-  {
-   "cycle": 16,
-   "now": "2017-09-01",
-   "stages": {
-    "observe.panel": "OK",
-    "observe.observer": "OK",
-    "observe.autopsy": "OK",
-    "update.experiment_memory": "OK",
-    "update.firewall_release": "SKIPPED_NO_INPUT",
-    "c68.selection_policy": "OK",
-    "evaluate.two_stage": "OK",
-    "c68.expectations": "OK",
-    "evaluate.volatility_lab": "SKIPPED_CADENCE",
-    "evaluate.direction_lab": "SKIPPED_CADENCE",
-    "evaluate.frontier": "OK",
-    "evaluate.symmetry": "OK",
-    "surprises.feature_screen": "OK",
-    "surprises.cross_section": "OK",
-    "surprises.regimes": "OK",
-    "c68.market_regime": "OK",
-    "c68.pattern_change": "OK",
-    "surprises.multiscale": "OK",
-    "failures.decision_losses": "OK",
-    "c68.outcomes_errors": "OK",
-    "c68.what_changed": "OK",
-    "c68.error_research": "OK",
-    "failures.winners_losers": "OK",
-    "failures.loss_pipeline": "OK",
-    "missed.missed": "OK",
-    "missed.knowability": "OK",
-    "missed.unknown_cause": "OK",
-    "missed.counterfactual": "OK",
-    "breaks.knowledge": "SKIPPED_NO_INPUT",
-    "breaks.break_research": "OK",
-    "questions.discovery": "OK",
-    "questions.interactions": "OK",
-    "questions.precursors": "OK",
-    "questions.targets": "OK",
-    "questions.research_graph": "OK",
-    "questions.generate": "OK",
-    "c68.research_depth": "OK",
-    "hypotheses.trees": "OK",
-    "gain.priority": "OK",
-    "allocate.controller": "OK",
-    "allocate.diversity": "OK",
-    "allocate.compute": "OK",
-    "run.experiments": "OK",
-    "validate.harvest": "OK",
-    "controls.compare": "OK",
-    "learn.ladder": "OK",
-    "learn.memory": "OK",
-    "learn.value": "OK",
-    "learn.science_memory": "OK",
-    "learn.replication": "OK",
-    "learn.quality_gate": "SKIPPED_NO_INPUT",
-    "c68.validate_promote": "OK",
-    "learn.decision_bridge": "SKIPPED_NO_INPUT",
-    "priorities.waste": "FAILED",
-    "priorities.brain_health": "OK",
-    "priorities.meta_research": "OK",
-    "priorities.failed_lab": "OK",
-    "priorities.scorecard": "OK",
-    "priorities.stale": "OK",
-    "c68.monitor_audit": "OK",
-    "sweeps.background": "OK",
-    "report.cycle": "OK"
-   },
-   "reasons": {
-    "c68.selection_policy": "policy L87c2458c (threshold -0.0051); gain model fitted n=3391 base in-band 0.088; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00",
-    "evaluate.two_stage": "gate open",
-    "c68.expectations": "2 expectation(s) frozen before the 2017-09-04 fill",
-    "c68.outcomes_errors": "2 exit(s) by the learned policy, 2 error report(s), 0 unreconstructable, 46 candidate gain(s) resolved",
-    "c68.what_changed": "classes {'CURRENTLY_UNEXPLAINED': 1}; 0 unknowable preserved; 0 tree(s) into the loop forest; 0 waiting",
-    "c68.error_research": "2017-09-01: 2 new errors, tiers {'NONE': 1, 'CHEAP': 0, 'STANDARD': 0, 'DEEP': 1}, 1 confident-wrong, 0 escalated groups, 12 jobs (200 cpu-min requested); 12 qu",
-    "questions.generate": "17 merged, 0 refused, 0 already answered",
-    "c68.research_depth": "1 C68 question(s) in the loop's queue, 1 damped",
-    "learn.decision_bridge": "no new knowledge to route"
-   },
-   "positions": [
-    {
-     "ticker": "W027",
-     "side": 1,
-     "p_up": 0.8822404965542334,
-     "gain_pred": 0.07422553805112297,
-     "run": 1
-    },
-    {
-     "ticker": "W042",
-     "side": 1,
-     "p_up": 0.8146789204508297,
-     "gain_pred": 0.061175600374375735,
-     "run": 1
-    }
-   ],
-   "movers": [
-    {
-     "ticker": "W010",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.4245121030717895,
-     "gain_pred": NaN,
-     "run": 0
-    },
-    {
-     "ticker": "W012",
-     "reason": "OUT_OF_BAND",
-     "p_up": 0.5898304664250077,
-     "gain_pred": -0.005211365602377482,
-     "run": 0
-    },
-    {
-     "ticker": "W017",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.29697845468331224,
-     "gain_pred": NaN,
-     "run": -1
-    },
-    {
-     "ticker": "W027",
-     "reason": "POSITION",
-     "p_up": 0.8822404965542334,
-     "gain_pred": 0.07422553805112297,
-     "run": 1
-    },
-    {
-     "ticker": "W042",
-     "reason": "POSITION",
-     "p_up": 0.8146789204508297,
-     "gain_pred": 0.061175600374375735,
-     "run": 1
-    }
-   ],
-   "abstentions": {
-    "NOT_PREDICTED_MOVER": 41,
-    "SHORT_DISABLED": 2,
-    "POSITION": 2,
-    "OUT_OF_BAND": 1
-   },
-   "knowledge": []
-  },
-  {
-   "cycle": 17,
-   "now": "2017-09-08",
-   "stages": {
-    "observe.panel": "OK",
-    "observe.observer": "OK",
-    "observe.autopsy": "OK",
-    "update.experiment_memory": "OK",
-    "update.firewall_release": "SKIPPED_NO_INPUT",
-    "c68.selection_policy": "OK",
-    "evaluate.two_stage": "OK",
-    "c68.expectations": "OK",
-    "evaluate.volatility_lab": "SKIPPED_CADENCE",
-    "evaluate.direction_lab": "SKIPPED_CADENCE",
-    "evaluate.frontier": "OK",
-    "evaluate.symmetry": "OK",
-    "surprises.feature_screen": "SKIPPED_CADENCE",
-    "surprises.cross_section": "OK",
-    "surprises.regimes": "OK",
-    "c68.market_regime": "OK",
-    "c68.pattern_change": "OK",
-    "surprises.multiscale": "OK",
-    "failures.decision_losses": "OK",
-    "c68.outcomes_errors": "OK",
-    "c68.what_changed": "OK",
-    "c68.error_research": "OK",
-    "failures.winners_losers": "OK",
-    "failures.loss_pipeline": "OK",
-    "missed.missed": "OK",
-    "missed.knowability": "OK",
-    "missed.unknown_cause": "OK",
-    "missed.counterfactual": "OK",
-    "breaks.knowledge": "SKIPPED_NO_INPUT",
-    "breaks.break_research": "OK",
-    "questions.discovery": "SKIPPED_CADENCE",
-    "questions.interactions": "SKIPPED_CADENCE",
-    "questions.precursors": "OK",
-    "questions.targets": "OK",
-    "questions.research_graph": "OK",
-    "questions.generate": "OK",
-    "c68.research_depth": "SKIPPED_NO_INPUT",
-    "hypotheses.trees": "OK",
-    "gain.priority": "OK",
-    "allocate.controller": "OK",
-    "allocate.diversity": "OK",
-    "allocate.compute": "OK",
-    "run.experiments": "OK",
-    "validate.harvest": "OK",
-    "controls.compare": "OK",
-    "learn.ladder": "OK",
-    "learn.memory": "OK",
-    "learn.value": "OK",
-    "learn.science_memory": "OK",
-    "learn.replication": "OK",
-    "learn.quality_gate": "SKIPPED_NO_INPUT",
-    "c68.validate_promote": "OK",
-    "learn.decision_bridge": "SKIPPED_NO_INPUT",
-    "priorities.waste": "FAILED",
-    "priorities.brain_health": "OK",
-    "priorities.meta_research": "SKIPPED_CADENCE",
-    "priorities.failed_lab": "OK",
-    "priorities.scorecard": "SKIPPED_CADENCE",
-    "priorities.stale": "OK",
-    "c68.monitor_audit": "OK",
-    "sweeps.background": "OK",
-    "report.cycle": "OK"
-   },
-   "reasons": {
-    "c68.selection_policy": "policy L81b8fb41 (threshold -0.0051); gain model fitted n=3437 base in-band 0.088; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00",
-    "evaluate.two_stage": "gate open",
-    "c68.expectations": "2 expectation(s) frozen before the 2017-09-11 fill",
-    "c68.outcomes_errors": "1 exit(s) by the learned policy, 1 error report(s), 0 unreconstructable, 46 candidate gain(s) resolved",
-    "c68.what_changed": "classes {}; 0 unknowable preserved; 0 tree(s) into the loop forest; 0 waiting",
-    "c68.error_research": "2017-09-08: 1 new errors, tiers {'NONE': 1, 'CHEAP': 0, 'STANDARD': 0, 'DEEP': 0}, 0 confident-wrong, 0 escalated groups, 11 jobs (80 cpu-min requested); 11 que",
-    "questions.generate": "19 merged, 0 refused, 0 already answered",
-    "c68.research_depth": "no new question from a C68 event this cycle (12 new loop question(s), 10 C68 subject(s) ever asked; upstream: 29 position(s) ever, 4 open, 25 matured, 25 error ",
-    "learn.decision_bridge": "no new knowledge to route"
-   },
-   "positions": [
-    {
-     "ticker": "W027",
-     "side": 1,
-     "p_up": 0.8291998648780188,
-     "gain_pred": 0.062184092318124724,
-     "run": 1
-    },
-    {
-     "ticker": "W042",
-     "side": 1,
-     "p_up": 0.925005881234503,
-     "gain_pred": 0.059347013442227335,
-     "run": 1
-    }
-   ],
-   "movers": [
-    {
-     "ticker": "W010",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.33306839960592477,
-     "gain_pred": NaN,
-     "run": 0
-    },
-    {
-     "ticker": "W017",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.2764637552163757,
-     "gain_pred": NaN,
-     "run": -1
-    },
-    {
-     "ticker": "W019",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.16469253902528905,
-     "gain_pred": NaN,
-     "run": -1
-    },
-    {
-     "ticker": "W027",
-     "reason": "POSITION",
-     "p_up": 0.8291998648780188,
-     "gain_pred": 0.062184092318124724,
-     "run": 1
-    },
-    {
-     "ticker": "W042",
-     "reason": "POSITION",
-     "p_up": 0.925005881234503,
-     "gain_pred": 0.059347013442227335,
-     "run": 1
-    }
-   ],
-   "abstentions": {
-    "NOT_PREDICTED_MOVER": 41,
-    "SHORT_DISABLED": 3,
-    "POSITION": 2
-   },
-   "knowledge": []
-  },
-  {
-   "cycle": 18,
-   "now": "2017-09-15",
-   "stages": {
-    "observe.panel": "OK",
-    "observe.observer": "OK",
-    "observe.autopsy": "OK",
-    "update.experiment_memory": "OK",
-    "update.firewall_release": "SKIPPED_NO_INPUT",
-    "c68.selection_policy": "OK",
-    "evaluate.two_stage": "OK",
-    "c68.expectations": "OK",
-    "evaluate.volatility_lab": "SKIPPED_CADENCE",
-    "evaluate.direction_lab": "SKIPPED_CADENCE",
-    "evaluate.frontier": "OK",
-    "evaluate.symmetry": "OK",
-    "surprises.feature_screen": "SKIPPED_CADENCE",
-    "surprises.cross_section": "OK",
-    "surprises.regimes": "OK",
-    "c68.market_regime": "OK",
-    "c68.pattern_change": "OK",
-    "surprises.multiscale": "OK",
-    "failures.decision_losses": "OK",
-    "c68.outcomes_errors": "OK",
-    "c68.what_changed": "OK",
-    "c68.error_research": "OK",
-    "failures.winners_losers": "OK",
-    "failures.loss_pipeline": "OK",
-    "missed.missed": "OK",
-    "missed.knowability": "OK",
-    "missed.unknown_cause": "OK",
-    "missed.counterfactual": "OK",
-    "breaks.knowledge": "SKIPPED_NO_INPUT",
-    "breaks.break_research": "OK",
-    "questions.discovery": "SKIPPED_CADENCE",
-    "questions.interactions": "SKIPPED_CADENCE",
-    "questions.precursors": "OK",
-    "questions.targets": "OK",
-    "questions.research_graph": "OK",
-    "questions.generate": "OK",
-    "c68.research_depth": "SKIPPED_NO_INPUT",
-    "hypotheses.trees": "OK",
-    "gain.priority": "OK",
-    "allocate.controller": "OK",
-    "allocate.diversity": "OK",
-    "allocate.compute": "OK",
-    "run.experiments": "OK",
-    "validate.harvest": "OK",
-    "controls.compare": "OK",
-    "learn.ladder": "OK",
-    "learn.memory": "OK",
-    "learn.value": "OK",
-    "learn.science_memory": "OK",
-    "learn.replication": "OK",
-    "learn.quality_gate": "SKIPPED_NO_INPUT",
-    "c68.validate_promote": "OK",
-    "learn.decision_bridge": "SKIPPED_NO_INPUT",
-    "priorities.waste": "FAILED",
-    "priorities.brain_health": "OK",
-    "priorities.meta_research": "SKIPPED_CADENCE",
-    "priorities.failed_lab": "OK",
-    "priorities.scorecard": "SKIPPED_CADENCE",
-    "priorities.stale": "OK",
-    "c68.monitor_audit": "OK",
-    "sweeps.background": "OK",
-    "report.cycle": "OK"
-   },
-   "reasons": {
-    "c68.selection_policy": "policy L59f16afd (threshold -0.0051); gain model fitted n=3483 base in-band 0.088; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00",
-    "evaluate.two_stage": "gate open",
-    "c68.expectations": "1 expectation(s) frozen before the 2017-09-18 fill",
-    "c68.outcomes_errors": "2 exit(s) by the learned policy, 2 error report(s), 0 unreconstructable, 46 candidate gain(s) resolved",
-    "c68.what_changed": "classes {}; 0 unknowable preserved; 0 tree(s) into the loop forest; 0 waiting",
-    "c68.error_research": "2017-09-15: 2 new errors, tiers {'NONE': 2, 'CHEAP': 0, 'STANDARD': 0, 'DEEP': 0}, 0 confident-wrong, 0 escalated groups, 11 jobs (80 cpu-min requested); 11 que",
-    "questions.generate": "20 merged, 0 refused, 0 already answered",
-    "c68.research_depth": "no new question from a C68 event this cycle (12 new loop question(s), 10 C68 subject(s) ever asked; upstream: 30 position(s) ever, 3 open, 27 matured, 27 error ",
-    "learn.decision_bridge": "no new knowledge to route"
-   },
-   "positions": [
-    {
-     "ticker": "W042",
-     "side": 1,
-     "p_up": 0.7625581244457798,
-     "gain_pred": 0.057612408751753295,
-     "run": 1
-    }
-   ],
-   "movers": [
-    {
-     "ticker": "W010",
-     "reason": "LOW_CONFIDENCE",
-     "p_up": 0.4948571828567538,
-     "gain_pred": NaN,
-     "run": 0
-    },
-    {
-     "ticker": "W015",
-     "reason": "LOW_CONFIDENCE",
-     "p_up": 0.5234518409063049,
-     "gain_pred": NaN,
-     "run": 0
-    },
-    {
-     "ticker": "W017",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.18869321800430394,
-     "gain_pred": NaN,
-     "run": -1
-    },
-    {
-     "ticker": "W023",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.25522159635752073,
-     "gain_pred": NaN,
-     "run": -1
-    },
-    {
-     "ticker": "W042",
-     "reason": "POSITION",
-     "p_up": 0.7625581244457798,
-     "gain_pred": 0.057612408751753295,
-     "run": 1
-    }
-   ],
-   "abstentions": {
-    "NOT_PREDICTED_MOVER": 41,
-    "LOW_CONFIDENCE": 2,
-    "SHORT_DISABLED": 2,
-    "POSITION": 1
-   },
-   "knowledge": []
-  },
-  {
-   "cycle": 19,
-   "now": "2017-09-22",
-   "stages": {
-    "observe.panel": "OK",
-    "observe.observer": "OK",
-    "observe.autopsy": "OK",
-    "update.experiment_memory": "OK",
-    "update.firewall_release": "SKIPPED_NO_INPUT",
-    "c68.selection_policy": "OK",
-    "evaluate.two_stage": "OK",
-    "c68.expectations": "OK",
-    "evaluate.volatility_lab": "SKIPPED_CADENCE",
-    "evaluate.direction_lab": "SKIPPED_CADENCE",
-    "evaluate.frontier": "OK",
-    "evaluate.symmetry": "OK",
-    "surprises.feature_screen": "SKIPPED_CADENCE",
-    "surprises.cross_section": "OK",
-    "surprises.regimes": "OK",
-    "c68.market_regime": "OK",
-    "c68.pattern_change": "OK",
-    "surprises.multiscale": "OK",
-    "failures.decision_losses": "OK",
-    "c68.outcomes_errors": "OK",
-    "c68.what_changed": "OK",
-    "c68.error_research": "OK",
-    "failures.winners_losers": "OK",
-    "failures.loss_pipeline": "OK",
-    "missed.missed": "OK",
-    "missed.knowability": "OK",
-    "missed.unknown_cause": "OK",
-    "missed.counterfactual": "OK",
-    "breaks.knowledge": "SKIPPED_NO_INPUT",
-    "breaks.break_research": "OK",
-    "questions.discovery": "SKIPPED_CADENCE",
-    "questions.interactions": "SKIPPED_CADENCE",
-    "questions.precursors": "OK",
-    "questions.targets": "OK",
-    "questions.research_graph": "OK",
-    "questions.generate": "OK",
-    "c68.research_depth": "OK",
-    "hypotheses.trees": "OK",
-    "gain.priority": "OK",
-    "allocate.controller": "OK",
-    "allocate.diversity": "OK",
-    "allocate.compute": "OK",
-    "run.experiments": "OK",
-    "validate.harvest": "OK",
-    "controls.compare": "OK",
-    "learn.ladder": "OK",
-    "learn.memory": "OK",
-    "learn.value": "OK",
-    "learn.science_memory": "OK",
-    "learn.replication": "OK",
-    "learn.quality_gate": "SKIPPED_NO_INPUT",
-    "c68.validate_promote": "OK",
-    "learn.decision_bridge": "SKIPPED_NO_INPUT",
-    "priorities.waste": "FAILED",
-    "priorities.brain_health": "OK",
-    "priorities.meta_research": "SKIPPED_CADENCE",
-    "priorities.failed_lab": "OK",
-    "priorities.scorecard": "SKIPPED_CADENCE",
-    "priorities.stale": "OK",
-    "c68.monitor_audit": "OK",
-    "sweeps.background": "OK",
-    "report.cycle": "OK"
-   },
-   "reasons": {
-    "c68.selection_policy": "policy Leb86e6aa (threshold -0.0050); gain model fitted n=3529 base in-band 0.088; influence mom_r20_top=1.00, rev_r5_bottom=0.50, vol_top=1.00",
-    "evaluate.two_stage": "gate open",
-    "c68.expectations": "no position on 2017-09-22: {'NOT_PREDICTED_MOVER': 41, 'SHORT_DISABLED': 3, 'LOW_CONFIDENCE': 2}",
-    "c68.outcomes_errors": "2 exit(s) by the learned policy, 2 error report(s), 0 unreconstructable, 46 candidate gain(s) resolved",
-    "c68.what_changed": "classes {}; 0 unknowable preserved; 0 tree(s) into the loop forest; 0 waiting",
-    "c68.error_research": "2017-09-22: 2 new errors, tiers {'NONE': 0, 'CHEAP': 2, 'STANDARD': 0, 'DEEP': 0}, 0 confident-wrong, 0 escalated groups, 13 jobs (90 cpu-min requested); 12 que",
-    "questions.generate": "22 merged, 0 refused, 0 already answered",
-    "c68.research_depth": "2 C68 question(s) in the loop's queue, 0 damped",
-    "learn.decision_bridge": "no new knowledge to route"
-   },
-   "positions": [],
-   "movers": [
-    {
-     "ticker": "W010",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.44288188505350423,
-     "gain_pred": NaN,
-     "run": 0
-    },
-    {
-     "ticker": "W012",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.43806825547603856,
-     "gain_pred": NaN,
-     "run": -1
-    },
-    {
-     "ticker": "W013",
-     "reason": "LOW_CONFIDENCE",
-     "p_up": 0.5467914912643581,
-     "gain_pred": NaN,
-     "run": 1
-    },
-    {
-     "ticker": "W015",
-     "reason": "LOW_CONFIDENCE",
-     "p_up": 0.5044911094751836,
-     "gain_pred": NaN,
-     "run": 0
-    },
-    {
-     "ticker": "W017",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.0821923797228946,
-     "gain_pred": NaN,
-     "run": -1
-    }
-   ],
-   "abstentions": {
-    "NOT_PREDICTED_MOVER": 41,
-    "SHORT_DISABLED": 3,
-    "LOW_CONFIDENCE": 2
-   },
-   "knowledge": []
-  },
-  {
-   "cycle": 20,
-   "now": "2017-09-29",
-   "stages": {
-    "observe.panel": "OK",
-    "observe.observer": "OK",
-    "observe.autopsy": "OK",
-    "update.experiment_memory": "OK",
-    "update.firewall_release": "SKIPPED_NO_INPUT",
-    "c68.selection_policy": "OK",
-    "evaluate.two_stage": "OK",
-    "c68.expectations": "OK",
-    "evaluate.volatility_lab": "SKIPPED_CADENCE",
-    "evaluate.direction_lab": "SKIPPED_CADENCE",
-    "evaluate.frontier": "OK",
-    "evaluate.symmetry": "OK",
-    "surprises.feature_screen": "OK",
-    "surprises.cross_section": "OK",
-    "surprises.regimes": "OK",
-    "c68.market_regime": "OK",
-    "c68.pattern_change": "OK",
-    "surprises.multiscale": "OK",
-    "failures.decision_losses": "OK",
-    "c68.outcomes_errors": "OK",
-    "c68.what_changed": "OK",
-    "c68.error_research": "OK",
-    "failures.winners_losers": "OK",
-    "failures.loss_pipeline": "OK",
-    "missed.missed": "OK",
-    "missed.knowability": "OK",
-    "missed.unknown_cause": "OK",
-    "missed.counterfactual": "OK",
-    "breaks.knowledge": "SKIPPED_NO_INPUT",
-    "breaks.break_research": "OK",
-    "questions.discovery": "OK",
-    "questions.interactions": "SKIPPED_CADENCE",
-    "questions.precursors": "OK",
-    "questions.targets": "OK",
-    "questions.research_graph": "OK",
-    "questions.generate": "OK",
-    "c68.research_depth": "SKIPPED_NO_INPUT",
-    "hypotheses.trees": "OK",
-    "gain.priority": "OK",
-    "allocate.controller": "OK",
-    "allocate.diversity": "OK",
-    "allocate.compute": "OK",
-    "run.experiments": "OK",
-    "validate.harvest": "OK",
-    "controls.compare": "OK",
-    "learn.ladder": "OK",
-    "learn.memory": "OK",
-    "learn.value": "OK",
-    "learn.science_memory": "OK",
-    "learn.replication": "OK",
-    "learn.quality_gate": "SKIPPED_NO_INPUT",
-    "c68.validate_promote": "OK",
-    "learn.decision_bridge": "SKIPPED_NO_INPUT",
-    "priorities.waste": "FAILED",
-    "priorities.brain_health": "OK",
-    "priorities.meta_research": "OK",
-    "priorities.failed_lab": "OK",
-    "priorities.scorecard": "OK",
-    "priorities.stale": "OK",
-    "c68.monitor_audit": "OK",
-    "sweeps.background": "OK",
-    "report.cycle": "OK"
-   },
-   "reasons": {
-    "c68.selection_policy": "policy L1ce5c9c6 (threshold -0.0017); gain model fitted n=3575 base in-band 0.077; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00",
-    "evaluate.two_stage": "gate open",
-    "c68.expectations": "no position on 2017-09-29: {'NOT_PREDICTED_MOVER': 40, 'SHORT_DISABLED': 3, 'OUT_OF_BAND': 1, 'LOW_CONFIDENCE': 1}",
-    "c68.outcomes_errors": "1 exit(s) by the learned policy, 1 error report(s), 0 unreconstructable, 46 candidate gain(s) resolved",
-    "c68.what_changed": "classes {}; 0 unknowable preserved; 0 tree(s) into the loop forest; 0 waiting",
-    "c68.error_research": "2017-09-29: 1 new errors, tiers {'NONE': 1, 'CHEAP': 0, 'STANDARD': 0, 'DEEP': 0}, 0 confident-wrong, 0 escalated groups, 11 jobs (88 cpu-min requested); 11 que",
-    "questions.generate": "22 merged, 0 refused, 0 already answered",
-    "c68.research_depth": "no new question from a C68 event this cycle (12 new loop question(s), 10 C68 subject(s) ever asked; upstream: 30 position(s) ever, 0 open, 30 matured, 30 error ",
-    "learn.decision_bridge": "no new knowledge to route"
-   },
-   "positions": [],
-   "movers": [
-    {
-     "ticker": "W010",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.22402734907012317,
-     "gain_pred": NaN,
-     "run": 0
-    },
-    {
-     "ticker": "W012",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.18563812450069794,
-     "gain_pred": NaN,
-     "run": -1
-    },
-    {
-     "ticker": "W013",
-     "reason": "OUT_OF_BAND",
-     "p_up": 0.7519293797219491,
-     "gain_pred": 0.041594032158252206,
-     "run": 1
-    },
-    {
-     "ticker": "W015",
-     "reason": "LOW_CONFIDENCE",
-     "p_up": 0.45223299658450783,
-     "gain_pred": NaN,
-     "run": 0
-    },
-    {
-     "ticker": "W017",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.38956834200557827,
-     "gain_pred": NaN,
-     "run": -1
-    }
-   ],
-   "abstentions": {
-    "NOT_PREDICTED_MOVER": 40,
-    "SHORT_DISABLED": 3,
-    "OUT_OF_BAND": 1,
-    "LOW_CONFIDENCE": 1
-   },
-   "knowledge": []
-  },
-  {
-   "cycle": 21,
-   "now": "2017-10-06",
-   "stages": {
-    "observe.panel": "OK",
-    "observe.observer": "OK",
-    "observe.autopsy": "OK",
-    "update.experiment_memory": "OK",
-    "update.firewall_release": "SKIPPED_NO_INPUT",
-    "c68.selection_policy": "OK",
-    "evaluate.two_stage": "OK",
-    "c68.expectations": "OK",
-    "evaluate.volatility_lab": "SKIPPED_CADENCE",
-    "evaluate.direction_lab": "SKIPPED_CADENCE",
-    "evaluate.frontier": "OK",
-    "evaluate.symmetry": "OK",
-    "surprises.feature_screen": "SKIPPED_CADENCE",
-    "surprises.cross_section": "OK",
-    "surprises.regimes": "OK",
-    "c68.market_regime": "OK",
-    "c68.pattern_change": "OK",
-    "surprises.multiscale": "OK",
-    "failures.decision_losses": "OK",
-    "c68.outcomes_errors": "OK",
-    "c68.what_changed": "SKIPPED_NO_INPUT",
-    "c68.error_research": "OK",
-    "failures.winners_losers": "OK",
-    "failures.loss_pipeline": "OK",
-    "missed.missed": "OK",
-    "missed.knowability": "OK",
-    "missed.unknown_cause": "OK",
-    "missed.counterfactual": "OK",
-    "breaks.knowledge": "SKIPPED_NO_INPUT",
-    "breaks.break_research": "OK",
-    "questions.discovery": "SKIPPED_CADENCE",
-    "questions.interactions": "SKIPPED_CADENCE",
-    "questions.precursors": "OK",
-    "questions.targets": "OK",
-    "questions.research_graph": "OK",
-    "questions.generate": "OK",
-    "c68.research_depth": "OK",
-    "hypotheses.trees": "OK",
-    "gain.priority": "OK",
-    "allocate.controller": "OK",
-    "allocate.diversity": "OK",
-    "allocate.compute": "OK",
-    "run.experiments": "OK",
-    "validate.harvest": "OK",
-    "controls.compare": "OK",
-    "learn.ladder": "OK",
-    "learn.memory": "OK",
-    "learn.value": "OK",
-    "learn.science_memory": "OK",
-    "learn.replication": "OK",
-    "learn.quality_gate": "SKIPPED_NO_INPUT",
-    "c68.validate_promote": "OK",
-    "learn.decision_bridge": "SKIPPED_NO_INPUT",
-    "priorities.waste": "FAILED",
-    "priorities.brain_health": "OK",
-    "priorities.meta_research": "SKIPPED_CADENCE",
-    "priorities.failed_lab": "OK",
-    "priorities.scorecard": "SKIPPED_CADENCE",
-    "priorities.stale": "OK",
-    "c68.monitor_audit": "OK",
-    "sweeps.background": "OK",
-    "report.cycle": "OK"
-   },
-   "reasons": {
-    "c68.selection_policy": "policy L21b2780a (threshold -0.0009); gain model fitted n=3621 base in-band 0.078; influence mom_r20_top=1.00, rev_r5_bottom=0.50, vol_top=1.00",
-    "evaluate.two_stage": "gate open",
-    "c68.expectations": "2 expectation(s) frozen before the 2017-10-09 fill",
-    "c68.outcomes_errors": "0 exit(s) by the learned policy, 0 error report(s), 0 unreconstructable, 46 candidate gain(s) resolved",
-    "c68.what_changed": "no newly matured error to investigate (upstream: 32 position(s) ever, 2 open, 30 matured, 30 error report(s); band gate eligible 50/1010 forecast(s))",
-    "c68.error_research": "2017-10-06: 0 new errors, tiers {'NONE': 0, 'CHEAP': 0, 'STANDARD': 0, 'DEEP': 0}, 0 confident-wrong, 0 escalated groups, 11 jobs (88 cpu-min requested); 11 que",
-    "questions.generate": "22 merged, 0 refused, 0 already answered",
-    "c68.research_depth": "1 C68 question(s) in the loop's queue, 0 damped",
-    "learn.decision_bridge": "no new knowledge to route"
-   },
-   "positions": [
-    {
-     "ticker": "W013",
-     "side": 1,
-     "p_up": 0.5687926974052107,
-     "gain_pred": 0.053695025367252874,
-     "run": 1
-    },
-    {
-     "ticker": "W042",
-     "side": 1,
-     "p_up": 0.9304881799761114,
-     "gain_pred": 0.06625949902693248,
-     "run": 1
-    }
-   ],
-   "movers": [
-    {
-     "ticker": "W010",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.2940455995388373,
-     "gain_pred": NaN,
-     "run": 0
-    },
-    {
-     "ticker": "W013",
-     "reason": "POSITION",
-     "p_up": 0.5687926974052107,
-     "gain_pred": 0.053695025367252874,
-     "run": 1
-    },
-    {
-     "ticker": "W015",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.2753633974877106,
-     "gain_pred": NaN,
-     "run": 0
-    },
-    {
-     "ticker": "W033",
-     "reason": "OUT_OF_BAND",
-     "p_up": 0.7336526586084066,
-     "gain_pred": 0.029494508643040363,
-     "run": 0
-    },
-    {
-     "ticker": "W042",
-     "reason": "POSITION",
-     "p_up": 0.9304881799761114,
-     "gain_pred": 0.06625949902693248,
-     "run": 1
-    }
-   ],
-   "abstentions": {
-    "NOT_PREDICTED_MOVER": 40,
-    "SHORT_DISABLED": 2,
-    "POSITION": 2,
-    "OUT_OF_BAND": 1
-   },
-   "knowledge": []
-  },
-  {
-   "cycle": 22,
-   "now": "2017-10-13",
-   "stages": {
-    "observe.panel": "OK",
-    "observe.observer": "OK",
-    "observe.autopsy": "OK",
-    "update.experiment_memory": "OK",
-    "update.firewall_release": "SKIPPED_NO_INPUT",
-    "c68.selection_policy": "OK",
-    "evaluate.two_stage": "OK",
-    "c68.expectations": "OK",
-    "evaluate.volatility_lab": "SKIPPED_CADENCE",
-    "evaluate.direction_lab": "SKIPPED_CADENCE",
-    "evaluate.frontier": "OK",
-    "evaluate.symmetry": "OK",
-    "surprises.feature_screen": "SKIPPED_CADENCE",
-    "surprises.cross_section": "OK",
-    "surprises.regimes": "OK",
-    "c68.market_regime": "OK",
-    "c68.pattern_change": "OK",
-    "surprises.multiscale": "OK",
-    "failures.decision_losses": "OK",
-    "c68.outcomes_errors": "OK",
-    "c68.what_changed": "SKIPPED_NO_INPUT",
-    "c68.error_research": "OK",
-    "failures.winners_losers": "OK",
-    "failures.loss_pipeline": "OK",
-    "missed.missed": "OK",
-    "missed.knowability": "OK",
-    "missed.unknown_cause": "OK",
-    "missed.counterfactual": "OK",
-    "breaks.knowledge": "SKIPPED_NO_INPUT",
-    "breaks.break_research": "OK",
-    "questions.discovery": "SKIPPED_CADENCE",
-    "questions.interactions": "SKIPPED_CADENCE",
-    "questions.precursors": "OK",
-    "questions.targets": "OK",
-    "questions.research_graph": "OK",
-    "questions.generate": "OK",
-    "c68.research_depth": "SKIPPED_NO_INPUT",
-    "hypotheses.trees": "OK",
-    "gain.priority": "OK",
-    "allocate.controller": "OK",
-    "allocate.diversity": "OK",
-    "allocate.compute": "OK",
-    "run.experiments": "OK",
-    "validate.harvest": "OK",
-    "controls.compare": "OK",
-    "learn.ladder": "OK",
-    "learn.memory": "OK",
-    "learn.value": "OK",
-    "learn.science_memory": "OK",
-    "learn.replication": "OK",
-    "learn.quality_gate": "SKIPPED_NO_INPUT",
-    "c68.validate_promote": "OK",
-    "learn.decision_bridge": "SKIPPED_NO_INPUT",
-    "priorities.waste": "FAILED",
-    "priorities.brain_health": "OK",
-    "priorities.meta_research": "SKIPPED_CADENCE",
-    "priorities.failed_lab": "OK",
-    "priorities.scorecard": "SKIPPED_CADENCE",
-    "priorities.stale": "OK",
-    "c68.monitor_audit": "OK",
-    "sweeps.background": "OK",
-    "report.cycle": "OK"
-   },
-   "reasons": {
-    "c68.selection_policy": "policy Lc766ff27 (threshold -0.0048); gain model fitted n=3666 base in-band 0.089; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00",
-    "evaluate.two_stage": "gate open",
-    "c68.expectations": "2 expectation(s) frozen before the 2017-10-16 fill",
-    "c68.outcomes_errors": "0 exit(s) by the learned policy, 0 error report(s), 0 unreconstructable, 45 candidate gain(s) resolved",
-    "c68.what_changed": "no newly matured error to investigate (upstream: 34 position(s) ever, 4 open, 30 matured, 30 error report(s); band gate eligible 52/1055 forecast(s))",
-    "c68.error_research": "2017-10-13: 0 new errors, tiers {'NONE': 0, 'CHEAP': 0, 'STANDARD': 0, 'DEEP': 0}, 0 confident-wrong, 0 escalated groups, 11 jobs (88 cpu-min requested); 11 que",
-    "questions.generate": "20 merged, 0 refused, 0 already answered",
-    "c68.research_depth": "no new question from a C68 event this cycle (12 new loop question(s), 10 C68 subject(s) ever asked; upstream: 34 position(s) ever, 4 open, 30 matured, 30 error ",
-    "learn.decision_bridge": "no new knowledge to route"
-   },
-   "positions": [
-    {
-     "ticker": "W013",
-     "side": 1,
-     "p_up": 0.5880233565876071,
-     "gain_pred": 0.061158260895623845,
-     "run": 1
-    },
-    {
-     "ticker": "W042",
-     "side": 1,
-     "p_up": 0.6486079141594576,
-     "gain_pred": 0.09892235519416323,
-     "run": 1
-    }
-   ],
-   "movers": [
-    {
-     "ticker": "W000",
-     "reason": "OUT_OF_BAND",
-     "p_up": 0.654534048389882,
-     "gain_pred": 0.04208465897525177,
-     "run": 1
-    },
-    {
-     "ticker": "W010",
-     "reason": "LOW_CONFIDENCE",
-     "p_up": 0.5488208714413606,
-     "gain_pred": NaN,
-     "run": 0
-    },
-    {
-     "ticker": "W013",
-     "reason": "POSITION",
-     "p_up": 0.5880233565876071,
-     "gain_pred": 0.061158260895623845,
-     "run": 1
-    },
-    {
-     "ticker": "W015",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.39982978379715595,
-     "gain_pred": NaN,
-     "run": 0
-    },
-    {
-     "ticker": "W042",
-     "reason": "POSITION",
-     "p_up": 0.6486079141594576,
-     "gain_pred": 0.09892235519416323,
-     "run": 1
-    }
-   ],
-   "abstentions": {
-    "NOT_PREDICTED_MOVER": 40,
-    "POSITION": 2,
-    "OUT_OF_BAND": 1,
-    "LOW_CONFIDENCE": 1,
-    "SHORT_DISABLED": 1
-   },
-   "knowledge": []
-  },
-  {
-   "cycle": 23,
-   "now": "2017-10-20",
-   "stages": {
-    "observe.panel": "OK",
-    "observe.observer": "OK",
-    "observe.autopsy": "OK",
-    "update.experiment_memory": "OK",
-    "update.firewall_release": "SKIPPED_NO_INPUT",
-    "c68.selection_policy": "OK",
-    "evaluate.two_stage": "OK",
-    "c68.expectations": "OK",
-    "evaluate.volatility_lab": "SKIPPED_CADENCE",
-    "evaluate.direction_lab": "SKIPPED_CADENCE",
-    "evaluate.frontier": "OK",
-    "evaluate.symmetry": "OK",
-    "surprises.feature_screen": "SKIPPED_CADENCE",
-    "surprises.cross_section": "OK",
-    "surprises.regimes": "OK",
-    "c68.market_regime": "OK",
-    "c68.pattern_change": "OK",
-    "surprises.multiscale": "OK",
-    "failures.decision_losses": "OK",
-    "c68.outcomes_errors": "OK",
-    "c68.what_changed": "OK",
-    "c68.error_research": "OK",
-    "failures.winners_losers": "OK",
-    "failures.loss_pipeline": "OK",
-    "missed.missed": "OK",
-    "missed.knowability": "OK",
-    "missed.unknown_cause": "OK",
-    "missed.counterfactual": "OK",
-    "breaks.knowledge": "SKIPPED_NO_INPUT",
-    "breaks.break_research": "OK",
-    "questions.discovery": "SKIPPED_CADENCE",
-    "questions.interactions": "SKIPPED_CADENCE",
-    "questions.precursors": "OK",
-    "questions.targets": "OK",
-    "questions.research_graph": "OK",
-    "questions.generate": "OK",
-    "c68.research_depth": "OK",
-    "hypotheses.trees": "OK",
-    "gain.priority": "OK",
-    "allocate.controller": "OK",
-    "allocate.diversity": "OK",
-    "allocate.compute": "OK",
-    "run.experiments": "OK",
-    "validate.harvest": "OK",
-    "controls.compare": "OK",
-    "learn.ladder": "OK",
-    "learn.memory": "OK",
-    "learn.value": "OK",
-    "learn.science_memory": "OK",
-    "learn.replication": "OK",
-    "learn.quality_gate": "SKIPPED_NO_INPUT",
-    "c68.validate_promote": "OK",
-    "learn.decision_bridge": "SKIPPED_NO_INPUT",
-    "priorities.waste": "FAILED",
-    "priorities.brain_health": "OK",
-    "priorities.meta_research": "SKIPPED_CADENCE",
-    "priorities.failed_lab": "OK",
-    "priorities.scorecard": "SKIPPED_CADENCE",
-    "priorities.stale": "OK",
-    "c68.monitor_audit": "OK",
-    "sweeps.background": "OK",
-    "report.cycle": "OK"
-   },
-   "reasons": {
-    "c68.selection_policy": "policy L92949eb6 (threshold 0.0002); gain model fitted n=3711 base in-band 0.072; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=0.50",
-    "evaluate.two_stage": "gate open",
-    "c68.expectations": "1 expectation(s) frozen before the 2017-10-23 fill",
-    "c68.outcomes_errors": "2 exit(s) by the learned policy, 2 error report(s), 0 unreconstructable, 45 candidate gain(s) resolved",
-    "c68.what_changed": "classes {'CURRENTLY_UNEXPLAINED': 1}; 0 unknowable preserved; 1 tree(s) into the loop forest; 0 waiting",
-    "c68.error_research": "2017-10-20: 2 new errors, tiers {'NONE': 1, 'CHEAP': 0, 'STANDARD': 0, 'DEEP': 1}, 1 confident-wrong, 0 escalated groups, 12 jobs (208 cpu-min requested); 12 qu",
-    "questions.generate": "21 merged, 0 refused, 0 already answered",
-    "c68.research_depth": "1 C68 question(s) in the loop's queue, 1 damped",
-    "learn.decision_bridge": "no new knowledge to route"
-   },
-   "positions": [
-    {
-     "ticker": "W042",
-     "side": 1,
-     "p_up": 0.9433240115014966,
-     "gain_pred": 0.06813634250544007,
-     "run": 1
-    }
-   ],
-   "movers": [
-    {
-     "ticker": "W010",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.4274088232840849,
-     "gain_pred": NaN,
-     "run": 0
-    },
-    {
-     "ticker": "W012",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.23424036717359534,
-     "gain_pred": NaN,
-     "run": -1
-    },
-    {
-     "ticker": "W013",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.26287950337578464,
-     "gain_pred": NaN,
-     "run": 1
-    },
-    {
-     "ticker": "W019",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.27032586158309524,
-     "gain_pred": NaN,
-     "run": -1
-    },
-    {
-     "ticker": "W042",
-     "reason": "POSITION",
-     "p_up": 0.9433240115014966,
-     "gain_pred": 0.06813634250544007,
-     "run": 1
-    }
-   ],
-   "abstentions": {
-    "NOT_PREDICTED_MOVER": 39,
-    "SHORT_DISABLED": 4,
-    "POSITION": 1
-   },
-   "knowledge": []
-  },
-  {
-   "cycle": 24,
-   "now": "2017-10-27",
-   "stages": {
-    "observe.panel": "OK",
-    "observe.observer": "OK",
-    "observe.autopsy": "OK",
-    "update.experiment_memory": "OK",
-    "update.firewall_release": "SKIPPED_NO_INPUT",
-    "c68.selection_policy": "OK",
-    "evaluate.two_stage": "OK",
-    "c68.expectations": "OK",
-    "evaluate.volatility_lab": "SKIPPED_CADENCE",
-    "evaluate.direction_lab": "SKIPPED_CADENCE",
-    "evaluate.frontier": "OK",
-    "evaluate.symmetry": "OK",
-    "surprises.feature_screen": "OK",
-    "surprises.cross_section": "OK",
-    "surprises.regimes": "OK",
-    "c68.market_regime": "OK",
-    "c68.pattern_change": "OK",
-    "surprises.multiscale": "OK",
-    "failures.decision_losses": "OK",
-    "c68.outcomes_errors": "OK",
-    "c68.what_changed": "OK",
-    "c68.error_research": "OK",
-    "failures.winners_losers": "OK",
-    "failures.loss_pipeline": "OK",
-    "missed.missed": "OK",
-    "missed.knowability": "OK",
-    "missed.unknown_cause": "OK",
-    "missed.counterfactual": "OK",
-    "breaks.knowledge": "SKIPPED_NO_INPUT",
-    "breaks.break_research": "OK",
-    "questions.discovery": "OK",
-    "questions.interactions": "OK",
-    "questions.precursors": "OK",
-    "questions.targets": "OK",
-    "questions.research_graph": "OK",
-    "questions.generate": "OK",
-    "c68.research_depth": "SKIPPED_NO_INPUT",
-    "hypotheses.trees": "OK",
-    "gain.priority": "OK",
-    "allocate.controller": "OK",
-    "allocate.diversity": "OK",
-    "allocate.compute": "OK",
-    "run.experiments": "OK",
-    "validate.harvest": "OK",
-    "controls.compare": "OK",
-    "learn.ladder": "OK",
-    "learn.memory": "OK",
-    "learn.value": "OK",
-    "learn.science_memory": "OK",
-    "learn.replication": "OK",
-    "learn.quality_gate": "SKIPPED_NO_INPUT",
-    "c68.validate_promote": "OK",
-    "learn.decision_bridge": "SKIPPED_NO_INPUT",
-    "priorities.waste": "FAILED",
-    "priorities.brain_health": "OK",
-    "priorities.meta_research": "OK",
-    "priorities.failed_lab": "OK",
-    "priorities.scorecard": "OK",
-    "priorities.stale": "OK",
-    "c68.monitor_audit": "OK",
-    "sweeps.background": "OK",
-    "report.cycle": "OK"
-   },
-   "reasons": {
-    "c68.selection_policy": "policy Ld1c404e6 (threshold 0.0002); gain model fitted n=3756 base in-band 0.070; influence mom_r20_top=1.00, rev_r5_bottom=0.50, vol_top=0.50",
-    "evaluate.two_stage": "gate open",
-    "c68.expectations": "2 expectation(s) frozen before the 2017-10-30 fill",
-    "c68.outcomes_errors": "2 exit(s) by the learned policy, 2 error report(s), 0 unreconstructable, 45 candidate gain(s) resolved",
-    "c68.what_changed": "classes {'PARTIALLY_PREDICTABLE': 1}; 0 unknowable preserved; 1 tree(s) into the loop forest; 0 waiting",
-    "c68.error_research": "2017-10-27: 2 new errors, tiers {'NONE': 1, 'CHEAP': 0, 'STANDARD': 1, 'DEEP': 0}, 0 confident-wrong, 0 escalated groups, 12 jobs (118 cpu-min requested); 12 qu",
-    "questions.generate": "21 merged, 0 refused, 0 already answered",
-    "c68.research_depth": "no new question from a C68 event this cycle (12 new loop question(s), 11 C68 subject(s) ever asked; upstream: 37 position(s) ever, 3 open, 34 matured, 34 error ",
-    "learn.decision_bridge": "no new knowledge to route"
-   },
-   "positions": [
-    {
-     "ticker": "W013",
-     "side": 1,
-     "p_up": 0.679405330243763,
-     "gain_pred": 0.05060065655786434,
-     "run": 1
-    },
-    {
-     "ticker": "W042",
-     "side": 1,
-     "p_up": 0.9534766163950762,
-     "gain_pred": 0.08005131663754472,
-     "run": 0
-    }
-   ],
-   "movers": [
-    {
-     "ticker": "W010",
-     "reason": "LOW_CONFIDENCE",
-     "p_up": 0.5042600378239964,
-     "gain_pred": NaN,
-     "run": -1
-    },
-    {
-     "ticker": "W013",
-     "reason": "POSITION",
-     "p_up": 0.679405330243763,
-     "gain_pred": 0.05060065655786434,
-     "run": 1
-    },
-    {
-     "ticker": "W019",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.40415785335274984,
-     "gain_pred": NaN,
-     "run": 0
-    },
-    {
-     "ticker": "W027",
-     "reason": "OUT_OF_BAND",
-     "p_up": 0.5939550968802021,
-     "gain_pred": 0.024696096882908452,
-     "run": 0
-    },
-    {
-     "ticker": "W042",
-     "reason": "POSITION",
-     "p_up": 0.9534766163950762,
-     "gain_pred": 0.08005131663754472,
-     "run": 0
-    }
-   ],
-   "abstentions": {
-    "NOT_PREDICTED_MOVER": 39,
-    "POSITION": 2,
-    "LOW_CONFIDENCE": 1,
-    "SHORT_DISABLED": 1,
-    "OUT_OF_BAND": 1
-   },
-   "knowledge": []
-  },
-  {
-   "cycle": 25,
-   "now": "2017-11-03",
-   "stages": {
-    "observe.panel": "OK",
-    "observe.observer": "OK",
-    "observe.autopsy": "OK",
-    "update.experiment_memory": "OK",
-    "update.firewall_release": "SKIPPED_NO_INPUT",
-    "c68.selection_policy": "OK",
-    "evaluate.two_stage": "OK",
-    "c68.expectations": "OK",
-    "evaluate.volatility_lab": "SKIPPED_CADENCE",
-    "evaluate.direction_lab": "SKIPPED_CADENCE",
-    "evaluate.frontier": "OK",
-    "evaluate.symmetry": "OK",
-    "surprises.feature_screen": "SKIPPED_CADENCE",
-    "surprises.cross_section": "OK",
-    "surprises.regimes": "OK",
-    "c68.market_regime": "OK",
-    "c68.pattern_change": "OK",
-    "surprises.multiscale": "OK",
-    "failures.decision_losses": "OK",
-    "c68.outcomes_errors": "OK",
-    "c68.what_changed": "OK",
-    "c68.error_research": "OK",
-    "failures.winners_losers": "OK",
-    "failures.loss_pipeline": "OK",
-    "missed.missed": "OK",
-    "missed.knowability": "OK",
-    "missed.unknown_cause": "OK",
-    "missed.counterfactual": "OK",
-    "breaks.knowledge": "SKIPPED_NO_INPUT",
-    "breaks.break_research": "OK",
-    "questions.discovery": "SKIPPED_CADENCE",
-    "questions.interactions": "SKIPPED_CADENCE",
-    "questions.precursors": "OK",
-    "questions.targets": "OK",
-    "questions.research_graph": "OK",
-    "questions.generate": "OK",
-    "c68.research_depth": "OK",
-    "hypotheses.trees": "OK",
-    "gain.priority": "OK",
-    "allocate.controller": "OK",
-    "allocate.diversity": "OK",
-    "allocate.compute": "OK",
-    "run.experiments": "OK",
-    "validate.harvest": "OK",
-    "controls.compare": "OK",
-    "learn.ladder": "OK",
-    "learn.memory": "OK",
-    "learn.value": "OK",
-    "learn.science_memory": "OK",
-    "learn.replication": "OK",
-    "learn.quality_gate": "SKIPPED_NO_INPUT",
-    "c68.validate_promote": "OK",
-    "learn.decision_bridge": "SKIPPED_NO_INPUT",
-    "priorities.waste": "FAILED",
-    "priorities.brain_health": "OK",
-    "priorities.meta_research": "SKIPPED_CADENCE",
-    "priorities.failed_lab": "OK",
-    "priorities.scorecard": "SKIPPED_CADENCE",
-    "priorities.stale": "OK",
-    "c68.monitor_audit": "OK",
-    "sweeps.background": "OK",
-    "report.cycle": "OK"
-   },
-   "reasons": {
-    "c68.selection_policy": "policy Ldf21a2de (threshold -0.0023); gain model fitted n=3800 base in-band 0.081; influence mom_r20_top=1.00, rev_r5_bottom=0.50, vol_top=1.00",
-    "evaluate.two_stage": "gate open",
-    "c68.expectations": "1 expectation(s) frozen before the 2017-11-06 fill",
-    "c68.outcomes_errors": "1 exit(s) by the learned policy, 1 error report(s), 0 unreconstructable, 44 candidate gain(s) resolved",
-    "c68.what_changed": "classes {'CURRENTLY_UNEXPLAINED': 1}; 0 unknowable preserved; 0 tree(s) into the loop forest; 0 waiting",
-    "c68.error_research": "2017-11-03: 1 new errors, tiers {'NONE': 0, 'CHEAP': 0, 'STANDARD': 1, 'DEEP': 0}, 0 confident-wrong, 0 escalated groups, 12 jobs (118 cpu-min requested); 12 qu",
-    "questions.generate": "20 merged, 0 refused, 0 already answered",
-    "c68.research_depth": "2 C68 question(s) in the loop's queue, 0 damped",
-    "learn.decision_bridge": "no new knowledge to route"
-   },
-   "positions": [
-    {
-     "ticker": "W013",
-     "side": 1,
-     "p_up": 0.5942384114717959,
-     "gain_pred": 0.058895283194006665,
-     "run": 1
-    }
-   ],
-   "movers": [
-    {
-     "ticker": "W012",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.19181381911423775,
-     "gain_pred": NaN,
-     "run": -1
-    },
-    {
-     "ticker": "W013",
-     "reason": "POSITION",
-     "p_up": 0.5942384114717959,
-     "gain_pred": 0.058895283194006665,
-     "run": 1
-    },
-    {
-     "ticker": "W019",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.4492810392875064,
-     "gain_pred": NaN,
-     "run": 1
-    },
-    {
-     "ticker": "W027",
-     "reason": "OUT_OF_BAND",
-     "p_up": 0.7675347120900256,
-     "gain_pred": 0.03957437557951772,
-     "run": 0
-    },
-    {
-     "ticker": "W042",
-     "reason": "OUT_OF_BAND",
-     "p_up": 0.8947307374610987,
-     "gain_pred": 0.042502978208677614,
-     "run": 0
-    }
-   ],
-   "abstentions": {
-    "NOT_PREDICTED_MOVER": 38,
-    "SHORT_DISABLED": 2,
-    "OUT_OF_BAND": 2,
-    "POSITION": 1
-   },
-   "knowledge": []
-  },
-  {
-   "cycle": 26,
-   "now": "2017-11-10",
-   "stages": {
-    "observe.panel": "OK",
-    "observe.observer": "OK",
-    "observe.autopsy": "OK",
-    "update.experiment_memory": "OK",
-    "update.firewall_release": "SKIPPED_NO_INPUT",
-    "c68.selection_policy": "OK",
-    "evaluate.two_stage": "OK",
-    "c68.expectations": "OK",
-    "evaluate.volatility_lab": "OK",
-    "evaluate.direction_lab": "OK",
-    "evaluate.frontier": "OK",
-    "evaluate.symmetry": "OK",
-    "surprises.feature_screen": "SKIPPED_CADENCE",
-    "surprises.cross_section": "OK",
-    "surprises.regimes": "OK",
-    "c68.market_regime": "OK",
-    "c68.pattern_change": "OK",
-    "surprises.multiscale": "OK",
-    "failures.decision_losses": "OK",
-    "c68.outcomes_errors": "OK",
-    "c68.what_changed": "OK",
-    "c68.error_research": "OK",
-    "failures.winners_losers": "OK",
-    "failures.loss_pipeline": "OK",
-    "missed.missed": "OK",
-    "missed.knowability": "OK",
-    "missed.unknown_cause": "OK",
-    "missed.counterfactual": "OK",
-    "breaks.knowledge": "SKIPPED_NO_INPUT",
-    "breaks.break_research": "OK",
-    "questions.discovery": "SKIPPED_CADENCE",
-    "questions.interactions": "SKIPPED_CADENCE",
-    "questions.precursors": "OK",
-    "questions.targets": "OK",
-    "questions.research_graph": "OK",
-    "questions.generate": "OK",
-    "c68.research_depth": "OK",
-    "hypotheses.trees": "OK",
-    "gain.priority": "OK",
-    "allocate.controller": "OK",
-    "allocate.diversity": "OK",
-    "allocate.compute": "OK",
-    "run.experiments": "OK",
-    "validate.harvest": "OK",
-    "controls.compare": "OK",
-    "learn.ladder": "OK",
-    "learn.memory": "OK",
-    "learn.value": "OK",
-    "learn.science_memory": "OK",
-    "learn.replication": "OK",
-    "learn.quality_gate": "SKIPPED_NO_INPUT",
-    "c68.validate_promote": "OK",
-    "learn.decision_bridge": "SKIPPED_NO_INPUT",
-    "priorities.waste": "FAILED",
-    "priorities.brain_health": "OK",
-    "priorities.meta_research": "SKIPPED_CADENCE",
-    "priorities.failed_lab": "OK",
-    "priorities.scorecard": "SKIPPED_CADENCE",
-    "priorities.stale": "OK",
-    "c68.monitor_audit": "OK",
-    "sweeps.background": "OK",
-    "report.cycle": "OK"
-   },
-   "reasons": {
-    "c68.selection_policy": "policy L851d867d (threshold -0.0033); gain model fitted n=3844 base in-band 0.085; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00",
-    "evaluate.two_stage": "gate open",
-    "c68.expectations": "1 expectation(s) frozen before the 2017-11-13 fill",
-    "c68.outcomes_errors": "2 exit(s) by the learned policy, 2 error report(s), 0 unreconstructable, 44 candidate gain(s) resolved",
-    "c68.what_changed": "classes {'CURRENTLY_UNEXPLAINED': 1, 'PARTIALLY_PREDICTABLE': 1}; 0 unknowable preserved; 0 tree(s) into the loop forest; 0 waiting",
-    "c68.error_research": "2017-11-10: 2 new errors, tiers {'NONE': 0, 'CHEAP': 1, 'STANDARD': 1, 'DEEP': 0}, 0 confident-wrong, 1 escalated groups, 14 jobs (152 cpu-min requested); 12 qu",
-    "questions.generate": "19 merged, 0 refused, 0 already answered",
-    "c68.research_depth": "2 C68 question(s) in the loop's queue, 1 damped",
-    "learn.decision_bridge": "no new knowledge to route"
-   },
-   "positions": [
-    {
-     "ticker": "W027",
-     "side": 1,
-     "p_up": 0.7856587921279551,
-     "gain_pred": 0.06766340387624281,
-     "run": 0
-    }
-   ],
-   "movers": [
-    {
-     "ticker": "W002",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.4003984960029346,
-     "gain_pred": NaN,
-     "run": -1
-    },
-    {
-     "ticker": "W012",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.4026316948251899,
-     "gain_pred": NaN,
-     "run": -1
-    },
-    {
-     "ticker": "W019",
-     "reason": "LOW_CONFIDENCE",
-     "p_up": 0.5063827647691845,
-     "gain_pred": NaN,
-     "run": 1
-    },
-    {
-     "ticker": "W027",
-     "reason": "POSITION",
-     "p_up": 0.7856587921279551,
-     "gain_pred": 0.06766340387624281,
-     "run": 0
-    },
-    {
-     "ticker": "W042",
-     "reason": "OUT_OF_BAND",
-     "p_up": 0.7601664755476433,
-     "gain_pred": 0.009463128897644918,
-     "run": 1
-    }
-   ],
-   "abstentions": {
-    "NOT_PREDICTED_MOVER": 39,
-    "SHORT_DISABLED": 2,
-    "LOW_CONFIDENCE": 1,
-    "POSITION": 1,
-    "OUT_OF_BAND": 1
-   },
-   "knowledge": []
-  },
-  {
-   "cycle": 27,
-   "now": "2017-11-17",
-   "stages": {
-    "observe.panel": "OK",
-    "observe.observer": "OK",
-    "observe.autopsy": "OK",
-    "update.experiment_memory": "OK",
-    "update.firewall_release": "SKIPPED_NO_INPUT",
-    "c68.selection_policy": "OK",
-    "evaluate.two_stage": "OK",
-    "c68.expectations": "OK",
-    "evaluate.volatility_lab": "SKIPPED_CADENCE",
-    "evaluate.direction_lab": "SKIPPED_CADENCE",
-    "evaluate.frontier": "OK",
-    "evaluate.symmetry": "OK",
-    "surprises.feature_screen": "SKIPPED_CADENCE",
-    "surprises.cross_section": "OK",
-    "surprises.regimes": "OK",
-    "c68.market_regime": "OK",
-    "c68.pattern_change": "OK",
-    "surprises.multiscale": "OK",
-    "failures.decision_losses": "OK",
-    "c68.outcomes_errors": "OK",
-    "c68.what_changed": "OK",
-    "c68.error_research": "OK",
-    "failures.winners_losers": "OK",
-    "failures.loss_pipeline": "OK",
-    "missed.missed": "OK",
-    "missed.knowability": "OK",
-    "missed.unknown_cause": "OK",
-    "missed.counterfactual": "OK",
-    "breaks.knowledge": "SKIPPED_NO_INPUT",
-    "breaks.break_research": "OK",
-    "questions.discovery": "SKIPPED_CADENCE",
-    "questions.interactions": "SKIPPED_CADENCE",
-    "questions.precursors": "OK",
-    "questions.targets": "OK",
-    "questions.research_graph": "OK",
-    "questions.generate": "OK",
-    "c68.research_depth": "OK",
-    "hypotheses.trees": "OK",
-    "gain.priority": "OK",
-    "allocate.controller": "OK",
-    "allocate.diversity": "OK",
-    "allocate.compute": "OK",
-    "run.experiments": "OK",
-    "validate.harvest": "OK",
-    "controls.compare": "OK",
-    "learn.ladder": "OK",
-    "learn.memory": "OK",
-    "learn.value": "OK",
-    "learn.science_memory": "OK",
-    "learn.replication": "OK",
-    "learn.quality_gate": "SKIPPED_NO_INPUT",
-    "c68.validate_promote": "OK",
-    "learn.decision_bridge": "SKIPPED_NO_INPUT",
-    "priorities.waste": "FAILED",
-    "priorities.brain_health": "OK",
-    "priorities.meta_research": "SKIPPED_CADENCE",
-    "priorities.failed_lab": "OK",
-    "priorities.scorecard": "SKIPPED_CADENCE",
-    "priorities.stale": "OK",
-    "c68.monitor_audit": "OK",
-    "sweeps.background": "OK",
-    "report.cycle": "OK"
-   },
-   "reasons": {
-    "c68.selection_policy": "policy La7907c73 (threshold -0.0030); gain model fitted n=3839 base in-band 0.083; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00",
-    "evaluate.two_stage": "gate open",
-    "c68.expectations": "1 expectation(s) frozen before the 2017-11-20 fill",
-    "c68.outcomes_errors": "1 exit(s) by the learned policy, 1 error report(s), 0 unreconstructable, 43 candidate gain(s) resolved",
-    "c68.what_changed": "classes {}; 0 unknowable preserved; 0 tree(s) into the loop forest; 0 waiting",
-    "c68.error_research": "2017-11-17: 1 new errors, tiers {'NONE': 1, 'CHEAP': 0, 'STANDARD': 0, 'DEEP': 0}, 0 confident-wrong, 1 escalated groups, 12 jobs (118 cpu-min requested); 12 qu",
-    "questions.generate": "21 merged, 0 refused, 0 already answered",
-    "c68.research_depth": "1 C68 question(s) in the loop's queue, 0 damped",
-    "learn.decision_bridge": "no new knowledge to route"
-   },
-   "positions": [
-    {
-     "ticker": "W027",
-     "side": 1,
-     "p_up": 0.7433980261225477,
-     "gain_pred": 0.061189735263432084,
-     "run": 0
-    }
-   ],
-   "movers": [
-    {
-     "ticker": "W002",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.3325634956074133,
-     "gain_pred": NaN,
-     "run": -1
-    },
-    {
-     "ticker": "W012",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.3497589669464842,
-     "gain_pred": NaN,
-     "run": 0
-    },
-    {
-     "ticker": "W015",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.3910665114036672,
-     "gain_pred": NaN,
-     "run": 0
-    },
-    {
-     "ticker": "W018",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.4287685203258613,
-     "gain_pred": NaN,
-     "run": -1
-    },
-    {
-     "ticker": "W027",
-     "reason": "POSITION",
-     "p_up": 0.7433980261225477,
-     "gain_pred": 0.061189735263432084,
-     "run": 0
-    }
-   ],
-   "abstentions": {
-    "NOT_PREDICTED_MOVER": 39,
-    "SHORT_DISABLED": 4,
-    "POSITION": 1
-   },
-   "knowledge": []
-  },
-  {
-   "cycle": 28,
-   "now": "2017-11-24",
-   "stages": {
-    "observe.panel": "OK",
-    "observe.observer": "OK",
-    "observe.autopsy": "OK",
-    "update.experiment_memory": "OK",
-    "update.firewall_release": "SKIPPED_NO_INPUT",
-    "c68.selection_policy": "OK",
-    "evaluate.two_stage": "OK",
-    "c68.expectations": "OK",
-    "evaluate.volatility_lab": "SKIPPED_CADENCE",
-    "evaluate.direction_lab": "SKIPPED_CADENCE",
-    "evaluate.frontier": "OK",
-    "evaluate.symmetry": "OK",
-    "surprises.feature_screen": "OK",
-    "surprises.cross_section": "OK",
-    "surprises.regimes": "OK",
-    "c68.market_regime": "OK",
-    "c68.pattern_change": "OK",
-    "surprises.multiscale": "OK",
-    "failures.decision_losses": "OK",
-    "c68.outcomes_errors": "OK",
-    "c68.what_changed": "OK",
-    "c68.error_research": "OK",
-    "failures.winners_losers": "OK",
-    "failures.loss_pipeline": "OK",
-    "missed.missed": "OK",
-    "missed.knowability": "OK",
-    "missed.unknown_cause": "OK",
-    "missed.counterfactual": "OK",
-    "breaks.knowledge": "SKIPPED_NO_INPUT",
-    "breaks.break_research": "OK",
-    "questions.discovery": "OK",
-    "questions.interactions": "SKIPPED_CADENCE",
-    "questions.precursors": "OK",
-    "questions.targets": "OK",
-    "questions.research_graph": "OK",
-    "questions.generate": "OK",
-    "c68.research_depth": "SKIPPED_NO_INPUT",
-    "hypotheses.trees": "OK",
-    "gain.priority": "OK",
-    "allocate.controller": "OK",
-    "allocate.diversity": "OK",
-    "allocate.compute": "OK",
-    "run.experiments": "OK",
-    "validate.harvest": "OK",
-    "controls.compare": "OK",
-    "learn.ladder": "OK",
-    "learn.memory": "OK",
-    "learn.value": "OK",
-    "learn.science_memory": "OK",
-    "learn.replication": "OK",
-    "learn.quality_gate": "OK",
-    "c68.validate_promote": "OK",
-    "learn.decision_bridge": "SKIPPED_NO_INPUT",
-    "priorities.waste": "FAILED",
-    "priorities.brain_health": "OK",
-    "priorities.meta_research": "OK",
-    "priorities.failed_lab": "OK",
-    "priorities.scorecard": "OK",
-    "priorities.stale": "OK",
-    "c68.monitor_audit": "OK",
-    "sweeps.background": "OK",
-    "report.cycle": "OK"
-   },
-   "reasons": {
-    "c68.selection_policy": "policy L0e7e68bb (threshold 0.0006); gain model fitted n=3835 base in-band 0.070; influence mom_r20_top=0.50, rev_r5_bottom=1.00, vol_top=1.00",
-    "evaluate.two_stage": "gate open",
-    "c68.expectations": "no position on 2017-11-24: {'NOT_PREDICTED_MOVER': 39, 'SHORT_DISABLED': 2, 'OUT_OF_BAND': 2, 'LOW_CONFIDENCE': 1}",
-    "c68.outcomes_errors": "1 exit(s) by the learned policy, 1 error report(s), 0 unreconstructable, 44 candidate gain(s) resolved",
-    "c68.what_changed": "classes {'CURRENTLY_UNEXPLAINED': 1}; 0 unknowable preserved; 0 tree(s) into the loop forest; 0 waiting",
-    "c68.error_research": "2017-11-24: 1 new errors, tiers {'NONE': 1, 'CHEAP': 0, 'STANDARD': 0, 'DEEP': 0}, 0 confident-wrong, 1 escalated groups, 12 jobs (118 cpu-min requested); 12 qu",
-    "questions.generate": "21 merged, 0 refused, 0 already answered",
-    "c68.research_depth": "no new question from a C68 event this cycle (11 new loop question(s), 14 C68 subject(s) ever asked; upstream: 40 position(s) ever, 1 open, 39 matured, 39 error ",
-    "learn.decision_bridge": "no new knowledge to route"
-   },
-   "positions": [],
-   "movers": [
-    {
-     "ticker": "W002",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.2735603352864187,
-     "gain_pred": NaN,
-     "run": -1
-    },
-    {
-     "ticker": "W018",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.3676480749051741,
-     "gain_pred": NaN,
-     "run": -1
-    },
-    {
-     "ticker": "W019",
-     "reason": "LOW_CONFIDENCE",
-     "p_up": 0.534474170816551,
-     "gain_pred": NaN,
-     "run": 1
-    },
-    {
-     "ticker": "W027",
-     "reason": "OUT_OF_BAND",
-     "p_up": 0.6026792232039959,
-     "gain_pred": 0.021245920842108638,
-     "run": 0
-    },
-    {
-     "ticker": "W042",
-     "reason": "OUT_OF_BAND",
-     "p_up": 0.7575718787086224,
-     "gain_pred": 0.017674089370476206,
-     "run": 1
-    }
-   ],
-   "abstentions": {
-    "NOT_PREDICTED_MOVER": 39,
-    "SHORT_DISABLED": 2,
-    "OUT_OF_BAND": 2,
-    "LOW_CONFIDENCE": 1
-   },
-   "knowledge": []
-  },
-  {
-   "cycle": 29,
-   "now": "2017-12-01",
-   "stages": {
-    "observe.panel": "OK",
-    "observe.observer": "OK",
-    "observe.autopsy": "OK",
-    "update.experiment_memory": "OK",
-    "update.firewall_release": "SKIPPED_NO_INPUT",
-    "c68.selection_policy": "OK",
-    "evaluate.two_stage": "OK",
-    "c68.expectations": "OK",
-    "evaluate.volatility_lab": "SKIPPED_CADENCE",
-    "evaluate.direction_lab": "SKIPPED_CADENCE",
-    "evaluate.frontier": "OK",
-    "evaluate.symmetry": "OK",
-    "surprises.feature_screen": "SKIPPED_CADENCE",
-    "surprises.cross_section": "OK",
-    "surprises.regimes": "OK",
-    "c68.market_regime": "OK",
-    "c68.pattern_change": "OK",
-    "surprises.multiscale": "OK",
-    "failures.decision_losses": "OK",
-    "c68.outcomes_errors": "OK",
-    "c68.what_changed": "OK",
-    "c68.error_research": "OK",
-    "failures.winners_losers": "OK",
-    "failures.loss_pipeline": "OK",
-    "missed.missed": "OK",
-    "missed.knowability": "OK",
-    "missed.unknown_cause": "OK",
-    "missed.counterfactual": "OK",
-    "breaks.knowledge": "SKIPPED_NO_INPUT",
-    "breaks.break_research": "OK",
-    "questions.discovery": "SKIPPED_CADENCE",
-    "questions.interactions": "SKIPPED_CADENCE",
-    "questions.precursors": "OK",
-    "questions.targets": "OK",
-    "questions.research_graph": "OK",
-    "questions.generate": "OK",
-    "c68.research_depth": "SKIPPED_NO_INPUT",
-    "hypotheses.trees": "OK",
-    "gain.priority": "OK",
-    "allocate.controller": "OK",
-    "allocate.diversity": "OK",
-    "allocate.compute": "OK",
-    "run.experiments": "OK",
-    "validate.harvest": "OK",
-    "controls.compare": "OK",
-    "learn.ladder": "OK",
-    "learn.memory": "OK",
-    "learn.value": "OK",
-    "learn.science_memory": "OK",
-    "learn.replication": "OK",
-    "learn.quality_gate": "SKIPPED_NO_INPUT",
-    "c68.validate_promote": "OK",
-    "learn.decision_bridge": "SKIPPED_NO_INPUT",
-    "priorities.waste": "FAILED",
-    "priorities.brain_health": "OK",
-    "priorities.meta_research": "SKIPPED_CADENCE",
-    "priorities.failed_lab": "OK",
-    "priorities.scorecard": "SKIPPED_CADENCE",
-    "priorities.stale": "OK",
-    "c68.monitor_audit": "OK",
-    "sweeps.background": "OK",
-    "report.cycle": "OK"
-   },
-   "reasons": {
-    "c68.selection_policy": "policy L29c90908 (threshold 0.0007); gain model fitted n=3831 base in-band 0.070; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00",
-    "evaluate.two_stage": "gate open",
-    "c68.expectations": "1 expectation(s) frozen before the 2017-12-04 fill",
-    "c68.outcomes_errors": "1 exit(s) by the learned policy, 1 error report(s), 0 unreconstructable, 44 candidate gain(s) resolved",
-    "c68.what_changed": "classes {'CURRENTLY_UNEXPLAINED': 1}; 0 unknowable preserved; 0 tree(s) into the loop forest; 0 waiting",
-    "c68.error_research": "2017-12-01: 1 new errors, tiers {'NONE': 1, 'CHEAP': 0, 'STANDARD': 0, 'DEEP': 0}, 0 confident-wrong, 1 escalated groups, 12 jobs (118 cpu-min requested); 12 qu",
-    "questions.generate": "22 merged, 0 refused, 0 already answered",
-    "c68.research_depth": "no new question from a C68 event this cycle (11 new loop question(s), 14 C68 subject(s) ever asked; upstream: 41 position(s) ever, 1 open, 40 matured, 40 error ",
-    "learn.decision_bridge": "no new knowledge to route"
-   },
-   "positions": [
-    {
-     "ticker": "W019",
-     "side": 1,
-     "p_up": 0.5763979320783708,
-     "gain_pred": 0.05517321889593987,
-     "run": 1
-    }
-   ],
-   "movers": [
-    {
-     "ticker": "W002",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.21743375580145674,
-     "gain_pred": NaN,
-     "run": -1
-    },
-    {
-     "ticker": "W018",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.3429890909724406,
-     "gain_pred": NaN,
-     "run": -1
-    },
-    {
-     "ticker": "W019",
-     "reason": "POSITION",
-     "p_up": 0.5763979320783708,
-     "gain_pred": 0.05517321889593987,
-     "run": 1
-    },
-    {
-     "ticker": "W027",
-     "reason": "LOW_CONFIDENCE",
-     "p_up": 0.5250999026492623,
-     "gain_pred": NaN,
-     "run": 0
-    },
-    {
-     "ticker": "W042",
-     "reason": "OUT_OF_BAND",
-     "p_up": 0.7650837497118129,
-     "gain_pred": 0.045150836072732924,
-     "run": 1
-    }
-   ],
-   "abstentions": {
-    "NOT_PREDICTED_MOVER": 39,
-    "SHORT_DISABLED": 2,
-    "POSITION": 1,
-    "LOW_CONFIDENCE": 1,
-    "OUT_OF_BAND": 1
-   },
-   "knowledge": []
-  },
-  {
-   "cycle": 30,
-   "now": "2017-12-08",
-   "stages": {
-    "observe.panel": "OK",
-    "observe.observer": "OK",
-    "observe.autopsy": "OK",
-    "update.experiment_memory": "OK",
-    "update.firewall_release": "SKIPPED_NO_INPUT",
-    "c68.selection_policy": "OK",
-    "evaluate.two_stage": "OK",
-    "c68.expectations": "OK",
-    "evaluate.volatility_lab": "SKIPPED_CADENCE",
-    "evaluate.direction_lab": "SKIPPED_CADENCE",
-    "evaluate.frontier": "OK",
-    "evaluate.symmetry": "OK",
-    "surprises.feature_screen": "SKIPPED_CADENCE",
-    "surprises.cross_section": "OK",
-    "surprises.regimes": "OK",
-    "c68.market_regime": "OK",
-    "c68.pattern_change": "OK",
-    "surprises.multiscale": "OK",
-    "failures.decision_losses": "OK",
-    "c68.outcomes_errors": "OK",
-    "c68.what_changed": "SKIPPED_NO_INPUT",
-    "c68.error_research": "OK",
-    "failures.winners_losers": "OK",
-    "failures.loss_pipeline": "OK",
-    "missed.missed": "OK",
-    "missed.knowability": "OK",
-    "missed.unknown_cause": "OK",
-    "missed.counterfactual": "OK",
-    "breaks.knowledge": "SKIPPED_NO_INPUT",
-    "breaks.break_research": "OK",
-    "questions.discovery": "SKIPPED_CADENCE",
-    "questions.interactions": "SKIPPED_CADENCE",
-    "questions.precursors": "OK",
-    "questions.targets": "OK",
-    "questions.research_graph": "OK",
-    "questions.generate": "OK",
-    "c68.research_depth": "SKIPPED_NO_INPUT",
-    "hypotheses.trees": "OK",
-    "gain.priority": "OK",
-    "allocate.controller": "OK",
-    "allocate.diversity": "OK",
-    "allocate.compute": "OK",
-    "run.experiments": "OK",
-    "validate.harvest": "OK",
-    "controls.compare": "OK",
-    "learn.ladder": "OK",
-    "learn.memory": "OK",
-    "learn.value": "OK",
-    "learn.science_memory": "OK",
-    "learn.replication": "OK",
-    "learn.quality_gate": "SKIPPED_NO_INPUT",
-    "c68.validate_promote": "OK",
-    "learn.decision_bridge": "SKIPPED_NO_INPUT",
-    "priorities.waste": "FAILED",
-    "priorities.brain_health": "OK",
-    "priorities.meta_research": "SKIPPED_CADENCE",
-    "priorities.failed_lab": "OK",
-    "priorities.scorecard": "SKIPPED_CADENCE",
-    "priorities.stale": "OK",
-    "c68.monitor_audit": "OK",
-    "sweeps.background": "OK",
-    "report.cycle": "OK"
-   },
-   "reasons": {
-    "c68.selection_policy": "policy L8224db66 (threshold 0.0007); gain model fitted n=3827 base in-band 0.069; influence mom_r20_top=1.00, rev_r5_bottom=0.50, vol_top=1.00",
-    "evaluate.two_stage": "gate open",
-    "c68.expectations": "1 expectation(s) frozen before the 2017-12-11 fill",
-    "c68.outcomes_errors": "0 exit(s) by the learned policy, 0 error report(s), 0 unreconstructable, 44 candidate gain(s) resolved",
-    "c68.what_changed": "no newly matured error to investigate (upstream: 42 position(s) ever, 2 open, 40 matured, 40 error report(s); band gate eligible 62/1407 forecast(s))",
-    "c68.error_research": "2017-12-08: 0 new errors, tiers {'NONE': 0, 'CHEAP': 0, 'STANDARD': 0, 'DEEP': 0}, 0 confident-wrong, 1 escalated groups, 12 jobs (118 cpu-min requested); 12 qu",
-    "questions.generate": "18 merged, 0 refused, 0 already answered",
-    "c68.research_depth": "no new question from a C68 event this cycle (11 new loop question(s), 14 C68 subject(s) ever asked; upstream: 42 position(s) ever, 2 open, 40 matured, 40 error ",
-    "learn.decision_bridge": "no new knowledge to route"
-   },
-   "positions": [
-    {
-     "ticker": "W042",
-     "side": 1,
-     "p_up": 0.7651403376355864,
-     "gain_pred": 0.0692475148018408,
-     "run": 1
-    }
-   ],
-   "movers": [
-    {
-     "ticker": "W006",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.27079747137535254,
-     "gain_pred": NaN,
-     "run": 0
-    },
-    {
-     "ticker": "W018",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.26152778645697355,
-     "gain_pred": NaN,
-     "run": -1
-    },
-    {
-     "ticker": "W019",
-     "reason": "LOW_CONFIDENCE",
-     "p_up": 0.5429722449315922,
-     "gain_pred": NaN,
-     "run": 1
-    },
-    {
-     "ticker": "W023",
-     "reason": "LOW_CONFIDENCE",
-     "p_up": 0.47669203702205387,
-     "gain_pred": NaN,
-     "run": 0
-    },
-    {
-     "ticker": "W042",
-     "reason": "POSITION",
-     "p_up": 0.7651403376355864,
-     "gain_pred": 0.0692475148018408,
-     "run": 1
-    }
-   ],
-   "abstentions": {
-    "NOT_PREDICTED_MOVER": 40,
-    "SHORT_DISABLED": 2,
-    "LOW_CONFIDENCE": 2,
-    "POSITION": 1
-   },
-   "knowledge": []
-  },
-  {
-   "cycle": 31,
-   "now": "2017-12-15",
-   "stages": {
-    "observe.panel": "OK",
-    "observe.observer": "OK",
-    "observe.autopsy": "OK",
-    "update.experiment_memory": "OK",
-    "update.firewall_release": "SKIPPED_NO_INPUT",
-    "c68.selection_policy": "OK",
-    "evaluate.two_stage": "OK",
-    "c68.expectations": "OK",
-    "evaluate.volatility_lab": "SKIPPED_CADENCE",
-    "evaluate.direction_lab": "SKIPPED_CADENCE",
-    "evaluate.frontier": "OK",
-    "evaluate.symmetry": "OK",
-    "surprises.feature_screen": "SKIPPED_CADENCE",
-    "surprises.cross_section": "OK",
-    "surprises.regimes": "OK",
-    "c68.market_regime": "OK",
-    "c68.pattern_change": "OK",
-    "surprises.multiscale": "OK",
-    "failures.decision_losses": "OK",
-    "c68.outcomes_errors": "OK",
-    "c68.what_changed": "OK",
-    "c68.error_research": "OK",
-    "failures.winners_losers": "OK",
-    "failures.loss_pipeline": "OK",
-    "missed.missed": "OK",
-    "missed.knowability": "OK",
-    "missed.unknown_cause": "OK",
-    "missed.counterfactual": "OK",
-    "breaks.knowledge": "SKIPPED_NO_INPUT",
-    "breaks.break_research": "OK",
-    "questions.discovery": "SKIPPED_CADENCE",
-    "questions.interactions": "SKIPPED_CADENCE",
-    "questions.precursors": "OK",
-    "questions.targets": "OK",
-    "questions.research_graph": "OK",
-    "questions.generate": "OK",
-    "c68.research_depth": "SKIPPED_NO_INPUT",
-    "hypotheses.trees": "OK",
-    "gain.priority": "OK",
-    "allocate.controller": "OK",
-    "allocate.diversity": "OK",
-    "allocate.compute": "OK",
-    "run.experiments": "OK",
-    "validate.harvest": "OK",
-    "controls.compare": "OK",
-    "learn.ladder": "OK",
-    "learn.memory": "OK",
-    "learn.value": "OK",
-    "learn.science_memory": "OK",
-    "learn.replication": "OK",
-    "learn.quality_gate": "SKIPPED_NO_INPUT",
-    "c68.validate_promote": "OK",
-    "learn.decision_bridge": "SKIPPED_NO_INPUT",
-    "priorities.waste": "FAILED",
-    "priorities.brain_health": "OK",
-    "priorities.meta_research": "SKIPPED_CADENCE",
-    "priorities.failed_lab": "OK",
-    "priorities.scorecard": "SKIPPED_CADENCE",
-    "priorities.stale": "OK",
-    "c68.monitor_audit": "OK",
-    "sweeps.background": "OK",
-    "report.cycle": "OK"
-   },
-   "reasons": {
-    "c68.selection_policy": "policy Le7a9fbfb (threshold 0.0006); gain model fitted n=3823 base in-band 0.069; influence mom_r20_top=1.00, rev_r5_bottom=0.50, vol_top=1.00",
-    "evaluate.two_stage": "gate open",
-    "c68.expectations": "no position on 2017-12-15: {'NOT_PREDICTED_MOVER': 40, 'SHORT_DISABLED': 4, 'LOW_CONFIDENCE': 1}",
-    "c68.outcomes_errors": "1 exit(s) by the learned policy, 1 error report(s), 0 unreconstructable, 44 candidate gain(s) resolved",
-    "c68.what_changed": "classes {'CURRENTLY_UNEXPLAINED': 1}; 0 unknowable preserved; 0 tree(s) into the loop forest; 0 waiting",
-    "c68.error_research": "2017-12-15: 1 new errors, tiers {'NONE': 0, 'CHEAP': 0, 'STANDARD': 1, 'DEEP': 0}, 0 confident-wrong, 1 escalated groups, 13 jobs (148 cpu-min requested); 12 qu",
-    "questions.generate": "16 merged, 0 refused, 0 already answered",
-    "c68.research_depth": "no new question from a C68 event this cycle (11 new loop question(s), 14 C68 subject(s) ever asked; upstream: 42 position(s) ever, 1 open, 41 matured, 41 error ",
-    "learn.decision_bridge": "no new knowledge to route"
-   },
-   "positions": [],
-   "movers": [
-    {
-     "ticker": "W018",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.29878261238696097,
-     "gain_pred": NaN,
-     "run": -1
-    },
-    {
-     "ticker": "W019",
-     "reason": "LOW_CONFIDENCE",
-     "p_up": 0.5454807188399925,
-     "gain_pred": NaN,
-     "run": 1
-    },
-    {
-     "ticker": "W023",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.44592684290274426,
-     "gain_pred": NaN,
-     "run": 0
-    },
-    {
-     "ticker": "W027",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.3971049537153498,
-     "gain_pred": NaN,
-     "run": 1
-    },
-    {
-     "ticker": "W033",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.34086327425423946,
-     "gain_pred": NaN,
-     "run": 0
-    }
-   ],
-   "abstentions": {
-    "NOT_PREDICTED_MOVER": 40,
-    "SHORT_DISABLED": 4,
-    "LOW_CONFIDENCE": 1
-   },
-   "knowledge": []
-  },
-  {
-   "cycle": 32,
-   "now": "2017-12-22",
-   "stages": {
-    "observe.panel": "OK",
-    "observe.observer": "OK",
-    "observe.autopsy": "OK",
-    "update.experiment_memory": "OK",
-    "update.firewall_release": "SKIPPED_NO_INPUT",
-    "c68.selection_policy": "OK",
-    "evaluate.two_stage": "OK",
-    "c68.expectations": "OK",
-    "evaluate.volatility_lab": "SKIPPED_CADENCE",
-    "evaluate.direction_lab": "SKIPPED_CADENCE",
-    "evaluate.frontier": "OK",
-    "evaluate.symmetry": "OK",
-    "surprises.feature_screen": "OK",
-    "surprises.cross_section": "OK",
-    "surprises.regimes": "OK",
-    "c68.market_regime": "OK",
-    "c68.pattern_change": "OK",
-    "surprises.multiscale": "OK",
-    "failures.decision_losses": "OK",
-    "c68.outcomes_errors": "OK",
-    "c68.what_changed": "OK",
-    "c68.error_research": "OK",
-    "failures.winners_losers": "OK",
-    "failures.loss_pipeline": "OK",
-    "missed.missed": "OK",
-    "missed.knowability": "OK",
-    "missed.unknown_cause": "OK",
-    "missed.counterfactual": "OK",
-    "breaks.knowledge": "SKIPPED_NO_INPUT",
-    "breaks.break_research": "OK",
-    "questions.discovery": "OK",
-    "questions.interactions": "OK",
-    "questions.precursors": "OK",
-    "questions.targets": "OK",
-    "questions.research_graph": "OK",
-    "questions.generate": "OK",
-    "c68.research_depth": "SKIPPED_NO_INPUT",
-    "hypotheses.trees": "OK",
-    "gain.priority": "OK",
-    "allocate.controller": "OK",
-    "allocate.diversity": "OK",
-    "allocate.compute": "OK",
-    "run.experiments": "OK",
-    "validate.harvest": "OK",
-    "controls.compare": "OK",
-    "learn.ladder": "OK",
-    "learn.memory": "OK",
-    "learn.value": "OK",
-    "learn.science_memory": "OK",
-    "learn.replication": "OK",
-    "learn.quality_gate": "SKIPPED_NO_INPUT",
-    "c68.validate_promote": "OK",
-    "learn.decision_bridge": "SKIPPED_NO_INPUT",
-    "priorities.waste": "FAILED",
-    "priorities.brain_health": "OK",
-    "priorities.meta_research": "OK",
-    "priorities.failed_lab": "OK",
-    "priorities.scorecard": "OK",
-    "priorities.stale": "OK",
-    "c68.monitor_audit": "OK",
-    "sweeps.background": "OK",
-    "report.cycle": "OK"
-   },
-   "reasons": {
-    "c68.selection_policy": "policy L9771df71 (threshold -0.0000); gain model fitted n=3820 base in-band 0.072; influence mom_r20_top=1.00, rev_r5_bottom=0.50, vol_top=1.00",
-    "evaluate.two_stage": "gate open",
-    "c68.expectations": "no position on 2017-12-22: {'NOT_PREDICTED_MOVER': 40, 'SHORT_DISABLED': 2, 'LOW_CONFIDENCE': 2, 'OUT_OF_BAND': 1}",
-    "c68.outcomes_errors": "1 exit(s) by the learned policy, 1 error report(s), 0 unreconstructable, 45 candidate gain(s) resolved",
-    "c68.what_changed": "classes {}; 0 unknowable preserved; 0 tree(s) into the loop forest; 0 waiting",
-    "c68.error_research": "2017-12-22: 1 new errors, tiers {'NONE': 1, 'CHEAP': 0, 'STANDARD': 0, 'DEEP': 0}, 0 confident-wrong, 1 escalated groups, 12 jobs (118 cpu-min requested); 12 qu",
-    "questions.generate": "21 merged, 0 refused, 0 already answered",
-    "c68.research_depth": "no new question from a C68 event this cycle (11 new loop question(s), 14 C68 subject(s) ever asked; upstream: 42 position(s) ever, 0 open, 42 matured, 42 error ",
-    "learn.decision_bridge": "no new knowledge to route"
-   },
-   "positions": [],
-   "movers": [
-    {
-     "ticker": "W018",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.27330639674202784,
-     "gain_pred": NaN,
-     "run": -1
-    },
-    {
-     "ticker": "W019",
-     "reason": "OUT_OF_BAND",
-     "p_up": 0.5948369591515172,
-     "gain_pred": 0.048551366639450574,
-     "run": 1
-    },
-    {
-     "ticker": "W023",
-     "reason": "LOW_CONFIDENCE",
-     "p_up": 0.5053302691819299,
-     "gain_pred": NaN,
-     "run": 0
-    },
-    {
-     "ticker": "W027",
-     "reason": "LOW_CONFIDENCE",
-     "p_up": 0.505935278819999,
-     "gain_pred": NaN,
-     "run": 1
-    },
-    {
-     "ticker": "W039",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.36244247872102525,
-     "gain_pred": NaN,
-     "run": -1
-    }
-   ],
-   "abstentions": {
-    "NOT_PREDICTED_MOVER": 40,
-    "SHORT_DISABLED": 2,
-    "LOW_CONFIDENCE": 2,
-    "OUT_OF_BAND": 1
-   },
-   "knowledge": []
-  },
-  {
-   "cycle": 33,
-   "now": "2017-12-29",
-   "stages": {
-    "observe.panel": "OK",
-    "observe.observer": "OK",
-    "observe.autopsy": "OK",
-    "update.experiment_memory": "OK",
-    "update.firewall_release": "SKIPPED_NO_INPUT",
-    "c68.selection_policy": "OK",
-    "evaluate.two_stage": "OK",
-    "c68.expectations": "OK",
-    "evaluate.volatility_lab": "SKIPPED_CADENCE",
-    "evaluate.direction_lab": "SKIPPED_CADENCE",
-    "evaluate.frontier": "OK",
-    "evaluate.symmetry": "OK",
-    "surprises.feature_screen": "SKIPPED_CADENCE",
-    "surprises.cross_section": "OK",
-    "surprises.regimes": "OK",
-    "c68.market_regime": "OK",
-    "c68.pattern_change": "OK",
-    "surprises.multiscale": "OK",
-    "failures.decision_losses": "OK",
-    "c68.outcomes_errors": "OK",
-    "c68.what_changed": "SKIPPED_NO_INPUT",
-    "c68.error_research": "OK",
-    "failures.winners_losers": "OK",
-    "failures.loss_pipeline": "OK",
-    "missed.missed": "OK",
-    "missed.knowability": "OK",
-    "missed.unknown_cause": "OK",
-    "missed.counterfactual": "OK",
-    "breaks.knowledge": "SKIPPED_NO_INPUT",
-    "breaks.break_research": "OK",
-    "questions.discovery": "SKIPPED_CADENCE",
-    "questions.interactions": "SKIPPED_CADENCE",
-    "questions.precursors": "OK",
-    "questions.targets": "OK",
-    "questions.research_graph": "OK",
-    "questions.generate": "OK",
-    "c68.research_depth": "SKIPPED_NO_INPUT",
-    "hypotheses.trees": "OK",
-    "gain.priority": "OK",
-    "allocate.controller": "OK",
-    "allocate.diversity": "OK",
-    "allocate.compute": "OK",
-    "run.experiments": "OK",
-    "validate.harvest": "OK",
-    "controls.compare": "OK",
-    "learn.ladder": "OK",
-    "learn.memory": "OK",
-    "learn.value": "OK",
-    "learn.science_memory": "OK",
-    "learn.replication": "OK",
-    "learn.quality_gate": "SKIPPED_NO_INPUT",
-    "c68.validate_promote": "OK",
-    "learn.decision_bridge": "SKIPPED_NO_INPUT",
-    "priorities.waste": "FAILED",
-    "priorities.brain_health": "OK",
-    "priorities.meta_research": "SKIPPED_CADENCE",
-    "priorities.failed_lab": "OK",
-    "priorities.scorecard": "SKIPPED_CADENCE",
-    "priorities.stale": "OK",
-    "c68.monitor_audit": "OK",
-    "sweeps.background": "OK",
-    "report.cycle": "OK"
-   },
-   "reasons": {
-    "c68.selection_policy": "policy L62c71d15 (threshold -0.0006); gain model fitted n=3817 base in-band 0.076; influence mom_r20_top=1.00, rev_r5_bottom=0.50, vol_top=1.00",
-    "evaluate.two_stage": "gate open",
-    "c68.expectations": "1 expectation(s) frozen before the 2018-01-01 fill",
-    "c68.outcomes_errors": "0 exit(s) by the learned policy, 0 error report(s), 0 unreconstructable, 45 candidate gain(s) resolved",
-    "c68.what_changed": "no newly matured error to investigate (upstream: 43 position(s) ever, 1 open, 42 matured, 42 error report(s); band gate eligible 64/1542 forecast(s))",
-    "c68.error_research": "2017-12-29: 0 new errors, tiers {'NONE': 0, 'CHEAP': 0, 'STANDARD': 0, 'DEEP': 0}, 0 confident-wrong, 1 escalated groups, 12 jobs (118 cpu-min requested); 12 qu",
-    "questions.generate": "21 merged, 0 refused, 0 already answered",
-    "c68.research_depth": "no new question from a C68 event this cycle (11 new loop question(s), 14 C68 subject(s) ever asked; upstream: 43 position(s) ever, 1 open, 42 matured, 42 error ",
-    "learn.decision_bridge": "no new knowledge to route"
-   },
-   "positions": [
-    {
-     "ticker": "W019",
-     "side": 1,
-     "p_up": 0.626757033940762,
-     "gain_pred": 0.07951187402686585,
-     "run": 1
-    }
-   ],
-   "movers": [
-    {
-     "ticker": "W018",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.2548549103065948,
-     "gain_pred": NaN,
-     "run": -1
-    },
-    {
-     "ticker": "W019",
-     "reason": "POSITION",
-     "p_up": 0.626757033940762,
-     "gain_pred": 0.07951187402686585,
-     "run": 1
-    },
-    {
-     "ticker": "W023",
-     "reason": "LOW_CONFIDENCE",
-     "p_up": 0.48416548175668866,
-     "gain_pred": NaN,
-     "run": 0
-    },
-    {
-     "ticker": "W027",
-     "reason": "LOW_CONFIDENCE",
-     "p_up": 0.5415012276397633,
-     "gain_pred": NaN,
-     "run": 0
-    },
-    {
-     "ticker": "W039",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.3536548823848618,
-     "gain_pred": NaN,
-     "run": -1
-    }
-   ],
-   "abstentions": {
-    "NOT_PREDICTED_MOVER": 40,
-    "SHORT_DISABLED": 2,
-    "LOW_CONFIDENCE": 2,
-    "POSITION": 1
-   },
-   "knowledge": []
-  },
-  {
-   "cycle": 34,
-   "now": "2018-01-05",
-   "stages": {
-    "observe.panel": "OK",
-    "observe.observer": "OK",
-    "observe.autopsy": "OK",
-    "update.experiment_memory": "OK",
-    "update.firewall_release": "SKIPPED_NO_INPUT",
-    "c68.selection_policy": "OK",
-    "evaluate.two_stage": "OK",
-    "c68.expectations": "OK",
-    "evaluate.volatility_lab": "SKIPPED_CADENCE",
-    "evaluate.direction_lab": "SKIPPED_CADENCE",
-    "evaluate.frontier": "OK",
-    "evaluate.symmetry": "OK",
-    "surprises.feature_screen": "SKIPPED_CADENCE",
-    "surprises.cross_section": "OK",
-    "surprises.regimes": "OK",
-    "c68.market_regime": "OK",
-    "c68.pattern_change": "OK",
-    "surprises.multiscale": "OK",
-    "failures.decision_losses": "OK",
-    "c68.outcomes_errors": "OK",
-    "c68.what_changed": "SKIPPED_NO_INPUT",
-    "c68.error_research": "OK",
-    "failures.winners_losers": "OK",
-    "failures.loss_pipeline": "OK",
-    "missed.missed": "OK",
-    "missed.knowability": "OK",
-    "missed.unknown_cause": "OK",
-    "missed.counterfactual": "OK",
-    "breaks.knowledge": "SKIPPED_NO_INPUT",
-    "breaks.break_research": "OK",
-    "questions.discovery": "SKIPPED_CADENCE",
-    "questions.interactions": "SKIPPED_CADENCE",
-    "questions.precursors": "OK",
-    "questions.targets": "OK",
-    "questions.research_graph": "OK",
-    "questions.generate": "OK",
-    "c68.research_depth": "OK",
-    "hypotheses.trees": "OK",
-    "gain.priority": "OK",
-    "allocate.controller": "OK",
-    "allocate.diversity": "OK",
-    "allocate.compute": "OK",
-    "run.experiments": "OK",
-    "validate.harvest": "OK",
-    "controls.compare": "OK",
-    "learn.ladder": "OK",
-    "learn.memory": "OK",
-    "learn.value": "OK",
-    "learn.science_memory": "OK",
-    "learn.replication": "OK",
-    "learn.quality_gate": "SKIPPED_NO_INPUT",
-    "c68.validate_promote": "OK",
-    "learn.decision_bridge": "SKIPPED_NO_INPUT",
-    "priorities.waste": "FAILED",
-    "priorities.brain_health": "OK",
-    "priorities.meta_research": "SKIPPED_CADENCE",
-    "priorities.failed_lab": "OK",
-    "priorities.scorecard": "SKIPPED_CADENCE",
-    "priorities.stale": "OK",
-    "c68.monitor_audit": "OK",
-    "sweeps.background": "OK",
-    "report.cycle": "OK"
-   },
-   "reasons": {
-    "c68.selection_policy": "policy Lbba68d9f (threshold 0.0004); gain model fitted n=3814 base in-band 0.072; influence mom_r20_top=1.00, rev_r5_bottom=0.50, vol_top=1.00",
-    "evaluate.two_stage": "gate open",
-    "c68.expectations": "no position on 2018-01-05: {'NOT_PREDICTED_MOVER': 40, 'SHORT_DISABLED': 2, 'OUT_OF_BAND': 2, 'LOW_CONFIDENCE': 1}",
-    "c68.outcomes_errors": "0 exit(s) by the learned policy, 0 error report(s), 0 unreconstructable, 45 candidate gain(s) resolved",
-    "c68.what_changed": "no newly matured error to investigate (upstream: 43 position(s) ever, 1 open, 42 matured, 42 error report(s); band gate eligible 64/1587 forecast(s))",
-    "c68.error_research": "2018-01-05: 0 new errors, tiers {'NONE': 0, 'CHEAP': 0, 'STANDARD': 0, 'DEEP': 0}, 0 confident-wrong, 1 escalated groups, 12 jobs (118 cpu-min requested); 12 qu",
-    "questions.generate": "19 merged, 0 refused, 0 already answered",
-    "c68.research_depth": "1 C68 question(s) in the loop's queue, 0 damped",
-    "learn.decision_bridge": "no new knowledge to route"
-   },
-   "positions": [],
-   "movers": [
-    {
-     "ticker": "W002",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.32461983201133765,
-     "gain_pred": NaN,
-     "run": -1
-    },
-    {
-     "ticker": "W018",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.269853395029824,
-     "gain_pred": NaN,
-     "run": -1
-    },
-    {
-     "ticker": "W019",
-     "reason": "OUT_OF_BAND",
-     "p_up": 0.7133815398882165,
-     "gain_pred": 0.10675785606478135,
-     "run": 0
-    },
-    {
-     "ticker": "W023",
-     "reason": "LOW_CONFIDENCE",
-     "p_up": 0.5227874405668489,
-     "gain_pred": NaN,
-     "run": 0
-    },
-    {
-     "ticker": "W027",
-     "reason": "OUT_OF_BAND",
-     "p_up": 0.5543480037464932,
-     "gain_pred": 0.033797212673555,
-     "run": 1
-    }
-   ],
-   "abstentions": {
-    "NOT_PREDICTED_MOVER": 40,
-    "SHORT_DISABLED": 2,
-    "OUT_OF_BAND": 2,
-    "LOW_CONFIDENCE": 1
-   },
-   "knowledge": []
-  },
-  {
-   "cycle": 35,
-   "now": "2018-01-12",
-   "stages": {
-    "observe.panel": "OK",
-    "observe.observer": "OK",
-    "observe.autopsy": "OK",
-    "update.experiment_memory": "OK",
-    "update.firewall_release": "SKIPPED_NO_INPUT",
-    "c68.selection_policy": "OK",
-    "evaluate.two_stage": "OK",
-    "c68.expectations": "OK",
-    "evaluate.volatility_lab": "SKIPPED_CADENCE",
-    "evaluate.direction_lab": "SKIPPED_CADENCE",
-    "evaluate.frontier": "OK",
-    "evaluate.symmetry": "OK",
-    "surprises.feature_screen": "SKIPPED_CADENCE",
-    "surprises.cross_section": "OK",
-    "surprises.regimes": "OK",
-    "c68.market_regime": "OK",
-    "c68.pattern_change": "OK",
-    "surprises.multiscale": "OK",
-    "failures.decision_losses": "OK",
-    "c68.outcomes_errors": "OK",
-    "c68.what_changed": "OK",
-    "c68.error_research": "OK",
-    "failures.winners_losers": "OK",
-    "failures.loss_pipeline": "OK",
-    "missed.missed": "OK",
-    "missed.knowability": "OK",
-    "missed.unknown_cause": "OK",
-    "missed.counterfactual": "OK",
-    "breaks.knowledge": "SKIPPED_NO_INPUT",
-    "breaks.break_research": "OK",
-    "questions.discovery": "SKIPPED_CADENCE",
-    "questions.interactions": "SKIPPED_CADENCE",
-    "questions.precursors": "OK",
-    "questions.targets": "OK",
-    "questions.research_graph": "OK",
-    "questions.generate": "OK",
-    "c68.research_depth": "SKIPPED_NO_INPUT",
-    "hypotheses.trees": "OK",
-    "gain.priority": "OK",
-    "allocate.controller": "OK",
-    "allocate.diversity": "OK",
-    "allocate.compute": "OK",
-    "run.experiments": "OK",
-    "validate.harvest": "OK",
-    "controls.compare": "OK",
-    "learn.ladder": "OK",
-    "learn.memory": "OK",
-    "learn.value": "OK",
-    "learn.science_memory": "OK",
-    "learn.replication": "OK",
-    "learn.quality_gate": "SKIPPED_NO_INPUT",
-    "c68.validate_promote": "OK",
-    "learn.decision_bridge": "SKIPPED_NO_INPUT",
-    "priorities.waste": "FAILED",
-    "priorities.brain_health": "OK",
-    "priorities.meta_research": "SKIPPED_CADENCE",
-    "priorities.failed_lab": "OK",
-    "priorities.scorecard": "SKIPPED_CADENCE",
-    "priorities.stale": "OK",
-    "c68.monitor_audit": "OK",
-    "sweeps.background": "OK",
-    "report.cycle": "OK"
-   },
-   "reasons": {
-    "c68.selection_policy": "policy L47bfdb40 (threshold -0.0005); gain model fitted n=3811 base in-band 0.077; influence mom_r20_top=1.00, rev_r5_bottom=0.50, vol_top=1.00",
-    "evaluate.two_stage": "gate open",
-    "c68.expectations": "3 expectation(s) frozen before the 2018-01-15 fill",
-    "c68.outcomes_errors": "1 exit(s) by the learned policy, 1 error report(s), 0 unreconstructable, 45 candidate gain(s) resolved",
-    "c68.what_changed": "classes {}; 0 unknowable preserved; 0 tree(s) into the loop forest; 0 waiting",
-    "c68.error_research": "2018-01-12: 1 new errors, tiers {'NONE': 1, 'CHEAP': 0, 'STANDARD': 0, 'DEEP': 0}, 0 confident-wrong, 1 escalated groups, 12 jobs (118 cpu-min requested); 12 qu",
-    "questions.generate": "20 merged, 0 refused, 0 already answered",
-    "c68.research_depth": "no new question from a C68 event this cycle (11 new loop question(s), 15 C68 subject(s) ever asked; upstream: 46 position(s) ever, 3 open, 43 matured, 43 error ",
-    "learn.decision_bridge": "no new knowledge to route"
-   },
-   "positions": [
-    {
-     "ticker": "W019",
-     "side": 1,
-     "p_up": 0.6960499609318435,
-     "gain_pred": 0.09391227220073017,
-     "run": 0
-    },
-    {
-     "ticker": "W023",
-     "side": 1,
-     "p_up": 0.6877351170645217,
-     "gain_pred": 0.06427417884002261,
-     "run": 1
-    },
-    {
-     "ticker": "W027",
-     "side": 1,
-     "p_up": 0.6642502232917898,
-     "gain_pred": 0.054990857019242785,
-     "run": 1
-    }
-   ],
-   "movers": [
-    {
-     "ticker": "W002",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.31297717614461074,
-     "gain_pred": NaN,
-     "run": -1
-    },
-    {
-     "ticker": "W019",
-     "reason": "POSITION",
-     "p_up": 0.6960499609318435,
-     "gain_pred": 0.09391227220073017,
-     "run": 0
-    },
-    {
-     "ticker": "W020",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.39109337320333065,
-     "gain_pred": NaN,
-     "run": 0
-    },
-    {
-     "ticker": "W023",
-     "reason": "POSITION",
-     "p_up": 0.6877351170645217,
-     "gain_pred": 0.06427417884002261,
-     "run": 1
-    },
-    {
-     "ticker": "W027",
-     "reason": "POSITION",
-     "p_up": 0.6642502232917898,
-     "gain_pred": 0.054990857019242785,
-     "run": 1
-    }
-   ],
-   "abstentions": {
-    "NOT_PREDICTED_MOVER": 39,
-    "POSITION": 3,
-    "SHORT_DISABLED": 2
-   },
-   "knowledge": []
-  },
-  {
-   "cycle": 36,
-   "now": "2018-01-19",
-   "stages": {
-    "observe.panel": "OK",
-    "observe.observer": "OK",
-    "observe.autopsy": "OK",
-    "update.experiment_memory": "OK",
-    "update.firewall_release": "SKIPPED_NO_INPUT",
-    "c68.selection_policy": "OK",
-    "evaluate.two_stage": "OK",
-    "c68.expectations": "OK",
-    "evaluate.volatility_lab": "SKIPPED_CADENCE",
-    "evaluate.direction_lab": "SKIPPED_CADENCE",
-    "evaluate.frontier": "OK",
-    "evaluate.symmetry": "OK",
-    "surprises.feature_screen": "OK",
-    "surprises.cross_section": "OK",
-    "surprises.regimes": "OK",
-    "c68.market_regime": "OK",
-    "c68.pattern_change": "OK",
-    "surprises.multiscale": "OK",
-    "failures.decision_losses": "OK",
-    "c68.outcomes_errors": "OK",
-    "c68.what_changed": "SKIPPED_NO_INPUT",
-    "c68.error_research": "OK",
-    "failures.winners_losers": "OK",
-    "failures.loss_pipeline": "OK",
-    "missed.missed": "OK",
-    "missed.knowability": "OK",
-    "missed.unknown_cause": "OK",
-    "missed.counterfactual": "OK",
-    "breaks.knowledge": "SKIPPED_NO_INPUT",
-    "breaks.break_research": "OK",
-    "questions.discovery": "OK",
-    "questions.interactions": "SKIPPED_CADENCE",
-    "questions.precursors": "OK",
-    "questions.targets": "OK",
-    "questions.research_graph": "OK",
-    "questions.generate": "OK",
-    "c68.research_depth": "SKIPPED_NO_INPUT",
-    "hypotheses.trees": "OK",
-    "gain.priority": "OK",
-    "allocate.controller": "OK",
-    "allocate.diversity": "OK",
-    "allocate.compute": "OK",
-    "run.experiments": "OK",
-    "validate.harvest": "OK",
-    "controls.compare": "OK",
-    "learn.ladder": "OK",
-    "learn.memory": "OK",
-    "learn.value": "OK",
-    "learn.science_memory": "OK",
-    "learn.replication": "OK",
-    "learn.quality_gate": "SKIPPED_NO_INPUT",
-    "c68.validate_promote": "OK",
-    "learn.decision_bridge": "SKIPPED_NO_INPUT",
-    "priorities.waste": "FAILED",
-    "priorities.brain_health": "OK",
-    "priorities.meta_research": "OK",
-    "priorities.failed_lab": "OK",
-    "priorities.scorecard": "OK",
-    "priorities.stale": "OK",
-    "c68.monitor_audit": "OK",
-    "sweeps.background": "OK",
-    "report.cycle": "OK"
-   },
-   "reasons": {
-    "c68.selection_policy": "policy Le3f66e70 (threshold -0.0006); gain model fitted n=3808 base in-band 0.076; influence mom_r20_top=1.00, rev_r5_bottom=0.50, vol_top=1.00",
-    "evaluate.two_stage": "gate open",
-    "c68.expectations": "1 expectation(s) frozen before the 2018-01-22 fill",
-    "c68.outcomes_errors": "0 exit(s) by the learned policy, 0 error report(s), 0 unreconstructable, 45 candidate gain(s) resolved",
-    "c68.what_changed": "no newly matured error to investigate (upstream: 47 position(s) ever, 4 open, 43 matured, 43 error report(s); band gate eligible 68/1675 forecast(s))",
-    "c68.error_research": "2018-01-19: 0 new errors, tiers {'NONE': 0, 'CHEAP': 0, 'STANDARD': 0, 'DEEP': 0}, 0 confident-wrong, 1 escalated groups, 12 jobs (118 cpu-min requested); 12 qu",
-    "questions.generate": "20 merged, 0 refused, 0 already answered",
-    "c68.research_depth": "no new question from a C68 event this cycle (11 new loop question(s), 15 C68 subject(s) ever asked; upstream: 47 position(s) ever, 4 open, 43 matured, 43 error ",
-    "learn.decision_bridge": "no new knowledge to route"
-   },
-   "positions": [
-    {
-     "ticker": "W019",
-     "side": 1,
-     "p_up": 0.7918862296750719,
-     "gain_pred": 0.09769921605583018,
-     "run": 0
-    }
-   ],
-   "movers": [
-    {
-     "ticker": "W002",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.2569480260089076,
-     "gain_pred": NaN,
-     "run": -1
-    },
-    {
-     "ticker": "W019",
-     "reason": "POSITION",
-     "p_up": 0.7918862296750719,
-     "gain_pred": 0.09769921605583018,
-     "run": 0
-    },
-    {
-     "ticker": "W020",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.3197285219450888,
-     "gain_pred": NaN,
-     "run": 0
-    },
-    {
-     "ticker": "W023",
-     "reason": "OUT_OF_BAND",
-     "p_up": 0.5803150856009199,
-     "gain_pred": 0.03837140357100703,
-     "run": 1
-    },
-    {
-     "ticker": "W027",
-     "reason": "OUT_OF_BAND",
-     "p_up": 0.5607692923960204,
-     "gain_pred": 0.0445472916930274,
-     "run": 1
-    }
-   ],
-   "abstentions": {
-    "NOT_PREDICTED_MOVER": 39,
-    "SHORT_DISABLED": 2,
-    "OUT_OF_BAND": 2,
-    "POSITION": 1
-   },
-   "knowledge": []
-  },
-  {
-   "cycle": 37,
-   "now": "2018-01-26",
-   "stages": {
-    "observe.panel": "OK",
-    "observe.observer": "OK",
-    "observe.autopsy": "OK",
-    "update.experiment_memory": "OK",
-    "update.firewall_release": "SKIPPED_NO_INPUT",
-    "c68.selection_policy": "OK",
-    "evaluate.two_stage": "OK",
-    "c68.expectations": "OK",
-    "evaluate.volatility_lab": "SKIPPED_CADENCE",
-    "evaluate.direction_lab": "SKIPPED_CADENCE",
-    "evaluate.frontier": "OK",
-    "evaluate.symmetry": "OK",
-    "surprises.feature_screen": "SKIPPED_CADENCE",
-    "surprises.cross_section": "OK",
-    "surprises.regimes": "OK",
-    "c68.market_regime": "OK",
-    "c68.pattern_change": "OK",
-    "surprises.multiscale": "OK",
-    "failures.decision_losses": "OK",
-    "c68.outcomes_errors": "OK",
-    "c68.what_changed": "OK",
-    "c68.error_research": "OK",
-    "failures.winners_losers": "OK",
-    "failures.loss_pipeline": "OK",
-    "missed.missed": "OK",
-    "missed.knowability": "OK",
-    "missed.unknown_cause": "OK",
-    "missed.counterfactual": "OK",
-    "breaks.knowledge": "SKIPPED_NO_INPUT",
-    "breaks.break_research": "OK",
-    "questions.discovery": "SKIPPED_CADENCE",
-    "questions.interactions": "SKIPPED_CADENCE",
-    "questions.precursors": "OK",
-    "questions.targets": "OK",
-    "questions.research_graph": "OK",
-    "questions.generate": "OK",
-    "c68.research_depth": "OK",
-    "hypotheses.trees": "OK",
-    "gain.priority": "OK",
-    "allocate.controller": "OK",
-    "allocate.diversity": "OK",
-    "allocate.compute": "OK",
-    "run.experiments": "OK",
-    "validate.harvest": "OK",
-    "controls.compare": "OK",
-    "learn.ladder": "OK",
-    "learn.memory": "OK",
-    "learn.value": "OK",
-    "learn.science_memory": "OK",
-    "learn.replication": "OK",
-    "learn.quality_gate": "SKIPPED_NO_INPUT",
-    "c68.validate_promote": "OK",
-    "learn.decision_bridge": "SKIPPED_NO_INPUT",
-    "priorities.waste": "FAILED",
-    "priorities.brain_health": "OK",
-    "priorities.meta_research": "SKIPPED_CADENCE",
-    "priorities.failed_lab": "OK",
-    "priorities.scorecard": "SKIPPED_CADENCE",
-    "priorities.stale": "OK",
-    "c68.monitor_audit": "OK",
-    "sweeps.background": "OK",
-    "report.cycle": "OK"
-   },
-   "reasons": {
-    "c68.selection_policy": "policy L15e8e67b (threshold -0.0009); gain model fitted n=3804 base in-band 0.078; influence mom_r20_top=1.00, rev_r5_bottom=0.50, vol_top=1.00",
-    "evaluate.two_stage": "gate open",
-    "c68.expectations": "1 expectation(s) frozen before the 2018-01-29 fill",
-    "c68.outcomes_errors": "3 exit(s) by the learned policy, 3 error report(s), 0 unreconstructable, 44 candidate gain(s) resolved",
-    "c68.what_changed": "classes {'CURRENTLY_UNEXPLAINED': 2}; 0 unknowable preserved; 0 tree(s) into the loop forest; 0 waiting",
-    "c68.error_research": "2018-01-26: 3 new errors, tiers {'NONE': 3, 'CHEAP': 0, 'STANDARD': 0, 'DEEP': 0}, 0 confident-wrong, 1 escalated groups, 12 jobs (118 cpu-min requested); 12 qu",
-    "questions.generate": "20 merged, 0 refused, 0 already answered",
-    "c68.research_depth": "1 C68 question(s) in the loop's queue, 0 damped",
-    "learn.decision_bridge": "no new knowledge to route"
-   },
-   "positions": [
-    {
-     "ticker": "W023",
-     "side": 1,
-     "p_up": 0.7249004787818277,
-     "gain_pred": 0.09579056557509835,
-     "run": 1
-    }
-   ],
-   "movers": [
-    {
-     "ticker": "W002",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.23384024157073283,
-     "gain_pred": NaN,
-     "run": -1
-    },
-    {
-     "ticker": "W017",
-     "reason": "LOW_CONFIDENCE",
-     "p_up": 0.48323703958780306,
-     "gain_pred": NaN,
-     "run": 0
-    },
-    {
-     "ticker": "W019",
-     "reason": "OUT_OF_BAND",
-     "p_up": 0.7043768745845194,
-     "gain_pred": 0.0365757701782473,
-     "run": 0
-    },
-    {
-     "ticker": "W020",
-     "reason": "LOW_CONFIDENCE",
-     "p_up": 0.5030089929417847,
-     "gain_pred": NaN,
-     "run": 0
-    },
-    {
-     "ticker": "W023",
-     "reason": "POSITION",
-     "p_up": 0.7249004787818277,
-     "gain_pred": 0.09579056557509835,
-     "run": 1
-    }
-   ],
-   "abstentions": {
-    "NOT_PREDICTED_MOVER": 39,
-    "LOW_CONFIDENCE": 2,
-    "SHORT_DISABLED": 1,
-    "OUT_OF_BAND": 1,
-    "POSITION": 1
-   },
-   "knowledge": []
-  },
-  {
-   "cycle": 38,
-   "now": "2018-02-02",
-   "stages": {
-    "observe.panel": "OK",
-    "observe.observer": "OK",
-    "observe.autopsy": "OK",
-    "update.experiment_memory": "OK",
-    "update.firewall_release": "SKIPPED_NO_INPUT",
-    "c68.selection_policy": "OK",
-    "evaluate.two_stage": "OK",
-    "c68.expectations": "OK",
-    "evaluate.volatility_lab": "SKIPPED_CADENCE",
-    "evaluate.direction_lab": "SKIPPED_CADENCE",
-    "evaluate.frontier": "OK",
-    "evaluate.symmetry": "OK",
-    "surprises.feature_screen": "SKIPPED_CADENCE",
-    "surprises.cross_section": "OK",
-    "surprises.regimes": "OK",
-    "c68.market_regime": "OK",
-    "c68.pattern_change": "OK",
-    "surprises.multiscale": "OK",
-    "failures.decision_losses": "OK",
-    "c68.outcomes_errors": "OK",
-    "c68.what_changed": "OK",
-    "c68.error_research": "OK",
-    "failures.winners_losers": "OK",
-    "failures.loss_pipeline": "OK",
-    "missed.missed": "OK",
-    "missed.knowability": "OK",
-    "missed.unknown_cause": "OK",
-    "missed.counterfactual": "OK",
-    "breaks.knowledge": "SKIPPED_NO_INPUT",
-    "breaks.break_research": "OK",
-    "questions.discovery": "SKIPPED_CADENCE",
-    "questions.interactions": "SKIPPED_CADENCE",
-    "questions.precursors": "OK",
-    "questions.targets": "OK",
-    "questions.research_graph": "OK",
-    "questions.generate": "OK",
-    "c68.research_depth": "SKIPPED_NO_INPUT",
-    "hypotheses.trees": "OK",
-    "gain.priority": "OK",
-    "allocate.controller": "OK",
-    "allocate.diversity": "OK",
-    "allocate.compute": "OK",
-    "run.experiments": "OK",
-    "validate.harvest": "OK",
-    "controls.compare": "OK",
-    "learn.ladder": "OK",
-    "learn.memory": "OK",
-    "learn.value": "OK",
-    "learn.science_memory": "OK",
-    "learn.replication": "OK",
-    "learn.quality_gate": "SKIPPED_NO_INPUT",
-    "c68.validate_promote": "OK",
-    "learn.decision_bridge": "SKIPPED_NO_INPUT",
-    "priorities.waste": "FAILED",
-    "priorities.brain_health": "OK",
-    "priorities.meta_research": "SKIPPED_CADENCE",
-    "priorities.failed_lab": "OK",
-    "priorities.scorecard": "SKIPPED_CADENCE",
-    "priorities.stale": "OK",
-    "c68.monitor_audit": "OK",
-    "sweeps.background": "OK",
-    "report.cycle": "OK"
-   },
-   "reasons": {
-    "c68.selection_policy": "policy Lbfb18d1f (threshold 0.0002); gain model fitted n=3800 base in-band 0.074; influence mom_r20_top=1.00, rev_r5_bottom=0.50, vol_top=1.00",
-    "evaluate.two_stage": "gate open",
-    "c68.expectations": "1 expectation(s) frozen before the 2018-02-05 fill",
-    "c68.outcomes_errors": "1 exit(s) by the learned policy, 1 error report(s), 0 unreconstructable, 44 candidate gain(s) resolved",
-    "c68.what_changed": "classes {'CURRENTLY_UNEXPLAINED': 1}; 0 unknowable preserved; 0 tree(s) into the loop forest; 0 waiting",
-    "c68.error_research": "2018-02-02: 1 new errors, tiers {'NONE': 1, 'CHEAP': 0, 'STANDARD': 0, 'DEEP': 0}, 0 confident-wrong, 1 escalated groups, 12 jobs (118 cpu-min requested); 12 qu",
-    "questions.generate": "20 merged, 0 refused, 0 already answered",
-    "c68.research_depth": "no new question from a C68 event this cycle (11 new loop question(s), 15 C68 subject(s) ever asked; upstream: 49 position(s) ever, 2 open, 47 matured, 47 error ",
-    "learn.decision_bridge": "no new knowledge to route"
-   },
-   "positions": [
-    {
-     "ticker": "W023",
-     "side": 1,
-     "p_up": 0.6932531006971662,
-     "gain_pred": 0.07604560700627339,
-     "run": 1
-    }
-   ],
-   "movers": [
-    {
-     "ticker": "W002",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.3271779432953,
-     "gain_pred": NaN,
-     "run": 0
-    },
-    {
-     "ticker": "W019",
-     "reason": "LOW_CONFIDENCE",
-     "p_up": 0.5382706452494422,
-     "gain_pred": NaN,
-     "run": 0
-    },
-    {
-     "ticker": "W020",
-     "reason": "LOW_CONFIDENCE",
-     "p_up": 0.49211763683543813,
-     "gain_pred": NaN,
-     "run": 0
-    },
-    {
-     "ticker": "W023",
-     "reason": "POSITION",
-     "p_up": 0.6932531006971662,
-     "gain_pred": 0.07604560700627339,
-     "run": 1
-    },
-    {
-     "ticker": "W044",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.41361354068803113,
-     "gain_pred": NaN,
-     "run": 0
-    }
-   ],
-   "abstentions": {
-    "NOT_PREDICTED_MOVER": 39,
-    "SHORT_DISABLED": 2,
-    "LOW_CONFIDENCE": 2,
-    "POSITION": 1
-   },
-   "knowledge": []
-  },
-  {
-   "cycle": 39,
-   "now": "2018-02-09",
-   "stages": {
-    "observe.panel": "OK",
-    "observe.observer": "OK",
-    "observe.autopsy": "OK",
-    "update.experiment_memory": "OK",
-    "update.firewall_release": "SKIPPED_NO_INPUT",
-    "c68.selection_policy": "OK",
-    "evaluate.two_stage": "OK",
-    "c68.expectations": "OK",
-    "evaluate.volatility_lab": "OK",
-    "evaluate.direction_lab": "OK",
-    "evaluate.frontier": "OK",
-    "evaluate.symmetry": "OK",
-    "surprises.feature_screen": "SKIPPED_CADENCE",
-    "surprises.cross_section": "OK",
-    "surprises.regimes": "OK",
-    "c68.market_regime": "OK",
-    "c68.pattern_change": "OK",
-    "surprises.multiscale": "OK",
-    "failures.decision_losses": "OK",
-    "c68.outcomes_errors": "OK",
-    "c68.what_changed": "OK",
-    "c68.error_research": "OK",
-    "failures.winners_losers": "OK",
-    "failures.loss_pipeline": "OK",
-    "missed.missed": "OK",
-    "missed.knowability": "OK",
-    "missed.unknown_cause": "OK",
-    "missed.counterfactual": "OK",
-    "breaks.knowledge": "SKIPPED_NO_INPUT",
-    "breaks.break_research": "OK",
-    "questions.discovery": "SKIPPED_CADENCE",
-    "questions.interactions": "SKIPPED_CADENCE",
-    "questions.precursors": "OK",
-    "questions.targets": "OK",
-    "questions.research_graph": "OK",
-    "questions.generate": "OK",
-    "c68.research_depth": "SKIPPED_NO_INPUT",
-    "hypotheses.trees": "OK",
-    "gain.priority": "OK",
-    "allocate.controller": "OK",
-    "allocate.diversity": "OK",
-    "allocate.compute": "OK",
-    "run.experiments": "OK",
-    "validate.harvest": "OK",
-    "controls.compare": "OK",
-    "learn.ladder": "OK",
-    "learn.memory": "OK",
-    "learn.value": "OK",
-    "learn.science_memory": "OK",
-    "learn.replication": "OK",
-    "learn.quality_gate": "SKIPPED_NO_INPUT",
-    "c68.validate_promote": "OK",
-    "learn.decision_bridge": "SKIPPED_NO_INPUT",
-    "priorities.waste": "FAILED",
-    "priorities.brain_health": "OK",
-    "priorities.meta_research": "SKIPPED_CADENCE",
-    "priorities.failed_lab": "OK",
-    "priorities.scorecard": "SKIPPED_CADENCE",
-    "priorities.stale": "OK",
-    "c68.monitor_audit": "OK",
-    "sweeps.background": "OK",
-    "report.cycle": "OK"
-   },
-   "reasons": {
-    "c68.selection_policy": "policy L08707149 (threshold -0.0007); gain model fitted n=3796 base in-band 0.078; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00",
-    "evaluate.two_stage": "gate open",
-    "c68.expectations": "1 expectation(s) frozen before the 2018-02-12 fill",
-    "c68.outcomes_errors": "1 exit(s) by the learned policy, 1 error report(s), 0 unreconstructable, 44 candidate gain(s) resolved",
-    "c68.what_changed": "classes {}; 0 unknowable preserved; 0 tree(s) into the loop forest; 0 waiting",
-    "c68.error_research": "2018-02-09: 1 new errors, tiers {'NONE': 1, 'CHEAP': 0, 'STANDARD': 0, 'DEEP': 0}, 0 confident-wrong, 1 escalated groups, 12 jobs (118 cpu-min requested); 12 qu",
-    "questions.generate": "21 merged, 0 refused, 0 already answered",
-    "c68.research_depth": "no new question from a C68 event this cycle (11 new loop question(s), 15 C68 subject(s) ever asked; upstream: 50 position(s) ever, 2 open, 48 matured, 48 error ",
-    "learn.decision_bridge": "no new knowledge to route"
-   },
-   "positions": [
-    {
-     "ticker": "W023",
-     "side": 1,
-     "p_up": 0.7436513722006713,
-     "gain_pred": 0.06955428600547775,
-     "run": 1
-    }
-   ],
-   "movers": [
-    {
-     "ticker": "W002",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.34253380708452613,
-     "gain_pred": NaN,
-     "run": 0
-    },
-    {
-     "ticker": "W014",
-     "reason": "LOW_CONFIDENCE",
-     "p_up": 0.5189860954783798,
-     "gain_pred": NaN,
-     "run": 0
-    },
-    {
-     "ticker": "W019",
-     "reason": "SHORT_DISABLED",
-     "p_up": 0.4319345613118558,
-     "gain_pred": NaN,
-     "run": 0
-    },
-    {
-     "ticker": "W020",
-     "reason": "LOW_CONFIDENCE",
-     "p_up": 0.47349371690943853,
-     "gain_pred": NaN,
-     "run": 0
-    },
-    {
-     "ticker": "W023",
-     "reason": "POSITION",
-     "p_up": 0.7436513722006713,
-     "gain_pred": 0.06955428600547775,
      "run": 1
     }
    ],
@@ -5342,15 +542,15 @@
   }
  ],
  "truth": {
-  "trend_share": 0.13632425742574258,
-  "n_runs": 157,
+  "trend_share": 0.1408622112211221,
+  "n_runs": 255,
   "genuine_direction": [
    "rel_r20",
    "rel_r5"
   ]
  },
  "provenance": {
-  "code_hash": "7d207e2d9a289bcd",
+  "code_hash": "1fa40d54f75db321",
   "code_files": [
    "engine/__init__.py",
    "engine/analogs.py",
@@ -5443,7 +643,7 @@
    "scripts/f23_planted_trades.py"
   ],
   "code_mixed": [],
-  "git_commit": "760704dc8be7d4db35c36a11dbb390e6653da46a+dirty",
+  "git_commit": "f51d5165c935ff0749061c2393265a59c10bd802+dirty",
   "canon_sha": "c0cbbc40a38a0733",
   "bible_sha": "a97ea91862cee371",
   "blueprint_version": "4.0",
@@ -5451,552 +651,410 @@
   "data_snapshot": "171ba8ba728ee713",
   "seed": 1
  },
- "seconds": 747.4,
+ "seconds": 288.5,
  "stage_table": {
   "allocate.compute": {
    "all": {
-    "OK": 40
+    "OK": 4
    },
-   "after_warmup": {
-    "OK": 34
-   }
+   "after_warmup": {}
   },
   "allocate.controller": {
    "all": {
-    "OK": 40
+    "OK": 4
    },
-   "after_warmup": {
-    "OK": 34
-   }
+   "after_warmup": {}
   },
   "allocate.diversity": {
    "all": {
-    "OK": 40
+    "OK": 4
    },
-   "after_warmup": {
-    "OK": 34
-   }
+   "after_warmup": {}
   },
   "breaks.break_research": {
    "all": {
-    "OK": 40
+    "OK": 4
    },
-   "after_warmup": {
-    "OK": 34
-   }
+   "after_warmup": {}
   },
   "breaks.knowledge": {
    "all": {
-    "SKIPPED_NO_INPUT": 40
+    "SKIPPED_NO_INPUT": 4
    },
-   "after_warmup": {
-    "SKIPPED_NO_INPUT": 34
-   }
+   "after_warmup": {}
   },
   "c68.error_research": {
    "all": {
-    "OK": 39,
+    "OK": 3,
     "SKIPPED_NO_INPUT": 1
    },
-   "after_warmup": {
-    "OK": 34
-   }
+   "after_warmup": {}
   },
   "c68.expectations": {
    "all": {
-    "OK": 40
+    "OK": 4
    },
-   "after_warmup": {
-    "OK": 34
-   }
+   "after_warmup": {}
   },
   "c68.market_regime": {
    "all": {
-    "OK": 40
+    "OK": 4
    },
-   "after_warmup": {
-    "OK": 34
-   }
+   "after_warmup": {}
   },
   "c68.monitor_audit": {
    "all": {
-    "OK": 40
+    "OK": 4
    },
-   "after_warmup": {
-    "OK": 34
-   }
+   "after_warmup": {}
   },
   "c68.outcomes_errors": {
    "all": {
     "SKIPPED_NO_INPUT": 2,
-    "OK": 38
+    "OK": 2
    },
-   "after_warmup": {
-    "OK": 34
-   }
+   "after_warmup": {}
   },
   "c68.pattern_change": {
    "all": {
-    "OK": 40
+    "OK": 4
    },
-   "after_warmup": {
-    "OK": 34
-   }
+   "after_warmup": {}
   },
   "c68.research_depth": {
    "all": {
-    "OK": 21,
-    "SKIPPED_NO_INPUT": 19
+    "OK": 1,
+    "SKIPPED_NO_INPUT": 3
    },
-   "after_warmup": {
-    "OK": 17,
-    "SKIPPED_NO_INPUT": 17
-   }
+   "after_warmup": {}
   },
   "c68.selection_policy": {
    "all": {
-    "OK": 40
+    "OK": 4
    },
-   "after_warmup": {
-    "OK": 34
-   }
+   "after_warmup": {}
   },
   "c68.validate_promote": {
    "all": {
-    "SKIPPED_NO_INPUT": 6,
-    "OK": 34
+    "SKIPPED_NO_INPUT": 4
    },
-   "after_warmup": {
-    "OK": 34
-   }
+   "after_warmup": {}
   },
   "c68.what_changed": {
    "all": {
-    "SKIPPED_NO_INPUT": 10,
-    "OK": 30
+    "SKIPPED_NO_INPUT": 2,
+    "OK": 2
    },
-   "after_warmup": {
-    "OK": 26,
-    "SKIPPED_NO_INPUT": 8
-   }
+   "after_warmup": {}
   },
   "controls.compare": {
    "all": {
-    "OK": 40
+    "OK": 4
    },
-   "after_warmup": {
-    "OK": 34
-   }
+   "after_warmup": {}
   },
   "evaluate.direction_lab": {
    "all": {
-    "OK": 4,
-    "SKIPPED_CADENCE": 36
+    "OK": 1,
+    "SKIPPED_CADENCE": 3
    },
-   "after_warmup": {
-    "SKIPPED_CADENCE": 31,
-    "OK": 3
-   }
+   "after_warmup": {}
   },
   "evaluate.frontier": {
    "all": {
-    "OK": 40
+    "OK": 4
    },
-   "after_warmup": {
-    "OK": 34
-   }
+   "after_warmup": {}
   },
   "evaluate.symmetry": {
    "all": {
-    "OK": 40
+    "OK": 4
    },
-   "after_warmup": {
-    "OK": 34
-   }
+   "after_warmup": {}
   },
   "evaluate.two_stage": {
    "all": {
-    "OK": 40
+    "OK": 4
    },
-   "after_warmup": {
-    "OK": 34
-   }
+   "after_warmup": {}
   },
   "evaluate.volatility_lab": {
    "all": {
-    "OK": 4,
-    "SKIPPED_CADENCE": 36
+    "OK": 1,
+    "SKIPPED_CADENCE": 3
    },
-   "after_warmup": {
-    "SKIPPED_CADENCE": 31,
-    "OK": 3
-   }
+   "after_warmup": {}
   },
   "failures.decision_losses": {
    "all": {
-    "SKIPPED_NO_INPUT": 7,
-    "OK": 33
+    "SKIPPED_NO_INPUT": 4
    },
-   "after_warmup": {
-    "SKIPPED_NO_INPUT": 1,
-    "OK": 33
-   }
+   "after_warmup": {}
   },
   "failures.loss_pipeline": {
    "all": {
     "SKIPPED_NO_INPUT": 2,
-    "OK": 38
+    "OK": 2
    },
-   "after_warmup": {
-    "OK": 34
-   }
+   "after_warmup": {}
   },
   "failures.winners_losers": {
    "all": {
     "SKIPPED_NO_INPUT": 2,
-    "OK": 38
+    "OK": 2
    },
-   "after_warmup": {
-    "OK": 34
-   }
+   "after_warmup": {}
   },
   "gain.priority": {
    "all": {
-    "OK": 40
+    "OK": 4
    },
-   "after_warmup": {
-    "OK": 34
-   }
+   "after_warmup": {}
   },
   "hypotheses.trees": {
    "all": {
-    "OK": 40
+    "OK": 4
    },
-   "after_warmup": {
-    "OK": 34
-   }
+   "after_warmup": {}
   },
   "learn.decision_bridge": {
    "all": {
-    "SKIPPED_NO_INPUT": 40
+    "SKIPPED_NO_INPUT": 4
    },
-   "after_warmup": {
-    "SKIPPED_NO_INPUT": 34
-   }
+   "after_warmup": {}
   },
   "learn.ladder": {
    "all": {
-    "OK": 40
+    "OK": 4
    },
-   "after_warmup": {
-    "OK": 34
-   }
+   "after_warmup": {}
   },
   "learn.memory": {
    "all": {
-    "OK": 40
+    "OK": 4
    },
-   "after_warmup": {
-    "OK": 34
-   }
+   "after_warmup": {}
   },
   "learn.quality_gate": {
    "all": {
-    "SKIPPED_NO_INPUT": 39,
-    "OK": 1
+    "SKIPPED_NO_INPUT": 4
    },
-   "after_warmup": {
-    "SKIPPED_NO_INPUT": 33,
-    "OK": 1
-   }
+   "after_warmup": {}
   },
   "learn.replication": {
    "all": {
-    "OK": 40
+    "OK": 4
    },
-   "after_warmup": {
-    "OK": 34
-   }
+   "after_warmup": {}
   },
   "learn.science_memory": {
    "all": {
-    "OK": 40
+    "OK": 4
    },
-   "after_warmup": {
-    "OK": 34
-   }
+   "after_warmup": {}
   },
   "learn.value": {
    "all": {
-    "OK": 40
+    "OK": 4
    },
-   "after_warmup": {
-    "OK": 34
-   }
+   "after_warmup": {}
   },
   "missed.counterfactual": {
    "all": {
-    "OK": 40
+    "OK": 4
    },
-   "after_warmup": {
-    "OK": 34
-   }
+   "after_warmup": {}
   },
   "missed.knowability": {
    "all": {
-    "OK": 40
+    "OK": 4
    },
-   "after_warmup": {
-    "OK": 34
-   }
+   "after_warmup": {}
   },
   "missed.missed": {
    "all": {
     "SKIPPED_NO_INPUT": 2,
-    "OK": 38
+    "OK": 2
    },
-   "after_warmup": {
-    "OK": 34
-   }
+   "after_warmup": {}
   },
   "missed.unknown_cause": {
    "all": {
-    "OK": 40
+    "OK": 4
    },
-   "after_warmup": {
-    "OK": 34
-   }
+   "after_warmup": {}
   },
   "observe.autopsy": {
    "all": {
     "SKIPPED_NO_INPUT": 2,
-    "OK": 38
+    "OK": 2
    },
-   "after_warmup": {
-    "OK": 34
-   }
+   "after_warmup": {}
   },
   "observe.observer": {
    "all": {
     "SKIPPED_NO_INPUT": 2,
-    "OK": 38
+    "OK": 2
    },
-   "after_warmup": {
-    "OK": 34
-   }
+   "after_warmup": {}
   },
   "observe.panel": {
    "all": {
-    "OK": 40
+    "OK": 4
    },
-   "after_warmup": {
-    "OK": 34
-   }
+   "after_warmup": {}
   },
   "priorities.brain_health": {
    "all": {
-    "OK": 40
+    "OK": 4
    },
-   "after_warmup": {
-    "OK": 34
-   }
+   "after_warmup": {}
   },
   "priorities.failed_lab": {
    "all": {
-    "OK": 40
+    "OK": 4
    },
-   "after_warmup": {
-    "OK": 34
-   }
+   "after_warmup": {}
   },
   "priorities.meta_research": {
    "all": {
-    "OK": 10,
-    "SKIPPED_CADENCE": 30
+    "OK": 1,
+    "SKIPPED_CADENCE": 3
    },
-   "after_warmup": {
-    "SKIPPED_CADENCE": 26,
-    "OK": 8
-   }
+   "after_warmup": {}
   },
   "priorities.scorecard": {
    "all": {
     "SKIPPED_NO_INPUT": 1,
-    "SKIPPED_CADENCE": 30,
-    "OK": 9
+    "SKIPPED_CADENCE": 3
    },
-   "after_warmup": {
-    "SKIPPED_CADENCE": 26,
-    "OK": 8
-   }
+   "after_warmup": {}
   },
   "priorities.stale": {
    "all": {
-    "OK": 40
+    "OK": 4
    },
-   "after_warmup": {
-    "OK": 34
-   }
+   "after_warmup": {}
   },
   "priorities.waste": {
    "all": {
-    "OK": 15,
-    "FAILED": 25
+    "OK": 4
    },
-   "after_warmup": {
-    "OK": 9,
-    "FAILED": 25
-   }
+   "after_warmup": {}
   },
   "questions.discovery": {
    "all": {
-    "OK": 10,
-    "SKIPPED_CADENCE": 30
+    "OK": 1,
+    "SKIPPED_CADENCE": 3
    },
-   "after_warmup": {
-    "SKIPPED_CADENCE": 26,
-    "OK": 8
-   }
+   "after_warmup": {}
   },
   "questions.generate": {
    "all": {
-    "OK": 40
+    "OK": 3,
+    "SKIPPED_NO_INPUT": 1
    },
-   "after_warmup": {
-    "OK": 34
-   }
+   "after_warmup": {}
   },
   "questions.interactions": {
    "all": {
-    "OK": 5,
-    "SKIPPED_CADENCE": 35
+    "OK": 1,
+    "SKIPPED_CADENCE": 3
    },
-   "after_warmup": {
-    "SKIPPED_CADENCE": 30,
-    "OK": 4
-   }
+   "after_warmup": {}
   },
   "questions.precursors": {
    "all": {
-    "OK": 40
+    "OK": 4
    },
-   "after_warmup": {
-    "OK": 34
-   }
+   "after_warmup": {}
   },
   "questions.research_graph": {
    "all": {
-    "OK": 40
+    "OK": 4
    },
-   "after_warmup": {
-    "OK": 34
-   }
+   "after_warmup": {}
   },
   "questions.targets": {
    "all": {
     "SKIPPED_NO_INPUT": 2,
-    "OK": 38
+    "OK": 2
    },
-   "after_warmup": {
-    "OK": 34
-   }
+   "after_warmup": {}
   },
   "report.cycle": {
    "all": {
-    "OK": 40
+    "OK": 4
    },
-   "after_warmup": {
-    "OK": 34
-   }
+   "after_warmup": {}
   },
   "run.experiments": {
    "all": {
-    "OK": 40
+    "OK": 4
    },
-   "after_warmup": {
-    "OK": 34
-   }
+   "after_warmup": {}
   },
   "surprises.cross_section": {
    "all": {
-    "OK": 40
+    "OK": 4
    },
-   "after_warmup": {
-    "OK": 34
-   }
+   "after_warmup": {}
   },
   "surprises.feature_screen": {
    "all": {
-    "OK": 10,
-    "SKIPPED_CADENCE": 30
+    "OK": 1,
+    "SKIPPED_CADENCE": 3
    },
-   "after_warmup": {
-    "SKIPPED_CADENCE": 26,
-    "OK": 8
-   }
+   "after_warmup": {}
   },
   "surprises.multiscale": {
    "all": {
-    "OK": 40
+    "OK": 4
    },
-   "after_warmup": {
-    "OK": 34
-   }
+   "after_warmup": {}
   },
   "surprises.regimes": {
    "all": {
-    "OK": 40
+    "OK": 4
    },
-   "after_warmup": {
-    "OK": 34
-   }
+   "after_warmup": {}
   },
   "sweeps.background": {
    "all": {
-    "OK": 40
+    "OK": 4
    },
-   "after_warmup": {
-    "OK": 34
-   }
+   "after_warmup": {}
   },
   "update.experiment_memory": {
    "all": {
-    "OK": 40
+    "OK": 4
    },
-   "after_warmup": {
-    "OK": 34
-   }
+   "after_warmup": {}
   },
   "update.firewall_release": {
    "all": {
-    "SKIPPED_NO_INPUT": 40
+    "SKIPPED_NO_INPUT": 4
    },
-   "after_warmup": {
-    "SKIPPED_NO_INPUT": 34
-   }
+   "after_warmup": {}
   },
   "validate.harvest": {
    "all": {
-    "OK": 40
+    "OK": 4
    },
-   "after_warmup": {
-    "OK": 34
-   }
+   "after_warmup": {}
   }
  },
- "n_positions": 50,
- "cycles_with_positions": 32,
+ "n_positions": 5,
+ "cycles_with_positions": 4,
  "right_reason": {
-  "positions": 50,
-  "in_up_run": 43,
-  "in_down_run": 1,
-  "movers": 200,
-  "movers_in_run": 126,
+  "positions": 5,
+  "in_up_run": 4,
+  "in_down_run": 0,
+  "movers": 20,
+  "movers_in_run": 14,
   "up_run_movers_by_reason": {
-   "OUT_OF_BAND": 18,
-   "POSITION": 43,
-   "LOW_CONFIDENCE": 7,
-   "SHORT_DISABLED": 3
+   "LOW_CONFIDENCE": 3,
+   "POSITION": 4
   }
  }
 }

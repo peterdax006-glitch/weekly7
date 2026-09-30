@@ -3,19 +3,19 @@
  "now": "2017-05-12",
  "label": "IMPLEMENTED - NOT VALIDATED",
  "counters": {
-  "expectations": 2,
+  "expectations": 1,
   "outcomes": 0,
   "errors": 0,
-  "market_reports_sent": 2
+  "market_reports_sent": 5
  },
  "ledgers": {
-  "expectations": 2,
+  "expectations": 1,
   "outcomes": 0,
   "errors": 0,
-  "commitments": 2,
-  "pipeline_events": 4,
+  "commitments": 1,
+  "pipeline_events": 2,
   "pipeline_furthest": {
-   "EXPECTATION": 2
+   "EXPECTATION": 1
   }
  },
  "calibration": {
@@ -76,7 +76,7 @@
  "verdicts": {
   "mom_r20_top": "NORMAL_VARIANCE",
   "rev_r5_bottom": "STRENGTHENING",
-  "vol_top": "RETURNING"
+  "vol_top": "NORMAL_VARIANCE"
  },
  "guard": {
   "mom_r20_top": "KEEP",
@@ -100,25 +100,25 @@
    "cycle": 0,
    "now": "2017-05-12",
    "stage": "c68.selection_policy",
-   "in": 2655,
+   "in": 2634,
    "out": 1,
-   "note": "policy Lb67671b1 (threshold -0.0100); gain model fitted n=2655 base in-band 0.090; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00"
+   "note": "policy L169b2279 (threshold -0.0039); gain model fitted n=2634 base in-band 0.075; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00"
   },
   {
    "cycle": 0,
    "now": "2017-05-12",
    "stage": "c68.expectations",
-   "in": 2,
-   "out": 2,
-   "note": "2 expectation(s) frozen before the 2017-05-15 fill"
+   "in": 1,
+   "out": 1,
+   "note": "1 expectation(s) frozen before the 2017-05-15 fill"
   },
   {
    "cycle": 0,
    "now": "2017-05-12",
    "stage": "c68.market_regime",
    "in": 393,
-   "out": 87,
-   "note": "329 session(s), 87 alarm(s), warning WATCH (UNCLEAR); 64 market period(s); regime records +0, status changes []"
+   "out": 100,
+   "note": "329 session(s), 100 alarm(s), warning WATCH (UNCLEAR); 64 market period(s); regime records +0, status changes []"
   },
   {
    "cycle": 0,
@@ -126,15 +126,15 @@
    "stage": "c68.pattern_change",
    "in": 3,
    "out": 0,
-   "note": "verdicts {'NORMAL_VARIANCE': 1, 'STRENGTHENING': 1, 'RETURNING': 1}; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00; regime none; 0 to investigate"
+   "note": "verdicts {'NORMAL_VARIANCE': 2, 'STRENGTHENING': 1}; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00; regime none; 0 to investigate"
   },
   {
    "cycle": 0,
    "now": "2017-05-12",
    "stage": "c68.error_research",
    "in": 0,
-   "out": 22,
-   "note": "2017-05-12: 0 new errors, tiers {'NONE': 0, 'CHEAP': 0, 'STANDARD': 0, 'DEEP': 0}, 0 confident-wrong, 0 escalated groups, 0 jobs (0 cpu-min requested); 0 question event(s), 3 repeated-surprise event(s), 0 self-research question(s), 19 marke"
+   "out": 31,
+   "note": "2017-05-12: 0 new errors, tiers {'NONE': 0, 'CHEAP': 0, 'STANDARD': 0, 'DEEP': 0}, 0 confident-wrong, 0 escalated groups, 0 jobs (0 cpu-min requested); 0 question event(s), 3 repeated-surprise event(s), 0 self-research question(s), 28 marke"
   },
   {
    "cycle": 0,

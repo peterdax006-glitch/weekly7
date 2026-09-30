@@ -5,7 +5,7 @@
  "counters": {
   "outcomes": 0,
   "errors": 0,
-  "market_reports_sent": 8
+  "market_reports_sent": 1
  },
  "ledgers": {
   "expectations": 0,
@@ -78,8 +78,8 @@
  },
  "verdicts": {
   "mom_r20_top": "NORMAL_VARIANCE",
-  "rev_r5_bottom": "NORMAL_VARIANCE",
-  "vol_top": "NORMAL_VARIANCE"
+  "rev_r5_bottom": "NOISE",
+  "vol_top": "NOISE"
  },
  "guard": {
   "mom_r20_top": "KEEP",
@@ -103,9 +103,9 @@
    "cycle": 0,
    "now": "2017-05-12",
    "stage": "c68.selection_policy",
-   "in": 2612,
+   "in": 2564,
    "out": 1,
-   "note": "policy Lc2badb8d (threshold -0.0044); gain model fitted n=2612 base in-band 0.075; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00"
+   "note": "policy Lbd7b6c35 (threshold -0.0010); gain model fitted n=2564 base in-band 0.065; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00"
   },
   {
    "cycle": 0,
@@ -113,15 +113,15 @@
    "stage": "c68.expectations",
    "in": 45,
    "out": 0,
-   "note": "no position on 2017-05-12: {'NOT_PREDICTED_MOVER': 40, 'LOW_CONFIDENCE': 3, 'OUT_OF_BAND': 2}"
+   "note": "no position on 2017-05-12: {'NOT_PREDICTED_MOVER': 40, 'SHORT_DISABLED': 3, 'LOW_CONFIDENCE': 2}"
   },
   {
    "cycle": 0,
    "now": "2017-05-12",
    "stage": "c68.market_regime",
    "in": 393,
-   "out": 107,
-   "note": "329 session(s), 107 alarm(s), warning WATCH (UNCLEAR); 64 market period(s); regime records +0, status changes []"
+   "out": 94,
+   "note": "329 session(s), 94 alarm(s), warning WATCH (UNCLEAR); 64 market period(s); regime records +0, status changes []"
   },
   {
    "cycle": 0,
@@ -129,15 +129,15 @@
    "stage": "c68.pattern_change",
    "in": 3,
    "out": 0,
-   "note": "verdicts {'NORMAL_VARIANCE': 3}; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00; regime none; 0 to investigate"
+   "note": "verdicts {'NORMAL_VARIANCE': 1, 'NOISE': 2}; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00; regime none; 0 to investigate"
   },
   {
    "cycle": 0,
    "now": "2017-05-12",
    "stage": "c68.error_research",
    "in": 0,
-   "out": 57,
-   "note": "2017-05-12: 0 new errors, tiers {'NONE': 0, 'CHEAP': 0, 'STANDARD': 0, 'DEEP': 0}, 0 confident-wrong, 0 escalated groups, 0 jobs (0 cpu-min requested); 0 question event(s), 3 repeated-surprise event(s), 0 self-research question(s), 54 marke"
+   "out": 9,
+   "note": "2017-05-12: 0 new errors, tiers {'NONE': 0, 'CHEAP': 0, 'STANDARD': 0, 'DEEP': 0}, 0 confident-wrong, 0 escalated groups, 0 jobs (0 cpu-min requested); 0 question event(s), 3 repeated-surprise event(s), 0 self-research question(s), 6 market"
   },
   {
    "cycle": 0,

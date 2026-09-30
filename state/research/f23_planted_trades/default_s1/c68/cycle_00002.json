@@ -3,22 +3,21 @@
  "now": "2017-05-26",
  "label": "IMPLEMENTED - NOT VALIDATED",
  "counters": {
-  "expectations": 9,
-  "outcomes": 2,
-  "errors": 2,
-  "market_reports_sent": 2,
-  "investigations": 1
+  "expectations": 4,
+  "outcomes": 1,
+  "errors": 1,
+  "market_reports_sent": 5,
+  "investigations": 0
  },
  "ledgers": {
-  "expectations": 9,
-  "outcomes": 2,
-  "errors": 2,
-  "commitments": 9,
-  "pipeline_events": 29,
+  "expectations": 4,
+  "outcomes": 1,
+  "errors": 1,
+  "commitments": 4,
+  "pipeline_events": 12,
   "pipeline_furthest": {
-   "EXPECTATION": 7,
-   "CAUSE": 1,
-   "HYPOTHESIS": 1
+   "EXPECTATION": 3,
+   "CAUSE": 1
   }
  },
  "calibration": {
@@ -32,39 +31,39 @@
    "name": "pm1pp_80"
   },
   "status": "INSUFFICIENT_SAMPLE",
-  "n_committed": 5,
-  "n_matured": 2,
-  "n_resolved": 2,
+  "n_committed": 2,
+  "n_matured": 1,
+  "n_resolved": 1,
   "n_unresolved": 0,
   "all_": {
-   "n": 2,
+   "n": 1,
    "hits": 0,
    "share": 0.0,
    "lo": 0.0,
-   "hi": 0.6576197724933469,
-   "boot_lo": 0.0,
-   "boot_hi": 0.0
+   "hi": 0.7934506856227626,
+   "boot_lo": NaN,
+   "boot_hi": NaN
   },
   "oos": {
-   "n": 2,
+   "n": 1,
    "hits": 0,
    "share": 0.0,
    "lo": 0.0,
-   "hi": 0.6576197724933469,
-   "boot_lo": 0.0,
-   "boot_hi": 0.0
+   "hi": 0.7934506856227626,
+   "boot_lo": NaN,
+   "boot_hi": NaN
   },
   "resolved_only": {
-   "n": 2,
+   "n": 1,
    "hits": 0,
    "share": 0.0,
    "lo": 0.0,
-   "hi": 0.6576197724933469,
-   "boot_lo": 0.0,
-   "boot_hi": 0.0
+   "hi": 0.7934506856227626,
+   "boot_lo": NaN,
+   "boot_hi": NaN
   },
-  "bias": -0.09445576007998648,
-  "mae": 0.13697644661545372,
+  "bias": 0.017994819407470372,
+  "mae": 0.017994819407470372,
   "naive_share": null,
   "required_n": null,
   "abuses": [],
@@ -72,17 +71,17 @@
    [
     "-",
     {
-     "n": 2,
+     "n": 1,
      "hits": 0,
      "share": 0.0,
      "lo": 0.0,
-     "hi": 0.6576197724933469,
-     "boot_lo": 0.0,
-     "boot_hi": 0.0
+     "hi": 0.7934506856227626,
+     "boot_lo": NaN,
+     "boot_hi": NaN
     }
    ]
   ],
-  "headline": "0.0% of 2 matured predictions landed within +-1pp of the committed prediction (95% CI 0.0%-65.8%); out of sample 0.0% of 2 (CI 0.0%-65.8%, block bootstrap 0.0%-0.0%). Goal 80%: sample too small to judge (need 200 overall and 100 out of sample)."
+  "headline": "0.0% of 1 matured predictions landed within +-1pp of the committed prediction (95% CI 0.0%-79.3%); out of sample 0.0% of 1 (CI 0.0%-79.3%, block bootstrap nan%-nan%). Goal 80%: sample too small to judge (need 200 overall and 100 out of sample)."
  },
  "influence": {
   "mom_r20_top": 1.0,
@@ -91,8 +90,8 @@
  },
  "verdicts": {
   "mom_r20_top": "NORMAL_VARIANCE",
-  "rev_r5_bottom": "STRENGTHENING",
-  "vol_top": "RETURNING"
+  "rev_r5_bottom": "NORMAL_VARIANCE",
+  "vol_top": "NORMAL_VARIANCE"
  },
  "guard": {
   "mom_r20_top": "KEEP",
@@ -112,25 +111,25 @@
    "cycle": 2,
    "now": "2017-05-26",
    "stage": "c68.selection_policy",
-   "in": 2747,
+   "in": 2722,
    "out": 1,
-   "note": "policy L89da9c70 (threshold -0.0101); gain model fitted n=2747 base in-band 0.091; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00"
+   "note": "policy L42b2ec69 (threshold -0.0086); gain model fitted n=2722 base in-band 0.088; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00"
   },
   {
    "cycle": 2,
    "now": "2017-05-26",
    "stage": "c68.expectations",
-   "in": 4,
-   "out": 4,
-   "note": "4 expectation(s) frozen before the 2017-05-29 fill"
+   "in": 2,
+   "out": 2,
+   "note": "2 expectation(s) frozen before the 2017-05-29 fill"
   },
   {
    "cycle": 2,
    "now": "2017-05-26",
    "stage": "c68.market_regime",
    "in": 6,
-   "out": 0,
-   "note": "5 session(s), 0 alarm(s), warning NONE (SINGLE_STOCK_ANOMALY); 1 market period(s); regime records +0, status changes []"
+   "out": 2,
+   "note": "5 session(s), 2 alarm(s), warning WARNING (SECTOR_CHANGE); 1 market period(s); regime records +0, status changes []"
   },
   {
    "cycle": 2,
@@ -138,39 +137,31 @@
    "stage": "c68.pattern_change",
    "in": 3,
    "out": 0,
-   "note": "verdicts {'NORMAL_VARIANCE': 1, 'STRENGTHENING': 1, 'RETURNING': 1}; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00; regime none; 0 to investigate"
+   "note": "verdicts {'NORMAL_VARIANCE': 3}; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00; regime none; 0 to investigate"
   },
   {
    "cycle": 2,
    "now": "2017-05-26",
    "stage": "c68.outcomes_errors",
-   "in": 2,
-   "out": 2,
-   "note": "2 exit(s) by the learned policy, 2 error report(s), 0 unreconstructable, 46 candidate gain(s) resolved"
+   "in": 1,
+   "out": 1,
+   "note": "1 exit(s) by the learned policy, 1 error report(s), 0 unreconstructable, 44 candidate gain(s) resolved"
   },
   {
    "cycle": 2,
    "now": "2017-05-26",
    "stage": "c68.what_changed",
-   "in": 2,
-   "out": 1,
-   "note": "classes {'PARTIALLY_PREDICTABLE': 1}; 0 unknowable preserved; 1 tree(s) into the loop forest; 0 waiting"
+   "in": 1,
+   "out": 0,
+   "note": "classes {}; 0 unknowable preserved; 0 tree(s) into the loop forest; 0 waiting"
   },
   {
    "cycle": 2,
    "now": "2017-05-26",
    "stage": "c68.error_research",
-   "in": 2,
-   "out": 24,
-   "note": "2017-05-26: 2 new errors, tiers {'NONE': 1, 'CHEAP': 1, 'STANDARD': 0, 'DEEP': 0}, 0 confident-wrong, 0 escalated groups, 12 jobs (32 cpu-min requested); 12 question event(s), 1 repeated-surprise event(s), 11 self-research question(s), 0 ma"
-  },
-  {
-   "cycle": 2,
-   "now": "2017-05-26",
-   "stage": "c68.research_depth",
    "in": 1,
-   "out": 0,
-   "note": "1 C68 question(s) in the loop's queue, 0 damped"
+   "out": 22,
+   "note": "2017-05-26: 1 new errors, tiers {'NONE': 1, 'CHEAP': 0, 'STANDARD': 0, 'DEEP': 0}, 0 confident-wrong, 0 escalated groups, 11 jobs (28 cpu-min requested); 11 question event(s), 0 repeated-surprise event(s), 11 self-research question(s), 0 ma"
   }
  ]
 }

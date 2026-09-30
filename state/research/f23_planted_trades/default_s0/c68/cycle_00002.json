@@ -5,7 +5,7 @@
  "counters": {
   "outcomes": 0,
   "errors": 0,
-  "market_reports_sent": 8
+  "market_reports_sent": 1
  },
  "ledgers": {
   "expectations": 0,
@@ -77,7 +77,7 @@
   "vol_top": 1.0
  },
  "verdicts": {
-  "mom_r20_top": "RETURNING",
+  "mom_r20_top": "STRENGTHENING",
   "rev_r5_bottom": "NORMAL_VARIANCE",
   "vol_top": "NORMAL_VARIANCE"
  },
@@ -99,33 +99,33 @@
    "cycle": 2,
    "now": "2017-05-26",
    "stage": "c68.selection_policy",
-   "in": 2702,
+   "in": 2654,
    "out": 1,
-   "note": "policy L0efe3a52 (threshold -0.0029); gain model fitted n=2702 base in-band 0.071; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00"
+   "note": "policy Ld3672b3a (threshold -0.0009); gain model fitted n=2654 base in-band 0.066; influence mom_r20_top=1.00, rev_r5_bottom=0.50, vol_top=1.00"
   },
   {
    "cycle": 2,
    "now": "2017-05-26",
    "stage": "c68.expectations",
-   "in": 44,
+   "in": 45,
    "out": 0,
-   "note": "no position on 2017-05-26: {'NOT_PREDICTED_MOVER': 39, 'LOW_CONFIDENCE': 3, 'SHORT_DISABLED': 2}"
+   "note": "no position on 2017-05-26: {'NOT_PREDICTED_MOVER': 40, 'SHORT_DISABLED': 3, 'LOW_CONFIDENCE': 2}"
   },
   {
    "cycle": 2,
    "now": "2017-05-26",
    "stage": "c68.market_regime",
    "in": 6,
-   "out": 2,
-   "note": "5 session(s), 2 alarm(s), warning WARNING (SECTOR_CHANGE); 1 market period(s); regime records +0, status changes []"
+   "out": 0,
+   "note": "5 session(s), 0 alarm(s), warning WATCH (UNCLEAR); 1 market period(s); regime records +0, status changes []"
   },
   {
    "cycle": 2,
    "now": "2017-05-26",
    "stage": "c68.pattern_change",
    "in": 3,
-   "out": 0,
-   "note": "verdicts {'RETURNING': 1, 'NORMAL_VARIANCE': 2}; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00; regime none; 0 to investigate"
+   "out": 1,
+   "note": "verdicts {'STRENGTHENING': 1, 'NORMAL_VARIANCE': 2}; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00; regime none; 0 to investigate"
   },
   {
    "cycle": 2,
