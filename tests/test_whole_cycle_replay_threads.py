@@ -1,10 +1,10 @@
 """F30 (C75 2A/2C), thread-executor half of tests/test_whole_cycle_replay.py (split only to keep each file under 90 s). See that module for
 the normaliser and the list of legitimately wall-clock fields.
 
-FINDING: thread mode is NOT reproducible. st_harvest (engine/research/loop.py:1932) asks Executor.finished() (loop.py:668) which jobs have
-returned, without waiting, so whether a pool job is harvested in cycle k or k+1 depends on thread scheduling: two identical thread runs
-disagree on `harvested`, the AUDIT count, the lineage RESULT/MEMORY counts and the n_in/n_out of the harvest-dependent stages (observed:
-cycle 1 harvested 2 vs 1). Inline mode is unaffected (a job has finished when submit returns)."""
+F30 FINDING, fixed by F31: st_harvest asked Executor.finished() which jobs had returned, without waiting, so whether a pool job was
+harvested in cycle k or k+1 depended on thread scheduling (observed: cycle 1 harvested 2 vs 1). Now a job is due in the cycle after its
+submission, and a due job is waited for (Executor.settle): the harvest is a function of the loop state, and this test is strict.
+Inline mode is unaffected (a job has finished when submit returns)."""
 from __future__ import annotations
 
 import pytest
@@ -29,9 +29,6 @@ def thread_runs(world, tmp_path_factory):
     return out
 
 
-@pytest.mark.xfail(strict=False, reason="REAL NONDETERMINISM loop.py:1932 st_harvest / loop.py:668 Executor.finished(): harvest timing races the "
-                   "thread pool (non-strict because a lucky schedule can pass). Fix: wait for the cycle's submitted jobs at a barrier before "
-                   "harvest, or harvest strictly in submit order from a fixed cycle offset.")
 def test_thread_mode_replays_identically_to_itself(thread_runs):
     (r0, s0), (r1, s1) = thread_runs
     a, b = snapshot(r0, s0), snapshot(r1, s1)

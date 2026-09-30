@@ -29,3 +29,8 @@
 17:20:28 W00054 development tier 5: real 3/18 FP 0 {} 107s
 17:21:56 W00056 development tier 1: real 9/23 FP 0 {} 88s
 17:25:02 W00058 development tier 6: real 5/14 FP 0 {} 186s
+17:28:29 W00060 heldout tier 2: real 3/21 FP 0 {} 207s
+17:31:38 W00062 development tier 2: real 5/23 FP 0 {} 189s
+17:34:34 W00064 heldout tier 1: real 6/21 FP 0 {} 176s
+17:37:58 W00066 heldout tier 5: real 1/17 FP 0 {} 204s
+17:39:42 W00068 development tier 4: real 6/18 FP 0 {} 104s

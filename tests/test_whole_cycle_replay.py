@@ -12,11 +12,9 @@ What is removed before comparing, and why each is legitimately wall-clock / proc
                      no clock to run_worker; only the submit row uses the injected epoch)
   worker             f"w{os.getpid()}" (Executor._run_inline): the process id of whoever ran the job; also inside 'attempt 1 by w123'
   root path          every checkpoint record stores absolute artifact paths (and the sha256 of a blob that names the path) under the run folder
-  created_real       Provenance.created_real = datetime.now() in frontier.py:1507, symmetry.py:1534, counterfactual.py:500, volatility_lab.py:1698,
-                     learning/knowledge.py:675: they ignore the loop's injected clock (pinned by an xfail test below)
-  ResearchStore.token  stable_hash(... id(self)) in namespaces.py:434 (pinned by an xfail test below)
   resume             the per-run open_loop info (moved_aside carries a strftime stamp, 'action' differs by design between a fresh and a resumed run)
-Everything else - including float values - must be equal."""
+Everything else - including float values, every Provenance.created_real (F31: stamped from the injected clock) and every
+ResearchStore.token (F31: derived from namespace, name and class, no longer a memory address) - must be equal."""
 from __future__ import annotations
 
 import dataclasses
@@ -61,8 +59,8 @@ def loop_cfg(**kw) -> LP.LoopConfig:
 @pytest.fixture(scope="module", autouse=True)
 def pinned_engine_tree():
     """ENVIRONMENT, not loop nondeterminism: engine.provenance.engine_tree_hash() hashes every engine source file on disk, and other
-    builders edit engine/ while this file runs, so two runs a minute apart got different 'code identities' in experiment records (the
-    loop's pinned LoopConfig.code_hash is bypassed by engine/learning/experiment_memory.py:969, which calls current_code_hash()). The tree
+    builders edit engine/ while this file runs, so two runs a minute apart got different 'code identities' wherever a module that has no
+    injected code hash falls back to current_code_hash() (the loop's experiment records now carry LoopConfig.code_hash - F31). The tree
     hash is pinned for the replay comparison so only the loop's own behaviour is compared."""
     from engine import provenance
     mp = pytest.MonkeyPatch()
@@ -88,9 +86,6 @@ def run_loop(world, root, cycles=CYCLES, kill_after=None, fresh=True, **kw):
 
 
 # ============================================================================================================== canonical form
-KEEP_CREATED_REAL = False          # the xfail clock test turns this on; everywhere else created_real (wall clock) is excluded
-
-
 def canon(x, depth=0):
     """A deterministic, JSON-able image of any loop object. Sets are sorted, frames become csv text, numpy becomes python; an object
     whose repr would carry a memory address is reduced to its type and __dict__ so two equal runs compare equal."""
@@ -111,8 +106,7 @@ def canon(x, depth=0):
     if isinstance(x, pd.Timestamp):
         return str(x)
     if dataclasses.is_dataclass(x) and not isinstance(x, type):
-        return {"__dc__": type(x).__name__, **{f.name: canon(getattr(x, f.name), depth + 1) for f in dataclasses.fields(x)
-                                                                   if KEEP_CREATED_REAL or f.name != "created_real"}}
+        return {"__dc__": type(x).__name__, **{f.name: canon(getattr(x, f.name), depth + 1) for f in dataclasses.fields(x)}}
     if isinstance(x, dict) or hasattr(x, "items") and hasattr(x, "keys"):
         return {"__m__": [[canon(k, depth + 1), canon(v, depth + 1)] for k, v in sorted(((k, v) for k, v in x.items()), key=lambda kv: repr(kv[0]))]}
     if isinstance(x, (set, frozenset)):
@@ -123,8 +117,6 @@ def canon(x, depth=0):
         return hashlib.sha256(bytes(x)).hexdigest()
     if hasattr(x, "value") and type(x).__module__ != "builtins" and hasattr(type(x), "__members__"):
         return f"{type(x).__name__}.{x.name}"
-    if type(x).__name__ == "ResearchStore":                      # KNOWN nondeterminism, pinned by its own xfail test below
-        return {"__obj__": "ResearchStore", "d": canon({k: v for k, v in vars(x).items() if k != "token"}, depth + 1)}
     r = repr(x)
     if re.search(r"0x[0-9a-fA-F]{6,}", r):
         d = getattr(x, "__dict__", None)
@@ -336,20 +328,38 @@ def test_killed_mid_cycle_and_resumed_run_equals_the_uninterrupted_run(world, ba
         assert_same(s0[part], s1[part], f"resumed vs uninterrupted {part}")
 
 
-@pytest.mark.xfail(strict=True, reason="REAL DEFECT engine/research/loop.py:2782 _cycle_now + loop.py:2826 step: a crash after a cycle's LAST stage "
-                   "('report.cycle') but before state.cycle += 1 leaves done_stages full, so _cycle_now no longer calls the cycle unfinished "
-                   "(len(done) < len(STAGES) is False), hands out the NEXT date, step() sees done_stages non-empty = 'resumed', runs no stage "
-                   "and burns that decision date: the resumed run never researches it. Flips to XPASS when fixed.")
-def test_killed_after_the_last_stage_of_a_cycle_loses_no_decision_date(world, base, tmp_path):
+@pytest.mark.parametrize("kill", ["0|report.cycle", "0|close"])
+def test_killed_at_the_cycle_boundary_loses_no_date_and_runs_no_stage_twice(world, base, tmp_path, kill):
+    """F31 hard kill at the exact boundary that lost dates: after the report stage's checkpoint but before the cycle is closed
+    ('0|report.cycle'), and right after the close's own checkpoint ('0|close'). Before the fix, the first left every stage of cycle 0
+    marked done with the counter still at 0, so the resumed run took the NEXT date as a 'resumed' cycle, ran no stage and lost it.
+    Now: the resumed run closes cycle 0 without running anything, researches every date exactly once, and ends equal to the
+    uninterrupted run in every artefact."""
     root = tmp_path / "r"
     with pytest.raises(KeyboardInterrupt):
-        run_loop(world, root, cycles=1, kill_after="0|report.cycle")
-    _, reps0, reps1, s0, s1 = _resume_and_compare(base, world, root, 2)
+        run_loop(world, root, cycles=1, kill_after=kill)
+    after_close = kill.endswith("close")
+    state1, reps0, reps1, s0, s1 = _resume_and_compare(base, world, root, 1 if after_close else 2)
     dates0 = [r["now"] for r in reps0]
     done = sorted(json.loads(p.read_text("utf-8"))["now"] for p in (root / "reports").glob("cycle_*.json"))
     assert done == dates0, f"resumed run researched {done}, the uninterrupted run {dates0}"
-    for part in ("reports", "knowledge", "lineage"):
+    assert [r["cycle"] for r in reps1] == ([1] if after_close else [0, 1])            # cycle 0 is closed, never re-run
+    assert state1.cycle == CYCLES
+    assert all(v == 1 for v in state1.exec_count.values()), {k: v for k, v in state1.exec_count.items() if v != 1}
+    for part in ("reports", "knowledge", "lineage", "state", "checkpoint_states", "checkpoint_records", "ledger", "results"):
         assert_same(s0[part], s1[part], f"resumed vs uninterrupted {part}")
+
+
+def test_a_completed_but_unclosed_cycle_is_detected_and_an_open_one_is_not(base):
+    """Null + planted for the detector alone: a state whose current cycle has every stage done is 'complete'; one stage short, or no
+    stages at all (a fresh cycle), is not."""
+    state = dataclasses.replace(base[1])
+    state.done_stages = {state.cycle: list(LP.STAGE_NAMES)}
+    assert LP._cycle_complete(state)
+    state.done_stages = {state.cycle: list(LP.STAGE_NAMES[:-1])}
+    assert not LP._cycle_complete(state)
+    state.done_stages = {}
+    assert not LP._cycle_complete(state)
 
 
 def test_resume_from_the_wrong_code_is_refused_not_replayed(world, killed_mid_cycle, tmp_path):
@@ -361,27 +371,81 @@ def test_resume_from_the_wrong_code_is_refused_not_replayed(world, killed_mid_cy
 
 
 # ============================================================================================================== known nondeterminism
-@pytest.mark.xfail(strict=True, reason="engine/research/namespaces.py:434 ResearchStore.token = stable_hash({..., 'id': id(self)}): a memory "
-                   "address, so the token differs between identical runs and is persisted in the checkpoint. Flips to XPASS (strict -> fail) "
-                   "when the token becomes a function of (namespace, name) only; then drop the ResearchStore exclusion in canon().")
 def test_research_store_token_is_reproducible(base, repeat):
+    """F31: namespaces.ResearchStore.token hashed id(self) and was persisted in every checkpoint; now stable content only."""
     state0, state1 = base[1], repeat[1]
     t0 = {k: m.store.token for k, m in state0.modules.items() if hasattr(m, "store") and hasattr(m.store, "token")}
     t1 = {k: m.store.token for k, m in state1.modules.items() if hasattr(m, "store") and hasattr(m.store, "token")}
     assert t0 and t0 == t1
+    from engine.research import namespaces as NS
+    a, b = NS.ResearchStore("x:research"), NS.ResearchStore("x:research")
+    assert a.token == b.token and a is not b                                   # two objects, one identity: no memory address
+    pair = NS.NamespacePair("x")
+    assert pair.research.token != pair.live.token                              # the separation check still has distinct tokens
 
 
-@pytest.mark.xfail(strict=True, reason="Provenance.created_real is datetime.now() in frontier.py:1507, symmetry.py:1534, counterfactual.py:500, "
-                   "volatility_lab.py:1698 (and knowledge.py:675 by default), ignoring the loop's injected Runtime.clock (Ctx.created_real()). "
-                   "Flips to XPASS when they take the clock; then drop created_real from the exclusions in canon().")
 def test_every_record_is_stamped_with_the_injected_clock(base):
-    global KEEP_CREATED_REAL
-    state0 = base[1]
-    KEEP_CREATED_REAL = True
-    try:
-        c = json.dumps(canon(_scrub_state(state0)), default=str)
-    finally:
-        KEEP_CREATED_REAL = False
+    """F31: frontier, symmetry, counterfactual, volatility_lab and knowledge.make_provenance stamped datetime.now(); inside a loop stage
+    they now read the loop's injected clock (knowledge.provenance_clock)."""
+    c = json.dumps(canon(_scrub_state(base[1])), default=str)
     stamps = set(re.findall(r'"created_real": "([^"]+)"', c))
     injected = dt.datetime.fromtimestamp(CLOCK(), dt.timezone.utc).isoformat(timespec="seconds")
-    assert stamps and stamps <= {injected}, sorted(stamps)[:5]
+    # KNOWN, deterministic, out of F31's files: cross_section.py:784, multiscale.py:909, regimes.py:781/1978 and learning/postmortem.py:429
+    # stamp created_real with the simulated decision date (str(as_date(now))). Reproducible, so allowed here; never the real time.
+    # (The five fixed modules' records do not reach LoopState in this small configuration; the two tests below prove their routing.)
+    sim_dates = {r["now"] for r in base[1].reports}
+    assert stamps, "no created_real in the state: the check would be vacuous"
+    assert stamps <= {injected} | sim_dates, sorted(stamps - {injected} - sim_dates)[:5]
+
+
+def test_a_loop_stage_stamps_records_with_the_injected_clock(base):
+    """Planted: a stage that files a provenance record through run_stage gets the loop's clock, not the real time."""
+    import types as _types
+    from engine.learning import knowledge as KN
+    got = []
+    spec = LP.StageSpec("observe.panel", LP.LoopPhase.OBSERVE, lambda ctx: (got.append(KN.make_provenance("2018-03-01").created_real) or (1, 1, "")))
+    state = dataclasses.replace(base[1], exec_count={})
+    rec = LP.run_stage(spec, LP.Ctx(state, _types.SimpleNamespace(clock=CLOCK), "2018-03-02", 0))
+    assert rec.status == LP.StageStatus.OK, rec.reason
+    assert got == [dt.datetime.fromtimestamp(CLOCK(), dt.timezone.utc).isoformat(timespec="seconds")]
+
+
+def test_the_fixed_modules_take_created_real_from_the_injected_clock():
+    """The five F31 sites no longer read datetime.now() for Provenance.created_real; each routes through knowledge.wall_stamp. A
+    source check (each module's real entry needs a full fixture world), counted so a site that regresses is named."""
+    root = Path(LP.__file__).resolve().parents[1]
+    for rel in ("research/frontier.py", "research/symmetry.py", "research/counterfactual.py", "research/volatility_lab.py", "learning/knowledge.py"):
+        src = (root / rel).read_text("utf-8")
+        bad = [ln.strip()[:100] for ln in src.splitlines() if "Provenance(" in ln and "datetime.now(" in ln]
+        assert not bad, f"{rel}: {bad}"
+        assert "wall_stamp" in src, rel
+
+
+def test_the_provenance_clock_is_scoped_and_the_default_is_real_time():
+    """Planted + null: inside provenance_clock a stamp is the injected time; outside (no clock exists) it is the real time; nesting
+    restores the outer clock."""
+    from engine.learning import knowledge as KN
+    with KN.provenance_clock(lambda: 0.0):
+        assert KN.wall_stamp() == "1970-01-01T00:00:00+00:00"
+        assert KN.make_provenance("2020-01-02").created_real == "1970-01-01T00:00:00+00:00"
+        with KN.provenance_clock(CLOCK):
+            assert KN.wall_stamp() == dt.datetime.fromtimestamp(CLOCK(), dt.timezone.utc).isoformat(timespec="seconds")
+        assert KN.wall_stamp() == "1970-01-01T00:00:00+00:00"
+    real = dt.datetime.fromisoformat(KN.wall_stamp())
+    assert abs((real - dt.datetime.now(dt.timezone.utc)).total_seconds()) < 60
+
+
+def test_experiment_records_carry_the_runs_configured_code_hash(base):
+    """F31: the loop pins LoopConfig.code_hash; its experiment ledger records must carry it (they took the engine tree hash).
+    new_record honours a configured hash and, with none, keeps the engine tree hash (the registry / pre-launch path)."""
+    from engine.learning import experiment_memory as EM
+    from engine.learning.core import current_code_hash
+    state = base[1]
+    c = json.dumps(canon(_scrub_state(state)), default=str)
+    hashes = set(re.findall(r'"__dc__": "DesignSpec".*?"code_hash": "([^"]*)"', c))
+    assert hashes, "the loop filed no experiment design: the check would be vacuous"
+    assert hashes == {CODE}, hashes
+    hyp = (EM.Hypothesis("h1", "x", 0.5), EM.Hypothesis("h0", "noise", 0.5))
+    args = ("e1", "q?", "b", hyp, EM.Prediction("p"), EM.DesignSpec(config={"a": 1}), EM.uniform_expected(hyp, ("up", "flat"), {}), "2020-01-02")
+    assert EM.new_record(*args, code_hash="run-pin").experiment.code_hash == "run-pin"
+    assert EM.new_record(*args).experiment.code_hash == current_code_hash()
