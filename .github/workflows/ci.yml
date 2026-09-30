@@ -50,5 +50,7 @@ jobs:
         run: python scripts/contract_lines.py | tail -80
       - name: Survivor-only results cannot be final evidence unlabelled (C69 W-03)
         run: python scripts/survivorship_gate.py
+      - name: Feature future-leak audit by truncation (C69 s5; C56)
+        run: python scripts/feature_leak_audit.py --source planted --no-report --fail-on leak
       - name: Test suite
         run: python -m pytest -q -p no:cacheprovider --durations=15

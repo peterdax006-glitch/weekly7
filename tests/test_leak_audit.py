@@ -215,7 +215,7 @@ def test_real_blind_path_reaches_no_pattern_bank_or_lessons():
     from engine import config as K
     cl = L.import_closure([K.ROOT / "engine" / "livesim.py", K.ROOT / "engine" / "adaptive.py", K.ROOT / "scripts" / "livesim_loop2.py"])
     assert {"livesim", "adaptive", "memory", "features", "model"} <= set(cl)
-    assert not ({"pattern_bank", "lessons", "analogs", "patterns", "trust_store"} & set(cl))
+    assert not ({"pattern_bank", "lessons", "analogs", "patterns", "trust_store", "trust", "direction", "scramble_audit", "score_hooks"} & set(cl))
 
 
 # --------------------------------------------------------------------------------------------------------------------

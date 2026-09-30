@@ -1,52 +1,28 @@
 {
  "counts": {
-  "LEAK": 2,
+  "LEAK": 1,
   "CLEAN": 5,
   "FIXED": 2,
-  "QUARANTINED": 3
+  "QUARANTINED": 4
  },
  "open_leaks": [
-  "6",
-  "8d"
+  "6"
  ],
  "provenance": {
-  "code_hash": "fa55aba19a729ebc",
+  "code_hash": "5311eb3a49698384",
   "code_files": [
    "engine/__init__.py",
-   "engine/adaptive.py",
-   "engine/basis_search.py",
    "engine/blind_gates.py",
-   "engine/candidates.py",
    "engine/config.py",
    "engine/leak_audit.py",
    "engine/learning/__init__.py",
-   "engine/learning/archive.py",
    "engine/learning/core.py",
-   "engine/learning/curator.py",
-   "engine/learning/firewalls.py",
-   "engine/learning/future_firewall.py",
-   "engine/learning/memory_firewall.py",
-   "engine/learning/trader_view.py",
-   "engine/missed_winners.py",
    "engine/model.py",
-   "engine/objective.py",
-   "engine/pattern_bank.py",
-   "engine/pattern_identity.py",
-   "engine/pattern_lifecycle.py",
-   "engine/pattern_memory.py",
-   "engine/pattern_stats.py",
-   "engine/patterns.py",
-   "engine/policy.py",
-   "engine/portfolio.py",
    "engine/provenance.py",
-   "engine/research/__init__.py",
-   "engine/research/core.py",
-   "engine/research/firewall.py",
-   "engine/research/namespaces.py",
    "scripts/leak_audit.py"
   ],
   "code_mixed": [],
-  "git_commit": "0ea8e2b956e9323f02fd980f1b5cc555e6b626dc+dirty",
+  "git_commit": "b757b004e5504b0c667e088b827208a7d4b1cf9e+dirty",
   "canon_sha": "fef7cdf0a1501c3d",
   "bible_sha": "a97ea91862cee371",
   "blueprint_version": "4.0",
@@ -711,12 +687,7 @@
     "share_of_possible_windows_in_sample_for_those_tuned_defaults": 0.8010973936899863,
     "memory_bank": "filtered real_end < start in Feed.long_term_memory and re-checked by BG.check_memory_bank_causality",
     "memory_bank_planted_late_row_caught": true,
-    "pattern_bank_lessons_analogs_reachable_from_blind_path": [
-     "pattern_identity",
-     "pattern_stats",
-     "patterns",
-     "trust"
-    ],
+    "pattern_bank_lessons_analogs_reachable_from_blind_path": [],
     "same_window_rerun": "BasisLineage(allow_same_window=False) is the strict default: a rerun of a real window never plays a basis trained on its own first run (C56 over C54)"
    },
    "test": "test_channel4_verdict_flips_when_the_loop_passes_the_global_basis; test_channel4_verdict_flips_when_the_registered_set_differs_from_the_trained_set; test_lineage_state_check_flags_a_planted_future_trained_play; test_current_loop_design_trains_on_windows_from_the_future; test_violations_flags_planted_future_training; test_lineage_filter_removes_the_measured_leak; test_leak_closure.py: test_the_loops_train_basis_call_itself_refuses_a_planted_future_window, test_channel4_verdict_flips_when_any_link_of_the_training_gate_is_removed, test_training_gate_proof_holds_and_fails_when_the_gate_admits_everything, test_channel4_meta_residual_fixed_only_when_no_play_ran_on_the_tuned_meta",
@@ -1083,9 +1054,6 @@
       "import:alpaca.trading.requests@98",
       "import:alpaca.trading.enums@99"
      ],
-     "candles": [
-      "call:update@28"
-     ],
      "checkpoint": [
       "call:update@28"
      ],
@@ -1094,10 +1062,6 @@
       "call:download@39",
       "call:download@62",
       "call:download@114"
-     ],
-     "direction": [
-      "call:update@96",
-      "call:update@252"
      ],
      "edgar": [
       "import:requests@10",
@@ -1149,9 +1113,6 @@
      "options": [
       "import:yfinance@9"
      ],
-     "pattern_stats": [
-      "call:update@470"
-     ],
      "pit": [
       "call:update@882",
       "call:update@950",
@@ -1178,8 +1139,8 @@
       "call:download@40"
      ],
      "train": [
-      "call:update@208",
-      "call:update@208"
+      "call:update@143",
+      "call:update@143"
      ],
      "universe": [
       "import:requests@5"
@@ -1415,27 +1376,19 @@
   "8d": {
    "key": "8d",
    "name": "Files the trader side reads at run time / reachable modules",
-   "status": "LEAK",
+   "status": "QUARANTINED",
    "evidence": {
     "computed_verdict": {
-     "computed_status": "LEAK",
+     "computed_status": "QUARANTINED",
      "checks": {
-      "research_only_modules_reachable": [
-       "pattern_identity",
-       "pattern_stats",
-       "patterns",
-       "trust"
-      ],
+      "research_only_modules_reachable": [],
       "sealed_state_files_opened_in_a_window": [],
       "cache_files_opened_in_a_window": [
        "data/cache/universe.csv"
       ]
      },
      "why_not_better": [
-      "pattern_identity",
-      "pattern_stats",
-      "patterns",
-      "trust"
+      "the trader side reads today's universe.csv (inert on code names)"
      ]
     },
     "files_actually_opened_during_a_full_blind_window": {
@@ -1479,10 +1432,6 @@
       "decide: pd.read_csv(K.CACHE / 'universe.csv')",
       "decide: open(DECISIONS, 'a')"
      ],
-     "pattern_identity": [
-      "from_json: json.loads(s)",
-      "from_json: json.loads(s)"
-     ],
      "policy": [
       "crypto_set: pd.read_csv(K.CACHE / 'universe.csv')"
      ],
@@ -1522,12 +1471,6 @@
       "retrain_guarded: json.loads((MODELS / 'cols.json').read_text())",
       "retrain_guarded: (MODELS / 'cols.json').read_text()"
      ],
-     "trust": [
-      "to_json: json.loads(self.table.to_json(orient='records'))",
-      "to_json: open(path, 'w')",
-      "from_json: open(path)",
-      "from_json: json.load(f)"
-     ],
      "universe": [
       "load_universe: pd.read_csv(DATA / 'nasdaqtraded.txt', sep='|', dtype=str)",
       "load_universe: json.loads((DATA / 'company_tickers_exchange.json').read_text())",
@@ -1542,9 +1485,12 @@
      "analogs_stock",
      "antimemo",
      "antioverfit",
+     "candidates",
+     "candles",
      "champion",
      "claims",
      "data_sources",
+     "direction",
      "direction_ablate",
      "direction_calib",
      "direction_features",
@@ -1561,17 +1507,23 @@
      "parity",
      "parity_suite",
      "pattern_bank",
+     "pattern_identity",
      "pattern_lifecycle",
      "pattern_memory",
      "pattern_memory_eval",
      "pattern_movers",
      "pattern_reliability",
+     "pattern_stats",
+     "patterns",
      "planted",
      "repro",
      "resources",
      "retester",
+     "score_hooks",
+     "scramble_audit",
      "stops",
      "tick",
+     "trust",
      "trust_store"
     ],
     "policy.not_crypto": "reads data/cache/universe.csv (today's names) - inert on code names, but it is a read of today's data on the trader side"

@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from engine import backtest as BT, checkpoint, experiment_memory as EM, pit, train as TR   # noqa: E402
+from engine import backtest as BT, checkpoint, experiment_memory as EM, pit, train as TR, scramble_audit as SA, score_hooks as SH   # noqa: E402
 
 pytestmark = pytest.mark.filterwarnings("ignore")
 
@@ -203,14 +203,14 @@ def _friday(fr, k=150):
 
 def test_future_scramble_passes_over_the_real_model_and_pattern_miner():
     fr = scramble_frames()
-    rep = TR.future_scramble_gate(fr, _friday(fr), components=("model", "miner"))
+    rep = SA.future_scramble_gate(fr, _friday(fr), components=("model", "miner"))
     assert rep.passed, rep.summary()
     assert set(rep.variants) == {"truncated", "scrambled"}
 
 
 def test_future_scramble_passes_over_the_real_memory_and_adaptive_session():
     fr = scramble_frames(n=130, nt=10)
-    rep = TR.future_scramble_gate(fr, _friday(fr, 110), components=("memory", "adaptive"))
+    rep = SA.future_scramble_gate(fr, _friday(fr, 110), components=("memory", "adaptive"))
     assert rep.passed, rep.summary()
     fp = rep.detail["fingerprints"]
     assert fp["real"] == fp["scrambled"] == fp["truncated"]
@@ -237,7 +237,7 @@ def test_future_scramble_refuses_empty_or_unknown_components():
     with pytest.raises(ValueError):
         TR.future_scramble_gate(fr, _friday(fr, 50), components=())
     with pytest.raises(ValueError):
-        TR.future_scramble_gate(fr, _friday(fr, 50), components=("oracle",))
+        SA.future_scramble_gate(fr, _friday(fr, 50), components=("oracle",))
 
 
 # ================================================================================================= B07 trust / direction
@@ -263,7 +263,7 @@ def test_hooks_off_is_byte_identical_to_no_hooks():
 def test_trust_on_changes_the_decisions():
     stocks, X, score, fwd, info = trust_world()
     now = X.index.get_level_values(0).unique()[100]
-    h = BT.fit_score_hooks(X, fwd, now, trust=True, info=info, indicators=["sig"], trust_weight=1.0,
+    h = SH.fit_score_hooks(X, fwd, now, trust=True, info=info, indicators=["sig"], trust_weight=1.0,
                            trust_kw={"min_weeks": 8, "min_obs": 100})
     assert h.trust_on and (h.trust.table["reliable"]).any()
     eq_off, _ = topk(stocks, X, score, start=now)
@@ -276,7 +276,7 @@ def test_trust_on_changes_the_decisions():
 def test_a_trust_table_fitted_after_the_decision_date_is_look_ahead():
     stocks, X, score, fwd, info = trust_world()
     ud = X.index.get_level_values(0).unique()
-    h = BT.fit_score_hooks(X, fwd, ud[150], trust=True, info=info, indicators=["sig"], trust_kw={"min_weeks": 8, "min_obs": 100})
+    h = SH.fit_score_hooks(X, fwd, ud[150], trust=True, info=info, indicators=["sig"], trust_kw={"min_weeks": 8, "min_obs": 100})
     with pytest.raises(pit.LookAheadError):
         topk(stocks, X, score, start=ud[100], hooks=h)
 
@@ -295,7 +295,7 @@ def test_direction_on_trades_only_rows_the_engine_bets_up_on():
     stocks, X, score, fwd, info = trust_world()
     now = X.index.get_level_values(0).unique()[120]
     F, up = direction_inputs(X, fwd, strength=3.0)
-    h = BT.fit_score_hooks(X, fwd, now, direction=True, direction_inputs=F, up=up, movers=pd.Series(True, index=X.index))
+    h = SH.fit_score_hooks(X, fwd, now, direction=True, direction_inputs=F, up=up, movers=pd.Series(True, index=X.index))
     assert h.direction.open, h.direction.reason
     eq_on, _ = topk(stocks, X, score, start=now, hooks=h)
     fills = BT.run_topk.fills.fills
@@ -314,7 +314,7 @@ def test_a_closed_direction_engine_abstains_so_nothing_trades():
     stocks, X, score, fwd, info = trust_world()
     now = X.index.get_level_values(0).unique()[120]
     F, up = direction_inputs(X, fwd, strength=0.0)
-    h = BT.fit_score_hooks(X, fwd, now, direction=True, direction_inputs=F, up=up, movers=pd.Series(True, index=X.index))
+    h = SH.fit_score_hooks(X, fwd, now, direction=True, direction_inputs=F, up=up, movers=pd.Series(True, index=X.index))
     assert not h.direction.open
     eq, st = topk(stocks, X, score, start=now, hooks=h)
     assert BT.run_topk.fills.fills == [] and (eq == eq.iloc[0]).all()

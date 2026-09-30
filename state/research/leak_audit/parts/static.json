@@ -6,12 +6,9 @@
   "basis_search",
   "blind_gates",
   "broker",
-  "candidates",
-  "candles",
   "checkpoint",
   "config",
   "data",
-  "direction",
   "edgar",
   "explain",
   "features",
@@ -28,9 +25,6 @@
   "model",
   "objective",
   "options",
-  "pattern_identity",
-  "pattern_stats",
-  "patterns",
   "pit",
   "policy",
   "portfolio",
@@ -43,7 +37,6 @@
   "site_data",
   "timeline",
   "train",
-  "trust",
   "universe"
  ],
  "not_reachable_from_blind_path": [
@@ -54,9 +47,12 @@
   "analogs_stock",
   "antimemo",
   "antioverfit",
+  "candidates",
+  "candles",
   "champion",
   "claims",
   "data_sources",
+  "direction",
   "direction_ablate",
   "direction_calib",
   "direction_features",
@@ -73,25 +69,26 @@
   "parity",
   "parity_suite",
   "pattern_bank",
+  "pattern_identity",
   "pattern_lifecycle",
   "pattern_memory",
   "pattern_memory_eval",
   "pattern_movers",
   "pattern_reliability",
+  "pattern_stats",
+  "patterns",
   "planted",
   "repro",
   "resources",
   "retester",
+  "score_hooks",
+  "scramble_audit",
   "stops",
   "tick",
+  "trust",
   "trust_store"
  ],
- "research_only_modules_reachable": [
-  "pattern_identity",
-  "pattern_stats",
-  "patterns",
-  "trust"
- ],
+ "research_only_modules_reachable": [],
  "network_markers": {
   "broker": [
    {
@@ -113,13 +110,6 @@
     "line": 99,
     "kind": "import",
     "what": "alpaca.trading.enums"
-   }
-  ],
-  "candles": [
-   {
-    "line": 28,
-    "kind": "call",
-    "what": "update"
    }
   ],
   "checkpoint": [
@@ -149,18 +139,6 @@
     "line": 114,
     "kind": "call",
     "what": "download"
-   }
-  ],
-  "direction": [
-   {
-    "line": 96,
-    "kind": "call",
-    "what": "update"
-   },
-   {
-    "line": 252,
-    "kind": "call",
-    "what": "update"
    }
   ],
   "edgar": [
@@ -341,13 +319,6 @@
     "what": "yfinance"
    }
   ],
-  "pattern_stats": [
-   {
-    "line": 470,
-    "kind": "call",
-    "what": "update"
-   }
-  ],
   "pit": [
    {
     "line": 882,
@@ -443,12 +414,12 @@
   ],
   "train": [
    {
-    "line": 208,
+    "line": 143,
     "kind": "call",
     "what": "update"
    },
    {
-    "line": 208,
+    "line": 143,
     "kind": "call",
     "what": "update"
    }
@@ -464,7 +435,7 @@
  "trader_side_reads": {
   "backtest": [
    {
-    "line": 201,
+    "line": 185,
     "function": "_jsonable",
     "call": "json.loads(json.dumps(o, default=str))"
    }
@@ -590,18 +561,6 @@
     "call": "open(DECISIONS, 'a')"
    }
   ],
-  "pattern_identity": [
-   {
-    "line": 447,
-    "function": "from_json",
-    "call": "json.loads(s)"
-   },
-   {
-    "line": 566,
-    "function": "from_json",
-    "call": "json.loads(s)"
-   }
-  ],
   "policy": [
    {
     "line": 39,
@@ -709,66 +668,44 @@
   ],
   "train": [
    {
-    "line": 26,
+    "line": 25,
     "function": "build_panel",
     "call": "pd.read_parquet(K.CACHE / 'events.parquet')"
    },
    {
-    "line": 27,
+    "line": 26,
     "function": "build_panel",
     "call": "pd.read_parquet(K.CACHE / 'sic.parquet')"
    },
    {
-    "line": 28,
+    "line": 27,
     "function": "build_panel",
     "call": "pd.read_parquet(K.CACHE / 'insider.parquet')"
    },
    {
-    "line": 193,
+    "line": 128,
     "function": "initial_train",
     "call": "pd.read_parquet(oos)"
    },
    {
-    "line": 199,
+    "line": 134,
     "function": "initial_train",
     "call": "json.loads(meta_p.read_text())"
    },
    {
-    "line": 199,
+    "line": 134,
     "function": "initial_train",
     "call": "meta_p.read_text()"
    },
    {
-    "line": 219,
+    "line": 154,
     "function": "retrain_guarded",
     "call": "json.loads((MODELS / 'cols.json').read_text())"
    },
    {
-    "line": 219,
+    "line": 154,
     "function": "retrain_guarded",
     "call": "(MODELS / 'cols.json').read_text()"
-   }
-  ],
-  "trust": [
-   {
-    "line": 305,
-    "function": "to_json",
-    "call": "json.loads(self.table.to_json(orient='records'))"
-   },
-   {
-    "line": 306,
-    "function": "to_json",
-    "call": "open(path, 'w')"
-   },
-   {
-    "line": 311,
-    "function": "from_json",
-    "call": "open(path)"
-   },
-   {
-    "line": 312,
-    "function": "from_json",
-    "call": "json.load(f)"
    }
   ],
   "universe": [

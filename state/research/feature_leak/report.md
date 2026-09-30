@@ -9,28 +9,28 @@ Method: every production frame builder is built on the full inputs and on the in
 - inputs: {'sessions': 420, 'tickers': 24, 'first': '2015-01-02', 'last': '2016-08-11', 'events': 223, 'insider': 60}
 - cuts: 2015-01-06, 2015-06-29, 2015-12-21, 2016-01-05, 2016-06-14
 - feature verdicts: {'CLEAN': 404, 'LABEL': 6}
-- code: f90a8e985ac74585 commit 0ea8e2b956e9323f02fd980f1b5cc555e6b626dc+dirty; 13.7s
+- code: f90a8e985ac74585 commit 0ea8e2b956e9323f02fd980f1b5cc555e6b626dc+dirty; 13.5s
 
 | builder | owner | status | features | LEAK | rows leaked | boundary rows | seconds | note |
 |---|---|---|---|---|---|---|---|---|
 | planted.canary (canary) | F09 | LEAK | 10 | 7 | 0 | 0 | 0.27 | planted leaks; must be flagged |
-| features.build[default] | F09 | OK | 54 | 0 | 0 | 0 | 1.37 | Live and parity path; cuts before the builder start not comparable: 2015-01-06,  |
-| features.build[relative] | F09 | OK | 54 | 0 | 0 | 0 | 1.18 | replay / any-era path (price and dollar-volume percentile tradability); cuts bef |
-| features.build[split_invariant] | F09 | OK | 54 | 0 | 0 | 0 | 1.21 | Test (livesim) path; cuts before the builder start not comparable: 2015-01-06, 2 |
-| features.regime_frame | F09 | OK | 8 | 0 | 0 | 0 | 0.21 |  |
-| candles.build | F09 | OK | 25 | 0 | 0 | 0 | 0.67 |  |
-| fv_pipeline.build_panel.X | F09 | OK | 20 | 0 | 0 | 0 | 1.69 |  |
-| fv_pipeline.rank_features | F09 | OK | 20 | 0 | 0 | 0 | 0.31 |  |
+| features.build[default] | F09 | OK | 54 | 0 | 0 | 0 | 1.28 | Live and parity path; cuts before the builder start not comparable: 2015-01-06,  |
+| features.build[relative] | F09 | OK | 54 | 0 | 0 | 0 | 1.09 | replay / any-era path (price and dollar-volume percentile tradability); cuts bef |
+| features.build[split_invariant] | F09 | OK | 54 | 0 | 0 | 0 | 1.11 | Test (livesim) path; cuts before the builder start not comparable: 2015-01-06, 2 |
+| features.regime_frame | F09 | OK | 8 | 0 | 0 | 0 | 0.2 |  |
+| candles.build | F09 | OK | 25 | 0 | 0 | 0 | 0.64 |  |
+| fv_pipeline.build_panel.X | F09 | OK | 20 | 0 | 0 | 0 | 1.73 |  |
+| fv_pipeline.rank_features | F09 | OK | 20 | 0 | 0 | 0 | 0.35 |  |
 | volatility_lab.frame_from_panel | F09 | OK | 26 | 0 | 0 | 0 | 0.5 |  |
 | volatility_lab.event_inputs | R07 (volatility_lab) | OK | 3 | 0 | 0 | 0 | 1.26 | cuts before the builder start not comparable: 2015-01-06, 2015-06-29, 2015-12-21 |
-| direction_features.add_derived+xs_rank | F09 | OK | 12 | 0 | 0 | 0 | 0.9 | cuts before the builder start not comparable: 2015-01-06, 2015-06-29, 2015-12-21 |
-| direction_lab.derive_features | R08 (direction_lab) | OK | 35 | 0 | 0 | 0 | 1.19 | cuts before the builder start not comparable: 2015-01-06, 2015-06-29, 2015-12-21 |
-| feeds.market_proxy | W02 (feeds.py) | OK | 3 | 0 | 0 | 0 | 0.11 |  |
-| episodes.episode_frame | R21 (episodes) | OK | 18 | 0 | 0 | 0 | 0.42 |  |
-| precursors.default_registry | R21 (precursors) | OK | 58 | 0 | 0 | 0 | 1.4 |  |
-| multiscale.ohlc_day_structure | R16 (multiscale) | OK | 12 | 0 | 0 | 0 | 0.71 |  |
-| learning.boundary | S-series (boundary) | OK | 7 | 0 | 0 | 0 | 0.19 |  |
-| candidates.ts_quintile_series | F09 | OK | 1 | 0 | 0 | 0 | 0.08 |  |
+| direction_features.add_derived+xs_rank | F09 | OK | 12 | 0 | 0 | 0 | 0.95 | cuts before the builder start not comparable: 2015-01-06, 2015-06-29, 2015-12-21 |
+| direction_lab.derive_features | R08 (direction_lab) | OK | 35 | 0 | 0 | 0 | 1.17 | cuts before the builder start not comparable: 2015-01-06, 2015-06-29, 2015-12-21 |
+| feeds.market_proxy | W02 (feeds.py) | OK | 3 | 0 | 0 | 0 | 0.1 |  |
+| episodes.episode_frame | R21 (episodes) | OK | 18 | 0 | 0 | 0 | 0.41 |  |
+| precursors.default_registry | R21 (precursors) | OK | 58 | 0 | 0 | 0 | 1.42 |  |
+| multiscale.ohlc_day_structure | R16 (multiscale) | OK | 12 | 0 | 0 | 0 | 0.72 |  |
+| learning.boundary | S-series (boundary) | OK | 7 | 0 | 0 | 0 | 0.21 |  |
+| candidates.ts_quintile_series | F09 | OK | 1 | 0 | 0 | 0 | 0.06 |  |
 
 | builder | feature | status | max abs diff | cells moved | NaN flips | first moved row | cut | offending operation |
 |---|---|---|---|---|---|---|---|---|
@@ -457,42 +457,42 @@ Method: every production frame builder is built on the full inputs and on the in
 
 ## Source: real
 
-- verdict: **FAIL**; canary caught every planted leak
+- verdict: **PASS**; canary caught every planted leak
 - inputs: {'sessions': 3704, 'tickers': 40, 'first': '2012-01-03', 'last': '2026-09-25', 'events': 8377, 'insider': 2230, 'sample': ['ABT', 'ACM', 'AGIG', 'AGX', 'ALKS', 'BSRR', 'CSIQ', 'DDD', 'DEI', 'ETD', 'FTNT', 'GPI', 'GPRE', 'GSM', 'HCI', 'HUN', 'JBLU', 'JBTM', 'KYN', 'LFVN', 'MAA', 'MRSH', 'MRVL', 'NECB', 'NPKI', 'NVEC', 'OPBK', 'PCAR', 'PLD', 'POOL', 'PVH', 'PZZA', 'SKT', 'SRCE', 'STGW', 'TDG', 'TTC', 'UCTT', 'VCEL', 'VMO']}
-- cuts: 2012-01-05, 2013-01-18, 2015-04-28, 2018-08-16, 2021-12-08, 2025-04-04
-- feature verdicts: {'CLEAN': 402, 'LABEL': 6, 'LEAK': 2}
-- code: 9d7b0c87179d6039 commit 2432365799dd242e6e307ca795bb9c777b41e73e+dirty; 71.9s
+- cuts: 2012-01-05, 2013-01-18, 2016-06-03, 2020-10-30, 2025-04-04
+- feature verdicts: {'CLEAN': 404, 'LABEL': 6}
+- code: 2d3ce0f4a541d61d commit 0ea8e2b956e9323f02fd980f1b5cc555e6b626dc+dirty; 59.2s
 
 | builder | owner | status | features | LEAK | rows leaked | boundary rows | seconds | note |
 |---|---|---|---|---|---|---|---|---|
-| planted.canary (canary) | F09 | LEAK | 10 | 7 | 0 | 0 | 1.31 | planted leaks; must be flagged |
-| features.build[default] | F09 | OK | 54 | 0 | 0 | 0 | 7.27 | Live and parity path; cuts before the builder start not comparable: 2012-01-05 |
-| features.build[relative] | F09 | OK | 54 | 0 | 0 | 0 | 6.85 | replay / any-era path (price and dollar-volume percentile tradability); cuts bef |
-| features.build[split_invariant] | F09 | OK | 54 | 0 | 0 | 0 | 7.29 | Test (livesim) path; cuts before the builder start not comparable: 2012-01-05 |
-| features.regime_frame | F09 | OK | 8 | 0 | 0 | 0 | 0.51 |  |
-| candles.build | F09 | OK | 25 | 0 | 0 | 0 | 2.53 |  |
-| fv_pipeline.build_panel.X | F09 | OK | 20 | 0 | 0 | 60 | 2.78 |  |
-| fv_pipeline.rank_features | F09 | OK | 20 | 0 | 0 | 60 | 1.42 |  |
-| volatility_lab.frame_from_panel | F09 | OK | 26 | 0 | 0 | 60 | 1.78 |  |
-| volatility_lab.event_inputs | R07 (volatility_lab) | OK | 3 | 0 | 0 | 0 | 15.15 | cuts before the builder start not comparable: 2012-01-05 |
-| direction_features.add_derived+xs_rank | F09 | OK | 12 | 0 | 0 | 0 | 5.49 | cuts before the builder start not comparable: 2012-01-05 |
-| direction_lab.derive_features | R08 (direction_lab) | OK | 35 | 0 | 0 | 0 | 7.48 | cuts before the builder start not comparable: 2012-01-05 |
-| feeds.market_proxy | W02 (feeds.py) | LEAK | 3 | 2 | 0 | 0 | 0.24 |  |
-| episodes.episode_frame | R21 (episodes) | OK | 18 | 0 | 0 | 0 | 1.22 |  |
-| precursors.default_registry | R21 (precursors) | OK | 58 | 0 | 0 | 0 | 8.1 |  |
-| multiscale.ohlc_day_structure | R16 (multiscale) | OK | 12 | 0 | 0 | 0 | 1.7 |  |
-| learning.boundary | S-series (boundary) | OK | 7 | 0 | 0 | 0 | 0.58 |  |
-| candidates.ts_quintile_series | F09 | OK | 1 | 0 | 0 | 0 | 0.16 |  |
+| planted.canary (canary) | F09 | LEAK | 10 | 7 | 0 | 0 | 1.0 | planted leaks; must be flagged |
+| features.build[default] | F09 | OK | 54 | 0 | 0 | 0 | 5.29 | Live and parity path; cuts before the builder start not comparable: 2012-01-05 |
+| features.build[relative] | F09 | OK | 54 | 0 | 0 | 0 | 6.77 | replay / any-era path (price and dollar-volume percentile tradability); cuts bef |
+| features.build[split_invariant] | F09 | OK | 54 | 0 | 0 | 0 | 6.04 | Test (livesim) path; cuts before the builder start not comparable: 2012-01-05 |
+| features.regime_frame | F09 | OK | 8 | 0 | 0 | 0 | 0.54 |  |
+| candles.build | F09 | OK | 25 | 0 | 0 | 0 | 2.21 |  |
+| fv_pipeline.build_panel.X | F09 | OK | 20 | 0 | 0 | 118 | 1.14 |  |
+| fv_pipeline.rank_features | F09 | OK | 20 | 0 | 0 | 118 | 1.12 |  |
+| volatility_lab.frame_from_panel | F09 | OK | 26 | 0 | 0 | 118 | 1.43 |  |
+| volatility_lab.event_inputs | R07 (volatility_lab) | OK | 3 | 0 | 0 | 0 | 13.49 | cuts before the builder start not comparable: 2012-01-05 |
+| direction_features.add_derived+xs_rank | F09 | OK | 12 | 0 | 0 | 0 | 4.64 | cuts before the builder start not comparable: 2012-01-05 |
+| direction_lab.derive_features | R08 (direction_lab) | OK | 35 | 0 | 0 | 0 | 6.32 | cuts before the builder start not comparable: 2012-01-05 |
+| feeds.market_proxy | W02 (feeds.py) | OK | 3 | 0 | 0 | 0 | 0.17 |  |
+| episodes.episode_frame | R21 (episodes) | OK | 18 | 0 | 0 | 0 | 0.96 |  |
+| precursors.default_registry | R21 (precursors) | OK | 58 | 0 | 0 | 0 | 6.26 |  |
+| multiscale.ohlc_day_structure | R16 (multiscale) | OK | 12 | 0 | 0 | 0 | 1.21 |  |
+| learning.boundary | S-series (boundary) | OK | 7 | 0 | 0 | 0 | 0.39 |  |
+| candidates.ts_quintile_series | F09 | OK | 1 | 0 | 0 | 0 | 0.19 |  |
 
 | builder | feature | status | max abs diff | cells moved | NaN flips | first moved row | cut | offending operation |
 |---|---|---|---|---|---|---|---|---|
-| planted.canary | leak_bfill | LEAK |  |  | 760 | ('2013-01-16 00:00:00', 'ABT') | 2013-01-18 | assigned at scripts/feature_leak_audit.py:305 \| suspect scripts/feature_leak_audit.py:305 backfill; scripts/feature_leak_audit.py:304 whole-sample statistic |
-| planted.canary | leak_centred_window | LEAK | 0.0509 | 382 |  | ('2015-04-27 00:00:00', 'ABT') | 2015-04-28 | assigned at scripts/feature_leak_audit.py:306 \| suspect scripts/feature_leak_audit.py:306 centred window; scripts/feature_leak_audit.py:305 backfill |
-| planted.canary | leak_minmax_scaler | LEAK | 0.607 | 112231 |  | ('2013-01-16 00:00:00', 'ABT') | 2015-04-28 | assigned at scripts/feature_leak_audit.py:304 \| suspect scripts/feature_leak_audit.py:304 whole-sample statistic; scripts/feature_leak_audit.py:303 rank without axis=1 (whole-column rank) |
-| planted.canary | leak_negative_shift | LEAK |  |  | 200 | ('2013-01-18 00:00:00', 'ABT') | 2013-01-18 | assigned at scripts/feature_leak_audit.py:307 \| suspect scripts/feature_leak_audit.py:307 negative shift; scripts/feature_leak_audit.py:306 centred window |
-| planted.canary | leak_panel_zscore | LEAK | 4.92 | 290224 |  | ('2013-01-16 00:00:00', 'ABT') | 2018-08-16 | assigned at scripts/feature_leak_audit.py:301 \| suspect scripts/feature_leak_audit.py:301 whole-sample statistic; scripts/feature_leak_audit.py:303 rank without axis=1 (whole-column rank) |
-| planted.canary | leak_ts_rank_fullhistory | LEAK | 0.23 | 289211 |  | ('2013-01-16 00:00:00', 'ABT') | 2013-01-18 | assigned at scripts/feature_leak_audit.py:303 \| suspect scripts/feature_leak_audit.py:303 rank without axis=1 (whole-column rank); scripts/feature_leak_audit.py:304 whole-sample statistic |
-| planted.canary | leak_winsor_fullsample | LEAK | 0.033 | 5764 |  | ('2013-01-16 00:00:00', 'AGIG') | 2015-04-28 | assigned at scripts/feature_leak_audit.py:302 \| suspect scripts/feature_leak_audit.py:301 whole-sample statistic; scripts/feature_leak_audit.py:303 rank without axis=1 (whole-column rank) |
+| planted.canary | leak_bfill | LEAK |  |  | 480 | ('2013-01-16 00:00:00', 'ABT') | 2013-01-18 | assigned at scripts/feature_leak_audit.py:305 \| suspect scripts/feature_leak_audit.py:305 backfill; scripts/feature_leak_audit.py:304 whole-sample statistic |
+| planted.canary | leak_centred_window | LEAK | 0.0624 | 310 |  | ('2016-06-02 00:00:00', 'ABT') | 2016-06-03 | assigned at scripts/feature_leak_audit.py:306 \| suspect scripts/feature_leak_audit.py:306 centred window; scripts/feature_leak_audit.py:305 backfill |
+| planted.canary | leak_minmax_scaler | LEAK | 0.537 | 73300 |  | ('2013-01-16 00:00:00', 'ABT') | 2016-06-03 | assigned at scripts/feature_leak_audit.py:304 \| suspect scripts/feature_leak_audit.py:304 whole-sample statistic; scripts/feature_leak_audit.py:303 rank without axis=1 (whole-column rank) |
+| planted.canary | leak_negative_shift | LEAK |  |  | 160 | ('2013-01-18 00:00:00', 'ABT') | 2013-01-18 | assigned at scripts/feature_leak_audit.py:307 \| suspect scripts/feature_leak_audit.py:307 negative shift; scripts/feature_leak_audit.py:306 centred window |
+| planted.canary | leak_panel_zscore | LEAK | 2.87 | 234092 |  | ('2013-01-16 00:00:00', 'ABT') | 2016-06-03 | assigned at scripts/feature_leak_audit.py:301 \| suspect scripts/feature_leak_audit.py:301 whole-sample statistic; scripts/feature_leak_audit.py:303 rank without axis=1 (whole-column rank) |
+| planted.canary | leak_ts_rank_fullhistory | LEAK | 0.23 | 233170 |  | ('2013-01-16 00:00:00', 'ABT') | 2013-01-18 | assigned at scripts/feature_leak_audit.py:303 \| suspect scripts/feature_leak_audit.py:303 rank without axis=1 (whole-column rank); scripts/feature_leak_audit.py:304 whole-sample statistic |
+| planted.canary | leak_winsor_fullsample | LEAK | 0.0207 | 4664 |  | ('2013-01-16 00:00:00', 'AGIG') | 2013-01-18 | assigned at scripts/feature_leak_audit.py:302 \| suspect scripts/feature_leak_audit.py:301 whole-sample statistic; scripts/feature_leak_audit.py:303 rank without axis=1 (whole-column rank) |
 | planted.canary | honest_expanding_z | CLEAN |  |  |  |  |  |  |
 | planted.canary | honest_r5 | CLEAN |  |  |  |  |  |  |
 | planted.canary | honest_xs_rank | CLEAN |  |  |  |  |  |  |
@@ -807,9 +807,9 @@ Method: every production frame builder is built on the full inputs and on the in
 | direction_lab.derive_features | xs_r5 | CLEAN |  |  |  |  |  |  |
 | direction_lab.derive_features | xs_r60 | CLEAN |  |  |  |  |  |  |
 | direction_lab.derive_features | xs_rel_ind20 | CLEAN |  |  |  |  |  |  |
-| feeds.market_proxy | ^VIX | LEAK | 7.17 | 3 |  | ('2012-01-03 00:00:00', '_') | 2012-01-05 | assigned at engine/research/feeds.py:210, engine/research/feeds.py:212 \| suspect engine/research/feeds.py:209 backfill; engine/research/feeds.py:208 backfill |
-| feeds.market_proxy | ^VIX3M | LEAK | 5.84 | 3 |  | ('2012-01-03 00:00:00', '_') | 2012-01-05 | assigned at engine/research/feeds.py:210, engine/research/feeds.py:212 \| suspect engine/research/feeds.py:209 backfill; engine/research/feeds.py:208 backfill |
 | feeds.market_proxy | SPY | CLEAN |  |  |  |  |  |  |
+| feeds.market_proxy | ^VIX | CLEAN |  |  |  |  |  |  |
+| feeds.market_proxy | ^VIX3M | CLEAN |  |  |  |  |  |  |
 | episodes.episode_frame | b_c2c | CLEAN |  |  |  |  |  |  |
 | episodes.episode_frame | b_gap | CLEAN |  |  |  |  |  |  |
 | episodes.episode_frame | b_o2c | CLEAN |  |  |  |  |  |  |
@@ -914,8 +914,8 @@ Method: every production frame builder is built on the full inputs and on the in
 | volatility_lab.event_inputs/filing_n5 | LEAK: NaN vs 0 flips (planted 27 cells; real slice 2,298 cells, first MRVL 2013-01-16) | CLEAN | engine/research/volatility_lab.py event_inputs: coverage is the events TABLE (0 for every name while it is present), no longer 'this ticker has a row anywhere in the table' (np.isin(t, ev.ticker.unique())) | yes, slightly: a name with no classified filing anywhere in the table now reads 0 (no recent filing) instead of NaN; before, NaN marked names that would NEVER file through 2026 - a fact about the future a tree model can split on |
 | direction_lab.derive_features/vix_x_r5 | LEAK (R08's own truncation test: centred on the panel-wide VIX median) | CLEAN | engine/research/direction_lab.py: centred on a fixed long-run VIX of 20 | yes: the centre is a constant, not the sample median |
 | direction_lab.derive_features/path_efficiency | LEAK (R08's own truncation test: centred on the panel-wide close_loc median) | CLEAN | engine/research/direction_lab.py: centred on the fixed midpoint 0.5 | yes: the centre is the range midpoint, not the sample median |
-| feeds.market_proxy/^VIX | LEAK (F09: `.bfill()` copied a later realised vol into the first 4 warm-up sessions) | LEAK | engine/research/feeds.py: `.fillna(15.0)`, the constant prior until the window has data | yes: warm-up sessions read the prior |
-| feeds.market_proxy/^VIX3M | LEAK (F09: same backfill, first 9 warm-up sessions) | LEAK | engine/research/feeds.py: `.fillna(17.0)` | yes: warm-up sessions read the prior |
+| feeds.market_proxy/^VIX | LEAK (F09: `.bfill()` copied a later realised vol into the first 4 warm-up sessions) | CLEAN | engine/research/feeds.py: `.fillna(15.0)`, the constant prior until the window has data | yes: warm-up sessions read the prior |
+| feeds.market_proxy/^VIX3M | LEAK (F09: same backfill, first 9 warm-up sessions) | CLEAN | engine/research/feeds.py: `.fillna(17.0)` | yes: warm-up sessions read the prior |
 
 ## Covered by another truncation harness
 

@@ -13,8 +13,8 @@
   "CLEAN": 404,
   "LABEL": 6
  },
- "started": "20260930T005116Z",
- "seconds": 13.7,
+ "started": "20260930T005149Z",
+ "seconds": 13.5,
  "inputs": {
   "sessions": 420,
   "tickers": 24,
@@ -912,7 +912,7 @@
    "rows_leaked": 0,
    "rows_boundary": 0,
    "error": "",
-   "seconds": 1.37,
+   "seconds": 1.28,
    "planted": false,
    "note": "Live and parity path; cuts before the builder start not comparable: 2015-01-06, 2015-06-29, 2015-12-21"
   },
@@ -1634,7 +1634,7 @@
    "rows_leaked": 0,
    "rows_boundary": 0,
    "error": "",
-   "seconds": 1.18,
+   "seconds": 1.09,
    "planted": false,
    "note": "replay / any-era path (price and dollar-volume percentile tradability); cuts before the builder start not comparable: 2015-01-06, 2015-06-29, 2015-12-21"
   },
@@ -2356,7 +2356,7 @@
    "rows_leaked": 0,
    "rows_boundary": 0,
    "error": "",
-   "seconds": 1.21,
+   "seconds": 1.11,
    "planted": false,
    "note": "Test (livesim) path; cuts before the builder start not comparable: 2015-01-06, 2015-06-29, 2015-12-21"
   },
@@ -2480,7 +2480,7 @@
    "rows_leaked": 0,
    "rows_boundary": 0,
    "error": "",
-   "seconds": 0.21,
+   "seconds": 0.2,
    "planted": false,
    "note": ""
   },
@@ -2825,7 +2825,7 @@
    "rows_leaked": 0,
    "rows_boundary": 0,
    "error": "",
-   "seconds": 0.67,
+   "seconds": 0.64,
    "planted": false,
    "note": ""
   },
@@ -3105,7 +3105,7 @@
    "rows_leaked": 0,
    "rows_boundary": 0,
    "error": "",
-   "seconds": 1.69,
+   "seconds": 1.73,
    "planted": false,
    "note": ""
   },
@@ -3385,7 +3385,7 @@
    "rows_leaked": 0,
    "rows_boundary": 0,
    "error": "",
-   "seconds": 0.31,
+   "seconds": 0.35,
    "planted": false,
    "note": ""
   },
@@ -3978,7 +3978,7 @@
    "rows_leaked": 0,
    "rows_boundary": 0,
    "error": "",
-   "seconds": 0.9,
+   "seconds": 0.95,
    "planted": false,
    "note": "cuts before the builder start not comparable: 2015-01-06, 2015-06-29, 2015-12-21"
   },
@@ -4453,7 +4453,7 @@
    "rows_leaked": 0,
    "rows_boundary": 0,
    "error": "",
-   "seconds": 1.19,
+   "seconds": 1.17,
    "planted": false,
    "note": "cuts before the builder start not comparable: 2015-01-06, 2015-06-29, 2015-12-21"
   },
@@ -4512,7 +4512,7 @@
    "rows_leaked": 0,
    "rows_boundary": 0,
    "error": "",
-   "seconds": 0.11,
+   "seconds": 0.1,
    "planted": false,
    "note": ""
   },
@@ -4766,7 +4766,7 @@
    "rows_leaked": 0,
    "rows_boundary": 0,
    "error": "",
-   "seconds": 0.42,
+   "seconds": 0.41,
    "planted": false,
    "note": ""
   },
@@ -5540,7 +5540,7 @@
    "rows_leaked": 0,
    "rows_boundary": 0,
    "error": "",
-   "seconds": 1.4,
+   "seconds": 1.42,
    "planted": false,
    "note": ""
   },
@@ -5716,7 +5716,7 @@
    "rows_leaked": 0,
    "rows_boundary": 0,
    "error": "",
-   "seconds": 0.71,
+   "seconds": 0.72,
    "planted": false,
    "note": ""
   },
@@ -5827,7 +5827,7 @@
    "rows_leaked": 0,
    "rows_boundary": 0,
    "error": "",
-   "seconds": 0.19,
+   "seconds": 0.21,
    "planted": false,
    "note": ""
   },
@@ -5860,7 +5860,7 @@
    "rows_leaked": 0,
    "rows_boundary": 0,
    "error": "",
-   "seconds": 0.08,
+   "seconds": 0.06,
    "planted": false,
    "note": ""
   }
