@@ -995,6 +995,86 @@
    ],
    "failed": {},
    "counters": {}
+  },
+  {
+   "cycle": 121,
+   "now": "2019-09-06",
+   "knowledge": [
+    "xs_atr_rank",
+    "xs_vol_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 122,
+   "now": "2019-09-13",
+   "knowledge": [
+    "xs_atr_rank",
+    "xs_vol_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 123,
+   "now": "2019-09-20",
+   "knowledge": [
+    "xs_atr_rank",
+    "xs_vol_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 124,
+   "now": "2019-09-27",
+   "knowledge": [
+    "xs_atr_rank",
+    "xs_vol_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 125,
+   "now": "2019-10-04",
+   "knowledge": [
+    "xs_atr_rank",
+    "xs_vol_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 126,
+   "now": "2019-10-11",
+   "knowledge": [
+    "xs_atr_rank",
+    "xs_vol_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 127,
+   "now": "2019-10-18",
+   "knowledge": [
+    "xs_atr_rank",
+    "xs_vol_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 128,
+   "now": "2019-10-25",
+   "knowledge": [
+    "xs_atr_rank",
+    "xs_vol_rank"
+   ],
+   "failed": {},
+   "counters": {}
   }
  ],
  "provenance": {
@@ -1166,8 +1246,8 @@
    "filed_at": "2018-06-22",
    "effect": 0.372668579599,
    "branch": "BR5224b8909968",
-   "post_effect": 0.3763587798204809,
-   "post_n": 60
+   "post_effect": 0.3764380961055835,
+   "post_n": 68
   },
   "Kfed8f6442b5bec": {
    "feature": "xs_vol_rank",
@@ -1176,11 +1256,11 @@
    "filed_at": "2019-04-26",
    "effect": 0.335153198089,
    "branch": "BRfb5bbfb1ce25",
-   "post_effect": 0.37782019627520136,
-   "post_n": 16
+   "post_effect": 0.3632895967743796,
+   "post_n": 24
   }
  },
- "seconds": 6468.1,
+ "seconds": 7012.6,
  "truth": {
   "genuine": [
    "lv20",

@@ -967,6 +967,66 @@
    ],
    "failed": {},
    "counters": {}
+  },
+  {
+   "cycle": 123,
+   "now": "2019-09-20",
+   "knowledge": [
+    "lv20",
+    "xs_vol_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 124,
+   "now": "2019-09-27",
+   "knowledge": [
+    "lv20",
+    "xs_vol_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 125,
+   "now": "2019-10-04",
+   "knowledge": [
+    "lv20",
+    "xs_vol_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 126,
+   "now": "2019-10-11",
+   "knowledge": [
+    "lv20",
+    "xs_vol_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 127,
+   "now": "2019-10-18",
+   "knowledge": [
+    "lv20",
+    "xs_vol_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 128,
+   "now": "2019-10-25",
+   "knowledge": [
+    "lv20",
+    "xs_vol_rank"
+   ],
+   "failed": {},
+   "counters": {}
   }
  ],
  "provenance": {
@@ -1074,7 +1134,7 @@
   "DBR5224b8909968": {
    "feature": "xs_atr_rank",
    "verdict": "NEEDS_MORE_EVIDENCE",
-   "looks": 6,
+   "looks": 7,
    "retired": "",
    "history": [
     {
@@ -1145,11 +1205,21 @@
       "failure_behavior",
       "replication"
      ]
+    },
+    {
+     "look": 7,
+     "cycle": 126,
+     "at": "2019-10-11",
+     "verdict": "NEEDS_MORE_EVIDENCE",
+     "alpha": 0.0006203337774020681,
+     "n_test": 101,
+     "blocking": [
+      "failure_behavior"
+     ]
     }
    ],
    "blocking": {
-    "replication": "MISSING: PARTIALLY_REPLICATED: requirement not met: heterogeneity_ok",
-    "failure_behavior": "MISSING: only 0 failure episodes studied (< 5)"
+    "failure_behavior": "MISSING: only 1 failure episodes studied (< 5)"
    }
   },
   "DBRfb5bbfb1ce25": {
@@ -1197,8 +1267,8 @@
    "filed_at": "2018-11-02",
    "effect": 0.347359132576,
    "branch": "BRfb5bbfb1ce25",
-   "post_effect": 0.34813568385094923,
-   "post_n": 43
+   "post_effect": 0.3498822673865047,
+   "post_n": 49
   },
   "Kdb7026dfe067b8": {
    "feature": "lv20",
@@ -1207,11 +1277,11 @@
    "filed_at": "2019-07-05",
    "effect": 0.346116751128,
    "branch": "BRa9f51c6d31bf",
-   "post_effect": 0.33935496553193656,
-   "post_n": 8
+   "post_effect": 0.34923117290024347,
+   "post_n": 14
   }
  },
- "seconds": 6453.8,
+ "seconds": 6885.9,
  "truth": {
   "genuine": [
    "lv20",

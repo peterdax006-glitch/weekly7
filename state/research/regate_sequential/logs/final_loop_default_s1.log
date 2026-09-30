@@ -1,0 +1,1 @@
+{"seed": 1, "world": "default", "cycles": 129, "promoted": {"xs_atr_rank": [58, "2018-06-22"], "xs_vol_rank": [102, "2019-04-26"]}, "false_promotions": [], "gates": {"DBR5224b8909968": ["xs_atr_rank", "PROMOTE", 2, ""], "DBRfb5bbfb1ce25": ["xs_vol_rank", "PROMOTE", 2, ""]}}

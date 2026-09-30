@@ -878,6 +878,34 @@
    "knowledge": [],
    "failed": {},
    "counters": {}
+  },
+  {
+   "cycle": 125,
+   "now": "2019-10-04",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 126,
+   "now": "2019-10-11",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 127,
+   "now": "2019-10-18",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 128,
+   "now": "2019-10-25",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
   }
  ],
  "provenance": {
@@ -1062,10 +1090,32 @@
    "blocking": {
     "failure_behavior": "MISSING: only 2 failure episodes studied (< 5)"
    }
+  },
+  "DBRa9f51c6d31bf": {
+   "feature": "lv20",
+   "verdict": "NEEDS_MORE_EVIDENCE",
+   "looks": 1,
+   "retired": "",
+   "history": [
+    {
+     "look": 1,
+     "cycle": 128,
+     "at": "2019-10-25",
+     "verdict": "NEEDS_MORE_EVIDENCE",
+     "alpha": 0.03039635509270134,
+     "n_test": 102,
+     "blocking": [
+      "replication"
+     ]
+    }
+   ],
+   "blocking": {
+    "replication": "MISSING: PARTIALLY_REPLICATED: requirement not met: heterogeneity_ok"
+   }
   }
  },
  "knowledge": {},
- "seconds": 6476.9,
+ "seconds": 6766.0,
  "truth": {
   "genuine": [
    "lv20",
