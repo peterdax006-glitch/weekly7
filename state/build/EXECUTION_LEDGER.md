@@ -749,3 +749,9 @@ Each row is a work item. Ids W-nn are stable; append, never renumber.
 - W-26 Exits and gap risk: sizing or event avoidance for gap losses (RS10-RS12 follow-up).
 - W-27 Rename the colliding classes (two ExperimentLedger, two HealthLedger).
 - W-28 An independent audit (C66 RG15, C62 L26), after W-01 to W-18.
+
+## Review note (29 Sep, main session): volatility_lab.VolatilityModel per-hypothesis LightGBM learners
+Verdict: LEGITIMATE, not a duplicate mover model. The touch probability comes from VH.fit_hypothesis (routed through the canonical
+fv_pipeline.MoverStage by F03). The LightGBM models at volatility_lab.py ~line 1458 are quantile regressors (alpha 0.5/0.9) on
+log |move| - the only magnitude-quantile model in engine/ or scripts/ (grep objective="quantile") - plus a timing prior/logit.
+They train on mature_only(F, now) rows and forecast() refuses rows at/after trained_through (require_past). No action needed.
