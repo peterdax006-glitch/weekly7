@@ -84,6 +84,19 @@ def test_market_history_ends_on_now_after_a_market_only_row(home):
     assert feed.history(lookback=10)[1]["Close"].index[0] >= s[feed.i - 10]
 
 
+
+def test_market_is_served_on_the_stock_calendar_only(home):
+    """Main session, 30 Sep: the market-only row itself (an index printing on a day stocks were shut) is an unusual date the
+    trader could use to recognise the year (leak channel 6); the live history serves the market on stock sessions only, as the
+    fast path does."""
+    feed = feed_for(home, stock_gap=5)
+    s = feed.sessions
+    extra = feed._market["Close"].index.difference(s)
+    feed.i = s.get_loc(feed.first_live) + 40
+    _, market = feed.history()
+    for f, v in market.items():
+        assert v.index.equals(s[: feed.i + 1]) and not v.index.isin(extra).any(), f
+
 def test_market_history_never_serves_the_next_session_when_market_lacks_a_stock_day(home):
     feed = feed_for(home, market_gap=5)
     s = feed.sessions

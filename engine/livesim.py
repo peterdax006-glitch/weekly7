@@ -234,7 +234,10 @@ class Feed:
         lo = 0 if lookback is None else max(0, self.i - lookback)
         d0, d1 = self.sessions[lo], self.now
         cut = lambda d: {f: v.loc[d0:d1] for f, v in d.items()}
-        return cut(self._stocks), cut(self._market)
+        # the market is served on the STOCK calendar only (as the fast path reindexes it): a market-only row - an index printing on a
+        # day the stock market was shut - is an unusual date the trader could use to recognise the year (leak channel 6)
+        on_sessions = lambda d: {f: v.reindex(self.sessions[lo:self.i + 1]) for f, v in d.items()}
+        return cut(self._stocks), on_sessions(self._market)
 
     def filings(self):
         t = self.now.tz_localize("UTC") + CLOSE_UTC                              # public by this session's close
@@ -553,6 +556,7 @@ def calendar_parity(feed):
     """Exhaustive and cheap (no feature build): on the warm-up end and every live session, every frame history() serves must
     end exactly on the last row dated <= now in the underlying frame - never later (future) and never earlier (a stale live
     path). F15: a two-day random sample hit the misaligned market calendar only by chance; this checks every day.
+    The market is served on the stock calendar (history() reindexes it), so its served history must end exactly on `now`.
     Returns the list of (session, field, served_last, expected_last) violations."""
     keep_i, bad = feed.i, []
     first = feed.sessions.get_loc(feed.first_live)
@@ -565,7 +569,7 @@ def calendar_parity(feed):
             served ={**{("stocks", f): v.index for f, v in stocks.items()}, **{("market", f): v.index for f, v in market.items()}}
             for key, ix in frames.items():
                 k = ix.searchsorted(now, side="right")
-                want = ix[k - 1] if k else None
+                want = now if key[0] == "market" else (ix[k - 1] if k else None)   # the market is served on the stock calendar
                 got = served[key][-1] if len(served[key]) else None
                 if got != want or (got is not None and got > now):
                     bad.append((now, key, got, want))
