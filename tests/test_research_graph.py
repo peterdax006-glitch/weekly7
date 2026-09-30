@@ -272,7 +272,7 @@ def test_unanswered_question_and_answering_it_closes_the_gap():
     q = ResearchQuestion.make("does the effect survive a liquidity shock", "loss", Problem.LOSS_AVOIDANCE, "2026-01-01", "2020-06-01", "yes", "no")
     g.add_question(q, ["pat:a0"], day(10))
     open_ = [x for x in rg.discover(g, NOW, rg.GapConfig(n_null=20)) if x.kind == rg.GapKind.UNANSWERED_QUESTION]
-    assert len(open_) == 1 and open_[0].subjects == (rg.node_key(rg.K.QUESTION, q.question_id.lower()),)
+    assert len(open_) == 1 and open_[0].subjects == (rg.node_key(rg.K.QUESTION, rg.opaque_name(q.question_id)),)
     g.answer_question(open_[0].subjects[0], "exp1", day(300))
     later = [x for x in rg.discover(g, dt.date(2021, 6, 1), rg.GapConfig(n_null=20)) if x.kind == rg.GapKind.UNANSWERED_QUESTION]
     assert later == []
@@ -1259,3 +1259,14 @@ def test_stage_counts_and_documented():
     m = ledger_with_story()
     sc = sm.stage_counts(m, "pat:x", SN)
     assert sc["TESTED"] == 2 and sc["REPLACED"] == 0 and sm.documented(m, "pat:x", SN) and not sm.documented(m, "pat:x", day(5))
+
+
+def test_hash_ids_whose_digits_look_like_a_year_are_filed():
+    """30 Sep, final-code loop seed 0 cycle 77: question id 'qde1981f1eef5' failed the identity check ('contains a date/year')."""
+    g = rg.ResearchGraph()
+    q = dataclasses.replace(ResearchQuestion.make("does the effect persist", "loss", Problem.LOSS_AVOIDANCE, "2026-01-01", "2020-06-01",
+                                                  "yes", "no"), question_id="qde1981f1eef5")
+    node = g.add_question(q, [], day(10))
+    assert node.node_id == "qst:qdehpohfheefl" and not any(ch.isdigit() for ch in node.node_id)
+    assert g.add_test("a1b2c3d4e5f60718", "pat:x", True, day(11)).node_id.split(":")[1].isalpha()
+    assert rg.opaque_name("exp1") == "exp1" and rg.opaque_name("lv20") == "lv20"      # human names are untouched

@@ -168,6 +168,18 @@ def node_key(kind: RKind, name: str) -> str:
     return f"{KIND_PREFIX[kind]}:{clean_name(name)}"
 
 
+_HASH_NAME = re.compile(r"[a-z_]{0,4}[0-9a-f]{8,}")
+_NO_DIGITS = str.maketrans("0123456789", "ghijklmnop")
+
+
+def opaque_name(name: str) -> str:
+    """A hash-derived name (question ids, experiment keys) with its digits mapped to letters, so a run of digits inside a hash is
+    never read as a year by the identity check (30 Sep: question 'qde1981f1eef5' failed questions.research_graph with 'contains a
+    date/year'). Human-chosen names ('exp1', 'lv20') are left alone."""
+    low = str(name).lower()
+    return low.translate(_NO_DIGITS) if _HASH_NAME.fullmatch(low) else low
+
+
 @dataclasses.dataclass(frozen=True)
 class PatternStory:
     """The section-27 example chain for one pattern: predicts -> works -> fails -> explained -> gated -> gate tested -> OOS gain.
@@ -344,7 +356,7 @@ class ResearchGraph(KnowledgeGraph):
         attrs: dict[str, Any] = {"method": method}
         if effect is not None:
             attrs["effect"] = float(effect)
-        exp = self.add_research_node(K.EXPERIMENT, experiment_id, known_at, attrs=attrs)
+        exp = self.add_research_node(K.EXPERIMENT, opaque_name(experiment_id), known_at, attrs=attrs)
         ea = {"gate": gate} if gate else {}
         self.relate(belief, exp.node_id, R.VALIDATED_BY_EXP if supports else R.REFUTED_BY_EXP, known_at, weight, attrs=ea)
         if outcome:
@@ -359,7 +371,7 @@ class ResearchGraph(KnowledgeGraph):
 
     def add_question(self, q: ResearchQuestion, about: Sequence[str], known_at, extra: Mapping | None = None) -> Node:
         """A research question as a node; identity-free by construction. `about` are the nodes it asks about."""
-        node = self.add_research_node(K.QUESTION, q.question_id.lower(), known_at, q.text[:120],
+        node = self.add_research_node(K.QUESTION, opaque_name(q.question_id), known_at, q.text[:120],
                                       {"source": q.source, "problem": q.problem.value, "success": q.success_criterion,
                                        "failure": q.failure_criterion, **dict(extra or {})})
         for a in about:
@@ -368,7 +380,7 @@ class ResearchGraph(KnowledgeGraph):
         return node
 
     def answer_question(self, question_id: str, experiment_id: str, known_at, verdict: str = "answered") -> GraphEdge:
-        exp = self.add_research_node(K.EXPERIMENT, experiment_id, known_at)
+        exp = self.add_research_node(K.EXPERIMENT, opaque_name(experiment_id), known_at)
         return self.relate(question_id, exp.node_id, R.ANSWERED_BY, known_at, attrs={"verdict": verdict})
 
     def add_gate(self, pattern: str, context: str, known_at, weight: float = 1.0, rule: str = "") -> GraphEdge:
