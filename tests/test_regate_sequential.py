@@ -336,6 +336,10 @@ def run_loop(seed: int, world: str = "default", max_cycles: int | None = None, r
     truth = feed.source.world.truth if hasattr(feed.source, "world") else {}
     run_id = f"f12_{world}_s{seed}"
     root = root or OUT / run_id
+    if fresh and root.exists() and any(root.iterdir()):     # F17 (30 Sep): --fresh reused the old compute ledger, attempt folders and
+        import shutil                                       # c68 chain -> stale_code rejections and LedgerTampered on every C68 stage;
+        keep = root.with_name(f"{root.name}.old{time.strftime('%Y%m%dT%H%M%S')}")   # the old run is kept aside, never deleted
+        shutil.move(str(root), str(keep))
     root.mkdir(parents=True, exist_ok=True)
     # free_gb is pinned (as tests/test_research_dataflow.py does): measured free RAM on the shared machine made the compute manager's
     # RAM admission defer every cross-year rung in the first attempt (30 Sep, nine runs in parallel), so no branch ever reached the gate.

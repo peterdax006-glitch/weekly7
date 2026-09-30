@@ -46,8 +46,6 @@ def _rerun_under_new_code(tmp_path):
     return led, out, sp
 
 
-@pytest.mark.xfail(strict=True, reason="F17 defect in engine/learning/compute.reconcile (read-only here): a superseded run's attempt "
-                                      "folder makes the current code's valid rerun 'stale_code' - the loop's first rungs die")
 def test_a_rerun_under_new_code_is_accepted_despite_the_superseded_attempt(tmp_path):
     led, out, sp = _rerun_under_new_code(tmp_path)
     rec = CM.reconcile(led, out, NEW)
@@ -55,11 +53,12 @@ def test_a_rerun_under_new_code_is_accepted_despite_the_superseded_attempt(tmp_p
 
 
 def test_the_defect_as_it_hits_the_loop_today(tmp_path):
-    """Planted: the exact sequence of the after-runs. Today the only finished attempt of the NEW code is rejected, which is what killed
-    the xs_* / vol_over_mkt branches in cycles 1-6. When compute.reconcile is fixed this test must be updated with the xfail above."""
+    """Planted: the exact sequence of the after-runs. Before the fix (30 Sep) the only finished attempt of the NEW code was rejected
+    as stale_code because reconcile also judged the superseded attempt_01 - that killed the xs_* / vol_over_mkt branches in cycles
+    1-6. Fixed: only the current code run's attempts are judged."""
     led, out, sp = _rerun_under_new_code(tmp_path)
     rej = {k: why for k, why, _ in CM.reconcile(led, out, NEW).rejected}
-    assert rej.get(sp.key) == "stale_code"
+    assert sp.key not in rej
     # the new code's own result is whole and valid: the rejection is caused solely by the superseded attempt_01
     envs = CM._read_attempts(Path(out), sp.key)
     assert [e["code_hash"] for e in envs] == [OLD, NEW]

@@ -442,3 +442,18 @@ def test_filed_knowledge_crosses_the_firewall_and_reaches_the_decision(tmp_path)
     assert by["update.firewall_release"]["status"] == "OK" and by["update.firewall_release"]["n_out"] == 1
     assert "gap_abs" in rt.pipe.report.vol_features
     assert state.lineage.knowledge_chains()
+
+
+def test_a_fresh_start_moves_the_old_run_aside(tmp_path):
+    """F17 (30 Sep): a fresh start inside an old run's folder reused its compute ledger, attempt folders and C68 chains (valid reruns
+    rejected as stale_code; every C68 stage refused as LedgerTampered). The old run is moved aside intact and the new run starts empty."""
+    root = tmp_path / "run"
+    root.mkdir()
+    (root / "leftover.json").write_text("{}", encoding="utf-8")
+    F = world()
+    feed = LP.FrameFeed(F, dates=dates_of(F)[30:31])
+    state, rt, info = LP.open_loop(feed, root, cfg(checkpoint="off"), fresh=True, clock=CLOCK)
+    assert info["moved_aside"] and (Path(info["moved_aside"]) / "leftover.json").is_file()
+    assert not (root / "leftover.json").exists()
+    _, _, info2 = LP.open_loop(feed, tmp_path / "new", cfg(checkpoint="off"), fresh=True, clock=CLOCK)
+    assert info2["moved_aside"] is None                              # nothing to move: an empty or missing folder is left alone

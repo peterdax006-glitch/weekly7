@@ -2868,8 +2868,15 @@ def open_loop(feed: Feed, root: str | Path, cfg: LoopConfig | None = None, sweep
     errs = cfg.validate()
     if errs:
         raise ValueError("invalid LoopConfig: " + "; ".join(errs))
+    moved = None
+    if fresh and Path(root).is_dir() and any(Path(root).iterdir()):
+        # F17 (30 Sep): a fresh start inside an old run's folder reused its compute ledger, attempt folders and C68 chains - valid
+        # reruns were rejected as stale_code and every C68 stage was refused as LedgerTampered. The old run is moved aside, never deleted.
+        import shutil
+        moved = Path(root).with_name(f"{Path(root).name}.old{time.strftime('%Y%m%dT%H%M%S')}")
+        shutil.move(str(root), str(moved))
     rt = Runtime(feed, root, cfg, sweeps, clock, kill_after)
-    info = {"action": "START_FRESH", "recovered": {}}
+    info = {"action": "START_FRESH", "recovered": {}, "moved_aside": str(moved) if moved else None}
     state = None
     if rt.checkpointer is not None and not fresh:
         state, plan = rt.checkpointer.load(rt.code_hash, cfg.allow_code_change)

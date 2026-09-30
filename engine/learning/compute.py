@@ -620,7 +620,9 @@ def reconcile(ledger: ExperimentLedger, out_root: str | Path, current_code_hash_
     for key, e in sorted(led.items()):
         if e["state"] != DONE:
             continue
-        envs = _read_attempts(root, key)
+        first = attempt_serial(e) - int(e["attempts"])              # attempts 1..first belong to superseded code runs (F17, 30 Sep:
+        envs = [v for v in _read_attempts(root, key)                  # judging them rejected every valid rerun as stale_code)
+                if int(Path(v["_dir"]).name.split("_")[1]) > first]
         if not envs:
             rejected.append((key, "missing_result", "ledger says DONE but no whole result exists"))
             continue
