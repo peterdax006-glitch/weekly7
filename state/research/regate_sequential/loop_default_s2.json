@@ -1,7 +1,7 @@
 {
  "seed": 2,
  "world": "default",
- "code_hash": "d44ef1b382465975",
+ "code_hash": "56facf5b1e93be9b",
  "resume": "START_FRESH",
  "cycles": [
   {
@@ -371,547 +371,699 @@
   {
    "cycle": 52,
    "now": "2018-05-11",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 53,
    "now": "2018-05-18",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 54,
    "now": "2018-05-25",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 55,
    "now": "2018-06-01",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 56,
    "now": "2018-06-08",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 57,
    "now": "2018-06-15",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 58,
    "now": "2018-06-22",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 59,
    "now": "2018-06-29",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 60,
    "now": "2018-07-06",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 61,
    "now": "2018-07-13",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 62,
    "now": "2018-07-20",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 63,
    "now": "2018-07-27",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 64,
    "now": "2018-08-03",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 65,
    "now": "2018-08-10",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 66,
    "now": "2018-08-17",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 67,
    "now": "2018-08-24",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 68,
    "now": "2018-08-31",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 69,
    "now": "2018-09-07",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 70,
    "now": "2018-09-14",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 71,
    "now": "2018-09-21",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 72,
    "now": "2018-09-28",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 73,
    "now": "2018-10-05",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 74,
    "now": "2018-10-12",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 75,
    "now": "2018-10-19",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 76,
    "now": "2018-10-26",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 77,
    "now": "2018-11-02",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 78,
    "now": "2018-11-09",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 79,
    "now": "2018-11-16",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 80,
    "now": "2018-11-23",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 81,
    "now": "2018-11-30",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 82,
    "now": "2018-12-07",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 83,
    "now": "2018-12-14",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 84,
    "now": "2018-12-21",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 85,
    "now": "2018-12-28",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 86,
    "now": "2019-01-04",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 87,
    "now": "2019-01-11",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 88,
    "now": "2019-01-18",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 89,
    "now": "2019-01-25",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 90,
    "now": "2019-02-01",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 91,
    "now": "2019-02-08",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 92,
    "now": "2019-02-15",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 93,
    "now": "2019-02-22",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 94,
    "now": "2019-03-01",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 95,
    "now": "2019-03-08",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 96,
    "now": "2019-03-15",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 97,
    "now": "2019-03-22",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 98,
    "now": "2019-03-29",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 99,
    "now": "2019-04-05",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 100,
    "now": "2019-04-12",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 101,
    "now": "2019-04-19",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 102,
    "now": "2019-04-26",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 103,
    "now": "2019-05-03",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 104,
    "now": "2019-05-10",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 105,
    "now": "2019-05-17",
-   "knowledge": [],
-   "failed": {
-    "run.experiments": "ComputeError: attempt directory C:\\Users\\Peter\\weekly7\\state\\research\\regate_sequential\\f12_default_s2\\compute\\out\\6b326348647b95920b51\\attempt_01 exists: two attempts must never share a folder at compute.py:476"
-   },
+   "knowledge": [
+    "lv20"
+   ],
+   "failed": {},
    "counters": {}
   },
   {
    "cycle": 106,
    "now": "2019-05-24",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 107,
    "now": "2019-05-31",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 108,
    "now": "2019-06-07",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 109,
    "now": "2019-06-14",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 110,
    "now": "2019-06-21",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 111,
    "now": "2019-06-28",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 112,
    "now": "2019-07-05",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 113,
    "now": "2019-07-12",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 114,
    "now": "2019-07-19",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 115,
    "now": "2019-07-26",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 116,
    "now": "2019-08-02",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 117,
    "now": "2019-08-09",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 118,
    "now": "2019-08-16",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 119,
    "now": "2019-08-23",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 120,
    "now": "2019-08-30",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 121,
    "now": "2019-09-06",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 122,
    "now": "2019-09-13",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 123,
    "now": "2019-09-20",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 124,
    "now": "2019-09-27",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 125,
    "now": "2019-10-04",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 126,
    "now": "2019-10-11",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 127,
    "now": "2019-10-18",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 128,
    "now": "2019-10-25",
-   "knowledge": [],
+   "knowledge": [
+    "lv20"
+   ],
    "failed": {},
    "counters": {}
   }
  ],
  "provenance": {
-  "code_hash": "d44ef1b382465975",
+  "code_hash": "56facf5b1e93be9b",
   "code_files": [
    "engine/__init__.py",
    "engine/analogs.py",
@@ -1003,7 +1155,7 @@
    "engine/stops.py"
   ],
   "code_mixed": [],
-  "git_commit": "7ae345d895657c9ad94d894db478cae410471849",
+  "git_commit": "5e95aa93346ecb7795c94411465f2dac66535a40",
   "canon_sha": "fef7cdf0a1501c3d",
   "bible_sha": "a97ea91862cee371",
   "blueprint_version": "4.0",
@@ -1012,125 +1164,82 @@
   "seed": 2
  },
  "gates": {
-  "DBR3911ce95c01d": {
-   "feature": "latr",
-   "verdict": "NEEDS_MORE_EVIDENCE",
-   "looks": 6,
+  "DBRcb13b46615e5": {
+   "feature": "lv20",
+   "verdict": "PROMOTE",
+   "looks": 1,
    "retired": "",
    "history": [
     {
      "look": 1,
-     "cycle": 58,
-     "at": "2018-06-22",
+     "cycle": 52,
+     "at": "2018-05-11",
+     "verdict": "PROMOTE",
+     "alpha": 0.03039635509270134,
+     "n_test": 77,
+     "blocking": []
+    }
+   ],
+   "blocking": {}
+  },
+  "DBR2d20b91b1f58": {
+   "feature": "vol_over_mkt",
+   "verdict": "FAILED",
+   "looks": 3,
+   "retired": "",
+   "history": [
+    {
+     "look": 1,
+     "cycle": 95,
+     "at": "2019-03-08",
      "verdict": "FAILED",
      "alpha": 0.03039635509270134,
-     "n_test": 81,
+     "n_test": 112,
      "blocking": [
-      "failure_behavior",
-      "risk"
+      "calibration"
      ]
     },
     {
      "look": 2,
-     "cycle": 72,
-     "at": "2018-09-28",
+     "cycle": 109,
+     "at": "2019-06-14",
      "verdict": "FAILED",
      "alpha": 0.007599088773175335,
-     "n_test": 91,
+     "n_test": 126,
      "blocking": [
-      "calibration",
-      "failure_behavior"
+      "calibration"
      ]
     },
     {
      "look": 3,
-     "cycle": 86,
-     "at": "2019-01-04",
+     "cycle": 123,
+     "at": "2019-09-20",
      "verdict": "FAILED",
      "alpha": 0.0033773727880779263,
-     "n_test": 103,
-     "blocking": [
-      "calibration",
-      "failure_behavior"
-     ]
-    },
-    {
-     "look": 4,
-     "cycle": 100,
-     "at": "2019-04-12",
-     "verdict": "FAILED",
-     "alpha": 0.0018997721932938337,
-     "n_test": 117,
+     "n_test": 108,
      "blocking": [
       "calibration"
-     ]
-    },
-    {
-     "look": 5,
-     "cycle": 114,
-     "at": "2019-07-19",
-     "verdict": "FAILED",
-     "alpha": 0.0012158542037080534,
-     "n_test": 108,
-     "blocking": [
-      "calibration",
-      "failure_behavior"
-     ]
-    },
-    {
-     "look": 6,
-     "cycle": 128,
-     "at": "2019-10-25",
-     "verdict": "NEEDS_MORE_EVIDENCE",
-     "alpha": 0.0008443431970194816,
-     "n_test": 108,
-     "blocking": [
-      "failure_behavior"
      ]
     }
    ],
    "blocking": {
-    "failure_behavior": "MISSING: only 3 failure episodes studied (< 5)"
-   }
-  },
-  "DBRcef9a9534128": {
-   "feature": "lv20",
-   "verdict": "FAILED",
-   "looks": 2,
-   "retired": "",
-   "history": [
-    {
-     "look": 1,
-     "cycle": 104,
-     "at": "2019-05-10",
-     "verdict": "FAILED",
-     "alpha": 0.03039635509270134,
-     "n_test": 121,
-     "blocking": [
-      "calibration"
-     ]
-    },
-    {
-     "look": 2,
-     "cycle": 118,
-     "at": "2019-08-16",
-     "verdict": "FAILED",
-     "alpha": 0.007599088773175335,
-     "n_test": 108,
-     "blocking": [
-      "calibration",
-      "replication"
-     ]
-    }
-   ],
-   "blocking": {
-    "replication": "MISSING: PARTIALLY_REPLICATED: requirement not met: heterogeneity_ok",
-    "calibration": "FAIL: ECE 0.078 > 0.06 and beyond what perfect calibration would give (p=0.005)"
+    "calibration": "FAIL: ECE 0.066 > 0.06 and beyond what perfect calibration would give (p=0.005)"
    }
   }
  },
- "knowledge": {},
- "seconds": 7607.2,
+ "knowledge": {
+  "Kd203b10f930909": {
+   "feature": "lv20",
+   "sign": 1.0,
+   "problem": "VOLATILITY",
+   "filed_at": "2018-05-11",
+   "effect": 0.289823548928,
+   "branch": "BRcb13b46615e5",
+   "post_effect": 0.28455712671464944,
+   "post_n": 74
+  }
+ },
+ "seconds": 7712.4,
  "truth": {
   "genuine": [
    "lv20",

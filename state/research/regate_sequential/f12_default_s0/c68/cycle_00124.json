@@ -1,0 +1,288 @@
+{
+ "cycle": 124,
+ "now": "2019-09-27",
+ "label": "IMPLEMENTED - NOT VALIDATED",
+ "counters": {
+  "outcomes": 0,
+  "errors": 0,
+  "market_reports_sent": 15,
+  "promotion_held_by_regime": 0
+ },
+ "ledgers": {
+  "expectations": 0,
+  "outcomes": 0,
+  "errors": 0,
+  "commitments": 0,
+  "pipeline_events": 1904,
+  "pipeline_furthest": {
+   "REJECTED": 476
+  }
+ },
+ "calibration": {
+  "now": "2017-05-12",
+  "target": {
+   "tolerance": 0.01,
+   "goal_share": 0.8,
+   "min_n": 200,
+   "min_oos_n": 100,
+   "level": 0.95,
+   "name": "pm1pp_80"
+  },
+  "status": "EMPTY",
+  "n_committed": 0,
+  "n_matured": 0,
+  "n_resolved": 0,
+  "n_unresolved": 0,
+  "all_": {
+   "n": 0,
+   "hits": 0,
+   "share": NaN,
+   "lo": NaN,
+   "hi": NaN,
+   "boot_lo": NaN,
+   "boot_hi": NaN
+  },
+  "oos": {
+   "n": 0,
+   "hits": 0,
+   "share": NaN,
+   "lo": NaN,
+   "hi": NaN,
+   "boot_lo": NaN,
+   "boot_hi": NaN
+  },
+  "resolved_only": {
+   "n": 0,
+   "hits": 0,
+   "share": NaN,
+   "lo": NaN,
+   "hi": NaN,
+   "boot_lo": NaN,
+   "boot_hi": NaN
+  },
+  "bias": NaN,
+  "mae": NaN,
+  "naive_share": null,
+  "required_n": null,
+  "abuses": [
+   {
+    "kind": "TARGET_CHANGED",
+    "pred_id": "*",
+    "detail": "target never registered"
+   }
+  ],
+  "by_cohort": [],
+  "headline": "No matured predictions yet: the +-1% target is unmeasured."
+ },
+ "influence": {
+  "mom_r20_top": 1.0,
+  "rev_r5_bottom": 1.0,
+  "vol_top": 1.0
+ },
+ "verdicts": {
+  "mom_r20_top": "NOISE",
+  "rev_r5_bottom": "NOISE",
+  "vol_top": "NOISE"
+ },
+ "guard": {
+  "mom_r20_top": "KEEP",
+  "rev_r5_bottom": "KEEP",
+  "vol_top": "KEEP"
+ },
+ "production": {
+  "name": "incumbent",
+  "since": "",
+  "window_share": 1.0,
+  "extra_features": []
+ },
+ "regime_records": [
+  {
+   "id": "Rd6021d4358e5",
+   "scope": "MARKET_WIDE_REGIME_CHANGE",
+   "detected": "2018-01-10",
+   "status": "CONFIRMED",
+   "weakened": []
+  }
+ ],
+ "identification": {
+  "periods": 10,
+  "trend": {
+   "n_periods": 0,
+   "slope": null,
+   "se": null,
+   "improving": null
+  },
+  "rows": [
+   {
+    "period": "2017Q2",
+    "n_candidates": 376,
+    "n_selected": 0,
+    "base_rate": 0.04521276595744681,
+    "precision": NaN,
+    "precision_lo": NaN,
+    "precision_hi": NaN,
+    "recall": 0.0,
+    "lift": NaN,
+    "pending": 0
+   },
+   {
+    "period": "2017Q3",
+    "n_candidates": 607,
+    "n_selected": 0,
+    "base_rate": 0.05930807248764415,
+    "precision": NaN,
+    "precision_lo": NaN,
+    "precision_hi": NaN,
+    "recall": 0.0,
+    "lift": NaN,
+    "pending": 0
+   },
+   {
+    "period": "2017Q4",
+    "n_candidates": 604,
+    "n_selected": 0,
+    "base_rate": 0.054635761589403975,
+    "precision": NaN,
+    "precision_lo": NaN,
+    "precision_hi": NaN,
+    "recall": 0.0,
+    "lift": NaN,
+    "pending": 0
+   },
+   {
+    "period": "2018Q1",
+    "n_candidates": 593,
+    "n_selected": 0,
+    "base_rate": 0.07251264755480608,
+    "precision": NaN,
+    "precision_lo": NaN,
+    "precision_hi": NaN,
+    "recall": 0.0,
+    "lift": NaN,
+    "pending": 0
+   },
+   {
+    "period": "2018Q2",
+    "n_candidates": 592,
+    "n_selected": 0,
+    "base_rate": 0.07432432432432433,
+    "precision": NaN,
+    "precision_lo": NaN,
+    "precision_hi": NaN,
+    "recall": 0.0,
+    "lift": NaN,
+    "pending": 0
+   },
+   {
+    "period": "2018Q3",
+    "n_candidates": 602,
+    "n_selected": 0,
+    "base_rate": 0.07142857142857142,
+    "precision": NaN,
+    "precision_lo": NaN,
+    "precision_hi": NaN,
+    "recall": 0.0,
+    "lift": NaN,
+    "pending": 0
+   },
+   {
+    "period": "2018Q4",
+    "n_candidates": 611,
+    "n_selected": 0,
+    "base_rate": 0.07201309328968904,
+    "precision": NaN,
+    "precision_lo": NaN,
+    "precision_hi": NaN,
+    "recall": 0.0,
+    "lift": NaN,
+    "pending": 0
+   },
+   {
+    "period": "2019Q1",
+    "n_candidates": 604,
+    "n_selected": 0,
+    "base_rate": 0.06622516556291391,
+    "precision": NaN,
+    "precision_lo": NaN,
+    "precision_hi": NaN,
+    "recall": 0.0,
+    "lift": NaN,
+    "pending": 0
+   },
+   {
+    "period": "2019Q2",
+    "n_candidates": 608,
+    "n_selected": 0,
+    "base_rate": 0.07236842105263158,
+    "precision": NaN,
+    "precision_lo": NaN,
+    "precision_hi": NaN,
+    "recall": 0.0,
+    "lift": NaN,
+    "pending": 0
+   },
+   {
+    "period": "2019Q3",
+    "n_candidates": 499,
+    "n_selected": 0,
+    "base_rate": 0.04809619238476954,
+    "precision": NaN,
+    "precision_lo": NaN,
+    "precision_hi": NaN,
+    "recall": 0.0,
+    "lift": NaN,
+    "pending": 0
+   }
+  ]
+ },
+ "stage_runs": [
+  {
+   "cycle": 124,
+   "now": "2019-09-27",
+   "stage": "c68.selection_policy",
+   "in": 3836,
+   "out": 1,
+   "note": "policy Lf37dd006 (threshold -inf); gain model fitted n=3836 base in-band 0.072; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00"
+  },
+  {
+   "cycle": 124,
+   "now": "2019-09-27",
+   "stage": "c68.expectations",
+   "in": 45,
+   "out": 0,
+   "note": "no position on 2019-09-27: {'NOT_PREDICTED_MOVER': 40, 'SHORT_DISABLED': 5}"
+  },
+  {
+   "cycle": 124,
+   "now": "2019-09-27",
+   "stage": "c68.market_regime",
+   "in": 6,
+   "out": 2,
+   "note": "5 session(s), 2 alarm(s), warning WATCH (UNCLEAR); 1 market period(s); regime records +0, status changes []"
+  },
+  {
+   "cycle": 124,
+   "now": "2019-09-27",
+   "stage": "c68.pattern_change",
+   "in": 3,
+   "out": 0,
+   "note": "verdicts {'NOISE': 3}; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00; regime CONFIRMED; 0 to investigate"
+  },
+  {
+   "cycle": 124,
+   "now": "2019-09-27",
+   "stage": "c68.outcomes_errors",
+   "in": 0,
+   "out": 0,
+   "note": "0 exit(s) by the learned policy, 0 error report(s), 0 unreconstructable, 45 candidate gain(s) resolved"
+  },
+  {
+   "cycle": 124,
+   "now": "2019-09-27",
+   "stage": "c68.validate_promote",
+   "in": 5696,
+   "out": 4,
+   "note": "4 fix(es) tested alone and gated; deterioration: no (MAE 0.0317 -> 0.0332, p=0.107); promoted [] (0 applied); production incumbent; rolled back 0"
+  }
+ ]
+}

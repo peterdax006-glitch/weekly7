@@ -1,7 +1,7 @@
 {
  "seed": 0,
  "world": "default",
- "code_hash": "d44ef1b382465975",
+ "code_hash": "56facf5b1e93be9b",
  "resume": "START_FRESH",
  "cycles": [
   {
@@ -315,108 +315,77 @@
   {
    "cycle": 44,
    "now": "2018-03-16",
-   "knowledge": [
-    "lv20"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 45,
    "now": "2018-03-23",
-   "knowledge": [
-    "lv20"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 46,
    "now": "2018-03-30",
-   "knowledge": [
-    "lv20",
-    "lv20"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 47,
    "now": "2018-04-06",
-   "knowledge": [
-    "lv20",
-    "lv20"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 48,
    "now": "2018-04-13",
-   "knowledge": [
-    "lv20",
-    "lv20"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 49,
    "now": "2018-04-20",
-   "knowledge": [
-    "lv20",
-    "lv20"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 50,
    "now": "2018-04-27",
-   "knowledge": [
-    "lv20",
-    "lv20"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 51,
    "now": "2018-05-04",
-   "knowledge": [
-    "lv20",
-    "lv20"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 52,
    "now": "2018-05-11",
-   "knowledge": [
-    "lv20",
-    "lv20"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 53,
    "now": "2018-05-18",
-   "knowledge": [
-    "lv20",
-    "lv20"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 54,
    "now": "2018-05-25",
-   "knowledge": [
-    "lv20",
-    "lv20"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
@@ -424,7 +393,6 @@
    "cycle": 55,
    "now": "2018-06-01",
    "knowledge": [
-    "lv20",
     "lv20"
    ],
    "failed": {},
@@ -434,7 +402,6 @@
    "cycle": 56,
    "now": "2018-06-08",
    "knowledge": [
-    "lv20",
     "lv20"
    ],
    "failed": {},
@@ -444,7 +411,6 @@
    "cycle": 57,
    "now": "2018-06-15",
    "knowledge": [
-    "lv20",
     "lv20"
    ],
    "failed": {},
@@ -454,7 +420,6 @@
    "cycle": 58,
    "now": "2018-06-22",
    "knowledge": [
-    "lv20",
     "lv20"
    ],
    "failed": {},
@@ -464,7 +429,6 @@
    "cycle": 59,
    "now": "2018-06-29",
    "knowledge": [
-    "lv20",
     "lv20"
    ],
    "failed": {},
@@ -474,7 +438,6 @@
    "cycle": 60,
    "now": "2018-07-06",
    "knowledge": [
-    "lv20",
     "lv20"
    ],
    "failed": {},
@@ -484,7 +447,6 @@
    "cycle": 61,
    "now": "2018-07-13",
    "knowledge": [
-    "lv20",
     "lv20"
    ],
    "failed": {},
@@ -494,7 +456,6 @@
    "cycle": 62,
    "now": "2018-07-20",
    "knowledge": [
-    "lv20",
     "lv20"
    ],
    "failed": {},
@@ -504,7 +465,6 @@
    "cycle": 63,
    "now": "2018-07-27",
    "knowledge": [
-    "lv20",
     "lv20"
    ],
    "failed": {},
@@ -514,7 +474,6 @@
    "cycle": 64,
    "now": "2018-08-03",
    "knowledge": [
-    "lv20",
     "lv20"
    ],
    "failed": {},
@@ -524,7 +483,6 @@
    "cycle": 65,
    "now": "2018-08-10",
    "knowledge": [
-    "lv20",
     "lv20"
    ],
    "failed": {},
@@ -534,7 +492,6 @@
    "cycle": 66,
    "now": "2018-08-17",
    "knowledge": [
-    "lv20",
     "lv20"
    ],
    "failed": {},
@@ -544,7 +501,6 @@
    "cycle": 67,
    "now": "2018-08-24",
    "knowledge": [
-    "lv20",
     "lv20"
    ],
    "failed": {},
@@ -554,7 +510,6 @@
    "cycle": 68,
    "now": "2018-08-31",
    "knowledge": [
-    "lv20",
     "lv20"
    ],
    "failed": {},
@@ -564,7 +519,6 @@
    "cycle": 69,
    "now": "2018-09-07",
    "knowledge": [
-    "lv20",
     "lv20"
    ],
    "failed": {},
@@ -574,7 +528,6 @@
    "cycle": 70,
    "now": "2018-09-14",
    "knowledge": [
-    "lv20",
     "lv20"
    ],
    "failed": {},
@@ -584,7 +537,6 @@
    "cycle": 71,
    "now": "2018-09-21",
    "knowledge": [
-    "lv20",
     "lv20"
    ],
    "failed": {},
@@ -594,7 +546,6 @@
    "cycle": 72,
    "now": "2018-09-28",
    "knowledge": [
-    "lv20",
     "lv20"
    ],
    "failed": {},
@@ -604,7 +555,6 @@
    "cycle": 73,
    "now": "2018-10-05",
    "knowledge": [
-    "lv20",
     "lv20"
    ],
    "failed": {},
@@ -614,7 +564,6 @@
    "cycle": 74,
    "now": "2018-10-12",
    "knowledge": [
-    "lv20",
     "lv20"
    ],
    "failed": {},
@@ -624,7 +573,6 @@
    "cycle": 75,
    "now": "2018-10-19",
    "knowledge": [
-    "lv20",
     "lv20"
    ],
    "failed": {},
@@ -634,7 +582,6 @@
    "cycle": 76,
    "now": "2018-10-26",
    "knowledge": [
-    "lv20",
     "lv20"
    ],
    "failed": {},
@@ -644,7 +591,6 @@
    "cycle": 77,
    "now": "2018-11-02",
    "knowledge": [
-    "lv20",
     "lv20"
    ],
    "failed": {},
@@ -654,7 +600,6 @@
    "cycle": 78,
    "now": "2018-11-09",
    "knowledge": [
-    "lv20",
     "lv20"
    ],
    "failed": {},
@@ -664,7 +609,6 @@
    "cycle": 79,
    "now": "2018-11-16",
    "knowledge": [
-    "lv20",
     "lv20"
    ],
    "failed": {},
@@ -674,7 +618,6 @@
    "cycle": 80,
    "now": "2018-11-23",
    "knowledge": [
-    "lv20",
     "lv20"
    ],
    "failed": {},
@@ -685,7 +628,7 @@
    "now": "2018-11-30",
    "knowledge": [
     "lv20",
-    "lv20"
+    "xs_atr_rank"
    ],
    "failed": {},
    "counters": {}
@@ -695,7 +638,7 @@
    "now": "2018-12-07",
    "knowledge": [
     "lv20",
-    "lv20"
+    "xs_atr_rank"
    ],
    "failed": {},
    "counters": {}
@@ -705,7 +648,7 @@
    "now": "2018-12-14",
    "knowledge": [
     "lv20",
-    "lv20"
+    "xs_atr_rank"
    ],
    "failed": {},
    "counters": {}
@@ -715,7 +658,7 @@
    "now": "2018-12-21",
    "knowledge": [
     "lv20",
-    "lv20"
+    "xs_atr_rank"
    ],
    "failed": {},
    "counters": {}
@@ -725,7 +668,7 @@
    "now": "2018-12-28",
    "knowledge": [
     "lv20",
-    "lv20"
+    "xs_atr_rank"
    ],
    "failed": {},
    "counters": {}
@@ -735,7 +678,7 @@
    "now": "2019-01-04",
    "knowledge": [
     "lv20",
-    "lv20"
+    "xs_atr_rank"
    ],
    "failed": {},
    "counters": {}
@@ -745,7 +688,7 @@
    "now": "2019-01-11",
    "knowledge": [
     "lv20",
-    "lv20"
+    "xs_atr_rank"
    ],
    "failed": {},
    "counters": {}
@@ -755,7 +698,7 @@
    "now": "2019-01-18",
    "knowledge": [
     "lv20",
-    "lv20"
+    "xs_atr_rank"
    ],
    "failed": {},
    "counters": {}
@@ -765,7 +708,7 @@
    "now": "2019-01-25",
    "knowledge": [
     "lv20",
-    "lv20"
+    "xs_atr_rank"
    ],
    "failed": {},
    "counters": {}
@@ -775,7 +718,7 @@
    "now": "2019-02-01",
    "knowledge": [
     "lv20",
-    "lv20"
+    "xs_atr_rank"
    ],
    "failed": {},
    "counters": {}
@@ -785,7 +728,7 @@
    "now": "2019-02-08",
    "knowledge": [
     "lv20",
-    "lv20"
+    "xs_atr_rank"
    ],
    "failed": {},
    "counters": {}
@@ -795,7 +738,7 @@
    "now": "2019-02-15",
    "knowledge": [
     "lv20",
-    "lv20"
+    "xs_atr_rank"
    ],
    "failed": {},
    "counters": {}
@@ -805,7 +748,7 @@
    "now": "2019-02-22",
    "knowledge": [
     "lv20",
-    "lv20"
+    "xs_atr_rank"
    ],
    "failed": {},
    "counters": {}
@@ -815,7 +758,7 @@
    "now": "2019-03-01",
    "knowledge": [
     "lv20",
-    "lv20"
+    "xs_atr_rank"
    ],
    "failed": {},
    "counters": {}
@@ -825,7 +768,7 @@
    "now": "2019-03-08",
    "knowledge": [
     "lv20",
-    "lv20"
+    "xs_atr_rank"
    ],
    "failed": {},
    "counters": {}
@@ -835,7 +778,7 @@
    "now": "2019-03-15",
    "knowledge": [
     "lv20",
-    "lv20"
+    "xs_atr_rank"
    ],
    "failed": {},
    "counters": {}
@@ -845,7 +788,7 @@
    "now": "2019-03-22",
    "knowledge": [
     "lv20",
-    "lv20"
+    "xs_atr_rank"
    ],
    "failed": {},
    "counters": {}
@@ -855,7 +798,7 @@
    "now": "2019-03-29",
    "knowledge": [
     "lv20",
-    "lv20"
+    "xs_atr_rank"
    ],
    "failed": {},
    "counters": {}
@@ -865,7 +808,7 @@
    "now": "2019-04-05",
    "knowledge": [
     "lv20",
-    "lv20"
+    "xs_atr_rank"
    ],
    "failed": {},
    "counters": {}
@@ -875,7 +818,7 @@
    "now": "2019-04-12",
    "knowledge": [
     "lv20",
-    "lv20"
+    "xs_atr_rank"
    ],
    "failed": {},
    "counters": {}
@@ -885,7 +828,7 @@
    "now": "2019-04-19",
    "knowledge": [
     "lv20",
-    "lv20"
+    "xs_atr_rank"
    ],
    "failed": {},
    "counters": {}
@@ -895,7 +838,7 @@
    "now": "2019-04-26",
    "knowledge": [
     "lv20",
-    "lv20"
+    "xs_atr_rank"
    ],
    "failed": {},
    "counters": {}
@@ -905,7 +848,7 @@
    "now": "2019-05-03",
    "knowledge": [
     "lv20",
-    "lv20"
+    "xs_atr_rank"
    ],
    "failed": {},
    "counters": {}
@@ -915,7 +858,7 @@
    "now": "2019-05-10",
    "knowledge": [
     "lv20",
-    "lv20"
+    "xs_atr_rank"
    ],
    "failed": {},
    "counters": {}
@@ -925,7 +868,7 @@
    "now": "2019-05-17",
    "knowledge": [
     "lv20",
-    "lv20"
+    "xs_atr_rank"
    ],
    "failed": {},
    "counters": {}
@@ -935,7 +878,7 @@
    "now": "2019-05-24",
    "knowledge": [
     "lv20",
-    "lv20"
+    "xs_atr_rank"
    ],
    "failed": {},
    "counters": {}
@@ -945,7 +888,7 @@
    "now": "2019-05-31",
    "knowledge": [
     "lv20",
-    "lv20"
+    "xs_atr_rank"
    ],
    "failed": {},
    "counters": {}
@@ -955,8 +898,7 @@
    "now": "2019-06-07",
    "knowledge": [
     "lv20",
-    "lv20",
-    "lv20"
+    "xs_atr_rank"
    ],
    "failed": {},
    "counters": {}
@@ -966,8 +908,7 @@
    "now": "2019-06-14",
    "knowledge": [
     "lv20",
-    "lv20",
-    "lv20"
+    "xs_atr_rank"
    ],
    "failed": {},
    "counters": {}
@@ -977,8 +918,7 @@
    "now": "2019-06-21",
    "knowledge": [
     "lv20",
-    "lv20",
-    "lv20"
+    "xs_atr_rank"
    ],
    "failed": {},
    "counters": {}
@@ -988,8 +928,7 @@
    "now": "2019-06-28",
    "knowledge": [
     "lv20",
-    "lv20",
-    "lv20"
+    "xs_atr_rank"
    ],
    "failed": {},
    "counters": {}
@@ -999,8 +938,7 @@
    "now": "2019-07-05",
    "knowledge": [
     "lv20",
-    "lv20",
-    "lv20"
+    "xs_atr_rank"
    ],
    "failed": {},
    "counters": {}
@@ -1010,8 +948,7 @@
    "now": "2019-07-12",
    "knowledge": [
     "lv20",
-    "lv20",
-    "lv20"
+    "xs_atr_rank"
    ],
    "failed": {},
    "counters": {}
@@ -1021,8 +958,7 @@
    "now": "2019-07-19",
    "knowledge": [
     "lv20",
-    "lv20",
-    "lv20"
+    "xs_atr_rank"
    ],
    "failed": {},
    "counters": {}
@@ -1032,8 +968,7 @@
    "now": "2019-07-26",
    "knowledge": [
     "lv20",
-    "lv20",
-    "lv20"
+    "xs_atr_rank"
    ],
    "failed": {},
    "counters": {}
@@ -1043,8 +978,7 @@
    "now": "2019-08-02",
    "knowledge": [
     "lv20",
-    "lv20",
-    "lv20"
+    "xs_atr_rank"
    ],
    "failed": {},
    "counters": {}
@@ -1054,8 +988,7 @@
    "now": "2019-08-09",
    "knowledge": [
     "lv20",
-    "lv20",
-    "lv20"
+    "xs_atr_rank"
    ],
    "failed": {},
    "counters": {}
@@ -1065,8 +998,7 @@
    "now": "2019-08-16",
    "knowledge": [
     "lv20",
-    "lv20",
-    "lv20"
+    "xs_atr_rank"
    ],
    "failed": {},
    "counters": {}
@@ -1076,8 +1008,7 @@
    "now": "2019-08-23",
    "knowledge": [
     "lv20",
-    "lv20",
-    "lv20"
+    "xs_atr_rank"
    ],
    "failed": {},
    "counters": {}
@@ -1087,8 +1018,7 @@
    "now": "2019-08-30",
    "knowledge": [
     "lv20",
-    "lv20",
-    "lv20"
+    "xs_atr_rank"
    ],
    "failed": {},
    "counters": {}
@@ -1098,8 +1028,7 @@
    "now": "2019-09-06",
    "knowledge": [
     "lv20",
-    "lv20",
-    "lv20"
+    "xs_atr_rank"
    ],
    "failed": {},
    "counters": {}
@@ -1109,8 +1038,7 @@
    "now": "2019-09-13",
    "knowledge": [
     "lv20",
-    "lv20",
-    "lv20"
+    "xs_atr_rank"
    ],
    "failed": {},
    "counters": {}
@@ -1120,8 +1048,7 @@
    "now": "2019-09-20",
    "knowledge": [
     "lv20",
-    "lv20",
-    "lv20"
+    "xs_atr_rank"
    ],
    "failed": {},
    "counters": {}
@@ -1131,8 +1058,7 @@
    "now": "2019-09-27",
    "knowledge": [
     "lv20",
-    "lv20",
-    "lv20"
+    "xs_atr_rank"
    ],
    "failed": {},
    "counters": {}
@@ -1142,8 +1068,7 @@
    "now": "2019-10-04",
    "knowledge": [
     "lv20",
-    "lv20",
-    "lv20"
+    "xs_atr_rank"
    ],
    "failed": {},
    "counters": {}
@@ -1153,8 +1078,7 @@
    "now": "2019-10-11",
    "knowledge": [
     "lv20",
-    "lv20",
-    "lv20"
+    "xs_atr_rank"
    ],
    "failed": {},
    "counters": {}
@@ -1164,8 +1088,7 @@
    "now": "2019-10-18",
    "knowledge": [
     "lv20",
-    "lv20",
-    "lv20"
+    "xs_atr_rank"
    ],
    "failed": {},
    "counters": {}
@@ -1175,15 +1098,14 @@
    "now": "2019-10-25",
    "knowledge": [
     "lv20",
-    "lv20",
-    "lv20"
+    "xs_atr_rank"
    ],
    "failed": {},
    "counters": {}
   }
  ],
  "provenance": {
-  "code_hash": "d44ef1b382465975",
+  "code_hash": "56facf5b1e93be9b",
   "code_files": [
    "engine/__init__.py",
    "engine/analogs.py",
@@ -1275,7 +1197,7 @@
    "engine/stops.py"
   ],
   "code_mixed": [],
-  "git_commit": "7ae345d895657c9ad94d894db478cae410471849",
+  "git_commit": "5e95aa93346ecb7795c94411465f2dac66535a40",
   "canon_sha": "fef7cdf0a1501c3d",
   "bible_sha": "a97ea91862cee371",
   "blueprint_version": "4.0",
@@ -1284,99 +1206,115 @@
   "seed": 0
  },
  "gates": {
-  "DBR8d29e1435ef2": {
+  "DBR44ef231394d2": {
    "feature": "lv20",
    "verdict": "PROMOTE",
-   "looks": 2,
+   "looks": 3,
    "retired": "",
    "history": [
     {
      "look": 1,
-     "cycle": 30,
-     "at": "2017-12-08",
+     "cycle": 27,
+     "at": "2017-11-17",
      "verdict": "FAILED",
      "alpha": 0.03039635509270134,
-     "n_test": 61,
+     "n_test": 59,
      "blocking": [
-      "out_of_sample",
-      "replication"
+      "out_of_sample"
      ]
     },
     {
      "look": 2,
-     "cycle": 44,
-     "at": "2018-03-16",
-     "verdict": "PROMOTE",
-     "alpha": 0.007599088773175335,
-     "n_test": 71,
-     "blocking": []
-    }
-   ],
-   "blocking": {}
-  },
-  "DBRef22dcaf6775": {
-   "feature": "lv20",
-   "verdict": "PROMOTE",
-   "looks": 1,
-   "retired": "",
-   "history": [
-    {
-     "look": 1,
-     "cycle": 46,
-     "at": "2018-03-30",
-     "verdict": "PROMOTE",
-     "alpha": 0.03039635509270134,
-     "n_test": 73,
-     "blocking": []
-    }
-   ],
-   "blocking": {}
-  },
-  "DBRc36ce19ef0a7": {
-   "feature": "lv20",
-   "verdict": "FAILED",
-   "looks": 4,
-   "retired": "",
-   "history": [
-    {
-     "look": 1,
-     "cycle": 77,
-     "at": "2018-11-02",
-     "verdict": "NEEDS_MORE_EVIDENCE",
-     "alpha": 0.03039635509270134,
-     "n_test": 94,
-     "blocking": [
-      "replication"
-     ]
-    },
-    {
-     "look": 2,
-     "cycle": 91,
-     "at": "2019-02-08",
+     "cycle": 41,
+     "at": "2018-02-23",
      "verdict": "NEEDS_MORE_EVIDENCE",
      "alpha": 0.007599088773175335,
-     "n_test": 108,
+     "n_test": 69,
      "blocking": [
       "replication"
      ]
     },
     {
      "look": 3,
-     "cycle": 105,
-     "at": "2019-05-17",
+     "cycle": 55,
+     "at": "2018-06-01",
+     "verdict": "PROMOTE",
+     "alpha": 0.0033773727880779263,
+     "n_test": 79,
+     "blocking": []
+    }
+   ],
+   "blocking": {}
+  },
+  "DBR2d20b91b1f58": {
+   "feature": "vol_over_mkt",
+   "verdict": "FAILED",
+   "looks": 6,
+   "retired": "",
+   "history": [
+    {
+     "look": 1,
+     "cycle": 50,
+     "at": "2018-04-27",
+     "verdict": "NEEDS_MORE_EVIDENCE",
+     "alpha": 0.03039635509270134,
+     "n_test": 75,
+     "blocking": [
+      "replication"
+     ]
+    },
+    {
+     "look": 2,
+     "cycle": 64,
+     "at": "2018-08-03",
+     "verdict": "NEEDS_MORE_EVIDENCE",
+     "alpha": 0.007599088773175335,
+     "n_test": 85,
+     "blocking": [
+      "replication"
+     ]
+    },
+    {
+     "look": 3,
+     "cycle": 78,
+     "at": "2018-11-09",
      "verdict": "NEEDS_MORE_EVIDENCE",
      "alpha": 0.0033773727880779263,
-     "n_test": 122,
+     "n_test": 95,
      "blocking": [
       "replication"
      ]
     },
     {
      "look": 4,
-     "cycle": 119,
-     "at": "2019-08-23",
-     "verdict": "FAILED",
+     "cycle": 92,
+     "at": "2019-02-15",
+     "verdict": "NEEDS_MORE_EVIDENCE",
      "alpha": 0.0018997721932938337,
+     "n_test": 109,
+     "blocking": [
+      "failure_behavior",
+      "replication"
+     ]
+    },
+    {
+     "look": 5,
+     "cycle": 106,
+     "at": "2019-05-24",
+     "verdict": "NEEDS_MORE_EVIDENCE",
+     "alpha": 0.0012158542037080534,
+     "n_test": 123,
+     "blocking": [
+      "failure_behavior",
+      "replication"
+     ]
+    },
+    {
+     "look": 6,
+     "cycle": 120,
+     "at": "2019-08-30",
+     "verdict": "FAILED",
+     "alpha": 0.0008443431970194816,
      "n_test": 108,
      "blocking": [
       "calibration",
@@ -1387,23 +1325,23 @@
    ],
    "blocking": {
     "replication": "MISSING: PARTIALLY_REPLICATED: requirement not met: heterogeneity_ok",
-    "calibration": "FAIL: ECE 0.068 > 0.06 and beyond what perfect calibration would give (p=0.005)",
+    "calibration": "FAIL: ECE 0.072 > 0.06 and beyond what perfect calibration would give (p=0.005)",
     "failure_behavior": "MISSING: only 4 failure episodes studied (< 5)"
    }
   },
-  "DBR42f7b7af4620": {
-   "feature": "lv20",
+  "DBR5224b8909968": {
+   "feature": "xs_atr_rank",
    "verdict": "PROMOTE",
    "looks": 1,
    "retired": "",
    "history": [
     {
      "look": 1,
-     "cycle": 108,
-     "at": "2019-06-07",
+     "cycle": 81,
+     "at": "2018-11-30",
      "verdict": "PROMOTE",
      "alpha": 0.03039635509270134,
-     "n_test": 125,
+     "n_test": 98,
      "blocking": []
     }
    ],
@@ -1411,38 +1349,29 @@
   }
  },
  "knowledge": {
-  "K9f4392733cf904": {
+  "K5d0c3fc205627f": {
    "feature": "lv20",
    "sign": 1.0,
    "problem": "VOLATILITY",
-   "filed_at": "2018-03-16",
-   "effect": 0.382507546586,
-   "branch": "BR8d29e1435ef2",
-   "post_effect": 0.32545605618934664,
-   "post_n": 82
+   "filed_at": "2018-06-01",
+   "effect": 0.380829670095,
+   "branch": "BR44ef231394d2",
+   "post_effect": 0.328419305397289,
+   "post_n": 71,
+   "break_raised": "2018-07-13"
   },
-  "Kf91a2aee26a475": {
-   "feature": "lv20",
+  "K13d6ecf410bc4f": {
+   "feature": "xs_atr_rank",
    "sign": 1.0,
    "problem": "VOLATILITY",
-   "filed_at": "2018-03-30",
-   "effect": 0.36485903194,
-   "branch": "BRef22dcaf6775",
-   "post_effect": 0.32526323280652214,
-   "post_n": 80
-  },
-  "K0b86458b1946e1": {
-   "feature": "lv20",
-   "sign": 1.0,
-   "problem": "VOLATILITY",
-   "filed_at": "2019-06-07",
-   "effect": 0.334441884357,
-   "branch": "BR42f7b7af4620",
-   "post_effect": 0.35533061903943375,
-   "post_n": 18
+   "filed_at": "2018-11-30",
+   "effect": 0.322395942228,
+   "branch": "BR5224b8909968",
+   "post_effect": 0.3924313905372309,
+   "post_n": 45
   }
  },
- "seconds": 7320.0,
+ "seconds": 7759.8,
  "truth": {
   "genuine": [
    "lv20",

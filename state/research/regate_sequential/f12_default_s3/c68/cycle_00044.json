@@ -5,16 +5,17 @@
  "counters": {
   "outcomes": 0,
   "errors": 0,
-  "market_reports_sent": 3
+  "market_reports_sent": 3,
+  "promotion_held_by_regime": 0
  },
  "ledgers": {
   "expectations": 0,
   "outcomes": 0,
   "errors": 0,
   "commitments": 0,
-  "pipeline_events": 944,
+  "pipeline_events": 624,
   "pipeline_furthest": {
-   "REJECTED": 236
+   "REJECTED": 156
   }
  },
  "calibration": {

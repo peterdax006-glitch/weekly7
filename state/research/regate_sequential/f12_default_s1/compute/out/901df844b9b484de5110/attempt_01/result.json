@@ -1,8 +1,8 @@
 {
  "attempt": 1,
- "code_hash": "816cc233c3ccf921",
+ "code_hash": "56facf5b1e93be9b",
  "data_hash": "",
- "ended": 1790739714.787043,
+ "ended": 1790778994.8574026,
  "experiment_key": "901df844b9b484de5110",
  "result": {
   "branch_id": "BRfb5bbfb1ce25",
@@ -38,7 +38,7 @@
   "units_positive": 6
  },
  "result_hash": "665f77f2256f1bb0e102",
- "run_key": "d30b171457120758f677",
+ "run_key": "d4cc6a779c95ecbe0a44",
  "seed": 3393971469,
  "snapshot_id": "",
  "spec": {
@@ -59,6 +59,6 @@
   "seed": 1,
   "snapshot_id": ""
  },
- "started": 1790739714.7095437,
- "worker": "w19272"
+ "started": 1790778994.7452228,
+ "worker": "w10276"
 }

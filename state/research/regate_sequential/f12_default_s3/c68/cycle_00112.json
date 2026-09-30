@@ -5,7 +5,8 @@
  "counters": {
   "outcomes": 0,
   "errors": 0,
-  "market_reports_sent": 4
+  "market_reports_sent": 4,
+  "promotion_held_by_regime": 0
  },
  "ledgers": {
   "expectations": 0,
@@ -237,7 +238,7 @@
    "stage": "c68.expectations",
    "in": 48,
    "out": 0,
-   "note": "no position on 2019-07-05: {'NOT_PREDICTED_MOVER': 43, 'LOW_CONFIDENCE': 4, 'SHORT_DISABLED': 1}"
+   "note": "no position on 2019-07-05: {'NOT_PREDICTED_MOVER': 43, 'SHORT_DISABLED': 3, 'OUT_OF_BAND': 2}"
   },
   {
    "cycle": 112,

@@ -1,0 +1,133 @@
+{
+ "cycle": 1,
+ "now": "2017-05-19",
+ "label": "IMPLEMENTED - NOT VALIDATED",
+ "counters": {
+  "outcomes": 0,
+  "errors": 0,
+  "market_reports_sent": 8
+ },
+ "ledgers": {
+  "expectations": 0,
+  "outcomes": 0,
+  "errors": 0,
+  "commitments": 0,
+  "pipeline_events": 944,
+  "pipeline_furthest": {
+   "REJECTED": 236
+  }
+ },
+ "calibration": {
+  "now": "2017-05-12",
+  "target": {
+   "tolerance": 0.01,
+   "goal_share": 0.8,
+   "min_n": 200,
+   "min_oos_n": 100,
+   "level": 0.95,
+   "name": "pm1pp_80"
+  },
+  "status": "EMPTY",
+  "n_committed": 0,
+  "n_matured": 0,
+  "n_resolved": 0,
+  "n_unresolved": 0,
+  "all_": {
+   "n": 0,
+   "hits": 0,
+   "share": NaN,
+   "lo": NaN,
+   "hi": NaN,
+   "boot_lo": NaN,
+   "boot_hi": NaN
+  },
+  "oos": {
+   "n": 0,
+   "hits": 0,
+   "share": NaN,
+   "lo": NaN,
+   "hi": NaN,
+   "boot_lo": NaN,
+   "boot_hi": NaN
+  },
+  "resolved_only": {
+   "n": 0,
+   "hits": 0,
+   "share": NaN,
+   "lo": NaN,
+   "hi": NaN,
+   "boot_lo": NaN,
+   "boot_hi": NaN
+  },
+  "bias": NaN,
+  "mae": NaN,
+  "naive_share": null,
+  "required_n": null,
+  "abuses": [
+   {
+    "kind": "TARGET_CHANGED",
+    "pred_id": "*",
+    "detail": "target never registered"
+   }
+  ],
+  "by_cohort": [],
+  "headline": "No matured predictions yet: the +-1% target is unmeasured."
+ },
+ "influence": {
+  "mom_r20_top": 1.0,
+  "rev_r5_bottom": 1.0,
+  "vol_top": 1.0
+ },
+ "verdicts": {
+  "mom_r20_top": "NOISE",
+  "rev_r5_bottom": "NORMAL_VARIANCE",
+  "vol_top": "NORMAL_VARIANCE"
+ },
+ "guard": {
+  "mom_r20_top": "KEEP",
+  "rev_r5_bottom": "KEEP",
+  "vol_top": "KEEP"
+ },
+ "production": {
+  "name": "incumbent",
+  "since": "",
+  "window_share": 1.0,
+  "extra_features": []
+ },
+ "regime_records": [],
+ "identification": null,
+ "stage_runs": [
+  {
+   "cycle": 1,
+   "now": "2017-05-19",
+   "stage": "c68.selection_policy",
+   "in": 2751,
+   "out": 1,
+   "note": "policy Lf127dc06 (threshold -0.0004); gain model fitted n=2751 base in-band 0.059; influence mom_r20_top=0.50, rev_r5_bottom=1.00, vol_top=1.00"
+  },
+  {
+   "cycle": 1,
+   "now": "2017-05-19",
+   "stage": "c68.expectations",
+   "in": 47,
+   "out": 0,
+   "note": "no position on 2017-05-19: {'NOT_PREDICTED_MOVER': 42, 'LOW_CONFIDENCE': 4, 'SHORT_DISABLED': 1}"
+  },
+  {
+   "cycle": 1,
+   "now": "2017-05-19",
+   "stage": "c68.market_regime",
+   "in": 6,
+   "out": 0,
+   "note": "5 session(s), 0 alarm(s), warning NONE (SINGLE_STOCK_ANOMALY); 1 market period(s); regime records +0, status changes []"
+  },
+  {
+   "cycle": 1,
+   "now": "2017-05-19",
+   "stage": "c68.pattern_change",
+   "in": 3,
+   "out": 1,
+   "note": "verdicts {'NOISE': 1, 'NORMAL_VARIANCE': 2}; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00; regime none; 0 to investigate"
+  }
+ ]
+}

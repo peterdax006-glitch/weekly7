@@ -1,7 +1,7 @@
 {
  "seed": 2,
  "world": "null",
- "code_hash": "d44ef1b382465975",
+ "code_hash": "56facf5b1e93be9b",
  "resume": "START_FRESH",
  "cycles": [
   {
@@ -909,7 +909,7 @@
   }
  ],
  "provenance": {
-  "code_hash": "d44ef1b382465975",
+  "code_hash": "56facf5b1e93be9b",
   "code_files": [
    "engine/__init__.py",
    "engine/analogs.py",
@@ -1001,7 +1001,7 @@
    "engine/stops.py"
   ],
   "code_mixed": [],
-  "git_commit": "7ae345d895657c9ad94d894db478cae410471849",
+  "git_commit": "5e95aa93346ecb7795c94411465f2dac66535a40",
   "canon_sha": "fef7cdf0a1501c3d",
   "bible_sha": "a97ea91862cee371",
   "blueprint_version": "4.0",
@@ -1011,7 +1011,7 @@
  },
  "gates": {},
  "knowledge": {},
- "seconds": 5477.2,
+ "seconds": 7143.5,
  "truth": {
   "genuine": [
    "lv20",

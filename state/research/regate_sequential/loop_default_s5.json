@@ -1,7 +1,7 @@
 {
  "seed": 5,
  "world": "default",
- "code_hash": "d44ef1b382465975",
+ "code_hash": "56facf5b1e93be9b",
  "resume": "START_FRESH",
  "cycles": [
   {
@@ -909,7 +909,7 @@
   }
  ],
  "provenance": {
-  "code_hash": "d44ef1b382465975",
+  "code_hash": "56facf5b1e93be9b",
   "code_files": [
    "engine/__init__.py",
    "engine/analogs.py",
@@ -1001,7 +1001,7 @@
    "engine/stops.py"
   ],
   "code_mixed": [],
-  "git_commit": "7ae345d895657c9ad94d894db478cae410471849",
+  "git_commit": "5e95aa93346ecb7795c94411465f2dac66535a40",
   "canon_sha": "fef7cdf0a1501c3d",
   "bible_sha": "a97ea91862cee371",
   "blueprint_version": "4.0",
@@ -1010,31 +1010,117 @@
   "seed": 5
  },
  "gates": {
-  "DBR7cd1891ed82a": {
-   "feature": "lv20",
+  "DBR5224b8909968": {
+   "feature": "xs_atr_rank",
    "verdict": "FAILED",
-   "looks": 1,
+   "looks": 5,
    "retired": "",
    "history": [
     {
      "look": 1,
-     "cycle": 121,
-     "at": "2019-09-06",
+     "cycle": 71,
+     "at": "2018-09-21",
      "verdict": "FAILED",
      "alpha": 0.03039635509270134,
+     "n_test": 89,
+     "blocking": [
+      "calibration",
+      "failure_behavior"
+     ]
+    },
+    {
+     "look": 2,
+     "cycle": 85,
+     "at": "2018-12-28",
+     "verdict": "FAILED",
+     "alpha": 0.007599088773175335,
+     "n_test": 101,
+     "blocking": [
+      "failure_behavior",
+      "risk"
+     ]
+    },
+    {
+     "look": 3,
+     "cycle": 99,
+     "at": "2019-04-05",
+     "verdict": "FAILED",
+     "alpha": 0.0033773727880779263,
+     "n_test": 115,
+     "blocking": [
+      "risk"
+     ]
+    },
+    {
+     "look": 4,
+     "cycle": 113,
+     "at": "2019-07-12",
+     "verdict": "FAILED",
+     "alpha": 0.0018997721932938337,
+     "n_test": 129,
+     "blocking": [
+      "calibration",
+      "risk"
+     ]
+    },
+    {
+     "look": 5,
+     "cycle": 127,
+     "at": "2019-10-18",
+     "verdict": "FAILED",
+     "alpha": 0.0012158542037080534,
      "n_test": 107,
      "blocking": [
+      "failure_behavior",
       "risk"
      ]
     }
    ],
    "blocking": {
+    "risk": "FAIL: max drawdown -68.8% below -35%",
+    "failure_behavior": "MISSING: only 4 failure episodes studied (< 5)"
+   }
+  },
+  "DBRfb5bbfb1ce25": {
+   "feature": "xs_vol_rank",
+   "verdict": "FAILED",
+   "looks": 2,
+   "retired": "",
+   "history": [
+    {
+     "look": 1,
+     "cycle": 111,
+     "at": "2019-06-28",
+     "verdict": "FAILED",
+     "alpha": 0.03039635509270134,
+     "n_test": 127,
+     "blocking": [
+      "calibration",
+      "replication",
+      "risk"
+     ]
+    },
+    {
+     "look": 2,
+     "cycle": 125,
+     "at": "2019-10-04",
+     "verdict": "FAILED",
+     "alpha": 0.007599088773175335,
+     "n_test": 107,
+     "blocking": [
+      "replication",
+      "risk"
+     ]
+    }
+   ],
+   "blocking": {
+    "replication": "MISSING: PARTIALLY_REPLICATED: requirement not met: heterogeneity_ok",
     "risk": "FAIL: max drawdown -46.2% below -35%"
    }
   }
  },
  "knowledge": {},
- "seconds": 6898.6,
+ "seconds": 7724.8,
  "truth": {
   "genuine": [
    "lv20",

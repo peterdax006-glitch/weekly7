@@ -1,5 +1,5 @@
 {
- "code_hash": "d44ef1b382465975",
+ "code_hash": "56facf5b1e93be9b",
  "controller": {
   "assessments": [
    {
@@ -269,16 +269,17 @@
   "worst_pnl": NaN
  },
  "failed": {},
- "harvested": 0,
+ "harvested": 1,
  "knowledge": 0,
  "knowledge_chains": 0,
  "label": "IMPLEMENTED - NOT VALIDATED",
  "ladder": {},
- "launched": 0,
+ "launched": 1,
  "lineage": {
   "BRANCH": 1,
   "DECISION": 1,
   "ITEM": 1,
+  "JOB": 1,
   "OBSERVATION": 1,
   "QUESTION": 12
  },
@@ -306,7 +307,6 @@
   "priorities.scorecard",
   "priorities.waste",
   "questions.targets",
-  "run.experiments",
   "update.firewall_release"
  ],
  "notes": [],
@@ -323,7 +323,7 @@
    "n_out": 48,
    "phase": "OBSERVE",
    "reason": "",
-   "seconds": 0.8846,
+   "seconds": 0.6426,
    "stage": "observe.panel",
    "status": "OK"
   },
@@ -334,7 +334,7 @@
    "n_out": 0,
    "phase": "OBSERVE",
    "reason": "no two-stage decision has resolved (5 sessions) strictly before now and not been observed yet",
-   "seconds": 0.0834,
+   "seconds": 0.0863,
    "stage": "observe.observer",
    "status": "SKIPPED_NO_INPUT"
   },
@@ -345,7 +345,7 @@
    "n_out": 0,
    "phase": "OBSERVE",
    "reason": "no two-stage decision has resolved (5 sessions) strictly before now and not been observed yet",
-   "seconds": 0.0521,
+   "seconds": 0.0374,
    "stage": "observe.autopsy",
    "status": "SKIPPED_NO_INPUT"
   },
@@ -356,7 +356,7 @@
    "n_out": 0,
    "phase": "UPDATE_KNOWLEDGE",
    "reason": "",
-   "seconds": 0.0553,
+   "seconds": 0.0293,
    "stage": "update.experiment_memory",
    "status": "OK"
   },
@@ -367,7 +367,7 @@
    "n_out": 0,
    "phase": "UPDATE_KNOWLEDGE",
    "reason": "no knowledge has been filed for release yet",
-   "seconds": 0.0286,
+   "seconds": 0.0294,
    "stage": "update.firewall_release",
    "status": "SKIPPED_NO_INPUT"
   },
@@ -378,7 +378,7 @@
    "n_out": 1,
    "phase": "UPDATE_KNOWLEDGE",
    "reason": "policy L589588a5 (threshold -0.0006); gain model fitted n=2736 base in-band 0.025; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00",
-   "seconds": 0.489,
+   "seconds": 0.3674,
    "stage": "c68.selection_policy",
    "status": "OK"
   },
@@ -389,7 +389,7 @@
    "n_out": 0,
    "phase": "EVALUATE",
    "reason": "gate closed",
-   "seconds": 0.5327,
+   "seconds": 0.3209,
    "stage": "evaluate.two_stage",
    "status": "OK"
   },
@@ -400,7 +400,7 @@
    "n_out": 0,
    "phase": "EVALUATE",
    "reason": "no position on 2017-05-12: {'NOT_PREDICTED_MOVER': 43, 'DIRECTION_GATE_CLOSED': 5}",
-   "seconds": 0.5315,
+   "seconds": 0.0375,
    "stage": "c68.expectations",
    "status": "OK"
   },
@@ -411,7 +411,7 @@
    "n_out": 1,
    "phase": "EVALUATE",
    "reason": "",
-   "seconds": 0.2944,
+   "seconds": 0.3913,
    "stage": "evaluate.volatility_lab",
    "status": "OK"
   },
@@ -433,7 +433,7 @@
    "n_out": 0,
    "phase": "EVALUATE",
    "reason": "no matured P(up | predicted mover) rows from the two-stage chain yet",
-   "seconds": 0.0513,
+   "seconds": 0.0567,
    "stage": "evaluate.frontier",
    "status": "SKIPPED_NO_INPUT"
   },
@@ -444,7 +444,7 @@
    "n_out": 1,
    "phase": "EVALUATE",
    "reason": "",
-   "seconds": 0.8146,
+   "seconds": 0.8198,
    "stage": "evaluate.symmetry",
    "status": "OK"
   },
@@ -455,7 +455,7 @@
    "n_out": 2,
    "phase": "IDENTIFY_SURPRISES",
    "reason": "",
-   "seconds": 0.484,
+   "seconds": 0.4487,
    "stage": "surprises.feature_screen",
    "status": "OK"
   },
@@ -466,7 +466,7 @@
    "n_out": 5,
    "phase": "IDENTIFY_SURPRISES",
    "reason": "STYLE_SKIPPED",
-   "seconds": 1.395,
+   "seconds": 1.4368,
    "stage": "surprises.cross_section",
    "status": "OK"
   },
@@ -488,7 +488,7 @@
    "n_out": 28,
    "phase": "IDENTIFY_SURPRISES",
    "reason": "329 session(s), 28 alarm(s), warning WARNING (SECTOR_CHANGE); 64 market period(s); regime records +0, status changes []",
-   "seconds": 1.6053,
+   "seconds": 1.639,
    "stage": "c68.market_regime",
    "status": "OK"
   },
@@ -499,7 +499,7 @@
    "n_out": 0,
    "phase": "IDENTIFY_SURPRISES",
    "reason": "verdicts {'NORMAL_VARIANCE': 2, 'NOISE': 1}; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00; regime none; 0 to investigate",
-   "seconds": 0.1302,
+   "seconds": 0.1292,
    "stage": "c68.pattern_change",
    "status": "OK"
   },
@@ -510,7 +510,7 @@
    "n_out": 1,
    "phase": "IDENTIFY_SURPRISES",
    "reason": "ScaleStepResult",
-   "seconds": 0.3341,
+   "seconds": 0.3176,
    "stage": "surprises.multiscale",
    "status": "OK"
   },
@@ -521,7 +521,7 @@
    "n_out": 0,
    "phase": "IDENTIFY_FAILURES",
    "reason": "no matured decisions yet",
-   "seconds": 0.0054,
+   "seconds": 0.0055,
    "stage": "failures.decision_losses",
    "status": "SKIPPED_NO_INPUT"
   },
@@ -554,7 +554,7 @@
    "n_out": 18,
    "phase": "IDENTIFY_FAILURES",
    "reason": "2017-05-12: 0 new errors, tiers {'NONE': 0, 'CHEAP': 0, 'STANDARD': 0, 'DEEP': 0}, 0 confident-wrong, 0 escalated groups, 0 jobs (0 cpu-min requested); 0 question event(s), 0 self-research question(s), 18 market question(s)",
-   "seconds": 0.0121,
+   "seconds": 0.0106,
    "stage": "c68.error_research",
    "status": "OK"
   },
@@ -565,7 +565,7 @@
    "n_out": 0,
    "phase": "IDENTIFY_FAILURES",
    "reason": "no matured decision rows",
-   "seconds": 0.0061,
+   "seconds": 0.0058,
    "stage": "failures.winners_losers",
    "status": "SKIPPED_NO_INPUT"
   },
@@ -576,7 +576,7 @@
    "n_out": 0,
    "phase": "IDENTIFY_FAILURES",
    "reason": "no matured decision rows",
-   "seconds": 0.0061,
+   "seconds": 0.0084,
    "stage": "failures.loss_pipeline",
    "status": "SKIPPED_NO_INPUT"
   },
@@ -587,7 +587,7 @@
    "n_out": 0,
    "phase": "IDENTIFY_MISSED_WINNERS_AND_LOSERS",
    "reason": "no matured decision days",
-   "seconds": 0.0285,
+   "seconds": 0.0368,
    "stage": "missed.missed",
    "status": "SKIPPED_NO_INPUT"
   },
@@ -598,7 +598,7 @@
    "n_out": 10,
    "phase": "IDENTIFY_MISSED_WINNERS_AND_LOSERS",
    "reason": "10 classified, 0 immature",
-   "seconds": 0.1974,
+   "seconds": 0.1775,
    "stage": "missed.knowability",
    "status": "OK"
   },
@@ -609,7 +609,7 @@
    "n_out": 1,
    "phase": "IDENTIFY_MISSED_WINNERS_AND_LOSERS",
    "reason": "",
-   "seconds": 0.0183,
+   "seconds": 0.021,
    "stage": "missed.unknown_cause",
    "status": "OK"
   },
@@ -620,7 +620,7 @@
    "n_out": 3,
    "phase": "IDENTIFY_MISSED_WINNERS_AND_LOSERS",
    "reason": "",
-   "seconds": 0.7585,
+   "seconds": 0.8008,
    "stage": "missed.counterfactual",
    "status": "OK"
   },
@@ -642,7 +642,7 @@
    "n_out": 0,
    "phase": "IDENTIFY_PATTERN_BREAKS",
    "reason": "",
-   "seconds": 0.0491,
+   "seconds": 0.0517,
    "stage": "breaks.break_research",
    "status": "OK"
   },
@@ -653,7 +653,7 @@
    "n_out": 0,
    "phase": "GENERATE_QUESTIONS",
    "reason": "",
-   "seconds": 1.3751,
+   "seconds": 1.2115,
    "stage": "questions.discovery",
    "status": "OK"
   },
@@ -664,18 +664,18 @@
    "n_out": 0,
    "phase": "GENERATE_QUESTIONS",
    "reason": "",
-   "seconds": 0.0546,
+   "seconds": 0.0624,
    "stage": "questions.interactions",
    "status": "OK"
   },
   {
    "cycle": 0,
    "module": "precursors",
-   "n_in": 0,
-   "n_out": 0,
+   "n_in": 1,
+   "n_out": 1,
    "phase": "GENERATE_QUESTIONS",
    "reason": "",
-   "seconds": 0.0594,
+   "seconds": 0.2447,
    "stage": "questions.precursors",
    "status": "OK"
   },
@@ -686,7 +686,7 @@
    "n_out": 0,
    "phase": "GENERATE_QUESTIONS",
    "reason": "no matured decision day with at least 6 eligible names",
-   "seconds": 0.0185,
+   "seconds": 0.0213,
    "stage": "questions.targets",
    "status": "SKIPPED_NO_INPUT"
   },
@@ -697,7 +697,7 @@
    "n_out": 0,
    "phase": "GENERATE_QUESTIONS",
    "reason": "0 gaps, 0 already asked",
-   "seconds": 0.0273,
+   "seconds": 0.0322,
    "stage": "questions.research_graph",
    "status": "OK"
   },
@@ -708,7 +708,7 @@
    "n_out": 12,
    "phase": "GENERATE_QUESTIONS",
    "reason": "8 merged, 0 refused, 0 already answered",
-   "seconds": 0.0132,
+   "seconds": 0.0127,
    "stage": "questions.generate",
    "status": "OK"
   },
@@ -730,7 +730,7 @@
    "n_out": 12,
    "phase": "GENERATE_HYPOTHESES",
    "reason": "0 branches killed, 0 resolved",
-   "seconds": 0.047,
+   "seconds": 0.0511,
    "stage": "hypotheses.trees",
    "status": "OK"
   },
@@ -741,7 +741,7 @@
    "n_out": 1,
    "phase": "ESTIMATE_INFORMATION_GAIN",
    "reason": "learned from 0 results; trust 0.00; never validated",
-   "seconds": 0.0022,
+   "seconds": 0.0023,
    "stage": "gain.priority",
    "status": "OK"
   },
@@ -763,7 +763,7 @@
    "n_out": 10,
    "phase": "ALLOCATE_COMPUTE",
    "reason": "",
-   "seconds": 0.0802,
+   "seconds": 0.0905,
    "stage": "allocate.diversity",
    "status": "OK"
   },
@@ -771,43 +771,43 @@
    "cycle": 0,
    "module": "compute_manager",
    "n_in": 1,
-   "n_out": 0,
+   "n_out": 1,
    "phase": "ALLOCATE_COMPUTE",
    "reason": "0 deferred",
-   "seconds": 0.0357,
+   "seconds": 0.0304,
    "stage": "allocate.compute",
    "status": "OK"
   },
   {
    "cycle": 0,
    "module": "loop",
-   "n_in": 0,
-   "n_out": 0,
+   "n_in": 1,
+   "n_out": 1,
    "phase": "RUN_EXPERIMENT",
-   "reason": "nothing was launched this cycle and nothing is waiting for fresh data",
-   "seconds": 0.0,
+   "reason": "mode inline; 0 still running",
+   "seconds": 0.0486,
    "stage": "run.experiments",
-   "status": "SKIPPED_NO_INPUT"
+   "status": "OK"
   },
   {
    "cycle": 0,
    "module": "loop",
-   "n_in": 0,
-   "n_out": 0,
+   "n_in": 1,
+   "n_out": 1,
    "phase": "VALIDATE",
    "reason": "0 still running",
-   "seconds": 2.3179,
+   "seconds": 0.0124,
    "stage": "validate.harvest",
    "status": "OK"
   },
   {
    "cycle": 0,
    "module": "compute_manager",
-   "n_in": 0,
+   "n_in": 1,
    "n_out": 0,
    "phase": "COMPARE_AGAINST_CONTROLS",
-   "reason": "0 refused",
-   "seconds": 0.0,
+   "reason": "1 refused",
+   "seconds": 0.0003,
    "stage": "controls.compare",
    "status": "OK"
   },
@@ -840,7 +840,7 @@
    "n_out": 0,
    "phase": "UPDATE_KNOWLEDGE_FROM_RESULTS",
    "reason": "no validated results",
-   "seconds": 0.0199,
+   "seconds": 0.0195,
    "stage": "learn.value",
    "status": "SKIPPED_NO_INPUT"
   },
@@ -851,7 +851,7 @@
    "n_out": 0,
    "phase": "UPDATE_KNOWLEDGE_FROM_RESULTS",
    "reason": "0 items; folded 0 graph entries {}; 0 audit findings (0 errors)",
-   "seconds": 0.0268,
+   "seconds": 0.0169,
    "stage": "learn.science_memory",
    "status": "OK"
   },
@@ -862,7 +862,7 @@
    "n_out": 0,
    "phase": "UPDATE_KNOWLEDGE_FROM_RESULTS",
    "reason": "0 status changes",
-   "seconds": 0.0001,
+   "seconds": 0.0,
    "stage": "learn.replication",
    "status": "OK"
   },
@@ -873,7 +873,7 @@
    "n_out": 0,
    "phase": "UPDATE_KNOWLEDGE_FROM_RESULTS",
    "reason": "no branch completed the ladder this cycle and no earlier finding gained a quarter of new evidence",
-   "seconds": 0.0035,
+   "seconds": 0.0037,
    "stage": "learn.quality_gate",
    "status": "SKIPPED_NO_INPUT"
   },
@@ -895,7 +895,7 @@
    "n_out": 0,
    "phase": "UPDATE_KNOWLEDGE_FROM_RESULTS",
    "reason": "no new knowledge to route",
-   "seconds": 0.0193,
+   "seconds": 0.0216,
    "stage": "learn.decision_bridge",
    "status": "SKIPPED_NO_INPUT"
   },
@@ -906,7 +906,7 @@
    "n_out": 0,
    "phase": "UPDATE_RESEARCH_PRIORITIES",
    "reason": "no ladder or value ledger yet",
-   "seconds": 0.0159,
+   "seconds": 0.0129,
    "stage": "priorities.waste",
    "status": "SKIPPED_NO_INPUT"
   },
@@ -917,7 +917,7 @@
    "n_out": 0,
    "phase": "UPDATE_RESEARCH_PRIORITIES",
    "reason": "level UNKNOWN",
-   "seconds": 0.0529,
+   "seconds": 0.0461,
    "stage": "priorities.brain_health",
    "status": "OK"
   },
@@ -928,7 +928,7 @@
    "n_out": 1,
    "phase": "UPDATE_RESEARCH_PRIORITIES",
    "reason": "",
-   "seconds": 0.0977,
+   "seconds": 0.0758,
    "stage": "priorities.meta_research",
    "status": "OK"
   },
@@ -939,7 +939,7 @@
    "n_out": 0,
    "phase": "UPDATE_RESEARCH_PRIORITIES",
    "reason": "",
-   "seconds": 0.0172,
+   "seconds": 0.025,
    "stage": "priorities.failed_lab",
    "status": "OK"
   },
@@ -950,7 +950,7 @@
    "n_out": 0,
    "phase": "UPDATE_RESEARCH_PRIORITIES",
    "reason": "no matured decisions to score",
-   "seconds": 0.0272,
+   "seconds": 0.0232,
    "stage": "priorities.scorecard",
    "status": "SKIPPED_NO_INPUT"
   },
@@ -968,11 +968,11 @@
   {
    "cycle": 0,
    "module": "error_loop",
-   "n_in": 2013,
+   "n_in": 45,
    "n_out": 1,
    "phase": "UPDATE_RESEARCH_PRIORITIES",
-   "reason": "2013 record(s) verified, report written; No matured predictions yet: the +-1% target is unmeasured.",
-   "seconds": 0.5834,
+   "reason": "45 record(s) verified, report written; No matured predictions yet: the +-1% target is unmeasured.",
+   "seconds": 0.0096,
    "stage": "c68.monitor_audit",
    "status": "OK"
   },
@@ -980,10 +980,10 @@
    "cycle": 0,
    "module": "loop",
    "n_in": 1,
-   "n_out": 0,
+   "n_out": 1,
    "phase": "ALWAYS_ON_SWEEPS",
    "reason": "",
-   "seconds": 0.0444,
+   "seconds": 0.2832,
    "stage": "sweeps.background",
    "status": "OK"
   },
@@ -1013,15 +1013,15 @@
   "Unmeasured (maximal uncertainty): P1_VOLATILITY, P2_PREDICTABLE_VS_UNKNOWABLE, P6_CATASTROPHIC_LOSS, P7_CONTINUOUS_DISCOVERY, P8_DISCOVERY_PROCESS"
  ],
  "status_counts": {
-  "OK": 38,
-  "SKIPPED_NO_INPUT": 23
+  "OK": 39,
+  "SKIPPED_NO_INPUT": 22
  },
  "sweeps": {
   "sweep.precursors_feed": {
    "last_at": "2017-05-12",
    "last_error": "",
    "runs": 1,
-   "units": 0,
+   "units": 1,
    "yielded": 0
   }
  },

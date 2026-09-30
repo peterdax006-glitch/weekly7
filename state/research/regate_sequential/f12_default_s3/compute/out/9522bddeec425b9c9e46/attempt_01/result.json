@@ -1,0 +1,61 @@
+{
+ "attempt": 1,
+ "code_hash": "56facf5b1e93be9b",
+ "data_hash": "",
+ "ended": 1790785853.2667978,
+ "experiment_key": "9522bddeec425b9c9e46",
+ "result": {
+  "branch_id": "BRfb5bbfb1ce25",
+  "control_effect": 0.010739716141,
+  "control_se": 0.01239327388,
+  "cutoff": "2019-05-24",
+  "data_through": "2019-05-24",
+  "effect": 0.330094094127,
+  "feature": "xs_vol_rank",
+  "fresh": false,
+  "key": "9522bddeec425b9c9e46",
+  "kind": "volatility_auc",
+  "n_obs": 104,
+  "n_positive": 1,
+  "n_rows": 4991,
+  "n_tests": 1,
+  "n_units": 3,
+  "ok": true,
+  "problem": "VOLATILITY",
+  "replications": 2,
+  "se": 0.009133579121,
+  "seen_through": "2019-04-19",
+  "sign": 1.0,
+  "stage": "STAGE3_CROSS_YEAR",
+  "unit_effects": [
+   0.305938228108,
+   0.333038166881,
+   0.374876556218
+  ],
+  "units_positive": 3
+ },
+ "result_hash": "75bee692118447c68916",
+ "run_key": "640e1e02f62c4417e905",
+ "seed": 4050848589,
+ "snapshot_id": "",
+ "spec": {
+  "after": [],
+  "as_of": "2019-05-31",
+  "data_hash": "",
+  "est_gb": 2.5,
+  "name": "BRfb5bbfb1ce25_s3",
+  "params": {
+   "branch": "BRfb5bbfb1ce25",
+   "cpu_min": 96.0,
+   "family": "question:new_discovery",
+   "question": "Q7a3278fb5753",
+   "repeat": 0,
+   "stage": "STAGE3_CROSS_YEAR"
+  },
+  "priority": 3,
+  "seed": 3,
+  "snapshot_id": ""
+ },
+ "started": 1790785853.1200044,
+ "worker": "w21308"
+}
