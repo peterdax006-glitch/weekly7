@@ -1,0 +1,7 @@
+{"seed": 3, "world": "planted", "verdict": "NO CHANGE: the experience did not alter any decision", "production": 0, "improvement_vs_none": null}
+{"seed": 3, "world": "null", "verdict": "NO CHANGE: the experience did not alter any decision", "production": 0, "improvement_vs_none": null}
+{"seed": 4, "world": "planted", "verdict": "NO CHANGE: the experience did not alter any decision", "production": 0, "improvement_vs_none": null}
+{"seed": 4, "world": "null", "verdict": "NO CHANGE: the experience did not alter any decision", "production": 0, "improvement_vs_none": null}
+{"seed": 5, "world": "planted", "verdict": "NO CHANGE: the experience did not alter any decision", "production": 0, "improvement_vs_none": null}
+{"seed": 5, "world": "null", "verdict": "NO CHANGE: the experience did not alter any decision", "production": 0, "improvement_vs_none": null}
+{"n_seeds": 3, "n_improved": 0, "n_invalid": 0, "n_identity_invariant": 3, "mean_improvement_vs_none": null, "mean_improvement_vs_none_all_seeds": 0.0, "mean_improvement_vs_control": null, "total_changed_without_knowledge": 0, "null_seeds": 3, "null_false_improvements": 0, "null_changed_decisions": 0, "null_production": 0, "planted_true_items_by_stage": {"found, not admitted": 7, "never found": 2}}
