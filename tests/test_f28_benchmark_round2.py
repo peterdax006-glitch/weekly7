@@ -407,3 +407,46 @@ def test_small_world_records_rivals_and_counterfactual_verdicts():
             assert all(v == "PROMOTE" for v in g["cf"].values())
     rows, summ = PB.score_world(w.key, ans)
     assert all(f"promoted_{ab}" in rows[0] for ab in PB.F28_ABLATIONS) and order
+
+
+# ============================================================================================================ F27's forms in the benchmark
+def test_scoring_credits_a_true_form_and_counts_a_false_composite():
+    from engine.research import candidate_forms as CF
+    xor = CF.canonical("xor", "", ["bm_001", "bm_002"]).name
+    junk = CF.canonical("prod", "", ["bm_003", "bm_004"]).name
+    key = {"world_id": "W9", "split": "development", "tier": 3, "eval_era": "calm", "shift": False,
+           "patterns": [{"pid": "P000", "label": "REAL", "kind": "xor", "band": "obvious", "sign": 1.0, "columns": [],
+                         "columns_marginal": ["bm_001", "bm_002"], "status": PB.NOT_REPRESENTABLE, "parent": None},
+                        {"pid": "P001", "label": "NOISE", "kind": "null", "band": None, "sign": 1.0, "columns": ["bm_003"], "parent": None},
+                        {"pid": "P002", "label": "NOISE", "kind": "null", "band": None, "sign": 1.0, "columns": ["bm_004"], "parent": None}]}
+
+    def cand(final):
+        return {"scan": [[0, 0.6, 3.0, 0.01, 1.0, 0]], "raised_look": 0, "final": final, "promoted_look": 0 if final == "PROMOTED" else None,
+                "sign": 1.0, "gate": [{"verdict": "PROMOTE" if final == "PROMOTED" else "FAILED", "blocking": [], "n_ok": 12, "n_gates": 12,
+                                       "alpha": 0.03, "n_tests_searched": 2, "cf": {}}]}
+    ans = {"world_id": "W9", "candidates": {xor: cand("PROMOTED"), junk: cand("PROMOTED"), "bm_003": cand("RETIRED")}, "n_search": 700000}
+    rows, summ = PB.score_world(key, ans)
+    r = {x["pid"]: x for x in rows}
+    assert r["P000"]["right"] and r["P000"]["promoted"]                        # the XOR is creditable in its true form
+    assert summ["false_forms_promoted"] == 1 and summ["fp_by_kind"].get("false_composite") == 1 and summ["false_positives"] == 1
+    assert summ["real_right_not_representable"] == 1 and summ["n_search"] == 700000
+    plain = {"world_id": "W9", "candidates": {"bm_003": cand("RETIRED")}}
+    rows0, summ0 = PB.score_world(key, plain)                                  # singles-only answers: scoring unchanged
+    assert summ0["false_positives"] == 0 and summ0["forms_promoted"] == 0 and not any(x["right"] for x in rows0)
+    assert PB.BenchConfig().candidate_forms is False and PB.BenchConfig(candidate_forms=True).validate() == []
+
+
+def test_small_world_with_forms_tells_the_gate_the_whole_search():
+    small = PB.BenchConfig(n_names=20, n_dates=90, frame_weeks=70, first_look=88, look_every=12, bands=(("obvious", 0.9),),
+                           noise_counts=(("null", 4), ("proxy", 1)), real_kinds=("xor", "linear"), oracle_draws=8, mt_pool=4,
+                           null_world_share=0.0, tiers=(1,), screen_calls=1, candidate_forms=True)
+    w = PB.make_world(4, small)
+    ans = PB.run_system(w.frame, "W4", 4, small)
+    feats = PB.scan_universe(w.frame.columns)
+    assert ans["candidate_forms"] and ans["forms"] and ans["n_search"] >= len(feats)
+    assert all(g["n_scanned"] == ans["n_search"] for c in ans["candidates"].values() for g in c["gate"])
+    from engine.research import candidate_forms as CF
+    from engine.research import vol_hypotheses as VH
+    assert not any(k.startswith(CF.PFX) for k in VH.DERIVED)                   # the session removed every composite again
+    assert all("form" in c for f, c in ans["candidates"].items() if f.startswith(CF.PFX))
+    PB.score_world(w.key, ans)

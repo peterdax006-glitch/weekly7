@@ -2242,6 +2242,54 @@
   "state": "PENDING",
   "worker": null
  },
+ "dc0098a34d8b0c8e49ee": {
+  "attempts": 1,
+  "batch_scale": 1.0,
+  "code_hash": "9b577e73132d6003",
+  "est_gb": 0.8,
+  "heartbeat": 1790806483.9489183,
+  "history": [
+   [
+    1518134400.0,
+    "PENDING",
+    "submitted"
+   ],
+   [
+    1518134400.0,
+    "RUNNING",
+    "attempt 1 by w27476"
+   ],
+   [
+    1790806484.1203744,
+    "DONE",
+    "result 839f5e47c067ea28f633"
+   ]
+  ],
+  "launched": null,
+  "not_before": null,
+  "result_hash": "839f5e47c067ea28f633",
+  "runs": [],
+  "spec": {
+   "after": [],
+   "as_of": "2018-02-09",
+   "data_hash": "",
+   "est_gb": 0.8,
+   "name": "BR357461beebbc_s1",
+   "params": {
+    "branch": "BR357461beebbc",
+    "cpu_min": 20.0,
+    "family": "question:surprise",
+    "question": "Qa37d9d4886b2",
+    "repeat": 0,
+    "stage": "STAGE1_CHEAP_SCREEN"
+   },
+   "priority": 1,
+   "seed": 0,
+   "snapshot_id": ""
+  },
+  "state": "DONE",
+  "worker": "w27476"
+ },
  "de1175e538e5630a9512": {
   "attempts": 1,
   "batch_scale": 1.0,

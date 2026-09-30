@@ -148,6 +148,9 @@ class BenchConfig:
     # screen's full search size (False = the pre-F26 count of candidates raised)
     evidence_ablation: tuple = ()
     honest_multiplicity: bool = True
+    # F28 (F27's generator): screen the singles AND the proposed composite forms (candidate_forms.screen_table) and tell the gate the
+    # generator's full search size. Off by default: the F28 100-world run is the singles-only system.
+    candidate_forms: bool = False
 
     def validate(self) -> list[str]:
         errs = []
@@ -938,8 +941,11 @@ def run_system(frame: pd.DataFrame, world_id: str, seed: int, cfg: BenchConfig =
     live: dict[str, dict] = {}
     store = QG.QuarantineStore()
     looks_meta = []
-    with registered(planted), corpus_once():
+    from engine.research import candidate_forms as CF
+    forms_meta: list[dict] = []
+    with registered(planted), corpus_once(), (CF.session() if cfg.candidate_forms else contextlib.nullcontext()):
         feats = scan_universe(frame.columns)
+        n_search = len(feats)
         for li, L in enumerate(cfg.looks()):
             now = dates[L] if L < len(dates) else dates[-1] + pd.Timedelta(days=7)
             lo = dates[max(0, L - cfg.frame_weeks)]
@@ -948,9 +954,15 @@ def run_system(frame: pd.DataFrame, world_id: str, seed: int, cfg: BenchConfig =
             n_dates = int(M.index.get_level_values(0).nunique())
             lab = VL.LabConfig(min_train_dates=max(8, n_dates // 3), test_step_dates=max(2, n_dates // 8), n_boot=100)
             ts = time.monotonic()
-            tab = VL.oriented_scan(M, feats, now, lab)
+            if cfg.candidate_forms:                     # F28 x F27: singles + proposed forms; the search size is everything scanned
+                tab, prop = CF.screen_table(M, feats, now, lab)
+                n_search = max(n_search, int(prop.n_scanned))
+                forms_meta.append({"look": li, **{k: v for k, v in prop.summary().items() if k in ("n_scanned", "scanned", "n_proposed", "by_family")}})
+            else:
+                tab = VL.oriented_scan(M, feats, now, lab)
             scan_s = time.monotonic() - ts
-            rivals = EV.rival_ranks(M, feats) if (cfg.gate and live_or_raised(tab, live, cap, t_min)) else None   # F28: the search as rivals
+            pool = list(dict.fromkeys(list(feats) + [str(f) for f in tab["feature"]]))
+            rivals = EV.rival_ranks(M, pool) if (cfg.gate and live_or_raised(tab, live, cap, t_min)) else None   # F28: the search as rivals
             tab = tab.reset_index(drop=True)
             raised = 0
             for rank, r in tab.iterrows():
@@ -975,12 +987,12 @@ def run_system(frame: pd.DataFrame, world_id: str, seed: int, cfg: BenchConfig =
                 st["looks"] += 1
                 k = st["looks"]
                 spec = EV.FindingSpec("D_" + f, f, cands[f]["sign"], "VOLATILITY", n_tests_searched=max(1, len(screened)),
-                                      has_falsifier=True, seed=int(seed), n_scanned=len(feats) if cfg.honest_multiplicity else 0)
+                                      has_falsifier=True, seed=int(seed), n_scanned=n_search if cfg.honest_multiplicity else 0)
                 b = EV.assemble(M[evidence_columns(f, M.columns)], spec, now, code_hash=code_hash, data_hash=f"bench{seed}",
                                 created_real=created_real, cfg=ecfg, ledger=st["ledger"], look=k, plan=plan, rivals=rivals)
                 rep = EV.gate([b], now, code_hash, store=store, looks={spec.subject_id: k}, plan=plan, cfg=ecfg)
                 d = _decision_summary(rep, spec.subject_id)
-                d.update(look=li, k=k, alpha=plan.alpha_at(k), n_tests_searched=max(1, len(screened)), n_scanned=len(feats),
+                d.update(look=li, k=k, alpha=plan.alpha_at(k), n_tests_searched=max(1, len(screened)), n_scanned=n_search,
                          n_search=spec.n_search, effect_test=b.parts.get("effect_test"), n_test=b.parts.get("n_test"),
                          missing=sorted(b.missing), leak_z=b.parts.get("future_dependence_z"),
                          rival=b.parts.get("rival"), rival_corr=b.parts.get("rival_corr"), increment_t=b.parts.get("increment_t"),
@@ -1008,8 +1020,12 @@ def run_system(frame: pd.DataFrame, world_id: str, seed: int, cfg: BenchConfig =
                                "gate_s": round(time.monotonic() - tg, 2)})
             if log is not None:
                 log(f"{world_id} look {li}: {looks_meta[-1]}")
+    for f, c in cands.items():
+        if f.startswith(CF.PFX):
+            c["form"], c["history_dependent"] = CF.family_of(f), bool(CF.history_dependent(f))
     return {"world_id": world_id, "n_scanned": len(cands), "screen_top": top, "screen_t": t_min, "cap_per_screen": cap,
-            "looks": looks_meta, "candidates": cands, "seconds": round(time.monotonic() - t0, 1)}
+            "looks": looks_meta, "candidates": cands, "seconds": round(time.monotonic() - t0, 1), "candidate_forms": bool(cfg.candidate_forms),
+            "forms": forms_meta, "n_search": n_search}
 
 
 # ================================================================================================================ reference answer sheets
@@ -1069,7 +1085,9 @@ def _best_gate_share(c: dict | None) -> float | None:
 
 def score_world(key: dict, answers: dict) -> tuple[list[dict], dict]:
     """Per planted pattern: right / wrong (C72) and how close (C73). Returns (rows, world summary)."""
+    from engine.research import candidate_forms as CF
     cands = answers["candidates"]
+    forms = [f for f in cands if f.startswith(CF.PFX)]
     n_looks = max((len(c["scan"]) for c in cands.values()), default=0)
     final_rank = {f: c["scan"][-1][5] for f, c in cands.items() if c["scan"]}
     rows = []
@@ -1077,6 +1095,8 @@ def score_world(key: dict, answers: dict) -> tuple[list[dict], dict]:
     promoted_cols = {f for f, c in cands.items() if c["final"] == "PROMOTED"}
     for p in key["patterns"]:
         cols = list(p["columns"])                     # an interaction has none: no single candidate column represents it
+        if forms and p["label"] == REAL:               # F28 x F27: a composite that IS the pattern in its true form is creditable
+            cols += [f for f in forms if CF.match(p, key["patterns"], f) == "true"]
         cs = [cands.get(c) for c in cols]
         best = max((c for c in cs if c is not None), key=lambda c: (c["final"] == "PROMOTED", c.get("raised_look") is not None,
                                                                     _best_gate_share(c) or 0.0), default=None)
@@ -1156,6 +1176,19 @@ def score_world(key: dict, answers: dict) -> tuple[list[dict], dict]:
             "false_positive_list": noise[noise["promoted"]][["pid", "kind", "stage"]].to_dict("records"),
             "credit": float(real["credit"].sum()), "seconds": answers.get("seconds")}
     summ.update(expected_fp_bound(answers, key))
+    reals = [p for p in key["patterns"] if p["label"] == REAL]
+    false_forms = [f for f in forms if cands[f]["final"] == "PROMOTED" and not any(CF.match(p, key["patterns"], f) for p in reals)]
+    partial_forms = [f for f in forms if cands[f]["final"] == "PROMOTED" and f not in false_forms
+                     and not any(CF.match(p, key["patterns"], f) == "true" for p in reals)]
+    summ.update(false_forms_promoted=len(false_forms), partial_forms_promoted=len(partial_forms),
+                forms_promoted=int(sum(cands[f]["final"] == "PROMOTED" for f in forms)),
+                history_dependent_promoted=int(sum(cands[f]["final"] == "PROMOTED" and cands[f].get("history_dependent", False) for f in forms)),
+                real_right_not_representable=int(((R["label"] == REAL) & (R["status"] == NOT_REPRESENTABLE) & R["right"]).sum()),
+                n_search=answers.get("n_search"))
+    if false_forms:                                   # a composite that is no real pattern in any form is a false positive
+        summ["false_positives"] += len(false_forms)
+        summ["fp_by_kind"] = {**summ["fp_by_kind"], "false_composite": len(false_forms)}
+        summ["false_positive_list"] = summ["false_positive_list"] + [{"pid": f, "kind": "false_composite", "stage": "promoted"} for f in false_forms]
     return rows, summ
 
 
