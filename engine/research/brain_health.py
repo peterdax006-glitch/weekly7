@@ -488,7 +488,7 @@ def metric_churn(events: Sequence[KnowledgeEvent], now, cfg: HealthConfig) -> Me
     if len(ev) < cfg.min_n // 3:
         return _unknown("knowledge_churn", len(ev), cfg.min_n // 3, "events")
     ev.sort(key=lambda e: (as_date(e.when), e.kid))
-    live = set()
+    live: set[str] = set()
     for e in ev:
         (live.add if e.kind in ("created", "revived") else live.discard)(e.kid)
     by_kid: dict = defaultdict(list)
@@ -916,7 +916,8 @@ def config_hash(cfg: HealthConfig) -> str:
 
 
 def validate_inputs(outcomes: Sequence[Outcome], events: Sequence[KnowledgeEvent]) -> list:
-    errs, seen = [], set()
+    errs: list[str] = []
+    seen: set[str] = set()
     for o in outcomes:
         errs.extend(f"{o.exp_id}: {e}" for e in o.validate())
         if o.exp_id in seen:
@@ -1300,7 +1301,9 @@ def rolling_metric(rows: Sequence[Outcome], name: str, cfg: HealthConfig, checkp
 def compare_reports(a: BrainHealthReport, b: BrainHealthReport) -> dict:
     """Which metrics improved, worsened or stayed within a level between two reports (a = earlier). 'Better' is by level rank,
     never by raw value, because for some metrics higher is good and for others bad."""
-    better, worse, same = [], [], []
+    better: list[str] = []
+    worse: list[str] = []
+    same: list[str] = []
     for m in b.metrics:
         p = a.metric(m.name)
         if p is None or Level.UNKNOWN in (p.level, m.level):
@@ -1586,7 +1589,7 @@ def self_check(seed: int = 0, n: int = 480) -> dict:
         rows = simulate_researcher(n, seed, mode)
         now = dt_iso(as_date(rows[-1].when).toordinal() + 1)
         rep = step(rows, now, cfg)
-        entry = {"kinds": list(rep.kinds), "level": rep.level.value}
+        entry: dict[str, Any] = {"kinds": list(rep.kinds), "level": rep.level.value}
         if mode in expect:
             entry["detected"] = expect[mode] in rep.kinds
         if mode == "duplicates":

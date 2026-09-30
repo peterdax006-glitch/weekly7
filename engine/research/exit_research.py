@@ -166,11 +166,19 @@ class ExitValueModel:
         _matured(train, now)
         if train.D < 2:
             raise ValueError("an exit needs at least two sessions")
-        rows, ys, ups, revs, ks = [], [], [], [], []
+        rows: list[np.ndarray] = []
+        ys: list[np.ndarray] = []
+        ups: list[np.ndarray] = []
+        revs: list[np.ndarray] = []
+        ks: list[np.ndarray] = []
         for d in range(train.D - 1):
             X, self.names = state_features(train, d, context)
             hold, up, rev = hold_labels(train, d, self.cfg)
-            rows.append(X), ys.append(hold), ups.append(up), revs.append(rev), ks.append(train.kind)
+            rows.append(X)
+            ys.append(hold)
+            ups.append(up)
+            revs.append(rev)
+            ks.append(train.kind)
         X, y, U, R, K = np.vstack(rows), np.concatenate(ys), np.concatenate(ups), np.concatenate(revs), np.concatenate(ks)
         ok = np.isfinite(X).all(1) & np.isfinite(y)
         X, y, U, R, K = X[ok], y[ok], U[ok], R[ok], K[ok]
@@ -201,8 +209,11 @@ class ExitValueModel:
 
     def contributions(self, X: np.ndarray, kinds: np.ndarray, top: int = 3) -> list[list[tuple[str, float]]]:
         """Largest signed feature contributions to E[hold] per position (coefficient x standardised value)."""
-        Z = (X - self.mu_) / self.sd_
-        contrib = Z * self.beta_[1:1 + Z.shape[1]]
+        mu, sd, beta = self.mu_, self.sd_, self.beta_
+        if mu is None or sd is None or beta is None:
+            raise RuntimeError("the hold model is not fitted")
+        Z = (X - mu) / sd
+        contrib = Z * beta[1:1 + Z.shape[1]]
         out = []
         for row in contrib:
             idx = np.argsort(-np.abs(row))[:top]
@@ -476,23 +487,26 @@ class PathModel:
         return self
 
     def forecast(self, vol: float, atr: float, kind: str, ctx: Mapping[str, Any] | None = None) -> dict:
+        resid, days_resid, inv = self.resid_, self.days_resid_, self.inv_
+        if resid is None or days_resid is None or inv is None:
+            raise RuntimeError("the path model is not fitted")
         A = self._A(self._F(vol, atr, ctx or {}), np.array([kind], object))
         pr = {k: float((A @ b)[0]) for k, b in self.coef_.items()}
         ret = pr["ret"]
-        draws = ret + self.resid_
+        draws = ret + resid
         qv = np.maximum.accumulate(np.quantile(draws, QUANTS))
         path = np.array([pr[f"cum{d}"] for d in range(self.D)])
         hold = float(np.clip(pr["days"], 1.0, self.D))
-        dq = np.clip(hold + np.quantile(self.days_resid_, (0.1, 0.9)), 1.0, self.D)
+        dq = np.clip(hold + np.quantile(days_resid, (0.1, 0.9)), 1.0, self.D)
         mfe, mae = max(pr["mfe"], ret, 0.0), min(pr["mae"], ret, 0.0)
         clipped = np.clip(draws, PROB_EDGES[0], PROB_EDGES[-1] - 1e-9)
         counts = np.histogram(clipped, bins=PROB_EDGES)[0].astype(float)
         probs = counts / counts.sum()
         probs[-1] = 1.0 - probs[:-1].sum()
-        sigma = float(self.resid_.std())
-        epi = float(math.sqrt(max(float(A[0] @ self.inv_ @ A[0]), 0.0)) * sigma)
+        sigma = float(resid.std())
+        epi = float(math.sqrt(max(float(A[0] @ inv @ A[0]), 0.0)) * sigma)
         loss_p, over_p = float((draws < 0).mean()), float((draws > EX.BAND_HI).mean())
-        alts = []
+        alts: list[dict[str, Any]] = []
         if loss_p > 0:
             alts.append({"hypothesis": "reversal_to_loss", "probability": loss_p, "predicted_return": float(draws[draws < 0].mean())})
         if over_p > 0:

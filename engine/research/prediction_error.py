@@ -314,7 +314,8 @@ def compute_errors(exp: Expectation, exp_hash: str, out: OutcomeReconstruction, 
              "sector_regime": regime_error("sector_regime", exp.sector_regime, out.sector_move, out.sector_vol, out.holding_days, cfg),
              "pattern_strength": _pattern_error(exp, out, cfg), "interaction": _interaction_error(exp, out, cfg)}
     wrong = out.exit_return <= 0
-    cw = bool(exp.confidence >= cfg.confident and wrong and comps["return"].z <= -cfg.wrong_z)
+    ret_z = comps["return"].z
+    cw = bool(exp.confidence >= cfg.confident and wrong and ret_z is not None and ret_z <= -cfg.wrong_z)
     tags = diagnose(exp, out, comps, cfg) + (["CONFIDENT_WRONG"] if cw else [])
     return ErrorReport(exp.prediction_id, exp.decided_at, out.matured_at, comps, tuple(tags), cw, exp_hash, out.outcome_hash)
 
@@ -403,6 +404,7 @@ def error_record(exp: Expectation, out: OutcomeReconstruction, rep: ErrorReport)
     """Flatten (expectation, outcome, report) into the record error research reads. Every value comes from the frozen
     expectation, the matured outcome or the report - nothing is estimated here."""
     r = rep["return"]
+    assert r.expected is not None and r.actual is not None and r.scale is not None     # the return component is always measured
     top = max(exp.pattern_strengths, key=lambda k: (abs(exp.pattern_strengths[k]), k)) if exp.pattern_strengths else ""
     regret = out.regret / abs(exp.predicted_return) if abs(exp.predicted_return) > 1e-12 else None
     rec = ErrorRecord(rep.prediction_id, rep.decided_at, rep.matured_at, float(r.expected), float(r.actual), float(exp.confidence),

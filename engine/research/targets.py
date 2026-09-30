@@ -507,7 +507,7 @@ def run_day(day: DayInput, now, ledger: TargetLedger | None = None, state: PRI.P
         errs = t.check()
         if errs:
             raise TargetError("; ".join(errs))
-    n_obs = {}
+    n_obs: dict[str, int] = {}
     for r in day.pattern_history:
         n_obs[r.pattern] = n_obs.get(r.pattern, 0) + 1
     keep, blocked, promoted, failed, opened = [], [], [], [], []
@@ -896,7 +896,7 @@ class TrackedCondition:
     otherwise it keeps waiting until `max_days`, then EXPIRES as undecided (which is not a failure)."""
     tid: str
     pattern: str
-    cond: Condition
+    cond: Condition | Conjunction
     opened: str
     p1: float
     max_days: int = 120
@@ -1054,6 +1054,7 @@ class OpenConditionTracker:
         d = json.loads(text)
         tr = cls(d["max_days"])
         for r in d["items"]:
+            cond: Condition | Conjunction
             if isinstance(r["cond"], dict):
                 n = r["cond"]["n"]
                 cond = Conjunction(tuple(Term(*x) for x in r["cond"]["terms"]), int(n[0]), int(n[1]), int(n[2]), int(n[3]), float(n[4]))
@@ -1619,7 +1620,7 @@ def find_conjunctions(rows: Sequence[PredictionRow], max_terms: int = 3, beam: i
         atoms = [t[4] for t in scored[:max_atoms] if t[0] <= 1.0]
     evaluated = 0
     cut = False
-    frontier = [((), [True] * len(rows), 1.0, 0.0)]
+    frontier: list[tuple[tuple[Term, ...], list[bool], float, float]] = [((), [True] * len(rows), 1.0, 0.0)]
     finished: list = []
     for depth in range(max_terms):
         cand = []
@@ -1669,7 +1670,8 @@ def conjunction_stability(rows: Sequence[PredictionRow], features: Sequence[str]
     rng = np.random.default_rng(seed)
     rows = list(rows)
     want = tuple(sorted(features))
-    hits, ths = 0, {f: [] for f in want}
+    hits = 0
+    ths: dict[str, list[float]] = {f: [] for f in want}
     for _ in range(n_boot):
         samp = [rows[i] for i in rng.integers(0, len(rows), len(rows))]
         for c in find_conjunctions(samp, **kw):

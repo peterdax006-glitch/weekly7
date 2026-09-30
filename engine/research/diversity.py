@@ -632,7 +632,7 @@ def learned_exploration_table(ctrl: DiversityController, seed: int = 0) -> list:
 
 def starving_areas(ctrl: DiversityController, now, days: int = 60) -> list:
     """Areas with no experiment for `days` (or never): the independent check that floors did their job."""
-    out = []
+    out: list[dict[str, Any]] = []
     for a in AREAS:
         seen = ctrl.stats[a].last_seen
         if not seen:
@@ -815,7 +815,8 @@ def replay_plans(outcomes: Sequence[Outcome], checkpoints: Sequence, budget_minu
     ingested) are visible. Returns the plan at each checkpoint. Look-ahead is impossible by construction: the outcomes handed
     to step() are filtered by date first, and step() raises FirewallBreach if that filter were ever removed."""
     ctrl = DiversityController(cfg)
-    plans, done = [], set()
+    plans: list = []
+    done: set[str] = set()
     for i, cp in enumerate(sorted(checkpoints, key=as_date)):
         fresh = [o for o in outcomes if as_date(o.when) < as_date(cp) and o.exp_id not in done]
         done.update(o.exp_id for o in fresh)
@@ -1096,7 +1097,7 @@ def compare_with_baselines(true_yield: Mapping[Area, float], rounds: int, budget
                                                         job_minutes, ok, 0.3, False, f"{a.value[:3]}_{j % 3}"), day)
             res[kind].append(float(np.mean(vals[-late:])))
     means = {k: float(np.mean(v)) for k, v in res.items()}
-    return {"mean_late_rate": means, "best_baseline": max((k for k in means if k != "controller"), key=means.get),
+    return {"mean_late_rate": means, "best_baseline": max((k for k in means if k != "controller"), key=lambda k: means[k]),
             "controller_beats_all": all(means["controller"] >= v for k, v in means.items() if k != "controller")}
 
 

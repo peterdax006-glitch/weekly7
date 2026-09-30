@@ -564,7 +564,9 @@ def test_fix(fix: CandidateFix, frame: pd.DataFrame, now, cfg: SelfCorrectConfig
     dg = stable_hash({"n": len(f), "first": str(f["date"].iloc[0]), "last": str(f["matured_at"].iloc[-1]),
                       "sum": round(float(f["realised"].sum()), 10)})
     reruns = []
-    panel, detail, ins = None, {}, float("nan")
+    panel: pd.DataFrame | None = None
+    detail: dict[str, Any] = {}
+    ins = float("nan")
     for seed in cfg.reruns:
         pred = fix.build(train, seed)
         p_test = np.asarray(pred(test), float)
@@ -575,6 +577,7 @@ def test_fix(fix: CandidateFix, frame: pd.DataFrame, now, cfg: SelfCorrectConfig
             ins = float((_abs_err(train["predicted"].to_numpy(float), train) - _abs_err(p_train, train)).mean())
             panel = _panel(train, p_train, test, p_test)
             detail = dict(getattr(pred, "detail", None) or {})
+    assert panel is not None                        # cfg.reruns is never empty, so the first rerun built it
     eff = weekly(panel[panel["part"] == "test"], "gain")
     e = eff.to_numpy(float)
     per = tuple(str(d.date()) for d in eff.index)
@@ -1051,7 +1054,7 @@ class RegimeCheck:
                 "stale_share": self.stale_share, "changes": [dataclasses.asdict(c) for c in self.changes]}
 
 
-def gain_changes(dates: Sequence[str], values: Sequence[float], cfg: RegimeConfig = RegimeConfig(), stream: str = "fix_gain") -> list[ChangeMark]:
+def gain_changes(dates: Sequence[str], values: Sequence[float] | np.ndarray, cfg: RegimeConfig = RegimeConfig(), stream: str = "fix_gain") -> list[ChangeMark]:
     """Change points of one weekly gain series, found by change_points.StreamDetector fed ONE week at a time in date order (a
     detection at week t is a function of weeks <= t only: change_points.check_no_lookahead's property, re-proved in the tests)."""
     det = CP.StreamDetector(stream, CP.Target.ERROR_DISTRIBUTION, cfg.change)
@@ -1170,8 +1173,8 @@ class Revalidation:
         return self.state == "ROLLBACK"
 
 
-def revalidate(evidence_dates: Sequence[str], evidence_values: Sequence[float], since, live_dates: Sequence[str],
-               live_values: Sequence[float], now, external: Sequence[ChangeMark] = (), cfg: RegimeConfig = RegimeConfig()) -> Revalidation:
+def revalidate(evidence_dates: Sequence[str], evidence_values: Sequence[float] | np.ndarray, since, live_dates: Sequence[str],
+               live_values: Sequence[float] | np.ndarray, now, external: Sequence[ChangeMark] = (), cfg: RegimeConfig = RegimeConfig()) -> Revalidation:
     """PUBLIC. Re-validation of a promoted fix. Its promotion evidence (weekly OOS gains up to `since`) and its live weekly gains over
     the incumbent kept in the shadow since then form one series, watched by the same forward CUSUM; any change DECLARED after `since`
     (or an external one declared after it, whose change lies inside the series) means the promotion's evidence predates the regime in
@@ -1308,9 +1311,9 @@ def gate_bundles(fixes: Sequence[CandidateFix], results: Sequence[FixResult], no
     decisions = []
     for d in rep.decisions:
         name = d.subject_id.split(":", 1)[1]
-        r = by_fix.get(name)
-        if r is not None:
-            chk = regime_check(name, r.oos_periods, r.oos_effects, now, changes, regime)
+        fr = by_fix.get(name)
+        if fr is not None:
+            chk = regime_check(name, fr.oos_periods, fr.oos_effects, now, changes, regime)
             d = apply_regime(d, chk)
             b = next((b for b in bundles if b.fix == name), None)
             if b is not None:
@@ -1384,8 +1387,8 @@ def slope_fix(name: str, features: Sequence[str], group_col: str = "sector", n_g
             f, g, c, b, _ = best
             x = fr[f].to_numpy(float)                            # KeyError when the input is absent: the fix abstains
             return base + np.where(fr[group_col].astype(str).to_numpy() == g, b * (x - c), 0.0)
-        predict.detail = {} if best is None else {"feature": best[0], "group": best[1], "centre": best[2], "coef": best[3], "t": best[4],
-                                                   "group_col": group_col}
+        setattr(predict, "detail", {} if best is None else {"feature": best[0], "group": best[1], "centre": best[2], "coef": best[3], "t": best[4],
+                                                             "group_col": group_col})
         return predict
     return CandidateFix(name, component, tuple(FixInput(f[2:] if f.startswith("f_") else f) for f in feats) + (FixInput(group_col),), build,
                         CX.RuleSpec(f"fix_{name}", n_conditions=1, n_interactions=1), max(1, len(feats) * max(1, int(n_groups))))

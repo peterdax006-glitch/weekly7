@@ -558,8 +558,8 @@ def allocate(state: ControllerState, assessments: Sequence[PhaseAssessment]) -> 
     status = {a.phase: a.status for a in assessments}
     mixed = {}
     for p in PHASES:
-        a = 1.0 if status[p] in (PhaseStatus.REGRESSED, PhaseStatus.BLOCKED, PhaseStatus.STALLED) else cfg.smoothing
-        mixed[p] = (1 - a) * prev[p] + a * target[p]
+        alpha = 1.0 if status[p] in (PhaseStatus.REGRESSED, PhaseStatus.BLOCKED, PhaseStatus.STALLED) else cfg.smoothing
+        mixed[p] = (1 - alpha) * prev[p] + alpha * target[p]
     return _bounded_normalise(mixed, lower, upper)
 
 

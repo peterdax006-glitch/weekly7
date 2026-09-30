@@ -169,7 +169,7 @@ class Ctx:
         self.g = grid
         self.sector_codes = sector_codes
         self.externals = dict(externals or {})
-        self._m: dict[str, np.ndarray] = {}
+        self._m: dict[str, Any] = {}
 
     def memo(self, key: str, fn: Callable[[], np.ndarray]) -> np.ndarray:
         if key not in self._m:
@@ -469,6 +469,8 @@ def _sector_ret_5(c: Ctx):
 
 def _sector_mean(c: Ctx, a: np.ndarray) -> np.ndarray:
     codes = c.sector_codes
+    if codes is None:
+        raise ValueError("sector means need sector codes")
     out = np.full(a.shape, np.nan)
     for s in np.unique(codes[codes >= 0]):
         cols = np.flatnonzero(codes == s)
@@ -879,7 +881,7 @@ class EvidenceStore:
         """Write an .npz atomically and return the sha256 of the file (recorded in the manifest that commits it)."""
         p = Path(path)
         p.parent.mkdir(parents=True, exist_ok=True)
-        arrays: dict[str, np.ndarray] = {}
+        arrays: dict[str, Any] = {}            # Any: numpy's savez stub mistypes **kwds as bool
         meta: dict[str, Any] = {"n_perm": self.n_perm, "cells": []}
         for i, k in enumerate(sorted(self.cells)):
             c = self.cells[k]
@@ -1243,8 +1245,8 @@ def evaluate_evidence(store: EvidenceStore, ledger: TrialLedger, rules: Evidence
             reasons.append("cumulative q above bar")
         if abs(x["effect"]) < rules.min_effect:
             reasons.append("effect below the minimum rank shift")
-        wf = {"tested": 0, "passed": 0, "ok": False, "enough": False}
-        er = {"eras": [], "ok": False, "enough": False}
+        wf: dict[str, Any] = {"tested": 0, "passed": 0, "ok": False, "enough": False}
+        er: dict[str, Any] = {"eras": [], "ok": False, "enough": False}
         if not shuffle_bad:
             wf, er = walk_forward(T, x["j"], rules), era_check(ids, T, x["j"], cfg, rules)
             if wf["enough"] and not wf["ok"]:
@@ -1463,7 +1465,7 @@ class LabStore:
 
     @staticmethod
     def _save_counts(st: LabState, path: Path) -> str:
-        arrays: dict[str, np.ndarray] = {}
+        arrays: dict[str, Any] = {}            # Any: numpy's savez stub mistypes **kwds as bool
         meta: dict[str, Any] = {"units": []}
         for i, uid in enumerate(sorted(st.daily)):
             d = st.daily[uid]
@@ -1558,7 +1560,7 @@ class UnitOutcome:
 
 def assert_before(bars: Mapping[str, pd.DataFrame], now) -> None:
     """Fail closed if a loader handed over sessions at or after `now`: the research world studies matured history only."""
-    idx = bars["Close"].index if "Close" in bars else []
+    idx = bars["Close"].index if "Close" in bars else pd.Index([])
     if len(idx) and as_date(idx.max()) >= as_date(now):
         raise FirewallBreach(f"loader returned a session dated {as_date(idx.max())}, not strictly before now={as_date(now)}")
 

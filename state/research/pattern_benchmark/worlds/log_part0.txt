@@ -2,3 +2,8 @@
 12:06:13 W00000 look 0: {'look': 0, 'now': '2033-05-27', 'n_dates': 155, 'rows': 7440, 'raised': 61, 'gated': 61, 'screened_total': 61, 'scan_s': 22.06, 'gate_s': 241.33}
 12:09:52 W00000 look 1: {'look': 1, 'now': '2033-08-26', 'n_dates': 155, 'rows': 7440, 'raised': 7, 'gated': 55, 'screened_total': 68, 'scan_s': 23.69, 'gate_s': 195.27}
 12:13:04 W00000 look 2: {'look': 2, 'now': '2033-11-25', 'n_dates': 155, 'rows': 7440, 'raised': 7, 'gated': 49, 'screened_total': 75, 'scan_s': 23.34, 'gate_s': 167.84}
+12:17:20 W00000 look 3: {'look': 3, 'now': '2034-02-24', 'n_dates': 155, 'rows': 7440, 'raised': 23, 'gated': 66, 'screened_total': 98, 'scan_s': 22.89, 'gate_s': 233.11}
+12:22:07 W00000 look 4: {'look': 4, 'now': '2034-05-26', 'n_dates': 155, 'rows': 7440, 'raised': 15, 'gated': 68, 'screened_total': 113, 'scan_s': 22.94, 'gate_s': 264.38}
+12:22:07 W00000 heldout tier 6 era trending: real 0/18 detectable (50 planted), FP 15 {'leak': 15}, 1223s
+12:26:37 W00001 look 0: {'look': 0, 'now': '1988-09-09', 'n_dates': 155, 'rows': 7440, 'raised': 69, 'gated': 69, 'screened_total': 69, 'scan_s': 24.91, 'gate_s': 239.5}
+12:30:37 W00001 look 1: {'look': 1, 'now': '1988-12-09', 'n_dates': 155, 'rows': 7440, 'raised': 12, 'gated': 64, 'screened_total': 81, 'scan_s': 22.0, 'gate_s': 217.92}

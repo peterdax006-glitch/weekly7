@@ -144,12 +144,12 @@ class OutcomeReconstruction:
 
 
 # ------------------------------------------------------------------------------------------------ path mathematics
-def position_returns(price: Sequence[float], entry: float, side: int) -> np.ndarray:
+def position_returns(price: Sequence[float] | np.ndarray, entry: float, side: int) -> np.ndarray:
     """Position return of holding the instrument from `entry` at each price: side * (p/entry - 1)."""
     return side * (np.asarray(price, float) / entry - 1.0)
 
 
-def excursions(high: Sequence[float], low: Sequence[float], entry: float, side: int) -> tuple[float, float]:
+def excursions(high: Sequence[float] | np.ndarray, low: Sequence[float] | np.ndarray, entry: float, side: int) -> tuple[float, float]:
     """(mfe, mae) of the position over the bars, from intraday extremes; mfe >= 0 >= mae because the entry itself is a point."""
     hi, lo = np.asarray(high, float), np.asarray(low, float)
     if side > 0:
@@ -159,14 +159,14 @@ def excursions(high: Sequence[float], low: Sequence[float], entry: float, side: 
     return float(max(fav, 0.0)), float(min(adv, 0.0))
 
 
-def parkinson_vol(high: Sequence[float], low: Sequence[float]) -> float:
+def parkinson_vol(high: Sequence[float] | np.ndarray, low: Sequence[float] | np.ndarray) -> float:
     """Daily range-based volatility (Parkinson): sqrt(mean(ln(H/L)^2) / (4 ln 2))."""
     hl = np.log(np.asarray(high, float) / np.asarray(low, float))
     hl = hl[np.isfinite(hl)]
     return float(math.sqrt(np.mean(hl ** 2) / (4.0 * math.log(2.0)))) if len(hl) else float("nan")
 
 
-def zigzag(values: Sequence[float], threshold: float) -> list[dict]:
+def zigzag(values: Sequence[float] | np.ndarray, threshold: float) -> list[dict]:
     """Swing legs of a return path: a leg ends when the path reverses by more than `threshold` from its running extreme.
     Each leg is {"from_t","to_t","change"}; t is the index into `values` (0 = the entry). The last unfinished leg is included."""
     v = np.asarray(values, float)

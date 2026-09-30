@@ -398,6 +398,7 @@ class EpisodeStream:
         return self._process(final=True) if self.buf is not None else []
 
     def _process(self, final: bool) -> list[Block]:
+        assert self.buf is not None                  # process() and finish() only call this with a buffer
         grid = build_grid(self.buf, self.cfg)
         T = grid.shape[0]
         lo = 0 if self.emitted is None else int(grid.dates.searchsorted(self.emitted, side="right"))
@@ -596,7 +597,9 @@ class CoverageBook:
     def pending(self, features: Sequence[str] = (), limit: int | None = None, years_before: int | None = None) -> list[Unit]:
         """Unfinished units, least-covered first. `years_before` keeps only years strictly earlier than that year (a year whose data is
         still arriving is not yet a unit)."""
-        done_y, done_l, done_s = {}, {}, {}
+        done_y: dict[int, int] = {}
+        done_l: dict[str, int] = {}
+        done_s: dict[int, int] = {}
         for uid in self.records:
             u = Unit.parse(uid)
             if self.is_done(u, features):

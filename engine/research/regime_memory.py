@@ -385,7 +385,7 @@ def confidence_of(cluster: Sequence[Detection], old: RegimeProfile, new: RegimeP
     scope_c = {Scope.MARKET_WIDE: 1.0, Scope.SECTOR: 0.6, Scope.UNCLEAR: 0.4, Scope.SINGLE_STOCK: 0.2, Scope.NONE: 0.3}[scope.scope] if scope else 0.5
     seen = new.n / (new.n + 20.0)
     parts = (("breadth", breadth), ("size", size), ("pattern_corroboration", corro), ("scope", scope_c), ("new_regime_seen", seen))
-    return float(min(0.95, np.mean([breadth, size, corro, scope_c]) * seen)), parts
+    return float(min(0.95, float(np.mean([breadth, size, corro, scope_c])) * seen)), parts
 
 
 def build_record(evidence: RegimeEvidence, now, cfg: MemoryConfig | None = None, scope: ScopeVerdict | None = None,
@@ -412,6 +412,8 @@ def build_record(evidence: RegimeEvidence, now, cfg: MemoryConfig | None = None,
             if len(seen) >= cfg.min_streams:
                 quorum = d
                 break
+        if quorum is None:                      # cluster_detections only returns groups with enough independent streams
+            continue
         declared, first = pos[quorum.alarm_date], ordered[0]
         cp = int(np.median([pos[d.change_date] for d in ordered if pos[d.alarm_date] <= declared]))
         cp = min(cp, declared)

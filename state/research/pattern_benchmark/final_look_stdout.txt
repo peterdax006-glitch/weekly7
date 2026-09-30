@@ -1,1 +1,4 @@
 12:01:45 part 0/1: 500 worlds, mode final_look, pid 21976
+12:07:06 W00000 heldout tier 6 era trending: real 0/18 detectable (50 planted), FP 13 {'leak': 13}, 322s
+12:11:43 W00001 development tier 4 era crisis: real 0/21 detectable (50 planted), FP 0 {}, 277s
+12:14:44 W00002 development tier 3 era trending: real 0/18 detectable (50 planted), FP 0 {}, 181s

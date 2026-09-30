@@ -423,6 +423,8 @@ class ErrorPatternBook:
     def __init__(self, cfg: ErrorConfig | None = None):
         self.cfg = cfg or ErrorConfig()
         self._obs: dict = {}
+        self._cache_key: tuple | None = None
+        self._cache: dict[str, GroupStats] = {}
 
     def add(self, o: ErrorObs, now) -> bool:
         errs = o.check()
@@ -850,11 +852,11 @@ def self_findings(book: ErrorPatternBook, now, results: Sequence[Any] = (), prio
     out["worst_regime"] = _worst_dim(recs, "regime", cfg)
     out["worst_stock_type"] = _worst_dim(recs, "stock_type", cfg)
     out["worst_sector"] = _worst_dim(recs, "sector", cfg)
-    rg = {}
+    rg_raw: dict[str, list[float]] = {}
     for o in recs:
         if o.exit_regret is not None and o.pattern:
-            rg.setdefault(o.pattern, []).append(o.exit_regret)
-    rg = {k: (len(v), float(np.mean(v))) for k, v in sorted(rg.items()) if len(v) >= 3}
+            rg_raw.setdefault(o.pattern, []).append(o.exit_regret)
+    rg = {k: (len(v), float(np.mean(v))) for k, v in sorted(rg_raw.items()) if len(v) >= 3}
     out["exit_regret"] = ({"insufficient": True, "p": 1.0} if not rg else
                           {"insufficient": False, "worst": max(rg, key=lambda k: (rg[k][1], k)), "table": rg, "p": 1.0 / (1.0 + max(v[1] for v in rg.values()) * 10)})
     judged = [r for r in results if getattr(r, "survived_oos", None) is not None]
@@ -1020,7 +1022,13 @@ def step(state: ErrorResearchState, now, records: Iterable[Any], contexts: Mappi
         selfq = self_research_questions(state.book, now, created_real, results, priority_state)
         items.extend(s.item for s in selfq)
     seen: set = set()
-    items = [i for i in items if not (i.item_id in seen or seen.add(i.item_id))]
+    unique = []
+    for i in items:
+        if i.item_id in seen:
+            continue
+        seen.add(i.item_id)
+        unique.append(i)
+    items = unique
     plan = None
     if priority_state is not None and items:
         for i in items:

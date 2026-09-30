@@ -11,7 +11,7 @@ series through an expanding rank) - nothing reads a later date. Fitting refuses 
 from __future__ import annotations
 
 import dataclasses as dc
-from typing import Callable, Mapping, Sequence
+from typing import Callable, Mapping, Protocol, Sequence
 
 import numpy as np
 import pandas as pd
@@ -373,10 +373,19 @@ class CanonicalMoverModel:
         return np.column_stack([1.0 - p, p])
 
     def importance(self) -> dict[str, float]:
-        g = self.stage.clf.booster_.feature_importance("gain")
+        clf = getattr(self.stage, "clf")        # MoverStage creates its booster in fit(); its class does not declare the attribute's type
+        g = clf.booster_.feature_importance("gain")
         return dict(zip(self.features, (g / max(1.0, g.sum())).tolist()))
 
 
+
+
+class _ProbModel(Protocol):
+    def predict_proba(self, Z: np.ndarray) -> np.ndarray: ...
+
+
+class _Regressor(Protocol):
+    def predict(self, Z: np.ndarray) -> np.ndarray: ...
 
 
 @dc.dataclass
@@ -389,13 +398,13 @@ class FittedHypothesis:
     base_rate: float = float("nan")
     trained_through: str = ""
     std: Standardiser | None = None
-    clf: object = None
-    mag: object = None
+    clf: _ProbModel | None = None
+    mag: _Regressor | None = None
     coef: dict = dc.field(default_factory=dict)
     signs: SignReport | None = None
     rule_stats: dict = dc.field(default_factory=dict)
     inner: list = dc.field(default_factory=list)          # RESIDUAL: the fitted hypotheses it is the residual of
-    resid_model: object = None
+    resid_model: _Regressor | None = None
     resid_features: tuple[str, ...] = ()
     resid_std: Standardiser | None = None
 
@@ -414,6 +423,8 @@ class FittedHypothesis:
         if h.kind == HypKind.RESIDUAL:
             return self._predict_residual(F)
         X = derive(F, h.features).to_numpy(float)
+        if self.std is None or self.clf is None:
+            raise RuntimeError(f"{h.name}: a fitted {h.kind} hypothesis has no model")
         Z = self.std.apply(X)
         p = self.clf.predict_proba(Z)[:, 1]
         mag = self.mag.predict(Z) if self.mag is not None else np.full(n, np.nan)
@@ -421,6 +432,8 @@ class FittedHypothesis:
 
     def _predict_residual(self, F: pd.DataFrame) -> tuple[np.ndarray, np.ndarray]:
         pf, mf = fuse_inner(self.inner, F)
+        if self.resid_std is None or self.resid_model is None:
+            raise RuntimeError("a fitted residual hypothesis has no correction model")
         Z = self.resid_std.apply(derive(F, self.resid_features).to_numpy(float))
         adj = self.resid_model.predict(Z)
         return np.clip(pf + adj, 1e-4, 1 - 1e-4), mf

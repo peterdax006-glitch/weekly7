@@ -225,7 +225,7 @@ def planted_world(pc: PlantConfig = PlantConfig()) -> World:
         raise ValueError("planted world needs >= 8 names and >= 300 sessions")
     dates = pd.bdate_range(pc.start, periods=T)
     tick = [f"W{j:03d}" for j in range(n)]
-    base = rng.uniform(*pc.base_sigma, n)
+    base = rng.uniform(pc.base_sigma[0], pc.base_sigma[1], n)
     h = np.zeros((T, n))
     h[0] = rng.normal(0, pc.vol_state_sd / math.sqrt(1 - pc.vol_persistence ** 2), n)
     for t in range(1, T):
@@ -354,8 +354,8 @@ class RealCacheSource:
             s = self._read("sic.parquet", None, a, b)
             if s is not None and {"ticker", "sic"} <= set(s.columns):
                 sic = {str(t): int(v) for t, v in zip(s["ticker"], s["sic"]) if pd.notna(v)}
-            parts = {f: self._read(f"market_{f.lower()}.parquet", None, a, b) for f in BAR_FIELDS}
-            if all(v is not None for v in parts.values()) and set(MARKET_COLS) <= set(parts["Close"].columns):
+            parts = {f: v for f in BAR_FIELDS if (v := self._read(f"market_{f.lower()}.parquet", None, a, b)) is not None}
+            if len(parts) == len(BAR_FIELDS) and set(MARKET_COLS) <= set(parts["Close"].columns):
                 mk = {f: v.loc[a:b, list(MARKET_COLS)] for f, v in parts.items()}
         sectors = {t: f"SIC{v // 100:02d}" for t, v in sic.items()}
         return World(bars, ev, ins, mac, sectors, sic, mk or market_proxy(bars), {"source": "real_cache", "survivor_only": True})
@@ -475,7 +475,7 @@ def _merge_worlds(ws: Sequence[World]) -> World:
         f = pd.concat(frames)
         return f[~f.index.duplicated(keep="last")].sort_index()
     bars = {f: cat([w.bars[f] for w in ws]) for f in BAR_FIELDS}
-    mk = {f: cat([w.market[f] for w in ws]) for f in BAR_FIELDS} if all(w.market for w in ws) else None
+    mk = {f: cat([m[f] for w in ws if (m := w.market) is not None]) for f in BAR_FIELDS} if all(w.market for w in ws) else None
     tabs = []
     for attr in ("events", "insider"):
         parts = [getattr(w, attr) for w in ws if getattr(w, attr) is not None]
@@ -526,6 +526,7 @@ def audit_stage_input(stage: str, payload: Any, now, depth: int = 0) -> int:
                 if (v.dt.normalize() >= n).any():
                     raise FirewallBreach(f"{stage}: column {k} holds {int((v.dt.normalize() >= n).sum())} value(s) at/after now {n.date()}")
         return checked
+    items: Iterable[tuple[Any, Any]]
     if isinstance(payload, Mapping):
         items = payload.items()
     elif dataclasses.is_dataclass(payload) and not isinstance(payload, type):
@@ -751,7 +752,7 @@ def b_cross_section(feed: "WorldFeed", ctx) -> dict:
                            "vol20": ret.iloc[t - 19:t + 1].std().to_numpy(float),
                            "log_dv": np.log((C.iloc[t] * V.iloc[t]).clip(lower=1.0)).to_numpy(float),
                            "mom20": (C.iloc[t] / C.iloc[t - 20] - 1).to_numpy(float)}, index=names)
-        settle = ()
+        settle: tuple[tuple[Any, pd.Series, Any], ...] = ()
         if str(S[t - 2].date()) in fed:
             fwd = pd.Series(ret.iloc[t - 1].to_numpy(float), index=names)
             settle = ((S[t - 2], fwd, S[t - 1]),)

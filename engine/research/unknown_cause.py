@@ -758,7 +758,8 @@ def forcing_curve(records: Sequence[MoveCauseRecord], cfg: AssignerConfig = Assi
 
 def cause_profile(records: Sequence[MoveCauseRecord], verdicts: Sequence[CauseVerdict], tests: Mapping[str, CauseTest]) -> pd.DataFrame:
     """Per cause: how often it was the named cause, how often it was present but declined, and the population test result."""
-    named, declined = {}, {}
+    named: dict[str, int] = {}
+    declined: dict[str, int] = {}
     for x in verdicts:
         if not x.unknown:
             named[x.cause] = named.get(x.cause, 0) + 1
@@ -1168,7 +1169,7 @@ def audit_verdicts(records: Sequence[MoveCauseRecord], verdicts: Sequence[CauseV
 
 def duplicate_evidence_ids(records: Sequence[MoveCauseRecord]) -> dict[str, list[str]]:
     """Source ids used as evidence for more than one cause in the same move (double counting one fact as two causes)."""
-    out = {}
+    out: dict[str, list[str]] = {}
     for r in records:
         seen: dict[str, str] = {}
         for e in r.evidence:
@@ -1340,7 +1341,7 @@ def hindsight_fraction_by_cause(records: Sequence[MoveCauseRecord], cutoff: floa
     but never anticipated; 0.0 means it was there to be used. Feeds the decision of which causes are worth a predictive feature."""
     out = {}
     for c in CAUSES:
-        ev = [r.get(c) for r in records if r.strength(c) >= cutoff]
+        ev = [e for r in records if r.strength(c) >= cutoff and (e := r.get(c)) is not None]
         out[c] = (sum(1 for e in ev if e.availability != Availability.KNOWN_BEFORE_EVENT) / len(ev)) if ev else float("nan")
     return out
 

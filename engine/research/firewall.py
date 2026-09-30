@@ -38,7 +38,7 @@ import math
 import sys
 import types
 from pathlib import Path
-from typing import Any, Callable, Iterable, Mapping, Sequence
+from typing import Any, Callable, Iterable, Literal, Mapping, Sequence, cast
 
 import numpy as np
 import pandas as pd
@@ -348,7 +348,7 @@ def check_existence(c: _Ctx) -> list[Breach]:
         ch = _MF_CHANNEL.get(f.check)
         if ch is None and f.check == "tainted-by-parent":
             anc = f.evidence.get("ancestor")
-            ch = KIND_CHANNEL.get(c.store.get(anc).kind) if anc in c.store else LeakChannel.MISSING_PROVENANCE
+            ch = KIND_CHANNEL.get(c.store.get(anc).kind) if anc is not None and anc in c.store else LeakChannel.MISSING_PROVENANCE
         out.append(Breach(ch or KIND_CHANNEL.get(o.kind, LeakChannel.FUTURE_RESEARCH_RESULT), f"exist.{f.check}", o.object_id, f.message))
     return out
 
@@ -848,7 +848,7 @@ def trader_research_violations(entries: Sequence[str] | None = None, root=None) 
         for n in ast.walk(tree):
             name = n.id if isinstance(n, ast.Name) else n.attr if isinstance(n, ast.Attribute) else None
             if name in RESEARCH_SYMBOLS:
-                found.append(TV.PathViolation(rel, n.lineno, "symbol", name, mod))
+                found.append(TV.PathViolation(rel, getattr(n, "lineno", 0), "symbol", name, mod))
             if isinstance(n, ast.Constant) and isinstance(n.value, str):
                 for mk in RESEARCH_STORE_MARKERS:
                     if mk in n.value.lower():
@@ -879,7 +879,7 @@ class ResearchImportBlocker(importlib.abc.MetaPathFinder):
         self.package = package
         self.attempts: list[str] = []
         self._stash: dict[str, types.ModuleType] = {}
-        self._attr = None
+        self._attr: tuple[types.ModuleType, str, Any] | None = None
 
     def _match(self, name: str) -> bool:
         return name == self.package or name.startswith(self.package + ".")
@@ -900,7 +900,7 @@ class ResearchImportBlocker(importlib.abc.MetaPathFinder):
         sys.meta_path.insert(0, self)
         return self
 
-    def __exit__(self, *exc) -> bool:
+    def __exit__(self, *exc) -> Literal[False]:
         if self in sys.meta_path:
             sys.meta_path.remove(self)
         for k in [k for k in sys.modules if self._match(k)]:
@@ -1036,7 +1036,8 @@ class ResearchGateContext(FW.GateContext):
 class ResearchReleaseLayer(FW.FirewallLayer):
     """A ninth LAYER (not a ninth firewall) for engine.learning.firewalls.LearningFirewallGate: every research object in play
     must pass this module's checks at ctx.now. Findings carry the mapped standard layer name so they validate unchanged."""
-    name = ResearchLayerName.RESEARCH
+    # the gate only hashes, compares and prints a layer's name; ResearchLayerName is a separate enum on purpose (a ninth layer, not a ninth firewall)
+    name = cast(_L, ResearchLayerName.RESEARCH)
 
     def missing(self, ctx, what: str):
         return [FW.fail(_L.PROVENANCE, "research-input-missing", ctx.subject,
@@ -1288,7 +1289,8 @@ class TraderGateway:
         kinds = self.observable if kinds is None else frozenset(InfoKind.parse(k) for k in kinds)
         if not kinds <= self.observable:
             raise FirewallBreach(f"kinds {sorted(str(k) for k in kinds - self.observable)} are not observable by the trader")
-        out, why = [], {}
+        out: list[dict[str, Any]] = []
+        why: dict[str, int] = {}
         for o in self._live.view(now):
             if o.kind not in kinds or o.origin.startswith(LiveStore.RESEARCH_ORIGIN):
                 continue
@@ -1307,7 +1309,8 @@ class TraderGateway:
 
     def memory(self, now, step: int) -> TV.TraderRelease:
         """Released research knowledge filed in live state and knowable at `now`, re-weighted to sum to 1."""
-        items, why = [], {}
+        items: list[TV.TraderMemoryItem] = []
+        why: dict[str, int] = {}
         for o in self._live.view(now):
             if not o.origin.startswith(LiveStore.RESEARCH_ORIGIN):
                 continue

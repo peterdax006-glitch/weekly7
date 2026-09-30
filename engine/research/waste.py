@@ -803,6 +803,7 @@ def evaluate_controller(seed: int, n_duds: int = 5, n_promising: int = 3, n_runs
     for i in range(n_duds + n_promising):
         b = CM.make_branch(st, CM.ResearchQuestion.make(f"planted {i}", "sim", CM.Problem.VOLATILITY, "2010-01-01", "2010-01-01", "s", "f"),
                            "2010-01-01", f"fam{i}")
+        assert b is not None                         # every planted question is distinct
         kinds[b.branch_id] = "dud" if i < n_duds else "promising"
     before = {bid: 0.0 for bid in kinds}
     for r in range(n_runs):
@@ -827,10 +828,10 @@ def evaluate_controller(seed: int, n_duds: int = 5, n_promising: int = 3, n_runs
     prom = [b for b, k in kinds.items() if k == "promising"]
     parked = lambda ids: sum(1 for b in ids if st.branches[b].state is CM.ResearchState.DORMANT)
     later = dt.date(2010, 4, 1)
-    r = step(st, led, book, WorldContext(later.isoformat(), "h2", 2000, regime="calm"), later, pol)
+    final = step(st, led, book, WorldContext(later.isoformat(), "h2", 2000, regime="calm"), later, pol)
     return ControllerScore(len(duds), parked(duds) + len([b for b in duds if book.records.get(b) and not book.records[b].active]), len(prom), parked(prom),
                            float(sum(before[b] for b in duds)), 6.0 * n_runs * len(duds),
-                           6.0 * n_runs * len(duds) - float(sum(before[b] for b in duds)), bool(r.revived))
+                           6.0 * n_runs * len(duds) - float(sum(before[b] for b in duds)), bool(final.revived))
 
 
 # ------------------------------------------------------------------------------------------------ outcomes of dormancy: learn from parking
@@ -910,9 +911,10 @@ def family_waste(state: CM.ManagerState, ledger: VA.ValueLedger, book: DormantBo
         d["failed"] += float(b.state is CM.ResearchState.FAILED)
         d["passed_any"] += float(bool(b.passed))
     out = []
+    rates = ledger.family_stats(now)
     for f, d in sorted(fams.items()):
         if d["branches"] >= min_branches and (d["dormant"] + d["failed"]) / d["branches"] >= 0.75 and d["passed_any"] / d["branches"] <= 0.25:
-            out.append({"family": f, **d, "rate": ledger.family_stats(now).get(f).value_per_cpu_min if f in ledger.family_stats(now) else None})
+            out.append({"family": f, **d, "rate": rates[f].value_per_cpu_min if f in rates else None})
     return out
 
 

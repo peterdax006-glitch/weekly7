@@ -1364,7 +1364,8 @@ def replayed_years_from_panels(panels: Sequence[Any]) -> list[int]:
 def check_disguise_separation(schedules: Sequence[Sequence]) -> list[str]:
     """A disguise is only useful if the trader-visible dates differ from the real ones and no two reruns look alike. Findings: a
     week whose disguised date equals its real date, or two schedules sharing a disguised date set (the trader could match them)."""
-    out, seen = [], {}
+    out: list[str] = []
+    seen: dict[tuple, int] = {}
     for i, sched in enumerate(schedules):
         same = sum(1 for d, r in sched if as_date(d) == as_date(r))
         if same:

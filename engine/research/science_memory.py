@@ -834,7 +834,7 @@ def story_completeness(mem: ScienceMemory, now) -> dict[str, Any]:
         h = mem.history(i, now)
         st = {e.stage for e in h}
         prop = next((e for e in h if e.stage == S.PROPOSED), None)
-        qs["why_proposed"] += bool(prop) and not str(prop.payload["why"]).startswith("imported")
+        qs["why_proposed"] += prop is not None and not str(prop.payload["why"]).startswith("imported")
         qs["how_tested"] += S.TESTED in st
         qs["predicted"] += S.PREDICTION in st
         qs["where_worked"] += S.WORKED in st
@@ -1978,7 +1978,9 @@ def changes_of_mind(mem: ScienceMemory, item: str, now) -> list[MindChange]:
 
 def evidence_balance(mem: ScienceMemory, item: str, now) -> dict[str, list[str]]:
     """Entries for and against the item, kept apart (never netted): what supports it, what counts against it, what is neutral."""
-    fore, against, neutral = [], [], []
+    fore: list[str] = []
+    against: list[str] = []
+    neutral: list[str] = []
     for e in mem.history(item, now):
         p = e.payload
         if e.stage == S.TESTED:

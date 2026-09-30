@@ -247,7 +247,7 @@ def unseen_dates(years: np.ndarray, c: int) -> int:
     return int((years[c:] > years[c - 1]).sum()) if 0 < c <= len(years) else 0
 
 
-def train_cut(dates: Sequence, ec: EvidenceConfig) -> tuple[int, bool]:
+def train_cut(dates: Sequence | np.ndarray, ec: EvidenceConfig) -> tuple[int, bool]:
     """(number of train dates, moved to a year end?) for the decision dates.
 
     F14 defect (F12 structural issue a): the train window was the earliest `orient_frac` of dates wherever that fell. The quality gate
@@ -484,7 +484,8 @@ def reproducibility(score: pd.Series, y: pd.Series, te: np.ndarray, spec: Findin
 
 def stock_halves(tickers: Sequence[str], salt: str) -> tuple[frozenset, frozenset]:
     """A deterministic split of the names: the discovery sees half A, replication runs use half B (fresh stocks)."""
-    a, b = set(), set()
+    a: set[str] = set()
+    b: set[str] = set()
     for t in sorted(set(map(str, tickers))):
         (a if int(stable_hash([salt, t], 8), 16) % 2 == 0 else b).add(t)
     return frozenset(a), frozenset(b)
@@ -653,9 +654,9 @@ def assemble(frame: pd.DataFrame, spec: FindingSpec, now, *, code_hash: str, dat
     parts.update(p)
     rp = reproducibility(score, y, te, spec, cfg, code_hash, data_hash)
     repl, p = replicate(G, score, y, tr, te, spec, cfg, now, code_hash, data_hash, ledger,
-                        plan.replication_policy(look) if look is not None else None)
+                        plan.replication_policy(look) if look is not None and plan is not None else None)
     parts.update(p)
-    if look is not None:
+    if look is not None and plan is not None:
         parts.update(look=int(look), alpha_look=plan.alpha_at(look), alpha_spent=plan.spent(look))
     if repl is None:
         missing["replication"] = p.get("why", "not computable")

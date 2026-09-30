@@ -90,7 +90,7 @@ def policy_id(rule: Any) -> str:
         return pid
     body: dict[str, Any] = {"cls": type(rule).__name__, "name": getattr(rule, "name", "")}
     spec = getattr(rule, "spec", None)
-    if spec is not None and dataclasses.is_dataclass(spec):
+    if spec is not None and dataclasses.is_dataclass(spec) and not isinstance(spec, type):
         body["spec"] = dataclasses.asdict(spec)
     for attr in ("k", "dist_", "threshold", "params"):
         if hasattr(rule, attr):
@@ -237,12 +237,12 @@ class RealisableGainModel:
         if as_date(as_of) < as_date(self.fitted_as_of):
             raise FirewallBreach(f"model fitted as of {self.fitted_as_of} cannot forecast for earlier date {as_of}")
         F = np.asarray(F, float).reshape(len(candidates), -1)
-        kinds = np.asarray(list(kinds), object)
+        kind_arr = np.asarray(list(kinds), object)
         dg = self.digest()
         if self.beta_ is None or self.resid_ is None:
             return [GainForecast(str(c), str(as_date(as_of)), self.policy, float("nan"), {}, 0.0, self.n_support, dg, basis="abstain")
                     for c in candidates]
-        mean = self._predict_raw(F, kinds)
+        mean = self._predict_raw(F, kind_arr)
         out = []
         for c, m in zip(candidates, mean):
             draws = m + self.resid_

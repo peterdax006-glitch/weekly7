@@ -355,7 +355,11 @@ class ClassHistory:
 def class_history(lab: "FailedLearnerLab", p: LearnerProposal, now) -> ClassHistory:
     """Every recorded attempt (every version) recorded strictly before `now` that belongs to the proposal's class."""
     cut = to_ts(now)
-    attempts, buckets, modes, regimes, hyps = [], {}, {}, [], []
+    attempts: list[Attempt] = []
+    buckets: dict[str, int] = {}
+    modes: dict[str, int] = {}
+    regimes: list[str] = []
+    hyps: list[str] = []
     for row in lab.registry._rows:
         if to_ts(row.recorded_at) >= cut:
             continue
@@ -774,7 +778,7 @@ def lab_health(lab: FailedLearnerLab, now, root=None) -> LabHealth:
     if cur and derived / len(cur) > 0.5:
         notes.append(f"{derived} of {len(cur)} autopsies are derived from summary numbers, not written from the evidence")
     if unknown and cur and max(unknown.values()) / len(cur) > 0.5:
-        worst = max(unknown, key=unknown.get)
+        worst = max(unknown, key=lambda n: unknown[n])
         notes.append(f"'{worst}' is UNKNOWN for {unknown[worst]} of {len(cur)} learners")
     if no_pass:
         notes.append(f"classes described by failures only (no pass record exists to compare): {list(no_pass)}")
@@ -915,7 +919,7 @@ def stage_profile(lab: FailedLearnerLab, now) -> dict:
         k = a.where_failed.subsystem.value if a.where_failed.subsystem else "UNSPECIFIED"
         subs[k] = subs.get(k, 0) + 1
     n = sum(stages.values())
-    top = max(stages, key=stages.get) if stages else ""
+    top = max(stages, key=lambda s: stages[s]) if stages else ""
     return {"n": n, "by_stage": dict(sorted(stages.items(), key=lambda kv: -kv[1])), "by_subsystem": dict(sorted(subs.items(), key=lambda kv: -kv[1])),
             "dominant_stage": top, "dominant_share": (stages[top] / n) if n else 0.0}
 

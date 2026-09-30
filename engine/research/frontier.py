@@ -939,7 +939,8 @@ def walk_forward_frontier(P: Predictions, cfg: FrontierConfig, focus: float | No
     if len(blocks) < 2:
         return OOSResult(len(blocks), 0, 0, 0, tuple(_empty_cell(c, 0, math.nan) for c in cfg.coverages), (), (), {})
     f = P.frame
-    parts, purged, train_total = [], 0, 0
+    parts: list[Predictions] = []
+    purged, train_total = 0, 0
     thr_by_row = np.full((len(f), len(cfg.coverages)), np.nan)
     tested = np.zeros(len(f), bool)
     by_block: list[tuple[int, CoverageCell]] = []
@@ -1099,7 +1100,8 @@ def leave_one_out_transfer(P: Predictions, coverage: float, dimension: str, cfg:
     else:
         return TransferResult(dimension, coverage, (), 0, 0, math.nan, math.nan, math.nan, Stability.UNTESTED)
     held: list[HeldOut] = []
-    hits = trials = 0
+    hits = 0.0
+    trials = 0
     for s in sorted(seg.unique()):
         te = (seg == s).to_numpy()
         rest = ~te
@@ -1451,7 +1453,7 @@ def answer_80_question(F: Frontier, tiny: Sequence[TinyAssessment], oos: OOSResu
                 f"transfer, stability and risk on THIS data only; it is not validated and needs a fresh holdout before any use.")
         return EightyAnswer(Eighty.CANDIDATE, head, tuple(verdicts), cell.coverage_real, cell.accuracy, cell.eff_lo, (),
                             high.accuracy if high else math.nan, high.coverage_real if high else math.nan, tiny_cov, F.n_cells_examined, F.n_rows)
-    fail = ()
+    fail: tuple[str, ...] = ()
     if best is not None:
         bv = next((v for v in verdicts if abs(v.coverage - best.coverage_target) < 1e-12), None)
         fail = (bv.failing + bv.untested) if bv else ()
@@ -2009,7 +2011,7 @@ def gate_sensitivity(P: Predictions, now, cfg: FrontierConfig, gates: Sequence[f
 
 def dump_report(r: FrontierReport, path: str | Path) -> str:
     """Write the identity-free summary plus hashes as JSON; returns the content hash. Nothing but numbers and verdict words is written."""
-    body = {"record_id": r.record_id(), "config": r.config_digest, "data": r.data_digest, "code_hash": r.provenance.code_hash,
+    body: dict[str, Any] = {"record_id": r.record_id(), "config": r.config_digest, "data": r.data_digest, "code_hash": r.provenance.code_hash,
             "seed": r.provenance.seed, "summary": public_summary(r)}
     body["content_hash"] = stable_hash(body["summary"], 16)
     p = Path(path)

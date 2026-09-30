@@ -40,7 +40,7 @@ import math
 import os
 from collections import Counter, OrderedDict, defaultdict
 from pathlib import Path
-from typing import Any, Callable, Iterable, Mapping, Sequence
+from typing import Any, Callable, Iterable, Mapping, Protocol, Sequence
 
 import numpy as np
 import pandas as pd
@@ -831,7 +831,8 @@ def _memory_items(snap: DaySnapshot, memory: Any, cfg: CounterfactualConfig) -> 
         return [], []
     keys = sorted(snap.market_row)
     scales = {k: robust_scale([m.context.get(k, math.nan) for m in allm]) for k in keys}
-    known, later = [], []
+    known: list[tuple[Any, float]] = []
+    later: list[tuple[Any, float]] = []
     for m in allm:
         sim, ok = era_similarity(m.context, snap.market_row, scales, cfg.memory_bandwidth)
         if not ok:
@@ -1175,9 +1176,12 @@ def _timing_factor(it: InfoItem, t1: pd.Timestamp, end: pd.Timestamp) -> float:
 def _macro_releases(g: pit.Guard, store: pit.PITStore, srcs: SourceMap, t0, t1, end, cal, cfg) -> list[tuple[InfoItem, float]]:
     """Macro observations released after T and inside the window, scored by how large the change from the previous known
     vintage was in robust units (an unremarkable release explains nothing)."""
-    src = store.source(srcs.macro)
+    macro_name = srcs.macro
+    if macro_name is None:
+        return []
+    src = store.source(macro_name)
     try:
-        rows = g.records(srcs.macro, start=t0 - pd.Timedelta(days=400), end=end)
+        rows = g.records(macro_name, start=t0 - pd.Timedelta(days=400), end=end)
     except pit.LookAheadError:
         return []
     if not len(rows) or srcs.macro_value not in rows.columns:
@@ -1193,7 +1197,7 @@ def _macro_releases(g: pit.Guard, store: pit.PITStore, srcs: SourceMap, t0, t1, 
         if pd.Timestamp(last["available"]) <= t0:
             continue
         z = abs(step[-1]) / scale if scale > 0 else 0.0
-        it = InfoItem.make(Domain.MACRO, str(name), float(vals[-1]), last[src.effective], last["available"], srcs.macro, t0, t1, cal,
+        it = InfoItem.make(Domain.MACRO, str(name), float(vals[-1]), last[src.effective], last["available"], macro_name, t0, t1, cal,
                            note=f"change z={z:.2f}", boundary_sessions=cfg.boundary_sessions)
         out.append((it, _ramp(z, 1.0, 4.0) * 0.8))
     return out
@@ -1202,7 +1206,15 @@ def _macro_releases(g: pit.Guard, store: pit.PITStore, srcs: SourceMap, t0, t1, 
 # ------------------------------------------------------------------------------------------------ evidence (state + direction)
 
 
-def collect_evidence(state: KnowledgeState, event: EventSpec, cfg: CounterfactualConfig | None = None) -> list[Evidence]:
+class StateReader(Protocol):
+    """What collect_evidence reads of a state: a full KnowledgeState, or the price-only view a peer supplies."""
+
+    def by_domain(self, d: Domain) -> tuple[InfoItem, ...]: ...
+
+    def value(self, domain: Domain, name: str, default: Any = None) -> Any: ...
+
+
+def collect_evidence(state: StateReader, event: EventSpec, cfg: CounterfactualConfig | None = None) -> list[Evidence]:
     """What in the knowledge state pointed toward this move. Reads ONLY the state and the event's direction/window (the
     direction is hindsight; it is used to ask 'did the evidence agree', never to add information to the state)."""
     cfg = cfg or CounterfactualConfig()
@@ -2159,11 +2171,11 @@ def what_became_known(store: pit.PITStore, event: EventSpec, horizons: Sequence[
         cur = {i.key: i for i in st.items}
         for k in sorted(set(ref) | set(cur)):
             a, b = ref.get(k), cur.get(k)
-            if a is None:
+            if a is None and b is not None:
                 rows.append({"horizon": h, "key": k, "domain": b.domain.value, "change": "new", "available": b.available, "before": None, "after": b.value})
-            elif b is None:
+            elif a is not None and b is None:
                 rows.append({"horizon": h, "key": k, "domain": a.domain.value, "change": "gone", "available": a.available, "before": a.value, "after": None})
-            elif a.value != b.value and a.domain in (Domain.EVENT, Domain.MACRO, Domain.PATTERN, Domain.MEMORY):
+            elif a is not None and b is not None and a.value != b.value and a.domain in (Domain.EVENT, Domain.MACRO, Domain.PATTERN, Domain.MEMORY):
                 rows.append({"horizon": h, "key": k, "domain": a.domain.value, "change": "revised", "available": b.available,
                              "before": a.value, "after": b.value})
     return pd.DataFrame(rows, columns=["horizon", "key", "domain", "change", "available", "before", "after"])

@@ -258,11 +258,11 @@ def audit(book: CommitmentBook, outcomes: Iterable[ExitRecord], now, target: Tar
     for c in matured:
         if c.target_digest != target.digest():
             abuses.append(Abuse(AbuseKind.TARGET_CHANGED, c.pred_id, "graded under a target other than the one committed"))
-        o = outs.get(c.pred_id)
-        if o is None:
+        rec = outs.get(c.pred_id)
+        if rec is None:
             abuses.append(Abuse(AbuseKind.SUPPRESSED, c.pred_id, f"matured by {c.matures_by} with no reported outcome"))
             continue
-        abuses.extend(_outcome_abuses(c, o))
+        abuses.extend(_outcome_abuses(c, rec))
     for pid in outs:
         if pid not in by_id:
             abuses.append(Abuse(AbuseKind.REDEFINED, pid, "outcome for a prediction that was never committed (made up after the fact)"))

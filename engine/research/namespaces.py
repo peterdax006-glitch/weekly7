@@ -518,7 +518,7 @@ class NamespaceStore:
         seen: list[str] = []
         missing: list[str] = []
         cycle = False
-        stack = [(object_id, (), 0)]
+        stack: list[tuple[str, tuple[str, ...], int]] = [(object_id, (), 0)]
         while stack:
             k, path, depth = stack.pop()
             if k in path or depth > max_depth:
@@ -728,14 +728,15 @@ def reachable_stores(obj: Any, max_depth: int = 6, max_nodes: int = 20_000) -> l
             todo += [(v, f"{path}[{i}]", depth + 1) for i, v in enumerate(list(x)[:2000])]
         elif isinstance(x, (types.FunctionType, types.MethodType)):
             fn = getattr(x, "__func__", x)
-            if getattr(x, "__self__", None) is not None:
-                todo.append((x.__self__, f"{path}.__self__", depth + 1))
+            bound_to = getattr(x, "__self__", None)
+            if bound_to is not None:
+                todo.append((bound_to, f"{path}.__self__", depth + 1))
             for i, c in enumerate(getattr(fn, "__closure__", None) or ()):
                 try:
                     todo.append((c.cell_contents, f"{path}.<closure{i}>", depth + 1))
                 except ValueError:
                     continue
-            for k, v in (getattr(fn, "__defaults__", None) and enumerate(fn.__defaults__) or ()):
+            for k, v in enumerate(getattr(fn, "__defaults__", None) or ()):
                 todo.append((v, f"{path}.<default{k}>", depth + 1))
         elif hasattr(x, "__dict__") or hasattr(type(x), "__slots__"):
             attrs = dict(getattr(x, "__dict__", {}) or {})
@@ -772,9 +773,9 @@ def module_state_violations(source: str, filename: str = "<source>") -> list[Sha
             mutable = name in _MUTABLE_CALLS
         if mutable:
             out.append(SharedRef("module_state", f"{filename}:{node.lineno}", f"module-level mutable {', '.join(targets)}"))
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Global):
-            out.append(SharedRef("module_state", f"{filename}:{node.lineno}", f"function rebinds globals {', '.join(node.names)}"))
+    for walked in ast.walk(tree):
+        if isinstance(walked, ast.Global):
+            out.append(SharedRef("module_state", f"{filename}:{walked.lineno}", f"function rebinds globals {', '.join(walked.names)}"))
     return out
 
 

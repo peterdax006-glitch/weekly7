@@ -917,10 +917,10 @@ class MarketExpectationEngine:
         """Hand the resolved errors to the shared engine.learning.surprise.SurpriseTracker (cell 'market|<quantity>'), so market
         surprises join the same ledger, FDR control and priorities as pattern surprises. Returns how many records were added."""
         exp = self.ledger.get(result.date)
-        if exp is None:
-            raise ValueError(f"no expectation was recorded for {result.date}")
         n = 0
         for q, s in result.resolved.items():
+            if exp is None:
+                raise ValueError(f"no expectation was recorded for {result.date}")
             tracker.observe(f"market|{q}", s.expected, s.actual, exp.made_at, result.date, now, scale=s.scale)
             n += 1
         return n

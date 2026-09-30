@@ -439,7 +439,7 @@ class ForwardRun:
         return [(d.stream, d.alarm_index, d.direction) for d in self.detections if d.alarm_index <= t]
 
 
-def run_forward(dates: Sequence[Any], streams: Mapping[str, Sequence[float]], targets: Mapping[str, Target],
+def run_forward(dates: Sequence[Any], streams: Mapping[str, Sequence[float] | np.ndarray], targets: Mapping[str, Target],
                 cfg: ChangeConfig | None = None, upto: int | None = None) -> ForwardRun:
     """Feed the streams through a fresh monitor one date at a time, exactly as history would have delivered them. `upto` stops the
     run early (inclusive index); values after it are never touched."""
@@ -460,7 +460,7 @@ def run_forward(dates: Sequence[Any], streams: Mapping[str, Sequence[float]], ta
 SCRAMBLES = ("permute", "level_shift", "huge_noise", "reverse", "nan")
 
 
-def scramble_after(streams: Mapping[str, Sequence[float]], t: int, mode: str, seed: int = 0) -> dict[str, np.ndarray]:
+def scramble_after(streams: Mapping[str, Sequence[float] | np.ndarray], t: int, mode: str, seed: int = 0) -> dict[str, np.ndarray]:
     """Copy of the streams with every value AFTER index t replaced: shuffled, level-shifted by 50 sigma, replaced by huge noise,
     reversed, or blanked. Values up to and including t are untouched."""
     rng = np.random.default_rng(seed)
@@ -654,7 +654,7 @@ def build_streams(day: DayInputs) -> tuple[dict[str, float | None], dict[str, Ta
         put("dispersion", math.log(day.dispersion), Target.DISPERSION)
     if day.breadth_up is not None:
         put("breadth", day.breadth_up, Target.BREADTH)
-    if day.direction_n:
+    if day.direction_n and day.direction_hits is not None:
         put("direction", (day.direction_hits - day.direction_n / 2) / math.sqrt(day.direction_n / 4), Target.DIRECTION)
     if day.holding_days is not None:
         put("holding_period", day.holding_days, Target.HOLDING_PERIOD)
@@ -668,7 +668,7 @@ def build_streams(day: DayInputs) -> tuple[dict[str, float | None], dict[str, Ta
         if len(z):
             put("error_level", float(z.mean()), Target.ERROR_DISTRIBUTION)
             put("error_spread", float(np.log(np.abs(z) + 0.1).mean()), Target.ERROR_DISTRIBUTION)
-    if day.confident_n:
+    if day.confident_n and day.confident_failures is not None:
         put("confident_failures", day.confident_failures / day.confident_n, Target.CONFIDENT_FAILURES)
     return v, tg, un
 
@@ -787,7 +787,7 @@ def streams_from_regime_monitor(monitor: RG.RegimeMonitor) -> tuple[list[str], d
     tg = {"vol": Target.VOLATILITY, "dispersion": Target.DISPERSION, "persistence": Target.MOMENTUM, "trend200": Target.DIRECTION,
           "log_dv": Target.CORRELATION, "event_share": Target.BREADTH}
     dates = [d for d, _ in monitor.history.days]
-    return dates, {n: [float("nan") if v.get(n) is None else float(v[n]) for _, v in monitor.history.days] for n in tg}, tg
+    return dates, {n: [float("nan") if (x := v.get(n)) is None else float(x) for _, v in monitor.history.days] for n in tg}, tg
 
 
 class EarlyWarningSystem:
