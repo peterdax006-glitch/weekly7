@@ -20,7 +20,6 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from engine import exits as EX
 from engine.learning.core import stable_hash
 from engine.research import calibration_target as CT
 from engine.research import error_loop as EL

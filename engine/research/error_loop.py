@@ -76,7 +76,7 @@ from engine.research import selection_constraint as SC
 from engine.research import self_correct as SCX
 from engine.research import two_stage as TS
 from engine.research import what_changed as WC
-from engine.research.core import FirewallBreach, MaturedRecord, Namespace, Problem, ResearchQuestion
+from engine.research.core import FirewallBreach, MaturedRecord, Namespace, Problem
 
 LABEL = "IMPLEMENTED - NOT VALIDATED"
 NAMESPACE = Namespace.MATURED_RESEARCH
@@ -494,6 +494,26 @@ def next_session(ctx: LP.Ctx, day) -> str:
         if i < len(S):
             return str(S[i].date())
     return str((d + pd.offsets.BDay(1)).date())
+
+
+def week_end_positions(ctx: LP.Ctx, bv: BarView) -> list[int]:
+    """Positions of the sessions that closed a calendar week (the market-expectation period). The newest session before now counts
+    only if the public calendar says the next session opens a new week."""
+    S = bv.sessions
+    out = [t for t in range(bv.T - 1) if S[t + 1].to_period("W") != S[t].to_period("W")]
+    if bv.T and pd.Timestamp(next_session(ctx, S[-1])).to_period("W") != S[-1].to_period("W"):
+        out.append(bv.T - 1)
+    return out
+
+
+def next_week_end(ctx: LP.Ctx, day) -> str:
+    """The session that will close the NEXT calendar week (the period the next market expectation is for)."""
+    d = next_session(ctx, day)
+    while True:
+        n = next_session(ctx, d)
+        if pd.Timestamp(n).to_period("W") != pd.Timestamp(d).to_period("W"):
+            return d
+        d = n
 
 
 def session_after(ctx: LP.Ctx, day, k: int) -> str:
@@ -1072,23 +1092,19 @@ def st_market(ctx: LP.Ctx) -> tuple:
                     "error_z": st.daily["error_z"][-keep:]}
     st.warnings = st.warnings[-keep:]
     n_market = 0
-    t_end = bv.T - 1
-    week_ends = [t for t in range(bv.T) if t == bv.T - 1 or bv.sessions[t + 1].to_period("W") != bv.sessions[t].to_period("W")]
-    for t in week_ends:
+    frames, _ = _patterns(ctx, st)
+    for t in week_end_positions(ctx, bv):
         day = str(bv.sessions[t].date())
         if st.market_through and day <= st.market_through:
             continue
         ob = market_obs(bv, t, cfg.horizon)
         if ob is None:
             continue
-        nxt = str((bv.sessions[t] + pd.Timedelta(days=7)).date())
-        frames, _ = _patterns(ctx, st)
         pe = {p: f["effect"][f.index <= bv.sessions[t]].tail(60).to_numpy(float) for p, f in frames.items()}
-        res = ME.step(st.market, ctx.now, ob, pattern_effects=pe, next_period=nxt)
+        res = ME.step(st.market, ctx.now, ob, pattern_effects=pe, next_period=next_week_end(ctx, day))
         st.market.feed_tracker(st.tracker, res, ctx.now)
         st.market_through = day
         n_market += 1
-        t_end = t
     days = set(st.daily["dates"])
     dets = [x for x in st.ews.market.detections if x.alarm_date in days and x.change_date in days]
     ev = RM.RegimeEvidence(tuple(st.daily["dates"]), tuple(dets), {k: list(v) for k, v in st.daily["q"].items()},
@@ -1686,8 +1702,9 @@ def st_validate(ctx: LP.Ctx) -> tuple:
         key = f"CLAIM:{cid}"
         if led.pipe.last_step(key) is None:
             led.pipe.add(key, "VALIDATION", ctx.now, {"status": v.status.value, "failed_steps": list(v.failed_steps())})
-    return _run(st, ctx, "c68.validate_promote", len(fr), changed,
-                f"{rep.summary().splitlines()[0]}; promoted {list(rep.promoted)}; production {st.production['name']}; rolled back {rolled}")
+    return _run(st, ctx, "c68.validate_promote", len(fr), len(rep.results),
+                f"{len(rep.results)} fix(es) tested alone and gated; {rep.summary().splitlines()[0]}; promoted {list(rep.promoted)} "
+                f"({changed} applied); production {st.production['name']}; rolled back {rolled}")
 
 
 def _monitor(st: C68State, fr: pd.DataFrame, now, led: Ledgers) -> int:

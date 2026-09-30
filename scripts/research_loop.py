@@ -1,7 +1,7 @@
 """Runnable entry of the autonomous research loop (contract C66 sections 3, 47, 50, 51; canon C63, C64, C66, C67).
 IMPLEMENTED - NOT VALIDATED: under C63 only the planted source has been run; a real-data run is the next wave's job.
 
-    python scripts/research_loop.py --once                           one cycle on a planted world (default source)
+    python scripts/research_loop.py --once                           one cycle on the W02 planted world (default source: world)
     python scripts/research_loop.py --cycles 20 --mode thread         twenty cycles, experiments in a worker pool
     python scripts/research_loop.py --forever --wall-hours 10         keep researching until the feed or the wall budget ends
     python scripts/research_loop.py --source frame --frame F.pkl      a prepared lab frame (volatility_lab.frame_from_panel layout)
@@ -125,7 +125,7 @@ def main(argv=None) -> int:
     g.add_argument("--cycles", type=int, default=0)
     g.add_argument("--status", action="store_true")
     ap.add_argument("--wall-hours", type=float, default=0.0)
-    ap.add_argument("--source", default="planted", choices=("planted", "frame", "world", "real"))
+    ap.add_argument("--source", default="world", choices=("planted", "frame", "world", "real"))
     ap.add_argument("--frame", default="")
     ap.add_argument("--planted-truth", default="H1")
     ap.add_argument("--planted-dates", type=int, default=120)

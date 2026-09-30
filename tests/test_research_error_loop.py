@@ -9,7 +9,6 @@ import dataclasses
 import inspect
 import json
 import math
-import pickle
 import warnings
 
 import numpy as np
@@ -17,7 +16,6 @@ import pandas as pd
 import pytest
 
 from engine import exits as EX
-from engine.learning import break_detection as BD
 from engine.research import break_research as BR
 from engine.research import calibration_target as CT
 from engine.research import error_loop as EL
