@@ -371,11 +371,15 @@
    "group": "3. FOUNDATION PHASE",
    "description": "Ensure it is reachable.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "scripts/reachability.py"
+   ],
    "tests": [],
    "evidence": [],
-   "notes": ""
+   "notes": "Static reachability 0 UNREACHED in engine.research and engine.learning (29 Sep); runtime data flow proven for the research loop on the planted world (W02); C62 learner still shadow-only/off by default (ledger row 24) - not closed.",
+   "last_run": "2026-09-29T18:22:08",
+   "code_hash": "c53be43f67f8c296"
   },
   {
    "id": "X028",
@@ -712,11 +716,18 @@
    "group": "7. FOUNDATION TEST GATE",
    "description": "Run reachability.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "VALIDATED",
+   "code_paths": [
+    "scripts/reachability.py"
+   ],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/build/evidence/reachability_all_2026-09-29.txt",
+    "state/build/evidence/reachability_engine_research_2026-09-29.txt"
+   ],
+   "notes": "Reachability run 29 Sep after W02: engine.research 63/63 modules REACHED, engine.learning 64/64 modules + 69 hooks REACHED (7 research-only), 0 UNREACHED. Static AST call graph = upper bound; data flow proven separately by W02's end-to-end test (test_research_dataflow, long test 421 s).",
+   "last_run": "2026-09-29T18:22:07",
+   "code_hash": "c53be43f67f8c296"
   },
   {
    "id": "X059",

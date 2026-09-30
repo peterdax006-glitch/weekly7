@@ -1,0 +1,15 @@
+reachability over 339 files; production entries: scripts/check_retester.py, scripts/dashboard_build.py, scripts/learning_report.py, scripts/livesim_cycle.py, scripts/livesim_loop2.py, scripts/research_loop.py; 120 research entries; parked (C65): engine.broker, engine.live, engine.tick
+
+hooks: 69 REACHED, 7 RESEARCH-ONLY, 0 UNREACHED
+  RESEARCH-ONLY wiring.post_mortem                           only from research scripts: scripts/lessons_archive.py, scripts/lessons_real.py
+  RESEARCH-ONLY wiring.decision_sources                      only from research scripts: scripts/lessons_real.py
+  RESEARCH-ONLY wiring.production_config                     only through the parked live path (C65: engine.live / engine.tick)
+  RESEARCH-ONLY wiring.pre_launch                            only through the parked live path (C65: engine.live / engine.tick)
+  RESEARCH-ONLY wiring.registry_audit                        only from research scripts: scripts/audit_registry.py
+  RESEARCH-ONLY wiring.weight                                only from research scripts: scripts/lessons_archive.py, scripts/lessons_real.py
+  RESEARCH-ONLY wiring.promotion_gate                        only through the parked live path (C65: engine.live / engine.tick)
+
+modules: 63 REACHED, 0 RESEARCH-ONLY, 0 UNREACHED
+
+OK: nothing in scope is UNREACHED
+exit 0
