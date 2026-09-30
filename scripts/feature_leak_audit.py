@@ -691,6 +691,10 @@ def run_audit(inp: P.Inputs, builders: Sequence[Builder] = PRODUCTION, n_cuts: i
     return run
 
 
+def _cell(text: str) -> str:
+    return str(text).replace("|", r"\|")                  # a pipe inside a cell would split the markdown table
+
+
 def _fmt(x: float) -> str:
     return "" if not x else ("inf" if not np.isfinite(x) else f"{x:.3g}")
 
@@ -712,27 +716,52 @@ def render_report(runs: Sequence[AuditRun], before: Mapping[str, str] | None = N
               "|---|---|---|---|---|---|---|---|---|"]
         for r in run.results:
             L.append(f"| {r.builder}{' (canary)' if r.planted else ''} | {r.owner} | {r.status} | {len(r.features)} | {len(r.leaks)} | "
-                     f"{r.rows_leaked} | {r.rows_boundary} | {r.seconds} | {(r.error or r.note)[:80]} |")
+                     f"{r.rows_leaked} | {r.rows_boundary} | {r.seconds} | {_cell((r.error or r.note)[:80])} |")
         L += ["", "| builder | feature | status | max abs diff | cells moved | NaN flips | first moved row | cut | offending operation |",
               "|---|---|---|---|---|---|---|---|---|"]
         for r in run.results:
             for f in sorted(r.features, key=lambda f: (f.status != "LEAK", f.feature)):
                 L.append(f"| {r.builder} | {f.feature} | {f.status} | {_fmt(f.max_abs)} | {f.n_fail or ''} | {f.n_nan_mismatch or ''} | "
-                         f"{f.first_bad or ''} | {f.cut or ''} | {f.where or f.reason} |")
+                         f"{f.first_bad or ''} | {f.cut or ''} | {_cell(f.where or f.reason)} |")
         L.append("")
     if before:
         L += ["## Before / after (fixed at the source)", "", "| builder / feature | before | after | fix | meaning changed? |", "|---|---|---|---|---|"]
         after = {f"{r.builder}/{f.feature}": f.status for run in runs for r in run.results for f in r.features}
         for k, (st, fix, meaning) in FIXED.items():
-            L.append(f"| {k} | {st} | {after.get(k, 'not run')} | {fix} | {meaning} |")
+            L.append(f"| {k} | {_cell(st)} | {after.get(k, 'not run')} | {_cell(fix)} | {_cell(meaning)} |")
         L.append("")
+    if OPEN:
+        L += ["## Open leaks (owner must apply the fix; this builder may not edit the file)", "", "| builder / feature | owner | fix |",
+              "|---|---|---|"] + [f"| {k} | {o} | {_cell(fx)} |" for k, (o, fx) in OPEN.items()] + [""]
     L += ["## Covered by another truncation harness", ""] + [f"- {k}: {v}" for k, v in COVERED_ELSEWHERE.items()]
     L += ["", "## What truncation cannot see (out of scope, never counted CLEAN)", ""] + [f"- {s}" for s in OUT_OF_SCOPE]
     return "\n".join(L) + "\n"
 
 
-# builder/feature -> (status before the fix, the fix, whether the feature's meaning changed). Filled from the audit's own findings.
-FIXED: dict[str, tuple[str, str, str]] = {}
+# builder/feature -> (status before the fix, the fix, whether the feature's meaning changed). From the audit's own findings (before/ runs
+# kept under state/research/feature_leak/before/) and the two R08 caught with its own truncation test (journal 29 Sep 15:40).
+FIXED: dict[str, tuple[str, str, str]] = {
+    "volatility_lab.event_inputs/filing_n5": (
+        "LEAK: NaN vs 0 flips (planted 27 cells; real slice 2,298 cells, first MRVL 2013-01-16)",
+        "engine/research/volatility_lab.py event_inputs: coverage is the events TABLE (0 for every name while it is present), no longer "
+        "'this ticker has a row anywhere in the table' (np.isin(t, ev.ticker.unique()))",
+        "yes, slightly: a name with no classified filing anywhere in the table now reads 0 (no recent filing) instead of NaN; before, "
+        "NaN marked names that would NEVER file through 2026 - a fact about the future a tree model can split on"),
+    "direction_lab.derive_features/vix_x_r5": (
+        "LEAK (R08's own truncation test: centred on the panel-wide VIX median)",
+        "engine/research/direction_lab.py: centred on a fixed long-run VIX of 20", "yes: the centre is a constant, not the sample median"),
+    "direction_lab.derive_features/path_efficiency": (
+        "LEAK (R08's own truncation test: centred on the panel-wide close_loc median)",
+        "engine/research/direction_lab.py: centred on the fixed midpoint 0.5", "yes: the centre is the range midpoint, not the sample median"),
+    "feeds.market_proxy/^VIX": (
+        "LEAK (F09: `.bfill()` copied a later realised vol into the first 4 warm-up sessions)",
+        "engine/research/feeds.py: `.fillna(15.0)`, the constant prior until the window has data", "yes: warm-up sessions read the prior"),
+    "feeds.market_proxy/^VIX3M": (
+        "LEAK (F09: same backfill, first 9 warm-up sessions)",
+        "engine/research/feeds.py: `.fillna(17.0)`", "yes: warm-up sessions read the prior"),
+}
+# Leaks in files this builder may not edit (C69 briefs): the exact fix is handed to the owner under INTEGRATION.
+OPEN: dict[str, tuple[str, str]] = {}
 
 
 def free_gb() -> float:

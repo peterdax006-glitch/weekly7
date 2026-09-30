@@ -144,9 +144,10 @@
   "loop2_global_basis_reaches_a_play_call": [],
   "loop2_train_basis_calls": [
    {
-    "line": 419,
+    "line": 488,
     "kwargs": [
-     "seed"
+     "seed",
+     "used_from"
     ],
     "passes_as_of": false,
     "training_set": "wins"
@@ -154,14 +155,22 @@
   ],
   "loop2_register_basis_calls": [
    {
-    "line": 426,
+    "line": 495,
     "trained_on": "wins"
    }
   ],
   "loop2_registers_exactly_the_training_set": true,
   "loop2_headline_excludes_legacy": true,
   "loop2_worker_runs_livesim_run": true,
-  "loop2_worker_passes_hardened": true
+  "loop2_worker_passes_hardened": true,
+  "loop2_every_train_call_passes_used_from": true,
+  "loop2_train_call_uses_global_basis": false,
+  "loop2_train_basis_refuses_late_windows": true,
+  "loop2_main_splits_training_set": true,
+  "loop2_neutral_meta_from_neutral_default_meta": true,
+  "loop2_plan_round_untrained_meta_is_neutral": true,
+  "loop2_quarantines_tuned_meta_plays": true,
+  "loop2_learner_default": "off"
  },
  "proofs": {
   "split_invariance": {
@@ -181,6 +190,18 @@
   "network_guard": {
    "planted_lookup_blocked": true,
    "guard_recorded_attempt": true
+  },
+  "training_gate": {
+   "planted_late_window_refused": true,
+   "boundary_day_before_kept": true,
+   "window_ending_on_first_use_and_unknown_span_refused": true,
+   "missing_first_use_refused": true,
+   "gated_plays_checked": 168,
+   "gated_violations": 0,
+   "trained_versions": 43,
+   "new_basis_not_eligible_for_its_round": 0,
+   "share_of_plays_on_untrained_neutral_basis": 0.16666666666666666,
+   "mechanism_holds": true
   }
  },
  "state_check": {
@@ -220,6 +241,30 @@
   "untrained_meta_mismatch": [],
   "no_basis_record": [],
   "versions": [],
+  "untrained_on_neutral_meta": [],
+  "tuned_meta_plays": [
+   "w03a",
+   "w03b",
+   "w03c",
+   "w04a",
+   "w04b",
+   "w04c",
+   "w05a",
+   "w05b",
+   "w05c",
+   "w06a",
+   "w06b",
+   "w06c",
+   "w07a",
+   "w07b",
+   "w07c",
+   "w08a",
+   "w08b",
+   "w08c"
+  ],
+  "tuned_meta_quarantined": [],
+  "used_from_violations": [],
+  "versions_without_used_from": [],
   "lineage_is_monotone": true
  },
  "state_file": "state\\livesim\\loop2.json",

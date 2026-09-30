@@ -5,16 +5,14 @@ One loop run (engine.research.loop.step with the C68 stages registered by engine
 (error_loop.plant_world): a knowable trend pattern ('mom_r20_top') that pays inside the 5-10% band; a market-wide volatility burst while
 the pattern still works (a FALSE regime alarm); one name that gaps down and turns turbulent with no information item (an unknowable
 single-stock anomaly); a genuine market-wide regime switch that kills the pattern; its return. Every test below reads that run - its
-state, its on-disk ledgers, its cycle reports - or re-drives one of the loop's own stages against a COPY of it with a planted defect.
+state, its on-disk ledgers, its cycle reports - or, at the very end, drives the loop on with a planted defect.
 Each checklist-Z bullet is one test, named after it."""
 from __future__ import annotations
 
 import copy
 import dataclasses
 import gc
-import pickle
 import re
-import shutil
 import warnings
 from pathlib import Path
 
@@ -43,16 +41,16 @@ from engine.research.core import FirewallBreach
 
 warnings.filterwarnings("ignore")
 CLOCK = lambda: 1_700_000_000.0                                   # noqa: E731
-KEEP = ("observe.panel", "evaluate.two_stage", "questions.generate", "hypotheses.trees", "gain.priority")
-FEED = FD.FeedConfig(warm_weeks=50)
-N_CYCLES = 28                                                     # false alarm -> shock -> switch -> confirmation -> recovery
+KEEP = ("observe.panel", "evaluate.two_stage", "questions.generate", "gain.priority")
+FEED = FD.FeedConfig(warm_weeks=50, first_decision="2017-01-13")   # the false alarm is declared inside the first cycle's backfill
+N_CYCLES = 26                                                     # false alarm -> shock -> switch -> confirmation -> recovery
 K_SCRAMBLE = 4
 C68_CFG = EL.C68Config(market=ME.ExpectationConfig(n_perm=60), train_max=2400)   # compute budget only: a smaller permutation null for
                                                                                   # the market precursor scan, fewer training paths
 
 
 def loop_cfg(**kw) -> LP.LoopConfig:
-    base = dict(run_id="p06z", free_gb=12.0, code_hash="p06-adv", checkpoint="off", cadence={},
+    base = dict(run_id="p06z", free_gb=12.0, code_hash="p06-adv", checkpoint="off", cadence={"c68.validate_promote": 2},
                 disabled=tuple(n for n in LP.BUILTIN_STAGES if n not in KEEP and n != "report.cycle"),
                 two_stage=TS.TwoStageConfig(gate_min_weeks=6, min_direction_rows=60, min_calib_rows=20))
     base.update(kw)
@@ -100,7 +98,7 @@ class Run:
 @pytest.fixture(autouse=True)
 def release_copies():
     yield
-    gc.collect()                                                     # the planted-defect copies of the run are dropped between tests
+    gc.collect()                                                     # transient loop objects of a test are dropped before the next
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -121,16 +119,11 @@ def run(tmp_path_factory) -> Run:
     for _ in range(N_CYCLES):
         reps.append(LP.step(state, rt))
         snaps.append(snapshot(state, rt))
+    rt.pipe = None                                                   # the fitted models are not needed by any test: release them
+    for k in ("_c68_bars", "_c68_patterns", "_c68_cal"):
+        rt.__dict__.pop(k, None)
+    gc.collect()
     return Run(world, state, rt, reps, snaps, root)
-
-
-def copy_of(run: Run, tmp_path: Path, feed=None) -> tuple[LP.LoopState, LP.Runtime]:
-    """An independent copy of the finished run (state + on-disk ledgers) to plant a defect in without touching the fixture."""
-    dst = tmp_path / "copy"
-    shutil.copytree(run.root, dst)
-    state = pickle.loads(pickle.dumps(run.state))
-    rt = LP.Runtime(feed or FD.WorldFeed(FD.InMemorySource(run.world), FEED), dst, state.cfg, clock=CLOCK)
-    return state, rt
 
 
 def stage(name: str) -> LP.StageSpec:
@@ -157,7 +150,7 @@ def test_the_run_carried_data_through_every_c68_stage(run):
 
 
 # ============================================================================================================ Z1
-def test_z01_predictions_cannot_be_rewritten_after_outcomes(run, tmp_path):
+def test_z01_predictions_cannot_be_rewritten_after_outcomes(run):
     led = run.led
     pid = next(p for p in led.expectations.ids() if p in led.outcomes)
     exp = led.expectations.get(pid)
@@ -172,17 +165,6 @@ def test_z01_predictions_cannot_be_rewritten_after_outcomes(run, tmp_path):
             fn(pid)
     with pytest.raises(FileExistsError):
         led.book.commit(pid, forged, "any", "2016-01-01", later, exp.decided_at)       # the calibration commitment is frozen too
-    state, rt = copy_of(run, tmp_path)                                                  # rewrite the medium itself, then let the loop audit
-    EL._ledgers(LP.Ctx(state, rt, state.now, state.cycle), state.modules["c68"])
-    chain = rt.root / "c68" / "chain.jsonl"
-    lines = chain.read_text(encoding="utf-8").splitlines()
-    k = next(i for i, ln in enumerate(lines) if pid in ln and '"exp68"' in ln)
-    forged_line = re.sub(r'("predicted_return":\s*)(-?[0-9.eE+-]+)', lambda m: m.group(1) + repr(float(m.group(2)) + 0.01), lines[k], count=1)
-    assert forged_line != lines[k]
-    lines[k] = forged_line
-    chain.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    rec = LP.run_stage(stage("c68.monitor_audit"), LP.Ctx(state, rt, state.now, state.cycle))
-    assert rec.status == LP.StageStatus.REFUSED_LEAK and "Tampered" in rec.reason
 
 
 # ============================================================================================================ Z2
@@ -411,32 +393,6 @@ def test_z16_the_5_10_selection_constraint_is_enforced(run):
     assert removed > 0                                                                  # it removed names the rest of the funnel wanted
 
 
-# ============================================================================================================ Z17
-def test_z17_stocks_outside_the_band_cannot_be_selected_to_improve_another_metric(run, tmp_path):
-    fc = SC.GainForecast("A", "2020-01-02", "P", 0.30, {0.5: 0.30}, 0.9, 500, "d")
-    for bad, why in ((dataclasses.replace(fc, basis="p_up"), SC.Reason.WRONG_QUANTITY), (dataclasses.replace(fc, basis="historical_statistic"),
-                     SC.Reason.WRONG_QUANTITY), (dataclasses.replace(fc, mean=0.07, quantiles={0.5: 0.07}), SC.Reason.STALE_POLICY)):
-        assert SC.select([bad], "2020-01-02", "Q" if why == SC.Reason.STALE_POLICY else "P").reason_of("A") == why
-    state, rt = copy_of(run, tmp_path)                                                   # a second selector that waves everyone through
-
-    def bypass(ctx):
-        ctx.rt.pipe.band_gate = lambda rows, now: pd.DataFrame({"eligible": True, "reason": "ELIGIBLE", "point": 0.07, "p_band": 1.0},
-                                                               index=rows.index)
-        return 1, 1, "planted bypass selector"
-    LP.register_stage("zz.bypass", bypass, after="c68.selection_policy")
-    try:
-        n0 = len(EL.open_ledgers(rt.root, None, state.modules["c68"].cfg, "x").expectations)
-        rep = LP.step(state, rt)
-    finally:
-        LP.unregister_stage("zz.bypass")
-    by = {s["stage"]: s for s in rep["stages"]}
-    dec = state.decisions[-1]
-    assert len(dec.positions) > 0, "the planted bypass produced no position: the test would prove nothing"
-    assert by["c68.expectations"]["status"] == "REFUSED_LEAK" and "bypassed" in by["c68.expectations"]["reason"]
-    assert len(EL.open_ledgers(rt.root, None, state.modules["c68"].cfg, "x").expectations) == n0         # nothing was committed
-    assert state.modules["c68"].counters.get("band_bypass_refused") == 1
-
-
 # ============================================================================================================ Z18
 def test_z18_the_system_cannot_game_the_pm1pp_target(run):
     st, led, now = run.st, run.led, run.state.now
@@ -474,12 +430,41 @@ def test_z19_discoveries_must_pass_out_of_sample_validation(run):
         assert [e["step"] for e in run.led.pipe.trail(k)] == ["OOS_TEST", "MODEL_UPDATE", "VALIDATION", "REJECTED"]
 
 
+# ============================================================================================================ the planted defects
+# These three change the run (one more cycle with a bypass selector, forced gate verdicts, a rewritten medium), so they come LAST and in
+# this order; everything above only reads the run.
+# ============================================================================================================ Z17
+def test_z17_stocks_outside_the_band_cannot_be_selected_to_improve_another_metric(run):
+    fc = SC.GainForecast("A", "2020-01-02", "P", 0.30, {0.5: 0.30}, 0.9, 500, "d")
+    for bad, why in ((dataclasses.replace(fc, basis="p_up"), SC.Reason.WRONG_QUANTITY), (dataclasses.replace(fc, basis="historical_statistic"),
+                     SC.Reason.WRONG_QUANTITY), (dataclasses.replace(fc, mean=0.07, quantiles={0.5: 0.07}), SC.Reason.STALE_POLICY)):
+        assert SC.select([bad], "2020-01-02", "Q" if why == SC.Reason.STALE_POLICY else "P").reason_of("A") == why
+    state, rt = run.state, run.rt                                                        # a second selector that waves everyone through
+
+    def bypass(ctx):
+        ctx.rt.pipe.band_gate = lambda rows, now: pd.DataFrame({"eligible": True, "reason": "ELIGIBLE", "point": 0.07, "p_band": 1.0},
+                                                               index=rows.index)
+        return 1, 1, "planted bypass selector"
+    LP.register_stage("zz.bypass", bypass, after="c68.selection_policy")
+    try:
+        n0 = len(EL.open_ledgers(rt.root, None, state.modules["c68"].cfg, "x").expectations)
+        rep = LP.step(state, rt)
+    finally:
+        LP.unregister_stage("zz.bypass")
+    by = {s["stage"]: s for s in rep["stages"]}
+    dec = state.decisions[-1]
+    assert len(dec.positions) > 0, "the planted bypass produced no position: the test would prove nothing"
+    assert by["c68.expectations"]["status"] == "REFUSED_LEAK" and "bypassed" in by["c68.expectations"]["reason"]
+    assert len(EL.open_ledgers(rt.root, None, state.modules["c68"].cfg, "x").expectations) == n0         # nothing was committed
+    assert state.modules["c68"].counters.get("band_bypass_refused") == 1
+
+
 # ============================================================================================================ Z20
-def test_z20_the_learner_improves_only_when_evidence_justifies_improvement(run, tmp_path, monkeypatch):
+def test_z20_the_learner_improves_only_when_evidence_justifies_improvement(run, monkeypatch):
     st = run.st
     assert st.production["name"] == "incumbent" and "placebo_promoted" not in st.counters
-    state, rt = copy_of(run, tmp_path)
-    ctx = LP.Ctx(state, rt, state.now, state.cycle)
+    state, rt = run.state, run.rt
+    ctx = LP.Ctx(state, rt, state.now, state.cycle + state.cycle % 2)          # a cycle the stage's cadence (every 2nd) runs on
     st2 = state.modules["c68"]
     real = SCX.step
 
@@ -500,3 +485,23 @@ def test_z20_the_learner_improves_only_when_evidence_justifies_improvement(run, 
     worse.loc[late, "predicted"] = worse.loc[late, "realised"] + 0.2                     # the promoted learner then does much worse
     assert EL._monitor(st2, worse, state.now, EL.open_ledgers(rt.root, None, st2.cfg, "x")) == 1
     assert st2.production["name"] == "incumbent"                                         # monitoring rolled it back
+
+
+# ============================================================================================================ Z1 (the medium)
+def test_z01_a_rewritten_medium_is_refused_by_the_loop_audit(run):
+    """The same prediction rewritten ON DISK (the chain file edited in place, as an intruder or a buggy tool would): the loop's own
+    audit stage refuses the cycle (REFUSED_LEAK) instead of reading around it. Runs last: it corrupts the run's own chain."""
+    state, rt = run.state, run.rt
+    led = run.led
+    pid = next(p for p in led.expectations.ids() if p in led.outcomes)
+    exp = led.expectations.get(pid)
+    EL._ledgers(LP.Ctx(state, rt, state.now, state.cycle), state.modules["c68"])
+    chain = rt.root / "c68" / "chain.jsonl"
+    lines = chain.read_text(encoding="utf-8").splitlines()
+    k = next(i for i, ln in enumerate(lines) if pid in ln and '"exp68"' in ln)
+    forged_line = re.sub(r'("predicted_return":\s*)(-?[0-9.eE+-]+)', lambda m: m.group(1) + repr(float(m.group(2)) + 0.01), lines[k], count=1)
+    assert forged_line != lines[k]
+    lines[k] = forged_line
+    chain.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    rec = LP.run_stage(stage("c68.monitor_audit"), LP.Ctx(state, rt, state.now, state.cycle))
+    assert rec.status == LP.StageStatus.REFUSED_LEAK and "Tampered" in rec.reason

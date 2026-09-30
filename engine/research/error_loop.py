@@ -130,7 +130,7 @@ class C68Config:
     selection: SC.SelectionConfig = SC.SelectionConfig()
     exit_cfg: XR.ExitResearchConfig = XR.ExitResearchConfig()
     error_cfg: PE.ErrorConfig = PE.ErrorConfig()
-    research_cfg: ER.ErrorConfig = ER.ErrorConfig()
+    research_cfg: ER.ErrorConfig = ER.ErrorConfig(window=24)   # 'repeated' = among the newest ~6 weeks of positions, not all history
     change: CP.ChangeConfig = CP.ChangeConfig()
     memory: RM.MemoryConfig = RM.MemoryConfig()
     market: ME.ExpectationConfig = ME.ExpectationConfig()
@@ -1853,7 +1853,7 @@ class C68Plant:
     shock_name: int = 7
     distress_len: int = 25
     distress_mult: float = 4.0
-    post_switch_drift: float = 0.005
+    post_switch_drift: float = 0.002
     market_vol: float = 0.006
     post_switch_vol: float = 2.2
 

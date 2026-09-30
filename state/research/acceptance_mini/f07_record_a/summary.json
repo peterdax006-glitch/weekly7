@@ -1,0 +1,750 @@
+{
+ "label": "IMPLEMENTED - NOT VALIDATED",
+ "summary": {
+  "n_seeds": 3,
+  "n_improved": 3,
+  "n_invalid": 0,
+  "n_identity_invariant": 3,
+  "mean_improvement_vs_none": 0.01388385535774553,
+  "mean_improvement_vs_none_all_seeds": 0.01388385535774553,
+  "mean_improvement_vs_control": 0.01388385535774553,
+  "total_changed_without_knowledge": 0,
+  "null_seeds": 3,
+  "null_false_improvements": 0,
+  "null_changed_decisions": 0,
+  "null_production": 0,
+  "planted_true_items_by_stage": {
+   "acted on, right side": 4,
+   "found, not admitted": 2,
+   "admitted, not usable at the probe": 1,
+   "never found": 2
+  }
+ },
+ "seeds": [
+  {
+   "seed": 3,
+   "world": "planted",
+   "learning_claim": "record",
+   "seconds": 256.2,
+   "improved": true,
+   "verdict": "IMPROVED",
+   "items": 5,
+   "production": 2,
+   "learned_weeks": 50,
+   "probe_weeks": 50,
+   "lesson": {
+    "n_long": 250,
+    "n_with_knowledge": 722,
+    "mean_edge": 0.012724441266454983,
+    "t_stat": 3.5894900881189704,
+    "hit_rate": 0.624
+   },
+   "control": {
+    "n_long": 0,
+    "n_with_knowledge": 0,
+    "mean_edge": null,
+    "t_stat": null,
+    "hit_rate": null
+   },
+   "improvement_vs_none": 0.012724441266454983,
+   "improvement_vs_control": 0.012724441266454983,
+   "identity_invariant": true,
+   "changed": 722,
+   "changed_with_knowledge": 722,
+   "changed_without_knowledge": 0,
+   "truth": {
+    "claims": 5,
+    "true_positive": 4,
+    "false_positive": 1,
+    "recall": 1.0,
+    "false_discovery_rate": 0.2
+   },
+   "skill": {
+    "status": "PROVEN",
+    "n": 714,
+    "mean_edge": 0.011907,
+    "p": 0.0004997501249375312
+   },
+   "trace": [
+    {
+     "item": "strong",
+     "kind": "strong",
+     "pattern": "f0:q4",
+     "planted_sign": 1,
+     "belief_mean": 0.01425,
+     "born": true,
+     "role": "CHAMPION",
+     "lifecycle": "ACTIVE",
+     "contract": true,
+     "skill": "PROVEN",
+     "weighted_rows": 400,
+     "long_rows": 250,
+     "mean_expected": 0.01554,
+     "outcome": 0.01543,
+     "stage": "acted on, right side",
+     "why": ""
+    },
+    {
+     "item": "negative",
+     "kind": "negative",
+     "pattern": "f1:q4",
+     "planted_sign": -1,
+     "belief_mean": -0.01223,
+     "born": true,
+     "role": "CHAMPION",
+     "lifecycle": "ACTIVE",
+     "contract": true,
+     "skill": "PROVEN",
+     "weighted_rows": 400,
+     "long_rows": 1,
+     "mean_expected": -0.00946,
+     "outcome": 0.00967,
+     "stage": "acted on, right side",
+     "why": ""
+    },
+    {
+     "item": "regime",
+     "kind": "regime",
+     "pattern": "f2:q4",
+     "planted_sign": 1,
+     "belief_mean": 0.00792,
+     "born": true,
+     "role": "RESEARCH",
+     "lifecycle": "BIRTH",
+     "contract": null,
+     "skill": "PROVEN",
+     "weighted_rows": 0,
+     "long_rows": 0,
+     "mean_expected": null,
+     "outcome": null,
+     "stage": "found, not admitted",
+     "why": "K-40350d0a993a@v1: 7 shadow sessions < 8; "
+    },
+    {
+     "item": "noise_a",
+     "kind": "noise",
+     "pattern": "f3:q4",
+     "planted_sign": 0,
+     "belief_mean": 0.00201,
+     "born": false,
+     "role": null,
+     "lifecycle": null,
+     "contract": null,
+     "skill": "PROVEN",
+     "weighted_rows": 0,
+     "long_rows": 0,
+     "mean_expected": null,
+     "outcome": null,
+     "stage": "never found",
+     "why": "no supported belief became knowledge"
+    },
+    {
+     "item": "noise_b",
+     "kind": "noise",
+     "pattern": "f4:q0",
+     "planted_sign": 0,
+     "belief_mean": -0.00106,
+     "born": false,
+     "role": null,
+     "lifecycle": null,
+     "contract": null,
+     "skill": "PROVEN",
+     "weighted_rows": 0,
+     "long_rows": 0,
+     "mean_expected": null,
+     "outcome": null,
+     "stage": "never found",
+     "why": "no supported belief became knowledge"
+    }
+   ],
+   "counters": {
+    "predictions": 758,
+    "shadow_only_predictions": 655
+   },
+   "gate_blockers": [
+    "anti_memorization",
+    "oos_confirmation",
+    "statistical_validity"
+   ],
+   "notes": []
+  },
+  {
+   "seed": 3,
+   "world": "null",
+   "learning_claim": "record",
+   "seconds": 90.6,
+   "improved": false,
+   "verdict": "NO CHANGE: the experience did not alter any decision",
+   "items": 1,
+   "production": 0,
+   "learned_weeks": 50,
+   "probe_weeks": 50,
+   "lesson": {
+    "n_long": 0,
+    "n_with_knowledge": 0,
+    "mean_edge": null,
+    "t_stat": null,
+    "hit_rate": null
+   },
+   "control": {
+    "n_long": 0,
+    "n_with_knowledge": 0,
+    "mean_edge": null,
+    "t_stat": null,
+    "hit_rate": null
+   },
+   "improvement_vs_none": null,
+   "improvement_vs_control": null,
+   "identity_invariant": true,
+   "changed": 0,
+   "changed_with_knowledge": 0,
+   "changed_without_knowledge": 0,
+   "truth": {
+    "claims": 1,
+    "true_positive": 0,
+    "false_positive": 1,
+    "recall": 1.0,
+    "false_discovery_rate": 1.0
+   },
+   "skill": {
+    "status": "UNPROVEN",
+    "n": 112,
+    "mean_edge": 0.004142,
+    "p": 0.16891554222888555
+   },
+   "trace": [
+    {
+     "item": "noise_a",
+     "kind": "noise",
+     "pattern": "f3:q4",
+     "planted_sign": 0,
+     "belief_mean": 0.00173,
+     "born": false,
+     "role": null,
+     "lifecycle": null,
+     "contract": null,
+     "skill": "UNPROVEN",
+     "weighted_rows": 0,
+     "long_rows": 0,
+     "mean_expected": null,
+     "outcome": null,
+     "stage": "never found",
+     "why": "no supported belief became knowledge"
+    },
+    {
+     "item": "noise_b",
+     "kind": "noise",
+     "pattern": "f4:q0",
+     "planted_sign": 0,
+     "belief_mean": -0.00043,
+     "born": false,
+     "role": null,
+     "lifecycle": null,
+     "contract": null,
+     "skill": "UNPROVEN",
+     "weighted_rows": 0,
+     "long_rows": 0,
+     "mean_expected": null,
+     "outcome": null,
+     "stage": "never found",
+     "why": "no supported belief became knowledge"
+    }
+   ],
+   "counters": {
+    "predictions": 112,
+    "shadow_only_predictions": 112
+   },
+   "gate_blockers": [
+    "anti_memorization",
+    "oos_confirmation",
+    "statistical_validity"
+   ],
+   "notes": [
+    "no knowledge reached production, so the frozen learner abstained: the lesson was not transferable enough to act on"
+   ]
+  },
+  {
+   "seed": 4,
+   "world": "planted",
+   "learning_claim": "record",
+   "seconds": 160.3,
+   "improved": true,
+   "verdict": "IMPROVED",
+   "items": 2,
+   "production": 2,
+   "learned_weeks": 50,
+   "probe_weeks": 50,
+   "lesson": {
+    "n_long": 249,
+    "n_with_knowledge": 336,
+    "mean_edge": 0.020094378251351273,
+    "t_stat": 5.094112058912346,
+    "hit_rate": 0.642570281124498
+   },
+   "control": {
+    "n_long": 0,
+    "n_with_knowledge": 0,
+    "mean_edge": null,
+    "t_stat": null,
+    "hit_rate": null
+   },
+   "improvement_vs_none": 0.020094378251351273,
+   "improvement_vs_control": 0.020094378251351273,
+   "identity_invariant": true,
+   "changed": 336,
+   "changed_with_knowledge": 336,
+   "changed_without_knowledge": 0,
+   "truth": {
+    "claims": 2,
+    "true_positive": 2,
+    "false_positive": 0,
+    "recall": 0.667,
+    "false_discovery_rate": 0.0
+   },
+   "skill": {
+    "status": "PROVEN",
+    "n": 364,
+    "mean_edge": 0.014467,
+    "p": 0.0004997501249375312
+   },
+   "trace": [
+    {
+     "item": "strong",
+     "kind": "strong",
+     "pattern": "f0:q4",
+     "planted_sign": 1,
+     "belief_mean": 0.01428,
+     "born": true,
+     "role": "CHAMPION",
+     "lifecycle": "ACTIVE",
+     "contract": true,
+     "skill": "PROVEN",
+     "weighted_rows": 336,
+     "long_rows": 249,
+     "mean_expected": 0.01546,
+     "outcome": 0.01896,
+     "stage": "acted on, right side",
+     "why": ""
+    },
+    {
+     "item": "negative",
+     "kind": "negative",
+     "pattern": "f1:q4",
+     "planted_sign": -1,
+     "belief_mean": -0.00933,
+     "born": true,
+     "role": "CHAMPION",
+     "lifecycle": "DEGRADED",
+     "contract": false,
+     "skill": "PROVEN",
+     "weighted_rows": 0,
+     "long_rows": 0,
+     "mean_expected": null,
+     "outcome": null,
+     "stage": "admitted, not usable at the probe",
+     "why": "contract allows=False, retrieval skill PROVEN, lifecycle DEGRADED"
+    },
+    {
+     "item": "regime",
+     "kind": "regime",
+     "pattern": "f2:q4",
+     "planted_sign": 1,
+     "belief_mean": -0.00036,
+     "born": false,
+     "role": null,
+     "lifecycle": null,
+     "contract": null,
+     "skill": "PROVEN",
+     "weighted_rows": 0,
+     "long_rows": 0,
+     "mean_expected": null,
+     "outcome": null,
+     "stage": "never found",
+     "why": "no supported belief became knowledge"
+    },
+    {
+     "item": "noise_a",
+     "kind": "noise",
+     "pattern": "f3:q4",
+     "planted_sign": 0,
+     "belief_mean": -0.00145,
+     "born": false,
+     "role": null,
+     "lifecycle": null,
+     "contract": null,
+     "skill": "PROVEN",
+     "weighted_rows": 0,
+     "long_rows": 0,
+     "mean_expected": null,
+     "outcome": null,
+     "stage": "never found",
+     "why": "no supported belief became knowledge"
+    },
+    {
+     "item": "noise_b",
+     "kind": "noise",
+     "pattern": "f4:q0",
+     "planted_sign": 0,
+     "belief_mean": -0.00056,
+     "born": false,
+     "role": null,
+     "lifecycle": null,
+     "contract": null,
+     "skill": "PROVEN",
+     "weighted_rows": 0,
+     "long_rows": 0,
+     "mean_expected": null,
+     "outcome": null,
+     "stage": "never found",
+     "why": "no supported belief became knowledge"
+    }
+   ],
+   "counters": {
+    "predictions": 391,
+    "shadow_only_predictions": 339,
+    "recovered_from_degraded": 1
+   },
+   "gate_blockers": [
+    "statistical_validity"
+   ],
+   "notes": []
+  },
+  {
+   "seed": 4,
+   "world": "null",
+   "learning_claim": "record",
+   "seconds": 48.7,
+   "improved": false,
+   "verdict": "NO CHANGE: the experience did not alter any decision",
+   "items": 0,
+   "production": 0,
+   "learned_weeks": 50,
+   "probe_weeks": 50,
+   "lesson": {
+    "n_long": 0,
+    "n_with_knowledge": 0,
+    "mean_edge": null,
+    "t_stat": null,
+    "hit_rate": null
+   },
+   "control": {
+    "n_long": 0,
+    "n_with_knowledge": 0,
+    "mean_edge": null,
+    "t_stat": null,
+    "hit_rate": null
+   },
+   "improvement_vs_none": null,
+   "improvement_vs_control": null,
+   "identity_invariant": true,
+   "changed": 0,
+   "changed_with_knowledge": 0,
+   "changed_without_knowledge": 0,
+   "truth": {
+    "claims": 0,
+    "true_positive": 0,
+    "false_positive": 0,
+    "recall": 1.0,
+    "false_discovery_rate": 0.0
+   },
+   "skill": {
+    "status": "INSUFFICIENT_EVIDENCE",
+    "n": 0,
+    "mean_edge": null,
+    "p": null
+   },
+   "trace": [
+    {
+     "item": "noise_a",
+     "kind": "noise",
+     "pattern": "f3:q4",
+     "planted_sign": 0,
+     "belief_mean": -0.00035,
+     "born": false,
+     "role": null,
+     "lifecycle": null,
+     "contract": null,
+     "skill": "INSUFFICIENT_EVIDENCE",
+     "weighted_rows": 0,
+     "long_rows": 0,
+     "mean_expected": null,
+     "outcome": null,
+     "stage": "never found",
+     "why": "no supported belief became knowledge"
+    },
+    {
+     "item": "noise_b",
+     "kind": "noise",
+     "pattern": "f4:q0",
+     "planted_sign": 0,
+     "belief_mean": 0.00019,
+     "born": false,
+     "role": null,
+     "lifecycle": null,
+     "contract": null,
+     "skill": "INSUFFICIENT_EVIDENCE",
+     "weighted_rows": 0,
+     "long_rows": 0,
+     "mean_expected": null,
+     "outcome": null,
+     "stage": "never found",
+     "why": "no supported belief became knowledge"
+    }
+   ],
+   "counters": {},
+   "gate_blockers": [],
+   "notes": [
+    "no knowledge reached production, so the frozen learner abstained: the lesson was not transferable enough to act on"
+   ]
+  },
+  {
+   "seed": 5,
+   "world": "planted",
+   "learning_claim": "record",
+   "seconds": 130.6,
+   "improved": true,
+   "verdict": "IMPROVED",
+   "items": 2,
+   "production": 1,
+   "learned_weeks": 50,
+   "probe_weeks": 50,
+   "lesson": {
+    "n_long": 250,
+    "n_with_knowledge": 400,
+    "mean_edge": 0.008832746555430336,
+    "t_stat": 2.1097761274826508,
+    "hit_rate": 0.6
+   },
+   "control": {
+    "n_long": 0,
+    "n_with_knowledge": 0,
+    "mean_edge": null,
+    "t_stat": null,
+    "hit_rate": null
+   },
+   "improvement_vs_none": 0.008832746555430336,
+   "improvement_vs_control": 0.008832746555430336,
+   "identity_invariant": true,
+   "changed": 400,
+   "changed_with_knowledge": 400,
+   "changed_without_knowledge": 0,
+   "truth": {
+    "claims": 2,
+    "true_positive": 2,
+    "false_positive": 0,
+    "recall": 0.667,
+    "false_discovery_rate": 0.0
+   },
+   "skill": {
+    "status": "PROVEN",
+    "n": 476,
+    "mean_edge": 0.012579,
+    "p": 0.0004997501249375312
+   },
+   "trace": [
+    {
+     "item": "strong",
+     "kind": "strong",
+     "pattern": "f0:q4",
+     "planted_sign": 1,
+     "belief_mean": 0.01652,
+     "born": true,
+     "role": "CHAMPION",
+     "lifecycle": "ACTIVE",
+     "contract": true,
+     "skill": "PROVEN",
+     "weighted_rows": 400,
+     "long_rows": 250,
+     "mean_expected": 0.01706,
+     "outcome": 0.01136,
+     "stage": "acted on, right side",
+     "why": ""
+    },
+    {
+     "item": "negative",
+     "kind": "negative",
+     "pattern": "f1:q4",
+     "planted_sign": -1,
+     "belief_mean": -0.00581,
+     "born": false,
+     "role": null,
+     "lifecycle": null,
+     "contract": null,
+     "skill": "PROVEN",
+     "weighted_rows": 0,
+     "long_rows": 0,
+     "mean_expected": null,
+     "outcome": null,
+     "stage": "never found",
+     "why": "no supported belief became knowledge"
+    },
+    {
+     "item": "regime",
+     "kind": "regime",
+     "pattern": "f2:q4",
+     "planted_sign": 1,
+     "belief_mean": 0.01118,
+     "born": true,
+     "role": "RESEARCH",
+     "lifecycle": "BIRTH",
+     "contract": null,
+     "skill": "PROVEN",
+     "weighted_rows": 0,
+     "long_rows": 0,
+     "mean_expected": null,
+     "outcome": null,
+     "stage": "found, not admitted",
+     "why": "nfirmation,anti_memorization; statistical_validity,oos_confirmation,anti_memorization; statistical_validity,oos_confirmation; oos_confirmation; oos_confirmation"
+    },
+    {
+     "item": "noise_a",
+     "kind": "noise",
+     "pattern": "f3:q4",
+     "planted_sign": 0,
+     "belief_mean": -0.00376,
+     "born": false,
+     "role": null,
+     "lifecycle": null,
+     "contract": null,
+     "skill": "PROVEN",
+     "weighted_rows": 0,
+     "long_rows": 0,
+     "mean_expected": null,
+     "outcome": null,
+     "stage": "never found",
+     "why": "no supported belief became knowledge"
+    },
+    {
+     "item": "noise_b",
+     "kind": "noise",
+     "pattern": "f4:q0",
+     "planted_sign": 0,
+     "belief_mean": -0.00036,
+     "born": false,
+     "role": null,
+     "lifecycle": null,
+     "contract": null,
+     "skill": "PROVEN",
+     "weighted_rows": 0,
+     "long_rows": 0,
+     "mean_expected": null,
+     "outcome": null,
+     "stage": "never found",
+     "why": "no supported belief became knowledge"
+    }
+   ],
+   "counters": {
+    "predictions": 492,
+    "shadow_only_predictions": 436,
+    "recovered_from_degraded": 1
+   },
+   "gate_blockers": [
+    "anti_memorization",
+    "oos_confirmation",
+    "statistical_validity"
+   ],
+   "notes": []
+  },
+  {
+   "seed": 5,
+   "world": "null",
+   "learning_claim": "record",
+   "seconds": 48.0,
+   "improved": false,
+   "verdict": "NO CHANGE: the experience did not alter any decision",
+   "items": 0,
+   "production": 0,
+   "learned_weeks": 50,
+   "probe_weeks": 50,
+   "lesson": {
+    "n_long": 0,
+    "n_with_knowledge": 0,
+    "mean_edge": null,
+    "t_stat": null,
+    "hit_rate": null
+   },
+   "control": {
+    "n_long": 0,
+    "n_with_knowledge": 0,
+    "mean_edge": null,
+    "t_stat": null,
+    "hit_rate": null
+   },
+   "improvement_vs_none": null,
+   "improvement_vs_control": null,
+   "identity_invariant": true,
+   "changed": 0,
+   "changed_with_knowledge": 0,
+   "changed_without_knowledge": 0,
+   "truth": {
+    "claims": 0,
+    "true_positive": 0,
+    "false_positive": 0,
+    "recall": 1.0,
+    "false_discovery_rate": 0.0
+   },
+   "skill": {
+    "status": "INSUFFICIENT_EVIDENCE",
+    "n": 0,
+    "mean_edge": null,
+    "p": null
+   },
+   "trace": [
+    {
+     "item": "noise_a",
+     "kind": "noise",
+     "pattern": "f3:q4",
+     "planted_sign": 0,
+     "belief_mean": -0.00396,
+     "born": false,
+     "role": null,
+     "lifecycle": null,
+     "contract": null,
+     "skill": "INSUFFICIENT_EVIDENCE",
+     "weighted_rows": 0,
+     "long_rows": 0,
+     "mean_expected": null,
+     "outcome": null,
+     "stage": "never found",
+     "why": "no supported belief became knowledge"
+    },
+    {
+     "item": "noise_b",
+     "kind": "noise",
+     "pattern": "f4:q0",
+     "planted_sign": 0,
+     "belief_mean": -0.0013,
+     "born": false,
+     "role": null,
+     "lifecycle": null,
+     "contract": null,
+     "skill": "INSUFFICIENT_EVIDENCE",
+     "weighted_rows": 0,
+     "long_rows": 0,
+     "mean_expected": null,
+     "outcome": null,
+     "stage": "never found",
+     "why": "no supported belief became knowledge"
+    }
+   ],
+   "counters": {},
+   "gate_blockers": [],
+   "notes": [
+    "no knowledge reached production, so the frozen learner abstained: the lesson was not transferable enough to act on"
+   ]
+  }
+ ],
+ "provenance": {
+  "code_hash": "090248da16477772",
+  "code_mixed": [
+   "scripts/acceptance_mini.py"
+  ],
+  "git_commit": "0ea8e2b956e9323f02fd980f1b5cc555e6b626dc+dirty",
+  "canon_sha": "fef7cdf0a1501c3d",
+  "bible_sha": "a97ea91862cee371",
+  "blueprint_version": "4.0",
+  "config_hash": "d82bbd1ee808c11d",
+  "data_snapshot": "171ba8ba728ee713",
+  "seed": 3
+ }
+}

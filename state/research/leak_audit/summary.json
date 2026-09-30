@@ -1,28 +1,56 @@
 {
  "counts": {
-  "LEAK": 1,
+  "LEAK": 2,
   "CLEAN": 5,
   "FIXED": 2,
-  "QUARANTINED": 4
+  "QUARANTINED": 3
  },
  "open_leaks": [
-  "6"
+  "6",
+  "8d"
  ],
  "provenance": {
-  "code_hash": "a13281a3c0a9b60b",
+  "code_hash": "fa55aba19a729ebc",
   "code_files": [
    "engine/__init__.py",
+   "engine/adaptive.py",
+   "engine/basis_search.py",
+   "engine/blind_gates.py",
+   "engine/candidates.py",
    "engine/config.py",
    "engine/leak_audit.py",
+   "engine/learning/__init__.py",
+   "engine/learning/archive.py",
+   "engine/learning/core.py",
+   "engine/learning/curator.py",
+   "engine/learning/firewalls.py",
+   "engine/learning/future_firewall.py",
+   "engine/learning/memory_firewall.py",
+   "engine/learning/trader_view.py",
+   "engine/missed_winners.py",
+   "engine/model.py",
+   "engine/objective.py",
+   "engine/pattern_bank.py",
+   "engine/pattern_identity.py",
+   "engine/pattern_lifecycle.py",
+   "engine/pattern_memory.py",
+   "engine/pattern_stats.py",
+   "engine/patterns.py",
+   "engine/policy.py",
+   "engine/portfolio.py",
    "engine/provenance.py",
+   "engine/research/__init__.py",
+   "engine/research/core.py",
+   "engine/research/firewall.py",
+   "engine/research/namespaces.py",
    "scripts/leak_audit.py"
   ],
   "code_mixed": [],
-  "git_commit": "10c1f8d047e0af4f0ed20a1a7edd7637bf36cd3f+dirty",
-  "canon_sha": "5dad4adabf35706b",
+  "git_commit": "0ea8e2b956e9323f02fd980f1b5cc555e6b626dc+dirty",
+  "canon_sha": "fef7cdf0a1501c3d",
   "bible_sha": "a97ea91862cee371",
   "blueprint_version": "4.0",
-  "config_hash": "b4cbc070ebc23765",
+  "config_hash": "76dbe1f34aba32d8",
   "data_snapshot": "171ba8ba728ee713",
   "seed": 20260928
  },
@@ -485,37 +513,70 @@
       "registered_training_set_equals_trained_set": true,
       "start_cfg_is_data_free": true,
       "legacy_windows_excluded_from_headline": true,
+      "every_training_call_names_its_first_use": true,
+      "train_basis_refuses_windows_not_ended_by_first_use": true,
+      "main_splits_the_archive_at_first_use_before_training": true,
+      "training_incumbent_is_past_only": true,
       "gated_basis_never_trained_on_unended_window": true,
       "naive_latest_basis_is_touched_control": true,
+      "gated_training_call_refuses_a_planted_late_window": true,
+      "gated_training_call_keeps_the_window_that_ended_the_day_before": true,
+      "gated_before_use_design_has_no_violation": true,
       "no_trained_play_uses_a_basis_with_unended_training_window": true,
       "untrained_plays_used_exactly_the_neutral_cfg": true,
-      "untrained_plays_used_the_default_meta": true,
+      "untrained_plays_used_the_neutral_or_default_meta": true,
       "every_played_window_has_a_basis_record": true,
       "trained_plays_all_resolvable": true,
-      "lineage_monotone_each_version_contains_the_previous": true,
+      "lineage_monotone_each_ungated_version_contains_the_previous": true,
+      "gated_versions_trained_only_before_their_first_use": true,
       "state_file_read": true,
       "train_basis_calls": [
        {
-        "line": 419,
+        "line": 488,
         "kwargs": [
-         "seed"
+         "seed",
+         "used_from"
         ],
         "passes_as_of": false,
         "training_set": "wins"
        }
       ],
       "train_basis_passes_as_of": false,
-      "meta_default_tuned_on_real_outcomes": true
+      "meta_default_tuned_on_real_outcomes": true,
+      "untrained_meta_is_data_free": true,
+      "loop_quarantines_tuned_meta_plays": true,
+      "plays_on_tuned_meta": [
+       "w03a",
+       "w03b",
+       "w03c",
+       "w04a",
+       "w04b",
+       "w04c",
+       "w05a",
+       "w05b",
+       "w05c",
+       "w06a",
+       "w06b",
+       "w06c",
+       "w07a",
+       "w07b",
+       "w07c",
+       "w08a",
+       "w08b",
+       "w08c"
+      ],
+      "plays_on_tuned_meta_quarantined": []
      },
      "why_not_better": [
-      "META_DEFAULT (used by every untrained play) was set from the sensitivity study on real outcomes: a data-tuned starting point with no data-free replacement; results must carry this label"
+      "18 play(s) in the state file ran on the sensitivity-tuned META_DEFAULT before the loop switched to the data-free NEUTRAL_META: quarantined by the loop (legacy='tuned_meta', out of the headline); their lessons remain in the memory bank, so results must carry this label"
      ]
     },
     "train_basis_calls_in_main(source)": [
      {
-      "line": 419,
+      "line": 488,
       "kwargs": [
-       "seed"
+       "seed",
+       "used_from"
       ],
       "passes_as_of": false,
       "training_set": "wins"
@@ -523,11 +584,57 @@
     ],
     "register_basis_calls_in_main(source)": [
      {
-      "line": 426,
+      "line": 495,
       "trained_on": "wins"
      }
     ],
-    "training_still_uses_every_archived_window": true,
+    "training_still_uses_every_archived_window": false,
+    "training_call_gated_at_first_use(F06, source AST)": {
+     "loop2_every_train_call_passes_used_from": true,
+     "loop2_train_basis_refuses_late_windows": true,
+     "loop2_main_splits_training_set": true,
+     "loop2_train_call_uses_global_basis": false
+    },
+    "training_gate_proof(planted late window + seeded draw process)": {
+     "planted_late_window_refused": true,
+     "boundary_day_before_kept": true,
+     "window_ending_on_first_use_and_unknown_span_refused": true,
+     "missing_first_use_refused": true,
+     "gated_plays_checked": 168,
+     "gated_violations": 0,
+     "trained_versions": 43,
+     "new_basis_not_eligible_for_its_round": 0,
+     "share_of_plays_on_untrained_neutral_basis": 0.16666666666666666,
+     "mechanism_holds": true
+    },
+    "untrained_meta(F06)": {
+     "data_free_NEUTRAL_META": true,
+     "plan_round_untrained_meta_is_neutral": true,
+     "loop_quarantines_tuned_meta_plays": true,
+     "plays_on_tuned_META_DEFAULT_in_state_file": [
+      "w03a",
+      "w03b",
+      "w03c",
+      "w04a",
+      "w04b",
+      "w04c",
+      "w05a",
+      "w05b",
+      "w05c",
+      "w06a",
+      "w06b",
+      "w06c",
+      "w07a",
+      "w07b",
+      "w07c",
+      "w08a",
+      "w08b",
+      "w08c"
+     ],
+     "of_which_already_marked_by_the_loop": [],
+     "untrained_on_NEUTRAL_META": [],
+     "versions_trained_past_their_first_use": []
+    },
     "play_calls_missing_a_per_window_basis": [],
     "global_basis_reaching_a_play_call": [],
     "real_state_file": {
@@ -604,12 +711,17 @@
     "share_of_possible_windows_in_sample_for_those_tuned_defaults": 0.8010973936899863,
     "memory_bank": "filtered real_end < start in Feed.long_term_memory and re-checked by BG.check_memory_bank_causality",
     "memory_bank_planted_late_row_caught": true,
-    "pattern_bank_lessons_analogs_reachable_from_blind_path": [],
+    "pattern_bank_lessons_analogs_reachable_from_blind_path": [
+     "pattern_identity",
+     "pattern_stats",
+     "patterns",
+     "trust"
+    ],
     "same_window_rerun": "BasisLineage(allow_same_window=False) is the strict default: a rerun of a real window never plays a basis trained on its own first run (C56 over C54)"
    },
-   "test": "test_channel4_verdict_flips_when_the_loop_passes_the_global_basis; test_channel4_verdict_flips_when_the_registered_set_differs_from_the_trained_set; test_lineage_state_check_flags_a_planted_future_trained_play; test_current_loop_design_trains_on_windows_from_the_future; test_violations_flags_planted_future_training; test_lineage_filter_removes_the_measured_leak",
-   "fix": "scripts/livesim_loop2.py: plan_round (BasisLineage.basis_for(real start), else NEUTRAL_CFG + META_DEFAULT), register_basis (every trained-on window with real dates), run_workers/classify_round per_id; engine.leak_audit.BasisLineage",
-   "hook": "Remaining open item: META_DEFAULT (adaptation meta-parameters, used by every untrained play) was set from the sensitivity study (39 windows of real outcomes) and has no data-free replacement; every result must carry that label. `train_basis` still takes no `as_of` by design - the gate between training and play is what is proven here. Owner decision: C54 (learn across reruns) vs C56 for reruns of the same window.",
+   "test": "test_channel4_verdict_flips_when_the_loop_passes_the_global_basis; test_channel4_verdict_flips_when_the_registered_set_differs_from_the_trained_set; test_lineage_state_check_flags_a_planted_future_trained_play; test_current_loop_design_trains_on_windows_from_the_future; test_violations_flags_planted_future_training; test_lineage_filter_removes_the_measured_leak; test_leak_closure.py: test_the_loops_train_basis_call_itself_refuses_a_planted_future_window, test_channel4_verdict_flips_when_any_link_of_the_training_gate_is_removed, test_training_gate_proof_holds_and_fails_when_the_gate_admits_everything, test_channel4_meta_residual_fixed_only_when_no_play_ran_on_the_tuned_meta",
+   "fix": "scripts/livesim_loop2.py: plan_round (BasisLineage.basis_for(real start), else NEUTRAL_CFG + NEUTRAL_META), register_basis (every trained-on window with real dates, plus used_from), run_workers/classify_round per_id; F06: main seals the NEXT round before training, splits the archive at its earliest real start (leak_audit.split_training_windows), starts the search from lineage.basis_for(that day), and train_basis(used_from=...) refuses any late window (leak_audit.refuse_late_training -> LateTrainingWindow); quarantine_tuned_meta marks old META_DEFAULT plays legacy='tuned_meta'",
+   "hook": "18 play(s) in the state file ran on the sensitivity-tuned META_DEFAULT before the loop switched to the data-free NEUTRAL_META: quarantined by the loop (legacy='tuned_meta', out of the headline); their lessons remain in the memory bank, so results must carry this label. Owner decision still open: C54 (learn across reruns) vs C56 for reruns of the same window; and whether to drop the tuned-meta windows' rows from memory_bank.parquet (engine/livesim.py Feed.long_term_memory: exclude windows the loop marked legacy='tuned_meta') - that would let this channel reach FIXED.",
    "measured_on": "loop2 + livesim source (AST), the loop's own state file (referee side; no sealed window opened), seeded replay of its draw process"
   },
   "5": {
@@ -682,10 +794,37 @@
        "exposed",
        "hidden"
       ],
-      "shuffled_label_control_near_zero": true
+      "shuffled_label_control_near_zero": true,
+      "year_lookup_part_present": true,
+      "year_lookup_status": "CLEAN",
+      "lookup.curator_never_released_an_unmatured_memory": true,
+      "lookup.curator_never_released_a_memory_maturing_after_the_window": true,
+      "lookup.curator_late_same_year_memory_released_only_after_maturity": true,
+      "lookup.curator_rerun_release_uses_only_memories_matured_before_each_day": true,
+      "lookup.planted_year_or_date_content_refused": true,
+      "lookup.research_record_filed_under_replayed_year_refused": true,
+      "lookup.research_hindsight_label_refused": true,
+      "lookup.research_planted_suite_passed": true,
+      "lookup.memory_bank_planted_late_row_caught": true,
+      "lookup.trader_closure_reaches_no_curator_or_research": true,
+      "lookup.control_curator_releases_a_past_memory": true,
+      "lookup.control_prefix_check_fails_a_curator_that_ignores_maturity": true,
+      "lookup.control_rerun_instrument_sees_a_planted_extra_memory": true,
+      "lookup.control_same_record_admitted_outside_the_replayed_year": true,
+      "lookup.control_research_suite_clean_record_released": true,
+      "lookup.control_memory_bank_clean_bank_passes": true,
+      "lookup.latent_curator_refuses_hindsight_feature_keys": false,
+      "lookup.latent_research_loop_release_passes_replay_context": false,
+      "lookup.curator_writers": [
+       "engine/learning/test_path.py"
+      ],
+      "lookup.curator_on_default_blind_path": false
      },
      "why_not_better": [
-      "the trader's own inputs identify the year in the ['exposed', 'hidden'] view"
+      "the trader's own inputs identify the year in the ['exposed', 'hidden'] view",
+      "no year-keyed lookup reaches the trader (curator releases, research records filed by year, memory bank: all past-only and same-year-refused, planted cases caught); the fingerprint is identifiable but nothing on the trader side can use it - keeping LEAK vs QUARANTINED is the owner's ruling",
+      "latent: the curator accepts a hindsight-named feature key (writers today: ['engine/learning/test_path.py']; they file learner features only)",
+      "latent: engine/research/loop.py st_release calls firewall.run_day without a ReplayContext, so the same-year rule is inert there (the research loop is not on the blind path)"
      ]
     },
     "exposed_window(6y warm-up + 12 months; upper bound, neighbouring windows share warm-up data)": {
@@ -861,11 +1000,55 @@
     ],
     "by_design": "dates shift by whole weeks so holidays/closures survive (check_calendar demands it); VIX/SPY-state is live information; universe size and price/volume levels are data",
     "cost_bps": "the trader is told its era-coded cost (40/20/10 bps): three classes, see static part",
-    "warmup": "starts before 1968 get a shorter warm-up"
+    "warmup": "starts before 1968 get a shorter warm-up",
+    "year_lookup_part(F06: can anything keyed by the year be looked up by the trader in a disguised replay?)": {
+     "status": "CLEAN",
+     "curator": {
+      "unmatured_releases": 0,
+      "after_window_released": false,
+      "past_control_released": true,
+      "first_release_real_day": {
+       "before_window": "2011-03-01",
+       "replayed_year_early": "2011-03-18",
+       "replayed_year_late": "2011-09-09"
+      },
+      "rerun_prefix_mismatches": 0,
+      "control_curator_ignoring_maturity_mismatches": 27,
+      "rerun_days_differing_from_first_run": 50,
+      "rerun_difference_explained": "run 1 files an episode after that day's release (filing latency), a rerun sees it at the next release; still matured strictly before the day",
+      "planted_date_content_refused": {
+       "date_key": true,
+       "year_value": true,
+       "trader_item_year_key": true
+      },
+      "hindsight_feature_refused": false
+     },
+     "research": {
+      "suite_passed": true,
+      "same_year_refused_during_replay": true,
+      "admitted_outside_replay": true,
+      "admitted_without_replay_context": true,
+      "hindsight_caught": true,
+      "research_only_caught": true
+     },
+     "memory_bank": {
+      "planted_late_row_caught": true,
+      "clean_bank_passes": true
+     },
+     "static": {
+      "trader_closure_modules": 123,
+      "trader_closure_clean": true,
+      "curator_writers": [
+       "engine/learning/test_path.py"
+      ],
+      "research_loop_release_passes_replay": false,
+      "loop2_learner_default": "off"
+     }
+    }
    },
-   "test": "test_probe_identifies_year_from_a_planted_level_channel_and_not_after_scrub; test_probe_split_never_overlaps_train_and_test_windows; test_calendar_features_see_a_midweek_closure_and_the_regular_grid_removes_it; test_hardened_feed_closes_the_three_exposures",
+   "test": "test_probe_identifies_year_from_a_planted_level_channel_and_not_after_scrub; test_probe_split_never_overlaps_train_and_test_windows; test_calendar_features_see_a_midweek_closure_and_the_regular_grid_removes_it; test_hardened_feed_closes_the_three_exposures; test_leak_closure.py: test_lookup_verdict_is_clean_on_a_good_part_and_flips_on_each_planted_defect, test_real_lookup_probes_run_and_are_clean_with_live_controls, test_w11_no_research_filed_under_the_replayed_year_is_released_during_the_rerun, test_w11_no_hindsight_label_or_research_item_reaches_the_trader_side",
    "fix": "HardenedFeed removes the absolute SPY/market volume level and real column order (levels_after_hardening barely moves: universe size, price and dollar-volume levels and data artefacts stay identifiable); regular_grid_index removes closure signatures but only cuts the calendar probe from 0.79 to 0.54 skill (the session COUNT survives) and changes what a 'week' is: opt-in, not wired",
-   "hook": "Computed from the fingerprint part: the trader's OWN inputs (ranks, ratios and the m_* market context) identify the real period on their own - the m_* columns carry most of it (single-feature skill exposed/hidden-only: m_dispersion 0.74/0.56, m_vix_chg5 0.52/0.33, m_breadth 0.51/0.00). Market state is live information by design, but it is also a date. A fingerprint can only act where something can be looked up by it: (a) learned state - closed by BasisLineage (no basis contains the played window's year); (b) the memory bank, which recalls by exactly these m_* columns - closed by the real_end < start filter (BG.check_memory_bank_causality); (c) the model itself, which fits its own warm-up. So the status stays LEAK until the owner rules that identifiable-but-unusable market context is acceptable (then QUARANTINED) or coarsens the m_* inputs. Not resolved here.",
+   "hook": "Computed from the fingerprint part: the trader's OWN inputs (ranks, ratios and the m_* market context) identify the real period on their own - the m_* columns carry most of it (single-feature skill exposed/hidden-only: m_dispersion 0.74/0.56, m_vix_chg5 0.52/0.33, m_breadth 0.51/0.00). Market state is live information by design, but it is also a date. A fingerprint can only act where something can be looked up by it: (a) learned state - closed by BasisLineage (no basis contains the played window's year); (b) the memory bank, which recalls by exactly these m_* columns - closed by the real_end < start filter (BG.check_memory_bank_causality); (c) the model itself, which fits its own warm-up. So the status stays LEAK until the owner rules that identifiable-but-unusable market context is acceptable (then QUARANTINED) or coarsens the m_* inputs. Not resolved here. F06 re-audit with the C64 curator path: no year-keyed lookup reaches the trader (curator releases, research records filed by year, memory bank: all past-only and same-year-refused, planted cases caught); the fingerprint is identifiable but nothing on the trader side can use it - keeping LEAK vs QUARANTINED is the owner's ruling; latent: the curator accepts a hindsight-named feature key (writers today: ['engine/learning/test_path.py']; they file learner features only); latent: engine/research/loop.py st_release calls firewall.run_day without a ReplayContext, so the same-year rule is inert there (the research loop is not on the blind path). Latent hooks: engine/learning/curator.py Curator._coerce_item: refuse `leak_audit.hindsight_feature_keys(feats)` before knowability's regime prior is ever filed; engine/research/loop.py st_release: pass `replay=` (the window's ReplayContext) to FWL.run_day whenever the loop runs beside a disguised replay.",
    "measured_on": "real caches, 729 window starts 1965-2025"
   },
   "7": {
@@ -900,14 +1083,21 @@
       "import:alpaca.trading.requests@98",
       "import:alpaca.trading.enums@99"
      ],
+     "candles": [
+      "call:update@28"
+     ],
      "checkpoint": [
       "call:update@28"
      ],
      "data": [
       "import:yfinance@8",
       "call:download@39",
-      "call:download@61",
-      "call:download@94"
+      "call:download@62",
+      "call:download@114"
+     ],
+     "direction": [
+      "call:update@96",
+      "call:update@252"
      ],
      "edgar": [
       "import:requests@10",
@@ -919,25 +1109,26 @@
       "call:update@194"
      ],
      "improve": [
-      "call:update@192",
-      "call:update@250",
-      "call:update@252",
-      "call:update@254",
-      "call:update@273"
+      "call:update@207",
+      "call:update@273",
+      "call:update@275",
+      "call:update@277",
+      "call:update@296"
      ],
      "isolation": [
       "call:update@471"
      ],
      "leak_audit": [
-      "import:socket@26",
-      "call:update@250",
-      "call:update@254",
-      "call:update@862",
-      "call:update@868",
-      "call:update@879",
-      "call:update@882",
-      "call:update@1334",
-      "call:update@1348"
+      "import:socket@33",
+      "call:update@259",
+      "call:update@263",
+      "call:update@871",
+      "call:update@877",
+      "call:update@888",
+      "call:update@891",
+      "call:update@1327",
+      "call:update@1344",
+      "call:update@1358"
      ],
      "live": [
       "call:update@68",
@@ -949,14 +1140,17 @@
       "call:update@236"
      ],
      "livesim_loop2": [
-      "call:update@78",
-      "call:update@282"
+      "call:update@119",
+      "call:update@339"
      ],
      "missed_winners": [
-      "call:update@448"
+      "call:update@483"
      ],
      "options": [
       "import:yfinance@9"
+     ],
+     "pattern_stats": [
+      "call:update@470"
      ],
      "pit": [
       "call:update@882",
@@ -973,8 +1167,8 @@
       "call:update@994"
      ],
      "provenance": [
-      "call:update@104",
-      "call:update@105"
+      "call:update@158",
+      "call:update@159"
      ],
      "replay": [
       "call:update@173"
@@ -984,8 +1178,8 @@
       "call:download@40"
      ],
      "train": [
-      "call:update@64",
-      "call:update@64"
+      "call:update@208",
+      "call:update@208"
      ],
      "universe": [
       "import:requests@5"
@@ -1221,19 +1415,27 @@
   "8d": {
    "key": "8d",
    "name": "Files the trader side reads at run time / reachable modules",
-   "status": "QUARANTINED",
+   "status": "LEAK",
    "evidence": {
     "computed_verdict": {
-     "computed_status": "QUARANTINED",
+     "computed_status": "LEAK",
      "checks": {
-      "research_only_modules_reachable": [],
+      "research_only_modules_reachable": [
+       "pattern_identity",
+       "pattern_stats",
+       "patterns",
+       "trust"
+      ],
       "sealed_state_files_opened_in_a_window": [],
       "cache_files_opened_in_a_window": [
        "data/cache/universe.csv"
       ]
      },
      "why_not_better": [
-      "the trader side reads today's universe.csv (inert on code names)"
+      "pattern_identity",
+      "pattern_stats",
+      "patterns",
+      "trust"
      ]
     },
     "files_actually_opened_during_a_full_blind_window": {
@@ -1245,6 +1447,9 @@
      "other_files_opened": []
     },
     "import_reachable_file_reads_(static, over-approximate: reachable != executed)": {
+     "backtest": [
+      "_jsonable: json.loads(json.dumps(o, default=str))"
+     ],
      "broker": [
       "__init__: json.loads(LEDGER.read_text())",
       "__init__: LEDGER.read_text()",
@@ -1273,6 +1478,10 @@
       "todays_features: pd.read_parquet(K.CACHE / 'insider.parquet')",
       "decide: pd.read_csv(K.CACHE / 'universe.csv')",
       "decide: open(DECISIONS, 'a')"
+     ],
+     "pattern_identity": [
+      "from_json: json.loads(s)",
+      "from_json: json.loads(s)"
      ],
      "policy": [
       "crypto_set: pd.read_csv(K.CACHE / 'universe.csv')"
@@ -1313,6 +1522,12 @@
       "retrain_guarded: json.loads((MODELS / 'cols.json').read_text())",
       "retrain_guarded: (MODELS / 'cols.json').read_text()"
      ],
+     "trust": [
+      "to_json: json.loads(self.table.to_json(orient='records'))",
+      "to_json: open(path, 'w')",
+      "from_json: open(path)",
+      "from_json: json.load(f)"
+     ],
      "universe": [
       "load_universe: pd.read_csv(DATA / 'nasdaqtraded.txt', sep='|', dtype=str)",
       "load_universe: json.loads((DATA / 'company_tickers_exchange.json').read_text())",
@@ -1327,13 +1542,9 @@
      "analogs_stock",
      "antimemo",
      "antioverfit",
-     "baseline",
-     "candidates",
-     "candles",
      "champion",
      "claims",
      "data_sources",
-     "direction",
      "direction_ablate",
      "direction_calib",
      "direction_features",
@@ -1350,23 +1561,17 @@
      "parity",
      "parity_suite",
      "pattern_bank",
-     "pattern_identity",
      "pattern_lifecycle",
      "pattern_memory",
      "pattern_memory_eval",
      "pattern_movers",
      "pattern_reliability",
-     "pattern_stats",
-     "patterns",
      "planted",
-     "registry",
      "repro",
      "resources",
      "retester",
-     "run_report",
      "stops",
      "tick",
-     "trust",
      "trust_store"
     ],
     "policy.not_crypto": "reads data/cache/universe.csv (today's names) - inert on code names, but it is a read of today's data on the trader side"

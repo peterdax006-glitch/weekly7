@@ -205,8 +205,8 @@ def market_proxy(bars: Mapping[str, pd.DataFrame]) -> dict:
     C = bars["Close"]
     r = C.pct_change(fill_method=None).mean(axis=1).fillna(0.0)
     spy = 100.0 * (1.0 + r).cumprod()
-    vix = (r.rolling(20, min_periods=5).std() * math.sqrt(252) * 100).bfill().fillna(15.0)
-    vix3 = (r.rolling(63, min_periods=10).std() * math.sqrt(252) * 100).bfill().fillna(17.0)
+    vix = (r.rolling(20, min_periods=5).std() * math.sqrt(252) * 100).fillna(15.0)          # no bfill: it copied later values into the warm-up (F09 leak)
+    vix3 = (r.rolling(63, min_periods=10).std() * math.sqrt(252) * 100).fillna(17.0)
     base = pd.DataFrame({"SPY": spy, "^VIX": vix, "^VIX3M": vix3}, index=C.index)
     out = {f: base.copy() for f in ("Open", "High", "Low", "Close")}
     out["Volume"] = pd.DataFrame({"SPY": 1e8, "^VIX": 0.0, "^VIX3M": 0.0}, index=C.index)

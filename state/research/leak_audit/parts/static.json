@@ -2,12 +2,16 @@
  "closure_modules": [
   "adaptive",
   "backtest",
+  "baseline",
   "basis_search",
   "blind_gates",
   "broker",
+  "candidates",
+  "candles",
   "checkpoint",
   "config",
   "data",
+  "direction",
   "edgar",
   "explain",
   "features",
@@ -24,16 +28,22 @@
   "model",
   "objective",
   "options",
+  "pattern_identity",
+  "pattern_stats",
+  "patterns",
   "pit",
   "policy",
   "portfolio",
   "provenance",
+  "registry",
   "replay",
+  "run_report",
   "scoring",
   "shadows",
   "site_data",
   "timeline",
   "train",
+  "trust",
   "universe"
  ],
  "not_reachable_from_blind_path": [
@@ -44,13 +54,9 @@
   "analogs_stock",
   "antimemo",
   "antioverfit",
-  "baseline",
-  "candidates",
-  "candles",
   "champion",
   "claims",
   "data_sources",
-  "direction",
   "direction_ablate",
   "direction_calib",
   "direction_features",
@@ -67,26 +73,25 @@
   "parity",
   "parity_suite",
   "pattern_bank",
-  "pattern_identity",
   "pattern_lifecycle",
   "pattern_memory",
   "pattern_memory_eval",
   "pattern_movers",
   "pattern_reliability",
-  "pattern_stats",
-  "patterns",
   "planted",
-  "registry",
   "repro",
   "resources",
   "retester",
-  "run_report",
   "stops",
   "tick",
-  "trust",
   "trust_store"
  ],
- "research_only_modules_reachable": [],
+ "research_only_modules_reachable": [
+  "pattern_identity",
+  "pattern_stats",
+  "patterns",
+  "trust"
+ ],
  "network_markers": {
   "broker": [
    {
@@ -110,6 +115,13 @@
     "what": "alpaca.trading.enums"
    }
   ],
+  "candles": [
+   {
+    "line": 28,
+    "kind": "call",
+    "what": "update"
+   }
+  ],
   "checkpoint": [
    {
     "line": 28,
@@ -129,14 +141,26 @@
     "what": "download"
    },
    {
-    "line": 61,
+    "line": 62,
     "kind": "call",
     "what": "download"
    },
    {
-    "line": 94,
+    "line": 114,
     "kind": "call",
     "what": "download"
+   }
+  ],
+  "direction": [
+   {
+    "line": 96,
+    "kind": "call",
+    "what": "update"
+   },
+   {
+    "line": 252,
+    "kind": "call",
+    "what": "update"
    }
   ],
   "edgar": [
@@ -170,27 +194,27 @@
   ],
   "improve": [
    {
-    "line": 192,
-    "kind": "call",
-    "what": "update"
-   },
-   {
-    "line": 250,
-    "kind": "call",
-    "what": "update"
-   },
-   {
-    "line": 252,
-    "kind": "call",
-    "what": "update"
-   },
-   {
-    "line": 254,
+    "line": 207,
     "kind": "call",
     "what": "update"
    },
    {
     "line": 273,
+    "kind": "call",
+    "what": "update"
+   },
+   {
+    "line": 275,
+    "kind": "call",
+    "what": "update"
+   },
+   {
+    "line": 277,
+    "kind": "call",
+    "what": "update"
+   },
+   {
+    "line": 296,
     "kind": "call",
     "what": "update"
    }
@@ -204,47 +228,52 @@
   ],
   "leak_audit": [
    {
-    "line": 26,
+    "line": 33,
     "kind": "import",
     "what": "socket"
    },
    {
-    "line": 250,
+    "line": 259,
     "kind": "call",
     "what": "update"
    },
    {
-    "line": 254,
+    "line": 263,
     "kind": "call",
     "what": "update"
    },
    {
-    "line": 862,
+    "line": 871,
     "kind": "call",
     "what": "update"
    },
    {
-    "line": 868,
+    "line": 877,
     "kind": "call",
     "what": "update"
    },
    {
-    "line": 879,
+    "line": 888,
     "kind": "call",
     "what": "update"
    },
    {
-    "line": 882,
+    "line": 891,
     "kind": "call",
     "what": "update"
    },
    {
-    "line": 1334,
+    "line": 1327,
     "kind": "call",
     "what": "update"
    },
    {
-    "line": 1348,
+    "line": 1344,
+    "kind": "call",
+    "what": "update"
+   },
+   {
+    "line": 1358,
     "kind": "call",
     "what": "update"
    }
@@ -288,19 +317,19 @@
   ],
   "livesim_loop2": [
    {
-    "line": 78,
+    "line": 119,
     "kind": "call",
     "what": "update"
    },
    {
-    "line": 282,
+    "line": 339,
     "kind": "call",
     "what": "update"
    }
   ],
   "missed_winners": [
    {
-    "line": 448,
+    "line": 483,
     "kind": "call",
     "what": "update"
    }
@@ -310,6 +339,13 @@
     "line": 9,
     "kind": "import",
     "what": "yfinance"
+   }
+  ],
+  "pattern_stats": [
+   {
+    "line": 470,
+    "kind": "call",
+    "what": "update"
    }
   ],
   "pit": [
@@ -376,12 +412,12 @@
   ],
   "provenance": [
    {
-    "line": 104,
+    "line": 158,
     "kind": "call",
     "what": "update"
    },
    {
-    "line": 105,
+    "line": 159,
     "kind": "call",
     "what": "update"
    }
@@ -407,12 +443,12 @@
   ],
   "train": [
    {
-    "line": 64,
+    "line": 208,
     "kind": "call",
     "what": "update"
    },
    {
-    "line": 64,
+    "line": 208,
     "kind": "call",
     "what": "update"
    }
@@ -426,6 +462,13 @@
   ]
  },
  "trader_side_reads": {
+  "backtest": [
+   {
+    "line": 201,
+    "function": "_jsonable",
+    "call": "json.loads(json.dumps(o, default=str))"
+   }
+  ],
   "broker": [
    {
     "line": 40,
@@ -547,6 +590,18 @@
     "call": "open(DECISIONS, 'a')"
    }
   ],
+  "pattern_identity": [
+   {
+    "line": 447,
+    "function": "from_json",
+    "call": "json.loads(s)"
+   },
+   {
+    "line": 566,
+    "function": "from_json",
+    "call": "json.loads(s)"
+   }
+  ],
   "policy": [
    {
     "line": 39,
@@ -654,44 +709,66 @@
   ],
   "train": [
    {
-    "line": 15,
+    "line": 26,
     "function": "build_panel",
     "call": "pd.read_parquet(K.CACHE / 'events.parquet')"
    },
    {
-    "line": 16,
+    "line": 27,
     "function": "build_panel",
     "call": "pd.read_parquet(K.CACHE / 'sic.parquet')"
    },
    {
-    "line": 17,
+    "line": 28,
     "function": "build_panel",
     "call": "pd.read_parquet(K.CACHE / 'insider.parquet')"
    },
    {
-    "line": 49,
+    "line": 193,
     "function": "initial_train",
     "call": "pd.read_parquet(oos)"
    },
    {
-    "line": 55,
+    "line": 199,
     "function": "initial_train",
     "call": "json.loads(meta_p.read_text())"
    },
    {
-    "line": 55,
+    "line": 199,
     "function": "initial_train",
     "call": "meta_p.read_text()"
    },
    {
-    "line": 75,
+    "line": 219,
     "function": "retrain_guarded",
     "call": "json.loads((MODELS / 'cols.json').read_text())"
    },
    {
-    "line": 75,
+    "line": 219,
     "function": "retrain_guarded",
     "call": "(MODELS / 'cols.json').read_text()"
+   }
+  ],
+  "trust": [
+   {
+    "line": 305,
+    "function": "to_json",
+    "call": "json.loads(self.table.to_json(orient='records'))"
+   },
+   {
+    "line": 306,
+    "function": "to_json",
+    "call": "open(path, 'w')"
+   },
+   {
+    "line": 311,
+    "function": "from_json",
+    "call": "open(path)"
+   },
+   {
+    "line": 312,
+    "function": "from_json",
+    "call": "json.load(f)"
    }
   ],
   "universe": [
@@ -714,14 +791,16 @@
  },
  "loop2_train_basis_calls": [
   {
-   "line": 419,
+   "line": 488,
    "kwargs": [
-    "seed"
+    "seed",
+    "used_from"
    ],
    "passes_as_of": false
   }
  ],
- "loop2_trains_on_all_archived_windows": true,
+ "loop2_trains_on_all_archived_windows": false,
+ "loop2_training_gated_at_first_use": true,
  "loop2_hands_worker_the_global_basis": false,
  "basis_future_share_by_seed": [
   {

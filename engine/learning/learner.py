@@ -1669,10 +1669,11 @@ class DecisionScore:
     mean_edge: float | None
     t_stat: float | None
     hit_rate: float | None
+    row_edges: Mapping = field(default_factory=dict)  # (week, slot) -> realised excess return, for the truth trace (F07)
 
 
 def score_decisions(learner: LegitimateLearner, feed: WorldFeed, weeks: Iterable[int], label: str = "") -> DecisionScore:
-    recs, by_exact, rows, edges = [], {}, [], []
+    recs, by_exact, rows, edges, row_edges = [], {}, [], [], {}
     for t in weeks:
         inp = feed.input(t)
         ep = learner.decide_batch(inp.now, inp.panel, track=False)
@@ -1682,6 +1683,8 @@ def score_decisions(learner: LegitimateLearner, feed: WorldFeed, weeks: Iterable
         for r in ep.rows:
             recs.append((t, r.decision))
             by_exact[(t, r.decision.probe_id)] = r.decision.behaviour_key()
+            if r.key in real.index:
+                row_edges[(t, r.decision.slot)] = float(real.loc[r.key])
         edges += got
         rows.append({"week": t, "n_long": len(picks), "mean_edge": float(np.mean(got)) if got else np.nan,
                      "n_knowledge": sum(bool(r.decision.knowledge_ids) for r in ep.rows)})
@@ -1689,7 +1692,7 @@ def score_decisions(learner: LegitimateLearner, feed: WorldFeed, weeks: Iterable
     ok = weekly["mean_edge"].dropna()
     t_stat = float(ok.mean() / (ok.std(ddof=1) / math.sqrt(len(ok)))) if len(ok) > 2 and ok.std(ddof=1) > 0 else None
     return DecisionScore(label, tuple(recs), by_exact, weekly, int(weekly["n_long"].sum()), int(weekly["n_knowledge"].sum()),
-                         float(np.mean(edges)) if edges else None, t_stat, float(np.mean(np.array(edges) > 0)) if edges else None)
+                         float(np.mean(edges)) if edges else None, t_stat, float(np.mean(np.array(edges) > 0)) if edges else None, row_edges)
 
 
 @dataclass(frozen=True)
@@ -1781,6 +1784,10 @@ class AcceptanceReport:
     identity_invariant: bool | None
     skill: Mapping
     notes: tuple = ()
+    trace: tuple = ()                                 # truth_trace rows: where each planted item's signal was lost (F07)
+
+    def lost_at(self) -> dict[str, str]:
+        return {r["item"]: r["stage"] for r in self.trace}
 
     def improved(self) -> bool:
         return bool(self.improvement_vs_none and self.improvement_vs_none > 0 and (self.lesson.t_stat or 0) > 1.0
@@ -1802,6 +1809,8 @@ class AcceptanceReport:
                 f"  planted truth: {dict(self.truth)}",
                 f"  verdict: {'IMPROVED' if self.improved() else 'NOT DEMONSTRATED'}  ({self.protocol.verdict})"]
         rows += [f"  note: {n}" for n in self.notes]
+        rows += [f"  trace {r['item']:<10} {r['pattern']:<8} sign {r['planted_sign']:+d}: {r['stage']}" + (f" ({r['why']})" if r["why"] else "")
+                 for r in self.trace]
         return "\n".join(rows)
 
 
@@ -1815,6 +1824,63 @@ def truth_check(world, learner: LegitimateLearner, at_week: int) -> dict:
     sc = PW.score_claims(world, claims, at_week)
     return {"claims": sc.n_claims, "true_positive": sc.tp, "false_positive": sc.fp, "recall": round(sc.recall, 3),
             "false_discovery_rate": round(sc.false_discovery_rate, 3)}
+
+
+# ---------------------------------------------------------------------------------------------------------------- F07 truth trace
+
+TRACE_STAGES = ("never found", "found, not admitted", "admitted, not usable at the probe", "usable, never carried a decision",
+                "acted on, wrong side", "acted on, right side")
+
+
+def truth_trace(world, learner: LegitimateLearner, probe: DecisionScore, probe_now) -> list[dict]:
+    """F07: every planted item followed through store -> retrieval -> knowledge -> decision -> outcome, and the FIRST stage at which
+    its signal was lost.  found = a belief that became knowledge; admitted = CHAMPION; usable = the decision contract allows it and
+    retrieval skill is PROVEN at the probe's first date; acted = it carried weight on a probe row; side = the sign of the learner's
+    expectation on those rows against the planted sign, and `outcome` = planted sign x mean realised excess return of those rows (> 0
+    means the probe world paid the call).  Noise items are traced too: for them any stage past 'never found' is a false discovery."""
+    rows = []
+    skill = learner.monitor.status(probe_now)["status"]
+    for it in world.spec.items:
+        pids = [learner.pattern_id(f, q) for f, q in it.conds] if len(it.conds) == 1 and it.unless is None else []
+        pid = pids[0] if pids else None
+        sign = int(np.sign(it.effect)) if it.effect else 0
+        kid = learner._kid_of.get(pid) if pid else None
+        rec = {"item": it.item_id, "kind": it.kind, "pattern": pid or it.key_named, "planted_sign": sign, "belief_mean": None,
+               "born": kid is not None, "role": None, "lifecycle": None, "contract": None, "skill": skill, "weighted_rows": 0,
+               "long_rows": 0, "mean_expected": None, "outcome": None, "stage": "never found", "why": ""}
+        if pid in learner.beliefs.subjects():
+            rec["belief_mean"] = round(float(learner.beliefs.current(pid).mean), 5)
+        if kid is None:
+            rec["why"] = "multi-condition item: outside the learner's single-cell search" if pid is None else "no supported belief became knowledge"
+            rows.append(rec)
+            continue
+        k = learner.store.latest(kid)
+        rec.update(role=str(k.promotion), lifecycle=str(k.lifecycle))
+        if k.promotion != Promotion.CHAMPION:
+            rec.update(stage="found, not admitted", why="; ".join(r[2] for r in learner._refusals if r[0] == kid)[-160:] or "never reached the gate")
+            rows.append(rec)
+            continue
+        allowed = learner._contract_allows(kid, probe_now)
+        rec["contract"] = allowed
+        if not allowed or skill != "PROVEN":
+            rec.update(stage="admitted, not usable at the probe", why=f"contract allows={allowed}, retrieval skill {skill}, lifecycle {k.lifecycle}")
+            rows.append(rec)
+            continue
+        used = [(t, d) for t, d in probe.records if kid in d.knowledge_ids]
+        rec["weighted_rows"] = len(used)
+        rec["long_rows"] = sum(d.action == "LONG" for _, d in used)
+        if not used:
+            rec.update(stage="usable, never carried a decision", why="retrieval never ranked it with weight on a probe row")
+            rows.append(rec)
+            continue
+        exp = [d.expected for _, d in used if d.expected is not None]
+        real = [probe.row_edges[(t, d.slot)] for t, d in used if (t, d.slot) in probe.row_edges]
+        rec["mean_expected"] = round(float(np.mean(exp)), 5) if exp else None
+        rec["outcome"] = round(sign * float(np.mean(real)), 5) if real and sign else None
+        right = exp and sign and np.sign(np.mean(exp)) == sign
+        rec["stage"] = "acted on, right side" if right else "acted on, wrong side"
+        rows.append(rec)
+    return rows
 
 
 def run_acceptance(spec, seed: int, make_learner: Callable[[], LegitimateLearner], years_apart: int = 6, probe_from: int = 0,
@@ -1845,6 +1911,8 @@ def run_acceptance(spec, seed: int, make_learner: Callable[[], LegitimateLearner
     notes = []
     if not lesson.production_ids():
         notes.append("no knowledge reached production, so the frozen learner abstained: the lesson was not transferable enough to act on")
+    trace = tuple(truth_trace(world_a, lesson, s_lesson, world_b_id.dates[0]))
     return AcceptanceReport(LABEL, seed, n_a, len(pw), len(lesson.production_ids()), len(lesson._pid_of), s_lesson, s_control, a_disguised,
-                            proto, truth_check(world_a, lesson, n_a - 1), imp, imp_c, inv, lesson.monitor.status(world_b.dates[0]), tuple(notes))
+                            proto, truth_check(world_a, lesson, n_a - 1), imp, imp_c, inv, lesson.monitor.status(world_b.dates[0]), tuple(notes),
+                            trace)
 

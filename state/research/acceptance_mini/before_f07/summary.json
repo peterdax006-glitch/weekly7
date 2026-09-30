@@ -1,0 +1,138 @@
+{
+ "label": "IMPLEMENTED - NOT VALIDATED",
+ "summary": {
+  "n_seeds": 3,
+  "n_improved": 1,
+  "n_invalid": 0,
+  "n_identity_invariant": 3,
+  "mean_improvement_vs_none": 0.012724441266454983,
+  "total_changed_without_knowledge": 0
+ },
+ "seeds": [
+  {
+   "seed": 3,
+   "seconds": 103.9,
+   "improved": true,
+   "verdict": "IMPROVED",
+   "items": 5,
+   "production": 2,
+   "learned_weeks": 50,
+   "probe_weeks": 50,
+   "lesson": {
+    "n_long": 250,
+    "n_with_knowledge": 722,
+    "mean_edge": 0.012724441266454983,
+    "t_stat": 3.5894900881189704,
+    "hit_rate": 0.624
+   },
+   "control": {
+    "n_long": 0,
+    "n_with_knowledge": 0,
+    "mean_edge": null,
+    "t_stat": null,
+    "hit_rate": null
+   },
+   "improvement_vs_none": 0.012724441266454983,
+   "improvement_vs_control": 0.012724441266454983,
+   "identity_invariant": true,
+   "changed": 722,
+   "changed_with_knowledge": 722,
+   "changed_without_knowledge": 0,
+   "truth": {
+    "claims": 5,
+    "true_positive": 4,
+    "false_positive": 1,
+    "recall": 1.0,
+    "false_discovery_rate": 0.2
+   },
+   "notes": []
+  },
+  {
+   "seed": 4,
+   "seconds": 87.1,
+   "improved": false,
+   "verdict": "NO CHANGE: the experience did not alter any decision",
+   "items": 2,
+   "production": 2,
+   "learned_weeks": 50,
+   "probe_weeks": 50,
+   "lesson": {
+    "n_long": 0,
+    "n_with_knowledge": 0,
+    "mean_edge": null,
+    "t_stat": null,
+    "hit_rate": null
+   },
+   "control": {
+    "n_long": 0,
+    "n_with_knowledge": 0,
+    "mean_edge": null,
+    "t_stat": null,
+    "hit_rate": null
+   },
+   "improvement_vs_none": null,
+   "improvement_vs_control": null,
+   "identity_invariant": true,
+   "changed": 0,
+   "changed_with_knowledge": 0,
+   "changed_without_knowledge": 0,
+   "truth": {
+    "claims": 2,
+    "true_positive": 2,
+    "false_positive": 0,
+    "recall": 0.667,
+    "false_discovery_rate": 0.0
+   },
+   "notes": []
+  },
+  {
+   "seed": 5,
+   "seconds": 71.2,
+   "improved": false,
+   "verdict": "NO CHANGE: the experience did not alter any decision",
+   "items": 2,
+   "production": 1,
+   "learned_weeks": 50,
+   "probe_weeks": 50,
+   "lesson": {
+    "n_long": 0,
+    "n_with_knowledge": 0,
+    "mean_edge": null,
+    "t_stat": null,
+    "hit_rate": null
+   },
+   "control": {
+    "n_long": 0,
+    "n_with_knowledge": 0,
+    "mean_edge": null,
+    "t_stat": null,
+    "hit_rate": null
+   },
+   "improvement_vs_none": null,
+   "improvement_vs_control": null,
+   "identity_invariant": true,
+   "changed": 0,
+   "changed_with_knowledge": 0,
+   "changed_without_knowledge": 0,
+   "truth": {
+    "claims": 2,
+    "true_positive": 2,
+    "false_positive": 0,
+    "recall": 0.667,
+    "false_discovery_rate": 0.0
+   },
+   "notes": []
+  }
+ ],
+ "provenance": {
+  "code_hash": "1908b2bee124d844",
+  "code_mixed": [],
+  "git_commit": "f2280bc97d1f6bd271b1221d3be89b58df7f88a3+dirty",
+  "canon_sha": "4db73782706c77bb",
+  "bible_sha": "a97ea91862cee371",
+  "blueprint_version": "4.0",
+  "config_hash": "3695bcf67e20cbb5",
+  "data_snapshot": "171ba8ba728ee713",
+  "seed": 3
+ }
+}

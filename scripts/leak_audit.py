@@ -109,7 +109,8 @@ def part_static(args):
         if isinstance(n, ast.Call) and getattr(n.func, "id", getattr(n.func, "attr", None)) == "train_basis":
             calls.append({"line": n.lineno, "kwargs": [k.arg for k in n.keywords], "passes_as_of": any(k.arg == "as_of" for k in n.keywords)})
     out["loop2_train_basis_calls"] = calls
-    out["loop2_trains_on_all_archived_windows"] = "archive_dirs(DIR)" in src
+    out["loop2_trains_on_all_archived_windows"] = "archive_dirs(DIR)" in src and "split_training_windows" not in src
+    out["loop2_training_gated_at_first_use"] = "split_training_windows" in src and "used_from=used_from" in src   # F06 (verdict reads the AST)
     out["loop2_hands_worker_the_global_basis"] = 'run_workers(ids, st["cfg"], st["meta"])' in src
     # simulate the loop's draws: how much of a played window's basis training set is its own future or overlap
     sims = []
@@ -605,7 +606,7 @@ def curator_run(store, days, states, code, file_every=0, extra=()):
     return digests, released, cur.store
 
 
-def curator_lookup_probe(seed=0):
+def curator_lookup_probe(seed=0, end=None):
     """The C64 curator as a year-keyed store, driven over a synthetic 12-month window (real dates 2011-03..2012-02). Planted: a
     memory from before the window (control: must be released), memories filed under the replayed year that mature inside it
     (never released on or before their maturity) and one that matures after the window (never released). Then the SAME window
@@ -618,7 +619,8 @@ def curator_lookup_probe(seed=0):
     from engine.learning import curator as CU
     from engine.learning import trader_view as TV
     from engine.learning.core import FirewallBreach
-    days = pd.bdate_range(LOOKUP_START, LOOKUP_END)
+    end = pd.Timestamp(end) if end is not None else LOOKUP_END            # a shorter window keeps unit tests fast
+    days = pd.bdate_range(LOOKUP_START, end)
     states = lookup_states(pd.bdate_range(LOOKUP_START - pd.Timedelta(days=200), LOOKUP_END + pd.Timedelta(days=200)), seed)
     code = "lookup-audit-code"
     pre = Curator(store_root=None, code_hash=code)
@@ -673,7 +675,7 @@ def curator_lookup_probe(seed=0):
     except FirewallBreach:
         hindsight_refused = True
     hits = sum(sum(TV.leak_scan_text(json.dumps(ids)).values()) for _, ids in rel + rel2)
-    return {"window_real": [str(LOOKUP_START.date()), str(LOOKUP_END.date())], "days": len(days),
+    return {"window_real": [str(LOOKUP_START.date()), str(end.date())], "days": len(days),
             "first_release_real_day": {k: str(v.date()) for k, v in first.items()},
             "unmatured_releases": unmatured + rerun_unmatured, "after_window_released": "after_window" in first,
             "past_control_released": "before_window" in first,
@@ -721,15 +723,15 @@ def lookup_static(root=None):
     bad = sorted(m for m in closure if m.startswith("engine.research") or m in ("engine.learning.curator", "engine.learning.test_path"))
     viol = FWL.trader_research_violations(root=root)
     facts = L.default_path_facts(root)
-    return {"trader_closure_modules": len(closure), "trader_closure_reaches": bad, "trader_research_violations": [str(v) for v in viol],
+    return {"trader_closure_modules": len(closure), "trader_closure_reaches": bad, "leak_audit_on_trader_path": "engine.leak_audit" in closure, "trader_research_violations": [str(v) for v in viol],
             "trader_closure_clean": bool(closure) and not bad and not viol, "curator_writers": L._curator_writers(root),
             "research_loop_release_passes_replay": L._research_loop_release_passes_replay(root),
             "loop2_learner_default": facts.get("loop2_learner_default")}
 
 
-def year_lookup_audit(seed=0, root=None):
-    """The computed channel-6 lookup part."""
-    return {"curator": curator_lookup_probe(seed), "research": research_lookup_probe(), "memory_bank": L.memory_bank_lookup_probe(),
+def year_lookup_audit(seed=0, root=None, end=None):
+    """The computed channel-6 lookup part (`end` shortens the synthetic window; the audit uses the full 12 months)."""
+    return {"curator": curator_lookup_probe(seed, end), "research": research_lookup_probe(), "memory_bank": L.memory_bank_lookup_probe(),
             "static": lookup_static(root), "seed": seed}
 
 
@@ -807,6 +809,16 @@ def assemble(args):
         "train_basis_calls_in_main(source)": facts.get("loop2_train_basis_calls"),
         "register_basis_calls_in_main(source)": facts.get("loop2_register_basis_calls"),
         "training_still_uses_every_archived_window": S.get("loop2_trains_on_all_archived_windows"),
+        "training_call_gated_at_first_use(F06, source AST)": {k: facts.get(k) for k in ("loop2_every_train_call_passes_used_from", "loop2_train_basis_refuses_late_windows",
+                                                                                     "loop2_main_splits_training_set", "loop2_train_call_uses_global_basis")},
+        "training_gate_proof(planted late window + seeded draw process)": proofs.get("training_gate"),
+        "untrained_meta(F06)": {"data_free_NEUTRAL_META": facts.get("loop2_neutral_meta_from_neutral_default_meta"),
+                                "plan_round_untrained_meta_is_neutral": facts.get("loop2_plan_round_untrained_meta_is_neutral"),
+                                "loop_quarantines_tuned_meta_plays": facts.get("loop2_quarantines_tuned_meta_plays"),
+                                "plays_on_tuned_META_DEFAULT_in_state_file": scs.get("tuned_meta_plays"),
+                                "of_which_already_marked_by_the_loop": scs.get("tuned_meta_quarantined"),
+                                "untrained_on_NEUTRAL_META": scs.get("untrained_on_neutral_meta"),
+                                "versions_trained_past_their_first_use": scs.get("used_from_violations")},
         "play_calls_missing_a_per_window_basis": facts.get("loop2_play_calls_without_per_id"),
         "global_basis_reaching_a_play_call": facts.get("loop2_global_basis_reaches_a_play_call"),
         "real_state_file": {"file": (D.get("state_file")), "modified": D.get("state_file_mtime"), "windows": scs.get("n_windows"), "legacy_windows_(pre-lineage, excluded from headline)": scs.get("legacy"),
@@ -823,12 +835,16 @@ def assemble(args):
         "memory_bank_planted_late_row_caught": S.get("memory_bank_filter_catches_planted_late_row"),
         "pattern_bank_lessons_analogs_reachable_from_blind_path": S.get("research_only_modules_reachable"),
         "same_window_rerun": "BasisLineage(allow_same_window=False) is the strict default: a rerun of a real window never plays a basis trained on its own first run (C56 over C54)"},
-        test="test_channel4_verdict_flips_when_the_loop_passes_the_global_basis; test_channel4_verdict_flips_when_the_registered_set_differs_from_the_trained_set; test_lineage_state_check_flags_a_planted_future_trained_play; test_current_loop_design_trains_on_windows_from_the_future; test_violations_flags_planted_future_training; test_lineage_filter_removes_the_measured_leak",
-        fix="scripts/livesim_loop2.py: plan_round (BasisLineage.basis_for(real start), else NEUTRAL_CFG + META_DEFAULT), register_basis (every trained-on window with real dates), run_workers/classify_round per_id; engine.leak_audit.BasisLineage",
-        hook=("Remaining open item: META_DEFAULT (adaptation meta-parameters, used by every untrained play) was set from the sensitivity study (39 windows of real outcomes) and has no data-free "
-              "replacement; every result must carry that label. `train_basis` still takes no `as_of` by design - the gate between training and play is what is proven here. "
-              "Owner decision: C54 (learn across reruns) vs C56 for reruns of the same window.") if VD["4"].status != L.LEAK else
-              ("; ".join(VD["4"].reasons) or "see the failed checks in computed_verdict"),
+        test="test_channel4_verdict_flips_when_the_loop_passes_the_global_basis; test_channel4_verdict_flips_when_the_registered_set_differs_from_the_trained_set; test_lineage_state_check_flags_a_planted_future_trained_play; test_current_loop_design_trains_on_windows_from_the_future; test_violations_flags_planted_future_training; test_lineage_filter_removes_the_measured_leak; test_leak_closure.py: test_the_loops_train_basis_call_itself_refuses_a_planted_future_window, test_channel4_verdict_flips_when_any_link_of_the_training_gate_is_removed, test_training_gate_proof_holds_and_fails_when_the_gate_admits_everything, test_channel4_meta_residual_fixed_only_when_no_play_ran_on_the_tuned_meta",
+        fix=("scripts/livesim_loop2.py: plan_round (BasisLineage.basis_for(real start), else NEUTRAL_CFG + NEUTRAL_META), register_basis (every trained-on window with real dates, "
+             "plus used_from), run_workers/classify_round per_id; F06: main seals the NEXT round before training, splits the archive at its earliest real start "
+             "(leak_audit.split_training_windows), starts the search from lineage.basis_for(that day), and train_basis(used_from=...) refuses any late window "
+             "(leak_audit.refuse_late_training -> LateTrainingWindow); quarantine_tuned_meta marks old META_DEFAULT plays legacy='tuned_meta'"),
+        hook=(("; ".join(VD["4"].reasons) + ". Owner decision still open: C54 (learn across reruns) vs C56 for reruns of the same window; and whether to drop the "
+               "tuned-meta windows' rows from memory_bank.parquet (engine/livesim.py Feed.long_term_memory: exclude windows the loop marked legacy='tuned_meta') - "
+               "that would let this channel reach FIXED.") if VD["4"].status == L.QUARANTINED else
+              "Closed on the default path: the training call is gated at first use and every untrained play starts from data-free cfg and meta." if VD["4"].status == L.FIXED else
+              ("; ".join(VD["4"].reasons) or "see the failed checks in computed_verdict")),
         measured_on="loop2 + livesim source (AST), the loop's own state file (referee side; no sealed window opened), seeded replay of its draw process"))
 
     # 5 macro
@@ -843,6 +859,7 @@ def assemble(args):
         measured_on="static reachability"))
 
     # 6 fingerprints
+    LK = P.get("lookup") or {}
     exp = F.get("exposed_6y_warmup_plus_window", {})
     hid = F.get("hidden_12_months_only", {})
     def sk(d, g):
@@ -863,14 +880,27 @@ def assemble(args):
         "groups_identifiable_in_exposed_window": open6,
         "by_design": "dates shift by whole weeks so holidays/closures survive (check_calendar demands it); VIX/SPY-state is live information; universe size and price/volume levels are data",
         "cost_bps": "the trader is told its era-coded cost (40/20/10 bps): three classes, see static part",
-        "warmup": "starts before 1968 get a shorter warm-up"},
-        test="test_probe_identifies_year_from_a_planted_level_channel_and_not_after_scrub; test_probe_split_never_overlaps_train_and_test_windows; test_calendar_features_see_a_midweek_closure_and_the_regular_grid_removes_it; test_hardened_feed_closes_the_three_exposures",
+        "warmup": "starts before 1968 get a shorter warm-up",
+        "year_lookup_part(F06: can anything keyed by the year be looked up by the trader in a disguised replay?)": {
+            "status": (VD["6"].checks or {}).get("year_lookup_status"),
+            "curator": {k: (LK.get("curator") or {}).get(k) for k in ("unmatured_releases", "after_window_released", "past_control_released", "first_release_real_day",
+                                                                      "rerun_prefix_mismatches", "control_curator_ignoring_maturity_mismatches", "rerun_days_differing_from_first_run",
+                                                                      "rerun_difference_explained", "planted_date_content_refused", "hindsight_feature_refused")},
+            "research": {k: (LK.get("research") or {}).get(k) for k in ("suite_passed", "same_year_refused_during_replay", "admitted_outside_replay",
+                                                                        "admitted_without_replay_context", "hindsight_caught", "research_only_caught")},
+            "memory_bank": LK.get("memory_bank"),
+            "static": {k: (LK.get("static") or {}).get(k) for k in ("trader_closure_modules", "trader_closure_clean", "curator_writers",
+                                                                    "research_loop_release_passes_replay", "loop2_learner_default")}}},
+        test="test_probe_identifies_year_from_a_planted_level_channel_and_not_after_scrub; test_probe_split_never_overlaps_train_and_test_windows; test_calendar_features_see_a_midweek_closure_and_the_regular_grid_removes_it; test_hardened_feed_closes_the_three_exposures; test_leak_closure.py: test_lookup_verdict_is_clean_on_a_good_part_and_flips_on_each_planted_defect, test_real_lookup_probes_run_and_are_clean_with_live_controls, test_w11_no_research_filed_under_the_replayed_year_is_released_during_the_rerun, test_w11_no_hindsight_label_or_research_item_reaches_the_trader_side",
         fix="HardenedFeed removes the absolute SPY/market volume level and real column order (levels_after_hardening barely moves: universe size, price and dollar-volume levels and data artefacts stay identifiable); regular_grid_index removes closure signatures but only cuts the calendar probe from 0.79 to 0.54 skill (the session COUNT survives) and changes what a 'week' is: opt-in, not wired",
         hook=("Computed from the fingerprint part: the trader's OWN inputs (ranks, ratios and the m_* market context) identify the real period on their own - the m_* columns carry most of it "
               "(single-feature skill exposed/hidden-only: m_dispersion 0.74/0.56, m_vix_chg5 0.52/0.33, m_breadth 0.51/0.00). Market state is live information by design, but it is also a date. "
               "A fingerprint can only act where something can be looked up by it: (a) learned state - closed by BasisLineage (no basis contains the played window's year); (b) the memory bank, which "
               "recalls by exactly these m_* columns - closed by the real_end < start filter (BG.check_memory_bank_causality); (c) the model itself, which fits its own warm-up. So the status stays LEAK "
-              "until the owner rules that identifiable-but-unusable market context is acceptable (then QUARANTINED) or coarsens the m_* inputs. Not resolved here.") if VD["6"].status == L.LEAK else
+              "until the owner rules that identifiable-but-unusable market context is acceptable (then QUARANTINED) or coarsens the m_* inputs. Not resolved here. "
+              "F06 re-audit with the C64 curator path: " + "; ".join(r for r in VD["6"].reasons if not r.startswith("the trader's own inputs")) +
+              ". Latent hooks: engine/learning/curator.py Curator._coerce_item: refuse `leak_audit.hindsight_feature_keys(feats)` before knowability's regime prior is ever "
+              "filed; engine/research/loop.py st_release: pass `replay=` (the window's ReplayContext) to FWL.run_day whenever the loop runs beside a disguised replay.") if VD["6"].status == L.LEAK else
              ("Level and calendar fingerprints are identifiable in the exposed frames but the trader consumes only ranks, ratios and the m_* context, which the probe finds not identifiable. "
               "Learned state is the only place a year fingerprint can act; with BasisLineage a window's state contains nothing from its own year."),
         measured_on="real caches, 729 window starts 1965-2025"))

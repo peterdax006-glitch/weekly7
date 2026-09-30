@@ -1,0 +1,98 @@
+{
+ "curator": {
+  "window_real": [
+   "2011-03-01",
+   "2012-02-29"
+  ],
+  "days": 262,
+  "first_release_real_day": {
+   "before_window": "2011-03-01",
+   "replayed_year_early": "2011-03-18",
+   "replayed_year_late": "2011-09-09"
+  },
+  "unmatured_releases": 0,
+  "after_window_released": false,
+  "past_control_released": true,
+  "replayed_year_late_first_release_after_maturity": true,
+  "rerun_prefix_mismatches": 0,
+  "rerun_prefix_examples": [],
+  "rerun_days_compared": 262,
+  "control_curator_ignoring_maturity_mismatches": 27,
+  "rerun_days_differing_from_first_run": 50,
+  "rerun_days_with_items": 251,
+  "rerun_difference_explained": "run 1 files an episode after that day's release (filing latency), a rerun sees it at the next release; still matured strictly before the day",
+  "memories_filed_by_run1": 51,
+  "memories_after_rerun": 51,
+  "planted_extra_changes_releases": true,
+  "planted_date_content_refused": {
+   "date_key": true,
+   "year_value": true,
+   "trader_item_year_key": true
+  },
+  "planted_year_feature_refused": true,
+  "hindsight_feature_refused": false,
+  "release_text_date_hits": 0
+ },
+ "research": {
+  "suite_passed": true,
+  "suite_void": false,
+  "suite_missed": [],
+  "same_year_caught_by_suite": true,
+  "hindsight_caught": true,
+  "research_only_caught": true,
+  "same_year_refused_during_replay": true,
+  "admitted_outside_replay": true,
+  "admitted_without_replay_context": true,
+  "during_channels": [
+   "SAME_YEAR_RERUN"
+  ]
+ },
+ "memory_bank": {
+  "planted_late_row_caught": true,
+  "clean_bank_passes": true
+ },
+ "static": {
+  "trader_closure_modules": 123,
+  "trader_closure_reaches": [],
+  "leak_audit_on_trader_path": true,
+  "trader_research_violations": [],
+  "trader_closure_clean": true,
+  "curator_writers": [
+   "engine/learning/test_path.py"
+  ],
+  "research_loop_release_passes_replay": false,
+  "loop2_learner_default": "off"
+ },
+ "seed": 20260928,
+ "verdict": {
+  "computed_status": "CLEAN",
+  "checks": {
+   "curator_never_released_an_unmatured_memory": true,
+   "curator_never_released_a_memory_maturing_after_the_window": true,
+   "curator_late_same_year_memory_released_only_after_maturity": true,
+   "curator_rerun_release_uses_only_memories_matured_before_each_day": true,
+   "planted_year_or_date_content_refused": true,
+   "research_record_filed_under_replayed_year_refused": true,
+   "research_hindsight_label_refused": true,
+   "research_planted_suite_passed": true,
+   "memory_bank_planted_late_row_caught": true,
+   "trader_closure_reaches_no_curator_or_research": true,
+   "control_curator_releases_a_past_memory": true,
+   "control_prefix_check_fails_a_curator_that_ignores_maturity": true,
+   "control_rerun_instrument_sees_a_planted_extra_memory": true,
+   "control_same_record_admitted_outside_the_replayed_year": true,
+   "control_research_suite_clean_record_released": true,
+   "control_memory_bank_clean_bank_passes": true,
+   "latent_curator_refuses_hindsight_feature_keys": false,
+   "latent_research_loop_release_passes_replay_context": false,
+   "curator_writers": [
+    "engine/learning/test_path.py"
+   ],
+   "curator_on_default_blind_path": false
+  },
+  "why_not_better": [
+   "latent: the curator accepts a hindsight-named feature key (writers today: ['engine/learning/test_path.py']; they file learner features only)",
+   "latent: engine/research/loop.py st_release calls firewall.run_day without a ReplayContext, so the same-year rule is inert there (the research loop is not on the blind path)"
+  ]
+ }
+}
