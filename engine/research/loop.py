@@ -699,7 +699,9 @@ class Executor:
         return out
 
     def running(self) -> int:
-        return sum(1 for f in self.futures.values() if not f.done())
+        """Jobs handed to the pool and not yet retired by a harvest. F31: counted from the submit/settle book-keeping, never from
+        future.done() - that raced the threads, so two identical runs saw different 'busy' and different stage reasons."""
+        return len(self.futures)
 
     def wait(self, timeout: float | None = None) -> None:
         if self.futures:
@@ -1884,7 +1886,7 @@ def st_run(ctx: Ctx) -> tuple:
         rec.attempts += 1
         ctx.state.memo.setdefault("submit_cycle", {})[key] = ctx.cycle
         n += 1
-    return len(launched), n, f"mode {ctx.state.cfg.mode}; {_outstanding(ctx.state)} submitted, not yet harvested"
+    return len(launched), n, f"mode {ctx.state.cfg.mode}; {ctx.rt.executor.running()} still running"
 
 
 def fresh_dates(matured: pd.DataFrame, seen_through: str) -> int:
@@ -1993,10 +1995,6 @@ def _submit_cycle(state: LoopState, rec: JobRecord) -> int:
     recovery keeps the cycle of its original submission, so a resumed run harvests it exactly when the uninterrupted run would)."""
     return int(state.memo.get("submit_cycle", {}).get(rec.key, rec.cycle))
 
-
-def _outstanding(state: LoopState) -> int:
-    """Jobs handed to the executor and not yet harvested, from the loop state (never from the pool, whose view races the threads)."""
-    return sum(1 for r in state.jobs.values() if r.state == JobState.RUNNING)
 
 
 def st_controls(ctx: Ctx) -> tuple:
@@ -2641,7 +2639,7 @@ def st_sweeps(ctx: Ctx) -> tuple:
     specs = ctx.rt.sweep_specs
     if not specs:
         raise NoInput("no always-on sweeps configured")
-    busy = _outstanding(ctx.state) >= ctx.state.cfg.max_workers          # F31: from the loop state; the pool's view races the threads
+    busy = ctx.rt.executor.running() >= ctx.state.cfg.max_workers
     dec = ctx.bus.get("controller")
     share = dec.share(CT.Phase.DISCOVERY) if dec is not None else 0.05
     units = 0 if busy else max(1, int(round(ctx.state.cfg.sweep_units * share / 0.05)))
@@ -2914,7 +2912,7 @@ def step(state: LoopState, rt: Runtime) -> dict | None:
 
 def _cycle_complete(state: LoopState) -> bool:
     """Every registered stage of the current cycle is recorded as done (the report was written) but the cycle was not closed."""
-    done = state.done_stages.get(state.cycle)
+    done = state.done_stages.get(state.cycle) or []
     return bool(done) and set(STAGE_NAMES) <= set(done)
 
 
