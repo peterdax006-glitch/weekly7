@@ -1,0 +1,7 @@
+13:49:10 stage S1_leak_multiplicity part 1/2 pid 27504 code 04e2a81cf517c6d4
+13:50:39 W00001 development tier 4: real 0/21 FP 0 {} 90s
+13:52:14 W00003 development tier 6: real 0/19 FP 0 {} 95s
+13:53:16 W00005 development tier 2: real 0/16 FP 0 {} 61s
+13:54:22 W00007 heldout tier 3: real 0/18 FP 0 {} 66s
+13:55:21 W00009 development tier 3: real 0/18 FP 2 {'leak': 2} 59s
+13:56:28 W00011 development tier 0: real 0/0 FP 0 {} 67s

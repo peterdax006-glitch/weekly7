@@ -1,0 +1,7 @@
+13:49:10 stage S1_leak_multiplicity part 0/2 pid 13420 code 04e2a81cf517c6d4
+13:50:47 W00000 heldout tier 6: real 0/18 FP 0 {} 98s
+13:51:51 W00002 development tier 3: real 0/18 FP 0 {} 64s
+13:52:56 W00004 heldout tier 3: real 0/21 FP 0 {} 65s
+13:53:43 W00006 heldout tier 0: real 0/0 FP 0 {} 47s
+13:54:46 W00008 development tier 2: real 0/17 FP 0 {} 63s
+13:55:58 W00010 development tier 3: real 1/21 FP 0 {} 72s

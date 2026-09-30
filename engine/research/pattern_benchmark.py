@@ -21,8 +21,10 @@ C74  every world plants >= 200 noise candidates (many of them multiple-testing w
 What runs as 'the current system' (`run_system`): the research loop's candidate generation and gate at DEFAULT settings, on past data
 only - st_feature_screen (volatility_lab.oriented_scan over every derived feature, loop defaults screen_t / screen_top) raises
 candidates, and every raised candidate is judged by evidence.assemble + evidence.gate under loop.REGATE_PLAN (numbered looks, the
-persistent replication ledger, re-gated every loop.REGATE_NEW_DATES dates, retired only on futility / quarantine / the evidence
-horizon), on the rolling frame the loop's feed serves (feeds.FeedConfig.frame_weeks). Deviations, all stated in the report: (1) the
+persistent replication ledger, re-gated every loop.REGATE_NEW_DATES dates, retired on futility / repeated FAILED looks (F26,
+SequentialPlan.retire) / quarantine / the evidence horizon), on the rolling frame the loop's feed serves (feeds.FeedConfig.frame_weeks).
+F26: the gate is told the screen's full search size (FindingSpec.n_scanned = every feature scored), and BenchConfig.evidence_ablation
+turns individual F26 evidence fixes off for attribution only (never the world). Deviations, all stated in the report: (1) the
 screen runs once per re-gate interval with its per-call cap multiplied by the interval (one call instead of 13 weekly calls); (2) the
 ladder between the screen and the gate (cheap screen -> stronger tests -> cross-year -> fresh holdout) is not run - a raised candidate
 goes to the gate directly, which is the gate-only path the task names; (3) the benchmark's planted columns enter the candidate
@@ -132,9 +134,17 @@ class BenchConfig:
     gate: bool = True                      # False = screen only (tests)
     screen_calls: int | None = None        # weekly screen calls one benchmark screen stands for (None = look_every)
     seed_salt: str = "F19-heldout-v1"
+    # F26 attribution only (never changes the world): EvidenceConfig fix switches to turn OFF, and whether the gate is told the
+    # screen's full search size (False = the pre-F26 count of candidates raised)
+    evidence_ablation: tuple = ()
+    honest_multiplicity: bool = True
 
     def validate(self) -> list[str]:
         errs = []
+        from engine.research import evidence as EV
+        flags = {f.name for f in dataclasses.fields(EV.EvidenceConfig) if f.name.startswith("f26_")}
+        if set(self.evidence_ablation) - flags:
+            errs.append(f"unknown evidence ablation {sorted(set(self.evidence_ablation) - flags)}; known: {sorted(flags)}")
         if self.n_names < 16 or self.n_dates < 60:
             errs.append("n_names >= 16 and n_dates >= 60 required")
         if not 8 <= self.first_look <= self.n_dates or self.look_every < 1:
@@ -869,6 +879,8 @@ def run_system(frame: pd.DataFrame, world_id: str, seed: int, cfg: BenchConfig =
     planted = [c for c in frame.columns if c.startswith(PREFIX)]
     dates = pd.DatetimeIndex(frame.index.get_level_values(0).unique()).sort_values()
     plan = LP.REGATE_PLAN
+    off: dict[str, Any] = {str(k): False for k in cfg.evidence_ablation}
+    ecfg = dataclasses.replace(EV.EvidenceConfig(), **off)
     t0 = time.monotonic()
     cands: dict[str, dict] = {}
     screened: dict[str, int] = {}
@@ -911,10 +923,10 @@ def run_system(frame: pd.DataFrame, world_id: str, seed: int, cfg: BenchConfig =
                 st["looks"] += 1
                 k = st["looks"]
                 spec = EV.FindingSpec("D_" + f, f, cands[f]["sign"], "VOLATILITY", n_tests_searched=max(1, len(screened)),
-                                      has_falsifier=True, seed=int(seed), n_scanned=len(feats))
+                                      has_falsifier=True, seed=int(seed), n_scanned=len(feats) if cfg.honest_multiplicity else 0)
                 b = EV.assemble(M[evidence_columns(f, M.columns)], spec, now, code_hash=code_hash, data_hash=f"bench{seed}",
-                                created_real=created_real, ledger=st["ledger"], look=k, plan=plan)
-                rep = EV.gate([b], now, code_hash, store=store, looks={spec.subject_id: k}, plan=plan)
+                                created_real=created_real, cfg=ecfg, ledger=st["ledger"], look=k, plan=plan)
+                rep = EV.gate([b], now, code_hash, store=store, looks={spec.subject_id: k}, plan=plan, cfg=ecfg)
                 d = _decision_summary(rep, spec.subject_id)
                 d.update(look=li, k=k, alpha=plan.alpha_at(k), n_tests_searched=max(1, len(screened)), n_scanned=len(feats),
                          n_search=spec.n_search, effect_test=b.parts.get("effect_test"), n_test=b.parts.get("n_test"),

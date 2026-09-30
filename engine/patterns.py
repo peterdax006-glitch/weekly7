@@ -554,15 +554,74 @@ def _confirmation_fdr(R, P, miner):
     R["screened"] = screened
     R["p_confirm"] = p_conf
     passed = np.zeros(len(R), bool)
+    level = np.full(len(R), -1)
     if screened.any() and P.get("confirm_fdr", True):
-        idx = np.flatnonzero(screened)
-        passed[idx] = _S.bh_reject(p_conf[idx], q)
+        parent = _deferring_parent(R, screened)
+        level = _hierarchical_bh(p_conf, screened, parent, q, passed)
     elif not P.get("confirm_fdr", True):
         passed[:] = True                                      # legacy admission (pre-F25), kept only for measurement
     R["confirm_fdr_pass"] = passed
+    R["confirm_level"] = level
     miner.confirm_summary = {"screened": int(screened.sum()), "confirm_q": q, "confirm_pass": int((passed & screened).sum()),
-                             "confirm_fdr": bool(P.get("confirm_fdr", True))}
+                             "confirm_fdr": bool(P.get("confirm_fdr", True)),
+                             "confirm_families": int(level.max() + 1) if (level >= 0).any() else 0,
+                             "confirm_deferred": int(((level != 0) & screened).sum()) if P.get("confirm_fdr", True) else 0}
     return passed
+
+
+def _ancestors(text):
+    """Every proper sub-expression of a candidate: 'A & B unless C' -> 'A & B', 'A', 'B' (and 'A unless C', 'B unless C'
+    when those are legal expressions). Pure function of the expression, never of any outcome."""
+    from itertools import combinations
+    e = _I.Expression.parse(text)
+    out = []
+    for nb in range(1, len(e.base) + 1):
+        for b in combinations(e.base, nb):
+            for nu in range(0, len(e.unless) + 1):
+                for u in combinations(e.unless, nu):
+                    if nb == len(e.base) and nu == len(e.unless):
+                        continue
+                    try:
+                        out.append(_I.Expression.make(b, u).text)
+                    except _I.IdentityError:
+                        continue
+    return out
+
+
+def _deferring_parent(R, screened):
+    """For each screened candidate: the row of its strongest SCREENED ancestor when that ancestor's discovery evidence is at
+    least as strong (|t_disc|), else -1. Such a child adds no new idea on the discovery data - it is the ancestor again
+    with a filter the search chose - so it is only worth a confirmation test once the ancestor itself confirms.
+    Discovery-only information, so the confirmation p-values stay valid."""
+    pos = {t: i for i, t in enumerate(R["key_named"].astype(str))}
+    td = np.abs(np.nan_to_num(R["t_disc"].values.astype(float)))
+    parent = np.full(len(R), -1)
+    for i in np.flatnonzero(screened):
+        best = -1
+        for a in _ancestors(str(R["key_named"].iloc[i])):
+            j = pos.get(a, -1)
+            if j >= 0 and screened[j] and (best < 0 or td[j] > td[best]):
+                best = j
+        if best >= 0 and td[best] >= td[i]:
+            parent[i] = best
+    return parent
+
+
+def _hierarchical_bh(p_conf, screened, parent, q, passed):
+    """Hierarchical BH (Yekutieli 2008 shape): family 0 = screened candidates with no deferring parent; family k+1 = the
+    deferred children of candidates confirmed in family k. Each family is BH at q. A false admission in family k+1 needs
+    a false (or true) admission in family k first, so under a complete null P(any admission) <= q. Writes `passed`,
+    returns the family level each candidate was tested in (-1 = never tested)."""
+    level = np.full(len(p_conf), -1)
+    fam = np.flatnonzero(screened & (parent < 0))
+    k = 0
+    while len(fam):
+        level[fam] = k
+        passed[fam] = _S.bh_reject(p_conf[fam], q)
+        ok = set(fam[passed[fam]].tolist())
+        fam = np.array([i for i in np.flatnonzero(screened & (parent >= 0) & (level < 0)) if int(parent[i]) in ok], dtype=int)
+        k += 1
+    return level
 
 
 def _prior_frame(prior):

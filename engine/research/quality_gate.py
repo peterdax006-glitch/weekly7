@@ -16,7 +16,12 @@ EXTENDS engine.learning.promotion (its statistical, OOS, transfer, risk, memoris
 functions are called, not copied), engine.learning.firewalls (a GateVerdict from LearningFirewallGate is accepted as leak
 evidence and its planted corpus is reused), engine.learning.identity_firewall (IdentityReport), engine.learning.calibration,
 engine.learning.complexity and engine.research.replication (the replication assessment). SAME-YEAR IMPROVEMENT = INTERESTING,
-OOS TRANSFER = REQUIRED (section 48): the OOS gate needs periods in calendar years the discovery never trained on."""
+OOS TRANSFER = REQUIRED (section 48): the OOS gate needs periods in calendar years the discovery never trained on.
+
+F26 (C75 Phase 3, the F19 benchmark): the leak screen also tests the forward return's MAGNITUDE and, via screen_future_dependence,
+whether a feature knows how the coming outcome realises; the calibration gate judges a conditional claim against its own reference
+forecast with a recalibration slope that cannot diverge (logistic_offset_fit); the complexity gate's worst-fold tolerance is stated in
+a fold's own standard error (fold_scaled_config); the risk gate reads why a claim signs no holding (QualityEvidence.risk_note)."""
 from __future__ import annotations
 
 import dataclasses
@@ -77,6 +82,7 @@ class QualityPolicy:
     max_unknown_cause_share: float = 0.5
     obs_per_complexity_unit: float = 15.0
     code_hash: str = ""
+    worst_fold_in_fold_se: bool = True         # F26: the complexity gate's worst-fold tolerance is measured in a FOLD's standard error
 
     def validate(self) -> list[str]:
         errs = list(self.promotion.validate()) + CX.validate_config(self.complexity)
@@ -181,6 +187,7 @@ class QualityEvidence:
     calibration: CalibrationEvidence | None = None
     changes_risk_decisions: bool = True
     risk: PR.RiskEvidence | None = None
+    risk_note: str = ""                        # F26: why a claim bears no position risk of its own (read when changes_risk_decisions is False)
     complexity: ComplexityEvidence | None = None
     transfer: PR.TransferEvidence | None = None
     failure: FailureEvidence | None = None
@@ -554,11 +561,30 @@ def gate_calibration(ev: CalibrationEvidence | None, outputs_probabilities: bool
                 PR._margin(pol.max_ece, ece))
 
 
-def gate_risk(ev: PR.RiskEvidence | None, changes_risk: bool, pol: QualityPolicy) -> GateOutcome:
+def gate_risk(ev: PR.RiskEvidence | None, changes_risk: bool, pol: QualityPolicy, note: str = "") -> GateOutcome:
     g, crit = "risk", True
     if not changes_risk:
-        return _out(g, NA, "the discovery only orders research; it never sizes or selects a holding", crit)
+        return _out(g, NA, note or "the discovery only orders research; it never sizes or selects a holding", crit)
     return _from_promotion(g, PR.gate_risk_acceptance(ev, pol.promotion), crit)
+
+
+def fold_scaled_config(cfg: CX.ComplexityConfig, cand: CX.Candidate) -> CX.ComplexityConfig:
+    """F26 (F19: complexity blocked 53% of the gated real patterns). engine.learning.complexity.compare requires the WORST fold's mean
+    gain to be >= -worst_fold_tolerance x se, where se is the standard error of the gain pooled over ALL n periods; a fold of n_f periods
+    has a standard error sqrt(n / n_f) times larger, and the minimum of k fold means sits ~1.4 fold-se below the mean for k = 8. So the
+    test asked a genuine t = 4 effect to show no quarter below -0.35 fold-se: a units error that fails true effects by sampling noise.
+    Here the tolerance is restated in fold units (x sqrt(n / median n_f)), i.e. 'no fold is worse than `worst_fold_tolerance` of its
+    own standard errors below zero'. Every other complexity test (gain t, transfer share, robust t, CV, tail, optimism) is unchanged.
+    Reported to engine.learning.complexity's owner: the fix belongs there."""
+    if cand.folds is None or not len(cand.oos):
+        return cfg
+    f = cand.folds.reindex(cand.oos.index)
+    sizes = f.value_counts()
+    sizes = sizes[sizes >= 3]
+    if len(sizes) < 2:
+        return cfg
+    scale = math.sqrt(float(sizes.sum()) / float(sizes.median()))
+    return dataclasses.replace(cfg, worst_fold_tolerance=float(cfg.worst_fold_tolerance) * scale)
 
 
 def gate_complexity(ev: ComplexityEvidence | None, pol: QualityPolicy) -> GateOutcome:
@@ -576,6 +602,8 @@ def gate_complexity(ev: ComplexityEvidence | None, pol: QualityPolicy) -> GateOu
         return _out(g, MISSING, "no simpler alternative was compared on the same dates", crit)
     if ev.baseline.spec.units(cfg.weights) >= spec.units(cfg.weights):
         return _out(g, PASS, "no simpler rule than the baseline is being asked to be replaced", crit)
+    if pol.worst_fold_in_fold_se:
+        cfg = fold_scaled_config(cfg, ev.candidate)
     v = CX.compare(ev.baseline, ev.candidate, cfg)
     if v.verdict == CX.Verdict.COMPLEX:
         return _out(g, PASS, f"complexity earned its place: gain t={v.gain_t:.2f} >= required {v.t_required:.2f}", crit, {"gain": v.gain, "t": v.gain_t})
@@ -675,7 +703,7 @@ class QualityGate:
             "out_of_sample": lambda: gate_out_of_sample(ev.oos, pol, now),
             "replication": lambda: gate_replication(ev.replication, pol),
             "calibration": lambda: gate_calibration(ev.calibration, ev.outputs_probabilities, pol),
-            "risk": lambda: gate_risk(ev.risk, ev.changes_risk_decisions, pol),
+            "risk": lambda: gate_risk(ev.risk, ev.changes_risk_decisions, pol, ev.risk_note),
             "complexity": lambda: gate_complexity(ev.complexity, pol),
             "transfer": lambda: gate_transfer(ev.transfer, pol),
             "failure_behavior": lambda: gate_failure_behavior(ev.failure, pol),

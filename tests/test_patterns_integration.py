@@ -229,11 +229,12 @@ def test_noise_false_admissions_within_budget():
 
 
 # ------------------------------------------------------------------ F25: confirmation-stage false-discovery control
-def _frame(t_disc, t_conf, ph, same_sign=None):
+def _frame(t_disc, t_conf, ph, same_sign=None, names=None):
     t_disc, t_conf = np.asarray(t_disc, float), np.asarray(t_conf, float)
     same = np.ones(len(t_disc), bool) if same_sign is None else np.asarray(same_sign, bool)
+    names = [f"g{i} q4" for i in range(len(t_disc))] if names is None else list(names)
     from engine import pattern_stats as S
-    return pd.DataFrame({"t_disc": t_disc, "t_conf": t_conf, "m_disc": np.sign(t_disc) * 0.01,
+    return pd.DataFrame({"key_named": names, "t_disc": t_disc, "t_conf": t_conf, "m_disc": np.sign(t_disc) * 0.01,
                          "m_conf": np.where(same, np.sign(t_disc), -np.sign(t_disc)) * 0.01,
                          "p_coincidence": S.t_to_p(t_disc), "p_hallucinated": np.asarray(ph, float)})
 
@@ -250,8 +251,8 @@ def test_confirmation_fdr_refuses_a_screened_candidate_that_confirms_only_weakly
     assert real[0] >= p["p_real_min"]                                   # the old rule would admit it
     m = PatternMiner()
     ok = _confirmation_fdr(R, p, m)
-    assert not ok[0] and R["screened"].iloc[0] and m.confirm_summary == {"screened": 1, "confirm_q": 0.05,
-                                                                         "confirm_pass": 0, "confirm_fdr": True}
+    s = m.confirm_summary
+    assert not ok[0] and R["screened"].iloc[0] and (s["screened"], s["confirm_q"], s["confirm_pass"]) == (1, 0.05, 0)
     R2 = _frame([6.0] + [0.3] * 50, [3.5] + [0.2] * 50, [0.0] + [1.0] * 50)
     assert _confirmation_fdr(R2, p, m)[0]                               # a real confirmation still passes
 
@@ -269,6 +270,36 @@ def test_confirmation_fdr_counts_the_whole_screened_family_and_needs_the_sign_to
     unscreened = _frame([1.0], [9.0], [0.0])                             # never screened on discovery: never admitted
     assert not _confirmation_fdr(unscreened, p, PatternMiner())[0]
     assert _confirmation_fdr(_frame([7.0], [2.2], [0.0]), {**p, "confirm_q": 0.001}, PatternMiner()).sum() == 0
+
+
+def test_ancestors_are_every_proper_sub_expression():
+    from engine.patterns import _ancestors
+    assert set(_ancestors("a q4 & b q0 unless c q4")) == {"a q4 & b q0", "a q4", "b q0", "a q4 unless c q4", "b q0 unless c q4"}
+    assert set(_ancestors("a q4 & b q0")) == {"a q4", "b q0"} and _ancestors("a q4") == []
+
+
+def test_children_that_do_not_beat_their_ancestor_wait_for_it_to_confirm():
+    """The redundant derivatives of one idea (a single, its pair, the pair's exceptions) used to share one BH family and
+    dilute it: a planted single with confirmation p = 0.0067 among 13 screened relatives failed (0.05/13 = 0.0038)."""
+    from engine.patterns import MINER_DEFAULT, _confirmation_fdr
+    p = {**MINER_DEFAULT}
+    kids = [f"a q4 & k{i} q1" for i in range(12)]
+    names = ["a q4"] + kids
+    R = _frame([5.0] + [4.0] * 12, [2.475] + [1.0] * 12, [0.0] * 13, names=names)
+    ok = _confirmation_fdr(R, p, PatternMiner())
+    assert ok[0] and (R["confirm_level"].iloc[1:] == 1).all() and not ok[1:].any()
+    assert R["confirm_level"].iloc[0] == 0
+    # parent fails confirmation -> its weaker children are never tested (and so cannot be admitted by chance)
+    R = _frame([5.0] + [4.0] * 12, [0.2] + [3.0] * 12, [0.0] * 13, names=names)
+    ok = _confirmation_fdr(R, p, PatternMiner())
+    assert not ok.any() and (R["confirm_level"].iloc[1:] == -1).all()
+    # a child STRONGER than its ancestor on discovery is its own idea: tested in the first family, admitted on merit
+    R = _frame([3.0, 6.0], [0.2, 3.0], [0.0, 0.0], names=["a q4", "a q4 & b q0"])
+    ok = _confirmation_fdr(R, p, PatternMiner())
+    assert list(R["confirm_level"]) == [0, 0] and list(ok) == [False, True]
+    # an unscreened ancestor defers nothing
+    R = _frame([0.5, 6.0], [0.2, 3.0], [1.0, 0.0], names=["a q4", "a q4 & b q0"])
+    assert _confirmation_fdr(R, p, PatternMiner())[1]
 
 
 def test_confirmation_fdr_on_an_empty_frame_and_the_legacy_switch():

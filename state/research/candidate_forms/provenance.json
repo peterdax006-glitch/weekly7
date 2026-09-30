@@ -1,0 +1,62 @@
+{
+ "code_hash": "c62cd1d97ec1a2dd",
+ "code_mixed": [],
+ "form_config": {
+  "lags": [
+   1,
+   2,
+   3,
+   4
+  ],
+  "cuts": [
+   0.1,
+   0.25,
+   0.5,
+   0.75,
+   0.9
+  ],
+  "rare_z": [
+   1.2816,
+   1.6449,
+   1.96
+  ],
+  "rare_min_dates": 8,
+  "families": [
+   "lag",
+   "gt",
+   "rare",
+   "reg",
+   "prod",
+   "xor",
+   "cond"
+  ],
+  "k_per_family": 8,
+  "keep_top": 40,
+  "t_pre": 2.5,
+  "select_frac": 1.0,
+  "dedup_rho": 0.9,
+  "atom_dup_rho": 0.98,
+  "y_col": "touch",
+  "min_names": 8,
+  "min_dates": 20,
+  "max_pair_atoms": 1200,
+  "t_main": 6.0
+ },
+ "form_config_hash": "7170196b6a6daae2",
+ "bench_config_hash": "95882db858b80f79",
+ "variants": {
+  "all": 1.0,
+  "early": 0.3333333333333333
+ },
+ "k_max": 20,
+ "t_pre_min": 2.0,
+ "args": {
+  "cmd": "run",
+  "seeds": [
+   "0-19"
+  ],
+  "null": 3
+ },
+ "label": "IMPLEMENTED - NOT VALIDATED",
+ "at": "2026-09-30T13:54:15"
+}

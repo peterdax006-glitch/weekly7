@@ -59,6 +59,7 @@ EPS = VH.EPS
 PAIR_FAMILIES = ("prod", "xor", "and", "cond")
 ATOM_FAMILIES = ("lag", "gt", "rare", "reg")
 FAMILIES = ("single",) + ATOM_FAMILIES + PAIR_FAMILIES
+SEARCHED = ATOM_FAMILIES + ("prod", "xor", "cond")        # "and" is spellable but not searched (see _family_search)
 AND_SIDES = ("hh", "hl", "lh", "ll")
 _REGISTERED: set[str] = set()
 
@@ -74,7 +75,7 @@ class FormConfig:
     cuts: tuple = (0.10, 0.25, 0.50, 0.75, 0.90)       # pre-declared cross-sectional percentile cuts
     rare_z: tuple = (1.2816, 1.6449, 1.9600)           # one-sided normal tails of 10 / 5 / 2.5 %, on the expanding past distribution
     rare_min_dates: int = 8                            # dates of history before an expanding cut exists
-    families: tuple = ATOM_FAMILIES + PAIR_FAMILIES
+    families: tuple = SEARCHED
     k_per_family: int = 8                              # proposals kept per family (the operating point; see the recall runner)
     keep_top: int = 40                                 # ranked list kept per family for the trade-off curve
     t_pre: float = 2.5                                 # prescreen |t| a form needs before it can be proposed
@@ -85,6 +86,7 @@ class FormConfig:
     min_names: int = 8                                 # a date with fewer scored names is not a date
     min_dates: int = 20
     max_pair_atoms: int = 1200                         # above this the pair families are skipped WITH A REASON, never sampled
+    t_main: float = 6.0                                # a single this strong is raised on its own: its forms are not searched
 
     def validate(self) -> list[str]:
         errs = []
@@ -94,8 +96,8 @@ class FormConfig:
             errs.append("cuts must lie in (0, 1)")
         if not self.rare_z or any(c <= 0 for c in self.rare_z):
             errs.append("rare_z must be positive")
-        if set(self.families) - set(ATOM_FAMILIES + PAIR_FAMILIES):
-            errs.append(f"unknown families {sorted(set(self.families) - set(ATOM_FAMILIES + PAIR_FAMILIES))}")
+        if set(self.families) - set(SEARCHED):
+            errs.append(f"unknown families {sorted(set(self.families) - set(SEARCHED))}")
         if self.k_per_family < 0 or self.keep_top < self.k_per_family:
             errs.append("0 <= k_per_family <= keep_top required")
         if not 0 < self.select_frac <= 1 or not 0 < self.dedup_rho <= 1 or not 0 < self.atom_dup_rho <= 1:
@@ -189,7 +191,7 @@ def parse(name: str) -> FormSpec | None:
     for fam, head in (("lag", "lag"), ("gt", "gt"), ("rare", "z"), ("prod", "prod"), ("xor", "xor"), ("and", "and"), ("cond", "cond"),
                       ("reg", "reg")):
         if tag.startswith(head):
-            spec = FormSpec(fam, tag[len(head):], atoms)
+            spec = canonical(fam, tag[len(head):], atoms)
             if spec.name != name:
                 raise FormError(f"{name!r} is not in canonical spelling ({spec.name!r})")
             return spec
@@ -356,6 +358,8 @@ class AtomPanel:
     dup_atoms: dict                  # dropped near-duplicate atom -> its keeper
     constant: list                   # atoms with no variation (not screenable)
     select_dates: int                # dates the prescreen used
+    single_t: np.ndarray = dc.field(default_factory=lambda: np.zeros(0))   # FM t of every atom on the two-way outcome
+    main: tuple = ()                 # strong singles (|t| >= t_main): raised on their own, excluded from the form search
 
 
 def _guard(F: pd.DataFrame, now, y_col: str) -> None:
@@ -429,7 +433,31 @@ def build_panel(F: pd.DataFrame, feats: Sequence[str], now, cfg: FormConfig = Fo
         for m in market:
             for side in ("hi", "lo"):
                 reg[(m, side)] = regime_side(D[m], side, cfg.rare_min_dates).fillna(0.0).to_numpy(np.float32)
-    return AtomPanel(cross, market, F.index, starts, valid, yc, R, Z, lagz, zexp, reg, dup, constant, n_dates)
+    P = AtomPanel(cross, market, F.index, starts, valid, yc, R, Z, lagz, zexp, reg, dup, constant, n_dates)
+    P.single_t = fm_t(Z, P)
+    t = np.nan_to_num(np.abs(P.single_t), nan=0.0)
+    P.main = tuple(sorted(c for c, v in zip(cross, t) if v >= cfg.t_main))
+    return P
+
+
+def _codes(P: AtomPanel) -> np.ndarray:
+    return np.repeat(np.arange(len(P.starts) - 1), np.diff(P.starts))
+
+
+def beyond_own(U: np.ndarray, Zo: np.ndarray, P: AtomPanel) -> np.ndarray:
+    """Frisch-Waugh: column j of U with its per-date mean and its pooled projection on its OWN atom's z (column j of Zo) removed. The
+    FM t of the result is the form's value BEYOND the atom's straight-line effect (a threshold beyond a slope, last week's value
+    beyond this week's). Only the form's own atom is partialled out: projecting on OTHER strong features conditions on colliders
+    (measured: a leak column, which mixes the outcome with volatility, made every volatility feature look predictive, t ~ -10)."""
+    if U.shape[1] == 0:
+        return U.astype(np.float64)
+    c = _codes(P)
+    cnt = np.maximum(np.bincount(c), 1)[:, None]
+    Uc = U.astype(np.float64) - (np.add.reduceat(U.astype(np.float64), P.starts[:-1], axis=0) / cnt)[c]
+    Zd = Zo.astype(np.float64)
+    den = (Zd * Zd).sum(axis=0)
+    beta = np.where(den > 1e-12, (Uc * Zd).sum(axis=0) / np.where(den > 1e-12, den, 1.0), 0.0)
+    return Uc - beta[None, :] * Zd
 
 
 def _two_way(y: np.ndarray, dcode: np.ndarray, tcode: np.ndarray, sweeps: int = 3) -> np.ndarray:
@@ -541,62 +569,95 @@ def _top(t: np.ndarray, make, keep: int, t_min: float) -> list[Scored]:
     return out[:keep]
 
 
+def _rank(out: list[Scored], keep: int) -> list[Scored]:
+    return sorted(out, key=lambda s: (-round(abs(s.t), 9), s.name))[:keep]
+
+
+def welch_split(S: np.ndarray, a: np.ndarray, b: np.ndarray, min_n: int = 5) -> np.ndarray:
+    """Per column: Welch t of mean(S[a]) - mean(S[b]) over dates (the per-date slope in one regime minus the other)."""
+    if a.sum() < min_n or b.sum() < min_n:
+        return np.full(S.shape[1], np.nan)
+    x, y = S[a], S[b]
+    se = np.sqrt(x.var(axis=0, ddof=1) / len(x) + y.var(axis=0, ddof=1) / len(y))
+    with np.errstate(divide="ignore", invalid="ignore"):
+        return np.where(se > 1e-12, (x.mean(axis=0) - y.mean(axis=0)) / se, np.nan)
+
+
 def _family_search(P: AtomPanel, fam: str, cfg: FormConfig) -> tuple[list[Scored], int]:
-    """(ranked forms of one family, number of tests computed). Every test is counted, kept or not."""
-    names, K = P.names, len(P.names)
-    keep, t_min = cfg.keep_top, 0.0
+    """(ranked forms of one family, number of tests computed). Every test is counted, kept or not. Only atoms that are not strong
+    singles are searched. Atom forms are scored beyond their own atom's straight line (`beyond_own`); pair forms are interaction
+    contrasts that are orthogonal to additive main effects by construction (z_a z_b, s_a s_b, z_a s_b); a regime form is the
+    difference of the atom's per-date slope between the regime's two sides. That is also why median-split AND quadrants are not
+    searched: beyond the two additive sides a 2x2 split carries exactly one contrast, the xor (a quadrant form is the same hypothesis
+    reached another way; it can still be spelled and materialised)."""
+    free = [i for i, c in enumerate(P.names) if c not in set(P.main)]
+    names = [P.names[i] for i in free]
+    K = len(free)
+    keep = cfg.keep_top
     if K == 0:
         return [], 0
+    Z = P.Z[:, free]
     if fam == "lag":
         out, n = [], 0
         for k in cfg.lags:
-            t = fm_t(P.lagz[int(k)], P)
             n += K
-            out += _top(t, lambda i, k=k: FormSpec("lag", str(int(k)), (names[i],)), keep, t_min)
-        return sorted(out, key=lambda s: (-round(abs(s.t), 9), s.name))[:keep], n
+            t = fm_t(beyond_own(P.lagz[int(k)][:, free], Z, P), P)
+            out += _top(t, lambda i, k=k: FormSpec("lag", str(int(k)), (names[i],)), keep, 0.0)
+        return _rank(out, keep), n
     if fam == "gt":
         out, n = [], 0
         for q in cfg.cuts:
             with np.errstate(invalid="ignore"):
-                U = np.nan_to_num(P.R > q).astype(np.float32)
+                U = np.nan_to_num(P.R[:, free] > q).astype(np.float32)
             n += K
-            out += _top(fm_t(U, P), lambda i, q=q: FormSpec("gt", _q_tag(q), (names[i],)), keep, t_min)
-        return sorted(out, key=lambda s: (-round(abs(s.t), 9), s.name))[:keep], n
+            out += _top(fm_t(beyond_own(U, Z, P), P), lambda i, q=q: FormSpec("gt", _q_tag(q), (names[i],)), keep, 0.0)
+        return _rank(out, keep), n
     if fam == "rare":
         out, n = [], 0
         for c in cfg.rare_z:
             for sg in ("p", "n"):
                 with np.errstate(invalid="ignore"):
-                    U = np.nan_to_num((P.zexp * (1 if sg == "p" else -1)) > c).astype(np.float32)
+                    U = np.nan_to_num((P.zexp[:, free] * (1 if sg == "p" else -1)) > c).astype(np.float32)
                 n += K
-                out += _top(fm_t(U, P), lambda i, c=c, sg=sg: FormSpec("rare", sg + _z_tag(c), (names[i],)), keep, t_min)
-        return sorted(out, key=lambda s: (-round(abs(s.t), 9), s.name))[:keep], n
+                out += _top(fm_t(beyond_own(U, Z, P), P), lambda i, c=c, sg=sg: FormSpec("rare", sg + _z_tag(c), (names[i],)), keep, 0.0)
+        return _rank(out, keep), n
     if fam == "reg":
         out, n = [], 0
-        for (m, side), ind in sorted(P.reg.items()):
+        S = np.add.reduceat(Z.astype(np.float64) * P.yc[:, None], P.starts[:-1], axis=0)
+        first = P.starts[:-1]
+        for m in sorted({m for m, _ in P.reg}):
+            hi = (P.reg[(m, "hi")][first] > 0) & P.valid
+            lo = (P.reg[(m, "lo")][first] > 0) & P.valid
+            t = welch_split(S, hi, lo)
             n += K
-            out += _top(fm_t(P.Z * ind[:, None], P), lambda i, m=m, side=side: FormSpec("reg", side, (names[i], m)), keep, t_min)
-        return sorted(out, key=lambda s: (-round(abs(s.t), 9), s.name))[:keep], n
+            mh = np.abs(S[hi].mean(axis=0)) if hi.any() else np.zeros(K)
+            ml = np.abs(S[lo].mean(axis=0)) if lo.any() else np.zeros(K)
+            out += _top(t, lambda i, m=m: FormSpec("reg", "hi" if mh[i] >= ml[i] else "lo", (names[i], m)), keep, 0.0)
+        return _rank(out, keep), n
     if K > cfg.max_pair_atoms or K < 2:
         return [], 0
     iu = np.triu(np.ones((K, K), bool), 1)
     off = ~np.eye(K, dtype=bool)
     if fam in ("prod", "xor"):
-        M = P.Z if fam == "prod" else _sign0(P.R)
+        M = Z if fam == "prod" else _sign0(P.R[:, free])
         t = np.where(iu, fm_pairs(M, M, P), np.nan)
-        return _top(t, lambda k: canonical(fam, "", (names[k // K], names[k % K])), keep, t_min), int(iu.sum())
-    if fam == "and":
-        H, L = _ind(P.R, "h"), _ind(P.R, "l")
-        out = []
-        for sides, A, B, mask in (("hh", H, H, iu), ("ll", L, L, iu), ("hl", H, L, off)):
-            t = np.where(mask, fm_pairs(A, B, P), np.nan)
-            out += _top(t, lambda k, sides=sides: canonical("and", sides, (names[k // K], names[k % K])), keep, t_min)
-        return sorted(out, key=lambda s: (-round(abs(s.t), 9), s.name))[:keep], int(2 * iu.sum() + off.sum())
-    out = []
-    for side in ("hi", "lo"):
-        t = np.where(off, fm_pairs(P.Z, _ind(P.R, side[0]), P), np.nan)
-        out += _top(t, lambda k, side=side: FormSpec("cond", side, (names[k // K], names[k % K])), keep, t_min)
-    return sorted(out, key=lambda s: (-round(abs(s.t), 9), s.name))[:keep], int(2 * off.sum())
+        return _top(t, lambda k: canonical(fam, "", (names[k // K], names[k % K])), keep, 0.0), int(iu.sum())
+    if fam == "cond":
+        t = np.where(off, fm_pairs(Z, _sign0(P.R[:, free]), P), np.nan)
+        lst = _top(t, lambda k: FormSpec("cond", "hi", (names[k // K], names[k % K])), keep, 0.0)
+        return [_cond_side(P, s) for s in lst], int(off.sum())
+    raise FormError(f"family {fam!r} is not searched")
+
+
+def _cond_side(P: AtomPanel, s: Scored) -> Scored:
+    """A slope contrast says the slope of a differs between b's sides, not on which side the effect lives: the side whose own
+    FM t is larger is the proposed form (the contrast's t, which chose it, is kept)."""
+    ix = {c: i for i, c in enumerate(P.names)}
+    i, j = ix[s.spec.atoms[0]], ix[s.spec.atoms[1]]
+    th = fm_t((P.Z[:, i] * _ind(P.R[:, j], "h"))[:, None], P)[0]
+    tl = fm_t((P.Z[:, i] * _ind(P.R[:, j], "l"))[:, None], P)[0]
+    side = "hi" if abs(np.nan_to_num(th)) >= abs(np.nan_to_num(tl)) else "lo"
+    return Scored(FormSpec("cond", side, s.spec.atoms), s.t)
 
 
 def _corr(u: np.ndarray, v: np.ndarray) -> float:
@@ -630,6 +691,34 @@ def deduplicate(P: AtomPanel, ranked: Sequence[Scored], rho: float, cfg: FormCon
     return [k for k, _ in kept], alias
 
 
+def one_form_per_pair(ranked: Mapping[str, Sequence[Scored]]) -> tuple[dict[str, tuple], dict[str, str]]:
+    """One pair of features is one hypothesis: a product interaction also shows up as a slope contrast in both directions and, more
+    weakly, as an xor. Across prod / xor / cond only the form with the largest |t| represents the pair (it is also, measured on the
+    benchmark's planted pairs, the true form); the others become its aliases and free their slots."""
+    best: dict[frozenset, Scored] = {}
+    for fam in ("prod", "xor", "cond"):
+        for s in ranked.get(fam, ()):
+            k = frozenset(s.spec.atoms)
+            b = best.get(k)
+            if b is None or (-round(abs(s.t), 9), s.name) < (-round(abs(b.t), 9), b.name):
+                best[k] = s
+    alias: dict[str, str] = {}
+    out: dict[str, tuple] = {}
+    for fam, lst in ranked.items():
+        if fam not in ("prod", "xor", "cond"):
+            out[fam] = tuple(lst)
+            continue
+        keep = []
+        for s in lst:
+            w = best[frozenset(s.spec.atoms)]
+            if w.name == s.name:
+                keep.append(s)
+            else:
+                alias[s.name] = w.name
+        out[fam] = tuple(keep)
+    return out, alias
+
+
 @dc.dataclass(frozen=True)
 class Proposal:
     now: str
@@ -644,6 +733,7 @@ class Proposal:
     select_dates: int
     seconds: float
     config: str
+    main: tuple = ()                 # strong singles the forms were screened beyond
 
     @property
     def names(self) -> list[str]:
@@ -666,7 +756,7 @@ class Proposal:
         return {"now": self.now, "n_scanned": self.n_scanned, "scanned": dict(self.scanned), "n_proposed": len(self.proposed),
                 "by_family": pd.Series([s.spec.family for s in self.proposed], dtype=object).value_counts().to_dict(),
                 "aliases": len(self.aliases), "atoms": len(self.atoms), "market_atoms": list(self.market),
-                "dup_atoms": len(self.dup_atoms), "skipped": list(self.skipped), "select_dates": self.select_dates, "seconds": self.seconds}
+                "dup_atoms": len(self.dup_atoms), "main_effects": len(self.main), "skipped": list(self.skipped), "select_dates": self.select_dates, "seconds": self.seconds}
 
 
 def propose(F: pd.DataFrame, feats: Sequence[str], now, cfg: FormConfig = FormConfig()) -> Proposal:
@@ -694,13 +784,14 @@ def propose(F: pd.DataFrame, feats: Sequence[str], now, cfg: FormConfig = FormCo
             lst, n = _family_search(P, fam, cfg)
             scanned[fam] = n
             ranked[fam] = tuple(lst)
-    alias: dict[str, str] = {}
+    ranked, alias = one_form_per_pair(ranked)
     flat = [s for lst in ranked.values() for s in lst]
-    kept, alias = deduplicate(P, flat, cfg.dedup_rho, cfg)
+    kept, alias2 = deduplicate(P, flat, cfg.dedup_rho, cfg)
+    alias.update(alias2)
     keep = {s.name for s in kept}
     ranked = {f: tuple(s for s in lst if s.name in keep) for f, lst in ranked.items()}
     prop = Proposal(str(as_date(now)), (), ranked, scanned, alias, tuple(P.names), tuple(P.market), dict(P.dup_atoms), tuple(skipped),
-                    P.select_dates, round(time.monotonic() - t0, 2), stable_hash(dc.asdict(cfg), 12))
+                    P.select_dates, round(time.monotonic() - t0, 2), stable_hash(dc.asdict(cfg), 12), tuple(P.main))
     return dc.replace(prop, proposed=tuple(prop.at(cfg.k_per_family, cfg.t_pre)))
 
 
@@ -730,16 +821,17 @@ def raise_rule(tab: pd.DataFrame, t_min: float, cap: int | None, already: Iterab
     out: list[str] = []
     if len(tab) == 0:
         return out
-    for _, r in tab.sort_values(["auc", "feature"], ascending=[False, True], na_position="last").iterrows():
+    s = tab.sort_values(["auc", "feature"], ascending=[False, True], na_position="last")
+    auc, lo, hi = (s[c].to_numpy(float) for c in ("auc", "lo", "hi"))
+    with np.errstate(invalid="ignore"):
+        t = (auc - 0.5) / np.maximum((hi - lo) / (2 * 1.645), 1e-6)
+    ok = np.isfinite(auc) & np.isfinite(lo) & np.isfinite(hi) & (t >= t_min)
+    for f in s["feature"].to_numpy()[ok]:
         if cap is not None and len(out) >= cap:
             break
-        ok = np.isfinite(r["auc"]) and np.isfinite(r["lo"]) and np.isfinite(r["hi"])
-        if not ok or r["feature"] in seen:
-            continue
-        se = max((r["hi"] - r["lo"]) / (2 * 1.645), 1e-6)
-        if (r["auc"] - 0.5) / se >= t_min:
-            out.append(str(r["feature"]))
-            seen.add(str(r["feature"]))
+        if f not in seen:
+            out.append(str(f))
+            seen.add(str(f))
     return out
 
 
