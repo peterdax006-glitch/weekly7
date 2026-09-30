@@ -72,4 +72,177 @@
 ........................................................................ [ 89%]
 ........................................................................ [ 90%]
 ........................................................................ [ 92%]
-..........................
+........................................................................ [ 93%]
+........................................................................ [ 94%]
+........................................................................ [ 95%]
+........................................................................ [ 96%]
+........................................................................ [ 98%]
+........................................................................ [ 99%]
+...............................                                          [100%]
+================================== FAILURES ===================================
+____________________ test_determinism_and_seed_sensitivity ____________________
+
+    def test_determinism_and_seed_sensitivity():
+        led = C.simulate_decisions(220, 23, lambda r, d: 0.4 * d.pattern)
+        a = C.CreditEngine(SUM4, CFG).assess(led, NOW)
+        b = C.CreditEngine(SUM4, CFG).assess(led, NOW)
+>       assert a.to_json() == b.to_json()
+E       assert '{"base_value...088970518438}' == '{"base_value...088970518438}'
+E         
+E         Skipping 37 identical leading characters in diff, use -v to show
+E         Skipping 5061 identical trailing characters in diff, use -v to show
+E         - de_hash":"c1f6d7ab9f43e399","compon
+E         + de_hash":"80b49b79ff75f561","compon
+
+tests\test_learning_credit.py:187: AssertionError
+============================== warnings summary ===============================
+tests/integration/test_pipeline_features_miner.py::test_score_ranks_out_of_sample_future_returns
+  C:\Users\Peter\weekly7\engine\patterns.py:382: UserWarning: [learning.wiring] sink redundancy failed (GraphError: node cd_pos q4 & cd_upwick q0: version dated 2016-12-02 is older than the latest 2018-06-15); the old path continued
+    wiring.on_redundancy(R["key_named"].astype(str).tolist(), dup, _redundancy_masks, now, P["redundancy_overlap"])
+
+tests/test_antimemo_archive.py: 14 warnings
+tests/test_learning_reachability_system.py: 12 warnings
+tests/test_learning_same_year.py: 145 warnings
+  C:\Users\Peter\weekly7\.venv\Lib\site-packages\numpy\lib\_function_base_impl.py:3023: RuntimeWarning: invalid value encountered in divide
+    c /= stddev[:, None]
+
+tests/test_antimemo_archive.py: 14 warnings
+tests/test_learning_reachability_system.py: 12 warnings
+tests/test_learning_same_year.py: 145 warnings
+  C:\Users\Peter\weekly7\.venv\Lib\site-packages\numpy\lib\_function_base_impl.py:3024: RuntimeWarning: invalid value encountered in divide
+    c /= stddev[None, :]
+
+tests/test_blind_gates.py: 4 warnings
+tests/test_leak_audit.py: 10 warnings
+tests/test_leak_closure.py: 2 warnings
+tests/test_learning_test_path.py: 2 warnings
+  C:\Users\Peter\weekly7\.venv\Lib\site-packages\pyarrow\compute.py:230: FutureWarning: Specifying null_placement in RankOptions is deprecated as of 25.0.0. Specify null_placement per sort_key instead.
+    return options_class(*args, **kwargs)
+
+tests/test_c68_fix_promote.py::test_repeated_confident_errors_on_a_pattern_escalate_under_the_pattern_lens
+tests/test_c68_fix_promote.py::test_repeated_errors_spread_over_every_lens_escalate_as_all
+tests/test_research_error_research.py::test_self_questions_find_the_planted_degradation_and_rising_errors
+tests/test_research_error_research.py::test_self_questions_on_pure_noise_find_nothing_significant
+  C:\Users\Peter\weekly7\engine\research\error_research.py:845: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+    rho, p = sps.spearmanr(conf, az) if conf.std() > 0 and az.std() > 0 else (0.0, 1.0)
+
+tests/test_exits.py::test_training_window_limits_to_recent_weeks_and_log_writes_provenance
+  C:\Users\Peter\weekly7\engine\exits.py:556: UserWarning: [registry] exit_walk_forward: Phase 0.2 fields not supplied: ['window_ids', 'train_range', 'validation_range', 'test_range', 'metrics', 'gates']
+    log_experiment({"event": event, "report": rep.to_dict("records"), "n_folds": len(wf.fold_choices)}, cfg, seed)
+
+tests/test_f13_stale_promotion.py: 13 warnings
+  C:\Users\Peter\weekly7\engine\research\self_correct.py:205: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+    r, p = sps.pearsonr(x, y)
+
+tests/test_learning_firewalls.py::test_data_layer_catches_label_copy_duplicates_and_inf
+  C:\Users\Peter\weekly7\.venv\Lib\site-packages\numpy\lib\_nanfunctions_impl.py:1845: RuntimeWarning: invalid value encountered in subtract
+    np.subtract(arr, avg, out=arr, casting='unsafe', where=where)
+
+tests/test_learning_firewalls.py::test_data_layer_catches_label_copy_duplicates_and_inf
+  C:\Users\Peter\weekly7\.venv\Lib\site-packages\pandas\core\nanops.py:1028: RuntimeWarning: invalid value encountered in subtract
+    sqr = _ensure_numeric((avg - values) ** 2)
+
+tests/test_learning_identity_firewall.py::test_harness_input_validation_and_degenerate_cases
+tests/test_learning_identity_firewall.py::test_harness_input_validation_and_degenerate_cases
+tests/test_miner_tuning.py::test_noise_adopts_nothing
+tests/test_miner_tuning.py::test_noise_adopts_nothing
+  C:\Users\Peter\weekly7\.venv\Lib\site-packages\numpy\_core\fromnumeric.py:3824: RuntimeWarning: Mean of empty slice
+    return _methods._mean(a, axis=axis, dtype=dtype,
+
+tests/test_learning_identity_firewall.py::test_harness_input_validation_and_degenerate_cases
+tests/test_learning_identity_firewall.py::test_harness_input_validation_and_degenerate_cases
+tests/test_miner_tuning.py::test_noise_adopts_nothing
+tests/test_miner_tuning.py::test_noise_adopts_nothing
+  C:\Users\Peter\weekly7\.venv\Lib\site-packages\numpy\_core\_methods.py:142: RuntimeWarning: invalid value encountered in scalar divide
+    ret = ret.dtype.type(ret / rcount)
+
+tests/test_learning_reachability_system.py::test_a_broken_sink_is_recorded_and_the_adapter_keeps_trading
+  C:\Users\Peter\weekly7\engine\missed_winners.py:316: UserWarning: [learning.wiring] sink missed_week failed (RuntimeError: planted sink failure); the old path continued
+    wiring.on_missed_week(decided, closed, p0, fwd, picked, score=score, era=era or "", thr=thr, k=k)
+
+tests/test_learning_reachability_system.py::test_a_crashing_learning_gate_fails_closed_only_when_enforced
+  C:\Users\Peter\weekly7\engine\learning\promotion.py:669: UserWarning: [learning.wiring] sink knowledge_promotion failed (RuntimeError: planted); the old path continued
+    results.extend(self._learning_claim(k, now))
+
+tests/test_learning_same_year.py::test_canary_column_is_a_breach
+tests/test_learning_same_year.py::test_canary_column_is_a_breach
+  C:\Users\Peter\weekly7\engine\learning\future_firewall.py:201: UserWarning: Could not infer format, so each element will be parsed individually, falling back to `dateutil`. To ensure parsing is consistent and as-expected, please specify a format.
+    return pd.DatetimeIndex(pd.to_datetime(lvl, errors="coerce"))
+
+tests/test_legacy_bus_f03.py::test_gbm_hypothesis_declines_honestly_when_the_canonical_model_has_too_little_data
+  C:\Users\Peter\weekly7\engine\research\vol_hypotheses.py:285: RuntimeWarning: All-NaN slice encountered
+    fill = np.nanmedian(X, axis=0)
+
+tests/test_live_safety.py::test_orders_pass_when_open_control
+  C:\Users\Peter\weekly7\.venv\Lib\site-packages\websockets\legacy\__init__.py:6: DeprecationWarning: websockets.legacy is deprecated; see https://websockets.readthedocs.io/en/stable/howto/upgrade.html for upgrade instructions
+    warnings.warn(  # deprecated in 14.0 - 2024-11-09
+
+tests/test_parity.py::test_honest_features_pass_strict_and_live
+tests/test_parity_suite.py::test_every_family_passes_every_check
+  C:\Users\Peter\weekly7\tests\test_parity.py:35: Pandas4Warning: Sorting by default when concatenating all DatetimeIndex is deprecated.  In the future, pandas will respect the default of `sort=False`. Specify `sort=True` or `sort=False` to silence this message. If you see this warnings when not directly calling concat, report a bug to pandas.
+    macro = pd.concat([
+
+tests/test_parity.py::test_drift_flags_a_shifted_feature_only
+tests/test_parity.py::test_drift_flags_a_shifted_feature_only
+tests/test_parity.py::test_firewall_end_to_end
+tests/test_parity.py::test_firewall_end_to_end
+  C:\Users\Peter\weekly7\.venv\Lib\site-packages\scipy\stats\_axis_nan_policy.py:592: RuntimeWarning: ks_2samp: Exact calculation unsuccessful. Switching to method=asymp.
+    res = hypotest_fun_out(*samples, **kwds)
+
+tests/test_pattern_movers.py::test_rolling_ablation_requires_majority_and_enough_origins
+  C:\Users\Peter\weekly7\engine\patterns.py:382: UserWarning: [learning.wiring] sink redundancy failed (GraphError: node f0 q4 & f7 q3 unless f4 q0: version dated 2013-05-06 is older than the latest 2014-03-24); the old path continued
+    wiring.on_redundancy(R["key_named"].astype(str).tolist(), dup, _redundancy_masks, now, P["redundancy_overlap"])
+
+tests/test_research_dataflow.py::test_short_run_carries_data_into_every_feed_stage
+tests/test_research_dataflow.py::test_short_run_carries_data_into_every_feed_stage
+tests/test_research_dataflow.py::test_short_run_carries_data_into_every_feed_stage
+tests/test_research_dataflow.py::test_short_run_carries_data_into_every_feed_stage
+tests/test_research_dataflow.py::test_planted_future_leak_is_refused_at_the_stage_that_received_it
+tests/test_research_dataflow.py::test_planted_future_leak_is_refused_at_the_stage_that_received_it
+tests/test_research_dataflow.py::test_killed_loop_resumes_mid_cycle_with_the_feed_state_intact
+tests/test_research_dataflow.py::test_killed_loop_resumes_mid_cycle_with_the_feed_state_intact
+  C:\Users\Peter\weekly7\engine\research\counterfactual.py:976: Pandas4Warning: Sorting by default when concatenating all DatetimeIndex is deprecated.  In the future, pandas will respect the default of `sort=False`. Specify `sort=True` or `sort=False` to silence this message. If you see this warnings when not directly calling concat, report a bug to pandas.
+    ri, rm = c.pct_change(fill_method=None), m[s.spy].pct_change(fill_method=None)
+
+tests/test_retester.py::test_every_component_catches_a_planted_defect[<lambda>-holdings0]
+  C:\Users\Peter\weekly7\tests\test_retester.py:67: ChainedAssignmentError: A value is being set on a copy of a DataFrame or Series through chained assignment.
+  Such chained assignment never works to update the original DataFrame or Series, because the intermediate object on which we are setting values always behaves as a copy (due to Copy-on-Write).
+  
+  Try using '.loc[row_indexer, col_indexer] = value' instead, to perform the assignment in a single step.
+  
+  See the documentation for a more detailed explanation: https://pandas.pydata.org/pandas-docs/stable/user_guide/copy_on_write.html#chained-assignment
+    (lambda r: r["holdings"].__setitem__("weight", r["holdings"]["weight"] * 1.02), "holdings"),
+
+tests/test_retester.py::test_every_component_catches_a_planted_defect[<lambda>-holdings1]
+  C:\Users\Peter\weekly7\tests\test_retester.py:68: ChainedAssignmentError: A value is being set on a copy of a DataFrame or Series through chained assignment.
+  Such chained assignment never works to update the original DataFrame or Series, because the intermediate object on which we are setting values always behaves as a copy (due to Copy-on-Write).
+  
+  Try using '.loc[row_indexer, col_indexer] = value' instead, to perform the assignment in a single step.
+  
+  See the documentation for a more detailed explanation: https://pandas.pydata.org/pandas-docs/stable/user_guide/copy_on_write.html#chained-assignment
+    (lambda r: r["holdings"].__setitem__("ticker", r["holdings"]["ticker"].replace("S0003", "S0009")), "holdings"),
+
+tests/test_retester.py::test_every_component_catches_a_planted_defect[<lambda>-trades1]
+  C:\Users\Peter\weekly7\tests\test_retester.py:70: ChainedAssignmentError: A value is being set on a copy of a DataFrame or Series through chained assignment.
+  Such chained assignment never works to update the original DataFrame or Series, because the intermediate object on which we are setting values always behaves as a copy (due to Copy-on-Write).
+  
+  Try using '.loc[row_indexer, col_indexer] = value' instead, to perform the assignment in a single step.
+  
+  See the documentation for a more detailed explanation: https://pandas.pydata.org/pandas-docs/stable/user_guide/copy_on_write.html#chained-assignment
+    (lambda r: r["trades"].__setitem__("price", r["trades"]["price"] * 1.01), "trades"),
+
+tests/test_retester.py::test_every_component_catches_a_planted_defect[<lambda>-scores]
+  C:\Users\Peter\weekly7\tests\test_retester.py:71: ChainedAssignmentError: A value is being set on a copy of a DataFrame or Series through chained assignment.
+  Such chained assignment never works to update the original DataFrame or Series, because the intermediate object on which we are setting values always behaves as a copy (due to Copy-on-Write).
+  
+  Try using '.loc[row_indexer, col_indexer] = value' instead, to perform the assignment in a single step.
+  
+  See the documentation for a more detailed explanation: https://pandas.pydata.org/pandas-docs/stable/user_guide/copy_on_write.html#chained-assignment
+    (lambda r: r["scores"].__setitem__("score", r["scores"]["score"].iloc[::-1].values), "scores"),
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_learning_credit.py::test_determinism_and_seed_sensitivity
+1 failed, 5783 passed, 6 skipped, 1 xfailed, 414 warnings in 3528.51s (0:58:48)
+exit 1
+Note (main session, 30 Sep): the single failure (test_learning_credit::test_determinism_and_seed_sensitivity) differs only in code_hash between two consecutive assess() calls; F21 (type fixes) was editing engine/learning files during the run, so the code hash legitimately changed mid-test. To be re-run when F21 finishes; not yet cleared.
