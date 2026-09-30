@@ -1,9 +1,9 @@
 # Integration queue (hooks reported by builders; applied by the main session after the foundation wave)
 
 ## B01 pit (engine/pit.py, 49 tests)
-- [ ] future_scramble_store(pipeline, store, as_of) over real PatternMiner / Memory / adaptive outputs
-- [~] (loop2 fills proven per fill by engine/fill_audit.gate -> pit.audit_fills; backtest.py not yet) backtest.py + livesim.py: fills via PITStore.executor(as_of).fill_next_open; run pit.audit_fills on results
-- [ ] train.py: pit.purged_training_set(X, y, as_of, horizon, cal) instead of ad-hoc label cutting
+- [~] (F08 2026-09-29: engine/train.py future_scramble_gate = pit.future_scramble (frames variant; these components take frames, not a Guard) over the REAL LightGBM fit, PatternMiner, Memory and adaptive Session; labels closing after as_of count as future; retrain_guarded runs it before a swap, fail closed; RESEARCH-ONLY: train.py is reached only via the parked live path) future_scramble_store(pipeline, store, as_of) over real PatternMiner / Memory / adaptive outputs
+- [x] (loop2 fills proven per fill by engine/fill_audit.gate -> pit.audit_fills; F08 2026-09-29: backtest.run + run_topk fill via PITStore.executor(d).fill_next_open and prove the ledger with fill_audit.audit_session, FailClosed on failure; fill='close' = legacy control that fails the audit; livesim.py is B10's; backtest is RESEARCH-ONLY per reachability) backtest.py + livesim.py: fills via PITStore.executor(as_of).fill_next_open; run pit.audit_fills on results
+- [x] (F08 2026-09-29: train.training_rows; purge removes LABEL_HORIZON x names rows at the cut; parked live path) train.py: pit.purged_training_set(X, y, as_of, horizon, cal) instead of ad-hoc label cutting
 - note: Saturday filing -> strict next session needs busday roll='backward'
 
 ## B02 parity (engine/parity.py)
@@ -11,19 +11,19 @@
 - [ ] research runners: parity.cached_pass(path) before dependent experiments
 
 ## B07 trust/direction (engine/trust.py, engine/direction.py)
-- [ ] TrustTable().fit(X, y, info, now) after PatternMiner.fit; tt.neutralize(scores, info_day) where miner scores are consumed
-- [ ] DirectionEngine().fit(build_inputs(...), up, now, movers); eng.decide(F_day) -> only bet=True rows trade
+- [~] (F08 2026-09-29: backtest.ScoreHooks / fit_score_hooks, trust_on OFF by default, OFF byte-identical; RESEARCH-ONLY; no value claimed) TrustTable().fit(X, y, info, now) after PatternMiner.fit; tt.neutralize(scores, info_day) where miner scores are consumed
+- [~] (F08 2026-09-29: backtest.ScoreHooks direction_on OFF by default; ON trades only bet & side=+1 rows; a closed engine (the real case) trades nothing; RESEARCH-ONLY) DirectionEngine().fit(build_inputs(...), up, now, movers); eng.decide(F_day) -> only bet=True rows trade
 
 ## B12 registry/checkpoint/champion/run_report
 - [x] improve.log_experiment ids -> sha256 (done 2026-09-28)
 - [x] log_experiment writes outcome, reason, metrics (+ all Phase 0.2 fields; 2026-09-28)
-- [ ] major runs call checkpoint.write_checkpoint, run_report.build_report/write_report; Board.promote replaces improve.py promotion
+- [~] (F08 2026-09-29: backtest.record_major_run; backtest.run records by default; scripts/research_loop.py record_run REACHED; loop2 is F06's; Board.promote NOT done) major runs call checkpoint.write_checkpoint, run_report.build_report/write_report; Board.promote replaces improve.py promotion
 
 ## B12 second pass (engine/baseline.py, engine/experiment_memory.py, scripts/audit_registry.py; 82 tests)
 - [x] log_experiment writes outcome/reason/metrics + Phase 0.2 fields (2026-09-28)
 - [x] freeze the baseline once with the champion cfg: state/baseline/B_2026-09-28_5a62d137 (2026-09-28)
 - [ ] live trader: Board.record_shadow_session daily, shadow_review after each session
-- [ ] experiment_memory.check() before launching grid/loop candidates
+- [~] (F08 2026-09-29: experiment_memory.launch_index/prelaunch/filter_batch/record_launch; scripts/grid_runner.py + scripts/learner_search.py skip exact repeats; engine/research/loop.py candidates NOT gated (not F08's file)) experiment_memory.check() before launching grid/loop candidates
 - audit (real 53 records): 0 complete, 2 with provenance -> fixed going forward only; history stays as-is (append-only)
 
 ## Ownership transfers (2026-09-28)
@@ -52,7 +52,7 @@
 - [x] analogs.LAG: UNRATE 30, UMCSENT 25, USREC 460 (2026-09-28)
 - [x] (2026-09-28: features.labels(entry='open'); Test uses it via livesim label_entry; Live unchanged) model labels (features.labels) enter at close t; real fill is next open (mean gap +0.05%, abs 0.7%; 2020 1.3%)
 - [x] (2026-09-28: features.clean_insider drops 146 impossible rows; tests/test_insider_clean.py) insider data: 142 rows filed before trade date, 6 year typos (13, 24) - clean at load
-- [ ] route fills through PITStore.executor(...).fill_next_open + pit.audit_fills; train.py purged_training_set;
+- [~] (F08 2026-09-29: backtest + train done, see B01) route fills through PITStore.executor(...).fill_next_open + pit.audit_fills; train.py purged_training_set;
       real pipeline through pit.future_scramble_store
 - features.build is future-invariant (5 cuts, 107k rows, planted shift(-5) caught)
 
