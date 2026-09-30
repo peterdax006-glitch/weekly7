@@ -5,6 +5,7 @@ IMPLEMENTED - NOT VALIDATED: under C63 only the planted source has been run; a r
     python scripts/research_loop.py --cycles 20 --mode thread         twenty cycles, experiments in a worker pool
     python scripts/research_loop.py --forever --wall-hours 10         keep researching until the feed or the wall budget ends
     python scripts/research_loop.py --source frame --frame F.pkl      a prepared lab frame (volatility_lab.frame_from_panel layout)
+    python scripts/research_loop.py --source world --cycles 10        the W02 planted world: every stage fed from bars and events
     python scripts/research_loop.py --status                          print the newest checkpoint's cycle report and exit
 
 Everything is written under --root (default state/research/research_loop/<run_id>/): checkpoints (resumable: the loop continues
@@ -43,7 +44,12 @@ def wait_for_memory(min_gb: float = 2.5, poll_s: float = 60.0, give_up_s: float 
         time.sleep(poll_s)
 
 
-def build_feed(a: argparse.Namespace) -> LP.FrameFeed:
+def build_feed(a: argparse.Namespace):
+    if a.source == "world":                                   # W02: the rich planted world, every stage fed from bars/events
+        return LP.world_feed("planted")
+    if a.source == "real":                                    # W02 real-cache adapter (C63: only once the foundation allows it)
+        wait_for_memory()
+        return LP.world_feed("real", years=tuple(range(a.sweep_from, a.sweep_to + 1)), sample=a.real_sample)
     if a.source == "planted":
         from engine.research import volatility_lab as VL
         F = VL.planted_frame(a.planted_truth, n_dates=a.planted_dates, n_tickers=a.planted_names, seed=a.seed, effect=a.planted_effect,
@@ -62,10 +68,13 @@ def build_feed(a: argparse.Namespace) -> LP.FrameFeed:
     return LP.FrameFeed(F, dates=dates[start:])
 
 
-def build_sweeps(a: argparse.Namespace) -> list:
-    """C67 always-on sweeps over the real caches (only with --sweeps; they read data, so the RAM rule applies first)."""
+def build_sweeps(a: argparse.Namespace, feed=None) -> list:
+    """C67 always-on sweeps over the real caches (only with --sweeps; they read data, so the RAM rule applies first). A W02 world
+    feed brings its own point-in-time precursor sweep."""
     if not a.sweeps:
         return []
+    if hasattr(feed, "sweeps"):
+        return feed.sweeps()
     wait_for_memory()
     from engine.research import precursors as PC
     years = tuple(range(a.sweep_from, a.sweep_to + 1))
@@ -99,7 +108,7 @@ def main(argv=None) -> int:
     g.add_argument("--cycles", type=int, default=0)
     g.add_argument("--status", action="store_true")
     ap.add_argument("--wall-hours", type=float, default=0.0)
-    ap.add_argument("--source", default="planted", choices=("planted", "frame"))
+    ap.add_argument("--source", default="planted", choices=("planted", "frame", "world", "real"))
     ap.add_argument("--frame", default="")
     ap.add_argument("--planted-truth", default="H1")
     ap.add_argument("--planted-dates", type=int, default=120)
@@ -120,6 +129,7 @@ def main(argv=None) -> int:
     ap.add_argument("--sweeps", action="store_true")
     ap.add_argument("--sweep-units", type=int, default=1)
     ap.add_argument("--sweep-slices", type=int, default=8)
+    ap.add_argument("--real-sample", type=int, default=300)
     ap.add_argument("--sweep-from", type=int, default=1990)
     ap.add_argument("--sweep-to", type=int, default=2020)
     a = ap.parse_args(argv)
@@ -140,7 +150,7 @@ def main(argv=None) -> int:
     feed = build_feed(a)
     max_cycles = None if a.forever else (1 if a.once or not a.cycles else a.cycles)
     t0 = time.monotonic()
-    state, reports = LP.run(feed, root, cfg, max_cycles=max_cycles, sweeps=build_sweeps(a), fresh=a.fresh,
+    state, reports = LP.run(feed, root, cfg, max_cycles=max_cycles, sweeps=build_sweeps(a, feed), fresh=a.fresh,
                             wall_budget_s=a.wall_hours * 3600 if a.wall_hours else None)
     for rep in reports:
         print(LP.render_report(rep), flush=True)
