@@ -1,1 +1,4 @@
 14:42:15 stage FULL_protocol_dev part 0/1 pid 27956 code e8f4cfc95d9da810
+14:46:29 W00002 development tier 3: real 5/18 FP 1 {'identity_null': 1} 254s
+14:50:51 W00005 development tier 2: real 6/16 FP 0 {} 262s
+done
