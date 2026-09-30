@@ -652,16 +652,16 @@ def _small_state(store_dir=None, years=(1998, 1999, 2000), registry=None):
 
 def test_resume_after_a_crash_neither_redoes_nor_skips_work(tmp_path):
     bars, cfg, reg = _small_state()
-    clean = P.new_state([1998, 1999, 2000], cfg, registry=reg)
+    clean = P.new_state([1998, 1999, 2000], cfg, registry=reg, widen=False)
     P.sweep(clean, NOW, P.frame_loader(bars))
     want = clean.evidence.digest()
     store = P.LabStore(tmp_path / "lab")
-    st = P.new_state([1998, 1999, 2000], cfg, registry=reg)
+    st = P.new_state([1998, 1999, 2000], cfg, registry=reg, widen=False)
     loader = CountingLoader(P.frame_loader(bars), boom_on_call=2)
     with pytest.raises(RuntimeError):
         P.sweep(st, NOW, loader, store=store)
     assert len(st.book.records) == 1 and len(loader.calls) == 2                               # unit 2 died before committing: no trace of it
-    st2, store2 = P.open_state(tmp_path / "lab", [1998, 1999, 2000], cfg, registry=reg)
+    st2, store2 = P.open_state(tmp_path / "lab", [1998, 1999, 2000], cfg, registry=reg, widen=False)
     assert set(st2.book.records) == set(st.book.records) and st2.evidence.digest() == st.evidence.digest()
     loader2 = CountingLoader(P.frame_loader(bars))
     P.sweep(st2, NOW, loader2, store=store2)
@@ -669,7 +669,7 @@ def test_resume_after_a_crash_neither_redoes_nor_skips_work(tmp_path):
     assert finished_first not in loader2.calls                                                # the finished unit is not loaded again
     assert len(loader2.calls) == 2 and len(set(loader2.calls)) == 2
     assert st2.evidence.digest() == want                                                      # identical to the uninterrupted run
-    st3, _ = P.open_state(tmp_path / "lab", [1998, 1999, 2000], cfg, registry=reg)
+    st3, _ = P.open_state(tmp_path / "lab", [1998, 1999, 2000], cfg, registry=reg, widen=False)
     assert st3.evidence.digest() == want and st3.book.digest() == st2.book.digest()
     assert P.step(st3, NOW, CountingLoader(P.frame_loader(bars))).done == []                   # nothing left to do, nothing redone
 
@@ -677,7 +677,7 @@ def test_resume_after_a_crash_neither_redoes_nor_skips_work(tmp_path):
 def test_step_visits_the_least_covered_area_first():
     bars, cfg, reg = _small_state()
     cfg = dataclasses.replace(cfg, n_slices=2)
-    st = P.new_state([1998, 1999, 2000], cfg, registry=reg)
+    st = P.new_state([1998, 1999, 2000], cfg, registry=reg, widen=False)
     loader = CountingLoader(P.frame_loader(bars))
     P.step(st, NOW, loader, max_units=1)
     P.step(st, NOW, loader, max_units=1)
@@ -690,7 +690,7 @@ def test_step_visits_the_least_covered_area_first():
 
 def test_a_wider_feature_set_extends_units_without_double_counting():
     bars, cfg, reg = _small_state()
-    st = P.new_state([1998, 1999], cfg, registry=reg)
+    st = P.new_state([1998, 1999], cfg, registry=reg, widen=False)
     P.sweep(st, NOW, P.frame_loader(bars))
     key = next(k for k in st.evidence.cells if k.endswith("|ctl|pre"))
     old_cols = list(st.evidence.cells[key].features)
@@ -711,18 +711,18 @@ def test_a_wider_feature_set_extends_units_without_double_counting():
 
 def test_empty_year_is_recorded_and_the_sweep_moves_on():
     bars, cfg, reg = _small_state()
-    st = P.new_state([1990, 1998], cfg, registry=reg)
+    st = P.new_state([1990, 1998], cfg, registry=reg, widen=False)
     rep = P.step(st, NOW, P.frame_loader(bars), max_units=2)
     assert "1990|0|c2c" in st.book.records and st.book.records["1990|0|c2c"].n_episodes == 0
     assert len(rep.done) == 2 and st.units_done() == 2
     dead = lambda u, e, w, f: {k: pd.DataFrame() for k in E.FIELD_KEYS}
-    st2 = P.new_state([1998], cfg, registry=reg)
+    st2 = P.new_state([1998], cfg, registry=reg, widen=False)
     assert P.step(st2, NOW, dead).done == ["1998|0|c2c"] and st2.book.records["1998|0|c2c"].n_days == 0
 
 
 def test_a_year_without_its_full_future_waits_and_leaves_no_trace():
     bars, cfg, reg = _small_state()
-    st = P.new_state([1998, 2001], cfg, registry=reg)                    # data ends inside 2001
+    st = P.new_state([1998, 2001], cfg, registry=reg, widen=False)                    # data ends inside 2001
     rep = P.step(st, NOW, P.frame_loader(bars), max_units=5)
     assert rep.waiting == ["2001|0|c2c"] and rep.done == ["1998|0|c2c"]
     assert "2001|0|c2c" not in st.book.records
@@ -732,7 +732,7 @@ def test_a_year_without_its_full_future_waits_and_leaves_no_trace():
 
 def test_sessions_at_or_after_now_are_refused():
     bars, cfg, reg = _small_state()
-    st = P.new_state([1998], cfg, registry=reg)
+    st = P.new_state([1998], cfg, registry=reg, widen=False)
     with pytest.raises(FirewallBreach):
         P.step(st, "1999-01-05", P.frame_loader(bars), years_before=1999)                   # the loader's look-forward reaches past now
     assert st.units_done() == 0
@@ -742,7 +742,7 @@ def test_sessions_at_or_after_now_are_refused():
 
 def test_store_detects_corruption_and_definition_drift(tmp_path):
     bars, cfg, reg = _small_state()
-    st = P.new_state([1998], cfg, registry=reg)
+    st = P.new_state([1998], cfg, registry=reg, widen=False)
     store = P.LabStore(tmp_path / "lab")
     P.step(st, NOW, P.frame_loader(bars), store=store)
     (tmp_path / "lab" / "half_written.tmp999").write_text("junk")
@@ -841,7 +841,7 @@ def test_ids_are_letters_only_and_never_read_as_dates():
 
 def test_always_on_job_ticks_forever_and_goes_idle_when_done(tmp_path):
     bars, cfg, reg = _small_state()
-    st = P.new_state([1998], cfg, registry=reg)
+    st = P.new_state([1998], cfg, registry=reg, widen=False)
     job = P.AlwaysOn(st, CountingLoader(P.frame_loader(bars)), P.LabStore(tmp_path / "lab"), years_fn=lambda now: [1998, 1999])
     reports = list(job.run(lambda: NOW, max_ticks=6, stop_after_idle=2))
     assert reports[0].new_years == 1 and reports[0].done and not reports[0].idle           # a year appeared, work was done
@@ -893,10 +893,10 @@ def test_event_and_sector_precursors_read_only_what_was_public():
 def test_context_function_supplies_sector_codes_to_a_unit():
     bars, cfg, _ = _small_state()
     reg = P.PrecursorRegistry([s for s in P.default_registry(audit=False).specs.values() if s.family in ("sector", "volume")], audit=False)
-    st = P.new_state([1998], cfg, registry=reg)
+    st = P.new_state([1998], cfg, registry=reg, widen=False)
     P.step(st, NOW, P.frame_loader(bars), context_fn=lambda unit, grid: ((np.arange(len(grid.tickers)) % 5).astype(int), {}))
     assert not any("sector" in n for n in st.notes)
-    st2 = P.new_state([1998], cfg, registry=reg)
+    st2 = P.new_state([1998], cfg, registry=reg, widen=False)
     P.step(st2, NOW, P.frame_loader(bars))
     assert any("sector_rel_ret_1" in n for n in st2.notes)                            # without a map the gap is written down
 
@@ -904,7 +904,7 @@ def test_context_function_supplies_sector_codes_to_a_unit():
 def test_daily_counts_are_kept_per_slice_and_add_up_to_the_whole_universe(tmp_path):
     bars, cfg, reg = _small_state()
     cfg = dataclasses.replace(cfg, n_slices=3)
-    st = P.new_state([1998, 1999], cfg, registry=reg)
+    st = P.new_state([1998, 1999], cfg, registry=reg, widen=False)
     store = P.LabStore(tmp_path / "lab")
     P.sweep(st, NOW, P.frame_loader(bars), store=store)
     assert len(st.daily) == 6                                                                  # one table per slice-year (first lens only)
@@ -914,7 +914,7 @@ def test_daily_counts_are_kept_per_slice_and_add_up_to_the_whole_universe(tmp_pa
     cols = [c for c in merged.columns if c != "n_illiquid"]
     assert (merged.index == whole.index).all()
     assert (merged[cols].to_numpy() == whole[cols].to_numpy()).all()                          # each name lives in exactly one slice
-    back, _ = P.open_state(tmp_path / "lab", [1998, 1999], cfg, registry=reg)
+    back, _ = P.open_state(tmp_path / "lab", [1998, 1999], cfg, registry=reg, widen=False)
     assert (P.universe_counts(back, 1999).to_numpy() == P.universe_counts(st, 1999).to_numpy()).all()
     table = P.hundreds_by_year(st, minimum=3)
     assert list(table["year"]) == [1998, 1999] and (table["universe_median"] > 60).all() and (table["sessions"] > 240).all()

@@ -1558,6 +1558,7 @@ class LabStore:
         st.units_run = int(body.get("units_run", len(st.book.records)))
         for fam in body.get("widened", []):                    # replay the widening so a resumed sweep has the registry it had
             add_family(st, fam)
+        st.widened = list(body.get("widened", []))
         if "labels" in files:
             name, sha = files["labels"]
             raw_l = (self.dir / name).read_bytes()
@@ -2208,3 +2209,180 @@ def hundreds_by_year(state: LabState, minimum: int = 100, measure: str = "c2c") 
                      "share_days_both_sides_at_least": r["both_sides_share_days_at_least"],
                      "median_gt10": float(c[[k for k in c.columns if k.startswith(measure + "_") and k.endswith("gt10")]].sum(axis=1).median())})
     return pd.DataFrame(rows, columns=["year", "sessions", "universe_median", "median_up_5_10", "median_dn_5_10", "share_days_both_sides_at_least", "median_gt10"])
+
+
+# ------------------------------------------------------------------------------------------------------------------ label ledger by year
+def labels_by_year(state: LabState, lens: str = "c2c") -> dict[int, dict[str, float]]:
+    """The units' outcome-label ledgers (episode_paths.label_counts) added up per year for one lens (all universe slices together)."""
+    out: dict[int, dict[str, float]] = {}
+    for uid, cnt in sorted(state.labels.items()):
+        u = Unit.parse(uid)
+        if u.lens == lens:
+            out[u.year] = EP.merge_label_counts([out.get(u.year, {}), cnt])
+    return out
+
+
+def label_year_table(state: LabState, lens: str = "c2c", horizon: int = 1, band: str | None = "5_10") -> pd.DataFrame:
+    """Rows = year, columns = count of each path class at `horizon` (episode types of `band` pooled over direction; None = every band), plus
+    the collapse / acceleration flag counts and the observable total. Counts, not shares, so a thin year shows as thin."""
+    rows = []
+    for y, cnt in sorted(labels_by_year(state, lens).items()):
+        r: dict[str, float] = {"year": y}
+        for k, v in cnt.items():
+            typ, what, val = k.split("|", 2)
+            if band is not None and not typ.endswith(":" + band):
+                continue
+            if what == f"cls_{horizon}":
+                r[val] = r.get(val, 0.0) + v
+            elif what == "n" and val == f"ok_{horizon}":
+                r["n_ok"] = r.get("n_ok", 0.0) + v
+            elif what in (f"coll_{horizon}", f"accel_{horizon}"):
+                r[what] = r.get(what, 0.0) + v
+        rows.append(r)
+    if not rows:
+        return pd.DataFrame()
+    t = pd.DataFrame(rows).fillna(0.0).set_index("year")
+    order = ["n_ok"] + [c for c in EP.CLASS_ORDER if c in t.columns] + [c for c in (f"coll_{horizon}", f"accel_{horizon}") if c in t.columns]
+    return t[order].astype(np.int64)
+
+
+# ------------------------------------------------------------------------------------------------------------------ questions into the research brain
+def question_events(state: LabState, now, statuses: Sequence[str] = ("CANDIDATE", "INSUFFICIENT_EVIDENCE"), min_abs_t: float = 3.0,
+                    max_n: int = 25, include_decoys: bool = False) -> list:
+    """Tracked findings as engine.research.questions events (source 'new_discovery'), strongest first. Only findings whose evidence matured
+    strictly before `now`; decoy features are left out unless asked for (a decoy that reaches here is itself a false-positive alarm)."""
+    from engine.research import questions as Q
+    evs = []
+    for c in sorted(state.candidates.values(), key=lambda c: (-abs(c.t), c.candidate_id)):
+        if len(evs) >= max_n:
+            break
+        if str(c.status) not in statuses or abs(c.t) < min_abs_t or not c.matured_at:
+            continue
+        if c.feature.startswith(DECOY_PREFIX) and not include_decoys:
+            continue
+        if as_date(c.matured_at) >= as_date(now):
+            continue
+        evs.append(Q.QuestionEvent("new_discovery", c.candidate_id, c.matured_at, float(min(1.0, abs(c.t) / 6.0)),
+                                   stake=0.7 if c.status == CandidateStatus.CANDIDATE else 0.4, problem=problem_of(c.comparison),
+                                   n_obs=int(c.clusters), p_isolate=0.6, p_actionable=0.4 if c.anchor == "pre" else 0.5, detail=c.text))
+    return evs
+
+
+def raise_questions(state: LabState, now, ledger=None, **kw) -> tuple[Any, Any]:
+    """Push tracked findings through the research brain's question generator (engine.research.questions.generate): each becomes a question
+    object with hypotheses (including chance), a test plan, success/failure criteria and a priority, recorded in the QuestionLedger.
+    Returns (GenerationReport, ledger)."""
+    from engine.research import questions as Q
+    led = ledger if ledger is not None else Q.QuestionLedger()
+    rep = Q.generate(question_events(state, now, **kw), now, led)
+    return rep, led
+
+
+# ------------------------------------------------------------------------------------------------------------------ held-out years
+def _restricted_store(store: EvidenceStore, keep: Callable[[int], bool], last_ordinal: int) -> EvidenceStore:
+    out = EvidenceStore(store.n_perm)
+    for key, cell in store.cells.items():
+        ids, T = cell.stacked()
+        sel = [i for i, c in enumerate(ids) if keep(int(c))]
+        if not sel:
+            continue
+        c2 = Cell(cell.V)
+        c2.features = list(cell.features)
+        c2.clusters = {int(ids[i]): T[i].copy() for i in sel}
+        c2.last_ordinal, c2.units = min(cell.last_ordinal, last_ordinal), cell.units
+        out.cells[key] = c2
+    return out
+
+
+def holdout_check(state: LabState, split_year: int, now, statuses: Sequence[str] = ("CANDIDATE", "INSUFFICIENT_EVIDENCE", "HYPOTHESIS",
+                  "FAILED_WALK_FORWARD", "FAILED_ERA")) -> tuple[pd.DataFrame, dict[str, Any]]:
+    """A true out-of-sample check. Discovery sees only clusters before `split_year` (every test it makes is entered in the state's ledger,
+    because a look is a look); each tracked finding is then measured on the untouched clusters from `split_year` on. A finding is CONFIRMED
+    when the held-out effect keeps its sign with signed t >= the walk-forward confirm bar. Decoys go through the same path, so the decoy
+    confirmation rate is the chance rate of this very check."""
+    import datetime as _dt
+    m = state.cfg.cluster_months
+    disc = _restricted_store(state.evidence, lambda c: cluster_year(c, m) < split_year, _dt.date(split_year - 1, 12, 31).toordinal())
+    cands, rep = evaluate_evidence(disc, state.ledger, state.rules, state.cfg, state.registry, now, f"holdout{split_year}-{disc.digest()[:10]}", -1)
+    rows = []
+    for cid, c in cands.items():
+        if str(c.status) not in statuses:
+            continue
+        cell = state.evidence.cells[c.key]
+        ids, T = cell.stacked()
+        sel = np.array([cluster_year(int(i), m) >= split_year for i in ids])
+        fj = cell.features.index(c.feature)
+        h = _one(T, fj, sel) if sel.sum() >= 2 else {"effect": float("nan"), "t": float("nan"), "clusters": float(sel.sum()), "n1": 0.0}
+        s = 1.0 if c.effect >= 0 else -1.0
+        kept = bool(math.isfinite(h["effect"]) and s * h["effect"] > 0)
+        rows.append({"candidate_id": cid, "status_discovery": str(c.status), "key": c.key, "feature": c.feature, "family": c.family,
+                     "decoy": c.feature.startswith(DECOY_PREFIX), "effect_disc": c.effect, "t_disc": c.t, "q_disc": c.q, "wf": f"{c.wf_passed}/{c.wf_tested}",
+                     "effect_hold": h["effect"], "t_hold": h["t"], "clusters_hold": int(h["clusters"]), "n1_hold": int(h["n1"]),
+                     "sign_kept": kept, "confirmed": bool(kept and math.isfinite(h["t"]) and s * h["t"] >= state.rules.wf_confirm_t),
+                     "text": c.text})
+    cols = ["candidate_id", "status_discovery", "key", "feature", "family", "decoy", "effect_disc", "t_disc", "q_disc", "wf", "effect_hold", "t_hold",
+            "clusters_hold", "n1_hold", "sign_kept", "confirmed", "text"]
+    t = pd.DataFrame(rows, columns=cols)
+    if len(t):
+        t = t.assign(a=t["t_disc"].abs()).sort_values("a", ascending=False).drop(columns="a").reset_index(drop=True)
+    real, dec = t[~t["decoy"]] if len(t) else t, t[t["decoy"]] if len(t) else t
+    summary = {"split_year": int(split_year), "discovery_tests": rep.n_eligible, "tracked": int(len(t)),
+               "by_status": dict(pd.Series([str(x) for x in t["status_discovery"]]).value_counts()) if len(t) else {},
+               "real_sign_kept": float(real["sign_kept"].mean()) if len(real) else float("nan"),
+               "real_confirmed": float(real["confirmed"].mean()) if len(real) else float("nan"),
+               "candidates_confirmed": int(real.loc[real["status_discovery"] == "CANDIDATE", "confirmed"].sum()) if len(real) else 0,
+               "candidates": int((real["status_discovery"] == "CANDIDATE").sum()) if len(real) else 0,
+               "decoy_tracked": int(len(dec)), "decoy_confirmed": int(dec["confirmed"].sum()) if len(dec) else 0,
+               "ledger_looks_after": state.ledger.total_trials}
+    return t, summary
+
+
+# ------------------------------------------------------------------------------------------------------------------ truncation audit (F09 method)
+def truncation_audit(bars: Mapping[str, pd.DataFrame], registry: PrecursorRegistry, ecfg: EpisodeConfig = EpisodeConfig(),
+                     pcfg: EP.PathConfig = EP.PathConfig(), n_cuts: int = 4, seed: int = 0, cuts: Sequence[int] | None = None,
+                     sector_codes: np.ndarray | None = None) -> dict[str, Any]:
+    """Point-in-time audit of the whole precursor path on real or synthetic bars (the F09 truncation method, applied at episode level): for
+    sessions t that contain episodes, rebuild the grid from bars TRUNCATED after t and require that (1) the episodes of day t are identical and
+    (2) every precursor read at the 'pre' anchor (close of t-1) and the 'post' anchor (close of t) is identical to the full-data value. Also
+    checks that every path label matures strictly after its entry day (the future is used only as the outcome). Clean = zero mismatches."""
+    full = build_grid(bars, ecfg)
+    T = full.shape[0]
+    eps = EPI.episode_frame(full)
+    ctx = Ctx(full, sector_codes)
+    names = sorted(registry.specs)
+    pf, _ = ranked_panels(ctx, registry, names)
+    cols = [c for c in registry.columns() if c.split("@")[0] in pf]
+    lo_ok = max(ecfg.warm, 2)
+    days = sorted(set(int(t) for t in eps["ti"]) & set(range(lo_ok, T - 1))) if len(eps) else []
+    if cuts is None:
+        rng = np.random.default_rng(seed)
+        cuts = sorted(rng.choice(days, min(n_cuts, len(days)), replace=False).tolist()) if days else []
+    mism: dict[str, int] = {}
+    compared = checked = 0
+    ep_ok = True
+    for t in cuts:
+        trunc = {k: v.iloc[:t + 1] for k, v in bars.items()}
+        g2 = build_grid(trunc, ecfg)
+        e_full = eps[eps["ti"] == t]
+        e_tr = EPI.episode_frame(g2, t, t + 1)
+        if EPI.episode_digest(e_full) != EPI.episode_digest(e_tr):
+            ep_ok = False
+        p2, _ = ranked_panels(Ctx(g2, sector_codes), registry, names)
+        ti, nj = e_full["ti"].to_numpy(), e_full["nj"].to_numpy()
+        checked += len(ti)
+        for anchor in ANCHORS:
+            a = gather_features(pf, cols, ti, nj, anchor)
+            b = gather_features(p2, cols, ti, nj, anchor)
+            same = (np.isnan(a) & np.isnan(b)) | np.isclose(a, b, rtol=1e-5, atol=1e-6)
+            compared += same.size
+            for j in np.flatnonzero(~same.all(axis=0)):
+                mism[f"{cols[j]}@{anchor}"] = mism.get(f"{cols[j]}@{anchor}", 0) + int((~same[:, j]).sum())
+    labels_after = True
+    if len(eps):
+        lab = EP.label_paths(full, eps, pcfg)
+        m = pd.to_datetime(lab["matured_at"])
+        ok = m.notna()
+        labels_after = bool((m[ok].to_numpy() > pd.to_datetime(eps.loc[ok.to_numpy(), "date"]).to_numpy()).all())
+    return {"cuts": [str(full.dates[t].date()) for t in cuts], "episodes_checked": int(checked), "cells_compared": int(compared),
+            "mismatches": mism, "episodes_identical": ep_ok, "labels_mature_after_entry": labels_after,
+            "clean": bool(not mism and ep_ok and labels_after), "features": len(cols)}
