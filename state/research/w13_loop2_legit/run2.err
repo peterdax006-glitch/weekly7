@@ -1,0 +1,7 @@
+Traceback (most recent call last):
+  File "C:\Users\Peter\weekly7\scripts\livesim_loop2.py", line 570, in <module>
+    main()
+  File "C:\Users\Peter\weekly7\scripts\livesim_loop2.py", line 515, in main
+    print(f"  kept basis v{st['version']} (weeks in band {inc.t1:.0%}, risk {inc.risk:+.3f}): {res.reason}", flush=True)
+                                                          ^^^^^^
+AttributeError: 'NoneType' object has no attribute 't1'
