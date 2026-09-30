@@ -151,6 +151,10 @@ DIRECTIVES = [
      'it needs to go through an advanced testing simulation with hundreds of simulations where it notices a slight pattern and it needs to find which ones are real patterns and which ones are noice, and play with it until its perfect, some of the noice should be pretty convincing and some of the patterns should be pretty hard to notice, but it should be able to not just identify all the potential patterns, so that needs to be part of the test it needs to identify all the potential patterns in the simulation the organize what is noice and what is real using historic simulations and then you see if it got it right, and play with it until it gets all of them right to ensure no false positives but also it correctly finds all the actual positives'),
     ("C71", "2026-09-30", 'C70 must hold in every year: the real-vs-noise discrimination must work whatever year (era, regime, volatility level, base rate) it is working on',
      'it  should be able to do this no matter what year it is working on'),
+    ("C72", "2026-09-30", 'Every benchmark simulation first writes the expected results (the answer key: which patterns are real and which are noise) before the system gives its results; then count how many the system gets right',
+     'make sure everytime you run the simulation to create expected results before it gives results where the system already knows noice from pattern and you need to see how many the system gets right'),
+    ("C73", "2026-09-30", 'Addition to C72: score also how close the system was, not only how many it got right',
+     'or how close the system was anyway'),
 ]
 
 def sha(t): return hashlib.sha256(t.encode("utf-8")).hexdigest()

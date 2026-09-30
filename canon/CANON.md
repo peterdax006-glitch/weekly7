@@ -434,3 +434,15 @@ it should be very long
 > it  should be able to do this no matter what year it is working on
 
 `sha256: cd76339bd58fc2fb964116146a148dc89abf887d71b196b3ed36d1a7630d163f`
+
+## C72 — Every benchmark simulation first writes the expected results (the answer key: which patterns are real and which are noise) before the system gives its results; then count how many the system gets right (2026-09-30)
+
+> make sure everytime you run the simulation to create expected results before it gives results where the system already knows noice from pattern and you need to see how many the system gets right
+
+`sha256: f95a1e14a39792ae202584645755aa8b3ae1d06c8384f6eb7eae7e34cdce1028`
+
+## C73 — Addition to C72: score also how close the system was, not only how many it got right (2026-09-30)
+
+> or how close the system was anyway
+
+`sha256: f68791c259863f816b13b330ed8164edf2dbbf6489476afa96fb1779b6072409`
