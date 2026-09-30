@@ -38,6 +38,16 @@ def learner_flag(argv):
 LEARNER = learner_flag(sys.argv)
 LEARNER_ARGS = ["--learner", LEARNER] if LEARNER != "off" else []
 CURATOR_ROOT = K.STATE / "learning" / "curator"       # one hash-chained lane per REAL year, shared by every window (trusted side only)
+LEARN_ROOT = K.STATE / "learning" / "loop"
+
+
+def attempt_learn_root(root=None) -> Path:
+    """A fresh home for the shadow learner on every worker attempt (30 Sep: a rerun of a crashed window reused the learner folder
+    keyed by window + date, loaded the dead attempt's champion board into an empty learner and failed 'already registered').
+    Named by a random letters-only token, so no folder names a year; the curator store stays shared by design (C64)."""
+    import secrets
+    token = "".join("abcdefghijklmnop"[int(c, 16)] for c in secrets.token_hex(6))
+    return Path(root or LEARN_ROOT) / f"att{token}"
 PAR, SCREEN_N, N_CAND = 3, 10, 24
 MODEL_SEED = 7                    # random_state of every model the trader fits; recorded as the worker seed
 WORKER_TIMEOUT_S, WORKER_MEM_MB, WORKER_HEARTBEAT_S, BEAT_EVERY_S = 3 * 3600, 6000, 900, 30
@@ -284,7 +294,7 @@ def _worker(run_id, cfg, meta):
             from engine.learning import test_path as TP
             from engine.learning import wiring as W
             W.configure_production(run_id)                           # the hub's sinks persist under state/learning/hub/<run_id>/
-            hook = TP.hook_factory(TP.PathConfig(store_root=str(CURATOR_ROOT), seed=MODEL_SEED))
+            hook = TP.hook_factory(TP.PathConfig(store_root=str(CURATOR_ROOT), seed=MODEL_SEED, learn_root=str(attempt_learn_root())))
         extra = {} if hook is None else {"hook_factory": hook}          # the off path calls livesim.run exactly as before
         feed, trader, sealed, wall = livesim.run(cfg, run_id, log=lambda *x: print(f"[{run_id}]", *x, flush=True),
                                                  adaptive=True, meta=meta, **extra)

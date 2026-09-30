@@ -463,3 +463,10 @@ def test_worker_runs_with_the_network_closed_and_reopens_it_after(L, sandbox, mo
     assert seen == {"net": "blocked", "refresh": "blocked"}
     assert data_mod.update is real_update                                 # the poison is lifted, and the socket guard too
     socket.getaddrinfo("localhost", 80)
+
+
+def test_every_worker_attempt_gets_a_fresh_learner_home(L, tmp_path):
+    """30 Sep, W-13: a rerun of a crashed window reused the learner folder (window + date) and died 'already registered'."""
+    a, b = L.attempt_learn_root(tmp_path), L.attempt_learn_root(tmp_path)
+    assert a != b and a.parent == b.parent == tmp_path
+    assert a.name.isalpha() and b.name.isalpha()                     # letters only: no folder can name a year
