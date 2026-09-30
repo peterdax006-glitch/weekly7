@@ -1,13 +1,24 @@
-"""Production model training (Part C4) and the guarded weekly retrain (Part M step 6)."""
+"""Production model training (Part C4) and the guarded weekly retrain (Part M step 6).
+
+Bible Phase 1.1 / 1.3 (INTEGRATION B01):
+  * `_fit` takes its training rows from pit.purged_training_set: a row is used only when its forward label had CLOSED by the
+    training cut (decide at close t, label closes at t + LABEL_HORIZON sessions). The old ad-hoc cut kept every row dated up
+    to `end`, so the last LABEL_HORIZON sessions trained on returns realised after the cut (inside the holdout).
+  * `future_scramble_gate` runs pit.future_scramble over the real components - the LightGBM fit, the PatternMiner, Memory and
+    the adaptive Session - and fails closed when anything they output at `as_of` changes when the data after `as_of`
+    (including labels that close after it) is removed or scrambled. retrain_guarded runs it on a seeded ticker sample
+    before it may swap a model in."""
 import json, pickle
 import numpy as np
 import pandas as pd
 from sklearn.isotonic import IsotonicRegression
 
-from . import config as K, data, features, model
+from . import config as K, data, features, model, pit
 
 MODELS = K.STATE / "models"
 MODELS.mkdir(parents=True, exist_ok=True)
+LABEL_HORIZON = 5            # features.labels(horizon=5): decide at close t, the label closes at close t+5
+SCRAMBLE_COMPONENTS = ("model", "miner", "memory", "adaptive")
 
 
 def build_panel():
@@ -20,15 +31,148 @@ def build_panel():
     return X, yb.stack(future_stack=True).reindex(X.index), fw.stack(future_stack=True).reindex(X.index)
 
 
-def _fit(X, y, f, end=None, sample_every=2):
-    R = model.normalise(X)
+def training_rows(R, y, f, end, sample_every=2, horizon=LABEL_HORIZON, calendar=None):
+    """(R_train, y_train, f_train, info): the TRAIN_YEARS window ending at `end`, thinned to every `sample_every`-th date,
+    then purged by pit so no row's label closes after `end` (pit verifies that before returning)."""
     d = R.index.get_level_values(0)
     ud = np.array(sorted(d.unique()))
-    end = end or ud[-1]
     lo = pd.Timestamp(end) - pd.DateOffset(years=model.TRAIN_YEARS)
-    tr_dates = ud[(ud >= np.datetime64(lo)) & (ud <= np.datetime64(end))][::sample_every]
-    ok = d.isin(tr_dates) & y.notna().values & f.notna().values
-    return model.fit_models(R[ok], y[ok], f[ok]), R
+    tr_dates = ud[(ud >= np.datetime64(lo)) & (ud <= np.datetime64(pd.Timestamp(end)))][::sample_every]
+    ok = np.asarray(d.isin(tr_dates) & y.notna().values & f.notna().values)
+    cal = calendar or pit.Calendar(pd.DatetimeIndex(ud))
+    Rp, yp = pit.purged_training_set(R[ok], y[ok], end, horizon, cal)
+    info = {"window_rows": int(ok.sum()), "purged_rows": int(ok.sum() - len(Rp)), "train_rows": int(len(Rp)),
+            "last_row_date": str(Rp.index.get_level_values(0).max().date()) if len(Rp) else None, "cut": str(pd.Timestamp(end).date())}
+    return Rp, yp, f.reindex(Rp.index), info
+
+
+def _fit(X, y, f, end=None, sample_every=2, fast=False, horizon=LABEL_HORIZON):
+    R = model.normalise(X)
+    ud = np.array(sorted(R.index.get_level_values(0).unique()))
+    end = end if end is not None else ud[-1]
+    Rt, yt, ft, info = training_rows(R, y, f, end, sample_every, horizon)
+    _fit.last_rows = info
+    return model.fit_models(Rt, yt, ft, fast=fast), R
+
+
+# ==================================================================================================================
+# Phase 1.3 future scramble over the real pipeline components
+# ==================================================================================================================
+def label_future_mask(calendar, horizon=LABEL_HORIZON):
+    """mask_fn for a (date, ticker) label frame: a row is 'future' when its label closes after as_of."""
+    def mask(df, as_of):
+        lc = pit.label_close_dates(df.index.get_level_values(0), horizon, calendar)
+        return np.asarray(lc > pd.Timestamp(as_of))
+    return mask
+
+
+def _model_outputs(fr, as_of, horizon):
+    X, L = fr["X"], fr["L"].reindex(fr["X"].index)
+    m, R = _fit(X, L["y"], L["f"], end=as_of, fast=True, horizon=horizon)
+    Rd = R.xs(pd.Timestamp(as_of), level=0, drop_level=False)
+    return {"pred": pd.Series(m["reg"].predict(Rd[m["cols"]]), index=Rd.index).round(12), "rows": _fit.last_rows["train_rows"]}
+
+
+def _miner_outputs(fr, as_of, horizon, params):
+    from .patterns import PatternMiner
+    X, L = fr["X"], fr["L"].reindex(fr["X"].index)
+    ud = pd.DatetimeIndex(sorted(X.index.get_level_values(0).unique()))
+    Xp, yp = pit.purged_training_set(X, L["f"], as_of, horizon, pit.Calendar(ud))
+    pm = PatternMiner(params).fit(Xp, yp.dropna(), pd.Timestamp(as_of))
+    cols = [c for c in ("key_named", "effect", "status") if c in pm.patterns.columns]
+    pats = pm.patterns[cols].reset_index(drop=True) if len(pm.patterns) else pd.DataFrame(columns=cols)
+    return {"patterns": pats, "score": pm.score(X.xs(pd.Timestamp(as_of), level=0)).round(12)}
+
+
+def _memory_outputs(fr, as_of):
+    """Weekly lessons per momentum-quintile arm, recorded only for weeks whose outcome closed by as_of."""
+    from .memory import Memory, CTX
+    C = fr["closes"].loc[:pd.Timestamp(as_of)]
+    wk_end = C.groupby(C.index.to_period("W-FRI")).apply(lambda g: g.index[-1])
+    mem, ctx = Memory(), np.zeros(len(CTX))
+    for w, (a, b) in enumerate(zip(wk_end.values[:-1], wk_end.values[1:])):
+        a, b = pd.Timestamp(a), pd.Timestamp(b)
+        hist = C.loc[:a]
+        if len(hist) < 6:
+            continue
+        mom = hist.iloc[-1] / hist.iloc[-6] - 1
+        q = np.minimum((mom.rank(pct=True) * 5).astype(int), 4)
+        ret = C.loc[b] / C.loc[a] - 1
+        for k in range(5):
+            names = q.index[q.values == k]
+            if len(names):
+                mem.record(("mom_q", int(k)), float(w), ctx, float(ret[names].mean()), date=b)
+    ranks = mem.rank_arms(mem.arms(), float(len(wk_end)), ctx) if len(mem) else pd.DataFrame()
+    return {"fingerprint": mem.fingerprint(), "ranks": ranks.drop(columns=["arm"], errors="ignore").round(12)}
+
+
+def _adaptive_outputs(fr, as_of, cfg):
+    """The adaptive Session replayed over the window; what it decided and held up to as_of."""
+    from . import adaptive
+    closes, opens, as_of = fr["closes"], fr.get("opens"), pd.Timestamp(as_of)
+    snaps = {}
+    for d in closes.index:
+        c = closes.loc[:d]
+        mu = (c.iloc[-1] / c.iloc[-6] - 1).fillna(0.0).values if len(c) > 5 else np.zeros(c.shape[1])
+        snaps[str(d.date())] = pd.DataFrame({"mu_raw": mu, "evidence": 0.5, "vol20": 0.02, "max20": 0.05, "log_dv": 18.0,
+                                             "ev_red_flag": 0.0, "ev_offering": 0.0, "r5": 0.0, "m_vix": 0.5, "m_vix_term": 0.9,
+                                             "m_spy_ma200": 1.05}, index=pd.Index(closes.columns, name="ticker"))
+    S = adaptive.replay(cfg, snaps, closes, 5.0, {}, adaptive=True, opens=opens)
+    return {"decisions": [x for x in S.decisions if pd.Timestamp(x[0]) < as_of],
+            "days": [(d, round(v, 9)) for d, v in S.days if pd.Timestamp(d) <= as_of],
+            "fills": [(f["order_id"], round(f["fill_price"], 9)) for f in S.fills if pd.Timestamp(f["fill_date"]) <= as_of]}
+
+
+ADAPTIVE_CFG = {"k": 2, "exit_q": 0.8, "rebalance_weeks": 1, "brake": None, "max_per_sector": None, "w_model": 1.0,
+                "pick": "top", "pool_q": 0.7, "liq_q": 0.0, "vol_filter": False, "stress_thr": None, "stress_k": 2,
+                "trend_filter": None, "trend_gross": 0.0}
+MINER_FAST = {"min_n": 60, "max_pairs": 200, "max_unless": 50, "null_reps": 1, "top_singles": 20, "unless_top_pairs": 10,
+              "null_max_patterns": 200, "shrink_k": 100}
+
+
+def scramble_pipeline(components=SCRAMBLE_COMPONENTS, horizon=LABEL_HORIZON, miner_params=None, adaptive_cfg=None):
+    """pipeline(frames, as_of) -> {component: outputs at as_of}, for pit.future_scramble. frames: X ((date, ticker)
+    features), L (labels y, f on the same index), closes / opens (wide). Unknown components are refused."""
+    bad = set(components) - set(SCRAMBLE_COMPONENTS)
+    if bad or not components:
+        raise ValueError(f"unknown or empty scramble components {sorted(bad)}; choose from {SCRAMBLE_COMPONENTS}")
+    mp = {**MINER_FAST, **(miner_params or {})}
+    cfg = adaptive_cfg or ADAPTIVE_CFG
+
+    def pipeline(fr, as_of):
+        out = {}
+        if "model" in components:
+            out["model"] = _model_outputs(fr, as_of, horizon)
+        if "miner" in components:
+            out["miner"] = _miner_outputs(fr, as_of, horizon, mp)
+        if "memory" in components:
+            out["memory"] = _memory_outputs(fr, as_of)
+        if "adaptive" in components:
+            out["adaptive"] = _adaptive_outputs(fr, as_of, cfg)
+        return out
+    return pipeline
+
+
+def future_scramble_gate(frames, as_of, components=SCRAMBLE_COMPONENTS, seed=0, horizon=LABEL_HORIZON, require=True, **kw):
+    """pit.future_scramble over the real components. The label frame's future is every row whose label closes after
+    as_of (not only rows dated after it). Returns the ScrambleReport; with require=True a failure raises pit.FailClosed."""
+    ud = pd.DatetimeIndex(sorted(frames["X"].index.get_level_values(0).unique()))
+    masks = {"L": label_future_mask(pit.Calendar(ud), horizon)}
+    rep = pit.future_scramble(scramble_pipeline(components, horizon, **kw), frames, as_of, seed=seed, mask_fns=masks)
+    if require:
+        rep.require()
+    return rep
+
+
+def scramble_sample(X, y, f, as_of, n_tickers=60, years=3, seed=0):
+    """A seeded ticker sample of the last `years` before as_of (plus the label tail after it) for the pre-swap gate:
+    the whole panel is too large to fit three times (CONTEXT rule 10)."""
+    tick = np.array(sorted(X.index.get_level_values(1).unique()))
+    pick = np.random.default_rng(seed).choice(tick, min(n_tickers, len(tick)), replace=False)
+    d, t = X.index.get_level_values(0), X.index.get_level_values(1)
+    lo = pd.Timestamp(as_of) - pd.DateOffset(years=years)
+    m = np.asarray(t.isin(pick) & (d >= lo))
+    return {"X": X[m], "L": pd.DataFrame({"y": y[m], "f": f[m]})}
 
 
 def save(m, iso=None):
@@ -75,9 +219,16 @@ def retrain_guarded(holdout=60):
     cols = json.loads((MODELS / "cols.json").read_text())
     old_ic = model.daily_ic(pd.Series(old.predict(Rh.reindex(columns=cols)), index=Rh.index), fh).mean()
     from .improve import log_experiment
-    rec = {"event": "retrain_check", "new_holdout_ic": float(new_ic), "old_holdout_ic": float(old_ic)}
+    rec = {"event": "retrain_check", "new_holdout_ic": float(new_ic), "old_holdout_ic": float(old_ic),
+           "purge": dict(_fit.last_rows)}
+    # B01: the candidate's fit must not see anything after its cut (fail closed: a failed or crashed gate keeps the old model)
+    try:
+        scr = future_scramble_gate(scramble_sample(X, y, f, cut), cut, components=("model",), require=False)
+        scramble_ok, rec["future_scramble"] = scr.passed, scr.summary()
+    except Exception as e:                                 # noqa: BLE001 - an unprovable fit is not swapped in
+        scramble_ok, rec["future_scramble"] = False, f"error {type(e).__name__}: {e}"
     # the old model saw the holdout in training, so it is favoured; a small tolerance keeps this fair
-    if new_ic >= old_ic - 0.01:
+    if new_ic >= old_ic - 0.01 and scramble_ok:
         m, _ = _fit(X, y, f)
         save(m)
         rec["decision"] = "swapped"
@@ -88,9 +239,10 @@ def retrain_guarded(holdout=60):
                    train_range=f"..{pd.Timestamp(cut).date()}", validation_range=f"{pd.Timestamp(ho[0]).date()}..{pd.Timestamp(ho[-1]).date()}",
                    test_range="live (forward)", window_ids=["live"],
                    metrics={"new_holdout_ic": float(new_ic), "old_holdout_ic": float(old_ic)},
-                   gates={"holdout_ic_within_0.01": bool(new_ic >= old_ic - 0.01)},
+                   gates={"holdout_ic_within_0.01": bool(new_ic >= old_ic - 0.01), "future_scramble": bool(scramble_ok)},
                    outcome="adopt" if rec["decision"] == "swapped" else "reject",
-                   reason=f"holdout IC {new_ic:+.4f} vs champion {old_ic:+.4f} (tolerance 0.01; champion saw the holdout)")
+                   reason=f"holdout IC {new_ic:+.4f} vs champion {old_ic:+.4f} (tolerance 0.01; champion saw the holdout); "
+                          f"future scramble {'PASS' if scramble_ok else 'FAILED - kept old'}")
     return f"Retrain: new holdout IC {new_ic:+.4f} vs current {old_ic:+.4f} -> {rec['decision']}."
 
 

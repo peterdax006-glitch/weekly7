@@ -24,6 +24,7 @@ import numpy as np
 import pandas as pd
 
 from engine import config as K, provenance
+from engine import experiment_memory as EM
 from engine import learners as LR
 from engine import learning_delta as L
 from engine.improve import log_experiment
@@ -85,6 +86,30 @@ def make_book(pool, out):
     for e in pool:
         book.register(e["id"], e["real_start"], e["real_end"], loader=loader_for(e))
     return book
+
+
+def pair_cfg(learner, we, be, seed, min_hist, code_hash):
+    """What makes a pair run the same experiment under any tag: learner, both windows, seed, history floor and code."""
+    return {"runner": "learner_search", "learner": learner, "window": we["id"], "transfer": be["id"], "seed": int(seed),
+            "min_hist": int(min_hist), "code": code_hash}
+
+
+def gated_pair(tried, cfg, code_hash):
+    """B12 pre-launch check. An exact repeat of a pair finished under another tag with the same code is reused from the
+    file its registration points at; anything else (novel, or a repeat whose file is gone or from other code) runs.
+    Returns the prior record or None."""
+    chk = EM.prelaunch(tried, cfg)
+    if chk["launch"]:
+        return None
+    for eid in chk["exact"]:
+        row = next((r for r in tried.rows if r["experiment_id"] == eid), None)
+        f = Path(row["reason"]) if row and row.get("reason") else None
+        if f is not None and f.exists():
+            r = json.loads(f.read_text())
+            if r.get("_code") == code_hash:
+                log(f"experiment memory: {cfg['learner']} {cfg['window']}->{cfg['transfer']} already run ({eid}); reused")
+                return r
+    return None
 
 
 def learner_selfcheck(seed=0):
@@ -162,6 +187,7 @@ def main():
         return 2
     import scripts.learning_delta as LDS                        # state_for / read_state0 (S0 is past-only by construction)
     code = provenance.code_stamp()
+    tried = EM.launch_index("learner_search")
     log(f"learner search '{a.tag}' seed {a.seed}, code {code.get('code_hash')}")
     sc = L.harness_selfcheck(a.seed, log_fn=log)
     lsc = learner_selfcheck(a.seed)
@@ -188,6 +214,12 @@ def main():
                 if r.get("_code") == code.get("code_hash"):
                     recs.append(r)
                     continue
+            cfg = pair_cfg(name, we, be, a.seed, a.min_hist, code.get("code_hash"))
+            prior = gated_pair(tried, cfg, code.get("code_hash"))
+            if prior is not None:
+                f.write_text(json.dumps(prior, default=str))
+                recs.append(prior)
+                continue
             if not L.wait_for_ram(a.min_ram, log_fn=log):
                 log("RAM never freed up; stopping with what is checkpointed")
                 break
@@ -197,6 +229,7 @@ def main():
             r["history_windows"] = len(getattr(learner, "last_ids", []) or [])
             r["_code"] = code.get("code_hash")
             f.write_text(json.dumps(r, default=str))
+            EM.record_launch(tried, f"learner_search:{a.tag}:{name}:{we['id']}:{be['id']}", cfg, reason=str(f))
             recs.append(r)
             book.drop_panels(keep={we["id"]})
             del W, B

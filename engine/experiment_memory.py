@@ -386,3 +386,50 @@ def answer_coverage(rows):
             "with_outcome": sum(1 for r in rows if r.get("outcome") in ("adopt", "reject", "continue_testing")),
             "with_reason": sum(1 for r in rows if r.get("reason")),
             "without_experiment_id": sum(1 for r in rows if not r.get("experiment_id"))}
+
+
+# ==================================================================================================================
+# B12 (INTEGRATION): the pre-launch gate every grid / loop candidate batch goes through. A candidate is TRIED once it has
+# finished (registered by `record_launch` after a clean exit), so a crashed run can be retried but a finished one is never
+# silently repeated. Indexes live in state/research/tried/<runner>.jsonl (append-only, one per runner).
+# ==================================================================================================================
+def launch_index(runner, root=None, space=None):
+    """The TriedIndex for one runner. Without a declared Space every parameter counts as categorical, so only an
+    identical configuration is an exact repeat."""
+    from . import config as _K
+    if not runner or Path(str(runner)).name != str(runner):
+        raise ValueError(f"unusable runner name {runner!r}")
+    d = Path(root) if root else _K.STATE / "research" / "tried"
+    d.mkdir(parents=True, exist_ok=True)
+    return TriedIndex(d / f"{runner}.jsonl", space or Space({}))
+
+
+def prelaunch(index, cfg, near=0.08):
+    """check() before a launch. Returns the check dict plus 'launch': False for an exact repeat (skip it) or a blocked
+    known failure; near-duplicates still launch but are reported."""
+    r = index.check(cfg, near)
+    r["launch"] = not (r["verdict"] == "repeat" or r["block"])
+    return r
+
+
+def filter_batch(index, candidates, near=0.08, log=print):
+    """Split [(experiment_id, cfg), ...] into (to_launch, skipped). Repeats inside the batch itself are skipped too."""
+    go, skip, seen = [], [], set()
+    for eid, cfg in candidates:
+        r = prelaunch(index, cfg, near)
+        key = index.space.key(cfg)
+        if not r["launch"] or key in seen:
+            why = "repeat within this batch" if r["launch"] else f"{r['verdict']} of {r['exact'] or r['close']}"
+            skip.append({"experiment_id": eid, "cfg": cfg, "why": why})
+            log(f"  experiment memory: skip {eid} ({why})")
+            continue
+        seen.add(key)
+        go.append((eid, cfg))
+    return go, skip
+
+
+def record_launch(index, experiment_id, cfg, outcome="continue_testing", score=None, reason=None, now=None):
+    """Register a finished candidate. A second registration of the same id is a no-op (resume after a kill)."""
+    if any(r["experiment_id"] == experiment_id for r in index.rows):
+        return None
+    return index.add(experiment_id, cfg, outcome, score, reason, now)

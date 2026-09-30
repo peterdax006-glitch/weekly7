@@ -56,6 +56,12 @@ META_SPACE = B.META_SPACE          # single source (engine/basis_search.py); tes
 # C56: the starting basis is data-free (the middle grid value of every knob), never the sensitivity-study defaults, which
 # were tuned on the outcomes of 37 real years (80% of possible windows are in-sample for them).
 NEUTRAL_CFG = LA.neutral_default_cfg(CFG_SPACE)
+# F06 (C69 W-10): the untrained start is data-free in the adaptation meta too. META_DEFAULT was tuned by the sensitivity study on
+# real outcomes; NEUTRAL_META puts every searched meta knob at its middle grid value and lets the adapter move every knob it has a
+# step grid for (engine.leak_audit.neutral_default_meta documents the choice). Structural switches (rails, dial, dates) keep
+# META_DEFAULT's values, which encode no outcome.
+NEUTRAL_META = LA.neutral_default_meta(META_SPACE, A.META_DEFAULT, list(A.STEPS))
+assert not B.validate_meta(NEUTRAL_META), B.validate_meta(NEUTRAL_META)
 
 
 def fresh_state():
@@ -75,7 +81,20 @@ def migrate_state(st):
     return st
 
 
-st = migrate_state(json.loads(STATE.read_text())) if STATE.exists() else fresh_state()
+def quarantine_tuned_meta(state):
+    """F06: a play that ran untrained on the sensitivity-tuned META_DEFAULT (before NEUTRAL_META) is quarantined - marked
+    legacy='tuned_meta' so every headline average excludes it (its lessons remain in the memory bank: reported, not removed).
+    Trained plays are marked when their meta still carries a tuned non-searched key (the adaptive knob list). Idempotent."""
+    for w in state.get("windows", []):
+        if w.get("legacy"):
+            continue
+        searched = () if (w.get("basis_version") in (0, None) or w.get("untrained_basis")) else tuple(META_SPACE)
+        if w.get("meta") is not None and LA.tuned_meta_keys(w["meta"], A.META_DEFAULT, NEUTRAL_META, searched):
+            w["legacy"], w["tuned_meta"] = LA.TUNED_META_LEGACY, True
+    return state
+
+
+st = quarantine_tuned_meta(migrate_state(json.loads(STATE.read_text()))) if STATE.exists() else fresh_state()
 save = lambda: STATE.write_text(json.dumps(st, indent=1, default=str))
 
 
@@ -157,7 +176,7 @@ def plan_round(ids, lineage, span=real_span):
         start, _ = span(r)
         rec = lineage.basis_for(start)
         if rec is None:
-            out[r] = {"cfg": dict(NEUTRAL_CFG), "meta": dict(A.META_DEFAULT), "version": 0, "untrained": True, "real_start": start}
+            out[r] = {"cfg": dict(NEUTRAL_CFG), "meta": dict(NEUTRAL_META), "version": 0, "untrained": True, "real_start": start}
         else:
             out[r] = {"cfg": rec["cfg"], "meta": rec["meta"], "version": rec["version"], "untrained": False, "real_start": start}
     return out
@@ -181,9 +200,14 @@ def round_summary(rnd, plan, done, thin_ids):
             "versions": {r: plan[r]["version"] for r in played}, "thin": [r for r in played if r in thin_ids]}
 
 
-def train_basis(wins, cfg, meta, seed, evaluate=None, as_of=None, config=None):
+def train_basis(wins, cfg, meta, seed, evaluate=None, as_of=None, config=None, used_from=None, span=real_span):
     """Phase 19 outer step: 24 random configs screened on 10 random archived windows, top 3 (+ incumbent) confirmed on all,
-    adopted only through the firewall + held-out bootstrap (engine.basis_search). `evaluate` defaults to run_window."""
+    adopted only through the firewall + held-out bootstrap (engine.basis_search). `evaluate` defaults to run_window.
+    F06 (canon C56): `used_from` is the first REAL day the resulting basis may be played; the call itself refuses
+    (LateTrainingWindow) if any window it is handed had not ended before that day - main splits the archive first, so a refusal
+    means the split was skipped. `span(id)` -> (real start, real end) is the referee's lookup."""
+    if used_from is not None:
+        LA.refuse_late_training(wins, used_from, span)
     ev = evaluate or run_window
     sc = config or B.SearchConfig(n_start=N_CAND, n_screen=SCREEN_N, seed=seed)
     return B.BasisSearch(ev, [w if "end" in w else as_search_window(w) for w in wins], cfg, meta, sc,
@@ -444,13 +468,24 @@ def main():
                                   "n_names": w["n_names"], "phase": st["phase"]})
         if not gate_ok:
             save(); print("  ANTI-CHEAT GATE FAILED - stopping before any retraining", flush=True); break
-        # ---- train the training basis on every window with weekly snapshots ----
+        # ---- train the training basis for the NEXT round (F06, canon C56) ----
+        # The next round is sealed now, so the first real day the new basis may be played on is known (referee side). The
+        # archive is split there: only windows that ENDED before it are trained on, the search starts from the newest basis
+        # that is itself past-only for that day (never the latest global one), and train_basis refuses any late window.
         loaded = [load_window(a) for a in archive_dirs(DIR)]
         wins = [w for w in loaded if not w["thin"]]               # THIN windows (survivor universes) never train a basis
         thin_ids = {w["id"] for w in loaded if w["thin"]}
-        print(f"  basis training set: {len(wins)} windows ({len(thin_ids)} THIN excluded: {sorted(thin_ids)})", flush=True)
+        nxt = [f"w{rnd + 1:02d}{x}" for x in "abc"[:PAR]]
+        for r in nxt:
+            livesim.SealedYear(r)
+        used_from = min(real_span(r)[0] for r in nxt)
+        wins, late = LA.split_training_windows(wins, used_from, real_span)
+        base = lineage.basis_for(used_from)
+        base_cfg, base_meta = (base["cfg"], base["meta"]) if base else (dict(NEUTRAL_CFG), dict(NEUTRAL_META))
+        print(f"  basis training set: {len(wins)} windows ({len(thin_ids)} THIN excluded: {sorted(thin_ids)}; {len(late)} not ended "
+              f"before the next round begins, refused)", flush=True)
         t1 = time.perf_counter()
-        res = train_basis(wins, st["cfg"], st["meta"], seed=1000 * st["version"] + rnd)
+        res = train_basis(wins, base_cfg, base_meta, seed=1000 * st["version"] + rnd, used_from=used_from)
         inc, win_ = res.incumbent.confirm, res.winner.confirm
         print(f"  training basis: {res.n_evals} replays; {N_CAND} candidates screened on {res.n_screen} of {res.n_windows} "
               f"windows, top 3 confirmed on all ({time.perf_counter() - t1:.0f}s)", flush=True)
@@ -458,6 +493,7 @@ def main():
             st["version"] += 1
             st["cfg"], st["meta"] = res.cfg, res.meta
             register_basis(st, lineage, st["version"], res.cfg, res.meta, wins)   # every trained-on window, with its real dates
+            st["lineage"][-1]["used_from"] = str(pd.Timestamp(used_from).date())     # the first real day it may be played (F06)
             print(f"  NEW BASIS v{st['version']}: weeks in band {inc.t1:.0%} -> {win_.t1:.0%}, risk {inc.risk:+.3f} -> {win_.risk:+.3f} "
                   f"({res.reason})", flush=True)
             print(f"     defaults {res.cfg}", flush=True)
@@ -474,6 +510,7 @@ def main():
         # the basis decision above is final: only now may the true periods be revealed (RevealGate, Phase 21)
         for w, y in zip(st["windows"][-len(done):], reveal_round([w["run_id"] for w in st["windows"][-len(done):]], True).values()):
             w["revealed"] = y
+            w["real_start"] = str(pd.Timestamp(plan[w["run_id"]]["real_start"]).date())   # lets the lineage audit resolve every trained play
         print("  revealed:", {w["run_id"]: w["revealed"] for w in st["windows"][-len(done):]}, flush=True)
         print(f"  round {rnd}: {summ['n_untrained']} of {summ['n_played']} windows used an UNTRAINED basis; THIN windows this round: {summ['thin']}", flush=True)
         print(f"  running average over {len(fresh)} headline windows (THIN and legacy excluded): "
@@ -483,7 +520,8 @@ def main():
         log_experiment({**res.to_record(), "event": "loop2_basis_search", "round": rnd},
                        cfg={"cfg": st["cfg"], "meta": st["meta"]}, seed=seed, outcome="adopt" if res.adopted else "reject",
                        reason=str(res.reason), window_ids=[w["run_id"] for w in st["windows"]],
-                       train_range="revealed Test windows", validation_range="basis_search held-out windows",
+                       train_range=f"Test windows that ended before {pd.Timestamp(used_from).date()} (next round's first real day)",
+                       validation_range="basis_search held-out windows",
                        test_range="next round's fresh sealed windows")
         rw = st["windows"][-len(done):]
         metrics = {w["run_id"]: {k: w.get(k) for k in ("mean_week", "in_band", "sd_week", "max_dd", "year_return")} for w in rw}

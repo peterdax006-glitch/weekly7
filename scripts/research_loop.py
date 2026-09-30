@@ -88,6 +88,23 @@ def config(a: argparse.Namespace) -> LP.LoopConfig:
                          two_stage=TS.TwoStageConfig(gate_min_weeks=a.gate_min_weeks))
 
 
+def record_run(a: argparse.Namespace, summary: dict, root: Path) -> dict:
+    """B12 (INTEGRATION): the finished loop leaves a write-once checkpoint bundle (checkpoint.write_checkpoint) and a Phase 36
+    run report (run_report.build_report / write_report). The loop produces knowledge, not a weekly return series, so the
+    report's Tier 1-3 fields stay null and its decision is CONTINUE TESTING - it is a record, never an adoption."""
+    from engine.backtest import record_major_run
+    try:
+        out = record_major_run("research_loop", a.run_id, {k: v for k, v in vars(a).items()}, summary.get("counters", {}), summary,
+                               a.seed, unproven=["research loop: no weekly return series; Tier 1-3 are not applicable"],
+                               logs={"summary.json": (root / "summary.json").read_text(encoding="utf-8")},
+                               ckpt_root=a.checkpoint_root or None, report_dir=a.report_dir or None)
+    except Exception as e:                                  # noqa: BLE001 - the loop's own outputs are already on disk
+        out = {"error": f"{type(e).__name__}: {e}"}
+    (root / "run_record.json").write_text(json.dumps(out, indent=1, default=str), encoding="utf-8")
+    print(f"[research_loop] run record: {out}", flush=True)
+    return out
+
+
 def status(root: Path) -> int:
     reps = sorted((root / "reports").glob("cycle_*.json"))
     if not reps:
@@ -132,6 +149,9 @@ def main(argv=None) -> int:
     ap.add_argument("--real-sample", type=int, default=300)
     ap.add_argument("--sweep-from", type=int, default=1990)
     ap.add_argument("--sweep-to", type=int, default=2020)
+    ap.add_argument("--checkpoint-root", default="", help="checkpoint bundles (default state/checkpoints)")
+    ap.add_argument("--report-dir", default="", help="run reports (default state/reports/runs)")
+    ap.add_argument("--no-record", action="store_true", help="skip the B12 checkpoint bundle and run report")
     a = ap.parse_args(argv)
     root = Path(a.root) if a.root else DEFAULT_ROOT / a.run_id
     if a.status:
@@ -160,6 +180,8 @@ def main(argv=None) -> int:
                                                                                    if not k.startswith("_")}}
     (root / "summary.json").write_text(json.dumps(summary, indent=1, default=str), encoding="utf-8")
     print(json.dumps(summary, default=str))
+    if not a.no_record:
+        record_run(a, summary, root)
     return 0
 
 

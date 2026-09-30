@@ -354,6 +354,17 @@ class SealedLane:
         self._lines.extend(self.chain.take_new())
         return self._lines[-1]
 
+    def append_many(self, bodies) -> list:
+        """Several bodies in ONE chain write (one lock, one fsync); returns their lane lines."""
+        bodies = list(bodies)
+        if not bodies:
+            return []
+        self.chain.append_many(bodies)
+        self.chain.sync()
+        new = self.chain.take_new()
+        self._lines.extend(new)
+        return new
+
     def _fresh_view(self) -> tuple[list[dict], list[str]]:
         """(lane lines, all chain hashes) read again from the medium, independently of the cached copies."""
         if self.root is None:

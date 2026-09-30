@@ -102,6 +102,8 @@ DECISION_STAGES = STAGES[:6]
 LEARNING_STAGES = STAGES[6:]
 LEAK_PREFIXES = ("canary_", "future_", "label_", "target_")     # a feature column named like this is an outcome in disguise
 LABEL = "IMPLEMENTED - NOT VALIDATED"
+# held knowledge whose predictions are scored in shadow (never RETIRED: a retired item has stopped predicting)
+SHADOW_PROMOTIONS = (Promotion.RESEARCH, Promotion.SHADOW, Promotion.CHALLENGER, Promotion.CHAMPION)
 
 
 class StageOrderError(RuntimeError):
@@ -177,6 +179,7 @@ class LearnerConfig:
     similarity: SM.SimilarityWeights | None = None
     hooks: LH.HookConfig = LH.HookConfig()
     learning_claim: str = "enforce"           # PromotionGate's learning-claim gate (scorecard + firewalls + identity)
+    shadow_monitoring: bool = True            # F07: retrieval skill is also scored on held, not-yet-production knowledge
 
     def validate(self) -> list[str]:
         errs = [f"hooks: {e}" for e in self.hooks.validate()]
@@ -262,6 +265,7 @@ class _Row:
     situation: ST.Situation | None = None
     members: tuple[str, ...] = ()             # candidate pattern ids active in this row
     retrieval: RV.Retrieval | None = None
+    shadow: RV.Retrieval | None = None        # F07: retrieval over every held item, scored by the skill monitor only
     parts: list = field(default_factory=list)       # (kid, weight, expected, se)
     expected: float | None = None
     confidence: float | None = None
@@ -327,12 +331,19 @@ class LegitimateLearner:
         self.monitor = RV.SkillMonitor(min_n=c.skill_min_n, seed=c.seed)
         self.retriever = _CachedRetriever(self.index, config=c.retrieval, monitor=self.monitor,
                                           sim_weights=c.similarity or RV.DEFAULT_SIMILARITY)
+        # F07 root cause (state/research/acceptance_mini/diagnosis.md): the walk-forward skill gate only ever saw predictions made
+        # after an item became CHAMPION, so a late promotion left it UNPROVEN on 32 rows and the lesson never acted.  The shadow
+        # retriever ranks the same index with the non-production roles admitted; its predictions feed the SAME monitor before
+        # their outcomes exist.  It has no monitor of its own and never reaches a decision (stage_decide reads `retrieval` only).
+        self.shadow_retriever = _CachedRetriever(
+            self.index, config=dataclasses.replace(c.retrieval, allowed_promotions=SHADOW_PROMOTIONS), monitor=None,
+            sim_weights=c.similarity or RV.DEFAULT_SIMILARITY) if c.shadow_monitoring else None
         self.store = KN.KnowledgeStore()
         self.archive = AR.Archive(self.workdir / "archive")
         self.graph = KG.KnowledgeGraph()
         # ---- reliability, retirement, calibration, time
         self.tracker = RL.ReliabilityTracker()
-        self.retirement = RT.RetirementLedger(RT.RetirementPolicy(min_n=c.retire_window, recover_min_n=2 * c.retire_window))
+        self.retirement = RecoveringLedger(RT.RetirementPolicy(min_n=c.retire_window, recover_min_n=2 * c.retire_window))
         self.calibration = CB.CalibrationMonitor()
         self.temporal = TP.TemporalMemory()
         # ---- learning
@@ -517,13 +528,26 @@ class LegitimateLearner:
             lineage = [k for kid in self.store.ids() for k in self.store.history(kid) if k.visible_at(ep.now)]
             self._admit(ep.now, "retrieve", items=list(visible), all_items=lineage, knowledge_store=self.store,
                         relevant=frozenset({FW.LayerName.MEMORY}))
-            n_items = 0
+            n_items = n_shadow = 0
+            held = set(self._pid_of.values()) if self._scores_shadow(ep) else set()
             for r in ep.rows:
                 if not r.situation.usable(self.cfg.min_coverage):
                     continue
                 r.retrieval = self.retriever.retrieve(r.situation, ep.now)
                 n_items += len(r.retrieval.items)
-            box["n"], box["note"] = n_items, f"{len(visible)} visible knowledge objects"
+                if held and held.intersection(r.members):
+                    r.shadow = self.shadow_retriever.retrieve(r.situation, ep.now)
+                    n_shadow += len(r.shadow.items)
+            box["n"], box["note"] = n_items, f"{len(visible)} visible knowledge objects, {n_shadow} shadow-scored items"
+
+    def _scores_shadow(self, ep: _Episode) -> bool:
+        """Shadow predictions are made only while learning: a probe or a frozen learner registers nothing."""
+        return self.shadow_retriever is not None and ep.track and not self.frozen
+
+    def _scored(self, r: _Row) -> RV.Retrieval | None:
+        """The retrieval whose prediction the skill monitor scores for this row: the shadow one when shadow monitoring is on (it
+        ranks a superset of what production retrieval sees, so registering both would count one row twice), else production's."""
+        return r.shadow if self.shadow_retriever is not None else r.retrieval
 
     # ------------------------------------------------------------------------------------------------ 4. ASSESS RELIABILITY
     def item_weight(self, kid: str, now, ctx_now: Mapping[str, Any] | None = None) -> tuple[float, str]:
@@ -671,11 +695,14 @@ class LegitimateLearner:
 
     def _register_predictions(self, ep: _Episode) -> None:
         for r in ep.rows:
-            if r.retrieval is None or not r.retrieval.items or r.retrieval.retrieval_id in self._registered_rids:
+            ret = self._scored(r)
+            if ret is None or not ret.items or ret.retrieval_id in self._registered_rids:
                 continue
-            self._registered_rids.add(r.retrieval.retrieval_id)
-            RV.register_prediction(r.retrieval, self.monitor, ep.now, self.index)
+            self._registered_rids.add(ret.retrieval_id)
+            RV.register_prediction(ret, self.monitor, ep.now, self.index)
             self._count("predictions")
+            if ret is r.shadow and not (r.retrieval is not None and r.retrieval.items):
+                self._count("shadow_only_predictions")
 
     # ------------------------------------------------------------------------------------------------ 7. OBSERVE OUTCOME
     def stage_outcome(self, ep: _Episode, now, outcomes: pd.DataFrame) -> None:
@@ -702,8 +729,9 @@ class LegitimateLearner:
             mean = float(np.mean([r.raw_ret for r in done]))
             for r in done:
                 r.edge = r.raw_ret - mean
-                if r.retrieval is not None and r.retrieval.items:
-                    RV.resolve_outcome(r.retrieval, self.monitor, r.matured, r.edge)     # walk-forward score of retrieval itself
+                ret = self._scored(r)
+                if ret is not None and ret.items:
+                    RV.resolve_outcome(ret, self.monitor, r.matured, r.edge)             # walk-forward score of retrieval itself
             ep.rows = done
             box["n"], box["note"] = len(done), f"matured {max(r.matured for r in done)}"
 
@@ -972,7 +1000,12 @@ class LegitimateLearner:
         ev = RT.series_evidence(dates[-w:], vals[-w:], as_date(dates[-w]) - pd.Timedelta(days=1), now, "recent-weeks")
         state = self.retirement.state(kid, now)
         if state in (RT.State.ACTIVE, RT.State.DEGRADED):
-            self.retirement.evaluate(kid, ev, now, apply=True)
+            v = self.retirement.evaluate(kid, ev, now, apply=True)
+            if state is RT.State.DEGRADED and v.to_state is None:
+                last = self.retirement.last_transition(kid, now)
+                since = RT.series_evidence(dates, vals, last.at, now, "since-degraded")
+                if self.retirement.recover_degraded(kid, since, now, apply=True).to_state is RT.State.ACTIVE:
+                    self._count("recovered_from_degraded")
         elif state is RT.State.DORMANT:
             self.retirement.attempt_recovery(kid, ev, now, self._mkt_now(), apply=True)
 
@@ -1187,6 +1220,11 @@ class LegitimateLearner:
                     self._retire_object(kid, learned, now)
                 elif st is RT.State.DEGRADED and self.store.latest(kid).lifecycle == Lifecycle.ACTIVE:
                     self._revise(kid, learned, "retirement gate: evidence weakened", lifecycle=Lifecycle.DEGRADED, epistemic=Epistemic.DEGRADED)
+                elif st is RT.State.ACTIVE and self.store.latest(kid).lifecycle == Lifecycle.DEGRADED:
+                    # F07: the gate restored the item; the object must follow or the decision contract refuses it for ever
+                    back = Epistemic.SUPPORTED if self._epistemic.get(pid) == Epistemic.SUPPORTED else self.store.latest(kid).epistemic
+                    self._revise(kid, learned, "retirement gate: recovery confirmed on evidence after the degrade", lifecycle=Lifecycle.ACTIVE,
+                                 epistemic=back)
             self.archive.log_observation(f"episode:{ep.eid}", {"n_rows": len(ep.rows), "mean_abs_edge": float(np.mean([abs(r.edge) for r in ep.rows]))},
                                          ep.now, matured_at=learned)
             box["n"], box["note"] = born, f"{len(self._pid_of)} items, {len(self.production_ids())} in production"
@@ -1490,6 +1528,39 @@ class LegitimateLearner:
                 "n_postmortems": len(self.postmortems.bodies()), "open_hypotheses": len(self.hypotheses),
                 "contradicting_pairs": len(self._contradicts), "questions": list(self.next_questions),
                 "influence_log_ok": not self.decision_log.verify(), "hooks": self.hooks.report()}
+
+
+class RecoveringLedger(RT.RetirementLedger):
+    """F07: the retirement ledger with the one missing door.  RetirementLedger lets a DEGRADED item go down (DORMANT, RETIRED) or,
+    if it came back through DORMANT on probation, up; a DEGRADED item that was never parked had no way back at all, so one noisy
+    8-week window (t 0.17 on a planted true effect, seed 4) removed a real item from every later decision.  `recover_degraded`
+    applies the ledger's own recovery bar (recover_min_n outcomes, all dated after the degrade, t >= recover_t, which is above
+    degrade_t: hysteresis) and moves the item back to ACTIVE through `transition`, the ledger's only door (DEGRADED -> ACTIVE is an
+    ALLOWED move).  Nothing else is changed; items on probation still use attempt_recovery."""
+
+    def recover_degraded(self, kid: str, ev: RT.Evidence, now, apply: bool = False) -> RT.Verdict:
+        pol, s, last = self.policy, self.state(kid, now), self.last_transition(kid, now)
+        numbers = {"n": ev.n, "effect": ev.effect, "se": ev.se, "t": ev.t, "state": None if s is None else s.value,
+                   "need_n": pol.recover_min_n, "need_t": pol.recover_t}
+        if s is not RT.State.DEGRADED:
+            return RT.Verdict(kid, None, None, f"not degraded ({None if s is None else s.value})", numbers)
+        if last is not None and last.kind in ("RECOVER_PROBATION", "REVIVE"):
+            return RT.Verdict(kid, None, None, "on recovery probation: attempt_recovery decides", numbers)
+        errs = ev.validate()
+        if errs:
+            raise ValueError("bad evidence: " + "; ".join(errs))
+        if ev.n:
+            require_past(ev.window_end, now, "recovery evidence window_end")
+        if last is not None and ev.n and as_date(ev.window_start) <= as_date(last.at):
+            return RT.Verdict(kid, None, None, f"evidence starts {ev.window_start}, not after the degrade on {last.at}", numbers)
+        if ev.n < pol.recover_min_n:
+            return RT.Verdict(kid, None, None, f"insufficient recovery evidence (n={ev.n} < {pol.recover_min_n})", numbers)
+        if ev.t < pol.recover_t:
+            return RT.Verdict(kid, None, None, f"recovery evidence too weak (t={ev.t:.2f} < {pol.recover_t:.2f})", numbers)
+        verdict = RT.Verdict(kid, RT.State.ACTIVE, "RECOVER_FULL", "degraded item recovered on evidence dated after the degrade", numbers)
+        if apply:
+            self.transition(kid, RT.State.ACTIVE, now, "RECOVER_FULL", verdict.reason, FailureCause.UNKNOWN, numbers)
+        return verdict
 
 
 class _CachedRetriever(RV.Retriever):

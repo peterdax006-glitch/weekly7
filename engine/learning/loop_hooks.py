@@ -221,6 +221,16 @@ class _Neutral:
 _NEUTRAL = _Neutral()
 
 
+def episode_attack_kwargs(n_eval_dates: int, default_block: int = 20) -> dict:
+    """F07: episode_substitution swaps blocks of `block` consecutive dates and needs at least two blocks.  The learner audits its
+    rules on its last few weeks (audit_weeks, e.g. 4 held-out dates), where the default 20-date block is ONE block: the attack
+    changed 0% of rows, verify_transform raised a 'no-op-transform' FAIL, and every true item failed the identity check without
+    being attacked at all.  The block is sized so the held-out panel always holds two whole episodes to swap."""
+    if n_eval_dates < 2:
+        return {}
+    return {"episode_substitution": {"block": int(max(1, min(default_block, n_eval_dates // 2)))}}
+
+
 class LoopHooks:
     """Every hooked mechanism of the section-4 loop.  One instance per learner; see the module docstring for which stage calls what."""
 
@@ -964,7 +974,8 @@ class LoopHooks:
             sign = 1.0 if float(np.nanmean(yt.to_numpy()[m])) >= 0 else -1.0 if m.any() else 0.0
             return pd.Series(sign * cell(Xe).astype(float).to_numpy(), index=Xe.index)
 
-        h = IDF.IdentityHarness(rule, seed=self.seed, boot=max(50, self.cfg.boot), min_dates=2, modes=("eval",))
+        h = IDF.IdentityHarness(rule, seed=self.seed, boot=max(50, self.cfg.boot), min_dates=2, modes=("eval",),
+                                attack_kwargs=episode_attack_kwargs(len(dates) - len([d for d in dates if d < cut])))
         self._fire("identity_harness")
         return h.run(X[tr], y[tr], X[~tr], y[~tr])
 

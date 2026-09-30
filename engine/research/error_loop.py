@@ -143,6 +143,7 @@ class C68Config:
     post_exit: int = 5
     peers: int = 8
     history_days: int = 400                            # daily evidence kept for regime memory
+    guard_window: int = 25                             # newest post-change pattern rows the regime guard judges the pattern on
     seed: int = 0
 
     def validate(self) -> list[str]:
@@ -191,20 +192,24 @@ class PipelineBroken(FirewallBreach):
 
 class PipelineLedger:
     """Checklist Y, persistent and auditable: one archive ChainFile lane ('pipe68'). Every event names its object (a prediction id or
-    a fix / claim id), the step, the date, a payload and `prev_event` = the hash of the SAME object's previous event (parents name the
-    objects it was derived from). An object's steps must follow Y_STEPS order - an outcome can never be filed before its expectation."""
+    a fix / claim id), the step, the date, a payload and `prev_event` = the content digest of the SAME object's previous event (parents
+    name the objects it was derived from); the chain's own hash links make every event immutable once written. An object's steps must
+    follow Y_STEPS order - an outcome can never be filed before its expectation. Events are buffered and written with one append (one
+    lock, one fsync) by `flush()`; every read flushes first, so nothing is ever read around the chain."""
 
     def __init__(self, root=None):
         self.lane = XP.SealedLane(root, LANE_PIPE)
-        self._last: dict[str, tuple[str, str]] = {}          # key -> (hash of its newest event, its step)
+        self._pending: list[dict] = []
+        self._last: dict[str, tuple[str, str]] = {}          # key -> (digest of its newest event, its step)
         for ln in self.lane.lines():
-            self._last[ln["body"]["key"]] = (ln["hash"], ln["body"]["step"])
+            self._last[ln["body"]["key"]] = (event_digest(ln["body"]), ln["body"]["step"])
 
     def __len__(self) -> int:
-        return len(self.lane)
+        return len(self.lane) + len(self._pending)
 
     @property
     def head(self) -> str:
+        self.flush()
         return self.lane.head
 
     def last_step(self, key: str) -> str | None:
@@ -220,12 +225,21 @@ class PipelineLedger:
             raise PipelineBroken(f"{key}: a trail must start at PREDICTION (predictions) or OOS_TEST / HYPOTHESIS / VALIDATION (research)")
         body = {"key": str(key), "step": step, "at": str(as_date(at)), "prev_event": prev[0] if prev else "",
                 "parents": sorted(str(p) for p in parents), "payload": json.loads(canonical_json(dict(payload or {})))}
-        ln = self.lane.append(body)
-        self._last[key] = (ln["hash"], step)
-        return ln["hash"]
+        d = event_digest(body)
+        self._pending.append(body)
+        self._last[key] = (d, step)
+        return d
+
+    def flush(self) -> int:
+        n = len(self._pending)
+        if n:
+            self.lane.append_many(self._pending)
+            self._pending = []
+        return n
 
     def trail(self, key: str) -> list[dict]:
         """The object's events oldest first, each checked to link to its predecessor and to keep the Y order."""
+        self.flush()
         evs = [ln for ln in self.lane.lines() if ln["body"]["key"] == key]
         prev, pos = "", -1
         for ln in evs:
@@ -234,7 +248,7 @@ class PipelineLedger:
                 raise PipelineBroken(f"{key}: event {b['step']} does not link to its predecessor")
             if _ORDER[b["step"]] < pos:
                 raise PipelineBroken(f"{key}: {b['step']} out of order")
-            prev, pos = ln["hash"], _ORDER[b["step"]]
+            prev, pos = event_digest(b), _ORDER[b["step"]]
         return [dict(ln["body"], hash=ln["hash"]) for ln in evs]
 
     def keys(self) -> list[str]:
@@ -247,6 +261,7 @@ class PipelineLedger:
     def verify(self, anchors: Sequence[str] = ()) -> dict:
         """Chain integrity (and anchors), then every object's trail in ONE pass: each event must link to that object's previous
         event and keep the checklist-Y order."""
+        self.flush()
         rep = self.lane.verify(anchors)
         last: dict[str, tuple[str, int]] = {}
         probs = list(rep["problems"])
@@ -257,7 +272,7 @@ class PipelineLedger:
                 probs.append(f"{b['key']}: event {b['step']} does not link to its predecessor")
             elif _ORDER.get(b["step"], -1) < pos:
                 probs.append(f"{b['key']}: {b['step']} out of order")
-            last[b["key"]] = (ln["hash"], _ORDER.get(b["step"], -1))
+            last[b["key"]] = (event_digest(b), _ORDER.get(b["step"], -1))
         return {**rep, "ok": not probs, "problems": probs}
 
     def furthest(self) -> dict[str, int]:
@@ -266,6 +281,10 @@ class PipelineLedger:
         for _, s in self._last.values():
             out[s] = out.get(s, 0) + 1
         return dict(sorted(out.items(), key=lambda kv: _ORDER[kv[0]]))
+
+
+def event_digest(body: Mapping[str, Any]) -> str:
+    return stable_hash(dict(body), 24)
 
 
 def can_record(pipe: PipelineLedger, key: str, step: str) -> bool:
@@ -389,6 +408,9 @@ def _ledgers(ctx: LP.Ctx, st: C68State) -> Ledgers:
 
 
 def _run(st: C68State, ctx: LP.Ctx, stage: str, n_in: int, n_out: int, note: str) -> tuple:
+    led = ctx.rt.__dict__.get("handles", {}).get("c68.ledgers")
+    if led is not None:
+        led.pipe.flush()                                    # the stage's pipeline events reach the chain before the checkpoint
     st.runs.append({"cycle": ctx.cycle, "now": ctx.now, "stage": stage, "in": int(n_in), "out": int(n_out), "note": note[:240]})
     st.runs = st.runs[-2000:]
     return int(n_in), int(n_out), note
@@ -885,13 +907,15 @@ def st_expect(ctx: LP.Ctx) -> tuple:
     info = {"bars": str(bv.sessions[-1].date()), "decision_frame": dec.decided_at, "gain_model": min(st.trained_through, dec.decided_at),
             "knowledge": dec.decided_at}
     recorded = 0
+    committed = {c.pred_id for c in led.book.commitments()}
     for ix, row in pos.iterrows():
         tk = str(ix[-1])
         ctxd = expectation_context(ctx, st, bv, dec.decided_at, tk, entries[tk]["kind"], fired.get(tk, ()), entry_at)
         exp = XP.expectations_from_day(_subday(dec, ix), pm, ctxd, ctx.now, model_version=version, information_set=info,
                                        feature_columns=list(cfg.features), today=today)[0]
         pid = led.expectations.record(exp, ctx.now)
-        if pid not in {c.pred_id for c in led.book.commitments()}:
+        if pid not in committed:
+            committed.add(pid)
             led.book.commit(pid, exp, gate.policy, st.trained_through, matures, ctx.now, cfg.target)
         st.pending[pid] = Position(pid, tk, dec.decided_at, entry_at, gate.policy, entries[tk]["kind"], entries[tk]["vol"],
                                    entries[tk]["atr"], tuple(ctxd["patterns"]))
@@ -934,15 +958,16 @@ def sector_volatility(bv: BarView, t: int, min_names: int = 4) -> dict:
 
 
 def unit_values(bv: BarView, t: int) -> dict:
-    """Per-name stream: the size of the session's IDIOSYNCRATIC move, |return - market return| over its trailing 60-session sd (from
-    sessions before t only). Serially independent under the null, so the calibrated CUSUM keeps its false-alarm rate; a name that
+    """Per-name stream: the size of the session's IDIOSYNCRATIC move, |return - market return| over its robust (MAD) sd in a reference
+    window that ends 20 sessions before t (sessions before t only). Serially independent under the null, so the calibrated CUSUM keeps its false-alarm rate; a name that
     enters its own turbulent state (a single-stock anomaly) shifts it for as long as the state lasts."""
     R = bv.returns()
     with np.errstate(invalid="ignore", divide="ignore"):
         mr = np.r_[np.nan, bv.market[1:] / bv.market[:-1] - 1.0]
         E = R - mr[:, None]
-        lo = max(1, t - 60)
-        sd = np.nanstd(E[lo:t], axis=0) if t - lo >= 20 else np.full(R.shape[1], np.nan)
+        lo, hi = max(1, t - 80), t - 20                  # a LAGGED reference: a turbulent spell cannot quietly become its own baseline
+        ref = E[lo:hi]
+        sd = 1.4826 * np.nanmedian(np.abs(ref - np.nanmedian(ref, axis=0)), axis=0) if hi - lo >= 30 else np.full(R.shape[1], np.nan)
         a = np.abs(E[t]) / sd
     # |z| of a normal return is half-normal; its normal score Phi^-1(2 Phi(|z|) - 1) is N(0,1) again, which is what the CUSUM's
     # threshold was calibrated on (a raw |z| stream false-alarms several times too often)
@@ -1112,7 +1137,9 @@ def st_patterns(ctx: LP.Ctx) -> tuple:
         if latest is not None:
             eff = frames[p]["effect"]
             cd = pd.Timestamp(latest.change_date)
-            gd = RM.pattern_guard(p, status, eff[eff.index < cd].to_numpy(float), eff[eff.index >= cd].to_numpy(float),
+            # the pattern's OWN current evidence since the change decides (its newest `guard_window` rows): a pattern that has since
+            # recovered is judged on the recovery, not on the whole spell it spent failing
+            gd = RM.pattern_guard(p, status, eff[eff.index < cd].to_numpy(float), eff[eff.index >= cd].to_numpy(float)[-cfg.guard_window:],
                                   p in adv.weaken, st.memory.cfg)
             g = gd.action
         st.guard[p] = g.value
@@ -1801,8 +1828,10 @@ class C68Plant:
                        (the genuine, knowable pattern 'mom_r20_top' and a realisable gain inside the 5-10% band)
       false alarm      a market-wide volatility burst of `burst_len` sessions at `false_alarm` of the sample while the trend pattern keeps
                        working: a regime alarm that must NOT switch the pattern off
-      regime switch    from `switch` to `recover` the drift is gone and market volatility is higher: a genuine market-wide change that must
-                       degrade the pattern; from `recover` on the drift is back (volatility stays high): the pattern must regain influence
+      regime switch    from `switch` to `recover` the trend fades to `post_switch_drift` (its signature stays visible, its payoff shrinks:
+                       'expected 8-10%, realised 3-6%') and market volatility is higher: a genuine market-wide change that must degrade the
+                       pattern and produce repeated, similar over-predictions; from `recover` on the drift is back (volatility stays high):
+                       the pattern must regain influence
                        detected forward in time and must degrade the pattern
       shock            one name gaps down `shock_size` at `shock` with no information item anywhere and stays turbulent for
                        `distress_len` sessions: an unknowable single-stock anomaly that must stay a SINGLE-STOCK finding"""
@@ -1822,8 +1851,9 @@ class C68Plant:
     shock: float = 0.65
     shock_size: float = -0.18
     shock_name: int = 7
-    distress_len: int = 20
-    distress_mult: float = 3.0
+    distress_len: int = 25
+    distress_mult: float = 4.0
+    post_switch_drift: float = 0.005
     market_vol: float = 0.006
     post_switch_vol: float = 2.2
 
@@ -1850,7 +1880,7 @@ def plant_world(pc: C68Plant = C68Plant()) -> FD.World:
     sig[ts:ts + pc.distress_len, pc.shock_name] *= pc.distress_mult
     mu = np.where(state, pc.drift, 0.0)
     rc = int(T * pc.recover)
-    mu[sw:rc] = 0.0
+    mu[sw:rc] = np.where(state[sw:rc], pc.post_switch_drift, 0.0)
     r = np.clip(mu + m[:, None] + rng.normal(0, 1, (T, n)) * sig, -0.3, 0.3)
     r[ts, pc.shock_name] += pc.shock_size
     p0 = np.exp(rng.uniform(math.log(10), math.log(120), n))

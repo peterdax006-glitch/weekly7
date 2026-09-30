@@ -17,20 +17,29 @@ Channels (numbering follows queue/B23_future_leak_audit.md):
   7  network           NetworkGuard, poison, network_markers
   8  other             import_closure, data_access, truncation_invariance, feed_exposure, HardenedFeed (opt-in fixed feed)
 
+F06 (C69 W-10/W-11) adds, at the end of the file: the training-call gate (split_training_windows / refuse_late_training:
+a basis search never sees a window that had not ended before the first real day the basis may be played), the data-free
+adaptation meta (neutral_default_meta, tuned_meta_keys), and the computed channel-6 lookup part (year_lookup_audit /
+verdict_year_lookup: can anything that is LOOKED UP by year - curator releases, research records, the memory bank - reach the
+trader in a disguised replay?).
+
 Nothing here reads state/livesim (sealed windows), writes to data/cache, uses a clock, or draws without a seed.
 Python cannot stop deliberate reflection; the guards stop honest mistakes and the tests prove they catch planted ones."""
 from __future__ import annotations
 
 import ast
 import json
+import re
 import socket
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
+from typing import Callable, Mapping, Sequence
 
 import numpy as np
 import pandas as pd
 
 from . import config as K
+from .learning.core import FirewallBreach
 
 LEAK, CLEAN, FIXED, QUARANTINED = "LEAK", "CLEAN", "FIXED", "QUARANTINED"
 STATUSES = (LEAK, CLEAN, FIXED, QUARANTINED)
@@ -1315,6 +1324,7 @@ def _loop2_facts(tree) -> dict:
     runs = [c for c in _calls(inner, "run") if isinstance(c.func, ast.Attribute) and ast.unparse(c.func.value) == "livesim"]
     f["loop2_worker_runs_livesim_run"] = bool(runs)
     f["loop2_worker_passes_hardened"] = None if not runs else all(_kw(c, "hardened") is None or ast.unparse(_kw(c, "hardened")) == "True" for c in runs)
+    f.update(_loop2_gate_facts(tree, main, plan, fresh))
     return f
 
 
@@ -1405,14 +1415,19 @@ def prove_network_guard() -> dict:
 
 
 def run_proofs() -> dict:
-    return {"split_invariance": prove_split_invariance(), "lineage_gate": prove_lineage_gate(), "network_guard": prove_network_guard()}
+    return {"split_invariance": prove_split_invariance(), "lineage_gate": prove_lineage_gate(), "network_guard": prove_network_guard(),
+            "training_gate": prove_training_gate()}
 
 
-def lineage_state_check(state: dict | None, cfg_space: dict | None, meta_default: dict | None) -> dict | None:
-    """Audit the loop's own state file (trusted side; it holds real dates only for windows a basis was trained on, and this
-    function never opens a sealed window). For every non-legacy played window: an untrained play must have used exactly the
-    data-free neutral cfg and the default meta; a trained play must use a basis whose training windows all ended before the
-    play began. A trained play whose real start cannot be recovered from the lineage is 'unresolved' (never assumed clean)."""
+def lineage_state_check(state: dict | None, cfg_space: dict | None, meta_default: dict | None,
+                        neutral_meta: dict | None = None) -> dict | None:
+    """Audit the loop's own state file (trusted side; it holds real dates only for windows a basis was trained on or that were
+    revealed, and this function never opens a sealed window). For every non-legacy played window: an untrained play must have
+    used exactly the data-free neutral cfg and either the data-free NEUTRAL meta or (older plays) the default meta - a play on
+    the outcome-tuned META_DEFAULT is listed in `tuned_meta_plays` (F06: quarantined, never a headline number); a trained play
+    must use a basis whose training windows all ended before the play began. A trained play whose real start cannot be
+    recovered (lineage or its revealed `real_start`) is 'unresolved' (never assumed clean). A version registered with a
+    `used_from` date (the F06 training gate) must have trained only on windows that ended before it."""
     if state is None:
         return None
     norm = lambda x: json.loads(json.dumps(x, default=str))
@@ -1420,35 +1435,59 @@ def lineage_state_check(state: dict | None, cfg_space: dict | None, meta_default
     dates = {i: (pd.Timestamp(a), pd.Timestamp(b)) for v in lineage for i, a, b in v["trained_on"]}
     by_v = {v["version"]: v for v in lineage}
     neutral = norm(neutral_default_cfg(cfg_space)) if cfg_space else None
+    if neutral_meta is None and meta_default is not None:
+        neutral_meta = default_neutral_meta(meta_default)
+    nm = norm(neutral_meta) if neutral_meta is not None else None
     out = {"n_windows": len(windows), "legacy": [], "untrained": [], "trained": [], "unresolved": [], "violations": [],
-           "untrained_cfg_mismatch": [], "untrained_meta_mismatch": [], "no_basis_record": [], "versions": [v["version"] for v in lineage]}
+           "untrained_cfg_mismatch": [], "untrained_meta_mismatch": [], "no_basis_record": [], "versions": [v["version"] for v in lineage],
+           "untrained_on_neutral_meta": [], "tuned_meta_plays": [], "tuned_meta_quarantined": [], "used_from_violations": [],
+           "versions_without_used_from": []}
     for w in windows:
         wid = w.get("run_id") or w.get("window")
         if w.get("legacy"):
             out["legacy"].append(wid)
+            if w.get("legacy") == TUNED_META_LEGACY:                   # a quarantined tuned-meta play: still counted as tuned
+                out["tuned_meta_quarantined"].append(wid)
+                out["tuned_meta_plays"].append(wid)
             continue
         ver = w.get("basis_version")
+        m = norm(w.get("meta") or {})
         if ver is None:
             out["no_basis_record"].append(wid)
         elif ver == 0 or w.get("untrained_basis"):
             out["untrained"].append(wid)
             if neutral is None or norm(w.get("prior_cfg")) != neutral:
                 out["untrained_cfg_mismatch"].append(wid)
-            if meta_default is None:
-                out["untrained_meta_mismatch"].append(wid)
+            on_default = meta_default is not None and not any(k in m and m[k] != norm(meta_default[k]) for k in meta_default)
+            on_neutral = nm is not None and not any(k in m and m[k] != nm[k] for k in nm)
+            if on_neutral:
+                out["untrained_on_neutral_meta"].append(wid)
+            elif on_default:
+                if nm is not None and tuned_meta_keys(m, meta_default, nm):
+                    out["tuned_meta_plays"].append(wid)
             else:
-                m = norm(w.get("meta") or {})
-                if any(k in m and m[k] != norm(meta_default[k]) for k in meta_default):
-                    out["untrained_meta_mismatch"].append(wid)
+                out["untrained_meta_mismatch"].append(wid)
         else:
             out["trained"].append(wid)
-            rec, own = by_v.get(ver), dates.get(wid)
+            if meta_default is not None and nm is not None and tuned_meta_keys(m, meta_default, nm, searched=tuple(_meta_space())):
+                out["tuned_meta_plays"].append(wid)
+            rec = by_v.get(ver)
+            own = (pd.Timestamp(w["real_start"]),) if w.get("real_start") else dates.get(wid)
             if rec is None or own is None:
                 out["unresolved"].append(wid)
             elif any(pd.Timestamp(b) >= own[0] for _, _, b in rec["trained_on"]):
                 out["violations"].append({"window": wid, "version": ver})
-    ids = [{i for i, _, _ in by_v[v]["trained_on"]} for v in sorted(by_v)]
-    out["lineage_is_monotone"] = all(a <= b for a, b in zip(ids, ids[1:]))
+    for v in lineage:
+        if not v.get("used_from"):
+            out["versions_without_used_from"].append(v["version"])
+            continue
+        late = [i for i, _, b in v["trained_on"] if pd.Timestamp(b) >= pd.Timestamp(v["used_from"])]
+        if late:
+            out["used_from_violations"].append({"version": v["version"], "used_from": v["used_from"], "late": late})
+    # before F06 every version trained on the whole archive, so each contained the previous; a gated version trains only on
+    # windows that ended before ITS first use, which may be earlier than the previous version's, so only ungated ones must nest
+    legacy_ids = [{i for i, _, _ in by_v[v]["trained_on"]} for v in sorted(by_v) if not by_v[v].get("used_from")]
+    out["lineage_is_monotone"] = all(a <= b for a, b in zip(legacy_ids, legacy_ids[1:]))
     return out
 
 
@@ -1526,15 +1565,20 @@ def verdict_feed_shape(facts: dict, causality: dict | None) -> Verdict:
 
 
 def verdict_learned_state(facts: dict, proofs: dict, state_check: dict | None) -> Verdict:
-    """Channel 4. The training call takes no as_of and trains on every archived window, so what is proven is the GATE between
-    training and play: every play call carries a per-window basis, plan_round takes the lineage's past-only basis or the
-    neutral start, the registered training set equals the trained set, and the real state file shows no violation. LEAK when
-    any of that fails. The starting meta defaults were tuned on real outcomes (sensitivity study): that residual has no
-    data-free replacement and caps the verdict at QUARANTINED."""
+    """Channel 4. Two gates are proven. (1) Between training and play: every play call carries a per-window basis, plan_round
+    takes the lineage's past-only basis or the neutral start, the registered training set equals the trained set, and the real
+    state file shows no violation. (2) F06, the training call itself: every train_basis call in main names the first real day
+    the basis may be played (`used_from`), train_basis refuses (LateTrainingWindow) any window that had not ended by then, main
+    splits the archive at that date before the call, and the search starts from a past-only incumbent (never the loop's latest
+    global basis); a planted late window must be refused. LEAK when any of that fails.
+    The meta residual: META_DEFAULT was tuned on real outcomes (sensitivity study). If untrained plays still use it the verdict is
+    capped at QUARANTINED; if the loop plays the data-free NEUTRAL_META, the cap remains only while the state file still holds
+    plays that ran on the tuned meta (they are quarantined by the loop, but their lessons stay in the memory bank)."""
     miss = _unparsed(facts, "loop2", "adaptive")
     if miss:
         return Verdict(UNMEASURED, {f"source_{k}_parsed": False for k in miss}, tuple(f"source {k} not readable" for k in miss))
     lg = (proofs or {}).get("lineage_gate", {})
+    tg = (proofs or {}).get("training_gate", {})
     calls = facts.get("loop2_train_basis_calls") or []
     gate = {"main_plans_each_round_from_lineage": _all(facts.get("loop2_main_plans_each_round"), facts.get("loop2_plan_round_uses_lineage_basis_for")),
             "unseen_start_falls_back_to_neutral_cfg": facts.get("loop2_plan_round_falls_back_to_neutral"),
@@ -1542,17 +1586,29 @@ def verdict_learned_state(facts: dict, proofs: dict, state_check: dict | None) -
             "global_basis_reaches_no_play_call": None if facts.get("loop2_global_basis_reaches_a_play_call") is None else not facts["loop2_global_basis_reaches_a_play_call"],
             "registered_training_set_equals_trained_set": facts.get("loop2_registers_exactly_the_training_set"),
             "start_cfg_is_data_free": _all(facts.get("loop2_neutral_cfg_from_neutral_default_cfg"), facts.get("loop2_fresh_state_starts_neutral")),
-            "legacy_windows_excluded_from_headline": facts.get("loop2_headline_excludes_legacy")}
-    proof = {"gated_basis_never_trained_on_unended_window": lg.get("mechanism_holds"), "naive_latest_basis_is_touched_control": lg.get("planted_leak_is_real")}
+            "legacy_windows_excluded_from_headline": facts.get("loop2_headline_excludes_legacy"),
+            "every_training_call_names_its_first_use": facts.get("loop2_every_train_call_passes_used_from"),
+            "train_basis_refuses_windows_not_ended_by_first_use": facts.get("loop2_train_basis_refuses_late_windows"),
+            "main_splits_the_archive_at_first_use_before_training": facts.get("loop2_main_splits_training_set"),
+            "training_incumbent_is_past_only": _not(facts.get("loop2_train_call_uses_global_basis"))}
+    proof = {"gated_basis_never_trained_on_unended_window": lg.get("mechanism_holds"), "naive_latest_basis_is_touched_control": lg.get("planted_leak_is_real"),
+             "gated_training_call_refuses_a_planted_late_window": tg.get("planted_late_window_refused"),
+             "gated_training_call_keeps_the_window_that_ended_the_day_before": tg.get("boundary_day_before_kept"),
+             "gated_before_use_design_has_no_violation": tg.get("mechanism_holds")}
     sc = state_check
     real = {"no_trained_play_uses_a_basis_with_unended_training_window": None if sc is None else not sc["violations"],
             "untrained_plays_used_exactly_the_neutral_cfg": None if sc is None else not sc["untrained_cfg_mismatch"],
-            "untrained_plays_used_the_default_meta": None if sc is None else not sc["untrained_meta_mismatch"],
+            "untrained_plays_used_the_neutral_or_default_meta": None if sc is None else not sc["untrained_meta_mismatch"],
             "every_played_window_has_a_basis_record": None if sc is None else not sc["no_basis_record"],
             "trained_plays_all_resolvable": None if sc is None else not sc["unresolved"],
-            "lineage_monotone_each_version_contains_the_previous": None if sc is None else sc["lineage_is_monotone"]}
+            "lineage_monotone_each_ungated_version_contains_the_previous": None if sc is None else sc["lineage_is_monotone"],
+            "gated_versions_trained_only_before_their_first_use": None if sc is None else not sc.get("used_from_violations", [])}
+    meta_free = _all(facts.get("loop2_neutral_meta_from_neutral_default_meta"), facts.get("loop2_plan_round_untrained_meta_is_neutral"))
+    tuned_plays = None if sc is None else list(sc.get("tuned_meta_plays", []))
     checks = {**gate, **proof, **real, "state_file_read": sc is not None, "train_basis_calls": calls,
-              "train_basis_passes_as_of": any(c["passes_as_of"] for c in calls), "meta_default_tuned_on_real_outcomes": facts.get("meta_default_data_tuned")}
+              "train_basis_passes_as_of": any(c["passes_as_of"] for c in calls), "meta_default_tuned_on_real_outcomes": facts.get("meta_default_data_tuned"),
+              "untrained_meta_is_data_free": meta_free, "loop_quarantines_tuned_meta_plays": facts.get("loop2_quarantines_tuned_meta_plays"),
+              "plays_on_tuned_meta": tuned_plays, "plays_on_tuned_meta_quarantined": None if sc is None else sc.get("tuned_meta_quarantined")}
     reasons = [f"gate: {k}" for k, v in gate.items() if v is False]
     reasons += [f"proof: {k}" for k, v in proof.items() if k.startswith("gated") and v is False]
     reasons += [f"state: {k}" for k, v in real.items() if v is False]
@@ -1563,8 +1619,13 @@ def verdict_learned_state(facts: dict, proofs: dict, state_check: dict | None) -
     if _all(*gate.values(), *proof.values(), *real.values()) is not True:
         return Verdict(UNMEASURED, checks, tuple(k for k, v in {**gate, **proof, **real}.items() if v is None or v is False))
     if facts.get("meta_default_data_tuned"):
-        return Verdict(QUARANTINED, checks, ("META_DEFAULT (used by every untrained play) was set from the sensitivity study on real outcomes: "
-                                             "a data-tuned starting point with no data-free replacement; results must carry this label",))
+        if meta_free is not True:
+            return Verdict(QUARANTINED, checks, ("META_DEFAULT (used by every untrained play) was set from the sensitivity study on real outcomes: "
+                                                 "a data-tuned starting point with no data-free replacement; results must carry this label",))
+        if tuned_plays:
+            q = "quarantined by the loop (legacy='tuned_meta', out of the headline)" if facts.get("loop2_quarantines_tuned_meta_plays") else "NOT marked by the loop"
+            return Verdict(QUARANTINED, checks, (f"{len(tuned_plays)} play(s) in the state file ran on the sensitivity-tuned META_DEFAULT before the loop switched to the "
+                                                 f"data-free NEUTRAL_META: {q}; their lessons remain in the memory bank, so results must carry this label",))
     return Verdict(FIXED, checks)
 
 
@@ -1620,6 +1681,10 @@ def compute_verdicts(parts: dict, facts: dict, proofs: dict, state_check: dict |
             out["6"] = Verdict(QUARANTINED, checks, ("levels/calendar identify the year in the exposed frames but the trader consumes only ranks, ratios and m_* context",))
         else:
             out["6"] = Verdict(CLEAN, checks)
+        if "lookup" in parts:                     # F06: can anything keyed by the year be LOOKED UP by the trader?
+            out["6"] = combine_fingerprint_and_lookup(out["6"], verdict_year_lookup(parts.get("lookup")))
+        else:
+            out["6"] = Verdict(out["6"].status, {**out["6"].checks, "year_lookup_part_present": False}, out["6"].reasons)
     if not R or _unparsed(facts, "loop2"):
         out["7"] = unmeasured(*(["runtime"] if not R else []), *(["loop2 source"] if _unparsed(facts, "loop2") else []))
     else:
@@ -1656,3 +1721,323 @@ def compute_verdicts(parts: dict, facts: dict, proofs: dict, state_check: dict |
     e = out["8b"]                    # 8e (universe filters / labels) rests on the same truncation proof as 8b
     out["8e"] = Verdict(e.status, {"derived_from": "8b", **e.checks}, e.reasons)
     return out
+
+
+# =====================================================================================================================
+# F06 leak closure (C69 ledger W-10 / W-11; canon C55, C56, C58, C64; C66 sections 30-31)
+#   4a  the training CALL is gated: a basis search never sees a window that had not ended before the first real day the
+#       basis may be played on (the loop seals the next round first, so that day is known on the referee side)
+#   4b  the untrained start is data-free in the adaptation meta too (neutral_default_meta), and plays that ran on the
+#       outcome-tuned META_DEFAULT are named, so the loop can quarantine them
+#   6   a computed part asks whether anything that can be LOOKED UP by the year (curator releases, research records filed
+#       by year, the memory bank) reaches the trader in a disguised replay
+# =====================================================================================================================
+TUNED_META_LEGACY = "tuned_meta"          # the loop marks a play that ran on the sensitivity-tuned META_DEFAULT with legacy=this
+
+
+class LateTrainingWindow(FirewallBreach):
+    """A basis search was handed a window whose REAL end is on/after the first real day the resulting basis may be played
+    (canon C56): training on it would put the played window's own period, or its future, inside the basis."""
+
+
+def _span_or_none(span: Callable, wid) -> tuple[pd.Timestamp, pd.Timestamp] | None:
+    try:
+        a, b = span(wid)
+        return pd.Timestamp(a), pd.Timestamp(b)
+    except Exception:                      # noqa: BLE001 - an unresolvable real span is refused, never assumed past
+        return None
+
+
+def split_training_windows(windows: Sequence, used_from, span: Callable, key: str = "id") -> tuple[list, list[dict]]:
+    """(kept, refused). `used_from` is the first real day the basis being trained may be played; `span(id)` -> (real start, real
+    end) is the referee's lookup (the loop passes livesim_loop2.real_span). A window is kept only if its real end is STRICTLY
+    before `used_from`; a window ending on that day, after it, or whose span cannot be resolved is refused with the reason.
+    `windows` may be loaded windows (mappings with `key`) or plain ids. No first-use date is itself a refusal (fail closed)."""
+    if used_from is None:
+        raise LateTrainingWindow("no first-use date: a basis must know the earliest real day it may be played before it is trained")
+    uf = pd.Timestamp(used_from)
+    kept, refused = [], []
+    for w in windows:
+        wid = w[key] if isinstance(w, Mapping) else w
+        sp = _span_or_none(span, wid)
+        if sp is None:
+            refused.append({"id": wid, "real_end": None, "why": "real span cannot be resolved"})
+        elif sp[1] >= uf:
+            refused.append({"id": wid, "real_end": str(sp[1].date()), "why": f"ends on/after the first use {uf.date()}"})
+        else:
+            kept.append(w)
+    return kept, refused
+
+
+def refuse_late_training(windows: Sequence, used_from, span: Callable, key: str = "id") -> dict:
+    """The check train_basis runs on its own input: raise LateTrainingWindow if ANY window had not ended before `used_from`
+    (the caller was supposed to split first; a refusal here means the split was skipped or wrong). Returns a small receipt."""
+    kept, refused = split_training_windows(windows, used_from, span, key)
+    if refused:
+        raise LateTrainingWindow(f"{len(refused)} of {len(refused) + len(kept)} training windows had not ended before the first use "
+                                 f"{pd.Timestamp(used_from).date()}: {refused[:3]}")
+    ends = [_span_or_none(span, w[key] if isinstance(w, Mapping) else w)[1] for w in kept]
+    return {"n_windows": len(kept), "used_from": str(pd.Timestamp(used_from).date()),
+            "max_real_end": str(max(ends).date()) if ends else None}
+
+
+def neutral_default_meta(space: Mapping, base: Mapping, knobs: Sequence) -> dict:
+    """A data-free adaptation meta (the meta twin of neutral_default_cfg). Choice, documented:
+      - every knob the basis search can move (`space`, basis_search.META_SPACE) sits at its middle grid value - chosen by
+        position, never by an outcome (the sensitivity-tuned values, e.g. ic_beta 0.5, min_weeks 4, are discarded);
+      - `adaptive_knobs` (which cfg knobs the adapter may move; tuned by the sensitivity study to 6 of them) becomes every knob
+        the adapter has a step grid for (`knobs`, adaptive.STEPS) - a statement about the machinery, not about any result;
+      - everything else is copied from `base`: the Phase-18 rails (off), the dial (off), mem_use_dates (off in blind windows),
+        mem_score_errors and ic_clip are structural switches and bounds whose values encode no outcome.
+    The result is a fresh dict; `base` is not modified."""
+    out = {**{k: v for k, v in dict(base).items()}, **neutral_default_cfg(dict(space))}
+    out["adaptive_knobs"] = [k for k in knobs]
+    return out
+
+
+def _meta_space() -> dict:
+    from .basis_search import META_SPACE              # lazy: basis_search is not on the blind path
+    return dict(META_SPACE)
+
+
+def default_neutral_meta(meta_default: Mapping) -> dict:
+    """neutral_default_meta over the repository's own search space and step grid (what livesim_loop2.NEUTRAL_META is)."""
+    from .adaptive import STEPS                        # lazy: adaptive imports policy/memory
+    return neutral_default_meta(_meta_space(), meta_default, list(STEPS))
+
+
+def tuned_meta_keys(meta: Mapping | None, meta_default: Mapping, neutral: Mapping, searched: Sequence = ()) -> list[str]:
+    """Keys on which `meta` still carries the outcome-tuned default: equal to META_DEFAULT's value where that differs from the
+    data-free neutral value. Keys a past-only basis search may have chosen (`searched`) are excluded - for a trained basis the
+    search, not the study, set them. An empty list means the play did not run on tuned defaults."""
+    norm = lambda x: json.loads(json.dumps(x, default=str))
+    m, d, n = norm(dict(meta or {})), norm(dict(meta_default)), norm(dict(neutral))
+    skip = set(searched)
+    return sorted(k for k in d if k in m and k in n and k not in skip and m[k] == d[k] and d[k] != n[k])
+
+
+def _loop2_gate_facts(tree, main, plan, fresh) -> dict:
+    """F06 facts read from the loop's source: is the training call gated at the first use, and is the untrained meta data-free?"""
+    f: dict = {}
+    tb_def = _find_def(tree, "train_basis")
+    tb = _calls(main, "train_basis") if main is not None else []
+    used = lambda c: _has_kw(c, "used_from") and not (isinstance(_kw(c, "used_from"), ast.Constant) and _kw(c, "used_from").value is None)
+    f["loop2_every_train_call_passes_used_from"] = None if main is None else (bool(tb) and all(used(c) for c in tb))
+    f["loop2_train_call_uses_global_basis"] = None if main is None else any(
+        _state_ref(a) for c in tb for a in list(c.args[1:3]) + [k.value for k in c.keywords if k.arg in ("cfg", "meta")])
+    if tb_def is None:
+        f["loop2_train_basis_refuses_late_windows"] = None
+    else:
+        params = {a.arg for a in tb_def.args.args + tb_def.args.kwonlyargs}
+        refs = _calls(tb_def, "refuse_late_training")
+        f["loop2_train_basis_refuses_late_windows"] = "used_from" in params and any(
+            any(isinstance(n, ast.Name) and n.id == "used_from" for a in list(r.args) + [k.value for k in r.keywords] for n in ast.walk(a)) for r in refs)
+    if main is None or not tb or not tb[0].args:
+        f["loop2_main_splits_training_set"] = None if main is None else False
+    else:
+        name = ast.unparse(tb[0].args[0])
+        splits = [n for n in ast.walk(main) if isinstance(n, ast.Assign) and isinstance(n.value, ast.Call)
+                  and _callee(n.value) == "split_training_windows"
+                  and any(isinstance(t, ast.Name) and t.id == name for tgt in n.targets for t in ast.walk(tgt))]
+        f["loop2_main_splits_training_set"] = bool(splits) and all(min(s.lineno for s in splits) < c.lineno for c in tb)
+    nm = _module_assign(tree, "NEUTRAL_META")
+    f["loop2_neutral_meta_from_neutral_default_meta"] = bool(nm is not None and isinstance(nm.value, ast.Call) and _callee(nm.value) == "neutral_default_meta")
+    names = lambda node: {n.id if isinstance(n, ast.Name) else n.attr for n in ast.walk(node) if isinstance(n, (ast.Name, ast.Attribute))} if node is not None else set()
+    f["loop2_plan_round_untrained_meta_is_neutral"] = None if plan is None else ("NEUTRAL_META" in names(plan) and "META_DEFAULT" not in names(plan))
+    st_assign = _module_assign(tree, "st")
+    f["loop2_quarantines_tuned_meta_plays"] = bool(st_assign is not None and _calls(st_assign, "quarantine_tuned_meta"))
+    f["loop2_learner_default"] = _learner_default(tree)
+    return f
+
+
+def _learner_default(tree) -> str | None:
+    """What `--learner` is when the flag is absent: the first constant `learner_flag` returns (None if it cannot be read)."""
+    fn = _find_def(tree, "learner_flag")
+    if fn is None:
+        return None
+    for n in ast.walk(fn):
+        if isinstance(n, ast.Return) and isinstance(n.value, ast.Constant) and isinstance(n.value.value, str):
+            return n.value.value
+    return None
+
+
+def prove_training_gate(n_rounds: int = 14, par: int = 3, seeds=(0, 1, 2, 3)) -> dict:
+    """Two proofs of the F06 gate. (1) Planted: a window ending after the first-use day, one ending ON it and one whose span is
+    unknown must all be refused by refuse_late_training; one ending the day before must be kept (the boundary, so a gate that
+    refuses everything fails). (2) The design, on the loop's seeded draw process: after round r, the NEXT round is sealed, its
+    earliest real start is the first-use day, the archive is split there, the basis is registered with exactly that set, and
+    round r+1 plays BasisLineage.basis_for. No play may use a basis whose training touched its window; each newly trained basis
+    must be eligible for every window of the round it was trained for."""
+    T = pd.Timestamp
+    table = {"old": (T("1990-01-01"), T("1990-12-31")), "edge": (T("2000-01-01"), T("2000-12-31")),
+             "late": (T("2000-06-01"), T("2001-05-31")), "on": (T("2000-01-02"), T("2001-01-01"))}
+    span = lambda i: table[i]
+    uf = T("2001-01-01")
+    try:
+        refuse_late_training(["old", "late"], uf, span)
+        planted_refused = False
+    except LateTrainingWindow:
+        planted_refused = True
+    kept, refused = split_training_windows(["old", "edge", "on", "ghost"], uf, span)
+    boundary_kept = kept == ["old", "edge"]
+    on_and_unknown_refused = sorted(r["id"] for r in refused) == ["ghost", "on"]
+    try:
+        split_training_windows(["old"], None, span)
+        no_date_refused = False
+    except LateTrainingWindow:
+        no_date_refused = True
+    violations, untrained, ineligible, played_n, trained_versions = 0, [], 0, 0, 0
+    for seed in seeds:
+        rounds = simulate_window_draws(n_rounds, par=par, seed=20260929 + seed)
+        lin, seen, played, ver = BasisLineage(), [], [], 0
+        spans = {w["id"]: (w["start"], w["end"]) for rnd in rounds for w in rnd}
+        for r, rnd in enumerate(rounds):
+            for w in rnd:
+                rec = lin.basis_for(w["start"])
+                played.append({"id": w["id"], "real_start": w["start"], "version": rec["version"] if rec else 0})
+                untrained.append(rec is None)
+            seen += rnd
+            if r + 1 >= len(rounds):
+                break
+            first_use = min(w["start"] for w in rounds[r + 1])
+            k, _ = split_training_windows([w["id"] for w in seen], first_use, spans.__getitem__)
+            if not k:
+                continue
+            refuse_late_training(k, first_use, spans.__getitem__)
+            ver += 1
+            trained_versions += 1
+            lin.register(ver, {}, {}, [TrainedOn(i, *spans[i]) for i in k])
+            ineligible += sum(lin.basis_for(w["start"]) is None or lin.basis_for(w["start"])["version"] != ver for w in rounds[r + 1])
+        violations += len(lin.violations(played))
+        played_n += len(played)
+    return {"planted_late_window_refused": planted_refused, "boundary_day_before_kept": boundary_kept,
+            "window_ending_on_first_use_and_unknown_span_refused": on_and_unknown_refused, "missing_first_use_refused": no_date_refused,
+            "gated_plays_checked": played_n, "gated_violations": violations, "trained_versions": trained_versions,
+            "new_basis_not_eligible_for_its_round": ineligible,
+            "share_of_plays_on_untrained_neutral_basis": float(np.mean(untrained)) if untrained else float("nan"),
+            "mechanism_holds": violations == 0 and ineligible == 0 and planted_refused and boundary_kept and on_and_unknown_refused and no_date_refused}
+
+
+# ---- channel 6: what can be LOOKED UP by year --------------------------------------------------------------------------
+HINDSIGHT_KEY_TOKENS = frozenset({"knowability", "hindsight", "unpredictable", "unknown_cause", "external_cause", "could_have_known",
+                                  "known_only_after", "post_event", "after_event", "counterfactual", "what_changed", "autopsy",
+                                  "error_class", "episode_path", "path_class", "regret"})
+
+
+def hindsight_feature_keys(features: Mapping) -> list[str]:
+    """Feature names that carry a hindsight label (knowability / counterfactual / what_changed / error-record vocabulary). A
+    trader item's features must be observable at the decision; a name built from these words is a conclusion reached AFTER the
+    outcome. Tokens are split on non-letters so `r5` or `vol20` never match."""
+    out = []
+    for k in features:
+        low = str(k).lower()
+        toks = set(t for t in re.split(r"[^a-z]+", low) if t)
+        if toks & HINDSIGHT_KEY_TOKENS or any(t in low for t in HINDSIGHT_KEY_TOKENS if "_" in t):
+            out.append(str(k))
+    return out
+
+
+def _research_loop_release_passes_replay(root=None) -> bool | None:
+    """Does the research loop's release stage hand the firewall a ReplayContext? (engine/research/loop.py st_release)."""
+    p = (Path(root) if root else K.ROOT) / "engine" / "research" / "loop.py"
+    if not p.exists():
+        return None
+    try:
+        tree = ast.parse(p.read_text(encoding="utf-8"))
+    except SyntaxError:
+        return None
+    fn = _find_def(tree, "st_release")
+    if fn is None:
+        return None
+    calls = [c for c in ast.walk(fn) if isinstance(c, ast.Call) and _callee(c) in ("run_day", "release")]
+    return bool(calls) and all(_has_kw(c, "replay") or len(c.args) >= 4 for c in calls)
+
+
+def _curator_writers(root=None) -> list[str]:
+    """Engine modules (outside the curator itself) that file into a curator: the only doors into the year-keyed store."""
+    base = (Path(root) if root else K.ROOT) / "engine"
+    pat = re.compile(r"curator\.file\(|\bfile_batch\(")
+    out = []
+    for p in sorted(base.rglob("*.py")):
+        if p.name == "curator.py" and p.parent.name == "learning":
+            continue
+        try:
+            if pat.search(p.read_text(encoding="utf-8")):
+                out.append(str(p.relative_to(base.parent)).replace("\\", "/"))
+        except (OSError, UnicodeDecodeError):
+            continue
+    return out
+
+
+def memory_bank_lookup_probe() -> dict:
+    """The memory bank recalls lessons by market context (the fingerprint): a planted row from a window that ended after the
+    replayed window began must be caught, a clean bank must pass."""
+    from . import blind_gates as BG
+    late = pd.DataFrame({"real_end": ["2009-12-31", "2011-06-30"], "arm": 1, "ctx": 0, "outcome": 0.0})
+    clean = late.iloc[:1]
+    return {"planted_late_row_caught": bool(BG.check_memory_bank_causality(late, "2011-03-01")),
+            "clean_bank_passes": not BG.check_memory_bank_causality(clean, "2011-03-01")}
+
+
+def verdict_year_lookup(part: dict | None) -> Verdict:
+    """LEAK if anything keyed by the year reaches the trader in a disguised replay: an unmatured or after-window curator memory
+    released, a rerun whose release on some day depends on a memory that had not matured by that day, planted date content accepted, a research record filed under the
+    replayed year (or a hindsight label) released, the memory bank's late row missed, or the trader closure reaching the curator
+    or engine.research. UNMEASURED if a part or a control is missing or the control fails (an instrument that cannot see). CLEAN
+    otherwise. Latent items (the curator accepts a hindsight-named feature; the research loop passes no ReplayContext) are
+    reported in the checks and reasons but do not move the status: no writer or replay reaches them on the blind path today."""
+    if not part:
+        return Verdict(UNMEASURED, {"part_lookup_present": False}, ("part lookup missing",))
+    c, r, m, s = (part.get(k) or {} for k in ("curator", "research", "memory_bank", "static"))
+    tri = lambda v: None if v is None else bool(v)
+    fails = {"curator_never_released_an_unmatured_memory": None if c.get("unmatured_releases") is None else c["unmatured_releases"] == 0,
+             "curator_never_released_a_memory_maturing_after_the_window": _not(c.get("after_window_released")),
+             "curator_late_same_year_memory_released_only_after_maturity": tri(c.get("replayed_year_late_first_release_after_maturity")),
+             "curator_rerun_release_uses_only_memories_matured_before_each_day": None if c.get("rerun_prefix_mismatches") is None else c["rerun_prefix_mismatches"] == 0,
+             "planted_year_or_date_content_refused": tri(c.get("planted_year_feature_refused")),
+             "research_record_filed_under_replayed_year_refused": tri(r.get("same_year_refused_during_replay")),
+             "research_hindsight_label_refused": tri(r.get("hindsight_caught")),
+             "research_planted_suite_passed": tri(r.get("suite_passed")),
+             "memory_bank_planted_late_row_caught": tri(m.get("planted_late_row_caught")),
+             "trader_closure_reaches_no_curator_or_research": tri(s.get("trader_closure_clean"))}
+    controls = {"control_curator_releases_a_past_memory": tri(c.get("past_control_released")),
+                "control_prefix_check_fails_a_curator_that_ignores_maturity": None if c.get("control_curator_ignoring_maturity_mismatches") is None
+                else c["control_curator_ignoring_maturity_mismatches"] > 0,
+                "control_rerun_instrument_sees_a_planted_extra_memory": tri(c.get("planted_extra_changes_releases")),
+                "control_same_record_admitted_outside_the_replayed_year": tri(r.get("admitted_outside_replay")),
+                "control_research_suite_clean_record_released": None if r.get("suite_void") is None else not r["suite_void"],
+                "control_memory_bank_clean_bank_passes": tri(m.get("clean_bank_passes"))}
+    latent = {"latent_curator_refuses_hindsight_feature_keys": c.get("hindsight_feature_refused"),
+              "latent_research_loop_release_passes_replay_context": s.get("research_loop_release_passes_replay"),
+              "curator_writers": s.get("curator_writers"), "curator_on_default_blind_path": None if s.get("loop2_learner_default") is None
+              else s["loop2_learner_default"] != "off"}
+    checks = {**fails, **controls, **latent}
+    notes = []
+    if latent["latent_curator_refuses_hindsight_feature_keys"] is False:
+        notes.append(f"latent: the curator accepts a hindsight-named feature key (writers today: {latent['curator_writers']}; they file learner features only)")
+    if latent["latent_research_loop_release_passes_replay_context"] is False:
+        notes.append("latent: engine/research/loop.py st_release calls firewall.run_day without a ReplayContext, so the same-year rule is inert there "
+                     "(the research loop is not on the blind path)")
+    failed = [k for k, v in fails.items() if v is False]
+    if failed:
+        return Verdict(LEAK, checks, tuple(f"year lookup reaches the trader: {k}" for k in failed) + tuple(notes))
+    unknown = [k for k, v in {**fails, **controls}.items() if v is None or v is False]
+    if unknown:
+        return Verdict(UNMEASURED, checks, tuple(f"lookup instrument: {k}" for k in unknown) + tuple(notes))
+    return Verdict(CLEAN, checks, tuple(notes))
+
+
+def combine_fingerprint_and_lookup(fp: Verdict, lk: Verdict) -> Verdict:
+    """Channel 6 = the fingerprint probe AND the lookup part. A lookup LEAK is a leak whatever the probe says; an unmeasured
+    lookup cannot improve the probe's status; a CLEAN lookup leaves the probe's status as it is (identifiable-but-unusable market
+    context is the owner's ruling, never this function's) and says so in the reasons."""
+    checks = {**fp.checks, "year_lookup_part_present": "part_lookup_present" not in lk.checks, "year_lookup_status": lk.status,
+              **{f"lookup.{k}": v for k, v in lk.checks.items()}}
+    if lk.status == LEAK:
+        return Verdict(LEAK, checks, lk.reasons + fp.reasons)
+    if lk.status == UNMEASURED:
+        return Verdict(worst_status(fp.status, UNMEASURED) if fp.status != LEAK else LEAK, checks, fp.reasons + lk.reasons)
+    extra = ("no year-keyed lookup reaches the trader (curator releases, research records filed by year, memory bank: all past-only and "
+             "same-year-refused, planted cases caught); the fingerprint is identifiable but nothing on the trader side can use it - "
+             "keeping LEAK vs QUARANTINED is the owner's ruling",) if fp.status == LEAK else ()
+    return Verdict(fp.status, checks, fp.reasons + extra + lk.reasons)

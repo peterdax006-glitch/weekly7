@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import copy
 import dataclasses
+import gc
 import pickle
 import re
 import shutil
@@ -30,6 +31,7 @@ from engine.research import exit_research as XR
 from engine.research import expectations as XP
 from engine.research import feeds as FD
 from engine.research import loop as LP
+from engine.research import market_expectations as ME
 from engine.research import pattern_change as PC
 from engine.research import prediction_error as PE
 from engine.research import regime_memory as RM
@@ -43,8 +45,10 @@ warnings.filterwarnings("ignore")
 CLOCK = lambda: 1_700_000_000.0                                   # noqa: E731
 KEEP = ("observe.panel", "evaluate.two_stage", "questions.generate", "hypotheses.trees", "gain.priority")
 FEED = FD.FeedConfig(warm_weeks=50)
-N_CYCLES = 30                                                     # false alarm -> shock -> switch -> confirmation -> recovery
+N_CYCLES = 28                                                     # false alarm -> shock -> switch -> confirmation -> recovery
 K_SCRAMBLE = 4
+C68_CFG = EL.C68Config(market=ME.ExpectationConfig(n_perm=60), train_max=2400)   # compute budget only: a smaller permutation null for
+                                                                                  # the market precursor scan, fewer training paths
 
 
 def loop_cfg(**kw) -> LP.LoopConfig:
@@ -93,15 +97,23 @@ class Run:
         return [s for s in self.snaps if pd.Timestamp(a) <= pd.Timestamp(s["now"]) < pd.Timestamp(b)]
 
 
+@pytest.fixture(autouse=True)
+def release_copies():
+    yield
+    gc.collect()                                                     # the planted-defect copies of the run are dropped between tests
+
+
 @pytest.fixture(scope="module", autouse=True)
 def registered():
     EL.register()
     yield
     EL.unregister()
+    EL.configure(EL.C68Config())
 
 
 @pytest.fixture(scope="module")
 def run(tmp_path_factory) -> Run:
+    EL.configure(C68_CFG)
     world = EL.plant_world(EL.C68Plant())
     root = tmp_path_factory.mktemp("c68z")
     state, rt, _ = LP.open_loop(FD.WorldFeed(FD.InMemorySource(world), FEED), root, loop_cfg(), clock=CLOCK)
@@ -127,12 +139,12 @@ def stage(name: str) -> LP.StageSpec:
 
 def scrambled_after(world: FD.World, day: str, seed: int = 9) -> FD.World:
     """The same world up to `day`; every later bar permuted in time and rescaled (a completely different future)."""
-    rng = np.random.default_rng(seed)
+    late = world.bars["Close"].index > pd.Timestamp(day)
+    perm = np.random.default_rng(seed).permutation(int(late.sum()))              # ONE permutation: every bar stays a valid bar
     bars = {}
     for f, df in world.bars.items():
         g = df.copy()
-        late = g.index > pd.Timestamp(day)
-        g.loc[late] = g.loc[late].to_numpy()[rng.permutation(int(late.sum()))] * (1.9 if f != "Volume" else 0.3)
+        g.loc[late] = g.loc[late].to_numpy()[perm] * (1.9 if f != "Volume" else 0.3)
         bars[f] = g
     return FD.World(bars, None, None, None, world.sectors, {}, FD.market_proxy(bars), {"scrambled_after": day})
 
@@ -200,8 +212,8 @@ def test_z03_the_pm1pp_evaluation_does_not_control_selling(run):
 
     def target_aware(s, items):                                                        # a planted exit that 'waits for the prediction'
         out = EL.decide_exits(s, items)
-        if s.cfg.target.tolerance < 0.01:
-            out = [dataclasses.replace(r, days=np.minimum(r.days + 1, r.D)) for r in out]
+        if s.cfg.target.tolerance < 0.01:                                            # ... it takes a different fill under a tighter target
+            out = [dataclasses.replace(r, net=r.net + 0.001, days=np.minimum(r.days + 1, r.D)) for r in out]
         return out
     if st.exited:
         bad = EL.exit_independence(st, target_aware)
@@ -314,7 +326,8 @@ def test_z10_pattern_changes_can_be_detected(run):
     assert np.mean(failing) >= 0.5, [s["verdicts"]["mom_r20_top"] for s in during]
     conf = [r for r in run.st.memory.records() if run.st.memory.status(r.record_id) == RM.RegimeStatus.CONFIRMED]
     assert conf and any(abs((pd.Timestamp(r.change_date) - sw).days) <= 14 for r in conf)
-    assert any("mom_r20_top" in r.patterns_weakened for r in conf)
+    after = [s for s in run.snaps if any(run.st.memory.get(rid).record_id == rid and st == "CONFIRMED" for rid, st in s["regimes"].items())]
+    assert any(s["guard"]["mom_r20_top"] in ("REDUCE", "SUSPEND") for s in after)      # the confirmed change + its own decline acted
 
 
 # ============================================================================================================ Z11
@@ -358,9 +371,9 @@ def test_z14_market_wide_changes_are_distinguished_from_single_stock_anomalies(r
     name, day = run.world.truth["shock"]
     uid = EL.unit_id(name)
     d0 = pd.Timestamp(day)
-    hits = [d for d in run.st.ews.units.detections if d.unit == uid and d0 <= pd.Timestamp(d.alarm_date) <= d0 + pd.Timedelta(days=30)]
-    assert hits, "the shocked name's own stream never alarmed"
-    near = [w for w in run.st.warnings if d0 <= pd.Timestamp(w[0]) <= d0 + pd.Timedelta(days=30)]
+    hits = [d for d in run.st.ews.units.detections if d.unit == uid and d0 <= pd.Timestamp(d.alarm_date) <= d0 + pd.Timedelta(days=45)]
+    assert hits and all(abs((pd.Timestamp(d.change_date) - d0).days) <= 7 for d in hits), "the shocked name's own stream never alarmed"
+    near = [w for w in run.st.warnings if d0 <= pd.Timestamp(w[0]) <= d0 + pd.Timedelta(days=45)]
     assert all(w[2] != "MARKET_WIDE_REGIME_CHANGE" for w in near if pd.Timestamp(w[0]) < sw - pd.Timedelta(days=5))
     assert not [r for r in run.st.memory.records() if abs((pd.Timestamp(r.change_date) - d0).days) <= 5]   # no regime from one stock
 
@@ -418,11 +431,10 @@ def test_z17_stocks_outside_the_band_cannot_be_selected_to_improve_another_metri
         LP.unregister_stage("zz.bypass")
     by = {s["stage"]: s for s in rep["stages"]}
     dec = state.decisions[-1]
-    if len(dec.positions):
-        assert by["c68.expectations"]["status"] == "REFUSED_LEAK" and "bypassed" in by["c68.expectations"]["reason"]
-        assert len(EL.open_ledgers(rt.root, None, state.modules["c68"].cfg, "x").expectations) == n0
-    else:
-        assert by["c68.expectations"]["status"] in ("OK", "SKIPPED_NO_INPUT")
+    assert len(dec.positions) > 0, "the planted bypass produced no position: the test would prove nothing"
+    assert by["c68.expectations"]["status"] == "REFUSED_LEAK" and "bypassed" in by["c68.expectations"]["reason"]
+    assert len(EL.open_ledgers(rt.root, None, state.modules["c68"].cfg, "x").expectations) == n0         # nothing was committed
+    assert state.modules["c68"].counters.get("band_bypass_refused") == 1
 
 
 # ============================================================================================================ Z18

@@ -28,7 +28,7 @@ PARTS = OUT / "parts"
 PARTS.mkdir(parents=True, exist_ok=True)
 CACHE = K.CACHE
 SEED = 20260928
-ORDER = ["static", "runtime", "defaults", "survivorship", "adjusted", "metadata", "fingerprint", "causality", "assemble"]
+ORDER = ["static", "runtime", "defaults", "survivorship", "adjusted", "metadata", "fingerprint", "causality", "lookup", "assemble"]
 
 
 def wait_for_ram(need_gb=2.5, patience_s=1200):
@@ -562,6 +562,187 @@ def part_causality(args):
 
 
 # =====================================================================================================================
+# F06 lookup part (channel 6 with the C64 curator path running): these probes import the curator and engine.research, so they
+# live here on the audit's trusted side - engine/leak_audit.py is on the trader's import closure and must never name them.
+# Synthetic and seeded: no cache, no sealed window, seconds. The verdict is engine.leak_audit.verdict_year_lookup.
+# =====================================================================================================================
+LOOKUP_START, LOOKUP_END = pd.Timestamp("2011-03-01"), pd.Timestamp("2012-02-29")
+
+
+def lookup_states(days, seed):
+    """m_* market state per real day: a seeded random walk (the curator's era similarity needs a state that moves)."""
+    rng = np.random.default_rng(seed)
+    cols = ("m_vix", "m_breadth", "m_dispersion", "m_spy_r5")
+    walk = np.cumsum(rng.normal(0, 0.2, (len(days), len(cols))), axis=0)
+    return {d: {c: float(v) for c, v in zip(cols, row)} for d, row in zip(days, walk)}
+
+
+def lookup_item(name, feats=None):
+    from engine.learning.trader_view import opaque_token
+    return {"item_id": opaque_token("lookup-" + name), "kind": "pattern", "weight": 1.0,
+            "features": dict(feats or {"vol20": 1.2, "r5": -0.4}), "lean": 0.6, "horizon": 5}
+
+
+def curator_run(store, days, states, code, file_every=0, extra=()):
+    """One replay of the window through a Curator on `store` (None = a fresh one): release day by day and, every `file_every`
+    days, file an episode that operated 8 sessions earlier and matured one session ago (what the blind learner's filer does).
+    `extra` = [(day index, name, operated, matured)] plants. Returns (release digests, [(day, item ids)], the store used).
+    Note: Curator(store=<empty store>) builds a new store (an empty store is falsy), so the store actually used is returned."""
+    from engine.learning.curator import Curator
+    cur = Curator(store=store, code_hash=code)
+    digests, released = [], []
+    for i, d in enumerate(days):
+        _, rel = cur.run_day(d, states[d])
+        digests.append(rel.digest())
+        released.append((d, [it.item_id for it in rel.items]))
+        if file_every and i >= 8 and i % file_every == 0:
+            op, mat = days[i - 8], days[i - 1]
+            cur.file(lookup_item(f"ep{i}", {"vol20": round(0.1 * (i % 7), 3), "r5": round(0.05 * (i % 5) - 0.1, 3)}),
+                     op, op.year, states[op], matured_at=mat, reliability=0.8)
+        for when, name, op, mat in extra:
+            if when == i:
+                cur.file(lookup_item(name), op, pd.Timestamp(op).year, states[pd.Timestamp(op)], matured_at=mat, reliability=0.8)
+    return digests, released, cur.store
+
+
+def curator_lookup_probe(seed=0):
+    """The C64 curator as a year-keyed store, driven over a synthetic 12-month window (real dates 2011-03..2012-02). Planted: a
+    memory from before the window (control: must be released), memories filed under the replayed year that mature inside it
+    (never released on or before their maturity) and one that matures after the window (never released). Then the SAME window
+    is replayed twice on one shared store (run 1 files episodes as it goes; run 2 re-files the same ones): on every day of the
+    rerun, the release must equal the release from a store truncated to the memories matured before that day (prefix
+    invariance). Controls: a curator that ignores maturity must fail that check, and one extra memory planted by run 1 must
+    change run 2's releases (the rerun does see its first run's past - that is live information, not a leak). Also: planted year/date content refused at filing and in a trader item; whether a hindsight-named feature key is
+    refused (latent - no writer files such keys today)."""
+    from engine.learning.curator import Curator
+    from engine.learning import curator as CU
+    from engine.learning import trader_view as TV
+    from engine.learning.core import FirewallBreach
+    days = pd.bdate_range(LOOKUP_START, LOOKUP_END)
+    states = lookup_states(pd.bdate_range(LOOKUP_START - pd.Timedelta(days=200), LOOKUP_END + pd.Timedelta(days=200)), seed)
+    code = "lookup-audit-code"
+    pre = Curator(store_root=None, code_hash=code)
+    plants = {"before_window": ("2010-11-01", "2010-11-08"), "replayed_year_early": ("2011-03-10", "2011-03-17"),
+              "replayed_year_late": ("2011-09-01", "2011-09-08"), "after_window": ("2012-06-01", "2012-06-08")}
+    for name, (op, mat) in plants.items():
+        pre.file(lookup_item(name), op, int(op[:4]), states[pd.Timestamp(op)], matured_at=mat, reliability=0.9)
+    key = {TV.opaque_token("lookup-" + n): n for n in plants}
+    _, rel, used = curator_run(pre.store, days, states, code)
+    mat_of = {m.key: pd.Timestamp(m.matured_at) for m in used.memories()}
+    first, unmatured = {}, 0
+    for d, ids in rel:
+        for i in ids:
+            unmatured += int(mat_of.get(i) is None or mat_of[i] >= d)
+            if i in key:
+                first.setdefault(key[i], d)
+    run1, _, shared = curator_run(None, days, states, code, file_every=5)
+    n_after_run1 = len(shared)
+    run2, rel2, _ = curator_run(shared, days, states, code, file_every=5)
+    _, _, planted = curator_run(None, days, states, code, file_every=5, extra=[(120, "run1_only", days[20], days[40])])
+    run2p, _, _ = curator_run(planted, days, states, code, file_every=5)
+    mat2 = {m.key: min(pd.Timestamp(x.matured_at) for x in shared.memories() if x.key == m.key) for m in shared.memories()}
+    rerun_unmatured = sum(1 for d, ids in rel2 for i in ids if mat2.get(i) is None or mat2[i] >= d)
+    # the rerun invariant: on every day, releasing from the store run 1 left behind equals releasing from a store truncated to the
+    # memories that had matured before that day (curator.prefix_invariance); a curator that ignores maturity must fail it
+    judge = Curator(store=shared, code_hash=code)
+    prefix_bad = CU.prefix_invariance(judge, list(days), states.__getitem__)
+
+    class IgnoresMaturity(Curator):
+        def relevance(self, real_now, market_state):
+            far = pd.Timestamp("2100-01-04")
+            return Curator.relevance(self, far, market_state)
+    broken_bad = CU.prefix_invariance(IgnoresMaturity(store=shared, code_hash=code), list(days[::10]), states.__getitem__)
+    lag_days = sum(a != b for a, b in zip(run1, run2))
+    probe = Curator(store_root=None, code_hash=code)
+    refusals = {}
+    for name, item in (("date_key", lookup_item("dk", {"filed_2011": 1.0})), ("year_value", lookup_item("yv", {"vol20": 2011.0}))):
+        try:
+            probe.file(item, "2011-03-10", 2011, states[pd.Timestamp("2011-03-10")], matured_at="2011-03-17")
+            refusals[name] = False
+        except FirewallBreach:
+            refusals[name] = True
+    try:
+        TV.TraderMemoryItem.make(TV.opaque_token("yr"), "pattern", 1.0, {"year": 0.3}, 0.1, 5)
+        refusals["trader_item_year_key"] = False
+    except FirewallBreach:
+        refusals["trader_item_year_key"] = True
+    try:
+        probe.file(lookup_item("hs", {"knowability_unpredictable": 0.25, "vol20": 1.0}), "2011-03-10", 2011,
+                   states[pd.Timestamp("2011-03-10")], matured_at="2011-03-17")
+        hindsight_refused = False
+    except FirewallBreach:
+        hindsight_refused = True
+    hits = sum(sum(TV.leak_scan_text(json.dumps(ids)).values()) for _, ids in rel + rel2)
+    return {"window_real": [str(LOOKUP_START.date()), str(LOOKUP_END.date())], "days": len(days),
+            "first_release_real_day": {k: str(v.date()) for k, v in first.items()},
+            "unmatured_releases": unmatured + rerun_unmatured, "after_window_released": "after_window" in first,
+            "past_control_released": "before_window" in first,
+            "replayed_year_late_first_release_after_maturity": ("replayed_year_late" not in first) or first["replayed_year_late"] > pd.Timestamp("2011-09-08"),
+            "rerun_prefix_mismatches": len(prefix_bad), "rerun_prefix_examples": prefix_bad[:3], "rerun_days_compared": len(days),
+            "control_curator_ignoring_maturity_mismatches": len(broken_bad),
+            "rerun_days_differing_from_first_run": int(lag_days), "rerun_days_with_items": sum(1 for _, ids in rel2 if ids),
+            "rerun_difference_explained": "run 1 files an episode after that day's release (filing latency), a rerun sees it at the next release; still matured strictly before the day",
+            "memories_filed_by_run1": n_after_run1, "memories_after_rerun": len(shared), "planted_extra_changes_releases": run2p != run1,
+            "planted_date_content_refused": refusals, "planted_year_feature_refused": all(refusals.values()),
+            "hindsight_feature_refused": hindsight_refused, "release_text_date_hits": int(hits)}
+
+
+def research_lookup_probe():
+    """Research records filed by year, through the one road to the trader (engine.research.firewall). The planted-leak suite must
+    catch the same-year rerun and hindsight-label channels with its clean control released; and the same-year rule, isolated on
+    one clean record learned inside the replayed year: refused DURING the replay of that year, admitted for a replay of a later
+    year (so the refusal is the same-year rule), and admitted with no ReplayContext (the rule is only as good as its caller)."""
+    from engine.research import firewall as FWL
+    from engine.research.namespaces import ResearchStore
+    suite = FWL.run_planted_suite()
+    res = {str(c): {"caught": r.caught, "channels": list(r.channels)} for c, r in suite.results.items()}
+    st = ResearchStore("lookup-probe")
+    st.put(FWL.clean_object("sameyr", learned="2011-04-15"))
+    fw = FWL.ResearchTraderFirewall(st, "lookup-probe")
+    during = fw.inspect("sameyr", "2011-09-01", FWL.ReplayContext("w-probe", str(LOOKUP_START.date()), str(LOOKUP_END.date()), run_index=1))
+    later = fw.inspect("sameyr", "2013-09-02", FWL.ReplayContext("w-later", "2013-03-01", "2014-02-28", run_index=0))
+    bare = fw.inspect("sameyr", "2011-09-01", None)
+    same = FWL.LeakChannel.SAME_YEAR_RERUN
+    return {"suite_passed": suite.passed, "suite_void": suite.void, "suite_missed": suite.missed,
+            "same_year_caught_by_suite": res.get(str(same), {}).get("caught"),
+            "hindsight_caught": res.get(str(FWL.LeakChannel.HINDSIGHT_LABEL), {}).get("caught"),
+            "research_only_caught": res.get(str(FWL.LeakChannel.RESEARCH_ONLY_KNOWLEDGE), {}).get("caught"),
+            "same_year_refused_during_replay": (not during.admitted) and same in during.channels,
+            "admitted_outside_replay": later.admitted, "admitted_without_replay_context": bare.admitted,
+            "during_channels": sorted(str(c) for c in during.channels)}
+
+
+def lookup_static(root=None):
+    """Can the trader's import closure reach the curator or engine.research; who writes into the curator; does the research loop
+    pass a ReplayContext; is the curator on the DEFAULT blind path (loop2 --learner default)?"""
+    from engine.learning import trader_view as TV
+    from engine.research import firewall as FWL
+    closure = TV.trader_closure(root=root)
+    bad = sorted(m for m in closure if m.startswith("engine.research") or m in ("engine.learning.curator", "engine.learning.test_path"))
+    viol = FWL.trader_research_violations(root=root)
+    facts = L.default_path_facts(root)
+    return {"trader_closure_modules": len(closure), "trader_closure_reaches": bad, "trader_research_violations": [str(v) for v in viol],
+            "trader_closure_clean": bool(closure) and not bad and not viol, "curator_writers": L._curator_writers(root),
+            "research_loop_release_passes_replay": L._research_loop_release_passes_replay(root),
+            "loop2_learner_default": facts.get("loop2_learner_default")}
+
+
+def year_lookup_audit(seed=0, root=None):
+    """The computed channel-6 lookup part."""
+    return {"curator": curator_lookup_probe(seed), "research": research_lookup_probe(), "memory_bank": L.memory_bank_lookup_probe(),
+            "static": lookup_static(root), "seed": seed}
+
+
+def part_lookup(args):
+    """F06 / C69 W-10: with the C64 curator path running, can anything LOOKED UP by year reach the trader in a disguised replay?"""
+    out = year_lookup_audit(args.seed if getattr(args, "seed", None) is not None else 0)
+    v = L.verdict_year_lookup(out)
+    out["verdict"] = v.as_evidence()
+    print(f"  [lookup] {v.status}: {list(v.reasons)[:3]}", flush=True)
+    save_part("lookup", out)
+
+
+# =====================================================================================================================
 def assemble(args):
     P = {n: load_part(n) for n in ORDER[:-1]}
     miss = [n for n, v in P.items() if v is None]
@@ -764,7 +945,7 @@ def main():
     ap.add_argument("--reuse-daily", action="store_true", help="fingerprint part: reuse the cached daily series instead of rebuilding it")
     args = ap.parse_args()
     fn = {"static": part_static, "runtime": part_runtime, "defaults": part_defaults, "survivorship": part_survivorship, "adjusted": part_adjusted, "metadata": part_metadata,
-          "fingerprint": part_fingerprint, "causality": part_causality, "assemble": assemble}
+          "fingerprint": part_fingerprint, "causality": part_causality, "lookup": part_lookup, "assemble": assemble}
     for p in args.parts.split(","):
         t = time.time()
         print(f"=== {p} ===", flush=True)

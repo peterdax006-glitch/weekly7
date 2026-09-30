@@ -2172,11 +2172,15 @@ def event_inputs(index: pd.MultiIndex, events: pd.DataFrame | None, insider: pd.
     days_to_event = the ticker's last public earnings-release date + the median of its last three intervals, minus the decision date
     (calendar days; negative = overdue, NaN with fewer than min_events past releases or more than max_days away). insider_n30 counts
     Form-4 purchases filed in the 30 days before (a filing is public the day after it is filed). filing_n5 counts any classified filing
-    public in the previous 5 days. A missing table gives NaN columns, never zeros: absence of the table is not absence of events."""
+    public in the previous 5 days (0 for every name while the table is present, whether or not the name ever files - which names file
+    LATER is future information). A missing table gives NaN columns, never zeros: absence of the table is not absence of events."""
     d = pd.to_datetime(index.get_level_values(0)).to_numpy().astype("datetime64[D]")
     t = np.asarray(index.get_level_values(1))
     out = pd.DataFrame(np.nan, index=index, columns=["days_to_event", "filing_n5", "insider_n30"])
     if events is not None and len(events):
+        # F09: coverage is the TABLE (as for insider_n30), never 'this ticker has a row somewhere in it': that test read the future - a
+        # name whose first filing came later read 0 on every earlier date and NaN when the data ended first (scripts/feature_leak_audit.py)
+        out["filing_n5"] = 0.0
         ev = events.assign(pub=_public_day(events["accepted"]))
         for tk, g in ev.groupby("ticker"):
             sel = np.flatnonzero(t == tk)
@@ -2196,9 +2200,6 @@ def event_inputs(index: pd.MultiIndex, events: pd.DataFrame | None, insider: pd.
                     dte[j] = float((recent[-1] + np.timedelta64(int(round(gap)), "D") - d[sel][j]) / np.timedelta64(1, "D"))
                 dte[np.abs(dte) > max_days] = np.nan
                 out.iloc[sel, out.columns.get_loc("days_to_event")] = dte
-        known = np.isin(t, ev["ticker"].unique())
-        nan_f = out["filing_n5"].isna().to_numpy()
-        out.loc[known & nan_f, "filing_n5"] = 0.0
     if insider is not None and len(insider):
         ins = insider.assign(pub=(pd.to_datetime(insider["filed"]).dt.normalize() + pd.Timedelta(days=1)).to_numpy().astype("datetime64[D]"))
         col = out.columns.get_loc("insider_n30")
