@@ -222,11 +222,83 @@ def _noise_admissions(reps=2):
     return admitted
 
 
-@pytest.mark.xfail(strict=True, reason="OPEN DEFECT (2026-09-28): on pure noise the miner admits ~0.67 false patterns "
-                   "per run (4 over 6 panels, stable at 2 and 4 null reps) - the same false-discovery excess that fails "
-                   "Phase 25 (FDR 18.6%). strict: when this starts passing, remove the marker.")
 def test_noise_false_admissions_within_budget():
+    """Was a strict xfail (2026-09-28: 4 false admissions over these 6 panels). F25 fix: the FDR budget is spent on the
+    confirmation block (engine.patterns._confirmation_fdr). 240 fresh noise panels: 31 -> 1 false admission."""
     assert _noise_admissions()["full"] <= 2
+
+
+# ------------------------------------------------------------------ F25: confirmation-stage false-discovery control
+def _frame(t_disc, t_conf, ph, same_sign=None):
+    t_disc, t_conf = np.asarray(t_disc, float), np.asarray(t_conf, float)
+    same = np.ones(len(t_disc), bool) if same_sign is None else np.asarray(same_sign, bool)
+    from engine import pattern_stats as S
+    return pd.DataFrame({"t_disc": t_disc, "t_conf": t_conf, "m_disc": np.sign(t_disc) * 0.01,
+                         "m_conf": np.where(same, np.sign(t_disc), -np.sign(t_disc)) * 0.01,
+                         "p_coincidence": S.t_to_p(t_disc), "p_hallucinated": np.asarray(ph, float)})
+
+
+def test_confirmation_fdr_refuses_a_screened_candidate_that_confirms_only_weakly():
+    """PLANTED DEFECT (the pre-F25 admission rule): discovery t = 6 with P(hallucinated) = 0 and a confirmation t of 1.05
+    gave P(real) = (1 - q) x Phi(1.05) ~ 0.85 >= 0.8 -> admitted on a one-sided confirmation p of 0.15."""
+    from engine.patterns import MINER_DEFAULT, _confirmation_fdr
+    from engine import pattern_stats as S
+    R = _frame([6.0] + [0.3] * 50, [1.05] + [0.2] * 50, [0.0] + [1.0] * 50)
+    p = {**MINER_DEFAULT}
+    real = S.p_real(R["p_hallucinated"].values, R["p_coincidence"].values,
+                    S.confirmation_factor(R["t_conf"].abs().values, R["m_conf"].values, R["m_disc"].values), "bh")
+    assert real[0] >= p["p_real_min"]                                   # the old rule would admit it
+    m = PatternMiner()
+    ok = _confirmation_fdr(R, p, m)
+    assert not ok[0] and R["screened"].iloc[0] and m.confirm_summary == {"screened": 1, "confirm_q": 0.05,
+                                                                         "confirm_pass": 0, "confirm_fdr": True}
+    R2 = _frame([6.0] + [0.3] * 50, [3.5] + [0.2] * 50, [0.0] + [1.0] * 50)
+    assert _confirmation_fdr(R2, p, m)[0]                               # a real confirmation still passes
+
+
+def test_confirmation_fdr_counts_the_whole_screened_family_and_needs_the_sign_to_repeat():
+    from engine.patterns import MINER_DEFAULT, _confirmation_fdr
+    p = {**MINER_DEFAULT}
+    # 20 screened candidates, one confirms at t = 2.2 (one-sided p 0.014): alone it passes, among 20 nulls it does not
+    alone = _frame([7.0], [2.2], [0.0])
+    assert _confirmation_fdr(alone, p, PatternMiner())[0]
+    fam = _frame([7.0] * 20, [2.2] + [0.1] * 19, [0.0] * 20)
+    assert not _confirmation_fdr(fam, p, PatternMiner()).any()
+    flipped = _frame([7.0], [5.0], [0.0], same_sign=[False])           # strong, but the sign reversed out of sample
+    assert not _confirmation_fdr(flipped, p, PatternMiner())[0] and flipped["p_confirm"].iloc[0] == 1.0
+    unscreened = _frame([1.0], [9.0], [0.0])                             # never screened on discovery: never admitted
+    assert not _confirmation_fdr(unscreened, p, PatternMiner())[0]
+    assert _confirmation_fdr(_frame([7.0], [2.2], [0.0]), {**p, "confirm_q": 0.001}, PatternMiner()).sum() == 0
+
+
+def test_confirmation_fdr_on_an_empty_frame_and_the_legacy_switch():
+    from engine.patterns import MINER_DEFAULT, _confirmation_fdr
+    m = PatternMiner()
+    empty = _frame([], [], [])
+    assert len(_confirmation_fdr(empty, {**MINER_DEFAULT}, m)) == 0 and m.confirm_summary["screened"] == 0
+    weak = _frame([6.0], [1.05], [0.0])
+    assert _confirmation_fdr(weak, {**MINER_DEFAULT, "confirm_fdr": False}, m)[0]      # legacy: measurement only
+
+
+def test_fit_reports_the_confirmation_family_and_every_admitted_pattern_passed_it(with_ctx):
+    X, y, m = with_ctx
+    for k in ("screened", "confirm_q", "confirm_pass", "confirm_fdr"):
+        assert k in m.report
+    A = active(m)
+    assert len(A) and A["confirm_fdr_pass"].all() and A["screened"].all()
+    assert m.report["confirm_pass"] <= m.report["screened"] <= m.report["tested"]
+
+
+def test_legacy_admission_on_the_known_bad_noise_panels_is_what_the_fix_removes():
+    """The six panels the xfail was recorded on: the legacy rule still over-admits there (so this test can fail if the
+    fix is ever bypassed), the fixed rule stays inside the budget."""
+    legacy = 0
+    for seed in range(6, 12):
+        X, y = panel(weeks=200, stocks=80, seed=seed, regime_effect=0.0)
+        mm = PatternMiner({**FAST, "null_reps": 2, "p_method": "bh", "confirm_fdr": False}).fit(
+            X, y, X.index.get_level_values(0).max())
+        legacy += len(active(mm))
+    assert legacy > 2
 
 
 # ------------------------------------------------------------------ scope indices and missing context columns

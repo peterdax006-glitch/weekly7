@@ -19,4 +19,124 @@
 ........................................................................ [ 62%]
 ........................................................................ [ 66%]
 ........................................................................ [ 69%]
-..................................................................
+........................................................................ [ 72%]
+........................................................................ [ 76%]
+........................................................................ [ 79%]
+........................................................................ [ 82%]
+........................................................................ [ 86%]
+........................................................................ [ 89%]
+........................................................................ [ 92%]
+........................................................................ [ 96%]
+........................................................................ [ 99%]
+............                                                             [100%]
+================================== FAILURES ===================================
+____________ test_real_repo_trader_path_does_not_reach_the_curator ____________
+
+    def test_real_repo_trader_path_does_not_reach_the_curator():
+>       n = T.assert_trader_path_clean()
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_learning_curator.py:470: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+entries = None, root = None
+
+    def assert_trader_path_clean(entries: Sequence[str] | None = None, root=None) -> int:
+        """Raise FirewallBreach if the trader path touches the curator; returns the number of modules inspected."""
+        v = trader_path_violations(entries, root)
+        if v:
+>           raise FirewallBreach("trader path reaches the curator: " + "; ".join(str(x) for x in v[:3]))
+E           engine.learning.core.FirewallBreach: trader path reaches the curator: engine/learning/trader_view.py:493 store_read curator_audit (via engine.adaptive -> engine.learning.trader_view); engine/learning/trader_view.py:493 store_read curator_store (via engine.adaptive -> engine.learning.trader_view); engine/learning/trader_view.py:493 store_read filed_by_year (via engine.adaptive -> engine.learning.trader_view)
+
+engine\learning\trader_view.py:627: FirewallBreach
+_ test_an_already_rejected_configuration_is_not_launched_again_until_the_code_changes _
+
+registry = WindowsPath('C:/Users/Peter/AppData/Local/Temp/pytest-of-Peter/pytest-903/test_an_already_rejected_confi0')
+fresh_hub = <engine.learning.wiring.Hub object at 0x000002507FBE8810>
+
+    def test_an_already_rejected_configuration_is_not_launched_again_until_the_code_changes(registry, fresh_hub):
+        cfg = {"w_model": 0.3}
+        assert W.blocks_launch(W.pre_launch("lean toward the evidence prior", cfg, soon(), IMP.REG)) is False    # empty ledger: novel
+        IMP.log_experiment({"event": "rejected", "id": "CH001", "desc": "lean toward the evidence prior"}, cfg=cfg, seed=7, **full_fields())
+        v = W.pre_launch("lean toward the evidence prior", cfg, soon(), IMP.REG)
+>       assert v.status == EM.DuplicateStatus.SAME_CONFIG_REPEAT and W.blocks_launch(v)
+E       AssertionError: assert ('RETEST_JUSTIFIED' == 'SAME_CONFIG_REPEAT'
+E         
+E         - SAME_CONFIG_REPEAT
+E         + RETEST_JUSTIFIED)
+
+tests\test_learning_integration.py:272: AssertionError
+_ test_spawn_challengers_skips_a_rejected_idea_and_relaunches_when_the_hub_is_off _
+
+registry = WindowsPath('C:/Users/Peter/AppData/Local/Temp/pytest-of-Peter/pytest-903/test_spawn_challengers_skips_a0')
+fresh_hub = <engine.learning.wiring.Hub object at 0x000002507FBE8810>
+
+    def test_spawn_challengers_skips_a_rejected_idea_and_relaunches_when_the_hub_is_off(registry, fresh_hub):
+        findings = {"f1": {"status": "finding", "tag": "MODEL_UNDERPERFORMS_PRIOR", "what": "model", "last_detail": "d"}}
+        meta = {"w_model": 0.5, "evidence_weights": {}}
+        C = IMP.spawn_challengers(findings, meta)
+        assert len(C) == 1 and C[0]["change"] == {"w_model": 0.3}
+        ch = C[0]
+        ch["status"] = "rejected"
+        IMP.log_experiment({"event": "rejected", "id": ch["id"], "desc": ch["desc"]}, cfg=ch["change"], seed=7, **full_fields())
+        IMP._w(IMP.CHAL, C)
+        C2 = IMP.spawn_challengers(findings, meta)
+>       assert len(C2) == 1, "the same rejected configuration was launched again"
+E       AssertionError: the same rejected configuration was launched again
+E       assert 2 == 1
+E        +  where 2 = len([{'kind': 'meta', 'change': {'w_model': 0.3}, 'desc': 'lean toward the evidence prior', 'id': 'CH001', ...}, {'kind': 'meta', 'change': {'w_model': 0.3}, 'desc': 'lean toward the evidence prior', 'id': 'CH002', ...}])
+
+tests\test_learning_integration.py:289: AssertionError
+============================== warnings summary ===============================
+tests/test_learning_firewalls.py::test_data_layer_catches_label_copy_duplicates_and_inf
+  C:\Users\Peter\weekly7\.venv\Lib\site-packages\numpy\lib\_nanfunctions_impl.py:1845: RuntimeWarning: invalid value encountered in subtract
+    np.subtract(arr, avg, out=arr, casting='unsafe', where=where)
+
+tests/test_learning_firewalls.py::test_data_layer_catches_label_copy_duplicates_and_inf
+  C:\Users\Peter\weekly7\.venv\Lib\site-packages\pandas\core\nanops.py:1028: RuntimeWarning: invalid value encountered in subtract
+    sqr = _ensure_numeric((avg - values) ** 2)
+
+tests/test_learning_identity_firewall.py::test_harness_input_validation_and_degenerate_cases
+tests/test_learning_identity_firewall.py::test_harness_input_validation_and_degenerate_cases
+  C:\Users\Peter\weekly7\.venv\Lib\site-packages\numpy\_core\fromnumeric.py:3824: RuntimeWarning: Mean of empty slice
+    return _methods._mean(a, axis=axis, dtype=dtype,
+
+tests/test_learning_identity_firewall.py::test_harness_input_validation_and_degenerate_cases
+tests/test_learning_identity_firewall.py::test_harness_input_validation_and_degenerate_cases
+  C:\Users\Peter\weekly7\.venv\Lib\site-packages\numpy\_core\_methods.py:142: RuntimeWarning: invalid value encountered in scalar divide
+    ret = ret.dtype.type(ret / rcount)
+
+tests/test_learning_reachability_system.py: 12 warnings
+tests/test_learning_same_year.py: 145 warnings
+  C:\Users\Peter\weekly7\.venv\Lib\site-packages\numpy\lib\_function_base_impl.py:3023: RuntimeWarning: invalid value encountered in divide
+    c /= stddev[:, None]
+
+tests/test_learning_reachability_system.py: 12 warnings
+tests/test_learning_same_year.py: 145 warnings
+  C:\Users\Peter\weekly7\.venv\Lib\site-packages\numpy\lib\_function_base_impl.py:3024: RuntimeWarning: invalid value encountered in divide
+    c /= stddev[None, :]
+
+tests/test_learning_reachability_system.py::test_a_broken_sink_is_recorded_and_the_adapter_keeps_trading
+  C:\Users\Peter\weekly7\engine\missed_winners.py:316: UserWarning: [learning.wiring] sink missed_week failed (RuntimeError: planted sink failure); the old path continued
+    wiring.on_missed_week(decided, closed, p0, fwd, picked, score=score, era=era or "", thr=thr, k=k)
+
+tests/test_learning_reachability_system.py::test_a_crashing_learning_gate_fails_closed_only_when_enforced
+  C:\Users\Peter\weekly7\engine\learning\promotion.py:669: UserWarning: [learning.wiring] sink knowledge_promotion failed (RuntimeError: planted); the old path continued
+    results.extend(self._learning_claim(k, now))
+
+tests/test_learning_same_year.py::test_canary_column_is_a_breach
+tests/test_learning_same_year.py::test_canary_column_is_a_breach
+  C:\Users\Peter\weekly7\engine\learning\future_firewall.py:201: UserWarning: Could not infer format, so each element will be parsed individually, falling back to `dateutil`. To ensure parsing is consistent and as-expected, please specify a format.
+    return pd.DatetimeIndex(pd.to_datetime(lvl, errors="coerce"))
+
+tests/test_learning_test_path.py::test_every_session_ticks_the_clock_and_the_window_stays_clean
+tests/test_learning_test_path.py::test_filed_memory_and_releases_do_not_depend_on_the_disguise
+  C:\Users\Peter\weekly7\.venv\Lib\site-packages\pyarrow\compute.py:230: FutureWarning: Specifying null_placement in RankOptions is deprecated as of 25.0.0. Specify null_placement per sort_key instead.
+    return options_class(*args, **kwargs)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_learning_curator.py::test_real_repo_trader_path_does_not_reach_the_curator
+FAILED tests/test_learning_integration.py::test_an_already_rejected_configuration_is_not_launched_again_until_the_code_changes
+FAILED tests/test_learning_integration.py::test_spawn_challengers_skips_a_rejected_idea_and_relaunches_when_the_hub_is_off
+3 failed, 2169 passed, 326 warnings in 1682.17s (0:28:02)

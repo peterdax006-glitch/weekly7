@@ -1,0 +1,213 @@
+{
+ "cycle": 20,
+ "now": "2017-09-29",
+ "label": "IMPLEMENTED - NOT VALIDATED",
+ "counters": {
+  "expectations": 30,
+  "outcomes": 30,
+  "errors": 30,
+  "market_reports_sent": 2,
+  "investigations": 8,
+  "promotion_held_by_regime": 0
+ },
+ "ledgers": {
+  "expectations": 30,
+  "outcomes": 30,
+  "errors": 30,
+  "commitments": 30,
+  "pipeline_events": 474,
+  "pipeline_furthest": {
+   "CAUSE": 4,
+   "HYPOTHESIS": 2,
+   "RESEARCH": 24,
+   "VALIDATION": 6,
+   "REJECTED": 60
+  }
+ },
+ "calibration": {
+  "now": "2017-09-29",
+  "target": {
+   "tolerance": 0.01,
+   "goal_share": 0.8,
+   "min_n": 200,
+   "min_oos_n": 100,
+   "level": 0.95,
+   "name": "pm1pp_80"
+  },
+  "status": "INSUFFICIENT_SAMPLE",
+  "n_committed": 30,
+  "n_matured": 30,
+  "n_resolved": 30,
+  "n_unresolved": 0,
+  "all_": {
+   "n": 30,
+   "hits": 1,
+   "share": 0.03333333333333333,
+   "lo": 0.005908590381612455,
+   "hi": 0.16670390991409173,
+   "boot_lo": 0.0,
+   "boot_hi": 0.1
+  },
+  "oos": {
+   "n": 30,
+   "hits": 1,
+   "share": 0.03333333333333333,
+   "lo": 0.005908590381612455,
+   "hi": 0.16670390991409173,
+   "boot_lo": 0.0,
+   "boot_hi": 0.1
+  },
+  "resolved_only": {
+   "n": 30,
+   "hits": 1,
+   "share": 0.03333333333333333,
+   "lo": 0.005908590381612455,
+   "hi": 0.16670390991409173,
+   "boot_lo": 0.0,
+   "boot_hi": 0.1
+  },
+  "bias": -0.01248605315131712,
+  "mae": 0.061810479322883,
+  "naive_share": 0.08,
+  "required_n": null,
+  "abuses": [],
+  "by_cohort": [
+   [
+    "-",
+    {
+     "n": 30,
+     "hits": 1,
+     "share": 0.03333333333333333,
+     "lo": 0.005908590381612455,
+     "hi": 0.16670390991409173,
+     "boot_lo": 0.0,
+     "boot_hi": 0.1
+    }
+   ]
+  ],
+  "headline": "3.3% of 30 matured predictions landed within +-1pp of the committed prediction (95% CI 0.6%-16.7%); out of sample 3.3% of 30 (CI 0.6%-16.7%, block bootstrap 0.0%-10.0%). Goal 80%: sample too small to judge (need 200 overall and 100 out of sample). A no-skill median forecast scores 8.0% on the same sample."
+ },
+ "influence": {
+  "mom_r20_top": 1.0,
+  "rev_r5_bottom": 0.5,
+  "vol_top": 1.0
+ },
+ "verdicts": {
+  "mom_r20_top": "NORMAL_VARIANCE",
+  "rev_r5_bottom": "WEAKENING",
+  "vol_top": "NOISE"
+ },
+ "guard": {
+  "mom_r20_top": "KEEP",
+  "rev_r5_bottom": "KEEP",
+  "vol_top": "KEEP"
+ },
+ "production": {
+  "name": "incumbent",
+  "since": "",
+  "window_share": 1.0,
+  "extra_features": []
+ },
+ "regime_records": [],
+ "identification": {
+  "periods": 2,
+  "trend": {
+   "n_periods": 2,
+   "slope": null,
+   "se": null,
+   "improving": null
+  },
+  "rows": [
+   {
+    "period": "2017Q2",
+    "n_candidates": 368,
+    "n_selected": 23,
+    "base_rate": 0.11413043478260869,
+    "precision": 0.2608695652173913,
+    "precision_lo": 0.1254844588924897,
+    "precision_hi": 0.4647039054375056,
+    "recall": 0.14285714285714285,
+    "lift": 2.2857142857142856,
+    "pending": 0
+   },
+   {
+    "period": "2017Q3",
+    "n_candidates": 506,
+    "n_selected": 24,
+    "base_rate": 0.07312252964426877,
+    "precision": 0.3333333333333333,
+    "precision_lo": 0.17971978688379642,
+    "precision_hi": 0.5329404050591954,
+    "recall": 0.21621621621621623,
+    "lift": 4.558558558558559,
+    "pending": 0
+   }
+  ]
+ },
+ "stage_runs": [
+  {
+   "cycle": 20,
+   "now": "2017-09-29",
+   "stage": "c68.selection_policy",
+   "in": 3575,
+   "out": 1,
+   "note": "policy L1ce5c9c6 (threshold -0.0017); gain model fitted n=3575 base in-band 0.077; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00"
+  },
+  {
+   "cycle": 20,
+   "now": "2017-09-29",
+   "stage": "c68.expectations",
+   "in": 45,
+   "out": 0,
+   "note": "no position on 2017-09-29: {'NOT_PREDICTED_MOVER': 40, 'SHORT_DISABLED': 3, 'OUT_OF_BAND': 1, 'LOW_CONFIDENCE': 1}"
+  },
+  {
+   "cycle": 20,
+   "now": "2017-09-29",
+   "stage": "c68.market_regime",
+   "in": 6,
+   "out": 1,
+   "note": "5 session(s), 1 alarm(s), warning WARNING (MARKET_WIDE_REGIME_CHANGE); 1 market period(s); regime records +0, status changes []"
+  },
+  {
+   "cycle": 20,
+   "now": "2017-09-29",
+   "stage": "c68.pattern_change",
+   "in": 3,
+   "out": 1,
+   "note": "verdicts {'NORMAL_VARIANCE': 1, 'WEAKENING': 1, 'NOISE': 1}; influence mom_r20_top=1.00, rev_r5_bottom=0.50, vol_top=1.00; regime none; 0 to investigate"
+  },
+  {
+   "cycle": 20,
+   "now": "2017-09-29",
+   "stage": "c68.outcomes_errors",
+   "in": 1,
+   "out": 1,
+   "note": "1 exit(s) by the learned policy, 1 error report(s), 0 unreconstructable, 46 candidate gain(s) resolved"
+  },
+  {
+   "cycle": 20,
+   "now": "2017-09-29",
+   "stage": "c68.what_changed",
+   "in": 1,
+   "out": 0,
+   "note": "classes {}; 0 unknowable preserved; 0 tree(s) into the loop forest; 0 waiting"
+  },
+  {
+   "cycle": 20,
+   "now": "2017-09-29",
+   "stage": "c68.error_research",
+   "in": 1,
+   "out": 22,
+   "note": "2017-09-29: 1 new errors, tiers {'NONE': 1, 'CHEAP': 0, 'STANDARD': 0, 'DEEP': 0}, 0 confident-wrong, 0 escalated groups, 11 jobs (88 cpu-min requested); 11 question event(s), 0 repeated-surprise event(s), 11 self-research question(s), 0 ma"
+  },
+  {
+   "cycle": 20,
+   "now": "2017-09-29",
+   "stage": "c68.validate_promote",
+   "in": 874,
+   "out": 4,
+   "note": "4 fix(es) tested alone and gated; deterioration: no (MAE 0.0344 -> 0.0306, p=0.921); promoted [] (0 applied); production incumbent; rolled back 0"
+  }
+ ]
+}

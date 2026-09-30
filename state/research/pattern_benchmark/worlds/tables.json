@@ -1,0 +1,2679 @@
+{
+ "total": [
+  {
+   "set": "all",
+   "worlds": 3,
+   "real right (detectable promoted, right sign)": "1.8% [0.0%, 4.8%] (n=57)",
+   "precision (right real / all promotions)": "3.8% (1/26)",
+   "FDR": "96.2%",
+   "FNR (detectable)": "98.2%",
+   "real right / all real": "1/150",
+   "undetectable in principle": 53,
+   "not representable": 40,
+   "noise correctly rejected": "98.5% [97.4%, 99.3%] (n=1695)",
+   "false positives / world": "8.33 (max 15; worlds with 0: 0/3)",
+   "expected FP / world at stated alpha": "0.009",
+   "expected FP / world at honest alpha": "0.0010",
+   "candidate recall real": "42.0% [40.0%, 46.0%] (n=150)",
+   "candidate recall noise": "13.9% [11.8%, 15.9%] (n=1695)",
+   "partial credit (real)": "0.007"
+  },
+  {
+   "set": "development",
+   "worlds": 2,
+   "real right (detectable promoted, right sign)": "2.6% [0.0%, 4.8%] (n=39)",
+   "precision (right real / all promotions)": "9.1% (1/11)",
+   "FDR": "90.9%",
+   "FNR (detectable)": "97.4%",
+   "real right / all real": "1/100",
+   "undetectable in principle": 30,
+   "not representable": 31,
+   "noise correctly rejected": "99.1% [99.0%, 99.3%] (n=1115)",
+   "false positives / world": "5.00 (max 6; worlds with 0: 0/2)",
+   "expected FP / world at stated alpha": "0.010",
+   "expected FP / world at honest alpha": "0.0011",
+   "candidate recall real": "43.0% [40.0%, 46.0%] (n=100)",
+   "candidate recall noise": "12.9% [11.8%, 14.0%] (n=1115)",
+   "partial credit (real)": "0.010"
+  },
+  {
+   "set": "heldout",
+   "worlds": 1,
+   "real right (detectable promoted, right sign)": "0.0% [0.0%, 0.0%] (n=18)",
+   "precision (right real / all promotions)": "0.0% (0/15)",
+   "FDR": "100.0%",
+   "FNR (detectable)": "100.0%",
+   "real right / all real": "0/50",
+   "undetectable in principle": 23,
+   "not representable": 9,
+   "noise correctly rejected": "97.4% [97.4%, 97.4%] (n=580)",
+   "false positives / world": "15.00 (max 15; worlds with 0: 0/1)",
+   "expected FP / world at stated alpha": "0.006",
+   "expected FP / world at honest alpha": "0.0007",
+   "candidate recall real": "40.0% [40.0%, 40.0%] (n=50)",
+   "candidate recall noise": "15.9% [15.9%, 15.9%] (n=580)",
+   "partial credit (real)": "0.000"
+  }
+ ],
+ "era": [
+  {
+   "split": "development",
+   "era": "crisis",
+   "worlds": 1,
+   "TP recall (detectable)": "4.8% [4.8%, 4.8%] (n=21)",
+   "FP / world": "6.00",
+   "noise rejected": "99.0% [99.0%, 99.0%] (n=580)",
+   "detectable share": "42.0%"
+  },
+  {
+   "split": "development",
+   "era": "trending",
+   "worlds": 1,
+   "TP recall (detectable)": "0.0% [0.0%, 0.0%] (n=18)",
+   "FP / world": "4.00",
+   "noise rejected": "99.3% [99.3%, 99.3%] (n=535)",
+   "detectable share": "36.0%"
+  },
+  {
+   "split": "heldout",
+   "era": "trending",
+   "worlds": 1,
+   "TP recall (detectable)": "0.0% [0.0%, 0.0%] (n=18)",
+   "FP / world": "15.00",
+   "noise rejected": "97.4% [97.4%, 97.4%] (n=580)",
+   "detectable share": "36.0%"
+  }
+ ],
+ "band": [
+  {
+   "split": "development",
+   "kind": "changing",
+   "band": "extremely_subtle",
+   "n": 2,
+   "detectable": 0,
+   "not representable": 0,
+   "undetectable": 2,
+   "TP recall (detectable)": "n/a",
+   "surfaced": "0.0%",
+   "mean oracle power": "0.19",
+   "median delay looks": NaN
+  },
+  {
+   "split": "development",
+   "kind": "changing",
+   "band": "faint",
+   "n": 2,
+   "detectable": 0,
+   "not representable": 0,
+   "undetectable": 2,
+   "TP recall (detectable)": "n/a",
+   "surfaced": "50.0%",
+   "mean oracle power": "0.19",
+   "median delay looks": NaN
+  },
+  {
+   "split": "development",
+   "kind": "changing",
+   "band": "moderate",
+   "n": 2,
+   "detectable": 2,
+   "not representable": 0,
+   "undetectable": 0,
+   "TP recall (detectable)": "0.0% [0.0%, 0.0%] (n=2)",
+   "surfaced": "50.0%",
+   "mean oracle power": "1.00",
+   "median delay looks": NaN
+  },
+  {
+   "split": "development",
+   "kind": "changing",
+   "band": "obvious",
+   "n": 2,
+   "detectable": 2,
+   "not representable": 0,
+   "undetectable": 0,
+   "TP recall (detectable)": "0.0% [0.0%, 0.0%] (n=2)",
+   "surfaced": "100.0%",
+   "mean oracle power": "1.00",
+   "median delay looks": NaN
+  },
+  {
+   "split": "development",
+   "kind": "changing",
+   "band": "subtle",
+   "n": 2,
+   "detectable": 1,
+   "not representable": 0,
+   "undetectable": 1,
+   "TP recall (detectable)": "0.0% [0.0%, 0.0%] (n=1)",
+   "surfaced": "100.0%",
+   "mean oracle power": "0.52",
+   "median delay looks": NaN
+  },
+  {
+   "split": "development",
+   "kind": "conditional",
+   "band": "extremely_subtle",
+   "n": 2,
+   "detectable": 0,
+   "not representable": 0,
+   "undetectable": 2,
+   "TP recall (detectable)": "n/a",
+   "surfaced": "0.0%",
+   "mean oracle power": "0.17",
+   "median delay looks": NaN
+  },
+  {
+   "split": "development",
+   "kind": "conditional",
+   "band": "faint",
+   "n": 2,
+   "detectable": 0,
+   "not representable": 1,
+   "undetectable": 1,
+   "TP recall (detectable)": "n/a",
+   "surfaced": "0.0%",
+   "mean oracle power": "0.40",
+   "median delay looks": NaN
+  },
+  {
+   "split": "development",
+   "kind": "conditional",
+   "band": "moderate",
+   "n": 2,
+   "detectable": 2,
+   "not representable": 0,
+   "undetectable": 0,
+   "TP recall (detectable)": "0.0% [0.0%, 0.0%] (n=2)",
+   "surfaced": "100.0%",
+   "mean oracle power": "1.00",
+   "median delay looks": NaN
+  },
+  {
+   "split": "development",
+   "kind": "conditional",
+   "band": "obvious",
+   "n": 2,
+   "detectable": 2,
+   "not representable": 0,
+   "undetectable": 0,
+   "TP recall (detectable)": "0.0% [0.0%, 0.0%] (n=2)",
+   "surfaced": "100.0%",
+   "mean oracle power": "1.00",
+   "median delay looks": NaN
+  },
+  {
+   "split": "development",
+   "kind": "conditional",
+   "band": "subtle",
+   "n": 2,
+   "detectable": 1,
+   "not representable": 1,
+   "undetectable": 0,
+   "TP recall (detectable)": "0.0% [0.0%, 0.0%] (n=1)",
+   "surfaced": "100.0%",
+   "mean oracle power": "0.81",
+   "median delay looks": NaN
+  },
+  {
+   "split": "development",
+   "kind": "delayed",
+   "band": "extremely_subtle",
+   "n": 2,
+   "detectable": 0,
+   "not representable": 0,
+   "undetectable": 2,
+   "TP recall (detectable)": "n/a",
+   "surfaced": "0.0%",
+   "mean oracle power": "0.08",
+   "median delay looks": NaN
+  },
+  {
+   "split": "development",
+   "kind": "delayed",
+   "band": "faint",
+   "n": 2,
+   "detectable": 0,
+   "not representable": 1,
+   "undetectable": 1,
+   "TP recall (detectable)": "n/a",
+   "surfaced": "0.0%",
+   "mean oracle power": "0.35",
+   "median delay looks": NaN
+  },
+  {
+   "split": "development",
+   "kind": "delayed",
+   "band": "moderate",
+   "n": 2,
+   "detectable": 0,
+   "not representable": 2,
+   "undetectable": 0,
+   "TP recall (detectable)": "n/a",
+   "surfaced": "0.0%",
+   "mean oracle power": "1.00",
+   "median delay looks": NaN
+  },
+  {
+   "split": "development",
+   "kind": "delayed",
+   "band": "obvious",
+   "n": 2,
+   "detectable": 1,
+   "not representable": 1,
+   "undetectable": 0,
+   "TP recall (detectable)": "0.0% [0.0%, 0.0%] (n=1)",
+   "surfaced": "50.0%",
+   "mean oracle power": "1.00",
+   "median delay looks": NaN
+  },
+  {
+   "split": "development",
+   "kind": "delayed",
+   "band": "subtle",
+   "n": 2,
+   "detectable": 1,
+   "not representable": 1,
+   "undetectable": 0,
+   "TP recall (detectable)": "0.0% [0.0%, 0.0%] (n=1)",
+   "surfaced": "50.0%",
+   "mean oracle power": "0.79",
+   "median delay looks": NaN
+  },
+  {
+   "split": "development",
+   "kind": "interactive",
+   "band": "extremely_subtle",
+   "n": 2,
+   "detectable": 0,
+   "not representable": 1,
+   "undetectable": 1,
+   "TP recall (detectable)": "n/a",
+   "surfaced": "0.0%",
+   "mean oracle power": "0.27",
+   "median delay looks": NaN
+  },
+  {
+   "split": "development",
+   "kind": "interactive",
+   "band": "faint",
+   "n": 2,
+   "detectable": 0,
+   "not representable": 1,
+   "undetectable": 1,
+   "TP recall (detectable)": "n/a",
+   "surfaced": "0.0%",
+   "mean oracle power": "0.67",
+   "median delay looks": NaN
+  },
+  {
+   "split": "development",
+   "kind": "interactive",
+   "band": "moderate",
+   "n": 2,
+   "detectable": 0,
+   "not representable": 2,
+   "undetectable": 0,
+   "TP recall (detectable)": "n/a",
+   "surfaced": "0.0%",
+   "mean oracle power": "1.00",
+   "median delay looks": NaN
+  },
+  {
+   "split": "development",
+   "kind": "interactive",
+   "band": "obvious",
+   "n": 2,
+   "detectable": 0,
+   "not representable": 2,
+   "undetectable": 0,
+   "TP recall (detectable)": "n/a",
+   "surfaced": "0.0%",
+   "mean oracle power": "1.00",
+   "median delay looks": NaN
+  },
+  {
+   "split": "development",
+   "kind": "interactive",
+   "band": "subtle",
+   "n": 2,
+   "detectable": 0,
+   "not representable": 2,
+   "undetectable": 0,
+   "TP recall (detectable)": "n/a",
+   "surfaced": "0.0%",
+   "mean oracle power": "0.96",
+   "median delay looks": NaN
+  },
+  {
+   "split": "development",
+   "kind": "lifecycle",
+   "band": "extremely_subtle",
+   "n": 2,
+   "detectable": 1,
+   "not representable": 0,
+   "undetectable": 1,
+   "TP recall (detectable)": "0.0% [0.0%, 0.0%] (n=1)",
+   "surfaced": "0.0%",
+   "mean oracle power": "0.25",
+   "median delay looks": NaN
+  },
+  {
+   "split": "development",
+   "kind": "lifecycle",
+   "band": "faint",
+   "n": 2,
+   "detectable": 0,
+   "not representable": 0,
+   "undetectable": 2,
+   "TP recall (detectable)": "n/a",
+   "surfaced": "50.0%",
+   "mean oracle power": "0.12",
+   "median delay looks": NaN
+  },
+  {
+   "split": "development",
+   "kind": "lifecycle",
+   "band": "moderate",
+   "n": 2,
+   "detectable": 2,
+   "not representable": 0,
+   "undetectable": 0,
+   "TP recall (detectable)": "0.0% [0.0%, 0.0%] (n=2)",
+   "surfaced": "100.0%",
+   "mean oracle power": "1.00",
+   "median delay looks": NaN
+  },
+  {
+   "split": "development",
+   "kind": "lifecycle",
+   "band": "obvious",
+   "n": 2,
+   "detectable": 2,
+   "not representable": 0,
+   "undetectable": 0,
+   "TP recall (detectable)": "0.0% [0.0%, 0.0%] (n=2)",
+   "surfaced": "100.0%",
+   "mean oracle power": "1.00",
+   "median delay looks": NaN
+  },
+  {
+   "split": "development",
+   "kind": "lifecycle",
+   "band": "subtle",
+   "n": 2,
+   "detectable": 1,
+   "not representable": 0,
+   "undetectable": 1,
+   "TP recall (detectable)": "0.0% [0.0%, 0.0%] (n=1)",
+   "surfaced": "100.0%",
+   "mean oracle power": "0.67",
+   "median delay looks": NaN
+  },
+  {
+   "split": "development",
+   "kind": "linear",
+   "band": "extremely_subtle",
+   "n": 2,
+   "detectable": 1,
+   "not representable": 0,
+   "undetectable": 1,
+   "TP recall (detectable)": "0.0% [0.0%, 0.0%] (n=1)",
+   "surfaced": "0.0%",
+   "mean oracle power": "0.25",
+   "median delay looks": NaN
+  },
+  {
+   "split": "development",
+   "kind": "linear",
+   "band": "faint",
+   "n": 2,
+   "detectable": 1,
+   "not representable": 0,
+   "undetectable": 1,
+   "TP recall (detectable)": "0.0% [0.0%, 0.0%] (n=1)",
+   "surfaced": "50.0%",
+   "mean oracle power": "0.40",
+   "median delay looks": NaN
+  },
+  {
+   "split": "development",
+   "kind": "linear",
+   "band": "moderate",
+   "n": 2,
+   "detectable": 2,
+   "not representable": 0,
+   "undetectable": 0,
+   "TP recall (detectable)": "0.0% [0.0%, 0.0%] (n=2)",
+   "surfaced": "100.0%",
+   "mean oracle power": "1.00",
+   "median delay looks": NaN
+  },
+  {
+   "split": "development",
+   "kind": "linear",
+   "band": "obvious",
+   "n": 2,
+   "detectable": 2,
+   "not representable": 0,
+   "undetectable": 0,
+   "TP recall (detectable)": "0.0% [0.0%, 0.0%] (n=2)",
+   "surfaced": "100.0%",
+   "mean oracle power": "1.00",
+   "median delay looks": NaN
+  },
+  {
+   "split": "development",
+   "kind": "linear",
+   "band": "subtle",
+   "n": 2,
+   "detectable": 2,
+   "not representable": 0,
+   "undetectable": 0,
+   "TP recall (detectable)": "0.0% [0.0%, 0.0%] (n=2)",
+   "surfaced": "100.0%",
+   "mean oracle power": "0.90",
+   "median delay looks": NaN
+  },
+  {
+   "split": "development",
+   "kind": "rare",
+   "band": "extremely_subtle",
+   "n": 2,
+   "detectable": 0,
+   "not representable": 1,
+   "undetectable": 1,
+   "TP recall (detectable)": "n/a",
+   "surfaced": "0.0%",
+   "mean oracle power": "0.33",
+   "median delay looks": NaN
+  },
+  {
+   "split": "development",
+   "kind": "rare",
+   "band": "faint",
+   "n": 2,
+   "detectable": 0,
+   "not representable": 1,
+   "undetectable": 1,
+   "TP recall (detectable)": "n/a",
+   "surfaced": "0.0%",
+   "mean oracle power": "0.40",
+   "median delay looks": NaN
+  },
+  {
+   "split": "development",
+   "kind": "rare",
+   "band": "moderate",
+   "n": 2,
+   "detectable": 2,
+   "not representable": 0,
+   "undetectable": 0,
+   "TP recall (detectable)": "0.0% [0.0%, 0.0%] (n=2)",
+   "surfaced": "100.0%",
+   "mean oracle power": "1.00",
+   "median delay looks": NaN
+  },
+  {
+   "split": "development",
+   "kind": "rare",
+   "band": "obvious",
+   "n": 2,
+   "detectable": 2,
+   "not representable": 0,
+   "undetectable": 0,
+   "TP recall (detectable)": "0.0% [0.0%, 0.0%] (n=2)",
+   "surfaced": "100.0%",
+   "mean oracle power": "1.00",
+   "median delay looks": NaN
+  },
+  {
+   "split": "development",
+   "kind": "rare",
+   "band": "subtle",
+   "n": 2,
+   "detectable": 0,
+   "not representable": 2,
+   "undetectable": 0,
+   "TP recall (detectable)": "n/a",
+   "surfaced": "0.0%",
+   "mean oracle power": "0.69",
+   "median delay looks": NaN
+  },
+  {
+   "split": "development",
+   "kind": "regime",
+   "band": "extremely_subtle",
+   "n": 2,
+   "detectable": 0,
+   "not representable": 0,
+   "undetectable": 2,
+   "TP recall (detectable)": "n/a",
+   "surfaced": "0.0%",
+   "mean oracle power": "0.08",
+   "median delay looks": NaN
+  },
+  {
+   "split": "development",
+   "kind": "regime",
+   "band": "faint",
+   "n": 2,
+   "detectable": 1,
+   "not representable": 0,
+   "undetectable": 1,
+   "TP recall (detectable)": "0.0% [0.0%, 0.0%] (n=1)",
+   "surfaced": "50.0%",
+   "mean oracle power": "0.65",
+   "median delay looks": NaN
+  },
+  {
+   "split": "development",
+   "kind": "regime",
+   "band": "moderate",
+   "n": 2,
+   "detectable": 1,
+   "not representable": 1,
+   "undetectable": 0,
+   "TP recall (detectable)": "0.0% [0.0%, 0.0%] (n=1)",
+   "surfaced": "100.0%",
+   "mean oracle power": "1.00",
+   "median delay looks": NaN
+  },
+  {
+   "split": "development",
+   "kind": "regime",
+   "band": "obvious",
+   "n": 2,
+   "detectable": 1,
+   "not representable": 1,
+   "undetectable": 0,
+   "TP recall (detectable)": "100.0% [100.0%, 100.0%] (n=1)",
+   "surfaced": "100.0%",
+   "mean oracle power": "1.00",
+   "median delay looks": 0.0
+  },
+  {
+   "split": "development",
+   "kind": "regime",
+   "band": "subtle",
+   "n": 2,
+   "detectable": 1,
+   "not representable": 0,
+   "undetectable": 1,
+   "TP recall (detectable)": "0.0% [0.0%, 0.0%] (n=1)",
+   "surfaced": "100.0%",
+   "mean oracle power": "0.62",
+   "median delay looks": NaN
+  },
+  {
+   "split": "development",
+   "kind": "threshold",
+   "band": "extremely_subtle",
+   "n": 2,
+   "detectable": 0,
+   "not representable": 1,
+   "undetectable": 1,
+   "TP recall (detectable)": "n/a",
+   "surfaced": "0.0%",
+   "mean oracle power": "0.40",
+   "median delay looks": NaN
+  },
+  {
+   "split": "development",
+   "kind": "threshold",
+   "band": "faint",
+   "n": 2,
+   "detectable": 0,
+   "not representable": 0,
+   "undetectable": 2,
+   "TP recall (detectable)": "n/a",
+   "surfaced": "0.0%",
+   "mean oracle power": "0.27",
+   "median delay looks": NaN
+  },
+  {
+   "split": "development",
+   "kind": "threshold",
+   "band": "moderate",
+   "n": 2,
+   "detectable": 2,
+   "not representable": 0,
+   "undetectable": 0,
+   "TP recall (detectable)": "0.0% [0.0%, 0.0%] (n=2)",
+   "surfaced": "100.0%",
+   "mean oracle power": "0.96",
+   "median delay looks": NaN
+  },
+  {
+   "split": "development",
+   "kind": "threshold",
+   "band": "obvious",
+   "n": 2,
+   "detectable": 2,
+   "not representable": 0,
+   "undetectable": 0,
+   "TP recall (detectable)": "0.0% [0.0%, 0.0%] (n=2)",
+   "surfaced": "100.0%",
+   "mean oracle power": "1.00",
+   "median delay looks": NaN
+  },
+  {
+   "split": "development",
+   "kind": "threshold",
+   "band": "subtle",
+   "n": 2,
+   "detectable": 1,
+   "not representable": 1,
+   "undetectable": 0,
+   "TP recall (detectable)": "0.0% [0.0%, 0.0%] (n=1)",
+   "surfaced": "0.0%",
+   "mean oracle power": "0.81",
+   "median delay looks": NaN
+  },
+  {
+   "split": "development",
+   "kind": "xor",
+   "band": "extremely_subtle",
+   "n": 2,
+   "detectable": 0,
+   "not representable": 0,
+   "undetectable": 2,
+   "TP recall (detectable)": "n/a",
+   "surfaced": "0.0%",
+   "mean oracle power": "0.00",
+   "median delay looks": NaN
+  },
+  {
+   "split": "development",
+   "kind": "xor",
+   "band": "faint",
+   "n": 2,
+   "detectable": 0,
+   "not representable": 2,
+   "undetectable": 0,
+   "TP recall (detectable)": "n/a",
+   "surfaced": "0.0%",
+   "mean oracle power": "0.90",
+   "median delay looks": NaN
+  },
+  {
+   "split": "development",
+   "kind": "xor",
+   "band": "moderate",
+   "n": 2,
+   "detectable": 0,
+   "not representable": 2,
+   "undetectable": 0,
+   "TP recall (detectable)": "n/a",
+   "surfaced": "0.0%",
+   "mean oracle power": "1.00",
+   "median delay looks": NaN
+  },
+  {
+   "split": "development",
+   "kind": "xor",
+   "band": "obvious",
+   "n": 2,
+   "detectable": 0,
+   "not representable": 2,
+   "undetectable": 0,
+   "TP recall (detectable)": "n/a",
+   "surfaced": "0.0%",
+   "mean oracle power": "1.00",
+   "median delay looks": NaN
+  },
+  {
+   "split": "development",
+   "kind": "xor",
+   "band": "subtle",
+   "n": 2,
+   "detectable": 0,
+   "not representable": 2,
+   "undetectable": 0,
+   "TP recall (detectable)": "n/a",
+   "surfaced": "0.0%",
+   "mean oracle power": "0.96",
+   "median delay looks": NaN
+  },
+  {
+   "split": "heldout",
+   "kind": "changing",
+   "band": "extremely_subtle",
+   "n": 1,
+   "detectable": 0,
+   "not representable": 0,
+   "undetectable": 1,
+   "TP recall (detectable)": "n/a",
+   "surfaced": "0.0%",
+   "mean oracle power": "0.04",
+   "median delay looks": NaN
+  },
+  {
+   "split": "heldout",
+   "kind": "changing",
+   "band": "faint",
+   "n": 1,
+   "detectable": 0,
+   "not representable": 0,
+   "undetectable": 1,
+   "TP recall (detectable)": "n/a",
+   "surfaced": "0.0%",
+   "mean oracle power": "0.04",
+   "median delay looks": NaN
+  },
+  {
+   "split": "heldout",
+   "kind": "changing",
+   "band": "moderate",
+   "n": 1,
+   "detectable": 1,
+   "not representable": 0,
+   "undetectable": 0,
+   "TP recall (detectable)": "0.0% [0.0%, 0.0%] (n=1)",
+   "surfaced": "100.0%",
+   "mean oracle power": "1.00",
+   "median delay looks": NaN
+  },
+  {
+   "split": "heldout",
+   "kind": "changing",
+   "band": "obvious",
+   "n": 1,
+   "detectable": 1,
+   "not representable": 0,
+   "undetectable": 0,
+   "TP recall (detectable)": "0.0% [0.0%, 0.0%] (n=1)",
+   "surfaced": "100.0%",
+   "mean oracle power": "0.96",
+   "median delay looks": NaN
+  },
+  {
+   "split": "heldout",
+   "kind": "changing",
+   "band": "subtle",
+   "n": 1,
+   "detectable": 1,
+   "not representable": 0,
+   "undetectable": 0,
+   "TP recall (detectable)": "0.0% [0.0%, 0.0%] (n=1)",
+   "surfaced": "0.0%",
+   "mean oracle power": "0.54",
+   "median delay looks": NaN
+  },
+  {
+   "split": "heldout",
+   "kind": "conditional",
+   "band": "extremely_subtle",
+   "n": 1,
+   "detectable": 0,
+   "not representable": 0,
+   "undetectable": 1,
+   "TP recall (detectable)": "n/a",
+   "surfaced": "0.0%",
+   "mean oracle power": "0.08",
+   "median delay looks": NaN
+  },
+  {
+   "split": "heldout",
+   "kind": "conditional",
+   "band": "faint",
+   "n": 1,
+   "detectable": 1,
+   "not representable": 0,
+   "undetectable": 0,
+   "TP recall (detectable)": "0.0% [0.0%, 0.0%] (n=1)",
+   "surfaced": "100.0%",
+   "mean oracle power": "0.62",
+   "median delay looks": NaN
+  },
+  {
+   "split": "heldout",
+   "kind": "conditional",
+   "band": "moderate",
+   "n": 1,
+   "detectable": 1,
+   "not representable": 0,
+   "undetectable": 0,
+   "TP recall (detectable)": "0.0% [0.0%, 0.0%] (n=1)",
+   "surfaced": "100.0%",
+   "mean oracle power": "1.00",
+   "median delay looks": NaN
+  },
+  {
+   "split": "heldout",
+   "kind": "conditional",
+   "band": "obvious",
+   "n": 1,
+   "detectable": 1,
+   "not representable": 0,
+   "undetectable": 0,
+   "TP recall (detectable)": "0.0% [0.0%, 0.0%] (n=1)",
+   "surfaced": "100.0%",
+   "mean oracle power": "1.00",
+   "median delay looks": NaN
+  },
+  {
+   "split": "heldout",
+   "kind": "conditional",
+   "band": "subtle",
+   "n": 1,
+   "detectable": 1,
+   "not representable": 0,
+   "undetectable": 0,
+   "TP recall (detectable)": "0.0% [0.0%, 0.0%] (n=1)",
+   "surfaced": "100.0%",
+   "mean oracle power": "1.00",
+   "median delay looks": NaN
+  },
+  {
+   "split": "heldout",
+   "kind": "delayed",
+   "band": "extremely_subtle",
+   "n": 1,
+   "detectable": 0,
+   "not representable": 0,
+   "undetectable": 1,
+   "TP recall (detectable)": "n/a",
+   "surfaced": "0.0%",
+   "mean oracle power": "0.00",
+   "median delay looks": NaN
+  },
+  {
+   "split": "heldout",
+   "kind": "delayed",
+   "band": "faint",
+   "n": 1,
+   "detectable": 0,
+   "not representable": 0,
+   "undetectable": 1,
+   "TP recall (detectable)": "n/a",
+   "surfaced": "0.0%",
+   "mean oracle power": "0.42",
+   "median delay looks": NaN
+  },
+  {
+   "split": "heldout",
+   "kind": "delayed",
+   "band": "moderate",
+   "n": 1,
+   "detectable": 0,
+   "not representable": 1,
+   "undetectable": 0,
+   "TP recall (detectable)": "n/a",
+   "surfaced": "0.0%",
+   "mean oracle power": "0.96",
+   "median delay looks": NaN
+  },
+  {
+   "split": "heldout",
+   "kind": "delayed",
+   "band": "obvious",
+   "n": 1,
+   "detectable": 1,
+   "not representable": 0,
+   "undetectable": 0,
+   "TP recall (detectable)": "0.0% [0.0%, 0.0%] (n=1)",
+   "surfaced": "100.0%",
+   "mean oracle power": "1.00",
+   "median delay looks": NaN
+  },
+  {
+   "split": "heldout",
+   "kind": "delayed",
+   "band": "subtle",
+   "n": 1,
+   "detectable": 0,
+   "not representable": 0,
+   "undetectable": 1,
+   "TP recall (detectable)": "n/a",
+   "surfaced": "0.0%",
+   "mean oracle power": "0.00",
+   "median delay looks": NaN
+  },
+  {
+   "split": "heldout",
+   "kind": "interactive",
+   "band": "extremely_subtle",
+   "n": 1,
+   "detectable": 0,
+   "not representable": 0,
+   "undetectable": 1,
+   "TP recall (detectable)": "n/a",
+   "surfaced": "0.0%",
+   "mean oracle power": "0.08",
+   "median delay looks": NaN
+  },
+  {
+   "split": "heldout",
+   "kind": "interactive",
+   "band": "faint",
+   "n": 1,
+   "detectable": 0,
+   "not representable": 0,
+   "undetectable": 1,
+   "TP recall (detectable)": "n/a",
+   "surfaced": "0.0%",
+   "mean oracle power": "0.25",
+   "median delay looks": NaN
+  },
+  {
+   "split": "heldout",
+   "kind": "interactive",
+   "band": "moderate",
+   "n": 1,
+   "detectable": 0,
+   "not representable": 1,
+   "undetectable": 0,
+   "TP recall (detectable)": "n/a",
+   "surfaced": "0.0%",
+   "mean oracle power": "1.00",
+   "median delay looks": NaN
+  },
+  {
+   "split": "heldout",
+   "kind": "interactive",
+   "band": "obvious",
+   "n": 1,
+   "detectable": 0,
+   "not representable": 1,
+   "undetectable": 0,
+   "TP recall (detectable)": "n/a",
+   "surfaced": "0.0%",
+   "mean oracle power": "1.00",
+   "median delay looks": NaN
+  },
+  {
+   "split": "heldout",
+   "kind": "interactive",
+   "band": "subtle",
+   "n": 1,
+   "detectable": 0,
+   "not representable": 1,
+   "undetectable": 0,
+   "TP recall (detectable)": "n/a",
+   "surfaced": "0.0%",
+   "mean oracle power": "1.00",
+   "median delay looks": NaN
+  },
+  {
+   "split": "heldout",
+   "kind": "lifecycle",
+   "band": "extremely_subtle",
+   "n": 1,
+   "detectable": 0,
+   "not representable": 0,
+   "undetectable": 1,
+   "TP recall (detectable)": "n/a",
+   "surfaced": "0.0%",
+   "mean oracle power": "0.29",
+   "median delay looks": NaN
+  },
+  {
+   "split": "heldout",
+   "kind": "lifecycle",
+   "band": "faint",
+   "n": 1,
+   "detectable": 0,
+   "not representable": 0,
+   "undetectable": 1,
+   "TP recall (detectable)": "n/a",
+   "surfaced": "0.0%",
+   "mean oracle power": "0.08",
+   "median delay looks": NaN
+  },
+  {
+   "split": "heldout",
+   "kind": "lifecycle",
+   "band": "moderate",
+   "n": 1,
+   "detectable": 1,
+   "not representable": 0,
+   "undetectable": 0,
+   "TP recall (detectable)": "0.0% [0.0%, 0.0%] (n=1)",
+   "surfaced": "100.0%",
+   "mean oracle power": "1.00",
+   "median delay looks": NaN
+  },
+  {
+   "split": "heldout",
+   "kind": "lifecycle",
+   "band": "obvious",
+   "n": 1,
+   "detectable": 1,
+   "not representable": 0,
+   "undetectable": 0,
+   "TP recall (detectable)": "0.0% [0.0%, 0.0%] (n=1)",
+   "surfaced": "100.0%",
+   "mean oracle power": "1.00",
+   "median delay looks": NaN
+  },
+  {
+   "split": "heldout",
+   "kind": "lifecycle",
+   "band": "subtle",
+   "n": 1,
+   "detectable": 0,
+   "not representable": 0,
+   "undetectable": 1,
+   "TP recall (detectable)": "n/a",
+   "surfaced": "100.0%",
+   "mean oracle power": "0.12",
+   "median delay looks": NaN
+  },
+  {
+   "split": "heldout",
+   "kind": "linear",
+   "band": "extremely_subtle",
+   "n": 1,
+   "detectable": 0,
+   "not representable": 0,
+   "undetectable": 1,
+   "TP recall (detectable)": "n/a",
+   "surfaced": "0.0%",
+   "mean oracle power": "0.04",
+   "median delay looks": NaN
+  },
+  {
+   "split": "heldout",
+   "kind": "linear",
+   "band": "faint",
+   "n": 1,
+   "detectable": 0,
+   "not representable": 0,
+   "undetectable": 1,
+   "TP recall (detectable)": "n/a",
+   "surfaced": "0.0%",
+   "mean oracle power": "0.04",
+   "median delay looks": NaN
+  },
+  {
+   "split": "heldout",
+   "kind": "linear",
+   "band": "moderate",
+   "n": 1,
+   "detectable": 1,
+   "not representable": 0,
+   "undetectable": 0,
+   "TP recall (detectable)": "0.0% [0.0%, 0.0%] (n=1)",
+   "surfaced": "100.0%",
+   "mean oracle power": "1.00",
+   "median delay looks": NaN
+  },
+  {
+   "split": "heldout",
+   "kind": "linear",
+   "band": "obvious",
+   "n": 1,
+   "detectable": 1,
+   "not representable": 0,
+   "undetectable": 0,
+   "TP recall (detectable)": "0.0% [0.0%, 0.0%] (n=1)",
+   "surfaced": "100.0%",
+   "mean oracle power": "1.00",
+   "median delay looks": NaN
+  },
+  {
+   "split": "heldout",
+   "kind": "linear",
+   "band": "subtle",
+   "n": 1,
+   "detectable": 0,
+   "not representable": 0,
+   "undetectable": 1,
+   "TP recall (detectable)": "n/a",
+   "surfaced": "0.0%",
+   "mean oracle power": "0.21",
+   "median delay looks": NaN
+  },
+  {
+   "split": "heldout",
+   "kind": "rare",
+   "band": "extremely_subtle",
+   "n": 1,
+   "detectable": 0,
+   "not representable": 0,
+   "undetectable": 1,
+   "TP recall (detectable)": "n/a",
+   "surfaced": "100.0%",
+   "mean oracle power": "0.04",
+   "median delay looks": NaN
+  },
+  {
+   "split": "heldout",
+   "kind": "rare",
+   "band": "faint",
+   "n": 1,
+   "detectable": 0,
+   "not representable": 0,
+   "undetectable": 1,
+   "TP recall (detectable)": "n/a",
+   "surfaced": "0.0%",
+   "mean oracle power": "0.08",
+   "median delay looks": NaN
+  },
+  {
+   "split": "heldout",
+   "kind": "rare",
+   "band": "moderate",
+   "n": 1,
+   "detectable": 0,
+   "not representable": 1,
+   "undetectable": 0,
+   "TP recall (detectable)": "n/a",
+   "surfaced": "0.0%",
+   "mean oracle power": "1.00",
+   "median delay looks": NaN
+  },
+  {
+   "split": "heldout",
+   "kind": "rare",
+   "band": "obvious",
+   "n": 1,
+   "detectable": 1,
+   "not representable": 0,
+   "undetectable": 0,
+   "TP recall (detectable)": "0.0% [0.0%, 0.0%] (n=1)",
+   "surfaced": "100.0%",
+   "mean oracle power": "0.96",
+   "median delay looks": NaN
+  },
+  {
+   "split": "heldout",
+   "kind": "rare",
+   "band": "subtle",
+   "n": 1,
+   "detectable": 0,
+   "not representable": 0,
+   "undetectable": 1,
+   "TP recall (detectable)": "n/a",
+   "surfaced": "0.0%",
+   "mean oracle power": "0.21",
+   "median delay looks": NaN
+  },
+  {
+   "split": "heldout",
+   "kind": "regime",
+   "band": "extremely_subtle",
+   "n": 1,
+   "detectable": 0,
+   "not representable": 0,
+   "undetectable": 1,
+   "TP recall (detectable)": "n/a",
+   "surfaced": "0.0%",
+   "mean oracle power": "0.04",
+   "median delay looks": NaN
+  },
+  {
+   "split": "heldout",
+   "kind": "regime",
+   "band": "faint",
+   "n": 1,
+   "detectable": 0,
+   "not representable": 0,
+   "undetectable": 1,
+   "TP recall (detectable)": "n/a",
+   "surfaced": "0.0%",
+   "mean oracle power": "0.17",
+   "median delay looks": NaN
+  },
+  {
+   "split": "heldout",
+   "kind": "regime",
+   "band": "moderate",
+   "n": 1,
+   "detectable": 1,
+   "not representable": 0,
+   "undetectable": 0,
+   "TP recall (detectable)": "0.0% [0.0%, 0.0%] (n=1)",
+   "surfaced": "100.0%",
+   "mean oracle power": "1.00",
+   "median delay looks": NaN
+  },
+  {
+   "split": "heldout",
+   "kind": "regime",
+   "band": "obvious",
+   "n": 1,
+   "detectable": 1,
+   "not representable": 0,
+   "undetectable": 0,
+   "TP recall (detectable)": "0.0% [0.0%, 0.0%] (n=1)",
+   "surfaced": "100.0%",
+   "mean oracle power": "1.00",
+   "median delay looks": NaN
+  },
+  {
+   "split": "heldout",
+   "kind": "regime",
+   "band": "subtle",
+   "n": 1,
+   "detectable": 0,
+   "not representable": 1,
+   "undetectable": 0,
+   "TP recall (detectable)": "n/a",
+   "surfaced": "0.0%",
+   "mean oracle power": "0.88",
+   "median delay looks": NaN
+  },
+  {
+   "split": "heldout",
+   "kind": "threshold",
+   "band": "extremely_subtle",
+   "n": 1,
+   "detectable": 0,
+   "not representable": 0,
+   "undetectable": 1,
+   "TP recall (detectable)": "n/a",
+   "surfaced": "0.0%",
+   "mean oracle power": "0.00",
+   "median delay looks": NaN
+  },
+  {
+   "split": "heldout",
+   "kind": "threshold",
+   "band": "faint",
+   "n": 1,
+   "detectable": 0,
+   "not representable": 0,
+   "undetectable": 1,
+   "TP recall (detectable)": "n/a",
+   "surfaced": "100.0%",
+   "mean oracle power": "0.08",
+   "median delay looks": NaN
+  },
+  {
+   "split": "heldout",
+   "kind": "threshold",
+   "band": "moderate",
+   "n": 1,
+   "detectable": 1,
+   "not representable": 0,
+   "undetectable": 0,
+   "TP recall (detectable)": "0.0% [0.0%, 0.0%] (n=1)",
+   "surfaced": "100.0%",
+   "mean oracle power": "0.83",
+   "median delay looks": NaN
+  },
+  {
+   "split": "heldout",
+   "kind": "threshold",
+   "band": "obvious",
+   "n": 1,
+   "detectable": 1,
+   "not representable": 0,
+   "undetectable": 0,
+   "TP recall (detectable)": "0.0% [0.0%, 0.0%] (n=1)",
+   "surfaced": "100.0%",
+   "mean oracle power": "0.96",
+   "median delay looks": NaN
+  },
+  {
+   "split": "heldout",
+   "kind": "threshold",
+   "band": "subtle",
+   "n": 1,
+   "detectable": 1,
+   "not representable": 0,
+   "undetectable": 0,
+   "TP recall (detectable)": "0.0% [0.0%, 0.0%] (n=1)",
+   "surfaced": "100.0%",
+   "mean oracle power": "0.71",
+   "median delay looks": NaN
+  },
+  {
+   "split": "heldout",
+   "kind": "xor",
+   "band": "extremely_subtle",
+   "n": 1,
+   "detectable": 0,
+   "not representable": 0,
+   "undetectable": 1,
+   "TP recall (detectable)": "n/a",
+   "surfaced": "0.0%",
+   "mean oracle power": "0.04",
+   "median delay looks": NaN
+  },
+  {
+   "split": "heldout",
+   "kind": "xor",
+   "band": "faint",
+   "n": 1,
+   "detectable": 0,
+   "not representable": 0,
+   "undetectable": 1,
+   "TP recall (detectable)": "n/a",
+   "surfaced": "0.0%",
+   "mean oracle power": "0.29",
+   "median delay looks": NaN
+  },
+  {
+   "split": "heldout",
+   "kind": "xor",
+   "band": "moderate",
+   "n": 1,
+   "detectable": 0,
+   "not representable": 1,
+   "undetectable": 0,
+   "TP recall (detectable)": "n/a",
+   "surfaced": "0.0%",
+   "mean oracle power": "1.00",
+   "median delay looks": NaN
+  },
+  {
+   "split": "heldout",
+   "kind": "xor",
+   "band": "obvious",
+   "n": 1,
+   "detectable": 0,
+   "not representable": 1,
+   "undetectable": 0,
+   "TP recall (detectable)": "n/a",
+   "surfaced": "0.0%",
+   "mean oracle power": "1.00",
+   "median delay looks": NaN
+  },
+  {
+   "split": "heldout",
+   "kind": "xor",
+   "band": "subtle",
+   "n": 1,
+   "detectable": 0,
+   "not representable": 1,
+   "undetectable": 0,
+   "TP recall (detectable)": "n/a",
+   "surfaced": "0.0%",
+   "mean oracle power": "1.00",
+   "median delay looks": NaN
+  }
+ ],
+ "noise": [
+  {
+   "split": "development",
+   "kind": "adversarial_near",
+   "n": 45,
+   "promoted (FP)": 0,
+   "FP rate": "0.0% [0.0%, 0.0%] (n=45)",
+   "surfaced": "6.7%",
+   "mean best gate share": "0.53",
+   "last verdicts": {
+    "QUARANTINED": "3"
+   }
+  },
+  {
+   "split": "development",
+   "kind": "autocorr_trap",
+   "n": 75,
+   "promoted (FP)": 0,
+   "FP rate": "0.0% [0.0%, 0.0%] (n=75)",
+   "surfaced": "13.3%",
+   "mean best gate share": "0.55",
+   "last verdicts": {
+    "QUARANTINED": "6",
+    "FAILED": "4"
+   }
+  },
+  {
+   "split": "development",
+   "kind": "base_null",
+   "n": 70,
+   "promoted (FP)": 0,
+   "FP rate": "0.0% [0.0%, 0.0%] (n=70)",
+   "surfaced": "4.3%",
+   "mean best gate share": "0.58",
+   "last verdicts": {
+    "QUARANTINED": "2",
+    "FAILED": "1"
+   }
+  },
+  {
+   "split": "development",
+   "kind": "coincidence",
+   "n": 30,
+   "promoted (FP)": 0,
+   "FP rate": "0.0% [0.0%, 0.0%] (n=30)",
+   "surfaced": "3.3%",
+   "mean best gate share": "0.67",
+   "last verdicts": {
+    "QUARANTINED": "1"
+   }
+  },
+  {
+   "split": "development",
+   "kind": "context",
+   "n": 10,
+   "promoted (FP)": 0,
+   "FP rate": "0.0% [0.0%, 0.0%] (n=10)",
+   "surfaced": "30.0%",
+   "mean best gate share": "0.50",
+   "last verdicts": {
+    "FAILED": "2",
+    "QUARANTINED": "1"
+   }
+  },
+  {
+   "split": "development",
+   "kind": "delayed_coincidence",
+   "n": 30,
+   "promoted (FP)": 0,
+   "FP rate": "0.0% [0.0%, 0.0%] (n=30)",
+   "surfaced": "3.3%",
+   "mean best gate share": "0.42",
+   "last verdicts": {
+    "QUARANTINED": "1"
+   }
+  },
+  {
+   "split": "development",
+   "kind": "early_decay",
+   "n": 20,
+   "promoted (FP)": 0,
+   "FP rate": "0.0% [0.0%, 0.0%] (n=20)",
+   "surfaced": "5.0%",
+   "mean best gate share": "0.75",
+   "last verdicts": {
+    "FAILED": "1"
+   }
+  },
+  {
+   "split": "development",
+   "kind": "fluke",
+   "n": 20,
+   "promoted (FP)": 0,
+   "FP rate": "0.0% [0.0%, 0.0%] (n=20)",
+   "surfaced": "5.0%",
+   "mean best gate share": "0.67",
+   "last verdicts": {
+    "FAILED": "1"
+   }
+  },
+  {
+   "split": "development",
+   "kind": "identity_null",
+   "n": 60,
+   "promoted (FP)": 0,
+   "FP rate": "0.0% [0.0%, 0.0%] (n=60)",
+   "surfaced": "20.0%",
+   "mean best gate share": "0.62",
+   "last verdicts": {
+    "FAILED": "7",
+    "QUARANTINED": "5"
+   }
+  },
+  {
+   "split": "development",
+   "kind": "interaction_component",
+   "n": 40,
+   "promoted (FP)": 0,
+   "FP rate": "0.0% [0.0%, 0.0%] (n=40)",
+   "surfaced": "7.5%",
+   "mean best gate share": "0.58",
+   "last verdicts": {
+    "FAILED": "2",
+    "QUARANTINED": "1"
+   }
+  },
+  {
+   "split": "development",
+   "kind": "interaction_decoy",
+   "n": 20,
+   "promoted (FP)": 0,
+   "FP rate": "0.0% [0.0%, 0.0%] (n=20)",
+   "surfaced": "0.0%",
+   "mean best gate share": "n/a",
+   "last verdicts": {}
+  },
+  {
+   "split": "development",
+   "kind": "leak",
+   "n": 30,
+   "promoted (FP)": 10,
+   "FP rate": "33.3% [30.0%, 40.0%] (n=30)",
+   "surfaced": "100.0%",
+   "mean best gate share": "0.93",
+   "last verdicts": {
+    "FAILED": "20",
+    "PROMOTE": "10"
+   }
+  },
+  {
+   "split": "development",
+   "kind": "mt_winner",
+   "n": 180,
+   "promoted (FP)": 0,
+   "FP rate": "0.0% [0.0%, 0.0%] (n=180)",
+   "surfaced": "13.9%",
+   "mean best gate share": "0.56",
+   "last verdicts": {
+    "QUARANTINED": "21",
+    "FAILED": "4"
+   }
+  },
+  {
+   "split": "development",
+   "kind": "near_pattern",
+   "n": 45,
+   "promoted (FP)": 0,
+   "FP rate": "0.0% [0.0%, 0.0%] (n=45)",
+   "surfaced": "13.3%",
+   "mean best gate share": "0.61",
+   "last verdicts": {
+    "QUARANTINED": "4",
+    "FAILED": "2"
+   }
+  },
+  {
+   "split": "development",
+   "kind": "null",
+   "n": 140,
+   "promoted (FP)": 0,
+   "FP rate": "0.0% [0.0%, 0.0%] (n=140)",
+   "surfaced": "7.1%",
+   "mean best gate share": "0.58",
+   "last verdicts": {
+    "FAILED": "5",
+    "QUARANTINED": "5"
+   }
+  },
+  {
+   "split": "development",
+   "kind": "proxy",
+   "n": 30,
+   "promoted (FP)": 0,
+   "FP rate": "0.0% [0.0%, 0.0%] (n=30)",
+   "surfaced": "46.7%",
+   "mean best gate share": "0.75",
+   "last verdicts": {
+    "FAILED": "11",
+    "QUARANTINED": "3"
+   }
+  },
+  {
+   "split": "development",
+   "kind": "regime_corr",
+   "n": 40,
+   "promoted (FP)": 0,
+   "FP rate": "0.0% [0.0%, 0.0%] (n=40)",
+   "surfaced": "0.0%",
+   "mean best gate share": "n/a",
+   "last verdicts": {}
+  },
+  {
+   "split": "development",
+   "kind": "reversal",
+   "n": 30,
+   "promoted (FP)": 0,
+   "FP rate": "0.0% [0.0%, 0.0%] (n=30)",
+   "surfaced": "0.0%",
+   "mean best gate share": "n/a",
+   "last verdicts": {}
+  },
+  {
+   "split": "development",
+   "kind": "sample_size",
+   "n": 40,
+   "promoted (FP)": 0,
+   "FP rate": "0.0% [0.0%, 0.0%] (n=40)",
+   "surfaced": "0.0%",
+   "mean best gate share": "n/a",
+   "last verdicts": {}
+  },
+  {
+   "split": "development",
+   "kind": "selection_bias",
+   "n": 20,
+   "promoted (FP)": 0,
+   "FP rate": "0.0% [0.0%, 0.0%] (n=20)",
+   "surfaced": "0.0%",
+   "mean best gate share": "n/a",
+   "last verdicts": {}
+  },
+  {
+   "split": "development",
+   "kind": "strong_nontransferable",
+   "n": 30,
+   "promoted (FP)": 0,
+   "FP rate": "0.0% [0.0%, 0.0%] (n=30)",
+   "surfaced": "16.7%",
+   "mean best gate share": "0.55",
+   "last verdicts": {
+    "QUARANTINED": "3",
+    "FAILED": "2"
+   }
+  },
+  {
+   "split": "development",
+   "kind": "survivor_bias",
+   "n": 30,
+   "promoted (FP)": 0,
+   "FP rate": "0.0% [0.0%, 0.0%] (n=30)",
+   "surfaced": "13.3%",
+   "mean best gate share": "0.52",
+   "last verdicts": {
+    "FAILED": "2",
+    "QUARANTINED": "2"
+   }
+  },
+  {
+   "split": "development",
+   "kind": "threshold_illusion",
+   "n": 60,
+   "promoted (FP)": 0,
+   "FP rate": "0.0% [0.0%, 0.0%] (n=60)",
+   "surfaced": "6.7%",
+   "mean best gate share": "0.48",
+   "last verdicts": {
+    "FAILED": "3",
+    "QUARANTINED": "1"
+   }
+  },
+  {
+   "split": "development",
+   "kind": "vol_corr",
+   "n": 40,
+   "promoted (FP)": 0,
+   "FP rate": "0.0% [0.0%, 0.0%] (n=40)",
+   "surfaced": "12.5%",
+   "mean best gate share": "0.50",
+   "last verdicts": {
+    "QUARANTINED": "4",
+    "FAILED": "1"
+   }
+  },
+  {
+   "split": "development",
+   "kind": "xor_trap",
+   "n": 20,
+   "promoted (FP)": 0,
+   "FP rate": "0.0% [0.0%, 0.0%] (n=20)",
+   "surfaced": "30.0%",
+   "mean best gate share": "0.51",
+   "last verdicts": {
+    "QUARANTINED": "5",
+    "FAILED": "1"
+   }
+  },
+  {
+   "split": "heldout",
+   "kind": "adversarial_near",
+   "n": 30,
+   "promoted (FP)": 0,
+   "FP rate": "0.0% [0.0%, 0.0%] (n=30)",
+   "surfaced": "13.3%",
+   "mean best gate share": "0.58",
+   "last verdicts": {
+    "QUARANTINED": "4"
+   }
+  },
+  {
+   "split": "heldout",
+   "kind": "autocorr_trap",
+   "n": 50,
+   "promoted (FP)": 0,
+   "FP rate": "0.0% [0.0%, 0.0%] (n=50)",
+   "surfaced": "24.0%",
+   "mean best gate share": "0.61",
+   "last verdicts": {
+    "FAILED": "6",
+    "QUARANTINED": "6"
+   }
+  },
+  {
+   "split": "heldout",
+   "kind": "base_null",
+   "n": 35,
+   "promoted (FP)": 0,
+   "FP rate": "0.0% [0.0%, 0.0%] (n=35)",
+   "surfaced": "22.9%",
+   "mean best gate share": "0.51",
+   "last verdicts": {
+    "QUARANTINED": "5",
+    "FAILED": "3"
+   }
+  },
+  {
+   "split": "heldout",
+   "kind": "coincidence",
+   "n": 15,
+   "promoted (FP)": 0,
+   "FP rate": "0.0% [0.0%, 0.0%] (n=15)",
+   "surfaced": "0.0%",
+   "mean best gate share": "n/a",
+   "last verdicts": {}
+  },
+  {
+   "split": "heldout",
+   "kind": "context",
+   "n": 5,
+   "promoted (FP)": 0,
+   "FP rate": "0.0% [0.0%, 0.0%] (n=5)",
+   "surfaced": "60.0%",
+   "mean best gate share": "0.58",
+   "last verdicts": {
+    "FAILED": "3"
+   }
+  },
+  {
+   "split": "heldout",
+   "kind": "delayed_coincidence",
+   "n": 15,
+   "promoted (FP)": 0,
+   "FP rate": "0.0% [0.0%, 0.0%] (n=15)",
+   "surfaced": "13.3%",
+   "mean best gate share": "0.58",
+   "last verdicts": {
+    "FAILED": "1",
+    "QUARANTINED": "1"
+   }
+  },
+  {
+   "split": "heldout",
+   "kind": "early_decay",
+   "n": 10,
+   "promoted (FP)": 0,
+   "FP rate": "0.0% [0.0%, 0.0%] (n=10)",
+   "surfaced": "10.0%",
+   "mean best gate share": "0.67",
+   "last verdicts": {
+    "QUARANTINED": "1"
+   }
+  },
+  {
+   "split": "heldout",
+   "kind": "fluke",
+   "n": 10,
+   "promoted (FP)": 0,
+   "FP rate": "0.0% [0.0%, 0.0%] (n=10)",
+   "surfaced": "0.0%",
+   "mean best gate share": "n/a",
+   "last verdicts": {}
+  },
+  {
+   "split": "heldout",
+   "kind": "identity_null",
+   "n": 30,
+   "promoted (FP)": 0,
+   "FP rate": "0.0% [0.0%, 0.0%] (n=30)",
+   "surfaced": "30.0%",
+   "mean best gate share": "0.64",
+   "last verdicts": {
+    "FAILED": "5",
+    "QUARANTINED": "4"
+   }
+  },
+  {
+   "split": "heldout",
+   "kind": "interaction_component",
+   "n": 20,
+   "promoted (FP)": 0,
+   "FP rate": "0.0% [0.0%, 0.0%] (n=20)",
+   "surfaced": "0.0%",
+   "mean best gate share": "n/a",
+   "last verdicts": {}
+  },
+  {
+   "split": "heldout",
+   "kind": "interaction_decoy",
+   "n": 10,
+   "promoted (FP)": 0,
+   "FP rate": "0.0% [0.0%, 0.0%] (n=10)",
+   "surfaced": "20.0%",
+   "mean best gate share": "0.50",
+   "last verdicts": {
+    "QUARANTINED": "2"
+   }
+  },
+  {
+   "split": "heldout",
+   "kind": "leak",
+   "n": 20,
+   "promoted (FP)": 15,
+   "FP rate": "75.0% [75.0%, 75.0%] (n=20)",
+   "surfaced": "100.0%",
+   "mean best gate share": "0.98",
+   "last verdicts": {
+    "PROMOTE": "15",
+    "FAILED": "3",
+    "NEEDS_MORE_EVIDENCE": "2"
+   }
+  },
+  {
+   "split": "heldout",
+   "kind": "mt_winner",
+   "n": 120,
+   "promoted (FP)": 0,
+   "FP rate": "0.0% [0.0%, 0.0%] (n=120)",
+   "surfaced": "5.0%",
+   "mean best gate share": "0.53",
+   "last verdicts": {
+    "QUARANTINED": "4",
+    "FAILED": "2"
+   }
+  },
+  {
+   "split": "heldout",
+   "kind": "near_pattern",
+   "n": 30,
+   "promoted (FP)": 0,
+   "FP rate": "0.0% [0.0%, 0.0%] (n=30)",
+   "surfaced": "0.0%",
+   "mean best gate share": "n/a",
+   "last verdicts": {}
+  },
+  {
+   "split": "heldout",
+   "kind": "null",
+   "n": 10,
+   "promoted (FP)": 0,
+   "FP rate": "0.0% [0.0%, 0.0%] (n=10)",
+   "surfaced": "20.0%",
+   "mean best gate share": "0.46",
+   "last verdicts": {
+    "QUARANTINED": "1",
+    "FAILED": "1"
+   }
+  },
+  {
+   "split": "heldout",
+   "kind": "proxy",
+   "n": 15,
+   "promoted (FP)": 0,
+   "FP rate": "0.0% [0.0%, 0.0%] (n=15)",
+   "surfaced": "13.3%",
+   "mean best gate share": "0.75",
+   "last verdicts": {
+    "FAILED": "2"
+   }
+  },
+  {
+   "split": "heldout",
+   "kind": "regime_corr",
+   "n": 20,
+   "promoted (FP)": 0,
+   "FP rate": "0.0% [0.0%, 0.0%] (n=20)",
+   "surfaced": "5.0%",
+   "mean best gate share": "0.75",
+   "last verdicts": {
+    "FAILED": "1"
+   }
+  },
+  {
+   "split": "heldout",
+   "kind": "reversal",
+   "n": 15,
+   "promoted (FP)": 0,
+   "FP rate": "0.0% [0.0%, 0.0%] (n=15)",
+   "surfaced": "0.0%",
+   "mean best gate share": "n/a",
+   "last verdicts": {}
+  },
+  {
+   "split": "heldout",
+   "kind": "sample_size",
+   "n": 20,
+   "promoted (FP)": 0,
+   "FP rate": "0.0% [0.0%, 0.0%] (n=20)",
+   "surfaced": "0.0%",
+   "mean best gate share": "n/a",
+   "last verdicts": {}
+  },
+  {
+   "split": "heldout",
+   "kind": "selection_bias",
+   "n": 10,
+   "promoted (FP)": 0,
+   "FP rate": "0.0% [0.0%, 0.0%] (n=10)",
+   "surfaced": "0.0%",
+   "mean best gate share": "n/a",
+   "last verdicts": {}
+  },
+  {
+   "split": "heldout",
+   "kind": "strong_nontransferable",
+   "n": 20,
+   "promoted (FP)": 0,
+   "FP rate": "0.0% [0.0%, 0.0%] (n=20)",
+   "surfaced": "10.0%",
+   "mean best gate share": "0.54",
+   "last verdicts": {
+    "FAILED": "2"
+   }
+  },
+  {
+   "split": "heldout",
+   "kind": "survivor_bias",
+   "n": 20,
+   "promoted (FP)": 0,
+   "FP rate": "0.0% [0.0%, 0.0%] (n=20)",
+   "surfaced": "25.0%",
+   "mean best gate share": "0.60",
+   "last verdicts": {
+    "FAILED": "3",
+    "QUARANTINED": "2"
+   }
+  },
+  {
+   "split": "heldout",
+   "kind": "threshold_illusion",
+   "n": 40,
+   "promoted (FP)": 0,
+   "FP rate": "0.0% [0.0%, 0.0%] (n=40)",
+   "surfaced": "7.5%",
+   "mean best gate share": "0.53",
+   "last verdicts": {
+    "FAILED": "2",
+    "QUARANTINED": "1"
+   }
+  },
+  {
+   "split": "heldout",
+   "kind": "vol_corr",
+   "n": 20,
+   "promoted (FP)": 0,
+   "FP rate": "0.0% [0.0%, 0.0%] (n=20)",
+   "surfaced": "40.0%",
+   "mean best gate share": "0.56",
+   "last verdicts": {
+    "FAILED": "5",
+    "QUARANTINED": "3"
+   }
+  },
+  {
+   "split": "heldout",
+   "kind": "xor_trap",
+   "n": 10,
+   "promoted (FP)": 0,
+   "FP rate": "0.0% [0.0%, 0.0%] (n=10)",
+   "surfaced": "20.0%",
+   "mean best gate share": "0.54",
+   "last verdicts": {
+    "QUARANTINED": "2"
+   }
+  }
+ ],
+ "closeness": [
+  {
+   "split": "development",
+   "label": "NOISE",
+   "n": 1115,
+   "brier": 0.12066689141996141,
+   "mean confidence": 0.22109749885469535,
+   "mean |effect error|": 0.011836009888062056,
+   "mean effect error": 0.003788778734117552,
+   "sign agreement": 0.7815126050420168,
+   "median final rank": 326.0,
+   "just below the line (t in [1.5, 2))": 46,
+   "partial credit": 0.0,
+   "near misses": {
+    "false positive": "10"
+   }
+  },
+  {
+   "split": "development",
+   "label": "REAL",
+   "n": 100,
+   "brier": 0.523035856145744,
+   "mean confidence": 0.40053979187875344,
+   "mean |effect error|": 0.007549241134966853,
+   "mean effect error": -0.0029662818558548244,
+   "sign agreement": 1.0,
+   "median final rank": 80.0,
+   "just below the line (t in [1.5, 2))": 6,
+   "partial credit": 1.0,
+   "near misses": {
+    "surfaced, not promoted": "42",
+    "found": "1"
+   }
+  },
+  {
+   "split": "heldout",
+   "label": "NOISE",
+   "n": 580,
+   "brier": 0.1778436148283069,
+   "mean confidence": 0.29874352180476127,
+   "mean |effect error|": 0.01734507032911695,
+   "mean effect error": 0.0086844222528914,
+   "sign agreement": 0.6511627906976745,
+   "median final rank": 336.0,
+   "just below the line (t in [1.5, 2))": 35,
+   "partial credit": 0.0,
+   "near misses": {
+    "false positive": "15"
+   }
+  },
+  {
+   "split": "heldout",
+   "label": "REAL",
+   "n": 50,
+   "brier": 0.5136884355293366,
+   "mean confidence": 0.4063295298915805,
+   "mean |effect error|": 0.006770941599039797,
+   "mean effect error": -0.0012265104497254473,
+   "sign agreement": 1.0,
+   "median final rank": 139.5,
+   "just below the line (t in [1.5, 2))": 2,
+   "partial credit": 0.0,
+   "near misses": {
+    "surfaced, not promoted": "20"
+   }
+  }
+ ],
+ "calibration": [
+  {
+   "bin": "[0.0, 0.5)",
+   "n": 1480,
+   "share_real": 0.06283783783783783,
+   "mean_conf": 0.13102900194557193,
+   "promoted": 0.0
+  },
+  {
+   "bin": "[0.5, 0.8)",
+   "n": 185,
+   "share_real": 0.07027027027027027,
+   "mean_conf": 0.6246921684063165,
+   "promoted": 0.0
+  },
+  {
+   "bin": "[0.8, 0.9)",
+   "n": 39,
+   "share_real": 0.20512820512820512,
+   "mean_conf": 0.8458172166385821,
+   "promoted": 0.0
+  },
+  {
+   "bin": "[0.9, 0.95)",
+   "n": 35,
+   "share_real": 0.17142857142857143,
+   "mean_conf": 0.9173809514128791,
+   "promoted": 0.0
+  },
+  {
+   "bin": "[0.95, 0.99)",
+   "n": 17,
+   "share_real": 0.35294117647058826,
+   "mean_conf": 0.9752488687782805,
+   "promoted": 0.0
+  },
+  {
+   "bin": "[0.99, 1.0)",
+   "n": 89,
+   "share_real": 0.2696629213483146,
+   "mean_conf": 1.0,
+   "promoted": 0.29213483146067415
+  }
+ ],
+ "failures": [
+  {
+   "failure": "noise promoted: leak",
+   "where": "promoted",
+   "eras": {
+    "trending": "19",
+    "crisis": "6"
+   },
+   "count": 25,
+   "per_100_worlds": 833.3333333333334
+  },
+  {
+   "failure": "real only detectable in its true form (single-feature screen cannot represent it): interactive",
+   "where": "candidate generation",
+   "eras": {
+    "trending": "7",
+    "crisis": "4"
+   },
+   "count": 11,
+   "per_100_worlds": 366.6666666666667
+  },
+  {
+   "failure": "real only detectable in its true form (single-feature screen cannot represent it): xor",
+   "where": "candidate generation",
+   "eras": {
+    "trending": "7",
+    "crisis": "4"
+   },
+   "count": 11,
+   "per_100_worlds": 366.6666666666667
+  },
+  {
+   "failure": "real only detectable in its true form (single-feature screen cannot represent it): delayed",
+   "where": "candidate generation",
+   "eras": {
+    "trending": "3",
+    "crisis": "3"
+   },
+   "count": 6,
+   "per_100_worlds": 200.0
+  },
+  {
+   "failure": "real only detectable in its true form (single-feature screen cannot represent it): rare",
+   "where": "candidate generation",
+   "eras": {
+    "trending": "3",
+    "crisis": "2"
+   },
+   "count": 5,
+   "per_100_worlds": 166.66666666666666
+  },
+  {
+   "failure": "detectable real missed: conditional (moderate, obvious)",
+   "where": "live: FAILED blocked by calibration,replication",
+   "eras": {
+    "trending": "2",
+    "crisis": "1"
+   },
+   "count": 3,
+   "per_100_worlds": 100.0
+  },
+  {
+   "failure": "detectable real missed: linear (moderate, subtle)",
+   "where": "live: FAILED blocked by calibration,complexity,out_of_sample,replication",
+   "eras": {
+    "crisis": "2",
+    "trending": "1"
+   },
+   "count": 3,
+   "per_100_worlds": 100.0
+  },
+  {
+   "failure": "detectable real missed: linear (moderate, obvious)",
+   "where": "live: FAILED blocked by calibration,replication",
+   "eras": {
+    "trending": "2",
+    "crisis": "1"
+   },
+   "count": 3,
+   "per_100_worlds": 100.0
+  },
+  {
+   "failure": "detectable real missed: lifecycle (moderate, obvious)",
+   "where": "live: FAILED blocked by calibration,replication",
+   "eras": {
+    "trending": "2",
+    "crisis": "1"
+   },
+   "count": 3,
+   "per_100_worlds": 100.0
+  },
+  {
+   "failure": "detectable real missed: lifecycle (moderate, obvious)",
+   "where": "live: FAILED blocked by calibration,complexity,replication",
+   "eras": {
+    "trending": "2",
+    "crisis": "1"
+   },
+   "count": 3,
+   "per_100_worlds": 100.0
+  },
+  {
+   "failure": "real only detectable in its true form (single-feature screen cannot represent it): regime",
+   "where": "candidate generation",
+   "eras": {
+    "trending": "3"
+   },
+   "count": 3,
+   "per_100_worlds": 100.0
+  },
+  {
+   "failure": "detectable real missed: changing (moderate, subtle)",
+   "where": "screen: never raised",
+   "eras": {
+    "trending": "2"
+   },
+   "count": 2,
+   "per_100_worlds": 66.66666666666667
+  },
+  {
+   "failure": "detectable real missed: conditional (moderate)",
+   "where": "live: FAILED blocked by calibration,complexity,replication",
+   "eras": {
+    "crisis": "1",
+    "trending": "1"
+   },
+   "count": 2,
+   "per_100_worlds": 66.66666666666667
+  },
+  {
+   "failure": "detectable real missed: changing (obvious)",
+   "where": "live: FAILED blocked by calibration,replication,risk",
+   "eras": {
+    "crisis": "1",
+    "trending": "1"
+   },
+   "count": 2,
+   "per_100_worlds": 66.66666666666667
+  },
+  {
+   "failure": "detectable real missed: changing (moderate, obvious)",
+   "where": "live: FAILED blocked by calibration,complexity,replication,transfer",
+   "eras": {
+    "trending": "1",
+    "crisis": "1"
+   },
+   "count": 2,
+   "per_100_worlds": 66.66666666666667
+  },
+  {
+   "failure": "detectable real missed: threshold (moderate)",
+   "where": "live: FAILED blocked by calibration,complexity,out_of_sample,replication,transfer",
+   "eras": {
+    "trending": "1",
+    "crisis": "1"
+   },
+   "count": 2,
+   "per_100_worlds": 66.66666666666667
+  },
+  {
+   "failure": "detectable real missed: regime (faint, subtle)",
+   "where": "live: FAILED blocked by calibration,complexity,replication",
+   "eras": {
+    "crisis": "2"
+   },
+   "count": 2,
+   "per_100_worlds": 66.66666666666667
+  },
+  {
+   "failure": "real only detectable in its true form (single-feature screen cannot represent it): conditional",
+   "where": "candidate generation",
+   "eras": {
+    "crisis": "1",
+    "trending": "1"
+   },
+   "count": 2,
+   "per_100_worlds": 66.66666666666667
+  },
+  {
+   "failure": "detectable real missed: linear (extremely_subtle, faint)",
+   "where": "screen: never raised",
+   "eras": {
+    "crisis": "1",
+    "trending": "1"
+   },
+   "count": 2,
+   "per_100_worlds": 66.66666666666667
+  },
+  {
+   "failure": "real only detectable in its true form (single-feature screen cannot represent it): threshold",
+   "where": "candidate generation",
+   "eras": {
+    "trending": "2"
+   },
+   "count": 2,
+   "per_100_worlds": 66.66666666666667
+  },
+  {
+   "failure": "detectable real missed: conditional (subtle)",
+   "where": "quarantined: QUARANTINED blocked by calibration,complexity,identity,leakage,out_of_sample,replication,transfer",
+   "eras": {
+    "trending": "2"
+   },
+   "count": 2,
+   "per_100_worlds": 66.66666666666667
+  },
+  {
+   "failure": "detectable real missed: changing (moderate)",
+   "where": "live: FAILED blocked by calibration,complexity,replication",
+   "eras": {
+    "trending": "1"
+   },
+   "count": 1,
+   "per_100_worlds": 33.333333333333336
+  },
+  {
+   "failure": "detectable real missed: delayed (obvious)",
+   "where": "quarantined: QUARANTINED blocked by calibration,complexity,identity,leakage,out_of_sample,replication",
+   "eras": {
+    "trending": "1"
+   },
+   "count": 1,
+   "per_100_worlds": 33.333333333333336
+  },
+  {
+   "failure": "detectable real missed: delayed (subtle)",
+   "where": "live: FAILED blocked by calibration,complexity,out_of_sample,replication,transfer",
+   "eras": {
+    "trending": "1"
+   },
+   "count": 1,
+   "per_100_worlds": 33.333333333333336
+  },
+  {
+   "failure": "detectable real missed: delayed (obvious)",
+   "where": "live: FAILED blocked by calibration,complexity,out_of_sample,replication",
+   "eras": {
+    "trending": "1"
+   },
+   "count": 1,
+   "per_100_worlds": 33.333333333333336
+  },
+  {
+   "failure": "detectable real missed: conditional (obvious)",
+   "where": "live: FAILED blocked by calibration,complexity,replication,transfer",
+   "eras": {
+    "trending": "1"
+   },
+   "count": 1,
+   "per_100_worlds": 33.333333333333336
+  },
+  {
+   "failure": "detectable real missed: conditional (faint)",
+   "where": "live: FAILED blocked by calibration,complexity,out_of_sample,replication,transfer",
+   "eras": {
+    "trending": "1"
+   },
+   "count": 1,
+   "per_100_worlds": 33.333333333333336
+  },
+  {
+   "failure": "detectable real missed: changing (subtle)",
+   "where": "live: FAILED blocked by calibration,out_of_sample,replication",
+   "eras": {
+    "trending": "1"
+   },
+   "count": 1,
+   "per_100_worlds": 33.333333333333336
+  },
+  {
+   "failure": "detectable real missed: linear (obvious)",
+   "where": "live: FAILED blocked by calibration,complexity,replication",
+   "eras": {
+    "trending": "1"
+   },
+   "count": 1,
+   "per_100_worlds": 33.333333333333336
+  },
+  {
+   "failure": "detectable real missed: lifecycle (extremely_subtle)",
+   "where": "screen: never raised",
+   "eras": {
+    "crisis": "1"
+   },
+   "count": 1,
+   "per_100_worlds": 33.333333333333336
+  },
+  {
+   "failure": "detectable real missed: regime (moderate)",
+   "where": "live: FAILED blocked by calibration,complexity,out_of_sample,replication,transfer",
+   "eras": {
+    "trending": "1"
+   },
+   "count": 1,
+   "per_100_worlds": 33.333333333333336
+  },
+  {
+   "failure": "detectable real missed: regime (obvious)",
+   "where": "live: FAILED blocked by calibration,complexity,out_of_sample,replication",
+   "eras": {
+    "trending": "1"
+   },
+   "count": 1,
+   "per_100_worlds": 33.333333333333336
+  },
+  {
+   "failure": "detectable real missed: rare (obvious)",
+   "where": "quarantined: QUARANTINED blocked by calibration,complexity,identity,leakage,out_of_sample,replication,risk,transfer",
+   "eras": {
+    "crisis": "1"
+   },
+   "count": 1,
+   "per_100_worlds": 33.333333333333336
+  },
+  {
+   "failure": "detectable real missed: rare (obvious)",
+   "where": "live: FAILED blocked by calibration,out_of_sample,replication,transfer",
+   "eras": {
+    "trending": "1"
+   },
+   "count": 1,
+   "per_100_worlds": 33.333333333333336
+  },
+  {
+   "failure": "detectable real missed: rare (moderate)",
+   "where": "live: FAILED blocked by calibration,out_of_sample,replication",
+   "eras": {
+    "trending": "1"
+   },
+   "count": 1,
+   "per_100_worlds": 33.333333333333336
+  },
+  {
+   "failure": "detectable real missed: rare (obvious)",
+   "where": "live: FAILED blocked by calibration,complexity,out_of_sample,replication,transfer",
+   "eras": {
+    "trending": "1"
+   },
+   "count": 1,
+   "per_100_worlds": 33.333333333333336
+  },
+  {
+   "failure": "detectable real missed: rare (moderate)",
+   "where": "live: FAILED blocked by calibration,complexity,out_of_sample,replication",
+   "eras": {
+    "crisis": "1"
+   },
+   "count": 1,
+   "per_100_worlds": 33.333333333333336
+  },
+  {
+   "failure": "detectable real missed: linear (subtle)",
+   "where": "quarantined: QUARANTINED blocked by calibration,complexity,identity,leakage,out_of_sample,replication,transfer",
+   "eras": {
+    "trending": "1"
+   },
+   "count": 1,
+   "per_100_worlds": 33.333333333333336
+  },
+  {
+   "failure": "detectable real missed: lifecycle (subtle)",
+   "where": "live: FAILED blocked by calibration,complexity,out_of_sample,replication",
+   "eras": {
+    "crisis": "1"
+   },
+   "count": 1,
+   "per_100_worlds": 33.333333333333336
+  },
+  {
+   "failure": "detectable real missed: threshold (obvious)",
+   "where": "live: FAILED blocked by calibration,replication,risk",
+   "eras": {
+    "crisis": "1"
+   },
+   "count": 1,
+   "per_100_worlds": 33.333333333333336
+  },
+  {
+   "failure": "detectable real missed: threshold (subtle)",
+   "where": "quarantined: QUARANTINED blocked by calibration,complexity,identity,leakage,out_of_sample,replication,transfer",
+   "eras": {
+    "trending": "1"
+   },
+   "count": 1,
+   "per_100_worlds": 33.333333333333336
+  },
+  {
+   "failure": "detectable real missed: threshold (obvious)",
+   "where": "live: FAILED blocked by calibration,out_of_sample,replication",
+   "eras": {
+    "trending": "1"
+   },
+   "count": 1,
+   "per_100_worlds": 33.333333333333336
+  },
+  {
+   "failure": "detectable real missed: threshold (obvious)",
+   "where": "live: FAILED blocked by calibration,complexity,out_of_sample,replication",
+   "eras": {
+    "trending": "1"
+   },
+   "count": 1,
+   "per_100_worlds": 33.333333333333336
+  },
+  {
+   "failure": "detectable real missed: regime (moderate)",
+   "where": "live: FAILED blocked by calibration,replication",
+   "eras": {
+    "crisis": "1"
+   },
+   "count": 1,
+   "per_100_worlds": 33.333333333333336
+  },
+  {
+   "failure": "detectable real missed: threshold (moderate)",
+   "where": "live: FAILED blocked by calibration,out_of_sample,replication,transfer",
+   "eras": {
+    "trending": "1"
+   },
+   "count": 1,
+   "per_100_worlds": 33.333333333333336
+  },
+  {
+   "failure": "detectable real missed: threshold (subtle)",
+   "where": "screen: never raised",
+   "eras": {
+    "crisis": "1"
+   },
+   "count": 1,
+   "per_100_worlds": 33.333333333333336
+  }
+ ],
+ "gates": [
+  {
+   "gate": "calibration",
+   "real (detectable, not promoted)": "100.0% of 50",
+   "noise (gated)": "86.9% of 236"
+  },
+  {
+   "gate": "complexity",
+   "real (detectable, not promoted)": "64.0% of 50",
+   "noise (gated)": "73.3% of 236"
+  },
+  {
+   "gate": "failure_behavior",
+   "real (detectable, not promoted)": "0.0% of 50",
+   "noise (gated)": "1.7% of 236"
+  },
+  {
+   "gate": "identity",
+   "real (detectable, not promoted)": "12.0% of 50",
+   "noise (gated)": "43.6% of 236"
+  },
+  {
+   "gate": "leakage",
+   "real (detectable, not promoted)": "12.0% of 50",
+   "noise (gated)": "43.6% of 236"
+  },
+  {
+   "gate": "out_of_sample",
+   "real (detectable, not promoted)": "50.0% of 50",
+   "noise (gated)": "75.0% of 236"
+  },
+  {
+   "gate": "replication",
+   "real (detectable, not promoted)": "100.0% of 50",
+   "noise (gated)": "82.6% of 236"
+  },
+  {
+   "gate": "reproducibility",
+   "real (detectable, not promoted)": "0.0% of 50",
+   "noise (gated)": "6.4% of 236"
+  },
+  {
+   "gate": "risk",
+   "real (detectable, not promoted)": "8.0% of 50",
+   "noise (gated)": "21.2% of 236"
+  },
+  {
+   "gate": "transfer",
+   "real (detectable, not promoted)": "32.0% of 50",
+   "noise (gated)": "57.6% of 236"
+  }
+ ],
+ "tier": [
+  {
+   "split": "development",
+   "tier": 3,
+   "worlds": 1,
+   "recall (detectable)": "0.0% [0.0%, 0.0%] (n=18)",
+   "precision": "0.0%",
+   "FDR": "100.0%",
+   "FP / world": "4.00",
+   "noise rejected": "99.3% [99.3%, 99.3%] (n=535)",
+   "worlds with nothing promoted": "0/1"
+  },
+  {
+   "split": "development",
+   "tier": 4,
+   "worlds": 1,
+   "recall (detectable)": "4.8% [4.8%, 4.8%] (n=21)",
+   "precision": "14.3%",
+   "FDR": "85.7%",
+   "FP / world": "6.00",
+   "noise rejected": "99.0% [99.0%, 99.0%] (n=580)",
+   "worlds with nothing promoted": "0/1"
+  },
+  {
+   "split": "heldout",
+   "tier": 6,
+   "worlds": 1,
+   "recall (detectable)": "0.0% [0.0%, 0.0%] (n=18)",
+   "precision": "0.0%",
+   "FDR": "100.0%",
+   "FP / world": "15.00",
+   "noise rejected": "97.4% [97.4%, 97.4%] (n=580)",
+   "worlds with nothing promoted": "0/1"
+  }
+ ],
+ "world": [
+  {
+   "world_id": "W00000",
+   "split": "heldout",
+   "tier": 6,
+   "eval_era": "trending",
+   "shift": true,
+   "real_right": 0,
+   "real_detectable": 18,
+   "real_total": 50,
+   "noise_rejected": 565,
+   "noise_total": 580,
+   "false_positives": 15,
+   "expected_fp_stated_alpha": 0.006115809418860474,
+   "seconds": 1217.2
+  },
+  {
+   "world_id": "W00001",
+   "split": "development",
+   "tier": 4,
+   "eval_era": "crisis",
+   "shift": true,
+   "real_right": 1,
+   "real_detectable": 21,
+   "real_total": 50,
+   "noise_rejected": 574,
+   "noise_total": 580,
+   "false_positives": 6,
+   "expected_fp_stated_alpha": 0.009049256050898569,
+   "seconds": 1272.5
+  },
+  {
+   "world_id": "W00002",
+   "split": "development",
+   "tier": 3,
+   "eval_era": "trending",
+   "shift": true,
+   "real_right": 0,
+   "real_detectable": 18,
+   "real_total": 50,
+   "noise_rejected": 531,
+   "noise_total": 535,
+   "false_positives": 4,
+   "expected_fp_stated_alpha": 0.011617976549611053,
+   "seconds": 1263.2
+  }
+ ],
+ "learning_curve": [
+  {
+   "history_worlds": 1,
+   "next_worlds": 2,
+   "recall_next": 0.02564102564102564,
+   "fp_per_world_next": 5.0,
+   "noise_rejection_next": 0.9910313901345291
+  }
+ ]
+}

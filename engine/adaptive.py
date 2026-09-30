@@ -767,7 +767,7 @@ class Session:
             else:
                 det = None
             snap_k, tilt, kscale, kinfo = knowledge_adjust(snap, self.release, self.cfg)
-            target = pick(snap_k, self.cfg, held, self.divs, det, tilt)
+            target = pick(snap_k, self.cfg, held, self.divs, det) if tilt is None else pick(snap_k, self.cfg, held, self.divs, det, tilt)
             if self.release is not None:
                 target = target * kscale
                 self.knowledge_log.append({"decision_date": str(day.date()), **kinfo, "scale": kscale})

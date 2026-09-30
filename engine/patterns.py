@@ -42,7 +42,9 @@ MINER_DEFAULT = {"half_life_years": 4.0, "ctx_bandwidth": 1.5, "fdr_q": 0.05, "m
                  "era_weights": None,           # learned later (blueprint 29); None = neutral
                  "ts_min_history": 60, "top_singles": 60, "unless_top_pairs": 40, "unless_thirds": 15,
                  "conf_frac": 0.3, "p_real_min": 0.8, "gate_min_gain": 0.0005, "null_reps": 2, "null_search": "full",       # "full" repeats the staged search on shuffled outcomes; "masks" reuses the real masks
-                 "null_max_patterns": 1500, "redundancy_overlap": 0.8}
+                 "null_max_patterns": 1500, "redundancy_overlap": 0.8,
+                 # F25: admission spends the FDR budget on the confirmation block (see _confirmation_fdr); None = fdr_q
+                 "confirm_fdr": True, "confirm_q": None}
 CTX = ["m_vix", "m_vix_term", "m_spy_ma200", "m_breadth", "m_dispersion"]
 
 
@@ -99,6 +101,7 @@ class PatternMiner:
         self.overlap = {}
         self.ctx_names = []           # context columns present at fit time; a rescoped pattern's scope indexes into this
         self._ctx_series = {}
+        self.confirm_summary = {}
 
     @property
     def all_feats(self):
@@ -303,7 +306,7 @@ class PatternMiner:
         R["p_real"] = _S.p_real(R["p_hallucinated"].values, pv, R["conf_factor"].values, P["p_method"])
         self.null_summary = {"null_patterns": int(len(null_t)), "null_t_95pct": float(np.quantile(null_t, 0.95)),
                              "real_t_95pct": float(np.quantile(real_t, 0.95))}
-        R["confirmed"] = (R["p_real"] >= P["p_real_min"])
+        R["confirmed"] = (R["p_real"] >= P["p_real_min"]) & _confirmation_fdr(R, P, self)
         R["effect_k"] = _S.shrink_effect(R["m_all"].values, R["n_eff"].values, P["shrink_k"])     # shrunk by evidence
         R["effect_eb"] = _S.eb_shrink(R["m_all"].values, R["se_all"].values, center=0.0)["post_mean"]
         R["effect"] = R["effect_eb"] if P["effect_method"] == "eb" else R["effect_k"]
@@ -392,7 +395,7 @@ class PatternMiner:
         self.patterns = R
         st = R["status"].value_counts().to_dict()
         self.report = {"tested": int(m), "fdr_pass": int(R["fdr_pass"].sum()), **{k: int(v) for k, v in st.items()},
-                       "gate_corr_confirm": round(self.gate_corr, 4), **self.null_summary,
+                       "gate_corr_confirm": round(self.gate_corr, 4), **self.null_summary, **self.confirm_summary,
                        "hac_lags": int(lags), "date_spacing": self.overlap["spacing"],
                        "rows_after_now_dropped": dropped_future, "bank_skipped": len(gen.skipped_bank)}
         self.records = _I.records_from_miner(R, allf, ctx_names, dates, target=P.get("target", "excess_5d"),
@@ -520,6 +523,46 @@ class PatternMiner:
     def export(self):
         P = self.patterns
         return P[P["status"].isin(["active", "rescoped"])][["key", "key_named", "effect", "status"]].copy() if len(P) else P
+
+
+def _confirmation_fdr(R, P, miner):
+    """F25 (30 Sep 2026): the false-discovery budget is spent on the CONFIRMATION block, the only evidence the search
+    never looked at. Returns the boolean admission mask; writes p_confirm / screened / confirm_fdr_pass onto R.
+
+    Why the discovery-side controls could not hold the budget (measured on 40 pure-noise panels, the integration-test
+    generator): pairs are built from the strongest singles and 'unless' exceptions from the strongest pairs, all steered
+    by |t| on the SAME discovery dates they are then tested on. Discovery p < 0.05 for 78.6% of 'unless' candidates and
+    p < 0.01 for 33% (singles: 5.6% / 1.1%, i.e. calibrated), so BH over "every candidate tried" treats selected
+    statistics as fresh tests. The permutation null does replicate that selection, but with ~680 null |t| the local
+    fdr of the most extreme real candidate is 0 whenever it beats every null draw (25 of 31 false admissions had
+    P(hallucinated) = 0). Admission then rested on Phi(|t_conf|) ~ 0.85, a one-sided confirmation p of ~0.15.
+
+    Two-stage procedure: stage 1 SCREENS on discovery evidence only (1 - max(P(hallucinated), corrected P(coincidence))
+    >= p_real_min, exactly the discovery half of P(real)); stage 2 tests every screened candidate once on the
+    confirmation dates with a one-sided p (sign must repeat) and applies Benjamini-Hochberg at `confirm_q` (default
+    fdr_q) over the screened family. Confirmation dates are disjoint from the dates that drove the screen, so those
+    p-values are uniform under the null whatever the search did; under a complete null P(any admission) <= confirm_q."""
+    from .pattern_stats import norm_cdf
+    q = P.get("confirm_q")
+    q = P["fdr_q"] if q is None else float(q)
+    corr = _S.corrected_coincidence(R["p_coincidence"].values, P["p_method"])
+    screen_score = 1.0 - np.maximum(R["p_hallucinated"].values, corr)
+    screened = screen_score >= P["p_real_min"]
+    same = np.sign(R["m_conf"].values) == np.sign(R["m_disc"].values)
+    t_c = np.nan_to_num(np.abs(R["t_conf"].values.astype(float)))
+    p_conf = np.where(same, 1.0 - norm_cdf(t_c), 1.0)
+    R["screened"] = screened
+    R["p_confirm"] = p_conf
+    passed = np.zeros(len(R), bool)
+    if screened.any() and P.get("confirm_fdr", True):
+        idx = np.flatnonzero(screened)
+        passed[idx] = _S.bh_reject(p_conf[idx], q)
+    elif not P.get("confirm_fdr", True):
+        passed[:] = True                                      # legacy admission (pre-F25), kept only for measurement
+    R["confirm_fdr_pass"] = passed
+    miner.confirm_summary = {"screened": int(screened.sum()), "confirm_q": q, "confirm_pass": int((passed & screened).sum()),
+                             "confirm_fdr": bool(P.get("confirm_fdr", True))}
+    return passed
 
 
 def _prior_frame(prior):
