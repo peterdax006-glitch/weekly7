@@ -381,6 +381,189 @@
    ],
    "failed": {},
    "counters": {}
+  },
+  {
+   "cycle": 52,
+   "now": "2018-05-11",
+   "knowledge": [
+    "xs_atr_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 53,
+   "now": "2018-05-18",
+   "knowledge": [
+    "xs_atr_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 54,
+   "now": "2018-05-25",
+   "knowledge": [
+    "xs_atr_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 55,
+   "now": "2018-06-01",
+   "knowledge": [
+    "xs_atr_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 56,
+   "now": "2018-06-08",
+   "knowledge": [
+    "xs_atr_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 57,
+   "now": "2018-06-15",
+   "knowledge": [
+    "xs_atr_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 58,
+   "now": "2018-06-22",
+   "knowledge": [
+    "xs_atr_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 59,
+   "now": "2018-06-29",
+   "knowledge": [
+    "xs_atr_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 60,
+   "now": "2018-07-06",
+   "knowledge": [
+    "xs_atr_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 61,
+   "now": "2018-07-13",
+   "knowledge": [
+    "xs_atr_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 62,
+   "now": "2018-07-20",
+   "knowledge": [
+    "xs_atr_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 63,
+   "now": "2018-07-27",
+   "knowledge": [
+    "xs_atr_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 64,
+   "now": "2018-08-03",
+   "knowledge": [
+    "xs_atr_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 65,
+   "now": "2018-08-10",
+   "knowledge": [
+    "xs_atr_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 66,
+   "now": "2018-08-17",
+   "knowledge": [
+    "xs_atr_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 67,
+   "now": "2018-08-24",
+   "knowledge": [
+    "xs_atr_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 68,
+   "now": "2018-08-31",
+   "knowledge": [
+    "xs_atr_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 69,
+   "now": "2018-09-07",
+   "knowledge": [
+    "xs_atr_rank",
+    "xs_vol_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 70,
+   "now": "2018-09-14",
+   "knowledge": [
+    "xs_atr_rank",
+    "xs_vol_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 71,
+   "now": "2018-09-21",
+   "knowledge": [
+    "xs_atr_rank",
+    "xs_vol_rank"
+   ],
+   "failed": {},
+   "counters": {}
   }
  ],
  "provenance": {
@@ -515,6 +698,24 @@
     }
    ],
    "blocking": {}
+  },
+  "DBRfb5bbfb1ce25": {
+   "feature": "xs_vol_rank",
+   "verdict": "PROMOTE",
+   "looks": 1,
+   "retired": "",
+   "history": [
+    {
+     "look": 1,
+     "cycle": 69,
+     "at": "2018-09-07",
+     "verdict": "PROMOTE",
+     "alpha": 0.03039635509270134,
+     "n_test": 88,
+     "blocking": []
+    }
+   ],
+   "blocking": {}
   }
  },
  "knowledge": {
@@ -524,10 +725,20 @@
    "problem": "VOLATILITY",
    "filed_at": "2018-04-06",
    "effect": 0.332500541544,
-   "branch": "BR5224b8909968"
+   "branch": "BR5224b8909968",
+   "post_effect": 0.34960636418102764,
+   "post_n": 22
+  },
+  "Kfed8f6442b5bec": {
+   "feature": "xs_vol_rank",
+   "sign": 1.0,
+   "problem": "VOLATILITY",
+   "filed_at": "2018-09-07",
+   "effect": 0.276919179763,
+   "branch": "BRfb5bbfb1ce25"
   }
  },
- "seconds": 4249.7,
+ "seconds": 5691.2,
  "truth": {
   "genuine": [
    "lv20",

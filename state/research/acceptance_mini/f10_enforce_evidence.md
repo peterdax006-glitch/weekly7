@@ -2,7 +2,7 @@
 
 Status: IMPLEMENTED - NOT VALIDATED. Planted synthetic world only (C63). Every table is rendered by `scripts/acceptance_mini.py --f10-report` from the summary.json files named here; no number is typed.
 
-Runs: `enforce` = state/research/acceptance_mini/f10_enforce_a,state/research/acceptance_mini/f10_enforce_b,state/research/acceptance_mini/f10_enforce_c,state/research/acceptance_mini/f10_enforce_null, `record` = state/research/acceptance_mini/f10_record_a,state/research/acceptance_mini/f10_record_b,state/research/acceptance_mini/f10_record_c,state/research/acceptance_mini/f10_record_null
+Runs: `enforce` = state/research/acceptance_mini/f10_enforce_a,state/research/acceptance_mini/f10_enforce_b,state/research/acceptance_mini/f10_enforce_c,state/research/acceptance_mini/f10_enforce_null, `record` = state/research/acceptance_mini/f10_record_a,state/research/acceptance_mini/f10_record_b,state/research/acceptance_mini/f10_record_c,state/research/acceptance_mini/f10_record_null, `enforce-bookfix` = state/research/acceptance_mini/f10_enforce_bookfix_6
 
 ## What F10 changed (the gate did not change)
 
@@ -38,24 +38,28 @@ Owner ruling (29 Sep): `learning_claim="enforce"` stays the default and its bar 
 
 | run | seeds | improved | mean vs none (picking seeds) | mean vs none (all seeds) | mean vs control | null seeds | null false improvements | null changed decisions | changed without knowledge |
 |---|---|---|---|---|---|---|---|---|---|
-| enforce | 4 | 1 | +0.01024 | +0.00256 | +0.01024 | 6 | 0 | 0 | 0 |
+| enforce | 6 | 2 | +0.01464 | +0.00488 | +0.01464 | 6 | 0 | 0 | 0 |
 | record | 6 | 5 | +0.01724 | +0.01724 | +0.01724 | 6 | 0 | 0 | 0 |
+| enforce-bookfix | 1 | 0 | n/a | +0.00000 | n/a | 0 | 0 | 0 | 0 |
 
 ## Degrade calls against the planted truth (totals)
 
 | run | false DEGRADEs | correct DEGRADEs | null-world DEGRADEs | false by kind | weeks not ACTIVE by kind (per seed) |
 |---|---|---|---|---|---|
-| enforce | 11 | 4 | 0 | {'decaying': 1, 'negative': 3, 'regime': 6, 'strong': 1} | {'decaying': [112, 194, 105, 100], 'negative': [13, 75, 75, 0], 'regime': [171, 234, 106, 172], 'strong': [0, 0, 75, 0]} |
+| enforce | 17 | 6 | 0 | {'decaying': 2, 'negative': 6, 'regime': 8, 'strong': 1} | {'decaying': [112, 140, 194, 105, 100, 112], 'negative': [13, 66, 75, 75, 0, 33], 'regime': [171, 22, 234, 106, 172, 190], 'strong': [0, 0, 0, 75, 0, 0]} |
 | record | 17 | 6 | 0 | {'decaying': 2, 'negative': 6, 'regime': 8, 'strong': 1} | {'decaying': [112, 140, 194, 105, 100, 112], 'negative': [13, 66, 75, 75, 0, 33], 'regime': [171, 22, 234, 106, 172, 190], 'strong': [0, 0, 0, 75, 0, 0]} |
+| enforce-bookfix | 4 | 1 | 0 | {'decaying': 0, 'negative': 1, 'regime': 2, 'strong': 1} | {'decaying': [105], 'negative': [75], 'regime': [106], 'strong': [75]} |
 
 ## Per seed: what the claim gate saw and what still blocks
 
 | run | seed | world | verdict | production | vs none | vs control | cards valid / built | first valid card | first card the claim gate allowed | claim-gate blockers (last card) | last promotion attempt per pattern |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | enforce | 3 | planted | NO CHANGE: the experience did not alter any decision | 0 | n/a | n/a | 26 / 41 | 2011-02-04 | never | not_memoriser | f0:q4: learning_claim; f1:q0: learning_claim; f1:q4: learning_claim; f2:q0: anti_memorization,learning_claim,oos_confirmation; f2:q4: anti_memorization,learning_claim; f3:q0: learning_claim; f5:q0: an |
+| enforce | 4 | planted | IMPROVED | 2 | +0.01904 | +0.01904 | 24 / 39 | 2011-02-04 | 2013-01-18 | - | f0:q0: learning_claim; f0:q4: PROMOTED; f1:q4: PROMOTED; f2:q4: PROMOTED; f5:q0: anti_memorization,learning_claim,oos_confirmation; f5:q4: learning_claim |
 | enforce | 5 | planted | NO CHANGE: the experience did not alter any decision | 0 | n/a | n/a | 26 / 41 | 2011-02-04 | never | not_memoriser | f0:q0: anti_memorization,learning_claim,oos_confirmation,statistical_validity; f0:q4: learning_claim; f1:q0: learning_claim,oos_confirmation; f1:q4: learning_claim; f2:q4: anti_memorization,learning_c |
 | enforce | 6 | planted | NO CHANGE: the experience did not alter any decision | 0 | n/a | n/a | 15 / 29 | 2011-02-04 | never | not_memoriser | f0:q0: learning_claim,statistical_validity; f0:q4: learning_claim; f1:q0: learning_claim,statistical_validity; f1:q4: learning_claim; f2:q4: anti_memorization,learning_claim; f5:q0: learning_claim,oos |
 | enforce | 7 | planted | IMPROVED | 1 | +0.01024 | +0.01024 | 26 / 41 | 2011-02-04 | 2013-01-18 | - | f0:q0: learning_claim,oos_confirmation; f0:q4: learning_claim; f1:q0: learning_claim; f1:q4: PROMOTED; f2:q4: anti_memorization,learning_claim; f5:q4: learning_claim |
+| enforce | 8 | planted | NO CHANGE: the experience did not alter any decision | 0 | n/a | n/a | 26 / 41 | 2011-02-04 | never | not_memoriser | f0:q0: anti_memorization,learning_claim,oos_confirmation; f0:q4: learning_claim; f1:q4: learning_claim; f2:q4: learning_claim; f5:q4: anti_memorization,learning_claim |
 | enforce | 3 | null | NO CHANGE: the experience did not alter any decision | 0 | n/a | n/a | 0 / 2 | - | never | refused: E_leaky_learner: 'detected' must be recorded (was the planted defect seen?) | f5:q0: learning_claim,oos_confirmation,statistical_validity |
 | enforce | 4 | null | NO CHANGE: the experience did not alter any decision | 0 | n/a | n/a | 0 / 0 | - | never | - | no attempt |
 | enforce | 5 | null | NO CHANGE: the experience did not alter any decision | 0 | n/a | n/a | 0 / 0 | - | never | - | no attempt |
@@ -74,6 +78,7 @@ Owner ruling (29 Sep): `learning_claim="enforce"` stays the default and its bar 
 | record | 6 | null | NO CHANGE: the experience did not alter any decision | 0 | n/a | n/a | 2 / 2 | 2011-02-04 | never | learning_gain, beats_luck_floor, not_memoriser, cross_year_transfer, stability | f0:q0: anti_memorization,oos_confirmation |
 | record | 7 | null | NO CHANGE: the experience did not alter any decision | 0 | n/a | n/a | 0 / 2 | - | never | refused: E_leaky_learner: 'detected' must be recorded (was the planted defect seen?) | f1:q4: anti_memorization,oos_confirmation,statistical_validity |
 | record | 8 | null | NO CHANGE: the experience did not alter any decision | 0 | n/a | n/a | 0 / 0 | - | never | - | no attempt |
+| enforce-bookfix | 6 | planted | NO CHANGE: the experience did not alter any decision | 0 | n/a | n/a | 15 / 29 | 2011-02-04 | never | not_memoriser, cross_year_transfer, stability | f0:q0: learning_claim,statistical_validity; f0:q4: learning_claim; f1:q0: learning_claim,statistical_validity; f1:q4: learning_claim; f2:q4: anti_memorization,learning_claim; f5:q0: learning_claim,oos |
 
 ## Every planted item's lifecycle
 
@@ -83,6 +88,10 @@ Owner ruling (29 Sep): `learning_claim="enforce"` stays the default and its bar 
 | enforce | 3 | planted | negative | negative | 15 | 1 | 1 | 0 | 0 | 13 |
 | enforce | 3 | planted | regime | regime | 37 | 1 | 1 | 0 | 1 | 171 |
 | enforce | 3 | planted | strong | strong | 18 | 0 | 0 | 0 | 0 | 0 |
+| enforce | 4 | planted | decaying | decaying | 9 | 2 | 1 | 1 | 1 | 140 |
+| enforce | 4 | planted | negative | negative | 32 | 2 | 2 | 2 | 0 | 66 |
+| enforce | 4 | planted | regime | regime | 181 | 1 | 1 | 0 | 1 | 22 |
+| enforce | 4 | planted | strong | strong | 16 | 0 | 0 | 0 | 0 | 0 |
 | enforce | 5 | planted | decaying | decaying | 12 | 2 | 1 | 1 | 2 | 194 |
 | enforce | 5 | planted | negative | negative | 52 | 1 | 1 | 1 | 1 | 75 |
 | enforce | 5 | planted | regime | regime | 7 | 1 | 1 | 0 | 1 | 234 |
@@ -95,6 +104,10 @@ Owner ruling (29 Sep): `learning_claim="enforce"` stays the default and its bar 
 | enforce | 7 | planted | negative | negative | 7 | 0 | 0 | 0 | 0 | 0 |
 | enforce | 7 | planted | regime | regime | 39 | 2 | 2 | 1 | 2 | 172 |
 | enforce | 7 | planted | strong | strong | 17 | 0 | 0 | 0 | 0 | 0 |
+| enforce | 8 | planted | decaying | decaying | 9 | 1 | 0 | 0 | 1 | 112 |
+| enforce | 8 | planted | negative | negative | 28 | 1 | 1 | 1 | 0 | 33 |
+| enforce | 8 | planted | regime | regime | 39 | 1 | 1 | 0 | 1 | 190 |
+| enforce | 8 | planted | strong | strong | 7 | 0 | 0 | 0 | 0 | 0 |
 | record | 3 | planted | decaying | decaying | 7 | 1 | 0 | 0 | 1 | 112 |
 | record | 3 | planted | negative | negative | 15 | 1 | 1 | 0 | 0 | 13 |
 | record | 3 | planted | regime | regime | 37 | 1 | 1 | 0 | 1 | 171 |
@@ -119,6 +132,10 @@ Owner ruling (29 Sep): `learning_claim="enforce"` stays the default and its bar 
 | record | 8 | planted | negative | negative | 28 | 1 | 1 | 1 | 0 | 33 |
 | record | 8 | planted | regime | regime | 39 | 1 | 1 | 0 | 1 | 190 |
 | record | 8 | planted | strong | strong | 7 | 0 | 0 | 0 | 0 | 0 |
+| enforce-bookfix | 6 | planted | decaying | decaying | 12 | 1 | 0 | 0 | 1 | 105 |
+| enforce-bookfix | 6 | planted | negative | negative | 48 | 1 | 1 | 1 | 1 | 75 |
+| enforce-bookfix | 6 | planted | regime | regime | 54 | 2 | 2 | 1 | 2 | 106 |
+| enforce-bookfix | 6 | planted | strong | strong | 16 | 1 | 1 | 1 | 1 | 75 |
 
 ## Truth trace
 
@@ -132,6 +149,12 @@ Stages, in order: never found -> found, not admitted -> admitted, not usable at 
 | enforce | 3 | decaying | decaying | f5:q4 | +1 | 0.00599 | RESEARCH | BIRTH | PROVEN | 0 | 0 | None | found, not admitted | nnot be champion; epistemic GATED cannot be champion; epistemic GATED cannot be champion;  |
 | enforce | 3 | noise_a | noise | f3:q4 | +0 | 0.00172 | None | None | PROVEN | 0 | 0 | None | never found | no supported belief became knowledge |
 | enforce | 3 | noise_b | noise | f4:q0 | +0 | 0.00014 | None | None | PROVEN | 0 | 0 | None | never found | no supported belief became knowledge |
+| enforce | 4 | strong | strong | f0:q4 | +1 | 0.01411 | CHAMPION | ACTIVE | PROVEN | 270 | 240 | 0.01975 | acted on, right side |  |
+| enforce | 4 | negative | negative | f1:q4 | -1 | -0.00992 | CHAMPION | ACTIVE | PROVEN | 5 | 1 | -0.0394 | acted on, wrong side |  |
+| enforce | 4 | regime | regime | f2:q4 | +1 | 0.00607 | RESEARCH | BIRTH | PROVEN | 0 | 0 | None | found, not admitted | sions < 8; learning_claim; learning_claim; learning_claim; ; ; ; ; anti_memorization; ; ;  |
+| enforce | 4 | decaying | decaying | f5:q4 | +1 | 0.0058 | RESEARCH | BIRTH | PROVEN | 0 | 0 | None | found, not admitted | nnot be champion; epistemic GATED cannot be champion; epistemic GATED cannot be champion;  |
+| enforce | 4 | noise_a | noise | f3:q4 | +0 | 0.00019 | None | None | PROVEN | 0 | 0 | None | never found | no supported belief became knowledge |
+| enforce | 4 | noise_b | noise | f4:q0 | +0 | 0.00121 | None | None | PROVEN | 0 | 0 | None | never found | no supported belief became knowledge |
 | enforce | 5 | strong | strong | f0:q4 | +1 | 0.01457 | RESEARCH | BIRTH | PROVEN | 0 | 0 | None | found, not admitted | ; learning_claim; learning_claim; learning_claim; learning_claim; learning_claim; learning |
 | enforce | 5 | negative | negative | f1:q4 | -1 | -0.01033 | RESEARCH | BIRTH | PROVEN | 0 | 0 | None | found, not admitted | nnot be champion; epistemic GATED cannot be champion; epistemic GATED cannot be champion;  |
 | enforce | 5 | regime | regime | f2:q4 | +1 | 0.00669 | RESEARCH | BIRTH | PROVEN | 0 | 0 | None | found, not admitted | nnot be champion; epistemic GATED cannot be champion; epistemic GATED cannot be champion;  |
@@ -150,6 +173,12 @@ Stages, in order: never found -> found, not admitted -> admitted, not usable at 
 | enforce | 7 | decaying | decaying | f5:q4 | +1 | 0.00544 | RESEARCH | BIRTH | PROVEN | 0 | 0 | None | found, not admitted | nnot be champion; epistemic GATED cannot be champion; epistemic GATED cannot be champion;  |
 | enforce | 7 | noise_a | noise | f3:q4 | +0 | 0.00142 | None | None | PROVEN | 0 | 0 | None | never found | no supported belief became knowledge |
 | enforce | 7 | noise_b | noise | f4:q0 | +0 | 0.00061 | None | None | PROVEN | 0 | 0 | None | never found | no supported belief became knowledge |
+| enforce | 8 | strong | strong | f0:q4 | +1 | 0.01345 | RESEARCH | BIRTH | PROVEN | 0 | 0 | None | found, not admitted | ; learning_claim; learning_claim; learning_claim; learning_claim; learning_claim; learning |
+| enforce | 8 | negative | negative | f1:q4 | -1 | -0.01148 | RESEARCH | BIRTH | PROVEN | 0 | 0 | None | found, not admitted | ; learning_claim; learning_claim; learning_claim; learning_claim; learning_claim; learning |
+| enforce | 8 | regime | regime | f2:q4 | +1 | 0.00766 | RESEARCH | BIRTH | PROVEN | 0 | 0 | None | found, not admitted | nnot be champion; epistemic GATED cannot be champion; epistemic GATED cannot be champion;  |
+| enforce | 8 | decaying | decaying | f5:q4 | +1 | 0.00407 | RESEARCH | BIRTH | PROVEN | 0 | 0 | None | found, not admitted | nnot be champion; epistemic GATED cannot be champion; epistemic GATED cannot be champion;  |
+| enforce | 8 | noise_a | noise | f3:q4 | +0 | 0.0012 | None | None | PROVEN | 0 | 0 | None | never found | no supported belief became knowledge |
+| enforce | 8 | noise_b | noise | f4:q0 | +0 | -0.00117 | None | None | PROVEN | 0 | 0 | None | never found | no supported belief became knowledge |
 | record | 3 | strong | strong | f0:q4 | +1 | 0.01321 | CHAMPION | ACTIVE | PROVEN | 58 | 58 | 0.03861 | acted on, right side |  |
 | record | 3 | negative | negative | f1:q4 | -1 | -0.01159 | CHAMPION | DEGRADED | PROVEN | 0 | 0 | None | admitted, not usable at the probe | contract allows=False, retrieval skill PROVEN, lifecycle DEGRADED |
 | record | 3 | regime | regime | f2:q4 | +1 | 0.00829 | CHAMPION | DEGRADED | PROVEN | 0 | 0 | None | admitted, not usable at the probe | contract allows=False, retrieval skill PROVEN, lifecycle DEGRADED |
@@ -186,3 +215,9 @@ Stages, in order: never found -> found, not admitted -> admitted, not usable at 
 | record | 8 | decaying | decaying | f5:q4 | +1 | 0.00407 | CHAMPION | DEGRADED | PROVEN | 0 | 0 | None | admitted, not usable at the probe | contract allows=False, retrieval skill PROVEN, lifecycle DEGRADED |
 | record | 8 | noise_a | noise | f3:q4 | +0 | 0.0012 | None | None | PROVEN | 0 | 0 | None | never found | no supported belief became knowledge |
 | record | 8 | noise_b | noise | f4:q0 | +0 | -0.00117 | None | None | PROVEN | 0 | 0 | None | never found | no supported belief became knowledge |
+| enforce-bookfix | 6 | strong | strong | f0:q4 | +1 | 0.01376 | RESEARCH | BIRTH | PROVEN | 0 | 0 | None | found, not admitted | nnot be champion; epistemic GATED cannot be champion; epistemic GATED cannot be champion;  |
+| enforce-bookfix | 6 | negative | negative | f1:q4 | -1 | -0.01135 | RESEARCH | BIRTH | PROVEN | 0 | 0 | None | found, not admitted | nnot be champion; epistemic GATED cannot be champion; epistemic GATED cannot be champion;  |
+| enforce-bookfix | 6 | regime | regime | f2:q4 | +1 | 0.00981 | RESEARCH | BIRTH | PROVEN | 0 | 0 | None | found, not admitted | nnot be champion; epistemic GATED cannot be champion; epistemic GATED cannot be champion;  |
+| enforce-bookfix | 6 | decaying | decaying | f5:q4 | +1 | 0.00446 | RESEARCH | BIRTH | PROVEN | 0 | 0 | None | found, not admitted | nnot be champion; epistemic GATED cannot be champion; epistemic GATED cannot be champion;  |
+| enforce-bookfix | 6 | noise_a | noise | f3:q4 | +0 | 1e-05 | None | None | PROVEN | 0 | 0 | None | never found | no supported belief became knowledge |
+| enforce-bookfix | 6 | noise_b | noise | f4:q0 | +0 | 0.00074 | None | None | PROVEN | 0 | 0 | None | never found | no supported belief became knowledge |

@@ -1,0 +1,126 @@
+{
+ "cycle": 193,
+ "now": "2020-09-04",
+ "label": "IMPLEMENTED - NOT VALIDATED",
+ "counters": {
+  "expectations": 26,
+  "outcomes": 23,
+  "errors": 23
+ },
+ "ledgers": {
+  "expectations": 26,
+  "outcomes": 23,
+  "errors": 23,
+  "commitments": 26,
+  "pipeline_events": 873,
+  "pipeline_furthest": {
+   "EXPECTATION": 3,
+   "CLASSIFIED": 23,
+   "REJECTED": 188
+  }
+ },
+ "calibration": {
+  "now": "2020-09-04",
+  "target": {
+   "tolerance": 0.01,
+   "goal_share": 0.8,
+   "min_n": 200,
+   "min_oos_n": 100,
+   "level": 0.95,
+   "name": "pm1pp_80"
+  },
+  "status": "INSUFFICIENT_SAMPLE",
+  "n_committed": 24,
+  "n_matured": 23,
+  "n_resolved": 23,
+  "n_unresolved": 0,
+  "all_": {
+   "n": 23,
+   "hits": 0,
+   "share": 0.0,
+   "lo": 0.0,
+   "hi": 0.14311661845042686,
+   "boot_lo": 0.0,
+   "boot_hi": 0.0
+  },
+  "oos": {
+   "n": 23,
+   "hits": 0,
+   "share": 0.0,
+   "lo": 0.0,
+   "hi": 0.14311661845042686,
+   "boot_lo": 0.0,
+   "boot_hi": 0.0
+  },
+  "resolved_only": {
+   "n": 23,
+   "hits": 0,
+   "share": 0.0,
+   "lo": 0.0,
+   "hi": 0.14311661845042686,
+   "boot_lo": 0.0,
+   "boot_hi": 0.0
+  },
+  "bias": -0.013278965882750392,
+  "mae": 0.1348451964082273,
+  "naive_share": 0.0,
+  "required_n": null,
+  "abuses": [],
+  "by_cohort": [
+   [
+    "-",
+    {
+     "n": 23,
+     "hits": 0,
+     "share": 0.0,
+     "lo": 0.0,
+     "hi": 0.14311661845042686,
+     "boot_lo": 0.0,
+     "boot_hi": 0.0
+    }
+   ]
+  ],
+  "headline": "0.0% of 23 matured predictions landed within +-1pp of the committed prediction (95% CI 0.0%-14.3%); out of sample 0.0% of 23 (CI 0.0%-14.3%, block bootstrap 0.0%-0.0%). Goal 80%: sample too small to judge (need 200 overall and 100 out of sample). A no-skill median forecast scores 0.0% on the same sample."
+ },
+ "influence": {
+  "mom_r20_top": 1.0,
+  "rev_r5_bottom": 1.0,
+  "vol_top": 1.0
+ },
+ "verdicts": {},
+ "guard": {},
+ "production": {
+  "name": "incumbent",
+  "since": "",
+  "window_share": 1.0,
+  "extra_features": []
+ },
+ "regime_records": [],
+ "identification": null,
+ "stage_runs": [
+  {
+   "cycle": 193,
+   "now": "2020-09-04",
+   "stage": "c68.selection_policy",
+   "in": 4000,
+   "out": 1,
+   "note": "policy L1fa0724e (threshold -inf); gain model fitted n=4000 base in-band 0.163; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00"
+  },
+  {
+   "cycle": 193,
+   "now": "2020-09-04",
+   "stage": "c68.expectations",
+   "in": 2,
+   "out": 2,
+   "note": "2 expectation(s) frozen before the 2020-09-07 fill"
+  },
+  {
+   "cycle": 193,
+   "now": "2020-09-04",
+   "stage": "c68.outcomes_errors",
+   "in": 0,
+   "out": 0,
+   "note": "0 exit(s) by the learned policy, 0 error report(s), 0 unreconstructable, 60 candidate gain(s) resolved"
+  }
+ ]
+}

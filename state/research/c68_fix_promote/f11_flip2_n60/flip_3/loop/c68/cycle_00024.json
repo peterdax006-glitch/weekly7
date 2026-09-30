@@ -1,0 +1,180 @@
+{
+ "cycle": 24,
+ "now": "2017-06-09",
+ "label": "IMPLEMENTED - NOT VALIDATED",
+ "counters": {
+  "outcomes": 8,
+  "errors": 8,
+  "expectations": 9
+ },
+ "ledgers": {
+  "expectations": 9,
+  "outcomes": 8,
+  "errors": 8,
+  "commitments": 9,
+  "pipeline_events": 122,
+  "pipeline_furthest": {
+   "EXPECTATION": 1,
+   "CLASSIFIED": 8,
+   "REJECTED": 20
+  }
+ },
+ "calibration": {
+  "now": "2017-06-09",
+  "target": {
+   "tolerance": 0.01,
+   "goal_share": 0.8,
+   "min_n": 200,
+   "min_oos_n": 100,
+   "level": 0.95,
+   "name": "pm1pp_80"
+  },
+  "status": "INSUFFICIENT_SAMPLE",
+  "n_committed": 9,
+  "n_matured": 8,
+  "n_resolved": 8,
+  "n_unresolved": 0,
+  "all_": {
+   "n": 8,
+   "hits": 0,
+   "share": 0.0,
+   "lo": 0.0,
+   "hi": 0.32440756488388023,
+   "boot_lo": 0.0,
+   "boot_hi": 0.0
+  },
+  "oos": {
+   "n": 8,
+   "hits": 0,
+   "share": 0.0,
+   "lo": 0.0,
+   "hi": 0.32440756488388023,
+   "boot_lo": 0.0,
+   "boot_hi": 0.0
+  },
+  "resolved_only": {
+   "n": 8,
+   "hits": 0,
+   "share": 0.0,
+   "lo": 0.0,
+   "hi": 0.32440756488388023,
+   "boot_lo": 0.0,
+   "boot_hi": 0.0
+  },
+  "bias": 0.04823227135162553,
+  "mae": 0.12440317152113956,
+  "naive_share": 0.0,
+  "required_n": null,
+  "abuses": [],
+  "by_cohort": [
+   [
+    "-",
+    {
+     "n": 8,
+     "hits": 0,
+     "share": 0.0,
+     "lo": 0.0,
+     "hi": 0.32440756488388023,
+     "boot_lo": 0.0,
+     "boot_hi": 0.0
+    }
+   ]
+  ],
+  "headline": "0.0% of 8 matured predictions landed within +-1pp of the committed prediction (95% CI 0.0%-32.4%); out of sample 0.0% of 8 (CI 0.0%-32.4%, block bootstrap 0.0%-0.0%). Goal 80%: sample too small to judge (need 200 overall and 100 out of sample). A no-skill median forecast scores 0.0% on the same sample."
+ },
+ "influence": {
+  "mom_r20_top": 1.0,
+  "rev_r5_bottom": 1.0,
+  "vol_top": 1.0
+ },
+ "verdicts": {},
+ "guard": {},
+ "production": {
+  "name": "incumbent",
+  "since": "",
+  "window_share": 1.0,
+  "extra_features": []
+ },
+ "regime_records": [],
+ "identification": {
+  "periods": 3,
+  "trend": {
+   "n_periods": 3,
+   "slope": -1.5584415584415583,
+   "se": 1.8480843468516504,
+   "improving": false
+  },
+  "rows": [
+   {
+    "period": "2016Q4",
+    "n_candidates": 120,
+    "n_selected": 1,
+    "base_rate": 0.18333333333333332,
+    "precision": 1.0,
+    "precision_lo": 0.20654329147389294,
+    "precision_hi": 1.0,
+    "recall": 0.045454545454545456,
+    "lift": 5.454545454545455,
+    "pending": 0
+   },
+   {
+    "period": "2017Q1",
+    "n_candidates": 780,
+    "n_selected": 6,
+    "base_rate": 0.13076923076923078,
+    "precision": 0.0,
+    "precision_lo": 0.0,
+    "precision_hi": 0.3903430336530645,
+    "recall": 0.0,
+    "lift": 0.0,
+    "pending": 0
+   },
+   {
+    "period": "2017Q2",
+    "n_candidates": 480,
+    "n_selected": 5,
+    "base_rate": 0.19791666666666666,
+    "precision": 0.0,
+    "precision_lo": 0.0,
+    "precision_hi": 0.43449149475208104,
+    "recall": 0.0,
+    "lift": 0.0,
+    "pending": 0
+   }
+  ]
+ },
+ "stage_runs": [
+  {
+   "cycle": 24,
+   "now": "2017-06-09",
+   "stage": "c68.selection_policy",
+   "in": 3660,
+   "out": 1,
+   "note": "policy L1c21e68a (threshold 0.0019); gain model fitted n=3660 base in-band 0.148; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00"
+  },
+  {
+   "cycle": 24,
+   "now": "2017-06-09",
+   "stage": "c68.expectations",
+   "in": 60,
+   "out": 0,
+   "note": "no position on 2017-06-09: {'NOT_PREDICTED_MOVER': 54, 'OUT_OF_BAND': 6}"
+  },
+  {
+   "cycle": 24,
+   "now": "2017-06-09",
+   "stage": "c68.outcomes_errors",
+   "in": 1,
+   "out": 1,
+   "note": "1 exit(s) by the learned policy, 1 error report(s), 0 unreconstructable, 60 candidate gain(s) resolved"
+  },
+  {
+   "cycle": 24,
+   "now": "2017-06-09",
+   "stage": "c68.validate_promote",
+   "in": 1380,
+   "out": 4,
+   "note": "4 fix(es) tested alone and gated; deterioration: no (MAE 0.0669 -> 0.0684, p=0.333); promoted [] (0 applied); production incumbent; rolled back 0"
+  }
+ ]
+}
