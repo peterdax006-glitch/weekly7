@@ -255,4 +255,29 @@ def _episodes(eff: np.ndarray, frac: float = 0.5) -> int:
 
 
 def test_null_and_weak_rules_never_reach_the_exposure_route():
-    """False-promotion cont
+    """False-promotion control: a null or weak weekly AUC effect fails in a large share of weeks, so over 400 simulated findings of
+    each at 60-200 periods the exposure route never opens; a strong effect (AUC ~0.85, the planted lv20) opens it."""
+    rng, pol = np.random.default_rng(3), QG.QualityPolicy()
+    for mu in (0.0, 0.01, 0.03):
+        opened = 0
+        for i in range(400):
+            n = int(rng.integers(60, 201))
+            e = rng.normal(mu, 0.08, n)
+            b = _bundle(n, _episodes(e))
+            b = EV.Bundle("S", dataclasses.replace(b.evidence, oos=dataclasses.replace(b.evidence.oos, oos=dataclasses.replace(
+                b.evidence.oos.oos, oos_effects=tuple(float(v) for v in e)))), {}, {})
+            opened += EV.failure_floor(b, pol, 0.05).route == "exposure"
+        assert opened == 0, (mu, opened)
+    strong = rng.normal(0.35, 0.08, 100)
+    assert _episodes(strong) < 5 and EV.failure_floor(_bundle(100, _episodes(strong)), pol, 0.05).route == "exposure"
+
+
+def test_mixed_bundles_keep_their_own_floor_and_order():
+    rare, often, few = _bundle(150, 2, sid="R"), _bundle(150, 12, sid="O"), _bundle(25, 2, sid="F")
+    rep = EV.gate([rare, often, few], "2021-06-01", "refcode")
+    assert [d.subject_id for d in rep.decisions] == ["R", "O", "F"]
+    v = EV.verdicts(rep)
+    assert v["R"] == "PROMOTE" and v["O"] == "PROMOTE" and v["F"] != "PROMOTE"
+    seq = EV.gate([rare, few], "2021-06-01", "refcode", looks={"R": 1, "F": 1})
+    assert EV.verdicts(seq) == {"R": "PROMOTE", "F": EV.verdicts(rep)["F"]}
+    assert EV.gate([], "2021-06-01", "refcode").decisions == ()

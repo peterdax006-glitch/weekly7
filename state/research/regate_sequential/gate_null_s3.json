@@ -9,9 +9,9 @@
    "look": 1,
    "verdict": "QUARANTINED",
    "alpha": 0.03039635509270134,
-   "n_test": 21,
-   "effect_test": -0.01064988163353874,
-   "repl_runs": 3,
+   "n_test": 25,
+   "effect_test": -0.005467639702607323,
+   "repl_runs": 4,
    "repl_i2": 0.0,
    "blocking": [
     "calibration",
@@ -23,7 +23,12 @@
     "replication",
     "transfer"
    ],
-   "stopped": "quarantined"
+   "stopped": "quarantined",
+   "train_end": "2016-09-23",
+   "train_moved": false,
+   "failure_episodes": 12,
+   "failure_route": "episodes",
+   "failure_rate_upper": 0.6793989648101019
   },
   {
    "seed": 3,
@@ -34,9 +39,9 @@
    "look": 1,
    "verdict": "QUARANTINED",
    "alpha": 0.03039635509270134,
-   "n_test": 21,
-   "effect_test": -0.05835972309916192,
-   "repl_runs": 3,
+   "n_test": 25,
+   "effect_test": -0.036848254359817735,
+   "repl_runs": 4,
    "repl_i2": 0.0,
    "blocking": [
     "calibration",
@@ -48,7 +53,12 @@
     "replication",
     "transfer"
    ],
-   "stopped": "quarantined"
+   "stopped": "quarantined",
+   "train_end": "2016-09-23",
+   "train_moved": false,
+   "failure_episodes": 13,
+   "failure_route": "episodes",
+   "failure_rate_upper": 0.7148185871022648
   },
   {
    "seed": 3,
@@ -59,12 +69,13 @@
    "look": 1,
    "verdict": "QUARANTINED",
    "alpha": 0.03039635509270134,
-   "n_test": 21,
-   "effect_test": 0.06385315869589689,
-   "repl_runs": 2,
+   "n_test": 25,
+   "effect_test": 0.05146274026107513,
+   "repl_runs": 3,
    "repl_i2": 0.0,
    "blocking": [
     "calibration",
+    "complexity",
     "identity",
     "leakage",
     "out_of_sample",
@@ -72,12 +83,17 @@
     "reproducibility",
     "transfer"
    ],
-   "stopped": "quarantined"
+   "stopped": "quarantined",
+   "train_end": "2016-09-23",
+   "train_moved": false,
+   "failure_episodes": 15,
+   "failure_route": "episodes",
+   "failure_rate_upper": 0.7823215116553948
   }
  ],
- "seconds": 7.2,
+ "seconds": 8.0,
  "provenance": {
-  "code_hash": "39702bfbee7f859b",
+  "code_hash": "a4c13d70030a4c4b",
   "code_files": [
    "engine/__init__.py",
    "engine/blind_gates.py",
@@ -131,10 +147,8 @@
    "engine/resources.py",
    "engine/stops.py"
   ],
-  "code_mixed": [
-   "engine/research/evidence.py"
-  ],
-  "git_commit": "cac30e7625b7c78c0fe5d3608d58cf7ea64e8b68+dirty",
+  "code_mixed": [],
+  "git_commit": "cb09fbb72201fdbf5428097196bda53b4f891e85",
   "canon_sha": "fef7cdf0a1501c3d",
   "bible_sha": "a97ea91862cee371",
   "blueprint_version": "4.0",

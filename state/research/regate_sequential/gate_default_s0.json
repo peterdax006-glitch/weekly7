@@ -9,15 +9,20 @@
    "look": 1,
    "verdict": "FAILED",
    "alpha": 0.03039635509270134,
-   "n_test": 48,
-   "effect_test": 0.3578642192129771,
-   "repl_runs": 3,
-   "repl_i2": 0.7578194142069479,
+   "n_test": 62,
+   "effect_test": 0.3515151206816028,
+   "repl_runs": 4,
+   "repl_i2": 0.7522664836236018,
    "blocking": [
     "out_of_sample",
     "replication"
    ],
-   "stopped": ""
+   "stopped": "",
+   "train_end": "2016-09-23",
+   "train_moved": false,
+   "failure_episodes": 0,
+   "failure_route": "exposure",
+   "failure_rate_upper": 0.05478766793361437
   },
   {
    "seed": 0,
@@ -26,23 +31,25 @@
    "role": "coincidence",
    "now": "2017-12-15",
    "look": 1,
-   "verdict": "QUARANTINED",
+   "verdict": "FAILED",
    "alpha": 0.03039635509270134,
-   "n_test": 48,
-   "effect_test": 0.004670976446000866,
-   "repl_runs": 3,
+   "n_test": 62,
+   "effect_test": 0.04392283453746585,
+   "repl_runs": 4,
    "repl_i2": 0.0,
    "blocking": [
     "calibration",
     "complexity",
-    "failure_behavior",
-    "identity",
-    "leakage",
     "out_of_sample",
     "replication",
     "transfer"
    ],
-   "stopped": "quarantined"
+   "stopped": "",
+   "train_end": "2016-09-23",
+   "train_moved": false,
+   "failure_episodes": 25,
+   "failure_route": "episodes",
+   "failure_rate_upper": 0.5301436365175652
   },
   {
    "seed": 0,
@@ -53,9 +60,9 @@
    "look": 1,
    "verdict": "QUARANTINED",
    "alpha": 0.03039635509270134,
-   "n_test": 48,
-   "effect_test": -0.002528524291670006,
-   "repl_runs": 3,
+   "n_test": 62,
+   "effect_test": -0.005713114176690194,
+   "repl_runs": 4,
    "repl_i2": 0.0,
    "blocking": [
     "calibration",
@@ -65,10 +72,14 @@
     "leakage",
     "out_of_sample",
     "replication",
-    "reproducibility",
     "transfer"
    ],
-   "stopped": "quarantined"
+   "stopped": "quarantined",
+   "train_end": "2016-09-23",
+   "train_moved": false,
+   "failure_episodes": 31,
+   "failure_route": "episodes",
+   "failure_rate_upper": 0.6246429907721398
   },
   {
    "seed": 0,
@@ -79,17 +90,51 @@
    "look": 2,
    "verdict": "PROMOTE",
    "alpha": 0.007599088773175335,
-   "n_test": 61,
-   "effect_test": 0.35730929257140376,
-   "repl_runs": 4,
-   "repl_i2": 0.638503777565967,
+   "n_test": 71,
+   "effect_test": 0.35314482503674605,
+   "repl_runs": 5,
+   "repl_i2": 0.6879985508918997,
    "blocking": [],
-   "stopped": "promoted"
+   "stopped": "promoted",
+   "train_end": "2016-10-21",
+   "train_moved": false,
+   "failure_episodes": 0,
+   "failure_route": "exposure",
+   "failure_rate_upper": 0.0664199325213061
+  },
+  {
+   "seed": 0,
+   "world": "default",
+   "feature": "price_low",
+   "role": "coincidence",
+   "now": "2018-03-16",
+   "look": 2,
+   "verdict": "QUARANTINED",
+   "alpha": 0.007599088773175335,
+   "n_test": 71,
+   "effect_test": 0.01584791307503036,
+   "repl_runs": 5,
+   "repl_i2": 0.0,
+   "blocking": [
+    "calibration",
+    "complexity",
+    "identity",
+    "leakage",
+    "out_of_sample",
+    "replication",
+    "transfer"
+   ],
+   "stopped": "quarantined",
+   "train_end": "2016-10-21",
+   "train_moved": false,
+   "failure_episodes": 31,
+   "failure_route": "episodes",
+   "failure_rate_upper": 0.5867006665013217
   }
  ],
- "seconds": 10.8,
+ "seconds": 15.8,
  "provenance": {
-  "code_hash": "80a686fd39535ba6",
+  "code_hash": "a4c13d70030a4c4b",
   "code_files": [
    "engine/__init__.py",
    "engine/blind_gates.py",
@@ -144,7 +189,7 @@
    "engine/stops.py"
   ],
   "code_mixed": [],
-  "git_commit": "cac30e7625b7c78c0fe5d3608d58cf7ea64e8b68+dirty",
+  "git_commit": "cb09fbb72201fdbf5428097196bda53b4f891e85",
   "canon_sha": "fef7cdf0a1501c3d",
   "bible_sha": "a97ea91862cee371",
   "blueprint_version": "4.0",

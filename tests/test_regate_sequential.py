@@ -310,13 +310,16 @@ def sequential_trace(seed: int, world: str = "default", features=("lv20", "price
             rep = EV.gate([b], now, "f12", store=store, looks={spec.subject_id: live[f]}, plan=plan)
             v = EV.verdicts(rep)[spec.subject_id]
             why = "promoted" if v == "PROMOTE" else "quarantined" if v == "QUARANTINED" else plan.futility(b)
+            ff = EV.failure_floor(b, plan.quality_policy(live[f], "f12"), plan.alpha_at(live[f]))
             role = ("genuine" if f in truth.get("genuine", ()) else "coincidence" if f in truth.get("noise", ()) else "null")
             if world == "null":
                 role = "null"
             rows.append({"seed": seed, "world": world, "feature": f, "role": role, "now": now, "look": live[f], "verdict": v,
                          "alpha": plan.alpha_at(live[f]), "n_test": b.parts.get("n_test"), "effect_test": b.parts.get("effect_test"),
                          "repl_runs": b.parts.get("repl_runs"), "repl_i2": b.parts.get("repl_i2"),
-                         "blocking": sorted(EV.blocking(rep, spec.subject_id)), "stopped": why or ""})
+                         "blocking": sorted(EV.blocking(rep, spec.subject_id)), "stopped": why or "",
+                         "train_end": b.parts.get("train_end"), "train_moved": b.parts.get("train_moved_to_year_end"),
+                         "failure_episodes": ff.episodes, "failure_route": ff.route, "failure_rate_upper": ff.rate_upper})
             if why:
                 live[f] = None
     return rows
@@ -388,9 +391,10 @@ def test_planted_worlds_promote_the_genuine_never_the_coincidence_or_null():
     assert set(promoted["role"]) <= {"genuine"}, promoted
     assert not len(T[(T["world"] == "null") & (T["verdict"] == "PROMOTE")])
     gen = T[T["role"] == "genuine"]
-    # measured 30 Sep: seeds 1, 2, 3, 5 promote at looks 6, 3, 2, 2; seeds 0 and 4 are still NEEDS_MORE_EVIDENCE when the four-year
-    # world ends (fewer than 5 failure episodes of a very strong effect; replication I2 ~0.75) - alive, never retired
-    assert gen.groupby("seed")["verdict"].apply(lambda v: (v == "PROMOTE").any()).mean() >= 4 / 6
+    # measured 30 Sep (F12): seeds 1, 2, 3, 5 promoted at looks 6, 3, 2, 2; seeds 0 and 4 NEEDS_MORE_EVIDENCE at the world's end.
+    # F14 (December cut moved to the year end; failure floor = episodes OR exposure): seeds 0, 1, 2, 3, 5 promote at looks 2, 5, 3, 2, 2;
+    # seed 4 still waits (3 failure weeks in 98, failure-rate bound 0.135 > 0.10 at look 8's alpha) - alive, never retired
+    assert gen.groupby("seed")["verdict"].apply(lambda v: (v == "PROMOTE").any()).mean() >= 5 / 6
     assert set(gen["stopped"]) <= {"", "promoted"}, gen[~gen["stopped"].isin(["", "promoted"])]      # a true effect is never retired
 
 

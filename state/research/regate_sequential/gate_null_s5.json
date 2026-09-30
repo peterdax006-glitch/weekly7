@@ -9,20 +9,26 @@
    "look": 1,
    "verdict": "QUARANTINED",
    "alpha": 0.03039635509270134,
-   "n_test": 26,
-   "effect_test": 0.028016688146197857,
+   "n_test": 32,
+   "effect_test": 0.01083487511563367,
    "repl_runs": 3,
    "repl_i2": 0.0,
    "blocking": [
     "calibration",
     "complexity",
+    "failure_behavior",
     "identity",
     "leakage",
     "out_of_sample",
     "replication",
     "transfer"
    ],
-   "stopped": "quarantined"
+   "stopped": "quarantined",
+   "train_end": "2016-09-23",
+   "train_moved": false,
+   "failure_episodes": 19,
+   "failure_route": "episodes",
+   "failure_rate_upper": 0.7570012650398097
   },
   {
    "seed": 5,
@@ -33,17 +39,23 @@
    "look": 1,
    "verdict": "FAILED",
    "alpha": 0.03039635509270134,
-   "n_test": 26,
-   "effect_test": 0.16406158168415336,
-   "repl_runs": 3,
+   "n_test": 32,
+   "effect_test": 0.1073100823996985,
+   "repl_runs": 4,
    "repl_i2": 0.0,
    "blocking": [
     "calibration",
+    "complexity",
     "out_of_sample",
     "replication",
     "transfer"
    ],
-   "stopped": ""
+   "stopped": "",
+   "train_end": "2016-09-23",
+   "train_moved": false,
+   "failure_episodes": 10,
+   "failure_route": "episodes",
+   "failure_rate_upper": 0.4925482976811031
   },
   {
    "seed": 5,
@@ -54,9 +66,9 @@
    "look": 1,
    "verdict": "QUARANTINED",
    "alpha": 0.03039635509270134,
-   "n_test": 26,
-   "effect_test": 0.07469793585658525,
-   "repl_runs": 3,
+   "n_test": 32,
+   "effect_test": 0.06498433056669063,
+   "repl_runs": 4,
    "repl_i2": 0.0,
    "blocking": [
     "calibration",
@@ -65,10 +77,14 @@
     "leakage",
     "out_of_sample",
     "replication",
-    "reproducibility",
     "transfer"
    ],
-   "stopped": "quarantined"
+   "stopped": "quarantined",
+   "train_end": "2016-09-23",
+   "train_moved": false,
+   "failure_episodes": 19,
+   "failure_route": "episodes",
+   "failure_rate_upper": 0.7570012650398097
   },
   {
    "seed": 5,
@@ -79,29 +95,8 @@
    "look": 2,
    "verdict": "FAILED",
    "alpha": 0.007599088773175335,
-   "n_test": 31,
-   "effect_test": 0.1377790819377164,
-   "repl_runs": 4,
-   "repl_i2": 0.0,
-   "blocking": [
-    "calibration",
-    "out_of_sample",
-    "replication",
-    "transfer"
-   ],
-   "stopped": ""
-  },
-  {
-   "seed": 5,
-   "world": "null",
-   "feature": "price_low",
-   "role": "null",
-   "now": "2018-06-15",
-   "look": 3,
-   "verdict": "FAILED",
-   "alpha": 0.0033773727880779263,
-   "n_test": 34,
-   "effect_test": 0.11529669736123457,
+   "n_test": 37,
+   "effect_test": 0.09295873116409657,
    "repl_runs": 5,
    "repl_i2": 0.0,
    "blocking": [
@@ -111,45 +106,27 @@
     "replication",
     "transfer"
    ],
-   "stopped": ""
+   "stopped": "",
+   "train_end": "2016-10-21",
+   "train_moved": false,
+   "failure_episodes": 13,
+   "failure_route": "episodes",
+   "failure_rate_upper": 0.5634112369197235
   },
   {
    "seed": 5,
    "world": "null",
    "feature": "price_low",
    "role": "null",
-   "now": "2018-09-14",
-   "look": 4,
-   "verdict": "FAILED",
-   "alpha": 0.0018997721932938337,
-   "n_test": 38,
-   "effect_test": 0.09666645929243915,
+   "now": "2018-06-15",
+   "look": 3,
+   "verdict": "QUARANTINED",
+   "alpha": 0.0033773727880779263,
+   "n_test": 39,
+   "effect_test": 0.0737768746711084,
    "repl_runs": 6,
    "repl_i2": 0.0,
    "blocking": [
-    "calibration",
-    "complexity",
-    "out_of_sample",
-    "replication",
-    "transfer"
-   ],
-   "stopped": ""
-  },
-  {
-   "seed": 5,
-   "world": "null",
-   "feature": "price_low",
-   "role": "null",
-   "now": "2018-12-14",
-   "look": 5,
-   "verdict": "QUARANTINED",
-   "alpha": 0.0012158542037080534,
-   "n_test": 47,
-   "effect_test": 0.06885424799294934,
-   "repl_runs": 7,
-   "repl_i2": 0.0,
-   "blocking": [
-    "calibration",
     "complexity",
     "identity",
     "leakage",
@@ -157,12 +134,17 @@
     "replication",
     "transfer"
    ],
-   "stopped": "quarantined"
+   "stopped": "quarantined",
+   "train_end": "2016-11-18",
+   "train_moved": false,
+   "failure_episodes": 15,
+   "failure_route": "episodes",
+   "failure_rate_upper": 0.6119561512789032
   }
  ],
- "seconds": 17.7,
+ "seconds": 13.2,
  "provenance": {
-  "code_hash": "39702bfbee7f859b",
+  "code_hash": "a4c13d70030a4c4b",
   "code_files": [
    "engine/__init__.py",
    "engine/blind_gates.py",
@@ -216,10 +198,8 @@
    "engine/resources.py",
    "engine/stops.py"
   ],
-  "code_mixed": [
-   "engine/research/evidence.py"
-  ],
-  "git_commit": "cac30e7625b7c78c0fe5d3608d58cf7ea64e8b68+dirty",
+  "code_mixed": [],
+  "git_commit": "cb09fbb72201fdbf5428097196bda53b4f891e85",
   "canon_sha": "fef7cdf0a1501c3d",
   "bible_sha": "a97ea91862cee371",
   "blueprint_version": "4.0",
