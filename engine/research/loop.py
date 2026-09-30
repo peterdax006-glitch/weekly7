@@ -2315,8 +2315,12 @@ def st_quality_and_knowledge(ctx: Ctx) -> tuple:
         raise MissingModule("quality_gate") from e
     from engine.research import evidence as EV
     done = [k for k in ctx.bus.get("validated", []) if (ctx.state.jobs[k].result or {}).get("action") == "COMPLETE"]
+    regate = ctx.state.memo.setdefault("regate", {})
+    year = as_date(ctx.evidence_date()).year
+    due = [v["key"] for d, v in sorted(regate.items()) if year > v["year"] and v["looks"] < REGATE_MAX_LOOKS and v["key"] not in done]
+    done = done + due
     if not done:
-        raise NoInput("no branch completed the ladder this cycle")
+        raise NoInput("no branch completed the ladder this cycle and no earlier finding gained a new year of evidence")
     store = ctx.mod_state("quarantine", QG.QuarantineStore)
     led = ctx.mod_state("replication", _replication_ledger)
     sci = set(ctx.state.memo.get("science_items", []))
@@ -2347,9 +2351,25 @@ def st_quality_and_knowledge(ctx: Ctx) -> tuple:
         ctx.state.lineage.link(f"RESULT:{key}", f"GATE:{did}", "gated")
         ctx.bus.setdefault("gate_verdicts", {})[did] = {"verdict": verdicts.get(did, "UNKNOWN"), "blocking": EV.blocking(rep, did),
                                                          "missing": dict(b.missing), "feature": rec.feature}
+        v = verdicts.get(did, "UNKNOWN")
         if did in promoted:
             filed += _file_knowledge(ctx, rec)
-    return len(done), filed, f"verdicts {verdicts}"
+            regate.pop(did, None)
+        elif v != "QUARANTINED":                          # integrity failures are never retried; evidence-limited ones are
+            look = regate.get(did, {"looks": 0})["looks"] + 1
+            regate[did] = {"key": key, "year": year, "looks": look}
+            if look >= REGATE_MAX_LOOKS:
+                regate.pop(did, None)
+                ctx.state.count("gate_retired_after_looks")
+        else:
+            regate.pop(did, None)
+    return len(done), filed, f"verdicts {verdicts}; {len(due)} re-gated on a new year of evidence"
+
+
+# W02: a finding that completed the ladder before enough unseen calendar years existed (the gate needs two) FAILS for lack of time,
+# not for lack of effect. It is looked at again once per NEW calendar year of matured evidence, at most this many times in all (every
+# look is recorded on its GATE lineage node; bounded looks keep repeated testing from manufacturing a pass).
+REGATE_MAX_LOOKS = 3
 
 
 def _replication_ledger():

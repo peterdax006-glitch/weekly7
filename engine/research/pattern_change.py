@@ -208,7 +208,7 @@ def dimension_cells(frame: pd.DataFrame, recent_n: int, conf_bins: int = 3) -> l
     return out
 
 
-def profile(pattern_id: str, frame: pd.DataFrame, now, cfg=None) -> ReliabilityProfile:
+def profile(pattern_id: str, frame: pd.DataFrame, now, cfg=None, episodes: Sequence | None = None) -> ReliabilityProfile:
     """The full checklist-H profile of one pattern as of `now` (rows before `now` only)."""
     P = _cfg(cfg)
     errs = validate_frame(frame)
@@ -249,7 +249,7 @@ def profile(pattern_id: str, frame: pd.DataFrame, now, cfg=None) -> ReliabilityP
             conf_gap = float(c.to_numpy()[ok].mean() - (f["effect"].astype(float).iloc[n - rn:].to_numpy()[ok] > 0).mean())
     return ReliabilityProfile(pattern_id, str(as_date(now)), n, len(hist), len(recent), float(hist.mean()), sd_h, float(recent.mean()),
                               truth, cur, z, zt, e_mean, direction, e_mae, over, degradation_rate(x, P["slope_window"]),
-                              recovery_rate(x, P), tuple(dimension_cells(f, rn, P["conf_bins"])), conf_gap)
+                              recovery_rate(x, P, episodes), tuple(dimension_cells(f, rn, P["conf_bins"])), conf_gap)
 
 
 def degradation_rate(x: np.ndarray, window: int) -> float:
@@ -352,14 +352,14 @@ def classify(pattern_id: str, frame: pd.DataFrame, now, cfg=None, families: Mapp
     investigation of the failure exists (required before retirement can even be proposed)."""
     P = _cfg(cfg)
     f = causal_slice(frame, now)
-    prof = profile(pattern_id, f, now, P)
+    eps = break_episodes(f["effect"].astype(float).to_numpy()) if "effect" in f.columns else []
+    prof = profile(pattern_id, f, now, P, eps)
     asof = str(as_date(now))
     if prof.hist_n < P["min_hist"] or prof.recent_n < P["min_cell"] or not math.isfinite(prof.z):
         return PatternVerdict(pattern_id, asof, ChangeClass.INSUFFICIENT_EVIDENCE, Action.COLLECT_DATA, Health.INSUFFICIENT_EVIDENCE,
                               (f"only {prof.hist_n} historical and {prof.recent_n} recent outcomes",), None, None, prof,
                               Lifecycle.BIRTH.value, 0, investigated)
-    x = f["effect"].astype(float).to_numpy()
-    eps = break_episodes(x)                                  # THE break detector (break_research); a break needs a working pattern first
+    x = f["effect"].astype(float).to_numpy()                # `eps`: THE break detector (break_research); a break needs a working pattern
     cur_stage = stage_from_episodes(eps, len(x), prof.recent_n, prof.hist_mean)
     failing = (len(x) - int(eps[-1].onset)) if eps and eps[-1].recover is None else 0
     why: list[str] = [f"recent-vs-history z={prof.z:.2f} (outlier-trimmed {prof.z_trimmed:.2f}); break detector: {len(eps)} episode(s), "

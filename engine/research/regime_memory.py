@@ -426,7 +426,8 @@ def build_record(evidence: RegimeEvidence, now, cfg: MemoryConfig | None = None,
         strong = tuple(i.pattern for i in impacts if i.kind == "strengthened")
         weak = tuple(i.pattern for i in impacts if i.kind == "weakened")
         rec = RegimeChangeRecord(
-            "R" + stable_hash([sorted(d.stream for d in ordered), evidence.dates[cp]], 12), scope.scope.value if scope else Scope.UNCLEAR.value,
+            "R" + stable_hash([sorted(d.stream for d in ordered[: ordered.index(quorum) + 1]), evidence.dates[cp]], 12),
+            scope.scope.value if scope else Scope.UNCLEAR.value,
             quorum.alarm_date, evidence.dates[cp], old, new, _signal(first, declared, pos, SignalRole.LEADING if pos[first.alarm_date] < declared else SignalRole.CONCURRENT),
             declared - cp, sigs, tuple(s for s in sigs if s.role == SignalRole.LEADING), mis, tuple(sorted(strong + weak)), strong, weak, tuple(impacts),
             errors_before(evidence, cp, declared), return_conditions(old, new, impacts, cfg), conf, parts, quorum.alarm_date)

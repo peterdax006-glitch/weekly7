@@ -478,16 +478,67 @@ def _stationary_false_alarms(cfg, mu=0.0015, seeds=range(700, 730), T=520, n=8):
 def test_w05_weak_stationary_edges_false_alarm_rate_is_bounded_over_30_worlds():
     """240 stationary patterns with a weak edge (0.15 sd a week), the case where being picked for a good burn-in inflates the mean
     most. Nothing about them ever changes, so every alarm is false. Measured with the shrunk mean alone (old rule): 205 alarms =
-    0.86 of the nominal budget, 50% of patterns flagged; with the lower-bound expected effect: 178 = 0.75, 42%."""
+    0.86 of the nominal budget, 50% of patterns flagged; with the lower-bound expected effect alone: 181 = 0.76, 42%; with the
+    cross-fitted out-of-sample expected effect (F05, shipped): 134 = 0.57, 38%."""
     events, monitored, flagged, total = _stationary_false_alarms(None)
     assert total == 240 and monitored > 80_000
-    assert events <= 0.80 * monitored / PR.PARAMS["arl0"]
-    assert flagged / total <= 0.46
+    assert events <= 0.65 * monitored / PR.PARAMS["arl0"]
+    assert flagged / total <= 0.42
 
 
 def test_w05_old_winners_curse_expected_effect_would_fail_those_bounds():
-    events, monitored, flagged, total = _stationary_false_alarms({"effect_lcb_z": -1e9})      # the shrunk mean alone (old rule)
+    old = {"effect_lcb_z": -1e9, "oos_min": 10 ** 6}                                          # the shrunk burn-in mean alone (old rule)
+    events, monitored, flagged, total = _stationary_false_alarms(old)
     assert events > 0.80 * monitored / PR.PARAMS["arl0"] and flagged / total > 0.46
+
+
+def test_f05_without_the_out_of_sample_estimate_the_lower_bound_alone_fails_the_new_bound():
+    events, monitored, flagged, total = _stationary_false_alarms({"oos_min": 10 ** 6})       # F02 state: lower bound on the burn-in only
+    assert events > 0.65 * monitored / PR.PARAMS["arl0"]
+
+
+def _lucky_burn_in(seed, true_mu=0.002, lucky=0.010, T=260):
+    rng = np.random.default_rng(seed)
+    return np.r_[rng.normal(lucky, 0.01, 26), rng.normal(true_mu, 0.01, T - 26)]
+
+
+def test_f05_oos_estimate_replaces_an_inflated_burn_in_effect_with_the_disjoint_one():
+    """Planted winner's curse: a pattern picked for a lucky burn-in (0.010) whose true edge is 0.002. The bar the monitor compares
+    against must fall towards the true edge once enough later, disjoint healthy weeks exist - never before."""
+    down, base = [], []
+    for sd in range(20):
+        tl = _series_tl(_lucky_burn_in(sd))
+        h = PR.health_monitor(tl, {"est_win": 26})
+        off = PR.health_monitor(tl, {"est_win": 26, "oos_min": 10 ** 6})
+        mp = h.mu_path.iloc[:, 0]
+        first = mp.first_valid_index()
+        early = mp.loc[first]
+        assert early == pytest.approx(off.mu_path.iloc[:, 0].loc[first])                        # nothing changes before the OOS sample exists
+        down.append(mp.iloc[-1])
+        base.append(off.mu_path.iloc[-1, 0])
+    assert np.median(base) > 0.004 and np.median(down) < 0.6 * np.median(base)
+    assert np.all(np.array(down) <= np.array(base) + 1e-12) and np.all(np.array(down) >= 0.2 * 0.006 - 1e-12)
+
+
+def test_f05_expected_effect_at_a_week_ignores_the_judged_window_and_the_future():
+    r = _lucky_burn_in(3, true_mu=0.004, T=200)
+    base = PR.health_monitor(_series_tl(r), {"est_win": 26}).mu_path.iloc[:, 0]
+    i, lag = 150, PR.PARAMS["oos_lag"]
+    r2 = r.copy()
+    r2[i - lag:i] = -0.05                                    # wreck exactly the window being judged now
+    r2[i + 1:] = 9.0                                         # ... and the whole future
+    alt = PR.health_monitor(_series_tl(r2), {"est_win": 26}).mu_path.iloc[:, 0]
+    assert alt.iloc[i] == pytest.approx(base.iloc[i]) and base.iloc[i] < base.iloc[26 + 1] + 1e-12
+    r3 = r.copy()
+    r3[:i - lag] += 0.003                                   # change the disjoint older sample: the bar must move
+    assert PR.health_monitor(_series_tl(r3), {"est_win": 26}).mu_path.iloc[i, 0] != pytest.approx(base.iloc[i])
+
+
+def test_f05_oos_estimate_degenerate_inputs():
+    h = PR.health_monitor(_series_tl(np.zeros(120)), {"est_win": 26})
+    assert h.mu_path.isna().all().all()                                              # no variance, nothing established, no bar
+    short = PR.health_monitor(_series_tl(np.random.default_rng(0).normal(0.01, 0.01, 40)), {"est_win": 26})
+    assert short.mu_path.notna().sum().sum() > 0 and short.mu_path.iloc[:, 0].nunique() == 1   # too short for any OOS update
 
 
 def test_w05_expected_effect_is_a_lower_bound_and_stays_positive():

@@ -112,6 +112,7 @@ CLASS_INFLUENCE = {PC.ChangeClass.NOISE: 1.0, PC.ChangeClass.NORMAL_VARIANCE: 1.
                    PC.ChangeClass.RETURNING: 1.0, PC.ChangeClass.WEAKENING: 0.5, PC.ChangeClass.REGIME_SPECIFIC_FAILURE: 0.5,
                    PC.ChangeClass.STRUCTURAL_CHANGE: 0.0, PC.ChangeClass.OBSOLESCENCE: 0.0}
 GUARD_INFLUENCE = {RM.PatternAction.KEEP: 1.0, RM.PatternAction.REDUCE: 0.5, RM.PatternAction.SUSPEND: 0.0}
+PATTERN_ROWS = 260                  # daily pattern rows (about a year) behind a what-changed pattern level
 UNINVESTIGATED_FLOOR = 0.5          # checklist H: a failing pattern is investigated before it may lose more than half its influence
 
 
@@ -136,7 +137,7 @@ class C68Config:
     target: CT.Target = CT.DEFAULT_TARGET
     self_correct: SCX.SelfCorrectConfig = SCX.SelfCorrectConfig()
     pattern_cfg: Mapping = dataclasses.field(default_factory=dict)
-    what_cfg: Mapping = dataclasses.field(default_factory=dict)
+    what_cfg: Mapping = dataclasses.field(default_factory=lambda: {"lead_step": 8})   # lead located to 8 rows (4 re-classifications)
     max_investigations: int = 6                        # what-changed cases per cycle (the rest wait in the queue, never dropped)
     max_events: int = 12                               # error-research question events per cycle (largest intensity first)
     post_exit: int = 5
@@ -244,13 +245,20 @@ class PipelineLedger:
         return prev is None or _ORDER[step] >= _ORDER[prev[1]]
 
     def verify(self, anchors: Sequence[str] = ()) -> dict:
+        """Chain integrity (and anchors), then every object's trail in ONE pass: each event must link to that object's previous
+        event and keep the checklist-Y order."""
         rep = self.lane.verify(anchors)
-        for k in self.keys():
-            try:
-                self.trail(k)
-            except PipelineBroken as e:
-                rep = {**rep, "ok": False, "problems": list(rep["problems"]) + [str(e)]}
-        return rep
+        last: dict[str, tuple[str, int]] = {}
+        probs = list(rep["problems"])
+        for ln in self.lane.lines():
+            b = ln["body"]
+            prev, pos = last.get(b["key"], ("", -1))
+            if b["prev_event"] != prev:
+                probs.append(f"{b['key']}: event {b['step']} does not link to its predecessor")
+            elif _ORDER.get(b["step"], -1) < pos:
+                probs.append(f"{b['key']}: {b['step']} out of order")
+            last[b["key"]] = (ln["hash"], _ORDER.get(b["step"], -1))
+        return {**rep, "ok": not probs, "problems": probs}
 
     def furthest(self) -> dict[str, int]:
         """How far each prediction got: step -> number of objects whose newest step it is."""
@@ -754,6 +762,41 @@ def expectation_context(ctx: LP.Ctx, st: C68State, bv: BarView, day: str, subjec
             "timestamp": f"{as_date(day).isoformat()}T15:59:00"}
 
 
+class ExpectationModel:
+    """The `path_model(row, subject)` of expectations_from_day. The committed prediction IS the number that selected the name: the
+    predicted realisable return and its distribution come from the band gate's forecast (the realisable-gain model's median and its
+    split-conformal draws, with pattern influence applied); the trajectory fields the gain model does not forecast (time to peak, exit
+    window, holding period, excursions, volatility, epistemic uncertainty) come from exit_research.PathModel under the same learned exit.
+    One forecaster per quantity - never two numbers for the same return."""
+
+    def __init__(self, pm: XR.PathModel, gate: BandGate, forecasts: Mapping[str, SC.GainForecast]):
+        self.pm, self.gate, self.fc = pm, gate, dict(forecasts)
+
+    def __call__(self, row: Any, subject: str) -> dict:
+        tr = dict(self.pm(row, subject))
+        fc = self.fc.get(str(subject))
+        m = self.gate.model
+        if fc is None or not math.isfinite(fc.mean) or m.resid_ is None:
+            raise XP.ExpectationInvalid(f"{subject}: no band-gate forecast to commit to")
+        draws = fc.mean + m.resid_
+        ret = float(fc.median)
+        qv = np.maximum.accumulate(np.quantile(draws, XR.QUANTS))
+        clipped = np.clip(draws, XR.PROB_EDGES[0], XR.PROB_EDGES[-1] - 1e-9)
+        probs = np.histogram(clipped, bins=XR.PROB_EDGES)[0].astype(float)
+        probs /= probs.sum()
+        probs[-1] = 1.0 - probs[:-1].sum()
+        loss_p, over_p = float((draws < 0).mean()), float((draws > EX.BAND_HI).mean())
+        alts = [{"hypothesis": "reversal_to_loss", "probability": loss_p, "predicted_return": float(draws[draws < 0].mean())}] if loss_p > 0 else []
+        if over_p > 0:
+            alts.append({"hypothesis": "overshoot_above_band", "probability": over_p, "predicted_return": float(draws[draws > EX.BAND_HI].mean())})
+        tr.update(predicted_return=ret, distribution=tuple((float(q), float(v)) for q, v in zip(XR.QUANTS, qv)),
+                  prob_distribution=tuple((XR.PROB_EDGES[i], XR.PROB_EDGES[i + 1], float(probs[i])) for i in range(len(probs))),
+                  mfe=max(float(tr["mfe"]), ret, 0.0), mae=min(float(tr["mae"]), ret, 0.0),
+                  uncertainty={"aleatoric": float(np.std(m.resid_)), "epistemic": float(tr["uncertainty"]["epistemic"])},
+                  alternatives=tuple(alts) or ({"hypothesis": "flat", "probability": 0.0, "predicted_return": 0.0},))
+        return tr
+
+
 def _subday(dec: TS.DayDecision, ix) -> TS.DayDecision:
     t = dec.table
     keep = (t.index == ix) | ((t["side"] == TS.FLAT) & t["mover"].astype(bool)).to_numpy()
@@ -784,11 +827,12 @@ def st_expect(ctx: LP.Ctx) -> tuple:
         fcs = gate.forecast(today, ctx.now)
         el = SC.select(fcs, ctx.now, gate.policy, gate.cfg)
         ok = set(el.eligible)
+        cols = [c for c in (*cfg.features, *cfg.market_features) if c in today]
+        vals = today[cols].astype(float).to_numpy() if cols else np.zeros((len(today), 0))
+        secs = today["sector"].astype(str).to_numpy() if "sector" in today else np.full(len(today), "all", object)
         st.forecasts[dec.decided_at] = {fc.candidate: {"mean": fc.mean, "median": fc.median, "p_band": fc.p_in_band, "eligible": fc.candidate in ok,
-                                                       "policy": gate.policy, **{f: float(today.loc[ix, f]) if f in today else float("nan")
-                                                                                 for f in (*cfg.features, *cfg.market_features)},
-                                                       "sector": str(today.loc[ix, "sector"]) if "sector" in today else "all"}
-                                        for fc, ix in zip(fcs, today.index) if math.isfinite(fc.mean)}
+                                                       "policy": gate.policy, **dict(zip(cols, map(float, vals[k]))), "sector": str(secs[k])}
+                                        for k, fc in enumerate(fcs) if math.isfinite(fc.mean)}
     pos = dec.positions
     if not len(pos):
         return _run(st, ctx, "c68.expectations", len(dec.table), 0, f"no position on {dec.decided_at}: {dict(dec.reasons())}")
@@ -804,7 +848,13 @@ def st_expect(ctx: LP.Ctx) -> tuple:
                                 "atr": float(t["atr"]) if "atr" in t and math.isfinite(float(t["atr"])) else 0.02,
                                 "kind": str(t["sector"]) if "sector" in t else "all",
                                 **{k: float(np.nan_to_num(float(t[k]))) for k in cfg.path_context if k in t}}
-    pm = st.path_model.bind(entries, ctx.now)
+    check = gate(today.loc[pos.index], ctx.now)                   # the canonical gate re-asked about every position (C69 section 31)
+    bypass = [str(ix[-1]) for ix in pos.index if not bool(check.loc[ix, "eligible"])]
+    if bypass:
+        st.count("band_bypass_refused")
+        raise FirewallBreach(f"{len(bypass)} position(s) on {dec.decided_at} are not eligible under the fitted 5-10% gate: another "
+                             f"selector bypassed it; no expectation is recorded for a decision the constraint did not make")
+    pm = ExpectationModel(st.path_model.bind(entries, ctx.now), gate, dict(gate.last))
     gm = gate.model
     version = f"{gate.policy}|{gm.digest()[:10]}|{str(ctx.rt.code_hash)[:8]}"
     info = {"bars": str(bv.sessions[-1].date()), "decision_frame": dec.decided_at, "gain_model": min(st.trained_through, dec.decided_at),
@@ -951,7 +1001,7 @@ def st_market(ctx: LP.Ctx) -> tuple:
         di = market_day(bv, t, ez.get(day, ()))
         vals, tg, _ = CP.build_streams(di)
         for sec, v in sector_volatility(bv, t).items():
-            vals[f"sector_vol:{sec}"], tg[f"sector_vol:{sec}"] = v, CP.Target.VOLATILITY
+            vals[f"sector_vol:{sec}"], tg[f"sector_vol:{sec}"] = v, CP.Target.SECTOR       # a sector's behaviour (checklist I)
         ew = CP.step(st.ews, day, vals, tg, unit_values=unit_values(bv, t), unit_sector=unit_sector, unit_target=CP.Target.VOLATILITY)
         st.warnings.append((day, ew.level.value, ew.scope.scope.value))
         d = st.daily
@@ -1139,6 +1189,7 @@ def st_outcomes(ctx: LP.Ctx) -> tuple:
     frames, combos = _patterns(ctx, st)
     done = 0
     skipped: dict[str, str] = {}
+    exited_now: list = []
     for pid in sorted(st.pending):
         p = st.pending[pid]
         got = position_paths(bv, p, cfg.horizon, ctx.now)
@@ -1146,7 +1197,7 @@ def st_outcomes(ctx: LP.Ctx) -> tuple:
             continue
         P, pos0 = got
         res = decide_exits(st, [(p.policy_id, P)])[0]
-        st.exited = (st.exited + [(p.policy_id, P)])[-40:]
+        exited_now.append((p.policy_id, P))
         days = int(res.days[0])
         exit_pos = pos0 + days - 1
         exp = led.expectations.get(pid)
@@ -1165,6 +1216,7 @@ def st_outcomes(ctx: LP.Ctx) -> tuple:
                                                "mfe": out.mfe, "mae": out.mae, "regret": out.regret})
         del st.pending[pid]
         done += 1
+    st.exited = exited_now
     reports = led.errors.step(led.outcomes, ctx.now)
     st.pending_err_z += [(str(as_date(ctx.now)), float(r["return"].z)) for r in reports if r["return"].z is not None and math.isfinite(r["return"].z)]
     for rep in reports:
@@ -1245,7 +1297,8 @@ def error_case(bv: BarView, st: C68State, pid: str, exp: XP.Expectation, out: OC
         kn = KN.classify_move(KN.MoveInputs(mv, b, market=mr.loc[b.index].fillna(0.0)))
     except (KN.KnowabilityError, KeyError, ValueError, IndexError):
         kn = None
-    pf = {p: frames[p][["effect"]] for p in exp.patterns if p in frames}
+    cut = pd.Timestamp(exp.decided_at)
+    pf = {p: frames[p][["effect"]].loc[:cut].tail(PATTERN_ROWS) for p in exp.patterns if p in frames}
     cb = {k: v for k, v in combos.items() if all(x in exp.patterns for x in k.split("|"))}
     case = WC.ErrorCase("C" + pid[1:], exp.decided_at, out.matured_at, float(exp.predicted_return), float(out.exit_return), hist, path,
                         mr.loc[idx_h], mr.iloc[e0: e1 + 1], sec.loc[idx_h], sec.iloc[e0: e1 + 1], peers, 0.0, pf, cb,
@@ -1584,19 +1637,22 @@ def _monitor(st: C68State, fr: pd.DataFrame, now, led: Ledgers) -> int:
 
 
 # ================================================================================================================ stage: audit and report
-def verify_all(st: C68State, led: Ledgers) -> list[str]:
-    """Every C68 ledger re-verified from its medium, each against the anchors stored OUTSIDE it; the P03 memories too."""
+def verify_all(st: C68State, led: Ledgers, deep: bool = True) -> list[str]:
+    """Re-verify the C68 chain from its medium against the anchors stored OUTSIDE it, and the P03 memories. Every cycle: the whole
+    chain's hash links, every anchor still on it, and the expectation lane on disk equal to what this process recorded (any edit of
+    any lane breaks the links; a consistent re-hash of the chain drops the anchors). `deep` additionally re-derives every stored
+    body's content hash in every ledger and every pipeline trail."""
     probs = []
-    anchors: dict[str, list] = {}
-    for _, name, h in st.anchors:
-        anchors.setdefault(name, []).append(h)
-    checks = {"expectations": led.expectations.verify(anchors.get("expectations", ())), "outcomes": led.outcomes.verify(anchors.get("outcomes", ())),
-              "errors": led.errors.lane.verify(anchors.get("errors", ())), "pipe": led.pipe.verify(anchors.get("pipe", ()))}
+    every = [h for _, _, h in st.anchors]                      # all C68 ledgers are lanes of ONE chain: every anchor must still be on it
+    if not deep:
+        checks = {"chain": led.expectations.lane.verify(every)}
+    else:
+        checks = {"expectations+outcomes": led.outcomes.verify(every),      # OutcomeLedger.verify re-verifies the expectation lane too
+                  "errors": led.errors.verify(), "pipe": led.pipe.verify()}
     for k, v in checks.items():
         probs += [f"{k}: {p}" for p in v.get("problems", [])]
-    probs += [f"book: {p}" for p in led.book.verify()]
-    known = {r["hash"] if "hash" in r else "" for r in led.book._cf._all()}
-    probs += [f"book: anchor {a[:12]} is no longer part of the chain" for a in anchors.get("book", ()) if a not in known]
+    if deep:
+        probs += [f"book: {p}" for p in led.book.verify()]
     if st.market.ledger.verify():
         probs.append(f"market expectations: entries {st.market.ledger.verify()} rewritten")
     if st.memory.verify():
@@ -1625,7 +1681,7 @@ def st_audit(ctx: LP.Ctx) -> tuple:
     adapter), audit exit independence on this cycle's exits, and persist the cycle report under <root>/c68."""
     st = _state(ctx)
     led = _ledgers(ctx, st)
-    probs = verify_all(st, led)
+    probs = verify_all(st, led, deep=ctx.cycle % 4 == 0)
     if probs:
         st.count("tamper_detected")
         raise XP.LedgerTampered("; ".join(probs[:6]))
@@ -1639,12 +1695,17 @@ def st_audit(ctx: LP.Ctx) -> tuple:
         if h != GENESIS and not any(a[1] == k and a[2] == h for a in st.anchors[-20:]):
             st.anchors.append((ctx.cycle, k, h))
     st.anchors = st.anchors[-500:]
-    cal = CT.evaluate(led.book, st.exit_records, ctx.now, st.cfg.target, st.cfg.seed)
+    comm = led.book.commitments(ctx.now)
+    key = (len(st.exit_records), len(comm), sum(as_date(c.matures_by) < as_date(ctx.now) for c in comm))
+    cache = ctx.rt.__dict__.setdefault("_c68_cal", {})
+    if cache.get("key") != key:                  # the honest statistic changes only when the book or its matured part changes
+        cache.update(key=key, cal=CT.evaluate(led.book, st.exit_records, ctx.now, st.cfg.target, st.cfg.seed))
+    cal = cache["cal"]
     reps = led.errors.reports(ctx.now)
     adapter = PE.honest_tolerance(reps, 0, st.cfg.error_cfg)
     st.calibration.append({"now": ctx.now, "status": cal.status.value, "share": cal.all_.share, "n": cal.all_.n, "oos_n": cal.oos.n,
                            "abuses": [a.kind.value for a in cal.abuses], "adapter_share": adapter["rate"], "headline": cal.headline})
-    rep = cycle_report(ctx, st, led, cal)
+    rep = cycle_report(ctx, st, led, cal, with_identification=ctx.cycle % 4 == 0)
     path = led.root / f"cycle_{ctx.cycle:05d}.json"
     tmp = path.with_suffix(".tmp")
     tmp.write_text(json.dumps(rep, default=str, indent=1), encoding="utf-8")
@@ -1653,16 +1714,25 @@ def st_audit(ctx: LP.Ctx) -> tuple:
                 f"ledgers intact ({len(led.pipe)} pipeline events); {cal.headline[:150]}")
 
 
-def cycle_report(ctx: LP.Ctx, st: C68State, led: Ledgers, cal: CT.CalibrationReport) -> dict:
-    frame = correction_frame(st, ctx.now)
+def identification(st: C68State, now) -> pd.DataFrame:
+    """selection_constraint.identification_curve over every matured research-side forecast: per quarter, the share of the names the
+    band gate made eligible whose realised gain landed in [5%, 10%], against the base rate of all forecast names."""
+    frame = correction_frame(st, now)
+    if not len(frame):
+        return pd.DataFrame()
+    pol = "c68"
+    fcs = [SC.GainForecast(f"{r.date}|{i}", str(r.date), pol, float(r.predicted), {0.5: float(r.predicted)}, float(r.p_in_band),
+                           st.cfg.selection.min_support, "research") for i, r in frame.iterrows()]
+    return SC.identification_curve(fcs, {f.candidate: float(frame.loc[i, "realised"]) for i, f in zip(frame.index, fcs)},
+                                   {f.candidate: str(frame.loc[i, "matured_at"]) for i, f in zip(frame.index, fcs)}, now, pol, st.cfg.selection)
+
+
+def cycle_report(ctx: LP.Ctx, st: C68State, led: Ledgers, cal: CT.CalibrationReport, with_identification: bool = True) -> dict:
     ident = None
-    if len(frame):
-        fcs = [SC.GainForecast(f"{r.date}|{i}", r.date, "p", float(r.predicted), {0.5: float(r.predicted)}, float(r.p_in_band), 999, "d")
-               for i, r in frame.iterrows()]
-        cur = SC.identification_curve(fcs, {f.candidate: float(frame.loc[i, "realised"]) for i, f in zip(frame.index, fcs)},
-                                      {f.candidate: str(frame.loc[i, "matured_at"]) for i, f in zip(frame.index, fcs)}, ctx.now, "p",
-                                      dataclasses.replace(st.cfg.selection, min_support=20))
-        ident = {"periods": len(cur), "trend": SC.improvement_trend(cur)}
+    if with_identification:
+        cur = identification(st, ctx.now)
+        ident = {"periods": int(len(cur)), "trend": SC.improvement_trend(cur) if len(cur) else None,
+                 "rows": cur.to_dict("records") if len(cur) else []}
     return {"cycle": ctx.cycle, "now": ctx.now, "label": LABEL, "counters": dict(st.counters),
             "ledgers": {"expectations": len(led.expectations), "outcomes": len(led.outcomes), "errors": len(led.errors),
                         "commitments": len(led.book.commitments()), "pipeline_events": len(led.pipe), "pipeline_furthest": led.pipe.furthest()},
@@ -1694,12 +1764,12 @@ class C68Plant:
     base_sigma: tuple = (0.008, 0.014)
     start_p: float = 1 / 60
     stop_p: float = 1 / 30
-    switch: float = 0.70
-    recover: float = 0.82
-    false_alarm: float = 0.62
+    switch: float = 0.72
+    recover: float = 0.84
+    false_alarm: float = 0.58
     burst_len: int = 12
     burst_mult: float = 2.5
-    shock: float = 0.655
+    shock: float = 0.65
     shock_size: float = -0.18
     shock_name: int = 7
     distress_len: int = 20

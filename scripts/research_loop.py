@@ -22,6 +22,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from engine import config as K                                                    # noqa: E402
+from engine.research import error_loop as C68                                     # noqa: E402,F401 - registers the C68 stages
 from engine.research import loop as LP                                            # noqa: E402
 from engine.research import two_stage as TS                                       # noqa: E402
 
