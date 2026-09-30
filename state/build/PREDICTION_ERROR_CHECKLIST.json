@@ -464,22 +464,36 @@
    "group": "CHECKLIST",
    "description": "Checklist Y: FULL ERROR-TO-IMPROVEMENT PIPELINE",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/research/error_loop.py"
+   ],
+   "tests": [
+    "tests/test_c68_adversarial.py",
+    "tests/test_research_error_loop.py"
+   ],
    "evidence": [],
-   "notes": ""
+   "notes": "IMPLEMENTED - NOT VALIDATED (P06, 29 Sep): 10 C68 stages registered in the research loop; every checklist-Z bullet is a test run through the real loop (22 adversarial + 17 loop tests pass). Planted only (C63). No fix has reached PROMOTE through the real gate (W-06).",
+   "last_run": "2026-09-29T19:09:49",
+   "code_hash": "c53be43f67f8c296"
   },
   {
    "id": "PEZ",
    "group": "CHECKLIST",
    "description": "Checklist Z: FINAL INTEGRATION TESTS",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/research/error_loop.py"
+   ],
+   "tests": [
+    "tests/test_c68_adversarial.py",
+    "tests/test_research_error_loop.py"
+   ],
    "evidence": [],
-   "notes": ""
+   "notes": "IMPLEMENTED - NOT VALIDATED (P06, 29 Sep): 10 C68 stages registered in the research loop; every checklist-Z bullet is a test run through the real loop (22 adversarial + 17 loop tests pass). Planted only (C63). No fix has reached PROMOTE through the real gate (W-06).",
+   "last_run": "2026-09-29T19:09:49",
+   "code_hash": "c53be43f67f8c296"
   },
   {
    "id": "PZ01",
@@ -815,11 +829,19 @@
    "group": "ADVERSARIAL TEST",
    "description": "the learner improves only when evidence justifies improvement",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/research/error_loop.py",
+    "engine/research/self_correct.py"
+   ],
+   "tests": [
+    "tests/test_c68_adversarial.py",
+    "tests/test_research_error_loop.py"
+   ],
    "evidence": [],
-   "notes": ""
+   "notes": "IN_PROGRESS (P06, 29 Sep): promote/rollback paths tested only by forcing the gate verdict; no fix reached PROMOTE on its own evidence yet.",
+   "last_run": "2026-09-29T19:09:49",
+   "code_hash": "c53be43f67f8c296"
   },
   {
    "id": "PC01",
@@ -848,11 +870,17 @@
    "group": "COMPLETION",
    "description": "Every integration point is reachable.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "VALIDATED",
+   "code_paths": [
+    "engine/research/error_loop.py"
+   ],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/build/evidence/reachability_engine_research_after_P06_2026-09-29.txt"
+   ],
+   "notes": "P06 (29 Sep): reachability --package engine.research --fail-on all exit 0; error_loop + all 13 C68 modules + feeds/evidence REACHED; runtime flow shown by a 26-cycle planted run (53 expectations, 50 outcomes, 50 errors). Static reachability is an upper bound.",
+   "last_run": "2026-09-29T19:09:48",
+   "code_hash": "c53be43f67f8c296"
   },
   {
    "id": "PC04",
@@ -914,11 +942,18 @@
    "group": "COMPLETION",
    "description": "The 5–10% selection constraint is enforced.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/research/two_stage.py"
+   ],
+   "tests": [
+    "tests/test_c68_adversarial.py",
+    "tests/test_research_error_loop.py"
+   ],
    "evidence": [],
-   "notes": ""
+   "notes": "IMPLEMENTED - NOT VALIDATED (P06): band gate inside the two_stage funnel + idempotent apply_band_gate.",
+   "last_run": "2026-09-29T19:09:49",
+   "code_hash": "c53be43f67f8c296"
   },
   {
    "id": "PC10",
@@ -991,11 +1026,19 @@
    "group": "COMPLETION",
    "description": "The system demonstrably learns from prediction errors.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "engine/research/error_loop.py",
+    "engine/research/self_correct.py"
+   ],
+   "tests": [
+    "tests/test_c68_adversarial.py",
+    "tests/test_research_error_loop.py"
+   ],
    "evidence": [],
-   "notes": ""
+   "notes": "IN_PROGRESS (P06, 29 Sep): promote/rollback paths tested only by forcing the gate verdict; no fix reached PROMOTE on its own evidence yet.",
+   "last_run": "2026-09-29T19:09:49",
+   "code_hash": "c53be43f67f8c296"
   },
   {
    "id": "PC17",
