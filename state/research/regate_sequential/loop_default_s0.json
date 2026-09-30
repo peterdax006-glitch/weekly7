@@ -949,6 +949,226 @@
    ],
    "failed": {},
    "counters": {}
+  },
+  {
+   "cycle": 108,
+   "now": "2019-06-07",
+   "knowledge": [
+    "lv20",
+    "lv20",
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 109,
+   "now": "2019-06-14",
+   "knowledge": [
+    "lv20",
+    "lv20",
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 110,
+   "now": "2019-06-21",
+   "knowledge": [
+    "lv20",
+    "lv20",
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 111,
+   "now": "2019-06-28",
+   "knowledge": [
+    "lv20",
+    "lv20",
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 112,
+   "now": "2019-07-05",
+   "knowledge": [
+    "lv20",
+    "lv20",
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 113,
+   "now": "2019-07-12",
+   "knowledge": [
+    "lv20",
+    "lv20",
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 114,
+   "now": "2019-07-19",
+   "knowledge": [
+    "lv20",
+    "lv20",
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 115,
+   "now": "2019-07-26",
+   "knowledge": [
+    "lv20",
+    "lv20",
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 116,
+   "now": "2019-08-02",
+   "knowledge": [
+    "lv20",
+    "lv20",
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 117,
+   "now": "2019-08-09",
+   "knowledge": [
+    "lv20",
+    "lv20",
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 118,
+   "now": "2019-08-16",
+   "knowledge": [
+    "lv20",
+    "lv20",
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 119,
+   "now": "2019-08-23",
+   "knowledge": [
+    "lv20",
+    "lv20",
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 120,
+   "now": "2019-08-30",
+   "knowledge": [
+    "lv20",
+    "lv20",
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 121,
+   "now": "2019-09-06",
+   "knowledge": [
+    "lv20",
+    "lv20",
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 122,
+   "now": "2019-09-13",
+   "knowledge": [
+    "lv20",
+    "lv20",
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 123,
+   "now": "2019-09-20",
+   "knowledge": [
+    "lv20",
+    "lv20",
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 124,
+   "now": "2019-09-27",
+   "knowledge": [
+    "lv20",
+    "lv20",
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 125,
+   "now": "2019-10-04",
+   "knowledge": [
+    "lv20",
+    "lv20",
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 126,
+   "now": "2019-10-11",
+   "knowledge": [
+    "lv20",
+    "lv20",
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 127,
+   "now": "2019-10-18",
+   "knowledge": [
+    "lv20",
+    "lv20",
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
   }
  ],
  "provenance": {
@@ -1103,8 +1323,8 @@
   },
   "DBRc36ce19ef0a7": {
    "feature": "lv20",
-   "verdict": "NEEDS_MORE_EVIDENCE",
-   "looks": 3,
+   "verdict": "FAILED",
+   "looks": 4,
    "retired": "",
    "history": [
     {
@@ -1139,11 +1359,44 @@
      "blocking": [
       "replication"
      ]
+    },
+    {
+     "look": 4,
+     "cycle": 119,
+     "at": "2019-08-23",
+     "verdict": "FAILED",
+     "alpha": 0.0018997721932938337,
+     "n_test": 108,
+     "blocking": [
+      "calibration",
+      "failure_behavior",
+      "replication"
+     ]
     }
    ],
    "blocking": {
-    "replication": "MISSING: PARTIALLY_REPLICATED: requirement not met: heterogeneity_ok"
+    "replication": "MISSING: PARTIALLY_REPLICATED: requirement not met: heterogeneity_ok",
+    "calibration": "FAIL: ECE 0.068 > 0.06 and beyond what perfect calibration would give (p=0.005)",
+    "failure_behavior": "MISSING: only 4 failure episodes studied (< 5)"
    }
+  },
+  "DBR42f7b7af4620": {
+   "feature": "lv20",
+   "verdict": "PROMOTE",
+   "looks": 1,
+   "retired": "",
+   "history": [
+    {
+     "look": 1,
+     "cycle": 108,
+     "at": "2019-06-07",
+     "verdict": "PROMOTE",
+     "alpha": 0.03039635509270134,
+     "n_test": 125,
+     "blocking": []
+    }
+   ],
+   "blocking": {}
   }
  },
  "knowledge": {
@@ -1154,8 +1407,8 @@
    "filed_at": "2018-03-16",
    "effect": 0.382507546586,
    "branch": "BR8d29e1435ef2",
-   "post_effect": 0.3127585446193197,
-   "post_n": 61
+   "post_effect": 0.3255234149077336,
+   "post_n": 81
   },
   "Kf91a2aee26a475": {
    "feature": "lv20",
@@ -1164,11 +1417,21 @@
    "filed_at": "2018-03-30",
    "effect": 0.36485903194,
    "branch": "BRef22dcaf6775",
-   "post_effect": 0.3120666650639636,
-   "post_n": 59
+   "post_effect": 0.32532985600660463,
+   "post_n": 79
+  },
+  "K0b86458b1946e1": {
+   "feature": "lv20",
+   "sign": 1.0,
+   "problem": "VOLATILITY",
+   "filed_at": "2019-06-07",
+   "effect": 0.334441884357,
+   "branch": "BR42f7b7af4620",
+   "post_effect": 0.3574088907476357,
+   "post_n": 17
   }
  },
- "seconds": 5773.6,
+ "seconds": 7254.7,
  "truth": {
   "genuine": [
    "lv20",

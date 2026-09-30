@@ -817,6 +817,174 @@
    ],
    "failed": {},
    "counters": {}
+  },
+  {
+   "cycle": 104,
+   "now": "2019-05-10",
+   "knowledge": [
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 105,
+   "now": "2019-05-17",
+   "knowledge": [
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 106,
+   "now": "2019-05-24",
+   "knowledge": [
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 107,
+   "now": "2019-05-31",
+   "knowledge": [
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 108,
+   "now": "2019-06-07",
+   "knowledge": [
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 109,
+   "now": "2019-06-14",
+   "knowledge": [
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 110,
+   "now": "2019-06-21",
+   "knowledge": [
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 111,
+   "now": "2019-06-28",
+   "knowledge": [
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 112,
+   "now": "2019-07-05",
+   "knowledge": [
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 113,
+   "now": "2019-07-12",
+   "knowledge": [
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 114,
+   "now": "2019-07-19",
+   "knowledge": [
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 115,
+   "now": "2019-07-26",
+   "knowledge": [
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 116,
+   "now": "2019-08-02",
+   "knowledge": [
+    "lv20",
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 117,
+   "now": "2019-08-09",
+   "knowledge": [
+    "lv20",
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 118,
+   "now": "2019-08-16",
+   "knowledge": [
+    "lv20",
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 119,
+   "now": "2019-08-23",
+   "knowledge": [
+    "lv20",
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 120,
+   "now": "2019-08-30",
+   "knowledge": [
+    "lv20",
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 121,
+   "now": "2019-09-06",
+   "knowledge": [
+    "lv20",
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
   }
  ],
  "provenance": {
@@ -938,6 +1106,24 @@
     }
    ],
    "blocking": {}
+  },
+  "DBRc31f6385e27f": {
+   "feature": "lv20",
+   "verdict": "PROMOTE",
+   "looks": 1,
+   "retired": "",
+   "history": [
+    {
+     "look": 1,
+     "cycle": 116,
+     "at": "2019-08-02",
+     "verdict": "PROMOTE",
+     "alpha": 0.03039635509270134,
+     "n_test": 108,
+     "blocking": []
+    }
+   ],
+   "blocking": {}
   }
  },
  "knowledge": {
@@ -948,11 +1134,19 @@
    "filed_at": "2018-07-13",
    "effect": 0.324586243301,
    "branch": "BR0dbd33442606",
-   "post_effect": 0.3321810248266187,
-   "post_n": 40
+   "post_effect": 0.3434144942454746,
+   "post_n": 58
+  },
+  "K21323e4e83fbce": {
+   "feature": "lv20",
+   "sign": 1.0,
+   "problem": "VOLATILITY",
+   "filed_at": "2019-08-02",
+   "effect": 0.339101935667,
+   "branch": "BRc31f6385e27f"
   }
  },
- "seconds": 5780.9,
+ "seconds": 7237.0,
  "truth": {
   "genuine": [
    "lv20",

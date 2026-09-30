@@ -1,0 +1,61 @@
+{
+ "attempt": 1,
+ "code_hash": "d44ef1b382465975",
+ "data_hash": "",
+ "ended": 1790767590.351671,
+ "experiment_key": "f6019357ba9e4c132d53",
+ "result": {
+  "branch_id": "BRbd89009c0873",
+  "control_effect": -0.00391599501,
+  "control_se": 0.011368981687,
+  "cutoff": "2019-07-12",
+  "data_through": "2019-07-12",
+  "effect": 0.33023543937,
+  "feature": "lv20",
+  "fresh": false,
+  "key": "f6019357ba9e4c132d53",
+  "kind": "volatility_auc",
+  "n_obs": 104,
+  "n_positive": 1,
+  "n_rows": 4987,
+  "n_tests": 1,
+  "n_units": 3,
+  "ok": true,
+  "problem": "VOLATILITY",
+  "replications": 2,
+  "se": 0.009211980078,
+  "seen_through": "2019-06-07",
+  "sign": 1.0,
+  "stage": "STAGE3_CROSS_YEAR",
+  "unit_effects": [
+   0.296832756001,
+   0.333038166881,
+   0.366015264896
+  ],
+  "units_positive": 3
+ },
+ "result_hash": "cfa3bc8ec9675b9b79a4",
+ "run_key": "0a88226194d921213475",
+ "seed": 325701439,
+ "snapshot_id": "",
+ "spec": {
+  "after": [],
+  "as_of": "2019-07-19",
+  "data_hash": "",
+  "est_gb": 2.5,
+  "name": "BRbd89009c0873_s3",
+  "params": {
+   "branch": "BRbd89009c0873",
+   "cpu_min": 96.0,
+   "family": "question:regime_change",
+   "question": "Q0b7ea9093ffd",
+   "repeat": 0,
+   "stage": "STAGE3_CROSS_YEAR"
+  },
+  "priority": 3,
+  "seed": 3,
+  "snapshot_id": ""
+ },
+ "started": 1790767590.166069,
+ "worker": "w10688"
+}
