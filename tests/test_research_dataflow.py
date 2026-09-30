@@ -145,25 +145,13 @@ def test_builders_feed_nothing_twice(short_run):
     assert len(set(state.memo["feed:observer"]["done"])) == len(state.memo["feed:observer"]["done"]) >= 1
 
 
-def test_c68_slot_builds_expectations_and_realised_paths(short_run):
-    feed, state, rt, reps = short_run
-    rt.obs = feed.observe(state.now)
-    ctx = LP.Ctx(state, rt, state.now, state.cycle)
-    out = ctx.namespace(FD.C68_SLOT)                                           # the namespaced per-day inputs a registered stage reads
-    e, p = out["expectations"], out["realised_paths"]
-    assert {"p_move", "p_up", "side", "decided_at"} <= set(e.columns) and len(e) > 0
-    assert len(p) and (pd.to_datetime(p["resolved_at"]) < pd.Timestamp(state.now)).all()
-    assert set(p["session"]) <= set(range(1, feed.cfg.horizon + 1))
-    rt.obs = None
-
-
 def test_builders_without_decisions_raise_no_input_not_errors(small_world, tmp_path):
     feed = FD.WorldFeed(FD.InMemorySource(small_world), SMALL_FEED)
     state, rt, _ = LP.open_loop(feed, tmp_path, loop_cfg(checkpoint="off"), clock=CLOCK)
     now = feed.dates()[0]
     rt.obs = feed.observe(now)
     ctx = LP.Ctx(state, rt, now, 0)
-    for stage in ("observe.observer", "evaluate.frontier", "questions.targets", FD.C68_SLOT):
+    for stage in ("observe.observer", "evaluate.frontier", "questions.targets"):
         with pytest.raises(LP.NoInput):
             ctx.extra(stage, "x")
 

@@ -23,8 +23,8 @@ Design
                  predicts next week's +-10% touch), scheduled earnings shocks (knowable before the event), a transient early
                  COINCIDENCE (cheap names jump only in the first third of the sample: a noise pattern that must never be promoted),
                  noise insider filings and a macro series; `truth` names all of it so tests score against exact ground truth.
-  C68 slot       `c68_inputs(ctx)` builds per-prediction expectations and realised paths for the prediction-error builders (P01-P05);
-                 the loop does not consume it yet - a later builder wires it (stage key C68_SLOT).
+  C68            the prediction-error inputs are built by engine.research.error_loop's registered builder `c68.world` (P06); the
+                 earlier `c68_inputs` slot here was an unused duplicate and was retired (29 Sep, C69 section 6).
 
 Public entries: `WorldFeed(source, cfg)` (the loop Feed), `planted_feed(...)`, `real_cache_feed(...)`, `input_table(reports)`."""
 from __future__ import annotations
@@ -43,7 +43,6 @@ from engine.research.core import FirewallBreach, as_date, stable_hash
 LABEL = "IMPLEMENTED - NOT VALIDATED"
 BAR_FIELDS = ("Open", "High", "Low", "Close", "Volume")
 MARKET_COLS = ("SPY", "^VIX", "^VIX3M")
-C68_SLOT = "c68"                                  # namespaced key: loop Ctx.namespace("c68")
 FEED_STAGES = ("observe.observer", "observe.autopsy", "evaluate.frontier", "evaluate.symmetry", "surprises.cross_section",
                "surprises.multiscale", "missed.knowability", "missed.counterfactual", "breaks.break_research", "questions.discovery",
                "questions.interactions", "questions.precursors", "questions.targets")
@@ -965,40 +964,6 @@ def b_targets(feed: "WorldFeed", ctx) -> dict:
     return {"day": TG.DayInput(ctx.obs.evidence_through, preds, surprises=surprises, pattern_history=hist, coverage=cov)}
 
 
-def c68_inputs(feed: "WorldFeed", ctx) -> dict:
-    """C68 slot (prediction-error research, builders P01-P05): per-prediction EXPECTATIONS (what the two-stage chain expected at each
-    decision: P(move), P(up), side, 90% magnitude) and the REALISED PATHS of every decision whose horizon resolved before now (per
-    holding session: close, high and low relative to the next-open entry). Not consumed by the loop yet: a later builder wires it."""
-    w = feed.store.bars_before(ctx.now)
-    S = w.sessions
-    H = feed.cfg.horizon
-    exp, paths = [], []
-    for dec in _decisions(ctx):
-        t = dec.table
-        if len(t) == 0 or as_date(dec.decided_at) >= as_date(ctx.now):      # research side: decisions made strictly before now
-            continue
-        e = t[[c for c in ("p_move", "p_up", "side", "mover", "mag_q90") if c in t]].copy()
-        e["decided_at"] = dec.decided_at
-        exp.append(e.reset_index())
-        rr = _resolved(dec, S, H)
-        if rr is None:
-            continue
-        pos, last = rr
-        tk = [x for x in _by_ticker(t).index if x in w.bars["Close"].columns]
-        entry = w.bars["Open"][tk].iloc[pos]
-        for k in range(pos, last + 1):
-            paths.append(pd.DataFrame({"decided_at": dec.decided_at, "ticker": tk, "session": k - pos + 1,
-                                       "close_rel": (w.bars["Close"][tk].iloc[k] / entry - 1).to_numpy(float),
-                                       "high_rel": (w.bars["High"][tk].iloc[pos:k + 1].max() / entry - 1).to_numpy(float),
-                                       "low_rel": (w.bars["Low"][tk].iloc[pos:k + 1].min() / entry - 1).to_numpy(float),
-                                       "resolved_at": str(S[k].date())}))
-    if not exp:
-        raise NoInput("no two-stage decision yet")
-    empty = pd.DataFrame(columns=["decided_at", "ticker", "session", "close_rel", "high_rel", "low_rel", "resolved_at"])
-    return {"expectations": pd.concat(exp, ignore_index=True).rename(columns={"date": "decision_date"}),
-            "realised_paths": pd.concat(paths, ignore_index=True) if paths else empty}
-
-
 BUILDERS: dict[str, Callable] = {
     "observe.observer": lambda f, c: b_observer_pair(f, c, "observer"),
     "observe.autopsy": lambda f, c: b_observer_pair(f, c, "autopsy"),
@@ -1013,7 +978,6 @@ BUILDERS: dict[str, Callable] = {
     "questions.interactions": b_interactions,
     "questions.precursors": b_precursors,
     "questions.targets": b_targets,
-    C68_SLOT: c68_inputs,
 }
 
 

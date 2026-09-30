@@ -468,6 +468,34 @@ class RetirementLedger:
             self.transition(kid, out[0], now, out[1], out[2], FailureCause.UNKNOWN, numbers)
         return verdict
 
+    def recover_degraded(self, kid: str, ev: Evidence, now, apply: bool = False) -> Verdict:
+        """The door back for a DEGRADED item that was never parked (F07, adopted here from learner.RecoveringLedger by F10).
+        attempt_recovery only serves items on probation; without this an item degraded by one noisy window stayed DEGRADED for
+        ever.  The bar is the ledger's own recovery bar: recover_min_n outcomes, all dated after the degrade, t >= recover_t
+        (> degrade_t: hysteresis).  The move goes through `transition` (DEGRADED -> ACTIVE is an ALLOWED move)."""
+        pol, s, last = self.policy, self.state(kid, now), self.last_transition(kid, now)
+        numbers = {"n": ev.n, "effect": ev.effect, "se": ev.se, "t": ev.t, "state": None if s is None else s.value,
+                   "need_n": pol.recover_min_n, "need_t": pol.recover_t}
+        if s is not State.DEGRADED:
+            return Verdict(kid, None, None, f"not degraded ({None if s is None else s.value})", numbers)
+        if last is not None and last.kind in ("RECOVER_PROBATION", "REVIVE"):
+            return Verdict(kid, None, None, "on recovery probation: attempt_recovery decides", numbers)
+        errs = ev.validate()
+        if errs:
+            raise ValueError("bad evidence: " + "; ".join(errs))
+        if ev.n:
+            require_past(ev.window_end, now, "recovery evidence window_end")
+        if last is not None and ev.n and as_date(ev.window_start) <= as_date(last.at):
+            return Verdict(kid, None, None, f"evidence starts {ev.window_start}, not after the degrade on {last.at}", numbers)
+        if ev.n < pol.recover_min_n:
+            return Verdict(kid, None, None, f"insufficient recovery evidence (n={ev.n} < {pol.recover_min_n})", numbers)
+        if ev.t < pol.recover_t:
+            return Verdict(kid, None, None, f"recovery evidence too weak (t={ev.t:.2f} < {pol.recover_t:.2f})", numbers)
+        verdict = Verdict(kid, State.ACTIVE, "RECOVER_FULL", "degraded item recovered on evidence dated after the degrade", numbers)
+        if apply:
+            self.transition(kid, State.ACTIVE, now, "RECOVER_FULL", verdict.reason, FailureCause.UNKNOWN, numbers)
+        return verdict
+
     def probation_failed(self, kid: str, ev: Evidence, now, apply: bool = False) -> Verdict:
         """An item on recovery probation whose next window is weak again goes back to DORMANT (kind REVERT)."""
         s, last = self.state(kid, now), self.last_transition(kid, now)
