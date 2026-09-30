@@ -1194,6 +1194,8 @@ def revalidate(evidence_dates: Sequence[str], evidence_values: Sequence[float], 
     vals = np.concatenate([ev[keep] if len(ev) else ev, lv])
     first = dates[0] if dates else nd
     marks = [m for m in gain_changes(dates, vals, cfg) if m.alarm_date > sd]
+    # no tail test here: tried (F13) against [evidence + live], it rolled back two WORKING fixes (flip seeds 1 and 5, 25 weeks BEFORE
+    # the flip) because live gains run below the promotion evidence's level; smaller drops are left to the degradation monitor
     marks += [m for m in external if str(m.alarm_date) > sd and str(m.alarm_date) < nd and str(m.change_date) >= first]
     if not marks:
         return Revalidation("WATCHING", "no change declared since the promotion", None, 0, float("nan"), float("nan"))

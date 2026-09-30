@@ -1,0 +1,22 @@
+{"kind": "flip", "seed": 0, "world": "planted", "cycles": 227, "seconds": 855.2, "validations": 55, "promoted_sector_slope": 1, "first_promote": "2020-07-03", "promote_count": 1, "promoted_other": "", "applied": 1, "rolled_back": 0, "retired": "{}", "final_production": "sector_slope", "last_verdict": "FAILED", "last_blocking": "out_of_sample", "last_effect": -0.0007403176937646226, "last_t": -2.3792805659639074, "picked_weak_sector_share": 1.0, "monitor_min_t": -1.5712530503568574, "stage_failures": "", "weak_sector": "SEC1", "flip_date": "2020-04-20"}
+{"kind": "flip", "seed": 1, "world": "planted", "cycles": 227, "seconds": 753.0, "validations": 55, "promoted_sector_slope": 1, "first_promote": "2019-05-10", "promote_count": 1, "promoted_other": "", "applied": 1, "rolled_back": 1, "retired": "{\"sector_slope\": \"2020-09-25\"}", "final_production": "incumbent", "last_verdict": "FAILED", "last_blocking": "out_of_sample", "last_effect": -0.0005413963673611845, "last_t": -2.21590844481821, "picked_weak_sector_share": 0.9423076923076923, "monitor_min_t": -2.3496587285671606, "stage_failures": "", "weak_sector": "SEC1", "flip_date": "2020-04-20"}
+{
+ "flip": {
+  "n": 2,
+  "promote_rate": 1.0,
+  "promoted_seeds": [
+   0,
+   1
+  ],
+  "any_other_fix_promoted": 0,
+  "rollback_rate": 0.5,
+  "first_promote": [
+   "2019-05-10",
+   "2020-07-03"
+  ],
+  "last_verdicts": {
+   "FAILED": 2
+  },
+  "stage_failures": 0
+ }
+}
