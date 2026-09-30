@@ -16,6 +16,7 @@ every served filing and memory row is checked as public before use; and the lock
 requires one complete pass per session and writes a hash-chained InformationLedger entry (what information existed,
 and when it came from) for every tick. Gate failures raise BlindGateError; nothing is silently repaired."""
 import json, os, secrets, threading, queue, time
+from pathlib import Path
 import numpy as np
 import pandas as pd
 
@@ -73,6 +74,18 @@ class SealedYear:
         st = self.start_of(self._read())
         end = st + pd.DateOffset(months=12) - pd.Timedelta(days=1)
         return f"{st:%b %Y} - {end:%b %Y}"
+
+
+BANK_EXCLUSIONS = "memory_bank_excluded.json"
+
+
+def bank_exclusions(root=None) -> frozenset:
+    """Window ids whose memory-bank lessons are quarantined (written by livesim_loop2.publish_bank_exclusions). A missing file
+    excludes nothing; an unreadable one fails closed."""
+    f = Path(root or DIR) / BANK_EXCLUSIONS
+    if not f.exists():
+        return frozenset()
+    return frozenset(map(str, json.loads(f.read_text(encoding="utf-8"))["windows"]))
 
 
 class Feed:
@@ -196,6 +209,9 @@ class Feed:
         if not bank.exists():
             return None
         b = pd.read_parquet(bank)
+        excl = bank_exclusions()
+        if excl and "window" in b:                               # F06: lessons of quarantined (tuned-meta) plays never reach a trader
+            b = b[~b["window"].astype(str).isin(excl)]
         start = self.first_live - self._shift                    # real start date, known only to the feed
         b = b[pd.to_datetime(b["real_end"]) < start]
         if self.enforce:                                         # C34 causality, checked on what is actually returned

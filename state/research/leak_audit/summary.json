@@ -9,20 +9,26 @@
   "6"
  ],
  "provenance": {
-  "code_hash": "5311eb3a49698384",
+  "code_hash": "5b913726f30891c8",
   "code_files": [
    "engine/__init__.py",
+   "engine/adaptive.py",
+   "engine/basis_search.py",
    "engine/blind_gates.py",
    "engine/config.py",
    "engine/leak_audit.py",
    "engine/learning/__init__.py",
    "engine/learning/core.py",
+   "engine/missed_winners.py",
    "engine/model.py",
+   "engine/objective.py",
+   "engine/policy.py",
+   "engine/portfolio.py",
    "engine/provenance.py",
    "scripts/leak_audit.py"
   ],
   "code_mixed": [],
-  "git_commit": "b757b004e5504b0c667e088b827208a7d4b1cf9e+dirty",
+  "git_commit": "e7ebec43c10859ffdce8a25c2dfa50c900fa6928+dirty",
   "canon_sha": "fef7cdf0a1501c3d",
   "bible_sha": "a97ea91862cee371",
   "blueprint_version": "4.0",
@@ -508,7 +514,7 @@
       "state_file_read": true,
       "train_basis_calls": [
        {
-        "line": 488,
+        "line": 501,
         "kwargs": [
          "seed",
          "used_from"
@@ -549,7 +555,7 @@
     },
     "train_basis_calls_in_main(source)": [
      {
-      "line": 488,
+      "line": 501,
       "kwargs": [
        "seed",
        "used_from"
@@ -560,7 +566,7 @@
     ],
     "register_basis_calls_in_main(source)": [
      {
-      "line": 495,
+      "line": 508,
       "trained_on": "wins"
      }
     ],
@@ -1104,8 +1110,8 @@
       "call:update@236"
      ],
      "livesim_loop2": [
-      "call:update@119",
-      "call:update@339"
+      "call:update@131",
+      "call:update@351"
      ],
      "missed_winners": [
       "call:update@483"

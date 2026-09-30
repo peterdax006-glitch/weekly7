@@ -529,3 +529,22 @@ def test_w11_trader_view_refuses_planted_year_and_date_content_in_released_items
     d = FWL.ResearchTraderFirewall(st, "f06-planted-year").inspect("yr", "2024-06-03", None)
     assert not d.admitted and "YEAR_IDENTITY" in {str(c) for c in d.channels}
     assert TV.find_violations({"features": {"vol20": 1.0}}) == []                 # the clean control passes
+
+
+def test_quarantined_tuned_meta_lessons_never_reach_a_later_trader(L, tmp_path, monkeypatch):
+    """F06 hook (channel 4): windows quarantined as tuned_meta are published, and Feed.long_term_memory drops their lessons."""
+    state = L.quarantine_tuned_meta({"windows": [
+        {"run_id": "w01a", "window": "w01a", "basis_version": 0, "untrained_basis": True, "meta": dict(L.A.META_DEFAULT)},
+        {"run_id": "w01b", "window": "w01b", "basis_version": 0, "untrained_basis": True, "meta": dict(L.NEUTRAL_META)}]})
+    assert L.publish_bank_exclusions(state, root=tmp_path) == ["w01a"]
+    assert livesim.bank_exclusions(tmp_path) == frozenset({"w01a"}) and livesim.bank_exclusions(tmp_path / "none") == frozenset()
+    bank = pd.DataFrame({"arm": ["x", "y"], "ctx": [[0.0], [0.0]], "outcome": [0.1, -0.1], "window": ["w01a", "w01b"],
+                         "real_end": ["2001-01-05", "2001-01-05"]})
+    bank.to_parquet(tmp_path / "memory_bank.parquet")
+    monkeypatch.setattr(livesim, "DIR", tmp_path)
+    feed = object.__new__(livesim.Feed)
+    feed.first_live, feed._shift, feed.enforce = pd.Timestamp("2030-01-02"), pd.Timedelta(days=0), False
+    out = feed.long_term_memory()
+    assert list(out["arm"]) == ["y"]                                   # the tuned play's lesson is gone, the clean one stays
+    (tmp_path / livesim.BANK_EXCLUSIONS).unlink()
+    assert sorted(feed.long_term_memory()["arm"]) == ["x", "y"]        # the hook, removed, lets it through: the test can fail

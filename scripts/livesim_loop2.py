@@ -94,6 +94,18 @@ def quarantine_tuned_meta(state):
     return state
 
 
+def publish_bank_exclusions(state, root=None):
+    """F06 channel 4: the windows quarantined as tuned_meta are listed for livesim.Feed.long_term_memory, which drops their
+    lessons from every later trader's long-term memory (the rows stay in the bank: reported, not removed)."""
+    ids = sorted({str(w.get("run_id") or w.get("window")) for w in state.get("windows", [])
+                  if w.get("legacy") == LA.TUNED_META_LEGACY and (w.get("run_id") or w.get("window"))})
+    f = Path(root or DIR) / livesim.BANK_EXCLUSIONS
+    tmp = f.with_suffix(".tmp")
+    tmp.write_text(json.dumps({"windows": ids, "reason": LA.TUNED_META_LEGACY}), encoding="utf-8")
+    tmp.replace(f)
+    return ids
+
+
 st = quarantine_tuned_meta(migrate_state(json.loads(STATE.read_text()))) if STATE.exists() else fresh_state()
 save = lambda: STATE.write_text(json.dumps(st, indent=1, default=str))
 
@@ -389,6 +401,7 @@ def reveal_round(run_ids, adjustments_locked, sealed=None):
 
 
 def main():
+    publish_bank_exclusions(st)
     lineage = lineage_from_state(st)
     rnd = len(st["windows"]) // PAR + 1
     while len(st["windows"]) < MAXW:

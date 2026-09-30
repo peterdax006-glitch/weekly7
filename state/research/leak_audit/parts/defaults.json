@@ -144,7 +144,7 @@
   "loop2_global_basis_reaches_a_play_call": [],
   "loop2_train_basis_calls": [
    {
-    "line": 488,
+    "line": 501,
     "kwargs": [
      "seed",
      "used_from"
@@ -155,7 +155,7 @@
   ],
   "loop2_register_basis_calls": [
    {
-    "line": 495,
+    "line": 508,
     "trained_on": "wins"
    }
   ],

@@ -417,6 +417,10 @@ class Curator:
         feats = body.get("features") or {}
         if not isinstance(feats, Mapping) or not feats:
             raise FirewallBreach("memory has no features left to file")
+        from engine.leak_audit import hindsight_feature_keys      # F06: a conclusion reached after the outcome is never a feature
+        hind = hindsight_feature_keys(feats)
+        if hind:
+            raise FirewallBreach(f"memory refused: hindsight-labelled features {hind[:5]}")
         lean: Any = body.get("lean")
         horizon: Any = body.get("horizon")
         kind = body.get("kind", "pattern")
