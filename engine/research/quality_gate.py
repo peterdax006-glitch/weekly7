@@ -538,7 +538,7 @@ def name_units_check(ev: NameUnitsEvidence | None, n_tests: int, pol: QualityPol
     if not ps:
         return MISSING, f"{ev.between_share:.0%} of the ordering is per-name level and neither a name-level nor a within-name test could be run", m
     if min(ps.values()) <= pol.promotion.alpha:
-        return PASS, f"per-name ordering ({ev.between_share:.0%}) but significant in the right units ({min(ps, key=ps.get)})", m
+        return PASS, f"per-name ordering ({ev.between_share:.0%}) but significant in the right units ({min(ps, key=lambda k: ps[k])})", m
     return FAIL, (f"the effect rests on the persistent ordering of {ev.n_names} names ({ev.between_share:.0%} of its within-date variance): "
                   f"counted in names (r = {ev.name_corr if ev.name_corr is not None else float('nan'):+.2f}) its adjusted p is "
                   f"{ps.get('names', float('nan')):.3g} and within names {ps.get('within', float('nan')):.3g}, above alpha {pol.promotion.alpha:.3g}"), m

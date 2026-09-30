@@ -31,6 +31,7 @@ import hashlib
 import json
 import math
 import os
+import time
 import zlib
 from pathlib import Path
 from typing import Any, Callable, Iterable, Iterator, Mapping, Sequence
@@ -62,6 +63,10 @@ class PrecursorLeak(FirewallBreach):
 
 class LabError(ValueError):
     """A lab configuration, store or unit that cannot be trusted. Never swallowed."""
+
+
+class DefinitionDrift(LabError):
+    """A stored sweep was built under different episode / path / lab definitions than the ones supplied now."""
 
 
 # ------------------------------------------------------------------------------------------------------------------ configuration
@@ -954,24 +959,40 @@ MASK32 = 0xFFFFFFFF
 
 
 def unit_delta(grid: Grid, epp: pd.DataFrame, registry: PrecursorRegistry, columns: Sequence[str], cfg: LabConfig, uid: str,
-               sector_codes: np.ndarray | None = None, externals: Mapping[str, Any] | None = None) -> tuple[EvidenceDelta, dict[str, Any]]:
+               sector_codes: np.ndarray | None = None, externals: Mapping[str, Any] | None = None, lenses: Sequence[str] | None = None,
+               memo: dict | None = None) -> tuple[EvidenceDelta, dict[str, Any]]:
     """Comparison statistics for one unit. `epp` is the unit's episode frame joined to its path labels. Two families of comparison per lens and
     episode type: (a) 'ctl' - episodes against matched non-episodes, read at the PRE anchor (what could be known before the move); (b) class
     pairs - e.g. reversals against spikes among the same type, read at BOTH anchors (before the move; and at the move day's close, before the
-    outcome). Every comparison also gets `cfg.n_perm` label-shuffled copies. Nothing here touches shared state."""
+    outcome). Every comparison also gets `cfg.n_perm` label-shuffled copies. Nothing here touches shared state.
+    `lenses` restricts the comparisons to the unit's own lens: a unit is (year, slice, LENS), and computing every lens in every unit would
+    add each lens's evidence once per lens (a 4x double count with the default four lenses). `memo` reuses ranked panels of the same grid
+    across the lens units of one (year, slice)."""
     useed = unit_seed(uid)
     delta = EvidenceDelta()
     info: dict[str, Any] = {"missing": [], "rows": 0, "comparisons": 0, "skipped_thin": 0}
     if len(epp) == 0 or not columns:
         return delta, info
     ctx = Ctx(grid, sector_codes, externals)
-    panels, missing = ranked_panels(ctx, registry, sorted({c.split("@")[0] for c in columns}))
+    want = sorted({c.split("@")[0] for c in columns})
+    if memo is not None and memo.get("panels_grid") is grid:
+        have, miss_old = memo["panels"], memo["panels_missing"]
+        todo = [n for n in want if n not in have and n not in miss_old]
+        new, new_miss = ranked_panels(ctx, registry, todo) if todo else ({}, [])
+        have.update(new)
+        miss_old.extend(new_miss)
+        panels = {n: have[n] for n in want if n in have}
+        missing = [n for n in want if n in miss_old]
+    else:
+        panels, missing = ranked_panels(ctx, registry, want)
+        if memo is not None:
+            memo.update(panels_grid=grid, panels=dict(panels), panels_missing=list(missing))
     cols = [c for c in columns if c.split("@")[0] in panels]
     info["missing"] = missing
     if not cols:
         return delta, info
     ordinals = np.array([d.toordinal() for d in grid.dates], dtype=np.int64)
-    for lens in cfg.lenses:
+    for lens in (cfg.lenses if lenses is None else lenses):
         rows = build_rowset(grid, epp, lens, cfg, useed)
         types = rows.types(cfg.min_type_rows)
         info["skipped_thin"] += len(rows.types(1)) - len(types)
@@ -1181,6 +1202,8 @@ class EvalReport:
     expected_best_null_t: float
     by_status: dict[str, int]
     skipped: bool = False
+    promoted: tuple = ()                             # CANDIDATE ids, strongest first (engine.research.loop turns these into questions)
+    tracked_top: tuple = ()                          # the strongest tracked ids of any status (for reports and question raising)
 
     def to_dict(self) -> dict[str, Any]:
         return dataclasses.asdict(self)
@@ -1277,8 +1300,10 @@ def evaluate_evidence(store: EvidenceStore, ledger: TrialLedger, rules: Evidence
                              x["p_param"], float(p_perm[i]), float(q[i]), x["n1"], x["n0"], x["clusters"], int(wf["tested"]), int(wf["passed"]),
                              tuple((e["era"], e["effect"], e["t"]) for e in er["eras"]), status, tuple(reasons), int(x["last"]), years, eval_seq, text)
         counts[str(status)] = counts.get(str(status), 0) + 1
+    order = sorted(out, key=lambda k: (-abs(out[k].t), k))
     rep = EvalReport(run_id, digest, len(store.cells), n_all, len(tests), len(out), len(pool_all), ledger.total_trials, ledger.distinct_trials,
-                     ledger.expected_best_null_t(), counts)
+                     ledger.expected_best_null_t(), counts, promoted=tuple(k for k in order if out[k].status == CandidateStatus.CANDIDATE),
+                     tracked_top=tuple(order[:25]))
     return out, rep
 
 
@@ -1404,6 +1429,10 @@ class LabState:
     commit_seq: int = 0
     last_eval_digest: str = ""
     next_eval_at: int = 8
+    widen: bool = False                                                          # grow the registry family by family when coverage is complete
+    widened: list[str] = dataclasses.field(default_factory=list)                 # families added by widening, in order (persisted, replayed)
+    labels: dict[str, dict[str, float]] = dataclasses.field(default_factory=dict)  # per unit: episode_paths.label_counts of its lens
+    units_run: int = 0                                                           # unit computations committed (widened re-runs included)
 
     def digest(self) -> str:
         return stable_hash({"book": self.book.digest(), "ev": self.evidence.digest(), "cand": sorted(self.candidates),
@@ -1414,13 +1443,16 @@ class LabState:
 
 
 def new_state(years: Sequence[int], cfg: LabConfig = LabConfig(), ecfg: EpisodeConfig = EpisodeConfig(), pcfg: EP.PathConfig = EP.PathConfig(),
-              rules: EvidenceRules = EvidenceRules(), registry: PrecursorRegistry | None = None, first_eval_units: int = 8) -> LabState:
+              rules: EvidenceRules = EvidenceRules(), registry: PrecursorRegistry | None = None, first_eval_units: int = 8,
+              widen: bool = True) -> LabState:
+    """A fresh sweep. `widen` (default on): when every unit is covered for the current registry, the sweep adds the next precursor family
+    of the built-in registry and keeps going (the planted loop world went idle after 3 units because nothing ever widened it)."""
     cfg.require_valid()
     ecfg.require_valid()
     pcfg.require_valid()
     reg = registry if registry is not None else default_registry()
     return LabState(cfg, ecfg, pcfg, rules, reg, CoverageBook(years, cfg.n_slices, cfg.lenses), EvidenceStore(cfg.n_perm), TrialLedger(),
-                    next_eval_at=int(first_eval_units))
+                    next_eval_at=int(first_eval_units), widen=bool(widen))
 
 
 class LabStore:
@@ -1447,15 +1479,19 @@ class LabStore:
         cand = json.dumps({"candidates": {k: v.to_dict() for k, v in sorted(st.candidates.items())}, "history": st.history}, sort_keys=True)
         _atomic_text(self.dir / f"candidates_{seq}.json", cand)
         cnt_sha = self._save_counts(st, self.dir / f"counts_{seq}.npz")
+        lab = json.dumps(st.labels, sort_keys=True)
+        _atomic_text(self.dir / f"labels_{seq}.json", lab)
         body = {"seq": seq, "cfg": st.cfg.digest(), "ecfg": st.ecfg.digest(), "pcfg": st.pcfg.digest(), "rules": st.rules.digest(),
                 "coverage": st.book.to_dict(), "market": st.market, "notes": st.notes[-200:], "eval_seq": st.eval_seq,
-                "last_eval_digest": st.last_eval_digest, "next_eval_at": st.next_eval_at,
-                "files": {"evidence": [f"evidence_{seq}.npz", ev_sha], "ledger": [f"ledger_{seq}.json", hashlib.sha256(led.encode()).hexdigest()],
+                "last_eval_digest": st.last_eval_digest, "next_eval_at": st.next_eval_at, "widen": st.widen, "widened": list(st.widened),
+                "units_run": st.units_run,
+                "files": {"labels": [f"labels_{seq}.json", hashlib.sha256(lab.encode()).hexdigest()],
+                          "evidence": [f"evidence_{seq}.npz", ev_sha], "ledger": [f"ledger_{seq}.json", hashlib.sha256(led.encode()).hexdigest()],
                           "candidates": [f"candidates_{seq}.json", hashlib.sha256(cand.encode()).hexdigest()],
                           "counts": [f"counts_{seq}.npz", cnt_sha]}}
         _atomic_text(self.manifest_path, json.dumps({"hash": stable_hash(body, 24), "body": body}, sort_keys=True))
         st.commit_seq = seq
-        for p in list(self.dir.glob("evidence_*.npz")) + list(self.dir.glob("ledger_*.json")) + list(self.dir.glob("candidates_*.json"))                 + list(self.dir.glob("counts_*.npz")):
+        for p in list(self.dir.glob("evidence_*.npz")) + list(self.dir.glob("ledger_*.json")) + list(self.dir.glob("candidates_*.json"))                 + list(self.dir.glob("counts_*.npz")) + list(self.dir.glob("labels_*.json")):
             n = int(p.stem.split("_")[1])
             if n != seq:
                 p.unlink(missing_ok=True)
@@ -1502,7 +1538,7 @@ class LabStore:
             raise LabError("manifest fails its content hash")
         for name, have in (("cfg", cfg.digest()), ("ecfg", ecfg.digest()), ("pcfg", pcfg.digest())):
             if body[name] != have:
-                raise LabError(f"stored {name} differs from the one supplied: a sweep may not change its definitions midway")
+                raise DefinitionDrift(f"stored {name} differs from the one supplied: a sweep may not change its definitions midway")
         files = body["files"]
         for k in ("ledger", "candidates"):
             name, sha = files[k]
@@ -1518,6 +1554,16 @@ class LabStore:
         st.market, st.notes = body["market"], list(body["notes"])
         st.eval_seq, st.commit_seq = body["eval_seq"], body["seq"]
         st.last_eval_digest, st.next_eval_at = body["last_eval_digest"], body["next_eval_at"]
+        st.widen = bool(body.get("widen", False))
+        st.units_run = int(body.get("units_run", len(st.book.records)))
+        for fam in body.get("widened", []):                    # replay the widening so a resumed sweep has the registry it had
+            add_family(st, fam)
+        if "labels" in files:
+            name, sha = files["labels"]
+            raw_l = (self.dir / name).read_bytes()
+            if hashlib.sha256(raw_l).hexdigest() != sha:
+                raise LabError(f"{name} fails its checksum")
+            st.labels = json.loads(raw_l.decode("utf-8"))
         return st
 
 
@@ -1565,9 +1611,22 @@ def assert_before(bars: Mapping[str, pd.DataFrame], now) -> None:
         raise FirewallBreach(f"loader returned a session dated {as_date(idx.max())}, not strictly before now={as_date(now)}")
 
 
-def run_unit(state: LabState, unit: Unit, loader: Loader, now, context_fn: ContextFn | None = None) -> UnitOutcome:
+def _memo_loader(loader: Loader, memo: dict) -> Loader:
+    """One-entry cache over a loader: the lens units of one (year, slice) read the same bars, so a grouped step reads them once."""
+    def load(unit: Unit, ecfg: EpisodeConfig, extra_warm: int, extra_future: int) -> Mapping[str, pd.DataFrame]:
+        key = (unit.year, unit.slice_id, ecfg.digest(), int(extra_warm), int(extra_future))
+        if memo.get("raw_key") != key:
+            memo.clear()
+            memo["raw_key"], memo["raw"] = key, loader(unit, ecfg, extra_warm, extra_future)
+        return memo["raw"]
+    return load
+
+
+def run_unit(state: LabState, unit: Unit, loader: Loader, now, context_fn: ContextFn | None = None, memo: dict | None = None) -> UnitOutcome:
     """Compute one unit's contribution WITHOUT touching state. Returns waiting=True (nothing recorded) if the year's sessions are not all final
-    yet - a year needs its full calendar plus the longest look-forward horizon beyond it - so a partial year is never half-counted."""
+    yet - a year needs its full calendar plus the longest look-forward horizon beyond it - so a partial year is never half-counted. Evidence is
+    computed for the unit's OWN lens only. `memo` (a grouped step's cache) reuses the grid, the labelled episodes and the ranked panels of the
+    same (year, slice) across its lens units; results are identical with or without it."""
     cols_all = state.registry.columns()
     old = state.book.records.get(unit.uid)
     pending = [c for c in cols_all if old is None or c not in old.features_done]
@@ -1575,38 +1634,44 @@ def run_unit(state: LabState, unit: Unit, loader: Loader, now, context_fn: Conte
         return UnitOutcome(unit, True, "nothing pending for this unit")
     raw = loader(unit, state.ecfg, state.registry.extra_warm(), 0)
     assert_before(raw, now)
+    done_cols = tuple(sorted(set(cols_all) | set(old.features_done if old else ())))
     if "Close" not in raw or len(raw["Close"].index) == 0 or raw["Close"].shape[1] == 0:
-        rec = UnitRecord(unit.uid, "", True, 0, 0, 0, 0, {}, tuple(sorted(set(cols_all) | set(old.features_done if old else ()))),
-                         state.ecfg.digest(), "", str(as_date(now)))
+        rec = UnitRecord(unit.uid, "", True, 0, 0, 0, 0, {}, done_cols, state.ecfg.digest(), "", str(as_date(now)))
         return UnitOutcome(unit, False, "empty", rec, EvidenceDelta(), {"empty": True}, [], pd.DataFrame())
-    keep = EPI.slice_tickers(raw["Close"].columns, unit.slice_id, state.cfg.n_slices, state.cfg.slice_salt)
-    bars = {k: v[keep] for k, v in raw.items()}
-    grid = build_grid(bars, state.ecfg)
-    T = grid.shape[0]
-    year_rows = np.flatnonzero(grid.dates.year == unit.year)
-    if len(year_rows) == 0:
-        rec = UnitRecord(unit.uid, "", True, 0, len(keep), 0, 0, {}, tuple(sorted(set(cols_all) | set(old.features_done if old else ()))),
-                         state.ecfg.digest(), "", str(as_date(now)))
-        return UnitOutcome(unit, False, "no sessions in year", rec, EvidenceDelta(), {"empty": True}, [], pd.DataFrame())
-    lo, yr_end = int(year_rows[0]), int(year_rows[-1]) + 1
-    if not (yr_end <= T - state.ecfg.max_horizon and grid.dates[-1].year > unit.year):
-        return UnitOutcome(unit, True, "year not final: data ends before the year plus the look-forward horizon")
-    eps = EPI.episode_frame(grid, lo, yr_end)
-    counts = EPI.day_counts(grid, lo, yr_end)
-    epp = EP.with_paths(eps, EP.label_paths(grid, eps, state.pcfg))
+    gkey = ("grid", unit.year, unit.slice_id, id(raw))
+    if memo is not None and memo.get("grid_key") == gkey:
+        keep, grid, eps, counts, epp, lo, yr_end = memo["grid_val"]
+    else:
+        keep = EPI.slice_tickers(raw["Close"].columns, unit.slice_id, state.cfg.n_slices, state.cfg.slice_salt)
+        bars = {k: v[keep] for k, v in raw.items()}
+        grid = build_grid(bars, state.ecfg)
+        year_rows = np.flatnonzero(grid.dates.year == unit.year)
+        if len(year_rows) == 0:
+            rec = UnitRecord(unit.uid, "", True, 0, len(keep), 0, 0, {}, done_cols, state.ecfg.digest(), "", str(as_date(now)))
+            return UnitOutcome(unit, False, "no sessions in year", rec, EvidenceDelta(), {"empty": True}, [], pd.DataFrame())
+        lo, yr_end = int(year_rows[0]), int(year_rows[-1]) + 1
+        if not (yr_end <= grid.shape[0] - state.ecfg.max_horizon and grid.dates[-1].year > unit.year):
+            return UnitOutcome(unit, True, "year not final: data ends before the year plus the look-forward horizon")
+        eps = EPI.episode_frame(grid, lo, yr_end)
+        counts = EPI.day_counts(grid, lo, yr_end)
+        epp = EP.with_paths(eps, EP.label_paths(grid, eps, state.pcfg))
+        if memo is not None:
+            memo["grid_key"], memo["grid_val"] = gkey, (keep, grid, eps, counts, epp, lo, yr_end)
     sector, ext = context_fn(unit, grid) if context_fn else (None, {})
-    delta, info = unit_delta(grid, epp, state.registry, pending, state.cfg, unit.uid, sector, ext)
-    market_rows = market_state_scan(counts, Ctx(grid, sector, ext)) if old is None else []
+    delta, info = unit_delta(grid, epp, state.registry, pending, state.cfg, unit.uid, sector, ext, lenses=(unit.lens,), memo=memo)
+    first_lens = unit.lens == state.cfg.lenses[0]
+    market_rows = market_state_scan(counts, Ctx(grid, sector, ext)) if (old is None and first_lens) else []
+    if old is None:
+        info["labels"] = EP.label_counts(epp, unit.lens)
     tot = {k: int(v) for k, v in EPI.band_totals(counts).items()}
     rec = UnitRecord(unit.uid, str(grid.dates[yr_end - 1].date()), True, int(len(counts)), int(grid.eligible()[lo:yr_end].any(0).sum()), int(len(eps)),
-                     int(counts["n_suspect"].sum()), tot, tuple(sorted(set(cols_all) | set(old.features_done if old else ()))),
-                     state.ecfg.digest(), current_code_hash(), str(as_date(now)))
+                     int(counts["n_suspect"].sum()), tot, done_cols, state.ecfg.digest(), current_code_hash(), str(as_date(now)))
     return UnitOutcome(unit, False, "", rec, delta, info, market_rows, counts)
 
 
 def commit_unit(state: LabState, out: UnitOutcome) -> None:
-    """Apply a finished unit: merge its evidence, mark it covered, enter its date-level tests in the ledger. All-or-nothing: a failure while
-    merging puts the coverage record back as it was."""
+    """Apply a finished unit: merge its evidence, mark it covered, enter its date-level tests in the ledger, keep its label ledger. All-or-nothing:
+    a failure while merging puts the coverage record back as it was."""
     if out.record is None or out.delta is None:
         raise LabError(f"unit {out.unit.uid} has nothing to commit ({out.reason})")
     prev = state.book.records.get(out.unit.uid)
@@ -1620,8 +1685,11 @@ def commit_unit(state: LabState, out: UnitOutcome) -> None:
                                   [r["p"] for r in out.market_rows], ["market_state"] * len(out.market_rows), f"unit:{uid}")
         if out.counts is not None and len(out.counts) and out.unit.lens == state.cfg.lenses[0]:
             state.daily[out.unit.uid] = out.counts.astype(np.int64)
+        if "labels" in out.info:
+            state.labels[out.unit.uid] = out.info["labels"]
         if out.info.get("missing"):
             state.notes.append(f"{out.unit.uid}: features without data: {','.join(sorted(out.info['missing']))}")
+        state.units_run += 1
     except Exception:
         if prev is None:
             state.book.records.pop(out.unit.uid, None)
@@ -1632,8 +1700,9 @@ def commit_unit(state: LabState, out: UnitOutcome) -> None:
 
 def evaluate_state(state: LabState, now, force: bool = False) -> EvalReport | None:
     """Judge everything accumulated so far. Repeated looks are themselves multiple testing, so unless `force` an evaluation happens only when
-    the number of finished units has doubled since the last one (first at `next_eval_at`), and never twice on identical evidence."""
-    n = state.units_done()
+    the amount of unit work (units run, widened re-runs included) has doubled since the last one (first at `next_eval_at`), and never twice on
+    identical evidence."""
+    n = state.units_run
     if not force and n < state.next_eval_at:
         return None
     digest = state.evidence.digest()
@@ -1656,6 +1725,37 @@ def evaluate_state(state: LabState, now, force: bool = False) -> EvalReport | No
     return rep
 
 
+# ------------------------------------------------------------------------------------------------------------------ widening (never idle while work exists)
+def family_order() -> list[str]:
+    """Built-in precursor families in registration order: the ladder a widening sweep climbs."""
+    seen: list[str] = []
+    for s in _BUILTIN:
+        if s.family not in seen:
+            seen.append(s.family)
+    return seen
+
+
+def add_family(state: LabState, family: str) -> list[str]:
+    """Register every built-in precursor of `family` that the state's registry lacks (each passes the future-invariance audit first)."""
+    added = []
+    for s in _BUILTIN:
+        if s.family == family and s.name not in state.registry.specs:
+            state.registry.register(s, audit=True)
+            added.append(s.name)
+    return added
+
+
+def widen(state: LabState) -> str | None:
+    """Add the next built-in family the registry does not fully contain. Returns the family, or None when the registry already holds every
+    built-in precursor (then the sweep is truly exhausted until new years arrive)."""
+    for fam in family_order():
+        if add_family(state, fam):
+            state.widened.append(fam)
+            state.notes.append(f"widened: coverage complete, added the {fam} family")
+            return fam
+    return None
+
+
 @dataclasses.dataclass
 class StepReport:
     done: list[str]
@@ -1664,64 +1764,124 @@ class StepReport:
     evaluation: EvalReport | None
     coverage: dict[str, Any]
     candidates: int
+    widened: list[str] = dataclasses.field(default_factory=list)
+    exhausted: bool = False                          # nothing runnable is left and nothing can be widened: idle until new data
+    seconds: float = 0.0
 
     def to_dict(self) -> dict[str, Any]:
         return {"done": self.done, "waiting": self.waiting, "remaining": self.remaining,
-                "evaluation": self.evaluation.to_dict() if self.evaluation else None, "coverage": self.coverage, "candidates": self.candidates}
+                "evaluation": self.evaluation.to_dict() if self.evaluation else None, "coverage": self.coverage, "candidates": self.candidates,
+                "widened": self.widened, "exhausted": self.exhausted, "seconds": round(self.seconds, 3)}
+
+
+def _group_first(todo: list[Unit]) -> list[Unit]:
+    """Keep the least-covered unit first, then pull forward the other lens units of its (year, slice) so their bars are read once."""
+    head = todo[0]
+    same = [u for u in todo[1:] if (u.year, u.slice_id) == (head.year, head.slice_id)]
+    rest = [u for u in todo[1:] if (u.year, u.slice_id) != (head.year, head.slice_id)]
+    return [head] + same + rest
 
 
 def step(state: LabState, now, loader: Loader, max_units: int = 1, store: LabStore | None = None, context_fn: ContextFn | None = None,
-         years_before: int | None = None, force_eval: bool = False) -> StepReport:
-    """THE public entry (the wave-2 research loop schedules this through compute_manager). Runs up to `max_units` unfinished units, least-covered
-    first; commits after each so a killed job loses at most the unit in flight; evaluates on the doubling schedule. Years from `years_before`
-    (default: the year of `now`) onward are not touched."""
-    cols = state.registry.columns()
+         years_before: int | None = None, force_eval: bool = False, budget_s: float | None = None, grouped: bool = False) -> StepReport:
+    """THE public entry (the research loop schedules this through compute_manager). Runs up to `max_units` unfinished units, least-covered
+    first, and stops starting new ones once `budget_s` seconds have passed; commits after each so a killed job loses at most the unit in flight.
+    When coverage is complete and the state widens, the next precursor family is added and the sweep carries on in the same call. Evaluates on
+    the doubling schedule, and once more when the sweep is exhausted on evidence that was never judged (a small world - three years, one
+    slice - used to finish its units before the first scheduled evaluation and so never produced a single candidate). Years from `years_before`
+    (default: the year of `now`) onward are not touched. `grouped` runs the lens units of one (year, slice) together on one read of the bars."""
+    t0 = time.monotonic()
     ybefore = as_date(now).year if years_before is None else years_before
-    todo = state.book.pending(cols, years_before=ybefore)
     done: list[str] = []
     waiting: list[str] = []
-    for u in todo:
-        if len(done) >= max_units:
-            break
-        out = run_unit(state, u, loader, now, context_fn)
-        if out.waiting:
-            waiting.append(u.uid)
-            continue
-        commit_unit(state, out)
-        done.append(u.uid)
-        if store is not None:
-            store.commit(state)
-    rep = evaluate_state(state, now, force=force_eval) if (done or force_eval) else None
-    if rep is not None and store is not None:
+    widened: list[str] = []
+    memo: dict | None = {} if grouped else None
+    ld = _memo_loader(loader, memo) if memo is not None else loader
+    over = lambda: budget_s is not None and time.monotonic() - t0 >= budget_s
+    while True:
+        cols = state.registry.columns()
+        todo = [u for u in state.book.pending(cols, years_before=ybefore) if u.uid not in waiting]
+        if grouped and todo:
+            todo = _group_first(todo)
+        for u in todo:
+            if len(done) >= max_units or over():
+                break
+            out = run_unit(state, u, ld, now, context_fn, memo)
+            if out.waiting:
+                waiting.append(u.uid)
+                continue
+            commit_unit(state, out)
+            done.append(u.uid)
+            if store is not None:
+                store.commit(state)
+        remaining = len([u for u in state.book.pending(cols, years_before=ybefore) if u.uid not in waiting])
+        if remaining == 0 and state.widen and len(done) < max_units and not over():
+            fam = widen(state)
+            if fam is not None:
+                widened.append(fam)
+                continue
+        break
+    exhausted = remaining == 0 and not (state.widen and any(s.name not in state.registry.specs for s in _BUILTIN))
+    unjudged = bool(state.evidence.cells) and state.evidence.digest() != state.last_eval_digest
+    rep = None
+    if done or force_eval or (exhausted and unjudged):
+        rep = evaluate_state(state, now, force=force_eval or (exhausted and unjudged))
+    if store is not None and (rep is not None or (widened and not done)):
         store.commit(state)
-    return StepReport(done, waiting, max(len(todo) - len(done) - len(waiting), 0), rep, state.book.report(cols), len(state.candidates))
+    return StepReport(done, waiting, remaining, rep, state.book.report(state.registry.columns()), len(state.candidates), widened, exhausted,
+                      time.monotonic() - t0)
 
 
 def sweep(state: LabState, now, loader: Loader, store: LabStore | None = None, context_fn: ContextFn | None = None,
-          max_units: int | None = None) -> list[StepReport]:
-    """Run `step` repeatedly until nothing is pending (or `max_units` units have run). An always-on job calls this again whenever new years,
-    new sessions or new precursors appear; with nothing new it returns immediately."""
+          max_units: int | None = None, budget_s: float | None = None, grouped: bool = False) -> list[StepReport]:
+    """Run `step` repeatedly until nothing is runnable (or `max_units` units have run, or `budget_s` seconds have passed). An always-on job
+    calls this again whenever new years, new sessions or new precursors appear; with nothing new it returns immediately."""
+    t0 = time.monotonic()
     reports, ran = [], 0
+    per = max(1, len(state.cfg.lenses)) if grouped else 1
     while max_units is None or ran < max_units:
-        r = step(state, now, loader, 1, store, context_fn)
+        left = None if budget_s is None else budget_s - (time.monotonic() - t0)
+        if left is not None and left <= 0:
+            break
+        r = step(state, now, loader, per if max_units is None else min(per, max_units - ran), store, context_fn, budget_s=left, grouped=grouped)
+        reports.append(r)
         if not r.done:
-            reports.append(r)
             break
         ran += len(r.done)
-        reports.append(r)
     return reports
 
 
 def open_state(directory, years: Sequence[int], cfg: LabConfig = LabConfig(), ecfg: EpisodeConfig = EpisodeConfig(),
-               pcfg: EP.PathConfig = EP.PathConfig(), rules: EvidenceRules = EvidenceRules(), registry: PrecursorRegistry | None = None
-               ) -> tuple[LabState, LabStore]:
-    """Resume from a directory if it holds a sweep, else start one. New years are appended to the coverage book, never replacing finished work."""
+               pcfg: EP.PathConfig = EP.PathConfig(), rules: EvidenceRules = EvidenceRules(), registry: PrecursorRegistry | None = None,
+               widen: bool = True, on_drift: str = "archive") -> tuple[LabState, LabStore]:
+    """Resume from a directory if it holds a sweep, else start one. New years are appended to the coverage book, never replacing finished work.
+    A stored sweep built under DIFFERENT definitions (e.g. the path taxonomy gained a class) cannot be continued: with on_drift='archive' the
+    old directory is renamed aside, intact, and a fresh sweep starts (a note says so); with 'raise' the DefinitionDrift propagates. Corruption
+    always raises."""
+    if on_drift not in ("archive", "raise"):
+        raise LabError("on_drift must be 'archive' or 'raise'")
     store = LabStore(directory)
+    note = ""
     if store.exists():
-        st = store.load(cfg, ecfg, pcfg, rules, registry)
-        st.book.extend_years(years)
-    else:
-        st = new_state(years, cfg, ecfg, pcfg, rules, registry)
+        try:
+            st = store.load(cfg, ecfg, pcfg, rules, registry)
+            st.book.extend_years(years)
+            st.widen = bool(widen)
+            return st, store
+        except DefinitionDrift as e:
+            if on_drift == "raise":
+                raise
+            old = Path(directory)
+            aside = old.with_name(f"{old.name}.superseded-{stable_hash(str(e), 8)}")
+            k = 0
+            while aside.exists():
+                k += 1
+                aside = old.with_name(f"{old.name}.superseded-{stable_hash(str(e), 8)}-{k}")
+            os.replace(old, aside)
+            note = f"previous sweep archived as {aside.name}: {e}"
+    st = new_state(years, cfg, ecfg, pcfg, rules, registry, widen=widen)
+    if note:
+        st.notes.append(note)
     return st, store
 
 
@@ -1981,6 +2141,9 @@ class TickReport:
     candidates: int
     ledger_looks: int
     evaluated: bool
+    widened: list[str] = dataclasses.field(default_factory=list)
+    exhausted: bool = False
+    seconds: float = 0.0
 
 
 class AlwaysOn:
@@ -1990,22 +2153,24 @@ class AlwaysOn:
     precursor registry make it busy again. It never redoes finished work and never runs a unit on a year that is not final."""
 
     def __init__(self, state: LabState, loader: Loader, store: LabStore | None = None, context_fn: ContextFn | None = None,
-                 years_fn: Callable[[Any], Iterable[int]] | None = None, units_per_tick: int = 1):
+                 years_fn: Callable[[Any], Iterable[int]] | None = None, units_per_tick: int = 1, budget_s: float | None = None,
+                 grouped: bool = False):
         if units_per_tick < 1:
             raise LabError("units_per_tick must be >= 1")
         self.state, self.loader, self.store, self.context_fn = state, loader, store, context_fn
         self.years_fn, self.units_per_tick = years_fn, int(units_per_tick)
+        self.budget_s, self.grouped = budget_s, bool(grouped)
         self.ticks = 0
         self.idle_ticks = 0
 
     def tick(self, now) -> TickReport:
         self.ticks += 1
         new = self.state.book.extend_years(self.years_fn(now)) if self.years_fn is not None else 0
-        rep = step(self.state, now, self.loader, self.units_per_tick, self.store, self.context_fn)
+        rep = step(self.state, now, self.loader, self.units_per_tick, self.store, self.context_fn, budget_s=self.budget_s, grouped=self.grouped)
         idle = not rep.done
         self.idle_ticks = self.idle_ticks + 1 if idle else 0
         return TickReport(self.ticks, str(as_date(now)), rep.done, rep.waiting, idle, new, rep.coverage["fraction_done"], rep.candidates,
-                          self.state.ledger.total_trials, rep.evaluation is not None)
+                          self.state.ledger.total_trials, rep.evaluation is not None, rep.widened, rep.exhausted, rep.seconds)
 
     def run(self, now_fn: Callable[[], Any], max_ticks: int | None = None, stop: Callable[[], bool] = lambda: False,
             stop_after_idle: int | None = None) -> Iterator[TickReport]:

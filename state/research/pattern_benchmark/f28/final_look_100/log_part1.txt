@@ -6,3 +6,12 @@
 16:23:11 W00009 development tier 3: real 2/18 FP 0 {} 259s
 16:28:08 W00011 development tier 0: real 0/0 FP 0 {} 298s
 16:31:11 W00013 heldout tier 1: real 8/24 FP 2 {'proxy': 2} 183s
+16:33:55 W00015 development tier 1: real 6/19 FP 0 {} 164s
+16:36:28 W00017 development tier 3: real 7/18 FP 0 {} 153s
+16:38:02 W00019 development tier 1: real 7/20 FP 0 {} 94s
+16:40:33 W00021 heldout tier 4: real 4/23 FP 0 {} 151s
+16:41:39 W00023 development tier 0: real 0/0 FP 0 {} 66s
+16:43:22 W00025 development tier 5: real 3/20 FP 0 {} 103s
+16:44:38 W00027 development tier 5: real 1/14 FP 0 {} 75s
+16:46:45 W00029 heldout tier 2: real 6/19 FP 0 {} 127s
+16:48:20 W00031 heldout tier 1: real 6/26 FP 1 {'proxy': 1} 95s
