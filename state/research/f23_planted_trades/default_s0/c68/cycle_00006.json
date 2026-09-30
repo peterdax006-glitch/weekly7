@@ -1,0 +1,176 @@
+{
+ "cycle": 6,
+ "now": "2017-06-23",
+ "label": "IMPLEMENTED - NOT VALIDATED",
+ "counters": {
+  "outcomes": 4,
+  "errors": 4,
+  "market_reports_sent": 8,
+  "expectations": 6,
+  "investigations": 2
+ },
+ "ledgers": {
+  "expectations": 6,
+  "outcomes": 4,
+  "errors": 4,
+  "commitments": 6,
+  "pipeline_events": 37,
+  "pipeline_furthest": {
+   "EXPECTATION": 2,
+   "CAUSE": 1,
+   "RESEARCH": 3
+  }
+ },
+ "calibration": {
+  "now": "2017-06-23",
+  "target": {
+   "tolerance": 0.01,
+   "goal_share": 0.8,
+   "min_n": 200,
+   "min_oos_n": 100,
+   "level": 0.95,
+   "name": "pm1pp_80"
+  },
+  "status": "INSUFFICIENT_SAMPLE",
+  "n_committed": 4,
+  "n_matured": 4,
+  "n_resolved": 4,
+  "n_unresolved": 0,
+  "all_": {
+   "n": 4,
+   "hits": 0,
+   "share": 0.0,
+   "lo": 0.0,
+   "hi": 0.4898908364545973,
+   "boot_lo": 0.0,
+   "boot_hi": 0.0
+  },
+  "oos": {
+   "n": 4,
+   "hits": 0,
+   "share": 0.0,
+   "lo": 0.0,
+   "hi": 0.4898908364545973,
+   "boot_lo": 0.0,
+   "boot_hi": 0.0
+  },
+  "resolved_only": {
+   "n": 4,
+   "hits": 0,
+   "share": 0.0,
+   "lo": 0.0,
+   "hi": 0.4898908364545973,
+   "boot_lo": 0.0,
+   "boot_hi": 0.0
+  },
+  "bias": 0.09043878887654096,
+  "mae": 0.0996961418662765,
+  "naive_share": null,
+  "required_n": null,
+  "abuses": [],
+  "by_cohort": [
+   [
+    "-",
+    {
+     "n": 4,
+     "hits": 0,
+     "share": 0.0,
+     "lo": 0.0,
+     "hi": 0.4898908364545973,
+     "boot_lo": 0.0,
+     "boot_hi": 0.0
+    }
+   ]
+  ],
+  "headline": "0.0% of 4 matured predictions landed within +-1pp of the committed prediction (95% CI 0.0%-49.0%); out of sample 0.0% of 4 (CI 0.0%-49.0%, block bootstrap 0.0%-0.0%). Goal 80%: sample too small to judge (need 200 overall and 100 out of sample)."
+ },
+ "influence": {
+  "mom_r20_top": 1.0,
+  "rev_r5_bottom": 1.0,
+  "vol_top": 1.0
+ },
+ "verdicts": {
+  "mom_r20_top": "RETURNING",
+  "rev_r5_bottom": "NOISE",
+  "vol_top": "RETURNING"
+ },
+ "guard": {
+  "mom_r20_top": "KEEP",
+  "rev_r5_bottom": "KEEP",
+  "vol_top": "KEEP"
+ },
+ "production": {
+  "name": "incumbent",
+  "since": "",
+  "window_share": 1.0,
+  "extra_features": []
+ },
+ "regime_records": [],
+ "identification": null,
+ "stage_runs": [
+  {
+   "cycle": 6,
+   "now": "2017-06-23",
+   "stage": "c68.selection_policy",
+   "in": 2876,
+   "out": 1,
+   "note": "policy Le226f5c1 (threshold -0.0031); gain model fitted n=2876 base in-band 0.074; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00"
+  },
+  {
+   "cycle": 6,
+   "now": "2017-06-23",
+   "stage": "c68.expectations",
+   "in": 2,
+   "out": 2,
+   "note": "2 expectation(s) frozen before the 2017-06-26 fill"
+  },
+  {
+   "cycle": 6,
+   "now": "2017-06-23",
+   "stage": "c68.market_regime",
+   "in": 6,
+   "out": 3,
+   "note": "5 session(s), 3 alarm(s), warning ALERT (MARKET_WIDE_REGIME_CHANGE); 1 market period(s); regime records +0, status changes []"
+  },
+  {
+   "cycle": 6,
+   "now": "2017-06-23",
+   "stage": "c68.pattern_change",
+   "in": 3,
+   "out": 0,
+   "note": "verdicts {'RETURNING': 2, 'NOISE': 1}; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00; regime none; 0 to investigate"
+  },
+  {
+   "cycle": 6,
+   "now": "2017-06-23",
+   "stage": "c68.outcomes_errors",
+   "in": 2,
+   "out": 2,
+   "note": "2 exit(s) by the learned policy, 2 error report(s), 0 unreconstructable, 43 candidate gain(s) resolved"
+  },
+  {
+   "cycle": 6,
+   "now": "2017-06-23",
+   "stage": "c68.what_changed",
+   "in": 2,
+   "out": 1,
+   "note": "classes {'CURRENTLY_UNEXPLAINED': 1}; 0 unknowable preserved; 1 tree(s) into the loop forest; 0 waiting"
+  },
+  {
+   "cycle": 6,
+   "now": "2017-06-23",
+   "stage": "c68.error_research",
+   "in": 2,
+   "out": 23,
+   "note": "2017-06-23: 2 new errors, tiers {'NONE': 1, 'CHEAP': 0, 'STANDARD': 1, 'DEEP': 0}, 0 confident-wrong, 0 escalated groups, 12 jobs (72 cpu-min requested); 12 question event(s), 0 repeated-surprise event(s), 11 self-research question(s), 0 ma"
+  },
+  {
+   "cycle": 6,
+   "now": "2017-06-23",
+   "stage": "c68.research_depth",
+   "in": 1,
+   "out": 0,
+   "note": "1 C68 question(s) in the loop's queue, 0 damped"
+  }
+ ]
+}

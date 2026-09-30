@@ -415,6 +415,30 @@ class DormantBook:
         b.waste_factor = 1.0
         return rec
 
+    def adopt_parked(self, state: CM.ManagerState, ctx: WorldContext, now, pol: WastePolicy, ladder: CM.LadderPolicy | None = None) -> list[str]:
+        """Take over branches the LADDER parked (DORMANT with no record here). Until this existed the controller only knew the branches
+        it had parked itself, so a line parked as infeasible by the ladder (the only kind the default loop produces: every branch needs
+        ~80 cpu-min against a 40 cap) had no revival trigger, no probe and no lifecycle entry and stayed dormant for ever, while
+        the controller judged an empty set of ACTIVE branches. The record carries the world as of the first tick that sees the
+        branch (the ladder stores no fingerprint), so a revival trigger is always something that arrived AFTER adoption."""
+        out = []
+        for bid in sorted(state.branches):
+            b = state.branches[bid]
+            if b.state is not CM.ResearchState.DORMANT or bid in self.records:
+                continue
+            text = (b.dormant_reason or "").lower()
+            reason = (Reason.INFEASIBLE_UNDERPOWERED if "infeasible" in text else Reason.DUPLICATED_EFFORT if "duplicate" in text
+                      else Reason.NO_PROGRESS_PER_COMPUTE)
+            detail = ("parked by the ladder: " + (b.dormant_reason or "no reason recorded"))[:300]
+            self._ensure_registered(b)
+            if self.life.state(self.kid(bid), as_date(now) + dt.timedelta(days=1)) in (LifeState.ACTIVE, LifeState.DEGRADED):
+                self.life.transition(self.kid(bid), LifeState.DORMANT, now, "DORMANT", f"{reason.value}: {detail}"[:300], CAUSE_OF[reason],
+                                     {"spent": b.total_spent}, recovery_conditions(pol))
+            self.records[bid] = DormantRecord(bid, b.family, reason.value, detail, as_date(b.updated or now).isoformat(), ctx.fingerprint(b.family),
+                                              expected_remaining_cpu_min(state, b, ladder or CM.LadderPolicy()), b.total_spent)
+            out.append(bid)
+        return out
+
     def candidates(self, ctx: WorldContext, now, pol: WastePolicy) -> list[tuple[DormantRecord, list[Trigger]]]:
         """Dormant branches for which something genuinely new has arrived. Sorted by combined trigger strength then branch id."""
         out = []
@@ -553,6 +577,7 @@ class WasteStepResult:
     probes_due: tuple[str, ...]
     retire_proposals: tuple[str, ...]
     duplicates: tuple[tuple[str, str, float], ...]
+    adopted: tuple[str, ...] = ()        # ladder-parked branches the controller took over this tick (see DormantBook.adopt_parked)
 
 
 def _severity(v: WasteVerdict) -> tuple:
@@ -565,7 +590,7 @@ def step(state: CM.ManagerState, ledger: VA.ValueLedger, book: DormantBook, ctx:
          rng_seed: int = 0, n_probes: int = 1) -> WasteStepResult:
     """One controller tick. (1) judge every ACTIVE branch; (2) apply DEPRIORITISE by scaling the branch's priority factor; (3) park
     DORMANT verdicts through the circuit breaker; (4) revive dormant branches for which something new has arrived; (5) list
-    branches due a cheap probe and dormant branches that used up their revivals. Deterministic in (state, ledger, ctx, seed).
+    branches due a cheap probe and dormant branches that used up their revivals. Deterministic in (state, ledger, ctx, seed). Branches the ladder parked are adopted first, so they can be revived.
     The context must not be dated after `now` (fail closed)."""
     pol = pol or WastePolicy()
     bad = pol.validate()
@@ -573,6 +598,7 @@ def step(state: CM.ManagerState, ledger: VA.ValueLedger, book: DormantBook, ctx:
         raise ValueError("invalid WastePolicy: " + "; ".join(bad))
     if as_date(ctx.as_of) > as_date(now):
         raise CM.FirewallBreach(f"world context dated {ctx.as_of} is after now={now}")
+    adopted = book.adopt_parked(state, ctx, now, pol, ladder)
     unrel = set(unreliable_families)
     stats = ledger.family_stats(now)
     active = [bid for bid in sorted(state.branches) if state.branches[bid].state in CM.ACTIVE_STATES]
@@ -619,7 +645,7 @@ def step(state: CM.ManagerState, ledger: VA.ValueLedger, book: DormantBook, ctx:
     rng = np.random.default_rng(rng_seed)
     probes = book.probe_candidates(rng, n_probes, now, pol)
     return WasteStepResult(tuple(vlist), tuple(parked), tuple(deprio), tuple(revived), tuple(held_ids),
-                           len(dormant_v) > 2 * cap, tuple(probes), tuple(book.retire_proposals(pol)), tuple(dupes))
+                           len(dormant_v) > 2 * cap, tuple(probes), tuple(book.retire_proposals(pol)), tuple(dupes), tuple(adopted))
 
 
 # ------------------------------------------------------------------------------------------------ reporting

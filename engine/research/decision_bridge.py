@@ -1320,3 +1320,123 @@ def merge_registers(a: Bridge, b: Bridge) -> tuple[Bridge, list[str]]:
     for src in (a, b):
         out._realised += [r for r in src._realised if r.entry_id in ids and r not in out._realised]
     return out, sorted(set(conflicts))
+
+
+# ================================================================================================================ F23: to the production trader
+# C75 Phase 1E / C66 RF28 gap 13: knowledge the research loop files never reached the production decision-maker (engine.adaptive.Session).
+# The doors stay the existing ones: research objects cross through engine.research.firewall (run_day -> TraderRelease), bridge entries
+# through Bridge.release (a MaturedRecord the trader side opens with gate(now)). This section only turns what came through a door into
+# the one record type Session.receive accepts (engine.learning.trader_view.TraderRelease) and hands it over. It never imports the
+# trader's modules into research code paths it does not own, and the trader never imports this module (CONTEXT rule 29).
+RANKING_OUTPUTS = frozenset({O.VOLATILITY_RANKING, O.DIRECTION_RANKING})
+PROTECTIVE_OUTPUTS = frozenset({O.RISK_PENALTY, O.ABSTENTION})
+_UPPER_OPS, _LOWER_OPS = frozenset({"ge", "gt"}), frozenset({"le", "lt"})
+
+
+@dataclasses.dataclass(frozen=True)
+class SessionRelease:
+    """What crossed to the production trader on one decision: the TraderRelease itself and, per claim that could NOT be expressed as
+    a trader item, why (recorded, never silently dropped)."""
+    release: Any                                  # engine.learning.trader_view.TraderRelease
+    skipped: tuple[str, ...] = ()
+    n_records: int = 0
+
+    @property
+    def n_items(self) -> int:
+        return len(self.release.items)
+
+
+def _condition_item(cond: str, magnitude: float) -> tuple[str, dict[str, float]] | str:
+    """One protective condition -> (trader kind, {feature: signed z threshold}); a string is the reason it cannot be expressed.
+    'x: f ge 2' -> lesson {f: 2.0}; 'x: f le -1.5' -> lesson {f: -1.5}; a market column (m_*) makes it a context veto."""
+    try:
+        c = kn.parse_condition(cond)
+    except kn.SchemaError as e:
+        return f"unparseable condition: {e}"
+    if len(c.nums) != 1 or c.labels:
+        return f"condition {cond!r} is not a single numeric threshold"
+    thr = float(c.nums[0])
+    if c.op in _UPPER_OPS and thr >= 0:
+        signed = thr
+    elif c.op in _LOWER_OPS and thr < 0:
+        signed = thr
+    else:
+        return f"condition {cond!r}: only 'ge/gt t>=0' or 'le/lt t<0' map onto a trader threshold"
+    if magnitude <= 0:
+        return "a protective claim of zero magnitude changes nothing"
+    return ("context" if c.feature.startswith("m_") else "lesson"), {c.feature: signed}
+
+
+def trader_items(payload: Mapping[str, Any], horizon: int = 5) -> tuple[list[dict], list[str]]:
+    """Trader-shaped item dicts from one gated payload: either a research object already in trader shape (features / lean / horizon /
+    trader_kind, as engine.research.loop._file_knowledge files it) or a Bridge.release payload ('claims'). Returns (items, skipped)."""
+    items: list[dict] = []
+    skipped: list[str] = []
+    if isinstance(payload.get("features"), Mapping):
+        feats = {str(k): float(v) for k, v in payload["features"].items()}
+        items.append({"kind": str(payload.get("trader_kind", payload.get("kind", "pattern"))), "features": feats,
+                      "lean": float(payload.get("lean", 0.0)), "horizon": int(payload.get("horizon", horizon))})
+        return items, skipped
+    for c in payload.get("claims") or ():
+        out = Output(c["output"])
+        mag, sgn, tgt = float(c.get("magnitude", 0.0)), int(c.get("direction", 1)), str(c.get("target", ""))
+        if out in RANKING_OUTPUTS and tgt:
+            lean = 0.0 if out == O.VOLATILITY_RANKING else float(max(-1.0, min(1.0, sgn * mag)))
+            items.append({"kind": "pattern", "features": {tgt: float(sgn)}, "lean": lean, "horizon": horizon})
+        elif out in PROTECTIVE_OUTPUTS and c.get("conditions"):
+            for cond in c["conditions"]:
+                got = _condition_item(str(cond), mag)
+                if isinstance(got, str):
+                    skipped.append(f"{out.value}: {got}")
+                    continue
+                kind, feats = got
+                items.append({"kind": kind, "features": feats, "lean": -float(min(1.0, mag)), "horizon": horizon})
+        else:
+            skipped.append(f"{out.value}: the production trader has no input for this output (research / sizing / confidence side)")
+    return items, skipped
+
+
+def records_to_release(records: Sequence[MaturedRecord], now, step: int = 0, horizon: int = 5) -> SessionRelease:
+    """Open each MaturedRecord at the trader's `now` (gate: fail closed on anything not matured strictly before now, or that could not
+    have existed yet), convert, and build ONE TraderRelease: opaque letter ids, ordered by id, equal weights summing to 1. The
+    trader_view constructors refuse any date-, year- or ticker-like content, so a leak cannot be built here by accident."""
+    from engine.learning import trader_view as TV
+    raw: list[dict] = []
+    skipped: list[str] = []
+    for r in records:
+        if not isinstance(r, MaturedRecord):
+            raise FirewallBreach(f"{type(r).__name__} is not a MaturedRecord: only gated research records may reach the trader")
+        got, sk = trader_items(r.gate(now), horizon)
+        raw += got
+        skipped += sk
+    uniq: dict[str, dict] = {}
+    for d in raw:
+        TV.assert_trader_safe(d, "session release item")
+        uniq.setdefault(TV.opaque_token({"f": d["features"], "l": d["lean"], "h": d["horizon"], "k": d["kind"]}), d)
+    w = 1.0 / len(uniq) if uniq else 0.0
+    items = tuple(TV.TraderMemoryItem.make(t, d["kind"], w, d["features"], d["lean"], d["horizon"]) for t, d in sorted(uniq.items()))
+    if items:                                          # weights must sum to exactly 1 (TraderRelease checks to 1e-6)
+        items = items[:-1] + (items[-1].with_weight(max(0.0, 1.0 - w * (len(items) - 1))),)
+    return SessionRelease(TV.TraderRelease(int(step), items), tuple(skipped), len(records))
+
+
+def session_release(fw: Any, now, candidate_ids: Sequence[str] | None = None, live: Any = None) -> SessionRelease:
+    """The research loop's own door (engine.research.firewall.run_day): every filed research object that passes the firewall at `now`
+    becomes the production trader's release - the SAME TraderRelease the two-stage chain receives in st_release."""
+    from engine.research import firewall as FWL
+    res = FWL.run_day(fw, now, candidate_ids, live=live)
+    return SessionRelease(res.release, tuple(f"refused: {d.object_id}" for d in res.refused[:20]), len(res.decisions))
+
+
+def release_to_session(session: Any, bridge: Bridge | None, entry_ids: Sequence[str], now, created_real: str,
+                       replaying: Iterable[int] = (), records: Sequence[MaturedRecord] = (), step: int = 0) -> SessionRelease:
+    """PUBLIC ENTRY (F23). Knowledge -> production decision: release the named DECISION_CHANGING bridge entries through
+    Bridge.release (same-year rerun leak refused there), add any other matured research records, open them all at `now`, and install
+    the resulting TraderRelease in the production Session (Session.receive accepts nothing else). Returns what crossed and what
+    could not be expressed."""
+    recs = list(records)
+    if bridge is not None:
+        recs += [bridge.release(e, now, created_real, replaying) for e in entry_ids]
+    sr = records_to_release(recs, now, step)
+    session.receive(sr.release)
+    return sr

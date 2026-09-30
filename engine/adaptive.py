@@ -81,15 +81,18 @@ def eligible(p, cfg):
     return ok & policy.not_crypto(p.index)
 
 
-def pick(p, cfg, held, divs, det=None):
+def pick(p, cfg, held, divs, det=None, tilt=None):
     """The selection rule (same as the trader's): score -> eligible -> regime-aware top-k.
-    det: optional missed-winner detector probabilities, blended in with weight cfg['det_w']."""
-    s, p = pick_score(p, cfg, det)
+    det: optional missed-winner detector probabilities, blended in with weight cfg['det_w'].
+    tilt: optional released-knowledge score in [0, 1] (knowledge_adjust), blended in with weight cfg['knowledge_w']."""
+    if not len(p):
+        return pd.Series(dtype=float)
+    s, p = pick_score(p, cfg, det, tilt)
     mkt = {c: float(p[c].iloc[0]) for c in p.columns if c.startswith("m_")}
     return policy.regime_targets(s[eligible(p, cfg)], list(held), cfg, p["vol20"], divs, mkt)
 
 
-def pick_score(p, cfg, det=None):
+def pick_score(p, cfg, det=None, tilt=None):
     """The cross-sectional score pick() ranks by, over the WHOLE snapshot (before eligibility), and the snapshot it was computed
     on. The learning sinks read it to say how far below the cut a missed winner ranked."""
     if cfg.get("ew"):
@@ -104,7 +107,104 @@ def pick_score(p, cfg, det=None):
         s = (1 - wo) * s + wo * mom
     if det is not None and cfg.get("det_w", 0) > 0:
         s = (1 - cfg["det_w"]) * s + cfg["det_w"] * det.reindex(s.index).rank(pct=True).fillna(0.5)
+    if tilt is not None:
+        kw = min(float(cfg.get("knowledge_w", KNOWLEDGE_W)), KNOWLEDGE_W_MAX)
+        s = (1 - kw) * s + kw * tilt.reindex(s.index).fillna(0.5)
     return s, p
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# F23 (C66 RF28, C75 1E): released knowledge reaches THIS decision-maker only as a firewall TraderRelease
+# (engine.learning.trader_view: no date, year or ticker can be inside one). Nothing here imports research code (CONTEXT
+# rule 29): the research side builds the release (engine.research.decision_bridge.session_release / release_to_session) and a
+# driver hands it over with Session.receive(). Pattern items tilt the ranking toward their oriented feature, lesson items
+# (lean < 0) veto the names at/beyond their z thresholds, context items (lean < 0) cut gross exposure when today's market
+# columns breach them. Feature names are the research frame's; RANK_ALIAS maps the ones whose within-day ORDER equals a snapshot
+# column's (log / market-demeaned forms), Z_ALIAS only those whose within-day z-score is identical (a shift by a market constant).
+KNOWLEDGE_W = 0.25          # share of the pick score released pattern knowledge takes
+KNOWLEDGE_W_MAX = 0.5       # hard cap, as the missed-winner detector's det_max
+KNOWLEDGE_CTX_CUT = 0.5     # gross exposure kept on a day a released context veto fires
+RANK_ALIAS = {"lv20": "vol20", "xs_vol_rank": "vol20", "vol_over_mkt": "vol20", "latr": "atr", "xs_atr_rank": "atr",
+              "rel_r5": "r5", "rel_r20": "r20"}
+Z_ALIAS = {"rel_r5": "r5", "rel_r20": "r20"}
+
+
+class KnowledgeRefused(ValueError):
+    """Session.receive refused an object that is not a firewall TraderRelease."""
+
+
+RELEASE_TYPE = ("engine.learning.trader_view", "TraderRelease")      # checked by identity, never imported (trader-path guard)
+RELEASE_KINDS = frozenset({"pattern", "lesson", "context"})
+
+
+def check_release(release):
+    """Fail closed unless `release` is a trader_view.TraderRelease whose items are well-formed. The type is compared by module and
+    name rather than imported: trader_view carries the curator guard's own marker strings, and this module must stay off it."""
+    t = type(release)
+    if (t.__module__, t.__qualname__) != RELEASE_TYPE:
+        raise KnowledgeRefused(f"Session.receive takes a firewall TraderRelease, got {t.__module__}.{t.__qualname__}")
+    items = tuple(getattr(release, "items", None) or ())
+    for it in items:
+        if type(it).__qualname__ != "TraderMemoryItem" or it.kind not in RELEASE_KINDS or not isinstance(it.features, dict):
+            raise KnowledgeRefused(f"release item {it!r:.80} is not a well-formed TraderMemoryItem")
+    if items and abs(sum(float(it.weight) for it in items) - 1.0) > 1e-6:
+        raise KnowledgeRefused("release weights do not sum to 1")
+    return release
+
+
+def _kcol(p, name, alias):
+    c = name if name in p.columns else alias.get(name)
+    if c is None or c not in p.columns:
+        return None
+    v = pd.to_numeric(p[c], errors="coerce").astype(float)
+    return v if v.notna().sum() >= 2 else None
+
+
+def knowledge_adjust(p, release, cfg):
+    """(snapshot with vetoed names removed, tilt Series in [0,1] or None, exposure multiplier, info) for one decision day.
+    `release` must be a TraderRelease (checked in Session.receive); an item whose features the snapshot cannot express is
+    counted as unusable, never guessed."""
+    info = {"items": 0, "used": 0, "unusable": 0, "vetoed": [], "ctx_hit": False, "digest": ""}
+    if release is None or not len(p):
+        return p, None, 1.0, info
+    info["items"], info["digest"] = len(release.items), release.digest()
+    tilt_num, tilt_w, scale = pd.Series(0.0, index=p.index), 0.0, 1.0
+    veto = pd.Series(False, index=p.index)
+    for it in release.items:
+        feats = it.features
+        if it.kind == "pattern":
+            cols = [(_kcol(p, f, RANK_ALIAS), float(v)) for f, v in feats.items()]
+            cols = [(c, v) for c, v in cols if c is not None and v != 0]
+            if not cols:
+                info["unusable"] += 1
+                continue
+            r = sum((c * np.sign(v)).rank(pct=True).fillna(0.5) for c, v in cols) / len(cols)
+            tilt_num, tilt_w = tilt_num + it.weight * r, tilt_w + it.weight
+        elif it.kind == "lesson" and it.lean < 0:
+            cols = [(_kcol(p, f, Z_ALIAS), float(v)) for f, v in feats.items()]
+            if not cols or any(c is None for c, _ in cols):
+                info["unusable"] += 1
+                continue
+            m = pd.Series(True, index=p.index)
+            for c, thr in cols:
+                z = (c - c.mean()) / (c.std(ddof=0) + 1e-12)
+                m &= (z >= thr) if thr >= 0 else (z <= thr)
+            veto |= m.fillna(False)
+        elif it.kind == "context" and it.lean < 0:
+            mk = [(f, float(v)) for f, v in feats.items() if f.startswith("m_") and f in p.columns]
+            if not mk or len(mk) != len(feats):
+                info["unusable"] += 1
+                continue
+            if all((float(p[f].iloc[0]) >= thr) if thr >= 0 else (float(p[f].iloc[0]) <= thr) for f, thr in mk):
+                scale, info["ctx_hit"] = min(scale, KNOWLEDGE_CTX_CUT), True
+        else:
+            info["unusable"] += 1
+            continue
+        info["used"] += 1
+    keep = ~veto.to_numpy(bool)
+    info["vetoed"] = sorted(str(t) for t in p.index[~keep])
+    tilt = (tilt_num / tilt_w) if tilt_w > 0 else None
+    return p[keep], tilt, scale, info
 
 
 def neighbours(cfg, knobs):
@@ -600,6 +700,15 @@ class Session:
         self.fills = []                              # one dict per executed order: links a fill back to its decision
         self._fill_n = {}
         self.pending = None
+        self.release, self.knowledge_log = None, []    # F23: the firewall's TraderRelease in force (receive) and what it changed
+
+    def receive(self, release):
+        """Install the knowledge the research/trader firewall released for the next decisions (None withdraws it). Only an
+        engine.learning.trader_view.TraderRelease is accepted (checked by type identity, see check_release): anything else did
+        not pass the firewall and is refused with KnowledgeRefused."""
+        if release is not None:
+            check_release(release)
+        self.release = release
 
     def equity(self, px):
         return self.cash + sum(q * px[t] for t, q in self.pos.items() if np.isfinite(px.get(t, np.nan)))
@@ -657,7 +766,11 @@ class Session:
                     self.dial_log.append((str(day.date()), out.k, round(out.exposure, 2), out.brake, round(out.aggr, 2)))
             else:
                 det = None
-            target = pick(snap, self.cfg, held, self.divs, det)
+            snap_k, tilt, kscale, kinfo = knowledge_adjust(snap, self.release, self.cfg)
+            target = pick(snap_k, self.cfg, held, self.divs, det, tilt)
+            if self.release is not None:
+                target = target * kscale
+                self.knowledge_log.append({"decision_date": str(day.date()), **kinfo, "scale": kscale})
             if self.dial_on:
                 target = target * self.exposure
             self.pending = (target, "rebalance" if held else "initial build", True, str(day.date()))
@@ -688,7 +801,7 @@ class Session:
 
 
 def replay(default_cfg, snaps, closes, cost_bps, divs, adaptive=False, meta=None, scramble_after=None, seed=0, opens=None,
-           long_term=None):
+           long_term=None, release=None):
     """Re-tester: drives the SAME Session through an archived window.
     scramble_after: anti-cheat test - replace every price after this date with noise; decisions up to that
     date must not change (if they do, something looked into the future)."""
@@ -702,6 +815,8 @@ def replay(default_cfg, snaps, closes, cost_bps, divs, adaptive=False, meta=None
             opens = opens.astype("float64").copy()
             opens.loc[m] = opens.loc[m].values * noise
     S = Session(default_cfg, divs, cost_bps, adaptive=adaptive, meta=meta, long_term=long_term)
+    if release is not None:
+        S.receive(release)
     dec = {pd.Timestamp(k): v for k, v in snaps.items()}
     sessions = closes.index
     for i, d in enumerate(sessions):

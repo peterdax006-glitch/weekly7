@@ -237,6 +237,10 @@ def market_proxy(bars: Mapping[str, pd.DataFrame]) -> dict:
     return out
 
 
+GENUINE_VOL = ("lv20", "latr", "xs_vol_rank", "xs_atr_rank", "xs_range_rank", "vol_over_mkt", "sector_rel_vol", "lv20_x_stress",
+               "max5_ratio", "vol_ratio_short")
+
+
 def planted_world(pc: PlantConfig = PlantConfig()) -> World:
     """Seeded OHLCV world with KNOWN mechanisms (see the module docstring). truth keys: genuine (derived features that carry the
     volatility state), genuine_event, noise (the early coincidence), coincidence_until, earnings (list of (session, ticker))."""
@@ -290,15 +294,14 @@ def planted_world(pc: PlantConfig = PlantConfig()) -> World:
     macro = pd.DataFrame({"rate": rate}, index=dates + pd.Timedelta(days=1))    # published the day after it is measured
     sectors = {t: f"SEC{j % pc.n_sectors}" for j, t in enumerate(tick)}
     sic = {t: int((1311, 2834, 3571, 4911, 5411, 6021, 7372, 3674)[j % 8]) for j, t in enumerate(tick)}
-    truth = {"genuine": ("lv20", "latr", "xs_vol_rank", "xs_atr_rank", "xs_range_rank", "vol_over_mkt", "sector_rel_vol",
-                         "lv20_x_stress", "max5_ratio", "vol_ratio_short"),
+    truth: dict[str, Any] = {"genuine": GENUINE_VOL,
              "genuine_event": ("ev_soon", "ev_days"), "noise": ("price_low",), "noise_family": ("price_low", "dv_level", "dv_rel",
                                                                                                  "insider_recent"),
              "coincidence_until": str(dates[until - 1].date()), "earnings": [(str(dates[t].date()), tick[j]) for t, j in earn],
              "cheap": [tick[j] for j in np.flatnonzero(cheap)], "seed": pc.seed}
     if runs:
         # a run makes |r20| a genuine volatility predictor and r5 / r20 a genuine (modest) direction precursor
-        truth["genuine"] = truth["genuine"] + ("abs_rel_r20",)
+        truth["genuine"] = GENUINE_VOL + ("abs_rel_r20",)
         truth["genuine_direction"] = ("rel_r20", "rel_r5")
     truth["trend_runs"] = [(str(dates[a].date()), tick[j], int(s), int(k)) for a, j, s, k in runs]
     truth["trend_share"] = float((drift != 0).mean())
@@ -320,7 +323,7 @@ def trend_runs(h: np.ndarray, pc: PlantConfig) -> tuple[np.ndarray, list]:
     left = np.zeros(n, int)
     sign = np.zeros(n)
     for t in range(T):
-        u, dirs, lens = rg.random(n), rg.choice([-1.0, 1.0], n), rg.geometric(1.0 / pc.trend_len, n)
+        u, dirs, lens = rg.random(n), np.asarray(rg.choice([-1.0, 1.0], n), float), np.asarray(rg.geometric(1.0 / pc.trend_len, n), int)
         start = (left == 0) & hot[t] & (u < pc.trend_rate)
         for j in np.flatnonzero(start):
             runs.append((t, int(j), int(dirs[j]), int(lens[j])))

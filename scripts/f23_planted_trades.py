@@ -52,6 +52,24 @@ def stage_table(cycles: list[dict], warm: int) -> dict:
     return {s: {"all": dict(allc[s]), "after_warmup": dict(post[s])} for s in sorted(allc)}
 
 
+def active_runs(truth: dict, sessions, now) -> dict[str, int]:
+    """name -> sign of the planted run in force at the decision close before `now` (research-side scoring only: the loop never sees
+    this). A position taken on a name with sign +1 was taken for the planted reason."""
+    import pandas as pd
+    pos = {d: i for i, d in enumerate(sessions.strftime("%Y-%m-%d"))}
+    t = int(sessions.searchsorted(pd.Timestamp(now))) - 1
+    return {tk: int(s) for d, tk, s, k in truth.get("trend_runs") or () if pos[d] <= t < pos[d] + k}
+
+
+def right_reason(cycles: list[dict]) -> dict:
+    """Share of positions (and of predicted movers) that sat in a planted up-run at the decision close."""
+    P = [p for c in cycles for p in c["positions"]]
+    M = [m for c in cycles for m in c.get("movers", ())]
+    return {"positions": len(P), "in_up_run": sum(p["run"] > 0 for p in P), "in_down_run": sum(p["run"] < 0 for p in P),
+            "movers": len(M), "movers_in_run": sum(m["run"] != 0 for m in M),
+            "up_run_movers_by_reason": dict(Counter(m["reason"] for m in M if m["run"] > 0))}
+
+
 def run(world: str, seed: int, cycles: int, fresh: bool = True, warm: int = 6) -> dict:
     plant = {"seed": seed, **(FD.NULL_PLANT if world == "null" else {})}
     feed = LP.world_feed("planted", plant=plant)
@@ -73,20 +91,25 @@ def run(world: str, seed: int, cycles: int, fresh: bool = True, warm: int = 6) -
             break
         dec = state.decisions[-1] if state.decisions else None
         pos = dec.positions if dec is not None else None
-        runs_on = {t for d, t, s, k in truth.get("trend_runs") or ()}          # names that ever ran (right-reason check below)
+        live = active_runs(truth, feed.source.world.sessions, rep["now"])
+        movers = [] if dec is None else [
+            {"ticker": str(ix[-1]), "reason": str(r["reason"]), "p_up": float(r["p_up"]), "gain_pred": float(r.get("gain_pred", float("nan"))),
+             "run": live.get(str(ix[-1]), 0)} for ix, r in dec.table[dec.table["mover"].astype(bool)].iterrows()]
         rec["cycles"].append({
             "cycle": rep["cycle"], "now": rep["now"],
             "stages": {s["stage"]: s["status"] for s in rep["stages"]},
             "reasons": {s["stage"]: s["reason"][:160] for s in rep["stages"] if s["stage"] in CHAIN},
             "positions": [] if pos is None else [{"ticker": str(ix[-1]), "side": int(r["side"]), "p_up": float(r["p_up"]),
-                                                  "gain_pred": float(r.get("gain_pred", float("nan"))), "ever_ran": str(ix[-1]) in runs_on}
+                                                  "gain_pred": float(r.get("gain_pred", float("nan"))), "run": live.get(str(ix[-1]), 0)}
                                                  for ix, r in pos.iterrows()],
+            "movers": movers,
             "abstentions": {} if dec is None else {str(k): int(v) for k, v in dec.reasons().items()},
             "knowledge": sorted(k["feature"] for k in state.knowledge.values())})
         rec["seconds"] = round(time.monotonic() - t0, 1)
         rec["stage_table"] = stage_table(rec["cycles"], warm)
         rec["n_positions"] = sum(len(c["positions"]) for c in rec["cycles"])
         rec["cycles_with_positions"] = sum(1 for c in rec["cycles"] if c["positions"])
+        rec["right_reason"] = right_reason(rec["cycles"])
         out.write_text(json.dumps(rec, indent=1, default=str), encoding="utf-8")
         print(f"[f23] {world} s{seed} cycle {rep['cycle']} {rep['now']} positions {len(rec['cycles'][-1]['positions'])} "
               f"{ {s: rec['cycles'][-1]['stages'].get(s) for s in CHAIN[:5]} }", flush=True)
@@ -103,6 +126,7 @@ def main(argv=None) -> int:
     OUT.mkdir(parents=True, exist_ok=True)
     rec = run(a.world, a.seed, a.cycles, fresh=not a.resume)
     print(json.dumps({"n_positions": rec.get("n_positions"), "cycles_with_positions": rec.get("cycles_with_positions"),
+                      "right_reason": rec.get("right_reason"),
                       "chain": {s: rec.get("stage_table", {}).get(s) for s in CHAIN}}, indent=1, default=str), flush=True)
     return 0
 

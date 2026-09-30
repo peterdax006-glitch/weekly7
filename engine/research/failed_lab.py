@@ -878,6 +878,97 @@ def matured_record(lab: FailedLearnerLab, learner: str, now) -> MaturedRecord:
 
 # ------------------------------------------------------------------------------------------------ the loop's sweep
 
+# ------------------------------------------------------------------------------------------------ the research loop's own failures
+
+LINE_IMPLEMENTATION = "engine.research.compute_manager::Branch"
+_STOP = frozenset("the a an of and or to is are in on for with by at as from that this it be does do not no than".split())
+
+
+def line_tags(text: str, problem: str, family: str) -> tuple:
+    """Mechanism tags of a research line (a feature-ranking experiment the loop ran): its kind, problem, source and the distinctive
+    words of its question, so a re-worded question about the same feature still lands on the same recorded failure."""
+    words = sorted({w for w in "".join(c.lower() if c.isalnum() or c == "_" else " " for c in text).split() if len(w) >= 5 and w not in _STOP})
+    return tuple(["feature_screen", f"problem:{str(problem).lower()}"] + ([f"source:{family}"] if family else []) + [f"word:{w}" for w in words[:6]])
+
+
+def failed_lines(manager, now, include_infeasible: bool = True) -> list:
+    """(branch, transition) for every branch the ladder ended strictly before `now`: FAILED (a powered null, a leak found by the
+    audit, a failed replication) and, with `include_infeasible`, DORMANT because the test it needs is beyond the compute cap. The
+    second kind is NOT a refutation and is registered as INFEASIBLE, never as NO_SKILL. The default loop produces only that kind
+    (0 FAILED in a 60-cycle null run: every line needs ~80 cpu-min against a 40 cap). Plain PARK reasons are not recorded."""
+    cut = as_date(now)
+    last = {}
+    for t in manager.log:
+        if as_date(t.at) >= cut:
+            continue
+        if t.to_state == "FAILED" or (include_infeasible and t.to_state == "DORMANT" and "INFEASIBLE" in (t.reason or "")):
+            last[t.branch_id] = t
+    keep = []
+    for b, t in sorted(last.items()):
+        br = manager.branches.get(b)
+        if br is not None and br.state.value == t.to_state:
+            keep.append((br, t))
+    return keep
+
+
+def line_failure(branch, transition) -> FailedLearner:
+    """A FailedLearner for a failed research line, every number taken from the branch's own run log. The failure mode is decided by
+    what the run log shows: a leak audit -> LEAKAGE; a rung passed earlier and then failed -> OVERFIT (gain that did not replicate);
+    otherwise NO_SKILL (a test with the power to see the effect saw none). A line parked as infeasible is INFEASIBLE: it was never refuted."""
+    runs = [r for r in branch.runs if "effect" in r]
+    last = runs[-1] if runs else {}
+    reason = transition.reason or "UNKNOWN"
+    if transition.to_state == "DORMANT":
+        mode = FailureMode.INFEASIBLE
+    elif "leak" in reason.lower():
+        mode = FailureMode.LEAKAGE
+    elif branch.passed:
+        mode = FailureMode.OVERFIT
+    else:
+        mode = FailureMode.NO_SKILL
+    val = {"branch": branch.branch_id, "rung": str(branch.frontier.value), "runs": len(runs), "cpu_min": float(branch.total_spent),
+           "rungs_passed": len(branch.passed)}
+    for k in ("effect", "se", "t", "n_obs", "power"):
+        if isinstance(last.get(k), (int, float)) and math.isfinite(float(last[k])):
+            val[k] = float(last[k])
+    regime = f"research panel through {last.get('at', transition.at)}"
+    return FailedLearner(learner=f"line::{branch.problem.value.lower()}::{stable_hash([branch.text, branch.family], 10)}", hypothesis=branch.text,
+                         implementation=LINE_IMPLEMENTATION, failure_mode=mode, data_regime=(regime,), validation_result=val, reason=reason,
+                         generalization=fl_mod.classify_generalization((regime,), (), 1), recorded_at=as_date(transition.at).isoformat(),
+                         mechanism_tags=line_tags(branch.text, branch.problem.value, branch.family), family=branch.family,
+                         regimes_failed=(regime,))
+
+
+def sync_from_manager(lab: FailedLearnerLab, manager, now, include_infeasible: bool = True) -> dict:
+    """Register every line the ladder has FAILED before `now` that the lab does not hold yet (idempotent: a second call adds
+    nothing). This is the feed the lab was missing: nothing in the loop called `record_failure`, so the lab stayed empty for ever."""
+    known = {f.learner for f in lab.registry.as_of(now)}
+    added, skipped, invalid = 0, 0, []
+    for branch, tr in failed_lines(manager, now, include_infeasible):
+        fl = line_failure(branch, tr)
+        if fl.learner in known:
+            skipped += 1
+            continue
+        try:
+            lab.record_failure(fl, None, now)
+            known.add(fl.learner)
+            added += 1
+        except ValueError as e:
+            invalid.append((branch.branch_id, str(e)[:120]))
+    return {"failed_lines": added + skipped + len(invalid), "registered": added, "already_known": skipped, "invalid": invalid}
+
+
+def line_proposal(text: str, problem: str, family: str = "") -> LabProposal:
+    """The lab's view of a question the loop is about to spend compute on."""
+    return LabProposal(name=f"line::{stable_hash([text, family], 10)}", hypothesis=text, mechanism_tags=line_tags(text, problem, family), family=family)
+
+
+def question_already_failed(lab: FailedLearnerLab, text: str, problem: str, now, family: str = "") -> Consultation:
+    """Consult before launching a research line: the REUSE of a registered failure. BLOCKED / NEEDS_DIFFERENT_HYPOTHESIS for a line
+    that repeats a failed one, PROCEED for a line that shares nothing with any failure. Logged, so `rediscovery_prevented` counts it."""
+    return lab.consult(line_proposal(text, problem, family), now)
+
+
 @dataclass(frozen=True)
 class LabStep:
     now: str
@@ -888,11 +979,16 @@ class LabStep:
     audit: Mapping
     redirected: Mapping
     label: str = LABEL
+    synced: Mapping = field(default_factory=dict)
+    idle_reason: str = ""
 
 
-def step(lab: FailedLearnerLab, now, root=None) -> LabStep:
+def step(lab: FailedLearnerLab, now, root=None, manager=None) -> LabStep:
     """The research loop's call: lab health, per-class verdicts, dead classes with their reopening conditions, and the registry's
-    own integrity audit. Read-only."""
+    own integrity audit. With `manager` (the loop's compute_manager state) it first registers the lines the ladder FAILED, so the
+    lab is fed by what the loop actually refuted. `idle_reason` says WHY a lab with no entries has nothing to report (never a
+    silent zero): no manager was given, or the ladder has failed no line yet."""
+    synced = sync_from_manager(lab, manager, now) if manager is not None else {}
     table = lab.class_table(now)
     dead = tuple(r["class"] for r in table if r["verdict"] == ClassVerdict.DEAD_CLASS.value)
     reopen = []
@@ -902,8 +998,12 @@ def step(lab: FailedLearnerLab, now, root=None) -> LabStep:
             probe = LabProposal(r["class"], r["class"], tuple(members))
             h = class_history(lab, probe, now)
             reopen.append({"class": r["class"], "conditions": list(lab.reopen_conditions(h, probe, ClassVerdict(r["verdict"])))})
+    idle = ""
+    if not lab.registry.as_of(now):
+        idle = ("no failures are registered and no compute_manager state was supplied: nothing feeds this lab" if manager is None
+                else f"the ladder has failed {synced.get('failed_lines', 0)} line(s) before {em._iso(now)}: nothing to register yet")
     return LabStep(em._iso(now), lab_health(lab, now, root), tuple(table), dead, tuple(reopen), fl_mod.audit_registry(lab.registry, now, root),
-                   lab.rediscovery_prevented(now))
+                   lab.rediscovery_prevented(now), synced=synced, idle_reason=idle)
 
 
 # ------------------------------------------------------------------------------------------------ what the failures teach in aggregate

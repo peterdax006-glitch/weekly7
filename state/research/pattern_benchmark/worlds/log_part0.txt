@@ -12,3 +12,8 @@
 12:43:25 W00001 look 4: {'look': 4, 'now': '1989-09-08', 'n_dates': 155, 'rows': 7440, 'raised': 4, 'gated': 65, 'screened_total': 102, 'scan_s': 22.14, 'gate_s': 237.24}
 12:43:25 W00001 development tier 4 era crisis: real 1/21 detectable (50 planted), FP 6 {'leak': 6}, 1278s
 12:47:14 W00002 look 0: {'look': 0, 'now': '2024-09-13', 'n_dates': 155, 'rows': 7440, 'raised': 53, 'gated': 53, 'screened_total': 53, 'scan_s': 21.2, 'gate_s': 202.69}
+12:51:28 W00002 look 1: {'look': 1, 'now': '2024-12-13', 'n_dates': 155, 'rows': 7440, 'raised': 12, 'gated': 60, 'screened_total': 65, 'scan_s': 20.91, 'gate_s': 232.8}
+12:55:58 W00002 look 2: {'look': 2, 'now': '2025-03-14', 'n_dates': 155, 'rows': 7440, 'raised': 5, 'gated': 56, 'screened_total': 70, 'scan_s': 25.44, 'gate_s': 244.97}
+13:00:41 W00002 look 3: {'look': 3, 'now': '2025-06-13', 'n_dates': 155, 'rows': 7440, 'raised': 9, 'gated': 56, 'screened_total': 79, 'scan_s': 26.23, 'gate_s': 256.86}
+13:04:33 W00002 look 4: {'look': 4, 'now': '2025-09-12', 'n_dates': 155, 'rows': 7440, 'raised': 9, 'gated': 57, 'screened_total': 88, 'scan_s': 23.48, 'gate_s': 208.16}
+13:04:33 W00002 development tier 3 era trending: real 0/18 detectable (50 planted), FP 4 {'leak': 4}, 1268s

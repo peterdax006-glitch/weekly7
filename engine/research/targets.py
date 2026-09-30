@@ -1587,9 +1587,61 @@ def _atoms(rows: Sequence[PredictionRow], feats: Sequence[str], n_thr: int) -> l
     return out
 
 
+def _reachable_space(atoms: Sequence[Term], max_terms: int) -> int:
+    """How many conjunctions (up to `max_terms` atoms, distinct features) the beam COULD have visited from this atom set. A beam follows
+    the data, so the set of candidates it evaluates is chosen by the outcome; the multiplicity that is honest for its winner is the size
+    of the space it chose from, not the count it happened to touch (on pure-noise worlds the touched count let a region through in
+    most draws). Elementary symmetric polynomials of the per-feature atom counts."""
+    per: dict = {}
+    for a in atoms:
+        per[a.feature] = per.get(a.feature, 0) + 1
+    e = [1] + [0] * max_terms
+    for c in per.values():
+        for k in range(max_terms, 0, -1):
+            e[k] += e[k - 1] * c
+    return int(sum(e[1:]))
+
+
+def _interaction_seeds(rows: Sequence[PredictionRow], feats: Sequence[str], min_fail: int, min_side: int, max_seeds: int) -> tuple:
+    """Pair pre-screen that does NOT need a marginal association (C75 F24: the atom screen drops the members of an XOR pair, whose
+    one-term association is nil, and the beam then crowds out the depth-1 atoms that have no edge of their own).
+
+    Every feature is split at its median; for every feature pair the four quadrants (hi/lo x hi/lo) are counted with four matrix
+    products, so the whole screen is O(features^2 x rows) in BLAS and needs no Python loop over pairs. The cell whose failure
+    count is the most surprising (hypergeometric tail, same test as `_tail_p`) represents the pair; the best `max_seeds` pairs
+    become depth-2 candidates directly. Returns (seeds, n_tests) where n_tests = 4 x pairs: the caller must count them toward the
+    multiplicity correction because this screen is itself a search. Seeds are ordinary two-term conjunctions with thresholds at
+    the medians, judged by the same acceptance rules and the same corrected p as beam candidates."""
+    f = len(feats)
+    if f < 2 or max_seeds <= 0:
+        return [], 0
+    X = np.array([[r.features[k] for k in feats] for r in rows], float)
+    thr = np.quantile(X, 0.5, axis=0)
+    cells = {1: (X > thr).astype(np.float32), 0: (X < thr).astype(np.float32)}
+    y = np.array([0.0 if r.correct else 1.0 for r in rows], np.float32)
+    N, F = len(rows), float(y.sum())
+    iu = np.triu_indices(f, 1)
+    best_p = np.full(len(iu[0]), 2.0)
+    best_q = np.zeros(len(iu[0]), int)
+    for qi, (a, b) in enumerate(((1, 1), (1, 0), (0, 1), (0, 0))):
+        Ma, Mb = cells[a], cells[b]
+        n = (Ma.T @ Mb)[iu].astype(float)
+        k = ((Ma * y[:, None]).T @ Mb)[iu].astype(float)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            ok = (n >= min_side) & (N - n >= min_side) & (k >= min_fail) & (k / n > (F - k) / (N - n))
+        p = np.where(ok, hypergeom.sf(k - 1, N, F, n), 2.0)
+        upd = p < best_p
+        best_p[upd], best_q[upd] = p[upd], qi
+    order = np.lexsort((iu[1], iu[0], best_p))[:max_seeds]
+    quad = ((">", ">"), (">", "<"), ("<", ">"), ("<", "<"))
+    seeds = [(Term(feats[iu[0][i]], quad[best_q[i]][0], float(thr[iu[0][i]])), Term(feats[iu[1][i]], quad[best_q[i]][1], float(thr[iu[1][i]])))
+             for i in order if best_p[i] <= 1.0]
+    return seeds, 4 * len(iu[0])
+
+
 def find_conjunctions(rows: Sequence[PredictionRow], max_terms: int = 3, beam: int = 6, n_thr: int = 5, min_fail: int = 3, min_side: int = 3,
                       alpha: float = 0.05, q: float = 0.10, min_gain: float = 2.0, max_atoms: int | None = 40, max_evals: int = 40000,
-                      stats: dict | None = None) -> list:
+                      stats: dict | None = None, max_pair_seeds: int = 6, reachable_space: bool = True) -> list:
     """Beam search for failure regions built from up to `max_terms` features. Every candidate evaluated is counted, and each
     p-value is Bonferroni-corrected by that count (the search itself is a multiple-comparison machine). A term is only added if it
     lowers the p-value by at least `min_gain`x AND raises the inside failure rate (no decorative terms); different features only. The
@@ -1597,9 +1649,11 @@ def find_conjunctions(rows: Sequence[PredictionRow], max_terms: int = 3, beam: i
 
     SCALE GUARD: the full search is O(atoms x beam x depth x rows). `max_atoms` pre-screens the atoms by their own one-term association
     (hypergeometric p) and keeps the best; `max_evals` hard-stops the search. The pre-screen is itself a search, so ALL atoms screened
-    count toward the multiplicity correction. Known limit: a pair whose members have no marginal association (an XOR pattern) can be
-    screened out; raise `max_atoms` to trade time for that coverage. `stats` (if given) is filled with the atoms seen and kept, the
-    candidates evaluated, and whether the eval budget cut the search."""
+    count toward the multiplicity correction. XOR / interaction pairs (members with no marginal association) are covered by
+    `_interaction_seeds`: a median-split pair screen (O(features^2 x rows), vectorised) whose best `max_pair_seeds` pairs enter as
+    depth-2 candidates regardless of the marginal screen and the beam; its 4 x pairs tests also count toward the correction.
+    `max_pair_seeds=0` restores the old behaviour. `stats` (if given) is filled with the atoms seen and kept, the candidates
+    evaluated, the pair tests and seeds, and whether the eval budget cut the search."""
     rows = list(rows)
     fails = sum(1 for r in rows if not r.correct)
     if fails < min_fail or len(rows) - fails < 1:
@@ -1607,6 +1661,7 @@ def find_conjunctions(rows: Sequence[PredictionRow], max_terms: int = 3, beam: i
     feats = sorted(set.intersection(*[set(r.features) for r in rows]))
     atoms = _atoms(rows, feats, n_thr)
     n_all = len(atoms)
+    all_atoms = atoms
     screened = 0
     if max_atoms is not None and len(atoms) > max_atoms:
         scored = []
@@ -1620,6 +1675,7 @@ def find_conjunctions(rows: Sequence[PredictionRow], max_terms: int = 3, beam: i
         atoms = [t[4] for t in scored[:max_atoms] if t[0] <= 1.0]
     evaluated = 0
     cut = False
+    seeds, pair_tests = _interaction_seeds(rows, feats, min_fail, min_side, max_pair_seeds) if max_terms >= 2 else ([], 0)
     frontier: list[tuple[tuple[Term, ...], list[bool], float, float]] = [((), [True] * len(rows), 1.0, 0.0)]
     finished: list = []
     for depth in range(max_terms):
@@ -1643,14 +1699,22 @@ def find_conjunctions(rows: Sequence[PredictionRow], max_terms: int = 3, beam: i
                 if terms and (p * min_gain > p_prev or rate <= rate_prev):
                     continue
                 cand.append((terms + (a,), m, p, rate, n_in, f_in, n_out, f_out))
+        if depth == 1:
+            for sd in seeds:
+                m = [all(t.holds(r.features) for t in sd) for r in rows]
+                p, n_in, f_in, n_out, f_out = _tail_p(rows, m)
+                if n_in >= min_side and n_out >= min_side and f_in >= min_fail and f_in / n_in > f_out / n_out:
+                    cand.append((sd, m, p, f_in / n_in, n_in, f_in, n_out, f_out))
         cand.sort(key=lambda c: (c[2], -c[3], [(t.feature, t.op, t.threshold) for t in c[0]]))
         frontier = [(c[0], c[1], c[2], c[3]) for c in cand[:beam]]
         finished += cand[:beam]
-        if not frontier:
+        if not frontier and not (depth == 0 and seeds):          # XOR members have no depth-1 edge; the seeds still enter at depth 1
             break
-    tried = max(evaluated + screened, 1)
+    space = _reachable_space(all_atoms, max_terms) if reachable_space else 0
+    tried = max(evaluated + screened + pair_tests, space + screened + pair_tests, 1)
     if stats is not None:
-        stats.update({"atoms_all": n_all, "atoms_kept": len(atoms), "screened": screened, "evaluated": evaluated, "tried": tried, "cut_by_budget": cut})
+        stats.update({"atoms_all": n_all, "atoms_kept": len(atoms), "screened": screened, "evaluated": evaluated, "tried": tried, "cut_by_budget": cut,
+                      "pair_tests": pair_tests, "pair_seeds": len(seeds), "reachable_space": space})
     kept = [c for c in finished if c[2] * tried <= alpha]
     seen, uniq = set(), []
     for c in sorted(kept, key=lambda c: (c[2], len(c[0]))):
