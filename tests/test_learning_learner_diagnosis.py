@@ -85,7 +85,7 @@ def test_recovery_refuses_weak_thin_old_or_future_evidence_and_items_that_are_no
 
 
 def test_the_learner_asks_for_recovery_of_a_degraded_item_and_the_object_follows_the_ledger():
-    L = T.new_learner()
+    L = LN.LegitimateLearner(T.make_cfg(retire_window=8), code_hash_fn=lambda: "pinned-test-code")   # the door, not the window (F10: 16)
     pid, kid = "f0:q4", "K-planted"
     L._pid_of[kid], L._kid_of[pid] = pid, kid
     rng = np.random.default_rng(2)

@@ -172,7 +172,8 @@ class LearnerConfig:
     context_dim: str = "regime.label"
     missed_train_min: int = 20
     min_transfer_cases: int = 20
-    retire_window: int = 8
+    retire_window: int = 16                   # F10: 8 weeks falsely degraded every planted true item at least once in 5 years
+                                              # (retirement.degrade_study; state/research/acceptance_mini/f10_degrade_study.json)
     version_tol: float = 0.05
     audit_weeks: int = 12
     transfer_every: int = 16
@@ -180,6 +181,11 @@ class LearnerConfig:
     hooks: LH.HookConfig = LH.HookConfig()
     learning_claim: str = "enforce"           # PromotionGate's learning-claim gate (scorecard + firewalls + identity)
     shadow_monitoring: bool = True            # F07: retrieval skill is also scored on held, not-yet-production knowledge
+    claim_evidence: bool = True               # F10: register the evidence card (shadow book + portfolio card) for the learning claim
+    evidence_boot: int = 200                  # bootstrap draws of the evidence card
+    evidence_window_weeks: int = 13           # portfolio-card window (a quarter); the card needs >= evidence_min_windows of them
+    evidence_min_windows: int = 4
+    max_book_rows: int = 60000
 
     def validate(self) -> list[str]:
         errs = [f"hooks: {e}" for e in self.hooks.validate()]
@@ -201,6 +207,8 @@ class LearnerConfig:
             errs.append("skill_min_n < 10 cannot support a skill claim")
         if not 0 < self.min_coverage <= 1:
             errs.append("min_coverage outside (0, 1]")
+        if self.evidence_boot < 50 or self.evidence_window_weeks < 4 or self.evidence_min_windows < 3:
+            errs.append("evidence card needs >= 50 bootstrap draws, windows of >= 4 weeks and >= 3 windows")
         for cm in self.column_map:
             if cm.scale == 0:
                 errs.append(f"column map {cm.target}: zero scale")
@@ -274,6 +282,23 @@ class _Row:
     edge: float | None = None
     raw_ret: float | None = None
     matured: str | None = None
+    booked: bool = False                      # F10: this row belongs to the learner's shadow book
+    book_exp: float | None = None             # ex-ante expectation of every held item (shadow) - recorded before the outcome exists
+    book_scale: float | None = None           # the learner's edge scale at decision time (turns the expectation into a probability)
+
+
+@dataclass(frozen=True)
+class _BookRow:
+    """One resolved unit of the learner's shadow book (F10): what all held knowledge expected before the outcome, and what happened.
+    `ident` is the opaque per-seed hash the hooks already use; no ticker, no row key."""
+    decided: str
+    matured: str
+    ident: str
+    ctx: str
+    expected: float | None
+    scale: float | None
+    edge: float
+    raw_ret: float
 
 
 @dataclass
@@ -343,7 +368,9 @@ class LegitimateLearner:
         self.graph = KG.KnowledgeGraph()
         # ---- reliability, retirement, calibration, time
         self.tracker = RL.ReliabilityTracker()
-        self.retirement = RecoveringLedger(RT.RetirementPolicy(min_n=c.retire_window, recover_min_n=2 * c.retire_window))
+        # F10: the window check reads `retire_window` outcomes; the ledger-wide floor stays at 8 because the lifecycle machine
+        # (loop_hooks.lifecycle_step) writes to the same ledger on its own, shorter evidence windows
+        self.retirement = RT.RetirementLedger(RT.RetirementPolicy(min_n=min(8, c.retire_window), recover_min_n=2 * c.retire_window))
         self.calibration = CB.CalibrationMonitor()
         self.temporal = TP.TemporalMemory()
         # ---- learning
@@ -408,6 +435,9 @@ class LegitimateLearner:
         self.meta_update = None
         self.research_step = None
         self.counters: dict[str, int] = {}
+        self._book: list[_BookRow] = []                   # F10: the shadow book the evidence card is measured on
+        self._evidence: tuple | None = None                # (tick, valid card or None, refusal reason)
+        self.evidence_log: list[dict] = []
         # ---- every other learning module, each called from the stage that owns it (loop_hooks.py); persisted under workdir/loop
         self.hooks = LH.LoopHooks(self, c.hooks, self.workdir / "loop")
         self.experiments = self.hooks.experiments
@@ -647,6 +677,7 @@ class LegitimateLearner:
                 self.summaries.append(EpisodeSummary(ep.eid, str(as_date(ep.now)), len(out), sum(d.action == "LONG" for d in out),
                                                      sum(d.action != "LONG" for d in out), sum(bool(d.knowledge_ids) for d in out), False))
                 self._register_predictions(ep)
+                self._book_decisions(ep)
             box["n"], box["note"] = len(out), f"{len(chosen)} long"
             return sorted(out, key=lambda d: d.slot)
 
@@ -693,6 +724,21 @@ class LegitimateLearner:
                 items = [self.store.as_of(k, ep.now) for k in r.decision.knowledge_ids]
                 self.decision_log.record_all(f"{ep.eid}#{r.decision.slot}", [i for i in items if i is not None], r.situation.bins(), ep.now)
 
+    def _book_decisions(self, ep: _Episode) -> None:
+        """F10: the shadow book.  For every row of a learning episode, what ALL held knowledge (production and not yet) expected,
+        written before the outcome exists; production-only when shadow monitoring is off.  It never reaches a decision: stage_decide
+        has already run on `retrieval`.  The evidence card measures the learner's claim on this book, which breaks the F07 circle
+        (no decisions until promotion, no promotion until the decisions are measured) without lowering any bar."""
+        if self.frozen or not self.cfg.claim_evidence:
+            return
+        scale = float(self.surprise.scale_at(ep.now)[0])
+        for r in ep.rows:
+            r.booked, r.book_scale = True, scale
+            if r.shadow is not None and r.shadow.items:
+                r.book_exp = RV.combine(r.shadow, self.index)["expected"]
+            elif r.decision is not None and r.decision.knowledge_ids:
+                r.book_exp = r.expected
+
     def _register_predictions(self, ep: _Episode) -> None:
         for r in ep.rows:
             ret = self._scored(r)
@@ -732,6 +778,10 @@ class LegitimateLearner:
                 ret = self._scored(r)
                 if ret is not None and ret.items:
                     RV.resolve_outcome(ret, self.monitor, r.matured, r.edge)             # walk-forward score of retrieval itself
+                if r.booked:
+                    self._book.append(_BookRow(str(as_date(ep.now)), r.matured, self._ident(r.key[1]),
+                                               str(r.situation.bins().get(self.cfg.context_dim, "na")), r.book_exp, r.book_scale, r.edge, r.raw_ret))
+            del self._book[: max(0, len(self._book) - self.cfg.max_book_rows)]
             ep.rows = done
             box["n"], box["note"] = len(done), f"matured {max(r.matured for r in done)}"
 
@@ -993,21 +1043,14 @@ class LegitimateLearner:
             box["n"] = n
 
     def _retire_check(self, kid: str, pid: str, dirn: int, now) -> None:
+        """The weekly retirement / recovery pass (retirement.window_check: one rule shared with the false-degrade study)."""
         dates, vals = self._signed(pid, dirn)
-        w = self.cfg.retire_window
-        if len(dates) < w:
-            return
-        ev = RT.series_evidence(dates[-w:], vals[-w:], as_date(dates[-w]) - pd.Timedelta(days=1), now, "recent-weeks")
-        state = self.retirement.state(kid, now)
-        if state in (RT.State.ACTIVE, RT.State.DEGRADED):
-            v = self.retirement.evaluate(kid, ev, now, apply=True)
-            if state is RT.State.DEGRADED and v.to_state is None:
-                last = self.retirement.last_transition(kid, now)
-                since = RT.series_evidence(dates, vals, last.at, now, "since-degraded")
-                if self.retirement.recover_degraded(kid, since, now, apply=True).to_state is RT.State.ACTIVE:
-                    self._count("recovered_from_degraded")
-        elif state is RT.State.DORMANT:
-            self.retirement.attempt_recovery(kid, ev, now, self._mkt_now(), apply=True)
+        last = self.retirement.last_transition(kid, now)
+        probation = last is not None and last.kind in ("RECOVER_PROBATION", "REVIVE")
+        v = RT.window_check(self.retirement, kid, dates, vals, now, self.cfg.retire_window, self._mkt_now())
+        if v is not None and v.changes:
+            self._count({"RECOVER_FULL": "recovered_after_probation" if probation else "recovered_from_degraded",
+                         "RECOVER_PROBATION": "recovered_to_probation"}.get(v.kind, f"retirement_{str(v.kind).lower()}"))
 
     def _mkt_now(self) -> dict:
         if not self._mkt:
@@ -1121,15 +1164,85 @@ class LegitimateLearner:
                 self._refusals.append((kid, "open_challenge", str(e)[:120]))
                 return
         elif m.role == Promotion.CHALLENGER and len(m.shadow) >= self._min_sessions_for_gate() and self._tick % self.cfg.discover_every == 0:
+            ep_now = self.store.latest(kid).epistemic
+            if ep_now not in LH.CHAMPION_EPISTEMIC:
+                # F10 (found on the first 5-year run): health relabelled a challenger (e.g. CONTESTED); the board would promote it and
+                # the knowledge schema would then refuse a CHAMPION with that label, leaving board and store disagreeing.  Not attempted.
+                self._refusals.append((kid, "promotion", f"epistemic {ep_now} cannot be champion"[:120]))
+                return
             k = self.store.get(kid, m.version)                # the board gates the exact version it registered
             self.hooks.readiness(self.store.latest(kid), now)
-            self.hooks.claim_evidence(kid, now)           # identity report + scorecard registered for the learning-claim gate
+            ce = self.hooks.claim_evidence(kid, now)      # identity report + scorecard registered for the learning-claim gate
+            if ce.get("identity") is None:
+                W.HUB.identity_reports.pop(kid, None)     # F10: no report of this learner's -> none at all (not another learner's)
+            self._register_evidence(kid, now)             # F10: the evidence card (shadow book + portfolio card) supersedes it
             res = self.board.attempt_promotion(k, self._promotion_evidence(kid, pid, now, learned), now)
             self._gate_log.append((kid, res["promoted"], tuple(res["decision"].critical_failures)))
             if res["promoted"]:
                 self._promote(kid, learned)
             else:
                 self._refusals.append((kid, "promotion", ",".join(res["decision"].critical_failures)[:120]))
+
+    # ------------------------------------------------------------------------------------------------ F10: evidence for the claim
+    def book_frame(self, now) -> pd.DataFrame:
+        """The shadow book rows whose outcome matured strictly before `now` (the rest is not yet evidence), as a unit table."""
+        cut = as_date(now)
+        rows = [b for b in self._book if as_date(b.matured) < cut]
+        cols = ["date", "mature", "ticker", "ret", "edge", "expected", "scale", "regime"]
+        if not rows:
+            return pd.DataFrame(columns=cols)
+        return pd.DataFrame({"date": pd.to_datetime([b.decided for b in rows]), "mature": pd.to_datetime([b.matured for b in rows]),
+                             "ticker": [b.ident for b in rows], "ret": [b.raw_ret for b in rows], "edge": [b.edge for b in rows],
+                             "expected": [np.nan if b.expected is None else b.expected for b in rows],
+                             "scale": [np.nan if b.scale is None else b.scale for b in rows], "regime": [b.ctx for b in rows]}
+                            ).drop_duplicates(["ticker", "date"]).reset_index(drop=True)
+
+    def evidence_card(self, now):
+        """The learner's scorecard measured on its shadow book (scorecard_for_learner: controls A-E over forward-YEAR folds, stock and
+        regime folds, memorisation and identity gaps, leak probe) merged with the portfolio card (risk, drawdown, band share,
+        calibration of the book the learner would hold against a no-knowledge book).  None when the book has fewer than 4 matured
+        decision weeks.  Nothing here changes a gate: the card is evidence the unchanged claim gate then judges."""
+        from . import scorecard as SC
+        book = self.book_frame(now)
+        if book["date"].nunique() < 4:
+            return None
+        units = pd.DataFrame({"date": book["date"], "mature": book["mature"], "ticker": book["ticker"], "base": 0.0, "alt": book["edge"],
+                              "signal": book["expected"].fillna(0.0), "regime": book["regime"]})
+        card = SC.scorecard_for_learner(units, LH.trust_learned_signal, learner_version=f"{self.config_hash[:10]}-e{self._tick:05d}", now=now,
+                                        code_hash=self.code_hash, seed=self.cfg.seed, n_boot=self.cfg.evidence_boot, min_units=20)
+        port = SC.portfolio_card(book, now, top_n=self.cfg.top_n, window_weeks=self.cfg.evidence_window_weeks,
+                                 min_windows=self.cfg.evidence_min_windows, min_expected=self.cfg.min_expected, scale="scale",
+                                 seed=self.cfg.seed, n_boot=self.cfg.evidence_boot)
+        return SC.merge_portfolio(card, port)
+
+    def _register_evidence(self, kid: str, now) -> None:
+        """Once per learning tick: build the evidence card; a valid one is registered for `kid`'s learning claim (replacing the hooks'
+        production-only card, which in a learner with nothing promoted measures a book of zeros).  An invalid card is logged with the
+        reason and nothing is registered: a refusal, never a pass."""
+        if not self.cfg.claim_evidence:
+            return
+        if self._evidence is None or self._evidence[0] != self._tick:
+            from . import scorecard as SC
+            try:
+                card = self.evidence_card(now)
+                errs = ["fewer than 4 matured decision weeks in the shadow book"] if card is None else card.check()
+            except ValueError as e:                        # a malformed book is a refusal (fail closed); a FirewallBreach propagates
+                card, errs = None, [f"evidence card could not be built: {e}"]
+            dec = SC.gate_improvement_claim(card) if card is not None and not errs else None
+            self._evidence = (self._tick, None if errs else card, "; ".join(errs)[:200])
+            self._count("evidence_cards" if not errs else "evidence_cards_refused")
+            self.evidence_log.append({"tick": self._tick, "now": str(as_date(now)), "valid": not errs, "why": self._evidence[2],
+                                      "allowed": None if dec is None else dec.allowed, "blockers": [] if dec is None else
+                                      [c.name for c in dec.checks if c.blocking and not c.ok],
+                                      "untested": [] if card is None else card.untested_fields()})
+            del self.evidence_log[:-200]
+        own = self._evidence[1] if self._evidence[1] is not None else self.hooks.valid_card
+        if own is not None:
+            W.register_scorecard(kid, own)
+        else:
+            # the hub is process-wide and knowledge ids are content hashes: another learner (a control, an earlier seed) may have
+            # registered a card under the same id.  This learner is never judged on someone else's evidence.
+            W.HUB.scorecards.pop(kid, None)
 
     def _min_sessions_for_gate(self) -> int:
         p = self.board.gate.policy
@@ -1530,37 +1643,9 @@ class LegitimateLearner:
                 "influence_log_ok": not self.decision_log.verify(), "hooks": self.hooks.report()}
 
 
-class RecoveringLedger(RT.RetirementLedger):
-    """F07: the retirement ledger with the one missing door.  RetirementLedger lets a DEGRADED item go down (DORMANT, RETIRED) or,
-    if it came back through DORMANT on probation, up; a DEGRADED item that was never parked had no way back at all, so one noisy
-    8-week window (t 0.17 on a planted true effect, seed 4) removed a real item from every later decision.  `recover_degraded`
-    applies the ledger's own recovery bar (recover_min_n outcomes, all dated after the degrade, t >= recover_t, which is above
-    degrade_t: hysteresis) and moves the item back to ACTIVE through `transition`, the ledger's only door (DEGRADED -> ACTIVE is an
-    ALLOWED move).  Nothing else is changed; items on probation still use attempt_recovery."""
-
-    def recover_degraded(self, kid: str, ev: RT.Evidence, now, apply: bool = False) -> RT.Verdict:
-        pol, s, last = self.policy, self.state(kid, now), self.last_transition(kid, now)
-        numbers = {"n": ev.n, "effect": ev.effect, "se": ev.se, "t": ev.t, "state": None if s is None else s.value,
-                   "need_n": pol.recover_min_n, "need_t": pol.recover_t}
-        if s is not RT.State.DEGRADED:
-            return RT.Verdict(kid, None, None, f"not degraded ({None if s is None else s.value})", numbers)
-        if last is not None and last.kind in ("RECOVER_PROBATION", "REVIVE"):
-            return RT.Verdict(kid, None, None, "on recovery probation: attempt_recovery decides", numbers)
-        errs = ev.validate()
-        if errs:
-            raise ValueError("bad evidence: " + "; ".join(errs))
-        if ev.n:
-            require_past(ev.window_end, now, "recovery evidence window_end")
-        if last is not None and ev.n and as_date(ev.window_start) <= as_date(last.at):
-            return RT.Verdict(kid, None, None, f"evidence starts {ev.window_start}, not after the degrade on {last.at}", numbers)
-        if ev.n < pol.recover_min_n:
-            return RT.Verdict(kid, None, None, f"insufficient recovery evidence (n={ev.n} < {pol.recover_min_n})", numbers)
-        if ev.t < pol.recover_t:
-            return RT.Verdict(kid, None, None, f"recovery evidence too weak (t={ev.t:.2f} < {pol.recover_t:.2f})", numbers)
-        verdict = RT.Verdict(kid, RT.State.ACTIVE, "RECOVER_FULL", "degraded item recovered on evidence dated after the degrade", numbers)
-        if apply:
-            self.transition(kid, RT.State.ACTIVE, now, "RECOVER_FULL", verdict.reason, FailureCause.UNKNOWN, numbers)
-        return verdict
+# F07 added the DEGRADED -> ACTIVE door as a learner-side subclass; F10 adopted it natively (RetirementLedger.recover_degraded), so
+# the old name is kept only as an alias for callers and tests that still construct it.
+RecoveringLedger = RT.RetirementLedger
 
 
 class _CachedRetriever(RV.Retriever):
@@ -1785,6 +1870,8 @@ class AcceptanceReport:
     skill: Mapping
     notes: tuple = ()
     trace: tuple = ()                                 # truth_trace rows: where each planted item's signal was lost (F07)
+    degrades: Mapping = field(default_factory=dict)   # degrade_audit of the lesson learner (F10)
+    evidence: tuple = ()                              # the lesson learner's evidence-card log: validity and claim-gate blockers (F10)
 
     def lost_at(self) -> dict[str, str]:
         return {r["item"]: r["stage"] for r in self.trace}
@@ -1883,6 +1970,38 @@ def truth_trace(world, learner: LegitimateLearner, probe: DecisionScore, probe_n
     return rows
 
 
+def degrade_audit(world, learner: LegitimateLearner) -> dict:
+    """F10: every DEGRADE the retirement gate wrote, classified against the planted truth (planted_world.live_for_degrade on the
+    trusted side): on a still-working planted item it was FALSE, on noise or a decayed item it was right.  Also counts weeks spent
+    not ACTIVE per planted item.  Items the learner holds that match no planted single-cell item are 'unknown'."""
+    from . import planted_world as PW
+    item_of = {}
+    for it in world.spec.items:
+        if len(it.conds) == 1 and it.unless is None:
+            kid = learner._kid_of.get(learner.pattern_id(*it.conds[0]))
+            if kid is not None:
+                item_of[kid] = it.item_id
+    dates = [pd.Timestamp(d) for d in world.dates]
+
+    def week_of(at) -> int:
+        return max(0, int(np.searchsorted(np.array(dates, dtype="datetime64[ns]"), np.datetime64(pd.Timestamp(at)), side="right")) - 1)
+
+    def live(kid, at):
+        return None if kid not in item_of else PW.live_for_degrade(world.spec, item_of[kid], week_of(at))
+
+    aud = RT.audit_degrades(learner.retirement, live)
+    per = {}
+    for kid, iid in sorted(item_of.items(), key=lambda x: x[1]):
+        hist = learner.retirement.history(kid)
+        kinds = [t.kind for t in hist]
+        not_active = sum(learner.retirement.state(kid, d + pd.Timedelta(days=1)) not in (None, RT.State.ACTIVE) for d in dates)
+        per[iid] = {"kind": world.spec.item(iid).kind, "degrades": kinds.count("DEGRADE"), "false_degrades": aud.by_item.get(kid, (0, 0))[0],
+                    "recoveries": kinds.count("RECOVER_FULL"), "dormant": kinds.count("DORMANT"), "weeks_not_active": int(not_active),
+                    "registered_week": week_of(hist[0].at) if hist else None}
+    return {"false_degrades": aud.on_live, "correct_degrades": aud.on_dead, "unknown_degrades": aud.unknown,
+            "false_degrade_share": None if math.isnan(aud.false_degrade_share) else round(aud.false_degrade_share, 3), "items": per}
+
+
 def run_acceptance(spec, seed: int, make_learner: Callable[[], LegitimateLearner], years_apart: int = 6, probe_from: int = 0,
                    probe_weeks: int | None = None) -> AcceptanceReport:
     """Year A is learned once (and once more from shuffled outcomes as a control).  Year B is a different episode of the same
@@ -1914,5 +2033,5 @@ def run_acceptance(spec, seed: int, make_learner: Callable[[], LegitimateLearner
     trace = tuple(truth_trace(world_a, lesson, s_lesson, world_b_id.dates[0]))
     return AcceptanceReport(LABEL, seed, n_a, len(pw), len(lesson.production_ids()), len(lesson._pid_of), s_lesson, s_control, a_disguised,
                             proto, truth_check(world_a, lesson, n_a - 1), imp, imp_c, inv, lesson.monitor.status(world_b.dates[0]), tuple(notes),
-                            trace)
+                            trace, degrade_audit(world_a, lesson), tuple(lesson.evidence_log))
 

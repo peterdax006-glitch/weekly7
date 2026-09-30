@@ -283,6 +283,42 @@ def noise_only_spec(weeks: int = 104, stocks: int = 80, n_feat: int = 8, name: s
                      confirm_end=(weeks * 3) // 4).check()
 
 
+def multi_year_spec(years: int = 5, stocks: int = 40, noise: bool = False, weeks_per_year: int = 52, decay_years: tuple = (2, 3),
+                    scale: float = 1.0, name: str | None = None) -> WorldSpec:
+    """F10 (C69 W-07): the acceptance world long enough for the learning-claim evidence.  scorecard_for_learner's forward-YEAR
+    folds need two earlier training years per held-out year and its stability check three held-out years, so a claim can only be
+    judged from year 5 on; `years` < 4 is refused.  Truths that persist through every year: a strong long (f0 q4), a strong short
+    (f1 q4) and a regime-gated long (f2 q4, only while m_vix > 0).  One truth that decays: f5 q4 at full strength until year
+    decay_years[0], linearly to zero by year decay_years[1], dead after (a degrade there is CORRECT).  Two noise cells (f3 q4,
+    f4 q0).  `noise=True` is the null world of the same length: the two noise cells only.  Six features, the miniature's layout."""
+    if years < 4:
+        raise ValueError("a multi-year acceptance world needs >= 4 years (forward-year folds need 2 training years per test year)")
+    a, b = decay_years
+    if not 0 <= a < b <= years:
+        raise ValueError(f"decay_years {decay_years} must satisfy 0 <= start < end <= {years}")
+    W = years * weeks_per_year
+    e = lambda x: x * scale
+    nz = (Item("noise_a", NOISE, (("f3", 4),)), Item("noise_b", NOISE, (("f4", 0),)))
+    items = nz if noise else (
+        Item("strong", STRONG, (("f0", 4),), e(0.02)), Item("negative", NEGATIVE, (("f1", 4),), e(-0.015)),
+        Item("regime", REGIME, (("f2", 4),), e(0.02), gate=Gate("m", "m_vix", 0.0, np.inf)),
+        Item("decaying", DECAYING, (("f5", 4),), e(0.02), profile="decay", params=(a * weeks_per_year, b * weeks_per_year),
+             note=f"full until year {a}, dead from year {b}")) + nz
+    return WorldSpec(name or ("multi_year_null" if noise else "multi_year"), items, weeks=W, stocks=stocks, n_feat=6,
+                     discovery_end=W // 2, confirm_end=(W * 3) // 4).check()
+
+
+def live_for_degrade(spec: WorldSpec, item_id: str, week: int) -> bool:
+    """Was a DEGRADE of this item at `week` wrong?  True while the item is still what it was (before its change week: the decay
+    midpoint, a window's close, a flip); False for noise and duplicates (nothing to lose) and from the change week on (the item really
+    weakened, so the degrade was right).  A regime item out of state is still live: its in-state effect exists."""
+    it = spec.item(item_id)
+    if it.kind in NEVER_HOLD:
+        return False
+    cw = it.change_week(spec.weeks)
+    return cw is None or int(week) < cw
+
+
 def single_item_spec(item: Item, weeks: int = 104, stocks: int = 80, n_feat: int = 8, **kw) -> WorldSpec:
     """One planted item in an otherwise silent world (power curves, per-kind oracle tests)."""
     kw.setdefault("discovery_end", weeks // 2)
@@ -564,6 +600,19 @@ class PlantedWorld:
         d = s_in[ok] / cnt_in[ok] - s_out[ok] / cnt_out[ok]
         sd = d.std(ddof=1)
         return {"effect": float(d.mean()), "t": float(d.mean() / (sd / np.sqrt(len(d)))) if sd > 0 else 0.0, "n_weeks": int(ok.sum())}
+
+    def cell_weekly(self, item_id: str, weeks: tuple | None = None) -> np.ndarray:
+        """F10: the weekly series a learner's retirement gate sees for this item - the mean excess return of the item's rows each
+        week, signed by the planted direction (noise: +1).  Weeks without rows are skipped.  Trusted side: it calibrates the
+        false-degrade study (retirement.degrade_study) on the same noise the learner faces."""
+        it = self.spec.item(item_id)
+        sign = -1.0 if (it.effect or it.off_effect) < 0 else 1.0
+        m = self._row_mask(it, weeks)
+        y = self.y.to_numpy()
+        n = np.bincount(self.week_idx[m], minlength=self.spec.weeks)
+        s = np.bincount(self.week_idx[m], weights=y[m], minlength=self.spec.weeks)
+        ok = n > 0
+        return sign * s[ok] / n[ok]
 
     # ------------------------------------------------------------ hidden-item economics (test 7)
     def use_pnl(self, item_id: str, weeks: tuple, cost: float = 0.01, exact: bool = False) -> float:

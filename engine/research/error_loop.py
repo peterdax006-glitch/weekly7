@@ -56,6 +56,7 @@ import numpy as np
 import pandas as pd
 
 from engine import exits as EX
+from engine.learning import promotion as PR
 from engine.learning.archive import GENESIS, ChainCorrupt
 from engine.learning.core import Provenance, as_date, canonical_json, stable_hash
 from engine.learning.surprise import SurpriseTracker
@@ -145,6 +146,11 @@ class C68Config:
     history_days: int = 400                            # daily evidence kept for regime memory
     guard_window: int = 25                             # newest post-change pattern rows the regime guard judges the pattern on
     seed: int = 0
+    fix_evidence: SCX.FixEvidenceConfig = SCX.FixEvidenceConfig(retirement_trigger=True)   # the full gate evidence of every fix (W-06);
+                                                       # the retirement trigger is THIS loop's monitor (`_monitor`)
+    monitor_weeks: int = 26                            # newest post-promotion weeks the monitor judges a promoted fix on
+    monitor_min_weeks: int = 8
+    rollback_t: float = 2.0                            # the fix's weekly |error| gain over the shadow incumbent at t <= -this: roll back
 
     def validate(self) -> list[str]:
         errs = []
@@ -163,6 +169,9 @@ class C68Config:
         errs += list(self.target.validate()) + list(self.self_correct.validate())
         if self.max_investigations < 1 or self.max_events < 1:
             errs.append("per-cycle caps must be >= 1")
+        errs += list(self.fix_evidence.validate())
+        if self.monitor_min_weeks < 4 or self.monitor_weeks < self.monitor_min_weeks or self.rollback_t <= 0:
+            errs.append("monitor_weeks >= monitor_min_weeks >= 4 and rollback_t > 0 required")
         return errs
 
 
@@ -349,6 +358,8 @@ class C68State:
                                                                    "extra_features": ()})
     corrections: list = dataclasses.field(default_factory=list)
     monitoring: list = dataclasses.field(default_factory=list)
+    retired: dict = dataclasses.field(default_factory=dict)         # fix name -> date it was rolled back (re-tested only on newer rows)
+    shadow: Any = None                                              # the incumbent's gate while a fix is in production (monitoring)
     anchors: list = dataclasses.field(default_factory=list)         # (cycle, ledger, head): stored OUTSIDE the ledgers
     calibration: list = dataclasses.field(default_factory=list)
     independence: list = dataclasses.field(default_factory=list)
@@ -572,9 +583,23 @@ def _empty_paths(horizon: int) -> EX.Paths:
     return EX.Paths(z, z, z, z, e, e, e, np.zeros(0, "datetime64[D]"), np.zeros(0, "datetime64[D]"), np.zeros(0, object), np.zeros(0, object))
 
 
+INTERACTION = "_x_"                  # '<feature>_x_<sector>': the feature inside one sector, 0 elsewhere (a promoted slope fix)
+
+
+def feature_column(rows: pd.DataFrame, name: str) -> np.ndarray:
+    """One entry feature by name; an interaction name is computed from its base feature and the row's sector (both known at the
+    deciding close). Absent = NaN (the gain model then drops the row), never zero."""
+    if name in rows:
+        return rows[name].to_numpy(float)
+    if INTERACTION in name:
+        base, grp = name.split(INTERACTION, 1)
+        if base in rows and "sector" in rows:
+            return rows[base].to_numpy(float) * (rows["sector"].astype(str).to_numpy() == grp)
+    return np.full(len(rows), np.nan)
+
+
 def feature_matrix(rows: pd.DataFrame, names: Sequence[str]) -> np.ndarray:
-    return np.stack([rows[n].to_numpy(float) if n in rows else np.full(len(rows), np.nan) for n in names], 1) if len(rows) else \
-        np.zeros((0, len(names)))
+    return np.stack([feature_column(rows, n) for n in names], 1) if len(rows) else np.zeros((0, len(names)))
 
 
 # ================================================================================================================ patterns from bars
@@ -781,9 +806,18 @@ def st_policy(ctx: LP.Ctx) -> tuple:
     pm = XR.PathModel(rule).fit(P, ctx.now, ctxf) if len(P) >= 20 else None
     infl = released_influence(st, ctx.now, ctx.created_real(), ctx.rt.code_hash)
     today = ctx.obs.today
-    gate = BandGate(gm, pid, cfg.selection, feats, infl, {p.name: p.feature for p in cfg.patterns}, fired_today(today, cfg.patterns))
+    pf, fired = {p.name: p.feature for p in cfg.patterns}, fired_today(today, cfg.patterns)
+    gate = BandGate(gm, pid, cfg.selection, feats, infl, pf, fired)
     pipe.band_gate = gate
     st.gate, st.path_model = gate, pm
+    st.shadow = None
+    if st.production.get("name") != "incumbent":
+        # while a promoted fix is in production the incumbent keeps forecasting in the shadow (same exit, same paths, its own inputs
+        # and window): the monitor compares the two on the same matured names - a fix is judged against what it replaced
+        Ps, srcs = build_paths(bv, M.sort_index().iloc[-cfg.train_max:], cfg.horizon, ctx.now)
+        base = tuple(cfg.features)
+        sm = SC.RealisableGainModel(rule, base, cfg.selection).fit(Ps, feature_matrix(srcs, base), ctx.now)
+        st.shadow = BandGate(sm, pid, cfg.selection, base, infl, pf, fired)
     st.gate_log.append(influence_effect(gate, today, ctx.now))
     st.gate_log = st.gate_log[-500:]
     st.trained_through = str(pd.Timestamp(P.end.max()).date())
@@ -897,8 +931,11 @@ def st_expect(ctx: LP.Ctx) -> tuple:
         cols = [c for c in (*cfg.features, *cfg.market_features) if c in today]
         vals = today[cols].astype(float).to_numpy() if cols else np.zeros((len(today), 0))
         secs = today["sector"].astype(str).to_numpy() if "sector" in today else np.full(len(today), "all", object)
+        shadow = getattr(st, "shadow", None)
+        sh = {fc.candidate: fc.median for fc in shadow.forecast(today, ctx.now)} if isinstance(shadow, BandGate) else {}
         st.forecasts[dec.decided_at] = {fc.candidate: {"mean": fc.mean, "median": fc.median, "p_band": fc.p_in_band, "eligible": fc.candidate in ok,
-                                                       "policy": gate.policy, **dict(zip(cols, map(float, vals[k]))), "sector": str(secs[k])}
+                                                       "policy": gate.policy, **dict(zip(cols, map(float, vals[k]))), "sector": str(secs[k]),
+                                                       "shadow": float(sh.get(fc.candidate, np.nan))}
                                         for k, fc in enumerate(fcs) if math.isfinite(fc.mean)}
     pos = dec.positions
     if not len(pos):
@@ -1593,7 +1630,8 @@ def correction_frame(st: C68State, now) -> pd.DataFrame:
             if t not in rl or pd.Timestamp(rl[t][1]) >= pd.Timestamp(as_date(now)):
                 continue
             net = rl[t][0]
-            rows.append({"date": day, "matured_at": rl[t][1], "predicted": f["median"], "realised": net, "selected": bool(f["eligible"]),
+            rows.append({"date": day, "matured_at": rl[t][1], "ticker": str(t), "predicted": f["median"], "shadow": f.get("shadow", np.nan),
+                         "realised": net, "selected": bool(f["eligible"]),
                          "p_in_band": f["p_band"], "in_band": bool(0.05 <= net <= 0.10), "sector": f["sector"],
                          **{f"f_{k}": f.get(k, np.nan) for k in st.cfg.features}, **{k: f.get(k, np.nan) for k in st.cfg.market_features}})
     if not rows:
@@ -1632,15 +1670,18 @@ def _ridge_fix(cols_of: Callable[[pd.DataFrame], list], window_share: float = 1.
     return build
 
 
-def candidate_fixes(cfg: C68Config) -> list:
-    """The checklist-Q candidate fixes, each tested ALONE: a recency refit (regime recognition), market conditioning, and a placebo
-    (a pure-noise feature) that must never be promoted - the control that proves the gate can say no."""
+def candidate_fixes(cfg: C68Config, n_groups: int = 1) -> list:
+    """The checklist-Q candidate fixes, each tested ALONE: a recency refit (regime recognition), market conditioning, a sector slope
+    (one feature's slope differs inside one stock type: the incumbent's pooled slope cannot express it; searched over features x
+    sectors, `n_groups` of them) and a placebo (a pure-noise feature) that must never be promoted - the control that proves the gate
+    can say no."""
     f = lambda fr: [c for c in fr.columns if c.startswith("f_")]              # noqa: E731
     fm = lambda fr: [c for c in fr.columns if c.startswith(("f_", "m_"))]     # noqa: E731
     I = SCX.FixInput
     return [SCX.CandidateFix("recency_refit", SCX.Component.REGIME_RECOGNITION, tuple(I(c) for c in cfg.features), _ridge_fix(f, 0.4)),
             SCX.CandidateFix("market_conditioning", SCX.Component.MARKET_CONDITIONING,
                              tuple(I(c) for c in (*cfg.features, *cfg.market_features)), _ridge_fix(fm)),
+            SCX.slope_fix("sector_slope", [f"f_{c}" for c in cfg.features], "sector", n_groups),
             SCX.CandidateFix("placebo_noise", SCX.Component.MISSING_FEATURE, tuple(I(c) for c in cfg.features), _ridge_fix(f, noise=True))]
 
 
@@ -1653,11 +1694,29 @@ FIX_EFFECT = {"recency_refit": {"window_share": 0.4, "extra_features": ()},
               "placebo_noise": None}
 
 
+def fix_effect(name: str, detail: Mapping[str, Any] | None = None) -> dict | None:
+    """What a promoted fix changes in the production learner (the realisable-gain model's next fit). The sector slope adds the
+    interaction its own training chose ('<feature>_x_<sector>'); the gain model then estimates that slope itself on every refit.
+    None = a control or a fix with nothing to apply (never applied)."""
+    if name == "sector_slope":
+        d = dict(detail or {})
+        if not d.get("feature") or not d.get("group"):
+            return None
+        return {"window_share": 1.0, "extra_features": (f"{str(d['feature']).removeprefix('f_')}{INTERACTION}{d['group']}",)}
+    return FIX_EFFECT.get(name)
+
+
+def _retired(st: C68State) -> dict:
+    return st.__dict__.setdefault("retired", {})
+
+
 def st_validate(ctx: LP.Ctx) -> tuple:
     """c68.validate_promote. Checklist Q through the EXISTING validation: diagnose, test every candidate fix alone out of sample, gate
-    each through engine.research.quality_gate. Only a PROMOTE verdict changes the production learner (the realisable-gain model's
-    training window / inputs from the next fit); a placebo can never be promoted by design of the gate. A promoted fix is monitored and
-    rolled back when its out-of-sample error on newer outcomes is significantly worse than the incumbent's forecasts."""
+    each through engine.research.quality_gate on its FULL measured evidence (self_correct.full_fix_evidence: identity, leak audit,
+    replication, calibration, risk, complexity, transfer, failure behaviour - W-06). Only a PROMOTE verdict changes the production
+    learner (the realisable-gain model's training window / inputs from the next fit); a placebo can never be promoted by design of the
+    gate. A promoted fix is monitored against the incumbent kept in the shadow and rolled back when it does significantly worse on newer
+    outcomes (`_monitor`); a rolled-back fix is retired and re-tested only on rows decided after its rollback."""
     from engine.research import quality_gate as QG
     st = _state(ctx)
     led = _ledgers(ctx, st)
@@ -1665,64 +1724,126 @@ def st_validate(ctx: LP.Ctx) -> tuple:
     fr = SCX.as_of(correction_frame(st, ctx.now), ctx.now)
     if len(fr) < 2 * cfg.self_correct.min_rows:
         raise LP.NoInput(f"only {len(fr)} matured forecasts (< {2 * cfg.self_correct.min_rows}) for self-correction")
-    fixes = candidate_fixes(cfg)
+    n_groups = int(fr["sector"].nunique()) if "sector" in fr else 1
+    retired = _retired(st)
+    all_fixes = candidate_fixes(cfg, n_groups)
+    n_searched = sum(max(1, x.n_variants) for x in all_fixes)
     through = str(fr["matured_at"].max())
     base = QG.QualityEvidence(provenance=Provenance(ctx.created_real(), through, ctx.rt.code_hash,
                                                     data_hash=stable_hash(fr[["date", "matured_at", "predicted", "realised"]].to_numpy().tolist(), 16),
                                                     config_hash=stable_hash(dataclasses.asdict(cfg.self_correct), 12),
                                                     experiment_id=f"c68.self_correct|{as_date(ctx.now)}", run_id=ctx.state.cfg.run_id,
                                                     seed=cfg.seed, outcomes_seen_through=through))
+    pol = QG.QualityPolicy(code_hash=ctx.rt.code_hash)
+    fec = getattr(cfg, "fix_evidence", SCX.FixEvidenceConfig(retirement_trigger=True))
+    live = [x for x in all_fixes if x.name not in retired]
     try:
-        rep = SCX.step(fr, fixes, ctx.now, base=base, policy=QG.QualityPolicy(code_hash=ctx.rt.code_hash), cfg=cfg.self_correct)
+        rep = SCX.step(fr, live, ctx.now, base=base, policy=pol, cfg=cfg.self_correct, evidence=fec, n_searched=n_searched)
     except ValueError as e:
         raise LP.NoInput(f"self-correction could not split the matured forecasts: {e}") from None
+    reports = [rep]
+    for x in [x for x in all_fixes if x.name in retired]:          # re-tested only on evidence newer than its rollback
+        fresh = fr[pd.to_datetime(fr["date"]) > pd.Timestamp(retired[x.name])]
+        try:
+            reports.append(SCX.step(fresh, [x], ctx.now, base=base, policy=pol, cfg=cfg.self_correct, evidence=fec, n_searched=n_searched))
+        except ValueError:
+            st.count("retired_awaiting_fresh_evidence")
+    results = [r for rp in reports for r in rp.results]
+    promoted = [p for rp in reports for p in rp.promoted]
+    rejected = {k: v for rp in reports for k, v in rp.rejected.items()}
+    bundles = {b.fix: b for rp in reports for b in rp.bundles}
+    decisions = {d.subject_id: d for rp in reports for d in rp.decisions}
     st.corrections.append({"now": ctx.now, "deteriorated": bool(rep.diagnosis.deterioration.detected),
-                           "implicated": [c.value for c in rep.diagnosis.implicated], "promoted": list(rep.promoted), "rejected": dict(rep.rejected),
-                           "effects": {r.fix: (r.mean_effect, r.t, len(r.oos_effects)) for r in rep.results}})
-    for r in rep.results:
+                           "implicated": [c.value for c in rep.diagnosis.implicated], "promoted": list(promoted), "rejected": dict(rejected),
+                           "effects": {r.fix: (r.mean_effect, r.t, len(r.oos_effects)) for r in results},
+                           "verdicts": {r.fix: decisions[f"fix:{r.fix}"].verdict.value for r in results if f"fix:{r.fix}" in decisions},
+                           "blocking": {r.fix: list(decisions[f"fix:{r.fix}"].blocking) for r in results if f"fix:{r.fix}" in decisions},
+                           "full_evidence": sorted(k for k, b in bundles.items() if b.full),
+                           "detail": {r.fix: dict(r.detail) for r in results if r.detail}, "production": st.production.get("name")})
+    st.corrections = st.corrections[-400:]
+    for r in results:
         key = fix_key(r.fix, ctx.now)                      # one trail per test of a fix: OOS test -> update proposal -> gate -> verdict
         if led.pipe.last_step(key) is None:
-            led.pipe.add(key, "OOS_TEST", ctx.now, {"mean_effect": r.mean_effect, "t": r.t, "weeks": len(r.oos_effects), "split": r.split},
+            b = bundles.get(r.fix)
+            led.pipe.add(key, "OOS_TEST", ctx.now, {"mean_effect": r.mean_effect, "t": r.t, "weeks": len(r.oos_effects), "split": r.split,
+                                                    "detail": dict(r.detail)},
                          parents=[e.prediction_id for e in led.errors.reports(ctx.now)][-50:])
-            led.pipe.add(key, "MODEL_UPDATE", ctx.now, {"proposal": FIX_EFFECT.get(r.fix) or "none (control)", "applied": False})
-            led.pipe.add(key, "VALIDATION", ctx.now, {"gate": rep.rejected.get(r.fix, "PROMOTE")})
-            led.pipe.add(key, "PROMOTED" if r.fix in rep.promoted else "REJECTED", ctx.now, {"gate": rep.rejected.get(r.fix, "PROMOTE")})
-    changed = 0
-    for name in rep.promoted:
-        eff = FIX_EFFECT.get(name)
-        if eff is None:
-            st.count("placebo_promoted")                 # would be a gate defect: counted loudly, never applied
-            continue
-        if st.production.get("name") != name:
-            st.production = {"name": name, "since": str(as_date(ctx.now)), "key": fix_key(name, ctx.now), **eff}
-            st.monitoring.append({"fix": name, "since": str(as_date(ctx.now))})
-            changed += 1
+            led.pipe.add(key, "MODEL_UPDATE", ctx.now, {"proposal": fix_effect(r.fix, r.detail) or "none (control)", "applied": False})
+            led.pipe.add(key, "VALIDATION", ctx.now, {"gate": rejected.get(r.fix, "PROMOTE"), "full_evidence": bool(b is not None and b.full),
+                                                      "missing": dict(b.missing) if b is not None else {}})
+            led.pipe.add(key, "PROMOTED" if r.fix in promoted else "REJECTED", ctx.now, {"gate": rejected.get(r.fix, "PROMOTE")})
+    changed = _apply_promotions(st, promoted, {r.fix: r for r in results}, ctx.now)
     rolled = _monitor(st, fr, ctx.now, led)
     for cid, v in st.wcs.verdicts.items():
         key = f"CLAIM:{cid}"
         if led.pipe.last_step(key) is None:
             led.pipe.add(key, "VALIDATION", ctx.now, {"status": v.status.value, "failed_steps": list(v.failed_steps())})
-    return _run(st, ctx, "c68.validate_promote", len(fr), len(rep.results),
-                f"{len(rep.results)} fix(es) tested alone and gated; {rep.summary().splitlines()[0]}; promoted {list(rep.promoted)} "
+    return _run(st, ctx, "c68.validate_promote", len(fr), len(results),
+                f"{len(results)} fix(es) tested alone and gated; {rep.summary().splitlines()[0]}; promoted {list(promoted)} "
                 f"({changed} applied); production {st.production['name']}; rolled back {rolled}")
 
 
+def _apply_promotions(st: C68State, promoted: Sequence[str], results: Mapping[str, Any], now) -> int:
+    """A PROMOTE verdict changes the production learner: the promoted fix with the largest out-of-sample gain is applied (one change
+    per cycle, so the monitor can attribute what follows). A fix already in production is not re-applied; a newly promoted fix was
+    measured against the CURRENT production forecasts, so its inputs are added to the ones already there (never swapped out)."""
+    best, eff_best = None, None
+    for name in sorted(promoted, key=lambda n: (-float(results[n].mean_effect) if n in results else 0.0, n)):
+        eff = fix_effect(name, results[name].detail if name in results else None)
+        if eff is None:
+            st.count("placebo_promoted" if name == "placebo_noise" else "promoted_without_effect")   # never applied
+            continue
+        if name in str(st.production.get("name", "")).split("+"):
+            continue
+        best, eff_best = name, eff
+        break
+    if best is None:
+        return 0
+    cur = st.production
+    extras = tuple(dict.fromkeys(tuple(cur.get("extra_features", ())) + tuple(eff_best["extra_features"])))
+    name = best if cur.get("name") == "incumbent" else f"{cur['name']}+{best}"
+    st.production = {"name": name, "since": str(as_date(now)), "key": fix_key(best, now),
+                     "window_share": min(float(cur.get("window_share", 1.0)), float(eff_best["window_share"])), "extra_features": extras}
+    st.monitoring.append({"fix": best, "since": str(as_date(now)), "production": name, "extra_features": list(extras)})
+    st.count("fixes_applied")
+    return 1
+
+
+def monitor_gains(fr: pd.DataFrame, since, weeks: int) -> pd.Series:
+    """Per decision week since the promotion, the promoted learner's |error| gain over the shadow incumbent on the same matured names
+    (positive = the fix is better), newest `weeks` weeks."""
+    if "shadow" not in fr or not len(fr):
+        return pd.Series(dtype=float)
+    rows = fr[(pd.to_datetime(fr["date"]) >= pd.Timestamp(as_date(since))) & fr["shadow"].notna()]
+    if not len(rows):
+        return pd.Series(dtype=float)
+    g = (rows["realised"] - rows["shadow"]).abs() - (rows["realised"] - rows["predicted"]).abs()
+    return SCX.weekly(rows.assign(gain=g.to_numpy(float)), "gain").tail(weeks)
+
+
 def _monitor(st: C68State, fr: pd.DataFrame, now, led: Ledgers) -> int:
-    """Future monitoring of the production learner: after a promotion, forecasts decided since then must not be significantly worse
-    (|error| higher, one-sided t <= -2 over >= 20 rows) than they were before it; otherwise the incumbent is restored."""
-    if st.production.get("name") == "incumbent" or not st.production.get("since"):
+    """Future monitoring of the production learner (the fix's retirement trigger): the promoted learner and the incumbent it replaced
+    (kept forecasting in the shadow) are compared on the SAME newer matured names, week by week; when the fix's weekly gain over the
+    newest `monitor_weeks` weeks is significantly negative (t <= -rollback_t, >= monitor_min_weeks weeks) the incumbent is restored and
+    the fix retired (it is re-tested only on rows decided after the rollback)."""
+    cur = st.production
+    if cur.get("name") == "incumbent" or not cur.get("since"):
         return 0
-    since = st.production["since"]
-    after = fr[pd.to_datetime(fr["date"]) >= pd.Timestamp(since)]
-    before = fr[pd.to_datetime(fr["date"]) < pd.Timestamp(since)]
-    if len(after) < 20 or len(before) < 20:
+    cfg = st.cfg
+    g = monitor_gains(fr, cur["since"], getattr(cfg, "monitor_weeks", 26))
+    if len(g) < getattr(cfg, "monitor_min_weeks", 8):
         return 0
-    ea, eb = (after["realised"] - after["predicted"]).abs().to_numpy(float), (before["realised"] - before["predicted"]).abs().to_numpy(float)
-    t = (eb.mean() - ea.mean()) / math.sqrt(ea.var(ddof=1) / len(ea) + eb.var(ddof=1) / len(eb) + 1e-18)
-    key = st.production.get("key") or fix_key(st.production["name"], st.production["since"])
-    led.pipe.add(key, "MONITORED", now, {"t": float(t), "n_after": len(after), "rolled_back": bool(t <= -2.0)})
-    if t <= -2.0:
+    t = float(PR.t_stat(g.to_numpy(float)))
+    roll = bool(t <= -getattr(cfg, "rollback_t", 2.0))
+    key = cur.get("key") or fix_key(cur["name"], cur["since"])
+    if led.pipe.can_add(key, "MONITORED"):
+        led.pipe.add(key, "MONITORED", now, {"t": t, "weeks": int(len(g)), "mean_gain": float(g.mean()), "rolled_back": roll})
+    st.monitoring.append({"now": str(as_date(now)), "production": cur["name"], "t": t, "weeks": int(len(g)), "rolled_back": roll})
+    if roll:
+        for n in str(cur["name"]).split("+"):
+            _retired(st)[n] = str(as_date(now))
         st.production = {"name": "incumbent", "since": str(as_date(now)), "window_share": 1.0, "extra_features": ()}
+        st.count("rolled_back")
         return 1
     return 0
 
@@ -1851,7 +1972,14 @@ class C68Plant:
                        the pattern must regain influence
                        detected forward in time and must degrade the pattern
       shock            one name gaps down `shock_size` at `shock` with no information item anywhere and stays turbulent for
-                       `distress_len` sessions: an unknowable single-stock anomaly that must stay a SINGLE-STOCK finding"""
+                       `distress_len` sessions: an unknowable single-stock anomaly that must stay a SINGLE-STOCK finding
+      weak sector      (F11, off by default: weak_sector = -1) in ONE stock type (sector `weak_sector`) a trend older than `weak_age`
+                       sessions stalls: its drift is multiplied by `weak_mult` until `weak_until` of the sample and by `weak_after`
+                       from then on. Its trailing 20-session return still shows the trend, so a model with one pooled slope over-predicts
+                       exactly those names, in every year: a GENUINE, knowable, persistent, fixable prediction error (the slope inside
+                       that sector differs). The null twin is the same seed with weak_sector = -1 (identical noise, no error);
+                       weak_after > 1 turns the stall into an acceleration later (a promoted fix that then degrades: rollback)
+      regime_switch    False removes the switch / recovery (a clean multi-year world for the self-correction proofs)"""
     n_names: int = 40
     n_days: int = 440
     seed: int = 0
@@ -1873,6 +2001,22 @@ class C68Plant:
     post_switch_drift: float = 0.002
     market_vol: float = 0.006
     post_switch_vol: float = 2.2
+    regime_switch: bool = True
+    weak_sector: int = -1
+    weak_age: int = 12
+    weak_mult: float = 0.0
+    weak_until: float = 1.0
+    weak_after: float = 0.0
+
+
+def trend_age(state: np.ndarray) -> np.ndarray:
+    """Sessions each name has been in its current trend (0 outside a trend)."""
+    age = np.zeros(state.shape, int)
+    run = np.zeros(state.shape[1], int)
+    for t in range(state.shape[0]):
+        run = np.where(state[t], run + 1, 0)
+        age[t] = run
+    return age
 
 
 def plant_world(pc: C68Plant = C68Plant()) -> FD.World:
@@ -1880,6 +2024,8 @@ def plant_world(pc: C68Plant = C68Plant()) -> FD.World:
     T, n = pc.n_days, pc.n_names
     if n < 10 or T < 300:
         raise ValueError("the C68 world needs >= 10 names and >= 300 sessions")
+    if pc.weak_sector >= pc.n_sectors or pc.weak_age < 1:
+        raise ValueError("weak_sector must be -1 or a sector index, weak_age >= 1")
     dates = pd.bdate_range("2016-01-04", periods=T)
     tick = [f"W{j:03d}" for j in range(n)]
     base = rng.uniform(*pc.base_sigma, n)
@@ -1888,7 +2034,7 @@ def plant_world(pc: C68Plant = C68Plant()) -> FD.World:
     for t in range(T):
         s = (s | ((~s) & (rng.random(n) < pc.start_p))) & ~(s & (rng.random(n) < pc.stop_p))
         state[t] = s
-    sw, f0, ts = int(T * pc.switch), int(T * pc.false_alarm), int(T * pc.shock)
+    sw, f0, ts = int(T * pc.switch) if pc.regime_switch else T, int(T * pc.false_alarm), int(T * pc.shock)
     mvol = np.full(T, pc.market_vol)
     mvol[sw:] *= pc.post_switch_vol
     mvol[f0:f0 + pc.burst_len] *= pc.burst_mult
@@ -1896,8 +2042,13 @@ def plant_world(pc: C68Plant = C68Plant()) -> FD.World:
     sig = base[None, :] * np.where(state, 1.4, 1.0) * np.sqrt(mvol / pc.market_vol)[:, None]
     sig[ts:ts + pc.distress_len, pc.shock_name] *= pc.distress_mult
     mu = np.where(state, pc.drift, 0.0)
-    rc = int(T * pc.recover)
+    rc = int(T * pc.recover) if pc.regime_switch else T
     mu[sw:rc] = np.where(state[sw:rc], pc.post_switch_drift, 0.0)
+    wk = int(T * pc.weak_until)
+    if pc.weak_sector >= 0:                    # pure arithmetic on mu: the null twin draws exactly the same random numbers
+        in_sec = (np.arange(n) % pc.n_sectors) == pc.weak_sector
+        mult = np.where(np.arange(T) < wk, pc.weak_mult, pc.weak_after)[:, None]
+        mu = np.where(state & (trend_age(state) > pc.weak_age) & in_sec[None, :], mu * mult, mu)
     r = np.clip(mu + m[:, None] + rng.normal(0, 1, (T, n)) * sig, -0.3, 0.3)
     r[ts, pc.shock_name] += pc.shock_size
     p0 = np.exp(rng.uniform(math.log(10), math.log(120), n))
@@ -1912,8 +2063,11 @@ def plant_world(pc: C68Plant = C68Plant()) -> FD.World:
     V = np.exp(rng.normal(15.0, 0.4, n)) * np.exp(rng.normal(0, 0.25, (T, n)))
     bars = {k: pd.DataFrame(v, index=dates, columns=tick) for k, v in zip(FD.BAR_FIELDS, (O, H, L, C, V))}
     sectors = {t: f"SEC{j % pc.n_sectors}" for j, t in enumerate(tick)}
-    truth = {"pattern": "mom_r20_top", "switch": str(dates[sw].date()), "recover": str(dates[min(rc, T - 1)].date()), "false_alarm": (str(dates[f0].date()), str(dates[f0 + pc.burst_len - 1].date())),
-             "shock": (tick[pc.shock_name], str(dates[ts].date())), "trend_share": float(state.mean()), "survivor_free": True, "seed": pc.seed}
+    truth = {"pattern": "mom_r20_top", "switch": str(dates[sw].date()) if sw < T else None, "recover": str(dates[min(rc, T - 1)].date()) if sw < T else None,
+             "false_alarm": (str(dates[f0].date()), str(dates[f0 + pc.burst_len - 1].date())),
+             "shock": (tick[pc.shock_name], str(dates[ts].date())), "trend_share": float(state.mean()), "survivor_free": True, "seed": pc.seed,
+             "weak_sector": f"SEC{pc.weak_sector}" if pc.weak_sector >= 0 else None,
+             "weak_until": str(dates[wk].date()) if pc.weak_sector >= 0 and wk < T else None}
     return FD.World(bars, None, None, None, sectors, {}, FD.market_proxy(bars), truth)
 
 

@@ -46,7 +46,7 @@ def make_cfg(**kw):
                              min_gain_t=1.0, min_oos_t=1.0, bootstrap_n=200)
     base = dict(seed=1, column_map=COLUMN_MAP, top_n=5, min_cs_n=20, min_coverage=0.05, context_dim="market.vix", skill_min_n=10,
                 promotion_policy=pol, board_policy=CH.BoardPolicy(min_shadow_sessions=8), min_weeks_belief=6, min_context_obs=40,
-                min_transfer_cases=12, retire_window=8, audit_weeks=8, transfer_every=30,
+                min_transfer_cases=12, retire_window=16, audit_weeks=8, transfer_every=30,
                 similarity=SM.SimilarityWeights(min_component_coverage=0.2, min_total_coverage=0.2, vetoes=()))
     base.update(kw)
     return LN.LearnerConfig(**base)

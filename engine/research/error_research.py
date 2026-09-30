@@ -24,6 +24,7 @@ Builds on engine.learning.surprise, engine.research.priority, engine.research.kn
 IMPLEMENTED - NOT VALIDATED."""
 from __future__ import annotations
 
+import dataclasses
 import enum
 import math
 from dataclasses import dataclass, field
@@ -339,10 +340,28 @@ class GroupStats:
     half_life: float | None
     through: str
     members: str = ""              # hash of the window's record ids: groups with identical members are one finding
+    aliases: tuple = ()            # the other lenses (groups) that hold exactly the same records: the same finding, other names
 
     @property
     def systematic(self) -> bool:
         return self.kind != BiasKind.NONE
+
+    @property
+    def lenses(self) -> tuple:
+        """Every group name this finding is visible under (its label first)."""
+        return (self.group,) + tuple(self.aliases)
+
+
+# Which lens names a finding when several groups hold the SAME records (F11, 29 Sep): a compound group is the most specific; among
+# single lenses the pattern is the most actionable (pattern influence is what research can change), then the stock type, the sector
+# and the market regime; 'all' only when no narrower lens holds the same records. Before this, ties fell to the alphabet, so a
+# stock-type label ('stock_type=...' > 'pattern=...' > 'all') named every shared finding and pattern / 'all' escalation never showed.
+LENS_RANK = {"pattern": 4, "stock_type": 3, "sector": 2, "regime": 1, "all": 0}
+
+
+def lens_rank(group: str) -> tuple:
+    head = group.split("|")[0].split("=")[0]
+    return (group.count("|"), LENS_RANK.get(head, 0))
 
 
 def _neutral(n: int, group: str, through: str) -> GroupStats:
@@ -447,12 +466,25 @@ class ErrorPatternBook:
         return (best.multiplier if best else 1.0), best
 
     def escalated(self, now) -> list:
-        best: dict = {}
+        """Systematic error patterns, one per distinct set of records. The same records seen through several lenses are ONE finding,
+        labelled by the most specific / most actionable lens (LENS_RANK) and carrying the other lenses as aliases, so a pattern-level
+        or book-wide ('all') finding is never renamed to whichever label sorts last."""
+        same: dict = {}
         for s in self.all_stats(now).values():
-            if s.systematic and (s.members not in best or (s.multiplier, s.group.count("|"), s.group) > (best[s.members].multiplier,
-                                                                     best[s.members].group.count("|"), best[s.members].group)):
-                best[s.members] = s              # the same records seen through several lenses are ONE finding: keep the most specific
-        return sorted(best.values(), key=lambda s: (-s.multiplier, s.group))
+            if s.systematic:
+                same.setdefault(s.members, []).append(s)
+        out = []
+        for grp in same.values():
+            top = max(grp, key=lambda s: (s.multiplier, lens_rank(s.group), s.group))
+            others = tuple(sorted((s.group for s in grp if s.group != top.group), key=lambda g: (tuple(-x for x in lens_rank(g)), g)))
+            out.append(dataclasses.replace(top, aliases=others))
+        return sorted(out, key=lambda s: (-s.multiplier, s.group))
+
+    def escalated_lens(self, now, lens: str) -> list:
+        """Findings visible under a lens kind ('pattern', 'stock_type', 'sector', 'regime' or 'all'), whatever label they carry."""
+        def kind(g: str) -> str:
+            return g.split("|")[0].split("=")[0]
+        return [s for s in self.escalated(now) if any(kind(g) == lens for g in s.lenses)]
 
 
 def hypothesis_for(gs: GroupStats) -> str:

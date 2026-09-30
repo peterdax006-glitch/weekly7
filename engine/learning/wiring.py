@@ -830,7 +830,28 @@ def _check_identity(ev: LearningEvidence) -> Check:
     if ev.identity is None:
         return Check("identity", False, "no identity-harness report supplied")
     rep = ev.identity.run() if isinstance(ev.identity, IdentityJob) else ev.identity
-    return Check("identity", rep.passed, "ok" if rep.passed else "collapsed under " + (", ".join(rep.collapsed) or "an attack (or was nondeterministic)"))
+    return Check("identity", rep.passed, "ok" if rep.passed else identity_failure_reason(rep))
+
+
+def identity_failure_reason(rep: IdentityReport) -> str:
+    """Why an identity report did not pass, in the words that are true of it (F10; F07 found the old text said 'collapsed' when no
+    attack had collapsed: a no-op attack had raised a harness finding).  In order: nothing was attacked; attacks that collapsed;
+    attacks that could not be judged (no skill to lose, too few dates, nondeterministic); the run itself was nondeterministic;
+    failing harness findings (e.g. an attack that changed no identity tested nothing)."""
+    parts = []
+    if not rep.verdicts:
+        parts.append("no attack was run")
+    if rep.collapsed:
+        parts.append("collapsed under " + ", ".join(rep.collapsed))
+    odd = sorted({f"{v.kind}[{v.mode}]={v.status}" for v in rep.verdicts if v.status not in ("OK", "COLLAPSE")})
+    if odd:
+        parts.append("not judged: " + ", ".join(odd[:4]) + (f" (+{len(odd) - 4})" if len(odd) > 4 else ""))
+    if not rep.deterministic:
+        parts.append("nondeterministic: two identical runs disagreed")
+    fails = [f for f in rep.findings if f.is_fail]
+    if fails:
+        parts.append("harness finding: " + "; ".join(f"{f.check} ({f.subject}): {f.message}"[:120] for f in fails[:2]))
+    return "; ".join(parts) or "failed without a recorded reason"
 
 
 def promotion_gate(subject: str, now: Any, claims_learning: bool = False, evidence: LearningEvidence | None = None) -> PromotionVerdict:

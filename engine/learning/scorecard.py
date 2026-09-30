@@ -764,6 +764,146 @@ def scorecard_for_learner(units, learner_fit, *, learner_version: str, now, code
     return card
 
 
+# ---------------------------------------------------------------------------------------------------------------
+# F10: the portfolio-level card - the evidence scorecard_for_learner leaves UNTESTED (C69 W-07, F07 finding A2)
+# ---------------------------------------------------------------------------------------------------------------
+PORTFOLIO_FIELDS = ("risk_change", "drawdown_change", "band_share", "calibration")
+BOOK_COLUMNS = ("date", "mature", "ticker", "ret", "expected")
+
+
+@dataclass(frozen=True)
+class PortfolioCard:
+    """Risk, drawdown, band share and calibration of a learner's simulated weekly book against a no-knowledge book of the same size,
+    measured with the conventions of the rest of this module: learning_curve.compute_learning_delta over consecutive windows (each
+    delta oriented so that positive is better, cluster-bootstrap interval over windows) and calibration_measure for the
+    probabilities. A field that could not be measured is UNTESTED with the reason; nothing is defaulted."""
+    now: dt.date
+    n_weeks: int
+    n_windows: int
+    risk_change: Measured
+    drawdown_change: Measured
+    band_share: Measured
+    calibration: Measured
+    weeks_with_picks: int = 0
+    learner_mean_week: float = float("nan")
+    baseline_mean_week: float = float("nan")
+    delta_record: Mapping = field(default_factory=dict, compare=False, repr=False)
+    note: str = ""
+
+    def fields(self) -> dict:
+        return {f: getattr(self, f) for f in PORTFOLIO_FIELDS}
+
+    def untested(self) -> list[str]:
+        return [f for f, m in self.fields().items() if not m.measured]
+
+
+def _order_key(ticker: str, date, seed: int) -> str:
+    return stable_hash([str(ticker), as_date(date).isoformat(), int(seed)], 12)
+
+
+def weekly_books(rows, now, *, top_n: int, min_expected: float = 0.0, seed: int = 0):
+    """One row per decision date from a table of decision units (BOOK_COLUMNS: decision date, maturity date, an opaque ticker, the
+    realised raw return, the learner's ex-ante expected edge - NaN where it had none). `learner` is the equal-weight return of the
+    top_n units whose expectation exceeds `min_expected` (0.0 = cash on a week it picked nothing); `baseline` is the equal-weight
+    return of top_n units in a seeded identity-free order - the same trader with no knowledge. Fails closed (FirewallBreach) on any
+    outcome that matured at/after `now`: a caller that wants to drop them must do so explicitly and own the count."""
+    import pandas as pd
+    miss = [c for c in BOOK_COLUMNS if c not in rows.columns]
+    if miss:
+        raise ValueError(f"book rows missing columns {miss}")
+    if top_n < 1:
+        raise ValueError("top_n < 1")
+    cols = ["date", "learner", "baseline", "n_learner", "n_units"]
+    if not len(rows):
+        return pd.DataFrame(columns=cols)
+    d = rows.copy()
+    d["date"], d["mature"] = pd.to_datetime(d["date"]).dt.normalize(), pd.to_datetime(d["mature"]).dt.normalize()
+    late = d["mature"] >= pd.Timestamp(as_date(now))
+    if late.any():
+        raise FirewallBreach(f"{int(late.sum())} book outcomes mature at/after now={as_date(now)}: an unfinished week is not evidence")
+    if not np.isfinite(d["ret"].to_numpy(float)).all():
+        raise ValueError("book returns contain NaN/inf")
+    out = []
+    for date, g in d.groupby("date", sort=True):
+        key = [_order_key(t, date, seed) for t in g["ticker"]]
+        g = g.assign(_k=key)
+        exp = g["expected"].to_numpy(float)
+        pick = g[np.isfinite(exp) & (exp > min_expected)].sort_values(["expected", "_k"], ascending=[False, True]).head(top_n)
+        base = g.sort_values("_k").head(top_n)
+        out.append((date, float(pick["ret"].mean()) if len(pick) else 0.0, float(base["ret"].mean()), int(len(pick)), int(len(g))))
+    return pd.DataFrame(out, columns=cols)
+
+
+def _delta_measured(v, what: str) -> Measured:
+    """learning_curve.DeltaValue -> Measured. UNTESTED and INSUFFICIENT (fewer windows than the minimum) are both untested."""
+    st = getattr(v.state, "value", str(v.state))
+    if st in ("UNTESTED", "INSUFFICIENT"):
+        return Measured.untested(f"{what}: {st.lower()} ({v.n} windows)")
+    return Measured(v.delta, v.lo, v.hi, v.n, MStatus.MEASURED, f"{what}; {st}; source {v.source}; p_signflip {v.p_signflip:.3f}")
+
+
+def portfolio_card(rows, now, *, top_n: int, window_weeks: int = 13, min_windows: int = 4, min_expected: float = 0.0, scale=None,
+                   seed: int = 0, n_boot: int = 300, band=None) -> PortfolioCard:
+    """The portfolio-level card from a learner's decision units (see weekly_books). Weeks are cut into consecutive windows of
+    `window_weeks` (the oldest remainder is dropped so every window is whole); each window's tier statistics come from
+    engine.objective.week_row for both books; learning_curve.compute_learning_delta turns the window pairs into
+      risk_change      worst-5% week, learner minus baseline (positive = a less bad tail)
+      drawdown_change  maximum drawdown, learner minus baseline (positive = shallower)
+      band_share       share of weeks in the 5-10% band, learner minus baseline
+    and calibration is calibration_measure (ECE, lower is better) of p = Phi(expected / scale) against edge > 0, where edge is the
+    unit's return minus its week's mean and `scale` is a column name or a positive number (the learner's own edge scale). Fewer than
+    `min_windows` windows, a learner that never picked, or no probabilities leave the fields UNTESTED with the reason."""
+    from .. import objective as O
+    from . import learning_curve as LC
+    books = weekly_books(rows, now, top_n=top_n, min_expected=min_expected, seed=seed)
+    n_w = len(books)
+    unt = lambda why: Measured.untested(why)
+    n_win = n_w // window_weeks if window_weeks > 0 else 0
+    picked = int((books["n_learner"] > 0).sum()) if n_w else 0
+    lm = float(books["learner"].mean()) if n_w else float("nan")
+    bm = float(books["baseline"].mean()) if n_w else float("nan")
+    if n_win < min_windows or picked == 0:
+        why = (f"{n_w} matured weeks give {n_win} windows of {window_weeks} (< {min_windows})" if n_win < min_windows
+               else "the learner's book never held a pick: there is no portfolio to measure")
+        risk = dd = bs = unt(why)
+        rec: Mapping = {}
+    else:
+        books = books.iloc[n_w - n_win * window_weeks:].reset_index(drop=True)
+        kw = {} if band is None else {"band": band}
+        pairs = []
+        for i in range(n_win):
+            b = books.iloc[i * window_weeks:(i + 1) * window_weeks]
+            pairs.append({"before": O.week_row(b["baseline"].to_numpy(float), **kw), "after": O.week_row(b["learner"].to_numpy(float), **kw)})
+        delta = LC.compute_learning_delta(pairs, min_pairs=min_windows, seed=seed, n_boot=n_boot)
+        risk, dd, bs = (_delta_measured(delta[n], w) for n, w in (("risk_delta", "worst-5% week, learner minus baseline"),
+                                                                     ("drawdown_delta", "max drawdown, learner minus baseline"),
+                                                                     ("band_share_delta", "5-10% band share, learner minus baseline")))
+        rec = delta.as_record()
+    cal = unt("no ex-ante probabilities")
+    if len(rows):
+        import pandas as pd
+        d = rows.copy()
+        d["edge"] = d["ret"] - d.groupby(pd.to_datetime(d["date"]))["ret"].transform("mean")
+        sc = d[scale].to_numpy(float) if isinstance(scale, str) else np.full(len(d), float(scale) if scale is not None else float("nan"))
+        e = d["expected"].to_numpy(float)
+        ok = np.isfinite(e) & np.isfinite(sc) & (sc > 0) & np.isfinite(d["edge"].to_numpy(float))
+        if ok.any():
+            from math import erf, sqrt
+            p = np.clip([0.5 * (1 + erf(x / sqrt(2))) for x in e[ok] / sc[ok]], 0.01, 0.99)
+            cal = calibration_measure(p, (d["edge"].to_numpy(float)[ok] > 0).astype(float), n_boot=n_boot, seed=seed)
+    return PortfolioCard(as_date(now), n_w, n_win, risk, dd, bs, cal, picked, lm, bm, rec,
+                         f"learner book = top {top_n} by ex-ante expectation > {min_expected}; baseline = top {top_n} in a seeded identity-free order")
+
+
+def merge_portfolio(card: LearningScorecard, port: PortfolioCard) -> LearningScorecard:
+    """Merge a PortfolioCard into a learner's scorecard. A field the card already MEASURED is never overwritten; a portfolio field that
+    is UNTESTED stays UNTESTED (never a default). Both must describe the same `now`, or the merge is refused."""
+    if as_date(card.now) != as_date(port.now):
+        raise ValueError(f"portfolio card is for {port.now}, the scorecard for {card.now}: evidence from two dates cannot be merged")
+    upd = {f: m for f, m in port.fields().items() if not getattr(card, f).measured}
+    return dataclasses.replace(card, **upd) if upd else card
+
+
 def scorecard_markdown(card: LearningScorecard, decision: ClaimDecision | None = None) -> str:
     """Markdown table of the section-47 fields, the controls, and the gate's verdict. Passes its own claim check."""
     d = decision or gate_improvement_claim(card)

@@ -376,6 +376,21 @@ class RetirementLedger:
             raise FirewallBreach(f"inactive knowledge carries live weight at {now}: {sorted(bad)[:8]}")
 
     # ---- gates
+    def settled(self, kid: str, now) -> str | None:
+        """Why no gate may write for `kid` at `now`, or None.  Two writers run in one learning tick (the weekly window check and the
+        lifecycle machine); both read the state in force BEFORE `now`, so the second used to decide on a state the first had already
+        changed and crashed on an illegal move (F10: RETIRED -> RETIRED on a 5-year null run).  A record dated at/after `now`, or one
+        inside the flapping guard, means this date is already decided: the gates return 'no change' instead of writing."""
+        h = self.history(kid)
+        if not h or h[-1].kind == "REGISTER" and as_date(h[-1].at) < as_date(now):
+            return None
+        last = h[-1]
+        if as_date(last.at) >= as_date(now):
+            return f"already decided on {last.at} ({last.kind})"
+        if last.kind != "REGISTER" and (as_date(now) - as_date(last.at)).days < self.policy.min_days_between:
+            return f"last move {last.at} is inside the {self.policy.min_days_between}-day flapping guard"
+        return None
+
     def evaluate(self, kid: str, ev: Evidence, now, cause: FailureCause = FailureCause.UNKNOWN,
                  p_real: float | None = None, apply: bool = False,
                  conditions: Sequence[RecoveryCondition] = ()) -> Verdict:
@@ -384,6 +399,9 @@ class RetirementLedger:
         pol, s = self.policy, self.state(kid, now)
         if s is None:
             return Verdict(kid, None, None, "unregistered")
+        why = self.settled(kid, now)
+        if why:
+            return Verdict(kid, None, None, why)
         errs = ev.validate()
         if errs:
             raise ValueError("bad evidence: " + "; ".join(errs))
@@ -430,6 +448,9 @@ class RetirementLedger:
         pol, s = self.policy, self.state(kid, now)
         if s is None:
             return Verdict(kid, None, None, "unregistered")
+        why = self.settled(kid, now)
+        if why:
+            return Verdict(kid, None, None, why)
         errs = ev.validate()
         if errs:
             raise ValueError("bad evidence: " + "; ".join(errs))
@@ -474,6 +495,8 @@ class RetirementLedger:
         ever.  The bar is the ledger's own recovery bar: recover_min_n outcomes, all dated after the degrade, t >= recover_t
         (> degrade_t: hysteresis).  The move goes through `transition` (DEGRADED -> ACTIVE is an ALLOWED move)."""
         pol, s, last = self.policy, self.state(kid, now), self.last_transition(kid, now)
+        if self.settled(kid, now):
+            return Verdict(kid, None, None, str(self.settled(kid, now)))
         numbers = {"n": ev.n, "effect": ev.effect, "se": ev.se, "t": ev.t, "state": None if s is None else s.value,
                    "need_n": pol.recover_min_n, "need_t": pol.recover_t}
         if s is not State.DEGRADED:
@@ -499,6 +522,8 @@ class RetirementLedger:
     def probation_failed(self, kid: str, ev: Evidence, now, apply: bool = False) -> Verdict:
         """An item on recovery probation whose next window is weak again goes back to DORMANT (kind REVERT)."""
         s, last = self.state(kid, now), self.last_transition(kid, now)
+        if self.settled(kid, now):
+            return Verdict(kid, None, None, str(self.settled(kid, now)))
         numbers = {"n": ev.n, "t": ev.t}
         if s is not State.DEGRADED or last is None or last.kind not in ("RECOVER_PROBATION", "REVIVE"):
             return Verdict(kid, None, None, "not on recovery probation", numbers)
@@ -666,3 +691,168 @@ def states_summary(verdicts: Iterable[Verdict]) -> dict[str, int]:
         key = v.to_state.value if v.to_state else "NO_CHANGE"
         out[key] = out.get(key, 0) + 1
     return out
+
+
+# ------------------------------------------------------------------------------------------------- the weekly window check (F10)
+
+def window_check(ledger: RetirementLedger, kid: str, dates: Sequence[Any], values: Sequence[float], now, window: int,
+                 context: Mapping[str, Any] | None = None, apply: bool = True) -> Verdict | None:
+    """One weekly pass of the gates over an item's signed outcome series (oldest first), as a learner runs it after each matured
+    week.  The retirement gate reads the last `window` outcomes; every recovery door reads the evidence dated AFTER the item's last
+    transition (the only evidence those gates accept).  F10 moved this here from learner._retire_check so that the learner and the
+    false-degrade study (`degrade_study`) run the very same rule, and closed two one-way doors it found:
+      * DORMANT: the learner offered attempt_recovery the 8-week window, which can never reach recover_min_n (16), so a parked
+        item could never come back.  It now gets the post-park series.
+      * probation: a DEGRADED item on RECOVER_PROBATION was never asked again (recover_degraded defers to attempt_recovery and
+        nobody called it), so it stayed at reduced influence for ever.  probation_failed and attempt_recovery now run.
+    Returns the last verdict evaluated (None when the series is shorter than the window or the item is unknown or retired)."""
+    if window < 2:
+        raise ValueError("window < 2 gives no standard error")
+    if len(dates) != len(values):
+        raise ValueError("dates and values differ in length")
+    if len(dates) < window:
+        return None
+    s = ledger.state(kid, now)
+    if s is None or s is State.RETIRED:
+        return None
+    last = ledger.last_transition(kid, now)
+    ev = series_evidence(dates[-window:], values[-window:], as_date(dates[-window]) - dt.timedelta(days=1), now, "recent-weeks")
+    since = series_evidence(dates, values, last.at, now, "since-last-transition") if last is not None else ev
+    if s is State.DEGRADED and last is not None and last.kind in ("RECOVER_PROBATION", "REVIVE"):
+        v = ledger.probation_failed(kid, ev, now, apply=apply)
+        return v if v.changes else ledger.attempt_recovery(kid, since, now, context, apply=apply)
+    if s is State.DORMANT:
+        v = ledger.evaluate(kid, ev, now, apply=apply)
+        return v if v.changes else ledger.attempt_recovery(kid, since, now, context, apply=apply)
+    v = ledger.evaluate(kid, ev, now, apply=apply)
+    if s is State.DEGRADED and not v.changes:
+        return ledger.recover_degraded(kid, since, now, apply=apply)
+    return v
+
+
+# ------------------------------------------------------------------------------------------------- false-degrade study (F10)
+
+@dataclasses.dataclass(frozen=True)
+class DegradeStudy:
+    """How the weekly window check treats an item whose true signed weekly effect is `effect` (sd `sd`) over `n_weeks` weeks and
+    `n_sims` seeded histories.  With effect > 0 every DEGRADE is FALSE (the item never stopped working); with effect == 0 a DEGRADE
+    is the correct call and `any_degrade` is the gate's power to demote noise."""
+    effect: float
+    sd: float
+    window: int
+    degrade_t: float
+    n_weeks: int
+    n_sims: int
+    per_check: float                 # share of weekly checks (n >= min_n) whose window t < degrade_t
+    any_degrade: float               # share of histories with at least one DEGRADE
+    degrades_per_year: float         # DEGRADE events per 52 weeks (a re-degrade after a recovery counts again)
+    share_weeks_not_active: float    # share of checked weeks the item spent in any state but ACTIVE
+    ever_dormant: float              # share of histories parked (DORMANT) at least once
+    first_degrade_median: float      # median week of the first DEGRADE among histories that had one (NaN if none did)
+    change_week: int | None = None   # the week the true effect changed (a decaying item); None for a constant one
+    false_before_change: float = float("nan")    # share of histories with a DEGRADE before the change (a false alarm)
+    detected_after_change: float = float("nan")  # share of histories that left ACTIVE at/after the change (a true detection)
+    detect_delay_median: float = float("nan")    # median weeks from the change to that first exit from ACTIVE
+
+    def as_dict(self) -> dict:
+        return dataclasses.asdict(self)
+
+
+def degrade_study(effect: float, sd: float, n_weeks: int, policy: RetirementPolicy, window: int, *, n_sims: int = 200,
+                  seed: int = 0, df: float | None = None, start: str = "2009-01-02", multipliers: Sequence[float] | None = None,
+                  change_week: int | None = None) -> DegradeStudy:
+    """Monte-Carlo replay of `window_check` on a fresh ledger per history: weekly signed values effect * multiplier[week] + sd * noise
+    (Student-t with `df` degrees of freedom rescaled to unit sd when df > 2, else normal; multipliers default to 1).  With a
+    `change_week` (e.g. planted_world.Item.change_week of a decaying item) a DEGRADE before it is a false alarm and the first exit
+    from ACTIVE at or after it is the detection.  It drives the ledger itself, not a formula, so what is measured is exactly what
+    the learner runs.  Deterministic given `seed`."""
+    import numpy as np
+    if n_weeks < window or n_sims < 1 or not sd > 0:
+        raise ValueError("need n_weeks >= window, n_sims >= 1 and sd > 0")
+    mult = np.ones(n_weeks) if multipliers is None else np.asarray(multipliers, float)
+    if len(mult) != n_weeks:
+        raise ValueError("one multiplier per week")
+    rng = np.random.default_rng(seed)
+    d0 = as_date(start)
+    dates = [d0 + dt.timedelta(days=7 * i) for i in range(n_weeks)]
+    checks = fails = any_d = dormant = n_deg = not_active = counted = false_pre = detected = 0
+    firsts: list[int] = []
+    delays: list[int] = []
+    for _ in range(n_sims):
+        z = rng.standard_t(df, n_weeks) * math.sqrt((df - 2) / df) if df and df > 2 else rng.standard_normal(n_weeks)
+        vals = [effect * float(m) + sd * float(x) for m, x in zip(mult, z)]
+        led = RetirementLedger(policy)
+        led.register("item", dates[0] - dt.timedelta(days=1))
+        first, parked, pre, exit_at = None, False, False, None
+        for i in range(window - 1, n_weeks):
+            now = dates[i] + dt.timedelta(days=1)
+            ev = series_evidence(dates[i - window + 1:i + 1], vals[i - window + 1:i + 1], dates[i - window + 1] - dt.timedelta(days=1), now)
+            if ev.n >= policy.min_n:
+                checks += 1
+                fails += ev.t < policy.degrade_t
+            before = len(led)
+            window_check(led, "item", dates[:i + 1], vals[:i + 1], now, window)
+            for t in led.transitions()[before:]:
+                if t.kind == "DEGRADE":
+                    n_deg += 1
+                    first = i if first is None else first
+                    pre = pre or (change_week is not None and i < change_week)
+                parked = parked or t.to_state == State.DORMANT.value
+            counted += 1
+            active = led.state("item", now + dt.timedelta(days=1)) is State.ACTIVE
+            not_active += not active
+            if change_week is not None and exit_at is None and i >= change_week and not active:
+                exit_at = i
+        dormant += parked
+        false_pre += pre
+        if exit_at is not None:
+            detected += 1
+            delays.append(exit_at - change_week)
+        if first is not None:
+            any_d += 1
+            firsts.append(first)
+    cw = change_week is not None
+    return DegradeStudy(effect, sd, window, policy.degrade_t, n_weeks, n_sims, fails / checks if checks else float("nan"), any_d / n_sims,
+                        n_deg / n_sims * 52.0 / n_weeks, not_active / counted if counted else float("nan"), dormant / n_sims,
+                        float(np.median(firsts)) if firsts else float("nan"), change_week,
+                        false_pre / n_sims if cw else float("nan"), detected / n_sims if cw else float("nan"),
+                        float(np.median(delays)) if delays else float("nan"))
+
+
+@dataclasses.dataclass(frozen=True)
+class DegradeAudit:
+    """DEGRADE transitions of a real run, sorted by what the truth said at the moment of the call."""
+    on_live: int                      # the item was really working: a FALSE degrade
+    on_dead: int                      # the item had no effect then (noise, decayed): a correct degrade
+    unknown: int                      # the truth could not place the item
+    items_live: int                   # distinct items degraded at least once while live
+    items_seen: int                   # distinct items with at least one transition
+    by_item: Mapping[str, tuple] = dataclasses.field(default_factory=dict)   # kid -> (live degrades, dead degrades)
+
+    @property
+    def false_degrade_share(self) -> float:
+        n = self.on_live + self.on_dead
+        return self.on_live / n if n else float("nan")
+
+
+def audit_degrades(ledger: RetirementLedger, live: Any) -> DegradeAudit:
+    """Classify every DEGRADE in `ledger` with `live(knowledge_id, date) -> True | False | None` (the planted truth, trusted side
+    only).  Reads the ledger; changes nothing."""
+    on_live = on_dead = unknown = 0
+    per: dict[str, list[int]] = {}
+    seen = set()
+    for t in ledger.transitions():
+        seen.add(t.knowledge_id)
+        if t.kind != "DEGRADE":
+            continue
+        truth = live(t.knowledge_id, t.at)
+        row = per.setdefault(t.knowledge_id, [0, 0])
+        if truth is True:
+            on_live += 1
+            row[0] += 1
+        elif truth is False:
+            on_dead += 1
+            row[1] += 1
+        else:
+            unknown += 1
+    return DegradeAudit(on_live, on_dead, unknown, sum(1 for v in per.values() if v[0]), len(seen), {k: tuple(v) for k, v in sorted(per.items())})
