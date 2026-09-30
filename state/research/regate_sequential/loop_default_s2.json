@@ -866,6 +866,48 @@
    "knowledge": [],
    "failed": {},
    "counters": {}
+  },
+  {
+   "cycle": 123,
+   "now": "2019-09-20",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 124,
+   "now": "2019-09-27",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 125,
+   "now": "2019-10-04",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 126,
+   "now": "2019-10-11",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 127,
+   "now": "2019-10-18",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 128,
+   "now": "2019-10-25",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
   }
  ],
  "provenance": {
@@ -972,8 +1014,8 @@
  "gates": {
   "DBR3911ce95c01d": {
    "feature": "latr",
-   "verdict": "FAILED",
-   "looks": 5,
+   "verdict": "NEEDS_MORE_EVIDENCE",
+   "looks": 6,
    "retired": "",
    "history": [
     {
@@ -1034,11 +1076,21 @@
       "calibration",
       "failure_behavior"
      ]
+    },
+    {
+     "look": 6,
+     "cycle": 128,
+     "at": "2019-10-25",
+     "verdict": "NEEDS_MORE_EVIDENCE",
+     "alpha": 0.0008443431970194816,
+     "n_test": 108,
+     "blocking": [
+      "failure_behavior"
+     ]
     }
    ],
    "blocking": {
-    "calibration": "FAIL: ECE 0.095 > 0.06 and beyond what perfect calibration would give (p=0.005)",
-    "failure_behavior": "MISSING: only 4 failure episodes studied (< 5)"
+    "failure_behavior": "MISSING: only 3 failure episodes studied (< 5)"
    }
   },
   "DBRcef9a9534128": {
@@ -1078,7 +1130,7 @@
   }
  },
  "knowledge": {},
- "seconds": 7268.4,
+ "seconds": 7607.2,
  "truth": {
   "genuine": [
    "lv20",
