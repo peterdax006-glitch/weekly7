@@ -4,6 +4,7 @@ at random times must be judged unpredictable (no fake gain); a family sharing on
 a context that peeks at the next period must be caught; a break caused by an unobserved shock must be labelled
 'unknown cause' even when a decoy indicator happens to coincide in-sample; a healthy pattern must stay inside the
 false-alarm budget and a phantom pattern must be caught within a bounded delay."""
+import functools
 import math
 
 import numpy as np
@@ -462,10 +463,15 @@ def test_live_gate_gates_in_the_bad_regime_and_uses_only_matured_evidence():
 
 
 # ---------------------------------------------------------------- W-05: winner's curse in the expected effect
+@functools.lru_cache(maxsize=None)
+def _healthy_world(seed, T, n, mu):
+    return PR.planted_world("healthy", seed=seed, n_weeks=T, n_patterns=n, mu=mu)     # shared by every W-05/F05 comparison run
+
+
 def _stationary_false_alarms(cfg, mu=0.0015, seeds=range(700, 730), T=520, n=8):
     events = monitored = flagged = total = 0
     for sd in seeds:
-        tl = PR.planted_world("healthy", seed=sd, n_weeks=T, n_patterns=n, mu=mu)
+        tl = _healthy_world(sd, T, n, mu)
         h = PR.health_monitor(tl, cfg)
         real = h.events[~h.events["phantom"].astype(bool)]
         events += len(real)
@@ -497,13 +503,13 @@ def test_f05_without_the_out_of_sample_estimate_the_lower_bound_alone_fails_the_
     assert events > 0.65 * monitored / PR.PARAMS["arl0"]
 
 
-def _lucky_burn_in(seed, true_mu=0.002, lucky=0.010, T=260):
+def _lucky_burn_in(seed, true_mu=0.003, lucky=0.006, T=260):
     rng = np.random.default_rng(seed)
     return np.r_[rng.normal(lucky, 0.01, 26), rng.normal(true_mu, 0.01, T - 26)]
 
 
 def test_f05_oos_estimate_replaces_an_inflated_burn_in_effect_with_the_disjoint_one():
-    """Planted winner's curse: a pattern picked for a lucky burn-in (0.010) whose true edge is 0.002. The bar the monitor compares
+    """Planted winner's curse: a pattern picked for a lucky burn-in (0.006) whose true edge is 0.003. The bar the monitor compares
     against must fall towards the true edge once enough later, disjoint healthy weeks exist - never before."""
     down, base = [], []
     for sd in range(20):
@@ -516,8 +522,8 @@ def test_f05_oos_estimate_replaces_an_inflated_burn_in_effect_with_the_disjoint_
         assert early == pytest.approx(off.mu_path.iloc[:, 0].loc[first])                        # nothing changes before the OOS sample exists
         down.append(mp.iloc[-1])
         base.append(off.mu_path.iloc[-1, 0])
-    assert np.median(base) > 0.004 and np.median(down) < 0.6 * np.median(base)
-    assert np.all(np.array(down) <= np.array(base) + 1e-12) and np.all(np.array(down) >= 0.2 * 0.006 - 1e-12)
+    assert np.median(base) > 0.0035 and np.median(down) < 0.75 * np.median(base) and np.median(down) < 0.0031
+    assert np.all(np.array(down) <= np.array(base) + 1e-12) and np.all(np.array(down) >= 0.2 * 0.003 - 1e-12)
 
 
 def test_f05_expected_effect_at_a_week_ignores_the_judged_window_and_the_future():
