@@ -141,6 +141,11 @@ class MonitorReport:
         return "\n".join(lines)
 
 
+def _ordered(pair: Sequence[str]) -> tuple[str, str]:
+    a, b = sorted(pair)
+    return a, b
+
+
 class ContradictionMonitor:
     """Read-only over the graph and the ledger, except `ingest`, which is the one guarded way to add a contradiction."""
 
@@ -172,7 +177,7 @@ class ContradictionMonitor:
         return sorted({(k[0], k[1]) for k in self.graph._edges if k[2] == Edge.CONTRADICTS.value})
 
     def track(self, pair: tuple[str, str], now) -> tuple[TrackedContradiction | None, int]:
-        pair = tuple(sorted(pair))
+        pair = _ordered(pair)
         seen, hidden = self._versions(pair, now)
         if not seen:
             return None, hidden
@@ -248,7 +253,8 @@ class ContradictionMonitor:
 
     def open_series(self, dates: Sequence) -> list[dict]:
         """Open / born / resolved counts at each date, recomputed from the graph (not from remembered runs)."""
-        out, prev = [], set()
+        out: list[dict] = []
+        prev: set[tuple[str, str]] = set()
         for d in sorted(dates, key=as_date):
             rep = self.scan(d)
             now_open = {t.pair for t in rep.open_items()}
@@ -259,8 +265,7 @@ class ContradictionMonitor:
 
     def timeline(self, pair: Sequence[str], now) -> list[dict]:
         """Dated events for one pair: birth, weight changes, investigations, retraction."""
-        pair = tuple(sorted(pair))
-        seen, _ = self._versions(pair, now)
+        seen, _ = self._versions(_ordered(pair), now)
         ev = []
         for i, v in enumerate(seen):
             kind = "retracted" if v.retracted else "born" if i == 0 else "reweighted"
@@ -271,7 +276,7 @@ class ContradictionMonitor:
     # ------------------------------------------------------------------ never average
     def estimate(self, a: str, b: str, context: Mapping[str, Any], now) -> dict:
         """The only sanctioned combined read of two contradicting items: what each says INSIDE `context`, else UNKNOWN."""
-        pair = tuple(sorted((a, b)))
+        pair = _ordered((a, b))
         t, _ = self.track(pair, now)
         if t is None:
             return {"state": Unknown.UNKNOWN.value, "reason": "no contradiction between these items is known yet"}

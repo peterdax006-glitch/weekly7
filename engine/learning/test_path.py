@@ -26,6 +26,7 @@ from __future__ import annotations
 import ast
 import inspect
 import math
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
@@ -256,7 +257,7 @@ TRADER_CLASSES = ("DayData", "DayResult", "MemoryAdvisor", "PathTrader")
 def trader_side_violations(source: str | None = None) -> list[str]:
     """AST check of the trader half of THIS file: no reference to a curator symbol, a curator store marker, or the trusted classes.
     `source` defaults to this module's own text (tests pass a doctored copy to prove a leak is caught)."""
-    src = inspect.getsource(inspect.getmodule(trader_side_violations)) if source is None else source
+    src = inspect.getsource(sys.modules[__name__]) if source is None else source
     tree = ast.parse(src)
     banned = set(CURATOR_SYMBOLS) | {"PathRunner", "MemoryFiler", "OutcomeBook", "RealClock"}
     found = []
@@ -554,6 +555,7 @@ class PathRunner:
         if rep is None:
             return
         L = self.learner
+        assert L.experiments is not None
         step = W.research_step(rep, L.research, L.experiments, RP.ComputeBudget(cpu_minutes=L.cfg.cpu_minutes, ram_gb_free=8.0), now,
                                self.cfg.seed)
         L.hooks.close_research(step, L.last_learned_on or str(now.date()), now)
@@ -629,7 +631,7 @@ class PathRunner:
                             "skill": {k: v for k, v in dict(rep["skill"]).items() if isinstance(v, (int, float, str, bool, type(None)))},
                             "refusals": len(rep["refusals"]), "influence_log_ok": rep["influence_log_ok"],
                             "hooks": {k: v for k, v in rep["hooks"].items() if k in ("fired", "rows", "open_experiments", "persisted")}},
-                "run": None if self.guard is None else {"key": self.run_key, "resume": self.resume, "job": self.guard.spec.key,
+                "run": None if self.guard is None else {"key": self.run_key, "resume": self.resume, "job": self.guard.spec.key if self.guard.spec else None,
                                                         "checkpoints": len(self.guard.store.sequences())},
                 "hub_periods": self.hub_periods, "curve": dict(self.curve),
                 "findings": [f"{f.severity}:{f.gate}:{f.message}" for f in self.findings()]}

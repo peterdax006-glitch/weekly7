@@ -1,0 +1,6 @@
+engine\research\error_loop.py:2129: error: No overload variant of "uniform" of "Generator" matches argument types "tuple[Any, ...]", "int"  [call-overload]
+engine\research\error_loop.py:2129: note: Possible overload variants:
+engine\research\error_loop.py:2129: note:     def uniform(self, low: float | floating[Any] | integer[Any] | numpy.bool[builtins.bool] = ..., high: float | floating[Any] | integer[Any] | numpy.bool[builtins.bool] = ..., size: None = ...) -> float
+engine\research\error_loop.py:2129: note:     def uniform(self, low: _SupportsArray[dtype[numpy.bool[builtins.bool] | integer[Any] | floating[Any]]] | _NestedSequence[_SupportsArray[dtype[numpy.bool[builtins.bool] | integer[Any] | floating[Any]]]] | float | _NestedSequence[float] = ..., high: _SupportsArray[dtype[numpy.bool[builtins.bool] | integer[Any] | floating[Any]]] | _NestedSequence[_SupportsArray[dtype[numpy.bool[builtins.bool] | integer[Any] | floating[Any]]]] | float | _NestedSequence[float] = ..., size: SupportsIndex | Sequence[SupportsIndex] | None = ...) -> ndarray[tuple[Any, ...], dtype[float64]]
+Found 928 errors in 59 files (checked 130 source files)
+exit 1

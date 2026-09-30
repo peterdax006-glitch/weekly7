@@ -805,7 +805,7 @@ def degrade_study(effect: float, sd: float, n_weeks: int, policy: RetirementPoli
                 exit_at = i
         dormant += parked
         false_pre += pre
-        if exit_at is not None:
+        if exit_at is not None and change_week is not None:
             detected += 1
             delays.append(exit_at - change_week)
         if first is not None:

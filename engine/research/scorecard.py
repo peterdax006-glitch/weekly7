@@ -31,12 +31,12 @@ import pandas as pd
 from engine.learning import calibration as CAL
 from engine.learning import scorecard as LS
 from engine.learning import transfer_score as TS
+from engine.learning.scorecard import Measured, MStatus
 from engine.learning.core import FirewallBreach, ValidationLabel, _StrEnum, as_date, stable_hash
 from engine.research import replication as RP
 from engine.research.core import Problem
 
 SECTION = "C66 section 36"
-Measured, MStatus = LS.Measured, LS.MStatus
 COVERAGES = (0.1, 0.25, 0.5, 0.75, 1.0)
 EVENT_TYPES = ("knowledge_new", "knowledge_retired", "knowledge_downgraded", "knowledge_promoted", "experiment_completed",
                "experiment_replicated", "learner_failed", "transfer_success", "memorization_failure")

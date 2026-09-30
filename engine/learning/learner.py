@@ -30,7 +30,7 @@ import math
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Iterable, Mapping, Sequence
+from typing import Any, Callable, Iterable, Iterator, Mapping, Sequence, TypedDict, cast
 
 import numpy as np
 import pandas as pd
@@ -66,7 +66,8 @@ from . import surprise as SU
 from . import temporal as TP
 from . import transfer as TR
 from . import wiring as W
-from .core import (Confidence, DecisionEffect, Epistemic, FailureCause, FirewallBreach, Lifecycle, Promotion, Subsystem, TemporalClass,
+from .core import (Confidence, DecisionEffect, Epistemic, FailureCause, FirewallBreach, KnowledgeLike, Lifecycle, Promotion, Subsystem,
+                   TemporalClass,
                    as_date, current_code_hash, require_past, stable_hash)
 
 # ---------------------------------------------------------------------------------------------------------------- vocabulary
@@ -253,6 +254,11 @@ class StageEvent:
     note: str = ""
 
 
+class _Box(TypedDict):
+    n: int
+    note: str
+
+
 @dataclass(frozen=True)
 class EpisodeSummary:
     episode: str
@@ -390,9 +396,9 @@ class LegitimateLearner:
         self.transfer_ledger = TR.RuleTransferLedger()
         self.decision_log = DC.DecisionLog()
         self.meta = ML.MetaLearner(ML.MetaStore(), ML.MetaConfig(min_train=5, min_test=5, folds=2, min_family_n=3, min_group_n=2))
-        self.meta_advice = None
+        self.meta_advice: ML.MetaAdvice | None = None
         self.research = RPR.ResearchPriorityEngine()
-        self.experiments = None
+        self.experiments: EM.ExperimentLedger | None = None
         self.next_questions: tuple = ()
         # ---- promotion machinery
         pol = c.promotion_policy or PR.PromotionPolicy()
@@ -417,7 +423,7 @@ class LegitimateLearner:
         self._failure_rows: list = []
         self._failure_cursor = 0
         self._mkt: dict = {}
-        self.missed_report = None
+        self.missed_report: MW.WalkForwardReport | None = None
         self._mid: dict[str, str] = {}
         self._birth_date: dict[str, str] = {}
         self._births: list[str] = []
@@ -431,9 +437,9 @@ class LegitimateLearner:
         self._refusals: list = []
         self._gate_log: list = []
         self._recent: list = []
-        self.calibration_last = None
-        self.meta_update = None
-        self.research_step = None
+        self.calibration_last: CB.CalibrationAssessment | None = None
+        self.meta_update: ML.MetaUpdate | None = None
+        self.research_step: RPR.EngineStep | None = None
         self.counters: dict[str, int] = {}
         self._book: list[_BookRow] = []                   # F10: the shadow book the evidence card is measured on
         self._evidence: tuple | None = None                # (tick, valid card or None, refusal reason)
@@ -450,24 +456,38 @@ class LegitimateLearner:
         return self
 
     def verify_frozen(self) -> None:
-        if not self.frozen:
+        frozen_at = self._frozen_hashes
+        if not self.frozen or frozen_at is None:
             return
         code, cfg = self._code_hash_fn(), self.cfg.digest()
-        if (code, cfg) != self._frozen_hashes:
-            raise LearnerChanged(f"frozen learner changed: code {self._frozen_hashes[0]}->{code}, config {self._frozen_hashes[1]}->{cfg}")
+        if (code, cfg) != frozen_at:
+            raise LearnerChanged(f"frozen learner changed: code {frozen_at[0]}->{code}, config {frozen_at[1]}->{cfg}")
+
+    def _known(self, kid: str) -> KN.KnowledgeObject:
+        """The latest version of an object the learner itself registered; absence here is a bookkeeping bug, not a normal case."""
+        k = self.store.latest(kid)
+        if k is None:
+            raise KeyError(f"no stored knowledge object {kid}")
+        return k
+
+    def _belief(self, pid: str) -> BL.BeliefState:
+        st = self.beliefs.current(pid)
+        if st is None:
+            raise KeyError(f"no belief recorded for {pid}")
+        return st
 
     def _count(self, name: str, n: int = 1) -> None:
         self.counters[name] = self.counters.get(name, 0) + n
 
     @contextlib.contextmanager
-    def _stage(self, ep: _Episode, stage: Stage):
+    def _stage(self, ep: _Episode, stage: Stage) -> Iterator[_Box]:
         """Enforces the section-4 order per episode and records one trace event whether or not the stage succeeds."""
         if ep.cursor >= len(STAGES) or STAGES[ep.cursor] != stage:
             want = STAGES[ep.cursor] if ep.cursor < len(STAGES) else "nothing (cycle complete)"
             raise StageOrderError(f"episode {ep.eid}: {stage} called but the loop is at {want}")
         if stage in LEARNING_STAGES and self.frozen:
             raise FrozenLearnerError(f"{stage} would learn; the learner is frozen")
-        box = {"n": 0, "note": ""}
+        box: _Box = {"n": 0, "note": ""}
         try:
             yield box
         except BaseException as e:
@@ -565,7 +585,7 @@ class LegitimateLearner:
                     continue
                 r.retrieval = self.retriever.retrieve(r.situation, ep.now)
                 n_items += len(r.retrieval.items)
-                if held and held.intersection(r.members):
+                if held and self.shadow_retriever is not None and held.intersection(r.members):
                     r.shadow = self.shadow_retriever.retrieve(r.situation, ep.now)
                     n_shadow += len(r.shadow.items)
             box["n"], box["note"] = n_items, f"{len(visible)} visible knowledge objects, {n_shadow} shadow-scored items"
@@ -614,6 +634,7 @@ class LegitimateLearner:
             box["n"] = n
 
     def _ctx_now(self, r: _Row) -> dict[str, float]:
+        assert r.situation is not None
         vix = r.situation.get("market.vix")
         return {} if vix is None else {"market.vix": float(vix)}
 
@@ -712,6 +733,7 @@ class LegitimateLearner:
             else:
                 why = "outside the top picks"
         unc = "" if r.expected is not None else str(ret.unknown or "UNKNOWN") if ret is not None else "INSUFFICIENT_DATA"
+        assert r.situation is not None
         probe = stable_hash([b.as_dict() for b in r.situation.blocks if b.kind != "pattern_interaction"])
         return RowDecision(slot, r.situation.situation_id, r.situation.exact_id, probe, action, size, r.expected, r.confidence, r.risk, unc,
                            r.members, kids, why, ret.retrieval_id if ret is not None else "", bool(ret.influence) if ret is not None else False,
@@ -795,6 +817,7 @@ class LegitimateLearner:
 
     # ------------------------------------------------------------------------------------------------ 8. MEASURE SURPRISE
     def _cell(self, r: _Row) -> str:
+        assert r.situation is not None
         b = r.situation.bins()
         return f"ctx={b.get(self.cfg.context_dim, 'na')}|brd={b.get('breadth.state', 'na')}"
 
@@ -817,6 +840,7 @@ class LegitimateLearner:
     # ------------------------------------------------------------------------------------------------ 9. ASSIGN CREDIT / BLAME
     def _trade(self, ep: _Episode, r: _Row) -> FL.TradeRecord:
         kids = tuple(sorted(k for k, *_ in r.parts))
+        assert r.decision is not None and r.matured is not None and r.edge is not None and r.raw_ret is not None
         return FL.TradeRecord(rid=f"{ep.eid}#{r.decision.slot}", decided_at=str(as_date(ep.now)), resolved_at=r.matured, side=1,
                               pnl=r.edge - self.cfg.cost, decided_by=Subsystem.SELECTION, cost=self.cfg.cost, signal_ret=r.raw_ret,
                               exp_ret=r.expected, exp_move=None if r.expected is None else abs(r.expected), exp_vol=r.risk,
@@ -1058,7 +1082,7 @@ class LegitimateLearner:
         v = RT.window_check(self.retirement, kid, dates, vals, now, self.cfg.retire_window, self._mkt_now())
         if v is not None and v.changes:
             self._count({"RECOVER_FULL": "recovered_after_probation" if probation else "recovered_from_degraded",
-                         "RECOVER_PROBATION": "recovered_to_probation"}.get(v.kind, f"retirement_{str(v.kind).lower()}"))
+                         "RECOVER_PROBATION": "recovered_to_probation"}.get(v.kind or "", f"retirement_{str(v.kind).lower()}"))
 
     def _mkt_now(self) -> dict:
         if not self._mkt:
@@ -1116,11 +1140,11 @@ class LegitimateLearner:
     def _put(self, k: KN.KnowledgeObject) -> KN.KnowledgeObject:
         self.store.add(k)
         self.index.add_item(_Indexed(k, self._pid_of.get(k.knowledge_id, "")))
-        self.archive.put_knowledge(_Indexed(k, self._pid_of.get(k.knowledge_id, "")), occurred_at=k.updated_at)
+        self.archive.put_knowledge(cast(KnowledgeLike, _Indexed(k, self._pid_of.get(k.knowledge_id, ""))), occurred_at=k.updated_at)
         return k
 
     def _revise(self, kid: str, learned: str, reason: str, **changes) -> KN.KnowledgeObject:
-        cur = self.store.latest(kid)
+        cur = self._known(kid)
         changes.setdefault("provenance", dataclasses.replace(cur.provenance, outcomes_seen_through=str(as_date(learned))))
         try:
             nxt = cur.new_version(learned, reason, learned_at=learned, **changes)
@@ -1175,7 +1199,7 @@ class LegitimateLearner:
                 self._refusals.append((kid, "open_challenge", str(e)[:120]))
                 return
         elif m.role == Promotion.CHALLENGER and len(m.shadow) >= self._min_sessions_for_gate() and self._tick % self.cfg.discover_every == 0:
-            ep_now = self.store.latest(kid).epistemic
+            ep_now = self._known(kid).epistemic
             if ep_now not in LH.CHAMPION_EPISTEMIC:
                 # F10 (found on the first 5-year run): health relabelled a challenger (e.g. CONTESTED); the board would promote it and
                 # the knowledge schema would then refuse a CHAMPION with that label, leaving board and store disagreeing.  Not attempted.
@@ -1276,7 +1300,7 @@ class LegitimateLearner:
     def _promote(self, kid: str, learned: str) -> None:
         st = CH.shadow_summary(self.board, self._mid[kid])
         rel = self.tracker.state(kid, pd.Timestamp(learned) + pd.Timedelta(days=1))
-        cur = self.store.latest(kid)
+        cur = self._known(kid)
         conf = dataclasses.replace(cur.confidence, usefulness=float(max(0.0, min(1.0, 1.0 - st.p_one_sided))),
                                    current_reliability=rel.current_reliability, failure_risk=rel.failure_risk,
                                    transfer=self._transfer_score(kid), context=rel.context)
@@ -1286,7 +1310,7 @@ class LegitimateLearner:
 
     def _refresh_confidence(self, kid: str, now, learned: str) -> None:
         """Keep the champion's dimensions current: a new version only when a dimension moved enough to matter."""
-        cur = self.store.latest(kid)
+        cur = self._known(kid)
         rel = self.tracker.state(kid, pd.Timestamp(learned) + pd.Timedelta(days=1))
         new = dataclasses.replace(cur.confidence, truth=rel.truth, current_reliability=rel.current_reliability,
                                   failure_risk=rel.failure_risk, transfer=self._transfer_score(kid), context=rel.context)
@@ -1295,19 +1319,19 @@ class LegitimateLearner:
             self._revise(kid, learned, "reliability re-measured", confidence=new)
 
     def _apply_rules(self, kid: str, pid: str, learned: str) -> None:
-        best = {"CONTEXT": None, "ANTI_CONTEXT": None}
+        best: dict[str, CX.ContextRule | None] = {"CONTEXT": None, "ANTI_CONTEXT": None}
         for rule in self.rules.active(pid):
-            cur = best[rule.role]
-            if cur is None or abs(rule.diff) > abs(cur.diff):
+            top = best[rule.role]
+            if top is None or abs(rule.diff) > abs(top.diff):
                 best[rule.role] = rule
-        cur = self.store.latest(kid)
+        cur = self._known(kid)
         ctx = self._knowledge_context(best["CONTEXT"]) if best["CONTEXT"] is not None else cur.contexts
         anti = self._knowledge_context(best["ANTI_CONTEXT"]) if best["ANTI_CONTEXT"] is not None else cur.anti_contexts
         if ctx != cur.contexts or anti != cur.anti_contexts:
             self._revise(kid, learned, "context rule learned from outcomes", contexts=ctx, anti_contexts=anti)
 
     def _retire_object(self, kid: str, learned: str, now) -> None:
-        cur = self.store.latest(kid)
+        cur = self._known(kid)
         if cur.promotion == Promotion.RETIRED:
             return
         mid = self._mid[kid]
@@ -1340,21 +1364,21 @@ class LegitimateLearner:
             for pid, status in sorted(self._epistemic.items()):
                 if pid in self._kid_of or status != Epistemic.SUPPORTED or len(self._weekly.get(pid, ())) < self.cfg.min_weeks_belief:
                     continue
-                self._birth(pid, self.beliefs.current(pid), now, learned)
+                self._birth(pid, self._belief(pid), now, learned)
                 born += 1
             for kid, pid in sorted(self._pid_of.items()):
                 self._advance(kid, ep, now, learned)
                 self._apply_rules(kid, pid, learned)
-                if self.store.latest(kid).promotion == Promotion.CHAMPION and self._tick % self.cfg.discover_every == 0:
+                if self._known(kid).promotion == Promotion.CHAMPION and self._tick % self.cfg.discover_every == 0:
                     self._refresh_confidence(kid, now, learned)
                 st = self.retirement.state(kid, now)
                 if st is RT.State.RETIRED:
                     self._retire_object(kid, learned, now)
-                elif st is RT.State.DEGRADED and self.store.latest(kid).lifecycle == Lifecycle.ACTIVE:
+                elif st is RT.State.DEGRADED and self._known(kid).lifecycle == Lifecycle.ACTIVE:
                     self._revise(kid, learned, "retirement gate: evidence weakened", lifecycle=Lifecycle.DEGRADED, epistemic=Epistemic.DEGRADED)
-                elif st is RT.State.ACTIVE and self.store.latest(kid).lifecycle == Lifecycle.DEGRADED:
+                elif st is RT.State.ACTIVE and self._known(kid).lifecycle == Lifecycle.DEGRADED:
                     # F07: the gate restored the item; the object must follow or the decision contract refuses it for ever
-                    back = Epistemic.SUPPORTED if self._epistemic.get(pid) == Epistemic.SUPPORTED else self.store.latest(kid).epistemic
+                    back = Epistemic.SUPPORTED if self._epistemic.get(pid) == Epistemic.SUPPORTED else self._known(kid).epistemic
                     self._revise(kid, learned, "retirement gate: recovery confirmed on evidence after the degrade", lifecycle=Lifecycle.ACTIVE,
                                  epistemic=back)
             self.archive.log_observation(f"episode:{ep.eid}", {"n_rows": len(ep.rows), "mean_abs_edge": float(np.mean([abs(r.edge) for r in ep.rows]))},
@@ -1413,7 +1437,7 @@ class LegitimateLearner:
         share: dict[str, float] = {}
         for i, e in ident_rows:
             share[i] = share.get(i, 0.0) + e
-        best = max(share, key=share.get) if share else None
+        best = max(share, key=lambda i: share[i]) if share else None
         drop_top = [e for i, e in ident_rows if i != best]
         cut = np.sort(sig)[: max(1, int(len(sig) * 0.9))]
         half = len(sig) // 2
@@ -1422,7 +1446,7 @@ class LegitimateLearner:
                 float(sig[half:].mean()), float(np.clip(sig, lo, hi).mean()), float(np.median(sig))]
 
     def _promotion_evidence(self, kid: str, pid: str, now, learned: str) -> PR.PromotionEvidence:
-        k = self.store.latest(kid)
+        k = self._known(kid)
         dirn, birth = k.effect.direction, self._birth_date[kid]
         pol = self.board.gate.policy
         wk = self._weekly[pid]
@@ -1514,7 +1538,7 @@ class LegitimateLearner:
                 if kid in self._meta_done or as_date(matured) <= as_date(self._birth_date[kid]):
                     continue
                 pid = self._pid_of[kid]
-                st = self.beliefs.current(pid)
+                st = self._belief(pid)
                 feats = {"t_disc": float(abs(st.mean) / max(st.sd, 1e-9)), "log_n": float(math.log(max(st.n_obs, 1))),
                          "effect": float(abs(st.mean)), "n_conditions": 0.0, "p_real": float(st.prob_sign_right())}
                 self.meta.store.add(ML.DiscoveryRecord(kid, pid.rsplit(":q", 1)[0], self._birth_date[kid], feats, survived, matured,
@@ -1523,10 +1547,10 @@ class LegitimateLearner:
                 added += 1
             if self._tick % self.cfg.discover_every == 0:
                 for kid in sorted(self._pid_of):
-                    h = [s for s in self.tracker.history(kid) if s.current_reliability]
+                    h = [float(s.current_reliability) for s in self.tracker.history(kid) if s.current_reliability]
                     age = (as_date(matured) - as_date(self._birth_date[kid])).days
-                    if len(h) >= 2 and age > 0 and h[0].current_reliability > 0:
-                        self.meta.store.add(ML.DecayRecord(kid, "pattern", float(age), float(max(h[-1].current_reliability, 1e-3) / h[0].current_reliability),
+                    if len(h) >= 2 and age > 0 and h[0] > 0:
+                        self.meta.store.add(ML.DecayRecord(kid, "pattern", float(age), float(max(h[-1], 1e-3) / h[0]),
                                                            matured))
                         added += 1
             if self._tick % self.cfg.meta_every == 0:
@@ -1646,9 +1670,9 @@ class LegitimateLearner:
     def report(self, now=None) -> dict[str, Any]:
         """One dictionary a report can read: stage counts, knowledge by role, skill, gate history, credit, counters."""
         now = now if now is not None else (self.last_learned_on or "1900-01-01")
-        roles = {}
+        roles: dict[str, int] = {}
         for kid in self._pid_of:
-            o = self.store.latest(kid)
+            o = self._known(kid)
             roles[str(o.promotion)] = roles.get(str(o.promotion), 0) + 1
         tr = self.trace_table()
         by_stage = {} if tr.empty else tr.groupby("stage")["ok"].agg(["count", "sum"]).rename(columns={"sum": "ok"}).astype(int).to_dict("index")
@@ -1925,7 +1949,7 @@ def truth_check(world, learner: LegitimateLearner, at_week: int) -> dict:
     from . import planted_world as PW
     claims = []
     for pid in sorted(learner._kid_of):
-        st = learner.beliefs.current(pid)
+        st = learner._belief(pid)
         claims.append(PW.Claim(pid.replace(":q", " q"), float(st.mean), None))
     sc = PW.score_claims(world, claims, at_week)
     return {"claims": sc.n_claims, "true_positive": sc.tp, "false_positive": sc.fp, "recall": round(sc.recall, 3),
@@ -1955,12 +1979,12 @@ def truth_trace(world, learner: LegitimateLearner, probe: DecisionScore, probe_n
                "born": kid is not None, "role": None, "lifecycle": None, "contract": None, "skill": skill, "weighted_rows": 0,
                "long_rows": 0, "mean_expected": None, "outcome": None, "stage": "never found", "why": ""}
         if pid in learner.beliefs.subjects():
-            rec["belief_mean"] = round(float(learner.beliefs.current(pid).mean), 5)
+            rec["belief_mean"] = round(float(learner._belief(pid).mean), 5)
         if kid is None:
             rec["why"] = "multi-condition item: outside the learner's single-cell search" if pid is None else "no supported belief became knowledge"
             rows.append(rec)
             continue
-        k = learner.store.latest(kid)
+        k = learner._known(kid)
         rec.update(role=str(k.promotion), lifecycle=str(k.lifecycle))
         if k.promotion != Promotion.CHAMPION:
             rec.update(stage="found, not admitted", why="; ".join(r[2] for r in learner._refusals if r[0] == kid)[-160:] or "never reached the gate")

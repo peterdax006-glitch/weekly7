@@ -32,7 +32,7 @@ from __future__ import annotations
 import dataclasses
 import math
 from dataclasses import dataclass, field
-from typing import Callable, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 import numpy as np
 import pandas as pd
@@ -173,7 +173,7 @@ def _perturb(X: pd.DataFrame, y: pd.Series, cfg: PerturbConfig, seed: int, run: 
     dates = X.index.get_level_values(0)
     tick = X.index.get_level_values(1)
     W = dates.nunique()
-    meta = {}
+    meta: dict[str, float] = {}
     if cfg.sub_universe < 1.0:
         names = np.array(sorted(set(tick)))
         k = max(int(round(len(names) * cfg.sub_universe)), min(len(names), 12))
@@ -671,12 +671,12 @@ def recognition_probe(same: Sequence[RunPanel], others: Sequence[Sequence[RunPan
     neg = [(i, (o, j)) for i in range(len(same)) for o in range(len(others)) for j in range(len(others[o]))]
     if len(neg) > max_neg:
         neg = [neg[k] for k in rng.choice(len(neg), max_neg, replace=False)]
-    rows, labels = [], []
+    rows, flags = [], []
     for i, j in pos:
-        rows.append(pair_features(sig_same[i], sig_same[j])); labels.append(True)
+        rows.append(pair_features(sig_same[i], sig_same[j])); flags.append(True)
     for i, (o, j) in neg:
-        rows.append(pair_features(sig_same[i], sig_oth[o][j])); labels.append(False)
-    labels = np.array(labels)
+        rows.append(pair_features(sig_same[i], sig_oth[o][j])); flags.append(False)
+    labels = np.array(flags)
     out = {}
     for tier, cols in (("tier1", TIER1), ("tier2", TIER1 + TIER2)):
         F = np.array([[r[c] for c in cols] for r in rows], float)
@@ -984,7 +984,7 @@ class SameYearHarness:
         for fc in self.frozen.values():
             self.registry.verify(fc)                           # refuse to run on a changed control
         controls = {L: fc.build(cfg.seed) for L, fc in self.frozen.items()}
-        runs = {L: [] for L in controls}
+        runs: dict[str, list[ControlRun]] = {L: [] for L in controls}
         metas, panels = [], []
         for k in range(cfg.n_runs):
             panel = self.source.panel(k, cfg.seed, cfg.perturb, mode)
@@ -1072,7 +1072,8 @@ class SameYearHarness:
         if not need <= set(self.results):
             raise RuntimeError(f"judge() needs modes {sorted(need)} to have been run")
         fp, kept = self.results["fresh_perturbed"], self.results["kept"]
-        void, facts = [], {}
+        void: list[str] = []
+        facts: dict[str, Any] = {}
         e_recs = [r.guard for r in fp.runs["E"]]
         facts["E_flagged_share"] = float(np.mean([g.flagged for g in e_recs]))
         facts["E_ic_run1"], facts["B_ic_run1"] = self.skill_at_run_one("fresh_perturbed", "E"), self.skill_at_run_one("fresh_perturbed", "B")
@@ -1230,7 +1231,7 @@ def audit_disguises(panels: Sequence[RunPanel]) -> list[str]:
 
 def record_of(h: "SameYearHarness") -> dict:
     """JSON-able summary of a finished harness: per mode and control the per-run gains, the guard flags, the verdict and hashes."""
-    rec = {"label": ValidationLabel.NOT_VALIDATED.value, "fingerprint": h.fingerprint(), "config": dataclasses.asdict(h.cfg), "modes": {}}
+    rec: dict[str, Any] = {"label": ValidationLabel.NOT_VALIDATED.value, "fingerprint": h.fingerprint(), "config": dataclasses.asdict(h.cfg), "modes": {}}
     for mode, res in h.results.items():
         rec["modes"][mode] = {L: {"gains": [round(float(r.gain), 8) for r in runs], "ic": [round(float(r.ics.mean()), 6) for r in runs],
                                   "flagged": [bool(r.guard.flagged) for r in runs], "state_size": [int(r.state_size) for r in runs]}

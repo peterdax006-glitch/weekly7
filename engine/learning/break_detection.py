@@ -1019,7 +1019,7 @@ def explain_break_controlled(item: ItemSeries, as_of=None, cfg=None, seed: int =
     of) items that are UNKNOWN anyway. Anything else is demoted to UNKNOWN with the reason recorded."""
     P = _cfg(cfg)
     ex = explain_break(item, as_of, cfg, seed)
-    if not ex.explained:
+    if not ex.explained or ex.oos is None:
         return ex
     n = int(P["placebo_n"])
     strong = 0

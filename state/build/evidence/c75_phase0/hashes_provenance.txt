@@ -1,0 +1,3 @@
+canon ok: 75 directives
+verify_integrity True
+exit 0
