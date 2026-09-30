@@ -1268,5 +1268,6 @@ def test_hash_ids_whose_digits_look_like_a_year_are_filed():
                                                   "yes", "no"), question_id="qde1981f1eef5")
     node = g.add_question(q, [], day(10))
     assert node.node_id == "qst:qdehpohfheefl" and not any(ch.isdigit() for ch in node.node_id)
-    assert g.add_test("a1b2c3d4e5f60718", "pat:x", True, day(11)).node_id.split(":")[1].isalpha()
+    pat = g.add_pattern("vol:lvx", day(10)).node_id
+    assert g.add_test("a1b2c3d4e5f60718", pat, True, day(11)).node_id.split(":")[1].isalpha()
     assert rg.opaque_name("exp1") == "exp1" and rg.opaque_name("lv20") == "lv20"      # human names are untouched
