@@ -1,7 +1,7 @@
 {
  "seed": 1,
  "world": "null",
- "code_hash": "b285d7c10d259752",
+ "code_hash": "d44ef1b382465975",
  "resume": "START_FRESH",
  "cycles": [
   {
@@ -885,31 +885,10 @@
    "knowledge": [],
    "failed": {},
    "counters": {}
-  },
-  {
-   "cycle": 126,
-   "now": "2019-10-11",
-   "knowledge": [],
-   "failed": {},
-   "counters": {}
-  },
-  {
-   "cycle": 127,
-   "now": "2019-10-18",
-   "knowledge": [],
-   "failed": {},
-   "counters": {}
-  },
-  {
-   "cycle": 128,
-   "now": "2019-10-25",
-   "knowledge": [],
-   "failed": {},
-   "counters": {}
   }
  ],
  "provenance": {
-  "code_hash": "b285d7c10d259752",
+  "code_hash": "d44ef1b382465975",
   "code_files": [
    "engine/__init__.py",
    "engine/analogs.py",
@@ -1001,7 +980,7 @@
    "engine/stops.py"
   ],
   "code_mixed": [],
-  "git_commit": "1a41b24057f786d9fda96259046a373e5ae93711",
+  "git_commit": "7ae345d895657c9ad94d894db478cae410471849",
   "canon_sha": "fef7cdf0a1501c3d",
   "bible_sha": "a97ea91862cee371",
   "blueprint_version": "4.0",
@@ -1011,7 +990,7 @@
  },
  "gates": {},
  "knowledge": {},
- "seconds": 5033.1,
+ "seconds": 5782.7,
  "truth": {
   "genuine": [
    "lv20",

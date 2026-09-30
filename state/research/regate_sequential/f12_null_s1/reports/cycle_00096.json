@@ -1,23 +1,23 @@
 {
- "code_hash": "b285d7c10d259752",
+ "code_hash": "d44ef1b382465975",
  "controller": {
   "assessments": [
    {
-    "capability": 0.5513125611478471,
-    "capability_lo": 0.12899296342598512,
-    "expected_value": 0.035474775559226006,
-    "gap": 0.4486874388521529,
+    "capability": 0.6147504787138875,
+    "capability_lo": 0.1774007263144062,
+    "expected_value": 0.032414069881877616,
+    "gap": 0.38524952128611245,
     "gate_open": true,
     "phase": "P1_VOLATILITY",
     "reasons": [
-     "1640 CPU-min spent, realised value per minute 1.36e-04 (upper 1.36e-04) is negligible"
+     "1420 CPU-min spent, realised value per minute 1.56e-04 (upper 1.56e-04) is negligible"
     ],
-    "spent_minutes": 1640.0,
+    "spent_minutes": 1420.0,
     "status": "STALLED",
-    "uncertainty": 0.422319597721862,
-    "value": 0.6102625122295694,
-    "yield_hi": 0.00013636363636363637,
-    "yield_rate": 0.00013636363636363637
+    "uncertainty": 0.4112996368427969,
+    "value": 0.6229500957427775,
+    "yield_hi": 0.00015584415584415584,
+    "yield_rate": 0.00015584415584415584
    },
    {
     "capability": null,
@@ -91,19 +91,19 @@
    {
     "capability": null,
     "capability_lo": null,
-    "expected_value": 0.6803861815377023,
+    "expected_value": 0.7179439543200932,
     "gap": 0.5,
     "gate_open": true,
     "phase": "P6_CATASTROPHIC_LOSS",
     "reasons": [
      "never measured (or the reading is stale): treated as maximally uncertain"
     ],
-    "spent_minutes": 20.0,
+    "spent_minutes": 0.0,
     "status": "UNMEASURED",
     "uncertainty": 1.0,
     "value": null,
-    "yield_hi": 0.005004285714285715,
-    "yield_rate": 0.0017142857142857142
+    "yield_hi": 0.0052899999999999996,
+    "yield_rate": 0.002
    },
    {
     "capability": null,
@@ -165,7 +165,7 @@
   },
   "situation": {
    "current": {
-    "P1_VOLATILITY": 0.5513125611478471,
+    "P1_VOLATILITY": 0.6147504787138875,
     "P2_PREDICTABLE_VS_UNKNOWABLE": null,
     "P3_DIRECTION": null,
     "P4_DIRECTION_AT_COVERAGE": null,
@@ -185,7 +185,7 @@
     "P8_DISCOVERY_PROCESS": 0.5
    },
    "highest_value": "P6_CATASTROPHIC_LOSS",
-   "largest_loss_share": 0.12323914264717774,
+   "largest_loss_share": 0.095431009600207,
    "largest_loss_source": "feature near_lo",
    "largest_prediction_gap": "P3_DIRECTION",
    "largest_uncertainty": "P2_PREDICTABLE_VS_UNKNOWABLE"
@@ -193,10 +193,10 @@
   "statements": [
    {
     "evidence": {
-     "capability": 0.5513125611478471,
-     "expected_value": 0.035475,
-     "gap": 0.4487,
-     "largest_loss_share": 0.1232,
+     "capability": 0.6147504787138875,
+     "expected_value": 0.032414,
+     "gap": 0.3852,
+     "largest_loss_share": 0.0954,
      "largest_loss_source": "feature near_lo",
      "status": "STALLED"
     },
@@ -207,9 +207,9 @@
    },
    {
     "evidence": {
-     "spent_minutes": 1640.0,
+     "spent_minutes": 1420.0,
      "to": "P6_CATASTROPHIC_LOSS",
-     "yield_per_minute": 0.00013636363636363637
+     "yield_per_minute": 0.00015584415584415584
     },
     "kind": "REDIRECT",
     "phase": "P1_VOLATILITY",
@@ -234,13 +234,12 @@
   "top": "P1_VOLATILITY"
  },
  "counters": {
-  "control_failures": 1,
-  "duplicate_designs": 5,
-  "graph_tests": 83,
+  "duplicate_designs": 10,
+  "graph_tests": 72,
   "questions_generated": 1154,
   "questions_merged": 1102,
-  "science_folded": 1,
-  "stale_abandoned": 57
+  "science_folded": 0,
+  "stale_abandoned": 53
  },
  "cycle": 96,
  "evaluation": {
@@ -267,8 +266,8 @@
   "n_positions": 0,
   "n_rows": 2784,
   "now": "2019-03-15",
-  "vol_auc": 0.6102625122295694,
-  "vol_auc_se": 0.05134584774733884,
+  "vol_auc": 0.6229500957427775,
+  "vol_auc_se": 0.05317322217622874,
   "worst_pnl": NaN
  },
  "failed": {},
@@ -281,15 +280,15 @@
  },
  "launched": 1,
  "lineage": {
-  "BRANCH": 103,
+  "BRANCH": 108,
   "DECISION": 97,
-  "EVENT": 85,
-  "ITEM": 103,
-  "JOB": 103,
-  "MEMORY": 84,
+  "EVENT": 72,
+  "ITEM": 108,
+  "JOB": 108,
+  "MEMORY": 72,
   "OBSERVATION": 97,
   "QUESTION": 1154,
-  "RESULT": 84
+  "RESULT": 72
  },
  "missing_modules": [],
  "new_questions": 12,
@@ -306,17 +305,17 @@
  "now": "2019-03-15",
  "questions": 1154,
  "refused": {},
- "section47_chains": 82,
+ "section47_chains": 71,
  "selected": 1,
  "stages": [
   {
    "cycle": 96,
    "module": "feed",
-   "n_in": 5424,
+   "n_in": 7344,
    "n_out": 48,
    "phase": "OBSERVE",
    "reason": "",
-   "seconds": 0.0392,
+   "seconds": 0.0517,
    "stage": "observe.panel",
    "status": "OK"
   },
@@ -327,7 +326,7 @@
    "n_out": 1,
    "phase": "OBSERVE",
    "reason": "",
-   "seconds": 0.0378,
+   "seconds": 0.0648,
    "stage": "observe.observer",
    "status": "OK"
   },
@@ -338,18 +337,18 @@
    "n_out": 2,
    "phase": "OBSERVE",
    "reason": "",
-   "seconds": 0.2489,
+   "seconds": 0.2306,
    "stage": "observe.autopsy",
    "status": "OK"
   },
   {
    "cycle": 96,
    "module": "experiments",
-   "n_in": 83,
+   "n_in": 71,
    "n_out": 0,
    "phase": "UPDATE_KNOWLEDGE",
    "reason": "",
-   "seconds": 0.1539,
+   "seconds": 0.1333,
    "stage": "update.experiment_memory",
    "status": "OK"
   },
@@ -371,7 +370,7 @@
    "n_out": 1,
    "phase": "UPDATE_KNOWLEDGE",
    "reason": "policy L95e5817a (threshold 0.0000); gain model fitted n=3984 base in-band 0.034; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00",
-   "seconds": 0.4377,
+   "seconds": 0.4423,
    "stage": "c68.selection_policy",
    "status": "OK"
   },
@@ -382,7 +381,7 @@
    "n_out": 0,
    "phase": "EVALUATE",
    "reason": "gate closed",
-   "seconds": 0.7558,
+   "seconds": 0.7554,
    "stage": "evaluate.two_stage",
    "status": "OK"
   },
@@ -393,7 +392,7 @@
    "n_out": 0,
    "phase": "EVALUATE",
    "reason": "no position on 2019-03-15: {'NOT_PREDICTED_MOVER': 43, 'DIRECTION_GATE_CLOSED': 5}",
-   "seconds": 0.0409,
+   "seconds": 0.036,
    "stage": "c68.expectations",
    "status": "OK"
   },
@@ -426,7 +425,7 @@
    "n_out": 1,
    "phase": "EVALUATE",
    "reason": "",
-   "seconds": 1.1773,
+   "seconds": 1.2057,
    "stage": "evaluate.frontier",
    "status": "OK"
   },
@@ -437,7 +436,7 @@
    "n_out": 1,
    "phase": "EVALUATE",
    "reason": "",
-   "seconds": 1.2129,
+   "seconds": 1.6619,
    "stage": "evaluate.symmetry",
    "status": "OK"
   },
@@ -448,7 +447,7 @@
    "n_out": 0,
    "phase": "IDENTIFY_SURPRISES",
    "reason": "",
-   "seconds": 0.684,
+   "seconds": 0.8686,
    "stage": "surprises.feature_screen",
    "status": "OK"
   },
@@ -459,7 +458,7 @@
    "n_out": 5,
    "phase": "IDENTIFY_SURPRISES",
    "reason": "STYLE_SKIPPED",
-   "seconds": 2.0895,
+   "seconds": 1.7206,
    "stage": "surprises.cross_section",
    "status": "OK"
   },
@@ -470,7 +469,7 @@
    "n_out": 2,
    "phase": "IDENTIFY_SURPRISES",
    "reason": "",
-   "seconds": 0.011,
+   "seconds": 0.0132,
    "stage": "surprises.regimes",
    "status": "OK"
   },
@@ -481,7 +480,7 @@
    "n_out": 0,
    "phase": "IDENTIFY_SURPRISES",
    "reason": "5 session(s), 0 alarm(s), warning NONE (NONE); 1 market period(s); regime records +0, status changes []",
-   "seconds": 0.0888,
+   "seconds": 0.0874,
    "stage": "c68.market_regime",
    "status": "OK"
   },
@@ -492,7 +491,7 @@
    "n_out": 0,
    "phase": "IDENTIFY_SURPRISES",
    "reason": "verdicts {'NORMAL_VARIANCE': 3}; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00; regime none; 0 to investigate",
-   "seconds": 0.0664,
+   "seconds": 0.065,
    "stage": "c68.pattern_change",
    "status": "OK"
   },
@@ -503,7 +502,7 @@
    "n_out": 1,
    "phase": "IDENTIFY_SURPRISES",
    "reason": "ScaleStepResult",
-   "seconds": 26.3369,
+   "seconds": 26.5828,
    "stage": "surprises.multiscale",
    "status": "OK"
   },
@@ -514,7 +513,7 @@
    "n_out": 0,
    "phase": "IDENTIFY_FAILURES",
    "reason": "",
-   "seconds": 0.0687,
+   "seconds": 0.0779,
    "stage": "failures.decision_losses",
    "status": "OK"
   },
@@ -525,7 +524,7 @@
    "n_out": 0,
    "phase": "IDENTIFY_FAILURES",
    "reason": "0 exit(s) by the learned policy, 0 error report(s), 0 unreconstructable, 48 candidate gain(s) resolved",
-   "seconds": 0.0149,
+   "seconds": 0.018,
    "stage": "c68.outcomes_errors",
    "status": "OK"
   },
@@ -547,7 +546,7 @@
    "n_out": 0,
    "phase": "IDENTIFY_FAILURES",
    "reason": "no new matured error and no market investigation to research",
-   "seconds": 0.0294,
+   "seconds": 0.0308,
    "stage": "c68.error_research",
    "status": "SKIPPED_NO_INPUT"
   },
@@ -558,7 +557,7 @@
    "n_out": 4,
    "phase": "IDENTIFY_FAILURES",
    "reason": "",
-   "seconds": 0.3917,
+   "seconds": 0.447,
    "stage": "failures.winners_losers",
    "status": "OK"
   },
@@ -569,7 +568,7 @@
    "n_out": 1,
    "phase": "IDENTIFY_FAILURES",
    "reason": "unknown rate 1.00",
-   "seconds": 0.4312,
+   "seconds": 0.5185,
    "stage": "failures.loss_pipeline",
    "status": "OK"
   },
@@ -580,7 +579,7 @@
    "n_out": 1,
    "phase": "IDENTIFY_MISSED_WINNERS_AND_LOSERS",
    "reason": "",
-   "seconds": 0.1881,
+   "seconds": 0.1845,
    "stage": "missed.missed",
    "status": "OK"
   },
@@ -591,7 +590,7 @@
    "n_out": 1,
    "phase": "IDENTIFY_MISSED_WINNERS_AND_LOSERS",
    "reason": "1 classified, 0 immature",
-   "seconds": 0.0363,
+   "seconds": 0.0551,
    "stage": "missed.knowability",
    "status": "OK"
   },
@@ -602,7 +601,7 @@
    "n_out": 1,
    "phase": "IDENTIFY_MISSED_WINNERS_AND_LOSERS",
    "reason": "",
-   "seconds": 0.0483,
+   "seconds": 0.0512,
    "stage": "missed.unknown_cause",
    "status": "OK"
   },
@@ -613,7 +612,7 @@
    "n_out": 1,
    "phase": "IDENTIFY_MISSED_WINNERS_AND_LOSERS",
    "reason": "",
-   "seconds": 0.1451,
+   "seconds": 0.1608,
    "stage": "missed.counterfactual",
    "status": "OK"
   },
@@ -635,7 +634,7 @@
    "n_out": 0,
    "phase": "IDENTIFY_PATTERN_BREAKS",
    "reason": "",
-   "seconds": 0.0585,
+   "seconds": 0.0684,
    "stage": "breaks.break_research",
    "status": "OK"
   },
@@ -646,7 +645,7 @@
    "n_out": 0,
    "phase": "GENERATE_QUESTIONS",
    "reason": "",
-   "seconds": 1.1139,
+   "seconds": 1.0839,
    "stage": "questions.discovery",
    "status": "OK"
   },
@@ -657,7 +656,7 @@
    "n_out": 16,
    "phase": "GENERATE_QUESTIONS",
    "reason": "",
-   "seconds": 0.2944,
+   "seconds": 0.3191,
    "stage": "questions.interactions",
    "status": "OK"
   },
@@ -679,18 +678,18 @@
    "n_out": 0,
    "phase": "GENERATE_QUESTIONS",
    "reason": "",
-   "seconds": 0.4981,
+   "seconds": 0.4846,
    "stage": "questions.targets",
    "status": "OK"
   },
   {
    "cycle": 96,
    "module": "research_graph",
-   "n_in": 178,
+   "n_in": 143,
    "n_out": 0,
    "phase": "GENERATE_QUESTIONS",
-   "reason": "11 gaps, 11 already asked",
-   "seconds": 0.062,
+   "reason": "0 gaps, 0 already asked",
+   "seconds": 0.045,
    "stage": "questions.research_graph",
    "status": "OK"
   },
@@ -700,8 +699,8 @@
    "n_in": 19,
    "n_out": 12,
    "phase": "GENERATE_QUESTIONS",
-   "reason": "13 merged, 0 refused, 0 already answered",
-   "seconds": 0.0382,
+   "reason": "12 merged, 0 refused, 0 already answered",
+   "seconds": 0.0335,
    "stage": "questions.generate",
    "status": "OK"
   },
@@ -720,21 +719,21 @@
    "cycle": 96,
    "module": "hypothesis_tree",
    "n_in": 12,
-   "n_out": 1,
+   "n_out": 0,
    "phase": "GENERATE_HYPOTHESES",
    "reason": "0 branches killed, 0 resolved",
-   "seconds": 0.1746,
+   "seconds": 0.1723,
    "stage": "hypotheses.trees",
    "status": "OK"
   },
   {
    "cycle": 96,
    "module": "priority",
-   "n_in": 1007,
+   "n_in": 1006,
    "n_out": 1,
    "phase": "ESTIMATE_INFORMATION_GAIN",
-   "reason": "learned from 1 results; trust 0.67; IMPLEMENTED \u2014 NOT VALIDATED",
-   "seconds": 1.2508,
+   "reason": "learned from 1 results; trust 0.66; IMPLEMENTED \u2014 NOT VALIDATED",
+   "seconds": 1.0363,
    "stage": "gain.priority",
    "status": "OK"
   },
@@ -756,7 +755,7 @@
    "n_out": 10,
    "phase": "ALLOCATE_COMPUTE",
    "reason": "",
-   "seconds": 0.0098,
+   "seconds": 0.008,
    "stage": "allocate.diversity",
    "status": "OK"
   },
@@ -767,7 +766,7 @@
    "n_out": 1,
    "phase": "ALLOCATE_COMPUTE",
    "reason": "0 deferred",
-   "seconds": 0.0301,
+   "seconds": 0.0414,
    "stage": "allocate.compute",
    "status": "OK"
   },
@@ -778,7 +777,7 @@
    "n_out": 1,
    "phase": "RUN_EXPERIMENT",
    "reason": "mode inline; 0 still running",
-   "seconds": 0.1229,
+   "seconds": 0.183,
    "stage": "run.experiments",
    "status": "OK"
   },
@@ -789,7 +788,7 @@
    "n_out": 1,
    "phase": "VALIDATE",
    "reason": "0 still running",
-   "seconds": 0.128,
+   "seconds": 0.1987,
    "stage": "validate.harvest",
    "status": "OK"
   },
@@ -822,7 +821,7 @@
    "n_out": 1,
    "phase": "UPDATE_KNOWLEDGE_FROM_RESULTS",
    "reason": "0 refused by the ledger",
-   "seconds": 0.1861,
+   "seconds": 0.1387,
    "stage": "learn.memory",
    "status": "OK"
   },
@@ -833,7 +832,7 @@
    "n_out": 1,
    "phase": "UPDATE_KNOWLEDGE_FROM_RESULTS",
    "reason": "net value -0.0400",
-   "seconds": 0.0051,
+   "seconds": 0.0009,
    "stage": "learn.value",
    "status": "OK"
   },
@@ -843,8 +842,8 @@
    "n_in": 1,
    "n_out": 1,
    "phase": "UPDATE_KNOWLEDGE_FROM_RESULTS",
-   "reason": "2 items; folded 0 graph entries {}; 2 audit findings (0 errors)",
-   "seconds": 0.0182,
+   "reason": "1 items; folded 0 graph entries {}; 1 audit findings (0 errors)",
+   "seconds": 0.0156,
    "stage": "learn.science_memory",
    "status": "OK"
   },
@@ -866,7 +865,7 @@
    "n_out": 0,
    "phase": "UPDATE_KNOWLEDGE_FROM_RESULTS",
    "reason": "no branch completed the ladder this cycle and no earlier finding gained a quarter of new evidence",
-   "seconds": 0.006,
+   "seconds": 0.0081,
    "stage": "learn.quality_gate",
    "status": "SKIPPED_NO_INPUT"
   },
@@ -877,7 +876,7 @@
    "n_out": 4,
    "phase": "UPDATE_KNOWLEDGE_FROM_RESULTS",
    "reason": "4 fix(es) tested alone and gated; deterioration: no (MAE 0.0244 -> 0.0237, p=0.877); promoted [] (0 applied); production incumbent; rolled back 0",
-   "seconds": 0.422,
+   "seconds": 0.4137,
    "stage": "c68.validate_promote",
    "status": "OK"
   },
@@ -895,22 +894,22 @@
   {
    "cycle": 96,
    "module": "waste",
-   "n_in": 103,
+   "n_in": 108,
    "n_out": 0,
    "phase": "UPDATE_RESEARCH_PRIORITIES",
    "reason": "",
-   "seconds": 0.0013,
+   "seconds": 0.0021,
    "stage": "priorities.waste",
    "status": "OK"
   },
   {
    "cycle": 96,
    "module": "brain_health",
-   "n_in": 83,
-   "n_out": 3,
+   "n_in": 71,
+   "n_out": 2,
    "phase": "UPDATE_RESEARCH_PRIORITIES",
    "reason": "level ALARM",
-   "seconds": 0.0041,
+   "seconds": 0.0033,
    "stage": "priorities.brain_health",
    "status": "OK"
   },
@@ -921,7 +920,7 @@
    "n_out": 1,
    "phase": "UPDATE_RESEARCH_PRIORITIES",
    "reason": "",
-   "seconds": 0.0619,
+   "seconds": 0.0643,
    "stage": "priorities.meta_research",
    "status": "OK"
   },
@@ -943,29 +942,29 @@
    "n_out": 1,
    "phase": "UPDATE_RESEARCH_PRIORITIES",
    "reason": "",
-   "seconds": 0.1205,
+   "seconds": 0.1203,
    "stage": "priorities.scorecard",
    "status": "OK"
   },
   {
    "cycle": 96,
    "module": "questions",
-   "n_in": 127,
-   "n_out": 0,
+   "n_in": 126,
+   "n_out": 1,
    "phase": "UPDATE_RESEARCH_PRIORITIES",
-   "reason": "64 stalled trees",
-   "seconds": 0.0011,
+   "reason": "63 stalled trees",
+   "seconds": 0.0012,
    "stage": "priorities.stale",
    "status": "OK"
   },
   {
    "cycle": 96,
    "module": "error_loop",
-   "n_in": 1597,
+   "n_in": 2109,
    "n_out": 1,
    "phase": "UPDATE_RESEARCH_PRIORITIES",
-   "reason": "1597 record(s) verified, report written; No matured predictions yet: the +-1% target is unmeasured.",
-   "seconds": 1.0589,
+   "reason": "2109 record(s) verified, report written; No matured predictions yet: the +-1% target is unmeasured.",
+   "seconds": 1.642,
    "stage": "c68.monitor_audit",
    "status": "OK"
   },
@@ -993,40 +992,43 @@
   }
  ],
  "stale": {
-  "abandoned": [],
+  "abandoned": [
+   "Q6218e61c6bbe"
+  ],
   "cancelled": 0,
   "parked": 0,
   "stalled_trees": [
    "t_Q04cb0cb4ce53",
    "t_Q0c701c418364",
    "t_Q1259ccfd2c9e",
+   "t_Q12bd54768551",
    "t_Q13fbd88a6e31",
    "t_Q152bcea2de3c",
    "t_Q1b204e2e4e29",
    "t_Q1d40500d0c7e",
-   "t_Q1de0f757e206",
+   "t_Q1dffb75bfa3a",
    "t_Q26b901aba88f",
+   "t_Q27bc158bafe5",
+   "t_Q294d5826d6c2",
    "t_Q2a01d410a983",
    "t_Q2b7edbef2980",
    "t_Q2c87fc84ad69",
    "t_Q302bfc9dc8df",
    "t_Q340c3191e465",
-   "t_Q35ae0ae78a9d",
    "t_Q36f48d1c7c24",
    "t_Q3a323bb62e56",
-   "t_Q3bdf24102bd3",
    "t_Q3d4200d4c53c",
-   "t_Q458af22fe046",
    "t_Q47d79cc3c8d8",
    "t_Q4c744c0672d2",
    "t_Q530c3adde0cf",
    "t_Q579a9fd54a97",
+   "t_Q592f5d40b869",
    "t_Q5a2a82d6e99e",
    "t_Q5a4f8871fb4e",
+   "t_Q625372991a69",
    "t_Q68872a9ea71f",
    "t_Q6c2f7337ce9a",
    "t_Q704df0f39bcb",
-   "t_Q70af1b59452f",
    "t_Q7438d47f7ece",
    "t_Q746122a889e8",
    "t_Q75f450871769",
@@ -1034,30 +1036,28 @@
    "t_Q839d80917d22",
    "t_Q84aa10691bd7",
    "t_Q8f6e7961b2ab",
+   "t_Q8ff470606174",
    "t_Q933780b5a653",
    "t_Q9392d3926e70",
    "t_Q95ae49d53422",
    "t_Q9a502fe0b061",
+   "t_Q9e1e75893e89",
    "t_Qa10674955fcf",
    "t_Qa172fb2d3d96",
    "t_Qa34a63ba8d4e",
    "t_Qa3b4c58023dd",
    "t_Qa6c7a80dec17",
-   "t_Qa6e20a30597a",
    "t_Qa8470fc7802b",
    "t_Qa8afbffab3cb",
    "t_Qadb771ce589e",
    "t_Qb25ae884e64d",
    "t_Qb3d6be6e6787",
    "t_Qb878349467a0",
-   "t_Qc8bb0ac55996",
-   "t_Qcd81120b8121",
    "t_Qd64336031cac",
    "t_Qde4fd29b0387",
    "t_Qe48b0046b9a0",
    "t_Qea43f77121ce",
    "t_Qf240285b582a",
-   "t_Qfb1be12497e6",
    "t_Qfdfac92b5df6",
    "t_Qfe5f5f9a94e2",
    "t_Qff59fe15fa11"
@@ -1079,7 +1079,7 @@
    "last_at": "2019-03-15",
    "last_error": "",
    "runs": 97,
-   "units": 1,
+   "units": 0,
    "yielded": 0
   }
  },

@@ -1,6 +1,6 @@
 # Future-leak audit (canon C56 / C55)
 
-code 5311eb3a49698384 | git 6c6f40ec2e95f7764dacc9be9c796ace42ff52ca+dirty | seed 20260928
+code 5311eb3a49698384 | git 7ae345d895657c9ad94d894db478cae410471849 | seed 20260928
 
 **12 channels: 1 LEAK, 5 CLEAN, 2 FIXED, 4 QUARANTINED**
 

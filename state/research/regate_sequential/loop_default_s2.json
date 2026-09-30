@@ -1,7 +1,7 @@
 {
  "seed": 2,
  "world": "default",
- "code_hash": "b285d7c10d259752",
+ "code_hash": "d44ef1b382465975",
  "resume": "START_FRESH",
  "cycles": [
   {
@@ -731,185 +731,10 @@
    "knowledge": [],
    "failed": {},
    "counters": {}
-  },
-  {
-   "cycle": 104,
-   "now": "2019-05-10",
-   "knowledge": [],
-   "failed": {},
-   "counters": {}
-  },
-  {
-   "cycle": 105,
-   "now": "2019-05-17",
-   "knowledge": [],
-   "failed": {},
-   "counters": {}
-  },
-  {
-   "cycle": 106,
-   "now": "2019-05-24",
-   "knowledge": [],
-   "failed": {},
-   "counters": {}
-  },
-  {
-   "cycle": 107,
-   "now": "2019-05-31",
-   "knowledge": [],
-   "failed": {},
-   "counters": {}
-  },
-  {
-   "cycle": 108,
-   "now": "2019-06-07",
-   "knowledge": [],
-   "failed": {},
-   "counters": {}
-  },
-  {
-   "cycle": 109,
-   "now": "2019-06-14",
-   "knowledge": [],
-   "failed": {},
-   "counters": {}
-  },
-  {
-   "cycle": 110,
-   "now": "2019-06-21",
-   "knowledge": [],
-   "failed": {},
-   "counters": {}
-  },
-  {
-   "cycle": 111,
-   "now": "2019-06-28",
-   "knowledge": [],
-   "failed": {},
-   "counters": {}
-  },
-  {
-   "cycle": 112,
-   "now": "2019-07-05",
-   "knowledge": [],
-   "failed": {},
-   "counters": {}
-  },
-  {
-   "cycle": 113,
-   "now": "2019-07-12",
-   "knowledge": [],
-   "failed": {},
-   "counters": {}
-  },
-  {
-   "cycle": 114,
-   "now": "2019-07-19",
-   "knowledge": [],
-   "failed": {},
-   "counters": {}
-  },
-  {
-   "cycle": 115,
-   "now": "2019-07-26",
-   "knowledge": [],
-   "failed": {},
-   "counters": {}
-  },
-  {
-   "cycle": 116,
-   "now": "2019-08-02",
-   "knowledge": [],
-   "failed": {},
-   "counters": {}
-  },
-  {
-   "cycle": 117,
-   "now": "2019-08-09",
-   "knowledge": [],
-   "failed": {},
-   "counters": {}
-  },
-  {
-   "cycle": 118,
-   "now": "2019-08-16",
-   "knowledge": [],
-   "failed": {},
-   "counters": {}
-  },
-  {
-   "cycle": 119,
-   "now": "2019-08-23",
-   "knowledge": [],
-   "failed": {},
-   "counters": {}
-  },
-  {
-   "cycle": 120,
-   "now": "2019-08-30",
-   "knowledge": [],
-   "failed": {},
-   "counters": {}
-  },
-  {
-   "cycle": 121,
-   "now": "2019-09-06",
-   "knowledge": [],
-   "failed": {},
-   "counters": {}
-  },
-  {
-   "cycle": 122,
-   "now": "2019-09-13",
-   "knowledge": [],
-   "failed": {},
-   "counters": {}
-  },
-  {
-   "cycle": 123,
-   "now": "2019-09-20",
-   "knowledge": [],
-   "failed": {},
-   "counters": {}
-  },
-  {
-   "cycle": 124,
-   "now": "2019-09-27",
-   "knowledge": [],
-   "failed": {},
-   "counters": {}
-  },
-  {
-   "cycle": 125,
-   "now": "2019-10-04",
-   "knowledge": [],
-   "failed": {},
-   "counters": {}
-  },
-  {
-   "cycle": 126,
-   "now": "2019-10-11",
-   "knowledge": [],
-   "failed": {},
-   "counters": {}
-  },
-  {
-   "cycle": 127,
-   "now": "2019-10-18",
-   "knowledge": [],
-   "failed": {},
-   "counters": {}
-  },
-  {
-   "cycle": 128,
-   "now": "2019-10-25",
-   "knowledge": [],
-   "failed": {},
-   "counters": {}
   }
  ],
  "provenance": {
-  "code_hash": "b285d7c10d259752",
+  "code_hash": "d44ef1b382465975",
   "code_files": [
    "engine/__init__.py",
    "engine/analogs.py",
@@ -1001,7 +826,7 @@
    "engine/stops.py"
   ],
   "code_mixed": [],
-  "git_commit": "1a41b24057f786d9fda96259046a373e5ae93711",
+  "git_commit": "7ae345d895657c9ad94d894db478cae410471849",
   "canon_sha": "fef7cdf0a1501c3d",
   "bible_sha": "a97ea91862cee371",
   "blueprint_version": "4.0",
@@ -1010,19 +835,19 @@
   "seed": 2
  },
  "gates": {
-  "DBR5224b8909968": {
-   "feature": "xs_atr_rank",
-   "verdict": "NEEDS_MORE_EVIDENCE",
-   "looks": 6,
+  "DBR3911ce95c01d": {
+   "feature": "latr",
+   "verdict": "FAILED",
+   "looks": 4,
    "retired": "",
    "history": [
     {
      "look": 1,
-     "cycle": 47,
-     "at": "2018-04-06",
+     "cycle": 58,
+     "at": "2018-06-22",
      "verdict": "FAILED",
      "alpha": 0.03039635509270134,
-     "n_test": 73,
+     "n_test": 81,
      "blocking": [
       "failure_behavior",
       "risk"
@@ -1030,24 +855,23 @@
     },
     {
      "look": 2,
-     "cycle": 61,
-     "at": "2018-07-13",
+     "cycle": 72,
+     "at": "2018-09-28",
      "verdict": "FAILED",
      "alpha": 0.007599088773175335,
-     "n_test": 83,
+     "n_test": 91,
      "blocking": [
       "calibration",
-      "failure_behavior",
-      "risk"
+      "failure_behavior"
      ]
     },
     {
      "look": 3,
-     "cycle": 75,
-     "at": "2018-10-19",
+     "cycle": 86,
+     "at": "2019-01-04",
      "verdict": "FAILED",
      "alpha": 0.0033773727880779263,
-     "n_test": 93,
+     "n_test": 103,
      "blocking": [
       "calibration",
       "failure_behavior"
@@ -1055,67 +879,23 @@
     },
     {
      "look": 4,
-     "cycle": 89,
-     "at": "2019-01-25",
-     "verdict": "NEEDS_MORE_EVIDENCE",
+     "cycle": 100,
+     "at": "2019-04-12",
+     "verdict": "FAILED",
      "alpha": 0.0018997721932938337,
-     "n_test": 75,
+     "n_test": 117,
      "blocking": [
-      "failure_behavior"
-     ]
-    },
-    {
-     "look": 5,
-     "cycle": 103,
-     "at": "2019-05-03",
-     "verdict": "NEEDS_MORE_EVIDENCE",
-     "alpha": 0.0012158542037080534,
-     "n_test": 84,
-     "blocking": [
-      "failure_behavior"
-     ]
-    },
-    {
-     "look": 6,
-     "cycle": 117,
-     "at": "2019-08-09",
-     "verdict": "NEEDS_MORE_EVIDENCE",
-     "alpha": 0.0008443431970194816,
-     "n_test": 94,
-     "blocking": [
-      "failure_behavior"
+      "calibration"
      ]
     }
    ],
    "blocking": {
-    "failure_behavior": "MISSING: only 2 failure episodes studied (< 5)"
-   }
-  },
-  "DBRa9f51c6d31bf": {
-   "feature": "lv20",
-   "verdict": "NEEDS_MORE_EVIDENCE",
-   "looks": 1,
-   "retired": "",
-   "history": [
-    {
-     "look": 1,
-     "cycle": 128,
-     "at": "2019-10-25",
-     "verdict": "NEEDS_MORE_EVIDENCE",
-     "alpha": 0.03039635509270134,
-     "n_test": 102,
-     "blocking": [
-      "replication"
-     ]
-    }
-   ],
-   "blocking": {
-    "replication": "MISSING: PARTIALLY_REPLICATED: requirement not met: heterogeneity_ok"
+    "calibration": "FAIL: ECE 0.082 > 0.06 and beyond what perfect calibration would give (p=0.005)"
    }
   }
  },
  "knowledge": {},
- "seconds": 6766.0,
+ "seconds": 5607.5,
  "truth": {
   "genuine": [
    "lv20",

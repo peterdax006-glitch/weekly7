@@ -1,7 +1,7 @@
 {
  "seed": 5,
  "world": "default",
- "code_hash": "b285d7c10d259752",
+ "code_hash": "d44ef1b382465975",
  "resume": "START_FRESH",
  "cycles": [
   {
@@ -336,744 +336,475 @@
   {
    "cycle": 47,
    "now": "2018-04-06",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 48,
    "now": "2018-04-13",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 49,
    "now": "2018-04-20",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 50,
    "now": "2018-04-27",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 51,
    "now": "2018-05-04",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 52,
    "now": "2018-05-11",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 53,
    "now": "2018-05-18",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 54,
    "now": "2018-05-25",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 55,
    "now": "2018-06-01",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 56,
    "now": "2018-06-08",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 57,
    "now": "2018-06-15",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 58,
    "now": "2018-06-22",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 59,
    "now": "2018-06-29",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 60,
    "now": "2018-07-06",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 61,
    "now": "2018-07-13",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 62,
    "now": "2018-07-20",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 63,
    "now": "2018-07-27",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 64,
    "now": "2018-08-03",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 65,
    "now": "2018-08-10",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 66,
    "now": "2018-08-17",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 67,
    "now": "2018-08-24",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 68,
    "now": "2018-08-31",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 69,
    "now": "2018-09-07",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 70,
    "now": "2018-09-14",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 71,
    "now": "2018-09-21",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 72,
    "now": "2018-09-28",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 73,
    "now": "2018-10-05",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 74,
    "now": "2018-10-12",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 75,
    "now": "2018-10-19",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 76,
    "now": "2018-10-26",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 77,
    "now": "2018-11-02",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 78,
    "now": "2018-11-09",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 79,
    "now": "2018-11-16",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 80,
    "now": "2018-11-23",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 81,
    "now": "2018-11-30",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 82,
    "now": "2018-12-07",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 83,
    "now": "2018-12-14",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 84,
    "now": "2018-12-21",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 85,
    "now": "2018-12-28",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 86,
    "now": "2019-01-04",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 87,
    "now": "2019-01-11",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 88,
    "now": "2019-01-18",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 89,
    "now": "2019-01-25",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 90,
    "now": "2019-02-01",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 91,
    "now": "2019-02-08",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 92,
    "now": "2019-02-15",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 93,
    "now": "2019-02-22",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 94,
    "now": "2019-03-01",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 95,
    "now": "2019-03-08",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 96,
    "now": "2019-03-15",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 97,
    "now": "2019-03-22",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 98,
    "now": "2019-03-29",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 99,
    "now": "2019-04-05",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 100,
    "now": "2019-04-12",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 101,
    "now": "2019-04-19",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 102,
    "now": "2019-04-26",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 103,
    "now": "2019-05-03",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 104,
    "now": "2019-05-10",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 105,
    "now": "2019-05-17",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 106,
    "now": "2019-05-24",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 107,
    "now": "2019-05-31",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 108,
    "now": "2019-06-07",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 109,
    "now": "2019-06-14",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 110,
    "now": "2019-06-21",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 111,
    "now": "2019-06-28",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 112,
    "now": "2019-07-05",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   },
   {
    "cycle": 113,
    "now": "2019-07-12",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
-   "failed": {},
-   "counters": {}
-  },
-  {
-   "cycle": 114,
-   "now": "2019-07-19",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
-   "failed": {},
-   "counters": {}
-  },
-  {
-   "cycle": 115,
-   "now": "2019-07-26",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
-   "failed": {},
-   "counters": {}
-  },
-  {
-   "cycle": 116,
-   "now": "2019-08-02",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
-   "failed": {},
-   "counters": {}
-  },
-  {
-   "cycle": 117,
-   "now": "2019-08-09",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
-   "failed": {},
-   "counters": {}
-  },
-  {
-   "cycle": 118,
-   "now": "2019-08-16",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
-   "failed": {},
-   "counters": {}
-  },
-  {
-   "cycle": 119,
-   "now": "2019-08-23",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
-   "failed": {},
-   "counters": {}
-  },
-  {
-   "cycle": 120,
-   "now": "2019-08-30",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
-   "failed": {},
-   "counters": {}
-  },
-  {
-   "cycle": 121,
-   "now": "2019-09-06",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
-   "failed": {},
-   "counters": {}
-  },
-  {
-   "cycle": 122,
-   "now": "2019-09-13",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
-   "failed": {},
-   "counters": {}
-  },
-  {
-   "cycle": 123,
-   "now": "2019-09-20",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
-   "failed": {},
-   "counters": {}
-  },
-  {
-   "cycle": 124,
-   "now": "2019-09-27",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
-   "failed": {},
-   "counters": {}
-  },
-  {
-   "cycle": 125,
-   "now": "2019-10-04",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
-   "failed": {},
-   "counters": {}
-  },
-  {
-   "cycle": 126,
-   "now": "2019-10-11",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
-   "failed": {},
-   "counters": {}
-  },
-  {
-   "cycle": 127,
-   "now": "2019-10-18",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
-   "failed": {},
-   "counters": {}
-  },
-  {
-   "cycle": 128,
-   "now": "2019-10-25",
-   "knowledge": [
-    "vol_over_mkt"
-   ],
+   "knowledge": [],
    "failed": {},
    "counters": {}
   }
  ],
  "provenance": {
-  "code_hash": "b285d7c10d259752",
+  "code_hash": "d44ef1b382465975",
   "code_files": [
    "engine/__init__.py",
    "engine/analogs.py",
@@ -1165,7 +896,7 @@
    "engine/stops.py"
   ],
   "code_mixed": [],
-  "git_commit": "1a41b24057f786d9fda96259046a373e5ae93711",
+  "git_commit": "7ae345d895657c9ad94d894db478cae410471849",
   "canon_sha": "fef7cdf0a1501c3d",
   "bible_sha": "a97ea91862cee371",
   "blueprint_version": "4.0",
@@ -1173,50 +904,9 @@
   "data_snapshot": "171ba8ba728ee713",
   "seed": 5
  },
- "gates": {
-  "DBR2d20b91b1f58": {
-   "feature": "vol_over_mkt",
-   "verdict": "PROMOTE",
-   "looks": 2,
-   "retired": "",
-   "history": [
-    {
-     "look": 1,
-     "cycle": 33,
-     "at": "2017-12-29",
-     "verdict": "FAILED",
-     "alpha": 0.03039635509270134,
-     "n_test": 62,
-     "blocking": [
-      "out_of_sample"
-     ]
-    },
-    {
-     "look": 2,
-     "cycle": 47,
-     "at": "2018-04-06",
-     "verdict": "PROMOTE",
-     "alpha": 0.007599088773175335,
-     "n_test": 72,
-     "blocking": []
-    }
-   ],
-   "blocking": {}
-  }
- },
- "knowledge": {
-  "K26b110dc4e7a62": {
-   "feature": "vol_over_mkt",
-   "sign": 1.0,
-   "problem": "VOLATILITY",
-   "filed_at": "2018-04-06",
-   "effect": 0.284302141342,
-   "branch": "BR2d20b91b1f58",
-   "post_effect": 0.33910256991751686,
-   "post_n": 79
-  }
- },
- "seconds": 6273.2,
+ "gates": {},
+ "knowledge": {},
+ "seconds": 5793.1,
  "truth": {
   "genuine": [
    "lv20",

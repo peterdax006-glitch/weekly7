@@ -6,16 +6,17 @@
   "decisions_regated": 117,
   "outcomes": 0,
   "errors": 0,
-  "market_reports_sent": 9
+  "market_reports_sent": 9,
+  "promotion_held_by_regime": 0
  },
  "ledgers": {
   "expectations": 0,
   "outcomes": 0,
   "errors": 0,
   "commitments": 0,
-  "pipeline_events": 1776,
+  "pipeline_events": 1968,
   "pipeline_furthest": {
-   "REJECTED": 444
+   "REJECTED": 492
   }
  },
  "calibration": {

@@ -1,5 +1,5 @@
 {
- "code_hash": "b285d7c10d259752",
+ "code_hash": "d44ef1b382465975",
  "controller": {
   "assessments": [
    {
@@ -10,12 +10,12 @@
     "gate_open": true,
     "phase": "P1_VOLATILITY",
     "reasons": [],
-    "spent_minutes": 1532.0,
+    "spent_minutes": 792.0,
     "status": "SATISFIED",
     "uncertainty": 0.0,
     "value": 0.8894741753018414,
-    "yield_hi": 0.0060120331151361246,
-    "yield_rate": 0.0047330690181222775
+    "yield_hi": 0.005844262207427031,
+    "yield_rate": 0.003909378600258772
    },
    {
     "capability": null,
@@ -37,19 +37,19 @@
    {
     "capability": 0.0,
     "capability_lo": 0.0,
-    "expected_value": 0.07356280387503329,
+    "expected_value": 0.07449994743730111,
     "gap": 1.0,
     "gate_open": true,
     "phase": "P3_DIRECTION",
     "reasons": [
-     "680 CPU-min spent, realised value per minute 3.00e-04 (upper 3.00e-04) is negligible"
+     "660 CPU-min spent, realised value per minute 3.08e-04 (upper 3.08e-04) is negligible"
     ],
-    "spent_minutes": 680.0,
+    "spent_minutes": 660.0,
     "status": "STALLED",
     "uncertainty": 0.17072391853962923,
     "value": 0.4816326530612245,
-    "yield_hi": 0.0003,
-    "yield_rate": 0.0003
+    "yield_hi": 0.0003076923076923077,
+    "yield_rate": 0.0003076923076923077
    },
    {
     "capability": 0.27777777777777785,
@@ -88,36 +88,36 @@
    {
     "capability": null,
     "capability_lo": null,
-    "expected_value": 0.6623712610200239,
+    "expected_value": 0.45079408776821284,
     "gap": 0.5,
     "gate_open": true,
     "phase": "P6_CATASTROPHIC_LOSS",
     "reasons": [
      "never measured (or the reading is stale): treated as maximally uncertain"
     ],
-    "spent_minutes": 20.0,
+    "spent_minutes": 200.0,
     "status": "UNMEASURED",
     "uncertainty": 1.0,
     "value": null,
-    "yield_hi": 0.005004285714285715,
-    "yield_rate": 0.0017142857142857142
+    "yield_hi": 0.00075,
+    "yield_rate": 0.00075
    },
    {
     "capability": null,
     "capability_lo": null,
-    "expected_value": 0.26249999999999996,
+    "expected_value": 0.2145068047534648,
     "gap": 0.5,
     "gate_open": true,
     "phase": "P7_CONTINUOUS_DISCOVERY",
     "reasons": [
      "never measured (or the reading is stale): treated as maximally uncertain"
     ],
-    "spent_minutes": 0.0,
+    "spent_minutes": 110.0,
     "status": "UNMEASURED",
     "uncertainty": 1.0,
     "value": null,
-    "yield_hi": 0.0052899999999999996,
-    "yield_rate": 0.002
+    "yield_hi": 0.003177156888921272,
+    "yield_rate": 0.0013355296300565217
    },
    {
     "capability": null,
@@ -204,9 +204,9 @@
    },
    {
     "evidence": {
-     "spent_minutes": 680.0,
+     "spent_minutes": 660.0,
      "to": "P6_CATASTROPHIC_LOSS",
-     "yield_per_minute": 0.0003
+     "yield_per_minute": 0.0003076923076923077
     },
     "kind": "REDIRECT",
     "phase": "P3_DIRECTION",
@@ -231,18 +231,18 @@
   "top": "P1_VOLATILITY"
  },
  "counters": {
-  "audits_cleared": 29,
-  "control_failures": 2,
-  "duplicate_designs": 19,
-  "graph_tests": 90,
+  "audits_cleared": 12,
+  "control_failures": 1,
+  "duplicate_designs": 42,
+  "graph_tests": 72,
   "held_for_fresh_data": 2,
   "leaks_refused": 408,
   "questions_generated": 594,
-  "questions_merged": 565,
+  "questions_merged": 561,
   "released_from_hold": 1,
-  "science_folded": 4,
-  "stale_abandoned": 40,
-  "tree_results": 24
+  "science_folded": 0,
+  "stale_abandoned": 43,
+  "tree_results": 6
  },
  "cycle": 50,
  "evaluation": {
@@ -312,21 +312,21 @@
  "knowledge_chains": 0,
  "label": "IMPLEMENTED - NOT VALIDATED",
  "ladder": {
-  "ADVANCE": 1,
-  "AUDIT": 2
+  "ADVANCE": 2,
+  "PARK": 1
  },
- "launched": 3,
+ "launched": 10,
  "lineage": {
-  "BRANCH": 75,
+  "BRANCH": 104,
   "DECISION": 51,
-  "EVENT": 74,
+  "EVENT": 61,
   "GATE": 1,
-  "ITEM": 75,
-  "JOB": 121,
-  "MEMORY": 94,
+  "ITEM": 104,
+  "JOB": 127,
+  "MEMORY": 72,
   "OBSERVATION": 51,
   "QUESTION": 594,
-  "RESULT": 94
+  "RESULT": 72
  },
  "missing_modules": [],
  "new_questions": 12,
@@ -349,8 +349,8 @@
   "c68.validate_promote": "LedgerTampered: the C68 chain under C:\\Users\\Peter\\weekly7\\state\\research\\regate_sequential\\f12_default_s4\\c68 does not verify on opening: chain broken at seq 1680",
   "c68.what_changed": "LedgerTampered: the C68 chain under C:\\Users\\Peter\\weekly7\\state\\research\\regate_sequential\\f12_default_s4\\c68 does not verify on opening: chain broken at seq 1680"
  },
- "section47_chains": 66,
- "selected": 1,
+ "section47_chains": 55,
+ "selected": 8,
  "stages": [
   {
    "cycle": 50,
@@ -359,7 +359,7 @@
    "n_out": 44,
    "phase": "OBSERVE",
    "reason": "",
-   "seconds": 0.0341,
+   "seconds": 0.0354,
    "stage": "observe.panel",
    "status": "OK"
   },
@@ -370,7 +370,7 @@
    "n_out": 1,
    "phase": "OBSERVE",
    "reason": "",
-   "seconds": 0.0468,
+   "seconds": 0.0466,
    "stage": "observe.observer",
    "status": "OK"
   },
@@ -381,18 +381,18 @@
    "n_out": 1,
    "phase": "OBSERVE",
    "reason": "",
-   "seconds": 0.1547,
+   "seconds": 0.1605,
    "stage": "observe.autopsy",
    "status": "OK"
   },
   {
    "cycle": 50,
    "module": "experiments",
-   "n_in": 91,
+   "n_in": 69,
    "n_out": 0,
    "phase": "UPDATE_KNOWLEDGE",
    "reason": "",
-   "seconds": 0.4029,
+   "seconds": 0.1894,
    "stage": "update.experiment_memory",
    "status": "OK"
   },
@@ -414,7 +414,7 @@
    "n_out": 1,
    "phase": "UPDATE_KNOWLEDGE",
    "reason": "policy L8fba0623 (threshold -inf); gain model fitted n=3841 base in-band 0.081; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00",
-   "seconds": 0.5834,
+   "seconds": 0.6137,
    "stage": "c68.selection_policy",
    "status": "OK"
   },
@@ -425,7 +425,7 @@
    "n_out": 0,
    "phase": "EVALUATE",
    "reason": "gate open",
-   "seconds": 0.8472,
+   "seconds": 0.8576,
    "stage": "evaluate.two_stage",
    "status": "OK"
   },
@@ -436,7 +436,7 @@
    "n_out": 0,
    "phase": "EVALUATE",
    "reason": "LedgerTampered: the C68 chain under C:\\Users\\Peter\\weekly7\\state\\research\\regate_sequential\\f12_default_s4\\c68 does not verify on opening: chain broken at seq 1680",
-   "seconds": 0.0219,
+   "seconds": 0.0225,
    "stage": "c68.expectations",
    "status": "REFUSED_LEAK"
   },
@@ -469,7 +469,7 @@
    "n_out": 1,
    "phase": "EVALUATE",
    "reason": "",
-   "seconds": 0.9529,
+   "seconds": 1.067,
    "stage": "evaluate.frontier",
    "status": "OK"
   },
@@ -480,7 +480,7 @@
    "n_out": 1,
    "phase": "EVALUATE",
    "reason": "",
-   "seconds": 2.9103,
+   "seconds": 3.0256,
    "stage": "evaluate.symmetry",
    "status": "OK"
   },
@@ -502,7 +502,7 @@
    "n_out": 5,
    "phase": "IDENTIFY_SURPRISES",
    "reason": "STYLE_SKIPPED",
-   "seconds": 2.1411,
+   "seconds": 2.0678,
    "stage": "surprises.cross_section",
    "status": "OK"
   },
@@ -513,7 +513,7 @@
    "n_out": 0,
    "phase": "IDENTIFY_SURPRISES",
    "reason": "",
-   "seconds": 0.0021,
+   "seconds": 0.0019,
    "stage": "surprises.regimes",
    "status": "OK"
   },
@@ -524,7 +524,7 @@
    "n_out": 0,
    "phase": "IDENTIFY_SURPRISES",
    "reason": "LedgerTampered: the C68 chain under C:\\Users\\Peter\\weekly7\\state\\research\\regate_sequential\\f12_default_s4\\c68 does not verify on opening: chain broken at seq 1680",
-   "seconds": 0.0219,
+   "seconds": 0.0292,
    "stage": "c68.market_regime",
    "status": "REFUSED_LEAK"
   },
@@ -535,7 +535,7 @@
    "n_out": 0,
    "phase": "IDENTIFY_SURPRISES",
    "reason": "verdicts {'NORMAL_VARIANCE': 3}; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00; regime none; 0 to investigate",
-   "seconds": 0.0884,
+   "seconds": 0.1026,
    "stage": "c68.pattern_change",
    "status": "OK"
   },
@@ -546,7 +546,7 @@
    "n_out": 1,
    "phase": "IDENTIFY_SURPRISES",
    "reason": "ScaleStepResult",
-   "seconds": 16.5847,
+   "seconds": 17.8245,
    "stage": "surprises.multiscale",
    "status": "OK"
   },
@@ -557,7 +557,7 @@
    "n_out": 0,
    "phase": "IDENTIFY_FAILURES",
    "reason": "",
-   "seconds": 0.0822,
+   "seconds": 0.1223,
    "stage": "failures.decision_losses",
    "status": "OK"
   },
@@ -568,7 +568,7 @@
    "n_out": 0,
    "phase": "IDENTIFY_FAILURES",
    "reason": "LedgerTampered: the C68 chain under C:\\Users\\Peter\\weekly7\\state\\research\\regate_sequential\\f12_default_s4\\c68 does not verify on opening: chain broken at seq 1680",
-   "seconds": 0.0345,
+   "seconds": 0.0225,
    "stage": "c68.outcomes_errors",
    "status": "REFUSED_LEAK"
   },
@@ -579,7 +579,7 @@
    "n_out": 0,
    "phase": "IDENTIFY_FAILURES",
    "reason": "LedgerTampered: the C68 chain under C:\\Users\\Peter\\weekly7\\state\\research\\regate_sequential\\f12_default_s4\\c68 does not verify on opening: chain broken at seq 1680",
-   "seconds": 0.0249,
+   "seconds": 0.0281,
    "stage": "c68.what_changed",
    "status": "REFUSED_LEAK"
   },
@@ -590,7 +590,7 @@
    "n_out": 0,
    "phase": "IDENTIFY_FAILURES",
    "reason": "LedgerTampered: the C68 chain under C:\\Users\\Peter\\weekly7\\state\\research\\regate_sequential\\f12_default_s4\\c68 does not verify on opening: chain broken at seq 1680",
-   "seconds": 0.0287,
+   "seconds": 0.0348,
    "stage": "c68.error_research",
    "status": "REFUSED_LEAK"
   },
@@ -601,7 +601,7 @@
    "n_out": 1,
    "phase": "IDENTIFY_FAILURES",
    "reason": "",
-   "seconds": 0.3758,
+   "seconds": 0.4701,
    "stage": "failures.winners_losers",
    "status": "OK"
   },
@@ -612,7 +612,7 @@
    "n_out": 1,
    "phase": "IDENTIFY_FAILURES",
    "reason": "unknown rate 1.00",
-   "seconds": 0.3424,
+   "seconds": 0.5167,
    "stage": "failures.loss_pipeline",
    "status": "OK"
   },
@@ -623,7 +623,7 @@
    "n_out": 1,
    "phase": "IDENTIFY_MISSED_WINNERS_AND_LOSERS",
    "reason": "",
-   "seconds": 0.1597,
+   "seconds": 0.2183,
    "stage": "missed.missed",
    "status": "OK"
   },
@@ -634,7 +634,7 @@
    "n_out": 10,
    "phase": "IDENTIFY_MISSED_WINNERS_AND_LOSERS",
    "reason": "10 classified, 0 immature",
-   "seconds": 0.2171,
+   "seconds": 0.2454,
    "stage": "missed.knowability",
    "status": "OK"
   },
@@ -645,7 +645,7 @@
    "n_out": 1,
    "phase": "IDENTIFY_MISSED_WINNERS_AND_LOSERS",
    "reason": "",
-   "seconds": 0.1346,
+   "seconds": 0.1274,
    "stage": "missed.unknown_cause",
    "status": "OK"
   },
@@ -656,7 +656,7 @@
    "n_out": 3,
    "phase": "IDENTIFY_MISSED_WINNERS_AND_LOSERS",
    "reason": "",
-   "seconds": 1.668,
+   "seconds": 1.6018,
    "stage": "missed.counterfactual",
    "status": "OK"
   },
@@ -678,7 +678,7 @@
    "n_out": 0,
    "phase": "IDENTIFY_PATTERN_BREAKS",
    "reason": "",
-   "seconds": 0.0881,
+   "seconds": 0.1095,
    "stage": "breaks.break_research",
    "status": "OK"
   },
@@ -711,7 +711,7 @@
    "n_out": 0,
    "phase": "GENERATE_QUESTIONS",
    "reason": "",
-   "seconds": 0.0009,
+   "seconds": 0.0007,
    "stage": "questions.precursors",
    "status": "OK"
   },
@@ -722,29 +722,29 @@
    "n_out": 0,
    "phase": "GENERATE_QUESTIONS",
    "reason": "",
-   "seconds": 0.4375,
+   "seconds": 0.6622,
    "stage": "questions.targets",
    "status": "OK"
   },
   {
    "cycle": 50,
    "module": "research_graph",
-   "n_in": 174,
+   "n_in": 147,
    "n_out": 0,
    "phase": "GENERATE_QUESTIONS",
-   "reason": "17 gaps, 17 already asked",
-   "seconds": 0.0627,
+   "reason": "16 gaps, 16 already asked",
+   "seconds": 0.0727,
    "stage": "questions.research_graph",
    "status": "OK"
   },
   {
    "cycle": 50,
    "module": "questions",
-   "n_in": 13,
+   "n_in": 12,
    "n_out": 12,
    "phase": "GENERATE_QUESTIONS",
-   "reason": "12 merged, 0 refused, 0 already answered",
-   "seconds": 0.0196,
+   "reason": "11 merged, 0 refused, 0 already answered",
+   "seconds": 0.0362,
    "stage": "questions.generate",
    "status": "OK"
   },
@@ -755,7 +755,7 @@
    "n_out": 0,
    "phase": "GENERATE_QUESTIONS",
    "reason": "LedgerTampered: the C68 chain under C:\\Users\\Peter\\weekly7\\state\\research\\regate_sequential\\f12_default_s4\\c68 does not verify on opening: chain broken at seq 1680",
-   "seconds": 0.0242,
+   "seconds": 0.0352,
    "stage": "c68.research_depth",
    "status": "REFUSED_LEAK"
   },
@@ -766,18 +766,18 @@
    "n_out": 0,
    "phase": "GENERATE_HYPOTHESES",
    "reason": "0 branches killed, 0 resolved",
-   "seconds": 0.2385,
+   "seconds": 0.4112,
    "stage": "hypotheses.trees",
    "status": "OK"
   },
   {
    "cycle": 50,
    "module": "priority",
-   "n_in": 491,
-   "n_out": 1,
+   "n_in": 469,
+   "n_out": 8,
    "phase": "ESTIMATE_INFORMATION_GAIN",
-   "reason": "learned from 2 results; trust 0.68; IMPLEMENTED \u2014 FAILED VALIDATION",
-   "seconds": 0.3414,
+   "reason": "learned from 2 results; trust 0.66; IMPLEMENTED \u2014 NOT VALIDATED",
+   "seconds": 1.9281,
    "stage": "gain.priority",
    "status": "OK"
   },
@@ -788,7 +788,7 @@
    "n_out": 4,
    "phase": "ALLOCATE_COMPUTE",
    "reason": "Volatility prediction is currently the highest-value maintained problem, so allocate 33% of research compute there.",
-   "seconds": 0.0013,
+   "seconds": 0.002,
    "stage": "allocate.controller",
    "status": "OK"
   },
@@ -799,29 +799,29 @@
    "n_out": 10,
    "phase": "ALLOCATE_COMPUTE",
    "reason": "",
-   "seconds": 0.0142,
+   "seconds": 0.0194,
    "stage": "allocate.diversity",
    "status": "OK"
   },
   {
    "cycle": 50,
    "module": "compute_manager",
-   "n_in": 1,
-   "n_out": 3,
+   "n_in": 8,
+   "n_out": 10,
    "phase": "ALLOCATE_COMPUTE",
-   "reason": "9 deferred",
-   "seconds": 0.1476,
+   "reason": "1 deferred",
+   "seconds": 1.4481,
    "stage": "allocate.compute",
    "status": "OK"
   },
   {
    "cycle": 50,
    "module": "loop",
-   "n_in": 3,
+   "n_in": 10,
    "n_out": 3,
    "phase": "RUN_EXPERIMENT",
    "reason": "mode inline; 0 still running",
-   "seconds": 0.6764,
+   "seconds": 2.7916,
    "stage": "run.experiments",
    "status": "OK"
   },
@@ -832,7 +832,7 @@
    "n_out": 3,
    "phase": "VALIDATE",
    "reason": "0 still running",
-   "seconds": 0.4388,
+   "seconds": 1.1975,
    "stage": "validate.harvest",
    "status": "OK"
   },
@@ -853,8 +853,8 @@
    "n_in": 3,
    "n_out": 3,
    "phase": "UPDATE_KNOWLEDGE_FROM_RESULTS",
-   "reason": "ADVANCE=1, AUDIT=2",
-   "seconds": 0.0083,
+   "reason": "ADVANCE=2, PARK=1",
+   "seconds": 0.0026,
    "stage": "learn.ladder",
    "status": "OK"
   },
@@ -865,7 +865,7 @@
    "n_out": 3,
    "phase": "UPDATE_KNOWLEDGE_FROM_RESULTS",
    "reason": "0 refused by the ledger",
-   "seconds": 0.5397,
+   "seconds": 0.8147,
    "stage": "learn.memory",
    "status": "OK"
   },
@@ -876,7 +876,7 @@
    "n_out": 3,
    "phase": "UPDATE_KNOWLEDGE_FROM_RESULTS",
    "reason": "net value -0.1400",
-   "seconds": 0.002,
+   "seconds": 0.0021,
    "stage": "learn.value",
    "status": "OK"
   },
@@ -886,8 +886,8 @@
    "n_in": 3,
    "n_out": 3,
    "phase": "UPDATE_KNOWLEDGE_FROM_RESULTS",
-   "reason": "15 items; folded 0 graph entries {}; 14 audit findings (0 errors)",
-   "seconds": 0.0283,
+   "reason": "9 items; folded 0 graph entries {}; 8 audit findings (0 errors)",
+   "seconds": 0.0223,
    "stage": "learn.science_memory",
    "status": "OK"
   },
@@ -895,10 +895,10 @@
    "cycle": 50,
    "module": "replication",
    "n_in": 0,
-   "n_out": 0,
+   "n_out": 1,
    "phase": "UPDATE_KNOWLEDGE_FROM_RESULTS",
    "reason": "0 status changes",
-   "seconds": 0.007,
+   "seconds": 0.0182,
    "stage": "learn.replication",
    "status": "OK"
   },
@@ -909,7 +909,7 @@
    "n_out": 0,
    "phase": "UPDATE_KNOWLEDGE_FROM_RESULTS",
    "reason": "no branch completed the ladder this cycle and no earlier finding gained a quarter of new evidence",
-   "seconds": 0.0058,
+   "seconds": 0.0057,
    "stage": "learn.quality_gate",
    "status": "SKIPPED_NO_INPUT"
   },
@@ -920,7 +920,7 @@
    "n_out": 0,
    "phase": "UPDATE_KNOWLEDGE_FROM_RESULTS",
    "reason": "LedgerTampered: the C68 chain under C:\\Users\\Peter\\weekly7\\state\\research\\regate_sequential\\f12_default_s4\\c68 does not verify on opening: chain broken at seq 1680",
-   "seconds": 0.025,
+   "seconds": 0.0278,
    "stage": "c68.validate_promote",
    "status": "REFUSED_LEAK"
   },
@@ -938,22 +938,22 @@
   {
    "cycle": 50,
    "module": "waste",
-   "n_in": 75,
+   "n_in": 104,
    "n_out": 0,
    "phase": "UPDATE_RESEARCH_PRIORITIES",
    "reason": "",
-   "seconds": 0.0045,
+   "seconds": 0.0027,
    "stage": "priorities.waste",
    "status": "OK"
   },
   {
    "cycle": 50,
    "module": "brain_health",
-   "n_in": 91,
+   "n_in": 69,
    "n_out": 1,
    "phase": "UPDATE_RESEARCH_PRIORITIES",
-   "reason": "level ALARM",
-   "seconds": 0.0039,
+   "reason": "level WATCH",
+   "seconds": 0.0034,
    "stage": "priorities.brain_health",
    "status": "OK"
   },
@@ -975,7 +975,7 @@
    "n_out": 0,
    "phase": "UPDATE_RESEARCH_PRIORITIES",
    "reason": "",
-   "seconds": 0.0003,
+   "seconds": 0.0004,
    "stage": "priorities.failed_lab",
    "status": "OK"
   },
@@ -993,11 +993,11 @@
   {
    "cycle": 50,
    "module": "questions",
-   "n_in": 92,
-   "n_out": 0,
+   "n_in": 103,
+   "n_out": 1,
    "phase": "UPDATE_RESEARCH_PRIORITIES",
-   "reason": "113 stalled trees",
-   "seconds": 0.0022,
+   "reason": "103 stalled trees",
+   "seconds": 0.0019,
    "stage": "priorities.stale",
    "status": "OK"
   },
@@ -1008,7 +1008,7 @@
    "n_out": 0,
    "phase": "UPDATE_RESEARCH_PRIORITIES",
    "reason": "LedgerTampered: the C68 chain under C:\\Users\\Peter\\weekly7\\state\\research\\regate_sequential\\f12_default_s4\\c68 does not verify on opening: chain broken at seq 1680",
-   "seconds": 0.0214,
+   "seconds": 0.0411,
    "stage": "c68.monitor_audit",
    "status": "REFUSED_LEAK"
   },
@@ -1019,7 +1019,7 @@
    "n_out": 0,
    "phase": "ALWAYS_ON_SWEEPS",
    "reason": "",
-   "seconds": 0.0002,
+   "seconds": 0.0003,
    "stage": "sweeps.background",
    "status": "OK"
   },
@@ -1036,8 +1036,10 @@
   }
  ],
  "stale": {
-  "abandoned": [],
-  "cancelled": 0,
+  "abandoned": [
+   "Q2b148a1cc702"
+  ],
+  "cancelled": 1,
   "parked": 0,
   "stalled_trees": [
    "t_Q01871569626a",
@@ -1047,48 +1049,48 @@
    "t_Q06c3f6b4b7cc",
    "t_Q089df10a419a",
    "t_Q09c29006d62e",
+   "t_Q0b2a4b294411",
    "t_Q0db99ce69d7d",
-   "t_Q0e1aea03a543",
+   "t_Q10719268d124",
    "t_Q116b73fcac17",
    "t_Q13051b8bb1c3",
    "t_Q14a9ffd6e8f8",
-   "t_Q18b198b11bcf",
-   "t_Q1e37b5ccbc40",
    "t_Q22d36266bafb",
-   "t_Q26e5f0e9572f",
    "t_Q299517d9c6d6",
    "t_Q2caf3e92b87d",
    "t_Q2e5173a599e0",
+   "t_Q2f61ba256ebb",
+   "t_Q30b24abf3a19",
+   "t_Q31c65fb15811",
    "t_Q33f93b26631c",
    "t_Q36e73d44dbac",
    "t_Q3c8b35971be3",
    "t_Q3ca611218e43",
-   "t_Q3d21daf98a80",
    "t_Q412a0ad9162a",
    "t_Q4139f05c0417",
    "t_Q4483d13e6423",
+   "t_Q44bbb1902822",
    "t_Q4509738a11c4",
    "t_Q466106f0a2c5",
-   "t_Q46fec8e497c5",
    "t_Q497d747b0244",
+   "t_Q4b8f48e73b23",
    "t_Q4f1d9190f545",
    "t_Q4fef11088a4c",
    "t_Q50e60a3dd4ac",
-   "t_Q59127011fe82",
    "t_Q5ae1b6ff9b75",
-   "t_Q6265ad1e6e41",
+   "t_Q5b1895a2e6b0",
+   "t_Q5f12ff428129",
+   "t_Q66a55ab43ddb",
    "t_Q671418596b8f",
    "t_Q6818c2ae2401",
-   "t_Q6bc5a8f0bc65",
    "t_Q6dc8cabb3da4",
+   "t_Q7188a8e1223f",
    "t_Q71de2a138e47",
    "t_Q7242af5a169f",
    "t_Q75e3c9675cde",
-   "t_Q769b993730d7",
-   "t_Q789fe09d9f97",
-   "t_Q79275ab7b5e3",
    "t_Q7a3278fb5753",
    "t_Q7e4c16396c8d",
+   "t_Q7f3609f25d47",
    "t_Q8034018ce6f2",
    "t_Q82f2afe26fef",
    "t_Q849193e6394b",
@@ -1096,37 +1098,29 @@
    "t_Q86c063895364",
    "t_Q884e6fb5ab30",
    "t_Q89f124dd6b0d",
-   "t_Q8cb8c29887f6",
    "t_Q8df9106c3f42",
    "t_Q8e49ff800c6c",
    "t_Q959cc97d528e",
    "t_Q96dd5454166b",
-   "t_Q9e862610b420",
    "t_Qa2ecbaa53603",
-   "t_Qa60c16575d03",
    "t_Qa6fd2cc323a3",
-   "t_Qa7a21a5d4a0b",
    "t_Qa806778013c7",
    "t_Qaa801d91cf5a",
    "t_Qab7a3c8afe67",
-   "t_Qadc078ba4919",
+   "t_Qac224d798361",
    "t_Qae740cd3e7a4",
-   "t_Qaef9adcc5b70",
    "t_Qb12335209941",
-   "t_Qb52490c61dae",
+   "t_Qb1c205b7cc7a",
    "t_Qb6ea9fdf982f",
-   "t_Qb87d70fc543b",
    "t_Qbc17950dc9f5",
    "t_Qbcc87b98dbc1",
-   "t_Qbd582e5347b1",
    "t_Qbe37363780ef",
    "t_Qc0359d462eee",
    "t_Qc07fd275429b",
-   "t_Qc2e2ee953abf",
+   "t_Qc0c5e6a4916a",
    "t_Qc31cfbfb78f7",
    "t_Qc3a492923c8f",
    "t_Qc41699e65e99",
-   "t_Qc55e4e34a708",
    "t_Qc6846042be5d",
    "t_Qc7e79e7c5cbc",
    "t_Qc992a033936b",
@@ -1134,25 +1128,23 @@
    "t_Qcc3f15d64b87",
    "t_Qccf70cb91a4e",
    "t_Qcdf52857a18d",
-   "t_Qd0c79049a6e1",
-   "t_Qd10ae1615d0e",
-   "t_Qd1943e45d7fe",
+   "t_Qcf58cb7e25d1",
    "t_Qd1e74ebf2e2d",
+   "t_Qd33560fa4f46",
    "t_Qd4d546bca437",
    "t_Qd77d0d7d34af",
    "t_Qd95b028b2731",
    "t_Qda03e57e3dde",
-   "t_Qdd6fd1b7c9b8",
    "t_Qdf72d79c358b",
    "t_Qe3ad817c8102",
-   "t_Qe486aff47ce2",
    "t_Qe6dd9bebeb77",
+   "t_Qed00956a8720",
+   "t_Qedceb825130e",
    "t_Qf0c837280752",
-   "t_Qf42857e0446e",
    "t_Qf4e332d60c26",
    "t_Qf6d188a6a147",
    "t_Qfb1be12497e6",
-   "t_Qfbc1ce2531c2"
+   "t_Qfe7d4bafb673"
   ]
  },
  "statements": [
