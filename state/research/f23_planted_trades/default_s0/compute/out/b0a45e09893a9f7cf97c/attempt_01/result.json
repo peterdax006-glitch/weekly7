@@ -1,0 +1,63 @@
+{
+ "attempt": 1,
+ "code_hash": "9b577e73132d6003",
+ "data_hash": "",
+ "ended": 1790805361.1212127,
+ "experiment_key": "b0a45e09893a9f7cf97c",
+ "result": {
+  "branch_id": "BR5224b8909968",
+  "control_effect": -0.013288092936,
+  "control_se": 0.014812669518,
+  "cutoff": "2017-09-22",
+  "data_through": "2017-09-22",
+  "effect": 0.363874510535,
+  "feature": "xs_atr_rank",
+  "fresh": false,
+  "key": "b0a45e09893a9f7cf97c",
+  "kind": "volatility_auc",
+  "n_obs": 50,
+  "n_positive": 1,
+  "n_rows": 2241,
+  "n_tests": 1,
+  "n_units": 5,
+  "ok": true,
+  "problem": "VOLATILITY",
+  "replications": 4,
+  "se": 0.00826305715,
+  "seen_through": "2017-08-18",
+  "sign": 1.0,
+  "stage": "STAGE3_CROSS_YEAR",
+  "unit_effects": [
+   0.286493225139,
+   0.371232402668,
+   0.354806907134,
+   0.387542637793,
+   0.367312472492
+  ],
+  "units_positive": 5
+ },
+ "result_hash": "056756063a4c0b9365ed",
+ "run_key": "b8ab85e2667793757579",
+ "seed": 93809768,
+ "snapshot_id": "",
+ "spec": {
+  "after": [],
+  "as_of": "2017-09-29",
+  "data_hash": "",
+  "est_gb": 2.5,
+  "name": "BR5224b8909968_s3",
+  "params": {
+   "branch": "BR5224b8909968",
+   "cpu_min": 96.0,
+   "family": "question:new_discovery",
+   "question": "Q7188a8e1223f",
+   "repeat": 0,
+   "stage": "STAGE3_CROSS_YEAR"
+  },
+  "priority": 3,
+  "seed": 0,
+  "snapshot_id": ""
+ },
+ "started": 1790805360.7410762,
+ "worker": "w28204"
+}

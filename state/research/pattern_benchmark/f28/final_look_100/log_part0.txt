@@ -1,1 +1,4 @@
 15:48:55 run final_look_100 part 0/2 pid 6196 code 939fadd26f6447b9
+15:59:25 W00000 heldout tier 6: real 2/18 FP 0 {} 630s
+16:05:13 W00002 development tier 3: real 3/18 FP 0 {} 348s
+16:11:03 W00004 heldout tier 3: real 6/21 FP 0 {} 350s

@@ -1,1 +1,4 @@
 15:49:16 run final_look_100 part 1/2 pid 9644 code 939fadd26f6447b9
+15:59:03 W00001 development tier 4: real 6/21 FP 0 {} 588s
+16:07:54 W00003 development tier 6: real 3/19 FP 0 {} 530s
+16:13:14 W00005 development tier 2: real 5/16 FP 0 {} 320s
