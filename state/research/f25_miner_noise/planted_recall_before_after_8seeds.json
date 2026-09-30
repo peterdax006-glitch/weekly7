@@ -1,0 +1,370 @@
+{
+ "standard": {
+  "before": {
+   "runs": 8,
+   "false": 22,
+   "false_true": 9,
+   "plants": {
+    "strong": {
+     "should": true,
+     "admitted": 8,
+     "via_child": 0
+    },
+    "weak": {
+     "should": true,
+     "admitted": 8,
+     "via_child": 0
+    },
+    "negative": {
+     "should": true,
+     "admitted": 8,
+     "via_child": 0
+    },
+    "regime": {
+     "should": true,
+     "admitted": 3,
+     "via_child": 3
+    },
+    "pair": {
+     "should": true,
+     "admitted": 8,
+     "via_child": 0
+    },
+    "unless": {
+     "should": true,
+     "admitted": 2,
+     "via_child": 6
+    },
+    "hallucinated": {
+     "should": false,
+     "admitted": 0,
+     "via_child": 5
+    },
+    "decaying": {
+     "should": false,
+     "admitted": 0,
+     "via_child": 6
+    },
+    "zero": {
+     "should": false,
+     "admitted": 0,
+     "via_child": 2
+    }
+   }
+  },
+  "after": {
+   "runs": 8,
+   "false": 19,
+   "false_true": 6,
+   "plants": {
+    "strong": {
+     "should": true,
+     "admitted": 8,
+     "via_child": 0
+    },
+    "weak": {
+     "should": true,
+     "admitted": 8,
+     "via_child": 0
+    },
+    "negative": {
+     "should": true,
+     "admitted": 8,
+     "via_child": 0
+    },
+    "regime": {
+     "should": true,
+     "admitted": 2,
+     "via_child": 3
+    },
+    "pair": {
+     "should": true,
+     "admitted": 8,
+     "via_child": 0
+    },
+    "unless": {
+     "should": true,
+     "admitted": 2,
+     "via_child": 6
+    },
+    "hallucinated": {
+     "should": false,
+     "admitted": 0,
+     "via_child": 3
+    },
+    "decaying": {
+     "should": false,
+     "admitted": 0,
+     "via_child": 5
+    },
+    "zero": {
+     "should": false,
+     "admitted": 0,
+     "via_child": 2
+    }
+   }
+  }
+ },
+ "noise_only": {
+  "before": {
+   "runs": 8,
+   "false": 2,
+   "false_true": 2,
+   "plants": {
+    "zero": {
+     "should": false,
+     "admitted": 0,
+     "via_child": 0
+    }
+   }
+  },
+  "after": {
+   "runs": 8,
+   "false": 0,
+   "false_true": 0,
+   "plants": {
+    "zero": {
+     "should": false,
+     "admitted": 0,
+     "via_child": 0
+    }
+   }
+  }
+ },
+ "heavy_tails": {
+  "before": {
+   "runs": 8,
+   "false": 14,
+   "false_true": 4,
+   "plants": {
+    "strong": {
+     "should": true,
+     "admitted": 8,
+     "via_child": 0
+    },
+    "weak": {
+     "should": true,
+     "admitted": 7,
+     "via_child": 1
+    },
+    "negative": {
+     "should": true,
+     "admitted": 8,
+     "via_child": 0
+    },
+    "regime": {
+     "should": true,
+     "admitted": 4,
+     "via_child": 1
+    },
+    "pair": {
+     "should": true,
+     "admitted": 8,
+     "via_child": 0
+    },
+    "unless": {
+     "should": true,
+     "admitted": 1,
+     "via_child": 7
+    },
+    "hallucinated": {
+     "should": false,
+     "admitted": 0,
+     "via_child": 1
+    },
+    "decaying": {
+     "should": false,
+     "admitted": 0,
+     "via_child": 5
+    },
+    "zero": {
+     "should": false,
+     "admitted": 0,
+     "via_child": 1
+    }
+   }
+  },
+  "after": {
+   "runs": 8,
+   "false": 12,
+   "false_true": 2,
+   "plants": {
+    "strong": {
+     "should": true,
+     "admitted": 8,
+     "via_child": 0
+    },
+    "weak": {
+     "should": true,
+     "admitted": 7,
+     "via_child": 1
+    },
+    "negative": {
+     "should": true,
+     "admitted": 8,
+     "via_child": 0
+    },
+    "regime": {
+     "should": true,
+     "admitted": 3,
+     "via_child": 2
+    },
+    "pair": {
+     "should": true,
+     "admitted": 8,
+     "via_child": 0
+    },
+    "unless": {
+     "should": true,
+     "admitted": 1,
+     "via_child": 7
+    },
+    "hallucinated": {
+     "should": false,
+     "admitted": 0,
+     "via_child": 1
+    },
+    "decaying": {
+     "should": false,
+     "admitted": 0,
+     "via_child": 4
+    },
+    "zero": {
+     "should": false,
+     "admitted": 0,
+     "via_child": 1
+    }
+   }
+  }
+ },
+ "power_0.002": {
+  "before": {
+   "runs": 8,
+   "false": 3,
+   "false_true": 3,
+   "plants": {
+    "strong": {
+     "should": true,
+     "admitted": 1,
+     "via_child": 0
+    }
+   }
+  },
+  "after": {
+   "runs": 8,
+   "false": 0,
+   "false_true": 0,
+   "plants": {
+    "strong": {
+     "should": true,
+     "admitted": 0,
+     "via_child": 0
+    }
+   }
+  }
+ },
+ "power_0.004": {
+  "before": {
+   "runs": 8,
+   "false": 2,
+   "false_true": 2,
+   "plants": {
+    "strong": {
+     "should": true,
+     "admitted": 6,
+     "via_child": 0
+    }
+   }
+  },
+  "after": {
+   "runs": 8,
+   "false": 0,
+   "false_true": 0,
+   "plants": {
+    "strong": {
+     "should": true,
+     "admitted": 5,
+     "via_child": 0
+    }
+   }
+  }
+ },
+ "power_0.006": {
+  "before": {
+   "runs": 8,
+   "false": 2,
+   "false_true": 0,
+   "plants": {
+    "strong": {
+     "should": true,
+     "admitted": 8,
+     "via_child": 0
+    }
+   }
+  },
+  "after": {
+   "runs": 8,
+   "false": 0,
+   "false_true": 0,
+   "plants": {
+    "strong": {
+     "should": true,
+     "admitted": 8,
+     "via_child": 0
+    }
+   }
+  }
+ },
+ "power_0.009": {
+  "before": {
+   "runs": 8,
+   "false": 7,
+   "false_true": 0,
+   "plants": {
+    "strong": {
+     "should": true,
+     "admitted": 8,
+     "via_child": 0
+    }
+   }
+  },
+  "after": {
+   "runs": 8,
+   "false": 7,
+   "false_true": 0,
+   "plants": {
+    "strong": {
+     "should": true,
+     "admitted": 8,
+     "via_child": 0
+    }
+   }
+  }
+ },
+ "power_0.012": {
+  "before": {
+   "runs": 8,
+   "false": 6,
+   "false_true": 0,
+   "plants": {
+    "strong": {
+     "should": true,
+     "admitted": 8,
+     "via_child": 0
+    }
+   }
+  },
+  "after": {
+   "runs": 8,
+   "false": 6,
+   "false_true": 0,
+   "plants": {
+    "strong": {
+     "should": true,
+     "admitted": 8,
+     "via_child": 0
+    }
+   }
+  }
+ }
+}

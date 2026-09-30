@@ -147,6 +147,8 @@ class CalibrationEvidence:
     p: tuple[float, ...] = ()
     y: tuple[int, ...] = ()
     seed: int = 0
+    reference: tuple[float, ...] = ()          # F26: the forecast the claim is measured against (empty = the pooled base rate)
+    claim: str = ""                            # what the forecasts state, e.g. a within-date lift over the date's outcome rate
 
 
 @dataclass(frozen=True)
@@ -436,6 +438,76 @@ def gate_replication(a: RP.ReplicationAssessment | None, pol: QualityPolicy) -> 
     return _out(g, MISSING, f"{a.status.value}: {'; '.join(a.reasons[:2]) or 'requirements unmet'}", crit, m)
 
 
+def logit(p) -> np.ndarray:
+    q = np.clip(np.asarray(p, dtype=float), 1e-9, 1 - 1e-9)
+    return np.log(q / (1 - q))
+
+
+def expit(z) -> np.ndarray:
+    return 1.0 / (1.0 + np.exp(-np.clip(np.asarray(z, dtype=float), -500, 500)))
+
+
+def logistic_offset_fit(x, y, offset=None, iters: int = 100, tol: float = 1e-10) -> dict[str, Any]:
+    """P(y = 1) = expit(offset + a + b x) by DAMPED Newton (step halving until the log-likelihood improves), with standard errors
+    from the inverse Fisher information. F26: engine.learning.calibration.platt_slope takes full Newton steps and oscillates to
+    |b| ~ 1e7 when the log-odds are nearly flat in x (a weak ranking, a rank input); this fit cannot diverge. `converged` is False
+    when the gradient did not vanish (the caller must then refuse to use a, b)."""
+    x, y = np.asarray(x, dtype=float), np.asarray(y, dtype=float)
+    o = np.zeros_like(x) if offset is None else np.asarray(offset, dtype=float)
+    nan = float("nan")
+    if len(x) < 10 or float(y.min()) == float(y.max()) or not (np.isfinite(x).all() and np.isfinite(o).all()):
+        return {"a": nan, "b": nan, "se_a": nan, "se_b": nan, "b_lo": nan, "b_hi": nan, "converged": False, "n": int(len(x))}
+
+    def nll(a: float, b: float) -> float:
+        z = o + a + b * x
+        return float(np.sum(np.logaddexp(0.0, z) - y * z))
+    a, b = 0.0, 0.0
+    cur = nll(a, b)
+    H = np.eye(2)
+    g = np.ones(2)
+    for _ in range(iters):
+        q = expit(o + a + b * x)
+        wv = np.clip(q * (1 - q), 1e-12, None)
+        g = np.array([np.sum(q - y), np.sum((q - y) * x)])
+        H = np.array([[wv.sum(), (wv * x).sum()], [(wv * x).sum(), (wv * x * x).sum()]]) + 1e-9 * np.eye(2)
+        step = np.linalg.solve(H, g)
+        t = 1.0
+        while t > 1e-6:
+            na, nb = a - t * step[0], b - t * step[1]
+            new = nll(na, nb)
+            if new <= cur + 1e-12:
+                break
+            t /= 2
+        a, b, cur = na, nb, new
+        if np.abs(t * step).max() < tol:
+            break
+    q = expit(o + a + b * x)
+    g = np.array([np.sum(q - y), np.sum((q - y) * x)])
+    cov = np.linalg.pinv(H)
+    sa, sb = math.sqrt(max(cov[0, 0], 0.0)), math.sqrt(max(cov[1, 1], 0.0))
+    conv = bool(np.all(np.isfinite([a, b])) and np.abs(g).max() <= 1e-4 * max(1.0, len(x)))
+    return {"a": float(a), "b": float(b), "se_a": sa, "se_b": sb, "b_lo": float(b - 1.96 * sb), "b_hi": float(b + 1.96 * sb),
+            "converged": conv, "n": int(len(x))}
+
+
+def recalibration_slope(p, y, reference=None) -> dict[str, Any]:
+    """The recalibration slope b of P(y) = expit(a + b logit p) (reference None) or, for a conditional claim, of the claimed LIFT:
+    P(y) = expit(logit ref + a + b (logit p - logit ref)). b < 1: the claim is too extreme (overconfident). Uses
+    engine.learning.calibration.platt_slope when it converges and the damped fit otherwise (platt_slope's undamped Newton diverges on
+    nearly flat forecasts - reported to its owner)."""
+    p, y = np.asarray(p, dtype=float), np.asarray(y, dtype=float)
+    if reference is None:
+        r = CAL.platt_slope(p, y)
+        if all(math.isfinite(r.get(k, float("nan"))) for k in ("a", "b", "se_b")):
+            q = expit(r["a"] + r["b"] * logit(p))
+            grad = max(abs(float(np.sum(q - y))), abs(float(np.sum((q - y) * logit(p)))))
+            if grad <= 1e-4 * max(1.0, len(p)):
+                return {**r, "converged": True}
+        return logistic_offset_fit(logit(p), y)
+    lr = logit(reference)
+    return logistic_offset_fit(logit(p) - lr, y, lr)
+
+
 def gate_calibration(ev: CalibrationEvidence | None, outputs_probabilities: bool, pol: QualityPolicy) -> GateOutcome:
     g, crit = "calibration", True
     if not outputs_probabilities:
@@ -451,23 +523,33 @@ def gate_calibration(ev: CalibrationEvidence | None, outputs_probabilities: bool
         return _out(g, MISSING, f"{len(p)} forecasts < {pol.min_calibration_n}", crit, {"n": int(len(p))}, PR._margin(len(p), pol.min_calibration_n))
     if float(y.min()) == float(y.max()):
         return _out(g, MISSING, "outcomes are constant: calibration cannot be assessed", crit)
+    ref = np.asarray(ev.reference, dtype=float) if ev.reference else None
+    if ref is not None and (ref.shape != p.shape or not np.isfinite(ref).all() or ref.min() <= 0 or ref.max() >= 1):
+        return _out(g, FAIL, "malformed reference forecasts: one per forecast, each strictly inside (0, 1)", crit)
     ece = CAL.ece_equal_mass(p, y, pol.calibration_bins)
     null_p = CAL.ece_null_pvalue(p, pol.calibration_bins, ece, np.random.default_rng(ev.seed), pol.calibration_sims)
-    base = float(y.mean())
     brier = CAL.brier(p, y)
-    skill = 1.0 - brier / max(base * (1 - base), 1e-12)
-    slope = CAL.platt_slope(p, y)
+    if ref is None:                                   # the claim is an absolute probability: the reference is the pooled base rate
+        base = float(y.mean())
+        ref_brier, ref_name = max(base * (1 - base), 1e-12), "the base rate"
+    else:                                             # F26: a conditional claim is judged by what it adds over its own reference
+        ref_brier, ref_name = max(CAL.brier(ref, y), 1e-12), "the reference forecast"
+    skill = 1.0 - brier / ref_brier
+    slope = recalibration_slope(p, y, ref)
     over = CAL.overconfidence(p, y)
     problems = []
     if ece > pol.max_ece and null_p < pol.ece_alpha:
         problems.append(f"ECE {ece:.3f} > {pol.max_ece} and beyond what perfect calibration would give (p={null_p:.3f})")
-    if math.isfinite(slope["b_hi"]) and slope["b_hi"] < pol.min_slope:
+    if not slope["converged"]:
+        problems.append("the recalibration slope did not converge: the forecasts' calibration cannot be established")
+    elif math.isfinite(slope["b_hi"]) and slope["b_hi"] < pol.min_slope:
         problems.append(f"calibration slope {slope['b']:.2f} (upper bound {slope['b_hi']:.2f}) < {pol.min_slope}: overconfident")
     if math.isfinite(over["excess"]) and over["excess"] > pol.max_overconfidence:
         problems.append(f"confidence exceeds accuracy by {over['excess']:.3f}")
     if skill <= pol.min_brier_skill:
-        problems.append(f"Brier skill {skill:+.3f} over the base rate: forecasts add nothing")
-    m = {"ece": ece, "ece_null_p": null_p, "brier": brier, "brier_skill": skill, "slope": slope["b"], "excess": over["excess"], "n": int(len(p))}
+        problems.append(f"Brier skill {skill:+.3f} over {ref_name}: forecasts add nothing")
+    m = {"ece": ece, "ece_null_p": null_p, "brier": brier, "brier_skill": skill, "slope": slope["b"], "excess": over["excess"], "n": int(len(p)),
+         "reference": ref_name, "claim": ev.claim}
     return _out(g, FAIL if problems else PASS, "; ".join(problems) or f"ECE {ece:.3f}, slope {slope['b']:.2f}, Brier skill {skill:+.3f}", crit, m,
                 PR._margin(pol.max_ece, ece))
 
@@ -1010,17 +1092,88 @@ def screen_label_leak(X: pd.DataFrame, y: pd.Series, max_abs_corr: float = 0.9, 
         ok = col.notna() & yy.notna()
         if ok.sum() < min_rows:
             continue
-        rho = float(col[ok].rank().corr(yy[ok].rank()))
-        if math.isfinite(rho) and abs(rho) >= max_abs_corr:
-            out.append(f"feature {c!r} has rank correlation {rho:+.3f} with the forward return: it contains the answer")
+        rc = col[ok].rank()
+        # F26: the forward return AND its magnitude (|y|; y^2 and any monotone function of |y| have the same ranks): a feature built
+        # from |outcome| has ~0 correlation with the signed return and passed the old screen untouched
+        for what, target in (("the forward return", yy[ok]), ("the forward return's magnitude |y|", yy[ok].abs())):
+            rho = float(rc.corr(target.rank()))
+            if math.isfinite(rho) and abs(rho) >= max_abs_corr:
+                out.append(f"feature {c!r} has rank correlation {rho:+.3f} with {what}: it contains the answer")
     return out
 
 
+def _cell_center(v: np.ndarray, cell: np.ndarray) -> np.ndarray:
+    return v - pd.Series(v).groupby(cell).transform("mean").to_numpy()
+
+
+def _cell_corr(a: np.ndarray, b: np.ndarray, cell: np.ndarray) -> pd.Series:
+    """Per cell: the Pearson correlation of two already-centred arrays."""
+    s = pd.DataFrame({"ab": a * b, "aa": a * a, "bb": b * b}).groupby(cell).sum()
+    with np.errstate(invalid="ignore", divide="ignore"):
+        return s["ab"] / np.sqrt(s["aa"] * s["bb"])
+
+
+def _cell_resid(v: np.ndarray, c: np.ndarray | None, cell: np.ndarray) -> np.ndarray:
+    """Centred v with its within-cell linear dependence on the centred control c removed (partial correlation)."""
+    if c is None:
+        return v
+    s = pd.DataFrame({"vc": v * c, "cc": c * c}).groupby(cell).sum()
+    with np.errstate(invalid="ignore", divide="ignore"):
+        beta = (s["vc"] / s["cc"]).replace([np.inf, -np.inf], np.nan).fillna(0.0)
+    return v - pd.Series(cell).map(beta).to_numpy(float) * c
+
+
+def screen_future_dependence(x: pd.Series, label: pd.Series, future_mag: pd.Series, past_mag: pd.Series, control: pd.Series | None = None,
+                             z_bar: float = 5.0, min_cell: int = 6, name: str = "feature") -> tuple[list[str], dict[str, Any]]:
+    """F26 (F19 failure 1: 111 of 112 false positives were features built from |outcome|). A value recorded at the decision cannot
+    know how the coming outcome REALISES beyond its probability. Within each (date, outcome class) cell - conditioning on the label
+    removes everything a genuine predictor of the event legitimately knows - the feature's rank correlation with the FUTURE outcome
+    magnitude is compared with its correlation with a PAST, already-known magnitude of the same names (`past_mag`: an outcome that
+    matured before the decision), both partialled on `control` (the audited point-in-time volatility state, when present). A persistent
+    state variable (volatility, size) relates to past and future magnitudes alike; a measurement of the coming outcome relates to the
+    future one only. The screen fires when the mean future-minus-past difference over cells is `z_bar` standard errors above zero -
+    a family-wise bar the caller sets from its search size (evidence.leak_bar: Bonferroni over every feature scanned, so a null feature
+    anywhere in the search crosses it with probability <= its alpha). Returns (findings, measures). A screen, not a
+    proof: it only ADDS findings, and a feature with a documented availability time is released through the quarantine store on new
+    evidence. Known limit: a genuinely new, dated magnitude signal (a scheduled event inside the window) has the same signature and needs
+    its availability documented before it can pass."""
+    df = pd.DataFrame({"x": x.to_numpy(float), "f": future_mag.reindex(x.index).to_numpy(float), "p": past_mag.reindex(x.index).to_numpy(float),
+                       "y": label.reindex(x.index).to_numpy(float), "d": pd.factorize(x.index.get_level_values(0), sort=True)[0]})
+    if control is not None:
+        df["c"] = control.reindex(x.index).to_numpy(float)
+    df = df.replace([np.inf, -np.inf], np.nan).dropna()
+    empty = {"cells": 0, "rho_future": None, "rho_past": None, "z": None}
+    if not len(df):
+        return [], empty
+    cell = (df["d"].to_numpy() * 2 + (df["y"].to_numpy() >= 0.5)).astype(np.int64)
+    n = pd.Series(cell).groupby(cell).transform("size").to_numpy()
+    keep = n >= min_cell
+    df, cell = df[keep], cell[keep]
+    if len(df) == 0:
+        return [], empty
+    rk = {k: _cell_center(pd.Series(df[k].to_numpy()).groupby(cell).rank().to_numpy(float), cell) for k in df.columns if k in ("x", "f", "p", "c")}
+    ctl = rk.get("c")
+    rx, rf, rp = (_cell_resid(rk[k], ctl, cell) for k in ("x", "f", "p"))
+    cf, cp = _cell_corr(rx, rf, cell), _cell_corr(rx, rp, cell)
+    diff = (cf - cp).replace([np.inf, -np.inf], np.nan).dropna()
+    if len(diff) < 10 or float(diff.std(ddof=1)) <= 0:
+        return [], {**empty, "cells": int(len(diff))}
+    z = float(diff.mean() / (diff.std(ddof=1) / math.sqrt(len(diff))))
+    m = {"cells": int(len(diff)), "rho_future": float(cf.mean()), "rho_past": float(cp.mean()), "z": z}
+    if z >= z_bar:
+        return [f"{name} knows how the coming outcome realises: within date and outcome class its rank correlation with the future "
+                f"magnitude is {m['rho_future']:+.3f} against {m['rho_past']:+.3f} with an already-known past magnitude (z = {z:.1f} over "
+                f"{m['cells']} cells): a value recorded at the decision cannot carry that"], m
+    return [], m
+
+
 def leak_evidence_from_panel(X: pd.DataFrame, y: pd.Series, firewall: FW.GateVerdict | None, planted_probe_caught: bool | None,
-                             outcomes_after_now: int, sealed_touched: Sequence[str] = ()) -> LeakEvidence:
+                             outcomes_after_now: int, sealed_touched: Sequence[str] = (), extra_findings: Sequence[str] = ()) -> LeakEvidence:
     """LeakEvidence whose findings include the panel screen, so the leak gate quarantines a label-in-features panel even when the
-    caller forgot to run the firewall on it."""
-    return LeakEvidence(True, firewall, planted_probe_caught, tuple(screen_label_leak(X, y)), tuple(sealed_touched), int(outcomes_after_now))
+    caller forgot to run the firewall on it. `extra_findings` (F26): the candidate's own construction audit and future-dependence
+    screen."""
+    return LeakEvidence(True, firewall, planted_probe_caught, tuple(screen_label_leak(X, y)) + tuple(extra_findings), tuple(sealed_touched),
+                        int(outcomes_after_now))
 
 
 # ------------------------------------------------------------------------------------------------ comparing and logging decisions

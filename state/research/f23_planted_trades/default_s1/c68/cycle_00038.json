@@ -1,0 +1,180 @@
+{
+ "cycle": 38,
+ "now": "2018-02-02",
+ "label": "IMPLEMENTED - NOT VALIDATED",
+ "counters": {
+  "expectations": 49,
+  "outcomes": 47,
+  "errors": 47,
+  "market_reports_sent": 2,
+  "investigations": 19,
+  "promotion_held_by_regime": 0
+ },
+ "ledgers": {
+  "expectations": 49,
+  "outcomes": 47,
+  "errors": 47,
+  "commitments": 49,
+  "pipeline_events": 918,
+  "pipeline_furthest": {
+   "EXPECTATION": 2,
+   "CAUSE": 4,
+   "HYPOTHESIS": 9,
+   "RESEARCH": 34,
+   "VALIDATION": 13,
+   "REJECTED": 132
+  }
+ },
+ "calibration": {
+  "now": "2018-02-02",
+  "target": {
+   "tolerance": 0.01,
+   "goal_share": 0.8,
+   "min_n": 200,
+   "min_oos_n": 100,
+   "level": 0.95,
+   "name": "pm1pp_80"
+  },
+  "status": "INSUFFICIENT_SAMPLE",
+  "n_committed": 48,
+  "n_matured": 47,
+  "n_resolved": 47,
+  "n_unresolved": 0,
+  "all_": {
+   "n": 47,
+   "hits": 2,
+   "share": 0.0425531914893617,
+   "lo": 0.011748275966789345,
+   "hi": 0.1424852767789945,
+   "boot_lo": 0.0,
+   "boot_hi": 0.10638297872340426
+  },
+  "oos": {
+   "n": 47,
+   "hits": 2,
+   "share": 0.0425531914893617,
+   "lo": 0.011748275966789345,
+   "hi": 0.1424852767789945,
+   "boot_lo": 0.0,
+   "boot_hi": 0.10638297872340426
+  },
+  "resolved_only": {
+   "n": 47,
+   "hits": 2,
+   "share": 0.0425531914893617,
+   "lo": 0.011748275966789345,
+   "hi": 0.1424852767789945,
+   "boot_lo": 0.0,
+   "boot_hi": 0.10638297872340426
+  },
+  "bias": -0.01598552758310752,
+  "mae": 0.07768106504349999,
+  "naive_share": 0.11904761904761904,
+  "required_n": null,
+  "abuses": [],
+  "by_cohort": [
+   [
+    "-",
+    {
+     "n": 47,
+     "hits": 2,
+     "share": 0.0425531914893617,
+     "lo": 0.011748275966789345,
+     "hi": 0.1424852767789945,
+     "boot_lo": 0.0,
+     "boot_hi": 0.10638297872340426
+    }
+   ]
+  ],
+  "headline": "4.3% of 47 matured predictions landed within +-1pp of the committed prediction (95% CI 1.2%-14.2%); out of sample 4.3% of 47 (CI 1.2%-14.2%, block bootstrap 0.0%-10.6%). Goal 80%: sample too small to judge (need 200 overall and 100 out of sample). A no-skill median forecast scores 11.9% on the same sample."
+ },
+ "influence": {
+  "mom_r20_top": 1.0,
+  "rev_r5_bottom": 1.0,
+  "vol_top": 1.0
+ },
+ "verdicts": {
+  "mom_r20_top": "NORMAL_VARIANCE",
+  "rev_r5_bottom": "NORMAL_VARIANCE",
+  "vol_top": "RETURNING"
+ },
+ "guard": {
+  "mom_r20_top": "KEEP",
+  "rev_r5_bottom": "KEEP",
+  "vol_top": "KEEP"
+ },
+ "production": {
+  "name": "incumbent",
+  "since": "",
+  "window_share": 1.0,
+  "extra_features": []
+ },
+ "regime_records": [],
+ "identification": null,
+ "stage_runs": [
+  {
+   "cycle": 38,
+   "now": "2018-02-02",
+   "stage": "c68.selection_policy",
+   "in": 3800,
+   "out": 1,
+   "note": "policy Lbfb18d1f (threshold 0.0002); gain model fitted n=3800 base in-band 0.074; influence mom_r20_top=1.00, rev_r5_bottom=0.50, vol_top=1.00"
+  },
+  {
+   "cycle": 38,
+   "now": "2018-02-02",
+   "stage": "c68.expectations",
+   "in": 1,
+   "out": 1,
+   "note": "1 expectation(s) frozen before the 2018-02-05 fill"
+  },
+  {
+   "cycle": 38,
+   "now": "2018-02-02",
+   "stage": "c68.market_regime",
+   "in": 6,
+   "out": 3,
+   "note": "5 session(s), 3 alarm(s), warning WATCH (UNCLEAR); 1 market period(s); regime records +0, status changes []"
+  },
+  {
+   "cycle": 38,
+   "now": "2018-02-02",
+   "stage": "c68.pattern_change",
+   "in": 3,
+   "out": 1,
+   "note": "verdicts {'NORMAL_VARIANCE': 2, 'RETURNING': 1}; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00; regime none; 0 to investigate"
+  },
+  {
+   "cycle": 38,
+   "now": "2018-02-02",
+   "stage": "c68.outcomes_errors",
+   "in": 1,
+   "out": 1,
+   "note": "1 exit(s) by the learned policy, 1 error report(s), 0 unreconstructable, 44 candidate gain(s) resolved"
+  },
+  {
+   "cycle": 38,
+   "now": "2018-02-02",
+   "stage": "c68.what_changed",
+   "in": 1,
+   "out": 1,
+   "note": "classes {'CURRENTLY_UNEXPLAINED': 1}; 0 unknowable preserved; 0 tree(s) into the loop forest; 0 waiting"
+  },
+  {
+   "cycle": 38,
+   "now": "2018-02-02",
+   "stage": "c68.error_research",
+   "in": 1,
+   "out": 23,
+   "note": "2018-02-02: 1 new errors, tiers {'NONE': 1, 'CHEAP': 0, 'STANDARD': 0, 'DEEP': 0}, 0 confident-wrong, 1 escalated groups, 12 jobs (118 cpu-min requested); 12 question event(s), 0 repeated-surprise event(s), 11 self-research question(s), 0 m"
+  },
+  {
+   "cycle": 38,
+   "now": "2018-02-02",
+   "stage": "c68.validate_promote",
+   "in": 1675,
+   "out": 4,
+   "note": "4 fix(es) tested alone and gated; deterioration: no (MAE 0.0327 -> 0.0304, p=0.854); promoted [] (0 applied); production incumbent; rolled back 0"
+  }
+ ]
+}

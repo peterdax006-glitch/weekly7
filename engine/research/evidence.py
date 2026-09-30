@@ -30,6 +30,7 @@ Re-gating one finding as its evidence grows (F12) is a sequential design, `Seque
 alpha over all looks, and a finding is retired on measured futility, never on a count of looks."""
 from __future__ import annotations
 
+import contextlib
 import dataclasses
 import math
 from typing import Any, Mapping, Sequence
@@ -54,8 +55,12 @@ class EvidenceConfig:
     top_q: float = 0.80                  # the rule's 'selection' for risk and calibration: its top quintile
     perturb_sd: float = 0.25             # planted data degradation: noise added to the feature, in its own sd units
     identity_boot: int = 100
-    repl_block: int = 13                 # decision dates per replication run: consecutive, non-overlapping quarters of the test period
+    repl_block: int = 13                 # the SHORTEST replication run: a quarter of consecutive, non-overlapping test dates
+    repl_max_block: int = 52             # F26: the longest run a power design may ask for (a year of weekly dates)
     repl_min_periods: int = 12
+    leak_alpha: float = 0.05             # F26: family-wise level of the future-dependence screen over the whole search (both signs)
+    leak_z_floor: float = 3.0            # ... and its bar is never below this z, however small the search
+    leak_min_cell: int = 6               # rows per (date, outcome class) cell the future-dependence screen needs
     cal_rows: int = 4000
     seeds: tuple = (1, 1, 2, 3)          # reproducibility reruns: one seed repeated (determinism) and fresh seeds
     catastrophic: float = -0.20
@@ -75,8 +80,11 @@ class EvidenceConfig:
             errs.append("purge_days >= horizon_days, top_q in [0.5,1), perturb_sd > 0 required")
         if len(self.seeds) < 3 or len(set(self.seeds)) < 2 or len(set(self.seeds)) == len(self.seeds):
             errs.append("seeds need >= 3 reruns, >= 2 distinct seeds and one repeated seed")
-        if self.repl_block < 4:
-            errs.append("repl_block >= 4 dates required (a replication run needs periods to speak)")
+        if self.repl_block < 4 or self.repl_max_block < self.repl_block:
+            errs.append("repl_block >= 4 dates and repl_max_block >= repl_block required (a replication run needs periods to speak)")
+        if not 0.0 < self.leak_alpha <= 0.1 or self.leak_z_floor < 3.0 or self.leak_min_cell < 4:
+            errs.append("leak_alpha in (0, 0.1], leak_z_floor >= 3 and leak_min_cell >= 4 required: the future-dependence screen must "
+                        "not fire on noise")
         if not 0.05 <= self.align_min_frac <= self.orient_frac <= self.align_max_frac <= 0.6:
             errs.append("0.05 <= align_min_frac <= orient_frac <= align_max_frac <= 0.6 required")
         if not 0.0 < self.max_failure_rate <= 0.25:
@@ -91,11 +99,12 @@ class FindingSpec:
     feature: str
     sign: float = 1.0
     problem: str = "VOLATILITY"
-    n_tests_searched: int = 1            # how many features the search screened before this one (multiplicity)
+    n_tests_searched: int = 1            # how many candidates the search RAISED before this one
     has_falsifier: bool = False          # science memory holds a declared falsifier (a retirement trigger) for this finding
     experiment_id: str = ""
     run_id: str = "research"
     seed: int = 0
+    n_scanned: int = 0                   # F26: how many features the screen SCORED to raise it (0 = not reported by the caller)
 
     def validate(self) -> list[str]:
         from engine.research import vol_hypotheses as VH
@@ -106,7 +115,16 @@ class FindingSpec:
             errs.append(f"unknown derived feature {self.feature!r}")
         if self.sign not in (1.0, -1.0):
             errs.append("sign must be +1 or -1")
+        if self.n_tests_searched < 1 or self.n_scanned < 0:
+            errs.append("n_tests_searched >= 1 and n_scanned >= 0 required")
         return errs
+
+    @property
+    def n_search(self) -> int:
+        """F26 (F19 failure 6): the multiplicity the gate corrects for is the size of the SEARCH - every feature the screen scored - not
+        the number of candidates it raised. The screen chose this candidate as the best of `n_scanned` scored features (on data that
+        overlaps the gate's test window), so correcting for the ~60-100 raised understated the search about tenfold."""
+        return int(max(1, self.n_tests_searched, self.n_scanned))
 
 
 @dataclasses.dataclass(frozen=True)
@@ -131,6 +149,7 @@ class SequentialPlan:
     alpha: float = 0.05
     futility_z: float = 1.645
     horizon_dates: int = 260
+    retire_failed_looks: int = 2         # F26: consecutive FAILED looks (each on a new quarter of evidence) that retire a finding
 
     def validate(self) -> list[str]:
         errs = []
@@ -138,7 +157,25 @@ class SequentialPlan:
             errs.append("alpha in (0, 0.5) and futility_z > 0 required")
         if self.horizon_dates < 52:
             errs.append("horizon_dates >= 52 required: a finding must be allowed at least a year of fresh evidence")
+        if self.retire_failed_looks < 2:
+            errs.append("retire_failed_looks >= 2 required: one FAILED look may be a bad quarter, a repeated one is measured")
         return errs
+
+    def retire(self, bundle: "Bundle", verdicts: Sequence[str], min_effect: float = 0.0) -> str | None:
+        """F26 (F19 failure 5): why a finding leaves the re-gate queue, or None to keep it. `verdicts` are its gate verdicts so far,
+        oldest first, INCLUDING this look. FAILED means the gate MEASURED negative evidence (it does not survive out of sample, an unsafe
+        tail, a miscalibrated claim ...), unlike NEEDS_MORE_EVIDENCE. F19 found FAILED candidates re-gated every quarter for ever (the
+        queue only grows). A finding is now retired when (a) the measured futility rules hold (`futility`), or (b) its last
+        `retire_failed_looks` looks were all FAILED: the negative evidence was re-measured on a fresh quarter and held. One FAILED look
+        is never enough (a single bad quarter must not kill a true effect, the F12 lesson), and NEEDS_MORE_EVIDENCE never counts."""
+        why = self.futility(bundle, min_effect)
+        if why is not None:
+            return why
+        v = [str(x) for x in verdicts]
+        k = int(self.retire_failed_looks)
+        if len(v) >= k and all(x == "FAILED" for x in v[-k:]):
+            return f"FAILED at {k} consecutive looks on fresh evidence: the negative measurement held"
+        return None
 
     def alpha_at(self, look: int) -> float:
         if int(look) < 1:
@@ -221,24 +258,28 @@ def _design(F: pd.DataFrame, spec: FindingSpec, ec: EvidenceConfig) -> tuple[pd.
 def per_date_effect(score: pd.Series, y: pd.Series, min_names: int, jitter_seed: int | None = None) -> pd.Series:
     """Per-date rank AUC - 0.5 (dates with both classes and >= min_names finite rows). `jitter_seed` breaks score ties with a seeded
     infinitesimal jitter (the only randomness in the measurement; reruns on seeds show it does not matter)."""
-    from engine.pattern_movers import auc as rank_auc
     s = score.to_numpy(float)
     if jitter_seed is not None:
         s = s + np.random.default_rng(jitter_seed).normal(0, 1e-9, len(s))
     codes, uniq = pd.factorize(score.index.get_level_values(0), sort=True)
     yy = y.to_numpy(float)
-    out = {}
-    for c in range(len(uniq)):
-        m = (codes == c) & np.isfinite(s) & np.isfinite(yy)
-        if m.sum() < min_names:
-            continue
-        lab = yy[m] >= 0.5
-        if lab.all() or not lab.any():
-            continue
-        a = rank_auc(s[m], lab)
-        if np.isfinite(a):
-            out[pd.Timestamp(uniq[c])] = a - 0.5
-    return pd.Series(out, dtype=float).sort_index()
+    ok = np.isfinite(s) & np.isfinite(yy)
+    if not ok.any():
+        return pd.Series(dtype=float)
+    # F26: one vectorised pass (average ranks within each date = scipy rankdata's tie rule, so every value equals the old per-date
+    # engine.pattern_movers.auc loop exactly: the rank sums are sums of half-integers, exact in float64)
+    c, lab = codes[ok], yy[ok] >= 0.5
+    r = pd.Series(s[ok]).groupby(c).rank(method="average").to_numpy(float)
+    k = len(uniq)
+    n = np.bincount(c, minlength=k).astype(float)
+    n1 = np.bincount(c, weights=lab.astype(float), minlength=k)
+    rs = np.bincount(c, weights=np.where(lab, r, 0.0), minlength=k)
+    n0 = n - n1
+    keep = (n >= min_names) & (n1 > 0) & (n0 > 0)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        a = (rs - n1 * (n1 + 1) / 2.0) / (n1 * n0)
+    keep &= np.isfinite(a)
+    return pd.Series(a[keep] - 0.5, index=pd.DatetimeIndex(pd.to_datetime(uniq[keep])), dtype=float).sort_index()
 
 
 def unseen_dates(years: np.ndarray, c: int) -> int:
@@ -297,13 +338,96 @@ def statistical_and_oos(eff_tr: pd.Series, eff_te: pd.Series, spec: FindingSpec,
     x = eff_te.to_numpy(float)
     t = PR.t_stat(x) if len(x) >= 2 else float("nan")
     stat = PR.StatisticalEvidence(float(x.mean()) if len(x) else 0.0, int(len(x)), t, PR.one_sided_p(t) if np.isfinite(t) else 1.0,
-                                  int(max(1, spec.n_tests_searched)), float(len(x)))
+                                  spec.n_search, float(len(x)))
     dates = tuple(str(d.date()) for d in eff_te.index)
     for d in dates:
         require_past(d, now, "out-of-sample date")
     oos = PR.OOSEvidence(str(as_date(train_end)), dates, tuple(float(v) for v in x), float(eff_tr.mean()) if len(eff_tr) else 0.0,
                          (f"{dates[0]}..{dates[-1]}",) if dates else (), (f"..{as_date(train_end)}",))
     return stat, oos
+
+
+def _cell_frame(scores: pd.Series, y: pd.Series) -> pd.DataFrame:
+    """identity_firewall's scoring frame: scores aligned to the returns' index, rows with a missing value dropped."""
+    return pd.DataFrame({"s": scores.reindex(y.index), "y": y}).dropna()
+
+
+def fast_per_date_ic(scores: pd.Series, y: pd.Series, min_names: int = 5) -> pd.Series:
+    """engine.learning.identity_firewall.per_date_ic in one vectorised pass (same rows, same dates, same zero for a date whose scores
+    are constant, Pearson correlation of within-date average ranks = Spearman). Equal to the loop to ~1e-15."""
+    df = _cell_frame(scores, y)
+    if not len(df):
+        return pd.Series(dtype=float)
+    g = df.groupby(level=0, sort=True)
+    n, ynu, snu = g["y"].size(), g["y"].nunique(), g["s"].nunique()
+    rs, ry = g["s"].rank(), g["y"].rank()
+    d = df.index.get_level_values(0)
+    dx = rs - rs.groupby(d).transform("mean")
+    dy = ry - ry.groupby(d).transform("mean")
+    sums = pd.DataFrame({"xy": dx * dy, "xx": dx * dx, "yy": dy * dy}).groupby(d, sort=True).sum()
+    with np.errstate(invalid="ignore", divide="ignore"):
+        ic = sums["xy"] / np.sqrt(sums["xx"] * sums["yy"])
+    ic = ic.where(snu > 1, 0.0)
+    ok = (n >= min_names) & (ynu > 1)
+    return pd.Series(ic[ok].to_numpy(float), index=ic.index[ok.to_numpy()], dtype=float).sort_index()
+
+
+def fast_top_k_spread(scores: pd.Series, y: pd.Series, k: int = 5) -> float:
+    """identity_firewall.top_k_spread vectorised: per date with more than k names and non-constant scores, the mean return of the k
+    highest scores (ties kept in row order, pandas nlargest keep='first') minus the date's mean return, averaged over dates."""
+    df = _cell_frame(scores, y)
+    if not len(df):
+        return float("nan")
+    codes, _ = pd.factorize(df.index.get_level_values(0), sort=True)
+    s, yy = df["s"].to_numpy(float), df["y"].to_numpy(float)
+    order = np.lexsort((np.arange(len(df)), -s, codes))
+    c_sorted = codes[order]
+    first = np.r_[0, np.flatnonzero(np.diff(c_sorted)) + 1]
+    pos = np.arange(len(order)) - np.repeat(first, np.diff(np.r_[first, len(order)]))
+    top = np.zeros(len(df), bool)
+    top[order[pos < k]] = True
+    m = len(first)
+    n = np.bincount(codes, minlength=m)
+    snu = pd.Series(s).groupby(codes).nunique().reindex(range(m), fill_value=0).to_numpy()
+    keep = (n > k) & (snu > 1)
+    if not keep.any():
+        return float("nan")
+    top_mean = np.bincount(codes, weights=np.where(top, yy, 0.0), minlength=m) / np.maximum(np.bincount(codes, weights=top.astype(float), minlength=m), 1)
+    all_mean = np.bincount(codes, weights=yy, minlength=m) / np.maximum(n, 1)
+    return float(np.mean((top_mean - all_mean)[keep]))
+
+
+def fast_multiset_key(X: pd.DataFrame, y: pd.Series | None) -> str:
+    """identity_firewall._multiset_key's equality relation (same multiset of every column's values and of the returns, floats rounded
+    to 10 decimals) with a byte hash instead of canonical JSON of every value (1.2 s of a gate call). It is only ever compared with
+    another key from the same function, never stored."""
+    import hashlib
+    h = hashlib.sha256()
+    for c in X.columns:
+        v = X[c].to_numpy()
+        if v.dtype.kind in "fiub":
+            a = np.round(np.sort(v.astype(float)), 10) + 0.0          # + 0.0 folds -0.0 into 0.0
+            h.update(b"F" + np.where(np.isnan(a), np.nan, a).tobytes())
+        else:
+            h.update(b"S" + "\x1f".join(np.sort(v.astype(str)).tolist()).encode())
+    yk = np.round(np.sort(y.to_numpy(dtype=float)), 10) + 0.0 if y is not None else np.array([])
+    h.update(b"Y" + np.where(np.isnan(yk), np.nan, yk).tobytes())
+    return h.hexdigest()[:24]
+
+
+@contextlib.contextmanager
+def fast_identity_scoring():
+    """F26 (the 3.3 s gate call was mostly the identity harness): run IdentityHarness with vectorised, equivalent versions of its
+    per-date IC, top-k spread and content-preservation key. The harness itself - its attacks, modes, verdict rules, bootstrap and
+    thresholds - is untouched, so the attack is exactly as strong; tests/test_gate_vs_benchmark.py proves the replacements agree with
+    the originals on panels with ties, NaNs and constant dates. Restored on exit (the owner can adopt them; see the F26 report)."""
+    from engine.learning import identity_firewall as IDF
+    orig = (IDF.per_date_ic, IDF.top_k_spread, IDF._multiset_key)
+    IDF.per_date_ic, IDF.top_k_spread, IDF._multiset_key = fast_per_date_ic, fast_top_k_spread, fast_multiset_key
+    try:
+        yield
+    finally:
+        IDF.per_date_ic, IDF.top_k_spread, IDF._multiset_key = orig
 
 
 def identity(G: pd.DataFrame, score: pd.Series, y: pd.Series, tr: np.ndarray, te: np.ndarray, spec: FindingSpec, ec: EvidenceConfig):
@@ -315,8 +439,9 @@ def identity(G: pd.DataFrame, score: pd.Series, y: pd.Series, tr: np.ndarray, te
 
     def learner(X_train, y_train, X_eval, seed: int = 0) -> pd.Series:
         return X_eval["f"].astype(float)
-    rep = IDF.IdentityHarness(learner, attacks=("ticker_permutation", "date_permutation", "stock_substitution"), seed=spec.seed + 11,
-                              boot=ec.identity_boot).run(X[tr], y[tr], X[te], y[te])
+    with fast_identity_scoring():
+        rep = IDF.IdentityHarness(learner, attacks=("ticker_permutation", "date_permutation", "stock_substitution"), seed=spec.seed + 11,
+                                  boot=ec.identity_boot).run(X[tr], y[tr], X[te], y[te])
     ret = rep.retention_by_kind("eval")
     vals = [float(v) for v in ret.values if np.isfinite(v)]
     shuf = ret.get("ticker_permutation", np.nan)
@@ -362,19 +487,51 @@ def risk(G: pd.DataFrame, score: pd.Series, te: np.ndarray, ec: EvidenceConfig):
                             int((ex <= ec.catastrophic).sum())), ex, "")
 
 
+def date_base_rate(y: pd.Series, ok: np.ndarray) -> np.ndarray:
+    """Per row: the outcome rate of the OTHER rows on its date (leave-one-out, so no forecast contains its own outcome); NaN where the
+    date has no other usable row."""
+    codes, _ = pd.factorize(y.index.get_level_values(0), sort=True)
+    yy = np.where(ok, y.to_numpy(float), 0.0)
+    w = ok.astype(float)
+    s = np.bincount(codes, weights=yy)[codes]
+    n = np.bincount(codes, weights=w)[codes]
+    with np.errstate(invalid="ignore", divide="ignore"):
+        return np.where(ok & (n > 1), (s - yy) / (n - 1), np.nan)
+
+
 def calibration(G: pd.DataFrame, score: pd.Series, y: pd.Series, tr: np.ndarray, te: np.ndarray, spec: FindingSpec, ec: EvidenceConfig):
-    """P(outcome) from the rule: Platt on the train window's within-date rank, scored on the test window (never refitted there)."""
-    from engine.learning import calibration as CAL
+    """The probability model the finding's CLAIM implies, fitted on train and scored out of sample (never refitted there).
+
+    F26 defect (F19 failure 2: calibration blocked 96% of the gated real patterns): the claim a derived-feature finding makes is a
+    RANKING within each date (its evidence is a per-date AUC); it never claims the level of the outcome rate, which moves with the market
+    era (touch rates of 8% in calm, 30% in crisis). The old evidence fitted engine.learning.calibration.PlattCalibrator on the pooled
+    within-date rank and scored it against pooled outcomes in a later era, so the gate judged a base-rate forecast the finding never made
+    (Brier skill -0.03 for an AUC 0.60 rule); worse, platt_slope's undamped Newton diverges on a rank input (slope -2e7: tests/
+    test_gate_vs_benchmark.py pins the defect), so every forecast was 0 or 1. The claim-shaped model is the conditional logit
+        P(y = 1 | rank r, date d) = expit(logit(b_d) + a + b (r - 0.5)),
+    b_d = the date's outcome rate among the OTHER names (leave-one-out: no forecast contains its own outcome). It states exactly the
+    finding's relative claim and nothing about the era; (a, b) are fitted on the train window by a damped Newton. The evidence carries
+    b_d as the REFERENCE forecast, so the gate's Brier skill and recalibration slope measure the claimed lift over the date's rate, not
+    the base rate. The gate's thresholds are unchanged, and an overconfident lift (a slope fitted in train that is too steep out of
+    sample, e.g. a decayed rule) still FAILS."""
     from engine.research import quality_gate as QG
     rk = score.groupby(level=0).rank(pct=True).to_numpy(float).clip(0.01, 0.99)
     yy = y.to_numpy(float)
-    okt, oke = tr & np.isfinite(rk) & np.isfinite(yy), te & np.isfinite(rk) & np.isfinite(yy)
+    ok = np.isfinite(rk) & np.isfinite(yy)
+    base = date_base_rate(y, ok)
+    ok &= np.isfinite(base)
+    okt, oke = tr & ok, te & ok
     if okt.sum() < 50 or oke.sum() < 50 or len(np.unique(yy[okt])) < 2:
         return None, "too few rows to calibrate"
-    cal = CAL.PlattCalibrator().fit(rk[okt], yy[okt].astype(int))
-    p = np.clip(np.asarray(cal.predict(rk[oke]), float), 0.001, 0.999)
+    off = QG.logit(np.clip(base, 1e-3, 1 - 1e-3))
+    fit = QG.logistic_offset_fit(rk[okt] - 0.5, yy[okt], off[okt])
+    if not fit["converged"]:
+        return None, "the claim's lift model did not converge on the train window"
+    p = np.clip(QG.expit(off[oke] + fit["a"] + fit["b"] * (rk[oke] - 0.5)), 0.001, 0.999)
+    ref = np.clip(base[oke], 0.001, 0.999)
     idx = np.random.default_rng(spec.seed + 5).permutation(len(p))[:ec.cal_rows]
-    return QG.CalibrationEvidence(tuple(float(v) for v in p[idx]), tuple(int(v) for v in yy[oke][idx]), spec.seed), ""
+    return QG.CalibrationEvidence(tuple(float(v) for v in p[idx]), tuple(int(v) for v in yy[oke][idx]), spec.seed,
+                                  tuple(float(v) for v in ref[idx]), "within-date rank lift over the date's outcome rate"), ""
 
 
 def no_feature_effects(score: pd.Series, y: pd.Series, mask: np.ndarray, ec: EvidenceConfig, seed: int) -> pd.Series:
@@ -508,7 +665,16 @@ def replicate(G: pd.DataFrame, score: pd.Series, y: pd.Series, tr: np.ndarray, t
     F12 defect fixed: runs used to be ids '-w0', '-w1' of a two-way split of the CURRENT test window. With a persistent ledger the ids
     already existed at every later look, so no new run was ever added and the assessment of the first look (W-12: PARTIALLY_REPLICATED,
     heterogeneity I2 of two runs) was frozen for ever: re-gating could not change the replication verdict whatever time brought.
-    Blocks are now keyed by their first date and only NEW blocks are added, so every look sees the fresh quarters that matured since."""
+    Blocks are now keyed by their first date and only NEW blocks are added, so every look sees the fresh quarters that matured since.
+
+    F26 defects fixed (F19 failure 2: replication blocked 91% of the gated real patterns): (a) every run was a fixed 13-date quarter on
+    half the names, whatever the effect size, so a run of a real moderate effect had little power (replication.judge_run itself calls
+    most of them 'under-powered'), yet each counted as an ATTEMPT in the success share - the design demanded the effect in samples too
+    small to show it. The run length is now a POWER DESIGN fixed when the discovery is registered (`run_length`: the periods
+    replication.required_n needs to see the winner's-curse-adjusted discovery effect at the policy's alpha and power, between repl_block
+    and repl_max_block), so a run is sized to be able to answer. Nothing in the replication policy is relaxed. (b) The discovery's regime
+    was the literal label 'train', so every run earned the REGIME freshness axis for free; it is now the train window's own volatility
+    label, measured like each run's."""
     from engine.research import replication as RP
     names = G.index.get_level_values(1).astype(str)
     A, B = stock_halves(names, spec.subject_id)
@@ -518,21 +684,27 @@ def replicate(G: pd.DataFrame, score: pd.Series, y: pd.Series, tr: np.ndarray, t
     did = "E" + spec.subject_id
     d = pd.to_datetime(G.index.get_level_values(0))
     ends = pd.to_datetime(G["end"])
+    mvol = G["m_vol"].groupby(level=0).median() if "m_vol" in G else None
+
+    def regime_of(dates) -> str:
+        if mvol is None:
+            return "calm"
+        return "high_vol" if float(mvol.reindex(pd.DatetimeIndex(dates).unique()).median()) > float(mvol.median()) else "calm"
     if did not in led.discoveries():
         e0 = per_date_effect(score[tr & inA], y[tr & inA], mn)
         if len(e0) < 3 or float(e0.std()) <= 0:
             return None, {"why": f"{len(e0)} train periods on the discovery half"}
         trd = d[tr]
         led.add_discovery(RP.Discovery(did, float(e0.mean()), float(e0.std()), int(len(e0)), (str(trd.min().date()), str(trd.max().date())),
-                                       ec.horizon_days, A, (spec.seed,), frozenset({"train"}), code_hash, data_hash, str(ends[tr].max().date()),
-                                       max(1, spec.n_tests_searched)))
+                                       ec.horizon_days, A, (spec.seed,), frozenset({regime_of(trd)}), code_hash, data_hash, str(ends[tr].max().date()),
+                                       spec.n_search))
     disc = led.discoveries()[did]
     prior = led.runs_for(did, now)
     after = max([pd.Timestamp(r.window[1]) for r in prior]
                 + [pd.Timestamp(disc.window[1]) + pd.Timedelta(days=max(ec.purge_days, disc.horizon_days))])
-    mvol = G["m_vol"].groupby(level=0).median() if "m_vol" in G else None
     added = 0
-    for c in replication_blocks(d[te], after, ec.repl_block):
+    block = run_length(disc, ec)
+    for c in replication_blocks(d[te], after, block):
         m = te & inB & np.isin(d, c)
         e = per_date_effect(score[m], y[m], mn)
         if len(e) < 2:
@@ -542,9 +714,7 @@ def replicate(G: pd.DataFrame, score: pd.Series, y: pd.Series, tr: np.ndarray, t
         rng = np.random.default_rng(seed)
         ys = y[m].groupby(level=0).transform(lambda s: pd.Series(rng.permutation(s.to_numpy()), index=s.index))
         ctl = per_date_effect(score[m], ys, mn).reindex(e.index).fillna(0.0)
-        regime = "calm"
-        if mvol is not None:
-            regime = "high_vol" if float(mvol.reindex(c).median()) > float(mvol.median()) else "calm"
+        regime = regime_of(c)
         mat = str(ends[m].max().date())
         require_past(mat, now, "replication run")
         led.add_run(RP.ReplicationRun(f"{did}-{first}", did, (first, str(pd.Timestamp(c[-1]).date())), B, seed, regime,
@@ -554,17 +724,117 @@ def replicate(G: pd.DataFrame, score: pd.Series, y: pd.Series, tr: np.ndarray, t
     runs = led.runs_for(did, now)
     a = RP.assess(disc, runs, now, policy) if policy is not None else RP.assess(disc, runs, now)
     return a, {"repl_status": str(a.status), "repl_runs": len(runs), "repl_runs_added": added, "repl_discovery_periods": int(disc.n_periods),
-               "repl_i2": float(a.pooled.get("i2", 0.0)), "repl_supporting": int(a.n_supporting)}
+               "repl_i2": float(a.pooled.get("i2", 0.0)), "repl_supporting": int(a.n_supporting), "repl_run_length": int(block)}
+
+
+def run_length(disc, ec: EvidenceConfig) -> int:
+    """F26: the replication run length for a registered discovery, a pure function of the discovery record (so it never changes
+    between looks and blocks are never cut twice): the periods engine.research.replication.required_n needs to detect the discovery's
+    winner's-curse-adjusted effect with the DEFAULT policy's alpha and power, clamped to [repl_block, repl_max_block]. An effect the
+    adjustment leaves at zero (indistinguishable from search luck) gets the longest run - the most power the design can give it."""
+    from engine.research import replication as RP
+    need = RP.required_n(RP.adjusted_effect(disc), float(disc.sd), RP.DEFAULT_POLICY.alpha, RP.DEFAULT_POLICY.power)
+    if not math.isfinite(need):
+        return int(ec.repl_max_block)
+    return int(min(ec.repl_max_block, max(ec.repl_block, math.ceil(need))))
+
+
+# columns that MATURE after the decision: the realised outcome of the row's own window (never an input)
+OUTCOME_COLUMNS = ("touch", "up", "close", "absmove", "tday", "end")
+
+
+def construction_audit(frame: pd.DataFrame, feature: str, seed: int = 0) -> list[str]:
+    """F26 (F19 failure 1), the F09 method on the candidate's OWN construction: the derived feature is recomputed (a) with every
+    outcome column permuted across names within each date (a future scramble of the row's own window) and (b) on the frame truncated
+    at its middle date (a truncation: rows after the cut removed); every value dated at or before the cut must be unchanged by both.
+    Also refused outright: a derivation that names an outcome column as an input. A stored column (a feature whose derivation is the
+    column itself) passes by construction - its values are audited statistically by the future-dependence screen."""
+    from engine.research import vol_hypotheses as VH
+    if feature not in VH.DERIVED:
+        return []
+    need = tuple(VH.required_columns((feature,)))
+    out = [f"{feature} is derived from outcome column(s) {sorted(set(need) & set(OUTCOME_COLUMNS))}: they mature after the decision"] \
+        if set(need) & set(OUTCOME_COLUMNS) else []
+    if VH.missing_columns((feature,), frame.columns) or len(frame) == 0:
+        return out
+    F = frame[[c for c in dict.fromkeys(list(need) + [c for c in OUTCOME_COLUMNS if c in frame.columns])]].sort_index()
+    base = VH.derive(F, (feature,))[feature].astype(float)
+    rng = np.random.default_rng(np.random.SeedSequence([int(seed), 26]))
+    S = F.copy()
+    codes = pd.factorize(S.index.get_level_values(0), sort=True)[0]
+    perm = np.argsort(codes * 1.0 + rng.random(len(S)) * 0.5, kind="stable")          # a random order of the rows inside each date
+    for c in OUTCOME_COLUMNS:
+        if c in S.columns and c not in need:
+            S[c] = S[c].to_numpy()[perm]
+    alt = VH.derive(S, (feature,))[feature].astype(float).reindex(base.index)
+    if not np.allclose(base.to_numpy(), alt.to_numpy(), rtol=1e-9, atol=1e-12, equal_nan=True):
+        out.append(f"{feature} changes when the rows' future outcomes are scrambled within each date: it reads the outcome window")
+    dates = pd.DatetimeIndex(pd.to_datetime(F.index.get_level_values(0))).unique().sort_values()
+    if len(dates) >= 4:
+        cut = dates[len(dates) // 2]
+        T = F[pd.to_datetime(F.index.get_level_values(0)) <= cut]
+        tv = VH.derive(T, (feature,))[feature].astype(float)
+        bv = base.reindex(tv.index)
+        if not np.allclose(bv.to_numpy(), tv.to_numpy(), rtol=1e-9, atol=1e-12, equal_nan=True):
+            out.append(f"{feature} dated on or before {cut.date()} changes when the data after it are removed: it reads later rows")
+    return out
+
+
+def past_magnitude(G: pd.DataFrame, mag: pd.Series, lag: int = 2) -> pd.Series:
+    """Each name's outcome magnitude `lag` decision dates earlier, kept only where that outcome had MATURED before the row's date
+    (end strictly before the decision): a past quantity the decision could know."""
+    if "end" not in G:
+        return pd.Series(np.nan, index=G.index)
+    H = pd.DataFrame({"m": mag.to_numpy(float), "e": pd.to_datetime(G["end"]).to_numpy()}, index=G.index).sort_index()
+    by = H.groupby(level=1)
+    pm, pe = by["m"].shift(lag), by["e"].shift(lag)
+    known = pe < pd.to_datetime(H.index.get_level_values(0))
+    return pm.where(known).reindex(G.index)
+
+
+def future_dependence(G: pd.DataFrame, score: pd.Series, y: pd.Series, spec: FindingSpec, ec: EvidenceConfig) -> tuple[list[str], dict]:
+    """quality_gate.screen_future_dependence on the candidate (two-sided: an oriented score may carry the leak with either sign), with a
+    PLANTED probe on the same rows - noise plus the future magnitude - that the screen must catch, or the audit is blind here.
+    Future magnitude = |realised outcome| (`absmove` when the frame has it, else |close|); control = the audited volatility state."""
+    from engine.research import quality_gate as QG
+    if "absmove" in G:
+        mag = G["absmove"].astype(float)
+    elif "close" in G:
+        mag = G["close"].astype(float).abs()
+    else:
+        return [], {"z": None, "probe": None}
+    past = past_magnitude(G, mag)
+    ctl = G["vol20"].astype(float) if "vol20" in G else None
+    zb = leak_bar(spec.n_search, ec)
+    f1, m = QG.screen_future_dependence(score, y, mag, past, ctl, zb, ec.leak_min_cell, name=spec.feature)
+    f2, _ = QG.screen_future_dependence(-score, y, mag, past, ctl, zb, ec.leak_min_cell, name=spec.feature)
+    rng = np.random.default_rng(np.random.SeedSequence([int(spec.seed), 27]))
+    z = (mag - mag.mean()) / (mag.std() or 1.0)
+    probe = pd.Series(rng.normal(0.0, 1.0, len(G)), index=G.index) + z
+    fp, mp = QG.screen_future_dependence(probe, y, mag, past, ctl, zb, ec.leak_min_cell, name="planted magnitude probe")
+    return f1 + f2, {**m, "probe_caught": bool(fp), "probe_z": mp.get("z"), "cells": m.get("cells"), "bar": zb}
+
+
+def leak_bar(n_search: int, ec: EvidenceConfig) -> float:
+    """The future-dependence screen's z bar: Bonferroni at `leak_alpha` over the whole search, both signs (a null feature anywhere in
+    the scan crosses it with probability <= leak_alpha), never below `leak_z_floor`. Set by the search size, not by any result."""
+    from statistics import NormalDist
+    return float(max(ec.leak_z_floor, NormalDist().inv_cdf(1.0 - ec.leak_alpha / (2.0 * max(1, int(n_search))))))
 
 
 def leakage(G: pd.DataFrame, score: pd.Series, y: pd.Series, spec: FindingSpec, now, train_end, first_test, identity_report,
-            code_hash: str, prov, n_decisions: int, used: np.ndarray | None = None):
+            code_hash: str, prov, n_decisions: int, used: np.ndarray | None = None, construction: Sequence[str] = (),
+            cfg: EvidenceConfig | None = None):
     """The future-information audit: (1) the learning firewall on the candidate's OWN context (its panel, horizon, experiment and
     evaluation records, identity report, code state), (2) the firewall's planted corpus (the audit can still see planted leaks),
     (3) a candidate-specific planted leak: the label copied into a feature column must be flagged by the leak screen, (4) outcomes
-    dated at/after now are counted (never assumed zero)."""
+    dated at/after now are counted (never assumed zero), and F26: (5) `construction` - the findings of construction_audit (the F09
+    truncation / future-scramble test on the candidate's own derivation) - and (6) the future-dependence screen on the candidate's
+    values (quality_gate.screen_future_dependence: does it know how the coming outcome realises?)."""
     from engine.learning import firewalls as FW
     from engine.research import quality_gate as QG
+    extra, fd = future_dependence(G, score, y, spec, cfg or EvidenceConfig())
+    extra = list(construction) + extra
     if used is not None:                                 # only the rows the evidence used (train + test; the purged gap is out)
         G, score = G[used], score[used]
     X = pd.DataFrame({spec.feature: score.to_numpy(float)}, index=G.index)
@@ -573,8 +843,8 @@ def leakage(G: pd.DataFrame, score: pd.Series, y: pd.Series, spec: FindingSpec, 
     label_close = pd.Series(pd.to_datetime(G["end"]).to_numpy(), index=G.index)
     item = {"knowledge_id": spec.subject_id, "version": 1, "provenance": prov, "contexts": {}, "anti_contexts": {}}
     exp = FW.ExperimentRecord(spec.experiment_id or spec.subject_id, prov.created_real, prov.created_real, prov.config_hash, spec.seed,
-                              f"{spec.feature} ranks {spec.problem.lower()} outcomes", n_variants_tried=max(1, spec.n_tests_searched),
-                              selected_from=max(1, spec.n_tests_searched), multiplicity_correction="holdout",
+                              f"{spec.feature} ranks {spec.problem.lower()} outcomes", n_variants_tried=spec.n_search,
+                              selected_from=spec.n_search, multiplicity_correction="holdout",
                               training_windows=((str(d.min().date()), str(as_date(train_end))),), baseline_declared=True)
     ev = FW.EvaluationRecord(evaluation_windows=((str(as_date(first_test)), str(d.max().date())),),
                              training_windows=((str(d.min().date()), str(as_date(train_end))),), sealed_real=prov.created_real,
@@ -587,11 +857,14 @@ def leakage(G: pd.DataFrame, score: pd.Series, y: pd.Series, spec: FindingSpec, 
     corp = FW.run_corpus()
     leaky = X.assign(planted_label_copy=yy.to_numpy())
     caught_own = any("planted_label_copy" in f for f in QG.screen_label_leak(leaky, yy))
-    probe = bool(corp.get("clean_passed")) and not corp.get("missed") and caught_own
+    fd_blind = fd.get("probe_caught") is False           # the future-dependence screen missed its planted probe on these rows
+    probe = bool(corp.get("clean_passed")) and not corp.get("missed") and caught_own and not fd_blind
     after = int((pd.to_datetime(G["end"]) >= pd.Timestamp(as_date(now))).sum())
-    return QG.leak_evidence_from_panel(X, yy, fwv, probe, after), {"firewall_passed": bool(getattr(fwv, "passed", False)),
-                                                                   "planted_probe_caught": probe, "own_probe_caught": caught_own,
-                                                                   "outcomes_after_now": after}
+    return QG.leak_evidence_from_panel(X, yy, fwv, probe, after, extra_findings=extra), {
+        "firewall_passed": bool(getattr(fwv, "passed", False)), "planted_probe_caught": probe, "own_probe_caught": caught_own,
+        "outcomes_after_now": after, "construction_findings": len(construction), "future_dependence_z": fd.get("z"),
+        "future_dependence_rho": fd.get("rho_future"), "future_probe_caught": fd.get("probe_caught"),
+        "leak_findings": len(extra)}
 
 
 # ================================================================================================================ the bundle
@@ -663,7 +936,8 @@ def assemble(frame: pd.DataFrame, spec: FindingSpec, now, *, code_hash: str, dat
     feats = {c: None for c in _base_columns(spec.feature)}
     pit = QG.pit_evidence(feats, str(first_test.date()), str(train_end.date()), str(first_test.date()), cfg.horizon_days, through,
                           fills_next_open=True, known_before=tuple(feats))
-    leak, p = leakage(G, score, y, spec, now, train_end, first_test, rep, code_hash, prov, int(te.sum()), tr | te)
+    leak, p = leakage(G, score, y, spec, now, train_end, first_test, rep, code_hash, prov, int(te.sum()), tr | te,
+                      construction=construction_audit(frame, spec.feature, spec.seed), cfg=cfg)
     parts.update(p)
     ev = QG.QualityEvidence(pit=pit, leak=leak, identity=ident, oos=QG.OOSBundle(stat, oos, train_years) if stat is not None else None,
                             replication=repl, outputs_probabilities=True, calibration=cal, changes_risk_decisions=True, risk=rk,

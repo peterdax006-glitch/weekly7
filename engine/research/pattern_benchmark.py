@@ -489,7 +489,7 @@ def make_world(seed: int, cfg: BenchConfig = BenchConfig()) -> World:
     reals = [p for p in pats if p["label"] == REAL]
     counts = cfg.counts_for(tier)
 
-    def parent_col() -> tuple[str | None, dict | None]:
+    def parent_col() -> tuple[str, dict | None]:
         """A real pattern's column to imitate (a null column in a NULL world: the imitation is then pure noise)."""
         cand = [p for p in reals if p["kind"] not in ("interactive", "xor")]
         if cand:
@@ -524,7 +524,7 @@ def make_world(seed: int, cfg: BenchConfig = BenchConfig()) -> World:
                 names = np.zeros(N, bool)
                 names[rng.choice(N, 3, replace=False)] = True
             act = np.flatnonzero(w)
-            info = {"active": [int(act[0]), int(act[-1]) + 1] if len(act) else None}
+            info: dict[str, Any] = {"active": [int(act[0]), int(act[-1]) + 1] if len(act) else None}
             if kind in ("interaction_decoy", "xor_trap"):
                 b2 = rng.normal(0, 1, shape)
                 prod = x * b2 if kind == "interaction_decoy" else np.sign(x) * np.sign(b2)
@@ -763,7 +763,7 @@ def open_key(out: Path, world_id: str, manifest: Manifest) -> tuple[dict, dict]:
         errs.append(f"{world_id}: answer key missing")
     if arow is None or not ap.exists():
         errs.append(f"{world_id}: system answers missing (the key is opened only after the answers are saved)")
-    if errs:
+    if errs or krow is None or arow is None:
         raise SealError("; ".join(errs))
     kb, ab = kp.read_bytes(), ap.read_bytes()
     if _sha(kb) != krow["sha256"]:
@@ -780,6 +780,12 @@ def open_key(out: Path, world_id: str, manifest: Manifest) -> tuple[dict, dict]:
 
 
 # ================================================================================================================ the system under test
+def _column_getter(c: str):
+    def get(F: pd.DataFrame) -> pd.Series:
+        return F[c]
+    return get
+
+
 @contextlib.contextmanager
 def registered(features: Sequence[str]):
     """Planted columns enter the candidate universe through the runtime derived-feature registry (as interactions do), then leave."""
@@ -788,7 +794,7 @@ def registered(features: Sequence[str]):
     try:
         for c in features:
             if c not in VH.DERIVED:
-                VH.DERIVED[c] = ((c,), (lambda F, c=c: F[c]))
+                VH.DERIVED[c] = ((c,), _column_getter(c))
                 added.append(c)
         yield added
     finally:
@@ -822,10 +828,13 @@ def corpus_once():
 def loop_screen_defaults() -> tuple[int, float]:
     from engine.research import loop as LP
     f = LP.LoopConfig.__dataclass_fields__
-    return int(f["screen_top"].default), float(f["screen_t"].default)
+    top: Any = f["screen_top"].default
+    t_min: Any = f["screen_t"].default
+    return int(top), float(t_min)
 
 
-EVIDENCE_COLUMNS = ("touch", "up", "close", "end", "sector", "m_vol", "vol20")     # what evidence.assemble reads besides the feature
+# what evidence.assemble reads besides the feature (F26: + absmove, the realised magnitude its future-dependence leak screen tests)
+EVIDENCE_COLUMNS = ("touch", "up", "close", "end", "sector", "m_vol", "vol20", "absmove")
 
 
 def evidence_columns(feature: str, columns) -> list[str]:
@@ -902,13 +911,14 @@ def run_system(frame: pd.DataFrame, world_id: str, seed: int, cfg: BenchConfig =
                 st["looks"] += 1
                 k = st["looks"]
                 spec = EV.FindingSpec("D_" + f, f, cands[f]["sign"], "VOLATILITY", n_tests_searched=max(1, len(screened)),
-                                      has_falsifier=True, seed=int(seed))
+                                      has_falsifier=True, seed=int(seed), n_scanned=len(feats))
                 b = EV.assemble(M[evidence_columns(f, M.columns)], spec, now, code_hash=code_hash, data_hash=f"bench{seed}",
                                 created_real=created_real, ledger=st["ledger"], look=k, plan=plan)
                 rep = EV.gate([b], now, code_hash, store=store, looks={spec.subject_id: k}, plan=plan)
                 d = _decision_summary(rep, spec.subject_id)
                 d.update(look=li, k=k, alpha=plan.alpha_at(k), n_tests_searched=max(1, len(screened)), n_scanned=len(feats),
-                         effect_test=b.parts.get("effect_test"), n_test=b.parts.get("n_test"), missing=sorted(b.missing))
+                         n_search=spec.n_search, effect_test=b.parts.get("effect_test"), n_test=b.parts.get("n_test"),
+                         missing=sorted(b.missing), leak_z=b.parts.get("future_dependence_z"))
                 cands[f]["gate"].append(d)
                 n_gated += 1
                 why = None
@@ -916,8 +926,8 @@ def run_system(frame: pd.DataFrame, world_id: str, seed: int, cfg: BenchConfig =
                     cands[f]["final"], cands[f]["promoted_look"] = "PROMOTED", li
                 elif d["verdict"] == "QUARANTINED":
                     cands[f]["final"], why = "QUARANTINED", "quarantined"
-                else:
-                    why = plan.futility(b)
+                else:                                  # F26: measured futility OR repeated FAILED looks retire (plan.retire)
+                    why = plan.retire(b, [g["verdict"] for g in cands[f]["gate"]])
                     if why is None and (L - cfg.looks()[st["first_through"]]) >= plan.horizon_dates:
                         why = "evidence horizon"
                     if why:
@@ -1035,7 +1045,7 @@ def score_world(key: dict, answers: dict) -> tuple[list[dict], dict]:
                     credit, near = 0.5, "a proxy of it was promoted instead"
                 elif comp:
                     credit, near = 0.25, "a component promoted (right feature, wrong form)"
-                elif r["last_verdict"] == "NEEDS_MORE_EVIDENCE" and len(best["gate"][-1]["blocking"]) <= 1:
+                elif best is not None and r["last_verdict"] == "NEEDS_MORE_EVIDENCE" and len(best["gate"][-1]["blocking"]) <= 1:
                     credit, near = 0.25, "one gate short at the last look"
                 elif surfaced:
                     near = "surfaced, not promoted"
@@ -1097,7 +1107,7 @@ def expected_fp_bound(answers: dict, key: dict) -> dict:
             continue
         for g in c.get("gate", []):
             a = float(g["alpha"])
-            stated += 1 - (1 - a) ** (1.0 / max(1, int(g["n_tests_searched"])))
+            stated += 1 - (1 - a) ** (1.0 / max(1, int(g.get("n_search") or g["n_tests_searched"])))
             honest += 1 - (1 - a) ** (1.0 / max(1, int(g.get("n_scanned") or answers.get("n_scanned") or 1)))
     return {"expected_fp_stated_alpha": stated, "expected_fp_honest_alpha": honest}
 
