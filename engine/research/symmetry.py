@@ -391,7 +391,7 @@ class Confusion:
     def recall_ci(self, z: float = 1.96) -> tuple[float, float]:
         return CAL.wilson(self.tp, self.actual_pos, z) if self.actual_pos else (math.nan, math.nan)
 
-    def as_dict(self) -> dict[str, float]:
+    def as_dict(self) -> dict[str, Any]:
         return dict(space=self.space.value, tp=self.tp, fp=self.fp, tn=self.tn, fn=self.fn, n=self.n, precision=self.precision, recall=self.recall,
                     specificity=self.specificity, fpr=self.fpr, f1=self.f1, lift=self.lift, mcc=self.mcc, informedness=self.informedness,
                     prevalence=self.prevalence)
@@ -462,7 +462,7 @@ def mean_diff_p(a: np.ndarray, b: np.ndarray, alternative: str = "less") -> floa
     return float(t.pvalue) if math.isfinite(t.pvalue) else 1.0
 
 
-def bh(p: Sequence[float]) -> np.ndarray:
+def bh(p: Sequence[float] | np.ndarray) -> np.ndarray:
     """BH q-values (engine.pattern_stats.bh_qvalues) that tolerates an empty list and non-finite entries (treated as p = 1)."""
     arr = np.array([1.0 if not math.isfinite(x) else x for x in p], float)
     return pattern_stats.bh_qvalues(arr) if len(arr) else arr
@@ -582,7 +582,9 @@ def union_recall(sf: SymFrame) -> pd.DataFrame:
     wl, ll = set(key[f["winner"]]), set(key[f["loser"]])
     got_w = {p: set(key[(f["pattern_id"] == p) & f["winner"] & (f["call"] > 0)]) for p in sf.patterns()}
     got_l = {p: set(key[(f["pattern_id"] == p) & f["loser"] & (f["call"] < 0)]) for p in sf.patterns()}
-    cov_w, cov_l, left = set(), set(), set(sf.patterns())
+    cov_w: set[str] = set()
+    cov_l: set[str] = set()
+    left = set(sf.patterns())
     while left:
         best = max(sorted(left), key=lambda p: (len(got_w[p] - cov_w) + len(got_l[p] - cov_l), p))
         nw, nl = got_w[best] - cov_w, got_l[best] - cov_l
@@ -902,7 +904,9 @@ def _edge_p(f: pd.DataFrame) -> float:
 def trust_decision(n_calls: int, edge_p: float, hit_lo: float, errors: ErrorSymmetry, slices: Sequence[SliceBehavior], misses: MissBreakdown,
                    cfg: SymmetryConfig) -> TrustDecision:
     """A pattern is TRUSTED only when winners AND losers behaviour are acceptable. Winning precision alone can never earn it."""
-    passed, failed, untested = [], [], []
+    passed: list[str] = []
+    failed: list[str] = []
+    untested: list[str] = []
 
     def rec(name: str, ok: bool | None) -> None:
         (untested if ok is None else passed if ok else failed).append(name)
@@ -1168,7 +1172,7 @@ class LossRiskBank(_SharedLossBank):
         self._items[it.risk_id] = it
 
     def _append(self, op: str, item: LossRiskItem, now, extra: Mapping[str, Any] | None = None) -> None:
-        rec = {"op": op, "at": str(as_date(now)), "item": item.as_dict(), "extra": dict(extra or {}), "prev": self._prev}
+        rec: dict[str, Any] = {"op": op, "at": str(as_date(now)), "item": item.as_dict(), "extra": dict(extra or {}), "prev": self._prev}
         rec["hash"] = stable_hash({k: v for k, v in rec.items() if k != "hash"}, 16)
         self._prev = rec["hash"]
         self._log.append(rec)
@@ -1232,6 +1236,7 @@ class LossRiskBank(_SharedLossBank):
         return True
 
     def _load(self) -> None:
+        assert self.path is not None                   # only called when a path was given
         for line in self.path.read_text(encoding="utf-8").splitlines():
             if not line.strip():
                 continue
@@ -1411,7 +1416,7 @@ def _context_masks(desc: Mapping[str, pd.Series], index: pd.Index, max_dims: int
         s = s.reindex(index)
         for val in s.dropna().unique():
             singles[(dim, str(val))] = (s == val).to_numpy()
-    out = {(k,): m for k, m in singles.items()}
+    out: dict[tuple[tuple[str, str], ...], np.ndarray] = {(k,): m for k, m in singles.items()}
     if max_dims >= 2:
         keys = sorted(singles)
         for i, a in enumerate(keys):

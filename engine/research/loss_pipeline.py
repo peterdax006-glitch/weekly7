@@ -260,8 +260,9 @@ def loss_kind(m: MoveRecord, p: ResearchParams) -> LossKind:
 
 def loss_magnitude(m: MoveRecord, p: ResearchParams) -> float:
     """Size of the position loss: real pnl for a held position, else what the side it would have taken would have lost."""
-    if m.held and _fin(m.pnl) is not None:
-        return max(0.0, -float(m.pnl))
+    held_pnl = _fin(m.pnl)
+    if m.held and held_pnl is not None:
+        return max(0.0, -held_pnl)
     return max(0.0, -(m.hyp_side(p) * m.ret) + m.cost)
 
 
@@ -289,6 +290,7 @@ def route_classification(cls: Classification, m: MoveRecord, side: int, cp: Caus
     """The failure classifier's evidence, re-routed onto the ten section-5 causes. Timing evidence tagged EXIT (shake-outs,
     round trips) goes to EXIT; direction is read from the subsystem vote and scaled by how confident the call was."""
     out: list[LossEvidence] = []
+    target: LossCause | None
     for cs in cls.scores:
         for group, sup in ((cs.support, True), (cs.against, False)):
             for e in group:
@@ -297,7 +299,7 @@ def route_classification(cls: Classification, m: MoveRecord, side: int, cp: Caus
                 elif e.cause is FC.REVERSAL and e.subsystem is Subsystem.DIRECTION:
                     continue                                      # counted through the direction vote below
                 else:
-                    target = FAILURE_TO_LOSS.get(e.cause)
+                    target = FAILURE_TO_LOSS.get(e.cause) if e.cause is not None else None
                 if target is not None:
                     out.append(LossEvidence(target, e.strength, sup, "classifier", e.note))
     vote = float(cls.subsystem_votes.get(Subsystem.DIRECTION.value, 0.0))
@@ -1142,7 +1144,7 @@ def cause_sensitivity(records: Sequence[MoveRecord], envs: Any, now, params: Res
         return {"n": 0, "variants": {}, "fragile_share": float("nan")}
     base = LossPipeline(p, cp, weights, seed)
     ref = {m.rid: base.study(m, _env_for(envs, m.rid), now)[0].cause for m in losers}
-    variants = {"accept-0.10": dict(accept=max(0.05, cp.accept - 0.10)), "accept+0.10": dict(accept=min(0.95, cp.accept + 0.10)),
+    variants: dict[str, dict[str, Any]] = {"accept-0.10": dict(accept=max(0.05, cp.accept - 0.10)), "accept+0.10": dict(accept=min(0.95, cp.accept + 0.10)),
                 "margin-0.05": dict(margin=max(0.0, cp.margin - 0.05)), "margin+0.05": dict(margin=cp.margin + 0.05),
                 "no_arithmetic": dict(arithmetic_weight=0.0), "double_arithmetic": dict(arithmetic_weight=min(1.0, cp.arithmetic_weight * 2))}
     out: dict[str, Any] = {}
@@ -1229,7 +1231,7 @@ def avoidance_skill(findings: Sequence[LossFinding], records: Sequence[MoveRecor
     not_held = [f for f in findings if f.kind is not LossKind.HELD_LOSS and f.kind is not LossKind.PROFITED]
     skill = sum(1 for f in not_held if f.kind is LossKind.AVOIDED_BY_SKILL)
     controls = [m for m in records if is_control(m, p) and m.dir_prob is not None]
-    leaned_down = sum(1 for m in controls if m.dir_prob <= 0.5 - p.dir_margin)
+    leaned_down = sum(1 for m in controls if m.dir_prob is not None and m.dir_prob <= 0.5 - p.dir_margin)
     out: dict[str, Any] = {"kinds": dict(by_kind), "not_held": len(not_held), "skill": skill,
                            "skill_share": skill / len(not_held) if not_held else float("nan"),
                            "control_down_share": leaned_down / len(controls) if controls else float("nan")}
@@ -1251,7 +1253,7 @@ def context_concentration(losers: Sequence[MoveRecord], controls: Sequence[MoveR
     p = p or ResearchParams()
     chosen = [m for m in losers if not tail or m.rid in set(tail)]
     dims = sorted({k for m in chosen for k in m.context} & {k for m in controls for k in m.context})
-    rows = []
+    rows: list[dict[str, Any]] = []
     for d in dims:
         a = np.array([m.context[d] for m in chosen if _fin(m.context.get(d)) is not None], dtype=float)
         b = np.array([m.context[d] for m in controls if _fin(m.context.get(d)) is not None], dtype=float)
@@ -1285,15 +1287,15 @@ def pattern_blame(records: Sequence[MoveRecord], p: ResearchParams | None = None
     A pattern whose lower interval bound is above the overall rate is a pattern-failure candidate (the classifier's per-loss
     PATTERN_FAILURE calls should concentrate on these); one whose upper bound is below it is exonerated."""
     p = p or ResearchParams()
-    held = [m for m in records if m.held and m.pnl is not None]
+    held = [(m, float(m.pnl)) for m in records if m.held and m.pnl is not None]
     if not held:
         return []
-    overall = sum(1 for m in held if m.pnl < 0) / len(held)
+    overall = sum(1 for _, x in held if x < 0) / len(held)
     uses: dict[str, list[float]] = defaultdict(list)
-    for m in held:
+    for m, x in held:
         for pid in m.pattern_ids:
-            uses[pid].append(float(m.pnl))
-    rows = []
+            uses[pid].append(x)
+    rows: list[dict[str, Any]] = []
     for pid, pnls in uses.items():
         if len(pnls) < min_uses:
             continue

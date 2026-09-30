@@ -839,7 +839,7 @@ def all_hypotheses(e: QuestionEvent) -> tuple:
 
 # ---------------------------------------------------------------------------------------------------------- executable tests
 
-def permutation_lift(y: Sequence[float], flag: Sequence[bool], seed: int = 0, n_perm: int = 500) -> tuple:
+def permutation_lift(y: Sequence[float] | np.ndarray, flag: Sequence[bool] | np.ndarray, seed: int = 0, n_perm: int = 500) -> tuple:
     """Lift of mean(y | flag) over mean(y | not flag) with a one-sided permutation p-value against shuffled flags. This is the
     'lift over the shuffled control' the criteria speak of. Returns (lift, p, n)."""
     y = np.asarray(y, float)
@@ -866,13 +866,13 @@ def outcome_from_split(y: Sequence[float], flag: Sequence[bool], seed: int = 0, 
     return Outcome(n=n, lift=lift, p_value=p, decision_changed=lift >= decision_threshold and p <= 0.05, information_bits=min(bits, 8.0))
 
 
-def outcome_from_avoidance(loss: Sequence[float], excluded: Sequence[bool], hits: Sequence[float] | None = None, seed: int = 0) -> Outcome:
+def outcome_from_avoidance(loss: Sequence[float] | np.ndarray, excluded: Sequence[bool] | np.ndarray, hits: Sequence[float] | None = None, seed: int = 0) -> Outcome:
     """Loss-type test: how much of the total loss would excluding the flagged cases have avoided, at what cost in gains (hits lost)?"""
-    loss = np.abs(np.asarray(loss, float))
+    mag = np.abs(np.asarray(loss, dtype=float))
     ex = np.asarray(excluded, bool)
-    tot = loss.sum()
-    avoided = float(loss[ex].sum() / tot) if tot > 0 else 0.0
-    lift, p, n = permutation_lift(loss, ex, seed)
+    tot = mag.sum()
+    avoided = float(mag[ex].sum() / tot) if tot > 0 else 0.0
+    lift, p, n = permutation_lift(mag, ex, seed)
     cost = 0.0
     if hits is not None:
         h = np.asarray(hits, float)
@@ -1096,7 +1096,7 @@ def refine_question(qo: QuestionObject, outcome: Outcome, now) -> QuestionObject
     if scale > 5.0:
         return None
     plan = replace(qo.plan, cost_minutes=qo.plan.cost_minutes * min(scale, 3.0), steps=qo.plan.steps + (f"collect {need - outcome.n} more observations",))
-    return replace(qo, plan=plan, value=replace(qo.value, compute_cost=qo.value.compute_cost * min(scale, 3.0)))
+    return replace(qo, plan=plan, value=replace(qo.value, compute_cost=None if qo.value.compute_cost is None else qo.value.compute_cost * min(scale, 3.0)))
 
 
 def explain_question(qo: QuestionObject) -> str:
@@ -1355,13 +1355,14 @@ def save_question_state(path, dm: "DifficultyModel", flags: Sequence[HardnessFla
         if errs:
             raise StateIntegrityError("refusing to save an invalid flag: " + "; ".join(errs))
     body = {"difficulty": difficulty_to_dict(dm), "flags": [flag_to_dict(f) for f in flags], "saved_for": str(now)}
-    payload = {"version": 1, "checksum": stable_hash(body, 24), "body": body}
+    checksum = stable_hash(body, 24)
+    payload = {"version": 1, "checksum": checksum, "body": body}
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
     tmp = p.with_suffix(p.suffix + ".tmp")
     tmp.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
     os.replace(tmp, p)
-    return payload["checksum"]
+    return checksum
 
 
 def load_question_state(path) -> tuple:
@@ -1439,7 +1440,7 @@ class ThemeMergeLearner:
         if not da or not db:
             return {"n_a": self.n(a, now), "n_b": self.n(b, now), "tv": 1.0, "same_dominant": False, "merge": False, "reason": "no answers yet"}
         tv = 0.5 * sum(abs(da.get(k, 0.0) - db.get(k, 0.0)) for k in set(da) | set(db))
-        ka, kb = max(da, key=da.get), max(db, key=db.get)
+        ka, kb = max(da, key=lambda k: da[k]), max(db, key=lambda k: db[k])
         na, nb = self.n(a, now), self.n(b, now)
         same = ka == kb and da[ka] >= self.min_dominance and db[kb] >= self.min_dominance
         if na < self.min_n or nb < self.min_n:

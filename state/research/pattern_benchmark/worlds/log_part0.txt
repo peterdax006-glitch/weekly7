@@ -1,0 +1,4 @@
+12:01:45 part 0/1: 500 worlds, mode full, pid 29108
+12:06:13 W00000 look 0: {'look': 0, 'now': '2033-05-27', 'n_dates': 155, 'rows': 7440, 'raised': 61, 'gated': 61, 'screened_total': 61, 'scan_s': 22.06, 'gate_s': 241.33}
+12:09:52 W00000 look 1: {'look': 1, 'now': '2033-08-26', 'n_dates': 155, 'rows': 7440, 'raised': 7, 'gated': 55, 'screened_total': 68, 'scan_s': 23.69, 'gate_s': 195.27}
+12:13:04 W00000 look 2: {'look': 2, 'now': '2033-11-25', 'n_dates': 155, 'rows': 7440, 'raised': 7, 'gated': 49, 'screened_total': 75, 'scan_s': 23.34, 'gate_s': 167.84}

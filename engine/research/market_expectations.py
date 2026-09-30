@@ -501,12 +501,16 @@ def _judge_probes(raw: list[ProbeResult], gap: float, cfg: ExpectationConfig) ->
         if r.finding == Finding.UNTESTABLE:
             out.append(r)
             continue
-        share = r.implied / gap if abs(gap) > 1e-12 else None
+        implied, beta_t = r.implied, r.beta_t
+        if implied is None or beta_t is None:          # only UNTESTABLE probes lack a link, and they were passed through above
+            out.append(r)
+            continue
+        share = implied / gap if abs(gap) > 1e-12 else None
         if qi is None or qi > cfg.q_fdr:
             why, f = f"{r.quantity} did not shift beyond chance (q={qi:.3f})" if qi is not None else "no p-value", Finding.NOT_SUPPORTED
-        elif abs(r.beta_t) < cfg.beta_t:
-            why, f = f"{r.quantity} shifted but is not linked to opportunity (|t|={abs(r.beta_t):.1f})", Finding.NOT_SUPPORTED
-        elif r.implied * gap <= 0:
+        elif abs(beta_t) < cfg.beta_t:
+            why, f = f"{r.quantity} shifted but is not linked to opportunity (|t|={abs(beta_t):.1f})", Finding.NOT_SUPPORTED
+        elif implied * gap <= 0:
             why, f = f"{r.quantity} shifted but its link points against the surprise", Finding.NOT_SUPPORTED
         else:
             why, f = f"{r.quantity} shifted (z={r.shift_z:.1f}, q={qi:.3f}) and accounts for {share:.0%} of the gap", Finding.SUPPORTED
@@ -523,7 +527,7 @@ def combined_small_changes(results: Sequence[ProbeResult], cfg: ExpectationConfi
     if len(pool) < 3:
         return ProbeResult("combined_small_changes", "*", BreakCause.MARKET_STRUCTURE_CHANGE, Finding.UNTESTABLE, None, None, None, None, None, None, None,
                            "fewer than three testable sub-threshold probes")
-    z = float(sum(math.copysign(1.0, r.beta) * r.shift_z for r in pool) / math.sqrt(len(pool)))
+    z = float(sum(math.copysign(1.0, float(r.beta or 0.0)) * float(r.shift_z or 0.0) for r in pool) / math.sqrt(len(pool)))
     p = float(2 * sps.norm.sf(abs(z)))
     ok = p < cfg.stouffer_p
     return ProbeResult("combined_small_changes", "*", BreakCause.MARKET_STRUCTURE_CHANGE, Finding.SUPPORTED if ok else Finding.NOT_SUPPORTED,
@@ -591,8 +595,8 @@ def unit_shifts(series_by_unit: Mapping[str, Sequence[float]], n_recent: int, cf
         ref, rec = x[:-n_recent], x[-n_recent:]
         ref, rec = ref[np.isfinite(ref)], rec[np.isfinite(rec)]
         est_ref = abs(_tstat(ref, _eff_n(x[:-n_recent]))) >= cfg.t_bar
-        new = (not est_ref) and abs(_tstat(rec, max(len(rec) * 1.0, 1.0))) >= cfg.t_bar and qv[u] is not None and qv[u] <= cfg.q_fdr
         q = qv[u]
+        new = (not est_ref) and abs(_tstat(rec, max(len(rec) * 1.0, 1.0))) >= cfg.t_bar and q is not None and q <= cfg.q_fdr
         if q is None or q > cfg.q_fdr:
             status = UnitStatus.STABLE
         elif est_ref and st.mean_ref * st.mean_recent < 0:
@@ -880,9 +884,9 @@ class MarketExpectationEngine:
         self.history.append(obs)
         report = None
         for q in TARGETS:
-            s = resolved.get(q)
-            if s is not None and abs(s.z) >= self.cfg.z_bar and (s.relative_gap is None or abs(s.relative_gap) >= self.cfg.rel_gap_bar):
-                report = investigate(self.history, s, obs.date, self.cfg, self.target_z[q], pattern_effects, sector_series, stock_series,
+            hit = resolved.get(q)
+            if hit is not None and abs(hit.z) >= self.cfg.z_bar and (hit.relative_gap is None or abs(hit.relative_gap) >= self.cfg.rel_gap_bar):
+                report = investigate(self.history, hit, obs.date, self.cfg, self.target_z[q], pattern_effects, sector_series, stock_series,
                                      regime_changed, self.seed)
                 self.reports.append(report)
                 break
@@ -913,6 +917,8 @@ class MarketExpectationEngine:
         """Hand the resolved errors to the shared engine.learning.surprise.SurpriseTracker (cell 'market|<quantity>'), so market
         surprises join the same ledger, FDR control and priorities as pattern surprises. Returns how many records were added."""
         exp = self.ledger.get(result.date)
+        if exp is None:
+            raise ValueError(f"no expectation was recorded for {result.date}")
         n = 0
         for q, s in result.resolved.items():
             tracker.observe(f"market|{q}", s.expected, s.actual, exp.made_at, result.date, now, scale=s.scale)

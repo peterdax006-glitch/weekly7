@@ -364,7 +364,7 @@ def _level_exit(case, d, P) -> LevelFinding:
     shortfall = max(0.0, min(peak, target) - end) if reached else 0.0
     comp = -sign * shortfall                                   # error = sign * (end - target) in return terms
     sh = _share(comp, case.error) if reached and end < target else 0.0
-    evidence = (f"path peaked at {peak:.3f} of a predicted {target:.3f} and ended at {end:.3f}; evaluation only, the target sets no exit",)
+    evidence: tuple[str, ...] = (f"path peaked at {peak:.3f} of a predicted {target:.3f} and ended at {end:.3f}; evaluation only, the target sets no exit",)
     if case.policy_exit_return is not None:
         evidence += (f"the learned exit policy realised {case.policy_exit_return:.3f}",)
     return LevelFinding(Level.EXIT, True, bool(reached and end < target and sh >= P["share_fire"]), comp, sh, peak - end,
@@ -494,7 +494,7 @@ class Investigation:
         return tuple(f.level for f in self.findings if f.fired)
 
     def validate(self) -> list[str]:
-        errs = []
+        errs: list[str] = []
         if not self.significant:
             return errs if self.conclusion is None else ["an insignificant error must not carry a conclusion"]
         if len(self.findings) != len(LEVELS) or [f.level for f in self.findings] != list(LEVELS):
@@ -834,6 +834,7 @@ def step(state: WhatChangedState, now, cases: Sequence[ErrorCase], cfg=None,
             continue
         state.library.add(inv)
         done.append(c.case_id)
+        assert inv.knowability is not None            # a significant investigation always carries its verdict (validate() checked)
         counts[inv.knowability.klass.value] = counts.get(inv.knowability.klass.value, 0) + 1
         if inv.knowability.klass == FiveWay.GENUINELY_UNKNOWABLE:
             state.unknowable[c.case_id] = inv.conclusion
@@ -878,6 +879,7 @@ def render(inv: Investigation) -> str:
     """Plain-language report of one investigation, chain last."""
     if not inv.significant:
         return f"{inv.case_id}: error {inv.error:.3f} is within normal variation; no investigation."
+    assert inv.knowability is not None and inv.conclusion is not None     # significant investigations are complete
     lines = [f"{inv.case_id}: error {inv.error:.3f} (z {inv.error_z:.1f}); {inv.knowability.klass.value}"]
     for f in inv.findings:
         state = "FIRED" if f.fired else ("clear" if f.measured else "not measured")

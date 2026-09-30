@@ -221,6 +221,13 @@ class ResearchGraph(KnowledgeGraph):
         self._kinds: dict[str, tuple[int, RKind]] = {}
 
     # ------------------------------------------------------------------ kinds
+    def kind_value(self, node_id: str) -> RKind:
+        """Research kind of a node that must exist."""
+        k = self.kind_of(node_id)
+        if k is None:
+            raise GraphError(f"unknown node {node_id}")
+        return k
+
     def kind_of(self, node_id: str) -> RKind | None:
         """Research kind of a node (latest version); nodes written by the base graph get the default kind of their type."""
         vs = self._nodes.get(node_id)
@@ -248,8 +255,9 @@ class ResearchGraph(KnowledgeGraph):
         if errs:
             raise GraphError(f"{k.value} node {nid}: " + "; ".join(errs))
         cur = self._nodes.get(nid)
-        if cur and self.kind_of(nid) != k:
-            raise GraphError(f"node {nid} is {self.kind_of(nid).value}; cannot become {k.value}")
+        have = self.kind_of(nid)
+        if cur and have != k:
+            raise GraphError(f"node {nid} is {have.value if have else 'untyped'}; cannot become {k.value}")
         return self.add_node(nid, KIND_BASE[k], known_at, label or nid.split(":", 1)[1], a)
 
     def merge_attrs(self, node_id: str, known_at, **more) -> Node:
@@ -258,7 +266,7 @@ class ResearchGraph(KnowledgeGraph):
         if not vs:
             raise GraphError(f"unknown node {node_id}")
         cur = vs[-1]
-        return self.add_research_node(self.kind_of(node_id), node_id, known_at, cur.label, {**cur.attrs, **more})
+        return self.add_research_node(self.kind_value(node_id), node_id, known_at, cur.label, {**cur.attrs, **more})
 
     # ------------------------------------------------------------------ roles
     def roles_of(self, edge: GraphEdge) -> frozenset[Role]:
@@ -850,7 +858,7 @@ def candidate_explanations(g: ResearchGraph, failure: str, now, top: int = 3) ->
         return []
     target = pats[0]
     others = [p for p in _active_beliefs(g, now) if p != target]
-    votes: Counter = Counter()
+    votes: dict[str, float] = defaultdict(float)
     if others:
         allp = [target] + others
         S = similarity_matrix(g, allp, now)
@@ -865,10 +873,16 @@ def candidate_explanations(g: ResearchGraph, failure: str, now, top: int = 3) ->
     return sorted(votes.items(), key=lambda kv: (-kv[1], kv[0]))[:top]
 
 
+def _attrs_at(g: ResearchGraph, node_id: str, now) -> Mapping[str, Any]:
+    """Attributes of a node as known at `now` (empty for a node the graph does not know yet)."""
+    node = g.node_at(node_id, now)
+    return node.attrs if node is not None else {}
+
+
 def unexplained_failures(g: ResearchGraph, now, cfg: GapConfig, imp: Mapping[str, float]) -> list[Gap]:
     out = []
     for f in g.unexplained_failures(now):
-        done = g.node_at(f, now).attrs.get("investigated_at")
+        done = _attrs_at(g, f, now).get("investigated_at")
         if done is not None and as_date(now).toordinal() - int(done) < cfg.reinvestigate_days:
             continue
         pats = [p for p in g.targets(f, R.FAILS_IN, now)]
@@ -882,7 +896,7 @@ def unexplained_failures(g: ResearchGraph, now, cfg: GapConfig, imp: Mapping[str
         hint = (" Candidate contexts: " + ", ".join(f"{c} ({v:.2f})" for c, v in cands) + ".") if cands else ""
         out.append(_gap(GapKind.UNEXPLAINED_FAILURE, (f, p), e.weight * recur * (0.4 + 0.6 * imp.get(p, 0.0)),
                         f"Why did {p} fail in {f}? No explaining context is recorded (cause "
-                        f"{g.node_at(f, now).attrs.get('cause', 'UNKNOWN')}).{hint}",
+                        f"{_attrs_at(g, f, now).get('cause', 'UNKNOWN')}).{hint}",
                         Problem.LOSS_AVOIDANCE, _newest(g, [f, p], now), ev={"candidates": [c for c, _ in cands],
                                                                              "unexplained_same_pattern": n_same},
                         information_gain=0.7, failure_reduction_value=e.weight, loss_reduction_value=imp.get(p, 0.0)))
@@ -1370,7 +1384,7 @@ def research_audit(g: ResearchGraph, now) -> list:
 
 
 def kind_stats(g: ResearchGraph, now) -> dict[str, Any]:
-    kinds = Counter(g.kind_of(n.node_id).value for n in g.nodes(now))
+    kinds = Counter(g.kind_value(n.node_id).value for n in g.nodes(now))
     roles: Counter = Counter()
     for e in g.edges(now):
         roles.update(r.value for r in g.roles_of(e))
@@ -1487,7 +1501,7 @@ def context_table(g: ResearchGraph, now, min_n: int = 3) -> list[ContextRow]:
         upper_work = None if lf is None else 1.0 - lf
         verdict = "THIN" if n < min_n else "SAFE" if lw is not None and lw >= 0.6 else \
             "DANGER" if upper_work is not None and upper_work <= 0.4 else "MIXED"
-        rows.append(ContextRow(c, g.kind_of(c).value, n, w, f, lw, upper_work, verdict))
+        rows.append(ContextRow(c, g.kind_value(c).value, n, w, f, lw, upper_work, verdict))
     return rows
 
 
@@ -1504,7 +1518,7 @@ def failure_hotspots(g: ResearchGraph, now, top: int = 5) -> dict[str, Any]:
     unexplained = len(g.unexplained_failures(now))
     rows = [{"context": c, "failures": k, "patterns_hurt": len(by_ctx[c]), "share": k / max(1, len(fails))}
             for c, k in sorted(n_by_ctx.items(), key=lambda kv: (-kv[1], kv[0]))[:top]]
-    causes = Counter(g.node_at(f, now).attrs.get("cause", "UNKNOWN") for f in fails)
+    causes = Counter(_attrs_at(g, f, now).get("cause", "UNKNOWN") for f in fails)
     return {"failures": len(fails), "unexplained": unexplained,
             "unexplained_share": (unexplained / len(fails)) if fails else None, "hotspots": rows,
             "causes": dict(sorted(causes.items()))}

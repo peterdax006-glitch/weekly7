@@ -27,7 +27,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import math
-from typing import Any, Callable, Iterable, Mapping, Sequence
+from typing import TYPE_CHECKING, Any, Callable, Iterable, Mapping, Sequence
 
 import numpy as np
 import pandas as pd
@@ -37,6 +37,11 @@ from engine.learning import trader_view as TV
 from engine.pattern_movers import auc as rank_auc
 from engine.research import vol_hypotheses as VH
 from engine.research.core import FirewallBreach, MaturedRecord, Namespace, _StrEnum, as_date, require_past, stable_hash
+
+if TYPE_CHECKING:                                     # the heavy modules are imported lazily where they are used
+    from engine.direction_features import DirModel
+    from engine.research import direction_lab as DL
+    from engine.research import volatility_lab as VL
 
 LABEL = "IMPLEMENTED - NOT VALIDATED"
 OUTCOME_COLUMNS = tuple(VH.OUTCOME_COLUMNS)
@@ -202,7 +207,10 @@ class KnowledgeView:
 
     @staticmethod
     def _from_items(items: Sequence[Mapping[str, Any]]) -> "KnowledgeView":
-        vol, dirf, rules, ctx = [], [], [], []
+        vol: list[str] = []
+        dirf: list[str] = []
+        rules: list[RiskRule] = []
+        ctx: list[dict[str, float]] = []
         for it in items:
             feats = {str(k): float(v) for k, v in dict(it.get("features") or {}).items()}
             known = [f for f in feats if f in VH.DERIVED]
@@ -256,7 +264,7 @@ def predicted_movers(scores: pd.Series, cfg: TwoStageConfig) -> pd.Series:
     return out
 
 
-def _platt(raw: np.ndarray, y: np.ndarray):
+def _platt(raw: np.ndarray, y: np.ndarray) -> Callable[[np.ndarray], np.ndarray]:
     """Calibrator fitted on the calibration block only: logistic regression of the label on logit(raw)."""
     from sklearn.linear_model import LogisticRegression
     x = np.log(np.clip(raw, 1e-4, 1 - 1e-4) / (1 - np.clip(raw, 1e-4, 1 - 1e-4)))
@@ -283,10 +291,10 @@ class TwoStage:
             raise ValueError("; ".join(errs))
         self.lab_cfg = lab_cfg or VL.LabConfig()
         self.fit_cfg = fit_cfg or VH.FitConfig(min_rows=200, min_events=20, gbm_trees=40)
-        self.vol_model = None
-        self.dir_model = None
-        self.calibrator = None
-        self.gate = None
+        self.vol_model: VL.VolatilityModel | None = None
+        self.dir_model: DirModel | None = None
+        self.calibrator: Callable[[np.ndarray], np.ndarray] | None = None
+        self.gate: DL.GateDecision | None = None
         self.knowledge = KnowledgeView.empty()
         self.report: FitReport | None = None
         self.dir_cols: tuple = ()
@@ -418,7 +426,7 @@ class TwoStage:
             out.loc[movers, "reason"] = str(Reason.DIRECTION_GATE_CLOSED)
             fun.add("direction", len(movers), 0, "direction gate closed: " + "; ".join(self._gate_state()["reasons"][:2]))
             return DayDecision(as_date(now).isoformat(), out, fun, self._gate_state(), self.knowledge.digest)
-        if self.dir_model is None:
+        if self.dir_model is None or self.calibrator is None:
             out.loc[movers, "reason"] = str(Reason.NO_DIRECTION_MODEL)
             fun.add("direction", len(movers), 0, "no direction model (too few predicted-mover rows)")
             return DayDecision(as_date(now).isoformat(), out, fun, self._gate_state(), self.knowledge.digest)
@@ -458,7 +466,7 @@ class TwoStage:
             _apply_band(out, alive, today, self.band_gate, now, fun)
         order = sorted((i for i, ix in enumerate(movers) if alive[ix]), key=lambda i: (-conf[i], str(movers[i])))
         per_sector: dict = {}
-        held = []
+        held: list[int] = []
         for i in order:
             ix = movers[i]
             sec = M["sector"].iloc[i] if "sector" in M else "all"
@@ -634,8 +642,8 @@ def evaluate(decisions: Sequence[DayDecision], matured: pd.DataFrame, now, cover
     J = T.join(M[["touch", "up", "close", "end"]], how="inner")
     J = J[J["touch"].notna()]
     scored = J[np.isfinite(J["p_move"].to_numpy(float))]
-    aucs = [rank_auc(g["p_move"].to_numpy(float), g["touch"].to_numpy(bool)) for _, g in scored.groupby(level=0)]
-    aucs = np.array([a for a in aucs if np.isfinite(a)])
+    auc_list = [rank_auc(g["p_move"].to_numpy(float), g["touch"].to_numpy(bool)) for _, g in scored.groupby(level=0)]
+    aucs = np.array([a for a in auc_list if np.isfinite(a)])
     mv = J[J["mover"].to_numpy(bool)]
     dm = mv[np.isfinite(mv["p_up"].to_numpy(float))]
     y = dm["up"].to_numpy(float)

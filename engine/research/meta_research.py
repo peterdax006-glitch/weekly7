@@ -1636,7 +1636,7 @@ def advice_stability(old: SchedulerAdvice, new: SchedulerAdvice) -> dict:
     """Rank agreement (Spearman) of the exp-type durability ordering between two fits. Advice that reshuffles on every refit
     is noise, however well it scored once."""
     keys = sorted(set(old.exp_type_durable) & set(new.exp_type_durable))
-    out = {"n_common": len(keys), "rho": None, "stop_added": sorted(set(new.stop_paths) - set(old.stop_paths)),
+    out: dict[str, Any] = {"n_common": len(keys), "rho": None, "stop_added": sorted(set(new.stop_paths) - set(old.stop_paths)),
            "stop_removed": sorted(set(old.stop_paths) - set(new.stop_paths))}
     if len(keys) >= 3:
         out["rho"] = spearman([old.exp_type_durable[k] for k in keys], [new.exp_type_durable[k] for k in keys])
@@ -1947,7 +1947,7 @@ def recalibrate_advice(adv: SchedulerAdvice, sweep: Mapping) -> SchedulerAdvice:
     bad = {q.value for q in Q16 if sweep.get(q, {}).get("verdict") == "NO_SKILL"}
     if not bad:
         return adv
-    blank = {}
+    blank: dict[str, Any] = {}
     for q, fields in QUESTION_FIELDS.items():
         if q.value in bad:
             for f in fields:
@@ -2251,9 +2251,13 @@ def predictive_decay(question: Q16, records: Sequence[ResearchOutcome], cfg: Met
 
 # ------------------------------------------------------------------------------------------------ which question earns its keep in the scheduler?
 
+def _dropper(question: Q16) -> Callable[[SchedulerAdvice], SchedulerAdvice]:
+    return lambda adv: drop_question(adv, question)
+
+
 def drop_question(adv: SchedulerAdvice, question: Q16) -> SchedulerAdvice:
     """The advice as if this one question had never been answered."""
-    blank = {f: (() if isinstance(getattr(adv, f), tuple) else {}) for f in QUESTION_FIELDS[question]}
+    blank: dict[str, Any] = {f: (() if isinstance(getattr(adv, f), tuple) else {}) for f in QUESTION_FIELDS[question]}
     return replace(adv, **blank, pooled={k: v for k, v in adv.pooled.items() if k != question.value})
 
 
@@ -2262,14 +2266,14 @@ def question_ablation(rows: Sequence[ResearchOutcome], now, seed: int, cfg: Meta
     removed? A question with contribution <= 0 is either not consumed by the schedule or not helping it. Q10-Q12 feed the
     policy through MetaAdvice.context_transfer, not this schedule, and are reported as such rather than as zero."""
     full = evaluate_scheduler(rows, now, seed, cfg, guard)
-    out = {"full_lift": full.lift, "full_label": full.label, "questions": {}}
+    out: dict[str, Any] = {"full_lift": full.lift, "full_label": full.label, "questions": {}}
     if not math.isfinite(full.lift):
         return out
     for q in Q16:
         if q not in CONSUMED_BY_SCHEDULE:
             out["questions"][q.value] = {"consumed_by_schedule": False, "contribution": None}
             continue
-        ev = evaluate_scheduler(rows, now, seed, cfg, guard, lambda a, q=q: drop_question(a, q))
+        ev = evaluate_scheduler(rows, now, seed, cfg, guard, _dropper(q))
         out["questions"][q.value] = {"consumed_by_schedule": True, "lift_without": ev.lift, "contribution": full.lift - ev.lift}
     return out
 
@@ -2373,7 +2377,7 @@ def store_health(store: OutcomeStore, now) -> dict:
               "validator_flagged"):
         cov[f] = (sum(1 for o in vis if getattr(o, f) is not None) / len(vis)) if vis else 0.0
     thin = sorted(t for t in {o.exp_type for o in vis} if sum(1 for o in vis if o.exp_type == t) < 5)
-    dup = defaultdict(int)
+    dup: dict[tuple, int] = defaultdict(int)
     for o in vis:
         dup[(o.path, o.started_at)] += 1
     warnings = [f"{f} known for only {c:.0%} of resolved runs" for f, c in cov.items() if c < 0.1 and vis]

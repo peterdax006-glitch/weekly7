@@ -584,7 +584,7 @@ class ValidationReport:
     reason: str
 
 
-def _spearman(a: Sequence[float], b: Sequence[float]) -> float:
+def _spearman(a: Sequence[float] | np.ndarray, b: Sequence[float] | np.ndarray) -> float:
     if len(a) < 3:
         return 0.0
     ra = np.argsort(np.argsort(a)).astype(float)
@@ -594,7 +594,7 @@ def _spearman(a: Sequence[float], b: Sequence[float]) -> float:
     return float(np.corrcoef(ra, rb)[0, 1])
 
 
-def capture(pred: Sequence[float], realised: Sequence[float], k: int) -> float:
+def capture(pred: Sequence[float] | np.ndarray, realised: Sequence[float] | np.ndarray, k: int) -> float:
     """Share of the best possible top-k realised value that the top-k by `pred` obtained (1 = perfect ranking)."""
     if len(pred) != len(realised) or k <= 0:
         raise PriorityError("capture needs equal-length inputs and k > 0")
@@ -1240,9 +1240,10 @@ def simulate_policy(world: PlantedWorld, policy: str, rounds: int, seed: int, it
     day = _dt.date(2001, 1, 1)
     budget = ComputeBudget(cpu_minutes=minutes_per_round, ram_gb_free=16.0, real_data_slots=4)
     pending: list = []
-    per_round, fam_min = [], {f.name: [] for f in world.families}
-    fam_off = {f.name: [] for f in world.families}
-    fam_ch = {f.name: [] for f in world.families}
+    per_round: list[float] = []
+    fam_min: dict[str, list[float]] = {f.name: [] for f in world.families}
+    fam_off: dict[str, list[int]] = {f.name: [] for f in world.families}
+    fam_ch: dict[str, list[int]] = {f.name: [] for f in world.families}
     for r in range(rounds):
         now = (day + _dt.timedelta(days=r)).isoformat()
         created = (day + _dt.timedelta(days=r - 1)).isoformat()

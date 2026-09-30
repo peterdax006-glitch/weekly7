@@ -390,13 +390,13 @@ def route(d: Discovery, now, cfg: BridgeConfig = BridgeConfig(), prev: str = "")
                     kos.append(ko)
             verdicts.append(v)
         live = [v for v in verdicts if v.status != Disposition.REFUSED]
-        disp = max((v.status for v in live), key=_STRENGTH.get) if live else Disposition.REFUSED
+        disp = max((v.status for v in live), key=lambda s: _STRENGTH[s]) if live else Disposition.REFUSED
     ceilings = {v.ceiling for v in verdicts if v.ceiling is not None}
     ceiling = dc.Mode.SHADOW.value if dc.Mode.SHADOW in ceilings else dc.Mode.RESEARCH.value if ceilings else ""
     contract, ready = [], []
     for ko in kos:
-        v = dc.check(ko, now, dc.Mode.RESEARCH)
-        contract.append((ko.knowledge_id, v.allowed, v.reasons))
+        chk = dc.check(ko, now, dc.Mode.RESEARCH)
+        contract.append((ko.knowledge_id, chk.allowed, chk.reasons))
         rd = dc.readiness(ko, now)
         ready.append((ko.knowledge_id, tuple(rd["missing"])))
     live_v = [v for v in verdicts if v.status != Disposition.REFUSED]
@@ -410,10 +410,10 @@ def route(d: Discovery, now, cfg: BridgeConfig = BridgeConfig(), prev: str = "")
         answer = f"{d.discovery_id}: refused - " + "; ".join(dict.fromkeys(r for v in verdicts for r in v.reasons))[:400]
     else:
         answer = " | ".join(dc.answer(k) for k in kos)
-    e = BridgeEntry("B" + stable_hash([d.discovery_id, str(as_date(now))], 12), d.discovery_id, d.source, disp, tuple(verdicts),
+    entry = BridgeEntry("B" + stable_hash([d.discovery_id, str(as_date(now))], 12), d.discovery_id, d.source, disp, tuple(verdicts),
                     outputs, effects, ceiling, unstated, tuple(k.knowledge_id for k in kos), tuple(contract), tuple(ready), answer,
                     str(as_date(now)), prev)
-    return _seal(e), kos
+    return _seal(entry), kos
 
 
 @dataclasses.dataclass(frozen=True)
@@ -649,7 +649,7 @@ class Bridge:
     def duplicates(self) -> list[tuple[str, str]]:
         """Distinct live discoveries making the same claim (same output, target, direction and conditions)."""
         seen: dict[tuple, str] = {}
-        dup = []
+        dup: list[tuple[str, str]] = []
         for e in self.live_entries():
             d = self._disc[e.discovery_id]
             for v in e.verdicts:
@@ -658,7 +658,8 @@ class Bridge:
                 c = d.claims[v.index]
                 key = (c.output, c.target, c.direction, tuple(sorted(c.conditions)))
                 if key in seen and seen[key] != d.discovery_id:
-                    dup.append(tuple(sorted((seen[key], d.discovery_id))))
+                    first_id, second_id = sorted((seen[key], d.discovery_id))
+                    dup.append((first_id, second_id))
                 seen.setdefault(key, d.discovery_id)
         return sorted(set(dup))
 
@@ -1031,7 +1032,7 @@ def upgrade_queue(b: Bridge, now) -> list[tuple[str, int, list[str], float]]:
 def decision_coverage(b: Bridge) -> dict[str, Any]:
     """Which of the nine outputs any live discovery moves and which none does - an output nobody can move is a knob the research
     program has no way to turn."""
-    live = Counter()
+    live: Counter[str] = Counter()
     for e in b.live_entries():
         for v in e.verdicts:
             if v.status not in (Disposition.REFUSED, Disposition.INFORMATIONAL):
@@ -1129,7 +1130,7 @@ def from_pattern_rows(rows, now, created_real: str, output: Output = O.VOLATILIT
     discovery (recorded, credited zero). No measurement is attached: the bridge will route them SHADOW_ONLY until the evidence lab
     measures them on the decision metric."""
     from engine.pattern_lifecycle import parse_key_named, pattern_id
-    out = []
+    out: list[Discovery] = []
     if rows is None or len(rows) == 0:
         return out
     for r in rows.itertuples(index=False):
@@ -1174,7 +1175,7 @@ def informational_rate(b: Bridge) -> float | None:
 def sensitivity(b: Bridge, shrink: float = 0.5) -> list[tuple[str, int, str]]:
     """Routing robustness: shrink every measurement's lower bound and sample by `shrink` and report the claims whose disposition would
     fall (discovery id, claim index, new disposition). A DECISION_CHANGING claim that flips at 50% is riding on its margin."""
-    out = []
+    out: list[tuple[str, int, str]] = []
     for e in b.live_entries():
         d = b.discovery(e.discovery_id)
         for v in e.verdicts:
@@ -1182,6 +1183,8 @@ def sensitivity(b: Bridge, shrink: float = 0.5) -> list[tuple[str, int, str]]:
                 continue
             c = d.claims[v.index]
             m = c.measurement
+            if m is None:
+                continue
             thin = dataclasses.replace(c, measurement=dataclasses.replace(
                 m, lower=(m.lower or 0.0) * shrink, n=int(m.n * shrink), windows=max(0, int(m.windows * shrink))))
             nv = triage_claim(v.index, thin, b.cfg)
@@ -1222,11 +1225,11 @@ def expected_value(b: Bridge, now) -> dict[str, float]:
 def resolve_conflict(b: Bridge, id_a: str, id_b: str, now) -> dict[str, Any]:
     """Which of two conflicting discoveries the evidence favours, and why. Compares the lower bound of the measured improvement, the
     sample and the source's earned trust. Refuses to choose (winner None) when one is unmeasured or the two are within noise."""
-    ca = [c for c in b.discovery(id_a).claims if c.measurement]
-    cb = [c for c in b.discovery(id_b).claims if c.measurement]
+    ca = [m for c in b.discovery(id_a).claims if (m := c.measurement) is not None]
+    cb = [m for c in b.discovery(id_b).claims if (m := c.measurement) is not None]
     if not ca or not cb:
         return {"winner": None, "why": "at least one side has no measurement"}
-    la, lb = max(c.measurement.lower or 0.0 for c in ca), max(c.measurement.lower or 0.0 for c in cb)
+    la, lb = max(m.lower or 0.0 for m in ca), max(m.lower or 0.0 for m in cb)
     ta, tb = b.trust(b.discovery(id_a).source, now), b.trust(b.discovery(id_b).source, now)
     sa, sb = la * ta, lb * tb
     if abs(sa - sb) <= 0.25 * max(sa, sb, 1e-12):

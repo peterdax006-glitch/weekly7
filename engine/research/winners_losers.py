@@ -295,7 +295,8 @@ def to_trade_record(m: MoveRecord, p: ResearchParams | None = None) -> TradeReco
     p = p or ResearchParams()
     m.require_valid()
     side = m.hyp_side(p)
-    pnl = float(m.pnl) if m.held and _fin(m.pnl) is not None else side * m.ret - m.cost
+    held_pnl = _fin(m.pnl)
+    pnl = held_pnl if m.held and held_pnl is not None else side * m.ret - m.cost
     mfe, mae = m.mfe, m.mae
     if not m.held and m.peak_ret is not None and m.trough_ret is not None:
         mfe, mae = (m.peak_ret, m.trough_ret) if side > 0 else (-m.trough_ret, -m.peak_ret)
@@ -459,7 +460,8 @@ def explain_move(m: MoveRecord, p: ResearchParams | None = None) -> MoveExplanat
     r = float(m.ret)
     notes = []
     mk = _fin(m.market_ret)
-    market = _fin(m.beta) * mk if mk is not None and _fin(m.beta) is not None else None
+    beta = _fin(m.beta)
+    market = beta * mk if mk is not None and beta is not None else None
     sec_ret = _fin(m.sector_ret)
     sector = sec_ret - mk if sec_ret is not None and mk is not None else None
     if market is None:
@@ -649,7 +651,7 @@ def study_signals(cases: Sequence[MoveRecord], controls: Sequence[MoveRecord], p
         q[testable] = bh_qvalues(np.array([raw[i]["res"].p for i in testable]))
     out = []
     for i, r in enumerate(raw):
-        res: AucResult = r["res"]
+        res = r["res"]
         reasons: list[str] = []
         w = _fin(weights.get(r["s"])) if weights else None
         agree = None
@@ -867,9 +869,11 @@ class WinnerResearch:
         self.n_fit = (len(winners), len(controls))
         return self
 
-    def _need_fit(self) -> None:
-        if self.magnitude is None:
+    def fitted(self) -> tuple[PredictabilityStat, PredictabilityStat, AucResult]:
+        """The three cohort facts `fit` produced; asking before fitting is a programming error."""
+        if self.magnitude is None or self.timing is None or self.rank is None:
             raise RuntimeError("WinnerResearch.study() before fit(): cohort facts are needed to say what generalised")
+        return self.magnitude, self.timing, self.rank
 
     def detection_mode(self, m: MoveRecord) -> DetectionMode:
         if m.held:
@@ -879,7 +883,7 @@ class WinnerResearch:
         return DetectionMode.REJECTED if m.considered else DetectionMode.MISSED
 
     def study(self, m: MoveRecord) -> WinnerFinding:
-        self._need_fit()
+        mag_stat, tim_stat, _ = self.fitted()
         p = self.p
         m.require_valid()
         if not m.is_winner(p):
@@ -913,10 +917,10 @@ class WinnerResearch:
             "signals_contributed": bool(self.signal_stats) and any(s.verdict is not SignalVerdict.UNDERPOWERED for s in self.signal_stats),
             "signals_irrelevant": bool(self.signal_stats) and any(s.verdict is not SignalVerdict.UNDERPOWERED for s in self.signal_stats),
             "signals_generalised": bool(self.signal_stats) and any(s.n_groups >= p.min_groups for s in self.signal_stats),
-            "magnitude_predictable": "predicted" in mag and self.magnitude.verdict is not Predictability.UNDERPOWERED,
-            "timing_predictable": "error_frac" in tim and self.timing.verdict is not Predictability.UNDERPOWERED}
+            "magnitude_predictable": "predicted" in mag and mag_stat.verdict is not Predictability.UNDERPOWERED,
+            "timing_predictable": "error_frac" in tim and tim_stat.verdict is not Predictability.UNDERPOWERED}
         return WinnerFinding(m.rid, MoveKind.WINNER, m.resolved_at, float(m.ret), self.severity(m), expl.driver, expl, det, sb,
-                             ranked, contributed, irrelevant, notgen, mag, tim, self.magnitude.verdict, self.timing.verdict, sel,
+                             ranked, contributed, irrelevant, notgen, mag, tim, mag_stat.verdict, tim_stat.verdict, sel,
                              dict(m.tags), answered)
 
     def severity(self, m: MoveRecord) -> float:
@@ -1144,7 +1148,8 @@ def step(state: WinnerState, records: Iterable[MoveRecord], now, identities: Ite
     code = cached_code_hash() if fresh else ""
     matured = tuple(to_matured(f, code, seed=state.seed, identities=identities) for f in fresh)
     controls = sum(1 for m in known if is_control(m, state.params))
-    return WinnerReport(str(as_date(now)), tuple(fresh), tuple(wr.signal_stats), wr.magnitude, wr.timing, wr.rank, controls, pending,
+    mag_stat, tim_stat, rank_stat = wr.fitted()
+    return WinnerReport(str(as_date(now)), tuple(fresh), tuple(wr.signal_stats), mag_stat, tim_stat, rank_stat, controls, pending,
                         matured, state.params.hash())
 
 
@@ -1346,7 +1351,7 @@ def signal_interactions(cases: Sequence[MoveRecord], controls: Sequence[MoveReco
         sg = 1 if s.auc > 0.5 else -1
         return np.array([(_fin(m.signals.get(s.signal)) is not None and sg * m.signals[s.signal] >= p.active_z) for m in recs])
     rate = lambda a: (a.sum() + 0.5) / (len(a) + 1.0)
-    rows = []
+    rows: list[dict[str, Any]] = []
     for i in range(len(inf)):
         for j in range(i + 1, len(inf)):
             ac, bc, an, bn = act(cases, inf[i]), act(cases, inf[j]), act(controls, inf[i]), act(controls, inf[j])

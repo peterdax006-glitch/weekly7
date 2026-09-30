@@ -63,9 +63,10 @@ NOISE_KINDS = ("null", "identity_null", "mt_winner", "autocorr_trap", "regime_co
                "selection_bias", "survivor_bias", "strong_nontransferable", "adversarial_near", "proxy", "fluke", "leak", "context",
                "base_null")
 PAIRED_NOISE = ("interaction_decoy", "xor_trap")    # one process, two candidate columns
-# zero per-date effect in every evaluation window (the gate's alpha bounds how often these may pass)
-PURE_NULL_KINDS = ("null", "base_null", "context", "mt_winner", "vol_corr", "sample_size", "threshold_illusion", "regime_corr",
-                   "selection_bias", "near_pattern")
+# zero per-date effect in every evaluation window AND no per-name persistence (the gate's alpha bounds how often these may pass).
+# Excluded: per-name persistent columns (identity_null, context, vol_corr, base_null - the name's volatility level - and near_pattern
+# built on a context): over 48 names they correlate with the names' base rates by chance, for ever (an identity trap, not a null).
+PURE_NULL_KINDS = ("null", "mt_winner", "sample_size", "threshold_illusion", "regime_corr", "selection_bias")
 ADVERSARIAL_KINDS = ("mt_winner", "threshold_illusion", "near_pattern", "adversarial_near", "autocorr_trap", "strong_nontransferable",
                      "leak", "survivor_bias")
 # C75 3F difficulty tiers: strength multiplier on every genuine pattern, multiplier on the adversarial noise counts, conditional share;
@@ -104,7 +105,7 @@ class BenchConfig:
     n_dates: int = 208                     # weekly decision dates (four years)
     n_sectors: int = 6
     frame_weeks: int = 156                 # the loop feed's rolling research frame (feeds.FeedConfig.frame_weeks)
-    first_look: int = 104                  # decision-date index of the first screen + gate
+    first_look: int = 156                  # decision-date index of the first screen + gate (the loop's rolling frame is full here)
     look_every: int = 13                   # = loop.REGATE_NEW_DATES
     bands: tuple = (("obvious", 0.60), ("moderate", 0.35), ("subtle", 0.20), ("faint", 0.12), ("extremely_subtle", 0.06))
     real_kinds: tuple = REAL_KINDS
@@ -136,8 +137,8 @@ class BenchConfig:
         errs = []
         if self.n_names < 16 or self.n_dates < 60:
             errs.append("n_names >= 16 and n_dates >= 60 required")
-        if not 8 <= self.first_look < self.n_dates or self.look_every < 1:
-            errs.append("first_look in [8, n_dates) and look_every >= 1 required")
+        if not 8 <= self.first_look <= self.n_dates or self.look_every < 1:
+            errs.append("first_look in [8, n_dates] and look_every >= 1 required")
         if self.frame_weeks < 52:
             errs.append("frame_weeks >= 52 required")
         if not self.bands or any(b <= 0 for _, b in self.bands):
@@ -842,6 +843,7 @@ def _decision_summary(rep, sid: str) -> dict:
     stat = next((g for g in d.gates if g.gate == "out_of_sample"), None)
     return {"verdict": d.verdict.value, "n_gates": len(gates), "n_ok": int(sum(ok for _, _, ok in gates)),
             "blocking": [g for g, s, ok in gates if not ok], "states": {g: s for g, s, _ in gates},
+            "details": {g.gate: g.detail[:160] for g in d.gates if not g.ok},
             "oos_margin": None if stat is None or stat.margin is None else float(stat.margin)}
 
 
@@ -1000,7 +1002,7 @@ def score_world(key: dict, answers: dict) -> tuple[list[dict], dict]:
             eff = best["gate"][-1].get("effect_test")
         elif last and last[1] is not None:
             eff = last[1] - 0.5
-        true_sign = p["sign"]
+        true_sign = p.get("final_sign") or p["sign"]           # a reversed lifecycle pattern is right in its CURRENT direction
         sys_sign = best.get("sign") if best else None
         pl = best.get("promoted_look") if best else None
         r = {"world_id": key["world_id"], "split": key["split"], "tier": key.get("tier"), "eval_era": key["eval_era"], "shift": key["shift"],
@@ -1012,7 +1014,10 @@ def score_world(key: dict, answers: dict) -> tuple[list[dict], dict]:
              "sign_ok": None if sys_sign is None or p["kind"] in ("mt_winner",) else bool(sys_sign == true_sign),
              "rank": final_rank.get(cols[0]) if cols else None, "t_scan": last[2] if last else None,
              "best_gate_share": _best_gate_share(best), "last_verdict": best["gate"][-1]["verdict"] if best and best.get("gate") else None,
-             "n_looks_gated": len(best["gate"]) if best and best.get("gate") else 0, "parent": p.get("parent")}
+             "n_looks_gated": len(best["gate"]) if best and best.get("gate") else 0, "parent": p.get("parent"),
+             "blocking": ",".join(sorted(best["gate"][-1]["blocking"])) if best and best.get("gate") else None,
+             "outcome": OUTCOME.get(best["final"], "REJECT") if best else "REJECT"}
+        r["right"] = bool(promoted and r["sign_ok"] is not False) if p["label"] == REAL else False
         r["effect_error"] = None if eff is None or r["planted_effect"] is None else float(eff - r["planted_effect"])
         r["delay_looks"] = None if pl is None or r["earliest_look"] is None else int(pl - r["earliest_look"])
         credit, near = 0.0, ""
@@ -1049,7 +1054,8 @@ def score_world(key: dict, answers: dict) -> tuple[list[dict], dict]:
     summ = {"world_id": key["world_id"], "split": key["split"], "tier": key.get("tier"), "eval_era": key["eval_era"], "shift": key["shift"],
             "n_looks": n_looks, "promoted_total": int(sum(c["final"] == "PROMOTED" for c in cands.values())),
             "outcomes": pd.Series([OUTCOME.get(c["final"], "REJECT") for c in cands.values()]).value_counts().to_dict() if cands else {},
-            "real_total": int(len(real)), "real_detectable": int(len(det)), "real_right": int(det["promoted"].sum()),
+            "real_total": int(len(real)), "real_detectable": int(len(det)), "real_right": int(det["right"].sum()),
+            "real_right_any_status": int(real["right"].sum()), "promotions": int(R["promoted"].sum()),
             "real_undetectable": int((real["status"] == UNDETECTABLE).sum()), "real_not_representable": int((real["status"] == NOT_REPRESENTABLE).sum()),
             "real_promoted_any": int(real["promoted"].sum()), "noise_total": int(len(noise)), "noise_rejected": int((~noise["promoted"]).sum()),
             "false_positives": int(noise["promoted"].sum()), "fp_by_kind": noise[noise["promoted"]]["kind"].value_counts().to_dict(),
@@ -1071,9 +1077,9 @@ def tier_table(R: pd.DataFrame, S: pd.DataFrame) -> pd.DataFrame:
         sg = S[(S["split"] == split) & (S["tier"] == tier)]
         real, noise = g["label"] == REAL, g["label"] == NOISE
         det = real & (g["status"] == DETECTABLE)
-        tp, fp = int((det & g["promoted"]).sum()), int((noise & g["promoted"]).sum())
+        tp, fp = int((real & g["right"]).sum()), int((noise & g["promoted"]).sum())
         rows.append({"split": split, "tier": tier, "worlds": int(g["world_id"].nunique()),
-                     "recall (detectable)": _fmt(*_ratio(g, det, g["promoted"])), "precision": f"{tp / (tp + fp):.1%}" if tp + fp else "n/a",
+                     "recall (detectable)": _fmt(*_ratio(g, det, g["right"])), "precision": f"{tp / (tp + fp):.1%}" if tp + fp else "n/a",
                      "FDR": f"{fp / (tp + fp):.1%}" if tp + fp else "n/a", "FP / world": f"{sg['false_positives'].mean():.2f}",
                      "noise rejected": _fmt(*_ratio(g, noise, ~g["promoted"])),
                      "worlds with nothing promoted": f"{int((sg['promoted_total'] == 0).sum())}/{len(sg)}"})
@@ -1138,9 +1144,13 @@ def aggregate(rows: Sequence[dict], summaries: Sequence[dict]) -> dict[str, pd.D
         det = real & (Rg["status"] == DETECTABLE)
         Sg = S[S["world_id"].isin(Rg["world_id"].unique())]
         fp = Sg["false_positives"].to_numpy(float)
+        tp, prom = int((real & Rg["right"]).sum()), int(Rg["promoted"].sum())
+        rec = _ratio(Rg, det, Rg["right"])
         tot.append({"set": gname, "worlds": int(Rg["world_id"].nunique()),
-                    "real right (detectable promoted)": _fmt(*_ratio(Rg, det, Rg["promoted"])),
-                    "real right / all real": f"{int((real & Rg['promoted']).sum())}/{int(real.sum())}",
+                    "real right (detectable promoted, right sign)": _fmt(*rec),
+                    "precision (right real / all promotions)": f"{tp / prom:.1%} ({tp}/{prom})" if prom else "n/a (nothing promoted)",
+                    "FDR": f"{1 - tp / prom:.1%}" if prom else "n/a", "FNR (detectable)": f"{1 - rec[0]:.1%}" if rec[3] else "n/a",
+                    "real right / all real": f"{int((real & Rg['right']).sum())}/{int(real.sum())}",
                     "undetectable in principle": int((real & (Rg["status"] == UNDETECTABLE)).sum()),
                     "not representable": int((real & (Rg["status"] == NOT_REPRESENTABLE)).sum()),
                     "noise correctly rejected": _fmt(*_ratio(Rg, noise, ~Rg["promoted"])),
@@ -1158,7 +1168,7 @@ def aggregate(rows: Sequence[dict], summaries: Sequence[dict]) -> dict[str, pd.D
         d = rg["status"] == DETECTABLE
         sg = S[(S["split"] == split) & (S["eval_era"] == era)]
         rows_e.append({"split": split, "era": era, "worlds": int(g["world_id"].nunique()),
-                       "TP recall (detectable)": _fmt(*_ratio(rg, d, rg["promoted"])),
+                       "TP recall (detectable)": _fmt(*_ratio(rg, d, rg["right"])),
                        "FP / world": f"{sg['false_positives'].mean():.2f}", "noise rejected": _fmt(*_ratio(ng, pd.Series(True, index=ng.index), ~ng["promoted"])),
                        "detectable share": f"{d.mean():.1%}"})
     out["era"] = pd.DataFrame(rows_e)
@@ -1167,7 +1177,7 @@ def aggregate(rows: Sequence[dict], summaries: Sequence[dict]) -> dict[str, pd.D
         d = g["status"] == DETECTABLE
         rows_b.append({"split": split, "kind": kind, "band": band, "n": len(g), "detectable": int(d.sum()),
                        "not representable": int((g["status"] == NOT_REPRESENTABLE).sum()), "undetectable": int((g["status"] == UNDETECTABLE).sum()),
-                       "TP recall (detectable)": _fmt(*_ratio(g, d, g["promoted"])), "surfaced": f"{g['surfaced'].mean():.1%}",
+                       "TP recall (detectable)": _fmt(*_ratio(g, d, g["right"])), "surfaced": f"{g['surfaced'].mean():.1%}",
                        "mean oracle power": f"{g['oracle_power'].mean():.2f}", "median delay looks": g["delay_looks"].median()})
     out["band"] = pd.DataFrame(rows_b)
     noise = R[R["label"].isin([NOISE, PART])]
@@ -1181,7 +1191,25 @@ def aggregate(rows: Sequence[dict], summaries: Sequence[dict]) -> dict[str, pd.D
     out["closeness"] = closeness(R)
     out["calibration"] = calibration_table(R)
     out["failures"] = ranked_failures(R, S)
+    out["gates"] = gate_blockers(R)
     return out
+
+
+def gate_blockers(R: pd.DataFrame) -> pd.DataFrame:
+    """Which gate stopped what, at each candidate's last look: share of the GATED detectable real patterns each gate blocked (those
+    are the gates costing true discoveries) next to the share of gated noise it blocked (the gates doing the work)."""
+    g = R[R["n_looks_gated"] > 0]
+    groups = {"real (detectable, not promoted)": g[(g["label"] == REAL) & (g["status"] == DETECTABLE) & ~g["promoted"]],
+              "noise (gated)": g[g["label"] == NOISE]}
+    gates = sorted({x for b in g["blocking"].dropna() for x in b.split(",") if x})
+    rows = []
+    for gate in gates:
+        row = {"gate": gate}
+        for lab, G in groups.items():
+            n = len(G)
+            row[lab] = f"{G['blocking'].fillna('').str.split(',').apply(lambda xs: gate in xs).mean():.1%} of {n}" if n else "n/a"
+        rows.append(row)
+    return pd.DataFrame(rows)
 
 
 def closeness(R: pd.DataFrame) -> pd.DataFrame:
@@ -1272,6 +1300,25 @@ def _json_default(o):
     return str(o)
 
 
+def rescore(out: Path) -> tuple[list[dict], list[dict], list[str]]:
+    """Score every world again from its SEALED key and frozen answers with the current scoring code (open_key re-verifies both seals),
+    so the evaluator can evolve without re-running the learner and without trusting cached scores. Returns (rows, summaries, refused)."""
+    out = Path(out)
+    man = Manifest(out / "manifest.jsonl")
+    rows, summ, refused = [], [], []
+    for ap in sorted((out / "answers").glob("W*.answers.json")):
+        wid = ap.name.split(".")[0]
+        try:
+            key, ans = open_key(out, wid, man)
+        except SealError as e:
+            refused.append(f"{wid}: {e}")
+            continue
+        r, m = score_world(key, ans)
+        rows += r
+        summ.append(m)
+    return rows, summ, refused
+
+
 def load_scores(out: Path) -> tuple[list[dict], list[dict]]:
     rows, summ = [], []
     for p in sorted((Path(out) / "scores").glob("W*.json")):
@@ -1298,7 +1345,9 @@ def report_markdown(tables: Mapping[str, pd.DataFrame], summaries: Sequence[dict
     for name, title in (("total", "Totals (world-cluster bootstrap 95% intervals)"), ("era", "Per era (the era covering most of the final evaluation window)"),
                         ("band", "Real patterns per kind and strength band"), ("noise", "Noise per kind"),
                         ("closeness", "C73: how close (confidence = 1 - the screen's BH q at the last look)"),
-                        ("calibration", "C73: calibration of that confidence"), ("failures", "Ranked concrete failures (drive the next briefs)")):
+                        ("calibration", "C73: calibration of that confidence"), ("tier", "C75 3E/3F: per difficulty tier (0 = NULL world)"),
+                        ("gates", "Which gate blocked what (last look)"), ("learning_curve", "C75 Phase 7: next unseen worlds after k worlds"),
+                        ("failures", "Ranked concrete failures (drive the next briefs)")):
         t = tables.get(name)
         if t is None or t.empty:
             continue

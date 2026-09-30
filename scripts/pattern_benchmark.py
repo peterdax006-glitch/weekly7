@@ -63,13 +63,15 @@ def _log(path: Path):
 
 
 def cmd_run(a) -> int:
-    cfg = PB.BenchConfig(gate=a.mode == "full")
+    cfg = PB.BenchConfig(gate=a.mode != "screen")
+    if a.mode == "final_look":                  # one screen + gate at the world's last date (fixed-sample; the affordable protocol)
+        cfg = PB.BenchConfig(gate=True, first_look=PB.BenchConfig().n_dates)
     if a.mutation:
         cfg = PB.mutate(cfg, a.mutation)
     errs = PB.full_scale_ok(cfg)
     if errs:
         raise SystemExit("; ".join(errs))
-    out = Path(a.out) if a.out else OUT / ("worlds" if a.mode == "full" else "screen") / (a.mutation or "")
+    out = Path(a.out) if a.out else OUT / {"full": "worlds", "final_look": "final_look", "screen": "screen"}[a.mode] / (a.mutation or "")
     out.mkdir(parents=True, exist_ok=True)
     seeds = [s for s in seeds_of(a.seeds) if s % a.parts == a.part]
     log = _log(out / f"log_part{a.part}.txt")
@@ -95,7 +97,9 @@ def cmd_run(a) -> int:
 
 def cmd_report(a) -> int:
     out = Path(a.out) if a.out else OUT / "worlds"
-    rows, summ = PB.load_scores(out)
+    rows, summ, refused = PB.rescore(out)                                      # from the sealed keys + frozen answers, never cached scores
+    for r in refused:
+        print("REFUSED", r)
     if not summ:
         raise SystemExit(f"no scored worlds under {out}")
     T = PB.aggregate(rows, summ)
@@ -105,7 +109,8 @@ def cmd_report(a) -> int:
                     "noise_total", "false_positives", "expected_fp_stated_alpha", "seconds"]].sort_values("world_id")
     T["learning_curve"] = PB.learning_curve(summ, order=sorted(S["world_id"]))
     secs = S["seconds"].dropna()
-    meta = {"note": f"Cost: {secs.mean():.0f} s per world (median {secs.median():.0f}), {secs.sum() / 3600:.1f} CPU-hours in total."}
+    meta = {"note": f"Cost: {secs.mean():.0f} s per world (median {secs.median():.0f}), {secs.sum() / 3600:.1f} CPU-hours in total. "
+                    f"Refused (seal check failed): {len(refused)}."}
     md = PB.report_markdown(T, summ, meta)
     (out / "SUMMARY.md").write_text(md, encoding="utf-8")
     R.to_csv(out / "pattern_rows.csv", index=False)
@@ -154,7 +159,7 @@ def main(argv=None) -> int:
     r.add_argument("--seeds", nargs="+", default=["0-499"])
     r.add_argument("--part", type=int, default=0)
     r.add_argument("--parts", type=int, default=1)
-    r.add_argument("--mode", choices=("full", "screen"), default="full")
+    r.add_argument("--mode", choices=("full", "final_look", "screen"), default="full")
     r.add_argument("--mutation", default=None)
     r.add_argument("--out", default=None)
     r.add_argument("--stop-file", default=None)

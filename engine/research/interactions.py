@@ -824,7 +824,7 @@ def one_sided_p(t: float, sign: float) -> float:
 
 
 # ---------------------------------------------------------------------------------------------------- multiple testing
-def corrected_q(p: Sequence[float], m_total: int, method: str = "bh") -> np.ndarray:
+def corrected_q(p: Sequence[float] | np.ndarray, m_total: int, method: str = "bh") -> np.ndarray:
     """Adjusted p-values against the LEDGER count: p is padded with 1.0 up to m_total (every trial ever tried on this data that
     is not in `p` counts as a non-discovery), then BH / BY / Bonferroni is applied to the padded vector."""
     arr = np.nan_to_num(np.asarray(p, float), nan=1.0)
@@ -892,15 +892,15 @@ def run_shuffled_controls(Pd: Panel, trials: Sequence[Trial], cfg: SearchConfig,
         q = corrected_q(p[r], m_total, cfg.correction)
         other = np.delete(null_max, r)
         found = False
-        for i in np.flatnonzero(q <= cfg.alpha_screen):
-            if (1 + int((other >= absn[r, i]).sum())) / (len(other) + 1) <= cfg.alpha_fwer:
+        for col in np.flatnonzero(q <= cfg.alpha_screen):
+            if (1 + int((other >= absn[r, col]).sum())) / (len(other) + 1) <= cfg.alpha_fwer:
                 found = True
                 break
         fp += int(found)
     return ShuffleControl(cfg.n_shuffles, null_t, null_max, hits, nt * cfg.alpha_raw, fp / max(cfg.n_shuffles, 1))
 
 
-def lottery_diagnostic(p: Sequence[float], m_total: int, n_survivors: int, alpha: float = 0.05) -> dict:
+def lottery_diagnostic(p: Sequence[float] | np.ndarray, m_total: int, n_survivors: int, alpha: float = 0.05) -> dict:
     """Was the search a lottery? Compares the raw hits to the number chance alone hands out among the combinations tried
     (binomial), estimates the true-signal share from the p-value histogram (Storey pi0 at lambda 0.5), and tests the p-values
     for uniformity. Trials are dependent, so the binomial band is indicative; the shuffled controls are the authority."""
@@ -941,11 +941,11 @@ def cross_year_check(ts: TrialSeries, P: Panel, cfg: SearchConfig, sign: float) 
             st = series_stat(TrialSeries(ts.pos[m], ts.v[m], None if ts.z is None else ts.z[m]), cfg.lags, min_n=cfg.min_year_dates)
             if st.ok:
                 per[int(y)] = sign * st.t
-    out = {"n_years": len(per), "usable": len(per) >= cfg.min_years, "per_year_signed_t": per}
+    out: dict[str, Any] = {"n_years": len(per), "usable": len(per) >= cfg.min_years, "per_year_signed_t": per}
     if not per:
         return {**out, "agree": float("nan"), "drop_best_t": float("nan"), "pass": False}
     out["agree"] = float(np.mean([t > 0 for t in per.values()]))
-    best = max(per, key=per.get)
+    best = max(per, key=lambda y: per[y])
     rest = years != best
     st = series_stat(TrialSeries(ts.pos[rest], ts.v[rest], None if ts.z is None else ts.z[rest]), cfg.lags)
     out["drop_best_t"] = sign * st.t if st.ok else float("nan")
@@ -991,7 +991,7 @@ def cross_stock_check(Pv: Panel, tr: Trial, cfg: SearchConfig, sign: float) -> d
             signed[int(g)] = sign * st.t
         if rest.ok:
             logo[int(g)] = sign * rest.t
-    out = {"n_groups": len(signed), "usable": len(signed) >= 2, "per_group_signed_t": signed}
+    out: dict[str, Any] = {"n_groups": len(signed), "usable": len(signed) >= 2, "per_group_signed_t": signed}
     out["agree"] = float(np.mean([t > 0 for t in signed.values()])) if signed else float("nan")
     out["min_leave_one_out_t"] = min(logo.values()) if logo else float("nan")
     out["pass"] = bool(out["usable"] and out["agree"] >= cfg.min_group_agree and out["min_leave_one_out_t"] >= cfg.robust_t)
@@ -1093,7 +1093,7 @@ def leak_tripwires(P: Panel, corr_limit: float = 0.5, date_corr_limit: float = 0
     """A feature that tracks the forward label is a leak, not a discovery. Row atoms whose per-date correlation with y averages
     above `corr_limit`, and market-level atoms whose correlation with the date-mean of y exceeds `date_corr_limit`, are
     reported. Real predictors sit near 0.02-0.05; nothing legitimate reaches these limits."""
-    out = []
+    out: list[dict] = []
     if P.n_rows == 0:
         return out
     yc = _center(P.y, P)
@@ -1467,7 +1467,7 @@ def downside_profile(ret: pd.Series) -> dict:
             "max_dd": float((np.maximum.accumulate(cum) - cum).max())}
 
 
-def always_valid_p(x: Sequence[float], tau: float = 0.5, alpha: float = 0.05) -> dict:
+def always_valid_p(x: Sequence[float] | np.ndarray, tau: float = 0.5, alpha: float = 0.05) -> dict:
     """Mixture sequential probability ratio test (normal mixture, prior sd `tau` in units of the series' own sd) for 'mean is
     zero'. The p-value path min_k 1/Lambda_k stays valid however often it is looked at, so a finding can be watched every day
     without the repeated-look inflation an ordinary t-test would suffer. Returns the final p, the path and the first index
@@ -1951,7 +1951,7 @@ def step(state: InteractionState, inputs: InteractionInputs, now, cfg: SearchCon
         lottery["verdict"] = "SIGNAL_NOT_VALIDATED"
     findings = tuple(w.freeze() for w in works)
     pair_of = {w.trial.trial_id: frozenset((w.trial.a, w.trial.b)) for w in works}
-    clus = redundancy_clusters({k: v for k, v in entered.items() if len(v)}, same_pair=pair_of) if entered else {"clusters": [], "n_effective": 0.0}
+    clus: dict[str, Any] = redundancy_clusters({k: v for k, v in entered.items() if len(v)}, same_pair=pair_of) if entered else {"clusters": [], "n_effective": 0.0}
     shrunk = {k: v for k, v in shrink_effects(works).items()
               if any(f.trial.trial_id == k and passed_correction(f) for f in findings)}
     fam_rows = family_table(findings, cfg.alpha_raw).to_dict("records")
