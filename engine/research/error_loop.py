@@ -1556,7 +1556,7 @@ def st_error_research(ctx: LP.Ctx) -> tuple:
     cfg = st.cfg
     records = led.errors.records(led.outcomes, ctx.now)
     if not records and not st.market.reports:
-        raise LP.NoInput("no matured prediction error yet")
+        raise LP.NoInput(f"no matured prediction error and no market report yet ({upstream(st, led)})")
     rep = ER.step(st.er, ctx.now, records, st.contexts, priority_state=None, created_real=ctx.created_real())
     events = ctx.bus.setdefault("events", [])
     rqs = ctx.bus.setdefault("research_questions", [])
@@ -1652,7 +1652,8 @@ def st_depth(ctx: LP.Ctx) -> tuple:
     new = ctx.bus.get("new_questions", [])
     ours = [(q, ctx.state.questions[q]) for q in new if q in ctx.state.questions and ctx.state.questions[q].subject in st.cells]
     if not ours:
-        raise LP.NoInput("no new question from a C68 event this cycle")
+        raise LP.NoInput(f"no new question from a C68 event this cycle ({len(new)} new loop question(s), {len(st.cells)} C68 subject(s) "
+                         f"ever asked; {upstream(st, led)})")
     pst = ctx.mod_state("priority", PRI.new_state)
     damped = 0
     for qid, qo in ours:
