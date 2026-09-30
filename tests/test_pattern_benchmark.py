@@ -365,12 +365,13 @@ def test_evidence_on_the_needed_columns_is_identical(world):
     planted = [c for c in F.columns if c.startswith(PB.PREFIX)]
     lin = next(p for p in world.key["patterns"] if p["kind"] == "linear" and p["band"] == "obvious")["columns"][0]
     with PB.registered(planted), PB.corpus_once():
+        rivals = EV.rival_ranks(M, PB.scan_universe(M.columns))              # F28: run_system hands every bundle the search's ranks
         for f in (lin, "lv20"):
             spec = EV.FindingSpec("D_" + f, f, 1.0, "VOLATILITY", n_tests_searched=5, has_falsifier=True, seed=1)
             out = []
             for G in (M, M[PB.evidence_columns(f, M.columns)]):
                 b = EV.assemble(G, spec, now, code_hash="c", data_hash="d", created_real="2026-09-30T00:00:00+00:00",
-                                ledger=RP.ReplicationLedger(), look=1, plan=LP.REGATE_PLAN)
+                                ledger=RP.ReplicationLedger(), look=1, plan=LP.REGATE_PLAN, rivals=rivals)
                 rep = EV.gate([b], now, "c", looks={spec.subject_id: 1}, plan=LP.REGATE_PLAN)
                 out.append((json.dumps(b.summary(), sort_keys=True, default=str), EV.verdicts(rep), EV.blocking(rep, spec.subject_id)))
             assert out[0] == out[1], f

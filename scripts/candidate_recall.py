@@ -279,7 +279,7 @@ def main() -> None:
     r.add_argument("--seeds", nargs="+", default=["0-19"])
     r.add_argument("--null", type=int, default=0)
     p = sub.add_parser("report")
-    p.add_argument("--variant", default="all")
+    p.add_argument("--variant", default="early")
     p.add_argument("--k", type=int, default=8)
     p.add_argument("--t_pre", type=float, default=2.5)
     a = ap.parse_args()

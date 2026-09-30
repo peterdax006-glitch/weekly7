@@ -79,7 +79,7 @@ class FormConfig:
     k_per_family: int = 8                              # proposals kept per family (the operating point; see the recall runner)
     keep_top: int = 40                                 # ranked list kept per family for the trade-off curve
     t_pre: float = 2.5                                 # prescreen |t| a form needs before it can be proposed
-    select_frac: float = 1.0                           # prescreen on the earliest share of dates (1.0 = all)
+    select_frac: float = 1.0 / 3.0                     # prescreen on the first third of dates: before the screen's first test fold
     dedup_rho: float = 0.90
     atom_dup_rho: float = 0.98
     y_col: str = "touch"

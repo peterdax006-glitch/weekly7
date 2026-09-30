@@ -1,0 +1,284 @@
+{
+ "code_hash": "939fadd26f6447b9",
+ "code_mixed": [],
+ "run": "final_look_100",
+ "seeds": [
+  0,
+  1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  7,
+  8,
+  9,
+  10,
+  11,
+  12,
+  13,
+  14,
+  15,
+  16,
+  17,
+  18,
+  19,
+  20,
+  21,
+  22,
+  23,
+  24,
+  25,
+  26,
+  27,
+  28,
+  29,
+  30,
+  31,
+  32,
+  33,
+  34,
+  35,
+  36,
+  37,
+  38,
+  39,
+  40,
+  41,
+  42,
+  43,
+  44,
+  45,
+  46,
+  47,
+  48,
+  49,
+  50,
+  51,
+  52,
+  53,
+  54,
+  55,
+  56,
+  57,
+  58,
+  59,
+  60,
+  61,
+  62,
+  63,
+  64,
+  65,
+  66,
+  67,
+  68,
+  69,
+  70,
+  71,
+  72,
+  73,
+  74,
+  75,
+  76,
+  77,
+  78,
+  79,
+  80,
+  81,
+  82,
+  83,
+  84,
+  85,
+  86,
+  87,
+  88,
+  89,
+  90,
+  91,
+  92,
+  93,
+  94,
+  95,
+  96,
+  97,
+  98,
+  99
+ ],
+ "config": {
+  "n_names": 48,
+  "n_dates": 208,
+  "n_sectors": 6,
+  "frame_weeks": 156,
+  "first_look": 208,
+  "look_every": 13,
+  "bands": [
+   [
+    "obvious",
+    0.6
+   ],
+   [
+    "moderate",
+    0.35
+   ],
+   [
+    "subtle",
+    0.2
+   ],
+   [
+    "faint",
+    0.12
+   ],
+   [
+    "extremely_subtle",
+    0.06
+   ]
+  ],
+  "real_kinds": [
+   "linear",
+   "rare",
+   "threshold",
+   "conditional",
+   "interactive",
+   "xor",
+   "delayed",
+   "regime",
+   "changing",
+   "lifecycle"
+  ],
+  "noise_counts": [
+   [
+    "null",
+    130
+   ],
+   [
+    "identity_null",
+    30
+   ],
+   [
+    "mt_winner",
+    60
+   ],
+   [
+    "autocorr_trap",
+    25
+   ],
+   [
+    "regime_corr",
+    20
+   ],
+   [
+    "vol_corr",
+    20
+   ],
+   [
+    "sample_size",
+    20
+   ],
+   [
+    "threshold_illusion",
+    20
+   ],
+   [
+    "near_pattern",
+    15
+   ],
+   [
+    "coincidence",
+    15
+   ],
+   [
+    "early_decay",
+    10
+   ],
+   [
+    "reversal",
+    15
+   ],
+   [
+    "delayed_coincidence",
+    15
+   ],
+   [
+    "interaction_decoy",
+    10
+   ],
+   [
+    "xor_trap",
+    10
+   ],
+   [
+    "selection_bias",
+    10
+   ],
+   [
+    "survivor_bias",
+    10
+   ],
+   [
+    "strong_nontransferable",
+    10
+   ],
+   [
+    "adversarial_near",
+    15
+   ],
+   [
+    "proxy",
+    15
+   ],
+   [
+    "fluke",
+    10
+   ],
+   [
+    "leak",
+    10
+   ]
+  ],
+  "null_world_share": 0.1,
+  "tiers": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6
+  ],
+  "slow_sd": 0.4,
+  "mt_pool": 40,
+  "mt_window": 0.35,
+  "ticker_sd": 0.5,
+  "oracle_draws": 24,
+  "power_floor": 0.5,
+  "orient_frac": 0.3,
+  "single_era_share": 0.5,
+  "min_segment": 26,
+  "year_range": [
+   1978,
+   2046
+  ],
+  "screen_top": 6,
+  "screen_t": 2.0,
+  "gate": true,
+  "screen_calls": null,
+  "seed_salt": "F19-heldout-v1",
+  "evidence_ablation": [],
+  "honest_multiplicity": true
+ },
+ "freeze": {
+  "benchmark_config": "333df6af8bd47913",
+  "quality_policy": "966d140da9522d54",
+  "sequential_plan": "215a00f35651fc60",
+  "evidence_config": "1277a4029ea9d72f",
+  "screen": [
+   6,
+   2.0,
+   13
+  ],
+  "code_hash": "9047e0ffb818a96c",
+  "final_salt": "F19-final-UNCREATED"
+ },
+ "pid": 6196,
+ "at": "2026-09-30T15:48:55",
+ "label": "IMPLEMENTED - NOT VALIDATED"
+}

@@ -882,10 +882,9 @@ def _decision_summary(rep, sid: str) -> dict:
 F28_ABLATIONS = ("no_rival", "no_name_units", "no_leak_suspect", "no_f28")
 
 
-def fired(ev) -> bool:
-    """Did any F28 part object to this evidence (a rival or name-units check not passing, a leak suspicion)?"""
+def fired(ev, pol) -> bool:
+    """Did any F28 part object to this evidence under the look's policy `pol` (a rival or name-units check not passing, a suspicion)?"""
     from engine.research import quality_gate as QG
-    pol = QG.QualityPolicy(code_hash="cf")
     o = ev.oos
     if o is not None and o.statistical is not None:
         if QG.rival_check(o.rival, pol)[0] != QG.PASS or QG.name_units_check(o.name_units, o.statistical.n_tests_searched, pol)[0] != QG.PASS:
@@ -900,7 +899,7 @@ def f28_counterfactuals(b, now, code_hash: str, look: int, plan, ecfg, verdict: 
     from engine.research import evidence as EV
     ev = b.evidence
     o, lk = ev.oos, ev.leak
-    if verdict is not None and not fired(ev):
+    if verdict is not None and not fired(ev, plan.quality_policy(look, code_hash)):
         return {name: verdict for name in F28_ABLATIONS}   # no F28 part objected: stripping one cannot change the verdict
 
     def strip(rival: bool, units: bool, sus: bool):

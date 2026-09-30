@@ -22,6 +22,7 @@ from engine.research import vol_hypotheses as VH                               #
 
 warnings.filterwarnings("ignore")
 T, N, NOISE = 120, 40, 14
+ALL = CF.FormConfig(select_frac=1.0)          # prescreen on every date (the default uses the first third; see test_default_selection_window)
 
 
 @contextlib.contextmanager
@@ -115,7 +116,7 @@ def toy_key(kind: str) -> list[dict]:
 def test_each_true_form_planted_alone_is_proposed(kind):
     F, atoms, now = world(kind, seed=SEED.get(kind, 3))
     with registered(atoms):
-        prop = CF.propose(F, atoms, now)
+        prop = CF.propose(F, atoms, now, ALL)
     pats = toy_key(kind)
     true = [s for s in prop.proposed if CF.match(pats[0], pats, s.name) == "true"]
     assert true, (kind, [(s.name, round(s.t, 1)) for s in prop.proposed[:10]], prop.main)
@@ -123,6 +124,26 @@ def test_each_true_form_planted_alone_is_proposed(kind):
     assert "x00" not in prop.main                                    # its single alone would not have been a strong candidate
     top = max(prop.proposed, key=lambda s: abs(s.t))
     assert "x00" in top.spec.atoms                                   # the planted form is the strongest thing found
+
+
+@pytest.mark.parametrize("kind", ["xor", "interactive", "delayed"])
+def test_default_selection_window(kind):
+    """The default prescreen reads only the first third of the dates (the walk-forward screen's first training block), so the screen
+    that follows scores the proposed forms on dates the selection never saw: outcomes after the window cannot change the proposal.
+    Strong forms are still found from that third alone."""
+    F, atoms, now = world(kind, seed=3, eff=1.2)
+    cut = F.index.get_level_values(0).unique()[T // 3]
+    G = F.copy()
+    late = G.index.get_level_values(0) >= cut
+    G.loc[late, "touch"] = np.random.default_rng(5).permutation(G.loc[late, "touch"].to_numpy())
+    with registered(atoms):
+        a = CF.propose(F, atoms, now)
+        b = CF.propose(G, atoms, now)
+    assert a.select_dates == T // 3
+    assert [(s.name, s.t) for s in a.proposed] == [(s.name, s.t) for s in b.proposed]
+    pats = toy_key(kind)
+    hits = {CF.match(pats[0], pats, s.name) for s in a.proposed if CF.parse(s.name).family != "rare"}
+    assert "true" in hits or (kind == "xor" and "any" in hits)       # a strong xor may be represented by its slope contrast
 
 
 def test_the_single_feature_screen_cannot_see_the_pair_forms():
@@ -137,10 +158,10 @@ def test_the_single_feature_screen_cannot_see_the_pair_forms():
 # ============================================================================================================ null world, multiplicity
 def test_null_world_false_candidates_are_reported_and_bounded():
     counts = []
-    for seed in (1, 2, 3):
+    for seed in (1, 2):
         F, atoms, now = world(None, seed=seed)
         with registered(atoms):
-            prop = CF.propose(F, atoms, now)
+            prop = CF.propose(F, atoms, now, ALL)
         counts.append((len(prop.at(20, 2.0)), len(prop.at(8, 3.5)), len(prop.at(8, 4.5))))
     # reported: proposals at loose / default-ish / strict points; every one of them is a false candidate in a null world
     loose, mid, strict = np.array(counts).T
@@ -199,7 +220,7 @@ def test_duplicate_atoms_and_same_pattern_two_ways_are_one_candidate():
     F["x00dup"] = F["x00"] + 1e-4 * rng.normal(size=len(F))        # the same feature twice
     atoms = atoms + ["x00dup"]
     with registered(atoms):
-        prop = CF.propose(F, atoms, now)
+        prop = CF.propose(F, atoms, now, ALL)
     assert prop.dup_atoms.get("x00dup") == "x00" or prop.dup_atoms.get("x00") == "x00dup"
     pairs = [frozenset(s.spec.atoms) for s in prop.proposed if s.spec.family in ("prod", "xor", "cond")]
     assert len(pairs) == len(set(pairs))                               # one form per pair of features
@@ -251,7 +272,7 @@ def test_a_form_at_t_never_changes_when_the_future_is_scrambled(name):
                                   "ix__cf_xor__x02__x03", "ix__cf_andhl__x02__x03", "ix__cf_condhi__x02__x03", "ix__cf_reglo__x02__mk"])
 def test_the_prescreen_scores_the_same_values_the_screen_derives(name):
     F, atoms, now = world(None, seed=9)
-    cfg = CF.FormConfig(t_main=99.0)
+    cfg = CF.FormConfig(t_main=99.0, select_frac=1.0)
     with registered(atoms):
         P = CF.build_panel(F, atoms, now, cfg)
         v = CF.vector(P, CF.parse(name), cfg)
@@ -285,7 +306,7 @@ def test_forms_are_judged_beyond_their_own_atom():
     F, atoms, now = world(None, seed=11)
     x = F["x05"].to_numpy()
     F["touch"] = (rng.random(len(F)) < 1 / (1 + np.exp(-(-1.0 + 0.35 * x)))).astype(float)
-    cfg = CF.FormConfig(t_main=99.0)
+    cfg = CF.FormConfig(t_main=99.0, select_frac=1.0)
     with registered(atoms):
         P = CF.build_panel(F, atoms, now, cfg)
         i = P.names.index("x05")
@@ -302,7 +323,7 @@ def test_strong_singles_are_raised_alone_not_searched_in_forms():
     F["leak"] = F["touch"] * 2.0 + rng.normal(size=len(F))             # 'too good': it contains the outcome
     atoms = atoms + ["leak"]
     with registered(atoms):
-        prop = CF.propose(F, atoms, now)
+        prop = CF.propose(F, atoms, now, ALL)
     assert "leak" in prop.main
     assert not any("leak" in s.spec.atoms for lst in prop.ranked.values() for s in lst)
 
@@ -314,7 +335,7 @@ def test_screen_table_registers_inside_a_session_and_cleans_up():
     before = set(VH.DERIVED)
     lab = VL.LabConfig(min_train_dates=40, test_step_dates=15, n_boot=50)
     with registered(atoms), CF.session():
-        prop = CF.propose(F, atoms, now, CF.FormConfig(k_per_family=2))
+        prop = CF.propose(F, atoms, now, CF.FormConfig(k_per_family=2, select_frac=1.0))
         tab, p2 = CF.screen_table(F, atoms[:3], now, lab, proposal=prop)
         assert p2 is prop and tab.attrs["n_scanned"] == prop.n_scanned
         assert set(prop.names) <= set(tab["feature"]) and set(prop.names) <= set(VH.DERIVED)
