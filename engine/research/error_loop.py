@@ -56,7 +56,7 @@ import numpy as np
 import pandas as pd
 
 from engine import exits as EX
-from engine.learning.archive import GENESIS
+from engine.learning.archive import GENESIS, ChainCorrupt
 from engine.learning.core import Provenance, as_date, canonical_json, stable_hash
 from engine.learning.surprise import SurpriseTracker
 from engine.research import calibration_target as CT
@@ -325,6 +325,7 @@ class C68State:
     exited: list = dataclasses.field(default_factory=list)          # (policy id, Paths) of the newest exits: the independence audit
     depth_of: dict = dataclasses.field(default_factory=dict)        # pid -> checklist-D research tier (NONE / CHEAP / STANDARD / DEEP)
     pending_err_z: list = dataclasses.field(default_factory=list)   # (date the error became known, z) awaiting the next session
+    gate_log: list = dataclasses.field(default_factory=list)        # per decision: released influence and what it did to the forecasts
     production: dict = dataclasses.field(default_factory=lambda: {"name": "incumbent", "since": "", "window_share": 1.0,
                                                                    "extra_features": ()})
     corrections: list = dataclasses.field(default_factory=list)
@@ -368,10 +369,15 @@ class Ledgers:
 
 
 def open_ledgers(root, tracker: SurpriseTracker | None, cfg: C68Config, code_hash: str) -> Ledgers:
+    """Open (or reload) the C68 ledgers under <root>/c68. A chain that does not verify on opening was edited on the medium: that is
+    tampering, and it is refused as such (FirewallBreach -> REFUSED_LEAK), never read around."""
     d = Path(root) / SUBDIR
     d.mkdir(parents=True, exist_ok=True)
-    exp = XP.ExpectationLedger(d, code_hash)
-    return Ledgers(d, exp, OC.OutcomeLedger(exp, d), PE.ErrorEngine(cfg.error_cfg, tracker, d), CT.CommitmentBook(d), PipelineLedger(d))
+    try:
+        exp = XP.ExpectationLedger(d, code_hash)
+        return Ledgers(d, exp, OC.OutcomeLedger(exp, d), PE.ErrorEngine(cfg.error_cfg, tracker, d), CT.CommitmentBook(d), PipelineLedger(d))
+    except ChainCorrupt as e:
+        raise XP.LedgerTampered(f"the C68 chain under {d} does not verify on opening: {e}") from e
 
 
 def _state(ctx: LP.Ctx) -> C68State:
@@ -419,7 +425,8 @@ class BarView:
     def sector_index(self, sector: str) -> np.ndarray:
         m = self.sector == sector
         r = self.returns()[:, m]
-        mr = np.nan_to_num(np.nanmean(r, axis=1) if m.any() else np.zeros(self.T), nan=0.0)
+        ok = np.isfinite(r)
+        mr = np.where(ok.any(1), np.where(ok, r, 0.0).sum(1) / np.maximum(ok.sum(1), 1), 0.0) if m.any() else np.zeros(self.T)
         return 100.0 * np.cumprod(1.0 + mr)
 
 
@@ -656,6 +663,22 @@ class BandGate:
         return out
 
 
+def influence_effect(gate: BandGate, today: pd.DataFrame, now) -> dict:
+    """What the released pattern influence did to today's forecasts: per pattern, the names it fires on and the mean change of their
+    forecast median against full influence (negative = a degraded pattern pulled its names down, toward and out of the band)."""
+    out = {"now": str(as_date(now)), "influence": dict(gate.influence), "shift": {}, "n_fired": {}}
+    if not len(today) or gate.model.beta_ is None:
+        return out
+    full = dataclasses.replace(gate, influence={p: 1.0 for p in gate.influence})
+    a = np.array([f.median for f in gate.forecast(today, now)])
+    b = np.array([f.median for f in full.forecast(today, now)])
+    for p, w in gate.influence.items():
+        hit = np.array([p in gate.fired.get(str(ix[-1]), ()) for ix in today.index], bool) & np.isfinite(a) & np.isfinite(b)
+        out["n_fired"][p] = int(hit.sum())
+        out["shift"][p] = float(np.mean(a[hit] - b[hit])) if hit.any() else 0.0
+    return out
+
+
 def abstain_gate(rows: pd.DataFrame, now) -> pd.DataFrame:
     """The gate when no realisable-gain model could be fitted: nobody is eligible (UNSUPPORTED), never waved through."""
     return pd.DataFrame({"eligible": False, "reason": SC.Reason.UNSUPPORTED.value, "point": np.nan, "p_band": 0.0}, index=rows.index)
@@ -719,6 +742,8 @@ def st_policy(ctx: LP.Ctx) -> tuple:
     gate = BandGate(gm, pid, cfg.selection, feats, infl, {p.name: p.feature for p in cfg.patterns}, fired_today(today, cfg.patterns))
     pipe.band_gate = gate
     st.gate, st.path_model = gate, pm
+    st.gate_log.append(influence_effect(gate, today, ctx.now))
+    st.gate_log = st.gate_log[-500:]
     st.trained_through = str(pd.Timestamp(P.end.max()).date())
     st.intended[str(as_date(ctx.now))] = pid
     dg = gm.diagnostics
@@ -1202,7 +1227,7 @@ def st_outcomes(ctx: LP.Ctx) -> tuple:
         exit_pos = pos0 + days - 1
         exp = led.expectations.get(pid)
         meta = led.expectations.meta(pid)
-        price = float(P.o[0, 0] * (1.0 + res.gross[0]))
+        price = float(P.o[0, 0] * (1.0 + res.net[0]))              # net of costs: the SAME realised return the +-1pp book grades
         pdata = path_data(bv, p, pos0, exit_pos, price, frames, combos, exp.patterns, tuple(exp.interactions), cfg.post_exit, cfg.peers)
         try:
             out = OC.reconstruct(exp, meta["content_hash"], pdata, ctx.now)
@@ -1292,7 +1317,7 @@ def error_case(bv: BarView, st: C68State, pid: str, exp: XP.Expectation, out: OC
         a = max(0, d0 - 60)
         b = pd.DataFrame({"open": bv.O[a:, j], "high": bv.H[a:, j], "low": bv.L[a:, j], "close": bv.C[a:, j], "volume": bv.V[a:, j]},
                          index=S[a:]).loc[: S[min(bv.T - 1, e1 + 3)]]
-        mv = KN.MoveEvent("K" + pid[1:12], exp.subject, exp.decided_at, exp.entry_at, out.exit_at, float(bv.C[e1, j] / bv.C[d0, j] - 1.0),
+        mv = KN.MoveEvent("K" + pid[1:12].translate(_NO_DIGITS), exp.subject, exp.decided_at, exp.entry_at, out.exit_at, float(bv.C[e1, j] / bv.C[d0, j] - 1.0),
                           max(1, e1 - d0), sector=str(bv.sector[j]))
         kn = KN.classify_move(KN.MoveInputs(mv, b, market=mr.loc[b.index].fillna(0.0)))
     except (KN.KnowabilityError, KeyError, ValueError, IndexError):
@@ -1300,10 +1325,19 @@ def error_case(bv: BarView, st: C68State, pid: str, exp: XP.Expectation, out: OC
     cut = pd.Timestamp(exp.decided_at)
     pf = {p: frames[p][["effect"]].loc[:cut].tail(PATTERN_ROWS) for p in exp.patterns if p in frames}
     cb = {k: v for k, v in combos.items() if all(x in exp.patterns for x in k.split("|"))}
-    case = WC.ErrorCase("C" + pid[1:], exp.decided_at, out.matured_at, float(exp.predicted_return), float(out.exit_return), hist, path,
+    case = WC.ErrorCase(case_id(pid), exp.decided_at, out.matured_at, float(exp.predicted_return), float(out.exit_return), hist, path,
                         mr.loc[idx_h], mr.iloc[e0: e1 + 1], sec.loc[idx_h], sec.iloc[e0: e1 + 1], peers, 0.0, pf, cb,
                         after if len(after) else None, float(out.exit_return), kn, float(exp.confidence))
     return case, kn
+
+
+_NO_DIGITS = str.maketrans("0123456789", "ghijklmnop")
+
+
+def case_id(pid: str) -> str:
+    """The what-changed case id of a prediction: its hash with the digits mapped to letters, so no run of digits in a hash can be read
+    as a year by the identity firewall (a real collision: 'C482d0b705d2048')."""
+    return "C" + str(pid)[1:].translate(_NO_DIGITS)
 
 
 def investigation_context(st: C68State, exp: XP.Expectation, out: OC.OutcomeReconstruction, kn, gate: BandGate | None) -> ER.InvestigationContext:
@@ -1355,6 +1389,12 @@ def st_what_changed(ctx: LP.Ctx) -> tuple:
             case, kn = error_case(bv, st, pid, exp, out, frames, combos, ctx.now)
         except KeyError:
             st.investigated.append(pid)
+            st.count("case_unbuildable")
+            continue
+        errs = case.validate()
+        if errs:                                             # counted and reported, never silently dropped
+            st.investigated.append(pid)
+            st.count("case_invalid")
             continue
         cases.append(case)
         kns[case.case_id] = (pid, kn)
@@ -1449,13 +1489,19 @@ def st_error_research(ctx: LP.Ctx) -> tuple:
         if pr.score > 0:
             events.append(Q.QuestionEvent("surprise", f"repeated surprise {pr.cell}"[:150], _last_matured(st, ctx.now),
                                           float(min(1.0, pr.score)), problem=Problem.VOLATILITY, detail=pr.reason[:150]))
+    n_mq = 0
     for mr in st.market.reports[st.counters.get("market_reports_sent", 0):]:
-        rqs.extend(ME.investigation_questions(mr, ctx.created_real(), mr.period))
+        mq = ME.investigation_questions(mr, ctx.created_real(), mr.period)
+        rqs.extend(mq)
+        n_mq += len(mq)
     st.counters["market_reports_sent"] = len(st.market.reports)
     for o, it in st.er.intensities.items():
         st.depth_of[o] = it.tier.value
-    return _run(st, ctx, "c68.error_research", rep.ingested, n_ev + len(rep.self_questions),
-                f"{rep.summary()}; {n_ev} question event(s), {len(rep.self_questions)} self-research question(s)")
+    n_out = n_ev + len(rep.self_questions) + n_mq + sum(len(i.follow_ups) for i in rep.investigations)
+    if not rep.ingested and not n_out:
+        raise LP.NoInput("no new matured error and no market investigation to research")
+    return _run(st, ctx, "c68.error_research", rep.ingested, n_out,
+                f"{rep.summary()}; {n_ev} question event(s), {len(rep.self_questions)} self-research question(s), {n_mq} market question(s)")
 
 
 def _last_matured(st: C68State, now) -> str:
@@ -1555,6 +1601,10 @@ def candidate_fixes(cfg: C68Config) -> list:
             SCX.CandidateFix("placebo_noise", SCX.Component.MISSING_FEATURE, tuple(I(c) for c in cfg.features), _ridge_fix(f, noise=True))]
 
 
+def fix_key(name: str, now) -> str:
+    return f"FIX:{name}@{as_date(now)}"
+
+
 FIX_EFFECT = {"recency_refit": {"window_share": 0.4, "extra_features": ()},
               "market_conditioning": {"window_share": 1.0, "extra_features": ("m_vol", "m_r20", "m_breadth")},
               "placebo_noise": None}
@@ -1587,16 +1637,13 @@ def st_validate(ctx: LP.Ctx) -> tuple:
                            "implicated": [c.value for c in rep.diagnosis.implicated], "promoted": list(rep.promoted), "rejected": dict(rep.rejected),
                            "effects": {r.fix: (r.mean_effect, r.t, len(r.oos_effects)) for r in rep.results}})
     for r in rep.results:
-        key = f"FIX:{r.fix}"
+        key = fix_key(r.fix, ctx.now)                      # one trail per test of a fix: OOS test -> update proposal -> gate -> verdict
         if led.pipe.last_step(key) is None:
             led.pipe.add(key, "OOS_TEST", ctx.now, {"mean_effect": r.mean_effect, "t": r.t, "weeks": len(r.oos_effects), "split": r.split},
-                         parents=[r.prediction_id for r in led.errors.reports(ctx.now)][-50:])
-        verdict = "PROMOTED" if r.fix in rep.promoted else "REJECTED"
-        if led.pipe.last_step(key) in ("OOS_TEST", "MODEL_UPDATE", "VALIDATION"):
-            if led.pipe.last_step(key) == "OOS_TEST":
-                led.pipe.add(key, "MODEL_UPDATE", ctx.now, {"proposal": FIX_EFFECT.get(r.fix) or "none (control)", "applied": False})
-                led.pipe.add(key, "VALIDATION", ctx.now, {"gate": rep.rejected.get(r.fix, "PROMOTE")})
-            led.pipe.add(key, verdict, ctx.now, {"gate": rep.rejected.get(r.fix, "PROMOTE")})
+                         parents=[e.prediction_id for e in led.errors.reports(ctx.now)][-50:])
+            led.pipe.add(key, "MODEL_UPDATE", ctx.now, {"proposal": FIX_EFFECT.get(r.fix) or "none (control)", "applied": False})
+            led.pipe.add(key, "VALIDATION", ctx.now, {"gate": rep.rejected.get(r.fix, "PROMOTE")})
+            led.pipe.add(key, "PROMOTED" if r.fix in rep.promoted else "REJECTED", ctx.now, {"gate": rep.rejected.get(r.fix, "PROMOTE")})
     changed = 0
     for name in rep.promoted:
         eff = FIX_EFFECT.get(name)
@@ -1604,7 +1651,7 @@ def st_validate(ctx: LP.Ctx) -> tuple:
             st.count("placebo_promoted")                 # would be a gate defect: counted loudly, never applied
             continue
         if st.production.get("name") != name:
-            st.production = {"name": name, "since": str(as_date(ctx.now)), **eff}
+            st.production = {"name": name, "since": str(as_date(ctx.now)), "key": fix_key(name, ctx.now), **eff}
             st.monitoring.append({"fix": name, "since": str(as_date(ctx.now))})
             changed += 1
     rolled = _monitor(st, fr, ctx.now, led)
@@ -1628,7 +1675,7 @@ def _monitor(st: C68State, fr: pd.DataFrame, now, led: Ledgers) -> int:
         return 0
     ea, eb = (after["realised"] - after["predicted"]).abs().to_numpy(float), (before["realised"] - before["predicted"]).abs().to_numpy(float)
     t = (eb.mean() - ea.mean()) / math.sqrt(ea.var(ddof=1) / len(ea) + eb.var(ddof=1) / len(eb) + 1e-18)
-    key = f"FIX:{st.production['name']}"
+    key = st.production.get("key") or fix_key(st.production["name"], st.production["since"])
     led.pipe.add(key, "MONITORED", now, {"t": float(t), "n_after": len(after), "rolled_back": bool(t <= -2.0)})
     if t <= -2.0:
         st.production = {"name": "incumbent", "since": str(as_date(now)), "window_share": 1.0, "extra_features": ()}
@@ -1710,8 +1757,11 @@ def st_audit(ctx: LP.Ctx) -> tuple:
     tmp = path.with_suffix(".tmp")
     tmp.write_text(json.dumps(rep, default=str, indent=1), encoding="utf-8")
     tmp.replace(path)
-    return _run(st, ctx, "c68.monitor_audit", len(led.expectations), len(led.outcomes),
-                f"ledgers intact ({len(led.pipe)} pipeline events); {cal.headline[:150]}")
+    n_checked = len(led.expectations) + len(led.outcomes) + len(led.errors) + len(led.pipe) + len(st.market.ledger) + len(st.memory.events())
+    if not n_checked:
+        raise LP.NoInput("nothing recorded yet: the (empty) ledgers verified, no report to write")
+    return _run(st, ctx, "c68.monitor_audit", n_checked, 1,
+                f"{n_checked} record(s) verified, report written; {cal.headline[:150]}")
 
 
 def identification(st: C68State, now) -> pd.DataFrame:
