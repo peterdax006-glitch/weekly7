@@ -422,3 +422,15 @@ it should be very long
 > (sent without other words) [WEEKLY7 — 10-HOUR NON-STOP MASTER EXECUTION CHECKLIST, stored verbatim in TEN_HOUR_EXECUTION_CHECKLIST.md]
 
 `sha256: 1849ecce01c77dc04d66731a0d1797d312fa4128223d582d0034f1e5cfc10166`
+
+## C70 — Real-vs-noise benchmark: hundreds of simulations with hard-to-see real patterns and convincing noise; the system must find ALL potential patterns, sort real from noise using historic simulations, and be iterated until it finds every real pattern with no false positives (2026-09-30)
+
+> it needs to go through an advanced testing simulation with hundreds of simulations where it notices a slight pattern and it needs to find which ones are real patterns and which ones are noice, and play with it until its perfect, some of the noice should be pretty convincing and some of the patterns should be pretty hard to notice, but it should be able to not just identify all the potential patterns, so that needs to be part of the test it needs to identify all the potential patterns in the simulation the organize what is noice and what is real using historic simulations and then you see if it got it right, and play with it until it gets all of them right to ensure no false positives but also it correctly finds all the actual positives
+
+`sha256: 5b98a35ea5f358d087521091e01efa5646b4ce363107ff3c82f2a9ef13ff4bd6`
+
+## C71 — C70 must hold in every year: the real-vs-noise discrimination must work whatever year (era, regime, volatility level, base rate) it is working on (2026-09-30)
+
+> it  should be able to do this no matter what year it is working on
+
+`sha256: cd76339bd58fc2fb964116146a148dc89abf887d71b196b3ed36d1a7630d163f`

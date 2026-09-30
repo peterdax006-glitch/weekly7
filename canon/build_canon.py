@@ -147,6 +147,10 @@ DIRECTIVES = [
      'i have an addition to the master checklist: [WEEKLY7 MASTER CHECKLIST ADDITION, stored verbatim in PREDICTION_ERROR_ADDITION.md]'),
     ("C69", "2026-09-29", '10-hour non-stop master execution checklist: foundation -> working -> intended behaviour -> operation -> failure discovery -> improvement -> perfection -> independent proof (verbatim in TEN_HOUR_EXECUTION_CHECKLIST.md, sha256 4f996ec3abd7c77c)',
      '(sent without other words) [WEEKLY7 — 10-HOUR NON-STOP MASTER EXECUTION CHECKLIST, stored verbatim in TEN_HOUR_EXECUTION_CHECKLIST.md]'),
+    ("C70", "2026-09-30", 'Real-vs-noise benchmark: hundreds of simulations with hard-to-see real patterns and convincing noise; the system must find ALL potential patterns, sort real from noise using historic simulations, and be iterated until it finds every real pattern with no false positives',
+     'it needs to go through an advanced testing simulation with hundreds of simulations where it notices a slight pattern and it needs to find which ones are real patterns and which ones are noice, and play with it until its perfect, some of the noice should be pretty convincing and some of the patterns should be pretty hard to notice, but it should be able to not just identify all the potential patterns, so that needs to be part of the test it needs to identify all the potential patterns in the simulation the organize what is noice and what is real using historic simulations and then you see if it got it right, and play with it until it gets all of them right to ensure no false positives but also it correctly finds all the actual positives'),
+    ("C71", "2026-09-30", 'C70 must hold in every year: the real-vs-noise discrimination must work whatever year (era, regime, volatility level, base rate) it is working on',
+     'it  should be able to do this no matter what year it is working on'),
 ]
 
 def sha(t): return hashlib.sha256(t.encode("utf-8")).hexdigest()
