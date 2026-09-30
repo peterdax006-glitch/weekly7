@@ -224,8 +224,11 @@ def test_window_use_ledger_burns_a_window_after_repeated_use():
 
 
 def test_identity_layer_statuses():
-    for status, ok in (("OK", True), ("COLLAPSE", False), ("NONDETERMINISTIC", False), ("NO_SKILL", False), ("INSUFFICIENT", False), ("??", False)):
+    # F28 (defect d): NO_SKILL is a skill finding, not an identity leak - recorded as a warning, never a failed (quarantining) layer
+    for status, ok in (("OK", True), ("COLLAPSE", False), ("NONDETERMINISTIC", False), ("NO_SKILL", True), ("INSUFFICIENT", False), ("??", False)):
         assert GATE.evaluate(clean_ctx(identity_report=Ident(status))).verdicts[F.LayerName.IDENTITY].passed == ok
+    v = GATE.evaluate(clean_ctx(identity_report=Ident("NO_SKILL"))).verdicts[F.LayerName.IDENTITY]
+    assert any(f.check == "no-skill" and not f.is_fail for f in v.findings)
     lenient = F.LearningFirewallGate([F.IdentityFirewall(strict_inconclusive=False)])
     assert lenient.evaluate(clean_ctx(identity_report=Ident("NO_SKILL"))).passed
 

@@ -691,7 +691,13 @@ class IdentityFirewall(FirewallLayer):
                                 f"{getattr(v, 'retention', float('nan')):.2f}", retention=float(getattr(v, "retention", float("nan")))))
             elif status == "NONDETERMINISTIC":
                 out.append(fail(L, "nondeterministic", kind, "learner gave different answers on identical input"))
-            elif status in ("INSUFFICIENT", "NO_SKILL"):
+            elif status == "NO_SKILL":
+                # F28 (defect d, reported by F26): a rule with no baseline skill has nothing an identity attack could take away. That
+                # is a SKILL finding (the out-of-sample gate's job), not an identity leak: failing this layer made the leak gate
+                # QUARANTINE plain no-skill rules as integrity breaches. Recorded as a warning; quality_gate.gate_identity still answers
+                # UNKNOWN when no attack was informative, so robustness is never assumed from it.
+                out.append(warn(L, "no-skill", kind, f"{kind}: NO_SKILL - no baseline skill to lose, identity robustness not testable"))
+            elif status == "INSUFFICIENT":
                 sev = fail if self.strict_inconclusive else warn
                 out.append(sev(L, "inconclusive", kind, f"{kind}: {status} - identity robustness not demonstrated"))
             elif status != "OK":

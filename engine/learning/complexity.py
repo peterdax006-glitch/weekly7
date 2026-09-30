@@ -129,7 +129,8 @@ class ComplexityConfig:
     max_gain_cv: float = 2.0               # sd of fold gains / |mean fold gain| above this = unstable
     tail_frac: float = 0.10
     tail_tolerance: float = 0.5            # tail may be worse by this many sd of the simple rule's outcome
-    worst_fold_tolerance: float = 1.0      # worst fold loss (in se of the overall gain) allowed
+    worst_fold_tolerance: float = 1.0      # worst fold loss allowed, in standard errors (see worst_fold_units)
+    worst_fold_units: str = "fold_se"      # F28: 'fold_se' = each fold's OWN standard error; 'pooled_se' = the pre-F28 pooled-gain se
     max_optimism_growth: float = 1.5       # complex IS-OOS gap may exceed simple's by this factor
     nw_lags: int = 4
     weights: ComplexityWeights = DEFAULT_W
@@ -146,6 +147,8 @@ def validate_config(cfg: ComplexityConfig) -> list[str]:
         errs.append("min_periods >= 8")
     if not 0 < cfg.min_transfer <= 1 or not 0 < cfg.tail_frac < 0.5:
         errs.append("min_transfer in (0,1] and tail_frac in (0, 0.5)")
+    if cfg.worst_fold_units not in ("fold_se", "pooled_se") or cfg.worst_fold_tolerance < 0:
+        errs.append("worst_fold_units must be 'fold_se' or 'pooled_se' and worst_fold_tolerance >= 0")
     return errs
 
 
@@ -199,6 +202,25 @@ def _tail(x: np.ndarray, frac: float) -> float:
     return float(np.sort(x)[:k].mean())
 
 
+def worst_fold_check(fold_gains: Sequence[float], fold_n: Sequence[int], se: float, n: int, cfg: ComplexityConfig) -> tuple[bool, str]:
+    """(ok, text) of the worst-fold test: no fold's mean gain may sit more than `worst_fold_tolerance` standard errors below zero.
+
+    F28 (defect b, reported by F26): the tolerance used to be stated in the standard error `se` of the gain pooled over ALL n periods,
+    but a fold holds n_f < n periods and its mean has a standard error sqrt(n / n_f) times larger (the minimum of k fold means sits
+    ~1.4 fold-se below the mean for k = 8). A genuine t = 4 gain failed 'worst fold' by sampling noise alone: a units error. Each fold
+    is now judged in ITS OWN standard error, se * sqrt(n / n_f) (the pooled se carries the Newey-West correction, so the fold se keeps
+    it). `worst_fold_units = 'pooled_se'` restores the old rule only for attribution."""
+    if not fold_gains:
+        return True, "no fold to judge"
+    if cfg.worst_fold_units == "pooled_se":
+        worst = float(min(fold_gains))
+        return worst >= -cfg.worst_fold_tolerance * se, f"worst fold gain {worst:.5f} vs tolerance {-cfg.worst_fold_tolerance * se:.5f}"
+    z = [g / max(se * math.sqrt(n / max(1, k)), 1e-15) for g, k in zip(fold_gains, fold_n)]
+    i = int(np.argmin(z))
+    return z[i] >= -cfg.worst_fold_tolerance, (f"worst fold gain {fold_gains[i]:.5f} = {z[i]:+.2f} of its own standard errors over "
+                                               f"{fold_n[i]} periods (tolerance -{cfg.worst_fold_tolerance:g})")
+
+
 def compare(simple: Candidate, cmplx: Candidate, cfg: ComplexityConfig = DEFAULT_CCFG) -> ComplexityVerdict:
     """Should the more complex rule be preferred over the simpler one?  Requires the SAME dates for both OOS series."""
     from engine.pattern_reliability import nw_t
@@ -223,11 +245,13 @@ def compare(simple: Candidate, cmplx: Candidate, cfg: ComplexityConfig = DEFAULT
 
     # transfer + stability across folds
     fold_gains: list[float] = []
+    fold_n: list[int] = []
     if cmplx.folds is not None:
         fl = cmplx.folds.reindex(j.index)
         for _, idx in pd.Series(d, index=j.index).groupby(fl.values):
             if len(idx) >= 3:
                 fold_gains.append(float(idx.mean()))
+                fold_n.append(int(len(idx)))
     transfer = float(np.mean([g >= 0 for g in fold_gains])) if fold_gains else float("nan")
     cv: Any = (float(np.std(fold_gains, ddof=1)) / abs(np.mean(fold_gains))) if len(fold_gains) >= 2 and abs(np.mean(fold_gains)) > 1e-12 else float("nan")
     worst_fold = float(min(fold_gains)) if fold_gains else float("nan")
@@ -267,8 +291,8 @@ def compare(simple: Candidate, cmplx: Candidate, cfg: ComplexityConfig = DEFAULT
                 f"transfer: gain t is {rob:.2f} once its best fold is dropped (need {cfg.robust_t})")
         if math.isfinite(cv):
             (passed if cv <= cfg.max_gain_cv else failed).append(f"fold-gain CV {cv:.2f} (max {cfg.max_gain_cv})")
-        wf_ok = worst_fold >= -cfg.worst_fold_tolerance * se
-        (passed if wf_ok else failed).append(f"worst fold gain {worst_fold:.5f} vs tolerance {-cfg.worst_fold_tolerance * se:.5f}")
+        wf_ok, wf_text = worst_fold_check(fold_gains, fold_n, se, n, cfg)
+        (passed if wf_ok else failed).append(wf_text)
     elif du > 0 and cfg.min_folds > 0:
         failed.append(f"only {len(fold_gains)} folds: transfer of the added complexity is untested")
     tail_ok = tail_change >= -cfg.tail_tolerance * sd_s

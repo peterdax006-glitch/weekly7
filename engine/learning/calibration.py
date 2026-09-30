@@ -170,28 +170,48 @@ def _logit(p, eps=1e-6):
 
 def platt_slope(p, y, ridge: float = 1e-6, iters: int = 60) -> dict[str, float]:
     """Logistic recalibration  P(y=1) = expit(a + b * logit(p)).  b < 1: predictions are too extreme (overconfident);
-    b > 1: too timid. Newton-Raphson; standard errors from the inverse Fisher information."""
+    b > 1: too timid. DAMPED Newton-Raphson; standard errors from the inverse Fisher information.
+
+    F28 (defect a, reported by F26): the full Newton step from (a, b) = (0, 1) overshoots when the log-odds are nearly flat in
+    logit(p) - a weak ranking fed in as a rank, or forecasts far from the base rate - and the iterates oscillated to |b| ~ 1e7. Every
+    step is now halved until the penalised log-likelihood does not get worse (a descent method cannot run away), and `converged`
+    says whether the gradient vanished: a caller must not read a, b when it is False (separable data have no finite slope)."""
     p, y = _check_py(p, y)
     n = len(p)
     if n < 10 or y.min() == y.max():
         return {"a": float("nan"), "b": float("nan"), "se_a": float("nan"), "se_b": float("nan"), "b_lo": float("nan"),
-                "b_hi": float("nan"), "n": n}
+                "b_hi": float("nan"), "n": n, "converged": False}
     z = _logit(p)
+
+    def loss(a_: float, b_: float) -> float:
+        u = a_ + b_ * z
+        return float(np.sum(np.logaddexp(0.0, u) - y * u) + 0.5 * ridge * (a_ * a_ + (b_ - 1.0) ** 2))
     a, b = 0.0, 1.0
+    cur = loss(a, b)
     H = np.eye(2)
+    g = np.ones(2)
     for _ in range(iters):
         q = expit(a + b * z)
         wv = np.clip(q * (1 - q), 1e-9, None)
         g = np.array([np.sum(q - y) + ridge * a, np.sum((q - y) * z) + ridge * (b - 1.0)])
         H = np.array([[wv.sum() + ridge, (wv * z).sum()], [(wv * z).sum(), (wv * z * z).sum() + ridge]])
         step = np.linalg.solve(H, g)
-        a, b = a - step[0], b - step[1]
-        if np.abs(step).max() < 1e-9:
+        t = 1.0
+        while t > 1e-8:
+            new = loss(a - t * step[0], b - t * step[1])
+            if new <= cur + 1e-12:
+                break
+            t /= 2.0
+        a, b, cur = a - t * step[0], b - t * step[1], new
+        if np.abs(t * step).max() < 1e-9:
             break
+    q = expit(a + b * z)
+    g = np.array([np.sum(q - y) + ridge * a, np.sum((q - y) * z) + ridge * (b - 1.0)])
+    conv = bool(np.isfinite([a, b]).all() and np.abs(g).max() <= 1e-4 * max(1.0, n))
     cov = np.linalg.pinv(H)
     sa, sb = math.sqrt(max(cov[0, 0], 0)), math.sqrt(max(cov[1, 1], 0))
     return {"a": float(a), "b": float(b), "se_a": sa, "se_b": sb, "b_lo": float(b - 1.96 * sb), "b_hi": float(b + 1.96 * sb),
-            "n": n}
+            "n": n, "converged": conv}
 
 
 def ece_null_pvalue(p, n_bins: int, observed: float, rng: np.random.Generator, n_sim: int = 400) -> float:

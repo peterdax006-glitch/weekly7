@@ -21,7 +21,14 @@ OOS TRANSFER = REQUIRED (section 48): the OOS gate needs periods in calendar yea
 F26 (C75 Phase 3, the F19 benchmark): the leak screen also tests the forward return's MAGNITUDE and, via screen_future_dependence,
 whether a feature knows how the coming outcome realises; the calibration gate judges a conditional claim against its own reference
 forecast with a recalibration slope that cannot diverge (logistic_offset_fit); the complexity gate's worst-fold tolerance is stated in
-a fold's own standard error (fold_scaled_config); the risk gate reads why a claim signs no holding (QualityEvidence.risk_note)."""
+a fold's own standard error (engine.learning.complexity.worst_fold_check since F28); the risk gate reads why a claim signs no holding
+(QualityEvidence.risk_note).
+
+F28 (C75 Phase 3/10, the F26 remainder): the out-of-sample gate also asks (a) whether the finding adds anything beyond its strongest
+correlated rival among everything the search scored (rival_check: a proxy FAILS) and (b) whether an effect that rests on a persistent
+per-name ordering is significant counted in NAMES (name_units_check); the leak gate answers UNKNOWN - never QUARANTINE - for a future-
+dependence signature below the integrity bar (LeakEvidence.suspicions), and a signature explained by a documented, dated pre-decision
+availability is recorded, not held against the finding (LeakEvidence.documented)."""
 from __future__ import annotations
 
 import dataclasses
@@ -133,6 +140,8 @@ class LeakEvidence:
     findings: tuple[str, ...] = ()
     sealed_windows_touched: tuple[str, ...] = ()
     outcomes_after_now: int | None = None
+    suspicions: tuple[str, ...] = ()           # F28: a leak signature below the integrity bar (withholds promotion, never quarantines)
+    documented: tuple[str, ...] = ()           # F28: signatures explained by a documented, dated pre-decision availability
 
 
 @dataclass(frozen=True)
@@ -142,10 +151,44 @@ class IdentityEvidence:
 
 
 @dataclass(frozen=True)
+class RivalEvidence:
+    """F28 (the proxy test): the finding against its strongest correlated rival among every feature the search scored (and any filed
+    knowledge). `incremental` = per test date, the effect of the finding's score with the rival's within-date ordering regressed out;
+    `reverse` = the rival's effect with the finding's regressed out. `rival` None = no scored feature correlates at `min_corr` or more
+    (measured: there is nothing to be incremental over)."""
+    rival: str | None = None
+    corr: float = 0.0                          # within-date rank correlation with the rival (train rows)
+    n_pool: int = 0                            # features the rival was chosen from
+    min_corr: float = 0.3
+    incremental: PR.IncrementalEvidence | None = None
+    reverse: PR.IncrementalEvidence | None = None
+    own_effect: float | None = None            # mean per-date test effect of the finding / of the (oriented) rival
+    rival_effect: float | None = None
+
+
+@dataclass(frozen=True)
+class NameUnitsEvidence:
+    """F28 (identity units): when most of a score's within-date ordering is a persistent per-NAME level, its per-date effect is one
+    name-level association seen again every week, and the independent units are names, not name-weeks. `between_share` = share of the
+    within-date rank variance explained by the names' train-window means; the name test correlates those means with each name's
+    out-of-sample outcome excess (one unit per name); the within test is the per-date effect of the score minus its name mean."""
+    between_share: float = 0.0
+    applies: bool = False                      # between_share >= the threshold the evidence was built with
+    n_names: int = 0
+    name_corr: float | None = None
+    name_p: float | None = None                # one-sided, names as units (t distribution, n_names - 2 df)
+    within_effect: float | None = None
+    within_p: float | None = None              # one-sided, dates as units, name levels removed
+    threshold: float = 0.5
+
+
+@dataclass(frozen=True)
 class OOSBundle:
     statistical: PR.StatisticalEvidence | None = None
     oos: PR.OOSEvidence | None = None
     train_years: tuple[int, ...] = ()
+    rival: RivalEvidence | None = None         # F28: evidence.assemble always supplies both; None = a hand-built bundle (not checked)
+    name_units: NameUnitsEvidence | None = None
 
 
 @dataclass(frozen=True)
@@ -360,6 +403,8 @@ def gate_leakage(ev: LeakEvidence | None, prov_ok: bool, now, pol: QualityPolicy
         problems.append("provenance says the item could not have existed at `now`")
     if problems:
         return _out(g, QUARANTINE, "; ".join(problems), crit, {"findings": len(problems)})
+    if ev.suspicions:                                  # F28: not an accusation, but promotion waits for a documented availability
+        return _out(g, UNKNOWN, "; ".join(ev.suspicions), crit, {"suspicions": len(ev.suspicions)})
     if ev.planted_probe_caught is None:
         return _out(g, MISSING, "the audit was never shown to catch a planted leak: a check that cannot fail proves nothing", crit)
     if ev.planted_probe_caught is False:
@@ -425,9 +470,78 @@ def gate_out_of_sample(ev: OOSBundle | None, pol: QualityPolicy, now) -> GateOut
         um = float(eff[mask].mean())
         if um <= 0:
             problems.append(f"the effect on unseen years is {um:+.5f}: it lives only in years it trained on")
+    f28: dict[str, Any] = {"rival_checked": ev.rival is not None, "name_units_checked": ev.name_units is not None}
+    waits = []
+    for check, (state, text, m) in (("rival", rival_check(ev.rival, pol)),
+                                     ("name_units", name_units_check(ev.name_units, ev.statistical.n_tests_searched, pol))):
+        f28.update({f"{check}_{k}": v for k, v in m.items()})
+        f28[f"{check}_state"] = state
+        if state == FAIL:
+            problems.append(text)
+        elif state == MISSING:
+            waits.append(text)
     if problems:
-        return _out(g, FAIL, "; ".join(problems), crit, {"unseen_years": len(unseen), "unseen_share": unseen_share})
-    return _out(g, PASS, f"{st.detail}; {oo.detail}; {len(unseen)} unseen years", crit, {**st.measures, **oo.measures, "unseen_years": len(unseen)}, oo.margin)
+        return _out(g, FAIL, "; ".join(problems), crit, {"unseen_years": len(unseen), "unseen_share": unseen_share, **f28})
+    if waits:
+        return _out(g, MISSING, "; ".join(waits), crit, {"unseen_years": len(unseen), **f28})
+    return _out(g, PASS, f"{st.detail}; {oo.detail}; {len(unseen)} unseen years", crit,
+                {**st.measures, **oo.measures, "unseen_years": len(unseen), **f28}, oo.margin)
+
+
+def rival_check(ev: RivalEvidence | None, pol: QualityPolicy) -> tuple[str, str, dict]:
+    """F28 (F26: 16 of 21 remaining false positives were PROXIES - a candidate correlated with a real pattern that adds nothing beyond
+    it). (state, why, measures): PASS when no scored feature correlates at the evidence's `min_corr`, or when the finding keeps a
+    significant out-of-sample effect with its strongest correlated rival's ordering regressed out (engine.learning.promotion
+    gate_incremental_value: mean gain > 0, block-bootstrap CI above 0, t >= its min_gain_t). When it does not, the rival is asked the
+    same question: if the RIVAL carries information beyond the finding, the finding is its proxy and FAILS. If neither adds anything
+    beyond the other (two near-copies), the one with the larger own out-of-sample effect is kept and the weaker FAILS. Too few test
+    periods to measure the increment = MISSING (more data would settle it). None = a bundle built before F28 (not checked)."""
+    if ev is None:
+        return PASS, "", {}
+    m: dict[str, Any] = {"corr": ev.corr, "n_pool": ev.n_pool}
+    if ev.rival is None:
+        return PASS, f"no scored feature correlates at |r| >= {ev.min_corr} (pool {ev.n_pool})", m
+    if ev.incremental is None or ev.incremental.delta_series is None:
+        return MISSING, f"the increment over its strongest correlated rival (r = {ev.corr:+.2f}) was not measured", m
+    n = len(ev.incremental.delta_series)
+    if n < pol.promotion.min_delta_periods:
+        return MISSING, f"{n} test periods < {pol.promotion.min_delta_periods} to measure the increment over a rival correlated {ev.corr:+.2f}", m
+    inc = PR.gate_incremental_value(ev.incremental, pol.promotion)
+    m.update(inc_t=inc.measures.get("t"), inc_mean=inc.measures.get("mean"))
+    if inc.status == PR.PASS:
+        return PASS, f"adds information beyond its strongest correlated rival (r = {ev.corr:+.2f}): {inc.detail}", m
+    rev = PR.gate_incremental_value(ev.reverse, pol.promotion) if ev.reverse is not None and ev.reverse.delta_series is not None else None
+    m.update(rev_t=rev.measures.get("t") if rev is not None else None, own=ev.own_effect, rival_eff=ev.rival_effect)
+    if rev is not None and rev.status == PR.PASS:
+        return FAIL, (f"a proxy: with its strongest correlated rival (r = {ev.corr:+.2f}) regressed out nothing is left "
+                      f"({inc.detail}), while the rival keeps information beyond it ({rev.detail})"), m
+    own, riv = ev.own_effect, ev.rival_effect
+    if own is not None and riv is not None and math.isfinite(own) and math.isfinite(riv) and own >= riv:
+        return PASS, f"redundant with a rival (r = {ev.corr:+.2f}) but the stronger of the two ({own:+.4f} >= {riv:+.4f})", m
+    return FAIL, (f"redundant with a stronger rival (r = {ev.corr:+.2f}; own effect {own if own is not None else float('nan'):+.4f} < "
+                  f"{riv if riv is not None else float('nan'):+.4f}): neither adds anything beyond the other, the stronger one stands"), m
+
+
+def name_units_check(ev: NameUnitsEvidence | None, n_tests: int, pol: QualityPolicy) -> tuple[str, str, dict]:
+    """F28 (F26: identity_null false positives - a per-name artefact counted as name-weeks). When the score's ordering is mostly a
+    persistent per-name level (ev.applies), the per-date t-test treats ~150 weekly repeats of ONE cross-name association as independent
+    evidence. The claim must then clear the gate's own statistical rule (alpha, the search-size correction) in the right units: either
+    the name-level association with names as the units, or the within-name effect (name levels removed) with dates as the units."""
+    if ev is None:
+        return PASS, "", {}
+    m: dict[str, Any] = {"between_share": ev.between_share, "n_names": ev.n_names, "name_p": ev.name_p, "within_p": ev.within_p}
+    if not ev.applies:
+        return PASS, f"between-name share {ev.between_share:.2f} < {ev.threshold}: dates are the units", m
+    ps = {k: PR.adjusted_p(float(p), max(1, int(n_tests)), pol.promotion.multiplicity) for k, p in (("names", ev.name_p), ("within", ev.within_p))
+          if p is not None and math.isfinite(p)}
+    m.update({f"{k}_p_adj": v for k, v in ps.items()})
+    if not ps:
+        return MISSING, f"{ev.between_share:.0%} of the ordering is per-name level and neither a name-level nor a within-name test could be run", m
+    if min(ps.values()) <= pol.promotion.alpha:
+        return PASS, f"per-name ordering ({ev.between_share:.0%}) but significant in the right units ({min(ps, key=ps.get)})", m
+    return FAIL, (f"the effect rests on the persistent ordering of {ev.n_names} names ({ev.between_share:.0%} of its within-date variance): "
+                  f"counted in names (r = {ev.name_corr if ev.name_corr is not None else float('nan'):+.2f}) its adjusted p is "
+                  f"{ps.get('names', float('nan')):.3g} and within names {ps.get('within', float('nan')):.3g}, above alpha {pol.promotion.alpha:.3g}"), m
 
 
 def gate_replication(a: RP.ReplicationAssessment | None, pol: QualityPolicy) -> GateOutcome:
@@ -500,16 +614,12 @@ def logistic_offset_fit(x, y, offset=None, iters: int = 100, tol: float = 1e-10)
 def recalibration_slope(p, y, reference=None) -> dict[str, Any]:
     """The recalibration slope b of P(y) = expit(a + b logit p) (reference None) or, for a conditional claim, of the claimed LIFT:
     P(y) = expit(logit ref + a + b (logit p - logit ref)). b < 1: the claim is too extreme (overconfident). Uses
-    engine.learning.calibration.platt_slope when it converges and the damped fit otherwise (platt_slope's undamped Newton diverges on
-    nearly flat forecasts - reported to its owner)."""
+    engine.learning.calibration.platt_slope (damped since F28) when it converges and the damped offset fit otherwise."""
     p, y = np.asarray(p, dtype=float), np.asarray(y, dtype=float)
     if reference is None:
         r = CAL.platt_slope(p, y)
-        if all(math.isfinite(r.get(k, float("nan"))) for k in ("a", "b", "se_b")):
-            q = expit(r["a"] + r["b"] * logit(p))
-            grad = max(abs(float(np.sum(q - y))), abs(float(np.sum((q - y) * logit(p)))))
-            if grad <= 1e-4 * max(1.0, len(p)):
-                return {**r, "converged": True}
+        if r.get("converged") and all(math.isfinite(r.get(k, float("nan"))) for k in ("a", "b", "se_b")):
+            return dict(r)
         return logistic_offset_fit(logit(p), y)
     lr = logit(reference)
     return logistic_offset_fit(logit(p) - lr, y, lr)
@@ -568,23 +678,12 @@ def gate_risk(ev: PR.RiskEvidence | None, changes_risk: bool, pol: QualityPolicy
     return _from_promotion(g, PR.gate_risk_acceptance(ev, pol.promotion), crit)
 
 
-def fold_scaled_config(cfg: CX.ComplexityConfig, cand: CX.Candidate) -> CX.ComplexityConfig:
-    """F26 (F19: complexity blocked 53% of the gated real patterns). engine.learning.complexity.compare requires the WORST fold's mean
-    gain to be >= -worst_fold_tolerance x se, where se is the standard error of the gain pooled over ALL n periods; a fold of n_f periods
-    has a standard error sqrt(n / n_f) times larger, and the minimum of k fold means sits ~1.4 fold-se below the mean for k = 8. So the
-    test asked a genuine t = 4 effect to show no quarter below -0.35 fold-se: a units error that fails true effects by sampling noise.
-    Here the tolerance is restated in fold units (x sqrt(n / median n_f)), i.e. 'no fold is worse than `worst_fold_tolerance` of its
-    own standard errors below zero'. Every other complexity test (gain t, transfer share, robust t, CV, tail, optimism) is unchanged.
-    Reported to engine.learning.complexity's owner: the fix belongs there."""
-    if cand.folds is None or not len(cand.oos):
-        return cfg
-    f = cand.folds.reindex(cand.oos.index)
-    sizes = f.value_counts()
-    sizes = sizes[sizes >= 3]
-    if len(sizes) < 2:
-        return cfg
-    scale = math.sqrt(float(sizes.sum()) / float(sizes.median()))
-    return dataclasses.replace(cfg, worst_fold_tolerance=float(cfg.worst_fold_tolerance) * scale)
+def fold_units_config(cfg: CX.ComplexityConfig, in_fold_se: bool) -> CX.ComplexityConfig:
+    """F26 found the complexity gate's worst-fold tolerance stated in the POOLED gain's standard error (a units error that failed
+    genuine effects by sampling noise) and restated it here by scaling; F28 fixed it at the source (engine.learning.complexity
+    worst_fold_check judges each fold in its own standard error), so the gate now only chooses the units: fold se (the fix, default)
+    or the pooled se (QualityPolicy.worst_fold_in_fold_se = False, kept only so the benchmark can attribute the fix)."""
+    return dataclasses.replace(cfg, worst_fold_units="fold_se" if in_fold_se else "pooled_se")
 
 
 def gate_complexity(ev: ComplexityEvidence | None, pol: QualityPolicy) -> GateOutcome:
@@ -602,8 +701,7 @@ def gate_complexity(ev: ComplexityEvidence | None, pol: QualityPolicy) -> GateOu
         return _out(g, MISSING, "no simpler alternative was compared on the same dates", crit)
     if ev.baseline.spec.units(cfg.weights) >= spec.units(cfg.weights):
         return _out(g, PASS, "no simpler rule than the baseline is being asked to be replaced", crit)
-    if pol.worst_fold_in_fold_se:
-        cfg = fold_scaled_config(cfg, ev.candidate)
+    cfg = fold_units_config(cfg, pol.worst_fold_in_fold_se)
     v = CX.compare(ev.baseline, ev.candidate, cfg)
     if v.verdict == CX.Verdict.COMPLEX:
         return _out(g, PASS, f"complexity earned its place: gain t={v.gain_t:.2f} >= required {v.t_required:.2f}", crit, {"gain": v.gain, "t": v.gain_t})
@@ -856,7 +954,8 @@ def reference_evidence(now="2021-06-01", seed: int = 0) -> tuple[QualityEvidence
                         "2017-12-29", "2018-01-15", True, "2018-01-02"),
         leak=LeakEvidence(True, FW.LearningFirewallGate().evaluate(FW.reference_context("2020-06-01")), True, (), (), 0),
         identity=IdentityEvidence(report, PR.MemorizationEvidence(0.92, 0.9, ("f_range", "f_volume"), False, 0.05, 80)),
-        oos=OOSBundle(PR.StatisticalEvidence(0.0055, 400, 6.0, None, 8, 300.0), PR.OOSEvidence("2017-12-29", oos_dates, oos_eff, 0.0055), (2016, 2017)),
+        oos=OOSBundle(PR.StatisticalEvidence(0.0055, 400, 6.0, None, 8, 300.0), PR.OOSEvidence("2017-12-29", oos_dates, oos_eff, 0.0055), (2016, 2017),
+                      RivalEvidence(None, 0.12, 40), NameUnitsEvidence(0.04, False, 80)),
         replication=assess, outputs_probabilities=True, calibration=CalibrationEvidence(tuple(float(v) for v in p), tuple(int(v) for v in y), seed),
         risk=PR.RiskEvidence(40, -0.06, -0.12, -0.05, 0, -0.08, -0.15),
         complexity=ComplexityEvidence(cand, base, 400.0),
@@ -937,6 +1036,22 @@ def planted_defects() -> dict[str, tuple[Callable[[QualityEvidence], QualityEvid
     def brittle(e: QualityEvidence) -> QualityEvidence:
         return dataclasses.replace(e, failure=dataclasses.replace(_clean(e.failure, "failure"), has_retirement_trigger=False, perturbation_retention=0.1))
 
+    def proxy(e: QualityEvidence) -> QualityEvidence:
+        """F28: a rival correlated 0.8 carries the information; with it regressed out the finding keeps nothing."""
+        o = _clean(e.oos, "oos")
+        r = np.random.default_rng(5)
+        inc = PR.IncrementalEvidence(tuple(float(v) for v in r.normal(0.0, 0.01, 60)), 5)
+        rev = PR.IncrementalEvidence(tuple(float(v) for v in r.normal(0.006, 0.01, 60)), 6)
+        return dataclasses.replace(e, oos=dataclasses.replace(o, rival=RivalEvidence("f_parent", 0.8, 40, 0.3, inc, rev, 0.004, 0.006)))
+
+    def name_level(e: QualityEvidence) -> QualityEvidence:
+        """F28: 90% of the ordering is a per-name level; counted in names it is nowhere near significant."""
+        o = _clean(e.oos, "oos")
+        return dataclasses.replace(e, oos=dataclasses.replace(o, name_units=NameUnitsEvidence(0.9, True, 48, 0.18, 0.11, 0.0, 0.5)))
+
+    def suspicion(e: QualityEvidence) -> QualityEvidence:
+        return dataclasses.replace(e, leak=dataclasses.replace(_clean(e.leak, "leak"), suspicions=("knows the coming magnitude (z = 2.9)",)))
+
     def nondeterministic(e: QualityEvidence) -> QualityEvidence:
         return dataclasses.replace(e, repro=PR.ReproEvidence(tuple(PR.RerunRecord(v, s, "refcode", "dataA") for v, s in ((0.0055, 1), (0.0031, 1), (0.0040, 2))), "dataA"))
 
@@ -946,6 +1061,9 @@ def planted_defects() -> dict[str, tuple[Callable[[QualityEvidence], QualityEvid
         "blind_audit": (lambda e: dataclasses.replace(e, leak=dataclasses.replace(e.leak, planted_probe_caught=False)), "leakage", GateVerdict.UNKNOWN),
         "memoriser": (collapse, "identity", GateVerdict.QUARANTINED),
         "no_oos_effect": (bad_oos, "out_of_sample", GateVerdict.FAILED),
+        "proxy_of_a_rival": (proxy, "out_of_sample", GateVerdict.FAILED),
+        "name_level_artefact": (name_level, "out_of_sample", GateVerdict.FAILED),
+        "leak_suspicion": (suspicion, "leakage", GateVerdict.UNKNOWN),
         "same_year_only": (same_year, "out_of_sample", GateVerdict.FAILED),
         "unreplicated": (unreplicated, "replication", GateVerdict.NEEDS_MORE_EVIDENCE),
         "failed_replication": (failed_repl, "replication", GateVerdict.FAILED),
@@ -1196,12 +1314,13 @@ def screen_future_dependence(x: pd.Series, label: pd.Series, future_mag: pd.Seri
 
 
 def leak_evidence_from_panel(X: pd.DataFrame, y: pd.Series, firewall: FW.GateVerdict | None, planted_probe_caught: bool | None,
-                             outcomes_after_now: int, sealed_touched: Sequence[str] = (), extra_findings: Sequence[str] = ()) -> LeakEvidence:
+                             outcomes_after_now: int, sealed_touched: Sequence[str] = (), extra_findings: Sequence[str] = (),
+                             suspicions: Sequence[str] = (), documented: Sequence[str] = ()) -> LeakEvidence:
     """LeakEvidence whose findings include the panel screen, so the leak gate quarantines a label-in-features panel even when the
     caller forgot to run the firewall on it. `extra_findings` (F26): the candidate's own construction audit and future-dependence
-    screen."""
+    screen. F28: `suspicions` (a signature below the integrity bar: UNKNOWN) and `documented` (signatures a dated availability explains)."""
     return LeakEvidence(True, firewall, planted_probe_caught, tuple(screen_label_leak(X, y)) + tuple(extra_findings), tuple(sealed_touched),
-                        int(outcomes_after_now))
+                        int(outcomes_after_now), tuple(suspicions), tuple(documented))
 
 
 # ------------------------------------------------------------------------------------------------ comparing and logging decisions

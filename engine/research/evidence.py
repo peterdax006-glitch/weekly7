@@ -37,8 +37,16 @@ F26 (C75 Phase 3/10, driven by the F19 real-vs-noise benchmark; each fix names t
   risk                     claim_risk: a magnitude claim signs no holding
   retirement               SequentialPlan.retire: repeated FAILED looks retire
   multiplicity             FindingSpec.n_scanned / n_search: the screen's full search size
-  cost                     vectorised per_date_effect and identity-harness scoring (fast_identity_scoring): ~0.75 s per bundle, was 3.3 s
-EvidenceConfig.f26_* switches exist only so the benchmark can attribute each fix; every default is the fixed behaviour."""
+  cost                     vectorised per_date_effect and identity-harness scoring (adopted by identity_firewall in F28): ~0.75 s/bundle
+
+F28 (the F26 remainder, same benchmark; each names its defect in its docstring):
+  proxies                  rival_ranks / incremental: the finding against its strongest correlated rival among every scored feature
+                           (quality_gate.rival_check - a proxy that adds nothing beyond it FAILS out of sample)
+  identity units           name_units: an ordering that is mostly a per-name level is tested with NAMES as the units
+  weak leaks               future_dependence: a per-candidate suspicion tier under the family-wise integrity bar (UNKNOWN, never
+                           QUARANTINE), and documented_availability: a dated pre-decision publication record explains a magnitude
+                           signature (a genuine scheduled event) instead of refusing it
+EvidenceConfig.f26_* / f28_* switches exist only so the benchmark can attribute each fix; every default is the fixed behaviour."""
 from __future__ import annotations
 
 import contextlib
@@ -80,6 +88,15 @@ class EvidenceConfig:
     f26_repl_design: bool = True         # power-designed run length, averaged matched control, measured discovery regime
     f26_claim_risk: bool = True          # a magnitude (VOLATILITY) claim bears no directional position risk of its own
     f26_fold_se: bool = True             # the complexity gate's worst-fold tolerance in fold standard errors (QualityPolicy)
+    # F28 (the F26 remainder): the proxy test, identity units and the weak-leak tier. Same rule as the f26_ switches: False only for
+    # the benchmark's attribution of each fix.
+    rival_min_corr: float = 0.3          # |within-date rank correlation| at which a scored feature is a rival the finding must beat
+    name_share: float = 0.5              # between-name share of the ordering at which names, not name-weeks, are the units
+    name_min_rows: int = 4               # test rows a name needs to enter the name-level test
+    leak_suspect_alpha: float = 0.01     # per-candidate two-sided level of the future-dependence SUSPICION tier (withholds, never quarantines)
+    f28_rival: bool = True
+    f28_name_units: bool = True
+    f28_leak_suspect: bool = True
     cal_rows: int = 4000
     seeds: tuple = (1, 1, 2, 3)          # reproducibility reruns: one seed repeated (determinism) and fresh seeds
     catastrophic: float = -0.20
@@ -110,6 +127,10 @@ class EvidenceConfig:
             errs.append("repl_control_perms >= 1 required")
         if not 0.0 < self.max_failure_rate <= 0.25:
             errs.append("max_failure_rate in (0, 0.25] required: 'fails rarely' must mean rarely")
+        if not 0.1 <= self.rival_min_corr < 1.0 or not 0.2 <= self.name_share <= 1.0 or self.name_min_rows < 2:
+            errs.append("rival_min_corr in [0.1, 1), name_share in [0.2, 1] and name_min_rows >= 2 required")
+        if not 0.0 < self.leak_suspect_alpha <= 0.05:
+            errs.append("leak_suspect_alpha in (0, 0.05] required: the suspicion tier must not withhold genuine findings freely")
         return errs
 
 
@@ -368,89 +389,27 @@ def statistical_and_oos(eff_tr: pd.Series, eff_te: pd.Series, spec: FindingSpec,
     return stat, oos
 
 
-def _cell_frame(scores: pd.Series, y: pd.Series) -> pd.DataFrame:
-    """identity_firewall's scoring frame: scores aligned to the returns' index, rows with a missing value dropped."""
-    return pd.DataFrame({"s": scores.reindex(y.index), "y": y}).dropna()
-
-
 def fast_per_date_ic(scores: pd.Series, y: pd.Series, min_names: int = 5) -> pd.Series:
-    """engine.learning.identity_firewall.per_date_ic in one vectorised pass (same rows, same dates, same zero for a date whose scores
-    are constant, Pearson correlation of within-date average ranks = Spearman). Equal to the loop to ~1e-15."""
-    df = _cell_frame(scores, y)
-    if not len(df):
-        return pd.Series(dtype=float)
-    codes, uniq = pd.factorize(df.index.get_level_values(0), sort=True)          # integer date codes: no Timestamp iteration
-    S, Y = pd.Series(df["s"].to_numpy(float)), pd.Series(df["y"].to_numpy(float))
-    gs, gy = S.groupby(codes), Y.groupby(codes)
-    n, ynu, snu = gy.size().to_numpy(), gy.nunique().to_numpy(), gs.nunique().to_numpy()
-    rs, ry = gs.rank().to_numpy(float), gy.rank().to_numpy(float)
-    k = len(uniq)
-    cnt = np.bincount(codes, minlength=k).astype(float)
-    dx = rs - (np.bincount(codes, weights=rs, minlength=k) / cnt)[codes]
-    dy = ry - (np.bincount(codes, weights=ry, minlength=k) / cnt)[codes]
-    xy, xx, yy = (np.bincount(codes, weights=w, minlength=k) for w in (dx * dy, dx * dx, dy * dy))
-    with np.errstate(invalid="ignore", divide="ignore"):
-        ic = np.where(snu > 1, xy / np.sqrt(xx * yy), 0.0)
-    ok = (n >= min_names) & (ynu > 1)
-    return pd.Series(ic[ok], index=pd.Index(uniq[ok]), dtype=float).sort_index()
+    """F26's vectorised per-date IC, ADOPTED by engine.learning.identity_firewall.per_date_ic in F28 (defect c): kept as a name only."""
+    from engine.learning import identity_firewall as IDF
+    return IDF.per_date_ic(scores, y, min_names)
 
 
 def fast_top_k_spread(scores: pd.Series, y: pd.Series, k: int = 5) -> float:
-    """identity_firewall.top_k_spread vectorised: per date with more than k names and non-constant scores, the mean return of the k
-    highest scores (ties kept in row order, pandas nlargest keep='first') minus the date's mean return, averaged over dates."""
-    df = _cell_frame(scores, y)
-    if not len(df):
-        return float("nan")
-    codes, _ = pd.factorize(df.index.get_level_values(0), sort=True)
-    s, yy = df["s"].to_numpy(float), df["y"].to_numpy(float)
-    order = np.lexsort((np.arange(len(df)), -s, codes))
-    c_sorted = codes[order]
-    first = np.r_[0, np.flatnonzero(np.diff(c_sorted)) + 1]
-    pos = np.arange(len(order)) - np.repeat(first, np.diff(np.r_[first, len(order)]))
-    top = np.zeros(len(df), bool)
-    top[order[pos < k]] = True
-    m = len(first)
-    n = np.bincount(codes, minlength=m)
-    snu = pd.Series(s).groupby(codes).nunique().reindex(range(m), fill_value=0).to_numpy()
-    keep = (n > k) & (snu > 1)
-    if not keep.any():
-        return float("nan")
-    top_mean = np.bincount(codes, weights=np.where(top, yy, 0.0), minlength=m) / np.maximum(np.bincount(codes, weights=top.astype(float), minlength=m), 1)
-    all_mean = np.bincount(codes, weights=yy, minlength=m) / np.maximum(n, 1)
-    return float(np.mean((top_mean - all_mean)[keep]))
+    from engine.learning import identity_firewall as IDF
+    return IDF.top_k_spread(scores, y, k)
 
 
 def fast_multiset_key(X: pd.DataFrame, y: pd.Series | None) -> str:
-    """identity_firewall._multiset_key's equality relation (same multiset of every column's values and of the returns, floats rounded
-    to 10 decimals) with a byte hash instead of canonical JSON of every value (1.2 s of a gate call). It is only ever compared with
-    another key from the same function, never stored."""
-    import hashlib
-    h = hashlib.sha256()
-    for c in X.columns:
-        v = X[c].to_numpy()
-        if v.dtype.kind in "fiub":
-            a = np.round(np.sort(v.astype(float)), 10) + 0.0          # + 0.0 folds -0.0 into 0.0
-            h.update(b"F" + np.where(np.isnan(a), np.nan, a).tobytes())
-        else:
-            h.update(b"S" + "\x1f".join(np.sort(v.astype(str)).tolist()).encode())
-    yk = np.round(np.sort(y.to_numpy(dtype=float)), 10) + 0.0 if y is not None else np.array([])
-    h.update(b"Y" + np.where(np.isnan(yk), np.nan, yk).tobytes())
-    return h.hexdigest()[:24]
+    from engine.learning import identity_firewall as IDF
+    return IDF._multiset_key(X, y)
 
 
 @contextlib.contextmanager
 def fast_identity_scoring():
-    """F26 (the 3.3 s gate call was mostly the identity harness): run IdentityHarness with vectorised, equivalent versions of its
-    per-date IC, top-k spread and content-preservation key. The harness itself - its attacks, modes, verdict rules, bootstrap and
-    thresholds - is untouched, so the attack is exactly as strong; tests/test_gate_vs_benchmark.py proves the replacements agree with
-    the originals on panels with ties, NaNs and constant dates. Restored on exit (the owner can adopt them; see the F26 report)."""
-    from engine.learning import identity_firewall as IDF
-    orig = (IDF.per_date_ic, IDF.top_k_spread, IDF._multiset_key)
-    IDF.per_date_ic, IDF.top_k_spread, IDF._multiset_key = fast_per_date_ic, fast_top_k_spread, fast_multiset_key
-    try:
-        yield
-    finally:
-        IDF.per_date_ic, IDF.top_k_spread, IDF._multiset_key = orig
+    """F26 swapped vectorised scoring into IdentityHarness for the duration of a call; F28 moved it into identity_firewall itself (the
+    owner-side fix F26 asked for), so this is now a no-op kept for callers that still enter it."""
+    yield
 
 
 def identity(G: pd.DataFrame, score: pd.Series, y: pd.Series, tr: np.ndarray, te: np.ndarray, spec: FindingSpec, ec: EvidenceConfig):
@@ -462,9 +421,8 @@ def identity(G: pd.DataFrame, score: pd.Series, y: pd.Series, tr: np.ndarray, te
 
     def learner(X_train, y_train, X_eval, seed: int = 0) -> pd.Series:
         return X_eval["f"].astype(float)
-    with fast_identity_scoring():
-        rep = IDF.IdentityHarness(learner, attacks=("ticker_permutation", "date_permutation", "stock_substitution"), seed=spec.seed + 11,
-                                  boot=ec.identity_boot).run(X[tr], y[tr], X[te], y[te])
+    rep = IDF.IdentityHarness(learner, attacks=("ticker_permutation", "date_permutation", "stock_substitution"), seed=spec.seed + 11,
+                              boot=ec.identity_boot).run(X[tr], y[tr], X[te], y[te])
     ret = rep.retention_by_kind("eval")
     vals = [float(v) for v in ret.values if np.isfinite(v)]
     shuf = ret.get("ticker_permutation", np.nan)
@@ -822,6 +780,182 @@ def run_length(disc, ec: EvidenceConfig) -> int:
     return int(min(ec.repl_max_block, max(ec.repl_block, math.ceil(need))))
 
 
+# ================================================================================================================ F28: proxies and identity units
+def centered_ranks(X: pd.DataFrame) -> pd.DataFrame:
+    """Per date, every column's percentile rank minus that date's mean rank (NaN where the value is missing). A column with no
+    within-date variation (a market-level series) is all zero and correlates with nothing."""
+    if X.empty:
+        return X.astype("float32")
+    R = X.groupby(level=0).rank(pct=True)
+    return (R - R.groupby(level=0).transform("mean")).astype("float32")
+
+
+def rival_pool(frame: pd.DataFrame, exclude: Sequence[str] = ()) -> list[str]:
+    """Every derived feature computable on `frame` that a screen scores (the scan filter: no interaction forms, no history-dependent
+    features): the candidates a finding must be told apart from when its caller does not supply its own search universe."""
+    from engine.research import two_stage as TS
+    from engine.research import vol_hypotheses as VH
+    cols, ex = set(frame.columns), set(exclude)
+    return [f for f in VH.DERIVED if not f.startswith(("ix__", "ixnull")) and f not in TS.HISTORY_DEPENDENT and f not in ex
+            and not VH.missing_columns((f,), cols)]
+
+
+_RIVAL_CACHE: dict[str, Any] = {}
+
+
+def rival_ranks(frame: pd.DataFrame, features: Sequence[str] | None = None) -> pd.DataFrame:
+    """Within-date centred ranks of `features` (default: rival_pool) on `frame`, float32. Market-level columns (no within-date
+    variation) are dropped. The last result is kept for the same frame object and feature list (the loop gates many findings on one
+    matured frame; rebuilding the ranks per finding would dominate the cost)."""
+    from engine.research import vol_hypotheses as VH
+    feats = list(dict.fromkeys(features if features is not None else rival_pool(frame)))
+    key = stable_hash([len(frame), feats], 12)
+    if _RIVAL_CACHE.get("frame") is frame and _RIVAL_CACHE.get("key") == key:
+        return _RIVAL_CACHE["ranks"]
+    if not feats or frame.empty:
+        out = pd.DataFrame(index=frame.index, dtype="float32")
+    else:
+        D = VH.derive(frame, tuple(feats))[feats].astype(float)
+        R = centered_ranks(D)
+        out = R.loc[:, (R.abs() > 0).any(axis=0).to_numpy()]
+    _RIVAL_CACHE.update(frame=frame, key=key, ranks=out)
+    return out
+
+
+def _within_date_resid(a: np.ndarray, b: np.ndarray, codes: np.ndarray) -> np.ndarray:
+    """a with its within-date least-squares dependence on b removed (both already centred per date; missing b counts as the date's
+    mean, 0). Rows where a is missing stay missing."""
+    k = int(codes.max()) + 1 if len(codes) else 0
+    a0, b0 = np.nan_to_num(a), np.nan_to_num(b)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        beta = np.bincount(codes, weights=a0 * b0, minlength=k) / np.bincount(codes, weights=b0 * b0, minlength=k)
+    beta = np.where(np.isfinite(beta), beta, 0.0)
+    return np.where(np.isfinite(a), a0 - beta[codes] * b0, np.nan)
+
+
+def incremental(G: pd.DataFrame, score: pd.Series, y: pd.Series, tr: np.ndarray, te: np.ndarray, eff_te: pd.Series, spec: FindingSpec,
+                ec: EvidenceConfig, rivals: pd.DataFrame | None):
+    """F28 (F26: 16 of the 21 remaining false positives were PROXIES - candidates correlated 0.6-0.9 with a real pattern and adding
+    nothing beyond it; the gate judged each candidate alone, so a good proxy of a real pattern passes every test the pattern passes).
+    The finding is set against its STRONGEST CORRELATED RIVAL among every feature the search scored (`rivals`: within-date centred
+    ranks from rival_ranks; filed knowledge belongs in it too): the rival is the scored feature with the largest |within-date rank
+    correlation| with the finding on the TRAIN rows (a feature-feature relation: no outcome is used to choose it). Then, per test date:
+      incremental  the effect (rank AUC - 0.5) of the finding's ordering with the rival's regressed out (within date)
+      reverse      the rival's (oriented by its own train effect) with the finding's regressed out
+    quality_gate.rival_check reads them: a finding that keeps nothing once its rival is removed while the rival keeps something is a
+    proxy; a real pattern keeps sqrt(1 - r^2) of its effect beyond any proxy of it. Returns (RivalEvidence, parts)."""
+    from engine.learning import promotion as PR
+    from engine.research import quality_gate as QG
+    if rivals is None or rivals.shape[1] == 0:
+        return QG.RivalEvidence(None, 0.0, 0, ec.rival_min_corr), {"rival": None, "rival_corr": 0.0, "rival_pool": 0}
+    R = rivals.reindex(G.index)
+    R = R[[c for c in R.columns if c != spec.feature]]
+    ra = centered_ranks(score.to_frame("f"))["f"].to_numpy(float)
+    trm = np.asarray(tr, bool) & np.isfinite(ra)
+    A = np.nan_to_num(ra[trm])
+    B = np.nan_to_num(R.to_numpy(np.float32)[trm]).astype(float)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        corr = (A @ B) / np.sqrt((A @ A) * (B * B).sum(0))
+    corr = np.where(np.isfinite(corr), corr, 0.0)
+    n_pool = int(R.shape[1])
+    if n_pool == 0 or float(np.abs(corr).max()) < ec.rival_min_corr:
+        top = float(np.abs(corr).max()) if n_pool else 0.0
+        return QG.RivalEvidence(None, top, n_pool, ec.rival_min_corr), {"rival": None, "rival_corr": top, "rival_pool": n_pool}
+    j = int(np.argmax(np.abs(corr)))
+    name = str(R.columns[j])
+    rb = R.iloc[:, j].to_numpy(float)
+    codes = pd.factorize(G.index.get_level_values(0), sort=True)[0]
+    ea = pd.Series(_within_date_resid(ra, rb, codes), index=G.index)
+    eb = _within_date_resid(np.where(np.isfinite(rb), rb, np.nan), np.nan_to_num(ra), codes)
+    b_tr = per_date_effect(pd.Series(rb, index=G.index)[tr], y[tr], ec.min_names)
+    sb = -1.0 if len(b_tr) and float(b_tr.mean()) < 0 else 1.0
+    ebs = pd.Series(sb * eb, index=G.index)
+    d_a = per_date_effect(ea[te], y[te], ec.min_names)
+    d_b = per_date_effect(ebs[te], y[te], ec.min_names)
+    riv = per_date_effect(pd.Series(sb * rb, index=G.index)[te], y[te], ec.min_names)
+    own = float(eff_te.mean()) if len(eff_te) else None
+    rival_eff = float(riv.mean()) if len(riv) else None
+    ev = QG.RivalEvidence(name, float(corr[j]), n_pool, ec.rival_min_corr, PR.IncrementalEvidence(tuple(float(v) for v in d_a), spec.seed + 31),
+                          PR.IncrementalEvidence(tuple(float(v) for v in d_b), spec.seed + 37), own, rival_eff)
+    return ev, {"rival": name, "rival_corr": float(corr[j]), "rival_pool": n_pool, "increment": float(d_a.mean()) if len(d_a) else None,
+                "increment_t": PR.t_stat(d_a.to_numpy()) if len(d_a) >= 2 else None,
+                "rival_increment_t": PR.t_stat(d_b.to_numpy()) if len(d_b) >= 2 else None, "rival_effect": rival_eff}
+
+
+def name_units(G: pd.DataFrame, score: pd.Series, y: pd.Series, tr: np.ndarray, te: np.ndarray, ec: EvidenceConfig):
+    """F28 (F26: identity_null false positives - a per-name artefact counted as name-weeks). A column that is mostly a fixed per-name
+    level ranks the names the same way every week; if those names' outcome base rates happen to line up with it (48 names: a chance
+    correlation of sd 0.15, and it persists, because the base rates persist), every weekly AUC repeats ONE cross-name association and the
+    per-date t-test counts it ~150 times. Measured here:
+      between_share  share of the train rows' within-date rank variance that the names' train means explain (0 for a feature that
+                     varies within names, 1 for a pure per-name constant)
+      name test      names as the units: Spearman correlation across names of the train mean rank (known at the first test date)
+                     with the name's out-of-sample outcome excess over its dates' rates; one-sided t with n_names - 2 df
+      within test    dates as the units: the per-date effect of the rank minus the name's train mean (the name levels removed)
+    quality_gate.name_units_check applies the gate's own alpha and search-size correction to whichever units the evidence has.
+    Returns (NameUnitsEvidence, parts)."""
+    from scipy import stats as sps
+    from engine.learning import promotion as PR
+    from engine.research import quality_gate as QG
+    r = centered_ranks(score.to_frame("f"))["f"].astype(float)
+    names = G.index.get_level_values(1)
+    trs = pd.Series(np.asarray(tr, bool), index=G.index)
+    rt = r[trs.to_numpy() & np.isfinite(r.to_numpy())]
+    if len(rt) < 20:
+        return QG.NameUnitsEvidence(0.0, False, 0, threshold=ec.name_share), {"between_share": None}
+    m = rt.groupby(level=1).mean()
+    tot = float((rt ** 2).sum())
+    share = float((m.reindex(rt.index.get_level_values(1)).to_numpy() ** 2).sum() / tot) if tot > 0 else 0.0
+    applies = share >= ec.name_share
+    tem = np.asarray(te, bool)
+    yt = y[tem]
+    exc = (yt - yt.groupby(level=0).transform("mean")).groupby(level=1).agg(["mean", "size"])
+    exc = exc[exc["size"] >= ec.name_min_rows]
+    common = m.index.intersection(exc.index)
+    rho = p_name = None
+    if len(common) >= 5:
+        rho = float(sps.spearmanr(m.loc[common], exc.loc[common, "mean"]).statistic)
+        if np.isfinite(rho):
+            n = len(common)
+            t = rho * math.sqrt(max(n - 2, 1)) / math.sqrt(max(1e-12, 1 - rho * rho))
+            p_name = float(sps.t.sf(t, n - 2))
+        else:
+            rho = None
+    w = (r - pd.Series(m.reindex(names).to_numpy(), index=G.index))[tem]
+    ew = per_date_effect(w, yt, ec.min_names)
+    tw = PR.t_stat(ew.to_numpy()) if len(ew) >= 2 else float("nan")
+    p_within = PR.one_sided_p(tw) if np.isfinite(tw) else None
+    ev = QG.NameUnitsEvidence(share, bool(applies), int(len(common)), rho, p_name, float(ew.mean()) if len(ew) else None, p_within, ec.name_share)
+    return ev, {"between_share": share, "name_units_apply": bool(applies), "name_corr": rho, "name_p": p_name, "within_p": p_within}
+
+
+# ================================================================================================================ F28: dated availability
+PUBLISHED_SUFFIX = "__published_at"
+
+
+def documented_availability(G: pd.DataFrame, feature: str) -> tuple[bool | None, str]:
+    """(documented?, detail) for the feature's inputs: every base column c needs a per-row publication time `c__published_at` (a
+    DATA record, e.g. the time an event calendar entry was published) strictly before the row's decision date on every row where the
+    feature has a value. None = no publication record at all (nothing is documented); False = a record exists but some value was
+    published at/after its decision (the record itself shows the leak). A documented magnitude signal is new information that was
+    public before the decision - a scheduled event - which is observationally identical to a leak on the outcome window alone."""
+    from engine.research import vol_hypotheses as VH
+    base = list(VH.required_columns((feature,))) if feature in VH.DERIVED else [feature]
+    cols = [c + PUBLISHED_SUFFIX for c in base]
+    if not base or not all(c in G.columns for c in cols):
+        return None, "no publication record for " + ", ".join(c for c in cols if c not in G.columns)
+    d = pd.to_datetime(G.index.get_level_values(0))
+    has = np.ones(len(G), bool)
+    for c in base:
+        has &= np.isfinite(pd.to_numeric(G[c], errors="coerce").to_numpy(float))
+    for c in cols:
+        pub = pd.to_datetime(G[c], errors="coerce")
+        bad = has & ~(pub.to_numpy() < d.to_numpy())
+        if bad.any():
+            return False, f"{int(bad.sum())} value(s) of {c[:-len(PUBLISHED_SUFFIX)]} were published at/after their decision (or undated)"
+    return True, f"every value of {', '.join(base)} was published strictly before its decision ({int(has.sum())} rows)"
+
+
 # columns that MATURE after the decision: the realised outcome of the row's own window (never an input)
 OUTCOME_COLUMNS = ("touch", "up", "close", "absmove", "tday", "end")
 
@@ -878,24 +1012,57 @@ def past_magnitude(G: pd.DataFrame, mag: pd.Series, lag: int = 2) -> pd.Series:
 def future_dependence(G: pd.DataFrame, score: pd.Series, y: pd.Series, spec: FindingSpec, ec: EvidenceConfig) -> tuple[list[str], dict]:
     """quality_gate.screen_future_dependence on the candidate (two-sided: an oriented score may carry the leak with either sign), with a
     PLANTED probe on the same rows - noise plus the future magnitude - that the screen must catch, or the audit is blind here.
-    Future magnitude = |realised outcome| (`absmove` when the frame has it, else |close|); control = the audited volatility state."""
+    Future magnitude = |realised outcome| (`absmove` when the frame has it, else |close|); control = the audited volatility state.
+    Returns (integrity findings, measures); measures['suspicions'] and measures['documented'] carry the F28 tiers.
+
+    F28 (F26: the weakest leaks, strength 0.3, reached z 2.6-3.4 under a 4.06 bar and were promoted in low-power worlds). Why the bar
+    misses them: the screen conditions on the outcome class, which removes exactly the part of a magnitude leak that predicts the label
+    (a touch week is a big-magnitude week), so only the WITHIN-class magnitude spread is left to see it - small, and thinner still in a
+    calm era where the touch class holds a handful of names a week (cells under leak_min_cell are dropped). Its bar is family-wise over
+    the whole search (615 features, both signs) because a finding over it is an integrity accusation that QUARANTINES; lowering it would
+    quarantine genuine findings at the search's scale. The fix is a second tier that makes no accusation: a signature at the
+    PER-CANDIDATE two-sided level `leak_suspect_alpha` (z 2.58 at 0.01; a genuine predictor with no magnitude dependence crosses it 1% of
+    the time) is a SUSPICION - the leak gate answers UNKNOWN, promotion waits, nothing is quarantined. A genuine new-information magnitude
+    signal (a scheduled event inside the window) has the same signature on the outcome window - no statistic of the outcome window
+    separates it from a leak - so what separates them is WHEN the value was public: documented_availability. A signature whose inputs
+    carry a per-row publication record strictly before every decision is recorded under 'documented' and not held against the finding
+    (a record that shows a publication at/after the decision is itself a finding)."""
+    from statistics import NormalDist
     from engine.research import quality_gate as QG
     if "absmove" in G:
         mag = G["absmove"].astype(float)
     elif "close" in G:
         mag = G["close"].astype(float).abs()
     else:
-        return [], {"z": None, "probe": None}
+        return [], {"z": None, "probe": None, "suspicions": [], "documented": []}
     past = past_magnitude(G, mag)
     ctl = G["vol20"].astype(float) if "vol20" in G else None
     zb = leak_bar(spec.n_search, ec)
     f1, m = QG.screen_future_dependence(score, y, mag, past, ctl, zb, ec.leak_min_cell, name=spec.feature)
-    f2, _ = QG.screen_future_dependence(-score, y, mag, past, ctl, zb, ec.leak_min_cell, name=spec.feature)
+    f2, m2 = QG.screen_future_dependence(-score, y, mag, past, ctl, zb, ec.leak_min_cell, name=spec.feature)
     rng = np.random.default_rng(np.random.SeedSequence([int(spec.seed), 27]))
     z = (mag - mag.mean()) / (mag.std() or 1.0)
     probe = pd.Series(rng.normal(0.0, 1.0, len(G)), index=G.index) + z
     fp, mp = QG.screen_future_dependence(probe, y, mag, past, ctl, zb, ec.leak_min_cell, name="planted magnitude probe")
-    return f1 + f2, {**m, "probe_caught": bool(fp), "probe_z": mp.get("z"), "cells": m.get("cells"), "bar": zb}
+    zs = [v for v in (m.get("z"), m2.get("z")) if v is not None and math.isfinite(v)]
+    zmax = max(zs) if zs else None
+    findings = f1 + f2
+    suspect_bar = float(NormalDist().inv_cdf(1.0 - ec.leak_suspect_alpha / 2.0))
+    sus = []
+    if ec.f28_leak_suspect and not findings and zmax is not None and zmax >= suspect_bar:
+        sus = [f"{spec.feature} shows a future-dependence signature (z = {zmax:.2f} >= {suspect_bar:.2f}, the per-candidate "
+               f"{ec.leak_suspect_alpha:g} level; integrity bar {zb:.2f}): it may know how the coming outcome realises - promotion waits "
+               f"for a documented pre-decision availability of its inputs"]
+    documented: list[str] = []
+    if findings or sus:
+        ok, why = documented_availability(G, spec.feature)
+        if ok:
+            documented = [f"explained by dated availability: {why}"] + findings + sus
+            findings, sus = [], []
+        elif ok is False:
+            findings = findings + [f"{spec.feature}: {why}"]
+    return findings, {**m, "z": zmax, "z_pos": m.get("z"), "z_neg": m2.get("z"), "probe_caught": bool(fp), "probe_z": mp.get("z"),
+                      "cells": m.get("cells"), "bar": zb, "suspect_bar": suspect_bar, "suspicions": sus, "documented": documented}
 
 
 def leak_bar(n_search: int, ec: EvidenceConfig) -> float:
@@ -944,19 +1111,23 @@ def leakage(G: pd.DataFrame, score: pd.Series, y: pd.Series, spec: FindingSpec, 
     fd_blind = fd.get("probe_caught") is False           # the future-dependence screen missed its planted probe on these rows
     probe = bool(corp.get("clean_passed")) and not corp.get("missed") and caught_own and not fd_blind
     after = int((pd.to_datetime(G["end"]) >= pd.Timestamp(as_date(now))).sum())
-    return QG.leak_evidence_from_panel(X, yy, fwv, probe, after, extra_findings=extra), {
+    return QG.leak_evidence_from_panel(X, yy, fwv, probe, after, extra_findings=extra, suspicions=fd.get("suspicions", ()),
+                                       documented=fd.get("documented", ())), {
         "firewall_passed": bool(getattr(fwv, "passed", False)), "planted_probe_caught": probe, "own_probe_caught": caught_own,
         "outcomes_after_now": after, "construction_findings": len(construction), "future_dependence_z": fd.get("z"),
         "future_dependence_rho": fd.get("rho_future"), "future_probe_caught": fd.get("probe_caught"),
-        "leak_findings": len(extra)}
+        "leak_findings": len(extra), "leak_suspicions": len(fd.get("suspicions", ())), "leak_documented": len(fd.get("documented", ()))}
 
 
 # ================================================================================================================ the bundle
 def assemble(frame: pd.DataFrame, spec: FindingSpec, now, *, code_hash: str, data_hash: str, created_real: str,
-             cfg: EvidenceConfig = EvidenceConfig(), ledger=None, look: int | None = None, plan: SequentialPlan | None = None) -> Bundle:
+             cfg: EvidenceConfig = EvidenceConfig(), ledger=None, look: int | None = None, plan: SequentialPlan | None = None,
+             rivals: pd.DataFrame | None = None) -> Bundle:
     """PUBLIC ENTRY. Every QualityEvidence field for `spec` from the matured research `frame` (rows whose outcome ended strictly
     before now; a row at/after now is a FirewallBreach, not a filter). Anything not computable stays None and is named in `missing`.
-    `look` (1, 2, ...) = this is the finding's look-th sequential look: replication is assessed under the plan's spent alpha."""
+    `look` (1, 2, ...) = this is the finding's look-th sequential look: replication is assessed under the plan's spent alpha.
+    `rivals` (F28) = within-date centred ranks (rival_ranks) of every feature the search scored plus filed knowledge, indexed like the
+    frame; None = the rival pool is built from the frame itself (rival_pool: every scannable derived feature it can compute)."""
     from engine.learning.core import Provenance
     from engine.research import quality_gate as QG
     errs = cfg.validate() + spec.validate()
@@ -988,6 +1159,14 @@ def assemble(frame: pd.DataFrame, spec: FindingSpec, now, *, code_hash: str, dat
     stat, oos = statistical_and_oos(eff_tr, eff_te, spec, train_end, now) if len(eff_te) else (None, None)
     if stat is None:
         missing["oos"] = "no evaluable test date"
+    rival_ev = units_ev = None
+    if stat is not None and cfg.f28_rival:
+        rv = rivals if rivals is not None else rival_ranks(frame, rival_pool(frame, exclude=(spec.feature,)))
+        rival_ev, p = incremental(G, score, y, tr, te, eff_te, spec, cfg, rv)
+        parts.update(p)
+    if stat is not None and cfg.f28_name_units:
+        units_ev, p = name_units(G, score, y, tr, te, cfg)
+        parts.update(p)
     train_years = tuple(sorted({d.year for d in pd.to_datetime(G.index.get_level_values(0)[tr])}))
     ident = None
     try:
@@ -1024,7 +1203,8 @@ def assemble(frame: pd.DataFrame, spec: FindingSpec, now, *, code_hash: str, dat
                       construction=construction_audit(frame, spec.feature, spec.seed) if cfg.f26_leak_screen else (), cfg=cfg)
     parts.update(p)
     risky, risk_note = claim_risk(spec, cfg)
-    ev = QG.QualityEvidence(pit=pit, leak=leak, identity=ident, oos=QG.OOSBundle(stat, oos, train_years) if stat is not None else None,
+    ev = QG.QualityEvidence(pit=pit, leak=leak, identity=ident,
+                            oos=QG.OOSBundle(stat, oos, train_years, rival_ev, units_ev) if stat is not None else None,
                             replication=repl, outputs_probabilities=True, calibration=cal, changes_risk_decisions=risky,
                             risk_note=risk_note, risk=rk,
                             complexity=cx, transfer=tev, failure=fe, repro=rp, justification=JUSTIFICATION, provenance=prov)

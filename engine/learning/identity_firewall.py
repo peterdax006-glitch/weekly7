@@ -322,12 +322,25 @@ DEFAULT_ATTACKS = tuple(ATTACKS) + ("sector_substitution",)
 
 # ---------------------------------------------------------------- verifying a transform is identity-preserving
 def _multiset_key(X: pd.DataFrame, y: pd.Series | None) -> str:
-    cols = []
+    """Content key: the multiset of every column's values and of the returns (floats rounded to 10 decimals), as a byte hash. Only ever
+    compared with another key from this function, never stored.
+
+    F28 (defect c, reported by F26): the key hashed canonical JSON of the sorted values, and -0.0 and 0.0 compare equal but serialise
+    differently - a column holding both sorted them in whatever order the rows came, so a pure row permutation of identical content
+    could change the key ('content-not-preserved' on a perfectly preserving attack). Signed zeros are now folded (+ 0.0) before
+    hashing, and the bytes of the sorted array are hashed directly (the JSON of every value was ~1.2 s of a gate call)."""
+    import hashlib
+    h = hashlib.sha256()
     for c in X.columns:
         v = X[c].to_numpy()
-        cols.append(np.sort(v.astype(float)) if v.dtype.kind in "fiub" else np.sort(v.astype(str)))
-    yk = np.sort(y.to_numpy(dtype=float)) if y is not None else np.array([])
-    return stable_hash([[np.round(c, 10).tolist() if c.dtype.kind == "f" else c.tolist() for c in cols], np.round(yk, 10).tolist()], 24)
+        if v.dtype.kind in "fiub":
+            a = np.round(np.sort(v.astype(float)), 10) + 0.0                 # + 0.0 folds -0.0 into 0.0
+            h.update(b"F" + np.ascontiguousarray(a).tobytes())
+        else:
+            h.update(b"S" + "\x1f".join(np.sort(v.astype(str)).tolist()).encode())
+    yk = np.round(np.sort(y.to_numpy(dtype=float)), 10) + 0.0 if y is not None else np.array([])
+    h.update(b"Y" + np.ascontiguousarray(yk).tobytes())
+    return h.hexdigest()[:24]
 
 
 def verify_transform(orig_X: pd.DataFrame, orig_y: pd.Series | None, t: Transformed, min_changed: float = 0.05,
@@ -348,18 +361,35 @@ def verify_transform(orig_X: pd.DataFrame, orig_y: pd.Series | None, t: Transfor
 
 
 # ---------------------------------------------------------------- scoring
+def _cell_frame(scores: pd.Series, y: pd.Series) -> pd.DataFrame:
+    """Scores aligned to the returns' index, rows with a missing value dropped (the scoring frame of per_date_ic / top_k_spread)."""
+    return pd.DataFrame({"s": scores.reindex(y.index), "y": y}).dropna()
+
+
 def per_date_ic(scores: pd.Series, y: pd.Series, min_names: int = 5) -> pd.Series:
     """Spearman rank correlation of scores with realised returns, per date. Dates with fewer than `min_names` names, or whose
     returns have no dispersion, are dropped (nothing to rank). A date on which the SCORES are constant scores exactly 0: a
-    learner that outputs one number for everybody has no skill there, it has not 'failed to be measured'."""
-    df = pd.DataFrame({"s": scores.reindex(y.index), "y": y}).dropna()
+    learner that outputs one number for everybody has no skill there, it has not 'failed to be measured'.
+
+    F28 (adopted from F26's evidence.fast_per_date_ic): one vectorised pass - Pearson correlation of within-date average ranks
+    (= Spearman) from bincount sums - instead of a Python loop over dates; equal to the loop to ~1e-15 (tests pin it)."""
+    df = _cell_frame(scores, y)
     if not len(df):
         return pd.Series(dtype=float)
-    out = {}
-    for d, sub in df.groupby(level=0):
-        if len(sub) >= min_names and sub["y"].nunique() > 1:
-            out[d] = 0.0 if sub["s"].nunique() <= 1 else sub["s"].rank().corr(sub["y"].rank())
-    return pd.Series(out, dtype=float).sort_index()
+    codes, uniq = pd.factorize(df.index.get_level_values(0), sort=True)
+    S, Y = pd.Series(df["s"].to_numpy(float)), pd.Series(df["y"].to_numpy(float))
+    gs, gy = S.groupby(codes), Y.groupby(codes)
+    n, ynu, snu = gy.size().to_numpy(), gy.nunique().to_numpy(), gs.nunique().to_numpy()
+    rs, ry = gs.rank().to_numpy(float), gy.rank().to_numpy(float)
+    k = len(uniq)
+    cnt = np.bincount(codes, minlength=k).astype(float)
+    dx = rs - (np.bincount(codes, weights=rs, minlength=k) / cnt)[codes]
+    dy = ry - (np.bincount(codes, weights=ry, minlength=k) / cnt)[codes]
+    xy, xx, yy = (np.bincount(codes, weights=w, minlength=k) for w in (dx * dy, dx * dx, dy * dy))
+    with np.errstate(invalid="ignore", divide="ignore"):
+        ic = np.where(snu > 1, xy / np.sqrt(xx * yy), 0.0)
+    ok = (n >= min_names) & (ynu > 1)
+    return pd.Series(ic[ok], index=pd.Index(uniq[ok]), dtype=float).sort_index()
 
 
 def skill_t(ic: np.ndarray) -> float:
@@ -375,13 +405,28 @@ def skill_t(ic: np.ndarray) -> float:
 
 
 def top_k_spread(scores: pd.Series, y: pd.Series, k: int = 5) -> float:
-    """Mean return of the top-k scored names minus the cross-sectional mean, averaged over dates."""
-    df = pd.DataFrame({"s": scores.reindex(y.index), "y": y}).dropna()
-    vals = []
-    for _, sub in df.groupby(level=0):
-        if len(sub) > k and sub["s"].nunique() > 1:
-            vals.append(sub.nlargest(k, "s")["y"].mean() - sub["y"].mean())
-    return float(np.mean(vals)) if vals else float("nan")
+    """Mean return of the top-k scored names minus the cross-sectional mean, averaged over dates with more than k names and
+    non-constant scores (ties kept in row order, as pandas nlargest keep='first'). F28: vectorised (F26's fast_top_k_spread)."""
+    df = _cell_frame(scores, y)
+    if not len(df):
+        return float("nan")
+    codes, _ = pd.factorize(df.index.get_level_values(0), sort=True)
+    s, yy = df["s"].to_numpy(float), df["y"].to_numpy(float)
+    order = np.lexsort((np.arange(len(df)), -s, codes))
+    c_sorted = codes[order]
+    first = np.r_[0, np.flatnonzero(np.diff(c_sorted)) + 1]
+    pos = np.arange(len(order)) - np.repeat(first, np.diff(np.r_[first, len(order)]))
+    top = np.zeros(len(df), bool)
+    top[order[pos < k]] = True
+    m = len(first)
+    n = np.bincount(codes, minlength=m)
+    snu = pd.Series(s).groupby(codes).nunique().reindex(range(m), fill_value=0).to_numpy()
+    keep = (n > k) & (snu > 1)
+    if not keep.any():
+        return float("nan")
+    top_mean = np.bincount(codes, weights=np.where(top, yy, 0.0), minlength=m) / np.maximum(np.bincount(codes, weights=top.astype(float), minlength=m), 1)
+    all_mean = np.bincount(codes, weights=yy, minlength=m) / np.maximum(n, 1)
+    return float(np.mean((top_mean - all_mean)[keep]))
 
 
 def boot_mean(x: np.ndarray, rng: np.random.Generator, n: int = 400, block: int = 3) -> np.ndarray:

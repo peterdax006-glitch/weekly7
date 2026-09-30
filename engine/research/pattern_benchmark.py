@@ -87,6 +87,16 @@ ERAS: dict[str, dict[str, float]] = {
     "choppy": {"base": -1.9, "vol": 1.2, "spread": 1.1, "drift": 0.0, "alt": 0.02},
 }
 REGIME_ERAS = ("volatile", "crisis")            # where a regime-limited real pattern lives (in every occurrence of those eras)
+# F28: noise kinds grouped by the mechanism that makes them convincing (the report's noise-family table)
+NOISE_FAMILIES: dict[str, tuple[str, ...]] = {
+    "pure null (per-date effect zero everywhere)": PURE_NULL_KINDS,
+    "per-name persistent (identity-shaped)": ("identity_null", "context", "vol_corr", "base_null", "autocorr_trap"),
+    "correlated with a real pattern (proxy-shaped)": ("proxy", "adversarial_near", "near_pattern"),
+    "future-derived (leak-shaped)": ("leak", "survivor_bias"),
+    "transient or local effect": ("coincidence", "early_decay", "fluke", "reversal", "delayed_coincidence", "interaction_decoy", "xor_trap",
+                                  "strong_nontransferable"),
+    "interaction component (part of a real pattern)": ("interaction_component",),
+}
 UNDETECTABLE = "UNDETECTABLE_IN_PRINCIPLE"
 NOT_REPRESENTABLE = "NOT_REPRESENTABLE"         # an oracle with the true form detects it; the single feature the system can test does not
 DETECTABLE = "DETECTABLE"
@@ -142,7 +152,7 @@ class BenchConfig:
     def validate(self) -> list[str]:
         errs = []
         from engine.research import evidence as EV
-        flags = {f.name for f in dataclasses.fields(EV.EvidenceConfig) if f.name.startswith("f26_")}
+        flags = {f.name for f in dataclasses.fields(EV.EvidenceConfig) if f.name.startswith(("f26_", "f28_"))}
         if set(self.evidence_ablation) - flags:
             errs.append(f"unknown evidence ablation {sorted(set(self.evidence_ablation) - flags)}; known: {sorted(flags)}")
         if self.n_names < 16 or self.n_dates < 60:
@@ -851,8 +861,10 @@ def evidence_columns(feature: str, columns) -> list[str]:
     """The frame columns evidence.assemble reads for one VOLATILITY finding (its design, sector transfer, market-volatility failure
     contexts, replication and leak audit) plus the feature's own base columns. Handing it only these gives identical evidence; the
     other ~600 planted columns were being copied on every row filter inside it (measured: most of an assemble's time)."""
+    from engine.research import evidence as EV
     from engine.research import vol_hypotheses as VH
-    need = list(dict.fromkeys(list(EVIDENCE_COLUMNS) + list(VH.required_columns((feature,)))))
+    base = list(VH.required_columns((feature,)))
+    need = list(dict.fromkeys(list(EVIDENCE_COLUMNS) + base + [c + EV.PUBLISHED_SUFFIX for c in base]))    # F28: dated availability
     return [c for c in need if c in set(columns)]
 
 
@@ -864,6 +876,33 @@ def _decision_summary(rep, sid: str) -> dict:
             "blocking": [g for g, s, ok in gates if not ok], "states": {g: s for g, s, _ in gates},
             "details": {g.gate: g.detail[:160] for g in d.gates if not g.ok},
             "oos_margin": None if stat is None or stat.margin is None else float(stat.margin)}
+
+
+# F28 attribution: the same bundle gated again with one F28 evidence part removed (never changes what the system does)
+F28_ABLATIONS = ("no_rival", "no_name_units", "no_leak_suspect", "no_f28")
+
+
+def f28_counterfactuals(b, now, code_hash: str, look: int, plan, ecfg) -> dict[str, str]:
+    """Verdict of the SAME bundle with each F28 part stripped (rival check, identity units, the leak suspicion tier, all three), gated
+    with a fresh quarantine store. In the final-look protocol a candidate is gated once, so these are exactly the verdicts the gate
+    would have given without that fix; with several looks they are per-look attributions (ledger / retirement state is shared)."""
+    from engine.research import evidence as EV
+    ev = b.evidence
+    o, lk = ev.oos, ev.leak
+
+    def strip(rival: bool, units: bool, sus: bool):
+        e = ev
+        if o is not None and (rival or units):
+            e = dataclasses.replace(e, oos=dataclasses.replace(o, rival=None if rival else o.rival, name_units=None if units else o.name_units))
+        if lk is not None and sus:
+            e = dataclasses.replace(e, leak=dataclasses.replace(lk, suspicions=()))
+        return e
+    out = {}
+    for name, flags in (("no_rival", (1, 0, 0)), ("no_name_units", (0, 1, 0)), ("no_leak_suspect", (0, 0, 1)), ("no_f28", (1, 1, 1))):
+        bb = EV.Bundle(b.subject_id, strip(*map(bool, flags)), b.parts, b.missing)
+        rep = EV.gate([bb], now, code_hash, store=None, looks={b.subject_id: look}, plan=plan, cfg=ecfg)
+        out[name] = rep.decisions[0].verdict.value
+    return out
 
 
 def run_system(frame: pd.DataFrame, world_id: str, seed: int, cfg: BenchConfig = BenchConfig(), *, code_hash: str = "f19",
@@ -899,6 +938,7 @@ def run_system(frame: pd.DataFrame, world_id: str, seed: int, cfg: BenchConfig =
             ts = time.monotonic()
             tab = VL.oriented_scan(M, feats, now, lab)
             scan_s = time.monotonic() - ts
+            rivals = EV.rival_ranks(M, feats) if (cfg.gate and live_or_raised(tab, live, cap, t_min)) else None   # F28: the search as rivals
             tab = tab.reset_index(drop=True)
             raised = 0
             for rank, r in tab.iterrows():
@@ -925,12 +965,16 @@ def run_system(frame: pd.DataFrame, world_id: str, seed: int, cfg: BenchConfig =
                 spec = EV.FindingSpec("D_" + f, f, cands[f]["sign"], "VOLATILITY", n_tests_searched=max(1, len(screened)),
                                       has_falsifier=True, seed=int(seed), n_scanned=len(feats) if cfg.honest_multiplicity else 0)
                 b = EV.assemble(M[evidence_columns(f, M.columns)], spec, now, code_hash=code_hash, data_hash=f"bench{seed}",
-                                created_real=created_real, cfg=ecfg, ledger=st["ledger"], look=k, plan=plan)
+                                created_real=created_real, cfg=ecfg, ledger=st["ledger"], look=k, plan=plan, rivals=rivals)
                 rep = EV.gate([b], now, code_hash, store=store, looks={spec.subject_id: k}, plan=plan, cfg=ecfg)
                 d = _decision_summary(rep, spec.subject_id)
                 d.update(look=li, k=k, alpha=plan.alpha_at(k), n_tests_searched=max(1, len(screened)), n_scanned=len(feats),
                          n_search=spec.n_search, effect_test=b.parts.get("effect_test"), n_test=b.parts.get("n_test"),
-                         missing=sorted(b.missing), leak_z=b.parts.get("future_dependence_z"))
+                         missing=sorted(b.missing), leak_z=b.parts.get("future_dependence_z"),
+                         rival=b.parts.get("rival"), rival_corr=b.parts.get("rival_corr"), increment_t=b.parts.get("increment_t"),
+                         rival_increment_t=b.parts.get("rival_increment_t"), between_share=b.parts.get("between_share"),
+                         name_p=b.parts.get("name_p"), leak_suspicions=b.parts.get("leak_suspicions"),
+                         cf=f28_counterfactuals(b, now, code_hash, k, plan, ecfg))
                 cands[f]["gate"].append(d)
                 n_gated += 1
                 why = None
@@ -957,6 +1001,16 @@ def run_system(frame: pd.DataFrame, world_id: str, seed: int, cfg: BenchConfig =
 
 
 # ================================================================================================================ reference answer sheets
+def live_or_raised(tab: pd.DataFrame, live: Mapping[str, Any], cap: int, t_min: float) -> bool:
+    """Will anything be gated at this look (a live candidate, or the screen raising one)? The rival ranks cost ~2 s per look and
+    are only built when a gate call will read them."""
+    if live:
+        return True
+    ok = np.isfinite(tab["auc"]) & np.isfinite(tab["lo"])
+    se = ((tab["hi"] - tab["lo"]) / (2 * 1.645)).clip(lower=1e-6)
+    return bool((ok & ((tab["auc"] - 0.5) / se >= t_min)).any()) and cap > 0
+
+
 def oracle_answers(key: dict) -> dict:
     """A perfect classifier: surfaces every candidate at the first look and promotes exactly the detectable real patterns' columns."""
     cands = {}
@@ -1040,6 +1094,11 @@ def score_world(key: dict, answers: dict) -> tuple[list[dict], dict]:
              "blocking": ",".join(sorted(best["gate"][-1]["blocking"])) if best and best.get("gate") else None,
              "outcome": OUTCOME.get(best["final"], "REJECT") if best else "REJECT"}
         r["right"] = bool(promoted and r["sign_ok"] is not False) if p["label"] == REAL else False
+        for ab in F28_ABLATIONS:                          # F28 attribution: promoted had that fix been off (final-look exact)
+            pa = any(c is not None and (c["final"] == "PROMOTED" or any(g.get("cf", {}).get(ab) == "PROMOTE" for g in c.get("gate", [])))
+                     for c in cs)
+            r[f"promoted_{ab}"] = bool(pa)
+            r[f"right_{ab}"] = bool(pa and r["sign_ok"] is not False) if p["label"] == REAL else False
         r["effect_error"] = None if eff is None or r["planted_effect"] is None else float(eff - r["planted_effect"])
         r["delay_looks"] = None if pl is None or r["earliest_look"] is None else int(pl - r["earliest_look"])
         credit, near = 0.0, ""
@@ -1210,11 +1269,86 @@ def aggregate(rows: Sequence[dict], summaries: Sequence[dict]) -> dict[str, pd.D
                        "mean best gate share": f"{g['best_gate_share'].mean():.2f}" if g["best_gate_share"].notna().any() else "n/a",
                        "last verdicts": dict(g["last_verdict"].value_counts().head(3))})
     out["noise"] = pd.DataFrame(rows_n)
+    out.update(f28_tables(R, S))
     out["closeness"] = closeness(R)
     out["calibration"] = calibration_table(R)
     out["failures"] = ranked_failures(R, S)
     out["gates"] = gate_blockers(R)
     return out
+
+
+def family_of(kind: str) -> str:
+    return next((f for f, ks in NOISE_FAMILIES.items() if kind in ks), "other")
+
+
+def f28_tables(R: pd.DataFrame, S: pd.DataFrame) -> dict[str, pd.DataFrame]:
+    """F28's full table set (C75 Phase 10): recall per kind and per strength band alone (each with world-cluster 95% intervals), false
+    positives per noise FAMILY, the null worlds, and the attribution of every F28 fix (from the counterfactual verdicts of the same
+    bundles: what was promoted with that fix switched off)."""
+    out: dict[str, pd.DataFrame] = {}
+    real = R[R["label"] == REAL]
+    for name, col in (("kind", "kind"), ("strength", "band")):
+        rows = []
+        for (split, v), g in real.groupby(["split", col]):
+            d = g["status"] == DETECTABLE
+            rows.append({"split": split, col: v, "n": len(g), "detectable": int(d.sum()),
+                         "TP recall (detectable)": _fmt(*_ratio(g, d, g["right"])), "found any status": int(g["right"].sum()),
+                         "surfaced (detectable)": _fmt(*_ratio(g, d, g["surfaced"]))})
+        out[name] = pd.DataFrame(rows)
+    nz = R[R["label"].isin([NOISE, PART])].assign(family=lambda d: d["kind"].map(family_of))
+    rows = []
+    for (split, fam), g in nz.groupby(["split", "family"]):
+        nw = max(1, g["world_id"].nunique())
+        rows.append({"split": split, "family": fam, "n": len(g), "promoted (FP)": int(g["promoted"].sum()),
+                     "FP / world": f"{g['promoted'].sum() / nw:.2f}", "FP rate": _fmt(*_ratio(g, pd.Series(True, index=g.index), g["promoted"])),
+                     "kinds promoted": dict(g[g["promoted"]]["kind"].value_counts())})
+    out["family"] = pd.DataFrame(rows)
+    nullw = S[S["tier"] == 0]
+    out["null_worlds"] = pd.DataFrame([{"split": sp, "null worlds": len(g), "worlds promoting anything": int((g["promoted_total"] > 0).sum()),
+                                        "promotions": int(g["promoted_total"].sum())} for sp, g in nullw.groupby("split")]) if len(nullw) else pd.DataFrame()
+    rows = []
+    if "promoted_no_f28" in R:
+        for split, g in R.groupby("split"):
+            det = (g["label"] == REAL) & (g["status"] == DETECTABLE)
+            nse = g["label"] == NOISE
+            nw = max(1, g["world_id"].nunique())
+            for ab in ("with all F28 fixes",) + F28_ABLATIONS:
+                pc, rc = ("promoted", "right") if ab.startswith("with") else (f"promoted_{ab}", f"right_{ab}")
+                fp = g[nse & g[pc]]
+                rows.append({"split": split, "configuration": ab, "real found (detectable)": f"{int((det & g[rc]).sum())}/{int(det.sum())}",
+                             "real found (any)": int(((g["label"] == REAL) & g[rc]).sum()), "FP": len(fp), "FP / world": f"{len(fp) / nw:.2f}",
+                             "proxy FP": int((fp["kind"] == "proxy").sum()), "identity_null FP": int((fp["kind"] == "identity_null").sum()),
+                             "leak FP": int((fp["kind"] == "leak").sum()), "other FP": dict(fp[~fp["kind"].isin(["proxy", "identity_null", "leak"])]["kind"].value_counts())})
+    out["attribution"] = pd.DataFrame(rows)
+    return out
+
+
+# ================================================================================================================ F28: a genuine scheduled-event signal
+def plant_scheduled_event(frame: pd.DataFrame, seed: int, share: float = 0.10, lift: float = 1.8, lead_days: int = 3,
+                          name: str = "ev_sched", documented: bool = True) -> pd.DataFrame:
+    """F28 (F26 flagged it): a GENUINE new-information magnitude signal - a scheduled event (an earnings date) known before the
+    decision - planted on a development world. On an event row the week's magnitude is `lift` times larger, so the event raises the
+    touch probability AND the size of the move: within an outcome class it correlates with the coming magnitude and not with the
+    past one, exactly the future-dependence signature of a leak. `documented` adds the per-row publication record
+    (`<name>__published_at`, `lead_days` before the decision) that evidence.documented_availability reads. Rows' outcomes are
+    rewritten consistently (touch = magnitude >= 0.10, close keeps its sign). Development seeds only; never part of make_world."""
+    tuning_seeds([seed])
+    rng = np.random.default_rng(np.random.SeedSequence([int(seed), 28]))
+    F = frame.copy()
+    e = (rng.random(len(F)) < share).astype(float)
+    mag = F["absmove"].to_numpy(float) * np.where(e > 0, lift, 1.0)
+    touch = mag >= 0.10
+    newly = touch & (F["touch"].to_numpy(float) < 0.5)
+    F["absmove"] = mag
+    F["close"] = F["close"].to_numpy(float) * np.where(e > 0, lift, 1.0)
+    F["up"] = (F["close"] > 0).astype(float)
+    F["touch"] = touch.astype(float)
+    F["tday"] = np.where(newly, rng.integers(1, 6, len(F)), np.where(touch, F["tday"].to_numpy(float), 0)).astype(float)
+    F[name] = e
+    if documented:
+        from engine.research import evidence as EV
+        F[name + EV.PUBLISHED_SUFFIX] = pd.to_datetime(F.index.get_level_values(0)) - pd.Timedelta(days=int(lead_days))
+    return F
 
 
 def gate_blockers(R: pd.DataFrame) -> pd.DataFrame:
@@ -1368,6 +1502,9 @@ def report_markdown(tables: Mapping[str, pd.DataFrame], summaries: Sequence[dict
                         ("band", "Real patterns per kind and strength band"), ("noise", "Noise per kind"),
                         ("closeness", "C73: how close (confidence = 1 - the screen's BH q at the last look)"),
                         ("calibration", "C73: calibration of that confidence"), ("tier", "C75 3E/3F: per difficulty tier (0 = NULL world)"),
+                        ("kind", "F28: real patterns per kind (all bands)"), ("strength", "F28: real patterns per strength band (all kinds)"),
+                        ("family", "F28: false positives per noise family"), ("null_worlds", "F28: null worlds (the right answer is nothing)"),
+                        ("attribution", "F28: each fix switched off (counterfactual verdicts of the same bundles; exact for the final-look protocol)"),
                         ("gates", "Which gate blocked what (last look)"), ("learning_curve", "C75 Phase 7: next unseen worlds after k worlds"),
                         ("failures", "Ranked concrete failures (drive the next briefs)")):
         t = tables.get(name)

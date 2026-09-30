@@ -329,10 +329,13 @@ def test_worst_fold_tolerance_is_restated_in_fold_units():
     idx = pd.date_range("2018-01-05", periods=104, freq="W-FRI")
     folds = pd.Series([f"{d.year}Q{(d.month - 1) // 3 + 1}" for d in idx], index=idx)
     cand = CX.Candidate(CX.RuleSpec("c", n_features=1, n_free_params=1), pd.Series(0.01, index=idx), folds)
-    cfg = QG.fold_scaled_config(CX.DEFAULT_CCFG, cand)
-    sizes = folds.value_counts()
-    assert cfg.worst_fold_tolerance == pytest.approx(CX.DEFAULT_CCFG.worst_fold_tolerance * math.sqrt(104 / sizes.median()))
-    assert QG.fold_scaled_config(CX.DEFAULT_CCFG, dataclasses.replace(cand, folds=None)) == CX.DEFAULT_CCFG
+    # F28 moved the fix to its source: engine.learning.complexity judges each fold in its OWN standard error; the gate only picks units
+    assert QG.fold_units_config(CX.DEFAULT_CCFG, True).worst_fold_units == "fold_se" == CX.DEFAULT_CCFG.worst_fold_units
+    assert QG.fold_units_config(CX.DEFAULT_CCFG, False).worst_fold_units == "pooled_se"
+    ok, text = CX.worst_fold_check([0.01, -0.02], [52, 13], se=0.01, n=65, cfg=CX.DEFAULT_CCFG)
+    assert ok and "-0.89 of its own" in text                                   # -0.02 / (0.01 * sqrt(65 / 13)) = -0.89 fold se
+    assert not CX.worst_fold_check([0.01, -0.02], [52, 13], 0.01, 65, dataclasses.replace(CX.DEFAULT_CCFG, worst_fold_units="pooled_se"))[0]
+    assert CX.worst_fold_check([], [], 0.01, 65, CX.DEFAULT_CCFG)[0]
     passes = {("real", True): 0, ("real", False): 0, ("null", True): 0}
     for seed in range(40):                                                     # the same rows judged with and without the units fix
         rng = np.random.default_rng(seed)
