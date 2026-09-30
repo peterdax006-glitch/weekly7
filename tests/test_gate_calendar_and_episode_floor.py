@@ -124,16 +124,21 @@ def test_december_and_june_are_judged_on_comparable_unseen_evidence():
 
 
 def test_january_shortfall_is_the_feeds_calendar_frame_not_the_split():
-    """Found while fixing (a): in the first week of a year the feed's frame (store.upto keeps calendar years now.year-2..now.year) has
-    just dropped its oldest year and has no matured row of the new year, so it spans TWO calendar years and only one can be unseen,
-    under any split. The split is not at fault; a rolling frame of the last 156 weeks gives two unseen years at the same date.
-    Reported for engine/research/feeds.py (read-only here)."""
+    """Found while fixing (a): in the first week of a year the calendar frame (the pre-F16 store.upto kept calendar years
+    now.year-2..now.year) has just dropped its oldest year and has no matured row of the new year, so it spans TWO calendar years and
+    only one can be unseen, under any split. The split is not at fault; a rolling frame of the last 156 weeks gives two unseen years at
+    the same date. FIXED in F16: engine/research/feeds.py FrameStore.upto is now that rolling window (FeedConfig.frame_weeks = 156);
+    the real-FrameStore proofs are tests/test_rolling_research_frame.py. `_frame` here still models the calendar window on purpose."""
+    from engine.research import feeds as FD
     cfg = EV.EvidenceConfig()
     G = _frame("2019-01-11")
     assert set(pd.to_datetime(G.index.get_level_values(0)).year) == {2017, 2018} and _unseen(G, cfg)[0] == 1
-    d = pd.date_range(START, "2019-01-04", freq="W-FRI")[-156:]
+    now = pd.Timestamp("2019-01-11")
+    d = pd.date_range(START, now, freq="W-FRI")
+    d = d[d > now - pd.Timedelta(weeks=FD.FeedConfig().frame_weeks)]                  # the feed's own window rule
     idx = pd.MultiIndex.from_product([d, ["A", "B"]])
     rolling = pd.DataFrame({"end": idx.get_level_values(0) + pd.Timedelta(days=7)}, index=idx)
+    rolling = rolling[pd.to_datetime(rolling["end"]) < now]
     assert _unseen(rolling, cfg)[0] >= 2
 
 

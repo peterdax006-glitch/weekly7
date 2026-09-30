@@ -227,8 +227,13 @@ class Feed:
         return self.sessions[self.i]
 
     def history(self, lookback=None):
+        """Every frame cut by DATE to [sessions[lo], now]. F15 (30 Sep): the market frames were cut by the stock-session
+        POSITION, but the market calendar is not the stock calendar (SPY/index rows exist on a date the stock panel lacks, and
+        vice versa). One extra market row made the live market history end a session before `now` for the rest of the window
+        (w09a parity fail: m_spy_*, ear NaN live); one missing market row would have served the NEXT session's market bar."""
         lo = 0 if lookback is None else max(0, self.i - lookback)
-        cut = lambda d: {f: v.iloc[lo:self.i + 1] for f, v in d.items()}
+        d0, d1 = self.sessions[lo], self.now
+        cut = lambda d: {f: v.loc[d0:d1] for f, v in d.items()}
         return cut(self._stocks), cut(self._market)
 
     def filings(self):
@@ -313,10 +318,10 @@ class Feed:
         """Latest source timestamp of everything the trader can see right now, taken from the served data itself
         (independent of filings(), which filters the same way): prices, market series, filings, insider forms."""
         now = self.now
-        lo = max(0, self.i - 1)
-        src = {"close": self._stocks["Close"].index[lo:self.i + 1].max(), "open": self._stocks["Open"].index[lo:self.i + 1].max()}
+        last = lambda ix: ix[ix.searchsorted(now, side="right") - 1] if len(ix) and ix[0] <= now else None   # by date (F15)
+        src = {"close": last(self._stocks["Close"].index), "open": last(self._stocks["Open"].index)}
         for f, v in self._market.items():
-            src[f"market_{f.lower()}"] = v.index[lo:self.i + 1].max()
+            src[f"market_{f.lower()}"] = last(v.index)
         acc = self._events["accepted"]                          # sorted by accepted
         k = acc.searchsorted(now.tz_localize("UTC") + CLOSE_UTC, side="right")
         src["filing"] = acc.iloc[k - 1].tz_convert(None) if k else None
@@ -544,9 +549,43 @@ def reseal_window(src_id, new_id, seed, revealed, sealed_at=None, shift_weeks=(8
     return rec
 
 
+def calendar_parity(feed):
+    """Exhaustive and cheap (no feature build): on the warm-up end and every live session, every frame history() serves must
+    end exactly on the last row dated <= now in the underlying frame - never later (future) and never earlier (a stale live
+    path). F15: a two-day random sample hit the misaligned market calendar only by chance; this checks every day.
+    Returns the list of (session, field, served_last, expected_last) violations."""
+    keep_i, bad = feed.i, []
+    first = feed.sessions.get_loc(feed.first_live)
+    frames = {**{("stocks", f): v.index for f, v in feed._stocks.items()}, **{("market", f): v.index for f, v in feed._market.items()}}
+    try:
+        for i in range(max(0, first - 1), len(feed.sessions)):
+            feed.i = i
+            now = feed.now
+            stocks, market = Feed.history(feed)                 # the date cut; subclasses only drop columns (cheap here)
+            served ={**{("stocks", f): v.index for f, v in stocks.items()}, **{("market", f): v.index for f, v in market.items()}}
+            for key, ix in frames.items():
+                k = ix.searchsorted(now, side="right")
+                want = ix[k - 1] if k else None
+                got = served[key][-1] if len(served[key]) else None
+                if got != want or (got is not None and got > now):
+                    bad.append((now, key, got, want))
+    finally:
+        feed.i = keep_i
+    return bad
+
+
 def parity_test(feed, n_days=2, seed=None):
     """Leakage guard for the fast path: recompute features the slow, strictly-live way (history up to that
-    day only) on random days and require them to equal the precomputed rows. Any mismatch = abort."""
+    day only) on sampled days and require them to equal the precomputed rows. Any mismatch = abort.
+    The calendar of what history() serves is checked on EVERY session first (calendar_parity). With no `seed` the sample
+    is fixed per window (derived from its disguised first session), so a failure reproduces on a rerun (F15)."""
+    cal = calendar_parity(feed)
+    if cal:
+        d, key, got, want = cal[0]
+        raise RuntimeError(f"PARITY FAIL: history() serves {key[0]}.{key[1]} ending {got} on session {d} (expected {want}); "
+                           f"{len(cal)} violations - live path misaligned with the fast path")
+    if seed is None:
+        seed = int(feed.first_live.value // 86_400_000_000_000) % (2 ** 32)
     rng = np.random.default_rng(seed)
     days = feed.sessions[feed.sessions >= feed.first_live]
     keep_i = feed.i

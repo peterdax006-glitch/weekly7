@@ -12,7 +12,7 @@ Design
   Source         where Worlds come from, one calendar year at a time (rule 27: stream year by year, never the whole market at once):
                  InMemorySource (the planted world) and RealCacheSource (engine.research.episodes.load_bars + engine/edgar tables).
   FrameStore     the volatility-lab research frame (engine.fv_pipeline.build_panel -> volatility_lab.frame_from_panel ->
-                 with_event_inputs) built per year and kept for `history_years` only.
+                 with_event_inputs) built per year; a look reads the rolling window of the last `frame_weeks` (F16).
   WorldFeed      the loop's Feed: observe(now) returns the Observation (matured panel, point-in-time decision day) and a LAZY builder
                  per stage. A builder runs INSIDE its stage (engine.research.loop.Ctx.extra), so it can read what earlier stages of the
                  same cycle produced (the two-stage decisions feed observer, autopsy, frontier, symmetry, targets), and a future leak
@@ -61,7 +61,9 @@ class FeedConfig:
     horizon: int = 5                       # holding / outcome horizon (matches the volatility lab and the two-stage chain)
     move: float = 0.10                     # the +-move a 'mover' touches inside the horizon
     daily_mover: float = 0.05              # a single-session |close-to-close| move that counts as a mover episode
-    history_years: int = 2                 # research frame years kept besides the current one (streaming, rule 27)
+    history_years: int = 2                 # streamed bar-world years kept besides the current one (rule 27); the research frame's span
+                                           # only when frame_weeks = 0 (the pre-F16 calendar window)
+    frame_weeks: int = 156                 # F16: the research frame is the rolling window (now - frame_weeks, now] of decision dates
     bar_lookback: int = 420                # sessions of bars a builder may see (the rest is streamed away)
     first_decision: str | None = None      # loop clock start (None = after warm-up)
     last_decision: str | None = None
@@ -86,6 +88,8 @@ class FeedConfig:
             errs.append("horizon in [1,20], move and daily_mover in (0,1) required")
         if self.history_years < 0 or self.bar_lookback < 80 or self.warm_weeks < 0:
             errs.append("history_years >= 0, bar_lookback >= 80 and warm_weeks >= 0 required")
+        if self.frame_weeks != 0 and not 104 <= self.frame_weeks <= 520:
+            errs.append("frame_weeks must be 0 (calendar window) or in [104, 520]: the gate needs two unseen years after a train window")
         if self.max_knowability_moves < 1 or self.max_counterfactual_events < 1:
             errs.append("per-cycle caps must be >= 1")
         if self.frontier_boot < 50:
@@ -379,13 +383,22 @@ def research_frame(world: World, cfg: FeedConfig = FeedConfig(), year: int | Non
 
 
 class FrameStore:
-    """Year-by-year research frames, keeping only the years `observe` may still read (rule 27: stream, never hold the market)."""
+    """Year-by-year research frames, keeping only the rows `observe` may still read (rule 27: stream, never hold the market).
+
+    F16 (C69 sections 12-14, 21; follow-up to F14): `upto(now)` used to return whole calendar years now.year - history_years .. now.year,
+    so in the first weeks of a year the frame had just dropped its oldest year and held no matured row of the new one: it spanned two
+    calendar years and the gate (two unseen years required) could see only one - every January look was starved. The frame is now the
+    ROLLING window (now - frame_weeks, now] of decision dates, the same length of history in every month. Frames are still built one
+    calendar year at a time (a year's features are computed once, with its warm-up, exactly as before); the oldest held year is trimmed
+    to the window and rebuilt only if an earlier `now` later needs the trimmed rows (observe stays a pure function of now)."""
 
     def __init__(self, source: Source, cfg: FeedConfig):
         self.source, self.cfg = source, cfg
         self.frames: dict[int, pd.DataFrame] = {}
+        self.trimmed: dict[int, pd.Timestamp] = {}          # year -> rows dated at/before this were dropped from the held frame
         self.worlds: dict[int, World] = {}
         self.built = 0
+        self.rebuilt = 0
 
     def world(self, year: int) -> World:
         if year not in self.worlds:
@@ -394,20 +407,55 @@ class FrameStore:
                 del self.worlds[y]
         return self.worlds[year]
 
-    def frame(self, year: int) -> pd.DataFrame:
+    def frame(self, year: int, since: pd.Timestamp | None = None) -> pd.DataFrame:
+        """The research frame of calendar year `year`. `since` = the caller needs every row dated after it; a held frame trimmed
+        past that point is rebuilt (never served short)."""
+        cut = self.trimmed.get(year)
+        if year in self.frames and cut is not None and (since is None or since < cut):
+            del self.frames[year], self.trimmed[year]
+            self.rebuilt += 1
         if year not in self.frames:
             self.frames[year] = research_frame(self.world(year), self.cfg, year)
             self.built += 1
-            for y in [y for y in self.frames if y < year - self.cfg.history_years]:
-                del self.frames[y]
         return self.frames[year]
 
+    def span(self, now) -> tuple[pd.Timestamp | None, pd.Timestamp, list[int]]:
+        """(lower bound exclusive or None for the calendar window, now, the calendar years the frame reads)."""
+        n = pd.Timestamp(as_date(now))
+        if self.cfg.frame_weeks:
+            lo = n - pd.Timedelta(weeks=self.cfg.frame_weeks)
+            return lo, n, [k for k in self.source.years() if lo.year <= k <= n.year]
+        return None, n, [k for k in self.source.years() if n.year - self.cfg.history_years <= k <= n.year]
+
+    def _release(self, lo: pd.Timestamp | None, years: Sequence[int]) -> None:
+        """Drop held years the window has left and trim the oldest held year to the window (rows dated <= lo are never read again
+        by a forward run; an earlier `now` triggers a rebuild through `frame(since=...)`)."""
+        first = min(years) if years else None
+        for y in [y for y in self.frames if first is None or y < first]:
+            del self.frames[y]
+            self.trimmed.pop(y, None)
+        if lo is None or first is None or first not in self.frames or first != lo.year:
+            return
+        F = self.frames[first]
+        if len(F):
+            keep = np.asarray(pd.to_datetime(F.index.get_level_values(0)) > lo)
+            if not keep.all():
+                self.frames[first] = F[keep]
+                self.trimmed[first] = max(lo, self.trimmed.get(first, lo))
+
     def upto(self, now) -> pd.DataFrame:
-        y = as_date(now).year
-        years = [k for k in self.source.years() if y - self.cfg.history_years <= k <= y]
-        parts = [self.frame(k) for k in years]
+        """The research frame for a look at `now`: rows dated in (now - frame_weeks, now] (calendar years now.year - history_years ..
+        when frame_weeks = 0). Never a row dated after `now`; outcomes of rows near `now` are still immature (observe keeps end < now)."""
+        lo, n, years = self.span(now)
+        parts = [self.frame(k, lo if lo is not None and k == lo.year else None) for k in years]
+        self._release(lo, years)
         parts = [p for p in parts if len(p)]
-        return pd.concat(parts).sort_index() if parts else pd.DataFrame()
+        if not parts:
+            return pd.DataFrame()
+        F = pd.concat(parts).sort_index()
+        d = pd.to_datetime(F.index.get_level_values(0))
+        keep = d <= n if lo is None else (d > lo) & (d <= n)
+        return F[np.asarray(keep)]
 
     def bars_before(self, now, lookback: int | None = None) -> World:
         """The point-in-time world for builders: this year's and last year's streamed worlds merged, strictly before `now`."""

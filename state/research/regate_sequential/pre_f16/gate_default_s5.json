@@ -1,7 +1,7 @@
 {
  "rows": [
   {
-   "seed": 2,
+   "seed": 5,
    "world": "default",
    "feature": "lv20",
    "role": "genuine",
@@ -9,8 +9,8 @@
    "look": 1,
    "verdict": "FAILED",
    "alpha": 0.03039635509270134,
-   "n_test": 62,
-   "effect_test": 0.3030458801255498,
+   "n_test": 61,
+   "effect_test": 0.2828259377361798,
    "repl_runs": 4,
    "repl_i2": 0.0,
    "blocking": [
@@ -21,10 +21,10 @@
    "train_moved": false,
    "failure_episodes": 5,
    "failure_route": "episodes",
-   "failure_rate_upper": 0.17382689634803683
+   "failure_rate_upper": 0.17652519551716905
   },
   {
-   "seed": 2,
+   "seed": 5,
    "world": "default",
    "feature": "price_low",
    "role": "coincidence",
@@ -32,13 +32,14 @@
    "look": 1,
    "verdict": "QUARANTINED",
    "alpha": 0.03039635509270134,
-   "n_test": 62,
-   "effect_test": 0.019647069378580143,
+   "n_test": 61,
+   "effect_test": -0.016536310733906916,
    "repl_runs": 4,
    "repl_i2": 0.0,
    "blocking": [
     "calibration",
     "complexity",
+    "failure_behavior",
     "identity",
     "leakage",
     "out_of_sample",
@@ -48,12 +49,12 @@
    "stopped": "quarantined",
    "train_end": "2016-09-23",
    "train_moved": false,
-   "failure_episodes": 28,
+   "failure_episodes": 36,
    "failure_route": "episodes",
-   "failure_rate_upper": 0.5779366101644657
+   "failure_rate_upper": 0.7097469436912709
   },
   {
-   "seed": 2,
+   "seed": 5,
    "world": "default",
    "feature": "insider_recent",
    "role": "null",
@@ -61,13 +62,14 @@
    "look": 1,
    "verdict": "QUARANTINED",
    "alpha": 0.03039635509270134,
-   "n_test": 62,
-   "effect_test": 0.01876725592330563,
+   "n_test": 61,
+   "effect_test": -0.005031858617918296,
    "repl_runs": 4,
-   "repl_i2": 0.5027893781503318,
+   "repl_i2": 0.0,
    "blocking": [
     "calibration",
     "complexity",
+    "failure_behavior",
     "identity",
     "leakage",
     "out_of_sample",
@@ -78,58 +80,35 @@
    "stopped": "quarantined",
    "train_end": "2016-09-23",
    "train_moved": false,
-   "failure_episodes": 33,
+   "failure_episodes": 30,
    "failure_route": "episodes",
-   "failure_rate_upper": 0.6551832690484547
+   "failure_rate_upper": 0.617853258057836
   },
   {
-   "seed": 2,
+   "seed": 5,
    "world": "default",
    "feature": "lv20",
    "role": "genuine",
    "now": "2018-03-16",
    "look": 2,
-   "verdict": "NEEDS_MORE_EVIDENCE",
+   "verdict": "PROMOTE",
    "alpha": 0.007599088773175335,
-   "n_test": 71,
-   "effect_test": 0.29838649394669564,
+   "n_test": 70,
+   "effect_test": 0.2734918542755451,
    "repl_runs": 5,
    "repl_i2": 0.0,
-   "blocking": [
-    "failure_behavior"
-   ],
-   "stopped": "",
-   "train_end": "2016-10-21",
-   "train_moved": false,
-   "failure_episodes": 4,
-   "failure_route": "waiting",
-   "failure_rate_upper": 0.1597251889028649
-  },
-  {
-   "seed": 2,
-   "world": "default",
-   "feature": "lv20",
-   "role": "genuine",
-   "now": "2018-06-15",
-   "look": 3,
-   "verdict": "PROMOTE",
-   "alpha": 0.0033773727880779263,
-   "n_test": 80,
-   "effect_test": 0.2927892104220722,
-   "repl_runs": 6,
-   "repl_i2": 0.38519137223998196,
    "blocking": [],
    "stopped": "promoted",
-   "train_end": "2016-11-18",
+   "train_end": "2016-10-21",
    "train_moved": false,
-   "failure_episodes": 5,
+   "failure_episodes": 7,
    "failure_route": "episodes",
-   "failure_rate_upper": 0.1731554653293495
+   "failure_rate_upper": 0.21952240498257522
   }
  ],
- "seconds": 14.7,
+ "seconds": 11.3,
  "provenance": {
-  "code_hash": "139a5e7dda19cd93",
+  "code_hash": "a4c13d70030a4c4b",
   "code_files": [
    "engine/__init__.py",
    "engine/blind_gates.py",
@@ -184,12 +163,12 @@
    "engine/stops.py"
   ],
   "code_mixed": [],
-  "git_commit": "28df3ae76c42feed146c985b324ccee54cde0f8a+dirty",
+  "git_commit": "cb09fbb72201fdbf5428097196bda53b4f891e85",
   "canon_sha": "fef7cdf0a1501c3d",
   "bible_sha": "a97ea91862cee371",
   "blueprint_version": "4.0",
-  "config_hash": "367204be7525a312",
+  "config_hash": "f3919a4732cf1d9b",
   "data_snapshot": "171ba8ba728ee713",
-  "seed": 2
+  "seed": 5
  }
 }

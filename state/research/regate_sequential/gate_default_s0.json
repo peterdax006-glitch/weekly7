@@ -132,9 +132,9 @@
    "failure_rate_upper": 0.5867006665013217
   }
  ],
- "seconds": 15.8,
+ "seconds": 14.2,
  "provenance": {
-  "code_hash": "a4c13d70030a4c4b",
+  "code_hash": "139a5e7dda19cd93",
   "code_files": [
    "engine/__init__.py",
    "engine/blind_gates.py",
@@ -189,7 +189,7 @@
    "engine/stops.py"
   ],
   "code_mixed": [],
-  "git_commit": "cb09fbb72201fdbf5428097196bda53b4f891e85",
+  "git_commit": "28df3ae76c42feed146c985b324ccee54cde0f8a+dirty",
   "canon_sha": "fef7cdf0a1501c3d",
   "bible_sha": "a97ea91862cee371",
   "blueprint_version": "4.0",
