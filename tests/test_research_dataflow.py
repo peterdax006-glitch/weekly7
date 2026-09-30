@@ -408,7 +408,17 @@ def test_quality_stage_keeps_regating_past_three_looks_and_records_every_look(sm
     assert g["looks"] == 4 and [h["look"] for h in g["history"]] == [1, 2, 3, 4]
     assert g["history"][-1]["alpha"] == pytest.approx(LP.REGATE_PLAN.alpha_at(4)) and g["alpha_spent"] < LP.REGATE_PLAN.alpha
     assert g["verdict"] == "PROMOTE" or (state.memo["regate"]["DBRG"]["looks"] == 4 and not g["retired"]), (g["verdict"], g["retired"])
-    assert z["verdict"] != "PROMOTE" and z["retired"] and "DBRN" not in state.memo["regate"], (z["verdict"], z["blocking"])
+    assert z["verdict"] != "PROMOTE", (z["verdict"], z["blocking"])
+    if not z["retired"]:
+        # F26 retire rule (30 Sep): one FAILED look never retires anything (a single bad quarter must not kill a true effect), so a
+        # null that FAILS for the first time gets exactly one more look - which must retire it on the second consecutive FAILED
+        assert z["verdict"] == "FAILED" and "DBRN" in state.memo["regate"], (z["verdict"], z["retired"])
+        state.memo["regate"]["DBRN"]["through"] = old                  # the next look is due: fresh evidence since `old`
+        state.memo["regate"].pop("DBRG", None)
+        LP.st_quality_and_knowledge(LP.Ctx(state, rt, now, 8))
+        z = state.lineage.nodes["GATE:DBRN"]
+        assert z["verdict"] != "PROMOTE" and z["looks"] == 5, (z["verdict"], z["looks"])
+    assert z["retired"] and "DBRN" not in state.memo["regate"], (z["verdict"], z["blocking"])
     assert not state.counters.get("gate_retired_after_looks")
     assert filed == (1 if g["verdict"] == "PROMOTE" else 0) and not any(k["feature"] == "insider_recent" for k in state.knowledge.values())
 
