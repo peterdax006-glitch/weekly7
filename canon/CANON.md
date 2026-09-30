@@ -446,3 +446,9 @@ it should be very long
 > or how close the system was anyway
 
 `sha256: f68791c259863f816b13b330ed8164edf2dbbf6489476afa96fb1779b6072409`
+
+## C74 — Benchmark scale: every simulation contains hundreds of noise patterns and dozens of real patterns (2026-09-30)
+
+> every simulation should have hundreds of noice and dozens of patterns
+
+`sha256: 53f5fee330fb7aea2d87d41d7744d42071beda2fd4cc9cc77a0f5ca772e06b2f`

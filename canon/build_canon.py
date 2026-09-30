@@ -155,6 +155,8 @@ DIRECTIVES = [
      'make sure everytime you run the simulation to create expected results before it gives results where the system already knows noice from pattern and you need to see how many the system gets right'),
     ("C73", "2026-09-30", 'Addition to C72: score also how close the system was, not only how many it got right',
      'or how close the system was anyway'),
+    ("C74", "2026-09-30", 'Benchmark scale: every simulation contains hundreds of noise patterns and dozens of real patterns',
+     'every simulation should have hundreds of noice and dozens of patterns'),
 ]
 
 def sha(t): return hashlib.sha256(t.encode("utf-8")).hexdigest()
