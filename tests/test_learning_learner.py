@@ -280,6 +280,22 @@ def test_missing_feature_values_join_no_pattern_and_never_crash(world):
     assert all(not any(m.startswith(f"{col}:") for m in r.members) for r in ep.rows if r.key in missing)
 
 
+
+def test_a_self_excluding_context_rule_is_refused_not_a_crash(trained):
+    """30 Sep, W-13 window w09a: a learned "unless" covering the item's whole context raised SchemaError ('anti_contexts swallow
+    the whole context') and killed the worker. The revision is refused and counted; the stored item is unchanged."""
+    L = trained
+    kid = next(iter(L._pid_of))
+    cur = L.store.latest(kid)
+    ctx = KN.context_from_text("volatility: vix >= 30")
+    anti = KN.ContextSet((KN.parse_condition("volatility: vix >= 20"),), any_of=True)     # vix >= 30 lies inside vix >= 20
+    before = L.counters.get("refused_self_excluding", 0) if hasattr(L, "counters") else None
+    out = L._revise(kid, cur.updated_at, "planted self-excluding rule", contexts=ctx, anti_contexts=anti)
+    assert out is cur and L.store.latest(kid) is cur
+    if before is not None:
+        assert L.counters.get("refused_self_excluding", 0) == before + 1
+
+
 # ------------------------------------------------------------------------------------------------ freeze (L02)
 
 def test_frozen_learner_decides_but_never_learns_and_refuses_if_code_or_config_changes(world):

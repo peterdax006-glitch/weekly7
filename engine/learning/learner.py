@@ -1125,9 +1125,12 @@ class LegitimateLearner:
         try:
             nxt = cur.new_version(learned, reason, learned_at=learned, **changes)
         except KN.SchemaError as e:
-            if "no-op" not in str(e):
-                raise
-            return cur                                     # nothing changed: a no-op version is refused by design
+            if "no-op" in str(e):
+                return cur                                 # nothing changed: a no-op version is refused by design
+            if "anti_contexts swallow" in str(e):          # 30 Sep, W-13 w09a: an "unless" that covers the item's whole context is
+                self._count("refused_self_excluding")      # not knowledge; the revision is refused and the item left for the
+                return cur                                 # retirement ledger to judge on its own record
+            raise
         self._count("versions")
         return self._put(nxt)
 

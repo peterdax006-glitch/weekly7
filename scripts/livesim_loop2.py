@@ -512,7 +512,8 @@ def main():
             print(f"     defaults {res.cfg}", flush=True)
             print(f"     adaptation {res.meta}", flush=True)
         else:
-            print(f"  kept basis v{st['version']} (weeks in band {inc.t1:.0%}, risk {inc.risk:+.3f}): {res.reason}", flush=True)
+            score = f"weeks in band {inc.t1:.0%}, risk {inc.risk:+.3f}" if inc is not None else "no eligible training window"
+            print(f"  kept basis v{st['version']} ({score}): {res.reason}", flush=True)     # 30 Sep: 0 windows crashed here
         headline = [w for w in st["windows"] if not w.get("thin") and not w.get("legacy")]      # THIN and pre-lineage windows reported apart
         fresh = [w["mean_week"] for w in headline]
         thin_rows = [w["mean_week"] for w in st["windows"] if w.get("thin") and not w.get("legacy")]
