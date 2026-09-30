@@ -50,9 +50,12 @@ def log_experiment(rec, cfg=None, seed=None, **fields):
     reason). A measurement that decides nothing is recorded as outcome "continue_testing" with that reason - never as a
     silent blank. Fields a writer does not supply stay null (the registry audit reports them) and are named once on
     stderr so the writer gets fixed rather than the gap hidden."""
-    from .provenance import stamp
+    from .provenance import stamp, engine_tree_hash
     import sys
-    rec = {"t": datetime.utcnow().isoformat(timespec="seconds"), **stamp(cfg, seed), **rec, **fields}
+    # engine_code: the engine's code identity (whole tree on disk), the same value current_code_hash() gives the pre-launch
+    # duplicate check; the stamp's code_hash covers only the modules this process loaded (30 Sep: comparing the two made every
+    # exact repeat look like new code, so rejected configurations were relaunched)
+    rec = {"t": datetime.utcnow().isoformat(timespec="seconds"), **stamp(cfg, seed), "engine_code": engine_tree_hash(), **rec, **fields}
     if cfg is not None:
         rec.setdefault("model_params", cfg)
     if "outcome" not in rec:

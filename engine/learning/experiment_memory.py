@@ -915,7 +915,7 @@ def legacy_to_record(row: Mapping, index: int) -> ExperimentRecord:
         experiment_id=eid, version=1, status=status, question=str(q), current_belief=NOT_RECORDED, competing_hypotheses=hyps,
         prediction=Prediction(NOT_RECORDED), experiment=DesignSpec(config=dict(cfg), seed=row.get("seed") if isinstance(row.get("seed"), int) else 0,
                                                                     data_hash=str(row.get("data_snapshot") or ""),
-                                                                    code_hash=str(row.get("code_hash") or row.get("git_commit") or "")),
+                                                                    code_hash=str(row.get("engine_code") or row.get("code_hash") or row.get("git_commit") or "")),
         expected_outcomes=exp, created_at=stamp, recorded_at=stamp, result=result,
         belief_update=None, learned=(str(row["reason"]),) if row.get("reason") else (), not_learned=(NOT_RECORDED,),
         next_action=NOT_RECORDED, tags=("legacy",), legacy=True, legacy_missing=tuple(missing))

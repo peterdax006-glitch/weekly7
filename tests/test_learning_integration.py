@@ -253,7 +253,8 @@ def test_log_experiment_writes_a_repro_record_and_mirrors_into_the_ledger(regist
     on_disk = EM.ExperimentLedger(registry / "experiment_ledger.jsonl")               # persisted, not just in memory
     assert len(on_disk) == 1
     row = list(on_disk.view(soon()).values())[0]
-    assert dict(row.experiment.config) == {"w_model": 0.3} and row.experiment.code_hash == rec["code_hash"]
+    # the ledger's code identity is the engine tree hash (the same one current_code_hash() gives the pre-launch check), 30 Sep
+    assert dict(row.experiment.config) == {"w_model": 0.3} and row.experiment.code_hash == rec["engine_code"] and rec["engine_code"]
 
 
 def test_log_experiment_still_writes_when_the_learning_sinks_fail(registry, fresh_hub, monkeypatch):
