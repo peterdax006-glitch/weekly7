@@ -370,9 +370,20 @@ class C68State:
     runs: list = dataclasses.field(default_factory=list)            # per-stage run table rows
     counters: dict = dataclasses.field(default_factory=dict)
     namespace: Namespace = NAMESPACE
+    surprise_sent: dict = dataclasses.field(default_factory=dict)   # tracker cell -> (big surprises, last big) when last asked (F18)
 
     def count(self, key: str, n: int = 1) -> None:
         self.counters[key] = self.counters.get(key, 0) + int(n)
+
+
+def upstream(st: C68State, led: "Ledgers") -> str:
+    """Why a downstream C68 stage has nothing to do, from the chain it waits on (F18: what_changed and research_depth were skipped in
+    129/129 cycles and the recorded reason never said that no position had ever been taken): positions frozen, open, matured, errors,
+    and how many of the gate's forecasts were eligible at all."""
+    n_fc = sum(len(v) for v in st.forecasts.values())
+    n_el = sum(1 for v in st.forecasts.values() for f in v.values() if f.get("eligible"))
+    return (f"upstream: {len(led.expectations)} position(s) ever, {len(st.pending)} open, {len(led.outcomes)} matured, {len(led.errors)} "
+            f"error report(s); band gate eligible {n_el}/{n_fc} forecast(s)")
 
 
 def new_state(cfg: C68Config | None = None) -> C68State:
@@ -1461,7 +1472,7 @@ def st_what_changed(ctx: LP.Ctx) -> tuple:
     cfg = st.cfg
     queue = [p for p in st.wc_queue if p not in st.investigated]
     if not queue:
-        raise LP.NoInput("no newly matured error to investigate")
+        raise LP.NoInput(f"no newly matured error to investigate ({upstream(st, led)})")
     bv = _bars(ctx)
     frames, combos = _patterns(ctx, st)
     zs = {p: abs(led.errors.report(p)["return"].z or 0.0) for p in queue}
@@ -1588,10 +1599,7 @@ def st_error_research(ctx: LP.Ctx) -> tuple:
     for inv in rep.investigations:
         rqs.extend(inv.follow_ups)
     rqs.extend(s.question for s in rep.self_questions)
-    for pr in st.tracker.research_priority(ctx.now)[:3]:
-        if pr.score > 0:
-            events.append(Q.QuestionEvent("surprise", f"repeated surprise {pr.cell}"[:150], _last_matured(st, ctx.now),
-                                          float(min(1.0, pr.score)), problem=Problem.VOLATILITY, detail=pr.reason[:150]))
+    n_rs = repeated_surprise_events(st, events, ctx.now)
     n_mq = 0
     for mr in st.market.reports[st.counters.get("market_reports_sent", 0):]:
         mq = ME.investigation_questions(mr, ctx.created_real(), mr.period)
@@ -1600,16 +1608,37 @@ def st_error_research(ctx: LP.Ctx) -> tuple:
     st.counters["market_reports_sent"] = len(st.market.reports)
     for o, it in st.er.intensities.items():
         st.depth_of[o] = it.tier.value
-    n_out = n_ev + len(rep.self_questions) + n_mq + sum(len(i.follow_ups) for i in rep.investigations)
+    n_out = n_ev + n_rs + len(rep.self_questions) + n_mq + sum(len(i.follow_ups) for i in rep.investigations)
     if not rep.ingested and not n_out:
-        raise LP.NoInput("no new matured error and no market investigation to research")
+        raise LP.NoInput(f"no new matured error, no new repeated surprise and no market investigation to research ({upstream(st, led)})")
     return _run(st, ctx, "c68.error_research", rep.ingested, n_out,
-                f"{rep.summary()}; {n_ev} question event(s), {len(rep.self_questions)} self-research question(s), {n_mq} market question(s)")
+                f"{rep.summary()}; {n_ev} question event(s), {n_rs} repeated-surprise event(s), {len(rep.self_questions)} self-research "
+                f"question(s), {n_mq} market question(s)")
 
 
-def _last_matured(st: C68State, now) -> str:
-    rs = st.er.book.records(now)
-    return rs[-1].matured_at if rs else str((pd.Timestamp(as_date(now)) - pd.Timedelta(days=1)).date())
+def repeated_surprise_events(st: C68State, events: list, now, top: int = 3) -> int:
+    """The shared surprise tracker's most repeated cells as question events - only when the cell has a NEW big surprise since it was
+    last asked (F18: the same three market cells were re-asked every cycle, 369 near-duplicate questions in one run, while the stage
+    reported SKIPPED_NO_INPUT because these events were not counted). Each subject is registered in `st.cells` so c68.research_depth
+    applies the cell's depth multiplier to the question it becomes. The event's evidence ends at the cell's last big surprise."""
+    from engine.research import questions as Q
+    sent = st.__dict__.setdefault("surprise_sent", {})          # a state pickled before F18 has no such field
+    stats = {s.cell: s for s in st.tracker.all_stats(now)}
+    n = 0
+    for pr in st.tracker.research_priority(now)[:top]:
+        s = stats.get(pr.cell)
+        if pr.score <= 0 or s is None or s.last_big_at is None or as_date(s.last_big_at) >= as_date(now):
+            continue
+        sig = [int(s.big_n), str(s.last_big_at)]
+        if list(sent.get(pr.cell, ())) == sig:
+            continue
+        subject = f"repeated surprise {pr.cell}"[:150]
+        events.append(Q.QuestionEvent("surprise", subject, str(s.last_big_at), float(min(1.0, pr.score)), problem=Problem.VOLATILITY,
+                                      n_obs=int(s.n), detail=pr.reason[:150]))
+        sent[pr.cell] = sig
+        st.cells[subject] = pr.cell
+        n += 1
+    return n
 
 
 # ================================================================================================================ stage: research depth into priority
