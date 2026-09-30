@@ -1,17 +1,17 @@
-## final_look  (40 worlds; refused 0; mean 213 s/world system time)
+## final_look  (20 worlds; refused 0; mean 215 s/world system time)
 
-### development: 31 worlds
-- detectable real found 10/535 (1.9%); all promotions 181; precision 5.5%; false positives 171 = 5.52/world (max 16); null worlds 3 promoting [8, 0, 8]; Brier of confidence 0.1444
-- false positives by noise kind: {'leak': 169, 'proxy': 2}
-- found / detectable by kind: changing 0/84, conditional 1/92, delayed 0/29, interactive 0/2, lifecycle 0/74, linear 1/96, rare 0/37, regime 8/61, threshold 0/59, xor 0/1
-- found / detectable by strength: extremely_subtle 0/20, faint 0/47, moderate 3/169, obvious 7/193, subtle 0/106
-- block rate, real detectable not promoted (n=414): {'calibration': 0.957, 'replication': 0.928, 'complexity': 0.536, 'risk': 0.258, 'out_of_sample': 0.22, 'transfer': 0.155, 'identity': 0.01, 'leakage': 0.01}
-- block rate, noise gated (n=1146): {'calibration': 0.712, 'replication': 0.688, 'complexity': 0.576, 'out_of_sample': 0.512, 'transfer': 0.403, 'risk': 0.32, 'identity': 0.096, 'leakage': 0.096, 'reproducibility': 0.021, 'failure_behavior': 0.014}
+### development: 14 worlds
+- detectable real found 2/246 (0.8%); all promotions 81; precision 2.5%; false positives 79 = 5.64/world (max 11); null worlds 1 promoting [8]; Brier of confidence 0.1416
+- false positives by noise kind: {'leak': 78, 'proxy': 1}
+- found / detectable by kind: changing 0/42, conditional 0/42, delayed 0/14, lifecycle 0/33, linear 0/50, rare 0/17, regime 2/19, threshold 0/29
+- found / detectable by strength: extremely_subtle 0/10, faint 0/21, moderate 1/78, obvious 1/88, subtle 0/49
+- block rate, real detectable not promoted (n=200): {'calibration': 0.955, 'replication': 0.915, 'complexity': 0.52, 'risk': 0.25, 'out_of_sample': 0.2, 'transfer': 0.125, 'identity': 0.02, 'leakage': 0.02}
+- block rate, noise gated (n=480): {'calibration': 0.758, 'replication': 0.717, 'complexity': 0.627, 'out_of_sample': 0.556, 'transfer': 0.425, 'risk': 0.267, 'identity': 0.112, 'leakage': 0.112, 'reproducibility': 0.023, 'failure_behavior': 0.019}
 
-### heldout: 9 worlds
-- detectable real found 1/168 (0.6%); all promotions 35; precision 2.9%; false positives 34 = 3.78/world (max 13); null worlds 1 promoting [6]; Brier of confidence 0.1371
-- false positives by noise kind: {'leak': 34}
-- found / detectable by kind: changing 0/24, conditional 1/27, delayed 0/15, interactive 0/2, lifecycle 0/23, linear 0/29, rare 0/11, regime 0/16, threshold 0/21
-- found / detectable by strength: extremely_subtle 0/7, faint 0/16, moderate 0/51, obvious 1/60, subtle 0/34
-- block rate, real detectable not promoted (n=128): {'calibration': 0.969, 'replication': 0.898, 'complexity': 0.562, 'risk': 0.289, 'out_of_sample': 0.211, 'transfer': 0.211, 'identity': 0.016, 'leakage': 0.016}
-- block rate, noise gated (n=311): {'calibration': 0.778, 'replication': 0.698, 'complexity': 0.617, 'out_of_sample': 0.537, 'transfer': 0.395, 'risk': 0.354, 'identity': 0.106, 'leakage': 0.106, 'reproducibility': 0.032, 'failure_behavior': 0.003}
+### heldout: 6 worlds
+- detectable real found 1/100 (1.0%); all promotions 34; precision 2.9%; false positives 33 = 5.50/world (max 13); null worlds 1 promoting [6]; Brier of confidence 0.1323
+- false positives by noise kind: {'leak': 33}
+- found / detectable by kind: changing 0/15, conditional 1/18, delayed 0/11, interactive 0/1, lifecycle 0/13, linear 0/18, rare 0/6, regime 0/6, threshold 0/12
+- found / detectable by strength: extremely_subtle 0/4, faint 0/8, moderate 0/32, obvious 1/38, subtle 0/18
+- block rate, real detectable not promoted (n=77): {'calibration': 0.974, 'replication': 0.909, 'complexity': 0.558, 'risk': 0.26, 'transfer': 0.221, 'out_of_sample': 0.169, 'identity': 0.013, 'leakage': 0.013}
+- block rate, noise gated (n=197): {'replication': 0.695, 'calibration': 0.69, 'complexity': 0.609, 'out_of_sample': 0.548, 'transfer': 0.421, 'risk': 0.299, 'identity': 0.112, 'leakage': 0.112, 'reproducibility': 0.041, 'failure_behavior': 0.005}

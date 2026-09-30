@@ -39,3 +39,9 @@
 14:18:12 W00037 development tier 5 era volatile: real 0/20 detectable (50 planted), FP 8 {'leak': 8}, 275s
 14:23:03 W00038 development tier 6 era crisis: real 0/18 detectable (50 planted), FP 0 {}, 292s
 14:26:29 W00039 development tier 2 era volatile: real 2/26 detectable (50 planted), FP 3 {'leak': 3}, 205s
+14:30:56 W00040 development tier 6 era volatile: real 0/20 detectable (50 planted), FP 0 {}, 267s
+14:34:13 W00041 development tier 2 era crisis: real 0/25 detectable (50 planted), FP 0 {}, 197s
+14:37:24 W00042 heldout tier 5 era calm: real 0/15 detectable (50 planted), FP 12 {'leak': 12}, 191s
+14:40:02 W00043 heldout tier 2 era trending: real 0/19 detectable (50 planted), FP 4 {'leak': 4}, 157s
+14:43:01 W00044 development tier 1 era trending: real 0/21 detectable (50 planted), FP 2 {'leak': 2}, 179s
+14:46:14 W00045 heldout tier 3 era volatile: real 0/22 detectable (50 planted), FP 0 {}, 194s

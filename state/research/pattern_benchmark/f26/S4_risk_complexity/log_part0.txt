@@ -1,0 +1,12 @@
+14:29:42 stage S4_risk_complexity part 0/2 pid 26952 code e8f4cfc95d9da810
+14:31:28 W00000 heldout tier 6: real 2/18 FP 0 {} 106s
+14:32:34 W00002 development tier 3: real 3/18 FP 0 {} 66s
+14:33:42 W00004 heldout tier 3: real 6/21 FP 1 {'proxy': 1} 68s
+14:34:34 W00006 heldout tier 0: real 0/0 FP 0 {} 52s
+14:35:40 W00008 development tier 2: real 4/17 FP 0 {} 66s
+14:36:56 W00010 development tier 3: real 9/21 FP 1 {'proxy': 1} 76s
+14:38:10 W00012 development tier 3: real 5/16 FP 0 {} 74s
+14:39:17 W00014 development tier 2: real 7/24 FP 0 {} 67s
+14:40:29 W00016 development tier 2: real 7/19 FP 0 {} 73s
+14:41:32 W00018 heldout tier 1: real 6/19 FP 3 {'proxy': 3} 63s
+done
