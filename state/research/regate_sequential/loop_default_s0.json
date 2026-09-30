@@ -503,6 +503,153 @@
    "knowledge": [],
    "failed": {},
    "counters": {}
+  },
+  {
+   "cycle": 70,
+   "now": "2018-09-14",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 71,
+   "now": "2018-09-21",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 72,
+   "now": "2018-09-28",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 73,
+   "now": "2018-10-05",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 74,
+   "now": "2018-10-12",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 75,
+   "now": "2018-10-19",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 76,
+   "now": "2018-10-26",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 77,
+   "now": "2018-11-02",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 78,
+   "now": "2018-11-09",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 79,
+   "now": "2018-11-16",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 80,
+   "now": "2018-11-23",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 81,
+   "now": "2018-11-30",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 82,
+   "now": "2018-12-07",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 83,
+   "now": "2018-12-14",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 84,
+   "now": "2018-12-21",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 85,
+   "now": "2018-12-28",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 86,
+   "now": "2019-01-04",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 87,
+   "now": "2019-01-11",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 88,
+   "now": "2019-01-18",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 89,
+   "now": "2019-01-25",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 90,
+   "now": "2019-02-01",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
   }
  ],
  "provenance": {
@@ -609,8 +756,8 @@
  "gates": {
   "DBR44ef231394d2": {
    "feature": "lv20",
-   "verdict": "NEEDS_MORE_EVIDENCE",
-   "looks": 3,
+   "verdict": "FAILED",
+   "looks": 5,
    "retired": "",
    "history": [
     {
@@ -647,16 +794,44 @@
      "blocking": [
       "failure_behavior"
      ]
+    },
+    {
+     "look": 4,
+     "cycle": 73,
+     "at": "2018-10-05",
+     "verdict": "NEEDS_MORE_EVIDENCE",
+     "alpha": 0.0018997721932938337,
+     "n_test": 91,
+     "blocking": [
+      "complexity",
+      "failure_behavior",
+      "replication"
+     ]
+    },
+    {
+     "look": 5,
+     "cycle": 87,
+     "at": "2019-01-11",
+     "verdict": "FAILED",
+     "alpha": 0.0012158542037080534,
+     "n_test": 73,
+     "blocking": [
+      "complexity",
+      "failure_behavior",
+      "out_of_sample"
+     ]
     }
    ],
    "blocking": {
-    "failure_behavior": "MISSING: only 1 failure episodes studied (< 5)"
+    "out_of_sample": "FAIL: only 1 unseen calendar year(s) in the OOS evidence (need 2): same-year improvement is inte",
+    "complexity": "FAIL: the simpler rule does as well (SIMPLE): complexity has not earned its place: only 2 folds:",
+    "failure_behavior": "MISSING: only 3 failure episodes studied (< 5)"
    }
   },
   "DBRfb5bbfb1ce25": {
    "feature": "xs_vol_rank",
-   "verdict": "NEEDS_MORE_EVIDENCE",
-   "looks": 2,
+   "verdict": "FAILED",
+   "looks": 3,
    "retired": "",
    "history": [
     {
@@ -682,16 +857,32 @@
       "failure_behavior",
       "replication"
      ]
+    },
+    {
+     "look": 3,
+     "cycle": 83,
+     "at": "2018-12-14",
+     "verdict": "FAILED",
+     "alpha": 0.0033773727880779263,
+     "n_test": 98,
+     "blocking": [
+      "complexity",
+      "failure_behavior",
+      "out_of_sample",
+      "replication"
+     ]
     }
    ],
    "blocking": {
+    "out_of_sample": "FAIL: only 1 unseen calendar year(s) in the OOS evidence (need 2): same-year improvement is inte",
     "replication": "MISSING: PARTIALLY_REPLICATED: requirement not met: heterogeneity_ok",
-    "failure_behavior": "MISSING: only 1 failure episodes studied (< 5)"
+    "complexity": "FAIL: the simpler rule does as well (SIMPLE): complexity has not earned its place: only 2 folds:",
+    "failure_behavior": "MISSING: only 3 failure episodes studied (< 5)"
    }
   }
  },
  "knowledge": {},
- "seconds": 5648.6,
+ "seconds": 6851.3,
  "truth": {
   "genuine": [
    "lv20",

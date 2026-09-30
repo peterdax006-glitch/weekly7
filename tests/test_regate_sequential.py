@@ -200,6 +200,44 @@ def test_replication_on_an_empty_test_window_adds_nothing():
     assert p["repl_runs"] == 0 and p["repl_runs_added"] == 0 and a.status != RP.Status.REPLICATED
 
 
+# ============================================================================================================ complexity baseline (F11 report)
+def _weekly(mu: float, n: int, seed: int, start="2018-01-05") -> pd.Series:
+    return pd.Series(np.random.default_rng(seed).normal(mu, 0.1, n), index=pd.date_range(start, periods=n, freq="W-FRI"))
+
+
+def test_zero_baseline_defect_is_real_and_the_measured_baseline_fixes_it():
+    """Planted defect (reported by F11): against an exactly-zero baseline a genuine weekly effect (0.05, sd 0.1, t ~ 5) failed the
+    complexity gate - tail tolerance 0.5 x sd(0) = 0, two calendar-year folds - and the optimism ratio was inf (silently skipped).
+    With the measured no-feature baseline and quarter folds the same effect passes; a null or weak one still fails."""
+    from engine.learning import complexity as CX
+    spec, te, tr = EV.FindingSpec("S", "lv20"), _weekly(0.05, 80, 0), _weekly(0.05, 30, 1, "2016-01-08")
+    old = QG.ComplexityEvidence(EV.complexity(te, tr, spec).candidate, CX.Candidate(CX.RuleSpec("b", n_features=0, n_free_params=0),
+                                te * 0.0, pd.Series(te.index.year.astype(str), index=te.index), 0.0), 80.0)
+    o_old = QG.gate_complexity(old, QG.QualityPolicy())
+    assert o_old.state == QG.FAIL and "tail change" in o_old.detail and "worse" in o_old.detail
+    yearly = QG.ComplexityEvidence(CX.Candidate(old.candidate.spec, te, pd.Series(te.index.year.astype(str), index=te.index), 0.05),
+                                   EV.complexity(te, tr, spec, _weekly(0.0, 80, 7)).baseline, 80.0)
+    assert "only 2 folds" in QG.gate_complexity(yearly, QG.QualityPolicy()).detail                  # calendar-year folds: untestable
+    assert math.isinf(CX.compare(old.baseline, old.candidate).optimism_ratio)                # the check that could not fail
+    base = _weekly(0.0, 80, 7)
+    assert QG.gate_complexity(EV.complexity(te, tr, spec, base), QG.QualityPolicy()).state == QG.PASS
+    for mu in (0.0, 0.01):                                                                    # null and too-weak: never earn it
+        assert QG.gate_complexity(EV.complexity(_weekly(mu, 80, 3), tr, spec, base), QG.QualityPolicy()).state != QG.PASS
+    short = EV.complexity(te.iloc[:10], tr, spec, base)                                       # too few periods: more data, not a pass
+    assert QG.gate_complexity(short, QG.QualityPolicy()).state == QG.MISSING
+
+
+def test_no_feature_baseline_is_noise_with_a_real_spread():
+    G, s, y = _synthetic(strength=1.5, seed=2)
+    ec = EV.EvidenceConfig()
+    m = np.ones(len(G), bool)
+    b = EV.no_feature_effects(s, y, m, ec, 5)
+    real = EV.per_date_effect(s, y, ec.min_names)
+    assert abs(b.mean()) < 3 * b.std() / math.sqrt(len(b)) + 1e-9 and b.std() > 0.02 and real.mean() > b.mean() + 0.1
+    assert b.equals(EV.no_feature_effects(s, y, m, ec, 5))                                    # seeded: reproducible
+    assert EV.no_feature_effects(s, y, np.zeros(len(G), bool), ec, 5).empty
+
+
 # ============================================================================================================ the sequential gate
 def _ref_bundle():
     ev, _ = QG.reference_evidence()

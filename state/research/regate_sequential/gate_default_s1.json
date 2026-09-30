@@ -14,7 +14,6 @@
    "repl_runs": 4,
    "repl_i2": 0.4992172640217167,
    "blocking": [
-    "complexity",
     "out_of_sample",
     "replication"
    ],
@@ -35,7 +34,6 @@
    "repl_i2": 0.0,
    "blocking": [
     "calibration",
-    "complexity",
     "out_of_sample",
     "replication",
     "transfer"
@@ -98,7 +96,6 @@
    "repl_i2": 0.0,
    "blocking": [
     "calibration",
-    "complexity",
     "replication",
     "transfer"
    ],
@@ -160,7 +157,6 @@
    "repl_i2": 0.0,
    "blocking": [
     "calibration",
-    "complexity",
     "out_of_sample",
     "replication",
     "transfer"
@@ -203,7 +199,6 @@
    "repl_runs": 7,
    "repl_i2": 0.0,
    "blocking": [
-    "complexity",
     "replication"
    ],
    "stopped": ""
@@ -223,7 +218,6 @@
    "repl_i2": 0.0,
    "blocking": [
     "calibration",
-    "complexity",
     "out_of_sample",
     "replication",
     "transfer"
@@ -270,7 +264,6 @@
    "repl_i2": 0.0,
    "blocking": [
     "calibration",
-    "complexity",
     "out_of_sample"
    ],
    "stopped": ""
@@ -290,7 +283,6 @@
    "repl_i2": 0.0,
    "blocking": [
     "calibration",
-    "complexity",
     "out_of_sample",
     "replication",
     "transfer"
@@ -328,7 +320,6 @@
    "repl_i2": 0.0,
    "blocking": [
     "calibration",
-    "complexity",
     "out_of_sample",
     "replication",
     "transfer"
@@ -360,9 +351,9 @@
    "stopped": "quarantined"
   }
  ],
- "seconds": 78.3,
+ "seconds": 76.2,
  "provenance": {
-  "code_hash": "7abb17f483822d65",
+  "code_hash": "f9560be2abe53159",
   "code_files": [
    "engine/__init__.py",
    "engine/blind_gates.py",
@@ -416,10 +407,8 @@
    "engine/resources.py",
    "engine/stops.py"
   ],
-  "code_mixed": [
-   "engine/research/evidence.py"
-  ],
-  "git_commit": "b61d419be9b40a8d224514cdbd3b6b6f78a307f5+dirty",
+  "code_mixed": [],
+  "git_commit": "64ddfdd7753610a9580e7b04f9d60970abdb74b5+dirty",
   "canon_sha": "fef7cdf0a1501c3d",
   "bible_sha": "a97ea91862cee371",
   "blueprint_version": "4.0",

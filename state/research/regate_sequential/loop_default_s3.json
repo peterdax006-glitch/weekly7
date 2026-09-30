@@ -517,6 +517,127 @@
    "knowledge": [],
    "failed": {},
    "counters": {}
+  },
+  {
+   "cycle": 72,
+   "now": "2018-09-28",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 73,
+   "now": "2018-10-05",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 74,
+   "now": "2018-10-12",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 75,
+   "now": "2018-10-19",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 76,
+   "now": "2018-10-26",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 77,
+   "now": "2018-11-02",
+   "knowledge": [],
+   "failed": {
+    "questions.research_graph": "GraphError: QUESTION node qst:qde1981f1eef5: node.id: contains a date/year at research_graph.py:237"
+   },
+   "counters": {}
+  },
+  {
+   "cycle": 78,
+   "now": "2018-11-09",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 79,
+   "now": "2018-11-16",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 80,
+   "now": "2018-11-23",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 81,
+   "now": "2018-11-30",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 82,
+   "now": "2018-12-07",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 83,
+   "now": "2018-12-14",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 84,
+   "now": "2018-12-21",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 85,
+   "now": "2018-12-28",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 86,
+   "now": "2019-01-04",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 87,
+   "now": "2019-01-11",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 88,
+   "now": "2019-01-18",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
   }
  ],
  "provenance": {
@@ -623,8 +744,8 @@
  "gates": {
   "DBR7ae01034ffb2": {
    "feature": "lv20",
-   "verdict": "NEEDS_MORE_EVIDENCE",
-   "looks": 2,
+   "verdict": "FAILED",
+   "looks": 3,
    "retired": "",
    "history": [
     {
@@ -651,17 +772,30 @@
       "failure_behavior",
       "replication"
      ]
+    },
+    {
+     "look": 3,
+     "cycle": 84,
+     "at": "2018-12-21",
+     "verdict": "FAILED",
+     "alpha": 0.0033773727880779263,
+     "n_test": 99,
+     "blocking": [
+      "complexity",
+      "out_of_sample",
+      "replication"
+     ]
     }
    ],
    "blocking": {
+    "out_of_sample": "FAIL: only 1 unseen calendar year(s) in the OOS evidence (need 2): same-year improvement is inte",
     "replication": "MISSING: PARTIALLY_REPLICATED: requirement not met: heterogeneity_ok",
-    "complexity": "FAIL: the simpler rule does as well (SIMPLE): complexity has not earned its place: only 2 folds:",
-    "failure_behavior": "MISSING: only 3 failure episodes studied (< 5)"
+    "complexity": "FAIL: the simpler rule does as well (SIMPLE): complexity has not earned its place: only 2 folds:"
    }
   }
  },
  "knowledge": {},
- "seconds": 5670.1,
+ "seconds": 6848.1,
  "truth": {
   "genuine": [
    "lv20",

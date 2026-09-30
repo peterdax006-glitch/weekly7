@@ -716,6 +716,132 @@
    "knowledge": [],
    "failed": {},
    "counters": {}
+  },
+  {
+   "cycle": 99,
+   "now": "2019-04-05",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 100,
+   "now": "2019-04-12",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 101,
+   "now": "2019-04-19",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 102,
+   "now": "2019-04-26",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 103,
+   "now": "2019-05-03",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 104,
+   "now": "2019-05-10",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 105,
+   "now": "2019-05-17",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 106,
+   "now": "2019-05-24",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 107,
+   "now": "2019-05-31",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 108,
+   "now": "2019-06-07",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 109,
+   "now": "2019-06-14",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 110,
+   "now": "2019-06-21",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 111,
+   "now": "2019-06-28",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 112,
+   "now": "2019-07-05",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 113,
+   "now": "2019-07-12",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 114,
+   "now": "2019-07-19",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 115,
+   "now": "2019-07-26",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 116,
+   "now": "2019-08-02",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
   }
  ],
  "provenance": {
@@ -821,7 +947,7 @@
  },
  "gates": {},
  "knowledge": {},
- "seconds": 5657.0,
+ "seconds": 6841.1,
  "truth": {
   "genuine": [
    "lv20",

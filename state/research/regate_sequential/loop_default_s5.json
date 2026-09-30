@@ -564,6 +564,196 @@
    ],
    "failed": {},
    "counters": {}
+  },
+  {
+   "cycle": 72,
+   "now": "2018-09-28",
+   "knowledge": [
+    "xs_atr_rank",
+    "xs_vol_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 73,
+   "now": "2018-10-05",
+   "knowledge": [
+    "xs_atr_rank",
+    "xs_vol_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 74,
+   "now": "2018-10-12",
+   "knowledge": [
+    "xs_atr_rank",
+    "xs_vol_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 75,
+   "now": "2018-10-19",
+   "knowledge": [
+    "xs_atr_rank",
+    "xs_vol_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 76,
+   "now": "2018-10-26",
+   "knowledge": [
+    "xs_atr_rank",
+    "xs_vol_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 77,
+   "now": "2018-11-02",
+   "knowledge": [
+    "xs_atr_rank",
+    "xs_vol_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 78,
+   "now": "2018-11-09",
+   "knowledge": [
+    "xs_atr_rank",
+    "xs_vol_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 79,
+   "now": "2018-11-16",
+   "knowledge": [
+    "xs_atr_rank",
+    "xs_vol_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 80,
+   "now": "2018-11-23",
+   "knowledge": [
+    "xs_atr_rank",
+    "xs_vol_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 81,
+   "now": "2018-11-30",
+   "knowledge": [
+    "xs_atr_rank",
+    "xs_vol_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 82,
+   "now": "2018-12-07",
+   "knowledge": [
+    "xs_atr_rank",
+    "xs_vol_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 83,
+   "now": "2018-12-14",
+   "knowledge": [
+    "xs_atr_rank",
+    "xs_vol_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 84,
+   "now": "2018-12-21",
+   "knowledge": [
+    "xs_atr_rank",
+    "xs_vol_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 85,
+   "now": "2018-12-28",
+   "knowledge": [
+    "xs_atr_rank",
+    "xs_vol_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 86,
+   "now": "2019-01-04",
+   "knowledge": [
+    "xs_atr_rank",
+    "xs_vol_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 87,
+   "now": "2019-01-11",
+   "knowledge": [
+    "xs_atr_rank",
+    "xs_vol_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 88,
+   "now": "2019-01-18",
+   "knowledge": [
+    "xs_atr_rank",
+    "xs_vol_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 89,
+   "now": "2019-01-25",
+   "knowledge": [
+    "xs_atr_rank",
+    "xs_vol_rank"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 90,
+   "now": "2019-02-01",
+   "knowledge": [
+    "xs_atr_rank",
+    "xs_vol_rank"
+   ],
+   "failed": {},
+   "counters": {}
   }
  ],
  "provenance": {
@@ -726,8 +916,8 @@
    "filed_at": "2018-04-06",
    "effect": 0.332500541544,
    "branch": "BR5224b8909968",
-   "post_effect": 0.34960636418102764,
-   "post_n": 22
+   "post_effect": 0.3505715985035338,
+   "post_n": 41
   },
   "Kfed8f6442b5bec": {
    "feature": "xs_vol_rank",
@@ -735,10 +925,12 @@
    "problem": "VOLATILITY",
    "filed_at": "2018-09-07",
    "effect": 0.276919179763,
-   "branch": "BRfb5bbfb1ce25"
+   "branch": "BRfb5bbfb1ce25",
+   "post_effect": 0.29313331301901896,
+   "post_n": 19
   }
  },
- "seconds": 5691.2,
+ "seconds": 6869.2,
  "truth": {
   "genuine": [
    "lv20",

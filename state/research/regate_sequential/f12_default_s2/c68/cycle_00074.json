@@ -1,0 +1,157 @@
+{
+ "cycle": 74,
+ "now": "2018-10-12",
+ "label": "IMPLEMENTED - NOT VALIDATED",
+ "counters": {
+  "outcomes": 0,
+  "errors": 0,
+  "market_reports_sent": 2
+ },
+ "ledgers": {
+  "expectations": 0,
+  "outcomes": 0,
+  "errors": 0,
+  "commitments": 0,
+  "pipeline_events": 1104,
+  "pipeline_furthest": {
+   "REJECTED": 276
+  }
+ },
+ "calibration": {
+  "now": "2017-05-12",
+  "target": {
+   "tolerance": 0.01,
+   "goal_share": 0.8,
+   "min_n": 200,
+   "min_oos_n": 100,
+   "level": 0.95,
+   "name": "pm1pp_80"
+  },
+  "status": "EMPTY",
+  "n_committed": 0,
+  "n_matured": 0,
+  "n_resolved": 0,
+  "n_unresolved": 0,
+  "all_": {
+   "n": 0,
+   "hits": 0,
+   "share": NaN,
+   "lo": NaN,
+   "hi": NaN,
+   "boot_lo": NaN,
+   "boot_hi": NaN
+  },
+  "oos": {
+   "n": 0,
+   "hits": 0,
+   "share": NaN,
+   "lo": NaN,
+   "hi": NaN,
+   "boot_lo": NaN,
+   "boot_hi": NaN
+  },
+  "resolved_only": {
+   "n": 0,
+   "hits": 0,
+   "share": NaN,
+   "lo": NaN,
+   "hi": NaN,
+   "boot_lo": NaN,
+   "boot_hi": NaN
+  },
+  "bias": NaN,
+  "mae": NaN,
+  "naive_share": null,
+  "required_n": null,
+  "abuses": [
+   {
+    "kind": "TARGET_CHANGED",
+    "pred_id": "*",
+    "detail": "target never registered"
+   }
+  ],
+  "by_cohort": [],
+  "headline": "No matured predictions yet: the +-1% target is unmeasured."
+ },
+ "influence": {
+  "mom_r20_top": 1.0,
+  "rev_r5_bottom": 1.0,
+  "vol_top": 1.0
+ },
+ "verdicts": {
+  "mom_r20_top": "NORMAL_VARIANCE",
+  "rev_r5_bottom": "NORMAL_VARIANCE",
+  "vol_top": "NORMAL_VARIANCE"
+ },
+ "guard": {
+  "mom_r20_top": "KEEP",
+  "rev_r5_bottom": "KEEP",
+  "vol_top": "KEEP"
+ },
+ "production": {
+  "name": "incumbent",
+  "since": "",
+  "window_share": 1.0,
+  "extra_features": []
+ },
+ "regime_records": [
+  {
+   "id": "R8cf54b34f9fd",
+   "scope": "SECTOR_CHANGE",
+   "detected": "2018-10-11",
+   "status": "CANDIDATE",
+   "weakened": []
+  }
+ ],
+ "identification": null,
+ "stage_runs": [
+  {
+   "cycle": 74,
+   "now": "2018-10-12",
+   "stage": "c68.selection_policy",
+   "in": 3512,
+   "out": 1,
+   "note": "policy L144248e3 (threshold -inf); gain model fitted n=3512 base in-band 0.069; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00"
+  },
+  {
+   "cycle": 74,
+   "now": "2018-10-12",
+   "stage": "c68.expectations",
+   "in": 42,
+   "out": 0,
+   "note": "no position on 2018-10-12: {'NOT_PREDICTED_MOVER': 37, 'SHORT_DISABLED': 4, 'LOW_CONFIDENCE': 1}"
+  },
+  {
+   "cycle": 74,
+   "now": "2018-10-12",
+   "stage": "c68.market_regime",
+   "in": 6,
+   "out": 3,
+   "note": "5 session(s), 2 alarm(s), warning WARNING (SECTOR_CHANGE); 1 market period(s); regime records +1, status changes []"
+  },
+  {
+   "cycle": 74,
+   "now": "2018-10-12",
+   "stage": "c68.pattern_change",
+   "in": 3,
+   "out": 0,
+   "note": "verdicts {'NORMAL_VARIANCE': 3}; influence mom_r20_top=1.00, rev_r5_bottom=1.00, vol_top=1.00; regime CANDIDATE; 0 to investigate"
+  },
+  {
+   "cycle": 74,
+   "now": "2018-10-12",
+   "stage": "c68.outcomes_errors",
+   "in": 0,
+   "out": 0,
+   "note": "0 exit(s) by the learned policy, 0 error report(s), 0 unreconstructable, 42 candidate gain(s) resolved"
+  },
+  {
+   "cycle": 74,
+   "now": "2018-10-12",
+   "stage": "c68.validate_promote",
+   "in": 3076,
+   "out": 4,
+   "note": "4 fix(es) tested alone and gated; deterioration: YES (MAE 0.0254 -> 0.0295, p=0.00296); promoted [] (0 applied); production incumbent; rolled back 0"
+  }
+ ]
+}

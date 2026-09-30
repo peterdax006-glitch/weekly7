@@ -337,15 +337,34 @@ def calibration(G: pd.DataFrame, score: pd.Series, y: pd.Series, tr: np.ndarray,
     return QG.CalibrationEvidence(tuple(float(v) for v in p[idx]), tuple(int(v) for v in yy[oke][idx]), spec.seed), ""
 
 
-def complexity(eff_te: pd.Series, eff_tr: pd.Series, spec: FindingSpec):
-    """The finding (one feature, one orientation) against the simplest alternative: no feature at all (a base-rate ranker, zero
-    effect on the same dates). The candidate must earn its one unit of complexity."""
+def no_feature_effects(score: pd.Series, y: pd.Series, mask: np.ndarray, ec: EvidenceConfig, seed: int) -> pd.Series:
+    """The simplest alternative MEASURED: a ranking that carries no information (a seeded random score on the same rows and dates),
+    scored exactly like the finding. Its per-date effect is zero in expectation with the true sampling spread of a weekly AUC."""
+    noise = pd.Series(np.random.default_rng(seed).normal(0.0, 1.0, len(score)), index=score.index)
+    return per_date_effect(noise[mask], y[mask], ec.min_names)
+
+
+def complexity(eff_te: pd.Series, eff_tr: pd.Series, spec: FindingSpec, base_te: pd.Series | None = None):
+    """The finding (one feature, one orientation) against the simplest alternative: no feature at all, measured on the same dates
+    (`base_te`, a no-information ranking; see no_feature_effects). The candidate must earn its one unit of complexity.
+
+    F12 defect fixed (reported by F11, verified by tests/test_regate_sequential.py): the baseline used to be an exactly-zero series.
+    engine.learning.complexity then (a) judged the tail against a tolerance of 0.5 x sd(baseline) = 0, so ANY finding with a negative
+    week in its bottom decile failed 'tail worse' (a genuine t = 5 effect failed); (b) divided the optimism gap by the baseline's gap of 0
+    and got inf, which its isfinite guard silently skipped - a check that could not fail. Now the baseline is measured noise (a real
+    spread for the tail), the baseline has no in-sample fit (in_sample None: optimism is not applicable to a zero-parameter rule and is
+    reported as such; the finding's own in-sample -> out-of-sample decay is judged by the OOS gate's retention), and the folds are
+    calendar quarters: calendar years gave two folds on every sliding three-year frame, so 'transfer across folds' was never testable
+    (cross-YEAR transfer is required separately by the out-of-sample gate's unseen-years rule)."""
     from engine.learning import complexity as CX
     from engine.research import quality_gate as QG
-    folds = pd.Series(eff_te.index.year.astype(str), index=eff_te.index)
-    cand = CX.Candidate(CX.RuleSpec(f"rule_{spec.feature}", n_features=1, n_free_params=1), eff_te, folds,
+    q = lambda ix: pd.Series([f"{d.year}Q{(d.month - 1) // 3 + 1}" for d in ix], index=ix)        # noqa: E731
+    cand = CX.Candidate(CX.RuleSpec(f"rule_{spec.feature}", n_features=1, n_free_params=1), eff_te, q(eff_te.index),
                         float(eff_tr.mean()) if len(eff_tr) else None)
-    base = CX.Candidate(CX.RuleSpec("base_rate", n_features=0, n_free_params=0), eff_te * 0.0, folds, 0.0)
+    if base_te is None:
+        base_te = eff_te * 0.0                          # unmeasured baseline: kept only for callers without the rows (never the loop)
+    base_te = base_te.reindex(eff_te.index).fillna(0.0)
+    base = CX.Candidate(CX.RuleSpec("no_feature", n_features=0, n_free_params=0), base_te, q(eff_te.index), None)
     return QG.ComplexityEvidence(cand, base, float(len(eff_te)))
 
 
@@ -588,7 +607,7 @@ def assemble(frame: pd.DataFrame, spec: FindingSpec, now, *, code_hash: str, dat
     cal, why = calibration(G, score, y, tr, te, spec, cfg)
     if cal is None:
         missing["calibration"] = why
-    cx = complexity(eff_te, eff_tr, spec) if len(eff_te) else None
+    cx = complexity(eff_te, eff_tr, spec, no_feature_effects(score, y, te, cfg, spec.seed + 23)) if len(eff_te) else None
     fe, p = failure(G, score, y, te, eff_te, rk.worst_period if rk is not None else None, spec, cfg)
     parts.update(p)
     rp = reproducibility(score, y, te, spec, cfg, code_hash, data_hash)
