@@ -19,3 +19,23 @@ skipping 6 held-out seeds in the range (never generated)
 14:09:57 W00005 done in 339.5s
 14:11:12 W00008 look 0: singles 29.5s, all: scanned 727801 propose 20.48s oriented 5.2s, early: scanned 706243 propose 10.47s oriented 5.8s
 14:12:14 W00008 look 1: singles 21.7s, all: scanned 722985 propose 19.5s oriented 5.0s, early: scanned 708621 propose 10.14s oriented 5.8s
+14:13:17 W00008 look 2: singles 21.2s, all: scanned 722985 propose 20.0s oriented 5.4s, early: scanned 739911 propose 10.33s oriented 6.1s
+14:14:18 W00008 look 3: singles 22.5s, all: scanned 727801 propose 18.78s oriented 5.0s, early: scanned 737481 propose 9.11s oriented 5.7s
+14:15:17 W00008 look 4: singles 19.8s, all: scanned 727801 propose 19.0s oriented 4.9s, early: scanned 735055 propose 9.3s oriented 5.1s
+14:15:17 W00008 done in 319.6s
+14:16:19 W00009 look 0: singles 20.1s, all: scanned 713400 propose 18.59s oriented 5.1s, early: scanned 694410 propose 10.16s oriented 5.2s
+14:17:21 W00009 look 1: singles 20.6s, all: scanned 713400 propose 19.91s oriented 4.9s, early: scanned 699130 propose 10.16s oriented 5.8s
+14:18:23 W00009 look 2: singles 21.4s, all: scanned 713400 propose 19.8s oriented 5.4s, early: scanned 730215 propose 10.67s oriented 5.2s
+14:19:26 W00009 look 3: singles 21.6s, all: scanned 711014 propose 20.2s oriented 4.8s, early: scanned 730214 propose 10.44s oriented 5.7s
+14:20:28 W00009 look 4: singles 20.8s, all: scanned 708632 propose 20.14s oriented 5.2s, early: scanned 725390 propose 10.92s oriented 5.4s
+14:20:28 W00009 done in 311.8s
+14:21:36 W00010 look 0: singles 20.9s, all: scanned 706254 propose 21.2s oriented 5.1s, early: scanned 689705 propose 10.34s oriented 6.2s
+14:22:38 W00010 look 1: singles 20.6s, all: scanned 706254 propose 20.14s oriented 5.0s, early: scanned 692055 propose 10.11s oriented 5.8s
+14:23:41 W00010 look 2: singles 20.5s, all: scanned 703880 propose 20.86s oriented 5.2s, early: scanned 720582 propose 10.72s oriented 5.6s
+14:24:43 W00010 look 3: singles 20.7s, all: scanned 703880 propose 21.16s oriented 4.9s, early: scanned 722984 propose 10.33s oriented 5.7s
+14:25:48 W00010 look 4: singles 21.9s, all: scanned 701510 propose 20.69s oriented 5.0s, early: scanned 722984 propose 11.22s oriented 5.4s
+14:25:48 W00010 done in 319.2s
+14:26:54 W00011 look 0: singles 20.7s, all: scanned 685012 propose 20.95s oriented 5.9s, early: scanned 648069 propose 9.62s oriented 5.8s
+14:27:51 W00011 look 1: singles 18.7s, all: scanned 685012 propose 19.0s oriented 5.0s, early: scanned 648069 propose 9.17s oriented 4.9s
+14:28:51 W00011 look 2: singles 20.4s, all: scanned 685012 propose 20.3s oriented 5.0s, early: scanned 682674 propose 9.25s oriented 5.0s
+14:29:49 W00011 look 3: singles 18.9s, all: scanned 685012 propose 18.62s oriented 5.1s, early: scanned 675684 propose 9.38s oriented 6.3s

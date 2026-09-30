@@ -1,0 +1,12 @@
+14:16:09 stage S3_replication part 0/2 pid 11368 code e8f4cfc95d9da810
+14:17:56 W00000 heldout tier 6: real 0/18 FP 0 {} 107s
+14:19:07 W00002 development tier 3: real 3/18 FP 0 {} 71s
+14:20:20 W00004 heldout tier 3: real 2/21 FP 1 {'proxy': 1} 73s
+14:21:15 W00006 heldout tier 0: real 0/0 FP 0 {} 55s
+14:22:26 W00008 development tier 2: real 3/17 FP 0 {} 71s
+14:23:49 W00010 development tier 3: real 3/21 FP 1 {'proxy': 1} 83s
+14:25:09 W00012 development tier 3: real 1/16 FP 0 {} 80s
+14:26:23 W00014 development tier 2: real 5/24 FP 0 {} 74s
+14:27:41 W00016 development tier 2: real 3/19 FP 0 {} 78s
+14:28:50 W00018 heldout tier 1: real 3/19 FP 1 {'proxy': 1} 69s
+done

@@ -1,0 +1,14 @@
+{
+ "task": "F25",
+ "date": "2026-09-30",
+ "patterns_py_after_sha256_16": "5f00d3a1a37e74de",
+ "patterns_py_before_sha256_16": "dc5ae1f1becc1ffe",
+ "noise_generator": "tests/test_patterns_integration.py::panel(weeks=200, stocks=80, regime_effect=0)",
+ "miner": "FAST + null_reps=2, null_search=full, p_method=bh",
+ "planted": "engine.planted.scenarios(), seeds 100-107, MINER of scripts/planted_calibration.py",
+ "scripts": [
+  "f25_measure.py",
+  "f25_diag.py",
+  "f25_recall.py"
+ ]
+}

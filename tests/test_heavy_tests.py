@@ -209,7 +209,15 @@ def test_seed_table_hidden_windows_and_origins(summary):
     assert len(h) == 8 and h["dates"].between(25, 30).all()
     pd.testing.assert_frame_equal(h, ht.hidden_windows(summary["frame"], 8, 30, 3))
     o = summary["origins"]
-    assert (o["n_live"] > 0).all() and o["oos_checked"].sum() > 0
+    assert (o["n_live"] > 0).any() and o["oos_checked"].sum() > 0     # the every-origin requirement is kept below, unchanged
+
+
+@pytest.mark.xfail(strict=True, reason="SCIENTIFIC LIMITATION (30 Sep, F25): with the honest confirmation-date FDR (q=0.05) the first "
+                   "78-week origin cannot confirm the planted f0 q4 pattern (one-sided p=0.094); the old rule admitted it on "
+                   "Phi(1.32) and let 7.5-10% of pure-noise panels through. Kept strict: if this ever passes, re-check why.")
+def test_every_walk_forward_origin_has_a_live_pattern(summary):
+    o = summary["origins"]
+    assert (o["n_live"] > 0).all()
 
 
 def test_report_files_roundtrip_with_provenance(summary, tmp_path):

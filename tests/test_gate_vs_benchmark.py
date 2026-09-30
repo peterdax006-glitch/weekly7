@@ -181,16 +181,19 @@ def test_leak_gate_quarantines_the_planted_leak_only_with_the_fix(h1):
     now = pd.Timestamp(F.index.get_level_values(0).max()) + pd.Timedelta(days=9)
     with PB.registered(["bm_leak3", "bm_noise"]), PB.corpus_once():
         got = {}
-        for f in ("bm_leak3", "bm_noise"):
+        for f in ("bm_leak3", "bm_noise", "lv20"):
             for fix in (True, False):
                 cfg = EV.EvidenceConfig(f26_leak_screen=fix)
                 spec = EV.FindingSpec("D" + f, f, 1.0, "VOLATILITY", n_tests_searched=5, seed=1, n_scanned=600)
                 b = EV.assemble(F[PB.evidence_columns(f, F.columns)], spec, now, code_hash="c", data_hash="d",
                                 created_real="2026-09-30T00:00:00+00:00", cfg=cfg, ledger=RP.ReplicationLedger(), look=1, plan=LP.REGATE_PLAN)
                 d = QG.QualityGate(QG.QualityPolicy(code_hash="c")).evaluate(spec.subject_id, b.evidence, now)
-                got[(f, fix)] = (d.outcome("leakage").state, b.parts.get("future_probe_caught"))
-    assert got[("bm_leak3", True)][0] == QG.QUARANTINE and got[("bm_leak3", False)][0] != QG.QUARANTINE
-    assert got[("bm_noise", True)] == (QG.PASS, True)                           # null: clean, and the screen proved it can see
+                got[(f, fix)] = (d.outcome("leakage").state, b.parts.get("future_probe_caught"), d.outcome("leakage").detail)
+    assert got[("bm_leak3", True)][0] == QG.QUARANTINE and "coming outcome" in got[("bm_leak3", True)][2]
+    assert "coming outcome" not in got[("bm_leak3", False)][2]                  # without the fix the leak screen was blind to it
+    assert got[("lv20", True)][:2] == (QG.PASS, True)                          # the genuine predictor: clean, and the screen can see
+    # a no-skill null: the new screens find nothing (the firewall's IDENTITY layer may still set aside a rule with no skill to test)
+    assert "coming outcome" not in got[("bm_noise", True)][2] and got[("bm_noise", True)][1] is True
 
 
 # ============================================================================================================ 2 calibration
@@ -224,10 +227,11 @@ def test_fixed_margin_forecast_matches_each_dates_count():
     k[0], k[1] = 0.0, 40.0
     n = np.full(30, 40.0)
     p = EV.fixed_margin_forecast(x, 1.3, codes, k, n)
-    ok = ~np.isin(codes, [0, 1])
+    ok = ((k > 0) & (k < n))[codes]
     assert np.isnan(p[~ok]).all()
     sums = np.bincount(codes[ok], weights=p[ok], minlength=30)
-    assert np.allclose(sums[2:], k[2:], atol=1e-8)
+    live = (k > 0) & (k < n)
+    assert np.allclose(sums[live], k[live], atol=1e-8)
     p0 = EV.fixed_margin_forecast(x, 0.0, codes, k, n)
     assert np.allclose(p0[ok], (k / n)[codes[ok]])                             # no lift: every name at the date's rate
 
@@ -329,16 +333,16 @@ def test_worst_fold_tolerance_is_restated_in_fold_units():
     sizes = folds.value_counts()
     assert cfg.worst_fold_tolerance == pytest.approx(CX.DEFAULT_CCFG.worst_fold_tolerance * math.sqrt(104 / sizes.median()))
     assert QG.fold_scaled_config(CX.DEFAULT_CCFG, dataclasses.replace(cand, folds=None)) == CX.DEFAULT_CCFG
-    rng = np.random.default_rng(3)                                             # a genuine t ~ 4 effect: the scaled test passes it
-    good = pd.Series(0.05 + rng.normal(0, 0.13, 104), index=idx)
-    base = CX.Candidate(CX.RuleSpec("none", n_features=0, n_free_params=0), pd.Series(rng.normal(0, 0.13, 104), index=idx), folds)
-    ev = QG.ComplexityEvidence(dataclasses.replace(cand, oos=good), base, 104.0)
-    scaled = QG.gate_complexity(ev, QG.QualityPolicy(code_hash="c"))
-    raw = QG.gate_complexity(ev, QG.QualityPolicy(code_hash="c", worst_fold_in_fold_se=False))
-    assert scaled.state == QG.PASS and "worst fold" not in scaled.detail
-    null = QG.ComplexityEvidence(dataclasses.replace(cand, oos=pd.Series(rng.normal(0, 0.13, 104), index=idx)), base, 104.0)
-    assert QG.gate_complexity(null, QG.QualityPolicy(code_hash="c")).state != QG.PASS      # a null rule never earns its place
-    assert raw.state in (QG.PASS, QG.FAIL, QG.MISSING)
+    passes = {("real", True): 0, ("real", False): 0, ("null", True): 0}
+    for seed in range(40):                                                     # the same rows judged with and without the units fix
+        rng = np.random.default_rng(seed)
+        base = CX.Candidate(CX.RuleSpec("none", n_features=0, n_free_params=0), pd.Series(rng.normal(0, 0.13, 104), index=idx), folds)
+        for kind, mu in (("real", 0.06), ("null", 0.0)):
+            ev = QG.ComplexityEvidence(dataclasses.replace(cand, oos=pd.Series(mu + rng.normal(0, 0.13, 104), index=idx)), base, 104.0)
+            for fix in ((True, False) if kind == "real" else (True,)):
+                passes[(kind, fix)] += QG.gate_complexity(ev, QG.QualityPolicy(code_hash="c", worst_fold_in_fold_se=fix)).state == QG.PASS
+    assert passes[("real", True)] > passes[("real", False)] and passes[("real", True)] >= 28      # genuine gain t ~ 3.8
+    assert passes[("null", True)] <= 3                                         # a null rule still does not earn its place
 
 
 def test_a_magnitude_claim_bears_no_directional_risk_and_a_direction_claim_does():

@@ -845,7 +845,7 @@ def construction_audit(frame: pd.DataFrame, feature: str, seed: int = 0) -> list
     codes = pd.factorize(S.index.get_level_values(0), sort=True)[0]
     perm = np.argsort(codes * 1.0 + rng.random(len(S)) * 0.5, kind="stable")          # a random order of the rows inside each date
     for c in OUTCOME_COLUMNS:
-        if c in S.columns and c not in need:
+        if c in S.columns:
             S[c] = S[c].to_numpy()[perm]
     alt = VH.derive(S, (feature,))[feature].astype(float).reindex(base.index)
     if not np.allclose(base.to_numpy(), alt.to_numpy(), rtol=1e-9, atol=1e-12, equal_nan=True):

@@ -151,10 +151,13 @@ def test_survivor_only_validated_rows_carry_the_label():
         assert "SURVIVOR_ONLY" in (_real("RESEARCH_BRAIN_CHECKLIST.json")[i]["notes"]), i
 
 
+AT_LEAST_IMPLEMENTED = {"IMPLEMENTED", "TESTING", "VALIDATED"}      # a row may move past IMPLEMENTED (C75 Phase 0: TESTING), never back
+
+
 def test_stale_c66_rows_no_longer_claim_not_started():
     rows = _real("RESEARCH_BRAIN_CHECKLIST.json")
     for i in ("RF03", "RF08", "RF19", "RF21", "RF23", "RF32", "RT19", "RA11"):
-        assert rows[i]["status"] == "IMPLEMENTED", i
+        assert rows[i]["status"] in AT_LEAST_IMPLEMENTED, (i, rows[i]["status"])
     for i in ("RF03", "RF08", "RF21", "RF23", "RF32"):
         assert rows[i]["code_paths"] and rows[i]["tests"]
 
@@ -163,7 +166,7 @@ def test_c68_pz_rows_are_implemented_with_existing_code_and_tests():
     rows = _real("PREDICTION_ERROR_CHECKLIST.json")
     for n in range(1, 20):
         r = rows[f"PZ{n:02d}"]
-        assert r["status"] == "IMPLEMENTED", r["id"]
+        assert r["status"] in AT_LEAST_IMPLEMENTED, (r["id"], r["status"])
         assert r["code_paths"] and r["tests"], r["id"]
         for p in r["code_paths"] + r["tests"]:
             assert (REPO / p).exists(), (r["id"], p)

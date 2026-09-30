@@ -1,0 +1,12 @@
+14:16:09 stage S3_replication part 1/2 pid 17096 code e8f4cfc95d9da810
+14:17:48 W00001 development tier 4: real 4/21 FP 2 {'proxy': 2} 99s
+14:19:35 W00003 development tier 6: real 3/19 FP 0 {} 107s
+14:20:44 W00005 development tier 2: real 3/16 FP 0 {} 68s
+14:21:59 W00007 heldout tier 3: real 3/18 FP 0 {} 76s
+14:23:05 W00009 development tier 3: real 1/18 FP 3 {'leak': 2, 'proxy': 1} 66s
+14:24:25 W00011 development tier 0: real 0/0 FP 0 {} 80s
+14:25:36 W00013 heldout tier 1: real 5/24 FP 1 {'proxy': 1} 71s
+14:26:44 W00015 development tier 1: real 3/19 FP 0 {} 68s
+14:27:58 W00017 development tier 3: real 3/18 FP 0 {} 74s
+14:29:08 W00019 development tier 1: real 5/20 FP 0 {} 70s
+done
