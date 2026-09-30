@@ -1,0 +1,21 @@
+
+=== round 9 (direction phase): 3 sealed 12-month windows, latest basis v0; 3 of 3 windows play the UNTRAINED neutral basis (basis versions used: [0, 0, 0]) ===
+[w09b]   feature service ready in 33s
+[w09c]   feature service ready in 39s
+[w09b]   parity test passed (fast path == live path on random days, max diff 0.0e+00) in 41s
+[w09b]   warm-up: 1759 sessions visible, 1506 of them before the hidden year; training ...
+[w09c]   parity test passed (fast path == live path on random days, max diff 0.0e+00) in 48s
+[w09c]   warm-up: 1763 sessions visible, 1510 of them before the hidden year; training ...
+[w09a]   feature service ready in 99s
+[w09a]   parity test passed (fast path == live path on random days, max diff 0.0e+00) in 92s
+[w09a]   warm-up: 1758 sessions visible, 1507 of them before the hidden year; training ...
+[w09b]   model ready (817,751 rows, 640s). Clock starts at 2162-02-03 (disguised).
+[w09c]   model ready (939,999 rows, 740s). Clock starts at 2168-03-25 (disguised).
+[w09a]   model ready (1,863,389 rows, 987s). Clock starts at 2224-07-02 (disguised).
+  round wall time 10800s
+  [w09a] EXCLUDED CRASHED: return code 1
+  [w09b] EXCLUDED TIMEOUT: exceeded wall-clock or heartbeat limit
+  [w09c] ~7% weeks (5-10% moves) 23% | avg week +1.31% | swing (sd) 4.12% | 3 weeks >= +7% | window +91.3% | max DD -17% | 2 self-adjustments | missed winners studied 5402 | clock 21448 ms/day
+       gates: re-tester OK | future-scramble OK | fill audit OK (133 fills at next open)
+  basis training set: 0 windows (20 THIN excluded: ['r01b', 'r02b', 'r03a', 'r04a', 'r05b', 'r06a', 'r07c', 'r08a', 'r08b', 'r08c', 'r09a', 'r11a', 'r11c', 'w01a', 'w01b', 'w02b', 'w03a', 'w08a', 'w08b', 'w08c']; 46 not ended before the next round begins, refused)
+  training basis: 0 replays; 24 candidates screened on 0 of 0 windows, top 3 confirmed on all (0s)
