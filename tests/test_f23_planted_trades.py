@@ -50,11 +50,20 @@ def test_null_world_has_no_run_and_no_direction_truth():
 def test_mechanism_off_leaves_every_other_mechanism_bit_identical():
     on = FD.planted_world(FD.PlantConfig(seed=2, **SMALL))
     off = FD.planted_world(FD.PlantConfig(seed=2, trend_rate=0.0, **SMALL))
-    ran = run_mask(on).any(axis=0)
-    never = ran.index[~ran.to_numpy()]
-    assert len(never) >= 5
-    for f in FD.BAR_FIELDS:                                               # names that never ran: exactly the pre-F23 world
-        pd.testing.assert_frame_equal(on.bars[f][never], off.bars[f][never])
+    mask = run_mask(on)
+    ran = mask.any(axis=0)
+    # EVERY name is bit-identical to the pre-F23 world up to the session its first run starts (stronger than comparing only the
+    # names that never ran: with trend_rate 0.03 / trend_len 25 almost every name runs at least once, 30 Sep)
+    checked = 0
+    for name in on.bars["Close"].columns:
+        col = mask[name].to_numpy()
+        stop = int(col.argmax()) if col.any() else len(col)
+        if stop == 0:
+            continue
+        for f in FD.BAR_FIELDS:
+            pd.testing.assert_series_equal(on.bars[f][name].iloc[:stop], off.bars[f][name].iloc[:stop])
+        checked += 1
+    assert checked >= 30
     assert on.truth["earnings"] == off.truth["earnings"] and on.truth["cheap"] == off.truth["cheap"]
     assert not on.bars["Close"][ran.index[ran.to_numpy()]].equals(off.bars["Close"][ran.index[ran.to_numpy()]])
 

@@ -120,8 +120,8 @@ class PlantConfig:
     # (~7% a week at the default). The run is invisible on its first days and then shows in r5 / r20 (the precursor): the edge is
     # real but modest because a run ends without warning and most high-r20 names are noise. No hot state (vol_state_sd = 0, the null
     # world) means no run at all. Drawn from its own seeded stream, so every earlier mechanism of a seed is unchanged.
-    trend_rate: float = 0.02
-    trend_len: float = 40.0
+    trend_rate: float = 0.03            # F23 (30 Sep): shorter, more frequent runs; 40-session runs moved prices so far that the
+    trend_len: float = 25.0             # planted price_low coincidence became informative late (AUC 0.43) and lv20 drew down -50%
     trend_drift: float = 0.020
     trend_hot_sd: float = 0.5
 
