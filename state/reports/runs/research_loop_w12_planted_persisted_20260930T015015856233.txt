@@ -1,0 +1,118 @@
+RUN ID: research_loop_w12_planted_persisted_20260930T015015856233
+GIT COMMIT: f9acb145d6489c33f559c20d51bcd9a357a35c36+dirty
+CANON HASH: fef7cdf0a1501c3d
+BLUEPRINT VERSION: 4.0
+CONFIG HASH: ad7f2a8c5f5e890b
+DATA SNAPSHOT: 171ba8ba728ee713
+RANDOM SEED: 0
+
+WINDOWS
+  ids: ['research_loop']
+  TRAIN PERIOD: n/a
+  VALIDATION PERIOD: n/a
+  TEST PERIOD: n/a
+
+TIER 1
+  weekly average move: n/a
+  weekly median move: n/a
+  share 5-10%: n/a
+  share >10%: n/a
+  share <5%: n/a
+  weeks: 0
+
+TIER 2
+  max drawdown: n/a
+  worst week: n/a
+  5th percentile week: n/a
+  catastrophic losses: n/a
+  turnover: n/a
+  costs: n/a
+
+TIER 3
+  positive in-band percentage: n/a
+  positive weeks: n/a
+  direction accuracy: n/a
+  calibration: brier n/a, ECE n/a
+  8/10 rate: n/a
+
+ALGORITHM
+  pattern count: 0
+  active pattern count: 0
+  failed patterns: 0
+  rescoped patterns: 0
+  discarded patterns: 0
+  P(real) distribution: n/a
+  false discovery diagnostics: n/a
+
+ANALOGS
+  analog count: 0
+  distance distribution: n/a
+  forecast quality: n/a
+
+MEMORY
+  lesson count: n/a
+  accepted lessons: n/a
+  rejected lessons: n/a
+  shock events: n/a
+  memory switches: n/a
+
+ADAPTATION
+  parameter changes: n/a
+  reverts: n/a
+  evidence: n/a
+  confidence: n/a
+
+GATES
+  parity: NOT RUN
+  retester: NOT RUN
+  future scramble: NOT RUN
+  time fence: NOT RUN
+  worker health: NOT RUN
+  reproducibility: NOT RUN
+
+DECISION
+  CONTINUE TESTING
+
+REASON
+  only 0 weeks (< 100)
+
+UNPROVEN (39)
+  - not provided: windows.train
+  - not provided: windows.validation
+  - not provided: windows.test
+  - not provided: tier1.mean_week
+  - not provided: tier1.median_week
+  - not provided: tier1.share_in_band
+  - not provided: tier1.share_gt_10
+  - not provided: tier1.share_lt_5
+  - not provided: tier2.max_drawdown
+  - not provided: tier2.worst_week
+  - not provided: tier2.p05_week
+  - not provided: tier2.catastrophic_losses
+  - not provided: tier2.turnover
+  - not provided: tier2.costs
+  - not provided: tier3.positive_week_pct
+  - not provided: tier3.positive_in_band_pct
+  - not provided: tier3.direction_accuracy
+  - not provided: tier3.rate_8_of_10
+  - not provided: gates.parity
+  - not provided: gates.retester
+  - not provided: gates.future_scramble
+  - not provided: gates.time_fence
+  - not provided: gates.worker_health
+  - not provided: gates.reproducibility
+  - not provided: memory.lesson_count
+  - not provided: memory.accepted_lessons
+  - not provided: memory.rejected_lessons
+  - not provided: memory.shock_events
+  - not provided: memory.memory_switches
+  - not provided: adaptation.parameter_changes
+  - not provided: adaptation.reverts
+  - not provided: adaptation.evidence
+  - not provided: adaptation.confidence
+  - not provided: algorithm.patterns
+  - not provided: analogs.distances
+  - no regimes breakdown supplied: robustness across regimes is unknown
+  - no eras breakdown supplied: robustness across eras is unknown
+  - no comparison with the frozen baseline (Phase 0.4)
+  - research loop: no weekly return series; Tier 1-3 are not applicable

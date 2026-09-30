@@ -1,0 +1,14 @@
+{
+ "audits_cleared": 36,
+ "control_failures": 1,
+ "duplicate_designs": 11,
+ "gate_retired_after_looks": 1,
+ "graph_tests": 114,
+ "held_for_fresh_data": 2,
+ "questions_generated": 711,
+ "questions_merged": 735,
+ "released_from_hold": 2,
+ "science_folded": 0,
+ "stale_abandoned": 42,
+ "tree_results": 33
+}

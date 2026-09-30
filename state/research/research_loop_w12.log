@@ -1,0 +1,445 @@
+RESEARCH LOOP cycle 0 at 2017-05-12  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 45, 'SKIPPED_NO_INPUT': 16}
+  questions 12 (+12), selected 1, launched 1, harvested 1, validated 1, ladder {'AUDIT': 1}, knowledge 0
+  section-47 chains 0, knowledge->decision chains 0
+  > Volatility prediction is currently the highest-value unresolved problem, so allocate 18% of research compute there.
+  > Directional discrimination among predicted movers is gated: direction waits for volatility evidence (P1 capability unmeasured < 0.5)
+  > High-accuracy direction at coverage is gated: the 80% question waits for the direction gate
+  > Transfer across years, stocks and regimes is gated: nothing to transfer before volatility has been measured
+RESEARCH LOOP cycle 1 at 2017-05-19  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 38, 'SKIPPED_NO_INPUT': 16, 'SKIPPED_CADENCE': 7}
+  questions 16 (+4), selected 3, launched 4, harvested 2, validated 2, ladder {'AUDIT': 2}, knowledge 0
+  section-47 chains 0, knowledge->decision chains 0
+  > Volatility prediction is currently the highest-value unresolved problem, so allocate 18% of research compute there.
+  > Directional discrimination among predicted movers is gated: direction waits for volatility evidence (P1 capability unmeasured < 0.5)
+  > High-accuracy direction at coverage is gated: the 80% question waits for the direction gate
+  > Transfer across years, stocks and regimes is gated: nothing to transfer before volatility has been measured
+RESEARCH LOOP cycle 2 at 2017-05-26  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 45, 'SKIPPED_NO_INPUT': 9, 'SKIPPED_CADENCE': 7}
+  questions 28 (+12), selected 6, launched 8, harvested 3, validated 3, ladder {'ADVANCE': 2, 'PARK': 1}, knowledge 0
+  section-47 chains 0, knowledge->decision chains 0
+  > Directional discrimination among predicted movers is currently the highest-value unresolved problem, so allocate 35% of research compute there.
+  > Volatility prediction now has a smaller remaining gap. The largest remaining expected decision value is now directional discrimination among predicted movers, so shift resources (18% -> 14% for P1_VOLATILITY).
+  > High-accuracy direction at coverage is gated: no direction signal among predicted movers yet (P3 lower bound 0.00 < 0.2)
+  > Unmeasured (maximal uncertainty): P2_PREDICTABLE_VS_UNKNOWABLE, P5_TRANSFER, P6_CATASTROPHIC_LOSS, P7_CONTINUOUS_DISCOVERY, P8_DISCOVERY_PROCESS
+RESEARCH LOOP cycle 3 at 2017-06-02  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 45, 'SKIPPED_NO_INPUT': 9, 'SKIPPED_CADENCE': 7}
+  questions 40 (+12), selected 1, launched 3, harvested 3, validated 3, ladder {'AUDIT': 3}, knowledge 0
+  section-47 chains 2, knowledge->decision chains 0
+  > Directional discrimination among predicted movers is currently the highest-value unresolved problem, so allocate 40% of research compute there.
+  > High-accuracy direction at coverage is gated: no direction signal among predicted movers yet (P3 lower bound 0.00 < 0.2)
+  > Unmeasured (maximal uncertainty): P2_PREDICTABLE_VS_UNKNOWABLE, P5_TRANSFER, P6_CATASTROPHIC_LOSS, P7_CONTINUOUS_DISCOVERY, P8_DISCOVERY_PROCESS
+RESEARCH LOOP cycle 4 at 2017-06-09  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 49, 'SKIPPED_NO_INPUT': 9, 'SKIPPED_CADENCE': 3}
+  questions 52 (+12), selected 1, launched 4, harvested 4, validated 4, ladder {'ADVANCE': 3, 'AUDIT': 1}, knowledge 0
+  section-47 chains 2, knowledge->decision chains 0
+  > Directional discrimination among predicted movers is currently the highest-value unresolved problem, so allocate 43% of research compute there.
+  > High-accuracy direction at coverage is gated: no direction signal among predicted movers yet (P3 lower bound 0.00 < 0.2)
+  > Unmeasured (maximal uncertainty): P2_PREDICTABLE_VS_UNKNOWABLE, P5_TRANSFER, P6_CATASTROPHIC_LOSS, P7_CONTINUOUS_DISCOVERY, P8_DISCOVERY_PROCESS
+RESEARCH LOOP cycle 5 at 2017-06-16  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 45, 'SKIPPED_NO_INPUT': 9, 'SKIPPED_CADENCE': 7}
+  questions 64 (+12), selected 1, launched 2, harvested 2, validated 2, ladder {'AUDIT': 1, 'REPEAT': 1}, knowledge 0
+  section-47 chains 4, knowledge->decision chains 0
+  > Directional discrimination among predicted movers is currently the highest-value unresolved problem, so allocate 45% of research compute there.
+  > High-accuracy direction at coverage is gated: no direction signal among predicted movers yet (P3 lower bound 0.00 < 0.2)
+  > Unmeasured (maximal uncertainty): P2_PREDICTABLE_VS_UNKNOWABLE, P5_TRANSFER, P6_CATASTROPHIC_LOSS, P7_CONTINUOUS_DISCOVERY, P8_DISCOVERY_PROCESS
+RESEARCH LOOP cycle 6 at 2017-06-23  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 46, 'SKIPPED_NO_INPUT': 8, 'SKIPPED_CADENCE': 7}
+  questions 76 (+12), selected 1, launched 4, harvested 3, validated 3, ladder {'ADVANCE': 2, 'AUDIT': 1}, knowledge 0
+  section-47 chains 4, knowledge->decision chains 0
+  > Directional discrimination among predicted movers is currently the highest-value unresolved problem, so allocate 45% of research compute there.
+  > High-accuracy direction at coverage is gated: no direction signal among predicted movers yet (P3 lower bound 0.00 < 0.2)
+  > Unmeasured (maximal uncertainty): P2_PREDICTABLE_VS_UNKNOWABLE, P5_TRANSFER, P6_CATASTROPHIC_LOSS, P7_CONTINUOUS_DISCOVERY, P8_DISCOVERY_PROCESS
+RESEARCH LOOP cycle 7 at 2017-06-30  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 47, 'SKIPPED_NO_INPUT': 7, 'SKIPPED_CADENCE': 7}
+  questions 88 (+12), selected 1, launched 4, harvested 3, validated 3, ladder {'AUDIT': 3}, knowledge 0
+  section-47 chains 6, knowledge->decision chains 0
+  > Directional discrimination among predicted movers is currently the highest-value unresolved problem, so allocate 46% of research compute there.
+  > High-accuracy direction at coverage is gated: no direction signal among predicted movers yet (P3 lower bound 0.00 < 0.2)
+  > Unmeasured (maximal uncertainty): P2_PREDICTABLE_VS_UNKNOWABLE, P5_TRANSFER, P6_CATASTROPHIC_LOSS, P7_CONTINUOUS_DISCOVERY, P8_DISCOVERY_PROCESS
+RESEARCH LOOP cycle 8 at 2017-07-07  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 52, 'SKIPPED_NO_INPUT': 7, 'SKIPPED_CADENCE': 2}
+  questions 100 (+12), selected 1, launched 4, harvested 4, validated 4, ladder {'ADVANCE': 3, 'AUDIT': 1}, knowledge 0
+  section-47 chains 6, knowledge->decision chains 0
+  > Directional discrimination among predicted movers is currently the highest-value unresolved problem, so allocate 46% of research compute there.
+  > High-accuracy direction at coverage is gated: no direction signal among predicted movers yet (P3 lower bound 0.00 < 0.2)
+  > Unmeasured (maximal uncertainty): P2_PREDICTABLE_VS_UNKNOWABLE, P5_TRANSFER, P6_CATASTROPHIC_LOSS, P7_CONTINUOUS_DISCOVERY, P8_DISCOVERY_PROCESS
+RESEARCH LOOP cycle 9 at 2017-07-14  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 47, 'SKIPPED_NO_INPUT': 7, 'SKIPPED_CADENCE': 7}
+  questions 112 (+12), selected 1, launched 4, harvested 4, validated 4, ladder {'ADVANCE': 2, 'AUDIT': 1, 'PARK': 1}, knowledge 0
+  section-47 chains 8, knowledge->decision chains 0
+  > Directional discrimination among predicted movers is currently the highest-value unresolved problem, so allocate 46% of research compute there.
+  > High-accuracy direction at coverage is gated: no direction signal among predicted movers yet (P3 lower bound 0.00 < 0.2)
+  > Unmeasured (maximal uncertainty): P2_PREDICTABLE_VS_UNKNOWABLE, P5_TRANSFER, P6_CATASTROPHIC_LOSS, P7_CONTINUOUS_DISCOVERY, P8_DISCOVERY_PROCESS
+RESEARCH LOOP cycle 10 at 2017-07-21  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 47, 'SKIPPED_NO_INPUT': 7, 'SKIPPED_CADENCE': 7}
+  questions 124 (+12), selected 1, launched 3, harvested 2, validated 2, ladder {'AUDIT': 2}, knowledge 0
+  section-47 chains 12, knowledge->decision chains 0
+  > Directional discrimination among predicted movers is currently the highest-value unresolved problem, so allocate 46% of research compute there.
+  > High-accuracy direction at coverage is gated: no direction signal among predicted movers yet (P3 lower bound 0.00 < 0.2)
+  > Unmeasured (maximal uncertainty): P2_PREDICTABLE_VS_UNKNOWABLE, P5_TRANSFER, P6_CATASTROPHIC_LOSS, P7_CONTINUOUS_DISCOVERY, P8_DISCOVERY_PROCESS
+RESEARCH LOOP cycle 11 at 2017-07-28  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 47, 'SKIPPED_NO_INPUT': 7, 'SKIPPED_CADENCE': 7}
+  questions 136 (+12), selected 1, launched 4, harvested 4, validated 4, ladder {'ADVANCE': 3, 'AUDIT': 1}, knowledge 0
+  section-47 chains 12, knowledge->decision chains 0
+  > Directional discrimination among predicted movers is currently the highest-value unresolved problem, so allocate 46% of research compute there.
+  > High-accuracy direction at coverage is gated: no direction signal among predicted movers yet (P3 lower bound 0.00 < 0.2)
+  > Unmeasured (maximal uncertainty): P2_PREDICTABLE_VS_UNKNOWABLE, P5_TRANSFER, P6_CATASTROPHIC_LOSS, P7_CONTINUOUS_DISCOVERY, P8_DISCOVERY_PROCESS
+RESEARCH LOOP cycle 12 at 2017-08-04  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 51, 'SKIPPED_NO_INPUT': 7, 'SKIPPED_CADENCE': 3}
+  questions 148 (+12), selected 1, launched 3, harvested 3, validated 3, ladder {'AUDIT': 2, 'ADVANCE': 1}, knowledge 0
+  section-47 chains 16, knowledge->decision chains 0
+  > Directional discrimination among predicted movers is currently the highest-value unresolved problem, so allocate 46% of research compute there.
+  > High-accuracy direction at coverage is gated: no direction signal among predicted movers yet (P3 lower bound 0.00 < 0.2)
+  > Unmeasured (maximal uncertainty): P2_PREDICTABLE_VS_UNKNOWABLE, P5_TRANSFER, P6_CATASTROPHIC_LOSS, P7_CONTINUOUS_DISCOVERY, P8_DISCOVERY_PROCESS
+RESEARCH LOOP cycle 13 at 2017-08-11  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 49, 'SKIPPED_NO_INPUT': 7, 'SKIPPED_CADENCE': 5}
+  questions 160 (+12), selected 1, launched 2, harvested 2, validated 2, ladder {'AUDIT': 1, 'ADVANCE': 1}, knowledge 0
+  section-47 chains 18, knowledge->decision chains 0
+  > Directional discrimination among predicted movers is currently the highest-value unresolved problem, so allocate 46% of research compute there.
+  > High-accuracy direction at coverage is gated: no direction signal among predicted movers yet (P3 lower bound 0.00 < 0.2)
+  > Unmeasured (maximal uncertainty): P2_PREDICTABLE_VS_UNKNOWABLE, P5_TRANSFER, P6_CATASTROPHIC_LOSS, P7_CONTINUOUS_DISCOVERY, P8_DISCOVERY_PROCESS
+RESEARCH LOOP cycle 14 at 2017-08-18  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 47, 'SKIPPED_NO_INPUT': 7, 'SKIPPED_CADENCE': 7}
+  questions 172 (+12), selected 1, launched 4, harvested 4, validated 3, ladder {'AUDIT': 1, 'ADVANCE': 2}, knowledge 0
+  section-47 chains 18, knowledge->decision chains 0
+  > Directional discrimination among predicted movers is currently the highest-value unresolved problem, so allocate 46% of research compute there.
+  > High-accuracy direction at coverage is gated: no direction signal among predicted movers yet (P3 lower bound 0.00 < 0.2)
+  > Unmeasured (maximal uncertainty): P2_PREDICTABLE_VS_UNKNOWABLE, P5_TRANSFER, P6_CATASTROPHIC_LOSS, P7_CONTINUOUS_DISCOVERY, P8_DISCOVERY_PROCESS
+RESEARCH LOOP cycle 15 at 2017-08-25  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 48, 'SKIPPED_NO_INPUT': 6, 'SKIPPED_CADENCE': 7}
+  questions 184 (+12), selected 1, launched 4, harvested 4, validated 4, ladder {'AUDIT': 2, 'PARK': 1, 'ADVANCE': 1}, knowledge 0
+  section-47 chains 21, knowledge->decision chains 0
+  > Directional discrimination among predicted movers is currently the highest-value unresolved problem, so allocate 46% of research compute there.
+  > High-accuracy direction at coverage is gated: no direction signal among predicted movers yet (P3 lower bound 0.00 < 0.2)
+  > Unmeasured (maximal uncertainty): P2_PREDICTABLE_VS_UNKNOWABLE, P5_TRANSFER, P6_CATASTROPHIC_LOSS, P7_CONTINUOUS_DISCOVERY, P8_DISCOVERY_PROCESS
+RESEARCH LOOP cycle 16 at 2017-09-01  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 52, 'SKIPPED_NO_INPUT': 7, 'SKIPPED_CADENCE': 2}
+  questions 196 (+12), selected 1, launched 3, harvested 3, validated 3, ladder {'ADVANCE': 2, 'PARK': 1}, knowledge 0
+  section-47 chains 23, knowledge->decision chains 0
+  > Directional discrimination among predicted movers is currently the highest-value unresolved problem, so allocate 46% of research compute there.
+  > High-accuracy direction at coverage is gated: no direction signal among predicted movers yet (P3 lower bound 0.00 < 0.2)
+  > Unmeasured (maximal uncertainty): P2_PREDICTABLE_VS_UNKNOWABLE, P5_TRANSFER, P6_CATASTROPHIC_LOSS, P7_CONTINUOUS_DISCOVERY, P8_DISCOVERY_PROCESS
+RESEARCH LOOP cycle 17 at 2017-09-08  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 47, 'SKIPPED_NO_INPUT': 7, 'SKIPPED_CADENCE': 7}
+  questions 208 (+12), selected 1, launched 1, harvested 1, validated 1, ladder {'PARK': 1}, knowledge 0
+  section-47 chains 26, knowledge->decision chains 0
+  > Directional discrimination among predicted movers is currently the highest-value unresolved problem, so allocate 46% of research compute there.
+  > High-accuracy direction at coverage is gated: no direction signal among predicted movers yet (P3 lower bound 0.00 < 0.2)
+  > Unmeasured (maximal uncertainty): P2_PREDICTABLE_VS_UNKNOWABLE, P5_TRANSFER, P6_CATASTROPHIC_LOSS, P7_CONTINUOUS_DISCOVERY, P8_DISCOVERY_PROCESS
+RESEARCH LOOP cycle 18 at 2017-09-15  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 47, 'SKIPPED_NO_INPUT': 7, 'SKIPPED_CADENCE': 7}
+  questions 220 (+12), selected 1, launched 1, harvested 1, validated 1, ladder {'PARK': 1}, knowledge 0
+  section-47 chains 27, knowledge->decision chains 0
+  > Directional discrimination among predicted movers is currently the highest-value unresolved problem, so allocate 46% of research compute there.
+  > High-accuracy direction at coverage is gated: no direction signal among predicted movers yet (P3 lower bound 0.00 < 0.2)
+  > Unmeasured (maximal uncertainty): P2_PREDICTABLE_VS_UNKNOWABLE, P5_TRANSFER, P6_CATASTROPHIC_LOSS, P7_CONTINUOUS_DISCOVERY, P8_DISCOVERY_PROCESS
+RESEARCH LOOP cycle 19 at 2017-09-22  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 44, 'SKIPPED_NO_INPUT': 10, 'SKIPPED_CADENCE': 7}
+  questions 232 (+12), selected 1, launched 0, harvested 0, validated 0, ladder {}, knowledge 0
+  section-47 chains 28, knowledge->decision chains 0
+  > Directional discrimination among predicted movers is currently the highest-value unresolved problem, so allocate 46% of research compute there.
+  > High-accuracy direction at coverage is gated: no direction signal among predicted movers yet (P3 lower bound 0.00 < 0.2)
+  > Unmeasured (maximal uncertainty): P2_PREDICTABLE_VS_UNKNOWABLE, P5_TRANSFER, P6_CATASTROPHIC_LOSS, P7_CONTINUOUS_DISCOVERY, P8_DISCOVERY_PROCESS
+RESEARCH LOOP cycle 20 at 2017-09-29  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 51, 'SKIPPED_NO_INPUT': 7, 'SKIPPED_CADENCE': 3}
+  questions 244 (+12), selected 1, launched 2, harvested 2, validated 2, ladder {'PARK': 2}, knowledge 0
+  section-47 chains 28, knowledge->decision chains 0
+  > Directional discrimination among predicted movers is currently the highest-value unresolved problem, so allocate 46% of research compute there.
+  > High-accuracy direction at coverage is gated: no direction signal among predicted movers yet (P3 lower bound 0.00 < 0.2)
+  > Unmeasured (maximal uncertainty): P2_PREDICTABLE_VS_UNKNOWABLE, P5_TRANSFER, P6_CATASTROPHIC_LOSS, P7_CONTINUOUS_DISCOVERY, P8_DISCOVERY_PROCESS
+RESEARCH LOOP cycle 21 at 2017-10-06  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 47, 'SKIPPED_NO_INPUT': 7, 'SKIPPED_CADENCE': 7}
+  questions 256 (+12), selected 1, launched 1, harvested 1, validated 1, ladder {'PARK': 1}, knowledge 0
+  section-47 chains 30, knowledge->decision chains 0
+  > Directional discrimination among predicted movers is currently the highest-value unresolved problem, so allocate 46% of research compute there.
+  > High-accuracy direction at coverage is gated: no direction signal among predicted movers yet (P3 lower bound 0.00 < 0.2)
+  > Unmeasured (maximal uncertainty): P2_PREDICTABLE_VS_UNKNOWABLE, P5_TRANSFER, P6_CATASTROPHIC_LOSS, P7_CONTINUOUS_DISCOVERY, P8_DISCOVERY_PROCESS
+RESEARCH LOOP cycle 22 at 2017-10-13  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 47, 'SKIPPED_NO_INPUT': 7, 'SKIPPED_CADENCE': 7}
+  questions 268 (+12), selected 1, launched 1, harvested 1, validated 1, ladder {'PARK': 1}, knowledge 0
+  section-47 chains 31, knowledge->decision chains 0
+  > Directional discrimination among predicted movers is currently the highest-value unresolved problem, so allocate 46% of research compute there.
+  > High-accuracy direction at coverage is gated: no direction signal among predicted movers yet (P3 lower bound 0.00 < 0.2)
+  > Unmeasured (maximal uncertainty): P2_PREDICTABLE_VS_UNKNOWABLE, P5_TRANSFER, P6_CATASTROPHIC_LOSS, P7_CONTINUOUS_DISCOVERY, P8_DISCOVERY_PROCESS
+RESEARCH LOOP cycle 23 at 2017-10-20  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 47, 'SKIPPED_NO_INPUT': 7, 'SKIPPED_CADENCE': 7}
+  questions 280 (+12), selected 1, launched 1, harvested 1, validated 1, ladder {'PARK': 1}, knowledge 0
+  section-47 chains 32, knowledge->decision chains 0
+  > Directional discrimination among predicted movers is currently the highest-value unresolved problem, so allocate 46% of research compute there.
+  > High-accuracy direction at coverage is gated: no direction signal among predicted movers yet (P3 lower bound 0.00 < 0.2)
+  > Unmeasured (maximal uncertainty): P2_PREDICTABLE_VS_UNKNOWABLE, P5_TRANSFER, P6_CATASTROPHIC_LOSS, P7_CONTINUOUS_DISCOVERY, P8_DISCOVERY_PROCESS
+RESEARCH LOOP cycle 24 at 2017-10-27  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 52, 'SKIPPED_NO_INPUT': 7, 'SKIPPED_CADENCE': 2}
+  questions 292 (+12), selected 1, launched 1, harvested 1, validated 1, ladder {'PARK': 1}, knowledge 0
+  section-47 chains 33, knowledge->decision chains 0
+  > Directional discrimination among predicted movers is currently the highest-value unresolved problem, so allocate 46% of research compute there.
+  > High-accuracy direction at coverage is gated: no direction signal among predicted movers yet (P3 lower bound 0.00 < 0.2)
+  > Unmeasured (maximal uncertainty): P2_PREDICTABLE_VS_UNKNOWABLE, P5_TRANSFER, P6_CATASTROPHIC_LOSS, P7_CONTINUOUS_DISCOVERY, P8_DISCOVERY_PROCESS
+RESEARCH LOOP cycle 25 at 2017-11-03  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 47, 'SKIPPED_NO_INPUT': 7, 'SKIPPED_CADENCE': 7}
+  questions 304 (+12), selected 1, launched 1, harvested 1, validated 1, ladder {'PARK': 1}, knowledge 0
+  section-47 chains 34, knowledge->decision chains 0
+  > Directional discrimination among predicted movers is currently the highest-value unresolved problem, so allocate 46% of research compute there.
+  > High-accuracy direction at coverage is gated: no direction signal among predicted movers yet (P3 lower bound 0.00 < 0.2)
+  > Unmeasured (maximal uncertainty): P2_PREDICTABLE_VS_UNKNOWABLE, P5_TRANSFER, P6_CATASTROPHIC_LOSS, P7_CONTINUOUS_DISCOVERY, P8_DISCOVERY_PROCESS
+RESEARCH LOOP cycle 26 at 2017-11-10  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 50, 'SKIPPED_NO_INPUT': 6, 'SKIPPED_CADENCE': 5}
+  questions 316 (+12), selected 1, launched 1, harvested 1, validated 1, ladder {'PARK': 1}, knowledge 0
+  section-47 chains 35, knowledge->decision chains 0
+  > Directional discrimination among predicted movers is currently the highest-value unresolved problem, so allocate 46% of research compute there.
+  > High-accuracy direction at coverage is gated: no direction signal among predicted movers yet (P3 lower bound 0.00 < 0.2)
+  > Unmeasured (maximal uncertainty): P2_PREDICTABLE_VS_UNKNOWABLE, P5_TRANSFER, P6_CATASTROPHIC_LOSS, P7_CONTINUOUS_DISCOVERY, P8_DISCOVERY_PROCESS
+RESEARCH LOOP cycle 27 at 2017-11-17  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 47, 'SKIPPED_NO_INPUT': 7, 'SKIPPED_CADENCE': 7}
+  questions 328 (+12), selected 1, launched 1, harvested 1, validated 1, ladder {'PARK': 1}, knowledge 0
+  section-47 chains 36, knowledge->decision chains 0
+  > Directional discrimination among predicted movers is currently the highest-value unresolved problem, so allocate 46% of research compute there.
+  > High-accuracy direction at coverage is gated: no direction signal among predicted movers yet (P3 lower bound 0.00 < 0.2)
+  > Unmeasured (maximal uncertainty): P2_PREDICTABLE_VS_UNKNOWABLE, P5_TRANSFER, P6_CATASTROPHIC_LOSS, P7_CONTINUOUS_DISCOVERY, P8_DISCOVERY_PROCESS
+RESEARCH LOOP cycle 28 at 2017-11-24  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 51, 'SKIPPED_NO_INPUT': 7, 'SKIPPED_CADENCE': 3}
+  questions 340 (+12), selected 1, launched 1, harvested 1, validated 1, ladder {'PARK': 1}, knowledge 0
+  section-47 chains 37, knowledge->decision chains 0
+  > Directional discrimination among predicted movers is currently the highest-value unresolved problem, so allocate 46% of research compute there.
+  > High-accuracy direction at coverage is gated: no direction signal among predicted movers yet (P3 lower bound 0.00 < 0.2)
+  > Unmeasured (maximal uncertainty): P2_PREDICTABLE_VS_UNKNOWABLE, P5_TRANSFER, P6_CATASTROPHIC_LOSS, P7_CONTINUOUS_DISCOVERY, P8_DISCOVERY_PROCESS
+RESEARCH LOOP cycle 29 at 2017-12-01  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 47, 'SKIPPED_NO_INPUT': 7, 'SKIPPED_CADENCE': 7}
+  questions 352 (+12), selected 1, launched 1, harvested 1, validated 1, ladder {'PARK': 1}, knowledge 0
+  section-47 chains 38, knowledge->decision chains 0
+  > Directional discrimination among predicted movers is currently the highest-value unresolved problem, so allocate 46% of research compute there.
+  > High-accuracy direction at coverage is gated: no direction signal among predicted movers yet (P3 lower bound 0.00 < 0.2)
+  > Unmeasured (maximal uncertainty): P2_PREDICTABLE_VS_UNKNOWABLE, P5_TRANSFER, P6_CATASTROPHIC_LOSS, P7_CONTINUOUS_DISCOVERY, P8_DISCOVERY_PROCESS
+RESEARCH LOOP cycle 30 at 2017-12-08  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 47, 'SKIPPED_NO_INPUT': 7, 'SKIPPED_CADENCE': 7}
+  questions 364 (+12), selected 1, launched 1, harvested 2, validated 2, ladder {'PARK': 1, 'ADVANCE': 1}, knowledge 0
+  section-47 chains 39, knowledge->decision chains 0
+  > Directional discrimination among predicted movers is currently the highest-value unresolved problem, so allocate 46% of research compute there.
+  > High-accuracy direction at coverage is gated: no direction signal among predicted movers yet (P3 lower bound 0.00 < 0.2)
+  > Unmeasured (maximal uncertainty): P2_PREDICTABLE_VS_UNKNOWABLE, P5_TRANSFER, P6_CATASTROPHIC_LOSS, P7_CONTINUOUS_DISCOVERY, P8_DISCOVERY_PROCESS
+RESEARCH LOOP cycle 31 at 2017-12-15  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 48, 'SKIPPED_NO_INPUT': 6, 'SKIPPED_CADENCE': 7}
+  questions 376 (+12), selected 1, launched 2, harvested 2, validated 2, ladder {'COMPLETE': 1, 'PARK': 1}, knowledge 0
+  section-47 chains 40, knowledge->decision chains 0
+  > Directional discrimination among predicted movers is currently the highest-value unresolved problem, so allocate 46% of research compute there.
+  > High-accuracy direction at coverage is gated: no direction signal among predicted movers yet (P3 lower bound 0.00 < 0.2)
+  > Unmeasured (maximal uncertainty): P2_PREDICTABLE_VS_UNKNOWABLE, P5_TRANSFER, P6_CATASTROPHIC_LOSS, P7_CONTINUOUS_DISCOVERY, P8_DISCOVERY_PROCESS
+RESEARCH LOOP cycle 32 at 2017-12-22  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 53, 'SKIPPED_NO_INPUT': 6, 'SKIPPED_CADENCE': 2}
+  questions 388 (+12), selected 1, launched 2, harvested 2, validated 2, ladder {'PARK': 1, 'ADVANCE': 1}, knowledge 0
+  section-47 chains 41, knowledge->decision chains 0
+  > Directional discrimination among predicted movers is currently the highest-value unresolved problem, so allocate 46% of research compute there.
+  > High-accuracy direction at coverage is gated: no direction signal among predicted movers yet (P3 lower bound 0.00 < 0.2)
+  > Unmeasured (maximal uncertainty): P2_PREDICTABLE_VS_UNKNOWABLE, P5_TRANSFER, P6_CATASTROPHIC_LOSS, P7_CONTINUOUS_DISCOVERY, P8_DISCOVERY_PROCESS
+RESEARCH LOOP cycle 33 at 2017-12-29  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 47, 'SKIPPED_NO_INPUT': 7, 'SKIPPED_CADENCE': 7}
+  questions 400 (+12), selected 1, launched 1, harvested 1, validated 1, ladder {'PARK': 1}, knowledge 0
+  section-47 chains 42, knowledge->decision chains 0
+  > Directional discrimination among predicted movers is currently the highest-value unresolved problem, so allocate 46% of research compute there.
+  > High-accuracy direction at coverage is gated: no direction signal among predicted movers yet (P3 lower bound 0.00 < 0.2)
+  > Unmeasured (maximal uncertainty): P2_PREDICTABLE_VS_UNKNOWABLE, P5_TRANSFER, P6_CATASTROPHIC_LOSS, P7_CONTINUOUS_DISCOVERY, P8_DISCOVERY_PROCESS
+RESEARCH LOOP cycle 34 at 2018-01-05  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 47, 'SKIPPED_NO_INPUT': 7, 'SKIPPED_CADENCE': 7}
+  questions 412 (+12), selected 1, launched 2, harvested 1, validated 1, ladder {'PARK': 1}, knowledge 0
+  section-47 chains 43, knowledge->decision chains 0
+  > Directional discrimination among predicted movers is currently the highest-value unresolved problem, so allocate 46% of research compute there.
+  > High-accuracy direction at coverage is gated: no direction signal among predicted movers yet (P3 lower bound 0.00 < 0.2)
+  > Unmeasured (maximal uncertainty): P2_PREDICTABLE_VS_UNKNOWABLE, P5_TRANSFER, P6_CATASTROPHIC_LOSS, P7_CONTINUOUS_DISCOVERY, P8_DISCOVERY_PROCESS
+RESEARCH LOOP cycle 35 at 2018-01-12  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 47, 'SKIPPED_NO_INPUT': 7, 'SKIPPED_CADENCE': 7}
+  questions 424 (+12), selected 1, launched 1, harvested 1, validated 1, ladder {'PARK': 1}, knowledge 0
+  section-47 chains 44, knowledge->decision chains 0
+  > Directional discrimination among predicted movers is currently the highest-value unresolved problem, so allocate 46% of research compute there.
+  > High-accuracy direction at coverage is gated: no direction signal among predicted movers yet (P3 lower bound 0.00 < 0.2)
+  > Unmeasured (maximal uncertainty): P2_PREDICTABLE_VS_UNKNOWABLE, P5_TRANSFER, P6_CATASTROPHIC_LOSS, P7_CONTINUOUS_DISCOVERY, P8_DISCOVERY_PROCESS
+RESEARCH LOOP cycle 36 at 2018-01-19  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 51, 'SKIPPED_NO_INPUT': 7, 'SKIPPED_CADENCE': 3}
+  questions 436 (+12), selected 1, launched 1, harvested 1, validated 1, ladder {'PARK': 1}, knowledge 0
+  section-47 chains 45, knowledge->decision chains 0
+  > Directional discrimination among predicted movers is currently the highest-value unresolved problem, so allocate 46% of research compute there.
+  > High-accuracy direction at coverage is gated: no direction signal among predicted movers yet (P3 lower bound 0.00 < 0.2)
+  > Unmeasured (maximal uncertainty): P2_PREDICTABLE_VS_UNKNOWABLE, P5_TRANSFER, P6_CATASTROPHIC_LOSS, P7_CONTINUOUS_DISCOVERY, P8_DISCOVERY_PROCESS
+RESEARCH LOOP cycle 37 at 2018-01-26  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 44, 'SKIPPED_NO_INPUT': 10, 'SKIPPED_CADENCE': 7}
+  questions 448 (+12), selected 0, launched 0, harvested 0, validated 0, ladder {}, knowledge 0
+  section-47 chains 46, knowledge->decision chains 0
+  > Directional discrimination among predicted movers is currently the highest-value unresolved problem, so allocate 46% of research compute there.
+  > High-accuracy direction at coverage is gated: no direction signal among predicted movers yet (P3 lower bound 0.00 < 0.2)
+  > Unmeasured (maximal uncertainty): P2_PREDICTABLE_VS_UNKNOWABLE, P5_TRANSFER, P6_CATASTROPHIC_LOSS, P7_CONTINUOUS_DISCOVERY, P8_DISCOVERY_PROCESS
+RESEARCH LOOP cycle 38 at 2018-02-02  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 47, 'SKIPPED_NO_INPUT': 7, 'SKIPPED_CADENCE': 7}
+  questions 460 (+12), selected 1, launched 1, harvested 1, validated 1, ladder {'PARK': 1}, knowledge 0
+  section-47 chains 46, knowledge->decision chains 0
+  > Directional discrimination among predicted movers is currently the highest-value unresolved problem, so allocate 46% of research compute there.
+  > High-accuracy direction at coverage is gated: no direction signal among predicted movers yet (P3 lower bound 0.00 < 0.2)
+  > Unmeasured (maximal uncertainty): P2_PREDICTABLE_VS_UNKNOWABLE, P5_TRANSFER, P6_CATASTROPHIC_LOSS, P7_CONTINUOUS_DISCOVERY, P8_DISCOVERY_PROCESS
+RESEARCH LOOP cycle 39 at 2018-02-09  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 49, 'SKIPPED_NO_INPUT': 7, 'SKIPPED_CADENCE': 5}
+  questions 472 (+12), selected 1, launched 1, harvested 1, validated 1, ladder {'PARK': 1}, knowledge 0
+  section-47 chains 47, knowledge->decision chains 0
+  > Directional discrimination among predicted movers is currently the highest-value unresolved problem, so allocate 46% of research compute there.
+  > High-accuracy direction at coverage is gated: no direction signal among predicted movers yet (P3 lower bound 0.00 < 0.2)
+  > Unmeasured (maximal uncertainty): P2_PREDICTABLE_VS_UNKNOWABLE, P5_TRANSFER, P6_CATASTROPHIC_LOSS, P7_CONTINUOUS_DISCOVERY, P8_DISCOVERY_PROCESS
+RESEARCH LOOP cycle 40 at 2018-02-16  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 49, 'SKIPPED_NO_INPUT': 10, 'SKIPPED_CADENCE': 2}
+  questions 483 (+11), selected 1, launched 0, harvested 0, validated 0, ladder {}, knowledge 0
+  section-47 chains 48, knowledge->decision chains 0
+  > Volatility prediction is currently the highest-value maintained problem, so allocate 33% of research compute there.
+  > Directional discrimination among predicted movers is producing negligible transferable improvement. The largest remaining expected decision value is now volatility prediction, so shift resources (46% -> 15% for P3_DIRECTION).
+  > Directional discrimination among predicted movers research is currently producing negligible transferable improvement, while loss-regime research has high expected value. Redirect compute.
+  > High-accuracy direction at coverage is gated: no direction signal among predicted movers yet (P3 lower bound 0.00 < 0.2)
+RESEARCH LOOP cycle 41 at 2018-02-23  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 47, 'SKIPPED_NO_INPUT': 7, 'SKIPPED_CADENCE': 7}
+  questions 495 (+12), selected 1, launched 2, harvested 2, validated 2, ladder {'PARK': 2}, knowledge 0
+  section-47 chains 48, knowledge->decision chains 0
+  > Volatility prediction is currently the highest-value maintained problem, so allocate 33% of research compute there.
+  > Directional discrimination among predicted movers research is currently producing negligible transferable improvement, while loss-regime research has high expected value. Redirect compute.
+  > High-accuracy direction at coverage is gated: no direction signal among predicted movers yet (P3 lower bound 0.00 < 0.2)
+  > No reliable 80% directional region has been found.
+RESEARCH LOOP cycle 42 at 2018-03-02  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 47, 'SKIPPED_NO_INPUT': 7, 'SKIPPED_CADENCE': 7}
+  questions 507 (+12), selected 1, launched 1, harvested 1, validated 1, ladder {'PARK': 1}, knowledge 0
+  section-47 chains 50, knowledge->decision chains 0
+  > Volatility prediction is currently the highest-value maintained problem, so allocate 33% of research compute there.
+  > Directional discrimination among predicted movers research is currently producing negligible transferable improvement, while loss-regime research has high expected value. Redirect compute.
+  > High-accuracy direction at coverage is gated: no direction signal among predicted movers yet (P3 lower bound 0.00 < 0.2)
+  > No reliable 80% directional region has been found.
+RESEARCH LOOP cycle 43 at 2018-03-09  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 45, 'SKIPPED_NO_INPUT': 9, 'SKIPPED_CADENCE': 7}
+  questions 519 (+12), selected 0, launched 0, harvested 0, validated 0, ladder {}, knowledge 0
+  section-47 chains 51, knowledge->decision chains 0
+  > Volatility prediction is currently the highest-value maintained problem, so allocate 33% of research compute there.
+  > Directional discrimination among predicted movers research is currently producing negligible transferable improvement, while loss-regime research has high expected value. Redirect compute.
+  > High-accuracy direction at coverage is gated: no direction signal among predicted movers yet (P3 lower bound 0.00 < 0.2)
+  > No reliable 80% directional region has been found.
+RESEARCH LOOP cycle 44 at 2018-03-16  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 52, 'SKIPPED_NO_INPUT': 6, 'SKIPPED_CADENCE': 3}
+  questions 531 (+12), selected 1, launched 1, harvested 1, validated 1, ladder {'PARK': 1}, knowledge 0
+  section-47 chains 51, knowledge->decision chains 0
+  > Volatility prediction is currently the highest-value maintained problem, so allocate 33% of research compute there.
+  > Directional discrimination among predicted movers research is currently producing negligible transferable improvement, while loss-regime research has high expected value. Redirect compute.
+  > High-accuracy direction at coverage is gated: no direction signal among predicted movers yet (P3 lower bound 0.00 < 0.2)
+  > No reliable 80% directional region has been found.
+RESEARCH LOOP cycle 45 at 2018-03-23  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 48, 'SKIPPED_NO_INPUT': 6, 'SKIPPED_CADENCE': 7}
+  questions 543 (+12), selected 1, launched 1, harvested 1, validated 1, ladder {'PARK': 1}, knowledge 0
+  section-47 chains 52, knowledge->decision chains 0
+  > Volatility prediction is currently the highest-value maintained problem, so allocate 33% of research compute there.
+  > Directional discrimination among predicted movers research is currently producing negligible transferable improvement, while loss-regime research has high expected value. Redirect compute.
+  > High-accuracy direction at coverage is gated: no direction signal among predicted movers yet (P3 lower bound 0.00 < 0.2)
+  > No reliable 80% directional region has been found.
+RESEARCH LOOP cycle 46 at 2018-03-30  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 47, 'SKIPPED_NO_INPUT': 7, 'SKIPPED_CADENCE': 7}
+  questions 555 (+12), selected 3, launched 3, harvested 2, validated 2, ladder {'AUDIT': 1, 'PARK': 1}, knowledge 0
+  section-47 chains 53, knowledge->decision chains 0
+  > Volatility prediction is currently the highest-value maintained problem, so allocate 33% of research compute there.
+  > Directional discrimination among predicted movers research is currently producing negligible transferable improvement, while loss-regime research has high expected value. Redirect compute.
+  > High-accuracy direction at coverage is gated: no direction signal among predicted movers yet (P3 lower bound 0.00 < 0.2)
+  > No reliable 80% directional region has been found.
+RESEARCH LOOP cycle 47 at 2018-04-06  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 47, 'SKIPPED_NO_INPUT': 7, 'SKIPPED_CADENCE': 7}
+  questions 567 (+12), selected 1, launched 2, harvested 2, validated 2, ladder {'ADVANCE': 1, 'PARK': 1}, knowledge 0
+  section-47 chains 54, knowledge->decision chains 0
+  > Volatility prediction is currently the highest-value maintained problem, so allocate 33% of research compute there.
+  > Directional discrimination among predicted movers research is currently producing negligible transferable improvement, while loss-regime research has high expected value. Redirect compute.
+  > High-accuracy direction at coverage is gated: no direction signal among predicted movers yet (P3 lower bound 0.00 < 0.2)
+  > No reliable 80% directional region has been found.
+RESEARCH LOOP cycle 48 at 2018-04-13  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 52, 'SKIPPED_NO_INPUT': 7, 'SKIPPED_CADENCE': 2}
+  questions 579 (+12), selected 1, launched 2, harvested 2, validated 2, ladder {'PARK': 1, 'AUDIT': 1}, knowledge 0
+  section-47 chains 55, knowledge->decision chains 0
+  > Volatility prediction is currently the highest-value maintained problem, so allocate 33% of research compute there.
+  > Directional discrimination among predicted movers research is currently producing negligible transferable improvement, while loss-regime research has high expected value. Redirect compute.
+  > High-accuracy direction at coverage is gated: no direction signal among predicted movers yet (P3 lower bound 0.00 < 0.2)
+  > No reliable 80% directional region has been found.
+RESEARCH LOOP cycle 49 at 2018-04-20  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 47, 'SKIPPED_NO_INPUT': 7, 'SKIPPED_CADENCE': 7}
+  questions 591 (+12), selected 1, launched 2, harvested 2, validated 2, ladder {'ADVANCE': 1, 'PARK': 1}, knowledge 0
+  section-47 chains 56, knowledge->decision chains 0
+  > Volatility prediction is currently the highest-value maintained problem, so allocate 33% of research compute there.
+  > Directional discrimination among predicted movers research is currently producing negligible transferable improvement, while loss-regime research has high expected value. Redirect compute.
+  > High-accuracy direction at coverage is gated: no direction signal among predicted movers yet (P3 lower bound 0.00 < 0.2)
+  > No reliable 80% directional region has been found.
+RESEARCH LOOP cycle 50 at 2018-04-27  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 47, 'SKIPPED_NO_INPUT': 7, 'SKIPPED_CADENCE': 7}
+  questions 603 (+12), selected 1, launched 1, harvested 1, validated 1, ladder {'PARK': 1}, knowledge 0
+  section-47 chains 58, knowledge->decision chains 0
+  > Volatility prediction is currently the highest-value maintained problem, so allocate 33% of research compute there.
+  > Directional discrimination among predicted movers research is currently producing negligible transferable improvement, while loss-regime research has high expected value. Redirect compute.
+  > High-accuracy direction at coverage is gated: no direction signal among predicted movers yet (P3 lower bound 0.00 < 0.2)
+  > No reliable 80% directional region has been found.
+RESEARCH LOOP cycle 51 at 2018-05-04  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 47, 'SKIPPED_NO_INPUT': 7, 'SKIPPED_CADENCE': 7}
+  questions 615 (+12), selected 2, launched 2, harvested 2, validated 2, ladder {'AUDIT': 1, 'PARK': 1}, knowledge 0
+  section-47 chains 59, knowledge->decision chains 0
+  > Volatility prediction is currently the highest-value maintained problem, so allocate 33% of research compute there.
+  > Directional discrimination among predicted movers research is currently producing negligible transferable improvement, while loss-regime research has high expected value. Redirect compute.
+  > High-accuracy direction at coverage is gated: no direction signal among predicted movers yet (P3 lower bound 0.00 < 0.2)
+  > No reliable 80% directional region has been found.
+RESEARCH LOOP cycle 52 at 2018-05-11  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 53, 'SKIPPED_NO_INPUT': 7, 'SKIPPED_CADENCE': 1}
+  questions 627 (+12), selected 1, launched 2, harvested 2, validated 2, ladder {'ADVANCE': 1, 'PARK': 1}, knowledge 0
+  section-47 chains 60, knowledge->decision chains 0
+  > Volatility prediction is currently the highest-value maintained problem, so allocate 33% of research compute there.
+  > Directional discrimination among predicted movers research is currently producing negligible transferable improvement, while loss-regime research has high expected value. Redirect compute.
+  > High-accuracy direction at coverage is gated: no direction signal among predicted movers yet (P3 lower bound 0.00 < 0.2)
+  > No reliable 80% directional region has been found.
+RESEARCH LOOP cycle 53 at 2018-05-18  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 47, 'SKIPPED_NO_INPUT': 7, 'SKIPPED_CADENCE': 7}
+  questions 639 (+12), selected 1, launched 2, harvested 3, validated 3, ladder {'ADVANCE': 1, 'AUDIT': 2}, knowledge 0
+  section-47 chains 62, knowledge->decision chains 0
+  > Volatility prediction is currently the highest-value maintained problem, so allocate 33% of research compute there.
+  > Directional discrimination among predicted movers research is currently producing negligible transferable improvement, while loss-regime research has high expected value. Redirect compute.
+  > High-accuracy direction at coverage is gated: no direction signal among predicted movers yet (P3 lower bound 0.00 < 0.2)
+  > No reliable 80% directional region has been found.
+RESEARCH LOOP cycle 54 at 2018-05-25  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 48, 'SKIPPED_NO_INPUT': 6, 'SKIPPED_CADENCE': 7}
+  questions 651 (+12), selected 1, launched 3, harvested 3, validated 3, ladder {'AUDIT': 1, 'ADVANCE': 1, 'COMPLETE': 1}, knowledge 0
+  section-47 chains 63, knowledge->decision chains 0
+  > Volatility prediction is currently the highest-value maintained problem, so allocate 33% of research compute there.
+  > Directional discrimination among predicted movers research is currently producing negligible transferable improvement, while loss-regime research has high expected value. Redirect compute.
+  > High-accuracy direction at coverage is gated: no direction signal among predicted movers yet (P3 lower bound 0.00 < 0.2)
+  > No reliable 80% directional region has been found.
+RESEARCH LOOP cycle 55 at 2018-06-01  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 47, 'SKIPPED_NO_INPUT': 7, 'SKIPPED_CADENCE': 7}
+  questions 663 (+12), selected 1, launched 4, harvested 3, validated 3, ladder {'ADVANCE': 1, 'AUDIT': 2}, knowledge 0
+  section-47 chains 65, knowledge->decision chains 0
+  > Volatility prediction is currently the highest-value maintained problem, so allocate 33% of research compute there.
+  > Directional discrimination among predicted movers research is currently producing negligible transferable improvement, while loss-regime research has high expected value. Redirect compute.
+  > High-accuracy direction at coverage is gated: no direction signal among predicted movers yet (P3 lower bound 0.00 < 0.2)
+  > No reliable 80% directional region has been found.
+RESEARCH LOOP cycle 56 at 2018-06-08  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 52, 'SKIPPED_NO_INPUT': 7, 'SKIPPED_CADENCE': 2}
+  questions 675 (+12), selected 1, launched 4, harvested 4, validated 4, ladder {'AUDIT': 1, 'ADVANCE': 2, 'PARK': 1}, knowledge 0
+  section-47 chains 67, knowledge->decision chains 0
+  > Volatility prediction is currently the highest-value maintained problem, so allocate 33% of research compute there.
+  > Directional discrimination among predicted movers research is currently producing negligible transferable improvement, while loss-regime research has high expected value. Redirect compute.
+  > High-accuracy direction at coverage is gated: no direction signal among predicted movers yet (P3 lower bound 0.00 < 0.2)
+  > No reliable 80% directional region has been found.
+RESEARCH LOOP cycle 57 at 2018-06-15  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 47, 'SKIPPED_NO_INPUT': 7, 'SKIPPED_CADENCE': 7}
+  questions 687 (+12), selected 1, launched 2, harvested 2, validated 2, ladder {'ADVANCE': 1, 'AUDIT': 1}, knowledge 0
+  section-47 chains 71, knowledge->decision chains 0
+  > Volatility prediction is currently the highest-value maintained problem, so allocate 33% of research compute there.
+  > Directional discrimination among predicted movers research is currently producing negligible transferable improvement, while loss-regime research has high expected value. Redirect compute.
+  > High-accuracy direction at coverage is gated: no direction signal among predicted movers yet (P3 lower bound 0.00 < 0.2)
+  > No reliable 80% directional region has been found.
+RESEARCH LOOP cycle 58 at 2018-06-22  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 47, 'SKIPPED_NO_INPUT': 7, 'SKIPPED_CADENCE': 7}
+  questions 699 (+12), selected 1, launched 3, harvested 3, validated 3, ladder {'REPEAT': 1, 'ADVANCE': 1, 'AUDIT': 1}, knowledge 0
+  section-47 chains 72, knowledge->decision chains 0
+  > Volatility prediction is currently the highest-value maintained problem, so allocate 33% of research compute there.
+  > Directional discrimination among predicted movers research is currently producing negligible transferable improvement, while loss-regime research has high expected value. Redirect compute.
+  > High-accuracy direction at coverage is gated: no direction signal among predicted movers yet (P3 lower bound 0.00 < 0.2)
+  > No reliable 80% directional region has been found.
+RESEARCH LOOP cycle 59 at 2018-06-29  [IMPLEMENTED - NOT VALIDATED]
+  stages: {'OK': 48, 'SKIPPED_NO_INPUT': 6, 'SKIPPED_CADENCE': 7}
+  questions 711 (+12), selected 1, launched 3, harvested 3, validated 3, ladder {'AUDIT': 2, 'ADVANCE': 1}, knowledge 0
+  section-47 chains 74, knowledge->decision chains 0
+  > Volatility prediction is currently the highest-value maintained problem, so allocate 33% of research compute there.
+  > Directional discrimination among predicted movers research is currently producing negligible transferable improvement, while loss-regime research has high expected value. Redirect compute.
+  > High-accuracy direction at coverage is gated: no direction signal among predicted movers yet (P3 lower bound 0.00 < 0.2)
+  > No reliable 80% directional region has been found.
+{"cycles": 60, "seconds": 2449.0, "questions": 711, "knowledge": 0, "section47_chains": 74, "knowledge_chains": 0, "counters": {"questions_generated": 711, "questions_merged": 735, "audits_cleared": 36, "graph_tests": 114, "science_folded": 0, "stale_abandoned": 42, "duplicate_designs": 11, "tree_results": 33, "held_for_fresh_data": 2, "control_failures": 1, "released_from_hold": 2, "gate_retired_after_looks": 1}}
+[research_loop] run record: {'run_id': 'research_loop_w12_planted_persisted_20260930T015015856233', 'bundle': 'C:\\Users\\Peter\\weekly7\\state\\checkpoints\\research_loop_w12_planted_persisted_20260930T015015856233', 'report_json': 'C:\\Users\\Peter\\weekly7\\state\\reports\\runs\\research_loop_w12_planted_persisted_20260930T015015856233.json', 'report_txt': 'C:\\Users\\Peter\\weekly7\\state\\reports\\runs\\research_loop_w12_planted_persisted_20260930T015015856233.txt', 'decision': 'CONTINUE TESTING'}

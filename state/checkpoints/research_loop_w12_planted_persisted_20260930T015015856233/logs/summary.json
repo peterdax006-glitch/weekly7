@@ -1,0 +1,22 @@
+{
+ "cycles": 60,
+ "seconds": 2449.0,
+ "questions": 711,
+ "knowledge": 0,
+ "section47_chains": 74,
+ "knowledge_chains": 0,
+ "counters": {
+  "questions_generated": 711,
+  "questions_merged": 735,
+  "audits_cleared": 36,
+  "graph_tests": 114,
+  "science_folded": 0,
+  "stale_abandoned": 42,
+  "duplicate_designs": 11,
+  "tree_results": 33,
+  "held_for_fresh_data": 2,
+  "control_failures": 1,
+  "released_from_hold": 2,
+  "gate_retired_after_looks": 1
+ }
+}
