@@ -18,6 +18,11 @@ calls engine.learning.promotion). Nothing here promotes anything by itself.
     gate_fixes / step      turn each fix's measured evidence into quality_gate evidence (OOS, statistics, reproducibility,
                            point-in-time inputs), merge it with the caller's audits (leak, identity, replication, risk ...) and let
                            QualityGate decide. Missing audits mean NEEDS_MORE_EVIDENCE, never a pass.
+    full_fix_evidence      (F11, W-06) every other gate's evidence MEASURED from the fix's own rows: identity harness on the fix's
+                           adjustment, the leak audit (evidence.leakage -> firewalls), replication on the stock half it never saw with
+                           a shuffled-outcome control, its derived band probability, the book it would select (risk), complexity
+                           against the incumbent, transfer across eras, failure behaviour. `step(..., evidence=FixEvidenceConfig())`.
+    slope_fix              a fix for a slope that differs in one stock type (one within-group interaction, searched honestly).
 
 Frame contract (one row per matured prediction; research side): `date` decision date, `matured_at` outcome date, `predicted`,
 `realised`; optional f_* model features, u_* available-but-unused features, m_* market context, `regime`, `sector`, `selected`,
@@ -623,6 +628,9 @@ class FixEvidenceConfig:
     noise_alpha: float = 0.05             # family-wise level of the 'sampling noise' explanation of a failure week
     screen_t: float = 1.64                # evidence ladder (C66 section 18): only a fix whose OOS screen passes gets the costly audits
     retirement_trigger: bool = False      # the CALLER monitors a promoted fix and rolls it back (declared by the loop that does it)
+    states_probabilities: bool = False    # True = the fix's own P(in band) is judged by the calibration gate. A point-forecast fix
+                                          # states no probability (the band probability stays the gain model's, from its residuals);
+                                          # its derived P(in band) is still measured and reported (parts: brier_fix vs incumbent)
     seed: int = 0
 
     def validate(self) -> list[str]:
@@ -951,8 +959,8 @@ def full_fix_evidence(r: FixResult, fix: CandidateFix, frame: pd.DataFrame, now,
     cx = fix_complexity(fix, P, ec)
     fe, p = fix_failure(fix, r, P, train, test, rk.worst_period if rk is not None else None, ec)
     parts.update(p)
-    just = ("oos_transfer",) + (("replication",) if repl is not None else ()) + (("calibration",) if cal is not None else ())
-    out = dataclasses.replace(ev, leak=leak, identity=ident, replication=repl, outputs_probabilities=True, calibration=cal,
+    just = ("oos_transfer",) + (("replication",) if repl is not None else ()) + (("calibration",) if cal is not None and ec.states_probabilities else ())
+    out = dataclasses.replace(ev, leak=leak, identity=ident, replication=repl, outputs_probabilities=bool(ec.states_probabilities), calibration=cal,
                               changes_risk_decisions=True, risk=rk, complexity=cx, transfer=tev, failure=fe, justification=just)
     return FixBundle(fix.name, out, parts, missing, full=True)
 

@@ -35,7 +35,7 @@ from scipy import stats as sps
 
 from engine.learning.research_priority import identity_leak
 from engine.learning.research_policy import ComputeBudget, ResearchTarget
-from engine.learning.surprise import continuous_z, surprise_bits, surprise_half_life
+from engine.learning.surprise import benjamini_hochberg, continuous_z, surprise_bits, surprise_half_life
 from engine.research import priority as P
 from engine.research.core import (ExperimentValue, FirewallBreach, Knowability, Namespace, Problem, ResearchQuestion, require_past,
                                   stable_hash)
@@ -116,6 +116,7 @@ class ErrorConfig:
     barren_floor: float = 0.05
     self_min_n: int = 12
     self_alpha: float = 0.10
+    fdr_q: float = 0.10                 # Benjamini-Hochberg level across ALL groups tested at once (the error-pattern family)
 
     def check(self) -> list:
         errs = []
@@ -449,18 +450,33 @@ class ErrorPatternBook:
         return group_stats(group, self.records(now, group), self.cfg)
 
     def all_stats(self, now) -> dict:
+        """Every group's pattern test, with the multiplicity across groups controlled (F11): every lens of every record is tested
+        at once (patterns, sectors, regimes, stock types, pattern x regime, all - typically 20-30 groups), so a group's t beyond t0
+        and a lucky sign run happened in 17 of 40 pure-noise books of 36 records. A group stays systematic only if its t-test p
+        survives Benjamini-Hochberg over the whole family at cfg.fdr_q; otherwise it is neutral (multiplier exactly 1.0)."""
+        key = (str(now), len(self._obs))
+        if getattr(self, "_cache_key", None) == key:
+            return dict(self._cache)
         recs = self.records(now)
         by: dict = {}
         for o in recs:
             for g in o.groups():
                 by.setdefault(g, []).append(o)
-        return {g: group_stats(g, v, self.cfg) for g, v in sorted(by.items())}
+        raw = {g: group_stats(g, v, self.cfg) for g, v in sorted(by.items())}
+        tested = [g for g, st in raw.items() if st.n >= self.cfg.min_n]
+        keep = benjamini_hochberg([float(2.0 * sps.t.sf(abs(raw[g].t), raw[g].n - 1)) for g in tested], self.cfg.fdr_q) if tested else []
+        survive = {g for g, k in zip(tested, keep) if k}
+        out = {g: (st if g in survive or not st.systematic else dataclasses.replace(st, evidence=0.0, multiplier=1.0, kind=BiasKind.NONE))
+               for g, st in raw.items()}
+        self._cache_key, self._cache = key, out
+        return dict(out)
 
     def escalation(self, o: ErrorObs, now) -> tuple:
         """(largest multiplier over the groups this error belongs to, the GroupStats that produced it)."""
+        fam = self.all_stats(now)
         best = None
         for g in o.groups():
-            gs = self.stats(now, g)
+            gs = fam.get(g) or self.stats(now, g)
             if best is None or gs.multiplier > best.multiplier:
                 best = gs
         return (best.multiplier if best else 1.0), best

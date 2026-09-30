@@ -1,0 +1,18 @@
+{
+ "planted": {
+  "n": 1,
+  "promote_rate": 1.0,
+  "promoted_seeds": [
+   0
+  ],
+  "any_other_fix_promoted": 0,
+  "rollback_rate": 0.0,
+  "first_promote": [
+   "2019-07-05"
+  ],
+  "last_verdicts": {
+   "FAILED": 1
+  },
+  "stage_failures": 0
+ }
+}

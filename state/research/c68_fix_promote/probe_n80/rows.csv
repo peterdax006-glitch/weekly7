@@ -1,0 +1,2 @@
+kind,seed,world,cycles,seconds,validations,promoted_sector_slope,first_promote,promote_count,promoted_other,applied,rolled_back,retired,final_production,last_verdict,last_blocking,last_effect,last_t,picked_weak_sector_share,monitor_min_t,stage_failures,weak_sector,flip_date
+planted,0,planted,177,889.3,43,1,2019-07-05,1,,1,0,{},sector_slope,FAILED,out_of_sample,-0.00020053392615979626,-0.9502936134833845,0.9767441860465116,1.3711197685165992,,SEC1,

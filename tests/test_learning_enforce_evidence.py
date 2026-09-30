@@ -185,6 +185,42 @@ def test_a_valid_card_is_registered_once_per_tick(planted_book):
     assert L.evidence_log[-1]["allowed"] is True and L.evidence_log[-1]["blockers"] == []
 
 
+def _decay_book(decays: bool):
+    rng = np.random.default_rng(0)
+    rows = []
+    for w, d in enumerate(pd.date_range("2009-01-02", periods=260, freq="W-FRI")):
+        f, g, mkt = rng.standard_normal(40), rng.standard_normal(40), rng.normal(0, 0.02)
+        b2 = 0.02 * (max(0.0, min(1.0, (156 - w) / 52)) if decays else 1.0)
+        raw = mkt + 0.02 * (f > 0.84) + b2 * (g > 0.84) + rng.normal(0, 0.05, 40)
+        mark = (f > 0.84) | (g > 0.84)
+        rows += [LN._BookRow(str(d.date()), str((d + pd.Timedelta(days=7)).date()), f"T{i}", "x", 0.01 if mark[i] else None, 0.02,
+                             float(raw[i] - raw.mean()), float(raw[i])) for i in range(40)]
+    return rows
+
+
+def test_a_decayed_item_left_in_the_book_reads_as_memorisation_to_the_gate():
+    """What blocked most 5-year enforce seeds (not_memoriser): an item that died in year 3 but kept voting makes replay on the early
+    years beat the held-out later years.  Kept here as a planted case; the book now drops items the ledger has parked."""
+    blocked = []
+    for decays in (False, True):
+        L, now = learner_with(_decay_book(decays))
+        d = SC.gate_improvement_claim(L.evidence_card(now))
+        blocked.append("not_memoriser" in [c.name for c in d.checks if c.blocking and not c.ok])
+    assert blocked == [False, True]
+
+
+def test_the_book_counts_only_items_the_ledger_lets_carry_weight():
+    from engine.learning import retrieval as RV
+    L = T.new_learner()
+    for kid in ("K-live", "K-parked"):
+        L.retirement.register(kid, "2009-01-02")
+    L.retirement.transition("K-parked", RT.State.DORMANT, "2009-03-06", "DORMANT", "planted")
+    items = tuple(RV.RetrievedItem(k, 1, 0.9, 0.9, (), (), (), expected_edge=0.01, expected_n=10) for k in ("K-live", "K-parked", "K-unknown"))
+    ret = RV.Retrieval("r", "s", items, (), None, None, "w")
+    assert [i.knowledge_id for i in L._book_items(ret, "2009-06-01")] == ["K-live"]
+    assert L._book_items(dataclasses.replace(ret, items=()), "2009-06-01") == ()
+
+
 def test_the_shadow_book_is_written_before_outcomes_and_never_by_a_frozen_learner():
     w = PW.make_world(T.mini_spec(14, 30), seed=2)
     L = T.run(T.new_learner(), LN.WorldFeed(w), range(len(w.dates)))

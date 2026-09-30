@@ -30,7 +30,9 @@ input audit). One cycle, in loop order:
   QUESTIONS         c68.research_depth     after questions.generate: the depth multipliers (unknowable / barren cells) are applied to
                                            the loop's OWN priority state, so tiny and unknowable errors stay cheap
   LEARN             c68.validate_promote   self_correct: each candidate fix tested ALONE out of sample and gated by the existing quality
-                                           gate; only a PROMOTE verdict changes the production learner; promoted fixes are monitored
+                                           gate on its FULL measured evidence (F11); only a PROMOTE verdict changes the production
+                                           learner; a promoted fix is monitored against the incumbent kept in the shadow and rolled
+                                           back (and retired) when it does significantly worse
   PRIORITIES        c68.monitor_audit      every ledger verified against anchors held OUTSIDE it (a rewrite is REFUSED_LEAK), the honest
                                            +-1pp report (calibration_target.evaluate, the canonical statistic), exit-independence audit,
                                            identification curve, a persisted cycle report
@@ -1547,7 +1549,12 @@ def st_error_research(ctx: LP.Ctx) -> tuple:
     rqs = ctx.bus.setdefault("research_questions", [])
     by_obs = dict(st.er.intensities)
     book = st.er.book.records(ctx.now)
-    ranked = sorted(rep.items, key=lambda i: (-float(i.value.decision_value or 0.0), i.item_id))[: cfg.max_events]
+    # an escalated error PATTERN is always asked (F11: 36 single confident errors filled all 12 slots and crowded out the one job that
+    # said they were the same error); single errors fill the remaining slots, largest decision value first
+    pats = [i for i in rep.items if i.family == "error_research/pattern"]
+    rest = sorted((i for i in rep.items if i.family != "error_research/pattern"), key=lambda i: (-float(i.value.decision_value or 0.0), i.item_id))
+    ranked = sorted(pats, key=lambda i: i.item_id) + rest[: max(0, cfg.max_events - len(pats))]
+    esc = {g.group: g for g in rep.escalated}
     n_ev = 0
     for item in ranked:
         cell = st.er.item_cells.get(item.item_id, "all")
@@ -1556,8 +1563,22 @@ def st_error_research(ctx: LP.Ctx) -> tuple:
         its = [by_obs[o] for o in obs if o in by_obs]
         mag = max([_magnitude(i, cfg.research_cfg) for i in its], default=float(min(1.0, (item.value.decision_value or 0.0))))
         cw = any(i.confident_wrong for i in its) or item.family.endswith("confident_wrong")
+        extra = {}
+        gs = esc.get(cell) if item.family == "error_research/pattern" else None
+        if gs is not None:
+            # checklist S / PC12: a repeated error is a standing loss, not one surprise - its stake, the share of the book it touches
+            # and its persistence grow with the pattern's escalation multiplier, so the EXISTING priority engine ranks it higher
+            lm = math.log(max(gs.multiplier, 1.0))
+            # share of the book's absolute error (over the group's own window of time) that is this group's systematic bias
+            since = min(o.matured_at for o in st.er.book.records(ctx.now, gs.group)[-max(gs.n, 1):])
+            mass = abs(gs.mean_realised - gs.mean_expected) * gs.n / max(sum(abs(o.error) for o in book if o.matured_at >= since), 1e-12)
+            extra = {"stake": float(min(1.0, 0.3 + mag + 0.15 * lm)), "loss_share": float(min(1.0, mass)),
+                     "persistence": float(min(0.95, 0.6 + 0.15 * lm)), "p_isolate": 0.7,
+                     "contexts": {"lens": gs.group, "multiplier": f"{gs.multiplier:.2f}", "kind": gs.kind.value,
+                                  "aliases": str(len(gs.aliases))}}
         ev = Q.QuestionEvent("loss" if cw else "surprise", subject, str(item.created), float(min(1.0, max(0.0, mag))),
-                             stake=float(min(1.0, 0.3 + mag)), problem=item.problem, n_obs=len(obs), detail=f"{item.family} {'/'.join(item.tags)}")
+                             stake=float(extra.pop("stake", min(1.0, 0.3 + mag))), problem=item.problem, n_obs=len(obs),
+                             detail=f"{item.family} {'/'.join(item.tags)}", **extra)
         events.append(ev)
         st.cells[subject] = cell
         st.subject_pids[subject] = sorted(set(st.subject_pids.get(subject, [])) | set(obs))

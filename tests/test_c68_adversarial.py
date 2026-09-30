@@ -468,8 +468,8 @@ def test_z20_the_learner_improves_only_when_evidence_justifies_improvement(run, 
     real = SCX.step
 
     def gate_says(promote):
-        def fake(frame, fixes, now, base=None, policy=None, cfg=SCX.SelfCorrectConfig(), only_if_deteriorated=False):
-            rep = real(frame, fixes, now, base, policy, cfg)
+        def fake(frame, fixes, now, base=None, policy=None, cfg=SCX.SelfCorrectConfig(), only_if_deteriorated=False, **kw):
+            rep = real(frame, fixes, now, base, policy, cfg, **kw)
             return dataclasses.replace(rep, promoted=tuple(promote), rejected={k: v for k, v in rep.rejected.items() if k not in promote})
         return fake
     monkeypatch.setattr(SCX, "step", gate_says(["placebo_noise"]))                     # even a (planted) gate pass of the placebo ...
@@ -481,9 +481,11 @@ def test_z20_the_learner_improves_only_when_evidence_justifies_improvement(run, 
     st2.production["since"] = str((pd.Timestamp(state.now) - pd.Timedelta(days=90)).date())
     worse = EL.correction_frame(st2, state.now)
     late = pd.to_datetime(worse["date"]) >= pd.Timestamp(st2.production["since"])
+    worse["shadow"] = worse["realised"] + 0.01                                           # the incumbent, kept forecasting in the shadow
     worse.loc[late, "predicted"] = worse.loc[late, "realised"] + 0.2                     # the promoted learner then does much worse
     assert EL._monitor(st2, worse, state.now, EL.open_ledgers(rt.root, None, st2.cfg, "x")) == 1
-    assert st2.production["name"] == "incumbent"                                         # monitoring rolled it back
+    assert st2.production["name"] == "incumbent" and EL._retired(st2)["recency_refit"]   # rolled back and retired (F11: the REAL
+    # promote-on-evidence and rollback paths are proven in tests/test_c68_fix_promote.py; this one forces the verdict on purpose)
 
 
 # ============================================================================================================ Z1 (the medium)

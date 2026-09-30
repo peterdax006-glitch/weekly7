@@ -12,8 +12,10 @@
   "outcomes": 0,
   "errors": 0,
   "commitments": 0,
-  "pipeline_events": 0,
-  "pipeline_furthest": {}
+  "pipeline_events": 944,
+  "pipeline_furthest": {
+   "REJECTED": 236
+  }
  },
  "calibration": {
   "now": "2017-05-12",

@@ -734,10 +734,18 @@ class LegitimateLearner:
         scale = float(self.surprise.scale_at(ep.now)[0])
         for r in ep.rows:
             r.booked, r.book_scale = True, scale
-            if r.shadow is not None and r.shadow.items:
-                r.book_exp = RV.combine(r.shadow, self.index)["expected"]
+            live = self._book_items(r.shadow, ep.now) if r.shadow is not None else ()
+            if live:
+                r.book_exp = RV.combine(dataclasses.replace(r.shadow, items=live), self.index)["expected"]
             elif r.decision is not None and r.decision.knowledge_ids:
                 r.book_exp = r.expected
+
+    def _book_items(self, retrieval: RV.Retrieval, now) -> tuple:
+        """The shadow items the book may count: those the learner's own retirement ledger still lets carry weight (influence > 0).
+        F10 found on the 5-year runs that a parked (DORMANT) decayed item kept voting in the book; its early-year value against its
+        dead later years then reads to the claim gate as a positive memorisation gap (reproduced on a synthetic book).  The book is
+        what the learner would hold, and it would not hold a parked item."""
+        return tuple(i for i in retrieval.items if self.retirement.influence(i.knowledge_id, now) > 0.0)
 
     def _register_predictions(self, ep: _Episode) -> None:
         for r in ep.rows:
@@ -1234,7 +1242,9 @@ class LegitimateLearner:
             self.evidence_log.append({"tick": self._tick, "now": str(as_date(now)), "valid": not errs, "why": self._evidence[2],
                                       "allowed": None if dec is None else dec.allowed, "blockers": [] if dec is None else
                                       [c.name for c in dec.checks if c.blocking and not c.ok],
-                                      "untested": [] if card is None else card.untested_fields()})
+                                      "untested": [] if card is None else card.untested_fields(),
+                                      "gaps": None if card is None else {f: [getattr(card, f).value, getattr(card, f).lo, getattr(card, f).hi]
+                                                                         for f in ("learning_gain", "memorization_gap", "identity_gap")}})
             del self.evidence_log[:-200]
         own = self._evidence[1] if self._evidence[1] is not None else self.hooks.valid_card
         if own is not None:

@@ -1,14 +1,16 @@
 {
  "seed": 0,
  "world": "default",
- "code_hash": "816cc233c3ccf921",
+ "code_hash": "be1414a816a6c370",
  "resume": "START_FRESH",
  "cycles": [
   {
    "cycle": 0,
    "now": "2017-05-12",
    "knowledge": [],
-   "failed": {},
+   "failed": {
+    "run.experiments": "ComputeError: attempt directory C:\\Users\\Peter\\weekly7\\state\\research\\regate_sequential\\f12_default_s0\\compute\\out\\760ff256cee215d11a77\\attempt_01 exists: two attempts must never share a folder at compute.py:468"
+   },
    "counters": {}
   },
   {
@@ -22,14 +24,18 @@
    "cycle": 2,
    "now": "2017-05-26",
    "knowledge": [],
-   "failed": {},
+   "failed": {
+    "run.experiments": "ComputeError: attempt directory C:\\Users\\Peter\\weekly7\\state\\research\\regate_sequential\\f12_default_s0\\compute\\out\\0dcc36b6042dff7973c0\\attempt_01 exists: two attempts must never share a folder at compute.py:468"
+   },
    "counters": {}
   },
   {
    "cycle": 3,
    "now": "2017-06-02",
    "knowledge": [],
-   "failed": {},
+   "failed": {
+    "run.experiments": "ComputeError: attempt directory C:\\Users\\Peter\\weekly7\\state\\research\\regate_sequential\\f12_default_s0\\compute\\out\\19c0d42968cc893b65f2\\attempt_01 exists: two attempts must never share a folder at compute.py:468"
+   },
    "counters": {}
   },
   {
@@ -80,10 +86,210 @@
    "knowledge": [],
    "failed": {},
    "counters": {}
+  },
+  {
+   "cycle": 11,
+   "now": "2017-07-28",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 12,
+   "now": "2017-08-04",
+   "knowledge": [],
+   "failed": {
+    "run.experiments": "ComputeError: attempt directory C:\\Users\\Peter\\weekly7\\state\\research\\regate_sequential\\f12_default_s0\\compute\\out\\03421e816b6bd999ea87\\attempt_01 exists: two attempts must never share a folder at compute.py:468"
+   },
+   "counters": {}
+  },
+  {
+   "cycle": 13,
+   "now": "2017-08-11",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 14,
+   "now": "2017-08-18",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 15,
+   "now": "2017-08-25",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 16,
+   "now": "2017-09-01",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 17,
+   "now": "2017-09-08",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 18,
+   "now": "2017-09-15",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 19,
+   "now": "2017-09-22",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 20,
+   "now": "2017-09-29",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 21,
+   "now": "2017-10-06",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 22,
+   "now": "2017-10-13",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 23,
+   "now": "2017-10-20",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 24,
+   "now": "2017-10-27",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 25,
+   "now": "2017-11-03",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 26,
+   "now": "2017-11-10",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 27,
+   "now": "2017-11-17",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 28,
+   "now": "2017-11-24",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 29,
+   "now": "2017-12-01",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 30,
+   "now": "2017-12-08",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 31,
+   "now": "2017-12-15",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 32,
+   "now": "2017-12-22",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 33,
+   "now": "2017-12-29",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 34,
+   "now": "2018-01-05",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 35,
+   "now": "2018-01-12",
+   "knowledge": [],
+   "failed": {
+    "run.experiments": "ComputeError: attempt directory C:\\Users\\Peter\\weekly7\\state\\research\\regate_sequential\\f12_default_s0\\compute\\out\\3d3a480de0c26e2eefe9\\attempt_01 exists: two attempts must never share a folder at compute.py:468"
+   },
+   "counters": {}
+  },
+  {
+   "cycle": 36,
+   "now": "2018-01-19",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 37,
+   "now": "2018-01-26",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 38,
+   "now": "2018-02-02",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
   }
  ],
  "provenance": {
-  "code_hash": "816cc233c3ccf921",
+  "code_hash": "be1414a816a6c370",
   "code_files": [
    "engine/__init__.py",
    "engine/analogs.py",
@@ -175,7 +381,7 @@
    "engine/stops.py"
   ],
   "code_mixed": [],
-  "git_commit": "b61d419be9b40a8d224514cdbd3b6b6f78a307f5+dirty",
+  "git_commit": "6c6f40ec2e95f7764dacc9be9c796ace42ff52ca+dirty",
   "canon_sha": "fef7cdf0a1501c3d",
   "bible_sha": "a97ea91862cee371",
   "blueprint_version": "4.0",
@@ -183,9 +389,36 @@
   "data_snapshot": "171ba8ba728ee713",
   "seed": 0
  },
- "gates": {},
+ "gates": {
+  "DBR44ef231394d2": {
+   "feature": "lv20",
+   "verdict": "FAILED",
+   "looks": 1,
+   "retired": "",
+   "history": [
+    {
+     "look": 1,
+     "cycle": 31,
+     "at": "2017-12-15",
+     "verdict": "FAILED",
+     "alpha": 0.03039635509270134,
+     "n_test": 62,
+     "blocking": [
+      "complexity",
+      "failure_behavior",
+      "out_of_sample"
+     ]
+    }
+   ],
+   "blocking": {
+    "out_of_sample": "FAIL: only 1 unseen calendar year(s) in the OOS evidence (need 2): same-year improvement is inte",
+    "complexity": "FAIL: the simpler rule does as well (SIMPLE): complexity has not earned its place: only 2 folds:",
+    "failure_behavior": "MISSING: only 0 failure episodes studied (< 5)"
+   }
+  }
+ },
  "knowledge": {},
- "seconds": 166.6,
+ "seconds": 2350.6,
  "truth": {
   "genuine": [
    "lv20",
@@ -204,4 +437,13 @@
    "ev_days"
   ],
   "noise": [
-   "price_
+   "price_low"
+  ],
+  "noise_family": [
+   "price_low",
+   "dv_level",
+   "dv_rel",
+   "insider_recent"
+  ]
+ }
+}
