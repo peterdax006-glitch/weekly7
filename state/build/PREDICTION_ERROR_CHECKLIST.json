@@ -829,18 +829,22 @@
    "group": "ADVERSARIAL TEST",
    "description": "the learner improves only when evidence justifies improvement",
    "owner": "Claude",
-   "status": "IN_PROGRESS",
+   "status": "IMPLEMENTED",
    "code_paths": [
     "engine/research/error_loop.py",
+    "engine/research/error_research.py",
     "engine/research/self_correct.py"
    ],
    "tests": [
     "tests/test_c68_adversarial.py",
+    "tests/test_c68_fix_promote.py",
     "tests/test_research_error_loop.py"
    ],
-   "evidence": [],
-   "notes": "IN_PROGRESS (P06, 29 Sep): promote/rollback paths tested only by forcing the gate verdict; no fix reached PROMOTE on its own evidence yet.",
-   "last_run": "2026-09-29T19:09:49",
+   "evidence": [
+    "state/research/c68_fix_promote/f11_rates_n60"
+   ],
+   "notes": "IMPLEMENTED - NOT VALIDATED (F11, 30 Sep): planted fix promoted by the real gate on its own evidence 3/6 seeds, null twin 0/6 (FAILED out_of_sample at all 43 checks), flip 3/4 with both pre-flip promotions rolled back 5-6 months after; escalation on pattern and 'all' lenses with BH 0.10 (~10/100 noise books). Weak: flip seed 0 promoted on stale evidence and not rolled back. Planted only (C63). | earlier: IN_PROGRESS (P06, 29 Sep): promote/rollback paths tested only by forcing the gate verdict; no fix reached PROMOTE on its own evidence yet.",
+   "last_run": "2026-09-30T00:21:46",
    "code_hash": "c53be43f67f8c296"
   },
   {
@@ -971,22 +975,44 @@
    "group": "COMPLETION",
    "description": "Confident failures trigger deeper investigation.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
-   "notes": ""
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/research/error_loop.py",
+    "engine/research/error_research.py",
+    "engine/research/self_correct.py"
+   ],
+   "tests": [
+    "tests/test_c68_adversarial.py",
+    "tests/test_c68_fix_promote.py"
+   ],
+   "evidence": [
+    "state/research/c68_fix_promote/f11_rates_n60"
+   ],
+   "notes": "IMPLEMENTED - NOT VALIDATED (F11, 30 Sep): planted fix promoted by the real gate on its own evidence 3/6 seeds, null twin 0/6 (FAILED out_of_sample at all 43 checks), flip 3/4 with both pre-flip promotions rolled back 5-6 months after; escalation on pattern and 'all' lenses with BH 0.10 (~10/100 noise books). Weak: flip seed 0 promoted on stale evidence and not rolled back. Planted only (C63).",
+   "last_run": "2026-09-30T00:21:46",
+   "code_hash": "c53be43f67f8c296"
   },
   {
    "id": "PC12",
    "group": "COMPLETION",
    "description": "Repeated errors produce escalating research priority.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
-   "notes": ""
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "engine/research/error_loop.py",
+    "engine/research/error_research.py",
+    "engine/research/self_correct.py"
+   ],
+   "tests": [
+    "tests/test_c68_adversarial.py",
+    "tests/test_c68_fix_promote.py"
+   ],
+   "evidence": [
+    "state/research/c68_fix_promote/f11_rates_n60"
+   ],
+   "notes": "IMPLEMENTED - NOT VALIDATED (F11, 30 Sep): planted fix promoted by the real gate on its own evidence 3/6 seeds, null twin 0/6 (FAILED out_of_sample at all 43 checks), flip 3/4 with both pre-flip promotions rolled back 5-6 months after; escalation on pattern and 'all' lenses with BH 0.10 (~10/100 noise books). Weak: flip seed 0 promoted on stale evidence and not rolled back. Planted only (C63).",
+   "last_run": "2026-09-30T00:21:46",
+   "code_hash": "c53be43f67f8c296"
   },
   {
    "id": "PC13",
