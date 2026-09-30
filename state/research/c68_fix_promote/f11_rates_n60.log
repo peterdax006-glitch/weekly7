@@ -1,0 +1,48 @@
+{"kind": "planted", "seed": 0, "world": "planted", "cycles": 177, "seconds": 1187.6, "validations": 43, "promoted_sector_slope": 1, "first_promote": "2020-01-17", "promote_count": 2, "promoted_other": "", "applied": 1, "rolled_back": 0, "retired": "{}", "final_production": "sector_slope", "last_verdict": "NEEDS_MORE_EVIDENCE", "last_blocking": "complexity,replication", "last_effect": 0.0009738944055652207, "last_t": 5.52136182936915, "picked_weak_sector_share": 1.0, "monitor_min_t": 2.7454327340675815, "stage_failures": "", "weak_sector": "SEC1", "flip_date": null}
+{"kind": "planted", "seed": 1, "world": "planted", "cycles": 177, "seconds": 1055.5, "validations": 43, "promoted_sector_slope": 0, "first_promote": null, "promote_count": 0, "promoted_other": "", "applied": 0, "rolled_back": 0, "retired": "{}", "final_production": "incumbent", "last_verdict": "NEEDS_MORE_EVIDENCE", "last_blocking": "replication", "last_effect": 0.001059996740402764, "last_t": 6.710912447081989, "picked_weak_sector_share": 1.0, "monitor_min_t": null, "stage_failures": "", "weak_sector": "SEC1", "flip_date": null}
+{"kind": "planted", "seed": 2, "world": "planted", "cycles": 177, "seconds": 1056.0, "validations": 43, "promoted_sector_slope": 0, "first_promote": null, "promote_count": 0, "promoted_other": "", "applied": 0, "rolled_back": 0, "retired": "{}", "final_production": "incumbent", "last_verdict": "FAILED", "last_blocking": "risk", "last_effect": 0.0011642914789787794, "last_t": 6.580421199573915, "picked_weak_sector_share": 1.0, "monitor_min_t": null, "stage_failures": "", "weak_sector": "SEC1", "flip_date": null}
+{"kind": "planted", "seed": 3, "world": "planted", "cycles": 177, "seconds": 1150.4, "validations": 43, "promoted_sector_slope": 1, "first_promote": "2019-08-30", "promote_count": 1, "promoted_other": "", "applied": 1, "rolled_back": 0, "retired": "{}", "final_production": "sector_slope", "last_verdict": "FAILED", "last_blocking": "out_of_sample,transfer", "last_effect": 0.00035129905512819033, "last_t": 1.8843758165023892, "picked_weak_sector_share": 1.0, "monitor_min_t": 1.5874798762782993, "stage_failures": "", "weak_sector": "SEC1", "flip_date": null}
+{"kind": "planted", "seed": 4, "world": "planted", "cycles": 177, "seconds": 720.4, "validations": 43, "promoted_sector_slope": 1, "first_promote": "2019-05-10", "promote_count": 3, "promoted_other": "", "applied": 1, "rolled_back": 0, "retired": "{}", "final_production": "sector_slope", "last_verdict": "FAILED", "last_blocking": "out_of_sample", "last_effect": -0.00020847950468490064, "last_t": -0.9983813226925294, "picked_weak_sector_share": 1.0, "monitor_min_t": 2.4654890866412207, "stage_failures": "", "weak_sector": "SEC1", "flip_date": null}
+{"kind": "planted", "seed": 5, "world": "planted", "cycles": 177, "seconds": 726.6, "validations": 43, "promoted_sector_slope": 0, "first_promote": null, "promote_count": 0, "promoted_other": "", "applied": 0, "rolled_back": 0, "retired": "{}", "final_production": "incumbent", "last_verdict": "QUARANTINED", "last_blocking": "leakage", "last_effect": 0.0006072566564445174, "last_t": 2.7851043277870833, "picked_weak_sector_share": 1.0, "monitor_min_t": null, "stage_failures": "", "weak_sector": "SEC1", "flip_date": null}
+{"kind": "null", "seed": 0, "world": "null", "cycles": 177, "seconds": 628.1, "validations": 43, "promoted_sector_slope": 0, "first_promote": null, "promote_count": 0, "promoted_other": "", "applied": 0, "rolled_back": 0, "retired": "{}", "final_production": "incumbent", "last_verdict": "FAILED", "last_blocking": "out_of_sample", "last_effect": -2.2824709465993156e-05, "last_t": -1.6018492205224482, "picked_weak_sector_share": 0.4883720930232558, "monitor_min_t": null, "stage_failures": "", "weak_sector": null, "flip_date": null}
+{"kind": "null", "seed": 1, "world": "null", "cycles": 177, "seconds": 496.9, "validations": 43, "promoted_sector_slope": 0, "first_promote": null, "promote_count": 0, "promoted_other": "", "applied": 0, "rolled_back": 0, "retired": "{}", "final_production": "incumbent", "last_verdict": "FAILED", "last_blocking": "out_of_sample", "last_effect": 1.012204063532117e-05, "last_t": 0.4159782237320051, "picked_weak_sector_share": 0.047619047619047616, "monitor_min_t": null, "stage_failures": "", "weak_sector": null, "flip_date": null}
+{"kind": "null", "seed": 2, "world": "null", "cycles": 177, "seconds": 592.1, "validations": 43, "promoted_sector_slope": 0, "first_promote": null, "promote_count": 0, "promoted_other": "", "applied": 0, "rolled_back": 0, "retired": "{}", "final_production": "incumbent", "last_verdict": "FAILED", "last_blocking": "out_of_sample", "last_effect": -5.843318573505129e-05, "last_t": -1.7014921211135678, "picked_weak_sector_share": 0.38095238095238093, "monitor_min_t": null, "stage_failures": "", "weak_sector": null, "flip_date": null}
+{"kind": "null", "seed": 3, "world": "null", "cycles": 177, "seconds": 699.3, "validations": 43, "promoted_sector_slope": 0, "first_promote": null, "promote_count": 0, "promoted_other": "", "applied": 0, "rolled_back": 0, "retired": "{}", "final_production": "incumbent", "last_verdict": "FAILED", "last_blocking": "out_of_sample", "last_effect": -7.000895987285305e-05, "last_t": -1.67515977823973, "picked_weak_sector_share": 0.07142857142857142, "monitor_min_t": null, "stage_failures": "", "weak_sector": null, "flip_date": null}
+{"kind": "null", "seed": 4, "world": "null", "cycles": 177, "seconds": 726.7, "validations": 43, "promoted_sector_slope": 0, "first_promote": null, "promote_count": 0, "promoted_other": "", "applied": 0, "rolled_back": 0, "retired": "{}", "final_production": "incumbent", "last_verdict": "FAILED", "last_blocking": "out_of_sample", "last_effect": -1.3375571381682902e-05, "last_t": -0.9330849094122459, "picked_weak_sector_share": 0.3488372093023256, "monitor_min_t": null, "stage_failures": "", "weak_sector": null, "flip_date": null}
+{"kind": "null", "seed": 5, "world": "null", "cycles": 177, "seconds": 690.2, "validations": 43, "promoted_sector_slope": 0, "first_promote": null, "promote_count": 0, "promoted_other": "", "applied": 0, "rolled_back": 0, "retired": "{}", "final_production": "incumbent", "last_verdict": "FAILED", "last_blocking": "out_of_sample", "last_effect": -3.221923348873984e-05, "last_t": -1.1567057297290755, "picked_weak_sector_share": 0.7619047619047619, "monitor_min_t": null, "stage_failures": "", "weak_sector": null, "flip_date": null}
+{
+ "null": {
+  "n": 6,
+  "promote_rate": 0.0,
+  "promoted_seeds": [],
+  "any_other_fix_promoted": 0,
+  "rollback_rate": 0.0,
+  "first_promote": [],
+  "last_verdicts": {
+   "FAILED": 6
+  },
+  "stage_failures": 0
+ },
+ "planted": {
+  "n": 6,
+  "promote_rate": 0.5,
+  "promoted_seeds": [
+   0,
+   3,
+   4
+  ],
+  "any_other_fix_promoted": 0,
+  "rollback_rate": 0.0,
+  "first_promote": [
+   "2019-05-10",
+   "2019-08-30",
+   "2020-01-17"
+  ],
+  "last_verdicts": {
+   "FAILED": 3,
+   "NEEDS_MORE_EVIDENCE": 2,
+   "QUARANTINED": 1
+  },
+  "stage_failures": 0
+ }
+}
