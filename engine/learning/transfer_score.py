@@ -32,6 +32,7 @@ class RatioStatus(_StrEnum):
     NO_GAIN = "NO_GAIN"                    # neither context gained more than noise
     HARMFUL = "HARMFUL"                    # no same-context gain and cross-context damage
     INSUFFICIENT = "INSUFFICIENT"          # NaN or too few units on a side
+    UNDEFINED = "UNDEFINED"                # an infinite gain (or a quotient that overflows): a broken measurement, not a ratio
 
 
 class TransferVerdictLabel(_StrEnum):
@@ -163,14 +164,20 @@ def transfer_ratio(cross_gain: float, same_gain: float, *, eps: float = EPS_GAIN
     same <= eps, cross > eps  -> TRANSFER_ONLY (learning showed up elsewhere but not where it was trained)
     same <= eps, cross < -eps -> HARMFUL
     otherwise                 -> NO_GAIN
-    NaN inputs or fewer than `min_n` units on either side -> INSUFFICIENT."""
+    NaN inputs or fewer than `min_n` units on either side -> INSUFFICIENT.
+    An infinite gain on either side, or a finite quotient that overflows -> UNDEFINED (C75 section 4: inf/0.01 used to return
+    value=inf, capped to +3, i.e. 'superb transfer' from a broken measurement)."""
     c, s = float(cross_gain), float(same_gain)
     if math.isnan(c) or math.isnan(s):
         return RatioResult(None, None, RatioStatus.INSUFFICIENT, c, s, "a gain is NaN (never measured)")
+    if math.isinf(c) or math.isinf(s):
+        return RatioResult(None, None, RatioStatus.UNDEFINED, c, s, f"a gain is infinite (cross={c}, same={s}): not a measurement")
     if (n_cross is not None and n_cross < min_n) or (n_same is not None and n_same < min_n):
         return RatioResult(None, None, RatioStatus.INSUFFICIENT, c, s, f"fewer than {min_n} units (cross={n_cross}, same={n_same})")
     if s > eps:
         v = c / s
+        if not math.isfinite(v):
+            return RatioResult(None, None, RatioStatus.UNDEFINED, c, s, f"cross {c:+.4g} / same {s:+.4g} overflows")
         return RatioResult(v, float(np.clip(v, -cap, cap)), RatioStatus.OK, c, s, f"cross {c:+.4g} / same {s:+.4g}")
     if c > eps:
         return RatioResult(None, None, RatioStatus.TRANSFER_ONLY, c, s, f"same-context gain {s:+.4g} is not positive but cross-context gain is {c:+.4g}")
@@ -438,7 +445,7 @@ def classify_transfer(same: BootMean, cross: BootMean, ratio: RatioResult, spec:
         return TransferVerdict(TransferVerdictLabel.OVER_SPECIALISED, ValidationLabel.FAILED_VALIDATION, spec.reasons, ratio)
     if ratio.status == RatioStatus.HARMFUL or (cross.n_clusters >= min_clusters and cross.excludes_zero_below):
         return TransferVerdict(TransferVerdictLabel.HARMFUL, ValidationLabel.FAILED_VALIDATION, (ratio.reason,), ratio)
-    if ratio.status == RatioStatus.INSUFFICIENT:
+    if ratio.status in (RatioStatus.INSUFFICIENT, RatioStatus.UNDEFINED):
         return TransferVerdict(TransferVerdictLabel.INSUFFICIENT_EVIDENCE, ValidationLabel.INSUFFICIENT_EVIDENCE, (ratio.reason,), ratio)
     if ratio.status == RatioStatus.NO_GAIN or not (cross.excludes_zero_above or same.excludes_zero_above):
         return TransferVerdict(TransferVerdictLabel.NO_LEARNING, nv, ("neither context shows a gain beyond noise",), ratio)
