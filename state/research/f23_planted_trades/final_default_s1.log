@@ -1,0 +1,140 @@
+[f23] default s1 cycle 0 2017-05-12 positions 1 {'c68.expectations': 'OK', 'c68.outcomes_errors': 'SKIPPED_NO_INPUT', 'c68.what_changed': 'SKIPPED_NO_INPUT', 'c68.error_research': 'OK', 'c68.research_depth': 'OK'}
+[f23] default s1 cycle 1 2017-05-19 positions 1 {'c68.expectations': 'OK', 'c68.outcomes_errors': 'SKIPPED_NO_INPUT', 'c68.what_changed': 'SKIPPED_NO_INPUT', 'c68.error_research': 'SKIPPED_NO_INPUT', 'c68.research_depth': 'SKIPPED_NO_INPUT'}
+[f23] default s1 cycle 2 2017-05-26 positions 2 {'c68.expectations': 'OK', 'c68.outcomes_errors': 'OK', 'c68.what_changed': 'OK', 'c68.error_research': 'OK', 'c68.research_depth': 'SKIPPED_NO_INPUT'}
+[f23] default s1 cycle 3 2017-06-02 positions 1 {'c68.expectations': 'OK', 'c68.outcomes_errors': 'OK', 'c68.what_changed': 'OK', 'c68.error_research': 'OK', 'c68.research_depth': 'SKIPPED_NO_INPUT'}
+[f23] default s1 cycle 4 2017-06-09 positions 0 {'c68.expectations': 'OK', 'c68.outcomes_errors': 'OK', 'c68.what_changed': 'OK', 'c68.error_research': 'OK', 'c68.research_depth': 'SKIPPED_NO_INPUT'}
+[f23] default s1 cycle 5 2017-06-16 positions 1 {'c68.expectations': 'OK', 'c68.outcomes_errors': 'OK', 'c68.what_changed': 'OK', 'c68.error_research': 'OK', 'c68.research_depth': 'OK'}
+[f23] default s1 cycle 6 2017-06-23 positions 1 {'c68.expectations': 'OK', 'c68.outcomes_errors': 'OK', 'c68.what_changed': 'SKIPPED_NO_INPUT', 'c68.error_research': 'OK', 'c68.research_depth': 'SKIPPED_NO_INPUT'}
+[f23] default s1 cycle 7 2017-06-30 positions 1 {'c68.expectations': 'OK', 'c68.outcomes_errors': 'OK', 'c68.what_changed': 'OK', 'c68.error_research': 'OK', 'c68.research_depth': 'OK'}
+[f23] default s1 cycle 8 2017-07-07 positions 2 {'c68.expectations': 'OK', 'c68.outcomes_errors': 'OK', 'c68.what_changed': 'OK', 'c68.error_research': 'OK', 'c68.research_depth': 'SKIPPED_NO_INPUT'}
+[f23] default s1 cycle 9 2017-07-14 positions 1 {'c68.expectations': 'OK', 'c68.outcomes_errors': 'OK', 'c68.what_changed': 'OK', 'c68.error_research': 'OK', 'c68.research_depth': 'OK'}
+[f23] default s1 cycle 10 2017-07-21 positions 0 {'c68.expectations': 'OK', 'c68.outcomes_errors': 'OK', 'c68.what_changed': 'OK', 'c68.error_research': 'OK', 'c68.research_depth': 'SKIPPED_NO_INPUT'}
+[f23] default s1 cycle 11 2017-07-28 positions 2 {'c68.expectations': 'OK', 'c68.outcomes_errors': 'OK', 'c68.what_changed': 'OK', 'c68.error_research': 'OK', 'c68.research_depth': 'OK'}
+[f23] default s1 cycle 12 2017-08-04 positions 2 {'c68.expectations': 'OK', 'c68.outcomes_errors': 'OK', 'c68.what_changed': 'SKIPPED_NO_INPUT', 'c68.error_research': 'OK', 'c68.research_depth': 'SKIPPED_NO_INPUT'}
+[f23] default s1 cycle 13 2017-08-11 positions 0 {'c68.expectations': 'OK', 'c68.outcomes_errors': 'OK', 'c68.what_changed': 'OK', 'c68.error_research': 'OK', 'c68.research_depth': 'OK'}
+[f23] default s1 cycle 14 2017-08-18 positions 0 {'c68.expectations': 'OK', 'c68.outcomes_errors': 'OK', 'c68.what_changed': 'OK', 'c68.error_research': 'OK', 'c68.research_depth': 'OK'}
+[f23] default s1 cycle 15 2017-08-25 positions 0 {'c68.expectations': 'OK', 'c68.outcomes_errors': 'OK', 'c68.what_changed': 'SKIPPED_NO_INPUT', 'c68.error_research': 'OK', 'c68.research_depth': 'SKIPPED_NO_INPUT'}
+[f23] default s1 cycle 16 2017-09-01 positions 0 {'c68.expectations': 'OK', 'c68.outcomes_errors': 'OK', 'c68.what_changed': 'SKIPPED_NO_INPUT', 'c68.error_research': 'OK', 'c68.research_depth': 'SKIPPED_NO_INPUT'}
+[f23] default s1 cycle 17 2017-09-08 positions 0 {'c68.expectations': 'OK', 'c68.outcomes_errors': 'OK', 'c68.what_changed': 'SKIPPED_NO_INPUT', 'c68.error_research': 'OK', 'c68.research_depth': 'SKIPPED_NO_INPUT'}
+[f23] default s1 cycle 18 2017-09-15 positions 0 {'c68.expectations': 'OK', 'c68.outcomes_errors': 'OK', 'c68.what_changed': 'SKIPPED_NO_INPUT', 'c68.error_research': 'OK', 'c68.research_depth': 'SKIPPED_NO_INPUT'}
+[f23] default s1 cycle 19 2017-09-22 positions 0 {'c68.expectations': 'OK', 'c68.outcomes_errors': 'OK', 'c68.what_changed': 'SKIPPED_NO_INPUT', 'c68.error_research': 'OK', 'c68.research_depth': 'SKIPPED_NO_INPUT'}
+[f23] default s1 cycle 20 2017-09-29 positions 0 {'c68.expectations': 'OK', 'c68.outcomes_errors': 'OK', 'c68.what_changed': 'SKIPPED_NO_INPUT', 'c68.error_research': 'OK', 'c68.research_depth': 'SKIPPED_NO_INPUT'}
+[f23] default s1 cycle 21 2017-10-06 positions 0 {'c68.expectations': 'OK', 'c68.outcomes_errors': 'OK', 'c68.what_changed': 'SKIPPED_NO_INPUT', 'c68.error_research': 'OK', 'c68.research_depth': 'SKIPPED_NO_INPUT'}
+[f23] default s1 cycle 22 2017-10-13 positions 0 {'c68.expectations': 'OK', 'c68.outcomes_errors': 'OK', 'c68.what_changed': 'SKIPPED_NO_INPUT', 'c68.error_research': 'OK', 'c68.research_depth': 'SKIPPED_NO_INPUT'}
+[f23] default s1 cycle 23 2017-10-20 positions 0 {'c68.expectations': 'OK', 'c68.outcomes_errors': 'OK', 'c68.what_changed': 'SKIPPED_NO_INPUT', 'c68.error_research': 'OK', 'c68.research_depth': 'SKIPPED_NO_INPUT'}
+[f23] default s1 cycle 24 2017-10-27 positions 0 {'c68.expectations': 'OK', 'c68.outcomes_errors': 'OK', 'c68.what_changed': 'SKIPPED_NO_INPUT', 'c68.error_research': 'OK', 'c68.research_depth': 'SKIPPED_NO_INPUT'}
+[f23] default s1 cycle 25 2017-11-03 positions 0 {'c68.expectations': 'OK', 'c68.outcomes_errors': 'OK', 'c68.what_changed': 'SKIPPED_NO_INPUT', 'c68.error_research': 'OK', 'c68.research_depth': 'SKIPPED_NO_INPUT'}
+[f23] default s1 cycle 26 2017-11-10 positions 1 {'c68.expectations': 'OK', 'c68.outcomes_errors': 'OK', 'c68.what_changed': 'SKIPPED_NO_INPUT', 'c68.error_research': 'OK', 'c68.research_depth': 'SKIPPED_NO_INPUT'}
+[f23] default s1 cycle 27 2017-11-17 positions 1 {'c68.expectations': 'OK', 'c68.outcomes_errors': 'OK', 'c68.what_changed': 'SKIPPED_NO_INPUT', 'c68.error_research': 'OK', 'c68.research_depth': 'SKIPPED_NO_INPUT'}
+[f23] default s1 cycle 28 2017-11-24 positions 0 {'c68.expectations': 'OK', 'c68.outcomes_errors': 'OK', 'c68.what_changed': 'OK', 'c68.error_research': 'OK', 'c68.research_depth': 'SKIPPED_NO_INPUT'}
+[f23] default s1 cycle 29 2017-12-01 positions 0 {'c68.expectations': 'OK', 'c68.outcomes_errors': 'OK', 'c68.what_changed': 'OK', 'c68.error_research': 'OK', 'c68.research_depth': 'OK'}
+[f23] default s1 cycle 30 2017-12-08 positions 0 {'c68.expectations': 'OK', 'c68.outcomes_errors': 'OK', 'c68.what_changed': 'SKIPPED_NO_INPUT', 'c68.error_research': 'OK', 'c68.research_depth': 'SKIPPED_NO_INPUT'}
+[f23] default s1 cycle 31 2017-12-15 positions 1 {'c68.expectations': 'OK', 'c68.outcomes_errors': 'OK', 'c68.what_changed': 'SKIPPED_NO_INPUT', 'c68.error_research': 'OK', 'c68.research_depth': 'SKIPPED_NO_INPUT'}
+[f23] default s1 cycle 32 2017-12-22 positions 0 {'c68.expectations': 'OK', 'c68.outcomes_errors': 'OK', 'c68.what_changed': 'SKIPPED_NO_INPUT', 'c68.error_research': 'OK', 'c68.research_depth': 'SKIPPED_NO_INPUT'}
+[f23] default s1 cycle 33 2017-12-29 positions 1 {'c68.expectations': 'OK', 'c68.outcomes_errors': 'OK', 'c68.what_changed': 'OK', 'c68.error_research': 'OK', 'c68.research_depth': 'SKIPPED_NO_INPUT'}
+[f23] default s1 cycle 34 2018-01-05 positions 1 {'c68.expectations': 'OK', 'c68.outcomes_errors': 'OK', 'c68.what_changed': 'SKIPPED_NO_INPUT', 'c68.error_research': 'OK', 'c68.research_depth': 'SKIPPED_NO_INPUT'}
+[f23] default s1 cycle 35 2018-01-12 positions 2 {'c68.expectations': 'OK', 'c68.outcomes_errors': 'OK', 'c68.what_changed': 'OK', 'c68.error_research': 'OK', 'c68.research_depth': 'SKIPPED_NO_INPUT'}
+[f23] default s1 cycle 36 2018-01-19 positions 1 {'c68.expectations': 'OK', 'c68.outcomes_errors': 'OK', 'c68.what_changed': 'OK', 'c68.error_research': 'OK', 'c68.research_depth': 'SKIPPED_NO_INPUT'}
+[f23] default s1 cycle 37 2018-01-26 positions 1 {'c68.expectations': 'OK', 'c68.outcomes_errors': 'OK', 'c68.what_changed': 'OK', 'c68.error_research': 'OK', 'c68.research_depth': 'OK'}
+[f23] default s1 cycle 38 2018-02-02 positions 1 {'c68.expectations': 'OK', 'c68.outcomes_errors': 'OK', 'c68.what_changed': 'OK', 'c68.error_research': 'OK', 'c68.research_depth': 'SKIPPED_NO_INPUT'}
+[f23] default s1 cycle 39 2018-02-09 positions 1 {'c68.expectations': 'OK', 'c68.outcomes_errors': 'OK', 'c68.what_changed': 'OK', 'c68.error_research': 'OK', 'c68.research_depth': 'SKIPPED_NO_INPUT'}
+{
+ "n_positions": 26,
+ "cycles_with_positions": 21,
+ "right_reason": {
+  "positions": 26,
+  "in_up_run": 19,
+  "in_down_run": 0,
+  "movers": 200,
+  "movers_in_run": 124,
+  "up_run_movers_by_reason": {
+   "LOW_CONFIDENCE": 10,
+   "POSITION": 19,
+   "OUT_OF_BAND": 22,
+   "SHORT_DISABLED": 1
+  }
+ },
+ "chain": {
+  "c68.expectations": {
+   "all": {
+    "OK": 40
+   },
+   "after_warmup": {
+    "OK": 34
+   }
+  },
+  "c68.outcomes_errors": {
+   "all": {
+    "SKIPPED_NO_INPUT": 2,
+    "OK": 38
+   },
+   "after_warmup": {
+    "OK": 34
+   }
+  },
+  "c68.what_changed": {
+   "all": {
+    "SKIPPED_NO_INPUT": 21,
+    "OK": 19
+   },
+   "after_warmup": {
+    "SKIPPED_NO_INPUT": 19,
+    "OK": 15
+   }
+  },
+  "c68.error_research": {
+   "all": {
+    "OK": 39,
+    "SKIPPED_NO_INPUT": 1
+   },
+   "after_warmup": {
+    "OK": 34
+   }
+  },
+  "c68.research_depth": {
+   "all": {
+    "OK": 9,
+    "SKIPPED_NO_INPUT": 31
+   },
+   "after_warmup": {
+    "SKIPPED_NO_INPUT": 27,
+    "OK": 7
+   }
+  },
+  "questions.generate": {
+   "all": {
+    "OK": 39,
+    "SKIPPED_NO_INPUT": 1
+   },
+   "after_warmup": {
+    "OK": 34
+   }
+  },
+  "learn.decision_bridge": {
+   "all": {
+    "SKIPPED_NO_INPUT": 39,
+    "OK": 1
+   },
+   "after_warmup": {
+    "SKIPPED_NO_INPUT": 33,
+    "OK": 1
+   }
+  },
+  "evaluate.two_stage": {
+   "all": {
+    "OK": 40
+   },
+   "after_warmup": {
+    "OK": 34
+   }
+  },
+  "c68.selection_policy": {
+   "all": {
+    "OK": 40
+   },
+   "after_warmup": {
+    "OK": 34
+   }
+  }
+ }
+}
