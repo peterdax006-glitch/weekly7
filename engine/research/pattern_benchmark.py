@@ -54,9 +54,26 @@ from engine.research.core import stable_hash
 LABEL = "IMPLEMENTED - NOT VALIDATED"
 PREFIX = "bm_"
 REAL, NOISE, PART = "REAL", "NOISE", "PART"
-REAL_KINDS = ("linear", "sparse", "conditional", "interaction", "drifting", "regime")
-NOISE_KINDS = ("null", "identity_null", "mt_winner", "coincidence", "early_decay", "proxy", "fluke", "leak", "context", "base_null")
-PURE_NULL_KINDS = ("null", "base_null", "context", "mt_winner")     # zero effect in every evaluation window: alpha bounds them
+# C75 3A genuine kinds: obvious .. extremely subtle are the strength BANDS; the kinds are the shapes a genuine pattern can take
+REAL_KINDS = ("linear", "rare", "threshold", "conditional", "interactive", "xor", "delayed", "regime", "changing", "lifecycle")
+LIFECYCLES = ("appear", "strengthen", "weaken", "die", "reverse", "return")
+# C75 3A noise kinds (every listed family) plus the benchmark's own: proxy, leak, fluke, early_decay, context, base_null
+NOISE_KINDS = ("null", "identity_null", "mt_winner", "autocorr_trap", "regime_corr", "vol_corr", "sample_size", "threshold_illusion",
+               "near_pattern", "coincidence", "early_decay", "reversal", "delayed_coincidence", "interaction_decoy", "xor_trap",
+               "selection_bias", "survivor_bias", "strong_nontransferable", "adversarial_near", "proxy", "fluke", "leak", "context",
+               "base_null")
+PAIRED_NOISE = ("interaction_decoy", "xor_trap")    # one process, two candidate columns
+# zero per-date effect in every evaluation window (the gate's alpha bounds how often these may pass)
+PURE_NULL_KINDS = ("null", "base_null", "context", "mt_winner", "vol_corr", "sample_size", "threshold_illusion", "regime_corr",
+                   "selection_bias", "near_pattern")
+ADVERSARIAL_KINDS = ("mt_winner", "threshold_illusion", "near_pattern", "adversarial_near", "autocorr_trap", "strong_nontransferable",
+                     "leak", "survivor_bias")
+# C75 3F difficulty tiers: strength multiplier on every genuine pattern, multiplier on the adversarial noise counts, conditional share;
+# tier 0 = NULL world (no genuine pattern; the right answer is 'no reliable signal')
+TIERS: dict[int, dict[str, float]] = {0: {"strength": 0.0, "adv": 1.0, "ctx": 0.5}, 1: {"strength": 1.6, "adv": 0.5, "ctx": 0.5},
+                                      2: {"strength": 1.25, "adv": 0.75, "ctx": 0.5}, 3: {"strength": 1.0, "adv": 1.0, "ctx": 0.5},
+                                      4: {"strength": 1.0, "adv": 2.0, "ctx": 0.5}, 5: {"strength": 0.85, "adv": 1.5, "ctx": 0.25},
+                                      6: {"strength": 0.7, "adv": 2.0, "ctx": 0.25}}
 ERAS: dict[str, dict[str, float]] = {
     # base: logit of a +-10% touch; vol: market / name volatility multiplier; spread: cross-sectional (per-name) dispersion of the
     # base rate; drift: weekly market drift (trending) ; alt: alternating weekly market sign (choppy)
@@ -89,10 +106,17 @@ class BenchConfig:
     frame_weeks: int = 156                 # the loop feed's rolling research frame (feeds.FeedConfig.frame_weeks)
     first_look: int = 104                  # decision-date index of the first screen + gate
     look_every: int = 13                   # = loop.REGATE_NEW_DATES
-    bands: tuple = (("strong", 0.45), ("medium", 0.28), ("weak", 0.16), ("faint", 0.08))
+    bands: tuple = (("obvious", 0.60), ("moderate", 0.35), ("subtle", 0.20), ("faint", 0.12), ("extremely_subtle", 0.06))
     real_kinds: tuple = REAL_KINDS
-    noise_counts: tuple = (("null", 70), ("identity_null", 30), ("mt_winner", 50), ("coincidence", 10), ("early_decay", 10),
-                           ("proxy", 12), ("fluke", 10), ("leak", 10))
+    # ~500 noise processes (C75): the null count absorbs whatever the tier's adversarial multiplier adds or removes
+    noise_counts: tuple = (("null", 130), ("identity_null", 30), ("mt_winner", 60), ("autocorr_trap", 25), ("regime_corr", 20),
+                           ("vol_corr", 20), ("sample_size", 20), ("threshold_illusion", 20), ("near_pattern", 15), ("coincidence", 15),
+                           ("early_decay", 10), ("reversal", 15), ("delayed_coincidence", 15), ("interaction_decoy", 10), ("xor_trap", 10),
+                           ("selection_bias", 10), ("survivor_bias", 10), ("strong_nontransferable", 10), ("adversarial_near", 15),
+                           ("proxy", 15), ("fluke", 10), ("leak", 10))
+    null_world_share: float = 0.10         # C75 3E: worlds with zero genuine patterns
+    tiers: tuple = (1, 2, 3, 4, 5, 6)      # C75 3F: drawn uniformly per world (tier 0 = the null worlds)
+    slow_sd: float = 0.4                   # stationary sd of the slow per-name base-rate process (what autocorrelation traps align with)
     mt_pool: int = 40                      # each multiple-testing winner is the best of this many null columns ...
     mt_window: float = 0.35                # ... on this earliest share of the dates (it looks great in-sample, is null afterwards)
     ticker_sd: float = 0.5                 # persistent per-name base-rate effect (what identity nulls can latch onto)
@@ -105,6 +129,7 @@ class BenchConfig:
     screen_top: int = 6                    # loop.LoopConfig defaults (read from the loop at run time; kept here for the key)
     screen_t: float = 2.0
     gate: bool = True                      # False = screen only (tests)
+    screen_calls: int | None = None        # weekly screen calls one benchmark screen stands for (None = look_every)
     seed_salt: str = "F19-heldout-v1"
 
     def validate(self) -> list[str]:
@@ -123,7 +148,19 @@ class BenchConfig:
             errs.append("unknown pattern kind")
         if not 0 < self.power_floor < 1 or self.oracle_draws < 8 or self.mt_pool < 2 or not 0.1 <= self.mt_window <= 0.6:
             errs.append("power_floor in (0,1), oracle_draws >= 8, mt_pool >= 2, mt_window in [0.1, 0.6] required")
+        if not 0 <= self.null_world_share < 1 or not self.tiers or set(self.tiers) - set(TIERS) - {0}:
+            errs.append("null_world_share in [0,1) and tiers from TIERS required")
         return errs
+
+    def counts_for(self, tier: int) -> dict[str, int]:
+        """Noise process counts for a tier: adversarial families scaled, nulls absorb the difference (total stays constant)."""
+        base = dict(self.noise_counts)
+        total = sum(base.values())
+        adv = TIERS[int(tier)]["adv"]
+        out = {k: (int(round(n * adv)) if k in ADVERSARIAL_KINDS else n) for k, n in base.items()}
+        if "null" in out:
+            out["null"] = max(min(base["null"], 10), total - sum(v for k, v in out.items() if k != "null"))
+        return out
 
     def looks(self) -> list[int]:
         return list(range(self.first_look, self.n_dates + 1, self.look_every))
@@ -188,13 +225,16 @@ def write_heldout_record(path: Path, upto: int, salt: str = BenchConfig.seed_sal
 def date_aucs(score: np.ndarray, y: np.ndarray, min_names: int = 8) -> np.ndarray:
     """Per-date rank AUC of `score` (T x N) for labels `y` (... x T x N, bool); NaN where a date has one class. Average ranks, so a
     binary score is scored exactly like the gate's rank AUC (ties count one half)."""
-    r = rankdata(np.nan_to_num(score, nan=-1e18), axis=-1)
-    y = np.asarray(y, bool)
+    score = np.asarray(score, float)
+    fin = np.isfinite(score)
+    k = (~fin).sum(-1, keepdims=True)                       # missing scores rank lowest; shifting by k ranks the finite ones alone
+    r = rankdata(np.where(fin, score, -np.inf), axis=-1) - k
+    y = np.asarray(y, bool) & fin
     n1 = y.sum(-1).astype(float)
-    n0 = y.shape[-1] - n1
+    n0 = fin.sum(-1) - n1
     with np.errstate(invalid="ignore", divide="ignore"):
         a = ((r * y).sum(-1) - n1 * (n1 + 1) / 2.0) / (n1 * n0)
-    a[(n1 < 1) | (n0 < 1) | (y.shape[-1] < min_names)] = np.nan
+    a[(n1 < 1) | (n0 < 1) | (np.broadcast_to(fin.sum(-1), n1.shape) < min_names)] = np.nan
     return a
 
 
@@ -227,26 +267,36 @@ def windows(cfg: BenchConfig) -> list[tuple[int, int, int]]:
     return out
 
 
+def power_curve(score: np.ndarray, y_draws: np.ndarray, date_mask: np.ndarray, wins: Sequence[tuple[int, int, int]],
+                crit: float) -> list[tuple[float, float]]:
+    """(power, mean effect) per look window of a one-sided per-date AUC t-test of `score` over that window's test dates where the
+    effect exists. The per-date AUCs are computed once for all draws and dates, then sliced per window."""
+    A = date_aucs(score, y_draws) - 0.5                  # draws x T
+    out = []
+    for _, a, b in wins:
+        m = np.zeros(A.shape[-1], bool)
+        m[a:b] = True
+        m &= date_mask
+        if m.sum() < 3:
+            out.append((0.0, 0.0))
+            continue
+        E = A[:, m]
+        t = _t(E)
+        out.append((float(np.mean(np.nan_to_num(t, nan=-np.inf) > crit)), float(np.nanmean(E)) if np.isfinite(E).any() else 0.0))
+    return out
+
+
 def oracle_power(score: np.ndarray, y_draws: np.ndarray, date_mask: np.ndarray, test: tuple[int, int], crit: float) -> tuple[float, float]:
-    """(power, mean effect) of a one-sided per-date AUC t-test of `score` over the test dates [a, b) where the effect exists."""
-    A = date_aucs(score, y_draws)                       # draws x T
-    a, b = test
-    m = np.zeros(A.shape[-1], bool)
-    m[a:b] = True
-    m &= date_mask
-    if m.sum() < 3:
-        return 0.0, 0.0
-    E = A[:, m] - 0.5
-    t = _t(E)
-    return float(np.mean(np.nan_to_num(t, nan=-np.inf) > crit)), float(np.nanmean(E))
+    """(power, mean effect) on one test window [a, b)."""
+    return power_curve(score, y_draws, date_mask, [(0, test[0], test[1])], crit)[0]
 
 
 # ================================================================================================================ the world
 @dataclasses.dataclass
 class World:
     seed: int
-    frame: pd.DataFrame                    # what the system sees (base columns, planted columns, outcomes) - no truth
-    key: dict                              # the answer key (sealed before the system runs)
+    frame: pd.DataFrame                    # the LEARNER world: observations only (base columns, planted columns, outcomes)
+    key: dict                              # the TRUTH world: patterns, generator configuration, ids (sealed before the learner runs)
 
 
 def _era_schedule(rng: np.random.Generator, cfg: BenchConfig) -> list[tuple[int, str]]:
@@ -280,6 +330,33 @@ def _z(x: np.ndarray) -> np.ndarray:
     return (x - np.nanmean(x)) / (np.nanstd(x) + 1e-12)
 
 
+def _ar_names(rng: np.random.Generator, T: int, N: int, phi: float, sd: float) -> np.ndarray:
+    """Per-name AR(1) over weeks with stationary sd `sd`."""
+    x = np.zeros((T, N))
+    x[0] = rng.normal(0, sd, N)
+    e = sd * math.sqrt(1 - phi * phi)
+    for t in range(1, T):
+        x[t] = phi * x[t - 1] + rng.normal(0, e, N)
+    return x
+
+
+def lifecycle_weights(kind: str, T: int, rng: np.random.Generator) -> np.ndarray:
+    """C75 3G: the pattern's signed strength over time (1 = its full effect)."""
+    t = np.arange(T) / T
+    a, b = sorted(rng.uniform(0.2, 0.8, 2))
+    if kind == "appear":
+        return (t >= a).astype(float)
+    if kind == "strengthen":
+        return 0.3 + 1.4 * t
+    if kind == "weaken":
+        return 1.7 - 1.4 * t
+    if kind == "die":
+        return (t < a).astype(float)
+    if kind == "reverse":
+        return np.where(t < a, 1.0, -1.0)
+    return np.where((t >= a) & (t < b), 0.0, 1.0)            # return: on, gone for a while, back
+
+
 def scan_universe(columns: Iterable[str]) -> list[str]:
     """Every feature the loop's screen scores on a frame with these columns (st_feature_screen's own filter), planted columns included."""
     from engine.research import two_stage as TS
@@ -290,20 +367,29 @@ def scan_universe(columns: Iterable[str]) -> list[str]:
     return base + sorted(c for c in cols if c.startswith(PREFIX))
 
 
+def world_design(seed: int, cfg: BenchConfig) -> dict:
+    """The seed's world-level draws (tier, eras, calendar start): part of the TRUTH world, never shown to the learner."""
+    rng = np.random.default_rng(np.random.SeedSequence([20260930, int(seed), 1]))
+    tier = 0 if rng.random() < cfg.null_world_share else int(rng.choice(list(cfg.tiers)))
+    return {"tier": tier, "rng": rng}
+
+
 def make_world(seed: int, cfg: BenchConfig = BenchConfig()) -> World:
-    """A seeded world with KNOWN truth. Base columns come from volatility_lab.planted_frame (the research-frame schema the gate reads),
-    re-scaled per era; the touch outcome is re-drawn from a logit that holds the era base rate, a persistent per-name effect and every
-    planted pattern's contribution; planted columns get opaque, shuffled names."""
+    """SEED -> WORLD -> TRUTH (C75 Firewall 9). Base columns come from volatility_lab.planted_frame (the research-frame schema the gate
+    reads), re-scaled per era; the touch outcome is re-drawn from a logit that holds the era base rate, a persistent and a slowly
+    moving per-name effect, and every planted process's contribution; planted columns get opaque, shuffled names (the learner cannot
+    know counts, ids, labels or parameters from them)."""
     from engine.research import volatility_lab as VL
     errs = cfg.validate()
     if errs:
         raise ValueError("invalid benchmark config: " + "; ".join(errs))
-    rng = np.random.default_rng(np.random.SeedSequence([20260930, int(seed)]))
+    wd = world_design(seed, cfg)
+    tier, rng = wd["tier"], wd["rng"]
+    tp = TIERS[tier]
     T, N = cfg.n_dates, cfg.n_names
     year = int(rng.integers(*cfg.year_range))
     first = str((pd.Timestamp(year, 1, 1) + pd.Timedelta(days=int(rng.integers(0, 330)))).date())
     F = VL.planted_frame("null", n_dates=T, n_tickers=N, seed=int(rng.integers(0, 2**31)), first=first, n_sectors=cfg.n_sectors)
-    dates = pd.DatetimeIndex(F.index.get_level_values(0).unique())
     sched = _era_schedule(rng, cfg)
     era = era_per_date(sched, T)
     par = {k: np.array([ERAS[e][k] for e in era]) for k in ("base", "vol", "spread", "drift", "alt")}
@@ -315,15 +401,17 @@ def make_world(seed: int, cfg: BenchConfig = BenchConfig()) -> World:
     F["m_r20"] = F["m_r20"].to_numpy(float) + np.repeat(4 * par["drift"], N)
 
     shape = (T, N)
+    tt = np.arange(T)
     u_name = rng.normal(0, cfg.ticker_sd, N)
-    logit = par["base"][:, None] + par["spread"][:, None] * u_name[None, :]
+    slow = _ar_names(rng, T, N, 0.98, cfg.slow_sd)          # slowly moving per-name base rate: what autocorrelation traps align with
+    logit = par["base"][:, None] + par["spread"][:, None] * u_name[None, :] + slow
     cols: dict[str, np.ndarray] = {}
     pats: list[dict] = []
-    oracle_forms: dict[str, tuple[np.ndarray, np.ndarray]] = {}      # pid -> (oriented oracle score, date mask where the effect exists)
+    forms: dict[str, tuple[np.ndarray, np.ndarray]] = {}    # pid -> (oriented oracle score, date mask where the effect exists)
 
     def new_col(v: np.ndarray) -> str:
         name = f"_c{len(cols):04d}"
-        cols[name] = v.astype(np.float32)
+        cols[name] = np.asarray(v, float).astype(np.float32)
         return name
 
     def add(label, kind, band, beta, sign, colnames, parent=None, **extra) -> dict:
@@ -333,134 +421,221 @@ def make_world(seed: int, cfg: BenchConfig = BenchConfig()) -> World:
         return p
 
     regime_dates = np.isin(era, REGIME_ERAS)
-    # ---------------------------------------------------------------- REAL patterns: every kind in every strength band
-    for kind in cfg.real_kinds:
-        for band, beta in cfg.bands:
+    ctx_share = tp["ctx"]
+    # ---------------------------------------------------------------- GENUINE patterns: every kind in every strength band (none in a NULL world)
+    for kind in (cfg.real_kinds if tier else ()):
+        for band, b0 in cfg.bands:
+            beta = b0 * tp["strength"]
             s = float(rng.choice([-1.0, 1.0]))
             x = rng.normal(0, 1, shape)
             mask = np.ones(T, bool)
+            extra: dict[str, Any] = {}
+            comps: list[str] = []
             if kind == "linear":
                 contrib, form = beta * s * x, s * x
-                cn = [new_col(x)]
-            elif kind == "sparse":
-                ind = (x > 1.5).astype(float)
+            elif kind == "rare":
+                ind = (x > 1.5).astype(float)                     # ~7% of name-weeks
                 contrib, form = 3.0 * beta * s * ind, s * ind
-                cn = [new_col(x)]
+            elif kind == "threshold":
+                cut = float(rng.uniform(0.3, 0.9))
+                ind = (x > cut).astype(float)
+                contrib, form = 1.6 * beta * s * ind, s * ind
+                extra["threshold"] = cut
             elif kind == "conditional":
-                ctx = np.repeat((rng.random(N) < 0.5)[None, :], T, 0).astype(float)
-                flip = rng.random(shape) < 0.05
-                ctx = np.where(flip, 1 - ctx, ctx)
-                contrib, form = 2.0 * beta * s * x * ctx, s * x * ctx
-                cn = [new_col(x)]
-                ctx_col = new_col(ctx)
-            elif kind == "interaction":
+                ctx = np.repeat((rng.random(N) < ctx_share)[None, :], T, 0).astype(float)
+                ctx = np.where(rng.random(shape) < 0.05, 1 - ctx, ctx)
+                contrib, form = (1.0 / ctx_share) * beta * s * x * ctx, s * x * ctx
+                extra["context_share"] = ctx_share
+            elif kind in ("interactive", "xor"):
                 b2 = rng.normal(0, 1, shape)
-                contrib, form = 1.5 * beta * s * x * b2, s * x * b2
-                cn = [new_col(x), new_col(b2)]
-            elif kind == "drifting":
-                phase = float(rng.uniform(0, 2 * math.pi))
-                amp = 1.0 + 0.7 * np.sin(2 * math.pi * np.arange(T) / (1.4 * T) + phase)
-                contrib, form = beta * s * amp[:, None] * x, s * x
-                cn = [new_col(x)]
-            else:                                              # regime-limited but persistent: on in every volatile / crisis era
+                prod = x * b2 if kind == "interactive" else np.sign(x) * np.sign(b2)
+                contrib, form = 1.5 * beta * s * prod, s * prod
+            elif kind == "delayed":
+                lag = int(rng.integers(1, 4))
+                x = _ar_names(rng, T, N, 0.5, 1.0)                # the learner sees x_t; the outcome answers to x_(t-lag)
+                xl = np.vstack([np.zeros((lag, N)), x[:-lag]])
+                contrib, form = beta * s * xl, s * xl
+                mask[:lag] = False
+                extra["lag"] = lag
+            elif kind == "regime":
                 contrib, form = 2.2 * beta * s * x * regime_dates[:, None], s * x
                 mask = regime_dates.copy()
-                cn = [new_col(x)]
+                extra["regime"] = list(REGIME_ERAS)
+            elif kind == "changing":
+                phase = float(rng.uniform(0, 2 * math.pi))
+                amp = 1.0 + 0.7 * np.sin(2 * math.pi * tt / (1.4 * T) + phase)
+                contrib, form = beta * s * amp[:, None] * x, s * x
+            else:                                                 # lifecycle: appear / strengthen / weaken / die / reverse / return
+                lc = str(LIFECYCLES[len([p for p in pats if p["kind"] == "lifecycle"]) % len(LIFECYCLES)])
+                w = lifecycle_weights(lc, T, rng)
+                contrib, form = beta * s * w[:, None] * x, s * np.sign(w)[:, None] * x
+                mask = w != 0
+                extra["lifecycle"] = lc
+                extra["final_sign"] = float(s * np.sign(w[-1])) if w[-1] != 0 else 0.0
             logit = logit + contrib
-            p = add(REAL, kind, band, beta, s, cn if kind != "interaction" else [], columns_marginal=cn)
-            oracle_forms[p["pid"]] = (form, mask)
-            p["_x"] = cn[0]
-            if kind == "conditional":
-                add(NOISE, "context", None, 0.0, 1.0, [ctx_col], parent=p["pid"])
-            if kind == "interaction":
-                for c in cn:
+            xc = new_col(x)
+            if kind in ("interactive", "xor"):
+                comps = [xc, new_col(b2)]
+                p = add(REAL, kind, band, beta, s, [], columns_marginal=comps, **extra)
+                for c in comps:
                     add(PART, "interaction_component", band, 0.0, s, [c], parent=p["pid"])
+            else:
+                p = add(REAL, kind, band, beta, s, [xc], columns_marginal=[xc], **extra)
+            forms[p["pid"]] = (form, mask)
+            p["_x"] = xc
+            if kind == "conditional":
+                add(NOISE, "context", None, 0.0, 1.0, [new_col(ctx)], parent=p["pid"])
     reals = [p for p in pats if p["label"] == REAL]
-    counts = dict(cfg.noise_counts)
-    # ---------------------------------------------------------------- NOISE that moves the outcome for a while (then vanishes)
-    for kind, n in (("coincidence", counts.get("coincidence", 0)), ("early_decay", counts.get("early_decay", 0)),
-                    ("fluke", counts.get("fluke", 0))):
-        for _ in range(n):
+    counts = cfg.counts_for(tier)
+
+    def parent_col() -> tuple[str | None, dict | None]:
+        """A real pattern's column to imitate (a null column in a NULL world: the imitation is then pure noise)."""
+        cand = [p for p in reals if p["kind"] not in ("interactive", "xor")]
+        if cand:
+            src = cand[int(rng.integers(0, len(cand)))]
+            return src["_x"], src
+        return new_col(rng.normal(0, 1, shape)), None
+    # ---------------------------------------------------------------- NOISE that moves the outcome for a while, or only for a few names
+    k_in = max(3, int(cfg.mt_window * T))
+    for kind in ("coincidence", "early_decay", "fluke", "reversal", "delayed_coincidence", "interaction_decoy", "xor_trap",
+                 "strong_nontransferable"):
+        for _ in range(counts.get(kind, 0)):
             s = float(rng.choice([-1.0, 1.0]))
             x = rng.normal(0, 1, shape)
-            tt = np.arange(T)
+            names = np.ones(N, bool)
             if kind == "coincidence":
                 w = np.where(tt < 0.25 * T, 0.35, 0.0)
             elif kind == "early_decay":
                 w = 0.35 * np.clip(1 - tt / (0.5 * T), 0, 1)
-            else:
+            elif kind == "fluke":
                 a = int(rng.integers(0, T - 10))
                 w = np.where((tt >= a) & (tt < a + 10), 0.6, 0.0)
-            logit = logit + s * w[:, None] * x
-            add(NOISE, kind, None, float(w.max()), s, [new_col(x)], active=[int(np.flatnonzero(w)[0]), int(np.flatnonzero(w)[-1]) + 1])
+            elif kind == "reversal":
+                w = np.where(tt < T // 2, 0.35, -0.35)
+            elif kind == "delayed_coincidence":
+                a = int(rng.integers(int(0.6 * T), T - 13))
+                w = np.where((tt >= a) & (tt < a + 13), 0.5, 0.0)
+            elif kind in ("interaction_decoy", "xor_trap"):
+                a = int(rng.integers(0, max(1, int(0.3 * T))))
+                w = np.where((tt >= a) & (tt < a + 26), 0.6, 0.0)
+            else:
+                w = np.full(T, 0.9)
+                names = np.zeros(N, bool)
+                names[rng.choice(N, 3, replace=False)] = True
+            act = np.flatnonzero(w)
+            info = {"active": [int(act[0]), int(act[-1]) + 1] if len(act) else None}
+            if kind in ("interaction_decoy", "xor_trap"):
+                b2 = rng.normal(0, 1, shape)
+                prod = x * b2 if kind == "interaction_decoy" else np.sign(x) * np.sign(b2)
+                logit = logit + s * w[:, None] * prod
+                add(NOISE, kind, None, float(np.abs(w).max()), s, [new_col(x), new_col(b2)], **info)
+                continue
+            logit = logit + s * w[:, None] * x * names[None, :]
+            if kind == "strong_nontransferable":
+                info["names"] = int(names.sum())
+            add(NOISE, kind, None, float(np.abs(w).max()), s, [new_col(x)], **info)
     p_true = 1.0 / (1.0 + np.exp(-logit))
     touch = rng.random(shape) < p_true
     # ---------------------------------------------------------------- the outcome columns (planted_frame's recipe)
     vol20 = F["vol20"].to_numpy(float).reshape(shape)
     quiet = np.minimum(0.095, vol20 * np.sqrt(5) * np.abs(rng.normal(0, 1, shape)) * 0.8)
     absmove = np.where(touch, 0.10 + rng.exponential(0.05, shape), quiet)
-    sign = np.where(rng.random(shape) < 0.5, 1.0, -1.0)
+    sgn = np.where(rng.random(shape) < 0.5, 1.0, -1.0)
     F["touch"] = touch.reshape(-1).astype(float)
     F["absmove"] = absmove.reshape(-1)
     F["tday"] = np.where(touch, rng.integers(1, 6, shape), 0).reshape(-1).astype(float)
-    F["close"] = (sign * absmove * rng.uniform(0.6, 1.0, shape)).reshape(-1)
+    F["close"] = (sgn * absmove * rng.uniform(0.6, 1.0, shape)).reshape(-1)
     F["up"] = (F["close"] > 0).astype(float)
     F["end"] = pd.to_datetime(F.index.get_level_values(0)) + pd.Timedelta(days=8)
     # ---------------------------------------------------------------- NOISE that never moves the outcome
     for _ in range(counts.get("null", 0)):
-        kind = int(rng.integers(0, 3))
-        x = rng.normal(0, 1, shape) if kind == 0 else rng.standard_t(3, shape) if kind == 1 else rng.exponential(1.0, shape)
+        d = int(rng.integers(0, 4))
+        x = (rng.normal(0, 1, shape) if d == 0 else rng.standard_t(3, shape) if d == 1 else rng.exponential(1.0, shape) if d == 2
+             else rng.integers(0, 5, shape).astype(float))
         add(NOISE, "null", None, 0.0, 1.0, [new_col(x)])
     for _ in range(counts.get("identity_null", 0)):
-        a = rng.normal(0, 1, N)
-        add(NOISE, "identity_null", None, 0.0, 1.0, [new_col(a[None, :] + 0.35 * rng.normal(0, 1, shape))])
-    k_in = max(3, int(cfg.mt_window * T))
+        add(NOISE, "identity_null", None, 0.0, 1.0, [new_col(rng.normal(0, 1, N)[None, :] + 0.35 * rng.normal(0, 1, shape))])
+    for _ in range(counts.get("autocorr_trap", 0)):
+        add(NOISE, "autocorr_trap", None, 0.0, 1.0, [new_col(_ar_names(rng, T, N, 0.98, 1.0))])
+    for _ in range(counts.get("regime_corr", 0)):                 # tracks the era's base rate: pooled AUC sees it, per-date AUC cannot
+        add(NOISE, "regime_corr", None, 0.0, 1.0, [new_col(rng.normal(0, 1, shape) + 1.5 * _z(par["base"])[:, None])])
+    lv = _z(np.log(vol20))
+    for _ in range(counts.get("vol_corr", 0)):
+        add(NOISE, "vol_corr", None, 0.0, 1.0, [new_col(lv + 0.6 * rng.normal(0, 1, shape))])
+    for _ in range(counts.get("sample_size", 0)):
+        x = np.where(rng.random(shape) < 0.02, rng.normal(0, 1, shape), np.nan)
+        add(NOISE, "sample_size", None, 0.0, 1.0, [new_col(x)])
+    y_in = np.broadcast_to(touch[:k_in], (cfg.mt_pool, k_in, N))
     for _ in range(counts.get("mt_winner", 0)):
         pool = rng.normal(0, 1, (cfg.mt_pool, k_in, N))
-        eff = np.nanmean(date_aucs(pool, np.broadcast_to(touch[:k_in], pool.shape)) - 0.5, axis=-1)
+        eff = np.nanmean(date_aucs(pool, y_in) - 0.5, axis=-1)
         j = int(np.argmax(np.abs(eff)))
         x = rng.normal(0, 1, shape)
         x[:k_in] = pool[j]
-        add(NOISE, "mt_winner", None, 0.0, float(np.sign(eff[j]) or 1.0), [new_col(x)], in_sample_effect=float(eff[j]),
-            window=[0, k_in])
-    for i in range(counts.get("proxy", 0)):
-        par_p = [p for p in reals if p["kind"] != "interaction"]
-        if not par_p:
-            break
-        src = par_p[int(rng.integers(0, len(par_p)))]
+        add(NOISE, "mt_winner", None, 0.0, float(np.sign(eff[j]) or 1.0), [new_col(x)], in_sample_effect=float(eff[j]), window=[0, k_in])
+    qs = np.linspace(0.05, 0.95, 19)
+    for _ in range(counts.get("threshold_illusion", 0)):
+        x = rng.normal(0, 1, shape)
+        cuts = np.quantile(x[:k_in], qs)
+        inds = (x[None, :k_in] > cuts[:, None, None]).astype(float)
+        eff = np.nanmean(date_aucs(inds, np.broadcast_to(touch[:k_in], inds.shape)) - 0.5, axis=-1)
+        j = int(np.argmax(np.abs(eff)))
+        add(NOISE, "threshold_illusion", None, 0.0, float(np.sign(eff[j]) or 1.0), [new_col((x > cuts[j]).astype(float))],
+            threshold=float(cuts[j]), in_sample_effect=float(eff[j]))
+    near_src = [p for p in pats if p["kind"] in ("interaction_component", "context")]
+    for _ in range(counts.get("near_pattern", 0)):               # near a real pattern (its component or context) but null itself
+        src = near_src[int(rng.integers(0, len(near_src)))]["columns"][0] if near_src else new_col(rng.normal(0, 1, shape))
+        v = cols[src].astype(float)
+        add(NOISE, "near_pattern", None, 0.0, 1.0, [new_col(0.5 * _z(v) + math.sqrt(0.75) * rng.normal(0, 1, shape))])
+    for _ in range(counts.get("adversarial_near", 0)):           # identical to a real pattern's column in-sample, unrelated afterwards
+        c, src = parent_col()
+        x = rng.normal(0, 1, shape)
+        x[:k_in] = cols[c][:k_in]
+        add(NOISE, "adversarial_near", src["band"] if src else None, 0.0, src["sign"] if src else 1.0, [new_col(x)],
+            parent=src["pid"] if src else None, window=[0, k_in])
+    for _ in range(counts.get("proxy", 0)):
+        c, src = parent_col()
         rho = float(rng.uniform(0.6, 0.9))
-        x = rho * cols[src["_x"]].astype(float) + math.sqrt(1 - rho * rho) * rng.normal(0, 1, shape)
-        add(NOISE, "proxy", src["band"], 0.0, src["sign"], [new_col(x)], parent=src["pid"], rho=rho)
+        x = rho * cols[c].astype(float) + math.sqrt(1 - rho * rho) * rng.normal(0, 1, shape)
+        add(NOISE, "proxy", src["band"] if src else None, 0.0, src["sign"] if src else 1.0, [new_col(x)],
+            parent=src["pid"] if src else None, rho=rho)
+    prev_touch = np.vstack([np.zeros((1, N), bool), touch[:-1]])
+    for _ in range(counts.get("selection_bias", 0)):             # observed only after a quiet week (a past-selected sample), null values
+        add(NOISE, "selection_bias", None, 0.0, 1.0, [new_col(np.where(prev_touch, np.nan, rng.normal(0, 1, shape)))])
+    fut = np.zeros(shape)
+    for k in range(1, 9):                                       # 'survives' = no +-10% week in the next eight weeks (future-derived)
+        fut += np.vstack([touch[k:], np.zeros((k, N), bool)])
+    survivor = (fut == 0).astype(float)
+    for _ in range(counts.get("survivor_bias", 0)):
+        add(NOISE, "survivor_bias", None, 0.8, -1.0, [new_col(rng.normal(0, 1, shape) + 0.8 * survivor)])
     gs = (0.3, 0.6, 1.0)
     for i in range(counts.get("leak", 0)):
         g = gs[i % len(gs)]
-        x = rng.normal(0, 1, shape) + g * _z(absmove)          # built from the outcome window itself: correlated with the future only through overlap
-        add(NOISE, "leak", None, g, 1.0, [new_col(x)])
+        add(NOISE, "leak", None, g, 1.0, [new_col(rng.normal(0, 1, shape) + g * _z(absmove))])   # overlaps the outcome window itself
     # ---------------------------------------------------------------- opaque names, frame, detectability, key
     order = rng.permutation(len(cols))
     rename = {old: f"{PREFIX}{int(order[i]):03d}" for i, old in enumerate(cols)}
-    for old, v in cols.items():
-        F[rename[old]] = v.reshape(-1)
+    F = pd.concat([F, pd.DataFrame({rename[o]: v.reshape(-1) for o, v in cols.items()}, index=F.index)], axis=1)
     for p in pats:
         p["columns"] = [rename[c] for c in p["columns"]]
         if "columns_marginal" in p:
             p["columns_marginal"] = [rename[c] for c in p["columns_marginal"]]
         if "_x" in p:
             p["_x"] = rename[p["_x"]]
-    base = [f for f in scan_universe(F.columns) if not f.startswith(PREFIX)]
-    for f in base:
+    for f in [f for f in scan_universe(F.columns) if not f.startswith(PREFIX)]:
         add(NOISE, "base_null", None, 0.0, 1.0, [f])
     F.attrs.clear()
-    _detectability(pats, oracle_forms, F, p_true, rng, cfg)
+    _detectability(pats, forms, F, p_true, rng, cfg)
     wins = windows(cfg)
-    L_last, a_last, b_last = wins[-1]
+    _, a_last, b_last = wins[-1]
     test_era = pd.Series(era[a_last:b_last]).value_counts()
-    key = {"world_id": f"W{int(seed):05d}", "seed": int(seed), "split": split_of(seed, cfg.seed_salt), "start": first, "year": year,
-           "eras": [[int(a), e] for a, e in sched], "eval_era": str(test_era.index[0]), "shift": len(sched) > 1,
+    dates = pd.DatetimeIndex(F.index.get_level_values(0).unique())
+    key = {"world_id": f"W{int(seed):05d}", "seed": int(seed), "split": split_of(seed, cfg.seed_salt), "tier": tier, "start": first,
+           "year": year, "eras": [[int(a), e] for a, e in sched], "eval_era": str(test_era.index[0]), "shift": len(sched) > 1,
            "eval_era_share": float(test_era.iloc[0] / test_era.sum()), "base_rate": float(touch.mean()),
            "looks": [str(dates[L].date()) if L < T else str((dates[-1] + pd.Timedelta(days=7)).date()) for L in cfg.looks()],
-           "config": stable_hash(dataclasses.asdict(cfg), 16), "oracle_crit": oracle_crit(), "power_floor": cfg.power_floor,
-           "patterns": [{k: v for k, v in p.items() if not k.startswith("_")} for p in pats],
+           "config": stable_hash(dataclasses.asdict(cfg), 16), "noise_counts": counts, "oracle_crit": oracle_crit(),
+           "power_floor": cfg.power_floor, "patterns": [{k: v for k, v in p.items() if not k.startswith("_")} for p in pats],
            "columns": {c: p["pid"] for p in pats for c in (p["columns"] or p.get("columns_marginal", []))}}
     return World(int(seed), F, key)
 
@@ -481,16 +656,16 @@ def _detectability(pats: list[dict], forms: Mapping[str, tuple], F: pd.DataFrame
         if not cols or cols[0] not in F:
             continue
         x = F[cols[0]].to_numpy(float).reshape(T, N)
-        marg = [oracle_power(p["sign"] * x, y, allm, (a, b), crit) for _, a, b in wins]
+        sign = p.get("final_sign", p["sign"]) or p["sign"]
+        marg = power_curve(sign * x, y, allm, wins, crit)
         p["marginal_power"], p["planted_effect"] = marg[-1]
         p["marginal_power_by_look"] = [round(m[0], 3) for m in marg]
         if p["pid"] in forms:
             form, mask = forms[p["pid"]]
-            orc = [oracle_power(form, y, mask, (a, b), crit) for _, a, b in wins]
+            orc = power_curve(form, y, mask, wins, crit)
             p["oracle_power"], p["oracle_effect"] = orc[-1]
             p["oracle_power_by_look"] = [round(o[0], 3) for o in orc]
-            first = next((i for i, o in enumerate(orc) if o[0] >= cfg.power_floor), None)
-            p["earliest_look"] = first
+            p["earliest_look"] = next((i for i, o in enumerate(orc) if o[0] >= cfg.power_floor), None)
             if p["oracle_power"] < cfg.power_floor:
                 p["status"] = UNDETECTABLE
             elif p["marginal_power"] < cfg.power_floor:
@@ -562,8 +737,11 @@ def seal_key(key: dict, out: Path, manifest: Manifest) -> dict:
         raise SealError(f"answer key {p.name} already exists: a key is written once, before its system run")
     data = json.dumps(key, sort_keys=True, default=float).encode()
     _write_new(p, data)
-    return manifest.append({"kind": "key", "world_id": key["world_id"], "sha256": _sha(data), "written_ns": time.time_ns(),
-                            "mtime_ns": p.stat().st_mtime_ns})
+    row = manifest.append({"kind": "key", "world_id": key["world_id"], "sha256": _sha(data), "written_ns": time.time_ns(),
+                           "mtime_ns": p.stat().st_mtime_ns})
+    while time.time_ns() <= max(row["written_ns"], row["mtime_ns"]):   # the clock is coarse on Windows: anything later is strictly later
+        time.sleep(0.001)
+    return row
 
 
 def save_answers(answers: dict, out: Path, manifest: Manifest, started_ns: int) -> dict:
@@ -594,7 +772,7 @@ def open_key(out: Path, world_id: str, manifest: Manifest) -> tuple[dict, dict]:
     if not krow["written_ns"] < arow["started_ns"] <= arow["written_ns"]:
         errs.append(f"{world_id}: the key was not written before the system started")
     if kp.stat().st_mtime_ns > arow["written_ns"] or kp.stat().st_mtime_ns != krow["mtime_ns"]:
-        errs.append(f"{world_id}: the key file was (re)written after it was sealed")
+        errs.append(f"{world_id}: the key file was rewritten after it was sealed")
     if errs:
         raise SealError("; ".join(errs))
     return json.loads(kb), json.loads(ab)
@@ -646,6 +824,18 @@ def loop_screen_defaults() -> tuple[int, float]:
     return int(f["screen_top"].default), float(f["screen_t"].default)
 
 
+EVIDENCE_COLUMNS = ("touch", "up", "close", "end", "sector", "m_vol", "vol20")     # what evidence.assemble reads besides the feature
+
+
+def evidence_columns(feature: str, columns) -> list[str]:
+    """The frame columns evidence.assemble reads for one VOLATILITY finding (its design, sector transfer, market-volatility failure
+    contexts, replication and leak audit) plus the feature's own base columns. Handing it only these gives identical evidence; the
+    other ~600 planted columns were being copied on every row filter inside it (measured: most of an assemble's time)."""
+    from engine.research import vol_hypotheses as VH
+    need = list(dict.fromkeys(list(EVIDENCE_COLUMNS) + list(VH.required_columns((feature,)))))
+    return [c for c in need if c in set(columns)]
+
+
 def _decision_summary(rep, sid: str) -> dict:
     d = next(x for x in rep.decisions if x.subject_id == sid)
     gates = [(g.gate, g.state, g.ok) for g in d.gates]
@@ -656,7 +846,7 @@ def _decision_summary(rep, sid: str) -> dict:
 
 
 def run_system(frame: pd.DataFrame, world_id: str, seed: int, cfg: BenchConfig = BenchConfig(), *, code_hash: str = "f19",
-               created_real: str = "2026-09-30T00:00:00+00:00") -> dict:
+               created_real: str = "2026-09-30T00:00:00+00:00", log=None) -> dict:
     """The current system on one world, past data only. Sees the frame and nothing else (never the key)."""
     from engine.research import evidence as EV
     from engine.research import loop as LP
@@ -664,7 +854,7 @@ def run_system(frame: pd.DataFrame, world_id: str, seed: int, cfg: BenchConfig =
     from engine.research import replication as RP
     from engine.research import volatility_lab as VL
     top, t_min = loop_screen_defaults()
-    cap = top * cfg.look_every                        # one screen call stands for look_every weekly calls of the loop
+    cap = top * (cfg.screen_calls or cfg.look_every)  # one screen call stands for look_every weekly calls of the loop
     planted = [c for c in frame.columns if c.startswith(PREFIX)]
     dates = pd.DatetimeIndex(frame.index.get_level_values(0).unique()).sort_values()
     plan = LP.REGATE_PLAN
@@ -711,8 +901,8 @@ def run_system(frame: pd.DataFrame, world_id: str, seed: int, cfg: BenchConfig =
                 k = st["looks"]
                 spec = EV.FindingSpec("D_" + f, f, cands[f]["sign"], "VOLATILITY", n_tests_searched=max(1, len(screened)),
                                       has_falsifier=True, seed=int(seed))
-                b = EV.assemble(M, spec, now, code_hash=code_hash, data_hash=f"bench{seed}", created_real=created_real,
-                                ledger=st["ledger"], look=k, plan=plan)
+                b = EV.assemble(M[evidence_columns(f, M.columns)], spec, now, code_hash=code_hash, data_hash=f"bench{seed}",
+                                created_real=created_real, ledger=st["ledger"], look=k, plan=plan)
                 rep = EV.gate([b], now, code_hash, store=store, looks={spec.subject_id: k}, plan=plan)
                 d = _decision_summary(rep, spec.subject_id)
                 d.update(look=li, k=k, alpha=plan.alpha_at(k), n_tests_searched=max(1, len(screened)), n_scanned=len(feats),
@@ -736,6 +926,8 @@ def run_system(frame: pd.DataFrame, world_id: str, seed: int, cfg: BenchConfig =
             looks_meta.append({"look": li, "now": str(pd.Timestamp(now).date()), "n_dates": n_dates, "rows": int(len(M)), "raised": raised,
                                "gated": n_gated, "screened_total": len(screened), "scan_s": round(scan_s, 2),
                                "gate_s": round(time.monotonic() - tg, 2)})
+            if log is not None:
+                log(f"{world_id} look {li}: {looks_meta[-1]}")
     return {"world_id": world_id, "n_scanned": len(cands), "screen_top": top, "screen_t": t_min, "cap_per_screen": cap,
             "looks": looks_meta, "candidates": cands, "seconds": round(time.monotonic() - t0, 1)}
 
@@ -811,7 +1003,8 @@ def score_world(key: dict, answers: dict) -> tuple[list[dict], dict]:
         true_sign = p["sign"]
         sys_sign = best.get("sign") if best else None
         pl = best.get("promoted_look") if best else None
-        r = {"world_id": key["world_id"], "split": key["split"], "eval_era": key["eval_era"], "shift": key["shift"], "pid": p["pid"],
+        r = {"world_id": key["world_id"], "split": key["split"], "tier": key.get("tier"), "eval_era": key["eval_era"], "shift": key["shift"],
+             "pid": p["pid"],
              "label": p["label"], "kind": p["kind"], "band": p.get("band"), "status": p.get("status"), "oracle_power": p.get("oracle_power"),
              "marginal_power": p.get("marginal_power"), "planted_effect": p.get("planted_effect"), "surfaced": surfaced, "promoted": promoted,
              "promoted_look": pl, "raised_look": best.get("raised_look") if best else None, "earliest_look": p.get("earliest_look"),
@@ -853,7 +1046,9 @@ def score_world(key: dict, answers: dict) -> tuple[list[dict], dict]:
     real = R[R["label"] == REAL]
     det = real[real["status"] == DETECTABLE]
     noise = R[R["label"] == NOISE]
-    summ = {"world_id": key["world_id"], "split": key["split"], "eval_era": key["eval_era"], "shift": key["shift"], "n_looks": n_looks,
+    summ = {"world_id": key["world_id"], "split": key["split"], "tier": key.get("tier"), "eval_era": key["eval_era"], "shift": key["shift"],
+            "n_looks": n_looks, "promoted_total": int(sum(c["final"] == "PROMOTED" for c in cands.values())),
+            "outcomes": pd.Series([OUTCOME.get(c["final"], "REJECT") for c in cands.values()]).value_counts().to_dict() if cands else {},
             "real_total": int(len(real)), "real_detectable": int(len(det)), "real_right": int(det["promoted"].sum()),
             "real_undetectable": int((real["status"] == UNDETECTABLE).sum()), "real_not_representable": int((real["status"] == NOT_REPRESENTABLE).sum()),
             "real_promoted_any": int(real["promoted"].sum()), "noise_total": int(len(noise)), "noise_rejected": int((~noise["promoted"]).sum()),
@@ -863,6 +1058,26 @@ def score_world(key: dict, answers: dict) -> tuple[list[dict], dict]:
             "credit": float(real["credit"].sum()), "seconds": answers.get("seconds")}
     summ.update(expected_fp_bound(answers, key))
     return rows, summ
+
+
+# C75 3B: the learner's outcome per candidate (the gate's final state mapped onto PROMOTE / QUARANTINE / REJECT / UNKNOWN)
+OUTCOME = {"PROMOTED": "PROMOTE", "QUARANTINED": "QUARANTINE", "RETIRED": "REJECT", "NOT_RAISED": "REJECT", "LIVE": "UNKNOWN"}
+
+
+def tier_table(R: pd.DataFrame, S: pd.DataFrame) -> pd.DataFrame:
+    """C75 3E / 3F: per difficulty tier (0 = NULL world, where the right answer is 'no reliable signal')."""
+    rows = []
+    for (split, tier), g in R.groupby(["split", "tier"], dropna=False):
+        sg = S[(S["split"] == split) & (S["tier"] == tier)]
+        real, noise = g["label"] == REAL, g["label"] == NOISE
+        det = real & (g["status"] == DETECTABLE)
+        tp, fp = int((det & g["promoted"]).sum()), int((noise & g["promoted"]).sum())
+        rows.append({"split": split, "tier": tier, "worlds": int(g["world_id"].nunique()),
+                     "recall (detectable)": _fmt(*_ratio(g, det, g["promoted"])), "precision": f"{tp / (tp + fp):.1%}" if tp + fp else "n/a",
+                     "FDR": f"{fp / (tp + fp):.1%}" if tp + fp else "n/a", "FP / world": f"{sg['false_positives'].mean():.2f}",
+                     "noise rejected": _fmt(*_ratio(g, noise, ~g["promoted"])),
+                     "worlds with nothing promoted": f"{int((sg['promoted_total'] == 0).sum())}/{len(sg)}"})
+    return pd.DataFrame(rows)
 
 
 def expected_fp_bound(answers: dict, key: dict) -> dict:
@@ -1019,7 +1234,7 @@ def ranked_failures(R: pd.DataFrame, S: pd.DataFrame) -> pd.DataFrame:
 
 
 # ================================================================================================================ one world end to end
-def run_world(seed: int, out: Path, cfg: BenchConfig = BenchConfig(), *, code_hash: str | None = None) -> dict:
+def run_world(seed: int, out: Path, cfg: BenchConfig = BenchConfig(), *, code_hash: str | None = None, log=None) -> dict:
     """PUBLIC ENTRY. Generate -> seal the key (C72) -> run the system on the frame only -> save its answers -> open the key -> score.
     Idempotent: a world already scored is read back, a world whose key exists without answers is re-run from its sealed key's seed
     only if the key still verifies (the key itself is never rewritten)."""
@@ -1037,7 +1252,7 @@ def run_world(seed: int, out: Path, cfg: BenchConfig = BenchConfig(), *, code_ha
     frame = w.frame
     del w                                              # the system gets the frame; the key object is dropped before it starts
     started = time.time_ns()
-    ans = run_system(frame, wid, seed, cfg, code_hash=code_hash or "f19")
+    ans = run_system(frame, wid, seed, cfg, code_hash=code_hash or "f19", log=log)
     ans["generation_s"] = round(gen_s, 1)
     save_answers(ans, out, man, started)
     key, ans = open_key(out, wid, man)
@@ -1089,6 +1304,118 @@ def report_markdown(tables: Mapping[str, pd.DataFrame], summaries: Sequence[dict
             continue
         lines += [f"## {title}", "", md_table(t), ""]
     return "\n".join(lines)
+
+
+# ================================================================================================================ C75 3M memorization / 3N mutation
+def disguise(frame: pd.DataFrame, seed: int, shift_weeks: int = 52) -> tuple[pd.DataFrame, dict[str, str], dict[str, str]]:
+    """C75 3M: the same world under new names - tickers renamed AND reordered (a rename that keeps row order hides name-order
+    tie-breaks), dates shifted by whole weeks, planted columns renamed and reordered. Returns (frame, column map new -> old,
+    ticker map new -> old). A learner blind to identities must give the same answers after mapping the names back."""
+    rng = np.random.default_rng(np.random.SeedSequence([7, int(seed)]))
+    ticks = pd.Index(frame.index.get_level_values(1).unique())
+    new_t = [f"Z{int(i):03d}" for i in rng.permutation(len(ticks))]
+    tmap = dict(zip(ticks, new_t))
+    planted = [c for c in frame.columns if c.startswith(PREFIX)]
+    perm = rng.permutation(len(planted))
+    cmap = {c: f"{PREFIX}{int(perm[i]) + 500:03d}" for i, c in enumerate(planted)}
+    d = pd.to_datetime(frame.index.get_level_values(0)) + pd.Timedelta(weeks=int(shift_weeks))
+    t = frame.index.get_level_values(1).map(tmap)
+    G = frame.rename(columns=cmap).copy()
+    G.index = pd.MultiIndex.from_arrays([d, t], names=frame.index.names)
+    G["end"] = pd.to_datetime(G["end"]) + pd.Timedelta(weeks=int(shift_weeks))
+    order = rng.permutation(len(G))
+    G = G.iloc[order]
+    G = G.sort_index(level=0, sort_remaining=False, kind="stable")
+    cols = [c for c in G.columns if not c.startswith(PREFIX)] + sorted(cmap.values(), key=lambda _: rng.random())
+    return G[cols], {v: k for k, v in cmap.items()}, {v: k for k, v in tmap.items()}
+
+
+def answers_invariance(a: dict, b: dict, back: Mapping[str, str]) -> dict:
+    """Compare two answer sheets of one world (b under disguise; `back` maps b's names to a's). Invariant = same raised set, same
+    final status and the same verdict at every look for every candidate."""
+    diff = []
+    bb = {back.get(f, f): c for f, c in b["candidates"].items()}
+    for f, ca in a["candidates"].items():
+        cb = bb.get(f)
+        if cb is None:
+            diff.append((f, "missing under disguise"))
+            continue
+        va, vb = [g["verdict"] for g in ca.get("gate", [])], [g["verdict"] for g in cb.get("gate", [])]
+        if ca.get("raised_look") != cb.get("raised_look") or ca["final"] != cb["final"] or va != vb:
+            diff.append((f, f"{ca.get('raised_look')}/{ca['final']}/{va} vs {cb.get('raised_look')}/{cb['final']}/{vb}"))
+        sa = [round(x[1], 6) if x[1] is not None else None for x in ca["scan"]]
+        sb = [round(x[1], 6) if x[1] is not None else None for x in cb["scan"]]
+        if sa != sb:
+            diff.append((f, "scan AUC differs"))
+    return {"n": len(a["candidates"]), "n_diff": len(diff), "diffs": diff[:50], "invariant": not diff}
+
+
+MUTATIONS: dict[str, dict[str, Any]] = {
+    # C75 3N: the generator changed along one axis at a time (seeds change with every world anyway)
+    "stronger": {"bands": (("obvious", 0.9), ("moderate", 0.55), ("subtle", 0.3), ("faint", 0.18), ("extremely_subtle", 0.09))},
+    "weaker": {"bands": (("obvious", 0.4), ("moderate", 0.23), ("subtle", 0.13), ("faint", 0.08), ("extremely_subtle", 0.04))},
+    "short_regimes": {"min_segment": 13, "single_era_share": 0.0},
+    "long_regimes": {"single_era_share": 1.0},
+    "noisy_names": {"ticker_sd": 1.0, "slow_sd": 0.8},
+    "quiet_names": {"ticker_sd": 0.2, "slow_sd": 0.1},
+    "harder_mt": {"mt_pool": 200, "mt_window": 0.5},
+    "fewer_names": {"n_names": 24},
+    "more_names": {"n_names": 96},
+}
+
+
+def mutate(cfg: BenchConfig, name: str) -> BenchConfig:
+    if name not in MUTATIONS:
+        raise KeyError(f"unknown mutation {name!r}; known: {sorted(MUTATIONS)}")
+    out = dataclasses.replace(cfg, **MUTATIONS[name])
+    errs = out.validate()
+    if errs:
+        raise ValueError(f"mutation {name} is invalid: {errs}")
+    return out
+
+
+# ================================================================================================================ C75 Phase 7 / Firewall 10
+def learning_curve(summaries: Sequence[dict], order: Sequence[str] | None = None, points: Sequence[int] = (1, 5, 10, 25, 50, 100, 250, 500)
+                   ) -> pd.DataFrame:
+    """Performance on the NEXT unseen worlds after k worlds of history, in processing order. The gate-only path carries no memory
+    between worlds (a fresh ledger and quarantine store per world), so any slope here is sampling noise: the curve is reported to
+    make that explicit, not to claim learning."""
+    S = pd.DataFrame(list(summaries))
+    if S.empty:
+        return S
+    if order is not None:
+        S = S.set_index("world_id").loc[[w for w in order if w in set(S["world_id"])]].reset_index()
+    rows = []
+    for k in points:
+        if k >= len(S):
+            break
+        nxt = S.iloc[k:k + max(5, k)]
+        det = nxt["real_detectable"].sum()
+        rows.append({"history_worlds": k, "next_worlds": len(nxt), "recall_next": float(nxt["real_right"].sum() / det) if det else None,
+                     "fp_per_world_next": float(nxt["false_positives"].mean()),
+                     "noise_rejection_next": float(nxt["noise_rejected"].sum() / max(1, nxt["noise_total"].sum()))})
+    return pd.DataFrame(rows)
+
+
+def freeze_record(cfg: BenchConfig) -> dict:
+    """Firewall 10 design (the final holdout is NOT created here): what must be frozen before a final benchmark is sealed - the
+    benchmark configuration, the gate / plan / screen settings and the code that runs them. `assert_frozen` refuses a final run whose
+    current state differs from the record."""
+    from engine import provenance as PV
+    from engine.research import evidence as EV
+    from engine.research import loop as LP
+    from engine.research import quality_gate as QG
+    top, t_min = loop_screen_defaults()
+    return {"benchmark_config": stable_hash(dataclasses.asdict(cfg), 16), "quality_policy": stable_hash(repr(QG.QualityPolicy()), 16),
+            "sequential_plan": stable_hash(repr(LP.REGATE_PLAN), 16), "evidence_config": stable_hash(repr(EV.EvidenceConfig()), 16),
+            "screen": [top, t_min, LP.REGATE_NEW_DATES], "code_hash": PV.code_stamp()["code_hash"], "final_salt": "F19-final-UNCREATED"}
+
+
+def assert_frozen(record: Mapping[str, Any], cfg: BenchConfig) -> None:
+    now = freeze_record(cfg)
+    bad = [k for k in record if k in now and record[k] != now[k]]
+    if bad:
+        raise HeldOutAccess(f"final-holdout state changed since it was frozen: {bad}")
 
 
 def md_table(t: pd.DataFrame) -> str:

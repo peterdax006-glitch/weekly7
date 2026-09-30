@@ -505,7 +505,7 @@ def power_analysis(values, clusters=None, observed: float | None = None) -> Powe
     return Power(g, sd, se, mde, obs, bool(abs(obs) < mde))
 
 
-def adjust_many(p_values: Sequence[float], method: str = "bh") -> np.ndarray:
+def adjust_many(p_values: Sequence[float] | np.ndarray, method: str = "bh") -> np.ndarray:
     """Adjusted p-values over many knowledge items / axes tested at once. 'bh' = Benjamini-Hochberg q-values via
     pattern_stats.bh_qvalues (reused, not copied); 'holm' = pattern_reliability.holm. NaN p-values stay NaN and are not counted."""
     from .. import pattern_stats as PS, pattern_reliability as PR

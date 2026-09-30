@@ -51,7 +51,7 @@ import time
 import traceback
 import types
 from pathlib import Path
-from typing import Any, Callable, Iterable, Mapping, Protocol, Sequence
+from typing import TYPE_CHECKING, Any, Callable, Iterable, Mapping, Protocol, Sequence
 
 import numpy as np
 import pandas as pd
@@ -63,6 +63,10 @@ from engine.research import controller as CT
 from engine.research import two_stage as TS
 from engine.research.core import (ExperimentValue, FirewallBreach, MaturedRecord, Namespace, Problem, Provenance, ResearchQuestion,
                                   Stage, _StrEnum, as_date, require_past, stable_hash)
+
+if TYPE_CHECKING:                                          # typing only: firewall/trader_view are imported lazily at run time
+    from engine.learning.trader_view import TraderRelease
+    from engine.research.firewall import LiveStore
 
 LABEL = "IMPLEMENTED - NOT VALIDATED"
 NAMESPACE = Namespace.MATURED_RESEARCH
@@ -678,7 +682,7 @@ class Executor:
         if self.futures:
             cf.wait(list(self.futures.values()), timeout=timeout)
 
-    def results(self) -> dict[str, dict]:
+    def results(self) -> tuple[dict[str, Any], dict[str, tuple[str, str]]]:
         """Accepted results by experiment key (compute.reconcile: hash, spec, seed and code all verified)."""
         rec = C.reconcile(self.ledger, self.out_root, self.code_hash)
         return {k: r for k, r in rec.accepted}, {k: (why, det) for k, why, det in rec.rejected}
@@ -812,8 +816,8 @@ class Runtime:
         self.code_hash = cfg.code_hash or current_code_hash()
         self.executor = Executor(self.root, cfg, self.code_hash)
         self.obs: Observation | None = None
-        self.live = None
-        self.release = None
+        self.live: LiveStore | None = None
+        self.release: TraderRelease | None = None
         self.sweep_specs = {s.name: s for s in sweeps}
         self.sweep_runs: dict[str, Callable] = {}
         self.clock = clock
@@ -1615,10 +1619,10 @@ def st_generate(ctx: Ctx) -> tuple:
         is_new = qo.qid not in ctx.state.questions
         ctx.state.questions[qo.qid] = qo
         qn = L.add("QUESTION", qo.qid, ctx.cycle, ctx.now, source=qo.source, problem=qo.question.problem.value, text=qo.question.text[:100])
-        for e in events:
-            ek = _event_key(e)
+        for evt in events:
+            ek = _event_key(evt)
             en = ctx.state.q_nodes.get(ek)
-            if en and e.subject == qo.subject:
+            if en and evt.subject == qo.subject:
                 L.link(en, qn, "asked_as")
         if is_new:
             new.append(qo.qid)
@@ -2001,7 +2005,7 @@ def st_ladder(ctx: Ctx) -> tuple:
     if ms is None or not val:
         raise NoInput("no validated results")
     pol = _ladder_policy(ctx)
-    acts = {}
+    acts: dict[str, Any] = {}
     L = ctx.state.lineage
     for key in sorted(val):
         rec = ctx.state.jobs[key]
@@ -2082,7 +2086,7 @@ def st_memory(ctx: Ctx) -> tuple:
         except Exception as e:                           # noqa: BLE001 - the ledger refusing a record is a reported finding
             refused += 1
             ctx.bus.setdefault("notes", []).append(f"experiment memory refused {key[:10]}: {type(e).__name__}: {str(e)[:160]}")
-        if outcome is not None:
+        if outcome is not None and forest is not None and tree is not None:
             HT.step(forest, [HT.TestResult(tree.tree_id, pend[0].nid, outcome, r["data_through"])], ctx.now)
             ctx.state.count("tree_results")
         _raise_followups(ctx, rec, r, t)
@@ -2416,6 +2420,7 @@ def _file_knowledge(ctx: Ctx, rec: JobRecord) -> int:
     """File a promoted finding in MATURED_RESEARCH_STATE, trader-shaped (features/lean/horizon), for the firewall to release."""
     from engine.research.namespaces import InfoKind, InfoObject
     r = rec.result
+    assert r is not None                               # only promoted (completed) jobs are filed
     fw = _firewall(ctx)
     lean = 0.0
     if rec.problem == Problem.DIRECTION.value:
@@ -2558,7 +2563,7 @@ def st_stale(ctx: Ctx) -> tuple:
         for qid in abandoned:
             bid = ctx.state.branch_of.get(qid)
             b = ms.branches.get(bid) if bid else None
-            if b is not None and b.state.value in ("QUEUED", "DORMANT"):
+            if bid and b is not None and b.state.value in ("QUEUED", "DORMANT"):
                 CM.cancel(ms, bid, ctx.now, "question abandoned as stale")
                 cancelled += 1
         for bid in CM.stalled_branches(ms, ctx.now):
@@ -2876,7 +2881,7 @@ def open_loop(feed: Feed, root: str | Path, cfg: LoopConfig | None = None, sweep
         moved = Path(root).with_name(f"{Path(root).name}.old{time.strftime('%Y%m%dT%H%M%S')}")
         shutil.move(str(root), str(moved))
     rt = Runtime(feed, root, cfg, sweeps, clock, kill_after)
-    info = {"action": "START_FRESH", "recovered": {}, "moved_aside": str(moved) if moved else None}
+    info: dict[str, Any] = {"action": "START_FRESH", "recovered": {}, "moved_aside": str(moved) if moved else None}
     state = None
     if rt.checkpointer is not None and not fresh:
         state, plan = rt.checkpointer.load(rt.code_hash, cfg.allow_code_change)
@@ -2901,7 +2906,7 @@ def run(feed: Feed, root: str | Path, cfg: LoopConfig | None = None, max_cycles:
     """Run cycles until the feed runs out, `max_cycles` (None = forever) or the wall budget is spent. An interruption writes the
     section-58 interruption record next to the checkpoints before it propagates."""
     state, rt, info = open_loop(feed, root, cfg, sweeps, fresh, clock, kill_after)
-    reports = []
+    reports: list[dict] = []
     t0 = time.monotonic()
     try:
         while max_cycles is None or len(reports) < max_cycles:
@@ -2925,7 +2930,7 @@ def run(feed: Feed, root: str | Path, cfg: LoopConfig | None = None, max_cycles:
 
 # ================================================================================================================ reports
 def cycle_report(state: LoopState, rt: Runtime, records: Sequence[StageRecord]) -> dict:
-    by = {}
+    by: dict[str, int] = {}
     for r in records:
         by[r.status.value] = by.get(r.status.value, 0) + 1
     dec = state.bus.get("controller")

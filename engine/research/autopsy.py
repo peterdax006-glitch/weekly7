@@ -367,7 +367,7 @@ def model_section(rec: ob.DayRecord, p: AutopsyParams, obs: ob.ObserverParams) -
     tp, fp = conf.get("tp", 0), conf.get("fp", 0)
     winners_total = int(win.sum())
     cap = float((win & fill_win.to_numpy()).sum() / winners_total) if winners_total else float("nan")
-    return ModelSection(best, worst, missed_w, missed_l, dodged, cm, us, reason_counts, dict(rec.model.get("winner_why", {})),
+    return ModelSection(tuple(best), tuple(worst), missed_w, tuple(missed_l), tuple(dodged), cm, us, reason_counts, dict(rec.model.get("winner_why", {})),
                         float(rec.model.get("score_auc", float("nan"))), float(rec.model.get("precursor_auc", float("nan"))),
                         float(rec.model.get("mcc_fill", float("nan"))), float(rec.model.get("recall_of_movers", float("nan"))),
                         float(tp / (tp + fp)) if tp + fp else float("nan"), _decile_lift(rec.model.get("score_deciles", [])),
@@ -652,7 +652,7 @@ def risk_section(rec: ob.DayRecord, ctx: AutopsyContext, p: AutopsyParams, obs: 
     all_by = {v: [i for i in items if i.verdict == v] for v in by}
     av = sum(i.loss * wmap[i.cid] for i in all_by["avoidable"])
     sectors = picks["sector"].astype(int).to_numpy()
-    conc = {"hhi_sector": herfindahl(sectors, w), "hhi_type": herfindahl(picks["mover_type"].astype(str).to_numpy(), w),
+    conc = {"hhi_sector": herfindahl(sectors, list(w)), "hhi_type": herfindahl(picks["mover_type"].astype(str).to_numpy(), list(w)),
             "top_sector_share": float(pd.Series(w).groupby(sectors).sum().max()),
             "top_loss_share": float(max((i.loss * wmap[i.cid] for i in items), default=0.0) / loss_total) if loss_total > 0 else 0.0,
             "n_sectors_known": float(len(set(sectors[sectors >= 0].tolist())))}
@@ -739,7 +739,10 @@ def make_questions(rec: ob.DayRecord, market: MarketSection, model: ModelSection
                    known: set[str]) -> list[ResearchQuestion]:
     tickers = list(rec.rows["ticker"]) if not rec.rows.empty else []
     out: list[ResearchQuestion | None] = []
-    add = lambda *a, **k: out.append(_q(*a, rec=rec, created_real=created_real, known=known, tickers=tickers, **k))
+    def add(text: str, source: str, problem: Problem, *, success: str, failure: str, n: float, magnitude: float) -> None:
+        out.append(_q(text, source, problem, rec=rec, created_real=created_real, success=success, failure=failure, n=n,
+                      magnitude=magnitude, known=known, tickers=tickers))
+
     cell = market.cell
     moved = int(rec.market.get("n_moved", 0))
     if model.missed_winners:
@@ -873,26 +876,26 @@ def learning_section(ctx: AutopsyContext, questions: Sequence[ResearchQuestion],
     """What the day changed: knowledge items that appeared / vanished / changed lifecycle, confidence moves, priority moves, and
     the experiments worth running next (the new questions ranked by expected decision value per compute minute)."""
     kb, ka = ctx.knowledge_before, ctx.knowledge_after
-    kn = []
+    kn: list[dict[str, Any]] = []
     for kid in sorted(set(kb) | set(ka)):
         b, a = kb.get(kid), ka.get(kid)
-        if b is None:
+        if b is None and a is not None:
             kn.append({"kid": kid, "change": "added", "lifecycle": a.lifecycle})
-        elif a is None:
+        elif a is None and b is not None:
             kn.append({"kid": kid, "change": "removed", "lifecycle": b.lifecycle})
-        elif a.lifecycle != b.lifecycle:
+        elif a is not None and b is not None and a.lifecycle != b.lifecycle:
             kn.append({"kid": kid, "change": "lifecycle", "from": b.lifecycle, "to": a.lifecycle})
-    cc = []
+    cc: list[dict[str, Any]] = []
     for kid in sorted(set(kb) & set(ka)):
-        b, a = kb[kid].confidence, ka[kid].confidence
-        if b is not None and a is not None and abs(a - b) >= 0.05:
-            cc.append({"kid": kid, "before": b, "after": a, "delta": a - b})
+        cb, ca = kb[kid].confidence, ka[kid].confidence
+        if cb is not None and ca is not None and abs(ca - cb) >= 0.05:
+            cc.append({"kid": kid, "before": cb, "after": ca, "delta": ca - cb})
     cc.sort(key=lambda d: -abs(d["delta"]))
-    pc = []
+    pc: list[dict[str, Any]] = []
     for k in sorted(set(ctx.priorities_before) | set(ctx.priorities_after)):
-        b, a = ctx.priorities_before.get(k), ctx.priorities_after.get(k)
-        if b is None or a is None or abs(a - b) >= 0.05:
-            pc.append({"item": k, "before": b, "after": a})
+        pb, pa = ctx.priorities_before.get(k), ctx.priorities_after.get(k)
+        if pb is None or pa is None or abs(pa - pb) >= 0.05:
+            pc.append({"item": k, "before": pb, "after": pa})
     fresh = [q for q in questions if q.question_id not in known and q.question_id not in set(ctx.running)]
     ranked = sorted(fresh, key=lambda q: -((q.expected.decision_value or 0.0) * (q.expected.information_gain or 0.0)
                                             / max(q.expected.compute_cost or 1.0, 1e-9)))
@@ -920,6 +923,28 @@ class Autopsy:
 
     def sections(self) -> dict[str, Any]:
         return {k: getattr(self, k) for k in SECTIONS}
+
+    @property
+    def sec_market(self) -> MarketSection:
+        return self.parts()[0]
+
+    @property
+    def sec_model(self) -> ModelSection:
+        return self.parts()[1]
+
+    @property
+    def sec_research(self) -> ResearchSection:
+        return self.parts()[2]
+
+    @property
+    def sec_risk(self) -> RiskSection:
+        return self.parts()[3]
+
+    def parts(self) -> tuple[MarketSection, ModelSection, ResearchSection, RiskSection, LearningSection]:
+        """The five sections of a non-empty autopsy, narrowed for callers that render it."""
+        if self.market is None or self.model is None or self.research is None or self.risk is None or self.learning is None:
+            raise AutopsyError(f"autopsy {self.day} has a missing section")
+        return self.market, self.model, self.research, self.risk, self.learning
 
     def questions(self) -> tuple[ResearchQuestion, ...]:
         return self.research.questions if self.research else ()
@@ -988,6 +1013,7 @@ def step(state: AutopsyState, snap: ob.DecisionSnapshot, out: ob.DayOutcome, now
     """PUBLIC ENTRY. Observe one matured day (engine.research.observer) and autopsy it; the day is appended to the observer ledger
     only after the autopsy, so a day is never compared with itself. Returns the Autopsy; its questions feed the research queue."""
     rec = ob.observe_day(snap, out, now, state.obs_params)
+    assert state.observer is not None and state.observer.ledger is not None     # both set by the states' __post_init__
     a = autopsy_day(rec, state.observer.ledger, state, now, created_real, ctx)
     state.observer.ledger.add(rec)
     state.history.append(a)
@@ -998,7 +1024,7 @@ def render(a: Autopsy, top: int = 3) -> str:
     """Plain-text autopsy. Research-side (shows tickers as cids only)."""
     if a.empty:
         return f"autopsy {a.day}: empty universe"
-    m, md, rs, rk, ln = a.market, a.model, a.research, a.risk, a.learning
+    m, md, rs, rk, ln = a.parts()
     L = [f"AUTOPSY {a.day}  cell {m.cell}"]
     L.append("MARKET  bands " + ", ".join(f"{k} {v}" for k, v in m.bands.items()) + f"; unusual: {', '.join(m.unusual) or 'none'}")
     for k, ents in m.lists().items():
@@ -1072,7 +1098,7 @@ def to_markdown(a: Autopsy, top: int = 5) -> str:
     """The report a person reads: the five sections with tables. Research-side (cids, not tickers)."""
     if a.empty:
         return f"# Autopsy {a.day}\n\nEmpty universe; nothing was recorded.\n"
-    m, md, rs, rk, ln = a.market, a.model, a.research, a.risk, a.learning
+    m, md, rs, rk, ln = a.parts()
     o = [f"# Autopsy {a.day}", "", f"Context cell: `{m.cell}`", "", "## Market", "",
          "| band | close-to-close | open-to-close | eligible | z vs trend |", "|---|---:|---:|---:|---:|"]
     for k in O_BANDS:
@@ -1180,7 +1206,7 @@ class AutopsyLedger:
         if a.empty:
             self.rows.append({"day": a.day, "empty": True})
             return
-        m, md, rs, rk = a.market, a.model, a.research, a.risk
+        m, md, rs, rk = a.sec_market, a.sec_model, a.sec_research, a.sec_risk
         self.rows.append({"day": a.day, "empty": False, **{"band_" + k: v for k, v in m.bands.items()},
                           "n_suspect_band": m.n_suspect_band, "n_unusual": len(m.unusual), "score_auc": md.score_auc,
                           "precursor_auc": md.precursor_auc, "mcc": md.mcc, "recall": md.recall, "n_missed_winners": len(md.missed_winners),
@@ -1237,20 +1263,20 @@ def coverage_audit(a: Autopsy, rec: ob.DayRecord) -> list[str]:
     bad = []
     if a.empty:
         return [] if rec.empty else ["autopsy is empty but the record is not"]
-    if a.market.bands != dict(rec.bands):
+    if a.sec_market.bands != dict(rec.bands):
         bad.append("autopsy band counts differ from the record")
-    if rec.model.get("n_picked", 0) and a.risk.n_positions != rec.model["n_picked"]:
+    if rec.model.get("n_picked", 0) and a.sec_risk.n_positions != rec.model["n_picked"]:
         bad.append("risk section did not see every pick")
-    if a.risk.n_losses > a.risk.n_positions:
+    if a.sec_risk.n_losses > a.sec_risk.n_positions:
         bad.append("more losses than positions")
-    n_l = len(a.risk.avoidable) + len(a.risk.unavoidable) + len(a.risk.undetermined)
-    if n_l > a.risk.n_losses:
+    n_l = len(a.sec_risk.avoidable) + len(a.sec_risk.unavoidable) + len(a.sec_risk.undetermined)
+    if n_l > a.sec_risk.n_losses:
         bad.append("more listed losses than counted losses")
-    if any(u.count > rec.market.get("n_moved", 0) for u in a.research.unknown_causes):
+    if any(u.count > rec.market.get("n_moved", 0) for u in a.sec_research.unknown_causes):
         bad.append("an unknown-cause bucket exceeds the number of movers")
-    if sum(u.count for u in a.research.unknown_causes) > rec.market.get("n_moved", 0) + 1e-9:
+    if sum(u.count for u in a.sec_research.unknown_causes) > rec.market.get("n_moved", 0) + 1e-9:
         bad.append("unknown-cause buckets overlap")
-    for q in a.research.questions:
+    for q in a.sec_research.questions:
         if not q.success_criterion or not q.failure_criterion:
             bad.append(f"question {q.question_id} lacks a success or failure criterion")
     return bad
@@ -1354,12 +1380,12 @@ def grade(a: Autopsy, truth: Mapping[str, Sequence[str]], rec: ob.DayRecord) -> 
     'unpredictable' bucket? Used by the tests; also the self-check a wave-2 harness can run on every code change."""
     rows = rec.rows.set_index("ticker")
     by = lambda cids: {rows.index[rows["cid"] == c][0] for c in cids if (rows["cid"] == c).any()}
-    mw = by(e.cid for e in a.model.missed_winners)
+    mw = by(e.cid for e in a.sec_model.missed_winners)
     out = {}
     unp = set(truth.get("pred", ()))
     out["predictable_in_missed"] = float(len(unp & mw) / max(1, min(len(unp), len(mw)))) if unp else float("nan")
     fp = set(truth.get("fp", ()))
-    worst = by(e.cid for e in a.model.worst)
+    worst = by(e.cid for e in a.sec_model.worst)
     out["fp_in_worst"] = float(len(fp & worst) / max(1, min(len(fp), len(worst)))) if fp else float("nan")
     unpred_flagged = int(sum(1 for t in truth.get("pred", ()) if t in rows.index and ob.has(rows.at[t, "flags"], MC.UNPREDICTABLE_MOVER)))
     out["predictable_called_unpredictable"] = float(unpred_flagged)
@@ -1409,9 +1435,9 @@ def severity(a: Autopsy) -> float:
     surprises, avoidable losses and risk flags each add, saturating. It reorders reading, it never gates research."""
     if a.empty:
         return 0.0
-    x = (min(len(a.market.unusual), 4) / 4 * 0.25 + min(len(a.research.contradictions), 6) / 6 * 0.2 + min(len(a.research.surprises), 3) / 3 * 0.2
-         + (a.risk.avoidable_loss_share if a.risk.avoidable_loss_share == a.risk.avoidable_loss_share else 0.0) * 0.2
-         + min(len(a.risk.flags), 3) / 3 * 0.15)
+    x = (min(len(a.sec_market.unusual), 4) / 4 * 0.25 + min(len(a.sec_research.contradictions), 6) / 6 * 0.2 + min(len(a.sec_research.surprises), 3) / 3 * 0.2
+         + (a.sec_risk.avoidable_loss_share if a.sec_risk.avoidable_loss_share == a.sec_risk.avoidable_loss_share else 0.0) * 0.2
+         + min(len(a.sec_risk.flags), 3) / 3 * 0.15)
     return float(min(1.0, x))
 
 
@@ -1486,7 +1512,7 @@ def unknown_ledger(alog_rows: Sequence[Autopsy]) -> dict[str, float]:
     for a in alog_rows:
         if a.empty:
             continue
-        for u in a.research.unknown_causes:
+        for u in a.sec_research.unknown_causes:
             tot[u.verdict.value] = tot.get(u.verdict.value, 0.0) + u.count
             n += u.count
     return {k: v / n for k, v in sorted(tot.items())} if n else {}
@@ -1516,14 +1542,15 @@ def selfcheck(seed: int = 0) -> dict[str, Any]:
     st = A_STATE()
     s, o, truth = ob.synthetic_day(800, seed, 0, st.obs_params, plant)
     a = step(st, s, o, "2035-01-01", "2026-09-29")
+    assert st.observer is not None and st.observer.ledger is not None
     rec = st.observer.ledger._recs[-1]
     g = grade(a, {k: list(s.tickers[v]) for k, v in truth.items()}, rec)
     nul = A_STATE()
     s0, o0, _ = ob.synthetic_day(800, seed, 0, nul.obs_params, O_PLANT(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
     a0 = step(nul, s0, o0, "2035-01-01", "2026-09-29")
-    return {"bands_exact": a.market.bands["down_gt10"] == 6 and a.market.bands["down_5_10"] == 15, "fp_found": g["fp_in_worst"] >= 0.5,
-            "no_misclassified_predictable": g["predictable_called_unpredictable"] == 0, "null_no_bands": sum(a0.market.bands.values()) == 0,
-            "null_no_missed_winners": not a0.model.missed_winners, "null_no_causes": not a0.research.unknown_causes,
+    return {"bands_exact": a.sec_market.bands["down_gt10"] == 6 and a.sec_market.bands["down_5_10"] == 15, "fp_found": g["fp_in_worst"] >= 0.5,
+            "no_misclassified_predictable": g["predictable_called_unpredictable"] == 0, "null_no_bands": sum(a0.sec_market.bands.values()) == 0,
+            "null_no_missed_winners": not a0.sec_model.missed_winners, "null_no_causes": not a0.sec_research.unknown_causes,
             "coverage_ok": not coverage_audit(a, rec), "identity_free": not identity_leaks(to_dict(a), list(rec.rows["ticker"]))}
 
 
@@ -1594,11 +1621,11 @@ def day_over_day(prev: Autopsy | None, cur: Autopsy) -> dict[str, float]:
         return {"comparable": 0.0}
     out["comparable"] = 1.0
     for k in O_BANDS:
-        out["d_band_" + k] = float(cur.market.bands[k] - prev.market.bands[k])
+        out["d_band_" + k] = float(cur.sec_market.bands[k] - prev.sec_market.bands[k])
     for k in keys:
-        a, b = getattr(prev.model, k), getattr(cur.model, k)
+        a, b = getattr(prev.sec_model, k), getattr(cur.sec_model, k)
         out["d_" + k] = float(b - a) if a == a and b == b else float("nan")
-    out["d_losses"] = float(cur.risk.n_losses - prev.risk.n_losses)
+    out["d_losses"] = float(cur.sec_risk.n_losses - prev.sec_risk.n_losses)
     out["d_severity"] = severity(cur) - severity(prev)
     return out
 
@@ -1609,17 +1636,17 @@ def rollup(autopsies: Sequence[Autopsy]) -> dict[str, Any]:
     live = [a for a in autopsies if not a.empty]
     if not live:
         return {"days": 0}
-    bands = {k: int(sum(a.market.bands[k] for a in live)) for k in O_BANDS}
+    bands = {k: int(sum(a.sec_market.bands[k] for a in live)) for k in O_BANDS}
     reasons: dict[str, int] = {}
     for a in live:
-        for k, v in a.model.reason_counts.items():
+        for k, v in a.sec_model.reason_counts.items():
             reasons[k] = reasons.get(k, 0) + v
-    labels = pd.Series([regime_label(a.market) for a in live]).value_counts()
-    loss = np.array([a.risk.loss_total for a in live])
-    av = np.array([a.risk.avoidable_loss_share if a.risk.avoidable_loss_share == a.risk.avoidable_loss_share else 0.0 for a in live])
+    labels = pd.Series([regime_label(a.sec_market) for a in live]).value_counts()
+    loss = np.array([a.sec_risk.loss_total for a in live])
+    av = np.array([a.sec_risk.avoidable_loss_share if a.sec_risk.avoidable_loss_share == a.sec_risk.avoidable_loss_share else 0.0 for a in live])
     return {"days": len(live), "bands": bands, "bands_per_day": {k: v / len(live) for k, v in bands.items()}, "regimes": labels.to_dict(),
             "top_reason": max(reasons.items(), key=lambda kv: kv[1])[0] if reasons else "", "reasons": reasons,
-            "losses": int(sum(a.risk.n_losses for a in live)), "avoidable_share": float((av * loss).sum() / loss.sum()) if loss.sum() > 0 else float("nan"),
+            "losses": int(sum(a.sec_risk.n_losses for a in live)), "avoidable_share": float((av * loss).sum() / loss.sum()) if loss.sum() > 0 else float("nan"),
             "unknown_shares": unknown_ledger(live), "questions": int(sum(len(a.questions()) for a in live)),
             "mean_severity": float(np.mean([severity(a) for a in live]))}
 
@@ -1745,7 +1772,7 @@ def narrative(a: Autopsy) -> str:
     """Three plain sentences for the day: market, model, risk. No tickers, no dates."""
     if a.empty:
         return "No universe was recorded."
-    m, md, rk = a.market, a.model, a.risk
+    m, md, rk = a.sec_market, a.sec_model, a.sec_risk
     band = sum(m.bands.values())
     s1 = f"The market was {m.tone} with {band} band movers ({m.bands['up_5_10'] + m.bands['up_gt10']} up, {m.bands['down_5_10'] + m.bands['down_gt10']} down); regime {regime_label(m)}."
     s2 = (f"The model held {md.n_picked} names, captured {md.capturable_share:.0%} of the winners' tradeable move and missed {len(md.missed_winners)} listed winners, "
@@ -1765,7 +1792,7 @@ def loss_taxonomy(autopsies: Sequence[Autopsy]) -> pd.DataFrame:
     for a in autopsies:
         if a.empty:
             continue
-        for it in a.risk.avoidable + a.risk.unavoidable + a.risk.undetermined:
+        for it in a.sec_risk.avoidable + a.sec_risk.unavoidable + a.sec_risk.undetermined:
             rows.append({"verdict": it.verdict, "cause": it.cause or "UNNAMED", "loss": it.loss})
     if not rows:
         return pd.DataFrame(columns=["n", "mean_loss"])
@@ -1798,11 +1825,11 @@ def merge_queues(queues: Sequence[QuestionQueue]) -> QuestionQueue:
 
 def gap_exposure_history(autopsies: Sequence[Autopsy]) -> dict[str, float]:
     """Across days: how often the book took an adverse entry gap and what it cost, so the gap-risk question has a base rate."""
-    live = [a for a in autopsies if not a.empty and a.risk.n_positions]
+    live = [a for a in autopsies if not a.empty and a.sec_risk.n_positions]
     if not live:
         return {"days": 0.0}
-    n_adv = np.array([a.risk.gap_risk.get("adverse_entry_gaps", 0.0) for a in live])
-    cost = np.array([a.risk.gap_risk.get("adverse_gap_cost", 0.0) for a in live])
+    n_adv = np.array([a.sec_risk.gap_risk.get("adverse_entry_gaps", 0.0) for a in live])
+    cost = np.array([a.sec_risk.gap_risk.get("adverse_gap_cost", 0.0) for a in live])
     return {"days": float(len(live)), "days_with_adverse_gap": float((n_adv > 0).mean()), "mean_adverse_gaps": float(n_adv.mean()),
             "mean_cost": float(cost.mean()), "worst_cost": float(cost.max())}
 
@@ -1856,7 +1883,7 @@ def pattern_break_summary(autopsies: Sequence[Autopsy]) -> pd.DataFrame:
     for a in autopsies:
         if a.empty:
             continue
-        for e in a.research.new_patterns + a.research.broken_patterns:
+        for e in a.sec_research.new_patterns + a.sec_research.broken_patterns:
             rows.append({"pattern": e.pattern_id, "kind": e.kind, "effect_after": e.effect_after, "p_real": e.p_real})
     if not rows:
         return pd.DataFrame(columns=["broken", "new", "revived", "weakened", "last_effect", "last_p_real"])
@@ -1883,7 +1910,7 @@ def context_warnings(rec: ob.DayRecord) -> list[str]:
 
 def annotate(a: Autopsy, rec: ob.DayRecord) -> dict[str, Any]:
     """Wrap an Autopsy with its warnings, severity, regime label and narrative, ready for a report."""
-    return {"day": a.day, "warnings": context_warnings(rec), "severity": severity(a), "regime": regime_label(a.market) if not a.empty else "empty",
+    return {"day": a.day, "warnings": context_warnings(rec), "severity": severity(a), "regime": regime_label(a.sec_market) if not a.empty else "empty",
             "narrative": narrative(a), "coverage_problems": coverage_audit(a, rec), "count_problems": ob.verify_counts(rec)}
 
 
@@ -1921,7 +1948,7 @@ def write_reports(autopsies: Sequence[Autopsy], directory, keep_ticker: bool = F
 def band_table(autopsies: Sequence[Autopsy]) -> pd.DataFrame:
     """One row per day, one column per C67 band (close-to-close), plus the open-to-close total: the series the episode research
     reads to see how many 5-10% and >10% movers each day offered."""
-    rows = [{"day": a.day, **a.market.bands, "o2c_total": sum(a.market.bands_o2c.values()), "suspect": a.market.n_suspect_band}
+    rows = [{"day": a.day, **a.sec_market.bands, "o2c_total": sum(a.sec_market.bands_o2c.values()), "suspect": a.sec_market.n_suspect_band}
             for a in autopsies if not a.empty]
     return pd.DataFrame(rows).set_index("day") if rows else pd.DataFrame(columns=list(O_BANDS) + ["o2c_total", "suspect"])
 

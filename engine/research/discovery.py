@@ -436,7 +436,7 @@ class TrialLedger(_IL.TrialLedger):
                 out[i] = out.get(i, 0) + n
         return out
 
-    def cumulative_q(self, p_new: Sequence[float]) -> np.ndarray:
+    def cumulative_q(self, p_new: Sequence[float] | np.ndarray) -> np.ndarray:
         """q-value of each new p against pool + batch. Empty batch -> empty array."""
         p = np.clip(np.asarray(p_new, dtype=float), 0.0, 1.0)
         if p.size == 0:
@@ -454,7 +454,7 @@ class TrialLedger(_IL.TrialLedger):
             return super().register(*args, **kw)
         return self.record_run(*args, **kw)
 
-    def record_run(self, run_id: str, now, ids: Sequence[str], p: Sequence[float], families: Sequence[str], data_key: str) -> np.ndarray:
+    def record_run(self, run_id: str, now, ids: Sequence[str], p: Sequence[float] | np.ndarray, families: Sequence[str], data_key: str) -> np.ndarray:
         """Account a batch and return its cumulative q-values. `ids`, `p`, `families` align; untestable candidates must be passed
         with p = 1.0 (a candidate that was generated but too thin to test is still a step of the search)."""
         if not (len(ids) == len(p) == len(families)):
@@ -667,15 +667,15 @@ class Screener:
             cw = np.bincount(idx, minlength=N_LEVELS * n_wk).reshape(N_LEVELS, n_wk)
             for i, l in items:
                 SY[i], SW[i] = cy[l], cw[l]
-        for (ca, cb), items in by_pair.items():
+        for (ca, cb), trips in by_pair.items():
             la, lb = self.codes[ca], self.codes[cb]
             ok = (la >= 0) & (lb >= 0)
             idx = (la[ok].astype(np.int64) * N_LEVELS + lb[ok]) * n_wk + self.wk[ok]
             cells = N_LEVELS * N_LEVELS * n_wk
             cy = np.bincount(idx, weights=y[ok], minlength=cells).reshape(N_LEVELS * N_LEVELS, n_wk)
             cw = np.bincount(idx, minlength=cells).reshape(N_LEVELS * N_LEVELS, n_wk)
-            for i, a, b in items:
-                SY[i], SW[i] = cy[a * N_LEVELS + b], cw[a * N_LEVELS + b]
+            for i, l1, l2 in trips:
+                SY[i], SW[i] = cy[l1 * N_LEVELS + l2], cw[l1 * N_LEVELS + l2]
         for i in rest:
             m = self.row_mask(cands[i].expr)
             SY[i], SW[i] = weekly_sums(m, y, self.wk, n_wk)
@@ -716,7 +716,8 @@ class Screener:
                 if (c := self._mk([PI.Term(col, lv)], [], "single")) is not None]
 
     def pairs(self, pool: Sequence[PI.Term], seen: set[str]) -> list[Cand]:
-        cfg, out = self.cfg, []
+        cfg = self.cfg
+        out: list[Cand] = []
         budget = cfg.max_pairs
 
         def add(c: Cand | None) -> None:
@@ -752,7 +753,8 @@ class Screener:
     def triples(self, ranked_pairs: Sequence[Cand], seen: set[str]) -> list[Cand]:
         """Third terms added to the strongest pairs. Deeper conjunctions are where noise fits best, so they are few, drawn from the
         pairs already ranked on the discovery window, counted in the ledger, and held to the complexity bar in the verdict."""
-        cfg, out = self.cfg, []
+        cfg = self.cfg
+        out: list[Cand] = []
         universe = [PI.Term(c, l) for c in self.cols for l in cfg.single_levels]
         if cfg.max_triples <= 0 or not universe:
             return out
@@ -770,7 +772,8 @@ class Screener:
         return out
 
     def exceptions(self, ranked_pairs: Sequence[Cand], seen: set[str]) -> list[Cand]:
-        cfg, out = self.cfg, []
+        cfg = self.cfg
+        out: list[Cand] = []
         universe = [PI.Term(c, l) for c in self.cols for l in (0, N_LEVELS - 1)]
         if not universe:
             return out
@@ -1181,10 +1184,11 @@ class Analyzer:
         if not effects:
             return ValidationResult(tuple(blocks), None, None, None, None, agree, len(blocks), 0.0)
         pooled = KN.pool_effects(effects)
-        signed = pooled.effect.signed
-        t = signed / pooled.effect.uncertainty
+        signed, unc = pooled.effect.signed, pooled.effect.uncertainty
+        assert unc is not None                        # every pooled effect carries a standard error
+        t = signed / unc
         conf = _phi(t * direction) if t * direction > 0 else 0.0
-        return ValidationResult(tuple(blocks), float(signed), float(pooled.effect.uncertainty), float(t), float(pooled.i2), agree,
+        return ValidationResult(tuple(blocks), float(signed), float(unc), float(t), float(pooled.i2), agree,
                                 len(blocks), float(conf))
 
     # -- transfer
@@ -1333,7 +1337,7 @@ class Analyzer:
                     flags.append("beta_proxy")
         return ControlResult(ratio, name_share, week_share, tuple(flags), jk, r_ratio, r_t)
 
-    def jackknife(self, m: np.ndarray, direction: int, names: Sequence[str], weeks: Sequence[int]) -> float | None:
+    def jackknife(self, m: np.ndarray, direction: int, names: Sequence[str], weeks: Sequence[int] | np.ndarray) -> float | None:
         """Smallest direction-signed t after deleting, one at a time, each of the most influential stocks and weeks. A pattern that is
         one stock or one week in disguise loses its t here even when its concentration shares look tolerable."""
         worst = []
@@ -1393,10 +1397,10 @@ class Analyzer:
             eff += ["SELECTION", "POSITION_SIZE"]
         if set(families) & event_side:
             eff += ["SELECTION", "TIMING"]
-        eff = tuple(dict.fromkeys(eff))
+        effects = tuple(dict.fromkeys(eff))
         gain = None if val.pooled_mean is None else float(val.pooled_mean * direction)
         gt = None if val.pooled_t is None else float(val.pooled_t * direction)
-        return DecisionImpact(eff, gain, gt)
+        return DecisionImpact(effects, gain, gt)
 
 
 # ----------------------------------------------------------------------------------------------------- verdict and record
@@ -1480,7 +1484,7 @@ def to_knowledge(d: Dossier, expr: PI.Expression, now, prov: Provenance, cfg: Di
     tp = d.transfer
     fail_rate = float(d.failed_periods / max(1, v.n_blocks + 2))
     risk = float(np.clip(0.5 * fail_rate + 0.5 * (1.0 - (d.reliability if d.reliability is not None else 0.5)), 0.0, 1.0))
-    expl = ()
+    expl: tuple[KN.FailureExplanation, ...] = ()
     if d.verdict == GateVerdict.FAILED:
         expl = (KN.FailureExplanation(FailureCause.FALSE_PATTERN, str(as_date(now)), None,
                                       "; ".join(d.reasons) or "validation contradicted discovery", d.pattern_id),)
@@ -1822,7 +1826,7 @@ class DiscoveryEngine:
         code_hash = current_code_hash() or "unknown"          # once per step: hashing the loaded modules is slow
         exprs = {res.cands[i].id(cfg.tag): res.cands[i].expr for i in cand_idx}
         overlaps = known_overlaps(an, state, exprs, overlap=cfg.redundancy_overlap) if state.dossiers else {}
-        stab = stability_selection(res.SY[cand_idx], res.SW[cand_idx], panel.sel_train, cfg.lags, seed=cfg.seed) if cand_idx else []
+        stab: np.ndarray | list[float] = stability_selection(res.SY[cand_idx], res.SW[cand_idx], panel.sel_train, cfg.lags, seed=cfg.seed) if cand_idx else []
         shr = shrunk_effects(res.disc["mean"], res.disc["se"])
         for j, i in enumerate(cand_idx):
             d, expr = self._dossier(state, panel, an, res, i, run_id, now_ts, fb, seen_thr, stab[j], shr[i])
@@ -2041,6 +2045,8 @@ def audit_state(state: DiscoveryState) -> list[str]:
     errs = [f"ledger: {e}" for e in state.ledger.verify()] + [f"store: {e}" for e in state.store.verify()]
     for kid in state.store.ids():
         k = state.store.latest(kid)
+        if k is None:
+            continue
         if k.promotion not in NEVER_TRUSTED and k.promotion != Promotion.RETIRED:
             errs.append(f"{kid}: promotion {k.promotion.value} set inside discovery")
         if k.decision_effect != (DecisionEffect.NONE,):
@@ -2301,10 +2307,12 @@ def recurrence(state: DiscoveryState, pid: str, m_patterns: int, era_edges: Sequ
     if not effects:
         return Recurrence(pid, len(ev), len(by_year), len(eras), 0.0, None, None, None, 1.0, 1.0, None, m_patterns, "NO_ESTIMATE", eras)
     pooled = KN.pool_effects(effects)
-    z = pooled.effect.signed / pooled.effect.uncertainty
+    se_pooled = pooled.effect.uncertainty
+    assert se_pooled is not None                          # every pooled effect carries a standard error
+    z = pooled.effect.signed / se_pooled
     p = float(2.0 * sps.norm.sf(abs(z)))
     return Recurrence(pid, len(ev), len(by_year), len(eras), agree / len(by_year), float(pooled.effect.signed),
-                      float(pooled.effect.uncertainty), float(z), p, min(1.0, p * m_patterns), float(pooled.i2), m_patterns, "PENDING", eras)
+                      float(se_pooled), float(z), p, min(1.0, p * m_patterns), float(pooled.i2), m_patterns, "PENDING", eras)
 
 
 def recurrence_table(state: DiscoveryState, era_edges: Sequence[int] | None = None) -> list[Recurrence]:
@@ -2523,10 +2531,14 @@ class DiscoverySweep:
                 continue
             done = int(self.book.is_done(u, (self.tag,)))
             f, c = u.lens.split("@")
-            for tab, key in ((by_f, f), (by_c, c), (by_era, int(era_of(pd.DatetimeIndex([pd.Timestamp(year=u.year, month=6, day=1)]))[0]))):
-                tab.setdefault(key, [0, 0])
-                tab[key][0] += done
-                tab[key][1] += 1
+            era_key = int(era_of(pd.DatetimeIndex([pd.Timestamp(year=u.year, month=6, day=1)]))[0])
+            for tab_s, key_s in ((by_f, f), (by_c, c)):
+                tab_s.setdefault(key_s, [0, 0])
+                tab_s[key_s][0] += done
+                tab_s[key_s][1] += 1
+            by_era.setdefault(era_key, [0, 0])
+            by_era[era_key][0] += done
+            by_era[era_key][1] += 1
         for r in self.book.records.values():
             thin += r.band_counts.get("thin_universe", 0)
             unusable += r.band_counts.get("unusable", 0)
@@ -2631,7 +2643,10 @@ def null_calibration(engine: "DiscoveryEngine", inputs: DS.SourceInputs, now, fa
     surv = trusted = nsurv = ntr = tested = gen = 0
     for r in range(n_runs):
         st = DiscoveryState()
-        rep = engine.step(st, now, inputs, families=list(families), label_hook=lambda y, X, r=r: shuffle_within_dates(y, seed * 1000 + r))
+        def hook(y: pd.Series, X: pd.DataFrame, r: int = r) -> pd.Series:
+            return shuffle_within_dates(y, seed * 1000 + r)
+
+        rep = engine.step(st, now, inputs, families=list(families), label_hook=hook)
         ok = [d for d in st.dossiers.values() if d.verdict == GateVerdict.NEEDS_MORE_EVIDENCE]
         tr = [d for d in ok if (d.truth or 0.0) >= trust_at]
         surv += bool(ok)
@@ -2984,7 +2999,8 @@ def rescoped_candidates(state: DiscoveryState, min_t: float = 2.0, limit: int = 
     """Why do patterns break? For findings that depend significantly on one market-context feature, propose the pattern restricted to the
     levels of that feature where it held (or, for a FAILED one, where it held while it failed elsewhere). They are ordinary candidates:
     tested on the next step, paid for in the ledger, never assumed."""
-    out, seen = [], set()
+    out: list[Cand] = []
+    seen: set[str] = set()
     for pid, d in sorted(state.dossiers.items()):
         if not d.context_feature or d.context_dependence is None or d.context_dependence < 0.3:
             continue
@@ -3040,7 +3056,8 @@ def open_questions(state: DiscoveryState, now, created_real: str | None = None) 
     return sorted({q.question_id: q for q in qs}.values(), key=lambda q: q.question_id)
 
 
-def inputs_from_wide(blocks: Mapping[str, pd.DataFrame], sectors: Mapping[str, str] | None = None, **tables: pd.DataFrame | None
+def inputs_from_wide(blocks: Mapping[str, pd.DataFrame], sectors: Mapping[str, str] | None = None, *, earnings: pd.DataFrame | None = None,
+                     filings: pd.DataFrame | None = None, insiders: pd.DataFrame | None = None, macro: pd.DataFrame | None = None
                      ) -> DS.SourceInputs:
     """Adapter from engine.research.episodes.load_bars (wide Open/High/Low/Close/Volume blocks, dates x tickers) to SourceInputs. Rows
     where the close is missing are dropped (a halted session is absent, not zero); nothing is filled."""
@@ -3053,7 +3070,7 @@ def inputs_from_wide(blocks: Mapping[str, pd.DataFrame], sectors: Mapping[str, s
     long["volume"] = long["volume"].fillna(0.0)
     for c in ("open", "high", "low"):
         long[c] = long[c].fillna(long["close"])
-    return DS.SourceInputs(long, sectors, **tables)
+    return DS.SourceInputs(long, sectors, earnings=earnings, filings=filings, insiders=insiders, macro=macro)
 
 
 def feature_report(fb: DS.FeatureBuild) -> pd.DataFrame:

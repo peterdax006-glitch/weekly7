@@ -550,7 +550,7 @@ def _flag_gaps_and_stale(pre: pd.DataFrame, win: pd.DataFrame, cfg: KnowabilityC
 
 def _flag_split_and_ticks(pre: pd.DataFrame, win: pd.DataFrame, post: pd.DataFrame, items: Sequence[InfoItem],
                           cfg: KnowabilityConfig) -> list[QualityFlag]:
-    out = []
+    out: list[QualityFlag] = []
     if len(win) == 0 or len(pre) < 2:
         return out
     full = pd.concat([pre, win, post])
@@ -1058,7 +1058,7 @@ def classify_move(inp: MoveInputs, cfg: KnowabilityConfig = KnowabilityConfig(),
     ids = {a: sorted(i for i, j in judg.items() if j.availability == a) for a in Availability}
     future = [f"bars:{len(post)} sessions after the move (bad-tick check)"] if len(post) else []
     future += [f"item:{i} ({judg[i].availability.value})" for i in ids[Availability.KNOWN_ONLY_AFTER_EVENT]]
-    common = dict(move_id=m.move_id, ticker=m.ticker, decision_date=m.decision_date, matured_at=m.matured_at, regime=m.regime,
+    common: dict[str, Any] = dict(move_id=m.move_id, ticker=m.ticker, decision_date=m.decision_date, matured_at=m.matured_at, regime=m.regime,
                   sector=m.sector, vol_bucket=vol_bucket(pv), model_pct=m.model_pct, model_confidence=m.model_confidence,
                   abs_move_z=_move_z(m, pv), move_direction=m.direction, fwd_return=m.fwd_return, config_hash=cfg.hash(), code_hash=code_hash)
     dq = assess_data_quality(inp, cfg)
@@ -1095,7 +1095,7 @@ def classify_move(inp: MoveInputs, cfg: KnowabilityConfig = KnowabilityConfig(),
     sys_share = None if ext is None else ext.systematic_share
     ext_hit = ext is not None and ext.systematic_share >= cfg.ext_share and max(ext.market_move_z, ext.sector_move_z) >= cfg.ext_market_z
     margin = 0.0
-    if ext_hit and A < cfg.predictable_at and mkt_ant < 0.5:
+    if ext is not None and ext_hit and A < cfg.predictable_at and mkt_ant < 0.5:
         cls = Knowability.EXTERNALLY_CAUSED
         margin = ext.systematic_share - cfg.ext_share
         trace.append(f"systematic share {ext.systematic_share:.2f} >= {cfg.ext_share}, market z {ext.market_move_z:.1f}, sector z "
@@ -1129,10 +1129,10 @@ def classify_move(inp: MoveInputs, cfg: KnowabilityConfig = KnowabilityConfig(),
     dirs = [c.direction for c in ch.values() if c.anticipation is not None and c.anticipation >= cfg.channel_present and c.direction]
     dir_ok = bool(dirs) and all(d == m.direction for d in dirs) and len(dirs) >= 2
     conf = _confidence(margin, coverage, unc) if cls != Knowability.UNKNOWN else float(min(1.0, 0.5 + 0.5 * coverage * (1.0 - unc)))
-    fut = list(future) + [f"channel:{k}:{x}" for k, c in ch.items() for x in c.future_used]
+    future_all = list(future) + [f"channel:{k}:{x}" for k, c in ch.items() for x in c.future_used]
     return KnowabilityAssessment(
         classification=cls, anticipation=A, n_present_channels=n_present, coverage=coverage, systematic_share=sys_share,
-        direction_knowable=dir_ok, knowledge_state_at_decision=_channel_state(ch), future_information_used_by_auditor=tuple(fut),
+        direction_knowable=dir_ok, knowledge_state_at_decision=_channel_state(ch), future_information_used_by_auditor=tuple(future_all),
         information_that_would_have_been_available=tuple(ids[Availability.KNOWN_BEFORE_EVENT]),
         information_that_was_unavailable=tuple(sorted(set(ids[Availability.UNAVAILABLE]) | set(ids[Availability.KNOWN_ONLY_AFTER_EVENT]))),
         uncertain_information=tuple(ids[Availability.UNCERTAIN]), simultaneous_information=tuple(ids[Availability.SIMULTANEOUS]),
@@ -1195,7 +1195,7 @@ def channels_future_invariant(inp: MoveInputs, cfg: KnowabilityConfig = Knowabil
     bad = []
     for k in CHANNELS:
         x, y = a[k].anticipation, c[k].anticipation
-        if (x is None) != (y is None) or (x is not None and abs(x - y) > atol):
+        if (x is None) != (y is None) or (x is not None and y is not None and abs(x - y) > atol):
             bad.append(k)
     return bad
 
@@ -2098,8 +2098,11 @@ def classify_stream(loader: Callable[[MoveEvent], MoveInputs | None], moves: Ite
     """Classify a large set of major moves without ever holding more than `batch` of them. `loader` builds the inputs for one
     move (bars, items) and may return None (skipped and counted as a data failure of the loader, not silently dropped).
     Inputs bigger than `max_rows` bar rows are refused so a runaway loader cannot exhaust the shared machine."""
-    reports, buf, skipped = [], [], []
-    def flush():
+    reports: list[StepReport] = []
+    buf: list[MoveInputs] = []
+    skipped: list[str] = []
+
+    def flush() -> None:
         if buf:
             _, rep = step(state, now, list(buf), calendar)
             reports.append(rep)
@@ -2243,7 +2246,7 @@ def kind_base_rates(items: Sequence[InfoItem], span: tuple[str, str], window_day
     if total <= 0:
         raise KnowabilityError("span shorter than the window")
     starts = lo + pd.to_timedelta(np.random.default_rng(seed).integers(0, total, n_windows), unit="D")
-    eff = {}
+    eff: dict[Any, list[int]] = {}
     for it in items:
         t, _ = to_ny(it.effective_at)
         if t is not None:
@@ -2642,8 +2645,8 @@ def day_cluster_ci(ledger: KnowabilityLedger, cls: Knowability, n_boot: int = 50
     p = float(hits.sum() / size.sum())
     var_iid = p * (1 - p) / size.sum()
     deff = float(boot_arr.var() / var_iid) if var_iid > 0 else float("nan")
-    a = (1.0 - level) / 2.0
-    return {"share": p, "lo": float(np.quantile(boot_arr, a)), "hi": float(np.quantile(boot_arr, 1 - a)), "design_effect": deff,
+    tail = (1.0 - level) / 2.0
+    return {"share": p, "lo": float(np.quantile(boot_arr, tail)), "hi": float(np.quantile(boot_arr, 1 - tail)), "design_effect": deff,
             "effective_n": float(size.sum() / deff) if deff and deff > 0 else float("nan")}
 
 
@@ -2709,7 +2712,7 @@ def research_targets(ledger: KnowabilityLedger, created_real: str, cfg: Knowabil
         for a in rows:
             for f in a.quality_flags:
                 flags[f] = flags.get(f, 0) + 1
-        top = max(flags, key=flags.get) if flags else "unspecified"
+        top = max(flags, key=lambda f: flags[f]) if flags else "unspecified"
         qs.append(ResearchQuestion.make(
             f"{c[Knowability.DATA_FAILURE.value]} of {n} major moves are data failures (most common flag {top}); which source produces them?",
             "knowability_data", Problem.DATA_QUALITY, created_real, through, "the defect source is identified and the flag rate falls after the fix",
@@ -3190,6 +3193,8 @@ def calibration_summary(book: CalibrationBook, bins: int = 5) -> dict[str, Any]:
     ece = float((t["n"] * t["gap"].abs()).sum() / t["n"].sum()) if len(t) else float("nan")
     conf_mat: dict[str, dict[str, int]] = {}
     for r in rs:
+        if r.confirmed_class is None:
+            continue
         d = conf_mat.setdefault(r.predicted_class, {})
         d[r.confirmed_class] = d.get(r.confirmed_class, 0) + 1
     return {"n_confirmed": len(rs), "n_recorded": len(book.latest()), "ece": ece, "brier": float(np.mean((conf - ok) ** 2)),

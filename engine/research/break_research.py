@@ -697,7 +697,7 @@ def select_column(X: np.ndarray, pre_idx: np.ndarray, ref_idx: np.ndarray) -> tu
     return j, float(t[j]), np.abs(t)
 
 
-def fit_threshold(x: np.ndarray, direction: int, pos: np.ndarray, neg: np.ndarray, rows: np.ndarray, P: dict) -> tuple:
+def fit_threshold(x: np.ndarray, direction: int, pos: np.ndarray, neg: np.ndarray, rows: np.ndarray, P: dict) -> tuple | None:
     """Youden-J threshold for `direction * x >= thr` on the fit rows, with the gate covering between cover_lo and cover_hi of
     all fit rows (a gate that withholds nothing or everything is not a gate). Returns (thr, J, tpr, fpr) or None."""
     s = direction * x[rows]
@@ -1194,8 +1194,8 @@ def adjudicate(results: Sequence[QuestionResult]) -> tuple:
         know = Knowability.WEAKLY_PREDICTABLE if weak else Knowability.UNKNOWN
         first = by[failed[0]]
         return Verdict.UNKNOWN, know, GateVerdict.UNKNOWN, f"{first.qid.value} failed: {first.why}"
-    first = by[untestable[0]] if untestable else None
-    stmt = f"{first.qid.value} could not be answered: {first.why}" if first else "questions still pending"
+    pending = by[untestable[0]] if untestable else None
+    stmt = f"{pending.qid.value} could not be answered: {pending.why}" if pending else "questions still pending"
     return Verdict.INSUFFICIENT_EVIDENCE, Knowability.UNKNOWN, GateVerdict.NEEDS_MORE_EVIDENCE, stmt
 
 
@@ -1208,8 +1208,8 @@ def run_ladder(F: AnalysisFrame, seed: int = 0, stop_early: bool = True) -> tupl
     results.append(r1)
     if stop_early and not r1.passed:
         return results, None
-    for fn in (q2_transfers_oos, q3_predicts_future_breaks):
-        r = fn(F, rule, seed) if fn is q2_transfers_oos else fn(F, seed)
+    for run_q in (lambda: q2_transfers_oos(F, rule, seed), lambda: q3_predicts_future_breaks(F, seed)):
+        r = run_q()
         results.append(r)
         if stop_early and not r.passed:
             return results, rule
@@ -1553,7 +1553,7 @@ def assess_hypotheses(F: AnalysisFrame, event: BreakEvent, shared: Sequence[Mapp
     """Run every cause test, pay for multiplicity across them with Holm, and turn the evidence into a posterior. Returns a tuple
     of BreakHypothesis ordered by posterior. A cause can be 'supported' here without being CLAIMED: claiming needs Q1-Q6."""
     pops = _pops(F)
-    ev = {
+    ev: dict[BreakCause, HypothesisEvidence] = {
         BreakCause.REGIME_CHANGE: dimension_support(F, BreakCause.REGIME_CHANGE, pops, seed),
         BreakCause.MARKET_STRUCTURE_CHANGE: test_market_structure(F),
         BreakCause.LIQUIDITY_CHANGE: dimension_support(F, BreakCause.LIQUIDITY_CHANGE, pops, seed + 1),
@@ -1578,11 +1578,11 @@ def assess_hypotheses(F: AnalysisFrame, event: BreakEvent, shared: Sequence[Mapp
     ev[BreakCause.UNKNOWN_CAUSE] = _ev(BreakCause.UNKNOWN_CAUSE, not others_supported, 0.5 if not others_supported else 0.0, 1.0, 0,
                                        "no other cause is supported by the data" if not others_supported else "another cause has support")
     priors = hypothesis_priors(F, event, shared)
-    post = {}
-    for c in BreakCause:
-        e = ev[c]
+    post: dict[BreakCause, float] = {}
+    for cause in BreakCause:
+        e = ev[cause]
         lr = 1.0 + 4.0 * e.strength if e.supported else (0.6 if e.supported is False else 1.0)
-        post[c] = priors[c] * lr
+        post[cause] = priors[cause] * lr
     z = sum(post.values())
     post = floor_unknown({c: v / z for c, v in post.items()})
     out = [BreakHypothesis(c, safe_text(f"the break of a pattern is due to: {CAUSE_LABEL[c.value]}"), float(priors[c]), float(post[c]), ev[c],
@@ -1815,7 +1815,7 @@ def matured_record(inv: Investigation, item: BD.ItemSeries, now, created_real: s
     m = inv.evidence_rows
     matured_at = str(item.frame.index[max(m - 1, 0)])[:10]
     require_past(matured_at, now, f"conclusion for {inv.label}")
-    payload = {"item": inv.item_key, "verdict": inv.verdict.value if inv.verdict else "PENDING", "cause": inv.cause.value,
+    payload: dict[str, Any] = {"item": inv.item_key, "verdict": inv.verdict.value if inv.verdict else "PENDING", "cause": inv.cause.value,
                "rule": inv.rule.describe() if inv.rule else None, "results": [r.brief() for r in inv.results],
                "posterior": {h.cause.value: round(h.posterior, 4) for h in inv.hypotheses}, "state": inv.state.value, "stage": inv.stage.value,
                "n_rows": m, "code_hash": current_code_hash()}
@@ -1969,7 +1969,7 @@ def health_triggers(rows: Iterable[Mapping] | None, now) -> dict:
     so a health row dated at or after `now` raises FirewallBreach there."""
     if not rows:
         return {}
-    out = {}
+    out: dict[str, float] = {}
     for s in RP.signals_from_health(list(rows), now):
         if s.kind in (RP.SignalKind.FAILURE, RP.SignalKind.CONTRADICTION, RP.SignalKind.WEAK_PATTERN):
             out[s.subject] = max(out.get(s.subject, 0.0), s.magnitude)
@@ -2024,17 +2024,18 @@ def step(state: BreakResearchState, now, items: Mapping[str, BD.ItemSeries], *, 
             opened.append(inv.inv_id)
             n_open += 1
     for inv in list(state.investigations.values()):
-        item = live.get(inv.item_id)
-        if item is None or inv.state != ResearchState.DORMANT and inv.state != ResearchState.PROMISING:
+        live_item = live.get(inv.item_id)
+        if live_item is None or inv.state != ResearchState.DORMANT and inv.state != ResearchState.PROMISING:
             continue
-        gained = item.n_matured(now) - inv.evidence_rows
+        gained = live_item.n_matured(now) - inv.evidence_rows
         if gained >= P["reopen_rows"] and inv.attempts < P["max_attempts"]:
             state.investigations[inv.inv_id] = dataclasses.replace(inv, state=ResearchState.QUEUED, updated_at=str(now))
             _record(state, now, state.investigations[inv.inv_id], "reopened")
             reopened.append(inv.inv_id)
     queue = sorted((i for i in state.investigations.values() if i.state == ResearchState.QUEUED and i.item_id in live),
                    key=lambda i: (-i.priority, i.inv_id))
-    ran, spent = [], 0.0
+    ran: list[str] = []
+    spent = 0.0
     for inv in queue:
         est = inv.value.compute_cost or 0.0
         if len(ran) >= P["max_per_step"] or (ran and spent + est > P["minutes_budget"]) or inv.priority < P["min_priority"]:
@@ -2341,7 +2342,8 @@ def verdict_stability(item: BD.ItemSeries, as_ofs: Sequence[Any], cfg=None, seed
     """Re-run the ladder at successive `as_of`s (each sees only its own past). An EXPLAINED verdict that flips, or names a different
     column each time, is not a finding. Returns the verdicts, the columns and the share of as-ofs agreeing with the modal verdict."""
     P = _cfg(cfg)
-    verdicts, columns = [], []
+    verdicts: list[str] = []
+    columns: list[str | None] = []
     for k, a in enumerate(as_ofs):
         try:
             F = build_frame(item, a, P)
@@ -2354,7 +2356,7 @@ def verdict_stability(item: BD.ItemSeries, as_ofs: Sequence[Any], cfg=None, seed
         columns.append(rule.column if rule else None)
     modal = max(set(verdicts), key=verdicts.count) if verdicts else None
     named = [c for c in columns if c]
-    return {"verdicts": verdicts, "columns": columns, "modal": modal, "agreement": (verdicts.count(modal) / len(verdicts)) if verdicts else float("nan"),
+    return {"verdicts": verdicts, "columns": columns, "modal": modal, "agreement": (verdicts.count(modal) / len(verdicts)) if verdicts and modal is not None else float("nan"),
             "column_agreement": (named.count(max(set(named), key=named.count)) / len(named)) if named else float("nan")}
 
 
@@ -2561,11 +2563,12 @@ def warning_profile(F: AnalysisFrame, rule: ColumnRule, rows: np.ndarray | None 
     for o in onsets:
         seg = np.flatnonzero(g[max(o - H, 0):o])
         leads.append(int(o - (max(o - H, 0) + seg[0])) if len(seg) else 0)
-    starts, last_fire = [], -10 ** 9
+    starts: list[int] = []
+    last_fire = -10 ** 9
     for i in np.flatnonzero(g[lo:hi + 1]) + lo:
         if i - last_fire > cool:
             starts.append(int(i))
-        last_fire = i
+        last_fire = int(i)
     false_alarms = [s for s in starts if not any(0 <= o - s <= H or e.onset <= s < e.end(F.m) for o in onsets for e in F.bk if e.onset == o)]
     return {"n_breaks": len(onsets), "warned": sum(l > 0 for l in leads), "leads": leads,
             "median_lead": float(np.median(leads)) if leads else float("nan"), "n_alarms": len(starts),

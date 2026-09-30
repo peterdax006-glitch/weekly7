@@ -265,8 +265,9 @@ class RegimeMonitor:
         d = as_date(date)
         if now is not None and d > as_date(now):
             raise FirewallBreach(f"regime day {d} is after now={as_date(now)}")
-        if self.history.last_date() is not None and d.isoformat() <= self.history.last_date():
-            raise FirewallBreach(f"regime day {d} is not after the last processed day {self.history.last_date()}")
+        last = self.history.last_date()
+        if last is not None and d.isoformat() <= last:
+            raise FirewallBreach(f"regime day {d} is not after the last processed day {last}")
         errs = validate_market_row(row)
         if errs:
             self.rejected_days += 1
@@ -510,11 +511,13 @@ class DiscoveredRegimes:
                 if dist[i, j] <= limit:
                     ids[i] = self.ids[j]
                     costs.append(float(dist[i, j]))
-        for i in range(len(ids)):
-            if ids[i] is None:
-                ids[i] = f"disc_{self._next_id}"
+        final: list[str] = []
+        for known in ids:
+            if known is None:
+                known = f"disc_{self._next_id}"
                 self._next_id += 1
-        return tuple(ids), (float(np.mean(costs)) if costs else None)
+            final.append(known)
+        return tuple(final), (float(np.mean(costs)) if costs else None)
 
     def status(self) -> str:
         return self.fits[-1].status if self.fits else "NOT_FITTED"
@@ -562,6 +565,12 @@ class StateEffect:
     def sign(self) -> int:
         return 0 if not self.effect else (1 if self.effect > 0 else -1)
 
+    def effect_se(self) -> tuple[float, float]:
+        """(effect, se) of a measured state; a state with a t-statistic always has both."""
+        if self.effect is None or self.se is None:
+            raise ValueError(f"state {self.axis}={self.state} was not measured")
+        return self.effect, self.se
+
 
 @dataclasses.dataclass(frozen=True)
 class Contrast:
@@ -598,21 +607,21 @@ def pool_states(effects: Sequence[StateEffect]) -> tuple[list[PooledState], floa
     method-of-moments between-state variance: 0 when the states agree within their errors (everything is pulled to the pooled
     mean), large when they truly differ (little shrinkage). A thin state (large se) always moves furthest. Fewer than two
     measured states: nothing to pool, ([], 0.0, None)."""
-    ms = [e for e in effects if e.effect is not None and e.se is not None and e.se > 0]
+    ms = [(e, float(e.effect), float(e.se)) for e in effects if e.effect is not None and e.se is not None and e.se > 0]
     if len(ms) < 2:
         return [], 0.0, None
-    w = np.array([1.0 / e.se ** 2 for e in ms])
-    y = np.array([e.effect for e in ms])
+    w = np.array([1.0 / s ** 2 for _, _, s in ms])
+    y = np.array([eff for _, eff, _ in ms])
     mu = float((w * y).sum() / w.sum())
     q = float((w * (y - mu) ** 2).sum())
     denom = float(w.sum() - (w ** 2).sum() / w.sum())
     tau2 = max(0.0, (q - (len(ms) - 1)) / denom) if denom > 0 else 0.0
     var_mu = 1.0 / float(w.sum())
     out = []
-    for e in ms:
-        b = tau2 / (tau2 + e.se ** 2)
-        out.append(PooledState(e.axis, e.state, e.effect, e.se, mu + b * (e.effect - mu),
-                               math.sqrt(b * e.se ** 2 + (1 - b) ** 2 * var_mu), b))
+    for e, eff, s in ms:
+        b = tau2 / (tau2 + s ** 2)
+        out.append(PooledState(e.axis, e.state, eff, s, mu + b * (eff - mu),
+                               math.sqrt(b * s ** 2 + (1 - b) ** 2 * var_mu), b))
     return out, tau2, mu
 
 
@@ -700,8 +709,9 @@ class PatternRegimeBook:
             for i in range(len(meas)):
                 for j in range(i + 1, len(meas)):
                     a, b = meas[i], meas[j]
-                    se = math.sqrt(a.se ** 2 + b.se ** 2)
-                    diff = a.effect - b.effect
+                    (ea, sa), (eb, sb) = a.effect_se(), b.effect_se()
+                    se = math.sqrt(sa ** 2 + sb ** 2)
+                    diff = ea - eb
                     contrasts.append(Contrast(axis, a.state, b.state, diff, diff / se if se > 1e-15 else None, None))
         q = benjamini_hochberg([t_to_p(c.t) for c in contrasts])
         contrasts = [dataclasses.replace(c, q_value=qq) for c, qq in zip(contrasts, q)]
@@ -719,14 +729,14 @@ class PatternRegimeBook:
                 pooled[axis] = tuple(ps)
                 # judged on the SHRUNK effects: a thin state cannot be 'good' on a lucky estimate or 'bad' on an unlucky one
                 g = tuple(p.state for p in ps if p.established(t_bar) and (p.effect > 0) == (osign > 0))
-                b = tuple(p.state for p in ps if not (p.established(t_bar) and (p.effect > 0) == (osign > 0)))
+                bd = tuple(p.state for p in ps if not (p.established(t_bar) and (p.effect > 0) == (osign > 0)))
             else:
                 g = tuple(e.state for e in ms if e.established(t_bar) and e.sign == osign)
-                b = tuple(e.state for e in ms if not e.established(t_bar) or e.sign != osign)
+                bd = tuple(e.state for e in ms if not e.established(t_bar) or e.sign != osign)
             if g:
                 good[axis] = g
-            if b:
-                bad[axis] = b
+            if bd:
+                bad[axis] = bd
         opposite = any(e.established(t_bar) and e.sign == -osign for e in by_state if e.t is not None) and osign != 0
         n_meas_axes = len({e.axis for e in by_state if e.t is not None})
         if opposite and bound:
@@ -973,9 +983,9 @@ def cusum_break(values: Sequence[float], threshold: float = 5.0, drift: float = 
 def indicator_breaks(monitor: RegimeMonitor) -> dict[str, list[str]]:
     """Dates where each indicator's level shifted (CUSUM on the stored past), independent of the named-state thresholds: the
     thresholds might be wrong, a level shift is not. Trusted-side output (dates); never handed to the trader."""
-    out = {}
+    out: dict[str, list[str]] = {}
     for name in INDICATORS:
-        ok = [(d, v.get(name)) for d, v in monitor.history.days if v.get(name) is not None and math.isfinite(v.get(name))]
+        ok = [(d, float(x)) for d, v in monitor.history.days if (x := v.get(name)) is not None and math.isfinite(x)]
         out[name] = [ok[i][0] for i in cusum_break([x for _, x in ok])]
     return out
 
@@ -1142,7 +1152,7 @@ def shrunk_state_effects(report: PatternRegimeReport, axis: str, strength: float
     that could not be measured are omitted."""
     if report.overall.effect is None or report.overall.se is None or report.overall.se <= 0:
         return {}
-    out = {}
+    out: dict[str, float | None] = {}
     for e in report.by_state:
         if e.axis != axis or e.effect is None or e.se is None or e.se <= 0:
             continue
@@ -1155,11 +1165,10 @@ def best_axis(book: PatternRegimeBook, pattern_id: str, now, replay_years: Itera
     """The axis along which the pattern's effect differs most (largest |t| among BH-surviving contrasts), or None: which regime
     dimension the pattern is actually conditional on. Ties break alphabetically."""
     rep = book.report(pattern_id, now, replay_years)
-    ok = [c for c in rep.contrasts if c.t is not None and c.q_value is not None and c.q_value <= 0.1]
+    ok = [(c.axis, abs(c.t)) for c in rep.contrasts if c.t is not None and c.q_value is not None and c.q_value <= 0.1]
     if not ok:
         return None
-    top = max(ok, key=lambda c: (abs(c.t), c.axis))
-    return top.axis, abs(top.t)
+    return max(ok, key=lambda at: (at[1], at[0]))
 
 
 class RegimeForecast:
@@ -1601,8 +1610,9 @@ def effect_after_transitions(book: PatternRegimeBook, monitor: RegimeMonitor, pa
     b = book._effect(df[~flag].assign(_all="all"), "_all", "all", days)
     if a.se is None or b.se is None:
         return {"n_post": a.n_days, "n_other": b.n_days, "diff": None, "t": None, "verdict": "INSUFFICIENT_DATA"}
-    diff = a.effect - b.effect
-    t = diff / math.sqrt(a.se ** 2 + b.se ** 2)
+    (ea, sa), (eb, sb) = a.effect_se(), b.effect_se()
+    diff = ea - eb
+    t = diff / math.sqrt(sa ** 2 + sb ** 2)
     verdict = "WEAKER_AFTER_TRANSITIONS" if t <= -T_BAR else "STRONGER_AFTER_TRANSITIONS" if t >= T_BAR else "NO_DIFFERENCE"
     return {"n_post": a.n_days, "n_other": b.n_days, "post": a.effect, "other": b.effect, "diff": diff, "t": t, "verdict": verdict}
 

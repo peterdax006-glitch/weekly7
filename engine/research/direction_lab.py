@@ -31,7 +31,7 @@ from __future__ import annotations
 import copy
 import dataclasses
 import math
-from typing import Any, Callable, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence, Union
 
 import numpy as np
 import pandas as pd
@@ -76,6 +76,7 @@ class Comparator(_StrEnum):
 
 
 ALL_COMPARATORS = tuple(Comparator)
+FloatSeq = Union[Sequence[float], np.ndarray]          # the stats helpers take a list or an array alike
 TAG_BASE, TAG_RANDOM, TAG_SHUF, TAG_SIMPLE, TAG_EXISTING = ("base:prior", "ctl_random", "ctl_shuffled_week", "simple:baseline",
                                                             "existing:prod")
 
@@ -333,19 +334,19 @@ def assess_volatility_evidence(score: pd.Series, mover: pd.Series, n_pick: int =
         uni.append(float(len(g)))
     if not aucs:
         return VolatilityEvidence(0, len(df), float("nan"), float("nan"), float("nan"), float("nan"), float(df["m"].mean()), float("nan"), "one_class")
-    aucs, hits, picks, movers, uni = (np.asarray(v) for v in (aucs, hits, picks, movers, uni))
+    a_auc, a_hit, a_pick, a_mov, a_uni = (np.asarray(v) for v in (aucs, hits, picks, movers, uni))
     rng = np.random.default_rng(seed)
-    W = len(aucs)
+    W = len(a_auc)
     idx = rng.integers(0, W, size=(n_boot, W))
-    base = movers.sum() / uni.sum()
-    lift = (hits.sum() / picks.sum()) / base if base > 0 else float("nan")
-    b_auc = aucs[idx].mean(1)
+    base = a_mov.sum() / a_uni.sum()
+    lift = (a_hit.sum() / a_pick.sum()) / base if base > 0 else float("nan")
+    b_auc = a_auc[idx].mean(1)
     with np.errstate(invalid="ignore", divide="ignore"):
-        b_lift = (hits[idx].sum(1) / picks[idx].sum(1)) / (movers[idx].sum(1) / uni[idx].sum(1))
+        b_lift = (a_hit[idx].sum(1) / a_pick[idx].sum(1)) / (a_mov[idx].sum(1) / a_uni[idx].sum(1))
     b_lift = b_lift[np.isfinite(b_lift)]
-    return VolatilityEvidence(W, int(uni.sum()), float(aucs.mean()), float(np.quantile(b_auc, 0.05)), float(lift),
+    return VolatilityEvidence(W, int(a_uni.sum()), float(a_auc.mean()), float(np.quantile(b_auc, 0.05)), float(lift),
                               float(np.quantile(b_lift, 0.05)) if len(b_lift) else float("nan"), float(base),
-                              float(hits.sum() / picks.sum()))
+                              float(a_hit.sum() / a_pick.sum()))
 
 
 def score_leak_canary(ev: VolatilityEvidence, max_auc: float = 0.90) -> list[str]:
@@ -944,7 +945,7 @@ def _within_group_perms(y: np.ndarray, gid: np.ndarray, count: int, rng: np.rand
 
 
 def max_t_permutation(P: np.ndarray, y: np.ndarray, p0: np.ndarray, gid: np.ndarray, n_perm: int, seed: int = 0,
-                      chunk: int = 50) -> dict[str, np.ndarray]:
+                      chunk: int = 50) -> dict[str, Any]:
     """Studentised max-T (Westfall-Young) test of Brier skill for M candidate cells at once. Observed skill of column m is compared
     with its distribution when the test labels are shuffled within week; p_raw is per cell, p_maxT compares each cell with the
     LARGEST standardised null skill across all cells in the same shuffle, so it prices having tried M ideas (the multiplicity the
@@ -978,7 +979,7 @@ def max_t_permutation(P: np.ndarray, y: np.ndarray, p0: np.ndarray, gid: np.ndar
     return dict(skill=skill, p_raw=p_raw, p_maxT=p_max, null_sd=sd, n_perm=n_perm)
 
 
-def holm(p: Sequence[float]) -> np.ndarray:
+def holm(p: FloatSeq) -> np.ndarray:
     """Holm step-down adjusted p-values (strong family-wise control, uniformly better than Bonferroni)."""
     p = np.asarray(p, float)
     if p.size == 0:
@@ -992,7 +993,7 @@ def holm(p: Sequence[float]) -> np.ndarray:
     return adj
 
 
-def benjamini_hochberg(p: Sequence[float]) -> np.ndarray:
+def benjamini_hochberg(p: FloatSeq) -> np.ndarray:
     """BH adjusted p-values (false-discovery-rate control); reported beside Holm because discovery, not proof, is the point of a screen."""
     p = np.asarray(p, float)
     if p.size == 0:
@@ -1187,7 +1188,8 @@ def ticker_transfer(pool: pd.DataFrame, M: np.ndarray, cfg: LabConfig, kind: str
     date = pd.DatetimeIndex(pool["date"]).to_numpy()
     yv, year, pick = pool["up"].to_numpy(float), pool["year"].to_numpy(), pool["pick"].to_numpy(bool)
     have = np.isfinite(yv)
-    seen, unseen = [], []
+    seen: list[float] = []
+    unseen: list[float] = []
     for Y in cfg.test_years:
         cut = (pd.Timestamp(year=int(Y), month=1, day=1) - pd.Timedelta(days=cfg.embargo_days + DF.LABEL_SPAN_DAYS)).to_datetime64()
         tr = np.flatnonzero(have & (half == 0) & (date < cut))
@@ -1243,7 +1245,7 @@ class HypothesisResult:
     p_maxT: float = 1.0
     p_holm: float = 1.0
     p_bh: float = 1.0
-    comparators: dict[str, ComparatorResult] = dataclasses.field(default_factory=dict)
+    comparators: dict[Comparator, ComparatorResult] = dataclasses.field(default_factory=dict)
     era: dict[str, float] = dataclasses.field(default_factory=dict)
     regime: dict[str, float] = dataclasses.field(default_factory=dict)
     sector: dict[str, float] = dataclasses.field(default_factory=dict)
@@ -1279,7 +1281,7 @@ def compare_all(pred: pd.DataFrame, hyp: str, tag: str, kind: str, cfg: LabConfi
     models = tuple(pred["model"].unique())
     for comp, (other, src) in comparator_tags(hyp, kind, models).items():
         t = paired_test(pred, tag, other, cfg.n_boot, cfg.alpha, seed)
-        out[comp] = ComparatorResult(comp, other, src, t["n"], t["mean_diff"], t["lo"], t["hi"], t["p_one"],
+        out[comp] = ComparatorResult(comp, other, src, int(t["n"]), t["mean_diff"], t["lo"], t["hi"], t["p_one"],
                                      bool(t["better"]))
     return out
 
@@ -1418,7 +1420,7 @@ def evaluate_controls(pred: pd.DataFrame, blocks: pd.DataFrame, leak: Mapping[st
         nulls[key] = not (t["better"] and t["skill_a"] > 0)
         if not nulls[key]:
             notes.append(f"{tag} beat the base rate (skill {t['skill_a']:+.4f})")
-    audit = DF.audit_point_in_time(blocks, embargo_days=cfg.embargo_days) if len(blocks) and "fitted" in blocks else dict(ok=True, violations=[])
+    audit: dict[str, Any] = DF.audit_point_in_time(blocks, embargo_days=cfg.embargo_days) if len(blocks) and "fitted" in blocks else dict(ok=True, violations=[])
     return ControlReport(found, acc, lo, bool(leak.get("leak_caught")), bool(leak.get("plant_wrongly_flagged")), nulls["shuffled"],
                          nulls["random"], bool(audit["ok"]), list(audit["violations"]), notes)
 
@@ -1656,7 +1658,7 @@ def sample_size_curve(pool: pd.DataFrame, M: np.ndarray, cfg: LabConfig, kind: s
     return t, dict(slope=slope, rho=float(stats.spearmanr(t["fraction"], t["mean_skill"])[0]))
 
 
-def winners_curse(skills: Sequence[float], null_sd: Sequence[float]) -> pd.DataFrame:
+def winners_curse(skills: FloatSeq, null_sd: FloatSeq) -> pd.DataFrame:
     """Empirical-Bayes shrinkage of the observed skills. The standardised skills z_i = skill_i / null_sd_i have variance
     1 + tau^2 when true effects have variance tau^2; the shrinkage factor tau^2 / (1 + tau^2) is what the best-looking hypothesis
     should be discounted by (method of moments, floored at zero). With no real effect tau^2 = 0 and every posterior skill is 0, so
@@ -1803,10 +1805,10 @@ def _condition_labels(Xd: pd.DataFrame, pool: pd.DataFrame, cond: str) -> pd.Ser
     """'lo'/'hi' state of a conditioning variable at the decision close (never an outcome)."""
     def split(v: pd.Series, thr: float | None = None):
         t = float(v.median()) if thr is None else thr
-        return pd.Series(np.where(v.isna(), None, np.where(v > t, "hi", "lo")), index=v.index)
+        return pd.Series(np.where(v.isna(), np.full(len(v), None, dtype=object), np.where(v > t, "hi", "lo")), index=v.index)
     if cond == "regime":
         r = pool["reg"]
-        return pd.Series(np.where(r == "bull", "hi", np.where(r == "bear", "lo", None)), index=pool.index) if (r != "na").any() else None
+        return pd.Series(np.where(r == "bull", "hi", np.where(r == "bear", "lo", np.full(len(r), None, dtype=object))), index=pool.index) if (r != "na").any() else None
     if cond == "vix" and "m_vix" in Xd:
         return split(Xd["m_vix"].astype(float))
     if cond == "volume":
@@ -2034,14 +2036,15 @@ def null_size_check(n_rows: int = 3000, n_models: int = 12, n_weeks: int = 60, n
     rng = np.random.default_rng(seed)
     gid = np.repeat(np.arange(n_weeks), n_rows // n_weeks)
     n = len(gid)
-    fw, raw = 0, []
+    fw = 0
+    raw_l: list[float] = []
     for t in range(trials):
         y = (rng.uniform(size=n) < 0.5).astype(float)
         P = np.clip(0.5 + rng.normal(0, 0.03, (n, n_models)), 0.02, 0.98)
         r = max_t_permutation(P, y, np.full(n, 0.5), gid, n_perm, seed=int(rng.integers(1 << 30)))
         fw += int((r["p_maxT"] < 0.05).any())
-        raw += list(r["p_raw"])
-    raw = np.asarray(raw)
+        raw_l += list(r["p_raw"])
+    raw = np.asarray(raw_l)
     return dict(family_wise_size=fw / trials, raw_size=float((raw < 0.05).mean()), ks_p=float(stats.kstest(raw, "uniform")[1]), trials=trials)
 
 
@@ -2279,6 +2282,7 @@ class DirectionLab:
                 continue
             kind = best.split(":")[1]
             r.stage = Stage.STRONGER_TESTS
+            assert wf2 is not None                     # survivors exist, so the stronger walk-forward ran
             r.comparators = compare_all(wf2.pred, n, best, kind, lc, lc.seed + 5)
             stress_test(r, wf2.pred, pool, fams[n].matrix, best, kind, lc)
             _, r.learn_curve = sample_size_curve(pool, fams[n].matrix, lc, kind)
@@ -2471,7 +2475,7 @@ def step(state: LabState | None, now, inputs: LabInputs, cfg: LabConfig | None =
     ledger = copy.deepcopy(state.ledger) if state.ledger is not None else EvidenceLedger(base.alpha)
     new = LabState(dict(state.states), state.null_streak, state.runs + 1, list(state.history), set(state.seen_keys), ledger, state.info_prev,
                    state.last_alpha, state.alpha_spent)
-    feed_ledger(new.ledger, report)
+    feed_ledger(ledger, report)
     for name, r in report.results.items():
         new.states[name] = r.state
     powered = report.power.get("mde_edge", 1.0) <= 0.03
@@ -2582,7 +2586,7 @@ def synthetic_inputs(seed: int = 0, n_tickers: int = 150, n_weeks: int = 416, wo
 
 def synthetic_config(**kw) -> LabConfig:
     """A fast configuration for synthetic worlds: linear models only, few permutations, three test years."""
-    base = dict(models=("linear",), screen_models=("linear",), n_boot=150, n_perm=120, min_test_rows=300, min_weeks=20, min_eras=3,
+    base: dict[str, Any] = dict(models=("linear",), screen_models=("linear",), n_boot=150, n_perm=120, min_test_rows=300, min_weeks=20, min_eras=3,
                 min_train=1500, min_calib=150, test_years=(2014, 2015, 2016, 2017), n_pick=30, n_pool=100, seed=3)
     base.update(kw)
     return LabConfig(**base).validate()
@@ -2744,7 +2748,7 @@ def experiment_value(report: LabReport, name: str, specs: Mapping[str, Hypothesi
     unc = float(min(report.power.get("mde_edge", 1.0), 1.0)) if report.power else None
     cost = {Stage.CHEAP_SCREEN: 2.0, Stage.STRONGER_TESTS: 15.0, Stage.CROSS_YEAR: 30.0}.get(r.stage, 60.0)
     return ExperimentValue(information_gain=dv if lead else 0.05 * (1.0 if report.gate.is_open else 0.2), decision_value=dv,
-                           uncertainty_reduction=unc, transfer_potential=float(r.era.get("share_positive")) if r.era else None,
+                           uncertainty_reduction=unc, transfer_potential=float(r.era["share_positive"]) if r.era else None,
                            direction_value=dv, compute_cost=cost, overfit_risk=float(1 - math.exp(-max(report.n_cells, 1) / 20.0)),
                            redundancy=float(len(mine & others) / max(len(mine), 1)))
 
@@ -2931,7 +2935,7 @@ def placebo_date_shift(pred: pd.DataFrame, model: str, shift: int = 1, seed: int
 
 
 # ---------------------------------------------------------------------------------------------- pooling across years
-def random_effects(effects: Sequence[float], variances: Sequence[float]) -> dict[str, float]:
+def random_effects(effects: FloatSeq, variances: FloatSeq) -> dict[str, float]:
     """DerSimonian-Laird random-effects pooling of per-year effects. Reports the pooled effect and its interval, tau^2 (real
     between-year variation), I^2 (share of variation that is heterogeneity) and a 95% PREDICTION interval for the effect in a new
     year: for a trading rule the question is not the average of the past but whether next year's effect can be negative."""
@@ -3330,12 +3334,12 @@ def return_rank_test(pred: pd.DataFrame, pool: pd.DataFrame, model: str, n_boot:
         bot.append(float(g.loc[rk <= 1 / 3, "r"].mean()))
     if len(ics) < 8:
         return dict(ic=float("nan"), t=float("nan"), spread_bp=float("nan"), lo_bp=float("nan"), hi_bp=float("nan"), weeks=len(ics))
-    ics, sp = np.asarray(ics), (np.asarray(top) - np.asarray(bot)) * 1e4
+    ic_a, sp = np.asarray(ics), (np.asarray(top) - np.asarray(bot)) * 1e4
     rng = np.random.default_rng(seed)
     bs = sp[rng.integers(0, len(sp), size=(n_boot, len(sp)))].mean(axis=1)
-    sd = ics.std(ddof=1)
-    return dict(ic=float(ics.mean()), t=float(ics.mean() / (sd / math.sqrt(len(ics)))) if sd > 0 else 0.0, spread_bp=float(sp.mean()),
-                lo_bp=float(np.quantile(bs, 0.05)), hi_bp=float(np.quantile(bs, 0.95)), weeks=len(ics))
+    sd = ic_a.std(ddof=1)
+    return dict(ic=float(ic_a.mean()), t=float(ic_a.mean() / (sd / math.sqrt(len(ic_a)))) if sd > 0 else 0.0, spread_bp=float(sp.mean()),
+                lo_bp=float(np.quantile(bs, 0.05)), hi_bp=float(np.quantile(bs, 0.95)), weeks=len(ic_a))
 
 
 def selection_stability(W: pd.DataFrame, info: pd.DataFrame, n_boot: int = 200, seed: int = 0) -> pd.DataFrame:
@@ -3520,7 +3524,7 @@ def honest_blend(W: pd.DataFrame, info: pd.DataFrame, cells: Sequence[str] | Non
     h = len(y) // 2
     A, b = P[:h], y[:h]
     w = np.full(len(cells), 1 / len(cells))
-    lr = 1.0 / max(np.linalg.norm(A, 2) ** 2 / len(A), 1e-9)
+    lr = 1.0 / max(float(np.linalg.norm(A, 2)) ** 2 / len(A), 1e-9)
     for _ in range(500):
         w = np.clip(w - lr * (A.T @ (A @ w - b)) / len(A), 0, None)
         s = w.sum()

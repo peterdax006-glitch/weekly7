@@ -833,8 +833,8 @@ def ndcg_at(vol: pd.DataFrame | None, frac: float = 0.1, pol: ScorecardPolicy = 
         rand.append(float((np.full(m, g["abs_move"].mean()) * disc).sum() / (ideal * disc).sum()))
     if not vals:
         return Measured.untested("no period had enough rows and movement")
-    m = _boot(vals, periods, pol, "vol.ndcg")
-    return dataclasses.replace(m, note=f"random order would score {float(np.mean(rand)):.3f}")
+    boot = _boot(vals, periods, pol, "vol.ndcg")
+    return dataclasses.replace(boot, note=f"random order would score {float(np.mean(rand)):.3f}")
 
 
 def reliability_table(p, y, n_bins: int = 10) -> pd.DataFrame:
@@ -902,7 +902,9 @@ def knowledge_flow(events: Sequence[Mapping[str, Any]], now, freq: str = "M") ->
 def check_events(events: Sequence[Mapping[str, Any]]) -> list[str]:
     """Inconsistencies in the event log: a subject retired or promoted before it existed, or promoted twice. Events without a
     `subject` are only counted."""
-    problems, born, seen_promoted = [], {}, set()
+    problems: list[str] = []
+    born: dict[Any, str] = {}
+    seen_promoted: set[Any] = set()
     for e in sorted(events, key=lambda e: (str(as_date(e["at"])), EVENT_TYPES.index(e["type"]) if e["type"] in EVENT_TYPES else 99)):
         s = e.get("subject")
         if s is None:

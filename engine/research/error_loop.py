@@ -748,7 +748,7 @@ class BandGate:
 def influence_effect(gate: BandGate, today: pd.DataFrame, now) -> dict:
     """What the released pattern influence did to today's forecasts: per pattern, the names it fires on and the mean change of their
     forecast median against full influence (negative = a degraded pattern pulled its names down, toward and out of the band)."""
-    out = {"now": str(as_date(now)), "influence": dict(gate.influence), "shift": {}, "n_fired": {}}
+    out: dict[str, Any] = {"now": str(as_date(now)), "influence": dict(gate.influence), "shift": {}, "n_fired": {}}
     if not len(today) or gate.model.beta_ is None:
         return out
     full = dataclasses.replace(gate, influence={p: 1.0 for p in gate.influence})
@@ -960,7 +960,7 @@ def st_expect(ctx: LP.Ctx) -> tuple:
     entry_at = next_session(ctx, dec.decided_at)
     matures = session_after(ctx, dec.decided_at, cfg.horizon)
     fired = fired_today(today, cfg.patterns)
-    entries = {}
+    entries: dict[str, dict[str, Any]] = {}
     for ix, row in pos.iterrows():
         t = today.loc[ix]
         entries[str(ix[-1])] = {"vol": float(t["vol20"]) if "vol20" in t and math.isfinite(float(t["vol20"])) else 0.02,
@@ -1129,7 +1129,8 @@ def st_market(ctx: LP.Ctx) -> tuple:
         d = st.daily
         d["dates"].append(day)
         for q in [k for k in vals if k in ("volatility", "dispersion", "breadth", "correlation") or k.startswith("sector_vol:")]:
-            d["q"].setdefault(q, [np.nan] * (len(d["dates"]) - 1)).append(np.nan if vals.get(q) is None else float(vals[q]))
+            qv = vals.get(q)
+            d["q"].setdefault(q, [np.nan] * (len(d["dates"]) - 1)).append(np.nan if qv is None else float(qv))
         for q in d["q"]:
             if len(d["q"][q]) < len(d["dates"]):
                 d["q"][q].append(np.nan)
@@ -1438,12 +1439,13 @@ def case_id(pid: str) -> str:
 def investigation_context(st: C68State, exp: XP.Expectation, out: OC.OutcomeReconstruction, kn, gate: BandGate | None) -> ER.InvestigationContext:
     """What the research world measured about one error, for the checklist-E questions. Absent evidence stays None (UNANSWERED)."""
     shifts = None
-    if gate is not None and gate.model.mu_ is not None:
+    mu_, sd_ = (gate.model.mu_, gate.model.sd_) if gate is not None else (None, None)
+    if gate is not None and mu_ is not None and sd_ is not None:
         shifts = {}
         for i, f in enumerate(gate.features):
             v = exp.feature_state.get(f)
-            if v is not None and math.isfinite(float(v)) and gate.model.sd_[i] > 0:
-                shifts[f] = float((float(v) - gate.model.mu_[i]) / gate.model.sd_[i])
+            if v is not None and math.isfinite(float(v)) and sd_[i] > 0:
+                shifts[f] = float((float(v) - mu_[i]) / sd_[i])
     top = max(exp.pattern_strengths, key=lambda k: (abs(exp.pattern_strengths[k]), k)) if exp.pattern_strengths else ""
     v = st.pcs.latest.get(top)
     before = v.profile.hist_reliability if v is not None else None
@@ -1576,7 +1578,7 @@ def st_error_research(ctx: LP.Ctx) -> tuple:
         its = [by_obs[o] for o in obs if o in by_obs]
         mag = max([_magnitude(i, cfg.research_cfg) for i in its], default=float(min(1.0, (item.value.decision_value or 0.0))))
         cw = any(i.confident_wrong for i in its) or item.family.endswith("confident_wrong")
-        extra = {}
+        extra: dict[str, Any] = {}
         gs = esc.get(cell) if item.family == "error_research/pattern" else None
         if gs is not None:
             # checklist S / PC12: a repeated error is a standing loss, not one surprise - its stake, the share of the book it touches
@@ -1875,7 +1877,7 @@ def _apply_promotions(st: C68State, promoted: Sequence[str], results: Mapping[st
             continue
         best, eff_best = name, eff
         break
-    if best is None:
+    if best is None or eff_best is None:
         return 0
     cur = st.production
     extras = tuple(dict.fromkeys(tuple(cur.get("extra_features", ())) + tuple(eff_best["extra_features"])))
@@ -1970,7 +1972,7 @@ def verify_all(st: C68State, led: Ledgers, deep: bool = True) -> list[str]:
 INDEPENDENCE_TARGETS = (CT.Target(0.05, 0.5, name="pm5pp_50"), CT.Target(0.002, 0.95, name="pm02pp_95"))
 
 
-def exit_independence(st: C68State, decide: Callable = None) -> XR.IndependenceReport | None:
+def exit_independence(st: C68State, decide: Callable | None = None) -> XR.IndependenceReport | None:
     """Checklist O on this loop's own exits: the newest exited positions re-decided by THE exit function (`decide_exits`, or a
     stand-in a test plants) under the configured +-1pp target and two very different ones. Any difference in an exit day, reason or
     return means the exit read the target."""
@@ -2126,7 +2128,7 @@ def plant_world(pc: C68Plant = C68Plant()) -> FD.World:
         raise ValueError("weak_sector must be -1 or a sector index")
     dates = pd.bdate_range("2016-01-04", periods=T)
     tick = [f"W{j:03d}" for j in range(n)]
-    base = rng.uniform(*pc.base_sigma, n)
+    base = rng.uniform(pc.base_sigma[0], pc.base_sigma[1], n)
     state = np.zeros((T, n), bool)
     s = rng.random(n) < 0.15
     for t in range(T):

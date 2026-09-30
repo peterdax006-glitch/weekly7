@@ -31,7 +31,7 @@ from __future__ import annotations
 import dataclasses as dc
 import math
 import re
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any, Iterable, Mapping, Protocol, Self, Sequence
 
 import numpy as np
 import pandas as pd
@@ -265,6 +265,12 @@ class Trial:
 
 
 # ---------------------------------------------------------------------------------------------------- ledgers
+class _HasTrialId(Protocol):
+    """What the ledger reads from a trial: its identity. Trial and the lighter refs other ledgers pass both satisfy it."""
+    @property
+    def trial_id(self) -> str: ...
+
+
 class TrialLedger:
     """Counts EVERY combination ever tested, per data key (the data's start, columns and horizon - not its end, so a later
     search on extended data keeps the earlier count). m_total is what multiple-testing corrections divide by."""
@@ -274,7 +280,7 @@ class TrialLedger:
         self._validated: dict[str, set[str]] = {}
         self.runs = 0
 
-    def register(self, data_key: str, trials: Sequence[Trial]) -> int:
+    def register(self, data_key: str, trials: Sequence[_HasTrialId]) -> int:
         book = self._seen.setdefault(data_key, {})
         for t in trials:
             book[t.trial_id] = book.get(t.trial_id, 0) + 1
@@ -302,7 +308,7 @@ class TrialLedger:
                 "validated": {k: sorted(v) for k, v in self._validated.items()}, "runs": self.runs}
 
     @classmethod
-    def from_dict(cls, d: Mapping) -> "TrialLedger":
+    def from_dict(cls, d: Mapping) -> Self:
         led = cls()
         led._seen = {k: {t: int(n) for t, n in v.items()} for k, v in d.get("seen", {}).items()}
         led._validated = {k: set(v) for k, v in d.get("validated", {}).items()}

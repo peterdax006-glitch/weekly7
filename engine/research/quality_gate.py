@@ -24,7 +24,7 @@ import json
 import math
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence, TypeVar
 
 import numpy as np
 import pandas as pd
@@ -383,7 +383,8 @@ def gate_identity(ev: IdentityEvidence | None, pol: QualityPolicy) -> GateOutcom
         if r.status == PR.FAIL:
             problems.append(r.detail)
             quarantine = quarantine or bool(ev.memorization.lookup_table_suspected) or \
-                any(m < pol.promotion.min_identity_retention for m in (ev.memorization.identity_shuffle_retention, ev.memorization.disguised_rerun_retention))
+                any(m is not None and m < pol.promotion.min_identity_retention
+                    for m in (ev.memorization.identity_shuffle_retention, ev.memorization.disguised_rerun_retention))
     if problems:
         return _out(g, QUARANTINE if quarantine else FAIL, "; ".join(problems), crit, {"problems": len(problems)})
     return _out(g, PASS, "survives identity scrambling and disguise", crit)
@@ -761,6 +762,16 @@ def _mut(**kw) -> Callable[[QualityEvidence], QualityEvidence]:
     return lambda e: dataclasses.replace(e, **kw)
 
 
+_T = TypeVar("_T")
+
+
+def _clean(part: _T | None, name: str) -> _T:
+    """A planted defect mutates a part of the CLEAN bundle; a clean bundle that lacks the part cannot be mutated."""
+    if part is None:
+        raise ValueError(f"the clean evidence bundle has no {name} to plant a defect in")
+    return part
+
+
 def planted_defects() -> dict[str, tuple[Callable[[QualityEvidence], QualityEvidence], str, GateVerdict]]:
     """name -> (mutation of the clean bundle, the gate that must catch it, the verdict it must produce). Twelve known defects, one
     per gate: `verify_gate_can_fail` runs them all and reports any the gate waved through."""
@@ -769,47 +780,52 @@ def planted_defects() -> dict[str, tuple[Callable[[QualityEvidence], QualityEvid
         return LeakEvidence(True, FW.LearningFirewallGate().evaluate(ctx), True, (), (), 0)
 
     def bad_oos(e: QualityEvidence) -> QualityEvidence:
-        o = e.oos
-        eff = tuple(0.0 for _ in o.oos.oos_effects)
-        return dataclasses.replace(e, oos=OOSBundle(o.statistical, dataclasses.replace(o.oos, oos_effects=tuple(x - 0.004 for x in eff)), o.train_years))
+        o = _clean(e.oos, "oos")
+        oos = _clean(o.oos, "oos.oos")
+        eff = tuple(0.0 for _ in oos.oos_effects)
+        return dataclasses.replace(e, oos=OOSBundle(o.statistical, dataclasses.replace(oos, oos_effects=tuple(x - 0.004 for x in eff)), o.train_years))
 
     def same_year(e: QualityEvidence) -> QualityEvidence:
-        return dataclasses.replace(e, oos=dataclasses.replace(e.oos, train_years=(2016, 2017, 2018, 2019)))
+        return dataclasses.replace(e, oos=dataclasses.replace(_clean(e.oos, "oos"), train_years=(2016, 2017, 2018, 2019)))
 
     def overconfident(e: QualityEvidence) -> QualityEvidence:
-        p = np.asarray(e.calibration.p)
-        return dataclasses.replace(e, calibration=dataclasses.replace(e.calibration, p=tuple(float(v) for v in np.clip((p - 0.5) * 2.2 + 0.5, 0.01, 0.99))))
+        cal = _clean(e.calibration, "calibration")
+        p = np.asarray(cal.p)
+        return dataclasses.replace(e, calibration=dataclasses.replace(cal, p=tuple(float(v) for v in np.clip((p - 0.5) * 2.2 + 0.5, 0.01, 0.99))))
 
     def collapse(e: QualityEvidence) -> QualityEvidence:
-        vs = tuple(dataclasses.replace(v, status="COLLAPSE", retention=0.0) if v.mode == "eval" else v for v in e.identity.report.verdicts)
-        return dataclasses.replace(e, identity=IdentityEvidence(dataclasses.replace(e.identity.report, verdicts=vs), e.identity.memorization))
+        ident = _clean(e.identity, "identity")
+        rep = _clean(ident.report, "identity.report")
+        vs = tuple(dataclasses.replace(v, status="COLLAPSE", retention=0.0) if v.mode == "eval" else v for v in rep.verdicts)
+        return dataclasses.replace(e, identity=IdentityEvidence(dataclasses.replace(rep, verdicts=vs), ident.memorization))
 
     def future_feature(e: QualityEvidence) -> QualityEvidence:
-        f = e.pit.features + (FeatureUse("fwd_ret_5d", "2018-01-20", Availability.KNOWN_ONLY_AFTER_EVENT),)
-        return dataclasses.replace(e, pit=dataclasses.replace(e.pit, features=f))
+        pit = _clean(e.pit, "pit")
+        f = pit.features + (FeatureUse("fwd_ret_5d", "2018-01-20", Availability.KNOWN_ONLY_AFTER_EVENT),)
+        return dataclasses.replace(e, pit=dataclasses.replace(pit, features=f))
 
     def unreplicated(e: QualityEvidence) -> QualityEvidence:
-        d = e.replication
+        d = _clean(e.replication, "replication")
         return dataclasses.replace(e, replication=dataclasses.replace(d, status=RP.Status.UNREPLICATED, n_supporting=0, run_results=(), reasons=("no runs",)))
 
     def failed_repl(e: QualityEvidence) -> QualityEvidence:
-        return dataclasses.replace(e, replication=dataclasses.replace(e.replication, status=RP.Status.FAILED, n_refuting=2, n_supporting=0))
+        return dataclasses.replace(e, replication=dataclasses.replace(_clean(e.replication, "replication"), status=RP.Status.FAILED, n_refuting=2, n_supporting=0))
 
     def fat_tail(e: QualityEvidence) -> QualityEvidence:
-        return dataclasses.replace(e, risk=dataclasses.replace(e.risk, worst_period=-0.6, catastrophic_count=2))
+        return dataclasses.replace(e, risk=dataclasses.replace(_clean(e.risk, "risk"), worst_period=-0.6, catastrophic_count=2))
 
     def complex_no_gain(e: QualityEvidence) -> QualityEvidence:
-        c = e.complexity
-        noisy = c.baseline.oos.copy()
+        c = _clean(e.complexity, "complexity")
+        noisy = _clean(c.baseline, "complexity.baseline").oos.copy()
         rng = np.random.default_rng(3)
-        worse = dataclasses.replace(c.candidate, oos=noisy + rng.normal(0, 0.0005, len(noisy)))
+        worse = dataclasses.replace(_clean(c.candidate, "complexity.candidate"), oos=noisy + rng.normal(0, 0.0005, len(noisy)))
         return dataclasses.replace(e, complexity=ComplexityEvidence(worse, c.baseline, c.n_eff))
 
     def no_transfer(e: QualityEvidence) -> QualityEvidence:
-        return dataclasses.replace(e, transfer=dataclasses.replace(e.transfer, context_effects={"tech": -0.002, "energy": -0.003, "health": 0.0001, "fin": -0.001, "home": 0.0055}))
+        return dataclasses.replace(e, transfer=dataclasses.replace(_clean(e.transfer, "transfer"), context_effects={"tech": -0.002, "energy": -0.003, "health": 0.0001, "fin": -0.001, "home": 0.0055}))
 
     def brittle(e: QualityEvidence) -> QualityEvidence:
-        return dataclasses.replace(e, failure=dataclasses.replace(e.failure, has_retirement_trigger=False, perturbation_retention=0.1))
+        return dataclasses.replace(e, failure=dataclasses.replace(_clean(e.failure, "failure"), has_retirement_trigger=False, perturbation_retention=0.1))
 
     def nondeterministic(e: QualityEvidence) -> QualityEvidence:
         return dataclasses.replace(e, repro=PR.ReproEvidence(tuple(PR.RerunRecord(v, s, "refcode", "dataA") for v, s in ((0.0055, 1), (0.0031, 1), (0.0040, 2))), "dataA"))

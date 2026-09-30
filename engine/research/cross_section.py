@@ -208,7 +208,7 @@ def cohort_turnover(prev: pd.DataFrame | None, now: pd.DataFrame) -> dict[str, f
     common = prev.index.intersection(now.index)
     if len(common) < 5:
         return {k: None for k in now.columns}
-    out = {}
+    out: dict[str, float | None] = {}
     for k in now.columns:
         if k not in prev.columns:
             out[k] = None
@@ -221,7 +221,7 @@ def cohort_turnover(prev: pd.DataFrame | None, now: pd.DataFrame) -> dict[str, f
 
 # ------------------------------------------------------------------------------------------------ robust building blocks
 
-def robust_scale(x: Sequence[float]) -> float:
+def robust_scale(x: Sequence[float] | np.ndarray) -> float:
     """Median-absolute-deviation scale (x1.4826). 0.0 for fewer than three finite values."""
     a = np.asarray(x, dtype="float64")
     a = a[np.isfinite(a)]
@@ -395,15 +395,20 @@ def chance_shares(frame: pd.DataFrame, cfg: CrossConfig, seed: int, n_shuffles: 
                 sh[c] = lab[c].to_numpy()[perm]
         s = decompose_day(frame, cfg, sh, beta).shares()
         for k in acc:
-            if s[k] is not None:
-                acc[k].append(float(s[k]))
+            share = s[k]
+            if share is not None:
+                acc[k].append(float(share))
     return {k: (float(np.mean(v)) if v else None) for k, v in acc.items()}
 
 
 def excess_shares(dec: Decomposition, null: Mapping[str, float | None]) -> dict[str, float | None]:
     """Shares minus the chance shares of the same day. sector + industry + style excess = -(idio excess)."""
     sh = dec.shares()
-    return {k: (None if sh[k] is None or null.get(k) is None else sh[k] - null[k]) for k in ("sector", "industry", "style", "idio")}
+    out: dict[str, float | None] = {}
+    for k in ("sector", "industry", "style", "idio"):
+        mine, chance = sh[k], null.get(k)
+        out[k] = None if mine is None or chance is None else mine - chance
+    return out
 
 
 def market_structure(returns: pd.DataFrame, now, market_col: str | None = None, window: int = 60) -> dict[str, float | None]:
@@ -1014,12 +1019,17 @@ class ShareLedger:
 
     def add(self, day, shares: Mapping[str, float | None], excess: Mapping[str, float | None] | None = None,
             dispersion: float | None = None, market: float | None = None) -> None:
-        if any(shares.get(k) is None for k in self.LEVELS):
-            return
-        row = {"date": as_date(day).isoformat(), "dispersion": dispersion, "market": market}
+        level_shares: dict[str, float] = {}
         for k in self.LEVELS:
-            row[k] = float(shares[k])
-            row[f"{k}_excess"] = None if not excess or excess.get(k) is None else float(excess[k])
+            share = shares.get(k)
+            if share is None:
+                return
+            level_shares[k] = float(share)
+        row: dict[str, Any] = {"date": as_date(day).isoformat(), "dispersion": dispersion, "market": market}
+        for k in self.LEVELS:
+            row[k] = level_shares[k]
+            chance_k = excess.get(k) if excess else None
+            row[f"{k}_excess"] = None if chance_k is None else float(chance_k)
         if self._rows and row["date"] <= self._rows[-1]["date"]:
             raise FirewallBreach(f"share ledger: {row['date']} is not after {self._rows[-1]['date']}")
         self._rows.append(row)
@@ -1033,7 +1043,7 @@ class ShareLedger:
     def summary(self, now=None) -> pd.DataFrame:
         """Per level: mean share, spread, mean excess over chance and the share of days the excess is positive."""
         df = self.frame(now)
-        rows = []
+        rows: list[dict[str, Any]] = []
         for k in self.LEVELS:
             if df.empty:
                 rows.append({"level": k, "mean_share": None, "sd_share": None, "mean_excess": None, "days_above_chance": None, "n": 0})
@@ -1175,7 +1185,7 @@ def dispersion_components(dec: Decomposition) -> dict[str, float | None]:
     if not dec.usable():
         return {k: None for k in ("market_beta", "sector", "industry", "style", "idio", "total")}
     t = dec.table
-    out = {k: robust_scale(t[k].to_numpy()) for k in ("sector", "industry", "style", "idio")}
+    out: dict[str, float | None] = {k: robust_scale(t[k].to_numpy()) for k in ("sector", "industry", "style", "idio")}
     out["market_beta"] = robust_scale((t["market"] - dec.market).to_numpy())
     out["total"] = robust_scale(t["ret"].to_numpy())
     return out
@@ -1239,6 +1249,13 @@ class IdioVol:
 
 # ------------------------------------------------------------------------------------------------ discovered cohorts
 
+def _required(v: float | None) -> float:
+    """A share that the usability check already guaranteed; None here is a broken invariant, not a missing measurement."""
+    if v is None:
+        raise ValueError("a share that must be measured is missing")
+    return float(v)
+
+
 def kmeans(X: np.ndarray, k: int, seed: int, n_iter: int = 50, n_init: int = 4) -> tuple[np.ndarray, np.ndarray, float]:
     """Seeded k-means with k-means++ starts. Returns (labels, centroids, inertia) of the best of n_init starts. Deterministic
     in `seed`; empty clusters are re-seeded at the farthest point. Shared with engine.research.regimes."""
@@ -1271,6 +1288,8 @@ def kmeans(X: np.ndarray, k: int, seed: int, n_iter: int = 50, n_init: int = 4) 
         inertia = float(((X - cent[lab]) ** 2).sum())
         if best is None or inertia < best[2]:
             best = (lab.copy(), cent.copy(), inertia)
+    if best is None:
+        raise ValueError(f"n_init must be >= 1, got {n_init}")
     return best
 
 
@@ -1524,7 +1543,8 @@ class CrossSectionLab:
     def from_state(cls, st: Mapping[str, Any]) -> "CrossSectionLab":
         if st.get("schema") != SCHEMA_VERSION:
             raise ValueError(f"lab schema {st.get('schema')!r} != {SCHEMA_VERSION}")
-        cfg = CrossConfig(**{k: (tuple(v) if isinstance(v, list) else v) for k, v in st["cfg"].items()})
+        cfg_kw: dict[str, Any] = {k: (tuple(v) if isinstance(v, list) else v) for k, v in st["cfg"].items()}
+        cfg = CrossConfig(**cfg_kw)
         lab = cls(cfg, st["sessions"])
         for s in st["history"]:
             lab.history.days.append(DayStat(s["date"], s["market"], s["dispersion"], s["style"], s["shares"]))
@@ -1774,7 +1794,7 @@ class FullDecomposition:
         prev = self.stage_ss["market"]
         if prev <= 0:
             return {c: None for c in (*self.order, "idio")}
-        out = {}
+        out: dict[str, float | None] = {}
         for c in self.order:
             out[c] = (prev - self.stage_ss[c]) / self.stage_ss["market"]
             prev = self.stage_ss[c]
@@ -1900,17 +1920,19 @@ class CohortAttributionLedger:
         if not full.usable():
             return False
         sh, solo = full.shares(), full.solo_shares()
-        if any(v is None for v in sh.values()):
+        seq = {c: v for c, v in sh.items() if v is not None}
+        if len(seq) != len(sh):
             return False
         d = as_date(day).isoformat()
         if self._rows and d <= self._rows[-1]["date"]:
             raise FirewallBreach(f"cohort ledger: {d} is not after {self._rows[-1]['date']}")
         row: dict[str, Any] = {"date": d}
         for c in (*full.order, "idio"):
-            row[f"seq_{c}"] = float(sh[c])
-            row[f"excess_{c}"] = None if not chance or chance.get(c) is None else float(sh[c] - chance[c])
+            row[f"seq_{c}"] = seq[c]
+            base_c = chance.get(c) if chance else None
+            row[f"excess_{c}"] = None if base_c is None else float(seq[c] - base_c)
         for c in full.order:
-            row[f"solo_{c}"] = float(solo[c])
+            row[f"solo_{c}"] = _required(solo[c])
         self._rows.append(row)
         return True
 
@@ -1923,7 +1945,7 @@ class CohortAttributionLedger:
     def summary(self, now=None) -> pd.DataFrame:
         """Per cohort: mean sequential and solo share, mean excess over chance and the share of days it beats chance."""
         df = self.frame(now)
-        rows = []
+        rows: list[dict[str, Any]] = []
         for c in (*(k.value for k in COHORT_ORDER), "idio"):
             if df.empty:
                 rows.append({"cohort": c, "seq": None, "solo": None, "excess": None, "days_above_chance": None, "n": 0})
@@ -2002,9 +2024,10 @@ def cohort_size_bias(full: FullDecomposition) -> float | None:
     xs, ys = [], []
     for k in full.order:
         n = full.table[f"n_{k}"].dropna()
-        if len(n) and sh.get(k) is not None:
+        share_k = sh.get(k)
+        if len(n) and share_k is not None:
             xs.append(float(n.mean()))
-            ys.append(float(sh[k]))
+            ys.append(float(share_k))
     if len(xs) < 4 or np.std(xs) <= 0 or np.std(ys) <= 0:
         return None
     return float(np.corrcoef(xs, ys)[0, 1])

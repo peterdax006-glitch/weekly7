@@ -511,7 +511,9 @@ def _record(state: ManagerState, b: Branch, to: ResearchState, now, reason: str)
 
 def verify_log(state: ManagerState) -> list[str]:
     """Problems in the transition history (empty = intact): broken hash chain, edited records, unknown branches, illegal moves."""
-    errs, prev, last_state = [], "", {}
+    errs: list[str] = []
+    prev = ""
+    last_state: dict[str, Any] = {}
     for i, t in enumerate(state.log):
         if t.seq != i:
             errs.append(f"record {i}: seq {t.seq}")
@@ -841,6 +843,7 @@ def record_result(state: ManagerState, branch_id: str, ev: StageEvidence, now, p
         b.n_obs_planned = int(dec.needed_n or 0)
     elif dec.action is Act.DEMOTE:
         b.passed.pop(key, None)
+        assert dec.next_stage is not None             # a DEMOTE always names the rung it returns to
         b.passed.pop(dec.next_stage.value, None)
         b.frontier = dec.next_stage
         b.repeats = {}
@@ -975,7 +978,7 @@ def simulate_ladder(policy: LadderPolicy, true_effect: float, sd: float, n_branc
     what it costs and how often it errs. This is the planted-world check of section 18: nulls must die cheap, real effects must
     survive an underpowered first look. Deterministic in `seed`; no data is read."""
     rng = np.random.default_rng(seed)
-    cost = {True: [], False: []}
+    cost: dict[bool, list[float]] = {True: [], False: []}
     reach = {True: 0, False: 0}
     rung3 = {True: 0, False: 0}
     early = 0
@@ -988,6 +991,7 @@ def simulate_ladder(policy: LadderPolicy, true_effect: float, sd: float, n_branc
         st = ManagerState()
         q = ResearchQuestion.make(f"sim {i}", "sim", Problem.VOLATILITY, "2000-01-01", "2000-01-01", "s", "f")
         b = make_branch(st, q, "2000-01-01", "sim", looks=max(1, n_branches // 10))
+        assert b is not None                          # a fresh state has no branch for this question
         day = dt.date(2000, 1, 2)
         total = 0.0
         reps = 0
@@ -1250,7 +1254,7 @@ class Snapshotter:
         return path
 
     def restore(self) -> tuple[ManagerState, dict]:
-        skipped = []
+        skipped: list[str] = []
         for p in reversed(self._files()):
             d = C.read_json(p, None)
             if isinstance(d, dict) and "state" in d and d.get("hash") == stable_hash(d["state"], 20):
@@ -1472,6 +1476,7 @@ def replay_schedule(policy: LadderPolicy, truth: Mapping[str, float], seed: int,
     for name in sorted(truth):
         q = ResearchQuestion.make(name, "sim", Problem.VOLATILITY, day.isoformat(), day.isoformat(), "s", "f")
         b = make_branch(st, q, day, name.split(":")[0], looks=max(1, len(truth) // 4))
+        assert b is not None                          # names are unique, so no question is seen twice
         name_of[b.branch_id] = name
     pending: list[tuple[str, StageEvidence]] = []
     budget = ComputeBudget(period_cpu_min, per_tick_free_gb, safety_ram_gb=2.5, max_ram_per_job_gb=4.0, real_data_slots=2)
@@ -1498,7 +1503,7 @@ def replay_schedule(policy: LadderPolicy, truth: Mapping[str, float], seed: int,
         for bid, b in st.branches.items():
             if b.audit_pending:
                 clear_audit(st, bid, day, False, "replay: no leak planted")
-    out = {"spend": {}, "state": {}, "reached_end": [], "null_funded_past_rung2": []}
+    out: dict[str, Any] = {"spend": {}, "state": {}, "reached_end": [], "null_funded_past_rung2": []}
     for bid, b in sorted(st.branches.items()):
         n = name_of[bid]
         out["spend"][n], out["state"][n] = b.total_spent, b.state.value
@@ -1699,7 +1704,9 @@ def intake(state: ManagerState, questions: Iterable[tuple[ResearchQuestion, str]
     real date are refused (section 29: questions handed onward must be identity-free), duplicates are reported, and `max_new`
     caps the intake so a burst of questions cannot outrun the compute that would test them. Order-independent: sorted by id."""
     import re
-    created, dup, rej = [], [], []
+    created: list[str] = []
+    dup: list[str] = []
+    rej: list[tuple[str, str]] = []
     ident = re.compile(r"\b(?:19|20)\d{2}-\d{2}-\d{2}\b|\b[A-Z]{2,5}\b(?=\s+(?:stock|shares|ticker))")
     for q, fam in sorted(questions, key=lambda t: t[0].question_id):
         if ident.search(q.text):
@@ -1772,7 +1779,8 @@ def escalation_preview(state: ManagerState, policy: LadderPolicy) -> list[dict]:
     for bid, b in sorted(state.branches.items()):
         if b.state not in ACTIVE_STATES:
             continue
-        p, ahead = 1.0, []
+        p = 1.0
+        ahead: list[dict[str, Any]] = []
         for i in range(stage_index(b.frontier), len(LADDER)):
             s = LADDER[i]
             c = (state.stats.mean_cost(s) or policy.rule(s).base_cpu_min) * state.cost_model.multiplier(s.value)

@@ -640,7 +640,7 @@ class LiftView:
         n_total = int(self.totals[nc].sum())
         need = p.path_min_n if target in PATHS else p.min_history_names
         enough = self.n_days >= p.min_history_days and n_total >= need and base_rate is not None and 0.0 < base_rate < 1.0
-        if not enough:
+        if not enough or base_rate is None:
             return PreMoveEvidence(target, base_rate, None, None, (), self.n_days, n_total, False)
         contrib = []
         for j, f in enumerate(self.names):
@@ -832,7 +832,7 @@ def assess(o: MoveObs, view: LiftView, p: Params) -> KnowabilityReport:
     if o.missing_frac >= p.data_failure_missing:
         k, conf = Knowability.DATA_FAILURE, 0.7
         reasons.append(f"{o.missing_frac:.0%} of the inputs were missing at the decision")
-    elif not ev.enough:
+    elif not ev.enough or ev.p is None or ev.lift is None:
         k, conf = Knowability.UNKNOWN, 0.0
         reasons.append("history matured before the decision is too thin to say anything: unknown, not unpredictable")
     else:
@@ -1412,7 +1412,7 @@ class FilterLedger:
     winners it removed against the losers it removed, accumulated day by day from the full cross-section before it is dropped."""
 
     def __init__(self):
-        self.rows: dict[str, dict[str, float]] = {}
+        self.rows: dict[str, dict[str, Any]] = {}
 
     def add_day(self, day: DayBook, p: Params) -> None:
         for o in day.obs:
@@ -1461,7 +1461,7 @@ def analyse_paths(day: DayBook, view: LiftView, p: Params) -> PathDay:
     dist: Counter = Counter()
     by_dir: dict[int, Counter] = {UP: Counter(), DOWN: Counter()}
     hits_view = hits_major = hits_model = n_model = 0
-    lifts = []
+    lifts: list[float] = []
     bases = {c: view.base_rate(c) for c in PATHS}
     have_base = all(b is not None for b in bases.values())
     majority = max(PATHS, key=lambda c: (bases[c] or 0.0, c)) if have_base else None
@@ -1481,7 +1481,9 @@ def analyse_paths(day: DayBook, view: LiftView, p: Params) -> PathDay:
             best = max(PATHS, key=lambda c: (evs[c].p, c))
             hits_view += int(best == path)
             hits_major += int(majority == path)
-            lifts.append(evs[path].lift)
+            path_lift = evs[path].lift
+            if path_lift is not None:
+                lifts.append(path_lift)
     return PathDay(len(band), n_lab, dict(dist), hits_view, hits_major, hits_model, n_model,
                    float(np.mean(lifts)) if lifts else None, {d: dict(c) for d, c in by_dir.items()})
 
@@ -1710,7 +1712,7 @@ def _process(state: MissedState, day: DayBook, now) -> DailyReport:
     report = DailyReport(day.decided_at, snap, {d: dict(c) for d, c in caps.items()}, {d: dict(c) for d, c in know.items()}, dict(reasons),
                          len(movers), n_learn, n_unk, tuple(near), top, tuple(audits[x.cid] for x in top), float(loss_total), float(loss_unavoid),
                          stable, len(state.stream), dict(Counter(e.state.value for e in state.stream.entries.values())), path_day,
-                         {d: tuple(v) for d, v in eng.items()})
+                         {d: (v[0], v[1], v[2], v[3]) for d, v in eng.items()})
     state.lift.add_day(day)                            # only now may today's outcome become history for later days
     state.done[day.decided_at] = day.matured_at
     state.exceptions[day.decided_at] = exc

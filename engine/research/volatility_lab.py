@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import dataclasses as dc
 import math
-from typing import Any, Callable, Iterable, Mapping, Sequence
+from typing import Any, Callable, Iterable, Iterator, Mapping, Sequence
 
 import numpy as np
 import pandas as pd
@@ -880,7 +880,7 @@ def shuffle_sources(F: pd.DataFrame, cols: Sequence[str], level: str, seed: int)
 
 
 def _verdict_from_increment(inc: Increment, null: Increment | None, cfg: LabConfig, min_dates: int) -> tuple[StudyVerdict, tuple[str, ...]]:
-    cav = []
+    cav: list[str] = []
     if inc.n_dates < min_dates or not np.isfinite(inc.diff):
         return StudyVerdict.INCONCLUSIVE, (f"only {inc.n_dates} scored dates",)
     if null is not None and np.isfinite(null.diff) and null.lo > 0 and null.diff > cfg.null_tol:
@@ -939,7 +939,7 @@ def oriented_scan(F: pd.DataFrame, feats: Sequence[str], now, cfg: LabConfig) ->
     folds = make_wf_folds(F.index.get_level_values(0), cfg)
     ends, dn = pd.to_datetime(F["end"]).to_numpy(), pd.to_datetime(F.index.get_level_values(0)).to_numpy()
     y = F["touch"].to_numpy(float)
-    signs = {f: [] for f in feats}
+    signs: dict[str, list[float]] = {f: [] for f in feats}
     cols = {f: np.full(len(F), np.nan) for f in feats}
     for fd in folds:
         tr = np.flatnonzero(ends < np.datetime64(fd.now))
@@ -1266,7 +1266,9 @@ def discover(F: pd.DataFrame, wf: WFResult, registry: VH.HypothesisRegistry, now
             r = oos[c].groupby(level=0).rank(pct=True, method="first").reindex(find.index)
             known_sel[h] = (r.to_numpy() > 1 - cfg.top_frac * 2)
     cands = VH.propose_rules(find, find["p_known"].to_numpy(), now, seed=cfg.seed, known_selections=known_sel)
-    registered, promoted, rejected = [], [], []
+    registered: list[str] = []
+    promoted: list[str] = []
+    rejected: list[tuple[str, str]] = []
     for cand, ev in cands[:max_new + 3]:
         if len(registered) >= max_new:
             break
@@ -1275,13 +1277,13 @@ def discover(F: pd.DataFrame, wf: WFResult, registry: VH.HypothesisRegistry, now
             rejected.append((ev.rule_id, rr.reason))
             continue
         try:
-            h = registry.register_discovered(cand, ev.rule_id)
+            found = registry.register_discovered(cand, ev.rule_id)
         except ValueError as e:
             rejected.append((ev.rule_id, str(e)))
             continue
-        registered.append(h.hid)
-        registry.promote(h.hid, f"replicated: lift {rr.lift:.2f} (lo {rr.lift_lo:.2f}) on {rr.n_in} later rows")
-        promoted.append(h.hid)
+        registered.append(found.hid)
+        registry.promote(found.hid, f"replicated: lift {rr.lift:.2f} (lo {rr.lift_lo:.2f}) on {rr.n_in} later rows")
+        promoted.append(found.hid)
     return DiscoveryOutcome(len(cands), tuple(registered), tuple(promoted), tuple(rejected),
                             "found and replicated" if promoted else ("candidates did not replicate" if cands else "no region beat the search's lift/overlap/size bars"))
 
@@ -1507,6 +1509,7 @@ class VolatilityModel:
         else:
             out["p_move"], out["calibrated"], out["p_lo"], out["p_hi"] = p, False, np.nan, np.nan
         if self.mag_models:
+            assert self.mag_std is not None               # fitted together with the magnitude models
             Z = self.mag_std.apply(VH.derive(Fnow, self.mag_features).to_numpy(float))
             out["mag_med"] = np.exp(self.mag_models[0.5].predict(Z))
             out["mag_q90"] = np.maximum(np.exp(self.mag_models[0.9].predict(Z)), out["mag_med"])
@@ -2141,7 +2144,7 @@ def selfcheck(seed: int = 0, n_dates: int = 90, n_tickers: int = 50) -> dict:
     signal check must not call a random score a volatility signal."""
     cfg = LabConfig(min_train_dates=40, test_step_dates=12, n_boot=150, seed=seed)
     hyps = [h for h in VH.seeded_hypotheses() if h.hid in ("H1", "H6")]
-    res = {}
+    res: dict[str, Any] = {}
     for truth in ("H1", "null"):
         F = planted_frame(truth, n_dates=n_dates, n_tickers=n_tickers, seed=seed + 5, effect=1.3)
         wf = walk_forward(F, hyps, "2035-01-01", cfg)
@@ -2435,7 +2438,7 @@ def path_direction_split(ep: pd.DataFrame, probs: pd.DataFrame, up_col: str = "e
         return {"tested": False, "reason": f"no {up_col} column or no probabilities"}
     j = probs.join(ep[[up_col]], how="inner").dropna(subset=["p_REVERSAL"])
     j = j[j["path"].isin(["REVERSAL", "CONTINUATION"])]
-    res = {"tested": True}
+    res: dict[str, Any] = {"tested": True}
     for side, name in ((1.0, "up_episodes"), (0.0, "down_episodes")):
         s = j[j[up_col] == side]
         res[name] = {"n": int(len(s)), "auc": _auc(s["p_REVERSAL"].to_numpy(), (s["path"] == "REVERSAL").to_numpy()) if 30 <= len(s) and s["path"].nunique() == 2 else float("nan")}
@@ -2519,7 +2522,7 @@ class SweepUnit:
 
 
 def sweep(loader: Callable[[int, int], pd.DataFrame], years: Sequence[int], state: LabState, now_for: Callable[[int], Any], *,
-          checkpoint_path=None, max_passes: int | None = 1, name_seed: int = 0, tasks_per_unit: int = 3) -> Iterable[SweepUnit]:
+          checkpoint_path=None, max_passes: int | None = 1, name_seed: int = 0, tasks_per_unit: int = 3) -> Iterator[SweepUnit]:
     """Generator over (pass, year) units; pass p uses universe seed name_seed+p, so successive passes look at different draws of names.
     For each unit it loads `loader(year, seed)` (a lab frame for that calendar year), runs up to tasks_per_unit lab tasks via step(), and
     saves the checkpoint BEFORE yielding, so a kill between units costs nothing. Units already in the checkpoint are skipped, which makes
@@ -2606,7 +2609,7 @@ def disagreement_slices(oos: pd.DataFrame, a: str, b: str, F: pd.DataFrame | Non
     rb = oos[f"p_{b}"].groupby(level=0).rank(pct=True, method="first")
     hi_a, hi_b = (ra > 1 - top_frac) & (rb < 0.5), (rb > 1 - top_frac) & (ra < 0.5)
     y = oos["touch"]
-    out = {"a": a, "b": b, "n_a_only": int(hi_a.sum()), "n_b_only": int(hi_b.sum()), "rate_a_only": float(y[hi_a].mean()) if hi_a.any() else float("nan"),
+    out: dict[str, Any] = {"a": a, "b": b, "n_a_only": int(hi_a.sum()), "n_b_only": int(hi_b.sum()), "rate_a_only": float(y[hi_a].mean()) if hi_a.any() else float("nan"),
            "rate_b_only": float(y[hi_b].mean()) if hi_b.any() else float("nan"), "base_rate": float(y.mean())}
     if hi_a.sum() >= 30 and hi_b.sum() >= 30:
         from scipy.stats import fisher_exact
@@ -2782,7 +2785,8 @@ def seed_stability(F: pd.DataFrame, hyps: Sequence[VH.Hypothesis], now, cfg: Lab
                    seeds: Sequence[int] = (0, 1, 2)) -> dict:
     """Is the champion an accident of the fitting seed (row subsampling, boosting)? Re-run the walk-forward under several fit seeds and report
     the champion in each and the spread of each hypothesis's increment. A champion that changes with the seed is not a champion."""
-    champs, incs = [], {}
+    champs: list[str] = []
+    incs: dict[str, list[float]] = {}
     for s in seeds:
         fc = dc.replace(fit_cfg, seed=s)
         wf = walk_forward(F, hyps, now, dc.replace(cfg, seed=cfg.seed), fc)

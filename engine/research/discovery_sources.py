@@ -524,8 +524,15 @@ def f_eventtiming(w: Wide, inp: SourceInputs, cfg: SourceConfig) -> dict:
             "m_cal_post_gap_days": pd.Series(np.clip(gaps, 0, 7).astype(float), index=idx)}
 
 
+def _table(t: pd.DataFrame | None, name: str) -> pd.DataFrame:
+    """A family's required input table; `usable()` already refused the family when it is absent."""
+    if t is None:
+        raise SourceError(f"the {name} table is required by this family and was not supplied")
+    return t
+
+
 def f_earnings(w: Wide, inp: SourceInputs, cfg: SourceConfig) -> dict:
-    e = inp.earnings.copy()
+    e = _table(inp.earnings, "earnings").copy()
     e["date"] = pd.to_datetime(e["date"])
     past = e[e["date"] < pd.Timestamp(w.dates[-1]) + pd.Timedelta(days=1)]
     idx = EventIndex(w, past, "date", cfg.earnings_lag)
@@ -580,7 +587,7 @@ def f_earnings(w: Wide, inp: SourceInputs, cfg: SourceConfig) -> dict:
 
 
 def f_filings(w: Wide, inp: SourceInputs, cfg: SourceConfig) -> dict:
-    f = inp.filings
+    f = _table(inp.filings, "filings")
     allf = EventIndex(w, f, "filed_at", cfg.filing_lag)
     cnt = allf.count(cfg.event_window)
     out = {"days_since_filing": allf.since(), "filings_63": cnt,
@@ -596,7 +603,7 @@ def f_filings(w: Wide, inp: SourceInputs, cfg: SourceConfig) -> dict:
 
 
 def f_insider(w: Wide, inp: SourceInputs, cfg: SourceConfig) -> dict:
-    t = inp.insiders
+    t = _table(inp.insiders, "insiders")
     buys = EventIndex(w, t, "filed_at", cfg.insider_lag, "value", mask=t["value"].astype(float) > 0,
                       id_col="insider" if "insider" in t.columns else None)
     sells = EventIndex(w, t, "filed_at", cfg.insider_lag, "value", mask=t["value"].astype(float) < 0)
@@ -611,9 +618,10 @@ def f_insider(w: Wide, inp: SourceInputs, cfg: SourceConfig) -> dict:
 
 
 def f_macro(w: Wide, inp: SourceInputs, cfg: SourceConfig) -> dict:
-    m = inp.macro.sort_index().reindex(w.dates.union(inp.macro.index)).ffill().shift(cfg.macro_lag).reindex(w.dates)
+    macro = _table(inp.macro, "macro")
+    m = macro.sort_index().reindex(w.dates.union(macro.index)).ffill().shift(cfg.macro_lag).reindex(w.dates)
     out = {}
-    for col in inp.macro.columns:
+    for col in macro.columns:
         s = m[col].astype(float)
         out[f"m_macro_{col}_pct"] = _expanding_like(s)
         out[f"m_macro_{col}_chg5"] = s.diff(5)
@@ -1285,7 +1293,8 @@ def admissible_families(inp: SourceInputs, families: Sequence[str] | None = None
     """Families that pass the PIT audit on these inputs, and the findings for the ones that do not. A family that fails is
     excluded from discovery entirely (its columns cannot be trusted to be knowable at their own date)."""
     names = [n for n in (families or ALL_FAMILY_NAMES) if n in FAMILIES and FAMILIES[n].usable(inp) is None]
-    good, bad = [], {}
+    good: list[str] = []
+    bad: dict[str, list[PitFinding]] = {}
     for n in names:
         found = audit_pit(inp, [n], cfg, **kw)
         (bad.__setitem__(n, found) if found else good.append(n))

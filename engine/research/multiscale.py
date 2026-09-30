@@ -202,7 +202,7 @@ def horizon_state_of(h: Any) -> str | None:
 def validate_table() -> list[str]:
     """Structural check of the horizon table: every entry valid, sessions monotone with scale order, keys unique."""
     errs = [e for spec in HORIZON_SPECS.values() for e in spec.check()]
-    seen = {}
+    seen: dict[tuple[int, int], list[str]] = {}
     for k, spec in HORIZON_SPECS.items():
         if spec.key != k and k not in (Horizon.MIN5.value, Horizon.MIN30.value, Horizon.HOUR1.value):
             errs.append(f"key {k!r} maps to spec {spec.key!r}")
@@ -440,6 +440,19 @@ class ScaleEffect:
         return self.status == "OK" and self.t is not None and abs(self.t) >= t_bar
 
     @property
+    def abs_t(self) -> float:
+        """|t| of a measured effect (every effect with status OK has one)."""
+        if self.t is None:
+            raise ValueError(f"horizon {self.horizon} has no t-statistic")
+        return abs(self.t)
+
+    @property
+    def abs_per_session(self) -> float:
+        if self.effect is None:
+            raise ValueError(f"horizon {self.horizon} has no measured effect")
+        return abs(self.effect) / max(self.sessions, 1)
+
+    @property
     def per_session(self) -> float | None:
         return None if self.effect is None else self.effect / max(self.sessions, 1)
 
@@ -533,7 +546,7 @@ def block_permutation_p(flag: pd.Series, fwd: pd.Series, horizon: Any, now, n_pe
     effect cannot be measured. Deterministic in `seed`."""
     spec = parse_horizon(horizon)
     base = measure_effect(flag, fwd, spec, now, calendar, min_dates)
-    if base.status != "OK":
+    if base.status != "OK" or base.effect is None:
         return None
     rng = np.random.default_rng(seed)
     f = fwd.dropna()
@@ -582,7 +595,7 @@ class EffectProfile:
         est = self.established()
         if not est:
             return None
-        return max(est, key=lambda e: (abs(e.t), -e.sessions)).horizon
+        return max(est, key=lambda e: (e.abs_t, -e.sessions)).horizon
 
 
 def _decay_half_life(est: Sequence[ScaleEffect]) -> float | None:
@@ -606,13 +619,13 @@ def classify_profile(effects: Sequence[ScaleEffect], t_bar: float = T_BAR) -> tu
     est = [e for e in ok if e.established(t_bar)]
     if not est:
         return ProfileShape.FLAT, None, None
-    peak = max(est, key=lambda e: abs(e.t)).horizon
+    peak = max(est, key=lambda e: e.abs_t).horizon
     if {e.sign for e in est} == {1, -1}:
         return ProfileShape.REVERSING, peak, None
     idx = [ok.index(e) for e in est]
     hl = _decay_half_life(est)
     if len(est) == len(ok):
-        per = [abs(e.per_session) for e in ok]
+        per = [e.abs_per_session for e in ok]
         hs = np.log([e.sessions for e in ok])
         slope = float(np.polyfit(hs, np.log(np.maximum(per, 1e-12)), 1)[0]) if len(ok) >= 2 else 0.0
         return (ProfileShape.PERSISTENT if slope > -0.35 else ProfileShape.DECAYING), peak, hl
@@ -673,7 +686,7 @@ def transfer_verdict(src: ScaleEffect, tgt: ScaleEffect, t_bar: float = T_BAR, m
     if tgt.established(t_bar):
         if tgt.sign != src.sign:
             return TransferVerdict.REVERSES
-        ratio = abs(tgt.per_session) / abs(src.per_session) if src.per_session else 0.0
+        ratio = tgt.abs_per_session / src.abs_per_session if src.per_session else 0.0
         return TransferVerdict.TRANSFERS if ratio >= min_ratio else TransferVerdict.NOT_TRANSFERRED
     return TransferVerdict.NOT_TRANSFERRED
 
@@ -1185,7 +1198,7 @@ def intraday_scale_report(pattern_ids: Iterable[str], ledger: ScaleLedger, now) 
 
 # ------------------------------------------------------------------------------------------------ scale diagnostics
 
-def variance_ratio(returns: Sequence[float], q: int) -> tuple[float | None, float | None]:
+def variance_ratio(returns: Sequence[float] | np.ndarray, q: int) -> tuple[float | None, float | None]:
     """Lo-MacKinlay variance ratio VR(q) and its heteroskedasticity-robust z*. VR > 1: returns trend at horizon q (positive
     autocorrelation); VR < 1: they mean-revert. (None, None) when there are too few observations or zero variance."""
     r = np.asarray(returns, dtype="float64")
@@ -1428,16 +1441,17 @@ def t_to_p(t: float | None) -> float | None:
 
 def benjamini_hochberg(pvals: Sequence[float | None]) -> list[float | None]:
     """BH-adjusted q-values; None entries stay None and do not count toward the number of tests."""
-    idx = [i for i, p in enumerate(pvals) if p is not None]
+    known = {i: float(p) for i, p in enumerate(pvals) if p is not None}
+    idx = list(known)
     out: list[float | None] = [None] * len(pvals)
     if not idx:
         return out
-    order = sorted(idx, key=lambda i: pvals[i])
+    order = sorted(idx, key=lambda i: known[i])
     m = len(order)
     prev = 1.0
     for rank in range(m, 0, -1):
         i = order[rank - 1]
-        prev = min(prev, pvals[i] * m / rank)
+        prev = min(prev, known[i] * m / rank)
         out[i] = prev
     return out
 
@@ -1537,7 +1551,7 @@ def horizon_move_scale(close: pd.DataFrame, sessions: Sequence[int], now) -> pd.
     of |log return| pooled over dates, its ratio to sqrt(h) times the 1-session figure (1.0 = diffusive; >1 trending; <1
     mean-reverting), and the share of name-windows beyond 5% and 10% (the canon C67 mover bands). Uses closes before `now`."""
     C = past_only(close, now).astype("float64")
-    rows = []
+    rows: list[dict[str, Any]] = []
     base = None
     for h in sorted({int(x) for x in sessions}):
         if h < 1:
@@ -1585,7 +1599,9 @@ def transfer_questions(ledger: ScaleLedger, now, created_real: str, evidence_thr
     ranked = []
     for pid, home, tgt in untested_transfers(ledger, now, replay_years):
         e = ledger.latest_effect(pid, home, now, replay_years)
-        ranked.append((abs(e.t), pid, home, tgt))
+        if e is None:
+            continue
+        ranked.append((e.abs_t, pid, home, tgt))
     ranked.sort(key=lambda r: (-r[0], r[1], r[3]))
     return [ResearchQuestion.make(f"Does pattern {pid} established at {home} hold at {tgt}?", "scale_transfer", Problem.VOLATILITY,
                                   created_real, evidence_through,

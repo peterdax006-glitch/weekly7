@@ -157,7 +157,7 @@ class DecisionSnapshot:
         return len(self.tickers)
 
     @staticmethod
-    def make(decided_at, tickers: Sequence, prev_close, *, eligible=None, score=None, confidence=None, dir_prob=None, picked=None,
+    def make(decided_at, tickers: Sequence | np.ndarray, prev_close, *, eligible=None, score=None, confidence=None, dir_prob=None, picked=None,
              abstained=None, filters=None, event_known=None, sector=None, features: Mapping[str, Any] | None = None,
              filter_names: Sequence[str] = ()) -> "DecisionSnapshot":
         tk = np.asarray(list(tickers), dtype=object)
@@ -217,7 +217,7 @@ class DayOutcome:
     day_close: np.ndarray
 
     @staticmethod
-    def make(resolved_at, tickers: Sequence, entry, hi, lo, close, volume_ratio=None, delisted=None, day_hi=None, day_lo=None,
+    def make(resolved_at, tickers: Sequence | np.ndarray, entry, hi, lo, close, volume_ratio=None, delisted=None, day_hi=None, day_lo=None,
              day_close=None) -> "DayOutcome":
         """day_* default to the horizon values, which is exact when the horizon is one session."""
         tk = np.asarray(list(tickers), dtype=object)
@@ -685,7 +685,7 @@ def _summary_stats(dc: DayClass, snap: DecisionSnapshot, out: DayOutcome, p: Obs
     vx = dc.vol_x[np.isfinite(dc.vol_x)]
     vr = out.volume_ratio[np.isfinite(out.volume_ratio)]
     valid = dc.valid
-    market = {"bands": band_counts(dc.band), "n_band_movers": int((dc.band != 0).sum()),
+    market: dict[str, Any] = {"bands": band_counts(dc.band), "n_band_movers": int((dc.band != 0).sum()),
               "median_ret": med, "mean_ret": float(sig.mean()) if len(sig) else float("nan"), "dispersion": mad,
               "breadth_up": float((sig > 0).mean()) if len(sig) else float("nan"),
               "p05": float(np.quantile(sig, 0.05)) if len(sig) else float("nan"),
@@ -705,7 +705,7 @@ def _summary_stats(dc: DayClass, snap: DecisionSnapshot, out: DayOutcome, p: Obs
     pk = snap.picked & valid
     hit = float(dc.moved_fill[pk].mean()) if pk.any() else float("nan")
     movers = int(dc.moved.sum())
-    model = {"n_picked": int(snap.picked.sum()), "pick_mean_ret": float(dc.ret[pk].mean()) if pk.any() else float("nan"),
+    model: dict[str, Any] = {"n_picked": int(snap.picked.sum()), "pick_mean_ret": float(dc.ret[pk].mean()) if pk.any() else float("nan"),
              "pick_hit_rate": hit, "universe_mean_ret": float(dc.ret[valid].mean()) if valid.any() else float("nan"),
              "recall_of_movers": float((dc.moved & snap.picked).sum() / movers) if movers else float("nan"),
              "score_auc": auc(np.where(np.isfinite(snap.score), snap.score, np.nan), dc.moved & valid),
@@ -964,8 +964,8 @@ class ObserverLedger:
         pr, un = float(cf[MC.PREDICTABLE_MOVER.value].sum()), float(cf[MC.UNPREDICTABLE_MOVER.value].sum())
         recs = self._recs if now is None else self.known(now)
         moved = float(sum(r.market.get("n_moved", 0) for r in recs))
-        pa = [r.model.get("precursor_auc") for r in recs if r.model.get("precursor_auc") == r.model.get("precursor_auc")]
-        sa = [r.model.get("score_auc") for r in recs if r.model.get("score_auc") == r.model.get("score_auc")]
+        pa = [float(x) for r in recs if (x := r.model.get("precursor_auc")) is not None and x == x]
+        sa = [float(x) for r in recs if (x := r.model.get("score_auc")) is not None and x == x]
         return {"predictable": pr, "unpredictable": un, "unplaced_share": 1.0 - (pr + un) / moved if moved else float("nan"),
                 "mean_precursor_auc": float(np.mean(pa)) if pa else float("nan"),
                 "mean_score_auc": float(np.mean(sa)) if sa else float("nan")}
@@ -1010,8 +1010,9 @@ class ObserverLedger:
     def load(cls, directory, tag: str) -> "ObserverLedger":
         with open(os.path.join(directory, f"observer_{tag}.json"), encoding="utf-8") as fh:
             meta = json.load(fh)
-        p = ObserverParams(**{k: (tuple(tuple(x) if isinstance(x, list) else x for x in v) if isinstance(v, list) else v)
-                              for k, v in meta["params"].items()})
+        pkw: dict[str, Any] = {k: (tuple(tuple(x) if isinstance(x, list) else x for x in v) if isinstance(v, list) else v)
+                               for k, v in meta["params"].items()}
+        p = ObserverParams(**pkw)
         led = cls(p, meta.get("filed_year"))
         if led.params.hash() != meta["params_hash"]:
             raise ObserverError("checkpoint parameters do not reproduce their own hash")
@@ -1056,6 +1057,7 @@ def step(state: ObserverState, snap: DecisionSnapshot, out: DayOutcome, now) -> 
     """PUBLIC ENTRY. Observe one matured day and append it to the state's ledger. `now` is the trusted-side clock: the
     outcome must have matured strictly before it."""
     rec = observe_day(snap, out, now, state.params)
+    assert state.ledger is not None                   # set by ObserverState.__post_init__
     state.ledger.add(rec)
     return rec
 
@@ -1615,7 +1617,8 @@ def confusion_ledger(ledger: ObserverLedger, now=None) -> dict[str, float]:
 
 def verify_checkpoint(ledger: ObserverLedger, directory, tag: str) -> list[str]:
     """Reload a saved ledger and compare it with the live one, day by day, through record_digest. An empty list = identical."""
-    live = ledger.save(directory, tag) and ObserverLedger.load(directory, tag)
+    ledger.save(directory, tag)
+    live = ObserverLedger.load(directory, tag)
     bad = []
     if len(live) != len(ledger):
         bad.append(f"day count {len(live)} != {len(ledger)}")
@@ -1941,8 +1944,8 @@ def pick_vs_universe(ledger: ObserverLedger, now=None) -> dict[str, float]:
     """Mean fill-to-horizon return of the picks against the universe mean, per day and pooled, with a day-level sign count. The
     universe mean comes from each day's exact market summary (not the capped rows)."""
     recs = [r for r in (ledger._recs if now is None else ledger.known(now)) if not r.empty]
-    d = [(r.model.get("pick_mean_ret"), r.model.get("universe_mean_ret")) for r in recs]
-    d = [(a, b) for a, b in d if a is not None and b is not None and a == a and b == b]
+    raw = [(r.model.get("pick_mean_ret"), r.model.get("universe_mean_ret")) for r in recs]
+    d = [(float(a), float(b)) for a, b in raw if a is not None and b is not None and a == a and b == b]
     if not d:
         return {"days": 0.0}
     diff = np.array([a - b for a, b in d])
