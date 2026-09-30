@@ -638,6 +638,218 @@
    "knowledge": [],
    "failed": {},
    "counters": {}
+  },
+  {
+   "cycle": 89,
+   "now": "2019-01-25",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 90,
+   "now": "2019-02-01",
+   "knowledge": [],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 91,
+   "now": "2019-02-08",
+   "knowledge": [
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 92,
+   "now": "2019-02-15",
+   "knowledge": [
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 93,
+   "now": "2019-02-22",
+   "knowledge": [
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 94,
+   "now": "2019-03-01",
+   "knowledge": [
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 95,
+   "now": "2019-03-08",
+   "knowledge": [
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 96,
+   "now": "2019-03-15",
+   "knowledge": [
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 97,
+   "now": "2019-03-22",
+   "knowledge": [
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 98,
+   "now": "2019-03-29",
+   "knowledge": [
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 99,
+   "now": "2019-04-05",
+   "knowledge": [
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 100,
+   "now": "2019-04-12",
+   "knowledge": [
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 101,
+   "now": "2019-04-19",
+   "knowledge": [
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 102,
+   "now": "2019-04-26",
+   "knowledge": [
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 103,
+   "now": "2019-05-03",
+   "knowledge": [
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 104,
+   "now": "2019-05-10",
+   "knowledge": [
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 105,
+   "now": "2019-05-17",
+   "knowledge": [
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 106,
+   "now": "2019-05-24",
+   "knowledge": [
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 107,
+   "now": "2019-05-31",
+   "knowledge": [
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 108,
+   "now": "2019-06-07",
+   "knowledge": [
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 109,
+   "now": "2019-06-14",
+   "knowledge": [
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 110,
+   "now": "2019-06-21",
+   "knowledge": [
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 111,
+   "now": "2019-06-28",
+   "knowledge": [
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
+  },
+  {
+   "cycle": 112,
+   "now": "2019-07-05",
+   "knowledge": [
+    "lv20"
+   ],
+   "failed": {},
+   "counters": {}
   }
  ],
  "provenance": {
@@ -744,8 +956,8 @@
  "gates": {
   "DBR7ae01034ffb2": {
    "feature": "lv20",
-   "verdict": "FAILED",
-   "looks": 3,
+   "verdict": "NEEDS_MORE_EVIDENCE",
+   "looks": 5,
    "retired": "",
    "history": [
     {
@@ -785,17 +997,66 @@
       "out_of_sample",
       "replication"
      ]
+    },
+    {
+     "look": 4,
+     "cycle": 98,
+     "at": "2019-03-29",
+     "verdict": "NEEDS_MORE_EVIDENCE",
+     "alpha": 0.0018997721932938337,
+     "n_test": 81,
+     "blocking": [
+      "replication"
+     ]
+    },
+    {
+     "look": 5,
+     "cycle": 112,
+     "at": "2019-07-05",
+     "verdict": "NEEDS_MORE_EVIDENCE",
+     "alpha": 0.0012158542037080534,
+     "n_test": 91,
+     "blocking": [
+      "replication"
+     ]
     }
    ],
    "blocking": {
-    "out_of_sample": "FAIL: only 1 unseen calendar year(s) in the OOS evidence (need 2): same-year improvement is inte",
-    "replication": "MISSING: PARTIALLY_REPLICATED: requirement not met: heterogeneity_ok",
-    "complexity": "FAIL: the simpler rule does as well (SIMPLE): complexity has not earned its place: only 2 folds:"
+    "replication": "MISSING: PARTIALLY_REPLICATED: requirement not met: heterogeneity_ok"
    }
+  },
+  "DBR4bf25527d88c": {
+   "feature": "lv20",
+   "verdict": "PROMOTE",
+   "looks": 1,
+   "retired": "",
+   "history": [
+    {
+     "look": 1,
+     "cycle": 91,
+     "at": "2019-02-08",
+     "verdict": "PROMOTE",
+     "alpha": 0.03039635509270134,
+     "n_test": 76,
+     "blocking": []
+    }
+   ],
+   "blocking": {}
   }
  },
- "knowledge": {},
- "seconds": 6848.1,
+ "knowledge": {
+  "Kd6d4209130d5ff": {
+   "feature": "lv20",
+   "sign": 1.0,
+   "problem": "VOLATILITY",
+   "filed_at": "2019-02-08",
+   "effect": 0.341266776805,
+   "branch": "BR4bf25527d88c",
+   "post_effect": 0.36198081350414807,
+   "post_n": 19
+  }
+ },
+ "seconds": 8652.0,
  "truth": {
   "genuine": [
    "lv20",

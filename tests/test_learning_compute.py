@@ -126,6 +126,21 @@ def test_attempt_directories_are_never_shared(tmp_path):
         CM.run_worker(spec(), fn_ok, led, None, out, "w", 1.0, HASH)
 
 
+
+def test_rerun_under_new_code_gets_a_fresh_attempt_folder(tmp_path):
+    """30 Sep: a DONE experiment resubmitted under new code reset `attempts` to 0 and its first new attempt collided with the old
+    run's attempt_01 ('two attempts must never share a folder'). The folder number counts every attempt across code versions."""
+    led, out = make(tmp_path)
+    led.submit(spec(), 0, HASH)
+    first = CM.run_worker(spec(), fn_ok, led, None, out, "w", 1.0, HASH)
+    assert first["state"] == CM.DONE and first["dir"].endswith("attempt_01")
+    assert led.submit(spec(), 2.0, NEWHASH).action == "superseding"
+    second = CM.run_worker(spec(), fn_ok, led, None, out, "w", 3.0, NEWHASH)
+    assert second["state"] == CM.DONE and second["dir"].endswith("attempt_02")
+    assert (CM.attempt_dir(out, spec().key, 1) / "DONE").is_file()          # the old run's evidence is left intact
+    assert not [f for f in CM.verify_isolation(led, out) if f["kind"] == "phantom_attempt"]
+
+
 # ================================================================================================ failure handling
 def test_oom_grows_memory_estimate_shrinks_batch_and_retries(tmp_path):
     led, out = make(tmp_path, max_attempts=3)

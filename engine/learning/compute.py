@@ -454,6 +454,14 @@ def attempt_dir(out_root: str | Path, key: str, attempt: int) -> Path:
     return Path(out_root) / key / f"attempt_{attempt:02d}"
 
 
+def attempt_serial(entry: Mapping[str, Any]) -> int:
+    """The folder number of an entry's current attempt: attempts in this code's run plus every attempt of the runs it superseded.
+    `submit` resets `attempts` to 0 when a DONE experiment is rerun under new code (the retry cap is per code version), so
+    numbering folders by `attempts` alone reused attempt_01 of the old run and failed with 'two attempts must never share a
+    folder' (30 Sep: the research loop hit it in 1-6 cycles per run while builders were editing code)."""
+    return int(entry["attempts"]) + sum(int(r.get("attempts", 0)) for r in entry.get("runs", []))
+
+
 def run_worker(spec: ExperimentSpec, fn: Callable[[ExperimentSpec, WorkerContext], Any], ledger: ExperimentLedger,
                store: SnapshotStore | None, out_root: str | Path, worker_id: str, now: float,
                code_hash: str | None = None, clock: Callable[[], float] = time.time, deadline_s: float | None = None,
@@ -463,7 +471,7 @@ def run_worker(spec: ExperimentSpec, fn: Callable[[ExperimentSpec, WorkerContext
     code_hash = code_hash if code_hash is not None else current_code_hash()
     claim = ledger.claim(spec.key, worker_id, now, code_hash)
     attempt = claim["attempts"]
-    adir = attempt_dir(out_root, spec.key, attempt)
+    adir = attempt_dir(out_root, spec.key, attempt_serial(claim))
     if adir.exists():
         raise ComputeError(f"attempt directory {adir} exists: two attempts must never share a folder")
     adir.mkdir(parents=True)
@@ -811,8 +819,8 @@ def verify_isolation(ledger: ExperimentLedger, out_root: str | Path) -> list[dic
                 except ValueError:
                     out.append({"key": kd.name, "kind": "bad_attempt_name", "detail": child.name})
                     continue
-                if num > e["attempts"]:
-                    out.append({"key": kd.name, "kind": "phantom_attempt", "detail": f"{child.name} but ledger counts {e['attempts']}"})
+                if num > attempt_serial(e):
+                    out.append({"key": kd.name, "kind": "phantom_attempt", "detail": f"{child.name} but ledger counts {attempt_serial(e)}"})
             elif child.name != "progress.json":
                 out.append({"key": kd.name, "kind": "stray_file", "detail": child.name})
         if e["state"] == DONE:
