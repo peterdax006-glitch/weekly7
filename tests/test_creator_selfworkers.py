@@ -148,3 +148,17 @@ def test_search_is_not_used_on_code_whose_tests_already_pass(cfg: K.KernelConfig
                         lambda led, root, base, avoid=(), kind=None: real(led, root, base, ("creator/big.py", "creator/kernel.py"), "size"))
     rep = K.cycle(cfg, own())
     assert rep.outcome == "REJECTED" and "changed nothing" in rep.reason            # helper.py: no rule applies, nothing done
+
+
+def test_rules_are_applied_in_one_batch_with_one_test_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """2 Oct: one test run per application timed out under a full swarm; a passing batch costs one run per rule."""
+    put(tmp_path, "creator/__init__.py", "")
+    put(tmp_path, "creator/x.py", "import os\nimport json\nimport re\n\n\ndef f():\n    return 2\n")
+    runs = []
+    monkeypatch.setattr(SW, "_run_tests", lambda workdir, changed: runs.append(changed) or True)
+
+    class Pkg:
+        outputs = ("creator/x.py",)
+    res = SW.RuleWorker(rules=("unused_imports",))(None, Pkg(), tmp_path)
+    assert res.claimed_done and len(runs) == 1 and res.notes.startswith("3 transforms")
+    assert "import" not in (tmp_path / "creator/x.py").read_text(encoding="utf-8")

@@ -182,14 +182,29 @@ class RuleWorker:
             if not p.is_file():
                 continue
             for rule in self.rules:
-                for _ in range(self.max_rounds):                    # apply a rule repeatedly while it keeps passing
-                    src = p.read_text(encoding="utf-8")
+                def apply_once(src: str) -> Optional[str]:
                     if rule == "unused_imports":
-                        new = unused_imports(src)
-                    elif rule == "lazy_imports":
-                        new = lazy_imports(src)
-                    else:
-                        new = dead_private(src, _referenced_in(workdir, rel))
+                        return unused_imports(src)
+                    if rule == "lazy_imports":
+                        return lazy_imports(src)
+                    return dead_private(src, _referenced_in(workdir, rel))
+                start = p.read_text(encoding="utf-8")
+                batch, n = start, 0                                  # BATCH first: every application, then ONE test run
+                for _ in range(self.max_rounds):                    # (2 Oct: one test run per application timed out on
+                    nxt = apply_once(batch)                          # kernel.py under a full swarm)
+                    if nxt is None or nxt == batch:
+                        break
+                    batch, n = nxt, n + 1
+                if n == 0:
+                    continue
+                p.write_text(batch, encoding="utf-8")
+                if _run_tests(workdir, [rel]):
+                    done.extend(f"{rule}:{rel}" for _ in range(n))
+                    continue
+                p.write_text(start, encoding="utf-8")                # the batch broke something: fall back one at a time
+                for _ in range(min(n, self.max_rounds)):
+                    src = p.read_text(encoding="utf-8")
+                    new = apply_once(src)
                     if new is None or new == src:
                         break
                     p.write_text(new, encoding="utf-8")
