@@ -120,11 +120,11 @@ def select(question: str, options: list[DesignOption], criteria: dict | None = N
     crit = dict(DEFAULT_CRITERIA if criteria is None else criteria)
     if not options:
         return Decision(question, None, {}, [], crit)
-    scores = {o.name: score(o, crit) for o in options}
-    ranked = sorted(options, key=lambda o: (-scores[o.name], o.name))
-    best = ranked[0]
-    rejected = [
-        (o, f"scored {scores[o.name]:.3f} < {scores[best.name]:.3f} ({best.name})")
-        for o in ranked[1:]
-    ]
+    each = [(score(o, crit), o) for o in options]          # per option, not per name: same-named options stay distinct
+    each.sort(key=lambda t: (-t[0], t[1].name))
+    scores: dict = {}
+    for s, o in each:
+        scores.setdefault(o.name, s)                       # the best-scoring option of a name represents it
+    top, best = each[0]
+    rejected = [(o, f"scored {s:.3f} < {top:.3f} ({best.name})") for s, o in each[1:]]
     return Decision(question, best, scores, rejected, crit)

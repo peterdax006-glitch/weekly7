@@ -37,7 +37,7 @@ class Evidence:
 def generate_questions(gaps: list[dict]) -> list[Question]:
     """Turn gap dicts (keys: id, kind, description, importance) into deduplicated questions.
 
-    Empty input gives an empty list. Gaps lacking a description are skipped.
+    Empty input gives an empty list. Gaps lacking a description are skipped; a missing or non-numeric importance counts as 0.5.
     """
     seen: set[str] = set()
     out: list[Question] = []
@@ -50,7 +50,11 @@ def generate_questions(gaps: list[dict]) -> list[Question]:
         if text.lower() in seen:
             continue
         seen.add(text.lower())
-        imp = min(1.0, max(0.0, float(g.get("importance", 0.5))))
+        try:
+            imp = float(g.get("importance", 0.5))
+        except (TypeError, ValueError):
+            imp = 0.5
+        imp = 0.5 if imp != imp else min(1.0, max(0.0, imp))
         unc = 1.0 if kind.upper() == "KNOWLEDGE" else 0.6
         out.append(Question(text, kind, imp, unc))
     return out

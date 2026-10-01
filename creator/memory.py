@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field, asdict, replace
 from pathlib import Path
 
 KINDS = ("failure", "repair", "research", "architecture", "strategy", "resource")
@@ -107,7 +107,9 @@ def load(path) -> Memory:
             continue
         try:
             d = json.loads(line)
-            mem.remember(d["kind"], d["subject"], d.get("detail", ""), d.get("tags", ()))
+            e = mem.remember(d["kind"], d["subject"], d.get("detail", ""), d.get("tags", ()))
+            if isinstance(d.get("seq"), int) and not isinstance(d["seq"], bool) and d["seq"] > 0:
+                mem.entries[-1] = replace(e, seq=d["seq"])      # keep the saved seq across skipped lines
         except (ValueError, KeyError, TypeError, AttributeError):
             continue
     return mem

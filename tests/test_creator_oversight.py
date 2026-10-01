@@ -23,7 +23,7 @@ def comp() -> M.ComputationRef:
     return M.ComputationRef(function=M.VERDICT_FUNCTION, code_hash="ab" * 8, inputs_sha256="cd" * 8, output_sha256="ef" * 8)
 
 
-def adopted_world(led: Ledger, objective: str, tmp: Path, key: str = "K01.exists") -> str:
+def adopted_world(led: Ledger, objective: str, tmp: Path, key: str = "K01.exists", top: float = 1.0) -> str:
     req = led.append(M.Requirement(created_by=K, parents=(objective,), key=key, description="d", priority=M.Priority.HIGH,
                                    acceptance_test="t", measurement_method="m", failure_condition="f", validation_method="v",
                                    evidence_location="e"))
@@ -38,7 +38,7 @@ def adopted_world(led: Ledger, objective: str, tmp: Path, key: str = "K01.exists
                                         population="p", conditions="c", higher_is_better=True, split=split,
                                         computation=M.ComputationRef("creator.evaluate:metrics_of", "ab" * 8, "cd" * 8, "ef" * 8),
                                         evidence=ev))
-    b, c = [ms(0), ms(0)], [ms(1), ms(1)]
+    b, c = [ms(0), ms(0)], [ms(top), ms(top)]
     gb, gc = ms(1, metric="g"), ms(1, metric="g")
     hb, hc = ms(0, M.Split.HOLDOUT), ms(1, M.Split.HOLDOUT)
     claim = led.append(M.ImprovementClaim(created_by=M.Role.VALIDATOR, parents=(ex,), subject_id=ex, baseline_ids=tuple(b),
@@ -97,3 +97,19 @@ def test_critical_path_puts_the_most_blocking_gap_first(led: Ledger, tmp_path: P
     path = OV.critical_path(led)
     assert path[0].requirement_key in ("K01.exists",) and path[0].blocks >= 4             # K01 exists blocks its ladder + K02
     assert all(path[i].blocks >= path[i + 1].blocks for i in range(len(path) - 1))
+
+
+def test_concentrated_work_with_a_flat_metric_level_is_flagged_as_stalled(led: Ledger, tmp_path: Path) -> None:
+    obj = O.self_objective(led)
+    for i in range(10):
+        adopted_world(led, obj, tmp_path, key=f"K{i:02d}.exists")
+    r = OV.goal_drift(led, recent=10, concentration=0.8)
+    assert r.concentrated == "exists" and r.metrics_stalled and "did not rise" in r.why and not r.drifting
+
+
+def test_concentrated_work_with_a_rising_metric_level_is_not_stalled(led: Ledger, tmp_path: Path) -> None:
+    obj = O.self_objective(led)
+    for i in range(10):
+        adopted_world(led, obj, tmp_path, key=f"K{i:02d}.exists", top=1.0 + i)
+    r = OV.goal_drift(led, recent=10, concentration=0.8)
+    assert r.concentrated == "exists" and not r.metrics_stalled and "did not rise" not in r.why
