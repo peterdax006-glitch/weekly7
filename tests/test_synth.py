@@ -81,3 +81,36 @@ def test_idiom_disabled_by_name():
     sp = S.Spec("f", ("xs",), _DOC, ((([1, 2, 1],), [1, 2]), (([3, 3],), [3])))
     got = S.synthesize(sp, frozenset({"dedupe"}))
     assert got is None or got[0] != "idiom:dedupe"
+
+
+def test_huge_example_does_not_hang_the_solver():
+    """Regression (validator open issue 4): candidate bodies and enumerated expressions ran on example values with no limit."""
+    import time
+    big = list(range(400_000))
+    sp = _spec("f", ["xs"], "Remove repeated items, keeping the first occurrence.", [((big,), big), (([1, 1],), [1])])
+    t0 = time.monotonic()
+    assert S.synthesize(sp) is None and not S.passes(sp, "return xs") and S.enumerate_exprs(sp) is None
+    assert time.monotonic() - t0 < 5
+
+
+def test_runaway_candidate_is_stopped_by_the_step_budget():
+    sp = _spec("f", ["n"], "Mystery.", [((3,), 3)])
+    t0 = __import__("time").monotonic()
+    assert not S.passes(sp, "while True:\n    pass")
+    assert __import__("time").monotonic() - t0 < 10
+
+
+def test_normal_results_unchanged_under_the_guard():
+    sp = _spec("f", ["a", "b"], "Mystery.", [((2, 3), 5), ((10, 1), 11), ((0, 0), 0)])
+    assert S.enumerate_exprs(sp) == "(a + b)" or S.passes(sp, "return " + S.enumerate_exprs(sp))
+
+
+def test_validator_cases_fibonacci_1e9_and_pow_1e9_return_promptly():
+    """The validator's own repro: fibonacci(10**9) through an idiom loop and pow(10, 10**9) through enumeration used to hang."""
+    import time
+    t0 = time.monotonic()
+    fib = _spec("fibonacci", ["n"], "Return the n-th fibonacci number.", [((10**9,), 5), (((10**9) + 1,), 7)])
+    assert S.synthesize(fib) is None
+    pw = _spec("f", ["a", "b"], "Mystery.", [((10, 10**9), 1), ((2, 10**9), 3)])
+    S.enumerate_exprs(pw)                                   # must simply return
+    assert time.monotonic() - t0 < 30

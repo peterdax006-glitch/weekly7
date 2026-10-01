@@ -321,3 +321,30 @@ def test_a_deferred_package_is_not_a_failed_attempt_and_is_never_blocked_away(cf
     assert led.view.status[gap] is not M.Status.BLOCKED
     good = Scripted("good", {"pkg/user.py": USER, "tests/test_user.py": USER_TEST})
     assert K.cycle(cfg, good).outcome == "ADOPTED"                      # still plannable, and only the measurement adopts
+
+
+def test_concurrent_kernel_log_appends_never_interleave(tmp_path: Path) -> None:
+    """Regression (validator open issue 1): every swarm thread appends its cycle record to one kernel_log.jsonl; an unlocked
+    text-mode append of a large record interleaves with another thread's, corrupting both lines."""
+    import json
+    import threading
+    path = tmp_path / "kernel_log.jsonl"
+    big = "reason " * 60000
+
+    def work(w: int) -> None:
+        for i in range(10):
+            K._append_log_line(path, json.dumps({"w": w, "i": i, "reason": big}))
+    ts = [threading.Thread(target=work, args=(w,)) for w in range(8)]
+    for t in ts:
+        t.start()
+    for t in ts:
+        t.join()
+    rows = [json.loads(ln) for ln in path.read_text(encoding="utf-8").splitlines()]
+    assert len(rows) == 80 and {(r["w"], r["i"]) for r in rows} == {(w, i) for w in range(8) for i in range(10)}
+
+
+def test_cycle_record_goes_through_the_locked_appender() -> None:
+    """The cycle's own kernel_log write must use the locked appender, not an ad-hoc open(...'a')."""
+    src = Path(K.__file__).read_text(encoding="utf-8")
+    assert '_append_log_line(cfg.state / "kernel_log.jsonl"' in src
+    assert 'open("a", encoding="utf-8") as fh:\n            fh.write(json.dumps(dataclasses.asdict(rep)' not in src

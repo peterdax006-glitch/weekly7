@@ -27,6 +27,7 @@ import hashlib
 import json
 import shutil
 import subprocess
+import threading
 import time
 from pathlib import Path
 from typing import Any, Callable, Mapping, Optional, Protocol, Sequence
@@ -706,9 +707,20 @@ def execute(cfg: KernelConfig, worker: Worker, plan: P.Plan, main: Assessed, bas
         if checkpoint:
             led.checkpoint(f"cycle {n} {plan.package_id} {rep.outcome}")
         _evidence_file(cfg, plan.package_id, "cycle.json", dataclasses.asdict(rep))
-        with (cfg.state / "kernel_log.jsonl").open("a", encoding="utf-8") as fh:
-            fh.write(json.dumps(dataclasses.asdict(rep), default=str) + "\n")
+        _append_log_line(cfg.state / "kernel_log.jsonl", json.dumps(dataclasses.asdict(rep), default=str))
     return rep
+
+
+_LOG_LOCK = threading.Lock()                        # swarm workers (threads) share one kernel_log.jsonl
+
+
+def _append_log_line(path: Path, text: str) -> None:
+    """One whole line per binary write under a lock, so concurrent cycle records never interleave."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    data = (text + "\n").encode("utf-8")
+    with _LOG_LOCK, path.open("ab") as fh:
+        fh.write(data)
+        fh.flush()
 
 
 class _Reject(Exception):
