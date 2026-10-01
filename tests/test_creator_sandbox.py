@@ -186,3 +186,21 @@ def test_nothing_changed_cannot_be_evaluated(repo: Path, scratch: Path) -> None:
     with S.Sandbox.open(repo, scratch=scratch) as sb:
         with pytest.raises(S.SandboxError, match="nothing changed"):
             sb.evaluate(build_config=NO_TYPES)
+
+
+def test_hidden_paths_are_absent_but_kept_in_history(repo: Path, scratch: Path) -> None:
+    """A worker's sandbox must not contain the sealed answer keys; hiding them must not delete them from commits."""
+    (repo / "secret").mkdir()
+    (repo / "secret" / "answers.txt").write_text("42\n", encoding="utf-8")
+    sh(repo, "-c", "user.name=t", "-c", "user.email=t@t", "add", "-A")
+    sh(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "answers")
+    sb = S.Sandbox.open(repo, scratch=scratch, hide=("secret",))
+    assert not (sb.path / "secret").exists() and (sb.path / "pkg" / "mathx.py").is_file()
+    assert not sb.changes().paths                                                        # hiding is not a deletion
+    sb.write("pkg/other.py", "def name():\n    return 'changed'\n")
+    res = S.adopt(sb, adopt_decision(), "change with hidden paths")
+    assert (repo / "secret" / "answers.txt").read_text(encoding="utf-8") == "42\n"           # not deleted by the merge
+    assert "secret/answers.txt" in sh(repo, "ls-tree", "-r", "--name-only", res.merge_commit)
+    main_sparse = subprocess.run(["git", "config", "--get", "core.sparseCheckout"], cwd=repo, capture_output=True, text=True)
+    assert main_sparse.stdout.strip() != "true"                                               # the main worktree stays full
+    sb.close()

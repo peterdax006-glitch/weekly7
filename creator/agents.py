@@ -202,7 +202,8 @@ def scan_contamination(texts: Sequence[str], workdir: Path, markers: Sequence[st
 
 
 def run_agent(spec: AgentSpec, job: str, prompt: str, workdir: Path, budget: Budget, runner: Runner = subprocess_runner,
-              runs_dir: Path = RUNS_DIR, cli: str = "claude") -> AgentRun:
+              runs_dir: Path = RUNS_DIR, cli: str = "claude",
+              markers: Sequence[str] = CONTAMINATION_MARKERS) -> AgentRun:
     """One budgeted, confined, recorded worker call. Raises BudgetError BEFORE any spend when the budget refuses."""
     wd = workdir.resolve()
     if REPO_ROOT.resolve() in (wd, *wd.parents):
@@ -241,7 +242,7 @@ def run_agent(spec: AgentSpec, job: str, prompt: str, workdir: Path, budget: Bud
     turns = int(data.get("num_turns", 0) or 0)
     m = STATUS_RE.findall(text)
     claimed = bool(m) and m[-1] == "DONE"
-    contamination = scan_contamination([text, out], wd)
+    contamination = scan_contamination([text, out], wd, markers)
     if timed_out:
         outcome = "TIMEOUT"
     elif contamination:

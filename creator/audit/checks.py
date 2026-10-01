@@ -204,10 +204,13 @@ def _distinctive(v: object) -> bool:
 
 def check_hardcoded_answers(led: Optional[Ledger] = None, repo: Path = REPO_ROOT, scan: Sequence[str] = ("creator",),
                             allow: Sequence[str] = ("creator/devbench/", "creator/devbench.py", "creator/audit/"),
-                            **_: Any) -> list[AuditFinding]:
-    sealed = repo / "creator" / "devbench" / "sealed"
+                            sealed_root: Optional[Path] = None, **_: Any) -> list[AuditFinding]:
+    """`repo` is the tree scanned; `sealed_root` the repository whose sealed answer keys are compared (a worker's sandbox has
+    them hidden, so its keys come from the main repository)."""
+    src = sealed_root or repo
+    sealed = src / "creator" / "devbench" / "sealed"
     lits = answer_literals(sealed) if sealed.is_dir() else set()
-    task_ids = {p.name for p in (repo / "creator" / "devbench" / "tasks").glob("*") if p.is_dir()}
+    task_ids = {p.name for p in (src / "creator" / "devbench" / "tasks").glob("*") if p.is_dir()}
     id_re = re.compile(r"\b(" + "|".join(sorted(map(re.escape, task_ids))) + r")\b") if task_ids else None
     out = []
     for base in scan:

@@ -152,7 +152,8 @@ class Sandbox:
     # ---------------------------------------------------------------- lifecycle
 
     @classmethod
-    def open(cls, repo: str | Path, base: str = "HEAD", scratch: str | Path | None = None, label: str = "") -> "Sandbox":
+    def open(cls, repo: str | Path, base: str = "HEAD", scratch: str | Path | None = None, label: str = "",
+             hide: Sequence[str] = ()) -> "Sandbox":
         repo = Path(repo).resolve()
         if not commit_exists(repo, base):
             raise SandboxError(f"base {base!r} is not a known commit - a sandbox never starts from an unknown state")
@@ -165,7 +166,18 @@ class Sandbox:
         sid = f"{stamp}-{hashlib.sha256(f'{base_sha}{label}{time.time_ns()}'.encode()).hexdigest()[:8]}"
         path = scratch_dir / sid
         branch = f"{SANDBOX_PREFIX}{sid}"
-        git(repo, "worktree", "add", "-b", branch, str(path), base_sha)
+        if hide:
+            # a worker developing the Creator must not see the sealed answer keys (1 Oct): the hidden paths are left out of the
+            # worktree by a per-worktree sparse checkout; they stay in the index (skip-worktree), so they are neither shown as
+            # deleted nor dropped from the sandbox's commits, and the main worktree is not affected
+            git(repo, "worktree", "add", "--no-checkout", "-b", branch, str(path), base_sha)
+            git(path, "sparse-checkout", "set", "--no-cone", "/*", *[f"!/{h.strip('/')}/" for h in hide])
+            git(path, "checkout", "-q", branch)
+            for h in hide:
+                if (path / h).exists():
+                    raise SandboxError(f"hidden path {h} is still present in the sandbox")
+        else:
+            git(repo, "worktree", "add", "-b", branch, str(path), base_sha)
         (path / ".creator_sandbox.json").write_text(json.dumps({"id": sid, "base": base_sha, "branch": branch, "label": label,
                                                                 "opened": stamp, "state": "OPEN"}), encoding="utf-8")
         _exclude_marker(path)
