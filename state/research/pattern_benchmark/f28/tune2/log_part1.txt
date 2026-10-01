@@ -1,0 +1,5 @@
+18:46:36 run tune2 part 1/2 pid 30016 code 7306a79b2508335f
+18:47:44 W00035 development tier 1: real 5/24 FP 0 {} 68s
+18:49:03 W00039 development tier 2: real 8/26 FP 0 {} 79s
+18:50:39 W00073 development tier 5: real 3/21 FP 0 {} 96s
+18:51:42 W00079 development tier 1: real 6/23 FP 1 {'proxy': 1} 63s

@@ -1,0 +1,60 @@
+{
+ "label": "SURVIVOR_ONLY",
+ "sessions": [
+  "2026-07-06",
+  "2026-09-28"
+ ],
+ "names_with_bars": 404,
+ "c2c_episodes": 2018,
+ "measured_move_day": 1997,
+ "measured_next_day": 1988,
+ "move_day_shapes": {
+  "V_REVERSAL": 788,
+  "TREND": 606,
+  "CHOP": 448,
+  "FADE": 155,
+  "UNMEASURED": 21
+ },
+ "next_day_shapes": {
+  "FADE": 738,
+  "CHOP": 706,
+  "V_REVERSAL": 390,
+  "TREND": 154,
+  "UNMEASURED": 30
+ },
+ "move_day_median_minutes_to_favourable_extreme": 285.0,
+ "move_day_share_extreme_in_first_hour": 0.17676514772158236,
+ "next_day_mean_signed_close": -0.0019838566468464414,
+ "cross_shape_next_day": {
+  "CHOP": {
+   "CHOP": 161,
+   "FADE": 57,
+   "TREND": 232,
+   "V_REVERSAL": 256
+  },
+  "FADE": {
+   "CHOP": 171,
+   "FADE": 40,
+   "TREND": 196,
+   "V_REVERSAL": 330
+  },
+  "TREND": {
+   "CHOP": 30,
+   "FADE": 14,
+   "TREND": 60,
+   "V_REVERSAL": 50
+  },
+  "UNMEASURED": {
+   "CHOP": 2,
+   "FADE": 0,
+   "TREND": 3,
+   "V_REVERSAL": 5
+  },
+  "V_REVERSAL": {
+   "CHOP": 84,
+   "FADE": 44,
+   "TREND": 115,
+   "V_REVERSAL": 147
+  }
+ }
+}

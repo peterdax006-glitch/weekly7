@@ -47,3 +47,6 @@
 18:14:29 W00091 heldout tier 5: real 4/16 FP 0 {} 566s
 18:17:31 W00093 development tier 3: real 5/19 FP 0 {} 182s
 18:32:10 W00095 heldout tier 6: real 4/20 FP 0 {} 879s
+18:38:23 W00097 development tier 0: real 0/0 FP 1 {'leak': 1} 373s
+18:43:49 W00099 development tier 2: real 3/23 FP 0 {} 326s
+done

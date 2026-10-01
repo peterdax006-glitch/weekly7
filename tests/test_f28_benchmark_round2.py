@@ -450,3 +450,22 @@ def test_small_world_with_forms_tells_the_gate_the_whole_search():
     assert not any(k.startswith(CF.PFX) for k in VH.DERIVED)                   # the session removed every composite again
     assert all("form" in c for f, c in ans["candidates"].items() if f.startswith(CF.PFX))
     PB.score_world(w.key, ans)
+
+
+def test_a_proxy_of_a_strong_pattern_keeps_nothing_in_normal_scores():
+    """Found on the 100-world run's development worlds: in within-date PERCENTILE ranks a proxy of a strong pattern kept a nonlinear
+    piece of it (increment t 2-3.6). Normal scores + a cubic in the rival remove it; the real pattern still keeps its increment."""
+    G = market(n_dates=150, seed=7, beta=2.5, extra=lambda rng, x, u: {"proxy": 0.8 * x + 0.6 * rng.normal(size=x.shape)})
+    ev_p, parts = _rival(G, "proxy", ["x", "proxy"])
+    ev_x, _ = _rival(G, "x", ["x", "proxy"])
+    assert abs(parts["increment_t"]) < 2 and QG.rival_check(ev_p, POL)[0] == QG.FAIL
+    assert QG.rival_check(ev_x, POL)[0] == QG.PASS
+    tr, te = split(G)
+    old = EV.centered_ranks(G[["x", "proxy"]])                                 # the pre-fix representation leaks the pattern
+    codes = pd.factorize(G.index.get_level_values(0), sort=True)[0]
+    e = pd.Series(EV._within_date_resid(old["proxy"].to_numpy(float), old["x"].to_numpy(float), codes), index=G.index)
+    assert PR.t_stat(EV.per_date_effect(e[te], G["touch"][te], 8).to_numpy()) > abs(parts["increment_t"])
+    z = EV.normal_scores(G[["x"]])
+    assert abs(float(z["x"].groupby(level=0).mean().abs().max())) < 1e-5 and EV.normal_scores(G.iloc[:0][["x"]]).empty
+    lin = EV._within_date_resid_poly(np.ones(10), np.arange(10.0), np.zeros(10, int))
+    assert np.allclose(lin, 0, atol=1e-6)                                      # a constant is fully explained

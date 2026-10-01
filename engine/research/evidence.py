@@ -799,6 +799,22 @@ def centered_ranks(X: pd.DataFrame) -> pd.DataFrame:
     return (R - R.groupby(level=0).transform("mean")).astype("float32")
 
 
+def normal_scores(X: pd.DataFrame) -> pd.DataFrame:
+    """Per date, every column's van der Waerden score Phi^-1((rank - 0.5) / n) minus the date's mean (NaN where missing; a column with
+    no within-date variation is all zero). F28 (found on the 100-world run's development worlds): the proxy test regressed one feature's
+    within-date PERCENTILE rank on another's, but the percentile ranks of two correlated normal features are not linearly related, so a
+    proxy of a strong pattern kept a nonlinear piece of it (increment t 2-3.6 for proxies of regime / lifecycle patterns, 10 of 11
+    remaining development false positives). Normal scores make a jointly normal pair linear again; incremental() also removes a cubic
+    in the rival's score, so what is left is information the rival does not carry in any monotone smooth form."""
+    if X.empty:
+        return X.astype("float32")
+    from scipy.stats import norm
+    R = X.groupby(level=0).rank(method="average")
+    n = X.notna().groupby(level=0).transform("sum")
+    Z = pd.DataFrame(norm.ppf(((R - 0.5) / n).to_numpy(float)), index=X.index, columns=X.columns)
+    return (Z - Z.groupby(level=0).transform("mean")).astype("float32")
+
+
 def rival_pool(frame: pd.DataFrame, exclude: Sequence[str] = ()) -> list[str]:
     """Every derived feature computable on `frame` that a screen scores (the scan filter: no interaction forms, no history-dependent
     features): the candidates a finding must be told apart from when its caller does not supply its own search universe."""
@@ -813,7 +829,7 @@ _RIVAL_CACHE: dict[str, Any] = {}
 
 
 def rival_ranks(frame: pd.DataFrame, features: Sequence[str] | None = None) -> pd.DataFrame:
-    """Within-date centred ranks of `features` (default: rival_pool) on `frame`, float32. Market-level columns (no within-date
+    """Within-date normal scores (normal_scores) of `features` (default: rival_pool) on `frame`, float32. Market-level columns (no within-date
     variation) are dropped. The last result is kept for the same frame object and feature list (the loop gates many findings on one
     matured frame; rebuilding the ranks per finding would dominate the cost)."""
     from engine.research import vol_hypotheses as VH
@@ -825,7 +841,7 @@ def rival_ranks(frame: pd.DataFrame, features: Sequence[str] | None = None) -> p
         out = pd.DataFrame(index=frame.index, dtype="float32")
     else:
         D = VH.derive(frame, tuple(feats))[feats].astype(float)
-        R = centered_ranks(D)
+        R = normal_scores(D)
         out = R.loc[:, (R.abs() > 0).any(axis=0).to_numpy()]
     _RIVAL_CACHE.update(frame=frame, key=key, ranks=out)
     return out
@@ -842,15 +858,40 @@ def _within_date_resid(a: np.ndarray, b: np.ndarray, codes: np.ndarray) -> np.nd
     return np.where(np.isfinite(a), a0 - beta[codes] * b0, np.nan)
 
 
+def _within_date_resid_poly(a: np.ndarray, b: np.ndarray, codes: np.ndarray, deg: int = 3) -> np.ndarray:
+    """a with a within-date least-squares POLYNOMIAL (degree `deg`) in b removed: per date the (deg+1) x (deg+1) normal equations are
+    accumulated with bincount and solved in one batched call (a singular date falls back to the linear residual). Missing b counts as
+    the date's mean (0); rows where a is missing stay missing."""
+    k = int(codes.max()) + 1 if len(codes) else 0
+    if k == 0:
+        return np.asarray(a, float).copy()
+    a0, b0 = np.nan_to_num(a), np.nan_to_num(b)
+    B = np.column_stack([b0 ** j for j in range(deg + 1)])
+    m = deg + 1
+    XtX = np.zeros((k, m, m))
+    Xty = np.zeros((k, m))
+    for i in range(m):
+        Xty[:, i] = np.bincount(codes, weights=B[:, i] * a0, minlength=k)
+        for j in range(i, m):
+            XtX[:, i, j] = XtX[:, j, i] = np.bincount(codes, weights=B[:, i] * B[:, j], minlength=k)
+    XtX += 1e-9 * np.eye(m)[None]
+    try:
+        coef = np.linalg.solve(XtX, Xty[..., None])[..., 0]
+    except np.linalg.LinAlgError:
+        return _within_date_resid(a, b, codes)
+    fit = np.einsum("ij,ij->i", B, coef[codes])
+    return np.where(np.isfinite(a), a0 - fit, np.nan)
+
+
 def incremental(G: pd.DataFrame, score: pd.Series, y: pd.Series, tr: np.ndarray, te: np.ndarray, eff_te: pd.Series, spec: FindingSpec,
                 ec: EvidenceConfig, rivals: pd.DataFrame | None):
     """F28 (F26: 16 of the 21 remaining false positives were PROXIES - candidates correlated 0.6-0.9 with a real pattern and adding
     nothing beyond it; the gate judged each candidate alone, so a good proxy of a real pattern passes every test the pattern passes).
-    The finding is set against its STRONGEST CORRELATED RIVAL among every feature the search scored (`rivals`: within-date centred
-    ranks from rival_ranks; filed knowledge belongs in it too): the rival is the scored feature with the largest |within-date rank
+    The finding is set against its STRONGEST CORRELATED RIVAL among every feature the search scored (`rivals`: within-date normal
+    scores from rival_ranks; filed knowledge belongs in it too): the rival is the scored feature with the largest |within-date
     correlation| with the finding on the TRAIN rows (a feature-feature relation: no outcome is used to choose it). Then, per test date:
-      incremental  the effect (rank AUC - 0.5) of the finding's ordering with the rival's regressed out (within date)
-      reverse      the rival's (oriented by its own train effect) with the finding's regressed out
+      incremental  the effect (rank AUC - 0.5) of the finding's score with a cubic in the rival's score regressed out (within date)
+      reverse      the rival's (oriented by its own train effect) with a cubic in the finding's regressed out
     quality_gate.rival_check reads them: a finding that keeps nothing once its rival is removed while the rival keeps something is a
     proxy; a real pattern keeps sqrt(1 - r^2) of its effect beyond any proxy of it. Returns (RivalEvidence, parts)."""
     from engine.learning import promotion as PR
@@ -859,7 +900,7 @@ def incremental(G: pd.DataFrame, score: pd.Series, y: pd.Series, tr: np.ndarray,
         return QG.RivalEvidence(None, 0.0, 0, ec.rival_min_corr), {"rival": None, "rival_corr": 0.0, "rival_pool": 0}
     R = rivals.reindex(G.index)
     R = R[[c for c in R.columns if c != spec.feature]]
-    ra = centered_ranks(score.to_frame("f"))["f"].to_numpy(float)
+    ra = normal_scores(score.to_frame("f"))["f"].to_numpy(float)
     trm = np.asarray(tr, bool) & np.isfinite(ra)
     A = np.nan_to_num(ra[trm])
     B = np.nan_to_num(R.to_numpy(np.float32)[trm]).astype(float)
@@ -874,8 +915,8 @@ def incremental(G: pd.DataFrame, score: pd.Series, y: pd.Series, tr: np.ndarray,
     name = str(R.columns[j])
     rb = R.iloc[:, j].to_numpy(float)
     codes = pd.factorize(G.index.get_level_values(0), sort=True)[0]
-    ea = pd.Series(_within_date_resid(ra, rb, codes), index=G.index)
-    eb = _within_date_resid(np.where(np.isfinite(rb), rb, np.nan), np.nan_to_num(ra), codes)
+    ea = pd.Series(_within_date_resid_poly(ra, rb, codes), index=G.index)
+    eb = _within_date_resid_poly(np.where(np.isfinite(rb), rb, np.nan), np.nan_to_num(ra), codes)
     b_tr = per_date_effect(pd.Series(rb, index=G.index)[tr], y[tr], ec.min_names)
     sb = -1.0 if len(b_tr) and float(b_tr.mean()) < 0 else 1.0
     ebs = pd.Series(sb * eb, index=G.index)
