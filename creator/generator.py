@@ -354,8 +354,94 @@ def _none_default(j: int) -> Edit:
     return f
 
 
+BUILTIN_SWAPS: dict[str, tuple[str, ...]] = {"max": ("min",), "min": ("max",), "sorted": ("list",), "list": ("sorted",),
+                                             "sum": ("len",), "len": ("sum",)}
+METHOD_SWAPS: dict[str, tuple[str, ...]] = {"append": ("extend",), "extend": ("append",)}
+GUARD_DEFAULTS: tuple[str, ...] = ("[]", "0", "None", "''", "{}", "False")
+
+
+def _set_name(new: str) -> Edit:
+    def f(m: Any) -> None:
+        m.id = new
+    return f
+
+
+def _set_attr(new: str) -> Edit:
+    def f(m: Any) -> None:
+        m.attr = new
+    return f
+
+
+def _swap_branches(m: Any) -> None:
+    m.body, m.orelse = m.orelse, m.body
+
+
+def _range_end_plus(m: Any) -> None:
+    j = 1 if len(m.args) >= 2 else 0
+    m.args[j] = ast.BinOp(m.args[j], ast.Add(), ast.Constant(1))
+
+
+def _insert_guard(arg: str, default: str, ret_arg: bool) -> Edit:
+    def f(m: Any) -> None:
+        val = ast.Name(arg, ast.Load()) if ret_arg else ast.parse(default, mode="eval").body
+        guard = ast.If(ast.UnaryOp(ast.Not(), ast.Name(arg, ast.Load())), [ast.Return(val)], [])
+        at = 1 if m.body and isinstance(m.body[0], ast.Expr) and isinstance(getattr(m.body[0], "value", None), ast.Constant) else 0
+        m.body.insert(at, guard)
+    return f
+
+
+def _has_guard(fn: ast.FunctionDef, arg: str) -> bool:
+    for st in fn.body:
+        if (isinstance(st, ast.If) and isinstance(st.test, ast.UnaryOp) and isinstance(st.test.op, ast.Not)
+                and isinstance(st.test.operand, ast.Name) and st.test.operand.id == arg and st.body
+                and isinstance(st.body[0], ast.Return)):
+            return True
+    return False
+
+
+def _scope_names(fn: ast.FunctionDef) -> list[str]:
+    names = [a.arg for a in fn.args.args]
+    for n in ast.walk(fn):
+        if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Store) and n.id not in names:
+            names.append(n.id)
+    return names
+
+
+def targeted_mutations(tree: ast.Module, per_family: int = 40) -> Iterator[ast.Module]:
+    """Cheap single edits aimed at common injected-bug classes, each family capped so the candidate budget stays bounded."""
+    nodes = list(ast.walk(tree))
+    fam: list[list[ast.Module]] = [[] for _ in range(5)]
+    for i, n in enumerate(nodes):
+        if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id in BUILTIN_SWAPS:
+            fam[0].extend(_edit(tree, nodes.index(n.func), _set_name(a)) for a in BUILTIN_SWAPS[n.func.id])
+        elif isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr in METHOD_SWAPS:
+            fam[0].extend(_edit(tree, nodes.index(n.func), _set_attr(a)) for a in METHOD_SWAPS[n.func.attr])
+        if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == "range" and n.args:
+            fam[1].append(_edit(tree, i, _range_end_plus))
+        if isinstance(n, ast.If) and n.orelse:
+            fam[2].append(_edit(tree, i, _swap_branches))
+        if isinstance(n, ast.FunctionDef) and not n.name.startswith("_"):
+            for a in n.args.args:
+                if a.arg in ("self", "cls") or _has_guard(n, a.arg):
+                    continue
+                fam[3].append(_edit(tree, i, _insert_guard(a.arg, "", True)))
+                fam[3].extend(_edit(tree, i, _insert_guard(a.arg, d, False)) for d in GUARD_DEFAULTS)
+    for fn in (x for x in nodes if isinstance(x, ast.FunctionDef)):
+        scope = _scope_names(fn)
+        for n in ast.walk(fn):
+            if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load) and n.id in scope:
+                fam[4].extend(_edit(tree, nodes.index(n), _set_name(o)) for o in scope if o != n.id)
+    for cands in fam:
+        yield from cands[:per_family]
+
+
 def mutations(tree: ast.Module) -> Iterator[ast.Module]:
     """Single-edit variants of a module, most plausible bug fixes first."""
+    yield from targeted_mutations(tree)
+    yield from generic_mutations(tree)
+
+
+def generic_mutations(tree: ast.Module) -> Iterator[ast.Module]:
     for i, n in enumerate(list(ast.walk(tree))):
         if isinstance(n, ast.BinOp):
             for alt in SWAP_BIN.get(type(n.op), ()):
@@ -394,10 +480,11 @@ def solve_with_search(task: Mapping[str, Any], workdir: Path, budget: int = 120,
             tree = ast.parse(original)
         except SyntaxError:
             continue
-        singles = list(mutations(tree))
+        legacy = list(generic_mutations(tree))
+        singles = list(targeted_mutations(tree)) + legacy
         cands: Iterator[ast.Module] = iter(singles)
         if pairs:
-            cands = itertools.chain(singles, (m2 for m1 in singles[:12] for m2 in itertools.islice(mutations(m1), 12)))
+            cands = itertools.chain(singles, (m2 for m1 in legacy[:12] for m2 in itertools.islice(mutations(m1), 12)))
         for cand in cands:
             if tried >= budget:
                 path.write_text(original, encoding="utf-8")

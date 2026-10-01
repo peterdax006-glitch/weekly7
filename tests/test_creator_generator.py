@@ -118,3 +118,52 @@ def test_the_real_local_model_answers_offline() -> None:
         reply = llm.chat([{"role": "user", "content": "Reply with exactly: FILE: a.py then a python block defining x = 1"}],
                          max_tokens=60, temperature=0.0)
     assert reply.strip() and llm.calls == 1
+
+
+# ---- targeted mutation families (one test per injected-bug class)
+
+def _fixes(buggy: str, fixed: str, per_family: int = 40) -> bool:
+    import ast
+    want = ast.unparse(ast.parse(fixed))
+    return any(ast.unparse(m) == want for m in G.targeted_mutations(ast.parse(buggy), per_family))
+
+
+def test_family_wrong_variable() -> None:
+    assert _fixes("def f(s):\n    total = 0\n    for ch in s:\n        total += 1\n    return ch\n",
+                  "def f(s):\n    total = 0\n    for ch in s:\n        total += 1\n    return total\n")
+
+
+def test_family_dropped_guard() -> None:
+    assert _fixes("def f(xs):\n    return xs[0]\n", "def f(xs):\n    if not xs:\n        return []\n    return xs[0]\n")
+    assert _fixes("def f(xs):\n    return xs[0]\n", "def f(xs):\n    if not xs:\n        return None\n    return xs[0]\n")
+
+
+def test_family_guard_not_duplicated() -> None:
+    import ast
+    src = "def f(xs):\n    if not xs:\n        return 0\n    return xs[0]\n"
+    assert not any(ast.unparse(m).count("if not xs") > 1 for m in G.targeted_mutations(ast.parse(src)))
+
+
+def test_family_swapped_branches() -> None:
+    assert _fixes("def f(x):\n    if x > 0:\n        return 'neg'\n    else:\n        return 'pos'\n",
+                  "def f(x):\n    if x > 0:\n        return 'pos'\n    else:\n        return 'neg'\n")
+
+
+def test_family_range_end() -> None:
+    assert _fixes("def f(n):\n    t = 0\n    for i in range(1, n):\n        t += i\n    return t\n",
+                  "def f(n):\n    t = 0\n    for i in range(1, n + 1):\n        t += i\n    return t\n")
+
+
+@pytest.mark.parametrize("bad,good", [("max", "min"), ("sorted", "list"), ("sum", "len"), ("list", "sorted")])
+def test_family_builtin_swaps(bad: str, good: str) -> None:
+    assert _fixes(f"def f(xs):\n    return {bad}(xs)\n", f"def f(xs):\n    return {good}(xs)\n")
+
+
+def test_family_method_swap() -> None:
+    assert _fixes("def f(a, b):\n    a.append(b)\n    return a\n", "def f(a, b):\n    a.extend(b)\n    return a\n")
+
+
+def test_targeted_families_are_bounded() -> None:
+    import ast
+    big = "def f(a, b, c, d):\n" + "".join(f"    t{i} = max(a, b) + sum(c)\n" for i in range(60)) + "    return a\n"
+    assert len(list(G.targeted_mutations(ast.parse(big), 40))) <= 5 * 40
