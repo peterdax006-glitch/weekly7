@@ -284,3 +284,19 @@ def test_a_lock_left_by_a_dead_process_is_taken_over(cfg: K.KernelConfig) -> Non
     with pytest.raises(K.KernelError, match="another kernel"):
         K._KernelLock(cfg.state).__enter__()
     (cfg.state / "kernel.lock").unlink()
+
+
+
+def test_a_failing_candidate_is_diagnosed_and_the_next_attempt_sees_the_root_cause(cfg: K.KernelConfig) -> None:
+    """K11 integrated: the kernel diagnoses a rejected candidate's failing tests and the next work package carries it."""
+    bad = USER.replace("return one() + 1", "return one() + 9")             # test_use expects 2
+    rep = K.cycle(cfg, Scripted("wrong", {"pkg/user.py": bad, "tests/test_user.py": USER_TEST}))
+    assert rep.outcome == "REJECTED" and "diagnosis ASSERTION" in rep.reason, rep.reason
+    led = Ledger(cfg.ledger_path, evidence_root=cfg.repo)
+    assert led.of_type("Failure") and led.of_type("Diagnosis")
+    assert led.of_type("Diagnosis")[-1].record.failure_id == led.of_type("Failure")[-1].id
+    w = Scripted("again", {})
+    second = K.cycle(cfg, w)
+    assert second.package, (second.outcome, second.reason)            # 2 Oct: went AUDIT_RED on evidence drift
+    wp = led.__class__(cfg.ledger_path, evidence_root=cfg.repo).of_type("WorkPackage")[-1].record
+    assert "diagnosis ASSERTION" in wp.why_it_exists                        # the second attempt starts from the diagnosis

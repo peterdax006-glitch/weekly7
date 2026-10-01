@@ -198,8 +198,14 @@ def assess_tree(cfg: KernelConfig, led: Ledger, root: Path, label: str, run_test
                                   parallel=cfg.test_parallel) \
         if run_tests and tests else {}
     model = SM.build(root, scope=cfg.scope, capabilities=specs, test_evidence=ev, ledger=led)
-    snap = evd / f"selfmodel_{model.digest()}.json"
-    SM.save(model, snap)
+    tmp = evd / "selfmodel.tmp.json"
+    SM.save(model, tmp)
+    content = hashlib.sha256(tmp.read_bytes()).hexdigest()[:16]        # named by CONTENT: a cited snapshot is never rewritten
+    snap = evd / f"selfmodel_{content}.json"                            # (2 Oct: digest-named snapshots were overwritten each
+    if snap.exists():                                                   # cycle with different non-digested fields, and the next
+        tmp.unlink()                                                    # cycle's audit went red with evidence drift)
+    else:
+        tmp.replace(snap)
     rows = tuple(G.assess(led, model))
     rep = AUD.audit(led, model, repo=cfg.repo) if audit else AUD.AuditReport((), (), {})
     return Assessed(model, rows, rep, snap)
@@ -526,6 +532,28 @@ def _cycle(cfg: KernelConfig, worker: Worker, n: int = 1, led: Optional[Ledger] 
     return execute(cfg, worker, plan, main, base_sha, n, led, recovered, t0=t0)
 
 
+def diagnose_rejection(led: Ledger, plan: P.Plan, ev: Optional[S.Evaluation]) -> Optional[dict[str, Any]]:
+    """K11 in the loop: when a candidate's tests fail, diagnose the failure (creator.debug), record Failure + Diagnosis in the
+    ledger, and return the diagnosis so the rejection reason - and through it the next attempt's work package - carries a
+    root cause instead of a bare 'not clean'."""
+    run = ev.candidate_run if ev is not None else None
+    if run is None:
+        return None
+    bad = [c for c in run.cases.values() if c.outcome.bad]
+    if not bad:
+        return None
+    from creator import debug as DBG                                    # loaded only when something failed
+    text = "\n".join(f"{c.case_id}\n{c.message}" for c in bad)[:20000]
+    d = DBG.diagnose(text, prefer="creator/")
+    fid = led.append(M.Failure(created_by=M.Role.DEBUGGER, parents=(plan.work_package_id,), subject_id=plan.work_package_id,
+                               symptom=f"{len(bad)} failing test case(s): {', '.join(c.case_id for c in bad[:3])}"[:500],
+                               classification=d.classification, reproduction=f"pytest {' '.join(sorted(run.selection))}"[:500]))
+    led.append(M.Diagnosis(created_by=M.Role.DEBUGGER, parents=(fid,), failure_id=fid,
+                           hypotheses=tuple(d.hypotheses) or ("unknown",), root_cause=d.root_cause or "undetermined"))
+    return {"classification": d.classification, "root_cause": d.root_cause, "hypotheses": list(d.hypotheses[:3]),
+            "failure_id": fid}
+
+
 class Cancelled(Exception):
     """The swarm pulled this worker back (RAM tight): its sandbox is discarded, nothing is adopted."""
 
@@ -550,6 +578,7 @@ def execute(cfg: KernelConfig, worker: Worker, plan: P.Plan, main: Assessed, bas
     with guard:
         sb = S.Sandbox.open(cfg.repo, base_sha, cfg.scratch, label=plan.package_id, hide=cfg.hide)   # 3 SANDBOX
     locked = False
+    ev: Optional[S.Evaluation] = None
     try:
         checkpoint_cancel("work")
         work = worker(plan, wp, sb.path)                                # 4 WORK
@@ -652,10 +681,18 @@ def execute(cfg: KernelConfig, worker: Worker, plan: P.Plan, main: Assessed, bas
         rep.outcome, rep.reason = "CANCELLED", str(c)
     except _Reject as r:
         S.discard(sb)
+        reason = str(r)
+        try:
+            diag = diagnose_rejection(led, plan, ev)
+        except Exception as e:                                          # noqa: BLE001 - a diagnosis is never worth a crash
+            diag = {"classification": "UNKNOWN", "root_cause": f"diagnosis failed: {type(e).__name__}: {e}"}
+        if diag:
+            rep.details["diagnosis"] = diag
+            reason += f"; diagnosis {diag['classification']}: {diag['root_cause']}"
         led.append(M.Decision(created_by=M.Role.VALIDATOR, subject_id=plan.experiment_id, verdict=M.DecisionVerdict.REJECT,
-                              reason=str(r)[:2000]))
-        P.record_outcome(led, plan, False, str(r)[:500])
-        rep.outcome, rep.reason = "REJECTED", str(r)
+                              reason=reason[:2000]))
+        P.record_outcome(led, plan, False, reason[:500])
+        rep.outcome, rep.reason = "REJECTED", reason
     except Exception as e:                                              # noqa: BLE001 - recorded, sandbox discarded, never adopted
         if not sb.closed:
             S.discard(sb)
