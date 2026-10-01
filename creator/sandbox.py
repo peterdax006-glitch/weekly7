@@ -276,8 +276,11 @@ class Sandbox:
         return p
 
     def evaluate(self, smoke: Iterable[str] = (), build_config: Optional[B.BuildConfig] = None,
-                 pytest_config: Optional[T.PytestConfig] = None, run_base: bool = True) -> Evaluation:
-        """Build the candidate; select affected tests; run them at base and in the candidate; classify every case."""
+                 pytest_config: Optional[T.PytestConfig] = None, run_base: bool = True,
+                 flaky_reruns: int = 2) -> Evaluation:
+        """Build the candidate; select affected tests; run them at base and in the candidate; classify every case. Blocking or
+        fixed cases are re-run `flaky_reruns` times per side (0 = off): a case whose outcome flips is FLAKY, never a
+        regression by itself, and the verdict is then at best FLAKY (not CLEAN)."""
         for cache in list(self.path.rglob("__pycache__")):              # a worker's bytecode is never judged in place of its
             shutil.rmtree(cache, ignore_errors=True)                     # source (1 Oct: same-size same-second rewrite ran stale)
         change = self.changes()
@@ -306,6 +309,12 @@ class Sandbox:
             base_run = T.run_pytest(base_tree, base_targets, ev_dir / "base.xml", label="base", tree=self.base,
                                     config=pytest_config)
             report = T.compare_runs(base_run, cand, base_files=base_targets)
+            if flaky_reruns > 0:
+                def rerun(side: str, ids: list[str]) -> T.TestRun:
+                    root, jp = (self.path, ev_dir / "rerun-candidate.xml") if side == "candidate" else (base_tree, ev_dir / "rerun-base.xml")
+                    return T.run_pytest(root, ids, jp, label=f"rerun-{side}", tree=self.id if side == "candidate" else self.base,
+                                        config=pytest_config)
+                report = T.apply_flaky_reruns(report, rerun, reruns=flaky_reruns, baseline=base_run, candidate=cand)
         else:
             report = T.compare_runs(T.TestRun("base", self.base, (), T.RunStatus.NO_TESTS, {}, None, 0.0), cand)
         (ev_dir / "evaluation.json").write_text(json.dumps({"report": report.to_record(), "selection": selection.to_dict(),
