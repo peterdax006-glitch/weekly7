@@ -73,3 +73,20 @@ def test_other_templates(tmp_path):
     ns = {}
     exec(new, ns)
     assert ns["keep"]() == 6
+
+
+def test_learns_from_the_real_lesson_log_format(tmp_path):
+    """Regression (validator round 3): LessonLog writes a lesson with adopted=None and the kernel's verdict later as a separate
+    {"event": "outcome"} line; the student must join them, or it never learns from a real lessons.jsonl."""
+    from creator.curriculum import Lesson, LessonLog
+    p = tmp_path / "lessons.jsonl"
+    log = LessonLog(p)
+    for i, (b, a) in enumerate([(EAGER1, LAZY1), (EAGER2, LAZY2)]):
+        log.add(Lesson(f"L{i}", f"P{i}", "creator.x", "activation", "o", files_before={"creator/m.py": b},
+                       files_after={"creator/m.py": a}))
+        log.outcome(f"L{i}", True, "ADOPTED: merged")
+    log.add(Lesson("L9", "P9", "creator.x", "activation", "o", files_before={"creator/m.py": EAGER1},
+                   files_after={"creator/m.py": LAZY1}))
+    log.outcome("L9", False, "REJECTED: nope")
+    st = LessonStudent(p)
+    assert st.support("lazy_import") == 2 and st.lessons_seen == 2 and st.skipped == 1

@@ -189,3 +189,15 @@ def test_pull_back_spares_finished_claude_work_when_it_can(cfg: K.KernelConfig, 
     finally:
         W.HANDED_BACK.discard("CPB")
     assert pulled and pulled[0] == "CPA"                                   # the older worker without finished work goes first
+
+
+def test_a_worker_that_crashes_before_the_kernel_runs_is_reported_not_lost(cfg: K.KernelConfig) -> None:
+    """Regression (validator round 3): an exception in a job thread (here: make_worker) left no report - the package vanished from
+    the round and its ledger chain stayed IN_PROGRESS. It must surface as an ERROR report."""
+    def broken() -> SW.SelfFirst:
+        raise RuntimeError("worker could not be built")
+    gov = W.Governor(floor_min_gb=0.0, floor_fraction=0.0, per_worker_gb=0.0, max_workers=1, free=lambda: 10.0,
+                     total=lambda: 16.0, observe=lambda n: None)
+    rnd = W.run_round(cfg, broken, gov, max_packages=1, poll_s=0.1)
+    assert [r.outcome for r in rnd.reports] == ["ERROR"] and "could not be built" in rnd.reports[0].reason
+    assert rnd.outcome == "WORKED"

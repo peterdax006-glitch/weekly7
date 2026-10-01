@@ -20,6 +20,7 @@ import json
 from pathlib import Path
 from typing import Any, Callable, Mapping, Optional, Sequence
 
+from creator import meta as ME
 from creator import recursion as R
 
 GUARD_NO_HARM = "no_false_completion_rate"
@@ -54,8 +55,8 @@ class ProcessSolver:
         from creator import generator as G
         tried = 0
         for attempt in range(self.lv.retries + 1):
-            ok, _, n = G.solve_with_search(task, workdir, self.lv.search_budget, self.lv.pair_width > 0,
-                                           self.lv.per_family * (attempt + 1), self.lv.pair_width)
+            ok, _, n = G.solve_with_search(task, workdir, self.lv.search_budget, pairs=self.lv.pair_width > 0,
+                                           per_family=self.lv.per_family * (attempt + 1), pair_width=self.lv.pair_width)
             tried += n
             if ok:
                 return D.SolverResult(True, 0, f"search passed after {tried} candidates (attempt {attempt})")
@@ -75,7 +76,10 @@ def load_process(path: Path = DEFAULT_PATH) -> R.ProcessConfig:
     """The adopted process; the default one when nothing was adopted yet or the file is unreadable (never a crash in a kernel)."""
     try:
         d = json.loads(path.read_text(encoding="utf-8"))
-        return R.ProcessConfig(**{k: int(d[k]) for k in R.PARAMS if k in d})
+        vals = {k: int(d[k]) for k in R.PARAMS if k in d}
+        if any(not ME.BOUNDS[k][0] <= v <= ME.BOUNDS[k][1] for k, v in vals.items()):
+            return R.ProcessConfig()                                # a hand-edited / corrupt file must not set unbounded budgets
+        return R.ProcessConfig(**vals)
     except (OSError, ValueError, TypeError):
         return R.ProcessConfig()
 

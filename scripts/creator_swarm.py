@@ -104,11 +104,12 @@ def main(argv: list[str]) -> int:
     with K._KernelLock(STATE):                                           # no single-kernel run at the same time
         while a.rounds == 0 or n < a.rounds:
             n += 1
+            def on_report(r: K.CycleReport) -> None:
+                cur.resolve(r)
+                print(json.dumps({"package": r.package, "req": r.requirement, "outcome": r.outcome, "reason": r.reason[:200],
+                                  "by": r.details.get("worker", {}).get("by")}), flush=True)
             rnd = W.run_round(cfg, make_worker, gov, max_packages=a.packages, filler_budget=a.filler,
-                              filler=W.self_bench_filler(STATE / "self_bench.jsonl"),
-                              on_report=lambda r: (cur.resolve(r), print(json.dumps({"package": r.package, "req": r.requirement,
-                                                                    "outcome": r.outcome, "reason": r.reason[:200],
-                                                                    "by": r.details.get("worker", {}).get("by")}), flush=True))[1])
+                              filler=W.self_bench_filler(STATE / "self_bench.jsonl"), on_report=on_report)
             line = {"round": n, "outcome": rnd.outcome, "packages": len(rnd.reports), "peak_parallel": rnd.peak_parallel,
                     "pulled_back": rnd.pulled_back, "by_outcome": K.summary(rnd.reports)["by_outcome"],
                     "free_gb": round(W.free_ram_gb(), 2), "at": dt.datetime.now().isoformat(timespec="seconds")}

@@ -310,6 +310,8 @@ class LessonStudent:
         self.templates, self.skipped, self.lessons_seen = {}, 0, 0
         if not self.lessons_path.is_file():
             return 0
+        rows: list[dict[str, Any]] = []
+        by_id: dict[str, dict[str, Any]] = {}
         for line in self.lessons_path.read_text(encoding="utf-8", errors="replace").splitlines():
             if not line.strip():
                 continue
@@ -320,6 +322,15 @@ class LessonStudent:
             except ValueError:
                 self.skipped += 1
                 continue
+            if les.get("event") == "outcome":                       # creator.curriculum.LessonLog: the verdict arrives later
+                tgt = by_id.get(str(les.get("lesson_id")))
+                if tgt is not None:
+                    tgt["adopted"] = les.get("adopted")
+                continue
+            rows.append(les)
+            if les.get("lesson_id") is not None:
+                by_id[str(les["lesson_id"])] = les
+        for les in rows:
             if les.get("adopted") is not True:
                 self.skipped += 1
                 continue
