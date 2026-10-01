@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="13" time="634.743" timestamp="2026-10-01T15:32:00.732219-06:00" hostname="DaxLaptop"><testcase classname="tests.test_creator_agents" name="test_disabled_by_default_and_refused_before_spending" time="0.088" /><testcase classname="tests.test_creator_agents" name="test_env_caps_cannot_exceed_hard_ceilings" time="0.001" /><testcase classname="tests.test_creator_agents" name="test_daily_and_per_job_caps" time="0.035" /><testcase classname="tests.test_creator_agents" name="test_spend_cap" time="0.083" /><testcase classname="tests.test_creator_agents" name="test_command_is_confined_and_the_run_recorded" time="0.013" /><testcase classname="tests.test_creator_agents" name="test_claims_are_parsed_strictly" time="0.160" /><testcase classname="tests.test_creator_agents" name="test_contamination_voids_the_run" time="0.013" /><testcase classname="tests.test_creator_agents" name="test_refuses_to_run_inside_the_repository" time="0.003" /><testcase classname="tests.test_creator_agents" name="test_agent_solver_is_scored_by_the_evaluator_not_by_its_claim" time="623.484"><failure message="AssertionError: assert 'REGRESSION' == 'SOLVED'&#10;  &#10;  - SOLVED&#10;  + REGRESSION">tmp_path = WindowsPath('C:/Users/Peter/AppData/Local/Temp/pytest-of-Peter/pytest-1836/test_agent_solver_is_scored_by0')
+
+    def test_agent_solver_is_scored_by_the_evaluator_not_by_its_claim(tmp_path: Path) -&gt; None:
+        task, m = _suite(tmp_path)
+        b = A.Budget(tmp_path / "b.json", policy(daily_calls=9, per_job_calls=9))
+        good = A.AgentSolver(b, runner=fake("fixed\nSTATUS: DONE", write={"app/core.py": "def double(x):\n    return 2 * x\n"}),
+                             runs_dir=tmp_path / "runs", name="good")
+        bluff = A.AgentSolver(b, runner=fake("fixed\nSTATUS: DONE"), runs_dir=tmp_path / "runs", name="bluff")
+        peek = A.AgentSolver(b, runner=fake("STATUS: DONE", write={"x.py": "# devbench/sealed\n"}), runs_dir=tmp_path / "runs",
+                             name="peek")
+&gt;       assert D.run_task(task, good, m).outcome == "SOLVED"
+E       AssertionError: assert 'REGRESSION' == 'SOLVED'
+E         
+E         - SOLVED
+E         + REGRESSION
+
+tests\test_creator_agents.py:145: AssertionError</failure></testcase><testcase classname="tests.test_creator_agents" name="test_a_call_that_reports_no_cost_is_charged_the_cap" time="0.096" /><testcase classname="tests.test_creator_agents" name="test_no_multiline_argument_reaches_the_command_line" time="0.002" /><testcase classname="tests.test_creator_agents" name="test_the_worker_runs_the_projects_python_with_pytest" time="9.493" /><testcase classname="tests.test_creator_agents" name="test_contamination_scan_can_be_limited_to_changed_files" time="0.006" /></testsuite></testsuites>

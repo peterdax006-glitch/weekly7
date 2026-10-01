@@ -1,0 +1,20 @@
+diff --git a/creator/testrun.py b/creator/testrun.py
+index 88de08def..246e70cd1 100644
+--- a/creator/testrun.py
++++ b/creator/testrun.py
+@@ -531,15 +531,3 @@ def apply_flaky_reruns(report: RegressionReport, rerun: Callable[[str, list[str]
+         verdict = Verdict.CLEAN
+     return RegressionReport(verdict, classes, tuple(reasons),
+                             {k: {s: tuple(seq) for s, seq in v.items()} for k, v in hist.items()}, report.timing)
+-
+-
+-def comparison_record(baseline: TestRun, candidate: TestRun, report: RegressionReport) -> dict[str, Any]:
+-    """C77 sec 29 BASELINE vs MODIFIED summary: target outcome, regressions, stability (flaky), resource use (time)."""
+-    bc, cc = baseline.counts(), candidate.counts()
+-    return {"baseline": {"tree": baseline.tree, "status": baseline.status.value, "counts": bc,
+-                         "seconds": round(baseline.seconds, 3)},
+-            "candidate": {"tree": candidate.tree, "status": candidate.status.value, "counts": cc,
+-                          "seconds": round(candidate.seconds, 3)},
+-            "verdict": report.verdict.value, "summary": report.summary(),
+-            "time_delta_s": round(candidate.seconds - baseline.seconds, 3)}
+-

@@ -1,0 +1,20 @@
+{
+ "cycle": 1,
+ "outcome": "REJECTED",
+ "package": "CP0043",
+ "requirement": "EFF.size",
+ "reason": "the worker changed nothing",
+ "verdict": "",
+ "merge_commit": "",
+ "calls": 0,
+ "usd": 0.0,
+ "seconds": 1951.7,
+ "details": {
+  "recovered": [],
+  "worker": {
+   "claimed_done": false,
+   "notes": "self-rules-v1: no rule applied; no dead code in build.py (every top-level definition is referenced); a real shrink means restructuring the build stage the evaluation itself depends on - deferred to a dedicated package rather than rushed.",
+   "by": "claude-session"
+  }
+ }
+}

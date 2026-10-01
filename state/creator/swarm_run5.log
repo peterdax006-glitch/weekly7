@@ -1,0 +1,8 @@
+{"package": "CP0032", "req": "EFF.activation", "outcome": "ERROR", "reason": "TimeoutExpired: Command '['C:\\\\Users\\\\Peter\\\\weekly7\\\\.venv\\\\Scripts\\\\python.exe', '-B', '-m', 'pytest', '-q', '-x', '-p', 'no:cacheprovider', 'tests/test_creator_efficiency.py', 'tests/test_creator_k", "by": null}
+{"package": "CP0036", "req": "EFF.activation", "outcome": "ERROR", "reason": "TimeoutExpired: Command '['C:\\\\Users\\\\Peter\\\\weekly7\\\\.venv\\\\Scripts\\\\python.exe', '-B', '-m', 'pytest', '-q', '-x', '-p', 'no:cacheprovider', 'tests/test_creator_efficiency.py', 'tests/test_creator_k", "by": null}
+{"package": "CP0041", "req": "EFF.size", "outcome": "REJECTED", "reason": "the worker changed nothing", "by": "claude-session"}
+{"package": "CP0042", "req": "EFF.activation", "outcome": "REJECTED", "reason": "the worker changed nothing", "by": "claude-session"}
+{"package": "CP0043", "req": "EFF.size", "outcome": "REJECTED", "reason": "the worker changed nothing", "by": "claude-session"}
+{"package": "CP0040", "req": "EFF.activation", "outcome": "CANCELLED", "reason": "pulled back: RAM tight (TimeoutExpired after its processes were stopped)", "by": "claude-session"}
+{"package": "CP0044", "req": "EFF.activation", "outcome": "CANCELLED", "reason": "pulled back: RAM tight (TimeoutExpired after its processes were stopped)", "by": "claude-session"}
+{"package": "CP0045", "req": "EFF.size", "outcome": "CANCELLED", "reason": "pulled back: RAM tight (TimeoutExpired after its processes were stopped)", "by": "claude-session"}

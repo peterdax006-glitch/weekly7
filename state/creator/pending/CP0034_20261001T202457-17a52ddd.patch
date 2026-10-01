@@ -1,0 +1,67 @@
+diff --git a/creator/selfmodel.py b/creator/selfmodel.py
+index b5e2131f8..51b4cf85b 100644
+--- a/creator/selfmodel.py
++++ b/creator/selfmodel.py
+@@ -133,27 +133,27 @@ def scan_component(root: Path, rel: str) -> Component:
+     try:
+         tree = ast.parse(source)
+     except SyntaxError as e:
+-        return Component(rel, module or "", "", source.count("\n") + 1, meaningful_lines(full), sha, (), (), todos,
++        return Component(rel, module, "", source.count("\n") + 1, meaningful_lines(full), sha, (), (), todos,
+                          parse_error=f"{e.msg} at line {e.lineno}")
+     ifaces: list[Interface] = []
+     stubs: list[str] = []
++
++    def add(kind: str, name: str, fn: Any, may_stub: bool) -> None:
++        ifaces.append(Interface(kind, name, _signature(fn), _first_doc(fn)))
++        why = _is_stub(fn) if may_stub and not fn.name.startswith("_") else None
++        if why:
++            stubs.append(f"{name}:{fn.lineno}: {why}")
+     for node in tree.body:
+         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+-            ifaces.append(Interface("function", node.name, _signature(node), _first_doc(node)))
+-            why = _is_stub(node)
+-            if why and not node.name.startswith("_"):
+-                stubs.append(f"{node.name}:{node.lineno}: {why}")
++            add("function", node.name, node, True)
+         elif isinstance(node, ast.ClassDef):
+             ifaces.append(Interface("class", node.name, node.name, _first_doc(node)))
+             is_protocol = any(isinstance(b, ast.Name) and b.id in ("Protocol", "ABC") for b in node.bases)
+             for sub in node.body:
+                 if isinstance(sub, (ast.FunctionDef, ast.AsyncFunctionDef)) and not sub.name.startswith("__"):
+-                    ifaces.append(Interface("method", f"{node.name}.{sub.name}", _signature(sub), _first_doc(sub)))
+-                    why = _is_stub(sub)
+                     abstract = any(isinstance(d, ast.Name) and d.id == "abstractmethod" for d in sub.decorator_list)
+-                    if why and not is_protocol and not abstract and not sub.name.startswith("_"):
+-                        stubs.append(f"{node.name}.{sub.name}:{sub.lineno}: {why}")
+-    return Component(rel, module or "", _first_doc(tree), source.count("\n") + 1, meaningful_lines(full), sha,
++                    add("method", f"{node.name}.{sub.name}", sub, not is_protocol and not abstract)
++    return Component(rel, module, _first_doc(tree), source.count("\n") + 1, meaningful_lines(full), sha,
+                      tuple(ifaces), tuple(stubs), todos)
+ 
+ 
+@@ -371,10 +371,8 @@ def build(root: str | Path = REPO_ROOT, scope: Sequence[str] = ("creator", "test
+     for m, path in mod_to_path.items():
+         if path not in comps:
+             continue
+-        targets = sorted({mod_to_path[i] for i in graph.imports.get(m, set()) if i in mod_to_path and mod_to_path[i] in comps}
+-                         | {mod_to_path[i.rsplit(".", 1)[0]] for i in graph.imports.get(m, set())
+-                            if "." in i and i.rsplit(".", 1)[0] in mod_to_path and mod_to_path[i.rsplit(".", 1)[0]] in comps})
+-        targets = [t for t in targets if t != path]
++        names = {c for i in graph.imports.get(m, set()) for c in (i, i.rsplit(".", 1)[0])}
++        targets = sorted({mod_to_path[c] for c in names if mod_to_path.get(c) in comps} - {path})
+         deps[path] = tuple(targets)
+         for t in targets:
+             rdeps.setdefault(t, set()).add(path)
+@@ -401,9 +399,8 @@ def build(root: str | Path = REPO_ROOT, scope: Sequence[str] = ("creator", "test
+             lims.append(Limitation("STUB", path, s))
+         if not T.is_test_file(path) and comp.interfaces and path not in tests_of and not path.endswith("__init__.py"):
+             lims.append(Limitation("UNTESTED_MODULE", path, "no test file imports it"))
+-        if not T.is_test_file(path) and not rdeps.get(path) and path not in tests_of and not path.endswith("__init__.py") \
+-                and comp.interfaces:
+-            lims.append(Limitation("UNREACHED", path, "nothing in scope imports it"))
++            if not rdeps.get(path):
++                lims.append(Limitation("UNREACHED", path, "nothing in scope imports it"))
+     active: dict[str, Any] = {}
+     if ledger is not None:
+         try:

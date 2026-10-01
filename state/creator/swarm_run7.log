@@ -1,0 +1,4 @@
+{"package": "CP0048", "req": "EFF.size", "outcome": "REJECTED", "reason": "the worker changed nothing", "by": "claude-session"}
+{"package": "CP0046", "req": "K24.integrated", "outcome": "REJECTED", "reason": "claim NO_EFFECT: interval excludes a meaningful effect either way", "by": "self-rules-v1"}
+{"package": "CP0047", "req": "EFF.activation", "outcome": "REJECTED", "reason": "sandbox evaluation not clean (builds=True, report=INCONCLUSIVE)", "by": "claude-session"}
+ROUND {"round": 1, "outcome": "WORKED", "packages": 3, "peak_parallel": 35, "pulled_back": 0, "by_outcome": {"REJECTED": 3}, "free_gb": 8.29, "at": "2026-10-01T17:58:16"}

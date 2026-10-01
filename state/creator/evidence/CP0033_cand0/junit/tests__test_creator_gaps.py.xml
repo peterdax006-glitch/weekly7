@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="8" time="1426.964" timestamp="2026-10-01T15:21:54.449645-06:00" hostname="DaxLaptop"><testcase classname="tests.test_creator_gaps" name="test_assessment_is_computed_from_evidence" time="73.969" /><testcase classname="tests.test_creator_gaps" name="test_sync_opens_gaps_and_closes_met_requirements_with_a_computed_testrun" time="159.360" /><testcase classname="tests.test_creator_gaps" name="test_fixing_closes_the_gap_and_breaking_marks_a_regression" time="228.508" /><testcase classname="tests.test_creator_gaps" name="test_stale_evidence_does_not_close_a_gap" time="131.695" /><testcase classname="tests.test_creator_gaps" name="test_ranking_puts_unblocked_important_gaps_first" time="686.992"><failure message="AssertionError: assert ([RankedGap(gap_id='GAP-48f1a5d02f81a253934a', requirement_key='K01.validated', kind='EVIDENCE', importance=0.4, blocked_by=('GAP-3ea51d0a66d978e90c88',), description='K01.validated unmet: ledger state NOT_STARTED')] and ('GAP-3ea51d0a66d978e90c88',) == ()&#10;  &#10;  Left contains one more item: 'GAP-3ea51d0a66d978e90c88'&#10;  Use -v to get more diff)">proj = WindowsPath('C:/Users/Peter/AppData/Local/Temp/pytest-of-Peter/pytest-1817/test_ranking_puts_unblocked_im0/proj')
+
+    def test_ranking_puts_unblocked_important_gaps_first(proj: Path) -&gt; None:
+        led, model, _ = world(proj)
+        G.sync(led, model)
+        r = G.ranked(led)
+        assert r and not r[0].blocked_by
+        first_blocked = next((i for i, g in enumerate(r) if g.blocked_by), len(r))
+        assert all(g.blocked_by for g in r[first_blocked:])
+        k01v = [g for g in r if g.requirement_key == "K01.validated"]
+&gt;       assert k01v and k01v[0].blocked_by == ()                       # all of K01's prerequisites are met
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AssertionError: assert ([RankedGap(gap_id='GAP-48f1a5d02f81a253934a', requirement_key='K01.validated', kind='EVIDENCE', importance=0.4, blocked_by=('GAP-3ea51d0a66d978e90c88',), description='K01.validated unmet: ledger state NOT_STARTED')] and ('GAP-3ea51d0a66d978e90c88',) == ()
+E         
+E         Left contains one more item: 'GAP-3ea51d0a66d978e90c88'
+E         Use -v to get more diff)
+
+tests\test_creator_gaps.py:107: AssertionError</failure></testcase><testcase classname="tests.test_creator_gaps" name="test_stale_evidence_reopens_a_tested_requirement_without_calling_it_failed" time="111.766" /><testcase classname="tests.test_creator_gaps" name="test_gaps_are_created_in_dependency_order_so_blockers_are_recorded" time="18.681" /><testcase classname="tests.test_creator_gaps" name="test_blockers_are_also_derived_live_from_requirements" time="14.356" /></testsuite></testsuites>

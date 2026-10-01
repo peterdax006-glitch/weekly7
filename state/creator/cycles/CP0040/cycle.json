@@ -1,0 +1,20 @@
+{
+ "cycle": 1,
+ "outcome": "CANCELLED",
+ "package": "CP0040",
+ "requirement": "EFF.activation",
+ "reason": "pulled back: RAM tight (TimeoutExpired after its processes were stopped)",
+ "verdict": "",
+ "merge_commit": "",
+ "calls": 0,
+ "usd": 0.0,
+ "seconds": 2657.1,
+ "details": {
+  "recovered": [],
+  "worker": {
+   "claimed_done": true,
+   "notes": "self-rules-v1: no rule applied; Load less at start: removed kernel.AgentWorker (unused anywhere since the owner disabled hired Claude workers) and with it the eager import of creator/agents.py; kernel-start activation 56586 -> 50035 AST nodes (72.2% -> 64.0% of the package). gaps.py itself could not help: everything it imports the kernel already loads. Kernel tests for handoff/lock/protected paths pass; mypy clean.",
+   "by": "claude-session"
+  }
+ }
+}

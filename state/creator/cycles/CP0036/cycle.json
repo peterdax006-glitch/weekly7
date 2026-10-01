@@ -1,0 +1,15 @@
+{
+ "cycle": 1,
+ "outcome": "ERROR",
+ "package": "CP0036",
+ "requirement": "EFF.activation",
+ "reason": "TimeoutExpired: Command '['C:\\\\Users\\\\Peter\\\\weekly7\\\\.venv\\\\Scripts\\\\python.exe', '-B', '-m', 'pytest', '-q', '-x', '-p', 'no:cacheprovider', 'tests/test_creator_efficiency.py', 'tests/test_creator_kernel.py', 'tests/test_creator_localworker.py', 'tests/test_creator_planner.py', 'tests/test_creator_selfworkers.py', 'tests/test_creator_swarm.py']' timed out after 900.0 seconds",
+ "verdict": "",
+ "merge_commit": "",
+ "calls": 0,
+ "usd": 0.0,
+ "seconds": 1081.4,
+ "details": {
+  "recovered": []
+ }
+}

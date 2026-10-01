@@ -1,0 +1,15 @@
+{
+ "cycle": 1,
+ "outcome": "CANCELLED",
+ "package": "CP0021",
+ "requirement": "EFF.activation",
+ "reason": "pulled back before work (RAM tight)",
+ "verdict": "",
+ "merge_commit": "",
+ "calls": 0,
+ "usd": 0.0,
+ "seconds": 136.1,
+ "details": {
+  "recovered": []
+ }
+}

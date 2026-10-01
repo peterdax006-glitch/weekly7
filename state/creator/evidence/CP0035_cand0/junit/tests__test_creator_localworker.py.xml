@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="3" time="868.169" timestamp="2026-10-01T15:29:54.851077-06:00" hostname="DaxLaptop"><testcase classname="tests.test_creator_localworker" name="test_edits_apply_exactly_or_by_lines_and_refuse_ambiguity" time="0.084" /><testcase classname="tests.test_creator_localworker" name="test_the_local_worker_builds_a_missing_component_and_the_kernel_adopts_it" time="758.625"><failure message="AssertionError: TimeoutExpired: Command '['git', 'worktree', 'add', '--detach', 'C:\\Users\\Peter\\AppData\\Local\\Temp\\pytest-of-Peter\\pytest-1828\\test_the_local_worker_builds_a0\\scratch\\20261001T213202-5ed7e8b5-base', '3442a928d161cd1be6bab2e66736410dc20ed169']' timed out after -474.0 seconds&#10;assert 'ERROR' == 'ADOPTED'&#10;  &#10;  - ADOPTED&#10;  + ERROR">cfg = KernelConfig(repo=WindowsPath('C:/Users/Peter/AppData/Local/Temp/pytest-of-Peter/pytest-1828/test_the_local_worker_bui...t_parallel=1, sealed_root=None, steps=('exists', 'tested', 'no_stubs', 'integrated'), mode='gaps', measure_memory=True)
+
+    def test_the_local_worker_builds_a_missing_component_and_the_kernel_adopts_it(cfg: K.KernelConfig) -&gt; None:
+        fake = FakeModel([WRONG, CREATE])                                   # first attempt fails its test, second is right
+        rep = K.cycle(cfg, LW.LocalWorker(llm_factory=lambda: fake))
+&gt;       assert rep.outcome == "ADOPTED", rep.reason
+E       AssertionError: TimeoutExpired: Command '['git', 'worktree', 'add', '--detach', 'C:\\Users\\Peter\\AppData\\Local\\Temp\\pytest-of-Peter\\pytest-1828\\test_the_local_worker_builds_a0\\scratch\\20261001T213202-5ed7e8b5-base', '3442a928d161cd1be6bab2e66736410dc20ed169']' timed out after -474.0 seconds
+E       assert 'ERROR' == 'ADOPTED'
+E         
+E         - ADOPTED
+E         + ERROR
+
+tests\test_creator_localworker.py:85: AssertionError</failure></testcase><testcase classname="tests.test_creator_localworker" name="test_a_local_worker_that_cannot_do_it_is_rejected" time="107.756" /></testsuite></testsuites>

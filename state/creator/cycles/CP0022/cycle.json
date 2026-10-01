@@ -1,0 +1,15 @@
+{
+ "cycle": 1,
+ "outcome": "CANCELLED",
+ "package": "CP0022",
+ "requirement": "EFF.size",
+ "reason": "pulled back before work (RAM tight)",
+ "verdict": "",
+ "merge_commit": "",
+ "calls": 0,
+ "usd": 0.0,
+ "seconds": 136.7,
+ "details": {
+  "recovered": []
+ }
+}

@@ -1,0 +1,131 @@
+{
+ "base": "ea0784105316381f029dba5057d3dfd2b247ce74",
+ "changed": {
+  "creator/kernel.py": "M"
+ },
+ "change_digest": "80c9c241fa6f4de1",
+ "builds": true,
+ "build": {
+  "tree": "candidate",
+  "ok": true,
+  "kinds": [],
+  "new_issues": 0,
+  "preexisting_type_issues": 0,
+  "require_typecheck": true,
+  "notes": [],
+  "steps": [
+   {
+    "name": "compile",
+    "ran": true,
+    "ok": true,
+    "skipped_reason": "",
+    "seconds": 0.0,
+    "checked": [
+     "creator/kernel.py"
+    ],
+    "issues": [],
+    "proc": null
+   },
+   {
+    "name": "import",
+    "ran": true,
+    "ok": true,
+    "skipped_reason": "",
+    "seconds": 0.5,
+    "checked": [
+     "creator.kernel"
+    ],
+    "issues": [],
+    "proc": {
+     "argv": [
+      "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe",
+      "-c",
+      "\nimport importlib, json, os, sys, traceback\nroot = os.path.normcase(os.path.realpath(sys.argv[1]))\nout = []\nfor name in sys.argv[2:]:\n    rec = {\"module\": name}\n    try:\n        m = importlib.import_module(name)\n        f = getattr(m, \"__file__\", None)\n        rec[\"ok\"] = True\n        rec[\"file\"] = f\n        if f is None:\n            locs = [os.path.normcase(os.path.realpath(p)) for p in getattr(m, \"__path__\", [])]\n            if locs and not any(p == root or p.startswith(root + os.sep) for p in locs):\n                rec.update(ok=False, etype=\"Shadowed\", message=\"namespace package resolved outside the sandbox: %r\" % locs)\n        else:\n            rf = os.path.normcase(os.path.realpath(f))\n            if not rf.startswith(root + os.sep):\n                rec.update(ok=False, etype=\"Shadowed\", message=\"module resolved outside the sandbox: %s\" % f)\n    except BaseException as e:\n        rec.update(ok=False, etype=type(e).__name__, message=str(e)[:2000], missing=getattr(e, \"name\", None),\n                   lineno=getattr(e, \"lineno\", None), filename=getattr(e, \"filename\", None),\n                   tb=traceback.format_exc()[-4000:])\n    out.append(rec)\nsys.stdout.write(\"\\n@@CREATOR_IMPORT@@\" + json.dumps(out) + \"\\n\")\n",
+      "C:\\Users\\Peter\\.weekly7_creator_sandboxes\\20261001T224720-5e244060",
+      "creator.kernel"
+     ],
+     "cwd": "C:\\Users\\Peter\\.weekly7_creator_sandboxes\\20261001T224720-5e244060",
+     "returncode": 0,
+     "seconds": 0.5,
+     "timed_out": false,
+     "launch_error": "",
+     "stdout": "\n@@CREATOR_IMPORT@@[{\"module\": \"creator.kernel\", \"ok\": true, \"file\": \"C:\\\\Users\\\\Peter\\\\.weekly7_creator_sandboxes\\\\20261001T224720-5e244060\\\\creator\\\\kernel.py\"}]\n",
+     "stderr": ""
+    }
+   },
+   {
+    "name": "typecheck",
+    "ran": true,
+    "ok": true,
+    "skipped_reason": "",
+    "seconds": 104.797,
+    "checked": [],
+    "issues": [],
+    "proc": {
+     "argv": [
+      "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe",
+      "-m",
+      "mypy"
+     ],
+     "cwd": "C:\\Users\\Peter\\.weekly7_creator_sandboxes\\20261001T224720-5e244060",
+     "returncode": 0,
+     "seconds": 104.797,
+     "timed_out": false,
+     "launch_error": "",
+     "stdout": "Success: no issues found in 156 source files\n",
+     "stderr": ""
+    }
+   }
+  ]
+ },
+ "selection": {
+  "tests": [
+   "tests/test_creator_audit.py",
+   "tests/test_creator_efficiency.py",
+   "tests/test_creator_kernel.py",
+   "tests/test_creator_localworker.py",
+   "tests/test_creator_selfworkers.py",
+   "tests/test_creator_swarm.py",
+   "tests/test_creator_testgen.py"
+  ],
+  "reasons": {
+   "tests/test_creator_audit.py": "imports a changed module (transitively)",
+   "tests/test_creator_efficiency.py": "imports a changed module (transitively)",
+   "tests/test_creator_kernel.py": "imports a changed module (transitively)",
+   "tests/test_creator_localworker.py": "imports a changed module (transitively)",
+   "tests/test_creator_selfworkers.py": "imports a changed module (transitively)",
+   "tests/test_creator_swarm.py": "imports a changed module (transitively)",
+   "tests/test_creator_testgen.py": "imports a changed module (transitively)"
+  },
+  "select_all": false,
+  "why_all": "",
+  "unresolved": [],
+  "digest": "92e79bf0b6fb54f4"
+ },
+ "report": {
+  "verdict": "INCONCLUSIVE",
+  "summary": {
+   "PASS": 0,
+   "FIXED": 0,
+   "REGRESSION": 0,
+   "PREEXISTING": 0,
+   "NEW_FAILING": 0,
+   "NEW_PASSING": 0,
+   "REMOVED": 0,
+   "SKIPPED": 0,
+   "FLAKY": 0
+  },
+  "reasons": [
+   "candidate run TIMEOUT: pytest exceeded 600.0s",
+   "baseline run TIMEOUT: pytest exceeded 600.0s"
+  ],
+  "blocking": [],
+  "classes": {},
+  "flaky_history": {},
+  "timing": {
+   "baseline_s": 600.031,
+   "candidate_s": 600.047
+  }
+ },
+ "evidence_dir": "C:\\Users\\Peter\\.weekly7_creator_sandboxes\\20261001T224720-5e244060-evidence"
+}

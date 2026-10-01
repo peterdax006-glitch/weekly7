@@ -1,0 +1,20 @@
+Traceback (most recent call last):
+  File "C:\Users\Peter\weekly7\scripts\creator_swarm.py", line 94, in <module>
+    raise SystemExit(main(sys.argv[1:]))
+                     ^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Peter\weekly7\scripts\creator_swarm.py", line 77, in main
+    rnd = W.run_round(cfg, make_worker, gov, max_packages=a.packages,
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Peter\weekly7\creator\swarm.py", line 71, in run_round
+    main, recovered, stop = K.prepare(cfg, led)
+                            ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Peter\weekly7\creator\kernel.py", line 476, in prepare
+    G.sync(led, main.model)
+  File "C:\Users\Peter\weekly7\creator\gaps.py", line 163, in sync
+    ledger.transition(r.requirement_id, M.Status.FAILED, f"regression: check:{r.step}:{r.component} now fails - {r.detail}",
+  File "C:\Users\Peter\weekly7\creator\ledger.py", line 431, in transition
+    return self.append(M.Transition(created_by=created_by, subject_id=subject_id, from_state=cur, to_state=to, reason=reason,
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Peter\weekly7\creator\ledger.py", line 399, in append
+    raise LedgerError(f"refused {rec.RTYPE}: " + "; ".join(errs))
+creator.ledger.LedgerError: refused Transition: REQ-543d32cc0c458ce5193b is FAILED, not TESTED (stale or forged transition)

@@ -1,0 +1,169 @@
+diff --git a/creator/selfworkers.py b/creator/selfworkers.py
+index 364765d84..88dd07d2e 100644
+--- a/creator/selfworkers.py
++++ b/creator/selfworkers.py
+@@ -149,6 +149,49 @@ def dead_private(src: str, referenced: Callable[[str], bool]) -> Optional[str]:
+ RULES: tuple[str, ...] = ("unused_imports", "lazy_imports", "dead_private")
+ 
+ 
++class RuleLearner:
++    """K13 meta-learning applied to the system's own rules: which rule to try first for which kind of package. Each rule is a
++    creator.meta Strategy; every application is an Outcome (success = applied and the tests that reach it pass), persisted to an
++    append-only log so the order keeps learning across runs. Ordering: MetaLearner.select (UCB1: untried first, then the best
++    success rate plus an exploration bonus) picks the first rule, the rest follow by success rate."""
++
++    def __init__(self, log: Optional[Path] = None, rules: Sequence[str] = RULES) -> None:
++        import json
++        from creator import meta as MT
++        self.log = log
++        self.ml = MT.MetaLearner()
++        for r in rules:
++            self.ml.register(MT.Strategy(name=r, agent=SELF_PREFIX + "rules"))
++        if log is not None and log.is_file():
++            for ln in log.read_text(encoding="utf-8").splitlines():
++                try:
++                    row = json.loads(ln)
++                    if row.get("rule") in self.ml.strategies:
++                        self.ml.record(row["rule"], row["problem_class"], bool(row["success"]))
++                except (ValueError, KeyError):
++                    continue
++
++    def order(self, problem_class: str) -> list[str]:
++        first = self.ml.select(problem_class).name
++        rest = [r for r in self.ml.strategies if r != first]
++        rate = {r: self.ml.stats(r, problem_class)["success_rate"] for r in rest}
++        return [first] + sorted(rest, key=lambda r: -(rate[r] if rate[r] is not None else 0.5))
++
++    def record(self, rule: str, problem_class: str, success: bool) -> None:
++        import json
++        self.ml.record(rule, problem_class, success)
++        if self.log is not None:
++            self.log.parent.mkdir(parents=True, exist_ok=True)
++            with self.log.open("a", encoding="utf-8") as fh:
++                fh.write(json.dumps({"rule": rule, "problem_class": problem_class, "success": success}) + "\n")
++
++
++def problem_class(plan: Optional[P.Plan]) -> str:
++    if plan is None:
++        return "unknown"
++    return plan.requirement_key if plan.step == "efficiency" else plan.step
++
++
+ # ------------------------------------------------------------------------------------------------ workers
+ 
+ def _run_tests(workdir: Path, changed: Sequence[str]) -> bool:
+@@ -169,19 +212,25 @@ class RuleWorker:
+     name = SELF_PREFIX + "rules-v1"
+     steps = ("efficiency", "no_stubs", "integrated")
+ 
+-    def __init__(self, rules: Sequence[str] = RULES, max_rounds: int = 25) -> None:
++    def __init__(self, rules: Sequence[str] = RULES, max_rounds: int = 25, learner: Optional[RuleLearner] = None) -> None:
+         self.rules, self.max_rounds = tuple(rules), max_rounds
++        self.learner = learner
++        self.tried: list[str] = []                                  # order actually used on the last call (observable)
+ 
+     def targets(self, plan: P.Plan, package: M.WorkPackage) -> list[str]:
+         return [x for x in package.outputs if x.endswith(".py") and not Path(x).name.startswith("test_")]
+ 
+     def __call__(self, plan: P.Plan, package: M.WorkPackage, workdir: Path) -> K.WorkResult:
+         done: list[str] = []
++        pc = problem_class(plan)
++        order = [r for r in self.learner.order(pc) if r in self.rules] if self.learner else list(self.rules)
++        self.tried = order
+         for rel in self.targets(plan, package):
+             p = workdir / rel
+             if not p.is_file():
+                 continue
+-            for rule in self.rules:
++            for rule in order:
++                applied = False
+                 for _ in range(self.max_rounds):                    # apply a rule repeatedly while it keeps passing
+                     src = p.read_text(encoding="utf-8")
+                     if rule == "unused_imports":
+@@ -197,6 +246,9 @@ class RuleWorker:
+                         p.write_text(src, encoding="utf-8")         # this application broke something: undo, try next rule
+                         break
+                     done.append(f"{rule}:{rel}")
++                    applied = True
++                if self.learner is not None:
++                    self.learner.record(rule, pc, applied)
+         if not done:
+             return K.WorkResult(False, "no rule applied")
+         return K.WorkResult(True, f"{len(done)} transforms: {', '.join(done[:12])}", by=self.name)
+diff --git a/scripts/creator_kernel.py b/scripts/creator_kernel.py
+index 046047899..c1dee0b99 100644
+--- a/scripts/creator_kernel.py
++++ b/scripts/creator_kernel.py
+@@ -45,7 +45,8 @@ def main(argv: list[str]) -> int:
+         worker: K.Worker = session
+     else:
+         from creator import selfworkers as SW                       # loaded only when the system's own workers are used
+-        worker = SW.SelfFirst([SW.RuleWorker(), SW.SearchWorker()], None if a.worker == "self-only" else session)
++        learner = SW.RuleLearner(ROOT / "state" / "creator" / "rule_outcomes.jsonl")
++        worker = SW.SelfFirst([SW.RuleWorker(learner=learner), SW.SearchWorker()], None if a.worker == "self-only" else session)
+     cfg = K.KernelConfig(repo=ROOT, state=ROOT / "state" / "creator", steps=tuple(s for s in a.steps.split(",") if s),
+                          mode=a.mode)
+     try:
+diff --git a/scripts/creator_swarm.py b/scripts/creator_swarm.py
+index f4a348e12..a551dcb3d 100644
+--- a/scripts/creator_swarm.py
++++ b/scripts/creator_swarm.py
+@@ -66,8 +66,10 @@ def main(argv: list[str]) -> int:
+     a = ap.parse_args(argv)
+     session = None if a.no_session else SerialSession(a.handoff_hours)
+ 
++    learner = SW.RuleLearner(STATE / "rule_outcomes.jsonl")         # K13: which rule first, learned from every application
++
+     def make_worker() -> SW.SelfFirst:
+-        return SW.SelfFirst([SW.RuleWorker(), SW.SearchWorker()], session)
++        return SW.SelfFirst([SW.RuleWorker(learner=learner), SW.SearchWorker()], session)
+     gov = W.Governor(floor_fraction=a.floor_fraction, max_workers=a.max_workers)
+     cfg = K.KernelConfig(repo=ROOT, state=STATE, steps=tuple(s for s in a.steps.split(",") if s), mode=a.mode,
+                          test_parallel=a.test_parallel)
+diff --git a/tests/test_creator_selfworkers.py b/tests/test_creator_selfworkers.py
+index be55eb9d5..1db27313f 100644
+--- a/tests/test_creator_selfworkers.py
++++ b/tests/test_creator_selfworkers.py
+@@ -148,3 +148,42 @@ def test_search_is_not_used_on_code_whose_tests_already_pass(cfg: K.KernelConfig
+                         lambda led, root, base, avoid=(), kind=None: real(led, root, base, ("creator/big.py", "creator/kernel.py"), "size"))
+     rep = K.cycle(cfg, own())
+     assert rep.outcome == "REJECTED" and "changed nothing" in rep.reason            # helper.py: no rule applies, nothing done
++
++
++
++def test_meta_learning_orders_the_rules_and_learns_across_runs(tmp_path: Path) -> None:
++    """K13 integrated: the RuleWorker asks creator.meta which rule to try first, and every application teaches it."""
++    log = tmp_path / "rule_outcomes.jsonl"
++    learner = SW.RuleLearner(log)
++    assert learner.order("EFF.size")[0] == "unused_imports"                       # untried rules first, registration order
++    for _ in range(4):
++        learner.record("unused_imports", "EFF.size", False)
++        learner.record("lazy_imports", "EFF.size", False)
++        learner.record("dead_private", "EFF.size", True)
++    again = SW.RuleLearner(log)                                                  # a new run reloads what was learned
++    assert again.order("EFF.size")[0] == "dead_private"
++    assert again.order("EFF.activation")[0] == "unused_imports"                    # learning is per kind of package
++
++
++def test_the_rule_worker_uses_and_feeds_the_learner(tmp_path: Path) -> None:
++    r = tmp_path / "w"
++    put(r, "creator/__init__.py", "")
++    put(r, "creator/x.py", "import os\n\n\ndef _dead():\n    return 1\n\n\ndef f():\n    return 2\n")
++    put(r, "tests/__init__.py", "")
++    put(r, "tests/test_x.py", "from creator.x import f\n\n\ndef test_f():\n    assert f() == 2\n")
++    subprocess.run(["git", "init", "-q"], cwd=r)
++    learner = SW.RuleLearner(tmp_path / "log.jsonl")
++    for _ in range(3):
++        learner.record("dead_private", "EFF.size", True)
++        learner.record("unused_imports", "EFF.size", False)
++        learner.record("lazy_imports", "EFF.size", False)
++    worker = SW.RuleWorker(learner=learner)
++    plan = P.Plan("g", P.EFFICIENCY_KEY, "creator/x.py", "efficiency", None, "wp", "CP1", "cp", "ex", 1)
++
++    class Pkg:
++        outputs = ("creator/x.py",)
++    res = worker(plan, Pkg(), r)
++    assert res.claimed_done and worker.tried[0] == "dead_private"                 # the learned order was used
++    text = (r / "creator/x.py").read_text(encoding="utf-8")
++    assert "_dead" not in text and "import os" not in text
++    assert learner.ml.stats("unused_imports", "EFF.size")["n"] == 4               # and the outcome was recorded

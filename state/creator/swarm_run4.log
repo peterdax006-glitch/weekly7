@@ -1,0 +1,3 @@
+{"package": "CP0021", "req": "EFF.activation", "outcome": "CANCELLED", "reason": "pulled back before work (RAM tight)", "by": null}
+{"package": "CP0022", "req": "EFF.size", "outcome": "CANCELLED", "reason": "pulled back before work (RAM tight)", "by": null}
+{"package": "CP0018", "req": "K13.integrated", "outcome": "CANCELLED", "reason": "pulled back before evaluation (RAM tight)", "by": "claude-session"}

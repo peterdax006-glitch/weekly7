@@ -1,0 +1,20 @@
+{
+ "cycle": 1,
+ "outcome": "REJECTED",
+ "package": "CP0041",
+ "requirement": "EFF.size",
+ "reason": "the worker changed nothing",
+ "verdict": "",
+ "merge_commit": "",
+ "calls": 0,
+ "usd": 0.0,
+ "seconds": 1373.6,
+ "details": {
+  "recovered": [],
+  "worker": {
+   "claimed_done": false,
+   "notes": "self-rules-v1: no rule applied; deferred: creator/generator.py is being changed right now on branch push/ownworker (new mutation families for the own search worker); a shrink of the same file would conflict. Re-plan after that branch is merged.",
+   "by": "claude-session"
+  }
+ }
+}

@@ -1,0 +1,48 @@
+{
+ "cycle": 1,
+ "outcome": "REJECTED",
+ "package": "CP0046",
+ "requirement": "K24.integrated",
+ "reason": "claim NO_EFFECT: interval excludes a meaningful effect either way",
+ "verdict": "NO_EFFECT",
+ "merge_commit": "",
+ "calls": 0,
+ "usd": 0.0,
+ "seconds": 2995.8,
+ "details": {
+  "recovered": [],
+  "worker": {
+   "claimed_done": true,
+   "notes": "1 transforms: lazy_imports:creator/recursion.py",
+   "by": "self-rules-v1"
+  },
+  "claim": "IC-450ba25e309fe12e81a5",
+  "detail": {
+   "min_effect": 0.0,
+   "z": 2.0,
+   "diff": 0.0,
+   "se": 0.0,
+   "lo": 0.0,
+   "hi": 0.0,
+   "regressions": [
+    {
+     "metric": "affected_tests_pass",
+     "diff": 0.0,
+     "se": 0.0
+    },
+    {
+     "metric": "requirements_kept",
+     "diff": 0.0,
+     "se": 0.0
+    }
+   ],
+   "holdout_diff": 0.0,
+   "holdout_se": 0.0,
+   "why": "interval excludes a meaningful effect either way"
+  },
+  "regression": "CLEAN",
+  "builds": true,
+  "weakening": [],
+  "planted": []
+ }
+}

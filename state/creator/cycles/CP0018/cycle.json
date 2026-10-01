@@ -1,0 +1,20 @@
+{
+ "cycle": 1,
+ "outcome": "CANCELLED",
+ "package": "CP0018",
+ "requirement": "K13.integrated",
+ "reason": "pulled back before evaluation (RAM tight)",
+ "verdict": "",
+ "merge_commit": "",
+ "calls": 0,
+ "usd": 0.0,
+ "seconds": 910.9,
+ "details": {
+  "recovered": [],
+  "worker": {
+   "claimed_done": true,
+   "notes": "self-rules-v1: no rule applied; re-applied my K13 solution (CP0013): meta-learning orders the rule worker rules; learner wired into the kernel and swarm scripts",
+   "by": "claude-session"
+  }
+ }
+}

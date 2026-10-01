@@ -1,0 +1,40 @@
+{
+ "base": {
+  "target": "creator/kernel.py",
+  "target_size": 8082,
+  "package_size": 91873,
+  "memory_mb": [
+   83.202048,
+   82.149376
+  ],
+  "test_cases": 5727,
+  "active_nodes": 52558,
+  "static_load": 536579
+ },
+ "candidate": [
+  {
+   "target": "creator/kernel.py",
+   "target_size": 8124,
+   "package_size": 91915,
+   "memory_mb": [
+    83.484672,
+    82.80064
+   ],
+   "test_cases": 5727,
+   "active_nodes": 45954,
+   "static_load": 503517
+  },
+  {
+   "target": "creator/kernel.py",
+   "target_size": 8124,
+   "package_size": 91915,
+   "memory_mb": [
+    83.484672,
+    82.80064
+   ],
+   "test_cases": 5727,
+   "active_nodes": 45954,
+   "static_load": 503517
+  }
+ ]
+}

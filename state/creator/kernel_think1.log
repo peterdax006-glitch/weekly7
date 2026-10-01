@@ -1,0 +1,2 @@
+{"cycle": 1, "outcome": "AUDIT_RED", "package": "", "requirement": "", "reason": "stale_done:REQ-543d32cc0c458ce5193b", "verdict": "", "merge_commit": "", "calls": 0, "usd": 0.0, "seconds": 893.5, "details": {}}
+SUMMARY {"cycles": 1, "by_outcome": {"AUDIT_RED": 1}, "usd": 0.0, "calls": 0, "adopted": []}

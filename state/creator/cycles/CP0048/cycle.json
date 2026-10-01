@@ -1,0 +1,20 @@
+{
+ "cycle": 1,
+ "outcome": "REJECTED",
+ "package": "CP0048",
+ "requirement": "EFF.size",
+ "reason": "the worker changed nothing",
+ "verdict": "",
+ "merge_commit": "",
+ "calls": 0,
+ "usd": 0.0,
+ "seconds": 314.7,
+ "details": {
+  "recovered": [],
+  "worker": {
+   "claimed_done": false,
+   "notes": "self-rules-v1: no rule applied; Declined: creator/generator.py was rewritten on the integration branch claude/checklist this hour (behavioural-divergence ranking, process levers per_family/pair_width, budget hard cap). A shrink of main's old copy conflicts with that merge and would be discarded. Re-plan after claude/checklist merges to main.",
+   "by": "claude-session"
+  }
+ }
+}

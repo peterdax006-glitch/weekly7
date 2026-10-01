@@ -1,0 +1,317 @@
+diff --git a/creator/autotune.py b/creator/autotune.py
+index 15dc619f6..2aeb6a68f 100644
+--- a/creator/autotune.py
++++ b/creator/autotune.py
+@@ -1,155 +1,157 @@
+-"""Creator K19 - the Creator improves its OWN worker by itself (owner, 1 Oct 2026: "get it to the point where the system knows the
+-goal and then it can start working on building itself") - IMPLEMENTED, NOT VALIDATED.
+-
+-The worker's settings (creator.generator.WorkerConfig) are data the Creator changes on its own, never by hand:
+-
+-    1. take the ACTIVE config (state/creator/worker_config.json; the first one is the human default)
+-    2. propose ONE untried neighbouring change (a single field moved one step) - fields are visited in rotation so every
+-       dimension gets explored, and a config already tried is never re-tried
+-    3. measure current vs candidate on the sealed devbench with creator.evaluate.compare: dev split with replicates, then the
+-       holdout (both configurations frozen first), both arms using the SAME frozen copy of the experience log, no learning
+-    4. the verdict comes from creator.model:improvement_verdict; only IMPROVEMENT replaces the active config (ADOPT decision in
+-       the ledger, citing the claim); every trial is logged (state/creator/autotune_history.jsonl)
+-
+-No other AI is involved: the worker is the local model + search (creator.generator)."""
+-from __future__ import annotations
+-
+-import dataclasses
+-import json
+-import shutil
+-import time
+-from pathlib import Path
+-from typing import Any, Iterator, Optional, Sequence
+-
+-from creator import devbench as D
+-from creator import evaluate as EV
+-from creator import generator as G
+-from creator import model as M
+-from creator import objective as O
+-from creator.ledger import REPO_ROOT, Ledger
+-
+-STATE = REPO_ROOT / "state" / "creator"
+-ACTIVE = STATE / "worker_config.json"
+-HISTORY = STATE / "autotune_history.jsonl"
+-EXPERIENCE = STATE / "generator_memory.jsonl"
+-REQ_KEY = "GOAL.own_worker"
+-GRID: dict[str, tuple[Any, ...]] = {
+-    "model_attempts": (1, 2, 3, 4, 5),
+-    "temperature": (0.0, 0.2, 0.4, 0.7),
+-    "examples_k": (0, 1, 2, 3),
+-    "search_budget": (0, 60, 120, 240, 480),
+-    "order": ("learned", "model_first", "search_first"),
+-    "prompt": ("plain", "stepwise"),
+-}
+-
+-
+-def load_active(path: Path = ACTIVE) -> G.WorkerConfig:
+-    if path.is_file():
+-        return G.WorkerConfig(**json.loads(path.read_text(encoding="utf-8"))["config"])
+-    return G.WorkerConfig()
+-
+-
+-def save_active(cfg: G.WorkerConfig, why: str, path: Path = ACTIVE) -> None:
+-    path.parent.mkdir(parents=True, exist_ok=True)
+-    path.write_text(json.dumps({"config": dataclasses.asdict(cfg), "digest": cfg.digest(), "why": why,
+-                                "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}, indent=1), encoding="utf-8")
+-
+-
+-def tried(history: Path = HISTORY) -> set[str]:
+-    if not history.is_file():
+-        return set()
+-    return {json.loads(ln)["candidate"] for ln in history.read_text(encoding="utf-8").splitlines() if ln.strip()}
+-
+-
+-def neighbours(cfg: G.WorkerConfig, start: int = 0) -> Iterator[tuple[str, G.WorkerConfig]]:
+-    """Single-field moves, fields visited in rotation from `start` (numeric fields one step either way; categorical any other)."""
+-    fields = list(GRID)
+-    for k in range(len(fields)):
+-        f = fields[(start + k) % len(fields)]
+-        values, cur = GRID[f], getattr(cfg, f)
+-        if f in ("order", "prompt"):
+-            moves = [v for v in values if v != cur]
+-        else:
+-            i = values.index(cur) if cur in values else 0
+-            moves = [values[j] for j in (i + 1, i - 1) if 0 <= j < len(values)]
+-        for v in moves:
+-            yield f, dataclasses.replace(cfg, **{f: v})
+-
+-
+-def propose(current: G.WorkerConfig, history: Path = HISTORY) -> Optional[tuple[str, G.WorkerConfig]]:
+-    seen = tried(history) | {current.digest()}
+-    start = len(tried(history))
+-    for f, cand in neighbours(current, start):
+-        if cand.digest() not in seen:
+-            return f, cand
+-    return None
+-
+-
+-def _experiment(led: Ledger, field: str, current: G.WorkerConfig, cand: G.WorkerConfig) -> str:
+-    goal = O.goal_objective(led)
+-    req = led.view.unique.get(("Requirement", REQ_KEY))
+-    if req is None:
+-        req = led.append(M.Requirement(
+-            created_by=M.Role.OWNER, parents=(goal,), key=REQ_KEY, priority=M.Priority.CRITICAL,
+-            description="the Creator's own worker (no other AI) solves more development tasks over time, by its own changes",
+-            acceptance_test="autotune:improvement (standing objective)",
+-            measurement_method="creator.evaluate.compare on the sealed devbench (dev replicates + frozen holdout)",
+-            failure_condition="no measured improvement over many trials", validation_method="creator.model:improvement_verdict",
+-            evidence_location="state/creator/evals/<experiment>/"))
+-    gap = led.append(M.Gap(created_by=M.Role.KERNEL, parents=(req,), kind=M.GapKind.CAPABILITY,
+-                           description=f"worker trial: {field} {getattr(current, field)} -> {getattr(cand, field)}", importance=0.5))
+-    return led.append(M.Experiment(created_by=M.Role.KERNEL, parents=(gap,),
+-                                   hypothesis=f"changing {field} to {getattr(cand, field)!r} makes the own worker solve more tasks",
+-                                   design="devbench dev x replicates + holdout; same frozen experience; no learning during runs",
+-                                   metrics=(EV.PRIMARY,), seed=0, baseline_ref=current.digest(), candidate_ref=cand.digest()))
+-
+-
+-@dataclasses.dataclass(frozen=True)
+-class Trial:
+-    field: str
+-    current: str
+-    candidate: str
+-    verdict: str
+-    adopted: bool
+-    detail: dict[str, Any]
+-    seconds: float
+-
+-
+-def trial(led: Ledger, llm: Any, replicates: int = 2, tasks: Optional[Sequence[D.Task]] = None,
+-          manifest: Optional[dict[str, Any]] = None, active: Path = ACTIVE, history: Path = HISTORY,
+-          experience: Path = EXPERIENCE, frozen: Path = STATE / "frozen_configs.json",
+-          out_dir: Optional[Path] = None) -> Optional[Trial]:
+-    current = load_active(active)
+-    prop = propose(current, history)
+-    if prop is None:
+-        return None
+-    field, cand = prop
+-    t0 = time.monotonic()
+-    ex = _experiment(led, field, current, cand)
+-    snap = (out_dir or STATE / "evals") / ex / "experience_snapshot.jsonl"
+-    snap.parent.mkdir(parents=True, exist_ok=True)
+-    if experience.is_file():
+-        shutil.copyfile(experience, snap)
+-    mem = G.ExperienceMemory(snap)
+-
+-    def arm(c: G.WorkerConfig, name: str) -> EV.Arm:
+-        return EV.Arm(name, G.GeneratorSolver(llm, memory=mem, learn=False, config=c, name=name), dataclasses.asdict(c))
+-    rep = EV.compare(led, ex, arm(current, f"worker-{current.digest()}"), arm(cand, f"worker-{cand.digest()}"),
+-                     replicates=replicates, tasks=tasks, manifest=manifest, frozen_path=frozen, out_dir=out_dir)
+-    adopted = rep.verdict is M.Verdict.IMPROVEMENT
+-    if adopted:
+-        led.append(M.Decision(created_by=M.Role.VALIDATOR, subject_id=ex, verdict=M.DecisionVerdict.ADOPT,
+-                              reason=f"own worker improved: {field} -> {getattr(cand, field)!r}", claim_id=rep.claim_id))
+-        save_active(cand, f"adopted by measured trial {ex} ({field})", active)
+-    else:
+-        led.append(M.Decision(created_by=M.Role.VALIDATOR, subject_id=ex, verdict=M.DecisionVerdict.REJECT,
+-                              reason=f"{rep.verdict.value}: {rep.detail.get('why')}"))
+-    t = Trial(field, current.digest(), cand.digest(), rep.verdict.value, adopted,
+-              {"why": rep.detail.get("why"), "base": rep.base_dev.get("solve_rate"), "cand": rep.cand_dev.get("solve_rate"),
+-               "diff": rep.detail.get("diff"), "holdout_diff": rep.detail.get("holdout_diff"),
+-               "paired_dev": dataclasses.asdict(rep.paired_dev), "candidate_config": dataclasses.asdict(cand)},
+-              round(time.monotonic() - t0, 1))
+-    history.parent.mkdir(parents=True, exist_ok=True)
+-    with history.open("a", encoding="utf-8") as fh:
+-        fh.write(json.dumps(dataclasses.asdict(t), default=str) + "\n")
+-    return t
++"""Creator K19 - the Creator improves its OWN worker by itself (owner, 1 Oct 2026: "get it to the point where the system knows the
++goal and then it can start working on building itself") - IMPLEMENTED, NOT VALIDATED.
++
++The worker's settings (creator.generator.WorkerConfig) are data the Creator changes on its own, never by hand:
++
++    1. take the ACTIVE config (state/creator/worker_config.json; the first one is the human default)
++    2. propose ONE untried neighbouring change (a single field moved one step) - fields are visited in rotation so every
++       dimension gets explored, and a config already tried is never re-tried
++    3. measure current vs candidate on the sealed devbench with creator.evaluate.compare: dev split with replicates, then the
++       holdout (both configurations frozen first), both arms using the SAME frozen copy of the experience log, no learning
++    4. the verdict comes from creator.model:improvement_verdict; only IMPROVEMENT replaces the active config (ADOPT decision in
++       the ledger, citing the claim); every trial is logged (state/creator/autotune_history.jsonl)
++
++No other AI is involved: the worker is the local model + search (creator.generator)."""
++from __future__ import annotations
++
++import dataclasses
++import json
++import shutil
++import time
++from pathlib import Path
++from typing import Any, Iterator, Optional, Sequence
++
++from creator import devbench as D
++from creator import evaluate as EV
++from creator import generator as G
++from creator.ledger import REPO_ROOT, Ledger
++
++STATE = REPO_ROOT / "state" / "creator"
++ACTIVE = STATE / "worker_config.json"
++HISTORY = STATE / "autotune_history.jsonl"
++EXPERIENCE = STATE / "generator_memory.jsonl"
++REQ_KEY = "GOAL.own_worker"
++GRID: dict[str, tuple[Any, ...]] = {
++    "model_attempts": (1, 2, 3, 4, 5),
++    "temperature": (0.0, 0.2, 0.4, 0.7),
++    "examples_k": (0, 1, 2, 3),
++    "search_budget": (0, 60, 120, 240, 480),
++    "order": ("learned", "model_first", "search_first"),
++    "prompt": ("plain", "stepwise"),
++}
++
++
++def load_active(path: Path = ACTIVE) -> G.WorkerConfig:
++    if path.is_file():
++        return G.WorkerConfig(**json.loads(path.read_text(encoding="utf-8"))["config"])
++    return G.WorkerConfig()
++
++
++def save_active(cfg: G.WorkerConfig, why: str, path: Path = ACTIVE) -> None:
++    from creator import model as M
++    path.parent.mkdir(parents=True, exist_ok=True)
++    path.write_text(json.dumps({"config": dataclasses.asdict(cfg), "digest": cfg.digest(), "why": why,
++                                "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}, indent=1), encoding="utf-8")
++
++
++def tried(history: Path = HISTORY) -> set[str]:
++    if not history.is_file():
++        return set()
++    return {json.loads(ln)["candidate"] for ln in history.read_text(encoding="utf-8").splitlines() if ln.strip()}
++
++
++def neighbours(cfg: G.WorkerConfig, start: int = 0) -> Iterator[tuple[str, G.WorkerConfig]]:
++    """Single-field moves, fields visited in rotation from `start` (numeric fields one step either way; categorical any other)."""
++    fields = list(GRID)
++    for k in range(len(fields)):
++        f = fields[(start + k) % len(fields)]
++        values, cur = GRID[f], getattr(cfg, f)
++        if f in ("order", "prompt"):
++            moves = [v for v in values if v != cur]
++        else:
++            i = values.index(cur) if cur in values else 0
++            moves = [values[j] for j in (i + 1, i - 1) if 0 <= j < len(values)]
++        for v in moves:
++            yield f, dataclasses.replace(cfg, **{f: v})
++
++
++def propose(current: G.WorkerConfig, history: Path = HISTORY) -> Optional[tuple[str, G.WorkerConfig]]:
++    seen = tried(history) | {current.digest()}
++    start = len(tried(history))
++    for f, cand in neighbours(current, start):
++        if cand.digest() not in seen:
++            return f, cand
++    return None
++
++
++def _experiment(led: Ledger, field: str, current: G.WorkerConfig, cand: G.WorkerConfig) -> str:
++    from creator import objective as O
++    from creator import model as M
++    goal = O.goal_objective(led)
++    req = led.view.unique.get(("Requirement", REQ_KEY))
++    if req is None:
++        req = led.append(M.Requirement(
++            created_by=M.Role.OWNER, parents=(goal,), key=REQ_KEY, priority=M.Priority.CRITICAL,
++            description="the Creator's own worker (no other AI) solves more development tasks over time, by its own changes",
++            acceptance_test="autotune:improvement (standing objective)",
++            measurement_method="creator.evaluate.compare on the sealed devbench (dev replicates + frozen holdout)",
++            failure_condition="no measured improvement over many trials", validation_method="creator.model:improvement_verdict",
++            evidence_location="state/creator/evals/<experiment>/"))
++    gap = led.append(M.Gap(created_by=M.Role.KERNEL, parents=(req,), kind=M.GapKind.CAPABILITY,
++                           description=f"worker trial: {field} {getattr(current, field)} -> {getattr(cand, field)}", importance=0.5))
++    return led.append(M.Experiment(created_by=M.Role.KERNEL, parents=(gap,),
++                                   hypothesis=f"changing {field} to {getattr(cand, field)!r} makes the own worker solve more tasks",
++                                   design="devbench dev x replicates + holdout; same frozen experience; no learning during runs",
++                                   metrics=(EV.PRIMARY,), seed=0, baseline_ref=current.digest(), candidate_ref=cand.digest()))
++
++
++@dataclasses.dataclass(frozen=True)
++class Trial:
++    field: str
++    current: str
++    candidate: str
++    verdict: str
++    adopted: bool
++    detail: dict[str, Any]
++    seconds: float
++
++
++def trial(led: Ledger, llm: Any, replicates: int = 2, tasks: Optional[Sequence[D.Task]] = None,
++          manifest: Optional[dict[str, Any]] = None, active: Path = ACTIVE, history: Path = HISTORY,
++          experience: Path = EXPERIENCE, frozen: Path = STATE / "frozen_configs.json",
++          out_dir: Optional[Path] = None) -> Optional[Trial]:
++    from creator import model as M
++    current = load_active(active)
++    prop = propose(current, history)
++    if prop is None:
++        return None
++    field, cand = prop
++    t0 = time.monotonic()
++    ex = _experiment(led, field, current, cand)
++    snap = (out_dir or STATE / "evals") / ex / "experience_snapshot.jsonl"
++    snap.parent.mkdir(parents=True, exist_ok=True)
++    if experience.is_file():
++        shutil.copyfile(experience, snap)
++    mem = G.ExperienceMemory(snap)
++
++    def arm(c: G.WorkerConfig, name: str) -> EV.Arm:
++        return EV.Arm(name, G.GeneratorSolver(llm, memory=mem, learn=False, config=c, name=name), dataclasses.asdict(c))
++    rep = EV.compare(led, ex, arm(current, f"worker-{current.digest()}"), arm(cand, f"worker-{cand.digest()}"),
++                     replicates=replicates, tasks=tasks, manifest=manifest, frozen_path=frozen, out_dir=out_dir)
++    adopted = rep.verdict is M.Verdict.IMPROVEMENT
++    if adopted:
++        led.append(M.Decision(created_by=M.Role.VALIDATOR, subject_id=ex, verdict=M.DecisionVerdict.ADOPT,
++                              reason=f"own worker improved: {field} -> {getattr(cand, field)!r}", claim_id=rep.claim_id))
++        save_active(cand, f"adopted by measured trial {ex} ({field})", active)
++    else:
++        led.append(M.Decision(created_by=M.Role.VALIDATOR, subject_id=ex, verdict=M.DecisionVerdict.REJECT,
++                              reason=f"{rep.verdict.value}: {rep.detail.get('why')}"))
++    t = Trial(field, current.digest(), cand.digest(), rep.verdict.value, adopted,
++              {"why": rep.detail.get("why"), "base": rep.base_dev.get("solve_rate"), "cand": rep.cand_dev.get("solve_rate"),
++               "diff": rep.detail.get("diff"), "holdout_diff": rep.detail.get("holdout_diff"),
++               "paired_dev": dataclasses.asdict(rep.paired_dev), "candidate_config": dataclasses.asdict(cand)},
++              round(time.monotonic() - t0, 1))
++    history.parent.mkdir(parents=True, exist_ok=True)
++    with history.open("a", encoding="utf-8") as fh:
++        fh.write(json.dumps(dataclasses.asdict(t), default=str) + "\n")
++    return t

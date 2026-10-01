@@ -1,0 +1,115 @@
+diff --git a/creator/kernel.py b/creator/kernel.py
+index 45ce940c8..89c44fda7 100644
+--- a/creator/kernel.py
++++ b/creator/kernel.py
+@@ -674,6 +674,13 @@ def execute(cfg: KernelConfig, worker: Worker, plan: P.Plan, main: Assessed, bas
+                                      problem_class=plan.step,
+                                      subject_id=plan.work_package_id, success=rep.outcome == "ADOPTED", cost=rep.usd,
+                                      duration_s=rep.seconds))
++        try:                                                            # K12: every outcome becomes development memory
++            from creator import memory as MEM
++            MEM.append(P.memory_path(led), "repair" if rep.outcome == "ADOPTED" else "failure",
++                       f"{plan.requirement_key} {plan.component} {plan.step}", rep.reason[:400],
++                       (plan.step, rep.outcome, str(rep.details.get("worker", {}).get("by") or "")))
++        except Exception:                                               # noqa: BLE001 - memory is never worth losing a cycle
++            pass
+         if checkpoint:
+             led.checkpoint(f"cycle {n} {plan.package_id} {rep.outcome}")
+         _evidence_file(cfg, plan.package_id, "cycle.json", dataclasses.asdict(rep))
+diff --git a/creator/memory.py b/creator/memory.py
+index bc364466b..97fddbe9b 100644
+--- a/creator/memory.py
++++ b/creator/memory.py
+@@ -92,6 +92,16 @@ class Memory:
+                 f.write(json.dumps(e.to_dict(), sort_keys=True) + "\n")
+ 
+ 
++def append(path, kind: str, subject: str, detail: str = "", tags=()) -> MemoryEntry:
++    """Remember one entry by APPENDING a single line (safe when several workers write at once - Memory.save rewrites the file)."""
++    entry = Memory().remember(kind, subject, detail, tags)
++    p = Path(path)
++    p.parent.mkdir(parents=True, exist_ok=True)
++    with p.open("a", encoding="utf-8") as f:
++        f.write(json.dumps(entry.to_dict(), sort_keys=True) + "\n")
++    return entry
++
++
+ def load(path) -> Memory:
+     """Load a Memory from a JSON-lines file written by Memory.save.
+ 
+diff --git a/creator/planner.py b/creator/planner.py
+index 87599bb66..f3c709c97 100644
+--- a/creator/planner.py
++++ b/creator/planner.py
+@@ -16,6 +16,7 @@ depends on changes. Package ids are sequential (CP0001...), so a plan's order is
+ from __future__ import annotations
+ 
+ import dataclasses
++from pathlib import Path
+ from typing import Any, Mapping, Optional, Sequence
+ 
+ from creator import gaps as G
+@@ -150,6 +151,9 @@ def build_package(ledger: Ledger, gap_id: str, model: SM.SelfModel,
+     why = f"gap {gap_id} ({getattr(req, 'key')}): {detail}"
+     if prior:
+         why += f"; attempt {len(prior) + 1} after: " + "; ".join(failure_reasons(ledger, prior)[-2:])
++    lessons = remembered(ledger, f"{getattr(req, 'key')} {cid} {step} {detail}", subject=f"{getattr(req, 'key')} {cid} {step}")
++    if lessons:
++        why += "; remembered: " + " | ".join(lessons)
+     deps = tuple(getattr(ledger.get(d), "package_id") for d in prior[-1:]) if prior else ()
+     return dict(
+         package_id=next_package_id(ledger), objective=t["effect"].format(**kw), why_it_exists=why,
+@@ -178,6 +182,21 @@ def build_package(ledger: Ledger, gap_id: str, model: SM.SelfModel,
+     ), {"req_id": req_id, "step": step, "cid": cid, "key": getattr(req, "key"), "attempt": len(prior) + 1}
+ 
+ 
++def memory_path(ledger: Ledger) -> Path:
++    return Path(ledger.path).parent / "dev_memory.jsonl"
++
++
++def remembered(ledger: Ledger, query: str, limit: int = 3, subject: str = "") -> list[str]:
++    """K12 in the loop: what development memory has seen like this before (past failures and repairs), for the work package.
++    The same subject (requirement + component + step) first, most recent first; then token similarity (Jaccard punishes long
++    details, so it is only the fallback)."""
++    from creator import memory as MEM                                   # loaded only when a package is being planned
++    mem = MEM.load(memory_path(ledger))
++    exact = [e for e in reversed(mem.entries) if subject and e.subject == subject][:limit]
++    similar = [e for _, e in mem.seen_before(query, limit=limit, min_score=0.25) if e not in exact]
++    return [f"{e.kind} {e.subject}: {e.detail[:160]}" for e in (exact + similar)[:limit]]
++
++
+ def plan_next(ledger: Ledger, model: SM.SelfModel, base_ref: str, specs: Optional[Sequence[SM.CapabilitySpec]] = None,
+               max_attempts: int = MAX_ATTEMPTS, steps: Sequence[str] = WORKER_STEPS + VALIDATOR_STEPS,
+               exclude_components: Sequence[str] = ()) -> Optional[Plan]:
+diff --git a/tests/test_creator_planner.py b/tests/test_creator_planner.py
+index c221351b9..36a19e07e 100644
+--- a/tests/test_creator_planner.py
++++ b/tests/test_creator_planner.py
+@@ -119,3 +119,27 @@ def test_the_package_states_the_current_check_not_the_gap_text(world) -> None:
+     assert "nothing to integrate" in led.get(plan.gap_id).description          # the frozen text
+     why = led.get(plan.work_package_id).why_it_exists
+     assert "not imported by production code" in why and "nothing to integrate" not in why
++
++
++
++def test_development_memory_reaches_the_next_work_package(world) -> None:
++    """K12 integrated: an outcome the kernel remembered is retrieved into the next package for the same requirement."""
++    from creator import memory as MEM
++    led, model = world
++    first = P.plan_next(led, model, "b", SPECS, steps=("exists",))
++    assert first is not None and "remembered" not in led.get(first.work_package_id).why_it_exists
++    MEM.append(P.memory_path(led), "failure", f"{first.requirement_key} {first.component} {first.step}",
++               "rejected: the new module had no test that reaches it", ("exists", "REJECTED"))
++    P.record_outcome(led, first, False, "no test reached it")
++    second = P.plan_next(led, model, "b", SPECS, steps=("exists",))
++    assert second is not None and second.gap_id == first.gap_id
++    assert "remembered: failure" in led.get(second.work_package_id).why_it_exists
++    assert "no test that reaches it" in led.get(second.work_package_id).why_it_exists
++
++
++def test_memory_appends_are_line_safe(tmp_path) -> None:
++    from creator import memory as MEM
++    p = tmp_path / "m.jsonl"
++    for i in range(5):
++        MEM.append(p, "repair", f"subject {i}", "detail")
++    assert len(MEM.load(p).entries) == 5

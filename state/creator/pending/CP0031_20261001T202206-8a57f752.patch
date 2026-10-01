@@ -1,0 +1,99 @@
+diff --git a/creator/planner.py b/creator/planner.py
+index 87599bb66..38480b723 100644
+--- a/creator/planner.py
++++ b/creator/planner.py
+@@ -260,10 +260,11 @@ def recent_failed_targets(ledger: Ledger, window: int = 6) -> list[str]:
+ def plan_efficiency(ledger: Ledger, root: Any, base_ref: str, avoid: Sequence[str] = (), kind: Optional[str] = None) -> Optional[Plan]:
+     """Plan one efficiency package: SIZE (shrink the largest module the Creator may edit) or ACTIVATION (load less code at start -
+     owner: 'never run any more code than absolutely necessarry'). Kinds alternate unless `kind` is given."""
+-    past = [e for e in ledger.of_type("WorkPackage") if getattr(e.record, "objective", "").startswith(("shrink ", "load less"))]
+-    kind = kind or ("activation" if len(past) % 2 else "size")
++    design_note = ""
++    if kind is None:
++        kind, design_note = choose_efficiency_kind(ledger, root)
+     if kind == "activation":
+-        return _plan_activation(ledger, root, base_ref, avoid)
++        return _plan_activation(ledger, root, base_ref, avoid, design_note)
+     from pathlib import Path as _P
+     from creator import efficiency as E
+     objective_id = next((e.id for e in ledger.of_type("Objective") if getattr(e.record, "statement") == O.SELF_STATEMENT), None)
+@@ -281,7 +282,7 @@ def plan_efficiency(ledger: Ledger, root: Any, base_ref: str, avoid: Sequence[st
+     wp = ledger.append(M.WorkPackage(
+         created_by=M.Role.KERNEL, parents=(gap,), package_id=pid, objective=f"shrink {path} without losing capability",
+         why_it_exists=f"owner directive 1 Oct 2026: the Creator constantly shrinks its own code; {path} is the largest module "
+-                      f"it may edit ({nodes} AST nodes)",
++                      f"it may edit ({nodes} AST nodes)" + (f"; {design_note}" if design_note else ""),
+         prerequisites=("none",), inputs=(path,), outputs=(path,), implementation_requirements=_fmt(EFFICIENCY_TEXT["do"], **kw),
+         interfaces=("every public interface of the module stays as it is unless no caller uses it",),
+         data_flow="sandbox -> build -> affected tests -> every requirement re-checked -> size + memory measured -> decision",
+@@ -307,7 +308,40 @@ def plan_efficiency(ledger: Ledger, root: Any, base_ref: str, avoid: Sequence[st
+     return Plan(gap, EFFICIENCY_KEY, path, "efficiency", M.Role.IMPLEMENTER, wp, pid, cp, ex, 1)
+ 
+ 
+-def _plan_activation(ledger: Ledger, root: Any, base_ref: str, avoid: Sequence[str] = ()) -> Optional[Plan]:
++def choose_efficiency_kind(ledger: Ledger, root: Any, window: int = 10) -> tuple[str, str]:
++    """K08 in the loop: SIZE or ACTIVATION is a design decision made with creator.design - two options scored on measured
++    benefit (how much there is to gain), risk (how often recent packages of that kind failed) and cost, the loser kept with its
++    reason. Returns (kind, a one-line record of the decision for the work package)."""
++    from pathlib import Path as _P
++    from creator import design as DS
++    from creator import efficiency as E
++    rootp = _P(root)
++    if not (rootp / "creator" / "kernel.py").is_file():
++        return "size", "design decision: size (no kernel entry point here, so activation cannot be measured)"
++    act = E.activation(rootp)
++    sizes = {f: n for f, n in E.sizes(rootp).items() if E.editable(f)}
++    package = max(1, act["package_nodes"])
++
++    def risk(prefix: str) -> float:
++        recent = [e for e in ledger.of_type("WorkPackage") if getattr(e.record, "objective", "").startswith(prefix)][-window:]
++        failed = sum(1 for e in recent if ledger.view.status.get(e.id) is M.Status.FAILED)
++        return (failed + 1) / (len(recent) + 2)                       # Laplace: unknown -> 0.5
++    options = DS.generate_options("which efficiency work next?", [
++        {"name": "size", "summary": "shrink the largest module the Creator may edit", "assumptions": ("behaviour kept by tests",),
++         "failure_modes": ("no rule applies", "a requirement is lost"), "cost": 0.5, "risk": risk("shrink "),
++         "benefit": min(1.0, 4.0 * max(sizes.values(), default=0) / package)},
++        {"name": "activation", "summary": "load less code when the Creator starts", "assumptions": ("imports used only in functions",),
++         "failure_modes": ("an import needed at module level", "no loaded module can defer"), "cost": 0.5,
++         "risk": risk("load less"), "benefit": float(act["fraction"])},
++    ], n=2)
++    decision = DS.select("which efficiency work next?", options)
++    assert decision.selected is not None
++    note = (f"design decision: {decision.selected.name} (score {decision.scores[decision.selected.name]:.3f}) over "
++            + "; ".join(f"{o.name} {r}" for o, r in decision.rejected))
++    return decision.selected.name, note
++
++
++def _plan_activation(ledger: Ledger, root: Any, base_ref: str, avoid: Sequence[str] = (), design_note: str = "") -> Optional[Plan]:
+     from pathlib import Path as _P
+     from creator import efficiency as E
+     objective_id = next((e.id for e in ledger.of_type("Objective") if getattr(e.record, "statement") == O.SELF_STATEMENT), None)
+@@ -336,7 +370,7 @@ def _plan_activation(ledger: Ledger, root: Any, base_ref: str, avoid: Sequence[s
+     wp = ledger.append(M.WorkPackage(
+         created_by=M.Role.KERNEL, parents=(gap,), package_id=pid, objective=f"load less code at start: {path}",
+         why_it_exists=f"owner directive 1 Oct 2026 (sparse activation); kernel start loads {act['active_nodes']} of "
+-                      f"{act['package_nodes']} AST nodes",
++                      f"{act['package_nodes']} AST nodes" + (f"; {design_note}" if design_note else ""),
+         prerequisites=("none",), inputs=(path,), outputs=(path,),
+         implementation_requirements=(f"in {path}, import Creator components inside the functions that use them instead of at "
+                                      "module level, and drop imports nothing uses",),
+diff --git a/tests/test_creator_efficiency.py b/tests/test_creator_efficiency.py
+index df21cc901..a4e6c55e6 100644
+--- a/tests/test_creator_efficiency.py
++++ b/tests/test_creator_efficiency.py
+@@ -139,3 +139,15 @@ def test_gap_work_comes_first_in_auto_mode(cfg: K.KernelConfig) -> None:
+     w = Shrinker({})
+     K.cycle(dataclasses.replace(cfg, mode="auto", capabilities=specs), w)
+     assert w.seen == ["K02"]                                             # a capability gap outranks a shrink
++
++
++
++def test_the_efficiency_kind_is_a_measured_design_decision(cfg: K.KernelConfig) -> None:
++    """K08 integrated: SIZE vs ACTIVATION is chosen by creator.design on measured benefit and risk, the loser kept with a reason."""
++    from creator import planner as P
++    put(cfg.repo, "creator/kernel.py", "from creator import big\n\n\ndef start():\n    return big.add(1, 2)\n")
++    led = Ledger(cfg.ledger_path, evidence_root=cfg.repo)
++    kind, note = P.choose_efficiency_kind(led, cfg.repo)
++    assert kind in ("size", "activation") and note.startswith(f"design decision: {kind}") and "scored" in note
++    other = "activation" if kind == "size" else "size"
++    assert other in note                                                 # the rejected alternative is kept with its reason

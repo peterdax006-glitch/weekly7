@@ -1,0 +1,20 @@
+{
+ "cycle": 1,
+ "outcome": "REJECTED",
+ "package": "CP0042",
+ "requirement": "EFF.activation",
+ "reason": "the worker changed nothing",
+ "verdict": "",
+ "merge_commit": "",
+ "calls": 0,
+ "usd": 0.0,
+ "seconds": 1873.6,
+ "details": {
+  "recovered": [],
+  "worker": {
+   "claimed_done": false,
+   "notes": "self-rules-v1: no rule applied; no measurable gain possible: objective.py only uses selfmodel/ledger in type hints, and the kernel imports both itself at start, so deferring them here cannot lower kernel-start activation. Activation packages should target modules that pull in something the kernel does NOT otherwise need (CP0040 removed agents.py that way).",
+   "by": "claude-session"
+  }
+ }
+}

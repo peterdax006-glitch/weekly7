@@ -1,0 +1,20 @@
+diff --git a/creator/recursion.py b/creator/recursion.py
+index 4a14fca48..90d050b9d 100644
+--- a/creator/recursion.py
++++ b/creator/recursion.py
+@@ -26,7 +26,6 @@ import re
+ from pathlib import Path
+ from typing import Any, Callable, Optional, Sequence
+ 
+-from creator import meta as ME
+ from creator import model as M
+ from creator.ledger import Ledger, sha256_text
+ 
+@@ -158,6 +157,7 @@ def find_weaknesses(led: Ledger, min_n: int = 3) -> list[Weakness]:
+ 
+ def design_change(w: Weakness, process: ProcessConfig, tried: set[tuple[str, int]]) -> Optional[Change]:
+     """One step up of the first remedy parameter that has room and whose (param, value) was never tried."""
++    from creator import meta as ME
+     for param in REMEDIES.get(w.kind, ()):
+         cur = getattr(process, param)
+         lo, hi = ME.BOUNDS[param]

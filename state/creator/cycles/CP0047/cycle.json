@@ -1,0 +1,85 @@
+{
+ "cycle": 1,
+ "outcome": "REJECTED",
+ "package": "CP0047",
+ "requirement": "EFF.activation",
+ "reason": "sandbox evaluation not clean (builds=True, report=INCONCLUSIVE)",
+ "verdict": "IMPROVEMENT",
+ "merge_commit": "",
+ "calls": 0,
+ "usd": 0.0,
+ "seconds": 4348.8,
+ "details": {
+  "recovered": [],
+  "worker": {
+   "claimed_done": true,
+   "notes": "self-rules-v1: no rule applied; kernel.py: audit checks module is now loaded on first use instead of at import; K.AUD still resolves via module __getattr__; mypy clean.",
+   "by": "claude-session"
+  },
+  "claim": "IC-16af6f8ccf4d6df2cec5",
+  "detail": {
+   "min_effect": 0.0,
+   "z": 2.0,
+   "diff": 6604.0,
+   "se": 0.0,
+   "lo": 6604.0,
+   "hi": 6604.0,
+   "regressions": [
+    {
+     "metric": "affected_tests_pass",
+     "diff": 0.0,
+     "se": 0.0
+    },
+    {
+     "metric": "requirements_kept",
+     "diff": 0.0,
+     "se": 0.0
+    },
+    {
+     "metric": "test_functions",
+     "diff": 0.0,
+     "se": 0.0
+    },
+    {
+     "metric": "peak_memory_mb",
+     "diff": -0.466943999999998,
+     "se": 0.6276978008181973
+    },
+    {
+     "metric": "package_ast_nodes",
+     "diff": -42.0,
+     "se": 2598.560852318067
+    }
+   ],
+   "holdout_diff": 33062.0,
+   "holdout_se": 0.0,
+   "why": "all seven ingredients present",
+   "target": "creator/kernel.py",
+   "size": [
+    8082,
+    8124
+   ],
+   "package": [
+    91873,
+    91915
+   ],
+   "memory_mb": [
+    82.68,
+    83.14
+   ],
+   "tests": [
+    5727,
+    5727
+   ],
+   "requirements_lost": [],
+   "active_nodes": [
+    52558,
+    45954
+   ]
+  },
+  "regression": "INCONCLUSIVE",
+  "builds": true,
+  "weakening": [],
+  "planted": []
+ }
+}

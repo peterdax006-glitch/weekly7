@@ -1,0 +1,40 @@
+{
+ "6e405bc49341b319": {
+  "config": {
+   "budget": 120,
+   "solver": "self-search",
+   "targeted": false
+  },
+  "frozen_at": "2026-10-01T22:37:02Z"
+ },
+ "9707fa9df9731c2d": {
+  "config": {
+   "attempts": 3,
+   "learn": false,
+   "model": "C:\\Users\\Peter\\creator_runtime\\models\\qwen2.5-coder-1.5b-instruct-q4_k_m.gguf",
+   "phase": "1_holdout_no_experience",
+   "search_budget": 120,
+   "solver": "creator-generator-v1"
+  },
+  "frozen_at": "2026-10-01T15:35:10Z"
+ },
+ "dcfda39ac179e06c": {
+  "config": {
+   "budget": 120,
+   "solver": "self-search",
+   "targeted": true
+  },
+  "frozen_at": "2026-10-01T22:23:24Z"
+ },
+ "e925e6b19b96f48e": {
+  "config": {
+   "attempts": 3,
+   "learn": false,
+   "model": "C:\\Users\\Peter\\creator_runtime\\models\\qwen2.5-coder-1.5b-instruct-q4_k_m.gguf",
+   "phase": "3_holdout_with_experience",
+   "search_budget": 120,
+   "solver": "creator-generator-v1"
+  },
+  "frozen_at": "2026-10-01T15:38:56Z"
+ }
+}
