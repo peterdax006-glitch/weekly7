@@ -2259,7 +2259,7 @@ def question_events(state: LabState, now, statuses: Sequence[str] = ("CANDIDATE"
     """Tracked findings as engine.research.questions events (source 'new_discovery'), strongest first. Only findings whose evidence matured
     strictly before `now`; decoy features are left out unless asked for (a decoy that reaches here is itself a false-positive alarm)."""
     from engine.research import questions as Q
-    evs = []
+    evs: list = []
     for c in sorted(state.candidates.values(), key=lambda c: (-abs(c.t), c.candidate_id)):
         if len(evs) >= max_n:
             break

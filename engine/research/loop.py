@@ -745,11 +745,14 @@ class SweepProgress:
     last_at: str = ""
 
 
-def precursor_sweep(years: Sequence[int], loader, directory_name: str = "precursors") -> SweepSpec:
-    """R21's mover-episode precursor sweep (engine.research.precursors.step, one coverage unit at a time, committed per unit)."""
+def precursor_sweep(years: Sequence[int], loader, directory_name: str = "precursors", n_slices: int | None = None) -> SweepSpec:
+    """R21's mover-episode precursor sweep (engine.research.precursors.step, one coverage unit at a time, committed per unit).
+    `n_slices` must be the slice count the loader was built with (F29: the loader sliced 8 ways with another salt while the lab sliced
+    4 ways with salt 0, so each unit saw ~1/16 of its slice)."""
     def factory(root: Path):
         from engine.research import precursors as PC
-        st, store = PC.open_state(root / "sweeps" / directory_name, years)
+        args = (PC.LabConfig(n_slices=n_slices),) if n_slices else ()
+        st, store = PC.open_state(root / "sweeps" / directory_name, years, *args)
 
         def run(n: int, now) -> int:
             return len(PC.step(st, now, loader, max_units=n, store=store).done)
@@ -1563,7 +1566,13 @@ def st_precursors(ctx: Ctx) -> tuple:
             cand = ctx.state.modules["precursors"].candidates.get(c) if isinstance(c, str) else c
             if cand is not None:
                 _rquestions(ctx).append(PC.to_question(cand, ctx.created_real()))
-    return len(rep.done), len(rep.done), ""
+    # F29: the lab's tracked findings also go through the research brain's question generator; the question ledger persists across
+    # cycles so a finding is not re-asked every cycle
+    gen, led = PC.raise_questions(ctx.state.modules["precursors"], ctx.now, ctx.state.memo.get("precursor_question_ledger"))
+    ctx.state.memo["precursor_question_ledger"] = led
+    asked = [q.question for q in getattr(gen, "questions", ()) or ()]
+    _rquestions(ctx).extend(asked)
+    return len(rep.done), len(rep.done) + len(asked), f"{len(asked)} question(s) raised"
 
 
 def st_targets(ctx: Ctx) -> tuple:

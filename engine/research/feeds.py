@@ -1226,8 +1226,10 @@ class WorldFeed:
             st, store = PC.open_state(Path(root) / "sweeps" / "precursors_feed", years, feed.precursor_cfg(), registry=feed.precursor_registry())
 
             def run(n: int, now) -> int:
-                if not [y for y in years if y < as_date(now).year]:
+                ready = [y for y in feed.source.years() if y < as_date(now).year]     # F29: years become sweepable as they complete
+                if not ready:
                     return 0
+                st.book.extend_years(ready)
                 return len(PC.step(st, now, feed.pit_loader(now), max_units=n, store=store).done)
             return run
         return [LP.SweepSpec("sweep.precursors_feed", "NEW_REPRESENTATION", factory)]

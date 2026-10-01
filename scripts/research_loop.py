@@ -78,7 +78,8 @@ def build_sweeps(a: argparse.Namespace, feed=None) -> list:
     wait_for_memory()
     from engine.research import precursors as PC
     years = tuple(range(a.sweep_from, a.sweep_to + 1))
-    return [LP.precursor_sweep(years, PC.cache_loader(a.sweep_slices, a.seed))]
+    cfg = PC.LabConfig(n_slices=a.sweep_slices)                 # F29: the loader and the lab must slice the universe the same way
+    return [LP.precursor_sweep(years, PC.cache_loader(cfg.n_slices, cfg.slice_salt), n_slices=cfg.n_slices)]
 
 
 def config(a: argparse.Namespace) -> LP.LoopConfig:
