@@ -126,3 +126,33 @@ def test_stale_evidence_reopens_a_tested_requirement_without_calling_it_failed(p
     fresh = SM.build(proj, scope=("pkg", "tests"), capabilities=SPECS, test_evidence=ev, include_versions=False)
     G.sync(led, fresh)
     assert led.view.status[req] is M.Status.TESTED and not G.open_gaps_for(led, req)
+
+
+def test_gaps_are_created_in_dependency_order_so_blockers_are_recorded(tmp_path: Path) -> None:
+    """Regression (1 Oct): key order wrote K02.depth's gap before K02.exists's, so 'depth' looked unblocked."""
+    r = tmp_path / "p"
+    put(r, "pkg/__init__.py", "")
+    led = Ledger(r / "dev.jsonl", evidence_root=r)
+    O.compile_capabilities(led, O.self_objective(led), [SM.CapabilitySpec("K02", "missing", ("pkg/none.py",), ("tests/t.py",), 5)])
+    model = SM.build(r, scope=("pkg",), capabilities=[SM.CapabilitySpec("K02", "missing", ("pkg/none.py",), ("tests/t.py",), 5)],
+                     include_versions=False)
+    G.sync(led, model)
+    ranked = {g.requirement_key: g for g in G.ranked(led)}
+    assert ranked["K02.exists"].blocked_by == ()
+    for step in ("tested", "no_stubs", "depth", "integrated", "validated"):
+        assert ranked[f"K02.{step}"].blocked_by, step
+
+
+def test_blockers_are_also_derived_live_from_requirements(tmp_path: Path) -> None:
+    """A gap recorded without its blocker (pre-fix history) is still reported blocked while the dependency's gap is open."""
+    r = tmp_path / "p"
+    put(r, "pkg/__init__.py", "")
+    led = Ledger(r / "dev.jsonl", evidence_root=r)
+    oid = O.self_objective(led)
+    c = O.compile_capabilities(led, oid, [SM.CapabilitySpec("K02", "m", ("pkg/none.py",), ("tests/t.py",), 5)])
+    depth = led.append(M.Gap(created_by=M.Role.KERNEL, parents=(c.requirement_ids["K02.depth"],), kind=M.GapKind.ARCHITECTURE,
+                             description="recorded first, without blockers", importance=0.9))
+    led.append(M.Gap(created_by=M.Role.KERNEL, parents=(c.requirement_ids["K02.exists"],), kind=M.GapKind.CAPABILITY,
+                     description="exists", importance=0.5))
+    ranked = {g.gap_id: g for g in G.ranked(led)}
+    assert ranked[depth].blocked_by                                      # live derivation finds the open exists gap

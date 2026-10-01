@@ -94,6 +94,32 @@ def save_snapshot(model: SM.SelfModel, root: Path) -> Path:
     return path
 
 
+def dependency_order(ledger: Ledger, rows: Sequence[Assessment]) -> list[Assessment]:
+    """Requirements before the requirements that depend on them (1 Oct: key order created K02.depth's gap before K02.exists's,
+    so the depth gap recorded no blocker and was planned first). Ties by key, so the order is deterministic."""
+    by_id = {r.requirement_id: r for r in rows}
+    deps = {r.requirement_id: [d for d in getattr(ledger.get(r.requirement_id), "depends_on") if d in by_id] for r in rows}
+    out: list[Assessment] = []
+    done: set[str] = set()
+    visiting: set[str] = set()
+
+    def visit(rid: str) -> None:
+        if rid in done:
+            return
+        if rid in visiting:
+            raise ValueError(f"requirement dependency cycle through {by_id[rid].key}")
+        visiting.add(rid)
+        for d in sorted(deps[rid], key=lambda x: by_id[x].key):
+            visit(d)
+        visiting.discard(rid)
+        done.add(rid)
+        out.append(by_id[rid])
+
+    for r in sorted(rows, key=lambda x: x.key):
+        visit(r.requirement_id)
+    return out
+
+
 @dataclasses.dataclass(frozen=True)
 class SyncReport:
     assessed: int
@@ -115,7 +141,7 @@ def sync(ledger: Ledger, model: SM.SelfModel, now: Optional[float] = None) -> Sy
     regressed: list[str] = []
     stale: list[str] = []
     gap_of: dict[str, list[str]] = {r.requirement_id: open_gaps_for(ledger, r.requirement_id) for r in rows}
-    for r in sorted(rows, key=lambda x: x.key):
+    for r in dependency_order(ledger, rows):
         if r.met:
             if r.status in M.DONE_STATES and not gap_of[r.requirement_id]:
                 continue
@@ -164,8 +190,11 @@ def ranked(ledger: Ledger) -> list[RankedGap]:
         if ledger.view.status.get(e.id) not in M.OPEN_STATES:
             continue
         rec = e.record
-        blockers = tuple(d for d in getattr(rec, "depends_on") if ledger.view.status.get(d) in M.OPEN_STATES)
-        req_key = next((getattr(ledger.get(p), "key", "") for p in rec.parents if ledger.view.by_id[p].rtype == "Requirement"), "")
+        recorded = [d for d in getattr(rec, "depends_on") if ledger.view.status.get(d) in M.OPEN_STATES]
+        req_ids = [p for p in rec.parents if ledger.view.by_id[p].rtype == "Requirement"]
+        live = [g for r in req_ids for d in getattr(ledger.get(r), "depends_on") for g in open_gaps_for(ledger, d)]
+        blockers = tuple(dict.fromkeys(recorded + live))      # live too: gaps recorded out of order (pre 1 Oct) missed blockers
+        req_key = getattr(ledger.get(req_ids[0]), "key", "") if req_ids else ""
         out.append(RankedGap(e.id, req_key, getattr(rec, "kind").value, getattr(rec, "importance"), blockers,
                              getattr(rec, "description")))
     return sorted(out, key=lambda g: (bool(g.blocked_by), -g.importance, g.requirement_key))
