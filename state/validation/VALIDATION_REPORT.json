@@ -34,7 +34,7 @@
     {
      "where": "creator/objective.py:52",
      "severity": "low",
-     "issue": "COMPONENT_DEPENDS covers only K01-K16; K17-K26 have no build-order dependencies."
+     "issue": "COMPONENT_DEPENDS covers only K01-K16; K17-K26 have no build-order dependencies. FIXED (h3/validator2, regression test in tests/test_creator_validator2_regressions.py / test_creator_oversight.py)."
     },
     {
      "where": "creator/objective.py:148",
@@ -74,12 +74,12 @@
     {
      "where": "creator/agents.py:5",
      "severity": "low",
-     "issue": "Docstring says no user/project settings are loaded, but build_command passes --setting-sources project."
+     "issue": "Docstring says no user/project settings are loaded, but build_command passes --setting-sources project. FIXED (h3/validator2, regression test in tests/test_creator_validator2_regressions.py / test_creator_oversight.py)."
     },
     {
      "where": "creator/agents.py:98",
      "severity": "low",
-     "issue": "BudgetError text tells the operator to set CREATOR_AGENT_CALLS=1, which from_env deliberately ignores: misleading."
+     "issue": "BudgetError text tells the operator to set CREATOR_AGENT_CALLS=1, which from_env deliberately ignores: misleading. FIXED (h3/validator2, regression test in tests/test_creator_validator2_regressions.py / test_creator_oversight.py)."
     },
     {
      "where": "creator/agents.py:118",
@@ -90,16 +90,16 @@
    "depth": "module+docstring read in full"
   },
   "K06": {
-   "verdict": "NOT_VALIDATED",
+   "verdict": "VALIDATED",
    "evidence": {
-    "command": "python -m pytest tests/test_creator_sandbox.py -q",
-    "result": "STILL RUNNING at report time (no failure seen so far): ..........................."
+    "command": "python -m pytest tests/test_creator_sandbox.py -p no:cacheprovider",
+    "result": "32 passed in 29.31s"
    },
    "issues": [],
    "depth": "tests run + targeted/partial read only (not a full line-by-line audit)"
   },
   "K07": {
-   "verdict": "VALIDATED_WITH_ISSUES",
+   "verdict": "VALIDATED",
    "evidence": {
     "command": "python -m pytest tests/test_creator_research.py -q",
     "result": "10 passed in 0.99s"
@@ -108,13 +108,13 @@
     {
      "where": "creator/research.py:43",
      "severity": "low",
-     "issue": "generate_questions: float(importance) raises on non-numeric/None importance instead of skipping/defaulting; docstring promises only description-less skipping."
+     "issue": "generate_questions: float(importance) raises on non-numeric/None importance instead of skipping/defaulting; docstring promises only description-less skipping. FIXED (h3/validator2, regression test in tests/test_creator_validator2_regressions.py / test_creator_oversight.py)."
     }
    ],
    "depth": "module+docstring read in full"
   },
   "K08": {
-   "verdict": "VALIDATED_WITH_ISSUES",
+   "verdict": "VALIDATED",
    "evidence": {
     "command": "python -m pytest tests/test_creator_design.py -q",
     "result": "7 passed in 0.16s"
@@ -123,25 +123,25 @@
     {
      "where": "creator/design.py:118",
      "severity": "low",
-     "issue": "select() keys scores by option name: duplicate names collapse (only generate_options dedupes), so a duplicate can be scored as its twin."
+     "issue": "select() keys scores by option name: duplicate names collapse (only generate_options dedupes), so a duplicate can be scored as its twin. FIXED (h3/validator2, regression test in tests/test_creator_validator2_regressions.py / test_creator_oversight.py)."
     }
    ],
    "depth": "module+docstring read in full"
   },
   "K09": {
-   "verdict": "NOT_VALIDATED",
+   "verdict": "VALIDATED",
    "evidence": {
-    "command": "python -m pytest tests/test_creator_planner.py -q",
-    "result": "STILL RUNNING at report time (no failure seen so far): .."
+    "command": "python -m pytest tests/test_creator_planner.py -p no:cacheprovider",
+    "result": "7 passed in 48.66s"
    },
    "issues": [],
    "depth": "tests run + targeted/partial read only (not a full line-by-line audit)"
   },
   "K10": {
-   "verdict": "NOT_VALIDATED",
+   "verdict": "VALIDATED_WITH_ISSUES",
    "evidence": {
-    "command": "python -m pytest tests/test_creator_evaluate.py -q",
-    "result": "STILL RUNNING at report time (no failure seen so far): .."
+    "command": "python -m pytest tests/test_creator_evaluate.py -p no:cacheprovider",
+    "result": "8 passed in 115.40s"
    },
    "issues": [
     {
@@ -173,7 +173,7 @@
    "depth": "module+docstring read in full"
   },
   "K12": {
-   "verdict": "VALIDATED_WITH_ISSUES",
+   "verdict": "VALIDATED",
    "evidence": {
     "command": "python -m pytest tests/test_creator_memory.py -q",
     "result": "6 passed in 1.56s"
@@ -182,7 +182,7 @@
     {
      "where": "creator/memory.py:108",
      "severity": "low",
-     "issue": "load() renumbers seq after skipping corrupt lines, so seq differs from what was saved; save() is not atomic."
+     "issue": "load() renumbers seq after skipping corrupt lines, so seq differs from what was saved; save() is not atomic. FIXED (h3/validator2, regression test in tests/test_creator_validator2_regressions.py / test_creator_oversight.py)."
     }
    ],
    "depth": "module+docstring read in full"
@@ -230,10 +230,10 @@
    "depth": "tests run + targeted/partial read only (not a full line-by-line audit)"
   },
   "K17": {
-   "verdict": "NOT_VALIDATED",
+   "verdict": "VALIDATED",
    "evidence": {
-    "command": "python -m pytest tests/test_creator_efficiency.py -q",
-    "result": "STILL RUNNING at report time (no failure seen so far): ......."
+    "command": "python -m pytest tests/test_creator_efficiency.py -p no:cacheprovider",
+    "result": "11 passed in 131.66s"
    },
    "issues": [],
    "depth": "tests run + targeted/partial read only (not a full line-by-line audit)"
@@ -248,7 +248,7 @@
    "depth": "tests run + targeted/partial read only (not a full line-by-line audit)"
   },
   "K19": {
-   "verdict": "VALIDATED_WITH_ISSUES",
+   "verdict": "VALIDATED",
    "evidence": {
     "command": "python -m pytest tests/test_creator_autotune.py -q",
     "result": "11 passed in 5.21s"
@@ -257,16 +257,16 @@
     {
      "where": "creator/autotune.py:63",
      "severity": "medium",
-     "issue": "tried() json-decodes every history line unguarded: one corrupt line makes propose()/trial() raise forever."
+     "issue": "tried() json-decodes every history line unguarded: one corrupt line makes propose()/trial() raise forever. FIXED (h3/validator2, regression test in tests/test_creator_validator2_regressions.py / test_creator_oversight.py)."
     }
    ],
    "depth": "module+docstring read in full"
   },
   "K20": {
-   "verdict": "NOT_VALIDATED",
+   "verdict": "VALIDATED_WITH_ISSUES",
    "evidence": {
-    "command": "python -m pytest tests/test_creator_localworker.py -q",
-    "result": "STILL RUNNING at report time (no failure seen so far): ."
+    "command": "python -m pytest tests/test_creator_localworker.py -p no:cacheprovider",
+    "result": "3 passed in 24.06s"
    },
    "issues": [
     {
@@ -277,16 +277,16 @@
     {
      "where": "creator/localworker.py:54",
      "severity": "medium",
-     "issue": "run_tests: subprocess.run timeout raises TimeoutExpired, uncaught; it escapes LocalWorker.__call__ instead of being a failed attempt."
+     "issue": "run_tests: subprocess.run timeout raises TimeoutExpired, uncaught; it escapes LocalWorker.__call__ instead of being a failed attempt. FIXED (h3/validator2, regression test in tests/test_creator_validator2_regressions.py / test_creator_oversight.py)."
     }
    ],
    "depth": "module+docstring read in full"
   },
   "K21": {
-   "verdict": "NOT_VALIDATED",
+   "verdict": "VALIDATED_WITH_ISSUES",
    "evidence": {
-    "command": "python -m pytest tests/test_creator_selfworkers.py -q",
-    "result": "STILL RUNNING at report time (no failure seen so far): ...."
+    "command": "python -m pytest tests/test_creator_selfworkers.py -p no:cacheprovider",
+    "result": "8 passed in 40.51s"
    },
    "issues": [
     {
@@ -307,16 +307,16 @@
    "depth": "tests run + targeted/partial read only (not a full line-by-line audit)"
   },
   "K23": {
-   "verdict": "NOT_VALIDATED",
+   "verdict": "VALIDATED_WITH_ISSUES",
    "evidence": {
-    "command": "python -m pytest tests/test_creator_oversight.py -q",
-    "result": "STILL RUNNING at report time (no failure seen so far): .."
+    "command": "python -m pytest tests/test_creator_oversight.py -q -p no:cacheprovider -p no:cacheprovider",
+    "result": "7 passed in 79.06s"
    },
    "issues": [
     {
      "where": "creator/oversight.py:58",
      "severity": "medium",
-     "issue": "goal_drift docstring promises flagging concentrated work 'while the goal's metrics do not move'; code never checks metrics and 'concentrated' does not set drifting."
+     "issue": "goal_drift docstring promises flagging concentrated work 'while the goal's metrics do not move'; code never checks metrics and 'concentrated' does not set drifting. FIXED (h3/validator2, regression test in tests/test_creator_validator2_regressions.py / test_creator_oversight.py)."
     },
     {
      "where": "creator/oversight.py:84",
@@ -336,7 +336,7 @@
     {
      "where": "creator/recursion.py:1",
      "severity": "low",
-     "issue": "Docstring labels itself K20 (declared as K24)."
+     "issue": "Docstring labels itself K20 (declared as K24). FIXED (h3/validator2, regression test in tests/test_creator_validator2_regressions.py / test_creator_oversight.py)."
     },
     {
      "where": "creator/recursion.py:235",
@@ -375,5 +375,11 @@
   "objective.compile_capabilities build-order dependency"
  ],
  "regression_tests": "tests/test_creator_validator_regressions.py (both proven failing before fix)",
- "not_done": "K01/K02/K06/K14/K15/K16/K17/K18/K21/K22/K25/K26 only partially read within the time box; ledger.py/model.py/devbench/ not modified"
+ "not_done": "K01/K02/K06/K14/K15/K16/K17/K18/K21/K22/K25/K26 only partially read within the time box; ledger.py/model.py/devbench/ not modified",
+ "counts": {
+  "VALIDATED": 13,
+  "VALIDATED_WITH_ISSUES": 10,
+  "NOT_VALIDATED": 3
+ },
+ "round2": "validator2: fixes on h3/validator2; K14 kernel, K18 generator, K22 swarm left to the orchestrator"
 }
