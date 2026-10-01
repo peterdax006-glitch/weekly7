@@ -467,33 +467,71 @@ def cycle(cfg: KernelConfig, worker: Worker, n: int = 1, led: Optional[Ledger] =
         return _cycle(cfg, worker, n, led)
 
 
-def _cycle(cfg: KernelConfig, worker: Worker, n: int = 1, led: Optional[Ledger] = None) -> CycleReport:
-    t0 = time.monotonic()
-    led = led or Ledger(cfg.ledger_path, evidence_root=cfg.repo)
-    recovered = recover(cfg)                                            # 0 RECOVER
-    oid = O.self_objective(led)                                         # 1 ASSESS
+def prepare(cfg: KernelConfig, led: Ledger) -> tuple[Optional[Assessed], list[str], Optional[str]]:
+    """0 RECOVER + 1 ASSESS once: (main assessment, recovered sandboxes, why development must stop - or None)."""
+    recovered = recover(cfg)
+    oid = O.self_objective(led)
     O.compile_capabilities(led, oid, cfg.specs())
     main = assess_tree(cfg, led, cfg.repo, "main")
     G.sync(led, main.model)
     if red(main.audit):
-        return CycleReport(n, "AUDIT_RED", reason="; ".join(f"{f.check}:{f.subject}" for f in main.audit.findings[:5])
-                           or str(main.audit.errors), seconds=round(time.monotonic() - t0, 1))
-    base_sha = S.head(cfg.repo)
+        return main, recovered, "; ".join(f"{f.check}:{f.subject}" for f in main.audit.findings[:5]) or str(main.audit.errors)
+    return main, recovered, None
+
+
+def plan_one(cfg: KernelConfig, led: Ledger, main: Assessed, base_sha: str, exclude_components: Sequence[str] = (),
+             exclude_paths: Sequence[str] = ()) -> Optional[P.Plan]:
+    """2 PLAN one package that touches none of the excluded components / paths (so parallel workers never collide)."""
     steps = tuple(s for s in cfg.steps if s in P.WORKER_STEPS)          # a validator step can never be handed to a worker
     plan = None
     if cfg.mode in ("auto", "gaps"):
-        plan = P.plan_next(led, main.model, base_sha, cfg.specs(), steps=steps)   # 2 PLAN
+        plan = P.plan_next(led, main.model, base_sha, cfg.specs(), steps=steps, exclude_components=exclude_components)
     if plan is None and cfg.mode in ("auto", "efficiency"):
-        plan = P.plan_efficiency(led, cfg.repo, base_sha)               # the standing shrink / activation objective
+        plan = P.plan_efficiency(led, cfg.repo, base_sha, avoid=tuple(exclude_paths))   # standing shrink / activation
+    return plan
+
+
+def _cycle(cfg: KernelConfig, worker: Worker, n: int = 1, led: Optional[Ledger] = None) -> CycleReport:
+    t0 = time.monotonic()
+    led = led or Ledger(cfg.ledger_path, evidence_root=cfg.repo)
+    main, recovered, stop = prepare(cfg, led)
+    if stop is not None:
+        return CycleReport(n, "AUDIT_RED", reason=stop, seconds=round(time.monotonic() - t0, 1))
+    assert main is not None
+    base_sha = S.head(cfg.repo)
+    plan = plan_one(cfg, led, main, base_sha)
     if plan is None:
         return CycleReport(n, "NOTHING_TO_DO", reason="no unblocked worker gap and nothing to shrink",
                            seconds=round(time.monotonic() - t0, 1))
+    return execute(cfg, worker, plan, main, base_sha, n, led, recovered, t0=t0)
+
+
+class Cancelled(Exception):
+    """The swarm pulled this worker back (RAM tight): its sandbox is discarded, nothing is adopted."""
+
+
+def execute(cfg: KernelConfig, worker: Worker, plan: P.Plan, main: Assessed, base_sha: str, n: int = 1,
+            led: Optional[Ledger] = None, recovered: Sequence[str] = (), lock: Any = None, cancel: Any = None,
+            checkpoint: bool = True, t0: Optional[float] = None) -> CycleReport:
+    """3-8 for one planned package. `lock` serialises everything that changes the repository itself (sandbox creation, merge,
+    post-merge verification, rollback) when several run in parallel; `cancel` (an Event) is checked between phases."""
+    import contextlib
+    t0 = time.monotonic() if t0 is None else t0
+    led = led or Ledger(cfg.ledger_path, evidence_root=cfg.repo)
+    guard = lock if lock is not None else contextlib.nullcontext()
+
+    def checkpoint_cancel(where: str) -> None:
+        if cancel is not None and cancel.is_set():
+            raise Cancelled(f"pulled back before {where} (RAM tight)")
     wp = led.get(plan.work_package_id)
     assert isinstance(wp, M.WorkPackage)
     led.transition(plan.work_package_id, M.Status.IN_PROGRESS, "cycle started", M.Role.KERNEL)
-    rep = CycleReport(n, "ERROR", plan.package_id, plan.requirement_key, details={"recovered": recovered})
-    sb = S.Sandbox.open(cfg.repo, base_sha, cfg.scratch, label=plan.package_id, hide=cfg.hide)   # 3 SANDBOX
+    rep = CycleReport(n, "ERROR", plan.package_id, plan.requirement_key, details={"recovered": list(recovered)})
+    with guard:
+        sb = S.Sandbox.open(cfg.repo, base_sha, cfg.scratch, label=plan.package_id, hide=cfg.hide)   # 3 SANDBOX
+    locked = False
     try:
+        checkpoint_cancel("work")
         work = worker(plan, wp, sb.path)                                # 4 WORK
         rep.calls, rep.usd = work.calls, work.usd
         rep.details["worker"] = {"claimed_done": work.claimed_done, "notes": work.notes, "by": work.by}
@@ -505,6 +543,7 @@ def _cycle(cfg: KernelConfig, worker: Worker, n: int = 1, led: Optional[Ledger] 
             return rep
         if work.contaminated:
             raise _Reject(f"worker run contaminated: {list(work.contaminated)[:5]}")
+        checkpoint_cancel("evaluation")
         change = sb.changes()                                           # 5 EVALUATE
         if not change.paths:
             raise _Reject("the worker changed nothing")
@@ -553,6 +592,9 @@ def _cycle(cfg: KernelConfig, worker: Worker, n: int = 1, led: Optional[Ledger] 
             raise _Reject("; ".join(reasons))
         decision = M.Decision(created_by=M.Role.VALIDATOR, subject_id=plan.experiment_id, verdict=M.DecisionVerdict.ADOPT,
                               reason=f"{plan.requirement_key} closed with no regression", claim_id=cid)
+        checkpoint_cancel("adoption")
+        guard.__enter__()                                               # one adoption + verification at a time
+        locked = True
         problems = led.problems(decision)                               # 6 DECIDE (validated before the merge)
         if problems:
             raise _Reject(f"ledger refuses the ADOPT decision: {problems}")
@@ -583,6 +625,11 @@ def _cycle(cfg: KernelConfig, worker: Worker, n: int = 1, led: Optional[Ledger] 
                                           selection=(plan.component,), evidence=tuple(evid)))
                 G._advance_to_tested(led, plan.gap_id, tr, f"shrink adopted: {detail.get('size')} nodes")
             rep.outcome, rep.reason = "ADOPTED", f"merged {res.merge_commit[:12]}"
+    except Cancelled as c:
+        if not sb.closed:
+            S.discard(sb)
+        P.record_outcome(led, plan, False, str(c))
+        rep.outcome, rep.reason = "CANCELLED", str(c)
     except _Reject as r:
         S.discard(sb)
         led.append(M.Decision(created_by=M.Role.VALIDATOR, subject_id=plan.experiment_id, verdict=M.DecisionVerdict.REJECT,
@@ -595,13 +642,16 @@ def _cycle(cfg: KernelConfig, worker: Worker, n: int = 1, led: Optional[Ledger] 
         P.record_outcome(led, plan, False, f"kernel error: {type(e).__name__}: {e}"[:500])
         rep.outcome, rep.reason = "ERROR", f"{type(e).__name__}: {e}"
     finally:
+        if locked:
+            guard.__exit__(None, None, None)
         rep.seconds = round(time.monotonic() - t0, 1)                   # 8 RECORD
         led.append(M.StrategyOutcome(created_by=M.Role.KERNEL, parents=(plan.work_package_id,),
                                      strategy_id=(rep.details.get("worker", {}).get("by") or getattr(worker, "name", "worker")),
                                      problem_class=plan.step,
                                      subject_id=plan.work_package_id, success=rep.outcome == "ADOPTED", cost=rep.usd,
                                      duration_s=rep.seconds))
-        led.checkpoint(f"cycle {n} {plan.package_id} {rep.outcome}")
+        if checkpoint:
+            led.checkpoint(f"cycle {n} {plan.package_id} {rep.outcome}")
         _evidence_file(cfg, plan.package_id, "cycle.json", dataclasses.asdict(rep))
         with (cfg.state / "kernel_log.jsonl").open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(dataclasses.asdict(rep), default=str) + "\n")

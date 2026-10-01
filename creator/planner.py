@@ -179,7 +179,8 @@ def build_package(ledger: Ledger, gap_id: str, model: SM.SelfModel,
 
 
 def plan_next(ledger: Ledger, model: SM.SelfModel, base_ref: str, specs: Optional[Sequence[SM.CapabilitySpec]] = None,
-              max_attempts: int = MAX_ATTEMPTS, steps: Sequence[str] = WORKER_STEPS + VALIDATOR_STEPS) -> Optional[Plan]:
+              max_attempts: int = MAX_ATTEMPTS, steps: Sequence[str] = WORKER_STEPS + VALIDATOR_STEPS,
+              exclude_components: Sequence[str] = ()) -> Optional[Plan]:
     """Plan the top unblocked gap whose step is in `steps`. Returns None when nothing is plannable."""
     spec_map = {s.id: s for s in (specs if specs is not None else SM.load_capabilities())}
     objective_id = next((e.id for e in ledger.of_type("Objective") if getattr(e.record, "statement") == O.SELF_STATEMENT), None)
@@ -194,8 +195,8 @@ def plan_next(ledger: Ledger, model: SM.SelfModel, base_ref: str, specs: Optiona
             step, cid = O.parse_check(getattr(ledger.get(req_id), "acceptance_test"))
         except O.ObjectiveError:
             continue
-        if step not in steps:
-            continue
+        if step not in steps or cid in exclude_components:
+            continue                                                    # another worker is on this component right now
         prior = attempts_for(ledger, g.gap_id)
         if len(prior) >= max_attempts:
             ledger.transition(g.gap_id, M.Status.BLOCKED,

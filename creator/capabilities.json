@@ -234,6 +234,17 @@
     "tests/test_creator_selfworkers.py"
    ],
    "floor": 0
+  },
+  {
+   "id": "K22",
+   "name": "swarm: own workers in parallel, sized by free RAM",
+   "modules": [
+    "creator/swarm.py"
+   ],
+   "tests": [
+    "tests/test_creator_swarm.py"
+   ],
+   "floor": 0
   }
  ]
 }
