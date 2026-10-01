@@ -165,3 +165,50 @@ def test_learning_stores_must_not_contain_the_holdout(tmp_path: Path) -> None:
     found = A.check_memorization(repo=repo)
     assert {f.subject for f in found} == {"generator_memory_x.jsonl"} and all(f.severity == "CRITICAL" for f in found)
     assert any("holdout" in f.detail for f in found)
+
+
+def test_final_campaign_defences_are_load_bearing(monkeypatch: pytest.MonkeyPatch) -> None:
+    """CR20: each attack the campaign found UNCAUGHT must become uncaught again when its defence is switched off, while the
+    attacks that were already refused by the ledger/kernel stay caught."""
+    monkeypatch.setattr(A, "check_test_weakening", lambda before, after: [])
+    monkeypatch.setattr(A, "check_strategy_attribution", lambda led, **_: [])
+    monkeypatch.setattr(A, "SEALED_PINS", frozenset({"x"}))
+    monkeypatch.setattr(A, "check_sealed_suite", lambda **_: [])
+    mine = ("conftest_skip", "or_true_assert", "forged_self_share", "launder_claude_share", "reseal_devbench", "delete_test_file",
+            "steal_live_lock", "mixed_populations")                     # the rest are exercised by the full run above (speed)
+    res = {a.name: a.caught for a in A.adversary(tuple(x for x in A.ATTACKS if x[0] in mine))}
+    for n in mine[:6]:
+        assert res[n] is False, n
+    assert res["steal_live_lock"] is True and res["mixed_populations"] is True
+
+
+def test_harness_files_cannot_silence_tests() -> None:
+    hook = "import pytest\n\ndef pytest_collection_modifyitems(items):\n    pass\n"
+    [f] = A.check_test_weakening({}, {"tests/conftest.py": hook})
+    assert f.severity == "CRITICAL" and "harness" in f.detail
+    assert not A.check_test_weakening({"conftest.py": hook}, {"conftest.py": hook})       # an existing hook is not new
+    assert not A.check_test_weakening({}, {"conftest.py": "import pytest\n\n@pytest.fixture\ndef x():\n    return 1\n"})
+    assert A.check_test_weakening({}, {"pytest.ini": "[pytest]\naddopts = --deselect tests/test_a.py\n"})
+    from creator import kernel as K
+    assert "conftest.py" in A.HARNESS_FILES and K.AUD.HARNESS_FILES is A.HARNESS_FILES
+
+
+def test_attribution_check(tmp_path: Path) -> None:
+    (tmp_path / "a").mkdir()
+    ok = A._strategy_world(tmp_path / "a", [("claude-session", True), ("self-search", False), ("self-forged", False)])
+    assert A.check_strategy_attribution(ok) == []                                           # failures are never credited
+    (tmp_path / "b").mkdir()
+    assert A.check_strategy_attribution(A._strategy_world(tmp_path / "b", [("self-search", True)])) == []
+    (tmp_path / "c").mkdir()
+    [f] = A.check_strategy_attribution(A._strategy_world(tmp_path / "c", [("self-search", True), ("claude-session", True)]))
+    assert "several authors" in f.detail
+
+
+def test_vacuous_or_assert_is_loose() -> None:
+    assert A.test_shape("def test_a():\n    assert f() == 1 or True\n").approx_loose == 1
+    assert A.test_shape("def test_a():\n    assert f() == 1 or g()\n").approx_loose == 0
+
+
+def test_the_pinned_manifest_digest_matches_the_sealed_suite() -> None:
+    from creator import devbench as D
+    assert D.load_manifest()["digest"] in A.SEALED_PINS

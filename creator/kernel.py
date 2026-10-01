@@ -403,7 +403,7 @@ def _test_sources(root: Path, base: str, paths: Sequence[str]) -> tuple[dict[str
     before: dict[str, str] = {}
     after: dict[str, str] = {}
     for p in paths:
-        if not Path(p).name.startswith("test_"):
+        if not (Path(p).name.startswith("test_") or Path(p).name in AUD.HARNESS_FILES):
             continue
         old = subprocess.run(["git", "show", f"{base}:{p}"], cwd=root, capture_output=True, text=True, encoding="utf-8",
                              errors="replace")
