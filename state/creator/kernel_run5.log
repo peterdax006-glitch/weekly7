@@ -1,0 +1,1 @@
+budget: BudgetPolicy(enabled=True, daily_calls=12, daily_usd=5.0, per_call_usd=1.5, per_job_calls=1) today=(9, 1.7339)
