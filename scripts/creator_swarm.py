@@ -78,6 +78,11 @@ def make_students(model_student: bool = True) -> list:      # type: ignore[type-
             students.append(ModelStudent(LESSONS))
         except ImportError:
             pass
+        try:
+            from creator.action_student import ActionStudent
+            students.append(ActionStudent(LESSONS))
+        except Exception:                                     # noqa: BLE001 - a missing student never crashes the swarm
+            pass
     return students
 
 
