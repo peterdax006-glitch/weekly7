@@ -1,0 +1,113 @@
+{
+ "base": "f7949a2e6293cd994f13c6963acd3eacb512d702",
+ "changed": {
+  "creator/research.py": "A",
+  "tests/test_creator_research.py": "A"
+ },
+ "change_digest": "e5471cf7d958d469",
+ "builds": false,
+ "build": {
+  "tree": "candidate",
+  "ok": false,
+  "kinds": [
+   "ENVIRONMENT"
+  ],
+  "new_issues": 1,
+  "preexisting_type_issues": 0,
+  "require_typecheck": true,
+  "notes": [],
+  "steps": [
+   {
+    "name": "compile",
+    "ran": true,
+    "ok": true,
+    "skipped_reason": "",
+    "seconds": 0.016,
+    "checked": [
+     "creator/research.py",
+     "tests/test_creator_research.py"
+    ],
+    "issues": [],
+    "proc": null
+   },
+   {
+    "name": "import",
+    "ran": true,
+    "ok": true,
+    "skipped_reason": "",
+    "seconds": 0.406,
+    "checked": [
+     "creator.research",
+     "tests.test_creator_research"
+    ],
+    "issues": [],
+    "proc": {
+     "argv": [
+      "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe",
+      "-c",
+      "\nimport importlib, json, os, sys, traceback\nroot = os.path.normcase(os.path.realpath(sys.argv[1]))\nout = []\nfor name in sys.argv[2:]:\n    rec = {\"module\": name}\n    try:\n        m = importlib.import_module(name)\n        f = getattr(m, \"__file__\", None)\n        rec[\"ok\"] = True\n        rec[\"file\"] = f\n        if f is None:\n            locs = [os.path.normcase(os.path.realpath(p)) for p in getattr(m, \"__path__\", [])]\n            if locs and not any(p == root or p.startswith(root + os.sep) for p in locs):\n                rec.update(ok=False, etype=\"Shadowed\", message=\"namespace package resolved outside the sandbox: %r\" % locs)\n        else:\n            rf = os.path.normcase(os.path.realpath(f))\n            if not rf.startswith(root + os.sep):\n                rec.update(ok=False, etype=\"Shadowed\", message=\"module resolved outside the sandbox: %s\" % f)\n    except BaseException as e:\n        rec.update(ok=False, etype=type(e).__name__, message=str(e)[:2000], missing=getattr(e, \"name\", None),\n                   lineno=getattr(e, \"lineno\", None), filename=getattr(e, \"filename\", None),\n                   tb=traceback.format_exc()[-4000:])\n    out.append(rec)\nsys.stdout.write(\"\\n@@CREATOR_IMPORT@@\" + json.dumps(out) + \"\\n\")\n",
+      "C:\\Users\\Peter\\.weekly7_creator_sandboxes\\20261001T063751-e0fa09c2",
+      "creator.research",
+      "tests.test_creator_research"
+     ],
+     "cwd": "C:\\Users\\Peter\\.weekly7_creator_sandboxes\\20261001T063751-e0fa09c2",
+     "returncode": 0,
+     "seconds": 0.406,
+     "timed_out": false,
+     "launch_error": "",
+     "stdout": "\n@@CREATOR_IMPORT@@[{\"module\": \"creator.research\", \"ok\": true, \"file\": \"C:\\\\Users\\\\Peter\\\\.weekly7_creator_sandboxes\\\\20261001T063751-e0fa09c2\\\\creator\\\\research.py\"}, {\"module\": \"tests.test_creator_research\", \"ok\": true, \"file\": \"C:\\\\Users\\\\Peter\\\\.weekly7_creator_sandboxes\\\\20261001T063751-e0fa09c2\\\\tests\\\\test_creator_research.py\"}]\n",
+     "stderr": ""
+    }
+   },
+   {
+    "name": "typecheck",
+    "ran": true,
+    "ok": false,
+    "skipped_reason": "",
+    "seconds": 33.672,
+    "checked": [],
+    "issues": [
+     {
+      "kind": "ENVIRONMENT",
+      "path": "",
+      "line": null,
+      "code": "",
+      "module": "",
+      "message": "type checker failed without reporting errors (exit 1)"
+     }
+    ],
+    "proc": {
+     "argv": [
+      "pip",
+      "install",
+      "-r",
+      "requirements.txt",
+      "pytest",
+      "mypy"
+     ],
+     "cwd": "C:\\Users\\Peter\\.weekly7_creator_sandboxes\\20261001T063751-e0fa09c2",
+     "returncode": 1,
+     "seconds": 33.672,
+     "timed_out": false,
+     "launch_error": "",
+     "stdout": "Collecting pytest\n  Using cached pytest-9.1.1-py3-none-any.whl.metadata (7.6 kB)\nCollecting mypy\n  Using cached mypy-2.3.1-cp312-cp312-win_arm64.whl.metadata (2.4 kB)\nCollecting pandas>=2.2 (from -r requirements.txt (line 1))\n  Using cached pandas-3.0.6-cp312-cp312-win_arm64.whl.metadata (19 kB)\nRequirement already satisfied: numpy>=1.26 in c:\\users\\peter\\appdata\\local\\programs\\python\\python312-arm64\\lib\\site-packages (from -r requirements.txt (line 2)) (2.5.3)\nRequirement already satisfied: scipy>=1.12 in c:\\users\\peter\\appdata\\local\\programs\\python\\python312-arm64\\lib\\site-packages (from -r requirements.txt (line 3)) (1.18.1)\nCollecting scikit-learn>=1.4 (from -r requirements.txt (line 4))\n  Using cached scikit_learn-1.9.1-cp312-cp312-win_arm64.whl.metadata (9.3 kB)\nCollecting lightgbm>=4.3 (from -r requirements.txt (line 5))\n  Using cached lightgbm-4.7.0.tar.gz (1.8 MB)\n  Installing build dependencies: started\n  Installing build dependencies: finished with status 'done'\n  Getting requirements to build wheel: started\n  Getting requirements to build wheel: finished with status 'done'\n  Installing backend dependencies: started\n  Installing backend dependencies: finished with status 'done'\n  Preparing metadata (pyproject.toml): started\n  Preparing metadata (pyproject.toml): finished with status 'done'\nCollecting yfinance>=0.2.50 (from -r requirements.txt (line 6))\n  Using cached yfinance-1.7.0-py3-none-any.whl.metadata (6.7 kB)\nCollecting requests>=2.31 (from -r requirements.txt (line 7))\n  Using cached requests-2.34.2-py3-none-any.whl.metadata (4.8 kB)\nCollecting pyarrow>=15 (from -r requirements.txt (line 8))\n  Using cached pyarrow-25.0.1.tar.gz (1.2 MB)\n  Installing build dependencies: started\n  Installing build dependencies: finished with status 'done'\n  Getting requirements to build wheel: started\n  Getting requirements to build wheel: finished with status 'done'\n  Installing backend dependencies: started\n  Installing backend dependencies: finished with status 'done'\n  Preparing metadata (pyproject.toml): started\n  Preparing metadata (pyproject.toml): finished with status 'done'\nCollecting alpaca-py>=0.30 (from -r requirements.txt (line 9))\n  Using cached alpaca_py-0.44.0-py3-none-any.whl.metadata (13 kB)\nCollecting colorama>=0.4 (from pytest)\n  Using cached colorama-0.4.6-py2.py3-none-any.whl.metadata (17 kB)\nCollecting iniconfig>=1.0.1 (from pytest)\n  Using cached iniconfig-2.3.0-py3-none-any.whl.metadata (2.5 kB)\nRequirement already satisfied: packaging>=22 in c:\\users\\peter\\appdata\\local\\programs\\python\\python312-arm64\\lib\\site-packages (from pytest) (26.3)\nCollecting pluggy<2,>=1.5 (from pytest)\n  Using cached pluggy-1.6.0-py3-none-any.whl.metadata (4.8 kB)\nCollecting pygments>=2.7.2 (from pytest)\n  Using cached pygments-2.21.0-py3-none-any.whl.metadata (2.5 kB)\nCollecting typing_extensions>=4.6.0 (from mypy)\n  Using cached typing_extensions-4.16.0-py3-none-any.whl.metadata (3.3 kB)\nCollecting mypy_extensions>=1.0.0 (from mypy)\n  Using cached mypy_extensions-1.1.0-py3-none-any.whl.metadata (1.1 kB)\nCollecting pathspec>=1.0.0 (from mypy)\n  Using cached pathspec-1.1.1-py3-none-any.whl.metadata (14 kB)\nCollecting librt>=0.13.0 (from mypy)\n  Using cached librt-0.16.0-cp312-cp312-win_arm64.whl.metadata (1.3 kB)\nCollecting ast-serialize<1.0.0,>=0.6.0 (from mypy)\n  Using cached ast_serialize-0.11.2-cp39-abi3-win_arm64.whl.metadata (1.4 kB)\nCollecting python-dateutil>=2.8.2 (from pandas>=2.2->-r requirements.txt (line 1))\n  Using cached python_dateutil-2.9.0.post0-py2.py3-none-any.whl.metadata (8.4 kB)\nCollecting tzdata (from pandas>=2.2->-r requirements.txt (line 1))\n  Using cached tzdata-2026.4-py2.py3-none-any.whl.metadata (1.4 kB)\nCollecting joblib>=1.4.0 (from scikit-learn>=1.4->-r requirements.txt (line 4))\n  Using cached joblib-1.6.0-py3-none-any.whl.metadata (6.5 kB)\nCollecting narwhals>=2.0.1 (from scikit-learn>=1.4->-r requirements.txt (line 4))\n  Using cached narwhals-2.26.0-py3-none-any.whl.metadata (15 kB)\nCollecting threadpoolctl>=3.5.0 (from scikit-learn>=1.4->-r requirements.txt (line 4))\n  Using cached threadpoolctl-3.7.0-py3-none-any.whl.metadata (24 kB)\nCollecting beautifulsoup4>=4.11.1 (from yfinance>=0.2.50->-r requirements.txt (line 6))\n  Using cached beautifulsoup4-4.15.0-py3-none-any.whl.metadata (3.8 kB)\nCollecting curl_cffi>=0.15 (from yfinance>=0.2.50->-r requirements.txt (line 6))\n  Using cached curl_cffi-0.16.3-cp310-abi3-win_arm64.whl.metadata (17 kB)\nCollecting lxml>=4.9.0 (from yfinance>=0.2.50->-r requirements.txt (line 6))\n  Using cached lxml-6.1.3-cp312-cp312-win_arm64.whl.metadata (3.4 kB)\nCollecting multitasking>=0.0.7 (from yfinance>=0.2.50->-r requirements.txt (line 6))\n  Using cached multitasking-0.0.13-py3-none-any.whl.metadata (16 kB)\nCollecting peewee>=3.16.2 (from yfinance>=0.2.50->-r requirements.txt (line 6))\n  Using cached peewee-4.5.2-py3-none-any.whl.metadata (10 kB)\nCollecting platformdirs>=2.0.0 (from yfinance>=0.2.50->-r requirements.txt (line 6))\n  Using cached platformdirs-4.12.2-py3-none-any.whl.metadata (5.5 kB)\nRequirement already satisfied: protobuf>=3.19.0 in c:\\users\\peter\\appdata\\local\\programs\\python\\python312-arm64\\lib\\site-packages (from yfinance>=0.2.50->-r requirements.txt (line 6)) (7.36.2)\nCollecting pytz>=2022.5 (from yfinance>=0.2.50->-r requirements.txt (line 6))\n  Using cached pytz-2026.4-py2.py3-none-any.whl.metadata (22 kB)\nCollecting websockets>=13.0 (from yfinance>=0.2.50->-r requirements.txt (line 6))\n  Using cached websockets-17.1-cp312-cp312-win_arm64.whl.metadata (6.5 kB)\nCollecting charset_normalizer<4,>=2 (from requests>=2.31->-r requirements.txt (line 7))\n  Using cached charset_normalizer-3.5.2-cp312-cp312-win_arm64.whl.metadata (47 kB)\nCollecting idna<4,>=2.5 (from requests>=2.31->-r requirements.txt (line 7))\n  Using cached idna-3.20-py3-none-any.whl.metadata (7.2 kB)\nCollecting urllib3<3,>=1.26 (from requests>=2.31->-r requirements.txt (line 7))\n  Using cached urllib3-2.8.0-py3-none-any.whl.metadata (7.4 kB)\nCollecting certifi>=2023.5.7 (from requests>=2.31->-r requirements.txt (line 7))\n  Using cached certifi-2026.7.22-py3-none-any.whl.metadata (2.5 kB)\nCollecting msgpack<2.0.0,>=1.0.3 (from alpaca-py>=0.30->-r requirements.txt (line 9))\n  Using cached msgpack-1.2.3-cp312-cp312-win_arm64.whl.metadata (8.5 kB)\nCollecting pydantic<3.0.0,>=2.0.3 (from alpaca-py>=0.30->-r requirements.txt (line 9))\n  Using cached pydantic-2.13.5-py3-none-any.whl.metadata (110 kB)\nCollecting sseclient-py<2.0.0,>=1.7.2 (from alpaca-py>=0.30->-r requirements.txt (line 9))\n  Using cached sseclient_py-1.9.0-py3-none-any.whl.metadata (1.9 kB)\nCollecting soupsieve>=1.6.1 (from beautifulsoup4>=4.11.1->yfinance>=0.2.50->-r requirements.txt (line 6))\n  Using cached soupsieve-2.10-py3-none-any.whl.metadata (4.4 kB)\nCollecting cffi>=2.0.0 (from curl_cffi>=0.15->yfinance>=0.2.50->-r requirements.txt (line 6))\n  Using cached cffi-2.1.1-cp312-cp312-win_arm64.whl.metadata (2.6 kB)\nCollecting cloudpickle>=3.0 (from joblib>=1.4.0->scikit-learn>=1.4->-r requirements.txt (line 4))\n  Using cached cloudpickle-3.1.2-py3-none-any.whl.metadata (7.1 kB)\nCollecting annotated-types>=0.6.0 (from pydantic<3.0.0,>=2.0.3->alpaca-py>=0.30->-r requirements.txt (line 9))\n  Using cached annotated_types-0.8.0-py3-none-any.whl.metadata (15 kB)\nCollecting pydantic-core==2.46.5 (from pydantic<3.0.0,>=2.0.3->alpaca-py>=0.30->-r requirements.txt (line 9))\n  Using cached pydantic_core-2.46.5-cp312-cp312-win_arm64.whl.metadata (6.7 kB)\nCollecting typing-inspection>=0.4.2 (from pydantic<3.0.0,>=2.0.3->alpaca-py>=0.30->-r requirements.txt (line 9))\n  Using cached typing_inspection-0.4.4-py3-none-any.whl.metadata (2.6 kB)\nCollecting six>=1.5 (from python-dateutil>=2.8.2->pandas>=2.2->-r requirements.txt (line 1))\n  Using cached six-1.17.0-py2.py3-none-any.whl.metadata (1.7 kB)\nCollecting pycparser (from cffi>=2.0.0->curl_cffi>=0.15->yfinance>=0.2.50->-r requirements.txt (line 6))\n  Using cached pycparser-3.0-py3-none-any.whl.metadata (8.2 kB)\nUsing cached pytest-9.1.1-py3-none-any.whl (386 kB)\nUsing cached mypy-2.3.1-cp312-cp312-win_arm64.whl (10.2 MB)\nUsing cached pandas-3.0.6-cp312-cp312-win_arm64.whl (9.0 MB)\nUsing cached scikit_learn-1.9.1-cp312-cp312-win_arm64.whl (7.9 MB)\nUsing cached yfinance-1.7.0-py3-none-any.whl (149 kB)\nUsing cached requests-2.34.2-py3-none-any.whl (73 kB)\nUsing cached alpaca_py-0.44.0-py3-none-any.whl (128 kB)\nUsing cached ast_serialize-0.11.2-cp39-abi3-win_arm64.whl (1.1 MB)\nUsing cached beautifulsoup4-4.15.0-py3-none-any.whl (109 kB)\nUsing cached certifi-2026.7.22-py3-none-any.whl (136 kB)\nUsing cached charset_normalizer-3.5.2-cp312-cp312-win_arm64.whl (196 kB)\nUsing cached colorama-0.4.6-py2.py3-none-any.whl (25 kB)\nUsing cached curl_cffi-0.16.3-cp310-abi3-win_arm64.whl (1.7 MB)\nUsing cached idna-3.20-py3-none-any.whl (69 kB)\nUsing cached iniconfig-2.3.0-py3-none-any.whl (7.5 kB)\nUsing cached joblib-1.6.0-py3-none-any.whl (306 kB)\nUsing cached librt-0.16.0-cp312-cp312-win_arm64.whl (116 kB)\nUsing cached lxml-6.1.3-cp312-cp312-win_arm64.whl (3.7 MB)\nUsing cached msgpack-1.2.3-cp312-cp312-win_arm64.whl (71 kB)\nUsing cached multitasking-0.0.13-py3-none-any.whl (16 kB)\nUsing cached mypy_extensions-1.1.0-py3-none-any.whl (5.0 kB)\nUsing cached narwhals-2.26.0-py3-none-any.whl (474 kB)\nUsing cached pathspec-1.1.1-py3-none-any.whl (57 kB)\nUsing cached peewee-4.5.2-py3-none-any.whl (194 kB)\nUsing cached platformdirs-4.12.2-py3-none-any.whl (32 kB)\nUsing cached pluggy-1.6.0-py3-none-any.whl (20 kB)\nUsing cached pydantic-2.13.5-py3-none-any.whl (472 kB)\nUsing cached pydantic_core-2.46.5-cp312-cp312-win_arm64.whl (2.0 MB)\nUsing cached pygments-2.21.0-py3-none-any.whl (1.3 MB)\nUsing cached python_dateutil-2.9.0.post0-py2.py3-none-any.whl (229 kB)\nUsing cached pytz-2026.4-py2.py3-none-any.whl (506 kB)\nUsing cached sseclient_py-1.9.0-py3-none-any.whl (8.4 kB)\nUsing cached threadpoolctl-3.7.0-py3-none-any.whl (26 kB)\nUsing cached typing_extensions-4.16.0-py3-none-any.whl (45 kB)\nUsing cached urllib3-2.8.0-py3-none-any.whl (135 kB)\nUsing cached websockets-17.1-cp312-cp312-win_arm64.whl (217 kB)\nUsing cached tzdata-2026.4-py2.py3-none-any.whl (347 kB)\nUsing cached annotated_types-0.8.0-py3-none-any.whl (13 kB)\nUsing cached cffi-2.1.1-cp312-cp312-win_arm64.whl (180 kB)\nUsing cached cloudpickle-3.1.2-py3-none-any.whl (22 kB)\nUsing cached six-1.17.0-py2.py3-none-any.whl (11 kB)\nUsing cached soupsieve-2.10-py3-none-any.whl (38 kB)\nUsing cached typing_inspection-0.4.4-py3-none-any.whl (14 kB)\nUsing cached pycparser-3.0-py3-none-any.whl (48 kB)\nBuilding wheels for collected packages: lightgbm, pyarrow\n  Building wheel for lightgbm (pyproject.toml): started\n  Building wheel for lightgbm (pyproject.toml): finished with status 'error'\n  Building wheel for pyarrow (pyproject.toml): started\n  Building wheel for pyarrow (pyproject.toml): finished with status 'error'\nFailed to build lightgbm pyarrow\n",
+     "stderr": "  error: subprocess-exited-with-error\n  \n  \u00d7 Building wheel for lightgbm (pyproject.toml) did not run successfully.\n  \u2502 exit code: 1\n  \u2570\u2500> [24 lines of output]\n      2026-10-01 00:44:27,836 - scikit_build_core - INFO - RUN: 'C:\\Users\\Peter\\AppData\\Local\\Temp\\pip-build-env-3o7co7t_\\normal\\Lib\\site-packages\\cmake\\data\\bin\\cmake' -E capabilities\n      2026-10-01 00:44:27,872 - scikit_build_core - INFO - CMake version: 4.4.3\n      *** scikit-build-core 1.1.0 using CMake 4.4.3 (wheel)\n      2026-10-01 00:44:27,900 - scikit_build_core - INFO - Implementation: cpython win32 on ARM64\n      2026-10-01 00:44:27,902 - scikit_build_core - INFO - Build directory: C:\\Users\\Peter\\AppData\\Local\\Temp\\tmpx5y3aj2c\\build\n      *** Configuring CMake...\n      2026-10-01 00:44:27,941 - scikit_build_core - INFO - RUN: 'C:\\Users\\Peter\\AppData\\Local\\Temp\\pip-build-env-3o7co7t_\\normal\\Lib\\site-packages\\cmake\\data\\bin\\cmake' -S. '-BC:\\Users\\Peter\\AppData\\Local\\Temp\\tmpx5y3aj2c\\build' '-CC:\\Users\\Peter\\AppData\\Local\\Temp\\tmpx5y3aj2c\\build\\CMakeInit.txt' '-DCMAKE_INSTALL_PREFIX=C:\\Users\\Peter\\AppData\\Local\\Temp\\tmpx5y3aj2c\\wheel\\platlib' -D__BUILD_FOR_PYTHON=ON\n      loading initial cache file C:\\Users\\Peter\\AppData\\Local\\Temp\\tmpx5y3aj2c\\build\\CMakeInit.txt\n      -- Building for: NMake Makefiles\n      CMake Error at CMakeLists.txt:41 (project):\n        Running\n      \n         'nmake' '-?'\n      \n        failed with:\n      \n         no such file or directory\n      \n      \n      CMake Error: CMAKE_C_COMPILER not set, after EnableLanguage\n      CMake Error: CMAKE_CXX_COMPILER not set, after EnableLanguage\n      -- Configuring incomplete, errors occurred!\n      \n      *** CMake configuration failed\n      [end of output]\n  \n  note: This error originates from a subprocess, and is likely not a problem with pip.\n  ERROR: Failed building wheel for lightgbm\n  error: subprocess-exited-with-error\n  \n  \u00d7 Building wheel for pyarrow (pyproject.toml) did not run successfully.\n  \u2502 exit code: 1\n  \u2570\u2500> [20 lines of output]\n      WARNING: tool.scikit-build.metadata is deprecated; use the standard top-level [[tool.dynamic-metadata]] instead\n      *** scikit-build-core 1.1.0 using CMake 4.4.3 (wheel)\n      *** Configuring CMake...\n      loading initial cache file C:\\Users\\Peter\\AppData\\Local\\Temp\\tmpekxd1lzx\\build\\CMakeInit.txt\n      -- Building for: NMake Makefiles\n      CMake Error at CMakeLists.txt:22 (project):\n        Running\n      \n         'nmake' '-?'\n      \n        failed with:\n      \n         no such file or directory\n      \n      \n      CMake Error: CMAKE_C_COMPILER not set, after EnableLanguage\n      CMake Error: CMAKE_CXX_COMPILER not set, after EnableLanguage\n      -- Configuring incomplete, errors occurred!\n      \n      *** CMake configuration failed\n      [end of output]\n  \n  note: This error originates from a subprocess, and is likely not a problem with pip.\n  ERROR: Failed building wheel for pyarrow\n\n[notice] A new release of pip is available: 25.0.1 -> 26.2.1\n[notice] To update, run: python.exe -m pip install --upgrade pip\nERROR: Failed to build installable wheels for some pyproject.toml based projects (lightgbm, pyarrow)\n"
+    }
+   }
+  ]
+ },
+ "selection": {
+  "tests": [
+   "tests/test_creator_research.py"
+  ],
+  "reasons": {
+   "tests/test_creator_research.py": "test file changed"
+  },
+  "select_all": false,
+  "why_all": "",
+  "unresolved": [],
+  "digest": "c5ec1a5a0e2e520b"
+ },
+ "report": null,
+ "evidence_dir": "C:\\Users\\Peter\\.weekly7_creator_sandboxes\\20261001T063751-e0fa09c2-evidence"
+}

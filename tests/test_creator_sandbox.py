@@ -204,3 +204,14 @@ def test_hidden_paths_are_absent_but_kept_in_history(repo: Path, scratch: Path) 
     main_sparse = subprocess.run(["git", "config", "--get", "core.sparseCheckout"], cwd=repo, capture_output=True, text=True)
     assert main_sparse.stdout.strip() != "true"                                               # the main worktree stays full
     sb.close()
+
+
+def test_typecheck_command_must_invoke_mypy(tmp_path: Path) -> None:
+    """Regression (1 Oct): the CI line `pip install -r requirements.txt pytest mypy` was taken as the type check."""
+    wf = tmp_path / ".github" / "workflows"
+    wf.mkdir(parents=True)
+    (wf / "ci.yml").write_text("steps:\n  - run: pip install -r requirements.txt pytest mypy\n  - run: python -m mypy --strict\n",
+                               encoding="utf-8")
+    assert B.ci_typecheck_command(tmp_path, python="PY") == ["PY", "-m", "mypy", "--strict"]
+    (wf / "ci.yml").write_text("steps:\n  - run: pip install mypy\n", encoding="utf-8")
+    assert B.ci_typecheck_command(tmp_path, python="PY") == ["PY", "-m", "mypy"]

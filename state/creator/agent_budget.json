@@ -20,6 +20,13 @@
    "usd": 0.75,
    "run": "20261001T054833-bc8e1267",
    "outcome": "COST_UNKNOWN_CHARGED_AT_CAP"
+  },
+  {
+   "at": "2026-10-01T06:42:19.073934+00:00",
+   "job": "kernel:CP0001",
+   "usd": 0.2053,
+   "run": "20261001T063831-eaeb3362",
+   "outcome": "CONTAMINATED"
   }
  ]
 }

@@ -1,0 +1,344 @@
+diff --git a/creator/research.py b/creator/research.py
+new file mode 100644
+index 000000000..108942abb
+--- /dev/null
++++ b/creator/research.py
+@@ -0,0 +1,232 @@
++"""Creator K07 - research: questions, evidence, source evaluation, contradictions, confidence, memory, design bridge (C77; package CR10).
++
++The flow is: `generate_questions` turns gaps/unknowns into prioritised `Question`s; evidence (`Evidence`) is collected from the repo
++(`collect_repo_evidence`) or supplied by agents; `evaluate_source` scores each source's reliability; `find_contradictions` flags
++evidence that disagrees on the same question; `confidence` combines the rest into a number computed from the evidence, never typed;
++`ResearchMemory` persists findings (JSONL); `to_design_inputs` bridges a finding into the inputs a design step needs.
++Standard library only; no network access here (web evidence arrives through agent workers as `Evidence`)."""
++from __future__ import annotations
++
++import dataclasses
++import hashlib
++import json
++import re
++from pathlib import Path
++from typing import Any, Iterable, Mapping, Optional, Sequence
++
++SOURCE_KINDS = ("repo", "test", "doc", "web", "agent", "unknown")
++# Prior reliability per source kind: executable/repo evidence outranks prose, prose outranks unattributed claims.
++_KIND_WEIGHT = {"test": 0.95, "repo": 0.9, "doc": 0.7, "web": 0.5, "agent": 0.4, "unknown": 0.2}
++STANCES = ("supports", "refutes", "neutral")
++
++
++class ResearchError(ValueError):
++    """Raised on malformed research inputs (empty question text, unknown stance, bad memory line)."""
++
++
++@dataclasses.dataclass(frozen=True)
++class Question:
++    """A research question with a stable id, a kind, and a priority in [0, 1] (higher = ask first)."""
++    id: str
++    text: str
++    kind: str = "knowledge"
++    importance: float = 0.5
++    uncertainty: float = 0.5
++    cost: float = 0.5
++
++    @property
++    def priority(self) -> float:
++        """importance x uncertainty, discounted by cost; always within [0, 1]."""
++        return round(max(0.0, min(1.0, self.importance)) * max(0.0, min(1.0, self.uncertainty))
++                     / (1.0 + max(0.0, self.cost)), 6)
++
++
++@dataclasses.dataclass(frozen=True)
++class Evidence:
++    """One piece of evidence about a question: where it came from, what it says, and whether it supports or refutes."""
++    question_id: str
++    source: str
++    kind: str
++    claim: str
++    stance: str = "supports"
++    recency: float = 1.0
++
++
++@dataclasses.dataclass(frozen=True)
++class Finding:
++    """The outcome of researching one question: confidence computed from evidence, contradictions, and open flags."""
++    question_id: str
++    answer: str
++    confidence: float
++    n_evidence: int
++    contradictions: tuple[tuple[str, str], ...]
++    state: str  # ANSWERED | CONTESTED | INSUFFICIENT_EVIDENCE
++
++
++def question_id(text: str) -> str:
++    """Stable id (`Q-` + 12 hex of sha256 of the normalised text); the same question always gets the same id."""
++    norm = " ".join(text.lower().split())
++    return "Q-" + hashlib.sha256(norm.encode("utf-8")).hexdigest()[:12]
++
++
++def generate_questions(unknowns: Iterable[Mapping[str, Any] | str]) -> list[Question]:
++    """Turn unknowns (strings, or mappings with `text` and optional kind/importance/uncertainty/cost) into prioritised questions.
++
++    Duplicates (same normalised text) are merged keeping the higher importance; blank text raises ResearchError; an empty input
++    gives an empty list. Output is sorted by descending priority, ties by id, so it is deterministic."""
++    seen: dict[str, Question] = {}
++    for u in unknowns:
++        d = {"text": u} if isinstance(u, str) else dict(u)
++        text = str(d.get("text", "")).strip()
++        if not text:
++            raise ResearchError("question text is empty")
++        q = Question(question_id(text), text, str(d.get("kind", "knowledge")), float(d.get("importance", 0.5)),
++                     float(d.get("uncertainty", 0.5)), float(d.get("cost", 0.5)))
++        old = seen.get(q.id)
++        if old is None or q.importance > old.importance:
++            seen[q.id] = q
++    return prioritise(seen.values())
++
++
++def prioritise(questions: Iterable[Question]) -> list[Question]:
++    """Sort questions by descending priority (ties broken by id)."""
++    return sorted(questions, key=lambda q: (-q.priority, q.id))
++
++
++def evaluate_source(kind: str, recency: float = 1.0, corroborated_by: int = 0) -> float:
++    """Reliability in [0, 1] of a source: kind prior, scaled down by staleness (recency in [0,1]), up by independent corroboration."""
++    base = _KIND_WEIGHT.get(kind, _KIND_WEIGHT["unknown"])
++    base *= 0.5 + 0.5 * max(0.0, min(1.0, recency))
++    base += 0.05 * max(0, corroborated_by)
++    return round(max(0.0, min(1.0, base)), 6)
++
++
++def collect_repo_evidence(root: Path | str, question: Question, patterns: Sequence[str] = ("*.py", "*.md"),
++                          max_items: int = 20) -> list[Evidence]:
++    """Search files under `root` for the question's keywords (words of 4+ letters); each matching line is `supports` evidence.
++
++    Files under tests/ are kind `test`, markdown is `doc`, the rest `repo`. A missing root or no keywords yields []."""
++    root = Path(root)
++    words = {w for w in re.findall(r"[a-z_]{4,}", question.text.lower())}
++    if not root.is_dir() or not words:
++        return []
++    out: list[Evidence] = []
++    for pat in patterns:
++        for path in sorted(root.rglob(pat)):
++            if len(out) >= max_items:
++                return out
++            rel = path.relative_to(root).as_posix()
++            if any(part.startswith(".") or part == "__pycache__" for part in path.relative_to(root).parts):
++                continue
++            try:
++                lines = path.read_text(encoding="utf-8").splitlines()
++            except (OSError, UnicodeDecodeError):
++                continue
++            kind = "test" if rel.startswith("tests/") else "doc" if path.suffix == ".md" else "repo"
++            for n, line in enumerate(lines, 1):
++                if sum(w in line.lower() for w in words) >= min(2, len(words)):
++                    out.append(Evidence(question.id, f"{rel}:{n}", kind, line.strip()[:200]))
++                    break
++    return out[:max_items]
++
++
++def find_contradictions(evidence: Sequence[Evidence]) -> list[tuple[str, str]]:
++    """Pairs of sources, on the same question, where one `supports` and the other `refutes`. Sorted, deduplicated."""
++    by_q: dict[str, list[Evidence]] = {}
++    for e in evidence:
++        by_q.setdefault(e.question_id, []).append(e)
++    pairs: set[tuple[str, str]] = set()
++    for items in by_q.values():
++        sup = [e for e in items if e.stance == "supports"]
++        ref = [e for e in items if e.stance == "refutes"]
++        for s in sup:
++            for r in ref:
++                pairs.add(tuple(sorted((s.source, r.source))))  # type: ignore[arg-type]
++    return sorted(pairs)
++
++
++def confidence(evidence: Sequence[Evidence]) -> float:
++    """Confidence in [0, 1] that the supported answer holds: reliability-weighted support share, shrunk toward 0 when evidence is thin.
++
++    No evidence -> 0.0. Refuting evidence lowers the share; neutral evidence is ignored."""
++    for e in evidence:
++        if e.stance not in STANCES:
++            raise ResearchError(f"unknown stance {e.stance!r}")
++    sup = sum(evaluate_source(e.kind, e.recency) for e in evidence if e.stance == "supports")
++    ref = sum(evaluate_source(e.kind, e.recency) for e in evidence if e.stance == "refutes")
++    if sup + ref == 0:
++        return 0.0
++    share = sup / (sup + ref)
++    mass = (sup + ref) / (sup + ref + 1.0)  # a single weak source cannot give high confidence
++    return round(share * mass, 6)
++
++
++def assess(question: Question, evidence: Sequence[Evidence], threshold: float = 0.5) -> Finding:
++    """Combine evidence for one question into a Finding. State is INSUFFICIENT_EVIDENCE with no evidence (the right to say
++    "don't know"), CONTESTED when contradictions exist, else ANSWERED if confidence >= threshold (otherwise INSUFFICIENT_EVIDENCE)."""
++    mine = [e for e in evidence if e.question_id == question.id]
++    contra = tuple(find_contradictions(mine))
++    conf = confidence(mine)
++    supporting = [e for e in mine if e.stance == "supports"]
++    if not mine:
++        state = "INSUFFICIENT_EVIDENCE"
++    elif contra:
++        state = "CONTESTED"
++    else:
++        state = "ANSWERED" if conf >= threshold else "INSUFFICIENT_EVIDENCE"
++    best = max(supporting, key=lambda e: evaluate_source(e.kind, e.recency), default=None)
++    return Finding(question.id, best.claim if best and state == "ANSWERED" else "", conf, len(mine), contra, state)
++
++
++class ResearchMemory:
++    """Append-only JSONL store of findings so the same question is not researched twice without cause.
++
++    `remember` appends, `recall` returns the latest finding for a question id (None if never seen), `all` lists the latest
++    per question. A corrupt line raises ResearchError rather than being silently dropped."""
++
++    def __init__(self, path: Path | str):
++        self.path = Path(path)
++
++    def remember(self, finding: Finding, question_text: str = "") -> None:
++        """Append `finding` (with optional question text) to the store, creating parent directories."""
++        self.path.parent.mkdir(parents=True, exist_ok=True)
++        rec = dataclasses.asdict(finding)
++        rec["question_text"] = question_text
++        with self.path.open("a", encoding="utf-8") as fh:
++            fh.write(json.dumps(rec, sort_keys=True) + "\n")
++
++    def all(self) -> dict[str, Finding]:
++        """Latest finding per question id; {} if the store does not exist."""
++        out: dict[str, Finding] = {}
++        if not self.path.exists():
++            return out
++        for n, line in enumerate(self.path.read_text(encoding="utf-8").splitlines(), 1):
++            if not line.strip():
++                continue
++            try:
++                d = json.loads(line)
++                out[d["question_id"]] = Finding(d["question_id"], d["answer"], float(d["confidence"]), int(d["n_evidence"]),
++                                                tuple((a, b) for a, b in d["contradictions"]), d["state"])
++            except (ValueError, KeyError, TypeError) as exc:
++                raise ResearchError(f"{self.path}:{n}: corrupt research memory line") from exc
++        return out
++
++    def recall(self, qid: str) -> Optional[Finding]:
++        """The latest Finding for `qid`, or None."""
++        return self.all().get(qid)
++
++
++def to_design_inputs(questions: Sequence[Question], findings: Mapping[str, Finding]) -> dict[str, Any]:
++    """Bridge research to design: `facts` (answered, with confidence), `contested` and `open_questions` (needing more work).
++
++    Questions with no finding count as open. The design step must treat `open_questions` as assumptions, not facts."""
++    facts, contested, open_q = [], [], []
++    for q in prioritise(questions):
++        f = findings.get(q.id)
++        if f is None or f.state == "INSUFFICIENT_EVIDENCE":
++            open_q.append({"id": q.id, "text": q.text})
++        elif f.state == "CONTESTED":
++            contested.append({"id": q.id, "text": q.text, "contradictions": [list(c) for c in f.contradictions]})
++        else:
++            facts.append({"id": q.id, "text": q.text, "answer": f.answer, "confidence": f.confidence})
++    return {"facts": facts, "contested": contested, "open_questions": open_q}
+diff --git a/tests/test_creator_research.py b/tests/test_creator_research.py
+new file mode 100644
+index 000000000..acb85904e
+--- /dev/null
++++ b/tests/test_creator_research.py
+@@ -0,0 +1,100 @@
++"""CR10: research (K07)."""
++from __future__ import annotations
++
++import pytest
++
++from creator import research as R
++
++
++def ev(qid, src, kind="repo", stance="supports", claim="c"):
++    return R.Evidence(qid, src, kind, claim, stance)
++
++
++def test_generate_empty_and_blank():
++    assert R.generate_questions([]) == []
++    with pytest.raises(R.ResearchError):
++        R.generate_questions(["  "])
++
++
++def test_generate_dedup_and_priority_order():
++    qs = R.generate_questions(["What is X?", "what  is x?", {"text": "Y?", "importance": 1.0, "uncertainty": 1.0, "cost": 0}])
++    assert len(qs) == 2
++    assert qs[0].text == "Y?"
++    assert qs[0].priority > qs[1].priority
++    assert all(0 <= q.priority <= 1 for q in qs)
++
++
++def test_source_evaluation_ordering():
++    assert R.evaluate_source("test") > R.evaluate_source("web") > R.evaluate_source("nonsense")
++    assert R.evaluate_source("web", recency=0.0) < R.evaluate_source("web")
++    assert R.evaluate_source("web", corroborated_by=3) > R.evaluate_source("web")
++    assert R.evaluate_source("test", corroborated_by=100) <= 1.0
++
++
++def test_confidence_cases():
++    assert R.confidence([]) == 0.0
++    one = R.confidence([ev("q", "a", "web")])
++    many = R.confidence([ev("q", s, "web") for s in "abcde"])
++    assert 0 < one < many < 1
++    assert R.confidence([ev("q", "a"), ev("q", "b", stance="refutes")]) < R.confidence([ev("q", "a")])
++    with pytest.raises(R.ResearchError):
++        R.confidence([ev("q", "a", stance="maybe")])
++
++
++def test_contradictions():
++    es = [ev("q", "a"), ev("q", "b", stance="refutes"), ev("r", "c"), ev("q", "d")]
++    assert R.find_contradictions(es) == [("a", "b"), ("b", "d")]
++    assert R.find_contradictions([]) == []
++
++
++def test_assess_states():
++    q = R.generate_questions(["Is it so?"])[0]
++    assert R.assess(q, []).state == "INSUFFICIENT_EVIDENCE"
++    good = R.assess(q, [ev(q.id, "a", "test", claim="yes"), ev(q.id, "b", "repo")])
++    assert good.state == "ANSWERED" and good.answer == "yes"
++    contested = R.assess(q, [ev(q.id, "a"), ev(q.id, "b", stance="refutes")])
++    assert contested.state == "CONTESTED" and contested.contradictions == (("a", "b"),)
++    assert R.assess(q, [ev(q.id, "a", "unknown")]).state == "INSUFFICIENT_EVIDENCE"
++
++
++def test_collect_repo_evidence(tmp_path):
++    (tmp_path / "pkg").mkdir()
++    (tmp_path / "pkg" / "m.py").write_text("def planner_handled():\n    pass\n", encoding="utf-8")
++    (tmp_path / "tests").mkdir()
++    (tmp_path / "tests" / "test_m.py").write_text("planner handled test\n", encoding="utf-8")
++    q = R.generate_questions(["where is planner gap handled"])[0]
++    found = R.collect_repo_evidence(tmp_path, q)
++    assert {e.kind for e in found} == {"repo", "test"}
++    assert R.collect_repo_evidence(tmp_path / "missing", q) == []
++    assert R.collect_repo_evidence(tmp_path, R.Question("Q", "a b")) == []
++    assert len(R.collect_repo_evidence(tmp_path, q, max_items=1)) == 1
++
++
++def test_memory_roundtrip_and_corruption(tmp_path):
++    mem = R.ResearchMemory(tmp_path / "sub" / "mem.jsonl")
++    assert mem.all() == {} and mem.recall("x") is None
++    q = R.generate_questions(["Q one?"])[0]
++    f1 = R.assess(q, [ev(q.id, "a"), ev(q.id, "b", stance="refutes")])
++    mem.remember(f1, q.text)
++    f2 = R.assess(q, [ev(q.id, "a", "test"), ev(q.id, "b", "repo")])
++    mem.remember(f2, q.text)
++    assert mem.recall(q.id) == f2
++    mem.path.write_text("not json\n", encoding="utf-8")
++    with pytest.raises(R.ResearchError):
++        mem.all()
++
++
++def test_design_bridge():
++    qs = R.generate_questions(["answered?", "contested?", "unknown?", "missing?"])
++    by_text = {q.text: q for q in qs}
++    ok, bad, unk = (by_text[t] for t in ("answered?", "contested?", "unknown?"))
++    findings = {
++        ok.id: R.assess(ok, [ev(ok.id, "a", "test", claim="yes"), ev(ok.id, "b", "repo")]),
++        bad.id: R.assess(bad, [ev(bad.id, "a"), ev(bad.id, "b", stance="refutes")]),
++        unk.id: R.assess(unk, []),
++    }
++    out = R.to_design_inputs(qs, findings)
++    assert [f["text"] for f in out["facts"]] == ["answered?"]
++    assert [c["text"] for c in out["contested"]] == ["contested?"]
++    assert {o["text"] for o in out["open_questions"]} == {"unknown?", "missing?"}
++    assert R.to_design_inputs([], {}) == {"facts": [], "contested": [], "open_questions": []}

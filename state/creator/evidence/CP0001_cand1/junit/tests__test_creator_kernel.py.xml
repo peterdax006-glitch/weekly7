@@ -1,0 +1,176 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="10" skipped="0" tests="12" time="76.979" timestamp="2026-10-01T00:53:38.849413-06:00" hostname="DaxLaptop"><testcase classname="tests.test_creator_kernel" name="test_a_good_change_is_measured_adopted_and_the_gap_closes_by_evidence" time="6.965"><failure message="AssertionError: []&#10;assert [] == ['K02.exists']&#10;  &#10;  Right contains one more item: 'K02.exists'&#10;  Use -v to get more diff">cfg = KernelConfig(repo=WindowsPath('C:/Users/Peter/AppData/Local/Temp/pytest-of-Peter/pytest-1089/test_a_good_change_is_mea...ter\\weekly7\\.venv\\Scripts\\python.exe', timeout=600.0, extra_args=[], env={}), test_timeout=900.0, sealed_root=None)
+
+    def test_a_good_change_is_measured_adopted_and_the_gap_closes_by_evidence(cfg: K.KernelConfig) -&gt; None:
+        w = Scripted("good", {"pkg/user.py": USER, "tests/test_user.py": USER_TEST})
+        before = head(cfg)
+        rep = K.cycle(cfg, w)
+&gt;       assert w.seen == ["K02.exists"], w.seen
+E       AssertionError: []
+E       assert [] == ['K02.exists']
+E         
+E         Right contains one more item: 'K02.exists'
+E         Use -v to get more diff
+
+tests\test_creator_kernel.py:74: AssertionError</failure></testcase><testcase classname="tests.test_creator_kernel" name="test_bad_changes_are_rejected_and_main_is_untouched[lazy-files0-changed nothing]" time="6.752"><failure message="AssertionError: ('AUDIT_RED', 'sealed_suite:MANIFEST')&#10;assert ('AUDIT_RED' == 'REJECTED'&#10;  &#10;  - REJECTED&#10;  + AUDIT_RED)">cfg = KernelConfig(repo=WindowsPath('C:/Users/Peter/AppData/Local/Temp/pytest-of-Peter/pytest-1089/test_bad_changes_are_reje...ter\\weekly7\\.venv\\Scripts\\python.exe', timeout=600.0, extra_args=[], env={}), test_timeout=900.0, sealed_root=None)
+name = 'lazy', files = {}, why = 'changed nothing'
+
+    @pytest.mark.parametrize("name,files,why", [
+        ("lazy", {}, "changed nothing"),
+        ("broken", {"pkg/user.py": "def use(:\n    pass\n", "tests/test_user.py": USER_TEST}, "not clean"),
+        ("weakener", {"pkg/user.py": USER, "tests/test_user.py": USER_TEST,
+                      "tests/test_base.py": "def test_one():\n    assert True\n"}, "weakened"),
+        ("breaker", {"pkg/user.py": USER, "tests/test_user.py": USER_TEST,
+                     "pkg/base.py": "def one():\n    return 1\n\n\ndef two():\n    return 2\n\n\ndef three():\n    raise NotImplementedError\n"},
+         "requirements_kept"),
+    ])
+    def test_bad_changes_are_rejected_and_main_is_untouched(cfg: K.KernelConfig, name: str, files: dict, why: str) -&gt; None:
+        before = head(cfg)
+        rep = K.cycle(cfg, Scripted(name, files))
+&gt;       assert rep.outcome == "REJECTED" and why in rep.reason, (rep.outcome, rep.reason)
+E       AssertionError: ('AUDIT_RED', 'sealed_suite:MANIFEST')
+E       assert ('AUDIT_RED' == 'REJECTED'
+E         
+E         - REJECTED
+E         + AUDIT_RED)
+
+tests\test_creator_kernel.py:100: AssertionError</failure></testcase><testcase classname="tests.test_creator_kernel" name="test_bad_changes_are_rejected_and_main_is_untouched[broken-files1-not clean]" time="6.760"><failure message="AssertionError: ('AUDIT_RED', 'sealed_suite:MANIFEST')&#10;assert ('AUDIT_RED' == 'REJECTED'&#10;  &#10;  - REJECTED&#10;  + AUDIT_RED)">cfg = KernelConfig(repo=WindowsPath('C:/Users/Peter/AppData/Local/Temp/pytest-of-Peter/pytest-1089/test_bad_changes_are_reje...ter\\weekly7\\.venv\\Scripts\\python.exe', timeout=600.0, extra_args=[], env={}), test_timeout=900.0, sealed_root=None)
+name = 'broken'
+files = {'pkg/user.py': 'def use(:\n    pass\n', 'tests/test_user.py': "from pkg.user import label, twice, use\n\n\ndef test_u...assert use() == 2\n\n\ndef test_twice():\n    assert twice() == 4\n\n\ndef test_label():\n    assert label() == 'u'\n"}
+why = 'not clean'
+
+    @pytest.mark.parametrize("name,files,why", [
+        ("lazy", {}, "changed nothing"),
+        ("broken", {"pkg/user.py": "def use(:\n    pass\n", "tests/test_user.py": USER_TEST}, "not clean"),
+        ("weakener", {"pkg/user.py": USER, "tests/test_user.py": USER_TEST,
+                      "tests/test_base.py": "def test_one():\n    assert True\n"}, "weakened"),
+        ("breaker", {"pkg/user.py": USER, "tests/test_user.py": USER_TEST,
+                     "pkg/base.py": "def one():\n    return 1\n\n\ndef two():\n    return 2\n\n\ndef three():\n    raise NotImplementedError\n"},
+         "requirements_kept"),
+    ])
+    def test_bad_changes_are_rejected_and_main_is_untouched(cfg: K.KernelConfig, name: str, files: dict, why: str) -&gt; None:
+        before = head(cfg)
+        rep = K.cycle(cfg, Scripted(name, files))
+&gt;       assert rep.outcome == "REJECTED" and why in rep.reason, (rep.outcome, rep.reason)
+E       AssertionError: ('AUDIT_RED', 'sealed_suite:MANIFEST')
+E       assert ('AUDIT_RED' == 'REJECTED'
+E         
+E         - REJECTED
+E         + AUDIT_RED)
+
+tests\test_creator_kernel.py:100: AssertionError</failure></testcase><testcase classname="tests.test_creator_kernel" name="test_bad_changes_are_rejected_and_main_is_untouched[weakener-files2-weakened]" time="6.759"><failure message="AssertionError: ('AUDIT_RED', 'sealed_suite:MANIFEST')&#10;assert ('AUDIT_RED' == 'REJECTED'&#10;  &#10;  - REJECTED&#10;  + AUDIT_RED)">cfg = KernelConfig(repo=WindowsPath('C:/Users/Peter/AppData/Local/Temp/pytest-of-Peter/pytest-1089/test_bad_changes_are_reje...ter\\weekly7\\.venv\\Scripts\\python.exe', timeout=600.0, extra_args=[], env={}), test_timeout=900.0, sealed_root=None)
+name = 'weakener'
+files = {'pkg/user.py': "from pkg.base import one\n\n\ndef use():\n    return one() + 1\n\n\ndef twice():\n    return 2 * use(... == 4\n\n\ndef test_label():\n    assert label() == 'u'\n", 'tests/test_base.py': 'def test_one():\n    assert True\n'}
+why = 'weakened'
+
+    @pytest.mark.parametrize("name,files,why", [
+        ("lazy", {}, "changed nothing"),
+        ("broken", {"pkg/user.py": "def use(:\n    pass\n", "tests/test_user.py": USER_TEST}, "not clean"),
+        ("weakener", {"pkg/user.py": USER, "tests/test_user.py": USER_TEST,
+                      "tests/test_base.py": "def test_one():\n    assert True\n"}, "weakened"),
+        ("breaker", {"pkg/user.py": USER, "tests/test_user.py": USER_TEST,
+                     "pkg/base.py": "def one():\n    return 1\n\n\ndef two():\n    return 2\n\n\ndef three():\n    raise NotImplementedError\n"},
+         "requirements_kept"),
+    ])
+    def test_bad_changes_are_rejected_and_main_is_untouched(cfg: K.KernelConfig, name: str, files: dict, why: str) -&gt; None:
+        before = head(cfg)
+        rep = K.cycle(cfg, Scripted(name, files))
+&gt;       assert rep.outcome == "REJECTED" and why in rep.reason, (rep.outcome, rep.reason)
+E       AssertionError: ('AUDIT_RED', 'sealed_suite:MANIFEST')
+E       assert ('AUDIT_RED' == 'REJECTED'
+E         
+E         - REJECTED
+E         + AUDIT_RED)
+
+tests\test_creator_kernel.py:100: AssertionError</failure></testcase><testcase classname="tests.test_creator_kernel" name="test_bad_changes_are_rejected_and_main_is_untouched[breaker-files3-requirements_kept]" time="6.942"><failure message="AssertionError: ('AUDIT_RED', 'sealed_suite:MANIFEST')&#10;assert ('AUDIT_RED' == 'REJECTED'&#10;  &#10;  - REJECTED&#10;  + AUDIT_RED)">cfg = KernelConfig(repo=WindowsPath('C:/Users/Peter/AppData/Local/Temp/pytest-of-Peter/pytest-1089/test_bad_changes_are_reje...ter\\weekly7\\.venv\\Scripts\\python.exe', timeout=600.0, extra_args=[], env={}), test_timeout=900.0, sealed_root=None)
+name = 'breaker'
+files = {'pkg/user.py': "from pkg.base import one\n\n\ndef use():\n    return one() + 1\n\n\ndef twice():\n    return 2 * use(.../base.py': 'def one():\n    return 1\n\n\ndef two():\n    return 2\n\n\ndef three():\n    raise NotImplementedError\n'}
+why = 'requirements_kept'
+
+    @pytest.mark.parametrize("name,files,why", [
+        ("lazy", {}, "changed nothing"),
+        ("broken", {"pkg/user.py": "def use(:\n    pass\n", "tests/test_user.py": USER_TEST}, "not clean"),
+        ("weakener", {"pkg/user.py": USER, "tests/test_user.py": USER_TEST,
+                      "tests/test_base.py": "def test_one():\n    assert True\n"}, "weakened"),
+        ("breaker", {"pkg/user.py": USER, "tests/test_user.py": USER_TEST,
+                     "pkg/base.py": "def one():\n    return 1\n\n\ndef two():\n    return 2\n\n\ndef three():\n    raise NotImplementedError\n"},
+         "requirements_kept"),
+    ])
+    def test_bad_changes_are_rejected_and_main_is_untouched(cfg: K.KernelConfig, name: str, files: dict, why: str) -&gt; None:
+        before = head(cfg)
+        rep = K.cycle(cfg, Scripted(name, files))
+&gt;       assert rep.outcome == "REJECTED" and why in rep.reason, (rep.outcome, rep.reason)
+E       AssertionError: ('AUDIT_RED', 'sealed_suite:MANIFEST')
+E       assert ('AUDIT_RED' == 'REJECTED'
+E         
+E         - REJECTED
+E         + AUDIT_RED)
+
+tests\test_creator_kernel.py:100: AssertionError</failure></testcase><testcase classname="tests.test_creator_kernel" name="test_a_protected_path_is_never_merged" time="6.904"><failure message="AssertionError: assert ('AUDIT_RED' in ('ERROR', 'REJECTED'))&#10; +  where 'AUDIT_RED' = CycleReport(cycle=1, outcome='AUDIT_RED', package='', requirement='', reason='sealed_suite:MANIFEST', verdict='', merge_commit='', calls=0, usd=0.0, seconds=6.8, details={}).outcome">cfg = KernelConfig(repo=WindowsPath('C:/Users/Peter/AppData/Local/Temp/pytest-of-Peter/pytest-1089/test_a_protected_path_is_...ter\\weekly7\\.venv\\Scripts\\python.exe', timeout=600.0, extra_args=[], env={}), test_timeout=900.0, sealed_root=None)
+
+    def test_a_protected_path_is_never_merged(cfg: K.KernelConfig) -&gt; None:
+        before = head(cfg)
+        rep = K.cycle(cfg, Scripted("vandal", {"pkg/user.py": USER, "tests/test_user.py": USER_TEST, "canon/CANON.md": "rewritten\n"}))
+&gt;       assert rep.outcome in ("ERROR", "REJECTED") and "protected" in rep.reason.lower()
+E       AssertionError: assert ('AUDIT_RED' in ('ERROR', 'REJECTED'))
+E        +  where 'AUDIT_RED' = CycleReport(cycle=1, outcome='AUDIT_RED', package='', requirement='', reason='sealed_suite:MANIFEST', verdict='', merge_commit='', calls=0, usd=0.0, seconds=6.8, details={}).outcome
+
+tests\test_creator_kernel.py:111: AssertionError</failure></testcase><testcase classname="tests.test_creator_kernel" name="test_budget_refusal_stops_without_changes" time="6.946"><failure message="AssertionError: assert (1 == 1 and 'AUDIT_RED' == 'BUDGET'&#10; +  where 1 = len([CycleReport(cycle=1, outcome='AUDIT_RED', package='', requirement='', reason='sealed_suite:MANIFEST', verdict='', merge_commit='', calls=0, usd=0.0, seconds=6.8, details={})])&#10;  &#10;  - BUDGET&#10;  + AUDIT_RED)">cfg = KernelConfig(repo=WindowsPath('C:/Users/Peter/AppData/Local/Temp/pytest-of-Peter/pytest-1089/test_budget_refusal_stops...ter\\weekly7\\.venv\\Scripts\\python.exe', timeout=600.0, extra_args=[], env={}), test_timeout=900.0, sealed_root=None)
+
+    def test_budget_refusal_stops_without_changes(cfg: K.KernelConfig) -&gt; None:
+        reps = K.run(cfg, Scripted("broke", {}, refuse=True), max_cycles=3)
+&gt;       assert len(reps) == 1 and reps[0].outcome == "BUDGET"
+E       AssertionError: assert (1 == 1 and 'AUDIT_RED' == 'BUDGET'
+E        +  where 1 = len([CycleReport(cycle=1, outcome='AUDIT_RED', package='', requirement='', reason='sealed_suite:MANIFEST', verdict='', merge_commit='', calls=0, usd=0.0, seconds=6.8, details={})])
+E         
+E         - BUDGET
+E         + AUDIT_RED)
+
+tests\test_creator_kernel.py:117: AssertionError</failure></testcase><testcase classname="tests.test_creator_kernel" name="test_a_red_audit_stops_development" time="7.870" /><testcase classname="tests.test_creator_kernel" name="test_one_kernel_at_a_time" time="0.132" /><testcase classname="tests.test_creator_kernel" name="test_a_change_that_fails_on_main_is_rolled_back" time="6.909"><failure message="AssertionError: assert ('AUDIT_RED' == 'ROLLED_BACK'&#10;  &#10;  - ROLLED_BACK&#10;  + AUDIT_RED)">cfg = KernelConfig(repo=WindowsPath('C:/Users/Peter/AppData/Local/Temp/pytest-of-Peter/pytest-1089/test_a_change_that_fails_...ter\\weekly7\\.venv\\Scripts\\python.exe', timeout=600.0, extra_args=[], env={}), test_timeout=900.0, sealed_root=None)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000177747B4450&gt;
+
+    def test_a_change_that_fails_on_main_is_rolled_back(cfg: K.KernelConfig, monkeypatch: pytest.MonkeyPatch) -&gt; None:
+        real = K.assess_tree
+    
+        def flaky_main(c, led, root, label, run_tests=True, audit=True):
+            a = real(c, led, root, label, run_tests, audit)
+            if label.endswith("_main_after"):
+                rows = tuple(r if r.key != "K02.exists" else __import__("dataclasses").replace(r, met=False, detail="forced")
+                             for r in a.rows)
+                return K.Assessed(a.model, rows, a.audit, a.snapshot)
+            return a
+        monkeypatch.setattr(K, "assess_tree", flaky_main)
+        before = head(cfg)
+        rep = K.cycle(cfg, Scripted("good", {"pkg/user.py": USER, "tests/test_user.py": USER_TEST}))
+&gt;       assert rep.outcome == "ROLLED_BACK" and rep.merge_commit
+E       AssertionError: assert ('AUDIT_RED' == 'ROLLED_BACK'
+E         
+E         - ROLLED_BACK
+E         + AUDIT_RED)
+
+tests\test_creator_kernel.py:153: AssertionError</failure></testcase><testcase classname="tests.test_creator_kernel" name="test_interrupted_sandboxes_are_recovered" time="6.967"><failure message="KeyError: 'recovered'">cfg = KernelConfig(repo=WindowsPath('C:/Users/Peter/AppData/Local/Temp/pytest-of-Peter/pytest-1089/test_interrupted_sandboxe...ter\\weekly7\\.venv\\Scripts\\python.exe', timeout=600.0, extra_args=[], env={}), test_timeout=900.0, sealed_root=None)
+
+    def test_interrupted_sandboxes_are_recovered(cfg: K.KernelConfig) -&gt; None:
+        from creator import sandbox as S
+        sb = S.Sandbox.open(cfg.repo, scratch=cfg.scratch, label="crashed")
+        put(sb.path, "pkg/half.py", "X = 1\n")
+        rep = K.cycle(cfg, Scripted("lazy", {}))
+&gt;       assert sb.id in rep.details["recovered"] and not sb.path.exists()
+                        ^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'recovered'
+
+tests\test_creator_kernel.py:164: KeyError</failure></testcase><testcase classname="tests.test_creator_kernel" name="test_the_prompt_is_the_package_and_names_protected_paths" time="6.738"><failure message="KeyError: 'prompt'">cfg = KernelConfig(repo=WindowsPath('C:/Users/Peter/AppData/Local/Temp/pytest-of-Peter/pytest-1089/test_the_prompt_is_the_pa...ter\\weekly7\\.venv\\Scripts\\python.exe', timeout=600.0, extra_args=[], env={}), test_timeout=900.0, sealed_root=None)
+
+    def test_the_prompt_is_the_package_and_names_protected_paths(cfg: K.KernelConfig) -&gt; None:
+        seen = {}
+    
+        class Spy(Scripted):
+            def __call__(self, plan, package, workdir):
+                seen["prompt"] = K.render_package(plan, package)
+                seen["sealed_visible"] = (workdir / "creator" / "devbench" / "sealed").exists()
+                return super().__call__(plan, package, workdir)
+        K.cycle(cfg, Spy("spy", {}))
+&gt;       assert "Objective:" in seen["prompt"] and "canon/*" in seen["prompt"] and "Never weaken" in seen["prompt"]
+                               ^^^^^^^^^^^^^^
+E       KeyError: 'prompt'
+
+tests\test_creator_kernel.py:176: KeyError</failure></testcase></testsuite></testsuites>

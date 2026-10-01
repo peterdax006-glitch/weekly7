@@ -23,6 +23,7 @@ never pushes to a remote and never touches protected paths (the sandbox refuses 
 from __future__ import annotations
 
 import dataclasses
+import hashlib
 import json
 import shutil
 import subprocess
@@ -81,12 +82,27 @@ class WorkResult:
     calls: int = 0
     usd: float = 0.0
     refused: bool = False                               # the budget refused: nothing was attempted
+    contaminated: tuple[str, ...] = ()                  # protected / answer-key references in what the worker said or wrote
 
 
 class Worker(Protocol):
     name: str
 
     def __call__(self, plan: P.Plan, package: M.WorkPackage, workdir: Path) -> WorkResult: ...
+
+
+def git_changed_files(workdir: Path) -> list[Path]:
+    """Files the worker added or modified in a sandbox (tracked changes + untracked, ignored files excluded)."""
+    out = subprocess.run(["git", "status", "--porcelain", "--untracked-files=all"], cwd=workdir, capture_output=True, text=True,
+                         encoding="utf-8", errors="replace").stdout
+    files = []
+    for ln in out.splitlines():
+        rel = ln[3:].strip().strip('"')
+        if " -> " in rel:
+            rel = rel.split(" -> ", 1)[1]
+        if (workdir / rel).is_file():
+            files.append(workdir / rel)
+    return files
 
 
 def render_package(plan: P.Plan, wp: M.WorkPackage, protected: Sequence[str] = S.PROTECTED) -> str:
@@ -98,7 +114,8 @@ def render_package(plan: P.Plan, wp: M.WorkPackage, protected: Sequence[str] = S
     lines += ["", "Known interfaces:"] + [f"- {s}" for s in wp.interfaces[:20]]
     lines += ["", "Ways this commonly goes wrong (avoid them):"] + [f"- {s}" for s in wp.expected_failure_modes]
     lines += ["", "Done means (computed by the system, not by you):"] + [f"- {s}" for s in wp.completion_criteria]
-    lines += ["", "Rules:", "- Python 3.11. Run tests with `python -m pytest -q <files>`.",
+    lines += ["", "Rules:", "- Python 3.11. Run tests exactly as `python -m pytest -q <files>` - no `cd`, pipes or redirects "
+              "(other shell commands are refused).",
               "- Never edit these protected paths: " + ", ".join(p for p in protected if "*" not in p or p.endswith("/*")),
               "- Never weaken, skip or delete tests to make them pass.", "- Keep changes small and focused on this package."]
     return "\n".join(lines)
@@ -114,10 +131,11 @@ class AgentWorker:
     def __call__(self, plan: P.Plan, package: M.WorkPackage, workdir: Path) -> WorkResult:
         try:
             run = AG.run_agent(self.spec, f"kernel:{package.package_id}", render_package(plan, package), workdir, self.budget,
-                               self.runner, self.runs_dir, markers=("state/livesim", "state\\livesim"))
+                               self.runner, self.runs_dir, markers=AG.CONTAMINATION_MARKERS, changed_files=git_changed_files)
         except AG.BudgetError as e:
             return WorkResult(False, f"budget refused: {e}", 0, 0.0, refused=True)
-        return WorkResult(run.claimed_done, f"{run.outcome} run={run.run_id} turns={run.turns}", 1, run.usd)
+        return WorkResult(run.claimed_done, f"{run.outcome} run={run.run_id} turns={run.turns}", 1, run.usd,
+                          contaminated=run.contamination)
 
 
 # ------------------------------------------------------------------------------------------------ assessment
@@ -352,9 +370,14 @@ def _cycle(cfg: KernelConfig, worker: Worker, n: int = 1, led: Optional[Ledger] 
             led.transition(plan.gap_id, M.Status.FAILED, f"{plan.package_id} not attempted: {work.notes}", M.Role.KERNEL)
             rep.outcome, rep.reason = "BUDGET", work.notes
             return rep
+        if work.contaminated:
+            raise _Reject(f"worker run contaminated: {list(work.contaminated)[:5]}")
         change = sb.changes()                                           # 5 EVALUATE
         if not change.paths:
             raise _Reject("the worker changed nothing")
+        frozen = hashlib.sha256(sb.diff().encode()).hexdigest()         # RESULT FREEZE (content) before anything runs in the tree
+        if cfg.hide:
+            sb.reveal()                                                 # the Creator's own tests need the sealed suite back
         ev = sb.evaluate(build_config=cfg.build, pytest_config=cfg.pytest)
         before, after = _test_sources(sb.path, base_sha, change.files)
         weak = AUD.check_test_weakening(before, after)
@@ -363,6 +386,8 @@ def _cycle(cfg: KernelConfig, worker: Worker, n: int = 1, led: Optional[Ledger] 
         evid = [_evidence_file(cfg, plan.package_id, "evaluation.json", ev.to_record()),
                 M.EvidenceRef.of(main.snapshot, cfg.repo, "selfmodel"), M.EvidenceRef.of(cand[0].snapshot, cfg.repo, "selfmodel"),
                 _evidence_file(cfg, plan.package_id, "diff.patch", sb.diff() if hasattr(sb, "diff") else "")]
+        if hashlib.sha256(sb.diff().encode()).hexdigest() != frozen:
+            raise _Reject("the change set moved during evaluation (something in the tree rewrote files)")
         cid, verdict, detail = gap_closure_claim(led, plan, main, cand, ev, evid)
         rep.verdict = verdict.value
         rep.details.update(claim=cid, detail=detail, regression=ev.report.verdict.value if ev.report else "NO_REPORT",

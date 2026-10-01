@@ -183,6 +183,10 @@ class Sandbox:
         _exclude_marker(path)
         return cls(repo, sid, base_sha, path, branch, scratch_dir)
 
+    def reveal(self) -> None:
+        """Bring hidden paths back (after the worker is done; the evaluation and the Creator's own tests need the full tree)."""
+        git(self.path, "sparse-checkout", "disable")
+
     def close(self, delete_branch: bool = False) -> None:
         """Remove the worktree (idempotent). The branch is kept unless asked, so an adopted or audited change stays inspectable."""
         if self.closed:

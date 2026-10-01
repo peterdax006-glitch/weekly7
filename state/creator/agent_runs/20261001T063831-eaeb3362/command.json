@@ -1,0 +1,22 @@
+[
+ "C:\\Users\\Peter\\AppData\\Roaming\\npm\\claude.CMD",
+ "-p",
+ "--output-format",
+ "json",
+ "--model",
+ "sonnet",
+ "--permission-mode",
+ "dontAsk",
+ "--allowedTools",
+ "Read,Edit,Write,Glob,Grep,Bash(python -m pytest:*),Bash(pytest:*)",
+ "--disallowedTools",
+ "WebFetch,WebSearch,Agent,Task,NotebookEdit",
+ "--setting-sources",
+ "project",
+ "--strict-mcp-config",
+ "--no-session-persistence",
+ "--max-budget-usd",
+ "1.50",
+ "--append-system-prompt-file",
+ "C:\\Users\\Peter\\weekly7\\state\\creator\\agent_runs\\20261001T063831-eaeb3362\\instructions.txt"
+]

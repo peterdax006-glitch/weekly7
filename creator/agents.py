@@ -185,14 +185,16 @@ def build_command(spec: AgentSpec, instructions_file: Path, per_call_usd: float,
     return cmd
 
 
-def scan_contamination(texts: Sequence[str], workdir: Path, markers: Sequence[str] = CONTAMINATION_MARKERS) -> tuple[str, ...]:
-    """Protected-path or answer-key references in what the worker said or wrote. Any hit voids the run."""
+def scan_contamination(texts: Sequence[str], workdir: Path, markers: Sequence[str] = CONTAMINATION_MARKERS,
+                       files: Optional[Sequence[Path]] = None) -> tuple[str, ...]:
+    """Protected-path or answer-key references in what the worker said or wrote. Any hit voids the run. `files` limits the file
+    scan to what the worker changed (1 Oct: in a full-repo sandbox, 46 pre-existing files mention state/livesim legitimately)."""
     hits: set[str] = set()
     for t in texts:
         for mk in markers:
             if mk in t:
                 hits.add(f"transcript mentions {mk!r}")
-    for p in workdir.rglob("*"):
+    for p in (files if files is not None else workdir.rglob("*")):
         if p.is_file() and p.suffix in (".py", ".txt", ".json", ".md", ".cfg", ".ini", ".toml") and p.stat().st_size < 2_000_000:
             body = p.read_text(encoding="utf-8", errors="replace")
             for mk in markers:
@@ -203,7 +205,8 @@ def scan_contamination(texts: Sequence[str], workdir: Path, markers: Sequence[st
 
 def run_agent(spec: AgentSpec, job: str, prompt: str, workdir: Path, budget: Budget, runner: Runner = subprocess_runner,
               runs_dir: Path = RUNS_DIR, cli: str = "claude",
-              markers: Sequence[str] = CONTAMINATION_MARKERS) -> AgentRun:
+              markers: Sequence[str] = CONTAMINATION_MARKERS,
+              changed_files: Optional[Callable[[Path], Sequence[Path]]] = None) -> AgentRun:
     """One budgeted, confined, recorded worker call. Raises BudgetError BEFORE any spend when the budget refuses."""
     wd = workdir.resolve()
     if REPO_ROOT.resolve() in (wd, *wd.parents):
@@ -242,7 +245,7 @@ def run_agent(spec: AgentSpec, job: str, prompt: str, workdir: Path, budget: Bud
     turns = int(data.get("num_turns", 0) or 0)
     m = STATUS_RE.findall(text)
     claimed = bool(m) and m[-1] == "DONE"
-    contamination = scan_contamination([text, out], wd, markers)
+    contamination = scan_contamination([text, out], wd, markers, changed_files(wd) if changed_files else None)
     if timed_out:
         outcome = "TIMEOUT"
     elif contamination:

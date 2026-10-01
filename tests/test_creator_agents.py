@@ -181,3 +181,13 @@ def test_the_worker_runs_the_projects_python_with_pytest(tmp_path: Path) -> None
     assert exe is not None
     p = subprocess.run([exe, "-m", "pytest", "--version"], cwd=tmp_path, env=env, capture_output=True, text=True)
     assert p.returncode == 0 and "pytest" in (p.stdout + p.stderr)
+
+
+def test_contamination_scan_can_be_limited_to_changed_files(tmp_path: Path) -> None:
+    """Regression (1 Oct): in a full-repo sandbox, pre-existing files legitimately mention protected paths."""
+    (tmp_path / "old.py").write_text("PATH = 'state/livesim'\n", encoding="utf-8")
+    (tmp_path / "new.py").write_text("x = 1\n", encoding="utf-8")
+    assert A.scan_contamination([], tmp_path)
+    assert A.scan_contamination([], tmp_path, files=[tmp_path / "new.py"]) == ()
+    (tmp_path / "new.py").write_text("open('creator/devbench/sealed/D01')\n", encoding="utf-8")
+    assert A.scan_contamination([], tmp_path, files=[tmp_path / "new.py"])

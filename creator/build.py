@@ -350,10 +350,13 @@ def ci_typecheck_command(root: str | Path, python: str = sys.executable) -> list
                 argv = shlex.split(cmd)
             except ValueError:
                 continue
-            if argv and argv[0] in ("python", "python3"):
+            invokes = bool(argv) and (Path(argv[0]).stem == "mypy" or (Path(argv[0]).stem in ("python", "python3")
+                                                                        and argv[1:3] == ["-m", "mypy"]))
+            if not invokes:
+                continue                    # e.g. `pip install ... mypy` (1 Oct: the kernel ran a pip install as 'type check')
+            if Path(argv[0]).stem in ("python", "python3"):
                 argv[0] = python
-            if argv:
-                return argv
+            return argv
     return [python, "-m", "mypy"]
 
 

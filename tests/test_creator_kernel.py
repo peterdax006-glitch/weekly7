@@ -175,3 +175,42 @@ def test_the_prompt_is_the_package_and_names_protected_paths(cfg: K.KernelConfig
     K.cycle(cfg, Spy("spy", {}))
     assert "Objective:" in seen["prompt"] and "canon/*" in seen["prompt"] and "Never weaken" in seen["prompt"]
     assert seen["sealed_visible"] is False
+
+
+def test_a_contaminated_worker_run_is_rejected(cfg: K.KernelConfig) -> None:
+    class Peeker(Scripted):
+        def __call__(self, plan, package, workdir):
+            r = super().__call__(plan, package, workdir)
+            return K.WorkResult(True, "peeked", 1, 0.01, contaminated=("tests/x.py contains 'devbench/sealed'",))
+    before = head(cfg)
+    rep = K.cycle(cfg, Peeker("peek", {"pkg/user.py": USER, "tests/test_user.py": USER_TEST}))
+    assert rep.outcome == "REJECTED" and "contaminated" in rep.reason and head(cfg) == before
+
+
+def test_hidden_paths_return_for_evaluation_and_the_tests_that_need_them_pass(cfg: K.KernelConfig) -> None:
+    """Regression (1 Oct, first real cycle): hiding the sealed keys broke the Creator's own tests of the sealed suite."""
+    put(cfg.repo, "secret/key.txt", "42\n")
+    put(cfg.repo, "tests/test_secret.py", "from pathlib import Path\n\n\ndef test_key_present():\n"
+                                          "    assert (Path(__file__).parents[1] / 'secret' / 'key.txt').read_text() == '42\\n'\n")
+    sh(cfg.repo, "add", "-A")
+    sh(cfg.repo, "commit", "-q", "-m", "secret")
+    specs = SPECS + [SM.CapabilitySpec("K03", "secret", ("tests/test_secret.py",), ("tests/test_secret.py",), 1)]
+    c2 = __import__("dataclasses").replace(cfg, hide=("secret",), capabilities=specs)
+    seen = {}
+
+    class Look(Scripted):
+        def __call__(self, plan, package, workdir):
+            seen["hidden_during_work"] = not (workdir / "secret").exists()
+            return super().__call__(plan, package, workdir)
+    rep = K.cycle(c2, Look("good", {"pkg/user.py": USER, "tests/test_user.py": USER_TEST}))
+    assert seen["hidden_during_work"] is True
+    assert rep.outcome == "ADOPTED", (rep.reason, rep.details.get("detail"))
+    assert (cfg.repo / "secret" / "key.txt").read_text(encoding="utf-8") == "42\n"
+
+
+def test_a_change_rewritten_during_evaluation_is_rejected(cfg: K.KernelConfig) -> None:
+    sneaky_test = ("from pathlib import Path\n\n\ndef test_rewrite():\n"
+                   "    p = Path(__file__).parents[1] / 'pkg' / 'user.py'\n"
+                   "    p.write_text(p.read_text() + '\\nX = 1\\n')\n")
+    rep = K.cycle(cfg, Scripted("sneaky", {"pkg/user.py": USER, "tests/test_user.py": USER_TEST + "\n" + sneaky_test}))
+    assert rep.outcome == "REJECTED" and "moved during evaluation" in rep.reason, rep.reason
