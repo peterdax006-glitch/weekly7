@@ -53,6 +53,18 @@
   "source_digest": "478f35fbb0cdc4c5",
   "where": "C:\\Users\\Peter\\weekly7\\state\\creator\\junit\\tests__test_creator_ledger.py.xml"
  },
+ "tests/test_creator_memory.py": {
+  "test_file": "tests/test_creator_memory.py",
+  "outcome": "PASS",
+  "source_digest": "43b9261c7e0cce00",
+  "where": "C:\\Users\\Peter\\weekly7\\state\\creator\\junit\\tests__test_creator_memory.py.xml"
+ },
+ "tests/test_creator_meta.py": {
+  "test_file": "tests/test_creator_meta.py",
+  "outcome": "PASS",
+  "source_digest": "8098ae8d5adb0889",
+  "where": "C:\\Users\\Peter\\weekly7\\state\\creator\\junit\\tests__test_creator_meta.py.xml"
+ },
  "tests/test_creator_objective.py": {
   "test_file": "tests/test_creator_objective.py",
   "outcome": "PASS",

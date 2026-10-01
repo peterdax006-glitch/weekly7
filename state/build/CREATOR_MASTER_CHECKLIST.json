@@ -1631,165 +1631,210 @@
    "group": "64. THE MASTER CHECKLIST / MEMORY",
    "description": "development history",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K12=TESTED (computed from test evidence)"
   },
   {
    "id": "CR119",
    "group": "64. THE MASTER CHECKLIST / MEMORY",
    "description": "failure memory",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K12=TESTED (computed from test evidence)"
   },
   {
    "id": "CR120",
    "group": "64. THE MASTER CHECKLIST / MEMORY",
    "description": "repair memory",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K12=TESTED (computed from test evidence)"
   },
   {
    "id": "CR121",
    "group": "64. THE MASTER CHECKLIST / MEMORY",
    "description": "research memory",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K12=TESTED (computed from test evidence)"
   },
   {
    "id": "CR122",
    "group": "64. THE MASTER CHECKLIST / MEMORY",
    "description": "architecture memory",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K12=TESTED (computed from test evidence)"
   },
   {
    "id": "CR123",
    "group": "64. THE MASTER CHECKLIST / MEMORY",
    "description": "strategy memory",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K12=TESTED (computed from test evidence)"
   },
   {
    "id": "CR124",
    "group": "64. THE MASTER CHECKLIST / MEMORY",
    "description": "resource memory",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K12=TESTED (computed from test evidence)"
   },
   {
    "id": "CR125",
    "group": "64. THE MASTER CHECKLIST / META-LEARNING",
    "description": "development-method evaluation",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K13=TESTED (computed from test evidence)"
   },
   {
    "id": "CR126",
    "group": "64. THE MASTER CHECKLIST / META-LEARNING",
    "description": "strategy comparison",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K13=TESTED (computed from test evidence)"
   },
   {
    "id": "CR127",
    "group": "64. THE MASTER CHECKLIST / META-LEARNING",
    "description": "strategy selection",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K13=TESTED (computed from test evidence)"
   },
   {
    "id": "CR128",
    "group": "64. THE MASTER CHECKLIST / META-LEARNING",
    "description": "development-policy learning",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K13=TESTED (computed from test evidence)"
   },
   {
    "id": "CR129",
    "group": "64. THE MASTER CHECKLIST / META-LEARNING",
    "description": "resource-policy learning",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K13=TESTED (computed from test evidence)"
   },
   {
    "id": "CR130",
    "group": "64. THE MASTER CHECKLIST / META-LEARNING",
    "description": "research-policy learning",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K13=TESTED (computed from test evidence)"
   },
   {
    "id": "CR131",
    "group": "64. THE MASTER CHECKLIST / META-LEARNING",
    "description": "testing-policy learning",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K13=TESTED (computed from test evidence)"
   },
   {
    "id": "CR132",
    "group": "64. THE MASTER CHECKLIST / META-LEARNING",
    "description": "debugging-policy learning",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K13=TESTED (computed from test evidence)"
   },
   {
    "id": "CR133",
@@ -1852,7 +1897,7 @@
    "evidence": [
     "state/creator/kernel_log.jsonl"
    ],
-   "notes": "3 real cycle(s) ADOPTED by evidence"
+   "notes": "5 real cycle(s) ADOPTED by evidence"
   },
   {
    "id": "CR138",
@@ -1898,7 +1943,7 @@
    "evidence": [
     "state/creator/kernel_log.jsonl"
    ],
-   "notes": "3 real cycle(s) ADOPTED by evidence"
+   "notes": "5 real cycle(s) ADOPTED by evidence"
   },
   {
    "id": "CR142",
@@ -2258,7 +2303,7 @@
    "evidence": [
     "state/creator/kernel_log.jsonl"
    ],
-   "notes": "3 real cycle(s) ADOPTED by evidence"
+   "notes": "5 real cycle(s) ADOPTED by evidence"
   },
   {
    "id": "CR170",
@@ -2271,7 +2316,7 @@
    "evidence": [
     "state/creator/kernel_log.jsonl"
    ],
-   "notes": "3 real cycle(s) ADOPTED by evidence"
+   "notes": "5 real cycle(s) ADOPTED by evidence"
   },
   {
    "id": "CR171",
@@ -2362,22 +2407,28 @@
    "group": "79. COMPLETION GATE / AUTONOMOUS DEVELOPER",
    "description": "Development memory works.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K12=TESTED (computed from test evidence)"
   },
   {
    "id": "CR178",
    "group": "79. COMPLETION GATE / AUTONOMOUS DEVELOPER",
    "description": "Meta-learning works.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K13=TESTED (computed from test evidence)"
   },
   {
    "id": "CR179",
@@ -2390,7 +2441,7 @@
    "evidence": [
     "state/creator/kernel_log.jsonl"
    ],
-   "notes": "3 real cycle(s) ADOPTED by evidence"
+   "notes": "5 real cycle(s) ADOPTED by evidence"
   },
   {
    "id": "CR180",
@@ -2403,7 +2454,7 @@
    "evidence": [
     "state/creator/kernel_log.jsonl"
    ],
-   "notes": "3 real cycle(s) ADOPTED by evidence"
+   "notes": "5 real cycle(s) ADOPTED by evidence"
   },
   {
    "id": "CR181",
@@ -2416,7 +2467,7 @@
    "evidence": [
     "state/creator/kernel_log.jsonl"
    ],
-   "notes": "3 real cycle(s) ADOPTED by evidence"
+   "notes": "5 real cycle(s) ADOPTED by evidence"
   },
   {
    "id": "CR182",
@@ -2440,7 +2491,7 @@
    "evidence": [
     "state/creator/kernel_log.jsonl"
    ],
-   "notes": "3 real cycle(s) ADOPTED by evidence"
+   "notes": "5 real cycle(s) ADOPTED by evidence"
   },
   {
    "id": "CR184",
@@ -2453,7 +2504,7 @@
    "evidence": [
     "state/creator/kernel_log.jsonl"
    ],
-   "notes": "3 real cycle(s) ADOPTED by evidence"
+   "notes": "5 real cycle(s) ADOPTED by evidence"
   },
   {
    "id": "CR185",
@@ -2466,7 +2517,7 @@
    "evidence": [
     "state/creator/kernel_log.jsonl"
    ],
-   "notes": "3 real cycle(s) ADOPTED by evidence"
+   "notes": "5 real cycle(s) ADOPTED by evidence"
   },
   {
    "id": "CR186",
@@ -2479,7 +2530,7 @@
    "evidence": [
     "state/creator/kernel_log.jsonl"
    ],
-   "notes": "3 real cycle(s) ADOPTED by evidence"
+   "notes": "5 real cycle(s) ADOPTED by evidence"
   },
   {
    "id": "CR187",
@@ -2503,7 +2554,7 @@
    "evidence": [
     "state/creator/kernel_log.jsonl"
    ],
-   "notes": "3 real cycle(s) ADOPTED by evidence"
+   "notes": "5 real cycle(s) ADOPTED by evidence"
   },
   {
    "id": "CR189",
@@ -2516,7 +2567,7 @@
    "evidence": [
     "state/creator/kernel_log.jsonl"
    ],
-   "notes": "3 real cycle(s) ADOPTED by evidence"
+   "notes": "5 real cycle(s) ADOPTED by evidence"
   },
   {
    "id": "CR190",
@@ -2529,7 +2580,7 @@
    "evidence": [
     "state/creator/kernel_log.jsonl"
    ],
-   "notes": "3 real cycle(s) ADOPTED by evidence"
+   "notes": "5 real cycle(s) ADOPTED by evidence"
   },
   {
    "id": "CR191",

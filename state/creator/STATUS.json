@@ -1,10 +1,10 @@
 {
- "at": "2026-10-01T09:20:25Z",
- "selfmodel_digest": "7fc332517522a3db",
+ "at": "2026-10-01T10:43:00Z",
+ "selfmodel_digest": "eae7795c0ded8391",
  "versions": {
-  "git_head": "4d8feb1bc80b311b70add248d6d185f657cd4c29",
-  "dirty_files": 75,
-  "creator_tree": "2761d38981787f0d",
+  "git_head": "bcc28a19d4205af2dd4eabecf100318077d7002b",
+  "dirty_files": 107,
+  "creator_tree": "9e2ab97bb0e04ae1",
   "engine_tree": "a69b0474a03aa178"
  },
  "capabilities": [
@@ -110,20 +110,20 @@
   {
    "id": "K12",
    "name": "development memory",
-   "state": "NOT_STARTED",
-   "uncertainty": "KNOWN",
-   "meaningful": 0,
+   "state": "TESTED",
+   "uncertainty": "UNCERTAIN",
+   "meaningful": 71,
    "floor": 900,
-   "why": "no implementing module exists; depth 0 < floor 900"
+   "why": "every test file passed on the current source; depth 71 < floor 900"
   },
   {
    "id": "K13",
    "name": "meta-learning and strategies",
-   "state": "NOT_STARTED",
-   "uncertainty": "KNOWN",
-   "meaningful": 0,
+   "state": "TESTED",
+   "uncertainty": "UNCERTAIN",
+   "meaningful": 118,
    "floor": 1500,
-   "why": "no implementing module exists; depth 0 < floor 1500"
+   "why": "every test file passed on the current source; depth 118 < floor 1500"
   },
   {
    "id": "K14",
@@ -156,20 +156,12 @@
  "requirements": {
   "requirements": 96,
   "by_status": {
-   "TESTED": 54,
-   "NOT_STARTED": 42
+   "TESTED": 60,
+   "NOT_STARTED": 36
   },
-  "open_gaps": 42,
-  "unblocked": 18,
+  "open_gaps": 36,
+  "unblocked": 21,
   "next": [
-   {
-    "gap_id": "GAP-f4dca99ea5a03c96ba93",
-    "requirement_key": "K12.exists",
-    "kind": "CAPABILITY",
-    "importance": 0.585,
-    "blocked_by": [],
-    "description": "K12.exists unmet: missing: creator/memory.py"
-   },
    {
     "gap_id": "GAP-e66c28f63a781a3a9b28",
     "requirement_key": "K06.depth",
@@ -201,13 +193,21 @@
     "importance": 0.37,
     "blocked_by": [],
     "description": "K14.depth unmet: 0 meaningful lines, floor 1600"
+   },
+   {
+    "gap_id": "GAP-a6c408ddd144b1328bba",
+    "requirement_key": "K02.depth",
+    "kind": "ARCHITECTURE",
+    "importance": 0.3675,
+    "blocked_by": [],
+    "description": "K02.depth unmet: 389 meaningful lines, floor 1800"
    }
   ],
-  "at": "2026-10-01T09:20:25Z"
+  "at": "2026-10-01T10:43:00Z"
  },
  "sync": {
   "opened": 0,
-  "closed": 1,
+  "closed": 0,
   "regressed": []
  },
  "audit": {
@@ -222,6 +222,6 @@
   "caught": 8,
   "uncaught": []
  },
- "ledger_records": 549,
- "seconds": 480.1
+ "ledger_records": 629,
+ "seconds": 479.2
 }

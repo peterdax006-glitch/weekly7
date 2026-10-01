@@ -1,0 +1,128 @@
+{
+ "base": "c28480008ab371b106b1950d5c01f0ab8da86907",
+ "changed": {
+  "creator/meta.py": "A",
+  "tests/test_creator_meta.py": "A"
+ },
+ "change_digest": "7b70c8ffbcbaf1de",
+ "builds": true,
+ "build": {
+  "tree": "candidate",
+  "ok": true,
+  "kinds": [],
+  "new_issues": 0,
+  "preexisting_type_issues": 0,
+  "require_typecheck": true,
+  "notes": [],
+  "steps": [
+   {
+    "name": "compile",
+    "ran": true,
+    "ok": true,
+    "skipped_reason": "",
+    "seconds": 0.0,
+    "checked": [
+     "creator/meta.py",
+     "tests/test_creator_meta.py"
+    ],
+    "issues": [],
+    "proc": null
+   },
+   {
+    "name": "import",
+    "ran": true,
+    "ok": true,
+    "skipped_reason": "",
+    "seconds": 0.344,
+    "checked": [
+     "creator.meta",
+     "tests.test_creator_meta"
+    ],
+    "issues": [],
+    "proc": {
+     "argv": [
+      "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe",
+      "-c",
+      "\nimport importlib, json, os, sys, traceback\nroot = os.path.normcase(os.path.realpath(sys.argv[1]))\nout = []\nfor name in sys.argv[2:]:\n    rec = {\"module\": name}\n    try:\n        m = importlib.import_module(name)\n        f = getattr(m, \"__file__\", None)\n        rec[\"ok\"] = True\n        rec[\"file\"] = f\n        if f is None:\n            locs = [os.path.normcase(os.path.realpath(p)) for p in getattr(m, \"__path__\", [])]\n            if locs and not any(p == root or p.startswith(root + os.sep) for p in locs):\n                rec.update(ok=False, etype=\"Shadowed\", message=\"namespace package resolved outside the sandbox: %r\" % locs)\n        else:\n            rf = os.path.normcase(os.path.realpath(f))\n            if not rf.startswith(root + os.sep):\n                rec.update(ok=False, etype=\"Shadowed\", message=\"module resolved outside the sandbox: %s\" % f)\n    except BaseException as e:\n        rec.update(ok=False, etype=type(e).__name__, message=str(e)[:2000], missing=getattr(e, \"name\", None),\n                   lineno=getattr(e, \"lineno\", None), filename=getattr(e, \"filename\", None),\n                   tb=traceback.format_exc()[-4000:])\n    out.append(rec)\nsys.stdout.write(\"\\n@@CREATOR_IMPORT@@\" + json.dumps(out) + \"\\n\")\n",
+      "C:\\Users\\Peter\\.weekly7_creator_sandboxes\\20261001T100543-5325f45a",
+      "creator.meta",
+      "tests.test_creator_meta"
+     ],
+     "cwd": "C:\\Users\\Peter\\.weekly7_creator_sandboxes\\20261001T100543-5325f45a",
+     "returncode": 0,
+     "seconds": 0.344,
+     "timed_out": false,
+     "launch_error": "",
+     "stdout": "\n@@CREATOR_IMPORT@@[{\"module\": \"creator.meta\", \"ok\": true, \"file\": \"C:\\\\Users\\\\Peter\\\\.weekly7_creator_sandboxes\\\\20261001T100543-5325f45a\\\\creator\\\\meta.py\"}, {\"module\": \"tests.test_creator_meta\", \"ok\": true, \"file\": \"C:\\\\Users\\\\Peter\\\\.weekly7_creator_sandboxes\\\\20261001T100543-5325f45a\\\\tests\\\\test_creator_meta.py\"}]\n",
+     "stderr": ""
+    }
+   },
+   {
+    "name": "typecheck",
+    "ran": true,
+    "ok": true,
+    "skipped_reason": "",
+    "seconds": 59.828,
+    "checked": [],
+    "issues": [],
+    "proc": {
+     "argv": [
+      "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe",
+      "-m",
+      "mypy"
+     ],
+     "cwd": "C:\\Users\\Peter\\.weekly7_creator_sandboxes\\20261001T100543-5325f45a",
+     "returncode": 0,
+     "seconds": 59.828,
+     "timed_out": false,
+     "launch_error": "",
+     "stdout": "Success: no issues found in 146 source files\n",
+     "stderr": ""
+    }
+   }
+  ]
+ },
+ "selection": {
+  "tests": [
+   "tests/test_creator_meta.py"
+  ],
+  "reasons": {
+   "tests/test_creator_meta.py": "test file changed"
+  },
+  "select_all": false,
+  "why_all": "",
+  "unresolved": [],
+  "digest": "618eced439ec92f3"
+ },
+ "report": {
+  "verdict": "CLEAN",
+  "summary": {
+   "PASS": 0,
+   "FIXED": 0,
+   "REGRESSION": 0,
+   "PREEXISTING": 0,
+   "NEW_FAILING": 0,
+   "NEW_PASSING": 7,
+   "REMOVED": 0,
+   "SKIPPED": 0,
+   "FLAKY": 0
+  },
+  "reasons": [],
+  "blocking": [],
+  "classes": {
+   "tests/test_creator_meta.py::test_apply_creates_variant": "NEW_PASSING",
+   "tests/test_creator_meta.py::test_propose_improvements": "NEW_PASSING",
+   "tests/test_creator_meta.py::test_record_failures": "NEW_PASSING",
+   "tests/test_creator_meta.py::test_register_rejects_invalid_and_duplicate": "NEW_PASSING",
+   "tests/test_creator_meta.py::test_select_empty_untried_and_best": "NEW_PASSING",
+   "tests/test_creator_meta.py::test_stats_empty_and_filled": "NEW_PASSING",
+   "tests/test_creator_meta.py::test_validate_ok_and_bad": "NEW_PASSING"
+  },
+  "flaky_history": {},
+  "timing": {
+   "baseline_s": 0.0,
+   "candidate_s": 0.531
+  }
+ },
+ "evidence_dir": "C:\\Users\\Peter\\.weekly7_creator_sandboxes\\20261001T100543-5325f45a-evidence"
+}

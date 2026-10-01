@@ -1,0 +1,47 @@
+{
+ "cycle": 2,
+ "outcome": "ADOPTED",
+ "package": "CP0006",
+ "requirement": "K13.exists",
+ "reason": "merged bcc28a19d420",
+ "verdict": "IMPROVEMENT",
+ "merge_commit": "bcc28a19d4205af2dd4eabecf100318077d7002b",
+ "calls": 1,
+ "usd": 0.1300816,
+ "seconds": 2221.9,
+ "details": {
+  "recovered": [],
+  "worker": {
+   "claimed_done": true,
+   "notes": "OK run=20261001T100619-f6f1dee2 turns=10"
+  },
+  "claim": "IC-29dc66484289d8091d01",
+  "detail": {
+   "min_effect": 0.0,
+   "z": 2.0,
+   "diff": 1.0,
+   "se": 0.0,
+   "lo": 1.0,
+   "hi": 1.0,
+   "regressions": [
+    {
+     "metric": "affected_tests_pass",
+     "diff": 0.0,
+     "se": 0.0
+    },
+    {
+     "metric": "requirements_kept",
+     "diff": 0.0,
+     "se": 0.0
+    }
+   ],
+   "holdout_diff": 0.03125,
+   "holdout_se": 0.0,
+   "why": "all seven ingredients present"
+  },
+  "regression": "CLEAN",
+  "builds": true,
+  "weakening": [],
+  "planted": []
+ }
+}

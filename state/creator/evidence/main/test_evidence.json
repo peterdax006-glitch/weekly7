@@ -11,6 +11,12 @@
   "source_digest": "6d8de1ca4a0d473a",
   "where": "C:\\Users\\Peter\\weekly7\\state\\creator\\evidence\\main\\junit\\tests__test_creator_audit.py.xml"
  },
+ "tests/test_creator_debug.py": {
+  "test_file": "tests/test_creator_debug.py",
+  "outcome": "PASS",
+  "source_digest": "4760391603758092",
+  "where": "C:\\Users\\Peter\\weekly7\\state\\creator\\evidence\\main\\junit\\tests__test_creator_debug.py.xml"
+ },
  "tests/test_creator_design.py": {
   "test_file": "tests/test_creator_design.py",
   "outcome": "PASS",
@@ -38,7 +44,7 @@
  "tests/test_creator_kernel.py": {
   "test_file": "tests/test_creator_kernel.py",
   "outcome": "PASS",
-  "source_digest": "fd33a51cc25e741b",
+  "source_digest": "2236c3e7db2836c8",
   "where": "C:\\Users\\Peter\\weekly7\\state\\creator\\evidence\\main\\junit\\tests__test_creator_kernel.py.xml"
  },
  "tests/test_creator_ledger.py": {
@@ -46,6 +52,12 @@
   "outcome": "PASS",
   "source_digest": "478f35fbb0cdc4c5",
   "where": "C:\\Users\\Peter\\weekly7\\state\\creator\\evidence\\main\\junit\\tests__test_creator_ledger.py.xml"
+ },
+ "tests/test_creator_memory.py": {
+  "test_file": "tests/test_creator_memory.py",
+  "outcome": "PASS",
+  "source_digest": "43b9261c7e0cce00",
+  "where": "C:\\Users\\Peter\\weekly7\\state\\creator\\evidence\\main\\junit\\tests__test_creator_memory.py.xml"
  },
  "tests/test_creator_objective.py": {
   "test_file": "tests/test_creator_objective.py",
@@ -56,7 +68,7 @@
  "tests/test_creator_planner.py": {
   "test_file": "tests/test_creator_planner.py",
   "outcome": "PASS",
-  "source_digest": "2149f878c07667b2",
+  "source_digest": "9a596514a559e605",
   "where": "C:\\Users\\Peter\\weekly7\\state\\creator\\evidence\\main\\junit\\tests__test_creator_planner.py.xml"
  },
  "tests/test_creator_research.py": {

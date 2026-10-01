@@ -1,0 +1,127 @@
+{
+ "base": "570696666bc5872a5d104242e6822cdd9384c504",
+ "changed": {
+  "creator/memory.py": "A",
+  "tests/test_creator_memory.py": "A"
+ },
+ "change_digest": "71007c38f7a450c7",
+ "builds": true,
+ "build": {
+  "tree": "candidate",
+  "ok": true,
+  "kinds": [],
+  "new_issues": 0,
+  "preexisting_type_issues": 0,
+  "require_typecheck": true,
+  "notes": [],
+  "steps": [
+   {
+    "name": "compile",
+    "ran": true,
+    "ok": true,
+    "skipped_reason": "",
+    "seconds": 0.0,
+    "checked": [
+     "creator/memory.py",
+     "tests/test_creator_memory.py"
+    ],
+    "issues": [],
+    "proc": null
+   },
+   {
+    "name": "import",
+    "ran": true,
+    "ok": true,
+    "skipped_reason": "",
+    "seconds": 0.328,
+    "checked": [
+     "creator.memory",
+     "tests.test_creator_memory"
+    ],
+    "issues": [],
+    "proc": {
+     "argv": [
+      "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe",
+      "-c",
+      "\nimport importlib, json, os, sys, traceback\nroot = os.path.normcase(os.path.realpath(sys.argv[1]))\nout = []\nfor name in sys.argv[2:]:\n    rec = {\"module\": name}\n    try:\n        m = importlib.import_module(name)\n        f = getattr(m, \"__file__\", None)\n        rec[\"ok\"] = True\n        rec[\"file\"] = f\n        if f is None:\n            locs = [os.path.normcase(os.path.realpath(p)) for p in getattr(m, \"__path__\", [])]\n            if locs and not any(p == root or p.startswith(root + os.sep) for p in locs):\n                rec.update(ok=False, etype=\"Shadowed\", message=\"namespace package resolved outside the sandbox: %r\" % locs)\n        else:\n            rf = os.path.normcase(os.path.realpath(f))\n            if not rf.startswith(root + os.sep):\n                rec.update(ok=False, etype=\"Shadowed\", message=\"module resolved outside the sandbox: %s\" % f)\n    except BaseException as e:\n        rec.update(ok=False, etype=type(e).__name__, message=str(e)[:2000], missing=getattr(e, \"name\", None),\n                   lineno=getattr(e, \"lineno\", None), filename=getattr(e, \"filename\", None),\n                   tb=traceback.format_exc()[-4000:])\n    out.append(rec)\nsys.stdout.write(\"\\n@@CREATOR_IMPORT@@\" + json.dumps(out) + \"\\n\")\n",
+      "C:\\Users\\Peter\\.weekly7_creator_sandboxes\\20261001T092843-d32db545",
+      "creator.memory",
+      "tests.test_creator_memory"
+     ],
+     "cwd": "C:\\Users\\Peter\\.weekly7_creator_sandboxes\\20261001T092843-d32db545",
+     "returncode": 0,
+     "seconds": 0.328,
+     "timed_out": false,
+     "launch_error": "",
+     "stdout": "\n@@CREATOR_IMPORT@@[{\"module\": \"creator.memory\", \"ok\": true, \"file\": \"C:\\\\Users\\\\Peter\\\\.weekly7_creator_sandboxes\\\\20261001T092843-d32db545\\\\creator\\\\memory.py\"}, {\"module\": \"tests.test_creator_memory\", \"ok\": true, \"file\": \"C:\\\\Users\\\\Peter\\\\.weekly7_creator_sandboxes\\\\20261001T092843-d32db545\\\\tests\\\\test_creator_memory.py\"}]\n",
+     "stderr": ""
+    }
+   },
+   {
+    "name": "typecheck",
+    "ran": true,
+    "ok": true,
+    "skipped_reason": "",
+    "seconds": 59.688,
+    "checked": [],
+    "issues": [],
+    "proc": {
+     "argv": [
+      "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe",
+      "-m",
+      "mypy"
+     ],
+     "cwd": "C:\\Users\\Peter\\.weekly7_creator_sandboxes\\20261001T092843-d32db545",
+     "returncode": 0,
+     "seconds": 59.688,
+     "timed_out": false,
+     "launch_error": "",
+     "stdout": "Success: no issues found in 146 source files\n",
+     "stderr": ""
+    }
+   }
+  ]
+ },
+ "selection": {
+  "tests": [
+   "tests/test_creator_memory.py"
+  ],
+  "reasons": {
+   "tests/test_creator_memory.py": "test file changed"
+  },
+  "select_all": false,
+  "why_all": "",
+  "unresolved": [],
+  "digest": "3240f4345a6c72c8"
+ },
+ "report": {
+  "verdict": "CLEAN",
+  "summary": {
+   "PASS": 0,
+   "FIXED": 0,
+   "REGRESSION": 0,
+   "PREEXISTING": 0,
+   "NEW_FAILING": 0,
+   "NEW_PASSING": 6,
+   "REMOVED": 0,
+   "SKIPPED": 0,
+   "FLAKY": 0
+  },
+  "reasons": [],
+  "blocking": [],
+  "classes": {
+   "tests/test_creator_memory.py::test_load_missing_and_corrupt": "NEW_PASSING",
+   "tests/test_creator_memory.py::test_remember_and_by_kind": "NEW_PASSING",
+   "tests/test_creator_memory.py::test_remember_rejects_bad_input": "NEW_PASSING",
+   "tests/test_creator_memory.py::test_save_load_roundtrip": "NEW_PASSING",
+   "tests/test_creator_memory.py::test_seen_before_empty_cases": "NEW_PASSING",
+   "tests/test_creator_memory.py::test_seen_before_ranks_and_filters": "NEW_PASSING"
+  },
+  "flaky_history": {},
+  "timing": {
+   "baseline_s": 0.0,
+   "candidate_s": 1.125
+  }
+ },
+ "evidence_dir": "C:\\Users\\Peter\\.weekly7_creator_sandboxes\\20261001T092843-d32db545-evidence"
+}
