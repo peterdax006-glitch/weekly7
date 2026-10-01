@@ -190,6 +190,17 @@
     "tests/test_creator_efficiency.py"
    ],
    "floor": 0
+  },
+  {
+   "id": "K18",
+   "name": "own generative worker (local model + search, no other AI)",
+   "modules": [
+    "creator/generator.py"
+   ],
+   "tests": [
+    "tests/test_creator_generator.py"
+   ],
+   "floor": 0
   }
  ]
 }
