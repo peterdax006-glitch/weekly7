@@ -536,12 +536,14 @@ def rival_check(ev: RivalEvidence | None, pol: QualityPolicy, n_tests: int = 1) 
     # the real pattern keeps sqrt(1 - r^2) of its signal beyond the proxy and the proxy keeps none beyond it
     ti, tr_ = inc.measures.get("t"), rev.measures.get("t") if rev is not None else None
     own, riv = ev.own_effect, ev.rival_effect
-    fin = lambda v: v is not None and math.isfinite(v)                       # noqa: E731
-    if fin(ti) and fin(tr_):
-        keep = ti > tr_ or (ti == tr_ and fin(own) and fin(riv) and own >= riv)
+    own_f = own if own is not None and math.isfinite(own) else None
+    riv_f = riv if riv is not None and math.isfinite(riv) else None
+    own_wins = own_f is not None and riv_f is not None and own_f >= riv_f
+    if ti is not None and tr_ is not None and math.isfinite(ti) and math.isfinite(tr_):
+        keep = ti > tr_ or (ti == tr_ and own_wins)
         why = f"its increment t {ti:.2f} vs the rival's {tr_:.2f}"
     else:
-        keep = fin(own) and fin(riv) and own >= riv
+        keep = own_wins
         why = f"own effect {own if own is not None else float('nan'):+.4f} vs {riv if riv is not None else float('nan'):+.4f}"
     if keep:
         return PASS, f"redundant with a rival (r = {ev.corr:+.2f}) but the better representative of the two ({why})", m
