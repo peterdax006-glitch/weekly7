@@ -496,6 +496,41 @@ print(json.dumps(bad))
 """
 
 
+def _variants(args: tuple[Any, ...]) -> list[tuple[Any, ...]]:
+    """The harvested call plus small perturbations of its sequence arguments (shorter, reversed, one element longer)."""
+    out = [args]
+    for i, a in enumerate(args):
+        if isinstance(a, (list, tuple)) and a:
+            for v in (a[:-1], a[::-1], type(a)(list(a) + list(a[:1]))):
+                out.append(args[:i] + (v,) + args[i + 1:])
+    return out
+
+
+def _test_call_args(workdir: Path, names: set[str]) -> dict[str, list[tuple[Any, ...]]]:
+    """Literal argument tuples that the VISIBLE tests pass to the named functions: realistic inputs the program must keep handling the same way."""
+    found: dict[str, list[tuple[Any, ...]]] = {}
+    for tp in sorted((workdir / "tests").rglob("*.py"))[:20]:
+        try:
+            t = ast.parse(tp.read_text(encoding="utf-8"))
+        except (SyntaxError, OSError):
+            continue
+        for n in ast.walk(t):
+            if not isinstance(n, ast.Call) or n.keywords:
+                continue
+            f = n.func
+            name = f.id if isinstance(f, ast.Name) else f.attr if isinstance(f, ast.Attribute) else ""
+            if name not in names:
+                continue
+            try:
+                args = tuple(ast.literal_eval(a) for a in n.args)
+            except (ValueError, SyntaxError, TypeError):
+                continue
+            for v in _variants(args):
+                if v not in found.setdefault(name, []) and len(found[name]) < 12:
+                    found[name].append(v)
+    return found
+
+
 def behavioural_divergence(workdir: Path, original: str, candidate: str, timeout: int = 20) -> int:
     """Number of auto-derived calls (testgen.candidate_calls over every top-level function) on which the candidate's outcome differs
     from the original's. Fewer = a smaller behavioural change. A probe that cannot run counts as maximally divergent."""
@@ -505,7 +540,8 @@ def behavioural_divergence(workdir: Path, original: str, candidate: str, timeout
         tree = ast.parse(original)
     except SyntaxError:
         return big
-    plan = [(fn.name, [[repr(a) for a in c] for c in T.candidate_calls(fn)])
+    seen = _test_call_args(workdir, {f.name for f in tree.body if isinstance(f, ast.FunctionDef)})
+    plan = [(fn.name, [[repr(a) for a in c] for c in T.candidate_calls(fn)] + [[repr(a) for a in c] for c in seen.get(fn.name, [])])
             for fn in tree.body if isinstance(fn, ast.FunctionDef)]
     plan = [(n, c) for n, c in plan if c]
     if not plan:
