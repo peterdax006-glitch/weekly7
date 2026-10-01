@@ -155,3 +155,37 @@ def test_leftover_memory_runs_filler_jobs(cfg: K.KernelConfig) -> None:
                      total=lambda: 16.0, observe=lambda n: None)
     rnd = W.run_round(cfg, own, gov, max_packages=1, poll_s=0.1, filler=filler, filler_budget=5)
     assert len(rnd.reports) == 1 and len(done) == 3                           # gap work done, then filler while memory allows
+
+
+def test_pull_back_spares_finished_claude_work_when_it_can(cfg: K.KernelConfig, monkeypatch: pytest.MonkeyPatch) -> None:
+    """2 Oct: the youngest worker was pulled back although it carried finished Claude work; it is now pulled back last."""
+    import threading
+    import time as _t
+    from creator import planner as P2
+    pulled: list[str] = []
+    monkeypatch.setattr(W, "stop_worker_processes", lambda scratch, pid: pulled.append(pid) or 0)
+    plans = iter([P2.Plan("g1", "K", "c1", "efficiency", None, "w1", "CPA", "x", "e", 1),
+                  P2.Plan("g2", "K", "c2", "efficiency", None, "w2", "CPB", "x", "e", 1)])
+    monkeypatch.setattr(K, "prepare", lambda cfg, led: (object(), [], None))
+    monkeypatch.setattr(K, "plan_one", lambda *a, **k: next(plans, None))
+    release = threading.Event()
+
+    def fake_execute(cfg, worker, plan, *a, cancel=None, **k):
+        release.wait(5)
+        return K.CycleReport(1, "CANCELLED" if cancel.is_set() else "ADOPTED", plan.package_id, "K")
+    monkeypatch.setattr(K, "execute", fake_execute)
+    state = {"n": 0}
+
+    def free() -> float:
+        state["n"] += 1
+        if state["n"] > 8:
+            release.set()
+        return 10.0 if state["n"] < 5 else 0.1
+    gov = W.Governor(floor_min_gb=1.0, floor_fraction=0.0, pull_fraction=1.0, per_worker_gb=0.0, max_workers=2, free=free,
+                     total=lambda: 16.0, observe=lambda n: None)
+    W.HANDED_BACK.add("CPB")                                              # the youngest carries finished Claude work
+    try:
+        W.run_round(cfg, lambda: None, gov, max_packages=2, poll_s=0.05)
+    finally:
+        W.HANDED_BACK.discard("CPB")
+    assert pulled and pulled[0] == "CPA"                                   # the older worker without finished work goes first

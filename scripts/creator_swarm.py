@@ -48,7 +48,10 @@ class SerialSession:
     def __call__(self, plan, package, workdir):                       # type: ignore[no-untyped-def]
         with W.waiting_on_thinker(plan.package_id):                       # waiting for me holds no worker slot
             try:
-                return self.inner(plan, package, workdir)
+                res = self.inner(plan, package, workdir)
+                if res.claimed_done:
+                    W.HANDED_BACK.add(plan.package_id)                    # finished thinking: pull this one back last
+                return res
             finally:
                 (HANDOFFS / f"{plan.package_id}.json").unlink(missing_ok=True)
 

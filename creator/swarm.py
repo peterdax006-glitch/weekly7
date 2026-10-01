@@ -101,6 +101,8 @@ def total_ram_gb() -> float:
 
 
 WAITING: set[str] = set()                           # packages whose worker is waiting for the Claude session (uses no RAM)
+HANDED_BACK: set[str] = set()                       # packages carrying finished Claude work: pulled back LAST (2 Oct: a
+                                                    # pull-back discarded a finished 6.5k-node activation win)
 _WAITING_LOCK = threading.Lock()
 
 
@@ -207,7 +209,9 @@ def run_round(cfg: K.KernelConfig, make_worker: Callable[[], Any], governor: Opt
             finish(r)
         active = [r for r in running if r.plan.package_id not in WAITING]
         if gov.too_tight() and active:
-            youngest = max((r for r in active if not r.cancel.is_set()), key=lambda r: r.started, default=None)
+            pool = [r for r in active if not r.cancel.is_set()]
+            cheap = [r for r in pool if r.plan.package_id not in HANDED_BACK] or pool
+            youngest = max(cheap, key=lambda r: r.started, default=None)
             if youngest is not None:
                 youngest.cancel.set()                               # pull it back: stop its processes now, not at a checkpoint
                 stop_worker_processes(cfg.scratch or cfg.repo.parent / f".{cfg.repo.name}_creator_sandboxes",
