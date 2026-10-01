@@ -20,6 +20,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping, Sequence
 
+from creator import diskcache as DC
 from creator.build import ProcResult, clean_env, module_name_for, run_cmd
 
 SKIP_DIRS = frozenset({".git", ".venv", "venv", "env", "__pycache__", "node_modules", ".mypy_cache", ".pytest_cache",
@@ -33,6 +34,16 @@ DOC_SUFFIXES = frozenset({".md", ".rst", ".txt"})
 def is_test_file(rel: str) -> bool:
     name = rel.replace("\\", "/").rsplit("/", 1)[-1]
     return name.endswith(".py") and (name.startswith("test_") or name.endswith("_test.py"))
+
+
+_IMPORTS_SALT: list[str] = []
+
+
+def _imports_salt() -> str:
+    """Code-version salt: hash of the source of everything the per-file result depends on."""
+    if not _IMPORTS_SALT:
+        _IMPORTS_SALT.append(DC.salt_of((ImportGraph._add_file, _imports_of, module_name_for), (sys.version.encode(),)))
+    return _IMPORTS_SALT[0]
 
 
 _IMPORTS_CACHE: dict[tuple[str, str, bool, bytes], tuple[str, Any]] = {}      # content-keyed, see ImportGraph._add_file
@@ -72,10 +83,14 @@ class ImportGraph:
         ckey = (rel, name or "", is_pkg, hashlib.sha256(raw).digest())
         hit = _IMPORTS_CACHE.get(ckey)
         if hit is None:
-            try:
-                hit = ("ok", frozenset(_imports_of(ast.parse(raw, filename=rel), name or "", is_pkg)))
-            except (SyntaxError, ValueError) as e:
-                hit = ("err", f"{type(e).__name__}: {e}")
+            dkey = DC.key_of(ckey[0], ckey[1], str(is_pkg), ckey[3])            # persisted across processes (creator/diskcache.py)
+            hit = DC.get("imports", _imports_salt(), dkey)
+            if hit is None:
+                try:
+                    hit = ("ok", frozenset(_imports_of(ast.parse(raw, filename=rel), name or "", is_pkg)))
+                except (SyntaxError, ValueError) as e:
+                    hit = ("err", f"{type(e).__name__}: {e}")
+                DC.put("imports", _imports_salt(), dkey, hit)
             _IMPORTS_CACHE[ckey] = hit
         if hit[0] == "err":
             self.unparsable[rel] = str(hit[1])
