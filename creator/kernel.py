@@ -208,11 +208,14 @@ def _measure(led: Ledger, ex: str, metric: str, value: float, split: M.Split, po
                                     evidence=tuple(evidence)))
 
 
-def _pass_fraction(run: Optional[T.TestRun], default: float) -> float:
-    """Passed / all cases; `default` when nothing ran (no affected tests at that tree = nothing there to regress)."""
-    if run is None or not run.cases:
+def _pass_fraction(run: Optional[T.TestRun], default: float, ev: Optional[S.Evaluation] = None) -> float:
+    """Passed / all cases; `default` when nothing ran (no affected tests at that tree = nothing there to regress). Cases the
+    post-re-run report classed FLAKY are excluded: a coin-flip outcome must not move the guard either way."""
+    flaky = set(ev.report.ids(T.CaseClass.FLAKY)) if ev is not None and ev.report is not None else set()
+    cases = [c for k, c in run.cases.items() if k not in flaky] if run is not None else []
+    if not cases:
         return default
-    return sum(1 for c in run.cases.values() if c.outcome is T.Outcome.PASSED) / len(run.cases)
+    return sum(1 for c in cases if c.outcome is T.Outcome.PASSED) / len(cases)
 
 
 def gap_closure_claim(led: Ledger, plan: P.Plan, base: Assessed, cand: Sequence[Assessed], ev: Optional[S.Evaluation],
@@ -240,10 +243,10 @@ def gap_closure_claim(led: Ledger, plan: P.Plan, base: Assessed, cand: Sequence[
                          {"tree": "base", "r": r}) for r in range(len(cand))]
     cand_ids = [_measure(led, plan.experiment_id, metric, met(c, key), M.Split.DEV, pop, conditions, evidence,
                          {"tree": "candidate", "r": r}) for r, c in enumerate(cand)]
-    gb = _measure(led, plan.experiment_id, "affected_tests_pass", _pass_fraction(ev.base_run if ev else None, 1.0),
+    gb = _measure(led, plan.experiment_id, "affected_tests_pass", _pass_fraction(ev.base_run if ev else None, 1.0, ev),
                   M.Split.DEV, pop, conditions, evidence, {"guard": "base"})
     gc = _measure(led, plan.experiment_id, "affected_tests_pass",
-                  _pass_fraction(ev.candidate_run if ev else None, 1.0 if ev is not None and ev.builds else 0.0),
+                  _pass_fraction(ev.candidate_run if ev else None, 1.0 if ev is not None and ev.builds else 0.0, ev),
                   M.Split.DEV, pop, conditions, evidence, {"guard": "candidate"})
     base_met = {r.key for r in base.rows if r.met}
 
@@ -303,10 +306,10 @@ def efficiency_claim(led: Ledger, plan: P.Plan, base: Assessed, cand: Sequence[A
     bm, bse = mem(base_fp)
     cm, cse = mem(cand_fps[0])
     guards = [
-        (_measure(led, ex, "affected_tests_pass", _pass_fraction(ev.base_run if ev else None, 1.0), M.Split.DEV, pop, cond,
+        (_measure(led, ex, "affected_tests_pass", _pass_fraction(ev.base_run if ev else None, 1.0, ev), M.Split.DEV, pop, cond,
                   evidence, {"guard": "base"}),
          _measure(led, ex, "affected_tests_pass", _pass_fraction(ev.candidate_run if ev else None,
-                                                                 1.0 if ev is not None and ev.builds else 0.0),
+                                                                 1.0 if ev is not None and ev.builds else 0.0, ev),
                   M.Split.DEV, pop, cond, evidence, {"guard": "candidate"})),
         (_measure(led, ex, "requirements_kept", 1.0, M.Split.DEV, pop, cond, evidence, {"guard": "base"}),
          _measure(led, ex, "requirements_kept", (len(base_met) - len(lost)) / len(base_met) if base_met else 1.0,
