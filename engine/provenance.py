@@ -43,7 +43,7 @@ def verify_integrity():
         got = hashlib.sha256((ROOT / "BIBLE.md").read_text(encoding="utf-8").rstrip("\n").encode("utf-8")).hexdigest()
         if got != want:
             raise IntegrityError("BIBLE.md altered")
-    for lock_name in ("ten_hour_checklist.lock.json", "ultimate_master.lock.json", "master_execution.lock.json"):        # later owner documents saved by scripts/save_owner_doc.py
+    for lock_name in ("ten_hour_checklist.lock.json", "ultimate_master.lock.json", "master_execution.lock.json", "creator_master.lock.json"):        # later owner documents saved by scripts/save_owner_doc.py
         lk = ROOT / "canon" / lock_name
         if lk.exists():
             meta = json.loads(lk.read_text(encoding="utf-8"))
