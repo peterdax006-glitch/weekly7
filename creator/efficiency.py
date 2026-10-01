@@ -96,6 +96,33 @@ def peak_memory_mb(root: Path, python: str = sys.executable, replicates: int = 2
     return out
 
 
+ACTIVATION_WORKLOAD = ("import json, sys\n"
+                       "sys.path.insert(0, sys.argv[1])\n"
+                       "import creator.kernel\n"
+                       "print(json.dumps(sorted(m.__file__ for n, m in list(sys.modules.items())\n"
+                       "                        if n.startswith('creator') and getattr(m, '__file__', None))))\n")
+
+
+def activation(root: Path, python: str = sys.executable, timeout: float = 300.0) -> dict[str, Any]:
+    """Owner, 1 Oct 2026: 'it can have a billion lines of code but it isnt using its entire capablity 24/7 ... never run any more
+    code than absolutely necessarry'. The ACTIVATION FOOTPRINT is the AST size of the Creator modules that starting the kernel
+    loads, as a share of the whole package: total capability may grow, what is loaded to run must not."""
+    p = subprocess.run([python, "-c", ACTIVATION_WORKLOAD, str(root)], cwd=root, capture_output=True, text=True, timeout=timeout)
+    if p.returncode != 0:
+        raise RuntimeError(f"activation workload failed: {p.stderr.strip()[-500:]}")
+    loaded = []
+    for f in json.loads(p.stdout.strip().splitlines()[-1]):
+        try:
+            loaded.append(Path(f).resolve().relative_to(root.resolve()).as_posix())
+        except ValueError:
+            continue
+    sz = sizes(root)
+    active = sum(sz.get(f, 0) for f in loaded)
+    total = sum(sz.values())
+    return {"loaded_modules": sorted(f for f in loaded if f in sz), "active_nodes": active, "package_nodes": total,
+            "fraction": round(active / total, 4) if total else 0.0}
+
+
 def test_count(root: Path, scope: str = "tests") -> int:
     """Test functions in the tree (a shrink may never make the suite smaller)."""
     n = 0
@@ -115,6 +142,7 @@ class Footprint:
     package_size: int
     memory_mb: tuple[float, ...]
     test_cases: int
+    active_nodes: int = -1                      # AST nodes the kernel loads at start (-1 = not measured)
 
     def to_dict(self) -> dict[str, Any]:
         return dataclasses.asdict(self)
@@ -122,4 +150,5 @@ class Footprint:
 
 def footprint(root: Path, target: str, memory: bool = True) -> Footprint:
     s = sizes(root, [target]).get(target, -1)
-    return Footprint(target, s, package_size(root), tuple(peak_memory_mb(root)) if memory else (), test_count(root))
+    act = activation(root)["active_nodes"] if memory and (root / "creator" / "kernel.py").is_file() else -1
+    return Footprint(target, s, package_size(root), tuple(peak_memory_mb(root)) if memory else (), test_count(root), act)

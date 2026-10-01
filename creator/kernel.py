@@ -327,6 +327,11 @@ def efficiency_claim(led: Ledger, plan: P.Plan, base: Assessed, cand: Sequence[A
                                 higher_is_better=False, stderr=bse),
                        _measure(led, ex, "peak_memory_mb", cm, M.Split.DEV, pop, cond, evidence, {"guard": "candidate"},
                                 higher_is_better=False, stderr=cse)))
+    if base_fp.active_nodes >= 0 and cand_fps[0].active_nodes >= 0:    # owner 1 Oct 2026: never load more than necessary
+        guards.append((_measure(led, ex, "active_ast_nodes", base_fp.active_nodes, M.Split.DEV, pop, cond, evidence,
+                                {"guard": "base"}, higher_is_better=False),
+                       _measure(led, ex, "active_ast_nodes", cand_fps[0].active_nodes, M.Split.DEV, pop, cond, evidence,
+                                {"guard": "candidate"}, higher_is_better=False)))
     hb = _measure(led, ex, "package_ast_nodes", base_fp.package_size, M.Split.HOLDOUT, pop, cond, evidence, {"holdout": "base"},
                   higher_is_better=False)
     hc = _measure(led, ex, "package_ast_nodes", max(f.package_size for f in cand_fps), M.Split.HOLDOUT, pop, cond, evidence,
@@ -341,7 +346,8 @@ def efficiency_claim(led: Ledger, plan: P.Plan, base: Assessed, cand: Sequence[A
                                             [(g(b), g(c)) for b, c in guards], (g(hb), g(hc)))
     detail = dict(detail, target=plan.component, size=(base_fp.target_size, cand_fps[0].target_size),
                   package=(base_fp.package_size, cand_fps[0].package_size), memory_mb=(round(bm, 2), round(cm, 2)),
-                  tests=(base_fp.test_cases, cand_fps[0].test_cases), requirements_lost=lost)
+                  tests=(base_fp.test_cases, cand_fps[0].test_cases), requirements_lost=lost,
+                  active_nodes=(base_fp.active_nodes, cand_fps[0].active_nodes))
     from creator.evaluate import computation
     ids = base_ids + cand_ids + [i for pair in guards for i in pair] + [hb, hc]
     cid = led.append(M.ImprovementClaim(created_by=M.Role.VALIDATOR, parents=(ex,), subject_id=ex,

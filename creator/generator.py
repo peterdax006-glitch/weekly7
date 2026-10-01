@@ -139,6 +139,62 @@ def parse_files(reply: str) -> dict[str, str]:
     return out
 
 
+EDIT_RE = re.compile(r"FILE:\s*(?P<path>[\w./-]+\.py)\s*\n<<<<<<< SEARCH\n(?P<old>.*?)\n=======\n(?P<new>.*?)\n>>>>>>> REPLACE",
+                     re.S)
+
+
+def parse_edits(reply: str) -> list[tuple[str, str, str]]:
+    """Search/replace edits ('FILE: path' + <<<<<<< SEARCH / ======= / >>>>>>> REPLACE) for files too large to rewrite whole."""
+    out = []
+    for m in EDIT_RE.finditer(reply):
+        path = m.group("path").strip()
+        if path.startswith(("/", "\\")) or ".." in Path(path).parts:
+            continue
+        out.append((path, m.group("old"), m.group("new")))
+    return out
+
+
+def apply_edit(text: str, old: str, new: str) -> Optional[str]:
+    """Replace `old` in `text` exactly once; if not found verbatim, match line by line ignoring leading/trailing whitespace and
+    re-indent the replacement to the matched block. None when there is no unique match (the edit is refused, never guessed)."""
+    if old and text.count(old) == 1:
+        return text.replace(old, new)
+    lines, olds = text.split("\n"), [ln.strip() for ln in old.strip("\n").split("\n")]
+    if not olds or not any(olds):
+        return None
+    hits = [i for i in range(len(lines) - len(olds) + 1) if [ln.strip() for ln in lines[i:i + len(olds)]] == olds]
+    if len(hits) != 1:
+        return None
+    i = hits[0]
+    indent = lines[i][:len(lines[i]) - len(lines[i].lstrip())]
+    new_lines = new.strip("\n").split("\n")
+    base = min((len(x) - len(x.lstrip()) for x in new_lines if x.strip()), default=0)
+    new_lines = [indent + x[base:] if x.strip() else "" for x in new_lines]
+    return "\n".join(lines[:i] + new_lines + lines[i + len(olds):])
+
+
+def apply_edits(workdir: Path, edits: Sequence[tuple[str, str, str]]) -> tuple[list[str], list[str]]:
+    """Apply edits; returns (applied paths, refused descriptions). A refused edit leaves its file untouched."""
+    applied, refused = [], []
+    for path, old, new in edits:
+        p = workdir / path
+        if not old.strip():                     # empty SEARCH = the whole file (create it, or replace a version written earlier)
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(new + "\n", encoding="utf-8")
+            applied.append(path)
+            continue
+        if not p.is_file():
+            refused.append(f"{path}: file does not exist")
+            continue
+        out = apply_edit(p.read_text(encoding="utf-8"), old, new)
+        if out is None:
+            refused.append(f"{path}: SEARCH text not found exactly once")
+            continue
+        p.write_text(out, encoding="utf-8")
+        applied.append(path)
+    return applied, refused
+
+
 def apply_files(workdir: Path, files: Mapping[str, str]) -> None:
     for rel, body in files.items():
         p = workdir / rel
@@ -151,7 +207,8 @@ def visible_tests(workdir: Path) -> D.TestCounts:
 
 
 def failure_text(workdir: Path, limit: int = 2500) -> str:
-    p = subprocess.run([sys.executable, "-m", "pytest", "-q", "-x", "-p", "no:cacheprovider", "tests"],
+    D.purge_bytecode(workdir)
+    p = subprocess.run([sys.executable, "-B", "-m", "pytest", "-q", "-x", "-p", "no:cacheprovider", "tests"],
                        cwd=workdir, capture_output=True, text=True, timeout=120)
     return (p.stdout + p.stderr)[-limit:]
 

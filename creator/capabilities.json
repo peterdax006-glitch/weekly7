@@ -201,6 +201,28 @@
     "tests/test_creator_generator.py"
    ],
    "floor": 0
+  },
+  {
+   "id": "K19",
+   "name": "autotune: the Creator improves its own worker",
+   "modules": [
+    "creator/autotune.py"
+   ],
+   "tests": [
+    "tests/test_creator_autotune.py"
+   ],
+   "floor": 0
+  },
+  {
+   "id": "K20",
+   "name": "own worker inside the kernel (local model develops the Creator)",
+   "modules": [
+    "creator/localworker.py"
+   ],
+   "tests": [
+    "tests/test_creator_localworker.py"
+   ],
+   "floor": 0
   }
  ]
 }

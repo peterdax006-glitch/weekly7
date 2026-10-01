@@ -20,6 +20,13 @@ STATE = ROOT / "state" / "creator"
 LEDGER = STATE / "ledger.jsonl"
 
 
+def _efficiency() -> dict:
+    from creator import efficiency as E
+    act = E.activation(ROOT)
+    return {"package_ast_nodes": act["package_nodes"], "active_ast_nodes": act["active_nodes"],
+            "active_fraction": act["fraction"], "peak_memory_mb": E.peak_memory_mb(ROOT, replicates=1)[0]}
+
+
 def main(argv: list[str]) -> int:
     t0 = time.time()
     specs = SM.load_capabilities()
@@ -44,11 +51,13 @@ def main(argv: list[str]) -> int:
               "audit": aud.to_dict()["counts"], "audit_errors": dict(aud.errors),
               "adversary": {"attacks": len(attacks), "caught": sum(a.caught for a in attacks),
                             "uncaught": [a.name for a in attacks if not a.caught]},
+              "efficiency": _efficiency(), "claude_dependence": O.claude_dependence(led),
               "ledger_records": led.verify(), "seconds": round(time.time() - t0, 1)}
     (STATE / "STATUS.json").write_text(json.dumps(status, indent=1, default=str), encoding="utf-8")
     for c in caps:
         print(f"{c['id']} {c['state']:<12} {c['uncertainty']:<9} {c['meaningful']:>5}/{c['floor']:<5} {c['name']}")
     print(json.dumps({k: summ[k] for k in ("requirements", "by_status", "open_gaps", "unblocked")}))
+    print("EFFICIENCY", status["efficiency"], "CLAUDE DEPENDENCE", status["claude_dependence"])
     print("SYNC", status["sync"], "AUDIT", status["audit"], aud.errors or "", "ADVERSARY", status["adversary"])
     for f in aud.findings[:10]:
         print("FINDING", f.severity, f.check, f.subject, f.detail[:100])

@@ -278,6 +278,8 @@ class Sandbox:
     def evaluate(self, smoke: Iterable[str] = (), build_config: Optional[B.BuildConfig] = None,
                  pytest_config: Optional[T.PytestConfig] = None, run_base: bool = True) -> Evaluation:
         """Build the candidate; select affected tests; run them at base and in the candidate; classify every case."""
+        for cache in list(self.path.rglob("__pycache__")):              # a worker's bytecode is never judged in place of its
+            shutil.rmtree(cache, ignore_errors=True)                     # source (1 Oct: same-size same-second rewrite ran stale)
         change = self.changes()
         if not change.paths:
             raise SandboxError("nothing changed - there is nothing to evaluate")
