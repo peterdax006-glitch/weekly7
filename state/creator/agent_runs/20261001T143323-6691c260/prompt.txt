@@ -1,0 +1,40 @@
+You are working in a git worktree of a Python project (the Creator). Package CP0008.
+Objective: K07 is imported and used by production code
+Why: gap GAP-43c609514e316a570313 (K07.integrated): not imported by production code: creator/research.py; attempt 2 after: CP0007: interrupted: the host stopped the kernel process under memory pressure before the worker ran; nothing merged, nothing spent
+
+Do:
+- wire creator/research.py into the production code that should use it (not imported by production code: creator/research.py) so the capability is reachable
+
+Tests:
+- an integration test drives the caller and observes the integrated module's effect
+
+Known interfaces:
+- class Question
+- class Evidence
+- function generate_questions(gaps: list[dict]) -> list[Question]
+- function prioritise(questions: list[Question], budget: int | None=None) -> list[Question]
+- function collect_repo_evidence(question: str, root: Path, terms: list[str], max_hits: int=20) -> list[Evidence]
+- function source_weight(kind: str) -> float
+- function _norm(claim: str) -> str
+- function _negated(claim: str) -> bool
+- function _core(claim: str) -> str
+- function detect_contradictions(evidence: list[Evidence]) -> list[tuple[Evidence, Evidence]]
+- function confidence(evidence: list[Evidence]) -> float
+- class ResearchMemory
+
+Ways this commonly goes wrong (avoid them):
+- an unused import added only to satisfy the reachability check
+- integration that is never executed
+
+Done means (computed by the system, not by you):
+- check:integrated:K07 computed True on main after adoption
+- audit clean
+- requirement transitioned to TESTED by creator.gaps.sync
+
+Rules:
+- Python 3.11. Run tests exactly as `python -m pytest -q <files>` - no `cd`, pipes or redirects (other shell commands are refused).
+- Never edit these protected paths: canon/*, BIBLE.md, SELF_LEARNING_CONTRACT.md, RESEARCH_BRAIN_CONTRACT.md, PREDICTION_ERROR_ADDITION.md, TEN_HOUR_EXECUTION_CHECKLIST.md, .github/*, creator/devbench/sealed/*, creator/audit/*, creator/evaluate_thresholds.json, creator/capabilities.json, creator/devbench.py, creator/model.py, creator/ledger.py, creator/sandbox.py, state/creator/ledger.jsonl, state/livesim/*
+- Never weaken, skip or delete tests to make them pass.
+- Keep changes small and focused on this package.
+
+Work only inside the current directory. When finished, end your reply with exactly one line: 'STATUS: DONE' if you believe the job is complete, otherwise 'STATUS: NOT_DONE'.

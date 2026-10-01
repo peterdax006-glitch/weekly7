@@ -329,6 +329,7 @@ class Sandbox:
 
 
 MARKER = ".creator_sandbox.json"
+HANDOFF_FILES = (".creator_task.md", ".creator_done.json")      # kernel <-> Claude-session handoff, never committed
 
 
 def _exclude_marker(path: Path) -> None:
@@ -338,9 +339,10 @@ def _exclude_marker(path: Path) -> None:
     excl = Path(rel) if Path(rel).is_absolute() else path / rel
     excl.parent.mkdir(parents=True, exist_ok=True)
     text = excl.read_text(encoding="utf-8") if excl.is_file() else ""
-    if MARKER not in text.split():
+    missing = [m for m in (MARKER, *HANDOFF_FILES) if m not in text.split()]
+    if missing:
         with excl.open("a", encoding="utf-8") as fh:
-            fh.write(f"\n{MARKER}\n")
+            fh.write("\n" + "\n".join(missing) + "\n")
 
 
 @contextlib.contextmanager

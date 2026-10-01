@@ -54,7 +54,8 @@ def test_env_caps_cannot_exceed_hard_ceilings(monkeypatch: pytest.MonkeyPatch) -
     monkeypatch.setenv("CREATOR_AGENT_DAILY_CALLS", "100000")
     monkeypatch.setenv("CREATOR_AGENT_DAILY_USD", "9999")
     p = A.BudgetPolicy.from_env()
-    assert p.enabled and p.daily_calls == 50 and p.daily_usd == 20.0
+    assert p.daily_calls == 50 and p.daily_usd == 20.0
+    assert p.enabled is False                     # owner, 1 Oct 2026: no environment can make the Creator hire a Claude worker
 
 
 def test_daily_and_per_job_caps(tmp_path: Path, work: Path) -> None:

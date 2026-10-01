@@ -244,3 +244,29 @@ def test_an_untested_change_is_never_adopted(cfg: K.KernelConfig) -> None:
                                             "    return one() + use()\n"})
     rep = K.cycle(dataclasses.replace(cfg, steps=("integrated",)), w)
     assert rep.outcome == "REJECTED" and "report=None" in rep.reason       # no test reached the change: fail closed
+
+
+def test_the_handoff_worker_waits_for_the_session_and_the_kernel_still_decides(cfg: K.KernelConfig) -> None:
+    """Owner, 1 Oct 2026: the Claude session is the only worker. The kernel hands the package over and measures the result."""
+    import threading
+
+    def session(workdir: Path, package_id: str) -> None:
+        def work() -> None:
+            assert (workdir / ".creator_task.md").read_text(encoding="utf-8").startswith("You are working")
+            put(workdir, "pkg/user.py", USER)
+            put(workdir, "tests/test_user.py", USER_TEST)
+            (workdir / ".creator_done.json").write_text('{"claimed_done": true, "notes": "done by the session"}',
+                                                        encoding="utf-8")
+        threading.Thread(target=work).start()
+
+    w = K.HandoffWorker(poll_s=0.2, timeout_s=60, notify=session)
+    rep = K.cycle(cfg, w)
+    assert rep.outcome == "ADOPTED", rep.reason
+    assert rep.details["worker"] == {"claimed_done": True, "notes": "done by the session"}
+    tree = sh(cfg.repo, "ls-tree", "-r", "--name-only", rep.merge_commit)
+    assert ".creator_task.md" not in tree and ".creator_done.json" not in tree
+
+
+def test_an_unanswered_handoff_is_not_adopted(cfg: K.KernelConfig) -> None:
+    rep = K.cycle(cfg, K.HandoffWorker(poll_s=0.1, timeout_s=0.5))
+    assert rep.outcome == "REJECTED" and "changed nothing" in rep.reason

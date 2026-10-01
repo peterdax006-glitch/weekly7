@@ -122,8 +122,42 @@ def render_package(plan: P.Plan, wp: M.WorkPackage, protected: Sequence[str] = S
     return "\n".join(lines)
 
 
+class HandoffWorker:
+    """The ONLY real worker (owner, 1 Oct 2026: "you should be the only claude worker working on it"): the kernel writes the
+    package into the sandbox as .creator_task.md and waits for the Claude session to implement it there and write
+    .creator_done.json ({"claimed_done": bool, "notes": str}). The claim is recorded and ignored; the kernel still measures,
+    decides, merges or rejects. A handoff that is not answered within `timeout_s` returns not-done (the kernel then sees an
+    empty or partial change and rejects it)."""
+    name = "claude-session"
+
+    def __init__(self, poll_s: float = 10.0, timeout_s: float = 6 * 3600,
+                 notify: Optional[Callable[[Path, str], None]] = None) -> None:
+        self.poll_s, self.timeout_s, self.notify = poll_s, timeout_s, notify
+
+    def __call__(self, plan: P.Plan, package: M.WorkPackage, workdir: Path) -> WorkResult:
+        task, done = workdir / S.HANDOFF_FILES[0], workdir / S.HANDOFF_FILES[1]
+        done.unlink(missing_ok=True)
+        task.write_text(render_package(plan, package), encoding="utf-8")
+        if self.notify:
+            self.notify(workdir, plan.package_id)
+        t0 = time.monotonic()
+        while not done.exists():
+            if time.monotonic() - t0 > self.timeout_s:
+                task.unlink(missing_ok=True)
+                return WorkResult(False, f"handoff not answered within {self.timeout_s:.0f}s")
+            time.sleep(self.poll_s)
+        try:
+            ans = json.loads(done.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as e:
+            ans = {"claimed_done": False, "notes": f"unreadable .creator_done.json: {e}"}
+        task.unlink(missing_ok=True)
+        done.unlink(missing_ok=True)
+        return WorkResult(bool(ans.get("claimed_done")), str(ans.get("notes", ""))[:2000], 0, 0.0)
+
+
 class AgentWorker:
-    """A budgeted LLM worker (creator.agents) acting in the sandbox."""
+    """A budgeted LLM worker (creator.agents). NOT used for real work any more (owner, 1 Oct 2026): agent calls are disabled
+    in creator.agents; kept so the runtime's tests and the history stay explicable."""
 
     def __init__(self, budget: AG.Budget, spec: AG.AgentSpec = AG.DEVELOPER, runner: AG.Runner = AG.subprocess_runner,
                  runs_dir: Path = AG.RUNS_DIR, name: str = "agent-implementer-v1") -> None:
@@ -294,6 +328,8 @@ def recover(cfg: KernelConfig) -> list[str]:
     """Discard every sandbox a crashed cycle left behind (never adopted unless a merge names it) - worktree and branch."""
     gone = []
     scratch = cfg.scratch.resolve() if cfg.scratch else cfg.repo.parent / f".{cfg.repo.name}_creator_sandboxes"
+    for leftover in scratch.glob("*-evidence") if scratch.is_dir() else ():
+        shutil.rmtree(leftover, ignore_errors=True)
     for r in S.recover(cfg.repo, cfg.scratch):
         if r.get("state") != "INTERRUPTED":
             continue

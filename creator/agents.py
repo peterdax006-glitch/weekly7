@@ -61,13 +61,15 @@ class BudgetPolicy:
 
     @classmethod
     def from_env(cls) -> "BudgetPolicy":
-        """Agent calls are OFF unless CREATOR_AGENT_CALLS=1; caps may be lowered (never raised past hard ceilings) by env."""
+        """Agent calls are OFF, and no environment variable turns them on (owner, 1 Oct 2026: "the creator shouldn't hire a
+        claude worker, you should be the only claude worker working on it"). Real work goes through the kernel's
+        HandoffWorker to the Claude session; this runtime remains for fake-runner tests and explicit BudgetPolicy objects."""
         def num(name: str, default: float, ceiling: float) -> float:
             try:
                 return min(float(os.environ.get(name, default)), ceiling)
             except ValueError:
                 return default
-        return cls(enabled=os.environ.get("CREATOR_AGENT_CALLS") == "1",
+        return cls(enabled=False,
                    daily_calls=int(num("CREATOR_AGENT_DAILY_CALLS", 12, 50)),
                    daily_usd=num("CREATOR_AGENT_DAILY_USD", 5.0, 20.0),
                    per_call_usd=num("CREATOR_AGENT_CALL_USD", 0.75, 2.0),
