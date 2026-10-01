@@ -62,7 +62,7 @@ class KernelConfig:
     hide: tuple[str, ...] = HIDE
     build: B.BuildConfig = dataclasses.field(default_factory=B.BuildConfig)
     pytest: T.PytestConfig = dataclasses.field(default_factory=T.PytestConfig)
-    test_timeout: float = 900.0
+    test_timeout: float = 3600.0                        # a full suite under swarm contention took 1205 s (1 Oct)
     sealed_root: Optional[Path] = None                  # repository whose sealed keys the diff audit compares against
     steps: tuple[str, ...] = P.WORKER_STEPS             # which requirement steps workers may be planned for (never 'validated')
     mode: str = "auto"                                  # auto: gaps, then shrink when none | gaps | efficiency (shrink only)
@@ -437,6 +437,14 @@ def recover(cfg: KernelConfig) -> list[str]:
     return gone
 
 
+def _pid_alive(pid: int) -> bool:
+    try:
+        import psutil
+        return bool(psutil.pid_exists(pid)) and psutil.Process(pid).status() != psutil.STATUS_ZOMBIE
+    except Exception:                                                   # noqa: BLE001 - unknown means alive (never steal)
+        return True
+
+
 class _KernelLock:
     """One kernel at a time per state directory (O_EXCL lock file; a stale lock older than `stale_s` is reported, not stolen)."""
 
@@ -447,6 +455,13 @@ class _KernelLock:
     def __enter__(self) -> "_KernelLock":
         import os
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        if self.path.exists():                                         # a lock whose holder is DEAD is taken over (1 Oct:
+            try:                                                        # I deleted one by hand while its holder still ran)
+                holder = int(self.path.read_text(encoding="utf-8").strip() or 0)
+            except (ValueError, OSError):
+                holder = -1
+            if holder > 0 and not _pid_alive(holder):
+                self.path.unlink(missing_ok=True)
         try:
             fd = os.open(self.path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
         except FileExistsError:
@@ -472,9 +487,10 @@ def prepare(cfg: KernelConfig, led: Ledger) -> tuple[Optional[Assessed], list[st
     recovered = recover(cfg)
     oid = O.self_objective(led)
     O.compile_capabilities(led, oid, cfg.specs())
-    main = assess_tree(cfg, led, cfg.repo, "main")
-    G.sync(led, main.model)
-    if red(main.audit):
+    main = assess_tree(cfg, led, cfg.repo, "main", audit=False)
+    G.sync(led, main.model)                                             # sync FIRST: a newly failing check becomes FAILED,
+    main = dataclasses.replace(main, audit=AUD.audit(led, main.model, repo=cfg.repo))   # then audit (1 Oct: audit-before-sync
+    if red(main.audit):                                                 # reported it as a stale TESTED claim and stopped)
         return main, recovered, "; ".join(f"{f.check}:{f.subject}" for f in main.audit.findings[:5]) or str(main.audit.errors)
     return main, recovered, None
 

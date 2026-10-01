@@ -132,7 +132,8 @@ def test_a_red_audit_stops_development(cfg: K.KernelConfig) -> None:
 
 def test_one_kernel_at_a_time(cfg: K.KernelConfig) -> None:
     cfg.state.mkdir(parents=True, exist_ok=True)
-    (cfg.state / "kernel.lock").write_text("999", encoding="utf-8")
+    import os
+    (cfg.state / "kernel.lock").write_text(str(os.getpid()), encoding="utf-8")   # a LIVE holder
     with pytest.raises(K.KernelError, match="another kernel"):
         K.cycle(cfg, Scripted("x", {}))
 
@@ -270,3 +271,16 @@ def test_the_handoff_worker_waits_for_the_session_and_the_kernel_still_decides(c
 def test_an_unanswered_handoff_is_not_adopted(cfg: K.KernelConfig) -> None:
     rep = K.cycle(cfg, K.HandoffWorker(poll_s=0.1, timeout_s=0.5))
     assert rep.outcome == "REJECTED" and "changed nothing" in rep.reason
+
+
+def test_a_lock_left_by_a_dead_process_is_taken_over(cfg: K.KernelConfig) -> None:
+    """Regression (1 Oct): a lock was deleted by hand while its holder still ran. Dead holders are detected instead."""
+    cfg.state.mkdir(parents=True, exist_ok=True)
+    (cfg.state / "kernel.lock").write_text("999999", encoding="utf-8")        # no such process
+    with K._KernelLock(cfg.state):
+        assert (cfg.state / "kernel.lock").read_text(encoding="utf-8").strip() != "999999"
+    import os
+    (cfg.state / "kernel.lock").write_text(str(os.getpid()), encoding="utf-8")  # a LIVE holder (this process)
+    with pytest.raises(K.KernelError, match="another kernel"):
+        K._KernelLock(cfg.state).__enter__()
+    (cfg.state / "kernel.lock").unlink()
