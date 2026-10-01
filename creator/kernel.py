@@ -31,7 +31,6 @@ import time
 from pathlib import Path
 from typing import Any, Callable, Mapping, Optional, Protocol, Sequence
 
-from creator import agents as AG
 from creator import build as B
 from creator import gaps as G
 from creator import model as M
@@ -157,24 +156,6 @@ class HandoffWorker:
         task.unlink(missing_ok=True)
         done.unlink(missing_ok=True)
         return WorkResult(bool(ans.get("claimed_done")), str(ans.get("notes", ""))[:2000], 0, 0.0, by=self.name)
-
-
-class AgentWorker:
-    """A budgeted LLM worker (creator.agents). NOT used for real work any more (owner, 1 Oct 2026): agent calls are disabled
-    in creator.agents; kept so the runtime's tests and the history stay explicable."""
-
-    def __init__(self, budget: AG.Budget, spec: AG.AgentSpec = AG.DEVELOPER, runner: AG.Runner = AG.subprocess_runner,
-                 runs_dir: Path = AG.RUNS_DIR, name: str = "agent-implementer-v1") -> None:
-        self.budget, self.spec, self.runner, self.runs_dir, self.name = budget, spec, runner, runs_dir, name
-
-    def __call__(self, plan: P.Plan, package: M.WorkPackage, workdir: Path) -> WorkResult:
-        try:
-            run = AG.run_agent(self.spec, f"kernel:{package.package_id}", render_package(plan, package), workdir, self.budget,
-                               self.runner, self.runs_dir, markers=AG.CONTAMINATION_MARKERS, changed_files=git_changed_files)
-        except AG.BudgetError as e:
-            return WorkResult(False, f"budget refused: {e}", 0, 0.0, refused=True)
-        return WorkResult(run.claimed_done, f"{run.outcome} run={run.run_id} turns={run.turns}", 1, run.usd,
-                          contaminated=run.contamination)
 
 
 # ------------------------------------------------------------------------------------------------ assessment
