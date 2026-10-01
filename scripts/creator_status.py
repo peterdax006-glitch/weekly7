@@ -33,6 +33,15 @@ def _efficiency() -> dict:
             "active_fraction": act["fraction"], "peak_memory_mb": E.peak_memory_mb(ROOT, replicates=1)[0]}
 
 
+def _curriculum() -> dict:
+    from creator import curriculum as CUR
+    lessons = CUR.LessonLog(STATE / "lessons.jsonl").lessons()
+    r = CUR.Router()
+    kinds = sorted({les.task_kind for les in lessons})
+    return {**CUR.student_scores(lessons), "lessons": len(lessons),
+            "handed_over": {k: r.owners(lessons, k) for k in kinds if r.handed_over(lessons, k)}}
+
+
 def main(argv: list[str]) -> int:
     t0 = time.time()
     specs = SM.load_capabilities()
@@ -57,13 +66,14 @@ def main(argv: list[str]) -> int:
               "audit": aud.to_dict()["counts"], "audit_errors": dict(aud.errors),
               "adversary": {"attacks": len(attacks), "caught": sum(a.caught for a in attacks),
                             "uncaught": [a.name for a in attacks if not a.caught]},
-              "efficiency": _efficiency(), "claude_dependence": O.claude_dependence(led), "oversight": _oversight(led),
+              "efficiency": _efficiency(), "claude_dependence": O.claude_dependence(led), "oversight": _oversight(led), "curriculum": _curriculum(),
               "ledger_records": led.verify(), "seconds": round(time.time() - t0, 1)}
     (STATE / "STATUS.json").write_text(json.dumps(status, indent=1, default=str), encoding="utf-8")
     for c in caps:
         print(f"{c['id']} {c['state']:<12} {c['uncertainty']:<9} {c['meaningful']:>5}/{c['floor']:<5} {c['name']}")
     print(json.dumps({k: summ[k] for k in ("requirements", "by_status", "open_gaps", "unblocked")}))
     print("EFFICIENCY", status["efficiency"], "CLAUDE DEPENDENCE", status["claude_dependence"])
+    print("CURRICULUM (Nupen = student, Claude = teacher; teacher_share must fall)", status["curriculum"])
     print("SYNC", status["sync"], "AUDIT", status["audit"], aud.errors or "", "ADVERSARY", status["adversary"])
     for f in aud.findings[:10]:
         print("FINDING", f.severity, f.check, f.subject, f.detail[:100])

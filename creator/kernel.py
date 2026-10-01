@@ -87,6 +87,7 @@ class WorkResult:
     refused: bool = False                               # the budget refused: nothing was attempted
     contaminated: tuple[str, ...] = ()                  # protected / answer-key references in what the worker said or wrote
     by: str = ""                                        # which worker actually made the change (self_share counts it)
+    reasoning: str = ""                                 # free-text reasoning of the solver (curriculum lesson); optional
 
 
 class Worker(Protocol):
@@ -128,7 +129,7 @@ def render_package(plan: P.Plan, wp: M.WorkPackage, protected: Sequence[str] = S
 class HandoffWorker:
     """The ONLY real worker (owner, 1 Oct 2026: "you should be the only claude worker working on it"): the kernel writes the
     package into the sandbox as .creator_task.md and waits for the Claude session to implement it there and write
-    .creator_done.json ({"claimed_done": bool, "notes": str}). The claim is recorded and ignored; the kernel still measures,
+    .creator_done.json ({"claimed_done": bool, "notes": str, optional "reasoning": str}). The claim is recorded and ignored; the kernel still measures,
     decides, merges or rejects. A handoff that is not answered within `timeout_s` returns not-done (the kernel then sees an
     empty or partial change and rejects it)."""
     name = "claude-session"
@@ -155,7 +156,8 @@ class HandoffWorker:
             ans = {"claimed_done": False, "notes": f"unreadable .creator_done.json: {e}"}
         task.unlink(missing_ok=True)
         done.unlink(missing_ok=True)
-        return WorkResult(bool(ans.get("claimed_done")), str(ans.get("notes", ""))[:2000], 0, 0.0, by=self.name)
+        return WorkResult(bool(ans.get("claimed_done")), str(ans.get("notes", ""))[:2000], 0, 0.0, by=self.name,
+                          reasoning=str(ans.get("reasoning", ""))[:20000])
 
 
 # ------------------------------------------------------------------------------------------------ assessment

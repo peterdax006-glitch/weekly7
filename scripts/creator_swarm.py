@@ -19,6 +19,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from creator import curriculum as CUR  # noqa: E402
 from creator import kernel as K  # noqa: E402
 from creator import process_levers as PL  # noqa: E402
 from creator import selfworkers as SW  # noqa: E402
@@ -27,6 +28,7 @@ from creator import swarm as W  # noqa: E402
 STATE = ROOT / "state" / "creator"
 HANDOFFS = STATE / "handoffs"                            # one file per package waiting for Claude (all at once, 2 Oct)
 LOG = STATE / "swarm_log.jsonl"
+LESSONS = STATE / "lessons.jsonl"                        # the curriculum: every handoff and student attempt as a lesson
 
 
 def announce(workdir: Path, package_id: str) -> None:
@@ -62,6 +64,19 @@ def make_process_worker(session, process_file: Path = PL.DEFAULT_PATH):      # t
     return PL.build_worker(PL.load_process(process_file), session)
 
 
+def make_students() -> list:                                 # type: ignore[type-arg]
+    """The curriculum's students: creator.student.LessonStudent when that module exists (absent = no students)."""
+    try:
+        from creator.student import LessonStudent
+    except ImportError:
+        return []
+    return [LessonStudent(LESSONS)]
+
+
+def make_curriculum(lessons: Path = LESSONS, students=None) -> CUR.Curriculum:    # type: ignore[no-untyped-def]
+    return CUR.Curriculum(lessons, make_students() if students is None else students)
+
+
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--rounds", type=int, default=1)
@@ -78,8 +93,10 @@ def main(argv: list[str]) -> int:
     a = ap.parse_args(argv)
     session = None if a.no_session else SerialSession(a.handoff_hours)
 
-    def make_worker() -> SW.SelfFirst:                                   # own workers first: rules, generated tests, search
-        return make_process_worker(session, a.process_file)
+    cur = make_curriculum()
+
+    def make_worker() -> SW.SelfFirst:                                   # students, own workers, then (recorded) the session
+        return cur.install(make_process_worker(session, a.process_file))
     gov = W.Governor(floor_fraction=a.floor_fraction, max_workers=a.max_workers)
     cfg = K.KernelConfig(repo=ROOT, state=STATE, steps=tuple(s for s in a.steps.split(",") if s), mode=a.mode,
                          test_parallel=a.test_parallel)
@@ -89,9 +106,9 @@ def main(argv: list[str]) -> int:
             n += 1
             rnd = W.run_round(cfg, make_worker, gov, max_packages=a.packages, filler_budget=a.filler,
                               filler=W.self_bench_filler(STATE / "self_bench.jsonl"),
-                              on_report=lambda r: print(json.dumps({"package": r.package, "req": r.requirement,
+                              on_report=lambda r: (cur.resolve(r), print(json.dumps({"package": r.package, "req": r.requirement,
                                                                     "outcome": r.outcome, "reason": r.reason[:200],
-                                                                    "by": r.details.get("worker", {}).get("by")}), flush=True))
+                                                                    "by": r.details.get("worker", {}).get("by")}), flush=True))[1])
             line = {"round": n, "outcome": rnd.outcome, "packages": len(rnd.reports), "peak_parallel": rnd.peak_parallel,
                     "pulled_back": rnd.pulled_back, "by_outcome": K.summary(rnd.reports)["by_outcome"],
                     "free_gb": round(W.free_ram_gb(), 2), "at": dt.datetime.now().isoformat(timespec="seconds")}
