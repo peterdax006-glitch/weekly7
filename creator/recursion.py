@@ -1,4 +1,4 @@
-"""Creator K20 - recursive self-improvement of the DEVELOPMENT PROCESS (C77 sec 53-54; CR191-198) - IMPLEMENTED, NOT VALIDATED.
+"""Creator K24 - recursive self-improvement of the DEVELOPMENT PROCESS (C77 sec 53-54; CR191-198) - IMPLEMENTED, NOT VALIDATED.
 
 One recursion step, entirely from ledger evidence and computed verdicts:
 

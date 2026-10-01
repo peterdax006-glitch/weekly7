@@ -55,10 +55,24 @@ def save_active(cfg: G.WorkerConfig, why: str, path: Path = ACTIVE) -> None:
                                 "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}, indent=1), encoding="utf-8")
 
 
-def tried(history: Path = HISTORY) -> set[str]:
+def read_history(history: Path = HISTORY) -> tuple[set[str], int]:
+    """(candidates tried, number of corrupt lines skipped). A damaged line must not stop the tuner for good."""
     if not history.is_file():
-        return set()
-    return {json.loads(ln)["candidate"] for ln in history.read_text(encoding="utf-8").splitlines() if ln.strip()}
+        return set(), 0
+    out: set[str] = set()
+    bad = 0
+    for ln in history.read_text(encoding="utf-8", errors="replace").splitlines():
+        if not ln.strip():
+            continue
+        try:
+            out.add(str(json.loads(ln)["candidate"]))
+        except (ValueError, KeyError, TypeError):
+            bad += 1
+    return out, bad
+
+
+def tried(history: Path = HISTORY) -> set[str]:
+    return read_history(history)[0]
 
 
 def neighbours(cfg: G.WorkerConfig, start: int = 0) -> Iterator[tuple[str, G.WorkerConfig]]:
@@ -77,8 +91,9 @@ def neighbours(cfg: G.WorkerConfig, start: int = 0) -> Iterator[tuple[str, G.Wor
 
 
 def propose(current: G.WorkerConfig, history: Path = HISTORY) -> Optional[tuple[str, G.WorkerConfig]]:
-    seen = tried(history) | {current.digest()}
-    start = len(tried(history))
+    done = tried(history)
+    seen = done | {current.digest()}
+    start = len(done)
     for f, cand in neighbours(current, start):
         if cand.digest() not in seen:
             return f, cand
@@ -147,7 +162,8 @@ def trial(led: Ledger, llm: Any, replicates: int = 2, tasks: Optional[Sequence[D
     t = Trial(field, current.digest(), cand.digest(), rep.verdict.value, adopted,
               {"why": rep.detail.get("why"), "base": rep.base_dev.get("solve_rate"), "cand": rep.cand_dev.get("solve_rate"),
                "diff": rep.detail.get("diff"), "holdout_diff": rep.detail.get("holdout_diff"),
-               "paired_dev": dataclasses.asdict(rep.paired_dev), "candidate_config": dataclasses.asdict(cand)},
+               "paired_dev": dataclasses.asdict(rep.paired_dev), "candidate_config": dataclasses.asdict(cand),
+               "corrupt_history_lines": read_history(history)[1]},
               round(time.monotonic() - t0, 1))
     history.parent.mkdir(parents=True, exist_ok=True)
     with history.open("a", encoding="utf-8") as fh:

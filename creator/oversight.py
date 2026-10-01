@@ -3,7 +3,7 @@ path) - IMPLEMENTED, NOT VALIDATED.
 
     goal_drift(ledger)      every ADOPTED change must trace (through its experiment, change proposal, package, gap and
                             requirement) to an objective the OWNER set; it also flags work concentrating in one kind while the
-                            goal's own metrics do not move. Untraceable adoptions are drift.
+                            goal's own metric level does not rise (metrics_stalled). Untraceable adoptions are drift.
     knowledge_gaps(ledger)  a failure the debugger could not classify (UNKNOWN / undetermined root cause) is something the system
                             does not know; each becomes a KNOWLEDGE gap with a ResearchQuestion under the self objective
                             (idempotent per failure) - the planner and research module pick it up like any other gap.
@@ -31,8 +31,9 @@ class DriftReport:
     untraced: tuple[str, ...]
     by_kind: dict[str, int]
     concentrated: Optional[str]                     # a kind with > `concentration` of recent adoptions, if any
-    drifting: bool
+    drifting: bool                                  # an adoption does not trace to an owner objective
     why: str
+    metrics_stalled: bool = False                   # concentrated work AND the metric level did not rise over those adoptions
 
 
 def _kind(ledger: Ledger, experiment_id: str) -> str:
@@ -43,10 +44,23 @@ def _kind(ledger: Ledger, experiment_id: str) -> str:
     return "unknown"
 
 
+def _level(ledger: Ledger, decision_id: str) -> Optional[float]:
+    """The primary metric level an adoption reached: the mean of its claim's candidate measurements (sign-adjusted so higher
+    is better)."""
+    claim_id = getattr(ledger.get(decision_id), "claim_id", None)
+    if not claim_id or claim_id not in ledger.view.by_id:
+        return None
+    ms = [ledger.get(i) for i in getattr(ledger.get(claim_id), "candidate_ids", ()) if i in ledger.view.by_id]
+    if not ms:
+        return None
+    sign = 1.0 if getattr(ms[0], "higher_is_better", True) else -1.0
+    return sign * sum(getattr(m, "value") for m in ms) / len(ms)
+
+
 def goal_drift(ledger: Ledger, recent: int = 10, concentration: float = 0.8) -> DriftReport:
     owner_objectives = {e.id for e in ledger.of_type("Objective") if e.record.created_by is M.Role.OWNER}
     adopted = [e for e in ledger.of_type("Decision") if getattr(e.record, "verdict") is M.DecisionVerdict.ADOPT]
-    untraced, kinds = [], []
+    untraced, kinds, levels = [], [], []
     for e in adopted:
         subject = getattr(e.record, "subject_id")
         if subject not in ledger.view.by_id:
@@ -55,19 +69,24 @@ def goal_drift(ledger: Ledger, recent: int = 10, concentration: float = 0.8) -> 
         if not owner_objectives & set(ledger.lineage(subject)):
             untraced.append(e.id)
         kinds.append(_kind(ledger, subject))
+        levels.append(_level(ledger, e.id))
     by_kind: dict[str, int] = {}
     for k in kinds:
         by_kind[k] = by_kind.get(k, 0) + 1
     last = kinds[-recent:]
     top = max(set(last), key=last.count) if last else None
     concentrated = top if top and len(last) >= recent and last.count(top) / len(last) > concentration else None
+    known = [v for v in levels[-recent:] if v is not None]
+    stalled = bool(concentrated) and len(known) >= 2 and known[-1] <= known[0]
     reasons = []
     if untraced:
         reasons.append(f"{len(untraced)} adoption(s) do not trace to an owner objective")
     if concentrated:
         reasons.append(f"{last.count(concentrated)}/{len(last)} recent adoptions are '{concentrated}' work")
-    return DriftReport(len(adopted), len(adopted) - len(untraced), tuple(untraced), by_kind, concentrated, bool(untraced),
-                       "; ".join(reasons) or "every adoption serves an owner objective")
+    if stalled:
+        reasons.append("and the goal's metric level did not rise over them")
+    return DriftReport(len(adopted), len(adopted) - len(untraced), tuple(untraced), by_kind, concentrated,
+                       bool(untraced), "; ".join(reasons) or "every adoption serves an owner objective", stalled)
 
 
 # ------------------------------------------------------------------------------------------------ knowledge gaps
