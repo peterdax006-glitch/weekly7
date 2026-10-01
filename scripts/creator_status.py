@@ -20,6 +20,12 @@ STATE = ROOT / "state" / "creator"
 LEDGER = STATE / "ledger.jsonl"
 
 
+def _oversight(led: Ledger) -> dict:
+    from creator import oversight as OV
+    OV.knowledge_gaps(led)
+    return OV.summary(led)
+
+
 def _efficiency() -> dict:
     from creator import efficiency as E
     act = E.activation(ROOT)
@@ -51,7 +57,7 @@ def main(argv: list[str]) -> int:
               "audit": aud.to_dict()["counts"], "audit_errors": dict(aud.errors),
               "adversary": {"attacks": len(attacks), "caught": sum(a.caught for a in attacks),
                             "uncaught": [a.name for a in attacks if not a.caught]},
-              "efficiency": _efficiency(), "claude_dependence": O.claude_dependence(led),
+              "efficiency": _efficiency(), "claude_dependence": O.claude_dependence(led), "oversight": _oversight(led),
               "ledger_records": led.verify(), "seconds": round(time.time() - t0, 1)}
     (STATE / "STATUS.json").write_text(json.dumps(status, indent=1, default=str), encoding="utf-8")
     for c in caps:

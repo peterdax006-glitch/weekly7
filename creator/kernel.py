@@ -491,6 +491,8 @@ def prepare(cfg: KernelConfig, led: Ledger) -> tuple[Optional[Assessed], list[st
     O.compile_capabilities(led, oid, cfg.specs())
     main = assess_tree(cfg, led, cfg.repo, "main", audit=False)
     G.sync(led, main.model)                                             # sync FIRST: a newly failing check becomes FAILED,
+    from creator import oversight as OV                                 # unexplained failures become KNOWLEDGE gaps (CR059)
+    OV.knowledge_gaps(led)
     main = dataclasses.replace(main, audit=AUD.audit(led, main.model, repo=cfg.repo))   # then audit (1 Oct: audit-before-sync
     if red(main.audit):                                                 # reported it as a stale TESTED claim and stopped)
         return main, recovered, "; ".join(f"{f.check}:{f.subject}" for f in main.audit.findings[:5]) or str(main.audit.errors)

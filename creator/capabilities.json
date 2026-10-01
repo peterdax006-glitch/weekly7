@@ -245,6 +245,17 @@
     "tests/test_creator_swarm.py"
    ],
    "floor": 0
+  },
+  {
+   "id": "K23",
+   "name": "oversight: goal drift, knowledge gaps, critical path",
+   "modules": [
+    "creator/oversight.py"
+   ],
+   "tests": [
+    "tests/test_creator_oversight.py"
+   ],
+   "floor": 0
   }
  ]
 }
