@@ -102,3 +102,20 @@ def test_nothing_plannable(tmp_path: Path) -> None:
     led = Ledger(tmp_path / "l.jsonl", evidence_root=tmp_path)
     m = SM.build(tmp_path, scope=("none",), capabilities=[], include_versions=False)
     assert P.plan_next(led, m, "b", []) is None
+
+
+
+def test_the_package_states_the_current_check_not_the_gap_text(world) -> None:
+    """Regression (1 Oct): a gap opened before its module existed kept saying 'nothing to integrate' to the planner."""
+    led, model = world
+    root = Path(model.root)
+    put(root, "pkg/user.py", "def use():\n    return 1\n\n\ndef two():\n    return 2\n\n\ndef three():\n    return 3\n")
+    put(root, "tests/test_user.py", "from pkg.user import use\n\n\ndef test_use():\n    assert use() == 1\n")
+    ev = SM.collect_test_evidence(root, ["tests/test_base.py", "tests/test_user.py"], root / "ev.json")
+    now = SM.build(root, scope=("pkg", "tests"), capabilities=SPECS, test_evidence=ev, include_versions=False)
+    G.sync(led, now)
+    plan = P.plan_next(led, now, "b", SPECS, steps=("integrated",))
+    assert plan is not None and plan.requirement_key == "K02.integrated"
+    assert "nothing to integrate" in led.get(plan.gap_id).description          # the frozen text
+    why = led.get(plan.work_package_id).why_it_exists
+    assert "not imported by production code" in why and "nothing to integrate" not in why

@@ -58,7 +58,7 @@ class KernelConfig:
     state: Path                                         # where the ledger, cycles and logs live (inside repo: evidence root)
     scratch: Optional[Path] = None                      # sandboxes (outside repo)
     capabilities: Optional[Sequence[SM.CapabilitySpec]] = None
-    scope: tuple[str, ...] = ("creator", "tests")
+    scope: tuple[str, ...] = ("creator", "tests", "scripts")   # scripts are real callers (integration), not just entry points
     hide: tuple[str, ...] = HIDE
     build: B.BuildConfig = dataclasses.field(default_factory=B.BuildConfig)
     pytest: T.PytestConfig = dataclasses.field(default_factory=T.PytestConfig)

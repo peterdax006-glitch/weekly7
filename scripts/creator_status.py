@@ -27,7 +27,7 @@ def main(argv: list[str]) -> int:
     ev = SM.collect_test_evidence(ROOT, tests, STATE / "test_evidence.json") if "--no-tests" not in argv \
         else SM.load_test_evidence(STATE / "test_evidence.json")
     led = Ledger(LEDGER, evidence_root=ROOT)
-    model = SM.build(ROOT, scope=("creator", "tests"), capabilities=specs, test_evidence=ev, ledger=led)
+    model = SM.build(ROOT, scope=("creator", "tests", "scripts"), capabilities=specs, test_evidence=ev, ledger=led)
     SM.save(model, STATE / "selfmodel.json")
     oid = O.self_objective(led)
     O.compile_capabilities(led, oid, specs)

@@ -44,7 +44,7 @@
  "tests/test_creator_kernel.py": {
   "test_file": "tests/test_creator_kernel.py",
   "outcome": "PASS",
-  "source_digest": "fd33a51cc25e741b",
+  "source_digest": "2236c3e7db2836c8",
   "where": "C:\\Users\\Peter\\weekly7\\state\\creator\\junit\\tests__test_creator_kernel.py.xml"
  },
  "tests/test_creator_ledger.py": {
@@ -62,7 +62,7 @@
  "tests/test_creator_planner.py": {
   "test_file": "tests/test_creator_planner.py",
   "outcome": "PASS",
-  "source_digest": "2149f878c07667b2",
+  "source_digest": "9a596514a559e605",
   "where": "C:\\Users\\Peter\\weekly7\\state\\creator\\junit\\tests__test_creator_planner.py.xml"
  },
  "tests/test_creator_research.py": {

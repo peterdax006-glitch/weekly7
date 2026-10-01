@@ -138,6 +138,9 @@ def build_package(ledger: Ledger, gap_id: str, model: SM.SelfModel,
     spec = specs.get(cid)
     state = _spec_for(model, cid)
     detail = getattr(gap, "description").split("unmet: ", 1)[-1]
+    if state is not None:                   # the CURRENT check, not the text frozen into the gap when it was opened (1 Oct: a
+        cap_rec = next((e.id for e in ledger.of_type("Capability") if getattr(e.record, "component", None) == cid), None)
+        detail = O.CHECKS[step](model, state, ledger, cap_rec)[1]        # stale 'nothing to integrate' reached the planner)
     kw = {"cid": cid, "name": spec.name if spec else cid, "modules": ", ".join(spec.modules) if spec else cid,
           "tests": ", ".join(spec.tests) if spec else "its tests", "detail": detail}
     t = STEP_TEXT[step]

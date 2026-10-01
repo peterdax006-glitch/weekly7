@@ -1,10 +1,10 @@
 {
- "at": "2026-10-01T09:09:52Z",
- "selfmodel_digest": "cb2d12472b95d973",
+ "at": "2026-10-01T09:20:25Z",
+ "selfmodel_digest": "7fc332517522a3db",
  "versions": {
-  "git_head": "fd81c85b6fec8d253125b821973ddd9c9823781d",
-  "dirty_files": 104,
-  "creator_tree": "e65b5599bf17a270",
+  "git_head": "4d8feb1bc80b311b70add248d6d185f657cd4c29",
+  "dirty_files": 75,
+  "creator_tree": "2761d38981787f0d",
   "engine_tree": "a69b0474a03aa178"
  },
  "capabilities": [
@@ -85,9 +85,9 @@
    "name": "planner",
    "state": "TESTED",
    "uncertainty": "UNCERTAIN",
-   "meaningful": 188,
+   "meaningful": 191,
    "floor": 1200,
-   "why": "every test file passed on the current source; depth 188 < floor 1200"
+   "why": "every test file passed on the current source; depth 191 < floor 1200"
   },
   {
    "id": "K10",
@@ -156,11 +156,11 @@
  "requirements": {
   "requirements": 96,
   "by_status": {
-   "TESTED": 53,
-   "NOT_STARTED": 43
+   "TESTED": 54,
+   "NOT_STARTED": 42
   },
-  "open_gaps": 43,
-  "unblocked": 19,
+  "open_gaps": 42,
+  "unblocked": 18,
   "next": [
    {
     "gap_id": "GAP-f4dca99ea5a03c96ba93",
@@ -187,27 +187,27 @@
     "description": "K10.depth unmet: 175 meaningful lines, floor 1400"
    },
    {
-    "gap_id": "GAP-99741fdbde92f9a68636",
-    "requirement_key": "K14.integrated",
-    "kind": "INTEGRATION",
-    "importance": 0.407,
-    "blocked_by": [],
-    "description": "K14.integrated unmet: nothing to integrate"
-   },
-   {
     "gap_id": "GAP-ce23460e0c288a6c5bfb",
     "requirement_key": "K01.validated",
     "kind": "EVIDENCE",
     "importance": 0.4,
     "blocked_by": [],
     "description": "K01.validated unmet: ledger state NOT_STARTED"
+   },
+   {
+    "gap_id": "GAP-177d9e9b180155e06aea",
+    "requirement_key": "K14.depth",
+    "kind": "ARCHITECTURE",
+    "importance": 0.37,
+    "blocked_by": [],
+    "description": "K14.depth unmet: 0 meaningful lines, floor 1600"
    }
   ],
-  "at": "2026-10-01T09:09:52Z"
+  "at": "2026-10-01T09:20:25Z"
  },
  "sync": {
   "opened": 0,
-  "closed": 0,
+  "closed": 1,
   "regressed": []
  },
  "audit": {
@@ -222,6 +222,6 @@
   "caught": 8,
   "uncaught": []
  },
- "ledger_records": 542,
- "seconds": 463.8
+ "ledger_records": 549,
+ "seconds": 480.1
 }
