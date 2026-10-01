@@ -1,0 +1,25 @@
+{
+ "calls": [
+  {
+   "at": "2026-10-01T05:48:50.108568+00:00",
+   "job": "devbench:D01:agent-developer-v1",
+   "usd": 0.0,
+   "run": "20261001T054833-bc8e1267",
+   "outcome": "CLI_ERROR"
+  },
+  {
+   "at": "2026-10-01T05:50:38.619799+00:00",
+   "job": "devbench:D01:agent-developer-v1",
+   "usd": 0.1144,
+   "run": "20261001T055025-0284507c",
+   "outcome": "OK"
+  },
+  {
+   "at": "2026-10-01T05:51:15.694433+00:00",
+   "job": "backfill:20261001T054833-bc8e1267",
+   "usd": 0.75,
+   "run": "20261001T054833-bc8e1267",
+   "outcome": "COST_UNKNOWN_CHARGED_AT_CAP"
+  }
+ ]
+}

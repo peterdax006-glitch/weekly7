@@ -1,0 +1,215 @@
+{
+ "at": "2026-10-01T06:00:00Z",
+ "selfmodel_digest": "fa466cf2554480e1",
+ "versions": {
+  "git_head": "bf697eee0dbb71f09abe593bbc6b50452f959d6a",
+  "dirty_files": 63,
+  "creator_tree": "4702c8d06871cfb9",
+  "engine_tree": "a69b0474a03aa178"
+ },
+ "capabilities": [
+  {
+   "id": "K01",
+   "name": "development ledger",
+   "state": "TESTED",
+   "uncertainty": "LIKELY",
+   "meaningful": 1128,
+   "floor": 900,
+   "why": "every test file passed on the current source"
+  },
+  {
+   "id": "K02",
+   "name": "self-model",
+   "state": "TESTED",
+   "uncertainty": "UNCERTAIN",
+   "meaningful": 389,
+   "floor": 1800,
+   "why": "every test file passed on the current source; depth 389 < floor 1800"
+  },
+  {
+   "id": "K03",
+   "name": "objective and requirements",
+   "state": "TESTED",
+   "uncertainty": "UNCERTAIN",
+   "meaningful": 170,
+   "floor": 1000,
+   "why": "every test file passed on the current source; depth 170 < floor 1000"
+  },
+  {
+   "id": "K04",
+   "name": "gap analysis",
+   "state": "TESTED",
+   "uncertainty": "UNCERTAIN",
+   "meaningful": 134,
+   "floor": 700,
+   "why": "every test file passed on the current source; depth 134 < floor 700"
+  },
+  {
+   "id": "K05",
+   "name": "agent runtime",
+   "state": "TESTED",
+   "uncertainty": "UNCERTAIN",
+   "meaningful": 228,
+   "floor": 1400,
+   "why": "every test file passed on the current source; depth 228 < floor 1400"
+  },
+  {
+   "id": "K06",
+   "name": "sandbox build test rollback",
+   "state": "TESTED",
+   "uncertainty": "UNCERTAIN",
+   "meaningful": 1106,
+   "floor": 1400,
+   "why": "every test file passed on the current source; depth 1106 < floor 1400"
+  },
+  {
+   "id": "K07",
+   "name": "research",
+   "state": "NOT_STARTED",
+   "uncertainty": "KNOWN",
+   "meaningful": 0,
+   "floor": 1200,
+   "why": "no implementing module exists; depth 0 < floor 1200"
+  },
+  {
+   "id": "K08",
+   "name": "design generation",
+   "state": "NOT_STARTED",
+   "uncertainty": "KNOWN",
+   "meaningful": 0,
+   "floor": 900,
+   "why": "no implementing module exists; depth 0 < floor 900"
+  },
+  {
+   "id": "K09",
+   "name": "planner",
+   "state": "NOT_STARTED",
+   "uncertainty": "KNOWN",
+   "meaningful": 0,
+   "floor": 1200,
+   "why": "no implementing module exists; depth 0 < floor 1200"
+  },
+  {
+   "id": "K10",
+   "name": "evaluation and improvement measurement",
+   "state": "TESTED",
+   "uncertainty": "UNCERTAIN",
+   "meaningful": 175,
+   "floor": 1400,
+   "why": "every test file passed on the current source; depth 175 < floor 1400"
+  },
+  {
+   "id": "K11",
+   "name": "debugging and repair",
+   "state": "NOT_STARTED",
+   "uncertainty": "KNOWN",
+   "meaningful": 0,
+   "floor": 1200,
+   "why": "no implementing module exists; depth 0 < floor 1200"
+  },
+  {
+   "id": "K12",
+   "name": "development memory",
+   "state": "NOT_STARTED",
+   "uncertainty": "KNOWN",
+   "meaningful": 0,
+   "floor": 900,
+   "why": "no implementing module exists; depth 0 < floor 900"
+  },
+  {
+   "id": "K13",
+   "name": "meta-learning and strategies",
+   "state": "NOT_STARTED",
+   "uncertainty": "KNOWN",
+   "meaningful": 0,
+   "floor": 1500,
+   "why": "no implementing module exists; depth 0 < floor 1500"
+  },
+  {
+   "id": "K14",
+   "name": "kernel loop, checkpoints, observability",
+   "state": "NOT_STARTED",
+   "uncertainty": "KNOWN",
+   "meaningful": 0,
+   "floor": 1600,
+   "why": "no implementing module exists; depth 0 < floor 1600"
+  },
+  {
+   "id": "K15",
+   "name": "devbench sealed development-task suite",
+   "state": "TESTED",
+   "uncertainty": "UNCERTAIN",
+   "meaningful": 325,
+   "floor": 1800,
+   "why": "every test file passed on the current source; depth 325 < floor 1800"
+  },
+  {
+   "id": "K16",
+   "name": "audit and adversary",
+   "state": "NOT_STARTED",
+   "uncertainty": "KNOWN",
+   "meaningful": 0,
+   "floor": 1200,
+   "why": "no implementing module exists; depth 0 < floor 1200"
+  }
+ ],
+ "requirements": {
+  "requirements": 96,
+  "by_status": {
+   "TESTED": 29,
+   "NOT_STARTED": 67
+  },
+  "open_gaps": 67,
+  "unblocked": 25,
+  "next": [
+   {
+    "gap_id": "GAP-383d149eecf0d6c92838",
+    "requirement_key": "K16.exists",
+    "kind": "CAPABILITY",
+    "importance": 0.7,
+    "blocked_by": [],
+    "description": "K16.exists unmet: missing: creator/audit_checks.py"
+   },
+   {
+    "gap_id": "GAP-f84a28458f8a0fd8f74a",
+    "requirement_key": "K07.exists",
+    "kind": "CAPABILITY",
+    "importance": 0.66,
+    "blocked_by": [],
+    "description": "K07.exists unmet: missing: creator/research.py"
+   },
+   {
+    "gap_id": "GAP-e2f476b27780f6fb9c2f",
+    "requirement_key": "K09.exists",
+    "kind": "CAPABILITY",
+    "importance": 0.63,
+    "blocked_by": [],
+    "description": "K09.exists unmet: missing: creator/planner.py"
+   },
+   {
+    "gap_id": "GAP-05c645a77f49a79f0a00",
+    "requirement_key": "K11.exists",
+    "kind": "CAPABILITY",
+    "importance": 0.6,
+    "blocked_by": [],
+    "description": "K11.exists unmet: missing: creator/debug.py"
+   },
+   {
+    "gap_id": "GAP-f4dca99ea5a03c96ba93",
+    "requirement_key": "K12.exists",
+    "kind": "CAPABILITY",
+    "importance": 0.585,
+    "blocked_by": [],
+    "description": "K12.exists unmet: missing: creator/memory.py"
+   }
+  ],
+  "at": "2026-10-01T06:00:00Z"
+ },
+ "sync": {
+  "opened": 67,
+  "closed": 0,
+  "regressed": []
+ },
+ "ledger_records": 296,
+ "seconds": 260.8
+}
