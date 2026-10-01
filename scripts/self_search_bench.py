@@ -19,7 +19,7 @@ def main() -> int:
     tasks = [t for t in D.load_tasks() if t.split == "dev"]
     with ThreadPoolExecutor(4) as ex:
         scores = []
-        for sc in ex.map(lambda t: D.run_task(t, G.SearchSolver(), manifest), tasks):
+        for sc in ex.map(lambda t: D.run_task(t, G.SearchSolver(rank="--no-rank" not in sys.argv), manifest), tasks):
             scores.append(sc)
             print(f"{sc.task_id} {sc.category} {sc.outcome}", flush=True)
     by: dict[str, list[bool]] = defaultdict(list)
