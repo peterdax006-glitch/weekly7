@@ -3,3 +3,6 @@
 22:24:05 W00008 development tier 2: real 5/17 FP 0 {} 88s
 22:25:51 W00010 development tier 3: real 10/21 FP 1 {'proxy': 1} 106s
 22:27:32 W00012 development tier 3: real 5/16 FP 0 {} 101s
+22:29:07 W00014 development tier 2: real 7/24 FP 0 {} 96s
+22:30:44 W00016 development tier 2: real 7/19 FP 1 {'false_composite': 1} 97s
+done

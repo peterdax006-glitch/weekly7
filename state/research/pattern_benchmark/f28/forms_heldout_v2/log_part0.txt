@@ -1,0 +1,5 @@
+22:35:49 run forms_heldout_v2 part 0/1 pid 11240 code 9b3e26a1d8800e14
+22:37:53 W00000 heldout tier 6: real 3/18 FP 3 {'false_composite': 3} 124s
+22:39:36 W00004 heldout tier 3: real 9/21 FP 0 {} 102s
+22:40:55 W00006 heldout tier 0: real 0/0 FP 1 {'false_composite': 1} 80s
+22:42:45 W00007 heldout tier 3: real 6/18 FP 0 {} 109s

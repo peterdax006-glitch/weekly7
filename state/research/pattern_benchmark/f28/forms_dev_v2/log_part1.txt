@@ -1,3 +1,10 @@
 22:22:28 run forms_dev_v2 part 1/2 pid 34032 code 9b3e26a1d8800e14
 22:24:27 W00001 development tier 4: real 4/21 FP 0 {} 119s
 22:26:27 W00003 development tier 6: real 3/19 FP 0 {} 120s
+22:27:57 W00005 development tier 2: real 6/16 FP 0 {} 90s
+22:29:28 W00009 development tier 3: real 3/18 FP 4 {'false_composite': 4} 91s
+22:30:59 W00011 development tier 0: real 0/0 FP 0 {} 91s
+22:32:19 W00015 development tier 1: real 6/19 FP 0 {} 80s
+22:33:54 W00017 development tier 3: real 6/18 FP 0 {} 95s
+22:35:25 W00019 development tier 1: real 8/20 FP 0 {} 91s
+done
