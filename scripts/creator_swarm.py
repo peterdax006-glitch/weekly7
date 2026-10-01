@@ -64,17 +64,25 @@ def make_process_worker(session, process_file: Path = PL.DEFAULT_PATH):      # t
     return PL.build_worker(PL.load_process(process_file), session)
 
 
-def make_students() -> list:                                 # type: ignore[type-arg]
-    """The curriculum's students: creator.student.LessonStudent when that module exists (absent = no students)."""
+def make_students(model_student: bool = True) -> list:      # type: ignore[type-arg]
+    """The curriculum's students: creator.student.LessonStudent when that module exists (absent = no students), then the
+    model-backed ModelStudent (local qwen, server started lazily per attempt) unless model_student is False."""
     try:
         from creator.student import LessonStudent
     except ImportError:
         return []
-    return [LessonStudent(LESSONS)]
+    students: list = [LessonStudent(LESSONS)]                # type: ignore[type-arg]
+    if model_student:
+        try:
+            from creator.model_student import ModelStudent
+            students.append(ModelStudent(LESSONS))
+        except ImportError:
+            pass
+    return students
 
 
-def make_curriculum(lessons: Path = LESSONS, students=None) -> CUR.Curriculum:    # type: ignore[no-untyped-def]
-    return CUR.Curriculum(lessons, make_students() if students is None else students)
+def make_curriculum(lessons: Path = LESSONS, students=None, model_student: bool = True) -> CUR.Curriculum:    # type: ignore[no-untyped-def]
+    return CUR.Curriculum(lessons, make_students(model_student) if students is None else students)
 
 
 def main(argv: list[str]) -> int:
@@ -88,12 +96,13 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--steps", default=",".join(K.P.WORKER_STEPS))
     ap.add_argument("--mode", choices=("auto", "gaps", "efficiency"), default="auto")
     ap.add_argument("--no-session", action="store_true")
+    ap.add_argument("--no-model-student", action="store_true")      # skip the local-model student (nupen-model-v1)
     ap.add_argument("--process-file", type=Path, default=PL.DEFAULT_PATH)   # the process the recursion adopted (CR196-198)
     ap.add_argument("--handoff-hours", type=float, default=6.0)
     a = ap.parse_args(argv)
     session = None if a.no_session else SerialSession(a.handoff_hours)
 
-    cur = make_curriculum()
+    cur = make_curriculum(model_student=not a.no_model_student)
 
     def make_worker() -> SW.SelfFirst:                                   # students, own workers, then (recorded) the session
         return cur.install(make_process_worker(session, a.process_file))
