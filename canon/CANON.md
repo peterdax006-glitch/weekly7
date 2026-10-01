@@ -458,3 +458,9 @@ it should be very long
 > I have a new master checklist for you to follow: [WEEKLY7 — ULTIMATE MASTER BUILD, TEST, PERFECT & COMPLETION PROMPT, stored verbatim in ULTIMATE_MASTER_PROMPT.md]
 
 `sha256: b4820918f2648127346fc07ab1bd975f41a26be8cdb9c7e621327331b9d3099f`
+
+## C76 — Master build / test / perfecting execution prompt: the new master checkoff list (gates A foundation, B code depth / line budgets, C general function, D intended behaviour, E scientific attack, F perfecting, G final independent proof) (verbatim in MASTER_EXECUTION_PROMPT.md, sha256 b3e7f0b6fc0fb9c7) (2026-09-30)
+
+> I have a new master checkoff list for you: [WEEKLY7 — MASTER BUILD / TEST / PERFECTING EXECUTION PROMPT, stored verbatim in MASTER_EXECUTION_PROMPT.md]
+
+`sha256: f38be94ffc1f7c53acfcd8e1a7b5e785d8ee4611c369a6d1627747a2e54d9e6c`

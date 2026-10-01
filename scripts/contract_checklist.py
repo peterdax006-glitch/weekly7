@@ -11,6 +11,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 F = ROOT / "state" / "build" / "SELF_LEARNING_MASTER_CHECKLIST.json"
+if "--master" in sys.argv:                                     # the C76 master execution checklist
+    sys.argv.remove("--master")
+    F = ROOT / "state" / "build" / "MASTER_EXECUTION_CHECKLIST.json"
 if "--ultimate" in sys.argv:                                   # the C75 ultimate master checklist
     sys.argv.remove("--ultimate")
     F = ROOT / "state" / "build" / "ULTIMATE_MASTER_CHECKLIST.json"

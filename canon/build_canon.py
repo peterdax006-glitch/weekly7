@@ -159,6 +159,8 @@ DIRECTIVES = [
      'every simulation should have hundreds of noice and dozens of patterns'),
     ("C75", "2026-09-30", 'Ultimate master build, test, perfect and completion prompt: the new master checklist (union of C62, C66, C67, C68 and the real-pattern-vs-noise benchmark; phases 0-17 and the final completion gate) (verbatim in ULTIMATE_MASTER_PROMPT.md, sha256 905d019937895d46)',
      'I have a new master checklist for you to follow: [WEEKLY7 — ULTIMATE MASTER BUILD, TEST, PERFECT & COMPLETION PROMPT, stored verbatim in ULTIMATE_MASTER_PROMPT.md]'),
+    ("C76", "2026-09-30", 'Master build / test / perfecting execution prompt: the new master checkoff list (gates A foundation, B code depth / line budgets, C general function, D intended behaviour, E scientific attack, F perfecting, G final independent proof) (verbatim in MASTER_EXECUTION_PROMPT.md, sha256 b3e7f0b6fc0fb9c7)',
+     'I have a new master checkoff list for you: [WEEKLY7 — MASTER BUILD / TEST / PERFECTING EXECUTION PROMPT, stored verbatim in MASTER_EXECUTION_PROMPT.md]'),
 ]
 
 def sha(t): return hashlib.sha256(t.encode("utf-8")).hexdigest()

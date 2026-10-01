@@ -10,7 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 FLAG = {"SELF_LEARNING_MASTER_CHECKLIST.json": [], "RESEARCH_BRAIN_CHECKLIST.json": ["--research"],
         "PREDICTION_ERROR_CHECKLIST.json": ["--addition"], "TEN_HOUR_CHECKLIST.json": ["--tenhour"],
-        "ULTIMATE_MASTER_CHECKLIST.json": ["--ultimate"]}
+        "ULTIMATE_MASTER_CHECKLIST.json": ["--ultimate"], "MASTER_EXECUTION_CHECKLIST.json": ["--master"]}
 
 
 def main(argv=None) -> int:
