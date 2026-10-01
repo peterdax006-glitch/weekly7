@@ -256,6 +256,39 @@
     "tests/test_creator_oversight.py"
    ],
    "floor": 0
+  },
+  {
+   "id": "K24",
+   "name": "recursion: improves its own development process",
+   "modules": [
+    "creator/recursion.py"
+   ],
+   "tests": [
+    "tests/test_creator_recursion.py"
+   ],
+   "floor": 0
+  },
+  {
+   "id": "K25",
+   "name": "test generation by the system itself",
+   "modules": [
+    "creator/testgen.py"
+   ],
+   "tests": [
+    "tests/test_creator_testgen.py"
+   ],
+   "floor": 0
+  },
+  {
+   "id": "K26",
+   "name": "independent reproduction of claims",
+   "modules": [
+    "creator/reproduce.py"
+   ],
+   "tests": [
+    "tests/test_creator_reproduce.py"
+   ],
+   "floor": 0
   }
  ]
 }

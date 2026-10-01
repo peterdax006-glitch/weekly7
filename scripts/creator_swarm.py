@@ -13,7 +13,6 @@ import dataclasses
 import datetime as dt
 import json
 import sys
-import threading
 import time
 from pathlib import Path
 
@@ -25,30 +24,33 @@ from creator import selfworkers as SW  # noqa: E402
 from creator import swarm as W  # noqa: E402
 
 STATE = ROOT / "state" / "creator"
-HANDOFF = STATE / "HANDOFF.json"
+HANDOFFS = STATE / "handoffs"                            # one file per package waiting for Claude (all at once, 2 Oct)
 LOG = STATE / "swarm_log.jsonl"
-THINKER = threading.Semaphore(1)                         # one Claude session: one handoff at a time
 
 
 def announce(workdir: Path, package_id: str) -> None:
-    HANDOFF.write_text(json.dumps({"package": package_id, "sandbox": str(workdir), "task": str(workdir / ".creator_task.md"),
-                                   "answer_with": str(workdir / ".creator_done.json"),
-                                   "at": dt.datetime.now().isoformat(timespec="seconds")}, indent=1), encoding="utf-8")
+    HANDOFFS.mkdir(parents=True, exist_ok=True)
+    (HANDOFFS / f"{package_id}.json").write_text(json.dumps(
+        {"package": package_id, "sandbox": str(workdir), "task": str(workdir / ".creator_task.md"),
+         "answer_with": str(workdir / ".creator_done.json"), "at": dt.datetime.now().isoformat(timespec="seconds")}, indent=1),
+        encoding="utf-8")
 
 
 class SerialSession:
-    """The Claude session as the last worker - one package at a time; others wait their turn."""
+    """The Claude session as the last worker. Owner, 2 Oct: 'if we have the available memory then make sure to have all the
+    projects that need to be handled by you as claude running' - every package that needs Claude is handed off AT ONCE (one
+    file each in state/creator/handoffs/), never queued behind the others."""
     name = "claude-session"
 
     def __init__(self, hours: float) -> None:
         self.inner = K.HandoffWorker(timeout_s=hours * 3600, notify=announce)
 
     def __call__(self, plan, package, workdir):                       # type: ignore[no-untyped-def]
-        with W.waiting_on_thinker(plan.package_id), THINKER:              # waiting for me holds no worker slot
+        with W.waiting_on_thinker(plan.package_id):                       # waiting for me holds no worker slot
             try:
                 return self.inner(plan, package, workdir)
             finally:
-                HANDOFF.unlink(missing_ok=True)
+                (HANDOFFS / f"{plan.package_id}.json").unlink(missing_ok=True)
 
 
 def main(argv: list[str]) -> int:
@@ -66,8 +68,10 @@ def main(argv: list[str]) -> int:
     a = ap.parse_args(argv)
     session = None if a.no_session else SerialSession(a.handoff_hours)
 
-    def make_worker() -> SW.SelfFirst:
-        return SW.SelfFirst([SW.RuleWorker(), SW.SearchWorker()], session)
+    from creator import testgen as TG
+
+    def make_worker() -> SW.SelfFirst:                                   # own workers first: rules, generated tests, search
+        return SW.SelfFirst([SW.RuleWorker(), TG.TestGenWorker(), SW.SearchWorker()], session)
     gov = W.Governor(floor_fraction=a.floor_fraction, max_workers=a.max_workers)
     cfg = K.KernelConfig(repo=ROOT, state=STATE, steps=tuple(s for s in a.steps.split(",") if s), mode=a.mode,
                          test_parallel=a.test_parallel)

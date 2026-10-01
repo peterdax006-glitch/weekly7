@@ -212,3 +212,10 @@ def test_vacuous_or_assert_is_loose() -> None:
 def test_the_pinned_manifest_digest_matches_the_sealed_suite() -> None:
     from creator import devbench as D
     assert D.load_manifest()["digest"] in A.SEALED_PINS
+
+
+def test_every_real_own_worker_is_a_registered_self_worker() -> None:
+    """Regression (2 Oct): the registry missed the real workers, so a genuine self-built adoption would have gone red."""
+    from creator import selfworkers as SW
+    from creator import testgen as TG
+    assert {SW.RuleWorker.name, SW.SearchWorker.name, TG.TestGenWorker.name} <= set(A.SELF_WORKERS)

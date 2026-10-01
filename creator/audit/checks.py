@@ -286,7 +286,9 @@ def check_budget_anomalies(led: Optional[Ledger] = None, budget_file: Optional[P
     return out
 
 
-SELF_WORKERS = ("self-search",)                     # the only workers that may be credited as the system's OWN work (protected path)
+SELF_WORKERS = ("self-rules-v1", "self-search-v1", "self-testgen-v1", "self-search")   # the system's real own workers (2 Oct:
+# the first version listed only 'self-search', so the first genuine self-built adoption would have turned the audit red); a new
+# self worker is registered here, a protected path the Creator cannot edit
 
 
 def check_strategy_attribution(led: Ledger, **_: Any) -> list[AuditFinding]:
