@@ -64,6 +64,7 @@ class KernelConfig:
     pytest: T.PytestConfig = dataclasses.field(default_factory=T.PytestConfig)
     test_timeout: float = 900.0
     sealed_root: Optional[Path] = None                  # repository whose sealed keys the diff audit compares against
+    steps: tuple[str, ...] = P.WORKER_STEPS             # which requirement steps workers may be planned for (never 'validated')
 
     @property
     def ledger_path(self) -> Path:
@@ -352,7 +353,8 @@ def _cycle(cfg: KernelConfig, worker: Worker, n: int = 1, led: Optional[Ledger] 
         return CycleReport(n, "AUDIT_RED", reason="; ".join(f"{f.check}:{f.subject}" for f in main.audit.findings[:5])
                            or str(main.audit.errors), seconds=round(time.monotonic() - t0, 1))
     base_sha = S.head(cfg.repo)
-    plan = P.plan_next(led, main.model, base_sha, cfg.specs(), steps=P.WORKER_STEPS)   # 2 PLAN
+    steps = tuple(s for s in cfg.steps if s in P.WORKER_STEPS)          # a validator step can never be handed to a worker
+    plan = P.plan_next(led, main.model, base_sha, cfg.specs(), steps=steps)   # 2 PLAN
     if plan is None:
         return CycleReport(n, "NOTHING_TO_DO", reason="no unblocked worker gap", seconds=round(time.monotonic() - t0, 1))
     wp = led.get(plan.work_package_id)

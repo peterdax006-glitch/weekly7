@@ -214,3 +214,33 @@ def test_a_change_rewritten_during_evaluation_is_rejected(cfg: K.KernelConfig) -
                    "    p.write_text(p.read_text() + '\\nX = 1\\n')\n")
     rep = K.cycle(cfg, Scripted("sneaky", {"pkg/user.py": USER, "tests/test_user.py": USER_TEST + "\n" + sneaky_test}))
     assert rep.outcome == "REJECTED" and "moved during evaluation" in rep.reason, rep.reason
+
+
+
+def test_steps_limit_planning_and_never_admit_validation(cfg: K.KernelConfig) -> None:
+    import dataclasses
+    put(cfg.repo, "pkg/user.py", USER)                                   # exists + tested, but no production code imports it
+    put(cfg.repo, "tests/test_user.py", USER_TEST)
+    sh(cfg.repo, "add", "-A")
+    sh(cfg.repo, "commit", "-q", "-m", "user")
+    only_validation = K.cycle(dataclasses.replace(cfg, steps=("validated",)), Scripted("v", {}))
+    assert only_validation.outcome == "NOTHING_TO_DO"                     # a validation step is never handed to a worker
+    w = Scripted("integrator", {"pkg/app.py": "from pkg.base import one\nfrom pkg.user import use\n\n\ndef main():\n"
+                                              "    return one() + use()\n",
+                                  "tests/test_app.py": "from pkg.app import main\n\n\ndef test_main_uses_user():\n"
+                                                       "    assert main() == 3\n"})
+    rep = K.cycle(dataclasses.replace(cfg, steps=("integrated", "validated")), w)
+    assert w.seen == ["K02.integrated"], w.seen
+    assert rep.outcome == "ADOPTED", (rep.reason, rep.details.get("detail"))
+
+
+def test_an_untested_change_is_never_adopted(cfg: K.KernelConfig) -> None:
+    import dataclasses
+    put(cfg.repo, "pkg/user.py", USER)
+    put(cfg.repo, "tests/test_user.py", USER_TEST)
+    sh(cfg.repo, "add", "-A")
+    sh(cfg.repo, "commit", "-q", "-m", "user")
+    w = Scripted("untested", {"pkg/app.py": "from pkg.base import one\nfrom pkg.user import use\n\n\ndef main():\n"
+                                            "    return one() + use()\n"})
+    rep = K.cycle(dataclasses.replace(cfg, steps=("integrated",)), w)
+    assert rep.outcome == "REJECTED" and "report=None" in rep.reason       # no test reached the change: fail closed

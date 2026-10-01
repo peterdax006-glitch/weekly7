@@ -27,6 +27,7 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--call-usd", type=float, default=0.75)
     ap.add_argument("--daily-usd", type=float, default=5.0)
     ap.add_argument("--daily-calls", type=int, default=12)
+    ap.add_argument("--steps", default=",".join(K.P.WORKER_STEPS), help="comma list of requirement steps to plan")
     a = ap.parse_args(argv)
     if a.allow_agent_calls:
         os.environ["CREATOR_AGENT_CALLS"] = "1"
@@ -37,7 +38,7 @@ def main(argv: list[str]) -> int:
     budget = AG.Budget()
     spec = dataclasses.replace(AG.DEVELOPER, role="implementer", timeout_s=1800)
     worker = K.AgentWorker(budget, spec)
-    cfg = K.KernelConfig(repo=ROOT, state=ROOT / "state" / "creator")
+    cfg = K.KernelConfig(repo=ROOT, state=ROOT / "state" / "creator", steps=tuple(s for s in a.steps.split(",") if s))
     print(f"budget: {budget.policy} today={budget.today()}", flush=True)
     reps = K.run(cfg, worker, a.cycles, on_cycle=lambda r: print(json.dumps(dataclasses.asdict(r), default=str)[:3000],
                                                                    flush=True))
