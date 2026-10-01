@@ -361,3 +361,22 @@ def test_current_provenance_equals_uncached_composition() -> None:
     p = L.current_provenance(seed=3, config={"k": 1})
     assert p.creator_tree_hash == _ref_tree_hash(L.CREATOR_DIR)
     assert p.git_commit == L._git_commit_uncached(L.REPO_ROOT)
+
+
+def test_tree_hash_sees_a_same_size_rewrite_that_keeps_its_timestamp(tmp_path: Path) -> None:
+    """Racily clean (1 Oct): a rewrite inside one timestamp tick keeps (mtime_ns, size); the cache must not trust such a key."""
+    import os
+    f = tmp_path / "a.py"
+    f.write_bytes(b"x = 1\n")
+    st = f.stat()
+    first = L.tree_hash(tmp_path)
+    f.write_bytes(b"x = 9\n")
+    os.utime(f, ns=(st.st_atime_ns, st.st_mtime_ns))                                  # same size, same mtime: stat sees nothing
+    assert L.tree_hash(tmp_path) != first and L.tree_hash(tmp_path) == _ref_tree_hash(tmp_path)
+
+
+def test_git_state_is_not_cached_while_files_are_racy(tmp_path: Path) -> None:
+    _git(tmp_path, "init", "-q")
+    (tmp_path / "creator").mkdir()
+    (tmp_path / "creator" / "m.py").write_text("x = 1\n", encoding="utf-8")
+    assert L._git_state_key(tmp_path) is None                                        # just written: racy, so git is asked

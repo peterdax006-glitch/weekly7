@@ -50,6 +50,14 @@ def sha256_text(s: str) -> str:
     return hashlib.sha256(s.encode("utf-8")).hexdigest()
 
 
+_RACY_NS = 2_000_000_000          # git's 'racily clean' rule: a file changed within this window of now may be rewritten inside
+                                  # the same filesystem timestamp tick with the same size, so its stat key proves nothing
+
+
+def _racy(mtime_ns: int) -> bool:
+    return mtime_ns >= time.time_ns() - _RACY_NS
+
+
 _TREE_FILE_CACHE: dict[str, tuple[tuple[int, int], bytes]] = {}          # abs path -> ((mtime_ns, size), CRLF-folded bytes)
 _TREE_RESULT_CACHE: dict[tuple[str, str], tuple[tuple[Any, ...], str]] = {}   # (root, pattern) -> (snapshot, digest)
 
@@ -85,28 +93,32 @@ def _tree_hash_from(root: Path, pattern: str, scan: Sequence[tuple[str, int, int
     rows.sort()
     snapshot = tuple((rel, mt, sz) for rel, _ap, mt, sz in rows)                # cheap string-sorted cache key
     key = (base, pattern)
-    hit = _TREE_RESULT_CACHE.get(key)
+    racy = any(_racy(mt) for _rel, _ap, mt, _sz in rows)
+    hit = None if racy else _TREE_RESULT_CACHE.get(key)
     if hit is not None and hit[0] == snapshot:
         return hit[1]
     h = hashlib.sha256()
     for rel, ap, mt, sz in sorted(rows, key=lambda r: Path(r[0])):             # the original order: sorted(root.rglob(...)) paths
         cached = _TREE_FILE_CACHE.get(ap)
-        if cached is not None and cached[0] == (mt, sz):
+        if cached is not None and cached[0] == (mt, sz) and not _racy(mt):
             data = cached[1]
         else:
             data = Path(ap).read_bytes().replace(b"\r\n", b"\n")
-            _TREE_FILE_CACHE[ap] = ((mt, sz), data)
+            if not _racy(mt):
+                _TREE_FILE_CACHE[ap] = ((mt, sz), data)
         h.update(rel.encode())
         h.update(data)
     digest = h.hexdigest()[:16]
-    _TREE_RESULT_CACHE[key] = (snapshot, digest)
+    if not racy:
+        _TREE_RESULT_CACHE[key] = (snapshot, digest)
     return digest
 
 
 def tree_hash(root: Path, pattern: str = "*.py") -> str:
     """sha256 over the sorted (relative path, bytes) of every matching file under root; CRLF folded so a Windows checkout and a
     Linux one agree. Speed: file bytes are cached on (path, mtime_ns, size) and the whole digest on the full snapshot of those
-    keys, so any edit, add, remove or rename changes a key and is seen on the next call; the value is byte-identical to the
+    keys, so any edit, add, remove or rename changes a key and is seen on the next call (a file touched within _RACY_NS of now is
+    always re-read: a same-size rewrite inside one timestamp tick keeps its key); the value is byte-identical to the
     uncached computation (tests/test_creator_ledger.py::test_tree_hash_cache_*)."""
     return _tree_hash_from(root, pattern, _scan_files(root))
 
@@ -150,7 +162,9 @@ def _git_state_key(repo: Path, scans: Optional[Mapping[str, Sequence[tuple[str, 
             base = repo / sub
             if base.is_dir():
                 files.extend(scans[str(base)] if scans is not None and str(base) in scans else _scan_files(base))
-        return (head, ref_key, _stat_key(cd / "packed-refs"), _stat_key(gd / "index"), tuple(sorted(files)))
+        key = (head, ref_key, _stat_key(cd / "packed-refs"), _stat_key(gd / "index"), tuple(sorted(files)))
+        stamps = [k[0] for k in key[1:4] if k is not None] + [mt for _p, mt, _s in files]
+        return None if any(_racy(mt) for mt in stamps) else key        # racily clean: run git
     except (OSError, IndexError, ValueError):
         return None
 
