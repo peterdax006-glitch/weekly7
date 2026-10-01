@@ -1,10 +1,10 @@
 {
- "at": "2026-10-01T06:00:00Z",
- "selfmodel_digest": "fa466cf2554480e1",
+ "at": "2026-10-01T06:10:54Z",
+ "selfmodel_digest": "4a2def2dccaa412b",
  "versions": {
-  "git_head": "bf697eee0dbb71f09abe593bbc6b50452f959d6a",
-  "dirty_files": 63,
-  "creator_tree": "4702c8d06871cfb9",
+  "git_head": "44943d3b62dede0d9d99d1e8bcbad9d66246d34d",
+  "dirty_files": 75,
+  "creator_tree": "efb136ab583356da",
   "engine_tree": "a69b0474a03aa178"
  },
  "capabilities": [
@@ -40,9 +40,9 @@
    "name": "gap analysis",
    "state": "TESTED",
    "uncertainty": "UNCERTAIN",
-   "meaningful": 134,
+   "meaningful": 144,
    "floor": 700,
-   "why": "every test file passed on the current source; depth 134 < floor 700"
+   "why": "every test file passed on the current source; depth 144 < floor 700"
   },
   {
    "id": "K05",
@@ -58,9 +58,9 @@
    "name": "sandbox build test rollback",
    "state": "TESTED",
    "uncertainty": "UNCERTAIN",
-   "meaningful": 1106,
+   "meaningful": 1108,
    "floor": 1400,
-   "why": "every test file passed on the current source; depth 1106 < floor 1400"
+   "why": "every test file passed on the current source; depth 1108 < floor 1400"
   },
   {
    "id": "K07",
@@ -146,30 +146,22 @@
   {
    "id": "K16",
    "name": "audit and adversary",
-   "state": "NOT_STARTED",
-   "uncertainty": "KNOWN",
-   "meaningful": 0,
+   "state": "TESTED",
+   "uncertainty": "UNCERTAIN",
+   "meaningful": 342,
    "floor": 1200,
-   "why": "no implementing module exists; depth 0 < floor 1200"
+   "why": "every test file passed on the current source; depth 342 < floor 1200"
   }
  ],
  "requirements": {
   "requirements": 96,
   "by_status": {
-   "TESTED": 29,
-   "NOT_STARTED": 67
+   "TESTED": 34,
+   "NOT_STARTED": 62
   },
-  "open_gaps": 67,
-  "unblocked": 25,
+  "open_gaps": 62,
+  "unblocked": 23,
   "next": [
-   {
-    "gap_id": "GAP-383d149eecf0d6c92838",
-    "requirement_key": "K16.exists",
-    "kind": "CAPABILITY",
-    "importance": 0.7,
-    "blocked_by": [],
-    "description": "K16.exists unmet: missing: creator/audit_checks.py"
-   },
    {
     "gap_id": "GAP-f84a28458f8a0fd8f74a",
     "requirement_key": "K07.exists",
@@ -201,15 +193,35 @@
     "importance": 0.585,
     "blocked_by": [],
     "description": "K12.exists unmet: missing: creator/memory.py"
+   },
+   {
+    "gap_id": "GAP-e646b951cf501ff83f2d",
+    "requirement_key": "K10.integrated",
+    "kind": "INTEGRATION",
+    "importance": 0.451,
+    "blocked_by": [],
+    "description": "K10.integrated unmet: not imported by production code: creator/evaluate.py"
    }
   ],
-  "at": "2026-10-01T06:00:00Z"
+  "at": "2026-10-01T06:10:54Z"
  },
  "sync": {
-  "opened": 67,
-  "closed": 0,
+  "opened": 0,
+  "closed": 5,
   "regressed": []
  },
- "ledger_records": 296,
- "seconds": 260.8
+ "audit": {
+  "CRITICAL": 0,
+  "HIGH": 0,
+  "MEDIUM": 0,
+  "LOW": 0
+ },
+ "audit_errors": {},
+ "adversary": {
+  "attacks": 8,
+  "caught": 8,
+  "uncaught": []
+ },
+ "ledger_records": 331,
+ "seconds": 243.0
 }

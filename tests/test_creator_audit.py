@@ -1,0 +1,136 @@
+"""CR16: the auditor and the adversary (C77 secs 33-35, 47, 48, 50, 68)."""
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import pytest
+
+from creator import model as M
+from creator.audit import checks as A
+from creator.ledger import Ledger
+
+
+@pytest.fixture()
+def led(tmp_path: Path) -> Ledger:
+    return Ledger(tmp_path / "dev.jsonl", evidence_root=tmp_path)
+
+
+def comp(fn: str = M.VERDICT_FUNCTION) -> M.ComputationRef:
+    return M.ComputationRef(function=fn, code_hash="ab" * 8, inputs_sha256="cd" * 8, output_sha256="ef" * 8)
+
+
+def test_every_attack_is_caught_for_the_right_reason() -> None:
+    res = A.adversary()
+    assert len(res) == len(A.ATTACKS) and all(a.caught for a in res), [a for a in res if not a.caught]
+
+
+def test_an_attack_that_fails_for_another_reason_is_not_counted(tmp_path: Path) -> None:
+    def broken(d: Path) -> str:
+        raise KeyError("unrelated crash")
+    [a] = A.adversary((("x", "rule", broken, r"TESTED needs"),))
+    assert not a.caught and "another reason" in a.detail
+
+
+def test_disabling_a_check_makes_its_attack_uncaught(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Mutation test: the adversary must notice when a defence is switched off."""
+    monkeypatch.setattr(A, "check_test_weakening", lambda before, after: [])
+    monkeypatch.setattr(A, "check_evidence_drift", lambda led, **_: [])
+    res = {a.name: a.caught for a in A.adversary()}
+    assert res["weaken_tests"] is False and res["evidence_swap"] is False and res["forge_tested"] is True
+
+
+def test_clean_ledger_audits_clean_and_drift_is_found(led: Ledger, tmp_path: Path) -> None:
+    (tmp_path / "log.txt").write_text("1 passed", encoding="utf-8")
+    led.append(M.TestRun(created_by=M.Role.KERNEL, command="t", passed=1, failed=0, errors=0, skipped=0, duration_s=0.1,
+                         evidence=(M.EvidenceRef.of(tmp_path / "log.txt", tmp_path),)))
+    only = ("ledger_integrity", "evidence_drift", "fake_adoption", "claim_recompute")
+    assert A.audit(led, only=only).clean
+    (tmp_path / "log.txt").unlink()
+    r = A.audit(led, only=only)
+    assert r.count("CRITICAL") == 1 and r.findings[0].check == "evidence_drift" and "missing" in r.findings[0].detail
+
+
+def _claim_world(led: Ledger) -> tuple[str, str]:
+    o = led.append(M.Objective(created_by=M.Role.OWNER, statement="s", acceptance_criteria=("a",)))
+    g = led.append(M.Gap(created_by=M.Role.KERNEL, parents=(o,), kind=M.GapKind.TESTING, description="g", importance=0.5))
+    ex = led.append(M.Experiment(created_by=M.Role.KERNEL, parents=(g,), hypothesis="h", design="d", metrics=("m",), seed=0,
+                                 baseline_ref="b", candidate_ref="c"))
+    root = led.evidence_root
+    (root / "scores.json").write_text("[]", encoding="utf-8")
+    ev = (M.EvidenceRef.of(root / "scores.json", root),)
+
+    def ms(v: float, split: M.Split = M.Split.DEV, metric: str = "solve_rate") -> str:
+        return led.append(M.Measurement(created_by=M.Role.VALIDATOR, parents=(ex,), metric=metric, value=v, stderr=0.01, n=50,
+                                        population="p", conditions="c", higher_is_better=True, split=split,
+                                        computation=comp("creator.evaluate:metrics_of"), evidence=ev))
+    base, cand = [ms(0.5), ms(0.51)], [ms(0.7), ms(0.72)]
+    reg = (ms(0.9, metric="no_regression"), ms(0.9, metric="no_regression"))
+    hold = (ms(0.4, M.Split.HOLDOUT), ms(0.6, M.Split.HOLDOUT))
+    cid = led.append(M.ImprovementClaim(created_by=M.Role.VALIDATOR, parents=(ex,), subject_id=ex, baseline_ids=tuple(base),
+                                        candidate_ids=tuple(cand), verdict=M.Verdict.IMPROVEMENT, computation=comp(),
+                                        regression_baseline_ids=(reg[0],), regression_candidate_ids=(reg[1],),
+                                        holdout_baseline_id=hold[0], holdout_candidate_id=hold[1]))
+    return ex, cid
+
+
+def test_claims_are_recomputed_with_the_current_rule(led: Ledger, monkeypatch: pytest.MonkeyPatch) -> None:
+    _claim_world(led)
+    assert not A.check_claim_recompute(led)
+    monkeypatch.setattr(M, "improvement_verdict", lambda *a, **k: (M.Verdict.NO_EFFECT, {}))
+    [f] = A.check_claim_recompute(led)
+    assert f.severity == "CRITICAL" and "current rule gives NO_EFFECT" in f.detail
+
+
+def test_adoption_must_cite_a_real_merge(led: Ledger, tmp_path: Path) -> None:
+    ex, cid = _claim_world(led)
+    led.append(M.Decision(created_by=M.Role.VALIDATOR, subject_id=ex, verdict=M.DecisionVerdict.ADOPT, reason="measured",
+                          claim_id=cid))
+    [f] = A.check_fake_adoption(led, repo=tmp_path)
+    assert f.severity == "HIGH" and "merge commit" in f.detail
+    (tmp_path / "merge").mkdir()
+    (tmp_path / "merge" / "deadbeef00").write_text("x", encoding="utf-8")
+    led.append(M.Decision(created_by=M.Role.VALIDATOR, subject_id=ex, verdict=M.DecisionVerdict.ADOPT, reason="measured",
+                          claim_id=cid, evidence=(M.EvidenceRef.of(tmp_path / "merge" / "deadbeef00", tmp_path, "merge_commit"),)))
+    found = A.check_fake_adoption(led, repo=tmp_path)
+    assert any(f.severity == "CRITICAL" and "not in git" in f.detail for f in found)
+
+
+def test_test_shape_and_weakening() -> None:
+    src = ("import pytest\n\ndef test_a():\n    assert 1 == 1\n    with pytest.raises(ValueError):\n        f()\n\n"
+           "def helper():\n    pass\n")
+    assert A.test_shape(src) == A.TestShape(1, 2, 0, 0)
+    loose = "import pytest\n\n@pytest.mark.xfail\ndef test_a():\n    assert x == pytest.approx(1, rel=0.5)\n    assert True\n"
+    assert A.test_shape(loose) == A.TestShape(1, 2, 1, 2)
+    kinds = {f.detail.split(" ")[0] for f in A.check_test_weakening({"tests/test_a.py": src}, {"tests/test_a.py": loose})}
+    assert "skip/xfail" in kinds and "looser" in kinds
+    assert A.check_test_weakening({"tests/test_a.py": src}, {})[0].detail == "test file deleted"
+    assert not A.check_test_weakening({"tests/test_a.py": src}, {"tests/test_a.py": src + "\ndef test_b():\n    assert f(2) == 4\n"})
+    assert not A.check_test_weakening({"app/core.py": "x = 1"}, {})                # not a test file
+
+
+def test_answer_literals_are_distinctive_only() -> None:
+    assert A._distinctive(299993) and A._distinctive("already-sluggy") and A._distinctive("2023-07-04")
+    for common in (2000, 10000, "no:cacheprovider", "[a-z]+", "pytest", "app.core", "--rootdir", True, "hi"):
+        assert not A._distinctive(common), common
+
+
+def test_the_real_creator_has_no_hardcoded_answers_and_the_suite_is_sealed() -> None:
+    assert A.check_hardcoded_answers() == []
+    assert A.check_sealed_suite() == []
+
+
+def test_budget_anomalies(tmp_path: Path) -> None:
+    p = tmp_path / "b.json"
+    p.write_text(json.dumps({"calls": [{"run": "r1", "usd": 0.0, "outcome": "OK"}, {"run": "r2", "usd": 0.1, "outcome": "OK"},
+                                       {"run": "r3", "usd": 0.0, "outcome": "REFUSED"}]}), encoding="utf-8")
+    [f] = A.check_budget_anomalies(budget_file=p)
+    assert f.subject == "r1"
+
+
+def test_a_crashing_check_is_reported_not_skipped(led: Ledger, monkeypatch: pytest.MonkeyPatch) -> None:
+    def boom(**_: object) -> list:
+        raise RuntimeError("check broke")
+    monkeypatch.setitem(A.CHECKS, "ledger_integrity", boom)
+    r = A.audit(led, only=("ledger_integrity",))
+    assert not r.clean and "check broke" in r.errors["ledger_integrity"]

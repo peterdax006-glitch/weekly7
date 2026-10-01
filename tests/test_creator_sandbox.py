@@ -69,7 +69,9 @@ def test_unknown_base_and_scratch_inside_the_tree_are_refused(repo: Path) -> Non
 
 @pytest.mark.parametrize("path", ["canon/CANON.md", "canon/canon.lock.json", "x.lock.json", "CREATOR_MASTER_PROMPT.md",
                                   ".github/workflows/ci.yml", "creator/devbench/sealed/keys.json", "creator/audit/rules.py",
-                                  "creator/evaluate_thresholds.json", "state/livesim/w01a/result.json"])
+                                  "creator/evaluate_thresholds.json", "state/livesim/w01a/result.json",
+                                  "creator/capabilities.json", "creator/devbench.py", "creator/model.py", "creator/ledger.py",
+                                  "creator/sandbox.py", "state/creator/ledger.jsonl"])
 def test_protected_paths_are_refused(repo: Path, scratch: Path, path: str) -> None:
     with S.Sandbox.open(repo, scratch=scratch) as sb:
         with pytest.raises(S.ProtectedPathError):

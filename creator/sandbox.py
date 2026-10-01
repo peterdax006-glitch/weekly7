@@ -36,6 +36,10 @@ PROTECTED: tuple[str, ...] = (
     "creator/devbench/sealed/*", "creator/devbench/sealed/**",
     "creator/audit/*", "creator/audit/**",
     "creator/evaluate_thresholds.json",
+    # the measuring sticks (1 Oct): the Creator may PROPOSE changes to these, but only the owner adopts them - otherwise it could
+    # make itself look better by lowering its floors, softening the scorer, the verdict/status rules or the ledger's integrity
+    "creator/capabilities.json", "creator/devbench.py", "creator/model.py", "creator/ledger.py", "creator/sandbox.py",
+    "state/creator/ledger.jsonl",
     "state/livesim/*", "state/livesim/**",
 )
 SANDBOX_PREFIX = "creator/sbx-"

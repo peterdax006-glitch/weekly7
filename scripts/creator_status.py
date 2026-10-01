@@ -13,6 +13,7 @@ sys.path.insert(0, str(ROOT))
 from creator import gaps as G  # noqa: E402
 from creator import objective as O  # noqa: E402
 from creator import selfmodel as SM  # noqa: E402
+from creator.audit import checks as AUD  # noqa: E402
 from creator.ledger import Ledger  # noqa: E402
 
 STATE = ROOT / "state" / "creator"
@@ -32,15 +33,25 @@ def main(argv: list[str]) -> int:
     O.compile_capabilities(led, oid, specs)
     rep = G.sync(led, model)
     summ = G.summary(led)
+    aud = AUD.audit(led, model)
+    attacks = AUD.adversary()
+    (STATE / "AUDIT.json").write_text(json.dumps({"audit": aud.to_dict(), "adversary": [a.__dict__ for a in attacks]}, indent=1),
+                                      encoding="utf-8")
     caps = [{"id": c.id, "name": c.name, "state": c.state, "uncertainty": c.uncertainty, "meaningful": c.meaningful,
              "floor": c.floor, "why": c.why} for c in model.capabilities]
     status = {"at": summ["at"], "selfmodel_digest": model.digest(), "versions": dict(model.versions), "capabilities": caps,
               "requirements": summ, "sync": {"opened": len(rep.opened), "closed": len(rep.closed), "regressed": list(rep.regressed)},
+              "audit": aud.to_dict()["counts"], "audit_errors": dict(aud.errors),
+              "adversary": {"attacks": len(attacks), "caught": sum(a.caught for a in attacks),
+                            "uncaught": [a.name for a in attacks if not a.caught]},
               "ledger_records": led.verify(), "seconds": round(time.time() - t0, 1)}
     (STATE / "STATUS.json").write_text(json.dumps(status, indent=1, default=str), encoding="utf-8")
     for c in caps:
         print(f"{c['id']} {c['state']:<12} {c['uncertainty']:<9} {c['meaningful']:>5}/{c['floor']:<5} {c['name']}")
     print(json.dumps({k: summ[k] for k in ("requirements", "by_status", "open_gaps", "unblocked")}))
+    print("SYNC", status["sync"], "AUDIT", status["audit"], aud.errors or "", "ADVERSARY", status["adversary"])
+    for f in aud.findings[:10]:
+        print("FINDING", f.severity, f.check, f.subject, f.detail[:100])
     for g in summ["next"]:
         print("NEXT", g["requirement_key"], g["importance"], g["description"][:100])
     return 0

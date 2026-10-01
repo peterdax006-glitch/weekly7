@@ -38,6 +38,7 @@ class Assessment:
     kind: M.GapKind
     importance: float
     status: M.Status
+    stale: bool = False                     # unmet only because evidence is stale / not run: needs a re-test, not a failure
 
 
 def assess(ledger: Ledger, model: SM.SelfModel) -> list[Assessment]:
@@ -56,9 +57,12 @@ def assess(ledger: Ledger, model: SM.SelfModel) -> list[Assessment]:
         else:
             met, detail = O.CHECKS[step](model, c, ledger, cap_records.get(comp))
         kind = next(k for s, k, _w, _d in O.LADDER if s == step)
+        stale = (not met and step == "tested" and c is not None and bool(c.last_results)
+                 and not any(v in ("FAIL", "ERROR") for v in c.last_results.values())
+                 and any(v in ("STALE", "NOT_RUN") for v in c.last_results.values()))
         out.append(Assessment(e.id, getattr(rec, "key"), comp, step, met, detail, kind,
                               O.importance(getattr(rec, "priority"), step, comp),
-                              ledger.view.status.get(e.id, M.Status.NOT_STARTED)))
+                              ledger.view.status.get(e.id, M.Status.NOT_STARTED), stale))
     return out
 
 
@@ -98,6 +102,7 @@ class SyncReport:
     closed: tuple[str, ...]
     regressed: tuple[str, ...]
     snapshot: str
+    stale: tuple[str, ...] = ()
 
 
 def sync(ledger: Ledger, model: SM.SelfModel, now: Optional[float] = None) -> SyncReport:
@@ -108,6 +113,7 @@ def sync(ledger: Ledger, model: SM.SelfModel, now: Optional[float] = None) -> Sy
     opened: list[str] = []
     closed: list[str] = []
     regressed: list[str] = []
+    stale: list[str] = []
     gap_of: dict[str, list[str]] = {r.requirement_id: open_gaps_for(ledger, r.requirement_id) for r in rows}
     for r in sorted(rows, key=lambda x: x.key):
         if r.met:
@@ -121,7 +127,11 @@ def sync(ledger: Ledger, model: SM.SelfModel, now: Optional[float] = None) -> Sy
                 _advance_to_tested(ledger, g, tr, f"requirement {r.key} now met: {r.detail}")
                 closed.append(g)
             continue
-        if r.status in M.DONE_STATES:
+        if r.status in M.DONE_STATES and r.stale:
+            ledger.transition(r.requirement_id, M.Status.IN_PROGRESS, f"evidence stale, needs a re-test: {r.detail}",
+                              M.Role.KERNEL)                            # unknown is not failed - but it is no longer TESTED
+            stale.append(r.key)
+        elif r.status in M.DONE_STATES:
             ledger.transition(r.requirement_id, M.Status.FAILED, f"regression: check:{r.step}:{r.component} now fails - {r.detail}",
                               M.Role.KERNEL)
             regressed.append(r.key)
@@ -133,7 +143,7 @@ def sync(ledger: Ledger, model: SM.SelfModel, now: Optional[float] = None) -> Sy
                                       depends_on=dep_gaps, evidence=(ev,)))
             gap_of[r.requirement_id] = [gid]
             opened.append(gid)
-    return SyncReport(len(rows), sum(r.met for r in rows), tuple(opened), tuple(closed), tuple(regressed), ev.path)
+    return SyncReport(len(rows), sum(r.met for r in rows), tuple(opened), tuple(closed), tuple(regressed), ev.path, tuple(stale))
 
 
 @dataclasses.dataclass(frozen=True)

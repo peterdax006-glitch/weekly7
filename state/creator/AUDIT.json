@@ -1,0 +1,73 @@
+{
+ "audit": {
+  "clean": true,
+  "checks_run": [
+   "ledger_integrity",
+   "evidence_drift",
+   "stale_done",
+   "fake_adoption",
+   "claim_recompute",
+   "sealed_suite",
+   "hardcoded_answers",
+   "budget_anomalies"
+  ],
+  "errors": {},
+  "counts": {
+   "CRITICAL": 0,
+   "HIGH": 0,
+   "MEDIUM": 0,
+   "LOW": 0
+  },
+  "findings": []
+ },
+ "adversary": [
+  {
+   "name": "forge_tested",
+   "rule": "TESTED needs a passing TestRun (sec 7)",
+   "caught": true,
+   "detail": "refused: LedgerError: refused Transition: TESTED needs existing justification records; TESTED needs a TestRun among the justifications (code exists is not tested, C77 sec 7)"
+  },
+  {
+   "name": "self_validate",
+   "rule": "only an independent role may VALIDATE (sec 48)",
+   "caught": true,
+   "detail": "refused: ModelError: Transition: implementer may not validate; only an independent validator/auditor/owner (sec 48)"
+  },
+  {
+   "name": "adopt_without_claim",
+   "rule": "ADOPT needs an IMPROVEMENT claim (sec 30)",
+   "caught": true,
+   "detail": "refused: ModelError: Decision: ADOPT needs the ImprovementClaim it rests on (C77 sec 30)"
+  },
+  {
+   "name": "tamper_ledger",
+   "rule": "the ledger is tamper-evident (sec 59)",
+   "caught": true,
+   "detail": "refused: LedgerError: C:\\Users\\Peter\\AppData\\Local\\Temp\\creator-adv-kve0dq_4\\l.jsonl:1: hash mismatch - the line was edited"
+  },
+  {
+   "name": "evidence_swap",
+   "rule": "cited evidence cannot change silently (sec 35)",
+   "caught": true,
+   "detail": "evidence_drift reported the swapped log"
+  },
+  {
+   "name": "weaken_tests",
+   "rule": "tests are never weakened to pass (sec 68)",
+   "caught": true,
+   "detail": "test_weakening flagged it"
+  },
+  {
+   "name": "protected_write",
+   "rule": "measuring sticks are protected (secs 33-34)",
+   "caught": true,
+   "detail": "every measuring-stick path is protected"
+  },
+  {
+   "name": "hardcode_answer",
+   "rule": "no hard-coded demonstrations (sec 50)",
+   "caught": true,
+   "detail": "hardcoded_answers flagged the planted answer"
+  }
+ ]
+}

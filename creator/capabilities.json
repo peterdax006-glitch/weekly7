@@ -16,6 +16,6 @@
   {"id": "K13", "name": "meta-learning and strategies", "modules": ["creator/meta.py"], "tests": ["tests/test_creator_meta.py"], "floor": 1500},
   {"id": "K14", "name": "kernel loop, checkpoints, observability", "modules": ["creator/kernel.py"], "tests": ["tests/test_creator_kernel.py"], "floor": 1600},
   {"id": "K15", "name": "devbench sealed development-task suite", "modules": ["creator/devbench.py"], "tests": ["tests/test_creator_devbench.py"], "floor": 1800},
-  {"id": "K16", "name": "audit and adversary", "modules": ["creator/audit_checks.py"], "tests": ["tests/test_creator_audit.py"], "floor": 1200}
+  {"id": "K16", "name": "audit and adversary", "modules": ["creator/audit/checks.py"], "tests": ["tests/test_creator_audit.py"], "floor": 1200}
  ]
 }

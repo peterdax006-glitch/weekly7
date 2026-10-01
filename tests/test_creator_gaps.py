@@ -109,3 +109,20 @@ def test_ranking_puts_unblocked_important_gaps_first(proj: Path) -> None:
     assert k02v and k02v[0].blocked_by                              # K02 still has open prerequisite gaps
     s = G.summary(led)
     assert s["open_gaps"] == len(r) and s["requirements"] == 2 * len(O.LADDER)
+
+
+def test_stale_evidence_reopens_a_tested_requirement_without_calling_it_failed(proj: Path) -> None:
+    led, model, comp = world(proj)
+    G.sync(led, model)
+    req = comp.requirement_ids["K01.tested"]
+    assert led.view.status[req] is M.Status.TESTED
+    put(proj, "pkg/base.py", (proj / "pkg/base.py").read_text(encoding="utf-8") + "\n\ndef four():\n    return 4\n")
+    stale = SM.build(proj, scope=("pkg", "tests"), capabilities=SPECS,
+                     test_evidence=SM.load_test_evidence(proj / "ev.json"), include_versions=False)
+    rep = G.sync(led, stale)
+    assert "K01.tested" in rep.stale and "K01.tested" not in rep.regressed
+    assert led.view.status[req] is M.Status.IN_PROGRESS and G.open_gaps_for(led, req)
+    ev = SM.collect_test_evidence(proj, ["tests/test_base.py"], proj / "ev.json")
+    fresh = SM.build(proj, scope=("pkg", "tests"), capabilities=SPECS, test_evidence=ev, include_versions=False)
+    G.sync(led, fresh)
+    assert led.view.status[req] is M.Status.TESTED and not G.open_gaps_for(led, req)

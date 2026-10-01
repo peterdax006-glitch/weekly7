@@ -5,6 +5,12 @@
   "source_digest": "0d67c0d928cc840f",
   "where": "C:\\Users\\Peter\\weekly7\\state\\creator\\junit\\tests__test_creator_agents.py.xml"
  },
+ "tests/test_creator_audit.py": {
+  "test_file": "tests/test_creator_audit.py",
+  "outcome": "PASS",
+  "source_digest": "a3c77d041de33133",
+  "where": "C:\\Users\\Peter\\weekly7\\state\\creator\\junit\\tests__test_creator_audit.py.xml"
+ },
  "tests/test_creator_devbench.py": {
   "test_file": "tests/test_creator_devbench.py",
   "outcome": "PASS",
@@ -20,7 +26,7 @@
  "tests/test_creator_gaps.py": {
   "test_file": "tests/test_creator_gaps.py",
   "outcome": "PASS",
-  "source_digest": "2cee80a797f1e209",
+  "source_digest": "b79dfb2f92f9f4e5",
   "where": "C:\\Users\\Peter\\weekly7\\state\\creator\\junit\\tests__test_creator_gaps.py.xml"
  },
  "tests/test_creator_ledger.py": {
@@ -38,7 +44,7 @@
  "tests/test_creator_sandbox.py": {
   "test_file": "tests/test_creator_sandbox.py",
   "outcome": "PASS",
-  "source_digest": "5ba699e8644f8a1d",
+  "source_digest": "ac3cdc99578b508c",
   "where": "C:\\Users\\Peter\\weekly7\\state\\creator\\junit\\tests__test_creator_sandbox.py.xml"
  },
  "tests/test_creator_selfmodel.py": {
