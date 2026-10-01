@@ -167,3 +167,36 @@ def test_targeted_families_are_bounded() -> None:
     import ast
     big = "def f(a, b, c, d):\n" + "".join(f"    t{i} = max(a, b) + sum(c)\n" for i in range(60)) + "    return a\n"
     assert len(list(G.targeted_mutations(ast.parse(big), 40))) <= 5 * 40
+
+
+OVERFIT_SRC = "def f(n: int) -> int:\n    if n > 3:\n        return n * 2\n    else:\n        return n\n"
+
+
+def _fast_visible(workdir: Path) -> D.TestCounts:
+    """Stands in for pytest: the single visible test is f(3) == 6 (fast, deterministic)."""
+    ns: dict = {}
+    try:
+        exec((workdir / "app/f.py").read_text(encoding="utf-8"), ns)
+        ok = ns["f"](3) == 6
+    except Exception:
+        ok = False
+    return D.TestCounts(1 if ok else 0, 0 if ok else 1, 0, 0 if ok else 1)
+
+
+def test_ranking_prefers_the_minimal_behaviour_change(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # the first visible-passing mutant swaps the branches (overfits f(3)); the right fix is the boundary, which changes nothing else
+    monkeypatch.setattr(G, "visible_tests", _fast_visible)
+    put(tmp_path, "app/f.py", OVERFIT_SRC)
+    first = G.solve_with_search({"id": "t"}, tmp_path, budget=200, rank=False)
+    put(tmp_path, "app/f.py", OVERFIT_SRC)
+    ranked = G.solve_with_search({"id": "t"}, tmp_path, budget=200, rank=True)
+    assert first[0] and ranked[0]
+    assert G.behavioural_divergence(tmp_path, OVERFIT_SRC, first[1]["app/f.py"]) > 0
+    assert G.behavioural_divergence(tmp_path, OVERFIT_SRC, ranked[1]["app/f.py"]) == 0
+    assert "n >= 3" in ranked[1]["app/f.py"]
+
+
+def test_divergence_counts_changed_calls_and_survives_broken_candidates(tmp_path: Path) -> None:
+    assert G.behavioural_divergence(tmp_path, OVERFIT_SRC, OVERFIT_SRC) == 0
+    assert G.behavioural_divergence(tmp_path, OVERFIT_SRC, "def f(n: int) -> int:\n    return 0\n") > 0
+    assert G.behavioural_divergence(tmp_path, OVERFIT_SRC, "def f(:\n") > 0

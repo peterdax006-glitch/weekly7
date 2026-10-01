@@ -469,8 +469,101 @@ def _edit(tree: ast.Module, index: int, fn: Callable[[Any], None]) -> ast.Module
     return ast.fix_missing_locations(t)
 
 
-def solve_with_search(task: Mapping[str, Any], workdir: Path, budget: int = 120, pairs: bool = True) -> tuple[bool, dict[str, str], int]:
-    """Test-guided mutation repair over the non-test code. Returns (visible tests pass, files written, candidates tried)."""
+_DIVERGENCE_RUNNER = r"""
+import contextlib, io, json, sys
+sys.path.insert(0, ROOT)
+def load(src):
+    ns = {"__name__": "_ovf_probe"}
+    with contextlib.redirect_stdout(io.StringIO()):
+        exec(compile(src, "<probe>", "exec"), ns)
+    return ns
+def run(fn, args):
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            return repr(fn(*[eval(a) for a in args]))
+    except BaseException as e:
+        return "exc:" + type(e).__name__
+a, b = load(ORIG), load(CAND)
+bad = 0
+for name, calls in PLAN:
+    fa, fb = a.get(name), b.get(name)
+    if fa is None or fb is None:
+        bad += len(calls)
+        continue
+    for c in calls:
+        bad += run(fa, c) != run(fb, c)
+print(json.dumps(bad))
+"""
+
+
+def _variants(args: tuple[Any, ...]) -> list[tuple[Any, ...]]:
+    """The harvested call plus small perturbations of its sequence arguments (shorter, reversed, one element longer)."""
+    out = [args]
+    for i, a in enumerate(args):
+        if isinstance(a, (list, tuple)) and a:
+            for v in (a[:-1], a[::-1], type(a)(list(a) + list(a[:1]))):
+                out.append(args[:i] + (v,) + args[i + 1:])
+    return out
+
+
+def _test_call_args(workdir: Path, names: set[str]) -> dict[str, list[tuple[Any, ...]]]:
+    """Literal argument tuples that the VISIBLE tests pass to the named functions: realistic inputs the program must keep handling the same way."""
+    found: dict[str, list[tuple[Any, ...]]] = {}
+    for tp in sorted((workdir / "tests").rglob("*.py"))[:20]:
+        try:
+            t = ast.parse(tp.read_text(encoding="utf-8"))
+        except (SyntaxError, OSError):
+            continue
+        for n in ast.walk(t):
+            if not isinstance(n, ast.Call) or n.keywords:
+                continue
+            f = n.func
+            name = f.id if isinstance(f, ast.Name) else f.attr if isinstance(f, ast.Attribute) else ""
+            if name not in names:
+                continue
+            try:
+                args = tuple(ast.literal_eval(a) for a in n.args)
+            except (ValueError, SyntaxError, TypeError):
+                continue
+            for v in _variants(args):
+                if v not in found.setdefault(name, []) and len(found[name]) < 12:
+                    found[name].append(v)
+    return found
+
+
+def behavioural_divergence(workdir: Path, original: str, candidate: str, timeout: int = 20) -> int:
+    """Number of auto-derived calls (testgen.candidate_calls over every top-level function) on which the candidate's outcome differs
+    from the original's. Fewer = a smaller behavioural change. A probe that cannot run counts as maximally divergent."""
+    from creator import testgen as T
+    big = 10 ** 6
+    try:
+        tree = ast.parse(original)
+    except SyntaxError:
+        return big
+    seen = _test_call_args(workdir, {f.name for f in tree.body if isinstance(f, ast.FunctionDef)})
+    plan = [(fn.name, [[repr(a) for a in c] for c in T.candidate_calls(fn)] + [[repr(a) for a in c] for c in seen.get(fn.name, [])])
+            for fn in tree.body if isinstance(fn, ast.FunctionDef)]
+    plan = [(n, c) for n, c in plan if c]
+    if not plan:
+        return 0
+    script = (f"ROOT = {str(workdir)!r}\nORIG = {original!r}\nCAND = {candidate!r}\nPLAN = {plan!r}\n" + _DIVERGENCE_RUNNER)
+    try:
+        p = subprocess.run([sys.executable, "-B", "-c", script], cwd=workdir, capture_output=True, text=True, timeout=timeout)
+        return int(json.loads(p.stdout.strip().splitlines()[-1]))
+    except (subprocess.TimeoutExpired, ValueError, IndexError, OSError):
+        return big
+
+
+def _edit_size(original: str, candidate: str) -> int:
+    return sum(1 for a, b in zip(ast.unparse(ast.parse(original)).splitlines(), candidate.splitlines()) if a != b) + abs(len(original.splitlines()) - len(candidate.splitlines()))
+
+
+def solve_with_search(task: Mapping[str, Any], workdir: Path, budget: int = 120, pairs: bool = True,
+                      rank: bool = True, extra_passes: int = 5, extra_budget: int = 40) -> tuple[bool, dict[str, str], int]:
+    """Test-guided mutation repair over the non-test code. Returns (visible tests pass, files written, candidates tried).
+    With rank=True the first visible-passing candidate is not trusted: further passing candidates are collected (up to extra_passes /
+    extra_budget more tries) and the one that changes the program's behaviour least (auto-derived calls vs the original) wins.
+    rank=False is the old first-found behaviour."""
     targets = [p for p in sorted(workdir.rglob("*.py")) if "tests" not in p.relative_to(workdir).parts
                and p.name not in ("__init__.py", "conftest.py") and "__pycache__" not in p.parts]
     tried = 0
@@ -485,15 +578,30 @@ def solve_with_search(task: Mapping[str, Any], workdir: Path, budget: int = 120,
         cands: Iterator[ast.Module] = iter(singles)
         if pairs:
             cands = itertools.chain(singles, (m2 for m1 in legacy[:12] for m2 in itertools.islice(mutations(m1), 12)))
+        passing: list[str] = []
+        first_at = 0
         for cand in cands:
-            if tried >= budget:
+            if tried >= budget and not passing:
                 path.write_text(original, encoding="utf-8")
                 return False, {}, tried
+            if passing and (tried - first_at >= extra_budget or len(passing) >= extra_passes or tried >= budget + extra_budget):
+                break
             tried += 1
             src = ast.unparse(cand) + "\n"
+            if src in passing:
+                continue
             path.write_text(src, encoding="utf-8")
             if visible_tests(workdir).ok:
-                return True, {path.relative_to(workdir).as_posix(): src}, tried
+                passing.append(src)
+                if not rank:
+                    break
+                first_at = first_at or tried
+        if passing:
+            best = passing[0]
+            if len(passing) > 1:
+                best = min(passing, key=lambda s: (behavioural_divergence(workdir, original, s), _edit_size(original, s)))
+            path.write_text(best, encoding="utf-8")
+            return True, {path.relative_to(workdir).as_posix(): best}, tried
         path.write_text(original, encoding="utf-8")
     return False, {}, tried
 
@@ -503,11 +611,12 @@ class SearchSolver:
     already do by itself."""
     name = "self-search"
 
-    def __init__(self, budget: int = 120) -> None:
+    def __init__(self, budget: int = 120, rank: bool = True) -> None:
         self.budget = budget
+        self.rank = rank
 
     def __call__(self, task: Mapping[str, Any], workdir: Path) -> D.SolverResult:
-        ok, _, n = solve_with_search(task, workdir, self.budget)
+        ok, _, n = solve_with_search(task, workdir, self.budget, rank=self.rank)
         return D.SolverResult(ok, 0, f"search {'passed' if ok else 'failed'} the visible tests after {n} candidates")
 
 
