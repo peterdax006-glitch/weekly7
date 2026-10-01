@@ -46,11 +46,11 @@ def world(proj: Path) -> tuple[Ledger, SM.SelfModel, O.Compiled]:
 def test_assessment_is_computed_from_evidence(proj: Path) -> None:
     led, model, _ = world(proj)
     a = {r.key: r for r in G.assess(led, model)}
-    assert a["K01.exists"].met and a["K01.tested"].met and a["K01.depth"].met and a["K01.no_stubs"].met
+    assert a["K01.exists"].met and a["K01.tested"].met and a["K01.no_stubs"].met and "K01.depth" not in a
     assert a["K01.integrated"].met                                      # pkg/user.py imports it
     assert not a["K02.tested"].met and "FAIL" in a["K02.tested"].detail
     assert not a["K02.no_stubs"].met and "later" in a["K02.no_stubs"].detail
-    assert not a["K02.depth"].met and not a["K02.integrated"].met
+    assert not a["K02.integrated"].met
     assert not a["K01.validated"].met                                   # only an independent role can make it so
 
 
@@ -139,7 +139,7 @@ def test_gaps_are_created_in_dependency_order_so_blockers_are_recorded(tmp_path:
     G.sync(led, model)
     ranked = {g.requirement_key: g for g in G.ranked(led)}
     assert ranked["K02.exists"].blocked_by == ()
-    for step in ("tested", "no_stubs", "depth", "integrated", "validated"):
+    for step in ("tested", "no_stubs", "integrated", "validated"):
         assert ranked[f"K02.{step}"].blocked_by, step
 
 
@@ -150,7 +150,7 @@ def test_blockers_are_also_derived_live_from_requirements(tmp_path: Path) -> Non
     led = Ledger(r / "dev.jsonl", evidence_root=r)
     oid = O.self_objective(led)
     c = O.compile_capabilities(led, oid, [SM.CapabilitySpec("K02", "m", ("pkg/none.py",), ("tests/t.py",), 5)])
-    depth = led.append(M.Gap(created_by=M.Role.KERNEL, parents=(c.requirement_ids["K02.depth"],), kind=M.GapKind.ARCHITECTURE,
+    depth = led.append(M.Gap(created_by=M.Role.KERNEL, parents=(c.requirement_ids["K02.no_stubs"],), kind=M.GapKind.ARCHITECTURE,
                              description="recorded first, without blockers", importance=0.9))
     led.append(M.Gap(created_by=M.Role.KERNEL, parents=(c.requirement_ids["K02.exists"],), kind=M.GapKind.CAPABILITY,
                      description="exists", importance=0.5))

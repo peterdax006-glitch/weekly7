@@ -34,12 +34,14 @@ LADDER: tuple[tuple[str, M.GapKind, float, str], ...] = (
     ("exists", M.GapKind.CAPABILITY, 1.00, "every implementing module exists and parses"),
     ("tested", M.GapKind.TESTING, 0.90, "every declared test file passed on the current source"),
     ("no_stubs", M.GapKind.CAPABILITY, 0.60, "no public stub bodies remain"),
-    ("depth", M.GapKind.ARCHITECTURE, 0.50, "meaningful lines reach the declared floor"),
     ("integrated", M.GapKind.INTEGRATION, 0.55, "imported by production code, not only by its tests"),
     ("validated", M.GapKind.EVIDENCE, 0.40, "VALIDATED in the ledger by an independent role with evidence"),
 )
-STEP_DEPENDS = {"tested": ("exists",), "no_stubs": ("exists",), "depth": ("exists",), "integrated": ("exists",),
-                "validated": ("tested", "no_stubs", "depth", "integrated")}
+STEP_DEPENDS = {"tested": ("exists",), "no_stubs": ("exists",), "integrated": ("exists",),
+                "validated": ("tested", "no_stubs", "integrated")}
+# Owner, 1 Oct 2026 ("constantly develop itself to shrink its own code"; ruling "capability, not lines"): there is no line-depth
+# step any more - depth is behaviour proven by tests, and size is pushed DOWN by the standing efficiency objective (K17).
+SUPERSEDED_STEPS = ("depth",)
 # ARCHITECTURE build order: a component's `exists` depends on the components it is built on
 COMPONENT_DEPENDS = {"K02": ("K01",), "K03": ("K01", "K02"), "K04": ("K02", "K03"), "K05": ("K01",), "K06": ("K01",),
                      "K07": ("K05",), "K08": ("K05", "K07"), "K09": ("K04",), "K10": ("K06", "K15"), "K11": ("K06", "K05"),

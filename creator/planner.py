@@ -26,7 +26,8 @@ from creator.ledger import Ledger
 
 PREFIX = "CP"
 MAX_ATTEMPTS = 3
-WORKER_STEPS = ("exists", "tested", "no_stubs", "depth", "integrated")
+WORKER_STEPS = ("exists", "tested", "no_stubs", "integrated")
+EFFICIENCY_KEY = "EFF.size"
 VALIDATOR_STEPS = ("validated",)
 
 
@@ -217,6 +218,86 @@ def plan_next(ledger: Ledger, model: SM.SelfModel, base_ref: str, specs: Optiona
         role = M.Role.VALIDATOR if step in VALIDATOR_STEPS else M.Role.IMPLEMENTER
         return Plan(g.gap_id, meta["key"], cid, step, role, wp, fields["package_id"], cp, ex, meta["attempt"])
     return None
+
+
+EFFICIENCY_TEXT = {
+    "do": ("make {target} smaller in AST nodes ({nodes} now) while keeping every behaviour: remove duplication, dead code, "
+           "needless indirection and over-general code; prefer simpler data flow",
+           "do not move code into other modules (the whole package must shrink, not just this file)",
+           "do not reformat to fewer lines - size is counted in AST nodes, so formatting changes count for nothing"),
+    "tests": ("every existing test keeps passing unchanged; the number of tests must not drop",),
+    "fail": ("behaviour removed that no test caught - every requirement is re-checked", "code moved to another module",
+             "tests deleted or weakened to make the shrink pass", "memory use made worse"),
+}
+
+
+def efficiency_requirement(ledger: Ledger, objective_id: str) -> str:
+    rid = ledger.view.unique.get(("Requirement", EFFICIENCY_KEY))
+    if rid:
+        return rid
+    return ledger.append(M.Requirement(
+        created_by=M.Role.OWNER, parents=(objective_id,), key=EFFICIENCY_KEY, priority=M.Priority.HIGH,
+        description="the Creator constantly shrinks its own code and memory (owner, 1 Oct 2026) without losing capability",
+        acceptance_test="efficiency:size (a standing objective: never permanently met)",
+        measurement_method="creator.efficiency AST-node size of the target and the whole package; peak memory of a fixed workload",
+        failure_condition="a shrink that loses a requirement, a test, or makes memory worse",
+        validation_method="creator.kernel efficiency claim computed by creator.model:improvement_verdict",
+        evidence_location="state/creator/cycles/<package>/"))
+
+
+def recent_failed_targets(ledger: Ledger, window: int = 6) -> list[str]:
+    """Targets whose last efficiency packages failed - skipped for a while so the loop does not grind on one file."""
+    out = []
+    for e in ledger.of_type("WorkPackage")[-window:]:
+        if ledger.view.status.get(e.id) is M.Status.FAILED and getattr(e.record, "outputs") \
+                and getattr(e.record, "objective", "").startswith("shrink "):
+            out.append(getattr(e.record, "outputs")[0])
+    return out
+
+
+def plan_efficiency(ledger: Ledger, root: Any, base_ref: str, avoid: Sequence[str] = ()) -> Optional[Plan]:
+    """Plan one shrink package for the largest module the Creator may edit (C77 sec 75 + owner directive 1 Oct 2026)."""
+    from pathlib import Path as _P
+    from creator import efficiency as E
+    objective_id = next((e.id for e in ledger.of_type("Objective") if getattr(e.record, "statement") == O.SELF_STATEMENT), None)
+    if objective_id is None:
+        return None
+    target = E.pick_target(_P(root), avoid=tuple(avoid) + tuple(recent_failed_targets(ledger)))
+    if target is None:
+        return None
+    path, nodes = target
+    req = efficiency_requirement(ledger, objective_id)
+    gap = ledger.append(M.Gap(created_by=M.Role.KERNEL, parents=(req,), kind=M.GapKind.ARCHITECTURE,
+                              description=f"shrink {path}: {nodes} AST nodes", importance=0.3))
+    kw = {"target": path, "nodes": str(nodes)}
+    pid = next_package_id(ledger)
+    wp = ledger.append(M.WorkPackage(
+        created_by=M.Role.KERNEL, parents=(gap,), package_id=pid, objective=f"shrink {path} without losing capability",
+        why_it_exists=f"owner directive 1 Oct 2026: the Creator constantly shrinks its own code; {path} is the largest module "
+                      f"it may edit ({nodes} AST nodes)",
+        prerequisites=("none",), inputs=(path,), outputs=(path,), implementation_requirements=_fmt(EFFICIENCY_TEXT["do"], **kw),
+        interfaces=("every public interface of the module stays as it is unless no caller uses it",),
+        data_flow="sandbox -> build -> affected tests -> every requirement re-checked -> size + memory measured -> decision",
+        dependencies=(), test_requirements=_fmt(EFFICIENCY_TEXT["tests"], **kw),
+        validation_requirements=(f"{path} and the whole creator package smaller in AST nodes", "every base requirement kept",
+                                 "test count not lower", "peak memory not significantly higher"),
+        expected_failure_modes=_fmt(EFFICIENCY_TEXT["fail"], **kw),
+        evidence_requirements=("size and memory footprints of base and candidate", "junit of base and candidate"),
+        failure_conditions=("no shrink of the module or of the package", "any requirement lost", "any regression"),
+        rollback_requirements=("discard the sandbox; after adoption revert the merge commit",),
+        completion_criteria=("efficiency claim IMPROVEMENT computed by creator.model:improvement_verdict", "audit clean"),
+        anti_premature_completion=("a smaller file is not a smaller package", "fewer lines is not fewer AST nodes"),
+        meaningful_code_depth=0))
+    cp = ledger.append(M.ChangeProposal(created_by=M.Role.KERNEL, parents=(wp,), reason=f"shrink {path}",
+                                        parent_objective=objective_id, originating_task=wp, affected_components=(path,),
+                                        expected_effect=f"{path} and the creator package smaller with nothing lost"))
+    ex = ledger.append(M.Experiment(created_by=M.Role.KERNEL, parents=(cp,),
+                                    hypothesis=f"{path} can be made smaller without losing any requirement, test or memory",
+                                    design="sandbox; base vs candidate AST size, package size, peak memory, tests, requirements",
+                                    metrics=(f"ast_nodes:{path}", "package_ast_nodes", "peak_memory_mb"), seed=0,
+                                    baseline_ref=base_ref, candidate_ref=f"sandbox:{pid}"))
+    ledger.transition(gap, M.Status.IN_PROGRESS, f"planned as {pid}", M.Role.KERNEL)
+    return Plan(gap, EFFICIENCY_KEY, path, "efficiency", M.Role.IMPLEMENTER, wp, pid, cp, ex, 1)
 
 
 def record_outcome(ledger: Ledger, plan: Plan, success: bool, reason: str) -> None:

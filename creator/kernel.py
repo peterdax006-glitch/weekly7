@@ -65,6 +65,8 @@ class KernelConfig:
     test_timeout: float = 900.0
     sealed_root: Optional[Path] = None                  # repository whose sealed keys the diff audit compares against
     steps: tuple[str, ...] = P.WORKER_STEPS             # which requirement steps workers may be planned for (never 'validated')
+    mode: str = "auto"                                  # auto: gaps, then shrink when none | gaps | efficiency (shrink only)
+    measure_memory: bool = True
 
     @property
     def ledger_path(self) -> Path:
@@ -207,10 +209,11 @@ def red(report: AUD.AuditReport) -> bool:
 # ------------------------------------------------------------------------------------------------ the gap-closure claim
 
 def _measure(led: Ledger, ex: str, metric: str, value: float, split: M.Split, population: str, conditions: str,
-             evidence: Sequence[M.EvidenceRef], inputs: Any) -> str:
+             evidence: Sequence[M.EvidenceRef], inputs: Any, higher_is_better: bool = True, stderr: float = 0.0) -> str:
     from creator.evaluate import computation
-    return led.append(M.Measurement(created_by=M.Role.VALIDATOR, parents=(ex,), metric=metric, value=float(value), stderr=0.0,
-                                    n=1, population=population, conditions=conditions, higher_is_better=True, split=split,
+    return led.append(M.Measurement(created_by=M.Role.VALIDATOR, parents=(ex,), metric=metric, value=float(value),
+                                    stderr=float(stderr), n=1, population=population, conditions=conditions,
+                                    higher_is_better=higher_is_better, split=split,
                                     computation=computation("creator.kernel:gap_closure_claim", inputs, value),
                                     evidence=tuple(evidence)))
 
@@ -280,6 +283,72 @@ def gap_closure_claim(led: Ledger, plan: P.Plan, base: Assessed, cand: Sequence[
                                         baseline_ids=tuple(base_ids), candidate_ids=tuple(cand_ids), verdict=verdict,
                                         computation=computation(M.VERDICT_FUNCTION, ids, verdict.value, ids),
                                         regression_baseline_ids=(gb, kb), regression_candidate_ids=(gc, kc),
+                                        holdout_baseline_id=hb, holdout_candidate_id=hc))
+    return cid, verdict, detail
+
+
+def efficiency_claim(led: Ledger, plan: P.Plan, base: Assessed, cand: Sequence[Assessed], ev: Optional[S.Evaluation],
+                     evidence: Sequence[M.EvidenceRef], base_fp: Any, cand_fps: Sequence[Any]) -> tuple[str, M.Verdict, dict[str, Any]]:
+    """C77 sec 30 for a SHRINK (owner directive 1 Oct 2026). Lower is better for size and memory.
+        primary  (DEV)      AST nodes of the targeted module, base vs two candidate recomputations
+        guards   (DEV)      affected tests pass, requirements kept, test count, peak memory (replicate spread as stderr)
+        holdout  (HOLDOUT)  AST nodes of the whole creator package - moving code elsewhere shows no gain"""
+    import statistics
+    pop, cond, ex = "creator package", f"efficiency; base {plan.experiment_id}", plan.experiment_id
+    metric = f"ast_nodes:{plan.component}"
+    base_ids = [_measure(led, ex, metric, base_fp.target_size, M.Split.DEV, pop, cond, evidence, {"tree": "base", "r": r},
+                         higher_is_better=False) for r in range(len(cand_fps))]
+    cand_ids = [_measure(led, ex, metric, f.target_size, M.Split.DEV, pop, cond, evidence, {"tree": "candidate", "r": r},
+                         higher_is_better=False) for r, f in enumerate(cand_fps)]
+    base_met = {r.key for r in base.rows if r.met}
+    lost = sorted(k for k in base_met if not all(any(r.key == k and r.met for r in c.rows) for c in cand))
+
+    def mem(fp: Any) -> tuple[float, float]:
+        xs = list(fp.memory_mb) or [0.0]
+        sd = statistics.stdev(xs) if len(xs) > 1 else 0.0
+        return statistics.fmean(xs), max(0.25, sd / max(1.0, len(xs) ** 0.5))
+    bm, bse = mem(base_fp)
+    cm, cse = mem(cand_fps[0])
+    guards = [
+        (_measure(led, ex, "affected_tests_pass", _pass_fraction(ev.base_run if ev else None, 1.0), M.Split.DEV, pop, cond,
+                  evidence, {"guard": "base"}),
+         _measure(led, ex, "affected_tests_pass", _pass_fraction(ev.candidate_run if ev else None,
+                                                                 1.0 if ev is not None and ev.builds else 0.0),
+                  M.Split.DEV, pop, cond, evidence, {"guard": "candidate"})),
+        (_measure(led, ex, "requirements_kept", 1.0, M.Split.DEV, pop, cond, evidence, {"guard": "base"}),
+         _measure(led, ex, "requirements_kept", (len(base_met) - len(lost)) / len(base_met) if base_met else 1.0,
+                  M.Split.DEV, pop, cond, evidence, {"guard": "candidate", "lost": lost})),
+        (_measure(led, ex, "test_functions", base_fp.test_cases, M.Split.DEV, pop, cond, evidence, {"guard": "base"}),
+         _measure(led, ex, "test_functions", min(f.test_cases for f in cand_fps), M.Split.DEV, pop, cond, evidence,
+                  {"guard": "candidate"})),
+    ]
+    if base_fp.memory_mb and cand_fps[0].memory_mb:
+        guards.append((_measure(led, ex, "peak_memory_mb", bm, M.Split.DEV, pop, cond, evidence, {"guard": "base"},
+                                higher_is_better=False, stderr=bse),
+                       _measure(led, ex, "peak_memory_mb", cm, M.Split.DEV, pop, cond, evidence, {"guard": "candidate"},
+                                higher_is_better=False, stderr=cse)))
+    hb = _measure(led, ex, "package_ast_nodes", base_fp.package_size, M.Split.HOLDOUT, pop, cond, evidence, {"holdout": "base"},
+                  higher_is_better=False)
+    hc = _measure(led, ex, "package_ast_nodes", max(f.package_size for f in cand_fps), M.Split.HOLDOUT, pop, cond, evidence,
+                  {"holdout": "candidate"}, higher_is_better=False)
+
+    def g(i: str) -> M.Measurement:
+        rec = led.get(i)
+        if not isinstance(rec, M.Measurement):
+            raise KernelError(f"{i} is not a Measurement")
+        return rec
+    verdict, detail = M.improvement_verdict([g(i) for i in base_ids], [g(i) for i in cand_ids],
+                                            [(g(b), g(c)) for b, c in guards], (g(hb), g(hc)))
+    detail = dict(detail, target=plan.component, size=(base_fp.target_size, cand_fps[0].target_size),
+                  package=(base_fp.package_size, cand_fps[0].package_size), memory_mb=(round(bm, 2), round(cm, 2)),
+                  tests=(base_fp.test_cases, cand_fps[0].test_cases), requirements_lost=lost)
+    from creator.evaluate import computation
+    ids = base_ids + cand_ids + [i for pair in guards for i in pair] + [hb, hc]
+    cid = led.append(M.ImprovementClaim(created_by=M.Role.VALIDATOR, parents=(ex,), subject_id=ex,
+                                        baseline_ids=tuple(base_ids), candidate_ids=tuple(cand_ids), verdict=verdict,
+                                        computation=computation(M.VERDICT_FUNCTION, ids, verdict.value, ids),
+                                        regression_baseline_ids=tuple(b for b, _ in guards),
+                                        regression_candidate_ids=tuple(c for _, c in guards),
                                         holdout_baseline_id=hb, holdout_candidate_id=hc))
     return cid, verdict, detail
 
@@ -390,9 +459,14 @@ def _cycle(cfg: KernelConfig, worker: Worker, n: int = 1, led: Optional[Ledger] 
                            or str(main.audit.errors), seconds=round(time.monotonic() - t0, 1))
     base_sha = S.head(cfg.repo)
     steps = tuple(s for s in cfg.steps if s in P.WORKER_STEPS)          # a validator step can never be handed to a worker
-    plan = P.plan_next(led, main.model, base_sha, cfg.specs(), steps=steps)   # 2 PLAN
+    plan = None
+    if cfg.mode in ("auto", "gaps"):
+        plan = P.plan_next(led, main.model, base_sha, cfg.specs(), steps=steps)   # 2 PLAN
+    if plan is None and cfg.mode in ("auto", "efficiency"):
+        plan = P.plan_efficiency(led, cfg.repo, base_sha)               # the standing shrink objective (owner, 1 Oct 2026)
     if plan is None:
-        return CycleReport(n, "NOTHING_TO_DO", reason="no unblocked worker gap", seconds=round(time.monotonic() - t0, 1))
+        return CycleReport(n, "NOTHING_TO_DO", reason="no unblocked worker gap and nothing to shrink",
+                           seconds=round(time.monotonic() - t0, 1))
     wp = led.get(plan.work_package_id)
     assert isinstance(wp, M.WorkPackage)
     led.transition(plan.work_package_id, M.Status.IN_PROGRESS, "cycle started", M.Role.KERNEL)
@@ -426,7 +500,18 @@ def _cycle(cfg: KernelConfig, worker: Worker, n: int = 1, led: Optional[Ledger] 
                 _evidence_file(cfg, plan.package_id, "diff.patch", sb.diff() if hasattr(sb, "diff") else "")]
         if hashlib.sha256(sb.diff().encode()).hexdigest() != frozen:
             raise _Reject("the change set moved during evaluation (something in the tree rewrote files)")
-        cid, verdict, detail = gap_closure_claim(led, plan, main, cand, ev, evid)
+        if plan.step == "efficiency":
+            from creator import efficiency as E
+            base_tree = sb.scratch / f"{sb.id}-base"
+            base_root = base_tree if base_tree.is_dir() else cfg.repo
+            base_fp = E.footprint(base_root, plan.component, memory=cfg.measure_memory)
+            cand_fps = [E.footprint(sb.path, plan.component, memory=cfg.measure_memory and r == 0) for r in range(2)]
+            cand_fps[1] = dataclasses.replace(cand_fps[1], memory_mb=cand_fps[0].memory_mb)
+            evid.append(_evidence_file(cfg, plan.package_id, "footprint.json",
+                                       {"base": base_fp.to_dict(), "candidate": [f.to_dict() for f in cand_fps]}))
+            cid, verdict, detail = efficiency_claim(led, plan, main, cand, ev, evid, base_fp, cand_fps)
+        else:
+            cid, verdict, detail = gap_closure_claim(led, plan, main, cand, ev, evid)
         rep.verdict = verdict.value
         rep.details.update(claim=cid, detail=detail, regression=ev.report.verdict.value if ev.report else "NO_REPORT",
                            builds=ev.builds, weakening=[dataclasses.asdict(f) for f in weak],
@@ -456,10 +541,12 @@ def _cycle(cfg: KernelConfig, worker: Worker, n: int = 1, led: Optional[Ledger] 
         sb.close()
         after_main = assess_tree(cfg, led, cfg.repo, f"{plan.package_id}_main_after")   # 7 VERIFY
         G.sync(led, after_main.model)
-        still = next((r.met for r in after_main.rows if r.key == plan.requirement_key), False)
-        if red(after_main.audit) or not still:
-            why = "requirement not met on main after merge" if not still else \
-                f"audit red after merge: {[f.check for f in after_main.audit.findings[:5]]}"
+        lost_after = sorted({r.key for r in main.rows if r.met} - {r.key for r in after_main.rows if r.met})
+        still = plan.step == "efficiency" or next((r.met for r in after_main.rows if r.key == plan.requirement_key), False)
+        if red(after_main.audit) or not still or lost_after:
+            why = ("requirement not met on main after merge" if not still else
+                   f"requirements lost on main after merge: {lost_after}" if lost_after else
+                   f"audit red after merge: {[f.check for f in after_main.audit.findings[:5]]}")
             revert = S.rollback(cfg.repo, res.merge_commit, why)
             led.append(M.Decision(created_by=M.Role.VALIDATOR, subject_id=plan.experiment_id, verdict=M.DecisionVerdict.ROLLBACK,
                                   reason=f"{why}; reverted by {revert[:12]}"))
@@ -467,6 +554,11 @@ def _cycle(cfg: KernelConfig, worker: Worker, n: int = 1, led: Optional[Ledger] 
             rep.outcome, rep.reason = "ROLLED_BACK", why
         else:
             P.record_outcome(led, plan, True, f"adopted as {res.merge_commit[:12]}")
+            if plan.step == "efficiency":                               # the shrink gap closes on the measured claim
+                tr = led.append(M.TestRun(created_by=M.Role.KERNEL, command=f"efficiency:{plan.component}", passed=1, failed=0,
+                                          errors=0, skipped=0, duration_s=0.0, subject_ids=(plan.gap_id,),
+                                          selection=(plan.component,), evidence=tuple(evid)))
+                G._advance_to_tested(led, plan.gap_id, tr, f"shrink adopted: {detail.get('size')} nodes")
             rep.outcome, rep.reason = "ADOPTED", f"merged {res.merge_commit[:12]}"
     except _Reject as r:
         S.discard(sb)

@@ -47,6 +47,8 @@ def assess(ledger: Ledger, model: SM.SelfModel) -> list[Assessment]:
     out: list[Assessment] = []
     for e in ledger.of_type("Requirement"):
         rec = e.record
+        if ledger.view.status.get(e.id) is M.Status.REJECTED:
+            continue                                                    # superseded (e.g. the depth step, owner ruling 1 Oct)
         try:
             step, comp = O.parse_check(getattr(rec, "acceptance_test"))
         except O.ObjectiveError:

@@ -47,7 +47,8 @@ def test_dependencies_follow_ladder_and_build_order(led: Ledger) -> None:
     oid = O.self_objective(led)
     c = O.compile_capabilities(led, oid, SPECS)
     req = c.requirement_ids
-    assert set(led.get(req["K01.validated"]).depends_on) == {req[f"K01.{s}"] for s in ("tested", "no_stubs", "depth", "integrated")}
+    assert set(led.get(req["K01.validated"]).depends_on) == {req[f"K01.{s}"] for s in ("tested", "no_stubs", "integrated")}
+    assert "K01.depth" not in req                    # owner ruling 1 Oct 2026: capability, not lines - no line-depth step
     assert req["K01.tested"] in led.get(req["K02.exists"]).depends_on            # K02 is built on a tested K01
     assert led.get(req["K01.exists"]).acceptance_test == "check:exists:K01"
 

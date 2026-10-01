@@ -1,10 +1,10 @@
 {
- "at": "2026-10-01T10:43:00Z",
- "selfmodel_digest": "eae7795c0ded8391",
+ "at": "2026-10-01T15:22:48Z",
+ "selfmodel_digest": "73d44cfd5428dd97",
  "versions": {
-  "git_head": "bcc28a19d4205af2dd4eabecf100318077d7002b",
-  "dirty_files": 107,
-  "creator_tree": "9e2ab97bb0e04ae1",
+  "git_head": "e9d9cef65cb45ac1226ed79e6641f67ff609652f",
+  "dirty_files": 86,
+  "creator_tree": "8d489f730a1acf8c",
   "engine_tree": "a69b0474a03aa178"
  },
  "capabilities": [
@@ -14,170 +14,164 @@
    "state": "TESTED",
    "uncertainty": "LIKELY",
    "meaningful": 1128,
-   "floor": 900,
+   "floor": 0,
    "why": "every test file passed on the current source"
   },
   {
    "id": "K02",
    "name": "self-model",
    "state": "TESTED",
-   "uncertainty": "UNCERTAIN",
+   "uncertainty": "LIKELY",
    "meaningful": 389,
-   "floor": 1800,
-   "why": "every test file passed on the current source; depth 389 < floor 1800"
+   "floor": 0,
+   "why": "every test file passed on the current source"
   },
   {
    "id": "K03",
    "name": "objective and requirements",
    "state": "TESTED",
-   "uncertainty": "UNCERTAIN",
+   "uncertainty": "LIKELY",
    "meaningful": 170,
-   "floor": 1000,
-   "why": "every test file passed on the current source; depth 170 < floor 1000"
+   "floor": 0,
+   "why": "every test file passed on the current source"
   },
   {
    "id": "K04",
    "name": "gap analysis",
    "state": "TESTED",
-   "uncertainty": "UNCERTAIN",
-   "meaningful": 167,
-   "floor": 700,
-   "why": "every test file passed on the current source; depth 167 < floor 700"
+   "uncertainty": "LIKELY",
+   "meaningful": 169,
+   "floor": 0,
+   "why": "every test file passed on the current source"
   },
   {
    "id": "K05",
    "name": "agent runtime",
    "state": "TESTED",
-   "uncertainty": "UNCERTAIN",
+   "uncertainty": "LIKELY",
    "meaningful": 231,
-   "floor": 1400,
-   "why": "every test file passed on the current source; depth 231 < floor 1400"
+   "floor": 0,
+   "why": "every test file passed on the current source"
   },
   {
    "id": "K06",
    "name": "sandbox build test rollback",
    "state": "TESTED",
-   "uncertainty": "UNCERTAIN",
-   "meaningful": 1126,
-   "floor": 1400,
-   "why": "every test file passed on the current source; depth 1126 < floor 1400"
+   "uncertainty": "LIKELY",
+   "meaningful": 1128,
+   "floor": 0,
+   "why": "every test file passed on the current source"
   },
   {
    "id": "K07",
    "name": "research",
    "state": "TESTED",
-   "uncertainty": "UNCERTAIN",
+   "uncertainty": "LIKELY",
    "meaningful": 139,
-   "floor": 1200,
-   "why": "every test file passed on the current source; depth 139 < floor 1200"
+   "floor": 0,
+   "why": "every test file passed on the current source"
   },
   {
    "id": "K08",
    "name": "design generation",
    "state": "TESTED",
-   "uncertainty": "UNCERTAIN",
+   "uncertainty": "LIKELY",
    "meaningful": 87,
-   "floor": 900,
-   "why": "every test file passed on the current source; depth 87 < floor 900"
+   "floor": 0,
+   "why": "every test file passed on the current source"
   },
   {
    "id": "K09",
    "name": "planner",
    "state": "TESTED",
-   "uncertainty": "UNCERTAIN",
-   "meaningful": 191,
-   "floor": 1200,
-   "why": "every test file passed on the current source; depth 191 < floor 1200"
+   "uncertainty": "LIKELY",
+   "meaningful": 262,
+   "floor": 0,
+   "why": "every test file passed on the current source"
   },
   {
    "id": "K10",
    "name": "evaluation and improvement measurement",
    "state": "TESTED",
-   "uncertainty": "UNCERTAIN",
+   "uncertainty": "LIKELY",
    "meaningful": 175,
-   "floor": 1400,
-   "why": "every test file passed on the current source; depth 175 < floor 1400"
+   "floor": 0,
+   "why": "every test file passed on the current source"
   },
   {
    "id": "K11",
    "name": "debugging and repair",
    "state": "TESTED",
-   "uncertainty": "UNCERTAIN",
+   "uncertainty": "LIKELY",
    "meaningful": 135,
-   "floor": 1200,
-   "why": "every test file passed on the current source; depth 135 < floor 1200"
+   "floor": 0,
+   "why": "every test file passed on the current source"
   },
   {
    "id": "K12",
    "name": "development memory",
    "state": "TESTED",
-   "uncertainty": "UNCERTAIN",
+   "uncertainty": "LIKELY",
    "meaningful": 71,
-   "floor": 900,
-   "why": "every test file passed on the current source; depth 71 < floor 900"
+   "floor": 0,
+   "why": "every test file passed on the current source"
   },
   {
    "id": "K13",
    "name": "meta-learning and strategies",
    "state": "TESTED",
-   "uncertainty": "UNCERTAIN",
+   "uncertainty": "LIKELY",
    "meaningful": 118,
-   "floor": 1500,
-   "why": "every test file passed on the current source; depth 118 < floor 1500"
+   "floor": 0,
+   "why": "every test file passed on the current source"
   },
   {
    "id": "K14",
    "name": "kernel loop, checkpoints, observability",
    "state": "TESTED",
-   "uncertainty": "UNCERTAIN",
-   "meaningful": 374,
-   "floor": 1600,
-   "why": "every test file passed on the current source; depth 374 < floor 1600"
+   "uncertainty": "LIKELY",
+   "meaningful": 486,
+   "floor": 0,
+   "why": "every test file passed on the current source"
   },
   {
    "id": "K15",
    "name": "devbench sealed development-task suite",
    "state": "TESTED",
-   "uncertainty": "UNCERTAIN",
+   "uncertainty": "LIKELY",
    "meaningful": 325,
-   "floor": 1800,
-   "why": "every test file passed on the current source; depth 325 < floor 1800"
+   "floor": 0,
+   "why": "every test file passed on the current source"
   },
   {
    "id": "K16",
    "name": "audit and adversary",
    "state": "TESTED",
-   "uncertainty": "UNCERTAIN",
+   "uncertainty": "LIKELY",
    "meaningful": 343,
-   "floor": 1200,
-   "why": "every test file passed on the current source; depth 343 < floor 1200"
+   "floor": 0,
+   "why": "every test file passed on the current source"
+  },
+  {
+   "id": "K17",
+   "name": "self-efficiency (shrink code and memory)",
+   "state": "TESTED",
+   "uncertainty": "LIKELY",
+   "meaningful": 83,
+   "floor": 0,
+   "why": "every test file passed on the current source"
   }
  ],
  "requirements": {
-  "requirements": 96,
+  "requirements": 101,
   "by_status": {
-   "TESTED": 60,
-   "NOT_STARTED": 36
+   "TESTED": 63,
+   "REJECTED": 16,
+   "NOT_STARTED": 22
   },
-  "open_gaps": 36,
-  "unblocked": 21,
+  "open_gaps": 22,
+  "unblocked": 17,
   "next": [
-   {
-    "gap_id": "GAP-e66c28f63a781a3a9b28",
-    "requirement_key": "K06.depth",
-    "kind": "ARCHITECTURE",
-    "importance": 0.45,
-    "blocked_by": [],
-    "description": "K06.depth unmet: 1106 meaningful lines, floor 1400"
-   },
-   {
-    "gap_id": "GAP-9fb81e7e8ba224a1e6e0",
-    "requirement_key": "K10.depth",
-    "kind": "ARCHITECTURE",
-    "importance": 0.41,
-    "blocked_by": [],
-    "description": "K10.depth unmet: 175 meaningful lines, floor 1400"
-   },
    {
     "gap_id": "GAP-ce23460e0c288a6c5bfb",
     "requirement_key": "K01.validated",
@@ -187,26 +181,42 @@
     "description": "K01.validated unmet: ledger state NOT_STARTED"
    },
    {
-    "gap_id": "GAP-177d9e9b180155e06aea",
-    "requirement_key": "K14.depth",
-    "kind": "ARCHITECTURE",
-    "importance": 0.37,
+    "gap_id": "GAP-43c609514e316a570313",
+    "requirement_key": "K07.integrated",
+    "kind": "INTEGRATION",
+    "importance": 0.363,
     "blocked_by": [],
-    "description": "K14.depth unmet: 0 meaningful lines, floor 1600"
+    "description": "K07.integrated unmet: nothing to integrate"
    },
    {
-    "gap_id": "GAP-a6c408ddd144b1328bba",
-    "requirement_key": "K02.depth",
-    "kind": "ARCHITECTURE",
-    "importance": 0.3675,
+    "gap_id": "GAP-bb2be3547c9e24cceedf",
+    "requirement_key": "K06.validated",
+    "kind": "EVIDENCE",
+    "importance": 0.36,
     "blocked_by": [],
-    "description": "K02.depth unmet: 389 meaningful lines, floor 1800"
+    "description": "K06.validated unmet: ledger state NOT_STARTED"
+   },
+   {
+    "gap_id": "GAP-243ece398fc6aa81ef86",
+    "requirement_key": "K08.integrated",
+    "kind": "INTEGRATION",
+    "importance": 0.3548,
+    "blocked_by": [],
+    "description": "K08.integrated unmet: nothing to integrate"
+   },
+   {
+    "gap_id": "GAP-5b161608ccd437dab404",
+    "requirement_key": "K11.integrated",
+    "kind": "INTEGRATION",
+    "importance": 0.33,
+    "blocked_by": [],
+    "description": "K11.integrated unmet: nothing to integrate"
    }
   ],
-  "at": "2026-10-01T10:43:00Z"
+  "at": "2026-10-01T15:22:48Z"
  },
  "sync": {
-  "opened": 0,
+  "opened": 1,
   "closed": 0,
   "regressed": []
  },
@@ -222,6 +232,6 @@
   "caught": 8,
   "uncaught": []
  },
- "ledger_records": 629,
- "seconds": 479.2
+ "ledger_records": 700,
+ "seconds": 603.4
 }

@@ -36,9 +36,11 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--cycles", type=int, default=1)
     ap.add_argument("--steps", default=",".join(K.P.WORKER_STEPS), help="comma list of requirement steps to plan")
     ap.add_argument("--handoff-hours", type=float, default=6.0)
+    ap.add_argument("--mode", choices=("auto", "gaps", "efficiency"), default="auto")
     a = ap.parse_args(argv)
     worker = K.HandoffWorker(timeout_s=a.handoff_hours * 3600, notify=announce)
-    cfg = K.KernelConfig(repo=ROOT, state=ROOT / "state" / "creator", steps=tuple(s for s in a.steps.split(",") if s))
+    cfg = K.KernelConfig(repo=ROOT, state=ROOT / "state" / "creator", steps=tuple(s for s in a.steps.split(",") if s),
+                         mode=a.mode)
     try:
         reps = K.run(cfg, worker, a.cycles, on_cycle=lambda r: print(json.dumps(dataclasses.asdict(r), default=str)[:3000],
                                                                        flush=True))
