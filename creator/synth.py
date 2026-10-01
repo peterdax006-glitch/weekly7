@@ -123,6 +123,7 @@ class Spec:
     params: tuple[str, ...]
     doc: str
     examples: tuple[Example, ...]
+    probes: tuple[tuple[Any, ...], ...] = ()    # extra inputs (testgen.candidate_calls) used to detect ambiguity
 
 
 def _lit(node: ast.AST) -> Any:
@@ -271,30 +272,85 @@ def enumerate_exprs(spec: Spec, max_size: int = 5, limit: int = 40000) -> Option
 
 # ------------------------------------------------------------------------------------------------ driver
 
-def candidates(spec: Spec) -> list[tuple[str, str]]:
+def _cues(idm: Idiom, doc: str) -> int:
+    """Independent docstring cues: distinct top-level alternatives of the vocab regexes that match."""
+    n = 0
+    for v in idm.vocab:
+        for alt in re.split(r"\|(?![^(]*\))", v):
+            if alt and re.search(alt, doc, re.S):
+                n += 1
+    return n
+
+
+def candidates(spec: Spec, disabled: frozenset[str] = frozenset(), gated: bool = True) -> list[tuple[str, str]]:
     """(label, body) for every idiom whose arity and vocabulary fit, best vocabulary match first."""
     doc = spec.doc.lower()
     scored = []
     for idm in IDIOMS:
-        if idm.nargs != len(spec.params):
+        if idm.nargs != len(spec.params) or idm.name in disabled:
             continue
         hits = sum(1 for v in idm.vocab if re.search(v, doc, re.S))
-        if hits:
+        if hits or not gated:
             body = idm.body.format(*spec.params)
             scored.append((-hits, len(body), idm.name, body))
     scored.sort()
     return [(f"idiom:{n}", b) for _, _, n, b in scored]
 
 
-def synthesize(spec: Spec) -> Optional[tuple[str, str]]:
-    """(label, body) of the first candidate passing every example, or None."""
-    for label, body in candidates(spec):
-        if passes(spec, body):
-            return label, body
-    if spec.examples:
+def _probe_inputs(spec: Spec) -> list[tuple[Any, ...]]:
+    """Probe argument tuples: the examples' own inputs, each argument position swapped in from other examples, plus testgen's."""
+    out: list[tuple[Any, ...]] = [tuple(a) for a, _ in spec.examples]
+    out += [tuple(p) for p in spec.probes]
+    for i in range(len(spec.params)):
+        for a, _ in spec.examples:
+            for b, _ in spec.examples:
+                if i < len(a) and i < len(b):
+                    out.append(tuple(b[i] if j == i else v for j, v in enumerate(a)))
+    return out
+
+
+def _outputs(spec: Spec, body: str, probes: Sequence[tuple[Any, ...]]) -> list[Any]:
+    fn = _build(spec, body)
+    res: list[Any] = []
+    for args in probes:
+        try:
+            res.append(("ok", repr(fn(*[copy.deepcopy(a) for a in args]))) if fn else ("err",))
+        except Exception:
+            res.append(("err",))
+    return res
+
+
+def _disagree(spec: Spec, a: str, b: str) -> bool:
+    probes = _probe_inputs(spec)
+    for x, y in zip(_outputs(spec, a, probes), _outputs(spec, b, probes)):
+        if x[0] == "ok" and y[0] == "ok" and x != y:
+            return True
+    return False
+
+
+def synthesize(spec: Spec, disabled: frozenset[str] = frozenset()) -> Optional[tuple[str, str]]:
+    """(label, body) of the first candidate passing every example, or None. Abstains (None) unless the evidence is strong:
+    at least two distinct examples or two independent docstring cues, and no other passing idiom disagreeing on probe inputs."""
+    distinct = len({repr(a) for a, _ in spec.examples})
+    doc = spec.doc.lower()
+    cues = {i.name: _cues(i, doc) for i in IDIOMS}
+    passing = [(lbl, b) for lbl, b in candidates(spec, disabled) if passes(spec, b)]
+    if passing:
+        lbl, body = passing[0]
+        if distinct < 2 and cues[lbl.split(":", 1)[1]] < 2:
+            return None
+        rivals = [b for _, b in candidates(spec, disabled, gated=False) if b != body and passes(spec, b)]
+        if any(_disagree(spec, body, r) for r in rivals):
+            return None
+        return lbl, body
+    if spec.examples and distinct >= 2:
         expr = enumerate_exprs(spec)
         if expr:
-            return "enum", f"return {expr}"
+            body = f"return {expr}"
+            rivals = [b for _, b in candidates(spec, disabled, gated=False) if passes(spec, b)]
+            if any(_disagree(spec, body, r) for r in rivals):
+                return None
+            return "enum", body
     return None
 
 
@@ -311,7 +367,7 @@ def _stub_functions(tree: ast.Module) -> list[ast.FunctionDef]:
     return out
 
 
-def solve_file(path: Path, test_srcs: Sequence[str]) -> tuple[bool, str]:
+def solve_file(path: Path, test_srcs: Sequence[str], disabled: frozenset[str] = frozenset()) -> tuple[bool, str]:
     """Fill every stub in `path` that can be synthesized; (all stubs filled, note). Writes only on success."""
     tree = ast.parse(path.read_text(encoding="utf-8"))
     stubs = _stub_functions(tree)
@@ -329,7 +385,12 @@ def solve_file(path: Path, test_srcs: Sequence[str]) -> tuple[bool, str]:
         for e in ex:
             if e not in uniq:
                 uniq.append(e)
-        got = synthesize(Spec(fn.name, params, doc, tuple(uniq)))
+        try:
+            from creator import testgen
+            probes = tuple(testgen.candidate_calls(fn))
+        except Exception:
+            probes = ()
+        got = synthesize(Spec(fn.name, params, doc, tuple(uniq), probes), disabled)
         if got is None:
             return False, f"no program for {fn.name} ({len(uniq)} examples)"
         label, body = got
@@ -347,12 +408,15 @@ class SynthSolver:
     """A devbench Solver made only of deterministic program synthesis: no model, no network."""
     name = "self-synth"
 
+    def __init__(self, disabled: frozenset[str] = frozenset()) -> None:
+        self.disabled = disabled
+
     def __call__(self, task: Mapping[str, Any], workdir: Path) -> D.SolverResult:
         tests = [p.read_text(encoding="utf-8") for p in sorted(workdir.rglob("test*.py"))]
         targets = [p for p in sorted(workdir.rglob("*.py")) if "tests" not in p.relative_to(workdir).parts
                    and p.name not in ("__init__.py", "conftest.py") and not p.name.startswith("test")]
         for p in targets:
-            ok, note = solve_file(p, tests)
+            ok, note = solve_file(p, tests, self.disabled)
             if ok:
                 return D.SolverResult(True, 0, f"synth: {note}")
         return D.SolverResult(False, 0, "synth found no program")
