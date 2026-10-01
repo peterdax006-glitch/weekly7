@@ -134,3 +134,12 @@ def test_a_crashing_check_is_reported_not_skipped(led: Ledger, monkeypatch: pyte
     monkeypatch.setitem(A.CHECKS, "ledger_integrity", boom)
     r = A.audit(led, only=("ledger_integrity",))
     assert not r.clean and "check broke" in r.errors["ledger_integrity"]
+
+
+def test_the_sealed_suite_checked_is_the_audited_repositorys(tmp_path: Path) -> None:
+    """Regression (1 Oct): the check always read the global suite, so kernel tests in a sealed-keys-hidden sandbox went red."""
+    assert A.check_sealed_suite(repo=tmp_path) == []                                 # no devbench at all: nothing to check
+    (tmp_path / "creator" / "devbench" / "tasks").mkdir(parents=True)
+    [f] = A.check_sealed_suite(repo=tmp_path)                                         # half a devbench: caught
+    assert f.severity == "CRITICAL" and f.subject == "MANIFEST"
+    assert A.check_sealed_suite() == []                                               # the real repository stays clean

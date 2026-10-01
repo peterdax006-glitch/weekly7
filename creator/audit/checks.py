@@ -152,14 +152,20 @@ def check_claim_recompute(led: Ledger, **_: Any) -> list[AuditFinding]:
 
 # ------------------------------------------------------------------------------------------------ repository checks
 
-def check_sealed_suite(led: Optional[Ledger] = None, **_: Any) -> list[AuditFinding]:
+def check_sealed_suite(led: Optional[Ledger] = None, repo: Path = REPO_ROOT, **_: Any) -> list[AuditFinding]:
+    """The sealed suite OF THE REPOSITORY BEING AUDITED (1 Oct: it always checked the global one, so every kernel test in a worker's
+    sandbox - where the sealed keys are hidden - went AUDIT_RED). A repository with no devbench at all has nothing to check; one
+    whose tasks or sealed directory exists is checked in full, so deleting half of it is still caught."""
     from creator import devbench as D
+    bench = Path(repo) / "creator" / "devbench"
+    if not (bench / "tasks").exists() and not (bench / "sealed").exists():
+        return []
     try:
-        m = D.load_manifest()
+        m = D.load_manifest(bench / "sealed" / "MANIFEST.json")
     except D.DevbenchError as e:
         return [AuditFinding("sealed_suite", "CRITICAL", "MANIFEST", str(e))]
     out = []
-    for t in D.load_tasks():
+    for t in D.load_tasks(bench / "tasks", bench / "sealed"):
         try:
             D.check_sealed(t, m)
         except D.DevbenchError as e:

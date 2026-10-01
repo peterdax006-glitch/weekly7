@@ -95,3 +95,27 @@ def test_tight_ram_pulls_the_youngest_back_and_adopts_nothing_of_it(cfg: K.Kerne
     cancelled = [r for r in rnd.reports if r.outcome == "CANCELLED"]
     assert cancelled and all("pulled back" in r.reason and not r.merge_commit for r in cancelled)
     assert Ledger(cfg.ledger_path, evidence_root=cfg.repo).verify()
+
+
+def test_hard_pull_back_kills_only_that_workers_processes(tmp_path: Path) -> None:
+    """Regression (1 Oct): a cooperative pull-back came too late and the host stopped the whole swarm at critical RAM."""
+    import json
+    import sys
+    import time
+    box, other = tmp_path / "scratch" / "sb1", tmp_path / "elsewhere"
+    box.mkdir(parents=True)
+    other.mkdir()
+    (box / ".creator_sandbox.json").write_text(json.dumps({"label": "CP9"}), encoding="utf-8")
+    sleeper = [sys.executable, "-c", "import time; time.sleep(120)"]
+    inside = subprocess.Popen(sleeper, cwd=box)
+    outside = subprocess.Popen(sleeper, cwd=other)
+    try:
+        time.sleep(1.0)
+        assert W.stop_worker_processes(tmp_path / "scratch", "CP9") >= 1
+        inside.wait(timeout=20)
+        assert inside.returncode is not None and outside.poll() is None
+        assert W.stop_worker_processes(tmp_path / "scratch", "NOPE") == 0
+    finally:
+        for p in (inside, outside):
+            if p.poll() is None:
+                p.kill()

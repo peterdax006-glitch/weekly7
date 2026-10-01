@@ -31,11 +31,53 @@ def free_ram_gb() -> float:
         return 99.0
 
 
+def stop_worker_processes(scratch: Any, package_id: str) -> int:
+    """HARD pull-back: kill the processes running inside a worker's sandbox (found by their working directory), so memory is
+    released now - not at the worker's next checkpoint (1 Oct: memory spiked faster than workers reached one and the host
+    stopped the whole swarm). Only processes whose cwd is inside that sandbox are touched."""
+    import json
+    from pathlib import Path
+    try:
+        import psutil
+    except ImportError:
+        return 0
+    root = Path(scratch) if scratch else None
+    if root is None or not root.is_dir():
+        return 0
+    boxes = []
+    for d in root.iterdir():
+        marker = d / ".creator_sandbox.json"
+        try:
+            if marker.is_file() and json.loads(marker.read_text(encoding="utf-8")).get("label") == package_id:
+                boxes.append(str(d.resolve()).lower())
+        except (OSError, ValueError):
+            continue
+    if not boxes:
+        return 0
+    killed = 0
+    for proc in psutil.process_iter(["pid", "name"]):
+        try:
+            cwd = str(Path(proc.cwd()).resolve()).lower()
+        except (psutil.Error, OSError):
+            continue
+        if any(cwd == b or cwd.startswith(b + "\\") or cwd.startswith(b + "/") for b in boxes):
+            try:
+                for child in proc.children(recursive=True):
+                    child.kill()
+                proc.kill()
+                killed += 1
+            except psutil.Error:
+                continue
+    return killed
+
+
 @dataclasses.dataclass
 class Governor:
-    start_gb: float = 2.5
+    """Defaults raised 1 Oct after the host stopped the swarm at critical RAM: start a worker only with 3.5 GB + 0.8 GB per running
+    worker free; pull back (hard) below 2.5 GB."""
+    start_gb: float = 3.5
     per_worker_gb: float = 0.8
-    low_gb: float = 1.2
+    low_gb: float = 2.5
     max_workers: int = 4
     free: Callable[[], float] = free_ram_gb
 
@@ -91,7 +133,9 @@ def run_round(cfg: K.KernelConfig, make_worker: Callable[[], Any], governor: Opt
         if gov.too_tight() and running:
             youngest = max((r for r in running if not r.cancel.is_set()), key=lambda r: r.started, default=None)
             if youngest is not None:
-                youngest.cancel.set()                               # pull it back at its next checkpoint
+                youngest.cancel.set()                               # pull it back: stop its processes now, not at a checkpoint
+                stop_worker_processes(cfg.scratch or cfg.repo.parent / f".{cfg.repo.name}_creator_sandboxes",
+                                      youngest.plan.package_id)
                 pulled += 1
         elif not exhausted and planned < max_packages and gov.can_start(len(running)):
             with lock:

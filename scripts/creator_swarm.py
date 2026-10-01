@@ -55,9 +55,9 @@ def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--rounds", type=int, default=1)
     ap.add_argument("--max-workers", type=int, default=12)
-    ap.add_argument("--start-gb", type=float, default=2.0)
-    ap.add_argument("--per-worker-gb", type=float, default=0.6)
-    ap.add_argument("--low-gb", type=float, default=1.5)
+    ap.add_argument("--start-gb", type=float, default=3.5)          # raised 1 Oct: the host stops everything at critical RAM
+    ap.add_argument("--per-worker-gb", type=float, default=0.8)
+    ap.add_argument("--low-gb", type=float, default=2.5)
     ap.add_argument("--packages", type=int, default=12)
     ap.add_argument("--steps", default=",".join(K.P.WORKER_STEPS))
     ap.add_argument("--mode", choices=("auto", "gaps", "efficiency"), default="auto")

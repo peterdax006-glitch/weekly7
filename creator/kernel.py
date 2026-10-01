@@ -655,8 +655,12 @@ def execute(cfg: KernelConfig, worker: Worker, plan: P.Plan, main: Assessed, bas
     except Exception as e:                                              # noqa: BLE001 - recorded, sandbox discarded, never adopted
         if not sb.closed:
             S.discard(sb)
-        P.record_outcome(led, plan, False, f"kernel error: {type(e).__name__}: {e}"[:500])
-        rep.outcome, rep.reason = "ERROR", f"{type(e).__name__}: {e}"
+        if cancel is not None and cancel.is_set():                      # its processes were killed by the swarm's pull-back
+            P.record_outcome(led, plan, False, "pulled back: RAM tight (processes stopped mid-phase)")
+            rep.outcome, rep.reason = "CANCELLED", f"pulled back: RAM tight ({type(e).__name__} after its processes were stopped)"
+        else:
+            P.record_outcome(led, plan, False, f"kernel error: {type(e).__name__}: {e}"[:500])
+            rep.outcome, rep.reason = "ERROR", f"{type(e).__name__}: {e}"
     finally:
         if locked:
             guard.__exit__(None, None, None)
