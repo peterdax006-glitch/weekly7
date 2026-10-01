@@ -28,6 +28,7 @@ PREFIX = "CP"
 MAX_ATTEMPTS = 3
 WORKER_STEPS = ("exists", "tested", "no_stubs", "integrated")
 EFFICIENCY_KEY = "EFF.size"
+ACTIVATION_KEY = "EFF.activation"
 VALIDATOR_STEPS = ("validated",)
 
 
@@ -255,8 +256,13 @@ def recent_failed_targets(ledger: Ledger, window: int = 6) -> list[str]:
     return out
 
 
-def plan_efficiency(ledger: Ledger, root: Any, base_ref: str, avoid: Sequence[str] = ()) -> Optional[Plan]:
-    """Plan one shrink package for the largest module the Creator may edit (C77 sec 75 + owner directive 1 Oct 2026)."""
+def plan_efficiency(ledger: Ledger, root: Any, base_ref: str, avoid: Sequence[str] = (), kind: Optional[str] = None) -> Optional[Plan]:
+    """Plan one efficiency package: SIZE (shrink the largest module the Creator may edit) or ACTIVATION (load less code at start -
+    owner: 'never run any more code than absolutely necessarry'). Kinds alternate unless `kind` is given."""
+    past = [e for e in ledger.of_type("WorkPackage") if getattr(e.record, "objective", "").startswith(("shrink ", "load less"))]
+    kind = kind or ("activation" if len(past) % 2 else "size")
+    if kind == "activation":
+        return _plan_activation(ledger, root, base_ref, avoid)
     from pathlib import Path as _P
     from creator import efficiency as E
     objective_id = next((e.id for e in ledger.of_type("Objective") if getattr(e.record, "statement") == O.SELF_STATEMENT), None)
@@ -298,6 +304,61 @@ def plan_efficiency(ledger: Ledger, root: Any, base_ref: str, avoid: Sequence[st
                                     baseline_ref=base_ref, candidate_ref=f"sandbox:{pid}"))
     ledger.transition(gap, M.Status.IN_PROGRESS, f"planned as {pid}", M.Role.KERNEL)
     return Plan(gap, EFFICIENCY_KEY, path, "efficiency", M.Role.IMPLEMENTER, wp, pid, cp, ex, 1)
+
+
+def _plan_activation(ledger: Ledger, root: Any, base_ref: str, avoid: Sequence[str] = ()) -> Optional[Plan]:
+    from pathlib import Path as _P
+    from creator import efficiency as E
+    objective_id = next((e.id for e in ledger.of_type("Objective") if getattr(e.record, "statement") == O.SELF_STATEMENT), None)
+    if objective_id is None:
+        return None
+    act = E.activation(_P(root))
+    skip = set(avoid) | set(recent_failed_targets(ledger))
+    cands = [m for m in act["loaded_modules"] if E.editable(m) and m not in skip]
+    if not cands:
+        return None
+    eager = {m: sum(1 for ln in (_P(root) / m).read_text(encoding="utf-8").splitlines()
+                    if ln.startswith(("from creator", "import creator"))) for m in cands}
+    path = max(cands, key=lambda m: (eager[m], m))
+    rid = ledger.view.unique.get(("Requirement", ACTIVATION_KEY)) or ledger.append(M.Requirement(
+        created_by=M.Role.OWNER, parents=(objective_id,), key=ACTIVATION_KEY, priority=M.Priority.HIGH,
+        description="never run more code than necessary: starting the Creator loads as little of it as possible (owner 1 Oct 2026)",
+        acceptance_test="efficiency:activation (a standing objective: never permanently met)",
+        measurement_method="creator.efficiency.activation (kernel start) + static_load (every module's eager imports)",
+        failure_condition="a change that loads more code, or loses a requirement or a test",
+        validation_method="creator.kernel efficiency claim computed by creator.model:improvement_verdict",
+        evidence_location="state/creator/cycles/<package>/"))
+    gap = ledger.append(M.Gap(created_by=M.Role.KERNEL, parents=(rid,), kind=M.GapKind.ARCHITECTURE,
+                              description=f"load less: {path} pulls {eager[path]} Creator imports in eagerly "
+                                          f"(kernel start loads {act['fraction']:.0%} of the package)", importance=0.3))
+    pid = next_package_id(ledger)
+    wp = ledger.append(M.WorkPackage(
+        created_by=M.Role.KERNEL, parents=(gap,), package_id=pid, objective=f"load less code at start: {path}",
+        why_it_exists=f"owner directive 1 Oct 2026 (sparse activation); kernel start loads {act['active_nodes']} of "
+                      f"{act['package_nodes']} AST nodes",
+        prerequisites=("none",), inputs=(path,), outputs=(path,),
+        implementation_requirements=(f"in {path}, import Creator components inside the functions that use them instead of at "
+                                     "module level, and drop imports nothing uses",),
+        interfaces=("public interfaces unchanged",),
+        data_flow="sandbox -> tests -> activation + static eager load measured -> decision", dependencies=(),
+        test_requirements=("every existing test keeps passing; the number of tests must not drop",),
+        validation_requirements=("kernel-start activation lower", "static eager load over all modules lower",
+                                 "every base requirement kept"),
+        expected_failure_modes=("an import moved into a function that runs at import time anyway", "a type-hint import moved"),
+        evidence_requirements=("activation + static load of base and candidate",),
+        failure_conditions=("no lower activation", "any requirement lost"),
+        rollback_requirements=("discard the sandbox; after adoption revert the merge commit",),
+        completion_criteria=("efficiency claim IMPROVEMENT computed by creator.model:improvement_verdict",),
+        anti_premature_completion=("moving code between modules is not loading less",), meaningful_code_depth=0))
+    cp = ledger.append(M.ChangeProposal(created_by=M.Role.KERNEL, parents=(wp,), reason=f"load less: {path}",
+                                        parent_objective=objective_id, originating_task=wp, affected_components=(path,),
+                                        expected_effect="the Creator loads less code to start"))
+    ex = ledger.append(M.Experiment(created_by=M.Role.KERNEL, parents=(cp,), hypothesis=f"{path} can load its components lazily",
+                                    design="sandbox; base vs candidate kernel-start activation and static eager load",
+                                    metrics=("active_ast_nodes:kernel_start", "static_eager_load"), seed=0,
+                                    baseline_ref=base_ref, candidate_ref=f"sandbox:{pid}"))
+    ledger.transition(gap, M.Status.IN_PROGRESS, f"planned as {pid}", M.Role.KERNEL)
+    return Plan(gap, ACTIVATION_KEY, path, "efficiency", M.Role.IMPLEMENTER, wp, pid, cp, ex, 1)
 
 
 def record_outcome(ledger: Ledger, plan: Plan, success: bool, reason: str) -> None:

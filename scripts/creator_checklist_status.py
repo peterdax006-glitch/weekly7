@@ -40,6 +40,11 @@ CAP = {
     "CR159": ("K03",), "CR160": ("K03",), "CR161": ("K02",), "CR162": ("K04",), "CR163": ("K04", "K07"), "CR164": ("K07",),
     "CR165": ("K08",), "CR166": ("K09",), "CR167": ("K09",), "CR168": ("K05",), "CR171": ("K06",), "CR172": ("K11",),
     "CR173": ("K11",), "CR174": ("K06", "K14"), "CR175": ("K10",), "CR176": ("K06", "K14"), "CR177": ("K12",), "CR178": ("K13",),
+    # added 1 Oct 2026 for components built after the first mapping (CAP is consulted before DEMO/RECURSIVE)
+    **{f"CR{n:03d}": ("K01", "K02", "K06", "K14", "K16") for n in range(152, 159)},          # the foundation exists/builds/...
+    "CR093": ("K18",), "CR135": ("K07",), "CR136": ("K08",), "CR138": ("K06", "K14"), "CR139": ("K10", "K02"),
+    "CR140": ("K11",), "CR088": ("K17",), "CR187": ("K11",), "CR182": ("K07",),
+    **{f"CR{n:03d}": ("K19",) for n in (192, 193, 194, 195)},          # autotune designs/implements/tests/measures a change
 }
 # boxes that need a demonstrated autonomous development result (an ADOPTED real cycle), not just code
 DEMO = {"CR137", "CR141", "CR169", "CR170", "CR179", "CR180", "CR181", "CR183", "CR184", "CR185", "CR186", "CR188", "CR189",

@@ -1,12 +1,13 @@
 """Run the Creator's self-development kernel on this repository.
 
-    python scripts/creator_kernel.py --cycles 3                 # the Creator's OWN worker (local model, no other AI) - default
-    python scripts/creator_kernel.py --worker session           # hand the package to the Claude session instead (only when the
-                                                                # owner directs it; that adoption counts toward claude_dependence)
+    python scripts/creator_kernel.py --cycles 3                 # self-first: the system's own workers, the Claude session last
+    python scripts/creator_kernel.py --worker self-only         # never hand off (unattended runs)
+    python scripts/creator_kernel.py --worker session           # straight to the Claude session
 
-Owner, 1 Oct 2026: "get it to the point where the system knows the goal and then it can start working on building itself and then
-you just direct". The default worker is creator.localworker.LocalWorker: the local model (llama.cpp + open weights in
-~/creator_runtime) is started only when a package arrives. The kernel plans, measures, decides, merges or rejects; it never pushes."""
+Owner, 1 Oct 2026: "it should work toward the level where it works on itself more than a third party works on it" (and: no local
+LLM - it uses the Claude session for what it cannot do). Default worker: creator.selfworkers.SelfFirst - the system's own rule
+transforms and test-guided search first, the Claude session only for what they could not do. self_share counts who did the work.
+The kernel plans, measures, decides, merges or rejects; it never pushes."""
 from __future__ import annotations
 
 import argparse
@@ -36,14 +37,15 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--cycles", type=int, default=1)
     ap.add_argument("--steps", default=",".join(K.P.WORKER_STEPS), help="comma list of requirement steps to plan")
     ap.add_argument("--mode", choices=("auto", "gaps", "efficiency"), default="auto")
-    ap.add_argument("--worker", choices=("local", "session"), default="local")
+    ap.add_argument("--worker", choices=("self", "self-only", "session"), default="self")
     ap.add_argument("--handoff-hours", type=float, default=6.0)
     a = ap.parse_args(argv)
+    session = K.HandoffWorker(timeout_s=a.handoff_hours * 3600, notify=announce)
     if a.worker == "session":
-        worker: K.Worker = K.HandoffWorker(timeout_s=a.handoff_hours * 3600, notify=announce)
+        worker: K.Worker = session
     else:
-        from creator.localworker import LocalWorker                 # loaded only when the local worker is used
-        worker = LocalWorker()
+        from creator import selfworkers as SW                       # loaded only when the system's own workers are used
+        worker = SW.SelfFirst([SW.RuleWorker(), SW.SearchWorker()], None if a.worker == "self-only" else session)
     cfg = K.KernelConfig(repo=ROOT, state=ROOT / "state" / "creator", steps=tuple(s for s in a.steps.split(",") if s),
                          mode=a.mode)
     try:

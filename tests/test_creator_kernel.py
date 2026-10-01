@@ -262,7 +262,7 @@ def test_the_handoff_worker_waits_for_the_session_and_the_kernel_still_decides(c
     w = K.HandoffWorker(poll_s=0.2, timeout_s=60, notify=session)
     rep = K.cycle(cfg, w)
     assert rep.outcome == "ADOPTED", rep.reason
-    assert rep.details["worker"] == {"claimed_done": True, "notes": "done by the session"}
+    assert rep.details["worker"] == {"claimed_done": True, "notes": "done by the session", "by": "claude-session"}
     tree = sh(cfg.repo, "ls-tree", "-r", "--name-only", rep.merge_commit)
     assert ".creator_task.md" not in tree and ".creator_done.json" not in tree
 

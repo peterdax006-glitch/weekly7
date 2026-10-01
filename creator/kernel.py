@@ -86,6 +86,7 @@ class WorkResult:
     usd: float = 0.0
     refused: bool = False                               # the budget refused: nothing was attempted
     contaminated: tuple[str, ...] = ()                  # protected / answer-key references in what the worker said or wrote
+    by: str = ""                                        # which worker actually made the change (self_share counts it)
 
 
 class Worker(Protocol):
@@ -154,7 +155,7 @@ class HandoffWorker:
             ans = {"claimed_done": False, "notes": f"unreadable .creator_done.json: {e}"}
         task.unlink(missing_ok=True)
         done.unlink(missing_ok=True)
-        return WorkResult(bool(ans.get("claimed_done")), str(ans.get("notes", ""))[:2000], 0, 0.0)
+        return WorkResult(bool(ans.get("claimed_done")), str(ans.get("notes", ""))[:2000], 0, 0.0, by=self.name)
 
 
 class AgentWorker:
@@ -295,10 +296,13 @@ def efficiency_claim(led: Ledger, plan: P.Plan, base: Assessed, cand: Sequence[A
         holdout  (HOLDOUT)  AST nodes of the whole creator package - moving code elsewhere shows no gain"""
     import statistics
     pop, cond, ex = "creator package", f"efficiency; base {plan.experiment_id}", plan.experiment_id
-    metric = f"ast_nodes:{plan.component}"
-    base_ids = [_measure(led, ex, metric, base_fp.target_size, M.Split.DEV, pop, cond, evidence, {"tree": "base", "r": r},
+    activation_kind = plan.requirement_key == P.ACTIVATION_KEY
+    metric = "active_ast_nodes:kernel_start" if activation_kind else f"ast_nodes:{plan.component}"
+    def primary(f: Any) -> float:
+        return f.active_nodes if activation_kind else f.target_size
+    base_ids = [_measure(led, ex, metric, primary(base_fp), M.Split.DEV, pop, cond, evidence, {"tree": "base", "r": r},
                          higher_is_better=False) for r in range(len(cand_fps))]
-    cand_ids = [_measure(led, ex, metric, f.target_size, M.Split.DEV, pop, cond, evidence, {"tree": "candidate", "r": r},
+    cand_ids = [_measure(led, ex, metric, primary(f), M.Split.DEV, pop, cond, evidence, {"tree": "candidate", "r": r},
                          higher_is_better=False) for r, f in enumerate(cand_fps)]
     base_met = {r.key for r in base.rows if r.met}
     lost = sorted(k for k in base_met if not all(any(r.key == k and r.met for r in c.rows) for c in cand))
@@ -327,15 +331,26 @@ def efficiency_claim(led: Ledger, plan: P.Plan, base: Assessed, cand: Sequence[A
                                 higher_is_better=False, stderr=bse),
                        _measure(led, ex, "peak_memory_mb", cm, M.Split.DEV, pop, cond, evidence, {"guard": "candidate"},
                                 higher_is_better=False, stderr=cse)))
-    if base_fp.active_nodes >= 0 and cand_fps[0].active_nodes >= 0:    # owner 1 Oct 2026: never load more than necessary
+    if not activation_kind and base_fp.active_nodes >= 0 and cand_fps[0].active_nodes >= 0:    # never load more than needed
         guards.append((_measure(led, ex, "active_ast_nodes", base_fp.active_nodes, M.Split.DEV, pop, cond, evidence,
                                 {"guard": "base"}, higher_is_better=False),
                        _measure(led, ex, "active_ast_nodes", cand_fps[0].active_nodes, M.Split.DEV, pop, cond, evidence,
                                 {"guard": "candidate"}, higher_is_better=False)))
-    hb = _measure(led, ex, "package_ast_nodes", base_fp.package_size, M.Split.HOLDOUT, pop, cond, evidence, {"holdout": "base"},
-                  higher_is_better=False)
-    hc = _measure(led, ex, "package_ast_nodes", max(f.package_size for f in cand_fps), M.Split.HOLDOUT, pop, cond, evidence,
-                  {"holdout": "candidate"}, higher_is_better=False)
+    if activation_kind:                                                 # the holdout: eager-import load over EVERY module
+        guards.append((_measure(led, ex, "package_ast_nodes", base_fp.package_size, M.Split.DEV, pop, cond, evidence,
+                                {"guard": "base"}, higher_is_better=False, stderr=max(1.0, 0.02 * base_fp.package_size)),
+                       _measure(led, ex, "package_ast_nodes", max(f.package_size for f in cand_fps), M.Split.DEV, pop, cond,
+                                evidence, {"guard": "candidate"}, higher_is_better=False,
+                                stderr=max(1.0, 0.02 * base_fp.package_size))))   # lazy imports may add a few nodes
+        hb = _measure(led, ex, "static_eager_load", base_fp.static_load, M.Split.HOLDOUT, pop, cond, evidence,
+                      {"holdout": "base"}, higher_is_better=False)
+        hc = _measure(led, ex, "static_eager_load", max(f.static_load for f in cand_fps), M.Split.HOLDOUT, pop, cond, evidence,
+                      {"holdout": "candidate"}, higher_is_better=False)
+    else:
+        hb = _measure(led, ex, "package_ast_nodes", base_fp.package_size, M.Split.HOLDOUT, pop, cond, evidence,
+                      {"holdout": "base"}, higher_is_better=False)
+        hc = _measure(led, ex, "package_ast_nodes", max(f.package_size for f in cand_fps), M.Split.HOLDOUT, pop, cond,
+                      evidence, {"holdout": "candidate"}, higher_is_better=False)
 
     def g(i: str) -> M.Measurement:
         rec = led.get(i)
@@ -469,7 +484,7 @@ def _cycle(cfg: KernelConfig, worker: Worker, n: int = 1, led: Optional[Ledger] 
     if cfg.mode in ("auto", "gaps"):
         plan = P.plan_next(led, main.model, base_sha, cfg.specs(), steps=steps)   # 2 PLAN
     if plan is None and cfg.mode in ("auto", "efficiency"):
-        plan = P.plan_efficiency(led, cfg.repo, base_sha)               # the standing shrink objective (owner, 1 Oct 2026)
+        plan = P.plan_efficiency(led, cfg.repo, base_sha)               # the standing shrink / activation objective
     if plan is None:
         return CycleReport(n, "NOTHING_TO_DO", reason="no unblocked worker gap and nothing to shrink",
                            seconds=round(time.monotonic() - t0, 1))
@@ -481,7 +496,7 @@ def _cycle(cfg: KernelConfig, worker: Worker, n: int = 1, led: Optional[Ledger] 
     try:
         work = worker(plan, wp, sb.path)                                # 4 WORK
         rep.calls, rep.usd = work.calls, work.usd
-        rep.details["worker"] = {"claimed_done": work.claimed_done, "notes": work.notes}
+        rep.details["worker"] = {"claimed_done": work.claimed_done, "notes": work.notes, "by": work.by}
         if work.refused:
             S.discard(sb)
             led.transition(plan.work_package_id, M.Status.BLOCKED, work.notes, M.Role.KERNEL)
@@ -510,8 +525,10 @@ def _cycle(cfg: KernelConfig, worker: Worker, n: int = 1, led: Optional[Ledger] 
             from creator import efficiency as E
             base_tree = sb.scratch / f"{sb.id}-base"
             base_root = base_tree if base_tree.is_dir() else cfg.repo
-            base_fp = E.footprint(base_root, plan.component, memory=cfg.measure_memory)
-            cand_fps = [E.footprint(sb.path, plan.component, memory=cfg.measure_memory and r == 0) for r in range(2)]
+            need_act = cfg.measure_memory or plan.requirement_key == P.ACTIVATION_KEY
+            base_fp = E.footprint(base_root, plan.component, memory=cfg.measure_memory, activation_=need_act)
+            cand_fps = [E.footprint(sb.path, plan.component, memory=cfg.measure_memory and r == 0, activation_=need_act)
+                        for r in range(2)]
             cand_fps[1] = dataclasses.replace(cand_fps[1], memory_mb=cand_fps[0].memory_mb)
             evid.append(_evidence_file(cfg, plan.package_id, "footprint.json",
                                        {"base": base_fp.to_dict(), "candidate": [f.to_dict() for f in cand_fps]}))
@@ -580,7 +597,8 @@ def _cycle(cfg: KernelConfig, worker: Worker, n: int = 1, led: Optional[Ledger] 
     finally:
         rep.seconds = round(time.monotonic() - t0, 1)                   # 8 RECORD
         led.append(M.StrategyOutcome(created_by=M.Role.KERNEL, parents=(plan.work_package_id,),
-                                     strategy_id=getattr(worker, "name", "worker"), problem_class=plan.step,
+                                     strategy_id=(rep.details.get("worker", {}).get("by") or getattr(worker, "name", "worker")),
+                                     problem_class=plan.step,
                                      subject_id=plan.work_package_id, success=rep.outcome == "ADOPTED", cost=rep.usd,
                                      duration_s=rep.seconds))
         led.checkpoint(f"cycle {n} {plan.package_id} {rep.outcome}")

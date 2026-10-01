@@ -185,7 +185,9 @@ def goal_objective(ledger: Ledger) -> str:
         non_goals=("looking autonomous without being measured as autonomous",),
         acceptance_criteria=("own-worker solve rate on the sealed devbench holdout rises over time",
                              "share of adopted changes written by claude-session falls to 0"),
-        metrics=("own_worker_holdout_solve_rate", "claude_dependence = adopted changes by claude-session / all adopted",
+        metrics=("self_share = adopted changes made by the system's own workers / all adopted (owner: it works on itself "
+                 "more than a third party works on it)", "own_worker_holdout_solve_rate",
+                 "claude_dependence = adopted changes by claude-session / all adopted",
                  "creator package AST nodes", "peak memory"),
         risks=("a small local model may plateau; the benchmark must grow to show real gains",),
         unknowns=("how far a laptop-sized model can be improved by the Creator's own learning",)), created_by=M.Role.OWNER)
@@ -199,8 +201,10 @@ def claude_dependence(ledger: Ledger) -> dict[str, Any]:
             sid = str(getattr(e.record, "strategy_id"))
             by[sid] = by.get(sid, 0) + 1
     claude = sum(v for k, v in by.items() if k.startswith(("claude", "agent-")))
+    own = sum(v for k, v in by.items() if k.startswith("self-"))
     total = sum(by.values())
-    return {"adopted_by_worker": by, "claude_share": round(claude / total, 3) if total else None, "adopted": total}
+    return {"adopted_by_worker": by, "claude_share": round(claude / total, 3) if total else None,
+            "self_share": round(own / total, 3) if total else None, "adopted": total}
 
 
 def self_objective(ledger: Ledger) -> str:

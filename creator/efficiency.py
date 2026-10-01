@@ -143,12 +143,46 @@ class Footprint:
     memory_mb: tuple[float, ...]
     test_cases: int
     active_nodes: int = -1                      # AST nodes the kernel loads at start (-1 = not measured)
+    static_load: int = 0                        # sum over modules of the Creator code each one imports eagerly
 
     def to_dict(self) -> dict[str, Any]:
         return dataclasses.asdict(self)
 
 
-def footprint(root: Path, target: str, memory: bool = True) -> Footprint:
+def static_load(root: Path) -> int:
+    """For every production module, the AST size of all Creator modules it loads EAGERLY (module-level imports, transitively);
+    summed. Lazy imports lower it; it does not depend on any one entry point (the activation holdout)."""
+    files = production_files(root)
+    sz = sizes(root, files)
+    mod_of = {f[:-3].replace("/", "."): f for f in files}
+    mod_of.update({f[:-12].replace("/", "."): f for f in files if f.endswith("/__init__.py")})
+    eager: dict[str, set[str]] = {}
+    for f in files:
+        tree = ast.parse((root / f).read_text(encoding="utf-8", errors="replace"))
+        deps = set()
+        for n in tree.body:
+            names = [a.name for a in n.names] if isinstance(n, ast.Import) else \
+                ([f"{n.module}.{a.name}" for a in n.names] + [n.module] if isinstance(n, ast.ImportFrom) and n.module else [])
+            for name in names:
+                if name in mod_of:
+                    deps.add(mod_of[name])
+        eager[f] = deps
+    total = 0
+    for f in files:
+        seen, todo = set(), [f]
+        while todo:
+            x = todo.pop()
+            for d in eager.get(x, ()):
+                if d not in seen and d != f:
+                    seen.add(d)
+                    todo.append(d)
+        total += sum(sz.get(d, 0) for d in seen)
+    return total
+
+
+def footprint(root: Path, target: str, memory: bool = True, activation_: Optional[bool] = None) -> Footprint:
     s = sizes(root, [target]).get(target, -1)
-    act = activation(root)["active_nodes"] if memory and (root / "creator" / "kernel.py").is_file() else -1
-    return Footprint(target, s, package_size(root), tuple(peak_memory_mb(root)) if memory else (), test_count(root), act)
+    want = memory if activation_ is None else activation_
+    act = activation(root)["active_nodes"] if want and (root / "creator" / "kernel.py").is_file() else -1
+    return Footprint(target, s, package_size(root), tuple(peak_memory_mb(root)) if memory else (), test_count(root), act,
+                     static_load(root))

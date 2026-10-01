@@ -223,6 +223,17 @@
     "tests/test_creator_localworker.py"
    ],
    "floor": 0
+  },
+  {
+   "id": "K21",
+   "name": "own workers: the system works on itself with no AI",
+   "modules": [
+    "creator/selfworkers.py"
+   ],
+   "tests": [
+    "tests/test_creator_selfworkers.py"
+   ],
+   "floor": 0
   }
  ]
 }
