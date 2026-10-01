@@ -53,46 +53,228 @@ def free_port() -> int:
         return int(s.getsockname()[1])
 
 
+# ---- keeping the server from outliving its owner (a llama-server was found running an hour after its parent died) --------
+_WIN = sys.platform == "win32"
+_PROCESS_QUERY_LIMITED = 0x1000
+_STILL_ACTIVE = 259
+
+
+def _pid_image(pid: int) -> Optional[str]:
+    """Full image path of a live process; None when the pid is not running. Off Windows only liveness is known ('')."""
+    if not _WIN:
+        try:
+            os.kill(pid, 0)
+        except OSError:
+            return None
+        return ""
+    import ctypes
+    from ctypes import wintypes
+    k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    k32.OpenProcess.restype = wintypes.HANDLE
+    k32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    k32.GetExitCodeProcess.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
+    k32.QueryFullProcessImageNameW.argtypes = [wintypes.HANDLE, wintypes.DWORD, wintypes.LPWSTR, ctypes.POINTER(wintypes.DWORD)]
+    k32.CloseHandle.argtypes = [wintypes.HANDLE]
+    h = k32.OpenProcess(_PROCESS_QUERY_LIMITED, False, pid)
+    if not h:
+        return None
+    try:
+        code = wintypes.DWORD()
+        if not k32.GetExitCodeProcess(h, ctypes.byref(code)) or code.value != _STILL_ACTIVE:
+            return None
+        buf = ctypes.create_unicode_buffer(1024)
+        n = wintypes.DWORD(1024)
+        return buf.value if k32.QueryFullProcessImageNameW(h, 0, buf, ctypes.byref(n)) else ""
+    finally:
+        k32.CloseHandle(h)
+
+
+def _kill_pid(pid: int) -> None:
+    if _WIN:
+        import ctypes
+        from ctypes import wintypes
+        k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        k32.OpenProcess.restype = wintypes.HANDLE
+        k32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+        k32.TerminateProcess.argtypes = [wintypes.HANDLE, wintypes.UINT]
+        k32.CloseHandle.argtypes = [wintypes.HANDLE]
+        h = k32.OpenProcess(0x0001, False, pid)               # PROCESS_TERMINATE
+        if h:
+            k32.TerminateProcess(h, 1)
+            k32.CloseHandle(h)
+    else:
+        try:
+            os.kill(pid, 9)
+        except OSError:
+            pass
+
+
+def reap_stale_server(pidfile: Path, exe: Path) -> Optional[int]:
+    """If `pidfile` records a server whose recorded parent is dead, kill THAT pid (only while it still runs our exe) and return
+    it. Never matches by image name alone: only the recorded pid, and only when its image path is the server we launched."""
+    try:
+        rec = json.loads(pidfile.read_text(encoding="utf-8"))
+        pid, parent = int(rec["pid"]), int(rec["parent"])
+    except FileNotFoundError:
+        return None
+    except (OSError, ValueError, KeyError, TypeError):
+        pidfile.unlink(missing_ok=True)
+        return None
+    killed: Optional[int] = None
+    if pid != os.getpid() and _pid_image(parent) is None:
+        img = _pid_image(pid)
+        if img is not None and (img == "" or os.path.normcase(img) == os.path.normcase(str(exe))):
+            _kill_pid(pid)
+            killed = pid
+    if killed is not None or _pid_image(pid) is None:
+        pidfile.unlink(missing_ok=True)
+    return killed
+
+
+class _KillOnCloseJob:
+    """Windows Job Object with KILL_ON_JOB_CLOSE: every process assigned to it dies when the last handle closes, which the OS
+    does when the owner process dies for any reason (including a hard kill). A no-op elsewhere."""
+
+    def __init__(self) -> None:
+        self.handle: Any = None
+        if not _WIN:
+            return
+        import ctypes
+        from ctypes import wintypes
+        k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        k32.CreateJobObjectW.restype = wintypes.HANDLE
+        k32.CreateJobObjectW.argtypes = [ctypes.c_void_p, wintypes.LPCWSTR]
+        k32.SetInformationJobObject.argtypes = [wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD]
+        k32.CloseHandle.argtypes = [wintypes.HANDLE]
+
+        class _Basic(ctypes.Structure):
+            _fields_ = [("PerProcessUserTimeLimit", ctypes.c_int64), ("PerJobUserTimeLimit", ctypes.c_int64),
+                        ("LimitFlags", wintypes.DWORD), ("MinimumWorkingSetSize", ctypes.c_size_t),
+                        ("MaximumWorkingSetSize", ctypes.c_size_t), ("ActiveProcessLimit", wintypes.DWORD),
+                        ("Affinity", ctypes.c_size_t), ("PriorityClass", wintypes.DWORD), ("SchedulingClass", wintypes.DWORD)]
+
+        class _Io(ctypes.Structure):
+            _fields_ = [(n, ctypes.c_uint64) for n in ("ro", "wo", "oo", "rb", "wb", "ob")]
+
+        class _Ext(ctypes.Structure):
+            _fields_ = [("Basic", _Basic), ("Io", _Io), ("ProcessMemoryLimit", ctypes.c_size_t),
+                        ("JobMemoryLimit", ctypes.c_size_t), ("PeakProcessMemoryUsed", ctypes.c_size_t),
+                        ("PeakJobMemoryUsed", ctypes.c_size_t)]
+
+        job = k32.CreateJobObjectW(None, None)
+        if not job:
+            return
+        info = _Ext()
+        info.Basic.LimitFlags = 0x2000                            # JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+        if not k32.SetInformationJobObject(job, 9, ctypes.byref(info), ctypes.sizeof(info)):   # ExtendedLimitInformation
+            k32.CloseHandle(job)
+            return
+        self.handle = job
+
+    def adopt(self, proc: "subprocess.Popen[bytes]") -> bool:
+        if not _WIN or self.handle is None:
+            return False
+        import ctypes
+        from ctypes import wintypes
+        k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        k32.AssignProcessToJobObject.argtypes = [wintypes.HANDLE, wintypes.HANDLE]
+        return bool(k32.AssignProcessToJobObject(self.handle, int(getattr(proc, "_handle"))))
+
+    def close(self) -> None:
+        if _WIN and self.handle is not None:
+            import ctypes
+            from ctypes import wintypes
+            k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+            k32.CloseHandle.argtypes = [wintypes.HANDLE]
+            k32.CloseHandle(self.handle)
+        self.handle = None
+
+
+PIDFILE = RUNTIME / "llama_server.pid"
+
+
 class LocalModel:
-    """A llama.cpp server bound to 127.0.0.1 for the life of the context. Nothing leaves this machine."""
+    """A llama.cpp server bound to 127.0.0.1 for the life of the context. Nothing leaves this machine.
+
+    The server cannot outlive its owner: it is terminated on every exit path (including a failed or interrupted start-up), it
+    runs inside a kill-on-close Job Object (so a hard kill of this process takes it down too), and its pid is recorded in
+    `pidfile` so that a later start reaps a server whose recorded owner is dead."""
 
     def __init__(self, model: Path = DEFAULT_MODEL, exe: Path = SERVER_EXE, ctx: int = 8192, threads: int = 6,
-                 startup_s: float = 120.0) -> None:
+                 startup_s: float = 120.0, pidfile: Path = PIDFILE) -> None:
         self.model, self.exe, self.ctx, self.threads, self.startup_s = model, exe, ctx, threads, startup_s
+        self.pidfile = pidfile
         self.port = 0
         self.proc: Optional[subprocess.Popen[bytes]] = None
+        self.job: Optional[_KillOnCloseJob] = None
         self.calls = 0
         self.seconds = 0.0
+
+    def _command(self) -> list[str]:
+        return [str(self.exe), "-m", str(self.model), "--host", "127.0.0.1", "--port", str(self.port),
+                "-c", str(self.ctx), "-t", str(self.threads), "--log-disable"]
 
     def __enter__(self) -> "LocalModel":
         if not self.exe.is_file() or not self.model.is_file():
             raise FileNotFoundError(f"local model runtime missing: {self.exe} / {self.model}")
+        try:
+            reap_stale_server(self.pidfile, self.exe)
+        except OSError:
+            pass
         self.port = free_port()
-        self.proc = subprocess.Popen([str(self.exe), "-m", str(self.model), "--host", "127.0.0.1", "--port", str(self.port),
-                                      "-c", str(self.ctx), "-t", str(self.threads), "--log-disable"],
-                                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        try:
+            self.job = _KillOnCloseJob()
+            self.proc = subprocess.Popen(self._command(), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            self.job.adopt(self.proc)
+            try:
+                self.pidfile.parent.mkdir(parents=True, exist_ok=True)
+                self.pidfile.write_text(json.dumps({"pid": self.proc.pid, "parent": os.getpid()}), encoding="utf-8")
+            except OSError:
+                pass
+            self._wait_healthy()
+        except BaseException:                                  # incl. KeyboardInterrupt: nothing is left running
+            self._stop()
+            raise
+        return self
+
+    def _wait_healthy(self) -> None:
+        assert self.proc is not None
         t0 = time.monotonic()
         while time.monotonic() - t0 < self.startup_s:
             try:
                 with urllib.request.urlopen(f"http://127.0.0.1:{self.port}/health", timeout=2) as r:
                     if r.status == 200:
-                        return self
+                        return
             except (urllib.error.URLError, OSError):
                 pass
             if self.proc.poll() is not None:
                 raise RuntimeError("local model server exited during start-up")
-            time.sleep(0.5)
-        self.__exit__()
+            time.sleep(0.2)
         raise TimeoutError("local model server did not become healthy")
 
+    def _stop(self) -> None:
+        proc, self.proc = self.proc, None
+        try:
+            if proc is not None and proc.poll() is None:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                    proc.wait(timeout=10)
+        finally:
+            if self.job is not None:
+                self.job.close()
+                self.job = None
+            if proc is not None:
+                try:
+                    if json.loads(self.pidfile.read_text(encoding="utf-8")).get("pid") == proc.pid:
+                        self.pidfile.unlink(missing_ok=True)
+                except (OSError, ValueError):
+                    pass
+
     def __exit__(self, *exc: Any) -> None:
-        if self.proc is not None and self.proc.poll() is None:
-            self.proc.terminate()
-            try:
-                self.proc.wait(timeout=10)
-            except subprocess.TimeoutExpired:
-                self.proc.kill()
-        self.proc = None
+        self._stop()
 
     def chat(self, messages: Sequence[Mapping[str, str]], max_tokens: int = 1500, temperature: float = 0.2,
              seed: int = 0) -> str:

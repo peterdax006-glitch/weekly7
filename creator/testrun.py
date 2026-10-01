@@ -25,6 +25,9 @@ from creator.build import ProcResult, clean_env, module_name_for, run_cmd
 
 SKIP_DIRS = frozenset({".git", ".venv", "venv", "env", "__pycache__", "node_modules", ".mypy_cache", ".pytest_cache",
                        "build", "dist", ".tox"})
+# Skipped only at the tree root: state/ holds run artefacts (logs, ledgers, snapshots of agent runs, ~22k directories) and no
+# test or module imports from it (checked 1 Oct 2026: no `state.` import, no sys.path entry into it).
+ROOT_SKIP_DIRS = frozenset({"state"})
 CONFIG_FILES = frozenset({"pyproject.toml", "setup.cfg", "setup.py", "pytest.ini", "tox.ini", "requirements.txt",
                           "requirements-dev.txt", "conftest.py"})
 DOC_SUFFIXES = frozenset({".md", ".rst", ".txt"})
@@ -60,12 +63,16 @@ class ImportGraph:
     nonmodule_tests: dict[str, set[str]] = field(default_factory=dict)  # test path not importable by name -> imports
 
     @classmethod
-    def build(cls, root: str | Path, skip_dirs: Iterable[str] = SKIP_DIRS) -> "ImportGraph":
+    def build(cls, root: str | Path, skip_dirs: Iterable[str] = SKIP_DIRS,
+              root_skip_dirs: Iterable[str] = ROOT_SKIP_DIRS) -> "ImportGraph":
         g = cls(str(root))
         skip = set(skip_dirs)
+        root_skip = set(root_skip_dirs)
         rootp = Path(root)
         for dirpath, dirnames, filenames in os.walk(rootp):
-            dirnames[:] = sorted(d for d in dirnames if d not in skip and not d.startswith("."))
+            at_root = Path(dirpath) == rootp
+            dirnames[:] = sorted(d for d in dirnames if d not in skip and not d.startswith(".")
+                                 and not (at_root and d in root_skip))
             for fn in sorted(filenames):
                 if not fn.endswith(".py"):
                     continue
