@@ -209,6 +209,10 @@ class ExperienceMemory:
 
 # ------------------------------------------------------------------------------------------------ strategy: model
 
+SYSTEM_STEPWISE = ("You are a careful Python developer. First find the exact line that makes the tests or the objective fail, "
+                   "then change as little as possible. Keep every existing behaviour the objective does not mention. "
+                   "Reply ONLY with the complete new content of every file you change, each as:\nFILE: <path>\n```python\n<code>\n```\n"
+                   "Never edit existing tests unless the objective asks for new tests.")
 SYSTEM = ("You are a careful Python developer. You change code so that the objective is met and all tests pass. "
           "Reply ONLY with the complete new content of every file you change, each as:\nFILE: <path>\n```python\n<code>\n```\n"
           "Never edit existing tests unless the objective asks for new tests.")
@@ -225,15 +229,16 @@ def model_prompt(task: Mapping[str, Any], code: Mapping[str, str], examples: Seq
 
 
 def solve_with_model(task: Mapping[str, Any], workdir: Path, llm: Any, memory: Optional[ExperienceMemory],
-                     attempts: int = 3) -> tuple[bool, dict[str, str], int]:
+                     attempts: int = 3, temperature: float = 0.2, examples_k: int = 2,
+                     system: str = SYSTEM) -> tuple[bool, dict[str, str], int]:
     """Generate -> run visible tests -> feed failures back. Returns (visible tests pass, files written, model calls)."""
-    examples = memory.examples(str(task["objective"])) if memory else []
-    messages = [{"role": "system", "content": SYSTEM},
+    examples = memory.examples(str(task["objective"]), k=examples_k) if memory and examples_k > 0 else []
+    messages = [{"role": "system", "content": system},
                 {"role": "user", "content": model_prompt(task, read_code(workdir), examples)}]
     written: dict[str, str] = {}
     calls = 0
     for _ in range(attempts):
-        reply = llm.chat(messages, seed=calls)
+        reply = llm.chat(messages, seed=calls, temperature=temperature)
         calls += 1
         files = parse_files(reply)
         if not files:
@@ -351,30 +356,57 @@ def solve_with_search(task: Mapping[str, Any], workdir: Path, budget: int = 120,
 
 # ------------------------------------------------------------------------------------------------ the solver
 
+@dataclasses.dataclass(frozen=True)
+class WorkerConfig:
+    """Everything about how the worker works that the Creator may change by itself (creator.autotune), one measured step at
+    a time. The defaults are the first version a human wrote; every later version is the Creator's own choice."""
+    model_attempts: int = 3
+    temperature: float = 0.2
+    examples_k: int = 2
+    search_budget: int = 120
+    order: str = "learned"                      # learned | model_first | search_first
+    prompt: str = "plain"                       # plain | stepwise
+
+    def digest(self) -> str:
+        import hashlib
+        return hashlib.sha256(json.dumps(dataclasses.asdict(self), sort_keys=True).encode()).hexdigest()[:12]
+
+
+PROMPTS = {"plain": SYSTEM, "stepwise": SYSTEM_STEPWISE}
+
+
 class GeneratorSolver:
     """A devbench Solver made only of the Creator's own parts. Learns from dev tasks; holdout tasks are never recorded."""
 
     def __init__(self, llm: Any, memory: Optional[ExperienceMemory] = None, learn: bool = True, model_attempts: int = 3,
-                 search_budget: int = 120, name: str = "creator-generator-v1") -> None:
+                 search_budget: int = 120, name: str = "creator-generator-v1",
+                 config: Optional[WorkerConfig] = None) -> None:
+        self.cfg = config or WorkerConfig(model_attempts=model_attempts, search_budget=search_budget)
         self.llm, self.memory, self.learn = llm, memory, learn
-        self.model_attempts, self.search_budget, self.name = model_attempts, search_budget, name
+        self.model_attempts, self.search_budget, self.name = self.cfg.model_attempts, self.cfg.search_budget, name
         self.log: list[dict[str, Any]] = []
 
     def config(self) -> dict[str, Any]:
-        return {"solver": self.name, "model": str(getattr(self.llm, "model", "")), "attempts": self.model_attempts,
-                "search_budget": self.search_budget, "learn": self.learn}
+        return {"solver": self.name, "model": str(getattr(self.llm, "model", "")), "learn": self.learn,
+                **dataclasses.asdict(self.cfg)}
 
     def __call__(self, task: Mapping[str, Any], workdir: Path) -> D.SolverResult:
         cat = str(task.get("category", ""))
-        order = self.memory.strategy_order(cat) if self.memory else list(STRATEGIES)
+        if self.cfg.order == "model_first":
+            order = ["model", "search"]
+        elif self.cfg.order == "search_first":
+            order = ["search", "model"]
+        else:
+            order = self.memory.strategy_order(cat) if self.memory else list(STRATEGIES)
         calls = 0
         for strategy in order:
             t0 = time.monotonic()
             if strategy == "model":
-                ok, files, n = solve_with_model(task, workdir, self.llm, self.memory, self.model_attempts)
+                ok, files, n = solve_with_model(task, workdir, self.llm, self.memory, self.cfg.model_attempts,
+                                                self.cfg.temperature, self.cfg.examples_k, PROMPTS[self.cfg.prompt])
                 calls += n
             else:
-                ok, files, n = solve_with_search(task, workdir, self.search_budget)
+                ok, files, n = solve_with_search(task, workdir, self.cfg.search_budget)
             secs = round(time.monotonic() - t0, 1)
             self.log.append({"task": task["id"], "strategy": strategy, "visible_ok": ok, "n": n, "seconds": secs})
             if self.memory is not None and self.learn:

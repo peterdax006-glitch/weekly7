@@ -165,6 +165,44 @@ def register_objective(ledger: Ledger, spec: ObjectiveSpec, created_by: M.Role =
     return ledger.append(M.Objective(created_by=created_by, **dataclasses.asdict(spec)))
 
 
+OWNER_GOAL = (
+    "the whole idea is to create an ai that can think for itself, the goal is to make you, claude, to not be neccessarry at all "
+    "as soon as possible where you hardly even need to moniter it, you just need to design the role you are taking so then it can "
+    "use you less and less to become its own ai essentially / the goal is to make it so it is fully independent of any other ai "
+    "where it just permanently develops itself forever one day / it should constantly develop itself to shrink its own code down "
+    "so that it can run more code at a time and run on less memory")                     # owner, 1 Oct 2026, verbatim
+
+
+def goal_objective(ledger: Ledger) -> str:
+    """The TOP objective, in the owner's own words: everything else (the component ladder, shrinking) serves it."""
+    return register_objective(ledger, ObjectiveSpec(
+        statement=OWNER_GOAL,
+        outcomes=("the Creator's own worker writes the code that develops the Creator",
+                  "no other AI is called: the worker runs locally on weights the Creator owns and can retrain",
+                  "Claude only directs, then is not needed at all", "it keeps developing itself, permanently"),
+        constraints=("every change measured and reversible", "the sealed holdout is never learned from",
+                     "no fake autonomy: a change counts as the Creator's only if its own worker wrote it"),
+        non_goals=("looking autonomous without being measured as autonomous",),
+        acceptance_criteria=("own-worker solve rate on the sealed devbench holdout rises over time",
+                             "share of adopted changes written by claude-session falls to 0"),
+        metrics=("own_worker_holdout_solve_rate", "claude_dependence = adopted changes by claude-session / all adopted",
+                 "creator package AST nodes", "peak memory"),
+        risks=("a small local model may plateau; the benchmark must grow to show real gains",),
+        unknowns=("how far a laptop-sized model can be improved by the Creator's own learning",)), created_by=M.Role.OWNER)
+
+
+def claude_dependence(ledger: Ledger) -> dict[str, Any]:
+    """Share of ADOPTED changes whose worker was the Claude session (or a Claude agent) - the number that must fall to 0."""
+    by: dict[str, int] = {}
+    for e in ledger.of_type("StrategyOutcome"):
+        if getattr(e.record, "success"):
+            sid = str(getattr(e.record, "strategy_id"))
+            by[sid] = by.get(sid, 0) + 1
+    claude = sum(v for k, v in by.items() if k.startswith(("claude", "agent-")))
+    total = sum(by.values())
+    return {"adopted_by_worker": by, "claude_share": round(claude / total, 3) if total else None, "adopted": total}
+
+
 def self_objective(ledger: Ledger) -> str:
     return register_objective(ledger, ObjectiveSpec(
         statement=SELF_STATEMENT,
