@@ -316,6 +316,7 @@ class Sandbox:
             git(self.repo, "worktree", "remove", "--force", str(p), check=False)
             shutil.rmtree(p, ignore_errors=True)
         git(self.repo, "worktree", "prune", check=False)
+        shutil.rmtree(self.scratch / f"{self.id}-evidence", ignore_errors=True)   # scratch copy; the kernel keeps its own record
 
     # ---------------------------------------------------------------- adopt / rollback
 
@@ -327,13 +328,19 @@ class Sandbox:
         return head(self.path)
 
 
+MARKER = ".creator_sandbox.json"
+
+
 def _exclude_marker(path: Path) -> None:
-    """Keep the sandbox marker file out of `git add -A` in the worktree (per-worktree info/exclude)."""
-    gitdir = git(path, "rev-parse", "--git-dir").stdout.strip()
-    excl = (path / gitdir / "info" / "exclude") if not Path(gitdir).is_absolute() else Path(gitdir) / "info" / "exclude"
+    """Keep the sandbox marker file out of git. git reads info/exclude only from the COMMON dir, never a worktree's private
+    gitdir (1 Oct: the marker was committed into main by the first adoption) - so write it where git reads it."""
+    rel = git(path, "rev-parse", "--git-path", "info/exclude").stdout.strip()
+    excl = Path(rel) if Path(rel).is_absolute() else path / rel
     excl.parent.mkdir(parents=True, exist_ok=True)
-    with excl.open("a", encoding="utf-8") as fh:
-        fh.write("\n.creator_sandbox.json\n")
+    text = excl.read_text(encoding="utf-8") if excl.is_file() else ""
+    if MARKER not in text.split():
+        with excl.open("a", encoding="utf-8") as fh:
+            fh.write(f"\n{MARKER}\n")
 
 
 @contextlib.contextmanager

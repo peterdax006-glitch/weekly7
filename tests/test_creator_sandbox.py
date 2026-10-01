@@ -215,3 +215,14 @@ def test_typecheck_command_must_invoke_mypy(tmp_path: Path) -> None:
     assert B.ci_typecheck_command(tmp_path, python="PY") == ["PY", "-m", "mypy", "--strict"]
     (wf / "ci.yml").write_text("steps:\n  - run: pip install mypy\n", encoding="utf-8")
     assert B.ci_typecheck_command(tmp_path, python="PY") == ["PY", "-m", "mypy"]
+
+
+def test_the_sandbox_marker_never_reaches_main(repo: Path, scratch: Path) -> None:
+    """Regression (1 Oct): the first real adoption committed .creator_sandbox.json into main."""
+    sb = S.Sandbox.open(repo, scratch=scratch)
+    assert (sb.path / S.MARKER).is_file() and S.MARKER not in sb.changes().paths
+    sb.write("pkg/other.py", "def name():\n    return 'x'\n")
+    res = S.adopt(sb, adopt_decision(), "marker check")
+    assert S.MARKER not in sh(repo, "ls-tree", "-r", "--name-only", res.merge_commit)
+    assert not (repo / S.MARKER).exists()
+    sb.close()

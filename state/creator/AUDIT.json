@@ -43,7 +43,7 @@
    "name": "tamper_ledger",
    "rule": "the ledger is tamper-evident (sec 59)",
    "caught": true,
-   "detail": "refused: LedgerError: C:\\Users\\Peter\\AppData\\Local\\Temp\\creator-adv-kve0dq_4\\l.jsonl:1: hash mismatch - the line was edited"
+   "detail": "refused: LedgerError: C:\\Users\\Peter\\AppData\\Local\\Temp\\creator-adv-cm4l_evk\\l.jsonl:1: hash mismatch - the line was edited"
   },
   {
    "name": "evidence_swap",
