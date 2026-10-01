@@ -469,7 +469,8 @@ def _edit(tree: ast.Module, index: int, fn: Callable[[Any], None]) -> ast.Module
     return ast.fix_missing_locations(t)
 
 
-def solve_with_search(task: Mapping[str, Any], workdir: Path, budget: int = 120, pairs: bool = True) -> tuple[bool, dict[str, str], int]:
+def solve_with_search(task: Mapping[str, Any], workdir: Path, budget: int = 120, pairs: bool = True, per_family: int = 40,
+                      pair_width: int = 12) -> tuple[bool, dict[str, str], int]:
     """Test-guided mutation repair over the non-test code. Returns (visible tests pass, files written, candidates tried)."""
     targets = [p for p in sorted(workdir.rglob("*.py")) if "tests" not in p.relative_to(workdir).parts
                and p.name not in ("__init__.py", "conftest.py") and "__pycache__" not in p.parts]
@@ -481,10 +482,10 @@ def solve_with_search(task: Mapping[str, Any], workdir: Path, budget: int = 120,
         except SyntaxError:
             continue
         legacy = list(generic_mutations(tree))
-        singles = list(targeted_mutations(tree)) + legacy
+        singles = list(targeted_mutations(tree, per_family)) + legacy
         cands: Iterator[ast.Module] = iter(singles)
-        if pairs:
-            cands = itertools.chain(singles, (m2 for m1 in legacy[:12] for m2 in itertools.islice(mutations(m1), 12)))
+        if pairs and pair_width > 0:
+            cands = itertools.chain(singles, (m2 for m1 in legacy[:pair_width] for m2 in itertools.islice(mutations(m1), pair_width)))
         for cand in cands:
             if tried >= budget:
                 path.write_text(original, encoding="utf-8")

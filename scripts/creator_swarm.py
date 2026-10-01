@@ -20,6 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from creator import kernel as K  # noqa: E402
+from creator import process_levers as PL  # noqa: E402
 from creator import selfworkers as SW  # noqa: E402
 from creator import swarm as W  # noqa: E402
 
@@ -56,6 +57,11 @@ class SerialSession:
                 (HANDOFFS / f"{plan.package_id}.json").unlink(missing_ok=True)
 
 
+def make_process_worker(session, process_file: Path = PL.DEFAULT_PATH):      # type: ignore[no-untyped-def]
+    """The worker built from the process the recursion adopted (defaults when none): the read path of creator_recurse.py."""
+    return PL.build_worker(PL.load_process(process_file), session)
+
+
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--rounds", type=int, default=1)
@@ -67,14 +73,13 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--steps", default=",".join(K.P.WORKER_STEPS))
     ap.add_argument("--mode", choices=("auto", "gaps", "efficiency"), default="auto")
     ap.add_argument("--no-session", action="store_true")
+    ap.add_argument("--process-file", type=Path, default=PL.DEFAULT_PATH)   # the process the recursion adopted (CR196-198)
     ap.add_argument("--handoff-hours", type=float, default=6.0)
     a = ap.parse_args(argv)
     session = None if a.no_session else SerialSession(a.handoff_hours)
 
-    from creator import testgen as TG
-
     def make_worker() -> SW.SelfFirst:                                   # own workers first: rules, generated tests, search
-        return SW.SelfFirst([SW.RuleWorker(), TG.TestGenWorker(), SW.SearchWorker()], session)
+        return make_process_worker(session, a.process_file)
     gov = W.Governor(floor_fraction=a.floor_fraction, max_workers=a.max_workers)
     cfg = K.KernelConfig(repo=ROOT, state=STATE, steps=tuple(s for s in a.steps.split(",") if s), mode=a.mode,
                          test_parallel=a.test_parallel)
