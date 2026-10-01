@@ -1,0 +1,8 @@
+18:57:52 run tune3 part 0/2 pid 12156 code 15e74c58bcec87a0
+18:59:12 W00010 development tier 3: real 9/21 FP 0 {} 80s
+19:00:55 W00022 development tier 5: real 5/19 FP 0 {} 102s
+19:02:08 W00028 development tier 3: real 6/19 FP 1 {'proxy': 1} 74s
+19:05:21 W00036 development tier 4: real 6/23 FP 0 {} 193s
+19:06:35 W00086 development tier 2: real 4/22 FP 1 {'proxy': 1} 74s
+19:07:48 W00096 development tier 5: real 5/15 FP 1 {'proxy': 1} 72s
+done

@@ -472,7 +472,7 @@ def gate_out_of_sample(ev: OOSBundle | None, pol: QualityPolicy, now) -> GateOut
             problems.append(f"the effect on unseen years is {um:+.5f}: it lives only in years it trained on")
     f28: dict[str, Any] = {"rival_checked": ev.rival is not None, "name_units_checked": ev.name_units is not None}
     waits = []
-    for check, (state, text, m) in (("rival", rival_check(ev.rival, pol)),
+    for check, (state, text, m) in (("rival", rival_check(ev.rival, pol, ev.statistical.n_tests_searched)),
                                      ("name_units", name_units_check(ev.name_units, ev.statistical.n_tests_searched, pol))):
         f28.update({f"{check}_{k}": v for k, v in m.items()})
         f28[f"{check}_state"] = state
@@ -488,14 +488,28 @@ def gate_out_of_sample(ev: OOSBundle | None, pol: QualityPolicy, now) -> GateOut
                 {**st.measures, **oo.measures, "unseen_years": len(unseen), **f28}, oo.margin)
 
 
-def rival_check(ev: RivalEvidence | None, pol: QualityPolicy) -> tuple[str, str, dict]:
+def increment_bar(pol: QualityPolicy, n_tests: int) -> float:
+    """The t an increment must reach: the gate's own alpha with its search-size correction (Sidak / Bonferroni over n_tests), never
+    below promotion's min_gain_t. F28 (the 100-world development worlds): at a fixed t >= 2 a proxy's increment - pure noise once its
+    parent is removed - passed by chance in ~1 of 40 checks, and the gate runs one check per gated candidate."""
+    from statistics import NormalDist
+    a = float(pol.promotion.alpha)
+    n = max(1, int(n_tests))
+    a1 = 1.0 - (1.0 - a) ** (1.0 / n) if pol.promotion.multiplicity == "sidak" else a / n
+    return float(max(pol.promotion.min_gain_t, NormalDist().inv_cdf(1.0 - a1)))
+
+
+def rival_check(ev: RivalEvidence | None, pol: QualityPolicy, n_tests: int = 1) -> tuple[str, str, dict]:
     """F28 (F26: 16 of 21 remaining false positives were PROXIES - a candidate correlated with a real pattern that adds nothing beyond
     it). (state, why, measures): PASS when no scored feature correlates at the evidence's `min_corr`, or when the finding keeps a
     significant out-of-sample effect with its strongest correlated rival's ordering regressed out (engine.learning.promotion
     gate_incremental_value: mean gain > 0, block-bootstrap CI above 0, t >= its min_gain_t). When it does not, the rival is asked the
     same question: if the RIVAL carries information beyond the finding, the finding is its proxy and FAILS. If neither adds anything
     beyond the other (two near-copies), the one with the larger own out-of-sample effect is kept and the weaker FAILS. Too few test
-    periods to measure the increment = MISSING (more data would settle it). None = a bundle built before F28 (not checked)."""
+    periods to measure the increment = MISSING (more data would settle it). None = a bundle built before F28 (not checked).
+    `n_tests` = the search size the statistical gate corrects for: the increment's t bar is increment_bar (the same alpha and
+    correction), so 'adds something' is a claim held to the gate's own standard; a genuine pattern whose increment over a close proxy
+    is below that bar is still kept through the near-copy rule (its own effect is the larger)."""
     if ev is None:
         return PASS, "", {}
     m: dict[str, Any] = {"corr": ev.corr, "n_pool": ev.n_pool}
@@ -506,11 +520,13 @@ def rival_check(ev: RivalEvidence | None, pol: QualityPolicy) -> tuple[str, str,
     n = len(ev.incremental.delta_series)
     if n < pol.promotion.min_delta_periods:
         return MISSING, f"{n} test periods < {pol.promotion.min_delta_periods} to measure the increment over a rival correlated {ev.corr:+.2f}", m
-    inc = PR.gate_incremental_value(ev.incremental, pol.promotion)
-    m.update(inc_t=inc.measures.get("t"), inc_mean=inc.measures.get("mean"))
+    bar = increment_bar(pol, n_tests)
+    ipol = dataclasses.replace(pol.promotion, min_gain_t=bar)
+    inc = PR.gate_incremental_value(ev.incremental, ipol)
+    m.update(inc_t=inc.measures.get("t"), inc_mean=inc.measures.get("mean"), inc_bar=bar)
     if inc.status == PR.PASS:
         return PASS, f"adds information beyond its strongest correlated rival (r = {ev.corr:+.2f}): {inc.detail}", m
-    rev = PR.gate_incremental_value(ev.reverse, pol.promotion) if ev.reverse is not None and ev.reverse.delta_series is not None else None
+    rev = PR.gate_incremental_value(ev.reverse, ipol) if ev.reverse is not None and ev.reverse.delta_series is not None else None
     m.update(rev_t=rev.measures.get("t") if rev is not None else None, own=ev.own_effect, rival_eff=ev.rival_effect)
     if rev is not None and rev.status == PR.PASS:
         return FAIL, (f"a proxy: with its strongest correlated rival (r = {ev.corr:+.2f}) regressed out nothing is left "

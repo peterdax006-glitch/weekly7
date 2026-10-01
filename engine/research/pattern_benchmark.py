@@ -890,7 +890,7 @@ def fired(ev, pol) -> bool:
     from engine.research import quality_gate as QG
     o = ev.oos
     if o is not None and o.statistical is not None:
-        if QG.rival_check(o.rival, pol)[0] != QG.PASS or QG.name_units_check(o.name_units, o.statistical.n_tests_searched, pol)[0] != QG.PASS:
+        if QG.rival_check(o.rival, pol, o.statistical.n_tests_searched)[0] != QG.PASS or QG.name_units_check(o.name_units, o.statistical.n_tests_searched, pol)[0] != QG.PASS:
             return True
     return bool(ev.leak is not None and ev.leak.suspicions)
 
