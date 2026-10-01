@@ -90,3 +90,20 @@ def test_learns_from_the_real_lesson_log_format(tmp_path):
     log.outcome("L9", False, "REJECTED: nope")
     st = LessonStudent(p)
     assert st.support("lazy_import") == 2 and st.lessons_seen == 2 and st.skipped == 1
+
+
+def test_real_packages_get_their_kind_from_the_plan_and_keep_lf_endings(tmp_path):
+    """Validator 3 (1 Oct): a kernel WorkPackage has no task_kind, and a Windows text write turned LF into CRLF (whole-file diff)."""
+    st = LessonStudent(_write(tmp_path, [_lesson(1, EAGER1, LAZY1), _lesson(2, EAGER2, LAZY2)]))
+    wd = tmp_path / "wd"
+    (wd / "creator").mkdir(parents=True)
+    target = wd / "creator" / "t.py"
+    plan = SimpleNamespace(step="efficiency", requirement_key="EFF.activation")
+    package = SimpleNamespace(outputs=("creator/t.py",))                               # no task_kind, like the kernel's
+    target.write_bytes(THIRD.encode("utf-8"))
+    seen = []
+    real = st.apply_source
+    st.apply_source = lambda src, tk, *a, **k: (seen.append(tk), real(src, tk, *a, **k))[1]   # type: ignore[method-assign]
+    r = st(plan, package, wd)
+    assert seen == ["activation"]                                                     # the kind came from the plan
+    assert r.claimed_done and b"\r\n" not in target.read_bytes()

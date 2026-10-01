@@ -403,7 +403,8 @@ class LessonStudent:
 
     def __call__(self, plan: Any, package: Any, workdir: Path) -> "WorkResult":
         from creator.kernel import WorkResult
-        tk = str(getattr(package, "task_kind", "") or "")
+        from creator.curriculum import task_kind
+        tk = str(getattr(package, "task_kind", "") or (task_kind(plan) if plan is not None else ""))   # packages carry no kind
         workdir = Path(workdir)
         applied: list[str] = []
         texts: Optional[list[tuple[str, str]]] = None
@@ -416,7 +417,8 @@ class LessonStudent:
             start = p.read_text(encoding="utf-8")
             new, done = self.apply_source(start, tk, lambda name: any(_refs(t, name) for t in others))
             if done and new != start:
-                p.write_text(new, encoding="utf-8")
+                eol = "\r\n" if b"\r\n" in p.read_bytes() else "\n"        # keep the file's line endings: no whole-file diff
+                p.write_text(new, encoding="utf-8", newline=eol)
                 applied.extend(f"{k}:{rel}" for k in done)
         if not applied:
             return WorkResult(False, "no learned template applies")
