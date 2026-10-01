@@ -531,11 +531,22 @@ def rival_check(ev: RivalEvidence | None, pol: QualityPolicy, n_tests: int = 1) 
     if rev is not None and rev.status == PR.PASS:
         return FAIL, (f"a proxy: with its strongest correlated rival (r = {ev.corr:+.2f}) regressed out nothing is left "
                       f"({inc.detail}), while the rival keeps information beyond it ({rev.detail})"), m
+    # near-copies: the one that keeps MORE beyond the other is the better representative. F28 (development worlds): comparing the raw
+    # effects chose the proxy half the time (a rank AUC is concave, so a 0.8-correlated proxy's effect is almost the real one's), while
+    # the real pattern keeps sqrt(1 - r^2) of its signal beyond the proxy and the proxy keeps none beyond it
+    ti, tr_ = inc.measures.get("t"), rev.measures.get("t") if rev is not None else None
     own, riv = ev.own_effect, ev.rival_effect
-    if own is not None and riv is not None and math.isfinite(own) and math.isfinite(riv) and own >= riv:
-        return PASS, f"redundant with a rival (r = {ev.corr:+.2f}) but the stronger of the two ({own:+.4f} >= {riv:+.4f})", m
-    return FAIL, (f"redundant with a stronger rival (r = {ev.corr:+.2f}; own effect {own if own is not None else float('nan'):+.4f} < "
-                  f"{riv if riv is not None else float('nan'):+.4f}): neither adds anything beyond the other, the stronger one stands"), m
+    fin = lambda v: v is not None and math.isfinite(v)                       # noqa: E731
+    if fin(ti) and fin(tr_):
+        keep = ti > tr_ or (ti == tr_ and fin(own) and fin(riv) and own >= riv)
+        why = f"its increment t {ti:.2f} vs the rival's {tr_:.2f}"
+    else:
+        keep = fin(own) and fin(riv) and own >= riv
+        why = f"own effect {own if own is not None else float('nan'):+.4f} vs {riv if riv is not None else float('nan'):+.4f}"
+    if keep:
+        return PASS, f"redundant with a rival (r = {ev.corr:+.2f}) but the better representative of the two ({why})", m
+    return FAIL, (f"redundant with a rival (r = {ev.corr:+.2f}) that represents the shared information better ({why}): neither adds "
+                  f"significantly beyond the other, one stands"), m
 
 
 def name_units_check(ev: NameUnitsEvidence | None, n_tests: int, pol: QualityPolicy) -> tuple[str, str, dict]:

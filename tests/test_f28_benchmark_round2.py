@@ -97,12 +97,17 @@ def test_no_correlated_rival_and_the_empty_pool_pass_as_measured():
 
 
 def test_near_copies_keep_the_stronger_and_too_few_periods_wait():
-    inc0 = PR.IncrementalEvidence(tuple(np.random.default_rng(1).normal(0, 0.02, 60)), 1)
-    inc1 = PR.IncrementalEvidence(tuple(np.random.default_rng(2).normal(0, 0.02, 60)), 2)
-    strong = QG.RivalEvidence("b", 0.97, 10, 0.3, inc0, inc1, 0.05, 0.04)
-    weak = dataclasses.replace(strong, own_effect=0.04, rival_effect=0.05)
-    assert QG.rival_check(strong, POL)[0] == QG.PASS and "stronger of the two" in QG.rival_check(strong, POL)[1]
+    z = np.random.default_rng(1).normal(0, 1, 60)
+    z = (z - z.mean()) / z.std(ddof=1)
+    inc_hi = PR.IncrementalEvidence(tuple(0.003 + 0.02 * z), 1)                # t ~ 1.2: keeps something, not significant
+    inc_lo = PR.IncrementalEvidence(tuple(0.0 + 0.02 * z[::-1]), 2)            # t = 0: keeps nothing
+    strong = QG.RivalEvidence("b", 0.97, 10, 0.3, inc_hi, inc_lo, 0.04, 0.05)  # its raw effect is SMALLER, its increment larger
+    weak = dataclasses.replace(strong, incremental=inc_lo, reverse=inc_hi, own_effect=0.05, rival_effect=0.04)
+    assert QG.rival_check(strong, POL)[0] == QG.PASS and "better representative" in QG.rival_check(strong, POL)[1]
     assert QG.rival_check(weak, POL)[0] == QG.FAIL
+    assert QG.increment_bar(POL, 615) > QG.increment_bar(POL, 1) == POL.promotion.min_gain_t
+    sig = dataclasses.replace(strong, incremental=PR.IncrementalEvidence(tuple(0.02 + 0.02 * z), 1))
+    assert QG.rival_check(sig, POL, 615)[0] == QG.PASS and "adds information" in QG.rival_check(sig, POL, 615)[1]
     short = dataclasses.replace(strong, incremental=PR.IncrementalEvidence(tuple(np.full(10, 0.01)), 1))
     assert QG.rival_check(short, POL)[0] == QG.MISSING
     assert QG.rival_check(dataclasses.replace(strong, incremental=None), POL)[0] == QG.MISSING

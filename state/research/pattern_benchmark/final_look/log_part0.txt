@@ -81,3 +81,4 @@
 18:59:20 W00079 development tier 1 era trending: real 1/23 detectable (50 planted), FP 2 {'leak': 2}, 156s
 19:04:30 W00080 development tier 4 era volatile: real 0/22 detectable (50 planted), FP 19 {'leak': 19}, 311s
 19:07:40 W00081 heldout tier 1 era volatile: real 2/23 detectable (50 planted), FP 2 {'leak': 2}, 190s
+19:10:25 W00082 development tier 6 era crisis: real 0/17 detectable (50 planted), FP 8 {'leak': 8}, 165s
