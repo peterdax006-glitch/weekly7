@@ -315,12 +315,12 @@ def _plan_activation(ledger: Ledger, root: Any, base_ref: str, avoid: Sequence[s
         return None
     act = E.activation(_P(root))
     skip = set(avoid) | set(recent_failed_targets(ledger))
-    cands = [m for m in act["loaded_modules"] if E.editable(m) and m not in skip]
+    gains = E.activation_gains(_P(root))
+    cands = [m for m, g in gains.items() if g > 0 and E.editable(m) and m not in skip]
     if not cands:
-        return None
-    eager = {m: sum(1 for ln in (_P(root) / m).read_text(encoding="utf-8").splitlines()
-                    if ln.startswith(("from creator", "import creator"))) for m in cands}
-    path = max(cands, key=lambda m: (eager[m], m))
+        return None                                                     # nothing could load less: no package is planned
+    path = max(cands, key=lambda m: (gains[m], m))
+    eager = {path: gains[path]}
     rid = ledger.view.unique.get(("Requirement", ACTIVATION_KEY)) or ledger.append(M.Requirement(
         created_by=M.Role.OWNER, parents=(objective_id,), key=ACTIVATION_KEY, priority=M.Priority.HIGH,
         description="never run more code than necessary: starting the Creator loads as little of it as possible (owner 1 Oct 2026)",
@@ -330,7 +330,8 @@ def _plan_activation(ledger: Ledger, root: Any, base_ref: str, avoid: Sequence[s
         validation_method="creator.kernel efficiency claim computed by creator.model:improvement_verdict",
         evidence_location="state/creator/cycles/<package>/"))
     gap = ledger.append(M.Gap(created_by=M.Role.KERNEL, parents=(rid,), kind=M.GapKind.ARCHITECTURE,
-                              description=f"load less: {path} pulls {eager[path]} Creator imports in eagerly "
+                              description=f"load less: making {path}'s Creator imports lazy would unload {eager[path]} "
+                                          f"AST nodes at start "
                                           f"(kernel start loads {act['fraction']:.0%} of the package)", importance=0.3))
     pid = next_package_id(ledger)
     wp = ledger.append(M.WorkPackage(

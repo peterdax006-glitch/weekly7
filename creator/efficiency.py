@@ -149,35 +149,54 @@ class Footprint:
         return dataclasses.asdict(self)
 
 
-def static_load(root: Path) -> int:
-    """For every production module, the AST size of all Creator modules it loads EAGERLY (module-level imports, transitively);
-    summed. Lazy imports lower it; it does not depend on any one entry point (the activation holdout)."""
+def eager_graph(root: Path) -> dict[str, set[str]]:
+    """module file -> the Creator module files it imports at MODULE level (what loading it loads)."""
     files = production_files(root)
-    sz = sizes(root, files)
     mod_of = {f[:-3].replace("/", "."): f for f in files}
     mod_of.update({f[:-12].replace("/", "."): f for f in files if f.endswith("/__init__.py")})
     eager: dict[str, set[str]] = {}
     for f in files:
         tree = ast.parse((root / f).read_text(encoding="utf-8", errors="replace"))
-        deps = set()
+        deps: set[str] = set()
         for n in tree.body:
             names = [a.name for a in n.names] if isinstance(n, ast.Import) else \
                 ([f"{n.module}.{a.name}" for a in n.names] + [n.module] if isinstance(n, ast.ImportFrom) and n.module else [])
-            for name in names:
-                if name in mod_of:
-                    deps.add(mod_of[name])
+            deps.update(mod_of[name] for name in names if name in mod_of)
         eager[f] = deps
-    total = 0
-    for f in files:
-        seen, todo = set(), [f]
-        while todo:
-            x = todo.pop()
-            for d in eager.get(x, ()):
-                if d not in seen and d != f:
-                    seen.add(d)
-                    todo.append(d)
-        total += sum(sz.get(d, 0) for d in seen)
-    return total
+    return eager
+
+
+def _closure(eager: dict[str, set[str]], start: str, cut: Optional[str] = None) -> set[str]:
+    """Everything loading `start` loads; with `cut`, as if that module's own Creator imports were lazy."""
+    seen, todo = {start}, [start]
+    while todo:
+        x = todo.pop()
+        for d in (() if x == cut else eager.get(x, ())):
+            if d not in seen:
+                seen.add(d)
+                todo.append(d)
+    return seen
+
+
+def static_load(root: Path) -> int:
+    """For every production module, the AST size of all Creator modules it loads EAGERLY (module-level imports, transitively);
+    summed. Lazy imports lower it; it does not depend on any one entry point (the activation holdout)."""
+    eager = eager_graph(root)
+    sz = sizes(root, list(eager))
+    return sum(sum(sz.get(d, 0) for d in _closure(eager, f) - {f}) for f in eager)
+
+
+def activation_gains(root: Path, entry: str = "creator/kernel.py") -> dict[str, int]:
+    """For each module the entry loads: how many AST nodes would no longer load at start if THAT module imported its Creator
+    components lazily (2 Oct: activation packages were planned for modules whose imports the kernel loads anyway - no gain was
+    possible and they were rejected). Only modules with a positive gain are worth a package."""
+    eager = eager_graph(root)
+    if entry not in eager:
+        return {}
+    sz = sizes(root, list(eager))
+    loaded = _closure(eager, entry)
+    base = sum(sz.get(m, 0) for m in loaded)
+    return {m: base - sum(sz.get(x, 0) for x in _closure(eager, entry, cut=m)) for m in sorted(loaded)}
 
 
 def footprint(root: Path, target: str, memory: bool = True, activation_: Optional[bool] = None) -> Footprint:

@@ -139,3 +139,16 @@ def test_gap_work_comes_first_in_auto_mode(cfg: K.KernelConfig) -> None:
     w = Shrinker({})
     K.cycle(dataclasses.replace(cfg, mode="auto", capabilities=specs), w)
     assert w.seen == ["K02"]                                             # a capability gap outranks a shrink
+
+
+def test_activation_gains_only_credit_modules_that_unload_something(tmp_path: Path) -> None:
+    """2 Oct: activation packages were planned for modules whose imports the kernel loads anyway; no gain was possible."""
+    put(tmp_path, "creator/__init__.py", "")
+    put(tmp_path, "creator/heavy.py", "\n".join(f"def f{i}(x):\n    return x + {i}\n" for i in range(20)))
+    put(tmp_path, "creator/shared.py", "def s():\n    return 1\n")
+    put(tmp_path, "creator/a.py", "from creator import heavy\nfrom creator import shared\n\n\ndef g():\n    return heavy.f1(1)\n")
+    put(tmp_path, "creator/b.py", "from creator import shared\n\n\ndef h():\n    return shared.s()\n")
+    put(tmp_path, "creator/kernel.py", "from creator import a\nfrom creator import b\nfrom creator import shared\n")
+    gains = E.activation_gains(tmp_path)
+    assert gains["creator/a.py"] == E.sizes(tmp_path, ["creator/heavy.py"])["creator/heavy.py"]   # only a pulls in heavy
+    assert gains["creator/b.py"] == 0                                    # shared is loaded by the kernel anyway
