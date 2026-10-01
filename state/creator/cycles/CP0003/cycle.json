@@ -1,0 +1,47 @@
+{
+ "cycle": 1,
+ "outcome": "ADOPTED",
+ "package": "CP0003",
+ "requirement": "K08.exists",
+ "reason": "merged 691ce3226d84",
+ "verdict": "IMPROVEMENT",
+ "merge_commit": "691ce3226d841b11c0501ffbcd0a909ff3071bbe",
+ "calls": 1,
+ "usd": 0.12109740000000001,
+ "seconds": 2157.4,
+ "details": {
+  "recovered": [],
+  "worker": {
+   "claimed_done": true,
+   "notes": "OK run=20261001T075802-7ccaf93e turns=9"
+  },
+  "claim": "IC-aab38490c00a7ca4689a",
+  "detail": {
+   "min_effect": 0.0,
+   "z": 2.0,
+   "diff": 1.0,
+   "se": 0.0,
+   "lo": 1.0,
+   "hi": 1.0,
+   "regressions": [
+    {
+     "metric": "affected_tests_pass",
+     "diff": 0.0,
+     "se": 0.0
+    },
+    {
+     "metric": "requirements_kept",
+     "diff": 0.0,
+     "se": 0.0
+    }
+   ],
+   "holdout_diff": 0.031250000000000056,
+   "holdout_se": 0.0,
+   "why": "all seven ingredients present"
+  },
+  "regression": "CLEAN",
+  "builds": true,
+  "weakening": [],
+  "planted": []
+ }
+}

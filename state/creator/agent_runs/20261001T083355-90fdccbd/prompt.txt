@@ -1,0 +1,32 @@
+You are working in a git worktree of a Python project (the Creator). Package CP0004.
+Objective: the module(s) of K11 exist, parse, and are covered by passing tests
+Why: gap GAP-05c645a77f49a79f0a00 (K11.exists): missing: creator/debug.py
+
+Do:
+- create creator/debug.py implementing debugging and repair as declared in creator/ARCHITECTURE.md
+- public functions and classes carry docstrings stating their contract
+- no stub bodies: every public function does real work
+
+Tests:
+- create tests/test_creator_debug.py exercising the new module's contract, including its empty and failure cases
+
+Known interfaces:
+- as declared in creator/ARCHITECTURE.md
+
+Ways this commonly goes wrong (avoid them):
+- module created but empty or stub-only
+- tests that assert nothing
+- imports that only work from the repo root
+
+Done means (computed by the system, not by you):
+- check:exists:K11 computed True on main after adoption
+- audit clean
+- requirement transitioned to TESTED by creator.gaps.sync
+
+Rules:
+- Python 3.11. Run tests exactly as `python -m pytest -q <files>` - no `cd`, pipes or redirects (other shell commands are refused).
+- Never edit these protected paths: canon/*, BIBLE.md, SELF_LEARNING_CONTRACT.md, RESEARCH_BRAIN_CONTRACT.md, PREDICTION_ERROR_ADDITION.md, TEN_HOUR_EXECUTION_CHECKLIST.md, .github/*, creator/devbench/sealed/*, creator/audit/*, creator/evaluate_thresholds.json, creator/capabilities.json, creator/devbench.py, creator/model.py, creator/ledger.py, creator/sandbox.py, state/creator/ledger.jsonl, state/livesim/*
+- Never weaken, skip or delete tests to make them pass.
+- Keep changes small and focused on this package.
+
+Work only inside the current directory. When finished, end your reply with exactly one line: 'STATUS: DONE' if you believe the job is complete, otherwise 'STATUS: NOT_DONE'.

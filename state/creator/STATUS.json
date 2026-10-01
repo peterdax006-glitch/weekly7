@@ -1,10 +1,10 @@
 {
- "at": "2026-10-01T07:48:36Z",
- "selfmodel_digest": "a6a81d3d28eff13b",
+ "at": "2026-10-01T09:09:52Z",
+ "selfmodel_digest": "cb2d12472b95d973",
  "versions": {
-  "git_head": "6c7958693708dcb63b03f6e4539791eb6d6d64f3",
-  "dirty_files": 98,
-  "creator_tree": "c8347c8ba69e65c9",
+  "git_head": "fd81c85b6fec8d253125b821973ddd9c9823781d",
+  "dirty_files": 104,
+  "creator_tree": "e65b5599bf17a270",
   "engine_tree": "a69b0474a03aa178"
  },
  "capabilities": [
@@ -58,9 +58,9 @@
    "name": "sandbox build test rollback",
    "state": "TESTED",
    "uncertainty": "UNCERTAIN",
-   "meaningful": 1125,
+   "meaningful": 1126,
    "floor": 1400,
-   "why": "every test file passed on the current source; depth 1125 < floor 1400"
+   "why": "every test file passed on the current source; depth 1126 < floor 1400"
   },
   {
    "id": "K07",
@@ -74,11 +74,11 @@
   {
    "id": "K08",
    "name": "design generation",
-   "state": "NOT_STARTED",
-   "uncertainty": "KNOWN",
-   "meaningful": 0,
+   "state": "TESTED",
+   "uncertainty": "UNCERTAIN",
+   "meaningful": 87,
    "floor": 900,
-   "why": "no implementing module exists; depth 0 < floor 900"
+   "why": "every test file passed on the current source; depth 87 < floor 900"
   },
   {
    "id": "K09",
@@ -101,11 +101,11 @@
   {
    "id": "K11",
    "name": "debugging and repair",
-   "state": "NOT_STARTED",
-   "uncertainty": "KNOWN",
-   "meaningful": 0,
+   "state": "TESTED",
+   "uncertainty": "UNCERTAIN",
+   "meaningful": 135,
    "floor": 1200,
-   "why": "no implementing module exists; depth 0 < floor 1200"
+   "why": "every test file passed on the current source; depth 135 < floor 1200"
   },
   {
    "id": "K12",
@@ -156,28 +156,12 @@
  "requirements": {
   "requirements": 96,
   "by_status": {
-   "TESTED": 47,
-   "NOT_STARTED": 49
+   "TESTED": 53,
+   "NOT_STARTED": 43
   },
-  "open_gaps": 49,
-  "unblocked": 17,
+  "open_gaps": 43,
+  "unblocked": 19,
   "next": [
-   {
-    "gap_id": "GAP-5edf24d27c4a71ade6ba",
-    "requirement_key": "K08.exists",
-    "kind": "CAPABILITY",
-    "importance": 0.645,
-    "blocked_by": [],
-    "description": "K08.exists unmet: missing: creator/design.py"
-   },
-   {
-    "gap_id": "GAP-05c645a77f49a79f0a00",
-    "requirement_key": "K11.exists",
-    "kind": "CAPABILITY",
-    "importance": 0.6,
-    "blocked_by": [],
-    "description": "K11.exists unmet: missing: creator/debug.py"
-   },
    {
     "gap_id": "GAP-f4dca99ea5a03c96ba93",
     "requirement_key": "K12.exists",
@@ -201,9 +185,25 @@
     "importance": 0.41,
     "blocked_by": [],
     "description": "K10.depth unmet: 175 meaningful lines, floor 1400"
+   },
+   {
+    "gap_id": "GAP-99741fdbde92f9a68636",
+    "requirement_key": "K14.integrated",
+    "kind": "INTEGRATION",
+    "importance": 0.407,
+    "blocked_by": [],
+    "description": "K14.integrated unmet: nothing to integrate"
+   },
+   {
+    "gap_id": "GAP-ce23460e0c288a6c5bfb",
+    "requirement_key": "K01.validated",
+    "kind": "EVIDENCE",
+    "importance": 0.4,
+    "blocked_by": [],
+    "description": "K01.validated unmet: ledger state NOT_STARTED"
    }
   ],
-  "at": "2026-10-01T07:48:36Z"
+  "at": "2026-10-01T09:09:52Z"
  },
  "sync": {
   "opened": 0,
@@ -222,6 +222,6 @@
   "caught": 8,
   "uncaught": []
  },
- "ledger_records": 462,
- "seconds": 463.5
+ "ledger_records": 542,
+ "seconds": 463.8
 }

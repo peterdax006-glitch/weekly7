@@ -4,7 +4,7 @@
   "creator",
   "tests"
  ],
- "digest": "a6a81d3d28eff13b",
+ "digest": "cb2d12472b95d973",
  "components": {
   "creator/__init__.py": {
    "path": "creator/__init__.py",
@@ -579,6 +579,158 @@
      "name": "baseline_type_keys",
      "signature": "baseline_type_keys(step: BuildStep | None) -> frozenset[tuple[str, str, str, str]]",
      "doc": "Issue keys of a base-commit type check, for new-vs-preexisting separation. A base check that itself failed to run"
+    }
+   ],
+   "stubs": [],
+   "todos": 0,
+   "parse_error": ""
+  },
+  "creator/debug.py": {
+   "path": "creator/debug.py",
+   "module": "creator.debug",
+   "doc": "K11 debug: failure reproduction, localisation, classification, hypotheses, evidence,",
+   "lines": 200,
+   "meaningful": 135,
+   "sha256": "b8caa0349564d5375fdf89db2f04acae56f6250a2981a18bb41a6c82fe7d61f9",
+   "interfaces": [
+    {
+     "kind": "class",
+     "name": "Failure",
+     "signature": "Failure",
+     "doc": "A reproduced failure: the command run, its exit code, and captured output."
+    },
+    {
+     "kind": "class",
+     "name": "Location",
+     "signature": "Location",
+     "doc": "A source location (file, line, optional function) implicated in a failure."
+    },
+    {
+     "kind": "class",
+     "name": "Diagnosis",
+     "signature": "Diagnosis",
+     "doc": "Result of diagnosing a failure: class, locations, hypotheses, evidence, root cause."
+    },
+    {
+     "kind": "method",
+     "name": "Diagnosis.to_dict",
+     "signature": "to_dict(self) -> dict",
+     "doc": "Plain-dict (JSON-serialisable) form of the diagnosis."
+    },
+    {
+     "kind": "function",
+     "name": "reproduce",
+     "signature": "reproduce(command: list, cwd: str | None=None, timeout: float=120.0) -> Failure",
+     "doc": "Run command (argv list) and capture a Failure; reproduced is True iff it exits non-zero"
+    },
+    {
+     "kind": "function",
+     "name": "localise",
+     "signature": "localise(output: str, prefer: str='') -> list[Location]",
+     "doc": "Extract source locations from traceback / pytest-short output, innermost (last) first."
+    },
+    {
+     "kind": "function",
+     "name": "classify",
+     "signature": "classify(output: str) -> str",
+     "doc": "Classify failure text into a TAXONOMY key, or 'UNKNOWN' if nothing matches/empty."
+    },
+    {
+     "kind": "function",
+     "name": "hypothesise",
+     "signature": "hypothesise(classification: str, locations: list | None=None, message: str='') -> list[str]",
+     "doc": "Ranked, testable hypotheses for a failure class; always at least one."
+    },
+    {
+     "kind": "function",
+     "name": "diagnose",
+     "signature": "diagnose(output: str, prefer: str='') -> Diagnosis",
+     "doc": "Diagnose failure output into a Diagnosis (classification, locations, hypotheses,"
+    },
+    {
+     "kind": "class",
+     "name": "RepairProposal",
+     "signature": "RepairProposal",
+     "doc": "A proposed repair: target location, description, and the hypothesis it tests."
+    },
+    {
+     "kind": "function",
+     "name": "propose_repairs",
+     "signature": "propose_repairs(diagnosis: Diagnosis) -> list[RepairProposal]",
+     "doc": "One RepairProposal per hypothesis, ranked from 0 (most likely). A diagnosis without"
+    },
+    {
+     "kind": "function",
+     "name": "repair_experiment",
+     "signature": "repair_experiment(command: list, apply_fn, revert_fn=None, cwd: str | None=None, timeout: float=120.0) -> dict",
+     "doc": "Run a repair experiment: reproduce before, apply_fn(), reproduce after."
+    },
+    {
+     "kind": "function",
+     "name": "python_cmd",
+     "signature": "python_cmd(*args: str) -> list",
+     "doc": "argv list running the current interpreter with args (portable helper for reproduce)."
+    }
+   ],
+   "stubs": [],
+   "todos": 0,
+   "parse_error": ""
+  },
+  "creator/design.py": {
+   "path": "creator/design.py",
+   "module": "creator.design",
+   "doc": "K08 design: N alternative designs per decision, assumptions, failure modes, cost/risk,",
+   "lines": 131,
+   "meaningful": 87,
+   "sha256": "d5beac86ab04099faa785ad4a9e00907931a4c194a31be92ba608db75d736ec3",
+   "interfaces": [
+    {
+     "kind": "class",
+     "name": "DesignOption",
+     "signature": "DesignOption",
+     "doc": "One alternative design. cost, risk and benefit are in [0,1] (lower cost/risk is better)."
+    },
+    {
+     "kind": "class",
+     "name": "Decision",
+     "signature": "Decision",
+     "doc": "The outcome of choosing among options: the selected one, rejected ones with reasons, criteria."
+    },
+    {
+     "kind": "method",
+     "name": "Decision.to_dict",
+     "signature": "to_dict(self) -> dict",
+     "doc": "Plain-dict form (JSON-serialisable) of the decision, including rejected alternatives."
+    },
+    {
+     "kind": "function",
+     "name": "_clamp",
+     "signature": "_clamp(x: float) -> float",
+     "doc": ""
+    },
+    {
+     "kind": "function",
+     "name": "generate_options",
+     "signature": "generate_options(question: str, candidates: list[dict], n: int=3) -> list[DesignOption]",
+     "doc": "Build up to n distinct DesignOptions from candidate dicts (keys: name, summary,"
+    },
+    {
+     "kind": "function",
+     "name": "critique",
+     "signature": "critique(option: DesignOption) -> list[str]",
+     "doc": "Adversarial critique: a list of concrete objections to the option (empty means none found)."
+    },
+    {
+     "kind": "function",
+     "name": "score",
+     "signature": "score(option: DesignOption, criteria: dict | None=None) -> float",
+     "doc": "Weighted score in [0,1], higher is better: cost and risk count as (1 - value)."
+    },
+    {
+     "kind": "function",
+     "name": "select",
+     "signature": "select(question: str, options: list[DesignOption], criteria: dict | None=None) -> Decision",
+     "doc": "Pick the highest-scoring option (ties broken by name); keep every other option as rejected"
     }
    ],
    "stubs": [],
@@ -4315,9 +4467,9 @@
    "path": "creator/sandbox.py",
    "module": "creator.sandbox",
    "doc": "Creator K06 - the controlled environment for every autonomous code change (C77 secs 22-25, 28, 29, 44-46, 59-61; package CR03)",
-   "lines": 430,
-   "meaningful": 314,
-   "sha256": "36daefc03ad6697343a337fa7880259469c508f9840d5d6be76d6cee2b92966b",
+   "lines": 431,
+   "meaningful": 315,
+   "sha256": "efc7f27fb9b4f4674f49731576f7da52d4e5185823efc7f93bafbece56cdf8c2",
    "interfaces": [
     {
      "kind": "class",
@@ -9021,6 +9173,146 @@
      "kind": "function",
      "name": "test_a_crashing_check_is_reported_not_skipped",
      "signature": "test_a_crashing_check_is_reported_not_skipped(led: Ledger, monkeypatch: pytest.MonkeyPatch) -> None",
+     "doc": ""
+    }
+   ],
+   "stubs": [],
+   "todos": 0,
+   "parse_error": ""
+  },
+  "tests/test_creator_debug.py": {
+   "path": "tests/test_creator_debug.py",
+   "module": "tests.test_creator_debug",
+   "doc": "CR K11: the debug component.",
+   "lines": 93,
+   "meaningful": 65,
+   "sha256": "14ed70e3f6f31cae4d4f0f03ba77903c5bc509aa68c9b6764d1e137f37b6a573",
+   "interfaces": [
+    {
+     "kind": "function",
+     "name": "test_reproduce_failure_and_success",
+     "signature": "test_reproduce_failure_and_success()",
+     "doc": ""
+    },
+    {
+     "kind": "function",
+     "name": "test_reproduce_empty_and_missing_and_timeout",
+     "signature": "test_reproduce_empty_and_missing_and_timeout()",
+     "doc": ""
+    },
+    {
+     "kind": "function",
+     "name": "test_localise_innermost_first_and_prefer",
+     "signature": "test_localise_innermost_first_and_prefer()",
+     "doc": ""
+    },
+    {
+     "kind": "function",
+     "name": "test_localise_short_form",
+     "signature": "test_localise_short_form()",
+     "doc": ""
+    },
+    {
+     "kind": "function",
+     "name": "test_classify",
+     "signature": "test_classify()",
+     "doc": ""
+    },
+    {
+     "kind": "function",
+     "name": "test_diagnose_full",
+     "signature": "test_diagnose_full()",
+     "doc": ""
+    },
+    {
+     "kind": "function",
+     "name": "test_diagnose_empty_and_unknown",
+     "signature": "test_diagnose_empty_and_unknown()",
+     "doc": ""
+    },
+    {
+     "kind": "function",
+     "name": "test_propose_repairs",
+     "signature": "test_propose_repairs()",
+     "doc": ""
+    },
+    {
+     "kind": "function",
+     "name": "test_repair_experiment_fixed",
+     "signature": "test_repair_experiment_fixed(tmp_path)",
+     "doc": ""
+    },
+    {
+     "kind": "function",
+     "name": "test_repair_experiment_not_fixed_reverts",
+     "signature": "test_repair_experiment_not_fixed_reverts(tmp_path)",
+     "doc": ""
+    },
+    {
+     "kind": "function",
+     "name": "test_repair_experiment_apply_raises",
+     "signature": "test_repair_experiment_apply_raises()",
+     "doc": ""
+    }
+   ],
+   "stubs": [],
+   "todos": 0,
+   "parse_error": ""
+  },
+  "tests/test_creator_design.py": {
+   "path": "tests/test_creator_design.py",
+   "module": "tests.test_creator_design",
+   "doc": "CR K08: the design component.",
+   "lines": 66,
+   "meaningful": 46,
+   "sha256": "3256966c14ffcd637aa1903436e712eef4fa7660768ddb0415dd6ed4269a1ce0",
+   "interfaces": [
+    {
+     "kind": "function",
+     "name": "_cands",
+     "signature": "_cands()",
+     "doc": ""
+    },
+    {
+     "kind": "function",
+     "name": "test_generate_options_empty_and_limits",
+     "signature": "test_generate_options_empty_and_limits()",
+     "doc": ""
+    },
+    {
+     "kind": "function",
+     "name": "test_generate_options_clamps",
+     "signature": "test_generate_options_clamps()",
+     "doc": ""
+    },
+    {
+     "kind": "function",
+     "name": "test_critique",
+     "signature": "test_critique()",
+     "doc": ""
+    },
+    {
+     "kind": "function",
+     "name": "test_score_and_bad_criteria",
+     "signature": "test_score_and_bad_criteria()",
+     "doc": ""
+    },
+    {
+     "kind": "function",
+     "name": "test_select_keeps_rejected",
+     "signature": "test_select_keeps_rejected()",
+     "doc": ""
+    },
+    {
+     "kind": "function",
+     "name": "test_select_empty",
+     "signature": "test_select_empty()",
+     "doc": ""
+    },
+    {
+     "kind": "function",
+     "name": "test_select_criteria_change_winner",
+     "signature": "test_select_criteria_change_winner()",
      "doc": ""
     }
    ],
@@ -47522,6 +47814,8 @@
    "creator/sandbox.py"
   ],
   "creator/build.py": [],
+  "creator/debug.py": [],
+  "creator/design.py": [],
   "creator/devbench.py": [],
   "creator/devbench/sealed/D01/hidden/__init__.py": [],
   "creator/devbench/sealed/D01/hidden/test_hidden.py": [],
@@ -47750,6 +48044,14 @@
    "creator/audit/checks.py",
    "creator/ledger.py",
    "creator/model.py"
+  ],
+  "tests/test_creator_debug.py": [
+   "creator/__init__.py",
+   "creator/debug.py"
+  ],
+  "tests/test_creator_design.py": [
+   "creator/__init__.py",
+   "creator/design.py"
   ],
   "tests/test_creator_devbench.py": [
    "creator/__init__.py",
@@ -47985,6 +48287,8 @@
   "creator/__init__.py": [
    "tests/test_creator_agents.py",
    "tests/test_creator_audit.py",
+   "tests/test_creator_debug.py",
+   "tests/test_creator_design.py",
    "tests/test_creator_devbench.py",
    "tests/test_creator_evaluate.py",
    "tests/test_creator_gaps.py",
@@ -48010,6 +48314,12 @@
   "creator/build.py": [
    "tests/test_creator_kernel.py",
    "tests/test_creator_sandbox.py"
+  ],
+  "creator/debug.py": [
+   "tests/test_creator_debug.py"
+  ],
+  "creator/design.py": [
+   "tests/test_creator_design.py"
   ],
   "creator/devbench.py": [
    "tests/test_creator_agents.py",
@@ -48187,7 +48497,7 @@
    "name": "sandbox build test rollback",
    "state": "TESTED",
    "uncertainty": "UNCERTAIN",
-   "meaningful": 1125,
+   "meaningful": 1126,
    "floor": 1400,
    "below_floor": true,
    "present_modules": [
@@ -48204,7 +48514,7 @@
     "tests/test_creator_sandbox.py": "PASS"
    },
    "stubs": [],
-   "why": "every test file passed on the current source; depth 1125 < floor 1400"
+   "why": "every test file passed on the current source; depth 1126 < floor 1400"
   },
   {
    "id": "K07",
@@ -48231,22 +48541,24 @@
   {
    "id": "K08",
    "name": "design generation",
-   "state": "NOT_STARTED",
-   "uncertainty": "KNOWN",
-   "meaningful": 0,
+   "state": "TESTED",
+   "uncertainty": "UNCERTAIN",
+   "meaningful": 87,
    "floor": 900,
    "below_floor": true,
-   "present_modules": [],
-   "missing_modules": [
+   "present_modules": [
     "creator/design.py"
    ],
-   "tests_present": [],
-   "tests_missing": [
+   "missing_modules": [],
+   "tests_present": [
     "tests/test_creator_design.py"
    ],
-   "last_results": {},
+   "tests_missing": [],
+   "last_results": {
+    "tests/test_creator_design.py": "PASS"
+   },
    "stubs": [],
-   "why": "no implementing module exists; depth 0 < floor 900"
+   "why": "every test file passed on the current source; depth 87 < floor 900"
   },
   {
    "id": "K09",
@@ -48295,22 +48607,24 @@
   {
    "id": "K11",
    "name": "debugging and repair",
-   "state": "NOT_STARTED",
-   "uncertainty": "KNOWN",
-   "meaningful": 0,
+   "state": "TESTED",
+   "uncertainty": "UNCERTAIN",
+   "meaningful": 135,
    "floor": 1200,
    "below_floor": true,
-   "present_modules": [],
-   "missing_modules": [
+   "present_modules": [
     "creator/debug.py"
    ],
-   "tests_present": [],
-   "tests_missing": [
+   "missing_modules": [],
+   "tests_present": [
     "tests/test_creator_debug.py"
    ],
-   "last_results": {},
+   "tests_missing": [],
+   "last_results": {
+    "tests/test_creator_debug.py": "PASS"
+   },
    "stubs": [],
-   "why": "no implementing module exists; depth 0 < floor 1200"
+   "why": "every test file passed on the current source; depth 135 < floor 1200"
   },
   {
    "id": "K12",
@@ -48443,7 +48757,7 @@
   {
    "kind": "BELOW_FLOOR",
    "subject": "K06",
-   "detail": "1125 meaningful lines < floor 1400"
+   "detail": "1126 meaningful lines < floor 1400"
   },
   {
    "kind": "BELOW_FLOOR",
@@ -48453,7 +48767,7 @@
   {
    "kind": "BELOW_FLOOR",
    "subject": "K08",
-   "detail": "0 meaningful lines < floor 900"
+   "detail": "87 meaningful lines < floor 900"
   },
   {
    "kind": "BELOW_FLOOR",
@@ -48468,7 +48782,7 @@
   {
    "kind": "BELOW_FLOOR",
    "subject": "K11",
-   "detail": "0 meaningful lines < floor 1200"
+   "detail": "135 meaningful lines < floor 1200"
   },
   {
    "kind": "BELOW_FLOOR",
@@ -48800,17 +49114,17 @@
   "cpus": 8,
   "python": "3.11.9",
   "platform": "Windows-10-10.0.26200-SP0",
-  "free_ram_gb": 4.25,
-  "free_disk_gb": 631.4
+  "free_ram_gb": 3.96,
+  "free_disk_gb": 630.0
  },
  "versions": {
-  "git_head": "6c7958693708dcb63b03f6e4539791eb6d6d64f3",
-  "dirty_files": 98,
-  "creator_tree": "c8347c8ba69e65c9",
+  "git_head": "fd81c85b6fec8d253125b821973ddd9c9823781d",
+  "dirty_files": 104,
+  "creator_tree": "e65b5599bf17a270",
   "engine_tree": "a69b0474a03aa178"
  },
  "active": {
-  "open_ledger_items": 121,
-  "ledger_head": "27f77a78406c6911717bbe1724e5876a3fe59b586ff8990a42c4c18740ae7856"
+  "open_ledger_items": 115,
+  "ledger_head": "0ee8a52192c572b91296ce8a7353c5fe3ac751f7532dfa79e23fe8307666eea7"
  }
 }

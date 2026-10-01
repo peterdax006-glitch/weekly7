@@ -1005,77 +1005,98 @@
    "group": "64. THE MASTER CHECKLIST / DESIGN",
    "description": "architecture generation",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K08=TESTED (computed from test evidence)"
   },
   {
    "id": "CR073",
    "group": "64. THE MASTER CHECKLIST / DESIGN",
    "description": "alternative generation",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K08=TESTED (computed from test evidence)"
   },
   {
    "id": "CR074",
    "group": "64. THE MASTER CHECKLIST / DESIGN",
    "description": "architecture comparison",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K08=TESTED (computed from test evidence)"
   },
   {
    "id": "CR075",
    "group": "64. THE MASTER CHECKLIST / DESIGN",
    "description": "dependency analysis",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K08=TESTED (computed from test evidence)"
   },
   {
    "id": "CR076",
    "group": "64. THE MASTER CHECKLIST / DESIGN",
    "description": "risk analysis",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K08=TESTED (computed from test evidence)"
   },
   {
    "id": "CR077",
    "group": "64. THE MASTER CHECKLIST / DESIGN",
    "description": "resource estimation",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K08=TESTED (computed from test evidence)"
   },
   {
    "id": "CR078",
    "group": "64. THE MASTER CHECKLIST / DESIGN",
    "description": "design selection",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K08=TESTED (computed from test evidence)"
   },
   {
    "id": "CR079",
@@ -1372,99 +1393,126 @@
    "group": "64. THE MASTER CHECKLIST / DEBUGGING",
    "description": "failure reproduction",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K11=TESTED (computed from test evidence)"
   },
   {
    "id": "CR102",
    "group": "64. THE MASTER CHECKLIST / DEBUGGING",
    "description": "localization",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K11=TESTED (computed from test evidence)"
   },
   {
    "id": "CR103",
    "group": "64. THE MASTER CHECKLIST / DEBUGGING",
    "description": "classification",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K11=TESTED (computed from test evidence)"
   },
   {
    "id": "CR104",
    "group": "64. THE MASTER CHECKLIST / DEBUGGING",
    "description": "hypothesis generation",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K11=TESTED (computed from test evidence)"
   },
   {
    "id": "CR105",
    "group": "64. THE MASTER CHECKLIST / DEBUGGING",
    "description": "evidence collection",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K11=TESTED (computed from test evidence)"
   },
   {
    "id": "CR106",
    "group": "64. THE MASTER CHECKLIST / DEBUGGING",
    "description": "root-cause analysis",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K11=TESTED (computed from test evidence)"
   },
   {
    "id": "CR107",
    "group": "64. THE MASTER CHECKLIST / DEBUGGING",
    "description": "repair generation",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K11=TESTED (computed from test evidence)"
   },
   {
    "id": "CR108",
    "group": "64. THE MASTER CHECKLIST / DEBUGGING",
    "description": "repair testing",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K11=TESTED (computed from test evidence)"
   },
   {
    "id": "CR109",
    "group": "64. THE MASTER CHECKLIST / DEBUGGING",
    "description": "regression verification",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K11=TESTED (computed from test evidence)"
   },
   {
    "id": "CR110",
@@ -1804,7 +1852,7 @@
    "evidence": [
     "state/creator/kernel_log.jsonl"
    ],
-   "notes": "1 real cycle(s) ADOPTED by evidence"
+   "notes": "3 real cycle(s) ADOPTED by evidence"
   },
   {
    "id": "CR138",
@@ -1850,7 +1898,7 @@
    "evidence": [
     "state/creator/kernel_log.jsonl"
    ],
-   "notes": "1 real cycle(s) ADOPTED by evidence"
+   "notes": "3 real cycle(s) ADOPTED by evidence"
   },
   {
    "id": "CR142",
@@ -2148,11 +2196,14 @@
    "group": "79. COMPLETION GATE / AUTONOMOUS DEVELOPER",
    "description": "Design generation works.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K08=TESTED (computed from test evidence)"
   },
   {
    "id": "CR166",
@@ -2207,7 +2258,7 @@
    "evidence": [
     "state/creator/kernel_log.jsonl"
    ],
-   "notes": "1 real cycle(s) ADOPTED by evidence"
+   "notes": "3 real cycle(s) ADOPTED by evidence"
   },
   {
    "id": "CR170",
@@ -2220,7 +2271,7 @@
    "evidence": [
     "state/creator/kernel_log.jsonl"
    ],
-   "notes": "1 real cycle(s) ADOPTED by evidence"
+   "notes": "3 real cycle(s) ADOPTED by evidence"
   },
   {
    "id": "CR171",
@@ -2241,22 +2292,28 @@
    "group": "79. COMPLETION GATE / AUTONOMOUS DEVELOPER",
    "description": "Root-cause analysis works.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K11=TESTED (computed from test evidence)"
   },
   {
    "id": "CR173",
    "group": "79. COMPLETION GATE / AUTONOMOUS DEVELOPER",
    "description": "Autonomous repair works.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K11=TESTED (computed from test evidence)"
   },
   {
    "id": "CR174",
@@ -2333,7 +2390,7 @@
    "evidence": [
     "state/creator/kernel_log.jsonl"
    ],
-   "notes": "1 real cycle(s) ADOPTED by evidence"
+   "notes": "3 real cycle(s) ADOPTED by evidence"
   },
   {
    "id": "CR180",
@@ -2346,7 +2403,7 @@
    "evidence": [
     "state/creator/kernel_log.jsonl"
    ],
-   "notes": "1 real cycle(s) ADOPTED by evidence"
+   "notes": "3 real cycle(s) ADOPTED by evidence"
   },
   {
    "id": "CR181",
@@ -2359,7 +2416,7 @@
    "evidence": [
     "state/creator/kernel_log.jsonl"
    ],
-   "notes": "1 real cycle(s) ADOPTED by evidence"
+   "notes": "3 real cycle(s) ADOPTED by evidence"
   },
   {
    "id": "CR182",
@@ -2383,7 +2440,7 @@
    "evidence": [
     "state/creator/kernel_log.jsonl"
    ],
-   "notes": "1 real cycle(s) ADOPTED by evidence"
+   "notes": "3 real cycle(s) ADOPTED by evidence"
   },
   {
    "id": "CR184",
@@ -2396,7 +2453,7 @@
    "evidence": [
     "state/creator/kernel_log.jsonl"
    ],
-   "notes": "1 real cycle(s) ADOPTED by evidence"
+   "notes": "3 real cycle(s) ADOPTED by evidence"
   },
   {
    "id": "CR185",
@@ -2409,7 +2466,7 @@
    "evidence": [
     "state/creator/kernel_log.jsonl"
    ],
-   "notes": "1 real cycle(s) ADOPTED by evidence"
+   "notes": "3 real cycle(s) ADOPTED by evidence"
   },
   {
    "id": "CR186",
@@ -2422,7 +2479,7 @@
    "evidence": [
     "state/creator/kernel_log.jsonl"
    ],
-   "notes": "1 real cycle(s) ADOPTED by evidence"
+   "notes": "3 real cycle(s) ADOPTED by evidence"
   },
   {
    "id": "CR187",
@@ -2446,7 +2503,7 @@
    "evidence": [
     "state/creator/kernel_log.jsonl"
    ],
-   "notes": "1 real cycle(s) ADOPTED by evidence"
+   "notes": "3 real cycle(s) ADOPTED by evidence"
   },
   {
    "id": "CR189",
@@ -2459,7 +2516,7 @@
    "evidence": [
     "state/creator/kernel_log.jsonl"
    ],
-   "notes": "1 real cycle(s) ADOPTED by evidence"
+   "notes": "3 real cycle(s) ADOPTED by evidence"
   },
   {
    "id": "CR190",
@@ -2472,7 +2529,7 @@
    "evidence": [
     "state/creator/kernel_log.jsonl"
    ],
-   "notes": "1 real cycle(s) ADOPTED by evidence"
+   "notes": "3 real cycle(s) ADOPTED by evidence"
   },
   {
    "id": "CR191",
