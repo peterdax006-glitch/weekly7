@@ -123,9 +123,21 @@ def _is_stub(fn: ast.FunctionDef | ast.AsyncFunctionDef) -> Optional[str]:
     return None
 
 
+_COMPONENT_CACHE: dict[tuple[str, bytes], Component] = {}          # (rel, sha256 of the raw bytes) -> Component (frozen)
+
+
 def scan_component(root: Path, rel: str) -> Component:
+    """Cached by CONTENT hash: the Component is a pure function of (rel, bytes) and the ruler, so a cache hit is exact."""
     full = root / rel
     raw = full.read_bytes()
+    key = (rel, hashlib.sha256(raw).digest())
+    hit = _COMPONENT_CACHE.get(key)
+    if hit is None:
+        hit = _COMPONENT_CACHE[key] = _scan_component_uncached(full, rel, raw)
+    return hit
+
+
+def _scan_component_uncached(full: Path, rel: str, raw: bytes) -> Component:
     source = raw.decode("utf-8", errors="replace")
     module = module_name_for(rel) or rel[:-3].replace("/", ".")
     sha = hashlib.sha256(raw.replace(b"\r\n", b"\n")).hexdigest()

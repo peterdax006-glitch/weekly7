@@ -35,6 +35,9 @@ def is_test_file(rel: str) -> bool:
     return name.endswith(".py") and (name.startswith("test_") or name.endswith("_test.py"))
 
 
+_IMPORTS_CACHE: dict[tuple[str, str, bool, bytes], tuple[str, Any]] = {}      # content-keyed, see ImportGraph._add_file
+
+
 @dataclass
 class ImportGraph:
     """Static import graph of a tree. `imports[m]` are the dotted names module m may import (resolved against the tree when
@@ -62,16 +65,25 @@ class ImportGraph:
 
     def _add_file(self, rel: str, full: Path) -> None:
         name = module_name_for(rel)
-        try:
-            tree = ast.parse(full.read_bytes(), filename=rel)
-        except (SyntaxError, ValueError) as e:
-            self.unparsable[rel] = f"{type(e).__name__}: {e}"
+        is_pkg = rel.endswith("__init__.py")
+        raw = full.read_bytes()
+        # Parsing + walking the AST is the cost; the result depends only on (rel, module name, content), so it is cached by
+        # CONTENT hash (no staleness possible; identical files in main and candidate trees share one entry).
+        ckey = (rel, name or "", is_pkg, hashlib.sha256(raw).digest())
+        hit = _IMPORTS_CACHE.get(ckey)
+        if hit is None:
+            try:
+                hit = ("ok", frozenset(_imports_of(ast.parse(raw, filename=rel), name or "", is_pkg)))
+            except (SyntaxError, ValueError) as e:
+                hit = ("err", f"{type(e).__name__}: {e}")
+            _IMPORTS_CACHE[ckey] = hit
+        if hit[0] == "err":
+            self.unparsable[rel] = str(hit[1])
             if name:
                 self.modules[name] = rel
                 self.imports.setdefault(name, set())
             return
-        is_pkg = rel.endswith("__init__.py")
-        names = _imports_of(tree, name or "", is_pkg)
+        names = set(hit[1])
         if name:
             self.modules[name] = rel
             self.imports[name] = names

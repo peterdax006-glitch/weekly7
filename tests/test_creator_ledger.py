@@ -276,3 +276,88 @@ def test_snapshot_and_queries(led: L.Ledger) -> None:
     assert snap["by_type"] == {"Objective": 1, "Requirement": 2, "Transition": 1}
     assert snap["by_status"]["IN_PROGRESS"] == 1 and set(snap["open"]) == {o, r1, r2}
     assert [e.id for e in led.with_status(M.Status.IN_PROGRESS)] == [r1] and {e.id for e in led.about(o)} == {r1, r2}
+
+
+# ------------------------------------------------------------------------------------------------ provenance speed-ups: same values, edits still seen
+
+def _ref_tree_hash(root: Path, pattern: str = "*.py") -> str:
+    """The original, uncached tree_hash, kept here as the reference the cached one must equal byte for byte."""
+    import hashlib
+    h = hashlib.sha256()
+    for p in sorted(root.rglob(pattern)):
+        if "__pycache__" in p.parts:
+            continue
+        h.update(p.relative_to(root).as_posix().encode())
+        h.update(p.read_bytes().replace(b"\r\n", b"\n"))
+    return h.hexdigest()[:16]
+
+
+def test_tree_hash_cache_equals_uncached_on_the_real_tree() -> None:
+    assert L.tree_hash(L.CREATOR_DIR) == _ref_tree_hash(L.CREATOR_DIR)
+    assert L.tree_hash(L.CREATOR_DIR) == _ref_tree_hash(L.CREATOR_DIR)                 # a cache hit gives the same value
+
+
+def test_tree_hash_cache_sees_edit_add_remove_rename_and_crlf(tmp_path: Path) -> None:
+    (tmp_path / "Sub").mkdir()
+    (tmp_path / "__pycache__").mkdir()
+    a, b = tmp_path / "a.py", tmp_path / "Sub" / "B.py"
+    a.write_bytes(b"x = 1\r\n")
+    b.write_bytes(b"y = 2\n")
+    (tmp_path / "__pycache__" / "c.py").write_bytes(b"ignored")
+    seen = [L.tree_hash(tmp_path)]
+    assert seen[0] == _ref_tree_hash(tmp_path)
+    assert L.tree_hash(tmp_path) == seen[0]
+    a.write_bytes(b"x = 1\n")                                                           # CRLF folded: same hash
+    assert L.tree_hash(tmp_path) == seen[0]
+    a.write_bytes(b"x = 9\n")                                                           # same size, new content
+    seen.append(L.tree_hash(tmp_path))
+    b.write_bytes(b"y = 22\n")                                                          # new size
+    seen.append(L.tree_hash(tmp_path))
+    (tmp_path / "z.py").write_bytes(b"")                                                # added
+    seen.append(L.tree_hash(tmp_path))
+    (tmp_path / "z.py").rename(tmp_path / "Z2.py")                                      # renamed
+    seen.append(L.tree_hash(tmp_path))
+    (tmp_path / "Z2.py").unlink()                                                       # removed
+    seen.append(L.tree_hash(tmp_path))
+    assert seen[1] != seen[0] and seen[2] != seen[1] and seen[3] != seen[2] and seen[4] != seen[3] and seen[5] != seen[4]
+    assert L.tree_hash(tmp_path) == _ref_tree_hash(tmp_path)
+
+
+def _git(repo: Path, *args: str) -> None:
+    import subprocess
+    subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *args], cwd=repo, check=True, capture_output=True)
+
+
+def test_git_commit_cache_equals_uncached_and_sees_edit_and_new_commit(tmp_path: Path) -> None:
+    repo = tmp_path / "r"
+    (repo / "creator").mkdir(parents=True)
+    (repo / "engine").mkdir()
+    (repo / "creator" / "m.py").write_text("a = 1\n")
+    (repo / "engine" / "e.py").write_text("b = 1\n")
+    _git(repo, "init", "-q")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "one")
+    c1 = L._git_commit(repo)
+    assert c1 == L._git_commit_uncached(repo) and not c1.endswith("+dirty")
+    assert L._git_commit(repo) == c1
+    (repo / "creator" / "m.py").write_text("a = 2\n")                                   # edit -> dirty, at once
+    c2 = L._git_commit(repo)
+    assert c2 == c1 + "+dirty" == L._git_commit_uncached(repo)
+    (repo / "engine" / "new.txt").write_text("untracked")                               # untracked non-py file still dirty
+    assert L._git_commit(repo) == c2
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "two")                                             # new commit -> new HEAD, clean
+    c3 = L._git_commit(repo)
+    assert c3 != c1 and not c3.endswith("+dirty") and c3 == L._git_commit_uncached(repo)
+    (repo / "creator" / "m.py").write_text("a = 1\n")
+    assert L._git_commit(repo) == c3 + "+dirty"
+    _git(repo, "checkout", "-q", "--", "creator/m.py")                                  # reverted -> clean again
+    assert L._git_commit(repo) == c3
+    _git(repo, "commit", "-q", "--allow-empty", "-m", "three")                          # empty commit: only the ref moves
+    assert L._git_commit(repo) not in (c1, c3) and L._git_commit(repo) == L._git_commit_uncached(repo)
+
+
+def test_current_provenance_equals_uncached_composition() -> None:
+    p = L.current_provenance(seed=3, config={"k": 1})
+    assert p.creator_tree_hash == _ref_tree_hash(L.CREATOR_DIR)
+    assert p.git_commit == L._git_commit_uncached(L.REPO_ROOT)

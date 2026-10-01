@@ -18,6 +18,7 @@ from __future__ import annotations
 import contextlib
 import dataclasses
 import datetime as dt
+import fnmatch
 import hashlib
 import json
 import os
@@ -49,19 +50,127 @@ def sha256_text(s: str) -> str:
     return hashlib.sha256(s.encode("utf-8")).hexdigest()
 
 
+_TREE_FILE_CACHE: dict[str, tuple[tuple[int, int], bytes]] = {}          # abs path -> ((mtime_ns, size), CRLF-folded bytes)
+_TREE_RESULT_CACHE: dict[tuple[str, str], tuple[tuple[Any, ...], str]] = {}   # (root, pattern) -> (snapshot, digest)
+
+
+def _scan_files(root: Path) -> list[tuple[str, int, int]]:
+    """(absolute path, mtime_ns, size) of every file under root, one scandir pass (much cheaper than rglob + Path.stat on
+    Windows). __pycache__ is included; tree_hash filters it out, the git fingerprint keeps it."""
+    out: list[tuple[str, int, int]] = []
+    stack = [str(root)]
+    while stack:
+        try:
+            with os.scandir(stack.pop()) as it:
+                for e in it:
+                    if e.is_dir(follow_symlinks=False):
+                        stack.append(e.path)
+                    else:
+                        st = e.stat()
+                        out.append((e.path, st.st_mtime_ns, st.st_size))
+        except OSError:
+            continue
+    return out
+
+
+def _tree_hash_from(root: Path, pattern: str, scan: Sequence[tuple[str, int, int]]) -> str:
+    base = str(root)
+    cut = len(base.rstrip("/" + chr(92))) + 1
+    rows = []
+    for ap, mt, sz in scan:
+        if fnmatch.fnmatch(os.path.basename(ap), pattern):
+            rel = ap[cut:].replace(chr(92), "/")
+            if "__pycache__" not in rel.split("/"):
+                rows.append((rel, ap, mt, sz))
+    rows.sort()
+    snapshot = tuple((rel, mt, sz) for rel, _ap, mt, sz in rows)                # cheap string-sorted cache key
+    key = (base, pattern)
+    hit = _TREE_RESULT_CACHE.get(key)
+    if hit is not None and hit[0] == snapshot:
+        return hit[1]
+    h = hashlib.sha256()
+    for rel, ap, mt, sz in sorted(rows, key=lambda r: Path(r[0])):             # the original order: sorted(root.rglob(...)) paths
+        cached = _TREE_FILE_CACHE.get(ap)
+        if cached is not None and cached[0] == (mt, sz):
+            data = cached[1]
+        else:
+            data = Path(ap).read_bytes().replace(b"\r\n", b"\n")
+            _TREE_FILE_CACHE[ap] = ((mt, sz), data)
+        h.update(rel.encode())
+        h.update(data)
+    digest = h.hexdigest()[:16]
+    _TREE_RESULT_CACHE[key] = (snapshot, digest)
+    return digest
+
+
 def tree_hash(root: Path, pattern: str = "*.py") -> str:
     """sha256 over the sorted (relative path, bytes) of every matching file under root; CRLF folded so a Windows checkout and a
-    Linux one agree."""
-    h = hashlib.sha256()
-    for p in sorted(root.rglob(pattern)):
-        if "__pycache__" in p.parts:
-            continue
-        h.update(p.relative_to(root).as_posix().encode())
-        h.update(p.read_bytes().replace(b"\r\n", b"\n"))
-    return h.hexdigest()[:16]
+    Linux one agree. Speed: file bytes are cached on (path, mtime_ns, size) and the whole digest on the full snapshot of those
+    keys, so any edit, add, remove or rename changes a key and is seen on the next call; the value is byte-identical to the
+    uncached computation (tests/test_creator_ledger.py::test_tree_hash_cache_*)."""
+    return _tree_hash_from(root, pattern, _scan_files(root))
 
 
-def _git_commit(repo: Path) -> str:
+def _git_dirs(repo: Path) -> tuple[Path, Path]:
+    """(gitdir, common dir) for repo, reading the .git file of a worktree; (.git, .git) for a plain checkout."""
+    dot = repo / ".git"
+    if dot.is_file():
+        gd = Path(dot.read_text(encoding="utf-8").strip().split(":", 1)[1].strip())
+        if not gd.is_absolute():
+            gd = (repo / gd).resolve()
+        cd = gd
+        cf = gd / "commondir"
+        if cf.is_file():
+            cd = (gd / cf.read_text(encoding="utf-8").strip()).resolve()
+        return gd, cd
+    return dot, dot
+
+
+def _stat_key(p: Path) -> Optional[tuple[int, int]]:
+    try:
+        st = p.stat()
+        return (st.st_mtime_ns, st.st_size)
+    except OSError:
+        return None
+
+
+def _git_state_key(repo: Path, scans: Optional[Mapping[str, Sequence[tuple[str, int, int]]]] = None) -> Optional[tuple[Any, ...]]:
+    """A cheap fingerprint of everything `git rev-parse HEAD` + `git status --porcelain -- creator engine` depend on: HEAD, the
+    ref it names, packed-refs, the index, and the (path, mtime_ns, size) of every file under creator/ and engine/ (all kinds,
+    not only .py). None = cannot fingerprint, so the caller runs git. `scans` maps str(dir) to an already-taken scan."""
+    try:
+        gd, cd = _git_dirs(repo)
+        head = (gd / "HEAD").read_text(encoding="utf-8").strip()
+        ref_key = None
+        if head.startswith("ref:"):
+            ref = head.split(":", 1)[1].strip()
+            ref_key = _stat_key(gd / ref) or _stat_key(cd / ref)
+        files: list[tuple[str, int, int]] = []
+        for sub in ("creator", "engine"):
+            base = repo / sub
+            if base.is_dir():
+                files.extend(scans[str(base)] if scans is not None and str(base) in scans else _scan_files(base))
+        return (head, ref_key, _stat_key(cd / "packed-refs"), _stat_key(gd / "index"), tuple(sorted(files)))
+    except (OSError, IndexError, ValueError):
+        return None
+
+
+_GIT_CACHE: dict[str, tuple[tuple[Any, ...], str]] = {}
+
+
+def _git_commit(repo: Path, scans: Optional[Mapping[str, Sequence[tuple[str, int, int]]]] = None) -> str:
+    key = _git_state_key(repo, scans)
+    if key is not None:
+        hit = _GIT_CACHE.get(str(repo))
+        if hit is not None and hit[0] == key:
+            return hit[1]
+    result = _git_commit_uncached(repo)
+    if key is not None and result != "unknown":
+        _GIT_CACHE[str(repo)] = (key, result)
+    return result
+
+
+def _git_commit_uncached(repo: Path) -> str:
     try:
         out = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True, timeout=20)
         head = out.stdout.strip()
@@ -80,7 +189,9 @@ def current_provenance(seed: Optional[int] = None, config: Optional[Mapping[str,
         engine_hash = P.engine_tree_hash()
     except Exception:                                        # noqa: BLE001 - the Creator must also run outside Weekly7
         engine_hash = tree_hash(repo / "engine") if (repo / "engine").is_dir() else "absent"
-    return M.Provenance(engine_tree_hash=engine_hash, creator_tree_hash=tree_hash(CREATOR_DIR), git_commit=_git_commit(repo),
+    scans = {str(CREATOR_DIR): _scan_files(CREATOR_DIR)}      # one directory pass feeds both the tree hash and the git fingerprint
+    return M.Provenance(engine_tree_hash=engine_hash, creator_tree_hash=_tree_hash_from(CREATOR_DIR, "*.py", scans[str(CREATOR_DIR)]),
+                        git_commit=_git_commit(repo, scans),
                         config_hash=sha256_text(canonical(dict(config)))[:16] if config is not None else None, seed=seed,
                         timestamp=dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"))
 
