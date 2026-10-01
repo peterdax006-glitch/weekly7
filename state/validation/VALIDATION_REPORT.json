@@ -203,13 +203,29 @@
    "depth": "module+docstring read in full"
   },
   "K14": {
-   "verdict": "NOT_VALIDATED",
+   "verdict": "VALIDATED_WITH_ISSUES",
    "evidence": {
-    "command": "python -m pytest tests/test_creator_kernel.py -q",
-    "result": "STILL RUNNING at report time (no failure seen so far): "
+    "command": "python -m pytest tests/test_creator_kernel.py -p no:cacheprovider -q",
+    "result": "21 passed in 331.65s before; 22 passed in 403.28s after round-3 fixes"
    },
-   "issues": [],
-   "depth": "tests run + targeted/partial read only (not a full line-by-line audit)"
+   "issues": [
+    {
+     "where": "creator/kernel.py:580",
+     "severity": "medium",
+     "issue": "A worker handing a package over (curriculum handed-over kind) returned WorkResult(False) and was treated as 'worker changed nothing' = a failed attempt; planner.MAX_ATTEMPTS=3 then BLOCKED the gap, so the handed-over task was silently dropped (deferred.jsonl is written but nothing reads it). FIXED: WorkResult.deferred, outcome DEFERRED, planner.attempts_for ignores deferred packages; regression test_a_deferred_package_is_not_a_failed_attempt_and_is_never_blocked_away (failed before)."
+    },
+    {
+     "where": "creator/kernel.py:703",
+     "severity": "low",
+     "issue": "kernel_log.jsonl is appended by every swarm thread with an unlocked text write; a very large CycleReport (> write buffer) could interleave. Not fixed."
+    },
+    {
+     "where": "creator/kernel.py:621",
+     "severity": "info",
+     "issue": "Core invariant CONFIRMED: adoption requires verdict IMPROVEMENT and ev.clean and no weakening/planted answers (any reason raises _Reject); WorkResult.claimed_done is never consulted, so a worker's self-report cannot adopt."
+    }
+   ],
+   "depth": "module+docstring read in full (round 3)"
   },
   "K15": {
    "verdict": "VALIDATED",
@@ -239,13 +255,34 @@
    "depth": "tests run + targeted/partial read only (not a full line-by-line audit)"
   },
   "K18": {
-   "verdict": "NOT_VALIDATED",
+   "verdict": "VALIDATED_WITH_ISSUES",
    "evidence": {
-    "command": "python -m pytest tests/test_creator_generator.py -q",
-    "result": "STILL RUNNING at report time (no failure seen so far): ........"
+    "command": "python -m pytest tests/test_creator_generator.py -p no:cacheprovider -q",
+    "result": "22 passed in 353.55s (0:05:53)"
    },
-   "issues": [],
-   "depth": "tests run + targeted/partial read only (not a full line-by-line audit)"
+   "issues": [
+    {
+     "where": "creator/generator.py:1",
+     "severity": "medium",
+     "issue": "Docstring: 'holdout tasks are never recorded'. Nothing enforces it: the solver is never told the split (Task.to_public hides it) and devbench.score_holdout does not force learn=False; only caller discipline (test_holdout_runs_never_write_experience passes learn=False by hand). devbench.py is out of scope to edit. Not fixed."
+    },
+    {
+     "where": "creator/generator.py:561",
+     "severity": "low",
+     "issue": "solve_with_search leaves the last mutated candidate on disk if visible_tests raises (no try/finally); sandbox is discarded afterwards so harmless in the kernel."
+    },
+    {
+     "where": "creator/generator.py:243",
+     "severity": "low",
+     "issue": "ExperienceMemory.add is an unlocked text append (files in each row): unsafe if two threads ever share one memory. The swarm filler uses SearchSolver without memory, so not reachable today."
+    },
+    {
+     "where": "creator/generator.py:1",
+     "severity": "info",
+     "issue": "'model' strategy needs llama-server + weights; its tests use a FakeLLM, the real path is untested here."
+    }
+   ],
+   "depth": "module+docstring read in full (round 3)"
   },
   "K19": {
    "verdict": "VALIDATED",
@@ -298,13 +335,29 @@
    "depth": "tests run + targeted/partial read only (not a full line-by-line audit)"
   },
   "K22": {
-   "verdict": "NOT_VALIDATED",
+   "verdict": "VALIDATED_WITH_ISSUES",
    "evidence": {
-    "command": "python -m pytest tests/test_creator_swarm.py -q",
-    "result": "STILL RUNNING at report time (no failure seen so far): "
+    "command": "python -m pytest tests/test_creator_swarm.py -p no:cacheprovider -q",
+    "result": "8 passed in 185.31s before; 9 passed in 189.86s after round-3 fixes"
    },
-   "issues": [],
-   "depth": "tests run + targeted/partial read only (not a full line-by-line audit)"
+   "issues": [
+    {
+     "where": "creator/swarm.py:196",
+     "severity": "medium",
+     "issue": "An exception in a job thread (e.g. make_worker or Sandbox.open failing) left no CycleReport and the package's ledger chain IN_PROGRESS: the package vanished from the round. FIXED: job catches, records FAILED, reports ERROR; regression test_a_worker_that_crashes_before_the_kernel_runs_is_reported_not_lost (failed before)."
+    },
+    {
+     "where": "scripts/creator_swarm.py:109",
+     "severity": "low",
+     "issue": "on_report lambda tuple trick tripped mypy func-returns-value. FIXED (named function)."
+    },
+    {
+     "where": "creator/swarm.py:115",
+     "severity": "info",
+     "issue": "Races checked: ledger appends use the Ledger file lock; repo-mutating steps share one lock; WAITING is locked, HANDED_BACK is plain set add/read (GIL-atomic). The lessons.jsonl / deferred.jsonl race was in curriculum.py (see NEW-curriculum)."
+    }
+   ],
+   "depth": "module+docstring read in full (round 3)"
   },
   "K23": {
    "verdict": "VALIDATED_WITH_ISSUES",
@@ -363,23 +416,137 @@
    },
    "issues": [],
    "depth": "tests run + targeted/partial read only (not a full line-by-line audit)"
+  },
+  "NEW-curriculum": {
+   "verdict": "VALIDATED_WITH_ISSUES",
+   "evidence": {
+    "command": "python -m pytest tests/test_creator_curriculum.py -p no:cacheprovider -q",
+    "result": "9 passed before; 10 passed after fixes"
+   },
+   "issues": [
+    {
+     "where": "creator/curriculum.py:76",
+     "severity": "high",
+     "issue": "LessonLog appended with unlocked text writes; a lesson carries whole files (far above the write buffer) and 8 swarm threads share lessons.jsonl and deferred.jsonl: lines interleaved and lessons() silently dropped the corrupt ones. FIXED: module lock + single binary write; regression test_concurrent_appends_never_interleave_or_lose_lessons (failed before)."
+    },
+    {
+     "where": "creator/curriculum.py:~253",
+     "severity": "high",
+     "issue": "Docstring: a handed-over task is 'queued in deferred.jsonl and retried by the kernel later'. Nothing reads deferred.jsonl and the kernel counted the deferral as a failed attempt, so after 3 rounds the gap was BLOCKED (dropped). FIXED via WorkResult.deferred (see K14); deferred.jsonl remains an audit log only."
+    },
+    {
+     "where": "creator/curriculum.py:236",
+     "severity": "info",
+     "issue": "Self-report cannot count as adoption: Lesson.adopted is set only by resolve() from the kernel CycleReport (ADOPTED -> True, REJECTED/ROLLED_BACK -> False, anything else None = not scored). teacher_share/claude_share count only adopted lessons, i.e. measured outcomes. CONFIRMED."
+    },
+    {
+     "where": "creator/curriculum.py:~210",
+     "severity": "low",
+     "issue": "A lesson whose cycle ends CANCELLED/ERROR stays adopted=None forever (not scored either way); a student that returns not-done is scored a failure immediately."
+    },
+    {
+     "where": "creator/curriculum.py:~268",
+     "severity": "low",
+     "issue": "A student that owns a kind but cannot_attempt/fails sends the package to deferral, not to Claude, by design; if the student never recovers the kind still cannot progress (only attempts of the student can lower its rate)."
+    }
+   ],
+   "depth": "module+docstring read in full (round 3)"
+  },
+  "NEW-student": {
+   "verdict": "VALIDATED_WITH_ISSUES",
+   "evidence": {
+    "command": "python -m pytest tests/test_creator_student.py -p no:cacheprovider -q",
+    "result": "3 passed before; 4 passed after fix"
+   },
+   "issues": [
+    {
+     "where": "creator/student.py:~215",
+     "severity": "high",
+     "issue": "reload() read lessons.jsonl line by line and required adopted=True ON the lesson line, but curriculum.LessonLog writes lessons with adopted=None and the kernel's verdict as a separate {'event':'outcome'} line: against a real lessons.jsonl the student learned nothing (its tests used a hand-made flat format: vacuous w.r.t. the real writer). FIXED: outcome events are joined; regression test_learns_from_the_real_lesson_log_format (failed before)."
+    },
+    {
+     "where": "creator/student.py:~330",
+     "severity": "low",
+     "issue": "__call__ reads package.task_kind which WorkPackage lacks (always ''); template ranking by task kind never applies when invoked through the kernel. can_attempt(lesson) does use the kind."
+    },
+    {
+     "where": "creator/student.py:~335",
+     "severity": "low",
+     "issue": "write_text on Windows rewrites a LF file with CRLF (whole-file diff); the kernel measures it either way."
+    },
+    {
+     "where": "creator/student.py:1",
+     "severity": "info",
+     "issue": "The student never judges itself: it returns claimed_done only; the kernel measures."
+    }
+   ],
+   "depth": "module+docstring read in full (round 3)"
+  },
+  "NEW-process_levers": {
+   "verdict": "VALIDATED_WITH_ISSUES",
+   "evidence": {
+    "command": "python -m pytest tests/test_creator_process_levers.py -p no:cacheprovider -q",
+    "result": "6 passed before; 8 passed after fixes"
+   },
+   "issues": [
+    {
+     "where": "creator/process_levers.py:59",
+     "severity": "high",
+     "issue": "ProcessSolver passed per_family and pair_width POSITIONALLY into the wrong parameters of solve_with_search (per_family landed in `rank`, pair_width in `extra_passes`): design_breadth and reviewer_depth never reached the search, contradicting the module docstring (mypy arg-type caught it). FIXED with keywords; regression test_process_solver_passes_the_levers_to_the_right_search_parameters (failed before)."
+    },
+    {
+     "where": "creator/process_levers.py:77",
+     "severity": "medium",
+     "issue": "load_process accepted any integer from process.json (max_retries=10**9, research_budget=-5). FIXED: values outside meta.BOUNDS fall back to the default process; regression test_load_process_rejects_out_of_bounds_values (failed before)."
+    },
+    {
+     "where": "creator/process_levers.py:119",
+     "severity": "low",
+     "issue": "DevWorkload with fewer dev tasks than chunk*reps+confirm yields empty chunks scored 0.0/0.0 instead of an error."
+    }
+   ],
+   "depth": "module+docstring read in full (round 3)"
+  },
+  "NEW-synth": {
+   "verdict": "VALIDATED_WITH_ISSUES",
+   "evidence": {
+    "command": "python -m pytest tests/test_synth.py -p no:cacheprovider -q",
+    "result": "7 passed in 0.28s"
+   },
+   "issues": [
+    {
+     "where": "creator/synth.py:218",
+     "severity": "medium",
+     "issue": "Idiom bodies and enumerated expressions (pow, range-driven loops) are exec'd/eval'd on example values with no time or size limit: a large example (fibonacci(10**9), pow(10, 10**9)) hangs the solver. Not fixed (devbench task timeouts bound it)."
+    },
+    {
+     "where": "creator/synth.py:30",
+     "severity": "low",
+     "issue": "Idioms are docstring-vocabulary keyed per benchmark-style task; docstring says function names/ids/answers are never consulted and the code agrees (only the spec's own examples are used). Hidden tests still judge; no leak found."
+    },
+    {
+     "where": "creator/synth.py:300",
+     "severity": "low",
+     "issue": "solve_file rewrites the whole file via ast.unparse (comments lost); writes only when every stub is solved."
+    }
+   ],
+   "depth": "module+docstring read in full (round 3)"
   }
  },
  "verdict_counts": {
-  "VALIDATED": 6,
-  "VALIDATED_WITH_ISSUES": 10,
-  "NOT_VALIDATED": 10
+  "VALIDATED": 13,
+  "VALIDATED_WITH_ISSUES": 17
  },
  "fixed": [
   "agents.run_agent non-object JSON crash",
   "objective.compile_capabilities build-order dependency"
  ],
  "regression_tests": "tests/test_creator_validator_regressions.py (both proven failing before fix)",
- "not_done": "K01/K02/K06/K14/K15/K16/K17/K18/K21/K22/K25/K26 only partially read within the time box; ledger.py/model.py/devbench/ not modified",
+ "not_done": "Components read only partially in earlier rounds stay as labelled; generator 'model' strategy untested against a real llama-server; devbench.score_holdout cannot be changed here.",
  "counts": {
   "VALIDATED": 13,
-  "VALIDATED_WITH_ISSUES": 10,
-  "NOT_VALIDATED": 3
+  "VALIDATED_WITH_ISSUES": 17
  },
- "round2": "validator2: fixes on h3/validator2; K14 kernel, K18 generator, K22 swarm left to the orchestrator"
+ "round2": "validator2: fixes on h3/validator2; K14 kernel, K18 generator, K22 swarm left to the orchestrator",
+ "round3": "validator3 (h4/validator3): K14, K18, K22 validated; NEW-curriculum/student/process_levers/synth added. Fixed with regression tests failing first: deferred package dropped by MAX_ATTEMPTS, lessons.jsonl concurrent-append corruption, student never learned from the real lesson log, process levers mis-wired into search, unbounded process.json, swarm job crash lost its report. mypy: creator/debug.py has 6 pre-existing errors (not touched)."
 }

@@ -106,3 +106,30 @@ def test_process_solver_passes_levers(monkeypatch: pytest.MonkeyPatch, tmp_path:
     monkeypatch.setattr("creator.generator.solve_with_search", fake)
     res = PL.ProcessSolver(R.ProcessConfig()).__call__({}, tmp_path)
     assert res.claimed_done and seen == [(120, True, 40, 12), (120, True, 80, 12)]
+
+
+def test_load_process_rejects_out_of_bounds_values(tmp_path: Path) -> None:
+    """Regression (validator round 3): load_process trusted any integer, so max_retries=10**9 or research_budget=-5 reached the workers."""
+    pf = tmp_path / "process.json"
+    for bad in ({"max_retries": 10**9}, {"research_budget": -5}, {"design_breadth": 0}):
+        pf.write_text(__import__("json").dumps(bad), encoding="utf-8")
+        assert PL.load_process(pf) == R.ProcessConfig()
+    pf.write_text('{"research_budget": 4}', encoding="utf-8")
+    assert PL.load_process(pf).research_budget == 4
+
+
+def test_process_solver_passes_the_levers_to_the_right_search_parameters(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Regression (validator round 3): the levers were passed positionally into the wrong slots of solve_with_search
+    (per_family landed in `rank`, pair_width in `extra_passes`), so design_breadth and reviewer_depth never acted."""
+    from creator import generator as G
+    seen: list[dict[str, Any]] = []
+
+    def fake(task: Any, workdir: Path, budget: int = 0, pairs: bool = True, rank: bool = True, extra_passes: int = 5,
+             extra_budget: int = 40, per_family: int = 40, pair_width: int = 12) -> tuple[bool, dict[str, str], int]:
+        seen.append(dict(budget=budget, pairs=pairs, rank=rank, extra_passes=extra_passes, per_family=per_family,
+                         pair_width=pair_width))
+        return False, {}, 1
+    monkeypatch.setattr(G, "solve_with_search", fake)
+    PL.ProcessSolver(R.ProcessConfig(research_budget=2, design_breadth=3, reviewer_depth=2, max_retries=1))({}, tmp_path)
+    assert seen[0] == dict(budget=80, pairs=True, rank=True, extra_passes=5, per_family=60, pair_width=24)
+    assert seen[1]["per_family"] == 120

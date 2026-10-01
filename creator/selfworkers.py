@@ -274,5 +274,5 @@ class SelfFirst:
         if self.fallback is not None:
             r = self.fallback(plan, package, workdir)
             return K.WorkResult(r.claimed_done, "; ".join(tried + [r.notes])[:2000], r.calls, r.usd, r.refused, r.contaminated,
-                                by=getattr(self.fallback, "name", "fallback"))
+                                by=getattr(self.fallback, "name", "fallback"), reasoning=r.reasoning, deferred=r.deferred)
         return K.WorkResult(False, "; ".join(tried) or "no worker")

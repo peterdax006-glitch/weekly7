@@ -88,6 +88,7 @@ class WorkResult:
     contaminated: tuple[str, ...] = ()                  # protected / answer-key references in what the worker said or wrote
     by: str = ""                                        # which worker actually made the change (self_share counts it)
     reasoning: str = ""                                 # free-text reasoning of the solver (curriculum lesson); optional
+    deferred: bool = False                              # handed over, not attempted: no attempt is used up (planner.attempts_for)
 
 
 class Worker(Protocol):
@@ -576,6 +577,11 @@ def execute(cfg: KernelConfig, worker: Worker, plan: P.Plan, main: Assessed, bas
             led.transition(plan.gap_id, M.Status.FAILED, f"{plan.package_id} not attempted: {work.notes}", M.Role.KERNEL)
             rep.outcome, rep.reason = "BUDGET", work.notes
             return rep
+        if work.deferred:                                               # handed over to its owner: nothing adopted, no attempt used
+            S.discard(sb)
+            P.record_outcome(led, plan, False, f"{P.DEFERRED_PREFIX} {work.notes}"[:500])
+            rep.outcome, rep.reason = "DEFERRED", work.notes
+            return rep
         if work.contaminated:
             raise _Reject(f"worker run contaminated: {list(work.contaminated)[:5]}")
         checkpoint_cancel("evaluation")
@@ -718,7 +724,7 @@ def run(cfg: KernelConfig, worker: Worker, max_cycles: int = 1, on_cycle: Option
         out.append(r)
         if on_cycle:
             on_cycle(r)
-        if r.outcome in ("NOTHING_TO_DO", "AUDIT_RED", "BUDGET"):
+        if r.outcome in ("NOTHING_TO_DO", "AUDIT_RED", "BUDGET", "DEFERRED"):
             break
     return out
 

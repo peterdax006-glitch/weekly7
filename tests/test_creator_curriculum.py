@@ -168,7 +168,7 @@ def test_routing_hands_over_only_after_threshold_and_never_drops(tmp_path: Path)
     stu, claude = FakeStudent(succeed=False), FakeClaude()
     cur = CUR.Curriculum(tmp_path / "l.jsonl", [stu], router)
     res = cur.install(SW.SelfFirst([], claude))(plan("P9"), PKG, repo)
-    assert not res.claimed_done and claude.calls == 0 and stu.calls == 1                         # student only, Claude skipped
+    assert not res.claimed_done and res.deferred and claude.calls == 0 and stu.calls == 1        # student only, Claude skipped, handed over not failed
     deferred = [json.loads(x) for x in (tmp_path / "deferred.jsonl").read_text().splitlines()]
     assert deferred[0]["package"] == "P9" and deferred[0]["task_kind"] == "gap"                  # queued, not dropped
     other = cur.install(SW.SelfFirst([], claude))(plan("P10", step="efficiency", key="EFF.x"), PKG, repo)
@@ -186,3 +186,26 @@ def test_several_students_scored_separately_per_kind() -> None:
     sc = CUR.student_scores(ls)
     assert sc["cells"]["nupen|gap"]["rate"] == 1.0 and sc["cells"]["small_model|gap"]["rate"] == 0.5
     assert CUR.Router().owners(ls, "gap") == ["nupen"]
+
+
+def test_concurrent_appends_never_interleave_or_lose_lessons(tmp_path: Path) -> None:
+    """Regression (validator round 3): swarm workers share one lessons.jsonl; a lesson carrying whole files is far larger than the
+    write buffer, so unlocked appends interleaved and corrupt lines were silently dropped by lessons()."""
+    log = CUR.LessonLog(tmp_path / "l.jsonl")
+    big = "x = 1\n" * 40000
+
+    def work(w: int) -> None:
+        for i in range(12):
+            les = CUR.Lesson(f"w{w}i{i}", f"P{w}", "C", "gap", "o", files_before={"m.py": big}, files_after={"m.py": big + "y"})
+            log.add(les)
+            log.outcome(les.lesson_id, True, "ADOPTED")
+            log.defer(f"P{w}", "gap", "why " + big[:30000])
+    ts = [threading.Thread(target=work, args=(w,)) for w in range(8)]
+    for t in ts:
+        t.start()
+    for t in ts:
+        t.join()
+    for name in ("l.jsonl", "deferred.jsonl"):
+        for ln in (tmp_path / name).read_text(encoding="utf-8").splitlines():
+            json.loads(ln)                                                  # every line is whole
+    assert len(log.lessons()) == 96 and all(x.adopted is True for x in log.lessons())

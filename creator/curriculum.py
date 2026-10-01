@@ -16,6 +16,7 @@ import dataclasses
 import datetime as dt
 import json
 import subprocess
+import threading
 import uuid
 from pathlib import Path
 from typing import Any, Iterable, Optional, Protocol, Sequence, runtime_checkable
@@ -23,6 +24,18 @@ from typing import Any, Iterable, Optional, Protocol, Sequence, runtime_checkabl
 from creator import kernel as K
 
 CLAUDE = "claude"
+_APPEND_LOCK = threading.Lock()                     # swarm workers (threads) share one lessons.jsonl and deferred.jsonl
+
+
+def _append_line(path: Path, text: str) -> None:
+    """One whole line per append: lessons carry whole files, far beyond the write buffer, so unlocked appends interleave."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    data = (text + "\n").encode("utf-8")
+    with _APPEND_LOCK, path.open("ab") as fh:
+        fh.write(data)
+        fh.flush()
+
+
 ADJUDICATED = {"ADOPTED": True, "REJECTED": False, "ROLLED_BACK": False}      # cycle outcomes that decide a lesson
 
 
@@ -84,9 +97,7 @@ class LessonLog:
         self.path = Path(path)
 
     def _append(self, rec: dict[str, Any]) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        with self.path.open("a", encoding="utf-8") as fh:
-            fh.write(json.dumps(rec, sort_keys=True) + "\n")
+        _append_line(self.path, json.dumps(rec, sort_keys=True))
 
     def add(self, lesson: Lesson) -> str:
         self._append(lesson.to_dict())
@@ -117,10 +128,8 @@ class LessonLog:
 
     def defer(self, package_id: str, kind: str, why: str) -> None:
         dp = self.path.with_name("deferred.jsonl")
-        dp.parent.mkdir(parents=True, exist_ok=True)
-        with dp.open("a", encoding="utf-8") as fh:
-            fh.write(json.dumps({"package": package_id, "task_kind": kind, "why": why,
-                                 "at": dt.datetime.now().isoformat(timespec="seconds")}) + "\n")
+        _append_line(dp, json.dumps({"package": package_id, "task_kind": kind, "why": why,
+                                     "at": dt.datetime.now().isoformat(timespec="seconds")}))
 
 
 # ------------------------------------------------------------------------------------------------ scoring and routing
@@ -271,7 +280,7 @@ class _ClaudeStep:
         if owners:
             why = f"{les.task_kind} is handed over to {owners}; not sent to Claude, retry later"
             self.cur.log.defer(les.package_id, les.task_kind, why)
-            return K.WorkResult(False, why)
+            return K.WorkResult(False, why, deferred=True)
         res = self.session(plan, package, workdir)
         self.cur._record(les, res, workdir)
         return res
