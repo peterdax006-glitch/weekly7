@@ -50,3 +50,34 @@ def test_solver_fills_stub(tmp_path: Path):
     ns: dict = {}
     exec((tmp_path / "app" / "solution.py").read_text(), ns)
     assert ns["total"](1, 6) == 7
+
+
+_DOC = "Remove repeated items, keeping the first occurrence."
+
+
+def test_ambiguous_single_example_abstains():
+    # [1, 2] -> [1, 2] is satisfied by dedupe AND by running_max; the probe [3, 1, 3] tells them apart
+    sp = S.Spec("f", ("xs",), _DOC, ((([1, 2],), [1, 2]),), probes=(([3, 1, 3],),))
+    assert S.synthesize(sp) is None
+
+
+def test_two_examples_only_one_idiom_accepts():
+    sp = S.Spec("f", ("xs",), _DOC, ((([1, 2, 1],), [1, 2]), (([3, 3],), [3])), probes=(([3, 1, 3],),))
+    got = S.synthesize(sp)
+    assert got is not None and got[0] == "idiom:dedupe"
+
+
+def test_one_example_one_cue_abstains():
+    sp = S.Spec("f", ("xs",), "Reverse it.", ((([1, 2],), [2, 1]),))
+    assert S.synthesize(sp) is None
+
+
+def test_one_example_two_cues_accepts_when_unambiguous():
+    sp = S.Spec("f", ("xs",), _DOC, ((([1, 2, 1],), [1, 2]),))
+    assert S.synthesize(sp) is not None
+
+
+def test_idiom_disabled_by_name():
+    sp = S.Spec("f", ("xs",), _DOC, ((([1, 2, 1],), [1, 2]), (([3, 3],), [3])))
+    got = S.synthesize(sp, frozenset({"dedupe"}))
+    assert got is None or got[0] != "idiom:dedupe"
